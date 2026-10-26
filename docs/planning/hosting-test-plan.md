@@ -56,6 +56,41 @@ Failure isolation inside a shared JVM: what one bad match does to the others.
 | B5 | AI cutoff threads: count live AI eval threads over a soak with cutoffs firing | flat; today `t.stop()` is a no-op on Java 20+ (forge-scale finding 2), expected to fail |
 | B6 | per-game RNG (after lane-rng): N concurrent fixed-seed matches each equal their solo run | identical |
 
+### B results (lane-breakit, 2026-10-26)
+
+Run on claw-9 (B2, B3, B5) and claw-8 (B4), each JVM in a `systemd-run --user
+--scope` of **4 CPUs / 3 GB** with `-Xmx2200m` unless the test says otherwise,
+on Forge pin `9e5f5b75` (the per-pin jar), 16 paced vs-AI cube matches per run
+(`N=16 scripts/stress/suite.sh b2|b3|b4|b5 <claw> docs/spikes/hosting-tests`).
+CI was running beside every run: claw-9 had 2–4 runners at load 21–30, claw-8
+1–2 at load 9–18 (`runners_pre`/`load_pre` columns). Each row is one run, so a
+latency difference under ~30 % is noise. Rows: `docs/spikes/hosting-tests/b*.tsv`;
+5 s series: `docs/spikes/hosting-tests/series/`.
+
+Fault injection is new in `ForgeScale.java` (`stress.fault`, `stress.faultSlots`,
+`stress.faultAfter`, `stress.faultRescueSec`): the AI seat of a fault slot
+does the fault inside its 10th priority decision, on the game thread.
+`stress.aiTimeoutSec` overrides `Game.AI_TIMEOUT` (B5). The series now also carry
+metaspace, loaded classes and GC time (B1).
+
+The baseline for the gates is `b3-base-n16`: AI p95 13.9 ms, act p99 27.8 ms,
+GC 0.2 %, 0 cutoffs.
+
+| # | result | evidence |
+| --- | --- | --- |
+| B1 | **running**, not read: an 8 h soak started 2026-10-26 on claw-9 at 07:09Z as transient user unit `breakit-soak-1792998586` (ends by itself after 8 h, `RuntimeMaxSec` 8 h 15 min) (48 paced matches, 40 % human-vs-human, 4 CPUs / 3 GB, forced GC every 5 min). Collect with `scripts/stress/soak.sh collect claw-9 <dir>` after it ends, then `scripts/stress/soak-summary.py <dir>/breakit-soak-*/series.tsv`. | (pending) |
+| B2 | **isolation passes, recovery fails.** Spin (an AI loop no interrupt reaches): the others held every gate (AI p95 15.4 ms, act p99 29 ms, 0 cutoffs); a per-decision watchdog saw the hang at 3.2 s; the rescue a host could do without killing the JVM (`setGameOver` + interrupt) did nothing, and the thread burned **234.7 CPU-s in the 240 s run, a full core, until the JVM exits** (finding H6). Block (an AI waiting on something an interrupt reaches): the same rescue freed 5 of 5 games, each 30.6 s after it hung (the 30 s rescue delay + 0.6 s). forge#3410 board: declare-attackers took up to **17.1 s with zero cutoffs**, while the 16 others held the gates (AI p95 15.2 ms, act p99 45 ms). | `b2.tsv`; `series/claw-9-b2-spin-n16.tsv` (`cpu_s` climbs ~1.2 CPU-s/s with 16 paced matches) |
+| B3 | **passes in the harness.** A real `StackOverflowError` (28 faults) and an engine exception (47) on the game thread each unwound out of `Match.startGame` in ~13 ms; only that game ended, the slot thread went on to its next match, the JVM and the other 14 matches were unaffected (AI p95 13.2 / 14.2 ms against 13.9). **But production runs games differently**: `HostedMatch.startGame` runs the game through `GameAction.invoke` → `ThreadUtil.invokeInGameThread` (`HostedMatch.java:280`, `ThreadUtil.java:44`), a bare `ExecutorService.execute` with no handler, and `PlayBridge.java` installs no `UncaughtExceptionHandler`. A throw there ends the game thread silently and leaves the match hung exactly like C2 (finding H9, ASSUMED from the code: not provoked in a real bridge). | `b3.tsv` (`fault_ends`, `fault_unwind_p50_ms`) |
+| B4 | **the JVM exits and nothing hangs, but the warning is long and the end is total.** With `-XX:+ExitOnOutOfMemoryError` and a heap too small (64 matches in 400 MB): live heap reached 381 MB at 111 s (first sign: eval threads 0 → 10, first cutoff); then **~115 s at ~94 % GC** (`gc_ms` 16 s → 126 s between t=111 and t=227) before `Terminating due to java.lang.OutOfMemoryError` and exit 3. On 8 CPUs T6 took 30 s; in a 4-CPU slice it takes 4× longer (H7). **Without the flag the JVM never exits** (that is today's bridge launch, `host.ts:488`): 71 games died of `OutOfMemoryError`, the JVM limped on at 62 % GC, act p99 14.6 s, 109 cutoffs, 19 live eval threads. **A cgroup `MemoryMax` below the JVM's footprint** (`-Xmx2200m` in 700 MB): the kernel OOM-killed the JVM 28 s after start with no Java-side sign (last sample: RSS 637 MB, heap normal), rc 137, every match gone (H8). | `b4.tsv`, `b4.c97.tsv`; `series/claw-8-b4-*.tsv`; claw-8 `journalctl --user`: `run-p719182….scope: … killed by the OOM killer` |
+| B5 | **passes on pin `9e5f5b75` under normal load, fails under heap starvation.** With `Game.AI_TIMEOUT=0` every canPlay scan is cut off: 72,055 cutoffs in 300 s at full speed (4 matches) and 5,642 at 16 paced, and live `Game AI Eval` threads peaked at **3** and **1**, flat over the run. The pin's cooperative cancel (`future.cancel(true)` + `join(2000)`, `AiController.java:1700-1712`) works; perf catalogue P2 is fixed for that case. Under GC thrash it is not: B4's runs reached **19 and 26 live eval threads** (a starved thread never reaches its cooperative check). | `b5.tsv`; `series/claw-9-b5-cutoff0-full-n4.tsv`, `series/claw-8-b4-exit-n64-400m.tsv` (`eval_threads`) |
+| B6 | skipped: waits on lane-rng's fork. | |
+
+Harness bug found and fixed on the way: a decision that threw never reached
+`timed()`, so its seat stayed in the watchdog's `DECIDING` set and kept its
+`Game` reachable: b3's live heap per match read 3.8 → 6.0 → 9.2 MB (base, soe,
+throw). The slot now drops the game's seats when the game ends; the re-run is
+`b3-throw-fixed-n16`.
+
 ## C. Today's single-host path (testable now, a dev server on a claw)
 
 How the current one-JVM-per-match hosting fails. These set the bar the
@@ -70,6 +105,33 @@ claws must beat, and several gaps carry straight over.
 | C5 | start matches until `MAX_CONCURRENT_MATCHES` and past it | the refusal is clear to the player; the warm spare refills |
 | C6 | the work dir's disk full | the match fails loudly, the server stays up |
 | C7 | 20 match starts in one second | no orphan JVM, no double spare |
+
+### C results (lane-breakit, 2026-10-26)
+
+A dev server with real Forge on claw-8 (C1–C4, C6) and claw-9 (C5, C7): the
+built server and UI of `origin/main` at `f468c679`, Forge pin `9e5f5b75` from the
+claw's forge-bundle cache, e2e's own stack (`startPlayStack`: real edge
+stand-in, two friend identities, a work dir under `~/.cache`) and real
+Chromium through Playwright, never the shared MCP browser. The spec is
+`scripts/stress/hosting/breakit.spec.ts` (copy it into `e2e/` to run; it is
+kept out of `e2e/` so CI never runs it). Each observation is a `[breakit]`
+JSON line; screenshots and console logs stayed in the lane's scratch.
+
+Each stack runs **three** JVMs, not two: the match, the warm spare, and the
+deck pool's own (`PoolService`, cwd `pool`, 757 MB RSS on claw-9).
+
+| # | result | what the players saw | server | detection | left behind |
+| --- | --- | --- | --- | --- | --- |
+| C1 | **FAIL (UI).** The server side passes; the screens do not. | Nothing. 35 s after the kill, alice still had "Waiting for e2e-bob to choose…" and bob still had the Cleanup discard prompt open, Concede greyed. Both sockets received the `showErrorDialog` `matchEnded` frame 30 ms after the kill (`errorFrame` in the evidence). H1. | `jvm-exited` → `match-failed` → the notice to both seats → `run-dir-kept`, all 251–255 ms after SIGKILL; `GET /matches/:id` says `failed` with the reason. | 0.25 s (server); never (players) | crash record (`bridge.stderr.txt`, `config.json`, `crash.json`); spare intact; no JVM |
+| C2 | **FAIL.** A stopped JVM is never detected. | Their own buttons re-offered every 10 s (Keep/Mulligan comes back enabled), each press silently dropped; no notice. | `act-unanswered` + `window-resent` every 10 s; `status: running` after 3 min; no failure. | never (≥ 180 s observed) | the stopped JVM, alive (`T`), until the stack was stopped |
+| C2 | **FAIL, worse:** after SIGCONT the match never moved again (turn `Start` before and 20 s after). | Same as above, for ever. | Forge's own in-JVM server had dropped both loopback clients on resume: `e2e-alice timed out after 45 seconds without a network response. Closing connection.` (`FServerManager.java:73`, `forge.net.heartbeatTimeout`), then `No encoder in client pipeline for GuiGameEvent … selectButtonOk` for every press. H3. | never | a live JVM holding a dead match |
+| C3a | **PASS.** Graceful restart (SIGTERM, as pm2 does). | No notice drawn; the board stayed; play resumed (turn `Start` → `2` in the 30 s after). | `jvm-handed-over` → next process `jvm-attached` + `match-resumed` (replayed 26 lines) 2.1 s later; both seats re-`joined` 4 s after the SIGTERM; same JVM pid. | — | the idle spare reaped at shutdown, a new one spawned; nothing orphaned |
+| C3b | **PASS.** Node SIGKILLed (a crash, no handover), new server after 15 s. | "Reconnecting…" over the board for the 15 s; play resumed after (game progressed through combat). | The match JVM and the idle spare both outlived the server; the next boot killed the old spare from its record and re-attached the match (`orphanedAt: null`, replayed 27). | — | nothing after the next boot |
+| C4 | **PASS.** bob's whole browser process tree SIGSTOPped for 150 s. | alice: "Waiting for e2e-bob to reconnect…" from 34.5 s (socket.io ping timeout, `left … reason: ping timeout`); bob after SIGCONT: rejoined, game went on to turn 2. | `seat-departing` with the 30 s grace, `openAsks: 0`; server RSS flat (386 → 273 MB). | 34.5 s | nothing. Not tested: memory under heavy traffic to a frozen seat (the match was waiting on bob, so little was sent). |
+| C6 | **FAIL.** Work dir's filesystem filled mid-match (a 300 MB tmpfs over e2e's play-work root inside `unshare -rm`). | Nothing: the match played on normally. | `jvm-stream-broken` (`ENOSPC`) once, then nothing; **`jvm.json` truncated to nothing** by its in-place rewrite (`host.ts:1492`), so the match lost its re-attach record (H4); on the next SIGTERM it could not be handed over and was ended ("The server is restarting for a deploy."). A new `POST /api/play/matches` threw `ENOSPC` out of `BridgeJvm.adopt` (`host.ts:1515`): Express's HTML 500 page, and a match left registered in `starting` (H5). `/health` stayed 200, the server stayed up. | 0.4 s (log only) | the match JVM's record gone; the half-made match |
+| C5 | **PASS**, with a cost. | Not checked in a room (API only): the 11th start got `503 {"error":"the server is already running 10 matches"}`. | 10 matches + pool = 11 JVMs, **8.6 GB RSS** (~790 MB per idle vs-AI match JVM). No spare at 10 (the ceiling counts it); after one match's JVM was killed the spare came back warm in 9.6 s and the next start took it. | — | all reaped at stop |
+| C7 | **PASS**, with a cost. 20 POSTs 50 ms apart: 10 × 201, 10 × 503 within 0.5–1 s. | — | Peak JVMs 11 (pool + 10), spare ≤ 1, no unrecorded JVM; all gone after stop. But 9 of the 10 starts were cold and all booted at once: **47–55 s to 201** (`bootMs` 44.7–52.4 s, against 9.6 s for one), within 8 s of the server's 60 s start timeout (`socket.ts`, `startTimeoutMs`). H10. | — | nothing |
+| C2b | **FAIL past 45 s** (added: how long a pause the bridge survives). SIGSTOP for 0 / 30 / 60 s, then a Forge round trip: the e2e probe (Forge's own `showConfirmDialog` to alice, through the bridge's loopback client, answered on her screen). | 0 s and 30 s: the dialog drawn and answered, 105–117 ms. 60 s: no dialog. | 60 s: the probe answered `no remote client GUI at slot 0` after 20 s; `bridge.stderr.txt` has the heartbeat timeout. | never | a live JVM with no clients |
 
 ## D. Hosting on the claws (blocked on host agent, placement, failover)
 
@@ -97,3 +159,32 @@ Written now so the design is built to pass them.
 
 | id | test | what broke | owner | status |
 | --- | --- | --- | --- | --- |
+| H1 | C1 | **A crashed match looks live.** The server tells both seats in 0.25 s (`showErrorDialog` with `matchEnded`, `match.ts:3680`) and the frame reaches both sockets, but the UI only sets `match.over` (`live/match.ts:3268`). `GameResultScreen` needs `view.gameOver` or `finished`, so nothing is drawn: players keep an open prompt and a greyed Concede for as long as they wait. Repro: C1 (`kill -9` the pid in the match's `<run>/jvm.json`). Fix: when `over && !finished`, draw the ended notice (its message and a way back to the room) and drop open prompts. | cardtable (UI) | open |
+| H2 | C2 | **A hung JVM is never detected.** After SIGSTOP the match stayed `running` for 3+ min with no failure. The server's `act-unanswered` re-sends the player's own window every 10 s, so presses are dropped again and again with no notice. Repro: C2. Fix: a liveness line from the bridge every few seconds, from a thread other than the game thread, and the match failed through H1's path after N missed. D1–D2's per-match heartbeat is the same signal. | cardtable | open |
+| H3 | C2, C2b | **A JVM pause over 45 s wedges the match permanently, even after the JVM resumes.** Forge's in-JVM server drops its loopback clients after `forge.net.heartbeatTimeout` (default 45 s, `FServerManager.java:73`), and the bridge never reconnects them. C2b: pauses of 0 and 30 s recover; a 60 s pause leaves `no remote client GUI at slot 0`, and every later press logs `No encoder in client pipeline`. Nothing detects it (H2). Pauses that long are real: B4's GC death spiral ran ~115 s. In a multi-match JVM one such pause would wedge every match at once. Repro: C2b with `BREAKIT_STOP_S=60`. Fix: launch bridge JVMs with `-Dforge.net.heartbeatTimeout` far above any plausible pause (the clients are in the same process), and have the bridge send `fatal` when a seat's client channel goes inactive, so H1's path runs. | cardtable (bridge; lane-multimatch for the shared JVM) | open |
+| H4 | C6 | **A full disk silently destroys a match's re-attach record.** `jvm.json` is rewritten in place (`host.ts:1492`, `writeFileSync`), and `ENOSPC` left it empty: the match could no longer be handed over (the next SIGTERM ended it). A live JVM whose record is gone is spared by the boot sweep's live-process guard rather than reaped (ASSUMED from the README's sweep rule). `stream.jsonl` appends stop at the first `ENOSPC` (`jvm-stream-broken`, logged once), so a replay would come up short. Nothing alerts. Repro: C6. Fix: write records to a temp file and rename it into place; treat `jvm-stream-broken` as a degraded match (alert, and refuse handover in words). | cardtable | open |
+| H5 | C6 | **Starting a match on a full disk gives an HTML 500 and a half-made match.** `ENOSPC` from `BridgeJvm.adopt` (`host.ts:1515`) escapes `POST /api/play/matches`: Express answers with its default HTML error page, and the match stays registered as `starting`. Repro: C6's second start. Fix: catch in `matches.create`/`start`, fail the match, and answer 503 with words. | cardtable | open |
+| H6 | B2 | **A spinning AI cannot be stopped inside a shared JVM.** A per-decision watchdog sees it at 3 s, but `setGameOver` + interrupt freed 0 of 1 and the thread burned a full core (234.7 CPU-s in 240 s) until the JVM exits. A blocked AI, which an interrupt does reach, was freed 5 of 5. Repro: `N=16 suite.sh b2`. Design: the host agent needs a decision watchdog, must end the match for its players, and must count stuck threads per JVM and drain/recycle the JVM past a limit, because nothing else returns the core. | cardtable (host agent design) | open |
+| H7 | B4 | **Running out of heap takes minutes, then every match.** G1 has no GC-overhead limit. With `-XX:+ExitOnOutOfMemoryError`, a starved 4-CPU JVM spent ~115 s at ~94 % GC before it exited (T6 on 8 CPUs: 30 s). Without the flag, which is today's bridge launch (`host.ts:488` adds only `-Xmx1g`), the JVM never exits: games die one by one of `OutOfMemoryError` while the rest crawl (GC 62 %, act p99 14.6 s). Repro: `suite.sh b4`. Fix: add `-XX:+ExitOnOutOfMemoryError` to bridge JVMs now. For multi-match, watch the live heap after GC (a `MemoryPoolMXBean` collection-usage threshold) and stop admitting / drain at ~85 % of `-Xmx`, well before the spiral. | cardtable | open |
+| H8 | B4 | **A slice smaller than the JVM is a silent kill.** `-Xmx2200m` in a 700 MB `MemoryMax`: the kernel OOM-killed the JVM 28 s in with no Java-side sign, rc 137, every match gone. Repro: `suite.sh b4`, third run. Fix: size `MemoryMax` ≥ `-Xmx` + ~400 MB non-heap (RSS 1.24–1.27 GB at `-Xmx1000m`, `forge-scale.md`), and have the agent read the unit's `oom-kill` result to report the death. | cardtable + fleet-manager (slice sizing, reporting) | open |
+| H9 | B3 | **In production, an exception on the game thread would hang the match instead of ending it.** ASSUMED from the code, not provoked in a real bridge. The harness shows the engine itself is isolated: a real `StackOverflowError` or an engine exception unwinds out of `Match.startGame` and ends only that game. But the bridge starts games through `HostedMatch` → `GameAction.invoke` → `ThreadUtil.invokeInGameThread`, a bare `execute()` with no handler (`HostedMatch.java:280`, `ThreadUtil.java:44`), and `PlayBridge.java` sets no `UncaughtExceptionHandler`. The game thread dies, nothing tells the bridge, and the players get C2's silence. Fix: catch `Throwable` around each match's game runnable (or set an uncaught-exception handler on the game pool) and send `fatal` for that match. It belongs with lane-multimatch's per-match context. | cardtable (bridge; lane-multimatch) | open |
+| H10 | C7 | **A burst of cold starts gets close to the start timeout.** 10 matches requested at once on claw-9 (CI load ~20 on 12 threads): each cold JVM booted in 44.7–52.4 s, against 9.6 s for one alone. Players waited ~50 s, and the slowest start was 8 s inside the 60 s `whenRunning` timeout (`socket.ts:573`), so a busier box or a bigger burst would fail starts with a 500. Repro: C7. Fix: start cold JVMs through a small queue (2–3 at a time) and show the player their place in it, or keep more warm spares. On the claws, the same burst is what a failover (D5) produces. | cardtable | open |
+
+### What the B and C findings change in the hosting design (lane-breakit)
+
+- **"The JVM is alive" is not "the match is alive."** A stopped JVM (H2), a JVM after a 45 s
+  pause (H3) and, by the code, a game thread that threw (H9) all keep a live pid and a match
+  that will never move again. The host agent's health check has to be per match: a liveness
+  line from each match's own context and a decision watchdog. The pid poll and the D2
+  heartbeat window are not enough.
+- **Some failures can only be fixed by ending the whole JVM** (H6, H7, H3 in a shared JVM).
+  The multi-match host needs a planned way to drain a JVM (migrate its matches, then
+  recycle it), not only the unplanned failover of D1. That drain is also what makes H7's
+  heap watchdog useful before the spiral.
+- **Failover is a cold-start burst** (H10): 10 cold JVMs together took ~50 s on claw-9. A
+  claw holding 50 matches cannot restore them as 50 JVMs. That favours restoring into
+  already-warm multi-match JVMs on other claws, with starts queued.
+- **Slice sizing has a floor:** `MemoryMax` ≥ `-Xmx` + ~400 MB, G1 forced below 1.8 GB
+  (P3), `-XX:+ExitOnOutOfMemoryError`, `-Dforge.net.heartbeatTimeout` raised (H3, H7, H8).
+- **The crash path the server already has stops at the screen** (H1). Every failure path
+  above ends in H1, so H1 is the first fix.
