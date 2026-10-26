@@ -241,6 +241,7 @@ import { CloseRoom } from '../rooms/CloseRoom.tsx';
 import { roomFeed, type RoomFeed } from '../rooms/feed.ts';
 import { latestReads } from '../rooms/latest.ts';
 import { useChromeShell } from '../chrome/shell.ts';
+import { startingText, useQueuePlace } from './queue-place.ts';
 
 export interface ConstructedScreenProps {
   /** Tests pass a client over a stub fetch. Production passes nothing. */
@@ -2082,7 +2083,8 @@ function RoomTableScreen({
   /** What holds my tournament table's next game: this round's own deck pick, or Gauntlet's flow until its `playing`. */
   const tCanStart = !tNeedsDeck && (mode !== 'gauntlet' || gauntlet?.phase === 'playing');
 
-  const startState = startStateText(starting, matchId);
+  const queuePlace = useQueuePlace(starting && matchId === null, client.queuePlace);
+  const startState = startStateText(starting, matchId, queuePlace);
   /** Back in the room by choice while the game goes on: the way into it again. */
   const matchLink = matchId !== null && (
     <a className="lobby__go" data-testid="room-match-link" href={routeHash({ kind: 'match', matchId })}>
@@ -2697,9 +2699,9 @@ function StreamSeat({
  * seats' own ready rings and pills (the operator, 2026-10-22: "lets get rid of the 'Waiting for
  * Hadoku.' this is unecessary").
  */
-function startStateText(starting: boolean, matchId: string | null): string | null {
+function startStateText(starting: boolean, matchId: string | null, place: number | null): string | null {
   if (matchId !== null) return 'Match running — joining.';
-  if (starting) return 'Starting Forge…';
+  if (starting) return startingText(place);
   return null;
 }
 

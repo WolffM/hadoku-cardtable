@@ -14,6 +14,7 @@ export {
 	type JvmPoolOptions,
 	type MatchHostFactory,
 } from './host.js';
+export { coldStartsFrom } from './start-queue.js';
 export { roomFormatNames } from './names.js';
 export { roomDeckCosts } from './deck-colors.js';
 export { tableGame } from './table-game.js';

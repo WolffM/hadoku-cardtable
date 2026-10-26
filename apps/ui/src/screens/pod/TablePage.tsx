@@ -29,6 +29,7 @@ import { resolveTable } from '../tableActions.ts';
 import { TableSideboard } from '../TableSideboard.tsx';
 import type { TablesClient } from '../tables.ts';
 import { useTableStart } from './client.ts';
+import { startingText } from '../queue-place.ts';
 import { ReadyToggle } from './ReadyToggle.tsx';
 import { FaceOff, useOpponentReveal, type FaceOffSeat } from './FaceOff.tsx';
 import { isPodAi, type PodView } from './wire.ts';
@@ -72,7 +73,7 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
 
   const mine = table !== undefined && table.players.some((p) => p.memberId === myMemberId);
   const current = table !== undefined && (pod === null || (pod.phase === 'rounds' && pod.pairings.some((p) => p.tableId === table.id)));
-  const { error, retry } = useTableStart(roomId, mine && current ? table : undefined, canStart);
+  const { error, retry, queuePlace } = useTableStart(roomId, mine && current ? table : undefined, canStart);
   // A round's opponent is revealed to its players; a plain room's one table has no round to reveal.
   const revealing = useOpponentReveal(pod !== null && mine && current ? (table?.id ?? null) : null);
 
@@ -134,6 +135,11 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
             onAbandon={mine && pod === null ? () => resolveTable('abandon', roomId, table.id) : undefined}
             onDrop={mine && pod !== null ? () => resolveTable('drop', roomId, table.id) : undefined}
           />
+        )}
+        {queuePlace !== null && (
+          <p className="lobby__note" data-testid="start-state">
+            {startingText(queuePlace)}
+          </p>
         )}
         {error !== null && (
           <div className="ct-error" role="alert" data-testid="pod-table-start-error">

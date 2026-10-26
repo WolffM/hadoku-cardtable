@@ -26,6 +26,7 @@ import { roomFeed } from '../../rooms/feed.ts';
 import { latestReads } from '../../rooms/latest.ts';
 import { apiUrl, bodyOf, getJson, isRecord, sendJson } from '../../http.ts';
 import { tablesClient } from '../tables.ts';
+import { useQueuePlace } from '../queue-place.ts';
 import { parsePodView, type PodView } from './wire.ts';
 
 /** The room's raw body — `fetchRoomTables`'s sibling for `pod`. `'gone'` on the server's 404, `null` on any other failure. */
@@ -265,13 +266,16 @@ export function myCurrentTable(pod: PodView | null, tables: readonly RoomTable[]
  * gate (a re-picked deck, Gauntlet's banpick). Asked once per game; a refusal
  * is returned with `retry`.
  */
-export function useTableStart(roomId: string, table: RoomTable | undefined, canStart: boolean): { error: string | null; retry: () => void } {
+export function useTableStart(roomId: string, table: RoomTable | undefined, canStart: boolean): { error: string | null; retry: () => void; queuePlace: number | null } {
   const [error, setError] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
   const asked = useRef<string | null>(null);
   const start = (t: RoomTable, ask: string): void => {
     asked.current = ask;
     setError(null);
+    setStarting(true);
     startMyTable(roomId, t).then((r) => {
+      setStarting(false);
       if (!r.ok) setError(r.message);
     });
   };
@@ -284,7 +288,8 @@ export function useTableStart(roomId: string, table: RoomTable | undefined, canS
   const retry = (): void => {
     if (table !== undefined) start(table, `${table.id}:retry`);
   };
-  return { error, retry };
+  const queuePlace = useQueuePlace(starting && table?.matchId === null, tableClient.queuePlace);
+  return { error, retry, queuePlace };
 }
 
 /**

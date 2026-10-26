@@ -294,6 +294,11 @@ export interface TablesClient {
    * the deck it just played; any other start of a new series draws a new one.
    */
   startVsBot(roomId: string, tableId?: string, opts?: { rematch?: boolean }): Promise<StartOutcome>;
+  /**
+   * `GET /api/play/queue`: my place, 1-based, while a start I am waiting on waits for a Forge JVM
+   * (`./queue-place.ts`); null when none is waiting. Throws when the server cannot answer.
+   */
+  queuePlace(): Promise<number | null>;
 }
 
 async function readJson(res: Response): Promise<Record<string, unknown>> {
@@ -405,6 +410,10 @@ export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, in
       const { status, body } = await post('play/matches', withTable({ room: roomId, bot: true, ...(opts?.rematch === true ? { rematch: true } : {}) }, tableId));
       if ((status === 201 || status === 200) && typeof body.matchId === 'string') return { ok: true, matchId: body.matchId };
       return { ok: false, error: errorOf(body, status), seats: null };
+    },
+    queuePlace: async () => {
+      const { place } = await get('play/queue');
+      return typeof place === 'number' && Number.isInteger(place) && place >= 1 ? place : null;
     },
   };
 }

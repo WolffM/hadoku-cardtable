@@ -2098,6 +2098,8 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// around "a scenario is a TEST facility, never a production one".
 		const scenario = room.scenario;
 		if (scenario !== undefined) res.locals.trustedScenario = true;
+		// Everyone this start seats can read its place in the queue for a JVM (`GET /api/play/queue`).
+		res.locals.startedFor = players.map((p) => p.member.id);
 
 		// Play's own body. Each deck is the text its own player's rule checked. No
 		// avatars: a seat's face is read from this room for as long as the match

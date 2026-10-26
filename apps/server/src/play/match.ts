@@ -162,6 +162,7 @@ import { chosenTargetConfirm, pickedBy, sameTargetAct, targetAbilityOf, type Sam
 import { artOf } from './art.js';
 import { fallbackFor, type Fallback } from './unparsed.js';
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
+import type { StartEvents } from './start-queue.js';
 import { faceNames, namesForFormat } from './names.js';
 import type { SpellCopy } from './spell-copiers.js';
 
@@ -1083,6 +1084,13 @@ export class Match {
 	private host: MatchHost | null = null;
 	private readonly now: () => number;
 	private readonly runningWaiters: ((outcome: ClientOutcome) => void)[] = [];
+	/** `whenRunning` timeouts not yet started, because the match is waiting for a boot slot. */
+	private readonly bootWaiters: (() => void)[] = [];
+	/**
+	 * This match's place among the starts waiting for a boot slot (`start-queue.ts`), 1-based, or
+	 * null once its JVM is booting — and for a match that never waited.
+	 */
+	queuePlace: number | null = null;
 	private readonly probes = new Map<string, (r: ProbeResult) => void>();
 	private overTimer: NodeJS.Timeout | null = null;
 	/**
@@ -1298,12 +1306,19 @@ export class Match {
 		this.rejoinTimer.unref();
 	}
 
-	private hostEvents(): HostEvents {
+	private hostEvents(): StartEvents {
 		return {
 			line: (line) => this.onLine(line),
 			exit: (reason) => this.onExit(reason),
 			log: (entry) => this.deps.log(entry),
 			replayed: (command) => this.onReplayedCommand(command),
+			queued: (place) => {
+				this.queuePlace = place;
+			},
+			booting: () => {
+				this.queuePlace = null;
+				for (const arm of this.bootWaiters.splice(0)) arm();
+			},
 		};
 	}
 
@@ -1464,7 +1479,11 @@ export class Match {
 		return { ok: true, seat: free.seat, fresh: true };
 	}
 
-	/** Resolves when every human seat knows its Forge player, or the match has failed. */
+	/**
+	 * Resolves when every human seat knows its Forge player, or the match has failed. `timeoutMs`
+	 * counts from when its JVM began booting: a start waiting its turn (`start-queue.ts`) is not
+	 * Forge failing to start.
+	 */
 	whenRunning(timeoutMs: number): Promise<ClientOutcome> {
 		if (this.status !== 'starting') {
 			return Promise.resolve(
@@ -1472,16 +1491,23 @@ export class Match {
 			);
 		}
 		return new Promise((done) => {
-			const timer = setTimeout(() => {
-				const i = this.runningWaiters.indexOf(finish);
-				if (i >= 0) this.runningWaiters.splice(i, 1);
-				done({ ok: false, error: 'match-starting' });
-			}, timeoutMs);
+			let timer: NodeJS.Timeout | null = null;
+			const arm = (): void => {
+				timer = setTimeout(() => {
+					const i = this.runningWaiters.indexOf(finish);
+					if (i >= 0) this.runningWaiters.splice(i, 1);
+					done({ ok: false, error: 'match-starting' });
+				}, timeoutMs);
+			};
 			const finish = (outcome: ClientOutcome): void => {
-				clearTimeout(timer);
+				if (timer !== null) clearTimeout(timer);
+				const i = this.bootWaiters.indexOf(arm);
+				if (i >= 0) this.bootWaiters.splice(i, 1);
 				done(outcome);
 			};
 			this.runningWaiters.push(finish);
+			if (this.queuePlace === null) arm();
+			else this.bootWaiters.push(arm);
 		});
 	}
 

@@ -119,6 +119,7 @@ import { artOf } from './art.js';
 import { seatDeckColors, type DeckCosts } from './deck-colors.js';
 import { namedStopPolicy, STOP_POLICY_NAMES, withEndStepStop, type StopPolicy } from './auto.js';
 import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from './host.js';
+import { COLD_STARTS, queueColdStarts } from './start-queue.js';
 import { WATCHER_SEAT, createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity } from './match.js';
 import type { SpellCopy } from './spell-copiers.js';
 import { httpCaller, readBody } from '../http/request.js';
@@ -138,6 +139,11 @@ export interface PlayDeps {
 	overGraceMs?: number;
 	/** How long `POST /play/matches` waits for Forge to open the game. Default 60 s. */
 	startTimeoutMs?: number;
+	/**
+	 * Match JVMs booting at once; the rest wait their turn (`start-queue.ts`). Default
+	 * `COLD_STARTS`; `index.ts` reads `CARDTABLE_PLAY_COLD_STARTS`.
+	 */
+	coldStarts?: number;
 	/** How long a join waits for a starting match. Default 8 s — under the client's 10 s ack timeout. */
 	joinWaitMs?: number;
 	/**
@@ -438,6 +444,8 @@ export function parseStopPolicyEnv(env: NodeJS.ProcessEnv = process.env): { name
 
 export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): PlayHandle {
 	const log = deps.log ?? jsonLogger('cardtable-play');
+	// Every start reaches Forge through this one factory, so every start is queued here.
+	const host = deps.host === null ? null : queueColdStarts(deps.host, deps.coldStarts ?? COLD_STARTS, log);
 	const policy = playEmitPolicy(log);
 	const rooms = new RoomRegistry<PlayApp, PlayClient>(() => ({ match: null }));
 	const joinWaitMs = deps.joinWaitMs ?? 8000;
@@ -479,11 +487,11 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	/** Set by `shutdown`: this process is going away, so it starts nothing new. */
 	let draining: string | null = null;
 
-	const attach = deps.host?.attach;
+	const attach = host?.attach;
 	const matches = createMatchRegistry({
 		host: (id, spec, events) => {
-			if (deps.host === null) throw new Error('no Forge host is configured');
-			return deps.host(id, spec, events);
+			if (host === null) throw new Error('no Forge host is configured');
+			return host(id, spec, events);
 		},
 		...(attach === undefined ? {} : { attach: (record, events) => attach(record, events) }),
 		...(startingStopPolicy === null ? {} : { stopPolicy: startingStopPolicy }),
@@ -524,6 +532,9 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	const router = express.Router();
 	router.use(express.json({ limit: '256kb' }));
 
+	/** Starts still in flight, and who is waiting on each. */
+	const waitingOn = new Map<Match, Set<ParticipantId>>();
+
 	router.post('/matches', async (req: Request, res: Response) => {
 		const parsed = parseStartBody(req.body);
 		if (!parsed.ok) {
@@ -555,7 +566,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			res.status(503).json({ error: draining });
 			return;
 		}
-		if (deps.host === null) {
+		if (host === null) {
 			res.status(503).json({ error: 'Forge is not configured on this server (CARDTABLE_FORGE_JAR / CARDTABLE_FORGE_RES)' });
 			return;
 		}
@@ -570,7 +581,12 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		const match = matches.create(res.locals.trustedScenario === true ? { ...parsed.spec, skipOpening: true } : parsed.spec);
 		roomFor(match);
 		log({ evt: 'match-created', matchId: match.id, opponent: parsed.spec.seats[1].ai ? 'ai' : 'human' });
+		// Who is waiting on this start, for `GET /queue`: the caller, and a room start's players
+		// (`http/routes.ts`'s `startFromRoom`), whose own asks join this one.
+		const startedFor: unknown = res.locals.startedFor;
+		waitingOn.set(match, new Set([httpCaller(req), ...(Array.isArray(startedFor) ? (startedFor as ParticipantId[]) : [])]));
 		const running = await match.whenRunning(deps.startTimeoutMs ?? 60_000);
+		waitingOn.delete(match);
 		if (!running.ok) {
 			match.stop();
 			res.status(500).json({ matchId: match.id, error: running.error });
@@ -581,6 +597,16 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			epoch: match.epoch,
 			seats: seatsSeenBy(match, httpCaller(req)),
 		});
+	});
+
+	/**
+	 * The caller's place in the queue for a JVM (`start-queue.ts`) while a start they are waiting on
+	 * waits its turn: the nearest, if several. `null` when none is waiting — booting, or no start.
+	 */
+	router.get('/queue', (req: Request, res: Response) => {
+		const caller = httpCaller(req);
+		const places = [...waitingOn].flatMap(([match, who]) => (who.has(caller) && match.queuePlace !== null ? [match.queuePlace] : []));
+		res.json({ place: places.length === 0 ? null : Math.min(...places) });
 	});
 
 	router.get('/matches/:id', (req: Request, res: Response) => {
@@ -1221,7 +1247,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	// ask for it — which is exactly the ordering `create` above keeps. The host
 	// offers each orphan once; anything not taken here it kills on its own
 	// deadline, so an `attach` that throws costs one match, not a leaked JVM.
-	for (const record of deps.host?.orphans?.() ?? []) {
+	for (const record of host?.orphans?.() ?? []) {
 		try {
 			const match = matches.adopt(record);
 			if (match === null) {
@@ -1246,7 +1272,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		matches,
 		close(): void {
 			matches.stopAll();
-			deps.host?.close?.();
+			host?.close?.();
 		},
 		shutdown(reason: string): { handed: string[]; ended: string[]; reaped: ReapResult } {
 			draining = reason;
@@ -1259,11 +1285,11 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			for (const match of ended) match.serverStopping(reason);
 			for (const match of ended) match.stop();
 			// The spare holds no game, so it is stopped either way.
-			deps.host?.close?.();
+			host?.close?.();
 			// And then the last word, because asking is measurably not enough: a real
 			// match's JVM takes ~9.3 s to honour `{"t":"stop"}` and this process has
 			// about a millisecond left. See `host.ts`, "Going down".
-			const reaped = deps.host?.reapOnExit?.() ?? { killed: [], kept: [], left: [] };
+			const reaped = host?.reapOnExit?.() ?? { killed: [], kept: [], left: [] };
 			return { handed: handed.map((m) => m.id), ended: ended.map((m) => m.id), reaped };
 		},
 	};

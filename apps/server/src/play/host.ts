@@ -469,6 +469,10 @@ export type MatchHostFactory = ((matchId: string, spec: MatchSpec, events: HostE
 	 * this process anyway (the replay host in the tests).
 	 */
 	reapOnExit?(): ReapResult;
+	/** The pool's spare, for `start-queue.ts`: a warm one is a start with nothing to boot. */
+	spare?(): 'none' | 'booting' | 'warm';
+	/** Called when the spare turns warm, so a waiting start can take it. */
+	watchSpare?(listener: () => void): void;
 };
 
 /** What `reapOnExit` did, by JVM id, for the shutdown log. */
@@ -1779,11 +1783,13 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	let spareFailures = 0;
 	let retry: NodeJS.Timeout | null = null;
 	let closed = false;
+	const spareWatchers: (() => void)[] = [];
 
 	const hooks = {
 		warm(jvm: BridgeJvm, bootMs: number) {
 			spareFailures = 0;
 			poolLog({ evt: 'spare-warm', id: jvm.id, pid: jvm.pid, bootMs });
+			for (const listener of spareWatchers) listener();
 		},
 		exit(jvm: BridgeJvm, reason: string) {
 			doomed.delete(jvm);
@@ -1859,6 +1865,9 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		}
 	};
 	factory.spare = () => (spare === null ? 'none' : spare.warm ? 'warm' : 'booting');
+	factory.watchSpare = (listener) => {
+		spareWatchers.push(listener);
+	};
 
 	factory.orphans = () => [...pending.values()];
 

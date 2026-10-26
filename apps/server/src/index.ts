@@ -84,7 +84,7 @@ import { busyHandler } from './busy.js';
 import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { attachDraftSocket } from './room/socket.js';
 import { attachRoomFeed } from './room/feed.js';
-import { attachPlay, jvmHostConfig, jvmHostFactory, roomDeckCosts, roomFormatNames, spellCopierLookup, tableGame, type PlayHandle } from './play/index.js';
+import { attachPlay, coldStartsFrom, jvmHostConfig, jvmHostFactory, roomDeckCosts, roomFormatNames, spellCopierLookup, tableGame, type PlayHandle } from './play/index.js';
 import { attachStream, attachStreamRoutes, streamLayout } from './stream/index.js';
 import { createRoomStreams, findContainerScript, scriptRunner, MAX_ROOM_SEATS } from './stream/alloc.js';
 import { attachBrowserBridge } from './play/browser/index.js';
@@ -693,6 +693,8 @@ const deckCosts = roomDeckCosts(tables.library, defaultCubeCards);
 play = attachPlay(io, api, {
 	minTier: CONFIG.minTier,
 	host: forge.ok ? jvmHostFactory(forge.config) : null,
+	// Match JVMs booting at once (`play/start-queue.ts`); `CARDTABLE_PLAY_COLD_STARTS`.
+	coldStarts: coldStartsFrom(),
 	// Diagnostics for a live check only. Never set in production (see play/socket.ts).
 	probe: CONFIG.playProbe,
 	devIdentity: CONFIG.allowUnverifiedEdge && CONFIG.edgeAuthSecret === '',

@@ -518,6 +518,17 @@ gives up and starts matches cold (`spare-disabled` in the log). It is still one
 JVM per match: a spare becomes exactly one match's JVM. Turn it off with
 `CARDTABLE_PLAY_WARM_SPARE=0`. `attachPlay`'s `close()` stops the idle spare.
 
+### Starts queue for a boot slot
+
+Boots share the CPU: ten cold JVMs started together on a claw took ~50 s each,
+against ~10 s alone (hosting test C7). `start-queue.ts` wraps the host factory
+inside `attachPlay`, so every start goes through it. A start that finds the
+spare warm takes it at once; otherwise at most `CARDTABLE_PLAY_COLD_STARTS`
+(default 2) match JVMs boot together, beside the pool's one replacement spare,
+and the rest wait in order. `GET /api/play/queue` answers `{ place }`: the
+caller's place while a start they wait on is queued, else `null`. The start
+timeout counts from the boot, not from the request.
+
 ### The warm spare, measured
 
 `dev/spare-bench.ts`, 5 rounds alternating cold and warm, same decks (Spirit
