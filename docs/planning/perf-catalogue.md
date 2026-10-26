@@ -23,6 +23,7 @@ what a player feels, or what hosting costs. Whoever fixes a row moves it to
 | P8 | browser | The stack's resolve animation forces layout reads once per packet (`live/departures.ts:516`, `live/numbers.ts:967`, `motion.ts:257`): ~85 ms per 6 s crowded at 4× CPU after the `:has` fix. | `docs/spikes/browser-fps.md`; re-trace 2026-10-25 | low: already batched, one read per packet | a rewrite would compute positions without the DOM; high risk |
 | P9 | browser | Flyers restyle every frame in headless software-rendered Chromium (737 ms per 6 s at 1×; the huge board idles at 30 fps at 6×). A plain `transform` animation does the same there, so this may be the test environment. | browser-fps.md | unknown until profiled on a GPU browser | needs a DevTools profile on the operator's machine |
 | P10 | browser | Flyer pinning still forces a style read when an attack adds a part to a flyer: ~28 ms per 6 s crowded at 4×. | re-trace 2026-10-25 | low | genuinely needed for the part's clock |
+| P12 | CI | A forge.yml job that overflows to `jit-hokon` runs `forge-bundle.sh`, which compiles the pin's Forge with mvn on hokon (119 s for 7878fe75) — the build the "no builds on hokon under CI" rule exists to prevent, here on the prod host. | lane-rng report 2026-10-26, run 40280573266 | medium: slows prod and every hokon job for ~2 min per new pin | prebuild a pin's bundle on a claw before dispatch, or keep forge.yml off hokon |
 | P11 | host | hokon carries 43 GB of swap; an Android emulator (`-avd spike`) held 17 GB RSS for 3+ days. | 2026-10-25 observation | medium: the CI backstop refused hokon on memory | not cardtable's; whoever owns the emulator |
 
 ## Not measured yet
@@ -37,3 +38,4 @@ what a player feels, or what hosting costs. Whoever fixes a row moves it to
 | --- | --- | --- |
 | D1 | `:has(> li:nth-child(3))` on the command zone restyled the whole board on every card move (2,300–3,700 elements); input p95 at 4× crowded 220 → 57 ms | `6e977833`; `has-invalidation.test.ts` keeps it out |
 | D2 | Flyer pinning re-read every animation of a card for any change inside it | `7b7b4141` |
+| D3 | Forge's `AiCache` was one cache for the JVM and every AI cleared all of it at each decision: in a shared JVM one game's AI wiped another's cached board evaluation, which was recomputed (and drew extra randoms) | fork `7878fe75`, cardtable `0f9c92d6` (`docs/spikes/per-game-rng.md`) |
