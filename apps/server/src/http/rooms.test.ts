@@ -2751,6 +2751,23 @@ describe('testing rooms (admin only, seeded)', () => {
 		expect(countAfterSecondBoot).toBe(countAfterFirstBoot);
 	});
 
+	it('never rejects: a catalog that fails (the pool JVM not answering "sets") skips the set draft, logged, and the rest is seeded', async () => {
+		// `index.ts` starts the seed unawaited; a rejection there is unhandled and Node ends the server
+		// with it (a claw's play server, 2026-10-26: `pool JVM did not answer "sets" within 30000ms`).
+		const h = await openFullApp(await tempDir());
+		const seen: Record<string, unknown>[] = [];
+		const seeded = seedTestingRooms({
+			lobby: h.lobby,
+			log: (entry) => seen.push(entry),
+			library: TABLES_LIBRARY,
+			newestSetCode: () => Promise.reject(new Error('pool JVM did not answer "sets" within 30000ms')),
+			checkPlan: () => Promise.reject(new Error('never asked')),
+		});
+		await expect(seeded).resolves.toBeUndefined();
+		expect(seen).toContainEqual(expect.objectContaining({ event: 'testing-room-seed-failed', name: 'Testing: Set draft', detail: 'pool JVM did not answer "sets" within 30000ms' }));
+		expect(h.lobby.list().filter((r) => r.testing).map((r) => r.name)).toContain(TESTING_GAUNTLET_ROUND2_NAME);
+	});
+
 	it('is never swept: `sweep` forgets every idle room except a testing one', async () => {
 		const h = await openFullApp(await tempDir());
 		await seedTestingRooms({ lobby: h.lobby });
