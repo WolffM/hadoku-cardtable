@@ -39,8 +39,9 @@ is OOM-killed).
 | A7 | end: `--end` under 15 min ahead, and at ≥ 15 min | the first refused; the second shown in `notices` from the moment it is scheduled |
 | A8 | reboot of a hosting node | only via a planned drain ≥ 15 min ahead in `notices`; an unannounced reboot is reported by `node-status` |
 | A9 | `node-status --json` when a node is unreachable (it ssh's from the CLI; mgmt-api is not on its path) | `reachable: false`/blocking within one poll; "could not look" is a failure, never healthy |
-| A10 | agent as its own user (§9): from a `--ci-shaped` unit WITHOUT sudo, read `/proc/<agent>/mem` and `environ`, `kill -0` the agent, write into `/var/lib/cardtable-agent` and `/opt/hosting/cardtable/run` | each refused (with sudo all succeed: accepted risk R1) |
+| A10 | agent as its own user (§9): from a `--ci-shaped` unit with the CI user's full rights, read `/proc/<agent>/mem` and `environ`, `kill -0` the agent, write into `/var/lib/cardtable-agent` and `/opt/hosting/cardtable/run` | each refused (until §10 lands, only without sudo) |
 | A11 | remove: `--remove` after the end | no unit, user process, firewall rule or cgroup left |
+| A12 | CI user (§10): on every claw, the runners' user has no sudo, no docker group, no group with `cardtable-agent`; change one by hand | `node-status` reports the drift as blocking (and repairs it, if fleet-manager's converge does) |
 
 ## B. Many matches in one JVM (testable now, `scripts/stress/`)
 
@@ -90,7 +91,7 @@ Written now so the design is built to pass them.
 
 | id | risk | accepted by | why |
 | --- | --- | --- | --- |
-| R1 | Every CI job on a claw can become root (the CI user has NOPASSWD sudo; on claw-8 also the docker group), so a CI job could read a live match's hidden cards or replace the agent despite §9's separate user. §9 stops plain, non-sudo access only. | the operator, 2026-10-25, per fleet-manager's §9 reply | CI on the claws runs only WolffM's own workflows; fork-PR runs need approval |
+| ~~R1~~ | Every CI job on a claw can become root (the CI user has NOPASSWD sudo; on claw-8 also the docker group), so a CI job could read a live match's hidden cards or replace the agent despite §9's separate user. **No longer accepted:** the operator chose (2026-10-25) to move CI to an unprivileged user, automated and drift-checked by fleet-manager (request §10). Open until that lands; then A10 runs with sudo too. | — | — |
 
 ## Findings
 
