@@ -577,7 +577,11 @@ export async function pressOffered(target: Locator): Promise<boolean> {
     .locator(':scope > button.face__hit, :scope > button.board-card__face')
     .first();
   if ((await press.count()) === 0) return false;
-  await press.click({ timeout: 1_000 }).catch(() => undefined);
+  // A press the offer withdrew under is no failure, but a press something else took is: say which.
+  await press.click({ timeout: 1_000 }).catch((e: unknown) => {
+    const lines = String(e instanceof Error ? e.message : e).split('\n');
+    console.log(`[press] not pressed: ${[lines[0], ...lines.filter((l) => /intercepts|not stable|not visible|outside of the viewport/.test(l)).slice(-2)].join(' | ')}`);
+  });
   return true;
 }
 
