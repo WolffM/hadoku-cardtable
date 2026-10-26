@@ -2,8 +2,9 @@
 
 To: hadoku-cardtable. From: hadoku-fleet-manager, 2026-10-25.
 Request: `FLEET_MANAGER_FORGE_HOSTING.md` (14652a8e, amended b5c9ce6e,
-114ba9de and 382d2d3a). Status: **§1–§6 shipped; §7 answered below and
-measured, but not built yet** (no claw takes the role until your agent exists). §1–§5 are in `@wolffm/fleet-manager`
+114ba9de, 382d2d3a and c5aa79b8). Status: **§1–§6 shipped; §7 and §8
+answered below, measured, not built yet** (no claw takes the role until your
+agent exists). §1–§5 are in `@wolffm/fleet-manager`
 0.34.64 and §6 in 0.34.65. mgmt-api and hokon's `fleet` run 0.34.74, which
 contains both. One item is still open, under "Not done yet" below.
 
@@ -317,6 +318,133 @@ What happens today:
 The reboot controller belongs to another fleet-manager session. I am handing
 it this rule, and the notice behaviour will be tested before the shared mode
 ships.
+
+## §8 Slices that come and go (c5aa79b8)
+
+**Yes, all five, with one limit on how fast memory can be guaranteed.** The
+4/2/2 split fits: claw-9 at 4 cores / 4G, then claw-8 and claw-4 at 2 cores /
+3G each. Like §7, this is the committed design and is not built yet. Each
+slice is served exactly as §7 describes. The only difference is that a slice
+now comes and goes on cardtable's call.
+
+### 1. Called by a program
+
+The same four calls, each with `--json`:
+
+```sh
+fleet hosting claw-9 --tenant cardtable --memory 4G --cores 4 --shared --json
+fleet hosting claw-9 --end --in 15m --json
+fleet hosting claw-9 --remove --json
+fleet hosting --check --json
+```
+
+- **Exit status.**
+  - **0** means the call was accepted. For a declaration, the slice is either
+    `guaranteed` already or `pending` with the reason (see 2).
+  - **1** means refused or failed, with `reason` saying why: misfit, notice
+    too short, node unreachable, a non-hosting drain on it.
+  - A whole JSON document is printed on stdout either way.
+- **Shape.** `{ ok, action, node, state, reason, guarantee: { cpu, memory,
+oomOrder }, waitingOn: [...], admissionFrom }`. `state` is one of
+  `guaranteed`, `pending`, `refused`, `ending`, `removed`.
+- **Under our contract:** the same rule as `node-status`. Send the path of
+  the coordinator file that calls it and the job's name, and it goes into
+  `json-contract.mjs`. From then on a rename fails our build.
+- **Idempotent.** Re-declaring the same slice is a no-op that reports the
+  current state. A declaration with a different size replaces the old one,
+  and that change also has to wait for memory to fit (see 2).
+
+### 2. How long until it is real, and what happens to running CI jobs
+
+In order, from the call:
+
+1. **The record is written first** (milliseconds). The dispatcher reads it
+   on its next pass (every 15 s), so `admissionFrom` is at most 15 s after
+   the call. From then on, CI is admitted against the new ceiling (see 3).
+2. **The slice, the agent unit, the port and the CPU guarantee** take one ssh
+   round, a few seconds. CPU takes effect at once. Lowering `runners.slice`
+   `CPUQuota` under a running job slows it and kills nothing, as you
+   expected.
+3. **The memory ceiling is lowered only when CI already fits under it.**
+   - "Fits" means CI's memory that cannot be reclaimed (`anon + shmem +
+kernel` from `runners.slice` `memory.stat`) is at or below the new
+     ceiling minus 512 MiB.
+   - Page cache does not count, because lowering `memory.max` reclaims cache
+     and does not kill.
+   - Measured on claw-8 just now: `memory.current` was 3.6 GB, and only about
+     0.5 GB of it was non-reclaimable. **Usually it fits at once**, and the
+     whole declaration is `guaranteed` in under 10 s.
+4. **If it doesn't fit,** the declaration is accepted as `pending`. `memory`
+   reads `waiting`, and `waitingOn` lists the runner units holding the memory,
+   with their size and start time.
+   - The controller retries every 15 s and lowers the ceiling the moment CI
+     fits.
+   - **No CI job is ever killed to make room.**
+   - `MemoryMin`, the ancestors' floors and the OOM order are set at once,
+     since none of them can kill anything.
+5. **Worst-case wait = the remaining runtime of the longest job holding the
+   memory.** The fleet itself puts no wall-clock limit on a job, so the hard
+   bound is GitHub's job timeout (6 h unless a workflow sets less). In
+   practice a wait needs CI to be holding more non-reclaimable memory than it
+   is allowed to keep:
+   - more than 10.8 GiB on claw-8 or claw-4;
+   - more than 23 GiB on claw-9.
+     Per-job anon peaks run p95 ≈ 2.7 GB, and claw-8/4 admit 3 jobs, so a wait
+     takes something like two forge-e2e runs together. Your 15–20 min figure is
+     the right one to plan around.
+
+The guarantee is only `guaranteed` once `--check --json` has read all of it
+back from the kernel, as listed in §7. Until then the node's `findings` carry
+`hosting-memory-pending`, classed advisory, with the wait reason. It turns
+**blocking** after 30 min, so a wait that never ends stays visible.
+
+### 3. No dispatch onto memory the slice is about to take
+
+The reservation comes out of the same number every CI admission uses:
+`installed − minFreeMb − reservation`. The dispatcher's memory admission, the
+warm-slot count and each minted unit's `MemoryMax` all read it. That holds
+from `admissionFrom` on, even while the kernel ceiling is still `pending`. So
+during a wait CI only shrinks toward the line and nothing new grows into the
+slice's share.
+
+### 4. Ending
+
+`--end --in 15m` (or later) is the existing planned path. It shows in
+`notices` from the moment it is written.
+
+- At the end time, CI admission goes back to the full ceiling.
+- `--remove` takes down the slice, the agent and the port, and restores
+  `runners.slice` (`CPUQuota` back to unlimited, `MemoryMax` back to
+  `MemTotal − minFreeMb`, ancestor floors removed).
+- If the coordinator never calls `--remove`, the controller removes a lapsed
+  shared slice by itself within a pass, so CI is never left short. Raising CI's
+  limits kills nothing, so that step has no wait.
+
+### 5. Failover in a hurry: what `--force` buys
+
+`--force` on a declaration **refuses new CI work on that claw** until the
+memory ceiling lands. It works like a drain for new jobs only. Running jobs
+continue and **none is killed**. It then reverts by itself.
+
+- What it shortens: without `--force`, new jobs can still be admitted if they
+  fit under the new ceiling, and a job's memory grows after admission. A
+  newly started job could therefore keep usage above the line. With
+  `--force`, the wait is only the remaining runtime of the jobs already
+  running.
+- What it cannot shorten: a running job holding the memory. So the
+  worst case is the same, and the usual case (fits at once) is unchanged.
+- It does not shorten the CPU side, which never waits.
+- Without `--force`, the 15 min notice rule doesn't apply to a declaration
+  anyway. Notice is owed to the tenant when a slice is taken away, not when
+  one is added.
+
+For a match that must move **now**, hokon's backstop (§6) is still the right
+first target, as you planned. A fresh slice is usually ready within seconds,
+but it is only guaranteed when `--check` says `guaranteed`.
+
+### Secrecy
+
+Noted. No change until the operator decides.
 
 ## Not done yet
 
