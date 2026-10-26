@@ -45,6 +45,8 @@ export interface StartEvents extends HostEvents {
 	queued?(place: number): void;
 	/** The JVM is being asked for now: the start timeout runs from here. */
 	booting?(): void;
+	/** The factory threw for a start that had waited: the same failure a start that never waited throws to its caller. */
+	unstartable?(err: Error): void;
 }
 
 /** A waiting start's host until its JVM is asked for. */
@@ -156,6 +158,7 @@ export function queueColdStarts(factory: MatchHostFactory, limit: number, log: (
 			try {
 				host = begin(next.matchId, next.spec, next.events, Date.now() - next.since);
 			} catch (err) {
+				next.events.unstartable?.(err as Error);
 				next.host.drop(`Forge could not be started: ${(err as Error).message}`);
 				continue;
 			}

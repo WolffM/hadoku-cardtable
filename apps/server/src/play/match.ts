@@ -1262,8 +1262,7 @@ export class Match {
 		try {
 			this.host = this.deps.host(this.id, this.spec, this.hostEvents());
 		} catch (err) {
-			this.unstartable = `this server could not start a match just now (${(err as Error).message})`;
-			this.fail(this.unstartable);
+			this.refuseStart(err as Error);
 			return;
 		}
 		this.host.remember?.({ epoch: this.epoch, owners: this.owners() });
@@ -1323,6 +1322,12 @@ export class Match {
 		this.rejoinTimer.unref();
 	}
 
+	/** The host could not give this match a JVM, now or from the start queue: see {@link unstartable}. */
+	private refuseStart(err: Error): void {
+		this.unstartable = `this server could not start a match just now (${err.message})`;
+		this.fail(this.unstartable);
+	}
+
 	private hostEvents(): StartEvents {
 		return {
 			line: (line) => this.onLine(line),
@@ -1336,6 +1341,7 @@ export class Match {
 				this.queuePlace = null;
 				for (const arm of this.bootWaiters.splice(0)) arm();
 			},
+			unstartable: (err) => this.refuseStart(err),
 		};
 	}
 
