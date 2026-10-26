@@ -10,6 +10,8 @@
 #   run.sh stage <claw>...                     copy jar, res, classes, decks
 #   run.sh run <claw> <tsv> <label> <cpus> <memmax> <xmx> [-Dstress.k=v ...]
 #                                             one capped JVM; appends one TSV row
+#   run.sh replay <claw> <label> [-Dreplay.k=v ...]
+#                                             determinism: ForgeReplay's GAME lines (docs/spikes/per-game-rng.md)
 #   run.sh fetch-decks <claw>                 copy the claw's built cube decks back
 #   run.sh clean <claw>...                    delete the claw copy
 #
@@ -34,7 +36,7 @@ REMOTE='.cache/cardtable-stress'
 
 build() {
 	mkdir -p "$STAGE/classes"
-	"$JDK/bin/javac" -proc:none -Xlint:-options -cp "$JAR" -d "$STAGE/classes" "$HERE/src/ForgeScale.java"
+	"$JDK/bin/javac" -proc:none -Xlint:-options -cp "$JAR" -d "$STAGE/classes" "$HERE/src/ForgeScale.java" "$HERE/src/ForgeReplay.java"
 	cp "$JAR" "$STAGE/forge.jar"
 	python3 -I -c 'import json,sys; [print(c["name"]) for c in json.load(open(sys.argv[1]))["cards"]]' "$CUBE" > "$STAGE/cube-names.txt"
 }
@@ -115,6 +117,25 @@ REMOTE
 	echo >&2
 }
 
+replay() { # same run dir as run(), no cap: the cutoff must not fire, and each game says if it did
+	local claw=$1 label=$2
+	shift 2
+	ssh -o BatchMode=yes "$claw" bash -s -- "$label" "$@" <<'REMOTE'
+set -euo pipefail
+label=$1; shift
+base=$HOME/.cache/cardtable-stress
+run=$base/runs/$label-$(date +%s)
+mkdir -p "$run/user/preferences" "$run/user/decks/constructed" "$run/cache" "$run/tmp"
+ln -s "$base/res" "$run/res"
+cp -r "$base/decks" "$run/decks"
+printf 'userDir=%s/user/\ncacheDir=%s/cache/\ndecksDir=%s/user/decks/\ndecksConstructedDir=%s/user/decks/constructed/\n' "$run" "$run" "$run" "$run" > "$run/forge.profile.properties"
+cd "$run"
+nice -n 5 "$HOME/.local/opt/jdk-21.0.12.1+1/bin/java" -Djava.awt.headless=true -Djava.io.tmpdir="$run/tmp" -Xmx6g "$@" \
+	-cp "$base/classes:$base/forge.jar" ForgeReplay 2> "$run/stderr.txt"
+echo "rundir=$run"
+REMOTE
+}
+
 fetch_decks() {
 	mkdir -p "$DECKS"
 	local d
@@ -127,11 +148,12 @@ clean() {
 	for c in "$@"; do ssh -o BatchMode=yes "$c" "rm -rf ~/$REMOTE" && echo "cleaned $c"; done
 }
 
-cmd=${1:?usage: run.sh stage|run|fetch-decks|clean ...}
+cmd=${1:?usage: run.sh stage|run|replay|fetch-decks|clean ...}
 shift
 case $cmd in
 	stage) stage "$@" ;;
 	run) run "$@" ;;
+	replay) replay "$@" ;;
 	fetch-decks) fetch_decks "$@" ;;
 	clean) clean "$@" ;;
 	*) echo "unknown command $cmd" >&2; exit 2 ;;
