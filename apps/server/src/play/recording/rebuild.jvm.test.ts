@@ -138,7 +138,11 @@ describe('rebuild: one at a time per server', () => {
 		// One command the stub host will never reach the recorded position for, so the drive loop
 		// spends its whole `positionBudgetMs` waiting — a deterministic, short duration that proves
 		// the second call waits for it.
-		const cmd: ActionCmdLine = { t: 'cmd', seat: 0, board: 'never-reached', prompt: 'never-reached', cmd: { t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } } };
+		// A reply, not a bare pass: a bare selectButtonOk that never reaches its position is now
+		// deliberately skipped rather than timed out (rebuild.ts's own "Forge races past a stop
+		// Match would have shown" fallback), so the mutex test needs a command the drive loop can
+		// never skip — a reply waits for its ask, which this stub host never produces.
+		const cmd: ActionCmdLine = { t: 'cmd', seat: 0, board: 'never-reached', prompt: 'never-reached', cmd: { t: 'reply', seat: 0, callId: 'never-mapped', result: null } };
 		const end: ActionEndLine = { t: 'end', endedAt: new Date().toISOString(), reason: 'test' };
 		writeActionLog(dir, 'mutex-1', [headerFor('mutex-1'), cmd, end]);
 		writeActionLog(dir, 'mutex-2', [headerFor('mutex-2'), cmd, end]);

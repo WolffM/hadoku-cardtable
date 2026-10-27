@@ -421,6 +421,20 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 				i = caught;
 				continue;
 			}
+			if (exited === null && !there() && eligibleForCatchUp) {
+				// Still never reached, and no later checkpoint matched within the lookahead — the two
+				// seats' own streams are not perfectly synchronised in real time (confirmed directly
+				// in testing: a bare pass's recorded board, itself identical to an EARLIER command's,
+				// had already been superseded on the OTHER seat's stream by the time this seat's was
+				// checked — a delivery-order artifact, not a reverted game). A bare pass carries no
+				// information Forge needs beyond "nothing to do here"; skip it outright rather than
+				// hold up the whole rebuild proving exactly which later moment absorbed it. A command
+				// with a real choice attached is never treated this way, so a genuine divergence on
+				// one of those still fails loudly below.
+				deps.log({ evt: 'rebuild-skipped-pass', matchId, command: i, seat });
+				i++;
+				continue;
+			}
 			if (exited !== null || !there()) {
 				diverged =
 					exited !== null
