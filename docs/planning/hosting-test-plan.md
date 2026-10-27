@@ -67,7 +67,7 @@ second (A5, A6). Every row here is one ForgeScale RESULT line.
 | A7 | fleet-manager, against a copy of the live record | **pass.** `--end --in 5m` was refused ("owed 15 min notice") and wrote nothing. `--end --in 20m` was accepted and appeared at once in node-status `notices` and `hosting.until`. |
 | A8 | — | not run as a test. The 48 h probe saw each claw's rolling reboot of 10-25, from before 0.34.90 added the 15 min notice (forge-hosting-plan.md §4.1). |
 | A9 | fleet-manager, an unresolvable node in a fixture manifest | **pass.** One 40 s call returned `reachable:false`, `ok:false` and a blocking `unreachable` finding, exit 1. 0.34.101 makes the reason name the timeout instead of a bare "Command failed: ssh". |
-| A11 | — | built, live run pending (on claw-5, with the operator). `--remove` reads the node back, checks 17 pieces of state, and keeps the record as `remove-incomplete` while any survive. The agent's user and home survive by design. |
+| A11 | the operator, live on claw-5, 2026-10-27 17:21Z: a 1G/1-core shared slice declared, then `--remove --force` | **pass.** It returned `removed` with nothing left. A separate read-back found no unit, cgroup, executable, agent process, firewall or raw-table rule for the port, and `runners.slice` memory.high was back to max. The `cardtable-agent` account and its empty home stay, by design. |
 | A12 | — | built, live run pending a cut-over claw (claw-5 first). Drift on a cut-over node, or "could not look", is blocking `ci-user-drift`; converge reports it but does not repair it yet. |
 
 ## B. Many matches in one JVM (testable now, `scripts/stress/`)
