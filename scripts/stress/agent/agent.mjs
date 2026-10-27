@@ -165,7 +165,7 @@ function runStatus(id) {
   };
 }
 
-function startStress({ label, xmx, props }) {
+function startStress({ label, xmx, pretouch, props }) {
   const java = join(UNPACK_INTO.jdk, 'bin', 'java');
   const stage = UNPACK_INTO.stage;
   if (!existsSync(java)) throw new Error('no JDK unpacked');
@@ -185,6 +185,8 @@ function startStress({ label, xmx, props }) {
     '-Djava.awt.headless=true',
     `-Djava.io.tmpdir=${dir}/tmp`,
     `-Xmx${xmx}`,
+    // The whole heap faulted in at start, so GC never asks the kernel for a page mid-match (H14).
+    ...(pretouch ? [`-Xms${xmx}`, '-XX:+AlwaysPreTouch'] : []),
     '-XX:ActiveProcessorCount=4',
     '-XX:+ExitOnOutOfMemoryError',
     `-Dstress.series=${dir}/series.tsv`,
@@ -214,7 +216,7 @@ function startStress({ label, xmx, props }) {
     watch(id, r);
   }
   runs.set(id, r);
-  log('stress-start', { id, xmx, flags });
+  log('stress-start', { id, xmx, pretouch: Boolean(pretouch), flags });
   return id;
 }
 
