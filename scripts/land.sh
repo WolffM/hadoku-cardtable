@@ -26,7 +26,7 @@ NODE_BIN=$HOME/.local/share/fnm/node-versions/v24.18.0/installation/bin
 SRC=$(git rev-parse --show-toplevel)
 BRANCH=$(git -C "$SRC" rev-parse --abbrev-ref HEAD)
 [ "$BRANCH" = main ] && { echo "land: run this from a wave branch, not main" >&2; exit 2; }
-[ "$SRC" = "$MAIN" ] && { echo "land: never from the main checkout (it is the deploy tree)" >&2; exit 2; }
+[ "$SRC" = "$MAIN" ] && { echo "land: never from the main checkout (every worktree hangs off it)" >&2; exit 2; }
 
 mkdir -p "$(dirname "$LOCK")"
 exec 9>"$LOCK"
@@ -107,11 +107,13 @@ done
 # two lockfiles differ (an auto-update landed since the last deploy, or the
 # land itself changes dependencies), a linked check typechecks against the wrong versions, so
 # install for real instead. The temp worktree has no node_modules of its own, so nothing here
-# writes through a symlink into the deploy tree.
-if cmp -s "$MAIN/pnpm-lock.yaml" pnpm-lock.yaml; then
-  bash "$MAIN/scripts/link-worktree-node-modules.sh" "$TMP"
+# writes through a symlink into the deploy tree. The link script names that tree: $MAIN is the
+# git common dir's checkout, which nothing has pulled since 2026-10-22.
+DEPS=$(bash scripts/link-worktree-node-modules.sh --source)
+if cmp -s "$DEPS/pnpm-lock.yaml" pnpm-lock.yaml; then
+  bash scripts/link-worktree-node-modules.sh "$TMP"
 else
-  echo "land: lockfile differs from the deploy tree's — pnpm install --frozen-lockfile"
+  echo "land: lockfile differs from $DEPS's — pnpm install --frozen-lockfile"
   PATH="$NODE_BIN:$PATH" pnpm install --frozen-lockfile --prefer-offline > "$TMP.install.log" 2>&1 \
     || { tail -20 "$TMP.install.log"
          grep -q 'ERR_PNPM_FETCH_401' "$TMP.install.log" \
