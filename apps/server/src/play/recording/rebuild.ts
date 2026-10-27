@@ -303,55 +303,27 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 	}
 
 	const budget = deps.positionBudgetMs ?? 30_000;
-	// How far ahead a stalled plain pass may look for a later checkpoint it was absorbed into (below).
-	const CATCH_UP_LOOKAHEAD = 50;
 	let diverged: string | null = null;
+	// Where each seat stood when the previous command went out: a command recorded from exactly that
+	// position was sent in the same breath live, whichever seat sent the one before it.
+	let atLastSend: { board: string; prompt: string }[] | null = null;
 	let i = 0;
 	while (i < cmds.length) {
 		const c = cmds[i]!;
 		const seat = commandSeat(c.cmd);
 		const isReply = c.cmd.t === 'reply' || c.cmd.t === 'abort';
-		const prior = cmds[i - 1];
-		// A command recorded from the same position as the one before it goes straight after it.
-		// Only meaningful for an `act`: a reply's own position signal is its ask (below), never
-		// board+prompt — see that branch's own comment for why.
-		const burst = !isReply && prior !== undefined && commandSeat(prior.cmd) === seat && prior.board === c.board && prior.prompt === c.prompt;
+		// A command whose seat was already at its recorded position when the previous command went out
+		// goes straight after it: live, both were sent from that one moment, and waiting for the
+		// position again would wait for a state the previous command has just moved past. Only for an
+		// `act`: a reply's own position signal is its ask (below), never board+prompt.
+		const was = seat === null || atLastSend === null ? undefined : atLastSend[seat];
+		const burst = !isReply && was !== undefined && was.board === c.board && was.prompt === c.prompt;
 		if (seat !== null && !isReply && !burst) {
 			const position = positions[seat]!;
 			const there = (): boolean => position.prompt() === c.prompt && position.digest() === c.board;
-			// A plain pass (nothing selected) that `Match`'s stop policy showed the player in the
-			// live run — Forge's own engine, with no `Match` here to insert that stop, can race
-			// straight through it. The board is seat-independent (Forge's raw per-connection stream
-			// carries the whole table either way, confirmed directly in testing: the rebuild's own
-			// seat-0 digest, mid-timeout, was byte-identical to the LIVE run's recorded seat-1 digest
-			// one command later) — so once ANY later command's recorded board has already been
-			// reached, this pass had nothing left to do and was absorbed into it, regardless of which
-			// seat recorded that later checkpoint or what its own prompt text was (a different seat's
-			// prompt, so never comparable to this one's). Checked on every settled tick, not only
-			// once the budget runs out: Forge may keep racing ahead the whole wait, past the
-			// lookahead window, if this is only checked at the very end. Only a bare pass is treated
-			// this way: anything with a real choice attached (a card, a reply) still has to be sent,
-			// or it is a genuine divergence.
-			const eligibleForCatchUp = c.cmd.t === 'act' && c.cmd.frame.method === 'selectButtonOk';
-			const caughtUpAt = (): number => (eligibleForCatchUp ? cmds.findIndex((later, j) => j > i && j <= i + CATCH_UP_LOOKAHEAD && later.board === position.digest()) : -1);
 			const deadline = Date.now() + budget;
 			const settled = (): boolean => Date.now() - lastLineAt > 80;
-			let caught = -1;
-			while (exited === null && Date.now() < deadline && caught < 0 && !(settled() && there())) {
-				if (settled()) caught = caughtUpAt();
-				if (caught < 0) await sleep(20);
-			}
-			if (caught > i) {
-				deps.log({ evt: 'rebuild-caught-up', matchId, from: i, to: caught, seat });
-				i = caught;
-				continue;
-			}
-			// No verified catch-up either: unlike the catch-up above (proven by an exact board match
-			// at a later recorded position), there is no evidence here that this position was ever
-			// reached — a jar run proved guessing "it must have been absorbed" and skipping anyway is
-			// unsound: five bare passes skipped without proof in a row left the game actually
-			// diverged, surfacing two commands later as a missing ask nothing could explain. A real
-			// divergence fails loudly, here, rather than being papered over.
+			while (exited === null && Date.now() < deadline && !(settled() && there())) await sleep(20);
 			if (exited !== null || !there()) {
 				diverged =
 					exited !== null
@@ -384,6 +356,7 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 			}
 			out = { ...c.cmd, callId: mapped } as BridgeCommand;
 		}
+		atLastSend = [0, 1].map((s) => ({ board: positions[s]!.digest(), prompt: positions[s]!.prompt() }));
 		host.send(out);
 		i++;
 	}
