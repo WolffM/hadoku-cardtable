@@ -13,7 +13,7 @@
  * `apps/server/src/play/remote/wire.ts`.
  */
 
-import { existsSync, mkdirSync, readdirSync, watch, type FSWatcher } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { randomBytes, type KeyObject } from 'node:crypto';
@@ -81,6 +81,8 @@ export class Agent {
 	private readonly jvmDir: string;
 	private session: Session | null = null;
 	private lastHeard: number;
+	private readonly heardFile: string;
+	private heardWritten = 0;
 	private fenced = false;
 	private server: Server | null = null;
 	private timers: NodeJS.Timeout[] = [];
@@ -96,8 +98,10 @@ export class Agent {
 		this.jvmDir = join(opts.home, 'jvms');
 		mkdirSync(this.jvmDir, { recursive: true });
 		this.started = this.now();
-		// The fencing clock starts now: adopted JVMs get one window for the coordinator to come back.
-		this.lastHeard = this.now();
+		this.heardFile = join(opts.home, 'coordinator-heard');
+		// The fencing clock survives a restart: an agent that restarts faster than the window
+		// must not keep a failed-over claw's JVMs alive by resetting it.
+		this.lastHeard = Math.min(this.now(), readHeard(this.heardFile) ?? this.now());
 		this.adopt();
 	}
 
@@ -188,6 +192,15 @@ export class Agent {
 		for (const j of live) j.kill(reason);
 	}
 
+	/** A word from the coordinator. On disk at most once a second, for the next agent's clock. */
+	private heard(): void {
+		this.lastHeard = this.now();
+		if (this.lastHeard - this.heardWritten < 1000) return;
+		this.heardWritten = this.lastHeard;
+		writeFileSync(`${this.heardFile}.tmp`, String(this.lastHeard));
+		renameSync(`${this.heardFile}.tmp`, this.heardFile);
+	}
+
 	private heartbeat(): void {
 		if (this.session === null) return;
 		this.emit({ t: 'hb', at: this.now(), jvms: this.live().map((j) => j.health()), slice: this.cgroups.slice() });
@@ -267,7 +280,7 @@ export class Agent {
 		}
 		const session: Session = { socket, nonce: randomBytes(24).toString('base64url'), nextSeq: 1 };
 		this.session = session;
-		this.lastHeard = this.now();
+		this.heard();
 		this.fenced = false;
 		socket.write(`HTTP/1.1 101 Switching Protocols\r\nupgrade: ${RELAY_PROTOCOL}\r\nconnection: Upgrade\r\nx-agent-nonce: ${session.nonce}\r\n\r\n`);
 		this.log('relay-open', { from: req.socket.remoteAddress });
@@ -304,7 +317,7 @@ export class Agent {
 		const opened = openFrame(this.opts.publicKey, session.nonce, session.nextSeq, line);
 		if ('error' in opened) return this.drop(session, opened.error);
 		session.nextSeq += 1;
-		this.lastHeard = this.now();
+		this.heard();
 		try {
 			this.act(opened.m);
 		} catch (e) {
@@ -377,6 +390,15 @@ export class Agent {
 		this.jvms.set(spec.hostId, jvm);
 		this.watchOut(jvm);
 		jvm.attach(sink, 0);
+	}
+}
+
+function readHeard(file: string): number | null {
+	try {
+		const t = Number(readFileSync(file, 'utf8'));
+		return Number.isFinite(t) && t > 0 ? t : null;
+	} catch {
+		return null; // never heard from one
 	}
 }
 

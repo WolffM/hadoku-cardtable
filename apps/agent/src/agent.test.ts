@@ -186,6 +186,25 @@ describe('host agent', () => {
 		expect(JSON.parse(readFileSync(join(agent.jvms.get('h1')!.dir, 'exit.json'), 'utf8')).reason).toMatch(/^fenced: no word from the coordinator for 11 s \(window 10 s\)$/);
 	});
 
+	it('does not reset the fencing clock when it restarts', async () => {
+		const home = scratch();
+		const cg = fakeCgroups();
+		const first = await startAgent(home, cg);
+		const c = await coordinator(first.port, fakeRuntime());
+		const t = collect(c.launcher.launch('h1', { xmxMb: 1000 }));
+		await until('warm', () => t.lines.length === 1);
+		const pid = first.agent.jvms.get('h1')!.pid;
+		c.client.close();
+		first.agent.close();
+		clock.t += 6_000;
+		const second = await startAgent(home, cg);
+		second.agent.tick();
+		expect(pidAlive(pid)).toBe(true);
+		clock.t += 5_000;
+		second.agent.tick();
+		await until('killed', () => !pidAlive(pid));
+	});
+
 	it('the coordinator fails the claw over when heartbeats stop for the window', async () => {
 		const { agent, port } = await startAgent(scratch());
 		const { client, launcher } = await coordinator(port, fakeRuntime());
