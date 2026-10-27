@@ -428,3 +428,26 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 	deps.log({ evt: 'rebuild-ok', matchId, commands: cmds.length, envelopes: envs.length });
 	return { ok: true, header: publicHeader, lines: outLines, perSeatBoard: [positions[0].digest(), positions[1].digest()] };
 }
+
+/* ── index.ts's own wiring shape ─────────────────────────────────────────────────────────────
+ *
+ * `http/replays.ts`'s `ReplaysDeps.canRebuild`/`rebuild` are a plain boolean and a narrower
+ * result (`{header,envs,end}|null`) than this file's own richer `CanRebuildResult`/
+ * `RebuildOutcome` — these two adapt one to the other, so `index.ts`'s own wiring (the one edit
+ * outside this file and its test, once lane C's recorder had landed) is just passing them
+ * through, with every cast and shape change kept here rather than there.
+ */
+
+/** `ReplaysDeps.canRebuild`'s exact shape. `header.spec` is `unknown` there (it depends on nothing above the wire); this file's own `readActionLog` already takes the same trust that it is really a `MatchSpec`. */
+export function canRebuildBoolean(header: { pin: string | null; bridge: string; spec: unknown }, running: RunningForge | null = currentForge()): boolean {
+	return canRebuild({ pin: header.pin, bridge: header.bridge, spec: header.spec as MatchSpec }, running).ok;
+}
+
+/** `ReplaysDeps.rebuild`'s exact shape. */
+export async function rebuildForReplays(matchId: string, deps: RebuildDeps): Promise<{ header: PublicHeader; envs: { at: number; env: unknown }[]; end: PublicEndLine } | null> {
+	const result = await rebuild(matchId, deps);
+	if (!result.ok) return null;
+	const envs = result.lines.filter((l): l is PublicEnvLine => l.t === 'env').map((l) => ({ at: l.at, env: l.env }));
+	const end = result.lines.find((l): l is PublicEndLine => l.t === 'end')!;
+	return { header: result.header, envs, end };
+}
