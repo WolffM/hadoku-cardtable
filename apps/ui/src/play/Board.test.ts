@@ -3028,6 +3028,7 @@ describe('power and toughness on the board (#12, #18)', () => {
     return {
       text: el.textContent,
       label: el.getAttribute('aria-label'),
+      tip: el.dataset.tip,
       of: parts.map((p) => p.dataset.ptOf),
       states: parts.map((p) => p.dataset.ptState),
     };
@@ -3058,16 +3059,25 @@ describe('power and toughness on the board (#12, #18)', () => {
     expect(badge(container, 21)).toEqual({
       text: '3/1',
       label: 'power 3, up from 1, toughness 4, 3 damage marked',
+      tip: 'Power 3, up from 1, toughness 4, 3 damage marked',
       of: ['power', 'toughness'],
       states: ['buffed', 'damaged'],
     });
   });
 
-  it('draws a plain creature plain — no ink, no marker, no claim', () => {
+  /**
+   * The operator, 2026-10-27: hovering a plain Wurmcoil Engine's badge popped
+   * up "Power 15, toughness 15" — a tip that read back the two numbers
+   * already sitting right there. A plain/plain badge now carries no tip at
+   * all; `aria-label` still says it, for the one reader that never sees the
+   * numbers drawn.
+   */
+  it('draws a plain creature plain — no ink, no marker, no claim, and no tooltip', () => {
     const { container } = renderBoard(urchin(1, 2, 0, { power: 1, toughness: 2 }));
     expect(badge(container, 21)).toEqual({
       text: '1/2',
       label: 'power 1, toughness 2',
+      tip: undefined,
       of: ['power', 'toughness'],
       states: [undefined, undefined],
     });
@@ -3082,6 +3092,7 @@ describe('power and toughness on the board (#12, #18)', () => {
     expect(badge(container, 21)).toEqual({
       text: '1/3',
       label: 'power 1, toughness 3',
+      tip: undefined,
       of: ['power', 'toughness'],
       states: [undefined, undefined],
     });
@@ -3099,6 +3110,7 @@ describe('power and toughness on the board (#12, #18)', () => {
     expect(badge(hurt.container, 21), 'damage alone is enough: it needs no printed base').toEqual({
       text: '1/1',
       label: 'power 1, toughness 3, 2 damage marked',
+      tip: 'Power 1, toughness 3, 2 damage marked',
       of: ['power', 'toughness'],
       states: [undefined, 'damaged'],
     });
@@ -3109,6 +3121,7 @@ describe('power and toughness on the board (#12, #18)', () => {
     expect(badge(container, 21)).toEqual({
       text: '4/2',
       label: 'power 4, toughness 5, 3 damage marked',
+      tip: 'Power 4, toughness 5, 3 damage marked',
       of: ['power', 'toughness'],
       states: [undefined, 'damaged'],
     });

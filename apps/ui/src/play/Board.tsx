@@ -2044,6 +2044,12 @@ function CreaturePT({ entry }: { entry: BoardCard }) {
     </span>
   );
   const said = `${say('power', pt.power, pt.powerState)}, ${say('toughness', pt.toughness, pt.toughnessState)}`;
+  // A plain/plain badge's tip would only read back the two numbers already on
+  // it — the operator, 2026-10-27, on exactly that: a 15/15 Wurmcoil Engine's
+  // "Power 15, toughness 15" told a sighted hoverer nothing new. Buffed, hurt
+  // and damaged all add a fact the badge's ink alone does not carry (what it
+  // was before, or how much damage is marked), so those keep the tip.
+  const tipped = pt.powerState !== 'plain' || pt.toughnessState !== 'plain';
   return (
     <span
       className="board-card__pt"
@@ -2052,7 +2058,7 @@ function CreaturePT({ entry }: { entry: BoardCard }) {
          damaged creature is visible before anyone reads the two numbers. */
       data-damage={pt.damage > 0 ? pt.damage : undefined}
       aria-label={said}
-      data-tip={said.charAt(0).toUpperCase() + said.slice(1)}
+      data-tip={tipped ? said.charAt(0).toUpperCase() + said.slice(1) : undefined}
     >
       {number(pt.power, pt.powerState, 'power')}
       <span aria-hidden="true">/</span>
@@ -2305,8 +2311,10 @@ function CardTags({
       ))}
       {cost !== undefined && (
         <li className="board-card__tag" data-cost={cost.tokens.join(' ')} data-cost-change={cost.change} data-tip={cost.tip}>
+          {/* The tag already carries its own `data-tip` (why the cost changed);
+              a native tooltip on one pip would only repeat the glyph it sits on. */}
           {cost.tokens.map((token, i) => (
-            <ManaPip key={`${token}-${i}`} token={token} />
+            <ManaPip key={`${token}-${i}`} token={token} titled={false} />
           ))}
         </li>
       )}
@@ -2362,7 +2370,8 @@ function listed(lines: readonly string[]): string {
 /** A chosen colour: the Mana font's own symbol (D20), or the word when it names none. */
 function ChoiceWord({ word }: { word: string }) {
   const token = colorWordToken(word);
-  return token === null ? <>{word}</> : <ManaPip token={token} />;
+  // The enclosing tag already carries the choice in words as its own `data-tip`.
+  return token === null ? <>{word}</> : <ManaPip token={token} titled={false} />;
 }
 
 /**

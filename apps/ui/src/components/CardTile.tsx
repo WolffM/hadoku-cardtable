@@ -99,7 +99,9 @@ function RulesLine({ line, conditionMet = false }: { line: string; conditionMet?
       {pieces.map((piece, i) => {
         const symbol = /^\{([^}]{1,5})\}$/.exec(piece);
         if (!symbol) return <span key={i}>{piece}</span>;
-        return <ManaPip key={i} token={symbol[1]} />;
+        // The oracle text around it is already on screen — a hover tooltip on
+        // the symbol would only repeat the rules line it sits inside.
+        return <ManaPip key={i} token={symbol[1]} titled={false} />;
       })}
     </span>
   );
@@ -308,12 +310,15 @@ function CardBody({ card, liveText, conditionMet = false }: { card: TileFace; li
               with no glyph still reads as its code. See SetSymbol. */}
           <SetSymbol code={card.setCode} label={`set ${card.setCode}`} />{' '}
           {card.collectorNumber}
-          <span className="card__rarity" title={card.rarity}>
+          {/* The letter is the printed shorthand; the word goes to a screen
+              reader only — a sighted hover on a letter that already reads
+              correctly is a useless tooltip (the operator, 2026-10-27). */}
+          <span className="card__rarity" aria-label={card.rarity}>
             {RARITY_LETTER[card.rarity] ?? '?'}
           </span>
         </span>
         {stat !== null && (
-          <span className="card__stat" title={card.loyalty !== undefined ? 'loyalty' : 'power / toughness'}>
+          <span className="card__stat" aria-label={`${card.loyalty !== undefined ? 'loyalty' : 'power / toughness'} ${stat}`}>
             {stat}
           </span>
         )}

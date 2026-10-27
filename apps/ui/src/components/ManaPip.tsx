@@ -232,7 +232,7 @@ export function ManaPip({ token, titled = true }: { token: string; titled?: bool
     // No glyph: the token, printed. `pip--wide` is the existing capsule, which
     // fits a label of more than one character.
     return (
-      <span className="pip pip--wide pip--unknown" title={titled ? symbol.title : undefined} data-token={token}>
+      <span className="pip pip--wide pip--unknown" aria-label={symbol.title} title={titled ? symbol.title : undefined} data-token={token}>
         {symbol.label}
       </span>
     );
@@ -259,8 +259,14 @@ export function ManaCost({ cost, label }: { cost: readonly string[]; label?: str
   if (cost.length === 0) return null;
   return (
     <span className="cost" aria-label={label ?? `mana cost ${cost.join(' ')}`}>
+      {/* The whole cost is already drawn, in full, as glyphs right here — a native
+          tooltip on one pip would only repeat what the pip itself already shows
+          (the operator, 2026-10-27: hovering a cost pip popped up "Generic 6",
+          which told a sighted player nothing the glyph did not). `titled={false}`
+          keeps the accessible name for a screen reader and drops only the hover
+          text. */}
       {cost.map((token, i) => (
-        <ManaPip key={`${token}-${i}`} token={token} />
+        <ManaPip key={`${token}-${i}`} token={token} titled={false} />
       ))}
     </span>
   );

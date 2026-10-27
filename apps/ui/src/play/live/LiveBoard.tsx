@@ -3842,7 +3842,6 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           data-testid="live-full-control"
           aria-pressed={match.fullControl}
           disabled={spectator}
-          title="Full control"
           onPress={() => setFullControl(match, !match.fullControl)}
         >
           Full control
@@ -3858,7 +3857,6 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           data-testid="live-concede"
           aria-expanded={conceding}
           disabled={spectator || over}
-          title="Concede the game"
           onClick={() => setConceding(true)}
         >
           Concede

@@ -295,3 +295,56 @@ describe('a card tile', () => {
     expect(print?.textContent).toContain('ZEN');
   });
 });
+
+/**
+ * No native browser tooltip anywhere on a card. The operator, 2026-10-27:
+ * hovering a 15/15 Wurmcoil Engine on the battlefield popped up "Generic 6"
+ * (the font's `title` on its cost pip) and "Power 15, toughness 15" (a tip
+ * that told a sighted mouse user nothing the badge did not already show).
+ * Every number and letter on a tile is drawn as text already — a `title`
+ * on top of it is always a duplicate, never information. `aria-label` stays:
+ * it is the one thing a screen reader gets and nothing visual repeats it.
+ */
+describe('no native tooltips on a card (the operator, 2026-10-27)', () => {
+  const CREATURE: DraftCard = {
+    cardId: 'test/creature',
+    name: 'Test Wurm',
+    manaCost: ['6'],
+    manaValue: 6,
+    colors: [],
+    typeLine: 'Artifact Creature — Wurm',
+    oracleText: 'Deathtouch, lifelink',
+    power: '6',
+    toughness: '6',
+    setCode: 'ZEN',
+    collectorNumber: '1',
+    rarity: 'rare',
+  };
+
+  const PLANESWALKER: DraftCard = {
+    ...CREATURE,
+    cardId: 'test/walker',
+    name: 'Test Walker',
+    typeLine: 'Planeswalker',
+    power: undefined,
+    toughness: undefined,
+    loyalty: '5',
+  };
+
+  it('carries no title on the mana cost, the P/T badge, the rarity letter or the set symbol', () => {
+    const { container } = render(createElement(CardTile, { card: CREATURE }));
+    expect([...container.querySelectorAll('[title]')]).toHaveLength(0);
+  });
+
+  it('nor on a planeswalker’s loyalty', () => {
+    const { container } = render(createElement(CardTile, { card: PLANESWALKER }));
+    expect([...container.querySelectorAll('[title]')]).toHaveLength(0);
+  });
+
+  it('still names each of them to a screen reader, with aria-label', () => {
+    const { container } = render(createElement(CardTile, { card: CREATURE }));
+    expect(container.querySelector('.ms-cost')?.getAttribute('aria-label')).toBe('6 generic');
+    expect(container.querySelector('.card__rarity')?.getAttribute('aria-label')).toBe('rare');
+    expect(container.querySelector('.card__stat')?.getAttribute('aria-label')).toBe('power / toughness 6/6');
+  });
+});

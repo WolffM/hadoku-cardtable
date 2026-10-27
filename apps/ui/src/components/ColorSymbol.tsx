@@ -48,5 +48,5 @@ export function colorSymbolOf(colors: readonly ManaColor[]): ColorSymbolId {
 export function ColorSymbol(props: { colors: readonly ManaColor[] } | { symbol: ColorSymbolId }) {
   const symbol = 'symbol' in props ? props.symbol : colorSymbolOf(props.colors);
   if (symbol !== 'M') return <ManaPip token={symbol} />;
-  return <i className="colorsym ms ms-multicolor ms-duo ms-duo-color ms-grad" role="img" aria-label="multicolour" title="multicolour" />;
+  return <i className="colorsym ms ms-multicolor ms-duo ms-duo-color ms-grad" role="img" aria-label="multicolour" />;
 }

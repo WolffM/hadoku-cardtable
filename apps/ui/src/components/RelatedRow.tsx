@@ -70,7 +70,9 @@ export function RelatedRow({ cards, anchor, place }: { cards: readonly RelatedCa
     <div className="pack__related" data-testid="pack-related" style={style}>
       {drawn.cards.map(({ card, url }) =>
         url === null ? (
-          <div key={card.name} className="pack__related-card" title={card.name} data-kind={card.kind}>
+          // The tile already draws the name — a native tooltip on top of it
+          // would only repeat text that is already on screen.
+          <div key={card.name} className="pack__related-card" data-kind={card.kind}>
             <CardTile card={{ ...card.face, cardId: `related-${card.name}` }} />
           </div>
         ) : (
