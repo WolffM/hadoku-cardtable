@@ -405,7 +405,7 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 		// ---- Rebuild it on a second JVM, through the same kind of queued factory a real server uses. ----
 		const jvmR = queueColdStarts(jvmHostFactory(available.config, { spare: false, log: () => {} }), COLD_STARTS, () => {});
 		const tR = Date.now();
-		const result = await rebuild(matchId, { recordingsDir, host: jvmR, log: () => {}, deckCosts });
+		const result = await rebuild(matchId, { recordingsDir, host: jvmR, log: (e) => console.log('[rebuild-log]', JSON.stringify(e)), deckCosts });
 		const rebuildMs = Date.now() - tR;
 		jvmR.close?.();
 		await waitUntil(() => liveJvmCount() === 0, 'the rebuild\'s JVM to exit', 20_000);
