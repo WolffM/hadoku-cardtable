@@ -119,6 +119,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -129,6 +130,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -6577,8 +6579,11 @@ public final class PlayBridge {
 
     // ==================================================================== main
 
+    /** Where every match's Forge server listens and its seats connect: nothing off this machine reaches it. */
+    static final InetAddress LOOPBACK = InetAddress.getLoopbackAddress();
+
     static int freePort() throws IOException {
-        try (ServerSocket s = new ServerSocket(0)) {
+        try (ServerSocket s = new ServerSocket(0, 0, LOOPBACK)) {
             return s.getLocalPort();
         }
     }
@@ -6708,8 +6713,8 @@ public final class PlayBridge {
         }
     }
 
-    /** A match's Forge server on its port, with an empty lobby. */
-    record Booted(int port, FServerManager server, ServerGameLobby lobby) { }
+    /** A match's Forge server on its port, with an empty lobby, admitting only clients that log in with {@code credential}. */
+    record Booted(int port, FServerManager server, ServerGameLobby lobby, String credential) { }
 
     /** Everything that is the JVM's, not a match's: Forge's model and preferences, and the GUI hooks. */
     static void bootModel() {
@@ -6748,12 +6753,18 @@ public final class PlayBridge {
     /**
      * A Forge server of the match's own, on a free loopback port: not
      * {@code FServerManager.getInstance()}, the one process-wide default, so a JVM can run one
-     * per match.
+     * per match. It listens on loopback alone, and admits only a client that logs in with the
+     * match's own random credential, which only this match's seat clients are given: anything
+     * else on this machine that opens the port is closed unheard, and never holds a slot.
      */
     static Booted bootServer() throws IOException {
         final int port = freePort();
+        final byte[] secret = new byte[32];
+        new SecureRandom().nextBytes(secret);
+        final String credential = HexFormat.of().formatHex(secret);
         final FServerManager server = new FServerManager();
-        server.startServer(port);
+        server.requireCredential(credential);
+        server.startServer(port, LOOPBACK);
         if (!server.isHosting()) {
             throw new IOException("Forge's server did not start on 127.0.0.1:" + port);
         }
@@ -6763,7 +6774,7 @@ public final class PlayBridge {
             @Override public void update(final boolean fullUpdate) { server.updateLobbyState(); }
             @Override public void update(final int slot, final LobbySlotType type) { }
         });
-        return new Booted(port, server, lobby);
+        return new Booted(port, server, lobby, credential);
     }
 
     /**
@@ -6920,7 +6931,8 @@ public final class PlayBridge {
             final ClientGameLobby clientLobby = new ClientGameLobby();
             final CountDownLatch assigned = new CountDownLatch(1);
             final AtomicInteger mySlot = new AtomicInteger(-1);
-            final FGameClient client = new FGameClient(seats.get(i).name(), gui, "localhost", port);
+            final FGameClient client = new FGameClient(seats.get(i).name(), gui, LOOPBACK.getHostAddress(), port);
+            client.setCredential(booted.credential());
             client.addLobbyListener(new ILobbyListener() {
                 @Override public void update(final GameLobbyData state, final int slot) {
                     // This runs on the client's channel thread: record it (see BridgeGui).
