@@ -2380,8 +2380,18 @@ export class Match {
 			// left open (`unparsed.ts`).
 			const fallback = fallbackFor(raw, askId, (ref) => (ref.kind === 'card' ? cardName(this.foldedStateOf(s), ref.id) : null) ?? `${ref.kind} #${ref.id}`);
 			this.deps.log({ evt: 'ask-unparsed', matchId: this.id, seat, callId: askId, method: head?.method, errors, fallback: fallback !== null });
-			if (fallback === null) return;
+			if (fallback === null) {
+				this.logUnclassified(s, String(head?.method), null, askId);
+				return;
+			}
 			this.flushPendingWindow(s);
+			// The one rule, over the pick it is shown as: one it cannot finish is answered with every option.
+			const verdict = answerability({ kind: 'ask', frame: fallback.frame });
+			if (verdict.verdict === 'unanswerable' && verdict.answer.t === 'reply') {
+				this.deps.log({ evt: 'ask-unanswerable', matchId: this.id, seat, card: null, method: String(head?.method), why: verdict.why });
+				this.autoReply(s, askId, String(head?.method), verdict.why, fallback.answer(verdict.answer.result as string[]));
+				return;
+			}
 			s.unparsed.set(askId, fallback);
 			this.openAskFrame(s, askId, 'getChoices', fallback.frame);
 			return;

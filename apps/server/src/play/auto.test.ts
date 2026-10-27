@@ -2521,6 +2521,12 @@ describe('answerability — every ask', () => {
 		expect(answerability(ask('chooseSingleEntityForEffect.json', { optionList: [], isOptional: false })).verdict).toBe('unclassified');
 	});
 
+	it('an order is answerable while some count can be left unplaced; a negative bound is no limit', () => {
+		expect(answerability(ask('order.json', {})).verdict).toBe('answerable');
+		// Watchers of the Dead over a one-card graveyard, as Forge sent it: `many` of two from one.
+		expect(answerability(ask('order.json', { remainingObjectsMin: -1, remainingObjectsMax: -1 })).verdict).toBe('answerable');
+	});
+
 	it('a confirm always has both answers', () => {
 		expect(answerability(ask('confirm.json', {})).verdict).toBe('answerable');
 	});

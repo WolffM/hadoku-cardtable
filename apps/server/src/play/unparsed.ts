@@ -12,7 +12,12 @@
  *
  * Only the methods whose answer is a pick among what the frame itself lists
  * have a fallback; for any other, {@link fallbackFor} is null and the ask
- * stays open, logged `ask-unparsed`.
+ * stays open, logged `ask-unparsed` and `ask-unclassified`.
+ *
+ * The pick keeps the ask's own minimum. Whether the seat can meet it is the
+ * one rule's (`auto.ts`'s `answerability`), which `match.ts` asks of the
+ * fallback exactly as of any parsed ask: fewer answers than the minimum is
+ * answered with every one, never shown.
  */
 
 import { safeParseServerFrame, type ServerFrame } from '@hadoku/forge-wire';
@@ -126,7 +131,7 @@ export function fallbackFor(raw: unknown, callId: string, name: (ref: { kind: st
 		callId,
 		method: 'getChoices',
 		message,
-		min: Math.min(found.min, found.list.length),
+		min: found.min,
 		max: Math.min(found.max, found.list.length),
 		choices: found.list.map((c, i) => ({ key: String(i), label: c.label, ref: null })),
 		selected: [],

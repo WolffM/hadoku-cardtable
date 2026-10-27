@@ -1459,7 +1459,10 @@ export function decidePay(facts: PromptFacts, policy: StopPolicy): string | null
  * | `getAbilityToPlay` | one ability | none: no pick (null), Forge's "play nothing" |
  * | `showOptionDialog` | one option | none: not classified (no index is legal) |
  * | `confirm`, `showConfirmDialog` | always: both answers are live | — |
- * | `order`, `assignCombatDamage`, `assignGenericAmount`, `showInputDialog`, `sideboard` and the rest | not classified: forwarded as today, logged `ask-unclassified` |
+ * | `order` | some count of unplaced items is within its bounds; a negative bound is Forge's "no limit" (`AbstractGuiGame.many`, measured live: Watchers of the Dead over a one-card graveyard arrives as -1/-1, and our picker takes it unbounded) | not classified |
+ * | `assignCombatDamage`, `assignGenericAmount`, `showInputDialog`, `sideboard`, `manipulateCardList` | always: their prompt accepts any answer within Forge's own bounds | — |
+ * | `openZones`, `tempShowZones` | always: a display the browser answers itself | — |
+ * | any other method | not classified: forwarded as today, logged `ask-unclassified` | |
  *
  * A payment with Auto dead and Cancel dead is not classified either: Forge left no
  * press, and that is Forge's to answer, not ours to drop.
@@ -1527,7 +1530,20 @@ export function answerability(q: Question): Answerability {
 			return frame.options.length > 0 ? ANSWERABLE : UNCLASSIFIED;
 		case 'confirm':
 		case 'showConfirmDialog':
+		case 'assignCombatDamage':
+		case 'assignGenericAmount':
+		case 'showInputDialog':
+		case 'sideboard':
+		case 'manipulateCardList':
+		case 'openZones':
+		case 'tempShowZones':
 			return ANSWERABLE;
+		case 'order': {
+			const n = frame.sourceChoices.length + frame.destChoices.length;
+			const least = Math.max(frame.remainingObjectsMin, 0);
+			const most = frame.remainingObjectsMax < 0 ? n : Math.min(frame.remainingObjectsMax, n);
+			return least <= most ? ANSWERABLE : UNCLASSIFIED;
+		}
 		default:
 			return UNCLASSIFIED;
 	}

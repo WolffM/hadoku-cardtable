@@ -1126,6 +1126,20 @@ describe('what Forge sends that forge-wire refuses', () => {
 		expect(h.sent.length).toBe(before);
 		expect(h.host.commands).toEqual([]);
 		expect(h.logs.find((l) => l.evt === 'ask-unparsed')).toMatchObject({ callId: 's0-78', fallback: false });
+		expect(h.logs.find((l) => l.evt === 'ask-unclassified')).toMatchObject({ seat: 0, method: 'order' });
+	});
+
+	it('an unparsed pick with fewer answers than its minimum is answered with all of them, never shown', () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		const before = h.sent.length;
+		// A stray field fails the schema; two entities for a minimum of three.
+		const optionList = [{ kind: 'card', id: 4 }, { kind: 'card', id: 5 }];
+		h.host.push({ t: 'frame', seat: 0, frame: { kind: 'ask', callId: 's0-79', method: 'chooseEntitiesForEffect', title: 'Choose three', optionList, min: 3, max: 3, delayedReveal: null, stray: 1 } });
+		expect(h.logs.find((l) => l.evt === 'ask-unparsed')).toMatchObject({ callId: 's0-79', fallback: true });
+		expect(h.sent.slice(before).filter((x) => x.envelope.frame.kind === 'ask')).toEqual([]);
+		expect(h.host.commands).toEqual([{ t: 'reply', seat: 0, callId: 's0-79', result: optionList }]);
+		expect(h.logs.find((l) => l.evt === 'ask-unanswerable')).toMatchObject({ seat: 0, method: 'chooseEntitiesForEffect', why: '2 option(s) for a minimum of 3' });
 	});
 
 });
