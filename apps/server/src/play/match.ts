@@ -2357,12 +2357,6 @@ export class Match {
 				this.deps.log({ evt: `bridge-${t}`, matchId: this.id, ...detail });
 				return;
 			}
-			case 'applied':
-				// The recorder (`recording/recorder.ts`) logs this one, from the `line` hook its
-				// `host()` wraps around this match's events, before it ever reaches here. Nothing
-				// in match.ts tracks live play from it: the board a seat is shown still comes from
-				// `frame`/`gameover` above.
-				return;
 		}
 	}
 
