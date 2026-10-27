@@ -1469,6 +1469,20 @@ describe('full control — the escape hatch, off by default', () => {
 		expect(h.host.commands.filter((c) => c.t === 'reply')).toEqual([{ t: 'reply', seat: 0, callId: 'a-4', result: ['k1', 'k2', 'k3', 'k4', 'k5'] }]);
 	});
 
+	it('a pick with fewer options than its minimum is never the seat’s, in any mode: every option goes, logged ask-unanswerable', () => {
+		for (const full of [false, true]) {
+			const h = harness();
+			h.match.setFullControl(0, full);
+			// Three options for a minimum of five: no pick our UI offers could ever be finished.
+			push(h, 0, parseServerFrame({ kind: 'ask', callId: 'a-5', method: 'getChoices', message: 'Choose', min: 5, max: 5, choices: [1, 2, 3].map((i) => ({ key: `k${i}`, label: `option ${i}`, ref: null })), selected: [] }));
+			expect(frames(h, 0).filter((f) => f.kind === 'ask' && f.callId === 'a-5')).toEqual([]);
+			expect(h.host.commands.filter((c) => c.t === 'reply')).toEqual([{ t: 'reply', seat: 0, callId: 'a-5', result: ['k1', 'k2', 'k3'] }]);
+			expect(h.logs.filter((l) => l.evt === 'ask-unanswerable')).toEqual([
+				{ evt: 'ask-unanswerable', matchId: h.match.id, seat: 0, card: null, method: 'getChoices', why: '3 option(s) for a minimum of 5' },
+			]);
+		}
+	});
+
 	it('stops at a phase with nothing to do instead of passing it', () => {
 		const h = harness();
 		const me = playerOf(h, 0);
@@ -2721,6 +2735,17 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 		const f = facts({ phase: 'UPKEEP', phaseLabel: 'Upkeep step', myTurn: true, sources: [70], nonManaSources: [70], phaseRestricted: [70] });
 		expect(decideStop(f, DEFAULT_STOP_POLICY)).toBeNull();
 		expect(decideStop({ ...f, phaseRestricted: [] }, DEFAULT_STOP_POLICY)).toBe('Upkeep step');
+	});
+
+	it('a fetchland the bridge names while a cost is ahead keeps the Beginning of Combat, and its own upkeep trigger on the stack', () => {
+		// The bridge puts the fetchland in `phaseRestricted` only while an attack tax or an upkeep cost of
+		// the seat's is ahead in this step; the server reads that fact and nothing about the card.
+		const combat = facts({ phase: 'COMBAT_BEGIN', phaseLabel: 'Beginning of Combat Step', myTurn: true, sources: [70], nonManaSources: [70] });
+		expect(judgeStop({ ...combat, phaseRestricted: [70] }, DEFAULT_STOP_POLICY)).toMatchObject({ pass: null, rule: 'has-play', plays: [70] });
+		const upkeepTrigger = facts({ phase: 'UPKEEP', phaseLabel: 'Upkeep step', myTurn: true, stackEmpty: false, stackTopMine: true, sources: [70], nonManaSources: [70] });
+		expect(judgeStop(upkeepTrigger, DEFAULT_STOP_POLICY)).toMatchObject({ rule: 'own-spell' });
+		expect(judgeStop({ ...upkeepTrigger, phaseRestricted: [70] }, DEFAULT_STOP_POLICY)).toMatchObject({ pass: null, rule: 'has-play', plays: [70] });
+		expect(judgeStop({ ...upkeepTrigger, phaseRestricted: [70] }, { ...DEFAULT_STOP_POLICY, stopForPhaseAbility: false })).toMatchObject({ rule: 'own-spell' });
 	});
 
 	/** The seat chooses ability `chosen` of card 70 from a two-ability offer, as a browser would. */

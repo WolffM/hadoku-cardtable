@@ -354,7 +354,12 @@ export interface StopPolicy {
 	 * ({@link PromptFacts.phaseRestricted}) names battlefield permanents only, so
 	 * the stop tells the table nothing it cannot read off the board. A held
 	 * instant still never stops a phase, and neither does an ability that works in
-	 * every phase (Augur's own regenerate), or every phase would stop again.
+	 * every phase (Augur's own regenerate), or every phase would stop again —
+	 * except a fetchland while a cost the seat must pay is ahead in this step: an
+	 * attack tax (Elephant Grass, Ghostly Prison) or its own upkeep cost. It cannot be
+	 * cracked inside the payment (CR 605.1a), so this window is its one use for it
+	 * (the operator, 2026-10-26: *"can we let people use fetchlands so they can pay
+	 * for stuff like that?"*).
 	 *
 	 * Full control keeps every stop anyway.
 	 */
@@ -972,8 +977,11 @@ export interface PromptFacts {
 	readonly nonManaSources: readonly number[] | null;
 	/**
 	 * This seat's permanents with an ability activatable now that is restricted
-	 * to this phase (`SeatNotes.phaseRestrictedIds`); empty when none or unknown.
-	 * Read only by {@link StopPolicy.stopForPhaseAbility}.
+	 * to this phase (`SeatNotes.phaseRestrictedIds`), and, while a cost the seat
+	 * must pay is ahead in this step (an attack tax at its Beginning of Combat, its
+	 * own upkeep cost on the stack), the ones that fetch a land — the window before
+	 * the payment is the only one a fetchland can pay it from. Empty when none or
+	 * unknown. Read only by {@link StopPolicy.stopForPhaseAbility}.
 	 */
 	readonly phaseRestricted: readonly number[];
 	/**
@@ -1364,7 +1372,9 @@ export function judgeStop(facts: PromptFacts, policy: StopPolicy): StopJudgement
 		// priority and this hands it on — unless a playable card copies it (see both fields).
 		const copiers = policy.holdForSpellCopy ? copiersFor(facts) : [];
 		if (copiers.length > 0) return { pass: null, rule: 'copy-available', plays: copiers };
-		return pass(facts, 'own-spell');
+		// Its own upkeep cost on the stack with a fetchland in hand's reach: this window is the only one
+		// the fetch can pay it from (the bridge's `phaseRestricted`), so it falls to the play check below.
+		if (!phaseAbilityNow(policy, facts)) return pass(facts, 'own-spell');
 	}
 
 	if (!policy.passWhenNothingToDo) return keep('every-window');

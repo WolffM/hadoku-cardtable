@@ -3892,7 +3892,11 @@ public final class PlayBridge {
          * play and have a playable non-mana ability whose {@code ActivationPhases}
          * restriction ({@code SpellAbilityRestriction}, {@code SpellAbilityVariables.getPhases})
          * is met now — Augur of Skulls in its controller's upkeep. Battlefield only, never the
-         * hand: the card and its text are on the table for everyone.</li>
+         * hand: the card and its text are on the table for everyone. Also, while a cost this
+         * seat must pay is ahead in this step ({@link #costAhead}), the permanents whose
+         * non-mana ability puts a land onto the battlefield (a fetchland): the rules let it be
+         * cracked now and never inside the payment (CR 605.1a), so this phase is its only use
+         * for that payment.</li>
          * <li>{@code animates}: the offered permanents that can make themselves a creature that
          * could still fight this turn — a Mutavault before its controller's attack, an Inkmoth
          * Nexus before the other player's blocks: the fork's {@code AvailableActions.Scan#animates},
@@ -3928,6 +3932,7 @@ public final class PlayBridge {
             final java.util.Set<Integer> animating = new java.util.HashSet<>();
             for (final CardView a : scan.animates()) { animating.add(a.getId()); }
             try {
+                final boolean costAhead = costAhead(game, mine);
                 final JsonArray manaOnly = new JsonArray();
                 final JsonArray phaseRestricted = new JsonArray();
                 final JsonArray animates = new JsonArray();
@@ -3944,7 +3949,8 @@ public final class PlayBridge {
                     }
                     if (!c.isInPlay() || c.getController() != mine) { continue; }
                     for (final SpellAbility sa : c.getAllPossibleAbilities(mine, true)) {
-                        if (!sa.isManaAbility() && sa.getRestrictions() != null && !sa.getRestrictions().getPhases().isEmpty()) {
+                        if (sa.isManaAbility()) { continue; }
+                        if ((sa.getRestrictions() != null && !sa.getRestrictions().getPhases().isEmpty()) || (costAhead && fetchesLand(sa))) {
                             phaseRestricted.add(ref("card", cv.getId()));
                             break;
                         }
@@ -3959,6 +3965,56 @@ public final class PlayBridge {
             } catch (final RuntimeException e) {
                 System.err.println("[bridge] offerFacts: could not read the offered abilities (" + e + "); the window keeps its stop");
             }
+        }
+
+        /**
+         * A cost this seat will be asked to pay later in this step, which mana it does not have
+         * yet could still pay: an attack tax on one of its creatures at its own Beginning of
+         * Combat (Forge's own {@code CombatUtil.getAttackCost}, over every static that sets one —
+         * Propaganda, Ghostly Prison, Elephant Grass), or, in its own upkeep, its trigger on the
+         * stack that is paid or else ({@code UnlessCost}, cumulative upkeep, echo — the params
+         * Forge's own keyword triggers carry, {@code CardFactoryUtil}).
+         */
+        private boolean costAhead(final Game game, final forge.game.player.Player mine) {
+            final forge.game.phase.PhaseHandler ph = game.getPhaseHandler();
+            if (!ph.isPlayerTurn(mine)) { return false; }
+            if (ph.getPhase() == PhaseType.COMBAT_BEGIN) {
+                for (final forge.game.card.Card creature : mine.getCreaturesInPlay()) {
+                    if (!forge.game.combat.CombatUtil.canAttack(creature)) { continue; }
+                    for (final forge.game.player.Player defender : mine.getOpponents()) {
+                        if (forge.game.combat.CombatUtil.canAttack(creature, defender)
+                                && forge.game.combat.CombatUtil.getAttackCost(game, creature, defender) != null) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+            if (ph.getPhase() == PhaseType.UPKEEP) {
+                for (final SpellAbilityStackInstance si : game.getStack()) {
+                    if (si.getActivatingPlayer() != mine) { continue; }
+                    for (SpellAbility sa = si.getSpellAbility(); sa != null; sa = sa.getSubAbility()) {
+                        if (sa.hasParam("UnlessCost") || sa.hasParam("CumulativeUpkeep") || sa.hasParam("Echo")) { return true; }
+                    }
+                }
+            }
+            return false;
+        }
+
+        /** A non-mana ability that puts a land onto the battlefield from its controller's library: a fetchland's. */
+        private static boolean fetchesLand(final SpellAbility sa) {
+            for (SpellAbility a = sa; a != null; a = a.getSubAbility()) {
+                if (a.getApi() != forge.game.ability.ApiType.ChangeZone || !"Battlefield".equals(a.getParam("Destination"))
+                        || a.getParam("Origin") == null || !a.getParam("Origin").contains("Library") || a.getParam("ChangeType") == null) {
+                    continue;
+                }
+                // "Land.Basic", "Mountain,Forest": a land, or a land's subtype, before any qualifier.
+                for (final String type : a.getParam("ChangeType").split(",")) {
+                    final String head = type.split("\\.")[0].trim();
+                    if ("Land".equals(head) || forge.card.CardType.isALandType(head)) { return true; }
+                }
+            }
+            return false;
         }
 
         @Override public void clearWeaklySelectable() {
