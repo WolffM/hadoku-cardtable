@@ -169,7 +169,48 @@ for a long human game. Replay time scales with command count, not game length: 1
 - **Human-vs-human replays** re-simulate on demand. The resulting public stream is cached for a day.
 - **Matches with an AI** keep the gzipped public stream until the two fork changes above land.
 
+## Wave 77 results (2026-10-27)
+
+**Shipped:**
+- **The recorder** (`play/recording/`, 130c25ce): every match is seeded, with an action log kept
+  90 days and a public stream kept 7 days, gzipped, under `CONFIG.recordingsDir`
+  (`<dataDir>/recordings`, so PPE, prod and each e2e run are separate). Both files are written
+  at the game's end. `GET /api/replays` and `GET /api/replays/:id` serve them.
+- **The front page** (fc5381be): artboard A, with the live slot as `FeaturedMatch`, quiet through
+  `holdMatchQuiet`.
+- **`#/replay/<id>`.**
+- **Replays work from the stored public stream**, so they last 7 days.
+
+**Rebuild from the action log is not shipped.** Lane D's `rebuild.ts` is on branch `w77-d`,
+unlanded. A real two-human match (Spirit Flames v Decay, seed 20261027, 268 commands) rebuilds
+identically for its first ~148 commands, then runs ahead.
+
+The cause, read from the log:
+- Command 145 is seat 0's OK (a pass) with a spell on the stack.
+- Live, seat 0 still held priority afterwards (146–148: another card and its payment), so Forge
+  **ignored** that OK: it arrived while no input was waiting.
+- The rebuild sends it when Forge *is* waiting, so it passes, and the game runs ahead.
+
+The action log records what was *sent*, not what Forge *took*. The bridge acknowledges no act.
+`replay-determinism.jvm.test.ts` passed 8/8 because its driver acts only on a settled screen, which
+makes a dropped act rare. Real players click whenever they like.
+
+Lane D's workaround made it worse. It skipped a pass once a later board digest matched, but passing
+priority barely changes the board. The skip passed a seat that had not passed, and the next command
+waited forever on "Waiting for A…". It is removed; a cross-seat burst rule replaced it.
+
+**To ship rebuild:** the bridge must say which acts it consumed.
+- `PlayBridge.java` echoes each act it applies, with the input it applied it to. The recorder logs
+  only consumed acts, and a rebuild sends only those.
+- This is an engine/bridge change. Wave 76 owns `PlayBridge.java` this wave, so it is the next wave's
+  first item.
+- Then rebase `w77-d`, re-run its `[nightly]` jar test to green, and wire it. The `ask` number on
+  reply lines (646f07a6) already makes the reply mapping exact.
+- Until then a replay lasts as long as its public stream (7 days).
+
 ## Still open
 
-1. **Nothing live:** loop a recent replay, or run an AI-vs-AI exhibition (a JVM around the clock)?
-2. **Perspective:** the hero is drawn from the first human seat's side. Is that fine?
+- Rebuild needs the bridge's consumed-act echo (above).
+- The replay scrubber moves by time, not turn: the public stream carries no turn markers yet.
+- The draft card shows no pack and pick: not on the room wire.
+- The Upcoming card reads `apps/ui/src/front/events.json`, empty until someone adds events.
