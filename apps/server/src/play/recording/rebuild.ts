@@ -380,7 +380,11 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 
 	const budget = deps.positionBudgetMs ?? 30_000;
 	let diverged: string | null = null;
-	for (const [i, c] of cmds.entries()) {
+	// How far ahead a stalled plain pass may look for a later checkpoint it was absorbed into (below).
+	const CATCH_UP_LOOKAHEAD = 20;
+	let i = 0;
+	while (i < cmds.length) {
+		const c = cmds[i]!;
 		const seat = commandSeat(c.cmd);
 		const isReply = c.cmd.t === 'reply' || c.cmd.t === 'abort';
 		const prior = cmds[i - 1];
@@ -392,6 +396,24 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 			const there = (): boolean => lastPrompt(raw, seat) === c.prompt && boardDigest(raw, seat) === c.board;
 			const deadline = Date.now() + budget;
 			while (exited === null && Date.now() < deadline && !(Date.now() - lastLineAt > 80 && there())) await sleep(20);
+			if (exited === null && !there() && c.cmd.t === 'act' && c.cmd.frame.method === 'selectButtonOk') {
+				// A plain pass (nothing selected) that `Match`'s stop policy showed the player in the
+				// live run — Forge's own engine, with no `Match` here to insert that stop, can race
+				// straight through it. The board is seat-independent (Forge's raw per-connection
+				// stream carries the whole table either way, confirmed directly in testing: the
+				// rebuild's seat-0 digest at the timeout was byte-identical to the LIVE run's
+				// recorded seat-1 digest one command later) — so if THIS seat's own later checkpoint
+				// has already been reached, this pass had nothing left to do and was absorbed into
+				// it. Only a bare pass is treated this way: anything with a real choice attached
+				// (a card, a reply) still has to be sent, or it is a genuine divergence.
+				const now = { board: boardDigest(raw, seat), prompt: lastPrompt(raw, seat) };
+				const caughtUpAt = cmds.findIndex((later, j) => j > i && j <= i + CATCH_UP_LOOKAHEAD && commandSeat(later.cmd) === seat && later.board === now.board && later.prompt === now.prompt);
+				if (caughtUpAt > i) {
+					deps.log({ evt: 'rebuild-caught-up', matchId, from: i, to: caughtUpAt, seat });
+					i = caughtUpAt;
+					continue;
+				}
+			}
 			if (exited !== null || !there()) {
 				diverged =
 					exited !== null
@@ -425,6 +447,7 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 			out = { ...c.cmd, callId: mapped } as BridgeCommand;
 		}
 		host.send(out);
+		i++;
 	}
 
 	if (diverged === null) {
