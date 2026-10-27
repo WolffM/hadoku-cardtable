@@ -102,8 +102,8 @@ for c in "${PICKS[@]}"; do
   echo "land: ledger ${ids% }"
 done
 
-# Dependencies first: the art step below runs code that imports them. Linking borrows the
-# deploy tree's node_modules, which match the deploy tree's lockfile, not this one. When the
+# Dependencies first: the art step below runs code that imports them. Linking borrows a
+# deploy tree's node_modules, which match that tree's lockfile, not this one. When the
 # two lockfiles differ (an auto-update landed since the last deploy, or the
 # land itself changes dependencies), a linked check typechecks against the wrong versions, so
 # install for real instead. The temp worktree has no node_modules of its own, so nothing here
