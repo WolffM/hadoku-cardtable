@@ -104,7 +104,7 @@ function stub() {
   return { source, asked };
 }
 
-const NO_ROOMS = { list: async () => [] } as never;
+const NO_ROOMS = { list: async () => ({ rooms: [], featured: null }) } as never;
 /** The room list reads once and is never told anything changed: no socket here. */
 const QUIET: RoomFeed = {
   follow: (_target, refresh) => {
