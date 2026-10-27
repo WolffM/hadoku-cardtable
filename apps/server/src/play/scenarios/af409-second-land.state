@@ -1,0 +1,20 @@
+# AF409 (2026-10-26, "you can ship it"): seat 0 holds two different lands in hand — Forest and
+# Mountain, different names so the e2e can tell which one it actually played, same device
+# `land-into-middle.state` uses — and nothing else interesting, an uncontested turn-1 Main Phase 1.
+# Playing the first succeeds; the second press is refused ("not-offered") with
+# NumLandThisTurn (1) == MaxLandPlay (1) — the exact shape the mistake bubble's "land" classifier
+# (`apps/ui/src/play/live/mistakes.ts`) answers for certain. Used by
+# `e2e/af409-mistake-bubble.spec.ts`.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Forest;Mountain
+humanbattlefield=
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=

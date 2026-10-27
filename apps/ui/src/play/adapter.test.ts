@@ -1955,3 +1955,55 @@ describe('a Room’s doors', () => {
     expect(cardsById(adapt(baseState())).get(21)!.doors).toBeUndefined();
   });
 });
+
+describe('AF409 — NumLandThisTurn / MaxLandPlay reach BoardPlayer, for the mistake bubble’s "land" classifier', () => {
+  it('reads both ints straight off the wire, for every player', () => {
+    const state = baseState();
+    const key = deltaKey(DELTA_TYPE.player, fixture.viewerPlayerId);
+    state.set(key, { ...state.get(key)!, NumLandThisTurn: { t: 'int', v: 1 }, MaxLandPlay: { t: 'int', v: 1 } });
+    const me = adapt(state).players.find((p) => p.isViewer)!;
+    expect(me.numLandThisTurn).toBe(1);
+    expect(me.maxLandPlay).toBe(1);
+  });
+
+  it('reads the real fixture’s own values (the captured match’s wire, not a stand-in)', () => {
+    const key = deltaKey(DELTA_TYPE.player, fixture.viewerPlayerId);
+    const wire = baseState().get(key)!;
+    const me = adapt(baseState()).players.find((p) => p.isViewer)!;
+    expect(me.numLandThisTurn).toBe((wire.NumLandThisTurn as { v: number } | undefined)?.v ?? 0);
+    expect(me.maxLandPlay).toBe((wire.MaxLandPlay as { v: number } | undefined)?.v ?? 0);
+  });
+});
+
+describe('AF406 — abilityTextOf substitutes CARDNAME for the source’s own name, for every card', () => {
+  /*
+   * Charming Prince's own script (`forge-gui/res/cardsfolder/c/charming_prince.txt:5`):
+   * `TriggerDescription$ When CARDNAME enters, ABILITY`. The prod log (`m-4b9a388170c8`) never
+   * carries a raw `Description`/`Key` (telemetry logs events, not wire state — `grep -c '"Description"'`
+   * over the whole log file is 0), so this fixture is the card's own TriggerDescription, read off
+   * Forge's res, for the moment its ETB trigger sits on the stack before its mode is chosen — the
+   * same moment `adapter.ts`'s own docstring already names ("a modal trigger's 'ABILITY', which also
+   * leaves 'CARDNAME' in place").
+   */
+  const KEY = 'Charming Prince (4): When CARDNAME enters, ABILITY';
+  const DESCRIPTION = 'When CARDNAME enters, ABILITY';
+
+  it('Charming Prince’s chip reads the source’s name, not the literal placeholder (AF406)', () => {
+    expect(abilityTextOf(KEY, DESCRIPTION, 'Charming Prince')).toBe('When Charming Prince enters, ABILITY');
+  });
+
+  it('substitutes every occurrence of CARDNAME in the Description fallback — the only path it can survive to, since an `own` text with CARDNAME in it is never returned as-is (it fails the ABILITY/CARDNAME test and the branch falls to Description instead)', () => {
+    expect(abilityTextOf(null, 'CARDNAME enters. If CARDNAME would die this turn, exile it instead.', 'Charming Prince')).toBe(
+      'Charming Prince enters. If Charming Prince would die this turn, exile it instead.',
+    );
+  });
+
+  it('is a no-op for text that never carried CARDNAME — Rubblebelt Boar’s own case stays exactly as it was', () => {
+    expect(abilityTextOf(KEY, DESCRIPTION, 'Rubblebelt Boar')).not.toContain('CARDNAME');
+    expect(abilityTextOf(null, 'Llanowar Elves - Add {G}.', 'Llanowar Elves')).toBe('Add {G}.');
+  });
+
+  it('with no source name to substitute with (the source itself unseen), CARDNAME is left rather than guessed', () => {
+    expect(abilityTextOf(KEY, DESCRIPTION, null)).toBe('When CARDNAME enters, ABILITY');
+  });
+});

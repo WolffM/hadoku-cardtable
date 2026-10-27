@@ -13,7 +13,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseServerFrame, type ServerFrame, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
 
-import { opponentOf, viewerOf, type BoardView } from '../adapter.ts';
+import { opponentOf, viewerOf, type BoardCard, type BoardView } from '../adapter.ts';
 import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { type Tagged } from '../wire.ts';
 import {
@@ -897,6 +897,9 @@ describe('clicking the board: only what Forge offered', () => {
     expect(m.actCard).toBe(mine[0]);
     await sendAndApply(s, m, [clear(), prompt('Priority'), bar(true), flash]);
     expect(m.refused).toEqual({ card: mine[0], seq: 1 });
+    // AF409: no payment was open when this flash landed — `InputPassPriority`'s own shape, not the
+    // auto-cancel's — so the classifier says nothing rather than guess.
+    expect(m.mistake).toBeNull();
     const at = Date.now();
     await until('the mark to go', () => m.refused === null);
     expect(Date.now() - at).toBeGreaterThanOrEqual(REFUSED_MS - 50);
@@ -906,6 +909,7 @@ describe('clicking the board: only what Forge offered', () => {
     const { s, m } = await fullGame();
     await sendAndApply(s, m, [prompt('Priority'), bar(true), parseServerFrame({ kind: 'notify', method: 'flashIncorrectAction' })]);
     expect(m.refused).toBeNull();
+    expect(m.mistake).toBeNull();
   });
 
   it('a button press spends the whole input: no click until Forge shows the next one', async () => {
@@ -998,6 +1002,77 @@ describe('clicking the board: only what Forge offered', () => {
     expect([...m.selectables!.cards]).toEqual([theirs[0]]);
     expect(m.weaklySelectable).toBeNull();
     expect(selectCard(m, theirs[0]!)).toBe(true);
+  });
+});
+
+/*
+ * AF409: `reportRefusedClick`'s `reason` (`refusal()`) feeds `mistakes.ts`'s classifier, which is
+ * proved on its own in `mistakes.test.ts` — this block proves the WIRING: the live `match.view`
+ * (`numLandThisTurn`/`maxLandPlay`, `hasPriority`, a card's `summoningSick`) reaches the classifier
+ * on a real refusal, and the result lands on `match.mistake` and the telemetry's `said` field. The
+ * view is patched directly, the same device `attackersLeft`'s own tests use above (`withMine`): the
+ * wire path that fills `numLandThisTurn`/`maxLandPlay` is `adapter.test.ts`'s own proof, not this
+ * file's.
+ */
+describe('AF409: the mistake bubble’s classifier, wired to a live refusal', () => {
+  type ViewerPatch = Partial<BoardView['players'][number]>;
+  const patchViewer = (m: LiveMatch, patch: ViewerPatch): void => {
+    const view = m.view!;
+    m.view = { ...view, players: view.players.map((p) => (p.isViewer ? { ...p, ...patch } : p)) };
+  };
+  const mockCard = (id: number, typeLine: string, extra: Partial<BoardCard> = {}): BoardCard => ({
+    id,
+    card: { cardId: `mock-${id}`, name: `Mock ${id}`, manaCost: [], manaValue: 0, colors: [], typeLine, oracleText: '', setCode: 'TST', collectorNumber: '1', rarity: 'common' as const },
+    tapped: false,
+    summoningSick: false,
+    damage: 0,
+    counters: [],
+    attacking: false,
+    blocking: false,
+    token: false,
+    ...extra,
+  });
+
+  it('a second land press is "land", exactly when numLandThisTurn reaches maxLandPlay — not before', async () => {
+    const { s, m } = await fullGame();
+    const other = myHandCard(m, false);
+    const land = mockCard(555_001, 'Basic Land — Forest');
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([other])]);
+    patchViewer(m, { hand: [...(m.view!.players.find((p) => p.isViewer)!.hand ?? []), land], numLandThisTurn: 0, maxLandPlay: 1 });
+    expect(selectCard(m, land.id)).toBe(false);
+    expect(m.mistake, 'the limit is not reached yet').toBeNull();
+    patchViewer(m, { numLandThisTurn: 1 });
+    expect(selectCard(m, land.id)).toBe(false);
+    expect(m.mistake).toEqual({ key: 'land', seq: 1 });
+    await until('the telemetry', () => s.received.filter((r) => r.event === 'forge:client').length >= 2);
+    const clicks = s.received.filter((r) => r.event === 'forge:client');
+    expect(clicks.at(-1)?.payload).toMatchObject({ data: { what: 'click-refused', reason: 'not-offered', said: 'land' } });
+  });
+
+  it('a press with no priority is "priority" — the card shake’s own gate, not the click’s target', async () => {
+    const { s, m } = await fullGame();
+    const card = myNonLand(m);
+    await sendAndApply(s, m, [clearActionable(), prompt('Priority'), bar(true)]);
+    patchViewer(m, { hasPriority: false });
+    expect(selectCard(m, card)).toBe(false);
+    expect(m.mistake).toEqual({ key: 'priority', seq: 1 });
+  });
+
+  it('an attack aim at a summoning-sick creature is "sick" (the operator’s own wording)', async () => {
+    const { s, m } = await fullGame();
+    const sick = mockCard(555_002, 'Creature — Bear', { summoningSick: true });
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([myLand(m)])]);
+    patchViewer(m, { battlefield: [...m.view!.players.find((p) => p.isViewer)!.battlefield, sick] });
+    expect(selectCard(m, sick.id)).toBe(false);
+    expect(m.mistake).toEqual({ key: 'sick', seq: 1 });
+  });
+
+  it('a plain "not-offered" on a nonland spell says nothing — ambiguous, so the classifier is silent', async () => {
+    const { s, m } = await fullGame();
+    const spell = myHandCard(m, false);
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([myLand(m)])]);
+    expect(selectCard(m, spell)).toBe(false);
+    expect(m.mistake).toBeNull();
   });
 });
 
@@ -2161,6 +2236,23 @@ describe('payingMana: the payment input, and not a bar that outlived it', () => 
     const { mine } = ids(m);
     await sendAndApply(s, m, [bar(true), prompt('Priority'), actionable([mine[0]!])]);
     expect(payingMana(m)).toBe(false);
+  });
+
+  // AF409: the server's own auto-cancel of an unpayable cost (`apps/server/src/play/match.ts`'s
+  // `maybeCancelUnpayable`) sends the exact same `flashIncorrectAction` Forge's own two causes do
+  // (`mistakes.ts`'s own header). The one fact that tells it apart is timing: the explicit notify is
+  // sent synchronously, ahead of whatever frames would otherwise close the payment, so `payingMana`
+  // is still true when this frame lands.
+  it('AF409: flashIncorrectAction while payingMana is still true is the "mana" mistake', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([mine[0]!])]);
+    expect(selectCard(m, mine[0]!)).toBe(true);
+    await sendAndApply(s, m, [payBar(true), promptFor('Pay {7}', mine[0]!), actionable([mine[0]!])]);
+    expect(payingMana(m)).toBe(true);
+    await sendAndApply(s, m, [parseServerFrame({ kind: 'notify', method: 'flashIncorrectAction' })]);
+    expect(m.refused).toEqual({ card: mine[0], seq: 1 });
+    expect(m.mistake).toEqual({ key: 'mana', seq: 1 });
   });
 });
 
