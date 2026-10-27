@@ -424,6 +424,16 @@ function brokenStreamFile(dir: string, matchId: string): string {
 
 const LINE_TYPES = new Set(['ready', 'frame', 'probe', 'gameover', 'log', 'fatal', 'rejected', 'stale', 'unsupported', 'pace', 'resent', 'applied', 'input']);
 
+/**
+ * The `bridge.stderr.txt` of the local JVM that hosts `matchId`, found by the `match-placed`
+ * line the coordinator logged to that match's log. A JVM's run directory is named for the JVM,
+ * not the match, so this is how a test or a dump reaches a match's stderr. Null before placement.
+ */
+export function matchStderrPath(workDir: string, log: readonly Record<string, unknown>[], matchId: string): string | null {
+	const placed = log.find((l) => l.evt === 'match-placed' && l.matchId === matchId);
+	return typeof placed?.hostId === 'string' ? join(workDir, placed.hostId, 'bridge.stderr.txt') : null;
+}
+
 /** `<dir>/jvm.json`, or null when it is missing, unreadable or not a record. */
 export function readJvmRecord(dir: string): JvmRecord | null {
 	let parsed: unknown;
@@ -529,6 +539,7 @@ export type JvmHostFactory = MatchHostFactory & {
 	close(): void;
 	room(): 'warm' | 'booting' | 'none';
 	booting(): number;
+	watchRoom(listener: () => void): void;
 	orphans(): Promise<MatchRecord[]>;
 	attach(record: MatchRecord, events: HostEvents): MatchHost;
 	handOverAll(): string[];
@@ -759,6 +770,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 			bootFailures = 0;
 			poolLog({ evt: 'jvm-warm', id: jvm.hostId, bootMs: line.bootMs, matches: jvm.matches.size });
 			notifyRoom();
+			replenish();
 			return;
 		}
 		const refused = line.t === 'rejected' ? refusedStart(line.command) : null;
@@ -865,13 +877,16 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	}
 
 	/**
-	 * Keep one JVM with room. Never throws: it runs after a placement, on a JVM's exit and from a
+	 * Keep one JVM with room — but launch it only while no JVM is booting. Starts fill a booting JVM
+	 * as readily as a warm one, so without that bound a burst would launch one warm JVM per
+	 * `perJvm` starts, all booting at once, past `start-queue.ts`'s limit (a burst of 8 at 2 per
+	 * JVM had 4 booting together on a claw). It is asked again when a JVM turns warm. Never throws: it runs after a placement, on a JVM's exit and from a
 	 * timer, and none of those may fail for it (a full disk made staging throw from a timer, which
 	 * is the whole server). A launch that throws counts as a failed boot.
 	 */
 	function replenish(): void {
 		if (!warmWanted || closed || retry !== null || bootFailures >= WARM_MAX_FAILURES) return;
-		if (liveJvms().some(hasRoom) || jvms.size >= maxJvms) return;
+		if (liveJvms().some((j) => hasRoom(j) || !j.warm) || jvms.size >= maxJvms) return;
 		try {
 			launch();
 		} catch (err) {

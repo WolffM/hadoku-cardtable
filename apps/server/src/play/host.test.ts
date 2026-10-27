@@ -38,6 +38,7 @@ import {
 	type ReapResult,
 } from './host.js';
 import type { JvmLauncher, JvmTransport } from './jvm-transport.js';
+import { queueColdStarts } from './start-queue.js';
 import { LAUNCH_RECORD_FILE, readLaunchRecord } from './local-jvm.js';
 
 const FAKE = resolve(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fake-bridge.mjs');
@@ -994,6 +995,32 @@ function scriptedLauncher(): { launcher: JvmLauncher; jvms: Map<string, { sent: 
 }
 
 describe('routing, against a scripted launcher', () => {
+	// The start-queue jar suite on a claw: 8 starts at 2 per JVM had 4 JVMs booting at once, past the
+	// queue's limit of 2, because every booting JVM that filled made the pool launch a warm one behind it.
+	it('a burst through the start queue never has more JVMs booting than the queue allows', () => {
+		const { launcher, jvms } = scriptedLauncher();
+		const workDir = mkdtempSync(join(scratch, 'scripted-'));
+		const pool = jvmHostFactory({ ...config, workDir, perJvm: 2 }, { launcher, log: () => undefined });
+		const queue = queueColdStarts(pool, 2, () => undefined);
+		let peak = 0;
+		const sample = (): void => {
+			peak = Math.max(peak, pool.booting());
+		};
+		pool.watchRoom(sample);
+		for (let i = 0; i < 8; i++) {
+			queue(`m-${i.toString(16).padStart(12, '0')}`, SPEC, recorder());
+			sample();
+		}
+		// Boot every JVM in turn, as they would come up; the queue moves on each.
+		for (let round = 0; round < 8; round++) {
+			for (const [hostId, j] of jvms) if (pool.jvms().some((x) => x.hostId === hostId && !x.warm)) j.say({ t: 'warm', bootMs: 1, match: hostId });
+			sample();
+		}
+		expect(peak).toBeLessThanOrEqual(2);
+		expect(queue.queue().waiting).toBe(0);
+		expect(pool.jvms().flatMap((j) => j.matches)).toHaveLength(8);
+	});
+
 	it('each line goes to the match it names; a line for no match here is logged and dropped; a JVM\'s death fails only its own matches', () => {
 		const { launcher, jvms } = scriptedLauncher();
 		const poolLog: Record<string, unknown>[] = [];
