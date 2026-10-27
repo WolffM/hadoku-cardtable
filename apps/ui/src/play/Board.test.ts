@@ -6060,3 +6060,73 @@ describe('a Room on the battlefield', () => {
     expect(roomLi(container, id).dataset.room).toBeUndefined();
   });
 });
+
+/*
+ * One table (operator, 2026-10-27): "let's remove the gap between the two boards. unify them.
+ * nothing about placement rules should change, still in code they are two separate boards, but
+ * visually unified". jsdom lays nothing out, so this is the same kind of proof as "the canvas is
+ * static" above: the cascade, not a measured box — `e2e/table-fit.spec.ts` is where the merge is
+ * measured in a browser (two battlefields meeting, and the seam gutter keeping their cards apart).
+ */
+describe('one table (operator, 2026-10-27): the seam between the seats', () => {
+  it('closes the row gap between the opponents and the viewer, and nothing else', () => {
+    styled();
+    const { container } = renderBoard();
+    const board = container.querySelector<HTMLElement>('.board')!;
+    expect(getComputedStyle(board).rowGap).toBe('0px');
+    expect(getComputedStyle(board).columnGap).not.toBe('0px');
+  });
+
+  it('the seat that faces the viewer loses only the edge that faces it', () => {
+    styled();
+    const { seat } = renderBoard();
+    const theirs = seat(1);
+    const mine = seat(0);
+    expect(getComputedStyle(theirs).borderBottomWidth, 'their seam edge').toBe('0px');
+    expect(getComputedStyle(theirs).paddingBottom, 'their seam edge').toBe('0px');
+    expect(getComputedStyle(theirs).borderTopWidth, 'their far edge, untouched').not.toBe('0px');
+    expect(getComputedStyle(mine).borderTopWidth, 'our seam edge').toBe('0px');
+    expect(getComputedStyle(mine).paddingTop, 'our seam edge').toBe('0px');
+    expect(getComputedStyle(mine).borderBottomWidth, 'our far edge, untouched').not.toBe('0px');
+  });
+
+  it('the two facing battlefields square their facing corners only, and keep a gutter off the seam for their cards', () => {
+    styled();
+    const { zone } = renderBoard();
+    const theirs = zone(1, 'battlefield');
+    const mine = zone(0, 'battlefield');
+    expect(getComputedStyle(theirs).borderBottomLeftRadius).toBe('0px');
+    expect(getComputedStyle(theirs).borderBottomRightRadius).toBe('0px');
+    expect(getComputedStyle(mine).borderTopLeftRadius).toBe('0px');
+    expect(getComputedStyle(mine).borderTopRightRadius).toBe('0px');
+    // The operator, after seeing the merge with no gutter: "it looks like the creatures are
+    // touching each other … increase how much empty space is between the placed cards" — a
+    // relation, not the tuned length itself: both sides read the SAME gutter token, and it is not
+    // the no-gutter value the seats themselves were just asserted to carry.
+    expect(getComputedStyle(theirs).paddingBottom, 'their edge keeps a gutter, unlike their seat').not.toBe('0px');
+    expect(getComputedStyle(theirs).paddingBottom).toBe(getComputedStyle(mine).paddingTop);
+  });
+
+  it('both facing battlefields fade to the half-way turn shade across the seam, the turn wash kept UNDER that fade', () => {
+    const css = styled();
+    const { zone } = renderBoard();
+    const mine = zone(0, 'battlefield');
+    const bg = css(mine, 'background-image');
+    const seamAt = bg.indexOf('--seam-field');
+    const washAt = bg.indexOf('--turn-wash');
+    expect(seamAt, 'the seam fade is drawn').toBeGreaterThanOrEqual(0);
+    expect(washAt, 'over the viewer’s own turn wash').toBeGreaterThanOrEqual(0);
+    expect(seamAt, 'the fade is the FIRST layer — background-image paints its first layer on top').toBeLessThan(washAt);
+  });
+
+  it('a battlefield is a containing block for the entry lane’s crack layer, with no stacking context of its own', () => {
+    styled();
+    const { zone } = renderBoard();
+    for (const id of [0, 1]) {
+      const field = zone(id, 'battlefield');
+      expect(getComputedStyle(field).position, 'a containing block for an absolutely positioned crack layer').toBe('relative');
+      expect(getComputedStyle(field).zIndex, 'no stacking context: a combat-ready card must still rise over the focus layer from inside it').toBe('auto');
+      expect(getComputedStyle(field).isolation).toMatch(/^(auto)?$/);
+    }
+  });
+});

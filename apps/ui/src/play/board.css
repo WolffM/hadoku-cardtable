@@ -286,6 +286,23 @@
    * near-black one.
    */
   --turn-step: 0.04;
+  /*
+   * One table (operator, 2026-10-27): the two seats stay two boards in code — their own grids,
+   * their own placement rules — but nothing is drawn between them. No row gap, and the facing
+   * seat/battlefield edges (the opponents' last seat and the viewer's) lose their border, radius
+   * and padding on that edge, below. Both sides then fade to the shade HALFWAY between theirs and
+   * ours over `--seam-blend`, so the turn shade has no edge to see at the seam.
+   */
+  --seam-blend: 40px;
+  --seam-seat: oklch(from var(--bg-raised) calc(l - 0.5 * var(--turn-step)) c h);
+  --seam-field: oklch(from var(--bg) calc(l - 0.5 * var(--turn-step)) c h);
+  /*
+   * The operator, 2026-10-27, after the surfaces met with no gutter: *"it looks like the creatures
+   * are touching each other. keep the merged look but increase how much empty space is between the
+   * placed cards a bit more."* The surface still runs on with no gap; only the cards stand back
+   * from the seam, each side's own padding on its own battlefield (below).
+   */
+  --seam-gutter: 10px;
 
   position: relative;
   height: 100dvh;
@@ -296,6 +313,7 @@
     'them'
     'you';
   gap: var(--board-gap);
+  row-gap: 0;
   min-width: 0;
   min-height: 0;
   padding: var(--board-gap);
@@ -494,6 +512,32 @@
 }
 
 /*
+ * One table (operator, 2026-10-27): the viewer's seat loses its top edge and the LAST opponents'
+ * seat loses its bottom edge — they face each other across the (now closed) centre line, so only
+ * that one edge changes on each. Only the LAST opponents' seat: in multiplayer every seat above it
+ * keeps today's look, its own border, radius and padding, because nothing else there faces the
+ * viewer. Both rules have to come AFTER `.board .seat` above, not just carry a class more:
+ * `.board > .seat` ties that rule's specificity, and `.board__opponents > .seat:last-child`'s
+ * higher specificity does not help in every CSS engine (this suite's jsdom cascades
+ * var()-shorthand rules like `.board .seat`'s `border`/`padding` by LAST DECLARATION, not by
+ * specificity) — source order is what decides it everywhere, so it is written to decide it here.
+ */
+.board > .seat {
+  border-top-width: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  padding-top: 0;
+}
+
+.board__opponents > .seat:last-child {
+  border-bottom-width: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  padding-bottom: 0;
+  background-image: linear-gradient(to top, var(--seam-seat), transparent var(--seam-blend));
+}
+
+/*
  * Whose turn it is, felt rather than read. The operator, 2026-10-14, after an underline on the
  * active player's name: *"i dont really like the player underline for showing whos turn it is. i
  * think instead we should consider having some kind of ambient effect on their board"* — and of
@@ -544,9 +588,15 @@
   --turn-wash: color-mix(in srgb, var(--success) calc(var(--turn-lit) * 2%), transparent);
 }
 
-.board .seat[data-viewer],
-.board .seat[data-viewer] > .zone--battlefield {
-  background-image: linear-gradient(var(--turn-wash), var(--turn-wash));
+/*
+ * One table: the seam fade (`--seam-seat`, `.board`) sits ON TOP of the turn wash — the first
+ * layer in `background-image` paints over the ones after it — so the viewer's wash never shows
+ * through as a second colour at the seam; the two sides meet in one. The battlefield's own fade
+ * (`--seam-field`) is set below, beside the rest of its seam edge (padding, radius) — it has to
+ * come after the shared battlefield padding rule, for the same reason as the rest of that group.
+ */
+.board .seat[data-viewer] {
+  background-image: linear-gradient(to bottom, var(--seam-seat), transparent var(--seam-blend)), linear-gradient(var(--turn-wash), var(--turn-wash));
 }
 
 .board:has(.seat[data-active]) .seat:not([data-active]) {
@@ -853,6 +903,18 @@
   grid-area: field;
 }
 
+/*
+ * A containing block for the entry lane's crack layer (AF413), which draws one crack layer as the
+ * first child of each battlefield. `position` only — no `z-index`, no `isolation`: either would
+ * open a stacking context here, and a combat-ready card's can-act glow rises over the focus layer
+ * (`data-focus`, above) from INSIDE a battlefield, so a battlefield may never own one of its own.
+ * Checked: nothing absolutely positioned inside a battlefield anchors on the zone itself today —
+ * card faces, P/T, marks and tags all anchor on their own `.board-card`.
+ */
+.zone--battlefield {
+  position: relative;
+}
+
 .seat > .zone--hand {
   grid-area: hand;
 }
@@ -1146,6 +1208,30 @@
    */
   overflow: clip;
   overflow-clip-margin: var(--emphasis-room);
+}
+
+/*
+ * One table: the two facing battlefields — the viewer's and the LAST opponents' — square the
+ * corner that faces the other and fade to the half-way turn shade across the seam (`--seam-field`,
+ * `.board`), the viewer's own turn wash kept UNDER that fade (the gradient's first layer paints on
+ * top of the ones after it). Each also keeps `--seam-gutter` of its own padding off the seam, so
+ * the surfaces still meet with no gap while the cards on each side stand apart (the operator,
+ * after seeing it merge with none: *"it looks like the creatures are touching each other … increase
+ * how much empty space is between the placed cards"*). Both rules have to come AFTER the shared
+ * padding/radius rule above, for the same reason as the seat edges above.
+ */
+.board > .seat > .zone--battlefield {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  padding-top: var(--seam-gutter);
+  background-image: linear-gradient(to bottom, var(--seam-field), transparent var(--seam-blend)), linear-gradient(var(--turn-wash, transparent), var(--turn-wash, transparent));
+}
+
+.board__opponents > .seat:last-child > .zone--battlefield {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  padding-bottom: var(--seam-gutter);
+  background-image: linear-gradient(to top, var(--seam-field), transparent var(--seam-blend));
 }
 
 /*
