@@ -1022,6 +1022,24 @@ describe('routing, against a scripted launcher', () => {
 		expect(poolLog.find((l) => l.evt === 'jvm-lost')).toMatchObject({ id: one, reason: 'the claw went away', matches: ['m-0000000000d1', 'm-0000000000d2'] });
 		expect(pool.jvms().map((j) => j.hostId)).toEqual([two]);
 	});
+
+	it('a JVM let go on the way out names only the matches it handed over: one being stopped is not taken back', () => {
+		const { launcher, jvms } = scriptedLauncher();
+		const workDir = mkdtempSync(join(scratch, 'scripted-'));
+		const pool = jvmHostFactory({ ...config, workDir, perJvm: 2 }, { warm: false, launcher, log: () => undefined });
+		const handed = pool('m-0000000000d4', SPEC, recorder());
+		const ending = pool('m-0000000000d5', SPEC, recorder());
+		const [hostId] = [...jvms.keys()];
+		jvms.get(hostId!)!.say({ t: 'warm', bootMs: 1, match: hostId });
+		handed.remember?.({ epoch: 'e-4', owners: ['p-a', 'p-b'] });
+		expect(handed.handOver?.()).toBe(true);
+		ending.stop();
+		expect(ending.handOver?.()).toBe(false);
+		expect(pool.reapOnExit()).toEqual({ killed: [], kept: [hostId], left: [] });
+		const record = readJvmRecord(join(workDir, hostId!))!;
+		expect(record.orphanedAt).toEqual(expect.any(String));
+		expect(record.matches.map((m) => [m.matchId, m.epoch])).toEqual([['m-0000000000d4', 'e-4']]);
+	});
 });
 
 /**

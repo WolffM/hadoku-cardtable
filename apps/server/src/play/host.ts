@@ -570,7 +570,9 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 
 	function writeRecord(jvm: Jvm): void {
 		if (jvm.released || jvm.exited) return;
-		const hosted = [...jvm.matches.values()].filter((h) => !h.ended && h.degraded === null);
+		// A match being stopped is not one a later server should take back: it would replay into a
+		// new `Match` only to meet its `stopped`.
+		const hosted = [...jvm.matches.values()].filter((h) => !h.ended && !h.stopping && h.degraded === null);
 		const record: JvmRecord = {
 			hostId: jvm.hostId,
 			startedAt: jvm.startedAt,
