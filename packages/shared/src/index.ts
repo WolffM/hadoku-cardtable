@@ -297,6 +297,22 @@ export {
   type RoomChanged,
 } from './room-feed.ts';
 export {
+  ReplaySourceSchema,
+  ReplaySummarySchema,
+  ReplayListResponseSchema,
+  ReplayHeaderSchema,
+  ReplayEnvSchema,
+  ReplayEndSchema,
+  ReplayDetailResponseSchema,
+  type ReplaySource,
+  type ReplaySummary,
+  type ReplayListResponse,
+  type ReplayHeader,
+  type ReplayEnv,
+  type ReplayEnd,
+  type ReplayDetailResponse,
+} from './replay.ts';
+export {
   GAUNTLET_PHASES,
   GAUNTLET_DECKS,
   GAUNTLET_REVEAL_MS,
