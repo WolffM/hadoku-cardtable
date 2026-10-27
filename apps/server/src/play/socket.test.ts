@@ -461,7 +461,10 @@ describe('a burst of starts', () => {
 	// plays Forge — and the timeout is shorter than the burst takes, but longer than one boot.
 	it('boots at most coldStarts at once, times none out while it waits, and tells each waiter its place', async () => {
 		const LIMIT = 2;
-		const BURST = 6;
+		// BURST / LIMIT boot rounds must outlast the timeout by themselves: 5 rounds × BOOT_MS against
+		// 4 × BOOT_MS. At 3 rounds only polling overhead carried the burst past it, and a busy box didn't.
+		// The most matches the server hosts at once.
+		const BURST = MAX_CONCURRENT_MATCHES;
 		const BOOT_MS = 120;
 		const h = await boot({ coldStarts: LIMIT, startTimeoutMs: 4 * BOOT_MS });
 		let bootingNow = 0;
