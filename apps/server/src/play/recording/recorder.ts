@@ -34,7 +34,7 @@
 
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import type { ServerEnvelope } from '@hadoku/shared';
 
 import type { JsonLog } from '../../log.js';
@@ -45,10 +45,26 @@ import type { OutcomeFacts } from '../match.js';
 import { gameOutcome, WATCHER_SEAT } from '../match.js';
 import { createMatchRecordingWriter, type MatchRecordingWriter } from './writer.js';
 
-/** The jar's own filename IS its pin (`docs/FORGE_JAR.md`, "Per-pin jars") — the full 40-char `forge` submodule sha. Null for the `forge.jar` fallback name, which names no pin. */
+const FORGE_PIN_RE = /^[0-9a-f]{40}$/;
+
+/**
+ * The jar's own filename IS its pin (`docs/FORGE_JAR.md`, "Per-pin jars") — the full 40-char
+ * `forge` submodule sha — for production's `jars/<pin>.jar` layout. Null for the `forge.jar`
+ * fallback name there, which names no pin.
+ *
+ * CI never has that layout (`docs/FORGE_JAR.md`, "CI on the CI runners"): `scripts/
+ * forge-bundle.sh` always names the file literally `forge.jar` and puts the pin in the bundle's
+ * own cache DIRECTORY instead, `<pin>/forge.jar` — found live, wave 78 §A's claw dispatch: every
+ * CI runner (claw or hokon alike) failed `canRebuild`'s pin gate with `pin: null`, because this
+ * function had never been asked to resolve a CI-style path before (no earlier test's assertion
+ * depended on a non-null pin in CI). So a name that is not itself a pin falls back to its own
+ * parent directory's name.
+ */
 export function forgePin(jarPath: string): string | null {
 	const name = basename(jarPath, '.jar');
-	return /^[0-9a-f]{40}$/.test(name) ? name : null;
+	if (FORGE_PIN_RE.test(name)) return name;
+	const dir = basename(dirname(jarPath));
+	return FORGE_PIN_RE.test(dir) ? dir : null;
 }
 
 /** sha-256 of `PlayBridge.java`'s own text, exactly as `host.ts` reads it to compile or launch it — contract 1's `bridge` field. */

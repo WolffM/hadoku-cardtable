@@ -49,10 +49,17 @@ function fakeFactory(): FakeFactory {
 }
 
 describe('forgePin / bridgeDigest / serverVersion', () => {
-	it('reads the pin from a 40-hex jar name, and null from forge.jar', () => {
+	it('reads the pin from a 40-hex jar name, and null from forge.jar outside a pin directory', () => {
 		const sha = 'a'.repeat(40);
 		expect(forgePin(`/jars/${sha}.jar`)).toBe(sha);
 		expect(forgePin('/jars/forge.jar')).toBeNull();
+	});
+
+	it('falls back to the parent directory\'s name — CI\'s own bundle layout (scripts/forge-bundle.sh), always literally forge.jar with the pin as the cache directory', () => {
+		const sha = 'b'.repeat(40);
+		expect(forgePin(`/home/x/.cache/cardtable-forge/${sha}/forge.jar`)).toBe(sha);
+		// Neither name is a pin: no fallback fires.
+		expect(forgePin('/home/x/.cache/cardtable-forge/forge.jar')).toBeNull();
 	});
 
 	it('is a stable sha-256 of the bridge source text', () => {

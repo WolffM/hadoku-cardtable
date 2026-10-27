@@ -228,6 +228,15 @@ function watcherFramesFrom(matchId: string, timeline: readonly { line: BridgeLin
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Just past `GameServerHandler`'s own `BETWEEN_INPUTS_MS` (5 s): the longest Forge's `ActGate`
+ * ever holds an act that arrived between two inputs before giving up and applying it to whatever
+ * is open anyway (usually nothing, silently). An act still unechoed after this long was decided —
+ * one way or the other — by that gate already; see the act-wait loop's own doc for why resending
+ * past it is sound rather than a guess.
+ */
+const RESEND_AFTER_MS = 6_000;
+
 /** One rebuild at a time per server (§D point 6): later callers queue behind the one in flight. */
 let serial: Promise<unknown> = Promise.resolve();
 
@@ -339,16 +348,30 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 
 		if (cmd.t === 'act' && seat !== null) {
 			const k = actOrdinal[i]!;
-			host.send(cmd);
-			// Wait for THIS act's own applied echo — never the next command blind. An act Forge
-			// drops is never echoed (the whole point of logging only applied acts), so a missing
-			// echo within the budget is a genuine divergence, not a slow Forge.
+			// `ActGate`'s own hold for an act arriving between two inputs (`GameServerHandler`'s
+			// `BETWEEN_INPUTS_MS`, 5 s) is a WALL-CLOCK decision: if this act's own input has not
+			// opened by then, Forge applies it to whatever is open anyway — usually nothing — and
+			// `InputProxy`'s null check silently drops it, with no echo ever following. That act
+			// WAS applied in the live run (it is in this log because its own echo said so), so a
+			// silent drop here is purely this rebuild's own send racing that 5 s window slower
+			// than the live run did, not a real divergence. A live player facing the exact same
+			// silent drop just clicks again; this resends the same act on the same cadence, for
+			// the same reason, rather than waiting out the whole budget on an echo that the gate
+			// has already decided will never come.
 			const deadline = Date.now() + budget;
-			while (exited === null && Date.now() < deadline && appliedCount[seat]! <= k) await sleep(10);
+			host.send(cmd);
+			let nextResendAt = Date.now() + RESEND_AFTER_MS;
+			while (exited === null && Date.now() < deadline && appliedCount[seat]! <= k) {
+				if (Date.now() >= nextResendAt) {
+					host.send(cmd);
+					nextResendAt = Date.now() + RESEND_AFTER_MS;
+				}
+				await sleep(10);
+			}
 			if (exited !== null || appliedCount[seat]! <= k) {
 				diverged = exited !== null
 					? `the rebuild's JVM exited before seat ${seat}'s act #${k} (command ${i}) was ever applied: ${exited}`
-					: `command ${i} (act, seat ${seat}) was never applied within the budget: Forge dropped it, or no input ever opened for it`;
+					: `command ${i} (act, seat ${seat}) was never applied within the budget, even resent every ${RESEND_AFTER_MS}ms: Forge dropped it every time, or no input ever opened for it`;
 				break;
 			}
 			i++;

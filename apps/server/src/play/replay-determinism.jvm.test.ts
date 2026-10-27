@@ -47,6 +47,14 @@ const title = !available.ok
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Just past `GameServerHandler`'s own `BETWEEN_INPUTS_MS` (5 s): the longest Forge's `ActGate`
+ * ever holds an act that arrived between two inputs before giving up and applying it to whatever
+ * is open anyway (usually nothing, silently). See the act-wait loop's own doc for why resending
+ * past it is sound rather than a guess.
+ */
+const RESEND_AFTER_MS = 6_000;
+
 async function waitUntil(p: () => boolean, label: string, ms: number): Promise<void> {
 	const deadline = Date.now() + ms;
 	while (!p()) {
@@ -361,11 +369,25 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 				}
 				if (command.t === 'act' && seat !== null) {
 					const k = actOrdinal[i]!;
-					hostB.send(command);
+					// `ActGate`'s own hold for an act arriving between two inputs
+					// (`GameServerHandler`'s `BETWEEN_INPUTS_MS`, 5 s) is a WALL-CLOCK decision: past
+					// that, Forge applies it to whatever is open anyway and `InputProxy` silently
+					// drops it if nothing is. This act WAS applied live (it is in the log because its
+					// own echo said so), so a silent drop here is this run's send racing that window
+					// slower than run A did — resend on the same cadence, as a live player would by
+					// clicking again, rather than waiting out the budget on an echo already decided.
 					const deadline = Date.now() + budget;
-					while (exited === null && Date.now() < deadline && appliedCount[seat]! <= k) await sleep(10);
+					hostB.send(command);
+					let nextResendAt = Date.now() + RESEND_AFTER_MS;
+					while (exited === null && Date.now() < deadline && appliedCount[seat]! <= k) {
+						if (Date.now() >= nextResendAt) {
+							hostB.send(command);
+							nextResendAt = Date.now() + RESEND_AFTER_MS;
+						}
+						await sleep(10);
+					}
 					if (exited !== null || appliedCount[seat]! <= k) {
-						diverged = `command ${i} (act, seat ${seat}) was never applied in run B within the budget${exited === null ? '' : `: ${exited}`}`;
+						diverged = `command ${i} (act, seat ${seat}) was never applied in run B within the budget, even resent every ${RESEND_AFTER_MS}ms${exited === null ? '' : `: ${exited}`}`;
 						break;
 					}
 					continue;
