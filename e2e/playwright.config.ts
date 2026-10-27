@@ -23,6 +23,14 @@ import { EDGE_ORIGIN, PREFIX } from './identities.ts';
  */
 const FIREFOX_SPECS = ['bl-ui-scale-click.spec.ts', 'deck-tile-row.spec.ts', 'fly-jump.spec.ts'];
 
+/**
+ * Of `FIREFOX_SPECS`, the ones proven in Chromium too (not excluded from that project's own
+ * `testMatch`) — AF405 (wave 76 §C): the attacking outline riding a flyer's float must hold in both
+ * engines, since `getComputedStyle(el, '::before')`'s animated value is read the same way in each,
+ * even though the jump bug `fly-jump.spec.ts` exists for was Firefox-only.
+ */
+const ALSO_CHROMIUM = ['fly-jump.spec.ts'];
+
 export default defineConfig({
   testDir: '.',
   testMatch: '*.spec.ts',
@@ -39,7 +47,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: FIREFOX_SPECS,
+      testIgnore: FIREFOX_SPECS.filter((spec) => !ALSO_CHROMIUM.includes(spec)),
       use: {
         browserName: 'chromium',
         // One renderer for the room edge and the play edge: Chromium's site isolation moves a

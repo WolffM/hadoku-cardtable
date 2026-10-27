@@ -2408,6 +2408,54 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
       expect(start(), `${step}: the pass sits where every pass does`).toBe(false);
     }
   });
+
+  /**
+   * AF404 (wave 76 §C). The operator, 2026-10-26: *"all attack button on all attackers"*, then
+   * *"All should essentially just function as a macro for dragging the arrows in one click"*.
+   * `attackAllTarget` names every id `combatCandidates` offers (Forge's own actionable set — the
+   * same one `data-selectable` draws from) and sends them through `attackWith`
+   * (`gestures/commit.ts`), the exact function a drag's release and a box's aim both call — so this
+   * proves the WIRING: one press sends the defender's own click first (frames go out DEFENDER
+   * FIRST, `attackWith`'s own note), waits for Forge to mark it current, then one `selectCard` per
+   * offered id, in order, and nothing for a creature Forge never offered. `e2e/attack-all.spec.ts`
+   * is the real-Forge proof that both screens end up with the right attackers; this is the fast,
+   * local one for the exact frames sent.
+   */
+  it('AF404: "All" sends the defender first, then one selectCard per Forge-offered attacker, in order', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    const me = m.view!.players.find((p) => p.isViewer)!;
+    const them = m.view!.players.find((p) => !p.isViewer)!;
+    const mine = me.battlefield.map((c) => c.id);
+    expect(mine.length, 'the fixture gives the viewer at least two of their own creatures').toBeGreaterThanOrEqual(2);
+    const offered = mine.slice(0, 2);
+    const actionable = (ids: number[]) =>
+      notify({ kind: 'notify', method: 'setWeaklySelectable', cards: ids.map((id) => ({ kind: 'card', id })) });
+    const defenderMarked = () => notify({ kind: 'notify', method: 'setHighlighted', entities: [{ kind: 'player', id: them.id }], on: true });
+
+    expect(queryByTestId('live-attack-all'), 'not declaring attackers yet').toBeNull();
+    for (const f of [phase(m, 'COMBAT_DECLARE_ATTACKERS', me.id), bar('Alpha Strike'), actionable(offered)]) s.send(f);
+    await waitFor(() => expect((getByTestId('live-attack-all') as HTMLButtonElement).disabled).toBe(false));
+
+    const before = s.clientFrames().length;
+    fireEvent.click(getByTestId('live-attack-all'));
+    // The defender's own click, first — nothing of the attackers' until Forge marks it current.
+    await s.untilClientFrames(before + 1);
+    expect(s.clientFrames().at(-1)).toMatchObject({ ok: true, value: { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: them.id } } });
+
+    s.send(defenderMarked());
+    await s.untilClientFrames(before + 1 + offered.length);
+    const declared = s.clientFrames()
+      .slice(before + 1)
+      .map((f) => (f.ok ? f.value : null));
+    expect(declared).toEqual(
+      offered.map((id) => ({ kind: 'act', method: 'selectCard', card: { kind: 'card', id }, otherCardViewsToSelect: [], triggerEvent: null })),
+    );
+
+    // The viewer's third creature, never offered, is never sent — "All" sends only what a drag could have.
+    const unoffered = mine.find((id) => !offered.includes(id));
+    expect(unoffered, 'the fixture gives a third creature to leave out').not.toBeUndefined();
+    expect(s.clientFrames().some((f) => f.ok && f.value.kind === 'act' && f.value.method === 'selectCard' && f.value.card.id === unoffered)).toBe(false);
+  });
 });
 
 /* ── §A.11 — the log, as something you can read ──────────────────────── */

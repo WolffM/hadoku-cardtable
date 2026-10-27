@@ -2409,6 +2409,37 @@ describe('drag to stack (#1, #19)', () => {
     expect(riding, 'added to the rest, not in place of it').toMatch(/animation-composition:\s*add/);
   });
 
+  /**
+   * AF405 (wave 76 §C). The operator, 2026-10-26: *"red attacking outline should hover with flying
+   * creatures"*. `outline` paints along `.board-card__face`'s own box, which the flight loop never
+   * moves (each part — the art, the protection layer, the shadow — runs its OWN `fly-*` animation
+   * instead of the face moving and its children inheriting that move, `flight.ts`'s module header);
+   * so a static `outline` sat still while the art floated inside it. The fix: while flying AND
+   * attacking, the static outline is OFF, replaced by a `::before` ring with its own `--fly-path`
+   * animation — the same two declarations `.board-card__protection` already carries, just above it
+   * in the file, for the identical reason. Grounded attackers (no `[data-flying]`) are untouched:
+   * `Board.test.ts`'s own "whether or not it is vigilant" case above this one still reads the plain
+   * static outline. `e2e/fly-jump.spec.ts` is the real-browser proof (both engines); this is the fast,
+   * local one.
+   */
+  it('AF405: the attacking outline is a floating layer while flying, never the static one', () => {
+    const css = withoutComments(CARD_CSS);
+    const lift = (selector: string) => css.match(new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
+    expect(lift('.board-card[data-flying][data-attacking] > .board-card__face'), 'the static outline is off while flying').toMatch(/outline:\s*none/);
+    // The SAME selector also names this `::before` in the reduced-motion exclusion list below, so every
+    // match is taken and the real rule (it draws something — `content:`) is picked out from the dummy one.
+    const beforeRule = new RegExp(`${'.board-card[data-flying][data-attacking] > .board-card__face::before'.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]*)\\}`, 'g');
+    const ring = [...css.matchAll(beforeRule)].map((m) => m[1]!).find((body) => /content:/.test(body)) ?? '';
+    expect(ring, 'the ring rule was found at all').not.toBe('');
+    expect(ring, 'a ring in the same danger token the grounded outline uses').toContain('var(--danger)');
+    expect(ring, 'rides the SAME loop the art does').toContain('--fly-path');
+    expect(ring, 'added to its own base offset, not in place of it').toMatch(/animation-composition:\s*add/);
+    // Reduced motion stops the ring looping too, same as every other part of a flyer.
+    expect(css, 'reduced motion turns the ring off along with everything else it flies').toMatch(
+      /prefers-reduced-motion: reduce\) \{[^@]*\[data-flying\]\[data-attacking\][^}]*board-card__face::before[^}]*\{\s*animation: none;/,
+    );
+  });
+
   it('a pile that mixes cards has no count', () => {
     const view = withCopiesOf8(1);
     const { container } = renderBoard(view);

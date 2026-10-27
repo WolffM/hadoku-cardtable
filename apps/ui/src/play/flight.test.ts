@@ -90,4 +90,29 @@ describe('pinFlight', () => {
     await flush();
     expect(lateAnimations[0]!.startTime, 'uninstalled: nothing is pinned').toBe(1234);
   });
+
+  /**
+   * AF405 (wave 76 §C). `card.css`'s attacking outline ring (`[data-flying][data-attacking] >
+   * .board-card__face::before`) starts a brand-new `fly-*` animation the moment `data-attacking` is
+   * set on a card already flying — no node is added for `FLYING_PART`'s own watch to see, so without
+   * `data-attacking` in the observer's `attributeFilter` this ring was left on its own clock instead
+   * of the document's, and rode out of step with the art it is meant to outline.
+   */
+  it('pins a flyer’s outline ring the moment it starts attacking, not a frame later', async () => {
+    const root = document.createElement('div');
+    const unpin = pinFlight(root);
+    const li = flyer();
+    const flying = animate(li, ['fly-across', 'fly-rise']);
+    root.append(li);
+    await flush();
+    expect(flying.map((a) => a.startTime), 'already flying, already pinned').toEqual([0, 0]);
+
+    // The ring's own `fly-across` joins the two already-pinned ones, unpinned until this very change.
+    const withRing = animate(li, ['fly-across', 'fly-rise', 'fly-across']);
+    li.setAttribute('data-attacking', '');
+    await flush();
+    expect(withRing.map((a) => a.startTime), 'the ring is pinned with everything else, the moment it appears').toEqual([0, 0, 0]);
+
+    unpin();
+  });
 });

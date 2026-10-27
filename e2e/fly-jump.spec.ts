@@ -15,14 +15,24 @@
  * Runs in Firefox (`playwright.config.ts`): the operator's browser, where the loop jumped on a 1.4 s grid
  * (2.6 px, then 7.9 px) with no remount, move or new animation, while Chromium drew it smoothly.
  *
+ * Wave 76 §C (AF405): the same frames also measure the red attacking outline against the art, for
+ * whichever flyer is declared attacking in the own-turn test below — the operator, 2026-10-26, *"red
+ * attacking outline should hover with flying creatures"*. `getComputedStyle(face, '::before')` is the
+ * one way to read a pseudo-element's own live-animated value (a pseudo has no box
+ * `getBoundingClientRect` can read); both engines resolve it to the ANIMATED value of `translate`,
+ * the same property the art's `.card` animates, from the identical `--fly-path`/`--fly-start`
+ * (`card.css`). So the two strings are expected to be equal on every sampled frame once the outline
+ * rides the same keyframes, and this test also runs in Chromium — the outline fix touches both
+ * engines even though the jump bug this file was built for was Firefox-only.
+ *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without one this SKIPS and the
  * title says why. Serves the prebuilt `apps/ui/dist` — rebuild before running.
  */
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled } from './play/board.ts';
-import { passToDeclareAttackers } from './play/combat.ts';
+import { makeTitled, ownNamed } from './play/board.ts';
+import { clickCard, passToDeclareAttackers } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioVsAi } from './play/scenario.ts';
 
@@ -43,12 +53,24 @@ interface Watch {
   events: Event[];
   /** Per card id, its face's offset against its `<li>` each frame: [t, dx, dy]. */
   path: Record<string, [number, number, number][]>;
+  /**
+   * AF405. Per ATTACKING flyer's id, each frame it was sampled: [t, the outline `::before`'s own
+   * live `translate`, the art's own]. The claim is that these two strings are the SAME on every
+   * frame — the outline riding the identical `--fly-path` the art does, read with
+   * `getComputedStyle(el, pseudoElt)`, the one way to read a pseudo-element's animated value (it has
+   * no box of its own for `getBoundingClientRect`).
+   */
+  outline: Record<string, [number, string, string][]>;
 }
 
 /** Starts recording on `page`: every flyer's path each frame, and everything that could restart its loop. */
 async function watch(page: Page): Promise<void> {
   await page.evaluate(() => {
-    const w = { events: [] as { t: number; what: string; id: string; detail?: string }[], path: {} as Record<string, [number, number, number][]> };
+    const w = {
+      events: [] as { t: number; what: string; id: string; detail?: string }[],
+      path: {} as Record<string, [number, number, number][]>,
+      outline: {} as Record<string, [number, string, string][]>,
+    };
     (window as unknown as { __flyjump: typeof w }).__flyjump = w;
     const now = (): number => Math.round(performance.now());
     const idOf = (n: Node): string | null => (n instanceof HTMLElement ? n.getAttribute('data-board-card') : null);
@@ -81,6 +103,13 @@ async function watch(page: Page): Promise<void> {
         const l = face.getBoundingClientRect();
         const c = card.getBoundingClientRect();
         (w.path[id] ??= []).push([now(), c.left + c.width / 2 - (l.left + l.width / 2), c.top + c.height / 2 - (l.top + l.height / 2)]);
+        // AF405: while this flyer is attacking, the outline's own `::before` should be animating the
+        // SAME `translate` the art does — both driven by the identical `--fly-path`/`--fly-start`.
+        if (li.hasAttribute('data-attacking')) {
+          const outlineTranslate = getComputedStyle(face, '::before').translate;
+          const cardTranslate = getComputedStyle(card).translate;
+          (w.outline[id] ??= []).push([now(), outlineTranslate, cardTranslate]);
+        }
         for (const a of li.getAnimations()) {
           if (seen.has(a)) continue;
           seen.add(a);
@@ -94,13 +123,19 @@ async function watch(page: Page): Promise<void> {
   });
 }
 
-/** Prints what was recorded on `page` and fails on any frame a flyer stepped more than 2 px (the loop moves it under 0.1 px a frame). */
-async function judge(page: Page, when: string): Promise<void> {
+/**
+ * Prints what was recorded on `page` and fails on any frame a flyer stepped more than 2 px (the loop
+ * moves it under 0.1 px a frame), or on any frame an attacking flyer's outline read a different
+ * `translate` than its own art (AF405). Returns how many outline frames were sampled, so a caller
+ * that put a flyer into combat can assert the check actually ran rather than passing vacuously.
+ */
+async function judge(page: Page, when: string): Promise<{ outlineSamples: number }> {
   // Taken and emptied in one go, so each call judges only what happened since the last.
   const w = await page.evaluate(() => {
     const held = (window as unknown as { __flyjump: Watch }).__flyjump;
-    const out = { events: held.events.splice(0), path: { ...held.path } };
+    const out = { events: held.events.splice(0), path: { ...held.path }, outline: { ...held.outline } };
     for (const id of Object.keys(held.path)) held.path[id] = held.path[id]!.slice(-1);
+    for (const id of Object.keys(held.outline)) held.outline[id] = [];
     return out;
   });
   const names = await page.evaluate(() =>
@@ -115,13 +150,26 @@ async function judge(page: Page, when: string): Promise<void> {
       if (step > 2) jumps.push({ id, name: names[id] ?? '?', t, step: Math.round(step * 10) / 10 });
     }
   }
+  // AF405: every sampled frame of an attacking flyer whose outline did not read the same `translate` as its art.
+  const outlineMismatches: { id: string; name: string; t: number; outline: string; card: string }[] = [];
+  let outlineSamples = 0;
+  for (const [id, samples] of Object.entries(w.outline)) {
+    for (const [sampleT, outline, card] of samples) {
+      outlineSamples++;
+      if (outline !== card) outlineMismatches.push({ id, name: names[id] ?? '?', t: sampleT, outline, card });
+    }
+  }
   log(`${when}: frames`, Object.fromEntries(Object.entries(w.path).map(([id, p]) => [`${names[id] ?? '?'} ${id}`, p.length])));
   log(`${when}: jumps`, jumps);
   // What happened to a card in the 100 ms before each of its jumps.
   for (const j of jumps) log(`${when}: before jump`, { ...j, events: w.events.filter((e) => e.id === j.id && e.t <= j.t && e.t > j.t - 100) });
   log(`${when}: events`, w.events);
+  log(`${when}: outline samples`, outlineSamples);
+  log(`${when}: outline mismatches`, outlineMismatches.slice(0, 5));
   expect(Object.keys(w.path).length, `${when}: flyers were sampled`).toBeGreaterThan(0);
   expect.soft(jumps, `${when}: no flyer steps more than 2 px in a frame`).toEqual([]);
+  expect.soft(outlineMismatches, `${when}: an attacking flyer's outline reads the same translate as its art, every frame`).toEqual([]);
+  return { outlineSamples };
 }
 
 test(titled("a flyer keeps its loop through the other seat's turn: no jump, no remount, no restart"), async ({ browser }) => {
@@ -171,8 +219,17 @@ test(titled('a flyer keeps its loop through its own turn: priority, the pointer 
     }
     await judge(page, 'sweep');
     await passToDeclareAttackers(page);
+    // AF405: a flyer declared attacking — Serra Angel, who stays untapped (vigilance) so the "turned"
+    // rule never muddies the geometry — so the frames below sample the outline against the art while
+    // both are live. `clickCard` is the SAME click `attack-window.spec.ts`'s `attackWithBears` uses:
+    // the sole opponent is already Forge's current defender, so one click per attacker declares it.
+    const serraAngel = (await ownNamed(page, 'Serra Angel'))[0];
+    expect(serraAngel, 'alice controls Serra Angel').toBeDefined();
+    await clickCard(page, serraAngel!);
+    await expect(page.locator(`[data-board-card="${serraAngel}"]`), 'Serra Angel is declared attacking').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
     await page.waitForTimeout(6_000);
-    await judge(page, 'attack window');
+    const { outlineSamples } = await judge(page, 'attack window');
+    expect(outlineSamples, 'the attacking flyer’s outline was actually sampled').toBeGreaterThan(0);
   } finally {
     await alice?.context.close();
     await stack.stop();
