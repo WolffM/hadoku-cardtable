@@ -327,7 +327,10 @@ describe('installDepartures', () => {
     const pieces = [...standIn.querySelectorAll<HTMLElement>('.board-departure__piece')];
     expect(pieces).toHaveLength(EXIT_MOTIONS.shatter.pieces);
     expect(pieces.every((p) => p.style.clipPath.startsWith('polygon(')), 'each a shard').toBe(true);
-    expect(new Set(pieces.map((p) => p.style.getPropertyValue('--dx'))).size, 'each its own way').toBe(pieces.length);
+    // "Its own way" is the whole displacement, not the horizontal component alone: two of seven can
+    // share a rounded --dx (a coincidence of the angle and magnitude it is projected from) while still
+    // flying in different directions.
+    expect(new Set(pieces.map((p) => `${p.style.getPropertyValue('--dx')},${p.style.getPropertyValue('--dy')}`)).size, 'each its own way').toBe(pieces.length);
     expect(standIn.querySelectorAll('.board-departure__cracks polyline')).toHaveLength(EXIT_MOTIONS.shatter.pieces);
     expect(standIn.querySelectorAll('.board-departure__speck')).toHaveLength(EXIT_MOTIONS.shatter.specks);
     handle.dispose();
