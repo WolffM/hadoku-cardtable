@@ -30,7 +30,7 @@ import { boardDigest } from './position.js';
 import { nightly } from '../scenario.js';
 import { COLD_STARTS, queueColdStarts } from '../start-queue.js';
 import { foldFrames, type StateFrame, type WireObj } from '../visibility.js';
-import { bridgeDigest, createRecorder, forgePin } from './recorder.js';
+import { createRecorder } from './recorder.js';
 import { createMatchRecordingWriter, type PublicEnvLine } from './writer.js';
 import {
 	actionLogPath,
