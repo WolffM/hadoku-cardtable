@@ -66,6 +66,7 @@ import forge.game.zone.ZoneType;
 import forge.gamemodes.match.GameLobby.GameLobbyData;
 import forge.gamemodes.match.HostedMatch;
 import forge.gamemodes.match.LobbySlot;
+import forge.gamemodes.match.input.InputLockUI;
 import forge.gamemodes.match.input.InputPayMana;
 import forge.gamemodes.match.LobbySlotType;
 import forge.gamemodes.match.NextGameDecision;
@@ -142,6 +143,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import org.apache.commons.lang3.tuple.Pair;
@@ -421,6 +423,16 @@ public final class PlayBridge {
         volatile FServerManager server;
 
         final Map<Integer, SeatGui> seatGuis = new ConcurrentHashMap<>();
+
+        /**
+         * Wave 78 §A — the applied-act echo's own ordering. One counter for BOTH
+         * seats, so {@code applied} lines from either one share a single, strictly
+         * increasing {@code seq}: Forge's {@code ActGate} already takes every act of
+         * this game one at a time in arrival order (ticket order), so this just
+         * stamps that same order onto the lines the echo emits, for the recorder to
+         * trust without re-deriving it. See {@link SeatController#applied}.
+         */
+        final AtomicLong appliedSeq = new AtomicLong();
 
         /**
          * Wave 33 §S item 4 — the concede race, ORDERED shut rather than merely
@@ -5187,11 +5199,17 @@ public final class PlayBridge {
      * through it.
      */
     static final class SeatPlayer extends forge.player.LobbyPlayerHuman {
-        SeatPlayer(final LobbyPlayer stock) {
+        /** This seat's match and index, so {@link SeatController} can echo an applied act (see its own doc). */
+        final MatchContext match;
+        final int seat;
+
+        SeatPlayer(final LobbyPlayer stock, final MatchContext match, final int seat) {
             super(stock.getName(), stock.getAvatarIndex(), stock.getSleeveIndex());
             setAvatarCardImageKey(stock.getAvatarCardImageKey());
             setSleeveArtKey(stock.getSleeveArtKey());
             setSleeveArtOffset(stock.getSleeveArtOffset());
+            this.match = match;
+            this.seat = seat;
         }
 
         @Override
@@ -5218,12 +5236,21 @@ public final class PlayBridge {
      * picked is no delve, as Forge's cancel was.
      */
     static final class SeatController extends PlayerControllerHuman {
+        private final MatchContext match;
+        private final int seat;
+
         SeatController(final Game game, final forge.game.player.Player player, final LobbyPlayer lobbyPlayer) {
             super(game, player, lobbyPlayer);
+            final SeatPlayer sp = (SeatPlayer) lobbyPlayer;
+            match = sp.match;
+            seat = sp.seat;
         }
 
         SeatController(final forge.game.player.Player slave, final LobbyPlayer lobbyPlayer, final PlayerControllerHuman owner) {
             super(slave, lobbyPlayer, owner);
+            final SeatPlayer sp = (SeatPlayer) lobbyPlayer;
+            match = sp.match;
+            seat = sp.seat;
         }
 
         @Override
@@ -5236,6 +5263,138 @@ public final class PlayBridge {
             final forge.game.card.CardCollection toExile = new forge.game.card.CardCollection();
             if (picked != null) { byView.addToList(picked, toExile); }
             return toExile;
+        }
+
+        // ------------------------------------------------ the applied-act echo (wave 78 §A)
+
+        /**
+         * <p><b>Why this needs no fork change.</b> {@code IGameController} is implemented
+         * directly by {@code PlayerControllerHuman} ({@code player/PlayerControllerHuman.java:109}),
+         * and {@code this} SeatController IS the live object {@code GameLobby.startGame}'s runnable
+         * registers as {@code gameControllers.get(slot)} ({@code GameLobby.java:559-560}, from
+         * {@code p.getController()} — the real {@code Player}'s controller, the one
+         * {@code SeatPlayer.createIngamePlayer} set). The server's own net dispatch
+         * ({@code GameServerHandler.getToInvoke}, {@code net/server/GameServerHandler.java:77-80})
+         * invokes the decoded protocol call straight on that object, and Forge's prior fork change
+         * (ActGate, {@code a77e5ea8e1d}/{@code ad902a1e744}) already wraps that invocation in a
+         * single, strictly-ordered, one-at-a-time gate per game — so by the time an overridden
+         * method here runs, no other act of this game is being applied concurrently. This override
+         * sits exactly at the point {@code selectButtonOk}/{@code selectCard}/… forward into
+         * {@code InputProxy} ({@code PlayerControllerHuman.java:2808-2862}, {@code :2841-2849} for
+         * {@code selectCard}'s own forward), which is the moment Forge actually consumes the act.
+         *
+         * <p><b>Applied vs. dropped.</b> {@code InputProxy}'s own methods are all
+         * {@code if (inp != null) inp.selectXxx(...)} ({@code InputProxy.java}), so an act Forge
+         * drops (no input open, or the hold timed out — {@code GameServerHandler}'s own
+         * {@code BETWEEN_INPUTS_MS}/{@code ActGate.settle}) is one where {@code getInputProxy()
+         * .getInput()} reads null or an {@code InputLockUI} the instant this method runs — the SAME
+         * test {@code GameServerHandler.runInBackground} itself uses to decide whether an act is
+         * really waiting on an input ({@code input != null && !(input instanceof InputLockUI)},
+         * {@code GameServerHandler.java:52-53}). Read it BEFORE calling {@code super}, since the
+         * call is what may close this input and open the next one.
+         */
+        private Object liveInput() {
+            final Object in = getInputProxy().getInput();
+            return in instanceof InputLockUI ? null : in;
+        }
+
+        /**
+         * Emits {@code {"t":"applied","seat":n,"seq":k,"input":"<input class>","act":<the act, in
+         * the same shape {@code host.ts}'s {@code BridgeCommand}'s {@code act} frame sent it>}} —
+         * never, when {@code inputBeforeCall} is null: this act was never applied, so it is never
+         * echoed, and the recorder (wave 78 §A item 2) must never log it.
+         */
+        private void applied(final Object inputBeforeCall, final JsonObject act) {
+            if (inputBeforeCall == null) { return; }
+            final JsonObject o = line("applied");
+            o.addProperty("seat", seat);
+            o.addProperty("seq", match.appliedSeq.incrementAndGet());
+            o.addProperty("input", inputBeforeCall.getClass().getSimpleName());
+            o.add("act", act);
+            emit(match.matchId, o);
+        }
+
+        /** {@code act.kind}/{@code act.method}: the two fields every {@code ClientAction} (`forge-wire`'s `envelope.ts`) has. */
+        private static JsonObject act(final String method) {
+            final JsonObject o = new JsonObject();
+            o.addProperty("kind", "act");
+            o.addProperty("method", method);
+            return o;
+        }
+
+        /** {@code refs.ts}'s {@code TriggerEventSchema}: null where the client sent none. */
+        private static JsonElement triggerEventJson(final ITriggerEvent e) {
+            if (e == null) { return JsonNull.INSTANCE; }
+            final JsonObject o = new JsonObject();
+            o.addProperty("button", e.getButton());
+            o.addProperty("x", e.getX());
+            o.addProperty("y", e.getY());
+            return o;
+        }
+
+        @Override
+        public void concede() {
+            final Object before = liveInput();
+            super.concede();
+            applied(before, act("concede"));
+        }
+
+        @Override
+        public void useMana(final byte mana) {
+            final Object before = liveInput();
+            super.useMana(mana);
+            final JsonObject a = act("useMana");
+            a.addProperty("color", mana);
+            applied(before, a);
+        }
+
+        @Override
+        public void selectButtonOk() {
+            final Object before = liveInput();
+            super.selectButtonOk();
+            applied(before, act("selectButtonOk"));
+        }
+
+        @Override
+        public void selectButtonCancel() {
+            final Object before = liveInput();
+            super.selectButtonCancel();
+            applied(before, act("selectButtonCancel"));
+        }
+
+        @Override
+        public void selectPlayer(final PlayerView playerView, final ITriggerEvent triggerEvent) {
+            final Object before = liveInput();
+            super.selectPlayer(playerView, triggerEvent);
+            final JsonObject a = act("selectPlayer");
+            a.add("player", ref("player", playerView.getId()));
+            a.add("triggerEvent", triggerEventJson(triggerEvent));
+            applied(before, a);
+        }
+
+        @Override
+        public boolean selectCard(final CardView cardView, final List<CardView> otherCardViewsToSelect, final ITriggerEvent triggerEvent) {
+            final Object before = liveInput();
+            final boolean selected = super.selectCard(cardView, otherCardViewsToSelect, triggerEvent);
+            final JsonObject a = act("selectCard");
+            a.add("card", ref("card", cardView.getId()));
+            final JsonArray others = new JsonArray();
+            if (otherCardViewsToSelect != null) {
+                for (final CardView c : otherCardViewsToSelect) { others.add(ref("card", c.getId())); }
+            }
+            a.add("otherCardViewsToSelect", others);
+            a.add("triggerEvent", triggerEventJson(triggerEvent));
+            applied(before, a);
+            return selected;
+        }
+
+        @Override
+        public void selectAbility(final SpellAbilityView sa) {
+            final Object before = liveInput();
+            super.selectAbility(sa);
+            final JsonObject a = act("selectAbility");
+            a.add("ability", ref("spellAbility", sa.getId()));
+            applied(before, a);
         }
     }
 
@@ -5397,9 +5556,14 @@ public final class PlayBridge {
                     final GameRules played = m.skipOpening ? puzzleRules(rules) : rules;
                     played.setWarnAboutAICards(false);
                     played.setFilteredHands(m.handSmoothing);
-                    for (final RegisteredPlayer rp : players) {
+                    // `players` is built from `activeSlots` in slot order (GameLobby.startGame), the
+                    // same order the seat-connect loop in `play` asserts seat i lands in slot i, so
+                    // index i here is this seat's own number — what SeatController needs to echo an
+                    // applied act under the right seat.
+                    for (int i = 0; i < players.size(); i++) {
+                        final RegisteredPlayer rp = players.get(i);
                         if (rp.getPlayer() instanceof forge.player.LobbyPlayerHuman stock && !(stock instanceof SeatPlayer)) {
-                            rp.setPlayer(new SeatPlayer(stock));
+                            rp.setPlayer(new SeatPlayer(stock, m, i));
                         }
                     }
                     super.startMatch(played, variants, players, guis, playlist);
