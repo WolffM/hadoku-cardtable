@@ -459,14 +459,17 @@ describe('a burst of starts', () => {
 	// Hosting test C7: ten starts at once each booted a cold JVM in ~50 s, against ~10 s for one, the
 	// slowest 8 s inside the start timeout. Here each "JVM" boots in BOOT_MS once asked for — the test
 	// plays Forge — and the timeout is shorter than the burst takes, but longer than one boot.
-	it('boots at most coldStarts at once, times none out while it waits, and tells each waiter its place', async () => {
+	it('boots at most coldStarts at once, times none out while it waits, and tells each waiter its place', { timeout: 15_000 }, async () => {
 		const LIMIT = 2;
-		// BURST / LIMIT boot rounds must outlast the timeout by themselves: 5 rounds × BOOT_MS against
-		// 4 × BOOT_MS. At 3 rounds only polling overhead carried the burst past it, and a busy box didn't.
-		// The most matches the server hosts at once.
+		// Two margins, both in boot time alone so a starved event loop cannot close either: the burst's
+		// 5 boot rounds outlast the timeout by 2 boots, and one start's timeout outlasts its own boot by
+		// 2 boots. A CPU-starved box spends its slack on the burst's first round, while all ten
+		// requests are handled at once: 630 ms on a claw under CI, ~450 ms at a 15 % CPU quota. BURST
+		// is the most matches the server hosts at once, so the rounds cannot grow; the boot does.
 		const BURST = MAX_CONCURRENT_MATCHES;
-		const BOOT_MS = 120;
-		const h = await boot({ coldStarts: LIMIT, startTimeoutMs: 4 * BOOT_MS });
+		const BOOT_MS = 400;
+		const TIMEOUT_MS = 3 * BOOT_MS;
+		const h = await boot({ coldStarts: LIMIT, startTimeoutMs: TIMEOUT_MS });
 		let bootingNow = 0;
 		let peak = 0;
 		let seen = 0;
@@ -509,7 +512,8 @@ describe('a burst of starts', () => {
 						if (place !== null && places.get(user)!.at(-1) !== place) places.get(user)!.push(place);
 					}),
 			);
-			await new Promise((r) => setTimeout(r, 10));
+			// A place changes once a boot round; polling faster only starves the server it is timing.
+			await new Promise((r) => setTimeout(r, BOOT_MS / 5));
 		}
 		const done = await Promise.all(results);
 		stop = true;
@@ -517,7 +521,7 @@ describe('a burst of starts', () => {
 
 		expect(done.filter((r) => r.status !== 201), 'every start answered 201').toEqual([]);
 		// The whole burst took longer than one start's timeout: the time in the queue did not count.
-		expect(Math.max(...done.map((r) => r.ms))).toBeGreaterThan(4 * BOOT_MS);
+		expect(Math.max(...done.map((r) => r.ms))).toBeGreaterThan(TIMEOUT_MS);
 		expect(peak, 'JVMs booting at once').toBe(LIMIT);
 		const waited = [...places.values()].filter((p) => p.length > 0);
 		expect(waited, 'every start past the first two was told its place').toHaveLength(BURST - LIMIT);
