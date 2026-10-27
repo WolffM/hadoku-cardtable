@@ -59,7 +59,9 @@ async function call(base: string, method: string, tier: string, body?: unknown):
 	const headers: Record<string, string> = { 'x-edge-auth': EDGE_SECRET, 'x-hadoku-tier': tier, 'x-user-id': 'u-1', 'x-user-name': 'u-1', 'x-user-key': 'k' };
 	if (body !== undefined) headers['content-type'] = 'application/json';
 	const res = await fetch(`${base}/api/trim`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
-	return { status: res.status, json: (await res.json()) as Record<string, unknown> };
+	// The tier floor answers below it in plain text, before any route runs.
+	const json = res.headers.get('content-type')?.includes('application/json') ? ((await res.json()) as Record<string, unknown>) : {};
+	return { status: res.status, json };
 }
 
 describe('/api/trim', () => {
@@ -83,7 +85,12 @@ describe('/api/trim', () => {
 	it('nobody below admin writes it', async () => {
 		const file = await trimFile();
 		const base = await openApp(file);
-		for (const tier of edgeMod.TIER_ORDER.slice(1, edgeMod.TIER_ORDER.indexOf('admin'))) expect((await call(base, 'PUT', tier, { trim: { frame: 'hud' } })).status).toBe(403);
+		// Every tier below admin, public included: below the app's floor the
+		// request never reaches the route (404), at or above it the route refuses (403).
+		const floor = edgeMod.rankOf((await import('../config.ts')).CONFIG.minTier);
+		for (const tier of edgeMod.TIER_ORDER.slice(0, edgeMod.TIER_ORDER.indexOf('admin'))) {
+			expect((await call(base, 'PUT', tier, { trim: { frame: 'hud' } })).status, tier).toBe(edgeMod.rankOf(tier) < floor ? 404 : 403);
+		}
 		expect((await call(base, 'GET', 'friend')).json.trim).toBeNull();
 	});
 
