@@ -97,12 +97,47 @@ and from Stats.
 The match registry never deletes a match, and each one holds its whole history in memory. Once the
 recording is the durable copy, a finished match can be dropped from memory.
 
-## Open questions for the operator
+## Rulings (2026-10-26)
 
-1. **Consent.** Is every match featurable by default, or do rooms get a "don't feature / don't
-   record" toggle? Recording is public-info only either way.
-2. **Retention.** How long to keep recordings: 30 days, or until a size cap?
-3. **Idle hero.** When nothing is live: loop a recent replay (costs nothing), or run an AI-vs-AI
-   exhibition (costs a JVM around the clock, so it is a hosting decision)?
-4. **Perspective.** The watcher channel is oriented from the first human seat. Is that fine for the
-   hero, or should it alternate?
+- **Feature everything by default.** No per-room opt-out.
+- **Replays on demand rather than long retention.** The operator asked: *"is it possible to store
+  every game action and recreate the game history from that?"* See below.
+
+## Replay from actions: what it would take
+
+**Possible, but not free.** The action log is small: seed, both decks, the jar pin, and every
+decision. `stream.jsonl` already logs every command sent to Forge (`{"c":…}`). But crash re-attach
+*re-reads output* to a JVM that is still alive (`host.ts` `resumeInto`); it never re-runs a game.
+Re-running needs Forge to be deterministic:
+
+- ✓ **Shuffles.** Every `Collections.shuffle` in forge-game and forge-ai passes
+  `MyRandom.getRandom()` (`forge-core/.../MyRandom.java`), and `MatchSpec.seed` already seeds it for
+  tests.
+- ✗ **AI decisions.** The AI thinks on worker threads with a wall-clock timeout
+  (`AiController.java:1686`, `AiAttackController.java:949`), and those threads share the one
+  `Random`. Under different load it can choose differently, and every later frame diverges. The
+  fix is to record the AI's decisions as actions too, and have the fork's AI controller *replay*
+  them instead of thinking.
+- ✗ **Engine drift.** A replay must run on the jar it was played on. The pin moves several times a
+  week, and a card-script fix would change an old game's outcome. On-demand replay therefore means
+  keeping old jars, or refusing replays across a pin change.
+- **Cost per view.** It boots a JVM and fast-forwards the whole match, roughly seconds to a minute
+  of CPU on hokon, against serving a small file.
+- Unverified: whether anything else iterates in identity-hash order or reads the clock in game
+  logic. A double-run determinism test (same seed and actions, diff the frames) answers it.
+
+**Storage is not the constraint.** A raw, both-seats `stream.jsonl` sample measured 632 KB, and
+38 KB gzipped (76 lines). The public projection is a subset of that. Even a few hundred KB a match
+is ~300 MB per thousand matches.
+
+**Recommendation:**
+- **Always keep the action log.** It is tiny and is the source of truth (stats, debugging, a future
+  re-sim).
+- **Keep the rendered public stream, gzipped, for 30 days.** It serves instant replays and the
+  front-page fallback.
+- **Build re-simulation later**, only if the determinism test and per-pin jars prove out.
+
+## Still open
+
+1. **Nothing live:** loop a recent replay, or run an AI-vs-AI exhibition (a JVM around the clock)?
+2. **Perspective:** the hero is drawn from the first human seat's side. Is that fine?
