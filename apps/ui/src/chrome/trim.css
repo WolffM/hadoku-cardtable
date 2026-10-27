@@ -19,6 +19,20 @@
  * Nothing applies until a family is chosen: each rule hangs off a `data-trim-*` attribute that is
  * only present then. `.ct-panel.ct-panel` out-ranks a panel's own background shorthand, which
  * would otherwise reset the image list; the panel keeps its own fill colour.
+ *
+ * `scoop`'s ring has two colour stops at the exact same radius (`transparent 11px, …-light 11px
+ * 12px`): a zero-width transition. At `--ui-scale`/`--fit` 1 that radius is a whole px and nothing
+ * shows it; at any other scale (the board's own scale-to-fit is essentially never exactly 1, and
+ * movable dialogs are where a player looks closely while dragging) it lands on a fractional px, and
+ * Firefox's radial-gradient rasterizer dithers the degenerate edge into a speckled, partly-missing
+ * ring instead of antialiasing it — the operator, 2026-10-27: "the colored edge disappears... my
+ * guess is this is the firefox renderer behaving poorly" (confirmed: Chromium was never affected,
+ * Firefox speckled at every non-1 scale tried). The two stops are nudged 0.1px apart so the
+ * transition is never zero-width; measured zero pixel difference at rest (scale 1, dpr 1, either
+ * browser) and zero speckled samples at scale 1.1/dpr 1.25 where the unfixed ring speckled on every
+ * sample. `chamfer`/`hud`/`step` write the identical zero-width-stop shape for their own corner cut,
+ * but as a `linear-gradient`, not a circle — tried at the same fractional scale, neither browser
+ * dithers it, so they are left alone.
  */
 
 :is([data-trim-frame], [data-trim-corner], [data-trim-edge], [data-trim-texture]) .ct-panel.ct-panel {
@@ -86,10 +100,10 @@
 }
 [data-trim-frame='scoop'] .ct-panel:not(:has(.ct-surface)) {
   --trim-frame-i:
-    radial-gradient(circle at 0 0, transparent 11px, var(--color-border-light) 11px 12px, transparent 12.5px),
-    radial-gradient(circle at 100% 0, transparent 11px, var(--color-border-light) 11px 12px, transparent 12.5px),
-    radial-gradient(circle at 100% 100%, transparent 11px, var(--color-border-light) 11px 12px, transparent 12.5px),
-    radial-gradient(circle at 0 100%, transparent 11px, var(--color-border-light) 11px 12px, transparent 12.5px);
+    radial-gradient(circle at 0 0, transparent 10.9px, var(--color-border-light) 11.1px 12px, transparent 12.5px),
+    radial-gradient(circle at 100% 0, transparent 10.9px, var(--color-border-light) 11.1px 12px, transparent 12.5px),
+    radial-gradient(circle at 100% 100%, transparent 10.9px, var(--color-border-light) 11.1px 12px, transparent 12.5px),
+    radial-gradient(circle at 0 100%, transparent 10.9px, var(--color-border-light) 11.1px 12px, transparent 12.5px);
   --trim-frame-p: 0 0, 100% 0, 100% 100%, 0 100%;
   --trim-frame-s: 13px 13px, 13px 13px, 13px 13px, 13px 13px;
   --trim-frame-r: no-repeat, no-repeat, no-repeat, no-repeat;

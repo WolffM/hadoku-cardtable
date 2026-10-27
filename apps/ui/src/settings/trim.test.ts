@@ -32,6 +32,11 @@ describe('trim', () => {
     }
   });
 
+  it('never gives a radial-gradient a stop and the next colour at the exact same px position: a zero-width transition that Firefox renders as a speckled, partly-missing edge instead of antialiasing (the operator, 2026-10-27: "the colored edge disappears"; confirmed only at a fractional --ui-scale/--fit, only in a radial-gradient, only in Firefox — scoop’s ring, 10.9px/11.1px apart on purpose)', () => {
+    const degenerate = /(\d+(?:\.\d+)?)px,\s*var\([^)]+\)\s+\1px/;
+    expect(SHEET.match(degenerate)).toBeNull();
+  });
+
   it('writes one attribute per chosen family and removes the rest', () => {
     const el = document.createElement('main');
     applyTrim(el, { frame: 'hud', groundCorner: 'gems' });
