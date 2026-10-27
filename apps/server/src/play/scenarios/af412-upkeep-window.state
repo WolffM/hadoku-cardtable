@@ -1,0 +1,17 @@
+# Alice (seat 0) controls Elephant Grass (cumulative upkeep {1}) and a Wooded Foothills, and no
+# mana: at her next upkeep its trigger asks {1}, which only the fetchland can find, and only if it
+# is cracked while the trigger waits on the stack. Bob (seat 1) is in his own Main Phase 2, so the
+# next upkeep is hers. Her library holds the Mountains the fetch finds.
+turn=1
+activeplayer=ai
+activephase=MAIN2
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Elephant Grass;Wooded Foothills
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=
