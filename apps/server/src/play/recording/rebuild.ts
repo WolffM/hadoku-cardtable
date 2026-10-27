@@ -400,6 +400,12 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 		let out: BridgeCommand = c.cmd;
 		if ((c.cmd.t === 'reply' || c.cmd.t === 'abort') && seat !== null) {
 			const k = replyOrdinal[i]!;
+			// The ask is not reflected in board+prompt, so the position can match before the ask
+			// frame itself has arrived (the same timing gap replay-determinism.jvm.test.ts's own
+			// run B waits out before mapping a callId). Wait for it, within the same per-position
+			// budget, before deciding it is missing.
+			const askDeadline = Date.now() + budget;
+			while (exited === null && Date.now() < askDeadline && askIds(raw).get(seat)?.[k] === undefined) await sleep(20);
 			const mapped = askIds(raw).get(seat)?.[k];
 			if (mapped === undefined) {
 				diverged = `command ${i}: the rebuild has no ask #${k} for seat ${seat} to answer`;
