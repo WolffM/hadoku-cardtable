@@ -1781,18 +1781,38 @@ public final class PlayBridge {
          * </ul>
          * Any other lone comparison lights when met, whichever way it points: Bloodghast's opponent at
          * {@code LE10} life, a god's devotion below five.
+         *
+         * <p><b>One count's floor is the notable state, not the default</b> (AF401, Infernal Tutor):
+         * {@code Count$ValidHand …} is a hand, which starts full and is spent toward empty over the
+         * game, so reaching its floor — no cards in hand — is Hellbent (CR 702.78a), the rare state a
+         * card's "Hellbent —" clause is written to light for, not the "nothing has happened yet"
+         * default the rule above assumes a floor means. Infernal Tutor pairs exactly that floor
+         * ({@code ConditionSVarCompare$ LT1}, its printed Hellbent clause) against the ordinary branch
+         * left to default to {@code GE1} by omitting the compare — so the general rule, unchanged,
+         * would call the floor "default" and light the card on every full hand instead of none. Every
+         * other complementary pair this file is proven against counts a resource that starts at zero
+         * and is built up DURING the window being asked about (attackers declared, creatures that died,
+         * mana spent) — Arrow Storm's Raid, Gruesome Discovery's Morbid, Mythos of Illuna's mana spent —
+         * so their floor genuinely is the common, default state, and {@link #floorIsRare} leaves them
+         * exactly as this rule already had them.
          */
+        private static boolean floorIsRare(final String count) {
+            return count.startsWith("svar:Count$ValidHand");
+        }
+
         private static Set<forge.game.CardTraitBase> quiet(final forge.game.card.Card c, final List<forge.game.CardTraitBase> traits) {
             final Map<String, List<Check>> byCount = new HashMap<>();
             for (final forge.game.CardTraitBase trait : traits) {
                 for (final Check check : checks(c, trait)) { byCount.computeIfAbsent(check.count, k -> new ArrayList<>()).add(check); }
             }
             final Set<forge.game.CardTraitBase> quiet = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
-            for (final List<Check> same : byCount.values()) {
+            for (final Map.Entry<String, List<Check>> group : byCount.entrySet()) {
+                final List<Check> same = group.getValue();
+                final boolean rare = floorIsRare(group.getKey());
                 for (final Check a : same) {
-                    if (a.holds(0) && !a.holds(1)) { quiet.add(a.trait); continue; }
+                    if (!rare && a.holds(0) && !a.holds(1)) { quiet.add(a.trait); continue; }
                     for (final Check b : same) {
-                        if (b.trait != a.trait && a.holds(0) && complementary(a, b)) { quiet.add(a.trait); }
+                        if (b.trait != a.trait && complementary(a, b) && (rare ? !a.holds(0) : a.holds(0))) { quiet.add(a.trait); }
                     }
                 }
             }
