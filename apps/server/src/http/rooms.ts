@@ -163,6 +163,8 @@ export interface RoomsDeps {
 	 * carries it as `tableGames`. Absent (a unit suite) is none.
 	 */
 	tableGames?(room: RoomView): Record<string, TableGame>;
+	/** The front page's featured match (`play/featured.ts`), sent with the list. Absent (a unit suite) is none. */
+	featured?(): { matchId: string; roomId: string } | null;
 	/** Overrides `JOIN_RATE_LIMIT`. */
 	joinRateLimit?: RateLimitConfig;
 	/** Injected for tests; the limiter's clock. */
@@ -325,7 +327,11 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		// `ROOM_STALE_MS` is a dead table and is not advertised (wave 31). A
 		// testing room is never offered to a non-admin at all — not hidden in
 		// the UI, never on the wire for them to begin with.
-		res.json({ rooms: lobby.offered().filter((room) => admin || !room.testing).map((room) => roomBody(room, me)) });
+		const offered = lobby.offered().filter((room) => admin || !room.testing);
+		// Only a room this caller was just sent: the pick is a pointer into the list, never a room of its own.
+		const pick = deps.featured?.() ?? null;
+		const featured = pick !== null && offered.some((room) => room.id === pick.roomId) ? pick : null;
+		res.json({ rooms: offered.map((room) => roomBody(room, me)), featured });
 	});
 
 	rooms.post('/', (req: Request, res: Response) => {

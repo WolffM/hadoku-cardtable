@@ -806,6 +806,9 @@ export const MATCH_ENDED_TITLE = 'Match ended';
  */
 export const WATCHER_SEAT = -1;
 
+/** How far back {@link Match.activity} counts the seconds in which the table changed. */
+export const ACTIVITY_WINDOW_MS = 120_000;
+
 /**
  * How many `message` lines a seat keeps for a re-send after a snapshot.
  *
@@ -2127,6 +2130,27 @@ export class Match {
 	/** What {@link MatchDeps.liveChanged} is told on: the turn, whose it is, the life totals. */
 	private liveKey = '';
 
+	/**
+	 * The whole seconds in which the table changed, oldest first, for the last {@link ACTIVITY_WINDOW_MS}.
+	 * Stamped on every watcher-channel state frame, so one act's burst of frames is one second, and a
+	 * game waiting on a player stamps nothing. `featured.ts` reads it through {@link activity}.
+	 */
+	private activeSeconds: number[] = [];
+
+	/** When the table last changed, and in how many of the last {@link ACTIVITY_WINDOW_MS}'s seconds. */
+	activity(now = this.now()): { lastAt: number | null; recent: number } {
+		const from = Math.floor((now - ACTIVITY_WINDOW_MS) / 1000);
+		while (this.activeSeconds.length > 0 && this.activeSeconds[0]! <= from) this.activeSeconds.shift();
+		const last = this.activeSeconds.at(-1);
+		return { lastAt: last === undefined ? null : last * 1000, recent: this.activeSeconds.length };
+	}
+
+	private noteActivity(): void {
+		const second = Math.floor(this.now() / 1000);
+		if (this.activeSeconds.at(-1) !== second) this.activeSeconds.push(second);
+		this.activity();
+	}
+
 	private noteLive(): void {
 		const live = this.live();
 		const key = live === null ? '' : `${live.turn}|${live.active}|${live.life.join(',')}`;
@@ -2191,6 +2215,7 @@ export class Match {
 		this.releaseLog(s, false);
 		if (s === this.watcherSource()) {
 			this.sendWatcher(this.watcher.projector.project(raw) as unknown as ServerFrame);
+			this.noteActivity();
 			this.noteLive();
 		}
 	}

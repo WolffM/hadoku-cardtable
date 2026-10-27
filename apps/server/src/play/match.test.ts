@@ -25,7 +25,7 @@ import {
 
 import { STRICT_PAYMENT_POLICY } from './auto.js';
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory } from './host.js';
-import { ACT_SILENCE_MS, ANSWER_SILENCE_MS, MATCH_ENDED_TITLE, WATCHER_SEAT, createMatchRegistry, frameGist, type Match, type MatchSpecWithIdentity } from './match.js';
+import { ACTIVITY_WINDOW_MS, ACT_SILENCE_MS, ANSWER_SILENCE_MS, MATCH_ENDED_TITLE, WATCHER_SEAT, createMatchRegistry, frameGist, type Match, type MatchSpecWithIdentity } from './match.js';
 import type { SeatIdentity } from '@hadoku/shared';
 import {
 	FLYING_FILE,
@@ -3990,3 +3990,25 @@ describe('live', () => {
 	});
 });
 
+/** What the front page's featured pick reads (`featured.ts`): the seconds in which the table changed. */
+describe('activity', () => {
+	it('counts each second the table changed once, and forgets what is older than the window', () => {
+		const { factory, hosts } = replayFactory();
+		let now = 1_000_000;
+		const registry = createMatchRegistry({ host: factory, log: () => undefined, overGraceMs: 60_000, emit: () => undefined, now: () => now });
+		const match = registry.create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }] });
+		const host = hosts[0] as ReplayHost;
+		expect(match.activity()).toEqual({ lastAt: null, recent: 0 });
+		// The whole opening arrives in one second: many frames, one second of activity.
+		host.push(...OPENING);
+		expect(match.activity()).toEqual({ lastAt: 1_000_000, recent: 1 });
+		now += 5_000;
+		host.push(...AFTER_PROBE);
+		expect(match.activity()).toEqual({ lastAt: 1_005_000, recent: 2 });
+		// The opening's second leaves the window; the later one is still in it.
+		now = 1_000_000 + ACTIVITY_WINDOW_MS + 1_000;
+		expect(match.activity()).toEqual({ lastAt: 1_005_000, recent: 1 });
+		now += 10_000;
+		expect(match.activity()).toEqual({ lastAt: null, recent: 0 });
+	});
+});

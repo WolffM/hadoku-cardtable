@@ -68,16 +68,24 @@ saw.
 **Gap:** AI-vs-AI has no watcher channel (`watcherSource()` finds no human seat). Fall back to seat
 0's stream so AI matches can be watched and recorded too.
 
-**R3. "Something is happening" (server).** Each match keeps `lastActAt`, stamped on every watcher
-state frame, plus a short ring of act times. `GET /api/featured`, pushed through the existing room
-feed as `featured:changed`, picks:
+**R3. "Something is happening" (server). Built 2026-10-27, `play/featured.ts`.**
 
-- *Eligible:* status live, past mulligans, an act in the last ~60 s, not in a testing room.
-- *Score:* acts in the last 2 min (the main term), plus turn ≥ 3, close life totals, two humans
-  rather than a human and an AI, and current watchers.
-- *Hysteresis:* keep the current pick until it ends or goes idle for 60 s. A hero that switches
-  mid-combat is worse than one that shows a slightly duller game.
-- *Ladder:* best live match → best recording from the last 24 h, looped → today's plain list.
+- `Match.activity()` counts the whole seconds of the last two minutes in which the watcher channel got
+  a state frame. One act's burst of frames is one second, and a game waiting on a player stamps
+  nothing.
+- `GET /api/rooms` now answers `{ rooms, featured }`. `featured` is `{ matchId, roomId }` or null,
+  and only ever points at a room in that same list.
+- A change of pick pings the room feed's list followers, so no new channel or event is needed. It is
+  re-picked on every `liveChanged` and every 15 s, because going idle is the absence of an event.
+- *Eligible:* dealt and running (`Match.live()` not null), the table changed within 60 s, and not in
+  a testing room.
+- *Score:* active seconds in the last two minutes, plus 10 past turn 2, up to 10 for close life
+  totals, and 15 for two people rather than a person and an AI.
+- *Kept:* the current pick stays until it ends or goes idle. A hero that switches mid-combat is
+  worse than one that shows a slightly duller game.
+- *Not yet:* the watcher count, which nothing on the server counts per match yet. And the
+  nothing-live fallback, a replay or an AI exhibition, which is the operator's open question. Until
+  then `featured` is null and the banner shows no viewer.
 
 **R4. The front page (UI). Approved 2026-10-27.** The operator approved the design canvas,
 https://claude.ai/artifact/STWgBB4waoah93m8aMqrps, artboard "A": *"love it. lock it in. these cards

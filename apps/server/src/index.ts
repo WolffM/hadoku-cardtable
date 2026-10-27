@@ -84,7 +84,7 @@ import { busyHandler } from './busy.js';
 import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { attachDraftSocket } from './room/socket.js';
 import { attachRoomFeed } from './room/feed.js';
-import { attachPlay, coldStartsFrom, jvmHostConfig, jvmHostFactory, roomDeckCosts, roomFormatNames, spellCopierLookup, tableGame, type PlayHandle } from './play/index.js';
+import { attachPlay, coldStartsFrom, createFeatured, featuredCandidates, jvmHostConfig, jvmHostFactory, roomDeckCosts, roomFormatNames, spellCopierLookup, tableGame, type PlayHandle } from './play/index.js';
 import { attachStream, attachStreamRoutes, streamLayout } from './stream/index.js';
 import { createRoomStreams, findContainerScript, scriptRunner, MAX_ROOM_SEATS } from './stream/alloc.js';
 import { attachBrowserBridge } from './play/browser/index.js';
@@ -545,6 +545,8 @@ const runTestingRoomSeed = (): Promise<void> =>
 attachRooms(api, {
 	lobby,
 	checkPlan: checkDraftPlan,
+	// Read per request; `featured` is built further down, beside play.
+	featured: () => featured.current(),
 	closed: (roomId, matches) => {
 		for (const id of matches) play?.matches.get(id)?.stop();
 		// An unfinished draft has no deck to keep; a finished one stays on its drafters' Decks page.
@@ -623,6 +625,15 @@ setInterval(() => sweepRooms(lobby, roomsLog), ROOM_SWEEP_MS).unref();
 // deck is in, and play's registry does not exist until attachPlay below — which
 // must stay after this call for the gate to answer first at all.
 let play: PlayHandle | null = null;
+// The front page's featured match. Built before `attachPlay` because play's `liveChanged` re-picks it,
+// and its candidates are read lazily from `play` for the same reason `attachTables`' matches are.
+const featured = createFeatured({
+	candidates: (now) => featuredCandidates(play?.matches.active() ?? [], (id) => lobby.roomOfMatch(id), now),
+	// A new pick changes what the room list says: the feed pings list followers on any room's change.
+	changed: (previous, next) => {
+		for (const pick of [previous, next]) if (pick !== null) roomFeed.changed(pick.roomId);
+	},
+});
 const tables = attachTables(api, {
 	library,
 	draftRooms,
@@ -724,6 +735,7 @@ play = attachPlay(io, api, {
 	liveChanged: (match) => {
 		const room = lobby.roomOfMatch(match.id);
 		if (room !== undefined) roomFeed.changed(room.id);
+		featured.refresh();
 	},
 });
 // `attachPlay` has adopted every match an earlier server left running, so a

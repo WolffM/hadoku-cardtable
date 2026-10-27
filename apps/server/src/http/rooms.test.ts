@@ -101,6 +101,7 @@ async function openApp(
 		/** Wave 74 §E step 2: `/start`'s realistic-round pre-fetch. Omitted everywhere a test never plans a realistic round. */
 		realistic?: import('./rooms.ts').RoomsDeps['realistic'];
 		tableGames?: import('./rooms.ts').RoomsDeps['tableGames'];
+		featured?: import('./rooms.ts').RoomsDeps['featured'];
 	} = {},
 ): Promise<Harness> {
 	const log = (entry: Record<string, unknown>): void => {
@@ -125,6 +126,7 @@ async function openApp(
 		checkPlan: opts.checkPlan ?? (async (plan) => ({ ok: true, cards: plan.rounds.length * 10 })),
 		...(opts.realistic === undefined ? {} : { realistic: opts.realistic }),
 		...(opts.tableGames === undefined ? {} : { tableGames: opts.tableGames }),
+		...(opts.featured === undefined ? {} : { featured: opts.featured }),
 	});
 	app.use('/api', api);
 
@@ -481,6 +483,22 @@ describe('a room body’s table games', () => {
 		const h = await openApp(await tempDir());
 		const made = (await call(h, 'POST', '/api/rooms', { body: { name: 'Kitchen table' } })).json() as object;
 		expect(made).not.toHaveProperty('tableGames');
+	});
+});
+
+/** The front page's featured match (`play/featured.ts`), a pointer into the list it comes with. */
+describe('the list’s featured match', () => {
+	it('names a match in a room the caller was sent, and nothing otherwise', async () => {
+		let pick: { matchId: string; roomId: string } | null = null;
+		const h = await openApp(await tempDir(), { featured: () => pick });
+		const made = (await call(h, 'POST', '/api/rooms', { body: { name: 'Kitchen table' } })).json() as { id: string };
+		const featuredOf = async () => ((await call(h, 'GET', '/api/rooms')).json() as { featured: unknown }).featured;
+		expect(await featuredOf()).toBeNull();
+		pick = { matchId: 'm-0123456789ab', roomId: made.id };
+		expect(await featuredOf()).toEqual(pick);
+		// A pick into a room this list does not carry is not sent: the page would have nothing to draw.
+		pick = { matchId: 'm-0123456789ab', roomId: 'r-nothere' };
+		expect(await featuredOf()).toBeNull();
 	});
 });
 
