@@ -37,7 +37,8 @@ import {
 	type MatchSpec,
 	type ReapResult,
 } from './host.js';
-import { LAUNCH_RECORD_FILE, readLaunchRecord, type JvmLauncher, type JvmTransport } from './jvm-transport.js';
+import type { JvmLauncher, JvmTransport } from './jvm-transport.js';
+import { LAUNCH_RECORD_FILE, readLaunchRecord } from './local-jvm.js';
 
 const FAKE = resolve(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fake-bridge.mjs');
 // A slow case's own budget, which must never undercut CI's (vitest.config.ts):
@@ -121,7 +122,7 @@ function spawned(log: Record<string, unknown>[], hostId: string): { pid: number;
 	return l;
 }
 
-/** Alive and not a zombie: the question `jvm-transport.ts` and `e2e/play.spec.ts` both ask of `/proc`. */
+/** Alive and not a zombie: the question `local-jvm.ts` and `e2e/play.spec.ts` both ask of `/proc`. */
 function running(pid: number): boolean {
 	try {
 		return !readFileSync(`/proc/${pid}/stat`, 'utf8').includes(') Z ');

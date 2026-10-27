@@ -13,7 +13,7 @@
  * This file is the coordinator. `jvmHostFactory` places each match into a JVM with room — the
  * fullest warm one first, so idle JVMs empty out and retire — up to `perJvm` matches each
  * (`MATCHES_PER_JVM`, 8), and opens a new JVM when every one is full. Where a JVM runs and how
- * its line stream is reached is a `JvmLauncher`'s (`jvm-transport.ts`): this machine's, by
+ * its line stream is reached is a `JvmLauncher`'s (`jvm-transport.ts`): this machine's (`local-jvm.ts`), by
  * default; a claw's, through a remote agent.
  *
  * - **A match's exit is its `stopped`.** A match asked to stop whose `stopped` never comes is let
@@ -39,7 +39,7 @@
  * match keeps its slot in its JVM for `overGraceMs`, not a place in the ceiling). `socket.ts`
  * refuses an eleventh with a 503 before any JVM is spent. Each person may play at most 5 at once
  * (`http/routes.ts`). The JVM count is bounded separately (`JvmPoolOptions.maxJvms`). A JVM's
- * heap is capped (`JVM_HEAP_MB` for `MATCHES_PER_JVM` matches, `jvm-transport.ts`) so a runaway
+ * heap is capped (`JVM_HEAP_MB` for `MATCHES_PER_JVM` matches, `local-jvm.ts`) so a runaway
  * cannot take the box.
  *
  * Nothing outside this file knows a JVM exists: `match.ts` sees a `MatchHost` — send a command,
@@ -47,7 +47,7 @@
  *
  * ## A match outlives its server (Wave 22, §E)
  *
- * A deploy must not end live games. The JVM survives the server (`jvm-transport.ts`, "A JVM
+ * A deploy must not end live games. The JVM survives the server (`local-jvm.ts`, "A JVM
  * outlives its server"), and the next server has to be able to rebuild each match on it: a
  * re-attached JVM keeps Forge's games, but `Match`'s per-seat projectors, histories, cursors and
  * parked asks lived in the process that died. So:
@@ -111,7 +111,8 @@ import { join } from 'node:path';
 import type { AbortReasonSchema, ClientAction, GameLogLine, Loss, SendYieldUpdate } from '@hadoku/forge-wire';
 
 import { jsonLogger } from '../log.js';
-import { JVM_HEAP_MB, MATCHES_PER_JVM, localJvmLauncher, writeFileAtomic, type JvmHostConfig, type JvmLauncher, type JvmTransport } from './jvm-transport.js';
+import type { JvmLauncher, JvmTransport } from './jvm-transport.js';
+import { JVM_HEAP_MB, MATCHES_PER_JVM, localJvmLauncher, writeFileAtomic, type JvmHostConfig } from './local-jvm.js';
 
 export {
 	BRIDGE_CACHE_MAX_AGE_MS,
@@ -133,7 +134,7 @@ export {
 	writeFileAtomic,
 	type JvmAvailability,
 	type JvmHostConfig,
-} from './jvm-transport.js';
+} from './local-jvm.js';
 
 /* ── What a host is ──────────────────────────────────────────────────── */
 

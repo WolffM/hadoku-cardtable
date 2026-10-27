@@ -19,6 +19,8 @@ const matches = new Set();
 
 const out = (match, line) => process.stdout.write(`${JSON.stringify({ ...line, match })}\n`);
 
+// The real bridge's liveness thread starts before Forge boots, so its first line is `alive`, not `warm`.
+out(hostId, { t: 'alive' });
 out(hostId, { t: 'warm', bootMs: 1 });
 const aliveMs = Number(process.env.FAKE_BRIDGE_ALIVE_MS ?? 0);
 if (aliveMs > 0) setInterval(() => out(hostId, { t: 'alive' }), aliveMs);

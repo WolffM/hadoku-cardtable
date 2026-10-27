@@ -25,7 +25,8 @@ match outlives its server" below.
 | `visibility.ts` | the hidden-information projection (Forge's `canBeShownTo`, server side) |
 | `transport.ts` | the A↔B wrapper schemas (lane B mirrors them at `apps/ui/src/play/live/transport.ts`) |
 | `host.ts` | the `MatchHost` seam and the coordinator: matches placed into shared `--host` JVMs (`perJvm` each), the warm JVM, a JVM's death failing every match on it, the concurrency ceiling, and the re-attach seam a match survives a restart through (`orphans`/`attach`/`handOver`) |
-| `jvm-transport.ts` | `JvmTransport`/`JvmLauncher`, the seam between the coordinator and where a JVM runs; the local launcher (fifos, run directory, boot sweep, crash records) and the compiled bridge |
+| `jvm-transport.ts` | `JvmTransport`/`JvmLauncher`, the seam between the coordinator and where a JVM runs (`remote/` is the claw side) |
+| `local-jvm.ts` | the local launcher: fifos, run directory, boot sweep, crash records, and the compiled bridge |
 | `auto.ts` | pure decisions: an ask with one legal reply, a stop with nothing to do, a payment with one source. `match.ts` acts on them; a seat's `fullControl` turns the file off for that seat. Wave 32 added three policy values, all off under full control: `skipEmptyBlockStop` (no creatures, no Declare Blockers stop), `passOwnSpell` (priority is not held on the seat's own spell) and `orderSimultaneous` (Forge's own order for simultaneous abilities). `match.ts` presses OK once per prompt (`SeatState.passedOn`): Forge's block input says its buttons BEFORE its prompt, and a second press on the stale prompt ended it |
 | `names.ts` | a card-name ask narrowed to the match's format, built once per format: a frozen era's legal names, the cube for a drafted pool, the library's decks on Free pick — plus every name either deck plays; an unknown format keeps Forge's whole list |
 | `bridge/PlayBridge.java` | the Java side: one source file, no build step. `host.ts` compiles it once per version into `~/.cache/cardtable/bridge` and launches the classes (`bridgeLaunch`) |
@@ -459,7 +460,7 @@ both seats' hidden-card shape check, `setGameView`, face-down).
 ## The run directory
 
 Every JVM gets `<workDir>/<hostId>` (`h-<12 hex>`), staged by `stageRunDir` in
-`jvm-transport.ts`. `workDir` is `CARDTABLE_PLAY_WORK_DIR`, default
+`local-jvm.ts`. `workDir` is `CARDTABLE_PLAY_WORK_DIR`, default
 `<os tmpdir>/cardtable-play`, which is tmpfs here: a directory nobody removes is
 RAM nobody gets back. The JVM's **cwd is this directory**, and that fact is
 load-bearing twice over — Forge resolves `res/` and its profile against the cwd,
@@ -476,7 +477,7 @@ and `/proc/<pid>/cwd` is how a later process tells a live run dir from a dead on
 | `crash.json` | `keepCrashRecord`, on an unclean exit | marks the directory as a crash record and says how it ended (`reason`, `code`, `signal`, `at`) |
 
 What happens to the directory when the JVM is gone is decided by *how* it went,
-and `jvm-transport.ts`'s header ("The run directory") has the rule: a clean end —
+and `local-jvm.ts`'s header ("The run directory") has the rule: a clean end —
 the coordinator asked the JVM to go — is removed whole; anything else is kept as a
 crash record pruned to `CRASH_RECORD_FILES`, bounded by `CRASH_RECORDS_KEPT` (20)
 and `CRASH_RECORD_MAX_AGE_MS` (7 days).

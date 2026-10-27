@@ -201,7 +201,7 @@ Socket.prototype.emit = function (this: Socket, event: string | symbol, ...args:
 
 /*
  * The handles a later server re-attaches a JVM and its matches by, as
- * `apps/server/src/play/host.ts` and `jvm-transport.ts` write them
+ * `apps/server/src/play/host.ts` and `local-jvm.ts` write them
  * (`JVM_RECORD_FILE`/`JvmRecord`, `LAUNCH_RECORD_FILE`, `ORPHAN_MAX_MS`). Read here
  * rather than imported: `host.ts` is not erasable-syntax-clean and this package
  * typechecks with `erasableSyntaxOnly` so Node can strip its types (`tsc` exits 2 on
@@ -211,7 +211,7 @@ Socket.prototype.emit = function (this: Socket, event: string | symbol, ...args:
 
 /** `host.ts` `JVM_RECORD_FILE`: the coordinator's record of a JVM and its matches. */
 export const JVM_RECORD_FILE = 'jvm.json';
-/** `jvm-transport.ts` `LAUNCH_RECORD_FILE`: the JVM's pid, written at launch. */
+/** `local-jvm.ts` `LAUNCH_RECORD_FILE`: the JVM's pid, written at launch. */
 export const LAUNCH_RECORD_FILE = 'launch.json';
 /** `host.ts` `ORPHAN_MAX_MS`: past this a boot retires an orphaned JVM instead of re-attaching. */
 export const ORPHAN_MAX_MS = 12 * 60 * 60 * 1000;

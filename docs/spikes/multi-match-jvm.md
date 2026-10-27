@@ -186,7 +186,7 @@ cold or spare one-match JVM through this bridge.
   transport exits, keeps one JVM with room warm (replacing `--spare`), retires
   idle JVMs, and re-attaches per JVM (`jvm.json` lists the JVM's matches; each
   match has its own stream). Where a JVM runs is `jvm-transport.ts`'s
-  `JvmLauncher`; the local one keeps the fifo/run-dir mechanics. The one-match
+  `JvmLauncher`; the local one (`local-jvm.ts`) keeps the fifo/run-dir mechanics. The one-match
   cold and `--spare` paths are gone from `host.ts`; the bridge still has them,
   and they are the bridge lane's to delete.
 - **A per-match watchdog** (plan; not built). Today liveness is per JVM: the
