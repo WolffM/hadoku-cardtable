@@ -18,7 +18,7 @@
  */
 import { spawn } from 'node:child_process';
 import { createHash, createPublicKey, verify } from 'node:crypto';
-import { cpSync, createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, createWriteStream, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 
@@ -74,9 +74,37 @@ function receive(req, file) {
   });
 }
 
+/*
+ * Matches outlive the agent. The unit is Delegate=yes and KillMode=process, so a restart kills only
+ * the agent's own process: the agent moves itself into the leaf `agent/` and puts each JVM in a
+ * leaf `run-<id>/` beside it (cgroup v2 allows no processes in a cgroup that has children), and a
+ * restarted agent adopts every run cgroup that still holds a process. Without delegation the
+ * JVMs stay in the agent's cgroup and die with it.
+ */
+const SERVICE_CG = join('/sys/fs/cgroup', readFileSync('/proc/self/cgroup', 'utf8').trim().split('::').pop().replace(/\/agent$/, ''));
+const delegated = (() => {
+  // Only in a hosting slice: anywhere else the cgroup is somebody else's (a shell's scope, say).
+  if (!SERVICE_CG.includes('/hosting.slice/')) return false;
+  try {
+    mkdirSync(join(SERVICE_CG, 'agent'), { recursive: true });
+    writeFileSync(join(SERVICE_CG, 'agent', 'cgroup.procs'), String(process.pid));
+    return true;
+  } catch (e) {
+    log('not-delegated', { cgroup: SERVICE_CG, error: e.code });
+    return false;
+  }
+})();
+
+const procsIn = (cg) => {
+  try {
+    return readFileSync(join(cg, 'cgroup.procs'), 'utf8').trim().split('\n').filter(Boolean).map(Number);
+  } catch {
+    return [];
+  }
+};
+
 function sliceStats() {
-  const cg = readFileSync('/proc/self/cgroup', 'utf8').trim().split('::').pop();
-  const slice = join('/sys/fs/cgroup', cg, '..');
+  const slice = join(SERVICE_CG, '..');
   const read = (f) => {
     try {
       return readFileSync(join(slice, f), 'utf8').trim();
@@ -84,10 +112,37 @@ function sliceStats() {
       return `unreadable: ${e.code}`;
     }
   };
-  return { cgroup: cg, memoryCurrent: read('memory.current'), memoryMax: read('memory.max'), memoryEvents: read('memory.events'), cpuStat: read('cpu.stat') };
+  return { cgroup: SERVICE_CG, delegated, memoryCurrent: read('memory.current'), memoryMax: read('memory.max'), memoryEvents: read('memory.events'), cpuStat: read('cpu.stat') };
 }
 
 const runs = new Map();
+
+/** A run ends when its cgroup holds no process; its exit code is known only to the agent that spawned it. */
+function watch(id, r) {
+  const cg = join(SERVICE_CG, `run-${id}`);
+  const timer = setInterval(() => {
+    if (procsIn(cg).length) return;
+    clearInterval(timer);
+    r.exit ??= { code: null, signal: null, at: new Date().toISOString(), adopted: true };
+    try {
+      rmdirSync(cg);
+    } catch (e) {
+      log('rmdir', { cg, error: e.code });
+    }
+  }, 5000);
+}
+
+if (delegated) {
+  for (const d of readdirSync(SERVICE_CG)) {
+    const pids = d.startsWith('run-') ? procsIn(join(SERVICE_CG, d)) : [];
+    if (!pids.length) continue;
+    const id = d.slice(4);
+    const r = { pid: pids[0], exit: null, adopted: true };
+    runs.set(id, r);
+    watch(id, r);
+    log('adopted', { id, pids });
+  }
+}
 
 function runStatus(id) {
   const r = runs.get(id);
@@ -101,7 +156,8 @@ function runStatus(id) {
   };
   return {
     id,
-    pid: r?.child.pid ?? null,
+    pid: r?.pid ?? null,
+    adopted: r?.adopted ?? false,
     exit: r ? r.exit : 'unknown (before this agent started)',
     result: tail('result.txt', 50).filter((l) => l.startsWith('RESULT')),
     series: tail('series.tsv', 3),
@@ -142,16 +198,21 @@ function startStress({ label, xmx, props }) {
   // ForgeScale writes the decks it builds into decks/.
   symlinkSync(join(stage, 'res'), join(dir, 'res'));
   if (existsSync(join(stage, 'decks'))) cpSync(join(stage, 'decks'), join(dir, 'decks'), { recursive: true });
-  const out = createWriteStream(join(dir, 'result.txt'));
-  const err = createWriteStream(join(dir, 'stderr.txt'));
-  const child = spawn(java, args, { cwd: dir, stdio: ['ignore', 'pipe', 'pipe'] });
-  child.stdout.pipe(out);
-  child.stderr.pipe(err);
-  const r = { child, exit: null };
+  // Files, not pipes: a JVM that outlives the agent must not lose its stdout.
+  const out = openSync(join(dir, 'result.txt'), 'a');
+  const err = openSync(join(dir, 'stderr.txt'), 'a');
+  const child = spawn(java, args, { cwd: dir, stdio: ['ignore', out, err] });
+  const r = { pid: child.pid, exit: null, adopted: false };
   child.on('exit', (code, signal) => {
     r.exit = { code, signal, at: new Date().toISOString() };
     log('stress-exit', { id, code, signal });
   });
+  if (delegated) {
+    const cg = join(SERVICE_CG, `run-${id}`);
+    mkdirSync(cg);
+    writeFileSync(join(cg, 'cgroup.procs'), String(child.pid));
+    watch(id, r);
+  }
   runs.set(id, r);
   log('stress-start', { id, xmx, flags });
   return id;
@@ -226,8 +287,8 @@ async function handle(req, res) {
   if (run && req.method === 'DELETE') {
     const r = runs.get(run[1]);
     if (!r) return send(res, 404, { error: 'no such run' });
-    r.child.kill('SIGTERM');
-    return send(res, 200, { killed: r.child.pid });
+    process.kill(r.pid, 'SIGTERM');
+    return send(res, 200, { killed: r.pid });
   }
   return send(res, 404, { error: `${req.method} ${req.url}` });
 }

@@ -9,6 +9,7 @@
 #   agent.sh pack <dir>               <dir>/jdk.tgz and <dir>/stage.tgz (ForgeScale, the jar, trimmed res, decks)
 #   agent.sh push <node> <dir>        upload both, unpack them as jdk/ and stage/
 #   agent.sh call <node> <dir> <METHOD> <path> [<json>]
+#   agent.sh wait <node> <dir> <run id>   until the run exits; prints its status
 #
 # Environment: JAR (the Forge jar ForgeScale is built against), JDK, RES, as scripts/stress/run.sh.
 set -euo pipefail
@@ -65,6 +66,10 @@ push)
 	;;
 call)
 	call "$@"
+	;;
+wait)
+	until out=$(call "$1" "$2" GET "/stress/$3") && ! grep -q '"exit":null' <<< "$out"; do sleep 30; done
+	echo "$out"
 	;;
 *)
 	echo "agent.sh: unknown command $cmd" >&2
