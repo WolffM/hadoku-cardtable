@@ -6,10 +6,24 @@
  * deterministic for a real two-human match (8/8 identical, 2026-10-27). This file makes that
  * algorithm production-grade: it starts the header's own spec on a fresh JVM through a host
  * factory the CALLER controls (in production, the server's shared start-queue factory, so a
- * rebuild queues behind real matches and never ahead of them — `start-queue.ts`), sends each
- * command once its seat reaches the recorded position, and collects the match's own watcher
- * channel (one `createProjector(null)` projection, `match.ts`'s `WATCHER_SEAT`) as the rebuilt
- * public stream — reusing the real projection instead of re-implementing it.
+ * rebuild queues behind real matches and never ahead of them — `start-queue.ts`), and sends each
+ * recorded command once its seat reaches the recorded position.
+ *
+ * **The drive talks to a BARE `MatchHost`, never to `createMatchRegistry`/`Match`.** An earlier
+ * version of this file drove the rebuild through the registry so it could reuse `Match`'s own
+ * watcher-channel projection — and a real jar run went red on exactly why that is wrong: every
+ * command `Match`'s OWN automation (`auto.ts`'s auto-pass, `onlyAnswer`, `chosenCostConfirm` — it
+ * runs "in every mode", independent of policy) sent during the LIVE match is already IN the action
+ * log, because the log is recorded at `host.send`, below `Match`. Wire a second `Match` on top of
+ * the rebuild's host and that automation runs AGAIN, racing the log's own copy of the same
+ * commands — seat B shot straight through its own Untap stop before the logged command arrived,
+ * because `Match`'s auto-pass got there first. `replay-determinism.jvm.test.ts`'s proven "run B"
+ * never has this problem for exactly this reason: it talks to a bare host too. So this file builds
+ * the rebuilt public stream itself: `createProjector(null)` (import only; `visibility.ts` is
+ * wave 76's) over the first human seat's raw state frames, `openView` passed through raw, and the
+ * `gameover` line's `finishGame` frame appended once — the same three things `match.ts`'s
+ * `sendState`/`openView`/`finishSeat` put on the watcher channel for the first human seat
+ * (`match.ts`'s `watcherSource()`), read from `match.ts` (import only) rather than re-derived.
  *
  * Lane boundary (wave 77 is split across lanes by file): `recording/position.ts`
  * (`boardDigest`/`lastPrompt`, the position half of contract 1) is lane C's to write; it had not
@@ -26,9 +40,9 @@ import { gunzipSync, gzipSync } from 'node:zlib';
 
 import type { ServerEnvelope } from '@hadoku/shared';
 
-import { createMatchRegistry, WATCHER_SEAT } from '../match.js';
+import { winnerSeatFromLosers } from '../match.js';
 import { jvmHostConfig, type BridgeCommand, type BridgeLine, type MatchHost, type MatchHostFactory, type MatchSpec } from '../host.js';
-import { foldFrames, type StateFrame } from '../visibility.js';
+import { createProjector, foldFrames, type StateFrame } from '../visibility.js';
 
 /* ── Contract 1: the two files on disk ──────────────────────────────────────────────────── */
 
@@ -214,11 +228,7 @@ export interface RebuildDeps {
 	/** The match host factory to start the rebuild's JVM through — in production, the server's own queued factory (`start-queue.ts`), so a rebuild queues behind real matches and never ahead of them. */
 	host: MatchHostFactory;
 	log: (entry: Record<string, unknown>) => void;
-	/** Default 60 s, same as a real match's grace before its JVM stops. */
-	overGraceMs?: number;
-	/** Default 120 s, same budget a real match's own boot gets. */
-	startTimeoutMs?: number;
-	/** Default 30 s: how long a position may go unreached before the rebuild gives up (§D point 2). */
+	/** Default 30 s: how long a position may go unreached before the rebuild gives up (§D point 2). Also the effective boot budget — nothing else waits for the JVM to boot. */
 	positionBudgetMs?: number;
 	/** Override for a test; defaults to `currentForge()`. */
 	running?: RunningForge | null;
@@ -244,6 +254,59 @@ function askIds(lines: readonly BridgeLine[]): Map<number, string[]> {
 		const f = l.frame as { kind?: string; callId?: string };
 		if (f.kind !== 'ask' || f.callId === undefined) continue;
 		out.set(l.seat, [...(out.get(l.seat) ?? []), f.callId]);
+	}
+	return out;
+}
+
+/** This seat's own player id, from its `openView` line — null until it has one. */
+function playerIdOf(lines: readonly BridgeLine[], seat: number): number | null {
+	for (const l of lines) {
+		if (l.t === 'frame' && l.seat === seat && (l.frame as { method?: string }).method === 'openView') {
+			return ((l.frame as { payload: { myPlayers: number[] } }).payload.myPlayers[0]) ?? null;
+		}
+	}
+	return null;
+}
+
+/**
+ * The watcher channel's own frame sequence, built from a RAW bridge-line timeline rather than a
+ * live `Match` — see this file's own header for why `Match` cannot be in this loop. Reproduces
+ * exactly what `match.ts`'s `sendState`/`openView`/`finishSeat` put on the watcher channel for the
+ * first human seat (`watcherSource()`, always seat 0 by `MatchSpec`'s own type): state frames
+ * projected through ONE `createProjector(null)`, that seat's `openView` passed through raw (sent
+ * before any state that arrived ahead of it, exactly as `openView`'s own "early" queue does), and
+ * the `gameover` line's `finishGame` frame, once, if the match reached one.
+ */
+function watcherFramesFrom(timeline: readonly { line: BridgeLine; at: number }[], sourceSeat: number, allSeats: readonly { seat: number; playerId: number | null }[]): { frame: unknown; at: number }[] {
+	const out: { frame: unknown; at: number }[] = [];
+	const projector = createProjector(null);
+	const early: { state: StateFrame; at: number }[] = [];
+	let opened = false;
+	for (const { line: l, at } of timeline) {
+		if (l.t === 'frame' && l.seat === sourceSeat) {
+			const method = (l.frame as { method?: string }).method ?? '';
+			if (STATE_METHODS.has(method)) {
+				const state = l.frame as StateFrame;
+				if (state.method === 'openView') {
+					out.push({ frame: state, at });
+					opened = true;
+					for (const e of early.splice(0)) out.push({ frame: projector.project(e.state), at: e.at });
+					continue;
+				}
+				if (!opened) {
+					early.push({ state, at });
+					continue;
+				}
+				out.push({ frame: projector.project(state), at });
+			}
+			continue;
+		}
+		if (l.t === 'gameover' && allSeats.find((s) => s.seat === sourceSeat)?.playerId !== null) {
+			out.push({
+				frame: { kind: 'notify', method: 'finishGame', ...(l.losers === undefined ? {} : { losers: l.losers }), ...(l.lost === undefined ? {} : { lost: l.lost }) },
+				at,
+			});
+		}
 	}
 	return out;
 }
@@ -293,51 +356,26 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 	}
 
 	const raw: BridgeLine[] = [];
+	const timeline: { line: BridgeLine; at: number }[] = [];
 	let lastLineAt = Date.now();
 	let exited: string | null = null;
-	let liveHost: MatchHost | null = null;
 	const t0 = Date.now();
-	const envs: PublicEnvLine[] = [];
 
-	const wrappedHost: MatchHostFactory = ((id, spec, events) => {
-		const host = deps.host(id, spec, {
-			...events,
+	let host: MatchHost;
+	try {
+		host = deps.host(`${matchId}-rebuild-${Date.now()}`, header.spec, {
 			line: (l) => {
 				raw.push(l);
+				timeline.push({ line: l, at: Date.now() - t0 });
 				lastLineAt = Date.now();
-				events.line(l);
 			},
 			exit: (reason) => {
 				exited = reason;
-				events.exit(reason);
 			},
+			log: deps.log,
 		});
-		liveHost = host;
-		return host;
-	}) as MatchHostFactory;
-
-	const registry = createMatchRegistry({
-		host: wrappedHost,
-		log: deps.log,
-		overGraceMs: deps.overGraceMs ?? 60_000,
-		// The watcher channel IS the public stream: match.ts already projects it through
-		// createProjector(null) and emits it on WATCHER_SEAT — collecting it here reuses that
-		// projection instead of re-implementing it.
-		emit: (_match, seat, envelope) => {
-			if (seat === WATCHER_SEAT) envs.push({ t: 'env', at: Date.now() - t0, env: envelope });
-		},
-	});
-
-	const match = registry.create(header.spec);
-	const started = await match.whenRunning(deps.startTimeoutMs ?? 120_000);
-	if (started.ok !== true) {
-		match.stop();
-		return { ok: false, reason: `Forge did not start for the rebuild: ${started.ok === false ? started.error : 'unknown'}` };
-	}
-	const host = liveHost;
-	if (host === null) {
-		match.stop();
-		return { ok: false, reason: 'the host factory never produced a host' };
+	} catch (err) {
+		return { ok: false, reason: `the host factory threw: ${(err as Error).message}` };
 	}
 
 	const budget = deps.positionBudgetMs ?? 30_000;
@@ -352,7 +390,10 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 			const deadline = Date.now() + budget;
 			while (exited === null && Date.now() < deadline && !(Date.now() - lastLineAt > 80 && there())) await sleep(20);
 			if (exited !== null || !there()) {
-				diverged = `command ${i} (${c.cmd.t} seat ${seat}) never reached the recorded position: prompt wanted ${JSON.stringify(c.prompt)}, got ${JSON.stringify(lastPrompt(raw, seat))}; board wanted ${c.board.slice(0, 12)}, got ${boardDigest(raw, seat).slice(0, 12)}`;
+				diverged =
+					exited !== null
+						? `the rebuild's JVM exited before reaching position for command ${i}: ${exited}`
+						: `command ${i} (${c.cmd.t} seat ${seat}) never reached the recorded position: prompt wanted ${JSON.stringify(c.prompt)}, got ${JSON.stringify(lastPrompt(raw, seat))}; board wanted ${c.board.slice(0, 12)}, got ${boardDigest(raw, seat).slice(0, 12)}`;
 				break;
 			}
 		}
@@ -375,13 +416,23 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 	}
 
 	const endedAt = new Date().toISOString();
-	const winnerSeat = match.winnerSeat;
-	match.stop();
+	host.stop();
 
 	if (diverged !== null) {
 		deps.log({ evt: 'rebuild-diverged', matchId, reason: diverged });
 		return { ok: false, reason: diverged };
 	}
+
+	const allSeats = header.spec.seats.map((_, seat) => ({ seat, playerId: playerIdOf(raw, seat) }));
+	const gameoverLine = raw.find((l): l is Extract<BridgeLine, { t: 'gameover' }> => l.t === 'gameover');
+	const winnerSeat = gameoverLine === undefined ? null : winnerSeatFromLosers(allSeats, gameoverLine.losers);
+
+	const watcherFrames = watcherFramesFrom(timeline, 0, allSeats);
+	const envs: PublicEnvLine[] = watcherFrames.map(({ frame, at }, i) => ({
+		t: 'env',
+		at,
+		env: { matchId: header.matchId, cursor: { epoch: `rebuild:${matchId}`, seq: i + 1 }, frame: frame as ServerEnvelope['frame'] },
+	}));
 
 	const publicHeader: PublicHeaderLine = {
 		t: 'header',

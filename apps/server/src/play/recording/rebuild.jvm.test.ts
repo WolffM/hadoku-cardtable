@@ -134,20 +134,24 @@ describe('rebuild: one at a time per server', () => {
 			startedAt: new Date().toISOString(),
 			spec: { seed: 1, seats: [{ name: 'A', ai: false, deck: null }, { name: 'B', ai: false, deck: null }] },
 		});
+		// One command the stub host will never reach the recorded position for, so the drive loop
+		// spends its whole `positionBudgetMs` waiting — a deterministic, short duration that proves
+		// the second call waits for it.
+		const cmd: ActionCmdLine = { t: 'cmd', seat: 0, board: 'never-reached', prompt: 'never-reached', cmd: { t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } } };
 		const end: ActionEndLine = { t: 'end', endedAt: new Date().toISOString(), reason: 'test' };
-		writeActionLog(dir, 'mutex-1', [headerFor('mutex-1'), end]);
-		writeActionLog(dir, 'mutex-2', [headerFor('mutex-2'), end]);
+		writeActionLog(dir, 'mutex-1', [headerFor('mutex-1'), cmd, end]);
+		writeActionLog(dir, 'mutex-2', [headerFor('mutex-2'), cmd, end]);
 
 		const order: string[] = [];
-		// A host that never says anything: `whenRunning` times out on its own, giving each call a
-		// deterministic, short duration to prove the second waits for it. `createMatchRegistry.create`
-		// mints its own internal match id (never the recording's `matchId`), so each call gets its
-		// OWN stub host, labelled by closure rather than by the id the host factory is handed.
+		// A host that never says anything, so the one command above never reaches its recorded
+		// position. `createMatchRegistry.create` mints its own internal match id (never the
+		// recording's `matchId`), so each call gets its OWN stub host, labelled by closure rather
+		// than by the id the host factory is handed.
 		const stubHostFor = (label: string): MatchHostFactory => (_id: string, _spec: MatchSpec, _events: HostEvents): MatchHost => {
 			order.push(`start:${label}`);
 			return { send: () => {}, stop: () => {} };
 		};
-		const depsFor = (label: string) => ({ recordingsDir: dir, host: stubHostFor(label), log: () => {}, startTimeoutMs: 60, running: { pin: 'p', bridge: 'b' } });
+		const depsFor = (label: string) => ({ recordingsDir: dir, host: stubHostFor(label), log: () => {}, positionBudgetMs: 60, running: { pin: 'p', bridge: 'b' } });
 
 		const [r1, r2] = await Promise.all([
 			rebuild('mutex-1', depsFor('mutex-1')).then((r) => {
