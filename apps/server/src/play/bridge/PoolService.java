@@ -285,7 +285,12 @@ public final class PoolService {
         resp.add("sets", sets);
     }
 
-    /** Non-basic unique names in the set (ruling 2: set-cube is one copy of every non-basic card). */
+    /**
+     * Non-basic unique names in the set (ruling 2: set-cube is one copy of every non-basic card).
+     * Arena-only sections are left out: {@code getObtainableCards} drops {@code [conjured]}, and
+     * {@code [rebalanced]} (the "A-" Alchemy versions, 26 editions) is removed here. They were never
+     * printed, never in a pack, and Scryfall no longer carries their text, so they refused the pool.
+     */
     private static void handleSetCards(final JsonObject req, final JsonObject resp) {
         final String code = req.get("code").getAsString();
         final CardEdition ed = StaticData.instance().getEditions().get(code);
@@ -294,8 +299,10 @@ public final class PoolService {
             resp.addProperty("error", "no such set: " + code);
             return;
         }
+        final List<CardEdition.EditionEntry> entries = ed.getObtainableCards();
+        entries.removeAll(ed.getRebalancedCards());
         final LinkedHashSet<String> names = new LinkedHashSet<>();
-        for (final CardEdition.EditionEntry entry : ed.getAllCardsInSet()) {
+        for (final CardEdition.EditionEntry entry : entries) {
             if (entry.rarity() != CardRarity.BasicLand) { names.add(entry.name()); }
         }
         final JsonArray arr = new JsonArray();

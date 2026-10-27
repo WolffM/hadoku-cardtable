@@ -201,6 +201,13 @@ describe.skipIf(!available.ok)(title, () => {
 		expect(codes).toContain('ARB');
 	});
 
+	it("setCards('AFR') is the paper set: no Arena rebalanced (A-) card, the original still in", async () => {
+		if (!available.ok) return;
+		const names = await service().setCards('AFR');
+		expect(names.filter((n) => n.startsWith('A-'))).toEqual([]);
+		expect(names).toContain('Demilich');
+	});
+
 	// Claw run 39856808361: the top-up added a common Delver of Secrets beside the pack's own DFC.
 	it('every ISD pack holds exactly one DFC across 200 seeds — the top-up commons are never double-faced', { timeout: 120_000 }, async () => {
 		if (!available.ok) return;
