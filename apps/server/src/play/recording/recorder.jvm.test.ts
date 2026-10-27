@@ -2,8 +2,8 @@
  * §C, "Done when" (`docs/planning/wave77-2026-10-27.md`): a real match, through
  * the wrapped host factory and the registry's own `emit`, against actual
  * Forge — never the engine's own behaviour.
- * This proves only the plumbing: every command the match actually sends comes
- * back out of the action log as one `cmd` line, and every envelope the
+ * This proves only the plumbing: every act Forge applied (its `applied` echo) and every
+ * answer sent to an ask comes back out of the action log as one `cmd` line, and every envelope the
  * registry emits for `WATCHER_SEAT` comes back out of the public stream as
  * one `env` line, byte for byte. A handful of real commands is enough to show
  * that — the test does not play, or need, a finished game.
@@ -56,7 +56,7 @@ describe.skipIf(!available.ok)(title, () => {
 	});
 
 	it(
-		"the action log's cmd count equals the commands sent, and the public stream holds exactly the watcher channel's envelopes",
+		"the action log holds one cmd per applied act and per answer, and the public stream holds exactly the watcher channel's envelopes",
 		async () => {
 			if (!available.ok) return;
 			const dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-jvm-'));
@@ -72,15 +72,24 @@ describe.skipIf(!available.ok)(title, () => {
 				const hosted = recorder.host(jvm);
 
 				let sentCommands = 0;
+				let applied = 0;
+				let answers = 0;
 				const watcherEnvelopes: ServerEnvelope[] = [];
 				const notes = [0, 1].map(() => ({ prompt: '', ok: false }));
 				const registry = createMatchRegistry({
 					host: (id, s, events) => {
-						const host = hosted(id, s, events);
+						const host = hosted(id, s, {
+							...events,
+							line: (l) => {
+								if (l.t === 'applied') applied += 1;
+								events.line(l);
+							},
+						});
 						return {
 							...host,
 							send(command: BridgeCommand) {
 								sentCommands += 1;
+								if (command.t === 'reply' || command.t === 'abort') answers += 1;
 								host.send(command);
 							},
 						};
@@ -136,12 +145,13 @@ describe.skipIf(!available.ok)(title, () => {
 				await waitUntil(() => existsSync(actionsPath) && existsSync(publicPath), 'the recording to flush to disk', 10_000);
 
 				expect(sentCommands).toBeGreaterThan(0);
+				expect(applied, 'Forge applied at least one act').toBeGreaterThan(0);
 
 				const actionsLines = linesOf(actionsPath);
-				expect(actionsLines[0]).toMatchObject({ t: 'header', v: 1, matchId: match.id, roomId: 'r-jvm-test' });
+				expect(actionsLines[0]).toMatchObject({ t: 'header', v: 2, matchId: match.id, roomId: 'r-jvm-test' });
 				expect(actionsLines.at(-1)).toMatchObject({ t: 'end' });
 				const cmdLines = actionsLines.filter((l) => l.t === 'cmd');
-				expect(cmdLines.length).toBe(sentCommands);
+				expect(cmdLines.length).toBe(applied + answers);
 
 				const publicLines = linesOf(publicPath);
 				expect(publicLines[0]).toMatchObject({ t: 'header', v: 1, matchId: match.id, roomId: 'r-jvm-test' });

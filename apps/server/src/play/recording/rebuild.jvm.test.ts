@@ -399,8 +399,7 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 		// The log does not yet reproduce every game (plan, "Wave 78 results"). What must always hold:
 		// a rebuild is either the live game, or refused and never written — never a different game served.
 		if (!result.ok) {
-			expect(result.reason).toBe('the rebuilt game ended on a different board than the live one');
-			expect(existsSync(publicStreamPath(recordingsDir, matchId))).toBe(false);
+			expect(existsSync(publicStreamPath(recordingsDir, matchId)), `a refused rebuild (${result.reason}) writes nothing`).toBe(false);
 			return;
 		}
 
