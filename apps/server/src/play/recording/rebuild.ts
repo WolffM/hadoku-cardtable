@@ -394,25 +394,32 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 		const burst = !isReply && prior !== undefined && commandSeat(prior.cmd) === seat && prior.board === c.board && prior.prompt === c.prompt;
 		if (seat !== null && !isReply && !burst) {
 			const there = (): boolean => lastPrompt(raw, seat) === c.prompt && boardDigest(raw, seat) === c.board;
+			// A plain pass (nothing selected) that `Match`'s stop policy showed the player in the
+			// live run — Forge's own engine, with no `Match` here to insert that stop, can race
+			// straight through it. The board is seat-independent (Forge's raw per-connection stream
+			// carries the whole table either way, confirmed directly in testing: the rebuild's own
+			// seat-0 digest, mid-timeout, was byte-identical to the LIVE run's recorded seat-1 digest
+			// one command later) — so once ANY later command's recorded board has already been
+			// reached, this pass had nothing left to do and was absorbed into it, regardless of which
+			// seat recorded that later checkpoint or what its own prompt text was (a different seat's
+			// prompt, so never comparable to this one's). Checked on every settled tick, not only
+			// once the budget runs out: Forge may keep racing ahead the whole wait, past the
+			// lookahead window, if this is only checked at the very end. Only a bare pass is treated
+			// this way: anything with a real choice attached (a card, a reply) still has to be sent,
+			// or it is a genuine divergence.
+			const eligibleForCatchUp = c.cmd.t === 'act' && c.cmd.frame.method === 'selectButtonOk';
+			const caughtUpAt = (): number => (eligibleForCatchUp ? cmds.findIndex((later, j) => j > i && j <= i + CATCH_UP_LOOKAHEAD && later.board === boardDigest(raw, seat)) : -1);
 			const deadline = Date.now() + budget;
-			while (exited === null && Date.now() < deadline && !(Date.now() - lastLineAt > 80 && there())) await sleep(20);
-			if (exited === null && !there() && c.cmd.t === 'act' && c.cmd.frame.method === 'selectButtonOk') {
-				// A plain pass (nothing selected) that `Match`'s stop policy showed the player in the
-				// live run — Forge's own engine, with no `Match` here to insert that stop, can race
-				// straight through it. The board is seat-independent (Forge's raw per-connection
-				// stream carries the whole table either way, confirmed directly in testing: the
-				// rebuild's seat-0 digest at the timeout was byte-identical to the LIVE run's
-				// recorded seat-1 digest one command later) — so if THIS seat's own later checkpoint
-				// has already been reached, this pass had nothing left to do and was absorbed into
-				// it. Only a bare pass is treated this way: anything with a real choice attached
-				// (a card, a reply) still has to be sent, or it is a genuine divergence.
-				const now = { board: boardDigest(raw, seat), prompt: lastPrompt(raw, seat) };
-				const caughtUpAt = cmds.findIndex((later, j) => j > i && j <= i + CATCH_UP_LOOKAHEAD && commandSeat(later.cmd) === seat && later.board === now.board && later.prompt === now.prompt);
-				if (caughtUpAt > i) {
-					deps.log({ evt: 'rebuild-caught-up', matchId, from: i, to: caughtUpAt, seat });
-					i = caughtUpAt;
-					continue;
-				}
+			const settled = (): boolean => Date.now() - lastLineAt > 80;
+			let caught = -1;
+			while (exited === null && Date.now() < deadline && caught < 0 && !(settled() && there())) {
+				if (settled()) caught = caughtUpAt();
+				if (caught < 0) await sleep(20);
+			}
+			if (caught > i) {
+				deps.log({ evt: 'rebuild-caught-up', matchId, from: i, to: caught, seat });
+				i = caught;
+				continue;
 			}
 			if (exited !== null || !there()) {
 				diverged =
