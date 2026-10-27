@@ -1,0 +1,21 @@
+# AF403 — Calibrated Blast's DigUntil reveal, against real Forge. Seat 0
+# (human) holds Calibrated Blast ({2}{R}) and three Mountains; its library's
+# known top three are two lands then a nonland (Lightning Bolt, CMC 1), so
+# the dig reveals exactly Mountain, Mountain, Lightning Bolt and stops
+# (`RevealedLibraryPosition$ -1`: the three go to the bottom). The reflexive
+# trigger then deals 1 damage (Lightning Bolt's CMC) to any target; seat 1's
+# lone Memnite is a legal, clickable target so the test need not drive a
+# player-target select.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Calibrated Blast
+humanbattlefield=Mountain;Mountain;Mountain
+humanlibrary=Mountain;Mountain;Lightning Bolt;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Memnite
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
