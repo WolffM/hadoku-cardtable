@@ -11,10 +11,11 @@
  *   public stream is never written, and `rebuild()` is asked to recover it on a second JVM. Both
  *   seats' final board digests and the watcher channel's last folded state must match the live
  *   run's. `[nightly]`: a played match plus its rebuild is minutes of JVM, gated the same way
- *   `replay-determinism.jvm.test.ts` is.
+ *   `replay-determinism.jvm.test.ts` is. `CARDTABLE_REBUILD_DUMP=<dir>` writes the recorded
+ *   commands to `cmds.jsonl` there, for inspecting a divergence without re-running the JVM.
  */
 
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -359,6 +360,11 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 		await waitUntil(() => liveJvmCount() === 0, 'the played match\'s JVM to exit', 20_000);
 		console.log(`[rebuild] played: turn ${turn}, ${raw.length} lines, ${cmds.length} commands, ${playedMs} ms`);
 		expect(cmds.length).toBeGreaterThan(10);
+		const dump = process.env.CARDTABLE_REBUILD_DUMP;
+		if (dump !== undefined) {
+			mkdirSync(dump, { recursive: true });
+			writeFileSync(join(dump, 'cmds.jsonl'), cmds.map((c) => JSON.stringify(c)).join('\n'));
+		}
 
 		// ---- Write the action log (contract 1); the public stream is never written, as if it had expired. ----
 		const forge = currentForge();
