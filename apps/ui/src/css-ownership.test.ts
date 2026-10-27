@@ -38,7 +38,6 @@ const GLOBAL_SHEETS = ['styles.css', 'chrome/chrome.css', 'chrome/trim.css'];
 const SHARED: Record<string, string> = {
   button: 'the app’s one plain button, drawn wherever a screen has a press',
   'ct-round-button': 'the chrome’s round icon button: the settings gear, and the stats and decks buttons beside it',
-  'ct-surface': 'the chrome’s raised card, under every popover and menu',
   'ct-panel': 'the trim hook: every panel that takes the decoration chosen in Settings → Trim (`chrome/trim.css`)',
   'cardtable-chrome': 'the chrome root: the app and the embed mount the same one, and the embed adds its modifier',
   'ct-toggle': 'a toggle that is on, in the primary fill: tabs, switches and the sound tools’ pills',
