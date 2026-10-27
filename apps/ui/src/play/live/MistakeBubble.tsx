@@ -1,5 +1,5 @@
 /*
- * AF409 (2026-10-26, the operator: "you can ship it"): the seat's own character says what it got
+ * (2026-10-26, the operator: "you can ship it"): the seat's own character says what it got
  * wrong. Ported from the approved preview's "Speech + card" variant
  * (`~/.cache/cardtable-manager/af409-preview/src/preview.tsx`, `preview.css`) — the look is theirs,
  * not redesigned; only the anchor measurement is adapted for the real app (the preview owned its

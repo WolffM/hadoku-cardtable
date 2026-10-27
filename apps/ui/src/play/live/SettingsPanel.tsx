@@ -23,7 +23,7 @@
  *     "Always" on, as the server reports Forge holds them
  *     (`match.triggerDecisions`), each with a clear that sends `ASK` back to
  *     Forge (`setTriggerDecision`). Drawn only when there is one.
- *   - **"Say my mistakes"** (AF409, approved 2026-10-26) — default ON. Client-only,
+ *   - **"Say my mistakes"** (approved 2026-10-26) — default ON. Client-only,
  *     like board layout and Fast Mode: nothing crosses to the server. Off keeps
  *     today's card shake (`match.refused`) alone; on also draws the seat's own
  *     mistake bubble (`./MistakeBubble.tsx`) off `match.mistake`.
@@ -63,7 +63,7 @@ export interface SettingsPanelProps {
   /** The whole seam back to `LiveBoard`: a toggle here flips the paced transport, if there is one. */
   onFastModeChange: (fast: boolean) => void;
   /**
-   * AF409: "Say my mistakes" — `LiveBoard`'s own state, drawn here, read by `./MistakeBubble.tsx`.
+   * "Say my mistakes" — `LiveBoard`'s own state, drawn here, read by `./MistakeBubble.tsx`.
    * Optional, defaulted to the prefs default (on): a caller that has not yet wired the setting
    * through (`../../settings/Settings.tsx`'s own gear, outside a match) still renders correctly.
    */

@@ -1956,7 +1956,7 @@ describe('a Room’s doors', () => {
   });
 });
 
-describe('AF409 — NumLandThisTurn / MaxLandPlay reach BoardPlayer, for the mistake bubble’s "land" classifier', () => {
+describe('NumLandThisTurn / MaxLandPlay reach BoardPlayer, for the mistake bubble’s "land" classifier', () => {
   it('reads both ints straight off the wire, for every player', () => {
     const state = baseState();
     const key = deltaKey(DELTA_TYPE.player, fixture.viewerPlayerId);
@@ -1975,7 +1975,7 @@ describe('AF409 — NumLandThisTurn / MaxLandPlay reach BoardPlayer, for the mis
   });
 });
 
-describe('AF406 — abilityTextOf substitutes CARDNAME for the source’s own name, for every card', () => {
+describe('abilityTextOf substitutes CARDNAME for the source’s own name, for every card', () => {
   /*
    * Charming Prince's own script (`forge-gui/res/cardsfolder/c/charming_prince.txt:5`):
    * `TriggerDescription$ When CARDNAME enters, ABILITY`. The prod log (`m-4b9a388170c8`) never
@@ -1988,7 +1988,7 @@ describe('AF406 — abilityTextOf substitutes CARDNAME for the source’s own na
   const KEY = 'Charming Prince (4): When CARDNAME enters, ABILITY';
   const DESCRIPTION = 'When CARDNAME enters, ABILITY';
 
-  it('Charming Prince’s chip reads the source’s name, not the literal placeholder (AF406)', () => {
+  it('Charming Prince’s chip reads the source’s name, not the literal placeholder', () => {
     expect(abilityTextOf(KEY, DESCRIPTION, 'Charming Prince')).toBe('When Charming Prince enters, ABILITY');
   });
 

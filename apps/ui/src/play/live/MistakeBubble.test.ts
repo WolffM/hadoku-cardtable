@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /*
- * AF409: the bubble draws the exact line for `mistake.key`, only while `enabled`, anchored to the
+ * the bubble draws the exact line for `mistake.key`, only while `enabled`, anchored to the
  * one `[data-player-face][data-viewer] .face__hit` node (the same the settings popover anchors
  * from) — and never when that node is not in the document at all (a watcher's turned-around table,
  * or a page that has not drawn the board yet).

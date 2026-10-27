@@ -1,5 +1,5 @@
 /*
- * The mistake bubble (AF409) — ported from the approved preview's "Speech + card" variant
+ * The mistake bubble — ported from the approved preview's "Speech + card" variant
  * (`~/.cache/cardtable-manager/af409-preview/src/preview.css`'s `.mistake--speech`). `position:
  * fixed` here, not `absolute`: `MistakeBubble.tsx` measures the viewer's own face in VIEWPORT
  * coordinates and portals into `document.body`, so there is no stage ancestor to be relative to.

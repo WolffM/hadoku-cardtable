@@ -1,5 +1,5 @@
 /*
- * AF409 (2026-10-26, the operator: "you can ship it" — preview
+ * (2026-10-26, the operator: "you can ship it" — preview
  * `~/.cache/cardtable-manager/af409-preview/src/`, `notes.md`): the seat's own
  * character says what it got wrong. A CLASSIFIER, never a card list — the four
  * shapes below are the only ones Forge's own state already answers FOR

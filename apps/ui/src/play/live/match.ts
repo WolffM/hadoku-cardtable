@@ -737,7 +737,7 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    */
   refused: { card: number; seq: number } | null;
   /**
-   * AF409 — the line the seat's own mistake bubble (`./MistakeBubble.tsx`) should say now, or null.
+   * the line the seat's own mistake bubble (`./MistakeBubble.tsx`) should say now, or null.
    * Set beside {@link refused} by one classifier (`./mistakes.ts`'s `mistakeOfClick` /
    * `mistakeOfAutoCancel`), never guessed twice: this seat's own `reportRefusedClick` for a board
    * click Forge never saw, and `refuse` for the one `flashIncorrectAction` cause that classifier can
@@ -1906,7 +1906,7 @@ function refusal(match: LiveMatch, cardId: number): string {
  * here sent nothing, so the match log could not say it was ever made): the card, why, and what
  * was open. A watcher sends nothing, as for every other client event.
  *
- * AF409: the same reason feeds `mistakes.ts`'s classifier, and `said` stamps what it found onto
+ * the same reason feeds `mistakes.ts`'s classifier, and `said` stamps what it found onto
  * this telemetry — so the match log keeps saying what this seat was told, next to why.
  */
 function reportRefusedClick(match: LiveMatch, cardId: number): void {
@@ -3326,7 +3326,7 @@ export const REFUSED_MS = 900;
 function refuse(match: LiveMatch, card: number): void {
   const seq = (match.refused?.seq ?? 0) + 1;
   match.refused = { card, seq };
-  // AF409: the one `flashIncorrectAction` cause this classifier can tell apart from Forge's own two
+  // the one `flashIncorrectAction` cause this classifier can tell apart from Forge's own two
   // (`InputPassPriority`, `InputAttack`) — see `mistakes.ts`'s own header on why the order holds.
   setMistake(match, payingMana(match) ? mistakeOfAutoCancel() : null);
   setTimeout(() => {
@@ -3340,7 +3340,7 @@ function refuse(match: LiveMatch, card: number): void {
 export const MISTAKE_SAY_MS = 3200;
 export const MISTAKE_EXIT_MS = 260;
 
-/** AF409: the one setter for {@link LiveMatch.mistake} — a null `key` (no certain classification) is a no-op. */
+/** the one setter for {@link LiveMatch.mistake} — a null `key` (no certain classification) is a no-op. */
 function setMistake(match: LiveMatch, key: MistakeKey | null): void {
   if (key === null) return;
   const seq = (match.mistake?.seq ?? 0) + 1;

@@ -1,5 +1,5 @@
 /**
- * AF409 (2026-10-26, the operator: "you can ship it"): the seat's own character says what it got
+ * (2026-10-26, the operator: "you can ship it"): the seat's own character says what it got
  * wrong, on the seat's own screen only — never the opponent's, never a watcher's. Scenario
  * `af409-second-land` (`apps/server/src/play/scenarios/af409-second-land.state`): seat 0 holds a
  * Forest and a Mountain in hand, an uncontested turn-1 Main Phase 1.
@@ -20,7 +20,7 @@ const titled = (t: string): string => (forge.ok ? t : `${t} — SKIPPED: ${forge
 const MISTAKE_BUBBLE = '[data-testid="mistake-bubble"]';
 const LAND_MISTAKE_LINE = 'I already played a land this turn.';
 
-test(titled('AF409: a second land press is said on the seat’s own screen only, and the setting turns it off'), async ({ browser }) => {
+test(titled('a second land press is said on the seat’s own screen only, and the setting turns it off'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -48,7 +48,7 @@ test(titled('AF409: a second land press is said on the seat’s own screen only,
     expect(await alice.page.locator(MISTAKE_BUBBLE).getAttribute('data-mistake')).toBe('land');
 
     // Never on bob's screen: he never sent this click, never received `match.mistake` for it, and
-    // AF409's own rule is the seat's own avatar, never the opponent's.
+    // the rule is the seat's own avatar, never the opponent's.
     await expect(bob.page.locator(MISTAKE_BUBBLE), 'never on the opponent’s screen').toHaveCount(0);
 
     // "Say my mistakes" off: the bubble is gone. The Mountain is still in hand (still refused the

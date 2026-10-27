@@ -897,7 +897,7 @@ describe('clicking the board: only what Forge offered', () => {
     expect(m.actCard).toBe(mine[0]);
     await sendAndApply(s, m, [clear(), prompt('Priority'), bar(true), flash]);
     expect(m.refused).toEqual({ card: mine[0], seq: 1 });
-    // AF409: no payment was open when this flash landed — `InputPassPriority`'s own shape, not the
+    // no payment was open when this flash landed — `InputPassPriority`'s own shape, not the
     // auto-cancel's — so the classifier says nothing rather than guess.
     expect(m.mistake).toBeNull();
     const at = Date.now();
@@ -1006,7 +1006,7 @@ describe('clicking the board: only what Forge offered', () => {
 });
 
 /*
- * AF409: `reportRefusedClick`'s `reason` (`refusal()`) feeds `mistakes.ts`'s classifier, which is
+ * `reportRefusedClick`'s `reason` (`refusal()`) feeds `mistakes.ts`'s classifier, which is
  * proved on its own in `mistakes.test.ts` — this block proves the WIRING: the live `match.view`
  * (`numLandThisTurn`/`maxLandPlay`, `hasPriority`, a card's `summoningSick`) reaches the classifier
  * on a real refusal, and the result lands on `match.mistake` and the telemetry's `said` field. The
@@ -1014,7 +1014,7 @@ describe('clicking the board: only what Forge offered', () => {
  * wire path that fills `numLandThisTurn`/`maxLandPlay` is `adapter.test.ts`'s own proof, not this
  * file's.
  */
-describe('AF409: the mistake bubble’s classifier, wired to a live refusal', () => {
+describe('the mistake bubble’s classifier, wired to a live refusal', () => {
   type ViewerPatch = Partial<BoardView['players'][number]>;
   const patchViewer = (m: LiveMatch, patch: ViewerPatch): void => {
     const view = m.view!;
@@ -2238,12 +2238,12 @@ describe('payingMana: the payment input, and not a bar that outlived it', () => 
     expect(payingMana(m)).toBe(false);
   });
 
-  // AF409: the server's own auto-cancel of an unpayable cost (`apps/server/src/play/match.ts`'s
+  // the server's own auto-cancel of an unpayable cost (`apps/server/src/play/match.ts`'s
   // `maybeCancelUnpayable`) sends the exact same `flashIncorrectAction` Forge's own two causes do
   // (`mistakes.ts`'s own header). The one fact that tells it apart is timing: the explicit notify is
   // sent synchronously, ahead of whatever frames would otherwise close the payment, so `payingMana`
   // is still true when this frame lands.
-  it('AF409: flashIncorrectAction while payingMana is still true is the "mana" mistake', async () => {
+  it('flashIncorrectAction while payingMana is still true is the "mana" mistake', async () => {
     const { s, m } = await fullGame();
     const { mine } = ids(m);
     await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([mine[0]!])]);

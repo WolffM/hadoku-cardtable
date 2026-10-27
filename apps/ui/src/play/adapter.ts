@@ -469,7 +469,7 @@ export interface BoardPlayer {
   hasLost: boolean;
   /**
    * `PlayerView.NumLandThisTurn` / `.MaxLandPlay` (`tier-c.ts:449,451`) — a land already played this
-   * turn, and how many this player may play. AF409's "I already played a land this turn." is exact
+   * turn, and how many this player may play. "I already played a land this turn." is exact
    * only when `numLandThisTurn >= maxLandPlay` (`./live/mistakes.ts`'s `mistakeOfClick`); the server
    * reads the same property for its own facts (`apps/server/src/stats/facts.ts:163`). OPTIONAL like
    * `BoardCard`'s late fields — `toBoardView` always sets both, a `BoardPlayer` typed out by hand in
@@ -1342,7 +1342,7 @@ function withoutTargetsNote(description: string): string {
  * never filled in — a modal trigger's "ABILITY", which also leaves "CARDNAME" in place
  * (`Trigger.toString`).
  *
- * AF406 (`m-4b9a388170c8`, Charming Prince's chip reading "When CARDNAME enters…"): the usual case
+ * (`m-4b9a388170c8`, Charming Prince's chip reading "When CARDNAME enters…"): the usual case
  * — Key still has the placeholder but Description was already resolved to the chosen mode's own
  * words, e.g. Kitchen Finks's "When Kitchen Finks enters, choose one — • You gain 2 life." — is not
  * the whole story. Charming Prince's own script
@@ -1354,7 +1354,7 @@ function withoutTargetsNote(description: string): string {
  * reading `own`/`description` for it specially: substitute the source's name for every literal
  * `CARDNAME` in the text actually returned, for every card. `ABILITY` unresolved before its mode is
  * chosen is a separate, harder problem (which SpellDescription to show with nothing picked yet) that
- * AF406 does not ask for.
+ * this fix does not ask for.
  */
 export function abilityTextOf(key: string | null, description: string, sourceName: string | null): string {
   const own = (key ?? '').replace(/^.*?\(H?\d+\): /, '').trim();

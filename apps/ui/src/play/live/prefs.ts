@@ -79,7 +79,7 @@ export const PlayPrefsSchema = borrowed.emptyObject
     /** Wave 47: "Fast Mode" in the settings panel. Off (paced) by default. */
     fastMode: borrowed.boolean.optional(),
     /**
-     * AF409 (2026-10-26, "you can ship it"): "Say my mistakes" in the settings panel — the seat's
+     * (2026-10-26, "you can ship it"): "Say my mistakes" in the settings panel — the seat's
      * own avatar names a refusal it is certain about. On by default; off keeps today's card shake
      * alone (`./mistakes.ts`, `./MistakeBubble.tsx`).
      */

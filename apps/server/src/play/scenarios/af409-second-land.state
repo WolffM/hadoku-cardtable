@@ -1,4 +1,4 @@
-# AF409 (2026-10-26, "you can ship it"): seat 0 holds two different lands in hand — Forest and
+# (2026-10-26, "you can ship it"): seat 0 holds two different lands in hand — Forest and
 # Mountain, different names so the e2e can tell which one it actually played, same device
 # `land-into-middle.state` uses — and nothing else interesting, an uncontested turn-1 Main Phase 1.
 # Playing the first succeeds; the second press is refused ("not-offered") with

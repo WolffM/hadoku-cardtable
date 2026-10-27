@@ -50,7 +50,7 @@ describe('PlayPrefsSchema', () => {
     });
   });
 
-  it('AF409: holds "Say my mistakes", a plain boolean', () => {
+  it('holds "Say my mistakes", a plain boolean', () => {
     expect(PlayPrefsSchema.safeParse({ mistakeBubbles: false }).success).toBe(true);
     expect(PlayPrefsSchema.safeParse({ mistakeBubbles: 'on' }).success).toBe(false);
   });
@@ -77,7 +77,7 @@ describe('PlayPrefsSchema', () => {
 });
 
 describe('PLAY_PREFS_DEFAULTS', () => {
-  it('matches Board’s own default (item 11: single), the End step stop’s (on), Fast Mode’s (off — paced), AF409’s "Say my mistakes" (on), and a draft pack fanned', () => {
+  it('matches Board’s own default (item 11: single), the End step stop’s (on), Fast Mode’s (off — paced), "Say my mistakes" (on), and a draft pack fanned', () => {
     expect(PLAY_PREFS_DEFAULTS).toEqual({ boardLayout: 'single', endStepStop: true, fastMode: false, mistakeBubbles: true, uiScale: 1, packLayout: 'fan' });
   });
 
