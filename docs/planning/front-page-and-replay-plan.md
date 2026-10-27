@@ -50,10 +50,12 @@ That one file serves three uses:
 
 ### Pieces, in landing order
 
-**R1. Watch without sitting (server, small, first).** `forge:join` claims the first free human seat,
-so a front-page tile that joined a match with an empty seat would *sit the visitor down*. Add
-`watch: true` to the join; it always lands on `WATCHER_SEAT`. Nothing else is safe to build until
-this lands.
+**R1. Watching never sits anyone (already true, 2026-10-27).** The first draft of this plan had a
+step here to stop a front-page viewer from claiming an empty seat. The operator questioned it, and
+it was not needed. `POST /api/play/matches` binds every human seat to its player in `seatPlayers`
+(`http/routes.ts`) before the match is announced. A room's match therefore never has a free human
+seat, and every other `forge:join` lands on `WATCHER_SEAT`. `Match.claim`'s first-free-seat branch
+is reached only by test harnesses that call `registry.create` directly.
 
 **R2. The recorder (server).** Write a sink beside `sendWatcher`. It goes in its own directory on
 disk, not tmpfs and not the run dir, so a clean end never deletes it. Default:
