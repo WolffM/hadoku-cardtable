@@ -2976,6 +2976,20 @@ describe('wave 33 §L2: accent as text', () => {
   });
 });
 
+describe('a decision window has the panel line of every other dialog', () => {
+  /*
+   * The operator, 2026-10-26: "it only happens on decision windows, not other modals. i see the non-curved
+   * edges have a color". The site trim's scooped frame cuts a panel's corners, so an accent border showed
+   * only along the straight edges, on the questions and the confirmation and nowhere else.
+   */
+  it('neither the question sheet nor the confirmation draws its border in the accent', () => {
+    const css = liveCss();
+    const rule = (selector: string): string => css.slice(css.indexOf(`${selector} {`)).split('}')[0] ?? '';
+    expect(rule('.live__prompt > .prompt,\n.live__prompt > .confirm')).not.toMatch(/border/);
+    expect(rule('\n.confirm')).toMatch(/border: 1px solid var\(--line\);/);
+  });
+});
+
 /*
  * ── Wave 35 lane L ──────────────────────────────────────────────────────
  */

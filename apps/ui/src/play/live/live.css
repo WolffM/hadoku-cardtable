@@ -688,7 +688,6 @@
   flex: 0 1 auto;
   margin: 0;
   overflow-y: auto;
-  border-color: var(--accent);
   box-shadow: 0 6px 24px var(--shadow);
 }
 
@@ -700,7 +699,7 @@
   margin: 0 auto;
   padding: 12px 14px;
   background: var(--bg-raised);
-  border: 1px solid var(--accent);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
 }
 
