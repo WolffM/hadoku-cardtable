@@ -816,6 +816,11 @@ export interface BoardView {
   faceHits?: readonly FaceHit[];
   /** Why the permanents that died lately died (`DeathCause`), by card id. Absent on a view typed out by hand, or from a Forge too old to say. */
   deathCauses?: ReadonlyMap<number, DeathCause>;
+  /**
+   * AE27 — stack item ids that left the stack lately not by resolving cleanly (a direct counter or a
+   * fizzle). Absent on a view typed out by hand, or from a Forge too old to say.
+   */
+  counteredStackItems?: ReadonlySet<number>;
 }
 
 /**
@@ -926,6 +931,14 @@ export interface AdaptOptions {
   faceHits?: readonly FaceHit[];
   /** Why recent deaths happened (`live/match.ts`'s `deathCauses`), carried onto `BoardView.deathCauses` as they are. */
   deathCauses?: ReadonlyMap<number, DeathCause>;
+  /**
+   * AE27 — stack item ids that left the stack lately NOT by resolving cleanly: a direct counter or a
+   * fizzle, journaled the same way as `deathCauses` (`PlayBridge.java`'s `EffectJournal`,
+   * `live/match.ts`'s `counteredStackItems`), carried onto `BoardView.counteredStackItems` as they
+   * are. `live/placed.ts` is the one reader: it decides the crack-and-fade from this set, never from
+   * guessing at a drawn pairing alone.
+   */
+  counteredStackItems?: ReadonlySet<number>;
   /**
    * The cards the seat's open decision shows: the card Forge's current prompt names
    * (`showPromptMessage`'s third argument — a scry 1 asks Top or Bottom of ONE card,
@@ -1891,6 +1904,7 @@ export function toBoardView(
     hits,
     faceHits,
     deathCauses,
+    counteredStackItems,
     promptCards = new Set(),
     watcher = false,
     attackLocked = false,
@@ -2075,6 +2089,7 @@ export function toBoardView(
     ...(hits === undefined || hits.length === 0 ? {} : { hits }),
     ...(faceHits === undefined || faceHits.length === 0 ? {} : { faceHits }),
     ...(deathCauses === undefined || deathCauses.size === 0 ? {} : { deathCauses }),
+    ...(counteredStackItems === undefined || counteredStackItems.size === 0 ? {} : { counteredStackItems }),
   };
 }
 

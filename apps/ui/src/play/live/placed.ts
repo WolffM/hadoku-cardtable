@@ -69,10 +69,19 @@
  *     AC8 reservation (`Board.tsx`'s `notePlayedTo`/`expectPlacement`) is
  *     already drawing its arrival there, and drawing it twice is the bug
  *     this wave exists to retire.
- *   - A counter (AE27): Forge removes the resolving item and the item it
- *     targets in ONE frame. Drawn as three steps instead of one fade: the
- *     resolver blinks (`data-placed-resolving`), the target is destroyed
- *     (`data-placed-countered`), then the resolver fades (`data-placed-leaving`).
+ *   - A counter or a fizzle (AE27): the WIRE says which departed stack items
+ *     left this way, never resolving cleanly (`BoardView.counteredStackItems`,
+ *     `PlayBridge.java`'s `EffectJournal` — a direct counter has no
+ *     `GameEventSpellResolved` of its own; a fizzle has one with
+ *     `hasFizzled`). Every such item cracks and fades in place
+ *     (`data-placed-countered`), never the house glide `data-placed-leaving`
+ *     gets. When the item that countered it is ALSO drawn and departs the
+ *     same round, aimed at it (`targetStackItemId`), it gets the nicer
+ *     three-beat instead: the resolver blinks (`data-placed-resolving`), the
+ *     target cracks and fades, then the resolver fades
+ *     (`data-placed-leaving`) — the wire fact decides WHETHER it was
+ *     countered; a drawn, aimed pairing only decides whether the resolver
+ *     gets its own beat too.
  *   - An ability (triggered or activated) is drawn only once the chain HALTS
  *     over it — someone holds priority or must answer with it on the stack
  *     (`setChainHalted`, `LiveBoard`'s own facts). One nobody stopped is never
@@ -98,6 +107,7 @@ import { AbilityChip } from './AbilityChip.tsx';
 import { HiddenCard } from '../HiddenCard.tsx';
 import { viewerOf, type BoardView, type StackEntry } from '../adapter.ts';
 import { aimAt, newArrow, positionArrow } from './gestures/arrow.ts';
+import { shards } from './departures.ts';
 import { centreOf } from '../lift.ts';
 import { cardBox, faceBox, overlayOf } from './board-dom.ts';
 import type { Point } from './gestures/types.ts';
@@ -107,14 +117,19 @@ export type { Point };
 
 /** How long a resolved spell takes to travel into where it went, fading as it arrives — the house glide. Reduced motion skips straight to it. */
 export const LEAVE_FADE_MS = GLIDE_MS;
-/** AE27: the resolving counter's blink, before its target is destroyed. */
+/** AE27: the resolving counter's blink, before its target cracks (the three-beat version only). */
 export const RESOLVE_BLINK_MS = 400;
-/** AE27: the countered target's destroy motion, before the counter itself fades. */
+/** AE27: a countered or fizzled item's crack-and-fade — the wire decides WHICH items get this, never this constant. */
 export const COUNTERED_MS = 400;
+/** AE27: how many crack lines spread across a countered card's face (`departures.ts`'s `shards`, its `cracks` alone — no pieces, no parts). */
+const COUNTERED_CRACKS = 5;
 /**
- * AE27: how long an item that left while something still on the stack targets it waits for that to leave
- * too. Forge can send the countered spell off in one delta and the counter in the next (w67-counter, run
- * 39832352790: 67 ms apart, drawn in two commits), and the counter is only drawn as one when both are gone.
+ * AE27: once the wire says an item was countered, how long this waits to see whether a DRAWN item
+ * aimed at it also departs the stack (the nicer three-beat, `counter()`) before giving up and
+ * cracking it alone. Forge can send the countered spell off in one delta and the counter in the
+ * next (w67-counter, run 39832352790: 67 ms apart, drawn in two commits) — this is purely about
+ * getting the resolver's own beat, never about WHETHER the target was countered, which the wire
+ * already said.
  */
 export const COUNTER_HOLD_MS = 1000;
 /** A placed card easing to the opacity its state draws it at. */
@@ -484,6 +499,13 @@ interface Drawn {
   readonly sourceCardId: number | null;
   /** The stack item this one targets, as last drawn — a counter's departure reads it (AE27). */
   targetStackItemId: number | null;
+  /**
+   * AE27: set true the moment the wire first says this item departed the stack not by resolving
+   * cleanly (`BoardView.counteredStackItems`) — captured onto the record so a LATER callback
+   * (`awaitCounter`'s timeout, `counter()`'s own schedules) never needs the view that said so, which
+   * may already have moved on by the time it runs.
+   */
+  countered: boolean;
   leaving: boolean;
   /** AE26: hidden until a registration arrives or the window closes — see `PLACED_PENDING_MS`. */
   pendingUntil: number | null;
@@ -710,6 +732,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         isAbility: item.isAbility,
         sourceCardId: item.sourceCardId,
         targetStackItemId: null,
+        countered: false,
         leaving: false,
         pendingUntil: pending ? Date.now() + PLACED_PENDING_MS : null,
         holdCheckAt: null,
@@ -949,8 +972,48 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   }
 
   /**
-   * AE27: a counter and the item it targets left in the same frame. The counter blinks, the target
-   * is destroyed, then the counter fades — three steps out of Forge's one.
+   * AE27: the crack-and-fade look itself — crack lines spread across the card's face (`shards`'
+   * own `cracks`, reused from the departures' approved look, never its pieces or parts: this card
+   * never spins, shrinks or falls apart), then it drains of colour and fades, in place. One draw per
+   * item; `removeNow` tears the lines down with the rest of `d.el` once it is gone.
+   */
+  function crack(id: number, d: Drawn): void {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'placed__cracks');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('aria-hidden', 'true');
+    for (const points of shards(d.sourceCardId ?? id, COUNTERED_CRACKS).cracks) {
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+      line.setAttribute('points', points);
+      line.setAttribute('pathLength', '1');
+      svg.append(line);
+    }
+    d.el.append(svg);
+    d.el.setAttribute('data-placed-countered', '');
+  }
+
+  /**
+   * AE27: a countered or fizzled item with no drawn resolver to pair it with (an undrawn trigger's
+   * counter, a mass counter, a fizzle, a counter the wire paired a frame late and nothing turned up
+   * to wait for) — cracks and fades on its own, in place, never the house glide.
+   */
+  function crackAndFade(id: number, d: Drawn): void {
+    if (d.leaving) return;
+    d.leaving = true;
+    hold(id, d.isAbility ? null : d.sourceCardId);
+    if (reduced()) {
+      removeNow(id);
+      return;
+    }
+    crack(id, d);
+    schedule(() => removeNow(id), COUNTERED_MS);
+  }
+
+  /**
+   * AE27: a drawn resolver, aimed at a drawn target the wire already says was countered, both
+   * departing the stack the same round. The counter blinks, the target cracks and fades, then the
+   * counter fades — three steps out of Forge's one.
    */
   function counter(resolverId: number, targetId: number): void {
     const resolver = drawn.get(resolverId);
@@ -966,7 +1029,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     resolver.el.removeAttribute('data-placed-next');
     resolver.el.setAttribute('data-placed-resolving', '');
     schedule(() => {
-      target.el.setAttribute('data-placed-countered', '');
+      crack(targetId, target);
       schedule(() => removeNow(targetId), COUNTERED_MS);
       schedule(() => {
         resolver.el.removeAttribute('data-placed-resolving');
@@ -977,15 +1040,18 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   }
 
   /**
-   * AE27: an item gone from the stack while another still there targets it stays drawn until that one leaves
-   * too, so `render` draws them as a counter; past `COUNTER_HOLD_MS` it leaves the ordinary way.
+   * AE27: the wire already says `id` was countered or fizzled (`d.countered`); this waits to see
+   * whether a DRAWN item aimed at it also departs the stack this round or the next, for the nicer
+   * three-beat (`counter`, above) — past `COUNTER_HOLD_MS` nothing turned up, and it cracks alone.
    */
   function awaitCounter(id: number, d: Drawn): void {
     if (awaitingCounter.has(id)) return;
     awaitingCounter.add(id);
     schedule(() => {
       awaitingCounter.delete(id);
-      if (drawn.get(id) === d && !d.leaving) leave(id, d.isAbility ? null : d.sourceCardId);
+      if (drawn.get(id) !== d || d.leaving) return;
+      if (d.countered) crackAndFade(id, d);
+      else leave(id, d.isAbility ? null : d.sourceCardId);
     }, COUNTER_HOLD_MS);
   }
 
@@ -1083,26 +1149,35 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     // Resolved/left items first, so a leaving one never counts toward `taken` below.
     const departed = [...drawn].filter(([id]) => !currentIds.has(id));
     const departedIds = new Set(departed.map(([id]) => id));
-    // A counter first: its target must not start an ordinary fade of its own.
+    const counteredIds = view.counteredStackItems;
+    // The wire's own word, captured onto the record once: later callbacks (`awaitCounter`'s timeout,
+    // `counter`'s schedules) read `d.countered`, never a view that may have moved on by then.
+    if (counteredIds !== undefined) for (const [id, d] of departed) if (counteredIds.has(id)) d.countered = true;
+    // A paired counter first, when the wire confirms it: its target must not start a fade of its own.
     for (const [id, d] of departed) {
       const target = d.targetStackItemId;
-      const countered = target === null || d.leaving || !departedIds.has(target) ? undefined : drawn.get(target);
-      if (countered === undefined || countered.leaving) continue;
-      if (!countered.isAbility && countered.sourceCardId !== null && onBattlefieldNow(countered.sourceCardId)) continue;
+      const candidate = target === null || d.leaving || !departedIds.has(target) ? undefined : drawn.get(target);
+      if (candidate === undefined || candidate.leaving || !candidate.countered) continue;
+      if (!candidate.isAbility && candidate.sourceCardId !== null && onBattlefieldNow(candidate.sourceCardId)) continue;
       counter(id, target!);
     }
     for (const [id, d] of departed) {
+      if (d.leaving) continue;
       const landed = !d.isAbility && d.sourceCardId !== null && onBattlefieldNow(d.sourceCardId);
-      if (!d.leaving && !landed && view.stack.some((i) => aimOf(i) === id)) {
+      if (!landed && view.stack.some((i) => aimOf(i) === id)) {
         awaitCounter(id, d);
         continue;
       }
-      leave(id, d.isAbility ? null : d.sourceCardId);
+      if (d.countered) crackAndFade(id, d);
+      else leave(id, d.isAbility ? null : d.sourceCardId);
     }
     settleArrivals();
     for (const [id, sourceCardId] of undrawn) {
       if (currentIds.has(id)) continue;
       undrawn.delete(id);
+      // AE27: one Stifle (or similar) ever drawn nothing for this ability — a shimmer would say
+      // "resolved unhindered", which a countered id never did.
+      if (counteredIds?.has(id) === true) continue;
       shimmer(sourceCardId);
     }
 

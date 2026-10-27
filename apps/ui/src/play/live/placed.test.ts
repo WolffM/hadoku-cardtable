@@ -76,7 +76,7 @@ function battlefieldCard(id: number): NonNullable<BoardView['players']>[number][
   return { id, card: draftCard(`Card ${id}`), tapped: false, summoningSick: false, damage: 0, counters: [], attacking: false, blocking: false, token: false };
 }
 
-function view(stack: StackEntry[], battlefield: { id: number }[] = []): BoardView {
+function view(stack: StackEntry[], battlefield: { id: number }[] = [], countered: readonly number[] = []): BoardView {
   return {
     seq: 1,
     title: 't',
@@ -105,6 +105,7 @@ function view(stack: StackEntry[], battlefield: { id: number }[] = []): BoardVie
     stack,
     gameOver: false,
     missingCardIds: [],
+    ...(countered.length === 0 ? {} : { counteredStackItems: new Set(countered) }),
   };
 }
 
@@ -951,7 +952,7 @@ describe('installPlaced: a counter (AE27)', () => {
     placeSpell(302, { x: 450, y: 300 }, 'you');
     const handle = installPlaced(canvas, { reducedMotion: () => false });
     handle.notify(view([stackItem(10, { sourceCardId: 302, targetStackItemId: 9 }), stackItem(9, { sourceCardId: 301 })]));
-    handle.notify(view([])); // the counter resolved: Forge removed both at once
+    handle.notify(view([], [], [9])); // the counter resolved: Forge removed both at once, and says item 9 was countered
     const counter = canvas.querySelector<HTMLElement>('[data-placed-spell="10"]')!;
     const target = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
     expect(counter.hasAttribute('data-placed-resolving'), 'the counter blinks').toBe(true);
@@ -982,7 +983,7 @@ describe('installPlaced: a counter (AE27)', () => {
     const target = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
     expect(target.hasAttribute('data-placed-leaving'), 'the target waits for what targets it').toBe(false);
     vi.advanceTimersByTime(67);
-    handle.notify(view([]));
+    handle.notify(view([], [], [9]));
     const counter = canvas.querySelector<HTMLElement>('[data-placed-spell="10"]')!;
     expect(counter.hasAttribute('data-placed-resolving'), 'the counter blinks').toBe(true);
     expect(target.hasAttribute('data-placed-leaving'), 'the target does not fade').toBe(false);
@@ -1001,8 +1002,9 @@ describe('installPlaced: a counter (AE27)', () => {
     const handle = installPlaced(canvas, { reducedMotion: () => false });
     handle.notify(view([stackItem(10, { sourceCardId: 302, targetStackItemId: 9 }), stackItem(9, { sourceCardId: 301 })]));
     // Ward's own run on the claws: the spell went to its graveyard first, and the next view named no
-    // pairing for the counter still resolving (`PlayBridge.stackTargetSpellsJson` reads the live stack).
-    handle.notify(view([stackItem(10, { sourceCardId: 302 })]));
+    // pairing for the counter still resolving (`PlayBridge.stackTargetSpellsJson` reads the live stack) —
+    // but it DOES say item 9 was countered, the moment it departs.
+    handle.notify(view([stackItem(10, { sourceCardId: 302 })], [], [9]));
     const target = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
     expect(target.hasAttribute('data-placed-leaving'), 'the target waits for what targeted it').toBe(false);
     handle.notify(view([]));
@@ -1021,7 +1023,7 @@ describe('installPlaced: a counter (AE27)', () => {
     handle.notify(view([stackItem(10, { isAbility: true, sourceCardId: 201, targetStackItemId: 9 }), stackItem(9, { sourceCardId: 301 })], [{ id: 201 }]));
     expect(canvas.querySelector('[data-placed-spell="10"]'), 'the ward trigger is drawn').not.toBeNull();
     const target = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
-    handle.notify(view([], [{ id: 201 }]));
+    handle.notify(view([], [{ id: 201 }], [9]));
     vi.advanceTimersByTime(RESOLVE_BLINK_MS);
     expect(target.hasAttribute('data-placed-countered'), 'the countered beat plays').toBe(true);
     handle.dispose();
@@ -1060,6 +1062,52 @@ describe('installPlaced: a counter (AE27)', () => {
     handle.notify(view([stackItem(10, { targetStackItemId: 9 }), stackItem(9)]));
     handle.notify(view([]));
     expect(canvas.querySelector('[data-placed-spell]')).toBeNull();
+    handle.dispose();
+  });
+
+  it('a countered spell whose counter was never drawn cracks and fades at once, never waiting on a resolver that cannot arrive', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    placeSpell(301, { x: 400, y: 300 }, 'them');
+    const handle = installPlaced(canvas, { reducedMotion: () => false });
+    handle.notify(view([stackItem(9, { sourceCardId: 301 })]));
+    // An undrawn trigger (or a mass/untargeted counter, or a counter the wire did not pair) took it:
+    // nothing in `view.stack` ever named a resolver for item 9, only the wire's own word that it was countered.
+    handle.notify(view([], [], [9]));
+    const target = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    expect(target.hasAttribute('data-placed-resolving'), 'no resolver blink: none was ever drawn').toBe(false);
+    expect(target.hasAttribute('data-placed-countered'), 'it cracks on its own').toBe(true);
+    expect(target.querySelector('.placed__cracks'), 'crack lines are drawn').not.toBeNull();
+    expect(target.hasAttribute('data-placed-leaving'), 'never the house glide').toBe(false);
+    vi.advanceTimersByTime(COUNTERED_MS);
+    expect(canvas.querySelector('[data-placed-spell="9"]'), 'gone once its crack has run').toBeNull();
+    handle.dispose();
+  });
+
+  it('a fizzled spell (its own target gone when it resolves) cracks and fades the same way a direct counter does', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    placeSpell(301, { x: 400, y: 300 }, 'you');
+    const handle = installPlaced(canvas, { reducedMotion: () => false });
+    handle.notify(view([stackItem(9, { sourceCardId: 301 })]));
+    // A fizzle has no resolver at all — Forge's own resolution just found no legal target.
+    handle.notify(view([], [], [9]));
+    const target = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    expect(target.hasAttribute('data-placed-countered'), 'the wire names it countered the same as a direct counter').toBe(true);
+    expect(target.hasAttribute('data-placed-leaving')).toBe(false);
+    handle.dispose();
+  });
+
+  it('a resolved instant with no wire counter fact still glides the ordinary way', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    placeSpell(301, { x: 400, y: 300 }, 'you');
+    const handle = installPlaced(canvas, { reducedMotion: () => false });
+    handle.notify(view([stackItem(9, { sourceCardId: 301 })]));
+    handle.notify(view([])); // resolved cleanly: no `counteredStackItems` at all
+    const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    expect(el.hasAttribute('data-placed-countered'), 'never the crack').toBe(false);
+    expect(el.hasAttribute('data-placed-leaving'), 'the house glide').toBe(true);
     handle.dispose();
   });
 });

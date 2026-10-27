@@ -1,0 +1,23 @@
+# AE27 — a spell that fizzles (its own target gone when it tries to resolve),
+# as distinct from a spell COUNTERED by another spell/ability
+# (`ward-defined-counter.state`, `w46-b-counterspell.state`). Seat 0 (human)
+# holds Doom Blade ("Destroy target nonblack creature", mandatory) and
+# Unsummon, with enough mana ({1}{B} and {U}) to cast both in the same main
+# phase before passing priority. Seat 1 (ai) controls exactly one creature,
+# Memnite — Doom Blade's and Unsummon's only legal target. Casting Doom Blade
+# at Memnite, then Unsummon at Memnite too (LIFO: Unsummon resolves first and
+# returns Memnite to hand), leaves Doom Blade with no legal target when its
+# own turn to resolve comes — `MagicStack.hasFizzled` true, never a counter.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Doom Blade;Unsummon
+humanbattlefield=Swamp;Swamp;Island;Island
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Memnite
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

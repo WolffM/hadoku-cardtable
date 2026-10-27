@@ -188,6 +188,7 @@ import {
 	tagOf,
 	type CantBlock,
 	type ConditionMet,
+	type CounteredStackItems,
 	type Damage,
 	type Deaths,
 	type FaceDamage,
@@ -221,7 +222,11 @@ export interface DeltaPacketJson {
 export type StateFrame =
 	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number } & StateSiblings }
 	| { kind: 'notify'; method: 'openView'; payload: { myPlayers: number[] } }
-	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; damage?: Damage; deaths?: Deaths; faceDamage?: FaceDamage } & StateSiblings };
+	| {
+			kind: 'notify';
+			method: 'applyDelta';
+			payload: { packet: DeltaPacketJson; damage?: Damage; deaths?: Deaths; faceDamage?: FaceDamage; counteredStackItems?: CounteredStackItems } & StateSiblings;
+	  };
 
 export type Visibility = 'full' | 'faceOnly' | 'hidden';
 
@@ -1084,6 +1089,11 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 							...damageSeen(frame.payload.damage),
 							...deathsSeen(frame.payload.deaths),
 							...faceDamageSeen(frame.payload.faceDamage),
+							// AE27 — passed through UNREDACTED, same reasoning as `stackTargetSpells`
+							// above: these are stack item ids, and the Stack zone is public, so naming
+							// which of them left by a counter (rather than resolving) hides nothing a
+							// card redaction elsewhere in this same frame has not already hidden.
+							...(frame.payload.counteredStackItems === undefined ? {} : { counteredStackItems: frame.payload.counteredStackItems }),
 						},
 					};
 			}

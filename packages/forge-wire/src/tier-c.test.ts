@@ -28,6 +28,7 @@ import {
   DamageSchema,
   DeathsSchema,
   FaceDamageSchema,
+  CounteredStackItemsSchema,
   DECLARED_TYPE_SCHEMAS,
   DELTA_OBJECT_TYPES,
   DeltaPacketSchema,
@@ -608,6 +609,29 @@ describe('Tier C — deaths', () => {
   it('is optional on applyDelta and carried when present', () => {
     const delta = ApplyDeltaSchema.safeParse({ kind: 'notify', method: 'applyDelta', payload: { packet: DELTA.packet, deaths: [[101, 'SACRIFICED']] } });
     expect(delta.success && delta.data.payload.deaths).toEqual([[101, 'SACRIFICED']]);
+  });
+});
+
+describe('Tier C — counteredStackItems (AE27)', () => {
+  it('accepts a list of stack item ids and rejects anything else', () => {
+    expect(CounteredStackItemsSchema.safeParse([]).success).toBe(true);
+    expect(CounteredStackItemsSchema.safeParse([101, 102]).success).toBe(true);
+    expect(CounteredStackItemsSchema.safeParse(['101']).success).toBe(false);
+    expect(CounteredStackItemsSchema.safeParse([[101, 102]]).success).toBe(false);
+  });
+
+  it('is optional on applyDelta, carried when present, and absent from setGameView (an event list, only on applyDelta like damage/deaths)', () => {
+    const delta = ApplyDeltaSchema.safeParse({ kind: 'notify', method: 'applyDelta', payload: { packet: DELTA.packet, counteredStackItems: [101] } });
+    expect(delta.success && delta.data.payload.counteredStackItems).toEqual([101]);
+    const view = SetGameViewSchema.safeParse({
+      kind: 'notify',
+      method: 'setGameView',
+      // `counteredStackItems` is not a key `StateSiblingsSchema` declares, and that schema is strict:
+      // a setGameView carrying it must be rejected, the same way an unknown key on any other tier-C
+      // frame is — never silently accepted where only `applyDelta` sends it.
+      payload: { gameView: FULL_SYNC.packet.newObjects, sequenceNumber: FULL_SYNC.packet.seq, counteredStackItems: [101] },
+    });
+    expect(view.success).toBe(false);
   });
 });
 

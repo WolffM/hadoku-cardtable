@@ -147,10 +147,6 @@
   filter: saturate(1.16);
 }
 
-.placed[data-placed-countered] > .placed__hover > * {
-  filter: none;
-}
-
 /*
  * The other seat's item while they drag it (`placed.ts`'s `placeSpell`): each move arrives as one
  * message, and a point set straight from it steps across the board a message at a time. The same
@@ -275,10 +271,11 @@
 }
 
 /*
- * AE27, a counter in three steps (`placed.ts`'s `counter`): the counter blinks as it takes effect
- * (`RESOLVE_BLINK_MS`), then the spell it counters is destroyed (`COUNTERED_MS`) — a shudder, then
- * it crumples away — then the counter fades like any other resolution. Reduced motion never gets
- * here: `placed.ts` removes both at once.
+ * AE27, the nicer three-beat (`placed.ts`'s `counter`, only when a drawn resolver aimed at a drawn,
+ * wire-confirmed target departs the same round): the resolver blinks as it takes effect
+ * (`RESOLVE_BLINK_MS`), then the spell it counters cracks and fades (`[data-placed-countered]`,
+ * below) — then the resolver fades like any other resolution. Reduced motion never gets here:
+ * `placed.ts` removes everything at once instead.
  */
 .placed[data-placed-resolving] > .placed__hover {
   animation: var(--stack-hover), placed-resolve var(--resolve-blink-ms) ease-in-out;
@@ -299,34 +296,66 @@
   }
 }
 
+/*
+ * AE27 — a countered or fizzled item (`placed.ts`'s `crackAndFade`/`counter`, decided by the wire's
+ * own `counteredStackItems`, never guessed from a pairing alone): crack lines spread across its
+ * face (`.placed__cracks`, below — `departures.ts`'s own `shards`, its crack lines only, never its
+ * pieces or parts), the face drains of colour, then the whole card fades in place. No spin, no
+ * shrink: unlike a battlefield departure this card never moves or breaks apart, it is still being
+ * CAST. Reduced motion never gets here: `placed.ts` removes it at once instead.
+ */
 .placed[data-placed-countered] {
   transition: none;
-  animation: placed-countered var(--countered-ms) ease-in forwards;
+  animation: placed-countered-fade var(--countered-ms) ease-in forwards;
 }
 
-@keyframes placed-countered {
-  0% {
-    rotate: 0deg;
-  }
-
-  15% {
-    rotate: -5deg;
-  }
-
-  30% {
-    rotate: 5deg;
-  }
-
-  45% {
-    rotate: -3deg;
-    scale: 1;
-    opacity: 1;
-  }
-
-  100% {
-    rotate: 12deg;
-    scale: 0.4;
+@keyframes placed-countered-fade {
+  to {
     opacity: 0;
+  }
+}
+
+.placed[data-placed-countered] > .placed__hover > :is(.placed__tile, .placed__back) {
+  animation: placed-countered-drain var(--countered-ms) ease-in forwards;
+}
+
+@keyframes placed-countered-drain {
+  from {
+    filter: saturate(1.16);
+  }
+
+  to {
+    filter: saturate(0);
+  }
+}
+
+/* The crack lines themselves: one draw, no growing pieces — `placed.ts`'s `crack` builds them from `departures.ts`'s `shards`. */
+.placed__cracks {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.placed__cracks polyline {
+  fill: none;
+  stroke: var(--shadow);
+  stroke-width: 2px;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.placed[data-placed-countered] .placed__cracks polyline {
+  animation: placed-crack-draw calc(var(--countered-ms) * 0.4) forwards;
+}
+
+@keyframes placed-crack-draw {
+  to {
+    stroke-dashoffset: 0;
   }
 }
 

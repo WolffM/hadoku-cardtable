@@ -335,6 +335,25 @@ describe('stackTargetSpells (wave 49 §A)', () => {
 	});
 });
 
+/**
+ * AE27 — `counteredStackItems`, `PlayBridge.java`'s `EffectJournal` addition. Passed through
+ * UNREDACTED, the same reasoning as `stackTargetSpells` above: stack item ids, and the Stack zone
+ * is public. Only on `applyDelta` (an event, like `damage`/`deaths`) — `setGameView` never carries
+ * it at all, so there is nothing to project there.
+ */
+describe('counteredStackItems (AE27)', () => {
+	it('applyDelta: passed through exactly, present or absent', () => {
+		const frames = fixtureFrames();
+		const first = frames[0] as Extract<StateFrame, { method: 'applyDelta' }>;
+		const withIds: StateFrame = { ...first, payload: { ...first.payload, counteredStackItems: [50] } };
+		const out = createProjector(0).project(withIds) as Extract<StateFrame, { method: 'applyDelta' }>;
+		expect(out.payload.counteredStackItems).toEqual([50]);
+
+		const without = createProjector(0).project(first) as Extract<StateFrame, { method: 'applyDelta' }>;
+		expect(without.payload.counteredStackItems).toBeUndefined();
+	});
+});
+
 describe('pendingTriggers', () => {
 	it("keeps a waiting trigger of a card this seat sees, drops one of a card it may not see (its words name the card)", () => {
 		const raw = fold(fixtureFrames());

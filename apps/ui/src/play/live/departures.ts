@@ -104,7 +104,7 @@ export interface Departure {
  * `.board-departure[data-exit="<name>"][data-exit-go]` in `departures.css`.
  */
 export const EXIT_MOTIONS = {
-  /** Died some other way — sacrificed, no toughness left: the countered spell's shudder, then it crumples away (`placed.css`'s `placed-countered`). */
+  /** Died some other way — sacrificed, no toughness left: a shudder, then it crumples away. */
   crumple: { ms: 400, pieces: 1 },
   /**
    * Killed by damage: it cracks, then crumbles to dust (the operator, 2026-10-16: "i also like how cards

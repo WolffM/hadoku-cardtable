@@ -820,6 +820,22 @@ export const FaceDamageSchema = z.array(z.tuple([JavaInt, JavaInt, JavaInt, z.bo
 export type FaceDamage = z.infer<typeof FaceDamageSchema>;
 
 /**
+ * AE27 — the bridge's ninth addition beside `applyDelta`'s packet: the stack item ids that left the
+ * stack since the seat's last state frame NOT by resolving cleanly (`PlayBridge.java`'s
+ * `EffectJournal`) — a direct counter (`GameEventSpellRemovedFromStack` with no
+ * `GameEventSpellResolved` of its own ever having fired for that id: `CounterEffect.
+ * removeFromStack` removes its TARGET from the stack directly, mid-resolution of the countering
+ * spell) or a fizzle (`GameEventSpellResolved`'s own `hasFizzled`: its target was gone when its
+ * turn to resolve came). The UI (`live/placed.ts`) draws every id here the same way — a crack and a
+ * fade in place — never the house glide a clean resolution gets. An event list, not a snapshot, and
+ * only on `applyDelta`, exactly like `damage`/`deaths`/`faceDamage`: the item is off the live stack
+ * by the time the frame is built, so the view alone never says how it left.
+ */
+export const CounteredStackItemsSchema = z.array(JavaInt);
+
+export type CounteredStackItems = z.infer<typeof CounteredStackItemsSchema>;
+
+/**
  * The bridge's state facts beside both state frames' packet, each a snapshot the fold replaces when
  * a frame names it (the UI's `fold.ts`). Optional, so a frame from before an addition still parses.
  */
@@ -885,6 +901,7 @@ export const ApplyDeltaSchema = z.strictObject({
     damage: DamageSchema.optional(),
     deaths: DeathsSchema.optional(),
     faceDamage: FaceDamageSchema.optional(),
+    counteredStackItems: CounteredStackItemsSchema.optional(),
   }),
 });
 

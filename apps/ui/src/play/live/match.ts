@@ -760,6 +760,14 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
   /** Why each permanent that died lately died (`PlayBridge.java`'s `deaths`), by card id, the last {@link HITS_KEPT}. */
   deathCauses: ReadonlyMap<number, DeathCause>;
   /**
+   * AE27 — stack item ids that left the stack lately not by resolving cleanly (`PlayBridge.java`'s
+   * `counteredStackItems`): a direct counter, or a fizzle (its own target gone when its turn to
+   * resolve came). An event, never folded into state, kept to the last {@link HITS_KEPT} — the same
+   * shape as {@link deathCauses}, since `live/placed.ts` only ever needs to know this ONCE, the
+   * render where the item departs the stack.
+   */
+  counteredStackItems: ReadonlySet<number>;
+  /**
    * How many identical triggers or copies of one spell still wait for their targets behind the open target question
    * (`showPromptMessage.targetAbility.more`), 0 for any other prompt. Above 0 the question offers
    * "same target for all".
@@ -1089,6 +1097,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     faceHits: [],
     nextHitSeq: 1,
     deathCauses: new Map(),
+    counteredStackItems: new Set(),
     promptTargetMore: 0,
     promptSelection: null,
     sameTarget: false,
@@ -2928,11 +2937,12 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[], source: 'l
       packets = [{ seq: sequenceNumber, checksum: 0, checksumProperties: [], newObjects: gameView, objectDeltas: {}, events: [], ...siblings }];
       changed = true;
     } else if (frame.method === 'applyDelta') {
-      const { packet, damage, deaths, faceDamage, ...siblings } = frame.payload;
+      const { packet, damage, deaths, faceDamage, counteredStackItems, ...siblings } = frame.payload;
       packets.push({ ...packet, ...siblings });
       if (damage !== undefined && source === 'live') noteHits(match, damage);
       if (deaths !== undefined) noteDeaths(match, deaths);
       if (faceDamage !== undefined && source === 'live') noteFaceHits(match, faceDamage);
+      if (counteredStackItems !== undefined) noteCountered(match, counteredStackItems);
       changed = true;
     } else if (frame.method === 'openView') {
       const mine = frame.payload.myPlayers;
@@ -2976,6 +2986,13 @@ function noteDeaths(match: LiveMatch, deaths: readonly (readonly [number, DeathC
   match.deathCauses = new Map([...next].slice(-HITS_KEPT));
 }
 
+/** AE27 — `deaths`'s own pattern, for stack item ids that left the stack not by resolving cleanly. */
+function noteCountered(match: LiveMatch, ids: readonly number[]): void {
+  const next = new Set(match.counteredStackItems);
+  for (const id of ids) next.add(id);
+  match.counteredStackItems = new Set([...next].slice(-HITS_KEPT));
+}
+
 function redraw(match: LiveMatch): void {
   const viewerPlayerId = viewerPlayerIdOf(match);
   match.view =
@@ -3003,6 +3020,7 @@ function redraw(match: LiveMatch): void {
           hits: match.hits,
           faceHits: match.faceHits,
           deathCauses: match.deathCauses,
+          counteredStackItems: match.counteredStackItems,
           promptCards: promptCardsOf(match),
           watcher: match.watcher,
           attackLocked: match.attackLocked,
@@ -3417,6 +3435,7 @@ function discardLocal(match: LiveMatch): void {
   match.hits = [];
   match.faceHits = [];
   match.deathCauses = new Map();
+  match.counteredStackItems = new Set();
   match.avatarByPlayerId = null;
   match.unclaimedAvatar = null;
   match.nameByPlayerId = null;

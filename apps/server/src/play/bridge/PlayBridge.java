@@ -5480,7 +5480,7 @@ public final class PlayBridge {
         static final class EffectJournal {
             static final int KEEP = 256;
             private final MatchContext match;
-            private record Entry(long seq, JsonArray damage, JsonArray death, JsonArray face) {}
+            private record Entry(long seq, JsonArray damage, JsonArray death, JsonArray face, Integer countered) {}
             private final java.util.ArrayDeque<Entry> entries = new java.util.ArrayDeque<>();
             private long next = 1;
 
@@ -5489,6 +5489,27 @@ public final class PlayBridge {
              * instances it received this turn are journaled already: the ones after that are hits still to journal.
              */
             private final java.util.Map<forge.game.card.Card, Integer> watched = new java.util.IdentityHashMap<>();
+
+            /**
+             * AE27: the SpellAbility id ({@code SpellAbilityView.getId()}, stable for a SpellAbility's whole
+             * life — {@code SpellAbility.getView()} always returns the same cached view) that each stack item
+             * went on the stack as, by that SAME id — {@code GameEventSpellAbilityCast} is the one event that
+             * carries both ({@code sa}, the ability; {@code si}, the stack item it was just pushed as:
+             * {@code MagicStack.push} always creates {@code si} before firing it). Never cleared: ids are
+             * {@code SpellAbility}'s own incrementing counter, never reused inside a game. {@link #removed}
+             * and {@link #resolved} both key off it to recover the stack item id their events do not carry.
+             */
+            private final java.util.Map<Integer, Integer> stackIdOfSa = new java.util.HashMap<>();
+            /**
+             * SpellAbility ids whose own {@code GameEventSpellResolved} has fired, read and consumed by
+             * {@link #removed}: the {@code GameEventSpellRemovedFromStack} that follows an ordinary
+             * resolution (fizzled or not) is that spell leaving the stack it just resolved off, never a
+             * counter — only an item removed with NO resolved event of its own ever having fired (
+             * {@code CounterEffect.resolve}'s {@code removeFromStack} calls {@code game.getStack().remove(si)}
+             * directly on its TARGET, which never runs {@code SpellAbility.resolve()}; confirmed against the
+             * real jar, {@code scenario-countered-counterspell.jvm.test.ts}) is one.
+             */
+            private final java.util.Set<Integer> resolvedSaIds = new java.util.HashSet<>();
 
             EffectJournal(final MatchContext match) {
                 this.match = match;
@@ -5502,11 +5523,13 @@ public final class PlayBridge {
             synchronized EffectJournal reset() {
                 entries.clear();
                 watched.clear();
+                stackIdOfSa.clear();
+                resolvedSaIds.clear();
                 return this;
             }
 
-            private synchronized void add(final JsonArray damage, final JsonArray death, final JsonArray face) {
-                entries.addLast(new Entry(next++, damage, death, face));
+            private synchronized void add(final JsonArray damage, final JsonArray death, final JsonArray face, final Integer countered) {
+                entries.addLast(new Entry(next++, damage, death, face, countered));
                 while (entries.size() > KEEP) { entries.removeFirst(); }
             }
 
@@ -5517,7 +5540,7 @@ public final class PlayBridge {
                 hit.add(ev.card().getId());
                 hit.add(ev.source() == null ? -1 : ev.source().getId());
                 hit.add(ev.amount());
-                add(hit, null, null);
+                add(hit, null, null, null);
             }
 
             @Subscribe
@@ -5528,7 +5551,42 @@ public final class PlayBridge {
                 hit.add(ev.source() == null ? -1 : ev.source().getId());
                 hit.add(ev.amount());
                 hit.add(ev.combat());
-                add(null, null, hit);
+                add(null, null, hit, null);
+            }
+
+            /** AE27: a spell or ability just went on the stack — remembers which stack item its own ability id became. */
+            @Subscribe
+            public synchronized void cast(final forge.game.event.GameEventSpellAbilityCast ev) {
+                if (ev.sa() != null && ev.si() != null) { stackIdOfSa.put(ev.sa().getId(), ev.si().getId()); }
+            }
+
+            /**
+             * AE27: a spell or ability resolving off the stack. {@code hasFizzled}: its own targets were gone
+             * when it got there — a spell countered by circumstance rather than by another spell, drawn the
+             * same as a direct counter ({@code placed.ts}'s wire-driven crack-and-fade), never the ordinary
+             * glide a clean resolution gets.
+             */
+            @Subscribe
+            public synchronized void resolved(final forge.game.event.GameEventSpellResolved ev) {
+                if (ev.spell() == null) { return; }
+                resolvedSaIds.add(ev.spell().getId());
+                if (ev.hasFizzled()) {
+                    final Integer stackId = stackIdOfSa.get(ev.spell().getId());
+                    if (stackId != null) { add(null, null, null, stackId); }
+                }
+            }
+
+            /**
+             * AE27: an item leaves the stack. One whose own {@code GameEventSpellResolved} never fired for
+             * it — {@link #resolved} would have marked its ability id in {@link #resolvedSaIds} — left by a
+             * direct counter ({@code CounterEffect.removeFromStack}), never by resolving: journaled the same
+             * as a fizzle, above.
+             */
+            @Subscribe
+            public synchronized void removed(final forge.game.event.GameEventSpellRemovedFromStack ev) {
+                if (ev.sa() == null || resolvedSaIds.remove(ev.sa().getId())) { return; }
+                final Integer stackId = stackIdOfSa.get(ev.sa().getId());
+                if (stackId != null) { add(null, null, null, stackId); }
             }
 
             /**
@@ -5571,7 +5629,7 @@ public final class PlayBridge {
                         hit.add(w.getKey().getId());
                         hit.add(lki == null || lki.getLeft() == null ? -1 : lki.getLeft().getId());
                         hit.add(dmg.getLeft());
-                        add(hit, null, null);
+                        add(hit, null, null, null);
                     }
                     w.setValue(got.size());
                 }
@@ -5590,7 +5648,7 @@ public final class PlayBridge {
                     final JsonArray death = new JsonArray();
                     death.add(view.getId());
                     death.add(cause.toString());
-                    add(null, death, null);
+                    add(null, death, null, null);
                 } catch (final ReflectiveOperationException e) {
                     System.err.println("[bridge] GameEventCardDied: could not read it (" + e + ")");
                 }
@@ -5601,20 +5659,26 @@ public final class PlayBridge {
                 return next;
             }
 
-            /** Every entry numbered at or after {@code from}, oldest first, into {@code payload}'s {@code damage}, {@code deaths} and {@code faceDamage}. */
+            /**
+             * Every entry numbered at or after {@code from}, oldest first, into {@code payload}'s
+             * {@code damage}, {@code deaths}, {@code faceDamage} and {@code counteredStackItems}.
+             */
             synchronized void since(final long from, final JsonObject payload) {
                 final JsonArray damage = new JsonArray();
                 final JsonArray deaths = new JsonArray();
                 final JsonArray faces = new JsonArray();
+                final JsonArray countered = new JsonArray();
                 for (final Entry e : entries) {
                     if (e.seq() < from) { continue; }
                     if (e.damage() != null) { damage.add(e.damage()); }
                     if (e.death() != null) { deaths.add(e.death()); }
                     if (e.face() != null) { faces.add(e.face()); }
+                    if (e.countered() != null) { countered.add(e.countered()); }
                 }
                 if (!damage.isEmpty()) { payload.add("damage", damage); }
                 if (!deaths.isEmpty()) { payload.add("deaths", deaths); }
                 if (!faces.isEmpty()) { payload.add("faceDamage", faces); }
+                if (!countered.isEmpty()) { payload.add("counteredStackItems", countered); }
             }
         }
 

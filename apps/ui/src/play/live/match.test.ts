@@ -3169,6 +3169,32 @@ describe('deaths — the bridge’s causes', () => {
   });
 });
 
+describe('counteredStackItems — AE27, the bridge’s own word a departure was not a clean resolve', () => {
+  function applyDeltaWith(payload: Record<string, unknown>): ServerFrame {
+    seq += 1;
+    return parseServerFrame({
+      kind: 'notify',
+      method: 'applyDelta',
+      payload: { packet: { seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] }, ...payload },
+    });
+  }
+
+  it('each id lands on BoardView.counteredStackItems, same pattern as deathCauses, and a later frame adds rather than replaces', async () => {
+    const { s, m } = await fullGame();
+    expect(m.view!.counteredStackItems).toBeUndefined();
+    await sendAndApply(s, m, [applyDeltaWith({ counteredStackItems: [701, 702] }), applyDeltaWith({ counteredStackItems: [703] })]);
+    expect(new Set(m.view!.counteredStackItems)).toEqual(new Set([701, 702, 703]));
+  });
+
+  it('a snapshot after a fight (a reconnect, a resync) brings none back as new, same as deaths: it is read once, never re-drawn', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [applyDeltaWith({ counteredStackItems: [701] })]);
+    expect(m.view!.counteredStackItems?.has(701)).toBe(true);
+    await sendAndApply(s, m, [phase('MAIN2', m.view!.players.find((p) => p.isViewer)!.id)]);
+    expect(m.view!.counteredStackItems?.has(701), 'still known, not dropped by an unrelated frame').toBe(true);
+  });
+});
+
 describe('damage — the bridge’s own hits', () => {
   function applyDeltaWith(payload: Record<string, unknown>): ServerFrame {
     seq += 1;
