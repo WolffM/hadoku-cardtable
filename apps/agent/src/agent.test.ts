@@ -104,6 +104,8 @@ async function until(what: string, ok: () => boolean, timeout = 5000): Promise<v
 }
 
 const pidAlive = (pid: number): boolean => procStartTicks(pid) !== null;
+/** Set the moment `tick` fences, before the kill lands. */
+const fenced = (agent: Agent): boolean => (agent as unknown as { fenced: boolean }).fenced;
 
 function rawGet(port: number, path: string, headers: Record<string, string>): Promise<number> {
 	return new Promise((resolve, reject) => {
@@ -184,6 +186,56 @@ describe('host agent', () => {
 		await until('killed', () => !pidAlive(pid));
 		await until('exit recorded', () => agent.jvms.get('h1')!.exited);
 		expect(JSON.parse(readFileSync(join(agent.jvms.get('h1')!.dir, 'exit.json'), 'utf8')).reason).toMatch(/^fenced: no word from the coordinator for 11 s \(window 10 s\)$/);
+	});
+
+	it('holds its JVMs past the window for a coordinator that said it is restarting, across its own restart, until the next coordinator', async () => {
+		const home = scratch();
+		const cg = fakeCgroups();
+		const first = await startAgent(home, cg);
+		const c = await coordinator(first.port, fakeRuntime());
+		const transport = c.launcher.launch('h1', { xmxMb: 1000 });
+		const t = collect(transport);
+		await until('warm', () => t.lines.length === 1);
+		const pid = first.agent.jvms.get('h1')!.pid;
+		c.client.hold(90_000);
+		transport.release();
+		c.client.close();
+		await until('relay closed', () => !(first.agent as unknown as { session: unknown }).session);
+		// Past the window, inside the hold: kept, by this agent and by a restarted one.
+		clock.t += 60_000;
+		first.agent.tick();
+		expect(fenced(first.agent)).toBe(false);
+		first.agent.close();
+		const second = await startAgent(home, cg);
+		clock.t += 39_000;
+		second.agent.tick();
+		expect(fenced(second.agent)).toBe(false);
+		expect(pidAlive(pid)).toBe(true);
+		// The next coordinator ends the hold: once it goes silent without a word, the window alone counts.
+		const c2 = await coordinator(second.port, fakeRuntime());
+		await until('relay open', () => (second.agent as unknown as { session: unknown }).session !== null);
+		c2.client.close();
+		await until('relay closed', () => !(second.agent as unknown as { session: unknown }).session);
+		clock.t += 11_000;
+		second.agent.tick();
+		await until('killed', () => !pidAlive(pid));
+	});
+
+	it('a hold past its own cap still fences: the coordinator that never comes back', async () => {
+		const { agent, port } = await startAgent(scratch());
+		const { client, launcher } = await coordinator(port, fakeRuntime());
+		const t = collect(launcher.launch('h1', { xmxMb: 1000 }));
+		await until('warm', () => t.lines.length === 1);
+		const pid = agent.jvms.get('h1')!.pid;
+		client.hold(24 * 60 * 60_000);
+		client.close();
+		await until('relay closed', () => !(agent as unknown as { session: unknown }).session);
+		clock.t += 10_000 + 5 * 60_000 - 1000;
+		agent.tick();
+		expect(fenced(agent)).toBe(false);
+		clock.t += 2000;
+		agent.tick();
+		await until('killed', () => !pidAlive(pid));
 	});
 
 	it('does not reset the fencing clock when it restarts', async () => {

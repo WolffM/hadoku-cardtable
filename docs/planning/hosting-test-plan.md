@@ -160,7 +160,19 @@ deck pool's own (`PoolService`, cwd `pool`, 757 MB RSS on claw-9).
 | C7 | **PASS**, with a cost. 20 POSTs 50 ms apart: 10 × 201, 10 × 503 within 0.5–1 s. | — | Peak JVMs 11 (pool + 10), spare ≤ 1, no unrecorded JVM; all gone after stop. But 9 of the 10 starts were cold and all booted at once: **47–55 s to 201** (`bootMs` 44.7–52.4 s, against 9.6 s for one), within 8 s of the server's 60 s start timeout (`socket.ts`, `startTimeoutMs`). H10. | — | nothing |
 | C2b | **FAIL past 45 s** (added: how long a pause the bridge survives). SIGSTOP for 0 / 30 / 60 s, then a Forge round trip: the e2e probe (Forge's own `showConfirmDialog` to alice, through the bridge's loopback client, answered on her screen). | 0 s and 30 s: the dialog drawn and answered, 105–117 ms. 60 s: no dialog. | 60 s: the probe answered `no remote client GUI at slot 0` after 20 s; `bridge.stderr.txt` has the heartbeat timeout. | never | a live JVM with no clients |
 
-## D. Hosting on the claws (blocked on host agent, placement, failover)
+## D. Hosting on the claws
+
+Placement, failover and alerts are built (`apps/server/src/play/placement/`, behind
+`CARDTABLE_PLAY_HOSTS=claws`). Local end to end on hokon, 2026-10-27, two agents as two claws
+(`scripts/agent/placement-e2e.ts`, three runs): one agent and its JVM SIGKILLed with 2 of 4 matches
+on it, failover 8.6–10.1 s after the kill (the 10 s window), both matches on the other claw at their
+first frame within 0.2 s of that, one Failover alert, the claw quarantined; its agent restarted,
+the canary passed 8.7–12.1 s later and the ✅ followed. A SIGTERMed coordinator exits in 215–233 ms;
+the agent's hold kept the JVM 15 s past it (beyond the 10 s window) and the next coordinator
+re-attached all 4 matches 0.2–0.4 s after it started (15.4–15.7 s from the SIGTERM), same JVM pid.
+The match moves there were restarts from spec: `MatchRegistry.restore` (turn-start snapshots) was
+not in the
+tree. D1–D9 on real claws remain the manager's acceptance run.
 
 Written now so the design is built to pass them.
 

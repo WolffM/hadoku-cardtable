@@ -84,6 +84,7 @@ import { busyHandler } from './busy.js';
 import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { attachDraftSocket } from './room/socket.js';
 import { attachRoomFeed } from './room/feed.js';
+import { clawPlacement, registryRestorer } from './play/placement/index.js';
 import { attachPlay, coldStartsFrom, createFeatured, featuredCandidates, jvmHostConfig, jvmHostFactory, roomDeckCosts, roomFormatNames, spellCopierLookup, tableGame, type PlayHandle } from './play/index.js';
 import { bridgeDigest, createRecorder, forgePin, serverVersion } from './play/recording/recorder.js';
 import { sweepRecordings } from './play/recording/retention.js';
@@ -750,9 +751,17 @@ attachReplays(api, {
 	...(rebuildHost === null ? {} : { rebuild: (matchId: string) => rebuildForReplays(matchId, { recordingsDir: RECORDINGS_DIR, host: rebuildHost, log: recordingsLog, deckCosts }) }),
 });
 
+// Where matches run (`CARDTABLE_PLAY_HOSTS`): this machine's pool, or placement across the claws
+// with this machine as the backstop (`play/placement/`).
+const placementLog = jsonLogger('cardtable-placement');
+const clawHosts = forge.ok && CONFIG.playHosts === 'claws' ? clawPlacement(forge.config, { webhook: CONFIG.alertWebhook, forceFile: CONFIG.backstopForceFile, restartGraceMs: CONFIG.restartGraceMs, log: placementLog }) : null;
+const localHost = forge.ok && clawHosts === null ? jvmHostFactory(forge.config) : null;
+placementLog({ evt: 'play-hosts', mode: forge.ok ? CONFIG.playHosts : 'none', alerts: CONFIG.alertWebhook === '' ? 'logged only' : 'discord' });
+
 play = attachPlay(io, api, {
 	minTier: CONFIG.minTier,
-	host: forge.ok ? recorder.host(jvmHostFactory(forge.config)) : null,
+	host: clawHosts !== null ? recorder.host(clawHosts) : localHost !== null ? recorder.host(localHost) : null,
+	hosts: () => clawHosts?.hosts() ?? { mode: localHost === null ? 'none' : 'local', jvms: localHost?.jvms() ?? [] },
 	// Match JVMs booting at once (`play/start-queue.ts`); `CARDTABLE_PLAY_COLD_STARTS`.
 	coldStarts: coldStartsFrom(),
 	// Diagnostics for a live check only. Never set in production (see play/socket.ts).
@@ -792,6 +801,8 @@ play = attachPlay(io, api, {
 		featured.refresh();
 	},
 });
+// Failover restores through the registry, which exists only now.
+if (clawHosts !== null) clawHosts.restoreWith(registryRestorer(play.matches));
 // Once `attachPlay` has adopted every match an earlier server left running — the host finds
 // them asynchronously, and a room must not be told its match is gone before then (a deploy
 // cleared a live match's table that way, so an avatar change after it reached no match) — a

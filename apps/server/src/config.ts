@@ -149,6 +149,25 @@ export const CONFIG = {
 	 */
 	newRoomFormat: process.env.CARDTABLE_NEW_ROOM_FORMAT,
 
+	/**
+	 * Where Forge matches run (`CARDTABLE_PLAY_HOSTS`): `local`, this machine, as always (the
+	 * default until the claw acceptance run passes), or `claws`, placed across the hosting claws'
+	 * agents with this machine as the backstop (`play/placement/`). Anything else is `local`.
+	 */
+	playHosts: process.env.CARDTABLE_PLAY_HOSTS === 'claws' ? ('claws' as const) : ('local' as const),
+
+	/**
+	 * The hosting alerts' Discord webhook, from the vault via the PM2 wrapper
+	 * (`.devvault.json`: `DISCORD_CARDTABLE_ALERT_WEBHOOK`). Unset = alerts are logged, not posted.
+	 */
+	alertWebhook: process.env.DISCORD_CARDTABLE_ALERT_WEBHOOK || '',
+
+	/** How long, past the fencing window, the claws' agents hold their JVMs for the next server on a restart. */
+	restartGraceMs: parseInt(process.env.CARDTABLE_PLAY_RESTART_GRACE_MS || '90000', 10),
+
+	/** The operator's time-boxed force of hokon onto the Forge backstop: a JSON file `{"until":"<ISO>"}`. */
+	backstopForceFile: process.env.CARDTABLE_BACKSTOP_FORCE_FILE ?? join(DATA_DIR, 'backstop-force.json'),
+
 	/** `CARDTABLE_PLAY_PROBE=1`: the e2e harness's dev diagnostics — the scenario routes and the frame and stop traces. Never on in production. */
 	playProbe: process.env.CARDTABLE_PLAY_PROBE === '1',
 

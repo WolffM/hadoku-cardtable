@@ -13,6 +13,8 @@
  *   booting with room starts it the moment it is warm (`room()`).
  * - **A start that would launch a JVM waits while `limit` JVMs are booting already** (`booting()`).
  *   The pool's own warm JVM boots among them.
+ * - **A start no host may take waits too** (`room()` is `full`: placement found no eligible host,
+ *   `placement/coordinator.ts`), until the factory's room changes.
  * - **The rest wait in order**, and each is told its place (`StartEvents.queued`) whenever it
  *   moves; `Match` keeps it for `GET /play/queue`. A waiting start's host is a stand-in that holds
  *   what the match asks of it until the real one exists.
@@ -117,8 +119,11 @@ export type QueuedFactory = MatchHostFactory & {
 export function queueColdStarts(factory: MatchHostFactory, limit: number, log: (entry: Record<string, unknown>) => void): QueuedFactory {
 	const waiting: Waiting[] = [];
 	const booting = (): number => factory.booting?.() ?? 0;
-	/** A start may go now: it needs no boot, or another boot fits. */
-	const free = (): boolean => (factory.room?.() ?? 'warm') !== 'none' || booting() < limit;
+	/** A start may go now: some host may take it, and it needs no boot or another boot fits. */
+	const free = (): boolean => {
+		const room = factory.room?.() ?? 'warm';
+		return room !== 'full' && (room !== 'none' || booting() < limit);
+	};
 	let pumping = false;
 
 	/** Place this match now. Throws what the factory throws. */

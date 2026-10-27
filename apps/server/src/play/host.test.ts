@@ -1071,6 +1071,17 @@ describe('routing, against a scripted launcher', () => {
 		expect(pool.jvms().map((j) => j.hostId)).toEqual([two]);
 	});
 
+	it('a match asked to stop leaves the JVM record at once: a JVM killed on the way out must not offer it to the next server', () => {
+		const { launcher, jvms } = scriptedLauncher();
+		const workDir = mkdtempSync(join(scratch, 'scripted-'));
+		const pool = jvmHostFactory({ ...config, workDir, perJvm: 2 }, { warm: false, launcher, log: () => undefined });
+		const stopping = pool('m-0000000000d6', SPEC, recorder());
+		pool('m-0000000000d7', SPEC, recorder());
+		const [hostId] = [...jvms.keys()];
+		stopping.stop();
+		expect(readJvmRecord(join(workDir, hostId!))!.matches.map((m) => m.matchId)).toEqual(['m-0000000000d7']);
+	});
+
 	it('a JVM let go on the way out names only the matches it handed over: one being stopped is not taken back', () => {
 		const { launcher, jvms } = scriptedLauncher();
 		const workDir = mkdtempSync(join(scratch, 'scripted-'));

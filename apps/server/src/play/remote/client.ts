@@ -184,6 +184,19 @@ export class AgentClient {
 		for (const l of this.lostListeners) l(reason);
 	}
 
+	/** How long since the agent's last heartbeat. */
+	silentMs(): number {
+		return this.now() - this.lastHb;
+	}
+
+	/**
+	 * Going down for a restart: ask the agent to hold its JVMs `ms` past the fencing window, so the
+	 * next coordinator can take them back. Send it before `close`, which flushes it.
+	 */
+	hold(ms: number): void {
+		this.send({ op: 'hold', ms });
+	}
+
 	onLost(listener: (reason: string) => void): void {
 		this.lostListeners.push(listener);
 	}

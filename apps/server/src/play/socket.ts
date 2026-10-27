@@ -198,6 +198,8 @@ export interface PlayDeps {
 	 * from outside `match.ts`, which lane C does not own this wave.
 	 */
 	onEnvelope?(matchId: string, seat: number, envelope: ServerEnvelope): void;
+	/** `GET /play/hosts`: where matches run, each host's eligibility and health (`placement/`). Absent: this machine only. */
+	hosts?(): unknown;
 }
 
 export interface PlayHandle {
@@ -623,6 +625,11 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		const caller = httpCaller(req);
 		const places = [...waitingOn].flatMap(([match, who]) => (who.has(caller) && match.queuePlace !== null ? [match.queuePlace] : []));
 		res.json({ place: places.length === 0 ? null : Math.min(...places) });
+	});
+
+	/** Each host's eligibility, the bar that failed and why, its JVMs, matches and health. */
+	router.get('/hosts', (_req: Request, res: Response) => {
+		res.json(deps.hosts?.() ?? { mode: 'none' });
 	});
 
 	router.get('/matches/:id', (req: Request, res: Response) => {

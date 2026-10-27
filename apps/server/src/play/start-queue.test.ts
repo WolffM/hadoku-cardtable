@@ -47,6 +47,10 @@ function pool(perJvm = 2) {
 			jvms[i]!.warm = true;
 			watcher?.();
 		},
+		/** Room changed without a JVM of this pool moving (placement found a host). */
+		roomChanged() {
+			watcher?.();
+		},
 		/** A match on JVM i ended. */
 		freed(i: number) {
 			jvms[i]!.matches -= 1;
@@ -72,6 +76,23 @@ function events() {
 }
 
 describe('queueColdStarts', () => {
+	it('a factory with no host for a match (`full`) holds every start, even with no boot running, until its room changes', () => {
+		const p = pool(2);
+		let full = true;
+		const room = p.factory.room!;
+		p.factory.room = () => (full ? 'full' : room());
+		const q = queueColdStarts(p.factory, 2, () => {});
+		const a = events();
+		const b = events();
+		q('m-a', SPEC, a.ev);
+		q('m-b', SPEC, b.ev);
+		expect(p.asked).toEqual([]);
+		expect([a.seen.places, b.seen.places]).toEqual([[1], [2]]);
+		full = false;
+		p.roomChanged();
+		expect(p.asked.map((x) => x.id)).toEqual(['m-a', 'm-b']);
+	});
+
 	it('a start that needs no boot goes at once; one that needs a JVM waits while `limit` JVMs boot, told its place as it moves', () => {
 		const p = pool(2);
 		const q = queueColdStarts(p.factory, 2, () => {});

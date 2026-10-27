@@ -382,9 +382,10 @@ export type MatchHostFactory = ((matchId: string, spec: MatchSpec, events: HostE
 	reapOnExit?(): ReapResult;
 	/**
 	 * Where a match placed now would go, for `start-queue.ts`: into a warm JVM with room (it starts
-	 * at once), into one still booting, or nowhere yet (placing it launches a JVM).
+	 * at once), into one still booting, nowhere yet (placing it launches a JVM), or nowhere at all
+	 * (`full`: no host may take it now; it waits until `watchRoom` says otherwise).
 	 */
-	room?(): 'warm' | 'booting' | 'none';
+	room?(): 'warm' | 'booting' | 'none' | 'full';
 	/** JVMs booting now. */
 	booting?(): number;
 	/** Called whenever `room()` or `booting()` may have changed. */
@@ -520,6 +521,8 @@ interface Jvm {
 	warm: boolean;
 	exited: boolean;
 	retiring: boolean;
+	/** Takes no new match, and retires once its last one ends (`drain`). */
+	draining: boolean;
 	released: boolean;
 	readonly matches: Map<string, Hosted>;
 	lastHeard: number;
@@ -560,7 +563,14 @@ export type JvmHostFactory = MatchHostFactory & {
 	handOverAll(): string[];
 	reapOnExit(): ReapResult;
 	/** JVMs this pool holds, with their matches: for diagnostics and tests. */
-	jvms(): { hostId: string; warm: boolean; matches: string[] }[];
+	jvms(): { hostId: string; warm: boolean; draining: boolean; matches: string[] }[];
+	/** Place nothing more into this JVM, and retire it once its matches end (a heap past `recycleWanted`). */
+	drain(hostId: string, why: string): void;
+	/**
+	 * Kill every JVM now and launch none again: the host failed, and its matches were moved. Each
+	 * match's exit still reaches its events, with `why`.
+	 */
+	abandon(why: string): void;
 };
 
 /**
@@ -591,7 +601,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		for (const listener of roomWatchers) listener();
 	};
 	const liveJvms = (): Jvm[] => [...jvms].filter((j) => !j.exited && !j.retiring && !j.released);
-	const hasRoom = (jvm: Jvm): boolean => jvm.matches.size < perJvm;
+	const hasRoom = (jvm: Jvm): boolean => jvm.matches.size < perJvm && !jvm.draining;
 
 	/* ── The record and the streams ── */
 
@@ -688,6 +698,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 			warm: from.warm,
 			exited: false,
 			retiring: false,
+			draining: false,
 			released: false,
 			matches: new Map(),
 			lastHeard: Date.now(),
@@ -868,8 +879,8 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	/** The JVM has no matches: retire it now, or after `idleMs` unless it is the warm one then. */
 	function idle(jvm: Jvm): void {
 		if (jvm.matches.size > 0 || jvm.exited || jvm.retiring || jvm.released) return;
-		if (closed || !warmWanted) {
-			retire(jvm, closed ? 'closing' : 'no match left, and no JVM is kept warm');
+		if (closed || !warmWanted || jvm.draining) {
+			retire(jvm, closed ? 'closing' : jvm.draining ? 'drained' : 'no match left, and no JVM is kept warm');
 			return;
 		}
 		if (jvm.idle !== null) clearTimeout(jvm.idle);
@@ -917,6 +928,9 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	function stopMatch(h: Hosted): void {
 		if (h.stopping || h.ended) return;
 		h.stopping = true;
+		// Out of the record now, not at its `stopped`: a JVM killed before that (remote, unconfirmed)
+		// would otherwise offer the match to the next server.
+		writeRecord(h.jvm);
 		h.jvm.transport.send(JSON.stringify({ t: 'stop', match: h.id }));
 		h.stopTimer = setTimeout(() => {
 			(h.events?.log ?? poolLog)({ evt: 'match-stop-unanswered', matchId: h.id, hostId: h.jvm.hostId, afterMs: matchStopMs });
@@ -1014,7 +1028,27 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	factory.watchRoom = (listener) => {
 		roomWatchers.push(listener);
 	};
-	factory.jvms = () => [...jvms].map((j) => ({ hostId: j.hostId, warm: j.warm, matches: [...j.matches.keys()] }));
+	factory.jvms = () => [...jvms].map((j) => ({ hostId: j.hostId, warm: j.warm, draining: j.draining, matches: [...j.matches.keys()] }));
+
+	factory.drain = (hostId: string, why: string) => {
+		const jvm = [...jvms].find((j) => j.hostId === hostId);
+		if (jvm === undefined || jvm.draining || jvm.exited || jvm.released) return;
+		jvm.draining = true;
+		poolLog({ evt: 'jvm-draining', id: hostId, why, matches: [...jvm.matches.keys()] });
+		idle(jvm);
+		notifyRoom();
+		replenish();
+	};
+
+	factory.abandon = (why: string) => {
+		closed = true;
+		if (retry !== null) clearTimeout(retry);
+		for (const jvm of [...jvms]) {
+			poolLog({ evt: 'jvm-abandoned', id: jvm.hostId, why, matches: [...jvm.matches.keys()] });
+			jvm.unresponsive = why;
+			jvm.transport.kill();
+		}
+	};
 
 	factory.close = () => {
 		closed = true;

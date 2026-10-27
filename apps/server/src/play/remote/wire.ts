@@ -48,8 +48,24 @@ export const HEARTBEAT_MS = 2000;
  * 48 h link probe (`docs/planning/forge-hosting-plan.md` §4.1).
  */
 export const FENCE_MS = 10_000;
+/**
+ * The longest a coordinator going down may ask an agent to hold its JVMs past the fencing window
+ * (`{op:'hold'}`). A deploy's restart re-attaches in seconds; the cap keeps a coordinator that
+ * never comes back from holding a claw's matches for long.
+ */
+export const HOLD_MAX_MS = 5 * 60_000;
 /** What a JVM costs beyond its heap (H8: RSS 1.24–1.27 GB at `-Xmx1000m`). */
 export const JVM_OVERHEAD_MB = 400;
+/** What the agent itself is allowed in the slice, beside its JVMs. */
+export const AGENT_RESERVE_MB = 100;
+
+/**
+ * The agent's fit rule, shared so the coordinator places by the same arithmetic the agent refuses
+ * by: the memory the slice must hold for JVMs of these heaps, the agent included.
+ */
+export function sliceNeedMb(xmxMbs: readonly number[]): number {
+	return xmxMbs.reduce((sum, x) => sum + x + JVM_OVERHEAD_MB, AGENT_RESERVE_MB);
+}
 /** A heap past this share of `-Xmx` after GC is reported as `recycleWanted`. */
 export const RECYCLE_HEAP_SHARE = 0.85;
 export const RELAY_PROTOCOL = 'cardtable-relay';
@@ -218,7 +234,13 @@ export type ToAgent =
 	| { op: 'forget'; h: string }
 	| { op: 'running'; req: number }
 	/** The coordinator's heartbeat, with how far it has taken each JVM's lines. */
-	| { op: 'ping'; acks: Record<string, number> };
+	| { op: 'ping'; acks: Record<string, number> }
+	/**
+	 * The coordinator is restarting (a deploy): do not fence for `ms` (at most `HOLD_MAX_MS`) after
+	 * the fencing window would have. The next coordinator's relay ends the hold; an unclean
+	 * coordinator death sends none, and fences at the window as before.
+	 */
+	| { op: 'hold'; ms: number };
 
 export interface JvmHealth {
 	hostId: string;

@@ -22,8 +22,10 @@ import { join } from 'node:path';
 import {
 	ARTIFACT_KINDS,
 	EMPTY_SHA,
+	AGENT_RESERVE_MB,
 	FENCE_MS,
 	HEARTBEAT_MS,
+	HOLD_MAX_MS,
 	HOST_ID,
 	JVM_OVERHEAD_MB,
 	RELAY_PROTOCOL,
@@ -31,6 +33,7 @@ import {
 	checkRequest,
 	openFrame,
 	sha256Hex,
+	sliceNeedMb,
 	type ArtifactKind,
 	type FromAgent,
 	type LaunchSpec,
@@ -40,8 +43,6 @@ import { Cgroups } from './cgroups.ts';
 import { Jvm, type Installed, type Log } from './jvm.ts';
 import { Store } from './store.ts';
 
-/** What the agent itself is allowed in the slice, beside its JVMs. */
-export const AGENT_RESERVE_MB = 100;
 /** A coordinator frame longer than this ends the session. */
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 
@@ -83,6 +84,9 @@ export class Agent {
 	private lastHeard: number;
 	private readonly heardFile: string;
 	private heardWritten = 0;
+	/** Until when a restarting coordinator asked us not to fence (`{op:'hold'}`); 0 when none. */
+	private holdUntil: number;
+	private readonly holdFile: string;
 	private fenced = false;
 	private server: Server | null = null;
 	private timers: NodeJS.Timeout[] = [];
@@ -102,6 +106,9 @@ export class Agent {
 		// The fencing clock survives a restart: an agent that restarts faster than the window
 		// must not keep a failed-over claw's JVMs alive by resetting it.
 		this.lastHeard = Math.min(this.now(), readHeard(this.heardFile) ?? this.now());
+		// So does a hold: the coordinator's restart and ours may overlap.
+		this.holdFile = join(opts.home, 'coordinator-hold');
+		this.holdUntil = readHeard(this.holdFile) ?? 0;
 		this.adopt();
 	}
 
@@ -179,7 +186,7 @@ export class Agent {
 	 */
 	tick(): void {
 		const silent = this.now() - this.lastHeard;
-		if (silent <= this.fenceMs) return;
+		if (silent <= this.fenceMs || this.now() < this.holdUntil) return;
 		const live = this.live();
 		if (live.length === 0) return;
 		const reason = `fenced: no word from the coordinator for ${Math.round(silent / 1000)} s (window ${this.fenceMs / 1000} s)`;
@@ -200,6 +207,13 @@ export class Agent {
 		this.heardWritten = this.lastHeard;
 		writeFileSync(`${this.heardFile}.tmp`, String(this.lastHeard));
 		renameSync(`${this.heardFile}.tmp`, this.heardFile);
+	}
+
+	/** A restarting coordinator's hold, kept on disk like the clock it extends. 0 ends it. */
+	private hold(until: number): void {
+		this.holdUntil = until;
+		writeFileSync(`${this.holdFile}.tmp`, String(until));
+		renameSync(`${this.holdFile}.tmp`, this.holdFile);
 	}
 
 	private heartbeat(): void {
@@ -282,6 +296,10 @@ export class Agent {
 		const session: Session = { socket, nonce: randomBytes(24).toString('base64url'), nextSeq: 1 };
 		this.session = session;
 		this.heard();
+		if (this.holdUntil !== 0) {
+			this.log('hold-ended', { note: 'a coordinator is back', heldMs: this.holdUntil - this.now() });
+			this.hold(0);
+		}
 		this.fenced = false;
 		socket.write(`HTTP/1.1 101 Switching Protocols\r\nupgrade: ${RELAY_PROTOCOL}\r\nconnection: Upgrade\r\nx-agent-nonce: ${session.nonce}\r\n\r\n`);
 		this.log('relay-open', { from: req.socket.remoteAddress });
@@ -357,6 +375,11 @@ export class Agent {
 			}
 			case 'running':
 				return this.emit({ t: 'running', req: m.req, hostIds: [...this.jvms.keys()] });
+			case 'hold': {
+				const ms = Math.min(Math.max(0, Number(m.ms) || 0), HOLD_MAX_MS);
+				this.log('hold', { ms, note: 'the coordinator is restarting: no fencing until the window plus this' });
+				return this.hold(this.now() + this.fenceMs + ms);
+			}
 		}
 	}
 
@@ -368,7 +391,7 @@ export class Agent {
 		if (!Array.isArray(spec.jvmFlags) || spec.jvmFlags.some((f) => typeof f !== 'string' || !f.startsWith('-'))) return 'jvmFlags: flags only';
 		const max = this.cgroups.slice().memoryMaxMb ?? this.opts.memoryMaxMb ?? null;
 		if (max !== null) {
-			const need = [...this.live().map((j) => j.xmxMb), spec.xmxMb].reduce((sum, x) => sum + x + JVM_OVERHEAD_MB, AGENT_RESERVE_MB);
+			const need = sliceNeedMb([...this.live().map((j) => j.xmxMb), spec.xmxMb]);
 			if (need > max) return `does not fit: ${need} MB needed (each JVM -Xmx + ${JVM_OVERHEAD_MB} MB, agent ${AGENT_RESERVE_MB} MB) in a ${max} MB slice`;
 		}
 		return null;

@@ -25,6 +25,17 @@ export { RemoteJvmLauncher } from './launcher.js';
 
 export const AGENT_KEY_ENV = 'CARDTABLE_AGENT_SIGNING_KEY';
 
+/** The agent could not be given this coordinator's jar, `res`, JDK or bridge: it cannot run our pin. */
+export class PinNotServable extends Error {
+	constructor(
+		readonly node: string,
+		cause: string,
+	) {
+		super(`${node} cannot be given this server's pin: ${cause}`);
+		this.name = 'PinNotServable';
+	}
+}
+
 export interface RemoteHost {
 	client: AgentClient;
 	launcher: RemoteJvmLauncher;
@@ -44,7 +55,12 @@ export async function connectRemoteHost(
 	if (keyText === '') throw new Error(`${AGENT_KEY_ENV} is not set`);
 	const log = opts.log ?? jsonLogger('remote');
 	const client = new AgentClient({ url: `http://${node}:${opts.port ?? AGENT_PORT}`, key: privateKeyFrom(keyText), fenceMs: opts.fenceMs, log });
-	const runtime = await pushRuntime(client, await packRuntime(config, join(config.bridgeCache, '..', 'agent-artifacts'), log), log);
+	let runtime: Awaited<ReturnType<typeof pushRuntime>>;
+	try {
+		runtime = await pushRuntime(client, await packRuntime(config, join(config.bridgeCache, '..', 'agent-artifacts'), log), log);
+	} catch (err) {
+		throw new PinNotServable(node, (err as Error).message);
+	}
 	await client.connect();
 	return { client, launcher: new RemoteJvmLauncher(client, runtime) };
 }
