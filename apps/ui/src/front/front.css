@@ -25,10 +25,15 @@
   padding: 14px;
 }
 
-.front-card--live {
+.front-live {
   grid-column: span 2;
-  align-items: center;
-  justify-content: center;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.front-live:not(:has(*)) {
+  display: none;
 }
 
 .front-card--patch-notes {

@@ -34,8 +34,8 @@
   letter-spacing: 0.05em;
   padding: 0 4px;
   border-radius: var(--hdk-radius-sm);
-  background: var(--color-danger-bg);
-  color: var(--color-on-danger-bg);
+  background: var(--danger-bg);
+  color: var(--danger-ink);
 }
 
 .featured-match__players {

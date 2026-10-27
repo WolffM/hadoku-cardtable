@@ -17,20 +17,11 @@
  * down by a CSS `transform` to whatever this banner slot is — never
  * re-laid-out, and never a line changed in `LiveBoard.tsx` itself.
  *
- * ## Muted — for this mount only, as far as the sound system allows
+ * ## Quiet — the match only, for this mount only
  *
- * `../sound/mute.ts` has exactly one gate, `isMuted()`, and it is a
- * PAGE-WIDE, PERSISTED preference — there is no per-component scope to ask
- * for, and `LiveBoard` calls `playRole`/`setMatchMusic` straight through it
- * with no prop this file could intercept without editing that component
- * (forbidden this wave). So this reads the viewer's real preference once on
- * mount, forces it on, and restores the READ value on unmount — the same
- * public API the sound settings panel uses, just scoped to this component's
- * lifetime by hand. The gap: a hard tab close while this is mounted (i.e.
- * while on the front page) leaves `true` persisted, overriding whatever the
- * viewer had chosen, until they unmute again. There is no way to do better
- * without a scoped mute concept in `../sound/`, which is out of this lane's
- * files.
+ * `holdMatchQuiet` (`../sound/index.ts`) keeps the board's own moments, `g.*` roles and music off
+ * while this is mounted; the front page's own `ui.*` cues still play, and the player's saved mute
+ * is never touched.
  */
 
 import { useEffect, useRef, useState, type RefObject } from 'react';
@@ -45,7 +36,7 @@ import {
   type MatchTransport,
 } from '../play/live/match.ts';
 import type { Fetch } from '../http.ts';
-import { isMuted, setMuted } from '../sound/mute.ts';
+import { holdMatchQuiet } from '../sound/index.ts';
 import { createReplayTransport, type ReplayClock } from '../replay/replayTransport.ts';
 import { fetchLatestReplay, fetchReplay } from '../replay/transport.ts';
 import './FeaturedMatch.css';
@@ -111,13 +102,7 @@ export function FeaturedMatch({ pick, makeTransport, fetchImpl }: FeaturedMatchP
   const viewportRef = useRef<HTMLDivElement>(null);
   const scale = useFitScale(viewportRef);
 
-  // Mute for exactly as long as this component is on the page — see this
-  // file's own header on why this is the best the sound system allows.
-  useEffect(() => {
-    const was = isMuted();
-    setMuted(true);
-    return () => setMuted(was);
-  }, []);
+  useEffect(() => holdMatchQuiet(), []);
 
   useEffect(() => {
     let live = true;

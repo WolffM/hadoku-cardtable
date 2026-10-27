@@ -59,6 +59,13 @@ let production: Mixer | null = null;
 /** The screen's music (`null`: a silent screen), and the match's while one is on it. */
 let screenMusic: string | null = null;
 let matchMusic: readonly string[] | null = null;
+/**
+ * Holds out against a match's own sound: while any is held, its moments, its `g.*` roles and its
+ * music stay off, and the page's `ui.*` cues still play. For a board shown to be glanced at from
+ * another screen (the front page's featured match). Never persisted: the player's own mute is
+ * theirs, and a closed tab releases every hold.
+ */
+let quietHolds = 0;
 let unsubscribeSound: (() => void) | null = null;
 /** A music take's catalogue name, by file (`/api/sounds/assignments`'s `names`). */
 let trackNames: Readonly<Record<string, string>> = {};
@@ -76,6 +83,7 @@ export function resetRolePlayerForTests(): void {
   production = null;
   screenMusic = null;
   matchMusic = null;
+  quietHolds = 0;
   trackNames = {};
   musicTrack = null;
   trackListeners.clear();
@@ -139,13 +147,29 @@ function playEvent(event: SoundEvent): void {
   }
 }
 
+
+/** Hold the match quiet until the returned release is called (once; a second call does nothing). */
+export function holdMatchQuiet(): () => void {
+  quietHolds += 1;
+  applyMusic();
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    quietHolds -= 1;
+    applyMusic();
+  };
+}
+
 /** Play a role, from the viewer's own seat. */
 export function playRole(role: string): void {
+  if (quietHolds > 0 && !role.startsWith('ui.')) return;
   playEvent({ role });
 }
 
 /** Play a board moment's events, each after its own delay. */
 export function playSoundEvents(events: readonly DelayedSoundEvent[]): void {
+  if (quietHolds > 0) return;
   for (const { delayMs, ...event } of events) {
     if (delayMs === undefined || delayMs <= 0) playEvent(event);
     else setTimeout(() => playEvent(event), delayMs);
@@ -163,7 +187,7 @@ function applyPrefs(): void {
 
 function applyMusic(): void {
   try {
-    const wanted = screenMusic === null ? null : (matchMusic ?? screenMusic);
+    const wanted = screenMusic === null ? null : ((quietHolds > 0 ? null : matchMusic) ?? screenMusic);
     const p = player();
     p.loop?.(isMuted() ? null : wanted, getMusicPick);
     publishTrack(p);

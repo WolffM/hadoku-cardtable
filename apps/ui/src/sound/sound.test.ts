@@ -23,6 +23,7 @@ import { SoundSettings } from '../settings/SoundSettings.tsx';
 import { LEVEL_KEYS, MUSIC_PICKS_KEY, MUTE_KEY, getLevel, getMusicPick, isMuted, resetMutedForTests, setMusicPick, setMuted } from './mute.ts';
 import { matchMusicRoles, useMatchMusic } from './match-music.ts';
 import {
+  holdMatchQuiet,
   hoverControl,
   playRole,
   playSoundEvents,
@@ -163,6 +164,19 @@ describe('music', () => {
     setMatchMusic(null);
     setScreenMusic(null);
     expect(loops).toEqual(['music.lobby', ['music.match.R', 'music.match'], 'music.lobby', null]);
+  });
+
+  it('a match held quiet keeps the screen’s music, and gets its own back once released', () => {
+    const loops = looper();
+    setScreenMusic('music.lobby');
+    const release = holdMatchQuiet();
+    setMatchMusic(['music.match']);
+    expect(loops.at(-1)).toBe('music.lobby');
+    release();
+    release();
+    expect(loops.at(-1)).toEqual(['music.match']);
+    setMatchMusic(null);
+    setScreenMusic(null);
   });
 
   it('a match mounted before the screen sets its music still plays the match music', () => {

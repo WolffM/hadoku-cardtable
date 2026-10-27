@@ -20,6 +20,7 @@ import { cleanup, render, waitFor } from '@testing-library/react';
 import { parseServerFrame } from '@hadoku/forge-wire';
 
 import type { Fetch } from '../http.ts';
+import { playRole, resetRolePlayerForTests, setRolePlayer } from '../sound/index.ts';
 import { isMuted, resetMutedForTests, setMuted } from '../sound/mute.ts';
 import { createReplayTransport } from '../replay/replayTransport.ts';
 import type { ReplayData } from '../replay/transport.ts';
@@ -28,6 +29,7 @@ import { FeaturedMatch } from './FeaturedMatch.tsx';
 afterEach(() => {
   cleanup();
   resetMutedForTests();
+  resetRolePlayerForTests();
 });
 
 function gameView(names: readonly [string, string]): Record<string, unknown> {
@@ -83,14 +85,20 @@ describe('FeaturedMatch', () => {
     stub.clock.dispose();
   });
 
-  it('mutes sound for exactly as long as it is mounted, restoring whatever the viewer had chosen', async () => {
+  it('keeps the match quiet while mounted, lets the page’s own cues play, and never touches the saved mute', async () => {
     setMuted(false);
+    const played: string[] = [];
+    setRolePlayer({ play: (e) => void played.push(e.role) });
     const data = replayData('m-live', ['Carol', 'Dave']);
     const stub = createReplayTransport(data);
     const { unmount } = render(createElement(FeaturedMatch, { pick: { matchId: 'm-live', roomId: 'r-1' }, makeTransport: () => stub.transport }));
-    expect(isMuted()).toBe(true);
-    unmount();
+    playRole('g.game-start');
+    playRole('ui.select');
+    expect(played).toEqual(['ui.select']);
     expect(isMuted()).toBe(false);
+    unmount();
+    playRole('g.game-start');
+    expect(played).toEqual(['ui.select', 'g.game-start']);
     stub.clock.dispose();
   });
 
