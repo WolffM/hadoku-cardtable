@@ -228,7 +228,7 @@ describe('choosing each game deck', () => {
 		expect(choose(s, 0, banned)).toEqual({ ok: false, reason: 'not-yours' });
 	});
 
-	it('plays each deck once: a played deck cannot be chosen again, and game 3 plays the last ones', () => {
+	it('plays each deck once: a played deck cannot be chosen again, and game 3 still waits for the press though one deck is all that is left', () => {
 		let s = banpickAll(drawn());
 		const play = (a: string, b: string): void => {
 			const one = choose(s, 0, a);
@@ -249,7 +249,13 @@ describe('choosing each game deck', () => {
 		after = gameOver(s, { seriesOver: false, winner: 1 });
 		if (!after.ok) throw new Error(after.reason);
 		s = after.state;
-		// One unplayed deck each: nothing to choose, so game 3 is dealt at once.
+		// AF402: one unplayed deck each is still a choice, not an auto-pick ("it
+		// gives the opponent a chance to see it") — game 3 sits in `choose`,
+		// unrevealed, until both press, the same as every other game.
+		expect(s.phase).toBe('choose');
+		expect(s.choices).toEqual([null, null]);
+		expect(viewOfGauntlet(s, 0, [false, false], info).choice).toEqual({ mine: null, chosen: [false, false] });
+		play(a3!, b3!);
 		expect(s.phase).toBe('playing');
 		expect(gameDecks(s)).toEqual([a3, b3]);
 		expect(viewOfGauntlet(s, null, [false, false], info).decks.filter((d) => d.played), 'game 3’s decks are played once it is over').toHaveLength(4);

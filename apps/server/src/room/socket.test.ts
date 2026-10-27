@@ -60,6 +60,7 @@ import {
 } from '@hadoku/shared';
 
 import type { DraftRoom, DraftRooms } from './draftRooms.js';
+import { identityFromHeaders } from './identity.js';
 import type { Lobby } from './lobby.js';
 import type { CubePool } from './pool.js';
 
@@ -161,7 +162,13 @@ async function bootLobby(): Promise<Lobby> {
 }
 
 async function boot(
-	deps: { rateLimit?: { capacity: number; refillAmount: number; refillIntervalMs: number }; botPickMs?: number } = {},
+	deps: {
+		rateLimit?: { capacity: number; refillAmount: number; refillIntervalMs: number };
+		botPickMs?: number;
+		/** AF410: a test's own clock, so it never waits out the real 30 s. */
+		seatReleaseMs?: number;
+		schedule?: (fn: () => void, ms: number) => void;
+	} = {},
 ): Promise<Harness> {
 	const rooms = roomsMod.createDraftRooms({ ...roomsMod.singlePoolResolver(pool) });
 	const lobby = await bootLobby();
@@ -179,6 +186,8 @@ async function boot(
 		},
 		rateLimit: deps.rateLimit,
 		botPickMs: deps.botPickMs,
+		seatReleaseMs: deps.seatReleaseMs,
+		schedule: deps.schedule,
 	});
 	await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
 	const port = (http.address() as AddressInfo).port;
@@ -975,5 +984,109 @@ describe('picks are rate limited per participant', () => {
 		back.send(pickCard(startedRoomId, next.cardId));
 		await waitUntil(() => errors(back).length > 0, 'the rate limit');
 		expect(errors(back)[0]?.code).toBe('rate-limited');
+	});
+});
+
+/**
+ * AF410 (ruled 2026-10-26: 30 s). `constructedRoomId` plays no draft, so this
+ * is the one place in the file that seats somebody at its table directly
+ * (`Lobby.sit`) rather than through a draft's own join — the gate this
+ * socket layer puts in front of a draft is a different question from the
+ * seat-release timer, which fires for ANY connection this server holds (the
+ * module header's own point: `room/feed.ts`'s socket shares the same
+ * handshake). `schedule` is injected so no test waits out the real 30 s.
+ */
+describe('AF410: a seat with nobody connected to it, for the window', () => {
+	/** The id a socket connecting with `edgeHeaders(userKey)` mints — independent of its actual socket id, since a friend key is present. */
+	function participantIdFor(userKey: string): string {
+		return identityFromHeaders(edgeHeaders(userKey) as unknown as Parameters<typeof identityFromHeaders>[0], 'unused');
+	}
+
+	/** `userKey` joins `constructedRoomId` and sits at its one table. Returns the ids the test reads back by. */
+	async function seatedAt(userKey: string): Promise<{ tableId: string; memberId: string }> {
+		const memberId = participantIdFor(userKey);
+		expect(live().lobby.join(constructedRoomId, { id: memberId, name: `user-${userKey}` }).ok).toBe(true);
+		const tableId = live().lobby.get(constructedRoomId)!.tables[0]!.id;
+		expect(live().lobby.sit(constructedRoomId, tableId, memberId)).toBe(true);
+		return { tableId, memberId };
+	}
+
+	/** Connects as `userKey` and waits for this server's own `connected` log line — proof `liveConnections` has already counted it, not just that the client's `connect` event fired. */
+	async function connectCounted(userKey: string): ReturnType<typeof connect> {
+		const before = live().lines.filter((l) => l.evt === 'connected' && l.participantId === participantIdFor(userKey)).length;
+		const peer = await connect(live().port, edgeHeaders(userKey));
+		await waitUntil(
+			() => live().lines.filter((l) => l.evt === 'connected' && l.participantId === participantIdFor(userKey)).length > before,
+			`${userKey}’s connection to be counted`,
+		);
+		return peer;
+	}
+
+	it('gives the seat back once the window elapses with nobody reconnected, and logs it', async () => {
+		await harness?.close();
+		const timers: Array<() => void> = [];
+		harness = await boot({ schedule: (fn) => timers.push(fn) });
+		const { tableId, memberId } = await seatedAt('alice');
+
+		const alice = await connectCounted('alice');
+		alice.socket.disconnect();
+		await waitUntil(() => timers.length > 0, 'the release timer to be scheduled');
+		// Scheduled, not fired: the seat is untouched until the window is up.
+		expect(live().lobby.seats(constructedRoomId, tableId).map((s) => s.memberId)).toContain(memberId);
+
+		timers.shift()!();
+		expect(live().lobby.seats(constructedRoomId, tableId).map((s) => s.memberId)).not.toContain(memberId);
+		expect(live().lines).toContainEqual({ evt: 'seat-released-disconnected', participantId: memberId, roomId: constructedRoomId, tableId });
+	});
+
+	it('keeps the seat when a reload reconnects inside the window — the timer still runs, but finds them connected again', async () => {
+		await harness?.close();
+		const timers: Array<() => void> = [];
+		harness = await boot({ schedule: (fn) => timers.push(fn) });
+		const { tableId, memberId } = await seatedAt('alice');
+
+		const alice = await connectCounted('alice');
+		alice.socket.disconnect();
+		await waitUntil(() => timers.length > 0, 'the release timer to be scheduled');
+
+		// A reload: the SAME participant id (the edge headers mint it, never the
+		// socket), a brand new connection, well inside the window — and the timer
+		// scheduled on the first disconnect is never cancelled, it is just a no-op
+		// once it runs (the module header's own point).
+		const reloaded = await connectCounted('alice');
+		timers.shift()!();
+		expect(live().lobby.seats(constructedRoomId, tableId).map((s) => s.memberId)).toContain(memberId);
+		expect(live().lines.filter((l) => l.evt === 'seat-released-disconnected')).toEqual([]);
+		reloaded.socket.disconnect();
+	});
+
+	it('never releases a seat while its table has a live match', async () => {
+		await harness?.close();
+		const timers: Array<() => void> = [];
+		harness = await boot({ schedule: (fn) => timers.push(fn) });
+		const { tableId, memberId } = await seatedAt('alice');
+		expect(live().lobby.setTableMatch(constructedRoomId, tableId, 'm-live')).toBe(true);
+
+		const alice = await connectCounted('alice');
+		alice.socket.disconnect();
+		await waitUntil(() => timers.length > 0, 'the release timer to be scheduled');
+		timers.shift()!();
+		expect(live().lobby.seats(constructedRoomId, tableId).map((s) => s.memberId)).toContain(memberId);
+	});
+
+	it('a second tab’s own connection keeps the window from ever starting', async () => {
+		await harness?.close();
+		const timers: Array<() => void> = [];
+		harness = await boot({ schedule: (fn) => timers.push(fn) });
+		await seatedAt('alice');
+
+		const first = await connectCounted('alice');
+		const second = await connectCounted('alice');
+		first.socket.disconnect();
+		// Still one tab open: nothing scheduled.
+		await new Promise((r) => setTimeout(r, 20));
+		expect(timers).toHaveLength(0);
+		second.socket.disconnect();
+		await waitUntil(() => timers.length > 0, 'the release timer to be scheduled once the LAST tab is gone');
 	});
 });

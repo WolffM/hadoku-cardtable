@@ -1852,6 +1852,77 @@ describe('Lobby.sit / stand / setSeatReady', () => {
 		const second = await openLobby({ dir });
 		expect(second.seats(id, added.table.id)).toEqual([{ memberId: ALICE.id, ready: false }]);
 	});
+
+	/**
+	 * AF410 (ruled 2026-10-26: 30 s). `releaseAbandonedSeats` is the action
+	 * alone — "whose last connection has been gone for 30 s" and "a reload
+	 * inside it keeps the seat" are `room/socket.ts`'s own timer, proved
+	 * there (`socket.test.ts`); this is only what the lobby does once that
+	 * timer decides to call it, and what stops it from ever touching a live
+	 * match or a Gauntlet in progress (ruling 13: "nobody sits or stands").
+	 */
+	describe('Lobby.releaseAbandonedSeats (AF410)', () => {
+		async function seatedTable(): Promise<{ lobby: Lobby; id: string; tableId: string }> {
+			const lobby = await openLobby({ dir: await tempDir() });
+			const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+			if (!made.ok) throw new Error('create failed');
+			const id = made.room.id;
+			const tableId = made.room.tables[0]!.id;
+			expect(lobby.join(id, BOB).ok).toBe(true);
+			expect(lobby.sit(id, tableId, ALICE.id) && lobby.sit(id, tableId, BOB.id)).toBe(true);
+			return { lobby, id, tableId };
+		}
+
+		it('gives the seat back and forgets the held deck, the same as a stand', async () => {
+			const { lobby, id, tableId } = await seatedTable();
+			expect(lobby.setPlayerState(id, ALICE.id, { held: 'a deck' })).toBe(true);
+			expect(lobby.releaseAbandonedSeats(ALICE.id)).toEqual([{ roomId: id, tableId }]);
+			expect(lobby.seats(id, tableId)).toEqual([{ memberId: BOB.id, ready: false }]);
+			expect(lobby.playerState(id, ALICE.id)).toBeUndefined();
+		});
+
+		it('is a no-op for a member who holds no seat anywhere', async () => {
+			const { lobby } = await seatedTable();
+			expect(lobby.releaseAbandonedSeats('fk:not-a-member')).toEqual([]);
+		});
+
+		it('never releases a seat while its table has a live match', async () => {
+			const { lobby, id, tableId } = await seatedTable();
+			expect(lobby.setTableMatch(id, tableId, 'm-live')).toBe(true);
+			expect(lobby.releaseAbandonedSeats(ALICE.id)).toEqual([]);
+			expect(lobby.seats(id, tableId).map((s) => s.memberId)).toContain(ALICE.id);
+		});
+
+		it('never releases a seat a Gauntlet holds — ruling 13, "nobody sits or stands" while one is under way', async () => {
+			const { lobby, id, tableId } = await seatedTable();
+			expect(lobby.setMode(id, ALICE.id, { mode: 'gauntlet', modeOptions: {} }).ok).toBe(true);
+			const revealing = { ...newGauntlet(), phase: 'reveal' as const };
+			expect(lobby.setGauntlet(id, revealing, tableId)).toBe(true);
+			expect(lobby.releaseAbandonedSeats(ALICE.id)).toEqual([]);
+			expect(lobby.seats(id, tableId).map((s) => s.memberId)).toContain(ALICE.id);
+			// Done, or never drawn: the table is free again.
+			expect(lobby.setGauntlet(id, { ...revealing, phase: 'done' as const, winner: 0 }, tableId)).toBe(true);
+			expect(lobby.releaseAbandonedSeats(ALICE.id)).toEqual([{ roomId: id, tableId }]);
+		});
+
+		it('releases every seat the member holds, across tables and rooms, and only theirs', async () => {
+			const lobby = await openLobby({ dir: await tempDir() });
+			const first = lobby.create(ALICE, { name: 'Room one', gameType: 'constructed-1v1', clientMode: 'builtin' });
+			const second = lobby.create(ALICE, { name: 'Room two', gameType: 'constructed-1v1', clientMode: 'builtin' });
+			if (!first.ok || !second.ok) throw new Error('create failed');
+			expect(lobby.join(first.room.id, BOB).ok).toBe(true);
+			const t1 = first.room.tables[0]!.id;
+			const t2 = second.room.tables[0]!.id;
+			expect(lobby.sit(first.room.id, t1, ALICE.id) && lobby.sit(first.room.id, t1, BOB.id)).toBe(true);
+			expect(lobby.sit(second.room.id, t2, ALICE.id)).toBe(true);
+			const released = lobby.releaseAbandonedSeats(ALICE.id);
+			expect(released.sort((a, b) => a.roomId.localeCompare(b.roomId))).toEqual(
+				[{ roomId: first.room.id, tableId: t1 }, { roomId: second.room.id, tableId: t2 }].sort((a, b) => a.roomId.localeCompare(b.roomId)),
+			);
+			expect(lobby.seats(first.room.id, t1)).toEqual([{ memberId: BOB.id, ready: false }]);
+			expect(lobby.seats(second.room.id, t2)).toEqual([]);
+		});
+	});
 });
 
 describe('the codec migrates a stored room with no tables', () => {

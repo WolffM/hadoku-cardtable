@@ -3719,6 +3719,40 @@ describe('a Gauntlet table', () => {
 		expect(room.format, "the room's own pool is untouched").toBe(POWER_2010);
 	});
 
+	/**
+	 * AF407 (operator, 2026-10-26: "Gauntlet flips a coin for every game" — the
+	 * loser-chooses rule, AF172, is for a real SERIES, Bo3 or a pod, never a
+	 * Gauntlet game). `room/series.ts`'s GAUNTLET format sizes `table.series`
+	 * Bo3 purely so `recordGameResult` has a `between` to put the table in —
+	 * never a series whose loser earns a say — but `routes.ts:2047`'s
+	 * `previousWinner` reads that same `table.series.games` regardless of who
+	 * is playing. Evidence: production `room-match-started` for every game
+	 * after the first of `r-c08cb995827a` (games 2, 3, 5) carried a `chooser`.
+	 */
+	it('AF407: never asks play-or-draw by a previous game’s loser, though the table’s own series remembers who won it', async () => {
+		const h = await boot();
+		const room = Object.assign(h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]), { mode: 'gauntlet' as const, modeOptions: { family: 'modern' as const } });
+		expect((await call(h, 'POST', `/api/tables/rooms/${ROOM}/sit`, {}, edgeHeaders('alice'))).status).toBe(200);
+		const g = atChoice();
+		h.lobby.setGauntlet!(ROOM, g);
+		const mine = g.decks.find((_, i) => g.marks[i]?.act === 'pick' && g.marks[i]?.by === 0)!;
+		const chosen = await call(h, 'POST', `/api/tables/rooms/${ROOM}/gauntlet/choose`, { deck: mine }, edgeHeaders('alice'));
+		expect(chosen.status).toBe(200);
+		expect(chosen.body.phase, 'the deal landed: this is a real game to start, deck and all').toBe('playing');
+
+		// A previous game's own record — exactly the shape `recordGameResult`
+		// leaves on `table.series` once Bo3-sized `between` machinery records a
+		// game (never `seating`/`done`, so `newSeries` reads false): alice (seat
+		// 0) won it.
+		room.tables[0]!.series = { ...room.tables[0]!.series, phase: 'between', games: [{ matchId: 'm-gauntlet-game1', winner: 0 }] };
+
+		const pending = call(h, 'POST', '/api/play/matches', { room: ROOM, bot: true }, edgeHeaders('alice'));
+		await untilHost(h, 1, pending);
+		(h.hosts.at(-1) as ReplayHost | undefined)?.push(...OPENING);
+		expect((await pending).status).toBe(201);
+		expect(h.specs[0]!, 'a Gauntlet game never carries a chooser, whatever the table’s own series remembers').not.toHaveProperty('chooser');
+	});
+
 	/** Ruling 13.4: a drawn Gauntlet holds the table until it is decided, and then the room is free again. */
 	it('locks the table from the draw until the Gauntlet is decided; then the seat stands, and a Ready draws a new Gauntlet', async () => {
 		const h = await boot();
