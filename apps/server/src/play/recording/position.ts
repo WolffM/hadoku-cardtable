@@ -1,8 +1,7 @@
 /**
  * A seat's position: the folded board it is looking at, and the last thing it
- * was told, over its own raw bridge lines so far. `replay-determinism.jvm.test.ts`
- * proved these two — the recorded log's `board` and `prompt` fields are them —
- * and this is where they moved to, so the recorder and the test share one copy.
+ * was told, over its own raw bridge lines so far — the recorded log's `board` and `prompt`
+ * fields.
  *
  * ## Why a digest, not the board itself
  *
@@ -45,7 +44,7 @@ export function isStateLine(line: BridgeLine, seat?: number): boolean {
 /**
  * A property at its default may be sent or omitted depending on how Forge
  * batched the packet (`Mana: []`, `Loyalty: "0"`) — not the game, so it is
- * dropped before anything is compared or hashed. `replay-determinism.jvm.test.ts`'s own finding.
+ * dropped before anything is compared or hashed.
  */
 function isDefault(x: unknown): boolean {
 	if (typeof x !== 'object' || x === null || !('t' in x)) return false;

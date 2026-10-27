@@ -133,10 +133,12 @@ recording is the durable copy, a finished match can be dropped from memory.
 
 The operator: replays force every decision from the log; the AI never decides in a replay.
 
-**Proven for two humans (2026-10-27).** `replay-determinism.jvm.test.ts` (`[nightly]`) plays a
-seeded two-human match, then replays only its commands on a fresh JVM. Eight replays across three
-deck pairs (100–269 commands, up to turn 11) reached every recorded position and ended on identical
-boards. The deal is identical from the seed alone: the same hands and library order. What the
+**Not proven — corrected the same day.** `replay-determinism.jvm.test.ts` (`[nightly]`) plays a
+seeded two-human match, then replays only its commands on a fresh JVM. Eight local replays across
+three deck pairs (100–269 commands, up to turn 11) ended on identical boards. On the claws it went
+red 2 of 2 at 646f07a6, and on hokon only the final board matched, never the prompts. The cause is in
+"Wave 77 results" below: an action log records what was sent, not what Forge applied. The test
+left main with the rebuild it tests and lives on branch `w77-d`. The deal is identical from the seed alone: the same hands and library order. What the
 recorder has to get right, each found by a red run:
 
 - **Compare the folded board, never frames.** Forge batches state into packets on its own clock,
@@ -199,10 +201,17 @@ Lane D's workaround made it worse. It skipped a pass once a later board digest m
 priority barely changes the board. The skip passed a seat that had not passed, and the next command
 waited forever on "Waiting for A…". It is removed; a cross-seat burst rule replaced it.
 
-**To ship rebuild:** the bridge must say which acts it consumed.
-- `PlayBridge.java` echoes each act it applies, with the input it applied it to. The recorder logs
-  only consumed acts, and a rebuild sends only those.
-- This is an engine/bridge change. Wave 76 owns `PlayBridge.java` this wave, so it is the next wave's
+**Second cause, found when the claws went red** (`PlayBridge.java`'s own `setPhaseDelayOff` comment):
+a seat's act goes to Forge over its net layer (`NetGameController`), and Forge's server runs every
+decoded message on a fresh, unsynchronized thread (`FThreads.invokeInBackgroundThread`). Two acts
+sent in order can be applied in either order, and the bridge, which is the client side, cannot see
+which input took which.
+
+**To ship rebuild:** Forge must say which acts it applied, in the order it applied them.
+- The echo must come from Forge's server side, where the input is consumed, so it is a fork change:
+  a jar built on a claw and a pin switch. The recorder logs only applied acts, in applied order,
+  and a rebuild sends only those.
+- It is an engine change, so it is a wave of its own: the next wave's
   first item.
 - Then rebase `w77-d`, re-run its `[nightly]` jar test to green, and wire it. The `ask` number on
   reply lines (646f07a6) already makes the reply mapping exact.

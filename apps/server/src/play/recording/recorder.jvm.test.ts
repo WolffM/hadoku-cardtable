@@ -1,8 +1,7 @@
 /**
  * §C, "Done when" (`docs/planning/wave77-2026-10-27.md`): a real match, through
  * the wrapped host factory and the registry's own `emit`, against actual
- * Forge — never the engine's own behaviour (that is
- * `replay-determinism.jvm.test.ts`'s job, and the proof it already is one).
+ * Forge — never the engine's own behaviour.
  * This proves only the plumbing: every command the match actually sends comes
  * back out of the action log as one `cmd` line, and every envelope the
  * registry emits for `WATCHER_SEAT` comes back out of the public stream as
