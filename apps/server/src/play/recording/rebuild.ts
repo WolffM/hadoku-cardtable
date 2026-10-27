@@ -1,13 +1,14 @@
 /**
  * Turn an action log back into a public stream, for a match whose public stream has expired
- * (`docs/planning/wave77-2026-10-27.md` §D). The action log (contract 1) is every `BridgeCommand`
- * a match sent to Forge, each one tagged with the sending seat's POSITION at that moment — its
- * folded board and its last prompt, exactly what `replay-determinism.jvm.test.ts`'s "run B" proved
- * deterministic for a real two-human match (8/8 identical, 2026-10-27). This file makes that
- * algorithm production-grade: it starts the header's own spec on a fresh JVM through a host
- * factory the CALLER controls (in production, the server's shared start-queue factory, so a
- * rebuild queues behind real matches and never ahead of them — `start-queue.ts`), and sends each
- * recorded command once its seat reaches the recorded position.
+ * (`docs/planning/wave77-2026-10-27.md` §D). The action log (contract 1, lane C's `writer.ts`) is
+ * every `BridgeCommand` a match sent to Forge, each one tagged with the sending seat's POSITION
+ * at that moment — its folded board and its last prompt, exactly what
+ * `replay-determinism.jvm.test.ts`'s "run B" proved deterministic for a real two-human match
+ * (8/8 identical, 2026-10-27). This file makes that algorithm production-grade: it starts the
+ * header's own spec on a fresh JVM through a host factory the CALLER controls (in production, the
+ * server's shared start-queue factory, so a rebuild queues behind real matches and never ahead of
+ * them — `start-queue.ts`), and sends each recorded command once its seat reaches the recorded
+ * position.
  *
  * **The drive talks to a BARE `MatchHost`, never to `createMatchRegistry`/`Match`.** An earlier
  * version of this file drove the rebuild through the registry so it could reuse `Match`'s own
@@ -25,92 +26,58 @@
  * `sendState`/`openView`/`finishSeat` put on the watcher channel for the first human seat
  * (`match.ts`'s `watcherSource()`), read from `match.ts` (import only) rather than re-derived.
  *
- * Lane boundary (wave 77 is split across lanes by file): `recording/position.ts`
- * (`boardDigest`/`lastPrompt`, the position half of contract 1) is lane C's to write; it had not
- * landed when this file did, so `boardDigest`/`lastPrompt`/`foldBoard` below are copied from
- * `replay-determinism.jvm.test.ts` rather than imported. Each copy says so where it starts. Once
- * C lands, this file imports them from `./position.js` and the copies here are deleted — no other
- * change to this file's own algorithm.
+ * **Two further robustness fixes a real jar run also forced** (see the drive loop's own comments
+ * for the evidence each one is grounded in):
+ * - A `reply`/`abort` is gated on its own ask (by ordinal, already how its callId is mapped), not
+ *   on board+prompt — a prompt is a separate channel from an ask, and can read a later or earlier
+ *   stage than the ask it answers depending on how Forge batches the two.
+ * - A bare pass (`selectButtonOk`, nothing selected) that never reaches its recorded position is
+ *   skipped outright rather than failed: `Match`'s stop policy shows the player a window Forge's
+ *   own engine would otherwise auto-pass through, and with no `Match` here to insert that stop,
+ *   there is nothing left for the pass to do.
+ *
+ * Reuses lane C's own modules throughout rather than a parallel copy: `position.ts`'s
+ * `boardDigest`/`lastPrompt`/`createSeatPosition`/`isStateLine` for a seat's position,
+ * `recorder.ts`'s `forgePin`/`bridgeDigest` for "the running server's own Forge identity",
+ * `writer.ts`'s line types for contract 1's shape, `retention.ts`'s file suffixes, and
+ * `deck-colors.ts`'s `seatDeckColors` for the public header's `decks`.
  */
 
-import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
 import { gunzipSync, gzipSync } from 'node:zlib';
 
 import type { ServerEnvelope } from '@hadoku/shared';
 
+import { seatDeckColors, type DeckCosts } from '../deck-colors.js';
 import { winnerSeatFromLosers } from '../match.js';
 import { jvmHostConfig, type BridgeCommand, type BridgeLine, type MatchHost, type MatchHostFactory, type MatchSpec } from '../host.js';
-import { createProjector, foldFrames, type StateFrame } from '../visibility.js';
+import { createProjector, type StateFrame } from '../visibility.js';
+import { bridgeDigest, forgePin } from './recorder.js';
+import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from './retention.js';
+import { createSeatPosition, isStateLine, type SeatPosition } from './position.js';
+import type { ActionsCmdLine, ActionsEndLine, ActionsHeader, PublicEndLine, PublicEnvLine, PublicHeader } from './writer.js';
 
-/* ── Contract 1: the two files on disk ──────────────────────────────────────────────────── */
+/* ── Contract 1: the two files on disk, narrowed to this file's own needs ──────────────────────
+ *
+ * `writer.ts` types `ActionsHeader.spec`/`ActionsCmdLine.cmd` as `unknown` (it does not depend on
+ * `host.ts`'s types); this file needs them as the real `MatchSpec`/`BridgeCommand` they always are
+ * once parsed back — `readActionLog` below is where that trust is taken, same as `http/replays.ts`
+ * already takes it reading the very same files.
+ */
 
-export interface ActionHeaderLine {
-	t: 'header';
-	v: 1;
-	matchId: string;
-	roomId: string;
-	/** The Forge submodule sha this match was played on. */
-	pin: string;
-	/** The sha-256 of `PlayBridge.java`'s bytes this match was played on. */
-	bridge: string;
-	server?: string;
-	startedAt: string;
-	/** The `MatchSpec` sent to the JVM. `seed` is always set — a recorder assigns one when play did not. */
-	spec: MatchSpec;
-}
-
-export interface ActionCmdLine {
-	t: 'cmd';
-	seat: number | null;
-	/** That seat's `boardDigest` just before this command was sent. */
-	board: string;
-	/** That seat's `lastPrompt` just before this command was sent. */
-	prompt: string;
-	cmd: BridgeCommand;
-}
-
-export interface ActionEndLine {
-	t: 'end';
-	endedAt: string;
-	reason: string;
-}
-
+export type ActionHeaderLine = Omit<ActionsHeader, 'spec'> & { spec: MatchSpec };
+export type ActionCmdLine = Omit<ActionsCmdLine, 'cmd'> & { cmd: BridgeCommand };
+export type ActionEndLine = ActionsEndLine;
 export type ActionLogLine = ActionHeaderLine | ActionCmdLine | ActionEndLine;
-
-export interface PublicHeaderLine {
-	t: 'header';
-	v: 1;
-	matchId: string;
-	roomId: string;
-	players: [string, string];
-	ai: [boolean, boolean];
-	decks: [string | null, string | null];
-	startedAt: string;
-}
-
-export interface PublicEnvLine {
-	t: 'env';
-	/** ms since the public stream's own start — a rebuild's start, not the original match's. */
-	at: number;
-	env: ServerEnvelope;
-}
-
-export interface PublicEndLine {
-	t: 'end';
-	endedAt: string;
-	winner: 0 | 1 | null;
-}
-
-export type PublicStreamLine = PublicHeaderLine | PublicEnvLine | PublicEndLine;
+export type PublicStreamLine = PublicHeader | PublicEnvLine | PublicEndLine;
 
 export function actionLogPath(dir: string, matchId: string): string {
-	return join(dir, `${matchId}.actions.jsonl.gz`);
+	return join(dir, `${matchId}${ACTIONS_SUFFIX}`);
 }
 
 export function publicStreamPath(dir: string, matchId: string): string {
-	return join(dir, `${matchId}.public.jsonl.gz`);
+	return join(dir, `${matchId}${PUBLIC_SUFFIX}`);
 }
 
 function readJsonlGz(path: string): unknown[] {
@@ -118,89 +85,33 @@ function readJsonlGz(path: string): unknown[] {
 	return text.split('\n').filter((l) => l.length > 0).map((l) => JSON.parse(l) as unknown);
 }
 
-function writeJsonlGz(path: string, lines: readonly unknown[]): void {
-	const text = lines.map((l) => JSON.stringify(l)).join('\n') + (lines.length > 0 ? '\n' : '');
-	writeFileSync(path, gzipSync(Buffer.from(text, 'utf8')));
-}
-
 export function readActionLog(dir: string, matchId: string): ActionLogLine[] {
 	return readJsonlGz(actionLogPath(dir, matchId)) as ActionLogLine[];
 }
 
-/** Test/recorder-facing: write a `<matchId>.actions.jsonl.gz` in contract-1 shape. */
-export function writeActionLog(dir: string, matchId: string, lines: readonly ActionLogLine[]): void {
-	writeJsonlGz(actionLogPath(dir, matchId), lines);
-}
-
-export function writePublicStream(dir: string, matchId: string, lines: readonly PublicStreamLine[]): void {
-	writeJsonlGz(publicStreamPath(dir, matchId), lines);
-}
-
-/* ── Position: a seat's board + its last prompt ──────────────────────────────────────────
- *
- * Copied from `replay-determinism.jvm.test.ts`'s `boardOf`/`lastPrompt`/`isState` (the same
- * fold-drop-defaults-sort-hash this file's module doc describes). THIS WHOLE BLOCK MOVES to
- * `recording/position.ts` when lane C lands (wave 77 contract 1); this file then imports
- * `boardDigest`/`lastPrompt` from there and deletes everything between here and the matching
- * "end copied block" comment below.
+/**
+ * Only the PUBLIC half: the action log already exists (this is what `rebuild` reads it FROM) and
+ * must never be touched — `writer.ts`'s `createMatchRecordingWriter` writes both files together as
+ * one match's whole recording, which is right for the recorder but wrong here: it would overwrite
+ * the real action log with an empty one, since a rebuild never calls its `actionCmd`.
  */
-
-const STATE_METHODS = new Set(['setGameView', 'applyDelta', 'openView']);
-const isState = (l: BridgeLine): boolean => l.t === 'frame' && STATE_METHODS.has((l.frame as { method?: string }).method ?? '');
-
-/** A property at its default may be absent or sent empty, depending on how Forge batched it. */
-function isDefaultValue(x: unknown): boolean {
-	if (typeof x !== 'object' || x === null || !('t' in x)) return false;
-	const v = (x as { v?: unknown }).v;
-	return v === undefined || v === null || v === false || v === 0 || v === '' || v === '0' || (Array.isArray(v) && v.length === 0);
+export function writePublicStream(dir: string, matchId: string, lines: readonly PublicStreamLine[]): void {
+	const text = lines.map((l) => JSON.stringify(l)).join('\n') + (lines.length > 0 ? '\n' : '');
+	writeFileSync(publicStreamPath(dir, matchId), gzipSync(Buffer.from(text, 'utf8')));
 }
 
-/** The folded, default-stripped, sorted board — as a comparable JSON string, not yet hashed. */
-export function foldBoard(frames: readonly StateFrame[]): string {
-	const state = foldFrames(frames);
-	const normal = [...state.entries()].map(
-		([k, o]) => [k, Object.fromEntries(Object.entries(o).filter(([, x]) => !isDefaultValue(x)).sort(([a], [b]) => a.localeCompare(b)))] as const,
-	);
-	return JSON.stringify(normal.sort(([a], [b]) => a.localeCompare(b)));
-}
-
-/** The board a seat ends up with, packet boundaries and sequence numbers aside — hashed, per contract 1. */
-export function boardDigest(lines: readonly BridgeLine[], seat: number): string {
-	const frames = lines.filter((l) => isState(l) && l.t === 'frame' && l.seat === seat).map((l) => (l as { frame: unknown }).frame as StateFrame);
-	return createHash('sha256').update(foldBoard(frames)).digest('hex');
-}
-
-/** What a player is shown that is not board state, most recently: the text of their last prompt. */
-export function lastPrompt(lines: readonly BridgeLine[], seat: number): string {
-	for (let i = lines.length - 1; i >= 0; i--) {
-		const l = lines[i]!;
-		if (l.t === 'frame' && l.seat === seat && (l.frame as { method?: string }).method === 'showPromptMessage') return (l.frame as { message: string }).message;
-	}
-	return '';
-}
-/* ── end copied block ── */
-
-/* ── canRebuild ──────────────────────────────────────────────────────────────────────────── */
+/* ── canRebuild ──────────────────────────────────────────────────────────────────────────────── */
 
 export interface RunningForge {
-	pin: string;
+	pin: string | null;
 	bridge: string;
 }
 
-/**
- * The jar and bridge THIS process would run a match on — the same two facts the header line
- * records. A small local resolver (wave 77 §D point 5): lane C had not committed its own version
- * of "the running server's pin and bridge" when this file was written, so this reads them the
- * same way the jar and the bridge source are already resolved for a real match
- * (`jvmHostConfig`'s `config.jar`/`config.bridgeSource`) rather than waiting on C's helper.
- */
+/** This server's own Forge identity, via `recorder.ts`'s `forgePin`/`bridgeDigest` — the same two facts the header line records, computed the same way the recorder computes them for its own identity. */
 export function currentForge(env: NodeJS.ProcessEnv = process.env): RunningForge | null {
 	const available = jvmHostConfig(env);
 	if (!available.ok) return null;
-	return {
-		pin: basename(available.config.jar, '.jar'),
-		bridge: createHash('sha256').update(readFileSync(available.config.bridgeSource)).digest('hex'),
-	};
+	return { pin: forgePin(available.config.jar), bridge: bridgeDigest(available.config.bridgeSource) };
 }
 
 export type CanRebuildResult = { ok: true } | { ok: false; reason: string };
@@ -208,41 +119,39 @@ export type CanRebuildResult = { ok: true } | { ok: false; reason: string };
 /**
  * True only when: every seat is human (the AI never decides in a replay, and an AI seat's
  * decisions are not commands, so they are not in the log); the header's `pin` and `bridge` match
- * this server's own; and the spec carries a seed. Otherwise false, with the reason.
+ * this server's own (never when either is unknown — an unpinned jar proves nothing); and the spec
+ * carries a seed. Otherwise false, with the reason.
  */
 export function canRebuild(header: Pick<ActionHeaderLine, 'pin' | 'bridge' | 'spec'>, running: RunningForge | null = currentForge()): CanRebuildResult {
 	if (header.spec.seats.some((s) => s.ai)) {
 		return { ok: false, reason: 'a seat is AI: the AI never decides in a replay, and an AI seat has no commands in the log to rebuild from' };
 	}
 	if (running === null) return { ok: false, reason: 'Forge is not available on this server (CARDTABLE_FORGE_JAR/CARDTABLE_FORGE_RES)' };
+	if (header.pin === null || running.pin === null) return { ok: false, reason: 'the jar is not pinned (an unpinned jar proves nothing about identity)' };
 	if (header.pin !== running.pin) return { ok: false, reason: `played on a different Forge jar (log ${header.pin}, running ${running.pin})` };
 	if (header.bridge !== running.bridge) return { ok: false, reason: `played on a different bridge (log ${header.bridge}, running ${running.bridge})` };
 	if (header.spec.seed === undefined) return { ok: false, reason: 'the spec has no seed' };
 	return { ok: true };
 }
 
-/* ── rebuild ─────────────────────────────────────────────────────────────────────────────── */
+/* ── rebuild ─────────────────────────────────────────────────────────────────────────────────── */
 
 export interface RebuildDeps {
 	recordingsDir: string;
 	/** The match host factory to start the rebuild's JVM through — in production, the server's own queued factory (`start-queue.ts`), so a rebuild queues behind real matches and never ahead of them. */
 	host: MatchHostFactory;
 	log: (entry: Record<string, unknown>) => void;
-	/** Default 30 s: how long a position may go unreached before the rebuild gives up (§D point 2). Also the effective boot budget — nothing else waits for the JVM to boot. */
+	/** Folds a seat's deck into its colours for the public header's `decks` — same dep, same shape, as `recorder.ts`'s own `RecorderDeps.deckCosts`. */
+	deckCosts: DeckCosts;
+	/** Default 30 s: how long a position may go unreached before the rebuild gives up (§D point 2). */
 	positionBudgetMs?: number;
 	/** Override for a test; defaults to `currentForge()`. */
 	running?: RunningForge | null;
 }
 
 export type RebuildOutcome =
-	| { ok: true; header: PublicHeaderLine; lines: PublicStreamLine[]; perSeatBoard: [string, string] }
+	| { ok: true; header: PublicHeader; lines: PublicStreamLine[]; perSeatBoard: [string, string] }
 	| { ok: false; reason: string };
-
-function deckName(deck: string | null): string | null {
-	if (deck === null) return null;
-	const m = /^Name=(.+)$/m.exec(deck);
-	return m?.[1]?.trim() ?? null;
-}
 
 export const commandSeat = (c: BridgeCommand): number | null => ('seat' in c ? c.seat : null);
 
@@ -262,7 +171,7 @@ function askIds(lines: readonly BridgeLine[]): Map<number, string[]> {
 function playerIdOf(lines: readonly BridgeLine[], seat: number): number | null {
 	for (const l of lines) {
 		if (l.t === 'frame' && l.seat === seat && (l.frame as { method?: string }).method === 'openView') {
-			return ((l.frame as { payload: { myPlayers: number[] } }).payload.myPlayers[0]) ?? null;
+			return (l.frame as { payload: { myPlayers: number[] } }).payload.myPlayers[0] ?? null;
 		}
 	}
 	return null;
@@ -277,33 +186,38 @@ function playerIdOf(lines: readonly BridgeLine[], seat: number): number | null {
  * before any state that arrived ahead of it, exactly as `openView`'s own "early" queue does), and
  * the `gameover` line's `finishGame` frame, once, if the match reached one.
  */
-function watcherFramesFrom(timeline: readonly { line: BridgeLine; at: number }[], sourceSeat: number, allSeats: readonly { seat: number; playerId: number | null }[]): { frame: unknown; at: number }[] {
-	const out: { frame: unknown; at: number }[] = [];
+function watcherFramesFrom(matchId: string, timeline: readonly { line: BridgeLine; at: number }[], sourceSeat: number, allSeats: readonly { seat: number; playerId: number | null }[]): { env: ServerEnvelope; at: number }[] {
+	const out: { env: ServerEnvelope; at: number }[] = [];
 	const projector = createProjector(null);
 	const early: { state: StateFrame; at: number }[] = [];
 	let opened = false;
+	let seq = 0;
+	// `match.ts`'s own watcher cursor is `{ epoch: this.epoch, seq: this.watcher.seq }`; a rebuild
+	// has no live epoch to resync against, so it mints its own, scoped to this matchId — the
+	// envelope's `cursor` only has to be internally consistent for a stream nothing resumes.
+	const envelope = (frame: unknown): ServerEnvelope => {
+		seq += 1;
+		return { matchId, cursor: { epoch: `rebuild:${matchId}`, seq }, frame: frame as ServerEnvelope['frame'] };
+	};
 	for (const { line: l, at } of timeline) {
-		if (l.t === 'frame' && l.seat === sourceSeat) {
-			const method = (l.frame as { method?: string }).method ?? '';
-			if (STATE_METHODS.has(method)) {
-				const state = l.frame as StateFrame;
-				if (state.method === 'openView') {
-					out.push({ frame: state, at });
-					opened = true;
-					for (const e of early.splice(0)) out.push({ frame: projector.project(e.state), at: e.at });
-					continue;
-				}
-				if (!opened) {
-					early.push({ state, at });
-					continue;
-				}
-				out.push({ frame: projector.project(state), at });
+		if (isStateLine(l, sourceSeat) && l.t === 'frame') {
+			const state = l.frame as StateFrame;
+			if (state.method === 'openView') {
+				out.push({ env: envelope(state), at });
+				opened = true;
+				for (const e of early.splice(0)) out.push({ env: envelope(projector.project(e.state)), at: e.at });
+				continue;
 			}
+			if (!opened) {
+				early.push({ state, at });
+				continue;
+			}
+			out.push({ env: envelope(projector.project(state)), at });
 			continue;
 		}
 		if (l.t === 'gameover' && allSeats.find((s) => s.seat === sourceSeat)?.playerId !== null) {
 			out.push({
-				frame: { kind: 'notify', method: 'finishGame', ...(l.losers === undefined ? {} : { losers: l.losers }), ...(l.lost === undefined ? {} : { lost: l.lost }) },
+				env: envelope({ kind: 'notify', method: 'finishGame', ...(l.losers === undefined ? {} : { losers: l.losers }), ...(l.lost === undefined ? {} : { lost: l.lost }) }),
 				at,
 			});
 		}
@@ -357,6 +271,10 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 
 	const raw: BridgeLine[] = [];
 	const timeline: { line: BridgeLine; at: number }[] = [];
+	// `position.ts`'s own incremental tracker: O(board size) per line pushed, not O(lines so far)
+	// per poll — the recorder's reason for it applies just as much to a 30 s wait that polls every
+	// 20 ms over what can be thousands of lines.
+	const positions: [SeatPosition, SeatPosition] = [createSeatPosition(0), createSeatPosition(1)];
 	let lastLineAt = Date.now();
 	let exited: string | null = null;
 	const t0 = Date.now();
@@ -367,6 +285,8 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 			line: (l) => {
 				raw.push(l);
 				timeline.push({ line: l, at: Date.now() - t0 });
+				positions[0].push(l);
+				positions[1].push(l);
 				lastLineAt = Date.now();
 			},
 			exit: (reason) => {
@@ -379,9 +299,9 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 	}
 
 	const budget = deps.positionBudgetMs ?? 30_000;
-	let diverged: string | null = null;
 	// How far ahead a stalled plain pass may look for a later checkpoint it was absorbed into (below).
 	const CATCH_UP_LOOKAHEAD = 20;
+	let diverged: string | null = null;
 	let i = 0;
 	while (i < cmds.length) {
 		const c = cmds[i]!;
@@ -393,7 +313,8 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 		// board+prompt — see that branch's own comment for why.
 		const burst = !isReply && prior !== undefined && commandSeat(prior.cmd) === seat && prior.board === c.board && prior.prompt === c.prompt;
 		if (seat !== null && !isReply && !burst) {
-			const there = (): boolean => lastPrompt(raw, seat) === c.prompt && boardDigest(raw, seat) === c.board;
+			const position = positions[seat]!;
+			const there = (): boolean => position.prompt() === c.prompt && position.digest() === c.board;
 			// A plain pass (nothing selected) that `Match`'s stop policy showed the player in the
 			// live run — Forge's own engine, with no `Match` here to insert that stop, can race
 			// straight through it. The board is seat-independent (Forge's raw per-connection stream
@@ -408,7 +329,7 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 			// this way: anything with a real choice attached (a card, a reply) still has to be sent,
 			// or it is a genuine divergence.
 			const eligibleForCatchUp = c.cmd.t === 'act' && c.cmd.frame.method === 'selectButtonOk';
-			const caughtUpAt = (): number => (eligibleForCatchUp ? cmds.findIndex((later, j) => j > i && j <= i + CATCH_UP_LOOKAHEAD && later.board === boardDigest(raw, seat)) : -1);
+			const caughtUpAt = (): number => (eligibleForCatchUp ? cmds.findIndex((later, j) => j > i && j <= i + CATCH_UP_LOOKAHEAD && later.board === position.digest()) : -1);
 			const deadline = Date.now() + budget;
 			const settled = (): boolean => Date.now() - lastLineAt > 80;
 			let caught = -1;
@@ -439,7 +360,7 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 				diverged =
 					exited !== null
 						? `the rebuild's JVM exited before reaching position for command ${i}: ${exited}`
-						: `command ${i} (${c.cmd.t} seat ${seat}) never reached the recorded position: prompt wanted ${JSON.stringify(c.prompt)}, got ${JSON.stringify(lastPrompt(raw, seat))}; board wanted ${c.board.slice(0, 12)}, got ${boardDigest(raw, seat).slice(0, 12)}`;
+						: `command ${i} (${c.cmd.t} seat ${seat}) never reached the recorded position: prompt wanted ${JSON.stringify(c.prompt)}, got ${JSON.stringify(position.prompt())}; board wanted ${c.board.slice(0, 12)}, got ${position.digest().slice(0, 12)}`;
 				break;
 			}
 		}
@@ -488,26 +409,22 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 	const gameoverLine = raw.find((l): l is Extract<BridgeLine, { t: 'gameover' }> => l.t === 'gameover');
 	const winnerSeat = gameoverLine === undefined ? null : winnerSeatFromLosers(allSeats, gameoverLine.losers);
 
-	const watcherFrames = watcherFramesFrom(timeline, 0, allSeats);
-	const envs: PublicEnvLine[] = watcherFrames.map(({ frame, at }, i) => ({
-		t: 'env',
-		at,
-		env: { matchId: header.matchId, cursor: { epoch: `rebuild:${matchId}`, seq: i + 1 }, frame: frame as ServerEnvelope['frame'] },
-	}));
+	const watcherFrames = watcherFramesFrom(matchId, timeline, 0, allSeats);
+	const envs: PublicEnvLine[] = watcherFrames.map(({ env, at }) => ({ t: 'env', at, env }));
 
-	const publicHeader: PublicHeaderLine = {
+	const publicHeader: PublicHeader = {
 		t: 'header',
 		v: 1,
 		matchId: header.matchId,
 		roomId: header.roomId,
 		players: [header.spec.seats[0].name, header.spec.seats[1].name],
 		ai: [header.spec.seats[0].ai, header.spec.seats[1].ai],
-		decks: [deckName(header.spec.seats[0].deck), deckName(header.spec.seats[1].deck)],
+		decks: [0, 1].map((seat) => seatDeckColors(header.spec, seat, deps.deckCosts)),
 		startedAt: header.startedAt,
 	};
 	const publicEnd: PublicEndLine = { t: 'end', endedAt, winner: winnerSeat };
 	const outLines: PublicStreamLine[] = [publicHeader, ...envs, publicEnd];
 	writePublicStream(deps.recordingsDir, matchId, outLines);
 	deps.log({ evt: 'rebuild-ok', matchId, commands: cmds.length, envelopes: envs.length });
-	return { ok: true, header: publicHeader, lines: outLines, perSeatBoard: [boardDigest(raw, 0), boardDigest(raw, 1)] };
+	return { ok: true, header: publicHeader, lines: outLines, perSeatBoard: [positions[0].digest(), positions[1].digest()] };
 }

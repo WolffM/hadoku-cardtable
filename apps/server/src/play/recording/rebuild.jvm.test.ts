@@ -6,41 +6,38 @@
  *   always run.
  * - `rebuild` runs one at a time per server — fast, a stub host, always run.
  * - A real two-human match, played exactly as `replay-determinism.jvm.test.ts`'s "run A" plays
- *   one, is recorded into a contract-1 action log by this test (lane C's recorder had not landed
- *   when this was written — see `./rebuild.ts`'s own header for the exact lane boundary), its
- *   public stream is never written, and `rebuild()` is asked to recover it on a second JVM. Both
- *   seats' final board digests and the watcher channel's last folded state must match the live
- *   run's. `[nightly]`: a played match plus its rebuild is minutes of JVM, gated the same way
+ *   one, is recorded through lane C's own `createMatchRecordingWriter` (`writer.ts`), its public
+ *   stream deleted (as if it had expired), and `rebuild()` is asked to recover it on a second JVM.
+ *   Both seats' final board digests and the watcher channel's last folded state must match the
+ *   live run's. `[nightly]`: a played match plus its rebuild is minutes of JVM, gated the same way
  *   `replay-determinism.jvm.test.ts` is. `CARDTABLE_REBUILD_DUMP=<dir>` writes the recorded
  *   commands to `cmds.jsonl` there, for inspecting a divergence without re-running the JVM.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { ClientFrameSchema, deltaKey, DELTA_TYPE, type ServerFrame } from '@hadoku/forge-wire';
+import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 
-import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeCommand, type HostEvents, type MatchHost, type MatchHostFactory, type MatchSpec } from '../host.js';
+import { seatDeckColors, type DeckCosts } from '../deck-colors.js';
+import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeCommand, type BridgeLine, type HostEvents, type MatchHost, type MatchHostFactory, type MatchSpec } from '../host.js';
 import { createMatchRegistry, WATCHER_SEAT } from '../match.js';
+import { boardDigest, lastPrompt } from './position.js';
 import { nightly } from '../scenario.js';
 import { COLD_STARTS, queueColdStarts } from '../start-queue.js';
 import { foldFrames, type StateFrame, type WireObj } from '../visibility.js';
+import { createMatchRecordingWriter, type PublicHeader } from './writer.js';
 import {
 	actionLogPath,
-	boardDigest,
 	canRebuild,
 	commandSeat,
 	currentForge,
-	foldBoard,
-	lastPrompt,
 	publicStreamPath,
+	readActionLog,
 	rebuild,
-	writeActionLog,
 	type ActionCmdLine,
-	type ActionEndLine,
-	type ActionHeaderLine,
-	type PublicEnvLine,
 } from './rebuild.js';
 
 const available = jvmHostConfig();
@@ -68,6 +65,12 @@ function precon(name: string): string {
 const recordingsDir = process.env.CARDTABLE_RECORDINGS_DIR ?? join(tmpdir(), 'cardtable-rebuild-test');
 mkdirSync(recordingsDir, { recursive: true });
 
+/** The same cost map `deck-colors.ts`'s own `roomDeckCosts` falls back to when no format is given. */
+const deckCosts: DeckCosts = () => LIBRARY_CARD_COSTS;
+
+/** A seat's board, from the watcher channel's own frames: tag each as a fake seat-0 bridge line and fold it the same way `position.ts`'s `boardDigest` folds a real one. No format-specific copy needed — `isStateLine` already filters to the three state methods. */
+const boardOfEnvelopeFrames = (frames: readonly ServerFrame[]): string => boardDigest(frames.map((frame) => ({ t: 'frame', seat: 0, frame })) as BridgeLine[], 0);
+
 /* ── canRebuild: fast, no JVM ─────────────────────────────────────────────────────────────── */
 
 describe('canRebuild', () => {
@@ -88,6 +91,11 @@ describe('canRebuild', () => {
 	it('refuses when this server cannot resolve its own Forge', () => {
 		const r = canRebuild({ pin: 'pin-1', bridge: 'bridge-1', spec: specWith(1, false) }, null);
 		expect(r).toEqual({ ok: false, reason: expect.stringContaining('not available') as unknown as string });
+	});
+
+	it('refuses an unpinned jar on either side', () => {
+		expect(canRebuild({ pin: null, bridge: 'bridge-1', spec: specWith(1, false) }, running).ok).toBe(false);
+		expect(canRebuild({ pin: 'pin-1', bridge: 'bridge-1', spec: specWith(1, false) }, { pin: null, bridge: 'bridge-1' }).ok).toBe(false);
 	});
 
 	it('refuses a different jar (pin)', () => {
@@ -125,27 +133,25 @@ describe('rebuild: one at a time per server', () => {
 	it('never starts the second while the first is still running', async () => {
 		const dir = join(recordingsDir, 'mutex');
 		mkdirSync(dir, { recursive: true });
-		const headerFor = (matchId: string): ActionHeaderLine => ({
-			t: 'header',
-			v: 1,
-			matchId,
-			roomId: 'r',
-			pin: 'p',
-			bridge: 'b',
-			startedAt: new Date().toISOString(),
-			spec: { seed: 1, seats: [{ name: 'A', ai: false, deck: null }, { name: 'B', ai: false, deck: null }] },
-		});
-		// One command the stub host will never reach the recorded position for, so the drive loop
-		// spends its whole `positionBudgetMs` waiting — a deterministic, short duration that proves
-		// the second call waits for it.
+		const writerFor = (matchId: string) =>
+			createMatchRecordingWriter({
+				dir,
+				matchId,
+				actionsHeader: { matchId, roomId: 'r', pin: 'p', bridge: 'b', server: 'test', startedAt: new Date().toISOString(), spec: { seed: 1, seats: [{ name: 'A', ai: false, deck: null }, { name: 'B', ai: false, deck: null }] } },
+				publicHeader: { matchId, roomId: 'r', players: ['A', 'B'], ai: [false, false], decks: [null, null], startedAt: new Date().toISOString() },
+				log: () => {},
+			});
 		// A reply, not a bare pass: a bare selectButtonOk that never reaches its position is now
 		// deliberately skipped rather than timed out (rebuild.ts's own "Forge races past a stop
 		// Match would have shown" fallback), so the mutex test needs a command the drive loop can
 		// never skip — a reply waits for its ask, which this stub host never produces.
-		const cmd: ActionCmdLine = { t: 'cmd', seat: 0, board: 'never-reached', prompt: 'never-reached', cmd: { t: 'reply', seat: 0, callId: 'never-mapped', result: null } };
-		const end: ActionEndLine = { t: 'end', endedAt: new Date().toISOString(), reason: 'test' };
-		writeActionLog(dir, 'mutex-1', [headerFor('mutex-1'), cmd, end]);
-		writeActionLog(dir, 'mutex-2', [headerFor('mutex-2'), cmd, end]);
+		const cmd: Omit<ActionCmdLine, 't'> = { seat: 0, board: 'never-reached', prompt: 'never-reached', cmd: { t: 'reply', seat: 0, callId: 'never-mapped', result: null } };
+		for (const matchId of ['mutex-1', 'mutex-2']) {
+			const writer = writerFor(matchId);
+			writer.actionCmd(cmd);
+			await writer.finish({ endedAt: new Date().toISOString(), reason: 'test' }, { endedAt: new Date().toISOString(), winner: null });
+			rmSync(publicStreamPath(dir, matchId)); // simulate "expired" — only the action log is used
+		}
 
 		const order: string[] = [];
 		// A host that never says anything, so the one command above never reaches its recorded
@@ -156,7 +162,7 @@ describe('rebuild: one at a time per server', () => {
 			order.push(`start:${label}`);
 			return { send: () => {}, stop: () => {} };
 		};
-		const depsFor = (label: string) => ({ recordingsDir: dir, host: stubHostFor(label), log: () => {}, positionBudgetMs: 60, running: { pin: 'p', bridge: 'b' } });
+		const depsFor = (label: string) => ({ recordingsDir: dir, host: stubHostFor(label), log: () => {}, deckCosts, positionBudgetMs: 60, running: { pin: 'p', bridge: 'b' } });
 
 		const [r1, r2] = await Promise.all([
 			rebuild('mutex-1', depsFor('mutex-1')).then((r) => {
@@ -177,10 +183,6 @@ describe('rebuild: one at a time per server', () => {
 
 /* ── a real match, rebuilt on a second JVM ──────────────────────────────────────────────────── */
 
-const WATCHER_STATE_METHODS = new Set(['setGameView', 'applyDelta', 'openView']);
-const asStateFrames = (frames: readonly ServerFrame[]): StateFrame[] =>
-	frames.filter((f) => WATCHER_STATE_METHODS.has((f as { method?: string }).method ?? '')) as unknown as StateFrame[];
-
 describe.skipIf(!available.ok || !nightly)(title, () => {
 	afterAll(async () => {
 		await waitUntil(() => liveJvmCount() === 0, 'every JVM to exit', 20_000);
@@ -197,8 +199,8 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 		};
 
 		// ---- Play a real match, recording its action log and its live watcher stream. ----
-		const raw: import('../host.js').BridgeLine[] = [];
-		const cmds: ActionCmdLine[] = [];
+		const raw: BridgeLine[] = [];
+		const cmds: Omit<ActionCmdLine, 't'>[] = [];
 		let hostSpec: MatchSpec | null = null;
 		let lastLineAt = Date.now();
 		const sent: { seat: number; envelope: import('@hadoku/shared').ServerEnvelope }[] = [];
@@ -220,7 +222,7 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 					...host,
 					send: (command: BridgeCommand) => {
 						const seat = commandSeat(command);
-						cmds.push({ t: 'cmd', seat, board: seat === null ? '' : boardDigest(raw, seat), prompt: seat === null ? '' : lastPrompt(raw, seat), cmd: command });
+						cmds.push({ seat, board: seat === null ? '' : boardDigest(raw, seat), prompt: seat === null ? '' : lastPrompt(raw, seat), cmd: command });
 						host.send(command);
 					},
 				};
@@ -370,30 +372,40 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 			writeFileSync(join(dump, 'cmds.jsonl'), cmds.map((c) => JSON.stringify(c)).join('\n'));
 		}
 
-		// ---- Write the action log (contract 1); the public stream is never written, as if it had expired. ----
+		// ---- Record it through lane C's own writer; delete the public stream, as if it had expired. ----
 		const forge = currentForge();
 		expect(forge).not.toBeNull();
-		const header: ActionHeaderLine = {
-			t: 'header',
-			v: 1,
+		const startedAt = new Date(t0).toISOString();
+		const publicHeader: Omit<PublicHeader, 't' | 'v'> = {
 			matchId,
 			roomId: 'rebuild-test-room',
-			pin: forge!.pin,
-			bridge: forge!.bridge,
-			server: 'rebuild.jvm.test',
-			startedAt: new Date(t0).toISOString(),
-			spec: hostSpec!,
+			players: [hostSpec!.seats[0].name, hostSpec!.seats[1].name],
+			ai: [hostSpec!.seats[0].ai, hostSpec!.seats[1].ai],
+			decks: [0, 1].map((seat) => seatDeckColors(hostSpec!, seat, deckCosts)),
+			startedAt,
 		};
-		const end: ActionEndLine = { t: 'end', endedAt: new Date().toISOString(), reason: 'driver-stopped' };
-		writeActionLog(recordingsDir, matchId, [header, ...cmds, end]);
+		const writer = createMatchRecordingWriter({
+			dir: recordingsDir,
+			matchId,
+			actionsHeader: { matchId, roomId: 'rebuild-test-room', pin: forge!.pin, bridge: forge!.bridge, server: 'rebuild.jvm.test', startedAt, spec: hostSpec! },
+			publicHeader,
+			log: () => {},
+		});
+		for (const c of cmds) writer.actionCmd(c);
+		await writer.finish({ endedAt: new Date().toISOString(), reason: 'driver-stopped' }, { endedAt: new Date().toISOString(), winner: null });
 		expect(existsSync(actionLogPath(recordingsDir, matchId))).toBe(true);
+		rmSync(publicStreamPath(recordingsDir, matchId)); // simulate "expired" — only the action log is used below
 		expect(existsSync(publicStreamPath(recordingsDir, matchId))).toBe(false);
+
+		const written = readActionLog(recordingsDir, matchId);
+		const header = written[0];
+		if (header === undefined || header.t !== 'header') throw new Error('no header in what was just written');
 		expect(canRebuild(header)).toEqual({ ok: true });
 
 		// ---- Rebuild it on a second JVM, through the same kind of queued factory a real server uses. ----
 		const jvmR = queueColdStarts(jvmHostFactory(available.config, { spare: false, log: () => {} }), COLD_STARTS, () => {});
 		const tR = Date.now();
-		const result = await rebuild(matchId, { recordingsDir, host: jvmR, log: () => {} });
+		const result = await rebuild(matchId, { recordingsDir, host: jvmR, log: () => {}, deckCosts });
 		const rebuildMs = Date.now() - tR;
 		jvmR.close?.();
 		await waitUntil(() => liveJvmCount() === 0, 'the rebuild\'s JVM to exit', 20_000);
@@ -404,10 +416,10 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 		expect(result.perSeatBoard).toEqual(liveBoard);
 		expect(existsSync(publicStreamPath(recordingsDir, matchId))).toBe(true);
 
-		const rebuiltEnvs = result.lines.filter((l): l is PublicEnvLine => l.t === 'env');
+		const rebuiltEnvs = result.lines.filter((l) => l.t === 'env');
 		expect(rebuiltEnvs.length).toBeGreaterThan(0);
-		const liveWatcherBoard = foldBoard(asStateFrames(liveWatcherFrames));
-		const rebuiltWatcherBoard = foldBoard(asStateFrames(rebuiltEnvs.map((e) => e.env.frame)));
+		const liveWatcherBoard = boardOfEnvelopeFrames(liveWatcherFrames);
+		const rebuiltWatcherBoard = boardOfEnvelopeFrames(rebuiltEnvs.map((e) => (e.env as import('@hadoku/shared').ServerEnvelope).frame));
 		expect(rebuiltWatcherBoard).toEqual(liveWatcherBoard);
 	}, 900_000);
 });
