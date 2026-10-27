@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { DeckCosts } from '../deck-colors.js';
 import type { BridgeLine, HostEvents, MatchHost, MatchHostFactory, MatchSpec } from '../host.js';
-import { bridgeDigest, createRecorder, forgePin, recordingsDir, serverVersion } from './recorder.js';
+import { bridgeDigest, createRecorder, forgePin, serverVersion } from './recorder.js';
 
 let dir: string;
 
@@ -74,13 +74,6 @@ describe('forgePin / bridgeDigest / serverVersion', () => {
 	});
 });
 
-describe('recordingsDir', () => {
-	it('defaults under ~/.local/share/cardtable, and honours CARDTABLE_RECORDINGS_DIR', () => {
-		expect(recordingsDir({})).toMatch(/\.local\/share\/cardtable\/recordings$/);
-		expect(recordingsDir({ CARDTABLE_RECORDINGS_DIR: '/tmp/x' })).toBe('/tmp/x');
-	});
-});
-
 describe('createRecorder', () => {
 	it('assigns a random seed when the spec carries none, and keeps one it was given', async () => {
 		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
@@ -143,8 +136,8 @@ describe('createRecorder', () => {
 		events.line({ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'showPromptMessage', message: 'Priority: A' } } as BridgeLine);
 		host.send({ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } });
 		host.send({ t: 'stop' });
+		// Written at the game's end, while its JVM is still up for the over-grace: a replay does not wait for the exit.
 		recorder.onGameOver({ id: 'm-1', endedAt: Date.now(), winner: 'A', winnerSeat: 0, concededBy: null, spec: spec(1) });
-		events.exit('clean');
 
 		expect(inner.sends).toEqual([{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } }, { t: 'stop' }]);
 		await vi.waitFor(() => {
@@ -157,11 +150,12 @@ describe('createRecorder', () => {
 		expect(actions[1]).toMatchObject({ t: 'cmd', seat: 0, prompt: 'Priority: A', cmd: { t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } } });
 		expect((actions[1] as unknown as { board: string }).board).toMatch(/^[0-9a-f]{64}$/);
 		expect(actions[2]).toMatchObject({ t: 'cmd', seat: null, prompt: '', board: '', cmd: { t: 'stop' } });
-		expect(actions[3]).toMatchObject({ t: 'end', reason: 'clean' });
+		expect(actions[3]).toMatchObject({ t: 'end', reason: 'game-over' });
 
 		const pub = linesOf(join(dir, 'm-1.public.jsonl.gz'));
 		expect(pub[0]).toMatchObject({ t: 'header', v: 1, matchId: 'm-1', roomId: 'r-1', players: ['A', 'B'], ai: [false, false] });
 		expect(pub[pub.length - 1]).toMatchObject({ t: 'end', winner: 0 });
+		events.exit('clean');
 		expect(exit).toBeDefined();
 	});
 

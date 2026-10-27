@@ -85,7 +85,7 @@ import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { attachDraftSocket } from './room/socket.js';
 import { attachRoomFeed } from './room/feed.js';
 import { attachPlay, coldStartsFrom, createFeatured, featuredCandidates, jvmHostConfig, jvmHostFactory, roomDeckCosts, roomFormatNames, spellCopierLookup, tableGame, type PlayHandle } from './play/index.js';
-import { bridgeDigest, createRecorder, forgePin, recordingsDir, serverVersion } from './play/recording/recorder.js';
+import { bridgeDigest, createRecorder, forgePin, serverVersion } from './play/recording/recorder.js';
 import { sweepRecordings } from './play/recording/retention.js';
 import { attachReplays } from './http/replays.js';
 import { attachStream, attachStreamRoutes, streamLayout } from './stream/index.js';
@@ -713,7 +713,7 @@ const deckCosts = roomDeckCosts(tables.library, defaultCubeCards);
 // see that file's own doc). `pin`/`bridge`/`server` are each read once, at boot,
 // from values this server already has — never a `git` shell-out at runtime.
 const recordingsLog = jsonLogger('cardtable-recording');
-const RECORDINGS_DIR = recordingsDir();
+const RECORDINGS_DIR = CONFIG.recordingsDir;
 const recorder = createRecorder({
 	dir: RECORDINGS_DIR,
 	identity: {

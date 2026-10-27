@@ -136,6 +136,9 @@ export const CONFIG = {
 	/** A friend's Cube Cobra imports, flat `<id>.json` (`CARDTABLE_CUBES_DIR`). */
 	cubesDir: process.env.CARDTABLE_CUBES_DIR ?? join(DATA_DIR, 'cubes'),
 
+	/** Every match's action log and public stream (`play/recording/`, `CARDTABLE_RECORDINGS_DIR`). */
+	recordingsDir: process.env.CARDTABLE_RECORDINGS_DIR ?? join(DATA_DIR, 'recordings'),
+
 	/** The card catalog the pools resolve against (`CARDTABLE_CATALOG`). */
 	catalogPath: process.env.CARDTABLE_CATALOG ?? resolve(homedir(), '.local/share/cardtable/catalog/cards.json'),
 

@@ -17,8 +17,7 @@
 
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, join } from 'node:path';
 import type { ServerEnvelope } from '@hadoku/shared';
 
 import type { JsonLog } from '../../log.js';
@@ -49,15 +48,6 @@ export function serverVersion(pkgRoot: string): string {
 	} catch {
 		return 'unknown';
 	}
-}
-
-/**
- * `CARDTABLE_RECORDINGS_DIR`, resolved — same convention as `host.ts`'s own
- * `playWorkDir`/`jvmHostConfig`: an env var read as a function argument, not
- * through `config.ts`, so a test can point one recorder at its own directory.
- */
-export function recordingsDir(env: NodeJS.ProcessEnv = process.env): string {
-	return resolve(env.CARDTABLE_RECORDINGS_DIR ?? join(homedir(), '.local', 'share', 'cardtable', 'recordings'));
 }
 
 export interface RecorderIdentity {
@@ -94,7 +84,6 @@ interface Session {
 	writer: MatchRecordingWriter;
 	positions: ReadonlyMap<number, SeatPosition>;
 	startedAtMs: number;
-	winnerSeat: 0 | 1 | null;
 }
 
 const randomSeed32 = (): number => Math.floor(Math.random() * 0x7fffffff);
@@ -138,7 +127,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 					[0, createSeatPosition(0)],
 					[1, createSeatPosition(1)],
 				]);
-				const session: Session = { writer, positions, startedAtMs: now(), winnerSeat: null };
+				const session: Session = { writer, positions, startedAtMs: now() };
 				sessions.set(matchId, session);
 
 				const host = inner(matchId, seeded, {
@@ -147,10 +136,13 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 						if (line.t === 'frame') guarded(log, matchId, 'position', () => positions.get(line.seat)?.push(line));
 						events.line(line);
 					},
+					// A match that ends without a game over (stopped, crashed) is finished here, winnerless.
 					exit: (reason) => {
-						sessions.delete(matchId);
-						const endedAt = new Date(now()).toISOString();
-						void writer.finish({ endedAt, reason }, { endedAt, winner: session.winnerSeat });
+						if (sessions.get(matchId) === session) {
+							sessions.delete(matchId);
+							const endedAt = new Date(now()).toISOString();
+							void writer.finish({ endedAt, reason }, { endedAt, winner: null });
+						}
 						events.exit(reason);
 					},
 				});
@@ -180,11 +172,15 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 			guarded(log, matchId, 'envelope', () => session.writer.publicEnv({ at: now() - session.startedAtMs, env: envelope }));
 		},
 
+		// The recording is finished when the game is, not when its JVM goes: a finished match keeps
+		// its JVM through the over-grace, and its replay should not wait for that.
 		onGameOver(match) {
 			const session = sessions.get(match.id);
 			if (session === undefined) return;
 			const outcome = gameOutcome(match);
-			session.winnerSeat = outcome?.kind === 'won' ? outcome.winner : null;
+			sessions.delete(match.id);
+			const endedAt = new Date(now()).toISOString();
+			void session.writer.finish({ endedAt, reason: 'game-over' }, { endedAt, winner: outcome?.kind === 'won' ? outcome.winner : null });
 		},
 	};
 }
