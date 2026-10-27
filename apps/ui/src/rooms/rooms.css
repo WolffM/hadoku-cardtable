@@ -215,18 +215,22 @@
 /* Ruling 4: the state pill and its detail are one row that never wraps — the detail ellipsises. */
 .room-card__row3 {
   flex-wrap: nowrap;
+  /* The state and its detail are two sizes of text: they share a baseline, not a centre (the operator, 2026-10-27: "Playing is lower than 'Game 1'"). */
+  align-items: baseline;
   min-width: 0;
 }
 
 .room-card__state {
   display: inline-flex;
   flex: 0 0 auto;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
   font-size: 13px;
 }
 
+/* The dot has no text to sit on: it is centred on the label beside it. */
 .room-card__dot {
+  align-self: center;
   width: 8px;
   height: 8px;
   border-radius: 50%;
