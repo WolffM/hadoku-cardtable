@@ -98,6 +98,17 @@
  * Player.withMostLife` — and in a two-seat game one of the two always has it. A seventh game holds
  * Preacher with seat 0 ahead on life, dark, beside Carapace Forger's metalcraft, lit.
  *
+ * AF401, the playtest of 2026-10-26: Infernal Tutor's hellbent clause lit the orange rim with a full
+ * hand (third report of this rim: AF214, AF300). Its script pairs the printed Hellbent branch
+ * (`SVar:DBChangeZone2`, `ConditionCheckSVar$ X | ConditionSVarCompare$ LT1`) against the ordinary
+ * branch, which has no `ConditionSVarCompare` of its own and so defaults to `GE1` — and `X` is
+ * `Count$ValidHand Card.YouOwn`, a hand, which starts full and empties over the game rather than
+ * starting empty and filling up. `quiet()`'s general rule ("the branch met when nothing has been
+ * counted is the default") assumed every such pair's floor is the common state, true for Arrow
+ * Storm's Raid and Gruesome Discovery's Morbid (both proven above and both still proven here) but
+ * backwards for a hand: 0 cards is Hellbent, the NAMED, rare state, and GE1 ("at least one card") is
+ * the default that should stay dark. An eighth game holds Infernal Tutor in a seven-card hand, dark.
+ *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=$HOME/.cache/cardtable-play-work/condition-met \
  *   pnpm exec vitest run apps/server/src/play/condition-met.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
  */
@@ -240,6 +251,23 @@ const EITHER_OR = [
 	'ailife=15',
 	'humanhand=',
 	'humanbattlefield=Preacher of the Schism;Carapace Forger;Ornithopter;Ornithopter;Ornithopter;Swamp',
+	'humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp',
+	'humangraveyard=',
+	'aihand=',
+	'aibattlefield=Plains',
+	'ailibrary=Plains;Plains;Plains;Plains;Plains;Plains',
+	'aigraveyard=',
+].join('\n');
+
+/** AF401: Infernal Tutor's printed Hellbent branch (`Count$ValidHand`) beside Arrow Storm's Raid and Gruesome Discovery's Morbid, which count a per-turn event instead and must stay proven unchanged. */
+const HELLBENT_HAND = [
+	'turn=1',
+	'activeplayer=human',
+	'activephase=MAIN1',
+	'humanlife=20',
+	'ailife=20',
+	'humanhand=Infernal Tutor;Arrow Storm;Gruesome Discovery;Swamp;Swamp;Swamp;Swamp',
+	'humanbattlefield=',
 	'humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp',
 	'humangraveyard=',
 	'aihand=',
@@ -636,6 +664,34 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(seat0, `Preacher of the Schism#${preacher.id} is off`).not.toContain(preacher.id);
 				const forger = named(board, 'Carapace Forger');
 				expect(seat0, `Carapace Forger#${forger.id} is on`).toContain(forger.id);
+			} finally {
+				await s.stop();
+			}
+		},
+		120_000,
+	);
+
+	it(
+		'AF401: a hand that empties toward Hellbent lights its floor, not its default — Infernal Tutor stays dark in a full hand, unlike Arrow Storm’s Raid and Gruesome Discovery’s Morbid, which count a per-turn event and stay dark for the opposite reason',
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, { seed: 91, decks: DECKS, scenario: HELLBENT_HAND });
+			try {
+				await finishMulligan(s);
+				await waitUntil(() => {
+					s.answerAsks();
+					return inOwnMain(s, 0, 1) && s.zone(0, 'Hand').some((c) => c.name === 'Infernal Tutor');
+				}, 'seat 0 to hold priority in its own main with the scenario applied', 30_000, s);
+				const hand = s.zone(0, 'Hand');
+				expect(hand.length, 'the hand is full, not Hellbent').toBeGreaterThan(1);
+				const seat0 = latestConditionMet(s, 0);
+				const lit = hand.filter((c) => seat0?.includes(c.id)).map((c) => `${c.name}#${c.id}`);
+				console.log(`[af401-condition-met.jvm] full hand: conditionMet=${JSON.stringify(seat0)} → [${lit.join(', ')}]`);
+				expect(seat0, 'seat 0 was sent a conditionMet snapshot').not.toBeNull();
+				for (const name of ['Infernal Tutor', 'Arrow Storm', 'Gruesome Discovery']) {
+					const c = named(hand, name);
+					expect(seat0, `${c.name}#${c.id} is off with a full hand and an empty graveyard`).not.toContain(c.id);
+				}
 			} finally {
 				await s.stop();
 			}
