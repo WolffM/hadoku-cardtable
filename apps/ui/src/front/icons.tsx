@@ -67,6 +67,16 @@ export function TrophyIcon({ size = 16 }: { size?: number }) {
   );
 }
 
+/** A password-protected room: a padlock. */
+export function LockIcon({ size = 15 }: { size?: number }) {
+  return (
+    <Glyph label="Locked" size={size}>
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </Glyph>
+  );
+}
+
 /** A seat count. */
 export function PersonIcon({ size = 14 }: { size?: number }) {
   return (
