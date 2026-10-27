@@ -66,7 +66,7 @@ describe.skipIf(!available.ok)(title, () => {
 			const raw: BridgeLine[] = [];
 			const sent: { seat: number; envelope: ServerEnvelope }[] = [];
 			const logs: Record<string, unknown>[] = [];
-			const jvm = jvmHostFactory(available.config, { spare: false, log: (e) => logs.push(e) });
+			const jvm = jvmHostFactory(available.config, { warm: false, log: (e) => logs.push(e) });
 
 			const registry = createMatchRegistry({
 				host: (id, spec, events) => jvm(id, spec, { ...events, line: (l) => { raw.push(l); events.line(l); } }),
@@ -202,7 +202,7 @@ describe.skipIf(!available.ok)(title, () => {
 			if (!available.ok) return;
 			const sent: { seat: number; envelope: ServerEnvelope }[] = [];
 			const logs: Record<string, unknown>[] = [];
-			const jvm = jvmHostFactory(available.config, { spare: false, log: (e) => logs.push(e) });
+			const jvm = jvmHostFactory(available.config, { warm: false, log: (e) => logs.push(e) });
 			const registry = createMatchRegistry({
 				host: (id, spec, events) => jvm(id, spec, events),
 				log: (e) => logs.push(e),
@@ -339,7 +339,7 @@ describe.skipIf(!available.ok)(title, () => {
 			if (!available.ok) return;
 			const sent: { seat: number; envelope: ServerEnvelope }[] = [];
 			const logs: Record<string, unknown>[] = [];
-			const jvm = jvmHostFactory(available.config, { spare: false, log: (e) => logs.push(e) });
+			const jvm = jvmHostFactory(available.config, { warm: false, log: (e) => logs.push(e) });
 			const registry = createMatchRegistry({
 				host: (id, spec, events) => jvm(id, spec, events),
 				log: (e) => logs.push(e),

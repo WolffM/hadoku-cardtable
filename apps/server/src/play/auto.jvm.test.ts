@@ -79,7 +79,7 @@ import { finishMulligan, scenarioText, startScenario, waitUntil as waitUntilScen
 import { foldFrames, type StateFrame, type WireObj } from './visibility.js';
 import type { ServerEnvelope } from '@hadoku/shared';
 
-const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_SPARE: '0' });
+const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_JVM: '0' });
 const title = available.ok
 	? 'wave 19 lane C against a real Forge match'
 	: `wave 19 lane C against a real Forge match — SKIPPED: ${available.reason}`;
@@ -205,7 +205,7 @@ describe.skipIf(!available.ok)(title, () => {
 			const raw: BridgeLine[] = [];
 			const sent: { seat: number; envelope: ServerEnvelope }[] = [];
 			const logs: Record<string, unknown>[] = [];
-			const jvm = jvmHostFactory(available.config, { spare: false, log: (e) => logs.push(e) });
+			const jvm = jvmHostFactory(available.config, { warm: false, log: (e) => logs.push(e) });
 
 			/** What each seat was last told, and what happened at each priority stop. */
 			const notes = [0, 1].map(() => ({ prompt: '', ok: false, actionable: null as number[] | null }));
@@ -557,7 +557,7 @@ describe.skipIf(!available.ok)(title, () => {
 			const raw: BridgeLine[] = [];
 			const sent: { seat: number; envelope: ServerEnvelope }[] = [];
 			const logs: Record<string, unknown>[] = [];
-			const jvm = jvmHostFactory(available.config, { spare: false, log: (e) => logs.push(e) });
+			const jvm = jvmHostFactory(available.config, { warm: false, log: (e) => logs.push(e) });
 
 			// rows are read off `raw` (the bridge's own stream), via
 			// the shared `rowsFromRaw` — never off `emit` (this seat's wire) — see
@@ -936,7 +936,7 @@ describe.skipIf(!available.ok)(title, () => {
 			const raw: BridgeLine[] = [];
 			const sent: { seat: number; envelope: ServerEnvelope }[] = [];
 			const logs: Record<string, unknown>[] = [];
-			const jvm = jvmHostFactory(available.config, { spare: false, log: (e) => logs.push(e) });
+			const jvm = jvmHostFactory(available.config, { warm: false, log: (e) => logs.push(e) });
 
 			// rows are read off `raw` via the shared `rowsFromRaw`,
 			// never off `emit` — see that function's own header. `setWeaklySelectable`/

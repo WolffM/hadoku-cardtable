@@ -129,7 +129,7 @@ describe.skipIf(!available.ok)(title, () => {
 			app.use('/api', api);
 			const http: HttpServer = createServer(app);
 			const io = new SocketIOServer(http, { serveClient: false });
-			const jvm = jvmHostFactory(available.config, { spare: false });
+			const jvm = jvmHostFactory(available.config, { warm: false });
 			const handle = socketMod.attachPlay(io, api, {
 				minTier: 'friend',
 				host: jvm,

@@ -24,7 +24,7 @@ import {
 } from '@hadoku/shared';
 
 import { STRICT_PAYMENT_POLICY } from './auto.js';
-import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory } from './host.js';
+import type { BridgeCommand, BridgeLine, HostEvents, MatchRecord, MatchHost, MatchHostFactory } from './host.js';
 import { ACTIVITY_WINDOW_MS, ACT_SILENCE_MS, ANSWER_SILENCE_MS, MATCH_ENDED_TITLE, WATCHER_SEAT, createMatchRegistry, frameGist, type Match, type MatchSpecWithIdentity } from './match.js';
 import type { SeatIdentity } from '@hadoku/shared';
 import {
@@ -1407,7 +1407,7 @@ interface Survivable {
 	commandsSent(): BridgeCommand[];
 }
 
-function survivable(): { factory: MatchHostFactory; attach: (record: JvmRecord, events: HostEvents) => MatchHost; state: Survivable } {
+function survivable(): { factory: MatchHostFactory; attach: (record: MatchRecord, events: HostEvents) => MatchHost; state: Survivable } {
 	let events: HostEvents | null = null;
 	const state: Survivable = {
 		stream: [],
@@ -1449,11 +1449,10 @@ function survivable(): { factory: MatchHostFactory; attach: (record: JvmRecord, 
 	};
 }
 
-function recordFor(match: Match, state: Survivable): JvmRecord {
+function recordFor(match: Match, state: Survivable): MatchRecord {
 	return {
 		matchId: match.id,
-		pid: process.pid,
-		run: `/nonexistent/${match.id}`,
+		hostId: 'h-000000000000',
 		startedAt: new Date().toISOString(),
 		epoch: state.remembered?.epoch ?? null,
 		owners: state.remembered?.owners ?? [],
@@ -1634,7 +1633,7 @@ describe('a match that outlives its server', () => {
 		faces.set(BOB, 'rogue');
 
 		// A record written by a build that copied the start's avatars onto the spec.
-		const written = JSON.parse(JSON.stringify(recordFor(first, state))) as JvmRecord;
+		const written = JSON.parse(JSON.stringify(recordFor(first, state))) as MatchRecord;
 		for (const seat of written.spec?.seats ?? []) Object.assign(seat, { avatarId: 'stale' });
 		const resumed = createMatchRegistry(deps).adopt(written);
 		expect(resumed?.seatIdentities().map((s) => s.avatarId)).toEqual(['sage', 'rogue']);
@@ -1831,8 +1830,7 @@ describe('a match that outlives its server', () => {
 		expect(
 			registry.adopt({
 				matchId: 'm-000000000000',
-				pid: process.pid,
-				run: '/nonexistent',
+				hostId: 'h-000000000000',
 				startedAt: new Date().toISOString(),
 				epoch: 'm-000000000000:1',
 				owners: [],

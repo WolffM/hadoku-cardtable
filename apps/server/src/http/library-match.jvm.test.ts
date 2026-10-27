@@ -58,7 +58,7 @@ async function waitUntil(predicate: () => boolean, label: string, timeoutMs: num
 /** One match, started and immediately torn down. Throws if Forge never reached running. */
 async function startsAndRuns(seatA: { name: string; text: string }, seatB: { name: string; text: string }): Promise<void> {
 	if (!available.ok) throw new Error('unreachable');
-	const jvm = jvmHostFactory(available.config, { spare: false, log: () => {} });
+	const jvm = jvmHostFactory(available.config, { warm: false, log: () => {} });
 	try {
 		const registry = createMatchRegistry({
 			host: jvm,

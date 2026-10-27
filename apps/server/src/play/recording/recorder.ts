@@ -105,7 +105,7 @@ export interface RecorderDeps {
 }
 
 export interface Recorder {
-	/** Wrap a host factory so every match it makes is recorded. Everything else about `inner` (its `close`, `attach`, `spare`, …) passes through unchanged. */
+	/** Wrap a host factory so every match it makes is recorded. Everything else about `inner` (its `close`, `attach`, `room`, …) passes through unchanged. */
 	host(inner: MatchHostFactory): MatchHostFactory;
 	/** Wire to the registry's `emit`, via `PlayDeps.onEnvelope`: every seat's envelope, every match. Only `WATCHER_SEAT` is recorded. */
 	onEnvelope(matchId: string, seat: number, envelope: ServerEnvelope): void;
@@ -218,7 +218,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 					},
 				};
 			}) as MatchHostFactory;
-			// `close`, `orphans`, `attach`, `handOverAll`, `reapOnExit`, `spare`, `watchSpare`: passed through as-is.
+			// `close`, `orphans`, `attach`, `handOverAll`, `reapOnExit`, `room`, `booting`, `watchRoom`: passed through as-is.
 			// A reattached match (`attach`) gets no session and is not recorded — see the module header.
 			Object.assign(wrapped, inner);
 			return wrapped;

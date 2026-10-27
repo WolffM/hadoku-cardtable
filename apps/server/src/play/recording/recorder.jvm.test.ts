@@ -68,7 +68,7 @@ describe.skipIf(!available.ok)(title, () => {
 					deckCosts: () => ({}),
 					log: () => {},
 				});
-				const jvm = jvmHostFactory(available.config, { spare: false, log: () => {} });
+				const jvm = jvmHostFactory(available.config, { warm: false, log: () => {} });
 				const hosted = recorder.host(jvm);
 
 				let sentCommands = 0;

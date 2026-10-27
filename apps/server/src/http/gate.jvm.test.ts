@@ -55,7 +55,7 @@ describe.skipIf(!available.ok)(title, () => {
 		expect([mine.legal, theirs.legal]).toEqual([true, true]);
 
 		const raw: BridgeLine[] = [];
-		const jvm = jvmHostFactory(available.config, { spare: false, log: () => {} });
+		const jvm = jvmHostFactory(available.config, { warm: false, log: () => {} });
 		pools.push(jvm);
 		const registry = createMatchRegistry({
 			host: (id, spec, events) =>

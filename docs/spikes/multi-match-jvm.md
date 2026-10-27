@@ -147,8 +147,8 @@ the five `FServerManager` rows and the filtered-hands row above.
   over (up to 10 s), tears the match down and answers `{"t":"stopped"}`. A
   failure inside one match (`MatchContext.fatal`) sends that match's `fatal`
   line and ends that match only. `stop` addressed to the host, or stdin closing,
-  ends the JVM. **Test and host-agent only today**: `host.ts` still spawns
-  `--spare` / cold JVMs, one match each.
+  ends the JVM. `host.ts` runs every match this way since lane mhost
+  (2026-10-27).
 - A cold start or a spare behaves as before at the protocol boundary: the same
   lines in the same order, every one stamped with the match's id (the spare's
   id until `start`), the stdin reader started after `ready`, `stop` or EOF exits
@@ -180,13 +180,33 @@ cold or spare one-match JVM through this bridge.
 
 ## What remains
 
-- **Node side** (next step): a `MatchHost` that multiplexes several matches
-  over one `--host` JVM's stdio (route lines by `match`, send `start` with
-  the match's config, treat `stopped` as the match's exit). Today a JVM's death
-  is a match's death; with N matches per JVM, `host.ts`'s crash path must fail
-  every match on it (plan §5). The orphan and attach logic (`jvm.json`, one
-  `matchId` per record) is per match today and needs a per-JVM record listing its
-  matches.
+- **Node side: built** (lane mhost, 2026-10-27). `host.ts` is a coordinator that
+  places matches into shared `--host` JVMs (`perJvm`, default 8), routes lines by
+  `match`, treats `stopped` as a match's exit, fails every match on a JVM whose
+  transport exits, keeps one JVM with room warm (replacing `--spare`), retires
+  idle JVMs, and re-attaches per JVM (`jvm.json` lists the JVM's matches; each
+  match has its own stream). Where a JVM runs is `jvm-transport.ts`'s
+  `JvmLauncher`; the local one keeps the fifo/run-dir mechanics. The one-match
+  cold and `--spare` paths are gone from `host.ts`; the bridge still has them,
+  and they are the bridge lane's to delete.
+- **A per-match watchdog** (plan; not built). Today liveness is per JVM: the
+  `alive` line is one per JVM from `bridge-alive`, and a match's own lines stop
+  for as long as a player thinks, which is not a fault. A game thread that dies
+  is reported (`MatchContext.fail` → `fatal` → `stopped`); a game thread that is
+  alive but wedged (a spin in the AI, a deadlock between a seat thread and the
+  game thread) is not. What it would take:
+  1. The bridge's `alive` carries, per hosted match, what its game thread is
+     doing: `{"t":"alive","matches":{"m-…":{"state":"WAITING","busyMs":0,"progress":1234}}}`
+     — `Thread.getState()` of the thread its game runs on (recorded at
+     `startGameHook`), how long it has been RUNNABLE without the game's
+     `progress` counter (bumped on every `GameEvent` the bridge already
+     receives, `GameLogForward`) moving, and the counter itself.
+  2. `host.ts` fails a match (`fatal` to that match's events, then `stop`) whose
+     game thread has been RUNNABLE with no progress for a bound (say 120 s, far
+     past the AI's longest measured think), or whose thread is TERMINATED with no
+     `gameover`. A WAITING thread is a player thinking and is never a fault.
+  3. A suite: `-Dcardtable.fault=game-spin` (the game thread loops) fails that
+     match alone, and a second match on the same JVM plays on.
 - **The non-atomic id counters**, if a measured
   failure ever points at them.
 - **A stopped match whose game will not end**: `endGame` gives up after 10 s

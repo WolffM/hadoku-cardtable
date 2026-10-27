@@ -161,7 +161,7 @@ import { firstMode, modesAsk, nextMode } from './modes.js';
 import { chosenTargetConfirm, pickedBy, sameTargetAct, targetAbilityOf, type SameTarget } from './trigger-targets.js';
 import { artOf } from './art.js';
 import { fallbackFor, type Fallback } from './unparsed.js';
-import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
+import type { BridgeCommand, BridgeLine, HostEvents, MatchHost, MatchHostFactory, MatchRecord, MatchSpec } from './host.js';
 import type { StartEvents } from './start-queue.js';
 import { faceNames, namesForFormat } from './names.js';
 import type { SpellCopy } from './spell-copiers.js';
@@ -1068,7 +1068,7 @@ export class Match {
 	concededBy: number | null = null;
 	/**
 	 * When the match was started, in ms. A match taken back after a restart
-	 * keeps the start its JVM's record has (`JvmRecord.startedAt`), so this is
+	 * keeps the start its JVM's record has (`MatchRecord.startedAt`), so this is
 	 * the same instant whichever process ends it.
 	 */
 	readonly startedAt: number;
@@ -3850,7 +3850,7 @@ export interface MatchRegistry {
 	 * returns, so the match comes back with its epoch, its seats' owners and every
 	 * seat's history and cursor. Returns null when the record cannot be resumed.
 	 */
-	adopt(record: JvmRecord): Match | null;
+	adopt(record: MatchRecord): Match | null;
 	/**
 	 * SIGTERM: leave every match that holds a JVM (`active`: starting, running,
 	 * or finished and inside its grace) running for the next process. Returns
@@ -3870,7 +3870,7 @@ export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged' | 'phaseStopC
 	onGameOver?(match: Match): void;
 	liveChanged?(match: Match): void;
 	/** The re-attach half of the host. Absent on a host whose JVMs die with us. */
-	attach?(record: JvmRecord, events: HostEvents): MatchHost;
+	attach?(record: MatchRecord, events: HostEvents): MatchHost;
 };
 
 export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
@@ -3898,7 +3898,7 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 		},
 		adopt(record) {
 			const attach = deps.attach;
-			if (attach === undefined || record.spec === null) return null;
+			if (attach === undefined) return null;
 			const match: Match = new Match(
 				record.matchId,
 				record.spec,

@@ -92,7 +92,7 @@ function spec(seed: number, chooser: 0 | 1 | undefined): MatchSpec {
 async function askedSeat(seed: number, chooser: 0 | 1 | undefined): Promise<number> {
 	if (!available.ok) throw new Error('unreachable');
 	const raw: BridgeLine[] = [];
-	const jvm = jvmHostFactory(available.config, { spare: false, log: () => {} });
+	const jvm = jvmHostFactory(available.config, { warm: false, log: () => {} });
 	try {
 		const registry = createMatchRegistry({
 			host: (id, s, events) =>

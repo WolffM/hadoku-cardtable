@@ -26,7 +26,7 @@ import { PHASE_BY_UI_NAME, type StopPolicy } from './auto.js';
 import type { ServerEnvelope } from '@hadoku/shared';
 import { foldFrames, type StateFrame, type WireObj } from './visibility.js';
 
-export const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_SPARE: '0' });
+export const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_JVM: '0' });
 
 /**
  * A suite or case too slow to run on every push is gated on this and carries `[nightly]`
@@ -329,7 +329,7 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 	const lines: Scenario['lines'] = [];
 	const logs: Record<string, unknown>[] = [];
 	const seats: Scenario['seats'] = [];
-	const jvm = jvmHostFactory(config, { spare: false, log: (e) => logs.push(e) });
+	const jvm = jvmHostFactory(config, { warm: false, log: (e) => logs.push(e) });
 	let host: MatchHost | null = null;
 	const registry = createMatchRegistry({
 		seatsChanged: (_m, told) => seats.push({ t: performance.now(), seats: told }),

@@ -29,7 +29,7 @@ import { moveToMain } from '@hadoku/deck';
 import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
 import type { MatchReport } from '@wolffm/prefs-client/games';
 import type { ClientFrame } from '@hadoku/forge-wire';
-import type { JvmRecord, MatchHostFactory, MatchSpec } from '../play/host.js';
+import type { MatchRecord, MatchHostFactory, MatchSpec } from '../play/host.js';
 import type { MatchRegistry } from '../play/match.js';
 import {
 	MATCH_EVENTS,
@@ -2057,10 +2057,9 @@ describe('a room table', () => {
 			const matchId = started.body.matchId as string;
 			const old = before.matches.get(matchId)!;
 			const startedAt = new Date().toISOString();
-			const record: JvmRecord = {
+			const record: MatchRecord = {
 				matchId,
-				pid: process.pid,
-				run: `/nonexistent/${matchId}`,
+				hostId: 'h-000000000000',
 				startedAt,
 				epoch: old.epoch,
 				owners: [old.seats[0]!.owner, old.seats[1]!.owner],
@@ -2073,8 +2072,8 @@ describe('a room table', () => {
 
 			const { factory, hosts } = replayFactory();
 			const host: MatchHostFactory = Object.assign(factory, {
-				orphans: () => [record],
-				attach: (r: JvmRecord, events: Parameters<MatchHostFactory>[2]) => {
+				orphans: async () => [record],
+				attach: (r: MatchRecord, events: Parameters<MatchHostFactory>[2]) => {
 					const back = factory(r.matchId, r.spec!, events) as ReplayHost;
 					back.push(...OPENING);
 					return back;

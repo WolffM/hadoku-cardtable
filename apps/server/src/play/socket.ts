@@ -202,7 +202,7 @@ export interface PlayDeps {
 
 export interface PlayHandle {
 	matches: MatchRegistry;
-	/** Stop every match (each stops its JVM), and release the host's spare. */
+	/** Stop every match, and release the host's idle JVMs. */
 	close(): void;
 	/**
 	 * SIGTERM. Stop accepting new matches, leave every live one running for the
@@ -1252,31 +1252,34 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 
 	/* ── Matches an earlier server left running (Wave 22 §E) ────────── */
 	//
-	// Last, and inside `attachPlay` rather than in `index.ts`, because a resumed
-	// match must be in the registry AND have its room before a single client can
-	// ask for it — which is exactly the ordering `create` above keeps. The host
-	// offers each orphan once; anything not taken here it kills on its own
-	// deadline, so an `attach` that throws costs one match, not a leaked JVM.
-	for (const record of host?.orphans?.() ?? []) {
-		try {
-			const match = matches.adopt(record);
-			if (match === null) {
-				log({ evt: 'match-not-adopted', matchId: record.matchId, reason: 'the host cannot re-attach' });
-				continue;
+	// Inside `attachPlay` rather than in `index.ts`, because a resumed match must be in the
+	// registry AND have its room before a client can ask for it — which is the ordering
+	// `create` above keeps. The host finds them asynchronously (a JVM may run on another
+	// machine); this machine's answer arrives in a microtask, before any socket is served.
+	// The host offers each orphan once; anything not taken here it stops on its own deadline,
+	// so an `attach` that throws costs one match, not a leaked JVM.
+	void (host?.orphans?.() ?? Promise.resolve([])).then((records) => {
+		for (const record of records) {
+			try {
+				const match = matches.adopt(record);
+				if (match === null) {
+					log({ evt: 'match-not-adopted', matchId: record.matchId, reason: 'the host cannot re-attach' });
+					continue;
+				}
+				roomFor(match);
+				log({
+					evt: 'match-adopted',
+					matchId: match.id,
+					hostId: record.hostId,
+					status: match.status,
+					orphanedAt: record.orphanedAt ?? null,
+					seats: match.seats.map((s) => ({ seat: s.seat, claimed: s.owner !== null, playerId: s.playerId })),
+				});
+			} catch (err) {
+				log({ evt: 'match-adopt-failed', matchId: record.matchId, error: (err as Error).message });
 			}
-			roomFor(match);
-			log({
-				evt: 'match-adopted',
-				matchId: match.id,
-				pid: record.pid,
-				status: match.status,
-				orphanedAt: record.orphanedAt ?? null,
-				seats: match.seats.map((s) => ({ seat: s.seat, claimed: s.owner !== null, playerId: s.playerId })),
-			});
-		} catch (err) {
-			log({ evt: 'match-adopt-failed', matchId: record.matchId, error: (err as Error).message });
 		}
-	}
+	});
 
 	return {
 		matches,
@@ -1294,7 +1297,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			const { handed, ending: ended } = matches.handOver();
 			for (const match of ended) match.serverStopping(reason);
 			for (const match of ended) match.stop();
-			// The spare holds no game, so it is stopped either way.
+			// An idle JVM holds no game, so it is stopped either way.
 			host?.close?.();
 			// And then the last word, because asking is measurably not enough: a real
 			// match's JVM takes ~9.3 s to honour `{"t":"stop"}` and this process has

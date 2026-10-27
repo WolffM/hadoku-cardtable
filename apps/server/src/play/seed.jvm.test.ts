@@ -88,7 +88,7 @@ const spec = (): MatchSpec => ({
 async function dealtOnce(): Promise<string> {
 	if (!available.ok) throw new Error('unreachable');
 	const raw: BridgeLine[] = [];
-	const jvm = jvmHostFactory(available.config, { spare: false, log: () => {} });
+	const jvm = jvmHostFactory(available.config, { warm: false, log: () => {} });
 	try {
 		const registry = createMatchRegistry({
 			host: (id, s, events) =>

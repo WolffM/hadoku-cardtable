@@ -200,49 +200,57 @@ Socket.prototype.emit = function (this: Socket, event: string | symbol, ...args:
 } as typeof Socket.prototype.emit;
 
 /*
- * The handle a later server re-attaches a match by, as
- * `apps/server/src/play/host.ts` writes it (`JVM_RECORD_FILE`, `JvmRecord`,
- * `ORPHAN_MAX_MS`). Read here rather than imported: `host.ts` is not
- * erasable-syntax-clean and this package typechecks with `erasableSyntaxOnly`
- * so Node can strip its types (`tsc` exits 2 on the import). ONE copy for the
- * whole e2e — the reaper below and `play.spec.ts`'s `jvmFates` share it.
+ * The handles a later server re-attaches a JVM and its matches by, as
+ * `apps/server/src/play/host.ts` and `jvm-transport.ts` write them
+ * (`JVM_RECORD_FILE`/`JvmRecord`, `LAUNCH_RECORD_FILE`, `ORPHAN_MAX_MS`). Read here
+ * rather than imported: `host.ts` is not erasable-syntax-clean and this package
+ * typechecks with `erasableSyntaxOnly` so Node can strip its types (`tsc` exits 2 on
+ * the import). ONE copy for the whole e2e — the reaper below and `play.spec.ts`'s
+ * `jvmFates` share it.
  */
 
-/** `host.ts` `JVM_RECORD_FILE`: the record a run dir keeps itself in. */
+/** `host.ts` `JVM_RECORD_FILE`: the coordinator's record of a JVM and its matches. */
 export const JVM_RECORD_FILE = 'jvm.json';
-/** `host.ts` `ORPHAN_MAX_MS`: past this a boot kills an orphan instead of re-attaching. */
+/** `jvm-transport.ts` `LAUNCH_RECORD_FILE`: the JVM's pid, written at launch. */
+export const LAUNCH_RECORD_FILE = 'launch.json';
+/** `host.ts` `ORPHAN_MAX_MS`: past this a boot retires an orphaned JVM instead of re-attaching. */
 export const ORPHAN_MAX_MS = 12 * 60 * 60 * 1000;
 
-/** The fields of `host.ts`'s `JvmRecord` anything in the e2e asks about. */
+/** The fields of a JVM's two records anything in the e2e asks about. */
 export interface JvmRecordSeen {
-  matchId: string;
+  hostId: string;
   pid: number;
-  epoch: string | null;
-  owners: unknown[];
-  spec: unknown;
-  spare: boolean;
   orphanedAt: string | null;
+  matches: { matchId: string; epoch: string | null; owners: unknown[]; spec: unknown }[];
 }
 
-/** `<run>/jvm.json`, or null when it is missing, unreadable or not a record. */
-export function readJvmRecord(run: string): JvmRecordSeen | null {
-  let parsed: unknown;
+function readJson(file: string): Record<string, unknown> | null {
   try {
-    parsed = JSON.parse(readFileSync(resolve(run, JVM_RECORD_FILE), 'utf8'));
+    const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'));
+    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : null;
   } catch {
     return null;
   }
-  if (typeof parsed !== 'object' || parsed === null) return null;
-  const r = parsed as Record<string, unknown>;
-  if (typeof r.matchId !== 'string' || typeof r.pid !== 'number') return null;
+}
+
+/** `<run>/launch.json` with `<run>/jvm.json`, or null when the launch record is missing or not one. */
+export function readJvmRecord(run: string): JvmRecordSeen | null {
+  const launch = readJson(resolve(run, LAUNCH_RECORD_FILE));
+  if (launch === null || typeof launch.hostId !== 'string' || typeof launch.pid !== 'number') return null;
+  const record = readJson(resolve(run, JVM_RECORD_FILE));
+  const matches = Array.isArray(record?.matches) ? (record.matches as Record<string, unknown>[]) : [];
   return {
-    matchId: r.matchId,
-    pid: r.pid,
-    epoch: typeof r.epoch === 'string' ? r.epoch : null,
-    owners: Array.isArray(r.owners) ? r.owners : [],
-    spec: r.spec ?? null,
-    spare: r.spare === true,
-    orphanedAt: typeof r.orphanedAt === 'string' ? r.orphanedAt : null,
+    hostId: launch.hostId,
+    pid: launch.pid,
+    orphanedAt: typeof record?.orphanedAt === 'string' ? record.orphanedAt : null,
+    matches: matches
+      .filter((m) => typeof m?.matchId === 'string')
+      .map((m) => ({
+        matchId: m.matchId as string,
+        epoch: typeof m.epoch === 'string' ? m.epoch : null,
+        owners: Array.isArray(m.owners) ? m.owners : [],
+        spec: m.spec ?? null,
+      })),
   };
 }
 
@@ -261,7 +269,7 @@ export function forgeAvailability(env: NodeJS.ProcessEnv = process.env): ForgeAv
 
 /* ── Reaping this stack's JVMs, and nobody else's ─────────────────────────── */
 
-/** One JVM the harness ended. `id` is its `jvm.json` match id, null when it had no record yet. */
+/** One JVM the harness ended. `id` is its host id, null when it had no launch record yet. */
 export interface ReapedJvm {
   pid: number;
   run: string;
@@ -316,7 +324,7 @@ function isUnder(cwd: string | null, dir: string): boolean {
  *
  * The records come first, because they name the match (and are what a
  * successor server would have re-attached by); the `/proc` pass then catches a
- * JVM that died before `adopt` wrote its `jvm.json` at all.
+ * JVM that died before it wrote its `launch.json` at all.
  *
  * Call it only once the server is down: while it is up, its own processes —
  * and the match JVMs it means to keep — are exactly what this would kill.
@@ -354,9 +362,9 @@ export function reapJvms(workDir: string): ReapedJvm[] {
     }
     if (!isDir) continue;
     const record = readJvmRecord(run);
-    if (record !== null) reap(record.pid, run, record.matchId);
+    if (record !== null) reap(record.pid, run, record.hostId);
   }
-  // A match JVM writes `jvm.json` at `adopt`, so one killed before that has no
+  // A JVM writes `launch.json` once it is spawned, so one killed before that has no
   // record to be found by. Its cwd still names it, and that is guard 2 again.
   for (const { pid, cwd } of processCwds()) {
     if (cwd === null || !isUnder(cwd, root)) continue;
@@ -618,7 +626,7 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
         CARDTABLE_DRAFT_BOT_PICK_MS: '100',
       },
     });
-  /** Whoever is waiting on a line the server has not written yet — see {@link sparesWarm}. */
+  /** Whoever is waiting on a line the server has not written yet — see {@link jvmWarm}. */
   const lineWatchers = new Set<(line: string) => void>();
   /*
    * Both streams land in ONE file, so each is written a whole line at a time.
@@ -664,8 +672,8 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
     clearTimeout(killed);
   };
   /**
-   * Resolves on the server's own "the next match will not wait for a JVM" line: `spare-warm`
-   * (or `spare-disabled`, after which every match starts cold and there is nothing to wait
+   * Resolves on the server's own "the next match will not wait for a JVM" line: `jvm-warm`
+   * (or `warm-disabled`, after which a match launches its own JVM and there is nothing to wait
    * for). Watched from the first byte, so the line cannot be missed.
    *
    * Why the stack waits on it: every stack is a fresh server, and `POST /api/play/matches`
@@ -673,9 +681,9 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
    * request carried the whole JVM boot. That is 8.4–9.3 s on an idle CI runner and 15–19 s on a
    * loaded one (run 38117429287, 61 stacks), and past ~19 s Playwright's 20 s request
    * timeout cut it: the M4 `apiRequestContext.post: Timeout 20000ms` reds. Waiting here
-   * leaves the request the ~0.5 s it takes a warm spare to open a game.
+   * leaves the request the ~0.5 s it takes a warm JVM to open a game.
    */
-  const sparesWarm = (proc: ChildProcess): Promise<void> =>
+  const jvmWarm = (proc: ChildProcess): Promise<void> =>
     new Promise<void>((resolveWarm, rejectWarm) => {
       const done = (err?: Error): void => {
         lineWatchers.delete(watch);
@@ -686,18 +694,18 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
       };
       // The pool logs compact `JSON.stringify` lines (`host.ts` `defaultHostLog`).
       const watch = (line: string): void => {
-        if (/"evt":"spare-(warm|disabled)"/.test(line)) done();
+        if (/"evt":"(jvm-warm|warm-disabled)"/.test(line)) done();
       };
-      const exited = (): void => done(new Error(`the play server exited with ${String(proc.exitCode)} before its spare JVM was warm`));
-      // The server's own bound on a JVM start (`socket.ts`, `startTimeoutMs`): a spare that
-      // is not warm by then would fail the match it was adopted for anyway.
-      const cap = setTimeout(() => done(new Error('the play server\'s spare JVM was not warm within 60 s')), 60_000);
+      const exited = (): void => done(new Error(`the play server exited with ${String(proc.exitCode)} before its warm JVM was warm`));
+      // The server's own bound on a match start (`socket.ts`, `startTimeoutMs`): a JVM that is
+      // not warm by then would fail the match placed into it anyway.
+      const cap = setTimeout(() => done(new Error('the play server\'s warm JVM was not warm within 60 s')), 60_000);
       lineWatchers.add(watch);
       proc.once('exit', exited);
     });
   let server = launch();
   pipeLog(server);
-  const warm = sparesWarm(server);
+  const warm = jvmWarm(server);
   // Awaited once the edge is up. Marked handled now, so a failure that lands before then
   // is not reported as an unhandled rejection on top of the error the await rethrows.
   warm.catch(() => undefined);
@@ -760,7 +768,7 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
     await warm;
     // What a test pays before its match exists, split where it goes: the evidence for (or
     // against) sharing one server across a worker's tests.
-    console.log(`[play-stack] up in ${Date.now() - begun} ms: prepare ${spawned - begun}, server healthy ${healthy - spawned}, spare JVM warm ${Date.now() - healthy}`);
+    console.log(`[play-stack] up in ${Date.now() - begun} ms: prepare ${spawned - begun}, server healthy ${healthy - spawned}, warm JVM up ${Date.now() - healthy}`);
   } catch (err) {
     await stop();
     throw err;

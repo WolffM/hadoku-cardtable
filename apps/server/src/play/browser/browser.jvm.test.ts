@@ -52,7 +52,7 @@ const available = probe.ok
 			...process.env,
 			// Never production's, whatever the environment says. See the header.
 			CARDTABLE_PLAY_WORK_DIR: WORK_DIR,
-			CARDTABLE_PLAY_WARM_SPARE: '0',
+			CARDTABLE_PLAY_WARM_JVM: '0',
 		})
 	: probe;
 const title = available.ok
@@ -105,7 +105,7 @@ describe.skipIf(!available.ok)(title, () => {
 		const raw: BridgeLine[] = [];
 		const logs: Record<string, unknown>[] = [];
 		const fanout = new BrowserFanout();
-		const jvm: JvmHostFactory = jvmHostFactory(available.config, { spare: false, log: (e) => logs.push(e) });
+		const jvm: JvmHostFactory = jvmHostFactory(available.config, { warm: false, log: (e) => logs.push(e) });
 		const registry = createMatchRegistry({
 			host: (id, spec, events) =>
 				jvm(id, spec, {

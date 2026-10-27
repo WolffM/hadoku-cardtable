@@ -90,7 +90,7 @@ function silentForge(): NodeJS.ProcessEnv {
 		CARDTABLE_JAVA: join(bin, 'java'),
 		CARDTABLE_PLAY_BRIDGE_CACHE: join(dir, 'bridge'),
 		CARDTABLE_PLAY_WORK_DIR: join(dir, 'work'),
-		CARDTABLE_PLAY_WARM_SPARE: '0',
+		CARDTABLE_PLAY_WARM_JVM: '0',
 		CARDTABLE_CATALOG_REFRESH: '0',
 	};
 }

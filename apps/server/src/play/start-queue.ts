@@ -1,34 +1,35 @@
 /**
- * Cold JVM starts, a few at a time.
+ * Match starts, held back while JVMs boot.
  *
- * A match's JVM boots in ~10 s alone, but boots share the box's CPU: ten started at once on a
- * claw under CI load took 44.7–52.4 s each (hosting test C7, `docs/planning/hosting-test-plan.md`),
- * the slowest within 8 s of the start timeout. A failover onto the claws is exactly that burst.
- * So every start goes through here, wrapped around the host factory in `socket.ts`'s
- * `attachPlay` — room starts, rematches, tournament tables, vs-AI and the dev routes all reach
- * Forge through `MatchRegistry.create` → that one factory:
+ * A JVM boots in ~10 s alone, but boots share the box's CPU: ten started at once on a claw under
+ * CI load took 44.7–52.4 s each (hosting test C7, `docs/planning/hosting-test-plan.md`), the
+ * slowest within 8 s of the start timeout. A failover onto the claws is exactly that burst. Since
+ * many matches share one JVM (`host.ts`), what costs a boot is a JVM, not a match. So every start
+ * goes through here, wrapped around the host factory in `socket.ts`'s `attachPlay` — room starts,
+ * rematches, tournament tables, vs-AI and the dev routes all reach Forge through
+ * `MatchRegistry.create` → that one factory:
  *
- * - **The warm spare goes first.** A start that finds the pool's spare warm takes it at once and
- *   holds no slot: there is nothing left to boot.
- * - **At most `limit` match JVMs boot at once.** A start holds a slot from the moment its JVM is
- *   asked for until that JVM says anything (its `ready`) or exits. The pool's one replacement
- *   spare boots beside them, so the box sees at most `limit + 1` boots.
+ * - **A start that needs no boot goes at once**: a warm JVM with room starts it now, and one still
+ *   booting with room starts it the moment it is warm (`room()`).
+ * - **A start that would launch a JVM waits while `limit` JVMs are booting already** (`booting()`).
+ *   The pool's own warm JVM boots among them.
  * - **The rest wait in order**, and each is told its place (`StartEvents.queued`) whenever it
  *   moves; `Match` keeps it for `GET /play/queue`. A waiting start's host is a stand-in that holds
  *   what the match asks of it until the real one exists.
- * - **The start timeout counts from the boot** (`StartEvents.booting`), not from the request: time
- *   in the queue is not Forge failing to start.
+ * - **The start timeout counts from the placement** (`StartEvents.booting`), not from the request:
+ *   time in the queue is not Forge failing to start.
  *
- * Re-attach (`attach`) is not a start — those JVMs are already running — and passes straight
- * through, as does everything else on the factory.
+ * A factory that says nothing about room (a test's replay host) boots nothing, and every start
+ * goes at once. Re-attach (`attach`) is not a start and passes straight through, as does
+ * everything else on the factory.
  */
 
 import type { BridgeCommand, HostEvents, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
 
 /**
- * Match JVMs booting at once. Two, plus the pool's spare, is three boots: a lone boot on a claw
- * under CI load took 7.8–10.5 s and ten together ~50 s, so three keeps one well inside the 60 s
- * start timeout while still overlapping the I/O-bound part of a boot.
+ * JVMs booting at once before a start that needs another waits. A lone boot on a claw under CI
+ * load took 7.8–10.5 s and ten together ~50 s, so two keeps one well inside the 60 s start timeout
+ * while still overlapping the I/O-bound part of a boot.
  */
 export const COLD_STARTS = 2;
 
@@ -43,7 +44,7 @@ export function coldStartsFrom(env: NodeJS.ProcessEnv = process.env): number {
 export interface StartEvents extends HostEvents {
 	/** Waiting for a boot slot, at this 1-based place. Said again each time the place changes. */
 	queued?(place: number): void;
-	/** The JVM is being asked for now: the start timeout runs from here. */
+	/** The match is being placed now: the start timeout runs from here. */
 	booting?(): void;
 	/** The factory threw for a start that had waited: the same failure a start that never waited throws to its caller. */
 	unstartable?(err: Error): void;
@@ -109,60 +110,43 @@ interface Waiting {
 }
 
 export type QueuedFactory = MatchHostFactory & {
-	/** Starts booting now (holding a slot) and starts waiting, for diagnostics and tests. */
+	/** JVMs booting now, and starts waiting, for diagnostics and tests. */
 	queue(): { booting: number; waiting: number };
 };
 
 export function queueColdStarts(factory: MatchHostFactory, limit: number, log: (entry: Record<string, unknown>) => void): QueuedFactory {
-	let booting = 0;
 	const waiting: Waiting[] = [];
-	const spareWarm = (): boolean => factory.spare?.() === 'warm';
-	const free = (): boolean => spareWarm() || booting < limit;
+	const booting = (): number => factory.booting?.() ?? 0;
+	/** A start may go now: it needs no boot, or another boot fits. */
+	const free = (): boolean => (factory.room?.() ?? 'warm') !== 'none' || booting() < limit;
+	let pumping = false;
 
-	/** Ask the factory for this match's JVM now. Throws what the factory throws, with the slot given back. */
+	/** Place this match now. Throws what the factory throws. */
 	function begin(matchId: string, spec: MatchSpec, events: StartEvents, waitedMs: number | null): MatchHost {
-		const warm = spareWarm();
-		let held = !warm;
-		if (held) booting += 1;
-		const release = (): void => {
-			if (!held) return;
-			held = false;
-			booting -= 1;
-			pump();
-		};
-		log({ evt: 'start-booting', matchId, warmSpare: warm, booting, ...(waitedMs === null ? {} : { waitedMs }) });
+		log({ evt: 'start-booting', matchId, room: factory.room?.() ?? 'warm', booting: booting(), ...(waitedMs === null ? {} : { waitedMs }) });
 		events.booting?.();
-		try {
-			return factory(matchId, spec, {
-				...events,
-				// The line goes on first, then the slot: the boot it frees starts after this one ended.
-				line: (line) => {
-					events.line(line);
-					release();
-				},
-				exit: (reason) => {
-					events.exit(reason);
-					release();
-				},
-			});
-		} catch (err) {
-			release();
-			throw err;
-		}
+		return factory(matchId, spec, events);
 	}
 
+	/** Start every waiter that may go, in order. Re-entered by a placement's own room change: once is enough. */
 	function pump(): void {
-		while (waiting.length > 0 && free()) {
-			const next = waiting.shift()!;
-			let host: MatchHost;
-			try {
-				host = begin(next.matchId, next.spec, next.events, Date.now() - next.since);
-			} catch (err) {
-				next.events.unstartable?.(err as Error);
-				next.host.drop(`Forge could not be started: ${(err as Error).message}`);
-				continue;
+		if (pumping) return;
+		pumping = true;
+		try {
+			while (waiting.length > 0 && free()) {
+				const next = waiting.shift()!;
+				let host: MatchHost;
+				try {
+					host = begin(next.matchId, next.spec, next.events, Date.now() - next.since);
+				} catch (err) {
+					next.events.unstartable?.(err as Error);
+					next.host.drop(`Forge could not be started: ${(err as Error).message}`);
+					continue;
+				}
+				next.host.become(host);
 			}
-			next.host.become(host);
+		} finally {
+			pumping = false;
 		}
 		for (const [i, w] of waiting.entries()) {
 			if (w.place === i + 1) continue;
@@ -190,15 +174,16 @@ export function queueColdStarts(factory: MatchHostFactory, limit: number, log: (
 			}, events),
 		};
 		waiting.push(entry);
-		log({ evt: 'start-queued', matchId, place: waiting.length, booting, limit });
+		log({ evt: 'start-queued', matchId, place: waiting.length, booting: booting(), limit });
 		pump();
 		return entry.host;
 	}) as QueuedFactory;
 
-	factory.watchSpare?.(pump);
+	factory.watchRoom?.(pump);
 
-	queued.queue = () => ({ booting, waiting: waiting.length });
-	if (factory.spare !== undefined) queued.spare = () => factory.spare!();
+	queued.queue = () => ({ booting: booting(), waiting: waiting.length });
+	if (factory.room !== undefined) queued.room = () => factory.room!();
+	if (factory.booting !== undefined) queued.booting = () => factory.booting!();
 	if (factory.orphans !== undefined) queued.orphans = () => factory.orphans!();
 	if (factory.attach !== undefined) queued.attach = (record, events) => factory.attach!(record, events);
 	queued.close = () => {

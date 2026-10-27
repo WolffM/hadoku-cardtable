@@ -54,7 +54,7 @@ export { liveJvmCount };
 
 /** Is a Forge build configured? The same check the server's JVM test skips on. Warm spare off: one JVM per test match, nothing left behind. */
 export function forgeAvailability() {
-  return jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_SPARE: '0' });
+  return jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_JVM: '0' });
 }
 
 type Notify<M extends string> = Extract<ServerFrame, { method: M }>;

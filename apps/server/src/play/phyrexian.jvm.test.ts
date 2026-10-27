@@ -30,7 +30,7 @@ import { createMatchRegistry } from './match.js';
 import { foldFrames, type StateFrame, type WireObj } from './visibility.js';
 import type { ServerEnvelope } from '@hadoku/shared';
 
-const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_SPARE: '0' });
+const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_JVM: '0' });
 const title = available.ok
 	? 'a Phyrexian spell with no untapped land, against real Forge'
 	: `a Phyrexian spell with no untapped land, against real Forge — SKIPPED: ${available.reason}`;
@@ -60,7 +60,7 @@ describe.skipIf(!available.ok)(title, () => {
 			if (!available.ok) return;
 			const sent: { seat: number; envelope: ServerEnvelope }[] = [];
 			const logs: Record<string, unknown>[] = [];
-			const jvm = jvmHostFactory(available.config, { spare: false, log: (e) => logs.push(e) });
+			const jvm = jvmHostFactory(available.config, { warm: false, log: (e) => logs.push(e) });
 
 			const notes = [0, 1].map(() => ({ prompt: '', ok: false, actionable: null as number[] | null }));
 			const registry = createMatchRegistry({

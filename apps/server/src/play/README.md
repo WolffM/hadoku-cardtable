@@ -24,12 +24,12 @@ match outlives its server" below.
 | `match.ts` | one match, socket-free: seat binding, per-seat projector/cursor/history, asks, lifecycle |
 | `visibility.ts` | the hidden-information projection (Forge's `canBeShownTo`, server side) |
 | `transport.ts` | the A↔B wrapper schemas (lane B mirrors them at `apps/ui/src/play/live/transport.ts`) |
-| `host.ts` | the `MatchHost` seam, the one-JVM-per-match implementation, its warm spare, the concurrency ceiling, the run directory, and the re-attach seam a match survives a restart through (`orphans`/`attach`/`handOver`) |
+| `host.ts` | the `MatchHost` seam and the coordinator: matches placed into shared `--host` JVMs (`perJvm` each), the warm JVM, a JVM's death failing every match on it, the concurrency ceiling, and the re-attach seam a match survives a restart through (`orphans`/`attach`/`handOver`) |
+| `jvm-transport.ts` | `JvmTransport`/`JvmLauncher`, the seam between the coordinator and where a JVM runs; the local launcher (fifos, run directory, boot sweep, crash records) and the compiled bridge |
 | `auto.ts` | pure decisions: an ask with one legal reply, a stop with nothing to do, a payment with one source. `match.ts` acts on them; a seat's `fullControl` turns the file off for that seat. Wave 32 added three policy values, all off under full control: `skipEmptyBlockStop` (no creatures, no Declare Blockers stop), `passOwnSpell` (priority is not held on the seat's own spell) and `orderSimultaneous` (Forge's own order for simultaneous abilities). `match.ts` presses OK once per prompt (`SeatState.passedOn`): Forge's block input says its buttons BEFORE its prompt, and a second press on the stale prompt ended it |
 | `names.ts` | a card-name ask narrowed to the match's format, built once per format: a frozen era's legal names, the cube for a drafted pool, the library's decks on Free pick — plus every name either deck plays; an unknown format keeps Forge's whole list |
 | `bridge/PlayBridge.java` | the Java side: one source file, no build step. `host.ts` compiles it once per version into `~/.cache/cardtable/bridge` and launches the classes (`bridgeLaunch`) |
 | `dev/seat.ts` | a command-line seat, for local testing (see "Two seats locally") |
-| `dev/spare-bench.ts` | cold start vs warm spare, measured (see "The warm spare, measured") |
 | `fixtures/` | a recorded real bridge transcript, its replay host, the leak oracle, and `w20-turn-flow.json` (real priority/payment windows off a live match; see its own header) |
 
 ## The `src/index.ts` edit
@@ -282,11 +282,11 @@ was answered in 3 ms, and a probe ran alongside it in 4.4 ms.
 | `visibility.test.ts` (21) | both seats projected from Wave 8's 27-packet fixture; whole-payload leak check; own hand fully visible after draws; public cards untouched; events dropped (real `GameEventCardChangeZone`); `setGameView`; a face-down permanent | `apps/ui/src/play/fixtures/tierc-game1-seq1-27.json`, `packages/forge-wire/src/events/fixtures/` |
 | `match.test.ts` (60) | identity binding and its failure modes, per-seat emission and the leak check, cursor, snapshot, asks (reply by callId, other seat cannot answer, disconnect/timeout/browser abort, re-send), invalid frames, lifecycle; the 'Flying' regression; **crash** (both seats told, once, at the next cursor; kept across a resync) and **reconnect** (the grace, the same board and ask after a refresh) | `fixtures/bridge-two-seats.ndjson`, `fixtures/bridge-flying-seat1.ndjson` |
 | `socket.test.ts` (27) | real express + socket.io + clients with edge headers: POST, joins, match-full, whole-transcript leak check, contiguous cursors from the snapshot, reply routing, disconnect vs refresh, tier gate, dev identity refused without the hatch; a refresh in browser order (old socket closed first) outliving the grace; a crash leaving the server up; full control echoed to every join and resync, restored across a refresh, per seat, and withheld from a refused join | same transcript |
-| `host.test.ts` (26) | the JVM pool against `fixtures/fake-bridge.mjs` (a child process speaking the bridge's line protocol, no Forge): spare adoption and re-addressing, a still-booting spare, spare off, `close()`, the ceiling counting the spare, the heap cap, a spare that keeps dying, a match's JVM SIGKILLed; the run directory (removed on a clean end, kept and pruned on a crash); the boot sweep against a **fixture** work dir (dead removed; live, fresh, in-bound crash records and anything not ours spared; the record bound; it runs when the pool is made); and Wave 22's re-attach — a JVM still running after the process that started it is gone and naming itself on disk, offered back and replayed into a new match, killed when nobody claims it, handed over on the way out and taken back by a second pool, a live spare ended from its own record, an orphan past `ORPHAN_MAX_MS` ended, and a live dir whose record names a different process left alone | fake bridge — runs in CI |
+| `host.test.ts` (40) | the coordinator against `fixtures/fake-bridge.mjs` (a child process speaking the `--host` bridge's line protocol, no Forge) and a scripted launcher: placement into the fullest warm JVM up to `perJvm`, a booting JVM taken rather than a second launched, the warm JVM kept behind a full one, `maxJvms`, a refused start, a stop never answered; routing each line to its own match; a JVM SIGKILLed or SIGSTOPped failing every match on it; failed boots giving up keeping a JVM warm; the JVM's flags and heap cap; the run directory (removed on a clean end, kept and pruned on a crash); idle retirement; the boot sweep against a **fixture** work dir; and re-attach — a JVM still running after the process that started it, every match on it offered back and replayed, an orphan past `ORPHAN_MAX_MS` retired, handed over and taken back by a second pool, the reap on the way out, and a full disk degrading a match | fake bridge — runs in CI |
 | `auto.test.ts` (144) | the shortcuts as rules: every committed prompt fixture stays a question; the bounds cases that answer themselves; `autoPassReason` and `autoPayReason` over typed frames AND over `fixtures/w20-turn-flow.json`'s real windows; the same through a whole `Match` over the replay host; `fullControl` turning all of it off | `apps/ui/src/play/prompts/fixtures/*.json`, `fixtures/w20-turn-flow.json` |
 | `auto.jvm.test.ts` (1) | the same against a real Forge: stops passed only where Forge named nothing, every cast says what it paid, the scry asks about the scried cards; **skips visibly** without a jar | live |
 | `seed.jvm.test.ts` (1) | one seed, one deal: two cold matches on seed 20260918 put both libraries in the same order — the seed reaching Forge's `MyRandom`, measured rather than read off the source; **skips visibly** without a jar | live |
-| `match.jvm.test.ts` (3) | real matches in real JVMs — fixed decks + seed (cold), and seeded variety **through the warm spare**; then a refresh with a real ask parked in Forge, and a SIGKILL; **skips visibly** without `CARDTABLE_FORGE_JAR`/`CARDTABLE_FORGE_RES` | live |
+| `match.jvm.test.ts` (3) | real matches in real JVMs — fixed decks + seed (a JVM launched for it), and seeded variety **placed into the warm JVM**; then a refresh with a real ask parked in Forge, and a SIGKILL; **skips visibly** without `CARDTABLE_FORGE_JAR`/`CARDTABLE_FORGE_RES` | live |
 
 Every count above is the number of tests the suite RUNS, not the `it(` blocks
 in its source — `auto.test.ts` has two `it.each` tables, so it reads 121 blocks
@@ -458,117 +458,74 @@ both seats' hidden-card shape check, `setGameView`, face-down).
 
 ## The run directory
 
-Every JVM gets `<workDir>/<id>` — `m-<12 hex>` for a match, `spare-<12 hex>` for
-the spare — staged by `stageRunDir` in `host.ts`. `workDir` is
-`CARDTABLE_PLAY_WORK_DIR`, default `<os tmpdir>/cardtable-play`, which is tmpfs
-here: a directory nobody removes is RAM nobody gets back. The JVM's **cwd is
-this directory**, and that fact is load-bearing twice over — Forge resolves
-`res/` and its profile against the cwd, and `/proc/<pid>/cwd` is how a later
-process tells a live run dir from a dead one.
+Every JVM gets `<workDir>/<hostId>` (`h-<12 hex>`), staged by `stageRunDir` in
+`jvm-transport.ts`. `workDir` is `CARDTABLE_PLAY_WORK_DIR`, default
+`<os tmpdir>/cardtable-play`, which is tmpfs here: a directory nobody removes is
+RAM nobody gets back. The JVM's **cwd is this directory**, and that fact is
+load-bearing twice over — Forge resolves `res/` and its profile against the cwd,
+and `/proc/<pid>/cwd` is how a later process tells a live run dir from a dead one.
 
-| in `<workDir>/<id>` | written by | what it is |
+| in `<workDir>/<hostId>` | written by | what it is |
 | --- | --- | --- |
-| `res` (symlink), `user/`, `cache/`, `forge.profile.properties`, `user/preferences/forge.preferences` | `stageRunDir` | Forge's own scaffolding, per match, so nothing is written into the build it reads from. The preferences file is `FORGE_PREFERENCES` — see its doc comment |
-| `config.json` | `BridgeJvm.adopt`, and the pool before a cold spawn (the bridge reads it as its one argument) | the match the bridge is to run: id, seed, seats, decks. Kept in a crash record, so a crashed match can be replayed |
-| `in.fifo`, `out.fifo` | `makeFifos` (shells out to `mkfifo(1)`; `node:fs` has no binding) | the JVM's stdin and stdout. **Named** pipes, not inherited ones, so a process that did not spawn the JVM can still speak to it. Both ends open them `O_RDWR` (`openJvmIo`), which on Linux succeeds with no peer and means neither side ever reads EOF — the bridge exits on stdin EOF, so a read-only fd would end the match the moment the server let go |
-| `bridge.stderr.txt` | the JVM, through an `O_APPEND` fd | Forge's and the bridge's stderr — ~200 KB a match, and the only record of *why* a crash happened. A file rather than a pipe for the same reason as the fifos |
-| `stream.jsonl` | `BridgeJvm.persist`, on every line **and** every command sent | the match's whole protocol history, in order, both directions (a command is stored as `{"c":{…}}`). It is what a re-attach replays to rebuild the per-seat projectors, cursors and open asks. A line that cannot be appended sets `durable = false` and **deletes `jvm.json`**: a replay from a stream with a hole would hand a seat a board Forge does not have |
-| `jvm.json` | `BridgeJvm.writeRecord` — at spawn for a spare, on `adopt`, on `remember` (`match.ts:319`, `:340`, `:421`: the epoch at start/resume and the seats' owners as they are claimed) and on `handOver` | the handle a later process re-attaches by; below |
+| `res` (symlink), `user/`, `cache/`, `forge.profile.properties`, `user/preferences/forge.preferences` | `stageRunDir` | Forge's own scaffolding, per JVM, so nothing is written into the build it reads from. The preferences file is `FORGE_PREFERENCES` — see its doc comment |
+| `in.fifo`, `out.fifo` | `makeFifos` (shells out to `mkfifo(1)`; `node:fs` has no binding) | the JVM's stdin and stdout. **Named** pipes, not inherited ones, so a process that did not spawn the JVM can still speak to it. Both ends open them `O_RDWR` (`openJvmIo`), which on Linux succeeds with no peer and means neither side ever reads EOF — the bridge exits on stdin EOF |
+| `bridge.stderr.txt` | the JVM, through an `O_APPEND` fd | Forge's and the bridge's stderr, and the only record of *why* a crash happened |
+| `launch.json` | the local launcher, at spawn | `{hostId, pid, startedAt}`: what the boot sweep finds a running JVM by |
+| `jvm.json` | the coordinator (`host.ts`) — at launch, when a match is placed or ends, on `remember` (the epoch and the seats' owners as they are claimed) and on hand-over | a `JvmRecord`: `{hostId, startedAt, orphanedAt?, matches: [{matchId, startedAt, epoch, owners, spec}]}`. **`epoch` is why a client resyncs on the cursor it already holds**, and **`owners` (seat → participant id) is why seat 1 cannot come back as seat 0**. Kept in a crash record: it holds every match's decks |
+| `<matchId>.jsonl` | the coordinator, on every line **and** every command of that match | the match's whole protocol history, in order (a command is stored as `{"c":{…}}`). It is what a re-attach replays to rebuild the per-seat projectors, cursors and open asks. One that cannot be appended degrades its match: renamed to `<matchId>.broken.jsonl`, handover refused, and a later boot stops the match instead of offering it |
 | `crash.json` | `keepCrashRecord`, on an unclean exit | marks the directory as a crash record and says how it ended (`reason`, `code`, `signal`, `at`) |
 
-`jvm.json` is a `JvmRecord`: `{matchId, pid, run, startedAt, epoch, owners,
-spec, spare?, orphanedAt?}`. Each field is there because a re-attach cannot be
-done without it — `pid` + `run` are the identity check, `spec` is the match to
-rebuild, **`epoch` is why a client resyncs on the cursor it already holds
-instead of starting over**, and **`owners` (seat → participant id) is why seat 1
-cannot come back as seat 0**, which would hand them the other player's hand.
-`spare: true` marks a JVM that holds no game (never re-attached, killed at boot
-from its own record); `orphanedAt` is stamped by `handOver` so the orphan bound
-runs from the hand-over, not from the match's start. Nothing in it is something
-a seat could not already see: `owners` are participant ids, which never leave
-this host. It is read back by `readJvmRecord`, which returns null for anything
-that is not a record — a record with no `spec` and no `spare` flag is not
-re-attachable and is treated as absent.
-
 What happens to the directory when the JVM is gone is decided by *how* it went,
-and `host.ts`'s header ("The run directory") has the whole rule: a clean end —
-we asked it to stop and it exited 0 — is removed whole; anything else is kept as
-a crash record pruned to `CRASH_RECORD_FILES`, bounded by `CRASH_RECORDS_KEPT`
-(20) and `CRASH_RECORD_MAX_AGE_MS` (7 days).
+and `jvm-transport.ts`'s header ("The run directory") has the rule: a clean end —
+the coordinator asked the JVM to go — is removed whole; anything else is kept as a
+crash record pruned to `CRASH_RECORD_FILES`, bounded by `CRASH_RECORDS_KEPT` (20)
+and `CRASH_RECORD_MAX_AGE_MS` (7 days).
 
-## Match lifecycle: warm spare, crash, reconnect (Wave 10)
+## Match lifecycle: the warm JVM, crash, reconnect (Wave 10)
 
-### The warm spare
+### Many matches per JVM, and the warm JVM
 
-`jvmHostFactory` keeps one bridge JVM booted and matchless (`PlayBridge
---spare <spareId>`): Forge's model, card database and network server are up, and
-it is blocked on stdin. `bootForge()` in the bridge is everything that does not
-depend on the match, so a spare and a cold start run the same code in a
-different order. A new match adopts the spare with one line:
+Every bridge JVM is a `PlayBridge --host <hostId>` (`docs/spikes/multi-match-jvm.md`):
+Forge's model and card database are booted once, and each match is one more
+`start` line on the same stdin:
 
 ```
-Node → spare   {"t":"start","match":"spare-…","config":{"matchId":"m-…","seed":…,"seats":[…]}}
-spare → Node   {"t":"ready",…,"match":"m-…"}            every line from here carries the match's id
+Node → JVM   {"t":"start","match":"h-…","config":{"matchId":"m-…","seed":…,"seats":[…]}}
+JVM → Node   {"t":"ready",…,"match":"m-…"}           every line of the match carries its id
+Node → JVM   {"t":"stop","match":"m-…"}               that match only
+JVM → Node   {"t":"stopped","match":"m-…"}            its exit
 ```
 
-Before `start` the spare's only line is `{"t":"warm","bootMs":…,"match":"spare-…"}`.
-A replacement spare is spawned as soon as one is adopted — subject to the ceiling
-below. A spare still booting is adopted anyway (never behind a fresh spawn). One
-that dies idle is replaced after 5 s, and after 3 such deaths in a row the pool
-gives up and starts matches cold (`spare-disabled` in the log). It is still one
-JVM per match: a spare becomes exactly one match's JVM. Turn it off with
-`CARDTABLE_PLAY_WARM_SPARE=0`. `attachPlay`'s `close()` stops the idle spare.
+`host.ts` places each match into the fullest warm JVM with room, up to `perJvm`
+(`CARDTABLE_PLAY_MATCHES_PER_JVM`, default 8), and keeps one JVM with room booted
+ahead of the next match: when the last one with room fills, another is launched.
+A JVM that dies fails every match on it (`jvm-lost`); one empty for `IDLE_JVM_MS`
+is retired unless it is the last with room. Three JVMs in a row that die before
+`warm` stop the pool keeping one warm (`warm-disabled`); a match then launches its
+own. Turn the warm JVM off with `CARDTABLE_PLAY_WARM_JVM=0`. `attachPlay`'s
+`close()` retires idle JVMs.
 
-### Starts queue for a boot slot
+### Starts queue for a JVM boot
 
 Boots share the CPU: ten cold JVMs started together on a claw took ~50 s each,
 against ~10 s alone (hosting test C7). `start-queue.ts` wraps the host factory
-inside `attachPlay`, so every start goes through it. A start that finds the
-spare warm takes it at once; otherwise at most `CARDTABLE_PLAY_COLD_STARTS`
-(default 2) match JVMs boot together, beside the pool's one replacement spare,
-and the rest wait in order. `GET /api/play/queue` answers `{ place }`: the
-caller's place while a start they wait on is queued, else `null`. The start
-timeout counts from the boot, not from the request.
+inside `attachPlay`, so every start goes through it. A start that needs no boot
+(a JVM with room, warm or booting) goes at once; one that would launch a JVM waits
+while `CARDTABLE_PLAY_COLD_STARTS` (default 2) JVMs are booting already, and the
+rest wait in order. `GET /api/play/queue` answers `{ place }`: the caller's place
+while a start they wait on is queued, else `null`. The start timeout counts from
+the placement, not from the request.
 
-### The warm spare, measured
+### A warm JVM, measured
 
-`dev/spare-bench.ts`, 5 rounds alternating cold and warm, same decks (Spirit
-Flames v Decay) and seed, through `Match` exactly as the socket server uses it;
-time from `registry.create()`. Host load average 3.1 → 6.3 during the run (other
-lanes were active); `-Xmx1g`.
+Placing a match into a JVM that is already booted saves the boot: ~4.2 s per
+match on this host, 4,681 ms → 461 ms median to the first envelope, n = 5 each,
+when it was measured as the one-match spare (Wave 10, `-Xmx1g`, Spirit Flames v
+Decay). What is left (~0.45 s) is deck parsing, two loopback Netty clients joining
+the lobby, and Forge dealing the opening hands. An idle JVM held ~600–640 MB of
+RSS. `match.jvm.test.ts` prints the same two numbers on every gated run.
 
-```console
-$ CARDTABLE_FORGE_JAR=~/.cache/w7b-forge/forge-gui-desktop/target/forge-gui-desktop-2.0.15-SNAPSHOT-jar-with-dependencies.jar \
-  CARDTABLE_FORGE_RES=~/.cache/w7b-forge/forge-gui/res \
-  pnpm --filter @hadoku/server exec tsx src/play/dev/spare-bench.ts --runs 5 ; echo $?
-run 1 cold: first event 4649 ms, running 4651 ms, RSS at running 853 MB
-run 1 warm: first event 461 ms, running 462 ms, RSS at running 750 MB, idle spare RSS 633 MB
-run 2 cold: first event 4654 ms, running 4654 ms, RSS at running 751 MB
-run 2 warm: first event 497 ms, running 499 ms, RSS at running 851 MB, idle spare RSS 637 MB
-run 3 cold: first event 4754 ms, running 4755 ms, RSS at running 764 MB
-run 3 warm: first event 479 ms, running 485 ms, RSS at running 738 MB, idle spare RSS 603 MB
-run 4 cold: first event 4681 ms, running 4681 ms, RSS at running 745 MB
-run 4 warm: first event 447 ms, running 447 ms, RSS at running 762 MB, idle spare RSS 637 MB
-run 5 cold: first event 5302 ms, running 5303 ms, RSS at running 757 MB
-run 5 warm: first event 438 ms, running 442 ms, RSS at running 764 MB, idle spare RSS 627 MB
-cold: n=5, first event median 4681 ms (min 4649, max 5302), running median 4681 ms, RSS median 757 MB
-warm: n=5, first event median 461 ms (min 438, max 497), running median 462 ms, RSS median 762 MB
-0
-```
-
-**The spare saves ~4.2 s per match: 4,681 ms → 461 ms median to the first
-event, n = 5 each.** "First event" is the first envelope any seat is sent (its
-`openView`); "running" is both seats opened, which is when `POST
-/api/play/matches` answers. What is left warm (~0.45 s) is deck parsing, two
-loopback Netty clients joining the lobby, and Forge dealing the opening hands.
-A warm run is measured the way production meets it: adopting the spare spawns
-its replacement at once, so the match starts beside a booting JVM. An idle spare
-holds ~600–640 MB of RSS; that is the price.
-
-`match.jvm.test.ts` shows the same from the other side on every gated run: the cold
-fixed run reaches running in 4,737 ms, the warm variety run in 484 ms.
-
-### The ceiling: 2 concurrent matches, spare included
+### The ceiling
 
 `MAX_CONCURRENT_MATCHES = 2` in `host.ts`, whose header has the whole argument.
 In short: G1 does not hand committed heap back, so a JVM's RSS only ratchets up
@@ -651,18 +608,22 @@ Three things make a match survive, and each is forced by the one before it.
    `orphanedAt`, and **emits nothing** (a frame sent now would take a `seq` the
    next server's replay cannot reproduce); (c) a match that *cannot* be handed
    over is told to its seats in words by `Match.serverStopping` and then
-   stopped; (d) the spare is closed either way, because it holds no game. Then
+   stopped; (d) idle JVMs are retired either way, because they hold no game; and
+   `reapOnExit` kills every JVM with no handed-over match and lets go of the rest. Then
    the sockets are closed and the process exits within `SHUTDOWN_DEADLINE_MS`
    (5 s) whatever happens — pm2's `kill_timeout` is 1.6 s, so a handler that can
    hang buys nothing.
-3. **The next process rebuilds the match from `stream.jsonl`.** The JVM still
-   holds Forge's game, but the per-seat projectors, histories, cursors and
+3. **The next process rebuilds each match from its `<matchId>.jsonl`.** The JVM
+   still holds Forge's games, but the per-seat projectors, histories, cursors and
    parked asks died with the old process. `sweepRunDirs` (run once, when the
-   factory is made) hands back a `JvmRecord` for every run dir whose recorded
-   pid is still the process standing in it; `attachPlay` — at the very end, so a
-   resumed match is in the registry and has its room before any client can ask
-   for it — calls `matches.adopt(record)` for each, and `Match.resume` replays
-   the whole stream **synchronously, before the first live line**. Replay is
+   launcher is made) finds every run dir whose `launch.json` pid is still the
+   process standing in it; the coordinator attaches each at once and offers every
+   match its `jvm.json` lists as a `MatchRecord` (`orphans()`); `attachPlay` — at
+   the very end, so a resumed match is in the registry and has its room before
+   any client can ask for it — calls `matches.adopt(record)` for each, and
+   `Match.resume` replays the match's stream **synchronously, before the first
+   live line**. Lines that arrive for a match before it is claimed are kept in its
+   stream, so the replay has them too. Replay is
    deterministic, so every seat's `seq` comes back identical; the epoch and the
    seat owners come off `jvm.json` because a replay cannot reproduce them. A
    client therefore resyncs on the cursor it already held. A re-attached JVM is
@@ -675,12 +636,11 @@ Three bounds, each with its own reason, values read from the code:
 
 | bound | value | what it does |
 | --- | --- | --- |
-| `ORPHAN_MAX_MS` (`host.ts`) | **12 h** (`12 * 60 * 60 * 1000`) | measured from `orphanedAt` (or `startedAt`). Past it the sweep does not offer the match back at all: it kills the pid and removes the directory. Nobody is coming back to yesterday's game |
-| `ORPHAN_CLAIM_MS` (`host.ts`) | **60 s** (`60_000`) | an orphan nobody claimed this long after boot is killed and swept. This is what makes `orphans()` safe to ignore: a caller that never calls it cannot leak a JVM, and the spare comes back |
+| `ORPHAN_MAX_MS` (`host.ts`) | **12 h** (`12 * 60 * 60 * 1000`) | measured from the JVM's `orphanedAt` (or `startedAt`). Past it no match on it is offered back: the JVM is retired. Nobody is coming back to yesterday's game |
+| `ORPHAN_CLAIM_MS` (`host.ts`) | **60 s** (`60_000`) | a match nobody claimed this long after boot is stopped, and its JVM retired once empty. This is what makes `orphans()` safe to ignore: a caller that never calls it cannot leak a JVM |
 | the rejoin grace | **5 min** (`match.ts`, `deps.rejoinGraceMs ?? 5 * 60_000`; `PlayDeps.rejoinGraceMs`) | a match taken back that nobody rejoins is `stop()`ped. A resumed match with no players is a JVM nobody wants |
 
-Orphans also count against `maxJvms` from the moment they are found, so a
-re-attach cannot push the JVM count past the ceiling of 2.
+JVMs taken back count against `maxJvms` from the moment they are attached.
 
 `host.ts`'s header says this bound is enforced by `Match.expectRejoin`. **There
 is no such method** — it is `Match.resume`'s `rejoinGraceMs` timer
@@ -707,10 +667,10 @@ dir. That one condition is the difference between "clean up after a crash" and
 - Where `/proc` cannot be read the sweep does **nothing at all** and says why
   (`SweepResult.skipped`). A live directory cannot be told from a dead one there,
   and guessing wrong deletes a running match.
-- Since this wave the guard also answers *whose*: a live dir with a re-attachable
-  record becomes a `SweepResult.orphans` entry. The only directories the sweep
-  ends while live are ones whose own record condemns them — a `--spare` (it holds
-  no game) or an orphan past `ORPHAN_MAX_MS`.
+- The guard also answers *whose*: a live dir whose `launch.json` names the
+  process standing in it becomes a `SweepResult.running` entry. The only
+  directories the sweep ends while live are one-match JVMs from before many
+  matches per JVM (`m-…`/`spare-…`), named by their own record's pid.
 
 **Do not "simplify" that condition away.** The manager mutation-tested it this
 wave: disabling the live-cwd check alone turns **8 of the 22 tests in

@@ -44,7 +44,7 @@ function fakeFactory(): FakeFactory {
 	factory.calls = calls;
 	factory.sends = sends;
 	factory.close = () => undefined;
-	factory.spare = () => 'none';
+	factory.room = () => 'none';
 	return factory;
 }
 
@@ -99,7 +99,7 @@ describe('createRecorder', () => {
 		const recorder = createRecorder({ dir, identity: { pin: null, bridge: 'b', server: 's' }, roomOf: () => null, deckCosts: NO_COSTS });
 		const hosted = recorder.host(inner);
 		expect(hosted.close).toBe(inner.close);
-		expect(hosted.spare!()).toBe('none');
+		expect(hosted.room!()).toBe('none');
 	});
 
 	it('never lets a fault in recording reach the match: the line, the command and the envelope all still go through', () => {

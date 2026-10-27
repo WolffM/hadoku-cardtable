@@ -21,9 +21,9 @@
  * - **Fixed:** "Spirit Flames" v "Decay" — the two precons of the red run the
  *   manager hit (`fixtures/bridge-flying-seat1.ndjson`) — with a fixed seed.
  * - **Variety:** random precons from a seed printed in the log; rerun a red one
- *   with `CARDTABLE_PLAY_SEED=<that seed>`. This one is started **through the
- *   warm spare** (Wave 10), so the leak check covers both ways a match reaches
- *   its JVM.
+ *   with `CARDTABLE_PLAY_SEED=<that seed>`. This one is placed **into the warm
+ *   JVM** once it has booted, so the leak check covers both ways a match reaches
+ *   its JVM: into one already warm, or into one launched for it.
  *
  * A third test (Wave 10) runs a refresh and a crash against a real JVM: the
  * seat's socket goes and comes back inside the grace while a real
@@ -109,7 +109,7 @@ describe.skipIf(!available.ok)(title, () => {
 			false,
 		],
 		[
-			`variety: random precons, seed ${variety}, through the warm spare`,
+			`variety: random precons, seed ${variety}, into the warm JVM`,
 			() => ({
 				seed: variety,
 				seats: [
@@ -123,14 +123,14 @@ describe.skipIf(!available.ok)(title, () => {
 
 	it.each(runs)(
 		'%s — starts, opens both seats, projects per seat, answers a real ask, moves on an act',
-		async (label, spec, spare) => {
+		async (label, spec, warm) => {
 			if (!available.ok) return;
 			const raw: BridgeLine[] = [];
 			const sent: { seat: number; envelope: ServerEnvelope }[] = [];
 			const logs: Record<string, unknown>[] = [];
-			const jvm = jvmHostFactory(available.config, { spare, log: (e) => logs.push(e) });
+			const jvm = jvmHostFactory(available.config, { warm, log: (e) => logs.push(e) });
 			pools.push(jvm);
-			if (spare) await waitUntil(() => jvm.spare() === 'warm', 'the spare to boot', 120_000);
+			if (warm) await waitUntil(() => jvm.room() === 'warm', 'the warm JVM to boot', 120_000);
 			const registry = createMatchRegistry({
 				host: (id, spec, events) =>
 					jvm(id, spec, {
@@ -147,12 +147,12 @@ describe.skipIf(!available.ok)(title, () => {
 			const started = Date.now();
 			const match = registry.create(spec());
 			matches.push(match);
-			// Stopped however the case ends: a red one left its JVM (and the spare)
+			// Stopped however the case ends: a red one left its JVM (and the warm one)
 			// running, and the next case's own "no JVM left" read it (run 38298019713).
 			onTestFinished(async () => {
 				match.stop();
 				jvm.close();
-				await waitUntil(() => liveJvmCount() === 0, "this match's JVM (and any spare) to exit", 15_000);
+				await waitUntil(() => liveJvmCount() === 0, "this match's JVM (and any warm one) to exit", 15_000);
 			});
 			const running = await match.whenRunning(120_000);
 			expect(running).toEqual({ ok: true });
@@ -160,7 +160,7 @@ describe.skipIf(!available.ok)(title, () => {
 			console.log(
 				`[jvm] ${label}: running after ${Date.now() - started} ms (JVM up ${ready.bootMs} ms, match start ${ready.startMs} ms); decks: ${ready.seats.map((s) => s.deck).join(' v ')}`,
 			);
-			expect(logs.some((l) => l.evt === 'spare-adopted')).toBe(spare);
+			expect(logs.find((l) => l.evt === 'match-placed')?.warm).toBe(warm);
 			expect(match.seats.map((s) => s.playerId).sort()).toEqual([0, 1]);
 
 			// Forge opens with the coin toss: one seat is asked play-or-draw.
@@ -248,7 +248,7 @@ describe.skipIf(!available.ok)(title, () => {
 		if (!available.ok) return;
 		const sent: { seat: number; envelope: ServerEnvelope }[] = [];
 		const logs: Record<string, unknown>[] = [];
-		const jvm = jvmHostFactory(available.config, { spare: false, log: (e) => logs.push(e) });
+		const jvm = jvmHostFactory(available.config, { warm: false, log: (e) => logs.push(e) });
 		pools.push(jvm);
 		const registry = createMatchRegistry({
 			host: jvm,

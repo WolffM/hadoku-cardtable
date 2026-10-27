@@ -16,8 +16,8 @@
  *
  * - a match that is `over`, `failed` or `stopped` — finished, nothing left to lose;
  * - a `complete` draft;
- * - **the warm spare JVM.** `liveJvmCount()` includes it and would report busy
- *   every minute of the day; the spare is a pre-booted process with nobody in it;
+ * - **the warm JVM.** `liveJvmCount()` includes it and would report busy every
+ *   minute of the day; it is a pre-booted process with nobody in it;
  * - **connected-but-idle clients and open lobbies.** They reconnect fine, they
  *   never disconnect on their own, and counting them would make every deploy sit
  *   until its deadline — at which point the deadline kills the real match anyway.

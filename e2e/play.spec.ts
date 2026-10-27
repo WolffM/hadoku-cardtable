@@ -134,6 +134,7 @@ import { answerPrompt, SELF_ANSWERING } from './play/prompts.ts';
 import {
   forgeAvailability,
   JVM_RECORD_FILE,
+  LAUNCH_RECORD_FILE,
   ORPHAN_MAX_MS,
   readJvmRecord,
   RUN_DIR,
@@ -2071,14 +2072,12 @@ function playMessagesSince(f: Friend, mark: number): PlayMessage[] {
 
 /** What became of one bridge JVM when the server stopped. `faults` empty is the contract met. */
 interface JvmFate {
-  /** The pool's own id for it — a match id, or `spare-<hex>`. */
+  /** The pool's own id for it, `h-<hex>`. */
   id: string;
   pid: number;
   run: string;
   /** The server said, on its way out, that a later server may take this one back. */
   handedOver: boolean;
-  /** Its own record called it a `--spare`: no game, never re-attached. */
-  spare: boolean;
   alive: boolean;
   /** Why this fate breaks the contract. Empty is the pass. */
   faults: string[];
@@ -2090,23 +2089,24 @@ interface JvmFate {
  *
  * **A match JVM is now MEANT to outlive its server.** Until §E the exit hook
  * SIGKILLed every one of them, which ended the operator's game on two docs-only
- * deploys; now a match is spawned detached, `<run>/jvm.json` is the handle, and
- * the next boot re-attaches it and replays `<run>/stream.jsonl`. So "no JVM
+ * deploys; now a JVM is spawned detached, `<run>/launch.json` and `<run>/jvm.json`
+ * are its handles, and the next boot re-attaches it and replays each match's
+ * `<run>/<matchId>.jsonl`. So "no JVM
  * outlives the server" is no longer the contract — it is the bug §E fixed. What
  * this pins instead is stronger, and it runs both ways:
  *
  *  - a JVM the server **handed over** must still be alive AND re-attachable;
- *  - **every other** one — a `--spare`, or a match that ended — must be gone.
+ *  - **every other** one — an idle warm JVM, or one whose matches ended — must be gone.
  *
  * Re-attachable is `host.ts`'s own definition, asked the way `orphans()` asks
  * it, and this reads the record with `readJvmRecord` rather than a second
  * parser that could drift from it:
  *
- *  - `jvm.json` parses as a record and names this pid;
+ *  - `launch.json` names this pid;
  *  - that pid is still the process whose **cwd is the run dir** — the pid-reuse
  *    check, because a recycled pid is some other program;
- *  - it is not a spare, which holds no game;
- *  - it carries the match's `epoch` and both seats' owners, or a client could
+ *  - `jvm.json` lists at least one match: a JVM with none holds no game;
+ *  - it carries each match's `epoch` and both seats' owners, or a client could
  *    not resync on the cursor it already holds and seat 2 could come back as
  *    seat 1;
  *  - and it is inside `ORPHAN_MAX_MS` of its `orphanedAt`, past which the next
@@ -2183,9 +2183,10 @@ async function jvmFates(stack: PlayStack): Promise<JvmFate[]> {
     if (!handedOver) {
       // Not handed over: the server stopped it, so it must be gone.
       if (alive) {
+        const ended = record?.matches.map((m) => m.matchId).filter((id) => endedAtShutdown.has(id)) ?? [];
         const why =
-          record !== null && endedAtShutdown.has(record.matchId)
-            ? `the server ENDED it at shutdown (shutdown-matches ended: ${record.matchId}) and it is STILL RUNNING: ` +
+          ended.length > 0
+            ? `the server ENDED its matches at shutdown (shutdown-matches ended: ${ended.join(', ')}) and it is STILL RUNNING: ` +
               `nothing insisted — see the note on endedAtShutdown, and ${JVM_RECORD_FILE} carries no orphanedAt, so no later server will take it back either`
             : 'the server did not hand it over, yet it is still running';
         faults.push(`${why} (run ${run})`);
@@ -2195,19 +2196,21 @@ async function jvmFates(stack: PlayStack): Promise<JvmFate[]> {
     } else if (record === null) {
       faults.push(`alive with no readable ${JVM_RECORD_FILE} in ${run}: nothing can re-attach to it`);
     } else {
-      if (record.pid !== pid) faults.push(`${JVM_RECORD_FILE} names pid ${record.pid}, not ${pid}`);
-      if (!standingIn(pid, run)) faults.push(`pid ${pid} is not the process standing in ${run} (orphans() would skip it)`);
-      if (record.spare) faults.push('a --spare holds no game and is never re-attached, so it must not survive');
-      if (record.epoch === null) faults.push('no epoch in the record: a re-attached client could not resync on its own cursor');
-      if (record.owners.length !== 2) faults.push(`${record.owners.length} seat owners recorded, not 2: a re-attach could seat someone at the wrong hand`);
-      if (record.spec === null) faults.push('no match spec in the record: nothing to rebuild the match from');
+      if (record.pid !== pid) faults.push(`${LAUNCH_RECORD_FILE} names pid ${record.pid}, not ${pid}`);
+      if (!standingIn(pid, run)) faults.push(`pid ${pid} is not the process standing in ${run} (the boot sweep would skip it)`);
+      if (record.matches.length === 0) faults.push(`a JVM with no match in its ${JVM_RECORD_FILE} holds no game, so it must not survive`);
+      for (const m of record.matches) {
+        if (m.epoch === null) faults.push(`${m.matchId}: no epoch in the record: a re-attached client could not resync on its own cursor`);
+        if (m.owners.length !== 2) faults.push(`${m.matchId}: ${m.owners.length} seat owners recorded, not 2: a re-attach could seat someone at the wrong hand`);
+        if (m.spec === null) faults.push(`${m.matchId}: no match spec in the record: nothing to rebuild the match from`);
+      }
       if (record.orphanedAt === null) faults.push('no orphanedAt in the record, so the next boot cannot bound how long it has been waiting');
       else {
         const waited = Date.now() - Date.parse(record.orphanedAt);
         if (!(waited < ORPHAN_MAX_MS)) faults.push(`orphaned ${waited} ms ago, past ORPHAN_MAX_MS (${ORPHAN_MAX_MS}): the next boot would kill it, not take it back`);
       }
     }
-    return { id, pid, run, handedOver, spare: record?.spare ?? false, alive, faults };
+    return { id, pid, run, handedOver, alive, faults };
   });
   return fates;
 }

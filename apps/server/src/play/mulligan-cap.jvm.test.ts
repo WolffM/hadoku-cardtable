@@ -37,7 +37,7 @@ describe.skipIf(!available.ok)(title, () => {
 	it('a seat that mulligans every hand is asked to keep seven times, then returns seven cards to the bottom', { timeout: 180_000 }, async () => {
 		if (!available.ok) return;
 		const sent: { seat: number; envelope: ServerEnvelope }[] = [];
-		const jvm = jvmHostFactory(available.config, { spare: false, log: () => {} });
+		const jvm = jvmHostFactory(available.config, { warm: false, log: () => {} });
 		const registry = createMatchRegistry({
 			host: (id, spec, events) => jvm(id, spec, events),
 			log: () => {},

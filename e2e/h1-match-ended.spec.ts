@@ -24,11 +24,11 @@ import { forgeAvailability, readJvmRecord, startPlayStack, type PlayStack } from
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
-/** The bridge JVM playing `matchId`: a match adopts the warm spare, so its run dir keeps the spare's name. */
+/** The bridge JVM playing `matchId`: the one whose record lists it among its matches. */
 function matchPid(stack: PlayStack, matchId: string): number {
   for (const dir of readdirSync(stack.workDir)) {
     const record = readJvmRecord(join(stack.workDir, dir));
-    if (record?.matchId === matchId) return record.pid;
+    if (record?.matches.some((m) => m.matchId === matchId) === true) return record.pid;
   }
   throw new Error(`no jvm.json names ${matchId} under ${stack.workDir}`);
 }

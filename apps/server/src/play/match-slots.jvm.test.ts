@@ -111,7 +111,7 @@ async function server(options: { disconnectGraceMs: number; rejoinGraceMs: numbe
 	const logs: Record<string, unknown>[] = [];
 	const handle = socketMod.attachPlay(io, api, {
 		minTier: 'friend',
-		host: jvmHostFactory(available.config, { spare: false }),
+		host: jvmHostFactory(available.config, { warm: false }),
 		log: (e) => logs.push(e),
 		startTimeoutMs: 120_000,
 		joinWaitMs: 60_000,

@@ -30,7 +30,7 @@ import { jvmHostConfig, jvmHostFactory } from './host.js';
 import { scenarioText } from './scenario.js';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
-const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_SPARE: '0' });
+const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_JVM: '0' });
 const title = available.ok
 	? 'R4 over the real socket path, against real Forge'
 	: `R4 over the real socket path, against real Forge — SKIPPED: ${available.reason}`;
@@ -72,7 +72,7 @@ async function boot(): Promise<Harness> {
 	const io = new SocketIOServer(http, { serveClient: false });
 	const handle = socketMod.attachPlay(io, api, {
 		minTier: 'friend',
-		host: jvmHostFactory(available.config, { spare: false }),
+		host: jvmHostFactory(available.config, { warm: false }),
 		log: (e) => {
 			if (e.evt === 'c2s-malformed' || e.evt === 'c2s-refused') console.log('[s2-socket] server log:', JSON.stringify(e));
 		},

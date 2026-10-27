@@ -19,7 +19,7 @@ import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
 import { parseStartBody, parseStopPolicyEnv, STOP_POLICY_ENV } from './socket.ts';
 import { DEFAULT_STOP_POLICY, STRICT_PAYMENT_POLICY } from './auto.ts';
-import { MAX_CONCURRENT_MATCHES, type BridgeLine, type HostEvents, type JvmRecord, type MatchHostFactory, type MatchSpec } from './host.js';
+import { MAX_CONCURRENT_MATCHES, type BridgeLine, type HostEvents, type MatchRecord, type MatchHostFactory, type MatchSpec } from './host.js';
 import { leaked, loadTranscript, rawStatesOf, replayFactory, ReplayHost, secretsFor } from './fixtures/transcript.js';
 import { foldFrames, type StateFrame } from './visibility.js';
 import { WATCHER_SEAT } from './match.js';
@@ -457,8 +457,9 @@ describe('POST /api/play/matches: scenario needs the probe flag', () => {
 
 describe('a burst of starts', () => {
 	// Hosting test C7: ten starts at once each booted a cold JVM in ~50 s, against ~10 s for one, the
-	// slowest 8 s inside the start timeout. Here each "JVM" boots in BOOT_MS once asked for — the test
-	// plays Forge — and the timeout is shorter than the burst takes, but longer than one boot.
+	// slowest 8 s inside the start timeout. Here each "JVM" hosts one match and boots in BOOT_MS once
+	// asked for — the test plays Forge, and its pool says so through `room`/`booting`/`watchRoom` as
+	// `jvmHostFactory` does — and the timeout is shorter than the burst takes, but longer than one boot.
 	it('boots at most coldStarts at once, times none out while it waits, and tells each waiter its place', { timeout: 15_000 }, async () => {
 		const LIMIT = 2;
 		// Two margins, both in boot time alone so a starved event loop cannot close either: the burst's
@@ -469,7 +470,17 @@ describe('a burst of starts', () => {
 		const BURST = MAX_CONCURRENT_MATCHES;
 		const BOOT_MS = 400;
 		const TIMEOUT_MS = 3 * BOOT_MS;
-		const h = await boot({ coldStarts: LIMIT, startTimeoutMs: TIMEOUT_MS });
+		const replay = replayFactory();
+		let booted = 0;
+		let roomChanged = (): void => undefined;
+		const pool = Object.assign(replay.factory, {
+			room: () => 'none' as const,
+			booting: () => replay.hosts.length - booted,
+			watchRoom: (listener: () => void) => {
+				roomChanged = listener;
+			},
+		});
+		const h = await boot({ coldStarts: LIMIT, startTimeoutMs: TIMEOUT_MS, host: { factory: pool, hosts: replay.hosts } });
 		let bootingNow = 0;
 		let peak = 0;
 		let seen = 0;
@@ -482,7 +493,9 @@ describe('a burst of starts', () => {
 					peak = Math.max(peak, bootingNow);
 					setTimeout(() => {
 						bootingNow -= 1;
+						booted += 1;
 						host.push(...OPENING);
+						roomChanged();
 					}, BOOT_MS);
 				}
 				await new Promise((r) => setTimeout(r, 5));
@@ -1460,7 +1473,7 @@ const isFinishGame = (f: unknown): boolean => (f as { frame?: { method?: string 
  */
 function jvmPool(): { factory: MatchHostFactory; hosts: ReplayHost[] } {
 	const hosts: ReplayHost[] = [];
-	const handed: { host: DurableHost; record: JvmRecord }[] = [];
+	const handed: { host: DurableHost; record: MatchRecord }[] = [];
 	const offered = new Set<string>();
 	class DurableHost extends ReplayHost {
 		readonly said: BridgeLine[] = [];
@@ -1476,7 +1489,7 @@ function jvmPool(): { factory: MatchHostFactory; hosts: ReplayHost[] } {
 		}
 		handOver(): boolean {
 			const at = new Date().toISOString();
-			handed.push({ host: this, record: { matchId: this.matchId, pid: process.pid, run: `/nonexistent/${this.matchId}`, startedAt: at, epoch: this.epoch, owners: this.owners, spec: this.spec, orphanedAt: at } });
+			handed.push({ host: this, record: { matchId: this.matchId, hostId: 'h-000000000000', startedAt: at, epoch: this.epoch, owners: this.owners, spec: this.spec, orphanedAt: at } });
 			return true;
 		}
 	}
@@ -1488,8 +1501,8 @@ function jvmPool(): { factory: MatchHostFactory; hosts: ReplayHost[] } {
 	return {
 		hosts,
 		factory: Object.assign(make, {
-			orphans: () => handed.filter((h) => !offered.has(h.record.matchId)).map((h) => (offered.add(h.record.matchId), h.record)),
-			attach: (record: JvmRecord, events: HostEvents) => {
+			orphans: async () => handed.filter((h) => !offered.has(h.record.matchId)).map((h) => (offered.add(h.record.matchId), h.record)),
+			attach: (record: MatchRecord, events: HostEvents) => {
 				const back = make(record.matchId, record.spec!, events);
 				back.push(...handed.find((h) => h.record.matchId === record.matchId)!.host.said);
 				return back;

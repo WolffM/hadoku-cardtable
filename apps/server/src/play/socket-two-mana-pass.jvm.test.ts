@@ -26,7 +26,7 @@ import { scenarioText } from './scenario.js';
 import { foldFrames } from './visibility.js';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
-const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_SPARE: '0' });
+const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_JVM: '0' });
 const title = available.ok
 	? 'a 2-mana cast with lands left over, over the real socket path, against real Forge'
 	: `a 2-mana cast with lands left over, over the real socket path, against real Forge — SKIPPED: ${available.reason}`;
@@ -70,7 +70,7 @@ async function boot(): Promise<Harness> {
 	const logs: Record<string, unknown>[] = [];
 	const handle = socketMod.attachPlay(io, api, {
 		minTier: 'friend',
-		host: jvmHostFactory(available.config, { spare: false }),
+		host: jvmHostFactory(available.config, { warm: false }),
 		log: (e) => logs.push(e),
 		startTimeoutMs: 120_000,
 		joinWaitMs: 8000,

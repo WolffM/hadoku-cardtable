@@ -68,7 +68,7 @@ async function waitUntil(predicate: () => boolean, label: string, timeoutMs: num
 async function handsDealt(seed: number, handSmoothing: boolean, mulligans: number): Promise<[Hand[], Hand[]]> {
 	if (!available.ok) throw new Error('unreachable');
 	const sent: { seat: number; envelope: ServerEnvelope }[] = [];
-	const jvm = jvmHostFactory(available.config, { spare: false, log: () => {} });
+	const jvm = jvmHostFactory(available.config, { warm: false, log: () => {} });
 	try {
 		const registry = createMatchRegistry({
 			host: (id, spec, events) => jvm(id, spec, events),
