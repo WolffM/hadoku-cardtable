@@ -62,7 +62,12 @@ second (A5, A6). Every row here is one ForgeScale RESULT line.
 | H15 check | 50 paced matches; `fleet hosting claw-9 --restart` 90 s in | **pass.** The agent came back as a new pid and adopted the JVM, which kept its pid. The run finished: 0 failed, AI p95 10.6 ms, paced p99 38 ms. The run's cgroup was removed when it ended. |
 | H13 check | from claw-8: the hostname, tailnet v4 and v6 | **pass.** All three time out (fleet-manager 0.34.93's raw-table drop). |
 | A10 | intruder in a `--ci-shaped` unit, without sudo | **pass.** It was refused reading `mem`, `environ` or `maps` of the agent and the JVM, `kill -0` on both, listing or writing the agent's home, writing the executable or its directory, and moving itself into the slice. It can read `cmdline`, so no secret ever goes on an argv. It reaches the agent's port over loopback (401), so every port the host agent opens authenticates. |
-| A4, A7–A9, A11, A12 | — | not run yet. A4 needs claw-9 taking CI; A7 and A11 end the slice; A9 needs an unreachable node; A12 waits on §10 (fleet-manager's node-users plan, claw-9 last). |
+| A4 | fleet-manager, 2026-10-27, through the real dispatcher tick, against a 4096 MiB slice | **pass.** The empty slice holds back 4096 MiB, half full 2048, full 0. A slice declared under 10 min ago, or one whose cgroup can't be read, holds 4096. Live on claw-9, with 764 MiB in the slice, the hold-back was 3332 MiB and the admission floor 7428. This is the same function run on live inputs; mgmt-api does not log the floor. |
+| A7 | fleet-manager, against a copy of the live record | **pass.** `--end --in 5m` was refused ("owed 15 min notice") and wrote nothing. `--end --in 20m` was accepted and appeared at once in node-status `notices` and `hosting.until`. |
+| A8 | — | not run as a test. The 48 h probe saw each claw's rolling reboot of 10-25, from before 0.34.90 added the 15 min notice (forge-hosting-plan.md §4.1). |
+| A9 | fleet-manager, an unresolvable node in a fixture manifest | **pass.** One 40 s call returned `reachable:false`, `ok:false` and a blocking `unreachable` finding, exit 1. 0.34.101 makes the reason name the timeout instead of a bare "Command failed: ssh". |
+| A11 | — | built, live run pending (on claw-5, with the operator). `--remove` reads the node back, checks 17 pieces of state, and keeps the record as `remove-incomplete` while any survive. The agent's user and home survive by design. |
+| A12 | — | built, live run pending a cut-over claw (claw-5 first). Drift on a cut-over node, or "could not look", is blocking `ci-user-drift`; converge reports it but does not repair it yet. |
 
 ## B. Many matches in one JVM (testable now, `scripts/stress/`)
 
