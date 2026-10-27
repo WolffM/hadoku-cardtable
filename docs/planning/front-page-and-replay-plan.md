@@ -77,20 +77,36 @@ feed as `featured:changed`, picks:
   mid-combat is worse than one that shows a slightly duller game.
 - *Ladder:* best live match → best recording from the last 24 h, looped → today's plain list.
 
-**R4. The front page (UI).** It is laid out like Twitch:
+**R4. The front page (UI). Approved 2026-10-27.** The operator approved the design canvas,
+https://claude.ai/artifact/STWgBB4waoah93m8aMqrps, artboard "A": *"love it. lock it in. these cards
+might change in the future, but the general structure is correct."* Their rulings while shaping it:
+the banner takes **at most 50% of the viewport height**, the viewer must not crowd out the other
+cards, and there is **no "Recent games"** (that belongs on the player's profile).
 
-- The **hero** is `LiveBoard` in a new read-only `embedded` mode, scaled whole to its box rather
-  than re-laid-out (the board's table-fit stays the board's), with a "LIVE · Turn 7 · Alice vs Bob"
-  strip. Clicking it opens `#/match/<id>`.
-- A **rail** of the other live tables uses the existing `TableCard`.
-- **Recent games** link to replays.
-- The **room list** stays below, so the page still has "one door".
-
-The hero is muted. Its sound stays off until it is clicked.
+- **The banner** is one row of cards about 380 px tall, wrapping on narrow screens:
+  - **The live match.** Two card-widths wide: `LiveBoard` in a read-only `embedded` mode, scaled
+    whole to its box rather than re-laid-out (the board's table-fit stays the board's). Its title
+    bar reads LIVE · players · game and turn, with **Watch** opening `#/match/<id>`. It is muted.
+  - **Patch notes.** The newest release's title and its first bullets, read from `docs/releases/`,
+    with *Read all* and *Older*.
+  - **Upcoming.** An event calendar: a date block, a title and one detail line per event.
+  - **A wildcard.** A small carousel (arrows and dots) of anything else: game of the week, a
+    leaderboard, #lfg.
+- **Rooms**, directly under the banner, in a card grid. Each card has four rows, shown mostly as
+  symbols:
+  - **Type and name.** Draft or Constructed as an icon, a trophy when it is a tournament (a draft pod,
+    or `settings.tournament`), and seats filled (`6/8`).
+  - **Mode.** A chip with the mode's icon (Classic, Gauntlet, All Random) and its format or pool, or
+    the cube for a draft, then Bo1 or Bo3.
+  - **State.** A dot and a label: lobby, drafting, building, playing, sideboarding, rounds or done,
+    then one detail ("Pack 2 · pick 5", "Game 2 · turn 7", "Round 2 of 3").
+  - **Actions.** Sit down, Join or Watch, chosen by the state, plus Watch whenever a game is on. This
+    replaces a separate "also live" rail.
+  - Everything here except the draft's pack and pick is already on the room wire.
 
 **R5. Replay (UI).** `#/replay/<id>` adds a transport bar: play/pause, 1×/2×/4×, scrub by turn. It
-uses the board the players used. Replays are also reachable from the table card's finished state
-and from Stats.
+uses the board the players used. Replays are reached from the table card's finished state, the
+player's profile and the wildcard card; there is no replay list on the front page.
 
 ### Side benefit
 
