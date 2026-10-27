@@ -178,6 +178,7 @@ describe('placement: matches share a JVM, up to perJvm each', () => {
 	it('places into a JVM still booting rather than launching a second, and says so through room()', async () => {
 		const pool = jvmHostFactory(config, { log: () => undefined });
 		pools.push(pool);
+		await pool.orphans();
 		expect(pool.room()).toBe('booting');
 		expect(pool.booting()).toBe(1);
 		const events = recorder();
@@ -827,6 +828,24 @@ describe('handing matches over on the way out', () => {
 		track(second.attach(back[1]!, recorder()));
 		expect(resumed.lines.map((l) => l.t)).toEqual(['ready']);
 	}, SLOW_TIMEOUT);
+
+	it('a pool that takes a JVM with room back boots no second one beside it', async () => {
+		const workDir = mkdtempSync(join(scratch, 'handover-warm-'));
+		const first = jvmHostFactory({ ...config, workDir }, { warm: false, log: () => undefined });
+		pools.push(first);
+		const events = recorder();
+		first('m-0000000000b3', SPEC, events);
+		await waitUntil(() => ready(events), 'ready');
+		first.handOverAll();
+
+		const poolLog: Record<string, unknown>[] = [];
+		const second = jvmHostFactory({ ...config, workDir }, { log: (e) => poolLog.push(e) });
+		pools.push(second);
+		const back = await second.orphans();
+		track(second.attach(back[0]!, recorder()));
+		expect(poolLog.filter((l) => l.evt === 'jvm-spawned')).toEqual([]);
+		expect(second.room()).toBe('warm');
+	}, SLOW_TIMEOUT);
 });
 
 /*
@@ -951,6 +970,7 @@ describe('going down: what must die before we do', () => {
 		const poolLog: Record<string, unknown>[] = [];
 		const pool = jvmHostFactory({ ...config, java: javaDeaf, workDir }, { log: (e) => poolLog.push(e) });
 		pools.push(pool);
+		await pool.orphans();
 		const hostId = pool.jvms()[0]!.hostId;
 		const { pid, run } = spawned(poolLog, hostId);
 		strays.push(pid);
@@ -1155,6 +1175,7 @@ describe.skipIf(!canUnshare)(`a full disk${canUnshare ? '' : ' — SKIPPED: unsh
 		const poolLog: Record<string, unknown>[] = [];
 		const pool = jvmHostFactory({ ...config, workDir }, { sweep: false, log: (e) => poolLog.push(e) });
 		pools.push(pool);
+		await pool.orphans();
 		expect(poolLog.find((l) => l.evt === 'jvm-launch-failed')?.error).toMatch(/ENOSPC/);
 		expect(liveJvmCount()).toBe(0);
 	});

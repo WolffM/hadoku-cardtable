@@ -1053,6 +1053,10 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		}
 	}
 
+	// The warm JVM is launched once discovery has answered, not before: a JVM taken back with room
+	// IS the warm one, and a fresh boot beside it after every deploy only spent a boot's CPU while
+	// the matches were resuming (Forge run 40566453363: each e2e restart booted a second JVM, 30 s+
+	// on a loaded claw).
 	const found: Promise<void> = launcher
 		.running()
 		.then((hostIds) => {
@@ -1073,10 +1077,6 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 			poolLog({ evt: 'jvm-running-failed', error: (err as Error).message });
 			replenish();
 		});
-
-	// The warm JVM boots now, not after the discovery above: a match may be asked for before a
-	// remote launcher answers. A JVM taken back with room makes it surplus, and idle retires it.
-	replenish();
 
 	factory.orphans = async () => {
 		await found;
