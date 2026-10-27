@@ -792,7 +792,8 @@
   .board-card[data-flying] > .board-card__face > .card,
   .board-card[data-flying] > :not(.board-card__face, .board-card__pile),
   .board-card[data-flying] > .board-card__face::after,
-  .board-card[data-flying] > .board-card__face > .board-card__protection {
+  .board-card[data-flying] > .board-card__face > .board-card__protection,
+  .board-card[data-flying][data-attacking] > .board-card__face::before {
     animation: none;
   }
 }
@@ -1256,6 +1257,36 @@
 .board-card[data-attacking] > .board-card__face {
   outline: 2px solid var(--danger);
   outline-offset: 2px;
+}
+
+/*
+ * AF405 (wave 76 §C). The operator, 2026-10-26: *"red attacking outline should hover with flying
+ * creatures"* — a flyer's art floats on its OWN `translate`/`animation` (`.board-card__face > .card`,
+ * below), and `outline` paints along `.board-card__face`'s OWN box, which the flight loop never
+ * moves (`flight.ts`'s module header: each part of a flyer runs its OWN `fly-*` animation rather
+ * than the face being moved and its children inheriting that move — moving the face itself would
+ * double the protection layer's and the shadow's own independent `--fly-path` animations, both
+ * already positioned inside it). So while flying AND attacking, the static outline is replaced with
+ * a layer that rides the SAME `--fly-path` the art does: `outline` off, a `::before` ring on instead
+ * (`border`, inset to the same 2–4px band `outline-offset` drew), with its own `translate` +
+ * `animation: var(--fly-path)` — the same two declarations `.board-card__protection` already uses
+ * for the same reason, just above. Grounded (not `[data-flying]`) is untouched: the static `outline`
+ * above still draws for every other attacker.
+ */
+.board-card[data-flying][data-attacking] > .board-card__face {
+  outline: none;
+}
+
+.board-card[data-flying][data-attacking] > .board-card__face::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 2px solid var(--danger);
+  border-radius: inherit;
+  pointer-events: none;
+  translate: 0 -3px;
+  animation: var(--fly-path);
+  animation-composition: add;
 }
 
 /*

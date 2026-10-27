@@ -285,6 +285,7 @@ import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, isPla
 import { AnswerRow, promptTileFor } from '../prompts/PromptShell.tsx';
 import { classifySelection, isPromptMethod, PromptFor, SelectionPrompt, type AskOf, type PromptMethod, type SelectionKind } from '../prompts/index.ts';
 import { installGestures } from './gestures/index.ts';
+import { attackWith } from './gestures/commit.ts';
 import { stackAsk } from './gestures/stack.ts';
 import { installPresence } from './presence.ts';
 import { setChainHalted } from './placed.ts';
@@ -303,6 +304,7 @@ import {
   abortAsk,
   answerAsk,
   answerConfirm,
+  attackAssignment,
   blockFocusOf,
   damagePreviewOf,
   previewDamage,
@@ -1555,6 +1557,40 @@ function combatDoneLabel(match: LiveMatch, route: BarRoute): string | null {
 function passLabel(route: BarRoute): string | null {
   if (route === 'pass') return 'Next Phase';
   return route === 'resolve' ? 'Resolve' : null;
+}
+
+/* ── "All": a macro for the drag, not a new way to attack (AF404) ────── */
+
+/**
+ * The operator, 2026-10-26: *"all attack button on all attackers"*, then *"lets just do 'All' but
+ * even when All is clicked we should still be able to manually change the attackers afterwards. All
+ * should essentially just function as a macro for dragging the arrows in one click"* — settled as
+ * AF404: one press declares every legal attacker against the DEFENDING PLAYER (never a planeswalker
+ * or battle, even where one is a legal defender), and every arrow it draws stays as editable as one
+ * dragged by hand.
+ *
+ * So this sends nothing of its own: `combatCandidates` is Forge's own actionable set for
+ * `InputAttack` (already excluding summoning-sick/no-haste/tapped/already-attacking creatures — the
+ * same set `data-selectable` draws from), and `attackWith` (`gestures/commit.ts`) is the exact
+ * function a drag's release and a box's aim both call, filtered through `attackAssignment` so only
+ * an `'assign'` (never an `'already'`) leaves. A creature "All" cannot legally send is a creature a
+ * drag could not have sent either.
+ *
+ * Null while declare-attackers is not open, or while there is nobody left to declare — the caller
+ * uses that to leave button2 undrawn rather than offering a press that would do nothing.
+ */
+function attackAllTarget(match: LiveMatch): { defenderId: number; ids: number[] } | null {
+  if (!declaringAttackers(match)) return null;
+  const defender = opponentOf(match.view);
+  if (defender === undefined) return null;
+  const ids = [...combatCandidates(match)].filter((id) => attackAssignment(match, id, { kind: 'player', id: defender.id }) === 'assign');
+  return ids.length === 0 ? null : { defenderId: defender.id, ids };
+}
+
+/** Send every id `attackAllTarget` named against the defending player — the drag path's own `playRole('ui.target')` (`commit.ts`), since this bypasses the drag that would otherwise play it. */
+function attackAll(match: LiveMatch, target: { defenderId: number; ids: number[] }): void {
+  playRole('ui.target');
+  attackWith(match, target.ids, { kind: 'player', id: target.defenderId });
 }
 
 /**
@@ -2937,6 +2973,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   const decisionCancel = !yielding && (route === 'decision' || route === 'resolve') && bar !== null && bar.enable2 && !offersEndTurn(bar) && offersSecondButton(match) && !mulliganPick;
   const decision = decisionOk || decisionCancel;
   const combatDone = combatDoneLabel(match, route);
+  /** AF404: null while there is nobody left for "All" to declare, or outside declare-attackers — {@link attackAllTarget}. */
+  const allTarget = attackAllTarget(match);
   /*
    * The operator, 2026-10-20 (m-b752a3424b43): Tinker's sacrifice "never popped up on my screen" until a
    * reload, and no repro failed to draw it (`e2e/tk-tinker.spec.ts`). What the board draws for a pick, and
@@ -3887,6 +3925,14 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * While a played card is staged for its target the pop-up draws under
        * it (`data-staged`, `live.css`), and opens there whatever spot the
        * player last moved a question to (`spot`).
+       *
+       * Wave 76 §C (AF404): button2's slot is never Forge's own second button
+       * during declare-attackers (`offersSecondButton` refuses it outright, so
+       * `decisionCancel` is always false there) — so "All" takes that same
+       * slot, the one place `ConfirmPrompt`'s own `AnswerRow` already lays out
+       * a button beside "Done Attacking". `decisionCancel` and `allTarget` can
+       * never both hold (the first requires `offersSecondButton`, the second
+       * requires its negation), so this never contests Forge's own Cancel.
        */}
       {decision && bar !== null && (
         <QuestionHost
@@ -3915,7 +3961,13 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
                   }
                 : undefined
             }
-            button2={decisionCancel ? { label: bar.label2, enabled: true, testId: 'live-decision-cancel', onClick: () => pressWithSound(match, 'cancel') } : undefined}
+            button2={
+              decisionCancel
+                ? { label: bar.label2, enabled: true, testId: 'live-decision-cancel', onClick: () => pressWithSound(match, 'cancel') }
+                : allTarget !== null
+                ? { label: 'All', enabled: true, testId: 'live-attack-all', onClick: () => attackAll(match, allTarget) }
+                : undefined
+            }
             check={sameTargetCheck}
           />
         </QuestionHost>

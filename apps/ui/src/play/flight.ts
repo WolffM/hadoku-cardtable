@@ -11,6 +11,14 @@
  * Pinned at `animationstart` instead, each was drawn one frame at its own start and then jumped 4–7 px
  * into step — `e2e/fly-jump.spec.ts`'s Firefox run caught it, 90 ms after every flyer was drawn.
  * `animationstart` is kept for whatever starts without a DOM change.
+ *
+ * Wave 76 §C (AF405): the attacking outline's `::before` ring (`card.css`'s `[data-flying]
+ * [data-attacking] > .board-card__face::before`) starts its OWN fresh `fly-*` animation the moment
+ * `data-attacking` is set on a card already flying — no new node, so `FLYING_PART`'s `addedNodes`
+ * watch never sees it, and without `data-attacking` in `attributeFilter` the observer's own
+ * attribute branch did not either (`animationstart` would still catch it, a frame later — the same
+ * gap the module header already names as worth closing). Watching `data-attacking` too pins it in
+ * the SAME pass as everything else, before the first frame it is drawn in.
  */
 
 const FLYING = '[data-flying]';
@@ -52,7 +60,7 @@ export function pinFlight(root: HTMLElement): () => void {
     }
     for (const el of pinned) pin(el);
   });
-  observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-flying'] });
+  observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-flying', 'data-attacking'] });
   // Whatever already flies as this is installed (a layout effect, before the board is first drawn).
   for (const flyer of root.querySelectorAll(FLYING)) pin(flyer);
   const onStart = (event: AnimationEvent): void => {
