@@ -382,10 +382,13 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 	let diverged: string | null = null;
 	for (const [i, c] of cmds.entries()) {
 		const seat = commandSeat(c.cmd);
+		const isReply = c.cmd.t === 'reply' || c.cmd.t === 'abort';
 		const prior = cmds[i - 1];
 		// A command recorded from the same position as the one before it goes straight after it.
-		const burst = prior !== undefined && commandSeat(prior.cmd) === seat && prior.board === c.board && prior.prompt === c.prompt;
-		if (seat !== null && !burst) {
+		// Only meaningful for an `act`: a reply's own position signal is its ask (below), never
+		// board+prompt — see that branch's own comment for why.
+		const burst = !isReply && prior !== undefined && commandSeat(prior.cmd) === seat && prior.board === c.board && prior.prompt === c.prompt;
+		if (seat !== null && !isReply && !burst) {
 			const there = (): boolean => lastPrompt(raw, seat) === c.prompt && boardDigest(raw, seat) === c.board;
 			const deadline = Date.now() + budget;
 			while (exited === null && Date.now() < deadline && !(Date.now() - lastLineAt > 80 && there())) await sleep(20);
@@ -398,17 +401,25 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 			}
 		}
 		let out: BridgeCommand = c.cmd;
-		if ((c.cmd.t === 'reply' || c.cmd.t === 'abort') && seat !== null) {
+		if (isReply && seat !== null) {
+			// A reply answers a SPECIFIC already-open ask: the ask's own existence (by ordinal) is
+			// the exact precondition for sending it — not the ambient board+prompt text, which is a
+			// SEPARATE channel from the ask and can read a later or earlier stage than the ask itself
+			// depending on how Forge batches the two (seen directly in testing: a reveal-then-choice
+			// sequence where board+prompt never again matched the recorded reply's position, because
+			// by the time that exact board recurred, priority had already moved on — the ask itself
+			// was still answerable throughout). This is already replay-determinism.jvm.test.ts's own
+			// run B's scheme for mapping the callId; using it as the GATE too, not just the mapping,
+			// is what fixes the hang.
 			const k = replyOrdinal[i]!;
-			// The ask is not reflected in board+prompt, so the position can match before the ask
-			// frame itself has arrived (the same timing gap replay-determinism.jvm.test.ts's own
-			// run B waits out before mapping a callId). Wait for it, within the same per-position
-			// budget, before deciding it is missing.
-			const askDeadline = Date.now() + budget;
-			while (exited === null && Date.now() < askDeadline && askIds(raw).get(seat)?.[k] === undefined) await sleep(20);
+			const deadline = Date.now() + budget;
+			while (exited === null && Date.now() < deadline && askIds(raw).get(seat)?.[k] === undefined) await sleep(20);
 			const mapped = askIds(raw).get(seat)?.[k];
 			if (mapped === undefined) {
-				diverged = `command ${i}: the rebuild has no ask #${k} for seat ${seat} to answer`;
+				diverged =
+					exited !== null
+						? `the rebuild's JVM exited before seat ${seat} got ask #${k} for command ${i}: ${exited}`
+						: `command ${i}: the rebuild has no ask #${k} for seat ${seat} to answer`;
 				break;
 			}
 			out = { ...c.cmd, callId: mapped } as BridgeCommand;
