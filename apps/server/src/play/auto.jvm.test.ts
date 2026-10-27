@@ -65,7 +65,7 @@ import {
 	DEFAULT_STOP_POLICY,
 	FULL_CONTROL_POLICY,
 	STRICT_PAYMENT_POLICY,
-	decideCancel,
+	answerability,
 	decidePay,
 	decideStop,
 	isOwnMainPhaseEntry,
@@ -1205,13 +1205,13 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(decidePay(facts, FULL_CONTROL_POLICY)).toBeNull();
 				// Not an unpayable cost: Forge's Auto is live, so it can be paid.
 				expect(facts.noWayToPay).toBe(false);
-				expect(decideCancel(facts, DEFAULT_STOP_POLICY)).toBeNull();
+				expect(answerability({ kind: 'payment', facts }).verdict).toBe('answerable');
 			}
 
 			/*
 			 * Item 7, if this run produced one. A payment window whose Auto is DEAD is
-			 * Forge saying it found no payment; whether it also offered nothing to click
-			 * is what decides the Cancel. Reported rather than turned into a red, the
+			 * Forge saying it found no payment, whatever it still highlights; whether
+			 * Cancel is live is what makes it optional. Reported rather than turned into a red, the
 			 * way this file already reports the claims a run did not exercise.
 			 */
 			if (deadAutoRows().length === 0) {
@@ -1221,10 +1221,8 @@ describe.skipIf(!available.ok)(title, () => {
 					const facts: PromptFacts = readPromptFacts(notesFrom(row));
 					console.log(`[lane-d] item 7: dead Auto, sources=${JSON.stringify(facts.sources)} noWayToPay=${String(facts.noWayToPay)}`);
 					expect(facts.confirmLive).toBe(false);
-					expect(facts.noWayToPay).toBe(facts.sources !== null && facts.sources.length === 0);
-					expect(decideCancel(facts, DEFAULT_STOP_POLICY)).toBe(facts.noWayToPay ? facts.cost : null);
-					// And full control never presses it.
-					expect(decideCancel(facts, FULL_CONTROL_POLICY)).toBeNull();
+					expect(facts.noWayToPay).toBe(true);
+					expect(answerability({ kind: 'payment', facts }).verdict).toBe(facts.alternativePayment || facts.poolChoice ? 'answerable' : facts.cancelLive ? 'unanswerable' : 'unclassified');
 				}
 			}
 

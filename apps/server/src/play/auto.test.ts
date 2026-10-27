@@ -29,7 +29,7 @@ import {
 	forcedSet,
 	onlySacrifice,
 	freeSearchConfirm,
-	decideCancel,
+	answerability,
 	decidePay,
 	decideStop,
 	isOwnMainPhaseEntry,
@@ -1774,6 +1774,7 @@ function facts(over: Partial<ReturnType<typeof readPromptFacts>> = {}): ReturnTy
 		alternativePayment: false,
 		poolChoice: false,
 		noWayToPay: false,
+		cancelLive: false,
 		sources,
 		nonManaSources: sources,
 		phaseRestricted: [],
@@ -1811,7 +1812,7 @@ describe('the adapter is the ONLY prose reader', () => {
 						const scrambled = { ...read, phaseLabel: 'Main phase, precombat — Auto' };
 						for (const name of STOP_POLICY_NAMES) {
 							const policy = namedStopPolicy(name)!;
-							for (const decide of [decideStop, decidePay, decideCancel]) {
+							for (const decide of [decideStop, decidePay]) {
 								// Whether it acts; the reason it returns may quote the label back for display.
 								expect(decide(scrambled, policy) === null, `${decide.name} ${window} ${phase} ${name}`).toBe(decide(read, policy) === null);
 								checked += 1;
@@ -2399,13 +2400,18 @@ describe('item 6 — the guard that asked, and the policy value that stops askin
 describe('item 7 — a payment Forge left only Cancel for', () => {
 	/** Forge's payment bar with its own Auto DEAD: `ensureAutoPayManaSources` found nothing. */
 	const deadAuto = autoBar(false);
+	const payment = (f: ReturnType<typeof readPromptFacts>) => answerability({ kind: 'payment', facts: f });
 
-	it('the adapter reads Forge’s dead Auto plus an empty set as "no way to pay"', () => {
+	it('the adapter reads Forge’s dead Auto as "no way to pay", whatever Forge still highlights', () => {
 		const read = readPromptFacts(notesFor('Mana Leak - counter target spell.\n\nPay Mana Cost: {1}{U}', deadAuto, []));
 		expect(read.window).toBe('payment');
 		expect(read.cost).toBe('{1}{U}');
 		expect(read.confirmLive).toBe(false);
 		expect(read.noWayToPay).toBe(true);
+		expect(read.cancelLive).toBe(true);
+		// A source that pays part of the cost is still no payment of it: one Island for {1}{U}.
+		expect(readPromptFacts(notesFor('Pay Mana Cost: {1}{U}', deadAuto, [61])).noWayToPay).toBe(true);
+		expect(readPromptFacts(notesFor('Pay Mana Cost: {1}{U}', deadAuto, null)).noWayToPay).toBe(true);
 	});
 
 	it('never reads it off a window that is not Forge’s payment input', () => {
@@ -2413,10 +2419,6 @@ describe('item 7 — a payment Forge left only Cancel for', () => {
 		expect(readPromptFacts(notesFor(PRIORITY_MESSAGE, buttons(false), [])).noWayToPay).toBe(false);
 		// A LIVE Auto is Forge saying the cost CAN be paid.
 		expect(readPromptFacts(notesFor('Pay Mana Cost: {U}', autoBar(true), [])).noWayToPay).toBe(false);
-		// Forge naming something clickable means the window still holds an act.
-		expect(readPromptFacts(notesFor('Pay Mana Cost: {1}{U}', deadAuto, [61])).noWayToPay).toBe(false);
-		// And a CLEARED set is "Forge has not said", never "nothing".
-		expect(readPromptFacts(notesFor('Pay Mana Cost: {1}{U}', deadAuto, null)).noWayToPay).toBe(false);
 		/*
 		 * The shape `auto.jvm.test.ts`'s item-6 run actually recorded, and the one
 		 * that would be a false Cancel if the window gate were ever loosened: Forge's
@@ -2430,67 +2432,83 @@ describe('item 7 — a payment Forge left only Cancel for', () => {
 		expect(targeting.cost).toBeNull();
 		expect(targeting.window).toBe('other');
 		expect(targeting.noWayToPay).toBe(false);
-		expect(decideCancel(targeting, DEFAULT_STOP_POLICY)).toBeNull();
+		expect(payment(targeting).verdict).toBe('unclassified');
 	});
 
-	it('cancels it, and names the cost it abandoned', () => {
-		const unpayable = facts({ window: 'payment', cost: '{1}{U}', confirmLive: false, noWayToPay: true, stackEmpty: false });
-		expect(decideCancel(unpayable, DEFAULT_STOP_POLICY)).toBe('{1}{U}');
-		// Through the entry point `match.ts` calls, over Forge's own frames.
-		expect(decideCancel(readPromptFacts(notesFor('Mana Leak.\n\nPay Mana Cost: {1}{U}', deadAuto, [])), DEFAULT_STOP_POLICY)).toBe('{1}{U}');
+	it('is unanswerable, and Cancel is the answer', () => {
+		const unpayable = facts({ window: 'payment', cost: '{1}{U}', confirmLive: false, noWayToPay: true, cancelLive: true, stackEmpty: false });
+		expect(payment(unpayable)).toEqual({ verdict: 'unanswerable', optional: true, answer: { t: 'cancel-payment' }, why: 'nothing can pay {1}{U}' });
+		// Through Forge's own frames.
+		expect(payment(readPromptFacts(notesFor('Mana Leak.\n\nPay Mana Cost: {1}{U}', deadAuto, [61]))).verdict).toBe('unanswerable');
 	});
 
-	it('leaves LIFE alone: alternativePayment stays in front of it', () => {
-		// A phyrexian cost has a second answer however few lands are out, and
-		// Forge's Auto is dead for that one too.
-		const phyrexian = notesFor(
-			'Pay Mana Cost: {U/P}\nClick on your life total to pay life for phyrexian mana.',
-			deadAuto,
-			[],
-		);
-		expect(readPromptFacts(phyrexian).noWayToPay).toBe(true);
-		expect(readPromptFacts(phyrexian).alternativePayment).toBe(true);
-		expect(decideCancel(readPromptFacts(phyrexian), DEFAULT_STOP_POLICY)).toBeNull();
+	it('leaves LIFE alone: a Phyrexian cost is answerable however few lands are out', () => {
+		for (const wording of ['Click on your life total to pay life for phyrexian mana.', '(Click on your life total to pay life for phyrexian mana.)']) {
+			const phyrexian = readPromptFacts(notesFor(`Pay Mana Cost: {U/P}\n${wording}`, deadAuto, []));
+			expect(phyrexian.noWayToPay).toBe(true);
+			expect(phyrexian.alternativePayment).toBe(true);
+			expect(payment(phyrexian).verdict).toBe('answerable');
+		}
 	});
 
-	it('leaves LIFE alone in Forge’s real, parenthesised wording: it is an alternative payment, never cancelled', () => {
-		const phyrexian = notesFor(
-			'Pay Mana Cost: {U/P}\n(Click on your life total to pay life for phyrexian mana.)',
-			deadAuto,
-			[],
-		);
-		expect(readPromptFacts(phyrexian).noWayToPay).toBe(true);
-		expect(readPromptFacts(phyrexian).alternativePayment).toBe(true);
-		expect(decideCancel(readPromptFacts(phyrexian), DEFAULT_STOP_POLICY)).toBeNull();
+	it('a payment Forge can settle is answerable; a window that is not one is not classified', () => {
+		expect(payment(facts({ window: 'payment', cost: '{U}', sources: [61], noWayToPay: false, confirmLive: true })).verdict).toBe('answerable');
+		expect(payment(facts({ window: 'payment', cost: '{U}', noWayToPay: true, confirmLive: false, poolChoice: true })).verdict).toBe('answerable');
+		expect(payment(facts({ window: 'priority', noWayToPay: true })).verdict).toBe('unclassified');
+		expect(payment(facts({ window: 'other', noWayToPay: true })).verdict).toBe('unclassified');
+		expect(payment(facts({ window: 'payment', cost: null, noWayToPay: true })).verdict).toBe('unclassified');
 	});
 
-	it('never cancels a payment Forge can settle, or a window that is not one', () => {
-		const payable = facts({ window: 'payment', cost: '{U}', sources: [61], noWayToPay: false });
-		expect(decideCancel(payable, DEFAULT_STOP_POLICY)).toBeNull();
-		expect(decideCancel(facts({ window: 'priority', noWayToPay: true }), DEFAULT_STOP_POLICY)).toBeNull();
-		expect(decideCancel(facts({ window: 'other', noWayToPay: true }), DEFAULT_STOP_POLICY)).toBeNull();
-		expect(decideCancel(facts({ window: 'payment', cost: null, noWayToPay: true }), DEFAULT_STOP_POLICY)).toBeNull();
-	});
-
-	it('never cancels while a question is open, or for the other seat', () => {
-		const unpayable = facts({ window: 'payment', cost: '{1}{U}', confirmLive: false, noWayToPay: true });
-		expect(decideCancel({ ...unpayable, openAsks: 1 }, DEFAULT_STOP_POLICY)).toBeNull();
-		expect(decideCancel({ ...unpayable, mine: false }, DEFAULT_STOP_POLICY)).toBeNull();
-	});
-
-	it('is a POLICY: full control leaves the Cancel to the player', () => {
-		const unpayable = facts({ window: 'payment', cost: '{1}{U}', confirmLive: false, noWayToPay: true });
-		expect(FULL_CONTROL_POLICY.unpayableCost).toBe('ask');
-		expect(decideCancel(unpayable, FULL_CONTROL_POLICY)).toBeNull();
-		expect(decideCancel(unpayable, { ...DEFAULT_STOP_POLICY, unpayableCost: 'ask' })).toBeNull();
-		expect(decideCancel(readPromptFacts(notesFor('Pay Mana Cost: {1}{U}', deadAuto, [])), FULL_CONTROL_POLICY)).toBeNull();
+	it('a MANDATORY payment nothing can pay is Forge’s to answer: not classified, never cancelled', () => {
+		expect(payment(facts({ window: 'payment', cost: '{1}', confirmLive: false, noWayToPay: true, cancelLive: false })).verdict).toBe('unclassified');
 	});
 
 	it('answers no stop and no payment either — Cancel is the only arm it is', () => {
-		const unpayable = facts({ window: 'payment', cost: '{1}{U}', confirmLive: false, noWayToPay: true });
+		const unpayable = facts({ window: 'payment', cost: '{1}{U}', confirmLive: false, noWayToPay: true, cancelLive: true });
 		expect(decideStop(unpayable, DEFAULT_STOP_POLICY)).toBeNull();
 		expect(decidePay(unpayable, DEFAULT_STOP_POLICY)).toBeNull();
 		expect(decidePay(unpayable, { ...DEFAULT_STOP_POLICY, unambiguousPayment: 'forgeAuto' })).toBeNull();
+	});
+});
+
+/*
+ * The rule over asks: a pick is answerable while it has as many options as its minimum. Forge's own
+ * input clamps the minimum to the list (`InputSelectEntitiesFromList.java:46`), so a pick with fewer
+ * is answered with every option; the GUI path (`PlayerControllerHuman.chooseEntitiesForEffect`'s
+ * `getGui()` branch) hands the raw minimum on, and our picker could never be finished.
+ */
+describe('answerability — every ask', () => {
+	const ask = (file: string, patch: Record<string, unknown>) => ({ kind: 'ask' as const, frame: { ...(fixture(file) as Record<string, unknown>), ...patch } as Extract<ServerFrame, { kind: 'ask' }> });
+
+	it.each(FIXTURE_FILES)('%s, as committed, is answerable or not classified — never taken from the seat', (file) => {
+		expect(answerability({ kind: 'ask', frame: fixture(file) as Extract<ServerFrame, { kind: 'ask' }> }).verdict).not.toBe('unanswerable');
+	});
+
+	it('a mandatory pick with fewer options than its minimum is answered with every option', () => {
+		const entities = fixture('chooseEntitiesForEffect.json') as Extract<ServerFrame, { method: 'chooseEntitiesForEffect' }>;
+		expect(answerability(ask('chooseEntitiesForEffect.json', { min: entities.optionList.length + 1, max: entities.optionList.length + 1 }))).toEqual({
+			verdict: 'unanswerable',
+			optional: false,
+			answer: { t: 'reply', result: entities.optionList },
+			why: `${entities.optionList.length} option(s) for a minimum of ${entities.optionList.length + 1}`,
+		});
+		const choices = fixture('getChoices.json') as Extract<ServerFrame, { method: 'getChoices' }>;
+		const keys = choices.choices.map((c) => c.key);
+		expect(answerability(ask('getChoices.json', { min: keys.length + 1, max: keys.length + 1 }))).toMatchObject({ verdict: 'unanswerable', answer: { t: 'reply', result: keys } });
+	});
+
+	it('a pick with exactly its minimum is the seat’s, or `onlyAnswer`’s', () => {
+		const entities = fixture('chooseEntitiesForEffect.json') as Extract<ServerFrame, { method: 'chooseEntitiesForEffect' }>;
+		expect(answerability(ask('chooseEntitiesForEffect.json', { min: entities.optionList.length })).verdict).toBe('answerable');
+	});
+
+	it('an optional single pick with nothing in it is declined; a mandatory one is Forge’s', () => {
+		expect(answerability(ask('chooseSingleEntityForEffect.json', { optionList: [], isOptional: true }))).toMatchObject({ verdict: 'unanswerable', optional: true, answer: { t: 'reply', result: null } });
+		expect(answerability(ask('chooseSingleEntityForEffect.json', { optionList: [], isOptional: false })).verdict).toBe('unclassified');
+	});
+
+	it('a confirm always has both answers', () => {
+		expect(answerability(ask('confirm.json', {})).verdict).toBe('answerable');
 	});
 });
 
@@ -2529,6 +2547,44 @@ describe('a Match with an unpayable cost in front of it (item 7)', () => {
 		// The seat did not cancel it; it sees its play turned away, once, and the other seat sees nothing.
 		expect(frames(h, 0).filter((f) => f.method === 'flashIncorrectAction')).toEqual([{ kind: 'notify', method: 'flashIncorrectAction' }]);
 		expect(frames(h, 1).filter((f) => f.method === 'flashIncorrectAction')).toEqual([]);
+	});
+
+	it('cancels each of two payments of the same cost back to back: two Punishing Fires are two payments', () => {
+		const h = harness();
+		const me = playerOf(h, 0);
+		for (const id of [88, 89]) {
+			push(h, 0, autoBar(false, me));
+			push(h, 0, prompt(`Punishing Fire (${id}) - \n\nPay Mana Cost: {R}`, me));
+			// The trigger resolves and priority comes back between them, as Forge asks it.
+			push(h, 0, prompt('Priority: A\nTurn: 1 (A)\nPhase: Main phase, precombat\nStack: 1 to Resolve.', me));
+			push(h, 0, buttons(true, me));
+		}
+		expect(h.host.commands.filter((c) => c.t === 'cancel-payment')).toEqual([{ t: 'cancel-payment', seat: 0 }, { t: 'cancel-payment', seat: 0 }]);
+		expect(h.logs.filter((l) => l.evt === 'ask-unanswerable').map((l) => l.why)).toEqual(['nothing can pay {R}', 'nothing can pay {R}']);
+	});
+
+	it('cancels an attack tax a highlighted source cannot finish, and the next attacker’s right behind it', () => {
+		const h = harness();
+		const me = playerOf(h, 0);
+		// One Mountain is what Forge highlights for {2}: it pays part, and part is no payment.
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] });
+		push(h, 0, autoBar(false, me));
+		push(h, 0, prompt('Pay additional cost to declare Grizzly Bears (87) an attacker\nGrizzly Bears (87) - \n\nPay Mana Cost: {2}', me));
+		push(h, 0, autoBar(false, me));
+		push(h, 0, prompt('Pay additional cost to declare Hill Giant (88) an attacker\nHill Giant (88) - \n\nPay Mana Cost: {2}', me));
+		expect(h.host.commands.filter((c) => c.t === 'cancel-payment')).toHaveLength(2);
+		expect(frames(h, 0).filter((f) => f.method === 'showPromptMessage' && /Pay Mana Cost/.test(f.message))).toEqual([]);
+	});
+
+	it('never cancels a payment Auto was pressed for: Forge is paying it between its taps', () => {
+		const h = harness();
+		const me = playerOf(h, 0);
+		push(h, 0, autoBar(true, me));
+		push(h, 0, prompt('Pay Mana Cost: {1}{U}', me));
+		h.match.fromClient(0, { kind: 'act', method: 'selectButtonOk' });
+		push(h, 0, autoBar(false, me));
+		push(h, 0, prompt('Pay Mana Cost: {U}', me));
+		expect(h.host.commands.filter((c) => c.t === 'cancel-payment')).toEqual([]);
 	});
 
 	it('never presses it when Forge’s Auto is live — that is the payment’s business', () => {

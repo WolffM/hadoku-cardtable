@@ -129,8 +129,8 @@ import {
 } from '@hadoku/shared';
 
 import {
+	answerability,
 	chosenCostConfirm,
-	decideCancel,
 	decidePay,
 	DEFAULT_STOP_POLICY,
 	forcedSet,
@@ -464,15 +464,20 @@ export interface SeatState {
 	/**
 	 * The cost this seat's Auto was already pressed for. Forge re-sends the
 	 * payment prompt after every tap, and a second press would answer whatever
-	 * it asks next; one press per cost is all `maybeAutoPay` ever earns.
+	 * it asks next; one press per cost is all `maybeAutoPay` ever earns. Cleared
+	 * when the payment closes.
 	 */
 	autoPaid: string | null;
 	/**
-	 * The cost this seat's Cancel was already pressed for (item 7). One press per
-	 * cost, for the same reason {@link SeatState.autoPaid} exists: Forge answers
-	 * the press by ending the input, and a second one would answer the next.
+	 * The payment prompt this seat's Cancel was already pressed for (item 7). One
+	 * press per payment, for the same reason {@link SeatState.autoPaid} exists:
+	 * Forge answers the press by ending the input, and a second one would answer
+	 * the next. Keyed on the whole prompt, which names the card, and cleared when
+	 * the payment closes: two Punishing Fires each asking {R} are two payments.
 	 */
 	autoCancelled: string | null;
+	/** The last question `ask-unclassified` was logged for, so a re-sent window says it once. */
+	unclassifiedLogged: string | null;
 	/** How many asks were answered for this seat, and how many stops passed. */
 	autoAnswered: number;
 	autoPassed: number;
@@ -1212,6 +1217,7 @@ export class Match {
 			payment: null,
 			autoPaid: null,
 			autoCancelled: null,
+			unclassifiedLogged: null,
 			autoAnswered: 0,
 			autoPassed: 0,
 			lastStop: null,
@@ -1846,6 +1852,7 @@ export class Match {
 				if (frame.method === 'selectButtonOk' || frame.method === 'selectButtonCancel') {
 					const label = s.buttons?.method === 'updateButtons' ? (frame.method === 'selectButtonOk' ? s.buttons.label1 : s.buttons.label2) : undefined;
 					this.deps.log({ evt: 'button', matchId: this.id, seat, method: frame.method, ...(label !== undefined ? { label } : {}) });
+					if (frame.method === 'selectButtonOk' && s.payment !== null) s.payment.autoPressed = true;
 				}
 				this.noteTargetPick(s, frame);
 				this.disableStaleButtons(s);
@@ -3281,13 +3288,9 @@ export class Match {
 		const gate = this.autoGateFacts(s);
 		if (gate === null) return false;
 		const cost = s.payment?.own === true ? decidePay(gate.facts, s.policy) : null;
-		if (cost === null) {
-			// The payment ended (or never started); the next one earns its press.
-			if (s.payment === null) s.autoPaid = null;
-			return false;
-		}
-		if (s.autoPaid === cost) return false;
+		if (cost === null || s.autoPaid === cost) return false;
 		s.autoPaid = cost;
+		s.payment!.autoPressed = true;
 		this.deps.log({ evt: 'auto-paid', matchId: this.id, seat: s.seat, cost });
 		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonOk' } });
 		return true;
@@ -3406,9 +3409,11 @@ export class Match {
 	}
 
 	/**
-	 * Press Forge's own Cancel for a cost Forge itself says cannot be paid — item
-	 * 7, *"it's confusing i have to click 'cancel' to not pay manaleak when i dont
-	 * even have enough mana"*.
+	 * Press Forge's own Cancel for a payment nothing can pay — {@link answerability}
+	 * on the payment window. Item 7, *"it's confusing i have to click 'cancel' to not
+	 * pay manaleak when i dont even have enough mana"*, and the operator, 2026-10-26,
+	 * of Punishing Fire's {R}: *"i can't pay the cost for punishing fire, why did it
+	 * even ask me?"*
 	 *
 	 * Commanded exactly as the Auto press above is, on the act
 	 * `packages/forge-wire` has carried since wave 17 (`tier-a.ts:51`, `:196`) and
@@ -3416,27 +3421,43 @@ export class Match {
 	 * said: the cast never happened, so there is no cost to account for, and the
 	 * board returning to priority IS the answer. The window itself is answered,
 	 * so it is never shown — the operator, 2026-10-14: *"chain lightning should
-	 * not ask me to play red red if i cannot pay."* Forge asks the seat nothing
-	 * after the Cancel until its next window, so a forwarded one stayed on screen.
+	 * not ask me to play red red if i cannot pay."*
+	 *
+	 * Never inside a payment Auto was pressed for (by the server or the seat):
+	 * Forge re-sends the prompt between the taps it makes, with the cost not yet
+	 * paid and Auto dead, and that window is Forge paying, not Forge stuck.
 	 * Returns whether it pressed, so the caller withholds the window.
 	 */
 	private maybeCancelUnpayable(s: SeatState): boolean {
 		const gate = this.autoGateFacts(s);
-		if (gate === null) return false;
-		const cost = decideCancel(gate.facts, s.policy);
-		if (cost === null) {
-			if (s.payment === null) s.autoCancelled = null;
+		if (gate === null || s.payment === null || s.payment.autoPressed) return false;
+		const { facts } = gate;
+		if (facts.openAsks > 0 || !facts.mine || facts.window !== 'payment') return false;
+		const message = gate.notes.prompt?.method === 'showPromptMessage' ? gate.notes.prompt.message : null;
+		if (message === null || s.autoCancelled === message) return false;
+		const verdict = answerability({ kind: 'payment', facts });
+		if (verdict.verdict !== 'unanswerable') {
+			if (verdict.verdict === 'unclassified') this.logUnclassified(s, 'payment', s.payment.card, message);
 			return false;
 		}
-		if (s.autoCancelled === cost) return false;
-		s.autoCancelled = cost;
-		this.deps.log({ evt: 'auto-cancelled', matchId: this.id, seat: s.seat, cost });
+		if (s.policy.unpayableCost !== 'cancel') return false;
+		s.autoCancelled = message;
+		this.deps.log({ evt: 'ask-unanswerable', matchId: this.id, seat: s.seat, card: s.payment.card, method: 'payment', why: verdict.why });
+		this.deps.log({ evt: 'auto-cancelled', matchId: this.id, seat: s.seat, cost: facts.cost });
 		// Scoped to the payment: Forge may finish it (Auto already paying) before a plain Cancel
 		// lands, which then ends the turn at the next priority window (af57, run 39163377412).
 		this.command({ t: 'cancel-payment', seat: s.seat });
 		// The seat did not cancel it: a refusal it sees, as Forge's own turned-away click is.
 		this.send(s, { kind: 'notify', method: 'flashIncorrectAction' });
 		return true;
+	}
+
+	/** A question {@link answerability} cannot classify: forwarded as today, never dropped, and said once. */
+	private logUnclassified(s: SeatState, method: string, card: number | null, question: string): void {
+		const key = `${method}\n${question}`;
+		if (s.unclassifiedLogged === key) return;
+		s.unclassifiedLogged = key;
+		this.deps.log({ evt: 'ask-unclassified', matchId: this.id, seat: s.seat, card, method });
 	}
 
 	/**
@@ -3446,19 +3467,24 @@ export class Match {
 	 */
 	private trackPayment(s: SeatState, message: string, card: number | null): void {
 		const cost = paymentCost(message);
-		if (cost !== null) {
-			if (s.payment === null || s.payment.cost !== cost) {
-				// Whose decision the payment is, settled once as it opens: the seat's own when it pays
-				// for the card whose ability this seat chose (`Payment.own`).
-				const own = s.payment?.own ?? (s.chosenAbility !== null && s.chosenAbility.hostCard === card);
-				s.payment = { cost, own };
-				this.checkWaitingOn();
-			}
-			return;
+		// What the prompt says besides its cost names the payment: an attack tax per attacker, a
+		// trigger per card. Forge asks them back to back with no other prompt between.
+		const head = cost === null ? null : message.replace(PAY_MANA, '');
+		if (s.payment !== null && s.payment.head !== head) {
+			// The payment closed: the next one earns its own press of either button.
+			s.payment = null;
+			s.autoPaid = null;
+			s.autoCancelled = null;
+			if (cost === null) this.checkWaitingOn();
 		}
-		if (s.payment === null) return;
-		s.payment = null;
-		this.checkWaitingOn();
+		if (cost === null || head === null) return;
+		if (s.payment === null || s.payment.cost !== cost) {
+			// Whose decision the payment is, settled once as it opens: the seat's own when it pays
+			// for the card whose ability this seat chose (`Payment.own`).
+			const own = s.payment?.own ?? (s.chosenAbility !== null && s.chosenAbility.hostCard === card);
+			s.payment = { cost, own, head, card: s.payment?.card ?? card, autoPressed: s.payment?.autoPressed ?? false };
+			this.checkWaitingOn();
+		}
 	}
 
 	/**
@@ -3571,6 +3597,15 @@ export class Match {
 		const frame = arrangeAsk(offered) ?? modesAsk(offered) ?? this.narrowNames(s, offered);
 		const clicked = frame.method === 'getAbilityToPlay' && frame.hostCard.id === s.clicked;
 		if (frame.method === 'getAbilityToPlay') s.clicked = null;
+		// A question the seat cannot answer is never put to it, in any mode (`auto.ts`'s `answerability`).
+		const verdict = clicked ? null : answerability({ kind: 'ask', frame });
+		if (verdict?.verdict === 'unanswerable' && verdict.answer.t === 'reply') {
+			const card = frame.source?.card.id ?? null;
+			this.deps.log({ evt: 'ask-unanswerable', matchId: this.id, seat: s.seat, card, method: frame.method, why: verdict.why });
+			this.autoReply(s, frame.callId, frame.method, verdict.why, verdict.answer.result);
+			return;
+		}
+		if (verdict?.verdict === 'unclassified') this.logUnclassified(s, frame.method, frame.source?.card.id ?? null, frame.callId);
 		// One legal reply is no question in any mode; full control keeps only the order of simultaneous triggers.
 		const policy = s.fullControl ? FULL_CONTROL_POLICY : s.policy;
 		const auto = repeatedAbilityToPlay(frame, s.lastAbilityToPlay) ?? (clicked ? null : (onlyAnswer(frame, policy) ?? sameCardsOrder(frame) ?? exileOrder(frame)));

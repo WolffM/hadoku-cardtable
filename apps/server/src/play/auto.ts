@@ -38,7 +38,7 @@
  * `autoCancelReason` wrappers that used to stand between `match.ts` and these
  * functions (S5): both files are this lane's now, so `match.ts` computes
  * {@link readPromptFacts} ONCE per gate and calls {@link decideStop},
- * {@link decidePay} and {@link decideCancel} directly on the one result,
+ * {@link decidePay} and {@link answerability} directly on the one result,
  * instead of each gate re-deriving facts through its own wrapper.
  *
  * ## A stop is a PHASE the player picked, not a card they happen to hold
@@ -323,7 +323,7 @@ export interface StopPolicy {
 	 * What becomes of a cost **Forge itself says cannot be paid** (item 7).
 	 *
 	 * `'cancel'` presses Forge's own Cancel, the only live answer such a window
-	 * has; `'ask'` leaves the player to press it. See {@link decideCancel} and
+	 * has; `'ask'` leaves the player to press it. See {@link answerability} and
 	 * {@link PromptFacts.noWayToPay}.
 	 */
 	readonly unpayableCost: 'ask' | 'cancel';
@@ -934,18 +934,14 @@ export interface PromptFacts {
 	 * `ensureAutoPayManaSources` has found a payment for the cost that is left
 	 * (`InputPayMana.updateMessage`, `InputPayMana.java:402-407`, over
 	 * `ComputerUtilMana.getManaSourcesToPayCost` at `:438-452`). So a payment
-	 * window whose Auto is DEAD is Forge saying it found none — and if Forge also
-	 * named nothing for the seat to click (`pushActionableCards` sent an EMPTY
-	 * set, `PlayerControllerHuman.java:1565-1573`), there is nothing the player
-	 * could tap toward it either. Cancel is then the only live answer, and it is
-	 * Forge's own: `updateButtons` leaves button 2 enabled for exactly that
-	 * (`InputPayMana.java:389-395`, `!mandatory`).
-	 *
-	 * False whenever Forge has not said — a cleared set is "no answer", never
-	 * "nothing" — and false while Forge DID offer something clickable, because
-	 * then the window still has an act in it and a shortcut may not remove one.
+	 * window whose Auto is DEAD is Forge saying it found none. What Forge still
+	 * offers to click there does not change that: the payment highlight is every
+	 * card that pays some part of it (`InputPayMana.paysWith`), and part of a cost
+	 * is no payment.
 	 */
 	readonly noWayToPay: boolean;
+	/** Forge's button 2 is live — in a payment, its Cancel, live for exactly an optional payment (`InputPayMana.java:389-395`). */
+	readonly cancelLive: boolean;
 	/**
 	 * The distinct cards Forge said this seat could click. Null is "has not said".
 	 *
@@ -970,7 +966,7 @@ export interface PromptFacts {
 	 * set at ordinary priority, so "the set is non-empty" does not mean "there is a
 	 * real decision" — on a normal turn with any land untapped, `sources` is almost
 	 * never empty. Tapping for mana is never, by itself, a reason to hold priority.
-	 * `sources` itself, `noWayToPay` and `plannedSources` all stay on the RAW set:
+	 * `sources` itself and `plannedSources` stay on the RAW set:
 	 * a land IS a legitimate payment source, and a payment decision must still see it.
 	 */
 	readonly nonManaSources: readonly number[] | null;
@@ -1107,6 +1103,7 @@ const UNKNOWN_WINDOW: PromptFacts = {
 	alternativePayment: false,
 	poolChoice: false,
 	noWayToPay: false,
+	cancelLive: false,
 	sources: null,
 	nonManaSources: null,
 	phaseRestricted: [],
@@ -1171,7 +1168,8 @@ export function readPromptFacts(notes: SeatNotes): PromptFacts {
 		// Life is a second way to pay, and not a mana source: a prompt offering it has more than one payment however few lands are out.
 		alternativePayment: LIFE_PAYMENT.test(message),
 		poolChoice: prompt.poolChoice !== undefined,
-		noWayToPay: window === 'payment' && buttons.enable1 !== true && all !== null && all.length === 0,
+		noWayToPay: window === 'payment' && buttons.enable1 !== true,
+		cancelLive: buttons.enable2 === true,
 		sources: all === null ? null : [...new Set(all)],
 		nonManaSources: all === null ? null : [...new Set(all)].filter((id) => !(manaOnly?.has(id) ?? false)),
 		phaseRestricted: notes.phaseRestrictedIds ?? [],
@@ -1412,7 +1410,7 @@ export function decideStop(facts: PromptFacts, policy: StopPolicy): string | nul
  * ward cost. The operator, 2026-10-11, of an Izzet Charm the server paid: *"i
  * never said it should auto pay for it, that decision should have been
  * surfaced to me."* Such a payment is still cancelled for them when Forge says
- * it cannot be paid at all ({@link decideCancel}): that leaves no decision.
+ * it cannot be paid at all ({@link answerability}): that leaves no decision.
  */
 export function decidePay(facts: PromptFacts, policy: StopPolicy): string | null {
 	if (facts.openAsks > 0) return null;
@@ -1435,32 +1433,94 @@ export function decidePay(facts: PromptFacts, policy: StopPolicy): string | null
 }
 
 /**
- * The cost to abandon by pressing Forge's own Cancel, or null when the player
- * must press it themselves. Pure, as above.
+ * The one rule: **no question reaches a seat that it cannot answer** (the operator,
+ * 2026-10-26: *"how can we unify the behavior better so that we don't soft lock?"*).
  *
- * Item 7, the operator, 2026-09-27: *"it's confusing i have to click 'cancel' to
- * not pay manaleak when i dont even have enough mana. this is very silly it
- * should just happen automatically if i dont have enough mana."*
+ * Every question Forge puts to a seat goes through here before the seat sees it —
+ * an ask frame (`match.ts`'s `openAsk`) and a payment window (`decideWindow`).
+ * What "answerable" means for each, and what Forge's own legal answer is when it
+ * is not:
  *
- * **Nothing here computes whether the cost can be paid** — that is a rule, and
- * this file implements none. {@link PromptFacts.noWayToPay} is FORGE's answer:
- * its own Auto is dead, so `ensureAutoPayManaSources` found no payment
- * (`InputPayMana.java:402-407`), and it named nothing clickable, so there is no
- * act in the window either. One live button is left, and taking the only answer
- * Forge left is what every other decision in this file does.
+ * | question | answerable when | not answerable → Forge's own answer |
+ * | --- | --- | --- |
+ * | payment (`InputPayMana`) | Auto is live (`ensureAutoPayManaSources` found a payment, `InputPayMana.java:402-407`), or life can pay (Phyrexian), or the floating pool chooses | optional (Cancel live, `!mandatory`, `:389-395`): Cancel — the unpaid branch ("you may pay", "unless pays", an attack tax: that attacker does not attack, `PhaseHandler.java:578-583`) |
+ * | `getChoices`, `chooseEntitiesForEffect` | as many options as its minimum | fewer: every option, which is Forge's own clamp of the minimum (`InputSelectEntitiesFromList.java:46`) |
+ * | `chooseSingleEntityForEffect` | one option, or optional | none and optional: no pick (null), Forge's own answer to an empty list (`PlayerControllerHuman.chooseSingleEntityForEffect`) |
+ * | `getAbilityToPlay` | one ability | none: no pick (null), Forge's "play nothing" |
+ * | `showOptionDialog` | one option | none: not classified (no index is legal) |
+ * | `confirm`, `showConfirmDialog` | always: both answers are live | — |
+ * | `order`, `assignCombatDamage`, `assignGenericAmount`, `showInputDialog`, `sideboard` and the rest | not classified: forwarded as today, logged `ask-unclassified` |
  *
- * {@link PromptFacts.alternativePayment} stays in front of it: a cost payable
- * with life has a second answer however few lands are out, and Forge's Auto is
- * dead for that one too (`en-US.properties:1799-1801`).
+ * A payment with Auto dead and Cancel dead is not classified either: Forge left no
+ * press, and that is Forge's to answer, not ours to drop.
+ *
+ * Nothing here computes whether a cost can be paid — that is Forge's rule, and its
+ * dead Auto is the answer. **Not** the actionable set: in a payment window that is
+ * every card a click would pay SOMETHING with (`InputPayMana.paysWith`), so one
+ * Mountain is in it for {2}, a payment it cannot finish. A tap toward a payment that
+ * cannot be finished is no answer.
+ *
+ * Pure. Policy is the caller's: whether the server presses a payment's Cancel is
+ * {@link StopPolicy.unpayableCost}, and full control keeps the question.
  */
-export function decideCancel(facts: PromptFacts, policy: StopPolicy): string | null {
-	if (facts.openAsks > 0) return null;
-	if (!facts.mine) return null;
-	if (facts.window !== 'payment') return null;
-	if (facts.cost === null) return null;
-	if (facts.alternativePayment) return null;
-	if (policy.unpayableCost !== 'cancel') return null;
-	return facts.noWayToPay ? facts.cost : null;
+export type Answerability =
+	| { readonly verdict: 'answerable' }
+	| { readonly verdict: 'unclassified' }
+	| {
+			readonly verdict: 'unanswerable';
+			/** The question had a decline (a payment's Cancel, an optional pick) rather than a forced answer. */
+			readonly optional: boolean;
+			/** The ask's reply, for an ask; a payment is answered by Forge's own Cancel instead. */
+			readonly answer: { readonly t: 'reply'; readonly result: unknown } | { readonly t: 'cancel-payment' };
+			/** A short, logged reason. */
+			readonly why: string;
+	  };
+
+/** One question a seat is about to be put. */
+export type Question =
+	| { readonly kind: 'ask'; readonly frame: Extract<ServerFrame, { kind: 'ask' }> }
+	| { readonly kind: 'payment'; readonly facts: PromptFacts };
+
+const ANSWERABLE: Answerability = { verdict: 'answerable' };
+const UNCLASSIFIED: Answerability = { verdict: 'unclassified' };
+
+function forced(method: string, result: unknown, optional: boolean, why: string): Answerability {
+	const schema = (REPLY_SCHEMAS as Record<string, { safeParse(v: unknown): { success: boolean } }>)[method];
+	// A reply the bridge would refuse is no answer: the question goes to the seat as today.
+	if (schema === undefined || !schema.safeParse(result).success) return UNCLASSIFIED;
+	return { verdict: 'unanswerable', optional, answer: { t: 'reply', result }, why };
+}
+
+export function answerability(q: Question): Answerability {
+	if (q.kind === 'payment') {
+		const f = q.facts;
+		if (f.window !== 'payment' || f.cost === null) return UNCLASSIFIED;
+		if (f.confirmLive || f.alternativePayment || f.poolChoice) return ANSWERABLE;
+		return f.noWayToPay && f.cancelLive ? { verdict: 'unanswerable', optional: true, answer: { t: 'cancel-payment' }, why: `nothing can pay ${f.cost}` } : UNCLASSIFIED;
+	}
+	const frame = q.frame;
+	switch (frame.method) {
+		case 'getChoices': {
+			const keys = frame.names ?? frame.choices.map((c) => c.key);
+			return frame.min > keys.length ? forced(frame.method, keys, false, `${keys.length} option(s) for a minimum of ${frame.min}`) : ANSWERABLE;
+		}
+		case 'chooseEntitiesForEffect':
+			return frame.min > frame.optionList.length
+				? forced(frame.method, frame.optionList, false, `${frame.optionList.length} option(s) for a minimum of ${frame.min}`)
+				: ANSWERABLE;
+		case 'chooseSingleEntityForEffect':
+			if (frame.optionList.length > 0) return ANSWERABLE;
+			return frame.isOptional ? forced(frame.method, null, true, 'no option') : UNCLASSIFIED;
+		case 'getAbilityToPlay':
+			return frame.abilities.length > 0 ? ANSWERABLE : forced(frame.method, null, true, 'no ability');
+		case 'showOptionDialog':
+			return frame.options.length > 0 ? ANSWERABLE : UNCLASSIFIED;
+		case 'confirm':
+		case 'showConfirmDialog':
+			return ANSWERABLE;
+		default:
+			return UNCLASSIFIED;
+	}
 }
 
 /**
@@ -1636,5 +1696,11 @@ export interface Payment {
 	 * the seat taps by hand inside it is a choice of its own and changes nothing.
 	 */
 	own: boolean;
+	/** The prompt without its cost line: which payment this is, as the cost goes down with each tap. */
+	head: string;
+	/** The card the payment is for, off the prompt; null when it names none. */
+	card: number | null;
+	/** Auto was pressed in this payment, by the server or the seat: Forge is paying it. */
+	autoPressed: boolean;
 }
 
