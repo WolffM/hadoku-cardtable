@@ -19,10 +19,10 @@
     "@hadoku/shared": "workspace:*",
     "@wolffm/game-stats-ui": "0.1.6",
     "@wolffm/prefs-client": "1.0.20",
-    "@wolffm/rooms-protocol": "0.43.12",
+    "@wolffm/rooms-protocol": "0.43.13",
     "@wolffm/task-ui-components": "4.20.1",
     "@wolffm/themes": "5.12.13",
-    "@wolffm/watchparty-ui": "0.43.12",
+    "@wolffm/watchparty-ui": "0.43.13",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "socket.io-client": "^4.8.3"
