@@ -4,16 +4,6 @@
  * two friends play a real match, sees `FeaturedMatch` draw that match's
  * board, and never takes a seat.
  *
- * **Expected RED until lane A wires `<FeaturedMatch pick={featured} />` into
- * `LobbyScreen.tsx`** — the wave file's own ordering rule: *"B's
- * `FeaturedMatch` export lands before A's front page imports it."* This
- * worktree does not have lane A's lobby changes, so `[data-testid="featured-
- * match"]` never appears on `#/`, no matter how the component itself
- * behaves — `FeaturedMatch.test.ts` (5 cases, this lane) already proves the
- * component in isolation: it joins as a watcher, tags LIVE/REPLAY correctly,
- * mutes for its own mount, and tears down cleanly. Once lane A lands and this
- * worktree rebases onto it, this spec should pass unchanged.
- *
  * `[fp-featured]` lines are the evidence.
  */
 import { expect, test } from '@playwright/test';
@@ -23,6 +13,7 @@ import { makeTitled } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
 import { enterMatch } from './play/enter.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { keepBothHands } from './play/scenario.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -37,6 +28,8 @@ test(titled('the front page features a running match, and the visitor holds no s
     const bob = await openFriend(browser, 'bob');
     const { matchId } = await enterMatch(alice, bob, stack.origin);
     console.log(`[fp-featured] match ${matchId} is live; a few real plays to make it score as "something is happening"`);
+    // Featured needs a dealt game (`Match.live()`): past the coin toss and both keeps.
+    await keepBothHands(alice, bob, alice);
 
     // `Match.activity()` scores the last two minutes of state churn — pass a
     // couple of turns for real rather than asserting the instant it deals.
@@ -46,12 +39,16 @@ test(titled('the front page features a running match, and the visitor holds no s
     }
 
     const carol = await openFriend(browser, 'carol');
+    // What the server picked, as evidence: a red below reads differently if this is null.
+    const listed = (await (await carol.context.request.get(`${stack.origin}${PREFIX}/api/rooms`)).json()) as { featured: unknown; rooms: { id: string; matchId?: string | null; tableGames?: Record<string, { live: unknown }> }[] };
+    const games = listed.rooms.map((r) => ({ id: r.id, matchId: r.matchId ?? null, live: Object.values(r.tableGames ?? {}).map((g) => g.live) }));
+    console.log(`[fp-featured] GET /api/rooms featured: ${JSON.stringify(listed.featured)}; rooms: ${JSON.stringify(games)}`);
     await carol.page.goto(`${stack.origin}${PREFIX}/`);
 
     const featured = carol.page.getByTestId('featured-match');
     const appeared = await featured.isVisible({ timeout: 20_000 }).catch(() => false);
-    console.log(`[fp-featured] featured-match visible on the lobby: ${appeared} (RED here is lane A's wiring, not this lane's component — see this file's header)`);
-    await expect(featured, 'the front page features the running match (blocked on lane A — see this file\'s header)').toBeVisible({ timeout: 20_000 });
+    console.log(`[fp-featured] featured-match visible on the lobby: ${appeared}`);
+    await expect(featured, 'the front page features the running match').toBeVisible({ timeout: 20_000 });
     await expect(featured.getByTestId('featured-match-tag')).toHaveText('LIVE');
 
     // The visitor holds no seat: her own page never becomes a player's match URL.

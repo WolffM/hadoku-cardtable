@@ -150,7 +150,7 @@ async function boardUp(page: Page): Promise<void> {
  * check in every scenario's own first ask then times out, looking exactly
  * like a product bug.
  */
-async function keepBothHands(alice: Friend, bob: Friend, first: Friend): Promise<void> {
+export async function keepBothHands(alice: Friend, bob: Friend, first: Friend): Promise<void> {
   const openQuestion = /play or draw|keep your hand|return \d+ card/i;
   // Each side's own "past the mulligan" flag, set from the SAME read that
   // decided whether to click it — not a separate later re-check. Two reads
