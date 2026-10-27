@@ -629,6 +629,8 @@ function crackle(card: HTMLElement, look: CrackLook, key: string): Promise<void>
       run.setAttribute('d', crack.pts.map((p, n) => `${n === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' '));
       run.setAttribute('pathLength', '1');
       run.classList.add('board-entry__crack-run');
+      // The mask's own reveal — full luminance, not a themed colour (hence inline, not in entries.css).
+      run.style.stroke = 'rgb(255 255 255)';
       run.style.strokeWidth = String(crack.root * 4);
       const length = crack.pts.slice(1).reduce((sum, p, n) => sum + Math.hypot(p.x - crack.pts[n]!.x, p.y - crack.pts[n]!.y), 0);
       run.style.animationDelay = `${Math.round(crack.at)}ms`;
