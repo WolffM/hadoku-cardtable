@@ -22,8 +22,14 @@
  *    fix that" (it had been one since 2026-10-10, when it was one tile row
  *    high at 1024x700); it is drawn at its full height in the room's screen;
  *  - every deck tile keeps its full 190px size, however many decks there are;
- *  - Ready, both seat rows and the first room row lie inside the window;
+ *  - Ready and both seat rows lie inside the room's window;
  *  - no verdict is drawn.
+ *
+ * On the front page, the banner (`docs/planning/wave77-2026-10-27.md` §A, approved 2026-10-27) is
+ * now the thing that must land inside the window unscrolled — the whole point of a Twitch-like
+ * front page is that the live match is the first thing you see. The room list, below it, is what
+ * scrolls; it no longer has to put its first row above the fold the way it did before the banner
+ * existed.
  *
  * `[lobby-fit]` lines are the evidence: every scrolling box with its
  * scrollHeight against its clientHeight, and the boxes that frame the page.
@@ -157,7 +163,8 @@ test(titled('the page and the chat stay the window’s height on the front page 
     await alice.page.goto(`${stack.origin}${PREFIX}/`);
     await expect(alice.page.getByTestId('room-create-open')).toBeVisible();
     await expect(alice.page.getByTestId('room-row')).toHaveCount(ROOMS_OPEN);
-    await fitsAt(alice.page, 'alice', 'front', '[data-testid="room-list"] > :first-child', FRONT_MAY_SCROLL, failures);
+    // The banner lands inside the window unscrolled (every card in it); the room list is what scrolls.
+    await fitsAt(alice.page, 'alice', 'front', '[data-testid="front-banner"] > *', FRONT_MAY_SCROLL, failures);
 
     await submitCreateRoom(alice.page, { name: `lobby fit ${Date.now()}` });
     await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });

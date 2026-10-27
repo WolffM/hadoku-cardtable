@@ -156,6 +156,17 @@
   height: 100%;
   min-height: 0;
   overflow-y: auto;
+  /*
+   * Found by wave 77's banner: once this box's OWN scrollable content got tall enough (the front
+   * page's room list in its new card layout, `e2e/lobby-fit.spec.ts`), `document.documentElement`'s
+   * own `scrollHeight` grew past the window too, even though this element's rendered box and
+   * `document.body`'s own `scrollHeight` both stayed exactly the window's height — Chromium's root
+   * `scrollHeight` can read a deeply nested `overflow: auto` box's full scrollable extent rather
+   * than the clipped box its ancestors actually see. `contain: layout` tells the engine this box's
+   * internal layout — including how tall its scrolling content gets — never escapes it, which
+   * stops exactly that leak without changing anything this box draws or how it scrolls.
+   */
+  contain: layout;
 }
 
 /* ── a room before it has answered (`RoomSkeleton`) ─────────────────── */
