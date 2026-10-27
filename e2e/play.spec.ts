@@ -724,7 +724,9 @@ test(LIVE_TITLE, async ({ browser }) => {
     await bob.page.goto(`${origin}${PREFIX}/`);
     const lockedRow = roomRow(bob, lockedId);
     await expect(lockedRow, 'bob sees a room he is not in').toBeVisible({ timeout: 20_000 });
-    await expect(lockedRow.getByTestId('room-locked')).toHaveText('password');
+    // The lock is a glyph leading the primary button's own label now (ruling 8, amended
+    // 2026-10-27), not a word of its own — the test id moved with it.
+    await expect(lockedRow.getByTestId('room-locked')).toBeVisible();
     // Not a member, so the room's TABLE is not readable either — the lock is
     // not only a button that is hard to press.
     const lockedTable = await bob.context.request.get(`${origin}${PREFIX}/api/tables/rooms/${lockedId}`);
