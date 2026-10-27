@@ -615,6 +615,21 @@ jobs:
       # was renamed or dropped, and that should be red, not a quiet green.
       - name: E2E — the [nightly] tests
         run: pnpm --filter @hadoku/e2e test --grep '\[nightly\]'
+      # The same evidence, and the same paths, as forge-e2e's and ci.yml's e2e:
+      # a failing test's trace (`e2e/playwright.config.ts`) and the harness logs.
+      - name: E2E evidence (on failure)
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v6
+        with:
+          name: e2e-nightly-evidence-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: warn
+          include-hidden-files: true
+          path: |
+            e2e/.run/test-results/**
+            e2e/.run/*.jsonl
+            e2e/.run/*.json
+            e2e/.run/*.log
 
   # NIGHTLY-ONLY TESTS. Three things were half of this job's 25 minutes
   # (run 37487474250: 745 of 1483 s) and none of them earns a place on every

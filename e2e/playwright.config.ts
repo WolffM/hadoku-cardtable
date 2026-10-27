@@ -56,7 +56,13 @@ export default defineConfig({
     baseURL: EDGE_ORIGIN,
     actionTimeout: 20_000,
     navigationTimeout: 20_000,
-    trace: 'off',
+    // On CI a failing test keeps its trace, in `outputDir`, which every e2e
+    // job's evidence step uploads: one policy for ci.yml, forge-e2e,
+    // e2e-nightly and a targeted dispatch alike. A red that a re-run cannot
+    // reproduce (issue #13's frozen page, issue #3's unanswered OK) is only
+    // diagnosable from the run it happened in. Off locally, where a lane
+    // re-runs a red under its own eyes.
+    trace: process.env.CI ? 'retain-on-failure' : 'off',
     screenshot: 'off',
     video: 'off',
   },

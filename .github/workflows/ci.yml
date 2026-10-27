@@ -265,11 +265,10 @@ jobs:
       # what was wrong.
       # A test titled `[nightly]` is too slow for every push and runs in
       # `forge.yml`'s `e2e-nightly` instead. A failing test keeps its trace
-      # (`e2e/.run/test-results/`), uploaded by the evidence step at the end of
-      # this job: issue #13's red was a page that stopped answering, and with
-      # traces off the run kept nothing that could say why.
+      # (`e2e/playwright.config.ts`), uploaded by the evidence step at the end
+      # of this job.
       - name: E2E — two friends draft one pod
-        run: pnpm --filter @hadoku/e2e test --grep-invert '\[nightly\]' --trace=retain-on-failure
+        run: pnpm --filter @hadoku/e2e test --grep-invert '\[nightly\]'
 
       # Runs FIRST, and deliberately. A green gate is a claim; this is the
       # demonstration. 65 throwaway fixtures under `mktemp -d`, each arm
