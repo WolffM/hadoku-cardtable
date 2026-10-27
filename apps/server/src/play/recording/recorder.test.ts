@@ -111,6 +111,25 @@ describe('createRecorder', () => {
 		expect(logged.some((e) => e.evt === 'recording-failed')).toBe(true);
 	});
 
+	it('numbers each reply by the ask it answers, not by its place among replies', async () => {
+		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
+		const inner = fakeFactory();
+		const recorder = createRecorder({ dir, identity: { pin: null, bridge: 'b', server: 's' }, roomOf: () => null, deckCosts: NO_COSTS });
+		const host = recorder.host(inner)('m-3', spec(1), { line: () => undefined, exit: () => undefined, log: () => undefined });
+		const events = inner.calls[0]!.events;
+		const ask = (callId: string) => events.line({ t: 'frame', seat: 1, frame: { kind: 'ask', method: 'confirm', callId } } as unknown as BridgeLine);
+		ask('s1-1');
+		ask('s1-2');
+		// The first ask lapsed (the server answered it, or Forge moved on): the one reply answers the second.
+		host.send({ t: 'reply', seat: 1, callId: 's1-2', result: true });
+		host.send({ t: 'act', seat: 1, frame: { kind: 'act', method: 'selectButtonOk' } });
+		recorder.onGameOver({ id: 'm-3', endedAt: Date.now(), winner: null, winnerSeat: null, concededBy: null, spec: spec(1) });
+		await vi.waitFor(() => expect(existsSync(join(dir, 'm-3.actions.jsonl.gz'))).toBe(true));
+		const cmds = linesOf(join(dir, 'm-3.actions.jsonl.gz')).filter((l) => l.t === 'cmd');
+		expect(cmds[0]).toMatchObject({ ask: 1, cmd: { t: 'reply', callId: 's1-2' } });
+		expect(cmds[1]).not.toHaveProperty('ask');
+	});
+
 	it('records a header, a cmd line per send with that seat\'s board digest and prompt, and an end line with the winner', async () => {
 		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
 		const inner = fakeFactory();

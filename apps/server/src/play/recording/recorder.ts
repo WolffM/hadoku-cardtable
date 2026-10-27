@@ -128,12 +128,23 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 					[1, createSeatPosition(1)],
 				]);
 				const session: Session = { writer, positions, startedAtMs: now() };
+				// Every ask's callId per seat, in the order Forge sent them: a reply's `ask` number.
+				const asks = new Map<number, string[]>();
 				sessions.set(matchId, session);
 
 				const host = inner(matchId, seeded, {
 					...events,
 					line: (line) => {
-						if (line.t === 'frame') guarded(log, matchId, 'position', () => positions.get(line.seat)?.push(line));
+						if (line.t === 'frame') {
+							guarded(log, matchId, 'position', () => {
+								positions.get(line.seat)?.push(line);
+								const frame = line.frame as { kind?: string; callId?: unknown };
+								if (frame.kind !== 'ask' || typeof frame.callId !== 'string') return;
+								const seen = asks.get(line.seat) ?? [];
+								seen.push(frame.callId);
+								asks.set(line.seat, seen);
+							});
+						}
 						events.line(line);
 					},
 					// A match that ends without a game over (stopped, crashed) is finished here, winnerless.
@@ -153,7 +164,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 						guarded(log, matchId, 'command', () => {
 							const seat = 'seat' in command ? command.seat : null;
 							const position = seat === null ? undefined : positions.get(seat);
-							writer.actionCmd({ seat, board: position?.digest() ?? '', prompt: position?.prompt() ?? '', cmd: command });
+							const ask = command.t === 'reply' || command.t === 'abort' ? asks.get(command.seat)?.indexOf(command.callId) ?? -1 : -1;
+							writer.actionCmd({ seat, board: position?.digest() ?? '', prompt: position?.prompt() ?? '', ...(ask >= 0 ? { ask } : {}), cmd: command });
 						});
 						host.send(command);
 					},

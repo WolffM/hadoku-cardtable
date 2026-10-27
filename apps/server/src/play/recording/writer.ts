@@ -49,6 +49,12 @@ export interface ActionsCmdLine {
 	seat: number | null;
 	board: string;
 	prompt: string;
+	/**
+	 * For a `reply` or `abort`: which of that seat's asks it answers, counted from 0 in the order Forge
+	 * sent them. The callId is the live run's own; a rebuild finds its own ask by this number. Not
+	 * the reply's place among replies: the server answers some asks itself and lets others lapse.
+	 */
+	ask?: number;
 	cmd: unknown;
 }
 
