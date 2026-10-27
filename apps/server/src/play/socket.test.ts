@@ -1559,6 +1559,26 @@ describe('shutdown', () => {
 	 * properly. A finished match still being looked at is a match like any other:
 	 * it outlives a deploy with its board and its ending.
 	 */
+	// Forge run 40553022704, w32: the deploy's boot told the room its match was gone (`releaseGoneMatches`)
+	// before the host's asynchronous `orphans()` had answered, so an avatar change after the deploy reached
+	// no match. A host may answer late (a JVM on another machine); `adopted` is what the caller waits on.
+	it('`adopted` settles only once a slow host has offered its orphans and they are in the registry', async () => {
+		const pool = jvmPool();
+		const before = await boot({ host: pool });
+		const { body } = await startMatch(before);
+		const matchId = body.matchId as string;
+		before.handle.shutdown('The server is restarting for a deploy.');
+		await before.close();
+		harness = null;
+
+		const offer = pool.factory.orphans!.bind(pool.factory);
+		const slow = Object.assign(pool.factory, { orphans: async () => (await new Promise((r) => setTimeout(r, 50)), offer()) });
+		const after = await boot({ host: { factory: slow, hosts: pool.hosts } });
+		expect(after.handle.matches.get(matchId)).toBeUndefined();
+		await after.handle.adopted;
+		expect(after.handle.matches.get(matchId)?.status).toBe('running');
+	});
+
 	it('hands a FINISHED match over like a running one, so both seats get its board and its ending back after a deploy', async () => {
 		const pool = jvmPool();
 		const before = await boot({ host: pool });

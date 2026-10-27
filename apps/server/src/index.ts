@@ -788,8 +788,11 @@ play = attachPlay(io, api, {
 		featured.refresh();
 	},
 });
-// `attachPlay` has adopted every match an earlier server left running, so a
-// room still pointing at one that did not come back can let go of it now.
+// Once `attachPlay` has adopted every match an earlier server left running — the host finds
+// them asynchronously, and a room must not be told its match is gone before then (a deploy
+// cleared a live match's table that way, so an avatar change after it reached no match) — a
+// room still pointing at one that did not come back can let go of it.
+await play.adopted;
 tables.releaseGoneMatches();
 
 // ── The browser bridge ───────────────────────────────────────────────────────

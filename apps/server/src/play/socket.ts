@@ -202,6 +202,12 @@ export interface PlayDeps {
 
 export interface PlayHandle {
 	matches: MatchRegistry;
+	/**
+	 * Settles once every match an earlier server left running has been adopted (or refused). The
+	 * host finds them asynchronously — a JVM may run on another machine — so anything that judges
+	 * a match "gone" by the registry (`TablesHandle.releaseGoneMatches`) waits for this first.
+	 */
+	adopted: Promise<void>;
 	/** Stop every match, and release the host's idle JVMs. */
 	close(): void;
 	/**
@@ -1255,10 +1261,10 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	// Inside `attachPlay` rather than in `index.ts`, because a resumed match must be in the
 	// registry AND have its room before a client can ask for it — which is the ordering
 	// `create` above keeps. The host finds them asynchronously (a JVM may run on another
-	// machine); this machine's answer arrives in a microtask, before any socket is served.
+	// machine), so the caller awaits `adopted` before it judges any match gone or serves.
 	// The host offers each orphan once; anything not taken here it stops on its own deadline,
 	// so an `attach` that throws costs one match, not a leaked JVM.
-	void (host?.orphans?.() ?? Promise.resolve([])).then((records) => {
+	const adopted = (host?.orphans?.() ?? Promise.resolve([])).then((records) => {
 		for (const record of records) {
 			try {
 				const match = matches.adopt(record);
@@ -1279,10 +1285,13 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				log({ evt: 'match-adopt-failed', matchId: record.matchId, error: (err as Error).message });
 			}
 		}
+	}).catch((err: unknown) => {
+		log({ evt: 'orphans-failed', error: (err as Error).message });
 	});
 
 	return {
 		matches,
+		adopted,
 		close(): void {
 			matches.stopAll();
 			host?.close?.();
