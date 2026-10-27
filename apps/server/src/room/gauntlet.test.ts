@@ -249,7 +249,7 @@ describe('choosing each game deck', () => {
 		after = gameOver(s, { seriesOver: false, winner: 1 });
 		if (!after.ok) throw new Error(after.reason);
 		s = after.state;
-		// AF402: one unplayed deck each is still a choice, not an auto-pick ("it
+		// One unplayed deck each is still a choice, not an auto-pick ("it
 		// gives the opponent a chance to see it") — game 3 sits in `choose`,
 		// unrevealed, until both press, the same as every other game.
 		expect(s.phase).toBe('choose');

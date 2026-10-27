@@ -2046,8 +2046,8 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// rigged to the PREVIOUS series' loser.
 		//
 		// A Gauntlet is never one of these series, whatever `table.series` holds:
-		// AF407, the operator 2026-10-26, "Gauntlet flips a coin for every
-		// game" — the loser-chooses rule (AF172) is for a real series, Bo3 or a
+		// the operator 2026-10-26, "Gauntlet flips a coin for every
+		// game" — the loser-chooses rule is for a real series, Bo3 or a
 		// pod. `room/series.ts`'s GAUNTLET format sizes `table.series` Bo3 only
 		// so `recordGameResult` has a `between` to leave the table in between
 		// games; it is borrowed bookkeeping, not a series whose loser earns a

@@ -165,7 +165,7 @@ async function boot(
 	deps: {
 		rateLimit?: { capacity: number; refillAmount: number; refillIntervalMs: number };
 		botPickMs?: number;
-		/** AF410: a test's own clock, so it never waits out the real 30 s. */
+		/** A test's own clock, so it never waits out the real 30 s. */
 		seatReleaseMs?: number;
 		schedule?: (fn: () => void, ms: number) => void;
 	} = {},
@@ -988,7 +988,7 @@ describe('picks are rate limited per participant', () => {
 });
 
 /**
- * AF410 (ruled 2026-10-26: 30 s). `constructedRoomId` plays no draft, so this
+ * Ruled 2026-10-26: 30 s. `constructedRoomId` plays no draft, so this
  * is the one place in the file that seats somebody at its table directly
  * (`Lobby.sit`) rather than through a draft's own join — the gate this
  * socket layer puts in front of a draft is a different question from the
@@ -996,7 +996,7 @@ describe('picks are rate limited per participant', () => {
  * module header's own point: `room/feed.ts`'s socket shares the same
  * handshake). `schedule` is injected so no test waits out the real 30 s.
  */
-describe('AF410: a seat with nobody connected to it, for the window', () => {
+describe('a seat with nobody connected to it, for the window', () => {
 	/** The id a socket connecting with `edgeHeaders(userKey)` mints — independent of its actual socket id, since a friend key is present. */
 	function participantIdFor(userKey: string): string {
 		return identityFromHeaders(edgeHeaders(userKey) as unknown as Parameters<typeof identityFromHeaders>[0], 'unused');

@@ -1854,14 +1854,14 @@ describe('Lobby.sit / stand / setSeatReady', () => {
 	});
 
 	/**
-	 * AF410 (ruled 2026-10-26: 30 s). `releaseAbandonedSeats` is the action
+	 * Ruled 2026-10-26: 30 s. `releaseAbandonedSeats` is the action
 	 * alone — "whose last connection has been gone for 30 s" and "a reload
 	 * inside it keeps the seat" are `room/socket.ts`'s own timer, proved
 	 * there (`socket.test.ts`); this is only what the lobby does once that
 	 * timer decides to call it, and what stops it from ever touching a live
 	 * match or a Gauntlet in progress (ruling 13: "nobody sits or stands").
 	 */
-	describe('Lobby.releaseAbandonedSeats (AF410)', () => {
+	describe('Lobby.releaseAbandonedSeats', () => {
 		async function seatedTable(): Promise<{ lobby: Lobby; id: string; tableId: string }> {
 			const lobby = await openLobby({ dir: await tempDir() });
 			const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });

@@ -14,7 +14,7 @@
  *   wrong act and taken decks are refused.
  * - **choose**: before every game both seats secretly choose one of their own
  *   unplayed picks; once both have, the game is `playing`. A seat with one
- *   unplayed pick still presses it — AF402, the operator: "it gives the
+ *   unplayed pick still presses it — the operator: "it gives the
  *   opponent a chance to see it" — nothing is ever picked for a seat.
  * - **playing**: one normal Forge match with the two chosen decks. The room's
  *   series says whether that game decided it — `gameOver` is told, never
@@ -270,7 +270,7 @@ function unplayedPicks(state: GauntletState, seat: GauntletSeatIndex): string[] 
 
 /**
  * Into `choose` for the next game: both choices open, even a seat with a
- * single unplayed pick left — AF402 deleted the auto-pick that used to fill
+ * single unplayed pick left — no auto-pick fills
  * it in here, so every game's deck is revealed by a press, the same as every
  * other game's (never a second path beside the one `choose` already is).
  */

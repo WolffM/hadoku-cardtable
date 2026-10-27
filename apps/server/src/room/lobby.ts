@@ -1075,7 +1075,7 @@ export interface Lobby {
 	 * no Gauntlet holding it (ruling 13: "nobody sits or stands" while one
 	 * does) — called once their last connection has been gone for the
 	 * seat-release window (`room/socket.ts`'s own timer owns "still
-	 * disconnected"; this is only the action). AF410, ruled 2026-10-26: 30 s,
+	 * disconnected"; this is only the action). Ruled 2026-10-26: 30 s,
 	 * a reload inside it keeps the seat — that is `room/socket.ts` never
 	 * calling this at all, not anything checked here. Returns each
 	 * room/table it released, to log.

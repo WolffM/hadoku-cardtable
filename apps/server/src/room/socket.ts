@@ -81,7 +81,7 @@
  * and the skipped seqs are superseded rather than missing. Unmarked, the client
  * read every round as a gap and resynced (Wave 10: 90 picks, 90 resyncs).
  *
- * ## AF410: a seat with nobody connected to it, 30 s
+ * ## A seat with nobody connected to it, 30 s
  *
  * `io.on('connection')` fires for every socket this server holds, not only a
  * draft's — the room feed (`room/feed.ts`) shares the same handshake, so a
@@ -187,7 +187,7 @@ interface DraftSocketDeps {
 	rateLimit?: RateLimitConfig;
 	/** How long a bot turn takes. `CONFIG.draftBotPickMs` in production; 0 (the default) picks at once. */
 	botPickMs?: number;
-	/** AF410's seat-release window, ruled 2026-10-26: 30 s. See the module header. */
+	/** The seat-release window, ruled 2026-10-26: 30 s. See the module header. */
 	seatReleaseMs?: number;
 	/** Real `setTimeout` (unref'd) unless a test runs its own clock. */
 	schedule?: (fn: () => void, ms: number) => void;
@@ -200,7 +200,7 @@ interface DraftSocketHandle {
 
 const defaultLog = jsonLogger('cardtable-draft');
 
-/** AF410, ruled 2026-10-26. See the module header. */
+/** Ruled 2026-10-26. See the module header. */
 const SEAT_RELEASE_MS = 30_000;
 
 /** `tierOf` over the sanitized handshake headers. */
@@ -260,7 +260,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 			const timer = setTimeout(fn, ms);
 			timer.unref?.();
 		});
-	/** AF410: live socket count by participant, across every connection this server holds. See the module header. */
+	/** Live socket count by participant, across every connection this server holds. See the module header. */
 	const liveConnections = new Map<string, number>();
 
 	/**
@@ -356,7 +356,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 		});
 
 		socket.on('disconnect', (reason: string) => {
-			// AF410: the LAST connection for this participant gone starts the
+			// The LAST connection for this participant gone starts the
 			// seat-release window. A reconnect (even a bare reload — the edge
 			// headers mint the same `participantId`, never the socket) is simply
 			// a count above zero again by the time the timer below checks, so
