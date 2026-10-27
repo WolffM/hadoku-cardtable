@@ -27,6 +27,7 @@ import type { ServerEnvelope } from '@hadoku/shared';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeCommand, type BridgeLine, type MatchSpec } from './host.js';
 import { createMatchRegistry } from './match.js';
+import { boardDigest, isStateLine, lastPrompt, normalisedBoard } from './recording/position.js';
 import { nightly } from './scenario.js';
 import { foldFrames, type StateFrame, type WireObj } from './visibility.js';
 
@@ -53,39 +54,30 @@ function precon(name: string): string {
 }
 
 interface Logged {
-	/** The seat's board and its last prompt when A sent this: where B must be before it is sent again. */
+	/** The seat's board — {@link boardDigest}, moved to `recording/position.ts` — and its last prompt when A sent this: where B must be before it is sent again. */
 	board: string;
+	/** {@link normalisedBoard} at the same moment, kept only for {@link boardDiff}'s diagnostic — `board` above is a hash and cannot be diffed back into. */
+	boardText: string;
 	prompt: string;
 	command: BridgeCommand;
 }
 
 const commandSeat = (c: BridgeCommand): number | null => ('seat' in c ? c.seat : null);
 
-const STATE_METHODS = new Set(['setGameView', 'applyDelta', 'openView']);
-const isState = (l: BridgeLine): boolean => l.t === 'frame' && STATE_METHODS.has((l.frame as { method?: string }).method ?? '');
-
 /**
  * What a player is shown that is not board state: prompts, buttons, asks. Forge batches state into
  * packets on its own clock, so the packets are compared by what they fold to, and commands are
  * placed by these.
  */
-const controlCount = (lines: readonly BridgeLine[]): number => lines.filter((l) => l.t === 'frame' && !isState(l)).length;
+const controlCount = (lines: readonly BridgeLine[]): number => lines.filter((l) => l.t === 'frame' && !isStateLine(l)).length;
 
 function controlFrames(lines: readonly BridgeLine[], seat: number): string[] {
 	return lines
-		.filter((l) => l.t === 'frame' && l.seat === seat && !isState(l))
+		.filter((l) => l.t === 'frame' && l.seat === seat && !isStateLine(l))
 		.map((l) => JSON.stringify((l as { frame: unknown }).frame).replace(/"callId":"[^"]*"/g, '"callId":_'));
 }
 
-function lastPrompt(lines: readonly BridgeLine[], seat: number): string {
-	for (let i = lines.length - 1; i >= 0; i--) {
-		const l = lines[i]!;
-		if (l.t === 'frame' && l.seat === seat && (l.frame as { method?: string }).method === 'showPromptMessage') return (l.frame as { message: string }).message;
-	}
-	return '';
-}
-
-/** The first object two boards disagree on, both sides. */
+/** The first object two boards disagree on, both sides. `a`/`b` are {@link normalisedBoard} text, never a digest. */
 function boardDiff(a: string, b: string): string {
 	const ma = new Map(JSON.parse(a) as [string, unknown][]);
 	const mb = new Map(JSON.parse(b) as [string, unknown][]);
@@ -97,18 +89,8 @@ function boardDiff(a: string, b: string): string {
 	return 'none';
 }
 
-/** The board a seat ends up with, packet boundaries and sequence numbers aside. */
-function boardOf(lines: readonly BridgeLine[], seat: number): string {
-	const state = foldFrames(lines.filter((l) => isState(l) && l.t === 'frame' && l.seat === seat).map((l) => (l as { frame: unknown }).frame as StateFrame));
-	// A property at its default may be absent or sent empty, depending on how Forge batched it.
-	const isDefault = (x: unknown): boolean => {
-		if (typeof x !== 'object' || x === null || !('t' in x)) return false;
-		const v = (x as { v?: unknown }).v;
-		return v === undefined || v === null || v === false || v === 0 || v === '' || v === '0' || (Array.isArray(v) && v.length === 0);
-	};
-	const normal = [...state.entries()].map(([k, o]) => [k, Object.fromEntries(Object.entries(o).filter(([, x]) => !isDefault(x)).sort(([a], [b]) => a.localeCompare(b)))] as const);
-	return JSON.stringify(normal.sort(([a], [b]) => a.localeCompare(b)));
-}
+/** The board a seat ends up with, packet boundaries and sequence numbers aside — a thin diagnostic wrapper over {@link normalisedBoard}. */
+const boardOf = normalisedBoard;
 
 /** The ask callIds each seat was sent, in order — a reply names one, and B's may be spelled differently. */
 function askIds(lines: readonly BridgeLine[]): Map<number, string[]> {
@@ -160,7 +142,12 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 					...host,
 					send: (command) => {
 						const seat = commandSeat(command);
-						log.push({ board: seat === null ? '' : boardOf(raw, seat), prompt: seat === null ? '' : lastPrompt(raw, seat), command });
+						log.push({
+							board: seat === null ? '' : boardDigest(raw, seat),
+							boardText: seat === null ? '' : boardOf(raw, seat),
+							prompt: seat === null ? '' : lastPrompt(raw, seat),
+							command,
+						});
 						host.send(command);
 					},
 				};
@@ -322,18 +309,18 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 				log: () => {},
 			});
 			let diverged: string | null = null;
-			for (const [i, { board, prompt, command }] of log.entries()) {
+			for (const [i, { board, boardText, prompt, command }] of log.entries()) {
 				const seat = commandSeat(command);
 				const prior = log[i - 1];
 				// Sent in the same breath as the one before it, from the same position: send it straight after.
 				const burst = prior !== undefined && commandSeat(prior.command) === seat && prior.board === board && prior.prompt === prompt;
 				if (seat !== null && !burst) {
 					// Where A was: this seat's board and prompt, settled, so Forge is waiting for the input.
-					const there = () => lastPrompt(rawB, seat) === prompt && boardOf(rawB, seat) === board;
+					const there = () => lastPrompt(rawB, seat) === prompt && boardDigest(rawB, seat) === board;
 					const deadline = Date.now() + 30_000;
 					while (exited === null && Date.now() < deadline && !(Date.now() - lastB > 80 && there())) await sleep(20);
 					if (exited !== null || !there()) {
-						diverged = `command ${i} (${command.t} seat ${seat}) never found A's position.\n  prompt A ${JSON.stringify(prompt)}\n  prompt B ${JSON.stringify(lastPrompt(rawB, seat))}\n  first board difference ${boardDiff(board, boardOf(rawB, seat))}`;
+						diverged = `command ${i} (${command.t} seat ${seat}) never found A's position.\n  prompt A ${JSON.stringify(prompt)}\n  prompt B ${JSON.stringify(lastPrompt(rawB, seat))}\n  first board difference ${boardDiff(boardText, boardOf(rawB, seat))}`;
 						break;
 					}
 				}
