@@ -10,7 +10,14 @@
  * (`PlayBridge.java`, `SeatGui.setPhaseDelayOff`) turns that preference on with
  * the End Turn click and off again when the yield is over.
  *
- * **The 150 ms bound below (ledger Y26, wave 53 §E).** This used to be 50 ms,
+ * **The bound is the sleep itself: every gap under 200 ms.** A gap that holds
+ * Forge's sleep is at least 200 ms, because Forge either skips it entirely or
+ * takes all of it. So "under 200" is exactly "no sleep in it", and nothing
+ * between noise and a regression has to be guessed. The 150 ms bound that used
+ * to sit here was measured on hokon, and on a busy claw a gap with no sleep in it
+ * reached 151 ms (scheduled run 40577661708, gaps 151/89/82/63).
+ *
+ * The 150 ms bound's history (ledger Y26, wave 53 §E). It used to be 50 ms,
  * tight enough that general host scheduling noise — this suite runs on
  * the host, which is CI's runner, production, AND shares a desktop session —
  * could trip it on its own, with no pacing bug involved. Measured 2026-10-06,
@@ -36,6 +43,9 @@ import { DELTA_TYPE } from '@hadoku/forge-wire';
 
 import { available, deck, startScenario, waitUntil, type Scenario } from './scenario.js';
 
+/** Forge's `phasesDelay` (`FControlGamePlayback.java:49`): the sleep End Turn must skip. */
+const PHASES_DELAY_MS = 200;
+
 const title = available.ok
 	? 'End Turn passes phases without the pacing sleep, against real Forge'
 	: `End Turn passes phases without the pacing sleep, against real Forge — SKIPPED: ${available.reason}`;
@@ -57,7 +67,7 @@ function phaseChanges(s: Scenario, seat: number): { phase: string; t: number }[]
 
 describe.skipIf(!available.ok)(title, () => {
 	it(
-		'an End Turn click passes its phases under 150 ms apart (well short of the 200 ms pacing sleep), and the pacing is back afterwards',
+		'an End Turn click passes its phases with no 200 ms pacing sleep between any two, and the pacing is back afterwards',
 		async () => {
 			if (!available.ok) return;
 			const s = await startScenario(available.config, {
@@ -110,7 +120,7 @@ describe.skipIf(!available.ok)(title, () => {
 				console.log(`[q5] pace lines: ${JSON.stringify(pace)}`);
 
 				expect(upToEnd.length, 'the End Turn run reached the end step through several phases').toBeGreaterThan(3);
-				for (const g of gaps) expect(g, `gaps: ${JSON.stringify(gaps)}`).toBeLessThan(150);
+				for (const g of gaps) expect(g, `gaps: ${JSON.stringify(gaps)}`).toBeLessThan(PHASES_DELAY_MS);
 
 				// The exemption was armed by the click and lifted by the next real window.
 				expect(pace.map((l) => (l as unknown as { skipPhaseDelay: boolean }).skipPhaseDelay)).toEqual([true, false]);
