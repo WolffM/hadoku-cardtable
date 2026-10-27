@@ -25,7 +25,7 @@ const FIREFOX_SPECS = ['bl-ui-scale-click.spec.ts', 'deck-tile-row.spec.ts', 'fl
 
 /**
  * Of `FIREFOX_SPECS`, the ones proven in Chromium too (not excluded from that project's own
- * `testMatch`) — AF405 (wave 76 §C): the attacking outline riding a flyer's float must hold in both
+ * `testMatch`) — wave 76 §C: the attacking outline riding a flyer's float must hold in both
  * engines, since `getComputedStyle(el, '::before')`'s animated value is read the same way in each,
  * even though the jump bug `fly-jump.spec.ts` exists for was Firefox-only.
  */

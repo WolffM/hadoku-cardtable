@@ -2410,7 +2410,7 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
   });
 
   /**
-   * AF404 (wave 76 §C). The operator, 2026-10-26: *"all attack button on all attackers"*, then
+   * Wave 76 §C. The operator, 2026-10-26: *"all attack button on all attackers"*, then
    * *"All should essentially just function as a macro for dragging the arrows in one click"*.
    * `attackAllTarget` names every id `combatCandidates` offers (Forge's own actionable set — the
    * same one `data-selectable` draws from) and sends them through `attackWith`
@@ -2421,7 +2421,7 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
    * is the real-Forge proof that both screens end up with the right attackers; this is the fast,
    * local one for the exact frames sent.
    */
-  it('AF404: "All" sends the defender first, then one selectCard per Forge-offered attacker, in order', async () => {
+  it('"All" sends the defender first, then one selectCard per Forge-offered attacker, in order', async () => {
     const { s, m, getByTestId, queryByTestId } = await liveBoard();
     const me = m.view!.players.find((p) => p.isViewer)!;
     const them = m.view!.players.find((p) => !p.isViewer)!;

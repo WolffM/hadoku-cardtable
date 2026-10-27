@@ -92,7 +92,7 @@ describe('pinFlight', () => {
   });
 
   /**
-   * AF405 (wave 76 §C). `card.css`'s attacking outline ring (`[data-flying][data-attacking] >
+   * Wave 76 §C. `card.css`'s attacking outline ring (`[data-flying][data-attacking] >
    * .board-card__face::before`) starts a brand-new `fly-*` animation the moment `data-attacking` is
    * set on a card already flying — no node is added for `FLYING_PART`'s own watch to see, so without
    * `data-attacking` in the observer's `attributeFilter` this ring was left on its own clock instead

@@ -1559,15 +1559,14 @@ function passLabel(route: BarRoute): string | null {
   return route === 'resolve' ? 'Resolve' : null;
 }
 
-/* ── "All": a macro for the drag, not a new way to attack (AF404) ────── */
+/* ── "All": a macro for the drag, not a new way to attack ─────────────── */
 
 /**
  * The operator, 2026-10-26: *"all attack button on all attackers"*, then *"lets just do 'All' but
  * even when All is clicked we should still be able to manually change the attackers afterwards. All
- * should essentially just function as a macro for dragging the arrows in one click"* — settled as
- * AF404: one press declares every legal attacker against the DEFENDING PLAYER (never a planeswalker
- * or battle, even where one is a legal defender), and every arrow it draws stays as editable as one
- * dragged by hand.
+ * should essentially just function as a macro for dragging the arrows in one click"* — one press
+ * declares every legal attacker against the DEFENDING PLAYER (never a planeswalker or battle, even
+ * where one is a legal defender), and every arrow it draws stays as editable as one dragged by hand.
  *
  * So this sends nothing of its own: `combatCandidates` is Forge's own actionable set for
  * `InputAttack` (already excluding summoning-sick/no-haste/tapped/already-attacking creatures — the
@@ -2973,7 +2972,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   const decisionCancel = !yielding && (route === 'decision' || route === 'resolve') && bar !== null && bar.enable2 && !offersEndTurn(bar) && offersSecondButton(match) && !mulliganPick;
   const decision = decisionOk || decisionCancel;
   const combatDone = combatDoneLabel(match, route);
-  /** AF404: null while there is nobody left for "All" to declare, or outside declare-attackers — {@link attackAllTarget}. */
+  /** Null while there is nobody left for "All" to declare, or outside declare-attackers — {@link attackAllTarget}. */
   const allTarget = attackAllTarget(match);
   /*
    * The operator, 2026-10-20 (m-b752a3424b43): Tinker's sacrifice "never popped up on my screen" until a
@@ -3926,7 +3925,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * it (`data-staged`, `live.css`), and opens there whatever spot the
        * player last moved a question to (`spot`).
        *
-       * Wave 76 §C (AF404): button2's slot is never Forge's own second button
+       * Wave 76 §C: button2's slot is never Forge's own second button
        * during declare-attackers (`offersSecondButton` refuses it outright, so
        * `decisionCancel` is always false there) — so "All" takes that same
        * slot, the one place `ConfirmPrompt`'s own `AnswerRow` already lays out

@@ -15,7 +15,7 @@
  * Runs in Firefox (`playwright.config.ts`): the operator's browser, where the loop jumped on a 1.4 s grid
  * (2.6 px, then 7.9 px) with no remount, move or new animation, while Chromium drew it smoothly.
  *
- * Wave 76 §C (AF405): the same frames also measure the red attacking outline against the art, for
+ * Wave 76 §C: the same frames also measure the red attacking outline against the art, for
  * whichever flyer is declared attacking in the own-turn test below — the operator, 2026-10-26, *"red
  * attacking outline should hover with flying creatures"*. `getComputedStyle(face, '::before')` is the
  * one way to read a pseudo-element's own live-animated value (a pseudo has no box
@@ -54,7 +54,7 @@ interface Watch {
   /** Per card id, its face's offset against its `<li>` each frame: [t, dx, dy]. */
   path: Record<string, [number, number, number][]>;
   /**
-   * AF405. Per ATTACKING flyer's id, each frame it was sampled: [t, the outline `::before`'s own
+   * Per ATTACKING flyer's id, each frame it was sampled: [t, the outline `::before`'s own
    * live `translate`, the art's own]. The claim is that these two strings are the SAME on every
    * frame — the outline riding the identical `--fly-path` the art does, read with
    * `getComputedStyle(el, pseudoElt)`, the one way to read a pseudo-element's animated value (it has
@@ -103,7 +103,7 @@ async function watch(page: Page): Promise<void> {
         const l = face.getBoundingClientRect();
         const c = card.getBoundingClientRect();
         (w.path[id] ??= []).push([now(), c.left + c.width / 2 - (l.left + l.width / 2), c.top + c.height / 2 - (l.top + l.height / 2)]);
-        // AF405: while this flyer is attacking, the outline's own `::before` should be animating the
+        // While this flyer is attacking, the outline's own `::before` should be animating the
         // SAME `translate` the art does — both driven by the identical `--fly-path`/`--fly-start`.
         if (li.hasAttribute('data-attacking')) {
           const outlineTranslate = getComputedStyle(face, '::before').translate;
@@ -126,7 +126,7 @@ async function watch(page: Page): Promise<void> {
 /**
  * Prints what was recorded on `page` and fails on any frame a flyer stepped more than 2 px (the loop
  * moves it under 0.1 px a frame), or on any frame an attacking flyer's outline read a different
- * `translate` than its own art (AF405). Returns how many outline frames were sampled, so a caller
+ * `translate` than its own art. Returns how many outline frames were sampled, so a caller
  * that put a flyer into combat can assert the check actually ran rather than passing vacuously.
  */
 async function judge(page: Page, when: string): Promise<{ outlineSamples: number }> {
@@ -150,7 +150,7 @@ async function judge(page: Page, when: string): Promise<{ outlineSamples: number
       if (step > 2) jumps.push({ id, name: names[id] ?? '?', t, step: Math.round(step * 10) / 10 });
     }
   }
-  // AF405: every sampled frame of an attacking flyer whose outline did not read the same `translate` as its art.
+  // Every sampled frame of an attacking flyer whose outline did not read the same `translate` as its art.
   const outlineMismatches: { id: string; name: string; t: number; outline: string; card: string }[] = [];
   let outlineSamples = 0;
   for (const [id, samples] of Object.entries(w.outline)) {
@@ -219,7 +219,7 @@ test(titled('a flyer keeps its loop through its own turn: priority, the pointer 
     }
     await judge(page, 'sweep');
     await passToDeclareAttackers(page);
-    // AF405: a flyer declared attacking — Serra Angel, who stays untapped (vigilance) so the "turned"
+    // A flyer declared attacking — Serra Angel, who stays untapped (vigilance) so the "turned"
     // rule never muddies the geometry — so the frames below sample the outline against the art while
     // both are live. `clickCard` is the SAME click `attack-window.spec.ts`'s `attackWithBears` uses:
     // the sole opponent is already Forge's current defender, so one click per attacker declares it.

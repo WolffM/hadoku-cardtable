@@ -2410,7 +2410,7 @@ describe('drag to stack (#1, #19)', () => {
   });
 
   /**
-   * AF405 (wave 76 §C). The operator, 2026-10-26: *"red attacking outline should hover with flying
+   * Wave 76 §C. The operator, 2026-10-26: *"red attacking outline should hover with flying
    * creatures"*. `outline` paints along `.board-card__face`'s own box, which the flight loop never
    * moves (each part — the art, the protection layer, the shadow — runs its OWN `fly-*` animation
    * instead of the face moving and its children inheriting that move, `flight.ts`'s module header);
@@ -2422,7 +2422,7 @@ describe('drag to stack (#1, #19)', () => {
    * static outline. `e2e/fly-jump.spec.ts` is the real-browser proof (both engines); this is the fast,
    * local one.
    */
-  it('AF405: the attacking outline is a floating layer while flying, never the static one', () => {
+  it('the attacking outline is a floating layer while flying, never the static one', () => {
     const css = withoutComments(CARD_CSS);
     const lift = (selector: string) => css.match(new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
     expect(lift('.board-card[data-flying][data-attacking] > .board-card__face'), 'the static outline is off while flying').toMatch(/outline:\s*none/);

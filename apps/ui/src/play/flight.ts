@@ -12,7 +12,7 @@
  * into step — `e2e/fly-jump.spec.ts`'s Firefox run caught it, 90 ms after every flyer was drawn.
  * `animationstart` is kept for whatever starts without a DOM change.
  *
- * Wave 76 §C (AF405): the attacking outline's `::before` ring (`card.css`'s `[data-flying]
+ * Wave 76 §C: the attacking outline's `::before` ring (`card.css`'s `[data-flying]
  * [data-attacking] > .board-card__face::before`) starts its OWN fresh `fly-*` animation the moment
  * `data-attacking` is set on a card already flying — no new node, so `FLYING_PART`'s `addedNodes`
  * watch never sees it, and without `data-attacking` in `attributeFilter` the observer's own
