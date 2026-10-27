@@ -64,14 +64,19 @@ export default defineConfig({
     baseURL: EDGE_ORIGIN,
     actionTimeout: 20_000,
     navigationTimeout: 20_000,
-    // On CI a failing test keeps its trace, in `outputDir`, which every e2e
-    // job's evidence step uploads: one policy for ci.yml, forge-e2e,
-    // e2e-nightly and a targeted dispatch alike. A red that a re-run cannot
-    // reproduce (issue #13's frozen page, issue #3's unanswered OK) is only
-    // diagnosable from the run it happened in. Off locally, where a lane
-    // re-runs a red under its own eyes.
-    trace: process.env.CI ? 'retain-on-failure' : 'off',
-    screenshot: 'off',
+    // Never a trace: recording one slows every test, and the timing specs
+    // sample frames. Same sha, three of them ×5 on the claws: 7 of 25 red in
+    // 16 min traced, 25 of 25 green in 8.4 min untraced (runs 40471245587,
+    // 40471255011).
+    trace: 'off',
+    // On CI a failing test keeps a screenshot of every page it had open,
+    // taken as it fails, so nothing runs while the test does. It lands in
+    // `outputDir`, which every e2e job's evidence step uploads: one policy for
+    // ci.yml, forge-e2e, e2e-nightly and a targeted dispatch alike. A red a
+    // re-run cannot reproduce (issue #3's unanswered OK) is only diagnosable
+    // from the run it happened in. Off locally, where a lane re-runs a red
+    // under its own eyes.
+    screenshot: process.env.CI ? 'only-on-failure' : 'off',
     video: 'off',
   },
   webServer: {

@@ -611,12 +611,17 @@ jobs:
         run: pnpm --filter @hadoku/ui build && pnpm --filter @hadoku/server build
       - name: E2E — browser
         run: pnpm --filter @hadoku/e2e run install-browsers
+      # Its own ports, as forge-e2e's: on the fixed 19xxx defaults it shared a
+      # claw with another job's stack and died before a test ran ("19108 is
+      # already used", run 40471255011).
+      - name: E2E — pick this run's own ports
+        run: node scripts/ci/pick-e2e-ports.mjs | tee -a "$GITHUB_ENV"
       # `--pass-with-no-tests` is not passed: zero `[nightly]` tests means the tag
       # was renamed or dropped, and that should be red, not a quiet green.
       - name: E2E — the [nightly] tests
         run: pnpm --filter @hadoku/e2e test --grep '\[nightly\]'
       # The same evidence, and the same paths, as forge-e2e's and ci.yml's e2e:
-      # a failing test's trace (`e2e/playwright.config.ts`) and the harness logs.
+      # a failing test's screenshots (`e2e/playwright.config.ts`) and the harness logs.
       - name: E2E evidence (on failure)
         if: failure() || cancelled()
         uses: actions/upload-artifact@v6

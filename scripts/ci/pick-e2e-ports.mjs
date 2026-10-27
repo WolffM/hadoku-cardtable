@@ -1,6 +1,6 @@
 // Four free loopback ports for one CI job's e2e stacks, printed as the four
 // CARDTABLE_E2E_*_PORT lines for `$GITHUB_ENV`. ci.yml's `e2e` and forge.yml's
-// `forge-e2e` both use it.
+// `forge-e2e` and `e2e-nightly` all use it.
 //
 // Chosen fresh per job instead of a fixed range: several jobs can run on one claw at
 // once, maybe for different refs, so a fixed range collides (CI run 40121609776: the

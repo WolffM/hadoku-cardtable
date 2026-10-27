@@ -264,7 +264,7 @@ jobs:
       # were skipped. A guard that reds is the guard working; the premise was
       # what was wrong.
       # A test titled `[nightly]` is too slow for every push and runs in
-      # `forge.yml`'s `e2e-nightly` instead. A failing test keeps its trace
+      # `forge.yml`'s `e2e-nightly` instead. A failing test keeps a screenshot
       # (`e2e/playwright.config.ts`), uploaded by the evidence step at the end
       # of this job.
       - name: E2E — two friends draft one pod
