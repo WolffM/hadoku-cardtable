@@ -32,6 +32,7 @@ import {
 	answerability,
 	decidePay,
 	decideStop,
+	fewestManaToPay,
 	isOwnMainPhaseEntry,
 	isStopPhase,
 	judgeStop,
@@ -2454,6 +2455,25 @@ describe('item 7 — a payment Forge left only Cancel for', () => {
 		expect(payment(unpayable)).toEqual({ verdict: 'unanswerable', optional: true, answer: { t: 'cancel-payment' }, why: 'nothing can pay {1}{U}' });
 		// Through Forge's own frames.
 		expect(payment(readPromptFacts(notesFor('Mana Leak.\n\nPay Mana Cost: {1}{U}', deadAuto, [61]))).verdict).toBe('unanswerable');
+	});
+
+	it('leaves a payment the highlighted cards could finish by hand to the player, though Auto is dead', () => {
+		// Scheduled run 40485776642 (w68-pay): two Islands and Izzet Signet for Divination. Forge's AI
+		// payer does not chain the Signet's own {1}, so Auto is dead; an Island into the Signet and the
+		// other Island pay it.
+		const signet = readPromptFacts(notesFor('Divination (102) - Alice draws two cards.\n\nPay Mana Cost: {2}{U}', deadAuto, [109, 110, 111]));
+		expect(signet.noWayToPay).toBe(false);
+		expect(payment(signet).verdict).toBe('unclassified');
+		// Fewer highlighted cards than the fewest mana that pays it: no clicking finishes it.
+		expect(payment(readPromptFacts(notesFor('Divination (102) - Alice draws two cards.\n\nPay Mana Cost: {2}{U}', deadAuto, [109, 111]))).verdict).toBe('unanswerable');
+	});
+
+	it('counts the fewest mana that pays a cost line as Forge prints it', () => {
+		expect(fewestManaToPay('{2}{U}')).toBe(3);
+		expect(fewestManaToPay('{X}{R}')).toBe(1);
+		expect(fewestManaToPay('{2/W}{G/U}')).toBe(2);
+		expect(fewestManaToPay('{10}')).toBe(10);
+		expect(fewestManaToPay(null)).toBe(0);
 	});
 
 	it('leaves LIFE alone: a Phyrexian cost is answerable however few lands are out', () => {

@@ -933,16 +933,24 @@ export interface PromptFacts {
 	 */
 	readonly poolChoice: boolean;
 	/**
-	 * **Forge says this cost cannot be paid** — item 7.
+	 * **This cost cannot be paid** — item 7.
 	 *
 	 * Forge's payment input enables its own `Auto` button ONLY once
 	 * `ensureAutoPayManaSources` has found a payment for the cost that is left
 	 * (`InputPayMana.updateMessage`, `InputPayMana.java:402-407`, over
-	 * `ComputerUtilMana.getManaSourcesToPayCost` at `:438-452`). So a payment
-	 * window whose Auto is DEAD is Forge saying it found none. What Forge still
-	 * offers to click there does not change that: the payment highlight is every
-	 * card that pays some part of it (`InputPayMana.paysWith`), and part of a cost
-	 * is no payment.
+	 * `ComputerUtilMana.getManaSourcesToPayCost` at `:438-452`). That is the AI's
+	 * payer, and it does not chain a source that needs mana of its own: two
+	 * Islands and Izzet Signet pay Divination's {2}{U} by hand (an Island into
+	 * the Signet's {1}, the other Island), with Auto dead (scheduled run
+	 * 40485776642, w68-pay). So a dead Auto alone is not enough.
+	 *
+	 * Nor is the highlight alone: it is every card that pays SOME part of the cost
+	 * (`InputPayMana.paysWith`), so one Mountain is in it for {2}. Every card in
+	 * it pays at least one mana, and a source that needs mana put in (a Signet, a
+	 * filter land) takes a highlighted card to feed it, so the count of distinct
+	 * highlighted cards never understates what they can pay. Fewer of them than
+	 * the fewest mana that pays the cost is a payment nobody can finish; as many or more is a
+	 * payment the player may finish by hand, and it is theirs to make.
 	 */
 	readonly noWayToPay: boolean;
 	/** Forge's button 2 is live — in a payment, its Cancel, live for exactly an optional payment (`InputPayMana.java:389-395`). */
@@ -1125,6 +1133,22 @@ const UNKNOWN_WINDOW: PromptFacts = {
 	attackers: null,
 };
 
+/**
+ * The fewest mana that pays a cost line as Forge prints it (`{2}{U}`, `{X}{R}`,
+ * `{2/W}`): a number counts itself, X counts nothing, and every other symbol is
+ * one mana, a twobrid `{2/W}` included, since one W pays it. Not
+ * `@hadoku/deck`'s `manaValueOf`, which counts that twobrid as 2 (its mana
+ * value), and would call a payable cost unpayable. 0 for a cost with no symbols.
+ */
+export function fewestManaToPay(cost: string | null): number {
+	let total = 0;
+	for (const [, symbol] of (cost ?? '').matchAll(/\{([^}]*)\}/g)) {
+		if (/^\d+$/.test(symbol!)) total += Number(symbol);
+		else if (symbol !== 'X') total += 1;
+	}
+	return total;
+}
+
 /** Ids that appear more than once in Forge's weighted multiset, deduplicated. */
 function repeated(ids: readonly number[]): number[] {
 	const seen = new Set<number>();
@@ -1176,7 +1200,7 @@ export function readPromptFacts(notes: SeatNotes): PromptFacts {
 		// Life is a second way to pay, and not a mana source: a prompt offering it has more than one payment however few lands are out.
 		alternativePayment: LIFE_PAYMENT.test(message),
 		poolChoice: prompt.poolChoice !== undefined,
-		noWayToPay: window === 'payment' && buttons.enable1 !== true,
+		noWayToPay: window === 'payment' && buttons.enable1 !== true && new Set(all ?? []).size < fewestManaToPay(cost),
 		cancelLive: buttons.enable2 === true,
 		sources: all === null ? null : [...new Set(all)],
 		nonManaSources: all === null ? null : [...new Set(all)].filter((id) => !(manaOnly?.has(id) ?? false)),
@@ -1467,11 +1491,10 @@ export function decidePay(facts: PromptFacts, policy: StopPolicy): string | null
  * A payment with Auto dead and Cancel dead is not classified either: Forge left no
  * press, and that is Forge's to answer, not ours to drop.
  *
- * Nothing here computes whether a cost can be paid — that is Forge's rule, and its
- * dead Auto is the answer. **Not** the actionable set: in a payment window that is
- * every card a click would pay SOMETHING with (`InputPayMana.paysWith`), so one
- * Mountain is in it for {2}, a payment it cannot finish. A tap toward a payment that
- * cannot be finished is no answer.
+ * Nothing here computes a payment: {@link PromptFacts.noWayToPay} is a dead Auto
+ * AND fewer highlighted cards than the fewest mana that pays it, which no clicking can
+ * finish. A dead Auto alone is Forge's AI payer finding no route, not proof there
+ * is none (a Signet, which needs mana put in, is paid by hand).
  *
  * Pure. Policy is the caller's: whether the server presses a payment's Cancel is
  * {@link StopPolicy.unpayableCost}, and full control keeps the question.
