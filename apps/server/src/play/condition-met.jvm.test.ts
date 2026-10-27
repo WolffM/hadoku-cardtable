@@ -98,8 +98,8 @@
  * Player.withMostLife` — and in a two-seat game one of the two always has it. A seventh game holds
  * Preacher with seat 0 ahead on life, dark, beside Carapace Forger's metalcraft, lit.
  *
- * AF401, the playtest of 2026-10-26: Infernal Tutor's hellbent clause lit the orange rim with a full
- * hand (third report of this rim: AF214, AF300). Its script pairs the printed Hellbent branch
+ * The playtest of 2026-10-26: Infernal Tutor's hellbent clause lit the orange rim with a full
+ * hand. Its script pairs the printed Hellbent branch
  * (`SVar:DBChangeZone2`, `ConditionCheckSVar$ X | ConditionSVarCompare$ LT1`) against the ordinary
  * branch, which has no `ConditionSVarCompare` of its own and so defaults to `GE1` — and `X` is
  * `Count$ValidHand Card.YouOwn`, a hand, which starts full and empties over the game rather than
@@ -259,7 +259,7 @@ const EITHER_OR = [
 	'aigraveyard=',
 ].join('\n');
 
-/** AF401: Infernal Tutor's printed Hellbent branch (`Count$ValidHand`) beside Arrow Storm's Raid and Gruesome Discovery's Morbid, which count a per-turn event instead and must stay proven unchanged. */
+/** Infernal Tutor's printed Hellbent branch (`Count$ValidHand`) beside Arrow Storm's Raid and Gruesome Discovery's Morbid, which count a per-turn event instead and must stay proven unchanged. */
 const HELLBENT_HAND = [
 	'turn=1',
 	'activeplayer=human',
@@ -672,7 +672,7 @@ describe.skipIf(!available.ok)(title, () => {
 	);
 
 	it(
-		'AF401: a hand that empties toward Hellbent lights its floor, not its default — Infernal Tutor stays dark in a full hand, unlike Arrow Storm’s Raid and Gruesome Discovery’s Morbid, which count a per-turn event and stay dark for the opposite reason',
+		'a hand that empties toward Hellbent lights its floor, not its default — Infernal Tutor stays dark in a full hand, unlike Arrow Storm’s Raid and Gruesome Discovery’s Morbid, which count a per-turn event and stay dark for the opposite reason',
 		async () => {
 			if (!available.ok) return;
 			const s = await startScenario(available.config, { seed: 91, decks: DECKS, scenario: HELLBENT_HAND });

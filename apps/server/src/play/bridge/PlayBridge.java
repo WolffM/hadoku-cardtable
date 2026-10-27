@@ -1782,7 +1782,7 @@ public final class PlayBridge {
          * Any other lone comparison lights when met, whichever way it points: Bloodghast's opponent at
          * {@code LE10} life, a god's devotion below five.
          *
-         * <p><b>One count's floor is the notable state, not the default</b> (AF401, Infernal Tutor):
+         * <p><b>One count's floor is the notable state, not the default</b> (Infernal Tutor):
          * {@code Count$ValidHand …} is a hand, which starts full and is spent toward empty over the
          * game, so reaching its floor — no cards in hand — is Hellbent (CR 702.78a), the rare state a
          * card's "Hellbent —" clause is written to light for, not the "nothing has happened yet"
