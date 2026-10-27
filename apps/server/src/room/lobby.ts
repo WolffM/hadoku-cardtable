@@ -1184,6 +1184,14 @@ export interface Lobby {
 	/** Idempotent for an existing member, who needs no password again. */
 	join(roomId: string, caller: Caller, password?: string): JoinResult;
 	/**
+	 * Call `caller.id` by `caller.name` in every room they are a member of. The
+	 * name was copied once, at join, so a key renamed in the registry kept its
+	 * first name in every room it had joined — a room list showing
+	 * "spare-961b02" beside a leaderboard showing "kib" (2026-10-26). Writes
+	 * only the rooms whose copy moved.
+	 */
+	rename(caller: Caller): void;
+	/**
 	 * Leader only. Changes the game type — a room's `clientMode` is immutable.
 	 * Every member's `ready` is cleared: readiness is readiness for a particular
 	 * game, so changing the game invalidates it. A real change also puts the
@@ -2862,6 +2870,15 @@ class FileLobby implements Lobby {
 		this.#persist(room);
 		this.#log({ event: 'room-joined', roomId, members: room.members.length });
 		return { ok: true, room: this.#view(room), alreadyMember: false };
+	}
+
+	rename(caller: Caller): void {
+		for (const room of this.#rooms.values()) {
+			const member = room.members.find((m) => m.id === caller.id);
+			if (member === undefined || member.name === caller.name) continue;
+			member.name = caller.name;
+			this.#persist(room);
+		}
 	}
 
 	setReady(roomId: string, memberId: string, ready: boolean): boolean {

@@ -296,6 +296,25 @@ describe('a member is named by their display name, never their id', () => {
 		expect(unnamed.members.map((m) => m.name)).toEqual(['friend']);
 		expect(unnamed.members.map((m) => m.name).join()).not.toContain('user-bob');
 	});
+
+	it('follows a rename into every room the member is in, and an unnamed request keeps the name', async () => {
+		const dir = await tempDir();
+		const h = await openApp(dir);
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Mine' } })).json() as import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob', headers: { 'x-user-name': 'spare-961b02' }, body: {} });
+
+		// The registry renamed bob's key. Any request of his brings his rooms up to it.
+		await call(h, 'GET', '/api/rooms', { as: 'bob', headers: { 'x-user-name': 'kib' } });
+		const names = () => h.lobby.get(room.id)?.members.map((m) => m.name);
+		expect(names()).toEqual(['user-alice', 'kib']);
+
+		await call(h, 'GET', '/api/rooms', { as: 'bob', headers: { 'x-user-name': '' } });
+		expect(names()).toEqual(['user-alice', 'kib']);
+
+		// Stored, not just in memory: a restart reads the new name back.
+		const again = await openApp(dir);
+		expect(again.lobby.get(room.id)?.members.map((m) => m.name)).toEqual(['user-alice', 'kib']);
+	});
 });
 
 describe('POST /api/rooms', () => {

@@ -301,6 +301,15 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	 * (and the specific handler still runs its own `ROOM_ID_RE` test for the
 	 * sentence it gives a caller who IS allowed to see this room).
 	 */
+	// Every request carries the caller's current name, so every request brings
+	// their rooms up to it. Only a name the edge sent: an unnamed key's
+	// fallback word must not overwrite the name it had.
+	rooms.use((req: Request, _res: Response, next: NextFunction) => {
+		const name = userNameOf(req);
+		if (name !== null) lobby.rename({ id: httpCaller(req), name });
+		next();
+	});
+
 	rooms.param('id', (req: Request, res: Response, next: NextFunction, id: string) => {
 		const room = lobby.get(id);
 		if (room !== undefined && room.testing && !isAdmin(req)) return noMatch(res);
