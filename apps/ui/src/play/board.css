@@ -2011,8 +2011,14 @@
  * The place a card leaving the battlefield keeps (`live/departures.ts`) is a card's shape: a row of
  * them must not collapse and move the rows below while the cards are drawn leaving (the operator,
  * 2026-10-15, of a Slagstorm: "all the cards drifted down").
+ *
+ * So is the column reserved for a card about to arrive (`data-expected`, `Board.tsx`): its stand-in
+ * glides into that box and waits there (`expectedGapBox`, `gestures/cast.ts`), and in a row with no
+ * card to stretch it the box had no height. The stand-in then had nowhere to go and sat at the
+ * release point. The one-table seam (ea0dc9b2) moved a release at a battlefield's middle into such
+ * an empty row, which is where this showed (w59-stack, w67-shaman).
  */
-.zone__gap[data-leaving-gap] {
+.zone__gap:is([data-leaving-gap], [data-expected]) {
   aspect-ratio: 1 / var(--card-tall);
 }
 

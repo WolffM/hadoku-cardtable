@@ -1049,6 +1049,17 @@
   translate: 0 -3px;
 }
 
+/*
+ * Everything the card wears rises with the hovered art, as it does with a combat-ready lift
+ * (below): the P/T, counters and tags are the face's siblings, so on a lifted card they stayed on
+ * the table under it — the P/T hung past the art's bottom once cards were small enough that its
+ * inset no longer covered the 3px (tg-tapped-overlays, after the one-table seam shrank them). A
+ * flyer's badges already sit at the same -3px as its art.
+ */
+.board-card[data-selectable]:not([data-flying]):has(> .board-card__face:hover) > :not(.board-card__face, .board-card__pile) {
+  translate: 0 -3px;
+}
+
 .board-card[data-selectable] > .board-card__face:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: 3px;
@@ -1104,6 +1115,10 @@
 }
 
 .board-card[data-flying][data-combat-ready] > :not(.board-card__face, .board-card__pile) {
+  translate: 0 -7px;
+}
+
+.board-card[data-combat-ready][data-selectable]:not([data-flying]):has(> .board-card__face:hover) > :not(.board-card__face, .board-card__pile) {
   translate: 0 -7px;
 }
 
