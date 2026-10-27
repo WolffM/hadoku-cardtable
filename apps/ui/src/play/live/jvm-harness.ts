@@ -39,9 +39,7 @@ import { expect } from 'vitest';
 import { isTierC, safeParseClientFrame, type ClientFrame, type ServerFrame } from '@hadoku/forge-wire';
 import { ARRANGEMENT_EVENT, CLIENT_EVENT, PLACED_EVENT, PRESENCE_EVENT } from '@hadoku/shared';
 
-import { join } from 'node:path';
-
-import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type MatchSpec } from '../../../../server/src/play/host.ts';
+import { jvmHostConfig, jvmHostFactory, liveJvmCount, matchStderrPath, type BridgeLine, type MatchSpec } from '../../../../server/src/play/host.ts';
 import { withEndStepStop } from '../../../../server/src/play/auto.ts';
 import { WATCHER_SEAT, createMatchRegistry, type Match } from '../../../../server/src/play/match.ts';
 import { dumpTimeoutReport, scenarioText, summarizeFrame } from '../../../../server/src/play/scenario.ts';
@@ -115,7 +113,7 @@ export interface DumpSource {
   match: Match;
   emitted: { seat: number; envelope: ServerEnvelope }[];
   serverLog: Record<string, unknown>[];
-  /** `JvmHostConfig.workDir` this match's JVM ran under — where its `bridge.stderr.txt` lives. */
+  /** `JvmHostConfig.workDir` this match's JVM ran under; its `bridge.stderr.txt` is `matchStderrPath`'s. */
   workDir: string;
 }
 
@@ -161,7 +159,7 @@ function dumpOnTimeout(dump: DumpSource, label: string): string {
     label,
     frames: dump.emitted.slice(-80).map((e) => summarizeFrame(e.seat, e.envelope.frame)),
     decisions: dump.serverLog.filter((l) => l.evt === 'stop-decided' || l.evt === 'auto-passed'),
-    stderrPath: join(dump.workDir, dump.match.id, 'bridge.stderr.txt'),
+    stderrPath: matchStderrPath(dump.workDir, dump.serverLog, dump.match.id),
   });
 }
 

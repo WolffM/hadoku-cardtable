@@ -18,13 +18,12 @@
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without one this SKIPS and the
  * title says why. Serves the prebuilt `apps/ui/dist` — rebuild before running.
  */
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 
 import { expect, test, type Page } from '@playwright/test';
 
 import { clickPermanent, makeTitled, passOverStack, resizeWindow, stackCount } from './play/board.ts';
-import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { forgeAvailability, matchStreams, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -122,12 +121,10 @@ async function battlefieldNamed(page: Page, owner: Owner, name: string): Promise
   return id!;
 }
 
-/** What the bridge sent of an emblem: each `stream.jsonl` line under the stack's work dir that names one, cut short. */
+/** What the bridge sent of an emblem: each match-stream line under the stack's work dir that names one, cut short. */
 function emblemFrames(workDir: string): string[] {
   const out: string[] = [];
-  for (const run of readdirSync(workDir)) {
-    const file = join(workDir, run, 'stream.jsonl');
-    if (!existsSync(file)) continue;
+  for (const file of matchStreams(workDir)) {
     for (const line of readFileSync(file, 'utf8').split('\n')) {
       const at = line.indexOf('Emblem');
       if (at >= 0) out.push(line.slice(Math.max(0, at - 1500), at + 1500));

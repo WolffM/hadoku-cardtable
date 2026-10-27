@@ -31,9 +31,6 @@
  *   pnpm exec vitest run apps/server/src/play/concurrent-select.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
  */
 
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
-
 import { describe, expect, it } from 'vitest';
 
 import { DELTA_TYPE, idsOf } from '@hadoku/forge-wire';
@@ -62,20 +59,6 @@ function offered(s: Scenario): number[] {
 	return frame?.method === 'setWeaklySelectable' ? (frame.cards ?? []).map((c) => c.id) : [];
 }
 
-/** This match's bridge stderr (`<workDir>/…/<match id>/bridge.stderr.txt`). */
-function stderrOf(s: Scenario): string {
-	let text = '';
-	const walk = (dir: string): void => {
-		for (const name of readdirSync(dir)) {
-			const path = join(dir, name);
-			if (statSync(path).isDirectory()) walk(path);
-			else if (name === 'bridge.stderr.txt' && path.includes(s.match.id)) text += readFileSync(path, 'utf8');
-		}
-	};
-	walk(s.workDir);
-	return text;
-}
-
 const HOLD_MS = 2_000;
 
 describe.skipIf(!available.ok)(title, () => {
@@ -98,7 +81,7 @@ describe.skipIf(!available.ok)(title, () => {
 			await waitUntil(() => { s.answerAsks(); payLand(); return stackIds(s).length > 0; }, "the Goblin on the stack after the burst", 30_000, s).catch(() => {
 				reached = false;
 			});
-			const stderr = stderrOf(s);
+			const stderr = s.stderr();
 			const errors = stderr.split('Network encode error').length - 1;
 			const calls = [...stderr.matchAll(/Protocol selectCard processed in (\d+) ms \(queued (\d+) ms\)/g)].map((m) => ({ ran: Number(m[1]), queued: Number(m[2]) }));
 			const ranThroughHold = calls.filter((c) => c.ran >= HOLD_MS * 0.75).length;

@@ -19,7 +19,7 @@ import { ClientFrameSchema, coreTypes, currentFace, deltaKey, DELTA_TYPE, idsOf,
 import { afterEach } from 'vitest';
 
 import { playWorkDir } from '../config.js';
-import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeCommand, type BridgeLine, type JvmHostConfig, type MatchHost } from './host.js';
+import { jvmHostConfig, jvmHostFactory, liveJvmCount, matchStderrPath, type BridgeCommand, type BridgeLine, type JvmHostConfig, type MatchHost } from './host.js';
 import type { SeatIdentity } from '@hadoku/shared';
 import { createMatchRegistry, type Match } from './match.js';
 import { PHASE_BY_UI_NAME, type StopPolicy } from './auto.js';
@@ -111,8 +111,8 @@ export interface TimeoutDump {
 	frames: Record<string, unknown>[];
 	/** Server log entries worth keeping — this file's own `stop-decided`/`auto-passed` filter, or the caller's own. */
 	decisions: Record<string, unknown>[];
-	/** Where this match's `bridge.stderr.txt` lives. */
-	stderrPath: string;
+	/** Where this match's `bridge.stderr.txt` lives (`matchStderrPath`); null before it was placed. */
+	stderrPath: string | null;
 }
 
 /**
@@ -145,7 +145,7 @@ export function dumpTimeoutReport(input: TimeoutDump): string {
 	// that could carry a cause — was gone.
 	let stderr: string | null;
 	try {
-		stderr = readFileSync(input.stderrPath, 'utf8');
+		stderr = input.stderrPath === null ? null : readFileSync(input.stderrPath, 'utf8');
 	} catch {
 		stderr = null;
 	}
@@ -172,7 +172,7 @@ function dumpOnTimeout(s: Scenario, label: string): string {
 		label,
 		frames: s.sent.slice(-DUMP_FRAMES).map(frameSummary),
 		decisions: s.logs.filter((l) => l.evt === 'stop-decided' || l.evt === 'auto-passed'),
-		stderrPath: join(s.workDir, s.match.id, 'bridge.stderr.txt'),
+		stderrPath: s.stderrPath(),
 	});
 }
 
@@ -259,8 +259,12 @@ export interface Card {
 
 export interface Scenario {
 	match: Match;
-	/** `JvmHostConfig.workDir` this match's JVM ran under — where its `bridge.stderr.txt` lives, for `waitUntil`'s dump. */
+	/** `JvmHostConfig.workDir` this match's JVM ran under. */
 	workDir: string;
+	/** The `bridge.stderr.txt` of the JVM hosting this match (it is the JVM's, shared with any other match on it); null before placement. */
+	stderrPath(): string | null;
+	/** That file's text. Throws when there is none to read, so a check for what is NOT in it cannot pass on an empty read. */
+	stderr(): string;
 	sent: Stamped[];
 	lines: (BridgeLine & { t: string; hostT: number })[];
 	logs: Record<string, unknown>[];
@@ -382,6 +386,12 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 	const self: Scenario = {
 		match,
 		workDir: config.workDir,
+		stderrPath: () => matchStderrPath(config.workDir, logs, match.id),
+		stderr: () => {
+			const path = matchStderrPath(config.workDir, logs, match.id);
+			if (path === null) throw new Error(`match ${match.id} was never placed in a JVM, so it has no bridge stderr`);
+			return readFileSync(path, 'utf8');
+		},
 		sent,
 		lines,
 		logs,

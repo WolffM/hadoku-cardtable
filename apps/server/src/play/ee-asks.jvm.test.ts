@@ -14,9 +14,6 @@
  *   pnpm exec vitest run apps/server/src/play/ee-asks.jvm.test.ts
  */
 
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
 import { describe, expect, it } from 'vitest';
 import type { ServerFrame } from '@hadoku/forge-wire';
 
@@ -237,7 +234,7 @@ describe.skipIf(!available.ok)(title('the mana combination ask, against real For
 				30_000,
 				s,
 			);
-			const stderr = readFileSync(join(s.workDir, s.match.id, 'bridge.stderr.txt'), 'utf8');
+			const stderr = s.stderr();
 			console.log(`[ee-asks] therapy resolved; status ${s.match.status}; NPE in bridge stderr: ${/NullPointerException/.test(stderr)}`);
 			expect(stderr).not.toMatch(/NullPointerException/);
 			expect(s.match.status).toBe('running');

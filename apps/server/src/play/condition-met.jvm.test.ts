@@ -113,9 +113,6 @@
  *   pnpm exec vitest run apps/server/src/play/condition-met.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
  */
 
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
 import { describe, expect, it } from 'vitest';
 
 import { available, castNamed, deck, finishMulligan, inOwnMain, passUntil, startScenario, waitUntil, type Card, type Scenario } from './scenario.js';
@@ -362,8 +359,7 @@ describe.skipIf(!available.ok)(title, () => {
 					named(mine, 'Pulse of the Forge'),
 					named(mine, 'Ornithopter'),
 				];
-				const stderr = join(s.workDir, s.match.id, 'bridge.stderr.txt');
-				const failures = existsSync(stderr) ? readFileSync(stderr, 'utf8').split('\n').filter((l) => l.includes('conditionMet')) : [];
+				const failures = s.stderr().split('\n').filter((l) => l.includes('conditionMet'));
 				console.log(`[ca-condition-met.jvm] bridge conditionMet failures: ${failures.length} ${JSON.stringify(failures.slice(0, 3))}`);
 				expect(failures, 'the bridge read every frame’s cards').toEqual([]);
 				const seat0 = latestConditionMet(s, 0);

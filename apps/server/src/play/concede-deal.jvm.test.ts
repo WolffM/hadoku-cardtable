@@ -27,9 +27,6 @@
  *   pnpm exec vitest run apps/server/src/play/concede-deal.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
  */
 
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
-
 import { describe, expect, it } from 'vitest';
 
 import { ClientFrameSchema } from '@hadoku/forge-wire';
@@ -46,20 +43,6 @@ const BURST = 4;
 const FOR_MS = 3_000;
 /** And at most this many in all: every one is a thread on Forge's side. */
 const MOST = 400;
-
-/** This match's bridge stderr (`<workDir>/…/<match id>/bridge.stderr.txt`). */
-function stderrOf(s: Scenario): string {
-	let text = '';
-	const walk = (dir: string): void => {
-		for (const name of readdirSync(dir)) {
-			const path = join(dir, name);
-			if (statSync(path).isDirectory()) walk(path);
-			else if (name === 'bridge.stderr.txt' && path.includes(s.match.id)) text += readFileSync(path, 'utf8');
-		}
-	};
-	walk(s.workDir);
-	return text;
-}
 
 const over = (s: Scenario): boolean => s.lines.some((l) => l.t === 'gameover');
 
@@ -81,7 +64,7 @@ describe.skipIf(!available.ok)(title, () => {
 			}
 			await waitUntil(() => over(s), 'Forge ends the game', 30_000, s).catch(() => undefined);
 			const gameover = s.lines.find((l) => l.t === 'gameover') as { losers?: number[]; lost?: unknown[] } | undefined;
-			const stderr = stderrOf(s);
+			const stderr = s.stderr();
 			const died = [...stderr.matchAll(/InvocationTargetException in concede[^\n]*/g)].map((m) => m[0]);
 			const received = [...stderr.matchAll(/Received: GuiGameEvent \d+: concede /g)].length;
 			console.log(

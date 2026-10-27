@@ -5,7 +5,7 @@
  *
  * Scenario `own-spell`, two people, passed through three turn boundaries (turns 1 → 4). At each
  * boundary, on BOTH screens, against what Forge itself last sent (`Turn` / `PlayerTurn` in the
- * bridge's `stream.jsonl`, never a deduction from the client):
+ * bridge's match stream (`<matchId>.jsonl`), never a deduction from the client):
  *
  *  - exactly one seat carries `data-active`, and it is Forge's active player;
  *  - that seat, and only it, is lit, and the other sits in shade;
@@ -21,13 +21,12 @@
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without one this SKIPS and
  * the title says why. Serves the prebuilt `apps/ui/dist` — rebuild before running.
  */
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 
 import { expect, test, type Page } from '@playwright/test';
 
 import { grindPriority, makeTitled, turnMarks } from './play/board.ts';
-import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { forgeAvailability, matchStreams, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -43,12 +42,9 @@ interface ForgeTurn {
   player: number;
 }
 
-/** Forge's turn as the bridge last sent it to any seat: the last `Turn` and `PlayerTurn` in the stack's `stream.jsonl` frames. */
+/** Forge's turn as the bridge last sent it to any seat: the last `Turn` and `PlayerTurn` in the stack's match streams' frames. */
 function forgeTurn(workDir: string): ForgeTurn | null {
-  const runs = readdirSync(workDir)
-    .map((run) => join(workDir, run, 'stream.jsonl'))
-    .filter((file) => existsSync(file))
-    .sort((a, b) => statSync(a).mtimeMs - statSync(b).mtimeMs);
+  const runs = matchStreams(workDir);
   let turn: number | null = null;
   let player: number | null = null;
   for (const file of runs) {

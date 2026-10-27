@@ -98,6 +98,7 @@ import {
   readlinkSync,
   realpathSync,
   rmSync,
+  statSync,
 } from 'node:fs';
 import type { Server } from 'node:http';
 import { Socket } from 'node:net';
@@ -252,6 +253,26 @@ export function readJvmRecord(run: string): JvmRecordSeen | null {
         spec: m.spec ?? null,
       })),
   };
+}
+
+/**
+ * Every match's protocol stream under a stack's work dir — `host.ts`'s `streamFile`,
+ * `<workDir>/<hostId>/<matchId>.jsonl`, oldest first. A degraded match's
+ * `<matchId>.broken.jsonl` is left out: it has a hole, and nothing replays it.
+ */
+export function matchStreams(workDir: string): string[] {
+  const files: string[] = [];
+  for (const run of readdirSync(workDir)) {
+    const dir = join(workDir, run);
+    let names: string[];
+    try {
+      names = readdirSync(dir);
+    } catch {
+      continue; // not a directory, or gone since the listing
+    }
+    for (const name of names) if (/^m-[0-9a-f]+\.jsonl$/.test(name)) files.push(join(dir, name));
+  }
+  return files.sort((a, b) => statSync(a).mtimeMs - statSync(b).mtimeMs);
 }
 
 export type ForgeAvailability = { ok: true; jar: string; res: string } | { ok: false; reason: string };
