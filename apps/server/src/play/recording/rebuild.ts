@@ -287,6 +287,14 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 	// of `raw` per poll, for the same O(lines) reason `position.ts`'s own doc gives for folding a
 	// board incrementally rather than from scratch every time.
 	const appliedCount: [number, number] = [0, 0];
+	// Has this seat sent at least one `frame` line yet? A seat's `IGameController` is wired only
+	// once Forge's match-start runnable has actually run (`GameLobby.startGame`'s own runnable),
+	// which races the `ready` line this host's OWN first line can be — sending that seat's first
+	// command before its first `frame` hit `getGameController() == null` server-side ("rejected",
+	// found live: a command sent the instant the host returns raced `ready` by milliseconds). `v:1`'s
+	// board/prompt poll never hit this: the recorded position could not match an empty board, so it
+	// waited anyway. The echo has no such accidental wait built in, so this is an explicit one.
+	const seatReady: [boolean, boolean] = [false, false];
 	let lastLineAt = Date.now();
 	let exited: string | null = null;
 	const t0 = Date.now();
@@ -298,6 +306,7 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 				raw.push(l);
 				timeline.push({ line: l, at: Date.now() - t0 });
 				if (l.t === 'applied') appliedCount[l.seat]!++;
+				if (l.t === 'frame') seatReady[l.seat] = true;
 				lastLineAt = Date.now();
 			},
 			exit: (reason) => {
@@ -316,6 +325,17 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 		const c = cmds[i]!;
 		const cmd = c.cmd;
 		const seat = commandSeat(cmd);
+
+		if (seat !== null && !seatReady[seat]!) {
+			const deadline = Date.now() + budget;
+			while (exited === null && Date.now() < deadline && !seatReady[seat]!) await sleep(10);
+			if (exited !== null || !seatReady[seat]!) {
+				diverged = exited !== null
+					? `the rebuild's JVM exited before seat ${seat} ever sent a frame: ${exited}`
+					: `command ${i}: seat ${seat} never sent a frame within the budget (its game controller never wired)`;
+				break;
+			}
+		}
 
 		if (cmd.t === 'act' && seat !== null) {
 			const k = actOrdinal[i]!;

@@ -5303,6 +5303,20 @@ public final class PlayBridge {
          * the same shape {@code host.ts}'s {@code BridgeCommand}'s {@code act} frame sent it>}} —
          * never, when {@code inputBeforeCall} is null: this act was never applied, so it is never
          * echoed, and the recorder (wave 78 §A item 2) must never log it.
+         *
+         * <p><b>Called BEFORE {@code super.selectXxx(...)}, not after — found live.</b> Several of
+         * these methods do not return once Forge has merely dispatched the click: {@code
+         * InputPassPriority.onCardSelected} calls {@code getAbilityToPlay} INSIDE {@code
+         * selectCard}'s own call ({@code InputPassPriority.java:361}), which is a BLOCKING ask —
+         * the server-side {@code getAbilityToPlay} does not return until the SAME seat's reply
+         * arrives (it is not gated by {@code ActGate}'s {@code ACTS} set at all: a reply answers an
+         * already-open ask on its own path). Emitting after {@code super.selectCard(...)} returned
+         * put that reply's own log line (built at {@code host.send} time, immediately) BEFORE this
+         * act's `applied` line in the log — the rebuild then read the reply before the act that
+         * opens its ask, and the ask never arrives, every time, at the exact same point: a two-human
+         * jar run reproduced it identically across three tries. Emitting here, the instant {@code
+         * before != null} proves the click WILL reach the open input (before any of its own
+         * recursive consequences run), keeps every act's line ahead of anything that act causes.
          */
         private void applied(final Object inputBeforeCall, final JsonObject act) {
             if (inputBeforeCall == null) { return; }
@@ -5334,48 +5348,44 @@ public final class PlayBridge {
 
         @Override
         public void concede() {
-            final Object before = liveInput();
+            applied(liveInput(), act("concede"));
             super.concede();
-            applied(before, act("concede"));
         }
 
         @Override
         public void useMana(final byte mana) {
             final Object before = liveInput();
-            super.useMana(mana);
             final JsonObject a = act("useMana");
             a.addProperty("color", mana);
             applied(before, a);
+            super.useMana(mana);
         }
 
         @Override
         public void selectButtonOk() {
-            final Object before = liveInput();
+            applied(liveInput(), act("selectButtonOk"));
             super.selectButtonOk();
-            applied(before, act("selectButtonOk"));
         }
 
         @Override
         public void selectButtonCancel() {
-            final Object before = liveInput();
+            applied(liveInput(), act("selectButtonCancel"));
             super.selectButtonCancel();
-            applied(before, act("selectButtonCancel"));
         }
 
         @Override
         public void selectPlayer(final PlayerView playerView, final ITriggerEvent triggerEvent) {
             final Object before = liveInput();
-            super.selectPlayer(playerView, triggerEvent);
             final JsonObject a = act("selectPlayer");
             a.add("player", ref("player", playerView.getId()));
             a.add("triggerEvent", triggerEventJson(triggerEvent));
             applied(before, a);
+            super.selectPlayer(playerView, triggerEvent);
         }
 
         @Override
         public boolean selectCard(final CardView cardView, final List<CardView> otherCardViewsToSelect, final ITriggerEvent triggerEvent) {
             final Object before = liveInput();
-            final boolean selected = super.selectCard(cardView, otherCardViewsToSelect, triggerEvent);
             final JsonObject a = act("selectCard");
             a.add("card", ref("card", cardView.getId()));
             final JsonArray others = new JsonArray();
@@ -5385,16 +5395,16 @@ public final class PlayBridge {
             a.add("otherCardViewsToSelect", others);
             a.add("triggerEvent", triggerEventJson(triggerEvent));
             applied(before, a);
-            return selected;
+            return super.selectCard(cardView, otherCardViewsToSelect, triggerEvent);
         }
 
         @Override
         public void selectAbility(final SpellAbilityView sa) {
             final Object before = liveInput();
-            super.selectAbility(sa);
             final JsonObject a = act("selectAbility");
             a.add("ability", ref("spellAbility", sa.getId()));
             applied(before, a);
+            super.selectAbility(sa);
         }
     }
 

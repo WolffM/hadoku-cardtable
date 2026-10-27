@@ -22,6 +22,8 @@
  * `[nightly]`: a played match plus its replays is minutes of JVM. `CARDTABLE_REPLAY_RUNS`
  * replays (default 2), `CARDTABLE_PLAY_SEED`, `CARDTABLE_REPLAY_DECK_A`/`_B` (precon names),
  * `CARDTABLE_REPLAY_TURNS`; `CARDTABLE_REPLAY_DUMP=<dir>` keeps both logs.
+ * `CARDTABLE_REPLAY_BUDGET_MS` (default 30 000) is how long run B waits for a seat's first frame,
+ * an act's own applied echo, or a reply's ask, before calling the attempt diverged.
  */
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -323,6 +325,13 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 		for (let r = 0; r < replays; r++) {
 			const rawB: BridgeLine[] = [];
 			const appliedCount: [number, number] = [0, 0];
+			// A seat's `IGameController` is wired only once Forge's match-start runnable has
+			// actually run, which races this host's own `ready` line by milliseconds — sending a
+			// seat's first command before its first `frame` hits "seat N has no game controller
+			// yet" server-side (found live, with `CARDTABLE_REPLAY_TURNS=4`: command 0 never
+			// applied, because it was REJECTED, not dropped). `recording/rebuild.ts`'s own doc has
+			// the same fix and the same reasoning for why `v:1`'s board/prompt poll never hit this.
+			const seatReady: [boolean, boolean] = [false, false];
 			let lastB = Date.now();
 			let exited: string | null = null;
 			const jvmB = jvmHostFactory(available.config, { spare: false, log: () => {} });
@@ -332,6 +341,7 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 					rawB.push(l);
 					lastB = Date.now();
 					if (l.t === 'applied') appliedCount[l.seat]!++;
+					if (l.t === 'frame') seatReady[l.seat] = true;
 				},
 				exit: (reason) => {
 					exited = reason;
@@ -339,9 +349,16 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 				log: () => {},
 			});
 			let diverged: string | null = null;
-			const budget = 30_000;
+			const budget = Number(process.env.CARDTABLE_REPLAY_BUDGET_MS ?? 30_000);
 			for (const [i, { command }] of log.entries()) {
 				const seat = commandSeat(command);
+				if (seat !== null && !seatReady[seat]!) {
+					await waitUntil(() => seatReady[seat]! || exited !== null, `seat ${seat}'s first frame`, budget).catch(() => {});
+					if (exited !== null || !seatReady[seat]!) {
+						diverged = `command ${i}: seat ${seat} never sent a frame within the budget (its game controller never wired)`;
+						break;
+					}
+				}
 				if (command.t === 'act' && seat !== null) {
 					const k = actOrdinal[i]!;
 					hostB.send(command);
