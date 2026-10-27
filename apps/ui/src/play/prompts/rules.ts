@@ -23,7 +23,7 @@
  */
 
 import { deckIssues, newDeck, type Deck } from '@hadoku/deck';
-import { oneEachFit, type BlockingMethod, type ZoneType } from '@hadoku/forge-wire';
+import { oneEachFit, type BlockingMethod, type CardRef, type ZoneType } from '@hadoku/forge-wire';
 import type { CombatAssignment, CombatDamageRules } from '@hadoku/shared';
 
 import type { AskOf, ReplyOf } from './types.ts';
@@ -154,6 +154,45 @@ export function numericChoiceRange(ask: AskOf<'getChoices'>): NumericChoiceRange
   for (let i = 1; i < values.length; i++) if (values[i] !== values[i - 1]! + 1) return null;
   const range: NumericChoiceRange = { min: values[0]!, max: values[values.length - 1]!, keys: choices.map((c) => c.key) };
   return ask.affordable === undefined ? range : { ...range, affordable: ask.affordable };
+}
+
+/** One pile of `pileChoiceOf` — `key` answers `getChoices` with this pile, `cards` are display-only. */
+export interface PileChoice {
+  key: string;
+  label: string;
+  cards: CardRef[];
+}
+
+/**
+ * Fact or Fiction, Steam Augury, and the rest of Forge's 32 `TwoPilesEffect`
+ * cards: `PlayerControllerHuman.chooseCardsPile`
+ * (`PlayerControllerHuman.java:2576-2620`) sends ONE flat `getChoices` list —
+ * `[pile-1 header, ...pile1's cards, pile-2 header, ...pile2's cards]` — where
+ * each header is a fake `CardView` at `Integer.MIN_VALUE`/`MIN_VALUE + 1`
+ * (`:2589,2597`). Those two ids are never a real card's: a `Tracker` hands
+ * real ids out starting at 1 upward, so this is read structurally from the
+ * `ref.id`s alone, the same way `numericChoiceRange` reads a number ask from
+ * its labels alone — nothing on the wire marks either ask as its own shape.
+ *
+ * Returns the two piles in Forge's own order, each keyed by its HEADER's own
+ * choice key (so answering is unchanged: `getChoices([pile.key])` is exactly
+ * what picking that header always was) and carrying the real cards BETWEEN
+ * the two headers, for display only — they are never offered as their own
+ * choice (the operator, 2026-10-27: picking one used to make Forge's own
+ * `while(true)` loop re-ask, which read on screen as a brief error).
+ */
+export function pileChoiceOf(ask: AskOf<'getChoices'>): readonly PileChoice[] | null {
+  const choices = ask.choices;
+  const at = (id: number) => choices.findIndex((c) => c.ref?.kind === 'card' && c.ref.id === id);
+  const h1 = at(-2147483648); // Integer.MIN_VALUE
+  const h2 = at(-2147483647); // Integer.MIN_VALUE + 1
+  if (h1 < 0 || h2 < 0 || h2 <= h1) return null;
+  const cardsBetween = (from: number, to: number): CardRef[] =>
+    choices.slice(from, to).flatMap((c) => (c.ref !== null && c.ref.kind === 'card' ? [c.ref] : []));
+  return [
+    { key: choices[h1]!.key, label: 'Pile 1', cards: cardsBetween(h1 + 1, h2) },
+    { key: choices[h2]!.key, label: 'Pile 2', cards: cardsBetween(h2 + 1, choices.length) },
+  ];
 }
 
 /** `null` only when the effect is optional (`CMatchUI.java:1333-1341`: `oneOrNone` vs `one`). */

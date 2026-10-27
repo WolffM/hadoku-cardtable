@@ -25,6 +25,7 @@ import {
   numericChoiceRange,
   optionDialogProblems,
   orderProblems,
+  pileChoiceOf,
   revealCaption,
   searchRows,
   sideboardProblems,
@@ -160,6 +161,64 @@ describe('numericChoiceRange', () => {
   it('refuses a single choice (needs at least two to see a sequence) and an empty list', () => {
     expect(numericChoiceRange(numeric([0]))).toBeNull();
     expect(numericChoiceRange(numeric([]))).toBeNull();
+  });
+});
+
+/**
+ * Fact or Fiction's "choose a pile" (`PlayerControllerHuman.chooseCardsPile`):
+ * read structurally from the two sentinel ids alone, the same way
+ * `numericChoiceRange` reads a number ask from its labels alone.
+ */
+describe('pileChoiceOf', () => {
+  const header = (key: string, id: number, n: number) => ({ key, label: `-- Pile ${id === -2147483648 ? 1 : 2} (${n} cards) --`, ref: { kind: 'card' as const, id } });
+  const cardChoice = (key: string, id: number) => ({ key, label: `Card (${id})`, ref: { kind: 'card' as const, id } });
+  const pileAsk = (...choices: { key: string; label: string; ref: { kind: 'card'; id: number } | null }[]): AskOf<'getChoices'> => ({
+    ...askFor('getChoices'),
+    min: 1,
+    max: 1,
+    choices,
+  });
+
+  it('splits Forge\'s one flat list into two piles, keyed by each header\'s own key', () => {
+    const ask = pileAsk(
+      header('c0', -2147483648, 2),
+      cardChoice('c1', 101),
+      cardChoice('c2', 102),
+      header('c3', -2147483647, 1),
+      cardChoice('c4', 201),
+    );
+    expect(pileChoiceOf(ask)).toEqual([
+      { key: 'c0', label: 'Pile 1', cards: [{ kind: 'card', id: 101 }, { kind: 'card', id: 102 }] },
+      { key: 'c3', label: 'Pile 2', cards: [{ kind: 'card', id: 201 }] },
+    ]);
+  });
+
+  it('an empty pile carries no cards at all, not a placeholder', () => {
+    const ask = pileAsk(header('c0', -2147483648, 1), cardChoice('c1', 101), header('c2', -2147483647, 0));
+    expect(pileChoiceOf(ask)).toEqual([
+      { key: 'c0', label: 'Pile 1', cards: [{ kind: 'card', id: 101 }] },
+      { key: 'c2', label: 'Pile 2', cards: [] },
+    ]);
+  });
+
+  it('is not fooled by an ordinary card list, even one that happens to include a negative id', () => {
+    const ask = pileAsk(cardChoice('c0', 101), cardChoice('c1', -5));
+    expect(pileChoiceOf(ask)).toBeNull();
+  });
+
+  it('is not fooled by a word list (colours), even though it is also getChoices', () => {
+    const [colors] = asksFor('getChoices') as [AskOf<'getChoices'>];
+    expect(pileChoiceOf(colors)).toBeNull();
+  });
+
+  it('refuses a list with only one of the two headers', () => {
+    const ask = pileAsk(header('c0', -2147483648, 1), cardChoice('c1', 101));
+    expect(pileChoiceOf(ask)).toBeNull();
+  });
+
+  it('refuses the headers out of Forge\'s own order', () => {
+    const ask = pileAsk(header('c0', -2147483647, 0), cardChoice('c1', 101), header('c2', -2147483648, 0));
+    expect(pileChoiceOf(ask)).toBeNull();
   });
 });
 

@@ -283,6 +283,55 @@
   height: auto;
 }
 
+/*
+ * `chooseCardsPile` (Fact or Fiction, Steam Augury, the rest of Forge's 32
+ * `TwoPilesEffect` cards): two piles side by side, each its own card grid
+ * with one button underneath — never two more "cards" in the grid, and the
+ * cards between them are never individually clickable (the operator,
+ * 2026-10-27; `rules.ts`'s `pileChoiceOf`). Stacks below 560px like
+ * `.prompt__dual`'s own two columns.
+ */
+.prompt__piles {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 560px) {
+  .prompt__piles {
+    grid-template-columns: 1fr;
+  }
+}
+
+.prompt__pile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* An empty pile is still a card's place, dashed — the button sits over it, never over nothing. */
+.prompt__pile .prompt__cards:empty {
+  flex: 0 1 var(--card-w);
+  width: var(--card-w);
+  height: calc(var(--card-w) * 680 / 488);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+}
+
+.prompt__pile-button {
+  padding: 6px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.prompt__pile-button:hover,
+.prompt__pile-button:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
 /* ── card grids: a prompt's cards are tiles, the board's card look ────── */
 
 /*

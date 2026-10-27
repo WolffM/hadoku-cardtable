@@ -182,6 +182,77 @@ describe('getChoices', () => {
       }
     });
   });
+
+  /**
+   * `chooseCardsPile` (Fact or Fiction, Steam Augury, the rest of Forge's 32
+   * `TwoPilesEffect` cards): Forge's own ask is one flat list, the two piles'
+   * real cards bracketed by two fake pseudo-card headers (`rules.ts`'s
+   * `pileChoiceOf`). The operator, 2026-10-27: it is "strange" for the piles
+   * to draw as more cards in the grid, and picking a real card used to make
+   * the window briefly "error" — both because every entry, header and card
+   * alike, used to be one more selectable tile.
+   */
+  describe('chooseCardsPile: two piles, two buttons, no selectable card', () => {
+    const pileAsk = (): AskOf<'getChoices'> => ({
+      ...askFor('getChoices'),
+      message: 'Fact or Fiction - Choose a pile',
+      min: 1,
+      max: 1,
+      choices: [
+        { key: 'c0', label: '-- Pile 1 (2 cards) --', ref: { kind: 'card', id: -2147483648 } },
+        { key: 'c1', label: 'Card A (101)', ref: { kind: 'card', id: 101 } },
+        { key: 'c2', label: 'Card B (102)', ref: { kind: 'card', id: 102 } },
+        { key: 'c3', label: '-- Pile 2 (0 cards) --', ref: { kind: 'card', id: -2147483647 } },
+      ],
+      selected: [],
+    });
+
+    it('draws one button per pile, "Pile 1" / "Pile 2", and no radio or checkbox at all', () => {
+      const { getAllByTestId, queryAllByTestId } = mountPrompt('getChoices', pileAsk());
+      const buttons = getAllByTestId('prompt-pile-choice');
+      expect(buttons.map((b) => b.textContent)).toEqual(['Pile 1', 'Pile 2']);
+      expect(queryAllByTestId('prompt-choice')).toHaveLength(0);
+    });
+
+    it('draws the real cards between the headers as plain tiles, wrapped in nothing that can click them', () => {
+      const { getAllByTestId, container } = mountPrompt('getChoices', pileAsk());
+      const grids = getAllByTestId('prompt-cards');
+      expect(grids[0]!.querySelectorAll('li')).toHaveLength(2);
+      // No `<input>`/`<label>` anywhere in a pile — the mechanism every other
+      // choosable row answers through — so a click on a card does nothing.
+      expect(container.querySelectorAll('.prompt__pile input')).toHaveLength(0);
+    });
+
+    it('an empty pile still draws a slot, with its button over it, not beside nothing', () => {
+      const { getAllByTestId } = mountPrompt('getChoices', pileAsk());
+      expect(getAllByTestId('prompt-cards')[1]!.querySelectorAll('li')).toHaveLength(0);
+    });
+
+    it('a pile header never draws as a card tile — no "-- Pile" text, no raw id', () => {
+      const { container } = mountPrompt('getChoices', pileAsk());
+      expect(container.textContent).not.toMatch(/-- Pile/);
+      expect(container.textContent).not.toContain('-2147483648');
+    });
+
+    it('clicking a button answers with that pile\'s own header key, never a card\'s', () => {
+      const { getAllByTestId, answers } = mountPrompt('getChoices', pileAsk());
+      fireEvent.click(getAllByTestId('prompt-pile-choice')[1]!);
+      expect(answers).toEqual([['c3']]);
+      expectWireReply('getChoices', answers[0]);
+    });
+
+    it('is not offered an ordinary card list: that still renders as selectable tiles', () => {
+      const { getAllByTestId, queryAllByTestId } = mountPrompt('getChoices', {
+        ...pileAsk(),
+        choices: [
+          { key: 'c0', label: 'Card A (101)', ref: { kind: 'card', id: 101 } },
+          { key: 'c1', label: 'Card B (102)', ref: { kind: 'card', id: 102 } },
+        ],
+      });
+      expect(queryAllByTestId('prompt-pile-choice')).toHaveLength(0);
+      expect(getAllByTestId('prompt-choice')).toHaveLength(2);
+    });
+  });
 });
 
 describe('chooseSingleEntityForEffect', () => {

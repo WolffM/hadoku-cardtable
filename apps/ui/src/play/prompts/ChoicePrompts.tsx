@@ -32,9 +32,11 @@ import {
   chooseSingleProblems,
   getChoicesProblems,
   numericChoiceRange,
+  pileChoiceOf,
   revealCaption,
   searchRows,
   type NumericChoiceRange,
+  type PileChoice,
   type SearchRow,
 } from './rules.ts';
 import { assertAnswerable, checkedReply, type AskOf, type PromptProps } from './types.ts';
@@ -193,7 +195,53 @@ function NumberChoiceSlider({
 }
 
 export function GetChoicesPrompt(props: PromptProps<'getChoices'>) {
+  const piles = pileChoiceOf(props.ask);
+  if (piles !== null) return <PileChoicePrompt {...props} piles={piles} />;
   return props.ask.names !== undefined ? <NamePickPrompt {...props} /> : <ListChoicesPrompt {...props} />;
+}
+
+/**
+ * Fact or Fiction's "choose a pile" (and the other 31 `TwoPilesEffect` cards):
+ * two piles side by side, each the real card tiles the rest of the prompts
+ * draw, with one button underneath — "Pile 1" / "Pile 2" — rather than two
+ * more selectable "cards" in the grid (the operator, 2026-10-27: *"it's
+ * strange to represent them as cards... why not just show the piles and then
+ * a button underneath each"*).
+ *
+ * The cards between the two headers are never wrapped in a `PickChoice`: no
+ * tick, no click handler, so a click on one of them does nothing at all —
+ * picking a real card used to make Forge's own `chooseCardsPile` loop
+ * (`PlayerControllerHuman.java:2604-2613`) re-ask, which read on screen as the
+ * decision window briefly "erroring" before it came back (the operator's
+ * second report). The button answers with the pile's own header key, exactly
+ * what picking that header always meant.
+ */
+function PileChoicePrompt({ ask, onAnswer, lookup, piles }: PromptProps<'getChoices'> & { piles: readonly PileChoice[] }) {
+  const answer = (key: string) => {
+    const problems = getChoicesProblems(ask, [key]);
+    assertAnswerable('getChoices', problems);
+    onAnswer(checkedReply('getChoices', [key]));
+  };
+  return (
+    <PromptShell method="getChoices" title={promptText(ask.message)}>
+      <div className="prompt__piles" data-testid="prompt-piles">
+        {piles.map((pile) => (
+          <div className="prompt__pile" key={pile.key}>
+            <ul className="prompt__cards" data-testid="prompt-cards">
+              {pile.cards.map((c) => (
+                <li key={c.id} data-card-id={c.id}>
+                  <CardTile card={promptTileFor(lookup, c.id)} />
+                </li>
+              ))}
+            </ul>
+            <OptionButton testId="prompt-pile-choice" className="prompt__pile-button" ariaLabel={pile.label} onClick={() => answer(pile.key)}>
+              {pile.label}
+            </OptionButton>
+          </div>
+        ))}
+      </div>
+    </PromptShell>
+  );
 }
 
 /**
