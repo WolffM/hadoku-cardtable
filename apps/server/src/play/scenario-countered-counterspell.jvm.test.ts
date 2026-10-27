@@ -83,18 +83,18 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(memniteItem, 'Memnite’s own stack item').toBeDefined();
 
 				// Let the stack resolve: Counterspell counters Memnite (removed with no resolved event of
-				// its own), then resolves itself cleanly.
+				// its own) partway through its own resolution, and reaches its own graveyard only once that
+				// resolution ends — a later frame, which a loaded claw delivers well after Memnite's. Wait for both.
 				await waitUntil(
 					() => {
 						s.answerAsks();
 						if (s.buttons(0)?.enable1 === true) s.ok(0);
-						return s.zone(1, 'Graveyard').some((c) => c.id === memnite.id);
+						return s.zone(1, 'Graveyard').some((c) => c.id === memnite.id) && s.zone(0, 'Graveyard').some((c) => c.id === counterspell.id);
 					},
-					'Memnite to be countered into seat 1’s graveyard',
+					'Memnite countered into seat 1’s graveyard and Counterspell resolved into seat 0’s',
 					30_000,
 					s,
 				);
-				expect(s.zone(0, 'Graveyard').some((c) => c.id === counterspell.id), 'Counterspell resolved into seat 0’s own graveyard').toBe(true);
 
 				const allCountered = s.sent
 					.filter((x) => x.seat === 0 && x.envelope.frame.kind === 'notify')
