@@ -355,6 +355,7 @@ import {
 } from './match.ts';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS, type PlayPrefs } from './prefs.ts';
 import { StopPhaseSchema, stopStep, type StopPhase } from './transport.ts';
+import { MistakeBubble } from './MistakeBubble.tsx';
 import { SettingsPanel } from './SettingsPanel.tsx';
 import { fetchOwnDeck, OwnDeckPeek, type OwnDeck } from './own-deck.tsx';
 import { usePopover } from '../../components/Popover.tsx';
@@ -3339,6 +3340,14 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     setFastModeState(next);
     if (isPacedTransport(match.transport)) match.transport.setFast(next);
   }
+  // "Say my mistakes": client-only, read once from the persisted prefs like Fast Mode above.
+  const [mistakeBubbles, setMistakeBubblesState] = useState<boolean>(PLAY_PREFS_DEFAULTS.mistakeBubbles);
+  const appliedMistakeBubbles = useRef(false);
+  useEffect(() => {
+    if (appliedMistakeBubbles.current || prefs === null) return;
+    appliedMistakeBubbles.current = true;
+    setMistakeBubblesState(prefs.mistakeBubbles ?? PLAY_PREFS_DEFAULTS.mistakeBubbles);
+  }, [prefs]);
   // The seat's settings, in the match's log: once they have been read, and on every change — with the
   // window they are laid out in, so a layout report is read from the log rather than guessed.
   const settingsReported = useRef(false);
@@ -3678,6 +3687,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           onEffect={spectator ? undefined : (data) => reportClient(match.transport, match.matchId, 'effect', data)}
         />
       )}
+      {/* The seat's own avatar says what it got wrong; a spectator or watcher has no mistakes to say. */}
+      {visualView !== null && !spectator && <MistakeBubble mistake={match.mistake} enabled={mistakeBubbles} />}
       {turnCue !== null && <TurnCue turn={turnCue} />}
       {/* Out of flow, over the board's right edge: it moves no canvas box. */}
       {match.view !== null && (
@@ -4056,6 +4067,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
             onBoardLayoutChange={setBoardLayout}
             fastMode={fastMode}
             onFastModeChange={handleFastModeChange}
+            mistakeBubbles={mistakeBubbles}
+            onMistakeBubblesChange={setMistakeBubblesState}
             onSave={(patch: Partial<PlayPrefs>) => void savePrefs(patch)}
           />
         </SettingsPopover>
