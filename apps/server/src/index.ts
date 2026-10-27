@@ -87,6 +87,8 @@ import { attachRoomFeed } from './room/feed.js';
 import { attachPlay, coldStartsFrom, createFeatured, featuredCandidates, jvmHostConfig, jvmHostFactory, roomDeckCosts, roomFormatNames, spellCopierLookup, tableGame, type PlayHandle } from './play/index.js';
 import { bridgeDigest, createRecorder, forgePin, serverVersion } from './play/recording/recorder.js';
 import { sweepRecordings } from './play/recording/retention.js';
+import { canRebuildBoolean, rebuildForReplays } from './play/recording/rebuild.js';
+import { queueColdStarts } from './play/start-queue.js';
 import { attachReplays } from './http/replays.js';
 import { attachStream, attachStreamRoutes, streamLayout } from './stream/index.js';
 import { createRoomStreams, findContainerScript, scriptRunner, MAX_ROOM_SEATS } from './stream/alloc.js';
@@ -728,12 +730,20 @@ const recorder = createRecorder({
 const RECORDINGS_SWEEP_MS = 60 * 60_000;
 sweepRecordings(RECORDINGS_DIR, Date.now(), recordingsLog);
 setInterval(() => sweepRecordings(RECORDINGS_DIR, Date.now(), recordingsLog), RECORDINGS_SWEEP_MS).unref();
-// Lane D (rebuild.ts) is not landed yet: absent `canRebuild`/`rebuild`, a match
-// whose public stream has expired answers `source: 'none'`/404, never a crash.
+// Wave 77 §D (rebuild.ts): a match whose public stream has expired is rebuilt on its own JVM,
+// through a SEPARATE same-sized boot queue from `attachPlay`'s own — `play/socket.ts` does not
+// expose its internal `queueColdStarts` wrapper, and is wave 76's, so this cannot share it — but
+// `rebuild.ts`'s own "one rebuild at a time" plus an EQUAL concurrent-boot budget on its own queue
+// still means a rebuild's boot can never crowd out a real match's: it is never competing for the
+// SAME slots. Without Forge, `rebuild` stays unset, so a match whose stream is gone still answers
+// `source: 'none'`/404 rather than a crash.
+const rebuildHost = forge.ok ? queueColdStarts(jvmHostFactory(forge.config, { spare: false, log: recordingsLog }), coldStartsFrom(), recordingsLog) : null;
 attachReplays(api, {
 	dir: RECORDINGS_DIR,
 	isTesting: (roomId) => (roomId === null ? false : lobby.get(roomId)?.testing === true),
 	log: recordingsLog,
+	canRebuild: canRebuildBoolean,
+	...(rebuildHost === null ? {} : { rebuild: (matchId: string) => rebuildForReplays(matchId, { recordingsDir: RECORDINGS_DIR, host: rebuildHost, log: recordingsLog, deckCosts }) }),
 });
 
 play = attachPlay(io, api, {
