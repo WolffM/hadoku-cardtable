@@ -147,6 +147,33 @@ the slowest CPUs, so the fleet loses little hosting capacity. A 48 h probe
 (`cardtable-netprobe`, 1 ping/s per claw plus link counters every 5 min) is
 running to set the thresholds and the failover window from real outage data.
 
+**The 48 h probe, 2026-10-25 05:42Z → 10-27 05:42Z** (1 ping/s hokon → each claw over
+Tailscale, ~172 400 replies each):
+
+| claw | link | RTT p50 / p99 / p99.9 ms | silences ≥ 3 s | longest, reboot aside |
+| --- | --- | --- | --- | --- |
+| claw-4 | wired | 4.1 / 81 / 399 | 3 | 3 s |
+| claw-5 | wired | 4.0 / 79 / 389 | 2 | 3 s |
+| claw-6 | wired | 4.1 / 78 / 376 | 5 | 3 s |
+| claw-8 | wired | 4.1 / 83 / 371 | 5 | 3 s |
+| claw-9 | wired | 4.0 / 81 / 438 | 6 | 4 s (two of them during the A6 swap test) |
+| claw-1 | Wi-Fi | 3.3 / 84 / 332 | 2 | 3 s |
+| claw-2 | Wi-Fi | 134 / 606 / 1201 | 21 | 7 s |
+| claw-3 | Wi-Fi | 135 / 1033 / 1318 | 17 | 5 s |
+
+- Every claw has exactly one 50–99 s silence. They fell an hour or so apart on 10-25: claw-2 07:10, claw-5
+  13:21, claw-1 14:22, claw-3 15:21, claw-4 15:36, claw-6 16:23, claw-9 17:23, claw-8 18:24. Each claw's
+  link counters reset across it, so this is a rolling reboot, the kind fleet-manager now announces 15 min
+  ahead (0.34.90). It is a planned drain, not an outage.
+- One 3 s silence hit every wired claw at the same second (10-25 16:43:23Z). That was hokon's side.
+- **Failover window: 10 s** (5 missed 2 s heartbeats). Reboots aside, no wired claw was silent longer than 4 s
+  in 48 h, so 10 s fails over on nothing seen here. Detection costs at most 10 s of a real outage.
+- **The link bar becomes "no silence ≥ 10 s in 24 h outside an announced drain", and p50 ≤ 20 ms.** The
+  plan's starting bar of zero silences ≥ 3 s would rule out every claw, hokon's own blip included. claw-2 and
+  claw-3 fail the p50 bar (134 ms), and claw-1 passes it on this sample but not the 2.7 s worst of 10-25. The
+  hosting pool is the wired claws 4, 5, 6, 8 and 9.
+- p99 is ~80 ms on every wired claw, inside the 250 ms paced-action budget.
+
 ### 4.2 Quality first (ruling 7)
 
 - **Admission control, never degradation.** A match starts only on a host with
