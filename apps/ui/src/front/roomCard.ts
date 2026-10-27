@@ -47,6 +47,29 @@ export interface RoomCardView {
   primaryAction: RoomPrimaryAction;
   /** A second, explicit Watch button beside the primary one: the room is in progress (any state but Lobby/Done), or a Forge match is actually running. */
   extraWatch: boolean;
+  /** Which background the card draws (`rooms.css`, `[data-family]`): the room's format family, or `draft`. */
+  family: RoomFamily;
+}
+
+export type RoomFamily = 'standard' | 'modern' | 'legacy' | 'draft' | 'other';
+
+/**
+ * A room's format family: a draft is `draft`; a constructed room reads its Gauntlet era, its All Random
+ * pool, or its own `format` id (`<family>-<date>` for Modern/Legacy, a bare date for Standard,
+ * `formatLabel.ts`); anything else — Free pick, the full random pool — is `other`.
+ */
+export function roomFamily(room: RoomView): RoomFamily {
+  if (room.gameType === 'draft') return 'draft';
+  const fromId = (id: string | undefined): RoomFamily => {
+    if (id === undefined || id === 'free') return 'other';
+    if (id.startsWith('modern')) return 'modern';
+    if (id.startsWith('legacy')) return 'legacy';
+    return /^\d{4}-\d{2}-\d{2}$/.test(id) || id === 'standard' ? 'standard' : 'other';
+  };
+  const options = room.modeOptions as { era?: string; family?: string; pool?: string } | null;
+  if (room.mode === 'gauntlet') return fromId(options?.era ?? options?.family ?? 'standard');
+  if (room.mode === 'random') return fromId(options?.pool);
+  return fromId(room.format);
 }
 
 const STATE_LABEL: Readonly<Record<RoomStateKey, string>> = {
@@ -158,5 +181,6 @@ export function roomCardView(room: RoomView, isMine: boolean): RoomCardView {
     state,
     primaryAction,
     extraWatch,
+    family: roomFamily(room),
   };
 }

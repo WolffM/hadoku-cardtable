@@ -58,21 +58,18 @@
 
 /*
  * The symbol card: four rows (type/name/seats, mode, state, the way in), each mostly icons, over
- * its own art (ruling 10) with a dark wash under the info. `position: relative` plus `overflow:
- * hidden` is the art's clip box; `.room-card__body` is everything the art sits behind, raised onto
- * its own stacking layer so the wash never shows through the text.
+ * its format family's gradient and its own faint symbol. `position: relative` plus `overflow:
+ * hidden` clip the symbol; `.room-card__body` is raised onto its own stacking layer above it.
  *
  * `transform`/`border-color`/`box-shadow` transition for the hover lift (ruling 11); `opacity` for
- * the "matches the filters" dim (ruling 6, `[data-match='false']` below). Never a `filter`: the card
- * holds card art, which is never colour-filtered (`cardImageRules.test.ts`). Never a literal colour,
- * only theme tokens.
+ * the "matches the filters" dim (ruling 6, `[data-match='false']` below). Never a literal colour,
+ * only theme and palette tokens.
  */
 .room-card {
   position: relative;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--bg);
   transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.2s ease;
 }
 
@@ -88,38 +85,41 @@
   opacity: 0.55;
 }
 
-.room-card__art {
+/*
+ * The card's own background: its format family's colour, from the colour-pie palette, washed into
+ * the page so the info stays readable in every theme. No card art (the operator, 2026-10-27).
+ */
+.room-card {
+  --room-tint: var(--c-generic);
+  background:
+    radial-gradient(circle at 85% 15%, color-mix(in srgb, var(--room-tint) 38%, transparent) 0%, transparent 65%),
+    linear-gradient(160deg, color-mix(in srgb, var(--room-tint) 16%, var(--bg)) 0%, var(--bg) 75%);
+}
+
+.room-card[data-family='standard'] { --room-tint: var(--c-blue); }
+.room-card[data-family='modern'] { --room-tint: color-mix(in srgb, var(--c-blue) 50%, var(--c-red)); }
+.room-card[data-family='legacy'] { --room-tint: var(--c-red); }
+.room-card[data-family='draft'] { --room-tint: var(--c-green); }
+
+/* The room's own symbol, large and faint in the corner. */
+.room-card__mark {
   position: absolute;
-  inset: 0;
-  overflow: hidden;
+  right: -14px;
+  bottom: -18px;
+  color: var(--ink);
+  opacity: 0.08;
+  pointer-events: none;
+  transition: transform 0.4s ease, opacity 0.2s ease;
 }
 
-.room-card__art-img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0;
-  transition: opacity 0.35s ease, transform 0.4s ease;
+.room-card__mark svg {
+  stroke-width: 1.3;
 }
 
-/* Fades in once it has actually decoded (ruling 10: "the art itself must not delay the card"). */
-.room-card__art-img--loaded {
-  opacity: 1;
-}
-
-.room-card:hover .room-card__art-img,
-.room-card:focus-within .room-card__art-img {
-  transform: scale(1.04);
-}
-
-/* The dark gradient wash over the art, so the info on top of it stays readable in every theme. */
-.room-card__art::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 45%, transparent) 0%, color-mix(in srgb, var(--bg) 92%, transparent) 70%);
+.room-card:hover .room-card__mark,
+.room-card:focus-within .room-card__mark {
+  transform: scale(1.06) rotate(-3deg);
+  opacity: 0.12;
 }
 
 .room-card__body {

@@ -1,15 +1,9 @@
 ## Changed
 
-- **Room cards, redesigned.** Each card now sits on art for its game, keeps its name on one line
-  with a lock and a trophy where they belong, and shows its state and what it's doing now on one
-  row. A room in progress — drafting, building, playing, between games or in its rounds — always
-  offers Watch alongside its own way in.
-- Every symbol on a room card — type, lock, trophy, seats, mode, best-of and state — now explains
-  itself on hover or on keyboard focus.
-- Filter the room list by Draft/Constructed, by Tournament/Duel, and by "Not full"; matching rooms
-  rise to the top and your choice is remembered next time you visit.
+- **Room cards, redesigned.** Each card is coloured by its format, with a large faint symbol for a draft or a duel. It shows its name, seats, mode and what it's doing now in four tidy rows. A room in progress always offers Watch, and a password-protected room shows a lock on its Join button.
+- Filter the room list by Draft/Constructed, Tournament/Duel and "Not full". Matching rooms rise to the top, and your choice is remembered.
 - A format's name now reads "Standard 2018", "Modern 2011" or "Legacy 2011" instead of its raw date.
 
 ## Fixed
 
-- A room's name no longer wraps onto its own line and pushes its icon away from it.
+- A long room name no longer wraps onto its own line; it is cut off, and the full name shows on hover.

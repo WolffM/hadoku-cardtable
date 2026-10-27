@@ -74,8 +74,6 @@ import { GameTypeRow } from './GameTypeRow.tsx';
 import { latestReads } from './latest.ts';
 import { freshRoomMode, MODE_CARDS } from '../screens/constructed-mode/ModeRow.tsx';
 import { roomCardView } from '../front/roomCard.ts';
-import { roomArtId } from '../front/roomArt.ts';
-import { cardImageUrl } from '../draft/cardImage.ts';
 import { ConstructedIcon, DieIcon, DraftIcon, LockIcon, PersonIcon, StaircaseIcon, SwordsIcon, TrophyIcon } from '../front/icons.tsx';
 import { loadRoomFilters, matchesRoomFilters, orderByMatch, saveRoomFilters, type RoomFilters } from '../front/roomFilters.ts';
 import { mountTips } from '../play/tip/index.ts';
@@ -349,7 +347,6 @@ function RoomRow({
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [artLoaded, setArtLoaded] = useState(false);
 
   /*
    * The name's own tooltip shows only when the name is actually clipped by its ellipsis — an
@@ -453,8 +450,6 @@ function RoomRow({
 
   const names = room.members.map((m) => m.name);
   const view = roomCardView(room, isMine(room));
-  const artId = roomArtId(room);
-  const artUrl = artId === undefined ? null : cardImageUrl(artId);
 
   return (
     <li
@@ -463,24 +458,12 @@ function RoomRow({
       data-room-id={room.id}
       data-mine={isMine(room) ? '' : undefined}
       data-match={matchesFilters ? undefined : 'false'}
+      data-family={view.family}
     >
-      {/* Art behind the card, with a dark gradient wash under the info (`rooms.css`): a lookup, never
-          a URL (`../front/roomArt.ts`). It never delays the card — the text draws first, and the
-          image fades in once it has actually decoded. */}
-      {artUrl !== null && (
-        <span className="room-card__art" aria-hidden="true">
-          <img
-            className={artLoaded ? 'room-card__art-img room-card__art-img--loaded' : 'room-card__art-img'}
-            src={artUrl}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            draggable={false}
-            onLoad={() => setArtLoaded(true)}
-            onError={() => setArtLoaded(false)}
-          />
-        </span>
-      )}
+      {/* The room's own symbol, large and faint behind the info, over its format family's gradient (`rooms.css`). */}
+      <span className="room-card__mark" aria-hidden="true">
+        {room.gameType === 'draft' ? <DraftIcon size={150} /> : <SwordsIcon size={150} />}
+      </span>
       <div className="room-card__body">
         {/* Row 1: type, name, trophy, seats — one line, never wraps (ruling 1). The lock (ruling 8,
             amended by the operator mid-wave) is no longer here: it leads the primary button, row 4.

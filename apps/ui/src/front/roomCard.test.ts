@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import type { PodView, RoomTable } from '@hadoku/shared';
 
 import type { RoomView } from '../rooms/api.ts';
-import { roomCardView } from './roomCard.ts';
+import { roomCardView, roomFamily } from './roomCard.ts';
 
 const table = (over: Partial<RoomTable> = {}): RoomTable => ({
   id: 't-1',
@@ -187,5 +187,21 @@ describe('roomCardView — the way in', () => {
     const bo3 = room({ tables: [table({ series: { length: 3, wins: [0, 0], games: [], phase: 'seating' } })] });
     expect(roomCardView(bo3, false).series).toBe('Bo3');
     expect(roomCardView(room(), false).series).toBe('Bo1');
+  });
+});
+
+/** Which background a card draws: its format family, from the same ids the mode chip reads. */
+describe('roomFamily', () => {
+  it('reads a Classic format id, a Gauntlet era, an All Random pool, and draft', () => {
+    expect(roomFamily(room({ format: '2018-07-13' }))).toBe('standard');
+    expect(roomFamily(room({ format: 'modern-2011-07-15' }))).toBe('modern');
+    expect(roomFamily(room({ format: 'legacy-2011-07-15' }))).toBe('legacy');
+    expect(roomFamily(room({ format: 'free' }))).toBe('other');
+    expect(roomFamily(room({ mode: 'gauntlet', modeOptions: { era: 'legacy-2004-01-01' } }))).toBe('legacy');
+    expect(roomFamily(room({ mode: 'gauntlet', modeOptions: { family: 'modern' } }))).toBe('modern');
+    expect(roomFamily(room({ mode: 'gauntlet', modeOptions: {} }))).toBe('standard');
+    expect(roomFamily(room({ mode: 'random', modeOptions: { pool: 'full' } }))).toBe('other');
+    expect(roomFamily(room({ mode: 'random', modeOptions: { pool: 'modern' } }))).toBe('modern');
+    expect(roomFamily(room({ gameType: 'draft' }))).toBe('draft');
   });
 });
