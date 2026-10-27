@@ -33,6 +33,14 @@ describe('projectile path', () => {
     expect(new Set(seeds.map((s) => s.toFixed(3))).size).toBe(4);
     for (const s of seeds) expect(s >= 0 && s < 1).toBe(true);
   });
+
+  it('spreads keys that differ only in their last character, instead of clustering (FNV-1a alone barely moves them)', () => {
+    const seeds = Array.from({ length: 20 }, (_, i) => seedOf(`k:${i + 1}`));
+    const range = Math.max(...seeds) - Math.min(...seeds);
+    expect(range, 'the 20 seeds should spread across most of the unit interval').toBeGreaterThan(0.6);
+    const distinctAtTwoDp = new Set(seeds.map((s) => s.toFixed(2))).size;
+    expect(distinctAtTwoDp, 'at least 18 of the 20 should land in distinct hundredths').toBeGreaterThanOrEqual(18);
+  });
 });
 
 describe('keyframes', () => {

@@ -50,10 +50,21 @@ const IMPACT_MS = 420;
 /** Samples of the curve the animation runs through. */
 const SAMPLES = 16;
 
-/** A small, stable hash of a hit's key: the same key always draws the same arc. */
+/**
+ * A small, stable hash of a hit's key: the same key always draws the same arc. FNV-1a alone barely
+ * moves when only a key's LAST character differs (measured: `…:pr1`…`:pr8` landed within 0.351–0.398,
+ * every seeded visual whose key ends in a counter — a sweeper's balls, AF413's cracks `l${i}`/`w${i}`/
+ * `t${i}` — nearly uniform), so the hash is finished with a murmur3 `fmix32`: every bit of the input
+ * spreads before the division, deterministic on both screens either way.
+ */
 export function seedOf(key: string): number {
   let h = 2166136261;
   for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619);
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
   return (h >>> 0) / 4294967296;
 }
 
