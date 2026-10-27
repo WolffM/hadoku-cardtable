@@ -261,6 +261,7 @@ import { preloadMatchArt } from './art-preload.ts';
 import { pressableBar, type BarHold } from './bar-hold.ts';
 import { drawnOfferOf, followOffer, type OfferHold } from './offer-hold.ts';
 import { lapseHold } from './timed-hold.ts';
+import { mistakeOfAutoCancel, mistakeOfClick, type MistakeKey } from './mistakes.ts';
 import { SELF_ANSWERING } from '../prompts/answer-table.ts';
 import type { PromptParts } from '../prompts/lookup.ts';
 import { foldPackets, type FoldablePacket, type FoldResult, type WireState } from '../fold.ts';
@@ -736,6 +737,17 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    */
   refused: { card: number; seq: number } | null;
   /**
+   * AF409 — the line the seat's own mistake bubble (`./MistakeBubble.tsx`) should say now, or null.
+   * Set beside {@link refused} by one classifier (`./mistakes.ts`'s `mistakeOfClick` /
+   * `mistakeOfAutoCancel`), never guessed twice: this seat's own `reportRefusedClick` for a board
+   * click Forge never saw, and `refuse` for the one `flashIncorrectAction` cause that classifier can
+   * tell apart from the other two. `seq` is its own counter — see {@link MISTAKE_MS} — so a second
+   * mistake of the same kind still restarts the bubble's timer. Cleared on its own clock, never by
+   * {@link dropOpenInput}: the game moves on to the next input well before {@link MISTAKE_MS} is up,
+   * and the bubble must not vanish the instant it does.
+   */
+  mistake: { key: MistakeKey; seq: number } | null;
+  /**
    * The latest damage hits each `applyDelta` carried (`PlayBridge.java`'s `damage`), numbered as they
    * came (`DamageHit.seq`) and kept to the last {@link HITS_KEPT}: an event, never folded into state,
    * so a view drawn after several frames at once still holds every one of their hits.
@@ -1072,6 +1084,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     lastSelectedCard: null,
     actCard: null,
     refused: null,
+    mistake: null,
     hits: [],
     faceHits: [],
     nextHitSeq: 1,
@@ -1892,16 +1905,23 @@ function refusal(match: LiveMatch, cardId: number): string {
  * A board click turned away is logged (the operator's Eldrazi Spawn, 2026-10-24: a click refused
  * here sent nothing, so the match log could not say it was ever made): the card, why, and what
  * was open. A watcher sends nothing, as for every other client event.
+ *
+ * AF409: the same reason feeds `mistakes.ts`'s classifier, and `said` stamps what it found onto
+ * this telemetry — so the match log keeps saying what this seat was told, next to why.
  */
 function reportRefusedClick(match: LiveMatch, cardId: number): void {
   if (match.watcher) return;
+  const reason = refusal(match, cardId);
+  const said = mistakeOfClick(match.view, reason, cardId);
+  setMistake(match, said);
   match.transport.emit(CLIENT_EVENT, {
     matchId: match.matchId,
     kind: 'info',
     data: {
       what: 'click-refused',
       card: cardId,
-      reason: refusal(match, cardId),
+      reason,
+      said,
       asks: match.asks.length,
       ask: match.asks[0]?.method ?? '-',
       selection: match.selectables !== null,
@@ -3306,11 +3326,30 @@ export const REFUSED_MS = 900;
 function refuse(match: LiveMatch, card: number): void {
   const seq = (match.refused?.seq ?? 0) + 1;
   match.refused = { card, seq };
+  // AF409: the one `flashIncorrectAction` cause this classifier can tell apart from Forge's own two
+  // (`InputPassPriority`, `InputAttack`) — see `mistakes.ts`'s own header on why the order holds.
+  setMistake(match, payingMana(match) ? mistakeOfAutoCancel() : null);
   setTimeout(() => {
     if (match.refused?.seq !== seq) return;
     match.refused = null;
     notify(match);
   }, REFUSED_MS);
+}
+
+/** How long the mistake bubble's line stays up, then how long its exit takes (the preview's own timing). */
+export const MISTAKE_SAY_MS = 3200;
+export const MISTAKE_EXIT_MS = 260;
+
+/** AF409: the one setter for {@link LiveMatch.mistake} — a null `key` (no certain classification) is a no-op. */
+function setMistake(match: LiveMatch, key: MistakeKey | null): void {
+  if (key === null) return;
+  const seq = (match.mistake?.seq ?? 0) + 1;
+  match.mistake = { key, seq };
+  setTimeout(() => {
+    if (match.mistake?.seq !== seq) return;
+    match.mistake = null;
+    notify(match);
+  }, MISTAKE_SAY_MS + MISTAKE_EXIT_MS);
 }
 
 /** The frames Forge sends when an input shows, refreshes or stops: "Forge spoke". */

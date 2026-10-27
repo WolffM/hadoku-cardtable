@@ -467,6 +467,16 @@ export interface BoardPlayer {
   isActive: boolean;
   hasPriority: boolean;
   hasLost: boolean;
+  /**
+   * `PlayerView.NumLandThisTurn` / `.MaxLandPlay` (`tier-c.ts:449,451`) — a land already played this
+   * turn, and how many this player may play. AF409's "I already played a land this turn." is exact
+   * only when `numLandThisTurn >= maxLandPlay` (`./live/mistakes.ts`'s `mistakeOfClick`); the server
+   * reads the same property for its own facts (`apps/server/src/stats/facts.ts:163`). OPTIONAL like
+   * `BoardCard`'s late fields — `toBoardView` always sets both, a `BoardPlayer` typed out by hand in
+   * another suite need not.
+   */
+  numLandThisTurn?: number;
+  maxLandPlay?: number;
   /** `null` for anyone but the viewer: an opponent's hand is a count. */
   hand: BoardCard[] | null;
   /**
@@ -1331,12 +1341,28 @@ function withoutTargetsNote(description: string): string {
  * "<card> - ", which the chip's band already names) when there is no `Key`, or when its text was
  * never filled in — a modal trigger's "ABILITY", which also leaves "CARDNAME" in place
  * (`Trigger.toString`).
+ *
+ * AF406 (`m-4b9a388170c8`, Charming Prince's chip reading "When CARDNAME enters…"): the usual case
+ * — Key still has the placeholder but Description was already resolved to the chosen mode's own
+ * words, e.g. Kitchen Finks's "When Kitchen Finks enters, choose one — • You gain 2 life." — is not
+ * the whole story. Charming Prince's own script
+ * (`forge-gui/res/cardsfolder/c/charming_prince.txt:5`,
+ * `TriggerDescription$ When CARDNAME enters, ABILITY`) shows the trigger sits on the stack with
+ * `Description` carrying that SAME literal, unresolved text before its mode is chosen — Forge's
+ * `getStackDescription()` has nothing else to say yet. So `CARDNAME` can survive in whichever text
+ * this function ends up returning, `own` or `description` alike, and the fix is general rather than
+ * reading `own`/`description` for it specially: substitute the source's name for every literal
+ * `CARDNAME` in the text actually returned, for every card. `ABILITY` unresolved before its mode is
+ * chosen is a separate, harder problem (which SpellDescription to show with nothing picked yet) that
+ * AF406 does not ask for.
  */
 export function abilityTextOf(key: string | null, description: string, sourceName: string | null): string {
   const own = (key ?? '').replace(/^.*?\(H?\d+\): /, '').trim();
-  if (own !== '' && !/\b(?:ABILITY|CARDNAME)\b/.test(own)) return own;
-  const named = sourceName !== null && description.startsWith(`${sourceName} - `) ? description.slice(sourceName.length + 3) : description;
-  return withoutTargetsNote(named);
+  const text =
+    own !== '' && !/\b(?:ABILITY|CARDNAME)\b/.test(own)
+      ? own
+      : withoutTargetsNote(sourceName !== null && description.startsWith(`${sourceName} - `) ? description.slice(sourceName.length + 3) : description);
+  return sourceName === null ? text : text.replace(/\bCARDNAME\b/g, sourceName);
 }
 
 /** What every text that names a card this seat may not see says: never its id, never a blank. */
@@ -1930,6 +1956,8 @@ export function toBoardView(
       isActive,
       hasPriority: boolOf(p, 'HasPriority'),
       hasLost: boolOf(p, 'HasLost'),
+      numLandThisTurn: readInt(p, 'NumLandThisTurn'),
+      maxLandPlay: readInt(p, 'MaxLandPlay'),
       hand,
       ...(shown.some((c) => c !== null) ? { handShown: shown } : {}),
       handCount: handIds.length,

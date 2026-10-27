@@ -23,6 +23,10 @@
  *     "Always" on, as the server reports Forge holds them
  *     (`match.triggerDecisions`), each with a clear that sends `ASK` back to
  *     Forge (`setTriggerDecision`). Drawn only when there is one.
+ *   - **"Say my mistakes"** (AF409, approved 2026-10-26) — default ON. Client-only,
+ *     like board layout and Fast Mode: nothing crosses to the server. Off keeps
+ *     today's card shake (`match.refused`) alone; on also draws the seat's own
+ *     mistake bubble (`./MistakeBubble.tsx`) off `match.mistake`.
  *
  * **Fully controlled — no `usePrefs` call of its own.** The popover is closed
  * most of the time and this component is not mounted then, but a preference set
@@ -58,6 +62,14 @@ export interface SettingsPanelProps {
   fastMode: boolean;
   /** The whole seam back to `LiveBoard`: a toggle here flips the paced transport, if there is one. */
   onFastModeChange: (fast: boolean) => void;
+  /**
+   * AF409: "Say my mistakes" — `LiveBoard`'s own state, drawn here, read by `./MistakeBubble.tsx`.
+   * Optional, defaulted to the prefs default (on): a caller that has not yet wired the setting
+   * through (`../../settings/Settings.tsx`'s own gear, outside a match) still renders correctly.
+   */
+  mistakeBubbles?: boolean;
+  /** The whole seam back to `LiveBoard`: a toggle here flips whether the bubble draws at all. */
+  onMistakeBubblesChange?: (on: boolean) => void;
   /** Persists a patch through `LiveBoard`'s own `usePrefs` client. */
   onSave: (patch: Partial<PlayPrefs>) => void;
 }
@@ -75,6 +87,8 @@ export function SettingsPanel({
   onBoardLayoutChange,
   fastMode,
   onFastModeChange,
+  mistakeBubbles = true,
+  onMistakeBubblesChange,
   onSave,
 }: SettingsPanelProps) {
   return (
@@ -123,6 +137,19 @@ export function SettingsPanel({
           }}
         />
         Fast Mode
+      </label>
+      <label className="ct-settings__option">
+        <input
+          type="checkbox"
+          data-testid="live-settings-mistake-bubbles"
+          checked={mistakeBubbles}
+          onChange={(event) => {
+            const next = event.currentTarget.checked;
+            onMistakeBubblesChange?.(next);
+            onSave({ mistakeBubbles: next });
+          }}
+        />
+        Say my mistakes
       </label>
       {match !== undefined && match.triggerDecisions.length > 0 && (
         <ul className="ct-settings__triggers" aria-label="Remembered triggers">

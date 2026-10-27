@@ -78,6 +78,12 @@ export const PlayPrefsSchema = borrowed.emptyObject
     endStepStop: borrowed.boolean.optional(),
     /** Wave 47: "Fast Mode" in the settings panel. Off (paced) by default. */
     fastMode: borrowed.boolean.optional(),
+    /**
+     * AF409 (2026-10-26, "you can ship it"): "Say my mistakes" in the settings panel — the seat's
+     * own avatar names a refusal it is certain about. On by default; off keeps today's card shake
+     * alone (`./mistakes.ts`, `./MistakeBubble.tsx`).
+     */
+    mistakeBubbles: borrowed.boolean.optional(),
     /** The UI scale (`../../settings/ui-scale.ts`), the whole app's, not only a match's. */
     uiScale: borrowed.number.refine((v) => v >= UI_SCALE.min && v <= UI_SCALE.max, { message: 'outside the UI scale range' }).optional(),
     /** A draft pack drawn fanned or as a grid (the operator, 2026-10-23: "remember whether a player has set the drafting mode to fan or grid"). */
@@ -91,6 +97,7 @@ export interface PlayPrefs {
   boardLayout?: BoardLayout;
   endStepStop?: boolean;
   fastMode?: boolean;
+  mistakeBubbles?: boolean;
   uiScale?: number;
   packLayout?: PackLayout;
 }
@@ -113,10 +120,18 @@ function fastModeDefaultOverride(): boolean {
  * (paced) everywhere except inside the e2e harness — see this module's
  * header.
  */
-export const PLAY_PREFS_DEFAULTS: { boardLayout: BoardLayout; endStepStop: boolean; fastMode: boolean; uiScale: number; packLayout: PackLayout } = {
+export const PLAY_PREFS_DEFAULTS: {
+  boardLayout: BoardLayout;
+  endStepStop: boolean;
+  fastMode: boolean;
+  mistakeBubbles: boolean;
+  uiScale: number;
+  packLayout: PackLayout;
+} = {
   boardLayout: 'single',
   endStepStop: true,
   fastMode: fastModeDefaultOverride(),
+  mistakeBubbles: true,
   uiScale: 1,
   packLayout: 'fan',
 };
