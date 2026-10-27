@@ -82,6 +82,24 @@ Open question for the operator before the lane starts: **do creature combat blow
 cap of 20?** They read the same `damagePower`; the recommendation is yes (one scale for all damage), with
 combat's own shake left as it is unless the operator says otherwise. Creature LANDINGS stay at 15.
 
+## Approved, not yet built: doomed cards (AF397) — preview "Doomed Cards" v2
+
+The operator, 2026-10-27: "ember looks good. but lets make sure we handle the overlapping card outlines
+better" — fixed in v2 and shown. Preview source: `~/.cache/cardtable-manager/doom-preview/` (`src/doom.css`
+is the look, `src/preview.tsx` drives the real Board + PromptShell, `notes.md` the design log).
+
+- While a choice is open, every card that answering it would destroy, sacrifice or send to the
+  graveyard/exile is marked: `sure` — it goes if the choice is made as it now points (under the legend
+  rule, the copies NOT hovered; under a sacrifice, the hovered card); `maybe` — at stake (every legend
+  copy before any hover). Forge's own "choose the one to stay on battlefield" ask is kept.
+- The look is Ember, ONE outline per card: `sure` turns the card's selectable ring --danger (border + 2px
+  ring), a --danger glow breathing round it (1.2s) and a dim wash; `maybe` keeps the blue ring and only
+  dims slowly (2.4s). Overlays on `.board-card__face::before`; never a `filter` on a card.
+- The class, not cards: the bridge says per open ask what each answer would send off the battlefield
+  (Forge knows from the ask's API — InternalLegendaryRule, Sacrifice, Destroy/ChangeZone targets, …); the
+  board draws it. Discard/mill choices: ask the operator before marking hand/library cards.
+- Order: after the reveals lane (AF403) lands — both change the server bridge.
+
 ## Queued (not started)
 
 - **`seedOf` mixes poorly (class bug, found 2026-10-27).** `projectile.ts` `seedOf` is FNV-1a with no
@@ -100,7 +118,6 @@ combat's own shake left as it is unless the operator says otherwise. Creature LA
   `ChangeZoneEffect.java` `allowMultiSelect` is false for DifferentNames (23), WithTotalCMC (11),
   DifferentCMC (4), WithTotalPower (3), DifferentPower (2), ShareLandType (1), WithTotalCardTypes (1).
   The wave number "w77" was used by the front-page wave; give it the next free number.
-- **AF397 pending-death shimmer** — look work; needs a preview first.
 - **AF403** — the reveal wire frame (above).
 
 ## How previews were made (so the next ones are quick)
