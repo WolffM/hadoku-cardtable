@@ -118,7 +118,9 @@ describe.skipIf(!available.ok)(title, () => {
 		await waitUntil(() => liveJvmCount() === 0, 'the JVM to be retired', 20_000);
 		expect(r.logs.find((l) => l.evt === 'jvm-retired')).toBeDefined();
 		expect(r.logs.find((l) => l.evt === 'jvm-exited')).toMatchObject({ code: 0 });
-		expect(r.stderr()).toContain('cardtable.fault=game-throw');
+		// A clean end removes the run directory; what the bridge said on stderr is logged first.
+		const diagnostics = r.logs.find((l) => l.evt === 'bridge-diagnostics') as { lines?: { line: string }[] } | undefined;
+		expect(diagnostics?.lines?.some((l) => l.line.includes('cardtable.fault=game-throw'))).toBe(true);
 	}, 120_000);
 
 	it("H3: a seat's client dropped by Forge's own server fails the match instead of leaving it to wait for good", async () => {
