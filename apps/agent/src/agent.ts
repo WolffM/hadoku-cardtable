@@ -167,6 +167,7 @@ export class Agent {
 	close(): void {
 		for (const t of this.timers) clearInterval(t);
 		for (const w of this.watchers.values()) w.close();
+		for (const jvm of this.jvms.values()) jvm.detach();
 		this.session?.socket.destroy();
 		this.server?.close();
 		this.server?.closeAllConnections();

@@ -342,6 +342,22 @@ export class Jvm {
 		}
 	}
 
+	/**
+	 * This agent is stopping and the JVM is not. Stop watching it, so nothing of this agent's acts on a
+	 * JVM the next agent adopts: in one process (the tests), a closed agent's exit watcher would
+	 * otherwise still fire, after the run directory has gone.
+	 */
+	detach(): void {
+		if (this.pidTimer !== null) clearInterval(this.pidTimer);
+		this.pidTimer = null;
+		this.child?.removeAllListeners('exit');
+		this.child?.removeAllListeners('error');
+		if (this.stdin !== null) {
+			closeSync(this.stdin);
+			this.stdin = null;
+		}
+	}
+
 	/** The run directory goes once the coordinator has the exit. */
 	forget(): void {
 		if (this.pidTimer !== null) clearInterval(this.pidTimer);
