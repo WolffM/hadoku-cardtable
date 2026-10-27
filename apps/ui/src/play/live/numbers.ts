@@ -95,11 +95,23 @@
  * board for `ATTACK_BEAT_MS`: `live/pace.ts` draws nothing after it until the attack has been seen, so
  * their ram comes after the attack as a person's does, whoever declared it. The viewer's own
  * declarations are theirs to see as they click. Fast Mode: no beat.
+ *
+ * ## A life gain in combat is a hit too
+ *
+ * The loss above holds a struck player's counter for the blow that caused it (`charged`, built from
+ * `diff.faceHits`); a GAIN in the same combat view is the other side of the same fact and gets the same
+ * treatment, not an immediate tick before anyone has swung. Its source is this view's hits and face hits
+ * already in `combat.hitAt` whose own source the gaining player controls — looked up on `before`, where
+ * a creature that traded away in the same blow still stands. A lifelink-tagged source wins over any other
+ * of the player's own sources that struck, so a gain this seat cannot tie to the keyword (hidden from it,
+ * or a source this module has not met) still times to the blow rather than to nothing. A heal mote
+ * (`hit`'s 'success' look) travels from each source to the gaining face, started at the strike so it lands
+ * just after; several at once land the counter once, at the last mote in.
  */
 
 import { cheerRole, impactRole, type ManaColor } from '@hadoku/shared';
 
-import type { BoardView, DamageHit, FaceHit, StackEntry } from '../adapter.ts';
+import { hasKeyword, type BoardCard, type BoardView, type DamageHit, type FaceHit, type StackEntry } from '../adapter.ts';
 import {
   ATTACK_BEAT_MS,
   BEAT_STAGGER_MS,
@@ -774,6 +786,46 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       if (at !== undefined) charged.set(h.playerId, Math.min(charged.get(h.playerId) ?? at, at));
     }
 
+    /** Who stood on a battlefield as this fought, in whichever of `before`/the view just drawn still has it. */
+    const controllerOf = (cardId: number): number | null => {
+      for (const v of [before, prevView]) {
+        const found = v?.players.find((p) => p.battlefield.some((c) => c.id === cardId));
+        if (found !== undefined) return found.id;
+      }
+      return null;
+    };
+    const cardOn = (cardId: number): BoardCard | null => {
+      for (const v of [before, prevView]) {
+        for (const p of v?.players ?? []) {
+          const found = p.battlefield.find((c) => c.id === cardId);
+          if (found !== undefined) return found;
+        }
+      }
+      return null;
+    };
+    /**
+     * `playerId`'s own sources that struck in this combat (see the header's "A life gain in combat"):
+     * lifelink-tagged ones win when any are, else every source of theirs that landed a blow this view.
+     */
+    const gainSourcesAt = (playerId: number): { cardId: number; at: number; amount: number }[] => {
+      if (combat === null) return [];
+      const struck = [
+        ...diff.hits.map((h) => ({ seq: h.seq, cardId: h.sourceId, amount: h.amount })),
+        ...diff.faceHits.map((h) => ({ seq: h.seq, cardId: h.sourceId, amount: h.amount })),
+      ];
+      const bySource = new Map<number, { cardId: number; at: number; amount: number }>();
+      for (const h of struck) {
+        if (h.cardId === null || controllerOf(h.cardId) !== playerId) continue;
+        const at = combat.hitAt.get(h.seq);
+        if (at === undefined) continue;
+        const prior = bySource.get(h.cardId);
+        if (prior === undefined || h.amount > prior.amount) bySource.set(h.cardId, { cardId: h.cardId, at, amount: h.amount });
+      }
+      const all = [...bySource.values()];
+      const lifelinkers = all.filter((s) => hasKeyword(cardOn(s.cardId)?.keywords, 'lifelink'));
+      return lifelinkers.length > 0 ? lifelinkers : all;
+    };
+
     for (const change of diff.life) {
       const face = faceBox(canvas, change.playerId);
       if (face === null) continue;
@@ -789,6 +841,30 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         if (span !== null) span.textContent = String(change.from);
         if (firstLifeLand === null || rammedAt < firstLifeLand) firstLifeLand = rammedAt;
         atBeat(land, rammedAt);
+        continue;
+      }
+      const gainSources = change.to > change.from ? gainSourcesAt(change.playerId) : [];
+      if (gainSources.length > 0) {
+        if (span !== null) span.textContent = String(change.from);
+        const landAt = Math.max(...gainSources.map((s) => s.at));
+        if (firstLifeLand === null || landAt < firstLifeLand) firstLifeLand = landAt;
+        endMs = Math.max(endMs, landAt);
+        let left = gainSources.length;
+        for (const source of gainSources) {
+          const from = hitTarget(source.cardId) ?? face;
+          hit(
+            from,
+            face,
+            `lifelink:${source.cardId}:${change.playerId}`,
+            'success',
+            source.at,
+            () => {
+              if (--left === 0) land();
+            },
+            null,
+            source.amount,
+          );
+        }
         continue;
       }
       if (origin === null || item === undefined) {

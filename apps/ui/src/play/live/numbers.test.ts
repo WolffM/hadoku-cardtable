@@ -896,6 +896,35 @@ describe('installNumbers: a ram', () => {
     handle.dispose();
   });
 
+  it('a lifelink creature’s hit raises its controller’s life as it strikes, same as the target’s falls — a heal mote travels to the gaining face', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!.insertAdjacentHTML('beforeend', '<li class="board-card" data-board-card="50"></li>');
+    canvas.querySelector<HTMLElement>('[data-board-card="50"]')!.getBoundingClientRect = () => rect({ left: 300, top: 700, width: 60, height: 84 });
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const attacker = { ...card(50, 0), keywords: ['Lifelink'] };
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [attacker] }), player(1, 20)]));
+    handle.notify({
+      ...view([player(0, 23, { isViewer: true, battlefield: [attacker] }), player(1, 17)]),
+      faceHits: [{ seq: 1, playerId: 1, sourceId: 50, amount: 3, combat: true }],
+    });
+
+    const life0 = canvas.querySelector('[data-player-face][data-player-id="0"] [data-testid="life"]')!;
+    const life1 = canvas.querySelector('[data-player-face][data-player-id="1"] [data-testid="life"]')!;
+    expect(life0.textContent, 'the gain waits for the strike, same as the loss').toBe('20');
+    expect(life1.textContent).toBe('20');
+
+    vi.advanceTimersByTime(contactMs('charge'));
+    expect(overlay.querySelector('[data-projectile="heal"]'), 'a heal mote left the lifelinker as it struck').not.toBeNull();
+    expect(life0.textContent, 'still rising, not before the blow').toBe('20');
+
+    vi.advanceTimersByTime(HIT_MS + TICK_STEP_MS * 4);
+    expect(life0.textContent, 'the controller’s life rose').toBe('23');
+    expect(life1.textContent, 'the struck player’s life fell, same as any other hit').toBe('17');
+    handle.dispose();
+  });
+
   it('a charge plays its whoosh as it launches, once turned to face the player, and its damage tier’s impact on the blow, as heavy as the damage, on the attacker’s side', () => {
     vi.useFakeTimers();
     const { canvas } = board();
