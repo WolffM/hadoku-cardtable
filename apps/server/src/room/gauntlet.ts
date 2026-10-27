@@ -14,7 +14,8 @@
  *   wrong act and taken decks are refused.
  * - **choose**: before every game both seats secretly choose one of their own
  *   unplayed picks; once both have, the game is `playing`. A seat with one
- *   unplayed pick has nothing to choose.
+ *   unplayed pick still presses it — AF402, the operator: "it gives the
+ *   opponent a chance to see it" — nothing is ever picked for a seat.
  * - **playing**: one normal Forge match with the two chosen decks. The room's
  *   series says whether that game decided it — `gameOver` is told, never
  *   counts wins itself.
@@ -268,17 +269,13 @@ function unplayedPicks(state: GauntletState, seat: GauntletSeatIndex): string[] 
 }
 
 /**
- * Into `choose` for the next game. A seat left with one unplayed pick has
- * nothing to choose and is given it; when both are, the game is revealed at
- * once.
+ * Into `choose` for the next game: both choices open, even a seat with a
+ * single unplayed pick left — AF402 deleted the auto-pick that used to fill
+ * it in here, so every game's deck is revealed by a press, the same as every
+ * other game's (never a second path beside the one `choose` already is).
  */
 function enterChoose(state: GauntletState): GauntletState {
-	const choices: [string | null, string | null] = [null, null];
-	for (const seat of [0, 1] as const) {
-		const left = unplayedPicks(state, seat);
-		if (left.length === 1) choices[seat] = left[0]!;
-	}
-	return revealIfBoth({ ...state, phase: 'choose', choices });
+	return { ...state, phase: 'choose', choices: [null, null] };
 }
 
 function revealIfBoth(state: GauntletState): GauntletState {

@@ -80,6 +80,23 @@
  * `carries: 'full-state'`, because a `DraftView` is the recipient's whole table
  * and the skipped seqs are superseded rather than missing. Unmarked, the client
  * read every round as a gap and resynced (Wave 10: 90 picks, 90 resyncs).
+ *
+ * ## AF410: a seat with nobody connected to it, 30 s
+ *
+ * `io.on('connection')` fires for every socket this server holds, not only a
+ * draft's — the room feed (`room/feed.ts`) shares the same handshake, so a
+ * browser's one socket per tab is counted here whatever screen opened it.
+ * `liveConnections` tracks that count by participant; when it drops to zero
+ * — their last tab closed, or the connection simply dropped — a timer of
+ * `seatReleaseMs` (ruled 2026-10-26: 30 s) is set, and if the count is STILL
+ * zero when it fires, `lobby.releaseAbandonedSeats` gives back every seat
+ * they hold whose table has no live match and no Gauntlet holding it
+ * (ruling 13). A reload inside the window reconnects under the SAME
+ * participant id (the edge headers mint it, never the socket), so the count
+ * is already back above zero when the timer checks — the seat is never
+ * touched. Nothing is cancelled on reconnect; the check at fire time is
+ * enough, the same way a stale Gauntlet AI timer is a no-op (`http/
+ * gauntlet.ts`'s own `wake`).
  */
 
 import type { Request } from 'express';
@@ -170,6 +187,10 @@ interface DraftSocketDeps {
 	rateLimit?: RateLimitConfig;
 	/** How long a bot turn takes. `CONFIG.draftBotPickMs` in production; 0 (the default) picks at once. */
 	botPickMs?: number;
+	/** AF410's seat-release window, ruled 2026-10-26: 30 s. See the module header. */
+	seatReleaseMs?: number;
+	/** Real `setTimeout` (unref'd) unless a test runs its own clock. */
+	schedule?: (fn: () => void, ms: number) => void;
 }
 
 interface DraftSocketHandle {
@@ -178,6 +199,9 @@ interface DraftSocketHandle {
 }
 
 const defaultLog = jsonLogger('cardtable-draft');
+
+/** AF410, ruled 2026-10-26. See the module header. */
+const SEAT_RELEASE_MS = 30_000;
 
 /** `tierOf` over the sanitized handshake headers. */
 function handshakeTier(headers: IncomingHttpHeaders): string {
@@ -229,6 +253,15 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 	const limiter = new MultiRateLimiter<ParticipantId>(deps.rateLimit ?? PICK_RATE_LIMIT);
 	const botPickMs = deps.botPickMs ?? 0;
 	const botTimers = new Map<string, ReturnType<typeof setTimeout>>();
+	const seatReleaseMs = deps.seatReleaseMs ?? SEAT_RELEASE_MS;
+	const schedule =
+		deps.schedule ??
+		((fn: () => void, ms: number): void => {
+			const timer = setTimeout(fn, ms);
+			timer.unref?.();
+		});
+	/** AF410: live socket count by participant, across every connection this server holds. See the module header. */
+	const liveConnections = new Map<string, number>();
 
 	/**
 	 * Every bot holding a pack picks. At `botPickMs: 0`, at once and in place —
@@ -301,6 +334,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 		// browser will go on to send.
 		const participantId = identityFromHeaders(socket.request.headers, socket.id);
 		log({ evt: 'connected', participantId, tier, socketId: socket.id });
+		liveConnections.set(participantId, (liveConnections.get(participantId) ?? 0) + 1);
 
 		socket.on(DRAFT_CHANNEL.clientToServer, (raw: unknown) => {
 			const parsed = safeParseClientMessage(raw);
@@ -322,6 +356,21 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 		});
 
 		socket.on('disconnect', (reason: string) => {
+			// AF410: the LAST connection for this participant gone starts the
+			// seat-release window. A reconnect (even a bare reload — the edge
+			// headers mint the same `participantId`, never the socket) is simply
+			// a count above zero again by the time the timer below checks, so
+			// nothing here needs to find or cancel it.
+			const left = (liveConnections.get(participantId) ?? 1) - 1;
+			if (left <= 0) liveConnections.delete(participantId);
+			else liveConnections.set(participantId, left);
+			if (left <= 0) {
+				schedule(() => {
+					if ((liveConnections.get(participantId) ?? 0) > 0) return;
+					const released = deps.lobby.releaseAbandonedSeats(participantId);
+					for (const r of released) log({ evt: 'seat-released-disconnected', participantId, ...r });
+				}, seatReleaseMs);
+			}
 			if (deps.rooms === null) return;
 			for (const room of deps.rooms.all()) {
 				if (!room.clients.has(socket.id)) continue;

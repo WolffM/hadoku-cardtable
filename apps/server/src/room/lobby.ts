@@ -109,7 +109,7 @@ import {
 // place both sides meet (wave 72 §P).
 import { botSeatAcross, pairRound, rankStandings, roundsFor, standings, type MatchResult, type PodPlayer, type RankedStandingsRow } from '@hadoku/draft';
 import { DEFAULT_PLAN, type PodDeal } from './draftRooms.ts';
-import { isGauntletState, type GauntletState } from './gauntlet.ts';
+import { gauntletHoldsTable, isGauntletState, type GauntletState } from './gauntlet.ts';
 import { roundNamesOf } from './plan.ts';
 import { leaveSeat, readySeat, seatList, sitAt, type TableSeat, type TableSeats } from './seats.ts';
 import { convertToBo3, newSeries, recordGame, seriesFormatOf, seriesWinner, statsModeOf, type SeriesGame, type SeriesRecord, type SeriesRoom } from './series.ts';
@@ -1070,6 +1070,17 @@ export interface Lobby {
 	sit(roomId: string, tableId: string, memberId: string): boolean;
 	/** `memberId` gives their seat at `tableId` back, Ready and all. False when there is no such room or table. */
 	stand(roomId: string, tableId: string, memberId: string): boolean;
+	/**
+	 * Give back every seat `memberId` holds whose table has no live match and
+	 * no Gauntlet holding it (ruling 13: "nobody sits or stands" while one
+	 * does) — called once their last connection has been gone for the
+	 * seat-release window (`room/socket.ts`'s own timer owns "still
+	 * disconnected"; this is only the action). AF410, ruled 2026-10-26: 30 s,
+	 * a reload inside it keeps the seat — that is `room/socket.ts` never
+	 * calling this at all, not anything checked here. Returns each
+	 * room/table it released, to log.
+	 */
+	releaseAbandonedSeats(memberId: string): { roomId: string; tableId: string }[];
 	/** A seated player's Ready. False when `memberId` holds no seat at `tableId`. */
 	setSeatReady(roomId: string, tableId: string, memberId: string, ready: boolean): boolean;
 	/**
@@ -2327,6 +2338,25 @@ class FileLobby implements Lobby {
 		if (found === undefined) return false;
 		if (leaveSeat(found.table, memberId)) this.#persist(found.room);
 		return true;
+	}
+
+	releaseAbandonedSeats(memberId: string): { roomId: string; tableId: string }[] {
+		const released: { roomId: string; tableId: string }[] = [];
+		for (const room of this.#rooms.values()) {
+			for (const table of room.tables) {
+				if (!table.seats.includes(memberId)) continue;
+				if (table.matchId !== null) continue;
+				const gauntlet = room.gauntlets[table.id];
+				if (gauntlet !== undefined && gauntletHoldsTable(gauntlet)) continue;
+				if (!leaveSeat(table, memberId)) continue;
+				const member = room.members.find((m) => m.id === memberId);
+				if (member !== undefined) member.state = undefined;
+				released.push({ roomId: room.id, tableId: table.id });
+			}
+			if (released.some((r) => r.roomId === room.id)) this.#persist(room);
+		}
+		for (const { roomId, tableId } of released) this.#log({ event: 'seat-released-disconnected', roomId, tableId, memberId });
+		return released;
 	}
 
 	setSeatReady(roomId: string, tableId: string, memberId: string, ready: boolean): boolean {

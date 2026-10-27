@@ -2044,7 +2044,18 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// `games` still holds its LAST game until `setTableMatch` replaces it, so
 		// `newSeries` is what keeps a brand-new series' opening game from being
 		// rigged to the PREVIOUS series' loser.
-		const previousWinner = newSeries ? null : (table.series.games.at(-1)?.winner ?? null);
+		//
+		// A Gauntlet is never one of these series, whatever `table.series` holds:
+		// AF407, the operator 2026-10-26, "Gauntlet flips a coin for every
+		// game" — the loser-chooses rule (AF172) is for a real series, Bo3 or a
+		// pod. `room/series.ts`'s GAUNTLET format sizes `table.series` Bo3 only
+		// so `recordGameResult` has a `between` to leave the table in between
+		// games; it is borrowed bookkeeping, not a series whose loser earns a
+		// say, so `previousWinner` is never read for one. Evidence: production
+		// games 2, 3 and 5 of `r-c08cb995827a` all carried a `chooser` before
+		// this fix.
+		const gauntletTable = gauntlets?.isGauntlet(room) === true;
+		const previousWinner = newSeries || gauntletTable ? null : (table.series.games.at(-1)?.winner ?? null);
 		const chooser: 0 | 1 | undefined = previousWinner === 0 ? 1 : previousWinner === 1 ? 0 : undefined;
 
 		// Play answers through `res.json`, below. A response that ends any other way
