@@ -103,39 +103,45 @@ recording is the durable copy, a finished match can be dropped from memory.
 - **Replays on demand rather than long retention.** The operator asked: *"is it possible to store
   every game action and recreate the game history from that?"* See below.
 
-## Replay from actions: what it would take
+## Replay from actions
 
-**Possible, but not free.** The action log is small: seed, both decks, the jar pin, and every
-decision. `stream.jsonl` already logs every command sent to Forge (`{"c":…}`). But crash re-attach
-*re-reads output* to a JVM that is still alive (`host.ts` `resumeInto`); it never re-runs a game.
-Re-running needs Forge to be deterministic:
+The operator: replays force every decision from the log; the AI never decides in a replay.
 
-- ✓ **Shuffles.** Every `Collections.shuffle` in forge-game and forge-ai passes
-  `MyRandom.getRandom()` (`forge-core/.../MyRandom.java`), and `MatchSpec.seed` already seeds it for
-  tests.
-- ✗ **AI decisions.** The AI thinks on worker threads with a wall-clock timeout
-  (`AiController.java:1686`, `AiAttackController.java:949`), and those threads share the one
-  `Random`. Under different load it can choose differently, and every later frame diverges. The
-  fix is to record the AI's decisions as actions too, and have the fork's AI controller *replay*
-  them instead of thinking.
-- ✗ **Engine drift.** A replay must run on the jar it was played on. The pin moves several times a
-  week, and a card-script fix would change an old game's outcome. On-demand replay therefore means
-  keeping old jars, or refusing replays across a pin change.
-- **Cost per view.** It boots a JVM and fast-forwards the whole match, roughly seconds to a minute
-  of CPU on hokon, against serving a small file.
-- Unverified: whether anything else iterates in identity-hash order or reads the clock in game
-  logic. A double-run determinism test (same seed and actions, diff the frames) answers it.
+**Proven for two humans (2026-10-27).** `replay-determinism.jvm.test.ts` (`[nightly]`) plays a
+seeded two-human match, then replays only its commands on a fresh JVM. Eight replays across three
+deck pairs (100–269 commands, up to turn 11) reached every recorded position and ended on identical
+boards. The deal is identical from the seed alone: the same hands and library order. What the
+recorder has to get right, each found by a red run:
 
-**Storage is not the constraint.** A raw, both-seats `stream.jsonl` sample measured 632 KB, and
-38 KB gzipped (76 lines). The public projection is a subset of that. Even a few hundred KB a match
-is ~300 MB per thousand matches.
+- **Compare the folded board, never frames.** Forge batches state into packets on its own clock,
+  sends a property at its default or omits it (`Mana: []`, `Loyalty: "0"`) depending on that
+  batching, and interleaves the two seats' prompts by thread timing.
+- **Place each command by position.** That is the seat's board and prompt when it was sent. A
+  command sent from the same position as the one before it goes straight after it. A reply waits
+  for its ask.
 
-**Recommendation:**
-- **Always keep the action log.** It is tiny and is the source of truth (stats, debugging, a future
-  re-sim).
-- **Keep the rendered public stream, gzipped, for 30 days.** It serves instant replays and the
-  front-page fallback.
-- **Build re-simulation later**, only if the determinism test and per-pin jars prove out.
+**Still to do before AI matches replay:**
+
+- **One `Random` is shared.** Every `Collections.shuffle` passes `MyRandom.getRandom()`, but the AI
+  draws from it too (120 call sites in forge-ai, 32 in forge-game). A live AI's thinking consumes
+  numbers a replay with forced decisions never draws, so later shuffles differ. Fork change: the
+  rules get their own seeded `Random`.
+- **AI decisions are not commands.** `PlayerControllerAi` decides inside Forge (110 abstract
+  methods on `PlayerController`). It needs a recording wrapper, and a replaying controller that
+  answers from the log by card and ability id.
+
+**Engine drift.** A replay runs on the jar it was played on. Per-pin jars are already kept under
+`~/.local/share/cardtable/jars/` (27, about 40 MB each, on 2026-10-26), and their `res` under
+`~/.cache/cardtable-forge/<pin>/`. Keep any pin a replay still needs.
+
+**Not yet measured:** a replay under CPU load (run it on a claw, not hokon), and the per-view CPU
+for a long human game. Replay time scales with command count, not game length: 170 commands took
+22 s, mostly the test's settle waits.
+
+**Plan:**
+- **Every match** keeps its action log (seed, decks, pin, commands with positions): a few KB.
+- **Human-vs-human replays** re-simulate on demand. The resulting public stream is cached for a day.
+- **Matches with an AI** keep the gzipped public stream until the two fork changes above land.
 
 ## Still open
 
