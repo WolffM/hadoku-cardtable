@@ -29,8 +29,6 @@
  */
 
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
@@ -100,11 +98,16 @@ async function computeDockerUsable(): Promise<string | null> {
   const image = process.env.CARDTABLE_STREAM_IMAGE ?? 'cardtable-stream-spike:w14';
   const found = await docker(['images', '-q', image]);
   if (found === '') return `the stream image ${image} is not built here`;
-  // The container mounts Forge's res read-only, from where `scripts/stream/container.sh` looks for it.
-  // A CI checkout on a runner that has docker (hokon, when a job overflows the claws) has no Forge
-  // there, and the script refused every provision: "no Forge res at …" (run 40453125933).
-  const res = process.env.CARDTABLE_STREAM_FORGE_RES ?? fileURLToPath(new URL('../forge/forge-gui/res', import.meta.url));
-  return existsSync(join(res, 'cardsfolder')) ? null : `no Forge res at ${res} for the container to mount`;
+  // The Forge the container mounts, asked of the script that mounts it, so the
+  // two cannot disagree about where it is. A CI checkout on a runner that has
+  // docker (hokon, when a job overflows the claws) has no Forge, and the script
+  // refused every provision: "no Forge res at …" (run 40453125933).
+  try {
+    await run('bash', [fileURLToPath(new URL('../scripts/stream/container.sh', import.meta.url)), 'check'], { timeout: 10_000 });
+  } catch (err) {
+    return `no Forge for the container to mount: ${((err as { stderr?: string }).stderr ?? '').trim()}`;
+  }
+  return null;
 }
 
 interface Friend {

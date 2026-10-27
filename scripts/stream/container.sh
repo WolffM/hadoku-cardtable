@@ -11,6 +11,7 @@
 #   container.sh down <name>                        stop and remove one
 #   container.sh list <prefix>                      names we manage, one per line
 #   container.sh net-down <network>                 remove a room's network
+#   container.sh check                              exit 4 naming what `up` would lack
 #
 # `CARDTABLE_STREAM_DRY_RUN=1` prints what each command WOULD run, one
 # `would: …` line per docker invocation, and exits 0 without a docker call.
@@ -32,17 +33,19 @@ set -euo pipefail
 IMAGE=${CARDTABLE_STREAM_IMAGE:-cardtable-stream-spike:w14}
 NAME_PREFIX=${CARDTABLE_STREAM_NAME_PREFIX:-cardtable-room}
 FORGE_JAR=${CARDTABLE_STREAM_FORGE_JAR:-$HOME/.local/share/cardtable/forge.jar}
-# The Forge resources of the tree this script is in — the deploy clone in
-# production (~/srv/hadoku-cardtable), never a fixed ~/repos path, whose forge
-# submodule is wherever the operator last left it.
-FORGE_RES=${CARDTABLE_STREAM_FORGE_RES:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/forge/forge-gui/res}
+# The Forge resources the server itself plays with ($CARDTABLE_FORGE_RES), else
+# those of the tree this script is in — the deploy clone in production
+# (~/srv/hadoku-cardtable), never a fixed ~/repos path, whose forge submodule is
+# wherever the operator last left it. A CI workspace checks out no submodule:
+# there the server's own bundle is the only Forge on the machine.
+FORGE_RES=${CARDTABLE_STREAM_FORGE_RES:-${CARDTABLE_FORGE_RES:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/forge/forge-gui/res}}
 DRY=${CARDTABLE_STREAM_DRY_RUN:-0}
 # The container's own noVNC port, fixed by the image's entrypoint.
 CONTAINER_WEB_PORT=6080
 PORT_MIN=${CARDTABLE_STREAM_PORT_MIN:-6100}
 PORT_MAX=${CARDTABLE_STREAM_PORT_MAX:-6199}
 
-die() { echo "$*" >&2; exit "${2:-3}"; }
+die() { echo "$1" >&2; exit "${2:-3}"; }
 usage() { sed -n '2,20p' "${BASH_SOURCE[0]}"; exit 2; }
 
 # Runs docker, or says what it would have run. Every docker call goes through
@@ -79,6 +82,13 @@ check_port() {
     [ "$port" -le "$PORT_MAX" ] || die "refusing port $port: above $PORT_MAX"
 }
 
+# What `up` needs from this machine beyond docker: a Forge to mount. The e2e
+# spec asks this before it provisions, so it skips where `up` would refuse.
+cmd_check() {
+    [ -f "$FORGE_JAR" ] || die "no Forge jar at $FORGE_JAR" 4
+    [ -d "$FORGE_RES/cardsfolder" ] || die "no Forge res at $FORGE_RES" 4
+}
+
 cmd_up() {
     local name=${1:-} port=${2:-} network=${3:-}
     [ -n "$name" ] && [ -n "$port" ] || usage
@@ -86,8 +96,7 @@ cmd_up() {
     check_port "$port"
 
     if [ "$DRY" != "1" ]; then
-        [ -f "$FORGE_JAR" ] || die "no Forge jar at $FORGE_JAR" 4
-        [ -d "$FORGE_RES" ] || die "no Forge res at $FORGE_RES" 4
+        cmd_check
         # A port this script does not own is a port it does not take.
         if ss -ltn "sport = :$port" | grep -q LISTEN; then
             die "port $port is already listening" 4
@@ -164,6 +173,7 @@ cmd_net_down() {
 }
 
 case "${1:-}" in
+    check)    shift; cmd_check ;;
     up)       shift; cmd_up "$@" ;;
     down)     shift; cmd_down "$@" ;;
     list)     shift; cmd_list "$@" ;;
