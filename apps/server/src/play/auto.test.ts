@@ -2589,6 +2589,31 @@ describe('a Match with an unpayable cost in front of it (item 7)', () => {
 		expect(frames(h, 1).filter((f) => f.method === 'flashIncorrectAction')).toEqual([]);
 	});
 
+	it('never cancels a payment the seat is paying, when Forge re-sends it with its cost not yet lowered', () => {
+		// Run 40545910222 (w68-pay): alice clicks Izzet Signet inside Divination's payment. The Signet's {1}
+		// opens a payment of its own; when it closes Forge re-sends Divination's prompt once at {2}{U} with
+		// one source left, then at {1}.
+		const h = harness();
+		const me = playerOf(h, 0);
+		const divination = (cost: string) => prompt(`Divination (102) - Alice draws two cards.\n\nPay Mana Cost: ${cost}`, me, 102);
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [109, 110, 111].map((id) => ({ kind: 'card', id })) });
+		push(h, 0, autoBar(false, me));
+		push(h, 0, divination('{2}{U}'));
+		h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: 111 }, otherCardViewsToSelect: [], triggerEvent: null }));
+		push(h, 0, prompt('Izzet Signet (111) - {1}, {T}: Add {U}{R}.\n\nPay Mana Cost: {1}', me, 111));
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 110 }] });
+		push(h, 0, autoBar(false, me));
+		push(h, 0, divination('{2}{U}'));
+		push(h, 0, divination('{1}'));
+		expect(h.host.commands.filter((c) => c.t === 'cancel-payment')).toEqual([]);
+		expect(h.logs.filter((l) => l.evt === 'ask-unanswerable')).toEqual([]);
+		// The payment over, the next one is judged afresh: Mana Leak with nothing to click cancels.
+		push(h, 0, prompt('Priority: A\nTurn: 1 (A)\nPhase: Main phase, precombat\nStack: Empty', me));
+		push(h, 0, buttons(true, me));
+		unpayable(h, 0);
+		expect(h.host.commands.filter((c) => c.t === 'cancel-payment')).toEqual([{ t: 'cancel-payment', seat: 0 }]);
+	});
+
 	it('cancels each of two payments of the same cost back to back: two Punishing Fires are two payments', () => {
 		const h = harness();
 		const me = playerOf(h, 0);

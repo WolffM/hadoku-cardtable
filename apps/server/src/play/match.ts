@@ -476,6 +476,15 @@ export interface SeatState {
 	 * the payment closes: two Punishing Fires each asking {R} are two payments.
 	 */
 	autoCancelled: string | null;
+	/**
+	 * The card of the payment this seat has clicked a source in, outermost first, until a
+	 * prompt that is no payment closes it. A source that needs mana of its own opens a
+	 * payment inside the payment (Izzet Signet's {1} inside Divination's {2}{U}), and when
+	 * that closes Forge re-sends the outer prompt once with its cost not yet lowered:
+	 * `{2}{U}` with one source left, then `{1}` (run 40545910222). A payment the seat is
+	 * paying is never the server's to cancel.
+	 */
+	paidInto: number | null;
 	/** The last question `ask-unclassified` was logged for, so a re-sent window says it once. */
 	unclassifiedLogged: string | null;
 	/** How many asks were answered for this seat, and how many stops passed. */
@@ -1217,6 +1226,7 @@ export class Match {
 			payment: null,
 			autoPaid: null,
 			autoCancelled: null,
+			paidInto: null,
 			unclassifiedLogged: null,
 			autoAnswered: 0,
 			autoPassed: 0,
@@ -1845,6 +1855,7 @@ export class Match {
 			case 'act':
 				// A click inside an open selection (a sacrifice, a target) picks a card; it opens no offer of its own.
 				if (frame.method === 'selectCard') s.clicked = s.selection === null ? frame.card.id : null;
+				if (frame.method === 'selectCard' && s.payment !== null) s.paidInto ??= s.payment.card;
 				if (frame.method === 'concede') this.concededBy = seat;
 				if (frame.method === 'selectButtonCancel' && s.buttons?.method === 'updateButtons' && s.buttons.label2 === 'Mulligan') s.mulligans += 1;
 				// The seat's own button press, with the label it pressed: a card click has its `click` record, and
@@ -3441,6 +3452,7 @@ export class Match {
 	private maybeCancelUnpayable(s: SeatState): boolean {
 		const gate = this.autoGateFacts(s);
 		if (gate === null || s.payment === null || s.payment.autoPressed) return false;
+		if (s.payment.card !== null && s.payment.card === s.paidInto) return false;
 		const { facts } = gate;
 		if (facts.openAsks > 0 || !facts.mine || facts.window !== 'payment') return false;
 		const message = gate.notes.prompt?.method === 'showPromptMessage' ? gate.notes.prompt.message : null;
@@ -3485,7 +3497,10 @@ export class Match {
 			s.payment = null;
 			s.autoPaid = null;
 			s.autoCancelled = null;
-			if (cost === null) this.checkWaitingOn();
+			if (cost === null) {
+				s.paidInto = null;
+				this.checkWaitingOn();
+			}
 		}
 		if (cost === null || head === null) return;
 		if (s.payment === null || s.payment.cost !== cost) {
