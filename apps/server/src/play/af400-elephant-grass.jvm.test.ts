@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, inOwnMain, scenarioText, startScenario, timeline, toDeclareAttackers, waitUntil } from './scenario.js';
+import { available, deck, finishMulligan, inOwnMain, promptBar, scenarioText, startScenario, timeline, waitUntil } from './scenario.js';
 
 const title = available.ok
 	? 'an attack tax the seat cannot pay, against real Forge'
@@ -29,7 +29,24 @@ describe.skipIf(!available.ok)(title, () => {
 			await waitUntil(() => { s.answerAsks(); return inOwnMain(s, 0, 1); }, "alice's main phase with the scripted board", 60_000, s);
 			const from = s.sent.length;
 			const lineFrom = s.lines.length;
-			await toDeclareAttackers(s, 0);
+			// Main 1, then the Beginning of Combat the fetchland holds open with the tax ahead: OK on each, once.
+			const pressed = new Set<string>();
+			await waitUntil(
+				() => {
+					s.answerAsks();
+					const msg = s.prompt(0);
+					if (/^Select creatures to attack/.test(msg)) return promptBar(s, 0) !== null;
+					const step = /^Phase: (Main phase, precombat|Beginning of Combat Step)$/m.exec(msg)?.[1];
+					if (step !== undefined && /^Priority:/.test(msg) && !pressed.has(step) && promptBar(s, 0)?.enable1 === true) {
+						pressed.add(step);
+						s.ok(0);
+					}
+					return false;
+				},
+				"Forge's live declare-attackers window",
+				20_000,
+				s,
+			);
 			const attackers = s.zone(0, 'Battlefield').filter((c) => c.creature);
 			for (const c of attackers) {
 				const declared = s.sent.length;
