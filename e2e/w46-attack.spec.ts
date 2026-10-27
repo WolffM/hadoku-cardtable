@@ -344,14 +344,18 @@ test(
 
       const read = await attacker.locator('> .board-card__face').evaluate((face) => {
         const art = face.querySelector('.card');
+        // Serra Angel flies, and a flying attacker's mark is a ring that floats with its art (the face's
+        // `::before`, `card.css`): the face's own outline would stay put while the card bobbed.
+        const ring = getComputedStyle(face, '::before');
         return {
-          outline: { style: getComputedStyle(face).outlineStyle, width: getComputedStyle(face).outlineWidth },
+          outline: { style: ring.borderTopStyle, width: ring.borderTopWidth },
           // `transform` on the ART, not the face: the turn rule rotates `.board-card__face > .card` (§C's own
           // header), so a vigilant attacker's own proof that it did NOT turn is this element carrying none.
           transform: art === null ? null : getComputedStyle(art).transform,
         };
       });
-      expect(read.outline.style, 'the committed-attacker mark is a real outline, same as the non-vigilant case').toBe('solid');
+      await expect(attacker, 'Serra Angel flies').toHaveAttribute('data-flying', 'true');
+      expect(read.outline.style, 'the committed-attacker mark is a real line, floating with the flyer').toBe('solid');
       expect(read.outline.width, 'with real width').not.toBe('0px');
       expect(read.transform, 'a vigilant attacker is NOT turned — Forge never taps it for attacking').toBe('none');
       await logMarks(attacker, 'vigilant-attacker (Serra Angel)');
