@@ -102,6 +102,22 @@ describe('createRecorder', () => {
 		expect(hosted.spare!()).toBe('none');
 	});
 
+	it('never lets a fault in recording reach the match: the line, the command and the envelope all still go through', () => {
+		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
+		const inner = fakeFactory();
+		const logged: Record<string, unknown>[] = [];
+		const recorder = createRecorder({ dir, identity: { pin: null, bridge: 'b', server: 's' }, roomOf: () => null, deckCosts: NO_COSTS, log: (e) => logged.push(e) });
+		const seen: BridgeLine[] = [];
+		const host = recorder.host(inner)('m-2', spec(1), { line: (l) => seen.push(l), exit: () => undefined, log: () => undefined });
+		// A state frame the fold cannot read: the position throws, the match does not.
+		const broken = { t: 'frame', seat: 0, frame: { kind: 'notify', method: 'setGameView', payload: null } } as unknown as BridgeLine;
+		expect(() => inner.calls[0]!.events.line(broken)).not.toThrow();
+		expect(seen).toEqual([broken]);
+		host.send({ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } });
+		expect(inner.sends).toHaveLength(1);
+		expect(logged.some((e) => e.evt === 'recording-failed')).toBe(true);
+	});
+
 	it('records a header, a cmd line per send with that seat\'s board digest and prompt, and an end line with the winner', async () => {
 		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
 		const inner = fakeFactory();

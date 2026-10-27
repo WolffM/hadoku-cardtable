@@ -99,6 +99,15 @@ interface Session {
 
 const randomSeed32 = (): number => Math.floor(Math.random() * 0x7fffffff);
 
+/** Recording rides a live match's own call stack: a fault in it is logged and the match goes on. */
+function guarded(log: JsonLog, matchId: string, what: string, run: () => void): void {
+	try {
+		run();
+	} catch (err) {
+		log({ evt: 'recording-failed', matchId, what, error: (err as Error).message });
+	}
+}
+
 export function createRecorder(deps: RecorderDeps): Recorder {
 	const log = deps.log ?? (() => undefined);
 	const now = deps.now ?? Date.now;
@@ -135,7 +144,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 				const host = inner(matchId, seeded, {
 					...events,
 					line: (line) => {
-						if (line.t === 'frame') positions.get(line.seat)?.push(line);
+						if (line.t === 'frame') guarded(log, matchId, 'position', () => positions.get(line.seat)?.push(line));
 						events.line(line);
 					},
 					exit: (reason) => {
@@ -149,9 +158,11 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 				return {
 					...host,
 					send(command: BridgeCommand) {
-						const seat = 'seat' in command ? command.seat : null;
-						const position = seat === null ? undefined : positions.get(seat);
-						writer.actionCmd({ seat, board: position?.digest() ?? '', prompt: position?.prompt() ?? '', cmd: command });
+						guarded(log, matchId, 'command', () => {
+							const seat = 'seat' in command ? command.seat : null;
+							const position = seat === null ? undefined : positions.get(seat);
+							writer.actionCmd({ seat, board: position?.digest() ?? '', prompt: position?.prompt() ?? '', cmd: command });
+						});
 						host.send(command);
 					},
 				};
@@ -166,7 +177,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 			if (seat !== WATCHER_SEAT) return;
 			const session = sessions.get(matchId);
 			if (session === undefined) return;
-			session.writer.publicEnv({ at: now() - session.startedAtMs, env: envelope });
+			guarded(log, matchId, 'envelope', () => session.writer.publicEnv({ at: now() - session.startedAtMs, env: envelope }));
 		},
 
 		onGameOver(match) {
