@@ -8,7 +8,7 @@
 #
 # Usage:
 #   run.sh stage <claw>...                     copy jar, res, classes, decks
-#   run.sh build-stage                         lay the same out in $STAGE, for agent/agent.sh pack
+#   run.sh build-stage                         ForgeScale, its cube names and decks in $STAGE/scale, for agent/scale.ts
 #   run.sh run <claw> <tsv> <label> <cpus> <memmax> <xmx> [-Dstress.k=v ...]
 #                                             one capped JVM; appends one TSV row
 #   run.sh replay <claw> <label> [-Dreplay.k=v ...]
@@ -42,8 +42,19 @@ build() {
 	python3 -I -c 'import json,sys; [print(c["name"]) for c in json.load(open(sys.argv[1]))["cards"]]' "$CUBE" > "$STAGE/cube-names.txt"
 }
 
-# Everything stage() copies, laid out in $STAGE itself (agent/agent.sh pack ships it as one tarball).
+# What agent/scale.ts ships to the host agent as its main class's artifact: ForgeScale's
+# classes, the cube names and any built decks. The jar, res and JDK it packs itself.
 build_stage() {
+	build
+	rm -rf "$STAGE/scale"
+	mkdir -p "$STAGE/scale"
+	cp -r "$STAGE/classes/." "$STAGE/cube-names.txt" "$STAGE/scale/"
+	if compgen -G "$DECKS/*.dck" > /dev/null; then
+		rsync -a --delete "$DECKS/" "$STAGE/scale/decks/"
+	fi
+}
+
+stage() {
 	build
 	rsync -a --delete --exclude adventure --exclude music --exclude skins "$RES/" "$STAGE/res/"
 	if compgen -G "$DECKS/*.dck" > /dev/null; then
