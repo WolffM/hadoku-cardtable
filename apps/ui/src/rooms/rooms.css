@@ -56,15 +56,81 @@
   gap: 12px;
 }
 
-/* The symbol card: four rows (type/name/seats, mode, state, the way in), each mostly icons. */
+/*
+ * The symbol card: four rows (type/name/seats, mode, state, the way in), each mostly icons, over
+ * its own art (ruling 10) with a dark wash under the info. `position: relative` plus `overflow:
+ * hidden` is the art's clip box; `.room-card__body` is everything the art sits behind, raised onto
+ * its own stacking layer so the wash never shows through the text.
+ *
+ * `transform`/`border-color`/`box-shadow` transition for the hover lift (ruling 11); `opacity`/
+ * `filter` for the "matches the filters" dim (ruling 6, `[data-match='false']` below) — never a
+ * literal colour, only theme tokens.
+ */
 .room-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.2s ease, filter 0.2s ease;
+}
+
+.room-card:hover,
+.room-card:focus-within {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: 0 6px 20px var(--shadow);
+}
+
+/* A room that does not match every filter that is ON: dimmed, never hidden — its buttons still work. */
+.room-card[data-match='false'] {
+  opacity: 0.55;
+  filter: grayscale(0.6);
+}
+
+.room-card__art {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.room-card__art-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.35s ease, transform 0.4s ease;
+}
+
+/* Fades in once it has actually decoded (ruling 10: "the art itself must not delay the card"). */
+.room-card__art-img--loaded {
+  opacity: 1;
+}
+
+.room-card:hover .room-card__art-img,
+.room-card:focus-within .room-card__art-img {
+  transform: scale(1.04);
+}
+
+/* The dark gradient wash over the art, so the info on top of it stays readable in every theme. */
+.room-card__art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 45%, transparent) 0%, color-mix(in srgb, var(--bg) 92%, transparent) 70%);
+}
+
+.room-card__body {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  height: 100%;
+  box-sizing: border-box;
   padding: 12px 14px;
-  background: var(--bg);
 }
 
 .room-card__row1,
@@ -77,8 +143,14 @@
   gap: 8px;
 }
 
+/* Ruling 1: the title row never wraps — the name ellipsises instead of pushing the icon to its own line. */
+.room-card__row1 {
+  flex-wrap: nowrap;
+}
+
 .room-card__type-icon {
   display: inline-flex;
+  flex: 0 0 auto;
   color: var(--ink-dim);
 }
 
@@ -93,11 +165,18 @@
 
 .room-card__trophy {
   display: inline-flex;
+  flex: 0 0 auto;
   color: var(--warn);
+}
+
+/* The lock (ruling 8): leads the primary button's own label, not the title row. */
+.room-card__lock {
+  display: inline-flex;
 }
 
 .room-card__seats {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 4px;
   font-size: 12px;
@@ -109,6 +188,8 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 2px 8px;
@@ -116,7 +197,14 @@
   color: var(--ink-dim);
 }
 
+.room-card__mode-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .room-card__series-chip {
+  flex: 0 0 auto;
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 2px 8px;
@@ -124,8 +212,15 @@
   font-weight: 700;
 }
 
+/* Ruling 4: the state pill and its detail are one row that never wraps — the detail ellipsises. */
+.room-card__row3 {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
 .room-card__state {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 6px;
   font-size: 13px;
@@ -165,8 +260,47 @@
 }
 
 .room-card__state-detail {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 12px;
   color: var(--ink-faint);
+}
+
+/* Row 4 (ruling 3): pinned to the bottom of the card. The grid stretches every card in a row to
+   the same height by default (`.rooms__list` below), so every card's buttons land on the same
+   baseline across the row without the card itself needing a fixed height. */
+.room-card__row4 {
+  margin-top: auto;
+}
+
+.room-card__go,
+.rooms__enter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* Hover/focus reactivity (ruling 11): the primary button fills with the accent, Watch glows danger. */
+.room-card__go {
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.room-card__go:hover,
+.room-card__go:focus-visible {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
+
+.room-card__go--watch:hover,
+.room-card__go--watch:focus-visible {
+  background: var(--bg-card);
+  color: var(--danger-ink);
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-bg);
 }
 
 .room-card__go {
@@ -197,7 +331,6 @@
   white-space: nowrap;
 }
 
-.rooms__lock,
 .rooms__playing,
 .rooms__mode {
   border: 1px solid var(--line);
@@ -349,4 +482,49 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
+}
+
+/* The room filters (ruling 6), beside the "Rooms" heading: a [Draft|Constructed] pair, a [Not full]
+   toggle and a [Tournament|Duel] pair, pills in the same style as the format tabs elsewhere. */
+.room-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.room-filters__group {
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.room-filters__btn {
+  background: transparent;
+  border: 0;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-dim);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.room-filters__btn--standalone {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.room-filters__btn:hover {
+  color: var(--ink);
+}
+
+.room-filters__btn--standalone:hover {
+  border-color: var(--accent);
+}
+
+.room-filters__btn[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
 }

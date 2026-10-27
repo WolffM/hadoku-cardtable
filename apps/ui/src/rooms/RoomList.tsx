@@ -74,7 +74,12 @@ import { GameTypeRow } from './GameTypeRow.tsx';
 import { latestReads } from './latest.ts';
 import { freshRoomMode, MODE_CARDS } from '../screens/constructed-mode/ModeRow.tsx';
 import { roomCardView } from '../front/roomCard.ts';
-import { ConstructedIcon, DieIcon, DraftIcon, PersonIcon, StaircaseIcon, SwordsIcon, TrophyIcon } from '../front/icons.tsx';
+import { roomArtId } from '../front/roomArt.ts';
+import { cardImageUrl } from '../draft/cardImage.ts';
+import { ConstructedIcon, DieIcon, DraftIcon, LockIcon, PersonIcon, StaircaseIcon, SwordsIcon, TrophyIcon } from '../front/icons.tsx';
+import { loadRoomFilters, matchesRoomFilters, orderByMatch, saveRoomFilters, type RoomFilters } from '../front/roomFilters.ts';
+import { mountTips } from '../play/tip/index.ts';
+import { TopLayer } from '../topLayer.tsx';
 import './rooms.css';
 import { uiLength } from '../settings/ui-scale.ts';
 
@@ -101,6 +106,28 @@ export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomL
   const [state, setState] = useState<ListState>({ kind: 'loading' });
   const [creating, setCreating] = useState(false);
   const closeCreate = useCallback((): void => setCreating(false), []);
+
+  /** The viewer's own filters (ruling 6), remembered per-browser; read once, written on every change. */
+  const [filters, setFilters] = useState<RoomFilters>(() => loadRoomFilters());
+  const setAndSaveFilters = useCallback((next: RoomFilters): void => {
+    setFilters(next);
+    saveRoomFilters(next);
+  }, []);
+
+  /*
+   * The ONE surviving tooltip (ruling 11, amended mid-wave by the operator — every other hover tip
+   * this screen tried was pulled): a room's name, shown in full ONLY when its own ellipsis is
+   * actually truncating it. Drawn by `../play/tip/index.ts`'s own `mountTips` — the board's
+   * mechanism, extended to this screen rather than duplicated — into `<TopLayer fixed />` below:
+   * fixed, because this list has no board-shaped box of its own to be absolute in, and a card's own
+   * `overflow: hidden` (its art) must never clip it.
+   */
+  const sectionRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (el === null) return undefined;
+    return mountTips(el);
+  }, []);
 
   /** The list's reads, latest-wins (`./latest.ts`): this screen writes no list, so a read is kept or dropped. */
   const [reads] = useState(latestReads);
@@ -139,12 +166,23 @@ export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomL
   const normal = state.kind === 'ready' ? normalRooms(state.rooms) : [];
   const testing = state.kind === 'ready' ? testingRooms(state.rooms) : [];
 
+  /*
+   * Order: a room that matches every filter that is ON sorts ahead of one that does not (ruling 6);
+   * within each of those two groups, your own rooms still come first (the ordering this screen
+   * always drew, now the secondary key rather than the only one). A room that stops matching is
+   * never hidden — `RoomRow` below still draws its buttons, just dimmed (`rooms.css`).
+   */
+  const matches = (room: RoomView): boolean => matchesRoomFilters(room, roomCardView(room, isMine(room)), filters);
+  const mineFirst = (rooms: RoomView[]): RoomView[] => orderByMatch(rooms, isMine);
+  const orderedNormal = [...mineFirst(normal.filter(matches)), ...mineFirst(normal.filter((r) => !matches(r)))];
+
   return (
-    <section className="rooms ct-panel" data-testid="rooms" aria-labelledby="rooms-title">
+    <section className="rooms ct-panel" data-testid="rooms" aria-labelledby="rooms-title" ref={sectionRef}>
       <div className="rooms__head">
         <h2 id="rooms-title" className="rooms__title ct-panel__title">
           Rooms
         </h2>
+        <RoomFilterBar filters={filters} onChange={setAndSaveFilters} />
         <button
           type="button"
           className="lobby__go"
@@ -182,9 +220,8 @@ export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomL
 
       {state.kind === 'ready' && normal.length > 0 && (
         <ul className="rooms__list" data-testid="room-list">
-          {/* Your own rooms first: the one you closed the tab on is the one you are looking for. */}
-          {[...normal.filter(isMine), ...normal.filter((r) => !isMine(r))].map((room) => (
-            <RoomRow key={room.id} room={room} client={client} onGone={() => void refresh()} />
+          {orderedNormal.map((room) => (
+            <RoomRow key={room.id} room={room} client={client} matchesFilters={matches(room)} onGone={() => void refresh()} />
           ))}
         </ul>
       )}
@@ -201,7 +238,7 @@ export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomL
           <h3 className="rooms__title ct-panel__title">Testing</h3>
           <ul className="rooms__list" data-testid="room-list-testing">
             {testing.map((room) => (
-              <RoomRow key={room.id} room={room} client={client} onGone={() => void refresh()} />
+              <RoomRow key={room.id} room={room} client={client} matchesFilters onGone={() => void refresh()} />
             ))}
           </ul>
         </div>
@@ -214,7 +251,74 @@ export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomL
       )}
 
       {creating && <CreateRoomDialog client={client} onClose={closeCreate} />}
+      <TopLayer fixed />
     </section>
+  );
+}
+
+/* ── filters (ruling 6) ──────────────────────────────────────────────── */
+
+const TYPE_FILTERS: ReadonlyArray<{ value: 'draft' | 'constructed'; label: string }> = [
+  { value: 'draft', label: 'Draft' },
+  { value: 'constructed', label: 'Constructed' },
+];
+const KIND_FILTERS: ReadonlyArray<{ value: 'tournament' | 'duel'; label: string }> = [
+  { value: 'tournament', label: 'Tournament' },
+  { value: 'duel', label: 'Duel' },
+];
+
+/** A [Draft|Constructed] pair, a [Not full] toggle and a [Tournament|Duel] pair — beside "Rooms". */
+function RoomFilterBar({ filters, onChange }: { filters: RoomFilters; onChange: (next: RoomFilters) => void }) {
+  const toggle = (next: RoomFilters): void => {
+    playRole('ui.select');
+    onChange(next);
+  };
+  return (
+    <div className="room-filters">
+      <div className="room-filters__group" role="group" aria-label="Room type">
+        {TYPE_FILTERS.map((f) => {
+          const on = filters.type === f.value;
+          return (
+            <button
+              key={f.value}
+              type="button"
+              className="room-filters__btn"
+              aria-pressed={on}
+              data-testid={`room-filter-type-${f.value}`}
+              onClick={() => toggle({ ...filters, type: on ? null : f.value })}
+            >
+              {f.label}
+            </button>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        className="room-filters__btn room-filters__btn--standalone"
+        aria-pressed={filters.notFull}
+        data-testid="room-filter-not-full"
+        onClick={() => toggle({ ...filters, notFull: !filters.notFull })}
+      >
+        Not full
+      </button>
+      <div className="room-filters__group" role="group" aria-label="Kind">
+        {KIND_FILTERS.map((f) => {
+          const on = filters.kind === f.value;
+          return (
+            <button
+              key={f.value}
+              type="button"
+              className="room-filters__btn"
+              aria-pressed={on}
+              data-testid={`room-filter-kind-${f.value}`}
+              onClick={() => toggle({ ...filters, kind: on ? null : f.value })}
+            >
+              {f.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -229,11 +333,43 @@ const normalRooms = (rooms: RoomView[]): RoomView[] => rooms.filter((r) => !r.te
 /** A seeded testing room, its own section, in the list's own order. Empty for every non-admin: the server never sends one. */
 const testingRooms = (rooms: RoomView[]): RoomView[] => rooms.filter((r) => r.testing);
 
-function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient; onGone: () => void }) {
+function RoomRow({
+  room,
+  client,
+  matchesFilters,
+  onGone,
+}: {
+  room: RoomView;
+  client: RoomsClient;
+  /** Whether this room matches every filter that is ON — dims the card when it does not (ruling 6). */
+  matchesFilters: boolean;
+  onGone: () => void;
+}) {
   const [asking, setAsking] = useState(false);
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [artLoaded, setArtLoaded] = useState(false);
+
+  /*
+   * The name's own tooltip shows only when the name is actually clipped by its ellipsis — an
+   * untruncated name shows nothing (ruling 11, amended). `scrollWidth > clientWidth` is the
+   * standard overflow test; a `ResizeObserver` re-checks it whenever the card's own width changes
+   * (a narrower viewport, the browser's own zoom), not only once at mount.
+   */
+  const nameRef = useRef<HTMLSpanElement>(null);
+  const [nameTruncated, setNameTruncated] = useState(false);
+  useEffect(() => {
+    const el = nameRef.current;
+    // No `ResizeObserver` in a test DOM (`zone-box.ts`'s own comment: "there is no layout to
+    // measure either") — `nameTruncated` just stays `false` there, same as an untruncated name.
+    if (el === null || typeof ResizeObserver === 'undefined') return undefined;
+    const check = (): void => setNameTruncated(el.scrollWidth > el.clientWidth);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [room.name]);
 
   const enter = async (withPassword?: string): Promise<void> => {
     setBusy(true);
@@ -317,95 +453,131 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
 
   const names = room.members.map((m) => m.name);
   const view = roomCardView(room, isMine(room));
+  const artId = roomArtId(room);
+  const artUrl = artId === undefined ? null : cardImageUrl(artId);
 
   return (
-    <li className="room-card" data-testid="room-row" data-room-id={room.id} data-mine={isMine(room) ? '' : undefined}>
-      {/* Row 1: type, name, tournament, seats — mostly symbols (`docs/planning/wave77-2026-10-27.md` §A). */}
-      <div className="room-card__row1">
-        <span className="room-card__type-icon" aria-hidden="true">
-          {room.gameType === 'draft' ? <DraftIcon /> : <ConstructedIcon />}
+    <li
+      className="room-card"
+      data-testid="room-row"
+      data-room-id={room.id}
+      data-mine={isMine(room) ? '' : undefined}
+      data-match={matchesFilters ? undefined : 'false'}
+    >
+      {/* Art behind the card, with a dark gradient wash under the info (`rooms.css`): a lookup, never
+          a URL (`../front/roomArt.ts`). It never delays the card — the text draws first, and the
+          image fades in once it has actually decoded. */}
+      {artUrl !== null && (
+        <span className="room-card__art" aria-hidden="true">
+          <img
+            className={artLoaded ? 'room-card__art-img room-card__art-img--loaded' : 'room-card__art-img'}
+            src={artUrl}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            draggable={false}
+            onLoad={() => setArtLoaded(true)}
+            onError={() => setArtLoaded(false)}
+          />
         </span>
-        <span className="room-card__name" data-testid="room-name">
-          {room.name}
-        </span>
-        {view.tournament && (
-          <span className="room-card__trophy" title="Tournament">
-            <TrophyIcon />
+      )}
+      <div className="room-card__body">
+        {/* Row 1: type, name, trophy, seats — one line, never wraps (ruling 1). The lock (ruling 8,
+            amended by the operator mid-wave) is no longer here: it leads the primary button, row 4.
+            No tooltips here (the operator, mid-wave: "i hate all the tooltips, they all seem
+            useless") — the icons keep only their own `aria-label` for a screen reader, invisible
+            otherwise. The one survivor is the name's own, and only when it is actually truncated. */}
+        <div className="room-card__row1">
+          <span className="room-card__type-icon" aria-hidden="true">
+            {room.gameType === 'draft' ? <DraftIcon /> : <ConstructedIcon />}
           </span>
-        )}
-        <span className="room-card__seats" data-testid="room-seats">
-          <PersonIcon />
-          {view.seatsFilled}/{view.seatsCapacity}
-        </span>
-      </div>
-
-      {/* Row 2: the mode chip (or a draft's cube), then Bo1/Bo3. */}
-      <div className="room-card__row2">
-        <span className="room-card__mode-chip" data-testid="room-mode-chip">
-          {view.mode.icon === 'classic' && <SwordsIcon />}
-          {view.mode.icon === 'gauntlet' && <StaircaseIcon />}
-          {view.mode.icon === 'random' && <DieIcon />}
-          <span className="room-card__mode-text">{view.mode.text}</span>
-        </span>
-        {view.series !== null && <span className="room-card__series-chip">{view.series}</span>}
-      </div>
-
-      {/* Row 3: the state dot and its one detail. */}
-      <div className="room-card__row3">
-        <span className="room-card__state" data-testid="room-state" data-state={view.state.key}>
-          <span className="room-card__dot" aria-hidden="true" />
-          {view.state.label}
-        </span>
-        {view.state.detail !== null && <span className="room-card__state-detail">{view.state.detail}</span>}
-      </div>
-
-      {/* The room's own details: still the exact words a locked, streamed or already-dealt room always said. */}
-      <div className="rooms__meta room-card__legacy">
-        <span className="rooms__sr" data-testid="room-type">
-          {gameTypeLabel(room.gameType)}
-        </span>
-        {/* Only on a streamed room (the operator, 2026-10-10): the form makes
-            nothing but our table now, so the label is said where it is the
-            exception, not on every row. */}
-        {room.clientMode === 'streamed' && (
-          <span className="rooms__mode" data-testid="room-mode" data-mode={room.clientMode}>
-            {clientModeLabel(room.clientMode)}
+          <span
+            ref={nameRef}
+            className="room-card__name"
+            data-testid="room-name"
+            data-tip={nameTruncated ? room.name : undefined}
+            tabIndex={nameTruncated ? 0 : undefined}
+          >
+            {room.name}
           </span>
-        )}
-        {room.locked && (
-          <span className="rooms__lock" data-testid="room-locked">
-            password
+          {view.tournament && (
+            <span className="room-card__trophy">
+              <TrophyIcon />
+            </span>
+          )}
+          <span className="room-card__seats" data-testid="room-seats">
+            <PersonIcon />
+            {view.seatsFilled}/{view.seatsCapacity}
           </span>
-        )}
-        {room.matchId !== null && (
-          <span className="rooms__playing" data-testid="room-playing">
-            playing
-          </span>
-        )}
-        {/* A draft room whose pod has been dealt. Without this the row is
-            identical to one still sitting in its lobby, and Enter would take
-            you to a pack instead of a Ready button with nothing to explain
-            the difference. A late arrival is welcome — they evict a bot — so
-            this is a label, not a closed door. */}
-        {room.draftStartedAt !== null && (
-          <span className="rooms__playing" data-testid="room-drafting">
-            drafting
-          </span>
-        )}
-      </div>
+        </div>
 
-      <span className="rooms__members" data-testid="room-members">
-        {/* A face per member who HAS one, and nothing at all for a member who
-            does not — never a placeholder square, because a row of identical
-            squares says less than the names already beside them. */}
-        {room.members.map((m) => (
-          <Avatar key={m.id} id={m.avatarId} fallback="none" className="rooms__face" data-testid="room-face" data-avatar-id={m.avatarId} title={m.name} width={18} height={18} loading="lazy" />
-        ))}
-        {names.length === 0 ? 'Nobody here yet' : names.join(', ')}
-      </span>
+        {/* Row 2: the mode chip (or a draft's cube), then Bo1/Bo3. */}
+        <div className="room-card__row2">
+          <span className="room-card__mode-chip" data-testid="room-mode-chip">
+            {view.mode.icon === 'classic' && <SwordsIcon />}
+            {view.mode.icon === 'gauntlet' && <StaircaseIcon />}
+            {view.mode.icon === 'random' && <DieIcon />}
+            <span className="room-card__mode-text">{view.mode.text}</span>
+          </span>
+          {view.series !== null && <span className="room-card__series-chip">{view.series}</span>}
+        </div>
 
-      {/* Row 4: the way in, chosen by state — Sit down, Join or Watch — plus a second Watch when a game is on. */}
-      <div className="room-card__row4">
+        {/* Row 3: the state pill and its one detail, on the same row (ruling 4), the detail ellipsised. */}
+        <div className="room-card__row3">
+          <span className="room-card__state" data-testid="room-state" data-state={view.state.key}>
+            <span className="room-card__dot" aria-hidden="true" />
+            {view.state.label}
+          </span>
+          {view.state.detail !== null && <span className="room-card__state-detail">{view.state.detail}</span>}
+        </div>
+
+        {/* The room's own details: still the exact words a streamed or already-dealt room always said. */}
+        <div className="rooms__meta room-card__legacy">
+          <span className="rooms__sr" data-testid="room-type">
+            {gameTypeLabel(room.gameType)}
+          </span>
+          {/* Only on a streamed room (the operator, 2026-10-10): the form makes
+              nothing but our table now, so the label is said where it is the
+              exception, not on every row. */}
+          {room.clientMode === 'streamed' && (
+            <span className="rooms__mode" data-testid="room-mode" data-mode={room.clientMode}>
+              {clientModeLabel(room.clientMode)}
+            </span>
+          )}
+          {room.matchId !== null && (
+            <span className="rooms__playing" data-testid="room-playing">
+              playing
+            </span>
+          )}
+          {/* A draft room whose pod has been dealt. Without this the row is
+              identical to one still sitting in its lobby, and Enter would take
+              you to a pack instead of a Ready button with nothing to explain
+              the difference. A late arrival is welcome — they evict a bot — so
+              this is a label, not a closed door. */}
+          {room.draftStartedAt !== null && (
+            <span className="rooms__playing" data-testid="room-drafting">
+              drafting
+            </span>
+          )}
+        </div>
+
+        {/* The seats count (row 1) already says how many are here; this is the roster itself — kept
+            for the member who has it (`room-face`) and for a face/name a test still reads
+            (ruling 2: the empty-room "Nobody here yet" line is gone, the element is not). */}
+        <span className="rooms__members" data-testid="room-members">
+          {/* A face per member who HAS one, and nothing at all for a member who
+              does not — never a placeholder square, because a row of identical
+              squares says less than the names already beside them. */}
+          {room.members.map((m) => (
+            <Avatar key={m.id} id={m.avatarId} fallback="none" className="rooms__face" data-testid="room-face" data-avatar-id={m.avatarId} title={m.name} width={18} height={18} loading="lazy" />
+          ))}
+          {names.join(', ')}
+        </span>
+
+        {/* Row 4: the way in, chosen by state — Sit down, Join or Watch — plus a second Watch when a game is on.
+            A password-protected room (ruling 8, amended mid-wave by the operator): the lock glyph leads the
+            PRIMARY button's own label, inside it, rather than sitting in the title row. */}
+        <div className="room-card__row4">
         {!asking && (
           <button
             type="button"
@@ -415,6 +587,11 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
             disabled={busy}
             onClick={onEnterClick}
           >
+            {room.locked && (
+              <span className="room-card__lock" data-testid="room-locked" aria-hidden="true">
+                <LockIcon />
+              </span>
+            )}
             {view.primaryAction}
           </button>
         )}
@@ -470,6 +647,7 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
           {error}
         </p>
       )}
+      </div>
     </li>
   );
 }
