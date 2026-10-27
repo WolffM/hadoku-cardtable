@@ -120,6 +120,7 @@ try {
 	say(`relay re-attached by itself; ${s2.lines.length - before} new line(s) since (${kinds(s2.lines.slice(before))}); JVM pid still ${pid}: ${pidAlive(pid)}`);
 	say(`agent log: ${readFileSync(join(dir, 'agent.log'), 'utf8').split('\n').filter((l) => l.includes('"jvm-adopted"')).pop()}`);
 
+	say(`heartbeat health: ${JSON.stringify(c2.client.health?.jvms[0])}`);
 	say('coordinator 2 vanishes without a word; the fencing window is 10 s');
 	c2.client.close();
 	const gone = Date.now();
