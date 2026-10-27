@@ -163,6 +163,16 @@ describe('constructed routes', () => {
   });
 });
 
+describe('replay routes (wave 77 §B)', () => {
+  it('reads #/replay/<id>, round-trips through routeHash, and an empty id is the lobby', () => {
+    expect(parseRoute('#/replay/m-0123456789ab')).toEqual({ kind: 'replay', matchId: 'm-0123456789ab' });
+    expect(routeHash({ kind: 'replay', matchId: 'm-0123456789ab' })).toBe('#/replay/m-0123456789ab');
+    for (const hash of ['#/replay', '#/replay/', '#/replay/a/b']) {
+      expect(parseRoute(hash), hash).toEqual({ kind: 'lobby' });
+    }
+  });
+});
+
 describe('room routes', () => {
   it('reads #/room/<id>, and a room with no id is the lobby', () => {
     expect(parseRoute('#/room/r-friday-k7q4')).toEqual({ kind: 'room', roomId: 'r-friday-k7q4' });

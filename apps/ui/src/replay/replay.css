@@ -1,0 +1,58 @@
+/*
+ * `#/replay/<id>`'s own chrome: the error line, and the transport bar
+ * overlaid on the board (`ReplayScreen.tsx`'s own note on why it is an
+ * overlay rather than a flex sibling — the board's table-fit math is
+ * `board.css`/`live.css`'s, neither of which this file touches).
+ *
+ * Theme tokens only, same discipline as `screens.css`.
+ */
+
+.replay-screen__error {
+  padding: 24px;
+  color: var(--color-text-secondary);
+}
+
+.replay-screen__bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  background: var(--color-bg-alt);
+  border-top: 1px solid var(--color-border);
+  z-index: 5;
+}
+
+.replay-screen__bar button {
+  background: var(--color-bg-card);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius);
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.replay-screen__bar button[aria-pressed='true'] {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.replay-bar__speeds {
+  display: flex;
+  gap: 4px;
+}
+
+.replay-bar__time {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  min-width: 2.5em;
+  text-align: center;
+}
+
+.replay-screen__bar input[type='range'] {
+  flex: 1 1 auto;
+  min-width: 0;
+}

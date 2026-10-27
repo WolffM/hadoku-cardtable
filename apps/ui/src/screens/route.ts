@@ -19,6 +19,7 @@
  *   `#/deck/<draftId>`   the deck built out of that draft's pool
  *   `#/play`             constructed: pick a format and a deck, start a match
  *   `#/match/<matchId>`  a match: the invite link for the other seat, and the board
+ *   `#/replay/<matchId>` a recorded match, through the transport bar (wave 77 §B) — no invite, nothing to join
  *   `#/sounds`           the sound builder (wave 50) — friend tier and above; editing is admin-only
  *   `#/sounds/sandbox`   the sound sandbox — scenarios played through the mixer, friend tier and above
  *   `#/sounds/music`     the match-music review — compare, pick and submit, friend tier and above
@@ -69,6 +70,8 @@ export type Route =
   | { kind: 'deck'; draftId: string }
   | { kind: 'play' }
   | { kind: 'match'; matchId: string }
+  /** A recorded match, played back through the transport bar (wave 77 §B). */
+  | { kind: 'replay'; matchId: string }
   /** `tableId` is one table of the room's rounds (`screens/room/TablePage.tsx`); absent is the room itself. */
   | { kind: 'room'; roomId: string; tableId?: string }
   /** Friend tier and above: each screen renders nothing until the server's `/api/sounds` answers (`canView`). */
@@ -119,6 +122,8 @@ export function parseRoute(hash: string): Route {
       return { kind: 'deck', draftId: id };
     case 'match':
       return { kind: 'match', matchId: id };
+    case 'replay':
+      return { kind: 'replay', matchId: id };
     case 'room':
       return { kind: 'room', roomId: id };
     case 'stats':
@@ -164,6 +169,8 @@ export function routeHash(route: Route): string {
       return '#/play';
     case 'match':
       return `#/match/${encodeURIComponent(route.matchId)}`;
+    case 'replay':
+      return `#/replay/${encodeURIComponent(route.matchId)}`;
     case 'room':
       return `#/room/${encodeURIComponent(route.roomId)}${route.tableId === undefined ? '' : `/table/${encodeURIComponent(route.tableId)}`}`;
     case 'stats':

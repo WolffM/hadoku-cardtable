@@ -14,6 +14,7 @@ import { InventoryScreen } from './InventoryScreen.tsx';
 import { LobbyScreen } from './LobbyScreen.tsx';
 import { MatchScreen } from './MatchScreen.tsx';
 import { MusicReview } from './MusicReview.tsx';
+import { ReplayScreen } from '../replay/ReplayScreen.tsx';
 import { SoundBuilder } from './SoundBuilder.tsx';
 import { SoundSandbox } from './SoundSandbox.tsx';
 import { navigate, useRoute } from './route.ts';
@@ -66,6 +67,8 @@ export function Screen({ transport }: ScreenProps) {
       return <ConstructedScreen />;
     case 'match':
       return <MatchScreen matchId={route.matchId} />;
+    case 'replay':
+      return <ReplayScreen matchId={route.matchId} />;
     case 'room':
       return <ConstructedScreen roomId={route.roomId} tableId={route.tableId} makeTransport={transport} />;
     case 'lobby':

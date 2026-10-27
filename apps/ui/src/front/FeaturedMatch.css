@@ -1,0 +1,77 @@
+/*
+ * The front page's hero (`FeaturedMatch.tsx`). Fills whatever box lane A's
+ * banner grid gives it — two card-widths, at most ~380px tall (the plan's
+ * own ruling) — and scales `LiveBoard`'s own 1280×800 down to fit it rather
+ * than asking the board to re-lay itself out.
+ *
+ * Theme tokens only.
+ */
+
+.featured-match {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius);
+  overflow: hidden;
+  background: var(--color-bg-card);
+}
+
+.featured-match__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.featured-match__tag {
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0 4px;
+  border-radius: var(--hdk-radius-sm);
+  background: var(--color-danger-bg);
+  color: var(--color-on-danger-bg);
+}
+
+.featured-match__players {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text);
+}
+
+.featured-match__turn {
+  color: var(--color-text-secondary);
+}
+
+.featured-match__watch {
+  color: var(--color-text);
+  text-decoration: underline;
+}
+
+.featured-match__viewport {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-bg-alt);
+}
+
+.featured-match__frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+  /* Pointer events stay off: this is a preview, never the board the viewer
+     plays on — `LiveBoard`'s own watcher role already refuses every input,
+     this just keeps a stray click from doing something a scaled-down card
+     was never meant to receive. */
+  pointer-events: none;
+}
