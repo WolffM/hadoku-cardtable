@@ -110,7 +110,7 @@ const SPECS: readonly TestingRoomSpec[] = [
 	// Vintage Cube 2025-04 × 3" (`draftRooms.ts`'s `DEFAULT_PLAN`) — nothing
 	// here has to set it.
 	{ name: 'Testing: Cube draft (MTGO Vintage Cube 2025-04)', gameType: 'draft' },
-	// Six complex boards (operator, 2026-10-23), each a Classic 1v1 the admin
+	// The complex boards (operator, 2026-10-23 on), each a Classic 1v1 the admin
 	// starts vs the AI from its own table — the normal "add a bot" path
 	// (`http/routes.ts`'s `startFromRoom`) carries the scenario through once
 	// `scripts/art/build-art-ids.ts` has an art row for every real card named
@@ -124,6 +124,8 @@ const SPECS: readonly TestingRoomSpec[] = [
 	{ name: 'Testing: Board — Big board', gameType: 'constructed-1v1', mode: BOARD_STATE_MODE, scenario: scenarioText('tr-bigboard') },
 	// The operator, 2026-10-23: "a very complex board with tons of creatures and potential triggers".
 	{ name: 'Testing: Board — Trigger storm', gameType: 'constructed-1v1', mode: BOARD_STATE_MODE, scenario: scenarioText('tr-triggers') },
+	// The operator, 2026-10-26: "give me a test room with a gifts ungiven deck and four mana on turn one".
+	{ name: 'Testing: Board — Gifts Ungiven', gameType: 'constructed-1v1', mode: BOARD_STATE_MODE, scenario: scenarioText('tr-gifts') },
 ];
 
 /** The set-draft room's own stable name — never the set's name, so a new set releasing never orphans this one and spawns a second. */

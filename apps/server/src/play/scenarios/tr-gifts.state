@@ -1,0 +1,21 @@
+# "Testing: Board — Gifts Ungiven" (room/testing-rooms.ts): seat 0 (human) at
+# its own Main Phase 1 on turn 1 with four untapped Islands and two Gifts
+# Ungiven in hand, so the whole spell can be cast and seen twice. The library
+# holds 18 different names (plus a second Counterspell and Brainstorm, which
+# the search's "different names" rule hides once one copy is chosen), so the
+# four searches have real choices. MAIN1 rather than a later step for the same
+# reason `tr-combat.state` gives. Seat 1 holds its own Gifts Ungiven and four
+# Islands, and nothing that could counter seat 0's.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Gifts Ungiven;Gifts Ungiven;Island
+humanbattlefield=Island;Island;Island;Island
+humanlibrary=Unburial Rites;Mulldrifter;Griselbrand;Reanimate;Animate Dead;Sun Titan;Deep Analysis;Think Twice;Counterspell;Counterspell;Brainstorm;Brainstorm;Ponder;Mana Leak;Fact or Fiction;Frantic Search;Accumulated Knowledge;Careful Study;Entomb;Exhume;Snapcaster Mage;Island;Island;Swamp
+humangraveyard=
+aihand=Gifts Ungiven
+aibattlefield=Island;Island;Island;Island;Grizzly Bears;Hill Giant
+ailibrary=Mulldrifter;Deep Analysis;Think Twice;Fact or Fiction;Accumulated Knowledge;Ponder;Island;Island;Island;Island;Island;Island
+aigraveyard=
