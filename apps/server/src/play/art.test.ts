@@ -39,4 +39,9 @@ describe('the cards a scenario places', () => {
 	it("skips Forge's token scripts: a `T:` entry is no card name and has no art row", () => {
 		expect(scenarioCardNames('humanbattlefield=T:c_a_clue_draw;Shivan Reef|ORI\nhumanhand=Opt\n')).toEqual(['Shivan Reef', 'Opt']);
 	});
+
+	it("reads a turn-start snapshot's own keys: `p0…`/`p1…` zones, `t:` tokens skipped, a foil's `+` dropped", () => {
+		const snapshot = 'turn=3\nactiveplayer=p1\np0hand=Opt+|Set:XLN|Art:1\np0library=Island|Set:M10|Art:2\np1battlefield=t:c_1_1_w_soldier;Grizzly Bears|Set:M10|Art:1\np1exile=\n';
+		expect(scenarioCardNames(snapshot)).toEqual(['Opt', 'Island', 'Grizzly Bears']);
+	});
 });

@@ -282,7 +282,19 @@ export type BridgeLine =
 	 * resending on THAT timeout, tried first, could double-apply an act onto whatever opened right
 	 * after the hold gave up on it.
 	 */
-	| { t: 'input'; seat: number; open: boolean; input?: string };
+	| { t: 'input'; seat: number; open: boolean; input?: string }
+	/**
+	 * The game as its turn's upkeep begins (`PlayBridge.TurnSnapshot`): Forge's `GameState` text, a
+	 * scenario that restores the match to the start of that turn (`match.ts`'s `restoredSpec`).
+	 * `ms` is how long the bridge took to write it.
+	 */
+	| { t: 'snapshot'; turn: number; state: string; ms: number };
+
+/** The latest `snapshot` line a match has had: what a restore starts it from. */
+export interface TurnSnapshot {
+	turn: number;
+	state: string;
+}
 
 export interface HostEvents {
 	line(line: BridgeLine): void;
@@ -302,11 +314,12 @@ export interface MatchHost {
 	/** Ask the match to stop; force it after a grace period. Idempotent. */
 	stop(): void;
 	/**
-	 * Write down what a re-attach of this match would need that only the match
-	 * knows: its epoch, and which participant owns each seat. Absent on a host
-	 * that cannot outlive the process (the replay host in the tests).
+	 * Write down what a re-attach or a restore of this match would need that only
+	 * the match knows: its epoch, which participant owns each seat, and its latest
+	 * turn-start snapshot. Absent on a host that cannot outlive the process (the
+	 * replay host in the tests).
 	 */
-	remember?(state: { epoch: string; owners: (string | null)[] }): void;
+	remember?(state: { epoch: string; owners: (string | null)[]; snapshot?: TurnSnapshot | null }): void;
 	/**
 	 * The server is going down and this match is being LEFT RUNNING. Let go of
 	 * the transport without killing anything and without settling the run
@@ -333,6 +346,8 @@ export interface MatchRecord {
 	/** seat → participant id, so a re-attach cannot seat someone at the wrong hand. */
 	owners: (string | null)[];
 	spec: MatchSpec;
+	/** The match's latest turn-start snapshot, absent before its first turn. */
+	snapshot?: TurnSnapshot | null;
 	/** When the server that ran it handed its JVM over. */
 	orphanedAt?: string;
 }
@@ -422,7 +437,7 @@ function brokenStreamFile(dir: string, matchId: string): string {
 	return join(dir, `${matchId}.broken.jsonl`);
 }
 
-const LINE_TYPES = new Set(['ready', 'frame', 'probe', 'gameover', 'log', 'fatal', 'rejected', 'stale', 'unsupported', 'pace', 'resent', 'applied', 'input']);
+const LINE_TYPES = new Set(['ready', 'frame', 'probe', 'gameover', 'log', 'fatal', 'rejected', 'stale', 'unsupported', 'pace', 'resent', 'applied', 'input', 'snapshot']);
 
 /**
  * The `bridge.stderr.txt` of the local JVM that hosts `matchId`, found by the `match-placed`
@@ -925,7 +940,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 			},
 			stop: () => stopMatch(h),
 			remember: (state) => {
-				h.entry = { ...h.entry, epoch: state.epoch, owners: state.owners };
+				h.entry = { ...h.entry, epoch: state.epoch, owners: state.owners, ...(state.snapshot === undefined ? {} : { snapshot: state.snapshot }) };
 				writeRecord(h.jvm);
 			},
 			handOver: () => {
@@ -946,8 +961,13 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	}
 
 	/** Where a new match goes: the fullest warm JVM with room, else one booting, else none. */
-	function placeFor(): Jvm | null {
-		const open = liveJvms().filter(hasRoom);
+	/**
+	 * A JVM with room for `matchId`. Never one still holding a match of that id: a restored match
+	 * keeps its id (`MatchRegistry.restore`), and a JVM routes its lines by id, so the new game must
+	 * not land beside the old one in the moment before the old one is gone.
+	 */
+	function placeFor(matchId?: string): Jvm | null {
+		const open = liveJvms().filter((j) => hasRoom(j) && (matchId === undefined || !j.matches.has(matchId)));
 		const warm = open.filter((j) => j.warm).sort((a, b) => b.matches.size - a.matches.size);
 		return warm[0] ?? open[0] ?? null;
 	}
@@ -957,7 +977,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	 * throws), and leaves nothing behind. The caller fails the match (`Match.start`).
 	 */
 	const factory = ((matchId: string, spec: MatchSpec, events: HostEvents): MatchHost => {
-		let jvm = placeFor();
+		let jvm = placeFor(matchId);
 		if (jvm === null) {
 			if (jvms.size >= maxJvms) throw new Error(`every Forge JVM is full (${jvms.size} of ${maxJvms}, ${perJvm} matches each)`);
 			jvm = launch();

@@ -564,6 +564,38 @@ within 51–101 ms (the test polls every 50 ms).
 **For lane A / the UI:** `LiveBoard` does not render `showErrorDialog` today.
 The frame arrives, parses and is counted; showing it is a UI change.
 
+### Restore from a turn-start snapshot
+
+Layer 1 of `docs/planning/forge-hosting-plan.md` §5. As each turn's upkeep
+begins (after the untap step, before any upkeep trigger), the bridge prints
+`{"t":"snapshot","turn":N,"state":…,"ms":…}`: Forge's own `GameState` text
+(`PlayBridge.TurnSnapshot`). `Match.latestSnapshot` keeps the latest, and
+`remember` writes it into `jvm.json` with the epoch and owners; a re-attach
+also rebuilds it from the replayed stream.
+
+`MatchRegistry.restore(id)` starts the match again on a new JVM and returns
+`{ match, from: 'snapshot', turn }` or, for a match whose JVM died before its
+first upkeep, `{ match, from: 'spec' }`: a fresh game from its own spec, logged
+as `match-restored` with the same `from`. From a snapshot:
+`restoredSpec` turns the snapshot into the spec's `scenario` under
+`skipOpening`, which the bridge already applies from `HostedMatch`'s start hook.
+The text names the untap step and asks `GameState` to advance to the upkeep, so
+the upkeep's turn-based actions and triggers run once. Same id, owners, start
+time, decks and room settings; a new epoch, so each client's `epoch-change`
+discards its board and resyncs (card ids change on apply). Only the registry's
+current match for an id reaches the seats: the old one, stopped, falls silent.
+Each seat's stops, auto-yield and full control come across. `restoredSpec`'s
+doc lists what is lost. The jar suite is `restore.jvm.test.ts`; a suite drives
+it through `Scenario.restore()`.
+
+Measured on claw-4 (runs 40547857241 and 40552133087): a turn-3 snapshot of a
+40-card-deck match is 2245 bytes, taken in 0.5 ms; tr-midgame 1448 bytes in
+2.6–4.6 ms; a big board (60-card libraries, 30 permanents a side, 15-card
+graveyards) 6969 bytes in 3.4–6.6 ms. Every turn is cheap enough: no diff and no
+other cadence needed. From the restore call to the restored game's upkeep took
+11–19 s, almost all of it a cold JVM boot (a warm `--host` JVM saves that).
+Card ids do change on apply (seat 0's land was id 16 before, 120 after).
+
 ### Reconnect
 
 A browser refresh closes the old socket **before** the new page connects. Wave

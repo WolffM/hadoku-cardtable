@@ -161,7 +161,7 @@ import { firstMode, modesAsk, nextMode } from './modes.js';
 import { chosenTargetConfirm, pickedBy, sameTargetAct, targetAbilityOf, type SameTarget } from './trigger-targets.js';
 import { artOf } from './art.js';
 import { fallbackFor, type Fallback } from './unparsed.js';
-import type { BridgeCommand, BridgeLine, HostEvents, MatchHost, MatchHostFactory, MatchRecord, MatchSpec } from './host.js';
+import type { BridgeCommand, BridgeLine, HostEvents, MatchHost, MatchHostFactory, MatchRecord, MatchSpec, TurnSnapshot } from './host.js';
 import type { StartEvents } from './start-queue.js';
 import { faceNames, namesForFormat } from './names.js';
 import type { SpellCopy } from './spell-copiers.js';
@@ -1170,6 +1170,13 @@ export class Match {
 	/** Every name either seat's deck (or a test scenario) plays — offered by a card-name ask whatever the format. */
 	private deckNames: ReadonlySet<string> | null = null;
 
+	/**
+	 * The game at the start of its latest turn, from the bridge's `snapshot` line: what
+	 * {@link MatchRegistry.restore} starts this match again from. Kept here and in the match's
+	 * record on disk (`remember`), never only on the JVM's host.
+	 */
+	latestSnapshot: TurnSnapshot | null;
+
 	constructor(
 		id: string,
 		spec: MatchSpec,
@@ -1182,7 +1189,7 @@ export class Match {
 		 * would be handed the other player's hand. The start time is the third:
 		 * a replay would stamp it with the restart.
 		 */
-		restore?: { epoch: string | null; owners: (string | null)[]; startedAt: number },
+		restore?: { epoch: string | null; owners: (string | null)[]; startedAt: number; snapshot?: TurnSnapshot | null },
 	) {
 		this.id = id;
 		this.spec = spec;
@@ -1190,6 +1197,7 @@ export class Match {
 		this.now = deps.now ?? Date.now;
 		this.startedAt = restore?.startedAt ?? this.now();
 		this.epoch = restore?.epoch ?? `${id}:${this.startedAt}`;
+		this.latestSnapshot = restore?.snapshot ?? null;
 		this.seats = spec.seats.map((s, seat) => ({
 			seat,
 			ai: s.ai,
@@ -1284,7 +1292,7 @@ export class Match {
 			this.refuseStart(err as Error);
 			return;
 		}
-		this.host.remember?.({ epoch: this.epoch, owners: this.owners() });
+		this.remember();
 	}
 
 	/**
@@ -1305,7 +1313,7 @@ export class Match {
 		} finally {
 			this.replaying = false;
 		}
-		this.host.remember?.({ epoch: this.epoch, owners: this.owners() });
+		this.remember();
 		this.deps.log({
 			evt: 'match-resumed',
 			matchId: this.id,
@@ -1364,9 +1372,14 @@ export class Match {
 		};
 	}
 
-	/** seat → owner, for the on-disk record a re-attach reads. */
-	private owners(): (string | null)[] {
+	/** seat → owner, for the on-disk record a re-attach reads and for a restore. */
+	owners(): (string | null)[] {
 		return this.seats.map((s) => s.owner);
+	}
+
+	/** What a re-attach or a restore of this match needs that only the match knows, onto its record on disk. */
+	private remember(): void {
+		this.host?.remember?.({ epoch: this.epoch, owners: this.owners(), snapshot: this.latestSnapshot });
 	}
 
 	/**
@@ -1516,7 +1529,7 @@ export class Match {
 		free.owner = participantId;
 		// Written down beside the JVM: if this server is replaced mid-match, the
 		// next one must seat this person at THIS seat and no other.
-		this.host?.remember?.({ epoch: this.epoch, owners: this.owners() });
+		this.remember();
 		this.deps.log({ evt: 'seat-claimed', matchId: this.id, seat: free.seat, participantId });
 		return { ok: true, seat: free.seat, fresh: true };
 	}
@@ -2348,6 +2361,11 @@ export class Match {
 				return;
 			case 'log':
 				this.onGameLog(line);
+				return;
+			case 'snapshot':
+				this.latestSnapshot = { turn: line.turn, state: line.state };
+				this.deps.log({ evt: 'turn-snapshot', matchId: this.id, turn: line.turn, bytes: Buffer.byteLength(line.state), ms: line.ms });
+				this.remember();
 				return;
 			case 'rejected':
 			case 'stale':
@@ -3836,6 +3854,37 @@ export class Match {
 	}
 }
 
+/**
+ * The spec that starts a match again from a turn-start snapshot: the same seats, decks and room
+ * settings, opening on the snapshot's board with no coin toss and no mulligan (`skipOpening`).
+ * `chooser` goes: it rigs the coin toss, which a restore never makes, and an unspent rig would
+ * answer the next random choice between two players instead.
+ *
+ * What the restored game does not have, read from `GameState` (`initFromGame`, `applyToGame`) on
+ * pin 5eff8436 — everything from the snapshot's upkeep on is played again, and of the turn before
+ * it, only what the board shows survives:
+ * - effects that last until end of turn or longer and are not a card's own (`DetachedCardEffect`s
+ *   are skipped: a stolen creature goes back under its owner's control unless an Aura or other
+ *   permanent still says otherwise), emblems and other command-zone effects with no card;
+ * - delayed triggers ("at the beginning of the next upkeep…") and anything that waited for them;
+ * - what a card remembers that is not a card, and a player's history: spells cast, life gained or
+ *   lost and creatures died last turn, monarch and initiative, day/night, turns taken (Forge's
+ *   per-player turn count);
+ * - phased-out permanents' phasing timestamps and every control and layer timestamp, so effects
+ *   that apply in timestamp order are re-applied in the order the cards come back;
+ * - triggers waiting to go on the stack as the upkeep begins (an untap step's "whenever … untaps");
+ * - a seat's open asks, and its remembered trigger choices, which Forge holds by ability (its
+ *   stops, auto-yields and full control come across);
+ * - a token's printing: `TokenInfo` writes its image as `name|SET|n|n` and `GameState` splits
+ *   every entry on `|`, so a restored token keeps its image name and loses the set and art index;
+ * - random-number state: the restored game draws fresh randomness from its new JVM.
+ * Card ids change: every seat resyncs onto the new epoch.
+ */
+export function restoredSpec(spec: MatchSpec, snapshot: TurnSnapshot): MatchSpec {
+	const { chooser: _chooser, ...rest } = spec;
+	return { ...rest, scenario: snapshot.state, skipOpening: true };
+}
+
 /* ── The registry ────────────────────────────────────────────────────── */
 
 export interface MatchRegistry {
@@ -3852,6 +3901,17 @@ export interface MatchRegistry {
 	 */
 	adopt(record: MatchRecord): Match | null;
 	/**
+	 * Start this match again on a new JVM when the one it ran on is lost: from the start of its
+	 * latest turn ({@link Match.latestSnapshot}), or, when it has none yet (its JVM died before the
+	 * first upkeep), as a fresh game from its own spec. Either way the match keeps its id, its seats'
+	 * owners, its room settings and its start time, and gets a new epoch, so every seat's client
+	 * discards what it holds and resyncs (card ids change when Forge applies a snapshot). The old
+	 * match is stopped and from here on says nothing: only the registry's current match for an id
+	 * reaches the seats. Returns which of the two it did, or null when there is no such match. What a
+	 * restore loses: `restoredSpec`.
+	 */
+	restore(id: string): Restored | null;
+	/**
 	 * SIGTERM: leave every match that holds a JVM (`active`: starting, running,
 	 * or finished and inside its grace) running for the next process. Returns
 	 * the matches that were handed over and the ones that could NOT be, which
@@ -3859,6 +3919,9 @@ export interface MatchRegistry {
 	 */
 	handOver(): { handed: Match[]; ending: Match[] };
 }
+
+/** What {@link MatchRegistry.restore} did: back to the start of turn `turn`, or a fresh game from the match's spec. */
+export type Restored = { match: Match; from: 'snapshot'; turn: number } | { match: Match; from: 'spec' };
 
 export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged' | 'phaseStopChanged' | 'onGameOver' | 'liveChanged'> & {
 	emit(match: Match, seat: number, envelope: ServerEnvelope): void;
@@ -3876,17 +3939,31 @@ export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged' | 'phaseStopC
 export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 	const matches = new Map<string, Match>();
 	const active = (): Match[] => [...matches.values()].filter((m) => m.status === 'starting' || m.status === 'running' || m.status === 'over');
+	/** A match's deps: it reaches the seats only while it is the registry's match for its id, so a restored match's old self falls silent. */
+	const depsOf = (id: string, self: () => Match): MatchDeps => {
+		const current = (): Match | null => {
+			const m = self();
+			return matches.get(id) === m ? m : null;
+		};
+		const when =
+			<A extends unknown[]>(f: (m: Match, ...args: A) => void) =>
+			(...args: A): void => {
+				const m = current();
+				if (m !== null) f(m, ...args);
+			};
+		return {
+			...deps,
+			emit: when((m, seat: number, envelope: ServerEnvelope) => deps.emit(m, seat, envelope)),
+			seatsChanged: when((m, seats: SeatIdentity[]) => deps.seatsChanged?.(m, seats)),
+			phaseStopChanged: when((m, seat: number, phase: StopPhase | null) => deps.phaseStopChanged?.(m, seat, phase)),
+			onGameOver: when((m) => deps.onGameOver?.(m)),
+			liveChanged: when((m) => deps.liveChanged?.(m)),
+		};
+	};
 	return {
 		create(spec) {
 			const id = newMatchId();
-			const match: Match = new Match(id, spec, {
-				...deps,
-				emit: (seat, envelope) => deps.emit(match, seat, envelope),
-				seatsChanged: (seats) => deps.seatsChanged?.(match, seats),
-				phaseStopChanged: (seat, phase) => deps.phaseStopChanged?.(match, seat, phase),
-				onGameOver: () => deps.onGameOver?.(match),
-				liveChanged: () => deps.liveChanged?.(match),
-			});
+			const match: Match = new Match(id, spec, depsOf(id, () => match));
 			matches.set(id, match);
 			match.start();
 			return match;
@@ -3899,22 +3976,56 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 		adopt(record) {
 			const attach = deps.attach;
 			if (attach === undefined) return null;
-			const match: Match = new Match(
-				record.matchId,
-				record.spec,
-				{
-					...deps,
-					emit: (seat, envelope) => deps.emit(match, seat, envelope),
-					seatsChanged: (seats) => deps.seatsChanged?.(match, seats),
-					phaseStopChanged: (seat, phase) => deps.phaseStopChanged?.(match, seat, phase),
-					onGameOver: () => deps.onGameOver?.(match),
-				liveChanged: () => deps.liveChanged?.(match),
-				},
-				{ epoch: record.epoch, owners: record.owners, startedAt: Date.parse(record.startedAt) },
-			);
+			const match: Match = new Match(record.matchId, record.spec, depsOf(record.matchId, () => match), {
+				epoch: record.epoch,
+				owners: record.owners,
+				startedAt: Date.parse(record.startedAt),
+				snapshot: record.snapshot ?? null,
+			});
 			matches.set(record.matchId, match);
 			match.resume((events) => attach(record, events));
 			return match;
+		},
+		restore(id) {
+			const old = matches.get(id);
+			if (old === undefined) return null;
+			const snapshot = old.latestSnapshot;
+			const now = (deps.now ?? Date.now)();
+			const spec = snapshot === null ? old.spec : restoredSpec(old.spec, snapshot);
+			const match: Match = new Match(id, spec, depsOf(id, () => match), {
+				// Never the old epoch's spelling, `${id}:${startedAt}`, even within its millisecond.
+				epoch: `${id}:${now}:${randomBytes(4).toString('hex')}`,
+				owners: old.owners(),
+				startedAt: old.startedAt,
+				snapshot,
+			});
+			matches.set(id, match);
+			old.stop();
+			for (const s of old.seats) {
+				const to = match.seats[s.seat];
+				if (to === undefined) continue;
+				to.fullControl = s.fullControl;
+				to.policy = s.policy;
+				// Both name turns: they mean the same turns only in a game that resumes at one.
+				if (snapshot !== null) {
+					to.autoYield = s.autoYield;
+					to.phaseStop = s.phaseStop;
+				} else if (s.phaseStop?.skipTurn === null) {
+					to.phaseStop = s.phaseStop;
+				}
+				if (s.here) match.seatConnected(s.seat);
+			}
+			deps.log({
+				evt: 'match-restored',
+				matchId: id,
+				from: snapshot === null ? 'spec' : 'snapshot',
+				...(snapshot === null ? {} : { turn: snapshot.turn }),
+				fromEpoch: old.epoch,
+				epoch: match.epoch,
+				oldStatus: old.status,
+			});
+			match.start();
+			return snapshot === null ? { match, from: 'spec' } : { match, from: 'snapshot', turn: snapshot.turn };
 		},
 		handOver() {
 			const handed: Match[] = [];

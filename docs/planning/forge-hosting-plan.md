@@ -242,8 +242,12 @@ match passes. ASSUMED: this is the reading of "no second chances" for the
    lands played, phase and turn. They lose until-end-of-turn effects (they skip
    `DetachedCardEffect`), the stack beyond pre-cast spells, pending and delayed
    triggers, and control timestamps. Taken at turn start most of that has
-   already expired: the restore is "back to the start of this turn". ASSUMED:
-   card ids change on apply, so browsers get a full reload.
+   already expired: the restore is "back to the start of this turn". Card ids
+   change on apply, so browsers get a full reload. **Built (lane-snap,
+   2026-10-27):** a snapshot as each upkeep begins, kept by the coordinator,
+   `MatchRegistry.restore` for failover; `apps/server/src/play/README.md`
+   "Restore from a turn-start snapshot" has the measurements and
+   `match.ts`'s `restoredSpec` the full list of what is lost.
 2. **Exact replay** from seed plus every decision, the AI's included, against
    the match's own jar pin. Needs: a **per-game RNG**, because `MyRandom` is one
    static for the JVM (`MyRandom.java:34`) and `forge-ai` draws from it ~120

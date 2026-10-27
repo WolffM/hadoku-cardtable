@@ -21,7 +21,7 @@ import { afterEach } from 'vitest';
 import { playWorkDir } from '../config.js';
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, matchStderrPath, type BridgeCommand, type BridgeLine, type JvmHostConfig, type MatchHost } from './host.js';
 import type { SeatIdentity } from '@hadoku/shared';
-import { createMatchRegistry, type Match } from './match.js';
+import { createMatchRegistry, type Match, type Restored } from './match.js';
 import { PHASE_BY_UI_NAME, type StopPolicy } from './auto.js';
 import type { ServerEnvelope } from '@hadoku/shared';
 import { foldFrames, type StateFrame, type WireObj } from './visibility.js';
@@ -258,7 +258,8 @@ export interface Card {
 }
 
 export interface Scenario {
-	match: Match;
+	/** The registry's match for this scenario's id: after {@link Scenario.restore}, the restored one. */
+	readonly match: Match;
 	/** `JvmHostConfig.workDir` this match's JVM ran under. */
 	workDir: string;
 	/** The `bridge.stderr.txt` of the JVM hosting this match (it is the JVM's, shared with any other match on it); null before placement. */
@@ -292,6 +293,12 @@ export interface Scenario {
 	 */
 	keepHands(only?: RegExp): void;
 	asks: ServerFrame[];
+	/**
+	 * `MatchRegistry.restore`: start the match again on a new JVM, from its latest turn-start
+	 * snapshot or, with none, from its spec. Every read here (`prompt`, `state`, `zone`, …) follows
+	 * the restored match's epoch.
+	 */
+	restore(): Restored;
 	stop(): Promise<void>;
 }
 
@@ -352,7 +359,7 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 		...(options.policy === undefined ? {} : { stopPolicy: options.policy }),
 		emit: (_m, seat, envelope) => sent.push({ seat, envelope, t: performance.now() }),
 	});
-	const match = registry.create({
+	const first = registry.create({
 		seed: options.seed,
 		seats: [
 			{ name: names[0], ai: false, deck: options.decks[0] },
@@ -361,16 +368,22 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 		...(options.scenario === undefined ? {} : { scenario: options.scenario }),
 		...(options.skipOpening === undefined ? {} : { skipOpening: options.skipOpening }),
 	});
+	const current = (): Match => registry.get(first.id) ?? first;
+	/** What the server sent on the current match's epoch: a restore starts every seat's stream again. */
+	const live = (): Stamped[] => {
+		const epoch = current().epoch;
+		return sent.filter((x) => x.envelope.cursor.epoch === epoch);
+	};
 	// Killed, not waited out: the bridge's own clean stop takes 4.4 s on a real
 	// match (measured 2026-10-06; `host.ts`, "Going down") and nothing a scenario
 	// asserts is about how its JVM ends. `jvm.test.ts` keeps the clean stop covered.
 	const end = (): void => {
 		if (!running.delete(end)) return;
-		match.stop();
+		current().stop();
 		jvm.reapOnExit();
 	};
 	running.add(end);
-	const started = await match.whenRunning(120_000);
+	const started = await first.whenRunning(120_000);
 	if (!started.ok) {
 		end();
 		throw new Error(`match did not start: ${started.error}`);
@@ -381,15 +394,17 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 	const asks: ServerFrame[] = [];
 
 	const last = <T>(seat: number, method: string): T | null =>
-		([...sent].reverse().find((s) => s.seat === seat && s.envelope.frame.method === method)?.envelope.frame as T | undefined) ?? null;
+		([...live()].reverse().find((s) => s.seat === seat && s.envelope.frame.method === method)?.envelope.frame as T | undefined) ?? null;
 
 	const self: Scenario = {
-		match,
+		get match() {
+			return current();
+		},
 		workDir: config.workDir,
-		stderrPath: () => matchStderrPath(config.workDir, logs, match.id),
+		stderrPath: () => matchStderrPath(config.workDir, logs, first.id),
 		stderr: () => {
-			const path = matchStderrPath(config.workDir, logs, match.id);
-			if (path === null) throw new Error(`match ${match.id} was never placed in a JVM, so it has no bridge stderr`);
+			const path = matchStderrPath(config.workDir, logs, first.id);
+			if (path === null) throw new Error(`match ${first.id} was never placed in a JVM, so it has no bridge stderr`);
 			return readFileSync(path, 'utf8');
 		},
 		sent,
@@ -402,14 +417,14 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 		buttons: (seat) => last<Buttons>(seat, 'updateButtons'),
 		state: (seat) =>
 			foldFrames(
-				sent
+				live()
 					.filter((x) => x.seat === seat && x.envelope.frame.kind === 'notify')
 					.map((x) => x.envelope.frame as unknown as StateFrame)
 					.filter((f) => f.method === 'setGameView' || f.method === 'applyDelta' || f.method === 'openView'),
 			),
 		zone(seat, name) {
 			const state = self.state(seat);
-			const player = state.get(deltaKey(DELTA_TYPE.player, match.seats[seat]?.playerId ?? -1));
+			const player = state.get(deltaKey(DELTA_TYPE.player, current().seats[seat]?.playerId ?? -1));
 			return idsOf(player, name).map((id) => {
 				const view = state.get(deltaKey(DELTA_TYPE.card, id));
 				const face = currentFace(state, id);
@@ -429,10 +444,10 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 			return m === null ? null : { n: Number(m[1]), owner: m[2] as string };
 		},
 		phase: (seat) => /^Phase: (.+)$/m.exec(self.prompt(seat))?.[1] ?? null,
-		ok: (seat) => void match.fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' })),
-		cancel: (seat) => void match.fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonCancel' })),
+		ok: (seat) => void current().fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' })),
+		cancel: (seat) => void current().fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonCancel' })),
 		select: (seat, id) =>
-			void match.fromClient(
+			void current().fromClient(
 				seat,
 				ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id }, otherCardViewsToSelect: [], triggerEvent: null }),
 			),
@@ -442,11 +457,13 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 		},
 		answerAsks() {
 			const now: ServerFrame[] = [];
-			for (const { seat, envelope } of sent) {
+			for (const { seat, envelope } of live()) {
 				const f = envelope.frame as ServerFrame & Record<string, unknown>;
-				if (f.kind !== 'ask' || answered.has(f.callId as string) || options.hold?.(f) === true) continue;
+				// By epoch too: a restored match's JVM numbers its asks from the start again.
+				const key = `${envelope.cursor.epoch}:${f.callId as string}`;
+				if (f.kind !== 'ask' || answered.has(key) || options.hold?.(f) === true) continue;
 				const callId = f.callId as string;
-				answered.add(callId);
+				answered.add(key);
 				asks.push(f);
 				now.push(f);
 				let result: unknown = options.reply?.(f);
@@ -501,7 +518,7 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 					}
 				}
 				const reply = ClientFrameSchema.parse({ kind: 'reply', callId, method: f.method, result });
-				match.fromClient(seat, reply);
+				current().fromClient(seat, reply);
 			}
 			return now;
 		},
@@ -529,6 +546,11 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 				handled.add(at);
 				self.ok(seat);
 			}
+		},
+		restore() {
+			const restored = registry.restore(first.id);
+			if (restored === null) throw new Error(`match ${first.id} is not in the registry`);
+			return restored;
 		},
 		async stop() {
 			end();

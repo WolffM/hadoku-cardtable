@@ -5650,6 +5650,7 @@ public final class PlayBridge {
                     throw new Error("cardtable.fault=game-throw: a test-only failure on the game thread");
                 }
                 hm.getGame().subscribeToEvents(new CombatSync(hm.getGame()));
+                hm.getGame().subscribeToEvents(new TurnSnapshot(hm.getGame(), m));
                 hm.getGame().subscribeToEvents(m.effects.reset());
                 final GameLogForward log = GameLogForward.install(hm.getGame(), m);
                 ModeCounts.install(hm.getGame(), m.modesPending);
@@ -5925,6 +5926,54 @@ public final class PlayBridge {
                         remote.getForwarder().flush();
                     }
                 }
+            }
+        }
+
+        /**
+         * The game at the start of each turn, as Forge's own {@code GameState} text: one
+         * {@code snapshot} line per turn, which the server keeps so a match whose JVM is lost can
+         * start again from it ({@code match.ts}'s {@code restore}).
+         *
+         * <p><b>When.</b> As the turn's upkeep begins: {@code PhaseHandler.advanceToNextPhase} fires
+         * {@code GameEventTurnPhase(UPKEEP, "")} after the untap step has ended and before
+         * {@code onPhaseBegin} runs the upkeep, on the game thread (Guava's {@code EventBus} is
+         * synchronous). The board is untapped, nothing is on the stack and no upkeep trigger has
+         * fired. Additional upkeeps ({@code "Additional"}) and dev moves ({@code "dev"}) are not a
+         * turn's start.
+         *
+         * <p><b>Restoring it.</b> The text is a scenario that applies as it stands, under
+         * {@link MatchContext#skipOpening}: it names the untap step as the phase and asks
+         * {@code GameState} to advance to the upkeep ({@code activephaseadvance}), so the restored
+         * game runs the upkeep's turn-based actions and triggers exactly once, as the lost game was
+         * about to. A restore fires this event too, and snapshots the game it just restored.
+         */
+        static final class TurnSnapshot {
+            private static final String AT_UPKEEP = "activephase=UPKEEP\n";
+            private final Game game;
+            private final MatchContext match;
+
+            TurnSnapshot(final Game game, final MatchContext match) {
+                this.game = game;
+                this.match = match;
+            }
+
+            @Subscribe
+            public void phase(final forge.game.event.GameEventTurnPhase ev) {
+                if (ev.phase() != PhaseType.UPKEEP || !ev.phaseDesc().isEmpty()) { return; }
+                final long at = System.nanoTime();
+                final GameState state = new GameState();
+                state.initFromGame(game);
+                final String taken = state.toString();
+                if (!taken.contains(AT_UPKEEP)) {
+                    System.err.println("[bridge] ERROR turn " + game.getPhaseHandler().getTurn() + ": no snapshot, GameState did not write " + AT_UPKEEP.trim());
+                    return;
+                }
+                final String text = taken.replace(AT_UPKEEP, "activephase=UNTAP\nactivephaseadvance=UPKEEP\n");
+                final JsonObject o = line("snapshot");
+                o.addProperty("turn", game.getPhaseHandler().getTurn());
+                o.addProperty("state", text);
+                o.addProperty("ms", (System.nanoTime() - at) / 1_000_000.0);
+                match.emit(o);
             }
         }
 

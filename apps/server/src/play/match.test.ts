@@ -24,8 +24,8 @@ import {
 } from '@hadoku/shared';
 
 import { STRICT_PAYMENT_POLICY } from './auto.js';
-import type { BridgeCommand, BridgeLine, HostEvents, MatchRecord, MatchHost, MatchHostFactory } from './host.js';
-import { ACTIVITY_WINDOW_MS, ACT_SILENCE_MS, ANSWER_SILENCE_MS, MATCH_ENDED_TITLE, WATCHER_SEAT, createMatchRegistry, frameGist, type Match, type MatchSpecWithIdentity } from './match.js';
+import type { BridgeCommand, BridgeLine, HostEvents, MatchRecord, MatchHost, MatchHostFactory, MatchSpec, TurnSnapshot } from './host.js';
+import { ACTIVITY_WINDOW_MS, ACT_SILENCE_MS, ANSWER_SILENCE_MS, MATCH_ENDED_TITLE, WATCHER_SEAT, createMatchRegistry, frameGist, restoredSpec, type Match, type MatchSpecWithIdentity, type Restored } from './match.js';
 import type { SeatIdentity } from '@hadoku/shared';
 import {
 	FLYING_FILE,
@@ -1399,7 +1399,7 @@ describe('reconnect: a refresh closes the old socket before the new page joins',
  */
 interface Survivable {
 	stream: ({ t: 'line'; line: BridgeLine } | { t: 'sent'; command: BridgeCommand })[];
-	remembered: { epoch: string; owners: (string | null)[] } | null;
+	remembered: { epoch: string; owners: (string | null)[]; snapshot: TurnSnapshot | null } | null;
 	handedOver: boolean;
 	stopped: boolean;
 	/** Deliver lines AND record them, the way a real host persists what it reads. */
@@ -1425,7 +1425,7 @@ function survivable(): { factory: MatchHostFactory; attach: (record: MatchRecord
 	const face = (): MatchHost => ({
 		send: (command) => void state.stream.push({ t: 'sent', command }),
 		stop: () => void (state.stopped = true),
-		remember: (s) => void (state.remembered = { epoch: s.epoch, owners: [...s.owners] }),
+		remember: (s) => void (state.remembered = { epoch: s.epoch, owners: [...s.owners], snapshot: s.snapshot ?? null }),
 		handOver: () => {
 			state.handedOver = true;
 			return true;
@@ -1460,6 +1460,96 @@ function recordFor(match: Match, state: Survivable): MatchRecord {
 		orphanedAt: new Date().toISOString(),
 	};
 }
+
+describe('a match restored from its turn-start snapshot', () => {
+	const SNAPSHOT = { t: 'snapshot', turn: 3, state: 'turn=3\nactiveplayer=p0\nactivephase=UNTAP\nactivephaseadvance=UPKEEP\np0life=17\n', ms: 2 } as const;
+
+	/** Both seats claimed and opened, a snapshot taken; `restore` then starts the match again on a second host. */
+	function restorable(): Harness & { registry: ReturnType<typeof createMatchRegistry>; hosts: ReplayHost[] } {
+		const { factory, hosts } = replayFactory();
+		const sent: Harness['sent'] = [];
+		const logs: Record<string, unknown>[] = [];
+		const registry = createMatchRegistry({ host: factory, log: (e) => logs.push(e), overGraceMs: 60_000, emit: (_m, seat, envelope) => sent.push({ seat, envelope }) });
+		const match = registry.create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }], chooser: 1, seed: 7 });
+		match.claim(ALICE);
+		match.claim(BOB);
+		const host = hosts[0] as ReplayHost;
+		host.push(...OPENING, SNAPSHOT);
+		return { match, host, sent, logs, registry, hosts };
+	}
+
+	it('keeps the latest snapshot, and writes it into the match record on disk', () => {
+		const { factory, attach, state } = survivable();
+		const registry = createMatchRegistry({ host: factory, attach, log: () => undefined, overGraceMs: 60_000, emit: () => undefined });
+		const match = registry.create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }] });
+		match.claim(ALICE);
+		state.push(SNAPSHOT);
+		expect(match.latestSnapshot).toEqual({ turn: 3, state: SNAPSHOT.state });
+		expect(state.remembered).toEqual({ epoch: match.epoch, owners: [ALICE, null], snapshot: { turn: 3, state: SNAPSHOT.state } });
+	});
+
+	it('starts again on a new host from the snapshot, with the same id, owners and decks, on a new epoch, and without the coin toss rig', () => {
+		const h = restorable();
+		const restored = h.registry.restore(h.match.id);
+		expect(restored).toMatchObject({ from: 'snapshot', turn: 3 });
+		const r = (restored as Restored).match;
+		expect(r.id).toBe(h.match.id);
+		expect(r.epoch).not.toBe(h.match.epoch);
+		expect(r.owners()).toEqual([ALICE, BOB]);
+		expect(r.startedAt).toBe(h.match.startedAt);
+		expect(h.registry.get(h.match.id)).toBe(r);
+		expect(h.hosts).toHaveLength(2);
+		const spec = (h.hosts[1] as ReplayHost).spec;
+		expect(spec).toEqual({ seats: h.match.spec.seats, seed: 7, scenario: SNAPSHOT.state, skipOpening: true });
+		expect(spec).toEqual(restoredSpec(h.match.spec, { turn: 3, state: SNAPSHOT.state }));
+		expect(r.latestSnapshot).toEqual({ turn: 3, state: SNAPSHOT.state });
+		expect((h.hosts[0] as ReplayHost).stopped).toBe(true);
+	});
+
+	it('the old match falls silent: nothing its host still says reaches a seat, and its exit tells nobody the match ended', () => {
+		const h = restorable();
+		const r = (h.registry.restore(h.match.id) as Restored).match;
+		const before = h.sent.length;
+		h.host.push(...OPENING);
+		h.host.exit('the JVM exited (code null, signal SIGKILL)');
+		expect(h.sent.length).toBe(before);
+		// The restored one speaks on its own epoch.
+		(h.hosts[1] as ReplayHost).push(...OPENING);
+		const after = h.sent.slice(before);
+		expect(after.length).toBeGreaterThan(0);
+		expect(after.every((e) => e.envelope.cursor.epoch === r.epoch)).toBe(true);
+		expect(r.status).toBe('running');
+	});
+
+	it('restores a match whose JVM already died, after its seats were told', () => {
+		const h = restorable();
+		h.host.exit('the JVM exited (code null, signal SIGKILL)');
+		expect(h.match.status).toBe('failed');
+		const r = h.registry.restore(h.match.id);
+		expect(r?.match.status).toBe('starting');
+	});
+
+	it('with no snapshot yet (its JVM died before the first upkeep), starts a fresh game from its own spec: same id, owners and settings, a new epoch', () => {
+		const { factory, hosts } = replayFactory();
+		const logs: Record<string, unknown>[] = [];
+		const registry = createMatchRegistry({ host: factory, log: (e) => logs.push(e), overGraceMs: 60_000, emit: () => undefined });
+		const spec: MatchSpec = { seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }], chooser: 1, handSmoothing: true, format: 'cube' };
+		const match = registry.create(spec);
+		match.claim(ALICE);
+		match.claim(BOB);
+		(hosts[0] as ReplayHost).exit('the JVM exited (code null, signal SIGKILL)');
+		const restored = registry.restore(match.id);
+		expect(restored).toMatchObject({ from: 'spec' });
+		const r = (restored as Restored).match;
+		expect(r.id).toBe(match.id);
+		expect(r.epoch).not.toBe(match.epoch);
+		expect(r.owners()).toEqual([ALICE, BOB]);
+		expect(r.latestSnapshot).toBeNull();
+		expect((hosts[1] as ReplayHost).spec).toEqual(spec);
+		expect(logs.find((l) => l.evt === 'match-restored')).toMatchObject({ from: 'spec', matchId: match.id });
+		expect(registry.restore('m-nonexistent')).toBeNull();
+	});
+});
 
 describe('a match nobody is at', () => {
 	/** Both seats claimed and opened; the departure grace 1 s, the rejoin grace 5 s. */
@@ -1602,7 +1692,7 @@ describe('a match that outlives its server', () => {
 
 	it('writes down the two things a replay cannot reproduce: the epoch, and who owns which seat', () => {
 		const r = running();
-		expect(r.state.remembered).toEqual({ epoch: r.first.epoch, owners: [ALICE, BOB] });
+		expect(r.state.remembered).toEqual({ epoch: r.first.epoch, owners: [ALICE, BOB], snapshot: null });
 	});
 
 	it('is handed over without one frame on the wire — a frame now would take a seq the replay cannot', () => {
