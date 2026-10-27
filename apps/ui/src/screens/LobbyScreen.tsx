@@ -1,11 +1,20 @@
 /*
- * The front door: a list of rooms. One door, and this is it.
+ * The front door: a Twitch-like banner, then a list of rooms.
  *
  * The operator's spec (2026-09-19): *"players go to cardtable and all they see
  * on the front page is a list of rooms and they can either join a room or
- * create a new one."* So the room list (`../rooms/RoomList.tsx`) is the only
- * thing here, and a room is where a game is set up — its members ready up
- * inside it, and what readiness leads to is the room's game type.
+ * create a new one."* That is still the whole of the room list
+ * (`../rooms/RoomList.tsx`): a room is where a game is set up — its members
+ * ready up inside it, and what readiness leads to is the room's game type.
+ *
+ * Above it sits the banner (`docs/planning/wave77-2026-10-27.md` §A, the
+ * operator, 2026-10-26: *"i want to show a live twitch-like frontpage
+ * experience where we highlight a room that is currently active and
+ * playing"*) — the live match the server already picked
+ * (`GET /api/rooms`'s `featured`), patch notes, upcoming events and a
+ * wildcard card. `RoomList` is still the one caller of `GET /api/rooms`; it
+ * tells this screen the pick it read alongside the list (`onFeatured`)
+ * rather than the banner fetching its own copy.
  *
  * ## What is gone, and why nothing replaces it
  *
@@ -28,8 +37,11 @@
  * the list.
  */
 
+import { useState } from 'react';
+
+import { Banner } from '../front/Banner.tsx';
 import { RoomList } from '../rooms/RoomList.tsx';
-import type { RoomsClient } from '../rooms/api.ts';
+import type { FeaturedPick, RoomsClient } from '../rooms/api.ts';
 import type { RoomFeed } from '../rooms/feed.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import { StatsButton, StatsPopout, type StatsSource } from '../stats/StatsPopout.tsx';
@@ -50,6 +62,7 @@ export interface LobbyScreenProps {
 
 export function LobbyScreen({ rooms, feed, stats, statsSource }: LobbyScreenProps) {
   const shellRef = useChromeShell('fit');
+  const [featured, setFeatured] = useState<FeaturedPick | null>(null);
   return (
     <div ref={shellRef} className="shell shell--fit" data-testid="lobby">
       {/* No title here. The fleet's AppHeader already says "Card Table" at the
@@ -64,7 +77,8 @@ export function LobbyScreen({ rooms, feed, stats, statsSource }: LobbyScreenProp
         <SettingsGear />
       </nav>
       <main className="front">
-        <RoomList client={rooms} feed={feed} />
+        <Banner featured={featured} />
+        <RoomList client={rooms} feed={feed} onFeatured={setFeatured} />
       </main>
       {stats !== undefined && <StatsPopout player={stats.player} tournaments={stats.tournaments === true} source={statsSource} />}
     </div>

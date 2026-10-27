@@ -185,9 +185,26 @@ export interface CreateRequest {
   mode?: RoomMode;
 }
 
+/**
+ * `GET /api/rooms`'s own pick of a room with something going on (`apps/server/src/play/featured.ts`),
+ * sent alongside the list so the front page's banner never needs a second route. `null` when nothing
+ * is live, or the chosen match's room is not in THIS caller's list (a testing room, hidden from them).
+ */
+export interface FeaturedPick {
+  matchId: string;
+  roomId: string;
+}
+
+/** A `FeaturedPick`, or `null` for anything that is not one — never thrown: a bad pick costs a quiet banner, not a list. */
+function parseFeatured(v: unknown): FeaturedPick | null {
+  if (!isRecord(v)) return null;
+  const { matchId, roomId } = v;
+  return typeof matchId === 'string' && typeof roomId === 'string' ? { matchId, roomId } : null;
+}
+
 export interface RoomsClient {
-  /** Throws with a sentence a person can read when the list cannot be loaded. */
-  list(): Promise<RoomView[]>;
+  /** Throws with a sentence a person can read when the list cannot be loaded. `featured` is the front page's live pick, `null` when nothing qualifies. */
+  list(): Promise<{ rooms: RoomView[]; featured: FeaturedPick | null }>;
   /**
    * One room: `null` when the server answers its usual 404 (no such room, or
    * one it will not admit to), and a thrown sentence for anything else — a
@@ -379,7 +396,10 @@ export function roomsClient(
       if (!isRecord(body) || !Array.isArray(body.rooms)) {
         throw new Error('Could not load the rooms: the server sent something that is not a room list.');
       }
-      return body.rooms.map(parseRoomView).filter((r): r is RoomView => r !== null);
+      return {
+        rooms: body.rooms.map(parseRoomView).filter((r): r is RoomView => r !== null),
+        featured: parseFeatured(body.featured),
+      };
     },
 
     get(roomId) {

@@ -63,6 +63,7 @@ import {
   clientModeLabel,
   gameTypeLabel,
   roomsClient,
+  type FeaturedPick,
   type GameType,
   type RoomView,
   type RoomsClient,
@@ -72,6 +73,8 @@ import { RadioCards } from '../components/RadioCards.tsx';
 import { GameTypeRow } from './GameTypeRow.tsx';
 import { latestReads } from './latest.ts';
 import { freshRoomMode, MODE_CARDS } from '../screens/constructed-mode/ModeRow.tsx';
+import { roomCardView } from '../front/roomCard.ts';
+import { ConstructedIcon, DieIcon, DraftIcon, PersonIcon, StaircaseIcon, SwordsIcon, TrophyIcon } from '../front/icons.tsx';
 import './rooms.css';
 import { uiLength } from '../settings/ui-scale.ts';
 
@@ -85,9 +88,15 @@ export interface RoomListProps {
   client?: RoomsClient;
   /** What says the list changed. Tests pass their own; production passes nothing. */
   feed?: RoomFeed;
+  /**
+   * Told every time a fresh list lands, with the server's own pick for the banner's live slot
+   * (`GET /api/rooms`'s `featured`). The list is the one place that already reads this route, so
+   * the banner is told rather than fetching its own copy.
+   */
+  onFeatured?: (pick: FeaturedPick | null) => void;
 }
 
-export function RoomList({ client: given, feed = roomFeed() }: RoomListProps) {
+export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomListProps) {
   const client = useRef(given ?? roomsClient()).current;
   const [state, setState] = useState<ListState>({ kind: 'loading' });
   const [creating, setCreating] = useState(false);
@@ -99,14 +108,16 @@ export function RoomList({ client: given, feed = roomFeed() }: RoomListProps) {
   const refresh = useCallback(async (): Promise<void> => {
     const landed = reads.read();
     try {
-      const rooms = await client.list();
-      if (landed() === 'keep') setState({ kind: 'ready', rooms, stale: null });
+      const { rooms, featured } = await client.list();
+      if (landed() !== 'keep') return;
+      setState({ kind: 'ready', rooms, stale: null });
+      onFeatured?.(featured);
     } catch (err) {
       if (landed() !== 'keep') return;
       const message = err instanceof Error ? err.message : String(err);
       setState((prev) => (prev.kind === 'ready' ? { ...prev, stale: message } : { kind: 'failed', message }));
     }
-  }, [client, reads]);
+  }, [client, reads, onFeatured]);
 
   useEffect(() => {
     let live = true;
@@ -305,73 +316,121 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
   };
 
   const names = room.members.map((m) => m.name);
+  const view = roomCardView(room, isMine(room));
 
   return (
-    <li className="rooms__row" data-testid="room-row" data-room-id={room.id} data-mine={isMine(room) ? '' : undefined}>
-      <div className="rooms__info">
-        <span className="rooms__name" data-testid="room-name">
+    <li className="room-card" data-testid="room-row" data-room-id={room.id} data-mine={isMine(room) ? '' : undefined}>
+      {/* Row 1: type, name, tournament, seats — mostly symbols (`docs/planning/wave77-2026-10-27.md` §A). */}
+      <div className="room-card__row1">
+        <span className="room-card__type-icon" aria-hidden="true">
+          {room.gameType === 'draft' ? <DraftIcon /> : <ConstructedIcon />}
+        </span>
+        <span className="room-card__name" data-testid="room-name">
           {room.name}
         </span>
-        <span className="rooms__meta">
-          <span data-testid="room-type">{gameTypeLabel(room.gameType)}</span>
-          {/* Only on a streamed room (the operator, 2026-10-10): the form makes
-              nothing but our table now, so the label is said where it is the
-              exception, not on every row. */}
-          {room.clientMode === 'streamed' && (
-            <span className="rooms__mode" data-testid="room-mode" data-mode={room.clientMode}>
-              {clientModeLabel(room.clientMode)}
-            </span>
-          )}
-          {room.locked && (
-            <span className="rooms__lock" data-testid="room-locked">
-              password
-            </span>
-          )}
-          {room.matchId !== null && (
-            <span className="rooms__playing" data-testid="room-playing">
-              playing
-            </span>
-          )}
-          {/* A draft room whose pod has been dealt. Without this the row is
-              identical to one still sitting in its lobby, and Enter would take
-              you to a pack instead of a Ready button with nothing to explain
-              the difference. A late arrival is welcome — they evict a bot — so
-              this is a label, not a closed door. */}
-          {room.draftStartedAt !== null && (
-            <span className="rooms__playing" data-testid="room-drafting">
-              drafting
-            </span>
-          )}
-        </span>
-        <span className="rooms__members" data-testid="room-members">
-          {/* A face per member who HAS one, and nothing at all for a member who
-              does not — never a placeholder square, because a row of identical
-              squares says less than the names already beside them. */}
-          {room.members.map((m) => (
-            <Avatar key={m.id} id={m.avatarId} fallback="none" className="rooms__face" data-testid="room-face" data-avatar-id={m.avatarId} title={m.name} width={18} height={18} loading="lazy" />
-          ))}
-          {names.length === 0 ? 'Nobody here yet' : names.join(', ')}
+        {view.tournament && (
+          <span className="room-card__trophy" title="Tournament">
+            <TrophyIcon />
+          </span>
+        )}
+        <span className="room-card__seats" data-testid="room-seats">
+          <PersonIcon />
+          {view.seatsFilled}/{view.seatsCapacity}
         </span>
       </div>
 
-      {!asking && (
-        <button
-          type="button"
-          className="rooms__enter"
-          data-testid="room-enter"
-          aria-label={`Enter ${room.name}`}
-          disabled={busy}
-          onClick={onEnterClick}
-        >
-          Enter
-        </button>
-      )}
+      {/* Row 2: the mode chip (or a draft's cube), then Bo1/Bo3. */}
+      <div className="room-card__row2">
+        <span className="room-card__mode-chip" data-testid="room-mode-chip">
+          {view.mode.icon === 'classic' && <SwordsIcon />}
+          {view.mode.icon === 'gauntlet' && <StaircaseIcon />}
+          {view.mode.icon === 'random' && <DieIcon />}
+          <span className="room-card__mode-text">{view.mode.text}</span>
+        </span>
+        {view.series !== null && <span className="room-card__series-chip">{view.series}</span>}
+      </div>
 
-      {!asking && room.testing && (
-        <button type="button" className="rooms__enter" data-testid="room-reset" aria-label={`Reset ${room.name}`} disabled={busy} onClick={() => void onResetClick()}>
-          Reset
-        </button>
-      )}
+      {/* Row 3: the state dot and its one detail. */}
+      <div className="room-card__row3">
+        <span className="room-card__state" data-testid="room-state" data-state={view.state.key}>
+          <span className="room-card__dot" aria-hidden="true" />
+          {view.state.label}
+        </span>
+        {view.state.detail !== null && <span className="room-card__state-detail">{view.state.detail}</span>}
+      </div>
+
+      {/* The room's own details: still the exact words a locked, streamed or already-dealt room always said. */}
+      <div className="rooms__meta room-card__legacy">
+        <span className="rooms__sr" data-testid="room-type">
+          {gameTypeLabel(room.gameType)}
+        </span>
+        {/* Only on a streamed room (the operator, 2026-10-10): the form makes
+            nothing but our table now, so the label is said where it is the
+            exception, not on every row. */}
+        {room.clientMode === 'streamed' && (
+          <span className="rooms__mode" data-testid="room-mode" data-mode={room.clientMode}>
+            {clientModeLabel(room.clientMode)}
+          </span>
+        )}
+        {room.locked && (
+          <span className="rooms__lock" data-testid="room-locked">
+            password
+          </span>
+        )}
+        {room.matchId !== null && (
+          <span className="rooms__playing" data-testid="room-playing">
+            playing
+          </span>
+        )}
+        {/* A draft room whose pod has been dealt. Without this the row is
+            identical to one still sitting in its lobby, and Enter would take
+            you to a pack instead of a Ready button with nothing to explain
+            the difference. A late arrival is welcome — they evict a bot — so
+            this is a label, not a closed door. */}
+        {room.draftStartedAt !== null && (
+          <span className="rooms__playing" data-testid="room-drafting">
+            drafting
+          </span>
+        )}
+      </div>
+
+      <span className="rooms__members" data-testid="room-members">
+        {/* A face per member who HAS one, and nothing at all for a member who
+            does not — never a placeholder square, because a row of identical
+            squares says less than the names already beside them. */}
+        {room.members.map((m) => (
+          <Avatar key={m.id} id={m.avatarId} fallback="none" className="rooms__face" data-testid="room-face" data-avatar-id={m.avatarId} title={m.name} width={18} height={18} loading="lazy" />
+        ))}
+        {names.length === 0 ? 'Nobody here yet' : names.join(', ')}
+      </span>
+
+      {/* Row 4: the way in, chosen by state — Sit down, Join or Watch — plus a second Watch when a game is on. */}
+      <div className="room-card__row4">
+        {!asking && (
+          <button
+            type="button"
+            className="rooms__enter room-card__go"
+            data-testid="room-enter"
+            aria-label={`${view.primaryAction} ${room.name}`}
+            disabled={busy}
+            onClick={onEnterClick}
+          >
+            {view.primaryAction}
+          </button>
+        )}
+
+        {!asking && view.extraWatch && (
+          <button type="button" className="rooms__enter room-card__go room-card__go--watch" data-testid="room-watch" aria-label={`Watch ${room.name}`} disabled={busy} onClick={onEnterClick}>
+            Watch
+          </button>
+        )}
+
+        {!asking && room.testing && (
+          <button type="button" className="rooms__enter" data-testid="room-reset" aria-label={`Reset ${room.name}`} disabled={busy} onClick={() => void onResetClick()}>
+            Reset
+          </button>
+        )}
+      </div>
 
       {asking && (
         <form className="rooms__password" onSubmit={onPassword}>

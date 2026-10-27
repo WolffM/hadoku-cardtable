@@ -1,6 +1,7 @@
 /*
- * The room list. Uses the shell's tokens from `screens.css`; draws no symbols
- * of its own — a lock is the word "password", not an icon.
+ * The room list — a grid of symbol cards (`docs/planning/wave77-2026-10-27.md` §A, approved
+ * canvas "A"). Uses the shell's tokens from `screens.css`; every symbol is an inline stroke SVG
+ * from `../front/icons.tsx`, never a card image.
  */
 
 .rooms {
@@ -50,41 +51,150 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
 }
 
-.rooms__row {
+/* The symbol card: four rows (type/name/seats, mode, state, the way in), each mostly icons. */
+.room-card {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 16px;
+  flex-direction: column;
+  gap: 6px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 12px 14px;
   background: var(--bg);
 }
 
-.rooms__info {
-  flex: 1 1 240px;
-  min-width: 0;
+.room-card__row1,
+.room-card__row2,
+.room-card__row3,
+.room-card__row4 {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
-.rooms__name {
+.room-card__type-icon {
+  display: inline-flex;
+  color: var(--ink-dim);
+}
+
+.room-card__name {
+  flex: 1 1 auto;
+  min-width: 0;
   font-weight: 600;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.rooms__meta {
+.room-card__trophy {
+  display: inline-flex;
+  color: var(--warn);
+}
+
+.room-card__seats {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+
+.room-card__mode-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.room-card__series-chip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.room-card__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.room-card__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+}
+
+.room-card__state[data-state='lobby'] .room-card__dot {
+  background: var(--ink-faint);
+}
+
+.room-card__state[data-state='drafting'] .room-card__dot {
+  background: var(--accent);
+}
+
+.room-card__state[data-state='building'] .room-card__dot,
+.room-card__state[data-state='sideboarding'] .room-card__dot {
+  background: var(--warn);
+}
+
+.room-card__state[data-state='playing'] .room-card__dot,
+.room-card__state[data-state='rounds'] .room-card__dot {
+  background: var(--danger);
+}
+
+.room-card__state[data-state='done'] .room-card__dot {
+  background: var(--ink-dim);
+}
+
+.room-card__state[data-state='done'] {
+  color: var(--ink-dim);
+}
+
+.room-card__state-detail {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.room-card__go {
+  flex: 1 1 auto;
+}
+
+.room-card__go--watch {
+  flex: 0 1 auto;
+}
+
+/* The room's own exact words — locked, streamed, dealt — kept verbatim but folded under the new rows. */
+.room-card__legacy {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--ink-dim);
+}
+
+/* `room-type`'s text: the icon in row 1 already says it visually; this keeps the exact words for
+   assistive tech and for the tests that read them, without printing "Constructed" a second time. */
+.rooms__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .rooms__lock,

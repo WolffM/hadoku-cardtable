@@ -1188,7 +1188,7 @@ describe('a room’s table', () => {
         reveal = onJoin ?? null;
       },
       client: {
-        list: async () => [],
+        list: async () => ({ rooms: [], featured: null }),
         // The room record: a locked room the caller is not in answers the same
         // 404 the table read does, so the mode stays unknown and the screen
         // renders the builtin table — which is what these tests then drive.

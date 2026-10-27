@@ -1,0 +1,198 @@
+/*
+ * The banner — a row of cards, each a raised surface with a 3px top border by kind
+ * (`docs/planning/wave77-2026-10-27.md` §A: patch notes blue-ish, upcoming green-ish, wildcard
+ * varies). Theme tokens only, never a literal colour (AGENTS.md).
+ */
+
+.front-banner {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 14px;
+  /* The operator's own cap: the banner stays at or under ~50% of the viewport height, ~380px (D-grade screenshot in the report). */
+  max-height: 380px;
+}
+
+.front-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+
+.front-card--live {
+  grid-column: span 2;
+  align-items: center;
+  justify-content: center;
+}
+
+.front-card--patch-notes {
+  border-top-color: var(--accent);
+}
+
+.front-card--upcoming {
+  border-top-color: var(--success);
+}
+
+.front-card--wildcard {
+  border-top-color: var(--warn);
+}
+
+.front-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.front-card__title {
+  margin: 0;
+  font-size: 15px;
+}
+
+.front-card__version {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.front-card__empty {
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: 13px;
+}
+
+.front-card__release-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.front-card__bullets {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--ink-dim);
+  overflow: hidden;
+  flex: 1 1 auto;
+}
+
+.front-card__foot-links,
+.front-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.front-card__link {
+  font-size: 12px;
+  color: var(--accent-ink);
+}
+
+/* Upcoming's rows: a date block, then the title and one dim detail line. */
+.front-card__events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.front-card__event {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.front-card__date-block {
+  flex: 0 0 42px;
+  width: 42px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.front-card__date-month {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.front-card__date-day {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.front-card__event-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.front-card__event-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.front-card__event-detail {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+/* The wildcard's carousel. */
+.front-card__carousel-nav {
+  display: flex;
+  gap: 4px;
+}
+
+.front-card__arrow {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--ink);
+}
+
+.front-card__wildcard-banner {
+  height: 110px;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+
+.front-card__wildcard-body {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-dim);
+  flex: 1 1 auto;
+}
+
+.front-card__dots {
+  display: flex;
+  gap: 4px;
+}
+
+.front-card__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+}
+
+.front-card__dot[data-active] {
+  width: 14px;
+  border-radius: 3px;
+  background: var(--accent);
+}
