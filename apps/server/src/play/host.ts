@@ -394,7 +394,19 @@ export type BridgeLine =
 	 * (`SeatGui.setPhaseDelayOff`). Informational: it exists so a log and a suite
 	 * can see that the exemption is armed by an End Turn click and lifted after it.
 	 */
-	| { t: 'pace'; seat: number; skipPhaseDelay: boolean; at: number };
+	| { t: 'pace'; seat: number; skipPhaseDelay: boolean; at: number }
+	/**
+	 * Wave 78 §A — Forge actually applied this seat's act to an open input, in
+	 * APPLIED order (`seq`, one counter shared by both seats of a match —
+	 * `PlayBridge.java`'s `SeatController.applied`). `act` is in the same shape
+	 * this file's own `BridgeCommand`'s `act` frame sent it (`kind`/`method` plus
+	 * that method's own fields); `input` is the open input's simple class name,
+	 * for a log a human can read. An act Forge drops (no input was open, or its
+	 * hold past `GameServerHandler`'s `BETWEEN_INPUTS_MS` timed out) is never
+	 * echoed — the recorder (`recording/recorder.ts`) must log only this line,
+	 * never the `act` command at send time, so a dropped act never enters the log.
+	 */
+	| { t: 'applied'; seat: number; seq: number; input: string; act: ClientAction };
 
 export interface HostEvents {
 	line(line: BridgeLine): void;
@@ -543,7 +555,7 @@ const SPARE_RETRY_MS = 5000;
 /** …and after this many such deaths in a row, not at all. */
 export const SPARE_MAX_FAILURES = 3;
 
-const LINE_TYPES = new Set(['ready', 'frame', 'probe', 'gameover', 'log', 'fatal', 'rejected', 'stale', 'unsupported', 'pace', 'resent']);
+const LINE_TYPES = new Set(['ready', 'frame', 'probe', 'gameover', 'log', 'fatal', 'rejected', 'stale', 'unsupported', 'pace', 'resent', 'applied']);
 
 /** A line from the bridge, or null for one that is not a protocol line. */
 function parseBridgeLine(text: string): BridgeLine | null {

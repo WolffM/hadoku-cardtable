@@ -1,11 +1,28 @@
 /**
- * The recorder (`docs/planning/wave77-2026-10-27.md` §C): wraps the host
- * factory `index.ts` passes to `attachPlay` so every match gets a seed and an
- * action log, and listens to the watcher channel's own envelopes (fed from
- * `PlayDeps.onEnvelope`, the one-line additive hook in `socket.ts` — see that
- * file's own doc on `onEnvelope`) for the public stream. It never touches
- * `match.ts`: everything here is outside the two seams named in the brief —
- * the host factory, and the registry's `emit`.
+ * The recorder (`docs/planning/wave77-2026-10-27.md` §C, action log format
+ * `v:2` since wave 78 §A): wraps the host factory `index.ts` passes to
+ * `attachPlay` so every match gets a seed and an action log, and listens to
+ * the watcher channel's own envelopes (fed from `PlayDeps.onEnvelope`, the
+ * one-line additive hook in `socket.ts` — see that file's own doc on
+ * `onEnvelope`) for the public stream. It never touches `match.ts`:
+ * everything here is outside the two seams named in the brief — the host
+ * factory, and the registry's `emit`.
+ *
+ * **An `act` cmd line is logged from the bridge's `applied` echo, not from
+ * `host.send`** (`docs/planning/front-page-and-replay-plan.md`'s "Wave 77
+ * results"): a sent act Forge drops (no input was open) was landing in the
+ * `v:1` log anyway, and two sent in order could be applied in either order.
+ * `PlayBridge.java`'s `SeatController` now echoes an `applied` bridge line
+ * only for an act Forge actually consumed, in the order it consumed them, so
+ * logging THAT — never the send — is what makes the log a log of what the
+ * game did. A `reply`/`abort` has no such echo (it answers an already-open
+ * ask; Forge's own ask/reply plumbing, not an `IGameController` act), so it
+ * is still logged at `host.send`, carrying its `ask` ordinal exactly as
+ * before. Every other command kind (`stop`, `resend-pending`,
+ * `cancel-payment`, `probe`) is connection/UI housekeeping, never part of the
+ * move sequence a rebuild replays, and is not logged at all — dropped along
+ * with the `board`/`prompt` position tracking `v:1`'s `cmd` lines carried
+ * (see `writer.ts`'s `ActionsCmdLine` for why that polling is dead).
  *
  * One `Session` per live match, keyed by matchId, held only from the moment
  * its host is created until its JVM exits (`events.exit`) — a reattached
@@ -26,7 +43,6 @@ import { seatDeckColors } from '../deck-colors.js';
 import type { BridgeCommand, MatchHostFactory, MatchSpec } from '../host.js';
 import type { OutcomeFacts } from '../match.js';
 import { gameOutcome, WATCHER_SEAT } from '../match.js';
-import { createSeatPosition, type SeatPosition } from './position.js';
 import { createMatchRecordingWriter, type MatchRecordingWriter } from './writer.js';
 
 /** The jar's own filename IS its pin (`docs/FORGE_JAR.md`, "Per-pin jars") — the full 40-char `forge` submodule sha. Null for the `forge.jar` fallback name, which names no pin. */
@@ -82,7 +98,6 @@ export interface Recorder {
 
 interface Session {
 	writer: MatchRecordingWriter;
-	positions: ReadonlyMap<number, SeatPosition>;
 	startedAtMs: number;
 }
 
@@ -123,11 +138,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 					},
 					log,
 				});
-				const positions = new Map<number, SeatPosition>([
-					[0, createSeatPosition(0)],
-					[1, createSeatPosition(1)],
-				]);
-				const session: Session = { writer, positions, startedAtMs: now() };
+				const session: Session = { writer, startedAtMs: now() };
 				// Every ask's callId per seat, in the order Forge sent them: a reply's `ask` number.
 				const asks = new Map<number, string[]>();
 				sessions.set(matchId, session);
@@ -136,13 +147,18 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 					...events,
 					line: (line) => {
 						if (line.t === 'frame') {
-							guarded(log, matchId, 'position', () => {
-								positions.get(line.seat)?.push(line);
+							guarded(log, matchId, 'ask-track', () => {
 								const frame = line.frame as { kind?: string; callId?: unknown };
 								if (frame.kind !== 'ask' || typeof frame.callId !== 'string') return;
 								const seen = asks.get(line.seat) ?? [];
 								seen.push(frame.callId);
 								asks.set(line.seat, seen);
+							});
+						} else if (line.t === 'applied') {
+							// The applied-act echo IS the cmd line: see the module header for why
+							// this, never `host.send`, is where an `act` is logged.
+							guarded(log, matchId, 'applied', () => {
+								writer.actionCmd({ seat: line.seat, cmd: { t: 'act', seat: line.seat, frame: line.act } as BridgeCommand });
 							});
 						}
 						events.line(line);
@@ -162,10 +178,12 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 					...host,
 					send(command: BridgeCommand) {
 						guarded(log, matchId, 'command', () => {
-							const seat = 'seat' in command ? command.seat : null;
-							const position = seat === null ? undefined : positions.get(seat);
-							const ask = command.t === 'reply' || command.t === 'abort' ? asks.get(command.seat)?.indexOf(command.callId) ?? -1 : -1;
-							writer.actionCmd({ seat, board: position?.digest() ?? '', prompt: position?.prompt() ?? '', ...(ask >= 0 ? { ask } : {}), cmd: command });
+							// Only a reply/abort is logged here — an act is logged from its own
+							// `applied` echo above, and every other command kind is connection/UI
+							// housekeeping, not part of the move sequence a rebuild replays.
+							if (command.t !== 'reply' && command.t !== 'abort') return;
+							const ask = asks.get(command.seat)?.indexOf(command.callId) ?? -1;
+							writer.actionCmd({ seat: command.seat, ...(ask >= 0 ? { ask } : {}), cmd: command });
 						});
 						host.send(command);
 					},

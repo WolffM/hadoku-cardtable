@@ -30,10 +30,17 @@ import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from './retention.js';
 
 const gzip = promisify(gzipCb);
 
-/** Line 1 of the action log — contract 1. `spec` always carries a seed (the recorder assigns one if play did not). */
+/**
+ * Line 1 of the action log — contract 1, `v:2` since wave 78 §A. `spec` always carries a seed (the
+ * recorder assigns one if play did not).
+ *
+ * `v:1`'s `cmd` line carried `board`/`prompt`: a seat's folded-board digest and last prompt at
+ * `host.send` time, which `rebuild.ts` polled for before resending a command. Gone in `v:2` — see
+ * `ActionsCmdLine`'s own doc for why, and for what replaces it.
+ */
 export interface ActionsHeader {
 	t: 'header';
-	v: 1;
+	v: 2;
 	matchId: string;
 	roomId: string | null;
 	pin: string | null;
@@ -43,12 +50,28 @@ export interface ActionsHeader {
 	spec: unknown;
 }
 
-/** One `cmd` line of the action log — contract 1. `cmd` is the raw `BridgeCommand`. */
+/**
+ * One `cmd` line of the action log — contract 1, `v:2`. `cmd` is the raw `BridgeCommand`: a
+ * `reply`/`abort`, or an `act` built from the bridge's own `applied` echo (`PlayBridge.java`'s
+ * `SeatController.applied`, wired in `recorder.ts`'s `line` hook) rather than the browser's act at
+ * send time — `docs/planning/front-page-and-replay-plan.md`'s "Wave 77 results" is why: Forge can
+ * drop a sent act (no input was open) or apply two in a different order than they were sent, so a
+ * log of what was SENT is not a log of what the game did.
+ *
+ * No `board`/`prompt`. `v:1` carried them so `rebuild.ts` could poll for a seat reaching that
+ * position before resending its next command — dead now that an `act` line IS the applied act, in
+ * applied order, and a rebuild instead resends the next one once it sees ITS OWN `applied` echo
+ * (same ordinal, fresh JVM) for that seat. A `reply`/`abort` never used them either: it is gated on
+ * its own ask (`ask`, below), a separate channel from board/prompt that can read a different stage
+ * of the game depending on how Forge batches the two.
+ *
+ * Only `act`/`reply`/`abort` are ever logged: `stop`, `resend-pending`, `cancel-payment` and
+ * `probe` are connection/UI housekeeping, never part of the deterministic move sequence a rebuild
+ * replays, and `seat` is always a real seat, never null, for exactly that reason.
+ */
 export interface ActionsCmdLine {
 	t: 'cmd';
-	seat: number | null;
-	board: string;
-	prompt: string;
+	seat: number;
 	/**
 	 * For a `reply` or `abort`: which of that seat's asks it answers, counted from 0 in the order Forge
 	 * sent them. The callId is the live run's own; a rebuild finds its own ask by this number. Not
@@ -136,7 +159,7 @@ export function createMatchRecordingWriter(deps: MatchRecordingWriterDeps): Matc
 	} catch (err) {
 		log({ evt: 'recording-dir-failed', dir: deps.dir, error: (err as Error).message });
 	}
-	const actionLines: unknown[] = [{ t: 'header', v: 1, ...deps.actionsHeader }];
+	const actionLines: unknown[] = [{ t: 'header', v: 2, ...deps.actionsHeader }];
 	const publicLines: unknown[] = [{ t: 'header', v: 1, ...deps.publicHeader }];
 
 	return {

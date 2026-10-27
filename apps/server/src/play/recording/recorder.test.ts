@@ -102,13 +102,31 @@ describe('createRecorder', () => {
 		const recorder = createRecorder({ dir, identity: { pin: null, bridge: 'b', server: 's' }, roomOf: () => null, deckCosts: NO_COSTS, log: (e) => logged.push(e) });
 		const seen: BridgeLine[] = [];
 		const host = recorder.host(inner)('m-2', spec(1), { line: (l) => seen.push(l), exit: () => undefined, log: () => undefined });
-		// A state frame the fold cannot read: the position throws, the match does not.
-		const broken = { t: 'frame', seat: 0, frame: { kind: 'notify', method: 'setGameView', payload: null } } as unknown as BridgeLine;
+		// An ask frame with no `frame` object: reading `.kind` off it throws, the match does not.
+		const broken = { t: 'frame', seat: 0, frame: null } as unknown as BridgeLine;
 		expect(() => inner.calls[0]!.events.line(broken)).not.toThrow();
 		expect(seen).toEqual([broken]);
-		host.send({ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } });
+		host.send({ t: 'reply', seat: 0, callId: 'c1', result: true });
 		expect(inner.sends).toHaveLength(1);
 		expect(logged.some((e) => e.evt === 'recording-failed')).toBe(true);
+	});
+
+	it('logs an act from its applied echo, never from the send, and other command kinds are not logged at all', async () => {
+		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
+		const inner = fakeFactory();
+		const recorder = createRecorder({ dir, identity: { pin: null, bridge: 'b', server: 's' }, roomOf: () => null, deckCosts: NO_COSTS });
+		const host = recorder.host(inner)('m-4', spec(1), { line: () => undefined, exit: () => undefined, log: () => undefined });
+		const events = inner.calls[0]!.events;
+		// Sent but never applied (no `applied` echo for it): must never appear in the log.
+		host.send({ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } });
+		host.send({ t: 'resend-pending', seat: 1 });
+		host.send({ t: 'stop' });
+		// Applied: this is what actually makes the log, regardless of what was sent through this host.
+		events.line({ t: 'applied', seat: 0, seq: 1, input: 'InputPassPriority', act: { kind: 'act', method: 'selectButtonOk' } } as unknown as BridgeLine);
+		recorder.onGameOver({ id: 'm-4', endedAt: Date.now(), winner: null, winnerSeat: null, concededBy: null, spec: spec(1) });
+		await vi.waitFor(() => expect(existsSync(join(dir, 'm-4.actions.jsonl.gz'))).toBe(true));
+		const cmds = linesOf(join(dir, 'm-4.actions.jsonl.gz')).filter((l) => l.t === 'cmd');
+		expect(cmds).toEqual([{ t: 'cmd', seat: 0, cmd: { t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } } }]);
 	});
 
 	it('numbers each reply by the ask it answers, not by its place among replies', async () => {
@@ -122,7 +140,8 @@ describe('createRecorder', () => {
 		ask('s1-2');
 		// The first ask lapsed (the server answered it, or Forge moved on): the one reply answers the second.
 		host.send({ t: 'reply', seat: 1, callId: 's1-2', result: true });
-		host.send({ t: 'act', seat: 1, frame: { kind: 'act', method: 'selectButtonOk' } });
+		// An applied act: logged with no `ask` property at all, unlike a reply/abort.
+		events.line({ t: 'applied', seat: 1, seq: 1, input: 'InputConfirm', act: { kind: 'act', method: 'selectButtonOk' } } as unknown as BridgeLine);
 		recorder.onGameOver({ id: 'm-3', endedAt: Date.now(), winner: null, winnerSeat: null, concededBy: null, spec: spec(1) });
 		await vi.waitFor(() => expect(existsSync(join(dir, 'm-3.actions.jsonl.gz'))).toBe(true));
 		const cmds = linesOf(join(dir, 'm-3.actions.jsonl.gz')).filter((l) => l.t === 'cmd');
@@ -130,7 +149,7 @@ describe('createRecorder', () => {
 		expect(cmds[1]).not.toHaveProperty('ask');
 	});
 
-	it('records a header, a cmd line per send with that seat\'s board digest and prompt, and an end line with the winner', async () => {
+	it('records a header, a cmd line for an applied act and for a reply, and an end line with the winner', async () => {
 		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
 		const inner = fakeFactory();
 		let tick = 0;
@@ -151,24 +170,24 @@ describe('createRecorder', () => {
 			log: () => undefined,
 		});
 		const events = inner.calls[0]!.events;
-		events.line({ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'setGameView', payload: { gameView: { 'card:1': { _type: 1, _id: 1, Name: { t: 's', v: 'Shock' } } }, sequenceNumber: 0 } } } as BridgeLine);
-		events.line({ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'showPromptMessage', message: 'Priority: A' } } as BridgeLine);
-		host.send({ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } });
+		events.line({ t: 'applied', seat: 0, seq: 1, input: 'InputPassPriority', act: { kind: 'act', method: 'selectButtonOk' } } as unknown as BridgeLine);
+		events.line({ t: 'frame', seat: 1, frame: { kind: 'ask', method: 'confirm', callId: 'c1' } } as unknown as BridgeLine);
+		host.send({ t: 'reply', seat: 1, callId: 'c1', result: true });
+		// Housekeeping, not a move: never a cmd line.
 		host.send({ t: 'stop' });
 		// Written at the game's end, while its JVM is still up for the over-grace: a replay does not wait for the exit.
 		recorder.onGameOver({ id: 'm-1', endedAt: Date.now(), winner: 'A', winnerSeat: 0, concededBy: null, spec: spec(1) });
 
-		expect(inner.sends).toEqual([{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } }, { t: 'stop' }]);
+		expect(inner.sends).toEqual([{ t: 'reply', seat: 1, callId: 'c1', result: true }, { t: 'stop' }]);
 		await vi.waitFor(() => {
 			expect(existsSync(join(dir, 'm-1.actions.jsonl.gz'))).toBe(true);
 			expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true);
 		});
 
 		const actions = linesOf(join(dir, 'm-1.actions.jsonl.gz'));
-		expect(actions[0]).toMatchObject({ t: 'header', v: 1, matchId: 'm-1', roomId: 'r-1', pin: 'pin-1', bridge: 'bridge-1', server: 'server-1' });
-		expect(actions[1]).toMatchObject({ t: 'cmd', seat: 0, prompt: 'Priority: A', cmd: { t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } } });
-		expect((actions[1] as unknown as { board: string }).board).toMatch(/^[0-9a-f]{64}$/);
-		expect(actions[2]).toMatchObject({ t: 'cmd', seat: null, prompt: '', board: '', cmd: { t: 'stop' } });
+		expect(actions[0]).toMatchObject({ t: 'header', v: 2, matchId: 'm-1', roomId: 'r-1', pin: 'pin-1', bridge: 'bridge-1', server: 'server-1' });
+		expect(actions[1]).toEqual({ t: 'cmd', seat: 0, cmd: { t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } } });
+		expect(actions[2]).toEqual({ t: 'cmd', seat: 1, ask: 0, cmd: { t: 'reply', seat: 1, callId: 'c1', result: true } });
 		expect(actions[3]).toMatchObject({ t: 'end', reason: 'game-over' });
 
 		const pub = linesOf(join(dir, 'm-1.public.jsonl.gz'));

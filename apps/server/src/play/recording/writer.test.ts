@@ -29,16 +29,16 @@ describe('createMatchRecordingWriter', () => {
 			actionsHeader: { matchId: 'm-1', roomId: 'r-1', pin: 'abc', bridge: 'def', server: '0.0.0', startedAt: '2026-01-01T00:00:00.000Z', spec: { seed: 1 } },
 			publicHeader: { matchId: 'm-1', roomId: 'r-1', players: ['A', 'B'], ai: [false, false], decks: [null, null], startedAt: '2026-01-01T00:00:00.000Z' },
 		});
-		writer.actionCmd({ seat: 0, board: 'board-a', prompt: 'p1', cmd: { t: 'act', seat: 0, frame: { method: 'selectButtonOk' } } });
-		writer.actionCmd({ seat: 1, board: 'board-b', prompt: 'p2', cmd: { t: 'resend-pending', seat: 1 } });
+		writer.actionCmd({ seat: 0, cmd: { t: 'act', seat: 0, frame: { method: 'selectButtonOk' } } });
+		writer.actionCmd({ seat: 1, ask: 0, cmd: { t: 'reply', seat: 1, callId: 'c1', result: true } });
 		writer.publicEnv({ at: 10, env: { matchId: 'm-1', cursor: { epoch: 'e', seq: 1 }, frame: { kind: 'notify' } } });
 		await writer.finish({ endedAt: '2026-01-01T00:10:00.000Z', reason: 'clean' }, { endedAt: '2026-01-01T00:10:00.000Z', winner: 0 });
 
 		const actions = linesOf(join(dir, 'm-1.actions.jsonl.gz'));
 		expect(actions).toEqual([
-			{ t: 'header', v: 1, matchId: 'm-1', roomId: 'r-1', pin: 'abc', bridge: 'def', server: '0.0.0', startedAt: '2026-01-01T00:00:00.000Z', spec: { seed: 1 } },
-			{ t: 'cmd', seat: 0, board: 'board-a', prompt: 'p1', cmd: { t: 'act', seat: 0, frame: { method: 'selectButtonOk' } } },
-			{ t: 'cmd', seat: 1, board: 'board-b', prompt: 'p2', cmd: { t: 'resend-pending', seat: 1 } },
+			{ t: 'header', v: 2, matchId: 'm-1', roomId: 'r-1', pin: 'abc', bridge: 'def', server: '0.0.0', startedAt: '2026-01-01T00:00:00.000Z', spec: { seed: 1 } },
+			{ t: 'cmd', seat: 0, cmd: { t: 'act', seat: 0, frame: { method: 'selectButtonOk' } } },
+			{ t: 'cmd', seat: 1, ask: 0, cmd: { t: 'reply', seat: 1, callId: 'c1', result: true } },
 			{ t: 'end', endedAt: '2026-01-01T00:10:00.000Z', reason: 'clean' },
 		]);
 
