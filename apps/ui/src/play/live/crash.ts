@@ -117,16 +117,22 @@ const SHAKE_PX: readonly number[] = [0, 0, 0.5, 1, 1.5, 2.5, 4.5, 7, 8, 9, 10, 1
 /** How far and how long the table shakes for a blow of `amount` damage; nothing for one point, the twenty's beyond it. */
 export function shakeOf(amount: number): { px: number; ms: number } {
   const px = SHAKE_PX[Math.min(SHAKE_PX.length - 1, Math.max(0, Math.round(amount)))]!;
-  return { px, ms: px === 0 ? 0 : Math.round(160 + 22 * px) };
+  return { px, ms: shakeMsOf(px) };
+}
+
+/** How long a shake of `px` runs: longer the further it goes. Shared by a blow's own curve (`shakeOf`) and a landing's (`entries.ts`'s `entryWeight`, which climbs by distance, not by damage). */
+export function shakeMsOf(px: number): number {
+  return px === 0 ? 0 : Math.round(160 + 22 * px);
 }
 
 /**
- * Shake `board` for a blow of `amount` damage: a few quick, dying jolts. Its container clips while it
- * does. Returns a cancel.
+ * Shake `board` by `px`: a few quick, dying jolts, as far and as long as `px` says — a blow's own
+ * curve (`shakeOf`'s damage table) or a landing's (`entries.ts`'s `entryWeight`, by the creature's
+ * power). Its container clips while it does. Returns a cancel.
  */
-export function shake(board: HTMLElement, amount: number, key: string): () => void {
-  const { px, ms } = shakeOf(amount);
-  if (typeof board.animate !== 'function' || px === 0) return () => undefined;
+export function shake(board: HTMLElement, px: number, key: string): () => void {
+  const ms = shakeMsOf(px);
+  if (typeof board.animate !== 'function' || px <= 0) return () => undefined;
   const frames: Keyframe[] = [{ translate: '0px 0px' }];
   const jolts = 6;
   for (let i = 1; i < jolts; i++) {

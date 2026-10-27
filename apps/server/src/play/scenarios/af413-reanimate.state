@@ -1,0 +1,21 @@
+# AF413 creature entries: seat 0 (human) has Reanimate in hand, one untapped
+# Swamp on the battlefield to pay its {B}, and Griselbrand sitting in its
+# graveyard — the one creature there, so Reanimate's own target selection
+# needs no further choice. Casting it is the real-Forge half of the
+# graveyard -> battlefield arrival (`entries.ts`'s `rise`): the TEST casts
+# Reanimate and reads whether Griselbrand actually leaves the graveyard zone
+# and lands on the battlefield, which is the one fact `numbers.ts`'s
+# `diffViews` depends on to tell a `rise` apart from nothing at all.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Reanimate
+humanbattlefield=Swamp
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+humangraveyard=Griselbrand
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

@@ -23,7 +23,8 @@ import { viewerOf } from '../../adapter.ts';
 import type { LiveMatch } from '../match.ts';
 import { handCardWidth, sizeAsCard } from '../../card-size.ts';
 import { GLIDE_MS, prefersReducedMotion } from '../../motion.ts';
-import { cardBox } from '../board-dom.ts';
+import { cardBox, overlayOf } from '../board-dom.ts';
+import { entryWeight, playLanding } from '../entries.ts';
 import type { Point } from './types.ts';
 
 /**
@@ -306,11 +307,45 @@ export const CAST_LANDING_ATTR = 'data-cast-landing';
  * 2026-10-09: `dx: 0, dy: 0`). A cast card waits over its gap at a hand card's
  * size, so its landing is the shrink into the slot, in place.
  */
+/**
+ * Forge's current power, read off `arrived`'s own P/T badge (`Board.tsx`'s `[data-pt-of="power"]`)
+ * — null for anything that draws none (a land, a spell with no permanent face, a creature whose
+ * badge is not yet painted). The one place every played or arriving permanent's landing can learn
+ * its weight without a caller having to thread it through three call sites.
+ */
+function creaturePowerOn(arrived: HTMLElement): number | null {
+  const text = arrived.querySelector('[data-pt-of="power"]')?.textContent ?? null;
+  if (text === null) return null;
+  const n = Number.parseInt(text, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * The weight tail onto a landing already at its slot — `landCastGhost`'s own flight (a cast, a
+ * token's travel from its maker, the other seat's echo) ends there, so this is its last leg, never
+ * a second animation bolted on after a gap (the brief's own words for AF413's cast join): a quick
+ * hang-and-drop squish on `ghost`, still standing in for the card, then the same weight effects
+ * `entries.ts`'s `playEntry` ends with. Null — no tail — for anything that draws no power, or with
+ * motion off.
+ */
+function weightTailOf(root: ParentNode, ghost: HTMLElement, arrived: HTMLElement, key: string): (() => Promise<void>) | null {
+  if (prefersReducedMotion()) return null;
+  const power = creaturePowerOn(arrived);
+  if (power === null) return null;
+  const weight = entryWeight(power);
+  const board = (root.querySelector('.board') ?? root) as HTMLElement;
+  const overlay = overlayOf(root);
+  if (overlay === null) return null;
+  return () => playLanding(board, overlay, arrived, weight, key, ghost);
+}
+
 export function landCastGhost(root: ParentNode, id: number | null, ghost: HTMLElement, from: Point, arrived: HTMLElement): Landing {
   const box = arrived.getBoundingClientRect();
   const to = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
   const turned = arrived.hasAttribute('data-tapped');
   const size = { width: turned ? box.height : box.width, height: turned ? box.width : box.height };
+  const key = `cast:${id ?? arrived.getAttribute('data-board-card') ?? `${to.x}:${to.y}`}`;
+  const tail = weightTailOf(root, ghost, arrived, key);
   ghost.setAttribute(CAST_LIFT_ATTR, 'parked');
   ghost.style.left = `${from.x}px`;
   ghost.style.top = `${from.y}px`;
@@ -324,11 +359,19 @@ export function landCastGhost(root: ParentNode, id: number | null, ghost: HTMLEl
     to,
     shrink: drawn ? start.width - size.width : 0,
   };
-  const sameSize = !drawn || (Math.abs(start.width - size.width) < IN_PLACE_PX && Math.abs(start.height - size.height) < IN_PLACE_PX);
-  if (Math.hypot(to.x - from.x, to.y - from.y) < IN_PLACE_PX && sameSize) {
+  // The weight's own hang-and-drop keeps the ghost (and so `arrived`, hidden under it) a moment
+  // longer: never finish before that tail has played.
+  const finish = (): void => {
     ghost.remove();
     if (id !== null) clearCastLift(root, id);
     arrived.removeAttribute(CAST_LANDING_ATTR);
+  };
+  const sameSize = !drawn || (Math.abs(start.width - size.width) < IN_PLACE_PX && Math.abs(start.height - size.height) < IN_PLACE_PX);
+  if (Math.hypot(to.x - from.x, to.y - from.y) < IN_PLACE_PX && sameSize) {
+    if (tail !== null) {
+      arrived.setAttribute(CAST_LANDING_ATTR, '');
+      void tail().then(finish);
+    } else finish();
     return { how: 'swap', ...landing };
   }
   arrived.setAttribute(CAST_LANDING_ATTR, '');
@@ -342,8 +385,8 @@ export function landCastGhost(root: ParentNode, id: number | null, ghost: HTMLEl
     id,
     to,
     () => {
-      ghost.remove();
-      arrived.removeAttribute(CAST_LANDING_ATTR);
+      if (tail !== null) void tail().then(finish);
+      else finish();
     },
     ghost,
   );

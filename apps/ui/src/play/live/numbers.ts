@@ -130,14 +130,15 @@ import {
   prefersReducedMotion,
   REVEAL_BEAT_MS,
 } from '../motion.ts';
-import { battlefieldCard, faceBox, overlayOf } from './board-dom.ts';
+import { battlefieldCard, faceBox, overlayOf, zoneOf } from './board-dom.ts';
 import { DEPARTURE_ATTR, departureCause, departuresOf, exitMotionFor, exitMs, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
 import { ALIGN_MS, BLAST_MS, blast, boxIn, contactMs, fanOf, ram, RAM_STAGGER_MS, ramMs, strikeOffset, type Point, type RamEnd, type RamKind } from './ram.ts';
-import { crash, crashParticles, shake } from './crash.ts';
+import { crash, crashParticles, shake, shakeOf } from './crash.ts';
 import { particleShare } from './effect-budget.ts';
 import { fly, impact } from './projectile.ts';
 import { cardColours, colourRow } from './sound-events.ts';
 import { CAST_LANDING_ATTR, landCastGhost, parkedGhost } from './gestures/cast.ts';
+import { entryHeft, entryMotionFor, entryWeight, entryDurationMs, playEntry, playLanding, type EntryWeight } from './entries.ts';
 import './numbers.css';
 import { timed } from './work-meter.ts';
 
@@ -190,11 +191,24 @@ export interface DamageChange {
   readonly to: number;
 }
 
-/** A permanent on a battlefield now that the viewer saw nowhere before: a token, or a card out of a library. */
+/**
+ * A permanent on a battlefield now that was not on one before. `origin` is where it came from:
+ * `'graveyard'`/`'exile'` for a permanent rising or blinking back in, `'token'` for one Forge made
+ * (`entries.ts`'s `entryMotionFor`'s `release` — it materialises over its own slot rather than
+ * travelling from its maker), `'other'` for a card out of a library, which still travels from its
+ * maker as before. A cast permanent's own arrival never reaches here at all: it is drawn by
+ * `gestures/cast.ts`'s `landCastGhost` directly, on either screen, so it is never drawn twice
+ * (`live/placed.ts`'s AC8 reservation).
+ */
 export interface Arrival {
   readonly cardId: number;
   /** The card that made it (`BoardCard.createdBy`), when Forge keeps one. */
   readonly source: number | null;
+  readonly origin: 'graveyard' | 'exile' | 'token' | 'other';
+  /** Whose graveyard or exile it left, when `origin` names one — the pile it rises or blinks from. */
+  readonly fromPlayerId?: number;
+  /** What its landing weighs by (`entries.ts`'s `entryHeft`): a creature's power, any other permanent's mana value. */
+  readonly heft: number;
 }
 
 export interface ViewDiff {
@@ -338,6 +352,14 @@ export function diffViews(prev: BoardView | null, next: BoardView): ViewDiff {
     for (const card of player.libraryTop ?? []) seen.add(card.id);
   }
   for (const item of prev.stack) if (item.sourceCardId !== null) seen.add(item.sourceCardId);
+  // Where a card sat before, when it was a graveyard or an exile: whichever player's pile it rose
+  // or blinked out of, for `entries.ts`'s `rise`/`blink` motion to travel from.
+  const graveyardOf = new Map<number, number>();
+  const exileOf = new Map<number, number>();
+  for (const player of prev.players) {
+    for (const card of player.graveyard) graveyardOf.set(card.id, player.id);
+    for (const card of player.exile) exileOf.set(card.id, player.id);
+  }
   const arrivals: Arrival[] = [];
   // Something made it: a maker Forge names (Kalitas's Zombie in combat damage), or a resolution in
   // this same view. Never a board being set up — a match's opening state, a scenario putting its
@@ -347,9 +369,18 @@ export function diffViews(prev: BoardView | null, next: BoardView): ViewDiff {
     const before = prev.players.find((p) => p.id === player.id);
     const fromLibrary = before !== undefined && player.libraryCount < before.libraryCount;
     for (const card of player.battlefield) {
-      if (seen.has(card.id)) continue;
+      if (seen.has(card.id)) {
+        // A move off the stack is drawn by `gestures/cast.ts` directly (never twice, AC8), but a
+        // permanent raised out of a graveyard or blinked back from exile has nothing else to draw
+        // it: always an arrival, with its origin, the pile it left and its landing's own heft.
+        const gy = graveyardOf.get(card.id);
+        const ex = gy === undefined ? exileOf.get(card.id) : undefined;
+        if (gy !== undefined) arrivals.push({ cardId: card.id, source: card.createdBy ?? null, origin: 'graveyard', fromPlayerId: gy, heft: entryHeft(card.card) });
+        else if (ex !== undefined) arrivals.push({ cardId: card.id, source: card.createdBy ?? null, origin: 'exile', fromPlayerId: ex, heft: entryHeft(card.card) });
+        continue;
+      }
       const made = card.createdBy !== undefined || (resolved.length > 0 && (card.token || fromLibrary));
-      if (made) arrivals.push({ cardId: card.id, source: card.createdBy ?? null });
+      if (made) arrivals.push({ cardId: card.id, source: card.createdBy ?? null, origin: card.token ? 'token' : 'other', heft: entryHeft(card.card) });
     }
   }
   const lastHit = Math.max(0, ...(prev.hits ?? []).map((h) => h.seq));
@@ -661,7 +692,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         ball.remove();
         impact(root, end, look, key, hue, power);
         // A bolt shakes the table as a blow of its damage does: barely until it is heavy (`crash.ts`).
-        if (look === 'bolt') shakes.add(shake(canvas, amount, key));
+        if (look === 'bolt') shakes.add(shake(canvas, shakeOf(amount).px, key));
         flash(to, colour);
         land();
       }, ms);
@@ -677,13 +708,55 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     const root = overlay();
     if (root === null || reduced()) return;
     crash(root, at ?? centreIn(to, root.getBoundingClientRect()), damagePower(amount), key, share);
-    shakes.add(shake(canvas, amount, key));
+    shakes.add(shake(canvas, shakeOf(amount).px, key));
   }
 
-  /** A permanent from nowhere visible travels from `from` into its slot, as a played card lands; in place when there is nowhere to come from. */
-  function arrive(cardId: number, source: number | null, from: Boxed | null, delayMs: number): void {
+  /**
+   * A permanent from nowhere visible travels from `from` into its slot, as a played card lands; in
+   * place when there is nowhere to come from. A creature raised out of a graveyard or blinked back
+   * from exile (`origin`, `weight`) plays its own motion and lands as heavy as it hits
+   * (`entries.ts`) instead — Fast Mode: the landing alone, no climb to the hang point.
+   */
+  function arrive(
+    cardId: number,
+    source: number | null,
+    from: Boxed | null,
+    delayMs: number,
+    origin: Arrival['origin'] = 'other',
+    weight: EntryWeight | null = null,
+    pileOwner: 'you' | 'them' | null = null,
+  ): void {
     const el = battlefieldCard(canvas, cardId);
     if (el === null) return;
+    const root = overlay();
+    if ((origin === 'graveyard' || origin === 'exile' || origin === 'token') && weight !== null && root !== null && !reduced()) {
+      el.setAttribute(ARRIVING_ATTR, source === null ? '' : String(source));
+      marked.add(el);
+      atBeat(() => {
+        // React may have drawn the row again meanwhile: the card as it is drawn now.
+        const now = el.isConnected ? el : battlefieldCard(canvas, cardId);
+        if (now === null) {
+          el.removeAttribute(ARRIVING_ATTR);
+          return;
+        }
+        now.setAttribute(ARRIVING_ATTR, source === null ? '' : String(source));
+        marked.add(now);
+        const key = `entry:${cardId}`;
+        const run = fast()
+          ? playLanding(canvas, root, now, weight, key)
+          : playEntry({
+              board: canvas,
+              overlay: root,
+              card: now,
+              from: origin === 'graveyard' && pileOwner !== null ? zoneOf(canvas, pileOwner, 'graveyard') : null,
+              motion: entryMotionFor(origin),
+              weight,
+              key,
+            });
+        run.then(() => now.removeAttribute(ARRIVING_ATTR));
+      }, delayMs);
+      return;
+    }
     el.setAttribute(ARRIVING_ATTR, source === null ? '' : String(source));
     marked.add(el);
     const settle = (): void => {
@@ -912,8 +985,12 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       const maker = arrival.source === null ? null : battlefieldCard(canvas, arrival.source);
       if (maker !== null) fromMaker += 1;
       const delay = nextDelay();
-      endMs = Math.max(endMs, delay + GLIDE_MS);
-      arrive(arrival.cardId, arrival.source, maker ?? sourceOf(item), delay);
+      const weight = entryWeight(arrival.heft);
+      const entryMs = entryDurationMs(entryMotionFor(arrival.origin === 'other' ? 'stack' : arrival.origin), weight);
+      endMs = Math.max(endMs, delay + entryMs);
+      const pileOwner: 'you' | 'them' | null =
+        arrival.fromPlayerId === undefined ? null : before?.players.find((p) => p.id === arrival.fromPlayerId)?.isViewer === true ? 'you' : 'them';
+      arrive(arrival.cardId, arrival.source, maker ?? sourceOf(item), delay, arrival.origin, weight, pileOwner);
     }
     /*
      * What left the battlefield goes at its beat: what a hit killed the moment that hit lands, everything

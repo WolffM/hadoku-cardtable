@@ -384,7 +384,7 @@ describe('diffViews: what a resolution did', () => {
     const after = view([player(0, 20, { battlefield: [card(7, 0), zombie] }), player(1, 20)]);
     const diff = diffViews(before, after);
     expect(diff.resolved.map((i) => i.id)).toEqual([40]);
-    expect(diff.arrivals).toEqual([{ cardId: 50, source: 7 }]);
+    expect(diff.arrivals).toEqual([{ cardId: 50, source: 7, origin: 'token', heft: 0 }]);
   });
 
   it('a card played from a hand the viewer cannot see is not an arrival — the other seat’s landing draws it', () => {
@@ -396,7 +396,7 @@ describe('diffViews: what a resolution did', () => {
   it('a card a resolution put onto a battlefield out of a library is an arrival, maker unknown', () => {
     const before = withStack(view([{ ...player(0, 20), libraryCount: 30 }, player(1, 20)]), [item(41, null)]);
     const after = view([{ ...player(0, 20, { battlefield: [card(9, 0)] }), libraryCount: 29 }, player(1, 20)]);
-    expect(diffViews(before, after).arrivals).toEqual([{ cardId: 9, source: null }]);
+    expect(diffViews(before, after).arrivals).toEqual([{ cardId: 9, source: null, origin: 'other', heft: 0 }]);
   });
 
   it('a board being set up is not an arrival: permanents and tokens no resolution and no maker explain', () => {
@@ -580,9 +580,10 @@ describe('installNumbers: a resolution’s hits', () => {
     handle.dispose();
   });
 
-  it('a token arrives from the card that made it: marked while it travels, hidden in its slot until it lands', () => {
+  it('a token made by a resolution materialises in its own slot and lands (`entries.ts`’s `release`), not a glide from its maker', async () => {
     vi.useFakeTimers();
-    const { canvas } = sorinBoard();
+    const { canvas, overlay } = sorinBoard();
+    overlay.getBoundingClientRect = () => rect({ left: 0, top: 0, width: 1200, height: 800 });
     const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
     handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]));
     canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!.insertAdjacentHTML('beforeend', '<li class="board-card" data-board-card="50" data-card-id="50"></li>');
@@ -590,12 +591,13 @@ describe('installNumbers: a resolution’s hits', () => {
     token.getBoundingClientRect = () => rect({ left: 700, top: 500, width: 60, height: 84 });
     handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0), { ...card(50, 0), token: true, createdBy: 8 }] }), player(1, 20)]));
 
-    expect(token.getAttribute('data-arriving-from'), 'from the maker').toBe('8');
-    expect(document.querySelector('[data-cast-ghost], [data-cast-lift]'), 'a stand-in travels from Kalitas').not.toBeNull();
-    expect(token.hasAttribute('data-cast-landing'), 'the token itself waits hidden in its slot').toBe(true);
-    vi.advanceTimersByTime(GLIDE_MS);
+    expect(token.getAttribute('data-arriving-from'), 'still marked with its maker').toBe('8');
+    expect(token.style.visibility, 'hidden behind its own stand-in, never flown from Kalitas').toBe('hidden');
+    expect(document.querySelector('[data-cast-ghost], [data-cast-lift]'), 'no glide from the maker').toBeNull();
+    expect(overlay.querySelector('.board-entry[data-entry="release"]'), 'a release stand-in over its own slot').not.toBeNull();
+    await vi.advanceTimersByTimeAsync(GLIDE_MS);
     expect(token.hasAttribute('data-arriving-from')).toBe(false);
-    expect(token.hasAttribute('data-cast-landing'), 'and shows once the stand-in is there').toBe(false);
+    expect(token.style.visibility, 'shown again once the stand-in is done').toBe('');
     handle.dispose();
   });
 

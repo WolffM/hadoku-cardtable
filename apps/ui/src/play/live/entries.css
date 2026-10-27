@@ -1,0 +1,90 @@
+/* A creature's entry (`entries.ts`). Stand-ins and marks in the board's overlay, theme colours only. */
+
+.board-entry {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+  transform-origin: 50% 60%;
+}
+
+.board-entry__piece > .board-card {
+  margin: 0;
+  list-style: none;
+}
+
+/* A pressure ring flattening out from under a heavy card. */
+.board-entry__thump {
+  position: absolute;
+  z-index: 3;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: calc(2px + 3px * var(--p)) solid color-mix(in oklab, var(--c-generic) 55%, var(--ink));
+  pointer-events: none;
+}
+
+/* A wisp of shadow: a reanimated card's pall. */
+.board-entry__wisp {
+  position: absolute;
+  z-index: 3;
+  width: calc(26px * var(--s, 1));
+  height: calc(26px * var(--s, 1));
+  margin: calc(-13px * var(--s, 1)) 0 0 calc(-13px * var(--s, 1));
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--c-black) 80%, transparent) 0, color-mix(in srgb, var(--c-black) 35%, transparent) 45%, transparent 72%);
+  pointer-events: none;
+}
+
+/*
+ * Cracks in the table under a heavy creature: a layer in each battlefield, clipped to it, first in
+ * it and so under its cards (they are positioned; it has no z-index of its own). The battlefield is
+ * its containing block — positioned, but no stacking context: a card that rises over the focus
+ * layer still rises over everything.
+ */
+[data-zone='battlefield'] {
+  position: relative;
+}
+
+.board-entry__crackle {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.board-entry__crackle > svg {
+  position: absolute;
+  overflow: visible;
+}
+
+.board-entry__crack-run {
+  fill: none;
+  stroke: white;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: board-entry-crack linear forwards;
+}
+
+.board-entry__crack--glow {
+  fill: color-mix(in srgb, var(--c-red) 55%, var(--c-white));
+  filter: blur(3px);
+}
+
+.board-entry__crack--line {
+  fill: color-mix(in oklab, var(--ink) 82%, var(--c-generic));
+}
+
+@keyframes board-entry-crack {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-entry__wisp,
+  .board-entry__crackle,
+  .board-entry__thump {
+    display: none;
+  }
+}
