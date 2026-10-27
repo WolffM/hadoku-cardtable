@@ -406,7 +406,17 @@ export type BridgeLine =
 	 * echoed — the recorder (`recording/recorder.ts`) must log only this line,
 	 * never the `act` command at send time, so a dropped act never enters the log.
 	 */
-	| { t: 'applied'; seat: number; seq: number; input: string; act: ClientAction };
+	| { t: 'applied'; seat: number; seq: number; input: string; act: ClientAction }
+	/**
+	 * Wave 78 §A, second pass — this seat's own `InputQueue` just opened or closed an input
+	 * (`PlayBridge.java`'s `SeatController.emitInputState`, a second `Observer` on that queue).
+	 * `input` (the open input's simple class name) is present only when `open` is true. Exists so
+	 * a rebuild can wait for "this seat HAS an open input" before ever sending an act, rather than
+	 * sending into the gap and letting `ActGate`'s own `BETWEEN_INPUTS_MS` hold-or-drop decide —
+	 * resending on THAT timeout, tried first, could double-apply an act onto whatever opened right
+	 * after the hold gave up on it.
+	 */
+	| { t: 'input'; seat: number; open: boolean; input?: string };
 
 export interface HostEvents {
 	line(line: BridgeLine): void;
@@ -555,7 +565,7 @@ const SPARE_RETRY_MS = 5000;
 /** …and after this many such deaths in a row, not at all. */
 export const SPARE_MAX_FAILURES = 3;
 
-const LINE_TYPES = new Set(['ready', 'frame', 'probe', 'gameover', 'log', 'fatal', 'rejected', 'stale', 'unsupported', 'pace', 'resent', 'applied']);
+const LINE_TYPES = new Set(['ready', 'frame', 'probe', 'gameover', 'log', 'fatal', 'rejected', 'stale', 'unsupported', 'pace', 'resent', 'applied', 'input']);
 
 /** A line from the bridge, or null for one that is not a protocol line. */
 function parseBridgeLine(text: string): BridgeLine | null {

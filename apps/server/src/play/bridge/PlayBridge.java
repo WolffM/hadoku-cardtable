@@ -66,6 +66,7 @@ import forge.game.zone.ZoneType;
 import forge.gamemodes.match.GameLobby.GameLobbyData;
 import forge.gamemodes.match.HostedMatch;
 import forge.gamemodes.match.LobbySlot;
+import forge.gamemodes.match.input.Input;
 import forge.gamemodes.match.input.InputLockUI;
 import forge.gamemodes.match.input.InputPayMana;
 import forge.gamemodes.match.LobbySlotType;
@@ -5244,6 +5245,7 @@ public final class PlayBridge {
             final SeatPlayer sp = (SeatPlayer) lobbyPlayer;
             match = sp.match;
             seat = sp.seat;
+            getInputQueue().addObserver((o, arg) -> emitInputState());
         }
 
         SeatController(final forge.game.player.Player slave, final LobbyPlayer lobbyPlayer, final PlayerControllerHuman owner) {
@@ -5251,6 +5253,39 @@ public final class PlayBridge {
             final SeatPlayer sp = (SeatPlayer) lobbyPlayer;
             match = sp.match;
             seat = sp.seat;
+            // A mind-slave shares its owner's own InputQueue (PlayerControllerHuman.java:138,
+            // `inputQueue = owner.getInputQueue();`), already observed by the owner's own
+            // SeatController. A second observer here just emits the same seat's line twice on a
+            // change — harmless, since the rebuild only ever reads the LATEST one.
+            getInputQueue().addObserver((o, arg) -> emitInputState());
+        }
+
+        /**
+         * Emits {@code {"t":"input","seat":n,"open":bool,"input":"<input class>"?}} whenever this
+         * seat's {@code InputQueue} changes — an open or a close alike, so the rebuild (wave 78
+         * §A, after the claw dispatch found the first version's time-based resend unsound: it
+         * could double-apply an act onto whatever opened right after ActGate's own hold decided
+         * the original was dropped) can wait for "this seat HAS an open input" before ever
+         * sending, instead of guessing from a timeout whether one is about to.
+         *
+         * <p>Registered as a SECOND {@code Observer} on the seat's own {@code InputQueue}
+         * ({@code InputQueue extends java.util.Observable}; {@code addObserver(inputProxy)} is
+         * already its own constructor's only call, {@code InputQueue.java:41}) rather than by
+         * overriding anything on {@code InputProxy} (its methods are all {@code final}). Computed
+         * independently of {@code InputProxy}'s own {@code update()} via the SAME call it uses
+         * ({@code getInputQueue().getActualInput(this)}, {@code InputProxy.java:54} /
+         * {@code InputQueue.getActualInput}, which already returns a fresh {@code InputLockUI}
+         * for "no real input" rather than null), so this needs no ordering guarantee between the
+         * two observers — `java.util.Observable` does not document one.
+         */
+        private void emitInputState() {
+            final Input actual = getInputQueue().getActualInput(this);
+            final boolean open = actual != null && !(actual instanceof InputLockUI);
+            final JsonObject o = line("input");
+            o.addProperty("seat", seat);
+            o.addProperty("open", open);
+            if (open) { o.addProperty("input", actual.getClass().getSimpleName()); }
+            emit(match.matchId, o);
         }
 
         @Override

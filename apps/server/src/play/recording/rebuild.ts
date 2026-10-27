@@ -42,6 +42,14 @@
  * the watcher-frame reconstruction, `recorder.ts`'s `forgePin`/`bridgeDigest` for "the running
  * server's own Forge identity", `writer.ts`'s line types for contract 1's shape, `retention.ts`'s
  * file suffixes, and `deck-colors.ts`'s `seatDeckColors` for the public header's `decks`.
+ *
+ * **Two known mutations never reach this log, and this file cannot replay them** — ruled out for
+ * today's drivers (neither is ever sent by a browser act today, `match.ts`'s own automation never
+ * calls either, confirmed by reading both): `PlayBridge.java:5160`'s `setTriggerDecision` writes a
+ * remembered trigger answer straight into the live `YieldController`, and `PlayBridge.java:5130`'s
+ * `setPhaseDelayOff` writes the phase-pacing-skip pref the same way — both bypass every
+ * `IGameController` act this file's echo covers. A future driver of a real recorded browser
+ * session (not this wave's drivers) would need its own echo for either.
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -228,15 +236,6 @@ function watcherFramesFrom(matchId: string, timeline: readonly { line: BridgeLin
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-/**
- * Just past `GameServerHandler`'s own `BETWEEN_INPUTS_MS` (5 s): the longest Forge's `ActGate`
- * ever holds an act that arrived between two inputs before giving up and applying it to whatever
- * is open anyway (usually nothing, silently). An act still unechoed after this long was decided —
- * one way or the other — by that gate already; see the act-wait loop's own doc for why resending
- * past it is sound rather than a guess.
- */
-const RESEND_AFTER_MS = 6_000;
-
 /** One rebuild at a time per server (§D point 6): later callers queue behind the one in flight. */
 let serial: Promise<unknown> = Promise.resolve();
 
@@ -296,14 +295,18 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 	// of `raw` per poll, for the same O(lines) reason `position.ts`'s own doc gives for folding a
 	// board incrementally rather than from scratch every time.
 	const appliedCount: [number, number] = [0, 0];
-	// Has this seat sent at least one `frame` line yet? A seat's `IGameController` is wired only
-	// once Forge's match-start runnable has actually run (`GameLobby.startGame`'s own runnable),
-	// which races the `ready` line this host's OWN first line can be — sending that seat's first
-	// command before its first `frame` hit `getGameController() == null` server-side ("rejected",
-	// found live: a command sent the instant the host returns raced `ready` by milliseconds). `v:1`'s
-	// board/prompt poll never hit this: the recorded position could not match an empty board, so it
-	// waited anyway. The echo has no such accidental wait built in, so this is an explicit one.
-	const seatReady: [boolean, boolean] = [false, false];
+	// Does this seat HAVE an open input right now (`PlayBridge.java`'s `SeatController
+	// .emitInputState`, a second `InputQueue` observer)? Gates every send, acts and the first one
+	// alike: a seat's `IGameController` is wired only once Forge's match-start runnable has
+	// actually run, which races this host's own `ready` line by milliseconds — sending the first
+	// command before that hit "no game controller yet" server-side, found live — and `ActGate`'s
+	// own hold for an act sent between two inputs (`GameServerHandler`'s `BETWEEN_INPUTS_MS`, 5 s)
+	// is a wall-clock decision whose outcome (apply to whatever opens next vs. silently drop) a
+	// resend-on-timeout cannot safely undo: a held act applied right as the resend lands is a
+	// silent double-act — found live, on a claw, a real board divergence with no "diverged" note
+	// at all. Waiting for this instead of sending into the gap means `ActGate` never has anything
+	// to hold or drop for an act this file sends.
+	const seatOpen: [boolean, boolean] = [false, false];
 	let lastLineAt = Date.now();
 	let exited: string | null = null;
 	const t0 = Date.now();
@@ -315,7 +318,7 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 				raw.push(l);
 				timeline.push({ line: l, at: Date.now() - t0 });
 				if (l.t === 'applied') appliedCount[l.seat]!++;
-				if (l.t === 'frame') seatReady[l.seat] = true;
+				if (l.t === 'input') seatOpen[l.seat] = l.open;
 				lastLineAt = Date.now();
 			},
 			exit: (reason) => {
@@ -335,43 +338,27 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 		const cmd = c.cmd;
 		const seat = commandSeat(cmd);
 
-		if (seat !== null && !seatReady[seat]!) {
-			const deadline = Date.now() + budget;
-			while (exited === null && Date.now() < deadline && !seatReady[seat]!) await sleep(10);
-			if (exited !== null || !seatReady[seat]!) {
-				diverged = exited !== null
-					? `the rebuild's JVM exited before seat ${seat} ever sent a frame: ${exited}`
-					: `command ${i}: seat ${seat} never sent a frame within the budget (its game controller never wired)`;
-				break;
-			}
-		}
-
 		if (cmd.t === 'act' && seat !== null) {
 			const k = actOrdinal[i]!;
-			// `ActGate`'s own hold for an act arriving between two inputs (`GameServerHandler`'s
-			// `BETWEEN_INPUTS_MS`, 5 s) is a WALL-CLOCK decision: if this act's own input has not
-			// opened by then, Forge applies it to whatever is open anyway — usually nothing — and
-			// `InputProxy`'s null check silently drops it, with no echo ever following. That act
-			// WAS applied in the live run (it is in this log because its own echo said so), so a
-			// silent drop here is purely this rebuild's own send racing that 5 s window slower
-			// than the live run did, not a real divergence. A live player facing the exact same
-			// silent drop just clicks again; this resends the same act on the same cadence, for
-			// the same reason, rather than waiting out the whole budget on an echo that the gate
-			// has already decided will never come.
 			const deadline = Date.now() + budget;
-			host.send(cmd);
-			let nextResendAt = Date.now() + RESEND_AFTER_MS;
-			while (exited === null && Date.now() < deadline && appliedCount[seat]! <= k) {
-				if (Date.now() >= nextResendAt) {
-					host.send(cmd);
-					nextResendAt = Date.now() + RESEND_AFTER_MS;
-				}
-				await sleep(10);
+			// Never send into the gap: wait for this seat's own open input first, so `ActGate` has
+			// nothing to hold or drop for this act at all.
+			while (exited === null && Date.now() < deadline && !seatOpen[seat]!) await sleep(10);
+			if (exited !== null || !seatOpen[seat]!) {
+				diverged = exited !== null
+					? `the rebuild's JVM exited before seat ${seat} ever had an open input for act #${k} (command ${i}): ${exited}`
+					: `command ${i}: seat ${seat} never had an open input within the budget (its game controller never wired, or nothing ever opened for it)`;
+				break;
 			}
+			host.send(cmd);
+			// Then wait for THIS act's own applied echo — never the next command blind. An act
+			// Forge drops is never echoed, so a missing echo now (the input WAS open the instant
+			// this was sent) is a genuine divergence, not a slow Forge.
+			while (exited === null && Date.now() < deadline && appliedCount[seat]! <= k) await sleep(10);
 			if (exited !== null || appliedCount[seat]! <= k) {
 				diverged = exited !== null
 					? `the rebuild's JVM exited before seat ${seat}'s act #${k} (command ${i}) was ever applied: ${exited}`
-					: `command ${i} (act, seat ${seat}) was never applied within the budget, even resent every ${RESEND_AFTER_MS}ms: Forge dropped it every time, or no input ever opened for it`;
+					: `command ${i} (act, seat ${seat}) was sent with an open input but never applied within the budget`;
 				break;
 			}
 			i++;

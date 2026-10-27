@@ -47,14 +47,6 @@ const title = !available.ok
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/**
- * Just past `GameServerHandler`'s own `BETWEEN_INPUTS_MS` (5 s): the longest Forge's `ActGate`
- * ever holds an act that arrived between two inputs before giving up and applying it to whatever
- * is open anyway (usually nothing, silently). See the act-wait loop's own doc for why resending
- * past it is sound rather than a guess.
- */
-const RESEND_AFTER_MS = 6_000;
-
 async function waitUntil(p: () => boolean, label: string, ms: number): Promise<void> {
 	const deadline = Date.now() + ms;
 	while (!p()) {
@@ -333,13 +325,17 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 		for (let r = 0; r < replays; r++) {
 			const rawB: BridgeLine[] = [];
 			const appliedCount: [number, number] = [0, 0];
-			// A seat's `IGameController` is wired only once Forge's match-start runnable has
-			// actually run, which races this host's own `ready` line by milliseconds — sending a
-			// seat's first command before its first `frame` hits "seat N has no game controller
-			// yet" server-side (found live, with `CARDTABLE_REPLAY_TURNS=4`: command 0 never
-			// applied, because it was REJECTED, not dropped). `recording/rebuild.ts`'s own doc has
-			// the same fix and the same reasoning for why `v:1`'s board/prompt poll never hit this.
-			const seatReady: [boolean, boolean] = [false, false];
+			// Does this seat HAVE an open input right now (`PlayBridge.java`'s `SeatController
+			// .emitInputState`, a second `InputQueue` observer)? Gates every act send, the first
+			// one included: a seat's `IGameController` is wired only once Forge's match-start
+			// runnable has actually run, which races this host's own `ready` line by milliseconds
+			// (found live: command 0 was REJECTED, not dropped, sent before that). Waiting for this
+			// instead of sending into the gap means `ActGate`'s own hold for an act sent between two
+			// inputs (`GameServerHandler`'s `BETWEEN_INPUTS_MS`, 5 s — a wall-clock decision) never
+			// has anything to hold or drop: a resend on THAT timeout, tried first, could land right
+			// as the held act applies — a silent double-act, found live as a real board divergence
+			// with no "diverged" note at all.
+			const seatOpen: [boolean, boolean] = [false, false];
 			let lastB = Date.now();
 			let exited: string | null = null;
 			const jvmB = jvmHostFactory(available.config, { spare: false, log: () => {} });
@@ -349,7 +345,7 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 					rawB.push(l);
 					lastB = Date.now();
 					if (l.t === 'applied') appliedCount[l.seat]!++;
-					if (l.t === 'frame') seatReady[l.seat] = true;
+					if (l.t === 'input') seatOpen[l.seat] = l.open;
 				},
 				exit: (reason) => {
 					exited = reason;
@@ -360,34 +356,21 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 			const budget = Number(process.env.CARDTABLE_REPLAY_BUDGET_MS ?? 30_000);
 			for (const [i, { command }] of log.entries()) {
 				const seat = commandSeat(command);
-				if (seat !== null && !seatReady[seat]!) {
-					await waitUntil(() => seatReady[seat]! || exited !== null, `seat ${seat}'s first frame`, budget).catch(() => {});
-					if (exited !== null || !seatReady[seat]!) {
-						diverged = `command ${i}: seat ${seat} never sent a frame within the budget (its game controller never wired)`;
-						break;
-					}
-				}
 				if (command.t === 'act' && seat !== null) {
 					const k = actOrdinal[i]!;
-					// `ActGate`'s own hold for an act arriving between two inputs
-					// (`GameServerHandler`'s `BETWEEN_INPUTS_MS`, 5 s) is a WALL-CLOCK decision: past
-					// that, Forge applies it to whatever is open anyway and `InputProxy` silently
-					// drops it if nothing is. This act WAS applied live (it is in the log because its
-					// own echo said so), so a silent drop here is this run's send racing that window
-					// slower than run A did — resend on the same cadence, as a live player would by
-					// clicking again, rather than waiting out the budget on an echo already decided.
 					const deadline = Date.now() + budget;
-					hostB.send(command);
-					let nextResendAt = Date.now() + RESEND_AFTER_MS;
-					while (exited === null && Date.now() < deadline && appliedCount[seat]! <= k) {
-						if (Date.now() >= nextResendAt) {
-							hostB.send(command);
-							nextResendAt = Date.now() + RESEND_AFTER_MS;
-						}
-						await sleep(10);
+					// Never send into the gap: wait for this seat's own open input first.
+					while (exited === null && Date.now() < deadline && !seatOpen[seat]!) await sleep(10);
+					if (exited !== null || !seatOpen[seat]!) {
+						diverged = `command ${i}: seat ${seat} never had an open input within the budget${exited === null ? '' : `: ${exited}`}`;
+						break;
 					}
+					hostB.send(command);
+					// Then wait for THIS act's own applied echo. The input WAS open the instant this
+					// was sent, so a missing echo now is a genuine divergence, not a slow Forge.
+					while (exited === null && Date.now() < deadline && appliedCount[seat]! <= k) await sleep(10);
 					if (exited !== null || appliedCount[seat]! <= k) {
-						diverged = `command ${i} (act, seat ${seat}) was never applied in run B within the budget, even resent every ${RESEND_AFTER_MS}ms${exited === null ? '' : `: ${exited}`}`;
+						diverged = `command ${i} (act, seat ${seat}) was sent with an open input but never applied in run B within the budget${exited === null ? '' : `: ${exited}`}`;
 						break;
 					}
 					continue;
