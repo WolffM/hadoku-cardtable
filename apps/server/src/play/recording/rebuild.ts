@@ -32,9 +32,13 @@
  *   on board+prompt — a prompt is a separate channel from an ask, and can read a later or earlier
  *   stage than the ask it answers depending on how Forge batches the two.
  * - A bare pass (`selectButtonOk`, nothing selected) that never reaches its recorded position is
- *   skipped outright rather than failed: `Match`'s stop policy shows the player a window Forge's
- *   own engine would otherwise auto-pass through, and with no `Match` here to insert that stop,
- *   there is nothing left for the pass to do.
+ *   caught up — not skipped on a guess — when a LATER command's recorded board has already been
+ *   reached: `Match`'s stop policy shows the player a window Forge's own engine would otherwise
+ *   auto-pass through, and with no `Match` here to insert that stop, there is nothing left for
+ *   the pass to do, which the later checkpoint's exact board proves. Skipping one WITHOUT that
+ *   proof was tried and is unsound (a jar run skipped five in a row on nothing but a timeout and
+ *   the game was actually diverged two commands later) — this file never guesses; every skip is
+ *   a verified jump, and anything it cannot verify fails loudly as a divergence instead.
  *
  * Reuses lane C's own modules throughout rather than a parallel copy: `position.ts`'s
  * `boardDigest`/`lastPrompt`/`createSeatPosition`/`isStateLine` for a seat's position,
@@ -300,7 +304,7 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 
 	const budget = deps.positionBudgetMs ?? 30_000;
 	// How far ahead a stalled plain pass may look for a later checkpoint it was absorbed into (below).
-	const CATCH_UP_LOOKAHEAD = 20;
+	const CATCH_UP_LOOKAHEAD = 50;
 	let diverged: string | null = null;
 	let i = 0;
 	while (i < cmds.length) {
@@ -342,20 +346,12 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 				i = caught;
 				continue;
 			}
-			if (exited === null && !there() && eligibleForCatchUp) {
-				// Still never reached, and no later checkpoint matched within the lookahead — the two
-				// seats' own streams are not perfectly synchronised in real time (confirmed directly
-				// in testing: a bare pass's recorded board, itself identical to an EARLIER command's,
-				// had already been superseded on the OTHER seat's stream by the time this seat's was
-				// checked — a delivery-order artifact, not a reverted game). A bare pass carries no
-				// information Forge needs beyond "nothing to do here"; skip it outright rather than
-				// hold up the whole rebuild proving exactly which later moment absorbed it. A command
-				// with a real choice attached is never treated this way, so a genuine divergence on
-				// one of those still fails loudly below.
-				deps.log({ evt: 'rebuild-skipped-pass', matchId, command: i, seat });
-				i++;
-				continue;
-			}
+			// No verified catch-up either: unlike the catch-up above (proven by an exact board match
+			// at a later recorded position), there is no evidence here that this position was ever
+			// reached — a jar run proved guessing "it must have been absorbed" and skipping anyway is
+			// unsound: five bare passes skipped without proof in a row left the game actually
+			// diverged, surfacing two commands later as a missing ask nothing could explain. A real
+			// divergence fails loudly, here, rather than being papered over.
 			if (exited !== null || !there()) {
 				diverged =
 					exited !== null
