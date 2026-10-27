@@ -619,6 +619,19 @@ function crackle(card: HTMLElement, look: CrackLook, key: string): Promise<void>
     Object.assign(svg.style, { left: `${cx - (z.left - b.left) - size / 2}px`, top: `${cy - (z.top - b.top) - size / 2}px`, width: `${size}px`, height: `${size}px` });
     const defs = document.createElementNS(ns, 'defs');
     svg.append(defs);
+    // The glow's own blur, an SVG filter (never a CSS one: a card image sits in every battlefield
+    // this draws into, and no stylesheet rule reaching it may carry a colour filter).
+    const glowFilterId = `glow-blur-${key}-${zi}`;
+    const glowFilter = document.createElementNS(ns, 'filter');
+    glowFilter.id = glowFilterId;
+    glowFilter.setAttribute('x', '-50%');
+    glowFilter.setAttribute('y', '-50%');
+    glowFilter.setAttribute('width', '200%');
+    glowFilter.setAttribute('height', '200%');
+    const blur = document.createElementNS(ns, 'feGaussianBlur');
+    blur.setAttribute('stdDeviation', '3');
+    glowFilter.append(blur);
+    defs.append(glowFilter);
     cracks.forEach((crack, ci) => {
       // The crack runs: its outline is shown through its own line, drawn from root to tip.
       const id = `crack-${key}-${zi}-${ci}`;
@@ -642,7 +655,10 @@ function crackle(card: HTMLElement, look: CrackLook, key: string): Promise<void>
         shape.setAttribute('d', outline(crack, kind === 'glow' ? 2.6 : 1));
         shape.setAttribute('mask', `url(#${id})`);
         shape.classList.add(`board-entry__crack--${kind}`);
-        if (kind === 'glow') shape.style.opacity = (0.55 * look.glow).toFixed(2);
+        if (kind === 'glow') {
+          shape.style.opacity = (0.55 * look.glow).toFixed(2);
+          shape.setAttribute('filter', `url(#${glowFilterId})`);
+        }
         svg.append(shape);
       }
     });

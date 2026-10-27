@@ -67,8 +67,9 @@
 }
 
 .board-entry__crack--glow {
+  /* Blurred by its own SVG filter (`entries.ts`'s `feGaussianBlur`), not a CSS filter: a card image
+     sits in every battlefield this draws into, and no rule reaching it may carry one. */
   fill: color-mix(in srgb, var(--c-red) 55%, var(--c-white));
-  filter: blur(3px);
 }
 
 .board-entry__crack--line {
