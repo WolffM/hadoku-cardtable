@@ -420,12 +420,19 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 	};
 	const publicEnd: PublicEndLine = { t: 'end', endedAt, winner: winnerSeat };
 	const outLines: PublicStreamLine[] = [publicHeader, ...envs, publicEnd];
-	writePublicStream(deps.recordingsDir, matchId, outLines);
 	// Once, over the finished rebuild's own raw lines — never per command polled, unlike `v:1`'s
 	// gating use of the same fold (see `position.ts`'s own doc on why that distinction matters).
-	// Diagnostic only: a caller that wants to know the rebuild reached the same final board the
-	// live run did reads this, rather than re-folding `raw` itself.
 	const perSeatBoard: [string, string] = [boardDigest(raw, 0), boardDigest(raw, 1)];
+	// The log does not yet reproduce every game (plan, "Wave 78 results": a claw rebuild finished
+	// clean and still differed). A rebuild that misses the live run's own final boards is refused,
+	// never written or served; a log without them (older) cannot be checked, so it is refused too.
+	const recorded = lines.find((l): l is Extract<typeof l, { t: 'end' }> => l.t === 'end')?.boards;
+	if (recorded === undefined || recorded[0] !== perSeatBoard[0] || recorded[1] !== perSeatBoard[1]) {
+		const reason = recorded === undefined ? 'the log records no final boards to check a rebuild against' : 'the rebuilt game ended on a different board than the live one';
+		deps.log({ evt: 'rebuild-mismatch', matchId, recorded: recorded ?? null, rebuilt: perSeatBoard });
+		return { ok: false, reason };
+	}
+	writePublicStream(deps.recordingsDir, matchId, outLines);
 	deps.log({ evt: 'rebuild-ok', matchId, commands: cmds.length, envelopes: envs.length, perSeatBoard });
 	return { ok: true, header: publicHeader, lines: outLines, perSeatBoard };
 }

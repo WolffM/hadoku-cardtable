@@ -196,6 +196,8 @@ describe('createRecorder', () => {
 		expect(actions[1]).toEqual({ t: 'cmd', seat: 0, cmd: { t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } } });
 		expect(actions[2]).toEqual({ t: 'cmd', seat: 1, ask: 0, cmd: { t: 'reply', seat: 1, callId: 'c1', result: true } });
 		expect(actions[3]).toMatchObject({ t: 'end', reason: 'game-over' });
+		// Each seat's final board, for a rebuild to be checked against.
+		expect((actions[3] as unknown as { boards: string[] }).boards).toEqual([expect.stringMatching(/^[0-9a-f]{64}$/), expect.stringMatching(/^[0-9a-f]{64}$/)]);
 
 		const pub = linesOf(join(dir, 'm-1.public.jsonl.gz'));
 		expect(pub[0]).toMatchObject({ t: 'header', v: 1, matchId: 'm-1', roomId: 'r-1', players: ['A', 'B'], ai: [false, false] });

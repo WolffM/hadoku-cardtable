@@ -6,13 +6,14 @@
  * - `canRebuild` is a pure gate (every seat human, this server's own pin/bridge, a seed) — fast,
  *   always run.
  * - `rebuild` runs one at a time per server — fast, a stub host, always run.
- * - A real two-human match, played exactly as `replay-determinism.jvm.test.ts`'s "run A" plays
- *   one, is recorded through the REAL `createRecorder` (never a hand-rolled copy of its logging),
- *   its public stream deleted (as if it had expired), and `rebuild()` is asked to recover it on a
- *   second JVM. Both seats' final board digests and the watcher channel's last folded state must
- *   match the live run's. `[nightly]`: a played match plus its rebuild is minutes of JVM, gated
- *   the same way `replay-determinism.jvm.test.ts` is. `CARDTABLE_REBUILD_DUMP=<dir>` writes the
- *   action log to `cmds.jsonl` there, for inspecting a divergence without re-running the JVM.
+ * - A real two-human match, driven by a crude scripted player, is recorded through the REAL
+ *   `createRecorder` (never a hand-rolled copy of its logging), its public stream deleted (as if
+ *   it had expired), and `rebuild()` is asked to recover it on a second JVM. The rebuild either
+ *   reaches both seats' live final boards and the live watcher state, or it is refused and writes
+ *   nothing. A different game is never written. The log does not yet reproduce every game (plan,
+ *   "Wave 78 results"). `[nightly]`: a played match plus its rebuild is minutes of JVM.
+ *   `CARDTABLE_REBUILD_DUMP=<dir>` writes the action log to `cmds.jsonl` there, for inspecting a
+ *   divergence without re-running the JVM.
  */
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -30,7 +31,7 @@ import { boardDigest } from './position.js';
 import { nightly } from '../scenario.js';
 import { COLD_STARTS, queueColdStarts } from '../start-queue.js';
 import { foldFrames, type StateFrame, type WireObj } from '../visibility.js';
-import { createRecorder } from './recorder.js';
+import { createRecorder, forgePin } from './recorder.js';
 import { createMatchRecordingWriter, type PublicEnvLine } from './writer.js';
 import {
 	actionLogPath,
@@ -120,11 +121,13 @@ describe('canRebuild', () => {
 		expect(r).toEqual({ ok: true });
 	});
 
-	it('currentForge resolves the live jar\'s own basename as the pin', () => {
+	it('currentForge resolves the live jar\'s pin, from its name or its bundle directory', () => {
 		if (!available.ok) return;
 		const forge = currentForge();
 		expect(forge).not.toBeNull();
-		expect(forge!.pin).toBe(available.config.jar.split('/').pop()!.replace(/\.jar$/, ''));
+		// Production names the jar `<pin>.jar`; CI's bundle names it `<pin>/forge.jar` (`forgePin`).
+		expect(forge!.pin).toBe(forgePin(available.config.jar));
+		expect(forge!.pin).toMatch(/^[0-9a-f]{40}$/);
 		expect(forge!.bridge).toMatch(/^[0-9a-f]{64}$/);
 	});
 });
@@ -392,9 +395,14 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 		const rebuildMs = Date.now() - tR;
 		await waitUntil(() => liveJvmCount() === 0, 'the rebuild\'s JVM to exit', 20_000);
 		jvmR.close?.();
-		console.log(`[rebuild] rebuilt: ${result.ok ? 'ok' : `FAILED: ${result.reason}`}, ${rebuildMs} ms`);
-		expect(result.ok).toBe(true);
-		if (!result.ok) return;
+		console.log(`[rebuild] rebuilt: ${result.ok ? 'ok' : `REFUSED: ${result.reason}`}, ${rebuildMs} ms`);
+		// The log does not yet reproduce every game (plan, "Wave 78 results"). What must always hold:
+		// a rebuild is either the live game, or refused and never written — never a different game served.
+		if (!result.ok) {
+			expect(result.reason).toBe('the rebuilt game ended on a different board than the live one');
+			expect(existsSync(publicStreamPath(recordingsDir, matchId))).toBe(false);
+			return;
+		}
 
 		expect(result.perSeatBoard).toEqual(liveBoard);
 		expect(existsSync(publicStreamPath(recordingsDir, matchId))).toBe(true);

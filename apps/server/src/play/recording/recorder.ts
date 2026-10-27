@@ -43,6 +43,7 @@ import { seatDeckColors } from '../deck-colors.js';
 import type { BridgeCommand, MatchHostFactory, MatchSpec } from '../host.js';
 import type { OutcomeFacts } from '../match.js';
 import { gameOutcome, WATCHER_SEAT } from '../match.js';
+import { createSeatPosition, type SeatPosition } from './position.js';
 import { createMatchRecordingWriter, type MatchRecordingWriter } from './writer.js';
 
 const FORGE_PIN_RE = /^[0-9a-f]{40}$/;
@@ -115,7 +116,17 @@ export interface Recorder {
 interface Session {
 	writer: MatchRecordingWriter;
 	startedAtMs: number;
+	/** Each seat's board, folded as it goes, for the end line's `boards`. */
+	positions: [SeatPosition, SeatPosition];
 }
+
+const finalBoards = (session: Session): [string, string] | undefined => {
+	try {
+		return [session.positions[0].digest(), session.positions[1].digest()];
+	} catch {
+		return undefined;
+	}
+};
 
 const randomSeed32 = (): number => Math.floor(Math.random() * 0x7fffffff);
 
@@ -154,7 +165,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 					},
 					log,
 				});
-				const session: Session = { writer, startedAtMs: now() };
+				const session: Session = { writer, startedAtMs: now(), positions: [createSeatPosition(0), createSeatPosition(1)] };
 				// Every ask's callId per seat, in the order Forge sent them: a reply's `ask` number.
 				const asks = new Map<number, string[]>();
 				sessions.set(matchId, session);
@@ -163,6 +174,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 					...events,
 					line: (line) => {
 						if (line.t === 'frame') {
+							guarded(log, matchId, 'position', () => session.positions[line.seat as 0 | 1]?.push(line));
 							guarded(log, matchId, 'ask-track', () => {
 								const frame = line.frame as { kind?: string; callId?: unknown };
 								if (frame.kind !== 'ask' || typeof frame.callId !== 'string') return;
@@ -184,7 +196,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 						if (sessions.get(matchId) === session) {
 							sessions.delete(matchId);
 							const endedAt = new Date(now()).toISOString();
-							void writer.finish({ endedAt, reason }, { endedAt, winner: null });
+							const boards = finalBoards(session);
+							void writer.finish({ endedAt, reason, ...(boards === undefined ? {} : { boards }) }, { endedAt, winner: null });
 						}
 						events.exit(reason);
 					},
@@ -226,7 +239,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 			const outcome = gameOutcome(match);
 			sessions.delete(match.id);
 			const endedAt = new Date(now()).toISOString();
-			void session.writer.finish({ endedAt, reason: 'game-over' }, { endedAt, winner: outcome?.kind === 'won' ? outcome.winner : null });
+			const boards = finalBoards(session);
+			void session.writer.finish({ endedAt, reason: 'game-over', ...(boards === undefined ? {} : { boards }) }, { endedAt, winner: outcome?.kind === 'won' ? outcome.winner : null });
 		},
 	};
 }

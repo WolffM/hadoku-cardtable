@@ -85,6 +85,12 @@ export interface ActionsEndLine {
 	t: 'end';
 	endedAt: string;
 	reason: string;
+	/**
+	 * Each seat's final board digest (`position.ts`), taken live. A rebuild that does not reach both
+	 * is refused rather than served: the log alone does not yet reproduce every game (plan,
+	 * "Wave 78 results"), so this is what keeps a wrong replay off the page.
+	 */
+	boards?: [string, string];
 }
 
 /** Line 1 of the public stream — contract 1. */
