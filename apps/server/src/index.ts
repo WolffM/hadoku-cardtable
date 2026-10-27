@@ -85,6 +85,9 @@ import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { attachDraftSocket } from './room/socket.js';
 import { attachRoomFeed } from './room/feed.js';
 import { attachPlay, coldStartsFrom, createFeatured, featuredCandidates, jvmHostConfig, jvmHostFactory, roomDeckCosts, roomFormatNames, spellCopierLookup, tableGame, type PlayHandle } from './play/index.js';
+import { bridgeDigest, createRecorder, forgePin, recordingsDir, serverVersion } from './play/recording/recorder.js';
+import { sweepRecordings } from './play/recording/retention.js';
+import { attachReplays } from './http/replays.js';
 import { attachStream, attachStreamRoutes, streamLayout } from './stream/index.js';
 import { createRoomStreams, findContainerScript, scriptRunner, MAX_ROOM_SEATS } from './stream/alloc.js';
 import { attachBrowserBridge } from './play/browser/index.js';
@@ -701,23 +704,60 @@ if (!CONFIG.catalogRefresh) console.log('[cardtable] catalog refresh disabled (C
 // read once, up top (see its own header), because the draft pool service
 // needs it before this point.
 const deckCosts = roomDeckCosts(tables.library, defaultCubeCards);
+
+// ── Recording (wave 77 §C) ────────────────────────────────────────────────────
+// Every match's action log and public stream, read back by `GET /api/replays*`
+// below. Hooked entirely from outside `match.ts`/`host.ts`: the host factory
+// passed to `attachPlay` (wrapped here, never edited there) and `PlayDeps.onEnvelope`
+// (the one-line additive hook `play/socket.ts` grew this wave for exactly this —
+// see that file's own doc). `pin`/`bridge`/`server` are each read once, at boot,
+// from values this server already has — never a `git` shell-out at runtime.
+const recordingsLog = jsonLogger('cardtable-recording');
+const RECORDINGS_DIR = recordingsDir();
+const recorder = createRecorder({
+	dir: RECORDINGS_DIR,
+	identity: {
+		pin: forge.ok ? forgePin(forge.config.jar) : null,
+		bridge: forge.ok ? bridgeDigest(forge.config.bridgeSource) : 'no-forge',
+		server: serverVersion(PKG_ROOT),
+	},
+	roomOf: (matchId) => lobby.roomOfMatch(matchId)?.id ?? null,
+	deckCosts,
+	log: recordingsLog,
+});
+const RECORDINGS_SWEEP_MS = 60 * 60_000;
+sweepRecordings(RECORDINGS_DIR, Date.now(), recordingsLog);
+setInterval(() => sweepRecordings(RECORDINGS_DIR, Date.now(), recordingsLog), RECORDINGS_SWEEP_MS).unref();
+// Lane D (rebuild.ts) is not landed yet: absent `canRebuild`/`rebuild`, a match
+// whose public stream has expired answers `source: 'none'`/404, never a crash.
+attachReplays(api, {
+	dir: RECORDINGS_DIR,
+	isTesting: (roomId) => (roomId === null ? false : lobby.get(roomId)?.testing === true),
+	log: recordingsLog,
+});
+
 play = attachPlay(io, api, {
 	minTier: CONFIG.minTier,
-	host: forge.ok ? jvmHostFactory(forge.config) : null,
+	host: forge.ok ? recorder.host(jvmHostFactory(forge.config)) : null,
 	// Match JVMs booting at once (`play/start-queue.ts`); `CARDTABLE_PLAY_COLD_STARTS`.
 	coldStarts: coldStartsFrom(),
 	// Diagnostics for a live check only. Never set in production (see play/socket.ts).
 	probe: CONFIG.playProbe,
 	devIdentity: CONFIG.allowUnverifiedEdge && CONFIG.edgeAuthSecret === '',
-	// Two listeners on one event: the stats report (`matchStats.gameOver`) and
-	// the room's own series ledger, recorded AT ONCE rather than waiting for a
+	// Three listeners on one event: the stats report (`matchStats.gameOver`), the
+	// room's own series ledger, recorded AT ONCE rather than waiting for a
 	// `/api/tables` read to notice the match is over (wave 72 §P step 1,
-	// `http/routes.ts`'s `TablesHandle.gameOver`). `play/**` itself is
-	// untouched — this is still the one hook it already exposed.
+	// `http/routes.ts`'s `TablesHandle.gameOver`), and the recorder's own winner
+	// for the public stream's `end` line. `play/**` itself is untouched — this is
+	// still the one hook it already exposed.
 	onGameOver: (match) => {
 		matchStats.gameOver(match);
 		tables.gameOver(match);
+		recorder.onGameOver(match);
 	},
+	// The registry's `emit`, for every seat, before it reaches a socket — the recorder
+	// keeps only `WATCHER_SEAT`'s (`play/recording/recorder.ts`'s own doc).
+	onEnvelope: (matchId, seat, envelope) => recorder.onEnvelope(matchId, seat, envelope),
 	keys: statsKeys,
 	// A card-name ask offers the names of the room's pool (`play/names.ts`).
 	// Not per-room (unlike a pod's own packs): these two are a static reference
