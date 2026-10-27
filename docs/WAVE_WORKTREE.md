@@ -69,10 +69,10 @@ moved with the deploy, and its shared copy is `~/.local/share/cardtable/scryfall
 ```sh
 export PATH="/home/hadoku/.local/share/fnm/node-versions/v24.18.0/installation/bin:$PATH"
 export CARDTABLE_FORGE_JAR="$HOME/.local/share/cardtable/jars/$(git ls-tree HEAD forge | awk '{print $3}').jar"   # per-pin, from THIS worktree's own pin (docs/FORGE_JAR.md); `test -f` it before trusting it — a pin nobody has built yet leaves this pointing at nothing
-export CARDTABLE_FORGE_RES="/home/hadoku/srv/hadoku-cardtable/forge/forge-gui/res"   # read-only use of the deploy tree; it tracks main's pin, so check it equals THIS worktree's
+export CARDTABLE_FORGE_RES="/home/hadoku/srv/hadoku-cardtable-ppe/forge/forge-gui/res"   # read-only use of the PPE tree: PPE tracks main's pin, prod (~/srv/hadoku-cardtable) only moves at a release and lags it; check it equals THIS worktree's
 export CARDTABLE_SCRYFALL_DIR="$HOME/.local/share/cardtable/scryfall"   # cards.jsonl + manifest.json, read-only for lanes (land.sh and build CLIs read it)
 export CARDTABLE_PLAY_WORK_DIR="$HOME/.cache/cardtable-play-work/w<N>-<lane>"   # on DISK, never under /tmp: see below
-# Forge SOURCE to read: /home/hadoku/srv/hadoku-cardtable/forge/ (main's pin). Never build or write there.
+# Forge SOURCE to read: /home/hadoku/srv/hadoku-cardtable-ppe/forge/ (main's pin). Never build or write there.
 ```
 
 Run e2e from `e2e/` after `pnpm --filter @hadoku/ui --filter @hadoku/server build`.
