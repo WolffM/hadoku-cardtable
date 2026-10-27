@@ -304,11 +304,8 @@
 }
 
 .room-card__go {
-  flex: 1 1 auto;
-}
-
-.room-card__go--watch {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
+  font-weight: 600;
 }
 
 /* The room's own exact words — locked, streamed, dealt — kept verbatim but folded under the new rows. */
@@ -337,12 +334,6 @@
   border-radius: 999px;
   padding: 0 8px;
   font-size: 12px;
-}
-
-.rooms__members {
-  font-size: 13px;
-  color: var(--ink-faint);
-  overflow-wrap: anywhere;
 }
 
 /*

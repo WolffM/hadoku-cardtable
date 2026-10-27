@@ -561,10 +561,9 @@ function RoomRow({
           )}
         </div>
 
-        {/* The seats count (row 1) already says how many are here; this is the roster itself — kept
-            for the member who has it (`room-face`) and for a face/name a test still reads
-            (ruling 2: the empty-room "Nobody here yet" line is gone, the element is not). */}
-        <span className="rooms__members" data-testid="room-members">
+        {/* The roster, for a screen reader only: the seats count (row 1) is what the card shows, and the
+            operator cut the visible names line (2026-10-27) — the card is four rows. */}
+        <span className="rooms__members rooms__sr" data-testid="room-members">
           {/* A face per member who HAS one, and nothing at all for a member who
               does not — never a placeholder square, because a row of identical
               squares says less than the names already beside them. */}
