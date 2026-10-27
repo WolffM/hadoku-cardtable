@@ -1,0 +1,11 @@
+{
+  "name": "@hadoku/agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "description": "The host agent on a hosting claw: verified artifacts, --host bridge JVMs in leaf cgroups, a signed line relay to the coordinator, fencing. Bundled to one file for node 22 by scripts/agent/deploy.sh.",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}
