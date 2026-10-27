@@ -1299,6 +1299,13 @@ const MIN_CARD_PX = 36;
  * arithmetic that moved them onto the other axis.
  */
 const MIN_GROUPED_CARD_PX = 30;
+/**
+ * One table (operator, 2026-10-27): the viewer's battlefield and the last opponents' now keep
+ * `--seam-gutter` of their own padding on the edge that faces the other side — the surfaces meet
+ * with no gap, but the cards on each side stand apart. So on THAT edge a lane legitimately falls
+ * this many px short of the zone's own box, where every other edge still meets it (`board.css`).
+ */
+const SEAM_GUTTER_PX = 10;
 /** The rows a battlefield draws, in the order `Board.tsx` draws them. */
 const BOARD_ROWS = ['lands', 'artifacts', 'creatures', 'other'] as const;
 
@@ -2392,10 +2399,14 @@ test(CROWD_TITLE, async ({ browser }) => {
               expect(g.scroll[0], `${where}: ${side} ${g.row} scrolls sideways`).toBeLessThanOrEqual(g.box[0] + 1);
               expect(g.scroll[1], `${where}: ${side} ${g.row} scrolls downward`).toBeLessThanOrEqual(g.box[1] + 1);
             }
-            // Every lane is the full height of the slot: they divide its width.
+            // Every lane is the full height of the slot: they divide its width. One table's seam
+            // gutter (above) takes `SEAM_GUTTER_PX` of that off the edge facing the other side —
+            // every battlefield this spec measures has one (both sides, alice vs bob).
             const heights = filled.map((g) => g.box[1]);
             expect(Math.max(...heights) - Math.min(...heights), `${where}: ${side} lanes are one height`).toBeLessThanOrEqual(2);
-            expect(Math.min(...heights), `${where}: ${side} lanes take the slot's height`).toBeGreaterThanOrEqual(z.box[1] - 4);
+            expect(Math.min(...heights), `${where}: ${side} lanes take the slot's height, less the seam gutter`).toBeGreaterThanOrEqual(
+              z.box[1] - 4 - SEAM_GUTTER_PX,
+            );
             // And the width each took is what it holds, so one card width fits
             // the whole battlefield: the widest card is no more than half again
             // the narrowest, whatever the split.
