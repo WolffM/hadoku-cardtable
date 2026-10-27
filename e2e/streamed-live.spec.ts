@@ -14,7 +14,8 @@
  *
  * ## It skips itself rather than failing where it cannot run
  *
- * CI has no docker and no image. A red there would say "the product is broken"
+ * CI has no docker and no image (and where a runner does have docker, no Forge res for the
+ * container to mount). A red there would say "the product is broken"
  * when it means "this machine cannot host a container", so the preconditions
  * are checked and the spec skips with the reason named.
  *
@@ -28,6 +29,9 @@
  */
 
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
@@ -95,7 +99,12 @@ async function computeDockerUsable(): Promise<string | null> {
   }
   const image = process.env.CARDTABLE_STREAM_IMAGE ?? 'cardtable-stream-spike:w14';
   const found = await docker(['images', '-q', image]);
-  return found === '' ? `the stream image ${image} is not built here` : null;
+  if (found === '') return `the stream image ${image} is not built here`;
+  // The container mounts Forge's res read-only, from where `scripts/stream/container.sh` looks for it.
+  // A CI checkout on a runner that has docker (hokon, when a job overflows the claws) has no Forge
+  // there, and the script refused every provision: "no Forge res at …" (run 40453125933).
+  const res = process.env.CARDTABLE_STREAM_FORGE_RES ?? fileURLToPath(new URL('../forge/forge-gui/res', import.meta.url));
+  return existsSync(join(res, 'cardsfolder')) ? null : `no Forge res at ${res} for the container to mount`;
 }
 
 interface Friend {
