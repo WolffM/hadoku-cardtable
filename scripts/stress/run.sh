@@ -8,6 +8,7 @@
 #
 # Usage:
 #   run.sh stage <claw>...                     copy jar, res, classes, decks
+#   run.sh build-stage                         lay the same out in $STAGE, for agent/agent.sh pack
 #   run.sh run <claw> <tsv> <label> <cpus> <memmax> <xmx> [-Dstress.k=v ...]
 #                                             one capped JVM; appends one TSV row
 #   run.sh replay <claw> <label> [-Dreplay.k=v ...]
@@ -39,6 +40,15 @@ build() {
 	"$JDK/bin/javac" -proc:none -Xlint:-options -cp "$JAR" -d "$STAGE/classes" "$HERE/src/ForgeScale.java" "$HERE/src/ForgeReplay.java"
 	cp "$JAR" "$STAGE/forge.jar"
 	python3 -I -c 'import json,sys; [print(c["name"]) for c in json.load(open(sys.argv[1]))["cards"]]' "$CUBE" > "$STAGE/cube-names.txt"
+}
+
+# Everything stage() copies, laid out in $STAGE itself (agent/agent.sh pack ships it as one tarball).
+build_stage() {
+	build
+	rsync -a --delete --exclude adventure --exclude music --exclude skins "$RES/" "$STAGE/res/"
+	if compgen -G "$DECKS/*.dck" > /dev/null; then
+		rsync -a --delete "$DECKS/" "$STAGE/decks/"
+	fi
 }
 
 stage() {
@@ -148,10 +158,11 @@ clean() {
 	for c in "$@"; do ssh -o BatchMode=yes "$c" "rm -rf ~/$REMOTE" && echo "cleaned $c"; done
 }
 
-cmd=${1:?usage: run.sh stage|run|replay|fetch-decks|clean ...}
+cmd=${1:?usage: run.sh stage|build-stage|run|replay|fetch-decks|clean ...}
 shift
 case $cmd in
 	stage) stage "$@" ;;
+	build-stage) build_stage ;;
 	run) run "$@" ;;
 	replay) replay "$@" ;;
 	fetch-decks) fetch_decks "$@" ;;
