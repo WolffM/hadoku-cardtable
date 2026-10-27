@@ -21,6 +21,6 @@
     "upload-art": "node src/cli/upload-art.ts"
   },
   "dependencies": {
-    "@wolffm/cdn-client": "2.0.0"
+    "@wolffm/cdn-client": "2.0.1"
   }
 }
