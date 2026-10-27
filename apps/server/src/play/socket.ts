@@ -106,6 +106,7 @@ import {
 	type MatchRole,
 	type MatchSeats,
 	type MatchSnapshot,
+	type ServerEnvelope,
 } from '@hadoku/shared';
 import { createSeatTable, type ParticipantId } from '@wolffm/rooms-protocol';
 import { parseDck } from '@hadoku/carddata/dck';
@@ -189,6 +190,14 @@ export interface PlayDeps {
 	seatAvatar?(matchId: string, owner: string): string | undefined;
 	/** What a seat's deck colours fold against (`./deck-colors.ts`). Absent: the library's costs alone. */
 	deckCosts?: DeckCosts;
+	/**
+	 * Wave 77 §C — every envelope the registry's `emit` sends, for every match, before it is
+	 * filtered to its recipient socket(s). Additive only: it changes nothing about `emit`'s existing
+	 * behaviour below. The recorder (`play/recording/recorder.ts`) uses this to capture the watcher
+	 * channel's own stream (`seat === WATCHER_SEAT`) — the one thing `index.ts` cannot otherwise reach
+	 * from outside `match.ts`, which lane C does not own this wave.
+	 */
+	onEnvelope?(matchId: string, seat: number, envelope: ServerEnvelope): void;
 }
 
 export interface PlayHandle {
@@ -517,6 +526,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			emitPerRecipient<PlayApp, PlayClient, typeof frame>(io, roomFor(match), MATCH_EVENTS.phaseStop, (client) => (client.app.seat === seat ? frame : SKIP), policy);
 		},
 		emit: (match, seat, envelope) => {
+			deps.onEnvelope?.(match.id, seat, envelope);
 			emitPerRecipient<PlayApp, PlayClient, typeof envelope>(
 				io,
 				roomFor(match),
