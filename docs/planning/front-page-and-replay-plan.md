@@ -217,9 +217,43 @@ which input took which.
   reply lines (646f07a6) already makes the reply mapping exact.
 - Until then a replay lasts as long as its public stream (7 days).
 
+## Wave 78 results (2026-10-27)
+
+**Rebuild shipped, behind a check.**
+
+What it does:
+- The bridge echoes each act at the moment Forge applies it (`SeatController`'s seven
+  `IGameController` overrides, in `PlayBridge.java`). It also echoes when a seat's input opens (an
+  `InputQueue` observer).
+- The action log (`v:2`) records applied acts, in applied order, and answers with their `ask`
+  number. Nothing else.
+- A rebuild sends each act only once its seat has an open input. That way ActGate's 5 s
+  between-inputs hold (`GameServerHandler.java`'s `BETWEEN_INPUTS_MS`) never holds or drops one.
+  Then it waits for the act's echo.
+- The pin comes from the jar's name or its bundle directory (`<pin>/forge.jar` on CI).
+
+**Not yet deterministic:**
+- On the claws, a strict replay matched 4 of 6 times. One stalled, and one finished clean on a
+  different board.
+- So the recorder writes each seat's final board digest into the log's end line. A rebuild that
+  does not reach both is refused, and never written or served.
+- Proof: three claw runs at 4240b371 (40580147774, 40580161358, 40580174354), all green. The real
+  rebuild came back ok each time. An earlier round's one divergence was refused and wrote nothing,
+  as designed.
+- `replay-determinism.jvm.test.ts` asserts the stronger, still-false property. It stays off main,
+  on branch `w77-d`.
+
+**Mutations the log does not carry:**
+- `setTriggerDecision` (`PlayBridge.java:5160`) and `setPhaseDelayOff` (`:5130`) write straight into
+  Forge's `YieldController`.
+- Today's server never sends either one in play, but a player's own trigger-remember choice would.
+
+**Open:** the remaining drift. A replay that cannot be rebuilt shows as unavailable once its 7-day
+public stream has expired.
+
 ## Still open
 
-- Rebuild needs the bridge's consumed-act echo (above).
+- Rebuild matches most games, not all (wave 78 above); the drift's last cause is unknown.
 - The replay scrubber moves by time, not turn: the public stream carries no turn markers yet.
 - The draft card shows no pack and pick: not on the room wire.
 - The Upcoming card reads `apps/ui/src/front/events.json`, empty until someone adds events.
