@@ -62,9 +62,10 @@
  * hidden` is the art's clip box; `.room-card__body` is everything the art sits behind, raised onto
  * its own stacking layer so the wash never shows through the text.
  *
- * `transform`/`border-color`/`box-shadow` transition for the hover lift (ruling 11); `opacity`/
- * `filter` for the "matches the filters" dim (ruling 6, `[data-match='false']` below) — never a
- * literal colour, only theme tokens.
+ * `transform`/`border-color`/`box-shadow` transition for the hover lift (ruling 11); `opacity` for
+ * the "matches the filters" dim (ruling 6, `[data-match='false']` below). Never a `filter`: the card
+ * holds card art, which is never colour-filtered (`cardImageRules.test.ts`). Never a literal colour,
+ * only theme tokens.
  */
 .room-card {
   position: relative;
@@ -72,7 +73,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--bg);
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.2s ease, filter 0.2s ease;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.2s ease;
 }
 
 .room-card:hover,
@@ -85,7 +86,6 @@
 /* A room that does not match every filter that is ON: dimmed, never hidden — its buttons still work. */
 .room-card[data-match='false'] {
   opacity: 0.55;
-  filter: grayscale(0.6);
 }
 
 .room-card__art {
