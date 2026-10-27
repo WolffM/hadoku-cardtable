@@ -1,0 +1,17 @@
+# Two Punishing Fires in alice's graveyard and no red source: when bob gains life, each trigger's
+# "you may pay {R}" cannot be paid, so neither is a question. Alice (seat 0) is in her own Main
+# Phase 1 with Swords to Plowshares, a Plains to cast it and a Forest that pays nothing red; Swords
+# on bob's Grizzly Bears gains him 2 life. Both libraries hold lands so no draw step loses.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Swords to Plowshares
+humanbattlefield=Plains;Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=Punishing Fire;Punishing Fire
+aihand=
+aibattlefield=Grizzly Bears
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=

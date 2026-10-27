@@ -1,0 +1,17 @@
+# Elephant Grass across the table taxes each nonblack attacker {2}. Alice (seat 0) is in her own
+# Main Phase 1 with Grizzly Bears and Hill Giant ready to attack, one untapped Mountain, a tapped
+# Mountain and an untapped Wooded Foothills: a fetchland is no mana ability, so no attack tax can
+# be paid. Both libraries hold lands so no draw step loses.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Grizzly Bears;Hill Giant;Mountain;Mountain|Tapped;Wooded Foothills
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Elephant Grass
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=
