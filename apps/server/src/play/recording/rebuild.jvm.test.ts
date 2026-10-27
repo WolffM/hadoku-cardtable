@@ -214,7 +214,7 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 			deckCosts,
 			log: () => {},
 		});
-		const jvmA = queueColdStarts(jvmHostFactory(available.config, { spare: false, log: () => {} }), COLD_STARTS, () => {});
+		const jvmA = queueColdStarts(jvmHostFactory({ ...available.config, workDir: join(available.config.workDir, 'a') }, { warm: false, log: () => {} }), COLD_STARTS, () => {});
 		const hostedA = recorder.host(jvmA);
 		const registry = createMatchRegistry({
 			host: (id, s, events) => {
@@ -389,7 +389,8 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 		void hostSpec; // read above only to satisfy the `host` factory's own signature
 
 		// ---- Rebuild it on a second JVM, through the same kind of queued factory a real server uses. ----
-		const jvmR = queueColdStarts(jvmHostFactory(available.config, { spare: false, log: () => {} }), COLD_STARTS, () => {});
+		// A pool of its own directory, as the server's rebuild pool has: one sharing jvmA's would take its JVMs back.
+		const jvmR = queueColdStarts(jvmHostFactory({ ...available.config, workDir: join(available.config.workDir, 'rebuild') }, { warm: false, log: () => {} }), COLD_STARTS, () => {});
 		const tR = Date.now();
 		const result = await rebuild(matchId, { recordingsDir, host: jvmR, log: (e) => console.log('[rebuild-log]', JSON.stringify(e)), deckCosts });
 		const rebuildMs = Date.now() - tR;

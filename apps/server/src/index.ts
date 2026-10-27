@@ -737,7 +737,11 @@ setInterval(() => sweepRecordings(RECORDINGS_DIR, Date.now(), recordingsLog), RE
 // never crowd out a real match's: it is never competing for the SAME slots. Without Forge,
 // `rebuild` stays unset, so a match whose stream is gone still answers `source: 'none'`/404 rather
 // than a crash.
-const rebuildHost = forge.ok ? queueColdStarts(jvmHostFactory(forge.config, { spare: false, log: recordingsLog }), coldStartsFrom(), recordingsLog) : null;
+// Its own work directory: a pool sweeps its directory when made and takes back every JVM it finds
+// running there, so a rebuild pool sharing the play pool's would adopt live matches' JVMs.
+const rebuildHost = forge.ok
+	? queueColdStarts(jvmHostFactory({ ...forge.config, workDir: join(forge.config.workDir, 'rebuild') }, { warm: false, log: recordingsLog }), coldStartsFrom(), recordingsLog)
+	: null;
 attachReplays(api, {
 	dir: RECORDINGS_DIR,
 	isTesting: (roomId) => (roomId === null ? false : lobby.get(roomId)?.testing === true),
