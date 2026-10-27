@@ -10,7 +10,9 @@
  * `g.resolve,g.damage-player,g.draw` 0.7 s later). What this pins, on BOTH screens, every frame:
  *
  *  - Kalitas: the Zombie arrives FROM Kalitas — its row card is marked `data-arriving-from="<Kalitas>"`
- *    and a stand-in travels from Kalitas's place into the Zombie's slot;
+ *    — and, as every token does since AF413 (the operator, 2026-10-27: a token drops into its own
+ *    space), arrives in its OWN slot: released over it and dropped in (`entries.ts`'s `release`), or
+ *    in Fast Mode the landing alone, in place. It no longer glides from Kalitas;
  *  - Sorin: the revealed card has its beat first (`data-reveal-beat` on the card where the board
  *    draws it — the top of alice's library, then her hand; no reveal notice opens for a card the board
  *    draws), THEN a hit (`[data-hit="player:<bob>"]`) sets off from the revealed card and slams into
@@ -43,10 +45,12 @@ interface Frame {
   /** Where each hit slammed in (`projectile.ts`'s impact): its key and centre. */
   impacts: { key: string; x: number; y: number }[];
   numbers: string[];
-  arriving: { id: string; from: string }[];
+  arriving: { id: string; from: string; x: number; y: number }[];
   ghosts: { x: number; y: number }[];
   /** Row cards hidden while their stand-in travels to them. */
   landing: string[];
+  /** An entry's stand-in (`entries.ts`, `.board-entry`): its motion and centre. */
+  entries: { motion: string; x: number; y: number }[];
 }
 
 /** Record, every frame until `stop` is called, the marks a resolution's beats draw. */
@@ -73,9 +77,10 @@ async function record(page: Page): Promise<void> {
         hits: Array.from(document.querySelectorAll('[data-hit]')).map((el) => ({ key: el.getAttribute('data-hit') ?? '', ...centre(el) })),
         impacts: Array.from(document.querySelectorAll('[data-impact]')).map((el) => ({ key: el.getAttribute('data-impact') ?? '', ...centre(el) })),
         numbers: Array.from(document.querySelectorAll('.board-number')).map((el) => el.textContent ?? ''),
-        arriving: Array.from(document.querySelectorAll('[data-arriving-from]')).map((el) => ({ id: el.getAttribute('data-board-card') ?? '', from: el.getAttribute('data-arriving-from') ?? '' })),
+        arriving: Array.from(document.querySelectorAll('[data-arriving-from]')).map((el) => ({ id: el.getAttribute('data-board-card') ?? '', from: el.getAttribute('data-arriving-from') ?? '', ...centre(el) })),
         ghosts: Array.from(document.querySelectorAll('[data-cast-ghost]')).map(centre),
         landing: Array.from(document.querySelectorAll('[data-zone="battlefield"] [data-cast-landing]')).map((el) => el.getAttribute('data-board-card') ?? ''),
+        entries: Array.from(document.querySelectorAll('.board-entry[data-entry]')).map((el) => ({ motion: el.getAttribute('data-entry') ?? '', ...centre(el) })),
       });
       requestAnimationFrame(tick);
     };
@@ -176,7 +181,7 @@ test(titled('Kalitas’s Zombie arrives from Kalitas, on both screens'), async (
     ] as const) {
       const seen = await frames(page);
       const arriving = seen.filter((f) => f.arriving.some((a) => a.id === String(zombie)));
-      const ghosts = seen.filter((f) => f.ghosts.length > 0);
+      const entries = seen.filter((f) => f.entries.length > 0);
       log(`zombie arrives (${who})`, {
         kalitas,
         zombie,
@@ -185,18 +190,24 @@ test(titled('Kalitas’s Zombie arrives from Kalitas, on both screens'), async (
         frames: seen.length,
         arriving: arriving.length,
         marks: [...new Set(arriving.flatMap((f) => f.arriving.map((a) => `${a.id}<-${a.from}`)))],
-        ghost: ghosts.map((f) => `${f.t}:${f.ghosts.map((g) => `${g.x},${g.y}`).join('|')}${f.landing.includes(String(zombie)) ? ' hidden' : ''}`).slice(0, 30),
+        entry: entries.map((f) => `${f.t}:${f.entries.map((e) => `${e.motion}@${e.x},${e.y}`).join('|')}`).slice(0, 30),
+        xs: [...new Set(arriving.map((f) => f.arriving.find((a) => a.id === String(zombie))!.x))],
       });
       expect(arriving.length, `${who}: the Zombie is drawn arriving`).toBeGreaterThan(0);
       expect(arriving[0]!.arriving.find((a) => a.id === String(zombie))!.from, `${who}: from Kalitas`).toBe(String(kalitas));
-      expect(ghosts.length, `${who}: a stand-in travels`).toBeGreaterThan(0);
-      expect(near(ghosts[0]!.ghosts[0]!, kalitasAt[who], 60), `${who}: it sets off from Kalitas (${JSON.stringify(ghosts[0]!.ghosts[0])} vs ${JSON.stringify(kalitasAt[who])})`).toBe(true);
-      // Where it is between two frames depends on the runner's frame rate; what does not is that the
-      // Zombie is hidden in its slot while its stand-in is up, and drawn there once it has arrived.
-      expect(ghosts.every((f) => f.landing.includes(String(zombie))), `${who}: the Zombie waits hidden in its slot while the stand-in travels`).toBe(true);
-      const last = seen.at(-1)!;
-      expect(last.ghosts.length === 0 && !last.landing.includes(String(zombie)), `${who}: and is drawn there once it has arrived`).toBe(true);
-      expect(ghosts.at(-1)!.t - ghosts[0]!.t, `${who}: the trip takes a visible moment`).toBeGreaterThanOrEqual(100);
+      // Over its own column the whole time — a landing's drop and lift move it up and down, never
+      // across — whether it is released over the slot or, in Fast Mode, lands in place.
+      for (const f of arriving) {
+        const at = f.arriving.find((a) => a.id === String(zombie))!;
+        expect(Math.abs(at.x - slots[who].x), `${who}: the Zombie arrives in its own slot (x ${at.x} vs ${slots[who].x} at ${f.t} ms)`).toBeLessThan(20);
+      }
+      for (const e of entries.flatMap((f) => f.entries)) {
+        expect(e.motion, `${who}: a token is released, not carried in`).toBe('release');
+        expect(Math.abs(e.x - slots[who].x), `${who}: over its own slot (${JSON.stringify(e)} vs ${JSON.stringify(slots[who])})`).toBeLessThan(20);
+      }
+      expect(seen.every((f) => f.ghosts.length === 0), `${who}: nothing glides from Kalitas`).toBe(true);
+      expect(arriving.at(-1)!.t - arriving[0]!.t, `${who}: the arrival takes a visible moment`).toBeGreaterThanOrEqual(100);
+      expect(seen.at(-1)!.entries.length, `${who}: and has landed by the end`).toBe(0);
     }
   } finally {
     await stack.stop();

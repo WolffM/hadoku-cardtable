@@ -76,7 +76,21 @@ for (const c of CASES) {
         expect(text, `${who}: and none of Forge’s stack notes`).not.toMatch(NOTES);
         if (c.target !== null) expect(label, `${who}: the target is still named, on the chip’s accessible name`).toContain(`→ ${c.target}`);
 
-        await chip.hover();
+        // Where the chip shows, not its centre: the decision window opens over the board's middle,
+        // where a spell released there is placed, and can cover part of the chip (alice's witness
+        // chip ran from y 387 to 502 under a window ending at 421 once the one-table seam moved it).
+        const at = await chip.evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          for (const fy of [0.9, 0.75, 0.5, 0.25, 0.1]) {
+            for (const fx of [0.5, 0.25, 0.75, 0.1, 0.9]) {
+              const hit = document.elementFromPoint(r.left + r.width * fx, r.top + r.height * fy);
+              if (hit !== null && el.contains(hit)) return { x: r.width * fx, y: r.height * fy };
+            }
+          }
+          return null;
+        });
+        expect(at, `${who}: some of the chip shows beside the decision window`).not.toBeNull();
+        await chip.hover({ position: at! });
         const panel = page.locator('[data-inspect] [data-ability-chip] .placed__chip-text');
         await expect(panel, `${who}: hovering the chip opens the expanded view`).toHaveCount(1);
         const enlarged = ((await panel.textContent()) ?? '').trim();

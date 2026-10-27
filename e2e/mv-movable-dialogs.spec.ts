@@ -232,13 +232,16 @@ test(titled('an opened pile moves the same way, and keeps the remembered spot fo
     const from = { x: head.x + head.width / 2, y: head.y + head.height / 2 };
     await page.mouse.move(from.x, from.y);
     await page.mouse.down();
-    await page.mouse.move(from.x + 120, from.y - 40, { steps: 8 });
+    // Up and to the left: a pile opens beside its own pile at the board's left, and how far right
+    // it reaches is how many columns its cards take, which a card-width change of a pixel or two
+    // flips (the one-table seam took it from 8 columns to 11, leaving 27px to its right).
+    await page.mouse.move(from.x - 40, from.y - 120, { steps: 8 });
     expect(await page.locator('[data-gesture-canvas][data-marquee]').count(), 'no board gesture starts under it').toBe(0);
     await page.mouse.up();
     await expect(view, 'moving it does not close it').toBeVisible();
     const after = (await view.boundingBox())!;
-    expect(Math.round(after.x - before.x), 'it moved across by the drag').toBe(120);
-    expect(Math.round(after.y - before.y), 'and up by the drag').toBe(-40);
+    expect(Math.round(after.x - before.x), 'it moved across by the drag').toBe(-40);
+    expect(Math.round(after.y - before.y), 'and up by the drag').toBe(-120);
     expect(await page.evaluate((key) => window.localStorage.getItem(key), SPOT_KEY), 'a pile opens beside its pile: it writes no spot').toBeNull();
   } finally {
     await stack.stop();
