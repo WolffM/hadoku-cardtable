@@ -3,10 +3,11 @@
  * once each booted a cold JVM in 44.7–52.4 s, against 9.6 s for one alone, and the slowest was 8 s
  * inside the 60 s start timeout. A failover on the claws is the same burst.
  *
- * Eight people start a match at the same moment, with the pool's warm spare up as in production:
+ * Eight people start a match at the same moment, with a warm JVM up as in production and two
+ * matches per JVM, so the burst needs boots:
  *
- *  1. no more than `coldStarts` match JVMs boot at once — the pool's one spare is the only JVM
- *     booting beside them;
+ *  1. no more than `coldStarts` JVMs boot at once for starts — the pool's warm one is the only
+ *     JVM booting beside them;
  *  2. every start answers 201: none spends its timeout waiting in the queue;
  *  3. every start that waited was told its place (`GET /api/play/queue`), and the place only fell.
  *
@@ -31,6 +32,8 @@ const EDGE_SECRET = 'test-edge-auth-secret';
 const available = jvmHostConfig();
 const BURST = 8;
 const COLD_STARTS = 2;
+/** Small, so a burst of eight needs JVM boots and the queue between them. */
+const PER_JVM = 2;
 const title = !available.ok
 	? `a burst of starts, against real Forge — SKIPPED: ${available.reason}`
 	: !nightly
@@ -76,41 +79,19 @@ function deck(name: string): string {
 
 type Entry = Record<string, unknown> & { at: number };
 
-/**
- * Boots, from the logs. `jvms`: every JVM from its spawn to its first word (a spare's `warm`, a
- * match's `ready`). `matches`: every match whose start waited on a boot, from when its JVM was
- * asked for (a cold spawn, or a spare adopted before it was warm) to its `ready`; a match that took
- * a warm spare booted nothing.
- */
-function boots(logs: readonly Entry[]): { jvms: { from: number; to: number }[]; matches: { from: number; to: number }[] } {
-	const spawned = new Map<number, number>();
-	const pidOfMatch = new Map<string, number>();
-	const askedAt = new Map<string, number>();
+/** JVM boots, from the logs: every JVM from its spawn to its `warm`. */
+function boots(logs: readonly Entry[]): { from: number; to: number }[] {
+	const spawned = new Map<string, number>();
 	const jvms: { from: number; to: number }[] = [];
-	const matches: { from: number; to: number }[] = [];
-	const done = new Set<number>();
-	const jvmDone = (pid: unknown, at: number): void => {
-		if (typeof pid !== 'number' || done.has(pid)) return;
-		const from = spawned.get(pid);
-		if (from === undefined) return;
-		done.add(pid);
-		jvms.push({ from, to: at });
-	};
 	for (const e of logs) {
-		if (e.evt === 'jvm-spawned' && typeof e.pid === 'number') spawned.set(e.pid, e.at);
-		if ((e.evt === 'spare-adopted' || e.evt === 'jvm-cold') && typeof e.pid === 'number' && typeof e.matchId === 'string') {
-			pidOfMatch.set(e.matchId, e.pid);
-			if (e.warm !== true) askedAt.set(e.matchId, e.at);
-		}
-		if (e.evt === 'spare-warm') jvmDone(e.pid, e.at);
-		if (e.evt === 'forge-ready' && typeof e.matchId === 'string') {
-			jvmDone(pidOfMatch.get(e.matchId), e.at);
-			const from = askedAt.get(e.matchId);
-			if (from !== undefined) matches.push({ from, to: e.at });
-			askedAt.delete(e.matchId);
+		if (e.evt === 'jvm-spawned' && typeof e.id === 'string') spawned.set(e.id, e.at);
+		if (e.evt === 'jvm-warm' && typeof e.id === 'string') {
+			const from = spawned.get(e.id);
+			if (from !== undefined) jvms.push({ from, to: e.at });
+			spawned.delete(e.id);
 		}
 	}
-	return { jvms, matches };
+	return jvms;
 }
 
 /** The most intervals open at one instant. */
@@ -131,7 +112,7 @@ function peak(intervals: readonly { from: number; to: number }[]): number {
 
 describe.skipIf(!available.ok || !nightly)(title, () => {
 	it(
-		`${BURST} starts at once: at most ${COLD_STARTS} match boots and the spare at a time, every start answered, every waiter told its place`,
+		`${BURST} starts at once, ${PER_JVM} matches per JVM: at most ${COLD_STARTS} JVM boots and the warm one at a time, every start answered, every waiter told its place`,
 		async () => {
 			if (!available.ok) throw new Error(available.reason);
 			const logs: Entry[] = [];
@@ -145,7 +126,7 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 			app.use('/api', api);
 			const http: HttpServer = createServer(app);
 			const io = new SocketIOServer(http, { serveClient: false });
-			const factory = jvmHostFactory(available.config, { spare: true, log });
+			const factory = jvmHostFactory({ ...available.config, perJvm: PER_JVM }, { warm: true, log });
 			const handle = socketMod.attachPlay(io, api, {
 				minTier: 'friend',
 				host: factory,
@@ -164,8 +145,8 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 			const port = (http.address() as AddressInfo).port;
 			const url = (path: string): string => `http://127.0.0.1:${port}/api/play/${path}`;
 
-			// As in production: the spare is warm before anyone asks.
-			await waitUntil(() => factory.spare() === 'warm', 'the warm spare', 120_000);
+			// As in production: a JVM is warm before anyone asks.
+			await waitUntil(() => factory.room() === 'warm', 'the warm JVM', 120_000);
 
 			const users = Array.from({ length: BURST }, (_, i) => `burst${i}`);
 			const places = new Map<string, number[]>(users.map((u) => [u, []]));
@@ -204,17 +185,14 @@ describe.skipIf(!available.ok || !nightly)(title, () => {
 			await watching;
 
 			const booted = boots(logs);
-			console.log(`[start-queue] match boots: ${JSON.stringify(booted.matches.map((b) => ({ from: b.from - t0, ms: b.to - b.from })))}`);
-			console.log(`[start-queue] JVM boots: ${JSON.stringify(booted.jvms.map((b) => ({ from: b.from - t0, ms: b.to - b.from })))}`);
-			console.log(`[start-queue] peak: match boots ${peak(booted.matches)}, all JVM boots ${peak(booted.jvms)}`);
+			console.log(`[start-queue] JVM boots: ${JSON.stringify(booted.map((b) => ({ from: b.from - t0, ms: b.to - b.from })))}`);
+			console.log(`[start-queue] peak: JVM boots ${peak(booted)}`);
 			console.log(`[start-queue] places: ${JSON.stringify(Object.fromEntries(places))}`);
 
 			expect(results.filter((r) => r.status !== 201), 'every start answered 201').toEqual([]);
-			expect(peak(booted.matches), 'match boots at once').toBeLessThanOrEqual(COLD_STARTS);
-			expect(peak(booted.jvms), 'JVMs booting at once, the spare included').toBeLessThanOrEqual(COLD_STARTS + 1);
-			// Two start at once and the warm spare takes a third; the rest wait, and each is told so.
+			expect(peak(booted), 'JVMs booting at once, the warm one included').toBeLessThanOrEqual(COLD_STARTS + 1);
+			// Whoever waited was told so, and their place only fell.
 			const waited = [...places.values()].filter((p) => p.length > 0);
-			expect(waited.length, 'starts that were told a place').toBeGreaterThanOrEqual(BURST - COLD_STARTS - 1);
 			for (const seen of waited) expect(seen, 'a place only falls').toEqual([...seen].sort((a, b) => b - a));
 		},
 		600_000,

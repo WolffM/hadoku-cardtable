@@ -30,7 +30,7 @@ import { jvmHostConfig, jvmHostFactory, liveJvmCount, type JvmHostConfig, type J
 import { createMatchRegistry, type Match } from './match.js';
 import { nightly } from './scenario.js';
 
-const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_SPARE: '0' });
+const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_JVM: '0' });
 const title = available.ok
 	? 'a match whose Forge cannot move any more ends, against a real bridge'
 	: `a match whose Forge cannot move any more ends, against a real bridge — SKIPPED: ${available.reason}`;
@@ -81,7 +81,7 @@ function start(patch: Partial<JvmHostConfig>, spec: MatchSpec = VS_AI): Run {
 	const config = { ...available.config, ...patch, jvmOpts: [...available.config.jvmOpts, ...(patch.jvmOpts ?? [])] };
 	const logs: Record<string, unknown>[] = [];
 	const sent: { seat: number; envelope: ServerEnvelope }[] = [];
-	const pool = jvmHostFactory(config, { spare: false, sweep: false, log: (e) => logs.push(e) });
+	const pool = jvmHostFactory(config, { warm: false, sweep: false, log: (e) => logs.push(e) });
 	const registry = createMatchRegistry({
 		host: pool,
 		log: (e) => logs.push(e),
@@ -108,13 +108,16 @@ const status = (r: Run) => (): string =>
 	`status ${r.match.status}, failure ${r.match.failure}; log tail ${JSON.stringify(r.logs.slice(-6))}\nstderr tail:\n${r.stderr().split('\n').slice(-40).join('\n')}`;
 
 describe.skipIf(!available.ok)(title, () => {
-	it('H9: a throw on the game thread fails its match through the bridge\'s fatal, and the JVM exits', async () => {
+	it('H9: a throw on the game thread fails its match through the bridge\'s fatal; the JVM, empty, is retired', async () => {
 		const r = start({ jvmOpts: ['-Dcardtable.fault=game-throw'] }, { ...VS_AI, skipOpening: true });
 		await waitUntil(() => r.match.status === 'failed', 'the match to fail', 60_000, status(r));
 		console.log(`[jvm] H9: ${r.match.failure}`);
 		expect(r.match.failure).toBe("Forge's game thread failed: java.lang.Error: cardtable.fault=game-throw: a test-only failure on the game thread");
-		await waitUntil(() => liveJvmCount() === 0, 'the JVM to exit', 20_000);
-		expect(r.logs.find((l) => l.evt === 'jvm-exited')).toMatchObject({ code: 1 });
+		// The JVM hosts any number of matches, so one match's failure does not end it; with no
+		// warm JVM wanted, its last match ending retires it, and it goes cleanly.
+		await waitUntil(() => liveJvmCount() === 0, 'the JVM to be retired', 20_000);
+		expect(r.logs.find((l) => l.evt === 'jvm-retired')).toBeDefined();
+		expect(r.logs.find((l) => l.evt === 'jvm-exited')).toMatchObject({ code: 0 });
 		expect(r.stderr()).toContain('cardtable.fault=game-throw');
 	}, 120_000);
 
@@ -139,7 +142,7 @@ describe.skipIf(!available.ok)(title, () => {
 		const ms = Date.now() - stoppedAt;
 		console.log(`[jvm] H2: SIGSTOP → failed in ${ms} ms: ${r.match.failure}`);
 		expect(ms).toBeLessThan(6000 + 3000);
-		expect(r.match.failure).toMatch(/^the JVM stopped answering \(nothing from it for \d+ s\), so it was killed; see /);
+		expect(r.match.failure).toMatch(/^the JVM stopped answering \(nothing from it for \d+ s\), so it was killed$/);
 		expect(r.told()).toBe(true);
 		await waitUntil(() => liveJvmCount() === 0, 'the JVM to be gone', 10_000);
 	}, 180_000);

@@ -1,39 +1,55 @@
 import { describe, expect, it } from 'vitest';
 
-import type { BridgeCommand, BridgeLine, HostEvents, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
+import type { BridgeCommand, HostEvents, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
 import { COLD_STARTS, coldStartsFrom, queueColdStarts, type StartEvents } from './start-queue.js';
 
 const SPEC = { seats: [] } as unknown as MatchSpec;
-const READY: BridgeLine = { t: 'ready', forgePort: 1, bootMs: 1, seats: [] };
 
-/** A pool that records every JVM asked for; `spare` is what its spare is. */
-function pool(spare: 'none' | 'booting' | 'warm' = 'none') {
-	const asked: { id: string; events: HostEvents; sent: BridgeCommand[]; remembered: unknown[]; stopped: boolean }[] = [];
+/**
+ * A pool that places matches the way `jvmHostFactory` does — a warm JVM with room first, then
+ * one booting, else a new JVM — with no warm JVM kept, and records every placement. `warm(i)`
+ * finishes JVM i's boot.
+ */
+function pool(perJvm = 2) {
+	const asked: { id: string; jvm: number; events: HostEvents; sent: BridgeCommand[]; remembered: unknown[]; stopped: boolean }[] = [];
+	const jvms: { warm: boolean; matches: number }[] = [];
 	let watcher: (() => void) | null = null;
-	const state = { spare };
+	const open = () => jvms.findIndex((j) => j.warm && j.matches < perJvm);
+	const booting = () => jvms.findIndex((j) => !j.warm && j.matches < perJvm);
 	const factory = ((id: string, _spec: MatchSpec, events: HostEvents): MatchHost => {
-		const jvm = { id, events, sent: [] as BridgeCommand[], remembered: [] as unknown[], stopped: false };
-		asked.push(jvm);
-		// Taking a warm spare leaves a booting replacement behind it, as `jvmHostFactory` does.
-		if (state.spare === 'warm') state.spare = 'booting';
+		let at = open();
+		if (at < 0) at = booting();
+		if (at < 0) {
+			jvms.push({ warm: false, matches: 0 });
+			at = jvms.length - 1;
+		}
+		jvms[at]!.matches += 1;
+		const placed = { id, jvm: at, events, sent: [] as BridgeCommand[], remembered: [] as unknown[], stopped: false };
+		asked.push(placed);
 		return {
-			send: (c) => jvm.sent.push(c),
+			send: (c) => placed.sent.push(c),
 			stop: () => {
-				jvm.stopped = true;
+				placed.stopped = true;
 			},
-			remember: (r) => jvm.remembered.push(r),
+			remember: (r) => placed.remembered.push(r),
 		};
 	}) as MatchHostFactory;
-	factory.spare = () => state.spare;
-	factory.watchSpare = (listener) => {
+	factory.room = () => (open() >= 0 ? 'warm' : booting() >= 0 ? 'booting' : 'none');
+	factory.booting = () => jvms.filter((j) => !j.warm).length;
+	factory.watchRoom = (listener) => {
 		watcher = listener;
 	};
 	return {
 		factory,
 		asked,
-		state,
-		spareWarms() {
-			state.spare = 'warm';
+		jvms,
+		warm(i: number) {
+			jvms[i]!.warm = true;
+			watcher?.();
+		},
+		/** A match on JVM i ended. */
+		freed(i: number) {
+			jvms[i]!.matches -= 1;
 			watcher?.();
 		},
 	};
@@ -56,61 +72,64 @@ function events() {
 }
 
 describe('queueColdStarts', () => {
-	it('boots `limit` at once; each waiter is told its place as it moves, and boots when a slot frees', () => {
-		const p = pool();
+	it('a start that needs no boot goes at once; one that needs a JVM waits while `limit` JVMs boot, told its place as it moves', () => {
+		const p = pool(2);
 		const q = queueColdStarts(p.factory, 2, () => {});
-		const starts = Array.from({ length: 5 }, (_, i) => ({ id: `m-${i}`, ...events() }));
+		const starts = Array.from({ length: 7 }, (_, i) => ({ id: `m-${i}`, ...events() }));
 		for (const s of starts) q(s.id, SPEC, s.ev);
-		expect(p.asked.map((j) => j.id)).toEqual(['m-0', 'm-1']);
-		expect(starts.map((s) => s.seen.places)).toEqual([[], [], [1], [2], [3]]);
+		// m-0 boots JVM 0, m-1 joins it while it boots; m-2 boots JVM 1, m-3 joins it. Two JVMs
+		// booting is the limit, and both are full: the rest wait.
+		expect(p.asked.map((j) => [j.id, j.jvm])).toEqual([
+			['m-0', 0],
+			['m-1', 0],
+			['m-2', 1],
+			['m-3', 1],
+		]);
+		expect(starts.map((s) => s.seen.places)).toEqual([[], [], [], [], [1], [2], [3]]);
 		expect(q.queue()).toEqual({ booting: 2, waiting: 3 });
+		expect(starts.map((s) => s.seen.booting)).toEqual([1, 1, 1, 1, 0, 0, 0]);
 
-		// A JVM's first word ends its boot: the head of the queue starts.
-		p.asked[0]!.events.line(READY);
-		expect(starts[0]!.seen.lines).toBe(1);
-		expect(p.asked.map((j) => j.id)).toEqual(['m-0', 'm-1', 'm-2']);
-		expect(starts.map((s) => s.seen.places)).toEqual([[], [], [1], [2, 1], [3, 2]]);
-		expect(starts.map((s) => s.seen.booting)).toEqual([1, 1, 1, 0, 0]);
+		// A JVM turning warm frees a boot: the head of the queue boots JVM 2, the next joins it.
+		p.warm(0);
+		expect(p.asked.map((j) => [j.id, j.jvm]).slice(4)).toEqual([
+			['m-4', 2],
+			['m-5', 2],
+		]);
+		expect(starts.map((s) => s.seen.places)).toEqual([[], [], [], [], [1], [2], [3, 1]]);
 
-		// A JVM that dies booting frees its slot too.
-		p.asked[1]!.events.exit('crashed');
-		expect(p.asked.map((j) => j.id)).toEqual(['m-0', 'm-1', 'm-2', 'm-3']);
-		expect(starts[1]!.seen.exits).toEqual(['crashed']);
-		// Later lines from a booted JVM free nothing more.
-		p.asked[0]!.events.line(READY);
-		expect(q.queue()).toEqual({ booting: 2, waiting: 1 });
+		// A match ending in a warm JVM makes room there: the last waiter goes at once, no boot.
+		p.freed(0);
+		expect(p.asked.at(-1)).toMatchObject({ id: 'm-6', jvm: 0 });
+		expect(q.queue()).toEqual({ booting: 2, waiting: 0 });
 	});
 
-	it('serves the warm spare first and holds no slot for it; a waiter takes the spare the moment it turns warm', () => {
-		const p = pool('warm');
-		const q = queueColdStarts(p.factory, 1, () => {});
-		const [a, b, c] = [events(), events(), events()];
-		q('m-a', SPEC, a.ev); // the warm spare
-		q('m-b', SPEC, b.ev); // the booting replacement: a boot, holds the one slot
-		q('m-c', SPEC, c.ev); // waits
-		expect(p.asked.map((j) => j.id)).toEqual(['m-a', 'm-b']);
-		expect(q.queue()).toEqual({ booting: 1, waiting: 1 });
-		expect(c.seen.places).toEqual([1]);
-		p.spareWarms();
-		expect(p.asked.map((j) => j.id)).toEqual(['m-a', 'm-b', 'm-c']);
-		expect(q.queue()).toEqual({ booting: 1, waiting: 0 });
+	it('a factory that says nothing about room boots nothing, and every start goes at once', () => {
+		const asked: string[] = [];
+		const bare = ((id: string) => {
+			asked.push(id);
+			return { send: () => undefined, stop: () => undefined };
+		}) as unknown as MatchHostFactory;
+		const q = queueColdStarts(bare, 1, () => {});
+		for (const id of ['m-0', 'm-1', 'm-2']) q(id, SPEC, events().ev);
+		expect(asked).toEqual(['m-0', 'm-1', 'm-2']);
+		expect(q.queue()).toEqual({ booting: 0, waiting: 0 });
 	});
 
-	it('a waiting start keeps what its match asks of it and hands it on, in order, once its JVM exists', () => {
-		const p = pool();
+	it('a waiting start keeps what its match asks of it and hands it on, in order, once it is placed', () => {
+		const p = pool(1);
 		const q = queueColdStarts(p.factory, 1, () => {});
 		q('m-0', SPEC, events().ev);
 		const host = q('m-1', SPEC, events().ev);
 		host.remember?.({ epoch: 'e', owners: ['x'] });
 		host.send({ t: 'stop' } as BridgeCommand);
 		expect(host.handOver?.()).toBe(false);
-		p.asked[0]!.events.line(READY);
+		p.warm(0);
 		expect(p.asked[1]!.remembered).toEqual([{ epoch: 'e', owners: ['x'] }]);
 		expect(p.asked[1]!.sent).toEqual([{ t: 'stop' }]);
 	});
 
 	it('a waiting start that is stopped leaves the queue, exits after stop returns, and moves those behind it up', async () => {
-		const p = pool();
+		const p = pool(1);
 		const q = queueColdStarts(p.factory, 1, () => {});
 		q('m-0', SPEC, events().ev);
 		const b = events();
@@ -122,17 +141,17 @@ describe('queueColdStarts', () => {
 		await Promise.resolve();
 		expect(b.seen.exits).toEqual(['stopped before its JVM started']);
 		expect(c.seen.places).toEqual([2, 1]);
-		p.asked[0]!.events.line(READY);
+		p.warm(0);
 		expect(p.asked.map((j) => j.id)).toEqual(['m-0', 'm-2']);
 	});
 
-	it('closing drops every waiter with a reason; a factory that throws gives its slot back', () => {
+	it('closing drops every waiter with a reason; a factory that throws throws to its caller', () => {
 		let fail = true;
-		const p = pool();
-		const throwing = ((id: string, spec: MatchSpec, ev: HostEvents) => {
+		const p = pool(1);
+		const throwing = Object.assign((id: string, spec: MatchSpec, ev: HostEvents) => {
 			if (fail) throw new Error('no run dir');
 			return p.factory(id, spec, ev);
-		}) as MatchHostFactory;
+		}, { room: p.factory.room, booting: p.factory.booting, watchRoom: p.factory.watchRoom }) as MatchHostFactory;
 		const q = queueColdStarts(throwing, 1, () => {});
 		expect(() => q('m-0', SPEC, events().ev)).toThrow('no run dir');
 		expect(q.queue()).toEqual({ booting: 0, waiting: 0 });
@@ -145,21 +164,22 @@ describe('queueColdStarts', () => {
 	});
 
 	// hosting-test-plan H5: a start the factory cannot make is refused the same way whether it waited or not.
-	it('a waiter whose JVM the factory cannot make is told why with the error itself, then exits', () => {
+	it('a waiter the factory cannot place is told why with the error itself, then exits', () => {
 		let fail = false;
-		const p = pool();
-		const throwing = ((id: string, spec: MatchSpec, ev: HostEvents) => {
+		const p = pool(1);
+		const throwing = Object.assign((id: string, spec: MatchSpec, ev: HostEvents) => {
 			if (fail) throw new Error('ENOSPC: no space left on device, write');
 			return p.factory(id, spec, ev);
-		}) as MatchHostFactory;
+		}, { room: p.factory.room, booting: p.factory.booting, watchRoom: p.factory.watchRoom }) as MatchHostFactory;
 		const q = queueColdStarts(throwing, 1, () => {});
 		q('m-1', SPEC, events().ev);
 		const waiter = events();
 		const refused: Error[] = [];
 		const told: StartEvents = { ...waiter.ev, unstartable: (err) => refused.push(err) };
 		q('m-2', SPEC, told);
+		expect(waiter.seen.places).toEqual([1]);
 		fail = true;
-		p.asked[0]!.events.line(READY);
+		p.warm(0);
 		expect(refused.map((e) => e.message)).toEqual(['ENOSPC: no space left on device, write']);
 		expect(waiter.seen.exits).toEqual(['Forge could not be started: ENOSPC: no space left on device, write']);
 		expect(q.queue()).toEqual({ booting: 0, waiting: 0 });
