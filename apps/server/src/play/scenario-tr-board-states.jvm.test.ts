@@ -15,7 +15,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, landPayer, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, deck, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok ? 'the board-state testing rooms, against real Forge' : `the board-state testing rooms, against real Forge — SKIPPED: ${available.reason}`;
 
@@ -217,81 +217,6 @@ describe.skipIf(!available.ok)(title, () => {
 				await toPriority(s);
 				expect(s.zone(0, 'Battlefield')).toHaveLength(15);
 				expect(s.zone(1, 'Battlefield')).toHaveLength(15);
-			} finally {
-				await s.stop();
-			}
-		},
-		300_000,
-	);
-
-	it(
-		'tr-gifts: turn 1, four Islands, Gifts Ungiven cast — the caster searches one card at a time, the opponent picks two of the four for the graveyard',
-		async () => {
-			if (!available.ok) return;
-			// Each search window offers a card; the opponent's window takes its first `max`.
-			const reply = (f: Record<string, unknown>): unknown => {
-				if (f.method === 'chooseSingleEntityForEffect') return (f.optionList as unknown[])[0] ?? null;
-				if (f.method === 'chooseEntitiesForEffect') return (f.optionList as unknown[]).slice(0, f.max as number);
-				return undefined;
-			};
-			const s = await startScenario(available.config, { seed: 1, decks: DECKS, scenario: scenarioText('tr-gifts'), reply });
-			try {
-				await toPriority(s);
-				expect(s.turn(0)).toEqual({ n: 1, owner: s.names[0] });
-				expect(s.zone(0, 'Battlefield').map((c) => c.name)).toEqual(['Island', 'Island', 'Island', 'Island']);
-				expect(s.zone(0, 'Hand').map((c) => c.name).sort()).toEqual(['Gifts Ungiven', 'Gifts Ungiven', 'Island']);
-
-				const fromAsk = s.asks.length;
-				const oppId = s.match.seats[1]?.playerId as number;
-				const gifts = s.zone(0, 'Hand').find((c) => c.name === 'Gifts Ungiven')!;
-				s.select(0, gifts.id);
-				const pay = landPayer(s, 0);
-				let targeted = false;
-				const passed = new Set<number>();
-				await waitUntil(
-					() => {
-						s.answerAsks();
-						pay();
-						if (!targeted && /target/i.test(s.prompt(0))) {
-							targeted = true;
-							s.match.fromClient(0, { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: oppId }, triggerEvent: null } as never);
-						}
-						// Gifts on the stack: each seat passes its priority once per window, so the spell resolves.
-						for (const seat of [0, 1]) {
-							const at = s.sent.findLastIndex((x) => x.seat === seat && x.envelope.frame.method === 'showPromptMessage');
-							if (at < 0 || passed.has(at) || !/^Stack: 1 to Resolve\.$/m.test(s.prompt(seat)) || s.buttons(seat)?.enable1 !== true) continue;
-							passed.add(at);
-							s.ok(seat);
-						}
-						return s.zone(0, 'Graveyard').some((c) => c.name === 'Gifts Ungiven') && /^Stack: Empty$/m.test(s.prompt(0)) && s.buttons(0)?.enable1 === true;
-					},
-					'Gifts Ungiven to resolve',
-					60_000,
-					s,
-				);
-
-				const asks = s.asks.slice(fromAsk).map((f) => {
-					const a = f as Record<string, unknown>;
-					const seat = s.sent.find((x) => (x.envelope.frame as { callId?: unknown }).callId === a.callId)?.seat;
-					return { seat, method: a.method, title: a.title, options: (a.optionList as unknown[] | undefined)?.length, min: a.min, max: a.max, isOptional: a.isOptional, reveal: a.delayedReveal !== null && a.delayedReveal !== undefined };
-				});
-				console.log(`[tr-gifts] asks ${JSON.stringify(asks)}`);
-
-				// What arrives, in order (real Forge): the caster's own one-ability `getAbilityToPlay` (the browser
-				// answers its own click), four `chooseSingleEntityForEffect` searches over the whole library ("Select a
-				// card from your library (n / 4)", optional — `DifferentNames` turns off Forge's multi-select), then
-				// the opponent's reveal (`getChoices`, min −1) and its one `chooseEntitiesForEffect`. The one
-				// opponent is targeted without a prompt.
-				// The caster's four searches, one window each.
-				const searches = asks.filter((a) => a.seat === 0 && a.method === 'chooseSingleEntityForEffect');
-				expect(searches.length).toBeGreaterThanOrEqual(4);
-				// The opponent's one window: exactly two of the four revealed cards.
-				const pick = asks.filter((a) => a.seat === 1 && a.method === 'chooseEntitiesForEffect');
-				expect(pick).toHaveLength(1);
-				expect(pick[0]).toMatchObject({ options: 4, min: 2, max: 2 });
-				// Two to the graveyard beside the spell, two to the hand beside the second Gifts and the Island.
-				expect(s.zone(0, 'Graveyard')).toHaveLength(3);
-				expect(s.zone(0, 'Hand')).toHaveLength(4);
 			} finally {
 				await s.stop();
 			}

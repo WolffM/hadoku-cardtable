@@ -27,6 +27,7 @@ import { nameIndex, searchNames } from './name-search.ts';
 import { RulesText } from './RulesText.tsx';
 import {
   abilityProblems,
+  breaksSearchRule,
   choiceBounds,
   chooseEntitiesProblems,
   chooseSingleProblems,
@@ -102,11 +103,13 @@ function UnofferedRow({ row, lookup }: { row: SearchRow; lookup: PromptLookup })
 /**
  * A search's one grid (§D.2): choosable first, in Forge's order; then what Forge only revealed.
  * `rules.ts` owns the order and the flag. A radio for one choice, a checkbox for several.
+ * A `blocked` option breaks one of the search's rules beside what is ticked: greyed, not tickable.
  */
 function SearchRows({
   ask,
   type,
   checked,
+  blocked = () => false,
   pick,
   confirm,
   lookup,
@@ -114,6 +117,7 @@ function SearchRows({
   ask: AskOf<'chooseSingleEntityForEffect'> | AskOf<'chooseEntitiesForEffect'>;
   type: 'radio' | 'checkbox';
   checked: (option: number) => boolean;
+  blocked?: (option: number) => boolean;
   pick: (option: number) => void;
   confirm: (option: number) => void;
   lookup: PromptLookup;
@@ -123,11 +127,23 @@ function SearchRows({
   return (
     <ul className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid={anyCards ? 'prompt-cards' : undefined}>
       {rows.map((row) => (
-        <li key={`${row.ref.kind}:${row.ref.id}`} data-card-id={row.ref.kind === 'card' ? row.ref.id : undefined} data-choosable={row.choosable ? undefined : 'false'}>
+        <li
+          key={`${row.ref.kind}:${row.ref.id}`}
+          data-card-id={row.ref.kind === 'card' ? row.ref.id : undefined}
+          data-choosable={row.choosable ? undefined : 'false'}
+          data-blocked={row.option !== null && blocked(row.option) ? 'true' : undefined}
+        >
           {row.option === null ? (
             <UnofferedRow row={row} lookup={lookup} />
           ) : (
-            <PickChoice type={type} data={{ 'data-ref': `${row.ref.kind}:${row.ref.id}` }} checked={checked(row.option)} onPick={() => pick(row.option!)} onConfirm={() => confirm(row.option!)}>
+            <PickChoice
+              type={type}
+              data={{ 'data-ref': `${row.ref.kind}:${row.ref.id}` }}
+              checked={checked(row.option)}
+              disabled={blocked(row.option)}
+              onPick={() => pick(row.option!)}
+              onConfirm={() => confirm(row.option!)}
+            >
               <RowFace entity={row.ref} lookup={lookup} />
             </PickChoice>
           )}
@@ -423,6 +439,11 @@ export function ChooseSingleEntityPrompt({ ask, onAnswer, lookup }: PromptProps<
 export function ChooseEntitiesPrompt({ ask, onAnswer, lookup }: PromptProps<'chooseEntitiesForEffect'>) {
   const bounds = choiceBounds(ask.min, ask.max);
   const replyOf = (picks: readonly number[]) => ask.optionList.filter((_, i) => picks.includes(i));
+  const cardsOf = (picks: readonly number[]) => replyOf(picks).flatMap((r) => (r.kind === 'card' ? [r.id] : []));
+  const breaks = (picks: readonly number[], option: number) => {
+    const ref = ask.optionList[option]!;
+    return ref.kind === 'card' && breaksSearchRule(ask.rules, cardsOf(picks), ref.id);
+  };
   const { chosen, problems, pick, submit, confirm } = usePicks<number>(
     () => [],
     bounds.max === 1,
@@ -440,7 +461,19 @@ export function ChooseEntitiesPrompt({ ask, onAnswer, lookup }: PromptProps<'cho
       <p className="prompt__hint" data-testid="prompt-bounds">
         {boundsText(chosen.length, bounds.min, bounds.max)}
       </p>
-      <SearchRows ask={ask} type="checkbox" checked={(option) => chosen.includes(option)} pick={pick} confirm={confirm} lookup={lookup} />
+      <SearchRows
+        ask={ask}
+        type="checkbox"
+        checked={(option) => chosen.includes(option)}
+        blocked={(option) => breaks(chosen, option)}
+        pick={(option) => {
+          if (!breaks(chosen, option)) pick(option);
+        }}
+        confirm={(option) => {
+          if (!breaks(chosen, option)) confirm(option);
+        }}
+        lookup={lookup}
+      />
     </PromptShell>
   );
 }

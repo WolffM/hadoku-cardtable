@@ -2,8 +2,8 @@
 # its own Main Phase 1 on turn 1 with four untapped Islands and two Gifts
 # Ungiven in hand, so the whole spell can be cast and seen twice. The library
 # holds 18 different names (plus a second Counterspell and Brainstorm, which
-# the search's "different names" rule hides once one copy is chosen), so the
-# four searches have real choices. MAIN1 rather than a later step for the same
+# the search's "different names" rule greys once one copy is chosen), so the
+# one search has real choices (search-rules.jvm.test.ts). MAIN1 rather than a later step for the same
 # reason `tr-combat.state` gives. Seat 1 holds its own Gifts Ungiven and four
 # Islands, and nothing that could counter seat 0's.
 turn=1

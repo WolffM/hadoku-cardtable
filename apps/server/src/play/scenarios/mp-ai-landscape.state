@@ -1,0 +1,16 @@
+# search-rules.jvm.test.ts: Forge's AI (seat 1) at its own Main Phase 1 with an untapped Myriad
+# Landscape ("search for up to two basic land cards that share a land type") and two Plains to pay
+# for it, over a library of mixed basics: its own constrained search, on the AI's one-card path.
+turn=2
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Island
+humanbattlefield=Island
+humanlibrary=Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Myriad Landscape;Plains;Plains
+ailibrary=Island;Forest;Island;Mountain;Swamp;Forest;Island;Mountain;Swamp;Forest;Island;Mountain;Swamp;Forest;Island;Mountain
+aigraveyard=

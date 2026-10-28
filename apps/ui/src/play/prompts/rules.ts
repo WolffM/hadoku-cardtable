@@ -23,7 +23,7 @@
  */
 
 import { deckIssues, newDeck, type Deck } from '@hadoku/deck';
-import { oneEachFit, type BlockingMethod, type CardRef, type ZoneType } from '@hadoku/forge-wire';
+import { oneEachFit, type BlockingMethod, type CardRef, type SearchRule, type ZoneType } from '@hadoku/forge-wire';
 import type { CombatAssignment, CombatDamageRules } from '@hadoku/shared';
 
 import type { AskOf, ReplyOf } from './types.ts';
@@ -222,7 +222,76 @@ export function chooseEntitiesProblems(
   const { min, max } = choiceBounds(ask.min, ask.max);
   if (keys.length < min) problems.push(`choose at least ${min}`);
   if (keys.length > max) problems.push(`choose at most ${max}`);
+  problems.push(...searchRuleProblems(ask.rules, cardIds(reply)));
   return problems;
+}
+
+const cardIds = (refs: readonly { kind: string; id: number }[]) => refs.filter((r) => r.kind === 'card').map((r) => r.id);
+
+const clashes = (rule: Extract<SearchRule, { clash: unknown }>, a: number, b: number) =>
+  rule.clash.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
+
+const total = (values: Readonly<Record<string, number>>, ids: readonly number[]) => ids.reduce((sum, id) => sum + (values[id] ?? 0), 0);
+
+const SEARCH_RULE_TEXT = {
+  differentNames: 'different names',
+  differentManaValues: 'different mana values',
+  differentPowers: 'different powers',
+  shareLandType: 'sharing a land type',
+} as const;
+
+/**
+ * What a search's chosen set breaks of the rules the bridge sent with it (`SearchRuleSchema`): one
+ * line per rule broken. Forge asks again until the set meets them all, so an answer with any of
+ * these is never sent.
+ */
+export function searchRuleProblems(rules: readonly SearchRule[] | undefined, chosen: readonly number[]): Problems {
+  const problems: string[] = [];
+  for (const rule of rules ?? []) {
+    switch (rule.kind) {
+      case 'differentNames':
+      case 'differentManaValues':
+      case 'differentPowers':
+      case 'shareLandType':
+        if (chosen.some((a, i) => chosen.slice(i + 1).some((b) => clashes(rule, a, b)))) problems.push(SEARCH_RULE_TEXT[rule.kind]);
+        break;
+      case 'totalManaValue':
+      case 'totalPower':
+        if (total(rule.values, chosen) > rule.atMost) problems.push(`total ${rule.kind === 'totalPower' ? 'power' : 'mana value'} ${rule.atMost} or less`);
+        break;
+      case 'cardTypes':
+        if (chosen.length > 0 && new Set(chosen.flatMap((id) => rule.values[id] ?? [])).size < rule.atLeast) problems.push(`${rule.atLeast} card types among them`);
+        break;
+      case 'exactly':
+        if (chosen.length > 0 && chosen.length !== rule.count) problems.push(`none or exactly ${rule.count}`);
+        break;
+    }
+  }
+  return problems;
+}
+
+/**
+ * Whether choosing card `id` beside `chosen` would break one of the search's rules for good — a
+ * clash with a card already chosen, or a total it would push past its most. Such a card is greyed
+ * and cannot be ticked until a pick it clashes with is unticked. A rule that more cards could
+ * still satisfy (card types, an exact count) never greys one.
+ */
+export function breaksSearchRule(rules: readonly SearchRule[] | undefined, chosen: readonly number[], id: number): boolean {
+  if (chosen.includes(id)) return false;
+  return (rules ?? []).some((rule) => {
+    switch (rule.kind) {
+      case 'differentNames':
+      case 'differentManaValues':
+      case 'differentPowers':
+      case 'shareLandType':
+        return chosen.some((c) => clashes(rule, c, id));
+      case 'totalManaValue':
+      case 'totalPower':
+        return total(rule.values, [...chosen, id]) > rule.atMost;
+      default:
+        return false;
+    }
+  });
 }
 
 /** One of the abilities offered, or none (`CMatchUI.java:1016-1024`, `oneOrNone`). */

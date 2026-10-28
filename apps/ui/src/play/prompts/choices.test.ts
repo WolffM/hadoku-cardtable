@@ -987,6 +987,87 @@ describe('a double click picks a row and answers', () => {
 });
 
 /*
+ * The operator, 2026-10-26, on Gifts Ungiven arriving as four "(1 / 4)" windows: "this is obviously
+ * a situation where a multi selector should be used". A constrained search is one multi-select whose
+ * ask carries its rules (`SearchRuleSchema`); a card that would break one beside what is ticked is
+ * greyed and cannot be ticked, and OK waits for a set that meets them all.
+ */
+describe('a constrained search', () => {
+  // The fixture offers cards 20, 11 and 2.
+  const searching = (rules: AskOf<'chooseEntitiesForEffect'>['rules'], max = 3) =>
+    parseServerFrame({ ...askFor('chooseEntitiesForEffect'), max, rules }) as AskOf<'chooseEntitiesForEffect'>;
+  const rows = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('[data-testid="prompt-cards"] > li')];
+  const blocked = (container: HTMLElement) => rows(container).filter((li) => li.dataset.blocked === 'true').map((li) => li.dataset.cardId);
+
+  it('different names: a card sharing a name with a ticked one is greyed, untickable, and free again once that one is unticked', () => {
+    const { container, getAllByTestId, answers, submit } = mountPrompt('chooseEntitiesForEffect', searching([{ kind: 'differentNames', clash: [[20, 2]] }]));
+    const boxes = getAllByTestId('prompt-choice') as HTMLInputElement[];
+    expect(blocked(container)).toEqual([]);
+    fireEvent.click(boxes[0]!);
+    expect(blocked(container)).toEqual(['2']);
+    expect(boxes[2]!.disabled).toBe(true);
+    fireEvent.click(boxes[2]!);
+    expect(boxes[2]!.checked).toBe(false);
+    fireEvent.click(boxes[1]!);
+    fireEvent.click(submit());
+    expect(answers).toEqual([
+      [
+        { kind: 'card', id: 20 },
+        { kind: 'card', id: 11 },
+      ],
+    ]);
+    fireEvent.click(boxes[0]!);
+    expect(blocked(container)).toEqual([]);
+  });
+
+  it('a total mana value greys every card that would push the ticked total past it', () => {
+    const { container, getAllByTestId } = mountPrompt(
+      'chooseEntitiesForEffect',
+      searching([{ kind: 'totalManaValue', atMost: 4, values: { '20': 3, '11': 2, '2': 1 } }]),
+    );
+    fireEvent.click(getAllByTestId('prompt-choice')[0]!);
+    expect(blocked(container)).toEqual(['11']);
+  });
+
+  it('a land type to share greys what shares none with the ticked card', () => {
+    const { container, getAllByTestId } = mountPrompt('chooseEntitiesForEffect', searching([{ kind: 'shareLandType', clash: [[11, 2]] }]));
+    fireEvent.click(getAllByTestId('prompt-choice')[1]!);
+    expect(blocked(container)).toEqual(['2']);
+  });
+
+  it('card types among them: OK waits until the ticked cards have enough, and allows none', () => {
+    const { getAllByTestId, submit } = mountPrompt(
+      'chooseEntitiesForEffect',
+      searching([{ kind: 'cardTypes', atLeast: 2, values: { '20': ['Creature'], '11': ['Creature'], '2': ['Instant'] } }]),
+    );
+    const boxes = getAllByTestId('prompt-choice');
+    expect(submit().disabled).toBe(false);
+    fireEvent.click(boxes[0]!);
+    fireEvent.click(boxes[1]!);
+    expect(submit().disabled).toBe(true);
+    fireEvent.click(boxes[2]!);
+    expect(submit().disabled).toBe(false);
+  });
+
+  it('exactly: OK takes none or exactly that many', () => {
+    const { getAllByTestId, submit } = mountPrompt('chooseEntitiesForEffect', searching([{ kind: 'exactly', count: 2 }], 2));
+    const boxes = getAllByTestId('prompt-choice');
+    fireEvent.click(boxes[0]!);
+    expect(submit().disabled).toBe(true);
+    fireEvent.click(boxes[1]!);
+    expect(submit().disabled).toBe(false);
+  });
+
+  it('a double click on a greyed card answers nothing', () => {
+    const { getAllByTestId, answers } = mountPrompt('chooseEntitiesForEffect', searching([{ kind: 'differentPowers', clash: [[20, 11]] }]));
+    const boxes = getAllByTestId('prompt-choice');
+    fireEvent.click(boxes[0]!);
+    doubleClick(boxes[1]!);
+    expect(answers).toEqual([]);
+  });
+});
+
+/*
  * The operator, 2026-10-15, on Cavern of Souls' creature-type list: "why does it just say
  * 'Choose 1' it should show the effect text of cavern of souls". The ask carries the card it was
  * raised for and Forge's text for the effect (`source`, the bridge's `askSource`); every sheet

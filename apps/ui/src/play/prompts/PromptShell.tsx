@@ -533,6 +533,7 @@ export function usePicks<T>(
 export function PickChoice({
   type,
   checked,
+  disabled = false,
   onPick,
   onConfirm,
   data,
@@ -540,6 +541,7 @@ export function PickChoice({
 }: {
   type: 'checkbox' | 'radio';
   checked: boolean;
+  disabled?: boolean;
   onPick: () => void;
   onConfirm: () => void;
   /** The input's own `data-*` markers (`data-key`, `data-ref`, `data-card-id`). */
@@ -559,6 +561,7 @@ export function PickChoice({
         data-testid="prompt-choice"
         {...data}
         checked={checked}
+        disabled={disabled}
         onChange={onPick}
         onClick={type === 'radio' && checked ? (e) => e.detail <= 1 && onPick() : undefined}
       />

@@ -865,3 +865,20 @@ The rooms' hand smoothing setting (`MatchSpec.handSmoothing`) is Forge's own
   `cab6fc5`: while a part is chosen early it is on `game.costPaymentStack`, as `payCost` puts every
   part it pays (`CostPayment.java:171`), so the bridge's `sacrificeAsked` names it a cost's sacrifice
   in either order and the server still takes the only legal one for the seat.
+
+## A constrained search was asked one card at a time — 2026-10-27 (lane multipick)
+
+Verified in `forge-game/src/main/java/forge/game/ability/effects/ChangeZoneEffect.java` at pin `886d7812`:
+a hidden-origin search asks a human ONE multi-select (`chooseCardsForZoneChange`) only when
+`allowMultiSelect` holds, and it excluded every search with a rule on the chosen set — `DifferentNames`,
+`DifferentCMC`, `DifferentPower`, `ShareLandType`, `WithTotalCMC`, `WithTotalPower`,
+`WithTotalCardTypes`. Those fell to the `for (i < changeNum)` loop of `chooseSingleCardForZoneChange`
+windows titled "(i / n)", narrowing the list after each pick. Counted on that pin, as `ChangeZone`
+script lines carrying the parameter: 20 / 1 / 1 / 1 / 5 / 1 / 1 cards (30 in all). The AI never takes
+the multi-select (`allowMultiSelect` is false for an AI decider).
+
+The fork (`7454cb11`) drops those exclusions and checks the chosen set instead
+(`ChangeZoneEffect.meetsSearchConstraints`, the same `Card` tests the loop filtered with; card types
+"among them" as a union of core types), asking again until it holds. Forge's GUI call carries no
+ability, so the bridge's `SeatController.chooseCardsForZoneChange` holds it for the ask, which carries
+the rules (`ChooseEntitiesForEffectSchema.rules`).

@@ -161,6 +161,8 @@ export {
   ChooseSingleEntityForEffectReplySchema,
   ChooseEntitiesForEffectSchema,
   ChooseEntitiesForEffectReplySchema,
+  SearchRuleSchema,
+  type SearchRule,
   ManipulateCardListSchema,
   ManipulateCardListReplySchema,
   OpenZonesSchema,

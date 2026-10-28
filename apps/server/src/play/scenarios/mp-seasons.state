@@ -1,0 +1,16 @@
+# search-rules.jvm.test.ts: seat 0 at its own Main Phase 1 with six Forests and Seasons Past
+# ("return any number of cards with different mana values from your graveyard"). The graveyard
+# holds two mana value 1 cards, two mana value 2 cards and one 4, so the rule has pairs to refuse.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Seasons Past
+humanbattlefield=Forest;Forest;Forest;Forest;Forest;Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=Lightning Bolt;Ponder;Counterspell;Grizzly Bears;Hill Giant
+aihand=Island
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=

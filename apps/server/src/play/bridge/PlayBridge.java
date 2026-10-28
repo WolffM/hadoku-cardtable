@@ -2425,6 +2425,13 @@ public final class PlayBridge {
          */
         volatile Boolean lastToldMulligan;
 
+        /**
+         * The search this seat's controller is choosing for, while its {@code chooseCardsForZoneChange}
+         * runs ({@link SeatController#chooseCardsForZoneChange}): the ability, so the ask can carry the
+         * rules its chosen set must meet ({@link #searchRules}). Null otherwise.
+         */
+        volatile SpellAbility searching;
+
         /** The first {@link BridgeGui.EffectJournal} entry this seat has not been sent. */
         private long effectsFrom;
 
@@ -4444,6 +4451,96 @@ public final class PlayBridge {
             }
         }
 
+        /**
+         * The rules a search's chosen set must meet ({@code ChooseEntitiesForEffectSchema}'s {@code rules}),
+         * read from the {@code ChangeZone}'s own parameters and checked with the same {@code Card} tests
+         * {@code ChangeZoneEffect.meetsSearchConstraints} uses, so the seat can grey a card that would break
+         * one before Forge refuses the set:
+         * <ul>
+         * <li>{@code DifferentNames}, {@code DifferentCMC}, {@code DifferentPower}, {@code ShareLandType}: the
+         *     pairs of offered cards that may not be chosen together ({@code clash});</li>
+         * <li>{@code WithTotalCMC}, {@code WithTotalPower}: each card's amount and the most the set may total;</li>
+         * <li>{@code WithTotalCardTypes}: each card's card types and how many the set needs among them;</li>
+         * <li>{@code Exactly}: none, or exactly {@code max}.</li>
+         * </ul>
+         * Null when there are none, or when an offered card is not a card this seat may see.
+         */
+        private JsonArray searchRules(final SpellAbility sa, final List<? extends GameEntityView> offered, final int max) {
+            final Game game = liveGame();
+            final forge.game.player.Player mine = game == null ? null : liveSelf(game);
+            if (mine == null) { return null; }
+            final List<forge.game.card.Card> cards = new ArrayList<>();
+            for (final GameEntityView v : offered) {
+                if (!(v instanceof CardView cv) || !cv.canBeShownTo(mine.getView())) { return null; }
+                final forge.game.card.Card c = game.findById(cv.getId());
+                if (c == null) { return null; }
+                cards.add(c);
+            }
+            final JsonArray rules = new JsonArray();
+            clashRule(rules, sa, "DifferentNames", "differentNames", cards, (a, b) -> a.sharesNameWith(b));
+            clashRule(rules, sa, "DifferentCMC", "differentManaValues", cards, (a, b) -> a.sharesCMCWith(b));
+            clashRule(rules, sa, "DifferentPower", "differentPowers", cards, (a, b) -> a.getNetPower() == b.getNetPower());
+            clashRule(rules, sa, "ShareLandType", "shareLandType", cards, (a, b) -> !a.sharesLandTypeWith(b));
+            totalRule(rules, sa, "WithTotalCMC", "totalManaValue", cards, forge.game.card.Card::getCMC);
+            totalRule(rules, sa, "WithTotalPower", "totalPower", cards, forge.game.card.Card::getNetPower);
+            if (sa.hasParam("WithTotalCardTypes")) {
+                final JsonObject o = new JsonObject();
+                o.addProperty("kind", "cardTypes");
+                o.addProperty("atLeast", AbilityUtils.calculateAmount(sa.getHostCard(), sa.getParam("WithTotalCardTypes"), sa));
+                final JsonObject values = new JsonObject();
+                for (final forge.game.card.Card c : cards) {
+                    final JsonArray types = new JsonArray();
+                    for (final forge.card.CardType.CoreType t : c.getType().getCoreTypes()) { types.add(t.name()); }
+                    values.add(String.valueOf(c.getId()), types);
+                }
+                o.add("values", values);
+                rules.add(o);
+            }
+            if (sa.hasParam("Exactly")) {
+                final JsonObject o = new JsonObject();
+                o.addProperty("kind", "exactly");
+                o.addProperty("count", max);
+                rules.add(o);
+            }
+            return rules.isEmpty() ? null : rules;
+        }
+
+        /** A pairwise rule: every pair of offered cards {@code clash} says may not be chosen together. */
+        private static void clashRule(final JsonArray rules, final SpellAbility sa, final String param, final String kind,
+                                      final List<forge.game.card.Card> cards,
+                                      final java.util.function.BiPredicate<forge.game.card.Card, forge.game.card.Card> clash) {
+            if (!sa.hasParam(param)) { return; }
+            final JsonArray pairs = new JsonArray();
+            for (int i = 0; i < cards.size(); i++) {
+                for (int j = i + 1; j < cards.size(); j++) {
+                    if (!clash.test(cards.get(i), cards.get(j))) { continue; }
+                    final JsonArray pair = new JsonArray();
+                    pair.add(cards.get(i).getId());
+                    pair.add(cards.get(j).getId());
+                    pairs.add(pair);
+                }
+            }
+            final JsonObject o = new JsonObject();
+            o.addProperty("kind", kind);
+            o.add("clash", pairs);
+            rules.add(o);
+        }
+
+        /** A total the chosen cards may not exceed; none when the amount is negative, as Forge reads it. */
+        private static void totalRule(final JsonArray rules, final SpellAbility sa, final String param, final String kind,
+                                      final List<forge.game.card.Card> cards, final java.util.function.ToIntFunction<forge.game.card.Card> amount) {
+            if (!sa.hasParam(param)) { return; }
+            final int most = AbilityUtils.calculateAmount(sa.getHostCard(), sa.getParam(param), sa);
+            if (most < 0) { return; }
+            final JsonObject o = new JsonObject();
+            o.addProperty("kind", kind);
+            o.addProperty("atMost", most);
+            final JsonObject values = new JsonObject();
+            for (final forge.game.card.Card c : cards) { values.addProperty(String.valueOf(c.getId()), amount.applyAsInt(c)); }
+            o.add("values", values);
+            rules.add(o);
+        }
+
         /** The stack of the server thread parked in {@code RemoteClientGuiGame.order}, or empty. */
         private static StackTraceElement[] askingStack() {
             return askingStack("order");
@@ -4856,6 +4953,9 @@ public final class PlayBridge {
             f.add("delayedReveal", delayedReveal(delayedReveal));
             final JsonObject dig = digZones(delayedReveal);
             if (dig != null) { f.add("dig", dig); }
+            final SpellAbility search = searching;
+            final JsonArray rules = search == null ? null : orNull("searchRules", () -> searchRules(search, optionList, max));
+            if (rules != null) { f.add("rules", rules); }
             final JsonElement r = await(ask, f);
             if (r == ABORTED) { return null; }
             final List<GameEntityView> out = new ArrayList<>();
@@ -5421,6 +5521,25 @@ public final class PlayBridge {
             final forge.game.card.CardCollection toExile = new forge.game.card.CardCollection();
             if (picked != null) { byView.addToList(picked, toExile); }
             return toExile;
+        }
+
+        /**
+         * A search ({@code ChangeZoneEffect}'s multi-select) asks through this seat's GUI with no ability
+         * ({@code chooseEntitiesForEffect}); the seat's {@link SeatGui} holds it for the length of the call,
+         * so the ask can carry the rules the chosen set must meet ({@link SeatGui#searchRules}).
+         */
+        @Override
+        public List<forge.game.card.Card> chooseCardsForZoneChange(final ZoneType destination, final List<ZoneType> origin,
+                final SpellAbility sa, final forge.game.card.CardCollection fetchList, final int min, final int max,
+                final DelayedReveal delayedReveal, final String selectPrompt, final forge.game.player.Player decider) {
+            final SeatGui gui = match.seatGuis.get(seat);
+            final boolean search = gui != null && sa != null && sa.getApi() == forge.game.ability.ApiType.ChangeZone;
+            if (search) { gui.searching = sa; }
+            try {
+                return super.chooseCardsForZoneChange(destination, origin, sa, fetchList, min, max, delayedReveal, selectPrompt, decider);
+            } finally {
+                if (search) { gui.searching = null; }
+            }
         }
 
         // ------------------------------------------------ the applied-act echo (wave 78 §A)

@@ -930,6 +930,38 @@ export const ChooseSingleEntityForEffectReplySchema = GameEntityRefSchema.nullab
  * `Dig`'s own written text (its `SpellDescription`, or its trigger's
  * description), absent when it has none.
  */
+/**
+ * A rule a search's chosen SET must meet (`ChooseEntitiesForEffectSchema`'s `rules`), ours, never
+ * Forge's: set by the bridge (`PlayBridge.java`'s `searchRules`) from the searching `ChangeZone`'s own
+ * parameters. Forge asks again until the set meets every one (`ChangeZoneEffect.meetsSearchConstraints`
+ * in the fork); the seat uses them to grey what would break one. Card ids are the offered cards'.
+ *
+ * - `differentNames` / `differentManaValues` / `differentPowers` / `shareLandType`: `clash` lists the
+ *   pairs of offered cards that may not both be chosen.
+ * - `totalManaValue` / `totalPower`: the chosen cards' `values` total at most `atMost`.
+ * - `cardTypes`: the chosen cards have at least `atLeast` card types among them, or none is chosen.
+ * - `exactly`: none, or exactly `count`.
+ */
+export const SearchRuleSchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.enum(['differentNames', 'differentManaValues', 'differentPowers', 'shareLandType']),
+    clash: z.array(z.tuple([z.number().int(), z.number().int()])),
+  }),
+  z.strictObject({
+    kind: z.enum(['totalManaValue', 'totalPower']),
+    atMost: z.number().int(),
+    values: z.record(z.string(), z.number().int()),
+  }),
+  z.strictObject({
+    kind: z.literal('cardTypes'),
+    atLeast: z.number().int(),
+    values: z.record(z.string(), z.array(z.string())),
+  }),
+  z.strictObject({ kind: z.literal('exactly'), count: z.number().int().positive() }),
+]);
+
+export type SearchRule = z.infer<typeof SearchRuleSchema>;
+
 export const ChooseEntitiesForEffectSchema = z.strictObject({
   kind: z.literal('ask'),
   callId: z.string().min(1),
@@ -941,6 +973,7 @@ export const ChooseEntitiesForEffectSchema = z.strictObject({
   max: z.number().int(),
   delayedReveal: DelayedRevealSchema.nullable(),
   dig: z.strictObject({ chosen: OrderDestinationSchema, rest: OrderDestinationSchema, text: z.string().min(1).optional() }).optional(),
+  rules: z.array(SearchRuleSchema).min(1).optional(),
 });
 
 export const ChooseEntitiesForEffectReplySchema = z.array(GameEntityRefSchema);
