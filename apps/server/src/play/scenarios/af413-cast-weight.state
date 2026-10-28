@@ -1,0 +1,29 @@
+# AF413 cast-path weight: `gestures/cast.ts`'s `landCastGhost` weight tail used to read a creature's
+# power off its row card's own P/T badge, so a cast NONCREATURE permanent — nothing draws a badge for
+# one — landed weightless. Human casts Aladdin's Lamp: an artifact, mana value 10, no ETB trigger and
+# nothing to activate while it is on the stack (a human player's own activated ability only, never
+# offered to the OTHER seat, whose stop logic would otherwise hold for a decision this scenario never
+# drives), so the only thing the test needs to watch for is its OWN landing. At heft 10
+# `entries.ts`'s `entryWeight` draws the thump, a full spray of debris, cracks and a one-ring shove —
+# the same effects a reanimated 10-power creature's landing would, now keyed off its mana value
+# instead. Vanilla Grizzly Bears already on both battlefields (no activated or triggered ability, so
+# neither seat's own stop logic ever asks either of them anything about it) sit close enough to the
+# Lamp's slot to be shoved; the test reads every battlefield card's own box before the cast and once
+# the shove has settled, to prove the shove never moves a card to a different slot. Darksteel Monolith
+# — human-only, so it never reaches the AI's own stop logic — keeps an artifacts row already open
+# before the Lamp lands in it, so the Lamp's own arrival never inserts a brand-new row (`Board.tsx`'s
+# `BOARD_ROWS`) and reflows every OTHER row's cards into a different box for a reason that has
+# nothing to do with the shove.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Aladdin's Lamp
+humanbattlefield=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains;Grizzly Bears;Grizzly Bears;Darksteel Monolith
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=Grizzly Bears;Grizzly Bears
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

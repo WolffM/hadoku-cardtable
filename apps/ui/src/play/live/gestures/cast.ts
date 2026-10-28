@@ -20,11 +20,12 @@
  */
 import { clearPlacementColumns, showPlacementColumns } from '../../Board.tsx';
 import { viewerOf } from '../../adapter.ts';
+import type { BoardView } from '../../adapter.ts';
 import type { LiveMatch } from '../match.ts';
 import { handCardWidth, sizeAsCard } from '../../card-size.ts';
 import { GLIDE_MS, prefersReducedMotion } from '../../motion.ts';
 import { cardBox, overlayOf } from '../board-dom.ts';
-import { entryWeight, playLanding } from '../entries.ts';
+import { entryHeft, entryWeight, playLanding, type EntryWeight } from '../entries.ts';
 import type { Point } from './types.ts';
 
 /**
@@ -306,18 +307,30 @@ export const CAST_LANDING_ATTR = 'data-cast-landing';
  * hidden under it — was on every landing (the Viridian Shaman recording,
  * 2026-10-09: `dx: 0, dy: 0`). A cast card waits over its gap at a hand card's
  * size, so its landing is the shrink into the slot, in place.
+ *
+ * `weight`, when given (`castLandingWeight`), draws the landing's own weight tail once this trip
+ * ends — the same weight effects `entries.ts`'s `playEntry` ends with, by the permanent's own
+ * card data, never a badge read off `arrived`: a creature by its power, any other permanent by its
+ * mana value. Null — no tail — for a trip with nothing to weigh (a float home, an echo this
+ * screen cannot name).
  */
 /**
- * Forge's current power, read off `arrived`'s own P/T badge (`Board.tsx`'s `[data-pt-of="power"]`)
- * — null for anything that draws none (a land, a spell with no permanent face, a creature whose
- * badge is not yet painted). The one place every played or arriving permanent's landing can learn
- * its weight without a caller having to thread it through three call sites.
+ * A permanent's landing weight from its own card data — `entries.ts`'s `entryHeft`: a creature's
+ * power, every other permanent (artifact, enchantment, planeswalker, battle) by its mana value —
+ * looked up live off `view`'s battlefield, either seat's, never a badge read off the DOM: a cast
+ * noncreature permanent has no P/T badge to read, so reading one left it weightless. Null when
+ * `view` has no battlefield card at `cardId` yet (Forge has not drawn it there), or `cardId` is
+ * null (nothing of this screen's own to weigh — a float back to a hand, the other seat's echo of
+ * a card this screen cannot name). The one place every cast or arriving permanent's landing learns
+ * its weight, so a caller holding `view` and an id never has to thread the weight through itself.
  */
-function creaturePowerOn(arrived: HTMLElement): number | null {
-  const text = arrived.querySelector('[data-pt-of="power"]')?.textContent ?? null;
-  if (text === null) return null;
-  const n = Number.parseInt(text, 10);
-  return Number.isFinite(n) ? n : null;
+export function castLandingWeight(view: BoardView | null, cardId: number | null): EntryWeight | null {
+  if (cardId === null || view === null) return null;
+  for (const p of view.players) {
+    const card = p.battlefield.find((c) => c.id === cardId);
+    if (card !== undefined) return entryWeight(entryHeft(card.card));
+  }
+  return null;
 }
 
 /**
@@ -325,27 +338,24 @@ function creaturePowerOn(arrived: HTMLElement): number | null {
  * token's travel from its maker, the other seat's echo) ends there, so this is its last leg, never
  * a second animation bolted on after a gap (the brief's own words for AF413's cast join): a quick
  * hang-and-drop squish on `ghost`, still standing in for the card, then the same weight effects
- * `entries.ts`'s `playEntry` ends with. Null — no tail — for anything that draws no power, or with
+ * `entries.ts`'s `playEntry` ends with. Null — no tail — with no weight to draw it by, or with
  * motion off.
  */
-function weightTailOf(root: ParentNode, ghost: HTMLElement, arrived: HTMLElement, key: string): (() => Promise<void>) | null {
-  if (prefersReducedMotion()) return null;
-  const power = creaturePowerOn(arrived);
-  if (power === null) return null;
-  const weight = entryWeight(power);
+function weightTail(root: ParentNode, ghost: HTMLElement, arrived: HTMLElement, key: string, weight: EntryWeight | null): (() => Promise<void>) | null {
+  if (weight === null || prefersReducedMotion()) return null;
   const board = (root.querySelector('.board') ?? root) as HTMLElement;
   const overlay = overlayOf(root);
   if (overlay === null) return null;
   return () => playLanding(board, overlay, arrived, weight, key, ghost);
 }
 
-export function landCastGhost(root: ParentNode, id: number | null, ghost: HTMLElement, from: Point, arrived: HTMLElement): Landing {
+export function landCastGhost(root: ParentNode, id: number | null, ghost: HTMLElement, from: Point, arrived: HTMLElement, weight: EntryWeight | null = null): Landing {
   const box = arrived.getBoundingClientRect();
   const to = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
   const turned = arrived.hasAttribute('data-tapped');
   const size = { width: turned ? box.height : box.width, height: turned ? box.width : box.height };
   const key = `cast:${id ?? arrived.getAttribute('data-board-card') ?? `${to.x}:${to.y}`}`;
-  const tail = weightTailOf(root, ghost, arrived, key);
+  const tail = weightTail(root, ghost, arrived, key, weight);
   ghost.setAttribute(CAST_LIFT_ATTR, 'parked');
   ghost.style.left = `${from.x}px`;
   ghost.style.top = `${from.y}px`;

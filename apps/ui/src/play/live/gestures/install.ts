@@ -253,6 +253,7 @@ import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } fr
 import { CAST_LANDING_ATTR, expectedGapBox,
   CAST_LIFT_ATTR,
   castCardTypeLine,
+  castLandingWeight,
   castZoneOf,
   clearAllCastLifts,
   clearCastLift,
@@ -1255,7 +1256,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
         const settled = cardBox(canvas, p.source);
         if (settled !== arrived) arrived.removeAttribute(CAST_LANDING_ATTR);
         if (settled instanceof HTMLElement && settled.closest('[data-zone="battlefield"]') !== null) {
-          const landing = landCastGhost(canvas, p.source, ghost, p.at, settled);
+          const landing = landCastGhost(canvas, p.source, ghost, p.at, settled, castLandingWeight(match.view, p.source));
           reportHandover(options.report, 'landing', canvas, { ...casterFacts(p, landing.how, landing.from, landing.to), shrink: landing.shrink });
         } else {
           reportHandover(options.report, 'landing', canvas, casterFacts(p, 'gone-before-frame', drawnCentreOf(ghost), null));

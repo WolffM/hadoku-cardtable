@@ -83,6 +83,7 @@ import { PLACED_EVENT, PlacedEchoSchema,
 import { newArrow, positionArrow } from './gestures/arrow.ts';
 import { endPlacement, expectPlacement, pendingPlacementFor, renewPlacement, type PlayEnd } from '../Board.tsx';
 import { CAST_LANDING_ATTR, expectedGapBox, landCastGhost } from './gestures/cast.ts';
+import type { EntryWeight } from './entries.ts';
 import { drawnCentreOf, PRESENCE_CARD_ATTR, reportHandover, type HandoverFacts, type Report } from './handover-report.ts';
 import { commitSpell, holdSpell, onSpellMoved, placeSpell, placeStackItem, releaseSpell } from './placed.ts';
 import { handCardWidth, sizeAsCard } from '../card-size.ts';
@@ -166,6 +167,12 @@ export interface PresenceHost {
   readonly aiming?: () => boolean;
   /** Telemetry: their card's stand-in giving way to its stack card and its row (`./handover-report.ts`). Absent: nothing is sent. */
   readonly report?: Report;
+  /**
+   * A played card's landing weight, from its current card data (`./gestures/cast.ts`'s
+   * `castLandingWeight`: a creature's power, any other permanent's mana value) — the other
+   * seat's own cast draws the same weight tail this seat's does. Absent or null: no tail.
+   */
+  readonly landingWeightOf?: (cardId: number) => EntryWeight | null;
 }
 
 export interface PresenceHandle {
@@ -1269,7 +1276,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       el.removeAttribute('data-testid');
     }
     ghost.append(copy);
-    const landing = landCastGhost(canvas, card, ghost, from, settled);
+    const landing = landCastGhost(canvas, card, ghost, from, settled, host.landingWeightOf?.(card) ?? null);
     reportHandover(host.report, 'landing', canvas, { ...receiverFacts(card, landing.how, landing.from, landing.to), shrink: landing.shrink });
   }
 

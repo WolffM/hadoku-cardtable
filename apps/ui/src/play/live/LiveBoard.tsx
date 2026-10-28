@@ -287,6 +287,7 @@ import { classifySelection, isPromptMethod, PromptFor, SelectionPrompt, type Ask
 import { installGestures } from './gestures/index.ts';
 import { attackWith } from './gestures/commit.ts';
 import { stackAsk } from './gestures/stack.ts';
+import { castLandingWeight } from './gestures/cast.ts';
 import { installPresence } from './presence.ts';
 import { setChainHalted } from './placed.ts';
 import { installArrangementSync } from './arrangement-sync.ts';
@@ -3457,6 +3458,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           const mine = viewerOf(view)?.name ?? null;
           return view.stack.filter((item) => !item.isAbility && item.sourceCardId !== null && item.controllerName !== mine).map((item) => item.sourceCardId!);
         },
+        landingWeightOf: (cardId) => castLandingWeight(match.view, cardId),
         // A watcher sends none (`reportClient`'s own rule).
         report: spectator ? undefined : (kind, data) => reportClient(match.transport, match.matchId, kind, data),
       },

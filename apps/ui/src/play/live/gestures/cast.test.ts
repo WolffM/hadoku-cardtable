@@ -5,12 +5,85 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CAST_LANDING_ATTR, CAST_LIFT_ATTR, landCastGhost } from './cast.ts';
+import { CAST_LANDING_ATTR, CAST_LIFT_ATTR, castLandingWeight, landCastGhost } from './cast.ts';
 import { GLIDE_MS } from '../../motion.ts';
+import { entryHeft, entryWeight } from '../entries.ts';
+import type { BoardCard, BoardPlayer, BoardView } from '../../adapter.ts';
 
 afterEach(() => {
   document.body.innerHTML = '';
   vi.useRealTimers();
+});
+
+function card(id: number, typeLine: string, opts: { power?: string; manaValue?: number } = {}): BoardCard {
+  return {
+    id,
+    card: {
+      cardId: `c${id}`,
+      name: `Card ${id}`,
+      manaCost: [],
+      manaValue: opts.manaValue ?? 0,
+      colors: [],
+      typeLine,
+      oracleText: '',
+      setCode: 'TST',
+      collectorNumber: String(id),
+      rarity: 'common',
+      ...(opts.power !== undefined ? { power: opts.power } : {}),
+    },
+    tapped: false,
+    summoningSick: false,
+    damage: 0,
+    counters: [],
+    attacking: false,
+    blocking: false,
+    token: false,
+  };
+}
+
+function player(id: number, battlefield: BoardCard[]): BoardPlayer {
+  return {
+    id,
+    name: `P${id}`,
+    life: 20,
+    isViewer: false,
+    isActive: false,
+    hasPriority: false,
+    hasLost: false,
+    hand: null,
+    handCount: 0,
+    libraryCount: 0,
+    battlefield,
+    graveyard: [],
+    exile: [],
+  };
+}
+
+function view(players: BoardPlayer[]): BoardView {
+  return { seq: 1, title: 't', turn: 1, phase: null, phaseLabel: '', activePlayerId: null, players, stack: [], gameOver: false, missingCardIds: [] };
+}
+
+describe('castLandingWeight', () => {
+  it('a cast creature weighs by its power, off its own card data — never a DOM badge', () => {
+    const v = view([player(1, [card(7, 'Creature — Bear', { power: '8' })])]);
+    expect(castLandingWeight(v, 7)).toEqual(entryWeight(entryHeft({ typeLine: 'Creature — Bear', power: '8' })));
+    expect(castLandingWeight(v, 7)?.power).toBeCloseTo(entryWeight(8).power);
+  });
+
+  it('a cast noncreature permanent weighs by its mana value, where a power badge never exists', () => {
+    const v = view([player(1, [card(9, 'Artifact', { manaValue: 8 })])]);
+    const weight = castLandingWeight(v, 9);
+    expect(weight).not.toBeNull();
+    expect(weight).toEqual(entryWeight(8));
+    expect(weight?.cracks).not.toBeNull();
+  });
+
+  it('null for a card not yet drawn anywhere on the battlefield, or with no id', () => {
+    const v = view([player(1, [card(9, 'Artifact', { manaValue: 8 })])]);
+    expect(castLandingWeight(v, 999)).toBeNull();
+    expect(castLandingWeight(v, null)).toBeNull();
+    expect(castLandingWeight(null, 9)).toBeNull();
+  });
 });
 
 function arrivedAt(x: number, y: number): HTMLElement {
