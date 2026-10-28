@@ -3768,41 +3768,32 @@ export class Match {
 	/**
 	 * Whether `frame`'s revealed cards must be SHOWN to the seat even though
 	 * `apps/ui/src/play/adapter.ts`'s `drawsFaceUp`/`knownTop` might otherwise
-	 * read them as already visible on the board: true once the frames already
-	 * queued behind this reveal ({@link SeatState.behindReveal} — what Forge's
-	 * SAME resolution did right after revealing, not yet sent to the seat) are
-	 * folded in and these ids are no longer a leading run of SOME player's
-	 * library. A reveal whose own resolution repositions these same cards
-	 * within that one resolution (`DigUntilEffect`'s move to the bottom:
-	 * Calibrated Blast, AF403) fails this — `drawsFaceUp` would otherwise read
-	 * a transiently-stale, pre-move snapshot (the cards are still, for a
-	 * moment, the library's known top) and skip the only place the seat would
-	 * ever see them. A card the move takes OUT of the library entirely (into a
-	 * hand, a battlefield, a graveyard) is left alone: `drawsFaceUp` is
-	 * already correct about those once the move itself reaches the client, so
-	 * no override is needed, and this never second-guesses a genuinely
-	 * persistent look grant (Courser of Kruphix): nothing in `behindReveal`
-	 * moves THOSE cards at all, so the fold changes nothing and this returns
-	 * `false`.
+	 * read them as already visible on the board: `frame.staysVisible === false`
+	 * — a fact `PlayBridge.java`'s `revealStaysAtLibraryTop` computes directly
+	 * off Forge's LIVE state (the resolving ability's own destination
+	 * parameter), not off anything synced to the wire yet (AF403).
+	 *
+	 * An earlier version of this read `s.behindReveal` instead — whatever
+	 * state frames had ALREADY arrived for this seat by the time its reveal
+	 * was shown — and was seat-dependent and flaky: only one of a match's two
+	 * seats gets an immediate re-sync right behind a reveal (whichever the
+	 * NEXT ask, the reflexive trigger's target selection, happens to address),
+	 * so for the other seat `behindReveal` was often still empty at this
+	 * point not because the cards were safe, but because Forge simply had not
+	 * re-synced to that connection yet. `staysVisible` has no such window: it
+	 * is computed on the SAME call that builds the reveal, before either
+	 * seat's reply unblocks Forge's game thread.
+	 *
+	 * `staysVisible` is absent for a reveal with nothing in a library at all
+	 * (a hand, Secluded Glen, Fact or Fiction's initial five) — those have no
+	 * "transient top, about to move" shape, and `drawsFaceUp` already reads
+	 * them correctly unaided — so this is `false` only on the one case that
+	 * needs it, and never second-guesses a genuinely persistent look grant
+	 * (Courser of Kruphix): nothing moves those cards, so Forge's own
+	 * destination read comes back "stays on top".
 	 */
 	private revealMustForceNotice(s: SeatState, frame: RevealFrame): boolean {
-		const ids = choiceCardIds(frame.choices);
-		if (ids.length === 0) return false;
-		const behind = s.behindReveal.filter((raw): raw is StateFrame => {
-			const method = (raw as { method?: unknown } | null)?.method;
-			return method === 'setGameView' || method === 'applyDelta' || method === 'openView';
-		});
-		if (behind.length === 0) return false;
-		const settled = foldFrames([...(s.history as unknown as StateFrame[]), ...behind]);
-		const game = settled.get(deltaKey(DELTA_TYPE.game, 1));
-		for (const pid of idsOf(game, 'Players')) {
-			const lib = idsOf(settled.get(deltaKey(DELTA_TYPE.player, pid)), 'Library');
-			const inLib = ids.filter((id) => lib.includes(id));
-			if (inLib.length === 0) continue;
-			const prefix = new Set(lib.slice(0, inLib.length));
-			if (!inLib.every((id) => prefix.has(id))) return true;
-		}
-		return false;
+		return frame.staysVisible === false;
 	}
 
 	private closeAllAsks(): void {

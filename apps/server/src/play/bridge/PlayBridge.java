@@ -4330,6 +4330,10 @@ public final class PlayBridge {
             f.addProperty("min", min);
             f.addProperty("max", max);
             if (affordable != null) { f.addProperty("affordable", affordable); }
+            if (min == -1 && max == -1) {
+                final Boolean staysVisible = revealStaysAtLibraryTop(choices);
+                if (staysVisible != null) { f.addProperty("staysVisible", staysVisible); }
+            }
             final boolean named = choices != null && !choices.isEmpty() && choices.get(0) instanceof CardFaceView;
             if (named) {
                 // A card-name ask (`chooseSingleCardFace`): every face Forge's predicate let
@@ -4676,6 +4680,38 @@ public final class PlayBridge {
             } catch (final ClassNotFoundException e) {
                 return null;
             }
+        }
+
+        /**
+         * Whether a plain reveal ({@code min == max == -1}, {@code AbstractGuiGame.reveal}'s own
+         * shape) will leave every one of its library cards at that library's visible top once the
+         * resolving ability finishes — read directly off Forge's LIVE state (which library, which
+         * card's current zone, {@link #libraryEndIsTop}'s own read of the resolving ability's
+         * destination parameter), never off anything synced to the wire yet. AF403: a wire-timing
+         * read of "has the move already reached this seat's queue" cannot tell a card moving to the
+         * bottom (Calibrated Blast's {@code DigUntil}, {@code RevealedLibraryPosition$ -1}) from one
+         * Forge simply has not re-synced to THIS seat yet — only one of this match's two seats gets
+         * an immediate re-sync (whichever the next ask, the reflexive trigger's target selection,
+         * addresses), so a wire-timing read is seat-dependent and exactly as flaky as that schedule.
+         * This is neither: {@link #askingStack(String)} walks the LIVE thread Forge itself parked in
+         * {@code getChoices} for, on the SAME call that is building this very reveal.
+         *
+         * <p>Null when none of {@code choices} is a card currently in a library at all (a hand
+         * reveal, Secluded Glen, Fact or Fiction's initial five) — those have no "transient top, about
+         * to move" shape in the first place, and the client's own {@code drawsFaceUp} already reads
+         * them correctly without this fact.
+         */
+        private Boolean revealStaysAtLibraryTop(final List<?> choices) {
+            final Game game = liveGame();
+            if (game == null || choices == null || choices.isEmpty()) { return null; }
+            boolean anyInLibrary = false;
+            for (final Object o : choices) {
+                if (!(o instanceof CardView cv)) { continue; }
+                final forge.game.card.Card c = game.findById(cv.getId());
+                if (c != null && c.getZone() != null && c.getZone().is(ZoneType.Library)) { anyInLibrary = true; break; }
+            }
+            if (!anyInLibrary) { return null; }
+            return libraryEndIsTop(askingStack("getChoices"), false);
         }
 
         @Override

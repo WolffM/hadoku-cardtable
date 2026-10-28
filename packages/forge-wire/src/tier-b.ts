@@ -778,6 +778,21 @@ export const OrderDestinationSchema = z.strictObject({
  * `affordable` is ours too: on a number ask for a mana X (`PlayBridge.java`'s
  * `numberAsk`, which lists on past Forge's ten numbers and "Other…" entry),
  * the most X the seat can pay, by Forge's own payer.
+ *
+ * `staysVisible` is ours too, and only on a plain reveal (`min === max ===
+ * -1`, `AbstractGuiGame.reveal`'s own shape — `PlayBridge.java`'s
+ * `revealStaysAtLibraryTop`): whether every one of `choices` that currently
+ * sits in a library will still be a known card at that library's visible top
+ * once the resolving ability finishes, read directly off Forge's live state
+ * (whose zone destination a `Dig`/`DigUntil`/`RearrangeTopOfLibrary` sends
+ * these cards to), not off anything the wire has synced yet. `false` is how
+ * Calibrated Blast's own reveal (`RevealedLibraryPosition$ -1`, the bottom)
+ * is told apart from Courser of Kruphix's persistent "look at top" (AF403):
+ * `apps/server/src/play/match.ts`'s `revealMustForceNotice` reads it to mark
+ * the envelope `forceNotice` instead of trusting a reveal of cards about to
+ * leave the board's only visible position for them. Absent when none of the
+ * revealed cards sit in a library at all (a hand, a graveyard search) — the
+ * client's own `drawsFaceUp` already has everything it needs there.
  */
 export const GetChoicesSchema = z.strictObject({
   kind: z.literal('ask'),
@@ -800,6 +815,7 @@ export const GetChoicesSchema = z.strictObject({
     })
     .optional(),
   affordable: z.number().int().nonnegative().optional(),
+  staysVisible: z.boolean().optional(),
 });
 
 export const GetChoicesReplySchema = z.array(z.string());
