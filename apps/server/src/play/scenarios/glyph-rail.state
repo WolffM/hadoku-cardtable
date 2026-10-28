@@ -1,0 +1,21 @@
+# e2e/glyph-rail.spec.ts — the operator, 2026-10-28: "when a creature is turned sideways and has
+# multiple keywords (First strike + lifelink + trample) eventually the power/toughness is not
+# visible anymore." Alice's own turn-1 Main Phase 1, under Archetype of Courage (creatures she
+# controls have first strike):
+#   - Grizzly Bears #101 and #102 wearing Loxodon Warhammer: first strike, lifelink, trample — three
+#     granted keywords. #102 tapped, with a +1/+1 counter.
+#   - Grizzly Bears #103 and #104 wearing Loxodon Warhammer, Basilisk Collar and Arcane Flight:
+#     flying, first strike, deathtouch, lifelink, trample — five. #104 tapped, with a +1/+1 counter.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Archetype of Courage;Grizzly Bears|Id:101;Loxodon Warhammer|AttachedTo:101;Grizzly Bears|Id:102|Tapped|Counters:P1P1=1;Loxodon Warhammer|AttachedTo:102;Grizzly Bears|Id:103;Loxodon Warhammer|AttachedTo:103;Basilisk Collar|AttachedTo:103;Arcane Flight|AttachedTo:103;Grizzly Bears|Id:104|Tapped|Counters:P1P1=1;Loxodon Warhammer|AttachedTo:104;Basilisk Collar|AttachedTo:104;Arcane Flight|AttachedTo:104;Plains;Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
