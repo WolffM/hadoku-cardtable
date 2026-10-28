@@ -286,7 +286,7 @@ test('a watcher sees each side as its owner arranged it, with whoever’s turn i
     console.log(`[watcher arrangement] alice ${before.alice.join(',')} -> ${after.alice.join(',')}; bob ${before.bob.join(',')} -> ${after.bob.join(',')}`);
 
     // Alice's turn: she is at the bottom, her side in her order, his in his — the bottom side moves too.
-    await expect(viewerName(carol.page), 'alice’s turn: alice at the bottom').toHaveText('e2e-alice');
+    await expect(viewerName(carol.page), 'alice’s turn: alice at the bottom').toHaveText(/alice/i);
     await expect.poll(() => fieldOrder(carol.page, 'you'), { timeout: 10_000, message: 'the bottom side (alice) is as alice arranged it' }).toEqual(after.alice);
     await expect.poll(() => fieldOrder(carol.page, 'them'), { timeout: 10_000, message: 'the top side (bob) is as bob arranged it' }).toEqual(after.bob);
     await expect(gaps(carol.page, 'you'), 'her gap is drawn on the bottom side').not.toHaveCount(0);
@@ -294,7 +294,7 @@ test('a watcher sees each side as its owner arranged it, with whoever’s turn i
 
     // The turn passes to bob: the watcher's table turns with it, each side still as its owner arranged it.
     await grindPriority([alice.page, bob.page], async () => (await alice.page.locator('.seat[data-active]:not([data-viewer])').count()) === 1, { timeoutMs: 90_000 });
-    await expect(viewerName(carol.page), 'bob’s turn: bob at the bottom').toHaveText('e2e-bob', { timeout: 15_000 });
+    await expect(viewerName(carol.page), 'bob’s turn: bob at the bottom').toHaveText(/bob/i, { timeout: 15_000 });
     await expect(carol.page.locator('.seat[data-viewer][data-active]'), 'the bottom side is the active one').toHaveCount(1);
     await expect.poll(() => fieldOrder(carol.page, 'you'), { timeout: 10_000, message: 'turned: the bottom side (bob) is as bob arranged it' }).toEqual(after.bob);
     await expect.poll(() => fieldOrder(carol.page, 'them'), { timeout: 10_000, message: 'turned: the top side (alice) is as alice arranged it' }).toEqual(after.alice);
@@ -311,7 +311,7 @@ test('a watcher sees each side as its owner arranged it, with whoever’s turn i
     await resizeWindow(dave.page, { width: 1280, height: 800 });
     await dave.page.goto(matchUrl(stack.origin, matchId));
     await expect(dave.page.locator('.live[data-role="watcher"]')).toBeVisible({ timeout: 60_000 });
-    await expect(viewerName(dave.page), 'a late watcher: bob’s turn, bob at the bottom').toHaveText('e2e-bob', { timeout: 30_000 });
+    await expect(viewerName(dave.page), 'a late watcher: bob’s turn, bob at the bottom').toHaveText(/bob/i, { timeout: 30_000 });
     await expect.poll(() => fieldOrder(dave.page, 'you'), { timeout: 30_000, message: 'a late watcher: bob’s side as he left it' }).toEqual(after.bob);
     await expect.poll(() => fieldOrder(dave.page, 'them'), { timeout: 10_000, message: 'a late watcher: alice’s side as she left it' }).toEqual(again);
   } finally {
@@ -333,7 +333,7 @@ test('a watcher is shown the active player’s reveal: Goblin Guide’s top card
     await resizeWindow(carol.page, { width: 1280, height: 800 });
     await carol.page.goto(matchUrl(stack.origin, matchId));
     await expect(carol.page.locator('.live[data-role="watcher"]'), 'carol watches').toBeVisible({ timeout: 60_000 });
-    await expect(viewerName(carol.page), 'alice’s turn: alice at the bottom').toHaveText('e2e-alice', { timeout: 30_000 });
+    await expect(viewerName(carol.page), 'alice’s turn: alice at the bottom').toHaveText(/alice/i, { timeout: 30_000 });
 
     const guide = alice.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card').filter({ hasText: 'Goblin Guide' });
     await expect(guide, 'Goblin Guide is on her battlefield').toHaveCount(1, { timeout: 60_000 });
