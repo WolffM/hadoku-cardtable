@@ -111,6 +111,7 @@ import { join } from 'node:path';
 import type { AbortReasonSchema, ClientAction, GameLogLine, Loss, SendYieldUpdate } from '@hadoku/forge-wire';
 
 import { jsonLogger } from '../log.js';
+export { bridgeDiagnostics } from './diagnostics.js';
 import type { JvmLauncher, JvmTransport } from './jvm-transport.js';
 import { JVM_HEAP_MB, MATCHES_PER_JVM, localJvmLauncher, writeFileAtomic, type JvmHostConfig } from './local-jvm.js';
 
@@ -124,7 +125,6 @@ export {
 	FORGE_PREFERENCES,
 	JVM_HEAP_MB,
 	MATCHES_PER_JVM,
-	bridgeDiagnostics,
 	bridgeLaunch,
 	bridgeVersion,
 	jvmHostConfig,

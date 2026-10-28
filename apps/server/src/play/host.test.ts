@@ -320,7 +320,9 @@ describe('liveness: a JVM that stops saying anything is killed, and every match 
 		expect(liveJvmCount()).toBe(0);
 		// Killed without being asked to go: a crash, so its record is kept like any other.
 		expect(existsSync(join(run, 'crash.json'))).toBe(true);
-	});
+		// Its own windows add to 6 s past the boot (2.5 s alive, then up to 1.5 s + 2 s to be failed),
+		// past vitest's 5 s default: a loaded host timed it out with every bound still met.
+	}, 20_000);
 });
 
 describe('the JVM\'s flags', () => {

@@ -24,8 +24,13 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync, writeSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { bridgeDiagnostics } from '../../server/src/play/diagnostics.ts';
 import { RECYCLE_HEAP_SHARE, type ArtifactSet, type FromAgent, type JvmHealth, type LaunchSpec } from '../../server/src/play/remote/wire.ts';
 import type { Cgroups } from './cgroups.ts';
+
+/** How much of a dead JVM's stderr is read for its exit reason, and how many lines of it are kept. */
+const STDERR_READ_BYTES = 1024 * 1024;
+const STDERR_TAIL_LINES = 3;
 
 export type Log = (what: string, data?: Record<string, unknown>) => void;
 
@@ -333,13 +338,25 @@ export class Jvm {
 		return `exited (code ${how.code ?? 'none'}, signal ${how.signal ?? 'none'})${this.stderrTail()}`;
 	}
 
+	/**
+	 * The last few lines of stderr that can explain an exit (`bridgeDiagnostics`: the bridge's own and
+	 * Java throwables), not Forge's `[INFO ]` chatter, which is all a plain tail held: this becomes
+	 * the coordinator's failover cause and the alert's text.
+	 */
 	private stderrTail(): string {
+		const path = join(this.dir, 'stderr.txt');
+		if (!existsSync(path)) return '';
+		const size = statSync(path).size;
+		const length = Math.min(size, STDERR_READ_BYTES);
+		const buf = Buffer.alloc(length);
+		const fd = openSync(path, 'r');
 		try {
-			const lines = readFileSync(join(this.dir, 'stderr.txt'), 'utf8').trim().split('\n').filter(Boolean).slice(-5);
-			return lines.length ? `: ${lines.join(' | ')}` : '';
-		} catch {
-			return '';
+			readSync(fd, buf, 0, length, size - length);
+		} finally {
+			closeSync(fd);
 		}
+		const lines = bridgeDiagnostics(buf.toString('utf8')).slice(-STDERR_TAIL_LINES).map((d) => (d.count > 1 ? `${d.line} (×${d.count})` : d.line));
+		return lines.length ? `: ${lines.join(' | ')}` : '';
 	}
 
 	/**

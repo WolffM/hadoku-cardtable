@@ -39,11 +39,11 @@ function tgz(src: string, name: string): { file: string; sha: string } {
 	return { file, sha: sha256Hex(readFileSync(file)) };
 }
 
-/** A JDK whose `java` is a script: `warm`, then every stdin line back. */
-function fakeRuntime(): PackedRuntime {
+/** A JDK whose `java` is a script: by default `warm`, then every stdin line back. */
+function fakeRuntime(java = '#!/bin/sh\necho \'{"t":"warm"}\'\nexec cat\n'): PackedRuntime {
 	const src = scratch();
 	mkdirSync(join(src, 'jdk', 'bin'), { recursive: true });
-	writeFileSync(join(src, 'jdk', 'bin', 'java'), '#!/bin/sh\necho \'{"t":"warm"}\'\nexec cat\n');
+	writeFileSync(join(src, 'jdk', 'bin', 'java'), java);
 	chmodSync(join(src, 'jdk', 'bin', 'java'), 0o755);
 	for (const d of ['res', 'bridge']) {
 		mkdirSync(join(src, d));
@@ -158,6 +158,21 @@ describe('host agent', () => {
 		t.kill();
 		expect(await exit).toBe('killed by the coordinator');
 		expect(pidAlive(pid)).toBe(false);
+	});
+
+	it("names a JVM's exit by what it said about itself, not by Forge's log chatter", async () => {
+		const { port } = await startAgent(scratch());
+		const stderr = [
+			'01:00:00 [INFO ] GameProtocolHandler: Received: GuiGameEvent 1: openView (1 args)',
+			'Exception in thread "Game" java.lang.IllegalStateException: boom',
+			'\tat forge.game.Game.run(Game.java:42)',
+			'[bridge] the game thread failed',
+			...Array.from({ length: 8 }, (_, i) => `01:00:0${i} [INFO ] NetworkGuiGame: [DeltaSync] === END seq=${i} ===`),
+		];
+		const java = `#!/bin/sh\necho '{"t":"warm"}'\ncat >&2 <<'EOF'\n${stderr.join('\n')}\nEOF\nexit 1\n`;
+		const { launcher } = await coordinator(port, fakeRuntime(java));
+		const { exit } = collect(launcher.launch('h1', { xmxMb: 1000 }));
+		expect(await exit).toBe('exited (code 1, signal none): Exception in thread "Game" java.lang.IllegalStateException: boom at forge.game.Game.run(Game.java:42) | [bridge] the game thread failed');
 	});
 
 	it('refuses a launch that would not fit the slice', async () => {
