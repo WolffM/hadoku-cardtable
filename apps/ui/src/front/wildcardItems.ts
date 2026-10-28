@@ -1,0 +1,58 @@
+/*
+ * The wildcard carousel's own choices (`./WildcardCard.tsx`), pure so they are tested without
+ * mounting it: which room is asking for players, which cube is in the spotlight, which of its
+ * cards show, and whether the carousel may move on by itself.
+ */
+
+import type { CubeSummary, DraftCard } from '@hadoku/shared';
+
+import { gameTypeLabel, type RoomView } from '../rooms/api.ts';
+import { roomCardView } from './roomCard.ts';
+
+/** How long one item shows before the carousel moves on by itself. */
+export const ROTATE_MS = 8_000;
+
+export interface OpenSeats {
+  roomId: string;
+  /** `alice's Draft needs 2` — the leader's name, or the room's when the leader has left. */
+  title: string;
+  missing: number;
+}
+
+/**
+ * The room closest to starting that the viewer could sit down in: still seating, a seat open, not a
+ * testing room, and not one the viewer is already in. Fewest missing seats first, then the list's
+ * own order. `null` when there is none.
+ */
+export function openSeats(rooms: readonly RoomView[]): OpenSeats | null {
+  let best: OpenSeats | null = null;
+  for (const room of rooms) {
+    if (room.testing || room.members.some((m) => m.id === room.you.id)) continue;
+    const card = roomCardView(room, false);
+    if (card.state.key !== 'lobby') continue;
+    const missing = card.seatsCapacity - card.seatsFilled;
+    if (missing <= 0 || (best !== null && missing >= best.missing)) continue;
+    const leader = room.members.find((m) => m.id === room.leader)?.name ?? room.name;
+    best = { roomId: room.id, title: `${leader}'s ${gameTypeLabel(room.gameType)} needs ${String(missing)}`, missing };
+  }
+  return best;
+}
+
+/** A cube worth showing: it has cards, and Forge has not refused it. `null` when none qualifies. */
+export function spotlightCube(cubes: readonly CubeSummary[], random: () => number = Math.random): CubeSummary | null {
+  const playable = cubes.filter((c) => c.size > 0 && c.verdict?.ok !== false);
+  return playable.length === 0 ? null : playable[Math.floor(random() * playable.length)]!;
+}
+
+/** Up to `n` distinct cards' art ids from a cube's own cards, drawn at random. */
+export function sampleArt(cards: readonly DraftCard[], n: number, random: () => number = Math.random): string[] {
+  const ids = [...new Set(cards.map((c) => c.scryfallId).filter((id): id is string => id !== undefined))];
+  const out: string[] = [];
+  while (out.length < n && ids.length > 0) out.push(ids.splice(Math.floor(random() * ids.length), 1)[0]!);
+  return out;
+}
+
+/** The carousel moves on by itself only with more than one item and nobody looking at or using it. */
+export function mayRotate(state: { items: number; hovered: boolean; focused: boolean; hidden: boolean }): boolean {
+  return state.items > 1 && !state.hovered && !state.focused && !state.hidden;
+}

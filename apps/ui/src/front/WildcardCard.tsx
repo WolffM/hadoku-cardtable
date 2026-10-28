@@ -1,34 +1,53 @@
 /*
- * The banner's wildcard card (`docs/planning/wave77-2026-10-27.md` §A): a small carousel of
- * anything else. Two items for now — "Looking for a game" (the Discord invite,
- * `../chrome/HeaderLinks.tsx`) and "Last game" (the newest replay, `GET /api/replays?limit=1`,
- * lane C's contract 2). The Discord item is static, so the card never hides itself; "Last game"
- * drops out quietly when the route is not there yet or answers nothing — a reachability problem
- * is not shown as an error on the front page.
+ * The banner's wildcard card (`docs/planning/wave77-2026-10-27.md` §A): a carousel of anything else,
+ * moving on by itself every `ROTATE_MS` unless the viewer is hovering it, using it, or away
+ * (`./wildcardItems.ts`'s `mayRotate`). Its items:
+ *
+ *   - **Open seats now** — the room closest to starting that the viewer could sit down in, read
+ *     from `GET /api/rooms` on the room list's own feed (`../rooms/feed.ts`), so it moves when the
+ *     list does and adds no poller of its own.
+ *   - **Last game** — the newest replay, `GET /api/replays?limit=1` (lane C's contract 2).
+ *   - **Cube spotlight** — a bundled or imported cube and three of its cards' art, through the art
+ *     manifest (`../draft/cardImage.ts`), never a stored URL.
+ *   - **Looking for a game** — the Discord invite (`../chrome/HeaderLinks.tsx`). Static, so the card
+ *     never hides itself.
+ *
+ * A read that fails or answers nothing drops its item quietly: a reachability problem is not shown
+ * as an error on the front page.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { apiUrl, bodyOf, getJson, isRecord } from '../http.ts';
 import { DISCORD_INVITE_URL } from '../chrome/HeaderLinks.tsx';
+import { coverCropStyle, ILLUSTRATION_BOX } from '../components/faceCrop.ts';
+import { cardImageUrl } from '../draft/cardImage.ts';
+import { poolsClient, roomsClient } from '../rooms/api.ts';
+import { roomFeed } from '../rooms/feed.ts';
+import { routeHash } from '../screens/route.ts';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons.tsx';
+import { mayRotate, openSeats, ROTATE_MS, sampleArt, spotlightCube } from './wildcardItems.ts';
 
 interface WildcardItem {
   key: string;
   kind: string;
   title: string;
   body: string;
-  href: string;
-  external: boolean;
+  /** Absent: the item has nowhere to go. */
+  link?: { href: string; label: string; external: boolean };
+  /** Card art ids to draw across the top, in place of the plain banner. */
+  arts?: readonly string[];
 }
+
+/** `.front-card__wildcard-art`'s own `aspect-ratio` in `front.css` — the two must agree. */
+const ART_RATIO = 4 / 3;
 
 const LOOKING_FOR_GAME: WildcardItem = {
   key: 'lfg',
   kind: 'Looking for a game',
   title: 'Short a player?',
   body: 'Ask in the Discord — someone is usually around.',
-  href: DISCORD_INVITE_URL,
-  external: true,
+  link: { href: DISCORD_INVITE_URL, label: 'Open Discord', external: true },
 };
 
 interface ReplaySummary {
@@ -59,8 +78,7 @@ function useLastGame(): WildcardItem | null {
           kind: 'Last game',
           title: summary.players.length > 0 ? summary.players.join(' vs ') : 'A recent match',
           body: 'Watch how it played out.',
-          href: `#/replay/${summary.matchId}`,
-          external: false,
+          link: { href: `#/replay/${summary.matchId}`, label: 'Watch', external: false },
         });
       })
       .catch(() => {
@@ -73,15 +91,133 @@ function useLastGame(): WildcardItem | null {
   return item;
 }
 
+/** The room asking for players, re-read whenever the room list's feed says the list changed. */
+function useOpenSeats(): WildcardItem | null {
+  const [item, setItem] = useState<WildcardItem | null>(null);
+  useEffect(() => {
+    const client = roomsClient();
+    let live = true;
+    const read = (): void => {
+      client
+        .list()
+        .then(({ rooms }) => {
+          if (!live) return;
+          const open = openSeats(rooms);
+          setItem(
+            open === null
+              ? null
+              : {
+                  key: 'open-seats',
+                  kind: 'Open seats now',
+                  title: open.title,
+                  body: open.missing === 1 ? 'One more and it starts.' : 'Grab a seat.',
+                  link: { href: routeHash({ kind: 'room', roomId: open.roomId }), label: 'Join', external: false },
+                },
+          );
+        })
+        .catch(() => {
+          // The room list draws its own failure; this item just waits for the next change.
+        });
+    };
+    const stop = roomFeed().follow('list', read);
+    return () => {
+      live = false;
+      stop();
+    };
+  }, []);
+  return item;
+}
+
+/** One cube and three of its cards, picked once per visit. */
+function useCubeSpotlight(): WildcardItem | null {
+  const [item, setItem] = useState<WildcardItem | null>(null);
+  useEffect(() => {
+    const pools = poolsClient();
+    let live = true;
+    pools
+      .listCubes()
+      .then(async (cubes) => {
+        const cube = spotlightCube(cubes);
+        if (cube === null) return;
+        const cards = await pools.cubeCards(cube.id);
+        if (!live) return;
+        const arts = sampleArt(cards ?? [], 3);
+        setItem({
+          key: 'cube',
+          kind: 'Cube spotlight',
+          title: cube.name,
+          body: `${String(cube.size)} cards`,
+          ...(arts.length > 0 ? { arts } : cube.artId === null ? {} : { arts: [cube.artId] }),
+        });
+      })
+      .catch(() => {
+        // No cubes reachable: the card just has one less item.
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+  return item;
+}
+
+function ArtSlot({ artId }: { artId: string }) {
+  const [failed, setFailed] = useState(false);
+  const url = cardImageUrl(artId);
+  return (
+    <span className="front-card__wildcard-art">
+      {url !== null && !failed && (
+        <img src={url} alt="" loading="lazy" decoding="async" draggable={false} style={coverCropStyle(ILLUSTRATION_BOX, ART_RATIO)} onError={() => setFailed(true)} />
+      )}
+    </span>
+  );
+}
+
+/** Whether the page is in a background tab, kept current. */
+function usePageHidden(): boolean {
+  const [hidden, setHidden] = useState(() => globalThis.document?.hidden ?? false);
+  useEffect(() => {
+    const doc = globalThis.document;
+    const onChange = (): void => setHidden(doc.hidden);
+    doc.addEventListener('visibilitychange', onChange);
+    return () => doc.removeEventListener('visibilitychange', onChange);
+  }, []);
+  return hidden;
+}
+
 export function WildcardCard() {
+  const openSeatsItem = useOpenSeats();
   const lastGame = useLastGame();
-  const items = [LOOKING_FOR_GAME, ...(lastGame === null ? [] : [lastGame])];
+  const cube = useCubeSpotlight();
+  const items = [openSeatsItem, lastGame, cube, LOOKING_FOR_GAME].filter((i): i is WildcardItem => i !== null);
   const [index, setIndex] = useState(0);
   const at = Math.min(index, items.length - 1);
   const item = items[at]!;
 
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const hidden = usePageHidden();
+  const rotating = mayRotate({ items: items.length, hovered, focused, hidden });
+  // The interval reads the current length through a ref, so a newly arrived item does not restart the clock.
+  const count = useRef(items.length);
+  count.current = items.length;
+  useEffect(() => {
+    if (!rotating) return undefined;
+    const timer = setInterval(() => setIndex((i) => (Math.min(i, count.current - 1) + 1) % count.current), ROTATE_MS);
+    return () => clearInterval(timer);
+  }, [rotating]);
+
   return (
-    <section className="front-card front-card--wildcard" data-testid="front-wildcard">
+    <section
+      className="front-card front-card--wildcard"
+      data-testid="front-wildcard"
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
+      // Keyboard focus only: a clicked arrow keeps focus after the pointer leaves, and would pause it for good.
+      onFocus={(e) => setFocused(e.target.matches(':focus-visible'))}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false);
+      }}
+    >
       <header className="front-card__head">
         <h3 className="front-card__title">{item.kind}</h3>
         {items.length > 1 && (
@@ -95,17 +231,31 @@ export function WildcardCard() {
           </span>
         )}
       </header>
-      <div className="front-card__wildcard-banner" aria-hidden="true" />
-      <p className="front-card__release-title">{item.title}</p>
-      <p className="front-card__wildcard-body">{item.body}</p>
+      <div key={item.key} className="front-card__wildcard-item" data-testid={`front-wildcard-${item.key}`}>
+        {item.arts === undefined ? (
+          <div className="front-card__wildcard-banner" aria-hidden="true" />
+        ) : (
+          <div className="front-card__wildcard-arts" aria-hidden="true">
+            {item.arts.map((id) => (
+              <ArtSlot key={id} artId={id} />
+            ))}
+          </div>
+        )}
+        <p className="front-card__release-title">{item.title}</p>
+        <p className="front-card__wildcard-body">{item.body}</p>
+      </div>
       <div className="front-card__foot">
-        <a className="front-card__link" href={item.href} target={item.external ? '_blank' : undefined} rel={item.external ? 'noopener noreferrer' : undefined}>
-          {item.external ? 'Open Discord' : 'Watch'}
-        </a>
+        {item.link !== undefined ? (
+          <a className="front-card__link" href={item.link.href} target={item.link.external ? '_blank' : undefined} rel={item.link.external ? 'noopener noreferrer' : undefined}>
+            {item.link.label}
+          </a>
+        ) : (
+          <span />
+        )}
         {items.length > 1 && (
           <span className="front-card__dots">
             {items.map((it, i) => (
-              <span key={it.key} className="front-card__dot" data-active={i === at ? '' : undefined} />
+              <button key={it.key} type="button" className="front-card__dot" aria-label={it.kind} aria-current={i === at ? 'true' : undefined} onClick={() => setIndex(i)} />
             ))}
           </span>
         )}

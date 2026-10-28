@@ -240,10 +240,58 @@
   color: var(--ink);
 }
 
+.front-card__wildcard-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .front-card__wildcard-item {
+    animation: front-wildcard-in 240ms ease-out;
+  }
+}
+
+@keyframes front-wildcard-in {
+  from {
+    opacity: 0;
+  }
+}
+
 .front-card__wildcard-banner {
   height: 110px;
   border-radius: var(--radius);
   background: var(--bg-card);
+}
+
+/* The cube spotlight's cards, framed on their illustrations (`WildcardCard.tsx`'s `ART_RATIO`). */
+.front-card__wildcard-arts {
+  display: flex;
+  gap: 6px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* In a squeezed card the art gives way first; the title and count always show. */
+.front-card__wildcard-item > p {
+  flex-shrink: 0;
+}
+
+/* As wide as an illustration or wider: `coverCropStyle` frames on its full width, so a narrower box shows the card's frame. */
+.front-card__wildcard-art {
+  position: relative;
+  flex: 1 1 0;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+
+.front-card__wildcard-art img {
+  max-width: none;
 }
 
 .front-card__wildcard-body {
@@ -261,11 +309,14 @@
 .front-card__dot {
   width: 6px;
   height: 6px;
+  padding: 0;
+  border: 0;
   border-radius: 50%;
   background: var(--ink-faint);
+  cursor: pointer;
 }
 
-.front-card__dot[data-active] {
+.front-card__dot[aria-current='true'] {
   width: 14px;
   border-radius: 3px;
   background: var(--accent);
