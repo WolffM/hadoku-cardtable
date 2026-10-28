@@ -1149,7 +1149,6 @@
   border-radius: var(--radius);
   /* The last resort. The sizing above is meant never to need it. */
   overflow: auto;
-  scrollbar-width: thin;
 }
 
 /* A battlefield is the table: the darkest surface here, sunken into the seat. */

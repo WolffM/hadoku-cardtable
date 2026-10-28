@@ -386,7 +386,6 @@
   font-size: 12px;
   line-height: 1.3;
   white-space: pre-line;
-  scrollbar-width: thin;
 }
 
 .live__buttons button {
@@ -928,7 +927,6 @@
   padding: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-width: thin;
   list-style: none;
   font-size: 12px;
   line-height: 1.3;
