@@ -1106,14 +1106,15 @@
   box-shadow: 0 0 0 2px var(--danger);
 }
 
+/* The dim wash is black at a fixed strength, taken off a token so it is no literal — `board.css`'s own focus scrim is the same pattern. */
 .board-card[data-doomed='sure'] > .board-card__face::before {
   box-shadow: 0 0 14px 3px color-mix(in srgb, var(--danger) 60%, transparent);
-  background: color-mix(in srgb, black 22%, transparent);
+  background: oklch(from var(--ink) 0 0 h / 0.22);
   animation: doom-ember 1.2s ease-in-out infinite;
 }
 
 .board-card[data-doomed='maybe'] > .board-card__face::before {
-  background: color-mix(in srgb, black 14%, transparent);
+  background: oklch(from var(--ink) 0 0 h / 0.14);
   animation: doom-ember 2.4s ease-in-out infinite;
 }
 
