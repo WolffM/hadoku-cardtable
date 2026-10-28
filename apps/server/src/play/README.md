@@ -499,7 +499,7 @@ JVM → Node   {"t":"stopped","match":"m-…"}            its exit
 ```
 
 `host.ts` places each match into the fullest warm JVM with room, up to `perJvm`
-(`CARDTABLE_PLAY_MATCHES_PER_JVM`, default 8), and keeps one JVM with room booted
+(`CARDTABLE_PLAY_MATCHES_PER_JVM`, default 25), and keeps one JVM with room booted
 ahead of the next match: when the last one with room fills, another is launched.
 A JVM that dies fails every match on it (`jvm-lost`); one empty for `IDLE_JVM_MS`
 is retired unless it is the last with room. Three JVMs in a row that die before

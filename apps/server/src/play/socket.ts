@@ -148,7 +148,7 @@ export interface PlayDeps {
 	/** How long a join waits for a starting match. Default 8 s — under the client's 10 s ack timeout. */
 	joinWaitMs?: number;
 	/**
-	 * Matches being played at once (each is a JVM; a finished one does not count). Default `MAX_CONCURRENT_MATCHES` (10) —
+	 * Matches being played at once (a finished one does not count). Default `MAX_CONCURRENT_MATCHES` (50) —
 	 * a deliberate ceiling; `host.ts`'s header, "The ceiling", has the argument.
 	 */
 	maxMatches?: number;
@@ -280,7 +280,7 @@ const DEV_USER = /^[a-z0-9-]{1,32}$/;
  * {@link PlayDeps.rejoinGraceMs}'s default: 5 minutes, counted from when the last seat's own
  * departure grace (30 s) ran out. Long enough for a browser crash, a laptop lid or a network change
  * to come back from; short enough that a match both players walked away from does not hold a slot
- * (`MAX_CONCURRENT_MATCHES`, `MAX_MATCHES_PER_PERSON`) and ~700 MB of JVM past a coffee break. The
+ * (`MAX_CONCURRENT_MATCHES`, `MAX_MATCHES_PER_PERSON`) and its share of a JVM past a coffee break. The
  * same bound a re-attached match always had, so there is one number for "nobody is here".
  */
 const DEFAULT_REJOIN_GRACE_MS = 5 * 60_000;

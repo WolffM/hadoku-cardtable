@@ -305,8 +305,8 @@ describe('POST /api/play/matches', () => {
 		expect(h.handle.matches.active()).toEqual([]);
 	});
 
-	it('defaults the ceiling to MAX_CONCURRENT_MATCHES, which is 10', () => {
-		expect(MAX_CONCURRENT_MATCHES).toBe(10);
+	it('defaults the ceiling to MAX_CONCURRENT_MATCHES, which is 50', () => {
+		expect(MAX_CONCURRENT_MATCHES).toBe(50);
 	});
 
 	/** A POST the slot ceiling refuses answers before any host exists, so `startMatch` (which waits for one) cannot send it. */
@@ -466,8 +466,8 @@ describe('a burst of starts', () => {
 		// 5 boot rounds outlast the timeout by 2 boots, and one start's timeout outlasts its own boot by
 		// 2 boots. A CPU-starved box spends its slack on the burst's first round, while all ten
 		// requests are handled at once: 630 ms on a claw under CI, ~450 ms at a 15 % CPU quota. BURST
-		// is the most matches the server hosts at once, so the rounds cannot grow; the boot does.
-		const BURST = MAX_CONCURRENT_MATCHES;
+		// is a fixed ten, under the ceiling, so the rounds cannot grow; the boot does.
+		const BURST = 10;
 		const BOOT_MS = 400;
 		const TIMEOUT_MS = 3 * BOOT_MS;
 		const replay = replayFactory();

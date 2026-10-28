@@ -12,7 +12,7 @@
  *
  * This file is the coordinator. `jvmHostFactory` places each match into a JVM with room — the
  * fullest warm one first, so idle JVMs empty out and retire — up to `perJvm` matches each
- * (`MATCHES_PER_JVM`, 8), and opens a new JVM when every one is full. Where a JVM runs and how
+ * (`MATCHES_PER_JVM`, 25), and opens a new JVM when every one is full. Where a JVM runs and how
  * its line stream is reached is a `JvmLauncher`'s (`jvm-transport.ts`): this machine's (`local-jvm.ts`), by
  * default; a claw's, through a remote agent.
  *
@@ -35,9 +35,11 @@
  *
  * ## The ceiling: at most `MAX_CONCURRENT_MATCHES` matches being played
  *
- * **10** since 2026-10-11, counting only the matches still `starting` or `running` (a finished
- * match keeps its slot in its JVM for `overGraceMs`, not a place in the ceiling). `socket.ts`
- * refuses an eleventh with a 503 before any JVM is spent. Each person may play at most 5 at once
+ * **50** since 2026-10-28 (the operator: "if we hit just 50 concurrent matches that'd be fine"):
+ * two claws at `MATCHES_PER_JVM` each. It was 10 while every match was its own ~0.7–1 GB JVM.
+ * Counted over the matches still `starting` or `running` (a finished match keeps its slot in its
+ * JVM for `overGraceMs`, not a place in the ceiling). `socket.ts` refuses one more with a 503
+ * before any JVM is spent. Each person may play at most 5 at once
  * (`http/routes.ts`). The JVM count is bounded separately (`JvmPoolOptions.maxJvms`). A JVM's
  * heap is capped (`JVM_HEAP_MB` for `MATCHES_PER_JVM` matches, `local-jvm.ts`) so a runaway
  * cannot take the box.
@@ -403,7 +405,7 @@ export interface ReapResult {
 }
 
 /** See "The ceiling" in the module header. Also `PlayDeps.maxMatches`'s default. */
-export const MAX_CONCURRENT_MATCHES = 10;
+export const MAX_CONCURRENT_MATCHES = 50;
 
 /** See "Liveness" in the module header. */
 export const UNRESPONSIVE_MS = 40_000;

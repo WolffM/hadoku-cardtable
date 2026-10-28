@@ -138,14 +138,19 @@ export interface JvmHostConfig {
 	unresponsiveMs?: number;
 }
 
-/** See host.ts, "Many matches per JVM". `CARDTABLE_PLAY_MATCHES_PER_JVM` overrides it. */
-export const MATCHES_PER_JVM = 8;
+/**
+ * See host.ts, "Many matches per JVM". `CARDTABLE_PLAY_MATCHES_PER_JVM` overrides it. 25 since
+ * 2026-10-28: a claw's 4 GB slice holds one JVM, and two claws at 25 make the operator's 50
+ * concurrent matches. A slice held 50 paced matches inside every quality gate (hosting-test-plan
+ * A2), so 25 is half of what was proven; the limit is the slice's 4 cores, not the heap.
+ */
+export const MATCHES_PER_JVM = 25;
 
 /**
- * Each JVM's heap cap: the budget for {@link MATCHES_PER_JVM} matches. A one-match JVM had 1 GB
- * against ~172 MB live idle and ~10 MB per match (Wave 9 lane D), so 2 GB for eight keeps the same
- * kind of headroom. G1 does not hand committed heap back, so a JVM's RSS is budgeted at its peak:
- * ~2.3 GB with metaspace, code cache and Netty.
+ * Each JVM's heap cap: the budget for {@link MATCHES_PER_JVM} matches. A JVM is ~172 MB live idle
+ * and ~10 MB per match (Wave 9 lane D; 4–9 MB in hosting-test-plan B3), so 25 matches live in
+ * ~420 MB of a 2 GB heap. G1 does not hand committed heap back, so a JVM's RSS is budgeted at its
+ * peak: ~2.3 GB with metaspace, code cache and Netty.
  */
 export const JVM_HEAP_MB = 2048;
 
