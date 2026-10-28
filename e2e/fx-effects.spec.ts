@@ -252,7 +252,9 @@ test(titled('Sorin’s +1: the revealed card has its beat, then the hit travels 
     ] as const) {
       const seen = await frames(page);
       const beat = seen.find((f) => f.beat);
-      const hits = seen.filter((f) => f.hits.some((h) => h.key === `player:${bobId}`));
+      // AF420: a face-hit's key now carries its stack item's id too (`player:<id>:<stack item id>`),
+      // seeded per resolution so two casts at the same player fly different arcs — match the prefix.
+      const hits = seen.filter((f) => f.hits.some((h) => h.key.startsWith(`player:${bobId}:`)));
       const number = seen.find((f) => f.numbers.includes('-2'));
       log(`sorin +1 (${who})`, {
         frames: seen.length,
@@ -272,7 +274,7 @@ test(titled('Sorin’s +1: the revealed card has its beat, then the hit travels 
       expect(revealAt === null || near(from, revealAt, 80), `${who}: it sets off from the revealed card (${JSON.stringify(from)} vs ${JSON.stringify(revealAt)})`).toBe(true);
       // The bolt creeps off and then snaps in (`projectile.ts`), so where a frame catches it says little;
       // where it lands does: its impact, on bob's face.
-      const impact = seen.flatMap((f) => f.impacts).find((i) => i.key === `player:${bobId}`);
+      const impact = seen.flatMap((f) => f.impacts).find((i) => i.key.startsWith(`player:${bobId}:`));
       expect(impact, `${who}: it slams into bob`).not.toBeUndefined();
       expect(near(impact!, bobFace[who], 80), `${who}: on bob’s face (${JSON.stringify(impact)} vs ${JSON.stringify(bobFace[who])})`).toBe(true);
       expect(number, `${who}: bob’s -2 rises`).not.toBeUndefined();
