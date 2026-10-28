@@ -2433,6 +2433,13 @@ public final class PlayBridge {
          */
         volatile SpellAbility searching;
 
+        /**
+         * The die rolls this seat's controller was told of ({@link SeatController#notifyOfValue}), each with
+         * the message Forge words it as, in order: the {@code message} frame that says it carries it
+         * ({@link #message}). Forge's own call reaches this seat over its protocol, after the controller's.
+         */
+        final java.util.Deque<Object[]> rolls = new java.util.concurrent.ConcurrentLinkedDeque<>();
+
         /** The first {@link BridgeGui.EffectJournal} entry this seat has not been sent. */
         private long effectsFrom;
 
@@ -2954,6 +2961,11 @@ public final class PlayBridge {
             final JsonObject f = notify("message");
             f.addProperty("message", str(message));
             f.addProperty("title", str(title));
+            final Object[] told = rolls.peekFirst();
+            if (told != null && told[0].equals(message)) {
+                rolls.pollFirst();
+                f.add("roll", (JsonObject) told[1]);
+            }
             frame(f);
         }
 
@@ -5439,6 +5451,85 @@ public final class PlayBridge {
      * match makes its first game, so every game of the match and a mind-slave control alike ask
      * through it.
      */
+    /**
+     * A die roll as the board draws it ({@code tier-a.ts}'s {@code DieRollSchema}): {@code player}, {@code sides}
+     * (null when no die this reads names it), {@code results} in Forge's order, {@code ignored} when the roll
+     * dropped some, and {@code source}, the card it came from, when the seat may see it.
+     */
+    static final class DieRoll {
+        /** Rolls a seat may be told of before its {@code message} frame says the first: a handful, never a backlog. */
+        static final int KEPT = 8;
+        /** Where a template's argument goes, so the template's own words can be read around it. */
+        private static final String SLOT = "\u0001";
+
+        private DieRoll() { }
+
+        /**
+         * The roll {@code value} tells of, or null when it tells of none. {@code RollDiceEffect} words a roll
+         * with {@code lblPlayerRolledResult} (or {@code lblAttractionRollResult}, a d6 to visit Attractions)
+         * over the roller and its results, joined {@code ", "}, then {@code lblIgnoredRolls} on a line of its
+         * own when it ignored some: the same templates, filled with a marker, give the words around them.
+         */
+        static JsonObject of(final SpellAbility sa, final forge.game.GameObject relatedTarget, final String value, final forge.game.player.Player viewer) {
+            if (!(relatedTarget instanceof forge.game.player.Player roller) || value == null) { return null; }
+            final String[] lines = value.split("\r?\n");
+            final forge.util.Localizer words = forge.util.Localizer.getInstance();
+            boolean attractions = false;
+            List<Integer> results = between(lines[0], words.getMessage("lblPlayerRolledResult", roller, SLOT));
+            if (results == null) {
+                results = between(lines[0], words.getMessage("lblAttractionRollResult", roller, SLOT));
+                attractions = true;
+            }
+            if (results == null || results.isEmpty()) { return null; }
+            List<Integer> ignored = null;
+            for (int i = 1; i < lines.length && ignored == null; i++) { ignored = between(lines[i], words.getMessage("lblIgnoredRolls", SLOT)); }
+            final JsonObject o = new JsonObject();
+            o.add("player", ref("player", roller.getId()));
+            final Integer sides = attractions ? Integer.valueOf(6) : sides(sa);
+            if (sides == null) { o.add("sides", com.google.gson.JsonNull.INSTANCE); } else { o.addProperty("sides", sides); }
+            o.add("results", ints(results));
+            if (ignored != null && !ignored.isEmpty()) { o.add("ignored", ints(ignored)); }
+            final forge.game.card.Card host = sa == null ? null : sa.getHostCard();
+            final boolean shown = host != null && !host.isFaceDown() && host.getView().canBeShownTo(viewer.getView());
+            o.add("source", shown ? ref("card", host.getId()) : com.google.gson.JsonNull.INSTANCE);
+            return o;
+        }
+
+        /**
+         * The die's sides as Forge rolls it: a {@code RollDice} ability's {@code Sides} ({@code RollDiceEffect.resolve},
+         * 6 when it names none), or a cost's {@code CostRollDice} ({@code payAsDecided}). Null for anything else.
+         */
+        static Integer sides(final SpellAbility sa) {
+            if (sa == null) { return null; }
+            if (sa.getApi() == ApiType.RollDice) { return AbilityUtils.calculateAmount(sa.getHostCard(), sa.getParamOrDefault("Sides", "6"), sa); }
+            if (sa.getPayCosts() == null) { return null; }
+            for (final forge.game.cost.CostPart part : sa.getPayCosts().getCostParts()) {
+                if (part instanceof forge.game.cost.CostRollDice die) { return Integer.valueOf(die.getType()); }
+            }
+            return null;
+        }
+
+        /** The comma-joined numbers {@code line} holds where {@code template} holds {@link #SLOT}, or null when the words around it differ. */
+        static List<Integer> between(final String line, final String template) {
+            final int at = template.indexOf(SLOT);
+            if (at < 0) { return null; }
+            final String before = template.substring(0, at);
+            final String after = template.substring(at + SLOT.length());
+            if (!line.startsWith(before) || !line.endsWith(after) || line.length() < before.length() + after.length()) { return null; }
+            final List<Integer> out = new ArrayList<>();
+            for (final String n : line.substring(before.length(), line.length() - after.length()).split(",")) {
+                try { out.add(Integer.valueOf(n.trim())); } catch (final NumberFormatException e) { return null; }
+            }
+            return out;
+        }
+
+        private static JsonArray ints(final List<Integer> values) {
+            final JsonArray a = new JsonArray();
+            for (final Integer v : values) { a.add(v); }
+            return a;
+        }
+    }
+
     static final class SeatPlayer extends forge.player.LobbyPlayerHuman {
         /** This seat's match and index, so {@link SeatController} can echo an applied act (see its own doc). */
         final MatchContext match;
@@ -5538,6 +5629,24 @@ public final class PlayBridge {
             final forge.game.card.CardCollection toExile = new forge.game.card.CardCollection();
             if (picked != null) { byView.addToList(picked, toExile); }
             return toExile;
+        }
+
+        /**
+         * A die roll is told as prose alone ({@code RollDiceEffect.rollDiceForPlayer}: "Alice rolled 3, 17",
+         * with an ignored and a natural line when the roll had them), and the board draws the die itself:
+         * who rolled, its sides, each result and its source. Read here, where Forge still holds the ability,
+         * and handed to the seat's {@code message} frame that says it ({@link SeatGui#message}).
+         */
+        @Override
+        public void notifyOfValue(final SpellAbility sa, final forge.game.GameObject relatedTarget, final String value) {
+            final SeatGui gui = match.seatGuis.get(seat);
+            final boolean messaged = sa == null || !sa.isManaAbility() && (sa.getHostCard() == null || !getGui().isLibgdxPort());
+            final JsonObject roll = gui == null || !messaged ? null : orNull("roll", () -> DieRoll.of(sa, relatedTarget, value, getPlayer()));
+            if (roll != null) {
+                gui.rolls.addLast(new Object[] { forge.util.MessageUtil.formatNotificationMessage(sa, getPlayer(), relatedTarget, value), roll });
+                while (gui.rolls.size() > DieRoll.KEPT) { gui.rolls.pollFirst(); }
+            }
+            super.notifyOfValue(sa, relatedTarget, value);
         }
 
         /**

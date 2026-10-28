@@ -34,7 +34,7 @@
 import { z } from 'zod';
 
 import { GameLogEntryTypeSchema } from './events/common.ts';
-import { AskSourceSchema, JavaByteSchema, NextGameDecisionSchema, SkinPropSchema } from './refs.ts';
+import { AskSourceSchema, CardRefSchema, JavaByteSchema, NextGameDecisionSchema, PlayerRefSchema, SkinPropSchema } from './refs.ts';
 
 /** The 16 Tier A method names, in `ProtocolMethod` declaration order per direction. */
 export const TIER_A_METHODS = [
@@ -138,13 +138,30 @@ export const GameLogLineSchema = z.strictObject({
 });
 export type GameLogLine = z.infer<typeof GameLogLineSchema>;
 
-/** `void message(String message, String title)` — IGuiGame.java:157. `log` is ours: see {@link GameLogLineSchema}. */
+/**
+ * A die roll, read where Forge tells it (`PlayBridge.java`'s `SeatController.notifyOfValue`): Forge sends
+ * the roll only as prose, and the board draws the die. `sides` is null when the roll came from somewhere
+ * the bridge cannot read a die's sides off; `results` are Forge's own, in its order (ascending), and
+ * `ignored` the rolls it set aside, when any; `source` is the card the roll came from, when this seat
+ * may see it.
+ */
+export const DieRollSchema = z.strictObject({
+  player: PlayerRefSchema,
+  sides: z.number().int().positive().nullable(),
+  results: z.array(z.number().int()).min(1),
+  ignored: z.array(z.number().int()).min(1).optional(),
+  source: CardRefSchema.nullable(),
+});
+export type DieRoll = z.infer<typeof DieRollSchema>;
+
+/** `void message(String message, String title)` — IGuiGame.java:157. `log` and `roll` are ours: see {@link GameLogLineSchema}, {@link DieRollSchema}. */
 export const MessageSchema = z.strictObject({
   kind: z.literal('notify'),
   method: z.literal('message'),
   message: z.string(),
   title: z.string(),
   log: GameLogLineSchema.optional(),
+  roll: DieRollSchema.optional(),
 });
 
 /**

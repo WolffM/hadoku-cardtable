@@ -103,6 +103,8 @@ export {
   ClearWeaklySelectableSchema,
   FlashIncorrectActionSchema,
   MessageSchema,
+  DieRollSchema,
+  type DieRoll,
   GameLogLineSchema,
   type GameLogLine,
   ShowErrorDialogSchema,
