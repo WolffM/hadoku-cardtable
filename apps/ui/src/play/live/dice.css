@@ -75,8 +75,8 @@
   top: 0;
   z-index: calc(var(--z-overlay, 20) + 1);
   border-radius: 50%;
-  background: var(--shadow);
-  filter: blur(3px);
+  /* Soft-edged by its own gradient: a filter on a board layer is refused (`cardImageRules.test.ts`). */
+  background: radial-gradient(closest-side, var(--shadow), transparent);
   pointer-events: none;
 }
 
