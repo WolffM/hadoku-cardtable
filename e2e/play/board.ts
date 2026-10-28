@@ -115,7 +115,13 @@ export const nextPhaseLive = (page: Page): Locator => page.locator('[data-testid
 export const stackCount = (page: Page): Promise<number> =>
   page.locator('[data-zone="stack"]').evaluate((el) => Number(el.getAttribute('data-count') ?? '0'));
 
-/** The ids Forge currently offers (`data-selectable`), ascending. */
+/**
+ * The ids Forge currently offers (`data-selectable`), ascending — for asking whether a card is among
+ * them, never for picking one by position: at priority Forge also offers every untapped land's mana
+ * ability (`setWeaklySelectable`), so the first id can be a land in play rather than the spell a
+ * spec means (w34, run 40657055879: an Island was tapped in place of Mana Leak). `offeredCard`
+ * picks by name; eslint refuses a positional pick from this.
+ */
 export async function offered(page: Page): Promise<number[]> {
   const ids = await page
     .locator('[data-board-card][data-selectable]')
@@ -124,19 +130,25 @@ export async function offered(page: Page): Promise<number[]> {
 }
 
 /**
- * The OFFERED card named `name`, or `undefined` if it is not (yet) among
- * them — `offered()` with a name filter, for a scenario that gives the
- * viewer a castable hand card alongside untapped lands Forge ALSO offers
- * (their own mana ability at priority, wave 35's own land-tapping fix), so
- * `offered()[0]` is not reliably the one card a spec means (`w35.spec.ts`'s
- * own report: it resolved to a Swamp already in play and clicked that
- * instead of Thoughtseize).
+ * The OFFERED card named `name`, or `undefined` if it is not (yet) among them. `zone: 'hand'` reads
+ * the viewer's own hand only, for a name that is also on the battlefield (a land drop from a hand of
+ * Plains beside a Plains in play, whose mana ability Forge offers too).
  */
-export async function offeredNamed(page: Page, name: string): Promise<number | undefined> {
+export async function offeredNamed(page: Page, name: string, zone?: 'hand'): Promise<number | undefined> {
+  const scope = zone === 'hand' ? '[data-zone="hand"][data-owner="you"] ' : '';
   const cards = await page
-    .locator('[data-board-card][data-selectable]')
+    .locator(`${scope}[data-board-card][data-selectable]`)
     .evaluateAll((els) => els.map((e) => ({ id: Number(e.getAttribute('data-board-card')), name: e.querySelector('.card__name')?.textContent?.trim() ?? '' })));
   return cards.find((c) => c.name === name)?.id;
+}
+
+/** Wait until Forge offers the card named `name` (`offeredNamed`) and return its id. */
+export async function offeredCard(page: Page, name: string, opts: { zone?: 'hand'; timeout?: number; message?: string } = {}): Promise<number> {
+  let id: number | undefined;
+  await expect
+    .poll(async () => (id = await offeredNamed(page, name, opts.zone)), { timeout: opts.timeout ?? 45_000, message: opts.message ?? `${name} is offered` })
+    .not.toBeUndefined();
+  return id!;
 }
 
 /** The decision-area prompt sheet, if one is showing. */
@@ -484,10 +496,29 @@ export async function stackTwoSpells(alice: Page, bob: Page): Promise<void> {
  * Only the cast's own asks are answered (`answerPrompt`'s `stack`): what the
  * spell asks as it resolves is the caller's. `x` is a "choose X" slider's
  * value (`answerPrompt`'s own).
+ *
+ * A card that is not in the viewer's hand fails at once: the press on it was
+ * not a cast (on a land in play it is a tap), and nothing will come of waiting.
  */
 export async function castCard(page: Page, cardId: number, opts: { x?: number } = {}): Promise<void> {
   const watch = await castWatch(page, cardId);
-  await clickHandCard(page, cardId);
+  if (!(await clickHandCard(page, cardId))) {
+    throw new Error(`castCard(${cardId}): not a card in this seat's hand (it is at ${(await castState(page, cardId)).at ?? 'nowhere drawn'}) — says "${await says(page)}"`);
+  }
+  await drainCast(page, cardId, watch, opts);
+}
+
+/**
+ * `castCard` for a permanent's own activated ability: a click on the offered permanent
+ * (`clickPermanent`), then the same drain until the ability is on the stack.
+ */
+export async function activateCard(page: Page, cardId: number, opts: { x?: number } = {}): Promise<void> {
+  const watch = await castWatch(page, cardId);
+  if (!(await clickPermanent(page, cardId))) throw new Error(`activateCard(${cardId}): never offered with a live window — says "${await says(page)}"`);
+  await drainCast(page, cardId, watch, opts);
+}
+
+async function drainCast(page: Page, cardId: number, watch: { stack: number; cast: () => Promise<boolean> }, opts: { x?: number }): Promise<void> {
   try {
     await expect
       .poll(
@@ -502,7 +533,7 @@ export async function castCard(page: Page, cardId: number, opts: { x?: number } 
       )
       .toBe(true);
   } catch {
-    throw new Error(`castCard(${cardId}) never saw the cast happen — stuck on "${await says(page)}"`);
+    throw new Error(`card ${cardId} never reached the stack — stuck on "${await says(page)}"`);
   }
 }
 
@@ -591,7 +622,8 @@ export async function pressOffered(target: Locator): Promise<boolean> {
  * first of `targets` the board offers — `pressOffered`, in the caller's order —
  * or `pressPaymentAuto` — never `clickOnce(…, 'ok')`, which can land on the
  * stack's own OK the instant the spell lands) until `castWatch` says the cast
- * happened. T6: the one cast-wait loop w51/w56-numbers/w33 wrote by hand;
+ * happened. A target is pressed once and not again until its offer is
+ * withdrawn. T6: the one cast-wait loop w51/w56-numbers/w33 wrote by hand;
  * w63-yield's own copy skipped the payment fallback and reddened twice for it
  * (bob's Bolt costs `{R}`, runs 37859797421, 37870730678).
  */
@@ -605,8 +637,22 @@ export async function castUntilOnStack(
   const watch = await castWatch(page, cardId);
   expect(await clickHandCard(page, cardId), `card ${cardId} lifted out of the hand`).toBe(true);
   const deadline = Date.now() + (opts.timeoutMs ?? 30_000);
+  // A press is in flight until the board withdraws that target's offer: pressing it again meanwhile
+  // reaches Forge after the next window opened and is taken there (dp-dismember, run 40621163042: a
+  // second press on the creature replaced the payment window with a new cast).
   const pressTarget = async (): Promise<boolean> => {
-    for (const target of targets) if (await pressOffered(target)) return true;
+    for (const target of targets) {
+      if (!(await pressOffered(target))) continue;
+      const landed = await expect
+        .poll(async () => (await watch.cast()) || (await target.and(page.locator('[data-selectable]')).count()) === 0, { timeout: 5_000 })
+        .toBe(true)
+        .then(
+          () => true,
+          () => false,
+        );
+      if (!landed) console.log(`[press] card ${cardId}: the target is still offered 5 s after its press`);
+      return true;
+    }
     return false;
   };
   while (!(await watch.cast()) && Date.now() < deadline) {
@@ -642,6 +688,33 @@ export async function passOverStack(page: Page): Promise<void> {
   if ((await ok.count()) === 0) return;
   await ok.first().click({ timeout: 1_000 }).catch(() => undefined);
   await expect(ok).toHaveCount(0, { timeout: 2_000 }).catch(() => undefined);
+}
+
+/**
+ * Cast `cardId` from the first page's hand (`castUntilOnStack`: its targets, then its payment, each by
+ * state) and then pass every page over the stack (`passOverStack`) until `until()` — the drive from a
+ * click to whatever the spell asks as it resolves. No OK is pressed while the cast is in flight: an OK
+ * sent while a target or payment window is open cancels the cast (w69-name-card, run 40632366167: a
+ * blanket OK went out in the same millisecond as the target press, and the spell was never cast).
+ * Returns once `until()` holds; the caller asserts it.
+ */
+export async function castAndPassUntil(
+  pages: readonly Page[],
+  stack: { serverLogFile: string },
+  cardId: number,
+  targets: readonly Locator[],
+  until: () => Promise<boolean>,
+  opts: { timeoutMs?: number } = {},
+): Promise<void> {
+  await castUntilOnStack(pages[0]!, stack, cardId, targets);
+  const deadline = Date.now() + (opts.timeoutMs ?? 90_000);
+  while (Date.now() < deadline) {
+    for (const page of pages) {
+      if (await until()) return;
+      await passOverStack(page);
+    }
+    await pages[0]!.waitForTimeout(60);
+  }
 }
 
 /**

@@ -67,18 +67,25 @@ async function openPayment(seated: ScenarioMatch): Promise<{ bears: () => Promis
   await expect.poll(() => offered(page), { timeout: 45_000, message: 'Dismember is offered with one Plains out' }).toContain(dismember);
   expect(await clickHandCard(page, dismember), 'Dismember lifted out of alice’s hand').toBe(true);
 
-  // Its target is the Bears; then the payment window opens.
+  // Its target is the Bears, pressed once and only while Forge's target window is the live one; then
+  // the payment window opens. A second press sent while the first is in flight reaches Forge after the
+  // payment window opened and replaces it with a new cast (run 40621163042).
+  const targeting = async (): Promise<boolean> => /^Select target creature/i.test(await says(page));
   await expect
     .poll(
       async () => {
-        if ((await payment.count()) > 0) return true;
+        if ((await payment.count()) > 0 || (await targeting())) return true;
         await answerPrompt(page);
-        await pressOffered(boardCard(page, bear));
         return false;
       },
-      { timeout: 20_000, intervals: [50], message: `the payment window opened — says: "${await says(page)}"` },
+      { timeout: 20_000, intervals: [50], message: `the target window opened — says: "${await says(page)}"` },
     )
     .toBe(true);
+  if ((await payment.count()) === 0) {
+    expect(await pressOffered(boardCard(page, bear)), 'the Bears are offered as the target').toBe(true);
+    await expect.poll(targeting, { timeout: 10_000, message: 'the target window closed after the press' }).toBe(false);
+  }
+  await expect(payment, `the payment window opened — says: "${await says(page)}"`).toHaveCount(1, { timeout: 20_000 });
   expect(await payment.textContent(), 'the window keeps Forge’s cost line').toMatch(/Pay Mana Cost/);
   await expect(page.getByTestId('live-payment-life'), 'the payment window offers life').toBeEnabled({ timeout: 10_000 });
   return { bears };

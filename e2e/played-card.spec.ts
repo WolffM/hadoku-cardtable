@@ -34,7 +34,7 @@ import { resolve } from 'node:path';
 
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 
-import { dragHandCard, makeTitled, offered, pressPaymentAuto, says, serverLog } from './play/board.ts';
+import { dragHandCard, makeTitled, offered, offeredCard, pressPaymentAuto, says, serverLog } from './play/board.ts';
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -300,8 +300,7 @@ for (const fast of [true, false]) {
   try {
     const { alice } = await startScenarioMatch(browser, stack, 'shockland');
     if (!fast) await setFastMode(alice.page, false);
-    const land = (await offered(alice.page))[0];
-    if (land === undefined) throw new Error(`the shockland scenario offered nothing to play: ${await says(alice.page)}`);
+    const land = await offeredCard(alice.page, 'Steam Vents', { zone: 'hand' });
     const to = await releasePoint(alice.page);
     await record(alice.page, land);
     expect(await dragHandCard(alice.page, land, to), 'the press lifted the land').toBe(true);
@@ -391,8 +390,7 @@ test(titled('a creature the opponent can answer stays the card where it was let 
   const stack = await startPlayStack(forge);
   try {
     const { alice } = await startScenarioMatch(browser, stack, 'w49-a-counterspell-opponent');
-    const memnite = (await offered(alice.page))[0];
-    if (memnite === undefined) throw new Error(`nothing to cast: ${await says(alice.page)}`);
+    const memnite = await offeredCard(alice.page, 'Memnite', { zone: 'hand' });
     const to = await releasePoint(alice.page);
     await record(alice.page, memnite);
     expect(await dragHandCard(alice.page, memnite, to), 'the press lifted Memnite').toBe(true);

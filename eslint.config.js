@@ -205,6 +205,14 @@ export default [
           selector: "MemberExpression[property.name='setViewportSize']",
           message: "Resize with resizeWindow (e2e/play/board.ts): it waits until the board has measured the new window, so a read after it never sees the old window's card size.",
         },
+        {
+          selector: "MemberExpression[computed=true][object.type='AwaitExpression'][object.argument.callee.name='offered']",
+          message: 'Pick an offered card by name with offeredCard (e2e/play/board.ts): Forge also offers every untapped land at priority, so a position is not the card a spec means.',
+        },
+        {
+          selector: "VariableDeclarator[id.type='ArrayPattern'][init.type='AwaitExpression'][init.argument.callee.name='offered']",
+          message: 'Pick an offered card by name with offeredCard (e2e/play/board.ts): Forge also offers every untapped land at priority, so a position is not the card a spec means.',
+        },
       ],
     },
   },

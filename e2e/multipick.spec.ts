@@ -24,7 +24,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, enabledOk, livePrompt, makeTitled, offeredNamed, pressPaymentAuto, says, stackCount } from './play/board.ts';
+import { castAndPassUntil, enabledOk, livePrompt, makeTitled, offeredCard, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -58,19 +58,9 @@ test(titled('Gifts Ungiven searches with one picker: a name already ticked greys
     const { alice, bob } = await startScenarioMatch(browser, stack, 'tr-gifts');
     const page = alice.page;
 
-    await expect.poll(() => offeredNamed(page, 'Gifts Ungiven'), { timeout: 45_000, message: 'alice is offered Gifts Ungiven' }).not.toBeUndefined();
-    await clickHandCard(page, (await offeredNamed(page, 'Gifts Ungiven'))!);
     const asked = async (): Promise<boolean> => ['chooseSingleEntityForEffect', 'chooseEntitiesForEffect'].includes((await openMethod(page)) ?? '');
-    const deadline = Date.now() + 90_000;
-    while (!(await asked()) && Date.now() < deadline) {
-      await pressPaymentAuto(page);
-      if (await asked()) break;
-      for (const p of [page, bob.page]) {
-        const ok = enabledOk(p).first();
-        if ((await ok.count()) > 0 && !(await asked())) await ok.click({ timeout: 1_000 }).catch(() => undefined);
-      }
-      await page.waitForTimeout(100);
-    }
+    const card = await offeredCard(page, 'Gifts Ungiven', { zone: 'hand', message: 'alice is offered Gifts Ungiven' });
+    await castAndPassUntil([page, bob.page], stack, card, [page.locator('[data-player-face]:not([data-viewer])')], asked);
     log('asked', { method: await openMethod(page), says: await says(page) });
     expect(await openMethod(page), 'the search is one multi-pick').toBe('chooseEntitiesForEffect');
 
@@ -144,19 +134,9 @@ test(titled('Shard Convergence picks a card of each type in one picker: a second
     const { alice, bob } = await startScenarioMatch(browser, stack, 'set-shard');
     const page = alice.page;
 
-    await expect.poll(() => offeredNamed(page, 'Shard Convergence'), { timeout: 45_000, message: 'alice is offered Shard Convergence' }).not.toBeUndefined();
-    await clickHandCard(page, (await offeredNamed(page, 'Shard Convergence'))!);
     const asked = async (): Promise<boolean> => ['chooseSingleEntityForEffect', 'chooseEntitiesForEffect'].includes((await openMethod(page)) ?? '');
-    const deadline = Date.now() + 90_000;
-    while (!(await asked()) && Date.now() < deadline) {
-      await pressPaymentAuto(page);
-      if (await asked()) break;
-      for (const p of [page, bob.page]) {
-        const ok = enabledOk(p).first();
-        if ((await ok.count()) > 0 && !(await asked())) await ok.click({ timeout: 1_000 }).catch(() => undefined);
-      }
-      await page.waitForTimeout(100);
-    }
+    const card = await offeredCard(page, 'Shard Convergence', { zone: 'hand', message: 'alice is offered Shard Convergence' });
+    await castAndPassUntil([page, bob.page], stack, card, [], asked);
     log('asked', { method: await openMethod(page), says: await says(page) });
     expect(await openMethod(page), 'the search is one multi-pick').toBe('chooseEntitiesForEffect');
 
@@ -218,19 +198,9 @@ test(titled('Sundering Titan’s picker works out which land answers which basic
     const { alice, bob } = await startScenarioMatch(browser, stack, 'set-titan-picker');
     const page = alice.page;
 
-    await expect.poll(() => offeredNamed(page, 'Sundering Titan'), { timeout: 45_000, message: 'alice is offered Sundering Titan' }).not.toBeUndefined();
-    await clickHandCard(page, (await offeredNamed(page, 'Sundering Titan'))!);
     const asked = async (): Promise<boolean> => (await openMethod(page)) === 'chooseEntitiesForEffect';
-    const deadline = Date.now() + 90_000;
-    while (!(await asked()) && Date.now() < deadline) {
-      await pressPaymentAuto(page);
-      if (await asked()) break;
-      for (const p of [page, bob.page]) {
-        const ok = enabledOk(p).first();
-        if ((await ok.count()) > 0 && !(await asked())) await ok.click({ timeout: 1_000 }).catch(() => undefined);
-      }
-      await page.waitForTimeout(100);
-    }
+    const card = await offeredCard(page, 'Sundering Titan', { zone: 'hand', message: 'alice is offered Sundering Titan' });
+    await castAndPassUntil([page, bob.page], stack, card, [], asked);
     log('asked', { method: await openMethod(page), says: await says(page) });
     expect(await openMethod(page), 'the choice is one multi-pick').toBe('chooseEntitiesForEffect');
 

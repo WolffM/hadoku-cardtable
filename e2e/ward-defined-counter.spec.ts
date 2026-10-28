@@ -22,7 +22,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { dragHandCard, makeTitled, offered, pressOffered, resizeWindow, says } from './play/board.ts';
+import { dragHandCard, makeTitled, offeredCard, pressOffered, resizeWindow, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -74,8 +74,7 @@ test(
       void bob;
       await resizeWindow(alice.page, { width: 1600, height: 1000 });
 
-      await expect.poll(() => offered(alice.page), { timeout: 45_000, message: 'alice is offered Doom Blade' }).not.toEqual([]);
-      const blade = (await offered(alice.page))[0]!;
+      const blade = await offeredCard(alice.page, 'Doom Blade', { zone: 'hand', timeout: 45_000, message: 'alice is offered Doom Blade' });
       const armadillo = alice.page.locator('[data-zone="battlefield"][data-owner="them"] [data-board-card]');
       await expect(armadillo, "bob's warded Armored Armadillo is on his battlefield").toHaveCount(1);
 

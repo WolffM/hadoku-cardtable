@@ -46,7 +46,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { messages } from './play/browser.ts';
-import { cancelCast, clickHandCard, dragHandCard, enabledOk, handCardNamed, livePrompt, offered, pressOffered, says, stackCount } from './play/board.ts';
+import { cancelCast, clickHandCard, dragHandCard, enabledOk, handCardNamed, livePrompt, offeredCard, pressOffered, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -146,8 +146,7 @@ test(
     try {
       const { alice, bob } = await startScenarioMatch(browser, stack, 'auto-target');
 
-      await expect.poll(() => offered(alice.page), { timeout: 45_000, message: "alice is offered Doom Blade — the precondition \"auto-target\" sets up" }).not.toEqual([]);
-      const blade = (await offered(alice.page))[0]!;
+      const blade = await offeredCard(alice.page, 'Doom Blade', { zone: 'hand', timeout: 45_000, message: "alice is offered Doom Blade — the precondition \"auto-target\" sets up" });
       const theirs = alice.page.locator('[data-zone="battlefield"][data-owner="them"] [data-board-card]');
       await expect(theirs, "bob's one creature is on his battlefield").toHaveCount(1);
 

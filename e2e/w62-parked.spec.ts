@@ -21,7 +21,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { dragHandCard, makeTitled, offered, resizeWindow, says } from './play/board.ts';
+import { dragHandCard, makeTitled, offeredCard, resizeWindow, says } from './play/board.ts';
 import { confirmOpen, confirmYes } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -76,8 +76,7 @@ test(titled('a card parked on a question stands still on the opponent’s screen
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w62-parked');
     for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
-    await expect.poll(() => offered(alice.page), { timeout: 30_000, message: 'alice is offered Godless Shrine' }).not.toEqual([]);
-    const shrine = (await offered(alice.page))[0]!;
+    const shrine = await offeredCard(alice.page, 'Godless Shrine', { zone: 'hand', timeout: 30_000, message: 'alice is offered Godless Shrine' });
     const herField = (await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
     const to = { x: herField.x + herField.width * 0.5, y: herField.y + herField.height * 0.5 };
 
@@ -272,8 +271,7 @@ test(titled('a plain land drop fires the opponent’s handoff flight exactly onc
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'land-into-middle');
     for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
-    await expect.poll(() => offered(alice.page), { timeout: 30_000, message: 'alice is offered Island' }).not.toEqual([]);
-    const island = (await offered(alice.page))[0]!;
+    const island = await offeredCard(alice.page, 'Island', { zone: 'hand', timeout: 30_000, message: 'alice is offered Island' });
     const herField = (await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
     const to = { x: herField.x + herField.width * 0.5, y: herField.y + herField.height * 0.5 };
 
@@ -304,8 +302,7 @@ test(titled('a parked card answered fires the opponent’s handoff flight exactl
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w62-parked');
     for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
-    await expect.poll(() => offered(alice.page), { timeout: 30_000, message: 'alice is offered Godless Shrine' }).not.toEqual([]);
-    const shrine = (await offered(alice.page))[0]!;
+    const shrine = await offeredCard(alice.page, 'Godless Shrine', { zone: 'hand', timeout: 30_000, message: 'alice is offered Godless Shrine' });
     const herField = (await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
     const to = { x: herField.x + herField.width * 0.5, y: herField.y + herField.height * 0.5 };
 

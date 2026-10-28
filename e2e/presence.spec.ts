@@ -13,7 +13,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { dragHandCard, enabledOk, handCardNamed, makeTitled, offered, resizeWindow, says, stackCount } from './play/board.ts';
+import { dragHandCard, enabledOk, handCardNamed, makeTitled, offeredCard, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -51,8 +51,7 @@ test(titled('bob sees alice’s pointer, a card back while she holds a card, her
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'own-spell');
     for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
-    await expect.poll(() => offered(alice.page), { timeout: 30_000, message: 'alice is offered Memnite' }).not.toEqual([]);
-    const memnite = (await offered(alice.page))[0]!;
+    const memnite = await offeredCard(alice.page, 'Memnite', { zone: 'hand', timeout: 30_000, message: 'alice is offered Memnite' });
     const name = (await alice.page.locator(`[data-board-card="${memnite}"] .card__name`).first().textContent())?.trim() ?? '';
     expect(name).not.toBe('');
 
@@ -178,8 +177,7 @@ test(titled('no arrow is ever drawn on the other screen while a no-target card i
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'own-spell');
     for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
-    await expect.poll(() => offered(alice.page), { timeout: 30_000, message: 'alice is offered Memnite' }).not.toEqual([]);
-    const memnite = (await offered(alice.page))[0]!;
+    const memnite = await offeredCard(alice.page, 'Memnite', { zone: 'hand', timeout: 30_000, message: 'alice is offered Memnite' });
     const herField = (await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
 
     await bob.page.evaluate(() => {
@@ -215,8 +213,7 @@ test(titled('letting go of a held card with no further pointer move takes the ba
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'own-spell');
     for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
-    await expect.poll(() => offered(alice.page), { timeout: 30_000, message: 'alice is offered Memnite' }).not.toEqual([]);
-    const memnite = (await offered(alice.page))[0]!;
+    const memnite = await offeredCard(alice.page, 'Memnite', { zone: 'hand', timeout: 30_000, message: 'alice is offered Memnite' });
 
     const cardBox = (await alice.page.locator(`[data-board-card="${memnite}"]`).boundingBox())!;
     const herField = (await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;

@@ -15,8 +15,8 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, enabledOk, livePrompt, makeTitled, offeredNamed, pressPaymentAuto, resizeWindow, says } from './play/board.ts';
-import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { castAndPassUntil, livePrompt, makeTitled, offeredCard, resizeWindow, says } from './play/board.ts';
+import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -56,20 +56,10 @@ function choiceTags(page: Page, id: number): Promise<{ kind: string; text: strin
   );
 }
 
-/** Cast `name` from alice's hand and pass both seats' priority until `asked` shows on her screen. */
-async function castUntilAsked(alice: Page, bob: Page, name: string, asked: () => Promise<boolean>): Promise<void> {
-  await expect.poll(() => offeredNamed(alice, name), { timeout: 45_000, message: `alice is offered ${name}` }).not.toBeUndefined();
-  await clickHandCard(alice, (await offeredNamed(alice, name))!);
-  const deadline = Date.now() + 90_000;
-  while (!(await asked()) && Date.now() < deadline) {
-    await pressPaymentAuto(alice);
-    if (await asked()) break;
-    for (const p of [alice, bob]) {
-      const ok = enabledOk(p).first();
-      if ((await ok.count()) > 0 && !(await asked())) await ok.click({ timeout: 1_000 }).catch(() => undefined);
-    }
-    await alice.waitForTimeout(100);
-  }
+/** Cast `name` from alice's hand and pass both seats over the stack until `asked` shows on her screen. */
+async function castUntilAsked(stack: PlayStack, alice: Page, bob: Page, name: string, asked: () => Promise<boolean>): Promise<void> {
+  const card = await offeredCard(alice, name, { zone: 'hand', message: `alice is offered ${name}` });
+  await castAndPassUntil([alice, bob], stack, card, [], asked);
   log(`${name} asked`, { asked: await asked(), method: await livePrompt(alice).first().getAttribute('data-method').catch(() => null), says: await says(alice) });
   expect(await asked(), `${name}: Forge asks alice its choice`).toBe(true);
 }
@@ -85,7 +75,7 @@ test(titled('a permanent wears what was chosen for it: Prism Ring its colour, Pi
 
     // Prism Ring: the colour ask, answered blue.
     const blue = livePrompt(alice.page).getByRole('checkbox', { name: /^blue$/i });
-    await castUntilAsked(alice.page, bob.page, 'Prism Ring', async () => (await blue.count()) > 0);
+    await castUntilAsked(stack, alice.page, bob.page, 'Prism Ring', async () => (await blue.count()) > 0);
     await blue.first().dispatchEvent('click');
     await livePrompt(alice.page).getByTestId('prompt-submit').click();
     await expect(livePrompt(alice.page), 'the colour ask closed once answered').toHaveCount(0, { timeout: 15_000 });
@@ -109,7 +99,7 @@ test(titled('a permanent wears what was chosen for it: Prism Ring its colour, Pi
 
     // Pithing Needle: the name ask, answered Llanowar Elves.
     const search = alice.page.getByTestId('prompt-name-search');
-    await castUntilAsked(alice.page, bob.page, 'Pithing Needle', async () => (await search.count()) > 0);
+    await castUntilAsked(stack, alice.page, bob.page, 'Pithing Needle', async () => (await search.count()) > 0);
     await search.pressSequentially('llanowar elves');
     const options = alice.page.getByTestId('prompt-name-option');
     await expect(options.first(), 'the picker finds it').toHaveText('Llanowar Elves').catch(async (e: unknown) => {

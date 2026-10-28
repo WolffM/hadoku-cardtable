@@ -17,7 +17,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, enabledOk, livePrompt, makeTitled, offeredNamed, pressPaymentAuto, resizeWindow, says, stackCount } from './play/board.ts';
+import { castAndPassUntil, enabledOk, livePrompt, makeTitled, offeredCard, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -86,19 +86,9 @@ test(titled("Atraxa's trigger is one sheet of the ten revealed cards, one per ty
     for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
 
     // Cast Atraxa and pass both seats' priority until her trigger asks alice.
-    await expect.poll(() => offeredNamed(alice.page, ATRAXA), { timeout: 45_000, message: 'alice is offered Atraxa' }).not.toBeUndefined();
-    await clickHandCard(alice.page, (await offeredNamed(alice.page, ATRAXA))!);
     const asked = async (): Promise<boolean> => ['order', 'getChoices', 'chooseSingleEntityForEffect', 'chooseEntitiesForEffect'].includes((await openMethod(alice.page)) ?? '');
-    const deadline = Date.now() + 90_000;
-    while (!(await asked()) && Date.now() < deadline) {
-      await pressPaymentAuto(alice.page);
-      if (await asked()) break;
-      for (const p of [alice.page, bob.page]) {
-        const ok = enabledOk(p).first();
-        if ((await ok.count()) > 0 && !(await asked())) await ok.click({ timeout: 1_000 }).catch(() => undefined);
-      }
-      await alice.page.waitForTimeout(100);
-    }
+    const card = await offeredCard(alice.page, ATRAXA, { zone: 'hand', message: 'alice is offered Atraxa' });
+    await castAndPassUntil([alice.page, bob.page], stack, card, [], asked);
     const first = await openMethod(alice.page);
     log('asked', { method: first, says: await says(alice.page) });
     expect(await asked(), "Atraxa's trigger asks alice").toBe(true);

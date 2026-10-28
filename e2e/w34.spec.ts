@@ -40,21 +40,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import {
-  castCard,
-  clickHandCard,
-  clickOnce,
-  enabledOk,
-  livePrompt,
-  makeTitled,
-  offered,
-  pressPaymentAuto,
-  promptMethod,
-  resizeWindow,
-  says,
-  serverLog,
-  stackCount,
-} from './play/board.ts';
+import { castCard, clickHandCard, clickOnce, enabledOk, livePrompt, makeTitled, offeredCard, pressPaymentAuto, promptMethod, resizeWindow, says, serverLog, stackCount } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
 import { answerPrompt } from './play/prompts.ts';
@@ -123,8 +109,7 @@ test(titled('§E1 — with Full Control on, clicking an instant in response to t
     // free creature (Memnite); alice holds Mana Leak + 3 Islands.
     const { alice, bob, matchId } = await startScenarioMatch(browser, stack, 'lone-spell');
 
-    await expect.poll(() => offered(bob.page), { timeout: 90_000, message: 'bob is offered his free creature — the precondition "lone-spell" sets up' }).not.toEqual([]);
-    const memnite = (await offered(bob.page))[0]!;
+    const memnite = await offeredCard(bob.page, 'Memnite', { zone: 'hand', timeout: 90_000, message: 'bob is offered his free creature — the precondition "lone-spell" sets up' });
     await castCard(bob.page, memnite);
 
     // Precondition: the opponent's spell is the only thing on the stack.
@@ -136,8 +121,7 @@ test(titled('§E1 — with Full Control on, clicking an instant in response to t
     await alice.page.getByTestId('live-full-control').click();
     await expect(alice.page.getByTestId('live-full-control'), 'Full Control is on for alice — the precondition this spec needs').toHaveAttribute('aria-pressed', 'true');
 
-    await expect.poll(() => offered(alice.page), { timeout: 15_000, message: 'alice is offered her counterspell' }).not.toEqual([]);
-    const manaLeak = (await offered(alice.page))[0]!;
+    const manaLeak = await offeredCard(alice.page, 'Mana Leak', { zone: 'hand', timeout: 15_000, message: 'alice is offered her counterspell' });
 
     // The bug: this click produced no Pay Mana Cost, ever, and the stack never
     // moved off 1. The fix: it reaches a real Pay Mana Cost ask (Mana Leak
@@ -213,9 +197,8 @@ test(titled('§E2 — Ponder\'s look/reorder decision reaches the browser as a r
     const { alice, bob, matchId } = await startScenarioMatch(browser, stack, 'ponder');
 
     const myHandCount = alice.page.locator('.seat[data-viewer] [data-zone="hand"]');
-    await expect.poll(() => offered(alice.page), { timeout: 90_000, message: 'alice is offered Ponder — the precondition "ponder" sets up' }).not.toEqual([]);
+    const card = await offeredCard(alice.page, 'Ponder', { zone: 'hand', timeout: 90_000, message: 'alice is offered Ponder — the precondition "ponder" sets up' });
     const handBefore = Number((await myHandCount.getAttribute('data-count')) ?? '-1');
-    const card = (await offered(alice.page))[0]!;
     await castCard(alice.page, card);
 
     // The bug (§E2): nothing reaches the browser at all — the stack goes
@@ -445,8 +428,7 @@ test(titled('the Choose X slider renders (not a checkbox fallback), defaults to 
     // 30s, not 15: the same host-load margin as this file's other "sets up"
     // preconditions (missed once in the full forge-e2e CI-set run, never in
     // isolation).
-    await expect.poll(() => offered(alice.page), { timeout: 90_000, message: 'alice is offered her X spell — the precondition "choose-x" sets up' }).not.toEqual([]);
-    const card = (await offered(alice.page))[0]!;
+    const card = await offeredCard(alice.page, 'Fireball', { zone: 'hand', timeout: 90_000, message: 'alice is offered her X spell — the precondition "choose-x" sets up' });
     await clickHandCard(alice.page, card);
 
     const slider = alice.page.getByTestId('prompt-slider');

@@ -32,7 +32,7 @@ import { resolve } from 'node:path';
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castCard, clickPermanent, livePrompt, makeTitled, offered, passOverStack, pressOffered, promptMethod, resizeWindow } from './play/board.ts';
+import { castCard, clickPermanent, livePrompt, makeTitled, offeredCard, passOverStack, pressOffered, promptMethod, resizeWindow } from './play/board.ts';
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { forgeAvailability, RUN_DIR, startPlayStack } from './play/harness.ts';
 import { beforePoint, pointIn, settle, stripPoint, type Point } from './play/order.ts';
@@ -244,8 +244,7 @@ test(
       const { alice } = await startScenarioMatch(browser, stack, 'pz-scry');
       const page = alice.page;
       await resizeWindow(page, SIZE);
-      await expect.poll(() => offered(page), { timeout: 30_000, message: 'alice is offered Preordain' }).not.toEqual([]);
-      await castCard(page, (await offered(page))[0]!);
+      await castCard(page, await offeredCard(page, 'Preordain', { zone: 'hand', timeout: 30_000, message: 'alice is offered Preordain' }));
       await expect.poll(() => promptMethod(page), { timeout: 20_000, message: 'the scry opened' }).toBe('order');
 
       const prompt = livePrompt(page);
@@ -291,8 +290,7 @@ test(
       const { alice } = await startScenarioMatch(browser, stack, 'pz-surveil');
       const page = alice.page;
       await resizeWindow(page, SIZE);
-      await expect.poll(() => offered(page), { timeout: 30_000, message: 'alice is offered Notion Rain' }).not.toEqual([]);
-      await castCard(page, (await offered(page))[0]!);
+      await castCard(page, await offeredCard(page, 'Notion Rain', { zone: 'hand', timeout: 30_000, message: 'alice is offered Notion Rain' }));
       await expect.poll(() => promptMethod(page), { timeout: 30_000, message: 'the surveil opened' }).toBe('order');
 
       const prompt = livePrompt(page);
@@ -332,8 +330,7 @@ test(
       const { alice } = await startScenarioMatch(browser, stack, 'order-drag-ponder');
       const page = alice.page;
       await resizeWindow(page, SIZE);
-      await expect.poll(() => offered(page), { timeout: 30_000, message: 'alice is offered Ponder' }).not.toEqual([]);
-      await castCard(page, (await offered(page))[0]!);
+      await castCard(page, await offeredCard(page, 'Ponder', { zone: 'hand', timeout: 30_000, message: 'alice is offered Ponder' }));
       await expect.poll(() => promptMethod(page), { timeout: 20_000, message: 'Ponder’s order opened' }).toBe('order');
 
       const prompt = livePrompt(page);

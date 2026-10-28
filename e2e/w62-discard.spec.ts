@@ -16,7 +16,7 @@
  */
 import { expect, test } from '@playwright/test';
 
-import { clickHandCard, makeTitled, offered, says } from './play/board.ts';
+import { clickHandCard, makeTitled, offered, offeredCard, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -38,8 +38,7 @@ test(titled('the cleanup discard: a pick among my own hand draws no targeter arr
     const endTurn = alice.page.getByTestId('live-button-end-turn');
 
     // Her click on record: one land drop. The land is offered the moment she holds priority.
-    await expect.poll(() => offered(alice.page), { timeout: 45_000, message: 'a land in hand is offered' }).not.toEqual([]);
-    const played = (await offered(alice.page))[0]!;
+    const played = await offeredCard(alice.page, 'Plains', { zone: 'hand', timeout: 45_000, message: 'a land in hand is offered' });
     const onBattlefield = alice.page.locator(`[data-zone="battlefield"][data-owner="you"] [data-board-card="${played}"]`);
     // A land is played by the lift-and-click gesture, not a bare click; the first act after a
     // scenario applies is sometimes dropped (the start race every scenario spec absorbs), so the

@@ -14,7 +14,7 @@
 
 import { expect, test } from '@playwright/test';
 
-import { clickHandCard, handCardNamed, makeTitled, offered, pressPaymentAuto, says, serverLog, stackCount } from './play/board.ts';
+import { clickHandCard, handCardNamed, makeTitled, offeredCard, pressPaymentAuto, says, serverLog, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -74,11 +74,9 @@ test(titled('a counterspell\'s lone target answers itself; the other seat is nev
     const { alice, bob, matchId } = await startScenarioMatch(browser, stack, 'lone-spell');
     const pop = await recordSurface(bob.page, '[data-testid="live-waiting-pop"]');
 
-    await expect.poll(() => offered(bob.page), { timeout: 90_000, message: 'bob is offered his Memnite' }).not.toEqual([]);
-    expect(await clickHandCard(bob.page, (await offered(bob.page))[0]!), 'Memnite is played').toBe(true);
+    expect(await clickHandCard(bob.page, await offeredCard(bob.page, 'Memnite', { zone: 'hand', timeout: 90_000, message: 'bob is offered his Memnite' })), 'Memnite is played').toBe(true);
     await expect.poll(() => stackCount(alice.page), { timeout: 15_000, message: 'bob’s Memnite is the only thing on the stack' }).toBe(1);
-    await expect.poll(() => offered(alice.page), { timeout: 15_000, message: 'alice is offered her counterspell' }).not.toEqual([]);
-    const manaLeak = (await offered(alice.page))[0]!;
+    const manaLeak = await offeredCard(alice.page, 'Mana Leak', { zone: 'hand', timeout: 15_000, message: 'alice is offered her counterspell' });
 
     const cdp = await alice.context.newCDPSession(alice.page);
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 20 });

@@ -20,11 +20,11 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castCard, clickHandCard, enterMatch, makeTitled, offered, resizeWindow, stackCount } from './play/board.ts';
+import { castCard, clickHandCard, enterMatch, makeTitled, offeredCard, resizeWindow, stackCount } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmNo, confirmYes } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { says, startScenarioMatch } from './play/scenario.ts';
+import { startScenarioMatch } from './play/scenario.ts';
 import { endOfSlot, pointerDrag, viewerSlot } from './play/w32.ts';
 
 const forge = forgeAvailability();
@@ -179,8 +179,7 @@ test(titled('T4 — a shockland\'s "pay 2 life?" is a yes/no pop-up, and the con
   const stack = await startPlayStack(forge);
   try {
     const { alice } = await startScenarioMatch(browser, stack, 'shockland');
-    const land = (await offered(alice.page))[0];
-    if (land === undefined) throw new Error(`the shockland scenario offered nothing to play: ${await says(alice.page)}`);
+    const land = await offeredCard(alice.page, 'Steam Vents', { zone: 'hand' });
     // A land is not a spell — it never touches the stack, so its own ETB
     // confirm is waited for directly, not via `castCard`'s cast-wait.
     await clickHandCard(alice.page, land);
@@ -312,8 +311,7 @@ test(titled('T8 — the opponent’s placed card shows the real face, and hoveri
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'lone-spell');
-    await expect.poll(() => offered(bob.page), { timeout: 150_000, message: 'bob is offered his free creature — the precondition "lone-spell" sets up' }).not.toEqual([]);
-    await castCard(bob.page, (await offered(bob.page))[0]!);
+    await castCard(bob.page, await offeredCard(bob.page, 'Memnite', { zone: 'hand', timeout: 150_000, message: 'bob is offered his free creature — the precondition "lone-spell" sets up' }));
     await expect.poll(() => stackCount(alice.page), { timeout: 30_000, message: 'the cast reached the stack' }).toBe(1);
 
     const item = alice.page.locator('[data-placed-spell]').first();

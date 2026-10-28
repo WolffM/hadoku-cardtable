@@ -11,7 +11,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, enabledOk, livePrompt, makeTitled, offeredNamed, pressPaymentAuto, resizeWindow, says, serverLog } from './play/board.ts';
+import { castAndPassUntil, livePrompt, makeTitled, offeredCard, resizeWindow, says, serverLog } from './play/board.ts';
 import { playMessagesIn } from './play/frames.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -52,25 +52,10 @@ test(titled('Cabal Therapy: the name picker is up at once, offers the format’s
     await watchForPicker(alice.page);
     const castAt = Date.now();
 
-    await expect.poll(() => offeredNamed(alice.page, 'Cabal Therapy'), { timeout: 45_000, message: 'alice is offered Cabal Therapy' }).not.toBeUndefined();
-    await clickHandCard(alice.page, (await offeredNamed(alice.page, 'Cabal Therapy'))!);
-
-    // Bob is the target; the Swamp pays; both pass until it resolves and Forge asks alice for a name.
-    const bobTarget = alice.page.locator('[data-testid="player"]:not([data-viewer])[data-selectable]');
-    const deadline = Date.now() + 90_000;
-    while ((await nameAsk(alice.page).count()) === 0 && Date.now() < deadline) {
-      if ((await bobTarget.count()) > 0) {
-        await bobTarget.first().locator('button').first().click({ timeout: 1_000 }).catch(() => undefined);
-        continue;
-      }
-      await pressPaymentAuto(alice.page);
-      if ((await nameAsk(alice.page).count()) > 0) break;
-      for (const p of [alice.page, bob.page]) {
-        const ok = enabledOk(p).first();
-        if ((await ok.count()) > 0 && (await nameAsk(alice.page).count()) === 0) await ok.click({ timeout: 1_000 }).catch(() => undefined);
-      }
-      await alice.page.waitForTimeout(100);
-    }
+    // Bob is the target; the Swamp pays; both pass over the stack until Forge asks alice for a name.
+    const therapy = await offeredCard(alice.page, 'Cabal Therapy', { zone: 'hand' });
+    const bobFace = alice.page.locator('[data-player-face]:not([data-viewer])');
+    await castAndPassUntil([alice.page, bob.page], stack, therapy, [bobFace], async () => (await nameAsk(alice.page).count()) > 0);
     await expect(nameAsk(alice.page), 'Forge asks alice to name a card').toHaveCount(1, { timeout: 120_000 });
     await expect.poll(async () => (await pickerAt(alice.page)).painted, { timeout: 120_000, message: 'the picker is painted' }).not.toBeUndefined();
 

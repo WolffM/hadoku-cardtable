@@ -18,7 +18,7 @@
 
 import { expect, test } from '@playwright/test';
 
-import { BUTTON_ONE, castCard, castUntilOnStack, clickHandCard, clickOnce, makeTitled, offered, pressOffered, stackCount } from './play/board.ts';
+import { activateCard, BUTTON_ONE, castCard, castUntilOnStack, clickHandCard, clickOnce, makeTitled, offeredCard, pressOffered, stackCount } from './play/board.ts';
 import { assignBlock, passDeclareAttackers, phaseOf } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { enabledOk, says, startScenarioMatch } from './play/scenario.ts';
@@ -62,8 +62,7 @@ test(titled('Q7 — with exactly one spell on the stack, a counterspell targets 
     // precondition's own margin cannot crowd out the rest of the test. A
     // startup-time margin on the PRECONDITION only, never on an assertion
     // this file tests.
-    await expect.poll(() => offered(bob.page), { timeout: 90_000, message: 'bob is offered his free creature — the precondition "lone-spell" sets up' }).not.toEqual([]);
-    const memnite = (await offered(bob.page))[0]!;
+    const memnite = await offeredCard(bob.page, 'Memnite', { zone: 'hand', timeout: 90_000, message: 'bob is offered his free creature — the precondition "lone-spell" sets up' });
     await castCard(bob.page, memnite);
 
     // Precondition: the opponent's spell is the only thing on the stack.
@@ -81,8 +80,7 @@ test(titled('Q7 — with exactly one spell on the stack, a counterspell targets 
     // claim this asserts is the OUTCOME of that counter (Memnite never
     // resolves, and the counterspell never asked a target), not a literal
     // sighting of the stack at 2.
-    await expect.poll(() => offered(alice.page), { timeout: 15_000, message: 'alice is offered her counterspell' }).not.toEqual([]);
-    const manaLeak = (await offered(alice.page))[0]!;
+    const manaLeak = await offeredCard(alice.page, 'Mana Leak', { zone: 'hand', timeout: 15_000, message: 'alice is offered her counterspell' });
     let sawTargetAsk = false;
     const watchForAsk = setInterval(() => {
       void alice.page
@@ -312,8 +310,7 @@ test(titled('Q17 — casting your own spell does not stop you at priority while 
     const { alice, bob } = await startScenarioMatch(browser, stack, 'own-spell');
     void bob;
 
-    await expect.poll(() => offered(alice.page), { timeout: 90_000, message: 'alice is offered her free creature — the precondition "own-spell" sets up' }).not.toEqual([]);
-    const card = (await offered(alice.page))[0]!;
+    const card = await offeredCard(alice.page, 'Memnite', { zone: 'hand', timeout: 90_000, message: 'alice is offered her free creature — the precondition "own-spell" sets up' });
 
     // Every state alice's screen commits, recorded from before the cast by an
     // observer that reads the stack count and the stop in ONE look. Polling the
@@ -387,13 +384,12 @@ test(titled('Q18 — a stack ability is never selectable merely because its sour
     await alice.page.getByTestId('live-full-control').click();
     await expect(alice.page.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
 
-    await expect.poll(() => offered(alice.page), { timeout: 15_000, message: 'Shivan Dragon is offered — the only action this seat has' }).not.toEqual([]);
-    const dragon = (await offered(alice.page))[0]!;
+    // By name: her three Mountains' mana abilities are offered beside it.
+    const dragon = await offeredCard(alice.page, 'Shivan Dragon', { timeout: 15_000, message: 'Shivan Dragon is offered' });
     // No target to answer (Shivan Dragon's ability targets nothing) — just
-    // click it and drain whatever mana-payment ask follows, the same as
-    // casting a spell (`castCard` already handles "Pay Mana Cost" and a
-    // `getAbilityToPlay` choice generically).
-    await castCard(alice.page, dragon);
+    // click it and drain whatever mana-payment ask follows, the same drain
+    // as casting a spell.
+    await activateCard(alice.page, dragon);
 
     // Precondition 1: an ABILITY entry (not a spell) is on the stack. §S: it
     // is drawn as an ephemeral card beside its source (Settled —
@@ -456,10 +452,9 @@ test(titled('Ponder\'s full oracle text is readable by hovering the placed card,
     // document-level inspector, no stack-specific big view at all any more.
     const { alice, bob } = await startScenarioMatch(browser, stack, 'ponder');
 
-    await expect.poll(() => offered(alice.page), { timeout: 90_000, message: 'alice is offered Ponder — the precondition "ponder" sets up' }).not.toEqual([]);
+    const card = await offeredCard(alice.page, 'Ponder', { zone: 'hand', timeout: 90_000, message: 'alice is offered Ponder — the precondition "ponder" sets up' });
     await alice.page.getByTestId('live-full-control').click();
     await expect(alice.page.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
-    const card = (await offered(alice.page))[0]!;
     await castCard(alice.page, card);
 
     // The precondition: Ponder is on the stack. §S: EVERY seat sees it as a
@@ -543,8 +538,7 @@ test(titled('a stack item carries its target, and the board draws an arrow to it
     await alice.page.getByTestId('live-full-control').click();
     await expect(alice.page.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
 
-    await expect.poll(() => offered(alice.page), { timeout: 90_000, message: 'alice is offered Doom Blade — the precondition "auto-target" sets up' }).not.toEqual([]);
-    const card = (await offered(alice.page))[0]!;
+    const card = await offeredCard(alice.page, 'Doom Blade', { zone: 'hand', timeout: 90_000, message: 'alice is offered Doom Blade — the precondition "auto-target" sets up' });
 
     // Supply the target: a click on bob's one creature. Per S (wave 33, the
     // scenario's wire shape): choosing a CARD target is never an ask — it

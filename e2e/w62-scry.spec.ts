@@ -26,7 +26,7 @@
 
 import { expect, test } from '@playwright/test';
 
-import { castCard, makeTitled, offered, promptMethod, resizeWindow } from './play/board.ts';
+import { castCard, makeTitled, offeredCard, promptMethod, resizeWindow } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { dragRowOnto, stripPoint } from './play/order.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -48,8 +48,7 @@ test(
       const page = alice.page;
       await resizeWindow(page, { width: 1280, height: 800 });
 
-      await expect.poll(() => offered(page), { timeout: 30_000, message: 'alice is offered Preordain' }).not.toEqual([]);
-      const [preordain] = await offered(page);
+      const preordain = await offeredCard(page, 'Preordain', { zone: 'hand', timeout: 30_000, message: 'alice is offered Preordain' });
       await castCard(page, preordain!);
 
       // Nothing on either seat to respond with: the spell resolves straight into its own Scry 2.

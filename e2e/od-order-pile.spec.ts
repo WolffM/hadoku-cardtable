@@ -32,7 +32,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castCard, clickPermanent, livePrompt, makeTitled, offered, passOverStack, promptMethod, resizeWindow, serverLog } from './play/board.ts';
+import { castCard, clickPermanent, livePrompt, makeTitled, offeredCard, passOverStack, promptMethod, resizeWindow, serverLog } from './play/board.ts';
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { dragRowOnto, settle } from './play/order.ts';
@@ -261,8 +261,7 @@ test(
       const { alice } = await startScenarioMatch(browser, stack, 'scry-one-prompt');
       const page = alice.page;
       await resizeWindow(page, SIZES[0]);
-      await expect.poll(() => offered(page), { timeout: 30_000, message: 'alice is offered Foresee' }).not.toEqual([]);
-      const [foresee] = await offered(page);
+      const foresee = await offeredCard(page, 'Foresee', { zone: 'hand', timeout: 30_000, message: 'alice is offered Foresee' });
       await castCard(page, foresee!);
       await expect.poll(() => promptMethod(page), { timeout: 20_000, message: 'the scry opened' }).toBe('order');
 
@@ -321,8 +320,7 @@ test(
       const { alice } = await startScenarioMatch(browser, stack, 'order-drag-ponder');
       const page = alice.page;
       await resizeWindow(page, SIZES[0]);
-      await expect.poll(() => offered(page), { timeout: 30_000, message: 'alice is offered Ponder' }).not.toEqual([]);
-      const [ponder] = await offered(page);
+      const ponder = await offeredCard(page, 'Ponder', { zone: 'hand', timeout: 30_000, message: 'alice is offered Ponder' });
       await castCard(page, ponder!);
       await expect.poll(() => promptMethod(page), { timeout: 20_000, message: 'Ponder’s order opened' }).toBe('order');
 

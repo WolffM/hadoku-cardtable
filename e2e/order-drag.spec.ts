@@ -29,7 +29,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castCard, makeTitled, offered, promptMethod, resizeWindow } from './play/board.ts';
+import { castCard, makeTitled, offeredCard, promptMethod, resizeWindow } from './play/board.ts';
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { beforePoint, pointIn, settle, stripPoint, type Point } from './play/order.ts';
@@ -237,13 +237,7 @@ test(
       const page = alice.page;
       await resizeWindow(page, { width: 1280, height: 800 });
 
-      await expect
-        .poll(() => offered(page), {
-          timeout: 30_000,
-          message: 'alice is offered Ponder',
-        })
-        .not.toEqual([]);
-      const [ponder] = await offered(page);
+      const ponder = await offeredCard(page, 'Ponder', { zone: 'hand', timeout: 30_000, message: 'alice is offered Ponder' });
       await castCard(page, ponder!);
       await expect
         .poll(() => promptMethod(page), {
@@ -302,13 +296,7 @@ test(
       const page = alice.page;
       await resizeWindow(page, { width: 1280, height: 800 });
 
-      await expect
-        .poll(() => offered(page), {
-          timeout: 30_000,
-          message: 'alice is offered Foresee',
-        })
-        .not.toEqual([]);
-      const [foresee] = await offered(page);
+      const foresee = await offeredCard(page, 'Foresee', { zone: 'hand', timeout: 30_000, message: 'alice is offered Foresee' });
       await castCard(page, foresee!);
       await expect
         .poll(() => promptMethod(page), {

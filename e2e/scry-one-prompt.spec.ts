@@ -22,7 +22,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castCard, makeTitled, offered, promptMethod, resizeWindow, serverLog } from './play/board.ts';
+import { castCard, makeTitled, offeredCard, promptMethod, resizeWindow, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { dragRowOnto } from './play/order.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -51,8 +51,7 @@ test(
       const page = alice.page;
       await resizeWindow(page, { width: 1280, height: 800 });
 
-      await expect.poll(() => offered(page), { timeout: 30_000, message: 'alice is offered Foresee' }).not.toEqual([]);
-      const [foresee] = await offered(page);
+      const foresee = await offeredCard(page, 'Foresee', { zone: 'hand', timeout: 30_000, message: 'alice is offered Foresee' });
       const fromCast = serverLog(stack).length;
       await castCard(page, foresee!);
 

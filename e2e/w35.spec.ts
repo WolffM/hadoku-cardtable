@@ -48,7 +48,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, enterMatch, livePrompt, makeTitled, offered, offeredNamed, promptMethod, stackCount } from './play/board.ts';
+import { clickHandCard, enterMatch, livePrompt, makeTitled, offered, offeredCard, offeredNamed, promptMethod, stackCount } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { playMessagesOf } from './play/frames.ts';
 import { answerPrompt } from './play/prompts.ts';
@@ -113,8 +113,7 @@ test(titled('R13 — Secluded Glen\'s "you may reveal a Faerie" reaches the seat
     // scenario's first priority on a loaded host. This is a startup-time
     // margin on the PRECONDITION only, never on an assertion this file
     // actually tests.
-    await expect.poll(() => offered(alice.page), { timeout: 45_000, message: 'alice is offered Secluded Glen — the precondition "secluded-glen" sets up' }).not.toEqual([]);
-    const glen = (await offered(alice.page))[0]!;
+    const glen = await offeredCard(alice.page, 'Secluded Glen', { zone: 'hand', timeout: 45_000, message: 'alice is offered Secluded Glen — the precondition "secluded-glen" sets up' });
     // The scenario deals exactly these two cards, so the Faerie Seer's id is
     // already known — this lets the poll below wait for THAT SPECIFIC id to
     // become offered, not merely "something, anything, is offered", which a
