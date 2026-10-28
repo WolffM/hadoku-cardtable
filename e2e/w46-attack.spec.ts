@@ -34,7 +34,7 @@
  * GEOMETRY. `gestures/auto-targets.ts`'s `combatArrows` draws the lasting
  * arrow from `view.combat` (itself `adapter.ts`'s `readCombat` over the raw
  * `CombatView` property) straight to Jace's own card box — so an arrow
- * landing within a pixel of one of Jace's eight edge points, keyed
+ * landing within a pixel of the point just inside one of Jace's eight edge points, keyed
  * `combat:<memnite id>`, is Forge's `def` read off the wire, not a picture of
  * one. `data-attacking="true"` on Memnite is the second, independent half:
  * Forge's own declaration, not this client's intent mark.
@@ -45,6 +45,7 @@
  */
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { away, eight, landing, type Box, type Point } from './aim.ts';
 
 import { clickOnce, enabledOk, grindPriority, makeTitled, pressOffered, says } from './play/board.ts';
 import { phaseOf, railAt } from './play/combat.ts';
@@ -83,25 +84,6 @@ async function logMarks(card: Locator, label: string): Promise<void> {
   console.log(`W54-C-EVIDENCE ${JSON.stringify({ case: label, ...data })}`);
 }
 
-interface Box {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}
-interface Point {
-  x: number;
-  y: number;
-}
-
-const away = (a: Point, b: Point): number => Math.hypot(a.x - b.x, a.y - b.y);
-
-/** The four corners and the four edge midpoints of a box — `edgePointNearest`'s own eight points. */
-const eight = (b: Box): Point[] => {
-  const xs = [b.left, b.left + b.width / 2, b.left + b.width];
-  const ys = [b.top, b.top + b.height / 2, b.top + b.height];
-  return ys.flatMap((y, r) => xs.map((x, c) => ({ x, y, centre: r === 1 && c === 1 }))).filter((p) => !p.centre).map(({ x, y }) => ({ x, y }));
-};
 
 /**
  * Press OK once for the attacker's own Main Phase 1 priority stop, then wait
@@ -269,10 +251,12 @@ test(
       expect(first.arrowBox, 'the arrow has a real box').not.toBeNull();
       expect(first.targetBox, 'Jace has a real box').not.toBeNull();
       expect(first.tip, 'the curve has a tip').not.toBeNull();
-      const nearestEdge = eight(first.targetBox!).reduce((best, p) => (away(p, first.tip!) < away(best, first.tip!) ? p : best));
+      const nearestEdge = eight(first.targetBox!)
+        .map((p) => landing(p, first.targetBox!))
+        .reduce((best, p) => (away(p, first.tip!) < away(best, first.tip!) ? p : best));
       expect(
         away(first.tip!, nearestEdge),
-        `the arrow's tip lands on one of Jace's eight edge points (${JSON.stringify(first.tip)} vs ${JSON.stringify(nearestEdge)})`,
+        `the arrow's tip lands just inside one of Jace's eight edge points (${JSON.stringify(first.tip)} vs ${JSON.stringify(nearestEdge)})`,
       ).toBeLessThanOrEqual(1);
 
       // Bob has no creature (Jace is a planeswalker, not a blocker) and

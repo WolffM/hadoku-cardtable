@@ -33,6 +33,7 @@
  */
 
 import { expect, test, type Page } from '@playwright/test';
+import { away, centre, eight, landing, type Box, type Point } from './aim.ts';
 
 import { castCard, clickOnce, makeTitled, offered, pressPaymentAuto, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -41,28 +42,6 @@ import { startScenarioMatch } from './play/scenario.ts';
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
-interface Box {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}
-interface Point {
-  x: number;
-  y: number;
-}
-
-const away = (a: Point, b: Point): number => Math.hypot(a.x - b.x, a.y - b.y);
-
-/** The four corners and the four edge midpoints of a box, centre excluded. */
-const eight = (b: Box): Point[] => {
-  const xs = [b.left, b.left + b.width / 2, b.left + b.width];
-  const ys = [b.top, b.top + b.height / 2, b.top + b.height];
-  return ys
-    .flatMap((y, r) => xs.map((x, c) => ({ x, y, centre: r === 1 && c === 1 })))
-    .filter((p) => !p.centre)
-    .map(({ x, y }) => ({ x, y }));
-};
 
 /** The hand card named `name`, Forge-offered or not — by its own `.card__name` text. */
 async function handCardNamed(page: Page, name: string): Promise<number | undefined> {
@@ -270,11 +249,11 @@ test.describe(titled('the counterspell arc'), () => {
       expect(inside(shot.tip!, shot.toBox!), `the tip sits inside Memnite's thumbnail`).toBe(true);
 
       // Ledger Z9 (`aimAt`, `gestures/arrow.ts`; its ADJACENT_PX, which this tsconfig cannot import): a target within 72px of the tail — the next thumbnail in the stack row is — takes the
-      // tip at its centre, so the shaft crosses the cards instead of vanishing in the gap; a farther one, at its nearest edge.
-      const centre = { x: shot.toBox!.left + shot.toBox!.width / 2, y: shot.toBox!.top + shot.toBox!.height / 2 };
+      // tip at its centre, so the shaft crosses the cards instead of vanishing in the gap; a farther one, just inside its nearest edge.
+      const middle = centre(shot.toBox!);
       const nearestEdge = eight(shot.toBox!).reduce((best, p) => (away(p, shot.tail!) < away(best, shot.tail!) ? p : best));
-      const aimed = away(shot.tail!, centre) < 72 ? centre : nearestEdge;
-      expect(away(shot.tip!, aimed), `the tip is Memnite's centre when adjacent to the tail, else the nearest of its eight edge points`).toBeLessThanOrEqual(1);
+      const aimed = away(shot.tail!, middle) < 72 ? middle : landing(nearestEdge, shot.toBox!);
+      expect(away(shot.tip!, aimed), `the tip is Memnite's centre when adjacent to the tail, else just inside the nearest of its eight edge points`).toBeLessThanOrEqual(1);
     } finally {
       await seated?.alice.context.close();
       await seated?.bob.context.close();

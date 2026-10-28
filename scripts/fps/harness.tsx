@@ -4,13 +4,17 @@
  * timer — the same envelopes, cursors and parse path a socket delivers. Never shipped: built only by
  * `scripts/fps/vite.config.ts`, driven by `scripts/fps/measure.mjs`.
  *
- * Query: ?size=early|mid|crowded|huge&flyers=0|1&hand=N&art=0|1
+ * Query: ?size=early|mid|crowded|huge&flyers=0|1&hand=N&art=0|1&noanim=0|1
+ *
+ * `noanim=1` turns every CSS animation and transition in the app off: the A/B for what the board's
+ * motion costs altogether.
  */
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import '../../apps/ui/src/styles.css';
 import { LiveBoard } from '../../apps/ui/src/play/live/LiveBoard.tsx';
+import { clearArrow, drawArrow } from '../../apps/ui/src/play/live/gestures/arrow.ts';
 import { startMatch, type MatchTransport } from '../../apps/ui/src/play/live/match.ts';
 import { MATCH_EVENTS } from '../../apps/ui/src/play/live/transport.ts';
 
@@ -120,11 +124,49 @@ for (const type of ['pointerdown', 'pointerover']) {
   );
 }
 
+if (params.get('noanim') === '1') {
+  const off = document.createElement('style');
+  off.textContent = '*, *::before, *::after { animation: none !important; transition: none !important; }';
+  document.head.append(off);
+}
+
+/*
+ * The targeter, drawn by the real `drawArrow` from this seat's first hand card to the other seat's
+ * first battlefield card. `still`: snapped to it and left there, so all that moves is the arrow's
+ * own CSS. `sweep`: the tip circles the target unsnapped, re-shaped every frame as a pointer would.
+ */
+let aimTimer = 0;
+const centre = (el: Element): { x: number; y: number } => {
+  const r = el.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+};
+function aim(how: 'still' | 'sweep' | 'off'): void {
+  cancelAnimationFrame(aimTimer);
+  const overlay = document.querySelector<HTMLElement>('[data-board-overlay]');
+  if (how === 'off' || overlay === null) {
+    clearArrow(overlay);
+    return;
+  }
+  const tail = document.querySelector('[data-zone="hand"][data-owner="you"] [data-board-card]');
+  const snap = document.querySelector('[data-zone="battlefield"][data-owner="them"] [data-board-card]');
+  if (tail === null || snap === null) throw new Error('aim: no hand card or no opposing battlefield card');
+  const draw = (t: number): void => {
+    const at = centre(snap);
+    const to = how === 'still' ? at : { x: at.x + Math.cos(t / 400) * 140, y: at.y + Math.sin(t / 400) * 60 };
+    drawArrow(overlay, { from: centre(tail), to, source: null, target: how === 'still' ? { kind: 'card', id: 0 } : null, snap: how === 'still' ? snap : null, tail: null, mode: 'click' });
+    // Every frame either way: the gesture layer's own paints clear a targeter nobody is driving, and
+    // a still one redrawn unchanged writes nothing (`positionArrow` skips an unchanged shape).
+    aimTimer = requestAnimationFrame(draw);
+  };
+  draw(performance.now());
+}
+
 let loopTimer: ReturnType<typeof setInterval> | null = null;
 const api = {
   counts: scenario.counts,
   loops: Object.keys(scenario.loops),
   sent: () => sent,
+  aim,
   /** Start one loop, one packet every `periodMs`. */
   loop(name: string, periodMs: number): void {
     api.stop();

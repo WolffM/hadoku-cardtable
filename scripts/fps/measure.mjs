@@ -10,6 +10,8 @@
  * recording — an A/B for a rule's cost that edits nothing in the app.
  *
  * Common: --dist <built harness dir> (default ~/.cache/cardtable-fps/dist), --cases a/b,c/d (board/anim),
+ * where anim is a loop (tap, attack, stack, mix, targets), an input (hover, click), the harness's own
+ * targeter (aim: still and snapped; aim-sweep: re-shaped every frame) or idle,
  * --secs N recording window, --repeat N.
  */
 import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -48,6 +50,7 @@ const BOARDS = {
   mid: 'size=mid',
   crowded: 'size=crowded',
   'crowded-nofly': 'size=crowded&flyers=0',
+  'crowded-noanim': 'size=crowded&noanim=1',
   huge: 'size=huge',
 };
 const DEFAULT_CASES = [
@@ -67,7 +70,9 @@ const VIEWPORTS = {
   phone: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
 };
 /** One packet per this many ms: Forge's own pace in a busy turn is a frame every few hundred ms. */
-const LOOP_PERIOD = { tap: 1200, attack: 1000, stack: 1000, mix: 400 };
+const LOOP_PERIOD = { tap: 1200, attack: 1000, stack: 1000, mix: 400, targets: 1000 };
+/** The targeter drawn by the harness's own `fps.aim`: still and snapped, or swept every frame. */
+const AIMS = { aim: 'still', 'aim-sweep': 'sweep' };
 
 const q = (xs, p) => {
   if (xs.length === 0) return NaN;
@@ -141,6 +146,12 @@ async function cardPoints(page) {
 
 async function drive(page, anim, viewport, ms) {
   const end = Date.now() + ms;
+  if (AIMS[anim] !== undefined) {
+    await page.evaluate((how) => window.fps.aim(how), AIMS[anim]);
+    await page.waitForTimeout(ms);
+    await page.evaluate(() => window.fps.aim('off'));
+    return;
+  }
   if (anim === 'hover' || anim === 'click') {
     const pts = await cardPoints(page);
     let i = 0;

@@ -106,7 +106,7 @@ import { GLIDE_MS, HOUSE_DURATIONS, PLACEMENT_WAIT_MS, prefersReducedMotion, tak
 import { AbilityChip } from './AbilityChip.tsx';
 import { HiddenCard } from '../HiddenCard.tsx';
 import { viewerOf, type BoardView, type StackEntry } from '../adapter.ts';
-import { aimAt, newArrow, positionArrow } from './gestures/arrow.ts';
+import { aimAt, breathe, markArrow, newArrow, positionArrow, removeArrow, retireCommitted } from './gestures/arrow.ts';
 import { shards } from './departures.ts';
 import { centreOf } from '../lift.ts';
 import { cardBox, faceBox, overlayOf } from './board-dom.ts';
@@ -1075,7 +1075,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   function drawArrows(items: readonly StackEntry[], overlayBox: () => DOMRect): void {
     const root = overlay();
     if (root === null) return;
-    const aims: { key: string; item: number; aimed: { from: Point; tip: Point } }[] = [];
+    const aims: { key: string; item: number; to: Element; at: Rect; aimed: { from: Point; tip: Point } }[] = [];
     for (const item of items) {
       const d = drawn.get(item.id);
       if (d === undefined || d.leaving) continue;
@@ -1094,11 +1094,16 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       }
       if (targets.length === 0) continue;
       const from = centreOf(d.el);
-      for (const { key, to } of targets) aims.push({ key, item: item.id, aimed: aimAt(from, rectOf(to), { neighbours: true }) });
+      for (const { key, to } of targets) {
+        const at = rectOf(to);
+        aims.push({ key, item: item.id, to, at, aimed: aimAt(from, at, { neighbours: true }) });
+      }
     }
     const box = aims.length === 0 ? null : overlayBox();
+    // The top of the stack resolves next: its arrows, and the brackets on its targets, breathe.
+    const next = items[0]?.id;
     const seen = new Set<string>();
-    for (const { key, item, aimed } of aims) {
+    for (const { key, item, at, aimed } of aims) {
       seen.add(key);
       let svg = root.querySelector<SVGSVGElement>(`.placed__arrow[data-key="${key}"]`);
       if (svg === null) {
@@ -1107,11 +1112,14 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         svg.setAttribute('data-key', key);
         root.append(svg);
       }
+      breathe(svg, item === next);
       positionArrow(svg, aimed.from, aimed.tip, box!);
+      markArrow(svg, at, box!);
     }
     for (const el of [...root.querySelectorAll('.placed__arrow')]) {
-      if (!seen.has(el.getAttribute('data-key') ?? '')) el.remove();
+      if (!seen.has(el.getAttribute('data-key') ?? '')) removeArrow(el);
     }
+    retireCommitted(root, aims.map((a) => a.to));
   }
 
   /**

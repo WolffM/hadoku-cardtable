@@ -249,7 +249,7 @@ import { drawnCentreOf, reportHandover, type HandoverFacts } from '../handover-r
 import type { GameEntityRef } from '@hadoku/forge-wire';
 import { combatArrows, type AutoTargetArrow } from './auto-targets.ts';
 import { RAMMING_ATTR } from '../ram.ts';
-import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
+import { clearArrow, clearAutoTargetArrows, clearCommitted, commitArrowAt, drawArrow, drawAutoTargetArrows } from './arrow.ts';
 import { CAST_LANDING_ATTR, expectedGapBox,
   CAST_LIFT_ATTR,
   castCardTypeLine,
@@ -1165,6 +1165,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * both a parked cast and a bare lift.
    */
   function cancelLive(by: CancelInput, node: EventTarget | null = null): void {
+    clearCommitted(overlayOf(canvas));
     if (parked !== null) {
       // Forge is asking about THIS cast only if a selection or a payment is
       // open now — a land, or a spell that needed neither, is already done,
@@ -1344,6 +1345,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
 
   function onPointerDown(event: PointerEvent): void {
     cancelledByRightClick = false;
+    // A press on the target the arrow is snapped to commits it, whichever branch below (or the card's own click) sends it.
+    if (event.button === 0) commitArrowAt(overlayOf(canvas), eventTarget(event));
     /*
      * A held box group takes the next press, whatever it lands on: on a
      * defender it attacks it, anywhere else (a right-click included) it is
@@ -1661,6 +1664,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
   }
 
   function onPointerUp(event: PointerEvent): void {
+    // A drag let go over the target its arrow is snapped to: committed, as a press on it is.
+    if (event.button === 0) commitArrowAt(overlayOf(canvas), eventTarget(event));
     if (placedDrag !== null) {
       const p = placedDrag;
       placedDrag = null;
@@ -1863,6 +1868,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       unsubscribePlacedDrawn();
       const overlay = overlayOf(canvas);
       clearArrow(overlay);
+      clearCommitted(overlay);
       clearAutoTargetArrows(overlay);
       clearMarquee(overlay);
       marks.clear();

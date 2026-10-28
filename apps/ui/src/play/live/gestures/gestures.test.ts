@@ -66,6 +66,7 @@ import { fixtureFrames, startReplayServer, untilMatch, type ReplayServer } from 
 import { needsTarget } from './cast.ts';
 import { GLIDE_MS } from '../../motion.ts';
 import { TAPPED_PENDING_ATTR, UNTAPPED_PENDING_ATTR } from './commit.ts';
+import { TIP_INSET } from './arrow.ts';
 import { installGestures } from './index.ts';
 import { PARK_UNANSWERED_MS } from './install.ts';
 import { RAMMING_ATTR } from '../ram.ts';
@@ -552,7 +553,7 @@ describe('dragging a card, and the targeter arrow', () => {
     expect(changes).toBeGreaterThan(0);
   });
 
-  it('Q11 — the head lands on the nearest of the card’s eight edge points to the tail, never its centre', async () => {
+  it('Q11 — the head lands just inside the nearest of the card’s eight edge points to the tail, never its centre', async () => {
     const { s, m, canvas } = await gestureBoard();
     const overlay = overlayOf(canvas);
     const mine = mineOf(m).battlefield.map((c) => c.id);
@@ -577,11 +578,13 @@ describe('dragging a card, and the targeter arrow', () => {
       return tip;
     };
 
+    // The card is 40 × 56; its tip lands `TIP_INSET` of the way from the edge point to its centre.
+    const into = (x: number, y: number, left: number, top: number) => ({ x: x + (left + 20 - x) * TIP_INSET, y: y + (top + 28 - y) * TIP_INSET });
     // Target to the upper-left of nothing: far to the right and below — the
     // nearest point to a tail at (20, 28) is the top-left CORNER.
-    expect(await tipAfterMovingOver(300, 100)).toEqual({ x: 300, y: 100 });
+    expect(await tipAfterMovingOver(300, 100)).toEqual(into(300, 100, 300, 100));
     // Directly below the tail: the nearest point is the top MIDPOINT.
-    expect(await tipAfterMovingOver(0, 300)).toEqual({ x: 20, y: 300 });
+    expect(await tipAfterMovingOver(0, 300)).toEqual(into(20, 300, 0, 300));
     // Never the centre, in either case.
     expect(await s.framesFrom(m)).toHaveLength(0);
   });

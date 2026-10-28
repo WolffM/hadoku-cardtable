@@ -81,6 +81,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
+import { away, centre, eight, landing, tips, type Box, type Point } from './aim.ts';
 import { makeTitled, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
@@ -88,19 +89,12 @@ import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
 /** One CSS pixel. See the header for why that cannot pass a wrong arrow. */
 const TOL = 1;
 
-/** `gestures/arrow.ts`'s own head geometry. A change there must change these. */
-const HEAD_PX = 13;
-const HEAD_SPREAD_RAD = 0.42;
+/** `gestures/arrow.ts`'s own head geometry for an arrow still being aimed (`GHOST.head`, `SPREAD`). A change there must change these. */
+const HEAD_PX = 32;
+const HEAD_SPREAD_RAD = 0.4;
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
-
-interface Box {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}
 
 interface Arrow {
   x1: number;
@@ -124,20 +118,6 @@ interface Shot {
   arrow: Arrow | null;
 }
 
-interface Point {
-  x: number;
-  y: number;
-}
-
-const centre = (b: Box): Point => ({ x: b.left + b.width / 2, y: b.top + b.height / 2 });
-const away = (a: Point, b: Point): number => Math.hypot(a.x - b.x, a.y - b.y);
-
-/** The four corners and the four edge midpoints of a box: where a snapped tip may land. */
-const eight = (b: Box): Point[] => {
-  const xs = [b.left, b.left + b.width / 2, b.left + b.width];
-  const ys = [b.top, b.top + b.height / 2, b.top + b.height];
-  return ys.flatMap((y, r) => xs.map((x, c) => ({ x, y, centre: r === 1 && c === 1 }))).filter((p) => !p.centre).map(({ x, y }) => ({ x, y }));
-};
 
 /**
  * Read the overlay, the named cards and the arrow, in ONE layout pass.
@@ -204,7 +184,7 @@ async function ownCardIds(page: Page, zone: 'hand' | 'battlefield', name: string
 
 const card = (page: Page, id: number): Locator => page.locator(`[data-board-card="${id}"]`);
 
-test(titled("the cast arrow, measured in a real browser: no arrow while lifted or held over the battlefield, then — at release — a tail pinned where the card parked and a tip on the nearest of the target card's eight edge points"), async ({ browser }) => {
+test(titled("the cast arrow, measured in a real browser: no arrow while lifted or held over the battlefield, then — at release — a tail pinned where the card parked and a tip just inside the nearest of the target card's eight edge points"), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -339,13 +319,13 @@ test(titled("the cast arrow, measured in a real browser: no arrow while lifted o
     expect(away(pointer, nearestEdge), 'the pointer is far from the point the tip must take, so a tip that followed it is visible').toBeGreaterThan(10 * TOL);
     expect(away(nearestEdge, centre(box)), 'the snap point is on the edge, not the centre').toBeGreaterThan(10 * TOL);
     expect(
-      away(tip, nearestEdge),
-      `the tip is the nearest of the target's eight edge points to the tail (${JSON.stringify(tip)} vs ${JSON.stringify(nearestEdge)})`,
+      away(tip, landing(nearestEdge, box)),
+      `the tip is just inside the nearest of the target's eight edge points to the tail (${JSON.stringify(tip)} vs ${JSON.stringify(landing(nearestEdge, box))})`,
     ).toBeLessThanOrEqual(TOL);
     expect(away(tip, centre(box)), 'and it is not the target card’s centre').toBeGreaterThan(10 * TOL);
     expect(
-      eight(box).filter((p) => away(tip, p) <= TOL),
-      'the tip sits on exactly one of the eight points',
+      tips(box).filter((p) => away(tip, p) <= TOL),
+      'the tip sits at exactly one of the eight landing points',
     ).toHaveLength(1);
     // …and NOT the pointer, which is where an unsnapped arrow would end.
     expect(away(tip, pointer), 'a snapped tip is the card, not the pointer').toBeGreaterThan(10 * TOL);

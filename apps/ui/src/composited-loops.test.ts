@@ -25,6 +25,10 @@ const NOT_YET: Record<string, string> = {
   'live-end-turn-nudge': 'one button’s glow, once End Turn has waited',
   'seat-picking': 'the draft lobby, never a match',
   'skeleton-sheen': 'a loading placeholder, gone once its content draws',
+  // The operator chose to keep it (2026-10-28) over still dashes: one arrow's dashes, only while a
+  // player is aiming, ~0.2 s of paint per 8 s on the crowded board (`scripts/fps`, crowded/aim).
+  'arrow-travel-core': 'a ghost arrow’s travelling dashes, only while someone aims',
+  'arrow-travel-rim': 'a ghost arrow’s travelling dashes, only while someone aims',
 };
 
 function sheets(dir: string): string[] {

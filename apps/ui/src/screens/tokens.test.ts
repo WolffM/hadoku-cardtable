@@ -299,3 +299,48 @@ describe('no hardcoded colours', () => {
     expect(missing).toEqual([]);
   });
 });
+
+/*
+ * The board's arrows (`play/live/gestures/arrow.css`). The theme's colours alone fall under 3:1 on
+ * the board in most light themes (izakaya-light's success is 1.06:1), so every arrow is its own
+ * colour inside a rim: that colour mixed toward the theme's ink. The rim must clear 3:1 on the
+ * page and the battlefield in every theme, for every colour an arrow is drawn in, at the largest
+ * share of the arrow's own hue that still does.
+ */
+describe('the arrow rim', () => {
+  const arrowCss = readFileSync(new URL('../play/live/gestures/arrow.css', import.meta.url), 'utf8');
+  const share = /--arrow-rim:\s*color-mix\(in srgb,\s*var\(--arrow-ink\)\s*(\d+)%,\s*var\(--ink\)\);/.exec(arrowCss);
+  const mix = (a: Rgb, b: Rgb, s: number): Rgb => a.map((c, i) => Math.round(c * s + b[i]! * (1 - s))) as Rgb;
+  const worstAt = (s: number): { worst: number; failing: string[] } => {
+    const failing: string[] = [];
+    let worst = Infinity;
+    for (const t of themes) {
+      const ink = hex(t.vars.text)!;
+      for (const name of ['primary', 'danger', 'success', 'warning']) {
+        const colour = hex(t.vars[name]);
+        expect(colour, `${t.name} defines --color-${name}`).not.toBeNull();
+        const rim = mix(colour!, ink, s);
+        const edge = Math.min(contrast(rim, t.bg), contrast(rim, t.card));
+        worst = Math.min(worst, edge);
+        if (edge < 3) failing.push(`${t.name} ${name}: ${edge.toFixed(2)}`);
+      }
+    }
+    return { worst, failing };
+  };
+
+  it('is the arrow’s colour mixed toward the theme’s ink', () => {
+    expect(share, 'arrow.css declares --arrow-rim in the measured shape').not.toBeNull();
+  });
+
+  it('clears 3:1 on the page and the battlefield, in every theme, for every arrow colour', () => {
+    expect(worstAt(Number(share![1]) / 100).failing).toEqual([]);
+  });
+
+  it('keeps as much of the arrow’s hue as that allows: five points more and some theme fails', () => {
+    expect(worstAt((Number(share![1]) + 5) / 100).worst).toBeLessThan(3);
+  });
+
+  it('is needed: the theme colours alone are all but invisible on some board', () => {
+    expect(Math.min(...themes.map((t) => contrast(hex(t.vars.success)!, t.card)))).toBeLessThan(1.5);
+  });
+});

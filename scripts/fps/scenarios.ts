@@ -280,6 +280,39 @@ export function buildScenario(options: BoardOptions): Scenario {
     );
   };
 
+  // Two spells held on the stack, each aimed at one of Alice's creatures: the stack's arrows, the
+  // top one's breathing, and the brackets on both targets, standing still. Sent once; every later
+  // step sends nothing, so what is measured is the board at rest with them up.
+  let targetsSent = false;
+  const targets = (): Packet => {
+    if (targetsSent) return packet({}, {});
+    targetsSent = true;
+    const spells = lists.hand.slice(0, 2);
+    const aimed = creatures[1]!.slice(0, 2);
+    lists.hand = lists.hand.filter((x) => !spells.includes(x));
+    const items = spells.map((_, i) => 950 + i);
+    const newObjects: Table = {};
+    const deltas: Packet['objectDeltas'] = {};
+    spells.forEach((id, i) => {
+      newObjects[key(STACK, items[i]!)] = {
+        _type: STACK,
+        _id: items[i]!,
+        Description: { t: 'str', v: `Spell (${id})` },
+        Key: { t: 'str', v: `Spell (${id}): cast` },
+        SourceTrigger: int(-1),
+        SourceCard: int(id),
+        ActivatingPlayer: int(0),
+        TargetCards: list([aimed[i] ?? aimed[0]!]),
+        TargetPlayers: list([]),
+      };
+      deltas[key(CARD, id)] = { _type: CARD, _id: id, Zone: zone('Stack') };
+    });
+    deltas[key(PLAYER, 0)] = { _type: PLAYER, _id: 0, Hand: list(lists.hand) };
+    // Forge lists the stack top first: the second spell is the one that resolves next.
+    deltas[key(GAME, 1)] = { _type: GAME, _id: 1, Stack: list([...items].reverse()) };
+    return packet(newObjects, deltas);
+  };
+
   // The leak loop: every animation in turn, then life totals ticking.
   let mixStep = 0;
   let life = 20;
@@ -294,7 +327,7 @@ export function buildScenario(options: BoardOptions): Scenario {
 
   return {
     packets,
-    loops: { tap, attack, stack, mix },
+    loops: { tap, attack, stack, mix, targets },
     counts: { p0: lists.bf[0]!.length, p1: lists.bf[1]!.length, hand: lists.hand.length, flyers },
   };
 

@@ -1,10 +1,18 @@
 /*
  * The one arrow (`./arrow.ts`'s `newArrow`): the targeter, the stack's arrows (`../placed.ts`) and
- * the other seat's aim (`../presence.ts`), told apart by a modifier. Ours, drawn: a curved shaft and
- * a plain head, nothing of WotC's (`CLAUDE.md`), in the accent a selectable card's outline uses. It
- * fills the board's overlay, where every coordinate `./arrow.ts` computes is, and never takes the
- * pointer, or a drop would land on it instead of the target; `overflow: visible` keeps a head drawn
- * at the overlay's edge whole.
+ * the other seat's aim (`../presence.ts`), told apart by a modifier. Ours, drawn: a tapered ribbon
+ * and a swept head, nothing of WotC's (`CLAUDE.md`). It fills the board's overlay, where every
+ * coordinate `./arrow.ts` computes is, and never takes the pointer, or a drop would land on it
+ * instead of the target; `overflow: visible` keeps a head drawn at the overlay's edge whole.
+ *
+ * Every arrow is its own colour (`--arrow-ink`) inside a rim. The theme colours alone fall under
+ * 3:1 against the board in 12 of the 18 themes (izakaya-light's accent 1.56:1, its success
+ * 1.06:1), and mixing the whole arrow toward the ink until it passes costs most of the hue. Only
+ * the rim is mixed: the arrow's colour pulled toward the theme's own ink, which is built to stand
+ * out from the board, so the rim clears 3:1 on every theme's page and battlefield and the core
+ * keeps its full colour (`screens/tokens.test.ts` measures it and pins the share). Nothing is
+ * faded: opacity was what halved a decided arrow's contrast, so live and decided differ by weight
+ * and motion instead.
  */
 .arrow {
   position: absolute;
@@ -15,34 +23,139 @@
   overflow: visible;
   pointer-events: none;
   --arrow-ink: var(--accent);
+  --arrow-rim: color-mix(in srgb, var(--arrow-ink) 45%, var(--ink));
 }
 
-.arrow__shaft {
+.arrow__spine {
   fill: none;
-  stroke: var(--arrow-ink);
-  stroke-width: 3;
-  stroke-linecap: round;
-  opacity: 0.85;
+  stroke: none;
 }
 
-.arrow__head {
+.arrow__rim {
+  fill: var(--arrow-rim);
+  stroke: var(--arrow-rim);
+  stroke-width: 4;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1.5px 2px var(--shadow));
+}
+
+.arrow__core {
   fill: var(--arrow-ink);
 }
 
-/* Click targeting (§B.4) is the same arrow, drawn a touch lighter: the player is still choosing and has not committed a gesture to it. */
-.arrow[data-mode='click'] .arrow__shaft {
-  stroke-dasharray: 7 5;
-  opacity: 0.7;
+/*
+ * A ghost: an aim still in progress. Its shaft is two dashed strokes along the stem instead of the
+ * ribbon: the rim's dash 2px longer at either end of each chunk, so every chunk keeps its outline,
+ * and both travel toward the tip — one period (`DASH` + `GAP` = 24px) every 0.63s. Butt caps cut
+ * each chunk square across the curve. No shadow while it travels: a filter is re-run on every frame
+ * it covers, and the travel repaints the shaft on every frame.
+ */
+.arrow[data-ghost] .arrow__shaft {
+  display: none;
 }
 
-/* A target Forge already decided (`drawAutoTargetArrows`): lighter still than the click dash, since nobody is choosing it. */
-.arrow--auto .arrow__shaft {
-  stroke-dasharray: 2 4;
-  opacity: 0.55;
+.arrow[data-ghost] .arrow__rim {
+  filter: none;
 }
 
-.arrow--auto .arrow__head {
-  opacity: 0.55;
+.arrow__stem {
+  fill: none;
+  stroke-linecap: butt;
+}
+
+.arrow__rim > .arrow__stem {
+  stroke-width: 10;
+  stroke-dasharray: 17 7;
+  stroke-dashoffset: 2;
+  animation: arrow-travel-rim 0.63s linear infinite;
+}
+
+.arrow__core > .arrow__stem {
+  stroke: var(--arrow-ink);
+  stroke-width: 6;
+  stroke-dasharray: 13 11;
+  animation: arrow-travel-core 0.63s linear infinite;
+}
+
+@keyframes arrow-travel-core {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -24; }
+}
+
+@keyframes arrow-travel-rim {
+  from { stroke-dashoffset: 2; }
+  to { stroke-dashoffset: -22; }
+}
+
+/* Committed: once the gaps have closed (`arrow.ts`'s `settle`), the rim bumps once. */
+.arrow[data-settle] .arrow__rim {
+  animation: arrow-settle 320ms ease-out both;
+}
+
+@keyframes arrow-settle {
+  35% { stroke-width: 7.5; }
+}
+
+/* The corner brackets on a stack item's target (`markArrow`), in the arrow's colours. They snap in once when drawn. */
+.arrow__mark {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: arrow-mark-arrive 260ms cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
+}
+
+.arrow__mark-rim {
+  stroke: var(--arrow-rim);
+  stroke-width: 8;
+}
+
+.arrow__mark-core {
+  stroke: var(--arrow-ink);
+  stroke-width: 4;
+}
+
+@keyframes arrow-mark-arrive {
+  from { transform: scale(1.25); opacity: 0; }
+}
+
+/*
+ * The top of the stack — the next thing to resolve (`breathe`): a blurred copy of its arrow and
+ * brackets, under them, fades up and down. Its own layer, sized to what it copies, and only its
+ * opacity moves: the blur is drawn once and the compositor runs the pulse.
+ */
+.arrow-glow {
+  position: absolute;
+  z-index: 1;
+  overflow: visible;
+  pointer-events: none;
+  --arrow-ink: var(--accent);
+  opacity: 0;
+  will-change: opacity;
+  animation: arrow-glow 1.4s ease-in-out infinite alternate;
+}
+
+.arrow-glow__body,
+.arrow-glow__mark {
+  stroke: var(--arrow-ink);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: blur(4px);
+}
+
+.arrow-glow__body {
+  fill: var(--arrow-ink);
+  stroke-width: 6;
+}
+
+.arrow-glow__mark {
+  fill: none;
+  stroke-width: 9;
+}
+
+@keyframes arrow-glow {
+  to { opacity: 0.75; }
 }
 
 /* Combat's lasting arrows in the colours of the cards they join (`card.css`), so an attack and a block never read as one another. */
@@ -57,12 +170,17 @@
 /* The other seat's aim, in the "theirs" colour, under this seat's own arrow. */
 .arrow--theirs {
   z-index: 1;
+  --arrow-ink: var(--warn);
 }
 
-.arrow--theirs .arrow__shaft {
-  stroke: var(--warn);
-  stroke-width: 2;
-  stroke-linecap: butt;
-  stroke-dasharray: 6 5;
-  opacity: 1;
+@media (prefers-reduced-motion: reduce) {
+  .arrow__stem,
+  .arrow__rim,
+  .arrow__mark {
+    animation: none !important;
+  }
+
+  .arrow-glow {
+    display: none;
+  }
 }

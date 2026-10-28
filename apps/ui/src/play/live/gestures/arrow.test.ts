@@ -1,9 +1,9 @@
 /*
  * The arrow's curve (`arrowShape`): every arrow on the table is one quadratic
- * curve with its head along the tangent at the tip.
+ * curve with its head along the tangent at the tip, drawn as a tapered ribbon.
  */
 import { describe, expect, it } from 'vitest';
-import { ADJACENT_PX, aimAt, arrowShape } from './arrow.ts';
+import { ADJACENT_PX, GHOST, SOLID, SPREAD, TIP_INSET, aimAt, arrowShape } from './arrow.ts';
 
 function parse(d: string): { x1: number; y1: number; cx: number; cy: number; x2: number; y2: number } {
   const n = d.replace(/[MQ]/g, ' ').trim().split(/\s+/).map(Number);
@@ -69,9 +69,36 @@ describe('arrowShape', () => {
   });
 
   it('draws nothing broken for a zero-length arrow', () => {
-    const { d, points } = arrowShape(5, 5, 5, 5);
+    const { d, points, shaft } = arrowShape(5, 5, 5, 5);
     expect(d).not.toMatch(/NaN/);
     expect(points).not.toMatch(/NaN/);
+    expect(shaft).not.toMatch(/NaN/);
+  });
+
+  it('a ghost carries the bigger head and the wider shaft; a committed arrow the smaller', () => {
+    const headOf = (weight: number): number => {
+      const [tip, barb] = arrowShape(0, 100, 400, 100, weight).points.split(' ').map((p) => p.split(',').map(Number)) as [number[], number[]];
+      return Math.hypot(tip[0]! - barb[0]!, tip[1]! - barb[1]!);
+    };
+    expect(headOf(0)).toBeCloseTo(SOLID.head, 6);
+    expect(headOf(1)).toBeCloseTo(GHOST.head, 6);
+    expect(headOf(0.5), 'a commit tweens between them').toBeCloseTo((SOLID.head + GHOST.head) / 2, 6);
+    const widest = (weight: number): number => {
+      const nums = arrowShape(0, 100, 400, 100, weight).shaft.replace(/[MLAZ]/g, ' ').trim().split(/\s+/).map(Number);
+      const ys = nums.filter((_, i) => i % 2 === 1);
+      return Math.max(...ys) - Math.min(...ys);
+    };
+    expect(widest(1)).toBeGreaterThan(widest(0));
+  });
+
+  it('the shaft stops inside the head, never past its base or short of it', () => {
+    // A straight-ish arrow along +x: the shaft's furthest point is under the head, behind the tip.
+    const { shaft } = arrowShape(0, 0, 400, 0);
+    const xs = shaft.replace(/[MLAZ]/g, ' ').trim().split(/\s+/).map(Number).filter((_, i) => i % 2 === 0);
+    const reach = Math.max(...xs);
+    const base = SOLID.head * Math.cos(SPREAD);
+    expect(400 - reach).toBeLessThan(base);
+    expect(400 - reach).toBeGreaterThan(0);
   });
 });
 
@@ -82,25 +109,32 @@ describe('arrowShape', () => {
  */
 describe('aimAt', () => {
   const box = (left: number, top: number, w = 60, h = 84) => ({ left, top, right: left + w, bottom: top + h });
+  /** The edge point `p` of box `b`, carried `TIP_INSET` of the way to its centre: where an edge-aimed tip lands. */
+  const into = (p: { x: number; y: number }, b: ReturnType<typeof box>) => ({
+    x: p.x + ((b.left + b.right) / 2 - p.x) * TIP_INSET,
+    y: p.y + ((b.top + b.bottom) / 2 - p.y) * TIP_INSET,
+  });
 
-  it('a target across the table is hit at the nearest point of its edge, as before', () => {
+  it('a target across the table is hit just inside the nearest point of its edge', () => {
     const { from, tip } = aimAt({ x: 40, y: 42 }, box(400, 300));
     expect(from).toEqual({ x: 40, y: 42 });
-    expect(tip).toEqual({ x: 400, y: 300 });
+    expect(tip).toEqual(into({ x: 400, y: 300 }, box(400, 300)));
+    expect(tip.x, 'inside the card, not on its corner').toBeGreaterThan(400);
+    expect(tip.y).toBeGreaterThan(300);
   });
 
   it('a target right beside the source is hit at its CENTRE, so the shaft crosses the cards', () => {
     // Cryptbreaker at 10..70, the next card at 76..136: six pixels apart.
     const { tip } = aimAt({ x: 40, y: 42 }, box(76, 0));
     expect(tip).toEqual({ x: 106, y: 42 });
-    expect(aimAt({ x: 40, y: 42 }, box(76 + ADJACENT_PX, 0)).tip, 'past the threshold: the edge again').toEqual({ x: 76 + ADJACENT_PX, y: 42 });
+    expect(aimAt({ x: 40, y: 42 }, box(76 + ADJACENT_PX, 0)).tip, 'past the threshold: the edge again').toEqual(into({ x: 76 + ADJACENT_PX, y: 42 }, box(76 + ADJACENT_PX, 0)));
   });
 
-  it('a card that is not a neighbour — the other side of the table — is hit at its edge however close it is', () => {
+  it('a card that is not a neighbour — the other side of the table — is hit inside its edge however close it is', () => {
     // The two front rows face each other 55px apart at 1280×800 (w46-attack: Memnite attacking Jace), closer than
-    // ADJACENT_PX; the attack arrow still lands on Jace's edge, as it always has.
-    expect(aimAt({ x: 40, y: 42 }, box(10, 139), { neighbours: false }).tip).toEqual({ x: 40, y: 139 });
-    expect(aimAt({ x: 40, y: 42 }, box(76, 0), { neighbours: false }).tip, 'even six pixels apart').toEqual({ x: 76, y: 42 });
+    // ADJACENT_PX; the attack arrow still lands at Jace's edge, not his centre.
+    expect(aimAt({ x: 40, y: 42 }, box(10, 139), { neighbours: false }).tip).toEqual(into({ x: 40, y: 139 }, box(10, 139)));
+    expect(aimAt({ x: 40, y: 42 }, box(76, 0), { neighbours: false }).tip, 'even six pixels apart').toEqual(into({ x: 76, y: 42 }, box(76, 0)));
   });
 
   it('a card targeting itself is an arc over the card, bottom to top', () => {

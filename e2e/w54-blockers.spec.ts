@@ -31,6 +31,7 @@
  */
 
 import { expect, test, type Page } from '@playwright/test';
+import { away, tips } from './aim.ts';
 
 import { enabledOk, makeTitled, offered, says } from './play/board.ts';
 import type { Friend } from './play/browser.ts';
@@ -79,21 +80,10 @@ function arrowTip(key: string): { x: number; y: number } | null {
   return { x: nums[4]! + box.left, y: nums[5]! + box.top };
 }
 
-/** The four corners and four edge midpoints of a card's own box — `edgePointNearest`'s eight points, read from the page. */
-function eightPointsOf(selector: string): { x: number; y: number }[] {
-  const el = document.querySelector(selector);
-  if (el === null) return [];
-  const r = el.getBoundingClientRect();
-  const xs = [r.left, r.left + r.width / 2, r.right];
-  const ys = [r.top, r.top + r.height / 2, r.bottom];
-  const out: { x: number; y: number }[] = [];
-  for (let row = 0; row < 3; row += 1) {
-    for (let col = 0; col < 3; col += 1) {
-      if (row === 1 && col === 1) continue;
-      out.push({ x: xs[col]!, y: ys[row]! });
-    }
-  }
-  return out;
+/** A card's own box, read from the page. */
+function boxOf(selector: string): { left: number; top: number; width: number; height: number } | null {
+  const r = document.querySelector(selector)?.getBoundingClientRect();
+  return r === undefined ? null : { left: r.left, top: r.top, width: r.width, height: r.height };
 }
 
 interface Drawn {
@@ -172,16 +162,17 @@ interface Strokes {
 /** The computed stroke of one attack arrow and one block arrow, beside the theme's danger and success. */
 async function strokes(page: Page): Promise<Strokes> {
   return page.evaluate(() => {
+    // The arrow's own colour is its core's fill (`arrow.css`); the rim around it is a mix toward the ink.
     const stroke = (prefix: string): string | null => {
-      const shaft = document.querySelector(`[data-testid="stack-target-arrow"][data-key^="${prefix}"] path`);
-      return shaft === null ? null : getComputedStyle(shaft).stroke;
+      const head = document.querySelector(`[data-testid="stack-target-arrow"][data-key^="${prefix}"] .arrow__core .arrow__head`);
+      return head === null ? null : getComputedStyle(head).fill;
     };
     const token = (name: string): string => {
       const probe = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      probe.style.stroke = `var(${name})`;
+      probe.style.fill = `var(${name})`;
       const host = document.querySelector('[data-testid="stack-target-arrow"]') ?? document.body;
       host.appendChild(probe);
-      const c = getComputedStyle(probe).stroke;
+      const c = getComputedStyle(probe).fill;
       probe.remove();
       return c;
     };
@@ -271,10 +262,11 @@ test(titled('blocking: a click blocks nothing, a drag blocks, a second drag move
     await expect(alice.page.locator('.board-card__picked'), 'still no check').toHaveCount(0);
     await expect(blockArrow(alice.page, blockerX, attackerA), 'the arrow from X to A is drawn').toHaveCount(1, { timeout: 10_000 });
     const tip = await alice.page.evaluate(arrowTip, blockArrowKey(blockerX, attackerA));
-    const edges = await alice.page.evaluate(eightPointsOf, `[data-board-card="${attackerA}"]`);
+    const boxA = await alice.page.evaluate(boxOf, `[data-board-card="${attackerA}"]`);
     expect(tip, 'the arrow has a real tip').not.toBeNull();
-    const nearest = edges.reduce((best, p) => (Math.hypot(p.x - tip!.x, p.y - tip!.y) < Math.hypot(best.x - tip!.x, best.y - tip!.y) ? p : best));
-    expect(Math.hypot(tip!.x - nearest.x, tip!.y - nearest.y), 'the tip lands on one of A’s eight edge points').toBeLessThanOrEqual(1);
+    expect(boxA, 'A has a real box').not.toBeNull();
+    const nearest = tips(boxA!).reduce((best, p) => (away(p, tip!) < away(best, tip!) ? p : best));
+    expect(away(tip!, nearest), 'the tip lands just inside one of A’s eight edge points').toBeLessThanOrEqual(1);
     await logStep(alice.page, 'blocked once (planned map)', blockerX, attackerA);
     await step('assigned (before OK)', ASSIGNED, "bob's screen shows alice's block while she is still assigning: the arrow, the shield and the blocker colour");
     await log('dragged onto A');
