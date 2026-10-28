@@ -1,0 +1,17 @@
+# Coins, called and not: alice (seat 0) is in her own Main Phase 1 with Stitch in Time (flip a coin,
+# called: win it and take an extra turn) and Mana Clash (she and bob each flip, uncalled, until both
+# come up heads) in hand, and three Mountains and an Island to cast both. Both libraries hold lands
+# so no draw step loses.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Stitch in Time;Mana Clash
+humanbattlefield=Mountain;Mountain;Mountain;Island
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
