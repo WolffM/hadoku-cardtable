@@ -25,11 +25,11 @@ interface Said {
 	flip?: { player: { kind: string; id: number }; outcome: 'heads' | 'tails' | null; won: boolean | null; source: { kind: string; id: number } | null };
 }
 
-/** Every `message` frame each seat was sent from `from` on that carries a flip. */
+/** Every `message` frame each seat was sent from `from` on that carries a flip. Seats only: the watchers' copy (`seat` -1) is the public gate's. */
 function flips(s: Scenario, from: number): Said[] {
 	return s.sent
 		.slice(from)
-		.filter((x) => x.envelope.frame.method === 'message' && 'flip' in x.envelope.frame)
+		.filter((x) => x.seat >= 0 && x.envelope.frame.method === 'message' && 'flip' in x.envelope.frame)
 		.map((x) => ({ seat: x.seat, ...(x.envelope.frame as unknown as Omit<Said, 'seat'>) }));
 }
 

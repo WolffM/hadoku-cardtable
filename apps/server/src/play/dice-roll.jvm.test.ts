@@ -26,11 +26,11 @@ interface Said {
 	roll?: { player: { kind: string; id: number }; sides: number | null; results: number[]; ignored?: number[]; source: { kind: string; id: number } | null };
 }
 
-/** Every `message` frame each seat was sent from `from` on that says someone rolled. */
+/** Every `message` frame each seat was sent from `from` on that says someone rolled. Seats only: the watchers' copy (`seat` -1) is the public gate's. */
 function rolls(s: Scenario, from: number): Said[] {
 	return s.sent
 		.slice(from)
-		.filter((x) => x.envelope.frame.method === 'message' && / rolled /.test((x.envelope.frame as { message: string }).message))
+		.filter((x) => x.seat >= 0 && x.envelope.frame.method === 'message' && / rolled /.test((x.envelope.frame as { message: string }).message))
 		.map((x) => ({ seat: x.seat, ...(x.envelope.frame as unknown as Omit<Said, 'seat'>) }));
 }
 
