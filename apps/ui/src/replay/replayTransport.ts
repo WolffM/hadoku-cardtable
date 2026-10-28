@@ -266,6 +266,15 @@ export function createReplayTransport(data: ReplayData, options: { loop?: boolea
   const transport: MatchTransport = {
     on(event, handler) {
       handlers.set(event, handler);
+      // There is no handshake to wait for: the recording is already here, so
+      // the viewer is connected the moment `match.ts` listens — after its own
+      // first join has been answered, the way a socket's `connect` follows the
+      // join it buffered, so this is never a second join.
+      if (event === 'connect') {
+        queueMicrotask(() => {
+          if (!disposed) handler(undefined);
+        });
+      }
     },
     emit() {
       // A replay viewer holds no seat and sends nothing Forge would act on

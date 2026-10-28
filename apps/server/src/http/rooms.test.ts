@@ -2806,6 +2806,26 @@ describe('testing rooms (admin only, seeded)', () => {
 		expect(h.lobby.list().filter((r) => r.testing).map((r) => r.name)).toContain(TESTING_GAUNTLET_ROUND2_NAME);
 	});
 
+	it('never waits on the catalog: every room that needs no JVM is listed while the set catalog is still pending', async () => {
+		// A loaded host's pool JVM took 32 s to answer "sets"; the round-2 rooms seeded behind it, and an admin saw none of them.
+		const h = await openFullApp(await tempDir());
+		let answerCatalog: (code: string | null) => void = () => {};
+		const seeded = seedTestingRooms({
+			lobby: h.lobby,
+			log: () => {},
+			library: TABLES_LIBRARY,
+			newestSetCode: () => new Promise((resolve) => (answerCatalog = resolve)),
+			checkPlan: () => Promise.reject(new Error('never asked')),
+		});
+		await new Promise((resolve) => setImmediate(resolve));
+		const names = h.lobby.list().filter((r) => r.testing).map((r) => r.name);
+		expect(names).toContain(TESTING_CLASSIC_ROUND2_NAME);
+		expect(names).toContain(TESTING_GAUNTLET_ROUND2_NAME);
+		expect(names).not.toContain('Testing: Set draft');
+		answerCatalog(null);
+		await expect(seeded).resolves.toBeUndefined();
+	});
+
 	it('is never swept: `sweep` forgets every idle room except a testing one', async () => {
 		const h = await openFullApp(await tempDir());
 		await seedTestingRooms({ lobby: h.lobby });

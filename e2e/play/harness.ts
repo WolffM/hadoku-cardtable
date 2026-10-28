@@ -125,6 +125,13 @@ export const PLAY_ROOMS_DIR = resolve(RUN_DIR, 'play-rooms');
  */
 export const PLAY_DRAFTS_DIR = resolve(RUN_DIR, 'play-drafts');
 /**
+ * This stack's match recordings, wiped per stack like `PLAY_ROOMS_DIR`. The
+ * server's default (`../data/recordings`) is shared by every stack and
+ * `../harness.ts`'s, and is never wiped, so the front page's featured replay
+ * was whichever match an earlier spec, or an earlier run, happened to record.
+ */
+export const PLAY_RECORDINGS_DIR = resolve(RUN_DIR, 'play-recordings');
+/**
  * This stack's imported-cube store (`apps/server/src/pools/cubes.ts`'s
  * `importDir` — the shortlist itself is `apps/server/pools/cubes/`, a
  * committed path, never this). Unlike `PLAY_ROOMS_DIR`/`PLAY_DRAFTS_DIR`,
@@ -579,6 +586,8 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
   // Likewise an empty drafts store — see `PLAY_DRAFTS_DIR`'s own comment.
   rmSync(PLAY_DRAFTS_DIR, { recursive: true, force: true });
   mkdirSync(PLAY_DRAFTS_DIR, { recursive: true });
+  rmSync(PLAY_RECORDINGS_DIR, { recursive: true, force: true });
+  mkdirSync(PLAY_RECORDINGS_DIR, { recursive: true });
   // This stack's OWN work dir, so no other stack's server can sweep it or adopt
   // out of it. Not wiped, and not reused: a crashed match's diagnostics are the
   // reason these directories are kept, and `pruneWorkRoot` is the bound.
@@ -612,6 +621,7 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
         CARDTABLE_ROOMS_DIR: PLAY_ROOMS_DIR,
         CARDTABLE_DRAFTS_DIR: PLAY_DRAFTS_DIR,
         CARDTABLE_CUBES_DIR: PLAY_CUBES_DIR,
+        CARDTABLE_RECORDINGS_DIR: PLAY_RECORDINGS_DIR,
         CARDTABLE_CATALOG: PLAY_CATALOG,
         CARDTABLE_PLAY_WORK_DIR: workDir,
         EDGE_AUTH_SECRET: secret,

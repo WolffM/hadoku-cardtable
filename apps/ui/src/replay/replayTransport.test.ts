@@ -8,6 +8,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { parseServerFrame, type ServerFrame } from '@hadoku/forge-wire';
 
+import { liveStatus } from '../play/live/LiveBoard.tsx';
 import { closeMatch, startMatch } from '../play/live/match.ts';
 import type { ReplayData, ReplayHeader } from './transport.ts';
 import { createReplayTransport } from './replayTransport.ts';
@@ -174,6 +175,29 @@ describe('createReplayTransport', () => {
 
     vi.advanceTimersByTime(200); // the loop's own delta lands again
     expect(match.view?.players.map((p) => p.life)).toEqual([15, 20]);
+
+    closeMatch(match);
+    clock.dispose();
+    vi.useRealTimers();
+  });
+
+  it('is a connected watcher: once its first snapshot lands, the status is never connecting — through play, a seek and a loop', async () => {
+    vi.useFakeTimers();
+    const data = threeFrameReplay(200);
+    const { transport, clock } = createReplayTransport(data, { loop: true });
+    const match = startMatch({ matchId: data.header.matchId, transport });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(match.stats.snapshots).toBeGreaterThan(0);
+    expect(liveStatus(match)).not.toBe('connecting');
+
+    for (let i = 0; i < 12; i += 1) {
+      await vi.advanceTimersByTimeAsync(50);
+      expect(liveStatus(match)).toBe('live');
+    }
+    clock.seek(0);
+    expect(liveStatus(match)).toBe('live');
+    // One join, and no second one when the transport reports itself connected.
+    expect(match.stats.joins).toBe(1);
 
     closeMatch(match);
     clock.dispose();

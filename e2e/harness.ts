@@ -58,6 +58,8 @@ const RUN_DIR = resolve(HERE, '.run');
  * explains for the rooms dir it already guards against.
  */
 const DRAFTS_DIR = resolve(RUN_DIR, 'drafts');
+/** This stack's match recordings, wiped per run for the same reason as `play/harness.ts`'s `PLAY_RECORDINGS_DIR`. */
+const RECORDINGS_DIR = resolve(RUN_DIR, 'recordings');
 
 function die(message: string): never {
   console.error(`[e2e-harness] ${message}`);
@@ -113,6 +115,8 @@ const serverLog = createWriteStream(resolve(RUN_DIR, 'server.jsonl'), { flags: '
 // An empty store, every run — see `DRAFTS_DIR`'s own comment.
 rmSync(DRAFTS_DIR, { recursive: true, force: true });
 mkdirSync(DRAFTS_DIR, { recursive: true });
+rmSync(RECORDINGS_DIR, { recursive: true, force: true });
+mkdirSync(RECORDINGS_DIR, { recursive: true });
 
 const secret = randomBytes(24).toString('hex');
 
@@ -130,6 +134,7 @@ const server = spawn(process.execPath, [SERVER_JS], {
     CARDTABLE_WEB_DIR: WEB_DIR,
     CARDTABLE_LOG_DIR: resolve(RUN_DIR, 'logs'),
     CARDTABLE_DRAFTS_DIR: DRAFTS_DIR,
+    CARDTABLE_RECORDINGS_DIR: RECORDINGS_DIR,
     EDGE_AUTH_SECRET: secret,
     // ── This server may only ever touch ITS OWN containers ──────────────────
     // Every cardtable boot runs `sweepOrphans()`, which removes every container

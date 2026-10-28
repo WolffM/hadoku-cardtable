@@ -394,8 +394,11 @@ async function seedTournamentRound2Gauntlet(deps: TestingRoomsDeps, log: (entry:
  *
  * It never rejects: `index.ts` starts it unawaited, where a rejection is
  * unhandled and ends the server. A room whose seeding throws (the set draft's
- * catalog is a pool-JVM round trip that can time out) is logged and skipped,
- * and the rooms after it are still seeded.
+ * catalog is a pool-JVM round trip that can time out) is logged and skipped.
+ *
+ * The async seeds all start at once, so none waits on another: the set
+ * draft's catalog lookup can take half a minute on a loaded host, and the
+ * round-2 rooms need no JVM at all.
  */
 export async function seedTestingRooms(deps: TestingRoomsDeps): Promise<void> {
 	const { lobby } = deps;
@@ -410,12 +413,15 @@ export async function seedTestingRooms(deps: TestingRoomsDeps): Promise<void> {
 		[TESTING_CLASSIC_ROUND2_NAME, seedTournamentRound2Classic],
 		[TESTING_GAUNTLET_ROUND2_NAME, seedTournamentRound2Gauntlet],
 	];
-	for (const [name, seed] of seeds) {
-		if (existing.has(name)) continue;
-		try {
-			await seed(deps, log);
-		} catch (err) {
-			log({ event: 'testing-room-seed-failed', name, detail: err instanceof Error ? err.message : String(err) });
-		}
-	}
+	await Promise.all(
+		seeds
+			.filter(([name]) => !existing.has(name))
+			.map(async ([name, seed]) => {
+				try {
+					await seed(deps, log);
+				} catch (err) {
+					log({ event: 'testing-room-seed-failed', name, detail: err instanceof Error ? err.message : String(err) });
+				}
+			}),
+	);
 }
