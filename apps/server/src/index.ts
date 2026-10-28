@@ -102,6 +102,7 @@ import { attachTableActions } from './http/table-actions.js';
 import { seedTestingRooms } from './room/testing-rooms.js';
 import { attachTournaments } from './http/tournaments.js';
 import { attachSounds } from './http/sounds.js';
+import { attachClientEvents } from './http/client-events.js';
 import { attachTrim } from './http/trim.js';
 import { attachCubeRoutes, createCubeStore } from './pools/cubes.js';
 import { attachSetRoutes, createSetsStore, warmSetsStore } from './pools/sets.js';
@@ -598,6 +599,8 @@ attachSounds(api, {
 	dir: CONFIG.soundsDir,
 });
 attachTrim(api, { file: resolve(CONFIG.dataDir, 'trim.json') });
+// Client telemetry from a screen with no match: the front page's scroll smoothness (`http/client-events.ts`).
+attachClientEvents(api);
 
 const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {

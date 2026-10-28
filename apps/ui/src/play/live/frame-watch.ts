@@ -71,7 +71,7 @@ const RING = 512;
 /** Long frames (or long tasks) kept for attribution: more than a {@link MAX_STRETCH_MS} stretch of them is old news. */
 const LONG_KEEP = 48;
 /** Gap histogram: 1 ms buckets below 128 ms, 16 ms buckets above, the last one open-ended. */
-const BUCKETS = 256;
+export const BUCKETS = 256;
 /** The telemetry's text limit (`ScalarSchema`). */
 const TEXT_MAX = 80;
 
@@ -132,7 +132,7 @@ export interface FrameWatch {
 }
 
 /** The bucket a gap falls in. */
-function bucketOf(gap: number): number {
+export function bucketOf(gap: number): number {
   return gap < 128 ? Math.floor(gap) : Math.min(BUCKETS - 1, 128 + Math.floor((gap - 128) / 16));
 }
 
@@ -142,7 +142,7 @@ function bucketTop(i: number): number {
 }
 
 /** The gap at or under which `share` of the counted frames fell. */
-function percentile(histogram: Uint32Array, total: number, share: number): number {
+export function percentile(histogram: Uint32Array, total: number, share: number): number {
   const want = Math.max(1, Math.ceil(total * share));
   let seen = 0;
   for (let i = 0; i < BUCKETS; i += 1) {

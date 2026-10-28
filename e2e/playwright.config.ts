@@ -19,17 +19,19 @@ import { EDGE_ORIGIN, PREFIX } from './identities.ts';
  * Firefox, because it is the browser a report came from: it sends pointer events Chromium does not
  * (`bl-ui-scale-click`), and a flyer jumped there every 1.4 s while it looped smoothly in Chromium
  * (`fly-jump`, the operator, 2026-10-23), and a deck tile's pips sat below its name there
- * (`deck-tile-row`).
+ * (`deck-tile-row`), and the front page's room list dropped frames scrolling there (`front-scroll-perf`,
+ * the operator, 2026-10-28).
  */
-const FIREFOX_SPECS = ['bl-ui-scale-click.spec.ts', 'deck-tile-row.spec.ts', 'fly-jump.spec.ts'];
+const FIREFOX_SPECS = ['bl-ui-scale-click.spec.ts', 'deck-tile-row.spec.ts', 'fly-jump.spec.ts', 'front-scroll-perf.spec.ts'];
 
 /**
  * Of `FIREFOX_SPECS`, the ones proven in Chromium too (not excluded from that project's own
  * `testMatch`) — wave 76 §C: the attacking outline riding a flyer's float must hold in both
  * engines, since `getComputedStyle(el, '::before')`'s animated value is read the same way in each,
- * even though the jump bug `fly-jump.spec.ts` exists for was Firefox-only.
+ * even though the jump bug `fly-jump.spec.ts` exists for was Firefox-only; and the room list's scroll,
+ * where Chromium is the reference Firefox is measured against.
  */
-const ALSO_CHROMIUM = ['fly-jump.spec.ts'];
+const ALSO_CHROMIUM = ['fly-jump.spec.ts', 'front-scroll-perf.spec.ts'];
 
 export default defineConfig({
   testDir: '.',

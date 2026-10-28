@@ -17,6 +17,9 @@ export const CLIENT_EVENT = 'forge:client';
 
 const ScalarSchema = z.union([z.string().max(80), z.number().finite(), z.boolean()]);
 
+/** An event's facts: flat scalars, a bounded field set. */
+const ClientDataSchema = z.record(z.string().min(1).max(32), ScalarSchema).refine((d) => Object.keys(d).length <= 16, 'at most 16 fields');
+
 export const ClientEventSchema = z
   .object({
     matchId: z.string().min(1),
@@ -50,11 +53,29 @@ export const ClientEventSchema = z
      * frame, so "it has gotten a lot more laggy" is read from the log.
      */
     kind: z.enum(['info', 'handover', 'landing', 'sound', 'bar-stuck', 'stand-in', 'effect', 'park', 'perf']),
-    data: z.record(z.string().min(1).max(32), ScalarSchema).refine((d) => Object.keys(d).length <= 16, 'at most 16 fields'),
+    data: ClientDataSchema,
   })
   .strict();
 
 export type ClientEvent = z.output<typeof ClientEventSchema>;
+
+/** Where a page event is sent, under `/api/`: a screen with no match has no match socket to carry it. */
+export const PAGE_EVENT_PATH = 'client-events';
+
+/**
+ * The same telemetry from a screen outside a match, sent over HTTP to `PAGE_EVENT_PATH` and written
+ * into the server's log as a `client` event keyed by page and user. `page: 'front'`, `kind: 'perf'`:
+ * the room list's scroll smoothness, one summary per scroll burst (`apps/ui/src/rooms/scroll-watch.ts`).
+ */
+export const PageEventSchema = z
+  .object({
+    page: z.enum(['front']),
+    kind: z.enum(['perf']),
+    data: ClientDataSchema,
+  })
+  .strict();
+
+export type PageEvent = z.output<typeof PageEventSchema>;
 
 /** A socket sending more than this in one second is a client bug; the rest of that second is dropped. */
 export const CLIENT_EVENT_MAX_PER_SECOND = 20;

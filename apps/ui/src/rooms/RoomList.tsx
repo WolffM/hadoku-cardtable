@@ -51,13 +51,15 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Icon } from '@wolffm/themes';
-import { ROOM_NAME_MAX, ROOM_PASSWORD_MAX, type ConstructedMode } from '@hadoku/shared';
+import { PAGE_EVENT_PATH, ROOM_NAME_MAX, ROOM_PASSWORD_MAX, type ConstructedMode } from '@hadoku/shared';
 
+import { apiUrl, sendJson } from '../http.ts';
 import { navigate } from '../screens/route.ts';
 import { tablesClient } from '../screens/tables.ts';
 import { openNewMatch } from '../play/live/matchStart.ts';
 import { warmRoom } from './warm.ts';
 import { roomFeed, type RoomFeed } from './feed.ts';
+import { watchScroll } from './scroll-watch.ts';
 import { playRole } from '../sound/index.ts';
 import {
   clientModeLabel,
@@ -132,6 +134,29 @@ export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomL
     const el = sectionRef.current;
     if (el === null) return undefined;
     return mountTips(el);
+  }, []);
+
+  /** How many rooms the list draws, for the scroll telemetry below. */
+  const roomCount = useRef(0);
+  roomCount.current = state.kind === 'ready' ? state.rooms.length : 0;
+  /** How smoothly the list scrolls, one summary per scroll burst, in the server's log (`./scroll-watch.ts`). */
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (section === null) return undefined;
+    return watchScroll({
+      win: window,
+      doc: document,
+      now: () => performance.now(),
+      userAgent: navigator.userAgent,
+      scrolls: (target) => target instanceof Element && target.contains(section),
+      rooms: () => roomCount.current,
+      ui: __HADOKU_UI_VERSION__,
+      send: (data) => {
+        void sendJson(apiUrl(PAGE_EVENT_PATH), 'POST', { page: 'front', kind: 'perf', data }, undefined, { keepalive: true }).catch((err: unknown) =>
+          console.warn('[rooms] could not report scroll', err),
+        );
+      },
+    });
   }, []);
 
   /** The list's reads, latest-wins (`./latest.ts`): this screen writes no list, so a read is kept or dropped. */

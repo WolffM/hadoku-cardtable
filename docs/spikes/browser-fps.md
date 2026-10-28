@@ -228,3 +228,21 @@ node scripts/fps/measure.mjs leak --minutes 10 --board crowded --out leak.tsv
 - **The live path's extras**: a real socket, the pacer holding opponent frames
   against a live Forge, sounds (the harness has no `/api/sounds`), avatars, and
   art for every card (the capture's own creatures draw as text).
+
+## The front page's scroll, from real sessions (2026-10-28)
+
+The room list reports its own scroll smoothness (`apps/ui/src/rooms/scroll-watch.ts`): one `perf`
+event per scroll burst, POSTed to `/api/client-events` (`apps/server/src/http/client-events.ts`) and
+written to the server's stdout as `svc: 'cardtable-client'`, `evt: 'client'`, `page: 'front'`,
+`what: 'scroll'`. Fields: `frames`, `ms`, `p50`, `p95`, `max` (gap, ms), `over25` and `over50`
+(frames over 25 ms, a dropped 60 Hz frame, and over 50 ms), `browser`, `version`, `dpr`, `vw`, `vh`,
+`rooms`, `ui` (bundle version), keyed by `userId`. Only frames the list moved in are counted.
+
+```sh
+grep -a '"svc":"cardtable-client"' ~/.pm2/logs/cardtable-ppe-out.log | grep '"what":"scroll"'   # PPE
+grep -a '"svc":"cardtable-client"' ~/.pm2/logs/cardtable-out.log | grep '"what":"scroll"'       # production
+```
+
+`e2e/front-scroll-perf.spec.ts` reads the same events off the wire at 40 rooms in Firefox and
+Chromium and prints `[scroll-perf]` lines. Headless Chromium has no GPU and composites in software,
+so its numbers there are not a reference for a real Chromium.
