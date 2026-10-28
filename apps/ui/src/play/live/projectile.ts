@@ -231,7 +231,7 @@ export function impact(root: HTMLElement, at: Point, look: ProjectileLook, key: 
  * particle pool (`effect-budget.ts`), never each swarm's full count on a busy board. A heavier blow
  * throws MORE puffs, not bigger ones (the operator, 2026-10-27: "the large balls that spawn after the
  * explosion animations look a bit distracting. maybe dont have those scale with size"). All in the
- * bolt's own colour (`burst.dataset.colour`, read by `projectile.css`/`impact.css`'s `--bolt*`).
+ * bolt's own colour (`burst.dataset.colour`, read by `projectile.css`'s `--bolt*`).
  */
 function explode(root: HTMLElement, burst: HTMLElement, key: string, power: number): HTMLElement {
   // The varying part is never last: `seedOf` barely moves when only a key's final character does.
