@@ -290,6 +290,8 @@ interface Table {
   gauntlet?: GauntletView;
   /** What `GET /api/rooms/:id` says this room is. Absent ⇒ the field is not sent at all. */
   clientMode?: ClientMode;
+  /** `RoomView.ai`, the room's own AI character. Absent ⇒ not sent. */
+  ai?: { name: string; avatarId: string };
   /** What the room PLAYS. Absent ⇒ `constructed-1v1`, which is every test above. */
   gameType?: string;
   /** Set once the server has dealt a draft room's pod. */
@@ -383,6 +385,7 @@ function stubServer(table: Table) {
     // this caller, and whether this caller is ready. `p-alice` is us.
     you: { id: 'p-alice', leader: iAmLeader(), ready: membersOf().some((m) => m.id === 'p-alice' && m.ready === true) },
     ...(table.clientMode === undefined ? {} : { clientMode: table.clientMode }),
+    ...(table.ai === undefined ? {} : { ai: table.ai }),
     locked: false,
     members: membersOf().map((m) => ({
       ...m,
@@ -956,6 +959,17 @@ describe('a room’s table', () => {
       within(screen.getByTestId('room-seat-1-empty')).queryByTestId('play-vs-bot'),
       'the only one seated may put Forge’s AI in the empty seat',
     ).not.toBeNull();
+  });
+
+  // The operator, 2026-10-28 (room r-ae1712d0df3d): the AI's seat drew as an open one through a game against it.
+  it('a game against the AI draws its seat as the AI’s own character, not an open seat', async () => {
+    await mountRoom({ players: [opponent({ you: true, name: 'user-alice' })], matchId: 'm-live', ai: { name: 'Sage', avatarId: 'owl' } });
+    const seat = screen.getByTestId('room-seat-1');
+    expect(seat.hasAttribute('data-ai')).toBe(true);
+    expect(seat.querySelector('.pod-seats__label')?.textContent).toBe('Sage');
+    expect(seat.querySelector('img')?.getAttribute('src')).toMatch(/square_owl\.png$/);
+    expect(screen.queryByTestId('room-seat-1-empty')).toBeNull();
+    expect(screen.queryByTestId('play-vs-bot')).toBeNull();
   });
 
   it('Stand up gives the seat back', async () => {
@@ -2860,6 +2874,36 @@ describe('the room’s mode', () => {
       expect.stringMatching(/square_owl\.png$/),
       expect.stringMatching(/square_fox\.png$/),
     ]);
+  });
+
+  it('a Gauntlet against the AI draws the AI in its seat between games, by the Gauntlet’s own character', async () => {
+    await mountModeRoom({
+      players: [{ ...mySeat(), deck: null }],
+      matchId: null,
+      mode: { mode: 'gauntlet', modeOptions: { family: 'modern' } },
+      ai: { name: 'Sage', avatarId: 'owl' },
+      gauntlet: {
+        phase: 'choose',
+        you: 0,
+        players: [
+          { memberId: 'p-alice', name: 'user-alice' },
+          { memberId: null, name: 'Mentor', avatarId: 'mentor' },
+        ],
+        ready: [true, true],
+        era: { id: 'modern-2014-07-18', family: 'modern', title: 'Modern — 2014' },
+        revealAt: Date.now() - 60_000,
+        first: 0,
+        decks: [],
+        step: null,
+        games: [],
+        choice: { mine: null, chosen: [false, true] },
+        winner: null,
+      },
+    });
+    const seat = await screen.findByTestId('room-seat-1');
+    expect(seat.hasAttribute('data-ai')).toBe(true);
+    expect(seat.querySelector('.pod-seats__label')?.textContent).toBe('Mentor');
+    expect(screen.queryByTestId('room-seat-1-empty')).toBeNull();
   });
 
   /** A Gauntlet between two people, in `phase`, as the server's view for alice. */

@@ -1380,6 +1380,17 @@ function RoomTableScreen({
   const settled = locked !== null || tableError !== null;
   /** The empty seat Forge's AI is offered on, if any: the last one, while nobody but me is seated. */
   const botSeat = players.every((p) => p.you) ? [0, 1].findLast((seat) => players[seat] === undefined) : undefined;
+  /**
+   * The AI holding that seat, if it does: a table's seats on the wire are its humans only
+   * (`http/routes.ts`'s `tableView`), so a game against Forge's AI leaves the seat empty there. It is
+   * the AI's while the table is locked to it — a live match with one person seated, or a Gauntlet
+   * drawn against it and not yet decided — drawn as its own character (the Gauntlet's AI player,
+   * else the room's `ai`), never as an open seat. A decided Gauntlet or a table between games offers
+   * the seat again.
+   */
+  const gauntletAi = gauntlet?.players?.find((p) => p.memberId === null);
+  const aiHolds = !tournament && players.length === 1 && (matchId !== null || (gauntletAi !== undefined && gauntlet?.phase !== 'done'));
+  const aiSeat = aiHolds && botSeat !== undefined ? { seat: botSeat, name: gauntletAi?.name ?? view?.ai?.name ?? 'AI', avatarId: gauntletAi?.avatarId ?? view?.ai?.avatarId } : null;
   /** Nothing of the room's own to draw yet: its skeleton instead. */
   const pending = !streamed && !settled && (!resolved || (!draftRoom && table === null));
   /** Whether the deck card is on the screen at all: nothing below asks for it otherwise. */
@@ -2420,6 +2431,16 @@ function RoomTableScreen({
               <ul className="pod-seats pod-seats--table" data-testid="room-players">
                 {[0, 1].map((seat) => {
                   const player = players[seat];
+                  if (aiSeat?.seat === seat) {
+                    return (
+                      <li key={seat} className="pod-seats__seat" data-testid={`room-seat-${seat}`} data-ai="">
+                        <span className="pod-seats__avatar pod-seats__avatar--ai">
+                          <Avatar id={aiSeat.avatarId} fallback="mark" className="pod-seats__avatar-img" fallbackClassName="pod-seats__avatar-fallback" />
+                        </span>
+                        <span className="pod-seats__label">{aiSeat.name}</span>
+                      </li>
+                    );
+                  }
                   return player === undefined ? (
                     <li key={seat} className="pod-seats__seat" data-testid={`room-seat-${seat}-empty`}>
                       {/* Sitting is its own act (2026-10-12): dead once I hold a seat, once the table is locked, or once a match is under way. */}
