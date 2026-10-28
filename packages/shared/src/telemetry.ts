@@ -51,8 +51,13 @@ export const ClientEventSchema = z
      * frames, what the board was drawing as it began and, where the browser
      * can say, the code the long frames ran; and a periodic summary of every
      * frame, so "it has gotten a lot more laggy" is read from the log.
+     * `connection`: this socket's own link — on a rejoin after a drop, why the
+     * last connection closed (socket.io's reason) and how long the board was
+     * without one, so the next drop explains itself. Kept from any joined
+     * socket, not only the seat's controller: it is about the socket, and a
+     * spectator's drop is as much a question as a player's.
      */
-    kind: z.enum(['info', 'handover', 'landing', 'sound', 'bar-stuck', 'stand-in', 'effect', 'park', 'perf']),
+    kind: z.enum(['info', 'handover', 'landing', 'sound', 'bar-stuck', 'stand-in', 'effect', 'park', 'perf', 'connection']),
     data: ClientDataSchema,
   })
   .strict();

@@ -150,8 +150,20 @@ export type { WireCursor };
 
 /* ── Client → server ─────────────────────────────────────────────────── */
 
-/** `forge:join` and `forge:resync` carry the same payload. */
-export const MatchRequestSchema = z.object({ matchId: z.string().min(1) }).strict();
+/**
+ * `forge:join` and `forge:resync` carry the same payload.
+ *
+ * `tabId` names the browser tab the socket belongs to, and is read on a join only. A socket cut
+ * without a close reaching the server (a proxy, a sleeping laptop) stays the seat's controller
+ * until its ping times out, so the same tab's reconnect used to be told it was a second window.
+ * A join whose tab id matches one of the seat's sockets of the SAME participant replaces that
+ * socket in place (`apps/server/src/play/socket.ts`). It is a hint between one person's own
+ * sockets and never a credential: the seat is still the edge identity's. Optional, so a tab still
+ * running an older bundle across a deploy keeps the old behaviour.
+ */
+export const MatchRequestSchema = z
+  .object({ matchId: z.string().min(1), tabId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/).optional() })
+  .strict();
 export type MatchRequest = z.infer<typeof MatchRequestSchema>;
 
 /** `forge:c2s`. `frame` is checked second, by forge-wire's `safeParseClientFrame`. */

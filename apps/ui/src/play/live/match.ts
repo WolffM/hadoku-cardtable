@@ -236,7 +236,7 @@
  */
 
 import { POOL_COLORS } from '@hadoku/deck';
-import type { ManaColor, Placement, RememberedTrigger } from '@hadoku/shared';
+import type { ClientEvent, ManaColor, Placement, RememberedTrigger } from '@hadoku/shared';
 import { ART_EVENT, asSeqCursor, CLIENT_EVENT, DECK_COLORS_EVENT, DeckColorsSchema, LIFE_PAYMENT, LIFE_PER_CLICK, selfAnswer } from '@hadoku/shared';
 import {
   REPLY_SCHEMAS,
@@ -270,6 +270,7 @@ import type { PromptParts } from '../prompts/lookup.ts';
 import { foldPackets, type FoldablePacket, type FoldResult, type WireState } from '../fold.ts';
 import { expectWirePackets } from '../wire.ts';
 import { timed } from './work-meter.ts';
+import { pageTabId } from './tab-id.ts';
 import {
   abortFrame,
   autoYieldFrame,
@@ -287,6 +288,7 @@ import {
   triggerDecisionFrame,
   TriggerDecisionsSchema,
   type ClientEnvelope,
+  type MatchRequest,
   type MatchSnapshot,
   type StopPhase,
   type TransportIssue,
@@ -904,8 +906,9 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    * This connection is a SPECTATOR of its seat: another connection for the
    * same account controls it, and the server refuses this one's inputs
    * (`forge:role`, wave 31 §S). The server enforces; this only lets the UI say
-   * why nothing happens. False until told otherwise — and a refreshed tab is
-   * told `spectator` for a moment and then `player` on promotion.
+   * why nothing happens. False until told otherwise. The same tab coming back
+   * (a reconnect, a reload) is not another connection: its join carries
+   * {@link tabId} and the server hands it the seat at once.
    */
   spectator: boolean;
   /**
@@ -958,6 +961,8 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
   lastVerdict: SeqVerdict | null;
   connected: boolean;
   everConnected: boolean;
+  /** This browser tab's id (`tab-id.ts`), sent with every join so a reconnect is known for the same tab. */
+  tabId: string;
   /** A join or resync is in flight; inbound frames are being buffered. */
   awaitingSnapshot: boolean;
   /** Resyncs since a frame last applied. See `MAX_RESYNCS_WITHOUT_PROGRESS`. */
@@ -975,6 +980,8 @@ export interface LiveMatchOptions {
   matchId: string;
   /** Defaults to a same-origin socket.io connection. */
   transport?: MatchTransport;
+  /** Defaults to this page's ({@link pageTabId}); a test that plays two tabs in one process passes its own. */
+  tabId?: string;
   /**
    * Trouble before the board has a snapshot, told somewhere other than the socket — which is the
    * thing in trouble. A watcher's page sat on "Connecting…" and the server had no line about it
@@ -994,6 +1001,11 @@ const CONNECT_ERRORS_REPORTED = 3;
 const watchdogs = new WeakMap<LiveMatch, ReturnType<typeof setTimeout>>();
 /** Each board's reporter: `snapshotFailed` reports through it. */
 const reporters = new WeakMap<LiveMatch, NonNullable<LiveMatchOptions['report']>>();
+/**
+ * A board's last lost connection — socket.io's reason, when it was lost and, once the socket is
+ * back, when — until its rejoin is answered and the board says so in the match log (`connection`).
+ */
+const drops = new WeakMap<LiveMatch, { reason: string; at: number; back: number | null }>();
 
 /** What the board knows about its connection, for a report. */
 function connectionFacts(match: LiveMatch): Record<string, unknown> {
@@ -1142,6 +1154,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     lastVerdict: null,
     connected: false,
     everConnected: false,
+    tabId: options.tabId ?? pageTabId(),
     awaitingSnapshot: false,
     resyncsWithoutProgress: 0,
     stats: emptyStats(),
@@ -1197,12 +1210,15 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     const rejoin = match.everConnected || match.stats.snapshots === 0;
     match.connected = true;
     match.everConnected = true;
+    const drop = drops.get(match);
+    if (drop !== undefined && drop.back === null) drop.back = Date.now();
     if (rejoin) fetchSnapshot(match, 'join');
     notify(match);
   });
 
   match.transport.on('disconnect', (reason) => {
     match.connected = false;
+    drops.set(match, { reason: String(reason), at: Date.now(), back: null });
     if (match.stats.snapshots === 0) options.report?.('disconnected', { reason: String(reason), ...connectionFacts(match) });
     notify(match);
   });
@@ -2828,7 +2844,8 @@ function fetchSnapshot(match: LiveMatch, kind: 'join' | 'resync'): void {
   match.awaitingSnapshot = true;
 
   const event = kind === 'join' ? MATCH_EVENTS.join : MATCH_EVENTS.resync;
-  match.transport.request(event, { matchId: match.matchId }, (err, response) => {
+  const request: MatchRequest = kind === 'join' ? { matchId: match.matchId, tabId: match.tabId } : { matchId: match.matchId };
+  match.transport.request(event, request, (err, response) => {
     match.awaitingSnapshot = false;
     if (err !== null) {
       snapshotFailed(match, `${event} was not answered: ${err.message}`);
@@ -2845,9 +2862,28 @@ function fetchSnapshot(match: LiveMatch, kind: 'join' | 'resync'): void {
       snapshotFailed(match, `${event} was refused: ${ack.value.error}`);
       return;
     }
-    if (kind === 'join') match.settled.clear();
+    if (kind === 'join') {
+      match.settled.clear();
+      reportRejoin(match);
+    }
     adoptSnapshot(match, ack.value);
   });
+}
+
+/**
+ * A rejoin after a lost connection, in the match log: why the last one closed, as socket.io
+ * said it (`transport close`, `ping timeout`, `io server disconnect`, …), and how long the board
+ * was without one. Sent once the join is answered, so the server holds this socket in the seat.
+ */
+function reportRejoin(match: LiveMatch): void {
+  const drop = drops.get(match);
+  if (drop === undefined) return;
+  drops.delete(match);
+  match.transport.emit(CLIENT_EVENT, {
+    matchId: match.matchId,
+    kind: 'connection',
+    data: { what: 'rejoined', reason: drop.reason.slice(0, 80), downMs: (drop.back ?? Date.now()) - drop.at, joins: match.stats.joins },
+  } satisfies ClientEvent);
 }
 
 /**

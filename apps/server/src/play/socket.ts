@@ -768,10 +768,20 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	 * sees the seat's own hand — it is the same person's — but the server refuses
 	 * its three inputs). `connected` is the seat's sockets in connect order, so
 	 * the longest-connected spectator is the one promoted when the controller
-	 * leaves. A refresh takes this same path: its new socket may open before the
-	 * old one's `disconnect` lands, spectates for that moment, and is promoted.
+	 * leaves.
+	 *
+	 * The same TAB is not a second browser. A socket cut without a close reaching
+	 * this server stays in the line until its ping times out (match m-ca7bad04b715,
+	 * 2026-10-28: 21 s of "being played in another window" after the operator's own
+	 * tab reconnected). So a join names its tab (`MatchRequest.tabId`), and a join
+	 * whose tab matches a socket already in the seat's line — the same participant's,
+	 * the seat being theirs anyway — takes that socket's place in the line and the
+	 * old socket is disconnected: a controller's reconnect is the controller at once.
+	 * A different tab, or none (a bundle from before tab ids), keeps the rule above.
 	 */
 	const connected = new Map<string, string[]>();
+	/** Each joined socket's tab, as `participant + tab id`: only the same participant's same tab ever matches. */
+	const tabOf = new Map<string, string>();
 	/** Each participant's open sockets on this server (a match, any role; the room feed): who {@link MatchDeps.ownerOnline} counts as about. */
 	const online = new Map<string, number>();
 	/**
@@ -847,10 +857,21 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				joined.set(match.id, seat);
 				const key = seatKey(match.id, seat);
 				const sockets = connected.get(key) ?? [];
-				sockets.push(socket.id);
+				const tab = request.value.tabId === undefined || seat === WATCHER_SEAT ? null : `${participantId}\n${request.value.tabId}`;
+				if (tab !== null) tabOf.set(socket.id, tab);
+				const at = tab === null ? -1 : sockets.findIndex((id) => tabOf.get(id) === tab);
+				const replaced = at < 0 ? null : (sockets[at] as string);
+				if (at < 0) sockets.push(socket.id);
+				else sockets[at] = socket.id;
 				connected.set(key, sockets);
 				const room = roomFor(match);
 				joinRoom<PlayApp, PlayClient>(room, socket.id, socket.id, participantId, () => ({ seat: seat as number }));
+				if (replaced !== null) {
+					// Out of the line already, so its own `disconnect` promotes nobody and, with this
+					// socket in the room, marks no seat gone.
+					log({ evt: 'tab-rejoined', matchId: match.id, seat, participantId, socketId: socket.id, replaced, role: roleOf(match.id, seat, socket.id) });
+					io.sockets.sockets.get(replaced)?.disconnect(true);
+				}
 				await socket.join(room.roomId);
 				log({ evt: 'joined', matchId: match.id, seat, participantId, fresh: claim.ok ? claim.fresh : false, role: roleOf(match.id, seat, socket.id) });
 				for (const [k, held] of arrangements) {
@@ -1205,7 +1226,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		 * browser knows — its settings, what its gesture layer drew — written
 		 * into this log as `client` events beside the server's own, keyed by
 		 * match and seat, so a report is read from the log rather than deduced.
-		 * Only a joined controller's is kept; nothing is relayed to anyone.
+		 * Only a joined controller's is kept, except `connection`, which is about
+		 * the socket itself and kept from any joined one; nothing is relayed to anyone.
 		 */
 		let clientWindow = 0;
 		let clientSent = 0;
@@ -1217,7 +1239,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			}
 			const match = matches.get(parsed.data.matchId);
 			const seat = match === undefined ? undefined : joined.get(match.id);
-			if (match === undefined || seat === undefined || !isController(match.id, seat, socket.id)) return;
+			if (match === undefined || seat === undefined) return;
+			if (parsed.data.kind !== 'connection' && !isController(match.id, seat, socket.id)) return;
 			const now = Math.floor(Date.now() / 1000);
 			if (now !== clientWindow) {
 				clientWindow = now;
@@ -1238,6 +1261,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				const key = seatKey(matchId, seat);
 				const line = connected.get(key) ?? [];
 				const wasController = line[0] === socket.id;
+				tabOf.delete(socket.id);
 				const remaining = line.filter((id) => id !== socket.id);
 				if (remaining.length === 0) connected.delete(key);
 				else connected.set(key, remaining);

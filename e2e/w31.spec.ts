@@ -15,7 +15,7 @@
  *     actions."* The second context is told so, cannot act (by the page, and by the
  *     wire: a raw socket that sends an OK anyway is refused and the controller's
  *     question stays open), and is promoted when the first context closes. A
- *     REFRESH is the same path and must never lock a player out of their own seat.
+ *     REFRESH is the same tab and must never lock a player out of their own seat.
  *  3. **A match that is gone** shows the server's sentence and a way back, with no
  *     board chrome and nothing shaped like a Join.
  *  4. **The rail and the log (P1, P12).** Combat is one step outside combat and
@@ -275,8 +275,8 @@ test(titled('a second browser on a held seat is a spectator: inert, refused by t
     await playOrDrawPlay(second.page).click();
     await expect(second.page.getByTestId('live-says')).toContainText(/keep your hand/i, { timeout: 30_000 });
 
-    // A REFRESH is the same path: the new socket can open before the old one's
-    // disconnect lands, spectates for a moment, and must then be promoted.
+    // A REFRESH keeps the tab's id (`tab-id.ts`): whether the new socket opens before the old
+    // one's disconnect lands or after, it is the seat's controller, never locked out.
     await second.page.reload();
     await boardUp(second.page);
     await expect(banner(second), 'a refresh never leaves the player locked out of their own seat').toHaveCount(0, { timeout: 30_000 });
