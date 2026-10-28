@@ -121,7 +121,8 @@ export function roomStreamPathOf(url: string | undefined): RoomStreamPath | null
 	return { roomKey, seat: Number(m[2]), rest: query === undefined ? rest : `${rest}?${query}` };
 }
 
-const STREAM_DIR = join(homedir(), '.local', 'share', 'cardtable', 'stream');
+// `CARDTABLE_STREAM_DIR` keeps a second server on the same machine (`pnpm dev`) off this one's containers.
+const STREAM_DIR = process.env.CARDTABLE_STREAM_DIR ?? join(homedir(), '.local', 'share', 'cardtable', 'stream');
 const STREAMS_FILE = join(STREAM_DIR, 'STREAMS');
 
 /**

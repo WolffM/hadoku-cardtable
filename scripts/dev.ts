@@ -15,15 +15,16 @@
  * the SAME player; the e2e suite is where two-person flows are tested.
  *
  * Forge: `scripts/forge-bundle.sh` builds (first time: Maven, a few minutes) and caches the
- * submodule's pinned jar. With no JDK 21 or Maven it says so and the app starts anyway: rooms,
- * drafts and deck building work, and starting a match answers that Forge is missing. Set
+ * submodule's pinned jar. With no JDK 21 or Maven it says so and the app starts anyway, with its
+ * front page and rooms, but drafts and matches both need Forge and are refused without it. Set
  * `CARDTABLE_FORGE_JAR` and `CARDTABLE_FORGE_RES` to use a jar you already have, or
  * `CARDTABLE_DEV_NO_FORGE=1` to skip it.
  *
- * Everything the server writes goes under `.dev/` in this checkout (gitignored): logs, rooms,
- * recordings, Forge's run directories, and its own copy of Scryfall's card data (~200 MB, fetched on
- * the first start). Nothing is shared with another checkout or with a production install on the
- * same machine. Ctrl-C stops the server and the Forge JVMs it started.
+ * Everything the server writes or reads as its own goes under `.dev/` in this checkout
+ * (gitignored): logs, rooms, recordings, Forge's run directories, its stream config and its own
+ * copy of Scryfall's card data (~200 MB, fetched on the first start). Nothing is shared with
+ * another checkout or with a production install on the same machine. Ctrl-C stops the server and
+ * the Forge JVMs it started.
  *
  * Not here, because they are other hadoku.me services: the room chat (watchparty), sign-in, match
  * stats. Their panels stay empty.
@@ -45,13 +46,13 @@ const SERVER_PORT = PORT + 1;
 function forge(): Record<string, string> {
   if (process.env.CARDTABLE_FORGE_JAR && process.env.CARDTABLE_FORGE_RES) return {};
   if (process.env.CARDTABLE_DEV_NO_FORGE === '1') {
-    console.log('[dev] CARDTABLE_DEV_NO_FORGE=1: no Forge, so no matches');
+    console.log('[dev] CARDTABLE_DEV_NO_FORGE=1: no Forge, so no drafts or matches');
     return {};
   }
   console.log('[dev] resolving the Forge jar for this checkout (scripts/forge-bundle.sh; the first build takes a few minutes)');
   const run = spawnSync('bash', ['scripts/forge-bundle.sh'], { cwd: REPO, stdio: ['ignore', 'pipe', 'inherit'], encoding: 'utf8' });
   if (run.status !== 0) {
-    console.log('[dev] no Forge jar (needs git, a JDK 21 and Maven on PATH; reason above). Starting without it: matches are off.');
+    console.log('[dev] no Forge jar (needs git, a JDK 21 and Maven on PATH; reason above). Starting without it: drafts and matches are off.');
     return {};
   }
   return Object.fromEntries(
@@ -77,16 +78,23 @@ function stopJvms(workDir: string): void {
   }
 }
 
-async function healthy(deadline: number): Promise<boolean> {
+/** Null once the server is healthy; otherwise why not. An answer that is not 200 is final: `/health` judges the bundle once, at boot. */
+async function unhealthy(deadline: number): Promise<string | null> {
   while (Date.now() < deadline) {
+    let res: Response | undefined;
     try {
-      if ((await fetch(`http://127.0.0.1:${SERVER_PORT}/health`)).ok) return true;
+      res = await fetch(`http://127.0.0.1:${SERVER_PORT}/health`);
     } catch {
       // not listening yet
     }
+    if (res !== undefined) {
+      if (res.ok) return null;
+      const body = (await res.json().catch(() => ({}))) as { bundle?: string };
+      return `/health answered ${res.status}${body.bundle ? ` (bundle: ${body.bundle})` : ''}; the server says why on stderr, above`;
+    }
     await new Promise((r) => setTimeout(r, 250));
   }
-  return false;
+  return 'the server never answered /health';
 }
 
 const logDir = join(DEV, 'logs');
@@ -108,6 +116,7 @@ const env: NodeJS.ProcessEnv = {
   CARDTABLE_STREAM_PORT: String(PORT + 10),
   CARDTABLE_ROOM_STREAM_PORT: String(PORT + 20),
   CARDTABLE_STREAM_NAME_PREFIX: 'cardtable-dev',
+  CARDTABLE_STREAM_DIR: join(DEV, 'stream'),
 };
 // The dev hatch only opens with no secret: a stray one from the shell would refuse every request.
 delete env.EDGE_AUTH_SECRET;
@@ -132,8 +141,9 @@ server.on('exit', (code) => {
   stop(code ?? 1);
 });
 
-if (!(await healthy(Date.now() + 60_000))) {
-  console.log(`[dev] the server never answered /health; its log is ${join(logDir, 'server.log')}`);
+const why = await unhealthy(Date.now() + 60_000);
+if (why !== null) {
+  console.log(`[dev] ${why}. Its log is ${join(logDir, 'server.log')}`);
   stop(1);
 }
 // The edge stamps identity only for the e2e suite's named friends; here it only strips the prefix,

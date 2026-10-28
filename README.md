@@ -75,10 +75,10 @@ vault is involved: `pnpm dev` builds the app and runs the real server behind
 the same stand-in for hadoku.me's edge that the e2e suite uses, with every
 visitor signed in as one local admin (so the seeded "Testing:" rooms show).
 
-Matches need Forge. With a JDK 21, Maven and git on `PATH`, `pnpm dev` builds
-the submodule's pinned jar the first time (a few minutes) and caches it. With no
-JDK it starts anyway: rooms, drafts and deck building work, and only starting a
-match does not. The first start also downloads Scryfall's card data, about
+Drafts and matches need Forge. With a JDK 21, Maven and git on `PATH`,
+`pnpm dev` builds the submodule's pinned jar the first time (a few minutes) and
+caches it. With no JDK it starts anyway, with the front page and rooms, and
+refuses to start a draft or a match. The first start also downloads Scryfall's card data, about
 200 MB. Card art comes from Scryfall's image CDN.
 
 | env var | default | what for |
