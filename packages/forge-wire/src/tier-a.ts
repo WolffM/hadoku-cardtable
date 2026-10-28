@@ -154,7 +154,21 @@ export const DieRollSchema = z.strictObject({
 });
 export type DieRoll = z.infer<typeof DieRollSchema>;
 
-/** `void message(String message, String title)` — IGuiGame.java:157. `log` and `roll` are ours: see {@link GameLogLineSchema}, {@link DieRollSchema}. */
+/**
+ * A coin flip, read where Forge tells it, as a die roll is (`PlayBridge.java`'s `SeatController.notifyOfValue`):
+ * Forge sends a flip only as a word. `outcome` is the face it came up, null when the flip was called by a
+ * player whose call the bridge never saw; `won` whether the call was won, null when nobody called it;
+ * `source` the card it came from, when this seat may see it.
+ */
+export const CoinFlipSchema = z.strictObject({
+  player: PlayerRefSchema,
+  outcome: z.enum(['heads', 'tails']).nullable(),
+  won: z.boolean().nullable(),
+  source: CardRefSchema.nullable(),
+});
+export type CoinFlip = z.infer<typeof CoinFlipSchema>;
+
+/** `void message(String message, String title)` — IGuiGame.java:157. `log`, `roll` and `flip` are ours: see {@link GameLogLineSchema}, {@link DieRollSchema}, {@link CoinFlipSchema}. */
 export const MessageSchema = z.strictObject({
   kind: z.literal('notify'),
   method: z.literal('message'),
@@ -162,6 +176,7 @@ export const MessageSchema = z.strictObject({
   title: z.string(),
   log: GameLogLineSchema.optional(),
   roll: DieRollSchema.optional(),
+  flip: CoinFlipSchema.optional(),
 });
 
 /**

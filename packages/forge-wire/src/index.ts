@@ -105,6 +105,8 @@ export {
   MessageSchema,
   DieRollSchema,
   type DieRoll,
+  CoinFlipSchema,
+  type CoinFlip,
   GameLogLineSchema,
   type GameLogLine,
   ShowErrorDialogSchema,

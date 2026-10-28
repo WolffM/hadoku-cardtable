@@ -487,6 +487,11 @@ public final class PlayBridge {
         volatile FServerManager server;
 
         final Map<Integer, SeatGui> seatGuis = new ConcurrentHashMap<>();
+        /**
+         * Each player's last call of a coin flip ({@link SeatController#chooseBinary}): heads or not, and how many
+         * coins they had flipped this turn when they called it — the flip it is for is told before Forge counts it.
+         */
+        final Map<Integer, int[]> coinCalls = new ConcurrentHashMap<>();
 
         /**
          * Wave 78 §A — the applied-act echo's own ordering. One counter for BOTH
@@ -2494,11 +2499,12 @@ public final class PlayBridge {
         volatile SpellAbility searching;
 
         /**
-         * The die rolls this seat's controller was told of ({@link SeatController#notifyOfValue}), each with
-         * the message Forge words it as, in order: the {@code message} frame that says it carries it
-         * ({@link #message}). Forge's own call reaches this seat over its protocol, after the controller's.
+         * The die rolls and coin flips this seat's controller was told of ({@link SeatController#notifyOfValue}),
+         * each as {message Forge words it as, the frame's key, the fact}, in order: the {@code message} frame that
+         * says it carries it ({@link #message}). Forge's own call reaches this seat over its protocol, after the
+         * controller's.
          */
-        final java.util.Deque<Object[]> rolls = new java.util.concurrent.ConcurrentLinkedDeque<>();
+        final java.util.Deque<Object[]> told = new java.util.concurrent.ConcurrentLinkedDeque<>();
 
         /** The first {@link BridgeGui.EffectJournal} entry this seat has not been sent. */
         private long effectsFrom;
@@ -3021,10 +3027,10 @@ public final class PlayBridge {
             final JsonObject f = notify("message");
             f.addProperty("message", str(message));
             f.addProperty("title", str(title));
-            final Object[] told = rolls.peekFirst();
-            if (told != null && told[0].equals(message)) {
-                rolls.pollFirst();
-                f.add("roll", (JsonObject) told[1]);
+            final Object[] fact = told.peekFirst();
+            if (fact != null && fact[0].equals(message)) {
+                told.pollFirst();
+                f.add((String) fact[1], (JsonObject) fact[2]);
             }
             frame(f);
         }
@@ -5590,6 +5596,44 @@ public final class PlayBridge {
         }
     }
 
+    /**
+     * A coin flip as the board draws it ({@code tier-a.ts}'s {@code CoinFlipSchema}): {@code player}, the face it
+     * came up ({@code heads}, {@code tails}, or null when the call it was judged against is unknown), {@code won}
+     * (null when nobody called it), and {@code source}, the card it came from, when the seat may see it.
+     */
+    static final class CoinFlip {
+        private CoinFlip() { }
+
+        /**
+         * The flip {@code value} tells of, or null when it tells of none. {@code FlipCoinEffect.flipCoin} tells a
+         * flip nobody called as its face ({@code lblHeads}/{@code lblTails}) and a called one as its outcome
+         * ({@code lblWin}/{@code lblLose}); a called flip's face is the call when won and the other when lost.
+         */
+        static JsonObject of(final SpellAbility sa, final forge.game.GameObject relatedTarget, final String value, final forge.game.player.Player viewer, final Map<Integer, int[]> calls) {
+            if (sa == null || sa.getApi() != ApiType.FlipCoin || !(relatedTarget instanceof forge.game.player.Player flipper) || value == null) { return null; }
+            final forge.util.Localizer words = forge.util.Localizer.getInstance();
+            Boolean heads = null;
+            Boolean won = null;
+            if (value.equals(words.getMessage("lblHeads"))) { heads = Boolean.TRUE; }
+            else if (value.equals(words.getMessage("lblTails"))) { heads = Boolean.FALSE; }
+            else if (value.equals(words.getMessage("lblWin"))) { won = Boolean.TRUE; }
+            else if (value.equals(words.getMessage("lblLose"))) { won = Boolean.FALSE; }
+            else { return null; }
+            if (won != null) {
+                final int[] call = calls.get(flipper.getId());
+                if (call != null && call[1] == flipper.getNumFlipsThisTurn()) { heads = (call[0] == 1) == won; }
+            }
+            final JsonObject o = new JsonObject();
+            o.add("player", ref("player", flipper.getId()));
+            if (heads == null) { o.add("outcome", com.google.gson.JsonNull.INSTANCE); } else { o.addProperty("outcome", heads ? "heads" : "tails"); }
+            if (won == null) { o.add("won", com.google.gson.JsonNull.INSTANCE); } else { o.addProperty("won", won); }
+            final forge.game.card.Card host = sa.getHostCard();
+            final boolean shown = host != null && !host.isFaceDown() && host.getView().canBeShownTo(viewer.getView());
+            o.add("source", shown ? ref("card", host.getId()) : com.google.gson.JsonNull.INSTANCE);
+            return o;
+        }
+    }
+
     static final class SeatPlayer extends forge.player.LobbyPlayerHuman {
         /** This seat's match and index, so {@link SeatController} can echo an applied act (see its own doc). */
         final MatchContext match;
@@ -5692,21 +5736,36 @@ public final class PlayBridge {
         }
 
         /**
-         * A die roll is told as prose alone ({@code RollDiceEffect.rollDiceForPlayer}: "Alice rolled 3, 17",
-         * with an ignored and a natural line when the roll had them), and the board draws the die itself:
-         * who rolled, its sides, each result and its source. Read here, where Forge still holds the ability,
-         * and handed to the seat's {@code message} frame that says it ({@link SeatGui#message}).
+         * A die roll and a coin flip are told as prose alone ({@code RollDiceEffect.rollDiceForPlayer}: "Alice
+         * rolled 3, 17", with an ignored and a natural line when the roll had them; {@code FlipCoinEffect.flipCoin}:
+         * "heads", or "win" for a called flip), and the board draws the die or the coin itself. Read here, where
+         * Forge still holds the ability, and handed to the seat's {@code message} frame that says it
+         * ({@link SeatGui#message}) as its {@code roll} ({@link DieRoll}) or its {@code flip} ({@link CoinFlip}).
          */
         @Override
         public void notifyOfValue(final SpellAbility sa, final forge.game.GameObject relatedTarget, final String value) {
             final SeatGui gui = match.seatGuis.get(seat);
             final boolean messaged = sa == null || !sa.isManaAbility() && (sa.getHostCard() == null || !getGui().isLibgdxPort());
-            final JsonObject roll = gui == null || !messaged ? null : orNull("roll", () -> DieRoll.of(sa, relatedTarget, value, getPlayer()));
-            if (roll != null) {
-                gui.rolls.addLast(new Object[] { forge.util.MessageUtil.formatNotificationMessage(sa, getPlayer(), relatedTarget, value), roll });
-                while (gui.rolls.size() > DieRoll.KEPT) { gui.rolls.pollFirst(); }
+            if (gui != null && messaged) {
+                final JsonObject roll = orNull("roll", () -> DieRoll.of(sa, relatedTarget, value, getPlayer()));
+                final JsonObject flip = roll != null ? null : orNull("flip", () -> CoinFlip.of(sa, relatedTarget, value, getPlayer(), match.coinCalls));
+                if (roll != null || flip != null) {
+                    final String said = forge.util.MessageUtil.formatNotificationMessage(sa, getPlayer(), relatedTarget, value);
+                    gui.told.addLast(new Object[] { said, roll != null ? "roll" : "flip", roll != null ? roll : flip });
+                    while (gui.told.size() > DieRoll.KEPT) { gui.told.pollFirst(); }
+                }
             }
             super.notifyOfValue(sa, relatedTarget, value);
+        }
+
+        /** A coin's call, kept for the flip it is for ({@link MatchContext#coinCalls}): every seat draws that flip's face. */
+        @Override
+        public boolean chooseBinary(final SpellAbility sa, final String question, final forge.game.player.PlayerController.BinaryChoiceType kindOfChoice, final Boolean defaultVal) {
+            final boolean answer = super.chooseBinary(sa, question, kindOfChoice, defaultVal);
+            if (kindOfChoice == forge.game.player.PlayerController.BinaryChoiceType.HeadsOrTails) {
+                match.coinCalls.put(getPlayer().getId(), new int[] { answer ? 1 : 0, getPlayer().getNumFlipsThisTurn() });
+            }
+            return answer;
         }
 
         /**
