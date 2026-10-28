@@ -49,7 +49,8 @@
  *
  *   CARDTABLE_FORGE_JAR              the fat jar, `forge-gui-desktop-*-jar-with-dependencies.jar`  (required)
  *   CARDTABLE_FORGE_RES              Forge's `forge-gui/res` directory                              (required)
- *   CARDTABLE_JAVA                   a JDK 21 `java`; default: `~/.local/opt/jdk-21*\/bin/java` (D14), then `java`
+ *   CARDTABLE_JAVA                   a JDK 21 `java`; default: `~/.local/opt/jdk-21*\/bin/java` (D14), then
+ *                                    `$JAVA_HOME/bin/java`, then `java` on `PATH` (`defaultJava`)
  *   CARDTABLE_PLAY_WORK_DIR          per-JVM run directories; default `<os tmpdir>/cardtable-play`
  *   CARDTABLE_PLAY_JVM_OPTS          extra JVM flags, space-separated; an `-Xmx` here beats `JVM_HEAP_MB`
  *   CARDTABLE_PLAY_WARM_JVM          `0` to keep no JVM booted ahead of a match; default on
@@ -57,7 +58,8 @@
  *   CARDTABLE_PLAY_BRIDGE_CACHE      where the compiled bridge is kept; default `~/.cache/cardtable/bridge`
  *
  * The bridge needs a JDK — `javac` to compile, or `jdk.compiler` for the source launcher it falls
- * back to — which is why the default is the user-local Temurin rather than the JRE on `PATH`.
+ * back to — which is why the user-local Temurin comes first, ahead of whatever `java` is on `PATH`
+ * (on the production host that is a JRE with no `javac`).
  */
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
@@ -83,7 +85,7 @@ import {
 } from 'node:fs';
 import { Socket } from 'node:net';
 import { homedir } from 'node:os';
-import { basename, dirname, join, resolve, sep } from 'node:path';
+import { basename, delimiter, dirname, join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
@@ -156,8 +158,18 @@ export const JVM_HEAP_MB = 2048;
 
 export type JvmAvailability = { ok: true; config: JvmHostConfig } | { ok: false; reason: string };
 
-function defaultJava(): string {
-	const opt = join(homedir(), '.local', 'opt');
+/**
+ * The `java` to run when `CARDTABLE_JAVA` names none, as an ABSOLUTE path whenever one can be
+ * found: `bridgeLaunch` looks for `javac` beside it, and beside a bare `java` is `./javac`, which
+ * never exists. That sent every JDK found only on `PATH` to the source launcher, and the pool
+ * service with it, which needs the compiled bridge (no set drafts at all on a contributor's machine).
+ *
+ * In order: the user-local Temurin (D14), `$JAVA_HOME/bin/java`, then the first `java` on `PATH`
+ * with its symlinks followed (`/usr/bin/java` is usually a link into the JDK, and `javac` sits beside
+ * the real file, not the link). A bare `java` only when none of those exists.
+ */
+export function defaultJava(env: NodeJS.ProcessEnv = process.env): string {
+	const opt = join(env.HOME ?? homedir(), '.local', 'opt');
 	if (existsSync(opt)) {
 		const jdk = readdirSync(opt)
 			.filter((d) => d.startsWith('jdk-21'))
@@ -166,7 +178,12 @@ function defaultJava(): string {
 			.find((p) => existsSync(p));
 		if (jdk !== undefined) return jdk;
 	}
-	return 'java';
+	const candidates = [
+		...(env.JAVA_HOME ? [join(env.JAVA_HOME, 'bin', 'java')] : []),
+		...(env.PATH ?? '').split(delimiter).filter((dir) => dir !== '').map((dir) => join(dir, 'java')),
+	];
+	const found = candidates.find((p) => existsSync(p) && statSync(p).isFile());
+	return found === undefined ? 'java' : realpathSync(found);
 }
 
 /**
@@ -200,7 +217,7 @@ export function jvmHostConfig(env: NodeJS.ProcessEnv = process.env): JvmAvailabi
 	return {
 		ok: true,
 		config: {
-			java: env.CARDTABLE_JAVA ?? defaultJava(),
+			java: env.CARDTABLE_JAVA ?? defaultJava(env),
 			jar: resolve(jar),
 			res: resolve(res),
 			workDir: playWorkDir(env),
