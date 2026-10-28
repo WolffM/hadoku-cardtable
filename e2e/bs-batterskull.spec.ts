@@ -15,6 +15,11 @@
  * list's measured `--zone-w`/`--zone-h`, a Plains' drawn width (a card nothing here touches), and
  * whether the page or any zone of the board has to scroll. Every one must hold its first value in
  * every frame. Each change is printed as a `[bs]` line.
+ *
+ * The board and both battlefields are read by their sizes alone: a heavy enough landing shakes the
+ * board (`entries.ts`, mana value 5 and up — Batterskull is 5), and while it does the battlefields'
+ * positions move by a pixel, the board's own and inside it, with no box changing size. A reflow still
+ * shows in a battlefield's size, a list's `--zone-w`/`--zone-h` and columns, or a card's width.
  */
 import { expect, test, type Page } from '@playwright/test';
 
@@ -59,17 +64,22 @@ async function startSampler(page: Page): Promise<void> {
       const tier = el.closest('[data-tier], .zone__cards')?.getAttribute('data-tier') ?? '';
       return `${box(el)}${tier === '' ? '' : ` ${tier}`}${attrs.length > 0 ? ` ${attrs.join(' ')}` : ''}`;
     };
+    const size = (el: Element | null): string => {
+      if (el === null) return '-';
+      const r = el.getBoundingClientRect();
+      return `${Math.round(r.width)}x${Math.round(r.height)}`;
+    };
     const tick = (): void => {
       if (w.__bsStop) return;
       const sizes: Record<string, string> = {};
       const scrolls: string[] = [];
       const page = document.scrollingElement ?? document.documentElement;
       sizes.window = `${innerWidth}x${innerHeight}`;
-      sizes.board = box(document.querySelector('.board'));
+      sizes.board = size(document.querySelector('.board'));
       if (page.scrollHeight > innerHeight || page.scrollWidth > innerWidth) scrolls.push(`page ${page.scrollWidth}x${page.scrollHeight}`);
       for (const owner of ['you', 'them']) {
         const zone = document.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="${owner}"]`);
-        sizes[`${owner}.battlefield`] = box(zone);
+        sizes[`${owner}.battlefield`] = size(zone);
         if (zone === null) continue;
         const lists = Array.from(zone.querySelectorAll<HTMLElement>('.zone__cards'));
         lists.forEach((list, i) => {
