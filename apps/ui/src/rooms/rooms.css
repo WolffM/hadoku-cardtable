@@ -98,6 +98,15 @@
   margin: 0;
 }
 
+/*
+ * `will-change: transform`: the grid is its own compositor layer, so scrolling the page moves it
+ * rather than redrawing it. Firefox otherwise re-rendered every visible card's format gradient on
+ * every scroll frame, inside the panel's trim mask: at 40 rooms, headless Firefox spent 11–12 ms of
+ * CPU per scrolled frame, 6.1–6.5 ms with this (and headless Chromium 78 → 22 ms), measured by
+ * interleaved A/B; `e2e/front-scroll-perf.spec.ts` and the `scroll` telemetry
+ * (`./scroll-watch.ts`) are the frame-rate side. On the list, not the panel: the panel holds the
+ * create dialog's fixed backdrop and the fixed tip layer, which a transform would re-anchor.
+ */
 .rooms__list {
   list-style: none;
   margin: 0;
@@ -105,6 +114,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 12px;
+  will-change: transform;
 }
 
 /*
