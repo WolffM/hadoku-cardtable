@@ -5,11 +5,13 @@
  */
 import type { Browser, Locator, Page } from '@playwright/test';
 
-import { dragHandCard } from '../play/board.ts';
+import { resolve } from 'node:path';
+
+import { dragHandCard, says } from '../play/board.ts';
 import type { Friend } from '../play/browser.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from '../play/harness.ts';
 import { startScenarioMatch } from '../play/scenario.ts';
-import { HERO, openPromoFriend, RIVAL, startFilm, TAGS, type Film } from './rig.ts';
+import { HERO, openPromoFriend, PROMO_DIR, RIVAL, startFilm, TAGS, type Film } from './rig.ts';
 
 export interface Shoot {
   film: Film;
@@ -75,6 +77,12 @@ export async function cast(page: Page, name: string, opts: { hover?: number } = 
   if (!(await dragHandCard(page, id, to, [mid]))) throw new Error(`promo: ${name} (${id}) did not lift`);
 }
 
+/** Park the cursor over empty table, so no hover inspector covers the moment. */
+export async function restCursor(page: Page): Promise<void> {
+  const field = await page.locator('.seat:not([data-viewer]) [data-zone="battlefield"]').first().boundingBox();
+  if (field !== null) await page.mouse.move(field.x + field.width * 0.92, field.y + field.height * 0.25, { steps: 14 });
+}
+
 export const okEnabled = (page: Page): Locator => page.locator('[data-testid="live-decision-ok"]:enabled');
 
 export async function pressIfThere(target: Locator): Promise<boolean> {
@@ -121,10 +129,17 @@ export const lifeOf = (page: Page, whose: 'mine' | 'theirs'): Locator =>
 export const opponentFace = (page: Page): Locator => page.locator('[data-player-face]:not([data-viewer])').first();
 
 /** Poll `step` every `ms` until it answers true, or throw naming `what`. */
-export async function until(what: string, step: () => Promise<boolean>, timeoutMs = 90_000, ms = 200): Promise<void> {
+export async function until(what: string, step: () => Promise<boolean>, timeoutMs = 90_000, ms = 200, witness?: Page): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (!(await step())) {
-    if (Date.now() > deadline) throw new Error(`promo: ${what} never happened`);
+    if (Date.now() > deadline) {
+      if (witness !== undefined) {
+        const shot = resolve(PROMO_DIR, `stuck-${what.replace(/[^a-z0-9]+/gi, '-')}.png`);
+        await witness.screenshot({ path: shot });
+        console.log(`[promo] stuck on "${what}": says "${await says(witness)}"; screenshot ${shot}`);
+      }
+      throw new Error(`promo: ${what} never happened`);
+    }
     await new Promise((r) => setTimeout(r, ms));
   }
 }
