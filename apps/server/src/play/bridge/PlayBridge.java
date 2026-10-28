@@ -282,7 +282,8 @@ public final class PlayBridge {
      * ({@code Game.AI_TIMEOUT}) stops an AI decision short and the AI plays its best so far. No
      * protocol call says so, and it is the one sign that a host is too slow for its AI. Each
      * becomes a {@code cutoff} line for the match whose game thread printed it
-     * ({@link #GAME_THREADS}), with {@code where} the eval thread's top Forge frame; one from a
+     * ({@link #GAME_THREADS}), with {@code where} the eval thread's top Forge frame (absent when
+     * the cutoff came before the eval thread reached Forge's code); one from a
      * thread no match owns is the JVM's, stamped with {@link #processId}. The text still reaches
      * stderr as it was.
      */
