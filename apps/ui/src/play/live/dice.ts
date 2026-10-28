@@ -20,12 +20,14 @@
  * dice in one roll each tumble, a little apart in time and in place; one the roll ignored dims once it
  * lands. The other seat's die is tinted, and its ring is theirs (`dice.css`).
  *
- * ## The board waits for it, as for any beat
+ * ## Everything waits for it to land
  *
- * The tumble and its landing are a beat (`../motion.ts`'s `noteBoardDrawing`, the animations carrying
- * `BEAT_ANIMATION_ID`): the pacer holds what the other seat did next until the die has landed, and never
- * holds the seat's own acts (`./pace.ts`). Fast Mode is pacing, not motion: the die still tumbles, and
- * nothing waits for it. Reduced motion: the die appears where it lands, showing its result.
+ * The pacer holds every frame after the roll until the last die has popped down (`./pace.ts`'s
+ * `inTheAir`, timed off `TUMBLE_MS`, `DIE_STAGGER_MS` and `POP_MS`): what the other seat did next, and
+ * the seat's own next frame and question too, in Fast Mode as well (the operator, 2026-10-28: "make sure
+ * the dice roll completes before any action is triggered"). The tumble and its landing are also a beat
+ * (`../motion.ts`'s `noteBoardDrawing`, the animations carrying `BEAT_ANIMATION_ID`). Reduced motion: the
+ * die appears where it lands, showing its result, and nothing waits.
  *
  * Every element is in the board's overlay, never a transform on a card in a row (table-fit).
  */

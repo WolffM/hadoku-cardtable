@@ -137,6 +137,17 @@
  * theirs, so the opponent's blocks after the seat's attack are still drawn one at a time. A setting the seat
  * changes (auto-yield, a stop) is not an act.
  *
+ * ## A die or a coin lands before anything goes on
+ *
+ * The operator, 2026-10-28: *"lets make sure the dice roll completes before any action is triggered."* A
+ * frame that throws a die or flips a coin (`message`'s `roll` and `flip`, `./dice.ts` and
+ * `./coin-flip.tsx`) holds every frame after it until what it threw has landed ({@link inTheAir}): the
+ * other seat's and the seat's own, a question included, in Fast Mode too — what the roll decides is
+ * never shown, and never asked about, under a die still tumbling. The die starts when its frame has been
+ * drawn, a render after it goes out, so the clock is not the whole wait: once it has run, the next frame
+ * also waits for the board's beats — the die's landing is one (`./dice.ts`) — whoever's it is. Reduced
+ * motion draws the die where it lands, so nothing waits for it.
+ *
  * ## What a resync needs from the pacer: nothing
  *
  * `forge:join` and `forge:resync` are not `forge:s2c` payloads — they travel
@@ -155,7 +166,9 @@
 import { DELTA_TYPE } from '@hadoku/forge-wire';
 import { CLIENT_EVENT, type ClientEvent } from '@hadoku/shared';
 
-import { boardHold, whenBoardStill, type BoardHold } from '../motion.ts';
+import { boardHold, prefersReducedMotion, whenBoardStill, type BoardHold } from '../motion.ts';
+import { FLIP_MS } from './CoinToss.tsx';
+import { DIE_STAGGER_MS, POP_MS, TUMBLE_MS } from './dice.ts';
 import type { MatchTransport } from './match.ts';
 import { MATCH_EVENTS } from './transport.ts';
 
@@ -263,6 +276,21 @@ function changedProperties(payload: unknown): string[] {
   // A packet with no object this seat sees: what else the frame carries (`visibility.ts`'s side channels), else that it is empty.
   const sides = Object.keys(frame.payload ?? {}).filter((key) => key !== 'packet');
   return sides.length > 0 ? sides.map((key) => `delta+${key}`) : ['delta(empty)'];
+}
+
+/**
+ * How long what `payload` throws stays in the air, from the moment it goes out: a roll's dice tumbling, a
+ * die after a die, until the last has popped down; a flipped coin until it lands. 0 for any other frame.
+ */
+export function inTheAir(payload: unknown): number {
+  const frame = (payload as { frame?: { method?: unknown; roll?: unknown; flip?: unknown } } | null)?.frame;
+  if (frame?.method !== 'message') return 0;
+  const roll = frame.roll as { results?: unknown; ignored?: unknown } | undefined;
+  if (typeof roll === 'object' && roll !== null) {
+    const dice = (Array.isArray(roll.results) ? roll.results.length : 1) + (Array.isArray(roll.ignored) ? roll.ignored.length : 0);
+    return (Math.max(1, dice) - 1) * DIE_STAGGER_MS + TUMBLE_MS + POP_MS;
+  }
+  return typeof frame.flip === 'object' && frame.flip !== null ? FLIP_MS : 0;
 }
 
 /** `match.ts`'s own `INPUT_FRAMES` — see this module's header for why it is copied, not imported. */
@@ -502,6 +530,8 @@ export interface PaceOptions {
   report?: (held: InputHeld | BoardHoldCapped, payload: unknown) => void;
   /** Test seam: what the board is waiting on when a hold reaches the cap. Defaults to `../motion.ts`'s `boardHold`. */
   boardHold?: () => BoardHold;
+  /** Test seam: whether the viewer asked for reduced motion, when nothing is thrown through the air. Defaults to `../motion.ts`'s `prefersReducedMotion`. */
+  reducedMotion?: () => boolean;
 }
 
 /** The match's client telemetry: the server writes it into the match's log (`@hadoku/shared`'s `telemetry.ts`). */
@@ -527,6 +557,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   const boardStill = options.boardStill ?? whenBoardStill;
   const report = options.report ?? reportOn(inner);
   const holdNow = options.boardHold ?? boardHold;
+  const reducedMotion = options.reducedMotion ?? prefersReducedMotion;
 
   let fast = options.initialFast ?? false;
   let endingTurn = false;
@@ -537,6 +568,10 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   let seatPlayer: () => number | null = () => null;
   let timer: unknown = null;
   let lastDeliveredAt = -Infinity;
+  /** When the die or coin last thrown lands: nothing goes out before it ({@link inTheAir}). */
+  let landsAt = -Infinity;
+  /** Something was thrown, and no frame since has waited for it to land on the board. */
+  let thrown = false;
   /** The handler `startMatch` registered for `MATCH_EVENTS.serverToClient` — null until `on` is called for it, which `startMatch` always does before anything can arrive. */
   let deliverTo: ((payload: unknown) => void) | null = null;
 
@@ -600,6 +635,11 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
     recent.push({ pace: next.pace, properties: next.pace === 'default' ? changedProperties(next.payload) : [] });
     if (recent.length > RECENT_MAX) recent.shift();
     delivered += 1;
+    const air = inTheAir(next.payload);
+    if (air > 0 && !reducedMotion()) {
+      landsAt = Math.max(landsAt, lastDeliveredAt + air);
+      thrown = true;
+    }
     deliverTo?.(next.payload);
   }
 
@@ -612,7 +652,9 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
 
   /** Start waiting for the board's beats before `entry` goes out, when it must: `false` when it need not, or the board is already still. */
   function waitForBoard(entry: Entry): boolean {
-    if (fast || entry.own || !HELD_BY_THE_BOARD.has(entry.pace) || boardFreed === entry) return false;
+    if (boardFreed === entry) return false;
+    if (!thrown && (fast || entry.own || !HELD_BY_THE_BOARD.has(entry.pace))) return false;
+    thrown = false;
     let waiting = false;
     let stillNow = false;
     const release = (): void => {
@@ -659,7 +701,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   function pump(): void {
     if (timer !== null || boardWait !== null || queue.length === 0) return;
     const head = queue[0]!;
-    const waitMs = Math.max(0, lastDeliveredAt + delayFor(head.pace, queue.length > 1, head.own) - now());
+    const waitMs = Math.max(0, lastDeliveredAt + delayFor(head.pace, queue.length > 1, head.own) - now(), landsAt - now());
     if (waitMs > 0) {
       gapSince = now();
       timer = schedule(() => {

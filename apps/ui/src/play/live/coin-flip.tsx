@@ -9,9 +9,9 @@
  * question, which it must not cover), side by side when several land together.
  *
  * Each new flip sounds the toss's own coin (`onFlip`, quieter for the other seat's, as their sounds
- * are) and is a beat of the board (`../motion.ts`'s `noteBoardDrawing`): the pacer holds what the
- * other seat did next until the coin has landed, and never holds the seat's own acts (`./pace.ts`).
- * Fast Mode holds nothing; reduced motion lands the coin at once and holds nothing either.
+ * are) and is a beat of the board (`../motion.ts`'s `noteBoardDrawing`): the pacer holds every
+ * frame after it, the seat's own and in Fast Mode too, until the coin has landed (`./pace.ts`'s
+ * `inTheAir`, as for a die). Reduced motion lands the coin at once and holds nothing.
  */
 
 import { useEffect, useRef, useState } from 'react';

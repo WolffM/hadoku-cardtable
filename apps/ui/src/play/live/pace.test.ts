@@ -12,7 +12,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { MatchTransport } from './match.ts';
 import { MATCH_EVENTS } from './transport.ts';
-import { actMemory, BOARD_HOLD_MAX_MS, classify, isPacedTransport, ownAct, pacedMatchTransport, PACE_DELAYS_MS, type PaceClass } from './pace.ts';
+import { FLIP_MS } from './CoinToss.tsx';
+import { DIE_STAGGER_MS, POP_MS, TUMBLE_MS } from './dice.ts';
+import { actMemory, BOARD_HOLD_MAX_MS, classify, inTheAir, isPacedTransport, ownAct, pacedMatchTransport, PACE_DELAYS_MS, type PaceClass } from './pace.ts';
 
 /* ── Building the shapes `classify` reads ────────────────────────────── */
 
@@ -829,6 +831,95 @@ describe('the seat’s own act', () => {
       await vi.advanceTimersByTimeAsync(1);
       expect(received).toHaveLength(2);
     });
+  });
+});
+
+describe('a die or a coin in the air', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const ALICE = 0;
+  const player = { id: ALICE, name: 'Alice' };
+  const rolled = (results: number[], ignored?: number[]) => ({
+    frame: { kind: 'notify', method: 'message', message: 'Alice rolled', title: '', roll: { player, sides: 20, results, ...(ignored ? { ignored } : {}), source: null } },
+  });
+  const flipped = { frame: { kind: 'notify', method: 'message', message: 'Alice flipped heads', title: '', flip: { player, outcome: 'heads', won: null, source: null } } };
+  const ONE_DIE = TUMBLE_MS + POP_MS;
+
+  it('inTheAir: a die until it pops down, each further die a stagger later, a coin until it lands, anything else not at all', () => {
+    expect(inTheAir(rolled([14]))).toBe(ONE_DIE);
+    expect(inTheAir(rolled([16], [13]))).toBe(DIE_STAGGER_MS + ONE_DIE);
+    expect(inTheAir(flipped)).toBe(FLIP_MS);
+    expect(inTheAir(MESSAGE)).toBe(0);
+    expect(inTheAir(ASK)).toBe(0);
+  });
+
+  it("the seat's own question after its own roll waits for the die to land", async () => {
+    const inner = fakeInner();
+    const { transport, received } = paced(inner, { reducedMotion: () => false });
+    transport.setSeatPlayer(() => ALICE);
+    inner.deliver(ASK); // the seat's act: nothing of it would otherwise wait
+    inner.deliver(rolled([14]));
+    inner.deliver(DEFAULT_DELTA);
+    inner.deliver(ASK);
+    await vi.advanceTimersByTimeAsync(ONE_DIE - 1);
+    expect(received).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(received).toEqual([ASK, rolled([14]), DEFAULT_DELTA, ASK]);
+  });
+
+  it("a die that started late: once the clock has run, the seat's own question also waits for it to land on the board", async () => {
+    const inner = fakeInner();
+    const board = fakeBoard();
+    const { transport, received } = paced(inner, { initialFast: true, boardStill: board.still, reducedMotion: () => false });
+    transport.setSeatPlayer(() => ALICE);
+    inner.deliver(ASK);
+    inner.deliver(rolled([14]));
+    board.busy(true); // the die, drawn a render after its frame went out
+    inner.deliver(ASK);
+    await vi.advanceTimersByTimeAsync(ONE_DIE + 200);
+    expect(received, 'still in the air on the board').toHaveLength(2);
+    board.busy(false);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(received).toHaveLength(3);
+    board.busy(true); // a later beat: the seat's own act no longer waits for it
+    inner.deliver(DEFAULT_DELTA);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(received).toHaveLength(4);
+  });
+
+  it('two dice: held until the second has landed', async () => {
+    const inner = fakeInner();
+    const { received } = paced(inner, { reducedMotion: () => false });
+    inner.deliver(rolled([16], [13]));
+    inner.deliver(DEFAULT_DELTA);
+    await vi.advanceTimersByTimeAsync(DIE_STAGGER_MS + ONE_DIE - 1);
+    expect(received).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(received).toHaveLength(2);
+  });
+
+  it('a coin holds until it lands, in Fast Mode too', async () => {
+    const inner = fakeInner();
+    const { received } = paced(inner, { initialFast: true, reducedMotion: () => false });
+    inner.deliver(flipped);
+    inner.deliver(ASK);
+    await vi.advanceTimersByTimeAsync(FLIP_MS - 1);
+    expect(received).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(received).toEqual([flipped, ASK]);
+  });
+
+  it('reduced motion: nothing is thrown, so nothing waits', () => {
+    const inner = fakeInner();
+    const { received } = paced(inner, { initialFast: true, reducedMotion: () => true });
+    inner.deliver(rolled([14]));
+    inner.deliver(ASK);
+    expect(received).toHaveLength(2);
   });
 });
 

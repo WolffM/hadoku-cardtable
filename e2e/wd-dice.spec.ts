@@ -41,6 +41,16 @@ test(titled("Wizard's Spellbook rolls a d20: both screens throw the die from the
     const alice = seated.alice.page;
     const bob = seated.bob.page;
     await expect.poll(() => ownNamed(alice, "Wizard's Spellbook"), { timeout: 45_000, message: 'alice has her Spellbook' }).toHaveLength(1);
+    // What the roll decides waits for the die (the operator, 2026-10-28: "make sure the dice roll completes before any
+    // action is triggered"): alice's copy question first shows with her die already landed.
+    await alice.evaluate(() => {
+      const w = window as unknown as { askedInTheAir?: boolean };
+      new MutationObserver((_, observer) => {
+        if (document.querySelector('[data-testid="prompt-confirm-yes"]') === null) return;
+        w.askedInTheAir = document.querySelector('[data-board-overlay] .board-die:not([data-die-landed])') !== null;
+        observer.disconnect();
+      }).observe(document.body, { childList: true, subtree: true, attributes: true });
+    });
     const [book] = await ownNamed(alice, "Wizard's Spellbook");
     expect(await clickPermanent(alice, book!), 'the Spellbook is activated').toBe(true);
     // Its target: the Bolt, the top of bob's graveyard pile.
@@ -66,6 +76,7 @@ test(titled("Wizard's Spellbook rolls a d20: both screens throw the die from the
     // The roll's "you may cast the copy": no. The die is gone a moment later; the log keeps the roll.
     await expect.poll(() => says(alice), { timeout: 20_000, message: 'alice is offered the copy' }).toContain('Do you want to play Lightning Bolt');
     await expect.poll(() => confirmOpen(alice), { timeout: 10_000, message: 'the copy is a yes-or-no question' }).toBe(true);
+    expect(await alice.evaluate(() => (window as unknown as { askedInTheAir?: boolean }).askedInTheAir), 'the question waited for the die to land').toBe(false);
     await answerConfirm(alice, 'no');
     await expect(alice.locator('.board-die'), 'the die leaves the table').toHaveCount(0, { timeout: 10_000 });
     await expect(alice.getByTestId('live-log')).toContainText(`Alice rolled ${mine.result}`);
