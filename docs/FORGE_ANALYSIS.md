@@ -950,6 +950,29 @@ found card has no `fill`, so the matching is the whole rule. A per-rule flag wou
 rulings separate, so none was added. The one place the cover and Forge's loop disagree is Guided Passage,
 whose rulings are silent; it stays as landed and is the operator's call.
 
+**A search finds a different card for each kind — 2026-10-28 (lane slot-assign), fork `aa13a597`.** The
+operator ruled on Guided Passage: Dryad Arbor as both the creature and the land is "a problem". Measured
+first on pin `66ff9c1d` (`chosen-sets.jvm.test.ts`, the new Guided Passage case): the opponent's answer of
+Dryad Arbor and Lightning Bolt from a library that also held a Forest and Grizzly Bears was taken at once, no
+second ask. Guided Passage's rulings, from Scryfall's API (`/cards/named?exact=Guided Passage` →
+`rulings_uri`), are only these two, both 2004-10-04: "If you have no cards of any of the specified card
+types, then ignore those types and the opponent only selects cards of the types you do have." and "Yes, your
+opponents get to look at all the cards in your library."
+
+The mode now follows the ability's API, never a card name (`ChosenSet.distinct`):
+
+| Family | Mode | Why |
+| --- | --- | --- |
+| `ChangeZone` `EACH` (Guided Passage, Shard Convergence, …), `Dig` `ForEachColorPair` (Niv-Mizzet Reborn) | **distinct** | a search, a reveal or a dig *finds* a card once; Shard Convergence's, Conflux's and Lotuslight Dancers' rulings each have a dual card found as one kind and another card as the other |
+| `ChooseCard` `ChooseEach` / `EachBasicType` / `EachDifferentPower` (Cataclysm, Global Ruin, Sundering Titan, Planar Overlay, …) | **cover** | it *chooses* permanents; every ruling quoted above lets one permanent count as each kind it is |
+
+With `mustFill`, a distinct set must hold as many slots, each with a different card, as any set of the
+offered cards could (a maximum matching); so Dryad Arbor alone is enough only when no other creature or land
+is offered. A cover set still needs every slot some card fits answered by a chosen card that fits it. Either
+way every chosen card holds a slot of its own (`matched`). The slots now carry their kind's name
+(`ChosenSet.named`: the `EACH` type as written, the basic type in WUBRG order, the power, the colour pair's
+letters), which the bridge sends as the rule's `kinds` beside `distinct`.
+
 The bridge's `SeatController.chooseEntitiesForEffect` holds the ability whenever `ChosenSet.constrains` it
 (replacing AF411's `chooseCardsForZoneChange` hook, which went through it anyway), and the ask's `rules`
 gain `slots` (`SearchRuleSchema`). A `Dig` with rules is not folded into the dig's order sheet

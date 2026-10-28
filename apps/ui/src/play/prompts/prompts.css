@@ -1288,3 +1288,85 @@
 .prompt__names > li[data-active] {
   border-color: var(--accent);
 }
+
+/*
+ * ── one of each: the kinds, lit as the picks answer them (`SlotKinds.tsx`) ──
+ *
+ * A chip per kind above the grid, and the same symbols on each ticked card for the kinds it answers.
+ * Held: a solid success ring on a success wash. Either (one card that could be one of two kinds, which
+ * the other picks have not decided yet): a dashed success ring. Open: dim. None (no offered card is of
+ * that kind): fainter still.
+ */
+.prompt__kinds {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.prompt__kind,
+.prompt__answer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  background: var(--bg-card);
+  font-size: 1rem;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    opacity 160ms ease;
+}
+
+.prompt__kind[data-state='open'] {
+  opacity: 0.4;
+}
+
+.prompt__kind[data-state='none'] {
+  opacity: 0.15;
+}
+
+.prompt__kind[data-state='held'],
+.prompt__answer[data-state='held'] {
+  border-color: var(--success);
+  background: var(--success-bg);
+}
+
+.prompt__kind[data-state='either'],
+.prompt__answer[data-state='either'] {
+  border-style: dashed;
+  border-color: var(--success);
+}
+
+.prompt__kind-name {
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+/* On a ticked card: its kinds over the middle of its art, clear of the name line above. */
+.prompt__answers {
+  position: absolute;
+  z-index: 1;
+  top: 26%;
+  left: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.prompt__answer {
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 4px;
+  font-size: 0.8rem;
+  box-shadow: 0 1px 3px var(--shadow);
+}

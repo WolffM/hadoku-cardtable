@@ -4541,8 +4541,9 @@ public final class PlayBridge {
          *     ({@code clash});</li>
          * <li>{@code WithTotalCMC}, {@code WithTotalPower}: each card's amount and the most the set may total;</li>
          * <li>{@code WithTotalCardTypes}: each card's card types and how many the set needs among them;</li>
-         * <li>one card for each of a list of kinds ({@code ChosenSet.slots}): the offered cards that fit
-         *     each slot, and whether every slot some card fits must be held ({@code fill});</li>
+         * <li>one card for each of a list of kinds ({@code ChosenSet.named}): the offered cards that fit
+         *     each slot and its kind's name, whether the slots must be filled ({@code fill}), and whether
+         *     each kind must be a different card ({@code distinct}) or one card may answer several;</li>
          * <li>{@code Exactly}: none, or exactly {@code max}.</li>
          * </ul>
          * Null when there are none, or when an offered card is not a card this seat may see.
@@ -4582,13 +4583,17 @@ public final class PlayBridge {
                 final JsonObject o = new JsonObject();
                 o.addProperty("kind", "slots");
                 final JsonArray slots = new JsonArray();
-                for (final forge.game.card.CardCollection slot : ChosenSet.slots(sa, cards)) {
+                final JsonArray kinds = new JsonArray();
+                for (final ChosenSet.Slot slot : ChosenSet.named(sa, cards)) {
                     final JsonArray ids = new JsonArray();
-                    for (final forge.game.card.Card c : slot) { ids.add(c.getId()); }
+                    for (final forge.game.card.Card c : slot.fits()) { ids.add(c.getId()); }
                     slots.add(ids);
+                    kinds.add(slot.kind());
                 }
                 o.add("slots", slots);
+                o.add("kinds", kinds);
                 o.addProperty("fill", ChosenSet.mustFill(sa));
+                o.addProperty("distinct", ChosenSet.distinct(sa));
                 rules.add(o);
             }
             if (sa.hasParam("Exactly")) {

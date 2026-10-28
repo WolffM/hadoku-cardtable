@@ -17,7 +17,7 @@
  * path and the live driver see exactly what they saw before.
  */
 
-import { useMemo, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { useMemo, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 
 import { CardTile } from '../../components/CardTile.tsx';
 
@@ -25,6 +25,7 @@ import { OptionButton, PickChoice, PromptShell, promptTileFor, usePicks } from '
 import { isZoneDividerLabel, plainRulesText, promptText, refName, translateTargetWords, type PromptLookup } from './lookup.ts';
 import { nameIndex, searchNames } from './name-search.ts';
 import { RulesText } from './RulesText.tsx';
+import { SlotBadges, SlotChips, slotRuleOf } from './SlotKinds.tsx';
 import {
   abilityProblems,
   choiceBounds,
@@ -40,7 +41,7 @@ import {
   type SearchRow,
 } from './rules.ts';
 import { assertAnswerable, checkedReply, type AskOf, type PromptProps } from './types.ts';
-import { breaksSearchRule, type CardRef, type EntityRef } from '@hadoku/forge-wire';
+import { breaksSearchRule, SLOT_PROBLEM, tickPick, type CardRef, type EntityRef } from '@hadoku/forge-wire';
 import type { TileCard } from '../../components/faceCrop.ts';
 
 /** The card an option stands for, when it stands for one. */
@@ -109,6 +110,7 @@ function SearchRows({
   type,
   checked,
   blocked = () => false,
+  badge,
   pick,
   confirm,
   lookup,
@@ -117,6 +119,8 @@ function SearchRows({
   type: 'radio' | 'checkbox';
   checked: (option: number) => boolean;
   blocked?: (option: number) => boolean;
+  /** Drawn on an option's tile: what a ticked card answers. */
+  badge?: (option: number) => ReactNode;
   pick: (option: number) => void;
   confirm: (option: number) => void;
   lookup: PromptLookup;
@@ -144,6 +148,7 @@ function SearchRows({
               onConfirm={() => confirm(row.option!)}
             >
               <RowFace entity={row.ref} lookup={lookup} />
+              {badge?.(row.option)}
             </PickChoice>
           )}
         </li>
@@ -438,10 +443,23 @@ export function ChooseSingleEntityPrompt({ ask, onAnswer, lookup }: PromptProps<
 export function ChooseEntitiesPrompt({ ask, onAnswer, lookup }: PromptProps<'chooseEntitiesForEffect'>) {
   const bounds = choiceBounds(ask.min, ask.max);
   const replyOf = (picks: readonly number[]) => ask.optionList.filter((_, i) => picks.includes(i));
-  const cardsOf = (picks: readonly number[]) => replyOf(picks).flatMap((r) => (r.kind === 'card' ? [r.id] : []));
+  /** The ticked cards' ids in tick order, which a slot rule drops its oldest by. */
+  const cardsOf = (picks: readonly number[]) => picks.flatMap((p) => {
+    const ref = ask.optionList[p]!;
+    return ref.kind === 'card' ? [ref.id] : [];
+  });
   const breaks = (picks: readonly number[], option: number) => {
     const ref = ask.optionList[option]!;
     return ref.kind === 'card' && breaksSearchRule(ask.rules, cardsOf(picks), ref.id);
+  };
+  const optionOfCard = (id: number) => ask.optionList.findIndex((r) => r.kind === 'card' && r.id === id);
+  /** Ticks as the rules tick (`tickPick`): the picks keep their tick order, so a slot rule can drop what the new pick made redundant. */
+  const tick = (picks: readonly number[], option: number): number[] | null => {
+    const ref = ask.optionList[option]!;
+    if (bounds.max === 1) return [option];
+    if (ref.kind !== 'card') return [...picks, option];
+    const ids = tickPick(ask.rules, cardsOf(picks), ref.id);
+    return ids === null ? null : [...picks.filter((p) => ask.optionList[p]!.kind !== 'card'), ...ids.map(optionOfCard)];
   };
   const { chosen, problems, pick, submit, confirm } = usePicks<number>(
     () => [],
@@ -452,19 +470,35 @@ export function ChooseEntitiesPrompt({ ask, onAnswer, lookup }: PromptProps<'cho
       assertAnswerable('chooseEntitiesForEffect', chooseEntitiesProblems(ask, reply));
       onAnswer(checkedReply('chooseEntitiesForEffect', reply));
     },
+    tick,
   );
+  const slots = slotRuleOf(ask.rules);
+  // The kinds draw what a slot rule still needs (and, filled, how many cards it takes): those lines are not written.
+  const written = slots === undefined ? problems : problems.filter((p) => p !== SLOT_PROBLEM && !(slots.fill && p.startsWith('choose at least')));
+  const pickedCards = cardsOf(chosen);
 
   return (
-    <PromptShell method="chooseEntitiesForEffect" title={promptText(ask.title)} problems={problems} onSubmit={submit}>
+    <PromptShell
+      method="chooseEntitiesForEffect"
+      title={promptText(ask.title)}
+      problems={written}
+      drawnBlock={slots === undefined ? undefined : problems.length > written.length}
+      onSubmit={submit}
+    >
       <DelayedRevealNote reveal={ask.delayedReveal} lookup={lookup} />
       <p className="prompt__hint" data-testid="prompt-bounds">
         {boundsText(chosen.length, bounds.min, bounds.max)}
       </p>
+      {slots !== undefined && <SlotChips rule={slots} picks={pickedCards} />}
       <SearchRows
         ask={ask}
         type="checkbox"
         checked={(option) => chosen.includes(option)}
         blocked={(option) => breaks(chosen, option)}
+        badge={(option) => {
+          const ref = ask.optionList[option]!;
+          return slots !== undefined && ref.kind === 'card' && chosen.includes(option) ? <SlotBadges rule={slots} picks={pickedCards} id={ref.id} /> : null;
+        }}
         pick={(option) => {
           if (!breaks(chosen, option)) pick(option);
         }}

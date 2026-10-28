@@ -87,8 +87,8 @@ export {
   type WireCardRequest,
   type WireDeckEntry,
 } from './sideboard.ts';
-export { oneEachFit, type OneEachFit, type OneEachType } from './one-each.ts';
-export { breaksSearchRule, searchRuleProblems } from './search-rules.ts';
+export { oneEachFit, oneEachUnplaced, type OneEachFit, type OneEachType } from './one-each.ts';
+export { breaksSearchRule, searchRuleProblems, settlePicks, slotCovers, SLOT_PROBLEM, tickPick, type SlotCover } from './search-rules.ts';
 
 export {
   TIER_A_METHODS,

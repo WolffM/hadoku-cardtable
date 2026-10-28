@@ -998,6 +998,7 @@ describe('a constrained search', () => {
     parseServerFrame({ ...askFor('chooseEntitiesForEffect'), max, rules }) as AskOf<'chooseEntitiesForEffect'>;
   const rows = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('[data-testid="prompt-cards"] > li')];
   const blocked = (container: HTMLElement) => rows(container).filter((li) => li.dataset.blocked === 'true').map((li) => li.dataset.cardId);
+  const ticked = (container: HTMLElement) => rows(container).filter((li) => li.querySelector<HTMLInputElement>('input')?.checked).map((li) => li.dataset.cardId);
 
   it('different names: a card sharing a name with a ticked one is greyed, untickable, and free again once that one is unticked', () => {
     const { container, getAllByTestId, answers, submit } = mountPrompt('chooseEntitiesForEffect', searching([{ kind: 'differentNames', clash: [[20, 2]] }]));
@@ -1049,17 +1050,20 @@ describe('a constrained search', () => {
     expect(submit().disabled).toBe(false);
   });
 
-  it('one of each: a card whose only kinds are held is greyed, and a card fitting two kinds holds one', () => {
+  it('one of each: a card whose only kind is held takes the older pick’s place, and a card fitting two kinds holds one', () => {
     // 20 fits kind 0 or 1 (an artifact creature), 11 only kind 1, 2 only kind 1.
     const { container, getAllByTestId, answers, submit } = mountPrompt(
       'chooseEntitiesForEffect',
-      searching([{ kind: 'slots', slots: [[20], [20, 11, 2]], fill: false }]),
+      searching([{ kind: 'slots', slots: [[20], [20, 11, 2]], kinds: ['Artifact', 'Creature'], fill: false, distinct: false }]),
     );
     const boxes = getAllByTestId('prompt-choice');
     fireEvent.click(boxes[1]!);
-    expect(blocked(container)).toEqual(['2']);
+    expect(blocked(container)).toEqual([]);
+    fireEvent.click(boxes[2]!);
+    expect(ticked(container)).toEqual(['2']);
+    fireEvent.click(boxes[1]!);
     fireEvent.click(boxes[0]!);
-    expect(blocked(container)).toEqual(['2']);
+    expect(ticked(container)).toEqual(['20', '11']);
     fireEvent.click(submit());
     expect(answers).toEqual([
       [
@@ -1070,7 +1074,7 @@ describe('a constrained search', () => {
   });
 
   it('one of each that must be filled: OK waits until every kind some card fits is held', () => {
-    const { getAllByTestId, submit } = mountPrompt('chooseEntitiesForEffect', searching([{ kind: 'slots', slots: [[20], [11, 2], []], fill: true }]));
+    const { getAllByTestId, submit } = mountPrompt('chooseEntitiesForEffect', searching([{ kind: 'slots', slots: [[20], [11, 2], []], kinds: ['Artifact', 'Creature', 'Land'], fill: true, distinct: false }]));
     const boxes = getAllByTestId('prompt-choice');
     expect(submit().disabled).toBe(true);
     fireEvent.click(boxes[0]!);
@@ -1083,7 +1087,7 @@ describe('a constrained search', () => {
     // Cataclysm's artifact, creature, enchantment and land: 20 an artifact creature, 11 a creature, 2 an enchantment.
     const { container, getAllByTestId, answers, submit } = mountPrompt(
       'chooseEntitiesForEffect',
-      searching([{ kind: 'slots', slots: [[20], [20, 11], [2], []], fill: true }]),
+      searching([{ kind: 'slots', slots: [[20], [20, 11], [2], []], kinds: ['Artifact', 'Creature', 'Enchantment', 'Land'], fill: true, distinct: false }]),
     );
     const boxes = getAllByTestId('prompt-choice');
     fireEvent.click(boxes[1]!);
@@ -1110,7 +1114,7 @@ describe('a constrained search', () => {
     // Sundering Titan's Plains, Island, Swamp, Mountain and Forest: 20 an Island Mountain, 11 an Island, 2 a Forest.
     const { container, getAllByTestId, answers, submit } = mountPrompt(
       'chooseEntitiesForEffect',
-      searching([{ kind: 'slots', slots: [[], [20, 11], [], [20], [2]], fill: true }], 5),
+      searching([{ kind: 'slots', slots: [[], [20, 11], [], [20], [2]], kinds: BASIC, fill: true, distinct: false }], 5),
     );
     const boxes = getAllByTestId('prompt-choice');
     fireEvent.click(boxes[0]!);
@@ -1128,6 +1132,130 @@ describe('a constrained search', () => {
         { kind: 'card', id: 2 },
       ],
     ]);
+  });
+
+  const BASIC = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest'];
+  const kinds = (container: HTMLElement) =>
+    Object.fromEntries([...container.querySelectorAll<HTMLElement>('[data-testid="slot-kind"]')].map((k) => [k.dataset.kind, `${k.dataset.state} ${k.dataset.by ?? ''}`.trim()]));
+
+  // Sundering Titan: 20 a Hallowed Fountain (Plains Island), 11 an Island, 2 a Plains.
+  const titan = () => searching([{ kind: 'slots', slots: [[20, 2], [20, 11], [], [], []], kinds: BASIC, fill: true, distinct: false }], 5);
+
+  it('a land of each basic type: the kinds light as the picks answer them; Fountain, then an Island, then a Plains unticks the Fountain', () => {
+    const { container, getAllByTestId, submit, answers } = mountPrompt('chooseEntitiesForEffect', titan());
+    const boxes = getAllByTestId('prompt-choice');
+    expect(kinds(container)).toEqual({ Plains: 'open', Island: 'open', Swamp: 'none', Mountain: 'none', Forest: 'none' });
+    fireEvent.click(boxes[0]!);
+    expect(kinds(container)).toMatchObject({ Plains: 'held 20', Island: 'held 20' });
+    expect(blocked(container)).toEqual([]);
+    expect(submit().disabled).toBe(false);
+    fireEvent.click(boxes[1]!);
+    expect(ticked(container)).toEqual(['20', '11']);
+    expect(kinds(container)).toMatchObject({ Plains: 'held 20', Island: 'held 11' });
+    expect(blocked(container)).toEqual([]);
+    fireEvent.click(boxes[2]!);
+    expect(ticked(container)).toEqual(['11', '2']);
+    expect(kinds(container)).toMatchObject({ Plains: 'held 2', Island: 'held 11' });
+    expect(submit().disabled).toBe(false);
+    fireEvent.click(submit());
+    expect(answers).toEqual([
+      [
+        { kind: 'card', id: 11 },
+        { kind: 'card', id: 2 },
+      ],
+    ]);
+  });
+
+  it('a land of each basic type: Plains, Fountain, Island drops the oldest pick whose removal lets the rest each hold a kind, the Plains', () => {
+    const { container, getAllByTestId } = mountPrompt('chooseEntitiesForEffect', titan());
+    const boxes = getAllByTestId('prompt-choice');
+    fireEvent.click(boxes[2]!);
+    fireEvent.click(boxes[0]!);
+    expect(ticked(container)).toEqual(['20', '2']);
+    fireEvent.click(boxes[1]!);
+    expect(ticked(container)).toEqual(['20', '11']);
+    expect(kinds(container)).toMatchObject({ Plains: 'held 20', Island: 'held 11' });
+  });
+
+  it('a land of each basic type: Plains, Mountain, Volcanic Island, Swamp, Forest, then the Fountain drops the old Plains; ticking back and forth drops the oldest each time', () => {
+    // 20 Hallowed Fountain (Plains Island), 21 Volcanic Island (Island Mountain), 11 Island, 2 Plains, 30 Mountain, 31 Swamp, 32 Forest.
+    const ids = [20, 21, 11, 2, 30, 31, 32];
+    const ask = parseServerFrame({
+      ...askFor('chooseEntitiesForEffect'),
+      optionList: ids.map((id) => ({ kind: 'card', id })),
+      max: 5,
+      rules: [{ kind: 'slots', slots: [[20, 2], [20, 21, 11], [31], [21, 30], [32]], kinds: BASIC, fill: true, distinct: false }],
+    }) as AskOf<'chooseEntitiesForEffect'>;
+    const { container, getAllByTestId, submit } = mountPrompt('chooseEntitiesForEffect', ask);
+    const boxes = getAllByTestId('prompt-choice');
+    const tick = (id: number) => fireEvent.click(boxes[ids.indexOf(id)]!);
+    for (const id of [2, 30, 21, 31, 32]) tick(id);
+    tick(20);
+    expect(ticked(container)).toEqual(['20', '21', '30', '31', '32']);
+    expect(kinds(container)).toEqual({ Plains: 'held 20', Island: 'held 21', Swamp: 'held 31', Mountain: 'held 30', Forest: 'held 32' });
+    expect(submit().disabled).toBe(false);
+    tick(11);
+    expect(ticked(container), 'the Island drops the Mountain').toEqual(['20', '21', '11', '31', '32']);
+    tick(30);
+    expect(ticked(container), 'the Mountain drops Volcanic Island').toEqual(['20', '11', '30', '31', '32']);
+    tick(21);
+    expect(ticked(container), 'Volcanic Island back drops the Island, not the Mountain').toEqual(['20', '21', '30', '31', '32']);
+  });
+
+  it('a land of each basic type: unticking the Island by hand gives the Fountain both kinds back; unticking the Fountain then leaves OK off', () => {
+    const { container, getAllByTestId, submit } = mountPrompt('chooseEntitiesForEffect', titan());
+    const boxes = getAllByTestId('prompt-choice');
+    fireEvent.click(boxes[0]!);
+    fireEvent.click(boxes[1]!);
+    fireEvent.click(boxes[1]!);
+    expect(ticked(container)).toEqual(['20']);
+    expect(kinds(container)).toMatchObject({ Plains: 'held 20', Island: 'held 20' });
+    fireEvent.click(boxes[0]!);
+    expect(ticked(container)).toEqual([]);
+    expect(kinds(container)).toMatchObject({ Plains: 'open', Island: 'open' });
+    expect(submit().disabled).toBe(true);
+  });
+
+  it('a land of each basic type: Island, Plains, Mountain, then Volcanic Island unticks only the Island; nothing of a kind is greyed', () => {
+    // 20 a Volcanic Island (Island Mountain), 11 an Island, 2 a Plains, 30 a Mountain.
+    const ask = parseServerFrame({
+      ...askFor('chooseEntitiesForEffect'),
+      optionList: [20, 11, 2, 30].map((id) => ({ kind: 'card', id })),
+      max: 5,
+      rules: [{ kind: 'slots', slots: [[2], [20, 11], [], [20, 30], []], kinds: BASIC, fill: true, distinct: false }],
+    }) as AskOf<'chooseEntitiesForEffect'>;
+    const { container, getAllByTestId } = mountPrompt('chooseEntitiesForEffect', ask);
+    const boxes = getAllByTestId('prompt-choice');
+    fireEvent.click(boxes[1]!);
+    fireEvent.click(boxes[2]!);
+    fireEvent.click(boxes[3]!);
+    expect(blocked(container)).toEqual([]);
+    fireEvent.click(boxes[0]!);
+    expect(ticked(container)).toEqual(['20', '2', '30']);
+    expect(kinds(container)).toMatchObject({ Plains: 'held 2', Island: 'held 20', Mountain: 'held 30' });
+  });
+
+  it('the kinds draw what is missing, so no "one of each" line is written', () => {
+    const { container, getAllByTestId, submit } = mountPrompt('chooseEntitiesForEffect', titan());
+    fireEvent.click(getAllByTestId('prompt-choice')[1]!);
+    expect(submit().disabled).toBe(true);
+    expect(container.querySelector('[data-testid="prompt-problems"]')?.textContent ?? '').not.toContain('one of each');
+  });
+
+  it('a card of each kind found (Guided Passage): Dryad Arbor alone is the creature or the land, and another land settles it as the creature', () => {
+    // 20 Dryad Arbor (creature land), 11 a Forest, 2 Lightning Bolt.
+    const { container, getAllByTestId, submit } = mountPrompt(
+      'chooseEntitiesForEffect',
+      searching([{ kind: 'slots', slots: [[20], [20, 11], [2]], kinds: ['Creature.YouOwn', 'Land.YouOwn', 'Card.nonCreature+nonLand+YouOwn'], fill: true, distinct: true }]),
+    );
+    const boxes = getAllByTestId('prompt-choice');
+    fireEvent.click(boxes[0]!);
+    expect(kinds(container)).toEqual({ 'Creature.YouOwn': 'either 20', 'Land.YouOwn': 'either 20', 'Card.nonCreature+nonLand+YouOwn': 'open' });
+    fireEvent.click(boxes[2]!);
+    expect(submit().disabled).toBe(true);
+    fireEvent.click(boxes[1]!);
+    expect(kinds(container)).toEqual({ 'Creature.YouOwn': 'held 20', 'Land.YouOwn': 'held 11', 'Card.nonCreature+nonLand+YouOwn': 'held 2' });
+    expect(submit().disabled).toBe(false);
   });
 
   it('a total power greys nothing a negative card left unticked could still bring back under it', () => {

@@ -942,10 +942,12 @@ export const ChooseSingleEntityForEffectReplySchema = GameEntityRefSchema.nullab
  * - `totalManaValue` / `totalPower`: the chosen cards' `values` total at most `atMost`.
  * - `cardTypes`: the chosen cards have at least `atLeast` card types among them, or none is chosen.
  * - `exactly`: none, or exactly `count`.
- * - `slots`: one card for each kind — each chosen card holds a slot of its own among those it is
- *   listed in, so no kind is answered twice; with `fill`, every slot some card is listed in has a
- *   chosen card listed in it, so one card of two kinds answers both (an artifact creature as
- *   Cataclysm's artifact and creature, as its rulings allow).
+ * - `slots`: one card for each kind (`kinds` names them) — each chosen card holds a slot of its own
+ *   among those it is listed in, so no card is chosen for nothing. With `fill` the slots are filled:
+ *   `distinct` (a search, a reveal, a dig: each card is found once), as many slots held by different
+ *   cards as any offered set could hold, so Dryad Arbor is Guided Passage's creature or its land; else
+ *   every slot some card is listed in has a chosen card listed in it, so one card of two kinds answers
+ *   both (an artifact creature as Cataclysm's artifact and creature, as its rulings allow).
  */
 export const SearchRuleSchema = z.discriminatedUnion('kind', [
   z.strictObject({
@@ -963,7 +965,15 @@ export const SearchRuleSchema = z.discriminatedUnion('kind', [
     values: z.record(z.string(), z.array(z.string())),
   }),
   z.strictObject({ kind: z.literal('exactly'), count: z.number().int().positive() }),
-  z.strictObject({ kind: z.literal('slots'), slots: z.array(z.array(z.number().int())).min(1), fill: z.boolean() }),
+  z.strictObject({
+    kind: z.literal('slots'),
+    slots: z.array(z.array(z.number().int())).min(1),
+    /** Each slot's kind as the ability names it: a type (`Creature.YouOwn`, `Plains`), a power, a colour pair's letters. */
+    kinds: z.array(z.string()),
+    fill: z.boolean(),
+    /** Each kind a different card (a search finds a card once); false where one permanent may answer every kind it is. */
+    distinct: z.boolean(),
+  }),
 ]);
 
 export type SearchRule = z.infer<typeof SearchRuleSchema>;

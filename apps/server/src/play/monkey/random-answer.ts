@@ -27,7 +27,7 @@ import {
   zonesShown,
 } from '../../../../ui/src/play/prompts/rules.ts';
 import { combatDamageReply, combatDamageRules, type CombatAssignment } from '@hadoku/shared';
-import { breaksSearchRule, type BlockingMethod, type ChoiceOption, type ServerFrame } from '@hadoku/forge-wire';
+import { tickPick, type BlockingMethod, type ChoiceOption, type ServerFrame } from '@hadoku/forge-wire';
 
 import type { Rng } from './rng.ts';
 
@@ -199,13 +199,21 @@ export function randomAnswer(rng: Rng, ask: LiveAsk): RandomAnswer {
   }
 }
 
-/** Options of `order`, each kept unless it breaks one of the ask's rules beside those kept, up to `most`. */
+/** Options of `order`, each ticked as the seat's prompt ticks it (`tickPick`), up to `most`. */
 function ruledPicks(ask: Extract<LiveAsk, { method: 'chooseEntitiesForEffect' }>, order: typeof ask.optionList, most: number) {
-  const kept: typeof ask.optionList = [];
+  let kept: typeof ask.optionList = [];
   for (const ref of order) {
     if (kept.length >= most) break;
-    const ids = kept.flatMap((r) => (r.kind === 'card' ? [r.id] : []));
-    if (ref.kind !== 'card' || !breaksSearchRule(ask.rules, ids, ref.id)) kept.push(ref);
+    if (ref.kind !== 'card') {
+      kept.push(ref);
+      continue;
+    }
+    const ids = tickPick(
+      ask.rules,
+      kept.flatMap((r) => (r.kind === 'card' ? [r.id] : [])),
+      ref.id,
+    );
+    if (ids !== null) kept = [...kept.filter((r) => r.kind !== 'card'), ...ids.map((id) => order.find((r) => r.kind === 'card' && r.id === id)!)];
   }
   return kept;
 }

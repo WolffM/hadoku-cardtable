@@ -493,22 +493,27 @@ export function togglePick<T>(list: readonly T[], item: T, single: boolean): T[]
  * list — answer at once when `problemsOf` has nothing against them, and
  * otherwise stay picked for the player to finish, so a double click never sends
  * what OK would refuse. `answer` is the prompt's own reply for a set of picks.
+ *
+ * `tick`, when given, is how a row joins the picks: the picks it leaves (kept in tick order, so it
+ * may drop what the new row made redundant), or null when the row may not be ticked. Unticking a
+ * row only ever removes it.
  */
 export function usePicks<T>(
   initial: () => T[],
   single: boolean,
   problemsOf: (picks: readonly T[]) => readonly string[],
   answer: (picks: readonly T[]) => void,
+  tick: (picks: readonly T[], item: T) => T[] | null = (picks, item) => togglePick(picks, item, single),
 ) {
   const [chosen, setChosen] = useState<T[]>(initial);
   return {
     chosen,
     setChosen,
     problems: problemsOf(chosen),
-    pick: (item: T) => setChosen((prev) => togglePick(prev, item, single)),
+    pick: (item: T) => setChosen((prev) => (prev.includes(item) ? togglePick(prev, item, single) : (tick(prev, item) ?? prev))),
     submit: () => answer(chosen),
     confirm: (item: T) => {
-      const next = single ? [item] : chosen.includes(item) ? chosen : [...chosen, item];
+      const next = single ? [item] : chosen.includes(item) ? chosen : (tick(chosen, item) ?? chosen);
       if (problemsOf(next).length === 0) answer(next);
       else setChosen(next);
     },

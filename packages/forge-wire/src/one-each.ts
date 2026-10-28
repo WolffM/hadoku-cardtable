@@ -23,30 +23,39 @@ export interface OneEachFit {
 }
 
 /**
- * A matching of `keys` into the types not in `without`, as a map from type to key, or null when
- * there is none. Augmenting paths over the (at most nine) card types.
+ * A maximum matching of `keys` into the types not in `without`, placed in `keys`' order by augmenting
+ * paths over the (at most nine) card types: a placed key stays placed, so an earlier key keeps a type
+ * over a later one, and `unplaced` are the keys left without one.
  */
-function match(oneEach: readonly OneEachType[], keys: readonly string[], without: ReadonlySet<string>): Map<string, string> | null {
+function place(oneEach: readonly OneEachType[], keys: readonly string[], without: ReadonlySet<string>): { holder: Map<string, string>; unplaced: string[] } {
   const typesOf = new Map<string, string[]>();
   for (const { type, keys: of } of oneEach) {
     if (!without.has(type)) for (const k of of) typesOf.set(k, [...(typesOf.get(k) ?? []), type]);
   }
   const holder = new Map<string, string>();
-  const place = (key: string, seen: Set<string>): boolean => {
+  const augment = (key: string, seen: Set<string>): boolean => {
     for (const type of typesOf.get(key) ?? []) {
       if (seen.has(type)) continue;
       seen.add(type);
       const held = holder.get(type);
-      if (held === undefined || place(held, seen)) {
+      if (held === undefined || augment(held, seen)) {
         holder.set(type, key);
         return true;
       }
     }
     return false;
   };
-  for (const key of keys) if (!place(key, new Set())) return null;
-  return holder;
+  return { holder, unplaced: keys.filter((key) => !augment(key, new Set())) };
 }
+
+/** A matching of every one of `keys` into the types not in `without`, type → key, or null when there is none. */
+function match(oneEach: readonly OneEachType[], keys: readonly string[], without: ReadonlySet<string>): Map<string, string> | null {
+  const { holder, unplaced } = place(oneEach, keys, without);
+  return unplaced.length === 0 ? holder : null;
+}
+
+/** The keys a maximum matching placed in `keys`' order leaves without a type (`place`). */
+export const oneEachUnplaced = (oneEach: readonly OneEachType[], keys: readonly string[]): string[] => place(oneEach, keys, new Set()).unplaced;
 
 /** What `keys` fill, or null when no matching takes every one of them. */
 export function oneEachFit(oneEach: readonly OneEachType[], keys: readonly string[]): OneEachFit | null {

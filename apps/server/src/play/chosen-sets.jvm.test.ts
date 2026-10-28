@@ -18,7 +18,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { breaksSearchRule, deltaKey, DELTA_TYPE, idsOf as zoneIds, searchRuleProblems, strOf, type SearchRule } from '@hadoku/forge-wire';
+import { deltaKey, DELTA_TYPE, idsOf as zoneIds, searchRuleProblems, strOf, tickPick, type SearchRule } from '@hadoku/forge-wire';
 
 import { available, deck, landPayer, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
 
@@ -31,14 +31,15 @@ type Ask = Record<string, unknown> & { method: string; callId: string; optionLis
 
 const idsOf = (refs: readonly Ref[]) => refs.map((r) => r.id);
 
-/** What a player ticks in offer order without touching a greyed card, up to the most it takes. */
+/** What a player ticks in offer order as the prompt ticks it (`tickPick`), passing over a card that would untick one already ticked, up to the most it takes. */
 function validSet(ask: Ask): Ref[] {
-	const out: Ref[] = [];
+	let ids: number[] = [];
 	for (const ref of ask.optionList ?? []) {
-		if (out.length >= (ask.max ?? 0)) break;
-		if (!breaksSearchRule(ask.rules, idsOf(out), ref.id)) out.push(ref);
+		if (ids.length >= (ask.max ?? 0)) break;
+		const next = tickPick(ask.rules, ids, ref.id);
+		if (next !== null && ids.every((id) => next.includes(id))) ids = next;
 	}
-	return out;
+	return ids.map((id) => (ask.optionList ?? []).find((r) => r.id === id)!);
 }
 
 /** Two offered cards the rules refuse together. */
@@ -56,8 +57,8 @@ const asksOf = (s: Scenario, seat: number) =>
 	(s.asks as unknown as Ask[]).filter((f) => s.sent.find((x) => (x.envelope.frame as { callId?: unknown }).callId === f.callId)?.seat === seat);
 
 /**
- * Seat 0 casts `name` from its scenario board, targeting `target` when it asks for one, and passes
- * until it and anything it triggers resolve.
+ * Seat 0 casts `name` from its scenario board, targeting `target` when it asks for one, and both seats
+ * pass until it and anything it triggers resolve.
  */
 async function castAndResolve(s: Scenario, name: string, target?: number): Promise<void> {
 	await waitUntil(
@@ -83,10 +84,13 @@ async function castAndResolve(s: Scenario, name: string, target?: number): Promi
 				s.select(0, target);
 			}
 			pay();
-			const at = s.sent.findLastIndex((x) => x.seat === 0 && x.envelope.frame.method === 'showPromptMessage');
-			if (at >= 0 && !passed.has(at) && /^Stack: \d+ to Resolve\.$/m.test(s.prompt(0)) && s.buttons(0)?.enable1 === true) {
-				passed.add(at);
-				s.ok(0);
+			// Either seat passes while the stack resolves (seat 1 is a person when it makes a choice).
+			for (const seat of [0, 1]) {
+				const at = s.sent.findLastIndex((x) => x.seat === seat && x.envelope.frame.method === 'showPromptMessage');
+				if (at >= 0 && !passed.has(at) && /^Stack: \d+ to Resolve\.$/m.test(s.prompt(seat)) && s.buttons(seat)?.enable1 === true) {
+					passed.add(at);
+					s.ok(seat);
+				}
 			}
 			return !s.zone(0, 'Hand').some((c) => c.id === card.id) && /^Stack: Empty$/m.test(s.prompt(0)) && s.buttons(0)?.enable1 === true;
 		},
@@ -174,6 +178,39 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(names(s, taken)).toEqual(['Island', 'Plains', 'Swamp', 'Volcanic Island']);
 				expect(zoneNames(s, 'Hand')).toEqual(['Island', 'Plains', 'Swamp', 'Volcanic Island']);
 			});
+		},
+		300_000,
+	);
+
+	it(
+		'Guided Passage (ChangeZone EACH, the opponent chooses): Dryad Arbor as both the creature and the land refused; three different cards to hand',
+		async () => {
+			if (!available.ok) return;
+			const searches: { seat: number; ask: Ask; answer: Ref[] }[] = [];
+			const at: { s?: Scenario } = {};
+			const seatOf = (f: Ask) => at.s!.sent.find((x) => (x.envelope.frame as { callId?: unknown }).callId === f.callId)?.seat ?? -1;
+			const reply = (frame: Record<string, unknown>): unknown => {
+				const f = frame as Ask;
+				if (f.method !== 'chooseEntitiesForEffect' || f.rules === undefined) return undefined;
+				const seat = seatOf(f);
+				const answer = named(f, (id) => nameOf(at.s!, seat, id), searches.length === 0 ? ['Dryad Arbor', 'Lightning Bolt'] : ['Dryad Arbor', 'Forest', 'Lightning Bolt']);
+				searches.push({ seat, ask: f, answer });
+				return answer;
+			};
+			const s = await startScenario(available.config, { seed: 21, decks: DECKS, scenario: scenarioText('set-passage'), skipOpening: true, reply });
+			at.s = s;
+			try {
+				await castAndResolve(s, 'Guided Passage');
+				expect(searches.map((x) => x.seat), 'the opponent chooses, asked again after the set with Dryad Arbor as two kinds').toEqual([1, 1]);
+				const [first, second] = searches;
+				const slots = slotsOf(first!.ask)!;
+				expect(slots).toMatchObject({ fill: true, distinct: true, kinds: ['Creature.YouOwn', 'Land.YouOwn', 'Card.nonCreature+nonLand+YouOwn'] });
+				expect(searchRuleProblems(first!.ask.rules, idsOf(first!.answer)), 'the prompt refuses Dryad Arbor as two kinds').not.toEqual([]);
+				expect(searchRuleProblems(second!.ask.rules, idsOf(second!.answer))).toEqual([]);
+				expect(zoneNames(s, 'Hand')).toEqual(['Dryad Arbor', 'Forest', 'Lightning Bolt']);
+			} finally {
+				await s.stop();
+			}
 		},
 		300_000,
 	);
