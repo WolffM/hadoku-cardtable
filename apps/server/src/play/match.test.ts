@@ -2229,6 +2229,78 @@ describe('wave 35 §S, R4: a reveal the fold does not claim is never swallowed',
 			expect(h.sent.some((s) => s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === callId)).toBe(true);
 		}
 	});
+
+	/** `t: 'int', v}` list, matching the module's other hand-built fixtures. */
+	const list = (...ids: number[]) => ({ t: 'list', v: ids.map((v) => ({ t: 'int', v })) });
+	const gameView = (library0: number[]) => ({
+		kind: 'notify' as const,
+		method: 'setGameView' as const,
+		payload: {
+			gameView: {
+				[String(deltaKeyOf(DELTA_TYPE.game, 1))]: { _type: DELTA_TYPE.game, _id: 1, Players: list(0, 1) },
+				[String(deltaKeyOf(DELTA_TYPE.player, 0))]: { _type: DELTA_TYPE.player, _id: 0, Name: { t: 'str', v: 'Seat 1' }, Life: { t: 'int', v: 20 }, Library: list(...library0) },
+				[String(deltaKeyOf(DELTA_TYPE.player, 1))]: { _type: DELTA_TYPE.player, _id: 1, Name: { t: 'str', v: 'Seat 2' }, Life: { t: 'int', v: 20 }, Library: list() },
+			},
+			sequenceNumber: 1,
+		},
+	});
+	/** `objectDeltas`-only `applyDelta`, re-pointing seat 0's `Library` to `library0`. */
+	const libraryMove = (library0: number[]) => ({
+		kind: 'notify' as const,
+		method: 'applyDelta' as const,
+		payload: {
+			packet: {
+				seq: 2,
+				checksum: 0,
+				checksumProperties: [],
+				newObjects: {},
+				objectDeltas: { [String(deltaKeyOf(DELTA_TYPE.player, 0))]: { _type: DELTA_TYPE.player, _id: 0, Library: list(...library0) } },
+				events: [],
+			},
+		},
+	});
+
+	it('AF403: a dig that moves its own revealed cards off the library top is flagged forceNotice', () => {
+		vi.useFakeTimers();
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({ t: 'frame', seat: 0, frame: gameView([82, 83, 84, 85, 86]) });
+		h.host.push({ t: 'frame', seat: 0, frame: revealFrame('x-reveal-7', [82, 83, 84]) });
+		// What DigUntilEffect's OWN resolution does right behind the reveal: move
+		// the same three cards off the top (to the bottom) before the seat's
+		// next ask — held in `behindReveal` while the fold timer runs.
+		h.host.push({ t: 'frame', seat: 0, frame: libraryMove([85, 86, 87, 88, 82, 83, 84]) });
+		vi.advanceTimersByTime(1000);
+
+		const shown = h.sent.find((s) => s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === 'x-reveal-7');
+		expect(shown?.envelope.displayOnly, 'still a displayOnly reveal, never an ask anyone answers').toBe(true);
+		expect(shown?.envelope.forceNotice, 'AF403: the move behind it takes these cards off the top, so the client must not read drawsFaceUp as already-visible').toBe(true);
+	});
+
+	it('Courser of Kruphix shape: a persistent look grant touches nothing behind the reveal, so forceNotice stays unset', () => {
+		vi.useFakeTimers();
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({ t: 'frame', seat: 0, frame: gameView([82, 83, 84, 85, 86]) });
+		h.host.push({ t: 'frame', seat: 0, frame: revealFrame('x-reveal-8', [82]) });
+		// Nothing moves the revealed card: Courser's "you may look at the top
+		// card of your library" is a standing grant, not a reposition — only an
+		// unrelated property changes behind the reveal.
+		h.host.push({
+			t: 'frame',
+			seat: 0,
+			frame: {
+				kind: 'notify',
+				method: 'applyDelta',
+				payload: { packet: { seq: 2, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: { [String(deltaKeyOf(DELTA_TYPE.game, 1))]: { _type: DELTA_TYPE.game, _id: 1, Turn: { t: 'int', v: 3 } } } }, events: [] },
+			},
+		});
+		vi.advanceTimersByTime(1000);
+
+		const shown = h.sent.find((s) => s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === 'x-reveal-8');
+		expect(shown?.envelope.displayOnly).toBe(true);
+		expect(shown?.envelope.forceNotice, 'a card still at the library top needs no override — adapter.ts already draws it there').toBeUndefined();
+	});
 });
 
 describe('an ask in which nothing may be chosen is a reveal, whatever its shape', () => {

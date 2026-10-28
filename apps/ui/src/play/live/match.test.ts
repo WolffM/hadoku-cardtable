@@ -3610,11 +3610,11 @@ describe('a display-only reveal is a notice, never a question', () => {
     });
   }
 
-  /** Stamp `frame` on the replay server's stream, deliver it marked `displayOnly`, and wait until it is applied. */
-  async function showReveal(s: ReplayServer, m: LiveMatch, frame: ServerFrame): Promise<void> {
+  /** Stamp `frame` on the replay server's stream, deliver it marked `displayOnly` (and `forceNotice` when asked), and wait until it is applied. */
+  async function showReveal(s: ReplayServer, m: LiveMatch, frame: ServerFrame, forceNotice = false): Promise<void> {
     const target = m.stats.applied + 1;
     const cursor = s.lose(frame);
-    s.sendRaw({ ...s.sent(cursor.seq), displayOnly: true });
+    s.sendRaw({ ...s.sent(cursor.seq), displayOnly: true, ...(forceNotice ? { forceNotice: true } : {}) });
     await until('the reveal applied', () => m.stats.applied >= target);
   }
 
@@ -3683,6 +3683,22 @@ describe('a display-only reveal is a notice, never a question', () => {
     await showReveal(s, m, reveal('r10', [me.hand![0]!.id]));
     expect(m.reveal?.callId).toBe('r9');
     expect(m.revealed?.cardIds).toEqual([me.hand![0]!.id]);
+  });
+
+  it('AF403: forceNotice opens the notice even for cards the board already draws face up', async () => {
+    const { s, m } = await fullGame();
+    const me = m.view!.players.find((p) => p.isViewer)!;
+    const ids = me.hand!.slice(0, 2).map((c) => c.id);
+    // Without the flag this exact reveal is the suppressed case (see "a
+    // reveal of cards the board already draws face up..." above) — the
+    // server sets `forceNotice` only when it already found that the SAME
+    // resolution's own next move takes these ids off the visible position
+    // that made them look already-shown (AF403); the flag's correctness is
+    // match.test.ts's job, not this one's. This test is narrower: once the
+    // envelope carries it, the client must not run `drawsFaceUp` at all.
+    await showReveal(s, m, reveal('r11', ids), true);
+    expect(m.reveal?.callId, 'forceNotice overrides drawsFaceUp’s suppression').toBe('r11');
+    expect(m.revealed?.cardIds).toEqual(ids);
   });
 
   it('only a getChoices reveal may be display-only: anything else so marked is counted invalid', async () => {

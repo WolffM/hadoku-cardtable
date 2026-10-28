@@ -21,10 +21,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { DELTA_TYPE, deltaKey, idsOf, strOf } from '@hadoku/forge-wire';
-
 import { available, deck, finishMulligan, forgeFrames, inOwnMain, scenarioText, startScenario, waitUntil } from './scenario.js';
-import { foldFrames, type StateFrame } from './visibility.js';
 
 const title = available.ok
 	? "Calibrated Blast's DigUntil reveal, against real Forge"
@@ -99,52 +96,19 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(sr0?.envelope.displayOnly, 'seat 0 reveal marked displayOnly').toBe(true);
 				expect(sr1?.envelope.displayOnly, 'seat 1 reveal marked displayOnly').toBe(true);
 
-				// THE ACTUAL ROOT CAUSE (confirmed against real Forge; `drawsFaceUp`'s and
-				// `knownTop`'s own logic in `apps/ui/src/play/adapter.ts` traced from here):
-				// `showReveal`/`releaseReveal` in `match.ts` currently show the reveal to the
-				// seat BEFORE releasing the dig's own move of the three revealed cards off
-				// the library's top (held in `s.behindReveal` while `s.pendingReveal` was
-				// set). So at the instant the client's `drawsFaceUp(view, cardIds)` runs, the
-				// revealed cards are STILL (transiently) the library's known top three —
-				// indistinguishable from Courser of Kruphix's PERSISTENT "look at top" case —
-				// and the notice is skipped as "the board already shows this". But the move
-				// lands a moment later and nothing else ever draws these cards: no notice, no
-				// board tile, nothing. The fix is to release the held frames BEFORE showing
-				// the reveal (match `match.ts`'s own merge branch two lines above, which
-				// already does `releaseReveal` before `openMergedChoice`): swap the order of
-				// `showReveal`/`releaseReveal` in all three call sites of the R4 reveal-fold
-				// branch. This assertion is RED on today's `match.ts` and GREEN once that
-				// two-line reorder lands.
-				const seat0PlayerId = s.match.seats[0]?.playerId ?? -1;
-				// The cards the reveal ask itself names (Mountain, Mountain, Lightning Bolt) —
-				// read from `sr0`'s own choices, never re-derived from the folded state (that
-				// would make the comparison self-referential and prove nothing).
-				const revealedIds = ((sr0!.envelope.frame as unknown as { choices?: { ref?: { kind: string; id: number } | null }[] }).choices ?? [])
-					.flatMap((c) => (c.ref?.kind === 'card' ? [c.ref.id] : []));
-				expect(revealedIds.length, 'the reveal names exactly the three dug cards').toBe(3);
-				const atReveal = foldFrames(
-					s.sent
-						.slice(0, s.sent.indexOf(sr0!) + 1)
-						.filter((x) => x.seat === 0 && x.envelope.frame.kind === 'notify')
-						.map((x) => x.envelope.frame as unknown as StateFrame)
-						.filter((f) => f.method === 'setGameView' || f.method === 'applyDelta' || f.method === 'openView'),
-				);
-				const libAtReveal = idsOf(atReveal.get(deltaKey(DELTA_TYPE.player, seat0PlayerId)), 'Library');
-				const namesAtReveal = libAtReveal.slice(0, 3).map((id) => strOf(atReveal.get(deltaKey(DELTA_TYPE.card, id)), 'Name'));
-				// The claim: by the time the client has processed everything up to and
-				// including the reveal frame, the three revealed cards must ALREADY be off
-				// the library's top three (the dig's own move to the bottom, which `match.ts`
-				// currently holds BEHIND the reveal and releases only after it, must instead
-				// reach the client first). If they are still there, `adapter.ts`'s
-				// `drawsFaceUp`/`knownTop` reads this one-shot reveal as a persistent,
-				// already-visible library top (Courser of Kruphix's shape) and suppresses the
-				// only place it would ever be shown (AF403).
-				const stillOnTopWhenRevealArrives = revealedIds.every((id) => libAtReveal.slice(0, 3).includes(id));
-				expect(
-					stillOnTopWhenRevealArrives,
-					`the three revealed cards must already be off the library's top by the time the displayOnly reveal reaches the client — ` +
-						`library top as of the reveal frame: ${JSON.stringify(libAtReveal.slice(0, 5))} names ${JSON.stringify(namesAtReveal)}, revealed ids: ${JSON.stringify(revealedIds)}`,
-				).toBe(false);
+				// THE FIX (`apps/server/src/play/match.ts`'s `revealMustForceNotice`,
+				// AF403): the reveal is still SENT before the dig's own move of these
+				// three cards off the library's top is released (so Sorin, Grim
+				// Nemesis's +1 keeps showing its reveal before the damage it causes —
+				// `match.test.ts`'s own, older invariant), but `showReveal` peeks at
+				// the already-queued `behindReveal` frames first and, finding that this
+				// move takes the SAME revealed ids off the library's visible top, marks
+				// the envelope `forceNotice: true`. The client (`apps/ui/src/play/live/
+				// match.ts`'s `showReveal`) then skips `drawsFaceUp` entirely for this
+				// reveal, instead of reading a transiently-stale pre-move snapshot that
+				// looks exactly like Courser of Kruphix's PERSISTENT "look at top" case.
+				expect(sr0?.envelope.forceNotice, 'seat 0: the move behind this reveal takes the cards off the top, so the client must not trust drawsFaceUp').toBe(true);
+				expect(sr1?.envelope.forceNotice, 'seat 1: same reveal, same move, same flag').toBe(true);
 			} finally {
 				await s.stop();
 			}

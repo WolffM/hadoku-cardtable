@@ -183,6 +183,14 @@ describe('ServerEnvelopeSchema — eager; parseServerEnvelope — not', () => {
     expect(parseServerEnvelope({ ...base, displayOnly: true })).toEqual({ ok: true, value: { ...base, displayOnly: true } });
   });
 
+  it('forceNotice is `true` or absent — never false, never another value', () => {
+    const base = { matchId: 'm1', cursor: { epoch: 'e', seq: 1 }, frame: VALID_FRAME };
+    expect(ServerEnvelopeSchema.safeParse({ ...base, displayOnly: true, forceNotice: true }).success).toBe(true);
+    expect(ServerEnvelopeSchema.safeParse({ ...base, displayOnly: true, forceNotice: false }).success).toBe(false);
+    expect(ServerEnvelopeSchema.safeParse({ ...base, displayOnly: true, forceNotice: 'yes' }).success).toBe(false);
+    expect(parseServerEnvelope({ ...base, displayOnly: true, forceNotice: true })).toEqual({ ok: true, value: { ...base, displayOnly: true, forceNotice: true } });
+  });
+
   it('parseServerEnvelope accepts a good envelope and a good frame', () => {
     const result = parseServerEnvelope({ matchId: 'm1', cursor: { epoch: 'e', seq: 1 }, frame: VALID_FRAME });
     expect(result).toEqual({ ok: true, value: { matchId: 'm1', cursor: { epoch: 'e', seq: 1 }, frame: VALID_FRAME } });
