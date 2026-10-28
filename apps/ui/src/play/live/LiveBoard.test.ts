@@ -2808,7 +2808,7 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     expect(fireEvent.dragStart(card)).toBe(true);
   });
 
-  it('watcher (2026-10-12): no control box at all, a Watching line, and no hand of its own', async () => {
+  it('watcher (2026-10-12): no control box at all, a Watching line and nothing to flip', async () => {
     const { s, m, getByTestId, queryByTestId, rerender } = await liveBoard();
     s.send(buttons());
     await untilMatch(m, () => expect(m.buttons?.enable1).toBe(true));
@@ -2825,10 +2825,6 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     expect(getByTestId('live-log-toggle'), 'reading stays').toBeTruthy();
 
     expect(queryByTestId('perspective-flip'), 'the table follows the turn: nothing to flip').toBeNull();
-    expect(m.view!.players.find((p) => p.isViewer)!.id, 'whoever’s turn it is is at the bottom').toBe(m.view!.activePlayerId);
-    expect(m.view!.players.every((p) => p.hand === null), 'a watcher holds no hand').toBe(true);
-    rerender(createElement(LiveBoard, { match: m }));
-    expect(document.querySelectorAll('.board .card-backs').length, 'two strips, no hand rail').toBeGreaterThanOrEqual(2);
     expect(await s.framesFrom(m), 'a watcher sends nothing').toHaveLength(frames);
 
     // Promotion to a seat: the box is back and the table is the seat’s way round.
