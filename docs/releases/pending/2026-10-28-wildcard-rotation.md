@@ -1,5 +1,4 @@
 ## Changed
 
-- The front page's rotating card now turns by itself, and stops while your pointer is on it.
-- It shows a room that is waiting for players, with a Join button, when there is one.
-- A cube spotlight shows one of the cubes with three of its cards.
+- The front page's third card shows one thing each visit: a room waiting for players with a Join button, a cube spotlight, the last game, or the Discord invite.
+- The cube spotlight shows three of the cube's cards and a Play now! button that opens a draft room on that cube.

@@ -130,22 +130,6 @@ export function DieIcon({ size = 14 }: { size?: number }) {
   );
 }
 
-export function ChevronLeftIcon({ size = 16 }: { size?: number }) {
-  return (
-    <Glyph label="Previous" size={size}>
-      <path d="M15 5l-7 7 7 7" />
-    </Glyph>
-  );
-}
-
-export function ChevronRightIcon({ size = 16 }: { size?: number }) {
-  return (
-    <Glyph label="Next" size={size}>
-      <path d="M9 5l7 7-7 7" />
-    </Glyph>
-  );
-}
-
 /** A scene's own box: 160 units square, thin strokes, drawn large and faint behind a room card. */
 function Scene({ size, children }: { size: number; children: ReactNode }) {
   return (

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { CubeSummary, DraftCard, PodView, RoomTable } from '@hadoku/shared';
 
 import type { RoomView } from '../rooms/api.ts';
-import { mayRotate, openSeats, sampleArt, spotlightCube } from './wildcardItems.ts';
+import { openSeats, pickWildcard, sampleArt, spotlightCube, WILDCARD_PRIORITY } from './wildcardItems.ts';
 
 const table = (over: Partial<RoomTable> = {}): RoomTable => ({
   id: 't-1',
@@ -110,13 +110,21 @@ describe('sampleArt', () => {
   });
 });
 
-describe('mayRotate', () => {
-  const idle = { items: 3, hovered: false, focused: false, hidden: false };
-  it('moves on only with several items and nobody hovering, focused or away', () => {
-    expect(mayRotate(idle)).toBe(true);
-    expect(mayRotate({ ...idle, items: 1 })).toBe(false);
-    expect(mayRotate({ ...idle, hovered: true })).toBe(false);
-    expect(mayRotate({ ...idle, focused: true })).toBe(false);
-    expect(mayRotate({ ...idle, hidden: true })).toBe(false);
+describe('pickWildcard', () => {
+  it('draws each kind in proportion to its weight, from whatever is there', () => {
+    const all = ['open-seats', 'cube', 'last-game', 'lfg'] as const;
+    const total = all.reduce((n, k) => n + WILDCARD_PRIORITY[k], 0);
+    // A roll just inside each kind's own share of the total lands on that kind.
+    let edge = 0;
+    for (const kind of all) {
+      expect(pickWildcard(all, () => (edge + 0.5) / total)).toBe(kind);
+      edge += WILDCARD_PRIORITY[kind];
+    }
+  });
+
+  it('only ever picks what is available, and nothing from nothing', () => {
+    expect(pickWildcard(['lfg'], () => 0.99)).toBe('lfg');
+    expect(pickWildcard(['cube', 'lfg'], () => 0)).toBe('cube');
+    expect(pickWildcard([], () => 0.5)).toBeNull();
   });
 });
