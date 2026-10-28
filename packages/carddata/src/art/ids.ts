@@ -182,8 +182,9 @@ export function backFaceNames(index: ArtIdIndex, scryfallId: string | undefined)
  * Undefined for anything that is not a token's image key, or a script the table has no row for.
  */
 export function tokenArtId(index: ArtIdIndex, imageKey: string | null | undefined): string | undefined {
-  const m = /^t:([a-z0-9_]+)\|([A-Za-z0-9]+)/.exec(imageKey ?? '');
-  return m === null ? undefined : scryfallIdFor(index, `t:${m[1]}`, m[2]!);
+  const m = /^t:([a-z0-9_]+)(?:\|([A-Za-z0-9]+))?/.exec(imageKey ?? '');
+  if (m === null) return undefined;
+  return m[2] === undefined ? index.get(`t:${m[1]}`) : scryfallIdFor(index, `t:${m[1]}`, m[2]);
 }
 
 /**

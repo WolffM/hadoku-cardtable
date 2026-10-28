@@ -321,6 +321,14 @@ describe('a token’s art follows its tokenscript, not its name', () => {
     expect(tokenArtId(KNOWN, 't:c_3_3_a_phyrexian_wurm_lifelink|SOM|9|1')).toBe(WURMCOIL_SOM.lifelink);
   });
 
+  // 2026-10-28 (m-b7b9edfcefd6): a restored game's Advent of the Wurm token came back as
+  // `t:g_5_5_wurm_trample` with no edition, and the name "Wurm" drew Wurmcoil Engine's.
+  it('a key with no edition still draws that token, never another of its name', () => {
+    const ADVENT = '33ee3f6c-5df6-4271-b2f9-86b9afffab7b'; // the table's any-printing row for g_5_5_wurm_trample
+    expect(tokenArtId(KNOWN, 't:g_5_5_wurm_trample')).toBe(ADVENT);
+    expect(scryfallIdFor(KNOWN, 'Wurm', 'RTR')).not.toBe(ADVENT);
+  });
+
   it('an edition with no printing of that token still draws that token, never another of its name', () => {
     expect(tokenArtId(KNOWN, 't:c_3_3_a_phyrexian_wurm_lifelink|ZZZ|1|1')).toBe(WURMCOIL_SOM.lifelink);
     expect(tokenArtId(KNOWN, 't:g_x_x_phyrexian_wurm_trample_toxic|ONC|16|1')).toBe(TOXIC);
