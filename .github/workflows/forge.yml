@@ -90,6 +90,27 @@ on:
           Empty = the usual jdk21 pool.
         required: false
         default: ''
+      monkey:
+        description: >-
+          Run `forge-monkey` (the monkey seat fuzzer, `apps/server/src/play/monkey/`)
+          on this dispatch too. The nightly schedule always runs it; this is
+          the manual trigger for a proof dispatch. `only`/`specs`/`jvm` do not
+          affect it — it is its own job.
+        required: false
+        type: boolean
+        default: false
+      monkey_seed:
+        description: 'forge-monkey only: a specific seed, for reproducing a reported run. Empty = a fresh one, printed in the log.'
+        required: false
+        default: ''
+      monkey_sample:
+        description: 'forge-monkey only: how many random library decks to cover. Empty = 8 on a dispatch, every deck on the nightly schedule.'
+        required: false
+        default: ''
+      monkey_deck:
+        description: 'forge-monkey only: one library deck id, instead of a sample — for reproducing a reported run exactly.'
+        required: false
+        default: ''
   # The full set. Every two hours (at :17) when main moved since the last
   # scheduled run finished, so whatever a push's short run skipped is run
   # within two hours; and every night whatever changed, with the `[nightly]`
@@ -819,6 +840,96 @@ jobs:
           jq -s '{testResults: [.[].testResults[]]}' "${reports[@]}" > "$merged"
           echo "merged ${#reports[@]} shard reports: $(jq '[.testResults[].assertionResults[]] | length' "$merged") tests"
           scripts/ci/judge-jvm-report.sh "$merged"
+
+  # ── The monkey seat fuzzer ─────────────────────────────────────────────────
+  #
+  # `apps/server/src/play/monkey/` (`docs/MONKEY.md`) joins real vs-AI matches
+  # on a real running server, over the real socket protocol, and answers every
+  # ask with a random LEGAL choice instead of a scripted plan — looking for a
+  # soft lock no scripted scenario would reach (the operator, 2026-10-26: "how
+  # can we unify the behavior better so that we don't soft lock"). Independent
+  # of `changes`: it runs every night regardless of what changed, and on a
+  # dispatch only when asked (`inputs.monkey`), never as part of `only`.
+  #
+  # Gates nothing, same as every other job in this file — not in `report`'s
+  # `needs`, so a flagged run shows red on the Actions tab and in the
+  # schedule's own history, but does not reach the fleet's Discord alert.
+  # That alerting policy is for the operator to decide once this has run a
+  # few times; today it would alert on EVERY flag, including one that turns
+  # out to be a deck-specific Forge quirk rather than a UI soft lock.
+  forge-monkey:
+    name: forge-monkey
+    if: github.event_name == 'schedule' && github.event.schedule == '0 10 * * *' || (github.event_name == 'workflow_dispatch' && inputs.monkey == true)
+    runs-on: ${{ inputs.runs_on != '' && fromJSON(inputs.runs_on) || fromJSON('["self-hosted","hadoku-builder","jdk21"]') }}
+    # A sampled dispatch run is a handful of matches; the nightly covers every
+    # library deck (1459 at this writing) at one match each — budgeted like a
+    # `forge-e2e` full shard, since each match is a whole game played to a turn
+    # cap, not a UI click.
+    timeout-minutes: ${{ github.event_name == 'schedule' && 90 || 30 }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: WolffM/hadoku-actions/setup-pnpm@v1
+        id: pnpm
+        with:
+          node-version: '24'
+          npm-token: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+          vault-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
+
+      - name: Build the bundle
+        run: pnpm --filter @hadoku/ui build
+
+      - name: Build the server
+        run: pnpm --filter @hadoku/server build
+
+      # Per-pin bundle — see the identical step in `forge-e2e`/`forge-jvm`.
+      # This is what keeps the monkey's jar and res matched to THIS commit's
+      # own pin: a mismatch between a worktree's bridge source and a jar built
+      # for a different pin fails the JVM's own compile step (measured
+      # locally while proving this job — `bridge.stderr.txt` names the exact
+      # Forge API that moved), never Forge's own card logic.
+      - name: Resolve the Forge bundle for this commit's pin
+        run: bash scripts/forge-bundle.sh >> "$GITHUB_ENV"
+
+      - name: Forge is present, or the monkey can never start a match
+        run: |
+          test -f "$CARDTABLE_FORGE_JAR" || { echo "::error::CARDTABLE_FORGE_JAR missing: $CARDTABLE_FORGE_JAR"; exit 1; }
+          test -d "$CARDTABLE_FORGE_RES/cardsfolder" || { echo "::error::CARDTABLE_FORGE_RES has no cardsfolder: $CARDTABLE_FORGE_RES"; exit 1; }
+
+      - name: Monkey — play every (or a sample of) library deck's matches
+        env:
+          CARDTABLE_MONKEY_EDGE_PORT: '19228'
+          CARDTABLE_MONKEY_SERVER_PORT: '19328'
+        run: |
+          echo "host at start: $(uptime)"; free -m | sed -n 2p
+          args=()
+          [ -n "${{ inputs.monkey_seed }}" ] && args+=(--seed "${{ inputs.monkey_seed }}")
+          if [ -n "${{ inputs.monkey_deck }}" ]; then
+            args+=(--deck "${{ inputs.monkey_deck }}")
+          elif [ -n "${{ inputs.monkey_sample }}" ]; then
+            args+=(--sample "${{ inputs.monkey_sample }}")
+          elif [ "${{ github.event_name }}" = 'workflow_dispatch' ]; then
+            args+=(--sample 8)
+          fi
+          # A nightly run with no sample/deck given covers every library deck — see the job comment.
+          set -x
+          apps/server/node_modules/.bin/tsx apps/server/src/play/monkey/cli.ts \
+            --matches-per-deck 1 --concurrency 3 \
+            --out "${{ runner.temp }}/monkey-report.json" \
+            "${args[@]}"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: monkey-report-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/monkey-report.json
+          if-no-files-found: warn
+          retention-days: 30
 
   # ── The full run says how main is ─────────────────────────────────────────
   #
