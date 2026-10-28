@@ -1,0 +1,16 @@
+# A press sent before Forge answers the seat's own act: alice has a Plains to play and Swords to
+# Plowshares to cast with the Plains already out; bob has one creature to target. Each act is followed
+# at once by OK, the way a fast click-then-OK reaches the server.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Swords to Plowshares;Plains
+humanbattlefield=Plains
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=
+aibattlefield=Grizzly Bears
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=

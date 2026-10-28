@@ -3583,6 +3583,75 @@ describe('hold-decide-forward', () => {
 			expect(h.host.commands).toContainEqual({ t: 'resend-pending', seat: SEAT1_ID });
 		});
 	});
+
+	describe('a press under the bar the seat’s own act disabled: refused until Forge shows the next window', () => {
+		const PRIORITY = 'Priority: Seat 1\nTurn: 3 (Seat 1)\nPhase: Main phase, precombat\nStack: Empty';
+		const click = ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: 960 }, otherCardViewsToSelect: [], triggerEvent: null });
+		const ok = ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' });
+		const cancel = ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonCancel' });
+		const presses = (h: Harness) => h.host.commands.filter((c) => c.t === 'act' && (c.frame.method === 'selectButtonOk' || c.frame.method === 'selectButtonCancel'));
+
+		/** Seat 1 holds a live priority bar (full control, so no stop decides it) and clicks a spell in hand. */
+		function clicked(bar: { enable1: boolean; enable2: boolean } = { enable1: true, enable2: true }): Harness {
+			vi.useFakeTimers();
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.match.setFullControl(SEAT1_ID, true);
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, PRIORITY) },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'OK', label2: 'End Turn', ...bar }) },
+			);
+			h.host.commands.length = 0;
+			expect(h.match.fromClient(SEAT1_ID, click)).toEqual({ ok: true });
+			return h;
+		}
+		/** Forge's answer to the click: the spell's target prompt and its bar. */
+		const targetWindow = (h: Harness) =>
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Select targets for Murder') },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'OK', label2: 'Cancel', enable1: false, enable2: true }) },
+			);
+
+		it('a card click, then OK before Forge answers: refused, nothing forwarded', () => {
+			const h = clicked();
+			expect(h.match.fromClient(SEAT1_ID, ok)).toMatchObject({ ok: false, error: expect.stringMatching(/^press-refused/) });
+			expect(presses(h)).toEqual([]);
+			expect(h.logs.filter((l) => l.evt === 'press-refused')).toEqual([{ evt: 'press-refused', matchId: h.match.id, seat: SEAT1_ID, method: 'selectButtonOk', label: 'OK' }]);
+		});
+
+		it('the same OK once the target prompt and its bar arrive: forwarded', () => {
+			const h = clicked();
+			h.match.fromClient(SEAT1_ID, ok);
+			targetWindow(h);
+			expect(h.match.fromClient(SEAT1_ID, ok)).toEqual({ ok: true });
+			expect(presses(h).map((c) => c.t === 'act' && c.frame.method)).toEqual(['selectButtonOk']);
+		});
+
+		it('Cancel the same way: refused before the target window, forwarded after', () => {
+			const h = clicked();
+			expect(h.match.fromClient(SEAT1_ID, cancel)).toMatchObject({ ok: false });
+			expect(presses(h)).toEqual([]);
+			targetWindow(h);
+			expect(h.match.fromClient(SEAT1_ID, cancel)).toEqual({ ok: true });
+			expect(presses(h).map((c) => c.t === 'act' && c.frame.method)).toEqual(['selectButtonCancel']);
+		});
+
+		it('Forge silent after the click: the re-sent window re-arms the bar, and OK is accepted', () => {
+			const h = clicked();
+			expect(h.match.fromClient(SEAT1_ID, ok)).toMatchObject({ ok: false });
+			vi.advanceTimersByTime(ACT_SILENCE_MS);
+			expect(h.logs.find((l) => l.evt === 'window-resent')).toMatchObject({ seat: SEAT1_ID, after: 'act' });
+			expect(h.match.fromClient(SEAT1_ID, ok)).toEqual({ ok: true });
+			expect(presses(h).map((c) => c.t === 'act' && c.frame.method)).toEqual(['selectButtonOk']);
+		});
+
+		it('a bar already disabled at the click took nothing off the screen: OK is forwarded', () => {
+			const h = clicked({ enable1: false, enable2: false });
+			expect(h.match.fromClient(SEAT1_ID, ok)).toEqual({ ok: true });
+			expect(presses(h).map((c) => c.t === 'act' && c.frame.method)).toEqual(['selectButtonOk']);
+			expect(h.logs.filter((l) => l.evt === 'press-refused')).toEqual([]);
+		});
+	});
 });
 
 /**
