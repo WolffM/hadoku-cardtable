@@ -75,6 +75,8 @@ export async function cast(page: Page, name: string, opts: { hover?: number } = 
   const to = { x: field.x + field.width / 2, y: field.y + field.height * 0.35 };
   const mid = { x: (box.x + box.width / 2 + to.x) / 2, y: (box.y + to.y) / 2 };
   if (!(await dragHandCard(page, id, to, [mid]))) throw new Error(`promo: ${name} (${id}) did not lift`);
+  // Off the card at once: the cursor resting where it let go opens the inspector over the spell's flight.
+  await restCursor(page);
 }
 
 /** Park the cursor over empty table, so no hover inspector covers the moment. */

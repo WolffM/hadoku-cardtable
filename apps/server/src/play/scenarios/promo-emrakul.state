@@ -1,0 +1,16 @@
+# Promo footage (`e2e/promo/emrakul.promo.ts`): Omni-Tell's payoff. Seat 0 has Omniscience out and casts
+# Emrakul, the Aeons Torn for free into a crowded table; fifteen power lands at the heaviest weight the board
+# draws — table cracks and shake, and both rings of cards around it knocked away and settling back.
+turn=5
+activeplayer=human
+activephase=MAIN1
+humanlife=11
+ailife=16
+humanhand=Emrakul, the Aeons Torn;Show and Tell;Brainstorm;Force of Will
+humanbattlefield=Omniscience;Baleful Strix;Snapcaster Mage;Island;Island;Volcanic Island;Ancient Tomb;City of Traitors
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=Ponder;Brainstorm;Daze
+aihand=
+aibattlefield=Tarmogoyf;Dark Confidant;Scavenging Ooze;Thalia, Guardian of Thraben;Stoneforge Mystic;Batterskull;Grizzly Bears;Forest;Swamp;Plains;Bayou;Scrubland
+aigraveyard=Thoughtseize;Swords to Plowshares;Abrupt Decay
+ailibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
