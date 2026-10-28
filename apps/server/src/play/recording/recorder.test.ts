@@ -102,6 +102,33 @@ describe('createRecorder', () => {
 		expect(hosted.room!()).toBe('none');
 	});
 
+	it("keeps a class host's own methods: stop, handOver and remember reach it (placement's Face)", () => {
+		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
+		const said: string[] = [];
+		class ClassHost implements MatchHost {
+			send(): void {
+				said.push('send');
+			}
+			stop(): void {
+				said.push('stop');
+			}
+			handOver(): boolean {
+				said.push('handOver');
+				return true;
+			}
+			remember(): void {
+				said.push('remember');
+			}
+		}
+		const inner = (() => new ClassHost()) as unknown as MatchHostFactory;
+		const recorder = createRecorder({ dir, identity: { pin: null, bridge: 'b', server: 's' }, roomOf: () => null, deckCosts: NO_COSTS });
+		const host = recorder.host(inner)('m-9', spec(1), { line: () => undefined, exit: () => undefined, log: () => undefined });
+		expect(host.handOver?.()).toBe(true);
+		host.remember?.({ epoch: 'e', owners: [null, null] });
+		host.stop();
+		expect(said).toEqual(['handOver', 'remember', 'stop']);
+	});
+
 	it('never lets a fault in recording reach the match: the line, the command and the envelope all still go through', () => {
 		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
 		const inner = fakeFactory();

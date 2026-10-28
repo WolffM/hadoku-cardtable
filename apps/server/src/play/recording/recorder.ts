@@ -40,7 +40,7 @@ import type { ServerEnvelope } from '@hadoku/shared';
 import type { JsonLog } from '../../log.js';
 import type { DeckCosts } from '../deck-colors.js';
 import { seatDeckColors } from '../deck-colors.js';
-import type { BridgeCommand, MatchHostFactory, MatchSpec } from '../host.js';
+import type { BridgeCommand, MatchHost, MatchHostFactory, MatchSpec } from '../host.js';
 import type { OutcomeFacts } from '../match.js';
 import { gameOutcome, WATCHER_SEAT } from '../match.js';
 import { createSeatPosition, type SeatPosition } from './position.js';
@@ -203,8 +203,14 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 					},
 				});
 
+				// Every method delegated by name, never `{ ...host }`: a spread copies own properties
+				// only, and placement's host is a class (`Face`), so `stop`, `handOver` and `remember`
+				// would be dropped. On the claws that made every shutdown throw in `stop()` before the
+				// agents were told to hold their JVMs, so every restart killed every live match.
 				return {
-					...host,
+					stop: () => host.stop(),
+					...(host.remember === undefined ? {} : { remember: (state: Parameters<NonNullable<MatchHost['remember']>>[0]) => host.remember?.(state) }),
+					...(host.handOver === undefined ? {} : { handOver: () => host.handOver?.() ?? false }),
 					send(command: BridgeCommand) {
 						guarded(log, matchId, 'command', () => {
 							// Only a reply/abort is logged here — an act is logged from its own
