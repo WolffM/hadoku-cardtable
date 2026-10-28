@@ -312,17 +312,24 @@ export async function startScenarioMatch(
   browser: Browser,
   stack: PlayStack,
   scenarioName: string,
-  options: { beforeAlice?: (page: Page) => Promise<void>; beforeBob?: (page: Page) => Promise<void>; format?: string; clockMs?: [number, number] } = {},
+  options: {
+    beforeAlice?: (page: Page) => Promise<void>;
+    beforeBob?: (page: Page) => Promise<void>;
+    format?: string;
+    clockMs?: [number, number];
+    /** Who sits in each seat and what they are called (`promo/`'s filmed seat and gamer tags); `openFriend` as alice and bob otherwise. */
+    seats?: { open: [() => Promise<Friend>, () => Promise<Friend>]; names: [string, string] };
+  } = {},
 ): Promise<ScenarioMatch> {
   const scenario = readScenario(scenarioName);
-  const alice = await openFriend(browser, 'alice');
-  const bob = await openFriend(browser, 'bob');
+  const alice = await (options.seats?.open[0] ?? (() => openFriend(browser, 'alice')))();
+  const bob = await (options.seats?.open[1] ?? (() => openFriend(browser, 'bob')))();
 
   const res = await alice.context.request.post(`${stack.origin}${PREFIX}/api/play/matches`, {
     data: {
       opponent: 'human',
       decks: [null, null],
-      names: ['Alice', 'Bob'],
+      names: options.seats?.names ?? ['Alice', 'Bob'],
       scenario,
       ...(options.format === undefined ? {} : { format: options.format }),
       ...(options.clockMs === undefined ? {} : { clockMs: options.clockMs }),
