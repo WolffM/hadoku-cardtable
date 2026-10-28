@@ -7,7 +7,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { BoardPlayer, BoardView } from '../adapter.ts';
-import { diceOf, diePath, facesOf, installDice, nextFace, shapeOf, shownRoll, tumbleFrames, type ShownRoll } from './dice.ts';
+import { diceOf, diePath, facesOf, installDice, nextFace, shapeOf, tumbleFrames } from './dice.ts';
+import { shownRoll, type ShownRoll } from './shown.ts';
 
 const rect = (left: number, top: number, width: number, height: number): DOMRect =>
   ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;

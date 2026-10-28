@@ -4,7 +4,7 @@
  * flipping to the face Forge's flip came up. Forge tells a flip only as a word ("heads", or "win" for a
  * called flip); the bridge reads the flip where Forge still holds the ability, as it reads a die roll,
  * and hands it to the seat's `message` frame that says it (`@hadoku/forge-wire`'s `CoinFlipSchema`).
- * `match.ts` keeps each as a {@link ShownFlip}; {@link CoinFlips} draws the ones still fresh over the
+ * `match.ts` keeps each as a {@link ShownFlip} (`./shown.ts`); {@link CoinFlips} draws the ones still fresh over the
  * table, beside the question column rather than in it (a flip's resolution is often followed at once by a
  * question, which it must not cover), side by side when several land together.
  *
@@ -16,31 +16,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import type { CoinFlip } from '@hadoku/forge-wire';
-
 import { noteBoardDrawing, prefersReducedMotion } from '../motion.ts';
 import { CoinToss, FLIP_MS, SideFace } from './CoinToss.tsx';
-
-/** A flip as the table draws it: numbered once for the page's life, when it arrived, and the words Forge said it in. */
-export interface ShownFlip {
-  readonly id: number;
-  readonly at: number;
-  readonly player: number;
-  /** Null: the flip was called by a player whose call the bridge never saw. */
-  readonly outcome: 'heads' | 'tails' | null;
-  /** Null: nobody called it. */
-  readonly won: boolean | null;
-  readonly source: number | null;
-  readonly text: string;
-}
-
-let lastFlipId = 0;
-
-/** The wire's flip, numbered and stamped as it arrives, with the message that said it. */
-export function shownFlip(flip: CoinFlip, text: string, at: number = Date.now()): ShownFlip {
-  lastFlipId += 1;
-  return { id: lastFlipId, at, player: flip.player.id, outcome: flip.outcome, won: flip.won, source: flip.source?.id ?? null, text };
-}
+import type { ShownFlip } from './shown.ts';
 
 /** How long a landed coin stays before it goes: its result is in the log after that. */
 export const FLIP_LINGER_MS = 1500;

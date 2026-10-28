@@ -10,7 +10,7 @@
  * Forge tells a roll only as prose ("Alice rolled 14"). The bridge reads the roll where Forge still
  * holds the ability and hands it to the seat's `message` frame that says it (`@hadoku/forge-wire`'s
  * `DieRollSchema`): who rolled, the die's sides, each result, and the card it came from. `match.ts`
- * keeps each as a {@link ShownRoll}; this draws each one once, as it arrives. The result stays readable
+ * keeps each as a {@link ShownRoll} (`./shown.ts`); this draws each one once, as it arrives. The result stays readable
  * after the die is gone: the same frame's text is in the log.
  *
  * ## The die
@@ -32,41 +32,12 @@
  * Every element is in the board's overlay, never a transform on a card in a row (table-fit).
  */
 
-import type { DieRoll } from '@hadoku/forge-wire';
-
 import { viewerOf, type BoardView } from '../adapter.ts';
 import { BEAT_ANIMATION_ID, noteBoardDrawing, prefersReducedMotion } from '../motion.ts';
 import { battlefieldCard, faceBox, overlayOf } from './board-dom.ts';
+import type { ShownRoll } from './shown.ts';
 
 import './dice.css';
-
-/** A roll as the board draws it: numbered once for the page's life, and when it arrived. */
-export interface ShownRoll {
-  readonly id: number;
-  readonly at: number;
-  readonly player: number;
-  /** Null: the bridge could not read the die's sides. */
-  readonly sides: number | null;
-  readonly results: readonly number[];
-  readonly ignored: readonly number[];
-  readonly source: number | null;
-}
-
-let lastRollId = 0;
-
-/** The wire's roll, numbered and stamped as it arrives. */
-export function shownRoll(roll: DieRoll, at: number = Date.now()): ShownRoll {
-  lastRollId += 1;
-  return {
-    id: lastRollId,
-    at,
-    player: roll.player.id,
-    sides: roll.sides,
-    results: roll.results,
-    ignored: roll.ignored ?? [],
-    source: roll.source?.id ?? null,
-  };
-}
 
 /** The tumble, from the card to where the die settles. */
 export const TUMBLE_MS = 1250;

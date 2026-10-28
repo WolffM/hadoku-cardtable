@@ -415,7 +415,8 @@ import { choiceTip, keywordTip, MARK_TIP, SEEN_TIP, stateTip, waitingTip } from 
 import { documentScope, eventTarget } from '../dom.ts';
 import { TopLayer } from '../topLayer.tsx';
 import { clickLatch, pastSlop } from './live/gestures/types.ts';
-import { installDice, type ShownRoll } from './live/dice.ts';
+import { installDice } from './live/dice.ts';
+import type { ShownRoll } from './live/shown.ts';
 import { installNumbers, type Revealed } from './live/numbers.ts';
 import { addWork } from './live/work-meter.ts';
 import { pinFlight } from './flight.ts';

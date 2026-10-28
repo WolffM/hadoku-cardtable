@@ -366,7 +366,8 @@ import { eventTarget } from '../../dom.ts';
 import { castForbiddenTip, costTip, flashTip } from '../tip/words.ts';
 import './live.css';
 import { TossCoin, useCoinFlipping } from './CoinToss.tsx';
-import { CoinFlips, type ShownFlip } from './coin-flip.tsx';
+import { CoinFlips } from './coin-flip.tsx';
+import type { ShownFlip } from './shown.ts';
 import { TurnCue, useYourTurnCue } from './TurnCue.tsx';
 import { installDialogMover, QuestionHost, restingTop } from './movable.tsx';
 

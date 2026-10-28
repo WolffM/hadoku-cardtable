@@ -12,7 +12,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
 
 import { CoinToss, FLIP_MS, SideFace, TossCoin } from './CoinToss.tsx';
-import { CoinFlips, freshFlips, FLIP_LINGER_MS, FLIPS_SHOWN, shownFlip } from './coin-flip.tsx';
+import { CoinFlips, freshFlips, FLIP_LINGER_MS, FLIPS_SHOWN } from './coin-flip.tsx';
+import { shownFlip } from './shown.ts';
 
 const CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/live', 'coin-toss.css'), 'utf8');
 
