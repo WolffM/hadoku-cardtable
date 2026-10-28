@@ -25,7 +25,7 @@ import type { LiveMatch } from '../match.ts';
 import { handCardWidth, sizeAsCard } from '../../card-size.ts';
 import { GLIDE_MS, prefersReducedMotion } from '../../motion.ts';
 import { cardBox, overlayOf } from '../board-dom.ts';
-import { entryHeft, entryWeight, playLanding, type EntryWeight } from '../entries.ts';
+import { entryHeft, landingWeight, playLanding, type EntryWeight } from '../entries.ts';
 import type { Point } from './types.ts';
 
 /**
@@ -335,8 +335,7 @@ export function castLandingWeight(view: BoardView | null, cardId: number | null)
   for (const p of view.players) {
     const card = p.battlefield.find((c) => c.id === cardId);
     if (card === undefined) continue;
-    const heft = entryHeft(card.card);
-    return heft > 0 ? entryWeight(heft) : null;
+    return landingWeight(entryHeft(card.card));
   }
   return null;
 }

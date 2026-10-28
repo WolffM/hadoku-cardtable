@@ -138,7 +138,7 @@ import { particleShare } from './effect-budget.ts';
 import { fly, impact } from './projectile.ts';
 import { cardColours, colourRow } from './sound-events.ts';
 import { CAST_LANDING_ATTR, landCastGhost, parkedGhost } from './gestures/cast.ts';
-import { entryHeft, entryMotionFor, entryWeight, entryDurationMs, playEntry, playLanding, type EntryWeight } from './entries.ts';
+import { entryHeft, entryMotionFor, entryWeight, entryDurationMs, landingWeight, playEntry, playLanding } from './entries.ts';
 import './numbers.css';
 import { timed } from './work-meter.ts';
 
@@ -757,10 +757,10 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   }
 
   /**
-   * A permanent from nowhere visible travels from `from` into its slot, as a played card lands; in
-   * place when there is nowhere to come from. A creature raised out of a graveyard or blinked back
-   * from exile (`origin`, `weight`) plays its own motion and lands as heavy as it hits
-   * (`entries.ts`) instead — Fast Mode: the landing alone, no climb to the hang point.
+   * A permanent from nowhere visible (a card out of a library) travels from `from` into its slot and
+   * lands as heavy as its `heft`, as a played card lands; in place when there is nowhere to come
+   * from. A creature raised out of a graveyard or blinked back from exile (`origin`) plays its own
+   * motion instead (`entries.ts`) — Fast Mode: the landing alone, no climb to the hang point.
    */
   function arrive(
     cardId: number,
@@ -768,13 +768,14 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     from: Boxed | null,
     delayMs: number,
     origin: Arrival['origin'] = 'other',
-    weight: EntryWeight | null = null,
+    heft = 0,
     pileOwner: 'you' | 'them' | null = null,
   ): void {
     const el = battlefieldCard(canvas, cardId);
     if (el === null) return;
     const root = overlay();
-    if ((origin === 'graveyard' || origin === 'exile' || origin === 'token') && weight !== null && root !== null && !reduced()) {
+    if ((origin === 'graveyard' || origin === 'exile' || origin === 'token') && root !== null && !reduced()) {
+      const weight = entryWeight(heft);
       el.setAttribute(ARRIVING_ATTR, source === null ? '' : String(source));
       marked.add(el);
       atBeat(() => {
@@ -829,7 +830,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       if (ghost === null) return settle();
       ghost.removeAttribute(ARRIVING_ATTR);
       const r = boxOf(from);
-      landCastGhost(canvas, null, ghost, { x: r.left + r.width / 2, y: r.top + r.height / 2 }, now);
+      landCastGhost(canvas, null, ghost, { x: r.left + r.width / 2, y: r.top + r.height / 2 }, now, landingWeight(heft));
       schedule(() => now.removeAttribute(ARRIVING_ATTR), GLIDE_MS);
     }, delayMs);
   }
@@ -1037,7 +1038,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       endMs = Math.max(endMs, delay + entryMs);
       const pileOwner: 'you' | 'them' | null =
         arrival.fromPlayerId === undefined ? null : before?.players.find((p) => p.id === arrival.fromPlayerId)?.isViewer === true ? 'you' : 'them';
-      arrive(arrival.cardId, arrival.source, maker ?? sourceOf(item), delay, arrival.origin, weight, pileOwner);
+      arrive(arrival.cardId, arrival.source, maker ?? sourceOf(item), delay, arrival.origin, arrival.heft, pileOwner);
     }
     /*
      * What left the battlefield goes at its beat: what a hit killed the moment that hit lands, everything

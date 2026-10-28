@@ -132,6 +132,11 @@ export function entryWeight(power: number): EntryWeight {
   };
 }
 
+/** What a landing adds past its own drop: nothing at 0 heft (see `entryWeight`), so no caller runs a tail that draws nothing. */
+export function landingWeight(heft: number): EntryWeight | null {
+  return heft > 0 ? entryWeight(heft) : null;
+}
+
 export const ENTRY_MOTIONS = {
   /** Off the stack: the cast card's own glide ends lifted over its slot, then drops. Never driven from here — see the header. */
   cast: { ms: 0 },

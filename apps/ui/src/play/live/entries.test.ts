@@ -7,7 +7,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ENTRY_MAX, ENTRY_MOTIONS, entryHeft, entryMotionFor, entryPower, entryWeight, playEntry, playLanding } from './entries.ts';
+import { ENTRY_MAX, ENTRY_MOTIONS, entryHeft, entryMotionFor, entryPower, entryWeight, landingWeight, playEntry, playLanding } from './entries.ts';
 
 afterEach(() => {
   document.body.innerHTML = '';
@@ -128,6 +128,14 @@ describe('entryHeft', () => {
 
   it('a creature with no readable power lands light', () => {
     expect(entryHeft({ typeLine: 'Creature — Shapeshifter', manaValue: 3 })).toBe(0);
+  });
+});
+
+describe('landingWeight', () => {
+  it('no tail at 0 heft, the entry weight from 1 on', () => {
+    expect(landingWeight(0)).toBeNull();
+    expect(landingWeight(1)).toEqual(entryWeight(1));
+    expect(landingWeight(9)).toEqual(entryWeight(9));
   });
 });
 
