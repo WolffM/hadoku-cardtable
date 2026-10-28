@@ -120,6 +120,8 @@ const roomFields = {
    * client that could not already see the room it belongs to.
    */
   scenario: z.string().optional(),
+  /** When the event this room was made for starts (`apps/server/src/room/events.ts`); null for a room no event made. */
+  scheduledFor: z.string().nullable().catch(null),
 };
 
 /**

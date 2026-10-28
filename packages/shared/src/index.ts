@@ -491,3 +491,15 @@ export {
   type RoomSettings,
   type TournamentDecks,
 } from './room-requests.ts';
+export {
+  EVENT_KINDS,
+  EventKindSchema,
+  CreateEventBodySchema,
+  UpdateEventBodySchema,
+  EventViewSchema,
+  EventListSchema,
+  type EventKind,
+  type CreateEventBody,
+  type UpdateEventBody,
+  type EventView,
+} from './events.ts';

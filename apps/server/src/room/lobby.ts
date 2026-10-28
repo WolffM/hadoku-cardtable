@@ -327,6 +327,11 @@ interface CreateRoomInput {
 	 * it back onto a match.
 	 */
 	scenario?: string;
+	/**
+	 * When the room's event starts, in ms (`room/events.ts`): a room made ahead of its event. Set
+	 * by the events route, never by `CreateRoomBodySchema`. Until then it is neither stale nor idle.
+	 */
+	scheduledFor?: number;
 }
 
 type CreateResult =
@@ -1183,6 +1188,8 @@ export interface Lobby {
 	 * the matches its tables were playing, for the caller to stop.
 	 */
 	close(roomId: string, callerId: string): CloseRoomResult;
+	/** Move the start of the event a room was made for (`CreateRoomInput.scheduledFor`). False when there is no such room. */
+	reschedule(roomId: string, at: number): boolean;
 	create(caller: Caller, input: CreateRoomInput): CreateResult;
 	/**
 	 * The room a watchparty room's game slot binds to (D21): `wp-` plus a digest
@@ -1487,6 +1494,8 @@ interface RoomRecord {
 	testing: boolean;
 	/** A board-state testing room's own scenario (`CreateRoomInput.scenario`'s doc). Absent for every room that is not one. */
 	scenario?: string;
+	/** When its event starts (`CreateRoomInput.scheduledFor`'s doc). Absent for a room no event made. */
+	scheduledFor?: number;
 	createdAt: number;
 	/** Last mutation, in ms. What `sweep` ages a room out on. */
 	updatedAt: number;
@@ -1556,6 +1565,8 @@ interface StoredApp {
 	testing?: boolean;
 	/** Absent for a room written before board-state testing rooms existed, or that is not one: every such room has no scenario. */
 	scenario?: string;
+	/** Absent for a room no event made, and for every room written before events existed. */
+	scheduledFor?: number;
 	secret: Secret | null;
 }
 
@@ -1752,6 +1763,7 @@ const appCodec: AppCodec<StoredApp> = {
 		}
 		if (a.testing !== undefined && typeof a.testing !== 'boolean') throw new Error('app.testing is invalid');
 		if (a.scenario !== undefined && typeof a.scenario !== 'string') throw new Error('app.scenario is invalid');
+		if (a.scheduledFor !== undefined && typeof a.scheduledFor !== 'number') throw new Error('app.scheduledFor is invalid');
 		if (a.secret !== null && !isSecret(a.secret)) throw new Error('app.secret is invalid');
 		const mode = storedMode(a);
 		const settings = storedSettings(a.settings as Partial<RoomSettings> | undefined);
@@ -1809,6 +1821,7 @@ const appCodec: AppCodec<StoredApp> = {
 			// Absent is a room written before testing rooms existed: every such room is an ordinary one.
 			testing: a.testing === true,
 			...(a.scenario === undefined ? {} : { scenario: a.scenario as string }),
+			...(a.scheduledFor === undefined ? {} : { scheduledFor: a.scheduledFor as number }),
 			secret: a.secret === null ? null : { salt: (a.secret as Secret).salt, hash: (a.secret as Secret).hash },
 		};
 	},
@@ -1886,6 +1899,7 @@ function viewOf(room: RoomRecord, locked: boolean, checks: PodChecks): RoomView 
 		createdAt: new Date(room.createdAt).toISOString(),
 		testing: room.testing,
 		...(room.scenario === undefined ? {} : { scenario: room.scenario }),
+		scheduledFor: room.scheduledFor === undefined ? null : new Date(room.scheduledFor).toISOString(),
 	};
 }
 
@@ -2138,6 +2152,7 @@ class FileLobby implements Lobby {
 			gauntlets: { ...room.gauntlets },
 			testing: room.testing,
 			...(room.scenario === undefined ? {} : { scenario: room.scenario }),
+			...(room.scheduledFor === undefined ? {} : { scheduledFor: room.scheduledFor }),
 			pod:
 				room.pod === null
 					? null
@@ -2272,7 +2287,9 @@ class FileLobby implements Lobby {
 					(r.members.length > 0 &&
 						(r.tables.some((t) => t.matchId !== null) ||
 							r.draftStartedAt !== null ||
-							Math.max(r.updatedAt, this.#touchedAt.get(r.id) ?? 0) > cutoff)),
+							// A room made for an event is advertised until it has been
+							// untouched for `staleMs` past its start, however far off that is.
+							Math.max(r.updatedAt, this.#touchedAt.get(r.id) ?? 0, r.scheduledFor ?? 0) > cutoff)),
 			)
 			.sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1))
 			.map((r) => this.#view(r));
@@ -2860,6 +2877,7 @@ class FileLobby implements Lobby {
 			gauntlets: {},
 			testing: input.testing === true,
 			...(input.scenario === undefined ? {} : { scenario: input.scenario }),
+			...(input.scheduledFor === undefined ? {} : { scheduledFor: input.scheduledFor }),
 			createdAt: now,
 			updatedAt: now,
 			members: [newMember([], caller, now)],
@@ -3185,7 +3203,8 @@ class FileLobby implements Lobby {
 			// system creator as its only member for its whole life, so "nobody has
 			// touched it" would otherwise be true of it the instant it is created.
 			if (room.testing) continue;
-			if (room.updatedAt > cutoff) continue;
+			// A room made for an event ages from its start, not from when it was made.
+			if (Math.max(room.updatedAt, room.scheduledFor ?? 0) > cutoff) continue;
 			// A pod in progress. Nobody touches the lobby for the forty minutes a
 			// draft takes, and the room is the pod's container — reaping it would
 			// end the game. A pod survives restarts now, so the spare is bounded by
@@ -3197,6 +3216,14 @@ class FileLobby implements Lobby {
 			this.#log({ event: 'room-forgotten', roomId: id, idleMs });
 		}
 		return dropped;
+	}
+
+	reschedule(roomId: string, at: number): boolean {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return false;
+		room.scheduledFor = at;
+		this.#persist(room);
+		return true;
 	}
 
 	close(roomId: string, callerId: string): CloseRoomResult {
@@ -3599,6 +3626,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					// a testing room into an ordinary one or back.
 					testing: app.testing === true,
 					...(app.scenario === undefined ? {} : { scenario: app.scenario }),
+					...(app.scheduledFor === undefined ? {} : { scheduledFor: app.scheduledFor }),
 					createdAt: decoded.createdAt,
 					// The raw snapshot's clock: when this room was last touched
 					// by the process that wrote it. `decoded` does not carry it.

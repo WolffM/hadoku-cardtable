@@ -100,6 +100,7 @@ import { attachDrafts } from './http/drafts.js';
 import { attachRooms } from './http/rooms.js';
 import { attachTableActions } from './http/table-actions.js';
 import { seedTestingRooms } from './room/testing-rooms.js';
+import { attachEvents } from './http/events.js';
 import { attachTournaments } from './http/tournaments.js';
 import { attachSounds } from './http/sounds.js';
 import { attachClientEvents } from './http/client-events.js';
@@ -112,6 +113,7 @@ import { loadCardCatalog } from './pools/catalog.js';
 import { createForgePools, type ForgePools } from './pools/forge.js';
 import { serveCover } from './cover.js';
 import { newestFormat } from './room/lobby.js';
+import { openEvents } from './room/events.js';
 import { openTournaments } from './room/tournaments.js';
 import { jsonLogger } from './log.js';
 import { createKeyBook, createMatchStats, createStatsReporter } from './stats/index.js';
@@ -383,6 +385,8 @@ const tournaments = await openTournaments(
 	CONFIG.tournamentsFile,
 	roomsLog,
 );
+// The front page's calendar; an event's room is the lobby's own.
+const events = await openEvents(CONFIG.eventsFile, roomsLog);
 // ── Match stats ──────────────────────────────────────────────────────────────
 // A finished room match is reported with this server's service key; without
 // one, nothing is recorded. Its start is read from the room and the match at
@@ -549,17 +553,18 @@ const runTestingRoomSeed = (): Promise<void> =>
 		library,
 	});
 
+const roomClosed = (roomId: string, matches: readonly string[]): void => {
+	for (const id of matches) play?.matches.get(id)?.stop();
+	// An unfinished draft has no deck to keep; a finished one stays on its drafters' Decks page.
+	const draft = draftRooms?.find(roomId);
+	if (draft !== undefined && stateOf(draft).status !== 'complete') draftRooms?.delete(roomId);
+};
 attachRooms(api, {
 	lobby,
 	checkPlan: checkDraftPlan,
 	// Read per request; `featured` is built further down, beside play.
 	featured: () => featured.current(),
-	closed: (roomId, matches) => {
-		for (const id of matches) play?.matches.get(id)?.stop();
-		// An unfinished draft has no deck to keep; a finished one stays on its drafters' Decks page.
-		const draft = draftRooms?.find(roomId);
-		if (draft !== undefined && stateOf(draft).status !== 'complete') draftRooms?.delete(roomId);
-	},
+	closed: roomClosed,
 	// "Reset = Close": the testing room `/:id/close` just forgot is recreated
 	// fresh under the same name, the moment the close answers — not a
 	// separate reset feature.
@@ -589,6 +594,7 @@ attachRooms(api, {
 	},
 });
 attachTournaments(api, { tournaments });
+attachEvents(api, { events, lobby, closed: roomClosed });
 
 // ── Sounds ───────────────────────────────────────────────────────────────────
 // The sound-builder's catalogue, take audio, and assignment matrix. Same

@@ -21,14 +21,16 @@ export interface OpenSeats {
 
 /**
  * The room closest to starting that the viewer could sit down in: still seating, a seat open, not a
- * testing room, and not one the viewer is already in. Fewest missing seats first, then the list's
- * own order. `null` when there is none.
+ * testing room, not one waiting for an event that has not started (it is on the calendar instead),
+ * and not one the viewer is already in. Fewest missing seats first, then the list's own order.
+ * `null` when there is none.
  */
-export function openSeats(rooms: readonly RoomView[]): OpenSeats | null {
+export function openSeats(rooms: readonly RoomView[], now: number = Date.now()): OpenSeats | null {
   let best: OpenSeats | null = null;
   for (const room of rooms) {
     if (room.testing || room.members.some((m) => m.id === room.you.id)) continue;
-    const card = roomCardView(room, false);
+    if (room.scheduledFor !== null && Date.parse(room.scheduledFor) > now) continue;
+    const card = roomCardView(room, false, now);
     if (card.state.key !== 'lobby') continue;
     const missing = card.seatsCapacity - card.seatsFilled;
     if (missing <= 0 || (best !== null && missing >= best.missing)) continue;

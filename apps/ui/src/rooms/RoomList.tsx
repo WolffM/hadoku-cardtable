@@ -51,7 +51,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Icon } from '@wolffm/themes';
-import { PAGE_EVENT_PATH, ROOM_NAME_MAX, ROOM_PASSWORD_MAX, type ConstructedMode } from '@hadoku/shared';
+import { PAGE_EVENT_PATH, ROOM_NAME_MAX, ROOM_PASSWORD_MAX } from '@hadoku/shared';
 
 import { apiUrl, sendJson } from '../http.ts';
 import { navigate } from '../screens/route.ts';
@@ -66,15 +66,13 @@ import {
   gameTypeLabel,
   roomsClient,
   type FeaturedPick,
-  type GameType,
   type RoomView,
   type RoomsClient,
 } from './api.ts';
 import { Avatar } from '../components/Avatar.tsx';
-import { RadioCards } from '../components/RadioCards.tsx';
-import { GameTypeRow } from './GameTypeRow.tsx';
+import { NEW_ROOM_FIELDS, RoomFields, roomRequest, type RoomFieldValues } from './RoomFields.tsx';
+import { CreateEventDialog } from './CreateEventDialog.tsx';
 import { latestReads } from './latest.ts';
-import { freshRoomMode, MODE_CARDS } from '../screens/constructed-mode/ModeRow.tsx';
 import { roomCardView } from '../front/roomCard.ts';
 import { ConstructedIcon, DecksFacingScene, DieIcon, DraftIcon, LockIcon, PersonIcon, PodScene, StaircaseIcon, SwordsIcon, TrophyIcon } from '../front/icons.tsx';
 import { loadRoomFilters, loadTestingFolded, matchesRoomFilters, orderByMatch, saveRoomFilters, saveTestingFolded, type RoomFilters } from '../front/roomFilters.ts';
@@ -106,6 +104,8 @@ export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomL
   const [state, setState] = useState<ListState>({ kind: 'loading' });
   const [creating, setCreating] = useState(false);
   const closeCreate = useCallback((): void => setCreating(false), []);
+  const [scheduling, setScheduling] = useState(false);
+  const closeSchedule = useCallback((): void => setScheduling(false), []);
 
   /** The viewer's own filters (ruling 6), remembered per-browser; read once, written on every change. */
   const [filters, setFilters] = useState<RoomFilters>(() => loadRoomFilters());
@@ -215,6 +215,7 @@ export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomL
           Rooms
         </h2>
         <RoomFilterBar filters={filters} onChange={setAndSaveFilters} />
+        <span className="rooms__actions">
         <button
           type="button"
           className="lobby__go"
@@ -227,6 +228,19 @@ export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomL
         >
           Create room
         </button>
+        <button
+          type="button"
+          className="lobby__go"
+          data-testid="event-create-open"
+          aria-haspopup="dialog"
+          onClick={() => {
+            playRole('ui.select');
+            setScheduling(true);
+          }}
+        >
+          Create event
+        </button>
+        </span>
       </div>
 
       {state.kind === 'loading' && (
@@ -299,6 +313,7 @@ export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomL
       )}
 
       {creating && <CreateRoomDialog client={client} onClose={closeCreate} />}
+      {scheduling && <CreateEventDialog onClose={closeSchedule} />}
       <TopLayer fixed />
     </section>
   );
@@ -692,10 +707,7 @@ function RoomRow({
  */
 function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: () => void }) {
   const [name, setName] = useState('');
-  const [gameType, setGameType] = useState<GameType>('constructed-1v1');
-  /** Optional: a Constructed room created with none asks its leader first. */
-  const [mode, setMode] = useState<ConstructedMode | null>(null);
-  const [password, setPassword] = useState('');
+  const [fields, setFields] = useState<RoomFieldValues>(NEW_ROOM_FIELDS);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -710,13 +722,7 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
     playRole('ui.select');
     setBusy(true);
     setError(null);
-    const outcome = await client.create({
-      name: trimmed,
-      gameType,
-      clientMode: 'builtin',
-      password,
-      ...(gameType === 'constructed-1v1' && mode !== null ? { mode: freshRoomMode(mode) } : {}),
-    });
+    const outcome = await client.create({ name: trimmed, ...roomRequest(fields) });
     if (!outcome.ok) {
       setBusy(false);
       playRole('ui.deny');
@@ -781,33 +787,7 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
           }}
         />
 
-        <span className="rooms__caption">Game type</span>
-        <GameTypeRow testId="room-create-type" value={gameType} onChange={setGameType} />
-
-        {gameType === 'constructed-1v1' && (
-          <>
-            <span className="rooms__caption">Mode (optional)</span>
-            <RadioCards
-              name="room-create-constructed-mode"
-              label="Mode"
-              options={MODE_CARDS}
-              value={mode}
-              onChange={setMode}
-              testId="room-create-constructed-mode"
-            />
-          </>
-        )}
-
-        <label htmlFor="room-create-password">Password (optional)</label>
-        <input
-          id="room-create-password"
-          data-testid="room-create-password"
-          type="password"
-          maxLength={ROOM_PASSWORD_MAX}
-          autoComplete="new-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <RoomFields idPrefix="room-create" value={fields} onChange={setFields} />
         <button type="submit" className="lobby__go" data-testid="room-create-submit" disabled={busy}>
           Create room
         </button>

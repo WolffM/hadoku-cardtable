@@ -116,6 +116,9 @@ export const CONFIG = {
 	/** Every pod that played a round, kept past its room (`CARDTABLE_TOURNAMENTS_FILE`). */
 	tournamentsFile: process.env.CARDTABLE_TOURNAMENTS_FILE ?? join(DATA_DIR, 'tournaments.json'),
 
+	/** The front page's scheduled events (`CARDTABLE_EVENTS_FILE`). */
+	eventsFile: process.env.CARDTABLE_EVENTS_FILE ?? join(DATA_DIR, 'events.json'),
+
 	/** The lobby's rooms, one file each (`CARDTABLE_ROOMS_DIR`). */
 	roomsDir: process.env.CARDTABLE_ROOMS_DIR ?? join(DATA_DIR, 'rooms'),
 

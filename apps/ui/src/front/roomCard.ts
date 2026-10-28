@@ -17,6 +17,7 @@
 import { FREE_PICK, POD_SEATS, planDisplayName } from '@hadoku/shared';
 
 import type { RoomView } from '../rooms/api.ts';
+import { countdown } from './countdown.ts';
 import { formatEraLabel } from './formatLabel.ts';
 
 export type RoomStateKey = 'lobby' | 'drafting' | 'building' | 'playing' | 'sideboarding' | 'rounds' | 'done';
@@ -126,7 +127,18 @@ function matchIsLive(room: RoomView): boolean {
   return Object.values(room.tableGames).some((g) => g.live !== null);
 }
 
-function roomState(room: RoomView): RoomCardState {
+/**
+ * A room made for an event (`scheduledFor`) reads "Scheduled · in 2d 3h" while it waits in its
+ * lobby for the start; it is still a lobby to every action, so only what it says changes.
+ */
+function roomState(room: RoomView, now: number): RoomCardState {
+  const state = phaseState(room);
+  const startsAt = room.scheduledFor;
+  if (state.key !== 'lobby' || startsAt === null || !(Date.parse(startsAt) > now)) return state;
+  return { key: 'lobby', label: 'Scheduled', detail: countdown(startsAt, now) };
+}
+
+function phaseState(room: RoomView): RoomCardState {
   const pod = room.pod;
   // Ruling 9 (2026-10-27): "Waiting for players", not "Waiting for a player".
   const waitingForPlayers = room.members.length < 2;
@@ -168,8 +180,8 @@ function actions(room: RoomView, state: RoomCardState, isMine: boolean): { prima
 }
 
 /** Everything one room card draws, from the room body alone. `isMine`: the caller is already a member. */
-export function roomCardView(room: RoomView, isMine: boolean): RoomCardView {
-  const state = roomState(room);
+export function roomCardView(room: RoomView, isMine: boolean, now: number = Date.now()): RoomCardView {
+  const state = roomState(room, now);
   const capacity = room.pod !== null ? POD_SEATS : 2;
   const { primaryAction, extraWatch } = actions(room, state, isMine);
   return {

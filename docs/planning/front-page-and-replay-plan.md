@@ -256,4 +256,4 @@ public stream has expired.
 - Rebuild matches most games, not all (wave 78 above); the drift's last cause is unknown.
 - The replay scrubber moves by time, not turn: the public stream carries no turn markers yet.
 - The draft card shows no pack and pick: not on the room wire.
-- The Upcoming card reads `apps/ui/src/front/events.json`, empty until someone adds events.
+- The Upcoming card reads `/api/events` (`apps/server/src/http/events.ts`); events are made from Create event beside Create room.

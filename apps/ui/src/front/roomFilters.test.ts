@@ -60,6 +60,7 @@ const room = (over: Partial<RoomView> = {}): RoomView => ({
   pod: null,
   createdAt: '',
   testing: false,
+  scheduledFor: null,
   you: { id: 'm1', leader: true, ready: false },
   ...over,
 });

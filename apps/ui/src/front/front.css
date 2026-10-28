@@ -8,7 +8,14 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 14px;
-  /* The operator's own cap: the banner stays at or under ~50% of the viewport height, ~380px (D-grade screenshot in the report). */
+  /*
+   * The operator's own cap: the banner stays at or under ~50% of the viewport height, ~380px (D-grade
+   * screenshot in the report). Per card, not on the banner: one row on a wide screen is the same cap,
+   * while a capped banner squeezed every stacked card on a phone into a share of 380px between them.
+   */
+}
+
+.front-banner > * {
   max-height: 380px;
 }
 
@@ -220,6 +227,71 @@
 .front-card__event-detail {
   font-size: 12px;
   color: var(--ink-faint);
+}
+
+/* The calendar (`UpcomingCard.tsx`), in `../components/Modal.tsx`: every event, soonest first. */
+.calendar {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar__event {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.calendar__event + .calendar__event {
+  border-top: 1px solid var(--line);
+}
+
+.calendar__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.calendar__title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.calendar__when {
+  font-size: 13px;
+  color: var(--ink-dim);
+}
+
+.calendar__detail {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.calendar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.calendar__edit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.calendar__edit input {
+  min-width: 0;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 5px 8px;
+  font: inherit;
 }
 
 /* The wildcard's carousel. */

@@ -30,6 +30,12 @@
   font-size: 19px;
 }
 
+/* Create room and Create event, together at the head's end. */
+.rooms__actions {
+  display: flex;
+  gap: 8px;
+}
+
 /* The Testing heading is its own fold: the whole title is the button, a
    chevron before it turned down while the section is open. Reads as the
    heading it replaces, so no button chrome. */
@@ -420,6 +426,7 @@
 
 .rooms__password label,
 .rooms__create label,
+.event-create label,
 .rooms__caption {
   flex-basis: 100%;
   color: var(--ink-faint);
@@ -430,6 +437,7 @@
 
 .rooms__password input,
 .rooms__create input,
+.event-create input,
 .rooms__create select {
   min-width: 0;
   background: var(--bg);
@@ -479,6 +487,13 @@
   overflow-y: auto;
   padding: 16px 20px 20px;
   border-radius: var(--hdk-radius-lg);
+}
+
+/* Create event's form (`CreateEventDialog.tsx`), inside the shared modal: the create form's column. */
+.event-create {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .rooms__create-head {

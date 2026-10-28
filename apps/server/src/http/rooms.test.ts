@@ -368,6 +368,7 @@ describe('POST /api/rooms', () => {
 			'modeOptions',
 			'name',
 			'pod',
+			'scheduledFor',
 			'settings',
 			'tables',
 			'testing',

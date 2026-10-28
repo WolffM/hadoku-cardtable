@@ -1234,6 +1234,7 @@ describe('a room’s table', () => {
                   tables: [],
                   pod: null,
                   testing: false,
+                  scheduledFor: null,
                 },
               }
             : { ok: false as const, reason: outcome };

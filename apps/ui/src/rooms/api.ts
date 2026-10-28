@@ -185,6 +185,16 @@ export interface CreateRequest {
   mode?: RoomMode;
 }
 
+/** A create's fields as the server takes them, name aside: an event's room sends the same (`../front/events.ts`). */
+export function createRoomFields(req: Omit<CreateRequest, 'name'>): Record<string, unknown> {
+  return {
+    gameType: req.gameType,
+    clientMode: req.clientMode,
+    ...(req.password !== undefined && req.password !== '' ? { password: req.password } : {}),
+    ...req.mode,
+  };
+}
+
 /**
  * `GET /api/rooms`'s own pick of a room with something going on (`apps/server/src/play/featured.ts`),
  * sent alongside the list so the front page's banner never needs a second route. `null` when nothing
@@ -428,10 +438,7 @@ export function roomsClient(
     },
 
     create(req) {
-      const payload: Record<string, unknown> = { name: req.name, gameType: req.gameType, clientMode: req.clientMode };
-      if (req.password !== undefined && req.password !== '') payload.password = req.password;
-      if (req.mode !== undefined) Object.assign(payload, req.mode);
-      return write('', payload, 'Could not create the room');
+      return write('', { name: req.name, ...createRoomFields(req) }, 'Could not create the room');
     },
 
     async join(roomId, password) {

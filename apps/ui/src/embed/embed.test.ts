@@ -49,6 +49,7 @@ const ROOM: RoomView = {
   tables: [],
   pod: null,
   testing: false,
+  scheduledFor: null,
 };
 
 function ctx(over: Partial<GameBundleContext> = {}): GameBundleContext {

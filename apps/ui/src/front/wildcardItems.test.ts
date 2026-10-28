@@ -51,6 +51,7 @@ const room = (over: Partial<RoomView> = {}): RoomView => ({
   pod: null,
   createdAt: '',
   testing: false,
+  scheduledFor: null,
   you: { id: 'm1', leader: true, ready: false },
   ...over,
 });
@@ -63,10 +64,13 @@ describe('openSeats', () => {
     expect(openSeats([notMine()])).toEqual({ roomId: 'r-1', title: "alice's Constructed needs 1", missing: 1 });
   });
 
-  it('skips testing rooms, rooms the viewer is in, full rooms and rooms already playing', () => {
+  it('skips testing rooms, rooms the viewer is in, full rooms, rooms already playing and rooms waiting for their event', () => {
     const full = notMine({ id: 'r-2', members: [{ id: 'm1', name: 'alice', joinedAt: '', ready: false }, { id: 'm2', name: 'bob', joinedAt: '', ready: false }] });
     const playing = notMine({ id: 'r-3', tables: [table({ series: { length: 1, wins: [0, 0], games: [], phase: 'playing' } })] });
     expect(openSeats([notMine({ testing: true }), room(), full, playing])).toBeNull();
+    const now = Date.parse('2026-10-28T12:00:00Z');
+    expect(openSeats([notMine({ scheduledFor: '2026-10-30T20:00:00.000Z' })], now)).toBeNull();
+    expect(openSeats([notMine({ scheduledFor: '2026-10-28T11:00:00.000Z' })], now)).not.toBeNull();
   });
 
   it('picks the room closest to starting', () => {

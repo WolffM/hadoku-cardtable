@@ -63,6 +63,7 @@ const room = (over: Partial<RoomView> & { id: string; name: string }): RoomView 
   tables: [],
   pod: null,
   testing: false,
+  scheduledFor: null,
   ...over,
 });
 

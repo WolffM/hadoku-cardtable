@@ -53,6 +53,7 @@ const room = (over: Partial<RoomView> = {}): RoomView => ({
   pod: null,
   createdAt: '',
   testing: false,
+  scheduledFor: null,
   you: { id: 'm1', leader: true, ready: false },
   ...over,
 });
@@ -81,6 +82,18 @@ describe('roomCardView — Constructed modes', () => {
     expect(roomCardView(drafted, false).mode).toMatchObject({ icon: null, text: 'Vintage Cube' });
     const noPlan = room({ gameType: 'draft', mode: null, modeOptions: null, pod: pod({ phase: 'lobby' }) });
     expect(roomCardView(noPlan, false).mode.icon).toBeNull();
+  });
+});
+
+describe('roomCardView — a room made for an event', () => {
+  const now = Date.parse('2026-10-28T12:00:00Z');
+  it('reads Scheduled and how long until it starts while it waits in its lobby, and acts as a lobby', () => {
+    const view = roomCardView(room({ scheduledFor: '2026-10-30T15:00:00.000Z' }), false, now);
+    expect(view.state).toEqual({ key: 'lobby', label: 'Scheduled', detail: 'in 2d 3h' });
+    expect(view.primaryAction).toBe(roomCardView(room(), false, now).primaryAction);
+  });
+  it('is a plain lobby once its start has passed', () => {
+    expect(roomCardView(room({ scheduledFor: '2026-10-28T11:00:00.000Z' }), false, now).state.label).toBe('Lobby');
   });
 });
 

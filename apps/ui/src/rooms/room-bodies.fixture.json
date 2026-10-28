@@ -60,7 +60,8 @@
       "id": "fk:a9d95a027ac540c0",
       "leader": true,
       "ready": false
-    }
+    },
+    "scheduledFor": null
   },
   "draft": {
     "id": "r-d3791c2335ba",
@@ -155,6 +156,7 @@
       "id": "fk:a9d95a027ac540c0",
       "leader": true,
       "ready": false
-    }
+    },
+    "scheduledFor": null
   }
 }
