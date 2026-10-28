@@ -186,6 +186,22 @@ it. PR-5 is new and exists to serve it.
 | **PR-3** | **Room module** — our P3–P6 contributions to `@wolffm/rooms-protocol` / `-server` (**renamed**: `@wolffm/rooms` never shipped) | **implemented Wave 5, locally.** Designs W1, delivered to watchparty W2/W3, built here W5. Upstream still ships **none** of P4–P6, so ours are our own packages consuming their primitives — `@wolffm/rooms-server@0.38.111` is `RoomRegistry` + seating + emit + rate limiting + `collectGC` and nothing else. The socket wiring is ours |
 | **PR-4** | **Play** — WS/JSON bridge at `IToClient`, headless Forge, the embedded client | **spiked and de-risked** (D). Forge runs headless; 38 of 60 protocol methods required; jUPnP is a config flag. Not greenfield — a 3,919-line headless net harness already exists in-tree |
 
+## Wave 79 (trailer cut 1 feedback) dispatched as four single sessions (2026-10-28)
+
+`docs/planning/wave79-2026-10-28.md`. Operator review of promo cut 1 (session hadoku-cardtable-e1).
+
+| lane | worktree / branch | status | evidence |
+| --- | --- | --- | --- |
+| A one arrival path (2a–c) | `.claude/worktrees/w79a` / `w79a` | dispatched | — |
+| B the stack (1, 8, face-down spell) | `.claude/worktrees/w79b` / `w79b` | dispatched; 8 gated on artifact | — |
+| C deaths (11a–c) | `.claude/worktrees/w79c` / `w79c` | dispatched | — |
+| D room → table → match (5, 12, 12a, 12b) | `.claude/worktrees/w79d` / `w79d` | dispatched | — |
+| E draft visuals (13, 13b) | — | queued: 13b artifact first | — |
+| F front-page replay, omniscient (3) | — | queued: `front/` + watcher claims | — |
+| trailer v2 re-shoot | `promo-clips` (e1) | waits on A–F | cut 1 https://claude.ai/artifact/RTwUZ5jEHvJRnHXoZ7r6bF |
+
+Main red at dispatch: `aa-polling.spec.ts` since `7c101ad42` (front wildcard), owner the `apps/ui/src/front/` claim holder.
+
 ## Waves 70, 71 and 72 (draft pods) landed and were re-verified by the tracker (2026-10-17)
 
 The operator's plan and rulings: `docs/planning/draft-pods-plan.md`. Each wave's per-lane notes are in its wave file.
