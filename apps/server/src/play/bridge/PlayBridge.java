@@ -5542,7 +5542,7 @@ public final class PlayBridge {
 
         /**
          * A set chosen at once under rules ({@code ChosenSet}: a constrained search, a card of each type,
-         * a total or different powers) asks through this seat's GUI with no ability
+         * a total or different powers; any search, for its {@code Exactly}) asks through this seat's GUI with no ability
          * ({@code chooseEntitiesForEffect}); the seat's {@link SeatGui} holds it for the length of the call,
          * so the ask can carry the rules the chosen set must meet ({@link SeatGui#searchRules}). Forge's
          * search ({@code chooseCardsForZoneChange}) reaches the GUI through this method too.
@@ -5552,7 +5552,7 @@ public final class PlayBridge {
                 final int min, final int max, final DelayedReveal delayedReveal, final SpellAbility sa, final String title,
                 final forge.game.player.Player targetedPlayer, final Map<String, Object> params) {
             final SeatGui gui = match.seatGuis.get(seat);
-            final boolean ruled = gui != null && ChosenSet.constrains(sa);
+            final boolean ruled = gui != null && (ChosenSet.constrains(sa) || sa != null && sa.getApi() == ApiType.ChangeZone);
             if (ruled) { gui.searching = sa; }
             try {
                 return super.chooseEntitiesForEffect(optionList, min, max, delayedReveal, sa, title, targetedPlayer, params);
