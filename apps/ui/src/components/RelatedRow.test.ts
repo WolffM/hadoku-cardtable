@@ -59,7 +59,10 @@ const face = (scryfallId: string, name: string): CardFace => ({ ...named('Jace, 
 
 describe('a card’s related cards', () => {
   it('names a transform card’s back face, a token maker’s tokens, and a meld card’s result', () => {
-    expect(relatedCards(named('Jace, Vryn')).map((r) => [r.name, r.kind])).toEqual([['Jace, Telepath Unbound', 'back']]);
+    expect(relatedCards(named('Jace, Vryn')).map((r) => [r.name, r.kind])).toEqual([
+      ['Jace, Telepath Unbound', 'back'],
+      ['Jace, Telepath Unbound Emblem', 'token'],
+    ]);
     expect(relatedCards(named('Magda, Brazen')).map((r) => r.kind)).toContain('token');
     expect(relatedCards(named('The Mightstone')).map((r) => r.name)).toContain('Urza, Planeswalker');
     expect(relatedCards(named('Jace, Vryn'))[0]!.id).toMatch(/#back$/);

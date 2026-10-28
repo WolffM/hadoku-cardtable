@@ -300,8 +300,21 @@ function isTokenPrinting(card: GameplayCard): boolean {
   return str(card, 'lang') === 'en' && str(card, 'set_type') === 'token';
 }
 
-/** Deterministic "best" printing of two token cards with the same name in the same set: earliest release, then collector number, then id. */
-function tokenPrintingOrder(a: GameplayCard, b: GameplayCard): number {
+/**
+ * A printing Scryfall marks `textless`: no type line, no rules box, no power and toughness — the
+ * Unglued tokens are a picture and a credit. A creature token drawn from one reads as a card with
+ * no stats, so one is never the printing a token falls back to while a printing with its text exists.
+ */
+function isTextless(card: GameplayCard): boolean {
+  return card['textless'] === true;
+}
+
+/**
+ * Deterministic "best" printing of two token cards with the same name: one with its text before a
+ * textless one, then earliest release, then collector number, then id.
+ */
+export function tokenPrintingOrder(a: GameplayCard, b: GameplayCard): number {
+  if (isTextless(a) !== isTextless(b)) return isTextless(a) ? 1 : -1;
   const ra = str(a, 'released_at') ?? '9999-12-31';
   const rb = str(b, 'released_at') ?? '9999-12-31';
   if (ra !== rb) return ra < rb ? -1 : 1;
@@ -663,6 +676,10 @@ async function run(cacheDir: string, outFile: string, forgeResDir: string | null
     // this file has never carried a row for) still get one, normally.
     const seeded = existingRows(outFile);
     const ids = new Map<string, string>(seeded);
+    // A token row committed before textless printings ranked last is the one row this rule
+    // re-derives: below, it lands on the same printing unless that printing has no text.
+    const textlessTokens = new Set(cards.filter((c) => isTokenPrinting(c) && isTextless(c)).map((c) => str(c, 'id')));
+    for (const [key, id] of seeded) if (textlessTokens.has(id.replace(BACK_FACE, ''))) ids.delete(key);
     const counts: Counts = { basics: 0, decks: 0, cubeAliases: 0, bareNames: 0, faces: 0, tokens: 0, unresolved: [] };
 
     /**

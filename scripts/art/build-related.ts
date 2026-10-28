@@ -135,20 +135,29 @@ function forgeTokens(artIds: Record<string, string>): Map<string, Part[]> {
   return out;
 }
 
-interface Row {
+export interface Row {
   id: string;
   name: string;
   layout?: string;
-  all_parts?: { id: string; component: string; name: string }[];
+  all_parts?: { id: string; component: string; name: string; type_line?: string }[];
 }
 
-/** One Scryfall card's tokens, then a meld card's partner, then what they meld into. */
-function scryfallParts(row: Row): Part[] {
+/**
+ * The `combo_piece` parts a card makes, as Scryfall prints them beside its tokens: the dungeons it
+ * ventures into and the emblems it gives. Every other `combo_piece` (a checklist, a morph reminder,
+ * a card it merely names) is not something the card makes.
+ */
+const MADE_COMBO_PIECES = new Set(['Dungeon', 'Emblem']);
+
+/** One Scryfall card's tokens, dungeons and emblems, then a meld card's partner, then what they meld into. */
+export function scryfallParts(row: Row): Part[] {
   const own = new Set([row.name, ...row.name.split(' // ')]);
   const seen = new Set<string>();
   const parts = (row.all_parts ?? []).filter((p) => p.id !== row.id && !own.has(p.name) && !seen.has(p.name) && seen.add(p.name));
+  const made = (p: { component: string; type_line?: string }): boolean =>
+    p.component === 'token' || (p.component === 'combo_piece' && MADE_COMBO_PIECES.has((p.type_line ?? '').split(' — ')[0]!));
   return [
-    ...parts.filter((p) => p.component === 'token').map((p) => ({ id: p.id, name: p.name, kind: 'token' as const })),
+    ...parts.filter(made).map((p) => ({ id: p.id, name: p.name, kind: 'token' as const })),
     ...parts.filter((p) => p.component === 'meld_part').map((p) => ({ id: p.id, name: p.name, kind: 'meld' as const })),
     ...parts.filter((p) => p.component === 'meld_result').map((p) => ({ id: p.id, name: p.name, kind: 'meld' as const })),
   ];
