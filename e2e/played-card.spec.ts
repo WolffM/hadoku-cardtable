@@ -34,7 +34,7 @@ import { resolve } from 'node:path';
 
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 
-import { clickOnce, dragHandCard, makeTitled, offered, says, serverLog } from './play/board.ts';
+import { dragHandCard, makeTitled, offered, pressPaymentAuto, says, serverLog } from './play/board.ts';
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -219,6 +219,32 @@ function afterRelease(frames: Frame[]): Frame[] {
 }
 
 /**
+ * Where a played card may be seen while it waits: at the point it was let go, in the gap its row
+ * reserved for it (`gap`, the last one seen), or between the two while it glides there — the same
+ * motion the other screen draws (2026-10-08).
+ */
+function waitingAt(seen: { x: number; y: number }, released: { x: number; y: number }, gap: Box | null): boolean {
+  if (near(seen, released)) return true;
+  if (gap === null) return false;
+  return (
+    near(seen, gap, 6) ||
+    (Math.min(gap.x, released.x) - 6 <= seen.x &&
+      seen.x <= Math.max(gap.x, released.x) + 6 &&
+      Math.min(gap.y, released.y) - 6 <= seen.y &&
+      seen.y <= Math.max(gap.y, released.y) + 6)
+  );
+}
+
+/** Each frame of `flight` with the last reserved gap seen by then. */
+function withGaps(flight: Frame[]): { f: Frame; gap: Box | null }[] {
+  let gap: Box | null = null;
+  return flight.map((f) => {
+    if (f.gap !== null) gap = f.gap;
+    return { f, gap };
+  });
+}
+
+/**
  * The claims every played card shares, read off the whole recording:
  *  - from the release until it is on the battlefield it is seen at the point
  *    it was let go, or travelling from there to its place — never back in the
@@ -233,26 +259,13 @@ function expectWaitedThere(frames: Frame[], released: { x: number; y: number }):
   console.log(`[played-card] stack card held hidden under its gliding stand-in in ${held.length} frame(s)${held.length === 0 ? '' : `, ghost drawn in ${held.filter((f) => f.ghost !== null).length} of them`}`);
   // The reserved gap is consumed the frame the card arrives, while the stand-in still sits where it
   // was: the last gap seen is where it waited.
-  let lastGap: Box | null = null;
-  for (const f of flight) {
-    if (f.gap !== null) lastGap = f.gap;
+  for (const { f, gap } of withGaps(flight)) {
     const landed = f.zone === 'battlefield' && f.owner === 'you' && f.lift === null && !f.landing && f.ghost === null;
     if (landed) continue;
     const seen = seenAt(f);
     expect(seen, `the card is drawn somewhere in every frame until it lands (t=${f.t})\n${story}`).not.toBeNull();
     const travelling = f.ghostLift === 'returning';
-    // It waits at the point it was let go, or — gliding there from it — in the gap the row reserved
-    // (2026-10-08: the same motion the other screen draws); a frame mid-glide is between the two.
-    const gap = lastGap;
-    const inGap = gap !== null && near(seen!, gap, 6);
-    const between =
-      gap !== null &&
-      seen !== null &&
-      Math.min(gap.x, released.x) - 6 <= seen.x &&
-      seen.x <= Math.max(gap.x, released.x) + 6 &&
-      Math.min(gap.y, released.y) - 6 <= seen.y &&
-      seen.y <= Math.max(gap.y, released.y) + 6;
-    if (!travelling) expect(near(seen!, released) || inGap || between, `the card is at the point it was let go or in its reserved gap (t=${f.t}), not ${seen!.x},${seen!.y}\n${story}`).toBe(true);
+    if (!travelling) expect(waitingAt(seen!, released, gap), `the card is at the point it was let go or in its reserved gap (t=${f.t}), not ${seen!.x},${seen!.y}\n${story}`).toBe(true);
     expect(f.zone === 'hand' && f.lift === null, `the card is never back in the hand's own row (t=${f.t})\n${story}`).toBe(false);
     expect(f.tapped && !f.hidden && f.zone !== 'battlefield', `the card is never drawn tapped off the battlefield (t=${f.t})\n${story}`).toBe(false);
     expect(f.ghost !== null && f.at !== null && !f.hidden, `the card is never drawn twice, itself and its stand-in (t=${f.t})\n${story}`).toBe(false);
@@ -304,9 +317,9 @@ for (const fast of [true, false]) {
     const frames = await recording(alice.page);
     await attach(testInfo, `shockland-fast-${fast}`, frames);
     const flight = expectWaitedThere(frames, to);
-    const asked = flight.filter((f) => f.confirm);
+    const asked = withGaps(flight).filter(({ f }) => f.confirm);
     expect(asked.length, 'the question was up for many frames').toBeGreaterThan(10);
-    for (const f of asked) expect(near(seenAt(f)!, to), `while the question is up the land is over the board (t=${f.t})`).toBe(true);
+    for (const { f, gap } of asked) expect(waitingAt(seenAt(f)!, to, gap), `while the question is up the land waits over the board (t=${f.t})`).toBe(true);
     expect(flight.some((f) => f.stack > 0 || f.carried > 0), 'a land never shows on the stack, nor is ever on Forge’s').toBe(false);
     expect(travelledFrom(flight, to), 'it travels from the hover to its place, Fast Mode or not').toBe(true);
   } finally {
@@ -339,8 +352,7 @@ for (const fast of [true, false]) {
       await expect
         .poll(
           async () => {
-            const text = await says(alice.page);
-            if (/Pay Mana Cost/i.test(text)) await clickOnce(alice.page, text, 'ok');
+            await pressPaymentAuto(alice.page);
             return onMyBattlefield(alice.page, creature).count();
           },
           { timeout: 20_000, intervals: [50], message: 'the creature resolved onto the battlefield' },
@@ -402,9 +414,9 @@ test(titled('a creature the opponent can answer stays the card where it was let 
     expect(first, `the stack stood aside once Forge had the spell\n${story}`).toBeGreaterThanOrEqual(0);
     expect(flight.slice(first).every((f) => f.carried === 1), `and kept standing aside the whole time\n${story}`).toBe(true);
     expect(Math.max(...flight.map((f) => f.stack)), `and drew no row\n${story}`).toBe(0);
-    for (const f of flight) {
+    for (const { f, gap } of withGaps(flight)) {
       const seen = seenAt(f);
-      expect(seen !== null && near(seen, to), `Memnite waits over the board the whole time (t=${f.t})\n${story}`).toBe(true);
+      expect(seen !== null && waitingAt(seen, to, gap), `Memnite waits over the board the whole time (t=${f.t})\n${story}`).toBe(true);
     }
   } finally {
     await stack.stop();

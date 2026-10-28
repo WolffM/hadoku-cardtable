@@ -82,8 +82,7 @@ test.describe(titled('a modal spell draws its arrows'), () => {
       await expect
         .poll(
           async () => {
-            const text = await says(alice.page);
-            if (!(await pressPaymentAuto(alice.page)) && /Pay Mana Cost/i.test(text)) await clickOnce(alice.page, text, 'ok');
+            await pressPaymentAuto(alice.page);
             return stackCount(alice.page);
           },
           { timeout: 20_000, message: 'Ponder reached the stack' },
@@ -104,9 +103,8 @@ test.describe(titled('a modal spell draws its arrows'), () => {
       await expect
         .poll(
           async () => {
-            const text = await says(bob.page);
             if (await chooseRow(bob.page, /Counter target noncreature spell/i)) return stackCount(bob.page);
-            if (!(await pressPaymentAuto(bob.page)) && /Pay Mana Cost/i.test(text)) await clickOnce(bob.page, text, 'ok');
+            await pressPaymentAuto(bob.page);
             return stackCount(bob.page);
           },
           { timeout: 30_000, message: 'Izzet Charm reached the stack' },
@@ -169,8 +167,8 @@ test.describe(titled('a modal spell draws its arrows'), () => {
             } else if (/target/i.test(text) && !/Pay Mana Cost/i.test(text)) {
               await bobFace.click().catch(() => undefined);
               answered.push('bob');
-            } else if (!(await pressPaymentAuto(alice.page)) && /Pay Mana Cost/i.test(text)) {
-              await clickOnce(alice.page, text, 'ok');
+            } else {
+              await pressPaymentAuto(alice.page);
             }
             return stackCount(alice.page);
           },

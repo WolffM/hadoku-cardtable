@@ -48,6 +48,7 @@ import {
   livePrompt,
   makeTitled,
   offered,
+  pressPaymentAuto,
   promptMethod,
   resizeWindow,
   says,
@@ -521,7 +522,7 @@ test(titled('the Choose X slider renders (not a checkbox fallback), defaults to 
       await page_answerOnce(bob.page);
       await answerPrompt(alice.page);
       const text = await says(alice.page);
-      if (/Pay Mana Cost/i.test(text)) { await clickOnce(alice.page, text, 'ok'); continue; }
+      if (/Pay Mana Cost/i.test(text)) { await pressPaymentAuto(alice.page); continue; }
       const targetPlayer = alice.page.locator('[data-testid="player"]:not([data-viewer])[data-selectable]');
       // Targeted ONCE, tracked locally rather than re-parsed from Forge's own
       // message text each tick — a flaky text match here (wording drift,

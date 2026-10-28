@@ -43,7 +43,7 @@
 
 import { expect, test, type Page, type Locator } from '@playwright/test';
 
-import { castByDrag, castCard, clickOnce, dragHandCard, handCardNamed, makeTitled, offered, resizeWindow, says, stackCount } from './play/board.ts'
+import { castByDrag, castCard, clickOnce, dragHandCard, handCardNamed, makeTitled, offered, pressPaymentAuto, resizeWindow, says, stackCount } from './play/board.ts'
 import { turnFastModeOff } from './play/prefs.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -166,8 +166,7 @@ test(
       await expect
         .poll(
           async () => {
-            const text = await says(alice.page);
-            if (/Pay Mana Cost/i.test(text)) await clickOnce(alice.page, text, 'ok');
+            await pressPaymentAuto(alice.page);
             if ((await alice.page.locator('section[data-prompt="getChoices"]').count()) > 0) {
               await placedSpell(alice.page, 'Hinder').click({ timeout: 2_000 });
             }

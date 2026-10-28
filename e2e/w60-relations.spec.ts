@@ -24,7 +24,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { clickHandCard, clickOnce, handCardNamed, makeTitled, says } from './play/board.ts';
+import { clickHandCard, clickOnce, handCardNamed, makeTitled, pressPaymentAuto, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -91,7 +91,8 @@ async function castCryOfContritionAndHaunt(alice: Page, bob: Page): Promise<void
     await answerPrompt(alice);
     await answerPrompt(bob);
     const text = await says(alice);
-    if (/Pay Mana Cost/i.test(text)) await clickOnce(alice, text, 'ok');
+    // A paid tick ends here: `text` is still the payment's, so the press below would land on the next OK.
+    if (await pressPaymentAuto(alice)) continue;
     const selectionChoice = alice.locator('[data-testid="live-selection-host"] input[data-testid="prompt-choice"]:not(:checked)');
     if ((await selectionChoice.count()) > 0) await selectionChoice.first().click({ force: true });
     await clickOnce(alice, text, 'ok'); // the selection grid's own "Done", once enabled

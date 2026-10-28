@@ -34,7 +34,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { castCard, clickOnce, makeTitled, offered, resizeWindow, says, stackCount } from './play/board.ts';
+import { castCard, clickOnce, makeTitled, offered, pressPaymentAuto, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -190,8 +190,7 @@ async function pumpToStackCount(page: Page, want: number, label: string): Promis
   await expect
     .poll(
       async () => {
-        const text = await says(page);
-        if (/Pay Mana Cost/i.test(text)) await clickOnce(page, text, 'ok');
+        await pressPaymentAuto(page);
         return stackCount(page);
       },
       { timeout: 20_000, message: label },
@@ -240,9 +239,8 @@ test.describe(titled('the counterspell arc'), () => {
       await expect
         .poll(
           async () => {
-            const text = await says(alice.page);
             if (await answerStackTargetChoice(alice.page, 'Memnite')) return stackCount(alice.page);
-            if (/Pay Mana Cost/i.test(text)) await clickOnce(alice.page, text, 'ok');
+            await pressPaymentAuto(alice.page);
             return stackCount(alice.page);
           },
           { timeout: 20_000, message: 'Counterspell reached the stack' },

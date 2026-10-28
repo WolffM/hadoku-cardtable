@@ -24,7 +24,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { clickOnce, dragHandCard, handCardNamed, makeTitled, offered, resizeWindow, says, serverLog, stackCount, stackTwoSpells } from './play/board.ts';
+import { clickOnce, dragHandCard, handCardNamed, makeTitled, offered, pressPaymentAuto, resizeWindow, says, serverLog, stackCount, stackTwoSpells } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -192,8 +192,7 @@ test(
               await target.locator('[data-testid="prompt-submit"]').click().catch(() => undefined);
               return stackCount(page);
             }
-            const text = await says(page);
-            if (/Pay Mana Cost/i.test(text)) await clickOnce(page, text, 'ok');
+            await pressPaymentAuto(page);
             return stackCount(page);
           },
           { timeout: 60_000, message: 'Cryptic Command reached the stack' },

@@ -402,6 +402,8 @@ test(titled('a selected attacker wears the crossed-swords mark, upright on its t
         const art = li.querySelector(':scope > .board-card__face > .card');
         const card = li.getBoundingClientRect();
         const m = mark?.getBoundingClientRect() ?? null;
+        // The card as drawn: the turned art's own box, which also rises 3px while the pointer is on it.
+        const drawn = art?.getBoundingClientRect() ?? null;
         return {
           attacking: li.getAttribute('data-attacking'),
           mark: mark !== null,
@@ -410,6 +412,7 @@ test(titled('a selected attacker wears the crossed-swords mark, upright on its t
           marksTransform: mark === null ? null : getComputedStyle(mark.parentElement!).transform,
           markTransform: mark === null ? null : getComputedStyle(mark).transform,
           card: { left: Math.round(card.left), top: Math.round(card.top), width: Math.round(card.width), height: Math.round(card.height) },
+          drawn: drawn === null ? null : { left: Math.round(drawn.left), top: Math.round(drawn.top), width: Math.round(drawn.width), height: Math.round(drawn.height) },
           markBox: m === null ? null : { left: Math.round(m.left), top: Math.round(m.top), width: Math.round(m.width), height: Math.round(m.height) },
         };
       });
@@ -435,9 +438,12 @@ test(titled('a selected attacker wears the crossed-swords mark, upright on its t
       expect(r.marksTransform, 'the mark is not turned with it').toBe('none');
       expect(r.markTransform, 'nor turned on its own').toBe('none');
       expect(r.markBox, 'the mark is drawn').not.toBeNull();
-      expect(r.markBox!.left - r.card.left, 'on the turned card’s own left edge').toBeLessThanOrEqual(4);
-      expect(r.markBox!.top - r.card.top, 'on the turned card’s own top edge').toBeLessThanOrEqual(4);
-      expect(r.markBox!.top - r.card.top, 'not hanging above it').toBeGreaterThanOrEqual(0);
+      // Against the card as drawn, not its slot: the click leaves the pointer on the card, whose art and
+      // everything it wears rise 3px together (card.css), so the slot's top is 3px below what is seen.
+      expect(r.drawn, 'the art is drawn').not.toBeNull();
+      expect(r.markBox!.left - r.drawn!.left, 'on the turned card’s own left edge').toBeLessThanOrEqual(4);
+      expect(r.markBox!.top - r.drawn!.top, 'on the turned card’s own top edge').toBeLessThanOrEqual(4);
+      expect(r.markBox!.top - r.drawn!.top, 'not hanging above it').toBeGreaterThanOrEqual(0);
     };
     /**
      * The defender's screen draws no mark while the attacker is still choosing. Forge sends each pick to

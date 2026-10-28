@@ -14,7 +14,7 @@
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { clickOnce, dragHandCard, handCardNamed, makeTitled, offered, resizeWindow, says, stackCount, stackTwoSpells } from './play/board.ts';
+import { dragHandCard, handCardNamed, makeTitled, offered, pressPaymentAuto, resizeWindow, stackCount, stackTwoSpells } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -121,8 +121,7 @@ test(titled('double-clicking a choice picks it and confirms: a two-mode prompt a
             targetDone = true;
             return stackCount(page);
           }
-          const text = await says(page);
-          if (/Pay Mana Cost/i.test(text)) await clickOnce(page, text, 'ok');
+          await pressPaymentAuto(page);
           return stackCount(page);
         },
         { timeout: 60_000, message: 'Cryptic Command reached the stack' },

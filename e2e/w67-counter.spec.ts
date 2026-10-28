@@ -23,7 +23,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickOnce, dragHandCard, handCardNamed, makeTitled, offered, resizeWindow, says, stackCount } from './play/board.ts';
+import { clickOnce, dragHandCard, handCardNamed, makeTitled, offered, pressPaymentAuto, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -156,8 +156,7 @@ test(titled('a countered spell: on the other screen the back at the release turn
     await expect
       .poll(
         async () => {
-          const text = await says(bob.page);
-          if (/Pay Mana Cost/i.test(text)) await clickOnce(bob.page, text, 'ok');
+          await pressPaymentAuto(bob.page);
           return stackCount(bob.page);
         },
         { timeout: 20_000, message: 'Counterspell reached the stack' },

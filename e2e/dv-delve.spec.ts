@@ -10,7 +10,7 @@
  */
 import { expect, test } from '@playwright/test';
 
-import { clickHandCard, clickOnce, handCardNamed, makeTitled, offered, says, stackCount } from './play/board.ts';
+import { clickHandCard, handCardNamed, makeTitled, offered, pressPaymentAuto, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
 
@@ -71,8 +71,7 @@ test(titled('delve asks once: pick six graveyard cards, six exiled, the cost six
             return p === null ? null : `${p.getAttribute('data-method')}:${p.getAttribute('data-call-id')}`;
           });
           if (open !== null && !open.endsWith(`:${first.callId}`) && !later.includes(open)) later.push(open);
-          const text = await says(page);
-          if (/Pay Mana Cost/i.test(text)) await clickOnce(page, text, 'ok');
+          await pressPaymentAuto(page);
           return (await stackCount(page)) === 0 && (await graveyard.getAttribute('data-count')) === '3';
         },
         { timeout: 30_000, intervals: [100], message: `Treasure Cruise resolved — says: "${await says(page)}"` },

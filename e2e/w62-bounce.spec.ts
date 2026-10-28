@@ -14,7 +14,7 @@
 
 import { expect, test } from '@playwright/test';
 
-import { clickHandCard, clickOnce, handCardNamed, makeTitled, offered, says, serverLog, stackCount } from './play/board.ts';
+import { clickHandCard, handCardNamed, makeTitled, offered, pressPaymentAuto, says, serverLog, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -88,8 +88,7 @@ test(titled('a counterspell\'s lone target answers itself; the other seat is nev
         .poll(
           async () => {
             await answerPrompt(alice.page);
-            const text = await says(alice.page);
-            if (/Pay Mana Cost/i.test(text)) await clickOnce(alice.page, text, 'ok');
+            await pressPaymentAuto(alice.page);
             return alice.page.locator('[data-zone="graveyard"][data-owner="them"]').getAttribute('data-count');
           },
           { timeout: 60_000, message: 'Mana Leak resolved: Memnite is in bob’s graveyard' },

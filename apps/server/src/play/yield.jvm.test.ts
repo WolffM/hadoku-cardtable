@@ -51,6 +51,10 @@ async function boltAlice(s: Scenario): Promise<void> {
 	);
 	const bolt = s.zone(BOB, 'Hand').find((c) => c.name === 'Lightning Bolt');
 	if (bolt === undefined) throw new Error('no Lightning Bolt in bob’s hand');
+	// Resolved means in bob's graveyard. A Bolt gone from his hand with "Stack: Empty" in his prompt
+	// is not enough: until Forge sends the next prompt, the one before the cast still says so.
+	const boltsResolved = (): number => s.zone(BOB, 'Graveyard').filter((c) => c.name === 'Lightning Bolt').length;
+	const resolvedBefore = boltsResolved();
 	s.select(BOB, bolt.id);
 	const aliceId = s.match.seats[ALICE]?.playerId as number;
 	let targeted = false;
@@ -71,7 +75,7 @@ async function boltAlice(s: Scenario): Promise<void> {
 				alicePressed = aliceMsg;
 				s.ok(ALICE);
 			}
-			return !s.zone(BOB, 'Hand').some((c) => c.id === bolt.id) && /^Stack: Empty$/m.test(s.prompt(BOB)) && s.buttons(BOB)?.enable1 === true;
+			return boltsResolved() > resolvedBefore && /^Stack: Empty$/m.test(s.prompt(BOB)) && s.buttons(BOB)?.enable1 === true;
 		},
 		"bob's Lightning Bolt at alice to resolve",
 		30_000,

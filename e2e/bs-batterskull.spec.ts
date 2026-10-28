@@ -18,7 +18,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickOnce, dragHandCard, handCardNamed, makeTitled, offered, ownNamed, resizeWindow, says, stackCount } from './play/board.ts';
+import { dragHandCard, handCardNamed, makeTitled, offered, ownNamed, pressPaymentAuto, resizeWindow, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
 
@@ -142,8 +142,7 @@ test(titled('Batterskull: the Germ arrives and Batterskull joins its pile withou
     await expect
       .poll(
         async () => {
-          const text = await says(page);
-          if (/Pay Mana Cost/i.test(text)) await clickOnce(page, text, 'ok');
+          await pressPaymentAuto(page);
           return inHand();
         },
         { timeout: 15_000, message: 'Batterskull was cast' },

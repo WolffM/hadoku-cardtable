@@ -15,8 +15,8 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled, says, serverLog } from './play/board.ts';
-import { answerConfirm } from './play/confirm.ts';
+import { livePrompt, makeTitled, serverLog } from './play/board.ts';
+import { answerConfirm, confirmYes } from './play/confirm.ts';
 import { openFriend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 
@@ -69,9 +69,14 @@ async function againstTheAi(page: Page, stack: PlayStack, name: string): Promise
       async () => {
         const turn = (await page.getByTestId('live-turn-n').textContent()) ?? '';
         if (/^\d+$/.test(turn)) return turn;
+        // Pressed by what is on screen, not by the status line: a random pool's opening hand can
+        // bring its own ask (Devourer of Destiny's "choose cards to activate from opening hand"),
+        // which is answered with nothing chosen.
         const choose = page.getByTestId('live-play-or-draw-play');
+        const submit = livePrompt(page).getByTestId('prompt-submit');
         if (await choose.isVisible()) await choose.click({ timeout: 2_000 });
-        else if (/keep your hand/i.test(await says(page))) await answerConfirm(page, 'yes');
+        else if (await confirmYes(page).isVisible()) await answerConfirm(page, 'yes');
+        else if (await submit.isVisible()) await submit.click({ timeout: 2_000 });
         return turn;
       },
       { message: 'the game reaches turn 1', timeout: 90_000, intervals: [500] },
