@@ -75,7 +75,7 @@ import { latestReads } from './latest.ts';
 import { freshRoomMode, MODE_CARDS } from '../screens/constructed-mode/ModeRow.tsx';
 import { roomCardView } from '../front/roomCard.ts';
 import { ConstructedIcon, DecksFacingScene, DieIcon, DraftIcon, LockIcon, PersonIcon, PodScene, StaircaseIcon, SwordsIcon, TrophyIcon } from '../front/icons.tsx';
-import { loadRoomFilters, matchesRoomFilters, orderByMatch, saveRoomFilters, type RoomFilters } from '../front/roomFilters.ts';
+import { loadRoomFilters, loadTestingFolded, matchesRoomFilters, orderByMatch, saveRoomFilters, saveTestingFolded, type RoomFilters } from '../front/roomFilters.ts';
 import { mountTips } from '../play/tip/index.ts';
 import { TopLayer } from '../topLayer.tsx';
 import './rooms.css';
@@ -107,6 +107,13 @@ export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomL
 
   /** The viewer's own filters (ruling 6), remembered per-browser; read once, written on every change. */
   const [filters, setFilters] = useState<RoomFilters>(() => loadRoomFilters());
+  /** The Testing section folded away, remembered per-browser the same way; open until someone folds it. */
+  const [testingFolded, setTestingFolded] = useState<boolean>(() => loadTestingFolded());
+  const toggleTesting = (): void => {
+    playRole('ui.select');
+    setTestingFolded(!testingFolded);
+    saveTestingFolded(!testingFolded);
+  };
   const setAndSaveFilters = useCallback((next: RoomFilters): void => {
     setFilters(next);
     saveRoomFilters(next);
@@ -173,6 +180,8 @@ export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomL
   const matches = (room: RoomView): boolean => matchesRoomFilters(room, roomCardView(room, isMine(room)), filters);
   const mineFirst = (rooms: RoomView[]): RoomView[] => orderByMatch(rooms, isMine);
   const orderedNormal = [...mineFirst(normal.filter(matches)), ...mineFirst(normal.filter((r) => !matches(r)))];
+  // The same filters, the same way, in the testing section: matching rooms first, the rest dimmed.
+  const orderedTesting = orderByMatch(testing, matches);
 
   return (
     <section className="rooms ct-panel" data-testid="rooms" aria-labelledby="rooms-title" ref={sectionRef}>
@@ -229,16 +238,32 @@ export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomL
        * room from a non-admin's list entirely (`http/rooms.ts`), so this
        * section is present exactly when the list it was handed carries one —
        * never a client-side tier check. Same row component as the normal
-       * list, a separate `<ul>` under its own heading.
+       * list, a separate `<ul>` under its own heading, which folds it away.
        */}
       {state.kind === 'ready' && testing.length > 0 && (
         <div className="rooms__testing" data-testid="rooms-testing">
-          <h3 className="rooms__title ct-panel__title">Testing</h3>
-          <ul className="rooms__list" data-testid="room-list-testing">
-            {testing.map((room) => (
-              <RoomRow key={room.id} room={room} client={client} matchesFilters onGone={() => void refresh()} />
-            ))}
-          </ul>
+          <h3 className="rooms__title ct-panel__title">
+            <button
+              type="button"
+              className="rooms__fold"
+              aria-expanded={!testingFolded}
+              aria-controls="room-list-testing"
+              data-testid="rooms-testing-fold"
+              onClick={toggleTesting}
+            >
+              <svg className="rooms__fold-chevron" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 5l7 7-7 7" />
+              </svg>
+              Testing
+            </button>
+          </h3>
+          {!testingFolded && (
+            <ul className="rooms__list" id="room-list-testing" data-testid="room-list-testing">
+              {orderedTesting.map((room) => (
+                <RoomRow key={room.id} room={room} client={client} matchesFilters={matches(room)} onGone={() => void refresh()} />
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
@@ -328,7 +353,7 @@ const isMine = (room: RoomView): boolean => room.members.some((m) => m.id === ro
 /** Every room this list carries that is NOT a seeded testing room — the list the front page's normal section draws. */
 const normalRooms = (rooms: RoomView[]): RoomView[] => rooms.filter((r) => !r.testing);
 
-/** A seeded testing room, its own section, in the list's own order. Empty for every non-admin: the server never sends one. */
+/** A seeded testing room, its own section (ordered by the filters, as the normal list is). Empty for every non-admin: the server never sends one. */
 const testingRooms = (rooms: RoomView[]): RoomView[] => rooms.filter((r) => r.testing);
 
 function RoomRow({

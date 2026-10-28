@@ -941,6 +941,50 @@ describe('entering a room', () => {
     await waitFor(() => expect(within(rowFor('r-test2')).getByTestId('room-reset')).toBeDefined());
   });
 
+  it('sorts and dims the testing rooms by the filters, as it does the normal ones', async () => {
+    const CONSTRUCTED = room({ id: 'r-test-1v1', name: 'Testing: Constructed 1v1', testing: true, members: [] });
+    const DRAFT = room({ id: 'r-test-draft', name: 'Testing: Cube draft', gameType: 'draft', testing: true, members: [] });
+    mount(roomsClient(async () => json(200, { rooms: [OPEN, CONSTRUCTED, DRAFT] }), '/cardtable/api/'));
+    const testingIds = (): (string | null)[] =>
+      within(screen.getByTestId('room-list-testing'))
+        .getAllByTestId('room-row')
+        .map((r) => r.getAttribute('data-room-id'));
+    await waitFor(() => expect(testingIds()).toEqual(['r-test-1v1', 'r-test-draft']));
+
+    fireEvent.click(screen.getByTestId('room-filter-type-draft'));
+    expect(testingIds(), 'the matching testing room sorts first').toEqual(['r-test-draft', 'r-test-1v1']);
+    expect(rowFor('r-test-1v1').getAttribute('data-match')).toBe('false');
+    expect(rowFor('r-test-draft').getAttribute('data-match')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('room-filter-type-draft'));
+    globalThis.localStorage.removeItem('cardtable.rooms.filters');
+  });
+
+  it('folds the testing section away, and remembers it', async () => {
+    globalThis.localStorage.removeItem('cardtable.rooms.testingFolded');
+    const TESTING = room({ id: 'r-test', name: 'Testing: Constructed 1v1', testing: true, members: [] });
+    const client = roomsClient(async () => json(200, { rooms: [OPEN, TESTING] }), '/cardtable/api/');
+    mount(client);
+    const fold = await screen.findByTestId('rooms-testing-fold');
+    expect(fold.getAttribute('aria-expanded'), 'open until folded').toBe('true');
+    expect(screen.getByTestId('room-list-testing')).toBeDefined();
+
+    fireEvent.click(fold);
+    expect(fold.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByTestId('room-list-testing')).toBeNull();
+    expect(within(screen.getByTestId('room-list')).getAllByTestId('room-row'), 'the normal list is untouched').toHaveLength(1);
+
+    cleanup();
+    mount(client);
+    const again = await screen.findByTestId('rooms-testing-fold');
+    expect(again.getAttribute('aria-expanded'), 'still folded on the next visit').toBe('false');
+    expect(screen.queryByTestId('room-list-testing')).toBeNull();
+
+    fireEvent.click(again);
+    expect(screen.getByTestId('room-list-testing')).toBeDefined();
+    expect(globalThis.localStorage.getItem('cardtable.rooms.testingFolded')).toBeNull();
+  });
+
   it('says so when the server is rate-limiting password attempts', async () => {
     const fetchImpl: Fetch = async (_url, init) => (init?.method === 'POST' ? json(429, {}) : json(200, { rooms: [LOCKED] }));
     mount(roomsClient(fetchImpl, '/cardtable/api/'));

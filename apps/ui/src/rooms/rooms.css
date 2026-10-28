@@ -30,6 +30,51 @@
   font-size: 19px;
 }
 
+/* The Testing heading is its own fold: the whole title is the button, a
+   chevron before it turned down while the section is open. Reads as the
+   heading it replaces, so no button chrome. */
+.rooms__fold {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.rooms__fold:hover .rooms__fold-chevron {
+  color: var(--ink);
+}
+
+.rooms__fold:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.rooms__fold-chevron {
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--ink-dim);
+}
+
+.rooms__fold[aria-expanded='true'] .rooms__fold-chevron {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rooms__fold-chevron {
+    transition: transform 0.12s ease, color 0.12s ease;
+  }
+}
+
 .rooms__status {
   margin: 0;
   color: var(--ink-dim);

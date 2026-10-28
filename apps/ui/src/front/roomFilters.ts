@@ -80,3 +80,23 @@ export function saveRoomFilters(filters: RoomFilters): void {
     // Unremembered is the whole fallback; nothing else to do.
   }
 }
+
+const TESTING_FOLDED_KEY = 'cardtable.rooms.testingFolded';
+
+/** Whether the viewer folded the admin-only Testing section away — remembered the same way, per browser, and open by default. */
+export function loadTestingFolded(): boolean {
+  try {
+    return globalThis.localStorage?.getItem(TESTING_FOLDED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveTestingFolded(folded: boolean): void {
+  try {
+    if (folded) globalThis.localStorage?.setItem(TESTING_FOLDED_KEY, '1');
+    else globalThis.localStorage?.removeItem(TESTING_FOLDED_KEY);
+  } catch {
+    // Unremembered is the whole fallback; nothing else to do.
+  }
+}
