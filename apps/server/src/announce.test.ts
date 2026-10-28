@@ -72,12 +72,21 @@ describe('release notes', () => {
 		}
 	});
 
-	it('keeps a body under the cap in one embed', async () => {
-		const notes = (await latestRelease(RELEASES))!;
+	it('keeps a body under the cap in one embed', () => {
+		const notes = parseNotes('v1.0.0', '# v1.0.0 — short\n\nOne line.\n\n## Fixed\n\n- A fix.');
 		const embeds = releaseEmbeds(notes, 'https://hadoku.me/cardtable/');
 		expect(embeds).toHaveLength(1);
 		// The title already names the version and Discord dates the message: no footer, no timestamp.
 		expect(embeds[0]).toEqual({ title: notes.title, description: forDiscord(notes.body), url: 'https://hadoku.me/cardtable/', color: 0x2f855a });
+	});
+
+	it('fits every release in one Discord message — 6000 characters across its embeds', async () => {
+		for (const name of (await readdir(RELEASES)).filter((n) => /^v\d+\.\d+\.\d+\.md$/.test(n))) {
+			const notes = parseNotes(name.slice(0, -3), await readFile(resolve(RELEASES, name), 'utf8'));
+			const embeds = releaseEmbeds(notes, 'https://hadoku.me/cardtable/');
+			const length = embeds.reduce((sum, e) => sum + (e.title?.length ?? 0) + e.description.length, 0);
+			expect(length, name).toBeLessThanOrEqual(6000);
+		}
 	});
 
 	it('joins a wrapped sentence back into one line and drops the blank lines beside a heading, keeping list items and fences apart', () => {
