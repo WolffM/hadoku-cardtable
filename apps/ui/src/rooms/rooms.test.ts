@@ -25,6 +25,7 @@ import type { SoundEvent } from '../sound/mix.ts';
 import {
   clientModeLabel,
   GAME_TYPES,
+  onRoomList,
   parseRoomView,
   roomsClient,
   streamPath,
@@ -298,6 +299,27 @@ describe('the list', () => {
 });
 
 /* ── readiness and the draft's start (w23) ───────────────────────────── */
+
+describe('onRoomList', () => {
+  it('hands every list the page reads to its listeners, and the newest at once to a late one — without a read of its own', async () => {
+    const { client, calls } = server([OPEN, LOCKED]);
+    const seen: string[][] = [];
+    const stop = onRoomList((rooms) => seen.push(rooms.map((r) => r.id)));
+    seen.length = 0; // an earlier test's list is already the page's newest, and arrives at once
+    await client.list();
+    expect(seen).toEqual([['r-open', 'r-locked']]);
+
+    const late: string[][] = [];
+    const stopLate = onRoomList((rooms) => late.push(rooms.map((r) => r.id)));
+    expect(late).toEqual([['r-open', 'r-locked']]);
+    expect(calls).toHaveLength(1);
+
+    stop();
+    stopLate();
+    await client.list();
+    expect(seen).toHaveLength(1);
+  });
+});
 
 describe('the room’s readiness', () => {
   it('reads a member’s ready flag only from a boolean true, so an older server is not ready', () => {

@@ -327,6 +327,23 @@ export interface RoomIdentityClient {
   setAvatar(roomId: string, avatarId: string | null): Promise<RoomOutcome>;
 }
 
+type RoomListListener = (rooms: readonly RoomView[]) => void;
+
+const roomListListeners = new Set<RoomListListener>();
+let lastRoomList: readonly RoomView[] | null = null;
+
+/**
+ * Every room list this page reads, as it lands — for a reader that wants the list without reading
+ * it again. The front page's wildcard card follows this rather than the feed: a second follower
+ * made a second read on every ping, refresh and fallback (`e2e/aa-polling.spec.ts`'s budget). Called
+ * at once with the newest list when there is one. Returns the stop.
+ */
+export function onRoomList(listener: RoomListListener): () => void {
+  roomListListeners.add(listener);
+  if (lastRoomList !== null) listener(lastRoomList);
+  return () => roomListListeners.delete(listener);
+}
+
 export function roomsClient(
   fetchImpl: Fetch = (i, init) => fetch(i, init),
   base: string = apiBase(),
@@ -396,10 +413,10 @@ export function roomsClient(
       if (!isRecord(body) || !Array.isArray(body.rooms)) {
         throw new Error('Could not load the rooms: the server sent something that is not a room list.');
       }
-      return {
-        rooms: body.rooms.map(parseRoomView).filter((r): r is RoomView => r !== null),
-        featured: parseFeatured(body.featured),
-      };
+      const rooms = body.rooms.map(parseRoomView).filter((r): r is RoomView => r !== null);
+      lastRoomList = rooms;
+      for (const listener of roomListListeners) listener(rooms);
+      return { rooms, featured: parseFeatured(body.featured) };
     },
 
     get(roomId) {

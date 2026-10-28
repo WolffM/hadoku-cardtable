@@ -3,9 +3,9 @@
  * moving on by itself every `ROTATE_MS` unless the viewer is hovering it, using it, or away
  * (`./wildcardItems.ts`'s `mayRotate`). Its items:
  *
- *   - **Open seats now** — the room closest to starting that the viewer could sit down in, read
- *     from `GET /api/rooms` on the room list's own feed (`../rooms/feed.ts`), so it moves when the
- *     list does and adds no poller of its own.
+ *   - **Open seats now** — the room closest to starting that the viewer could sit down in, from
+ *     the list the room list below already reads (`../rooms/api.ts`'s `onRoomList`): no read of
+ *     its own, so the lobby's read budget (`e2e/aa-polling.spec.ts`) is unchanged.
  *   - **Last game** — the newest replay, `GET /api/replays?limit=1` (lane C's contract 2).
  *   - **Cube spotlight** — a bundled or imported cube and three of its cards' art, through the art
  *     manifest (`../draft/cardImage.ts`), never a stored URL.
@@ -22,8 +22,7 @@ import { apiUrl, bodyOf, getJson, isRecord } from '../http.ts';
 import { DISCORD_INVITE_URL } from '../chrome/HeaderLinks.tsx';
 import { coverCropStyle, ILLUSTRATION_BOX } from '../components/faceCrop.ts';
 import { cardImageUrl } from '../draft/cardImage.ts';
-import { poolsClient, roomsClient } from '../rooms/api.ts';
-import { roomFeed } from '../rooms/feed.ts';
+import { onRoomList, poolsClient } from '../rooms/api.ts';
 import { routeHash } from '../screens/route.ts';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons.tsx';
 import { mayRotate, openSeats, ROTATE_MS, sampleArt, spotlightCube } from './wildcardItems.ts';
@@ -91,40 +90,27 @@ function useLastGame(): WildcardItem | null {
   return item;
 }
 
-/** The room asking for players, re-read whenever the room list's feed says the list changed. */
+/** The room asking for players, from every room list the page reads (`../rooms/api.ts`'s `onRoomList`) — never a read of its own. */
 function useOpenSeats(): WildcardItem | null {
   const [item, setItem] = useState<WildcardItem | null>(null);
-  useEffect(() => {
-    const client = roomsClient();
-    let live = true;
-    const read = (): void => {
-      client
-        .list()
-        .then(({ rooms }) => {
-          if (!live) return;
-          const open = openSeats(rooms);
-          setItem(
-            open === null
-              ? null
-              : {
-                  key: 'open-seats',
-                  kind: 'Open seats now',
-                  title: open.title,
-                  body: open.missing === 1 ? 'One more and it starts.' : 'Grab a seat.',
-                  link: { href: routeHash({ kind: 'room', roomId: open.roomId }), label: 'Join', external: false },
-                },
-          );
-        })
-        .catch(() => {
-          // The room list draws its own failure; this item just waits for the next change.
-        });
-    };
-    const stop = roomFeed().follow('list', read);
-    return () => {
-      live = false;
-      stop();
-    };
-  }, []);
+  useEffect(
+    () =>
+      onRoomList((rooms) => {
+        const open = openSeats(rooms);
+        setItem(
+          open === null
+            ? null
+            : {
+                key: 'open-seats',
+                kind: 'Open seats now',
+                title: open.title,
+                body: open.missing === 1 ? 'One more and it starts.' : 'Grab a seat.',
+                link: { href: routeHash({ kind: 'room', roomId: open.roomId }), label: 'Join', external: false },
+              },
+        );
+      }),
+    [],
+  );
   return item;
 }
 
