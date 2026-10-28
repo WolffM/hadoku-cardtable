@@ -18,6 +18,7 @@
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
     "build": "pnpm -r --if-present run build",
+    "dev": "pnpm run build && node scripts/dev.ts",
     "e2e": "pnpm --filter @hadoku/ui build && pnpm --filter @hadoku/server build && pnpm --filter @hadoku/e2e test"
   },
   "devDependencies": {

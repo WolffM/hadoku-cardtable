@@ -59,10 +59,41 @@ The shared fleet packages it imports as `@wolffm/*` (themes, prefs, the
 hadoku-watchparty room layer and others) install from the public npm registry
 as `@hadoku/*`, through aliases such as
 `"@wolffm/themes": "npm:@hadoku/themes@5.12.15"`. The source of those packages
-lives in other repos, some private, but nothing here needs it. Running it the
-way hadoku.me does needs infrastructure that is not part of this repo. The
-Forge side builds from the public submodule with JDK 21 and Maven — see
-[`docs/FORGE_JAR.md`](docs/FORGE_JAR.md).
+lives in other repos, some private, but nothing here needs it.
+
+## Running it locally
+
+```sh
+git clone --recurse-submodules https://github.com/WolffM/hadoku-cardtable.git
+cd hadoku-cardtable
+pnpm install --frozen-lockfile
+pnpm dev
+```
+
+Then open <http://127.0.0.1:9300/cardtable/>. No account, service key or
+vault is involved: `pnpm dev` builds the app and runs the real server behind
+the same stand-in for hadoku.me's edge that the e2e suite uses, with every
+visitor signed in as one local admin (so the seeded "Testing:" rooms show).
+
+Matches need Forge. With a JDK 21, Maven and git on `PATH`, `pnpm dev` builds
+the submodule's pinned jar the first time (a few minutes) and caches it. With no
+JDK it starts anyway: rooms, drafts and deck building work, and only starting a
+match does not. The first start also downloads Scryfall's card data, about
+200 MB. Card art comes from Scryfall's image CDN.
+
+| env var | default | what for |
+| --- | --- | --- |
+| `CARDTABLE_DEV_PORT` | `9300` | the port to open; the server takes the next one |
+| `CARDTABLE_DEV_TIER` | `admin` | `friend` to see the app as a player does |
+| `CARDTABLE_FORGE_JAR`, `CARDTABLE_FORGE_RES` | built | a Forge jar and `res/` you already have |
+| `CARDTABLE_DEV_NO_FORGE` | unset | `1` to skip Forge entirely |
+| `CARDTABLE_JAVA` | `JAVA_HOME`, then `PATH` | the JDK 21 `java` to run Forge with |
+
+Everything it writes goes under `.dev/` (logs in `.dev/logs/server.log`).
+Room chat, sign-in and match stats are other hadoku.me services and stay empty
+locally. Every browser window is the same player, so a two-person draft needs
+the e2e suite (`pnpm e2e`), which signs each window in separately.
+`docs/FORGE_JAR.md` covers the Forge build in depth.
 
 ## Licence
 
