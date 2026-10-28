@@ -101,25 +101,21 @@
 .room-card[data-family='legacy'] { --room-tint: var(--c-red); }
 .room-card[data-family='draft'] { --room-tint: var(--c-green); }
 
-/* The room's own symbol, large and faint in the corner. */
+/* The room's own scene (`../front/icons.tsx`), large and faint in the corner. */
 .room-card__mark {
   position: absolute;
-  right: -14px;
-  bottom: -18px;
+  right: -6px;
+  bottom: -10px;
   color: var(--ink);
-  opacity: 0.08;
+  opacity: 0.1;
   pointer-events: none;
   transition: transform 0.4s ease, opacity 0.2s ease;
-}
-
-.room-card__mark svg {
-  stroke-width: 1.3;
 }
 
 .room-card:hover .room-card__mark,
 .room-card:focus-within .room-card__mark {
   transform: scale(1.06) rotate(-3deg);
-  opacity: 0.12;
+  opacity: 0.14;
 }
 
 .room-card__body {

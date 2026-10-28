@@ -74,7 +74,7 @@ import { GameTypeRow } from './GameTypeRow.tsx';
 import { latestReads } from './latest.ts';
 import { freshRoomMode, MODE_CARDS } from '../screens/constructed-mode/ModeRow.tsx';
 import { roomCardView } from '../front/roomCard.ts';
-import { ConstructedIcon, DieIcon, DraftIcon, LockIcon, PersonIcon, StaircaseIcon, SwordsIcon, TrophyIcon } from '../front/icons.tsx';
+import { ConstructedIcon, DecksFacingScene, DieIcon, DraftIcon, LockIcon, PersonIcon, PodScene, StaircaseIcon, SwordsIcon, TrophyIcon } from '../front/icons.tsx';
 import { loadRoomFilters, matchesRoomFilters, orderByMatch, saveRoomFilters, type RoomFilters } from '../front/roomFilters.ts';
 import { mountTips } from '../play/tip/index.ts';
 import { TopLayer } from '../topLayer.tsx';
@@ -460,9 +460,9 @@ function RoomRow({
       data-match={matchesFilters ? undefined : 'false'}
       data-family={view.family}
     >
-      {/* The room's own symbol, large and faint behind the info, over its format family's gradient (`rooms.css`). */}
+      {/* The room's own scene, large and faint behind the info, over its format family's gradient (`rooms.css`). */}
       <span className="room-card__mark" aria-hidden="true">
-        {room.gameType === 'draft' ? <DraftIcon size={150} /> : <SwordsIcon size={150} />}
+        {room.gameType === 'draft' ? <PodScene /> : <DecksFacingScene />}
       </span>
       <div className="room-card__body">
         {/* Row 1: type, name, trophy, seats — one line, never wraps (ruling 1). The lock (ruling 8,
