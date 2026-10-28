@@ -254,7 +254,7 @@ const hostOf = (rig: Rig, name: string) => rig.p.hosts().hosts.find((h) => h.nam
 /* ── Rules ── */
 
 describe('eligibility', () => {
-	const ok: ClawState = { node: 'claw-9', fleet: fleetNode('claw-9'), agent: { connected: true, silentMs: 0, error: null }, quarantine: null, room: { free: 4, why: null } };
+	const ok: ClawState = { node: 'claw-9', fleet: fleetNode('claw-9'), agent: { connected: true, silentMs: 0, error: null }, quarantine: null, room: { free: 4, why: null }, aiCutoffs: 0 };
 	const failed = (s: ClawState): string[] => bars(s, T0, 6000).filter((b) => !b.ok).map((b) => `${b.bar}: ${b.why}`);
 
 	it('every bar holds: eligible', () => {
@@ -269,6 +269,8 @@ describe('eligibility', () => {
 		expect(failed({ ...ok, agent: { connected: true, silentMs: 7000, error: null } })).toEqual(['agent: no heartbeat for 7 s']);
 		expect(failed({ ...ok, quarantine: 'failed: jvm exited' })).toEqual(['quarantine: failed: jvm exited']);
 		expect(failed({ ...ok, room: { free: 0, why: null } })).toEqual(['room: full']);
+		expect(failed({ ...ok, aiCutoffs: 1 })).toEqual(['ai: 1 AI decision cut short in the last 5 min']);
+		expect(failed({ ...ok, aiCutoffs: 3 })).toEqual(['ai: 3 AI decisions cut short in the last 5 min']);
 	});
 
 	it('a hosting end or reboot inside 30 min fails the notice bar; one further out does not', () => {
@@ -461,6 +463,84 @@ describe('placement', () => {
 		for (const id of ['m-1', 'm-2', 'm-3']) start(r, id);
 		expect(['m-1', 'm-2', 'm-3'].map((id) => jvmOf(r, id).claw)).toEqual(['claw-9', 'claw-9', 'claw-9']);
 		expect(hostOf(r, 'claw-8').bars.find((b) => b.bar === 'notice')?.ok).toBe(false);
+	});
+});
+
+describe('AI degraded', () => {
+	const aiPosts = (r: Rig): string[] => r.posted.filter((t) => t.includes('AI degraded') || t.includes('AI clean'));
+
+	it('one cutoff fails the claw\'s ai bar at once with one ⚠️, moves nothing, and a clean window posts the ✅ and opens it again', async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
+		start(r, 'm-1');
+		start(r, 'm-2');
+		expect(['m-1', 'm-2'].map((id) => jvmOf(r, id).claw)).toEqual(['claw-8', 'claw-9']);
+		const { jvm } = jvmOf(r, 'm-1');
+		expect(hostOf(r, 'claw-8').bars.find((b) => b.bar === 'ai')).toEqual({ bar: 'ai', ok: true, why: '' });
+
+		jvm.say({ t: 'cutoff', where: 'AiController.chooseSpellAbilityToPlayFromList', match: 'm-1' });
+		expect(aiPosts(r)).toEqual([
+			'⚠️ AI degraded: claw-8 — Forge cut an AI decision short (m-1, in AiController.chooseSpellAbilityToPlayFromList), so its AI is playing its best guess, not its best move. It takes no new match until 5 min pass without one.',
+		]);
+		expect(hostOf(r, 'claw-8').bars.filter((b) => !b.ok)).toEqual([{ bar: 'ai', ok: false, why: '1 AI decision cut short in the last 5 min' }]);
+		// Equal room would send the next start to claw-8, the faster core; it goes to claw-9.
+		start(r, 'm-3');
+		expect(jvmOf(r, 'm-3').claw).toBe('claw-9');
+		// One incident: a second cutoff, this one the JVM's own, posts nothing more.
+		r.clock.t += 60_000;
+		jvm.say({ t: 'cutoff', match: jvm.hostId });
+		expect(aiPosts(r)).toHaveLength(1);
+		expect(r.logs.filter((l) => l.evt === 'host-ai-cutoff').map((l) => [l.host, l.matchId, l.recent])).toEqual([
+			['claw-8', 'm-1', 1],
+			['claw-8', null, 2],
+		]);
+		// Nothing moved, and the match never saw the line.
+		expect(jvmOf(r, 'm-1').claw).toBe('claw-8');
+		expect(r.order).toEqual([]);
+
+		// The window runs from the LAST cutoff.
+		r.clock.t += 5 * 60_000 - 1;
+		r.p.tick();
+		expect(aiPosts(r)).toHaveLength(1);
+		r.clock.t += 1;
+		r.p.tick();
+		expect(aiPosts(r).at(-1)).toBe('✅ AI clean: claw-8 — no AI decision cut short for 5 min (open 360 s)');
+		expect(hostOf(r, 'claw-8').eligible).toBe(true);
+		start(r, 'm-4');
+		expect(jvmOf(r, 'm-4').claw).toBe('claw-8');
+
+		// It flaps back inside the repeat window: the bar fails again, and nothing more is posted.
+		jvm.say({ t: 'cutoff', match: 'm-1' });
+		expect(hostOf(r, 'claw-8').eligible).toBe(false);
+		expect(aiPosts(r)).toHaveLength(2);
+	});
+
+	it('hokon as the backstop takes nothing new while its AI is cut short, and says why', async () => {
+		const r = await rig([fleetNode('claw-9')]);
+		r.nodes[0] = fleetNode('claw-9', { reachable: false });
+		await r.p.poll();
+		start(r, 'm-1');
+		const { claw, jvm } = jvmOf(r, 'm-1');
+		expect(claw).toBe('hokon');
+		jvm.say({ t: 'cutoff', match: 'm-1' });
+		expect(aiPosts(r)).toEqual([
+			'⚠️ AI degraded: hokon — Forge cut an AI decision short (m-1), so its AI is playing its best guess, not its best move. It takes no new match until 5 min pass without one.',
+		]);
+		expect(r.p.room()).toBe('full');
+		expect(() => start(r, 'm-2')).toThrow(/hokon: promoted, ai \(1 AI decision cut short in the last 5 min\)/);
+		r.clock.t += 5 * 60_000;
+		r.p.tick();
+		expect(aiPosts(r).at(-1)).toMatch(/^✅ AI clean: hokon/);
+		start(r, 'm-2');
+		expect(jvmOf(r, 'm-2').claw).toBe('hokon');
+	});
+
+	it('the last eligible claw degrading promotes hokon at once, without waiting for a poll', async () => {
+		const r = await rig([fleetNode('claw-9')]);
+		start(r, 'm-1');
+		jvmOf(r, 'm-1').jvm.say({ t: 'cutoff', match: 'm-1' });
+		expect(r.p.hosts().backstop).toMatchObject({ promoted: true, why: 'no claw is eligible' });
+		start(r, 'm-2');
+		expect(jvmOf(r, 'm-2').claw).toBe('hokon');
 	});
 });
 

@@ -29,6 +29,7 @@ import {
 	readJvmRecord,
 	streamFile,
 	sweepRunDirs,
+	type AiCutoff,
 	type BridgeLine,
 	type HostEvents,
 	type JvmHostConfig,
@@ -225,6 +226,30 @@ describe('placement: matches share a JVM, up to perJvm each', () => {
 		await waitUntil(() => events.exits.length > 0, 'the refusal');
 		expect(events.lines).toEqual([{ t: 'fatal', message: 'Forge refused the match: java.lang.IllegalArgumentException: no deck' }]);
 		expect(events.exits).toEqual(['Forge failed: Forge refused the match: java.lang.IllegalArgumentException: no deck']);
+	});
+
+	it("an AI cutoff is the pool's: handed to onCutoff with its match (or none), logged, never forwarded or kept in a stream", async () => {
+		const poolLog: Record<string, unknown>[] = [];
+		const cutoffs: AiCutoff[] = [];
+		const pool = jvmHostFactory(config, { warm: false, log: (e) => poolLog.push(e), onCutoff: (c) => cutoffs.push(c) });
+		pools.push(pool);
+		const [a, b] = [recorder(), recorder()];
+		const hostA = track(pool('m-00000000000c', SPEC, a));
+		track(pool('m-00000000000d', SPEC, b));
+		await waitUntil(() => ready(a) && ready(b), 'both ready');
+		const jvm = pool.jvms()[0]!.hostId;
+
+		hostA.send({ t: 'act', seat: 0, frame: { kind: 'act', method: 'cutoff' } as never });
+		await waitUntil(() => cutoffs.length === 2, 'both cutoffs');
+		expect(cutoffs).toEqual([
+			{ hostId: jvm, matchId: 'm-00000000000c', where: 'AiController.chooseSpellAbilityToPlayFromList' },
+			{ hostId: jvm, matchId: null, where: null },
+		]);
+		expect(a.logs.filter((l) => l.evt === 'ai-cutoff')).toEqual([{ evt: 'ai-cutoff', id: jvm, matchId: 'm-00000000000c', where: 'AiController.chooseSpellAbilityToPlayFromList' }]);
+		expect(poolLog.filter((l) => l.evt === 'ai-cutoff')).toEqual([{ evt: 'ai-cutoff', id: jvm, matchId: null, where: null }]);
+		expect([...a.lines, ...b.lines].map((l) => l.t)).toEqual(['ready', 'ready']);
+		expect(readFileSync(streamFile(join(config.workDir, jvm), 'm-00000000000c'), 'utf8')).not.toContain('"t":"cutoff"');
+		expect(poolLog.filter((l) => l.evt === 'bridge-wrong-match' || l.evt === 'bridge-noise' || l.evt === 'bridge-host-line')).toEqual([]);
 	});
 
 	it('a match whose stop is never answered is let go after matchStopMs; its JVM keeps its other matches', async () => {

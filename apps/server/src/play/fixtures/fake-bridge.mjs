@@ -9,6 +9,7 @@
 // FAKE_BRIDGE_MODE=refuse refuses every `start`, as the bridge refuses a config it cannot host.
 // FAKE_BRIDGE_ALIVE_MS=<ms> says `alive` that often, as the real bridge does every 2 s.
 // FAKE_BRIDGE_DEAF_STOP=1 never answers a match's `stop`.
+// An `act` whose method is `cutoff` is answered with two `cutoff` lines: one for its match, one for the host.
 import { createInterface } from 'node:readline';
 
 if (process.env.FAKE_BRIDGE_MODE === 'die') process.exit(3);
@@ -47,6 +48,12 @@ lines.on('line', (text) => {
 		if (process.env.FAKE_BRIDGE_DEAF_STOP === '1') return;
 		matches.delete(cmd.match);
 		out(cmd.match, { t: 'stopped' });
+		return;
+	}
+	// Forge cutting an AI decision short: once for this match's game, once on a thread no match owns.
+	if (cmd.t === 'act' && cmd.frame?.method === 'cutoff') {
+		out(cmd.match, { t: 'cutoff', where: 'AiController.chooseSpellAbilityToPlayFromList' });
+		out(hostId, { t: 'cutoff' });
 		return;
 	}
 	// Echo, so a test can see a command reached the right match.
