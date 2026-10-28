@@ -4685,25 +4685,46 @@ public final class PlayBridge {
         /**
          * Whether a plain reveal ({@code min == max == -1}, {@code AbstractGuiGame.reveal}'s own
          * shape) will leave every one of its library cards at that library's visible top once the
-         * resolving ability finishes — read directly off Forge's LIVE state (which library, which
-         * card's current zone, {@link #libraryEndIsTop}'s own read of the resolving ability's
-         * destination parameter), never off anything synced to the wire yet. AF403: a wire-timing
-         * read of "has the move already reached this seat's queue" cannot tell a card moving to the
-         * bottom (Calibrated Blast's {@code DigUntil}, {@code RevealedLibraryPosition$ -1}) from one
-         * Forge simply has not re-synced to THIS seat yet — only one of this match's two seats gets
-         * an immediate re-sync (whichever the next ask, the reflexive trigger's target selection,
-         * addresses), so a wire-timing read is seat-dependent and exactly as flaky as that schedule.
-         * This is neither: {@link #askingStack(String)} walks the LIVE thread Forge itself parked in
-         * {@code getChoices} for, on the SAME call that is building this very reveal.
+         * resolving ability finishes — read directly off Forge's LIVE state, never off anything
+         * synced to the wire yet. AF403: a wire-timing read of "has the move already reached this
+         * seat's queue" cannot tell a card moving to the bottom (Calibrated Blast's {@code
+         * DigUntil}, {@code RevealedLibraryPosition$ -1}) from one Forge simply has not re-synced to
+         * THIS seat yet — only one of this match's two seats gets an immediate re-sync (whichever
+         * the next ask, the reflexive trigger's target selection, addresses), so a wire-timing read
+         * is seat-dependent and exactly as flaky as that schedule.
          *
-         * <p>Null when none of {@code choices} is a card currently in a library at all (a hand
-         * reveal, Secluded Glen, Fact or Fiction's initial five) — those have no "transient top, about
-         * to move" shape in the first place, and the client's own {@code drawsFaceUp} already reads
-         * them correctly without this fact.
+         * <p>Deliberately narrow, unlike {@link #libraryEndIsTop}'s thread-stack walk (built for
+         * {@code order}'s caption, where a GUESSED default is harmless): this reads only the
+         * SpellAbility actually resolving right now ({@code game.getStack().peek()}, and its own
+         * sub-abilities — never a thread-stack scan, which can land on an unrelated
+         * {@code SpellAbilityEffect} elsewhere on the same thread's call chain and answer for the
+         * wrong ability entirely. A first version of this method reused that thread-stack walk and
+         * reddened Dark Confidant's and Sorin, Grim Nemesis's own reveals in CI (`w67-reveal.spec.ts`,
+         * `fx-effects.spec.ts`).
+         *
+         * <p>Also deliberately narrower than Calibrated Blast's own {@code DigUntil} might suggest:
+         * a second version trusted ANY {@code Dig}'s {@code LibraryPosition2} the way {@link
+         * #libraryEndIsTop} does for {@code order}'s caption, and that is what actually reddened
+         * Dark Confidant — its own script is {@code DB$ Dig | ... | ChangeNum$ All | DestinationZone$
+         * Hand}: EVERY dug card leaves the library for the hand, so there is no "rest" for {@code
+         * LibraryPosition2} to place at all, and guessing the bottom for it was simply wrong. This
+         * version trusts {@code Dig} not at all (the zone that keeps a REST and the zone that moves
+         * everything out share the API but not this shape, and telling them apart for all of Dig's
+         * params is a bigger survey than this fix), and trusts {@code DigUntil} only once its own
+         * {@code RevealedDestination} says the revealed cards are staying in a library at all —
+         * Calibrated Blast's own shape, {@code RevealedDestination$ Library | RevealedLibraryPosition$
+         * -1}, and nothing broader.
+         *
+         * <p>Null whenever the top of the stack is not resolving, is not {@code DigUntil} staying in
+         * a library (or {@code RearrangeTopOfLibrary}, which by definition always does), or none of
+         * {@code choices} is a card currently in a library at all (a hand reveal, Secluded Glen, Fact
+         * or Fiction's initial five, Dark Confidant, Sorin's +1, any {@code Dig}) — all of those have
+         * no claim this fact is confident enough to make, and the client's own {@code drawsFaceUp}
+         * already reads them correctly unaided.
          */
         private Boolean revealStaysAtLibraryTop(final List<?> choices) {
             final Game game = liveGame();
-            if (game == null || choices == null || choices.isEmpty()) { return null; }
+            if (game == null || choices == null || choices.isEmpty() || game.getStack().isEmpty() || !game.getStack().isResolving()) { return null; }
             boolean anyInLibrary = false;
             for (final Object o : choices) {
                 if (!(o instanceof CardView cv)) { continue; }
@@ -4711,7 +4732,17 @@ public final class PlayBridge {
                 if (c != null && c.getZone() != null && c.getZone().is(ZoneType.Library)) { anyInLibrary = true; break; }
             }
             if (!anyInLibrary) { return null; }
-            return libraryEndIsTop(askingStack("getChoices"), false);
+            for (SpellAbility sa = game.getStack().peek().getSpellAbility(); sa != null; sa = sa.getSubAbility()) {
+                final forge.game.ability.ApiType api = sa.getApi();
+                if (api == forge.game.ability.ApiType.RearrangeTopOfLibrary) { return true; }
+                if (api == forge.game.ability.ApiType.DigUntil
+                        && sa.hasParam("RevealedDestination") && ZoneType.Library == ZoneType.smartValueOf(sa.getParam("RevealedDestination"))) {
+                    final int position = sa.hasParam("RevealedLibraryPosition")
+                            ? forge.game.ability.AbilityUtils.calculateAmount(sa.getHostCard(), sa.getParam("RevealedLibraryPosition"), sa) : 0;
+                    return position >= 0;
+                }
+            }
+            return null;
         }
 
         @Override
