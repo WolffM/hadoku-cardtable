@@ -142,6 +142,14 @@ export async function openPromoFriend(browser: Browser, name: string, opts: { fi
   await context.addCookies([{ name: SESSION_COOKIE, value: name, domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' }]);
   await keepPrefsLocal(context, PLAY_EDGE_ORIGIN);
   await setPlayFastModeDefault(context, false);
+  // No match music in the clips: the trailer lays one bed under all of them (`mute.ts`'s level key).
+  await context.addInitScript(() => {
+    try {
+      localStorage.setItem('cardtable.sound.music', '0');
+    } catch (err) {
+      console.warn(`[promo] could not silence the match music: ${String(err)}`);
+    }
+  });
   const page = await context.newPage();
   if (opts.filmed === true) {
     // `--kiosk` is not honoured under Playwright; the window's own fullscreen hides the browser's chrome.
