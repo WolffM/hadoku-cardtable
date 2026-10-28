@@ -231,19 +231,17 @@ export function WildcardCard() {
         <p className="front-card__wildcard-body">{item.body}</p>
       </div>
       <div className="front-card__foot">
-        {item.link !== undefined ? (
-          <a className="front-card__link" href={item.link.href} target={item.link.external ? '_blank' : undefined} rel={item.link.external ? 'noopener noreferrer' : undefined}>
-            {item.link.label}
-          </a>
-        ) : (
-          <span />
-        )}
         {items.length > 1 && (
           <span className="front-card__dots">
             {items.map((it, i) => (
               <button key={it.key} type="button" className="front-card__dot" aria-label={it.kind} aria-current={i === at ? 'true' : undefined} onClick={() => setIndex(i)} />
             ))}
           </span>
+        )}
+        {item.link !== undefined && (
+          <a className="button front-card__more" href={item.link.href} target={item.link.external ? '_blank' : undefined} rel={item.link.external ? 'noopener noreferrer' : undefined}>
+            {item.link.label}
+          </a>
         )}
       </div>
     </section>

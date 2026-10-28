@@ -101,14 +101,12 @@
   margin-top: auto;
 }
 
-.front-card__link {
-  font-size: 12px;
-  color: var(--accent-ink);
-}
-
-/* Patch notes' "Read all": a real button, right-aligned in the foot, in the card's accent. */
+/* A card's one action — "Read all", "Calendar", the wildcard's "Open Discord" — right-aligned, in the card's accent; a link drawn as one too. */
 .front-card__more {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
   color: var(--accent-ink);
   border-color: var(--accent);
   cursor: pointer;
