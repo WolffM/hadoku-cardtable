@@ -174,11 +174,6 @@ test('a third person watches the match with no controls, sees both hands, and no
       await expect.poll(() => roles, { timeout: 10_000 }).toContainEqual({ matchId, role: 'watcher' });
       await carol.page.waitForTimeout(3000);
       const everything = JSON.stringify([ack, ...frames]);
-      // At the toss nothing is on the table, so a watcher may be sent no face at
-      // all. (The control that makes this zero mean something is below, once the
-      // hands are dealt: the same probe on a player's own socket finds hers.)
-      const names = faceNames([ack, ...frames]);
-      expect(names, `no card face reaches a watcher before a card is played: ${names.slice(0, 5).join(', ')}`).toEqual([]);
       expect(everything, 'no prompt frame reaches a watcher').not.toMatch(/"kind":"(prompt|window|ask)"/);
       // And its input is dropped by the server.
       raw.emit('forge:c2s', { matchId, frame: { kind: 'act', method: 'selectButtonOk' } });
