@@ -150,6 +150,13 @@ export async function openPromoFriend(browser: Browser, name: string, opts: { fi
     await cdp.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'fullscreen' } });
   }
   registerFriendContext(context);
+  // A card drawn as a blank ◆ is art that never arrived: say which.
+  page.on('requestfailed', (req) => {
+    if (req.resourceType() === 'image') console.warn(`[promo] art failed: ${req.url()} (${req.failure()?.errorText ?? '?'})`);
+  });
+  page.on('response', (res) => {
+    if (res.request().resourceType() === 'image' && res.status() >= 400) console.warn(`[promo] art ${res.status()}: ${res.url()}`);
+  });
   const friend: Friend = { name, context, page, captures: [], pending: [], captureErrors: [], blocked: [] };
   await context.route('**/*', (route) => {
     const req = route.request();
