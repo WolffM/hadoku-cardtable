@@ -34,7 +34,7 @@
  * automation runs AGAIN, racing the log's own copy of the same commands. So this file builds the
  * rebuilt public stream itself: `createProjector(null)` (import only; `visibility.ts` is wave 76's)
  * over the first human seat's raw state frames, `openView` passed through raw, and the `gameover`
- * line's `finishGame` frame appended once — the same three things `match.ts`'s
+ * line's `finishGame` frame appended once — the board and ending `match.ts`'s
  * `sendState`/`openView`/`finishSeat` put on the watcher channel for the first human seat
  * (`match.ts`'s `watcherSource()`), read from `match.ts` (import only) rather than re-derived.
  *
@@ -193,7 +193,8 @@ function playerIdOf(lines: readonly BridgeLine[], seat: number): number | null {
  * first human seat (`watcherSource()`, always seat 0 by `MatchSpec`'s own type): state frames
  * projected through ONE `createProjector(null)`, that seat's `openView` passed through raw (sent
  * before any state that arrived ahead of it, exactly as `openView`'s own "early" queue does), and
- * the `gameover` line's `finishGame` frame, once, if the match reached one.
+ * the `gameover` line's `finishGame` frame, once, if the match reached one. Not the channel's game
+ * log, dice or coins (`match.ts`'s `onGameLog` and `publicCopy`): a rebuilt replay goes without them.
  */
 function watcherFramesFrom(matchId: string, timeline: readonly { line: BridgeLine; at: number }[], sourceSeat: number, allSeats: readonly { seat: number; playerId: number | null }[]): { env: ServerEnvelope; at: number }[] {
 	const out: { env: ServerEnvelope; at: number }[] = [];

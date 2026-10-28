@@ -1845,8 +1845,8 @@ describe('a match that outlives its server', () => {
 		const mark = h.sent.length;
 		h.match.serverStopping('The server is restarting for a deploy.');
 		const told = h.sent.slice(mark);
-		// Both seats, and the watchers once (their channel is told the same ending).
-		expect(told.map((s) => s.seat)).toEqual([0, 1, WATCHER_SEAT]);
+		// Both seats, and the watchers once, right after the seat they watch (the same ending).
+		expect(told.map((s) => s.seat)).toEqual([0, WATCHER_SEAT, 1]);
 		const notices = told.map((s) => s.envelope.frame);
 		for (const frame of notices) {
 			expect(frame).toMatchObject({
