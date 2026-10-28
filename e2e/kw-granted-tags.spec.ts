@@ -62,7 +62,7 @@ function tagsOf(page: Page, id: number): Promise<{ tags: string[]; flying: boole
     const li = document.querySelector<HTMLElement>(`[data-board-card="${cardId}"]`);
     if (li === null) return null;
     return {
-      tags: Array.from(li.querySelectorAll(':scope > .board-card__tags > [data-keyword]')).map((t) => t.textContent ?? ''),
+      tags: Array.from(li.querySelectorAll(':scope > .board-card__tags > [data-keyword]')).map((t) => (t as HTMLElement).dataset.keyword ?? ''),
       flying: li.hasAttribute('data-flying'),
     };
   }, id);
@@ -119,7 +119,7 @@ test(titled('declaring blockers: a printed keyword wears no tag, a granted one d
       try {
         await expect
           .poll(async () => (bearsSeen = await tagsOf(page, bears))?.tags, { timeout: 15_000, message: `${who}: the Bears wear the Flying Arcane Flight grants` })
-          .toEqual(['Flying']);
+          .toEqual(['flying']);
       } finally {
         log(`bears (${who})`, { bears, seen: bearsSeen });
       }

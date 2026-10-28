@@ -1241,6 +1241,32 @@ const TAGGED_KEYWORDS: readonly string[] = [
 ];
 
 /**
+ * The Mana font's ability glyph (`symbols/mana.css`'s `ms-ability-*`) each keyword tag is drawn
+ * as, by keyword name: every `TAGGED_KEYWORDS` entry and a held card's Flash. A keyword missing
+ * here is drawn as its first two letters in the same chip (`keywordGlyph`).
+ */
+const KEYWORD_GLYPH: Readonly<Record<string, string>> = {
+  flying: 'flying',
+  reach: 'reach',
+  'first strike': 'first-strike',
+  'double strike': 'double-strike',
+  deathtouch: 'deathtouch',
+  lifelink: 'lifelink',
+  trample: 'trample',
+  menace: 'menace',
+  vigilance: 'vigilance',
+  defender: 'defender',
+  hexproof: 'hexproof',
+  indestructible: 'indestructible',
+  flash: 'flash',
+};
+
+/** The `ms-ability-*` glyph a keyword tag wears, by Forge's word for it; undefined for none. */
+export function keywordGlyph(keyword: string): string | undefined {
+  return KEYWORD_GLYPH[keywordName(keyword)];
+}
+
+/**
  * The keyword names a card's PRINTED text gives it, among the tagged ones.
  *
  * `OracleText` is the face's printed rules text: Forge sets it once, from the

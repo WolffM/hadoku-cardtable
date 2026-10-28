@@ -396,6 +396,7 @@ import { Avatar } from '../components/Avatar.tsx';
 import {
   boardPT,
   hasKeyword,
+  keywordGlyph,
   keywordTags,
   type BoardCard,
   type BoardCardChoice,
@@ -429,6 +430,7 @@ import { useCardMenu } from './card-menu/CardMenu.tsx';
 import { CheckMark } from './marks.tsx';
 import { Relations } from './Relations.tsx';
 import { cardWidthIn } from './card-size.ts';
+import { useRailFit } from './tag-rail.ts';
 import { liftGhost, type Ghost } from './lift.ts';
 import { observeZoneBoxes, type ZoneBoxes } from './zone-box.ts';
 import { PLACEMENT_WAIT_MS, UNLOCK_BEAT_MS } from './motion.ts';
@@ -2254,7 +2256,8 @@ function Counters({
 }
 
 /**
- * The card's top-right tag column, in this order: what a resolved ability left
+ * The card's tag rail (`tag-rail.ts`): one row, right-aligned directly above the
+ * P/T badge, the first tag nearest the corner, in this order: what a resolved ability left
  * waiting, the state Forge tracks a permanent is in, a held card's changed cost,
  * what was chosen for a permanent, a flash an effect grants a held card, an eye
  * on a held card the opponent was shown, then each evergreen keyword the card
@@ -2282,7 +2285,10 @@ function Counters({
  *     have been revealed to your opponent"* (`BoardCard.seenByOpponent`), on a
  *     card in your hand or your library's revealed top.
  *
- * Every tag says on hover (`data-tip`, the board's one tooltip) what it is.
+ * Every tag says on hover (`data-tip`, the board's one tooltip) what it is. A
+ * keyword is a glyph chip (`KeywordChip`). The row never wraps, so it can never
+ * reach the badge below it; what does not fit the card's width folds into a "+N"
+ * chip at its end that says on hover what it holds.
  */
 function CardTags({
   entry,
@@ -2304,21 +2310,14 @@ function CardTags({
   const keywords = keywordTags(entry.keywords, entry.card.oracleText);
   const cost = held?.cost;
   const flash = held?.flash;
-  if (choices.length === 0 && states.length === 0 && waiting.length === 0 && keywords.length === 0 && cost === undefined && flash === undefined && !seen) return null;
   const waits = sameMarks(waiting, (w) => w.kind).map((group) => ({ kind: group[0]!.kind, count: group.length, tip: listed(group.map(waitingTip)) }));
-  const said = [
-    ...waits.map((w) => w.tip),
-    ...states.map(stateTip),
-    ...(cost === undefined ? [] : [`costs ${cost.tokens.join(' ')}`]),
-    ...choices.map(choiceTip),
-    ...(flash === undefined ? [] : ['Flash']),
-    ...(seen ? [SEEN_TIP] : []),
-    ...keywords,
-  ];
-  return (
-    <ul className="board-card__tags" aria-label={`${entry.card.name}: ${said.join('; ')}`}>
-      {waits.map((w) => (
-        <li key={w.kind} className="board-card__tag" data-effect={w.kind} data-count={w.count > 1 ? w.count : undefined} data-tip={w.tip}>
+  /** Each tag: its key, what the "+N" chip says for it, and its chip. */
+  const tags: { key: string; said: string; chip: ReactNode }[] = [
+    ...waits.map((w) => ({
+      key: `effect:${w.kind}`,
+      said: w.tip,
+      chip: (
+        <li key={`effect:${w.kind}`} className="board-card__tag" data-effect={w.kind} data-count={w.count > 1 ? w.count : undefined} data-tip={w.tip}>
           <svg className="board-card__effect-glyph" viewBox="0 0 16 16" focusable="false" aria-hidden="true">
             <path d="M4 1h8v1.5c0 2-1.4 3.6-3 4.5v2c1.6.9 3 2.5 3 4.5V15H4v-1.5c0-2 1.4-3.6 3-4.5V7C5.4 6.1 4 4.5 4 2.5Z" />
           </svg>
@@ -2328,51 +2327,97 @@ function CardTags({
             </span>
           )}
         </li>
-      ))}
-      {states.map((state) => (
-        <li key={state.kind} className="board-card__tag" data-state={state.kind} data-value={state.value} data-max={state.max} data-tip={stateTip(state)}>
+      ),
+    })),
+    ...states.map((state) => ({
+      key: `state:${state.kind}`,
+      said: stateTip(state),
+      chip: (
+        <li key={`state:${state.kind}`} className="board-card__tag" data-state={state.kind} data-value={state.value} data-max={state.max} data-tip={stateTip(state)}>
           {state.max === undefined || state.value > state.max ? (
             <span className="board-card__tag-count">{state.value}</span>
           ) : (
             Array.from({ length: state.max }, (_, i) => <span key={i} className="board-card__state-pip" data-filled={i < state.value ? '' : undefined} aria-hidden="true" />)
           )}
         </li>
-      ))}
-      {cost !== undefined && (
-        <li className="board-card__tag" data-cost={cost.tokens.join(' ')} data-cost-change={cost.change} data-tip={cost.tip}>
-          {/* The tag already carries its own `data-tip` (why the cost changed);
-              a native tooltip on one pip would only repeat the glyph it sits on. */}
-          {cost.tokens.map((token, i) => (
-            <ManaPip key={`${token}-${i}`} token={token} titled={false} />
-          ))}
-        </li>
-      )}
-      {choices.map((choice, i) => (
-        <li key={`${choice.kind}:${i}`} className="board-card__tag" data-choice={choice.kind} data-tip={choiceTip(choice)}>
+      ),
+    })),
+    ...(cost === undefined
+      ? []
+      : [
+          {
+            key: 'cost',
+            said: `costs ${cost.tokens.join(' ')}`,
+            chip: (
+              <li key="cost" className="board-card__tag" data-cost={cost.tokens.join(' ')} data-cost-change={cost.change} data-tip={cost.tip}>
+                {/* The tag already carries its own `data-tip` (why the cost changed);
+                    a native tooltip on one pip would only repeat the glyph it sits on. */}
+                {cost.tokens.map((token, i) => (
+                  <ManaPip key={`${token}-${i}`} token={token} titled={false} />
+                ))}
+              </li>
+            ),
+          },
+        ]),
+    ...choices.map((choice, i) => ({
+      key: `choice:${choice.kind}:${i}`,
+      said: choiceTip(choice),
+      chip: (
+        <li key={`choice:${choice.kind}:${i}`} className="board-card__tag" data-choice={choice.kind} data-tip={choiceTip(choice)}>
           {choice.kind === 'color' ? choice.values.map((word) => <ChoiceWord key={word} word={word} />) : choice.values.join(', ')}
         </li>
-      ))}
-      {flash !== undefined && (
-        <li className="board-card__tag" data-keyword="flash" data-tip={flash}>
-          Flash
+      ),
+    })),
+    ...(flash === undefined ? [] : [{ key: 'keyword:flash', said: 'Flash', chip: <KeywordChip key="keyword:flash" word="Flash" tip={flash} /> }]),
+    ...(seen
+      ? [
+          {
+            key: 'seen',
+            said: SEEN_TIP,
+            chip: (
+              <li key="seen" className="board-card__tag" data-seen data-tip={SEEN_TIP}>
+                <svg className="board-card__seen-glyph" viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+                  <path
+                    fillRule="evenodd"
+                    d="M8 3C4.4 3 1.6 5.4.5 8c1.1 2.6 3.9 5 7.5 5s6.4-2.4 7.5-5C14.4 5.4 11.6 3 8 3Zm0 1.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2Zm0 1.7a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8Z"
+                  />
+                </svg>
+              </li>
+            ),
+          },
+        ]
+      : []),
+    ...keywords.map((word) => ({ key: `keyword:${word}`, said: word, chip: <KeywordChip key={`keyword:${word}`} word={word} tip={keywordTip(word)} /> })),
+  ];
+  const rail = useRef<HTMLUListElement>(null);
+  const shown = useRailFit(
+    rail,
+    tags.map((t) => t.key).join('|'),
+  );
+  if (tags.length === 0) return null;
+  const hidden = shown === null ? [] : tags.slice(Math.max(0, shown));
+  return (
+    <ul ref={rail} className="board-card__tags" aria-label={`${entry.card.name}: ${tags.map((t) => t.said).join('; ')}`}>
+      {(shown === null ? tags : tags.slice(0, Math.max(0, shown))).map((t) => t.chip)}
+      {hidden.length > 0 && shown !== -1 && (
+        <li className="board-card__tag" data-more={hidden.length} data-tip={hidden.map((t) => t.said).join(', ')}>
+          +{hidden.length}
         </li>
       )}
-      {seen && (
-        <li className="board-card__tag" data-seen data-tip={SEEN_TIP}>
-          <svg className="board-card__seen-glyph" viewBox="0 0 16 16" focusable="false" aria-hidden="true">
-            <path
-              fillRule="evenodd"
-              d="M8 3C4.4 3 1.6 5.4.5 8c1.1 2.6 3.9 5 7.5 5s6.4-2.4 7.5-5C14.4 5.4 11.6 3 8 3Zm0 1.9a3.1 3.1 0 1 0 0 6.2 3.1 3.1 0 0 0 0-6.2Zm0 1.7a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8Z"
-            />
-          </svg>
-        </li>
-      )}
-      {keywords.map((tag) => (
-        <li key={tag} className="board-card__tag" data-keyword={tag.toLowerCase()} data-tip={keywordTip(tag)}>
-          {tag}
-        </li>
-      ))}
     </ul>
+  );
+}
+
+/**
+ * A keyword tag: its Mana ability glyph in a round chip (`adapter.ts`'s `keywordGlyph`), or its
+ * first two letters where the font has none. The word itself is the tip's and the rail's label's.
+ */
+function KeywordChip({ word, tip }: { word: string; tip: string }) {
+  const glyph = keywordGlyph(word);
+  return (
+    <li className="board-card__tag" data-keyword={word.toLowerCase()} data-tip={tip}>
+      {glyph === undefined ? <span aria-hidden="true">{word.slice(0, 2)}</span> : <i className={`ms ms-ability-${glyph}`} aria-hidden="true" />}
+    </li>
   );
 }
 
@@ -2419,8 +2464,8 @@ function ChoiceWord({ word }: { word: string }) {
  *
  * Positioned over the type bar — roughly where `CardTile`'s own `.card__type`
  * sits, just under the name row — rather than in a free corner: the marks
- * (top-left), the tag column (top-right), the counters (bottom-left)
- * and the P/T badge (bottom-right) all stay exactly where they were.
+ * (top-left), the counters (bottom-left) and the P/T badge (bottom-right)
+ * with the tag rail above it all stay exactly where they were.
  */
 function TypePill({ entry }: { entry: BoardCard }) {
   const changed = entry.changedFrom;

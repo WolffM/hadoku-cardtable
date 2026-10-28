@@ -313,7 +313,8 @@
    */
   bottom: calc(max(1px, var(--credit-strip) - 3px) + var(--pile-fan));
   right: calc(2px + var(--pile-fan));
-  z-index: var(--z-card-badge, 1);
+  /* Above the tag rail and every other badge: the one number that must always read. */
+  z-index: calc(var(--z-card-badge, 1) + 1);
   display: flex;
   align-items: baseline;
   gap: 1px;
@@ -529,23 +530,30 @@
 }
 
 /*
- * The tag column (`Board.tsx`'s `CardTags`): what was chosen for the
- * permanent, then the keywords it gained. Down the one corner the other
- * badges leave free — marks are top-left, the P/T badge is bottom-right, the
- * counters are bottom-left — in the same capsule as the rest of the state
- * layer: an opaque background over the art, out of flow, clipped to the card,
- * and `pointer-events: none` so it may never eat a click Forge offered or move
- * the card's own box. The tip finds a tag by its box (`tip/index.ts`).
+ * The tag rail (`Board.tsx`'s `CardTags`, `tag-rail.ts`): ONE row, right-aligned, directly above
+ * the P/T badge — the operator, 2026-10-28, on a turned creature whose keyword tags covered its
+ * P/T: *"we gotta make sure that always shows"*; the approved design, *"don't put it at the top,
+ * put it in the row above the Power/toughness"*. Its bottom is the badge's top (the badge's own
+ * bottom, line and rule, `--pt-font` on a pile) and a gap, so it cannot reach the badge on any
+ * card; a single counters row (bottom-left) ends a pixel below it. The row never wraps:
+ * `tag-rail.ts` folds what the card's width cannot hold into a "+N" chip, and stops short of the
+ * marks and counters in the same band. The first tag sits nearest the corner. Same capsule as the
+ * rest of the state layer, out of flow, clipped to the card, and `pointer-events: none` so it may
+ * never eat a click Forge offered; the tip finds a tag by its box (`tip/index.ts`).
  */
 .board-card__tags {
+  --rail-gap: 4px;
+
   position: absolute;
   z-index: var(--z-card-badge, 1);
-  top: 2px;
   right: calc(2px + var(--pile-fan));
+  bottom: calc(max(1px, var(--credit-strip) - 3px) + var(--pile-fan) + var(--pt-font, 10px) * 1.5 + 2px + var(--rail-gap));
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  flex-direction: row-reverse;
+  align-items: center;
   gap: 2px;
+  /* One chip's height even when it draws none (`tag-rail.ts`), so the band it measures in never moves. */
+  min-height: 15px;
   max-width: calc(100% - 4px - var(--pile-fan));
   margin: 0;
   padding: 0;
@@ -553,7 +561,18 @@
   pointer-events: none;
 }
 
+/* A chosen name or type is words: the one tag that gives way, to an ellipsis, on a narrow card. */
+.board-card__tag[data-choice]:not([data-choice='color']) {
+  flex-shrink: 1;
+}
+
+/* A planeswalker that is a creature wears its loyalty above its P/T (`.board-card__pt`): the rail goes above both. */
+.board-card:has(> .board-card__pt[data-pt='loyalty'] + .board-card__pt[data-pt='']) > .board-card__tags {
+  bottom: calc(20px + var(--pile-fan) + var(--pt-font, 10px) * 1.5 + 2px + var(--rail-gap));
+}
+
 .board-card__tag {
+  flex-shrink: 0;
   max-width: 100%;
   padding: 0 4px;
   background: var(--bg-raised);
@@ -622,6 +641,28 @@
   width: 10px;
   height: 10px;
   fill: currentColor;
+}
+
+/*
+ * A keyword (`Board.tsx`'s `KeywordChip`): its Mana ability glyph in a round chip, upright and
+ * turned alike, the word in the tip. The "+N" chip that ends a rail too long for the card wears
+ * the same capsule, as wide as its count.
+ */
+.board-card__tag:is([data-keyword], [data-more]) {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.board-card__tag[data-more] {
+  padding: 0 3px;
+  font-size: 8.5px;
+  font-variant-numeric: tabular-nums;
 }
 
 /*
@@ -889,9 +930,9 @@
 /*
  * R15 (wave 53 T), the operator, Playtest 9: *"put one of our overlay pills
  * over the type bar."* Over the type bar means a new BAND, not a corner — the
- * four existing corners (marks top-left, tag column top-right, counters
- * bottom-left, the P/T badge bottom-right) stay exactly where they were, and
- * this sits between the marks and the tag column, roughly where
+ * four existing corners (marks top-left, counters bottom-left, the P/T badge
+ * bottom-right with the tag rail above it) stay exactly where they were, and
+ * this sits under the marks, roughly where
  * `CardTile`'s own `.card__type` sits under the name row (that text is
  * covered by art at board scale — see `CardTile.css`'s `.card__art`'s own
  * `z-index: 1` — so this is a deliberate proportion of the card's own box,
@@ -902,10 +943,10 @@
  * gestures lane's raw `--accent` (an offer) or `--warn` (a danger), so it
  * cannot be misread as either.
  *
- * Centered and clipped exactly like the tag column: `pointer-events:
+ * Clipped exactly like the tag rail: `pointer-events:
  * none` (it may never eat a click Forge offered, nor move the card's own
  * box — `e2e/table-fit.spec.ts`), and `title` carries the printed line for
- * the SAME native hover surface the tag column already relies on (no
+ * the SAME native hover surface the tag rail already relies on (no
  * second, custom hover mechanism).
  */
 .board-card__type-pill {
@@ -935,8 +976,8 @@
  * per relation Forge's wire names generically (haunt, encode, imprint, a
  * must-block list — `adapter.ts`'s own table).
  *
- * The four corners are already claimed (marks top-left, tag column
- * top-right, counters bottom-left, the P/T badge bottom-right — this file's
+ * The four corners are already claimed (marks top-left, counters
+ * bottom-left, the P/T badge bottom-right with the tag rail above it — this file's
  * own map, above) and the type-pill band sits at `top: 22%`, so this one
  * centres along the BOTTOM edge instead, between the two bottom corners — a
  * relation is rare (most cards carry none, ever) and a card wearing one

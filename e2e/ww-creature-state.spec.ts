@@ -62,7 +62,7 @@ function afloat(page: Page, id: number): Promise<Afloat | null> {
     if (li === null || li === undefined || art === null || art === undefined) return null;
     const style = getComputedStyle(art);
     return {
-      tags: Array.from(li.querySelectorAll(':scope > .board-card__tags > [data-keyword]')).map((t) => t.textContent ?? ''),
+      tags: Array.from(li.querySelectorAll(':scope > .board-card__tags > [data-keyword]')).map((t) => (t as HTMLElement).dataset.keyword ?? ''),
       flying: li.hasAttribute('data-flying'),
       translate: style.translate,
       // The loop's path runs on the `<li>` (everything the card wears rides it), the tilt on the art.
@@ -142,7 +142,7 @@ test(titled('an aura that grants flying tags the creature and floats it, on both
       try {
         await expect
           .poll(async () => (seen = await afloat(page, bears))?.tags, { timeout: 15_000, message: `${who}: the Bears wear a Flying tag once the aura grants it` })
-          .toContain('Flying');
+          .toContain('flying');
         expect(seen!.flying, `${who}: the Bears float`).toBe(true);
         expect(seen!.translate, `${who}: the art is lifted`).not.toMatch(/^(none|0px)$/);
         if (who === 'alice') expect(seen!.animation, `${who}: and loops on the wing`).toContain('fly-across');

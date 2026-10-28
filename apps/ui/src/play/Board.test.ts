@@ -20,11 +20,13 @@ import type { DraftCard } from '@hadoku/shared';
 import { createProjector, type StateFrame } from '../../../server/src/play/visibility.ts';
 import { EXIT_MOTIONS, LEAVING_GAP_ATTR } from './live/departures.ts';
 import { UNLOCK_BEAT_MS } from './motion.ts';
+import { forgetCardWidths } from './card-size.ts';
 import { cardImageUrl } from '../draft/cardImage.ts';
 import poolData from '../draft/pool.json';
 import {
   artIdIndex,
   CUBE_ART_IDS,
+  keywordGlyph,
   scryfallIdFor,
   toBoardView,
   type ArtIdIndex,
@@ -1174,6 +1176,7 @@ describe('marks', () => {
 
 const BOARD_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play', 'board.css'), 'utf8');
 const CARD_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play', 'card.css'), 'utf8');
+const MANA_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play', '../symbols/mana.css'), 'utf8');
 /** `CardTile`'s own sheet: every card the board draws is one. */
 const TILE_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play', '../components/CardTile.css'), 'utf8');
 
@@ -3301,14 +3304,78 @@ describe('keyword tags and the flyer’s float', () => {
     } as BoardView;
   }
   const tagsOf = (container: HTMLElement) =>
-    [...container.querySelectorAll<HTMLElement>('[data-card-id="99"] > .board-card__tags > [data-keyword]')].map((t) => t.textContent);
+    [...container.querySelectorAll<HTMLElement>('[data-card-id="99"] > .board-card__tags > [data-keyword]')].map((t) => t.dataset.keyword);
 
   it('tags each evergreen keyword in Forge’s own word, in a fixed order, and sways a flyer from its own phase', () => {
     const { container } = renderBoard(withKeywords(['Lifelink', 'Flying', 'Affinity:Mountain', 'Hexproof:Card.Black:black']));
-    expect(tagsOf(container)).toEqual(['Flying', 'Lifelink']);
+    expect(tagsOf(container)).toEqual(['flying', 'lifelink']);
     const li = container.querySelector<HTMLElement>('[data-card-id="99"]')!;
     expect(li.hasAttribute('data-flying')).toBe(true);
     expect(li.style.getPropertyValue('--fly-phase')).toBe(((99 * 0.618034) % 1).toFixed(4));
+  });
+
+  it('draws every keyword as its Mana glyph in a chip, the word in its tip and in the rail’s label', () => {
+    const words = ['Flying', 'Reach', 'First Strike', 'Double Strike', 'Deathtouch', 'Lifelink', 'Trample', 'Menace', 'Vigilance', 'Defender', 'Hexproof', 'Indestructible'];
+    const { container } = renderBoard(withKeywords(words));
+    const chips = [...container.querySelectorAll<HTMLElement>('[data-card-id="99"] > .board-card__tags > [data-keyword]')];
+    expect(chips.map((c) => c.dataset.keyword)).toEqual(words.map((w) => w.toLowerCase()));
+    for (const [i, chip] of chips.entries()) {
+      const glyph = chip.querySelector('i.ms')!;
+      const name = [...glyph.classList].find((c) => c.startsWith('ms-ability-'))!;
+      expect(MANA_CSS, `${words[i]} has a glyph in the font`).toContain(`.${name}::before`);
+      expect(chip.textContent, 'no word on the card').toBe('');
+      expect(chip.dataset.tip!.startsWith(words[i]!), 'the word is the tip’s').toBe(true);
+    }
+    const label = container.querySelector('[data-card-id="99"] > .board-card__tags')!.getAttribute('aria-label')!;
+    for (const w of words) expect(label).toContain(w);
+  });
+
+  it('finds a keyword’s glyph by its name, whatever Forge appends to it', () => {
+    expect(keywordGlyph('First Strike')).toBe('first-strike');
+    expect(keywordGlyph('Hexproof:Card.Black:black')).toBe('hexproof');
+    expect(keywordGlyph('Ward:2'), 'none for a keyword the board does not tag').toBeUndefined();
+  });
+
+  describe('the rail folds what the card cannot hold into +N', () => {
+    /** A layout: every chip 15px, the rail's right edge `room + 2` px into the card. */
+    function laidOut(room: number): void {
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          observe(): void {}
+          unobserve(): void {}
+          disconnect(): void {}
+        },
+      );
+      vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+        if (this.classList.contains('board-card__tags')) return room + 2;
+        return this.classList.contains('board-card__tag') ? 15 : 0;
+      });
+      onTestFinished(() => {
+        cleanup();
+        forgetCardWidths();
+        vi.unstubAllGlobals();
+        vi.restoreAllMocks();
+      });
+    }
+    const rail = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('[data-card-id="99"] > .board-card__tags > li')];
+
+    it('draws every chip when the row fits', () => {
+      laidOut(100);
+      const { container } = renderBoard(withKeywords(['Flying', 'Lifelink', 'Trample']));
+      expect(rail(container).map((c) => c.dataset.keyword ?? c.dataset.more)).toEqual(['flying', 'lifelink', 'trample']);
+    });
+
+    it('ends in a +N chip whose tip names the keywords it holds', () => {
+      laidOut(40);
+      const { container } = renderBoard(withKeywords(['Flying', 'First Strike', 'Lifelink', 'Trample', 'Deathtouch']));
+      const chips = rail(container);
+      expect(chips.map((c) => c.dataset.keyword ?? `+${c.dataset.more}`)).toEqual(['flying', '+4']);
+      const more = chips[1]!;
+      expect(more.textContent).toBe('+4');
+      expect(more.dataset.tip).toBe('First Strike, Deathtouch, Lifelink, Trample');
+      expect(container.querySelector('[data-card-id="99"] > .board-card__tags')!.getAttribute('aria-label'), 'the label still says each').toContain('Trample');
+    });
   });
 
   it('draws no tag and no sway when the keyword goes', () => {
@@ -4424,9 +4491,12 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
     const css = styled();
     const urchin = { ...view, players: view.players.map((p) => (!p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id !== 21 ? c : { ...c, blocking: true, counters: [{ name: '+1/+1', count: 1 }] })) })) };
     const card = renderBoard(urchin).container.querySelector('[data-card-id="21"]')!;
-    const rungs = ['.board-card__pt', '.board-card__marks', '.board-card__counters'].map((sel) => css(card.querySelector(`:scope > ${sel}`)!, 'z-index'));
+    const rungs = ['.board-card__marks', '.board-card__counters'].map((sel) => css(card.querySelector(`:scope > ${sel}`)!, 'z-index'));
     expect(rungs[0], 'a badge is on the scale').toContain('--z-card-badge');
     expect(new Set(rungs), 'and every badge on the same rung').toEqual(new Set([rungs[0]]));
+    const pt = css(card.querySelector(':scope > .board-card__pt')!, 'z-index');
+    expect(pt, 'save the P/T badge, one rung above them all').toContain('--z-card-badge');
+    expect(pt).toMatch(/\+ 1\)$/);
     expect(css(card, 'isolation')).toBe('isolate');
     // No literal that outranks the scale survives in the card's own sheet.
     expect(withoutComments(CARD_CSS)).not.toMatch(/z-index:\s*(?:[2-9]|\d\d+)\s*;/);
@@ -5510,12 +5580,14 @@ describe('choice tags: a permanent wears what was chosen for it', () => {
     expect(column.map((t) => t.dataset.choice ?? t.dataset.keyword)).toEqual(['type', 'card', 'player', 'flying']);
   });
 
-  it('the column is out of flow, takes no click, and sits in the top-right corner', () => {
+  it('the rail is out of flow, takes no click, and is one row anchored above the P/T badge', () => {
     const css = styled();
     const column = renderBoard(withChoices([{ kind: 'type', values: ['Elf'] }])).container.querySelector('[data-card-id="21"] > .board-card__tags')!;
     expect(css(column, 'position')).toBe('absolute');
     expect(css(column, 'pointer-events')).toBe('none');
-    expect(['top', 'right', 'bottom', 'left'].filter((side) => !/^(auto)?$/.test(css(column, side)))).toEqual(['top', 'right']);
+    expect(['top', 'right', 'bottom', 'left'].filter((side) => !/^(auto)?$/.test(css(column, side)))).toEqual(['right', 'bottom']);
+    expect(css(column, 'flex-direction')).toBe('row-reverse');
+    expect(css(column, 'bottom'), 'above the badge’s own bottom, line and rule').toMatch(/var\(--credit-strip\).*var\(--pt-font, 10px\) \* 1\.5/);
   });
 
   it('a card with nothing chosen and no gained keyword (the common case) wears no column at all', () => {
@@ -5887,7 +5959,7 @@ describe('held changes — a changed cost and a granted flash are tags on the ha
   it('draws a granted flash as a tag with its source', () => {
     const { container } = withHeld(new Map([[changed!.id, { flash: 'Flash: can be cast any time you could cast an instant (from Vedalken Orrery)' }]]));
     const flash = tags(container, changed!.id)!.querySelector<HTMLElement>(':scope > [data-keyword="flash"]')!;
-    expect(flash.textContent).toBe('Flash');
+    expect(flash.querySelector('i.ms.ms-ability-flash'), 'its glyph').not.toBeNull();
     expect(flash.dataset.tip).toMatch(/Vedalken Orrery/);
     expect(tags(container, changed!.id)!.querySelector('[data-cost]')).toBeNull();
   });
