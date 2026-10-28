@@ -35,16 +35,8 @@ const ID_REF = /\b(AttachedTo|ExiledWith|RememberedCards|Imprinting|ChosenCards|
 const UNORDERED = /^p\dbattlefield$/;
 
 /**
- * A token's printing (`Image:w_1_1_soldier|10E|1|1`): `TokenInfo` writes it with `|` inside, and
- * `GameState` splits every entry on `|`, so a restored token keeps only the image name. A known
- * loss of the restore (`match.ts`'s `restoredSpec`), stripped before comparing.
- */
-const TOKEN_PRINTING = /^(t:[^|]*?Image:[^|]*)\|[A-Z0-9]+\|\d+\|\d+/;
-
-/**
  * A snapshot as `key → entries`, every card id replaced by the name of the card it is (the `Id:`
- * entry) and tokens without their printing, so two snapshots of one position compare equal across
- * a restore.
+ * entry), so two snapshots of one position compare equal across a restore.
  */
 function normalized(state: string): Record<string, string[]> {
 	const names = new Map<string, string>();
@@ -62,7 +54,7 @@ function normalized(state: string): Record<string, string[]> {
 			.slice(at + 1)
 			.split(';')
 			.filter((e) => e !== '')
-			.map((e) => e.replace(TOKEN_PRINTING, '$1').replace(/\|Id:(\d+)/, (_m, id: string) => `|Id:${name(id)}`).replace(ID_REF, (_m, k: string, ids: string) => `${k}:${ids.split(',').map(name).join(',')}`));
+			.map((e) => e.replace(/\|Id:(\d+)/, (_m, id: string) => `|Id:${name(id)}`).replace(ID_REF, (_m, k: string, ids: string) => `${k}:${ids.split(',').map(name).join(',')}`));
 		out[key] = UNORDERED.test(key) ? entries.sort() : entries;
 	}
 	return out;
@@ -246,6 +238,52 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(s.zone(1, 'Battlefield').some((c) => c.name === 'Goblin Token')).toBe(true);
 
 				await passUntil(s, noAttacks(s, () => inOwnMain(s, 0, 8)), "seat 0's turn 8, its first main", 120_000);
+			} finally {
+				await s.stop();
+			}
+		},
+		300_000,
+	);
+
+	it(
+		'a restore puts the board back as it was: no replacement effect runs, a token keeps its printing, and the turn shows at once',
+		async () => {
+			if (!available.ok) return;
+			// 2026-10-28 (m-b7b9edfcefd6): the restored game asked "pay 2 life?" for a Temple Garden that
+			// had been on the battlefield for turns, drew the board half-built until it was answered,
+			// showed turn 1, and drew Advent of the Wurm's token as Wurmcoil Engine's. The shocklands are
+			// seat 1's, whose asks this harness answers, so a regression is a log line, not a hang.
+			const scenario = [
+				'turn=4',
+				'activeplayer=human',
+				'activephase=MAIN1',
+				// Without a life line Forge sets each player to -1, and the game ends as it applies.
+				'humanlife=20',
+				'ailife=20',
+				'humanbattlefield=Temple of Plenty;Forest;Forest;Jace, Architect of Thought|Counters:LOYALTY=3;T:g_5_5_wurm_trample|Set:RTR',
+				'humanlibrary=' + Array.from({ length: 20 }, () => 'Forest').join(';'),
+				'aibattlefield=Sacred Foundry;Sacred Foundry;Mountain',
+				'ailibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
+			].join('\n');
+			const decks: [string, string] = [deck('Any A', ['40 Forest']), deck('Any B', ['40 Mountain'])];
+			const s = await startScenario(available.config, { seed: 3, decks, scenario, skipOpening: true });
+			try {
+				await passUntil(s, noAttacks(s, () => snapshots(s).some((l) => l.turn === 5)), 'turn 5, its upkeep', 120_000);
+				const lines = s.lines.length;
+				const { from, again } = await killAndRestore(s, 5);
+				const replaced = s.lines.slice(lines).filter((l) => l.t === 'log' && (l as { type?: string }).type === 'EFFECT_REPLACED');
+				expect(replaced).toEqual([]);
+				expect(normalized(again.state)).toEqual(normalized(from.state));
+				expect(normalized(from.state).p0battlefield).toEqual(expect.arrayContaining([expect.stringMatching(/^t:.*Image:g_5_5_wurm_trample\/RTR\//)]));
+				// The snapshot line is printed while the board applies, before the seats' resync: wait for the view.
+				const viewTurn = (): number | undefined => ([...s.state(0).values()].find((o) => o._type === 3)?.Turn as { v?: number } | undefined)?.v;
+				await waitUntil(() => viewTurn() === 5, 'the restored view to show turn 5', 20_000, s);
+				// The image key is on the card's state view, not the card.
+				const wurm = [...s.state(0).values()].find((o) => o._type === 4 && (o.Name as { v?: string } | undefined)?.v === 'Wurm Token');
+				expect((wurm?.ImageKey as { v?: string } | undefined)?.v).toMatch(/^t:g_5_5_wurm_trample\|RTR\|/);
+				const p = normalized(from.state);
+				const want = [Number(p.p0life?.[0]), Number(p.p1life?.[0])];
+				await waitUntil(() => life(s, 0) === want[0] && life(s, 1) === want[1], `life ${want.join('/')} on the wire`, 20_000, s);
 			} finally {
 				await s.stop();
 			}

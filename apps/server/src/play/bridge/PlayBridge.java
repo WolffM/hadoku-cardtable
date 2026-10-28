@@ -455,6 +455,13 @@ public final class PlayBridge {
         final boolean skipOpening;
 
         /**
+         * Optional. {@link #scenario} is this match's own turn-start snapshot ({@link TurnSnapshot}),
+         * restored after its host failed: {@code GameState.setRestore} puts the board back running no
+         * replacement effect, so no seat is asked "pay 2 life?" for a land that was already there.
+         */
+        final boolean restore;
+
+        /**
          * The room's hand smoothing setting: Forge's filtered hands, a rule of this game
          * ({@code GameRules.setFilteredHands}), which keeps the opening hand closer to the
          * deck's land ratio and weights each mulligan's redraw toward it
@@ -556,6 +563,7 @@ public final class PlayBridge {
             scenario = root.has("scenario") && !root.get("scenario").isJsonNull() ? root.get("scenario").getAsString() : null;
             handSmoothing = root.has("handSmoothing") && root.get("handSmoothing").getAsBoolean();
             skipOpening = root.has("skipOpening") && root.get("skipOpening").getAsBoolean();
+            restore = root.has("restore") && root.get("restore").getAsBoolean();
             chooser = root.has("chooser") && !root.get("chooser").isJsonNull() ? root.get("chooser").getAsInt() : null;
             for (final JsonElement e : root.getAsJsonArray("seats")) {
                 final JsonObject s = e.getAsJsonObject();
@@ -6131,6 +6139,7 @@ public final class PlayBridge {
             if (text != null) {
                 state = new GameState();
                 state.parse(Arrays.asList(text.split("\\r?\\n")));
+                state.setRestore(m.restore);
             } else {
                 state = null;
             }

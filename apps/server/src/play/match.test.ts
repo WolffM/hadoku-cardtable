@@ -1500,7 +1500,7 @@ describe('a match restored from its turn-start snapshot', () => {
 		expect(h.registry.get(h.match.id)).toBe(r);
 		expect(h.hosts).toHaveLength(2);
 		const spec = (h.hosts[1] as ReplayHost).spec;
-		expect(spec).toEqual({ seats: h.match.spec.seats, seed: 7, scenario: SNAPSHOT.state, skipOpening: true });
+		expect(spec).toEqual({ seats: h.match.spec.seats, seed: 7, scenario: SNAPSHOT.state, skipOpening: true, restore: true });
 		expect(spec).toEqual(restoredSpec(h.match.spec, { turn: 3, state: SNAPSHOT.state }));
 		expect(r.latestSnapshot).toEqual({ turn: 3, state: SNAPSHOT.state });
 		expect((h.hosts[0] as ReplayHost).stopped).toBe(true);

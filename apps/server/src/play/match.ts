@@ -4012,14 +4012,12 @@ export class Match {
  * - triggers waiting to go on the stack as the upkeep begins (an untap step's "whenever … untaps");
  * - a seat's open asks, and its remembered trigger choices, which Forge holds by ability (its
  *   stops, auto-yields and full control come across);
- * - a token's printing: `TokenInfo` writes its image as `name|SET|n|n` and `GameState` splits
- *   every entry on `|`, so a restored token keeps its image name and loses the set and art index;
  * - random-number state: the restored game draws fresh randomness from its new JVM.
  * Card ids change: every seat resyncs onto the new epoch.
  */
 export function restoredSpec(spec: MatchSpec, snapshot: TurnSnapshot): MatchSpec {
 	const { chooser: _chooser, ...rest } = spec;
-	return { ...rest, scenario: snapshot.state, skipOpening: true };
+	return { ...rest, scenario: snapshot.state, skipOpening: true, restore: true };
 }
 
 /* ── The registry ────────────────────────────────────────────────────── */

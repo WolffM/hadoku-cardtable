@@ -186,6 +186,12 @@ export interface MatchSpec {
 	 */
 	skipOpening?: boolean;
 	/**
+	 * {@link scenario} is this match's own turn-start snapshot (`restoredSpec`): its board goes back
+	 * as it was, running no replacement effect ("enters tapped", "you may pay 2 life"), where a
+	 * board room's scenario plays each permanent's entry. Implies {@link skipOpening}.
+	 */
+	restore?: boolean;
+	/**
 	 * The room's format id (`room/lobby.ts`'s `FormatId`): what a card-name ask is
 	 * narrowed to (`names.ts`). Inert in the JVM — `configFrom` never reads it — and
 	 * kept in `config.json` so a match taken back after a restart still has it.
