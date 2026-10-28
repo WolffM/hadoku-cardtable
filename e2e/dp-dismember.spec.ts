@@ -70,7 +70,7 @@ async function openPayment(seated: ScenarioMatch): Promise<{ bears: () => Promis
   // Its target is the Bears, pressed once and only while Forge's target window is the live one; then
   // the payment window opens. A second press sent while the first is in flight reaches Forge after the
   // payment window opened and replaces it with a new cast (run 40621163042).
-  const targeting = async (): Promise<boolean> => /^Select target creature/i.test(await says(page));
+  const targeting = async (): Promise<boolean> => /Select target creature/i.test(await says(page));
   await expect
     .poll(
       async () => {
