@@ -13,12 +13,20 @@ export interface ParsedRelease {
   title: string;
   /** The first bullets under `## New` then `## Changed`, in that order, markdown emphasis stripped. */
   bullets: string[];
+  /** The paragraph between the heading and the first section; empty when there is none. */
+  summary: string;
+  /** Every `##` section in the file's order, its bullets with their markdown kept (the full notes draw `**bold**`). */
+  sections: ReleaseSection[];
 }
 
-/** One bullet's text, its leading `- ` and any `**bold**`/`*em*` markers stripped — a card draws plain text. */
-function plainBullet(line: string): string {
-  return line
-    .replace(/^[-*]\s+/, '')
+export interface ReleaseSection {
+  heading: string;
+  bullets: string[];
+}
+
+/** One bullet's text with any `**bold**`/`*em*` markers stripped — a card draws plain text. */
+function plainBullet(text: string): string {
+  return text
     .replace(/\*\*(.+?)\*\*/g, '$1')
     .replace(/\*(.+?)\*/g, '$1')
     .trim();
@@ -36,33 +44,40 @@ export function parseReleaseNotes(markdown: string, version: string): ParsedRele
   const dash = heading.indexOf('—'); // em dash
   const title = dash === -1 ? heading : heading.slice(dash + 1).trim();
 
+  const { summary, sections } = sectionsOf(lines.slice(lines.indexOf(headingLine) + 1));
   // New's bullets before Changed's, each read in the file's own order — the card shows what shipped
   // before what merely changed, and tops up from Changed only once New runs out.
-  const ordered = [...bulletsOfSection(lines, 'new'), ...bulletsOfSection(lines, 'changed')];
-  return { version, title, bullets: ordered.slice(0, 3) };
+  const named = (target: string): string[] => sections.find((s) => s.heading.toLowerCase() === target)?.bullets ?? [];
+  const ordered = [...named('new'), ...named('changed')].map(plainBullet);
+  return { version, title, bullets: ordered.slice(0, 3), summary, sections };
 }
 
 /**
  * A release file wraps a long bullet onto an indented continuation line (no leading `-`), so this
- * joins every line up to the next bullet, heading or blank line before stripping markdown.
+ * joins every continuation onto its bullet. Lines before the first `##` are the summary paragraph.
  */
-function bulletsOfSection(lines: readonly string[], target: 'new' | 'changed'): string[] {
-  const out: string[] = [];
-  let inSection = false;
+function sectionsOf(lines: readonly string[]): { summary: string; sections: ReleaseSection[] } {
+  const summary: string[] = [];
+  const sections: ReleaseSection[] = [];
   for (const line of lines) {
     const heading = /^##\s+(.+)/.exec(line);
     if (heading !== null) {
-      inSection = heading[1]!.trim().toLowerCase() === target;
+      sections.push({ heading: heading[1]!.trim(), bullets: [] });
       continue;
     }
-    if (!inSection) continue;
-    if (/^[-*]\s+/.test(line)) {
-      out.push(plainBullet(line));
-    } else if (/^\s+\S/.test(line) && out.length > 0) {
-      out[out.length - 1] = `${out[out.length - 1]!} ${line.trim()}`;
+    const current = sections.at(-1);
+    if (current === undefined) {
+      if (line.trim() !== '') summary.push(line.trim());
+      continue;
+    }
+    const bullet = /^[-*]\s+(.*)/.exec(line);
+    if (bullet !== null) {
+      current.bullets.push(bullet[1]!.trim());
+    } else if (/^\s+\S/.test(line) && current.bullets.length > 0) {
+      current.bullets[current.bullets.length - 1] = `${current.bullets.at(-1)!} ${line.trim()}`;
     }
   }
-  return out;
+  return { summary: summary.join(' '), sections: sections.filter((s) => s.bullets.length > 0) };
 }
 
 /** `v0.36.0.md` → `v0.36.0`. `null` for a name this does not recognise as a release's. */
@@ -71,18 +86,10 @@ export function versionOfPath(path: string): string | null {
   return m === null ? null : m[1]!;
 }
 
-/** The newest of a set of release versions, by semantic order (`v` + three dot-separated integers). */
-export function newestVersion(versions: readonly string[]): string | null {
-  let best: string | null = null;
-  let bestParts: readonly number[] = [];
-  for (const v of versions) {
-    const parts = v.replace(/^v/, '').split('.').map(Number);
-    if (best === null || compareVersions(parts, bestParts) > 0) {
-      best = v;
-      bestParts = parts;
-    }
-  }
-  return best;
+/** Releases newest first, by semantic order (`v` + three dot-separated integers, each a number). */
+export function newestFirst<T extends { version: string }>(releases: readonly T[]): T[] {
+  const parts = (v: string): number[] => v.replace(/^v/, '').split('.').map(Number);
+  return [...releases].sort((a, b) => compareVersions(parts(b.version), parts(a.version)));
 }
 
 function compareVersions(a: readonly number[], b: readonly number[]): number {

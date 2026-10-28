@@ -86,7 +86,6 @@
   flex: 1 1 auto;
 }
 
-.front-card__foot-links,
 .front-card__foot {
   display: flex;
   align-items: center;
@@ -98,6 +97,76 @@
 .front-card__link {
   font-size: 12px;
   color: var(--accent-ink);
+}
+
+/* Patch notes' "Read all": a real button, right-aligned in the foot, in the card's accent. */
+.front-card__more {
+  margin-left: auto;
+  color: var(--accent-ink);
+  border-color: var(--accent);
+  cursor: pointer;
+}
+
+.front-card__more:hover,
+.front-card__more:focus-visible {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* The full notes, in `../components/Modal.tsx`: every release, newest first. */
+.patch-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.patch-notes__release + .patch-notes__release {
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.patch-notes__title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  font-size: 15px;
+}
+
+.patch-notes__version {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-faint);
+}
+
+.patch-notes__summary {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--ink-dim);
+}
+
+.patch-notes__section {
+  margin: 12px 0 4px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+
+.patch-notes__bullets {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+
+.patch-notes__bullets li + li {
+  margin-top: 4px;
+}
+
+.patch-notes__bullets strong {
+  color: var(--ink);
 }
 
 /* Upcoming's rows: a date block, then the title and one dim detail line. */

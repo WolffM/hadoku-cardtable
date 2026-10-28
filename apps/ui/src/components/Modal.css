@@ -22,6 +22,10 @@
   border-radius: var(--hdk-radius-lg);
 }
 
+.ct-modal__panel[data-wide] {
+  width: min(680px, 100%);
+}
+
 .ct-modal__head {
   display: flex;
   align-items: center;

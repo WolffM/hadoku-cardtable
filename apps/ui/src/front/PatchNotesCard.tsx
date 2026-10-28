@@ -1,18 +1,19 @@
 /*
  * The banner's "Patch notes" card (`docs/planning/wave77-2026-10-27.md` §A): the newest
  * `docs/releases/v*.md`, bundled at build time — no server route, because the notes already ship
- * in this repo. "Older" opens the release list in `docs/`'s own GitHub view, since there is no
- * in-app release index to link instead.
+ * in this repo. "Read all" opens every bundled release, newest first, in a modal on the site.
  */
 
-import { GITHUB_REPO_URL } from '../chrome/HeaderLinks.tsx';
-import { newestVersion, parseReleaseNotes, versionOfPath, type ParsedRelease } from './patchNotes.ts';
+import { Fragment, useState, type ReactNode } from 'react';
+
+import { Modal } from '../components/Modal.tsx';
+import { newestFirst, parseReleaseNotes, versionOfPath, type ParsedRelease } from './patchNotes.ts';
 
 // Vite bundles every match eagerly, as raw text, at build time (no server round trip for the notes).
 const RELEASE_FILES = import.meta.glob('../../../../docs/releases/v*.md', { query: '?raw', eager: true, import: 'default' }) as Record<string, string>;
 
-/** Every release this build shipped with, parsed. Computed once per build, not per render. */
-function allReleases(): ParsedRelease[] {
+/** Every release this build shipped with, parsed, newest first. Computed once per build, not per render. */
+const RELEASES: ParsedRelease[] = (() => {
   const out: ParsedRelease[] = [];
   for (const [path, markdown] of Object.entries(RELEASE_FILES)) {
     const version = versionOfPath(path);
@@ -20,13 +21,17 @@ function allReleases(): ParsedRelease[] {
     const parsed = parseReleaseNotes(markdown, version);
     if (parsed !== null) out.push(parsed);
   }
-  return out;
+  return newestFirst(out);
+})();
+
+/** A bullet's `**bold**` lead drawn bold; everything else as plain text. */
+function inline(text: string): ReactNode {
+  return text.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 === 1 ? <strong key={i}>{part}</strong> : <Fragment key={i}>{part.replace(/\*(.+?)\*/g, '$1')}</Fragment>));
 }
 
 export function PatchNotesCard() {
-  const releases = allReleases();
-  const newest = newestVersion(releases.map((r) => r.version));
-  const release = releases.find((r) => r.version === newest) ?? null;
+  const [open, setOpen] = useState(false);
+  const release = RELEASES[0] ?? null;
 
   return (
     <section className="front-card front-card--patch-notes" data-testid="front-patch-notes">
@@ -44,16 +49,38 @@ export function PatchNotesCard() {
               <li key={i}>{b}</li>
             ))}
           </ul>
+          <div className="front-card__foot">
+            <button type="button" className="button front-card__more" data-testid="front-patch-notes-read-all" onClick={() => setOpen(true)}>
+              Read all
+            </button>
+          </div>
         </>
       )}
-      <div className="front-card__foot-links">
-        <a className="front-card__link" href={`${GITHUB_REPO_URL}/tree/main/docs/releases`} target="_blank" rel="noopener noreferrer">
-          Read all
-        </a>
-        <a className="front-card__link" href={`${GITHUB_REPO_URL}/tree/main/docs/releases`} target="_blank" rel="noopener noreferrer">
-          Older
-        </a>
-      </div>
+      {open && (
+        <Modal title="Patch notes" testId="front-patch-notes-modal" wide onClose={() => setOpen(false)}>
+          <div className="patch-notes">
+            {RELEASES.map((r) => (
+              <article key={r.version} className="patch-notes__release">
+                <h4 className="patch-notes__title">
+                  <span className="patch-notes__version">{r.version}</span>
+                  {r.title}
+                </h4>
+                {r.summary !== '' && <p className="patch-notes__summary">{r.summary}</p>}
+                {r.sections.map((s) => (
+                  <section key={s.heading}>
+                    <h5 className="patch-notes__section">{s.heading}</h5>
+                    <ul className="patch-notes__bullets">
+                      {s.bullets.map((b, i) => (
+                        <li key={i}>{inline(b)}</li>
+                      ))}
+                    </ul>
+                  </section>
+                ))}
+              </article>
+            ))}
+          </div>
+        </Modal>
+      )}
     </section>
   );
 }

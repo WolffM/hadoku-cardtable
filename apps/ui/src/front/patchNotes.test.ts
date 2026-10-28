@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { newestVersion, parseReleaseNotes, versionOfPath } from './patchNotes.ts';
+import { newestFirst, parseReleaseNotes, versionOfPath } from './patchNotes.ts';
 
 const RELEASE_PATH = fileURLToPath(new URL('../../../../docs/releases/v0.36.0.md', import.meta.url));
 
@@ -28,7 +28,15 @@ describe('parseReleaseNotes', () => {
   it('reads no bullets rather than throwing when a section is empty, and null with no heading at all', () => {
     expect(parseReleaseNotes('no heading here', 'v0.0.0')).toBeNull();
     const empty = parseReleaseNotes('# v0.0.0 — Nothing yet\n\n## New\n\n## Changed\n', 'v0.0.0');
-    expect(empty).toEqual({ version: 'v0.0.0', title: 'Nothing yet', bullets: [] });
+    expect(empty).toEqual({ version: 'v0.0.0', title: 'Nothing yet', bullets: [], summary: '', sections: [] });
+  });
+
+  it('keeps every section of a real release in file order, bold kept and wrapped lines joined, for the full notes', () => {
+    const parsed = parseReleaseNotes(readFileSync(RELEASE_PATH, 'utf8'), 'v0.36.0');
+    expect(parsed?.summary).not.toBe('');
+    expect(parsed?.sections.map((s) => s.heading)).toEqual(['New', 'Changed', 'Fixed', 'Under the hood']);
+    expect(parsed?.sections[0]?.bullets[0]).toMatch(/^\*\*The table dims while you pick\.\*\* While you choose a target/);
+    expect(parsed?.sections.every((s) => s.bullets.every((b) => !b.includes('\n')))).toBe(true);
   });
 
   it('takes the title as the bare heading when there is no em dash', () => {
@@ -45,10 +53,9 @@ describe('versionOfPath', () => {
   });
 });
 
-describe('newestVersion', () => {
+describe('newestFirst', () => {
   it('orders by every part as a number, not as text (v0.9.0 is older than v0.10.0)', () => {
-    expect(newestVersion(['v0.9.0', 'v0.10.0', 'v0.2.0'])).toBe('v0.10.0');
-    expect(newestVersion(['v1.0.0'])).toBe('v1.0.0');
-    expect(newestVersion([])).toBeNull();
+    expect(newestFirst([{ version: 'v0.9.0' }, { version: 'v0.10.0' }, { version: 'v0.2.0' }]).map((r) => r.version)).toEqual(['v0.10.0', 'v0.9.0', 'v0.2.0']);
+    expect(newestFirst([])).toEqual([]);
   });
 });
