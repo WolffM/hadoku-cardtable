@@ -27,7 +27,6 @@ import { nameIndex, searchNames } from './name-search.ts';
 import { RulesText } from './RulesText.tsx';
 import {
   abilityProblems,
-  breaksSearchRule,
   choiceBounds,
   chooseEntitiesProblems,
   chooseSingleProblems,
@@ -41,7 +40,7 @@ import {
   type SearchRow,
 } from './rules.ts';
 import { assertAnswerable, checkedReply, type AskOf, type PromptProps } from './types.ts';
-import type { CardRef, EntityRef } from '@hadoku/forge-wire';
+import { breaksSearchRule, type CardRef, type EntityRef } from '@hadoku/forge-wire';
 import type { TileCard } from '../../components/faceCrop.ts';
 
 /** The card an option stands for, when it stands for one. */

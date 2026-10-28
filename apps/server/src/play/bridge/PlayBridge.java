@@ -45,6 +45,7 @@ import forge.game.GameType;
 import forge.game.GameView;
 import forge.game.ability.AbilityUtils;
 import forge.game.ability.ApiType;
+import forge.game.ability.effects.ChosenSet;
 import forge.game.event.GameEventCombatUpdate;
 import forge.game.card.CardFaceView;
 import forge.game.card.CardView;
@@ -2426,9 +2427,9 @@ public final class PlayBridge {
         volatile Boolean lastToldMulligan;
 
         /**
-         * The search this seat's controller is choosing for, while its {@code chooseCardsForZoneChange}
-         * runs ({@link SeatController#chooseCardsForZoneChange}): the ability, so the ask can carry the
-         * rules its chosen set must meet ({@link #searchRules}). Null otherwise.
+         * The ability this seat's controller is choosing a ruled set for, while its
+         * {@code chooseEntitiesForEffect} runs ({@link SeatController#chooseEntitiesForEffect}), so the ask
+         * can carry the rules its chosen set must meet ({@link #searchRules}). Null otherwise.
          */
         volatile SpellAbility searching;
 
@@ -4452,15 +4453,18 @@ public final class PlayBridge {
         }
 
         /**
-         * The rules a search's chosen set must meet ({@code ChooseEntitiesForEffectSchema}'s {@code rules}),
-         * read from the {@code ChangeZone}'s own parameters and checked with the same {@code Card} tests
-         * {@code ChangeZoneEffect.meetsSearchConstraints} uses, so the seat can grey a card that would break
-         * one before Forge refuses the set:
+         * The rules a set chosen at once must meet ({@code ChooseEntitiesForEffectSchema}'s {@code rules}),
+         * read from the ability's own parameters and checked with the same {@code Card} tests
+         * {@code ChosenSet.meets} uses, so the seat can grey a card that would break one before Forge
+         * refuses the set:
          * <ul>
-         * <li>{@code DifferentNames}, {@code DifferentCMC}, {@code DifferentPower}, {@code ShareLandType}: the
-         *     pairs of offered cards that may not be chosen together ({@code clash});</li>
+         * <li>{@code DifferentNames}, {@code DifferentCMC}, {@code DifferentPower}, {@code ShareLandType} (and
+         *     their {@code With…} spellings): the pairs of offered cards that may not be chosen together
+         *     ({@code clash});</li>
          * <li>{@code WithTotalCMC}, {@code WithTotalPower}: each card's amount and the most the set may total;</li>
          * <li>{@code WithTotalCardTypes}: each card's card types and how many the set needs among them;</li>
+         * <li>one card for each of a list of kinds ({@code ChosenSet.slots}): the offered cards that fit
+         *     each slot, and whether every slot some card fits must be held ({@code fill});</li>
          * <li>{@code Exactly}: none, or exactly {@code max}.</li>
          * </ul>
          * Null when there are none, or when an offered card is not a card this seat may see.
@@ -4477,10 +4481,10 @@ public final class PlayBridge {
                 cards.add(c);
             }
             final JsonArray rules = new JsonArray();
-            clashRule(rules, sa, "DifferentNames", "differentNames", cards, (a, b) -> a.sharesNameWith(b));
-            clashRule(rules, sa, "DifferentCMC", "differentManaValues", cards, (a, b) -> a.sharesCMCWith(b));
-            clashRule(rules, sa, "DifferentPower", "differentPowers", cards, (a, b) -> a.getNetPower() == b.getNetPower());
-            clashRule(rules, sa, "ShareLandType", "shareLandType", cards, (a, b) -> !a.sharesLandTypeWith(b));
+            clashRule(rules, ChosenSet.differentNames(sa), "differentNames", cards, (a, b) -> a.sharesNameWith(b));
+            clashRule(rules, sa.hasParam("DifferentCMC"), "differentManaValues", cards, (a, b) -> a.sharesCMCWith(b));
+            clashRule(rules, ChosenSet.differentPowers(sa), "differentPowers", cards, (a, b) -> a.getNetPower() == b.getNetPower());
+            clashRule(rules, sa.hasParam("ShareLandType"), "shareLandType", cards, (a, b) -> !a.sharesLandTypeWith(b));
             totalRule(rules, sa, "WithTotalCMC", "totalManaValue", cards, forge.game.card.Card::getCMC);
             totalRule(rules, sa, "WithTotalPower", "totalPower", cards, forge.game.card.Card::getNetPower);
             if (sa.hasParam("WithTotalCardTypes")) {
@@ -4496,6 +4500,19 @@ public final class PlayBridge {
                 o.add("values", values);
                 rules.add(o);
             }
+            if (ChosenSet.slotted(sa)) {
+                final JsonObject o = new JsonObject();
+                o.addProperty("kind", "slots");
+                final JsonArray slots = new JsonArray();
+                for (final forge.game.card.CardCollection slot : ChosenSet.slots(sa, cards)) {
+                    final JsonArray ids = new JsonArray();
+                    for (final forge.game.card.Card c : slot) { ids.add(c.getId()); }
+                    slots.add(ids);
+                }
+                o.add("slots", slots);
+                o.addProperty("fill", ChosenSet.mustFill(sa));
+                rules.add(o);
+            }
             if (sa.hasParam("Exactly")) {
                 final JsonObject o = new JsonObject();
                 o.addProperty("kind", "exactly");
@@ -4506,10 +4523,10 @@ public final class PlayBridge {
         }
 
         /** A pairwise rule: every pair of offered cards {@code clash} says may not be chosen together. */
-        private static void clashRule(final JsonArray rules, final SpellAbility sa, final String param, final String kind,
+        private static void clashRule(final JsonArray rules, final boolean applies, final String kind,
                                       final List<forge.game.card.Card> cards,
                                       final java.util.function.BiPredicate<forge.game.card.Card, forge.game.card.Card> clash) {
-            if (!sa.hasParam(param)) { return; }
+            if (!applies) { return; }
             final JsonArray pairs = new JsonArray();
             for (int i = 0; i < cards.size(); i++) {
                 for (int j = i + 1; j < cards.size(); j++) {
@@ -5524,21 +5541,23 @@ public final class PlayBridge {
         }
 
         /**
-         * A search ({@code ChangeZoneEffect}'s multi-select) asks through this seat's GUI with no ability
+         * A set chosen at once under rules ({@code ChosenSet}: a constrained search, a card of each type,
+         * a total or different powers) asks through this seat's GUI with no ability
          * ({@code chooseEntitiesForEffect}); the seat's {@link SeatGui} holds it for the length of the call,
-         * so the ask can carry the rules the chosen set must meet ({@link SeatGui#searchRules}).
+         * so the ask can carry the rules the chosen set must meet ({@link SeatGui#searchRules}). Forge's
+         * search ({@code chooseCardsForZoneChange}) reaches the GUI through this method too.
          */
         @Override
-        public List<forge.game.card.Card> chooseCardsForZoneChange(final ZoneType destination, final List<ZoneType> origin,
-                final SpellAbility sa, final forge.game.card.CardCollection fetchList, final int min, final int max,
-                final DelayedReveal delayedReveal, final String selectPrompt, final forge.game.player.Player decider) {
+        public <T extends forge.game.GameEntity> List<T> chooseEntitiesForEffect(final forge.util.collect.FCollectionView<T> optionList,
+                final int min, final int max, final DelayedReveal delayedReveal, final SpellAbility sa, final String title,
+                final forge.game.player.Player targetedPlayer, final Map<String, Object> params) {
             final SeatGui gui = match.seatGuis.get(seat);
-            final boolean search = gui != null && sa != null && sa.getApi() == forge.game.ability.ApiType.ChangeZone;
-            if (search) { gui.searching = sa; }
+            final boolean ruled = gui != null && ChosenSet.constrains(sa);
+            if (ruled) { gui.searching = sa; }
             try {
-                return super.chooseCardsForZoneChange(destination, origin, sa, fetchList, min, max, delayedReveal, selectPrompt, decider);
+                return super.chooseEntitiesForEffect(optionList, min, max, delayedReveal, sa, title, targetedPlayer, params);
             } finally {
-                if (search) { gui.searching = null; }
+                if (ruled) { gui.searching = null; }
             }
         }
 

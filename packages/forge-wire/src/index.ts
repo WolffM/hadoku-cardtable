@@ -88,6 +88,7 @@ export {
   type WireDeckEntry,
 } from './sideboard.ts';
 export { oneEachFit, type OneEachFit, type OneEachType } from './one-each.ts';
+export { breaksSearchRule, searchRuleProblems } from './search-rules.ts';
 
 export {
   TIER_A_METHODS,

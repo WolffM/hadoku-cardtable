@@ -27,7 +27,7 @@ import {
   zonesShown,
 } from '../../../../ui/src/play/prompts/rules.ts';
 import { combatDamageReply, combatDamageRules, type CombatAssignment } from '@hadoku/shared';
-import type { BlockingMethod, ChoiceOption, ServerFrame } from '@hadoku/forge-wire';
+import { breaksSearchRule, type BlockingMethod, type ChoiceOption, type ServerFrame } from '@hadoku/forge-wire';
 
 import type { Rng } from './rng.ts';
 
@@ -170,7 +170,10 @@ export function randomAnswer(rng: Rng, ask: LiveAsk): RandomAnswer {
       const { min, max } = choiceBounds(ask.min, ask.max);
       const lo = Math.min(min, ask.optionList.length);
       const hi = Math.max(lo, Math.min(max, ask.optionList.length));
-      const chosen = rng.sample(ask.optionList, rng.int(lo, hi));
+      const sampled = rng.sample(ask.optionList, rng.int(lo, hi));
+      // A set with rules Forge asks again until it holds: when the sample breaks one, keep each option
+      // in a random order that breaks none beside the ones kept, as the seat's own greying would.
+      const chosen = chooseEntitiesProblems(ask, sampled).length === 0 ? sampled : ruledPicks(ask, rng.shuffle(ask.optionList), hi);
       const check = chooseEntitiesProblems(ask, chosen);
       // A defensive fallback only — `choiceBounds` should already guarantee this empty.
       return { method: ask.method, result: check.length === 0 ? chosen : [], declined: chosen.length === 0 };
@@ -196,3 +199,13 @@ export function randomAnswer(rng: Rng, ask: LiveAsk): RandomAnswer {
   }
 }
 
+/** Options of `order`, each kept unless it breaks one of the ask's rules beside those kept, up to `most`. */
+function ruledPicks(ask: Extract<LiveAsk, { method: 'chooseEntitiesForEffect' }>, order: typeof ask.optionList, most: number) {
+  const kept: typeof ask.optionList = [];
+  for (const ref of order) {
+    if (kept.length >= most) break;
+    const ids = kept.flatMap((r) => (r.kind === 'card' ? [r.id] : []));
+    if (ref.kind !== 'card' || !breaksSearchRule(ask.rules, ids, ref.id)) kept.push(ref);
+  }
+  return kept;
+}

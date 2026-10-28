@@ -931,16 +931,20 @@ export const ChooseSingleEntityForEffectReplySchema = GameEntityRefSchema.nullab
  * description), absent when it has none.
  */
 /**
- * A rule a search's chosen SET must meet (`ChooseEntitiesForEffectSchema`'s `rules`), ours, never
- * Forge's: set by the bridge (`PlayBridge.java`'s `searchRules`) from the searching `ChangeZone`'s own
- * parameters. Forge asks again until the set meets every one (`ChangeZoneEffect.meetsSearchConstraints`
- * in the fork); the seat uses them to grey what would break one. Card ids are the offered cards'.
+ * A rule a SET chosen at once must meet (`ChooseEntitiesForEffectSchema`'s `rules`), ours, never
+ * Forge's: set by the bridge (`PlayBridge.java`'s `searchRules`) from the choosing ability's own
+ * parameters (a search, a card of each type, a dig). Forge asks again until the set meets every one
+ * (`ChosenSet.meets` in the fork); the seat uses them to grey what would break one. Card ids are the
+ * offered cards'.
  *
  * - `differentNames` / `differentManaValues` / `differentPowers` / `shareLandType`: `clash` lists the
  *   pairs of offered cards that may not both be chosen.
  * - `totalManaValue` / `totalPower`: the chosen cards' `values` total at most `atMost`.
  * - `cardTypes`: the chosen cards have at least `atLeast` card types among them, or none is chosen.
  * - `exactly`: none, or exactly `count`.
+ * - `slots`: one card for each kind — each chosen card holds a slot of its own among those it is
+ *   listed in (a card fitting two kinds fills one); with `fill`, every slot some card is listed in
+ *   is held.
  */
 export const SearchRuleSchema = z.discriminatedUnion('kind', [
   z.strictObject({
@@ -958,6 +962,7 @@ export const SearchRuleSchema = z.discriminatedUnion('kind', [
     values: z.record(z.string(), z.array(z.string())),
   }),
   z.strictObject({ kind: z.literal('exactly'), count: z.number().int().positive() }),
+  z.strictObject({ kind: z.literal('slots'), slots: z.array(z.array(z.number().int())).min(1), fill: z.boolean() }),
 ]);
 
 export type SearchRule = z.infer<typeof SearchRuleSchema>;

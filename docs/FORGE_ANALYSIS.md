@@ -882,3 +882,39 @@ The fork (`7454cb11`) drops those exclusions and checks the chosen set instead
 "among them" as a union of core types), asking again until it holds. Forge's GUI call carries no
 ability, so the bridge's `SeatController.chooseCardsForZoneChange` holds it for the ask, which carries
 the rules (`ChooseEntitiesForEffectSchema.rules`).
+
+**The rest of the family — 2026-10-28 (lane multipick-2), fork `66ff9c1d`.** Re-counted on pin
+`7454cb11` as script files carrying the parameter on that effect's line, the other effects that asked a
+human one card at a time and could ask once:
+
+| Effect | Cards | Forge (pin `7454cb11`) |
+| --- | --- | --- |
+| `ChangeZone` `ChangeType$ EACH a & b` | 17 | `ChangeZoneEffect.java:1120`: one `chooseSingleCardForZoneChange` per type × `ChangeNum`, removing what was chosen |
+| `ChooseCard` `ChooseEach` | 9 | `ChooseCardEffect.java:131`: one `chooseSingleEntityForEffect` per type, optional unless `Mandatory` |
+| `ChooseCard` `EachBasicType` | 3 | `ChooseCardEffect.java:119`: one per basic land type, not optional |
+| `ChooseCard` `EachDifferentPower` | 1 | `ChooseCardEffect.java:194`: one per power among the choices, not optional (not in the first survey) |
+| `ChooseCard` `WithTotalPower` | 2 | `ChooseCardEffect.java:146`: a loop of single picks, narrowed by the power left |
+| `ChooseCard` `WithDifferentPowers` | 2 | `ChooseCardEffect.java:171`: a loop narrowed by `powerNE` |
+| `Dig` `WithTotalCMC` | 3 | `DigEffect.java:263`: a loop narrowed by `cmcLE` (the first survey's 4 counted a `Play` line) |
+| `Dig` `ForEachColorPair` | 1 | `DigEffect.java:290`: one per colour pair, not optional |
+| `Dig` `WithDifferentPowers` | 1 | `DigEffect.java:307` (Rip-Spawn Hunter; not in the first survey) |
+| `CopyPermanent` `WithDifferentNames` | 1 | `CopyPermanentEffect.java:210`: a loop narrowed by name, a confirm to stop |
+| `ChooseSource` `Amount` | **0** | no `ChooseSource` script line on the pin carries `Amount$`; nothing to convert |
+
+The fork's `forge.game.ability.effects.ChosenSet` now owns every set rule (AF411's
+`ChangeZoneEffect.meetsSearchConstraints` moved into `ChosenSet.meets`, with the `With…` spellings). Each
+effect above asks a human decider once (`chooseEntitiesForEffect`; a search through
+`chooseCardsForZoneChange`) and re-asks until `meets` holds; an AI decider keeps its old loop. One card for
+each kind is a **slot** rule (`ChosenSet.slots`): every chosen card must hold a slot of its own among those
+it fits, so a card of two kinds (an artifact creature, Volcanic Island) fills one — the matching
+`ChangeZone`'s loop made by removing what was chosen. Where the single asks could not be declined
+(`Mandatory`, `EachBasicType`, `EachDifferentPower`, `ForEachColorPair`), `mustFill` also requires every slot
+some offered card fits to be held. **Unverified rules question:** Forge's own `ChooseCard` loop let one
+permanent answer two types (Cataclysm's artifact creature as both the artifact and the creature, since the
+list was never narrowed); the slot rule does not. A set with rules always asks in a list, never by clicking
+cards on the table (`PlayerControllerHuman.useSelectCardsInput`), because only the list checks the set.
+
+The bridge's `SeatController.chooseEntitiesForEffect` holds the ability whenever `ChosenSet.constrains` it
+(replacing AF411's `chooseCardsForZoneChange` hook, which went through it anyway), and the ask's `rules`
+gain `slots` (`SearchRuleSchema`). A `Dig` with rules is not folded into the dig's order sheet
+(`arrange.ts`'s `digAsk`): only the search prompt checks them.

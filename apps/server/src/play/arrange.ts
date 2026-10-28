@@ -95,10 +95,12 @@ export function arrangeAsk(frame: Extract<ServerFrame, { kind: 'ask' }>): OrderA
  * card Forge does not offer (a `ChangeValid` it fails) is `locked` in the rest.
  * Its `question` is the action the dig's own text asks for (`digQuestion`), or
  * Forge's own question when the text has none to read.
- * Null for any other ask, and for a dig whose looked-at cards are not sent.
+ * Null for any other ask, for a dig whose looked-at cards are not sent, and for
+ * one whose chosen set has rules (`rules`: a total mana value, different powers,
+ * a colour pair each), which only the search prompt checks.
  */
 export function digAsk(frame: Extract<ServerFrame, { kind: 'ask' }>): OrderAsk | null {
-	if (frame.method !== 'chooseEntitiesForEffect' || frame.dig === undefined || frame.delayedReveal === null) return null;
+	if (frame.method !== 'chooseEntitiesForEffect' || frame.dig === undefined || frame.delayedReveal === null || frame.rules !== undefined) return null;
 	const looked = frame.delayedReveal.cards;
 	const seen = new Set(looked.map((c) => c.id));
 	const offered = new Set<number>();
