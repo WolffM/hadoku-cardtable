@@ -319,16 +319,24 @@ export const CAST_LANDING_ATTR = 'data-cast-landing';
  * power, every other permanent (artifact, enchantment, planeswalker, battle) by its mana value —
  * looked up live off `view`'s battlefield, either seat's, never a badge read off the DOM: a cast
  * noncreature permanent has no P/T badge to read, so reading one left it weightless. Null when
- * `view` has no battlefield card at `cardId` yet (Forge has not drawn it there), or `cardId` is
- * null (nothing of this screen's own to weigh — a float back to a hand, the other seat's echo of
- * a card this screen cannot name). The one place every cast or arriving permanent's landing learns
+ * `view` has no battlefield card at `cardId` yet (Forge has not drawn it there), `cardId` is null
+ * (nothing of this screen's own to weigh — a float back to a hand, the other seat's echo of a card
+ * this screen cannot name), or the heft is 0 (a land, a 0-power creature: `entries.ts`'s own words,
+ * "a 0-heft permanent lands light: nothing but the drop") — the cast path's own flight and shrink
+ * already ARE that drop, so a zero-weight tail drew nothing extra and nothing before this fix ever
+ * ran one; running `landingDrop`'s own `el.animate` on the SAME ghost `floatCastLiftHome`'s CSS
+ * transition is still moving fought it for the rest of that transition's run (a shockland's decline,
+ * Memnite's 0 power: the ghost drifted and resized for a second-plus past its real landing,
+ * played-card.spec.ts, 2026-10-28). The one place every cast or arriving permanent's landing learns
  * its weight, so a caller holding `view` and an id never has to thread the weight through itself.
  */
 export function castLandingWeight(view: BoardView | null, cardId: number | null): EntryWeight | null {
   if (cardId === null || view === null) return null;
   for (const p of view.players) {
     const card = p.battlefield.find((c) => c.id === cardId);
-    if (card !== undefined) return entryWeight(entryHeft(card.card));
+    if (card === undefined) continue;
+    const heft = entryHeft(card.card);
+    return heft > 0 ? entryWeight(heft) : null;
   }
   return null;
 }

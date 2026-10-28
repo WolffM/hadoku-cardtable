@@ -84,6 +84,12 @@ describe('castLandingWeight', () => {
     expect(castLandingWeight(v, null)).toBeNull();
     expect(castLandingWeight(null, 9)).toBeNull();
   });
+
+  it('null for a 0-heft permanent — a land (mana value 0) or a 0-power creature — never a weight tail to fight landCastGhost\'s own float-home (played-card.spec.ts, 2026-10-28)', () => {
+    const v = view([player(1, [card(5, 'Land', { manaValue: 0 }), card(6, 'Creature — Construct', { power: '0' })])]);
+    expect(castLandingWeight(v, 5)).toBeNull();
+    expect(castLandingWeight(v, 6)).toBeNull();
+  });
 });
 
 function arrivedAt(x: number, y: number): HTMLElement {
