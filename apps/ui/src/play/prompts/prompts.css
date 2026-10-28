@@ -450,7 +450,6 @@
 .prompt__cards > li[data-blocked='true'],
 .prompt__list > li[data-blocked='true'] {
   opacity: 0.4;
-  filter: grayscale(1);
 }
 
 .prompt__cards > li[data-blocked='true'] label {
