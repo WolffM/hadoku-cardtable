@@ -5,8 +5,10 @@
  * (the hosting rulings); placement is ours. Only the fields of its pinned tenant contract
  * (`TENANT_CONTRACT`, number `FLEET_CONTRACT`) are read: `contract`, `generatedAt`, `nodes[].node`,
  * `reachable`, `ok`, `findings[]`, `notices[]{event,at,kind}`, `hosting.state`,
- * `hosting.declared.{memoryMb,cores,port}`, `hosting.observed.{agent,portReach,memoryInUseMb}` and
- * `hosting.until`. Every non-guest node is a row, so a slice that ended reads `hosting: null`.
+ * `hosting.declared.{tenant,memoryMb,cores,port,role}`, `hosting.observed.{agent,portReach,memoryInUseMb}`
+ * and `hosting.until`. Every non-guest node is a row, so a slice that ended reads `hosting: null`.
+ * Only our tenant's primary slice counts: another tenant's slice, or a standby (`role: "standby"`,
+ * for a tenant with `availability.standby`), reads as no slice of ours.
  *
  * Readable is stdout that parses AND carries our contract number; the exit code reports findings
  * only. Anything else is "could not look", which holds the current state and never promotes or
@@ -103,6 +105,17 @@ function parseContract(text: string): Record<string, unknown> | null {
 	return isObject(raw) && raw.contract === FLEET_CONTRACT ? raw : null;
 }
 
+/** Our app in fleet-manager's hosting registry. */
+export const TENANT = 'cardtable';
+
+/** A node's `hosting` when it is our tenant's primary slice, else null. */
+function ourSlice(h: unknown): Record<string, unknown> | null {
+	if (!isObject(h)) return null;
+	const declared = isObject(h.declared) ? h.declared : {};
+	if (declared.tenant !== TENANT) return null;
+	return (h.role ?? declared.role ?? 'primary') === 'primary' ? h : null;
+}
+
 /** The contract's fields of one `node-status --json`, or null when it is not that. */
 export function parseNodeStatus(text: string): FleetStatus | null {
 	const raw = parseContract(text);
@@ -111,7 +124,7 @@ export function parseNodeStatus(text: string): FleetStatus | null {
 	const nodes: FleetNode[] = [];
 	for (const n of raw.nodes) {
 		if (!isObject(n) || typeof n.node !== 'string') return null;
-		const h = isObject(n.hosting) ? n.hosting : null;
+		const h = ourSlice(n.hosting);
 		const declared = h !== null && isObject(h.declared) ? h.declared : null;
 		const observed = h !== null && isObject(h.observed) ? h.observed : null;
 		nodes.push({
@@ -165,8 +178,6 @@ export function parseDemand(text: string): FleetDemand | null {
 export interface FleetCliOptions {
 	/** fleet-manager's `dist/cli.js`. Default `~/repos/hadoku-fleet-manager/dist/cli.js`. */
 	cli?: string;
-	/** Our app in fleet-manager's hosting registry. */
-	app?: string;
 	env?: NodeJS.ProcessEnv;
 	timeoutMs?: number;
 	log?: (entry: Record<string, unknown>) => void;
@@ -199,7 +210,7 @@ export function fleetCli(opts: FleetCliOptions = {}): FleetSource {
 			return status;
 		},
 		async demand(slices, releaseOrder) {
-			const args = ['hosting-demand', opts.app ?? 'cardtable', '--slices', String(slices), '--json'];
+			const args = ['hosting-demand', TENANT, '--slices', String(slices), '--json'];
 			if (releaseOrder.length > 0) args.push('--release-order', releaseOrder.join(','));
 			const text = await run(args);
 			const demand = text === null ? null : parseDemand(text);
