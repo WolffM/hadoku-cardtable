@@ -1,0 +1,16 @@
+# Promo footage (`e2e/promo/blasphemous.promo.ts`): a board wipe. Thirteen creatures between the two seats,
+# so seat 0's Blasphemous Act costs only {R}; thirteen damage to each creature and every one of them dies
+# together, each with its own death. No creature here has a death or "dies" trigger, so nothing asks.
+turn=7
+activeplayer=human
+activephase=MAIN1
+humanlife=6
+ailife=19
+humanhand=Blasphemous Act;Lightning Bolt;Fireblast
+humanbattlefield=Goblin Guide;Monastery Swiftspear;Eidolon of the Great Revel;Mountain;Mountain;Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=Chain Lightning;Lava Spike;Rift Bolt
+aihand=
+aibattlefield=Baneslayer Angel;Serra Angel;Thalia, Guardian of Thraben;Adanto Vanguard;Brimaz, King of Oreskos;Thraben Inspector;Tarmogoyf;Knight of the White Orchid;Plains;Plains;Plains;Plains;Plains;Horizon Canopy
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=Swords to Plowshares;Path to Exile
