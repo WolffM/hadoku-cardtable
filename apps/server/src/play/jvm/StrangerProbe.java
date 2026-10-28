@@ -20,8 +20,14 @@ import io.netty.handler.codec.serialization.ClassResolvers;
  *
  * <p>{@code StrangerProbe <host> <port> <mode> <ms>}. Modes: {@code chat} sends a chat line without
  * logging in; {@code login} logs in as a new player. It then listens for {@code ms} and prints one
- * tab-separated line per thing it saw: {@code recv <class> <detail>}, {@code closed}, and last
+ * tab-separated line per thing it saw: {@code recv <class> <detail>}, then {@code closed} when the
+ * server closed the connection within {@code ms} or {@code gave-up} when it did not, and last
  * {@code done}. Exits 0 whenever it could connect at all; {@code refused} and exit 0 when it could not.
+ *
+ * <p>The main thread decides between {@code closed} and {@code gave-up}, from whether the close
+ * future completed in time. {@code channelInactive} cannot say it: Netty completes the close future
+ * before it fires the pipeline's {@code channelInactive}, so a line printed there can land after
+ * {@code done}, and it fires for the probe's own close as well as the server's.
  */
 public final class StrangerProbe {
     public static void main(final String[] args) throws Exception {
@@ -43,9 +49,6 @@ public final class StrangerProbe {
                                             @Override public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
                                                 say("recv", msg.getClass().getSimpleName(), detail(msg));
                                             }
-                                            @Override public void channelInactive(final ChannelHandlerContext ctx) {
-                                                say("closed");
-                                            }
                                             @Override public void exceptionCaught(final ChannelHandlerContext ctx, final Throwable e) {
                                                 say("error", e.toString());
                                             }
@@ -63,7 +66,7 @@ public final class StrangerProbe {
                 case "login" -> ch.writeAndFlush(new LoginEvent("stranger", 0, 0, null, false));
                 default -> throw new IllegalArgumentException("mode: " + mode);
             }
-            ch.closeFuture().await(listenMs);
+            say(ch.closeFuture().await(listenMs) ? "closed" : "gave-up");
             ch.close().sync();
             say("done");
         } finally {

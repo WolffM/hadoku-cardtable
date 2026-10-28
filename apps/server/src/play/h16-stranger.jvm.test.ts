@@ -152,15 +152,14 @@ describe.skipIf(!available.ok)(title, () => {
 		const said = stranger('chat');
 		expect(said[0]?.[0], 'the stranger reached the port over loopback').toBe('connected');
 		expect(said.filter((c) => c[0] === 'recv'), 'what the stranger heard').toEqual([]);
-		expect(said.map((c) => c[0]), 'the server closed the stranger before it gave up').toContain('closed');
-		expect(said.map((c) => c[0]).indexOf('closed')).toBeLessThan(said.map((c) => c[0]).indexOf('done'));
+		expect(said.map((c) => c[0]).slice(-2), 'the server closed the stranger before it gave up').toEqual(['closed', 'done']);
 	});
 
 	it('a stranger that logs in is closed, and is given no lobby slot or state', { timeout: 90_000 }, () => {
 		const said = stranger('login');
 		expect(said[0]?.[0]).toBe('connected');
 		expect(said.filter((c) => c[0] === 'recv'), 'what the stranger heard').toEqual([]);
-		expect(said.map((c) => c[0]).indexOf('closed'), 'the server closed the stranger').toBeGreaterThan(0);
+		expect(said.map((c) => c[0]).slice(-2), 'the server closed the stranger before it gave up').toEqual(['closed', 'done']);
 		// Closed at the door, not by a full lobby: the same login after a seat's disconnect would otherwise
 		// reach Forge's reconnect-by-name path, and before the seats connect it would take a slot.
 		expect(stderr(), detail()).toMatch(/Refusing \S+: a login without this server's credential/);
