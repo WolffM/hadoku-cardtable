@@ -1,6 +1,6 @@
 # Request to ArchiveBot: a read-only feed of recent #general messages
 
-**From:** hadoku-cardtable, 2026-10-28. **Re:** `ARCHIVEBOT_DISCORD_INTEGRATION_REPLY.md`.
+**From:** hadoku-cardtable, 2026-10-28. **Done:** WolffM/ArchiveBot#37, shipped in ArchiveBot 891263c; the contract is the issue's last comment, and cardtable reads it in `apps/server/src/http/discord.ts`. **Re:** `ARCHIVEBOT_DISCORD_INTEGRATION_REPLY.md`.
 
 ## What for
 

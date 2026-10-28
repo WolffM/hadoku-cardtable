@@ -503,3 +503,4 @@ export {
   type UpdateEventBody,
   type EventView,
 } from './events.ts';
+export { DiscordMessageSchema, DiscordRecentSchema, type DiscordMessage, type DiscordRecent } from './discord.ts';

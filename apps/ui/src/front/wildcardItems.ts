@@ -14,7 +14,7 @@ import { roomCardView } from './roomCard.ts';
  * others when both are there — the start of a priority system the operator means to refine. A
  * room asking for players now outranks everything; the Discord invite is the fallback.
  */
-export const WILDCARD_PRIORITY = { 'open-seats': 6, cube: 3, 'last-game': 2, lfg: 1 } as const;
+export const WILDCARD_PRIORITY = { 'open-seats': 6, cube: 3, chat: 3, 'last-game': 2, lfg: 1 } as const;
 export type WildcardKind = keyof typeof WILDCARD_PRIORITY;
 
 /** One of `available`, drawn with `WILDCARD_PRIORITY`'s weights; `null` for none. */

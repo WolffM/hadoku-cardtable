@@ -112,7 +112,7 @@ describe('sampleArt', () => {
 
 describe('pickWildcard', () => {
   it('draws each kind in proportion to its weight, from whatever is there', () => {
-    const all = ['open-seats', 'cube', 'last-game', 'lfg'] as const;
+    const all = ['open-seats', 'cube', 'chat', 'last-game', 'lfg'] as const;
     const total = all.reduce((n, k) => n + WILDCARD_PRIORITY[k], 0);
     // A roll just inside each kind's own share of the total lands on that kind.
     let edge = 0;

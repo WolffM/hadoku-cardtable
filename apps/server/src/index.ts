@@ -100,6 +100,7 @@ import { attachDrafts } from './http/drafts.js';
 import { attachRooms } from './http/rooms.js';
 import { attachTableActions } from './http/table-actions.js';
 import { seedTestingRooms } from './room/testing-rooms.js';
+import { attachDiscord } from './http/discord.js';
 import { attachEvents } from './http/events.js';
 import { attachTournaments } from './http/tournaments.js';
 import { attachSounds } from './http/sounds.js';
@@ -595,6 +596,8 @@ attachRooms(api, {
 });
 attachTournaments(api, { tournaments });
 attachEvents(api, { events, lobby, closed: roomClosed });
+// The Discord's last few #general messages, through ArchiveBot (prod only: it holds the secret).
+attachDiscord(api, { secret: CONFIG.archivebotSecret, archivebotUrl: CONFIG.archivebotUrl, log: jsonLogger('cardtable-discord') });
 
 // ── Sounds ───────────────────────────────────────────────────────────────────
 // The sound-builder's catalogue, take audio, and assignment matrix. Same

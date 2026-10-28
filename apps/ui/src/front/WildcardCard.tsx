@@ -11,13 +11,17 @@
  *   - **Cube spotlight** — a cube, three of its cards' art through the art manifest
  *     (`../draft/cardImage.ts`, never a stored URL), and Play now: a draft room on that cube.
  *   - **Last game** — the newest replay, `GET /api/replays?limit=1`.
- *   - **Looking for a game** — the Discord invite (`../chrome/HeaderLinks.tsx`), always there.
+ *   - **In the Discord** — #general's last few messages and Join Discord (`/api/discord/recent`,
+ *     ArchiveBot's, prod only).
+ *   - **Looking for a game** — the bare Discord invite (`../chrome/HeaderLinks.tsx`): there whenever
+ *     the chat is not, so the card always has something.
  *
  * A read that fails or answers nothing drops its kind quietly: a reachability problem is not shown
  * as an error on the front page.
  */
 
 import { useEffect, useState } from 'react';
+import { DiscordRecentSchema, type DiscordMessage } from '@hadoku/shared';
 
 import { apiUrl, bodyOf, getJson, isRecord } from '../http.ts';
 import { DISCORD_INVITE_URL } from '../chrome/HeaderLinks.tsx';
@@ -34,6 +38,8 @@ interface WildcardItem {
   kind: string;
   title: string;
   body: string;
+  /** The Discord's last few messages, newest last, drawn in place of the body. */
+  messages?: readonly DiscordMessage[];
   /** Where its button goes, or what it does (Play now). Absent: no button. */
   action?: { label: string; href: string; external: boolean } | { label: string; run: () => Promise<string | null> };
   /** Card art ids to draw across the top. */
@@ -124,6 +130,39 @@ function useOpenSeats(): WildcardItem | null | typeof ASKING {
   return item;
 }
 
+/** The Discord's last few #general messages (`/api/discord/recent`, prod only): `null` when there are none to show. */
+function useDiscordChat(): WildcardItem | null | typeof ASKING {
+  const [item, setItem] = useState<WildcardItem | null | typeof ASKING>(ASKING);
+  useEffect(() => {
+    let live = true;
+    getJson(apiUrl('discord/recent'))
+      .then(async (res) => (res.status === 200 ? DiscordRecentSchema.safeParse(await bodyOf(res)).data ?? null : null))
+      .then((recent) => {
+        if (!live) return;
+        setItem(
+          recent === null || recent.messages.length === 0
+            ? null
+            : {
+                key: 'chat',
+                kind: 'In the Discord',
+                title: '#general',
+                body: '',
+                messages: recent.messages,
+                action: { href: DISCORD_INVITE_URL, label: 'Join Discord', external: true },
+              },
+        );
+      })
+      .catch(() => {
+        // Not reachable: the invite stands in for it.
+        if (live) setItem(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+  return item;
+}
+
 /** A draft room on `cube`, every round its packs, with the viewer leading it: the spotlight's Play now. `null` once it opens, or what went wrong. */
 async function playCube(cube: { id: string; name: string }): Promise<string | null> {
   const rooms = roomsClient();
@@ -190,13 +229,15 @@ function ArtSlot({ artId }: { artId: string }) {
 const PICK_WAIT_MS = 2_000;
 
 export function WildcardCard() {
-  const sources = [useOpenSeats(), useCubeSpotlight(), useLastGame()];
+  const chat = useDiscordChat();
+  const sources = [useOpenSeats(), useCubeSpotlight(), useLastGame(), chat];
   const [waited, setWaited] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => setWaited(true), PICK_WAIT_MS);
     return () => clearTimeout(timer);
   }, []);
-  const available = [...sources.filter((s): s is WildcardItem => s !== ASKING && s !== null), LOOKING_FOR_GAME];
+  // The chat has the Discord's own Join button, so the bare invite is only there without it.
+  const available = [...sources.filter((s): s is WildcardItem => s !== ASKING && s !== null), ...(chat === ASKING || chat === null ? [LOOKING_FOR_GAME] : [])];
   const settled = waited || sources.every((s) => s !== ASKING);
 
   const [picked, setPicked] = useState<WildcardKind | null>(null);
@@ -231,7 +272,17 @@ function WildcardBody({ item }: { item: WildcardItem }) {
           </div>
         )}
         <p className="front-card__release-title">{item.title}</p>
-        <p className="front-card__wildcard-body">{item.body}</p>
+        {item.messages === undefined ? (
+          <p className="front-card__wildcard-body">{item.body}</p>
+        ) : (
+          <ul className="front-card__chat" data-testid="front-wildcard-messages">
+            {item.messages.map((m, i) => (
+              <li key={i} className="front-card__chat-line">
+                <span className="front-card__chat-author">{m.author}</span> {m.text}
+              </li>
+            ))}
+          </ul>
+        )}
         {error !== null && (
           <p className="ct-error" role="alert">
             {error}
