@@ -906,13 +906,49 @@ The fork's `forge.game.ability.effects.ChosenSet` now owns every set rule (AF411
 effect above asks a human decider once (`chooseEntitiesForEffect`; a search through
 `chooseCardsForZoneChange`) and re-asks until `meets` holds; an AI decider keeps its old loop. One card for
 each kind is a **slot** rule (`ChosenSet.slots`): every chosen card must hold a slot of its own among those
-it fits, so a card of two kinds (an artifact creature, Volcanic Island) fills one — the matching
-`ChangeZone`'s loop made by removing what was chosen. Where the single asks could not be declined
-(`Mandatory`, `EachBasicType`, `EachDifferentPower`, `ForEachColorPair`), `mustFill` also requires every slot
-some offered card fits to be held. **Unverified rules question:** Forge's own `ChooseCard` loop let one
-permanent answer two types (Cataclysm's artifact creature as both the artifact and the creature, since the
-list was never narrowed); the slot rule does not. A set with rules always asks in a list, never by clicking
-cards on the table (`PlayerControllerHuman.useSelectCardsInput`), because only the list checks the set.
+it fits (`ChosenSet.matched`), so no kind is answered twice and no card is chosen for nothing. Where the
+single asks could not be declined (`Mandatory`, `EachBasicType`, `EachDifferentPower`, `ForEachColorPair`),
+`mustFill` also requires every slot some offered card fits to be **covered** by a chosen card that fits it
+(`ChosenSet.fills`) — not held in the matching, so one card of two kinds answers both. A set with rules
+always asks in a list, never by clicking cards on the table (`PlayerControllerHuman.useSelectCardsInput`),
+because only the list checks the set.
+
+**One card for two kinds — the rulings (2026-10-28, lane choose-each).** This paragraph said here that the
+slot rule forbade Cataclysm's artifact creature as both kinds, and flagged that as unverified. It was wrong
+about the code: `fills` is a cover, not a matching, and on pin `66ff9c1d` Forge takes Ornithopter as
+Cataclysm's artifact *and* creature and the AI's Volcanic Island as Sundering Titan's Island *and* Mountain
+(`chosen-sets.jvm.test.ts`, passing on that jar before any change; the fork's own `ChosenSetTest`
+`chooseEachMustFillWhatItCan` already asserts `[Ornithopter, Forest]` meets Cataclysm beside Grizzly Bears).
+The UI reads the same rule (`search-rules.ts`: `slotFit` is the matching, `fill` the cover). The official
+rulings, from Scryfall's API (`/cards/named?exact=…` → `rulings_uri`), quoted with their dates:
+
+| Family (cards on the pin) | Ruling | One card, several kinds? |
+| --- | --- | --- |
+| `ChooseCard` `ChooseEach` — Cataclysm | 2004-10-04: "If you control a permanent with more than one type, you can choose that same permanent for more than one of the choices if you want to. This makes it possible to select an artifact creature as both your artifact and creature, and then select a land and thereby keep only two cards." Also 2004-10-04: "…you can choose that permanent to be the representative of either type. … if you select a creature for your creature and an artifact creature for your artifact, you get to keep both of these creatures." | **Yes** |
+| Cataclysmic Gearhulk | 2016-09-20: "A permanent with more than one type may be chosen as either of the types or both. For example, an artifact creature may be chosen as the artifact, the creature, or both. Choosing the same permanent twice this way has the same result as choosing it once." | **Yes** |
+| Tragic Arrogance | 2015-06-22: "If a permanent has more than one of the affected types, it can count for any of them. … you could choose an enchantment creature as both the creature and the enchantment that you're sparing, even if the player controls another creature and/or another enchantment." | **Yes** |
+| Liliana, Dreadhorde General | 2024-01-12: "…if a permanent has more than one permanent type, it can count for any of them. … you could choose an enchantment creature as both the creature and the enchantment that you're sparing, even if you control another creature and/or another enchantment." | **Yes** |
+| Ajani, Nacatl Avenger | 2024-06-07: "A permanent with more than one type may be chosen as any of its types. For example, an artifact creature may be chosen as the artifact, the creature, or both." | **Yes** |
+| Grenzo's Rebuttal | 2014-05-29: "If a permanent has more than one of the listed types, it can be chosen for any of them. For example, if the player to your left controls an artifact creature, you could choose it as the creature, the artifact, or both." | **Yes** |
+| Mythos of Snapdax | 2020-04-17: "If you control a permanent with more than one type, you may choose it for each of those types. For example, you could choose an artifact creature as the artifact you keep and also as the creature you keep." | **Yes** |
+| Revival Experiment (graveyard, `MinAmount$ 0`) | 2021-04-16: only what the permanent types are and that the cards are chosen on resolution. | Silent; it is not `Mandatory`, so the cover never applies and the matching alone holds (a card returned for one type) |
+| Stick Together (`ChooseEach$ Party`) | none on Scryfall | Silent; not `Mandatory`, matching alone |
+| `ChooseCard` `EachBasicType` — Global Ruin | 2004-10-04: "If a land counts as multiple basic land types, you can choose it for either or for both of those land types." | **Yes** |
+| Sundering Titan (`Defined$ You`, `Choices$ Land`: every player's lands) | 2020-08-07: "If a land has more than one basic land type, it can be chosen more than once." Also: "…must choose one land for each basic land type (Plains, Island, Swamp, Mountain, and Forest), and then they are destroyed simultaneously." and "If one of the basic land types isn't present, it isn't chosen. If the only land of a certain type is one you control, you must choose it." | **Yes** |
+| Planar Overlay | 2004-10-04: "If you have a land which counts as multiple land types, you can choose that land as each of those types. For example, a dual land could be chosen as two of your land types." | **Yes** |
+| `ChooseCard` `EachDifferentPower` — Celestial Judgment | 2021-09-24: "If there are multiple creatures with the same power on the battlefield, you may choose any of them…" | Moot: a creature has one power, so its slots never overlap |
+| `Dig` `ForEachColorPair` — Niv-Mizzet Reborn | 2019-05-03: "A \"color pair\" is exactly two colors." / "…you choose as many cards as you can…" | Moot: a card is exactly one pair, so its slots never overlap |
+| `ChangeZone` `EACH` — Shard Convergence | 2009-02-01: "You may find \"dual lands\" with Shard Convergence. The Plains card you find, for example, can have a second subtype. … you may find a Hallowed Fountain (which has subtypes Plains and Island) as the Plains card, and another Hallowed Fountain as the Island card." | Each found card is a card of its own (no ruling lets one card be found twice); none of these searches is `Mandatory`, so the matching alone holds and Volcanic Island fills one slot |
+| Conflux | 2018-03-16: "…you may find a white-blue card as the white card and another white-blue card as the blue card." | as Shard Convergence |
+| Lotuslight Dancers | 2025-04-04: "…you may find a card that's black, green, and blue as the black card and still find a green card and a blue card." | as Shard Convergence |
+| Guided Passage (`Mandatory$ True`, `Chooser$ Opponent`) | 2004-10-04: only "If you have no cards of any of the specified card types, then ignore those types…" | **Silent.** The one mandatory `EACH` search: its cover lets the opponent choose Dryad Arbor as the creature and the land. Forge's own loop removed each pick, so it did not. Kept as landed |
+| (beside the family) Atraxa, Grand Unifier — `RepeatEach`, the `order` sheet's `oneEach` | 2023-02-04: "…you may choose to put it into your hand for any of its types. … If you choose it as the artifact card, you could also put into your hand a creature card, and vice versa." | No — one type each (`one-each.ts`), as built |
+
+Decision: no rule changes. Every family whose rulings let one permanent answer several kinds is a
+`Mandatory`/`EachBasicType` choice, where `fill` is already the cover; every family where a card is one
+found card has no `fill`, so the matching is the whole rule. A per-rule flag would separate nothing the
+rulings separate, so none was added. The one place the cover and Forge's loop disagree is Guided Passage,
+whose rulings are silent; it stays as landed and is the operator's call.
 
 The bridge's `SeatController.chooseEntitiesForEffect` holds the ability whenever `ChosenSet.constrains` it
 (replacing AF411's `chooseCardsForZoneChange` hook, which went through it anyway), and the ask's `rules`

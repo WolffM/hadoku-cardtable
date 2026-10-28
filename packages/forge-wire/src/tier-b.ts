@@ -943,8 +943,9 @@ export const ChooseSingleEntityForEffectReplySchema = GameEntityRefSchema.nullab
  * - `cardTypes`: the chosen cards have at least `atLeast` card types among them, or none is chosen.
  * - `exactly`: none, or exactly `count`.
  * - `slots`: one card for each kind — each chosen card holds a slot of its own among those it is
- *   listed in (a card fitting two kinds fills one); with `fill`, every slot some card is listed in
- *   is held.
+ *   listed in, so no kind is answered twice; with `fill`, every slot some card is listed in has a
+ *   chosen card listed in it, so one card of two kinds answers both (an artifact creature as
+ *   Cataclysm's artifact and creature, as its rulings allow).
  */
 export const SearchRuleSchema = z.discriminatedUnion('kind', [
   z.strictObject({

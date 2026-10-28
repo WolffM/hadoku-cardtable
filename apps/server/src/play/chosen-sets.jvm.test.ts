@@ -18,7 +18,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { breaksSearchRule, deltaKey, DELTA_TYPE, searchRuleProblems, strOf, type SearchRule } from '@hadoku/forge-wire';
+import { breaksSearchRule, deltaKey, DELTA_TYPE, idsOf as zoneIds, searchRuleProblems, strOf, type SearchRule } from '@hadoku/forge-wire';
 
 import { available, deck, landPayer, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
 
@@ -55,8 +55,11 @@ const nameOf = (s: Scenario, seat: number, id: number) => strOf(s.state(seat).ge
 const asksOf = (s: Scenario, seat: number) =>
 	(s.asks as unknown as Ask[]).filter((f) => s.sent.find((x) => (x.envelope.frame as { callId?: unknown }).callId === f.callId)?.seat === seat);
 
-/** Seat 0 casts `name` from its scenario board and passes until it and anything it triggers resolve. */
-async function castAndResolve(s: Scenario, name: string): Promise<void> {
+/**
+ * Seat 0 casts `name` from its scenario board, targeting `target` when it asks for one, and passes
+ * until it and anything it triggers resolve.
+ */
+async function castAndResolve(s: Scenario, name: string, target?: number): Promise<void> {
 	await waitUntil(
 		() => {
 			s.keepHands();
@@ -71,9 +74,14 @@ async function castAndResolve(s: Scenario, name: string): Promise<void> {
 	s.select(0, card.id);
 	const pay = landPayer(s, 0);
 	const passed = new Set<number>();
+	let targeted = false;
 	await waitUntil(
 		() => {
 			s.answerAsks();
+			if (target !== undefined && !targeted && /Select.*target/i.test(s.prompt(0))) {
+				targeted = true;
+				s.select(0, target);
+			}
 			pay();
 			const at = s.sent.findLastIndex((x) => x.seat === 0 && x.envelope.frame.method === 'showPromptMessage');
 			if (at >= 0 && !passed.has(at) && /^Stack: \d+ to Resolve\.$/m.test(s.prompt(0)) && s.buttons(0)?.enable1 === true) {
@@ -88,26 +96,44 @@ async function castAndResolve(s: Scenario, name: string): Promise<void> {
 	);
 }
 
+/** How the test answers the `nth` ruled ask, given a namer for the offered cards. */
+type Answer = (ask: Ask, nth: number, name: (id: number) => string) => Ref[];
+
+/** The offered cards named `wanted`, one each, in that order. */
+function named(ask: Ask, name: (id: number) => string, wanted: readonly string[]): Ref[] {
+	const out: Ref[] = [];
+	for (const want of wanted) {
+		const ref = (ask.optionList ?? []).find((r) => name(r.id) === want && !out.includes(r));
+		if (ref === undefined) throw new Error(`no ${want} left among ${JSON.stringify((ask.optionList ?? []).map((r) => name(r.id)))}`);
+		out.push(ref);
+	}
+	return out;
+}
+
 /**
  * Seat 0 casts `card` in `scenario` against Forge's AI, answers its one ruled ask first with a set the
- * prompt refuses and then with a valid one, and hands the two asks and the set taken to `check`.
+ * prompt refuses and then with a valid one (or as `answer` says), and hands the two asks and the set
+ * taken to `check`.
  */
 async function chosenOnce(
 	scenario: string,
 	card: string,
 	seed: number,
 	check: (s: Scenario, first: Ask, taken: Ref[]) => void,
+	answer: Answer = (ask, nth) => (nth === 0 ? brokenSet(ask) : validSet(ask)),
 ): Promise<void> {
 	if (!available.ok) return;
 	const searches: { ask: Ask; answer: Ref[] }[] = [];
+	const at: { s?: Scenario } = {};
 	const reply = (frame: Record<string, unknown>): unknown => {
 		const f = frame as Ask;
 		if (f.method !== 'chooseEntitiesForEffect' || f.rules === undefined) return undefined;
-		const answer = searches.length === 0 ? brokenSet(f) : validSet(f);
-		searches.push({ ask: f, answer });
-		return answer;
+		const chosen = answer(f, searches.length, (id) => nameOf(at.s!, 0, id));
+		searches.push({ ask: f, answer: chosen });
+		return chosen;
 	};
 	const s = await startScenario(available.config, { seed, decks: DECKS, scenario: scenarioText(scenario), skipOpening: true, aiOpponent: true, reply });
+	at.s = s;
 	try {
 		await castAndResolve(s, card);
 		const mine = asksOf(s, 0);
@@ -164,6 +190,83 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(names(s, taken)).toEqual(['Grizzly Bears', 'Ornithopter', 'Plains']);
 				expect(zoneNames(s, 'Battlefield')).toEqual(['Grizzly Bears', 'Ornithopter', 'Plains']);
 			});
+		},
+		300_000,
+	);
+
+	it(
+		'Cataclysm: Ornithopter chosen as both the artifact and the creature, with Glorious Anthem and a Plains; a set with no enchantment refused; Grizzly Bears and the other Plains sacrificed',
+		async () => {
+			if (!available.ok) return;
+			await chosenOnce(
+				'set-cataclysm-share',
+				'Cataclysm',
+				19,
+				(s, first, taken) => {
+					expect(slotsOf(first)).toMatchObject({ fill: true });
+					expect(names(s, taken)).toEqual(['Glorious Anthem', 'Ornithopter', 'Plains']);
+					expect(zoneNames(s, 'Battlefield')).toEqual(['Glorious Anthem', 'Ornithopter', 'Plains']);
+					expect(zoneNames(s, 'Graveyard')).toEqual(['Cataclysm', 'Grizzly Bears', 'Plains', 'Plains', 'Plains']);
+				},
+				(ask, nth, name) => named(ask, name, nth === 0 ? ['Ornithopter', 'Plains'] : ['Ornithopter', 'Glorious Anthem', 'Plains']),
+			);
+		},
+		300_000,
+	);
+
+	it(
+		'Sundering Titan (ChooseCard EachBasicType, every player’s lands): the AI’s Volcanic Island chosen as both the Island and the Mountain; a set with no Forest refused; exactly the chosen lands destroyed as it enters and as it leaves',
+		async () => {
+			if (!available.ok) return;
+			const searches: { ask: Ask; answer: Ref[] }[] = [];
+			const at: { s?: Scenario } = {};
+			const name = (id: number) => nameOf(at.s!, 0, id);
+			const answers = [
+				(ask: Ask) => named(ask, name, ['Volcanic Island', 'Plains', 'Swamp']),
+				(ask: Ask) => named(ask, name, ['Volcanic Island', 'Plains', 'Swamp', 'Forest']),
+				validSet,
+			];
+			// Every land on the battlefield, either player's, as seat 0 sees it; read as each ask arrives.
+			const field = () => [0, 1].flatMap((seat) => zoneIds(at.s!.state(0).get(deltaKey(DELTA_TYPE.player, at.s!.match.seats[seat]?.playerId ?? -1)), 'Battlefield'));
+			const fieldAt: number[][] = [];
+			const reply = (frame: Record<string, unknown>): unknown => {
+				const f = frame as Ask;
+				if (f.method !== 'chooseEntitiesForEffect' || f.rules === undefined) return undefined;
+				fieldAt.push(field());
+				const answer = answers[Math.min(searches.length, answers.length - 1)]!(f);
+				searches.push({ ask: f, answer });
+				return answer;
+			};
+			const s = await startScenario(available.config, { seed: 20, decks: DECKS, scenario: scenarioText('set-titan'), skipOpening: true, aiOpponent: true, reply });
+			at.s = s;
+			try {
+				await castAndResolve(s, 'Sundering Titan');
+				expect(searches, 'the set with no Forest asked again, then the valid one taken').toHaveLength(2);
+				const [first, second] = searches;
+				const slots = slotsOf(first!.ask)!;
+				expect(slots).toMatchObject({ fill: true });
+				expect(slots.slots).toHaveLength(5);
+				expect(names(s, first!.ask.optionList!)).toContain('Mountain');
+				expect(searchRuleProblems(first!.ask.rules, idsOf(first!.answer))).not.toEqual([]);
+				expect(searchRuleProblems(second!.ask.rules, idsOf(second!.answer))).toEqual([]);
+				const destroyed = idsOf(second!.answer);
+				const titan = s.zone(0, 'Battlefield').find((c) => c.name === 'Sundering Titan')!;
+				expect(titan, 'Sundering Titan on the battlefield').toBeDefined();
+				expect(fieldAt[0]).toContain(titan.id);
+				expect(field().sort()).toEqual(fieldAt[0]!.filter((id) => !destroyed.includes(id)).sort());
+				expect(zoneNames(s, 'Battlefield')).toEqual(['Forest', 'Forest', 'Island', 'Plains', 'Plains', 'Sundering Titan', 'Swamp']);
+
+				await castAndResolve(s, 'Unsummon', titan.id);
+				expect(searches, 'one more ask as it leaves').toHaveLength(3);
+				const leaving = idsOf(searches[2]!.answer);
+				expect(searchRuleProblems(searches[2]!.ask.rules, leaving)).toEqual([]);
+				expect(leaving.length).toBeGreaterThan(0);
+				expect(fieldAt[2]).not.toContain(titan.id);
+				expect(field().sort()).toEqual(fieldAt[2]!.filter((id) => !leaving.includes(id)).sort());
+				expect(s.zone(0, 'Hand').map((c) => c.name)).toEqual(['Sundering Titan']);
+			} finally {
+				await s.stop();
+			}
 		},
 		300_000,
 	);

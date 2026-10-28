@@ -1079,6 +1079,57 @@ describe('a constrained search', () => {
     expect(submit().disabled).toBe(false);
   });
 
+  it('one of each that must be filled: a card of two kinds holds both, and a separate card for one of them is still tickable', () => {
+    // Cataclysm's artifact, creature, enchantment and land: 20 an artifact creature, 11 a creature, 2 an enchantment.
+    const { container, getAllByTestId, answers, submit } = mountPrompt(
+      'chooseEntitiesForEffect',
+      searching([{ kind: 'slots', slots: [[20], [20, 11], [2], []], fill: true }]),
+    );
+    const boxes = getAllByTestId('prompt-choice');
+    fireEvent.click(boxes[1]!);
+    fireEvent.click(boxes[2]!);
+    expect(submit().disabled).toBe(true);
+    fireEvent.click(boxes[1]!);
+    fireEvent.click(boxes[0]!);
+    expect(blocked(container)).toEqual([]);
+    expect(submit().disabled).toBe(false);
+    fireEvent.click(boxes[1]!);
+    expect(blocked(container)).toEqual([]);
+    expect(submit().disabled).toBe(false);
+    fireEvent.click(submit());
+    expect(answers).toEqual([
+      [
+        { kind: 'card', id: 20 },
+        { kind: 'card', id: 11 },
+        { kind: 'card', id: 2 },
+      ],
+    ]);
+  });
+
+  it('a land of each basic type: a land of two types answers both, and an Island beside it is still tickable', () => {
+    // Sundering Titan's Plains, Island, Swamp, Mountain and Forest: 20 an Island Mountain, 11 an Island, 2 a Forest.
+    const { container, getAllByTestId, answers, submit } = mountPrompt(
+      'chooseEntitiesForEffect',
+      searching([{ kind: 'slots', slots: [[], [20, 11], [], [20], [2]], fill: true }], 5),
+    );
+    const boxes = getAllByTestId('prompt-choice');
+    fireEvent.click(boxes[0]!);
+    expect(blocked(container)).toEqual([]);
+    expect(submit().disabled).toBe(true);
+    fireEvent.click(boxes[1]!);
+    expect(blocked(container)).toEqual([]);
+    fireEvent.click(boxes[1]!);
+    fireEvent.click(boxes[2]!);
+    expect(submit().disabled).toBe(false);
+    fireEvent.click(submit());
+    expect(answers).toEqual([
+      [
+        { kind: 'card', id: 20 },
+        { kind: 'card', id: 2 },
+      ],
+    ]);
+  });
+
   it('a total power greys nothing a negative card left unticked could still bring back under it', () => {
     const { container, getAllByTestId, submit } = mountPrompt(
       'chooseEntitiesForEffect',
