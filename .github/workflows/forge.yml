@@ -14,7 +14,7 @@ name: Forge
 # see the `changes` job). A push to main runs a short run: what changed itself
 # (a spec, a suite, a scenario), the smoke set, the guard family of any hot-path
 # module it touches, and the most relevant of the specs it maps to. The FULL set runs on the schedule instead — every two
-# hours when main has moved since the last full run, and nightly with the
+# hours unless this sha already ran green (or is running), and nightly with the
 # `[nightly]` tests. The trade: a regression outside what a push ran turns red
 # up to two hours late, against a range of that window's lands rather than one.
 # Measured over 2026-10-09..11 (162 lands) it is ~3300 runner-minutes instead of
@@ -111,9 +111,10 @@ on:
         description: 'forge-monkey only: one library deck id, instead of a sample — for reproducing a reported run exactly.'
         required: false
         default: ''
-  # The full set. Every two hours (at :17) when main moved since the last
-  # scheduled run finished, so whatever a push's short run skipped is run
-  # within two hours; and every night whatever changed, with the `[nightly]`
+  # The full set. Every two hours (at :17) unless the last scheduled run that
+  # ran this sha went green or is still running, so whatever a push's short run
+  # skipped is run within two hours, and a red sha is run again until it is
+  # green; and every night whatever changed, with the `[nightly]`
   # tests, so a pinned test that stopped failing, or vanished, is caught by the
   # strict full-run judge. The nightly cron string is matched by the `changes`
   # job — keep them equal.
@@ -157,8 +158,8 @@ jobs:
   # most relevant of the mapped specs (the rest are named in the log as
   # deferred to the schedule). A dispatch runs everything its changes map to.
   #   schedule, nightly cron    everything, `[nightly]` tests too
-  #   schedule, two-hourly      everything, if main moved since the last
-  #                             scheduled run that finished; otherwise nothing
+  #   schedule, two-hourly      everything, unless the newest scheduled run that
+  #                             RAN this sha is green or still running
   #   pull_request              everything, `[nightly]` too
   #   dispatch with specs/jvm   exactly those (see the inputs)
   #   dispatch with `full`      everything, `[nightly]` too
@@ -213,14 +214,28 @@ jobs:
             pull_request) all "event is a pull request" true ;;
             schedule)
               [ "$CRON" = '0 10 * * *' ] && all "the nightly run" true
-              # A run still in progress counts, as on a push: the nightly at 10:00 is still running
-              # when the 10:17 run asks, and counting only completed runs ran the same sha's full set
-              # twice every morning (2026-10-20..24, five of five days).
-              last=$(api "actions/workflows/forge.yml/runs?event=schedule&branch=main&per_page=20" \
-                | jq -r --argjson me "$RUN_ID" '[.workflow_runs[] | select(.id != $me and (.status == "in_progress" or .conclusion == "success" or .conclusion == "failure"))][0].head_sha // empty') \
-                || all "could not read the last scheduled run" false
-              [ "$last" = "$HEAD_SHA" ] && none "main has not moved since the last full run ($last)"
-              all "main moved since the last full run (${last:-none})" false ;;
+              # The newest scheduled run on THIS sha that ran anything decides. Still running: it
+              # covers this sha (the nightly at 10:00 is still running when the 10:17 run asks, and
+              # skipping only finished runs ran the same sha's full set twice every morning,
+              # 2026-10-20..24). Green: nothing to add. Red or cancelled: run it all again, because a
+              # red sha used to be skipped forever, each skip concluding success and turning every
+              # board green over a red main (hadoku-cardtable#15, which hid #17 for a day). A run whose
+              # every job but `changes` was skipped is one of these no-ops and says nothing about the
+              # sha, so it is passed over rather than read as green.
+              runs=$(api "actions/workflows/forge.yml/runs?event=schedule&branch=main&head_sha=$HEAD_SHA&per_page=20" \
+                | jq -r --argjson me "$RUN_ID" '.workflow_runs[] | select(.id != $me) | "\(.id) \(.status) \(.conclusion)"') \
+                || all "could not read this sha's scheduled runs" false
+              while read -r id status conclusion; do
+                [ -n "$id" ] || continue
+                [ "$status" = completed ] || none "run $id on this sha is still $status"
+                ran=$(api "actions/runs/$id/jobs?per_page=100" \
+                  | jq '[.jobs[] | select(.name != "changes" and .conclusion != "skipped")] | length') \
+                  || all "could not read run $id's jobs" false
+                [ "$ran" -gt 0 ] || continue
+                [ "$conclusion" = success ] && none "run $id already ran this sha green"
+                all "run $id ran this sha and ended $conclusion: running it again" false
+              done <<< "$runs"
+              all "main moved: no scheduled run has run $HEAD_SHA yet" false ;;
             workflow_dispatch)
               # The same proof twice: a dispatch with this sha and these exact inputs that already
               # went green is the answer, so this one runs nothing and names it. The inputs are not
