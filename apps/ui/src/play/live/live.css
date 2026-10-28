@@ -606,21 +606,23 @@
  * What tells the player a dialog over the board can be moved (`movable.tsx`): the grab cursor on its body
  * and header, and a short grip on its top edge. No words — the affordance is visual. A control inside keeps
  * its own cursor (buttons are `pointer` app-wide, `styles.css`); a field keeps its text cursor.
+ * In a question's host it marks the SHEET (`.prompt`, `.confirm`: the same set that takes the pointer back,
+ * below), never whatever else the host draws — the toss coin beside the Play/Draw question is no sheet.
  */
-.live :is(.live__prompt > *, [data-testid='pile-view'], #own-deck) {
+.live :is(.live__prompt > :is(.prompt, .confirm), [data-testid='pile-view'], #own-deck) {
   cursor: grab;
 }
 
 /* The grip is placed against the sheet; a pile's view and the deck list are positioned already. */
-.live .live__prompt > * {
+.live .live__prompt > :is(.prompt, .confirm) {
   position: relative;
 }
 
-.live :is(.live__prompt > *, [data-testid='pile-view'], #own-deck) :is(input, textarea, select) {
+.live :is(.live__prompt > :is(.prompt, .confirm), [data-testid='pile-view'], #own-deck) :is(input, textarea, select) {
   cursor: auto;
 }
 
-.live :is(.live__prompt[data-moving] > *, [data-testid='pile-view'][data-moving], #own-deck[data-moving]) {
+.live :is(.live__prompt[data-moving] > :is(.prompt, .confirm), [data-testid='pile-view'][data-moving], #own-deck[data-moving]) {
   cursor: grabbing;
 }
 
@@ -632,7 +634,7 @@
   touch-action: none;
 }
 
-.live :is(.live__prompt > *, [data-testid='pile-view'], #own-deck)::before {
+.live :is(.live__prompt > :is(.prompt, .confirm), [data-testid='pile-view'], #own-deck)::before {
   content: '';
   position: absolute;
   top: 3px;
@@ -646,12 +648,12 @@
   transition: opacity 0.15s ease-out;
 }
 
-.live :is(.live__prompt > *, [data-testid='pile-view'], #own-deck):hover::before {
+.live :is(.live__prompt > :is(.prompt, .confirm), [data-testid='pile-view'], #own-deck):hover::before {
   opacity: 0.8;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .live :is(.live__prompt > *, [data-testid='pile-view'], #own-deck)::before {
+  .live :is(.live__prompt > :is(.prompt, .confirm), [data-testid='pile-view'], #own-deck)::before {
     transition: none;
   }
 }

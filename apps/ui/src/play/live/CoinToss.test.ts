@@ -14,8 +14,19 @@ import { cleanup, render } from '@testing-library/react';
 import { CoinToss, FLIP_MS, SideFace, TossCoin } from './CoinToss.tsx';
 import { CoinFlips, freshFlips, FLIP_LINGER_MS, FLIPS_SHOWN } from './coin-flip.tsx';
 import { shownFlip } from './shown.ts';
+import { QuestionHost } from './movable.tsx';
+import { ConfirmPrompt } from '../prompts/ConfirmPrompt.tsx';
 
-const CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/live', 'coin-toss.css'), 'utf8');
+const HERE = import.meta.dirname ?? 'apps/ui/src/play/live';
+const CSS = readFileSync(resolve(HERE, 'coin-toss.css'), 'utf8');
+const LIVE_CSS = readFileSync(resolve(HERE, 'live.css'), 'utf8');
+
+/** The selector of `live.css`'s one rule that draws the movable dialog's grip, without its `::before`. */
+function gripSelector(): string {
+  const rule = [...LIVE_CSS.matchAll(/([^{}]+)::before\s*\{([^}]*)\}/g)].find(([, , body]) => body!.includes('border-block'));
+  expect(rule, 'live.css draws the grip as a ::before with a border-block').toBeDefined();
+  return rule![1]!.replace(/\/\*[\s\S]*?\*\//g, '').trim();
+}
 
 afterEach(cleanup);
 
@@ -100,5 +111,27 @@ describe('a coin flipped in the game is the same coin (the operator, 2026-10-27:
     expect(freshFlips([flip({}, now - FLIP_MS - FLIP_LINGER_MS - 10)], now)).toHaveLength(0);
     const run = Array.from({ length: FLIPS_SHOWN + 3 }, () => flip({}, now));
     expect(freshFlips(run, now)).toEqual(run.slice(-FLIPS_SHOWN));
+  });
+});
+
+describe('the coin is no dialog sheet (the operator, 2026-10-28: "shouldn\'t be on the coin itself")', () => {
+  it('the movable grip marks the Play/Draw question beside the coin, never the coin', () => {
+    const toss = { winner: 0, name: 'Bella', avatarId: undefined, loserAvatarId: undefined, at: Date.now() };
+    const view = render(
+      createElement(
+        'div',
+        { className: 'live' },
+        createElement(
+          QuestionHost,
+          null,
+          createElement(TossCoin, { toss }),
+          createElement(ConfirmPrompt, { testId: 'live-play-or-draw', message: 'Play or draw?' }),
+        ),
+        createElement(QuestionHost, null, createElement(TossCoin, { toss, waiting: true })),
+      ),
+    );
+    const grip = gripSelector();
+    for (const coin of view.getAllByTestId('coin-toss')) expect(coin.matches(grip)).toBe(false);
+    expect(view.getByTestId('live-play-or-draw').matches(grip)).toBe(true);
   });
 });
