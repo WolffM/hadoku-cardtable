@@ -1,4 +1,4 @@
-/* The coin toss on both screens — see `CoinToss.tsx`. Theme tokens only. */
+/* The one coin: the toss for who goes first and every flip in the game — see `CoinToss.tsx`. Theme tokens only. */
 .coin-toss {
   display: flex;
   flex-direction: column;
@@ -45,7 +45,7 @@
   overflow: hidden;
 }
 
-/* The loser's face: the accent ground tells the sides apart when neither has an avatar. */
+/* The other side: the accent ground tells the sides apart when neither has an avatar. */
 .coin-toss__face--back {
   transform: rotateY(0.5turn);
   background: var(--accent);
@@ -61,6 +61,35 @@
   width: 60%;
   height: 60%;
   fill: var(--ink-dim);
+}
+
+/* Heads or tails, as a coin is marked. */
+.coin-toss__side {
+  font-size: 2.4rem;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.coin-toss__face--back .coin-toss__side {
+  color: var(--on-accent);
+}
+
+/* A called flip, landed: the call won or lost. */
+.coin-toss[data-won='true']:not([data-flipping]) .coin-toss__face--front {
+  border-color: var(--success);
+  box-shadow: 0 0 0 3px var(--success);
+}
+
+.coin-toss[data-won='false']:not([data-flipping]) .coin-toss__face--front {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger);
+}
+
+/* Several flips at once (each player flipping): side by side. */
+.coin-flips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .coin-toss__name {

@@ -365,7 +365,8 @@ import { SettingsPopover } from '../../settings/Settings.tsx';
 import { eventTarget } from '../../dom.ts';
 import { castForbiddenTip, costTip, flashTip } from '../tip/words.ts';
 import './live.css';
-import { CoinToss, useCoinFlipping } from './CoinToss.tsx';
+import { TossCoin, useCoinFlipping } from './CoinToss.tsx';
+import { CoinFlips, type ShownFlip } from './coin-flip.tsx';
 import { TurnCue, useYourTurnCue } from './TurnCue.tsx';
 import { installDialogMover, QuestionHost, restingTop } from './movable.tsx';
 
@@ -471,6 +472,13 @@ function listField(items: readonly string[]): string {
  * not heard: the mixer may still drop one (unassigned, collapsed, muted), and
  * `muted` says the last.
  */
+/** A coin flipped in the game sounds the toss's own coin, quieter when it is the other seat's. */
+function soundFlip(match: LiveMatch, flip: ShownFlip): void {
+  const events: DelayedSoundEvent[] = [{ role: 'g.game-start', seat: flip.player === viewerOf(match.view)?.id ? 'me' : 'opp' }];
+  playSoundEvents(events);
+  reportSound(match, 'toss', events);
+}
+
 function reportSound(match: LiveMatch, why: 'view' | 'phase' | 'decision' | 'priority' | 'press' | 'toss' | 'start', events: readonly DelayedSoundEvent[], extra: ClientEvent['data'] = {}): void {
   if (events.length === 0) return;
   reportClient(match.transport, match.matchId, 'sound', {
@@ -3899,7 +3907,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        */}
       {playOrDraw && (
         <QuestionHost data-testid="live-play-or-draw-host">
-          {coinToss !== null && <CoinToss {...coinToss} />}
+          {coinToss !== null && <TossCoin toss={coinToss} />}
           {!coinFlipping && (
             <ConfirmPrompt
               testId="live-play-or-draw"
@@ -4036,10 +4044,12 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * the operator, 2026-10-11, under full control, read "Waiting for
        * Hadoku to decide…" over his own live pass / End Turn.
        */}
+      {/* A coin flipped in the game: the same coin, landing on Forge's face (`coin-flip.tsx`). */}
+      <CoinFlips flips={match.flips} viewer={viewerOf(match.view)?.id ?? null} onFlip={(flip) => soundFlip(match, flip)} />
       {/* The coin is its own fact, told before the lagged `waitingOn` — never gated on it. */}
       {coinToss !== null && !playOrDraw && !myOwnDecisionOpen && !(match.view?.gameOver ?? false) && (
         <QuestionHost data-testid="live-coin-toss-host">
-          <CoinToss {...coinToss} waiting={match.seat !== coinToss.winner} />
+          <TossCoin toss={coinToss} waiting={match.seat !== coinToss.winner} />
         </QuestionHost>
       )}
       {waitingForOpponent && !viewerOpen && coinToss === null && (

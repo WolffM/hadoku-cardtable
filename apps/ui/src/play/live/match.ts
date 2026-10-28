@@ -259,6 +259,7 @@ import { normalizeAvatarId } from '../../room/avatar.ts';
 import { attackLockedIn, drawsFaceUp, manaCostTokens, opponentOf, toBoardView, viewerOf, type BoardCard, type BoardView, type DamageHit, type DeathCause, type FaceHit, type PoolColor } from '../adapter.ts';
 import type { Revealed } from './numbers.ts';
 import { shownRoll, type ShownRoll } from './dice.ts';
+import { shownFlip, type ShownFlip } from './coin-flip.tsx';
 import { preloadMatchArt } from './art-preload.ts';
 import { pressableBar, type BarHold } from './bar-hold.ts';
 import { drawnOfferOf, followOffer, type OfferHold } from './offer-hold.ts';
@@ -363,7 +364,7 @@ export const DISCONNECT_GRACE_MS = 100;
  * whatever the server resends, which is unrelated to the number here.
  */
 export const SAYS_KEPT = 2000;
-/** The rolls a match keeps for the board to draw: more than one view can bring at once. */
+/** The rolls, and the flips, a match keeps for the table to draw: more than one view can bring at once. */
 export const ROLLS_KEPT = 8;
 
 /**
@@ -638,6 +639,8 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    * snapshot starts it empty: a roll it would bring back is history, read in the log.
    */
   rolls: ShownRoll[];
+  /** The coin flips this seat was told of (`message`'s `flip`), kept as `rolls` are, for the table to draw (`./coin-flip.ts`). */
+  flips: ShownFlip[];
   /**
    * Forge's current actionable set, from `setWeaklySelectable` — what the
    * input that is live right now will do something with. Null: Forge has named
@@ -1104,6 +1107,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     highlightedPlayers: null,
     says: [],
     rolls: [],
+    flips: [],
     inputLive: false,
     spent: { cards: new Set(), players: new Set() },
     offerHold: null,
@@ -2912,6 +2916,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   // snapshot, so a line that survives from before is not trusted.
   match.says = [];
   match.rolls = [];
+  match.flips = [];
   match.inputLive = false;
   match.barHold = null;
   // The server re-sends the window after the snapshot, both halves.
@@ -3403,6 +3408,9 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     if (frame.roll !== undefined) {
       match.rolls = [...match.rolls, shownRoll(frame.roll)].slice(-ROLLS_KEPT);
     }
+    if (frame.flip !== undefined) {
+      match.flips = [...match.flips, shownFlip(frame.flip, frame.message)].slice(-ROLLS_KEPT);
+    }
   } else if (frame.kind === 'notify' && frame.method === 'flashIncorrectAction') {
     if (match.actCard !== null) refuse(match, match.actCard);
   } else if (frame.kind === 'notify' && frame.method === 'clearWeaklySelectable') {
@@ -3511,6 +3519,7 @@ function discardLocal(match: LiveMatch): void {
   match.settled.clear();
   match.says = [];
   match.rolls = [];
+  match.flips = [];
   match.hits = [];
   match.faceHits = [];
   match.deathCauses = new Map();

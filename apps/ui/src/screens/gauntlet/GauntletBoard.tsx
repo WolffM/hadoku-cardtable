@@ -12,7 +12,7 @@ import { useLayoutEffect, useRef, type CSSProperties } from 'react';
 
 import type { GauntletDeck, GauntletSeatIndex, GauntletView } from '@hadoku/shared';
 
-import { CoinToss } from '../../play/live/CoinToss.tsx';
+import { TossCoin } from '../../play/live/CoinToss.tsx';
 import { centreOf, flip, type At } from '../../play/lift.ts';
 import { prefersReducedMotion } from '../../play/motion.ts';
 import type { DeckOption } from '../ConstructedScreen.tsx';
@@ -141,12 +141,14 @@ export function GauntletBoard({
           )}
           {reveal.coin && view.revealAt !== null && view.first !== null && (
             <div className="gauntlet__coin">
-              <CoinToss
-                winner={view.first}
-                name={view.players?.[view.first].name ?? ''}
-                avatarId={avatars?.[view.first]}
-                loserAvatarId={avatars?.[view.first === 0 ? 1 : 0]}
-                at={view.revealAt + TITLE_MS}
+              <TossCoin
+                toss={{
+                  winner: view.first,
+                  name: view.players?.[view.first].name ?? '',
+                  avatarId: avatars?.[view.first],
+                  loserAvatarId: avatars?.[view.first === 0 ? 1 : 0],
+                  at: view.revealAt + TITLE_MS,
+                }}
               />
             </div>
           )}
