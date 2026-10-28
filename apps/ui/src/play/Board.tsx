@@ -829,8 +829,8 @@ const ARRANGED = new Map<string, Arrangement>();
 /**
  * Which match a view is: its title and its seats. The ids are SORTED, not in
  * the view's order — that order puts the viewer first, and a watcher's viewer
- * changes with the perspective (`flipPerspective`); a key that changed with it
- * lost every arrangement on the flip (2026-10-12).
+ * changes with the turn; a key that changed with it lost every arrangement when
+ * the bottom side changed (2026-10-12).
  */
 function matchKey(view: BoardView): string {
   return `${view.title}|${[...view.players.map((p) => p.id)].sort((a, b) => a - b).join(',')}`;
@@ -3158,9 +3158,9 @@ function Battlefield({
  * wire path — it is a design question about what a rearrangement tells the table,
  * not a CSS one. It is w29's.
  *
- * Not always the opponent's (2026-10-12): a watcher's wire hides EVERY hand,
- * the perspective seat's at the bottom included, so this is drawn on the
- * viewer's side too. `ownerSide` is the seat's, like every other zone of it —
+ * Not always the opponent's (2026-10-12): a watcher holds no hand, so this is
+ * drawn on the viewer's side too — face up where its wire names the card,
+ * which since 2026-10-28 is every hand card. `ownerSide` is the seat's, like every other zone of it —
  * `[data-owner="them"]` is how the presence layer finds the OTHER seat's hand,
  * and a strip at the bottom claiming to be theirs would be found first — and
  * `zone--backs` is what the stylesheet sizes the strip by on either side

@@ -12,8 +12,8 @@
  *
  * An echo is applied to the player of the SEAT it is stamped with
  * (`playerOfSeat`, `forge:seats`' join key), never to "the other player": a
- * watcher hears both seats, and which of them is drawn at the bottom is its
- * own choice (`flipPerspective`). Before the first party (2026-10-12) every
+ * watcher hears both seats, and which of them is drawn at the bottom follows
+ * the turn (`viewerPlayerIdOf`). Before the first party (2026-10-12) every
  * echo went to the non-viewer, so on a watcher's screen seat 0's rows landed on
  * seat 1's side and the bottom side never moved at all — the operator: *"card
  * placement on board doesnt update as players move things around."* A seat's

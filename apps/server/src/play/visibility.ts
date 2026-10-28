@@ -367,27 +367,13 @@ function indexZones(state: ReadonlyMap<string, WireObj>): ZoneIndex {
 	return { byCard };
 }
 
-/**
- * `CardView.canBeShownTo` + `canFaceDownBeShownTo`, over wire state. `viewer`
- * is a Forge PlayerView id; `null` is nobody in particular — the TABLE itself.
- * A null viewer is shown exactly what is public: every card in a public zone
- * and every face-up card in exile, as the card shows it (a face-down permanent
- * is its face-down face), and nothing from any hand, library or sideboard.
- * That is what a watcher with no seat receives (`match.ts`'s watcher channel,
- * 2026-10-12): the same projection for everyone who is not playing, built once.
- */
-export function cardVisibility(
-	state: ReadonlyMap<string, WireObj>,
-	zones: ZoneIndex,
-	cardId: number,
-	viewer: number | null,
-): Visibility {
+/** `CardView.canBeShownTo` + `canFaceDownBeShownTo`, over wire state. `viewer` is a Forge PlayerView id. */
+export function cardVisibility(state: ReadonlyMap<string, WireObj>, zones: ZoneIndex, cardId: number, viewer: number): Visibility {
 	const card = state.get(deltaKey(DELTA_TYPE.card, cardId));
 	if (card === undefined) return 'hidden';
 
 	const listed = zones.byCard.get(cardId);
 	const zone = listed?.zone ?? enumOf(card, 'Zone');
-	if (viewer === null) return publicVisibility(card, zone);
 	const controller = intOf(card, 'Controller') ?? listed?.holder ?? intOf(card, 'Owner');
 	const mayLook = idsOf(card, 'PlayerMayLook').includes(viewer);
 	const master = controller === null ? null : intOf(state.get(deltaKey(DELTA_TYPE.player, controller)), 'MindSlaveMaster');
@@ -424,7 +410,7 @@ export function cardVisibility(
  * the controller of anything, so a hand, a library, a sideboard and a
  * `PlayerMayLook` grant are all somebody else's. A face-down card in a public
  * zone is its face-down face and nothing underneath (`canFaceDownBeShownTo`
- * with no peek). Nothing a seat could not already see passes here.
+ * with no peek). What every player watched happen ({@link tableCards}).
  */
 function publicVisibility(card: WireObj, zone: string | null): Visibility {
 	const shown =
@@ -507,8 +493,20 @@ function replacedCards(state: ReadonlyMap<string, WireObj>, packet: DeltaPacketJ
 
 /* ── The projector ───────────────────────────────────────────────────── */
 
+/**
+ * The watchers' viewer: every player at once. The operator, 2026-10-28: *"i thought the spectator
+ * impersonates the view of the active player? with the small added benefit of seeing the hidden
+ * cards?"* A card is sent as the player who sees most of it sees it — every hand face up, a face-down
+ * card's face, and a library card only where some player was shown it and still knows it (each
+ * player's "What a seat was shown", kept for all of them). Whose side is drawn at the bottom is the
+ * client's to follow (the active player's); nothing sent changes with it.
+ */
+export const EVERY_PLAYER = 'every-player';
+
+const RANK: Record<Visibility, number> = { hidden: 0, faceOnly: 1, full: 2 };
+
 export interface SeatProjector {
-	/** The Forge PlayerView id this seat sees as, from `openView`. */
+	/** The Forge PlayerView id this seat sees as, from `openView`; null for {@link EVERY_PLAYER} and before `openView`. */
 	readonly viewer: number | null;
 	setViewer(playerId: number): void;
 	/** One raw Tier C frame in, the frame this seat may receive out. */
@@ -566,7 +564,8 @@ export interface SeatProjector {
 	playerCounts(): ReadonlyMap<number, { life: number | null; hand: number }>;
 }
 
-export function createProjector(viewer: number | null = null): SeatProjector {
+export function createProjector(viewer: number | null | typeof EVERY_PLAYER = null): SeatProjector {
+	const everyone = viewer === EVERY_PLAYER;
 	const raw = new Map<string, WireObj>();
 	/** What the client was last given for each card. */
 	const sent = new Map<number, Visibility>();
@@ -585,9 +584,27 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	/** The cards the whole table could see as of the last packet — {@link tableCards}. */
 	let onTable = new Set<number>();
 	let lastSeq = 0;
-	let who = viewer;
+	let who = everyone ? null : viewer;
 	/** The zone index of the raw state as last folded — {@link visibilities} rebuilds it once per packet. */
 	let zonesNow: ZoneIndex | null = null;
+	/** Every player the raw state holds, as last folded. */
+	let playersNow: number[] = [];
+
+	/** The players this projection sees as: this seat's, or {@link EVERY_PLAYER}'s all of them. */
+	function viewers(): readonly number[] {
+		if (everyone) return playersNow;
+		return who === null ? [] : [who];
+	}
+
+	/** {@link cardVisibility} for the viewer who sees most of the card — Forge's grant alone, nothing remembered. */
+	function granted(zones: ZoneIndex, cardId: number): Visibility {
+		let best: Visibility = 'hidden';
+		for (const p of viewers()) {
+			const v = cardVisibility(raw, zones, cardId, p);
+			if (RANK[v] > RANK[best]) best = v;
+		}
+		return best;
+	}
 
 	function knownTo(player: number): Map<number, { zone: string; holder: number }> {
 		let cards = known.get(player);
@@ -655,7 +672,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 		for (const [holder, library] of nowOf) library.forEach((cardId, index) => libraryPlaces.set(cardId, { holder, index }));
 		for (const [cardId, at] of zones.byCard) if (at.zone !== 'Library') libraryPlaces.delete(cardId);
 		onTable = tableCards(zones);
-		if (who !== null) learnOwnTop(who, zones, zonesBefore, nowOf.get(who) ?? [], shuffledFor(who, who));
+		for (const p of viewers()) learnOwnTop(p, zones, zonesBefore, nowOf.get(p) ?? [], shuffledFor(p, p));
 		grantsBefore = grants;
 	}
 
@@ -698,43 +715,41 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	 * it ends, and what the seat chose there is the decision window's (`e2e/w70-nissa.spec.ts`).
 	 */
 	function noteTopLooks(zones: ZoneIndex): void {
-		if (who === null) return;
-		for (const [holder, library] of libraries) {
-			let top = 0;
-			while (top < library.length && cardVisibility(raw, zones, library[top]!, who) === 'full') top += 1;
-			if (top === 0 || top === library.length) continue;
-			if (library.slice(top).some((id) => cardVisibility(raw, zones, id, who) === 'full')) continue;
-			for (const cardId of library.slice(0, top)) knownTo(who).set(cardId, { zone: 'Library', holder });
+		for (const p of viewers()) {
+			for (const [holder, library] of libraries) {
+				let top = 0;
+				while (top < library.length && cardVisibility(raw, zones, library[top]!, p) === 'full') top += 1;
+				if (top === 0 || top === library.length) continue;
+				if (library.slice(top).some((id) => cardVisibility(raw, zones, id, p) === 'full')) continue;
+				for (const cardId of library.slice(0, top)) knownTo(p).set(cardId, { zone: 'Library', holder });
+			}
 		}
 	}
 
-	/** Every player but this seat's, by the raw state's PlayerViews. */
-	function others(): number[] {
-		const out: number[] = [];
-		for (const obj of raw.values()) if (obj._type === DELTA_TYPE.player && obj._id !== who) out.push(obj._id);
-		return out;
-	}
-
-	/** A Forge grant to another player on a card this seat holds in a sticky zone is remembered, as this seat's own is in {@link seen}. */
+	/** A Forge grant to another player on a card a viewer holds in a sticky zone is remembered, as the viewer's own is in {@link seen}. */
 	function noteOthersShown(zones: ZoneIndex): void {
-		if (who === null) return;
-		const players = others();
-		for (const [cardId, at] of zones.byCard) {
-			if (at.holder !== who || !STICKY_ZONES.has(at.zone)) continue;
-			for (const p of players) if (cardVisibility(raw, zones, cardId, p) === 'full') knownTo(p).set(cardId, at);
+		for (const v of viewers()) {
+			for (const [cardId, at] of zones.byCard) {
+				if (at.holder !== v || !STICKY_ZONES.has(at.zone)) continue;
+				for (const p of playersNow) if (p !== v && cardVisibility(raw, zones, cardId, p) === 'full') knownTo(p).set(cardId, at);
+			}
 		}
 	}
 
-	/** {@link cardVisibility}, with what this seat was shown: a Forge grant in a sticky zone is remembered, and a remembered card is `full`. */
+	/**
+	 * {@link cardVisibility}, with what a viewer was shown: a Forge grant in a sticky zone is
+	 * remembered, and a remembered card is `full`. For more than one viewer, the most any of them sees.
+	 */
 	function seen(zones: ZoneIndex, cardId: number): Visibility {
-		const vis = cardVisibility(raw, zones, cardId, who);
-		if (who === null) return vis;
+		let best: Visibility = 'hidden';
 		const at = zones.byCard.get(cardId);
-		if (vis === 'full') {
-			if (at !== undefined && at.holder !== who && STICKY_ZONES.has(at.zone)) knownTo(who).set(cardId, at);
-			return vis;
+		for (const p of viewers()) {
+			const vis = cardVisibility(raw, zones, cardId, p);
+			if (vis === 'full' && at !== undefined && at.holder !== p && STICKY_ZONES.has(at.zone)) knownTo(p).set(cardId, at);
+			const v = vis !== 'full' && knownTo(p).has(cardId) ? 'full' : vis;
+			if (RANK[v] > RANK[best]) best = v;
 		}
-		return knownTo(who).has(cardId) ? 'full' : vis;
+		return best;
 	}
 
 	/** Every card id the raw state knows, with its faces. */
@@ -754,6 +769,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	}
 
 	function visibilities(replaced: ReadonlySet<number> = new Set()): Map<number, Visibility> {
+		playersNow = [...raw.values()].filter((o) => o._type === DELTA_TYPE.player).map((o) => o._id);
 		const zones = indexZones(raw);
 		const zonesBefore = zonesNow;
 		zonesNow = zones;
@@ -773,13 +789,18 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	 * Forge grants it, so says so in Forge's own words: a client reads one field for "I may look at
 	 * this card" whichever of the two put it there — and a client fed Forge's raw stream, where a
 	 * hand card carries its name for everybody, still draws it as a back (`Board.test.ts`).
+	 * {@link EVERY_PLAYER} is sent every player that knows the card: it may be told what each knows.
 	 */
 	function lookOf(cardId: number): number[] {
 		const look = idsOf(raw.get(deltaKey(DELTA_TYPE.card, cardId)), 'PlayerMayLook');
-		if (who === null) return look;
 		const add = (p: number): void => {
 			if (!look.includes(p)) look.push(p);
 		};
+		if (everyone) {
+			for (const [p, cards] of known) if (cards.has(cardId)) add(p);
+			return look;
+		}
+		if (who === null) return look;
 		if (knownTo(who).has(cardId)) add(who);
 		const at = (zonesNow ?? indexZones(raw)).byCard.get(cardId);
 		if (at?.holder === who) for (const [p, cards] of known) if (p !== who && cards.has(cardId)) add(p);
@@ -833,9 +854,9 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	 */
 	function heldLibrary(holder: number, library: readonly number[], zones: ZoneIndex): number[] {
 		const out = [...library];
-		if (who === null) return out;
 		const held: { cardId: number; index: number }[] = [];
-		for (const [cardId, was] of knownTo(who)) {
+		const knownHere = new Map(viewers().flatMap((p) => [...knownTo(p)]));
+		for (const [cardId, was] of knownHere) {
 			if (was.zone !== 'Library' || was.holder !== holder || zones.byCard.has(cardId)) continue;
 			const card = raw.get(deltaKey(DELTA_TYPE.card, cardId));
 			const place = libraryPlaces.get(cardId);
@@ -940,14 +961,14 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	function effectsSeen(effects: WaitingEffects | undefined): { waitingEffects?: WaitingEffects } {
 		if (effects === undefined) return {};
 		const zones = indexZones(raw);
-		return { waitingEffects: effects.filter((e) => cardVisibility(raw, zones, e.source, who) === 'full') };
+		return { waitingEffects: effects.filter((e) => granted(zones, e.source) === 'full') };
 	}
 
 	/** Which card made each token, for the sources this seat may see: the pair names that card. */
 	function tokensSeen(tokens: TokenSources | undefined): { tokenSources?: TokenSources; cantBlock?: CantBlock } {
 		if (tokens === undefined) return {};
 		const zones = indexZones(raw);
-		return { tokenSources: tokens.filter(([, source]) => cardVisibility(raw, zones, source, who) === 'full') };
+		return { tokenSources: tokens.filter(([, source]) => granted(zones, source) === 'full') };
 	}
 
 	/**
@@ -957,21 +978,21 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	function cantBlockSeen(ids: CantBlock | undefined): { cantBlock?: CantBlock } {
 		if (ids === undefined) return {};
 		const zones = indexZones(raw);
-		return { cantBlock: ids.filter((id) => cardVisibility(raw, zones, id, who) !== 'hidden') };
+		return { cantBlock: ids.filter((id) => granted(zones, id) !== 'hidden') };
 	}
 
 	/** The printed type lines, for the cards this seat is sent at all: a battlefield permanent is public, and the bridge never names a face-down one. */
 	function printedTypesSeen(pairs: PrintedTypes | undefined): { printedTypes?: PrintedTypes } {
 		if (pairs === undefined) return {};
 		const zones = indexZones(raw);
-		return { printedTypes: pairs.filter(([id]) => cardVisibility(raw, zones, id, who) !== 'hidden') };
+		return { printedTypes: pairs.filter(([id]) => granted(zones, id) !== 'hidden') };
 	}
 
 	/** The printed power and toughness, for the cards this seat is sent at all: a battlefield creature is public, and the bridge never names a face-down one. */
 	function printedPTSeen(rows: PrintedPT | undefined): { printedPT?: PrintedPT } {
 		if (rows === undefined) return {};
 		const zones = indexZones(raw);
-		return { printedPT: rows.filter(([id]) => cardVisibility(raw, zones, id, who) !== 'hidden') };
+		return { printedPT: rows.filter(([id]) => granted(zones, id) !== 'hidden') };
 	}
 
 	/**
@@ -981,7 +1002,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	function conditionMetSeen(ids: ConditionMet | undefined): { conditionMet?: ConditionMet } {
 		if (ids === undefined) return {};
 		const zones = indexZones(raw);
-		return { conditionMet: ids.filter((id) => cardVisibility(raw, zones, id, who) === 'full') };
+		return { conditionMet: ids.filter((id) => granted(zones, id) === 'full') };
 	}
 
 	/**
@@ -991,24 +1012,24 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	function damageSeen(hits: Damage | undefined): { damage?: Damage } {
 		if (hits === undefined) return {};
 		const zones = indexZones(raw);
-		const seen = hits.filter(([target]) => cardVisibility(raw, zones, target, who) !== 'hidden');
+		const seen = hits.filter(([target]) => granted(zones, target) !== 'hidden');
 		return seen.length === 0
 			? {}
-			: { damage: seen.map(([target, source, amount]) => [target, source >= 0 && cardVisibility(raw, zones, source, who) !== 'hidden' ? source : -1, amount] as const) };
+			: { damage: seen.map(([target, source, amount]) => [target, source >= 0 && granted(zones, source) !== 'hidden' ? source : -1, amount] as const) };
 	}
 
 	/** The damage dealt to players — every player is public — with a source this seat may not see named as none (-1). */
 	function faceDamageSeen(hits: FaceDamage | undefined): { faceDamage?: FaceDamage } {
 		if (hits === undefined || hits.length === 0) return {};
 		const zones = indexZones(raw);
-		return { faceDamage: hits.map(([player, source, amount, combat]) => [player, source >= 0 && cardVisibility(raw, zones, source, who) !== 'hidden' ? source : -1, amount, combat] as const) };
+		return { faceDamage: hits.map(([player, source, amount, combat]) => [player, source >= 0 && granted(zones, source) !== 'hidden' ? source : -1, amount, combat] as const) };
 	}
 
 	/** Why each permanent died, for the cards this seat is sent at all: a graveyard is public, so in practice every one. */
 	function deathsSeen(deaths: Deaths | undefined): { deaths?: Deaths } {
 		if (deaths === undefined) return {};
 		const zones = indexZones(raw);
-		const seen = deaths.filter(([card]) => cardVisibility(raw, zones, card, who) !== 'hidden');
+		const seen = deaths.filter(([card]) => granted(zones, card) !== 'hidden');
 		return seen.length === 0 ? {} : { deaths: seen };
 	}
 
@@ -1103,7 +1124,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 		},
 		learn(cardIds: Iterable<number>, learner?: number): StateFrame | null {
 			const shownTo = learner ?? who;
-			if (who === null || shownTo === null) return null;
+			if (viewers().length === 0 || shownTo === null) return null;
 			const zones = indexZones(raw);
 			for (const cardId of cardIds) {
 				const at = zones.byCard.get(cardId);

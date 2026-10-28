@@ -32,7 +32,7 @@
  * is already IN the action log, because applied acts are logged from the bridge's own echo,
  * underneath `Match` entirely. Wire a second `Match` on top of the rebuild's host and that
  * automation runs AGAIN, racing the log's own copy of the same commands. So this file builds the
- * rebuilt public stream itself: `createProjector(null)` (import only; `visibility.ts` is wave 76's)
+ * rebuilt watcher stream itself: `createProjector(EVERY_PLAYER)` (import only; `visibility.ts` is wave 76's)
  * over the first human seat's raw state frames, `openView` passed through raw, and the `gameover`
  * line's `finishGame` frame appended once — the board and ending `match.ts`'s
  * `sendState`/`openView`/`finishSeat` put on the watcher channel for the first human seat
@@ -61,7 +61,7 @@ import type { ServerEnvelope } from '@hadoku/shared';
 import { seatDeckColors, type DeckCosts } from '../deck-colors.js';
 import { winnerSeatFromLosers } from '../match.js';
 import { jvmHostConfig, type BridgeCommand, type BridgeLine, type MatchHost, type MatchHostFactory, type MatchSpec } from '../host.js';
-import { createProjector, type StateFrame } from '../visibility.js';
+import { createProjector, EVERY_PLAYER, type StateFrame } from '../visibility.js';
 import { bridgeDigest, forgePin } from './recorder.js';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from './retention.js';
 import { boardDigest, isStateLine } from './position.js';
@@ -191,14 +191,14 @@ function playerIdOf(lines: readonly BridgeLine[], seat: number): number | null {
  * live `Match` — see this file's own header for why `Match` cannot be in this loop. Reproduces
  * exactly what `match.ts`'s `sendState`/`openView`/`finishSeat` put on the watcher channel for the
  * first human seat (`watcherSource()`, always seat 0 by `MatchSpec`'s own type): state frames
- * projected through ONE `createProjector(null)`, that seat's `openView` passed through raw (sent
+ * projected through ONE `createProjector(EVERY_PLAYER)`, that seat's `openView` passed through raw (sent
  * before any state that arrived ahead of it, exactly as `openView`'s own "early" queue does), and
  * the `gameover` line's `finishGame` frame, once, if the match reached one. Not the channel's game
- * log, dice or coins (`match.ts`'s `onGameLog` and `publicCopy`): a rebuilt replay goes without them.
+ * log, reveals, dice or coins (`match.ts`'s `onGameLog` and `tellWatchers`): a rebuilt replay goes without them.
  */
 function watcherFramesFrom(matchId: string, timeline: readonly { line: BridgeLine; at: number }[], sourceSeat: number, allSeats: readonly { seat: number; playerId: number | null }[]): { env: ServerEnvelope; at: number }[] {
 	const out: { env: ServerEnvelope; at: number }[] = [];
-	const projector = createProjector(null);
+	const projector = createProjector(EVERY_PLAYER);
 	const early: { state: StateFrame; at: number }[] = [];
 	let opened = false;
 	let seq = 0;

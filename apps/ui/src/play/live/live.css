@@ -1599,39 +1599,6 @@
   color: var(--warn);
 }
 
-/* A watcher's line (2026-10-12): the word and the one control it has, turning the table around. */
-.live__spectator--watcher {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  pointer-events: auto;
-}
-
-.live__flip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-
-.live__flip svg {
-  width: 14px;
-  height: 14px;
-  fill: currentColor;
-}
-
-.live__flip:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
 /*
  * "Your turn" as the viewer's turn begins (`TurnCue.tsx`). On the centre line between the two
  * seats, in the board's own width (the rail's column excluded), so it covers neither hand nor

@@ -483,7 +483,7 @@ export interface BoardPlayer {
    * Someone else's hand in Forge's order, a card this seat was shown and still knows (the server's
    * projection keeps it and names the seat in its `PlayerMayLook` — `apps/server/src/play/
    * visibility.ts`, "What a seat was shown") in its place and `null` for every other. Absent when
-   * the seat knows none of it, and for the viewer.
+   * the seat knows none of it, and for the viewer's own hand. A watcher's: every card its wire names.
    */
   handShown?: readonly (BoardCard | null)[];
   handCount: number;
@@ -824,9 +824,8 @@ export interface BoardView {
 }
 
 /**
- * The player drawn at the bottom (`isViewer`): this seat's own, or the side a watcher turned the
- * table to (`match.ts`'s `viewerPlayerIdOf`). A seat's window cannot turn the table, so for every
- * window that may act this is also the seat's own player.
+ * The player drawn at the bottom (`isViewer`): this seat's own, or for a watcher the player whose
+ * turn it is (`match.ts`'s `viewerPlayerIdOf`). For every window that may act this is the seat's own player.
  */
 export function viewerOf(view: BoardView | null | undefined): BoardPlayer | undefined {
   return view?.players.find((p) => p.isViewer);
@@ -946,7 +945,7 @@ export interface AdaptOptions {
    * order, a fate seal's choice). Those are the decision's, never a known top on the board.
    */
   promptCards?: ReadonlySet<number>;
-  /** A watcher's screen, not a seat's: like every player but the attacker, it sees an attack once it is locked in. */
+  /** A watcher's screen, not a seat's: it holds no hand, and like every player but the attacker, it sees an attack once it is locked in. */
   watcher?: boolean;
   /** This screen has already seen this Declare Attackers step's attack locked in ({@link attackLockedIn}). */
   attackLocked?: boolean;
@@ -1952,13 +1951,16 @@ export function toBoardView(
     const handIds = idsOf(p, 'Hand');
     const libraryIds = idsOf(p, 'Library');
     const top = knownTop(state, libraryIds, artIds, printedPT, promptCards, viewerPlayerId);
-    const shown = isViewer ? [] : handIds.map((id) => shownTo(state, id, viewerPlayerId) ? known(toBoardCard(state, id, artIds, printedPT, false, undefined, playerName)) : null);
+    // A watcher holds no hand: both are drawn as someone else's, face up wherever its wire sends the
+    // card — every hand card, since 2026-10-28 (`visibility.ts`'s `EVERY_PLAYER`) — and a back where not.
+    const ownHand = isViewer && !watcher;
+    const shown = ownHand ? [] : handIds.map((id) => (watcher || shownTo(state, id, viewerPlayerId) ? known(toBoardCard(state, id, artIds, printedPT, false, undefined, playerName)) : null));
     // The viewer holds a seat whether or not the roster has named its player yet.
     const unheld = unclaimed !== undefined && !isViewer && !unclaimed.seated.has(pid);
     const avatarId = avatarByPlayerId?.get(pid) ?? (unheld ? unclaimed.avatarId : undefined);
     const emblems = readEmblems(state, p, artIds, printedPT);
     const command = cardsIn(idsOf(p, 'Command').filter((id) => drawnInCommand(state, id)));
-    const hand = isViewer ? cardsIn(handIds).map((c) => seenByOthers(state, c, viewerPlayerId)) : null;
+    const hand = ownHand ? cardsIn(handIds).map((c) => seenByOthers(state, c, viewerPlayerId)) : null;
     const holdsStorm = hand?.some((c) => hasKeyword(c.keywords, 'storm')) === true;
     const isActive = pid === activePlayerId;
     const extraTurns = readInt(p, 'ExtraTurnCount');

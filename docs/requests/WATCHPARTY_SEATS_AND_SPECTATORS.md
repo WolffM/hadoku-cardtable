@@ -222,7 +222,7 @@ The operator ruled on §6 the same afternoon, ahead of the party:
 | 2 | **Nobody** may unseat someone else tonight. A seat held by someone who walked away is cleared by that person standing up or leaving. |
 | 3 | Not changed: a locked-in player who disconnects keeps the seat under the match's existing rejoin grace; the opponent's concede is the way out. |
 | 4 | Not changed: Rematch keeps the same two. Standing up after the game ends is how the table turns over. |
-| 5 | **No over-the-shoulder.** The rule in `P3_PER_RECIPIENT_EMIT.md` stands; the watcher channel is what enforces it. |
+| 5 | ~~**No over-the-shoulder.**~~ **Overturned 2026-10-28** by the operator: *"i thought the spectator impersonates the view of the active player? with the small added benefit of seeing the hidden cards?"* The watcher channel now projects as every player at once (`visibility.ts`'s `EVERY_PLAYER`: every hand face up, a library card only while a player was shown it), drawn from the active player's side and told what that player is told (`match.ts`'s `tellWatchers`). |
 | 6 | **Vs-AI is allowed when exactly one human is seated**, however many members the room has. |
 | 7 | Two seats. Multiplayer formats are out of scope. **Amended 2026-10-17:** still no multiplayer — every match is 1v1 — but a draft pod's lobby uses this seat UI for up to 8 seats, and a pod room hosts several 1v1 tables at once. Spectators hold no seat. See `docs/planning/draft-pods-plan.md`. |
 

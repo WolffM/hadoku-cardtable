@@ -1295,7 +1295,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (owner === null || root === null || from === null) return;
     const { card, slot, target } = parsed.data;
     expectPlacement(owner, slot, target, card);
-    // A watcher's bottom side (its chosen perspective) is someone else's seat too: the column is
+    // A watcher's bottom side (whoever's turn it is) is someone else's seat too: the column is
     // reserved, which is what puts the card where its owner let it go, and the stand-in — a back
     // from the TOP hand into the top battlefield — is not drawn for it.
     if (owner === (host.viewerPlayerId?.() ?? null)) return;

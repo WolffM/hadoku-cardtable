@@ -340,7 +340,6 @@ import {
   selectPlayer,
   sendStopPreference,
   setAutoYield,
-  flipPerspective,
   otherSeat,
   playerIdOfSeat,
   setFullControl,
@@ -3637,30 +3636,10 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           Watching: this seat is being played in another window
         </p>
       )}
-      {/*
-       * No seat (2026-10-12): the one word, and the one control a watcher has —
-       * turning the table around. `flipPerspective` is client-only; the public
-       * projection holds nothing hidden, so which side is at the bottom is the
-       * watcher's to choose. Same perch as the wave-31 banner, which it replaces
-       * for this role.
-       */}
+      {/* No seat (2026-10-12): the one word. Same perch as the wave-31 banner, which it replaces for this role. */}
       {watcher && (
         <p className="live__spectator live__spectator--watcher" role="status" data-testid="watcher-status" data-role="watcher">
           <span>Watching</span>
-          <button
-            type="button"
-            className="live__flip"
-            data-testid="perspective-flip"
-            aria-label="Switch sides"
-            title="Switch sides"
-            disabled={match.view === null}
-            onClick={() => flipPerspective(match)}
-          >
-            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-              <path d="M3 5.5h7.2L8.6 3.9 9.7 2.8 13.2 6.3 9.7 9.8 8.6 8.7l1.6-1.6H3Z" />
-              <path d="M13 10.5H5.8l1.6 1.6-1.1 1.1L2.8 9.7 6.3 6.2l1.1 1.1-1.6 1.6H13Z" />
-            </svg>
-          </button>
         </p>
       )}
       {/*

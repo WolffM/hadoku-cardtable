@@ -196,6 +196,7 @@ export type MatchSpecWithIdentity = Omit<MatchSpec, 'seats'> & {
 
 import {
 	createProjector,
+	EVERY_PLAYER,
 	foldFrames,
 	type ObjTable,
 	type SeatProjector,
@@ -807,11 +808,6 @@ function forgeAct(frame: ActFrame): ActFrame {
 	return rest;
 }
 
-/** A frame that throws a die or flips a coin on the table: drawn as it happens, never replayed. */
-function isThrown(frame: ServerFrame): boolean {
-	return frame.kind === 'notify' && frame.method === 'message' && (frame.roll !== undefined || frame.flip !== undefined);
-}
-
 /** What a seat is shown when its match fails. Title and wording are ours; the frame is forge-wire's. */
 export const MATCH_ENDED_TITLE = 'Match ended';
 
@@ -820,7 +816,7 @@ export const MATCH_ENDED_TITLE = 'Match ended';
  * in `docs/requests/WATCHPARTY_SEATS_AND_SPECTATORS.md`). Not a seat: nobody
  * holds it, nothing is read from it, and `fromClient` and every other
  * seat-taking method refuse it as `no-such-seat`. It exists so the one
- * `emit(seat, envelope)` dependency can carry the shared public projection to
+ * `emit(seat, envelope)` dependency can carry the shared watcher projection to
  * every socket that joined with no seat of its own, and `SKIP` the rest.
  */
 export const WATCHER_SEAT = -1;
@@ -1083,29 +1079,29 @@ export class Match {
 	/** Frames Forge sent that forge-wire refused. Dropped, counted, logged. */
 	invalidFrames = 0;
 	/**
-	 * The watcher channel: ONE public projection (`createProjector(null)`, so
-	 * `cardVisibility` shows the table and no hand) with its own cursor and
-	 * history, fed from the FIRST human seat's Tier C stream — Forge sends
-	 * every seat the whole state, so one seat's stream is the whole table —
-	 * and emitted on {@link WATCHER_SEAT}. A watcher sees what that seat's
-	 * player sees of the table and nothing of their own: the state (`openView`
-	 * first, so a client's "the snapshot seated me as a player openView names"
-	 * check holds for the perspective it is handed), Forge's game log in words
-	 * every player could read ({@link Match.onGameLog}), and whatever else
-	 * {@link Match.publicCopy} lets through — never a prompt, a bar, an ask or
-	 * a selection: a watcher is asked nothing. Everyone who is not playing gets
-	 * the same bytes, which is what keeps a crowded room from multiplying the
+	 * The watcher channel: ONE projection as every player at once (`EVERY_PLAYER`: every hand face
+	 * up, a library card only where some player was shown it) with its own cursor and history, fed
+	 * from the FIRST human seat's Tier C stream — Forge sends every seat the whole state, so one
+	 * seat's stream is the whole table — and emitted on {@link WATCHER_SEAT}. The operator,
+	 * 2026-10-28: *"the spectator impersonates the view of the active player … with the small added
+	 * benefit of seeing the hidden cards"*. So besides the state (`openView` first, so a client's
+	 * "the snapshot seated me as a player openView names" check holds), a watcher is told what the
+	 * player whose turn it is is told ({@link Match.watchedSeat}): Forge's game log in that player's
+	 * words ({@link Match.onGameLog}), and the reveals, dice, coins and announcements
+	 * {@link Match.tellWatchers} lets through — never a prompt, a bar, an ask or a selection: a
+	 * watcher is asked nothing. The client draws the active player at the bottom. Everyone who is not
+	 * playing gets the same bytes, which is what keeps a crowded room from multiplying the
 	 * projection work.
 	 */
 	private readonly watcher: {
 		readonly projector: SeatProjector;
 		seq: number;
 		history: ServerFrame[];
-		/** Log lines, oldest first, each waiting for the public board to show the cards it names ({@link Match.releaseWatcherLog}). */
+		/** Log lines, oldest first, each waiting for the watchers' board to show the cards it names ({@link Match.releaseWatcherLog}). */
 		heldLog: { text: string; log: GameLogLine }[];
 		heldLogTimer: NodeJS.Timeout | null;
 	} = {
-		projector: createProjector(null),
+		projector: createProjector(EVERY_PLAYER),
 		seq: 0,
 		history: [],
 		heldLog: [],
@@ -2151,7 +2147,7 @@ export class Match {
 
 	/**
 	 * The game under way as the table card draws it (`table-game.ts`), by table seat — off the
-	 * watcher's projector, so only what is on the table for everyone. Null before Forge has dealt and
+	 * watcher's projector, and only what is on the table for everyone: the turn, the life totals, the hand sizes. Null before Forge has dealt and
 	 * once the game is over.
 	 */
 	live(): TableGameLive | null {
@@ -2275,6 +2271,11 @@ export class Match {
 	 */
 	private learnShown(s: SeatState, cardIds: readonly number[]): void {
 		const learner = s.playerId;
+		const watched = learner === null ? null : (this.watcher.projector.learn(cardIds, learner) as unknown as ServerFrame | null);
+		if (watched !== null) {
+			this.sendWatcher(watched);
+			this.releaseWatcherLog(false);
+		}
 		for (const x of this.seats) {
 			if (x !== s && (x.playerId === null || learner === null)) continue;
 			const frame = (x === s || learner === null ? x.projector.learn(cardIds) : x.projector.learn(cardIds, learner)) as unknown as ServerFrame | null;
@@ -2285,72 +2286,64 @@ export class Match {
 		}
 	}
 
-	/** The seat whose raw stream feeds the watcher channel: the first human one. */
+	/** The seat whose raw stream feeds the watcher channel's state: the first human one. */
 	private watcherSource(): SeatState | undefined {
 		return this.seats.find((s) => !s.ai);
 	}
 
 	/**
-	 * One frame to every watcher, on the watcher channel's own cursor, and kept for the next
-	 * watcher's snapshot unless `kept` is false: a die or a coin is thrown as it happens, and a
-	 * snapshot that replayed it would throw every die of the game again on a late joiner's screen
-	 * (a seat's own snapshot re-sends none either).
+	 * The seat the watchers are told what it is told: the player whose turn it is. A player the
+	 * server holds no stream for (an AI's: Forge shows it nothing) is watched through the
+	 * {@link watcherSource}, which is shown what the table is shown of that player's turn.
 	 */
-	private sendWatcher(frame: ServerFrame, kept = true): void {
+	private watchedSeat(): SeatState | undefined {
+		const active = this.watcher.projector.activePlayer();
+		return this.seats.find((s) => !s.ai && s.playerId !== null && s.playerId === active) ?? this.watcherSource();
+	}
+
+	/**
+	 * One frame to every watcher, on the watcher channel's own cursor, and kept for the next
+	 * watcher's snapshot unless `kept` is false: what a player was told in the moment (a reveal, a
+	 * die, a coin, an announcement) is not replayed to a late joiner, as a seat's own snapshot
+	 * re-sends none of it either.
+	 */
+	private sendWatcher(frame: ServerFrame, kept = true, mark: { displayOnly: true; forceNotice?: true } | null = null): void {
 		if (kept) this.watcher.history.push(frame);
 		this.watcher.seq += 1;
 		const cursor: WireCursor = { epoch: this.epoch, seq: this.watcher.seq };
-		this.deps.emit(WATCHER_SEAT, { matchId: this.id, cursor, frame });
+		this.deps.emit(WATCHER_SEAT, { matchId: this.id, cursor, frame, ...(mark ?? {}) });
 	}
 
 	/**
-	 * What the watchers are told of a frame the watcher channel's source seat was just told
-	 * ({@link Match.watcherSource}). The one gate between a seat's stream and the watchers': a
-	 * frame passes only as {@link Match.publicCopy} rewrites it, so a frame nobody has
-	 * classified stays with the seat.
-	 */
-	private tellWatchers(s: SeatState, frame: ServerFrame): void {
-		if (s !== this.watcherSource()) return;
-		const copy = this.publicCopy(frame);
-		if (copy !== null) this.sendWatcher(copy, !isThrown(copy));
-	}
-
-	/**
-	 * `frame`, as everyone at the table may see it; null for what is the seat's own.
+	 * What the watchers are told of a frame seat `s` was just told. The one gate between a seat's
+	 * stream and the watchers':
 	 *
-	 * - The seat's `openView`, its `finishGame` and the match-ended notice: the side the
-	 *   watchers' board is drawn from, and the game's end, are the table's.
-	 * - A die roll or a coin flip (`message`'s `roll`/`flip`): thrown on the table for everyone,
-	 *   in the words the seat was told it, since the watchers look from that seat's side. The card
-	 *   it came from goes only while the public board shows it, and its name (the title) with it.
-	 * - Everything else stays with the seat. An ask, a prompt, a bar, a selection, a highlight,
-	 *   the actionable set, a zone opened for a choice and a yield are input, and a watcher is
-	 *   asked nothing. Forge's other prose (a `message` with neither) mixes the seat's own
-	 *   refusals with announcements, and nothing on the wire tells them apart; Forge's log goes
-	 *   to the watchers in everyone's words from {@link Match.onGameLog}. A reveal
-	 *   (`displayOnly`) carries no mark of whether every player saw it, and what it shows (a
-	 *   hand, a library's top) is hidden on the public board.
+	 * - The {@link watcherSource}'s `openView`, its `finishGame` and the match-ended notice: the
+	 *   state the watchers' board is drawn from, and the game's end, are the table's. Kept.
+	 * - The {@link watchedSeat}'s reveal (`mark`), die roll, coin flip and other `message`s, as that
+	 *   seat was told them. Forge's prose mixes the seat's own refusals with announcements, and
+	 *   nothing on the wire tells them apart: the watchers hear both. Forge's log is not here: it
+	 *   goes to the watchers from {@link Match.onGameLog}.
+	 * - Everything else stays with the seat. An ask, a prompt, a bar, a selection, a highlight, the
+	 *   actionable set, a zone opened for a choice and a yield are input, and a watcher is asked
+	 *   nothing.
 	 */
-	private publicCopy(frame: ServerFrame): ServerFrame | null {
-		if (frame.method === 'openView' || frame.method === 'finishGame') return frame;
-		if (frame.kind === 'notify' && frame.method === 'showErrorDialog') return frame.matchEnded === true ? frame : null;
-		if (frame.kind !== 'notify' || frame.method !== 'message' || frame.log !== undefined) return null;
-		const source = (frame.roll ?? frame.flip)?.source;
-		if (source === undefined) return null;
-		if (source === null || this.watcher.projector.visibilityOf(source.id) !== 'hidden') return frame;
-		return {
-			...frame,
-			title: '',
-			...(frame.roll === undefined ? {} : { roll: { ...frame.roll, source: null } }),
-			...(frame.flip === undefined ? {} : { flip: { ...frame.flip, source: null } }),
-		};
+	private tellWatchers(s: SeatState, frame: ServerFrame, mark: { displayOnly: true; forceNotice?: true } | null = null): void {
+		const table = frame.method === 'openView' || frame.method === 'finishGame' || (frame.kind === 'notify' && frame.method === 'showErrorDialog' && frame.matchEnded === true);
+		if (table) {
+			if (s === this.watcherSource()) this.sendWatcher(frame);
+			return;
+		}
+		if (s !== this.watchedSeat()) return;
+		if (mark !== null || (frame.kind === 'notify' && frame.method === 'message' && frame.log === undefined)) this.sendWatcher(frame, false, mark);
 	}
 
 	/**
-	 * The snapshot for a socket with no seat: the watcher channel so far, oriented
-	 * as the source seat (`seat`/`playerId` are that seat's, so the board draws it
-	 * at the bottom; the client may flip). `match-starting` until that seat's
-	 * `openView` has arrived, exactly as {@link Match.snapshot} says it.
+	 * The snapshot for a socket with no seat: the watcher channel so far, named
+	 * as the source seat (`seat`/`playerId` are that seat's, as the `openView` it
+	 * carries is; the client draws whoever's turn it is at the bottom).
+	 * `match-starting` until that seat's `openView` has arrived, exactly as
+	 * {@link Match.snapshot} says it.
 	 */
 	watcherSnapshot(): MatchSnapshot | { error: string } {
 		const source = this.watcherSource();
@@ -3068,11 +3061,10 @@ export class Match {
 	 * own wording (`text: null` when a line cannot be worded for them). This only
 	 * hands each seat the copy meant for its player.
 	 *
-	 * The watchers get a line every player could be told, in the words of the
-	 * player who sees least of it (the fewest cards named): those name a card only
-	 * where every player may see it, and still wait for the public board to show
-	 * it ({@link Match.releaseWatcherLog}). A line some player cannot be told at
-	 * all is about something hidden from them, so it is no watcher's either.
+	 * The watchers get the line in the words of the player whose turn it is — the
+	 * player they watch as — held, as a seat's is, until their board shows the
+	 * cards it names ({@link Match.releaseWatcherLog}). A line that player is not
+	 * told is not the watchers' either.
 	 */
 	private onGameLog(line: Extract<BridgeLine, { t: 'log' }>): void {
 		this.holdWatcherLog(line);
@@ -3118,16 +3110,13 @@ export class Match {
 		}
 	}
 
-	/** {@link Match.onGameLog}'s watcher half: the line in everyone's words, held for {@link Match.releaseWatcherLog}. */
+	/** {@link Match.onGameLog}'s watcher half: the line in the active player's words, held for {@link Match.releaseWatcherLog}. */
 	private holdWatcherLog(line: Extract<BridgeLine, { t: 'log' }>): void {
-		let least: { text: string; cards: GameLogLine['cards'] } | null = null;
-		for (const p of line.players) {
-			if (p.text === null || p.text === '') return;
-			if (least === null || p.cards.length < least.cards.length) least = { text: p.text, cards: p.cards };
-		}
-		if (least === null) return;
 		const w = this.watcher;
-		w.heldLog.push({ text: least.text, log: { type: line.type, cards: least.cards } });
+		const active = w.projector.activePlayer() ?? this.watcherSource()?.playerId ?? null;
+		const theirs = line.players.find((p) => p.player === active);
+		if (theirs === undefined || theirs.text === null || theirs.text === '') return;
+		w.heldLog.push({ text: theirs.text, log: { type: line.type, cards: theirs.cards } });
 		this.releaseWatcherLog(false);
 		if (w.heldLog.length > 0 && w.heldLogTimer === null) {
 			const timer = setTimeout(() => {
@@ -3141,18 +3130,15 @@ export class Match {
 
 	/**
 	 * Send the watchers' held log lines, oldest first, up to the first that names a card the
-	 * public board does not show yet. `all`: the wait is over, and a line naming a card the board
-	 * still does not show is dropped — unlike a seat's ({@link Match.releaseLog}), nothing but the
-	 * public board says a watcher may read it.
+	 * watchers' board does not show yet (all of them when `all`), as {@link Match.releaseLog} does a seat's.
 	 */
 	private releaseWatcherLog(all: boolean): void {
 		const w = this.watcher;
 		while (w.heldLog.length > 0) {
 			const next = w.heldLog[0]!;
-			const shown = next.log.cards.every((c) => w.projector.visibilityOf(c.id) !== 'hidden');
-			if (!shown && !all) break;
+			if (!all && next.log.cards.some((c) => w.projector.visibilityOf(c.id) === 'hidden')) break;
 			w.heldLog.shift();
-			if (shown) this.sendWatcher({ kind: 'notify', method: 'message', message: next.text, title: '', log: next.log } as ServerFrame);
+			this.sendWatcher({ kind: 'notify', method: 'message', message: next.text, title: '', log: next.log } as ServerFrame);
 		}
 		if (w.heldLog.length === 0 && w.heldLogTimer !== null) {
 			clearTimeout(w.heldLogTimer);
@@ -3878,6 +3864,7 @@ export class Match {
 		const forceNotice = this.revealMustForceNotice(s, frame);
 		this.deps.log({ evt: 'reveal-shown', matchId: this.id, seat: s.seat, callId: frame.callId, cards: choiceCardIds(frame.choices), ...(named.length > 0 ? { named } : {}), ...(forceNotice ? { forceNotice: true } : {}) });
 		this.send(s, frame, 'displayOnly', forceNotice ? { forceNotice: true } : undefined);
+		this.tellWatchers(s, frame, forceNotice ? { displayOnly: true, forceNotice: true } : { displayOnly: true });
 	}
 
 	/**
