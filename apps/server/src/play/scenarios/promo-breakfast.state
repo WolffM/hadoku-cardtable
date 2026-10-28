@@ -1,0 +1,17 @@
+# Promo footage (`e2e/promo/breakfast.promo.ts`): Cephalid Breakfast. Seat 0 holds priority (Full control)
+# and activates Nomads en-Kor at Cephalid Illusionist four times before anything resolves. Four mill
+# triggers mill all twelve cards, both Narcomoebas join the board on the way, and Thassa's Oracle off
+# the last two lands wins with an empty library.
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=18
+ailife=20
+humanhand=Thassa's Oracle;Force of Will;Daze
+humanbattlefield=Cephalid Illusionist;Nomads en-Kor;Underground Sea;Island
+humanlibrary=Narcomoeba;Cabal Therapy;Brainstorm;Narcomoeba;Dread Return;Ponder;Lotus Petal;Island;Dark Ritual;Force of Will;Gitaxian Probe;Island
+humangraveyard=Shuko;Thoughtseize
+aihand=
+aibattlefield=Thalia, Guardian of Thraben;Stoneforge Mystic;Plains;Plains;Karakas
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=Swords to Plowshares
