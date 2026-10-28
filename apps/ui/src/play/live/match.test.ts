@@ -308,6 +308,56 @@ describe('a first join that times out before the socket connects', () => {
   });
 });
 
+// Match m-ca7bad04b715, 2026-10-28: the server could not tell this tab's reconnect from a second window.
+describe('a reconnect names its tab and says why it dropped', () => {
+  it('sends the tab id with every join (not a resync), and reports the drop once the rejoin is answered', () => {
+    vi.useFakeTimers();
+    try {
+      const handlers = new Map<string, (payload: unknown) => void>();
+      const requests: { event: string; payload: unknown; onAck: (err: Error | null, response: unknown) => void }[] = [];
+      const emitted: { event: string; payload: unknown }[] = [];
+      const transport: MatchTransport = {
+        on: (event, handler) => void handlers.set(event, handler),
+        emit: (event, payload) => void emitted.push({ event, payload }),
+        request: (event, payload, onAck) => void requests.push({ event, payload, onAck }),
+        disconnect: () => {},
+      };
+      const snapshot = { matchId: 'm', seat: 0, playerId: 0, cursor: { epoch: 'e', seq: 1 }, frames: [FRAMES[0]] };
+      const m = startMatch({ matchId: 'm', transport, tabId: 'tab-12345678' });
+      handlers.get('connect')!(undefined);
+      expect(requests.map((r) => r.payload)).toEqual([{ matchId: 'm', tabId: 'tab-12345678' }]);
+      requests.shift()!.onAck(null, snapshot);
+      expect(emitted.filter((e) => e.event === 'forge:client'), 'a first join has nothing to report').toEqual([]);
+
+      handlers.get('disconnect')!('ping timeout');
+      vi.advanceTimersByTime(8000);
+      handlers.get('connect')!(undefined);
+      vi.advanceTimersByTime(300);
+      expect(requests.map((r) => r.payload), 'the rejoin carries the same tab id').toEqual([{ matchId: 'm', tabId: 'tab-12345678' }]);
+      expect(emitted.filter((e) => e.event === 'forge:client'), 'nothing until the rejoin is answered').toEqual([]);
+      requests.shift()!.onAck(null, snapshot);
+      expect(emitted.filter((e) => e.event === 'forge:client').map((e) => e.payload)).toEqual([
+        { matchId: 'm', kind: 'connection', data: { what: 'rejoined', reason: 'ping timeout', downMs: 8000, joins: 2 } },
+      ]);
+      closeMatch(m);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('defaults to the page’s tab id, the same for every board the page opens', () => {
+    const payloads: unknown[] = [];
+    const transport: MatchTransport = { on: () => {}, emit: () => {}, request: (_e, payload) => void payloads.push(payload), disconnect: () => {} };
+    const a = startMatch({ matchId: 'm', transport });
+    const b = startMatch({ matchId: 'm', transport });
+    expect(a.tabId).toMatch(/^[0-9a-f]{32}$/);
+    expect(b.tabId).toBe(a.tabId);
+    expect(payloads).toEqual([{ matchId: 'm', tabId: a.tabId }, { matchId: 'm', tabId: a.tabId }]);
+    closeMatch(a);
+    closeMatch(b);
+  });
+});
+
 describe('showConfirmDialog, end to end', () => {
   it('the ask arrives, and the answer — the opposite of the default — reaches the server', async () => {
     const { s, m } = await fullGame();

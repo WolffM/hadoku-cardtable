@@ -63,6 +63,14 @@ describe('MatchRequestSchema / parseMatchRequest', () => {
     expect(parseMatchRequest({ matchId: '' }).ok).toBe(false);
     expect(parseMatchRequest({ matchId: 'm1', extra: 1 }).ok).toBe(false);
   });
+
+  it('takes an optional tab id of 8..64 url-safe characters, and nothing else in its place', () => {
+    expect(parseMatchRequest({ matchId: 'm1', tabId: 'a1B2-c3_d4' })).toEqual({ ok: true, value: { matchId: 'm1', tabId: 'a1B2-c3_d4' } });
+    expect(parseMatchRequest({ matchId: 'm1', tabId: 'short' }).ok).toBe(false);
+    expect(parseMatchRequest({ matchId: 'm1', tabId: 'x'.repeat(65) }).ok).toBe(false);
+    expect(parseMatchRequest({ matchId: 'm1', tabId: 'has space!' }).ok).toBe(false);
+    expect(parseMatchRequest({ matchId: 'm1', tabId: 12345678 }).ok).toBe(false);
+  });
 });
 
 describe('ClientEnvelopeSchema / parseClientEnvelope', () => {
