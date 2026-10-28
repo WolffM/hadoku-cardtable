@@ -23,5 +23,11 @@
   // Tests are included so they are TYPECHECKED. They cannot reach `dist/`:
   // esbuild bundles from `src/index.ts` alone, so nothing a test imports is
   // reachable from the entry point and nothing a test defines is emitted.
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  // `src/play/monkey/` (the monkey seat fuzzer, never imported by `src/index.ts`)
+  // reaches into `apps/ui/src` for its board/prompt rules, which need the DOM
+  // lib this package deliberately does not have. Its own `tsconfig.json`
+  // typechecks it with that lib added; excluded here so adding it does not
+  // reopen DOM globals for this package's real product code.
+  "exclude": ["src/play/monkey"]
 }
