@@ -9,7 +9,7 @@
  *   records and streams under `<workDir>-claws/<node>`, so the local boot sweep of `workDir` never
  *   reads them. One local pool on hokon, the backstop, with no warm JVM. The claws are the nodes
  *   fleet-manager reports with a hosting slice (`fleet.ts`), read every `FLEET_POLL_MS`.
- * - **Placement** is `rules.ts`: the five bars, spread by free room with the faster core breaking
+ * - **Placement** is `rules.ts`: the six bars, spread by free room with the faster core breaking
  *   ties, and hokon only while the backstop is promoted. With nowhere to go `room()` answers `full`
  *   and the start waits in `start-queue.ts`, and the Capacity alert names fleet-manager's pick for
  *   the next slice.
@@ -24,6 +24,9 @@
  *   (`NOTICE_HORIZON_MS`); from `MOVE_AHEAD_MS` before the event each remaining match moves at its
  *   next turn start (the snapshot line). A JVM whose heap wants recycling takes no new match and
  *   retires once empty.
+ * - **AI degraded.** Each `cutoff` a host's bridges report (`host.ts`, "AI cutoffs") fails its `ai`
+ *   bar for `AI_CUTOFF_WINDOW_MS` and opens `ai:<host>` with one alert; the health tick resolves it
+ *   once the window is clean. Nothing moves: the host only stops taking new matches.
  * - **Restarts.** On the way down every agent is told to hold its JVMs for `restartGraceMs` past
  *   the fencing window; the next coordinator connects, re-attaches and replays them. An unclean
  *   death sends no hold, and the agents fence at the window.
@@ -35,6 +38,7 @@ import { join } from 'node:path';
 
 import {
 	jvmHostFactory,
+	type AiCutoff,
 	type BridgeLine,
 	type HostEvents,
 	type JvmHostConfig,
@@ -52,8 +56,10 @@ import { FENCE_MS, HEARTBEAT_MS, sliceNeedMb } from '../remote/wire.js';
 import type { Alerts } from './alerts.js';
 import type { FleetNode, FleetSource } from './fleet.js';
 import {
+	AI_CUTOFF_WINDOW_MS,
 	BACKSTOP_IDLE,
 	MOVE_AHEAD_MS,
+	aiBar,
 	backstopStep,
 	bars,
 	eligible,
@@ -137,6 +143,8 @@ interface Host {
 	failing: boolean;
 	/** Planned moves armed for its next event. */
 	moving: string | null;
+	/** When Forge cut an AI decision short on it, oldest first, within `AI_CUTOFF_WINDOW_MS`. */
+	cutoffs: number[];
 }
 
 /**
@@ -285,7 +293,7 @@ export function placement(opts: PlacementOptions): Placement {
 	};
 
 	function newHost(name: string, kind: Host['kind'], maxJvms: number): Host {
-		const host: Host = { name, kind, pool: null, link: null, connecting: false, agentError: null, fleet: null, maxJvms, quarantine: null, failing: false, moving: null };
+		const host: Host = { name, kind, pool: null, link: null, connecting: false, agentError: null, fleet: null, maxJvms, quarantine: null, failing: false, moving: null, cutoffs: [] };
 		hosts.set(name, host);
 		return host;
 	}
@@ -293,7 +301,7 @@ export function placement(opts: PlacementOptions): Placement {
 	function makePool(host: Host, launcher: JvmLauncher | undefined, workDir: string, warm: boolean): JvmHostFactory {
 		const pool = jvmHostFactory(
 			{ ...config, workDir },
-			{ ...(launcher === undefined ? {} : { launcher }), warm, maxJvms: host.maxJvms, log: (e) => log({ ...e, host: host.name }) },
+			{ ...(launcher === undefined ? {} : { launcher }), warm, maxJvms: host.maxJvms, onCutoff: (c) => aiCutoff(host, c), log: (e) => log({ ...e, host: host.name }) },
 		);
 		pool.watchRoom?.(notifyRoom);
 		return pool;
@@ -312,12 +320,20 @@ export function placement(opts: PlacementOptions): Placement {
 		return inJvms + Math.max(0, host.maxJvms - jvms.length) * perJvm;
 	}
 
+	/** AI cutoffs on `host` within `AI_CUTOFF_WINDOW_MS`, forgetting older ones. */
+	function recentCutoffs(host: Host): number {
+		const since = now() - AI_CUTOFF_WINDOW_MS;
+		while (host.cutoffs.length > 0 && host.cutoffs[0]! <= since) host.cutoffs.shift();
+		return host.cutoffs.length;
+	}
+
 	function barsOf(host: Host): Bar[] {
 		if (host.kind === 'backstop') {
 			const room = free(host);
 			return [
 				{ bar: 'backstop', ok: backstop.promoted, why: backstop.promoted ? '' : `the backstop is not promoted (${backstop.why})` },
 				{ bar: 'room', ok: room > 0, why: room > 0 ? '' : 'full' },
+				aiBar(recentCutoffs(host)),
 			];
 		}
 		const silentMs = host.link?.client.lost === null ? host.link.client.silentMs() : null;
@@ -328,6 +344,7 @@ export function placement(opts: PlacementOptions): Placement {
 				agent: { connected: host.link !== null && host.link.client.lost === null, silentMs, error: host.agentError },
 				quarantine: host.quarantine === null ? null : `failed: ${host.quarantine.cause}${host.quarantine.canary === null ? '' : `; canary: ${host.quarantine.canary}`}`,
 				room: { free: free(host), why: host.pool === null ? 'no JVM pool' : host.maxJvms === 0 ? 'the slice holds no JVM of this size' : null },
+				aiCutoffs: recentCutoffs(host),
 			},
 			now(),
 			HEARTBEAT_FRESH_MS,
@@ -341,14 +358,49 @@ export function placement(opts: PlacementOptions): Placement {
 			.map((h) => ({ node: h.name, free: free(h), host: h }));
 		const best = rankClaws(open)[0];
 		if (best !== undefined) return best.host;
-		if (backstop.promoted && hokon !== except && free(hokon) > 0) return hokon;
+		if (hokon !== except && eligible(barsOf(hokon))) return hokon;
 		return null;
 	}
 
 	function whyNone(): string {
 		const parts = claws().map((h) => `${h.name}: ${barsOf(h).filter((b) => !b.ok).map((b) => `${b.bar} (${b.why})`).join(', ') || 'eligible'}`);
-		parts.push(`hokon: ${backstop.promoted ? (free(hokon) > 0 ? 'promoted' : 'promoted but full') : `not promoted (${backstop.why})`}`);
+		const ai = aiBar(recentCutoffs(hokon));
+		parts.push(`hokon: ${backstop.promoted ? (free(hokon) > 0 ? 'promoted' : 'promoted but full') : `not promoted (${backstop.why})`}${ai.ok ? '' : `, ai (${ai.why})`}`);
 		return parts.join('; ');
+	}
+
+	/**
+	 * Forge cut an AI decision short on `host` (forge-hosting-plan §4.2, "Live quality is watched"):
+	 * it fails the `ai` bar at once, and opens `ai:<host>` with one alert. `tick` resolves it once
+	 * `AI_CUTOFF_WINDOW_MS` passes without another. Live matches stay where they are.
+	 */
+	function aiCutoff(host: Host, cutoff: AiCutoff): void {
+		host.cutoffs.push(now());
+		const recent = recentCutoffs(host);
+		log({ evt: 'host-ai-cutoff', host: host.name, jvm: cutoff.hostId, matchId: cutoff.matchId, where: cutoff.where, recent });
+		const bar = aiBar(recent);
+		if (closing || bar.ok) return;
+		const key = `ai:${host.name}`;
+		if (!alerts.isOpen(key)) {
+			const what = `${cutoff.matchId ?? `JVM ${cutoff.hostId}`}${cutoff.where === null ? '' : `, in ${cutoff.where}`}`;
+			alerts.fire(
+				key,
+				`⚠️ AI degraded: ${host.name} — Forge cut an AI decision short (${what}), so its AI is playing its best guess, not its best move. It takes no new match until ${AI_CUTOFF_WINDOW_MS / 60_000} min pass without one.`,
+			);
+		}
+		if (host.kind === 'claw') stepBackstop(true, true);
+		notifyRoom();
+	}
+
+	/** Close `ai:<host>` for every host whose window is clean again. */
+	function aiClean(): void {
+		for (const host of hosts.values()) {
+			const key = `ai:${host.name}`;
+			if (alerts.isOpen(key) && recentCutoffs(host) === 0) {
+				alerts.resolve(key, `AI clean: ${host.name} — no AI decision cut short for ${AI_CUTOFF_WINDOW_MS / 60_000} min`);
+				log({ evt: 'host-ai-clean', host: host.name });
+			}
+		}
 	}
 
 	function capacityShort(): void {
@@ -703,6 +755,7 @@ export function placement(opts: PlacementOptions): Placement {
 			if (host.pool === null || health == null) continue;
 			for (const j of health.jvms) if (j.recycleWanted) host.pool.drain(j.hostId, 'its heap after GC is past the recycle share');
 		}
+		aiClean();
 		notifyRoom();
 	};
 

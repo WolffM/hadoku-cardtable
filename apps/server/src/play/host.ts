@@ -100,6 +100,15 @@
  * already the bridge's to report (`MatchContext.fail` → `fatal`, then `stopped`). What a per-match
  * watchdog would need is in "What remains" of `docs/spikes/multi-match-jvm.md`.
  *
+ * ## AI cutoffs
+ *
+ * Forge gives each AI decision a 5 s wall-clock cutoff, and past it the AI plays its best so far:
+ * on a host short of CPU the AI plays worse, not slower. The bridge says `cutoff` each time
+ * (`PlayBridge.CutoffWatch`), for the match whose game was cut, or for the JVM when no match owns
+ * the thread. Like `alive` it is the pool's, never a match's: it is logged (`ai-cutoff`) and handed
+ * to `JvmPoolOptions.onCutoff`, which placement counts against the host, and it is neither kept in
+ * a stream nor forwarded, so a replay never counts one twice.
+ *
  * ## The line protocol
  *
  * `bridge/PlayBridge.java` writes one JSON object per line on stdout and reads one per line on
@@ -551,7 +560,16 @@ export interface JvmPoolOptions {
 	sweep?: boolean;
 	/** Where JVMs run. Default: this machine (`localJvmLauncher`). */
 	launcher?: JvmLauncher;
+	/** Forge cut an AI decision short in one of this pool's JVMs ("AI cutoffs" in the module header). */
+	onCutoff?: (cutoff: AiCutoff) => void;
 	log?: (entry: Record<string, unknown>) => void;
+}
+
+/** One `cutoff` line: its JVM, the match whose game was cut (null: the JVM's own), and the AI's top Forge frame. */
+export interface AiCutoff {
+	hostId: string;
+	matchId: string | null;
+	where: string | null;
 }
 
 /** The JVM factory. `room()` and friends are for `start-queue.ts`, diagnostics and the benchmark. */
@@ -769,6 +787,11 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 			return;
 		}
 		const { match, ...line } = value as { t: string; match?: unknown } & Record<string, unknown>;
+		if (line.t === 'cutoff') {
+			// Counted whoever it names: a match that has just ended was still cut short on this JVM.
+			aiCutoff(jvm, typeof match === 'string' && match !== jvm.hostId ? match : null, typeof line.where === 'string' ? line.where : null);
+			return;
+		}
 		if (match === jvm.hostId) {
 			onHostLine(jvm, line);
 			return;
@@ -789,6 +812,12 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		if (line.t === 'fatal') h.fatal = String(line.message);
 		persist(h, line as BridgeLine);
 		if (h.events !== null && !h.handed) h.events.line(line as BridgeLine);
+	}
+
+	function aiCutoff(jvm: Jvm, matchId: string | null, where: string | null): void {
+		const h = matchId === null ? undefined : jvm.matches.get(matchId);
+		(h?.events?.log ?? poolLog)({ evt: 'ai-cutoff', id: jvm.hostId, matchId, where });
+		options.onCutoff?.({ hostId: jvm.hostId, matchId, where });
 	}
 
 	/** A line about the JVM itself: `warm`, or a `start` it refused. */

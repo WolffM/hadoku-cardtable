@@ -300,7 +300,7 @@ needs no action.
 | 🚨 | **Crash loop** | the cardtable pm2 process restarted more than twice in 10 min |
 | ⚠️ | **Capacity** | a match was refused for lack of a host, or free slots fall below 20% fleet-wide or 0 in the vs-AI tier |
 | ⚠️ | **Claw heartbeat lost** | a host claw goes silent with no match on it |
-| ⚠️ | **AI degraded** | AI timeouts on a host above a threshold (set from T2) |
+| ⚠️ | **AI degraded** | any AI cutoff on a host (Forge cut a decision short) within the last 5 min; the host takes no new match until 5 min pass without one (`placement/rules.ts` `AI_CUTOFF_WINDOW_MS`) |
 | ⚠️ | **Pin not servable** | a host claw lacks the jar or `res` for prod's pin |
 | ✅ | **Recovered** | the incident above has cleared |
 

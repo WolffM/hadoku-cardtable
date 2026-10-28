@@ -12,11 +12,13 @@
  * elsewhere: an outside `/health` check (a hadoku_site cron is the likely home) for the first, and
  * pm2's restart count read by that same check for the second. Not built here.
  *
- * AI degraded is not built either: nothing counts AI cutoffs today. Forge's cutoff happens inside
- * the JVM (`AiController`) and no protocol line says so. The plan: the bridge reports each cutoff
- * as a line of its match, `host.ts` counts them per JVM, and placement fires `ai:<claw>` past a
- * threshold set from T2, with the claw taking no new match until it is clean again
- * (forge-hosting-plan §4.2, "Live quality is watched").
+ * AI degraded (forge-hosting-plan §4.2, "Live quality is watched"): Forge's AI cutoff happens inside
+ * the JVM (`AiController`), and the bridge turns the line it prints into a `cutoff` line of the
+ * match whose game was cut (`PlayBridge.CutoffWatch`). `host.ts` hands each to placement, which
+ * counts them per host: any cutoff within `AI_CUTOFF_WINDOW_MS` fails the host's `ai` bar and opens
+ * `ai:<host>`, claws and hokon alike, and the health tick posts the ✅ once the window is clean.
+ * Only with `CARDTABLE_PLAY_HOSTS=claws`: the single local pool has no placement, so there a cutoff
+ * is logged (`ai-cutoff`) and nothing else.
  */
 
 export interface AlertSink {

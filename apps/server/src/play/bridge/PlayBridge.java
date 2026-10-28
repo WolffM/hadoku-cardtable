@@ -195,7 +195,8 @@ import org.apache.commons.lang3.tuple.Pair;
  * Lines out: {@code warm} (a spare only), {@code ready}, {@code frame} (a
  * {@code @hadoku/forge-wire} ServerFrame for one seat), {@code probe}, {@code gameover}, {@code log}
  * (one entry of Forge's game log, or an action it does not log, worded per player:
- * {@link BridgeGui.GameLogForward}),
+ * {@link BridgeGui.GameLogForward}), {@code cutoff} (Forge cut an AI decision short:
+ * {@link CutoffWatch}),
  * {@code fatal}. Lines in: {@code start} (a spare's first line only), {@code reply},
  * {@code abort}, {@code act}, {@code probe}, {@code stop}. See {@link #main} for the
  * warm spare.
@@ -258,6 +259,64 @@ public final class PlayBridge {
      * {@code match-throw}: the match's own thread throws an {@code Error} once the match is ready.
      */
     static final String FAULT = System.getProperty("cardtable.fault", "");
+
+    /**
+     * A TEST-only override of Forge's AI cutoff ({@code Game.AI_TIMEOUT}, 5 s), in seconds: off
+     * unless {@code -Dcardtable.aiTimeoutSec=<n>} is on the JVM's command line, which
+     * {@code host.ts} never puts there. {@code 0} cuts every AI scan short, so a test can make
+     * {@link CutoffWatch} speak.
+     */
+    static final int AI_TIMEOUT_SEC = Integer.getInteger("cardtable.aiTimeoutSec", -1);
+
+    /**
+     * Each match's game thread while its game runs, set by its start-game hook and cleared by its
+     * end-game hook ({@link BridgeGui#hostMatch}): Forge's game threads are pooled and unnamed per
+     * match, so this is how {@link CutoffWatch} knows whose game printed.
+     */
+    static final Map<Thread, MatchContext> GAME_THREADS = new ConcurrentHashMap<>();
+
+    /**
+     * Forge's own {@code System.out}, on its way to stderr, watched for one line:
+     * {@code AiController.chooseSpellAbilityToPlayFromList} prints {@link #MARK} and the eval
+     * thread's stack, on the game thread, each time its wall-clock cutoff
+     * ({@code Game.AI_TIMEOUT}) stops an AI decision short and the AI plays its best so far. No
+     * protocol call says so, and it is the one sign that a host is too slow for its AI. Each
+     * becomes a {@code cutoff} line for the match whose game thread printed it
+     * ({@link #GAME_THREADS}), with {@code where} the eval thread's top Forge frame; one from a
+     * thread no match owns is the JVM's, stamped with {@link #processId}. The text still reaches
+     * stderr as it was.
+     */
+    static final class CutoffWatch extends PrintStream {
+        static final String MARK = "AI eval thread at timeout:";
+
+        CutoffWatch(final PrintStream to) {
+            super(to, true, StandardCharsets.UTF_8);
+        }
+
+        @Override public void println(final Object x) { seen(String.valueOf(x)); super.println(x); }
+        @Override public void println(final String x) { seen(x); super.println(x); }
+
+        private static void seen(final String text) {
+            if (text == null || !text.startsWith(MARK)) { return; }
+            final JsonObject o = line("cutoff");
+            for (final String l : text.split("\n")) {
+                final String f = l.trim();
+                if (f.startsWith("at forge.")) {
+                    final String call = f.substring(3, f.indexOf('(') > 0 ? f.indexOf('(') : f.length());
+                    final int method = call.lastIndexOf('.');
+                    final int owner = call.lastIndexOf('.', method - 1);
+                    o.addProperty("where", call.substring(owner + 1));
+                    break;
+                }
+            }
+            final MatchContext m = GAME_THREADS.get(Thread.currentThread());
+            if (m != null) {
+                m.emit(o);
+            } else {
+                emit(processId, o);
+            }
+        }
+    }
 
     /**
      * Liveness, from a thread no game, seat or Netty work runs on: one {@code alive} line every
@@ -6011,9 +6070,16 @@ public final class PlayBridge {
                 state = null;
             }
             // The game thread is a pooled one: the handler is this game's only while it runs.
-            hm.setEndGameHook(() -> Thread.currentThread().setUncaughtExceptionHandler(null));
+            hm.setEndGameHook(() -> {
+                Thread.currentThread().setUncaughtExceptionHandler(null);
+                GAME_THREADS.remove(Thread.currentThread(), m);
+            });
             hm.setStartGameHook(() -> {
                 Thread.currentThread().setUncaughtExceptionHandler((t, e) -> m.fail("Forge's game thread failed", e));
+                GAME_THREADS.put(Thread.currentThread(), m);
+                if (AI_TIMEOUT_SEC >= 0) {
+                    hm.getGame().AI_TIMEOUT = AI_TIMEOUT_SEC;
+                }
                 if ("game-throw".equals(FAULT)) {
                     throw new Error("cardtable.fault=game-throw: a test-only failure on the game thread");
                 }
@@ -7029,7 +7095,7 @@ public final class PlayBridge {
      */
     public static void main(final String[] args) throws Exception {
         protocol = new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8);
-        System.setOut(System.err);
+        System.setOut(new CutoffWatch(System.err));
         installUncaught();
         startAlive();
         if (args.length == 2 && "--host".equals(args[0])) {
@@ -7113,6 +7179,7 @@ public final class PlayBridge {
                 startMatch(match, PlayBridge::bootServer, startAt);
             } finally {
                 MATCHES.remove(match.matchId);
+                GAME_THREADS.values().removeIf(owner -> owner == match);
                 match.emit(line("stopped"));
             }
         }, "bridge-match-" + match.matchId);

@@ -11,10 +11,15 @@
  *   notice      no hosting end or reboot within `NOTICE_HORIZON_MS`
  *   quarantine  it has not failed a match since it last passed a canary
  *   room        a JVM with room, or room in the slice for another (the agent's own fit rule)
+ *   ai          Forge cut no AI decision short on it within `AI_CUTOFF_WINDOW_MS`
  *
  * A bar that fails stops new matches at once and moves nothing: live matches stay unless the claw
  * actually fails (the hosting rulings). Admission control, never degradation: with no eligible
  * host a start waits, and the Capacity alert fires.
+ *
+ * The `ai` bar is live quality (§4.2, "Live quality is watched"): past Forge's 5 s cutoff the AI
+ * plays its best so far, so a host short of CPU plays worse, not slower, and any cutoff counts. It
+ * holds for hokon too: the backstop takes nothing new while its AI is being cut short.
  *
  * ## hokon as the backstop (§4.3)
  *
@@ -39,7 +44,11 @@ export const CALM_POLLS = 3;
 export const FORCE_DEFAULT_MS = 60 * 60_000;
 export const FORCE_MAX_MS = 6 * 60 * 60_000;
 
-export type BarName = 'fleet' | 'agent' | 'notice' | 'quarantine' | 'room' | 'backstop';
+/** A host with this many AI cutoffs within `AI_CUTOFF_WINDOW_MS` fails the `ai` bar. */
+export const AI_CUTOFFS_DEGRADED = 1;
+export const AI_CUTOFF_WINDOW_MS = 5 * 60_000;
+
+export type BarName = 'fleet' | 'agent' | 'notice' | 'quarantine' | 'room' | 'ai' | 'backstop';
 
 export interface Bar {
 	bar: BarName;
@@ -56,6 +65,8 @@ export interface ClawState {
 	quarantine: string | null;
 	/** Matches it could still take; `why` when none. */
 	room: { free: number; why: string | null };
+	/** AI cutoffs on it within `AI_CUTOFF_WINDOW_MS`. */
+	aiCutoffs: number;
 }
 
 /** The earliest announced end of this node's hosting: a notice, or the slice's `until`. */
@@ -95,7 +106,14 @@ export function bars(claw: ClawState, now: number, freshMs: number): Bar[] {
 		bar('notice', event !== null && event.at - now < NOTICE_HORIZON_MS ? `${event.what} at ${new Date(event.at).toISOString()}` : null),
 		bar('quarantine', claw.quarantine),
 		bar('room', claw.room.free > 0 ? null : (claw.room.why ?? 'full')),
+		aiBar(claw.aiCutoffs),
 	];
+}
+
+/** The `ai` bar, for a claw and for hokon alike. */
+export function aiBar(cutoffs: number): Bar {
+	const ok = cutoffs < AI_CUTOFFS_DEGRADED;
+	return { bar: 'ai', ok, why: ok ? '' : `${cutoffs} AI ${cutoffs === 1 ? 'decision' : 'decisions'} cut short in the last ${AI_CUTOFF_WINDOW_MS / 60_000} min` };
 }
 
 export const eligible = (b: readonly Bar[]): boolean => b.every((x) => x.ok);
