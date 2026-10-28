@@ -21,8 +21,10 @@
  * WHY BY MEASURED SECONDS, NOT `vitest --shard`. vitest shards by file count;
  * `library-match` alone is 386 s of 1774, `prompts` 201, `scenario-start` 129,
  * and most files are 5–15 s, so a count split leaves one shard holding most
- * of the time. `jvm-seconds.json` is each file's duration on claw-8 in run
- * 39006155634 (full + nightly). It only steers the balance: a file missing
+ * of the time. `jvm-seconds.json` is each file's duration in claw-8 seconds,
+ * refreshed 2026-10-28 from full runs 40605856143 and 40577661708: a shard run
+ * on claw-9 or hokon is divided by its median slowdown against the previous
+ * table (2.4–2.8×), so all three machines read in one unit. A file missing
  * from it weighs the table's median, a stale entry makes the split uneven,
  * and every file still lands in exactly one shard either way. Refresh it from
  * a full run's `✓ <file> (N tests) <ms>ms` lines when the split drifts.
@@ -38,9 +40,11 @@ import { join } from 'node:path';
  * serial job holding all 1774 s never was. 620 since 2026-10-22: the measured
  * suites had grown to 1796 s, so no further suite of more than ~4 s fit three
  * shards of 600; 620 × 2.4 (the worst slowdown measured) is ~25 min, plus a
- * cold bundle build, still inside forge-jvm's 35-minute timeout.
+ * cold bundle build, still inside forge-jvm's 35-minute timeout. 740 since
+ * 2026-10-27: 113 suites measure 2153 s, three shards of ~720 s; 740 × 2.4 is
+ * ~30 min, plus the build, so forge-jvm's timeout went to 45 minutes with it.
  */
-export const SHARD_SECONDS = 620;
+export const SHARD_SECONDS = 740;
 
 /** Three jdk21 claws: a fourth shard would only queue behind the other three. */
 export const MAX_SHARDS = 3;
