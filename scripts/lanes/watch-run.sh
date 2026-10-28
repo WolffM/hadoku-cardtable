@@ -43,13 +43,15 @@ gh api "repos/$R/actions/runs/$ID/jobs?per_page=100&filter=latest" \
 
 strip() { sed -E 's/\x1b\[[0-9;]*m//g; s/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z //'; }
 
-# One red job: vitest's ` FAIL  file > test` and Playwright's `  1) file:line › test` open a
+# One red job: vitest's ` FAIL  file > test` and Playwright's `  1) [project] › file:line › test` open a
 # failure block; its first three Error/Expected/Received lines are what tells the cause.
 red_job() {
   local jid=$1 log="$DIR/job-$1.log" counts tags
-  gh api "repos/$R/actions/jobs/$jid/logs" 2>/dev/null | strip > "$log" || true
+  # gh >= 2.100 refuses a body with escape sequences unless told, and every job log has them.
+  gh api --allow-escape-sequences "repos/$R/actions/jobs/$jid/logs" 2>"$log.err" | strip > "$log" \
+    || echo "    no log for job $jid: $(head -c 200 "$log.err")"
   awk '
-    /^ FAIL  / || /^ +[0-9]+\) [^ ]+\.(spec|test)\.tsx?/ { sub(/^ +(FAIL +)?/, ""); print "    ✘ " substr($0, 1, 200); inb = 1; n = 0; found = 1; next }
+    /^ FAIL  / || /^ +[0-9]+\) (\[[a-z]+\] › )?[^ ]+\.(spec|test)\.tsx?/ { sub(/^ +(FAIL +)?/, ""); print "    ✘ " substr($0, 1, 200); inb = 1; n = 0; found = 1; next }
     inb && (/^⎯/ || /^ +[0-9]+ (failed|passed|flaky)/) { inb = 0 }
     inb && n < 3 && /(Error|Expected|Received|Timeout [0-9]+ms)/ && !/^ +at / && !/^ *>? *[0-9]+ ?\|/ { sub(/^ +/, ""); print "        " substr($0, 1, 200); n++ }
     END { exit !found }
