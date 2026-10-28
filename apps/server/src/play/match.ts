@@ -2192,7 +2192,7 @@ export class Match {
 
 	/* ── Forge → browser ────────────────────────────────────────────── */
 
-	private send(s: SeatState, frame: ServerFrame, mark: 'displayOnly' | 'pairsWithNext' | null = null): void {
+	private send(s: SeatState, frame: ServerFrame, mark: 'displayOnly' | 'pairsWithNext' | null = null, extra?: { forceNotice: true }): void {
 		if (frame.method === 'updateButtons') {
 			s.wireButtonsLive = frame.enable1 === true || frame.enable2 === true;
 			this.noteCoinToss(s, frame);
@@ -2200,7 +2200,7 @@ export class Match {
 		s.seq += 1;
 		if (TRACE_FRAMES) this.deps.log({ evt: 'wire-frame', matchId: this.id, seat: s.seat, seq: s.seq, ...frameGist(frame) });
 		const cursor: WireCursor = { epoch: this.epoch, seq: s.seq };
-		this.deps.emit(s.seat, mark === null ? { matchId: this.id, cursor, frame } : { matchId: this.id, cursor, frame, [mark]: true });
+		this.deps.emit(s.seat, { matchId: this.id, cursor, frame, ...(mark === null ? {} : { [mark]: true }), ...(extra ?? {}) });
 	}
 
 	/**
@@ -3760,8 +3760,49 @@ export class Match {
 
 	private showReveal(s: SeatState, frame: RevealFrame): void {
 		const named = frame.choices.filter((c) => c.ref === null).map((c) => c.label);
-		this.deps.log({ evt: 'reveal-shown', matchId: this.id, seat: s.seat, callId: frame.callId, cards: choiceCardIds(frame.choices), ...(named.length > 0 ? { named } : {}) });
-		this.send(s, frame, 'displayOnly');
+		const forceNotice = this.revealMustForceNotice(s, frame);
+		this.deps.log({ evt: 'reveal-shown', matchId: this.id, seat: s.seat, callId: frame.callId, cards: choiceCardIds(frame.choices), ...(named.length > 0 ? { named } : {}), ...(forceNotice ? { forceNotice: true } : {}) });
+		this.send(s, frame, 'displayOnly', forceNotice ? { forceNotice: true } : undefined);
+	}
+
+	/**
+	 * Whether `frame`'s revealed cards must be SHOWN to the seat even though
+	 * `apps/ui/src/play/adapter.ts`'s `drawsFaceUp`/`knownTop` might otherwise
+	 * read them as already visible on the board: true once the frames already
+	 * queued behind this reveal ({@link SeatState.behindReveal} — what Forge's
+	 * SAME resolution did right after revealing, not yet sent to the seat) are
+	 * folded in and these ids are no longer a leading run of SOME player's
+	 * library. A reveal whose own resolution repositions these same cards
+	 * within that one resolution (`DigUntilEffect`'s move to the bottom:
+	 * Calibrated Blast, AF403) fails this — `drawsFaceUp` would otherwise read
+	 * a transiently-stale, pre-move snapshot (the cards are still, for a
+	 * moment, the library's known top) and skip the only place the seat would
+	 * ever see them. A card the move takes OUT of the library entirely (into a
+	 * hand, a battlefield, a graveyard) is left alone: `drawsFaceUp` is
+	 * already correct about those once the move itself reaches the client, so
+	 * no override is needed, and this never second-guesses a genuinely
+	 * persistent look grant (Courser of Kruphix): nothing in `behindReveal`
+	 * moves THOSE cards at all, so the fold changes nothing and this returns
+	 * `false`.
+	 */
+	private revealMustForceNotice(s: SeatState, frame: RevealFrame): boolean {
+		const ids = choiceCardIds(frame.choices);
+		if (ids.length === 0) return false;
+		const behind = s.behindReveal.filter((raw): raw is StateFrame => {
+			const method = (raw as { method?: unknown } | null)?.method;
+			return method === 'setGameView' || method === 'applyDelta' || method === 'openView';
+		});
+		if (behind.length === 0) return false;
+		const settled = foldFrames([...(s.history as unknown as StateFrame[]), ...behind]);
+		const game = settled.get(deltaKey(DELTA_TYPE.game, 1));
+		for (const pid of idsOf(game, 'Players')) {
+			const lib = idsOf(settled.get(deltaKey(DELTA_TYPE.player, pid)), 'Library');
+			const inLib = ids.filter((id) => lib.includes(id));
+			if (inLib.length === 0) continue;
+			const prefix = new Set(lib.slice(0, inLib.length));
+			if (!inLib.every((id) => prefix.has(id))) return true;
+		}
+		return false;
 	}
 
 	private closeAllAsks(): void {

@@ -3168,7 +3168,7 @@ function ingestNow(match: LiveMatch, raw: unknown): void {
   match.windowHalf = null;
   if (half !== null) applyFrame(match, half);
   if (envelope.value.pairsWithNext === true) match.windowHalf = parsed.value;
-  else if (envelope.value.displayOnly === true) showReveal(match, parsed.value);
+  else if (envelope.value.displayOnly === true) showReveal(match, parsed.value, envelope.value.forceNotice === true);
   else applyFrame(match, parsed.value);
   if (match.offerHold !== null) followOffer(match.offerHold, boardInteraction(match), { cards: match.highlighted, players: match.highlightedPlayers });
   sendDeferredSelect(match);
@@ -3202,15 +3202,23 @@ function sendDeferredSelect(match: LiveMatch): void {
  * notice: the board is where the seat sees them (`../adapter.ts`'s
  * `drawsFaceUp`). Any card it does not draw — a library searched, cards
  * revealed and put back unseen — and the notice shows the whole reveal.
+ *
+ * `forceNotice` (the envelope's own field, AF403) skips that `drawsFaceUp`
+ * check entirely: the server already found that whatever the SAME
+ * resolution did right behind this reveal (`DigUntilEffect`'s move to the
+ * bottom) takes these cards off the position that made them look
+ * already-visible, so trusting the board here would show the seat nothing
+ * — the very bug this flag exists to catch. A persistent look grant
+ * (Courser of Kruphix) never sets it, since nothing moves those cards.
  */
-function showReveal(match: LiveMatch, frame: ServerFrame): void {
+function showReveal(match: LiveMatch, frame: ServerFrame, forceNotice: boolean): void {
   if (frame.kind !== 'ask' || frame.method !== 'getChoices') {
     match.stats.invalid += 1;
     match.lastInvalid = [{ path: '$.displayOnly', message: `only a getChoices reveal is display-only, not ${frame.kind} ${frame.method}` }];
     return;
   }
   const cardIds = frame.choices.flatMap((c) => (c.ref?.kind === 'card' ? [c.ref.id] : []));
-  const onBoard = cardIds.length === frame.choices.length && match.view !== null && drawsFaceUp(match.view, cardIds);
+  const onBoard = !forceNotice && cardIds.length === frame.choices.length && match.view !== null && drawsFaceUp(match.view, cardIds);
   if (!onBoard) match.reveal = frame;
   match.revealed = { ask: frame, cardIds, at: Date.now() };
 }

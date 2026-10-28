@@ -335,7 +335,14 @@ export type TriggerDecisions = z.infer<typeof TriggerDecisionsSchema>;
  * `parseServerEnvelope` does not").
  */
 export const ServerEnvelopeSchema = z
-  .object({ matchId: z.string().min(1), cursor: WireCursorSchema, frame: ServerFrameSchema, displayOnly: z.literal(true).optional(), pairsWithNext: z.literal(true).optional() })
+  .object({
+    matchId: z.string().min(1),
+    cursor: WireCursorSchema,
+    frame: ServerFrameSchema,
+    displayOnly: z.literal(true).optional(),
+    pairsWithNext: z.literal(true).optional(),
+    forceNotice: z.literal(true).optional(),
+  })
   .strict();
 
 /** `ServerEnvelopeSchema`, with `frame` loosened to `unknown` — `parseServerEnvelope`'s own first stage. */
@@ -352,6 +359,18 @@ export interface ServerEnvelope {
    * anyone still waits on it is the server's fact. Absent on every other frame.
    */
   displayOnly?: true;
+  /**
+   * The frame is a `displayOnly` reveal whose cards will NOT still be visible on the board once
+   * the frames already queued behind it are applied (`apps/server/src/play/match.ts`'s
+   * `revealMustForceNotice`, AF403) — a reveal that repositions its own cards within the same
+   * resolution (`DigUntilEffect`'s move to the bottom: Calibrated Blast). The client's
+   * `drawsFaceUp`/`knownTop` (`apps/ui/src/play/adapter.ts`) would otherwise read the cards' still,
+   * transiently, being the library's known top and skip the only place the seat would ever see
+   * them; this tells it not to. Never set on a reveal a persistent look grant (Courser of Kruphix)
+   * produces — nothing repositions those cards, so the server has nothing to flag. Absent on every
+   * other frame, and only ever alongside `displayOnly`.
+   */
+  forceNotice?: true;
   /**
    * The frame is one half of a Forge window (`showPromptMessage` and `updateButtons`, which Forge
    * sends as two notifies in an order of each input's own) and its other half is the very next
