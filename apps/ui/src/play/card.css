@@ -800,10 +800,10 @@
 
 /*
  * Ward, shroud and hexproof, each drawn over the art by Forge's current keywords (`Board.tsx`'s
- * `protectionOf`), the widest one only. The effect is `::before`; `::after` is the glint all three
- * share — now and then a band of light slides diagonally down the card's edge, in the keyword's
- * colour, so the three read as one family. The operator chose them from samples on 2026-10-23:
- * shroud's mist, hexproof's sweep, ward's steady edge glow, quieter than hexproof's.
+ * `protectionOf`), the widest one only, as `::before`. The operator chose them from samples on
+ * 2026-10-23: shroud's mist, hexproof's sweep, ward's steady edge glow. The glint all three shared on
+ * the card's edge is gone (the operator, 2026-10-28: "remove the edge glint … just keep the animation
+ * on the card itself").
  *
  * Inside the face, so a tapped card's overlay is its turned box; the sway carries it with the art.
  */
@@ -823,8 +823,7 @@
   animation-composition: add;
 }
 
-.board-card__protection::before,
-.board-card__protection::after {
+.board-card__protection::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -832,11 +831,6 @@
 }
 
 /* Ward: a steady glow along the four edges of the art; the middle stays clear. */
-[data-protection='ward'] > .board-card__face > .board-card__protection {
-  --glint: var(--ward);
-  --glint-peak: 0.7;
-}
-
 [data-protection='ward'] > .board-card__face > .board-card__protection::before {
   box-shadow:
     inset 0 0 7px 1.5px color-mix(in srgb, var(--ward) 55%, transparent),
@@ -849,9 +843,6 @@
  * its `background-position` until 2026-10-23, which drew every shrouded card again on every frame.
  */
 [data-protection='shroud'] > .board-card__face > .board-card__protection {
-  --glint: var(--shroud);
-  --glint-peak: 0.85;
-
   overflow: clip;
 }
 
@@ -872,11 +863,6 @@
 }
 
 /* Hexproof: a band of hex lattice crosses the art diagonally. */
-[data-protection='hexproof'] > .board-card__face > .board-card__protection {
-  --glint: var(--hexproof);
-  --glint-peak: 1;
-}
-
 [data-protection='hexproof'] > .board-card__face > .board-card__protection::before {
   background: var(--hexproof);
   mask-image:
@@ -894,50 +880,8 @@
   55%, 100% { mask-position: 0 0, 0% 0; }
 }
 
-/*
- * The shared glint: a ring on the card's own edge, lit only where the band crosses it. Its glow
- * spills onto the table as a shadow, which never counts toward a row's overflow; a box past the
- * card's edge would (`board.css`'s table-fit).
- */
-.board-card__protection::after {
-  padding: 2px;
-  background: linear-gradient(
-    120deg,
-    transparent 42%,
-    var(--glint) 50%,
-    transparent 58%
-  );
-  background-size: 300% 300%;
-  background-repeat: no-repeat;
-  mask:
-    linear-gradient(var(--ink) 0 0) content-box exclude,
-    linear-gradient(var(--ink) 0 0);
-  filter: drop-shadow(0 0 2.5px var(--glint));
-  opacity: 0;
-  animation: protection-glint var(--protection-loop) cubic-bezier(0.45, 0, 0.4, 1) var(--protection-start) infinite;
-}
-
-@keyframes protection-glint {
-  0% {
-    background-position: 100% 100%;
-    opacity: var(--glint-peak);
-  }
-
-  20% {
-    background-position: 0% 0%;
-    opacity: var(--glint-peak);
-  }
-
-  21%,
-  100% {
-    background-position: 0% 0%;
-    opacity: 0;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .board-card__protection::before,
-  .board-card__protection::after {
+  .board-card__protection::before {
     animation: none;
   }
 }
