@@ -3688,6 +3688,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           view={visualView}
           interaction={interaction}
           revealed={match.revealed}
+          rolls={match.rolls}
           boardLayout={boardLayout}
           fastMode={fastMode}
           onOpenSettings={settings.toggle}

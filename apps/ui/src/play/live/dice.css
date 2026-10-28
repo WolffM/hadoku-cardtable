@@ -1,0 +1,93 @@
+/*
+ * A die roll on the table (`dice.ts`): the die, its shadow on the felt and the ring it sends out as it
+ * lands, all in the board's overlay. Every colour is a theme mix: the die is drawn in the ink colour
+ * against the felt, its facets shaded toward the background, its number or pips in the background colour.
+ * The other seat's die is tinted with the neutral token, and its ring is neutral where the seat's own is
+ * the accent.
+ */
+.board-die {
+  --die-face: color-mix(in srgb, var(--ink) 94%, var(--bg));
+  --die-shade: color-mix(in srgb, var(--ink) 82%, var(--bg));
+  --die-dark: color-mix(in srgb, var(--ink) 68%, var(--bg));
+  --die-edge: color-mix(in srgb, var(--ink) 55%, var(--bg));
+  --die-ink: var(--bg);
+  position: absolute;
+  left: 0;
+  top: 0;
+  /* Over the stack's items, as a projectile is: an ability's item is drawn beside its source, where the die lands. */
+  z-index: calc(var(--z-overlay, 20) + 2);
+  pointer-events: none;
+  will-change: transform;
+}
+
+.board-die[data-die-roller='them'] {
+  --die-face: color-mix(in srgb, color-mix(in srgb, var(--ink) 94%, var(--bg)) 78%, var(--neutral));
+  --die-shade: color-mix(in srgb, color-mix(in srgb, var(--ink) 82%, var(--bg)) 78%, var(--neutral));
+}
+
+.board-die svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 6px 6px var(--shadow));
+}
+
+.board-die__facet {
+  stroke: var(--die-edge);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+
+.board-die__facet--front,
+.board-die__facet--face {
+  fill: var(--die-face);
+}
+
+.board-die__facet--shade {
+  fill: var(--die-shade);
+}
+
+.board-die__facet--dark {
+  fill: var(--die-dark);
+}
+
+.board-die__num {
+  font-weight: 800;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  fill: var(--die-ink);
+}
+
+.board-die__pip {
+  fill: var(--die-ink);
+}
+
+/* A die the roll set aside: it lands like the rest, then steps back. */
+.board-die[data-die-ignored] {
+  opacity: 0.45;
+  transition: opacity 0.2s ease;
+}
+
+.board-die-shadow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: calc(var(--z-overlay, 20) + 1);
+  border-radius: 50%;
+  background: var(--shadow);
+  filter: blur(3px);
+  pointer-events: none;
+}
+
+.board-die-ring {
+  position: absolute;
+  z-index: calc(var(--z-overlay, 20) + 1);
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  pointer-events: none;
+}
+
+.board-die-ring[data-die-roller='them'] {
+  border-color: var(--neutral);
+}

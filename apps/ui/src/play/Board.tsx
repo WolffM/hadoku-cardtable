@@ -415,6 +415,7 @@ import { choiceTip, keywordTip, MARK_TIP, SEEN_TIP, stateTip, waitingTip } from 
 import { documentScope, eventTarget } from '../dom.ts';
 import { TopLayer } from '../topLayer.tsx';
 import { clickLatch, pastSlop } from './live/gestures/types.ts';
+import { installDice, type ShownRoll } from './live/dice.ts';
 import { installNumbers, type Revealed } from './live/numbers.ts';
 import { addWork } from './live/work-meter.ts';
 import { pinFlight } from './flight.ts';
@@ -4104,6 +4105,9 @@ function StagingArea({ card, interaction }: { card: BoardCard; interaction: Boar
  * `data-zone`/`data-owner="table"` is the whole of what makes this a zone at
  * all — no label, no box, nothing drawn (`board.css` keeps it invisible).
  */
+/** No rolls: one array, so a board given none draws the same as one given an empty list. */
+const NO_ROLLS: readonly ShownRoll[] = [];
+
 function StackView({ count, carried }: { count: number; carried: number }) {
   return <section className="stack" aria-label="Stack" data-zone="stack" data-owner="table" data-count={count} data-carried={carried > 0 ? carried : undefined} />;
 }
@@ -4116,11 +4120,14 @@ export function Board({
   onOpenDeck,
   onEffect,
   revealed,
+  rolls = NO_ROLLS,
   fastMode = false,
 }: {
   view: BoardView;
   /** The last reveal this seat was shown (`live/match.ts`'s `revealed`): its beat comes before what it causes (`live/numbers.ts`). */
   revealed?: Revealed | null;
+  /** The die rolls this seat was told of (`live/match.ts`'s `rolls`): each is drawn once, tumbling from its card (`live/dice.ts`). */
+  rolls?: readonly ShownRoll[];
   /** Fast Mode (`live/prefs.ts`): nothing that left the battlefield is drawn leaving, and a resolution does not blink first. */
   fastMode?: boolean;
   interaction?: BoardInteraction;
@@ -4306,6 +4313,21 @@ export function Board({
       handle.dispose();
     };
   }, []);
+  /* A die roll (`live/dice.ts`), booted the same way: drawn once per roll, over the view drawn with it. */
+  const dice = useRef<ReturnType<typeof installDice> | null>(null);
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (el === null) return undefined;
+    const handle = installDice(el);
+    dice.current = handle;
+    return () => {
+      dice.current = null;
+      handle.dispose();
+    };
+  }, []);
+  useLayoutEffect(() => {
+    dice.current?.notify(rolls, view);
+  }, [rolls, view]);
   // A flyer's every part on one clock, however late it was mounted (`./flight.ts`).
   useLayoutEffect(() => (root.current === null ? undefined : pinFlight(root.current)), []);
   useLayoutEffect(() => {

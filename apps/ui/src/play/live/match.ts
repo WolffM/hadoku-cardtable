@@ -258,6 +258,7 @@ import { defaultSocketPath } from '../../draft/socket.ts';
 import { normalizeAvatarId } from '../../room/avatar.ts';
 import { attackLockedIn, drawsFaceUp, manaCostTokens, opponentOf, toBoardView, viewerOf, type BoardCard, type BoardView, type DamageHit, type DeathCause, type FaceHit, type PoolColor } from '../adapter.ts';
 import type { Revealed } from './numbers.ts';
+import { shownRoll, type ShownRoll } from './dice.ts';
 import { preloadMatchArt } from './art-preload.ts';
 import { pressableBar, type BarHold } from './bar-hold.ts';
 import { drawnOfferOf, followOffer, type OfferHold } from './offer-hold.ts';
@@ -362,6 +363,8 @@ export const DISCONNECT_GRACE_MS = 100;
  * whatever the server resends, which is unrelated to the number here.
  */
 export const SAYS_KEPT = 2000;
+/** The rolls a match keeps for the board to draw: more than one view can bring at once. */
+export const ROLLS_KEPT = 8;
 
 /**
  * One line of the log: its words, and — for a line of Forge's own game log —
@@ -629,6 +632,12 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    * the module header. Newest last, capped at `SAYS_KEPT`.
    */
   says: Say[];
+  /**
+   * The die rolls this seat was told of as they came (`message`'s `roll`), each numbered once for the
+   * page's life (`./dice.ts` draws a number it has not drawn), newest last, capped at `ROLLS_KEPT`. A
+   * snapshot starts it empty: a roll it would bring back is history, read in the log.
+   */
+  rolls: ShownRoll[];
   /**
    * Forge's current actionable set, from `setWeaklySelectable` — what the
    * input that is live right now will do something with. Null: Forge has named
@@ -1094,6 +1103,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     highlighted: null,
     highlightedPlayers: null,
     says: [],
+    rolls: [],
     inputLive: false,
     spent: { cards: new Set(), players: new Set() },
     offerHold: null,
@@ -2901,6 +2911,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   // The log, like the asks: the server re-sends its kept says after the
   // snapshot, so a line that survives from before is not trusted.
   match.says = [];
+  match.rolls = [];
   match.inputLive = false;
   match.barHold = null;
   // The server re-sends the window after the snapshot, both halves.
@@ -3389,6 +3400,9 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
       match.says.push({ text: frame.message, log: frame.log ?? null });
       if (match.says.length > SAYS_KEPT) match.says.shift();
     }
+    if (frame.roll !== undefined) {
+      match.rolls = [...match.rolls, shownRoll(frame.roll)].slice(-ROLLS_KEPT);
+    }
   } else if (frame.kind === 'notify' && frame.method === 'flashIncorrectAction') {
     if (match.actCard !== null) refuse(match, match.actCard);
   } else if (frame.kind === 'notify' && frame.method === 'clearWeaklySelectable') {
@@ -3496,6 +3510,7 @@ function discardLocal(match: LiveMatch): void {
   dropOpenInput(match);
   match.settled.clear();
   match.says = [];
+  match.rolls = [];
   match.hits = [];
   match.faceHits = [];
   match.deathCauses = new Map();
