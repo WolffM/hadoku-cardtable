@@ -277,6 +277,17 @@ Only what ruling 2 allows; it goes to them as a request in `docs/requests/`:
   the live slices' quality cap and removed after a calm spell (hysteresis as
   in §4.3). Failover while only the base stands goes to hokon's backstop until
   the next slice is up.
+  **Since 2026-10-28 this runs by itself** (the operator approved fleet-manager's
+  converger and `placement.auto`): every poll asks `fleet hosting-demand
+  cardtable --slices N --release-order …` for `rules.ts` `demandStep`'s count.
+  It asks for the next slice past 70% of the usable ones (capped at what
+  `MAX_CONCURRENT_MATCHES` needs), and for a replacement for a claw unusable for
+  10 min. It asks for fewer only after 30 min calm. It ends unusable claws
+  first, then the emptiest, then the slowest. The converger declares and ends
+  slices through `fleet hosting` with our `noticeMin`, so a planned move takes
+  what is still on one. It acts only after the operator registers the request
+  (`fleet hosting-request WolffM/hadoku-cardtable --register`); until then it
+  plans.
 - Secrecy: CI runs as the same user as the agent and `ptrace_scope` is 0
   (fleet-manager's §7 reply), so `0700` stops nothing; the only barrier is that
   CI runs only our own workflows. **The operator ruled 2026-10-25: the agent

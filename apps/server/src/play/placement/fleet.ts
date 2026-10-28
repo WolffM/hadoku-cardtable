@@ -3,14 +3,20 @@
  *
  * fleet-manager's part is to get claws online, report their status and serve the declared slice
  * (the hosting rulings); placement is ours. Only the fields of its pinned tenant contract
- * (`TENANT_CONTRACT`) are read: `nodes[].node`, `reachable`, `ok`, `findings[]`,
- * `notices[]{event,at,kind}`, `hosting.state`, `hosting.declared.{memoryMb,cores,port}`,
- * `hosting.observed.{agent,portReach,memoryInUseMb}` and `hosting.until`.
+ * (`TENANT_CONTRACT`, number `FLEET_CONTRACT`) are read: `contract`, `generatedAt`, `nodes[].node`,
+ * `reachable`, `ok`, `findings[]`, `notices[]{event,at,kind}`, `hosting.state`,
+ * `hosting.declared.{memoryMb,cores,port}`, `hosting.observed.{agent,portReach,memoryInUseMb}` and
+ * `hosting.until`. Every non-guest node is a row, so a slice that ended reads `hosting: null`.
  *
- * `node-status --json` ssh's to every node from the CLI (~10 s) and exits 1 whenever any node is not
- * ok, with the JSON still on stdout, so the exit code says nothing about readability: the JSON does.
- * Output that does not parse is "could not look", which holds the current state and never promotes
- * or demotes anything (forge-hosting-plan §4.3).
+ * Readable is stdout that parses AND carries our contract number; the exit code reports findings
+ * only. Anything else is "could not look", which holds the current state and never promotes or
+ * demotes anything (forge-hosting-plan §4.3). A live read ssh's to every node (~10 s), so the poll
+ * takes a copy up to `STATUS_MAX_AGE_S` old, and the status is as of its own `generatedAt`.
+ *
+ * `hosting-demand` is how many slices we want: a count restated every poll (the same count is a
+ * no-op), with the order fleet-manager's converger ends them in when the count drops. It declares
+ * and ends them only while our registered `hosting.json` says `placement.auto`; otherwise it plans,
+ * and the plan comes back in the same answer.
  */
 
 import { execFile } from 'node:child_process';
@@ -43,17 +49,36 @@ export interface FleetNode {
 }
 
 export interface FleetStatus {
-	/** When this coordinator read it. */
+	/** When fleet-manager read it (`generatedAt`), which a cached copy keeps. */
 	at: number;
 	nodes: FleetNode[];
+}
+
+/** fleet-manager's converger, as `hosting-demand` answers. */
+export interface FleetDemand {
+	/** Our registered request says `placement.auto`: it declares and ends. False: it only plans. */
+	auto: boolean;
+	/** Its last pass acted, rather than planning. */
+	live: boolean;
+	declared: string[];
+	ending: string[];
+	/** What its last pass did or would have done, as it says it. */
+	actions: unknown[];
+	/** Why its last pass held back, as it says it. */
+	blocked: string[];
 }
 
 /** Where the coordinator reads fleet-manager from. Both answer null when they could not look. */
 export interface FleetSource {
 	status(): Promise<FleetStatus | null>;
-	/** `hosting-plan`'s top pick for the next slice: named in the Capacity alert, never declared by us. */
-	nextSlice(): Promise<string | null>;
+	/** Ask for `slices` slices; when there are more, the converger ends them from `releaseOrder`'s head. */
+	demand(slices: number, releaseOrder: readonly string[]): Promise<FleetDemand | null>;
 }
+
+/** The node-status and hosting-demand contract this reads. */
+export const FLEET_CONTRACT = 1;
+/** The oldest node-status copy a poll takes instead of a live read: under one poll. */
+export const STATUS_MAX_AGE_S = 55;
 
 /**
  * The claws' single-core speed, fastest first (`docs/spikes/forge-scale.md`): the tie-break between
@@ -68,15 +93,21 @@ export function coreRank(node: string): number {
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
 
-/** The contract's fields of one `node-status --json`, or null when it is not that. */
-export function parseNodeStatus(text: string, now: number): FleetStatus | null {
+function parseContract(text: string): Record<string, unknown> | null {
 	let raw: unknown;
 	try {
 		raw = JSON.parse(text);
 	} catch {
 		return null;
 	}
-	if (!isObject(raw) || !Array.isArray(raw.nodes)) return null;
+	return isObject(raw) && raw.contract === FLEET_CONTRACT ? raw : null;
+}
+
+/** The contract's fields of one `node-status --json`, or null when it is not that. */
+export function parseNodeStatus(text: string): FleetStatus | null {
+	const raw = parseContract(text);
+	const at = Date.parse(String(raw?.generatedAt ?? ''));
+	if (raw === null || !Number.isFinite(at) || !Array.isArray(raw.nodes)) return null;
 	const nodes: FleetNode[] = [];
 	for (const n of raw.nodes) {
 		if (!isObject(n) || typeof n.node !== 'string') return null;
@@ -110,28 +141,34 @@ export function parseNodeStatus(text: string, now: number): FleetStatus | null {
 						},
 		});
 	}
-	return { at: now, nodes };
+	return { at, nodes };
 }
 
-/** `hosting-plan --json`'s top-ranked node, or null. */
-export function parseHostingPlan(text: string): string | null {
-	try {
-		const raw = JSON.parse(text) as { plan?: { ranked?: { node?: unknown }[] } };
-		const top = raw.plan?.ranked?.[0]?.node;
-		return typeof top === 'string' ? top : null;
-	} catch {
-		return null;
-	}
+const names = (v: unknown): string[] =>
+	Array.isArray(v) ? v.map((x) => (isObject(x) ? x.node : x)).filter((x): x is string => typeof x === 'string') : [];
+
+/** The contract's fields of one `hosting-demand --json`, or null when it is not that. */
+export function parseDemand(text: string): FleetDemand | null {
+	const raw = parseContract(text);
+	if (raw === null || typeof raw.auto !== 'boolean') return null;
+	const pass = isObject(raw.lastPass) ? raw.lastPass : {};
+	return {
+		auto: raw.auto,
+		live: pass.live === true,
+		declared: names(raw.declared),
+		ending: names(raw.ending),
+		actions: Array.isArray(pass.actions) ? pass.actions : [],
+		blocked: Array.isArray(pass.blocked) ? pass.blocked.filter(isObject).map((b) => String(b.why ?? '')) : [],
+	};
 }
 
 export interface FleetCliOptions {
 	/** fleet-manager's `dist/cli.js`. Default `~/repos/hadoku-fleet-manager/dist/cli.js`. */
 	cli?: string;
-	/** The repo slug `hosting-plan` reads `hosting.json` for. */
-	repo?: string;
+	/** Our app in fleet-manager's hosting registry. */
+	app?: string;
 	env?: NodeJS.ProcessEnv;
 	timeoutMs?: number;
-	now?: () => number;
 	log?: (entry: Record<string, unknown>) => void;
 }
 
@@ -139,14 +176,13 @@ export interface FleetCliOptions {
 export function fleetCli(opts: FleetCliOptions = {}): FleetSource {
 	const env = opts.env ?? process.env;
 	const cli = opts.cli ?? env.CARDTABLE_FLEET_CLI ?? join(homedir(), 'repos', 'hadoku-fleet-manager', 'dist', 'cli.js');
-	const now = opts.now ?? Date.now;
 	const log = opts.log ?? (() => {});
 	// fleet-manager finds the hadoku_site checkout through REPOS_DIR; without it, it refuses to run.
 	const childEnv = { ...env, REPOS_DIR: env.REPOS_DIR ?? join(homedir(), 'repos') };
 	const run = (args: string[]): Promise<string | null> =>
 		new Promise((resolve) => {
 			execFile(process.execPath, [cli, ...args], { env: childEnv, timeout: opts.timeoutMs ?? 120_000, maxBuffer: 8 * 1024 * 1024 }, (err, stdout) => {
-				// Exit 1 is "some node is not ok", with the JSON on stdout all the same.
+				// The exit code reports findings only: the contract on stdout says whether it was read.
 				if (stdout.trim() === '') {
 					log({ evt: 'fleet-unreadable', args: args[0], error: err?.message ?? 'no output' });
 					resolve(null);
@@ -157,14 +193,18 @@ export function fleetCli(opts: FleetCliOptions = {}): FleetSource {
 		});
 	return {
 		async status() {
-			const text = await run(['node-status', '--json']);
-			const status = text === null ? null : parseNodeStatus(text, now());
-			if (text !== null && status === null) log({ evt: 'fleet-unreadable', args: 'node-status', error: 'not the contract' });
+			const text = await run(['node-status', '--json', '--max-age', String(STATUS_MAX_AGE_S)]);
+			const status = text === null ? null : parseNodeStatus(text);
+			if (text !== null && status === null) log({ evt: 'fleet-unreadable', args: 'node-status', error: `not contract ${FLEET_CONTRACT}` });
 			return status;
 		},
-		async nextSlice() {
-			const text = await run(['hosting-plan', opts.repo ?? 'WolffM/hadoku-cardtable', '--json']);
-			return text === null ? null : parseHostingPlan(text);
+		async demand(slices, releaseOrder) {
+			const args = ['hosting-demand', opts.app ?? 'cardtable', '--slices', String(slices), '--json'];
+			if (releaseOrder.length > 0) args.push('--release-order', releaseOrder.join(','));
+			const text = await run(args);
+			const demand = text === null ? null : parseDemand(text);
+			if (text !== null && demand === null) log({ evt: 'fleet-unreadable', args: 'hosting-demand', error: `not contract ${FLEET_CONTRACT}` });
+			return demand;
 		},
 	};
 }

@@ -28,6 +28,12 @@
  * poll that could not read fleet status holds whatever is current; an operator force, time-boxed
  * (`FORCE_DEFAULT_MS`, at most `FORCE_MAX_MS`), promotes regardless. Demotion takes no new matches
  * on hokon and moves none: a healthy match is never restored for nothing.
+ *
+ * ## Slices on demand (§6)
+ *
+ * `demandStep` decides, every poll, how many slices to ask fleet-manager for: more as load rises or
+ * a claw stays unusable, fewer only after a calm spell, and the order they may be ended in.
+ * fleet-manager's converger declares and ends them; which match runs where stays here.
  */
 
 import { readFileSync, statSync } from 'node:fs';
@@ -200,4 +206,83 @@ export function readForce(file: string, now: number): { until: number } | null {
 	}
 	const until = Math.min(asked, written + FORCE_MAX_MS);
 	return until > now ? { until } : null;
+}
+
+/* ── Slice demand ─────────────────────────────────────────────────────── */
+
+/** A usable slice past this share of its matches asks for the next one (forge-hosting-plan §6). */
+export const SCALE_UP_AT = 0.7;
+/** A declared claw unusable this long is replaced, so one failed claw does not cost a slice. */
+export const REPLACE_AFTER_MS = 10 * 60_000;
+/** The count drops only after asking for fewer this long without a break (the calm spell). */
+export const DEMAND_CALM_MS = 30 * 60_000;
+/** `hosting.json`'s `slices.min..max`. */
+export const MIN_SLICES = 1;
+export const MAX_SLICES = 4;
+
+export interface DemandClaw {
+	node: string;
+	/** Takes matches, room and AI quality aside: the fleet, agent, notice and quarantine bars hold. */
+	usable: boolean;
+	/** When it last stopped being usable; null while usable. */
+	unusableSince: number | null;
+	/** Matches on it now. */
+	live: number;
+}
+
+export interface DemandInput {
+	/** Claws with a slice declared for us. */
+	claws: readonly DemandClaw[];
+	/** Matches placed anywhere, hokon included. */
+	live: number;
+	/** Matches one slice holds. */
+	perSlice: number;
+	/** The server's match ceiling (`MAX_CONCURRENT_MATCHES`): no slice is asked for past it. */
+	ceiling: number;
+	/** A start found no host since the last poll. */
+	short: boolean;
+	now: number;
+}
+
+export interface DemandState {
+	/** The count last asked for; null before the first poll, which starts from what is declared. */
+	slices: number | null;
+	/** Since when every poll has wanted fewer. */
+	lowSince: number | null;
+}
+
+export const DEMAND_IDLE: DemandState = { slices: null, lowSince: null };
+
+/**
+ * How many slices to ask fleet-manager for, and which to end first when that drops.
+ *
+ * Enough usable slices that live matches stay under `SCALE_UP_AT` of them, never more than the
+ * ceiling needs, at least one more after a start found no host, plus one for each claw unusable for
+ * `REPLACE_AFTER_MS` (its slice stays declared, so its canary can bring it back). More is asked for
+ * at once; fewer only after `DEMAND_CALM_MS` of wanting fewer. The release order puts unusable claws
+ * first (longest first), then the emptiest, then the slowest core: the converger ends from its head
+ * with our notice, and a planned move takes what is still on it.
+ */
+export function demandStep(state: DemandState, input: DemandInput): { state: DemandState; slices: number; releaseOrder: string[] } {
+	const per = Math.max(1, input.perSlice);
+	const usable = input.claws.filter((c) => c.usable).length;
+	const cap = Math.max(MIN_SLICES, Math.ceil(input.ceiling / per));
+	let load = Math.min(cap, Math.floor(input.live / (SCALE_UP_AT * per)) + 1);
+	if (input.short) load = Math.min(cap, Math.max(load, usable + 1));
+	const replacing = input.claws.filter((c) => !c.usable && c.unusableSince !== null && input.now - c.unusableSince >= REPLACE_AFTER_MS).length;
+	const want = Math.min(MAX_SLICES, Math.max(MIN_SLICES, load + replacing));
+	const current = state.slices ?? input.claws.length;
+	const lowSince = want >= current ? null : (state.lowSince ?? input.now);
+	const slices = lowSince === null || input.now - lowSince >= DEMAND_CALM_MS ? want : current;
+	const releaseOrder = [...input.claws]
+		.sort(
+			(a, b) =>
+				Number(a.usable) - Number(b.usable) ||
+				(a.unusableSince ?? 0) - (b.unusableSince ?? 0) ||
+				a.live - b.live ||
+				coreRank(b.node) - coreRank(a.node) ||
+				a.node.localeCompare(b.node),
+		)
+		.map((c) => c.node);
+	return { state: { slices, lowSince: slices === want ? null : lowSince }, slices, releaseOrder };
 }

@@ -11,8 +11,10 @@
  *   fleet-manager reports with a hosting slice (`fleet.ts`), read every `FLEET_POLL_MS`.
  * - **Placement** is `rules.ts`: the six bars, spread by free room with the faster core breaking
  *   ties, and hokon only while the backstop is promoted. With nowhere to go `room()` answers `full`
- *   and the start waits in `start-queue.ts`, and the Capacity alert names fleet-manager's pick for
- *   the next slice.
+ *   and the start waits in `start-queue.ts`, and the Capacity alert fires.
+ * - **Slices.** Every poll that read fleet status asks fleet-manager for `demandStep`'s count of
+ *   slices, with the order to end them in (`fleet.ts` `demand`); its converger declares and ends
+ *   them while our registered `hosting.json` says `placement.auto`, and only plans otherwise.
  * - **Failover** (forge-hosting-plan §5; the ruling: always, with no second chance). A JVM lost
  *   on a claw, its agent's heartbeat lost for the fencing window, or a match-level `fatal` fails the
  *   CLAW: it is quarantined, every match it held is restored elsewhere (`Restorer`, called BEFORE
@@ -48,20 +50,23 @@ import {
 	type MatchRecord,
 	type MatchSpec,
 	type ReapResult,
+	MAX_CONCURRENT_MATCHES,
 } from '../host.js';
 import { MATCHES_PER_JVM, JVM_HEAP_MB } from '../local-jvm.js';
 import type { JvmLauncher } from '../jvm-transport.js';
 import type { AgentClient } from '../remote/client.js';
 import { FENCE_MS, HEARTBEAT_MS, sliceNeedMb } from '../remote/wire.js';
 import type { Alerts } from './alerts.js';
-import type { FleetNode, FleetSource } from './fleet.js';
+import type { FleetDemand, FleetNode, FleetSource } from './fleet.js';
 import {
 	AI_CUTOFF_WINDOW_MS,
 	BACKSTOP_IDLE,
+	DEMAND_IDLE,
 	MOVE_AHEAD_MS,
 	aiBar,
 	backstopStep,
 	bars,
+	demandStep,
 	eligible,
 	jvmsThatFit,
 	nextEvent,
@@ -69,6 +74,7 @@ import {
 	readForce,
 	type Bar,
 	type BackstopState,
+	type DemandState,
 } from './rules.js';
 
 export const FLEET_POLL_MS = 60_000;
@@ -145,6 +151,8 @@ interface Host {
 	moving: string | null;
 	/** When Forge cut an AI decision short on it, oldest first, within `AI_CUTOFF_WINDOW_MS`. */
 	cutoffs: number[];
+	/** Since when it has not been usable (`DemandClaw`); null while it is. */
+	unusableSince: number | null;
 }
 
 /**
@@ -211,6 +219,8 @@ export interface HostView {
 export interface HostsView {
 	mode: 'claws';
 	fleet: { readAt: string | null; fresh: boolean };
+	/** What we last asked fleet-manager for, and its converger's answer. */
+	slices: { asked: number | null; releaseOrder: string[]; converger: FleetDemand | null };
 	backstop: BackstopState & { forcedUntil: string | null };
 	hosts: HostView[];
 	alerts: { key: string; at: string; text: string }[];
@@ -283,7 +293,11 @@ export function placement(opts: PlacementOptions): Placement {
 	let fleetFresh = false;
 	let closing = false;
 	let polling: Promise<void> | null = null;
-	let capacityAsking = false;
+	let demand: DemandState = DEMAND_IDLE;
+	let releaseOrder: string[] = [];
+	let converger: FleetDemand | null = null;
+	/** A start found no host since the last poll. */
+	let short = false;
 	/** Set while a restore runs: the factory never places onto the host being failed. */
 	let exceptHost: Host | null = null;
 	const timers: NodeJS.Timeout[] = [];
@@ -293,7 +307,21 @@ export function placement(opts: PlacementOptions): Placement {
 	};
 
 	function newHost(name: string, kind: Host['kind'], maxJvms: number): Host {
-		const host: Host = { name, kind, pool: null, link: null, connecting: false, agentError: null, fleet: null, maxJvms, quarantine: null, failing: false, moving: null, cutoffs: [] };
+		const host: Host = {
+			name,
+			kind,
+			pool: null,
+			link: null,
+			connecting: false,
+			agentError: null,
+			fleet: null,
+			maxJvms,
+			quarantine: null,
+			failing: false,
+			moving: null,
+			cutoffs: [],
+			unusableSince: null,
+		};
 		hosts.set(name, host);
 		return host;
 	}
@@ -404,17 +432,52 @@ export function placement(opts: PlacementOptions): Placement {
 	}
 
 	function capacityShort(): void {
-		if (alerts.isOpen('capacity') || capacityAsking || closing) return;
-		capacityAsking = true;
-		void opts.fleet
-			.nextSlice()
-			.catch(() => null)
-			.then((top) => {
-				capacityAsking = false;
-				if (pick() !== null) return;
-				const next = top === null ? "fleet-manager's hosting-plan names no claw for the next slice." : `fleet-manager's hosting-plan ranks ${top} first for the next slice (declaring it is the operator's call).`;
-				alerts.fire('capacity', `⚠️ Capacity: a Forge match is waiting for a host. ${whyNone()}. ${next}`);
-			});
+		short = true;
+		if (alerts.isOpen('capacity') || closing) return;
+		const fleet =
+			converger === null
+				? ''
+				: ` fleet-manager has ${converger.declared.length} declared for us; ${converger.auto ? 'the next poll asks for more' : "its converger only plans (no placement.auto), so declaring another is the operator's call"}.`;
+		alerts.fire('capacity', `⚠️ Capacity: a Forge match is waiting for a host. ${whyNone()}.${fleet}`);
+	}
+
+	function matchesOn(host: Host): number {
+		let n = 0;
+		for (const p of placed.values()) if (p.host === host) n += 1;
+		return n;
+	}
+
+	/** Usable, as `DemandClaw` means it: every bar but room and AI quality holds. */
+	function usable(host: Host): boolean {
+		return barsOf(host).every((b) => b.ok || b.bar === 'room' || b.bar === 'ai');
+	}
+
+	/** Ask fleet-manager for this poll's count of slices. */
+	async function askSlices(): Promise<void> {
+		const declared = claws().filter((h) => h.fleet?.hosting != null);
+		for (const h of declared) {
+			if (usable(h)) h.unusableSince = null;
+			else h.unusableSince ??= now();
+		}
+		const capacities = declared.map((h) => h.maxJvms * perJvm).filter((n) => n > 0);
+		const step = demandStep(demand, {
+			claws: declared.map((h) => ({ node: h.name, usable: h.unusableSince === null, unusableSince: h.unusableSince, live: matchesOn(h) })),
+			live: placed.size,
+			perSlice: capacities.length === 0 ? perJvm : Math.max(...capacities),
+			ceiling: MAX_CONCURRENT_MATCHES,
+			short,
+			now: now(),
+		});
+		short = false;
+		if (step.slices !== demand.slices || step.releaseOrder.join() !== releaseOrder.join()) {
+			log({ evt: 'slice-demand', slices: step.slices, was: demand.slices, releaseOrder: step.releaseOrder, live: placed.size });
+		}
+		demand = step.state;
+		releaseOrder = step.releaseOrder;
+		const answer = await opts.fleet.demand(step.slices, step.releaseOrder).catch(() => null);
+		if (answer === null) return;
+		if (answer.actions.length > 0) log({ evt: 'slice-converger', auto: answer.auto, live: answer.live, actions: answer.actions, blocked: answer.blocked });
+		converger = answer;
 	}
 
 	/* ── Matches ── */
@@ -725,6 +788,7 @@ export function placement(opts: PlacementOptions): Placement {
 			}
 		}
 		stepBackstop(fleetFresh);
+		if (fleetFresh) await askSlices();
 		await Promise.all(claws().map((h) => recover(h)));
 		notifyRoom();
 	}
@@ -836,6 +900,7 @@ export function placement(opts: PlacementOptions): Placement {
 		return {
 			mode: 'claws',
 			fleet: { readAt: fleetReadAt === null ? null : new Date(fleetReadAt).toISOString(), fresh: fleetFresh },
+			slices: { asked: demand.slices, releaseOrder, converger },
 			backstop: { ...backstop, forcedUntil: force === null ? null : new Date(force.until).toISOString() },
 			hosts: [...hosts.values()].map((h) => {
 				const b = barsOf(h);

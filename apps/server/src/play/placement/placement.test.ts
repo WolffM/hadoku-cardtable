@@ -14,9 +14,23 @@ import type { JvmLauncher, JvmTransport } from '../jvm-transport.js';
 import type { JvmHealth } from '../remote/wire.js';
 import { Alerts, type AlertSink } from './alerts.js';
 import { placement, type AgentLink, type Placement, type Restorer } from './coordinator.js';
-import type { FleetNode, FleetSource, FleetStatus } from './fleet.js';
-import { parseNodeStatus } from './fleet.js';
-import { BACKSTOP_IDLE, backstopStep, bars, rankClaws, readForce, type BackstopState, type ClawState } from './rules.js';
+import type { FleetDemand, FleetNode, FleetSource, FleetStatus } from './fleet.js';
+import { parseDemand, parseNodeStatus } from './fleet.js';
+import {
+	BACKSTOP_IDLE,
+	DEMAND_CALM_MS,
+	DEMAND_IDLE,
+	REPLACE_AFTER_MS,
+	backstopStep,
+	bars,
+	demandStep,
+	rankClaws,
+	readForce,
+	type BackstopState,
+	type ClawState,
+	type DemandClaw,
+	type DemandState,
+} from './rules.js';
 
 const scratch = mkdtempSync(join(tmpdir(), 'cardtable-placement-test-'));
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
@@ -145,6 +159,9 @@ interface Rig {
 	nodes: FleetNode[];
 	/** What fleet answers next: the nodes, or null (could not look). */
 	fleetDown: { on: boolean };
+	/** Every `hosting-demand` asked, and whether the converger answers as `placement.auto`. */
+	demands: { slices: number; releaseOrder: readonly string[] }[];
+	converger: { auto: boolean };
 	posted: string[];
 	logs: Record<string, unknown>[];
 	backstopJvms: ScriptedJvm[];
@@ -162,9 +179,15 @@ async function rig(nodes: FleetNode[], opts: { forceFile?: string } = {}): Promi
 	const posted: string[] = [];
 	const logs: Record<string, unknown>[] = [];
 	const sink: AlertSink = { post: (text) => (posted.push(text), Promise.resolve()) };
+	const demands: Rig['demands'] = [];
+	const converger = { auto: true };
 	const fleet: FleetSource = {
 		status: () => Promise.resolve(fleetDown.on ? null : ({ at: clock.t, nodes } satisfies FleetStatus)),
-		nextSlice: () => Promise.resolve('claw-4'),
+		demand: (slices, releaseOrder) => {
+			demands.push({ slices, releaseOrder });
+			const answer: FleetDemand = { auto: converger.auto, live: converger.auto, declared: nodes.filter((n) => n.hosting !== null).map((n) => n.node), ending: [], actions: [], blocked: [] };
+			return Promise.resolve(answer);
+		},
 	};
 	const backstop = scripted();
 	const canary = { result: null as string | null, runs: [] as string[] };
@@ -206,7 +229,7 @@ async function rig(nodes: FleetNode[], opts: { forceFile?: string } = {}): Promi
 		for (const c of claws.values()) for (const j of c.jvms) if (!j.dead) j.say({ t: 'warm', bootMs: 1, match: j.hostId });
 	};
 	warmAll();
-	return { p, clock, claws, nodes, fleetDown, posted, logs, backstopJvms: backstop.jvms, canary, warmAll, order, restored, restorer };
+	return { p, clock, claws, nodes, fleetDown, demands, converger, posted, logs, backstopJvms: backstop.jvms, canary, warmAll, order, restored, restorer };
 }
 
 interface Rec extends HostEvents {
@@ -292,9 +315,12 @@ describe('eligibility', () => {
 		]);
 	});
 
-	it('reads the pinned fields of a real node-status, and refuses what is not one', () => {
-		const status = parseNodeStatus(
+	it('reads the pinned fields of a real node-status as of its generatedAt, and refuses what is not contract 1', () => {
+		const doc = (over: object): string =>
 			JSON.stringify({
+				contract: 1,
+				generatedAt: '2026-10-27T19:59:30.000Z',
+				cached: true,
 				ok: false,
 				nodes: [
 					{ node: 'claw-1', reachable: true, ok: true, findings: [{ class: 'advisory', category: 'cpu-thermal', why: 'hot' }], notices: [], hosting: null },
@@ -307,15 +333,41 @@ describe('eligibility', () => {
 						hosting: { state: 'guaranteed', declared: { tenant: 'cardtable', memoryMb: 4096, cores: 4, port: 7621 }, until: null, observed: { agent: 'listening', memoryInUseMb: 764, portReach: {} } },
 					},
 				],
-			}),
-			T0,
-		);
+				...over,
+			});
+		const status = parseNodeStatus(doc({}));
+		expect(status?.at).toBe(Date.parse('2026-10-27T19:59:30.000Z'));
 		expect(status?.nodes.map((n) => [n.node, n.hosting?.state ?? null, n.hosting?.declared?.memoryMb ?? null, n.notices.length])).toEqual([
 			['claw-1', null, null, 0],
 			['claw-9', 'guaranteed', 4096, 1],
 		]);
-		expect(parseNodeStatus('site=… fleet-manager=0.34.109', T0)).toBeNull();
-		expect(parseNodeStatus('{"ok":true}', T0)).toBeNull();
+		expect(parseNodeStatus('site=… fleet-manager=0.34.109')).toBeNull();
+		expect(parseNodeStatus('{"ok":true}')).toBeNull();
+		expect(parseNodeStatus(doc({ contract: 2 }))).toBeNull();
+		expect(parseNodeStatus(doc({ contract: undefined }))).toBeNull();
+		expect(parseNodeStatus(doc({ generatedAt: undefined }))).toBeNull();
+	});
+
+	it("reads hosting-demand's answer: auto, live, declared, ending and the last pass", () => {
+		const demand = parseDemand(
+			JSON.stringify({
+				contract: 1,
+				ok: true,
+				app: 'cardtable',
+				demand: 2,
+				limits: { min: 1, max: 4 },
+				auto: false,
+				declared: [
+					{ node: 'claw-8', mode: 'shared', memoryMb: 4096, cores: 4 },
+					{ node: 'claw-9', mode: 'shared', memoryMb: 4096, cores: 4 },
+				],
+				ending: [],
+				lastPass: { dryRun: true, auto: false, live: false, desired: 1, actions: [], blocked: [{ node: '*', why: 'the release order names 0 serving one(s)', soft: true }] },
+			}),
+		);
+		expect(demand).toEqual({ auto: false, live: false, declared: ['claw-8', 'claw-9'], ending: [], actions: [], blocked: ['the release order names 0 serving one(s)'] });
+		expect(parseDemand('{"contract":2,"auto":true}')).toBeNull();
+		expect(parseDemand('not json')).toBeNull();
 	});
 });
 
@@ -355,6 +407,82 @@ describe('the backstop', () => {
 		expect(readForce(file, Date.now() + 59 * 60_000)).not.toBeNull();
 		expect(readForce(file, Date.now() + 61 * 60_000)).toBeNull();
 		expect(readForce(join(scratch, 'absent.json'), Date.now())).toBeNull();
+	});
+});
+
+describe('slice demand', () => {
+	const claw = (node: string, live = 0, unusableSince: number | null = null): DemandClaw => ({ node, usable: unusableSince === null, unusableSince, live });
+	const input = (claws: DemandClaw[], over: Partial<Parameters<typeof demandStep>[1]> = {}) => ({
+		claws,
+		live: claws.reduce((n, c) => n + c.live, 0),
+		perSlice: 25,
+		ceiling: 50,
+		short: false,
+		now: T0,
+		...over,
+	});
+
+	it('asks for the next slice once live matches pass 70% of the usable ones, never past the ceiling', () => {
+		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 17)])).slices).toBe(1);
+		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 18)])).slices).toBe(2);
+		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 25), claw('claw-9', 25)])).slices).toBe(2);
+		// A start that found no host asks for one more than is usable.
+		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 3)], { short: true })).slices).toBe(2);
+	});
+
+	it('replaces a claw unusable for 10 min, and keeps its slice for its canary', () => {
+		const down = claw('claw-9', 0, T0 - REPLACE_AFTER_MS + 1);
+		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 2), down])).slices).toBe(2);
+		const long = claw('claw-9', 0, T0 - REPLACE_AFTER_MS);
+		const step = demandStep(DEMAND_IDLE, input([claw('claw-8', 20), long]));
+		expect(step.slices).toBe(3);
+		expect(step.releaseOrder[0]).toBe('claw-9');
+	});
+
+	it('asks for more at once and for fewer only after the calm spell; the first poll starts from what is declared', () => {
+		const two = [claw('claw-8', 1), claw('claw-9', 0)];
+		let state: DemandState = DEMAND_IDLE;
+		const at = (t: number): number => {
+			const step = demandStep(state, input(two, { now: t }));
+			state = step.state;
+			return step.slices;
+		};
+		expect(at(T0)).toBe(2);
+		expect(at(T0 + DEMAND_CALM_MS - 1)).toBe(2);
+		expect(at(T0 + DEMAND_CALM_MS)).toBe(1);
+		// A poll that wants more breaks the spell.
+		state = { slices: 2, lowSince: T0 };
+		expect(demandStep(state, input([claw('claw-8', 18), claw('claw-9', 0)], { now: T0 + 60_000 })).state).toEqual({ slices: 2, lowSince: null });
+	});
+
+	it('ends unusable claws first, then the emptiest, then the slowest core', () => {
+		const order = demandStep(DEMAND_IDLE, input([claw('claw-8', 0), claw('claw-9', 0), claw('claw-4', 3), claw('claw-6', 0, T0 - 1)])).releaseOrder;
+		expect(order).toEqual(['claw-6', 'claw-9', 'claw-8', 'claw-4']);
+	});
+
+	it('every poll that read fleet status restates the count with its release order; one that could not look asks nothing', async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
+		expect(r.demands.at(-1)).toEqual({ slices: 2, releaseOrder: ['claw-9', 'claw-8'] });
+		start(r, 'm-1');
+		await r.p.poll();
+		expect(r.demands.at(-1)?.releaseOrder).toEqual(['claw-9', 'claw-8']);
+		expect(r.p.hosts().slices).toMatchObject({ asked: 2, converger: { auto: true, declared: ['claw-9', 'claw-8'] } });
+		const asked = r.demands.length;
+		r.fleetDown.on = true;
+		await r.p.poll();
+		expect(r.demands).toHaveLength(asked);
+	});
+
+	it('a dry-run converger: the Capacity alert says declaring is the operator\'s call', async () => {
+		const r = await rig([fleetNode('claw-9')]);
+		r.converger.auto = false;
+		await r.p.poll();
+		for (const id of ['m-1', 'm-2', 'm-3', 'm-4']) start(r, id);
+		expect(() => start(r, 'm-5')).toThrow(/no Forge host/);
+		expect(r.posted.at(-1)).toMatch(/its converger only plans \(no placement\.auto\), so declaring another is the operator's call\.$/);
+		// The next poll asks for one more than is usable.
+		await r.p.poll();
+		expect(r.demands.at(-1)?.slices).toBe(2);
 	});
 });
 
@@ -409,7 +537,7 @@ describe('placement', () => {
 		expect(r.p.room()).toBe('full');
 		expect(() => start(r, 'm-5')).toThrow(/no Forge host can take a match now \(claw-9: room \(full\); hokon: not promoted/);
 		await vi.waitFor(() => expect(r.posted.filter((t) => t.startsWith('⚠️ Capacity'))).toHaveLength(1));
-		expect(r.posted[0]).toMatch(/hosting-plan ranks claw-4 first for the next slice/);
+		expect(r.posted[0]).toMatch(/fleet-manager has 1 declared for us; the next poll asks for more\.$/);
 		// The incident is open: asking again posts nothing.
 		r.p.room();
 		expect(r.logs.filter((l) => l.evt === 'alert' && l.key === 'capacity')).toHaveLength(1);
