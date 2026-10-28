@@ -344,10 +344,11 @@ test('a watcher is shown the active player’s reveal: Goblin Guide’s top card
     const bobsTop = (page: typeof carol.page) => page.locator('.seat:not([data-viewer]) [data-library-top] .card__name');
     await grindPriority([alice.page, bob.page], async () => (await bobsTop(alice.page).count()) > 0, { timeoutMs: 45_000 });
     await expect(bobsTop(carol.page), 'carol’s board draws the revealed Lightning Bolt on bob’s library').toHaveText('Lightning Bolt', { timeout: 10_000 });
-    // The reveal itself, as alice was shown it: a display-only envelope on carol's own socket.
-    const reveals = carol.captures.filter((c) => c.dir === 'in' && c.text.includes('"displayOnly":true'));
-    console.log(`[watcher reveal] ${reveals.length} display-only frame(s) to carol: ${reveals.map((r) => r.text.slice(0, 160)).join(' | ')}`);
-    expect(reveals.some((r) => r.text.includes('Lightning Bolt')), 'the reveal reached the watcher, display-only').toBe(true);
+    // The reveal itself, as alice was shown it: a display-only envelope on carol's own socket, once the
+    // server's fold window (a reveal held a moment in case a choice follows it) has passed.
+    const reveals = () => carol.captures.filter((c) => c.dir === 'in' && c.text.includes('"displayOnly":true'));
+    await expect.poll(() => reveals().some((r) => r.text.includes('Lightning Bolt')), { timeout: 10_000, message: 'the reveal reached the watcher, display-only' }).toBe(true);
+    console.log(`[watcher reveal] ${reveals().length} display-only frame(s) to carol: ${reveals().map((r) => r.text.slice(0, 160)).join(' | ')}`);
     expect(unseenNamed(messages(carol), ['Shock']).violations, 'the card under it never reaches the watcher').toEqual([]);
   } finally {
     await stack.stop();
