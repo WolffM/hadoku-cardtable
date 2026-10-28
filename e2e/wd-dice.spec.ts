@@ -9,13 +9,17 @@
  * d20 tumbles from the Spellbook and lands on the number Forge rolled, which the log says too —
  * alice's die her own, bob's tinted as the other seat's. Then Berserker's Frenzy: two d20, the lower
  * set aside.
+ *
+ * And for carol, watching (the operator, 2026-10-28: "spectator mode should be perfectly imitating the
+ * view of the active player"): the same die lands on her table, from alice's side, and her log says it.
  */
 import { expect, test, type Page } from '@playwright/test';
 
 import { castUntilOnStack, clickPermanent, handCardNamed, makeTitled, ownNamed, pressOffered, says } from './play/board.ts';
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
+import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
+import { matchUrl, startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -36,11 +40,17 @@ test(titled("Wizard's Spellbook rolls a d20: both screens throw the die from the
   test.setTimeout(3 * 60_000);
   const stack = await startPlayStack(forge);
   let seated: ScenarioMatch | null = null;
+  let watcher: Friend | null = null;
   try {
     seated = await startScenarioMatch(browser, stack, 'wd-dice');
     const alice = seated.alice.page;
     const bob = seated.bob.page;
+    watcher = await openFriend(browser, 'carol');
+    const carol = watcher.page;
+    await carol.goto(matchUrl(stack.origin, seated.matchId));
+    await expect(carol.locator('.live[data-role="watcher"]'), 'carol watches').toBeVisible({ timeout: 60_000 });
     await expect.poll(() => ownNamed(alice, "Wizard's Spellbook"), { timeout: 45_000, message: 'alice has her Spellbook' }).toHaveLength(1);
+    await expect.poll(() => ownNamed(carol, "Wizard's Spellbook"), { timeout: 30_000, message: 'carol sees the Spellbook on alice’s side' }).toHaveLength(1);
     // What the roll decides waits for the die (the operator, 2026-10-28: "make sure the dice roll completes before any
     // action is triggered"): alice's copy question first shows with her die already landed.
     await alice.evaluate(() => {
@@ -61,14 +71,19 @@ test(titled("Wizard's Spellbook rolls a d20: both screens throw the die from the
     await expect(alice.locator('[data-board-overlay] .board-die'), 'a die is thrown on alice’s screen').toHaveCount(1, { timeout: 30_000 });
     // Each read once, by the poll that saw it land: a landed die leaves the table a moment later.
     type Landed = NonNullable<Awaited<ReturnType<typeof landed>>>;
-    const seen: { alice?: Landed; bob?: Landed } = {};
-    await expect.poll(async () => (seen.alice ??= (await landed(alice)) ?? undefined), { timeout: 5_000, message: 'the die lands on alice’s screen' }).toBeDefined();
-    await expect.poll(async () => (seen.bob ??= (await landed(bob)) ?? undefined), { timeout: 10_000, message: 'the die lands on bob’s screen' }).toBeDefined();
+    const seen: { alice?: Landed; bob?: Landed; carol?: Landed } = {};
+    await Promise.all([
+      expect.poll(async () => (seen.alice ??= (await landed(alice)) ?? undefined), { timeout: 5_000, message: 'the die lands on alice’s screen' }).toBeDefined(),
+      expect.poll(async () => (seen.bob ??= (await landed(bob)) ?? undefined), { timeout: 10_000, message: 'the die lands on bob’s screen' }).toBeDefined(),
+      expect.poll(async () => (seen.carol ??= (await landed(carol)) ?? undefined), { timeout: 10_000, message: 'the die lands on carol’s screen' }).toBeDefined(),
+    ]);
     const mine = seen.alice!;
     const theirs = seen.bob!;
-    console.log(`[wd-dice] alice ${JSON.stringify(mine)} bob ${JSON.stringify(theirs)}`);
+    console.log(`[wd-dice] alice ${JSON.stringify(mine)} bob ${JSON.stringify(theirs)} carol ${JSON.stringify(seen.carol)}`);
     expect(mine).toEqual({ result: mine.result, face: mine.result, sides: '20', roller: 'you' });
     expect(theirs).toEqual({ result: mine.result, face: mine.result, sides: '20', roller: 'them' });
+    expect(seen.carol, 'carol watches from alice’s side').toEqual(mine);
+    await expect(carol.getByTestId('live-log'), 'the watcher’s log says the roll').toContainText(`Alice rolled ${mine.result}`);
     expect(Number(mine.result)).toBeGreaterThanOrEqual(1);
     expect(Number(mine.result)).toBeLessThanOrEqual(20);
     await expect(alice.getByTestId('live-log'), 'the log says the roll').toContainText(`Alice rolled ${mine.result}`);
@@ -86,14 +101,20 @@ test(titled("Wizard's Spellbook rolls a d20: both screens throw the die from the
     const frenzy = await handCardNamed(alice, "Berserker's Frenzy");
     expect(frenzy, "alice holds Berserker's Frenzy").toBeDefined();
     await castUntilOnStack(alice, stack, frenzy!, []);
-    const pair = async (): Promise<string[]> =>
-      bob.evaluate(() => [...document.querySelectorAll<HTMLElement>('[data-board-overlay] .board-die[data-die-landed]')].map((d) => `${d.dataset.dieSides}:${d.dataset.dieFace}${'dieIgnored' in d.dataset ? ' ignored' : ''}`));
+    const pair = async (page: Page): Promise<string[]> =>
+      page.evaluate(() => [...document.querySelectorAll<HTMLElement>('[data-board-overlay] .board-die[data-die-landed]')].map((d) => `${d.dataset.dieSides}:${d.dataset.dieFace}${'dieIgnored' in d.dataset ? ' ignored' : ''}`));
     let two: string[] = [];
-    await expect.poll(async () => (two = await pair()).length, { timeout: 30_000, message: 'both of the Frenzy’s dice land on bob’s screen' }).toBe(2);
-    console.log(`[wd-dice] frenzy on bob's screen: ${JSON.stringify(two)}`);
+    let watched: string[] = [];
+    await Promise.all([
+      expect.poll(async () => (two = await pair(bob)).length, { timeout: 30_000, message: 'both of the Frenzy’s dice land on bob’s screen' }).toBe(2),
+      expect.poll(async () => (watched = await pair(carol)).length, { timeout: 30_000, message: 'both of the Frenzy’s dice land on carol’s screen' }).toBe(2),
+    ]);
+    console.log(`[wd-dice] frenzy on bob's screen: ${JSON.stringify(two)}; carol's: ${JSON.stringify(watched)}`);
     expect(two.filter((d) => d.endsWith(' ignored')), 'one die set aside').toHaveLength(1);
     expect(two.every((d) => d.startsWith('20:')), 'two d20').toBe(true);
+    expect(watched, 'the same two dice on the watcher’s table').toEqual(two);
   } finally {
+    await watcher?.context.close();
     await seated?.alice.context.close();
     await seated?.bob.context.close();
     await stack.stop();

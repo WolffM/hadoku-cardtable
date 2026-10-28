@@ -28,8 +28,9 @@ const PREFIX = '/cardtable';
  * Every card face in what a socket was sent. A face is a tracked object whose
  * `_type` is not a player's (1 — players carry a `Name` too) with a `Name`,
  * which Forge sends TYPED (`{ t: 'str', v }`, `packages/forge-wire/src/tier-c.ts`)
- * and a fixture may send plain. Walked, not grepped: a string match for
- * `"Name":"…"` cannot see a typed value and so could never fail.
+ * and a fixture may send plain, or a card a game log line names (`message`'s
+ * `log.cards`). Walked, not grepped: a string match for `"Name":"…"` cannot see
+ * a typed value and so could never fail.
  */
 function faceNames(payloads: unknown[]): string[] {
   const names: string[] = [];
@@ -40,6 +41,9 @@ function faceNames(payloads: unknown[]): string[] {
     }
     if (typeof node !== 'object' || node === null) return;
     const o = node as Record<string, unknown>;
+    if (o.method === 'message' && typeof o.log === 'object' && o.log !== null) {
+      for (const c of (o.log as { cards?: { name?: unknown }[] }).cards ?? []) if (typeof c.name === 'string') names.push(c.name);
+    }
     if ('Name' in o && o._type !== 1) {
       const n = o.Name;
       const v = typeof n === 'string' ? n : typeof n === 'object' && n !== null && typeof (n as { v?: unknown }).v === 'string' ? (n as { v: string }).v : null;
