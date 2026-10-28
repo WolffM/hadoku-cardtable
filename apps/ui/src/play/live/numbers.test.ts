@@ -12,7 +12,7 @@ import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardCard, BoardPlayer, BoardView, StackEntry } from '../adapter.ts';
-import { ATTACK_BEAT_MS, boardSoundsAt, BOLT_STAGGER_MS, HIT_MS, powerSize, damagePower, GLIDE_MS, lifeImpactAt, REVEAL_BEAT_MS, takeResolutionEffects, whenBoardStill } from '../motion.ts';
+import { ATTACK_BEAT_MS, boardSoundsAt, BOLT_STAGGER_MS, HIT_MS, damageSize, damagePower, GLIDE_MS, lifeImpactAt, REVEAL_BEAT_MS, takeResolutionEffects, whenBoardStill } from '../motion.ts';
 import { EXIT_MOTIONS, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
 import { ALIGN_MS, contactMs, RAM_STAGGER_MS } from './ram.ts';
 import {
@@ -223,7 +223,26 @@ describe('installNumbers: life', () => {
     expect(overlay.querySelectorAll('.board-number'), 'still rising').toHaveLength(1);
     vi.advanceTimersByTime(1);
     expect(overlay.querySelectorAll('.board-number'), 'its lifetime is over').toHaveLength(0);
-    handle.dispose();
+  });
+
+  it('AF420: the number grows with the change — 15px for a point, 38px at the cap — and the pop stays an accent, not the only sign of a heavy change', () => {
+    const fontSizeOf = (delta: number): number => {
+      const { canvas } = board();
+      const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+      const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+      handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20)]));
+      handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20 - delta)]));
+      const size = Number.parseFloat(overlay.querySelector<HTMLElement>('.board-number')!.style.fontSize);
+      handle.dispose();
+      return size;
+    };
+    expect(fontSizeOf(1), 'a point is the smallest').toBeCloseTo(15, 1);
+    expect(fontSizeOf(20), 'the cap is the biggest').toBeCloseTo(38, 1);
+    expect(fontSizeOf(30), 'above the cap is no bigger than the cap').toBeCloseTo(fontSizeOf(20), 5);
+    expect(fontSizeOf(10), 'the middle is between the two, and grows with the change').toBeGreaterThan(fontSizeOf(1));
+    expect(fontSizeOf(10)).toBeLessThan(fontSizeOf(20));
+    // A small change (3) does not pop, but is still drawn bigger than a change of 1 — size, not only the pop, carries weight.
+    expect(fontSizeOf(3)).toBeGreaterThan(fontSizeOf(1));
   });
 
   it('a change of 5 or more pops, and its lifetime is the pop plus the rise', () => {
@@ -430,11 +449,11 @@ describe('installNumbers: a resolution’s hits', () => {
     handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]));
 
     const mark = overlay.querySelector<HTMLElement>('.effect-hit');
-    expect(mark?.dataset.hit, 'a hit leaves the source at once').toBe('player:1');
+    expect(mark?.dataset.hit, 'a hit leaves the source at once').toBe('player:1:40');
     expect(mark!.dataset.projectile, 'drawn as a bolt').toBe('bolt');
     expect(mark!.dataset.colour, 'an ability of a card the fixture gives no colour: colourless').toBe('C');
     // No Web Animations in jsdom: the ball is put where it lands, the face's centre (130, 50).
-    expect(mark!.style.transform, 'aimed at the face, as big as a hit of 2').toBe(`translate(130px, 50px) translate(-50%, -50%) scale(${powerSize(damagePower(2)).toFixed(3)})`);
+    expect(mark!.style.transform, 'aimed at the face, as big as a hit of 2').toBe(`translate(130.0px, 50.0px) translate(-50%, -50%) scale(${damageSize(damagePower(2)).toFixed(3)})`);
     expect(overlay.querySelectorAll('.board-number'), 'no number before it lands').toHaveLength(0);
     expect(life.textContent, 'the counter still reads the old total').toBe('20');
 
@@ -561,7 +580,7 @@ describe('installNumbers: a resolution’s hits', () => {
     expect(inHand.hasAttribute('data-reveal-beat'), 'the glow is over with the beat').toBe(false);
     const mark = overlay.querySelector<HTMLElement>('.effect-hit');
     expect(mark, 'then the hit').not.toBeNull();
-    expect(mark!.dataset.hit).toBe('player:1');
+    expect(mark!.dataset.hit).toBe('player:1:40');
     vi.advanceTimersByTime(HIT_MS);
     expect(overlay.querySelector('.board-number')?.textContent).toBe('-2');
     handle.dispose();
@@ -576,7 +595,33 @@ describe('installNumbers: a resolution’s hits', () => {
     vi.advanceTimersByTime(REVEAL_BEAT_MS / 2);
     handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]), revealed);
     handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]), revealed);
-    expect(overlay.querySelector('.effect-hit')?.getAttribute('data-hit')).toBe('player:1');
+    expect(overlay.querySelector('.effect-hit')?.getAttribute('data-hit')).toBe('player:1:40');
+    handle.dispose();
+  });
+
+  it('a reflexive trigger new in the frame it resolves takes the reveal of its SOURCE — the bolt leaves the revealed card (AF420, Calibrated Blast: telemetry m-bafaa3d3238f)', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay } = sorinBoard();
+    // The card the spell revealed, drawn in its own zone — distinct from card 8 (both items' source).
+    canvas.querySelector('.board')!.insertAdjacentHTML('beforeend', '<li class="board-card" data-board-card="9" data-card-id="9"></li>');
+    const card9 = canvas.querySelector<HTMLElement>('[data-board-card="9"]')!;
+    const card9Box = vi.fn(() => rect({ left: 50, top: 50, width: 60, height: 84 }));
+    card9.getBoundingClientRect = card9Box;
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const revealed = { cardIds: [9], at: Date.now() };
+    // The spell (item 40, source 8) resolves with the reveal and nothing else — 0 hits of its own.
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]));
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), revealed);
+    expect(card9Box, 'not read yet: nothing travelled for the spell itself').not.toHaveBeenCalled();
+    // Its reflexive trigger (item 41, the SAME source) appears and resolves seconds later — no reveal
+    // is resent, and the trigger was never seen on any earlier stack: `firstSeen` holds nothing for it.
+    vi.advanceTimersByTime(4000);
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(41, 8)]));
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]));
+    const mark = overlay.querySelector<HTMLElement>('.effect-hit');
+    expect(mark, 'the trigger’s hit still travels').not.toBeNull();
+    expect(mark!.dataset.hit, 'keyed by the trigger’s own stack item, not the spell’s').toBe('player:1:41');
+    expect(card9Box, 'the bolt’s origin is read from the revealed card, not the trigger’s own (anonymous) source').toHaveBeenCalled();
     handle.dispose();
   });
 

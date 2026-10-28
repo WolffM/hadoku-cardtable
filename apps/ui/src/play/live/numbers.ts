@@ -155,6 +155,17 @@ export const LIFE_COLOUR_MS = 1500;
 const HIT_FLASH_MS = 360;
 /** An arrival with nowhere to travel from fades in over this long. */
 const ARRIVE_FADE_MS = 240;
+
+/**
+ * How far a SPELL's own blow shakes the table (px), 0 to the cap: gentler than a creature's ram
+ * (`crash.ts`'s `SHAKE_PX`, left as it is — AF420 only changed what the DAMAGE itself scales to,
+ * not combat's own curve) — nothing below 5, 0.6px at 5 climbing straight to the same 16px ceiling
+ * a ram's own table reaches at the cap.
+ */
+export function boltShakePx(amount: number): number {
+  if (amount < 5) return 0;
+  return 0.6 + ((Math.min(amount, 20) - 5) * 15.4) / 15;
+}
 /** The lengths `numbers.css` animates over, set on the canvas so the sheet never restates one. */
 const DURATIONS = [
   ['--rise-ms', RISE_MS],
@@ -556,6 +567,11 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     if (pop && !isReduced) el.dataset.numberPop = '';
     if (isReduced) el.dataset.numberReduced = '';
     el.textContent = formatDelta(options.delta);
+    // AF420: the number grows with the change, 15px for a point to 38px at the cap; the pop (above)
+    // stays as an accent rather than the only sign a change was heavy.
+    const grown = damagePower(Math.abs(options.delta));
+    el.style.fontSize = `${(15 + 23 * grown).toFixed(1)}px`;
+    el.style.setProperty('-webkit-text-stroke-width', `${(2 + 2 * grown).toFixed(1)}px`);
 
     const centre = centreIn(options.at, box, layout.offsetPx);
     el.style.left = `${centre.x}px`;
@@ -641,13 +657,40 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     return canvas.ownerDocument.querySelector(`[data-testid="live-reveal"] [data-card-id="${cardId}"]`) ?? canvas.querySelector(`[data-board-card="${cardId}"]`);
   }
 
-  /** The reveal this resolution made, when it arrived while the item was on the stack: where its card is, and how long its beat still runs. */
-  function revealOf(item: StackEntry | undefined, revealed: Revealed | undefined): { at: Boxed | null; waitMs: number } | null {
-    if (item === undefined || revealed === undefined) return null;
-    const put = firstSeen.get(item.id);
-    if (put === undefined || revealed.at < put - SAME_PAINT_MS) return null;
+  /**
+   * The reveal most recently linked to a resolving item FROM EACH SOURCE CARD, so a reflexive trigger
+   * from the same source can still take it (below). Set whenever {@link revealOf} links one directly,
+   * consumed the first time a later item from that source cannot link its own.
+   */
+  const revealedBySource = new Map<number, Revealed>();
+
+  function revealLink(revealed: Revealed, waitMs: number): { at: Boxed | null; waitMs: number } {
     const first = revealed.cardIds[0];
-    return { at: first === undefined ? null : revealedCard(first), waitMs: Math.max(0, revealed.at + REVEAL_BEAT_MS - Date.now()) };
+    return { at: first === undefined ? null : revealedCard(first), waitMs };
+  }
+
+  /**
+   * The reveal this resolution made: directly, when it arrived while the item was on the stack (where
+   * its card is, and how long its beat still runs) — else, failing that, the reveal already linked to
+   * ANOTHER item sharing this one's source card, consumed once. A reflexive trigger (Calibrated Blast:
+   * telemetry `m-bafaa3d3238f`) is new in the frame it resolves — `firstSeen` holds nothing for it, so
+   * it never links its own reveal by timing — but it shares its source with the spell whose resolution
+   * caused the reveal; its own beat is long over by then, so it waits no further (`waitMs: 0`).
+   */
+  function revealOf(item: StackEntry | undefined, revealed: Revealed | undefined): { at: Boxed | null; waitMs: number } | null {
+    if (item === undefined) return null;
+    if (revealed !== undefined) {
+      const put = firstSeen.get(item.id);
+      if (put !== undefined && revealed.at >= put - SAME_PAINT_MS) {
+        if (item.sourceCardId !== null) revealedBySource.set(item.sourceCardId, revealed);
+        return revealLink(revealed, Math.max(0, revealed.at + REVEAL_BEAT_MS - Date.now()));
+      }
+    }
+    if (item.sourceCardId === null) return null;
+    const fromSource = revealedBySource.get(item.sourceCardId);
+    if (fromSource === undefined) return null;
+    revealedBySource.delete(item.sourceCardId);
+    return revealLink(fromSource, 0);
   }
 
   /**
@@ -691,8 +734,10 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       schedule(() => {
         ball.remove();
         impact(root, end, look, key, hue, power);
-        // A bolt shakes the table as a blow of its damage does: barely until it is heavy (`crash.ts`).
-        if (look === 'bolt') shakes.add(shake(canvas, shakeOf(amount).px, key));
+        // AF420: a spell's own blow shakes the table too, gentler than a creature's ram (`crash.ts`'s
+        // `SHAKE_PX`, left as it is) — nothing below 5, 0.6px at 5 climbing to the same 16px ceiling at
+        // the cap.
+        if (look === 'bolt') shakes.add(shake(canvas, boltShakePx(amount), key));
         flash(to, colour);
         land();
       }, ms);
@@ -948,7 +993,9 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       const delay = nextBolt();
       endMs = Math.max(endMs, delay + HIT_MS);
       if (firstLifeLand === null) firstLifeLand = delay + HIT_MS;
-      hit(origin, face, `player:${change.playerId}`, lifeColour(change.to - change.from), delay, land, spellHue, Math.abs(change.to - change.from));
+      // AF420: seeded by the resolution too (the stack item's own id), so every cast flies its own
+      // arc — the same key on both screens, same as `item === undefined` was already excluded above.
+      hit(origin, face, `player:${change.playerId}:${item.id}`, lifeColour(change.to - change.from), delay, land, spellHue, Math.abs(change.to - change.from));
       if (change.to < change.from) boltSound(delay + HIT_MS, change.from - change.to);
     }
     /*
@@ -1171,7 +1218,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         delete el.dataset.numberLifeColour;
       });
       overlay()
-        ?.querySelectorAll('.effect-hit, .effect-hit-ember, .effect-impact')
+        ?.querySelectorAll('.effect-hit, .effect-trail, .effect-impact')
         .forEach((el) => el.remove());
       for (const el of marked) {
         el.removeAttribute('data-hit-flash');

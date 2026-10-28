@@ -9,7 +9,7 @@
  * give the page a scrollbar (table-fit). Reduced motion: none of it.
  */
 
-import { BEAT_ANIMATION_ID, powerSize } from '../motion.ts';
+import { BEAT_ANIMATION_ID, damageSize } from '../motion.ts';
 import { seedOf } from './projectile.ts';
 import { claimParticles, shared } from './effect-budget.ts';
 import './crash.css';
@@ -55,7 +55,7 @@ export function rocks(key: string, power: number, share = 1, most = Infinity): R
       // Thrown up and out, and landing lower than it started: rocks fall.
       dy: Math.sin(angle) * far * 0.6 + 14 + 18 * r('f'),
       lift: 16 + 30 * power * r('l'),
-      size: (2.5 + 4.5 * r('s')) * powerSize(power),
+      size: (2.5 + 4.5 * r('s')) * damageSize(power),
       spin: (r('r') - 0.5) * 540,
     };
   });
@@ -72,7 +72,7 @@ export function crash(root: HTMLElement, at: Point, power: number, key: string, 
   el.dataset.crash = key;
   el.style.left = `${at.x}px`;
   el.style.top = `${at.y}px`;
-  el.style.setProperty('--power-size', powerSize(power).toFixed(2));
+  el.style.setProperty('--power-size', damageSize(power).toFixed(2));
   el.style.setProperty('--crash-ms', `${CRASH_MS}ms`);
   const ring = document.createElement('span');
   ring.className = 'effect-crash__ring';
