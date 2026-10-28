@@ -186,13 +186,14 @@ it. PR-5 is new and exists to serve it.
 | **PR-3** | **Room module** — our P3–P6 contributions to `@wolffm/rooms-protocol` / `-server` (**renamed**: `@wolffm/rooms` never shipped) | **implemented Wave 5, locally.** Designs W1, delivered to watchparty W2/W3, built here W5. Upstream still ships **none** of P4–P6, so ours are our own packages consuming their primitives — `@wolffm/rooms-server@0.38.111` is `RoomRegistry` + seating + emit + rate limiting + `collectGC` and nothing else. The socket wiring is ours |
 | **PR-4** | **Play** — WS/JSON bridge at `IToClient`, headless Forge, the embedded client | **spiked and de-risked** (D). Forge runs headless; 38 of 60 protocol methods required; jUPnP is a config flag. Not greenfield — a 3,919-line headless net harness already exists in-tree |
 
-## Wave 80 (steady glow) dispatched as one single session (2026-10-28)
+## Wave 80 (steady glow) dispatched as two single sessions (2026-10-28)
 
 `docs/planning/wave80-2026-10-28.md`. Operator, 2026-10-28: cards flash not-clickable between phases. AF101's `offer-hold.ts` holds only after a card click and ends on a phase move; measure a normal game first.
 
 | lane | worktree / branch | status | evidence |
 | --- | --- | --- | --- |
 | steady glow through phases | `.claude/worktrees/w80a` / `w80a` | dispatched; artifact gate before land | — |
+| Frontline Medic's orange glow (which mark, then the class) | `.claude/worktrees/w80b` / `w80b` | dispatched; measure first, design call if can-act | — |
 
 ## Wave 79 (trailer cut 1 feedback) dispatched as four single sessions (2026-10-28)
 
