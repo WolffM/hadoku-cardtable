@@ -5,7 +5,7 @@
  *
  * The fork's `ChangeZoneEffect` asks a human seat's whole set at once for every constrained search
  * (DifferentNames, DifferentCMC, DifferentPower, ShareLandType, WithTotalCMC/Power/CardTypes), and asks
- * again until the set meets the rule (`meetsSearchConstraints`). The bridge sends the rule with the ask
+ * again until the set meets the rule (`ChosenSet.meets`). The bridge sends the rule with the ask
  * (`rules`, `SearchRuleSchema`), read from the ability's parameters. Each case here answers the first
  * ask with a set that breaks the rule, sees the same question asked again, then answers a set that
  * meets it and checks the cards moved. The AI's own constrained search still takes its one-card path.
@@ -127,9 +127,20 @@ describe.skipIf(!available.ok)(title, () => {
 		async () => {
 			if (!available.ok) return;
 			const { searches, reply } = searchReplies();
+			// The library's names as seat 0 sees them while it searches: once the search is over, a card
+			// left in the library is hidden again, and whether its name is still in the state by the time
+			// the test reads it depends on how far the game has got (one red in a loaded run).
+			const seen = new Map<number, string>();
+			let live: Scenario | undefined;
 			// The opponent's pick (no rules) takes its first two.
-			const both = (f: Record<string, unknown>): unknown => reply(f) ?? (f.method === 'chooseEntitiesForEffect' ? (f.optionList as Ref[]).slice(0, f.max as number) : undefined);
+			const both = (f: Record<string, unknown>): unknown => {
+				if (f.method === 'chooseEntitiesForEffect' && f.rules !== undefined && live !== undefined) {
+					for (const r of f.optionList as Ref[]) if (!seen.has(r.id)) seen.set(r.id, nameOf(live, 0, r.id));
+				}
+				return reply(f) ?? (f.method === 'chooseEntitiesForEffect' ? (f.optionList as Ref[]).slice(0, f.max as number) : undefined);
+			};
 			const s = await startScenario(available.config, { seed: 1, decks: DECKS, scenario: scenarioText('tr-gifts'), reply: both });
+			live = s;
 			try {
 				const oppId = s.match.seats[1]?.playerId as number;
 				await castAndResolve(s, 'Gifts Ungiven', () =>
@@ -144,7 +155,7 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(first!.ask.rules?.map((r) => r.kind)).toEqual(['differentNames']);
 				// The library's two Counterspells, two Brainstorms and two Islands: the only pairs that share a name.
 				const clash = (first!.ask.rules![0] as Extract<SearchRule, { clash: unknown }>).clash;
-				expect(clash.map(([a, b]) => [nameOf(s, 0, a), nameOf(s, 0, b)]).sort()).toEqual([
+				expect(clash.map(([a, b]) => [seen.get(a), seen.get(b)]).sort()).toEqual([
 					['Brainstorm', 'Brainstorm'],
 					['Counterspell', 'Counterspell'],
 					['Island', 'Island'],

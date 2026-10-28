@@ -1049,6 +1049,50 @@ describe('a constrained search', () => {
     expect(submit().disabled).toBe(false);
   });
 
+  it('one of each: a card whose only kinds are held is greyed, and a card fitting two kinds holds one', () => {
+    // 20 fits kind 0 or 1 (an artifact creature), 11 only kind 1, 2 only kind 1.
+    const { container, getAllByTestId, answers, submit } = mountPrompt(
+      'chooseEntitiesForEffect',
+      searching([{ kind: 'slots', slots: [[20], [20, 11, 2]], fill: false }]),
+    );
+    const boxes = getAllByTestId('prompt-choice');
+    fireEvent.click(boxes[1]!);
+    expect(blocked(container)).toEqual(['2']);
+    fireEvent.click(boxes[0]!);
+    expect(blocked(container)).toEqual(['2']);
+    fireEvent.click(submit());
+    expect(answers).toEqual([
+      [
+        { kind: 'card', id: 20 },
+        { kind: 'card', id: 11 },
+      ],
+    ]);
+  });
+
+  it('one of each that must be filled: OK waits until every kind some card fits is held', () => {
+    const { getAllByTestId, submit } = mountPrompt('chooseEntitiesForEffect', searching([{ kind: 'slots', slots: [[20], [11, 2], []], fill: true }]));
+    const boxes = getAllByTestId('prompt-choice');
+    expect(submit().disabled).toBe(true);
+    fireEvent.click(boxes[0]!);
+    expect(submit().disabled).toBe(true);
+    fireEvent.click(boxes[2]!);
+    expect(submit().disabled).toBe(false);
+  });
+
+  it('a total power greys nothing a negative card left unticked could still bring back under it', () => {
+    const { container, getAllByTestId, submit } = mountPrompt(
+      'chooseEntitiesForEffect',
+      searching([{ kind: 'totalPower', atMost: 4, values: { '20': 3, '11': 2, '2': -1 } }]),
+    );
+    fireEvent.click(getAllByTestId('prompt-choice')[0]!);
+    expect(blocked(container)).toEqual([]);
+    fireEvent.click(getAllByTestId('prompt-choice')[2]!);
+    expect(blocked(container)).toEqual([]);
+    fireEvent.click(getAllByTestId('prompt-choice')[2]!);
+    fireEvent.click(getAllByTestId('prompt-choice')[1]!);
+    expect(submit().disabled).toBe(true);
+  });
+
   it('exactly: OK takes none or exactly that many', () => {
     const { getAllByTestId, submit } = mountPrompt('chooseEntitiesForEffect', searching([{ kind: 'exactly', count: 2 }], 2));
     const boxes = getAllByTestId('prompt-choice');

@@ -1,0 +1,16 @@
+# chosen-sets.jvm.test.ts: seat 0 at its own Main Phase 1 with Niv-Mizzet Reborn ("reveal the top ten
+# cards; for each color pair, choose a card that's exactly those colors from among them"). Two blue-red
+# cards fit one pair; Lightning Helix fits red-white; Lightning Bolt fits none.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Niv-Mizzet Reborn
+humanbattlefield=Plains;Island;Swamp;Mountain;Forest
+humanlibrary=Izzet Charm;Izzet Charm;Lightning Helix;Lightning Bolt;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=Island
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=

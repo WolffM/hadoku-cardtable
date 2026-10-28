@@ -1,0 +1,16 @@
+# chosen-sets.jvm.test.ts: seat 0 at its own Main Phase 1 with Sigarda's Vanguard ("whenever it enters,
+# choose any number of creatures with different powers; those creatures gain double strike"). Powers 2
+# (two Grizzly Bears), 0 (Ornithopter) and the Vanguard's own 3.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Sigarda's Vanguard
+humanbattlefield=Plains;Plains;Plains;Plains;Plains;Grizzly Bears;Grizzly Bears;Ornithopter
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=Island
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=

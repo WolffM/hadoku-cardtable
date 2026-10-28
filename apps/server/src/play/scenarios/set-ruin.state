@@ -1,0 +1,16 @@
+# chosen-sets.jvm.test.ts: seat 0 at its own Main Phase 1 with Global Ruin ("each player chooses from
+# the lands they control a land of each basic land type, then sacrifices the rest"). Volcanic Island is
+# an Island and a Mountain; there is no Swamp.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Global Ruin
+humanbattlefield=Plains;Plains;Plains;Plains;Plains;Island;Volcanic Island;Forest
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=Island;Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=

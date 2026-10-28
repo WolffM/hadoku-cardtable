@@ -101,6 +101,12 @@ describe('digAsk', () => {
 		expect(digAsk(dig)!.question).toBe(dig.title);
 	});
 
+	it('leaves a dig whose chosen set has rules to the search prompt', () => {
+		const dig = fateseal([1, 2, 3], 1, 1);
+		expect(digAsk(dig)).not.toBeNull();
+		expect(digAsk({ ...dig, rules: [{ kind: 'totalManaValue', atMost: 6, values: {} }] })).toBeNull();
+	});
+
 	it('asks one order of every card looked at, all in the rest to start with, the chosen zone the answer', () => {
 		const shown = digAsk(fateseal([71]))!;
 		expect(shown.method).toBe('order');
