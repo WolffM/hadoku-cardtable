@@ -94,6 +94,11 @@ export class Alerts {
 		return true;
 	}
 
+	/** Post `text` once and open no incident: something that happened and is already over. */
+	note(key: string, text: string): void {
+		this.send(key, text);
+	}
+
 	isOpen(key: string): boolean {
 		return this.openKeys.has(key);
 	}

@@ -63,12 +63,10 @@ interface ScriptedJvm {
 	dead: boolean;
 }
 
-/** A launcher with no JVM behind it: every JVM is a script the test speaks for. */
-function scripted(): { launcher: JvmLauncher; jvms: ScriptedJvm[] } {
+/** A launcher with no JVM behind it: every JVM is a script the test speaks for. `running` are JVMs an earlier server left. */
+function scripted(running: string[] = []): { launcher: JvmLauncher; jvms: ScriptedJvm[] } {
 	const jvms: ScriptedJvm[] = [];
-	return {
-		jvms,
-		launcher: {
+	const launcher: JvmLauncher = {
 			launch(hostId) {
 				let onLine: (line: string) => void = () => undefined;
 				let onExit: (reason: string) => void = () => undefined;
@@ -94,12 +92,13 @@ function scripted(): { launcher: JvmLauncher; jvms: ScriptedJvm[] } {
 				};
 				return transport;
 			},
-			running: () => Promise.resolve([]),
-			attach: () => {
-				throw new Error('nothing to attach');
+			running: () => Promise.resolve(running),
+			attach: (hostId) => {
+				if (!running.includes(hostId)) throw new Error('nothing to attach');
+				return launcher.launch(hostId, { xmxMb: 1000 });
 			},
-		},
 	};
+	return { jvms, launcher };
 }
 
 interface FakeClaw {
@@ -109,8 +108,8 @@ interface FakeClaw {
 	link: AgentLink & { holds: number[]; closed: boolean; silent: number; lose(reason: string): void; recycle(hostId: string): void };
 }
 
-function fakeClaw(node: string): FakeClaw {
-	const { launcher, jvms } = scripted();
+function fakeClaw(node: string, running: string[] = []): FakeClaw {
+	const { launcher, jvms } = scripted(running);
 	const listeners: ((reason: string) => void)[] = [];
 	const link: FakeClaw['link'] = {
 		lost: null,
@@ -169,12 +168,20 @@ interface Rig {
 	warmAll(): void;
 	order: string[];
 	restored: Map<string, Rec>;
-	restorer: Restorer & { outcome: 'snapshot' | 'spec' | null };
+	restorer: Restorer & { outcome: 'snapshot' | 'spec' | null; ended: Set<string> };
 }
 
-async function rig(nodes: FleetNode[], opts: { forceFile?: string } = {}): Promise<Rig> {
+async function rig(nodes: FleetNode[], opts: { forceFile?: string; takenBack?: Record<string, string[]> } = {}): Promise<Rig> {
 	const clock = { t: T0 };
-	const claws = new Map(nodes.map((n) => [n.node, fakeClaw(n.node)]));
+	const cfg = config();
+	// A JVM an earlier server left on a claw, with room and no match: its record, as that server wrote it.
+	for (const [node, hostIds] of Object.entries(opts.takenBack ?? {})) {
+		for (const hostId of hostIds) {
+			mkdirSync(join(`${cfg.workDir}-claws`, node, hostId), { recursive: true });
+			writeFileSync(join(`${cfg.workDir}-claws`, node, hostId, 'jvm.json'), JSON.stringify({ hostId, startedAt: new Date().toISOString(), matches: [] }));
+		}
+	}
+	const claws = new Map(nodes.map((n) => [n.node, fakeClaw(n.node, opts.takenBack?.[n.node] ?? [])]));
 	const fleetDown = { on: false };
 	const posted: string[] = [];
 	const logs: Record<string, unknown>[] = [];
@@ -194,7 +201,7 @@ async function rig(nodes: FleetNode[], opts: { forceFile?: string } = {}): Promi
 	const order: string[] = [];
 	const restored = new Map<string, Rec>();
 	const p = placement({
-		config: config(),
+		config: cfg,
 		fleet,
 		connect: (node) => {
 			const claw = claws.get(node);
@@ -214,6 +221,8 @@ async function rig(nodes: FleetNode[], opts: { forceFile?: string } = {}): Promi
 	});
 	const restorer: Rig['restorer'] = {
 		outcome: 'snapshot',
+		ended: new Set(),
+		over: (id) => restorer.ended.has(id),
 		restore(id) {
 			order.push(`restore ${id}`);
 			if (restorer.outcome === null) return null;
@@ -767,6 +776,35 @@ describe('failover', () => {
 		ready(r, 'm-1');
 		jvmOf(r, 'm-1').jvm.die('gone');
 		expect(m.exits).toEqual(['the match was lost: gone, and it could not be restored']);
+	});
+
+	it('a finished game on a failed claw is ended, never played again from its last turn start', async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
+		const m = start(r, 'm-1');
+		ready(r, 'm-1');
+		r.restorer.ended.add('m-1');
+		jvmOf(r, 'm-1').jvm.die('the JVM exited with code 137');
+		expect(r.order).toEqual(['exit m-1']);
+		expect(m.exits).toEqual(['its game was over, and its host failed: the JVM exited with code 137']);
+		expect(r.posted.join('\n')).not.toContain('m-1');
+	});
+
+	it('a fenced JVM fails no claw: its match is restored into a fresh JVM, never one taken back from the earlier server', async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')], { takenBack: { 'claw-9': ['h-old-9'], 'claw-8': ['h-old-8'] } });
+		start(r, 'm-1');
+		ready(r, 'm-1');
+		const first = jvmOf(r, 'm-1');
+		expect(['h-old-9', 'h-old-8']).toContain(first.jvm.hostId);
+		const cause = 'fenced: no word from the coordinator for 11 s (window 10 s)';
+		first.jvm.die(cause);
+		expect(r.order).toEqual(['restore m-1', 'exit m-1']);
+		const second = jvmOf(r, 'm-1');
+		expect(['h-old-9', 'h-old-8']).not.toContain(second.jvm.hostId);
+		expect(hostOf(r, 'claw-9').quarantine).toBeNull();
+		expect(hostOf(r, 'claw-8').quarantine).toBeNull();
+		await Promise.resolve();
+		expect(r.posted).toHaveLength(1);
+		expect(r.posted[0]).toMatch(/^🔁 Fenced: claw-\d — fenced: no word from the coordinator .* stays in service\. Moved 1: m-1 → claw-\d \(restored at the start of turn 3/);
 	});
 
 	it('an agent silent past the window with no match on it: a heartbeat-lost alert and quarantine, then back after a healthy status and a canary', async () => {

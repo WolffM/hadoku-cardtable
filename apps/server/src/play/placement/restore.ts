@@ -14,5 +14,6 @@ export function registryRestorer(registry: MatchRegistry): Restorer {
 			if (restored === null) return null;
 			return restored.from === 'snapshot' ? { from: 'snapshot', turn: restored.turn } : { from: 'spec' };
 		},
+		over: (matchId) => registry.get(matchId)?.status === 'over',
 	};
 }

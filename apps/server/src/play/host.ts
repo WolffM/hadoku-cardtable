@@ -534,6 +534,8 @@ interface Jvm {
 	retiring: boolean;
 	/** Takes no new match, and retires once its last one ends (`drain`). */
 	draining: boolean;
+	/** Taken back from an earlier server (`adopt`), not launched by this one. */
+	readonly adopted: boolean;
 	released: boolean;
 	readonly matches: Map<string, Hosted>;
 	lastHeard: number;
@@ -583,7 +585,7 @@ export type JvmHostFactory = MatchHostFactory & {
 	handOverAll(): string[];
 	reapOnExit(): ReapResult;
 	/** JVMs this pool holds, with their matches: for diagnostics and tests. */
-	jvms(): { hostId: string; warm: boolean; draining: boolean; matches: string[] }[];
+	jvms(): { hostId: string; warm: boolean; draining: boolean; adopted: boolean; matches: string[] }[];
 	/** Place nothing more into this JVM, and retire it once its matches end (a heap past `recycleWanted`). */
 	drain(hostId: string, why: string): void;
 	/**
@@ -708,7 +710,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 
 	/* ── JVMs ── */
 
-	function track(hostId: string, dir: string, transport: JvmTransport, from: { warm: boolean; startedAt: string; orphanedAt: string | null }): Jvm {
+	function track(hostId: string, dir: string, transport: JvmTransport, from: { warm: boolean; startedAt: string; orphanedAt: string | null; adopted?: boolean }): Jvm {
 		const jvm: Jvm = {
 			hostId,
 			dir,
@@ -719,6 +721,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 			exited: false,
 			retiring: false,
 			draining: false,
+			adopted: from.adopted ?? false,
 			released: false,
 			matches: new Map(),
 			lastHeard: Date.now(),
@@ -1059,7 +1062,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	factory.watchRoom = (listener) => {
 		roomWatchers.push(listener);
 	};
-	factory.jvms = () => [...jvms].map((j) => ({ hostId: j.hostId, warm: j.warm, draining: j.draining, matches: [...j.matches.keys()] }));
+	factory.jvms = () => [...jvms].map((j) => ({ hostId: j.hostId, warm: j.warm, draining: j.draining, adopted: j.adopted, matches: [...j.matches.keys()] }));
 
 	factory.drain = (hostId: string, why: string) => {
 		const jvm = [...jvms].find((j) => j.hostId === hostId);
@@ -1095,7 +1098,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		const dir = join(config.workDir, hostId);
 		const record = readJvmRecord(dir);
 		const transport = launcher.attach(hostId);
-		const jvm = track(hostId, dir, transport, { warm: true, startedAt: record?.startedAt ?? new Date().toISOString(), orphanedAt: null });
+		const jvm = track(hostId, dir, transport, { warm: true, startedAt: record?.startedAt ?? new Date().toISOString(), orphanedAt: null, adopted: true });
 		const age = record === null ? 0 : Date.now() - Date.parse(record.orphanedAt ?? record.startedAt);
 		if (record === null || !(age < ORPHAN_MAX_MS)) {
 			retire(jvm, record === null ? 'no readable record: its matches cannot be named' : `orphaned ${age} ms ago, past ORPHAN_MAX_MS`);

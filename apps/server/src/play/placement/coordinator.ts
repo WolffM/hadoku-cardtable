@@ -19,9 +19,11 @@
  *   on a claw, its agent's heartbeat lost for the fencing window, or a match-level `fatal` fails the
  *   CLAW: it is quarantined, every match it held is restored elsewhere (`Restorer`, called BEFORE
  *   the old match is told it ended), and whatever still runs there is killed. A match that never
- *   started is simply placed again. Lines from a moved match's old host are dropped. One alert
- *   lists every match. A quarantined claw rejoins once fleet-manager has reported it healthy since
- *   AND a canary match passes on it.
+ *   started is simply placed again, and one whose game is over is ended, never played again. Lines
+ *   from a moved match's old host are dropped. One alert lists every match. A quarantined claw
+ *   rejoins once fleet-manager has reported it healthy since AND a canary match passes on it. A JVM
+ *   its agent fenced (this server was silent past the window) fails no claw: its matches move, and
+ *   no JVM taken back from the earlier server takes a new match.
  * - **Planned moves.** A hosting end or reboot notice stops placement on the claw at once
  *   (`NOTICE_HORIZON_MS`); from `MOVE_AHEAD_MS` before the event each remaining match moves at its
  *   next turn start (the snapshot line). A JVM whose heap wants recycling takes no new match and
@@ -110,7 +112,12 @@ export type RestoreOutcome = { from: 'snapshot'; turn: number } | { from: 'spec'
  */
 export interface Restorer {
 	restore(matchId: string): RestoreOutcome | null;
+	/** Its game is over: a failover ends it rather than playing it again. */
+	over(matchId: string): boolean;
 }
+
+/** The cause an agent gives when it fenced: this server was silent, which says nothing about the claw. */
+const FENCED = 'fenced:';
 
 /** Proves a claw can host again: null when it passed, else why not. */
 export type Canary = (node: string, pool: JvmHostFactory) => Promise<string | null>;
@@ -200,6 +207,8 @@ interface Moved {
 	to: string | null;
 	how: string;
 	ms: number;
+	/** Its game was over: ended, neither moved nor lost. */
+	ended?: boolean;
 }
 
 export interface HostView {
@@ -300,6 +309,7 @@ export function placement(opts: PlacementOptions): Placement {
 	let short = false;
 	/** Set while a restore runs: the factory never places onto the host being failed. */
 	let exceptHost: Host | null = null;
+	const fencedBatches = new Map<Host, Moved[]>();
 	const timers: NodeJS.Timeout[] = [];
 
 	const notifyRoom = (): void => {
@@ -531,27 +541,71 @@ export function placement(opts: PlacementOptions): Placement {
 			return;
 		}
 		if (fatal) fatalBefore.add(p.id);
+		if (cause.startsWith(FENCED)) {
+			fencedOver(p, cause);
+			return;
+		}
 		if (p.host.kind === 'claw') {
 			failClaw(p.host, cause);
 			return;
 		}
 		const result = move(p, cause, p.host);
-		alertIncident(p.host, cause, result.to === null ? [] : [result], result.to === null ? [result] : []);
+		if (result.ended !== true) alertIncident(p.host, cause, result.to === null ? [] : [result], result.to === null ? [result] : []);
+	}
+
+	/**
+	 * A JVM its agent killed because this server was silent past the fencing window: a crash, or a
+	 * restart with no hold. The claw is fine, so it is not quarantined and may take the match back;
+	 * but every JVM taken back from the earlier server sat through the same silence on its own
+	 * agent's clock, so none takes a new match (2026-10-28: a restore placed into claw-8's taken-back
+	 * JVM 28 ms before claw-8 fenced it too, and the match was started a third time on hokon).
+	 * The JVM's matches exit one by one in the same tick: one alert lists them all.
+	 */
+	function fencedOver(p: Placed, cause: string): void {
+		for (const host of hosts.values()) {
+			for (const j of host.pool?.jvms() ?? []) if (j.adopted) host.pool?.drain(j.hostId, `a JVM taken back from the earlier server was fenced: ${cause}`);
+		}
+		const result = move(p, cause, p.host, null, null);
+		const batch = fencedBatches.get(p.host) ?? [];
+		if (batch.length === 0) {
+			fencedBatches.set(p.host, batch);
+			queueMicrotask(() => {
+				fencedBatches.delete(p.host);
+				const moved = batch.filter((r) => r.to !== null);
+				const lost = batch.filter((r) => r.to === null && r.ended !== true);
+				const ended = batch.filter((r) => r.ended === true);
+				log({ evt: 'fenced-over', host: p.host.name, cause, moved, lost, ended });
+				const list = (rs: Moved[]): string => rs.map((r) => `${r.matchId} → ${r.to} (${r.how}, ${r.ms} ms)`).join('; ');
+				if (moved.length > 0) {
+					alerts.note(`fenced:${p.host.name}`, `🔁 Fenced: ${p.host.name} — ${cause}. This server was silent, not the claw: it stays in service. Moved ${moved.length}: ${list(moved)}. A restore is ${SNAPSHOT_LOSES}.`);
+				}
+				if (lost.length > 0) alerts.fire(`lost:${p.host.name}`, `🚨 Match lost: ${lost.length} on ${p.host.name} — ${cause}: ${lost.map((r) => `${r.matchId} (${r.how})`).join('; ')}.`);
+			});
+		}
+		batch.push(result);
 	}
 
 	/**
 	 * Restore `p` elsewhere, then fail the old match: in that order, so the seats never see the end
 	 * of a match that is coming back.
 	 */
-	function move(p: Placed, cause: string, from: Host, refuse: string | null = null): Moved {
+	function move(p: Placed, cause: string, from: Host, refuse: string | null = null, except: Host | null = from): Moved {
 		p.moved = true;
 		if (placed.get(p.id) === p) placed.delete(p.id);
 		const t0 = now();
 		let why = refuse;
 		let how = '';
+		if (why === null && p.ready && restorer?.over(p.id) === true) {
+			// A finished game played again from its last turn start would be a game nobody is in.
+			const ms = now() - t0;
+			how = 'ended: its game was already over';
+			p.events.log({ evt: 'match-ended', matchId: p.id, from: from.name, cause, how, ms });
+			p.events.exit(`its game was over, and its host failed: ${cause}`);
+			return { matchId: p.id, to: null, how, ms, ended: true };
+		}
 		if (why === null && !p.ready) {
 			// Nothing of it has reached a seat yet: the same start, on another host.
-			const to = pick(from);
+			const to = pick(except);
 			if (to === null) why = 'no host can take it';
 			else {
 				try {
@@ -563,9 +617,9 @@ export function placement(opts: PlacementOptions): Placement {
 			}
 		} else if (why === null) {
 			if (restorer === null) why = 'this server cannot restore a match';
-			else if (pick(from) === null) why = 'no host can take it';
+			else if (pick(except) === null) why = 'no host can take it';
 			else {
-				exceptHost = from;
+				exceptHost = except;
 				try {
 					const outcome = restorer.restore(p.id);
 					if (outcome === null) why = 'it could not be restored';
@@ -596,8 +650,9 @@ export function placement(opts: PlacementOptions): Placement {
 		const results = victims.map((p) => move(p, cause, host));
 		detach(host, cause);
 		const moved = results.filter((r) => r.to !== null);
-		const lost = results.filter((r) => r.to === null);
-		log({ evt: 'claw-failed-over', host: host.name, cause, moved, lost, ms: now() - t0 });
+		const lost = results.filter((r) => r.to === null && r.ended !== true);
+		const ended = results.filter((r) => r.ended === true);
+		log({ evt: 'claw-failed-over', host: host.name, cause, moved, lost, ended, ms: now() - t0 });
 		alertIncident(host, cause, moved, lost);
 		host.failing = false;
 		notifyRoom();
