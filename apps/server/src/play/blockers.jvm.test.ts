@@ -45,7 +45,6 @@ async function setUp(s: Scenario, defenderCasts: boolean): Promise<{ attacker: n
  * and return as soon as `until` holds of the DEFENDER. Every stop on the way is pressed once.
  */
 async function attack(s: Scenario, attacker: number, defender: number, until: () => boolean): Promise<void> {
-	const pressed = new Set<number>();
 	let declared = false;
 	let confirmed = false;
 	await waitUntil(() => {
@@ -70,11 +69,10 @@ async function attack(s: Scenario, attacker: number, defender: number, until: ()
 				.map((x, i) => (x.seat === seat && x.envelope.frame.method === 'showPromptMessage' ? i : -1))
 				.filter((i) => i >= 0)
 				.pop();
-			if (at === undefined || pressed.has(at)) continue;
+			if (at === undefined || s.pressed.has(at)) continue;
 			const pm = (s.sent[at]?.envelope.frame as unknown as { message: string }).message;
 			if (seat === defender && /Declare Blockers Step/.test(pm)) continue;
 			if (!isStop(pm, seat, s) || s.buttons(seat)?.enable1 !== true) continue;
-			pressed.add(at);
 			s.ok(seat);
 		}
 		return false;

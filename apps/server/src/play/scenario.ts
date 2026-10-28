@@ -279,7 +279,19 @@ export interface Scenario {
 	/** `Turn: N (Owner)` off this seat's last prompt. */
 	turn(seat: number): { n: number; owner: string } | null;
 	phase(seat: number): string | null;
+	/**
+	 * Press OK for the seat. It records the seat's latest prompt in {@link Scenario.pressed}, so no
+	 * driver presses that prompt again.
+	 */
 	ok(seat: number): void;
+	/**
+	 * The `sent` index of every prompt OK was pressed on, whichever helper pressed it. A driver
+	 * pressing on "the seat's latest prompt" checks this first: each helper's own record cannot see
+	 * another's, and an old prompt pressed by one reads as new to the next. When the next window's bar
+	 * arrives before its prompt (Forge's `InputBlock`), that bar's live OK skips the window
+	 * (blockers.jvm Q12, #18).
+	 */
+	readonly pressed: ReadonlySet<number>;
 	cancel(seat: number): void;
 	select(seat: number, id: number): void;
 	/** A bridge command sent as the server sends it, for one the browser has no act for (`cancel-payment`). */
@@ -391,6 +403,7 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 
 	const answered = new Set<string>();
 	const handled = new Set<number>();
+	const pressed = new Set<number>();
 	const asks: ServerFrame[] = [];
 
 	const last = <T>(seat: number, method: string): T | null =>
@@ -444,7 +457,12 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 			return m === null ? null : { n: Number(m[1]), owner: m[2] as string };
 		},
 		phase: (seat) => /^Phase: (.+)$/m.exec(self.prompt(seat))?.[1] ?? null,
-		ok: (seat) => void current().fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' })),
+		ok: (seat) => {
+			const at = sent.findLastIndex((x) => x.seat === seat && x.envelope.frame.method === 'showPromptMessage');
+			if (at >= 0) pressed.add(at);
+			current().fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
+		},
+		pressed,
 		cancel: (seat) => void current().fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonCancel' })),
 		select: (seat, id) =>
 			void current().fromClient(
@@ -700,7 +718,7 @@ export function isStop(msg: string, seat: number, s: Scenario): boolean {
 
 /** Press OK once on every NEW stop of either seat, until `done`. */
 export async function passUntil(s: Scenario, done: () => boolean, label: string, ms = 60_000): Promise<void> {
-	const pressed = new Set<number>();
+	const discarding = new Set<number>();
 	await waitUntil(() => {
 		s.keepHands();
 		s.answerAsks();
@@ -710,11 +728,11 @@ export async function passUntil(s: Scenario, done: () => boolean, label: string,
 				.map((x, i) => (x.seat === seat && x.envelope.frame.method === 'showPromptMessage' ? i : -1))
 				.filter((i) => i >= 0)
 				.pop();
-			if (at === undefined || pressed.has(at)) continue;
+			if (at === undefined || s.pressed.has(at) || discarding.has(at)) continue;
 			const msg = (s.sent[at]?.envelope.frame as unknown as { message: string }).message;
 			// The cleanup discard: a hand of eight is one over the maximum.
 			if (/^Cleanup Phase\nSelect \d+ card\(s\) to discard/.test(msg)) {
-				pressed.add(at);
+				discarding.add(at);
 				const card = s.zone(seat, 'Hand')[0];
 				if (card !== undefined) {
 					s.select(seat, card.id);
@@ -723,7 +741,6 @@ export async function passUntil(s: Scenario, done: () => boolean, label: string,
 				continue;
 			}
 			if (!isStop(msg, seat, s) || s.buttons(seat)?.enable1 !== true) continue;
-			pressed.add(at);
 			s.ok(seat);
 		}
 		return false;

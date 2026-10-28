@@ -121,13 +121,11 @@ function battlefieldIds(s: Scenario, seat: number): number[] {
  * stops, and a seat with creatures is asked to declare attackers in every combat it passes through.
  */
 function noAttacks(s: Scenario, goal: () => boolean): () => boolean {
-	const pressed = new Set<number>();
 	return () => {
 		for (const seat of [0, 1]) {
 			const at = s.sent.findLastIndex((x) => x.seat === seat && x.envelope.frame.method === 'showPromptMessage');
 			const msg = (s.sent[at]?.envelope.frame as unknown as { message?: string } | undefined)?.message ?? '';
-			if (at < 0 || pressed.has(at) || !/^Select creatures to attack/.test(msg) || promptBar(s, seat)?.enable1 !== true) continue;
-			pressed.add(at);
+			if (at < 0 || s.pressed.has(at) || !/^Select creatures to attack/.test(msg) || promptBar(s, seat)?.enable1 !== true) continue;
 			s.ok(seat);
 		}
 		return goal();

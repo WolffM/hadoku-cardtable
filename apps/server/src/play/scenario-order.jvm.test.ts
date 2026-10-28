@@ -61,7 +61,6 @@ function bothTriggersShown(s: Scenario): boolean {
 }
 
 async function driveToUpkeepWithBothTriggers(s: Scenario): Promise<void> {
-	const pressed = new Set<number>();
 	await waitUntil(
 		() => {
 			s.answerAsks();
@@ -71,12 +70,9 @@ async function driveToUpkeepWithBothTriggers(s: Scenario): Promise<void> {
 					.map((x, i) => (x.seat === seat && x.envelope.frame.method === 'showPromptMessage' ? i : -1))
 					.filter((i) => i >= 0)
 					.pop();
-				if (at === undefined || pressed.has(at)) continue;
+				if (at === undefined || s.pressed.has(at)) continue;
 				const msg = (s.sent[at]?.envelope.frame as unknown as { message: string }).message;
-				if (msg.startsWith('Priority:') && s.buttons(seat)?.enable1 === true) {
-					pressed.add(at);
-					s.ok(seat);
-				}
+				if (msg.startsWith('Priority:') && s.buttons(seat)?.enable1 === true) s.ok(seat);
 			}
 			return false;
 		},

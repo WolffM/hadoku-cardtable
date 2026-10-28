@@ -31,20 +31,19 @@ interface Ring {
 	frames: { decision: string; seat: number }[];
 }
 
-/** One act per forwarded window: a land, then a creature, in the seat's own main phase; OK everywhere else. */
-function drive(s: Scenario, pressed: Set<number>): void {
+/** One act per forwarded window: a land, then a creature, in the seat's own main phase; OK everywhere else. `acted` holds the windows answered with a card. */
+function drive(s: Scenario, acted: Set<number>): void {
 	s.answerAsks();
 	for (const seat of [0, 1]) {
 		const at = s.sent.findLastIndex((x) => x.seat === seat && x.envelope.frame.method === 'showPromptMessage');
-		if (at < 0 || pressed.has(at) || s.buttons(seat)?.enable1 !== true) continue;
+		if (at < 0 || acted.has(at) || s.pressed.has(at) || s.buttons(seat)?.enable1 !== true) continue;
 		const msg = s.prompt(seat);
 		if (/^Cleanup Phase\nSelect \d+ card\(s\) to discard/.test(msg)) {
-			pressed.add(at);
+			acted.add(at);
 			const card = s.zone(seat, 'Hand')[0];
 			if (card !== undefined) s.select(seat, card.id);
 			continue;
 		}
-		pressed.add(at);
 		const ownMain = msg.startsWith(`Priority: ${s.names[seat]}`) && /^Phase: Main phase/m.test(msg) && /^Stack: Empty$/m.test(msg);
 		if (ownMain) {
 			const offer = s.sent.findLast((x) => x.seat === seat && x.envelope.frame.method === 'setWeaklySelectable')?.envelope.frame as
@@ -54,6 +53,7 @@ function drive(s: Scenario, pressed: Set<number>): void {
 			const hand = s.zone(seat, 'Hand').filter((c) => offered.has(c.id));
 			const play = hand.find((c) => c.land) ?? hand.find((c) => c.creature);
 			if (play !== undefined) {
+				acted.add(at);
 				s.select(seat, play.id);
 				continue;
 			}
@@ -71,10 +71,10 @@ describe.skipIf(!available.ok)(title, () => {
 			let turn = 0;
 			try {
 				await finishMulligan(s);
-				const pressed = new Set<number>();
+				const acted = new Set<number>();
 				await waitUntil(
 					() => {
-						drive(s, pressed);
+						drive(s, acted);
 						turn = Math.max(turn, s.turn(0)?.n ?? 0, s.turn(1)?.n ?? 0);
 						return turn >= TURNS || s.match.status !== 'running';
 					},
