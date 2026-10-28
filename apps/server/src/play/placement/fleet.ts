@@ -7,8 +7,9 @@
  * `reachable`, `ok`, `findings[]`, `notices[]{event,at,kind}`, `hosting.state`,
  * `hosting.declared.{tenant,memoryMb,cores,port,role}`, `hosting.observed.{agent,portReach,memoryInUseMb}`
  * and `hosting.until`. Every non-guest node is a row, so a slice that ended reads `hosting: null`.
- * Only our tenant's primary slice counts: another tenant's slice, or a standby (`role: "standby"`,
- * for a tenant with `availability.standby`), reads as no slice of ours.
+ * Only our tenant's primary slice counts: another tenant's slice, or a standby
+ * (`declared.role: "standby"`, for a tenant with `availability.standby`; absent is primary), reads
+ * as no slice of ours.
  *
  * Readable is stdout that parses AND carries our contract number; the exit code reports findings
  * only. Anything else is "could not look", which holds the current state and never promotes or
@@ -112,8 +113,7 @@ export const TENANT = 'cardtable';
 function ourSlice(h: unknown): Record<string, unknown> | null {
 	if (!isObject(h)) return null;
 	const declared = isObject(h.declared) ? h.declared : {};
-	if (declared.tenant !== TENANT) return null;
-	return (h.role ?? declared.role ?? 'primary') === 'primary' ? h : null;
+	return declared.tenant === TENANT && (declared.role ?? 'primary') === 'primary' ? h : null;
 }
 
 /** The contract's fields of one `node-status --json`, or null when it is not that. */

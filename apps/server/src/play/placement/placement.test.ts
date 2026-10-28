@@ -349,18 +349,17 @@ describe('eligibility', () => {
 	});
 
 	it("counts only our tenant's primary slice: another tenant's, or a standby, is no slice of ours", () => {
-		const slice = (declared: object, extra: object = {}) => ({
+		const slice = (declared: object) => ({
 			node: 'claw-4',
 			reachable: true,
 			ok: true,
 			findings: [],
 			notices: [],
-			hosting: { state: 'guaranteed', declared: { memoryMb: 1024, cores: 1, port: 9002, ...declared }, until: null, observed: null, ...extra },
+			hosting: { state: 'guaranteed', declared: { memoryMb: 1024, cores: 1, port: 9002, ...declared }, until: null, observed: null },
 		});
 		const read = (node: object) => parseNodeStatus(JSON.stringify({ contract: 1, generatedAt: '2026-10-28T19:00:00.000Z', nodes: [node] }))?.nodes[0]?.hosting;
 		expect(read(slice({ tenant: 'pygmalion' }))).toBeNull();
 		expect(read(slice({ tenant: 'cardtable', role: 'standby' }))).toBeNull();
-		expect(read(slice({ tenant: 'cardtable' }, { role: 'standby' }))).toBeNull();
 		expect(read(slice({}))).toBeNull();
 		expect(read(slice({ tenant: 'cardtable' }))?.declared?.memoryMb).toBe(1024);
 		expect(read(slice({ tenant: 'cardtable', role: 'primary' }))?.state).toBe('guaranteed');
