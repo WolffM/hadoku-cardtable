@@ -85,11 +85,23 @@
   box-shadow: 0 0 0 3px var(--danger);
 }
 
-/* Several flips at once (each player flipping): side by side. */
+/*
+ * The game's flips (`coin-flip.tsx`), over the table beside the question column, never over a question;
+ * several at once (each player flipping) side by side. They take no pointer: the table under them stays
+ * live.
+ */
 .coin-flips {
+  position: absolute;
+  z-index: var(--z-popover, 40);
+  top: 24%;
+  height: 48%;
+  left: 8.5rem;
+  right: calc(100% - var(--live-col-x, 60%));
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
+  pointer-events: none;
 }
 
 .coin-toss__name {

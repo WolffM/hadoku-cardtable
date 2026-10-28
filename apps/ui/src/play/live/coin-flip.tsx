@@ -4,8 +4,9 @@
  * flipping to the face Forge's flip came up. Forge tells a flip only as a word ("heads", or "win" for a
  * called flip); the bridge reads the flip where Forge still holds the ability, as it reads a die roll,
  * and hands it to the seat's `message` frame that says it (`@hadoku/forge-wire`'s `CoinFlipSchema`).
- * `match.ts` keeps each as a {@link ShownFlip}; {@link CoinFlips} draws the ones still fresh, in the
- * question column as the toss is, side by side when several land together.
+ * `match.ts` keeps each as a {@link ShownFlip}; {@link CoinFlips} draws the ones still fresh over the
+ * table, beside the question column rather than in it (a flip's resolution is often followed at once by a
+ * question, which it must not cover), side by side when several land together.
  *
  * Each new flip sounds the toss's own coin (`onFlip`, quieter for the other seat's, as their sounds
  * are) and is a beat of the board (`../motion.ts`'s `noteBoardDrawing`): the pacer holds what the
@@ -19,7 +20,6 @@ import type { CoinFlip } from '@hadoku/forge-wire';
 
 import { noteBoardDrawing, prefersReducedMotion } from '../motion.ts';
 import { CoinToss, FLIP_MS, SideFace } from './CoinToss.tsx';
-import { QuestionHost } from './movable.tsx';
 
 /** A flip as the table draws it: numbered once for the page's life, when it arrived, and the words Forge said it in. */
 export interface ShownFlip {
@@ -83,8 +83,7 @@ export function CoinFlips({ flips, viewer, onFlip }: { flips: readonly ShownFlip
   }, [fresh[0]?.id, now]);
   if (fresh.length === 0) return null;
   return (
-    <QuestionHost data-testid="live-coin-flip-host">
-      <div className="coin-flips">
+    <div className="coin-flips" data-testid="live-coin-flip-host">
         {fresh.map((f) => (
           <CoinToss
             key={f.id}
@@ -97,7 +96,6 @@ export function CoinFlips({ flips, viewer, onFlip }: { flips: readonly ShownFlip
             data={{ 'data-flip': f.id, 'data-outcome': f.outcome ?? undefined, 'data-flipper': f.player === viewer ? 'you' : 'them' }}
           />
         ))}
-      </div>
-    </QuestionHost>
+    </div>
   );
 }
