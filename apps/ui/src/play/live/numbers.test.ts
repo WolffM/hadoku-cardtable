@@ -29,6 +29,7 @@ import {
   lifeColour,
   planRams,
   ramEnd,
+  runningTotal,
   stackLayout,
   tickSteps,
 } from './numbers.ts';
@@ -909,6 +910,39 @@ describe('planRams', () => {
   });
 });
 
+describe('runningTotal', () => {
+  it('each impact adds its damage to the one number, in the order they land, ending on the life change', () => {
+    expect(runningTotal(-7, [{ at: 100, amount: 1 }, { at: 380, amount: 4 }, { at: 660, amount: 2 }])).toEqual([
+      { at: 100, total: -1 },
+      { at: 380, total: -5 },
+      { at: 660, total: -7 },
+    ]);
+  });
+
+  it('hits are taken in the order they land, not the order given, and two landing together are one step', () => {
+    expect(runningTotal(-6, [{ at: 380, amount: 4 }, { at: 100, amount: 1 }, { at: 100, amount: 1 }])).toEqual([
+      { at: 100, total: -2 },
+      { at: 380, total: -6 },
+    ]);
+  });
+
+  it('the last step is what the life total says, whatever the hits add up to: less is made up on the last blow, more never shows past it', () => {
+    expect(runningTotal(-9, [{ at: 100, amount: 1 }, { at: 380, amount: 4 }]), 'damage the hits do not account for lands with the last').toEqual([
+      { at: 100, total: -1 },
+      { at: 380, total: -9 },
+    ]);
+    expect(runningTotal(-4, [{ at: 100, amount: 3 }, { at: 380, amount: 3 }, { at: 660, amount: 1 }]), 'a gain in the same blow: never past the real total, and no step that changes nothing').toEqual([
+      { at: 100, total: -3 },
+      { at: 380, total: -4 },
+    ]);
+  });
+
+  it('a net gain, or no hits to time it by, is one number with the whole change at the first blow', () => {
+    expect(runningTotal(2, [{ at: 100, amount: 1 }, { at: 380, amount: 4 }])).toEqual([{ at: 100, total: 2 }]);
+    expect(runningTotal(-3, [])).toEqual([{ at: 0, total: -3 }]);
+  });
+});
+
 describe('ramEnd', () => {
   it('both die: they crumple into each other; only it: blasted away; only the other: it wins; neither: a bounce; a player: a charge', () => {
     expect(ramEnd('meet', true, true)).toBe('crumple');
@@ -1025,6 +1059,74 @@ describe('installNumbers: a ram', () => {
       ['g.cheer.7', contactMs('charge')],
       ['g.charge', ALIGN_MS],
     ]);
+    handle.dispose();
+  });
+
+  it('several attackers at one player: ONE number counts up as each blow lands, bumping on each, and the counter steps with it to the real total', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const ids = [50, 51, 52];
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.innerHTML = ids.map((id) => `<li class="board-card" data-board-card="${id}"></li>`).join('');
+    ids.forEach((id, i) => (canvas.querySelector<HTMLElement>(`[data-board-card="${id}"]`)!.getBoundingClientRect = () => rect({ left: 300 + i * 80, top: 100, width: 60, height: 84 })));
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const attackers = ids.map((id) => card(id, 0));
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20, { battlefield: attackers })]));
+    handle.notify({
+      ...view([player(0, 13, { isViewer: true }), player(1, 20, { battlefield: attackers })]),
+      faceHits: [
+        { seq: 1, playerId: 0, sourceId: 50, amount: 1, combat: true },
+        { seq: 2, playerId: 0, sourceId: 51, amount: 4, combat: true },
+        { seq: 3, playerId: 0, sourceId: 52, amount: 2, combat: true },
+      ],
+    });
+    const life = canvas.querySelector('[data-player-face][data-player-id="0"] [data-testid="life"]')!;
+    const numbers = (): HTMLElement[] => [...overlay.querySelectorAll<HTMLElement>('.board-number')];
+    expect(numbers(), 'nothing before the first blow').toHaveLength(0);
+
+    vi.advanceTimersByTime(contactMs('charge'));
+    expect(numbers().map((n) => n.textContent)).toEqual(['-1']);
+    const first = numbers()[0]!;
+    expect(first.dataset.numberRunning, 'it holds where it is while blows are still coming').toBeDefined();
+
+    vi.advanceTimersByTime(RAM_STAGGER_MS);
+    expect(numbers(), 'the same number, not a second one').toEqual([first]);
+    expect(first.textContent).toBe('-5');
+    expect(first.dataset.numberBump, 'the change bumps').toBeDefined();
+    vi.advanceTimersByTime(TICK_STEP_MS);
+    expect(life.textContent, 'the counter steps on from the first blow’s total, not from the start').toBe('18');
+
+    vi.advanceTimersByTime(RAM_STAGGER_MS - TICK_STEP_MS);
+    expect(first.textContent).toBe('-7');
+    expect(first.dataset.numberRunning, 'the last blow is in: it rises').toBeUndefined();
+    expect(life.textContent, 'the last blow takes over from where the counter got to').toBe('18');
+    vi.advanceTimersByTime(TICK_STEP_MS * 5);
+    expect(life.textContent).toBe('13');
+    expect(first.dataset.numberPop, 'it lets go reading 7: a pop, then the rise').toBeDefined();
+    vi.advanceTimersByTime(POP_MS + RISE_MS - TICK_STEP_MS * 5 - 1);
+    expect(numbers(), 'still rising').toEqual([first]);
+    vi.advanceTimersByTime(1);
+    expect(numbers(), 'gone once it has risen').toHaveLength(0);
+    handle.dispose();
+  });
+
+  it('the running number ends on what the life total says even when the hits add up to less', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.innerHTML = '<li class="board-card" data-board-card="50"></li><li class="board-card" data-board-card="51"></li>';
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const attackers = [card(50, 0), card(51, 0)];
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20, { battlefield: attackers })]));
+    handle.notify({
+      ...view([player(0, 12, { isViewer: true }), player(1, 20, { battlefield: attackers })]),
+      faceHits: [
+        { seq: 1, playerId: 0, sourceId: 50, amount: 1, combat: true },
+        { seq: 2, playerId: 0, sourceId: 51, amount: 4, combat: true },
+      ],
+    });
+    vi.advanceTimersByTime(contactMs('charge') + RAM_STAGGER_MS);
+    expect([...overlay.querySelectorAll('.board-number')].map((n) => n.textContent)).toEqual(['-8']);
     handle.dispose();
   });
 

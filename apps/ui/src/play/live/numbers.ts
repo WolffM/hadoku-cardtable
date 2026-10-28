@@ -96,6 +96,16 @@
  * their ram comes after the attack as a person's does, whoever declared it. The viewer's own
  * declarations are theirs to see as they click. Fast Mode: no beat.
  *
+ * ## A combat loss counts up, blow by blow
+ *
+ * A player struck by several attackers gets ONE number that counts up as each one strikes (the operator,
+ * 2026-10-28: "the first creature does one damage it shows "-1" then the next creature does 4 damage and
+ * it gets updated to show "-5""), and the counter steps with it. The amounts are Forge's own per-source
+ * hits (`diff.faceHits`, `PlayBridge.java`'s `faceDamage`), each timed to its ram's blow (`combat.hitAt`);
+ * the last step is always the life change itself (`runningTotal`). The number holds where it appeared
+ * (`data-number-running`), bumps on each new total (`data-number-bump`), and rises once the last blow is in.
+ * Reduced motion and Fast Mode draw no ram, so the whole change appears at once, as before.
+ *
  * ## A life gain in combat is a hit too
  *
  * The loss above holds a struck player's counter for the blow that caused it (`charged`, built from
@@ -427,6 +437,38 @@ export function tickSteps(from: number, to: number): readonly number[] {
   return steps;
 }
 
+/* ── pure: a loss counted up blow by blow ─────────────────────────────── */
+
+/** One blow at a player, as `planRams` times it: when it lands (ms from now) and Forge's own amount (`FaceHit.amount`). */
+export interface TimedHit {
+  readonly at: number;
+  readonly amount: number;
+}
+
+/**
+ * What a player's one number reads as each blow lands (the operator, 2026-10-28: the first creature does
+ * one damage and it shows "-1", the next does 4 and it is updated to "-5"): each step is when blows land
+ * and the loss so far, blows landing together counted as one step. The last step is `delta` itself, what
+ * the life total says — the hits are Forge's per-source damage events, but the life total is the fact:
+ * damage they leave out is made up on the last blow, and a gain in the same blow (a lifelinking blocker)
+ * keeps any step from passing the real total. A net gain, or no hits, is one step with the whole change.
+ */
+export function runningTotal(delta: number, hits: readonly TimedHit[]): { at: number; total: number }[] {
+  const landed = hits.filter((h) => h.amount > 0).sort((a, b) => a.at - b.at);
+  if (delta >= 0 || landed.length === 0) return [{ at: landed[0]?.at ?? 0, total: delta }];
+  const steps: { at: number; total: number }[] = [];
+  let lost = 0;
+  for (const h of landed) {
+    lost += h.amount;
+    const total = Math.max(delta, -lost);
+    const last = steps[steps.length - 1];
+    if (last?.at === h.at) last.total = total;
+    else if (last?.total !== total) steps.push({ at: h.at, total });
+  }
+  steps[steps.length - 1]!.total = delta;
+  return steps;
+}
+
 /* ── pure: a change's colour and text ─────────────────────────────────── */
 
 export type NumberColour = 'danger' | 'success';
@@ -546,32 +588,37 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     return next - by; // the count BEFORE this change — the index a spawn wants
   }
 
-  function spawn(options: {
-    anchorKey: string;
-    at: Boxed;
-    delta: number;
-  }): void {
+  /** A number's text, colour and size for `delta` (AF420: 15px for a point to 38px at the cap; the pop stays an accent). */
+  function dress(el: HTMLElement, delta: number, isReduced: boolean): void {
+    el.dataset.numberColour = lifeColour(delta);
+    if (Math.abs(delta) >= POP_THRESHOLD && !isReduced) el.dataset.numberPop = '';
+    else delete el.dataset.numberPop;
+    el.textContent = formatDelta(delta);
+    const grown = damagePower(Math.abs(delta));
+    el.style.fontSize = `${(15 + 23 * grown).toFixed(1)}px`;
+    el.style.setProperty('-webkit-text-stroke-width', `${(2 + 2 * grown).toFixed(1)}px`);
+  }
+
+  /**
+   * A number at `at` reading `delta`. `holdMs`: it holds where it is that long (`data-number-running`)
+   * before it rises, for a total still counting up — the returned function sets what it reads now, and
+   * bumps it so the change reads. Its rise (and pop) is decided by what it reads when it lets go.
+   */
+  function spawn(options: { anchorKey: string; at: Boxed; delta: number; holdMs?: number }): (delta: number) => void {
     const root = overlay();
-    if (root === null || options.delta === 0) return;
+    if (root === null || options.delta === 0) return () => undefined;
     const box = root.getBoundingClientRect();
     const index = bumpActive(options.anchorKey, 1);
     const layout = stackLayout(index);
-    const colour = lifeColour(options.delta);
     const isReduced = reduced();
-    const pop = Math.abs(options.delta) >= POP_THRESHOLD;
+    const holdMs = isReduced ? 0 : (options.holdMs ?? 0);
 
     const el = document.createElement('div');
     el.className = 'board-number';
     el.setAttribute('aria-hidden', 'true');
-    el.dataset.numberColour = colour;
-    if (pop && !isReduced) el.dataset.numberPop = '';
     if (isReduced) el.dataset.numberReduced = '';
-    el.textContent = formatDelta(options.delta);
-    // AF420: the number grows with the change, 15px for a point to 38px at the cap; the pop (above)
-    // stays as an accent rather than the only sign a change was heavy.
-    const grown = damagePower(Math.abs(options.delta));
-    el.style.fontSize = `${(15 + 23 * grown).toFixed(1)}px`;
-    el.style.setProperty('-webkit-text-stroke-width', `${(2 + 2 * grown).toFixed(1)}px`);
+    if (holdMs > 0) el.dataset.numberRunning = '';
+    dress(el, options.delta, isReduced);
 
     const centre = centreIn(options.at, box, layout.offsetPx);
     el.style.left = `${centre.x}px`;
@@ -584,11 +631,27 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     if (layout.delayMs > 0) schedule(place, layout.delayMs);
     else place();
 
-    const riseMs = isReduced ? RISE_MS : pop ? POP_MS + RISE_MS : RISE_MS;
-    schedule(() => {
-      el.remove();
-      bumpActive(options.anchorKey, -1);
-    }, layout.delayMs + riseMs);
+    /** It rises from `afterMs` on, and is gone when its rise is over. */
+    const letGo = (afterMs: number): void => {
+      const riseMs = el.dataset.numberPop === undefined ? RISE_MS : POP_MS + RISE_MS;
+      schedule(() => {
+        el.remove();
+        bumpActive(options.anchorKey, -1);
+      }, afterMs + riseMs);
+    };
+    if (holdMs > 0)
+      schedule(() => {
+        delete el.dataset.numberRunning;
+        letGo(0);
+      }, layout.delayMs + holdMs);
+    else letGo(layout.delayMs);
+    return (delta: number) => {
+      dress(el, delta, isReduced);
+      // Restarted on every change: the attribute off, a style flush, and on again, so the bump replays.
+      delete el.dataset.numberBump;
+      void el.offsetWidth;
+      el.dataset.numberBump = '';
+    };
   }
 
   /**
@@ -898,12 +961,8 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       origin === null && !fast() && !reduced() && overlay() !== null
         ? planRams(diff.hits, diff.faceHits, (id) => leaving.has(id) || battlefieldCard(canvas, id) !== null, (id) => creatures.has(id))
         : null;
-    /** When the first ram at each player strikes, this view. */
-    const charged = new Map<number, number>();
-    for (const h of diff.faceHits) {
-      const at = combat?.hitAt.get(h.seq);
-      if (at !== undefined) charged.set(h.playerId, Math.min(charged.get(h.playerId) ?? at, at));
-    }
+    /** The players a ram strikes, this view. */
+    const charged = new Set(diff.faceHits.filter((h) => combat?.hitAt.has(h.seq) === true).map((h) => h.playerId));
 
     /** Who stood on a battlefield as this fought, in whichever of `before`/the view just drawn still has it. */
     const controllerOf = (cardId: number): number | null => {
@@ -955,11 +1014,31 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       };
       // Until the hit lands, the counter still reads what it read before the resolution (or the ram).
       const span = face.querySelector<HTMLElement>('[data-testid="life"]');
-      const rammedAt = charged.get(change.playerId);
-      if (rammedAt !== undefined) {
+      if (charged.has(change.playerId) && combat !== null) {
         if (span !== null) span.textContent = String(change.from);
-        if (firstLifeLand === null || rammedAt < firstLifeLand) firstLifeLand = rammedAt;
-        atBeat(land, rammedAt);
+        /*
+         * One number counts the loss up blow by blow (`runningTotal`), from Forge's own per-source hits as
+         * each attacker strikes, and the counter steps with it: each step its own order, so a later blow's
+         * ticks take over from an earlier one's still running, from wherever those had got to.
+         */
+        const blows = diff.faceHits.flatMap((h) => {
+          const at = h.playerId === change.playerId ? combat.hitAt.get(h.seq) : undefined;
+          return at === undefined ? [] : [{ at, amount: h.amount }];
+        });
+        const steps = runningTotal(change.to - change.from, blows);
+        const firstAt = steps[0]!.at;
+        if (firstLifeLand === null || firstAt < firstLifeLand) firstLifeLand = firstAt;
+        let update: (delta: number) => void = () => undefined;
+        steps.forEach((step, i) => {
+          const stepOrder = i === 0 ? order : ++lifeOrder;
+          atBeat(() => {
+            const shown = Number(span?.textContent);
+            const from = i > 0 && Number.isInteger(shown) ? shown : change.from + (i === 0 ? 0 : steps[i - 1]!.total);
+            animateLifeCounter(change.playerId, from, change.from + step.total, stepOrder);
+            if (i === 0) update = spawn({ anchorKey: `face:${change.playerId}`, at: face, delta: step.total, holdMs: steps[steps.length - 1]!.at - firstAt });
+            else update(step.total);
+          }, step.at);
+        });
         continue;
       }
       const gainSources = change.to > change.from ? gainSourcesAt(change.playerId) : [];
