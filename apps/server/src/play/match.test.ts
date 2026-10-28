@@ -4032,10 +4032,11 @@ describe('telemetry (offered, click)', () => {
 
 /*
  * 2026-10-12: the watcher channel (`docs/requests/WATCHPARTY_SEATS_AND_SPECTATORS.md`).
- * One public projection for everyone with no seat, emitted on `WATCHER_SEAT`,
- * built from the first human seat's stream with `createProjector(null)`.
+ * One projection for everyone with no seat, emitted on `WATCHER_SEAT`, built
+ * from the first human seat's stream with `createProjector(EVERY_PLAYER)`
+ * (2026-10-28: the watchers see every hand).
  */
-describe('the watcher channel: one public projection, on WATCHER_SEAT', () => {
+describe('the watcher channel: one projection as every player, on WATCHER_SEAT', () => {
 	const h = harness();
 	h.host.push(...TRANSCRIPT);
 	const watched = envelopesFor(h, WATCHER_SEAT);
@@ -4047,14 +4048,18 @@ describe('the watcher channel: one public projection, on WATCHER_SEAT', () => {
 		expect(new Set(watched.map((e) => e.cursor.epoch))).toEqual(new Set([h.match.epoch]));
 	});
 
-	it("carries no hidden card of EITHER seat — both hands, both libraries — in its serialised payloads", () => {
-		const secrets = new Set<string>();
-		for (const seat of [0, 1]) for (const s of secretsFor(rawStatesOf(TRANSCRIPT, seat), seat).secrets) secrets.add(s);
-		expect(secrets.size).toBeGreaterThan(0);
+	it("carries both seats' hands, and no card neither player may see, in its serialised payloads", () => {
+		const [of0, of1] = [0, 1].map((seat) => secretsFor(rawStatesOf(TRANSCRIPT, seat), seat).secrets) as [Set<string>, Set<string>];
+		// Hidden from both players: a library card. Hidden from one: the other's hand.
+		const nobodys = new Set([...of0].filter((x) => of1.has(x)));
+		const oneHand = new Set([...of0].filter((x) => !of1.has(x)));
+		expect(nobodys.size).toBeGreaterThan(0);
+		expect(oneHand.size).toBeGreaterThan(0);
 		const emitted = watched.map((e) => JSON.stringify(e)).join('\n');
-		expect(leaked(secrets, emitted)).toEqual([]);
-		// Not vacuous: the seats' own channels DO carry their own hands.
-		expect(leaked(secrets, envelopesFor(h, 0).map((e) => JSON.stringify(e)).join('\n')).length).toBeGreaterThan(0);
+		expect(leaked(nobodys, emitted)).toEqual([]);
+		expect(leaked(oneHand, emitted).length, "seat 1's hand, which seat 0 may not see, is the watchers'").toBeGreaterThan(0);
+		// Not vacuous: Forge's raw stream names the library cards.
+		expect(leaked(nobodys, TRANSCRIPT.map((l) => JSON.stringify(l)).join('\n')).length).toBe(nobodys.size);
 	});
 
 	it('is state and endings only: never an ask, a prompt, a bar or a selection', () => {

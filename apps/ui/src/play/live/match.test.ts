@@ -55,7 +55,6 @@ import {
   REFUSED_MS,
   liveBar,
   selectCard,
-  flipPerspective,
   viewerPlayerIdOf,
   selectPlayer,
   setAutoYield,
@@ -3518,34 +3517,38 @@ describe('spectator, names and the end of the game (wave 31 §S)', () => {
     expect(m.stats.snapshots).toBe(snapshots);
   });
 
-  it('forge:role watcher: a spectator with no seat, both hands as counts, a perspective of its own — and a promotion puts the table back (2026-10-12)', async () => {
+  it('forge:role watcher: a spectator with no seat, drawn from the side whose turn it is, holding no hand — and a promotion puts the table back (2026-10-28)', async () => {
     const { s, m } = await fullGame();
     const bottom = m.view!.players.find((p) => p.isViewer)!.id;
     expect(m.view!.players.find((p) => p.isViewer)!.hand, 'a seat sees its own hand').not.toBeNull();
-    expect(flipPerspective(m), 'a seat’s own window cannot turn the table').toBe(false);
     s.sendRole('watcher');
     await until('the flag', () => m.watcher);
     expect(m.spectator, 'a watcher is also a spectator: every gate holds').toBe(true);
-    expect(m.view!.players.every((p) => p.hand === null), 'both hands are counts').toBe(true);
-    expect(m.view!.players.find((p) => p.isViewer)!.id, 'the snapshot’s side is the default').toBe(bottom);
+    expect(m.view!.players.every((p) => p.hand === null), 'a watcher holds no hand: both are drawn as someone else’s').toBe(true);
+    const active = m.view!.activePlayerId!;
+    expect(viewerOf(m.view)!.id, 'whoever’s turn it is is drawn at the bottom').toBe(active);
+    expect(viewerPlayerIdOf(m)).toBe(active);
+    // The turn passes: the table turns with it, and nothing is sent.
+    const other = opponentOf(m.view)!.id;
+    const game = [...m.state.values()].find((o) => o._type === DELTA_TYPE.game)!;
     const before = m.revision;
     const seatPlayer = m.playerId;
-    expect(flipPerspective(m)).toBe(true);
-    expect(m.view!.players.find((p) => p.isViewer)!.id).not.toBe(bottom);
-    expect(m.perspective).not.toBeNull();
-    // Turned around, the viewer is the side drawn at the bottom — the same id before a view
-    // exists (`viewerPlayerIdOf`) and on it (`viewerOf`) — and the opponent is the snapshot's side.
-    expect(viewerOf(m.view)!.id).toBe(m.perspective);
-    expect(viewerPlayerIdOf(m)).toBe(m.perspective);
-    expect(opponentOf(m.view)!.id).toBe(bottom);
+    await sendAndApply(s, m, [
+      parseServerFrame({
+        kind: 'notify',
+        method: 'applyDelta',
+        payload: { packet: { seq: 28, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: { [deltaKey(DELTA_TYPE.game, game._id)]: { _type: DELTA_TYPE.game, _id: game._id, PlayerTurn: { t: 'int', v: other } } }, events: [] } },
+      }),
+    ]);
+    expect(viewerOf(m.view)!.id, 'the other player’s turn: they are at the bottom').toBe(other);
+    expect(viewerPlayerIdOf(m)).toBe(other);
+    expect(opponentOf(m.view)!.id).toBe(active);
     expect(m.playerId, 'the snapshot’s player is unchanged').toBe(seatPlayer);
     expect(m.revision, 'subscribers are told').toBeGreaterThan(before);
-    expect(m.view!.players.every((p) => p.hand === null), 'still counts, from the other side').toBe(true);
     s.sendRole('player');
     await until('the promotion', () => !m.watcher);
     expect(m.spectator).toBe(false);
-    expect(m.perspective).toBeNull();
-    expect(m.view!.players.find((p) => p.isViewer)!.id).toBe(bottom);
+    expect(m.view!.players.find((p) => p.isViewer)!.id, 'a seat is always drawn as its own player').toBe(bottom);
     expect(m.view!.players.find((p) => p.isViewer)!.hand).not.toBeNull();
   });
 

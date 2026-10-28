@@ -4,18 +4,24 @@
  *
  * 1. The lobby: sitting is its own action, a seat can be given back before the
  *    match, and a third person with the table full is told they are watching.
- * 2. The match: the third person sees the game live from either side, has no
- *    game controls, and — the done-when's payload clause — receives no card face
- *    from a hand or a library on the wire. Their input is dropped by the server.
- * 3. The board follows both seats: where each player puts their own cards is
- *    where the watcher sees them, on whichever side the watcher has at the
- *    bottom. (The first party, 2026-10-12: *"card placement on board doesnt
+ * 2. The match: the third person sees the game live with no game controls,
+ *    and — the operator, 2026-10-28: *"the spectator impersonates the view of
+ *    the active player … with the small added benefit of seeing the hidden
+ *    cards"* — both hands face up, and on the wire no library card that no
+ *    player was shown. Their input is dropped by the server.
+ * 3. The board follows both seats and the turn: whoever's turn it is is at the
+ *    bottom, and where each player puts their own cards is where the watcher
+ *    sees them. (The first party, 2026-10-12: *"card placement on board doesnt
  *    update as players move things around"* — every echo went to the top side.)
+ * 4. What the active player is shown, the watcher is shown: Goblin Guide's
+ *    reveal reaches the watcher, and the card under it never does.
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { openFriend, type Friend } from './play/browser.ts';
-import { enterMatch, resizeWindow, serverLog } from './play/board.ts';
+import { messages, openFriend, type Friend } from './play/browser.ts';
+import { enterMatch, grindPriority, pressOffered, resizeWindow, serverLog } from './play/board.ts';
+import { passToDeclareAttackers } from './play/combat.ts';
+import { unseenNamed } from './play/isolation.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
 import { matchUrl, startScenarioMatch } from './play/scenario.ts';
@@ -126,7 +132,7 @@ test('a seat is taken and given back on purpose; the third person with the table
 
 /* ── 2. the match ───────────────────────────────────────────────────── */
 
-test('a third person watches the match from either side with no controls, and no hidden card reaches them on the wire', async ({ browser }) => {
+test('a third person watches the match with no controls, sees both hands, and no library card reaches them on the wire', async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(5 * 60_000);
@@ -152,15 +158,8 @@ test('a third person watches the match from either side with no controls, and no
     for (const id of ['live-concede', 'live-button-end-turn', 'live-play-or-draw-play']) {
       await expect(carol.page.getByTestId(id), `${id} is not drawn for a watcher`).toHaveCount(0);
     }
-    await expect(carol.page.locator('[data-zone="hand"] [data-board-card]'), 'both hands are counts').toHaveCount(0);
     await expect(carol.page.getByTestId('player'), 'both seats are drawn').toHaveCount(2);
-
-    // Perspective: alice (seat 0) at the bottom by default; the flip puts bob there.
-    await expect(viewerName(carol.page)).toHaveText('e2e-alice');
-    await carol.page.getByTestId('perspective-flip').click();
-    await expect(viewerName(carol.page)).toHaveText('e2e-bob');
-    await carol.page.getByTestId('perspective-flip').click();
-    await expect(viewerName(carol.page)).toHaveText('e2e-alice');
+    await expect(carol.page.getByTestId('perspective-flip'), 'the table follows the turn: nothing to flip').toHaveCount(0);
 
     // The payload: what a watcher's socket is actually sent.
     const raw = await connectSio(stack.origin, 'carol');
@@ -193,23 +192,21 @@ test('a third person watches the match from either side with no controls, and no
     await expect(alice.page.getByTestId('live-says'), 'the watcher changed nothing for the players').toContainText(/play or draw/i);
     await expect(alice.page.getByTestId('live-play-or-draw-play')).toBeEnabled();
 
-    // ── The hands, once dealt: both are backs on a watcher's board, and the
-    // perspective seat's at the bottom is drawn the way the top one is — card-
-    // proportioned, as tall as its slot allows, one row that fits — not the
-    // half-size flex row the operator saw at the first party ("weirdly
-    // squished"). Hands are dealt after play-or-draw, so alice answers it; the
-    // keep question stays open, which is fine: a dealt hand is a count already.
+    // ── The hands, once dealt: both face up on a watcher's board, and the
+    // bottom one drawn the way the top one is — as tall as its slot allows, one
+    // row that fits — not the half-size flex row the operator saw at the first
+    // party ("weirdly squished"). Hands are dealt after play-or-draw, so alice
+    // answers it; the keep question stays open.
     await alice.page.getByTestId('live-play-or-draw-play').click();
     await expect
       .poll(async () => (await carol.page.locator('[data-zone="hand"]').evaluateAll((zs) => zs.map((z) => Number(z.getAttribute('data-count'))))), { timeout: 60_000, message: 'both hands dealt on the watcher’s board' })
       .toEqual([7, 7]);
 
-    // The wire, with fourteen faces in play: a watcher's socket still carries
-    // none, and the SAME probe on alice's own socket (a second tab on her seat,
-    // which sees her hand) finds hers — the control. Watchparty's production run
-    // (§10 of the request doc) found the earlier regex here could not fail:
-    // Forge's values are typed, `"Name":{"t":"str","v":…}`, so a string match
-    // for `"Name":"…"` saw nothing, leaked or not.
+    // The wire, with fourteen faces in play: a watcher's socket carries both
+    // hands and nothing more — exactly the faces the two players' own sockets
+    // carry between them, so no library card either was not shown. Watchparty's
+    // production run (§10 of the request doc) found an earlier regex here could
+    // not fail: Forge's values are typed, `"Name":{"t":"str","v":…}`.
     const probe = async (session: string): Promise<string[]> => {
       const sock = await connectSio(stack.origin, session);
       try {
@@ -224,30 +221,31 @@ test('a third person watches the match from either side with no controls, and no
       }
     };
     const watcherFaces = await probe('carol');
-    const playerFaces = await probe('alice');
-    console.log(`[watcher wire] faces after the deal: watcher=${watcherFaces.length} player=${playerFaces.length} (${playerFaces.slice(0, 3).join(', ')}…)`);
-    expect(playerFaces.length, 'the probe finds a player’s own dealt hand — else the watcher’s zero proves nothing').toBeGreaterThanOrEqual(7);
-    expect(watcherFaces, `no card face reaches a watcher with both hands dealt: ${watcherFaces.slice(0, 5).join(', ')}`).toEqual([]);
+    const aliceFaces = await probe('alice');
+    const bobFaces = await probe('bob');
+    console.log(`[watcher wire] faces after the deal: watcher=${watcherFaces.length} alice=${aliceFaces.length} bob=${bobFaces.length}`);
+    expect(aliceFaces.length, 'the probe finds a player’s own dealt hand').toBeGreaterThanOrEqual(7);
+    expect(bobFaces.length).toBeGreaterThanOrEqual(7);
+    expect(new Set(watcherFaces), 'the watcher is sent exactly what the two players are sent between them').toEqual(new Set([...aliceFaces, ...bobFaces]));
     const bottomHand = carol.page.locator('.seat[data-viewer] > [data-zone="hand"]');
     const topHand = carol.page.locator('.seat:not([data-viewer]) > [data-zone="hand"]');
     await expect(bottomHand, 'the bottom hand is the viewer side’s, as the rest of that seat is').toHaveAttribute('data-owner', 'you');
     await expect(topHand).toHaveAttribute('data-owner', 'them');
-    await expect(bottomHand.locator('.card-backs > .card-back'), 'seven backs at the bottom').toHaveCount(7);
-    await expect(topHand.locator('.card-backs > .card-back'), 'seven backs at the top').toHaveCount(7);
+    await expect(bottomHand.locator('[data-board-card]'), 'seven faces at the bottom').toHaveCount(7);
+    await expect(topHand.locator('[data-board-card]'), 'seven faces at the top').toHaveCount(7);
+    await expect(carol.page.locator('[data-zone="hand"] .card-back'), 'no backs: the watcher sees every hand').toHaveCount(0);
     const geometry = async (zone: Locator) => {
-      const back = await zone.locator('.card-back').first().boundingBox();
+      const card = await zone.locator('.card-backs > li').first().boundingBox();
       const box = await zone.boundingBox();
       const overflow = await zone.evaluate((el) => el.scrollWidth - el.clientWidth);
-      if (back === null || box === null) throw new Error('the hand or its first back has no box');
-      return { back, box, overflow };
+      if (card === null || box === null) throw new Error('the hand or its first card has no box');
+      return { card, box, overflow };
     };
     const bottom = await geometry(bottomHand);
     const top = await geometry(topHand);
-    console.log(`[watcher hand] bottom back ${bottom.back.width.toFixed(1)}x${bottom.back.height.toFixed(1)} in ${bottom.box.width.toFixed(0)}x${bottom.box.height.toFixed(0)} overflow ${bottom.overflow}; top back ${top.back.width.toFixed(1)}x${top.back.height.toFixed(1)} in ${top.box.width.toFixed(0)}x${top.box.height.toFixed(0)} overflow ${top.overflow}`);
-    expect(bottom.back.height / bottom.back.width, 'a bottom back has a card’s proportion').toBeGreaterThan(1.3);
-    expect(bottom.back.height / bottom.back.width, 'a bottom back has a card’s proportion').toBeLessThan(1.5);
-    expect(bottom.back.height, 'a bottom back is as tall as its slot allows, like the top ones').toBeGreaterThan(bottom.box.height * 0.6);
-    expect(Math.abs(bottom.back.height - top.back.height), 'the two strips draw their backs at one size').toBeLessThanOrEqual(4);
+    console.log(`[watcher hand] bottom card ${bottom.card.width.toFixed(1)}x${bottom.card.height.toFixed(1)} in ${bottom.box.width.toFixed(0)}x${bottom.box.height.toFixed(0)} overflow ${bottom.overflow}; top card ${top.card.width.toFixed(1)}x${top.card.height.toFixed(1)} in ${top.box.width.toFixed(0)}x${top.box.height.toFixed(0)} overflow ${top.overflow}`);
+    expect(bottom.card.height, 'a bottom card is as tall as its slot allows, like the top ones').toBeGreaterThan(bottom.box.height * 0.6);
+    expect(Math.abs(bottom.card.height - top.card.height), 'the two strips draw their cards at one size').toBeLessThanOrEqual(4);
     expect(bottom.overflow, 'the bottom strip fits its slot').toBeLessThanOrEqual(1);
   } finally {
     await stack.stop();
@@ -256,7 +254,7 @@ test('a third person watches the match from either side with no controls, and no
 
 /* ── 3. the board follows both seats ───────────────────────────────── */
 
-test('a watcher sees each side as its owner arranged it, from either perspective', async ({ browser }) => {
+test('a watcher sees each side as its owner arranged it, with whoever’s turn it is at the bottom', async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(4 * 60_000);
@@ -292,31 +290,70 @@ test('a watcher sees each side as its owner arranged it, from either perspective
     const after = { alice: await fieldOrder(alice.page, 'you'), bob: await fieldOrder(bob.page, 'you') };
     console.log(`[watcher arrangement] alice ${before.alice.join(',')} -> ${after.alice.join(',')}; bob ${before.bob.join(',')} -> ${after.bob.join(',')}`);
 
-    // Alice at the bottom: her side in her order, his in his — the bottom side moves too.
+    // Alice's turn: she is at the bottom, her side in her order, his in his — the bottom side moves too.
+    await expect(viewerName(carol.page), 'alice’s turn: alice at the bottom').toHaveText('e2e-alice');
     await expect.poll(() => fieldOrder(carol.page, 'you'), { timeout: 10_000, message: 'the bottom side (alice) is as alice arranged it' }).toEqual(after.alice);
     await expect.poll(() => fieldOrder(carol.page, 'them'), { timeout: 10_000, message: 'the top side (bob) is as bob arranged it' }).toEqual(after.bob);
     await expect(gaps(carol.page, 'you'), 'her gap is drawn on the bottom side').not.toHaveCount(0);
     await expect(gaps(carol.page, 'them'), 'his gap is drawn on the top side').not.toHaveCount(0);
 
-    // Turned around: the same, with bob at the bottom.
-    await carol.page.getByTestId('perspective-flip').click();
-    await expect.poll(() => fieldOrder(carol.page, 'you'), { timeout: 10_000, message: 'flipped: the bottom side (bob) is as bob arranged it' }).toEqual(after.bob);
-    await expect.poll(() => fieldOrder(carol.page, 'them'), { timeout: 10_000, message: 'flipped: the top side (alice) is as alice arranged it' }).toEqual(after.alice);
+    // The turn passes to bob: the watcher's table turns with it, each side still as its owner arranged it.
+    await grindPriority([alice.page, bob.page], async () => (await alice.page.locator('.seat[data-active]:not([data-viewer])').count()) === 1, { timeoutMs: 90_000 });
+    await expect(viewerName(carol.page), 'bob’s turn: bob at the bottom').toHaveText('e2e-bob', { timeout: 15_000 });
+    await expect(carol.page.locator('.seat[data-viewer][data-active]'), 'the bottom side is the active one').toHaveCount(1);
+    await expect.poll(() => fieldOrder(carol.page, 'you'), { timeout: 10_000, message: 'turned: the bottom side (bob) is as bob arranged it' }).toEqual(after.bob);
+    await expect.poll(() => fieldOrder(carol.page, 'them'), { timeout: 10_000, message: 'turned: the top side (alice) is as alice arranged it' }).toEqual(after.alice);
 
-    // A move made AFTER the flip reaches the side it belongs to.
+    // A move made AFTER the turn passed reaches the side it belongs to.
     await carry(alice);
     await expect.poll(() => fieldOrder(alice.page, 'you'), { timeout: 10_000, message: 'alice moved again' }).not.toEqual(after.alice);
     const again = await fieldOrder(alice.page, 'you');
     await expect.poll(() => fieldOrder(carol.page, 'them'), { timeout: 10_000, message: 'her second move reaches the top side' }).toEqual(again);
     await expect.poll(() => fieldOrder(carol.page, 'you'), { timeout: 5_000, message: 'and bob’s side did not move' }).toEqual(after.bob);
 
-    // A watcher arriving now is sent both arrangements on joining.
+    // A watcher arriving now is drawn from bob's side and sent both arrangements on joining.
     const dave = await openFriend(browser, 'carol');
     await resizeWindow(dave.page, { width: 1280, height: 800 });
     await dave.page.goto(matchUrl(stack.origin, matchId));
     await expect(dave.page.locator('.live[data-role="watcher"]')).toBeVisible({ timeout: 60_000 });
-    await expect.poll(() => fieldOrder(dave.page, 'you'), { timeout: 30_000, message: 'a late watcher: alice’s side as she left it' }).toEqual(again);
-    await expect.poll(() => fieldOrder(dave.page, 'them'), { timeout: 10_000, message: 'a late watcher: bob’s side as he left it' }).toEqual(after.bob);
+    await expect(viewerName(dave.page), 'a late watcher: bob’s turn, bob at the bottom').toHaveText('e2e-bob', { timeout: 30_000 });
+    await expect.poll(() => fieldOrder(dave.page, 'you'), { timeout: 30_000, message: 'a late watcher: bob’s side as he left it' }).toEqual(after.bob);
+    await expect.poll(() => fieldOrder(dave.page, 'them'), { timeout: 10_000, message: 'a late watcher: alice’s side as she left it' }).toEqual(again);
+  } finally {
+    await stack.stop();
+  }
+});
+
+/* ── 4. what the active player is shown ─────────────────────────────── */
+
+test('a watcher is shown the active player’s reveal: Goblin Guide’s top card, and never the card under it', async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(4 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    // Alice's Goblin Guide attacks on her turn 1; bob reveals Lightning Bolt off his library, Shock under it.
+    const { alice, bob, matchId } = await startScenarioMatch(browser, stack, 'af29-goblin-guide');
+    const carol = await openFriend(browser, 'carol');
+    await resizeWindow(carol.page, { width: 1280, height: 800 });
+    await carol.page.goto(matchUrl(stack.origin, matchId));
+    await expect(carol.page.locator('.live[data-role="watcher"]'), 'carol watches').toBeVisible({ timeout: 60_000 });
+    await expect(viewerName(carol.page), 'alice’s turn: alice at the bottom').toHaveText('e2e-alice', { timeout: 30_000 });
+
+    const guide = alice.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card').filter({ hasText: 'Goblin Guide' });
+    await expect(guide, 'Goblin Guide is on her battlefield').toHaveCount(1, { timeout: 60_000 });
+    await passToDeclareAttackers(alice.page);
+    await expect(guide, 'Goblin Guide is offered to attack').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
+    expect(await pressOffered(guide), 'Goblin Guide pressed').toBe(true);
+
+    const bobsTop = (page: typeof carol.page) => page.locator('.seat:not([data-viewer]) [data-library-top] .card__name');
+    await grindPriority([alice.page, bob.page], async () => (await bobsTop(alice.page).count()) > 0, { timeoutMs: 45_000 });
+    await expect(bobsTop(carol.page), 'carol’s board draws the revealed Lightning Bolt on bob’s library').toHaveText('Lightning Bolt', { timeout: 10_000 });
+    // The reveal itself, as alice was shown it: a display-only envelope on carol's own socket.
+    const reveals = carol.captures.filter((c) => c.dir === 'in' && c.text.includes('"displayOnly":true'));
+    console.log(`[watcher reveal] ${reveals.length} display-only frame(s) to carol: ${reveals.map((r) => r.text.slice(0, 160)).join(' | ')}`);
+    expect(reveals.some((r) => r.text.includes('Lightning Bolt')), 'the reveal reached the watcher, display-only').toBe(true);
+    expect(unseenNamed(messages(carol), ['Shock']).violations, 'the card under it never reaches the watcher').toEqual([]);
   } finally {
     await stack.stop();
   }

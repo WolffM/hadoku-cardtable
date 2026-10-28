@@ -1932,18 +1932,20 @@ describe('a third account watches a full match', () => {
 		expect(h.logs.find((l) => l.evt === 'joined' && l.participantId !== undefined && (l as { role?: string }).role === 'watcher')).toBeDefined();
 	});
 
-	it('never receives a card from either hand or library — on the payload, over the whole join and every later frame', async () => {
+	it('receives both hands and no library card — on the payload, over the whole join and every later frame', async () => {
 		const { matchId, carol, host } = await crowd();
 		await carol.request('forge:join', { matchId });
 		const framesBefore = carol.frames.length;
 		host.push(PROBE_ASK, ...AFTER_PROBE);
 		await waitUntil(() => carol.frames.length > framesBefore, 'the later state frames');
 		await new Promise((r) => setTimeout(r, 100));
-		const secrets = new Set<string>();
-		for (const seat of [0, 1]) for (const s of secretsFor(rawStatesOf(TRANSCRIPT, seat), seat).secrets) secrets.add(s);
-		expect(secrets.size).toBeGreaterThan(0);
-		expect(leaked(secrets, carol.transcript())).toEqual([]);
-		expect(carol.frames.some((f) => (f as { frame: { kind: string } }).frame.kind === 'ask')).toBe(false);
+		const [of0, of1] = [0, 1].map((seat) => secretsFor(rawStatesOf(TRANSCRIPT, seat), seat).secrets) as [Set<string>, Set<string>];
+		const nobodys = new Set([...of0].filter((x) => of1.has(x)));
+		const oneHand = new Set([...of0].filter((x) => !of1.has(x)));
+		expect(nobodys.size).toBeGreaterThan(0);
+		expect(leaked(nobodys, carol.transcript()), 'no card hidden from both players').toEqual([]);
+		expect(leaked(oneHand, carol.transcript()).length, "seat 1's hand, hidden from seat 0").toBeGreaterThan(0);
+		expect(carol.frames.some((f) => (f as { frame: { kind: string }; displayOnly?: boolean }).frame.kind === 'ask' && (f as { displayOnly?: boolean }).displayOnly !== true), 'no ask to answer').toBe(false);
 	});
 
 	it('has every input refused and logged as c2s-watcher, and the seats go on unaffected', async () => {

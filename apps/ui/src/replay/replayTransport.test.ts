@@ -158,6 +158,28 @@ describe('createReplayTransport', () => {
     vi.useRealTimers();
   });
 
+  it('a seek replays the board, not what a player was shown in the moment: a recorded reveal opens no notice and no question', () => {
+    vi.useFakeTimers();
+    const data = threeFrameReplay(1000);
+    const reveal = parseServerFrame({ kind: 'ask', callId: 'r-1', method: 'getChoices', message: 'Revealed', min: -1, max: -1, choices: [{ key: 'c0', label: 'Lightning Bolt', ref: null }], selected: [] }, 'getChoices');
+    const envs = [...data.envs];
+    envs.splice(2, 0, { at: 500, env: { matchId: HEADER.matchId, cursor: { epoch: 'e1', seq: 3 }, frame: reveal, displayOnly: true } });
+    const last = envs[3]!;
+    envs[3] = { ...last, env: { ...last.env, cursor: { epoch: 'e1', seq: 4 } } };
+    const { transport, clock } = createReplayTransport({ ...data, envs });
+    const match = startMatch({ matchId: data.header.matchId, transport });
+
+    clock.pause();
+    clock.seek(1000);
+    expect(match.view?.players.map((p) => p.life)).toEqual([15, 20]);
+    expect(match.asks, 'no question').toEqual([]);
+    expect(match.reveal, 'no notice').toBeNull();
+
+    closeMatch(match);
+    clock.dispose();
+    vi.useRealTimers();
+  });
+
   it('loop restarts from 0 one tick after reaching the end — never the same tick, which would erase the final frame before anyone saw it', () => {
     vi.useFakeTimers();
     const data = threeFrameReplay(200);

@@ -2808,11 +2808,10 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     expect(fireEvent.dragStart(card)).toBe(true);
   });
 
-  it('watcher (2026-10-12): no control box at all, a Watching line with a flip, and the flip turns the table around', async () => {
+  it('watcher (2026-10-12): no control box at all, a Watching line, and no hand of its own', async () => {
     const { s, m, getByTestId, queryByTestId, rerender } = await liveBoard();
     s.send(buttons());
     await untilMatch(m, () => expect(m.buttons?.enable1).toBe(true));
-    const bottom = m.view!.players.find((p) => p.isViewer)!.id;
     const frames = (await s.framesFrom(m)).length;
 
     flag(m, { spectator: true, watcher: true }, rerender);
@@ -2825,12 +2824,12 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     expect(queryByTestId('live-decision')).toBeNull();
     expect(getByTestId('live-log-toggle'), 'reading stays').toBeTruthy();
 
-    fireEvent.click(getByTestId('perspective-flip'));
-    expect(m.view!.players.find((p) => p.isViewer)!.id, 'the other player is at the bottom now').not.toBe(bottom);
-    expect(m.view!.players.every((p) => p.hand === null), 'both hands are backs').toBe(true);
+    expect(queryByTestId('perspective-flip'), 'the table follows the turn: nothing to flip').toBeNull();
+    expect(m.view!.players.find((p) => p.isViewer)!.id, 'whoever’s turn it is is at the bottom').toBe(m.view!.activePlayerId);
+    expect(m.view!.players.every((p) => p.hand === null), 'a watcher holds no hand').toBe(true);
     rerender(createElement(LiveBoard, { match: m }));
-    expect(document.querySelectorAll('.board .card-backs').length, 'two backs strips, no hand rail').toBeGreaterThanOrEqual(2);
-    expect(await s.framesFrom(m), 'the flip is the client’s alone').toHaveLength(frames);
+    expect(document.querySelectorAll('.board .card-backs').length, 'two strips, no hand rail').toBeGreaterThanOrEqual(2);
+    expect(await s.framesFrom(m), 'a watcher sends nothing').toHaveLength(frames);
 
     // Promotion to a seat: the box is back and the table is the seat’s way round.
     flag(m, { spectator: false, watcher: false }, rerender);

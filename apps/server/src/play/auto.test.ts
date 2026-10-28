@@ -1454,22 +1454,30 @@ describe('a Match with the shortcuts on (the default)', () => {
 });
 
 /*
- * The operator, 2026-10-28: "Watchers: people watching a match see neither dice nor coins … spectator mode
- * should be perfectly imitating the view of the active player". The watcher channel carried the state and the
- * ending and nothing else a seat is told: no log, no die, no coin. What reaches it now passes one public filter.
+ * The operator, 2026-10-28: "spectator mode should be perfectly imitating the view of the active player", and
+ * later the same day: "i thought the spectator impersonates the view of the active player? with the small added
+ * benefit of seeing the hidden cards?" The watchers are told what the player whose turn it is is told: the log in
+ * their words, their reveals, dice, coins and announcements — never an ask, a bar or a selection.
  */
-describe('the watchers see what the table sees: the log, the dice and the coins', () => {
+describe('the watchers are told what the active player is told', () => {
 	const watched = (h: Harness): ServerFrame[] => frames(h, WATCHER_SEAT);
 	const watchedSays = (h: Harness): string[] => says(h, WATCHER_SEAT);
-	const roll = (player: number, source: number | null) => ({
+	const roll = (player: number, source: number | null, result = 7) => ({
 		kind: 'notify',
 		method: 'message',
-		message: 'rolled 7',
+		message: `rolled ${result}`,
 		title: source === null ? '' : `Wizard's Spellbook (${source})`,
-		roll: { player: { kind: 'player', id: player }, sides: 20, results: [7], source: source === null ? null : { kind: 'card', id: source } },
+		roll: { player: { kind: 'player', id: player }, sides: 20, results: [result], source: source === null ? null : { kind: 'card', id: source } },
 	});
+	/** Make it `seat`'s turn, on the state stream the watchers' board is drawn from (seat 0's). */
+	const turnTo = (h: Harness, seat: number): void =>
+		push(h, 0, {
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: { packet: { seq: 950 + seat, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: { [String(((3 << 28) | 1) >>> 0)]: { _type: 3, _id: 1, PlayerTurn: { t: 'int', v: playerOf(h, seat) } } }, events: [] } },
+		});
 
-	it('gets a log line every player can read, once the public board shows the card it names', () => {
+	it('gets a log line once its board shows the card it names, and a late watcher gets it too', () => {
 		const h = harness();
 		const [p0, p1] = [playerOf(h, 0), playerOf(h, 1)];
 		h.host.push({ t: 'log', type: 'STACK_ADD', players: [p0, p1].map((player) => ({ player, text: 'Seat 1 cast Lightning Bolt', cards: [{ id: 4072, name: 'Lightning Bolt' }] })) } as never);
@@ -1485,76 +1493,101 @@ describe('the watchers see what the table sees: the log, the dice and the coins'
 		expect(h.match.watcherSnapshot(), 'a late watcher gets the log too').toMatchObject({ frames: expect.arrayContaining(sent) });
 	});
 
-	it("words a line as the player who sees least of it, and keeps a line some player cannot be told", () => {
-		const h = harness();
-		const [p0, p1] = [playerOf(h, 0), playerOf(h, 1)];
-		h.host.push({
-			t: 'log',
-			type: 'ZONE_CHANGE',
-			players: [
-				{ player: p0, text: 'Seat 1 draws Island.', cards: [{ id: 4071, name: 'Island' }] },
-				{ player: p1, text: 'Seat 1 draws a card.', cards: [] },
-			],
-		} as never);
-		h.host.push({
-			t: 'log',
-			type: 'DISCARD',
-			players: [
-				{ player: p0, text: 'Seat 1 looks at Forest.', cards: [{ id: 4074, name: 'Forest' }] },
-				{ player: p1, text: null, cards: [] },
-			],
-		} as never);
-		expect(watchedSays(h)).toEqual(['Seat 1 draws a card.']);
-		const payload = h.sent.filter((x) => x.seat === WATCHER_SEAT).map((x) => JSON.stringify(x.envelope)).join('\n');
-		for (const secret of ['Island', 'Forest', '4071', '4074']) expect(payload, secret).not.toContain(secret);
-	});
-
-	it('drops a line whose card the public board never shows, and lets the next one through', () => {
+	it("words a line as the player whose turn it is, and drops a line that player is not told", () => {
 		vi.useFakeTimers();
 		try {
 			const h = harness();
 			const [p0, p1] = [playerOf(h, 0), playerOf(h, 1)];
-			h.host.push({ t: 'log', type: 'REVEAL', players: [p0, p1].map((player) => ({ player, text: 'Seat 1 reveals Opt', cards: [{ id: 4073, name: 'Opt' }] })) } as never);
-			h.host.push({ t: 'log', type: 'TURN', players: [p0, p1].map((player) => ({ player, text: 'Turn 2 (Seat 2)', cards: [] })) } as never);
-			expect(watchedSays(h)).toEqual([]);
+			const draw = (n: number) =>
+				h.host.push({
+					t: 'log',
+					type: 'ZONE_CHANGE',
+					players: [
+						{ player: p0, text: `Seat 1 draws Island ${n}.`, cards: [{ id: 4071, name: 'Island' }] },
+						{ player: p1, text: 'Seat 1 draws a card.', cards: [] },
+					],
+				} as never);
+			const look = () =>
+				h.host.push({
+					t: 'log',
+					type: 'DISCARD',
+					players: [
+						{ player: p0, text: 'Seat 1 looks at Forest.', cards: [{ id: 4074, name: 'Forest' }] },
+						{ player: p1, text: null, cards: [] },
+					],
+				} as never);
+			turnTo(h, 0);
+			draw(1);
+			look();
 			vi.advanceTimersByTime(1000);
-			expect(says(h, 0), "a seat's wait is about order only").toEqual(['Seat 1 reveals Opt', 'Turn 2 (Seat 2)']);
-			expect(watchedSays(h)).toEqual(['Turn 2 (Seat 2)']);
+			expect(watchedSays(h), "seat 1's turn: seat 1's words").toEqual(['Seat 1 draws Island 1.', 'Seat 1 looks at Forest.']);
+			turnTo(h, 1);
+			draw(2);
+			look();
+			vi.advanceTimersByTime(1000);
+			expect(watchedSays(h).slice(2), "seat 2's turn: seat 2's words, and nothing seat 2 is not told").toEqual(['Seat 1 draws a card.']);
 		} finally {
 			vi.useRealTimers();
 		}
 	});
 
-	it("throws the source seat's dice and coins on the watchers' table, live only, the card with them while the table shows it", () => {
+	it("throws the active seat's dice and coins on the watchers' table as that seat was told them, live only", () => {
 		const h = harness();
 		const [p0, p1] = [playerOf(h, 0), playerOf(h, 1)];
-		putCreature(h, 0, 4072);
+		turnTo(h, 0);
 		push(h, 0, roll(p0, 4072));
 		push(h, 1, roll(p0, 4072));
-		push(h, 0, { kind: 'notify', method: 'message', message: 'Seat 2 wins the flip', title: '', flip: { player: { kind: 'player', id: p1 }, outcome: 'heads', won: true, source: { kind: 'card', id: 4090 } } });
+		const flip = { kind: 'notify', method: 'message', message: 'Seat 2 wins the flip', title: '', flip: { player: { kind: 'player', id: p1 }, outcome: 'heads', won: true, source: { kind: 'card', id: 4090 } } };
+		push(h, 0, flip);
+		turnTo(h, 1);
+		push(h, 0, roll(p1, null, 3));
+		push(h, 1, roll(p1, null, 4));
 		const thrown = watched(h).filter((f) => f.method === 'message');
-		expect(thrown, "one copy of each, the source seat's").toHaveLength(2);
-		expect(thrown[0]).toEqual(roll(p0, 4072));
-		expect(thrown[1], 'a card the public board does not show is not named').toEqual({
-			kind: 'notify',
-			method: 'message',
-			message: 'Seat 2 wins the flip',
-			title: '',
-			flip: { player: { kind: 'player', id: p1 }, outcome: 'heads', won: true, source: null },
-		});
+		expect(thrown, "one copy of each, the active seat's").toEqual([roll(p0, 4072), flip, roll(p1, null, 4)]);
 		const snapshot = h.match.watcherSnapshot() as { frames: ServerFrame[] };
 		expect(snapshot.frames.filter((f) => f.method === 'message'), 'a late watcher is not thrown every die again').toEqual([]);
 	});
 
-	it("keeps the seat's own: Forge's other prose, its refusals and errors, and full control", () => {
+	it("shows the watchers the active seat's reveal, display-only, and not the other seat's", () => {
+		vi.useFakeTimers();
+		try {
+			const h = harness();
+			const reveal = (callId: string, ids: number[]) => ({
+				kind: 'ask',
+				callId,
+				method: 'getChoices',
+				message: 'Revealed',
+				min: -1,
+				max: -1,
+				choices: ids.map((id, i) => ({ key: `c${i}`, label: `Card ${id}`, ref: { kind: 'card', id } })),
+				selected: [],
+			});
+			turnTo(h, 1);
+			push(h, 1, reveal('r-active', [900]));
+			push(h, 0, reveal('r-other', [901]));
+			vi.advanceTimersByTime(1000);
+			const shown = h.sent.filter((x) => x.seat === WATCHER_SEAT && x.envelope.frame.kind === 'ask');
+			expect(shown.map((x) => [(x.envelope.frame as { callId: string }).callId, x.envelope.displayOnly])).toEqual([['r-active', true]]);
+			expect((h.match.watcherSnapshot() as { frames: ServerFrame[] }).frames.filter((f) => f.kind === 'ask'), 'not replayed to a late watcher').toEqual([]);
+			expect(h.match.fromClient(WATCHER_SEAT, ClientFrameSchema.parse({ kind: 'reply', callId: 'r-active', method: 'getChoices', result: [] })), 'and nobody answers it').toEqual({ ok: false, error: 'no-such-seat' });
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("hears the active seat's announcements, and none of the other seat's, nor anyone's input, errors or full control", () => {
 		const h = harness();
-		push(h, 0, { kind: 'notify', method: 'message', message: 'There is no card in your hand.', title: '' });
+		turnTo(h, 0);
+		push(h, 0, { kind: 'notify', method: 'message', message: 'Seat 2 chose Red.', title: '' });
+		push(h, 1, { kind: 'notify', method: 'message', message: 'There is no card in your hand.', title: '' });
 		push(h, 0, { kind: 'notify', method: 'flashIncorrectAction' });
 		push(h, 0, { kind: 'notify', method: 'showErrorDialog', message: 'Cost payment invalid', title: 'Error' });
+		push(h, 0, allMustBeChosen('a-9'));
 		h.match.setFullControl(0, true);
-		expect(says(h, 0)).toContain('There is no card in your hand.');
+		expect(says(h, 1)).toContain('There is no card in your hand.');
+		expect(watchedSays(h)).toEqual(['Seat 2 chose Red.']);
 		const methods = watched(h).map((f) => f.method);
-		for (const m of ['message', 'flashIncorrectAction', 'showErrorDialog']) expect(methods, m).not.toContain(m);
+		for (const m of ['flashIncorrectAction', 'showErrorDialog', 'getChoices']) expect(methods, m).not.toContain(m);
 	});
 });
 

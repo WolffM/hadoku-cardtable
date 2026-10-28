@@ -33,6 +33,7 @@ import { ApplyDeltaSchema, GameEventListSchema, safeParseServerFrame, type Print
 import {
 	cardVisibility,
 	createProjector,
+	EVERY_PLAYER,
 	foldFrames,
 	type DeltaPacketJson,
 	type StateFrame,
@@ -901,13 +902,13 @@ describe('phase', () => {
 	});
 });
 
-/*
- * 2026-10-12, the party request (`docs/requests/WATCHPARTY_SEATS_AND_SPECTATORS.md`):
- * a viewer of `null` is the TABLE — what everyone who is not playing may see.
- * Public zones whole, a face-down permanent as its face, and no hand or library
- * at all. The watcher channel in `match.ts` is one of these.
+/**
+ * The watchers' viewer, `EVERY_PLAYER` (the operator, 2026-10-28: *"the spectator impersonates the
+ * view of the active player … with the small added benefit of seeing the hidden cards"*): every
+ * player at once. Public zones and every hand whole, a face-down permanent's face, and a library
+ * card only where a player was shown it. The watcher channel in `match.ts` is one of these.
  */
-describe('a null viewer: the public table (the watcher channel)', () => {
+describe('EVERY_PLAYER: the watchers see as every player at once', () => {
 	const frames = fixtureFrames();
 	const raw = fold(frames);
 	const zoneIds = (playerId: number, zone: string): number[] => {
@@ -915,61 +916,69 @@ describe('a null viewer: the public table (the watcher channel)', () => {
 		return list === undefined ? [] : list.v.map((x) => x.v);
 	};
 
-	it('shows every battlefield and graveyard card whole, and nothing from either hand or library', () => {
-		const projector = createProjector(null);
+	it('shows every battlefield, graveyard and HAND card whole, and nothing from either library', () => {
+		const projector = createProjector(EVERY_PLAYER);
 		for (const frame of frames) projector.project(frame);
 		for (const playerId of PLAYERS) {
 			for (const id of zoneIds(playerId, 'Battlefield')) expect(projector.visibilityOf(id), `battlefield card ${id}`).toBe('full');
 			for (const id of zoneIds(playerId, 'Graveyard')) expect(projector.visibilityOf(id), `graveyard card ${id}`).toBe('full');
 			expect(zoneIds(playerId, 'Hand').length).toBeGreaterThan(0);
-			for (const id of zoneIds(playerId, 'Hand')) expect(projector.visibilityOf(id), `hand card ${id}`).toBe('hidden');
+			for (const id of zoneIds(playerId, 'Hand')) expect(projector.visibilityOf(id), `hand card ${id}`).toBe('full');
 			expect(zoneIds(playerId, 'Library').length).toBeGreaterThan(0);
 			for (const id of zoneIds(playerId, 'Library')) expect(projector.visibilityOf(id), `library card ${id}`).toBe('hidden');
 		}
 	});
 
-	it("puts no identifying string of ANY hand or library card into its serialised frames — the payload, not the screen", () => {
-		const projector = createProjector(null);
-		const emitted = frames.map((frame) => JSON.stringify(projector.project(frame))).join('\n');
-		const secret = new Set<string>();
+	it('puts every hand card into its serialised frames and no identifying string of a library card — the payload, not the screen', () => {
+		const all = createProjector(EVERY_PLAYER);
+		const text = frames.map((frame) => JSON.stringify(all.project(frame))).join('\n');
+		const hands = new Set<string>();
+		for (const playerId of PLAYERS) for (const id of zoneIds(playerId, 'Hand')) for (const s of identifyingStrings(raw, id)) hands.add(s);
+		expect(hands.size).toBeGreaterThan(10);
+		expect(leaked(hands, text).length, 'both hands are named').toBe(hands.size);
+		// The capture names no library card, so one of player 1's hand cards is put on top of their library.
+		const [top, ...hand] = zoneIds(1, 'Hand') as [number, ...number[]];
+		const ids = (list: readonly number[]) => ({ t: 'list', v: list.map((v) => ({ t: 'int', v })) });
+		const tucked = new Map(raw);
+		tucked.set(deltaKey(DELTA_TYPE.player, 1), { ...(raw.get(deltaKey(DELTA_TYPE.player, 1)) as WireObj), Hand: ids(hand), Library: ids([top, ...zoneIds(1, 'Library')]) });
+		tucked.set(deltaKey(DELTA_TYPE.card, top), { ...(raw.get(deltaKey(DELTA_TYPE.card, top)) as WireObj), Zone: { t: 'enum', v: 'Library' } });
+		const secret = new Set(identifyingStrings(raw, top));
 		for (const playerId of PLAYERS) {
-			for (const zone of ['Hand', 'Library']) for (const id of zoneIds(playerId, zone)) for (const s of identifyingStrings(raw, id)) secret.add(s);
+			for (const zone of ['Hand', 'Battlefield', 'Graveyard', 'Exile', 'Command']) {
+				for (const id of zoneIds(playerId, zone)) if (id !== top) for (const s of identifyingStrings(raw, id)) secret.delete(s);
+			}
 		}
-		// A name shared with a public card is not a secret of the hidden one.
-		for (const playerId of PLAYERS) {
-			for (const zone of ['Battlefield', 'Graveyard', 'Exile', 'Command']) for (const id of zoneIds(playerId, zone)) for (const s of identifyingStrings(raw, id)) secret.delete(s);
-		}
-		expect(secret.size).toBeGreaterThan(20);
-		// Not vacuous: the raw stream names them all.
-		const rawText = frames.map((f) => JSON.stringify(f)).join('\n');
-		expect(leaked(secret, rawText).length).toBe(secret.size);
-		expect(leaked(secret, emitted)).toEqual([]);
+		expect(secret.size, 'the tucked card has strings of its own').toBeGreaterThan(0);
+		const out = JSON.stringify(createProjector(EVERY_PLAYER).project({ kind: 'notify', method: 'setGameView', payload: { gameView: Object.fromEntries(tucked), sequenceNumber: 1 } }));
+		expect(leaked(secret, JSON.stringify(Object.fromEntries(tucked))).length, 'not vacuous: the raw state names it').toBe(secret.size);
+		expect(leaked(secret, out)).toEqual([]);
 	});
 
-	it('still says how many cards each hand and library holds — the ids stay, the cards do not', () => {
-		const projector = createProjector(null);
+	it('still says how many cards each library holds — the ids stay, the cards do not', () => {
+		const projector = createProjector(EVERY_PLAYER);
 		const shown = fold(frames.map((frame) => projector.project(frame)));
 		for (const playerId of PLAYERS) {
 			for (const zone of ['Hand', 'Library']) {
 				const list = shown.get(deltaKey(DELTA_TYPE.player, playerId))?.[zone] as { v: { v: number }[] } | undefined;
 				expect(list?.v.map((x) => x.v), `${zone} of player ${playerId}`).toEqual(zoneIds(playerId, zone));
 			}
-			for (const id of zoneIds(playerId, 'Hand')) expect(shown.get(deltaKey(DELTA_TYPE.card, id))?.Name).toBeUndefined();
+			for (const id of zoneIds(playerId, 'Library')) expect(shown.get(deltaKey(DELTA_TYPE.card, id))?.Name).toBeUndefined();
 		}
 	});
 
-	it('shows a face-down permanent as its face-down face and nothing underneath', () => {
+	it('shows a face-down permanent whole, as its controller sees it', () => {
 		const bf = zoneIds(1, 'Battlefield');
 		const cardId = bf[0] as number;
 		const card = raw.get(deltaKey(DELTA_TYPE.card, cardId)) as WireObj;
 		const table = { ...Object.fromEntries(raw), [deltaKey(DELTA_TYPE.card, cardId)]: { ...card, Facedown: { t: 'bool', v: true } } };
 		const frame: StateFrame = { kind: 'notify', method: 'setGameView', payload: { gameView: table, sequenceNumber: 1 } };
-		const projector = createProjector(null);
+		const projector = createProjector(EVERY_PLAYER);
 		const out = (projector.project(frame) as Extract<StateFrame, { method: 'setGameView' }>).payload.gameView;
-		expect(projector.visibilityOf(cardId)).toBe('faceOnly');
-		const seen = out[deltaKey(DELTA_TYPE.card, cardId)] as WireObj;
-		expect(seen.Name).toBeUndefined();
-		expect(seen.Facedown).toEqual({ t: 'bool', v: true });
+		expect(projector.visibilityOf(cardId)).toBe('full');
+		expect((out[deltaKey(DELTA_TYPE.card, cardId)] as WireObj).Name).toEqual(card.Name);
+		const opponent = createProjector(0);
+		opponent.project(frame);
+		expect(opponent.visibilityOf(cardId), 'its opponent sees a face-down card').toBe('faceOnly');
 	});
 });
 
@@ -1224,11 +1233,18 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		expect(held(out, 20)).toEqual({ t: 'str', v: 'Lightning Bolt' });
 	});
 
-	it('teaches the table nothing: a watcher is never shown a reveal', () => {
-		const p = createProjector(null);
-		p.project(opening({ 10: [0] }));
-		expect(p.learn([10, 20])).toBeNull();
-		expect(p.visibilityOf(10)).toBe('hidden');
+	it("shows the watchers a library card some player was shown, and every hand card whether or not anyone was", () => {
+		const p = createProjector(EVERY_PLAYER);
+		const out: (StateFrame | null)[] = [p.project(opening())];
+		expect(p.visibilityOf(10), 'a hand card is the watchers’ from the start').toBe('full');
+		expect(held(out, 10)).toEqual({ t: 'str', v: 'Goblin Guide' });
+		expect(p.visibilityOf(20)).toBe('hidden');
+		out.push(p.learn([20], 0));
+		expect(held(out, 20), 'seat 0 was shown the top card: so are the watchers').toEqual({ t: 'str', v: 'Lightning Bolt' });
+		expect(held(out, 21)).toBeUndefined();
+		out.push(p.project(delta([{ ...player(1, { Hand: [10], Library: [21, 22, 20] }) }])));
+		expect(p.visibilityOf(20), 'shuffled away: nobody knows it, nor do the watchers').toBe('hidden');
+		expect(held(out, 20)).toBeUndefined();
 	});
 
 	/** The `PlayerMayLook` seat `viewer`'s client holds for `id`, from these projected frames. */
@@ -1442,10 +1458,12 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		expect(tucked.alice.visibilityOf(30)).toBe('hidden');
 	});
 
-	it('teaches a watcher nothing from a bounce: it holds no hand', () => {
-		const watcher = createProjector(null);
-		watcher.project(table({ Hand: [10], Library: [20, 21, 22], Battlefield: [30] }));
-		watcher.project(renewed([card(30)], [player(1, { Hand: [10, 30], Library: [20, 21, 22] })]));
-		expect(watcher.visibilityOf(30)).toBe('hidden');
+	it('tells the watchers which player knows a bounced card: it is in every hand they see', () => {
+		const watcher = createProjector(EVERY_PLAYER);
+		const out = [watcher.project(table({ Hand: [10], Library: [20, 21, 22], Battlefield: [30] }))];
+		out.push(watcher.project(renewed([card(30)], [player(1, { Hand: [10, 30], Library: [20, 21, 22] })])));
+		expect(watcher.visibilityOf(30)).toBe('full');
+		expect(lookHeld(out, 30), 'alice watched it go back: the watchers see her eye on it').toEqual({ t: 'list', v: [{ t: 'int', v: 0 }] });
+		expect(lookHeld(out, 10), 'nobody but its holder knows the other').toBeUndefined();
 	});
 });
