@@ -1878,6 +1878,14 @@ export class Match {
 		if (this.status !== 'running') return { ok: false, error: `match is ${this.status}` };
 		switch (frame.kind) {
 			case 'act':
+				// A press under a bar this seat's own last act disabled is refused until Forge shows the seat its next
+				// window. Forge ignores bar state (`InputBase.selectButtonOK` checks only `isFinished()`), and ActGate
+				// hands an act that arrives between inputs to the next one: an OK sent a round trip after a card click
+				// would land on the target prompt that click opened, and the spell is lost.
+				if ((frame.method === 'selectButtonOk' || frame.method === 'selectButtonCancel') && s.staleBar !== null) {
+					this.deps.log({ evt: 'press-refused', matchId: this.id, seat, method: frame.method, label: frame.method === 'selectButtonOk' ? s.staleBar.label1 : s.staleBar.label2 });
+					return { ok: false, error: `press-refused: ${frame.method} under a bar Forge has not re-armed since this seat's last act` };
+				}
 				// A click inside an open selection (a sacrifice, a target) picks a card; it opens no offer of its own.
 				if (frame.method === 'selectCard') s.clicked = s.selection === null ? frame.card.id : null;
 				if (frame.method === 'selectCard' && s.payment !== null) s.paidInto ??= s.payment.card;
