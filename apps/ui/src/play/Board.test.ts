@@ -43,6 +43,7 @@ import { expectPlacement, pendingPlacementFor, applyTheirArrangement, onOwnArran
   clearPlacementColumns,
   commitHandMove,
   copiesIn,
+  drawnRows,
   forgetArrangements,
   forgetPendingPlacements,
   group,
@@ -5843,6 +5844,61 @@ describe('wave 36 §B — T10: the arrangement survives a reload (D1)', () => {
     } finally {
       Object.defineProperty(globalThis, 'sessionStorage', { value: real, configurable: true });
     }
+  });
+});
+
+describe('drawnRows: an attacker is drawn on its own, never inside a pile', () => {
+  // The operator, 2026-10-28: "when a 'stack' of tokens attacks … let's have them split up into individual
+  // cards and not show the 9x pill while the attack is happening."
+  const token = (id: number, attacking = false) =>
+    ({ id, token: true, attacking, card: { name: 'Goblin', typeLine: 'Token Creature — Goblin' } }) as BoardCard;
+  const ids = (g: Grouped, row: 'front' | 'creatures') => g[row].map((pile) => pile.map((c) => c.id));
+  const nine = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+  it('a pile of N with k attacking: k single columns and one pile of N−k', () => {
+    const arranged: Arrangement = { [slotKey(0, 'front')]: [[20], nine, [21]] };
+    const cards = [token(20), ...nine.map((id) => token(id, id <= 3)), token(21)];
+    const rows = drawnRows(group(cards, 0, arranged, 'single'), 'single');
+    expect(ids(rows, 'front')).toEqual([[20], [4, 5, 6, 7, 8, 9], [1], [2], [3], [21]]);
+    expect(rows.front.map(copiesIn)).toEqual([null, 6, null, null, null, null]);
+  });
+
+  it('every copy attacking: N singles, no pile and no ×N', () => {
+    const arranged: Arrangement = { [slotKey(0, 'creatures')]: [nine] };
+    const rows = drawnRows(group(nine.map((id) => token(id, true)), 0, arranged, 'type-separated'), 'type-separated');
+    expect(ids(rows, 'creatures')).toEqual(nine.map((id) => [id]));
+    expect(rows.creatures.every((p) => copiesIn(p) === null)).toBe(true);
+  });
+
+  it('one left behind is a lone card, without a ×1', () => {
+    const arranged: Arrangement = { [slotKey(0, 'front')]: [[1, 2]] };
+    const rows = drawnRows(group([token(1, true), token(2)], 0, arranged, 'single'), 'single');
+    expect(ids(rows, 'front')).toEqual([[2], [1]]);
+    expect(copiesIn(rows.front[0]!)).toBeNull();
+  });
+
+  it('nobody attacking: the rows as grouped, the same object', () => {
+    const arranged: Arrangement = { [slotKey(0, 'front')]: [[], nine] };
+    const grouped = group(nine.map((id) => token(id)), 0, arranged, 'single');
+    expect(drawnRows(grouped, 'single')).toBe(grouped);
+    expect(ids(grouped, 'front')).toEqual([[], nine]);
+  });
+
+  it('an attacker keeps the gear attached to it', () => {
+    const sword = { id: 30, card: { name: 'Sword', typeLine: 'Artifact — Equipment' } } as BoardCard;
+    const host = { ...token(1, true), attachedCardIds: [30] };
+    const arranged: Arrangement = { [slotKey(0, 'front')]: [[1, 2, 3]] };
+    const rows = drawnRows(group([host, token(2), token(3), sword], 0, arranged, 'single'), 'single');
+    expect(ids(rows, 'front')).toEqual([[2, 3], [1, 30]]);
+  });
+
+  it('a drawing rule: the arrangement store is never written', () => {
+    const arranged: Arrangement = { [slotKey(0, 'front')]: [nine] };
+    const before = JSON.stringify(arranged);
+    drawnRows(group(nine.map((id) => token(id, true)), 0, arranged, 'single'), 'single');
+    expect(JSON.stringify(arranged)).toBe(before);
+    // Combat over: the same arrangement draws the one pile again.
+    expect(ids(drawnRows(group(nine.map((id) => token(id)), 0, arranged, 'single'), 'single'), 'front')).toEqual([nine]);
   });
 });
 

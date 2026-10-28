@@ -1170,6 +1170,54 @@ function withAttachments(
 }
 
 /**
+ * The rows as DRAWN: every attacking card in its own column, out of whatever pile it sits in, with
+ * the gear attached to it (the operator, 2026-10-28: *"when a 'stack' of tokens attacks … let's have
+ * them split up into individual cards and not show the 9x pill while the attack is happening"*). A
+ * pile of nine Goblins with three attacking draws as the six left behind, still a pile with its ×6,
+ * then the three attackers one per column right after it; with all nine attacking, nine columns and
+ * no ×N anywhere.
+ *
+ * A drawing rule, never an arrangement: it runs on `group()`'s result in `Battlefield` alone, so the
+ * store — and `withMove`, the card menu, the other seat's copy — keep the pile as the player made
+ * it, and combat ending (Forge clearing `Attacking`) draws the pile again with nothing to restore.
+ * Everything that counts columns for the fit (`cols`, a lane's `--cols`, `withExpectedGap`) reads
+ * these rows, so the split shrinks the cards through the same path any other column would.
+ *
+ * With nothing attacking it returns the rows it was given — the common case allocates nothing.
+ */
+export function drawnRows(rows: Grouped, layout: BoardLayout): Grouped {
+  const splits = (pile: Pile) => pile.length > 1 && pile.some((c) => c.attacking);
+  if (!rowsForLayout(layout).some((row) => rows[row].some(splits))) return rows;
+  const out: Record<BoardRow, Pile[]> = emptyRows();
+  for (const row of rowsForLayout(layout)) {
+    for (const pile of rows[row]) {
+      if (!splits(pile)) {
+        out[row].push(pile);
+        continue;
+      }
+      /** attachment id → the card in this pile it is attached to. */
+      const hostOf = new Map<number, number>();
+      for (const c of pile) for (const id of c.attachedCardIds ?? []) if (id !== c.id) hostOf.set(id, c.id);
+      const rootOf = (id: number): number => {
+        const seen = new Set([id]);
+        for (let at = id; ; ) {
+          const next = hostOf.get(at);
+          if (next === undefined || seen.has(next) || !pile.some((c) => c.id === next)) return at;
+          seen.add(next);
+          at = next;
+        }
+      };
+      const attackers = pile.filter((c) => c.attacking && rootOf(c.id) === c.id);
+      const leaving = new Set(attackers.map((a) => a.id));
+      const left = pile.filter((c) => !leaving.has(rootOf(c.id)));
+      if (left.length > 0) out[row].push(left);
+      for (const a of attackers) out[row].push(pile.filter((c) => rootOf(c.id) === a.id));
+    }
+  }
+  return out;
+}
+
+/**
  * Where a drop landed, and so what the player meant by it.
  *
  * The SLOT's own box — a battlefield row's, or the hand's list — is `end`: "at
@@ -3072,7 +3120,7 @@ function Battlefield({
   foreign?: readonly BoardCard[];
 }) {
   const leavingIds = new Set(leaving.map((d) => d.cardId));
-  const grouped = group(withLeaving(player.battlefield, leaving), player.id, arranged, layout, foreign);
+  const grouped = drawnRows(group(withLeaving(player.battlefield, leaving), player.id, arranged, layout, foreign), layout);
   const expected = PENDING_PLACEMENTS.get(player.id);
   const reserved =
     expected === undefined || expected.expiresAt < Date.now() || !rowsForLayout(layout).includes(expected.slot)
