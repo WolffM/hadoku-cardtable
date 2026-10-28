@@ -16,7 +16,8 @@ async function considerAndPress(page: Page, tile: ReturnType<Page['locator']>, r
   if (box === null) return;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 16 });
   await page.waitForTimeout(restMs);
-  await tile.click();
+  // The deck's peek can open over its own tile near the board's edge; the cursor is not in the footage.
+  await tile.evaluate((el) => (el as HTMLElement).click());
   await page.mouse.move(40, 540, { steps: 10 });
 }
 
