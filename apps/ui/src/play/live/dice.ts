@@ -257,6 +257,8 @@ function showFace(die: HTMLElement, n: number): void {
 export interface DiceHost {
   /** Defaults to the real `prefers-reduced-motion` media query. */
   readonly reducedMotion?: () => boolean;
+  /** Told of each roll as it is thrown, once: its sound (`./sound-events.ts`'s `thrownSoundEvents`). */
+  readonly onThrow?: (roll: ShownRoll) => void;
 }
 
 export interface DiceHandle {
@@ -438,6 +440,7 @@ export function installDice(canvas: HTMLElement, host: DiceHost = {}): DiceHandl
         if (drawn.has(roll.id)) continue;
         drawn.add(roll.id);
         if (now - roll.at > FRESH_MS) continue;
+        host.onThrow?.(roll);
         draw(roll, view);
       }
     },

@@ -33,6 +33,7 @@ import { attackLockedIn, boardPT, viewerOf, type BoardCard, type BoardCardChoice
 import { damagePower } from '../motion.ts';
 import type { DelayedSoundEvent } from '../../sound/index.ts';
 import type { Seat } from '../../sound/mix.ts';
+import type { ShownFlip, ShownRoll } from './shown.ts';
 
 /** Between one untap and the next in the untap step: past the mixer's 80 ms collapse window. */
 export const UNTAP_REPEAT_GAP_MS = 90;
@@ -40,6 +41,17 @@ export const UNTAP_REPEAT_GAP_MS = 90;
 export const UNTAP_REPEAT_MAX = 8;
 /** Between the creature's voice and the thud of it landing. */
 export const LAND_THUD_DELAY_MS = 380;
+/**
+ * A die thrown on the table (`./dice.ts`) or a coin flipped in the game (`./coin-flip.tsx`): one sound, as it
+ * starts, the thrower's — quieter for the other seat's, and for a watcher (`viewer` null). Not a board change: a
+ * throw arrives beside the view, on the `message` frame that says it (`./shown.ts`). The die sounds at the throw,
+ * not the landing: its take is the whole throw, the rattle and the bounces down to the die settling, and the pacer
+ * holds everything after it until it lands, so nothing plays over it.
+ */
+export function thrownSoundEvents(thrown: ShownRoll | ShownFlip, viewer: number | null): DelayedSoundEvent[] {
+  return [{ role: 'results' in thrown ? 'g.die-roll' : 'g.coin-flip', seat: thrown.player === viewer ? 'me' : 'opp' }];
+}
+
 /** A view that changes this much at once is a snapshot (a join, a resync), not a moment. */
 const SNAPSHOT_EVENT_LIMIT = 24;
 

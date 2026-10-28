@@ -316,6 +316,24 @@ $P scripts/sfx/finish.py --min-seed 14000 --out finished-r14-combat
 python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r14-combat --to <sounds dir> --add
 ```
 
+## Round 15: a die roll and an in-game coin flip (2026-10-28)
+
+The operator: *"for missing sounds, make sure they show up in the sound picker on the site, then generate a couple
+using our local model"*. The die roll (`live/dice.ts`) had no slot; `g.die-roll` plays as each roll is thrown, so
+a take is the whole throw: the rattle, a bounce or two and the die settling, cut at 1.6 s (the tumble lands at
+1.25 s, then a 260 ms pop). In-game coin flips played the toss's own slot; `g.coin-flip` is theirs now, cut at 2.4 s
+(the coin's `FLIP_MS`), and falls back to the toss while it is empty. Literal foley of the real object (round 6's
+most-picked style for roles), nothing with a bell. Of 12 die takes, the six whose rattle runs to the landing were
+imported (a lone clack and two-hit takes were not); of 8 coin takes, the five over 2 s (the two `v1` prompts gave a
+bare ping).
+
+```sh
+P=~/.local/opt/stable-audio/.venv/bin/python
+$P scripts/sfx/generate.py --spec scripts/sfx/round15-chance.json --takes 2 --seed 15000 --offload model
+$P scripts/sfx/finish.py --min-seed 15000 --only g.die-roll,g.coin-flip --out finished-r15-chance
+python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r15-chance-picked --to <sounds dir> --add
+```
+
 ## Match music, generated locally (2026-10-17)
 
 The operator: *"we can use local models to generate better stuff … keep the variance high. not everything should

@@ -48,6 +48,7 @@ TAIL_PAD_S = 0.03
 # shorter and simpler"), so the roles that answer a gesture or tick by often get their own short limit.
 MOMENT_CAP = {'m-turn': 2.5, 'm-win': 4.0, 'm-lose': 4.0}
 ROLE_CAP = {'ui.prompt': 1.0, 'g.turn-mine': 2.5, 'g.combat': 2.6, 'g.spell-hit': 1.0, 'g.walker-hit': 1.6,
+            'g.die-roll': 1.6, 'g.coin-flip': 2.4,
             'g.landing.3': 1.0, 'g.landing.5': 1.4, 'g.landing.7': 1.8, 'g.landing.10': 2.4, 'g.game-start': 2.5, 'g.match-start': 3.0,
             'ui.hover-card': 0.25, 'ui.select': 0.3, 'ui.pass': 0.4, 'ui.lift': 0.35,
             'ui.place': 0.35, 'ui.deny': 0.4, 'ui.target': 0.4, 'ui.inspect': 0.4, 'ui.draft-pick': 0.4,

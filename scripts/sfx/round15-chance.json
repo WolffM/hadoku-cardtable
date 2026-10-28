@@ -1,0 +1,34 @@
+{
+ "note": "Round 15 (2026-10-28): the operator: \"for missing sounds, make sure they show up in the sound picker on the site, then generate a couple using our local model\". A die roll tumbles from its card for 1.25 s, bounces twice and lands (live/dice.ts); g.die-roll plays as it is thrown, so a take is the whole throw: the rattle, a bounce or two, and the die settling, over in about a second and a half. A coin flipped in the game (Mana Crypt, Krark's Thumb) draws the toss's coin; g.coin-flip is its own slot so a coin flipped every upkeep need not be the once-a-game toss, and falls back to the toss (g.game-start, whose keepers are a coin flipped high and landing on a wooden table). Literal foley of the real object, the style most of the role picks came from (round 6); no bells, chimes or music.",
+ "suffix": "High-quality, stereo, 44.1kHz, sound effect, foley, close-mic, one short take that ends cleanly.",
+ "negative": "low quality, muffled, lo-fi, hiss, clipping, distortion, music, melody, song, speech, voice, vocals, crowd, casino ambience, chime, chimes, bell, gong, laser, sci-fi, beeping, whoosh, long rumble, many dice, slot machine",
+ "seconds": 3.0,
+ "sounds": {
+  "g.die-roll": {
+   "group": "Round 15",
+   "name": "Die roll",
+   "section": "Moments",
+   "seconds": 3.0,
+   "prompts": [
+    "A single plastic six-sided die thrown onto a wooden table, two quick bounces, a short rattle and it settles flat",
+    "One heavy resin twenty-sided die rolling across a felt-covered game table, soft tumbling clicks slowing to a stop",
+    "A bone die tossed onto an old oak tavern table, clattering twice and spinning briefly before it falls still",
+    "A metal die dropped onto a wooden board, a bright clack, a skittering roll and one last tap as it lands",
+    "A wooden die thrown into a leather dice tray, muffled thumps as it tumbles and settles",
+    "A small die cast onto a stone floor, a sharp click, a couple of hops and a dry rattle to a stop"
+   ]
+  },
+  "g.coin-flip": {
+   "group": "Round 15",
+   "name": "Coin flip",
+   "section": "Moments",
+   "seconds": 3.0,
+   "prompts": [
+    "A coin flicked off a thumb with a metallic ping, caught and slapped flat onto the back of a hand",
+    "A heavy silver coin tossed and landing on a wooden table, one bounce and a short wobble before it lies flat",
+    "A small brass coin flipped and dropped onto a felt card table, a soft thud and a brief spinning rattle",
+    "A gold coin spun up with a ting and landing on a stone floor, a quick ringing wobble settling flat"
+   ]
+  }
+ }
+}

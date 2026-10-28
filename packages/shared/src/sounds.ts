@@ -228,13 +228,14 @@ export function cheerRole(amount: number): string | null {
  * A role whose cell is empty plays this one's instead, and so on down: an impact tier the tier below it, the
  * smallest Creatures collide (what a blow to a player played before the tiers), and Spell hits Creatures collide
  * too; Hit a planeswalker the smallest player hit; a landing tier the tier below, the smallest Hits the table; a
- * cheer the cheer below it; a Gauntlet moment the nearest sound the app already had for it. So a role
+ * coin flipped in the game the toss's coin; a cheer the cheer below it; a Gauntlet moment the nearest sound the app already had for it. So a role
  * nobody has filled yet still sounds.
  */
 export const FALLBACK_ROLES: Readonly<Record<string, string>> = Object.fromEntries([
 	...IMPACT_TIERS.map((t, i) => [impactTierRole(t), i === 0 ? 'g.crash' : impactTierRole(IMPACT_TIERS[i - 1]!)]),
 	...CHEER_TIERS.slice(1).map((t, i) => [cheerTierRole(t), cheerTierRole(CHEER_TIERS[i]!)]),
 	['g.spell-hit', 'g.crash'],
+	['g.coin-flip', 'g.game-start'],
 	['g.walker-hit', impactTierRole(IMPACT_TIERS[0])],
 	...LANDING_TIERS.map((t, i) => [landingTierRole(t), i === 0 ? 'g.enter' : landingTierRole(LANDING_TIERS[i - 1]!)]),
 	['ui.gauntlet-deal', 'g.draw'],
@@ -349,6 +350,9 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 			game('g.match-start', 'Game start', 'Both players are ready and the room starts the match, before the coin toss.', true),
 			// The id predates `g.match-start`; it stays so the operator's placements keep their cell.
 			game('g.game-start', 'Coin toss', 'The coin flips to settle who goes first, on both screens.'),
+			game('g.die-roll', 'Die roll', 'A card rolls a die: it tumbles from the card and lands. Plays as it is thrown.'),
+			// Its own slot, so a coin flipped every upkeep need not be the once-a-game toss.
+			game('g.coin-flip', 'Coin flip', 'A card flips a coin in the game. Empty: the Coin toss plays.'),
 			game('g.mulligan', 'Mulligan', 'A hand goes back.'),
 			game('g.turn-mine', 'Your turn', 'Your turn begins.', true),
 			game('g.phase', 'Phase change', 'The game moves to the next step.'),

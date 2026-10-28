@@ -294,7 +294,7 @@ import { installArrangementSync } from './arrangement-sync.ts';
 import { isPacedTransport } from './pace.ts';
 import { boardFacts, watchFrames, type FrameWatch } from './frame-watch.ts';
 import { BAR_STUCK_MS, barStuck } from './bar-hold.ts';
-import { deriveSoundEvents } from './sound-events.ts';
+import { deriveSoundEvents, thrownSoundEvents } from './sound-events.ts';
 import { phaseSoundGate } from './phase-sound.ts';
 import { NO_PRIORITY_CUE, nextPriorityCue, type PriorityCue } from './priority-cue.ts';
 import { matchStartSounded, openNewMatch } from './matchStart.ts';
@@ -367,7 +367,7 @@ import { castForbiddenTip, costTip, flashTip } from '../tip/words.ts';
 import './live.css';
 import { TossCoin, useCoinFlipping } from './CoinToss.tsx';
 import { CoinFlips } from './coin-flip.tsx';
-import type { ShownFlip } from './shown.ts';
+import type { ShownFlip, ShownRoll } from './shown.ts';
 import { TurnCue, useYourTurnCue } from './TurnCue.tsx';
 import { installDialogMover, QuestionHost, restingTop } from './movable.tsx';
 
@@ -464,23 +464,24 @@ function listField(items: readonly string[]): string {
   return out;
 }
 
+/** A die thrown or a coin flipped in the game, as it starts. */
+function soundThrow(match: LiveMatch, thrown: ShownRoll | ShownFlip): void {
+  const events = thrownSoundEvents(thrown, viewerOf(match.view)?.id ?? null);
+  playSoundEvents(events);
+  reportSound(match, 'throw', events);
+}
+
 /**
  * What the table raised to play, and why, into the match's log: `view` for a
  * board change (the roles, their colour cells, the view's turn and seq),
  * `decision` for a decision window's chime, `priority` for priority handed back
  * (`./priority-cue.ts`), `press` for a bar button, `toss`
- * for the coin toss, `start` for the room's hand-off into a new match. Raised,
+ * for the coin toss, `throw` for a die or a coin thrown in the game, `start`
+ * for the room's hand-off into a new match. Raised,
  * not heard: the mixer may still drop one (unassigned, collapsed, muted), and
  * `muted` says the last.
  */
-/** A coin flipped in the game sounds the toss's own coin, quieter when it is the other seat's. */
-function soundFlip(match: LiveMatch, flip: ShownFlip): void {
-  const events: DelayedSoundEvent[] = [{ role: 'g.game-start', seat: flip.player === viewerOf(match.view)?.id ? 'me' : 'opp' }];
-  playSoundEvents(events);
-  reportSound(match, 'toss', events);
-}
-
-function reportSound(match: LiveMatch, why: 'view' | 'phase' | 'decision' | 'priority' | 'press' | 'toss' | 'start', events: readonly DelayedSoundEvent[], extra: ClientEvent['data'] = {}): void {
+function reportSound(match: LiveMatch, why: 'view' | 'phase' | 'decision' | 'priority' | 'press' | 'toss' | 'throw' | 'start', events: readonly DelayedSoundEvent[], extra: ClientEvent['data'] = {}): void {
   if (events.length === 0) return;
   reportClient(match.transport, match.matchId, 'sound', {
     why,
@@ -3698,6 +3699,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           interaction={interaction}
           revealed={match.revealed}
           rolls={match.rolls}
+          onRoll={(roll) => soundThrow(match, roll)}
           boardLayout={boardLayout}
           fastMode={fastMode}
           onOpenSettings={settings.toggle}
@@ -4046,7 +4048,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * Hadoku to decide…" over his own live pass / End Turn.
        */}
       {/* A coin flipped in the game: the same coin, landing on Forge's face (`coin-flip.tsx`). */}
-      <CoinFlips flips={match.flips} viewer={viewerOf(match.view)?.id ?? null} onFlip={(flip) => soundFlip(match, flip)} />
+      <CoinFlips flips={match.flips} viewer={viewerOf(match.view)?.id ?? null} onFlip={(flip) => soundThrow(match, flip)} />
       {/* The coin is its own fact, told before the lagged `waitingOn` — never gated on it. */}
       {coinToss !== null && !playOrDraw && !myOwnDecisionOpen && !(match.view?.gameOver ?? false) && (
         <QuestionHost data-testid="live-coin-toss-host">

@@ -8,7 +8,7 @@
  * table, beside the question column rather than in it (a flip's resolution is often followed at once by a
  * question, which it must not cover), side by side when several land together.
  *
- * Each new flip sounds the toss's own coin (`onFlip`, quieter for the other seat's, as their sounds
+ * Each new flip sounds Coin flip, which falls back to the toss's coin (`onFlip`, quieter for the other seat's, as their sounds
  * are) and is a beat of the board (`../motion.ts`'s `noteBoardDrawing`): the pacer holds every
  * frame after it, the seat's own and in Fast Mode too, until the coin has landed (`./pace.ts`'s
  * `inTheAir`, as for a die). Reduced motion lands the coin at once and holds nothing.

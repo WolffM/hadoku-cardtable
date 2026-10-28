@@ -4122,6 +4122,7 @@ export function Board({
   onEffect,
   revealed,
   rolls = NO_ROLLS,
+  onRoll,
   fastMode = false,
 }: {
   view: BoardView;
@@ -4129,6 +4130,8 @@ export function Board({
   revealed?: Revealed | null;
   /** The die rolls this seat was told of (`live/match.ts`'s `rolls`): each is drawn once, tumbling from its card (`live/dice.ts`). */
   rolls?: readonly ShownRoll[];
+  /** Told of each roll as its die is thrown, once. */
+  onRoll?: (roll: ShownRoll) => void;
   /** Fast Mode (`live/prefs.ts`): nothing that left the battlefield is drawn leaving, and a resolution does not blink first. */
   fastMode?: boolean;
   interaction?: BoardInteraction;
@@ -4316,10 +4319,12 @@ export function Board({
   }, []);
   /* A die roll (`live/dice.ts`), booted the same way: drawn once per roll, over the view drawn with it. */
   const dice = useRef<ReturnType<typeof installDice> | null>(null);
+  const reportRoll = useRef(onRoll);
+  reportRoll.current = onRoll;
   useLayoutEffect(() => {
     const el = root.current;
     if (el === null) return undefined;
-    const handle = installDice(el);
+    const handle = installDice(el, { onThrow: (roll) => reportRoll.current?.(roll) });
     dice.current = handle;
     return () => {
       dice.current = null;

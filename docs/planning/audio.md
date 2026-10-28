@@ -156,6 +156,8 @@ object, but the id may still be stable.
 | `g.turn-mine` | `activePlayerId` changes to the viewer. Mana and the opponent's turn are silent since 2026-10-16 (the operator: *"i dont need a sound for their turn nor for mana"*) |
 | `g.phase` | `phase` changes (maybe only combat and end step) |
 | `g.game-start` | coin toss resolves |
+| `g.die-roll` | a card rolls a die: once per roll, as it is thrown from its card (`live/dice.ts`, `thrownSoundEvents`); the take is the whole throw, the rattle down to the die settling. The operator, 2026-10-28: *"for missing sounds, make sure they show up in the sound picker on the site"* |
+| `g.coin-flip` | a card flips a coin in the game (`live/coin-flip.tsx`), as the coin starts; empty, it plays the toss's `g.game-start` (what it played before it had a slot), so a coin flipped every upkeep can be told from the once-a-game toss |
 | `g.mulligan` | a mulligan is taken |
 | `g.win` / `g.lose` | `gameOver`, `hasLost` |
 
