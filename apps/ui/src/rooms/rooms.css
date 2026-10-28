@@ -122,8 +122,8 @@
  * its format family's gradient and its own faint symbol. `position: relative` plus `overflow:
  * hidden` clip the symbol; `.room-card__body` is raised onto its own stacking layer above it.
  *
- * `transform`/`border-color`/`box-shadow` transition for the hover lift (ruling 11); `opacity` and
- * `filter` for the "matches the filters" darken-fade (ruling 6, `[data-match='false']` below). Never a literal colour,
+ * `transform`/`border-color`/`box-shadow` transition for the hover lift (ruling 11); `opacity` for
+ * the "matches the filters" darken-fade, with its shade (`::after`) (ruling 6, `[data-match='false']` below). Never a literal colour,
  * only theme and palette tokens.
  */
 .room-card {
@@ -131,7 +131,7 @@
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.2s ease, filter 0.2s ease;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.2s ease;
 }
 
 .room-card:hover,
@@ -142,13 +142,29 @@
 }
 
 /*
- * A room that does not match every filter that is ON: darkened and faded, never hidden — its buttons
- * still work. Darker and greyer than a plain fade, so the matches read at a glance (the operator,
- * 2026-10-28: "make the darken-fade more pronounced when rooms are filtered out").
+ * A room that does not match every filter that is ON: faded and shaded dark, never hidden — its
+ * buttons still work, through the shade. Darker than a plain fade, so the matches read at a glance (the
+ * operator, 2026-10-28: "make the darken-fade more pronounced when rooms are filtered out"). A shade
+ * over the card, never a `filter` on it: nothing that may hold a card image is colour-filtered
+ * (`../cardImageRules.test.ts`).
  */
+.room-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: var(--scrim);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
 .room-card[data-match='false'] {
-  opacity: 0.4;
-  filter: brightness(0.6) saturate(0.4);
+  opacity: 0.45;
+}
+
+.room-card[data-match='false']::after {
+  opacity: 0.5;
 }
 
 /*
