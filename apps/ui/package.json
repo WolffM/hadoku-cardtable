@@ -17,11 +17,11 @@
     "@hadoku/deck": "workspace:*",
     "@hadoku/forge-wire": "workspace:*",
     "@hadoku/shared": "workspace:*",
-    "@wolffm/game-stats-ui": "0.1.6",
-    "@wolffm/prefs-client": "1.0.20",
+    "@wolffm/game-stats-ui": "0.1.7",
+    "@wolffm/prefs-client": "1.1.0",
     "@wolffm/rooms-protocol": "0.43.13",
-    "@wolffm/task-ui-components": "4.20.1",
-    "@wolffm/themes": "5.12.13",
+    "@wolffm/task-ui-components": "4.20.3",
+    "@wolffm/themes": "5.12.14",
     "@wolffm/watchparty-ui": "0.43.13",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -33,7 +33,7 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",
     "@vitejs/plugin-react": "6.1.1",
-    "@wolffm/catalogue": "^1.0.9",
+    "@wolffm/catalogue": "^1.0.10",
     "vite": "8.2.2"
   }
 }
