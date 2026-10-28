@@ -1,14 +1,15 @@
-# Dice: alice (seat 0) is in her own Main Phase 1 with Wizard's Spellbook (tap: exile target
-# instant or sorcery card from a graveyard, roll a d20) and a Mountain for Goblin Tutor (roll a
-# six-sided die) in her hand. Bob's graveyard holds the Spellbook's target. Both libraries hold
-# lands so no draw step loses, and the ones a Tutor could find.
+# Dice, three ways a card rolls: alice (seat 0) is in her own Main Phase 1 with Wizard's Spellbook
+# (tap: exile target instant or sorcery card from a graveyard, roll a d20), Goblin Tutor (roll a
+# six-sided die, its sides Forge's default) and Berserker's Frenzy (roll two d20 and ignore the
+# lower) in hand, and four Mountains to cast both. Bob's graveyard holds the Spellbook's target.
+# Both libraries hold lands so no draw step loses, and the ones a Tutor could find.
 turn=1
 activeplayer=human
 activephase=MAIN1
 humanlife=20
 ailife=20
-humanhand=Goblin Tutor
-humanbattlefield=Wizard's Spellbook;Mountain
+humanhand=Goblin Tutor;Berserker's Frenzy
+humanbattlefield=Wizard's Spellbook;Mountain;Mountain;Mountain;Mountain
 humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
 humangraveyard=
 aihand=

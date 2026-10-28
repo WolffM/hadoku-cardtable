@@ -5,8 +5,10 @@
  * 14"), so the bridge reads it where Forge still holds the ability (`PlayBridge.java`'s
  * `SeatController.notifyOfValue`).
  *
- * Against the real jar, `scenarios/wd-dice.state`: alice taps Wizard's Spellbook (a d20) at bob's
- * Lightning Bolt, then casts Goblin Tutor (a d6, its sides Forge's default).
+ * Nothing here is about one card: the bridge reads any roll `RollDiceEffect` tells (a `RollDice`
+ * ability's own die, or a cost's). Against the real jar, `scenarios/wd-dice.state`: alice taps Wizard's
+ * Spellbook (an activated d20) at bob's Lightning Bolt, casts Goblin Tutor (a spell's d6, its sides
+ * Forge's default), then Berserker's Frenzy (two d20, the lower ignored).
  *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=~/.cache/… \
  *   pnpm exec vitest run apps/server/src/play/dice-roll.jvm.test.ts
@@ -33,7 +35,7 @@ function rolls(s: Scenario, from: number): Said[] {
 }
 
 describe.skipIf(!available.ok)(title('a die roll carries its die, against real Forge'), () => {
-	it("Wizard's Spellbook rolls a d20 and Goblin Tutor a d6: both seats are told each roll, its sides and its source", async () => {
+	it('an activated d20, a spell’s d6 and two d20 with the lower ignored: both seats are told each roll, its dice and its source', async () => {
 		const s = await startScenario(available.ok ? available.config : (undefined as never), {
 			seed: 2020,
 			decks: [deck('wd-a', ['20 Mountain']), deck('wd-b', ['20 Mountain'])],
@@ -79,6 +81,23 @@ describe.skipIf(!available.ok)(title('a die roll carries its die, against real F
 				expect(r.roll!.results[0]).toBeGreaterThanOrEqual(1);
 				expect(r.roll!.results[0]).toBeLessThanOrEqual(6);
 				expect(r.roll!.source).toEqual({ kind: 'card', id: tutor.id });
+			}
+
+			await waitUntil(() => { s.answerAsks(); return inOwnMain(s, 0, 1) && s.zone(0, 'Hand').some((c) => c.name === "Berserker's Frenzy"); }, "alice's priority back after the Tutor", 60_000, s);
+			const frenzy = s.zone(0, 'Hand').find((c) => c.name === "Berserker's Frenzy")!;
+			const third = s.sent.length;
+			const payFrenzy = landPayer(s, 0);
+			s.select(0, frenzy.id);
+			await waitUntil(() => { payFrenzy(); s.answerAsks(); return rolls(s, third).length >= 2; }, 'the two d20 told to both seats', 30_000, s);
+			const twice = rolls(s, third);
+			console.log(`[dice] 2d20, lower ignored: ${JSON.stringify(twice)}`);
+			for (const r of twice) {
+				expect(r.roll!.sides).toBe(20);
+				expect(r.roll!.results).toHaveLength(1);
+				expect(r.roll!.ignored).toHaveLength(1);
+				expect(r.roll!.ignored![0]).toBeLessThanOrEqual(r.roll!.results[0]!);
+				expect(r.roll!.source).toEqual({ kind: 'card', id: frenzy.id });
+				expect(r.message).toBe(`Alice rolled ${r.roll!.results[0]}\r\nIgnored rolls: ${r.roll!.ignored![0]}`);
 			}
 		} finally {
 			await s.stop();

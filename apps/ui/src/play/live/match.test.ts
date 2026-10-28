@@ -1845,6 +1845,15 @@ describe('the says, and full control', () => {
     ]);
   });
 
+  it('a die roll stays a line of the log, and is kept for the board to draw', async () => {
+    const { s, m } = await fullGame();
+    const roll = { player: { kind: 'player' as const, id: 0 }, sides: 20, results: [14], source: { kind: 'card' as const, id: 48 } };
+    await sendAndApply(s, m, [parseServerFrame({ kind: 'notify', method: 'message', message: 'Alice rolled 14', title: "Wizard's Spellbook (48)", roll }), says('Bob rolled 3')]);
+    expect(texts(m)).toEqual(['Alice rolled 14', 'Bob rolled 3']);
+    expect(m.rolls).toHaveLength(1);
+    expect(m.rolls[0]).toMatchObject({ player: 0, sides: 20, results: [14], ignored: [], source: 48 });
+  });
+
   it('a snapshot clears the log, and the lines that come after it refill it', async () => {
     const { s, m } = await fullGame();
     await sendAndApply(s, m, [says('auto-passed Upkeep step'), says('paid U — Volcanic Island')]);
