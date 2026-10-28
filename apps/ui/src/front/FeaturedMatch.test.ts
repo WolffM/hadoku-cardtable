@@ -58,8 +58,15 @@ const json = (status: number, body: unknown): Response => new Response(JSON.stri
 describe('FeaturedMatch', () => {
   it('with no pick and no replay, renders nothing', async () => {
     const fetchImpl: Fetch = () => Promise.resolve(json(200, { replays: [] }));
-    const { queryByTestId } = render(createElement(FeaturedMatch, { pick: null, fetchImpl }));
+    const { queryByTestId } = render(createElement(FeaturedMatch, { pick: null, fetchImpl, replayFallback: true }));
     await waitFor(() => expect(queryByTestId('featured-match')).toBeNull());
+  });
+
+  it('with no pick and replays off, renders nothing and never asks for one', async () => {
+    const fetchImpl = vi.fn<Fetch>(() => Promise.resolve(json(200, { replays: [] })));
+    const { queryByTestId } = render(createElement(FeaturedMatch, { pick: null, fetchImpl, replayFallback: false }));
+    await waitFor(() => expect(queryByTestId('featured-match')).toBeNull());
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('with no pick, falls back to the newest replay, tagged REPLAY, linking to #/replay/<id>', async () => {
@@ -69,7 +76,7 @@ describe('FeaturedMatch', () => {
       if (url.includes('limit=1')) return Promise.resolve(json(200, { replays: [{ matchId: 'm-replay', roomId: null, players: ['Alice', 'Bob'], decks: [], startedAt: data.header.startedAt, endedAt: null, winner: null, source: 'stream' }] }));
       return Promise.resolve(json(200, data));
     };
-    const { getByTestId } = render(createElement(FeaturedMatch, { pick: null, fetchImpl }));
+    const { getByTestId } = render(createElement(FeaturedMatch, { pick: null, fetchImpl, replayFallback: true }));
     await waitFor(() => expect(getByTestId('featured-match-tag').textContent).toBe('REPLAY'));
     expect(getByTestId('featured-match-watch').getAttribute('href')).toBe('#/replay/m-replay');
     await waitFor(() => expect(getByTestId('featured-match').textContent).toContain('Alice'));

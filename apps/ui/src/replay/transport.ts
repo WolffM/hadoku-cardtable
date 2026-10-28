@@ -25,6 +25,14 @@ import { safeParseServerFrame } from '@hadoku/forge-wire';
 import { apiUrl, bodyOf, getJson, isRecord, serverMessage, type Fetch } from '../http.ts';
 import { parseServerEnvelope, type ServerEnvelope } from '../play/live/transport.ts';
 
+/**
+ * Whether the front page links to replays at all (the operator, 2026-10-28: "disable the replay
+ * feature for now until we make it properly working" — the featured slot sat on "Seat 1, waiting
+ * for the state."). Off: no REPLAY fallback in the featured slot, no "Last game" wildcard. The
+ * `#/replay/<id>` route itself still answers, for whoever fixes it.
+ */
+export const REPLAYS_ON = false;
+
 /** The recorded public stream's header line (contract 1), as contract 2 serves it back. */
 export interface ReplayHeader {
   matchId: string;

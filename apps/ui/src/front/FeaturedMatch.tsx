@@ -8,9 +8,9 @@
  * joins that match exactly the way opening `#/match/<id>` does — the same
  * transport, the same `LiveMatch` — and a socket with no seat lands on
  * `WATCHER_SEAT` by construction (`apps/server/src/play/socket.ts`), so there
- * is nothing here that claims one. With no pick, it falls back to the newest
- * replay, looping, with a REPLAY tag in place of LIVE. With neither, it
- * renders nothing and lane A's grid closes the gap.
+ * is nothing here that claims one. With no pick, and only while `REPLAYS_ON`,
+ * it falls back to the newest replay, looping, with a REPLAY tag in place of
+ * LIVE. With neither, it renders nothing and lane A's grid closes the gap.
  *
  * `LiveBoard` is rendered whole, at the size its own table-fit expects
  * (`e2e/table-fit.spec.ts`'s own reference, 1280×800), inside a box scaled
@@ -38,7 +38,7 @@ import {
 import type { Fetch } from '../http.ts';
 import { holdMatchQuiet } from '../sound/index.ts';
 import { createReplayTransport, type ReplayClock } from '../replay/replayTransport.ts';
-import { fetchLatestReplay, fetchReplay } from '../replay/transport.ts';
+import { fetchLatestReplay, fetchReplay, REPLAYS_ON } from '../replay/transport.ts';
 import './FeaturedMatch.css';
 
 export interface FeaturedMatchProps {
@@ -47,6 +47,8 @@ export interface FeaturedMatchProps {
   makeTransport?: () => MatchTransport;
   /** Tests pass a stub `fetch` for the no-pick replay fallback. Production leaves it unset. */
   fetchImpl?: Fetch;
+  /** Fall back to the newest replay when there is no pick. Defaults to `REPLAYS_ON`. */
+  replayFallback?: boolean;
 }
 
 /** `e2e/table-fit.spec.ts`'s own reference room size — what `LiveBoard`'s table-fit is designed against. */
@@ -97,7 +99,7 @@ function TitleBar({ source, watchHref }: { source: Source; watchHref: string }) 
   );
 }
 
-export function FeaturedMatch({ pick, makeTransport, fetchImpl }: FeaturedMatchProps) {
+export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback = REPLAYS_ON }: FeaturedMatchProps) {
   const [source, setSource] = useState<Source | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const scale = useFitScale(viewportRef);
@@ -114,7 +116,7 @@ export function FeaturedMatch({ pick, makeTransport, fetchImpl }: FeaturedMatchP
       const match = startMatch({ matchId: pick.matchId, transport: makeTransport?.() ?? socketIoMatchTransport() });
       built = match;
       setSource({ kind: 'live', match });
-    } else {
+    } else if (replayFallback) {
       void fetchLatestReplay(fetchImpl).then(
         (listing) => {
           if (!live || listing === null) return;

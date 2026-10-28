@@ -10,7 +10,7 @@
  *     its own, so the lobby's read budget (`e2e/aa-polling.spec.ts`) is unchanged.
  *   - **Cube spotlight** — a cube, three of its cards' art through the art manifest
  *     (`../draft/cardImage.ts`, never a stored URL), and Play now: a draft room on that cube.
- *   - **Last game** — the newest replay, `GET /api/replays?limit=1`.
+ *   - **Last game** — the newest replay, `GET /api/replays?limit=1`; only while `REPLAYS_ON`.
  *   - **In the Discord** — #general's last few messages and Join Discord (`/api/discord/recent`,
  *     ArchiveBot's, prod only).
  *   - **Looking for a game** — the bare Discord invite (`../chrome/HeaderLinks.tsx`): there whenever
@@ -29,6 +29,7 @@ import { coverCropStyle, ILLUSTRATION_BOX } from '../components/faceCrop.ts';
 import { cardImageUrl } from '../draft/cardImage.ts';
 import { onRoomList, poolsClient, roomsClient } from '../rooms/api.ts';
 import { warmRoom } from '../rooms/warm.ts';
+import { REPLAYS_ON } from '../replay/transport.ts';
 import { navigate, routeHash } from '../screens/route.ts';
 import { playRole } from '../sound/index.ts';
 import { openSeats, pickWildcard, sampleArt, spotlightCube, type WildcardKind } from './wildcardItems.ts';
@@ -76,8 +77,9 @@ function parseReplaySummary(body: unknown): ReplaySummary | null {
 
 /** The newest replay, as a wildcard item: `ASKING` until the read answers, `null` when there is none. */
 function useLastGame(): WildcardItem | null | typeof ASKING {
-  const [item, setItem] = useState<WildcardItem | null | typeof ASKING>(ASKING);
+  const [item, setItem] = useState<WildcardItem | null | typeof ASKING>(REPLAYS_ON ? ASKING : null);
   useEffect(() => {
+    if (!REPLAYS_ON) return undefined;
     let live = true;
     getJson(apiUrl('replays?limit=1'))
       .then(async (res) => (res.ok ? parseReplaySummary(await bodyOf(res)) : null))
