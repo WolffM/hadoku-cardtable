@@ -666,6 +666,8 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
         // 45 picks a drafter, and at production's pace the bots, not the product,
         // would be what it waits on. Still a clock, so packs queue as they do live.
         CARDTABLE_DRAFT_BOT_PICK_MS: '100',
+        // `promo/` films with the real sound library; a spec never sets it, so the stack stays silent.
+        ...(process.env.CARDTABLE_SOUNDS_DIR === undefined ? {} : { CARDTABLE_SOUNDS_DIR: process.env.CARDTABLE_SOUNDS_DIR }),
       },
     });
   /** Whoever is waiting on a line the server has not written yet — see {@link jvmWarm}. */
