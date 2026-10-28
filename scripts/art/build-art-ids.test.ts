@@ -14,7 +14,28 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 import { otherFaces } from '../../packages/carddata/src/faces.ts';
-import { faceRows, mostUsedPrinting, scenarioNames, type PrintingVote } from './build-art-ids.ts';
+import { faceRows, mostUsedPrinting, scenarioNames, tokenPrintingOrder, type PrintingVote } from './build-art-ids.ts';
+
+describe('tokenPrintingOrder: a token falls back to a printing with its stats', () => {
+  // The operator, 2026-10-27, of Acererak's Zombie: "it has no stats on it". The earliest Zombie
+  // token is Unglued's, which Scryfall marks textless: no type line, no power and toughness.
+  const unglued = { id: 'tugl-zombie', name: 'Zombie', released_at: '1998-08-11', collector_number: '91', textless: true };
+  const tenth = { id: 't10e-zombie', name: 'Zombie', released_at: '2007-07-13', collector_number: '2', textless: false };
+  const later = { id: 'tm10-zombie', name: 'Zombie', released_at: '2009-07-17', collector_number: '7', textless: false };
+
+  it('puts a printing with its text before a textless one, however much older the textless one is', () => {
+    expect([unglued, tenth].sort(tokenPrintingOrder).map((c) => c.id)).toEqual(['t10e-zombie', 'tugl-zombie']);
+    expect([tenth, unglued].sort(tokenPrintingOrder).map((c) => c.id)).toEqual(['t10e-zombie', 'tugl-zombie']);
+  });
+
+  it('still picks the earliest release among printings with their text', () => {
+    expect([later, unglued, tenth].sort(tokenPrintingOrder).map((c) => c.id)).toEqual(['t10e-zombie', 'tm10-zombie', 'tugl-zombie']);
+  });
+
+  it('falls back to a textless printing when it is the only one', () => {
+    expect([unglued].sort(tokenPrintingOrder).map((c) => c.id)).toEqual(['tugl-zombie']);
+  });
+});
 
 describe('mostUsedPrinting', () => {
   it('picks the printing with the most votes, not the first one cast', () => {

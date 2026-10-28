@@ -137,6 +137,7 @@ is in `docs/planning/wave37-evidence/A-repro.md`.
 | `attack-window-idle.state` | seat 0 attacks with Grizzly Bears beside an untapped Celestial Colonnade (its animation unaffordable off three lands), a land and a sorcery in hand; seat 1 has no creature. | `e2e/attack-window.spec.ts` — no second OK after the attack |
 | `attack-window-play.state` | the same attack holding Giant Growth with two Forests up. | `e2e/attack-window.spec.ts` — the window is kept for a real play |
 | `af409-second-land.state` | seat 0 holds two different lands (Forest, Mountain) in hand, an uncontested turn-1 Main Phase 1. | `e2e/af409-mistake-bubble.spec.ts` — the mistake bubble's "land" line |
+| `acererak-venture.state` | seat 0 casts Acererak the Archlich off three Swamps (it returns to hand and ventures), beside a 2/2 Zombie token and The Atropal already on its battlefield. | `apps/ui/src/play/live/acererak-venture.jvm.test.ts` — the dungeon in its owner's Command zone with its art, each creature token with its stats |
 
 Every scenario sets `turn=1`, both seats' life to 20, and a small library of
 basic lands for both seats (so an incidental draw never loses the game) unless

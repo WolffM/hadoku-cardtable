@@ -1,0 +1,19 @@
+# Acererak the Archlich ventures into Tomb of Annihilation (the operator, 2026-10-27: "Acererak the
+# archlich isn't showing the tomb of annihilation as a token? also the zombie token it's showing
+# looks weird it has no stats on it").
+#
+# Seat 0 casts Acererak ({2}{B}): it enters, bounces to hand and ventures. Seat 0 already controls a
+# 2/2 black Zombie token (Acererak's own attack token) and The Atropal (Tomb's last room).
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Acererak the Archlich
+humanbattlefield=Swamp;Swamp;Swamp;T:b_2_2_zombie;T:the_atropal
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
