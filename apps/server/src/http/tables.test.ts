@@ -3719,16 +3719,12 @@ describe('a Gauntlet table', () => {
 	});
 
 	/**
-	 * (operator, 2026-10-26: "Gauntlet flips a coin for every game" — the
-	 * loser-chooses rule is for a real SERIES, Bo3 or a pod, never a
-	 * Gauntlet game). `room/series.ts`'s GAUNTLET format sizes `table.series`
-	 * Bo3 purely so `recordGameResult` has a `between` to put the table in —
-	 * never a series whose loser earns a say — but `routes.ts:2047`'s
-	 * `previousWinner` reads that same `table.series.games` regardless of who
-	 * is playing. Evidence: production `room-match-started` for every game
-	 * after the first of `r-c08cb995827a` (games 2, 3, 5) carried a `chooser`.
+	 * The operator, 2026-10-28 (overturning 2026-10-26's "Gauntlet flips a coin for every game"): "follow
+	 * the normal Bo3 rules for winner/loser and choosing" — the loser of a Gauntlet game chooses play or
+	 * draw for the next, as in any Bo3. Production `r-ae1712d0df3d`: alice lost game 1 to the AI and game 2
+	 * flipped a coin.
 	 */
-	it('never asks play-or-draw by a previous game’s loser, though the table’s own series remembers who won it', async () => {
+	it('asks the previous game’s loser play-or-draw, as any Bo3 does', async () => {
 		const h = await boot();
 		const room = Object.assign(h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]), { mode: 'gauntlet' as const, modeOptions: { family: 'modern' as const } });
 		expect((await call(h, 'POST', `/api/tables/rooms/${ROOM}/sit`, {}, edgeHeaders('alice'))).status).toBe(200);
@@ -3741,15 +3737,15 @@ describe('a Gauntlet table', () => {
 
 		// A previous game's own record — exactly the shape `recordGameResult`
 		// leaves on `table.series` once Bo3-sized `between` machinery records a
-		// game (never `seating`/`done`, so `newSeries` reads false): alice (seat
-		// 0) won it.
-		room.tables[0]!.series = { ...room.tables[0]!.series, phase: 'between', games: [{ matchId: 'm-gauntlet-game1', winner: 0 }] };
+		// game (never `seating`/`done`, so `newSeries` reads false): the AI (seat
+		// 1) won it.
+		room.tables[0]!.series = { ...room.tables[0]!.series, phase: 'between', games: [{ matchId: 'm-gauntlet-game1', winner: 1 }] };
 
 		const pending = call(h, 'POST', '/api/play/matches', { room: ROOM, bot: true }, edgeHeaders('alice'));
 		await untilHost(h, 1, pending);
 		(h.hosts.at(-1) as ReplayHost | undefined)?.push(...OPENING);
 		expect((await pending).status).toBe(201);
-		expect(h.specs[0]!, 'a Gauntlet game never carries a chooser, whatever the table’s own series remembers').not.toHaveProperty('chooser');
+		expect(h.specs[0]!.chooser, 'alice lost game 1, so she chooses').toBe(0);
 	});
 
 	/** Ruling 13.4: a drawn Gauntlet holds the table until it is decided, and then the room is free again. */
