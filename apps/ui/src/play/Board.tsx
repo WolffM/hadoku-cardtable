@@ -378,6 +378,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useReducer,
   useRef,
   useState,
@@ -602,6 +603,18 @@ export interface BoardInteraction {
    */
   combatReady?: ReadonlySet<number>;
   /**
+   * AF397 (doomed cards): what the open choice in front of this seat would send off the
+   * battlefield if answered as it now stands (`live/match.ts`'s `doomAskOf`) — `keep-one`, the
+   * legend rule, every candidate but the one the seat points at goes; `chosen-goes`, a sacrifice or
+   * a destroy/exile target, the one it points at goes. Absent: no such choice is open. This board
+   * owns the POINTING (`doomHover`/`onDoomHover`, below) — the wire has no concept of a mouse.
+   */
+  doomAsk?: { readonly candidates: ReadonlySet<number>; readonly fate: 'keep-one' | 'chosen-goes' };
+  /** Which `doomAsk` candidate the seat points at right now. Local to the board; nothing on the wire. */
+  doomHover?: number | null;
+  /** A `doomAsk` candidate was pointed at, or left (`null`). Only ever called for an id in `doomAsk.candidates`. */
+  onDoomHover?(cardId: number | null): void;
+  /**
    * The colours of the viewer's floating pool that pay the open payment: pressable
    * (`live/match.ts`'s `poolPays`). Absent otherwise.
    */
@@ -613,6 +626,20 @@ export interface BoardInteraction {
   /** A card was clicked. Only ever called for an id in `selectable`. */
   onSelectCard(cardId: number): void;
   onSelectPlayer(playerId: number): void;
+}
+
+/**
+ * AF397: what `data-doomed` this card gets right now, from the open choice and where the seat
+ * points — `card.css`'s own contract (`[data-doomed='sure'|'maybe']`), never a third value.
+ * `keep-one` (the legend rule): every candidate is `maybe` until a hover names one to keep, then
+ * every OTHER candidate turns `sure` and the pointed-at one clears (it is the one staying).
+ * `chosen-goes` (a sacrifice, a destroy/exile target): nothing is marked until a hover names the
+ * one that would go, which alone turns `sure`.
+ */
+function doomedMark(id: number, ask: BoardInteraction['doomAsk'], hover: number | null): 'sure' | 'maybe' | undefined {
+  if (ask === undefined || !ask.candidates.has(id)) return undefined;
+  if (ask.fate === 'keep-one') return hover === null ? 'maybe' : hover === id ? undefined : 'sure';
+  return hover === id ? 'sure' : undefined;
 }
 
 /** Which side of the table a zone is on. The stack belongs to neither. */
@@ -2482,6 +2509,9 @@ function CardOnBoard({
   const selectable = interaction !== undefined && interaction.selectable.has(entry.id);
   /** This card is one Forge already marked picked, not merely offered — see `BoardInteraction.highlighted`. */
   const picked = interaction !== undefined && (interaction.highlighted?.has(entry.id) ?? false);
+  /** AF397: this card is one the open choice could take — see `BoardInteraction.doomAsk`. */
+  const doomCandidate = interaction?.doomAsk?.candidates.has(entry.id) ?? false;
+  const doomed = doomedMark(entry.id, interaction?.doomAsk, interaction?.doomHover ?? null);
   const previewed = interaction?.damagePreview?.get(entry.id) ?? 0;
   /*
    * A card Forge is ASKING ABOUT belongs to Forge, and that — not "actionable" —
@@ -2605,6 +2635,10 @@ function CardOnBoard({
        */
       data-arrange-card={arrangeable ? slot : undefined}
       data-room={doors !== null || undefined}
+      data-doomed={doomed}
+      /* AF397: a candidate's own board draws `doom.css`'s look from where the seat points — nothing on the wire. */
+      onPointerEnter={doomCandidate ? () => interaction?.onDoomHover?.(entry.id) : undefined}
+      onPointerLeave={doomCandidate ? () => interaction?.onDoomHover?.(null) : undefined}
     >
       {/*
        * R10 (wave 35), diagnosed: this used to be a `<button>` when `selectable`
@@ -4076,7 +4110,7 @@ function StackView({ count, carried }: { count: number; carried: number }) {
 
 export function Board({
   view,
-  interaction,
+  interaction: rawInteraction,
   boardLayout = 'single',
   onOpenSettings,
   onOpenDeck,
@@ -4107,6 +4141,18 @@ export function Board({
 }) {
   // The render's cost, to its layout effects (`live/work-meter.ts`): read again in the last layout effect below.
   const renderBegan = performance.now();
+  /*
+   * AF397: which `doomAsk` candidate the seat points at, local to this board — the wire has no
+   * concept of a mouse, and a stale hover from a PREVIOUS ask (a different choice, different
+   * candidates) must never survive into this one, so it is read back through `doomAsk.candidates`
+   * rather than reset on every ask change.
+   */
+  const [doomHoverRaw, setDoomHover] = useState<number | null>(null);
+  const doomHover = doomHoverRaw !== null && (rawInteraction?.doomAsk?.candidates.has(doomHoverRaw) ?? false) ? doomHoverRaw : null;
+  const interaction: BoardInteraction | undefined = useMemo(
+    () => (rawInteraction === undefined ? undefined : { ...rawInteraction, doomHover, onDoomHover: setDoomHover }),
+    [rawInteraction, doomHover],
+  );
   const viewer = viewerOf(view);
   const others = view.players.filter((p) => !p.isViewer);
   /** Every battlefield card belonging to a player OTHER than `id` (item 6: a cross-controlled attachment's host). */

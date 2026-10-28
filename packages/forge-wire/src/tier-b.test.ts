@@ -445,4 +445,20 @@ describe('wave 52 §S — the offer facts and the confirm ability are strict and
     expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7), abilityId: 12, trigger: { ...trigger, key: '' } } }).success).toBe(false);
     expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7), abilityId: 12, trigger: { name: "Soul's Attendant" } } }).success).toBe(false);
   });
+
+  it('AF397: selection.offBattlefield names the cards an open target choice would send to a graveyard or exile, strictly', () => {
+    const base = { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Select target creature', card: null };
+    expect(ShowPromptMessageSchema.safeParse({ ...base, selection: { targets: true, offBattlefield: { cards: [card(9)] } } }).success).toBe(true);
+    expect(ShowPromptMessageSchema.safeParse({ ...base, selection: { targets: true, offBattlefield: { cards: [] } } }).success).toBe(true);
+    // Not a card name, not a player: a bad ref inside it is still a parse error.
+    expect(ShowPromptMessageSchema.safeParse({ ...base, selection: { targets: true, offBattlefield: { cards: [{ kind: 'player', id: 9 }] } } }).success).toBe(false);
+    // sacrifice and offBattlefield are independent fields: either, neither, or (never in practice, but the schema does not forbid it) both.
+    expect(ShowPromptMessageSchema.safeParse({ ...base, selection: { targets: false, sacrifice: { cards: [card(9)], min: 1, max: 1 }, offBattlefield: { cards: [card(3)] } } }).success).toBe(true);
+  });
+
+  it('AF397: selection.keepOne names the legend rule’s own candidates, strictly', () => {
+    const base = { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Choose the one to stay on battlefield', card: null };
+    expect(ShowPromptMessageSchema.safeParse({ ...base, selection: { targets: false, keepOne: { cards: [card(9), card(10)] } } }).success).toBe(true);
+    expect(ShowPromptMessageSchema.safeParse({ ...base, selection: { targets: false, keepOne: { cards: [card(9)], min: 1 } } }).success).toBe(false);
+  });
 });

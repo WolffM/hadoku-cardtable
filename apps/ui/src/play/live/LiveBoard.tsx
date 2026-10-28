@@ -316,6 +316,7 @@ import {
   declaringBlockers,
   declaringCombat,
   dismissReveal,
+  doomAskOf,
   genuinelyAsked,
   isAutoYieldOn,
   liveBar,
@@ -3117,6 +3118,12 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     blockFocus: blockFocusOf(match) ?? undefined,
     damagePreview: damagePreviewOf(match),
     combatReady: spectator ? undefined : combatCandidates(match),
+    /*
+     * AF397's doom marking: what the open choice in front of this seat would send off the
+     * battlefield as it now stands (`./match.ts`'s `doomAskOf`'s own note). A spectator has no
+     * choice open on their own account, so nothing of theirs is at stake either.
+     */
+    doomAsk: spectator ? undefined : doomAskOf(match),
     /*
      * Item 17.2's staging area: the hand card this seat clicked to cast,
      * while Forge is asking for its target and nothing else is on top of the

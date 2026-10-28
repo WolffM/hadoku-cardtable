@@ -34,6 +34,7 @@ import {
   pickedOf,
   declaringCombat,
   dismissReveal,
+  doomAskOf,
   lifePayable,
   lifePerPress,
   lifePayer,
@@ -3691,5 +3692,74 @@ describe('a display-only reveal is a notice, never a question', () => {
     expect(m.reveal).toBeNull();
     expect(m.asks).toEqual([]);
     expect(m.stats.invalid).toBe(invalid + 1);
+  });
+});
+
+/*
+ * AF397 (doomed cards): `doomAskOf` — hand-built `selection` frames, matching exactly what
+ * `PlayBridge.java`'s `openSelection` puts on the wire (`packages/forge-wire/src/tier-b.ts`'s own
+ * schema), proven against real Forge for the legend rule (`af397-legend-rule.jvm.test.ts`) and a
+ * destroy/exile target (`af397-destroy-target.jvm.test.ts`).
+ */
+describe('AF397: doomAskOf — what an open choice would send off the battlefield', () => {
+  const selectionPrompt = (selection: {
+    targets: boolean;
+    aimed?: { kind: 'card' | 'player'; id: number }[];
+    sacrifice?: { cards: { kind: 'card'; id: number }[]; min: number; max: number };
+    offBattlefield?: { cards: { kind: 'card'; id: number }[] };
+    keepOne?: { cards: { kind: 'card'; id: number }[] };
+  }) => parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Priority', card: null, selection });
+
+  it('no open selection: undefined', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [prompt('Priority'), bar(true)]);
+    expect(doomAskOf(m)).toBeUndefined();
+  });
+
+  it('a target choice with no offBattlefield (a bounce, a tap): undefined', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [selectionPrompt({ targets: true })]);
+    expect(doomAskOf(m)).toBeUndefined();
+  });
+
+  it('the legend rule: selection.keepOne — every candidate, fate keep-one', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const [a, b] = [mine[0]!, mine[1]!];
+    await sendAndApply(s, m, [selectionPrompt({ targets: false, keepOne: { cards: [{ kind: 'card', id: a }, { kind: 'card', id: b }] } })]);
+    expect(doomAskOf(m)).toEqual({ candidates: new Set([a, b]), fate: 'keep-one' });
+  });
+
+  it('a sacrifice: selection.sacrifice — every candidate, fate chosen-goes', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const [a, b, c] = [mine[0]!, mine[1]!, mine[2]!];
+    await sendAndApply(s, m, [selectionPrompt({ targets: false, sacrifice: { cards: [{ kind: 'card', id: a }, { kind: 'card', id: b }, { kind: 'card', id: c }], min: 1, max: 1 } })]);
+    expect(doomAskOf(m)).toEqual({ candidates: new Set([a, b, c]), fate: 'chosen-goes' });
+  });
+
+  it('a destroy/exile target: selection.offBattlefield — the legal targets, fate chosen-goes', async () => {
+    const { s, m } = await fullGame();
+    const { theirs } = ids(m);
+    const target = theirs[0]!;
+    await sendAndApply(s, m, [selectionPrompt({ targets: true, offBattlefield: { cards: [{ kind: 'card', id: target }] } })]);
+    expect(doomAskOf(m)).toEqual({ candidates: new Set([target]), fate: 'chosen-goes' });
+  });
+
+  it('a keepOne of one card (nothing else to lose to it) is not a doom ask', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [selectionPrompt({ targets: false, keepOne: { cards: [{ kind: 'card', id: mine[0]! }] } })]);
+    expect(doomAskOf(m)).toBeUndefined();
+  });
+
+  it('clears once the selection closes', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const [a, b] = [mine[0]!, mine[1]!];
+    await sendAndApply(s, m, [selectionPrompt({ targets: false, keepOne: { cards: [{ kind: 'card', id: a }, { kind: 'card', id: b }] } })]);
+    expect(doomAskOf(m)).not.toBeUndefined();
+    await sendAndApply(s, m, [prompt('Priority'), bar(true)]);
+    expect(doomAskOf(m)).toBeUndefined();
   });
 });

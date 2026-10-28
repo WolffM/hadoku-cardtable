@@ -3105,6 +3105,18 @@ public final class PlayBridge {
             try {
                 if (input instanceof forge.gamemodes.match.input.InputSelectTargets) {
                     o.addProperty("targets", true);
+                    final SpellAbility sa = (SpellAbility) field(input, forge.gamemodes.match.input.InputSelectTargets.class, "sa");
+                    if (leavesBattlefield(sa)) {
+                        final List<Object> cards = new ArrayList<>();
+                        for (final Object c : (List<?>) field(input, forge.gamemodes.match.input.InputSelectTargets.class, "choices")) {
+                            if (c instanceof forge.game.card.Card card) { cards.add(card.getView()); }
+                        }
+                        if (!cards.isEmpty()) {
+                            final JsonObject offBattlefield = new JsonObject();
+                            offBattlefield.add("cards", refs(cards));
+                            o.add("offBattlefield", offBattlefield);
+                        }
+                    }
                     return o;
                 }
                 if (!(input instanceof forge.gamemodes.match.input.InputSelectManyBase)) { return null; }
@@ -3125,6 +3137,26 @@ public final class PlayBridge {
                     sacrifice.addProperty("min", (Integer) field(input, forge.gamemodes.match.input.InputSelectManyBase.class, "min"));
                     sacrifice.addProperty("max", (Integer) field(input, forge.gamemodes.match.input.InputSelectManyBase.class, "max"));
                     o.add("sacrifice", sacrifice);
+                }
+                /*
+                 * AF397 — the legend rule. `GameAction.handleLegendRule` calls
+                 * `PlayerController.chooseSingleEntityForEffect(cc, EmptySa(ApiType.InternalLegendaryRule, …), title, null)`,
+                 * but every option it offers is a BATTLEFIELD card, so `PlayerControllerHuman.useSelectCardsInput`
+                 * (battlefield and hand always qualify; a GUI-thread guard that is never true on this headless server)
+                 * routes it through `InputSelectEntitiesFromList` — this same branch, not the
+                 * `chooseSingleEntityForEffect` RPC — min and max both 1. Measured against real Forge: a scripted
+                 * board with two legendaries of one name asks exactly this way, never the RPC
+                 * (`af397-legend-rule.jvm.test.ts`). The ability's own API is the whole of the test — never a card
+                 * name — and it is this one constant, not a family: nothing else sets it.
+                 */
+                if (input instanceof forge.gamemodes.match.input.InputSelectEntitiesFromList<?> list && sa.getApi() == forge.game.ability.ApiType.InternalLegendaryRule) {
+                    final List<Object> cards = new ArrayList<>();
+                    for (final Object c : list.getValidChoices()) { if (c instanceof forge.game.card.Card card) { cards.add(card.getView()); } }
+                    if (cards.size() > 1) {
+                        final JsonObject keepOne = new JsonObject();
+                        keepOne.add("cards", refs(cards));
+                        o.add("keepOne", keepOne);
+                    }
                 }
                 return o;
             } catch (final ReflectiveOperationException | RuntimeException e) {
@@ -3160,6 +3192,28 @@ public final class PlayBridge {
                         && !sa.isTrigger() && sa.getActivatingPlayer() == mine;
             }
             return sa.getApi() == forge.game.ability.ApiType.Sacrifice && !sa.hasParam("Destroy");
+        }
+
+        /**
+         * AF397 — whether answering the open TARGET choice with one of its offered cards, as it now
+         * stands, would send that card to a graveyard or exile: the class, from the ability's own API
+         * and params, never a card name (a replacement effect — regeneration, "can't be destroyed" —
+         * could still stop it; this reads intent, the same as the legend rule and a sacrifice choice
+         * do). {@code Destroy} ({@code DestroyEffect}) always does. {@code ChangeZone}
+         * ({@code ChangeZoneEffect}) covers far more than this — bounce to hand, library, a swap — so
+         * only its own {@code Destination} of {@code Graveyard} or {@code Exile} counts. Every other
+         * targeted API (a counter, a tap, a pump, a bounce) leaves the card on the battlefield and is
+         * not this.
+         */
+        private static boolean leavesBattlefield(final SpellAbility sa) {
+            if (sa == null) { return false; }
+            final forge.game.ability.ApiType api = sa.getApi();
+            if (api == forge.game.ability.ApiType.Destroy) { return true; }
+            if (api == forge.game.ability.ApiType.ChangeZone) {
+                final String destination = sa.getParam("Destination");
+                return "Graveyard".equals(destination) || "Exile".equals(destination);
+            }
+            return false;
         }
 
         /**

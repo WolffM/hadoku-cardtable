@@ -1,0 +1,16 @@
+# AF397: alice has Swords to Plowshares (`Api$ChangeZone|Destination$Exile`) and a Plains to cast
+# it; bob has one creature to target. While the target choice is open, the wire's
+# `selection.offBattlefield` should name that creature — Forge's own API and params, not its name.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Swords to Plowshares
+humanbattlefield=Plains
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=
+aibattlefield=Grizzly Bears
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=

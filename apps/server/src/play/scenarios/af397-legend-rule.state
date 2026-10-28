@@ -1,0 +1,17 @@
+# AF397: two Griselbrands already on alice's battlefield trigger the legend rule the moment the
+# game checks state-based actions — the `chooseSingleEntityForEffect` ask whose title the UI reads
+# to mark the doomed copy ("choose the one to keep"). Griselbrand only because `af413-reanimate`
+# already proved it is in this card pool; any legendary with two copies asks the same way.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Griselbrand;Griselbrand;Plains
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=

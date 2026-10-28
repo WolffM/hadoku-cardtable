@@ -1065,6 +1065,75 @@
   outline-offset: 3px;
 }
 
+/*
+ * ── doomed: AF397 — a card an open choice would take if answered as it now stands ──────
+ *
+ * A card the open choice would destroy, sacrifice, or send to the graveyard or exile says so
+ * while the choice is open. `data-doomed` (`Board.tsx`'s `doomedMark`, from `BoardInteraction.doomAsk`
+ * and where the seat points): `maybe` — at stake (every legend-rule candidate before a hover);
+ * `sure` — this one goes if the choice is made as it now points (the legend-rule copies NOT
+ * hovered; the sacrifice/destroy/exile candidate that IS). Ember, the operator's pick (approved
+ * 2026-10-27, preview "Doomed Cards" v2 — `docs/planning/effects-plan-2026-10-27.md` § AF397): one
+ * outline per card, never two. No `filter` on a card (`cardImageRules.test.ts`).
+ */
+.board-card[data-doomed] > .board-card__face {
+  position: relative;
+}
+
+/* `::before`, so the badges after it in the face stay on top at the same z-index — `data-cast-forbidden`'s own veil is the same pattern. */
+.board-card[data-doomed] > .board-card__face::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-card-badge, 1);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* The art shares that z-index (`CardTile.css`) and comes later in the tree, so it would paint OVER the overlay without its own stacking context. */
+.board-card[data-doomed] > .board-card__face > .card {
+  isolation: isolate;
+}
+
+/*
+ * `sure` REPLACES the selectable ring's own colour above, in the same cascade, rather than adding
+ * to it — the ring still says the card may be clicked; its colour now says what the click costs —
+ * plus a breathing glow and a dim wash. `maybe` keeps the selectable ring exactly as it is and only
+ * dims, slowly: a card merely AT STAKE never looks the same as one that is `sure` to go.
+ */
+.board-card[data-doomed='sure'] > .board-card__face .card {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px var(--danger);
+}
+
+.board-card[data-doomed='sure'] > .board-card__face::before {
+  box-shadow: 0 0 14px 3px color-mix(in srgb, var(--danger) 60%, transparent);
+  background: color-mix(in srgb, black 22%, transparent);
+  animation: doom-ember 1.2s ease-in-out infinite;
+}
+
+.board-card[data-doomed='maybe'] > .board-card__face::before {
+  background: color-mix(in srgb, black 14%, transparent);
+  animation: doom-ember 2.4s ease-in-out infinite;
+}
+
+@keyframes doom-ember {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-card[data-doomed] > .board-card__face::before {
+    animation: none;
+  }
+}
+
 /* ── block focus: the attacker the next blocker click goes to ───────────── */
 
 /*

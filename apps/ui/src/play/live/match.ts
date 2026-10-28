@@ -242,6 +242,7 @@ import {
   REPLY_SCHEMAS,
   safeParseServerFrame,
   type BlockingMethod,
+  type CardRef,
   type ClientAbort,
   type GameEntityRef,
   type GameLogLine,
@@ -777,8 +778,17 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    * What the open selection is choosing (`showPromptMessage.selection`): `targets` true for a target choice,
    * false for any other pick — a cost's sacrifice or discard. `aimed` is what the ability that pick pays for
    * is already aimed at. Null for a prompt with no selection, or a bridge that could not tell.
+   *
+   * `sacrifice`, `offBattlefield` and `keepOne` are AF397's own fields (`PlayBridge.java`'s
+   * `openSelection`) — see {@link doomAskOf}, the one place this client reads any of them.
    */
-  promptSelection: { targets: boolean; aimed: readonly GameEntityRef[] } | null;
+  promptSelection: {
+    targets: boolean;
+    aimed: readonly GameEntityRef[];
+    sacrifice?: { cards: readonly CardRef[]; min: number; max: number };
+    offBattlefield?: { cards: readonly CardRef[] };
+    keepOne?: { cards: readonly CardRef[] };
+  } | null;
   /** "Same target for all" ticked on the open target question: the seat's pick goes out with `sameTarget`. */
   sameTarget: boolean;
   /**
@@ -1692,6 +1702,43 @@ export function drawnOffer(match: LiveMatch): LiveClickables {
     askedByHand: match.asks.some((ask) => !SELF_ANSWERING.has(ask.method) && selfAnswer(ask) === null),
     waitingOnAnother: [...(match.waitingOn?.keys() ?? [])].some((seat) => seat !== match.seat),
   });
+}
+
+/**
+ * AF397 (doomed cards) — what an OPEN choice on this board would send off the battlefield if
+ * answered as it now stands, derived from the choice itself, never a card name:
+ *
+ *  - the legend rule: `selection.keepOne` (`PlayBridge.java`'s own note on why this, and not the
+ *    `chooseSingleEntityForEffect` RPC the engine source alone suggests, is where it actually
+ *    arrives — proven against real Forge, `af397-legend-rule.jvm.test.ts`) — every legendary of the
+ *    one name Forge is asking about; `keep-one`, because answering sends every OTHER one to the
+ *    graveyard;
+ *  - a sacrifice: `selection.sacrifice`, already flagged server-side by the ability's own API
+ *    (`PlayBridge.java`'s `sacrificeAsked`, `ApiType.Sacrifice`) — `chosen-goes`, because answering
+ *    sends the ONE chosen;
+ *  - a destroy or exile target: `selection.offBattlefield`, from the open target's own API and
+ *    params (`PlayBridge.java`'s `leavesBattlefield`: `Destroy` always, `ChangeZone` only to
+ *    Graveyard or Exile) — `chosen-goes`, same shape as a sacrifice.
+ *
+ * At most one of the three is ever set at once (one open input, one `selection`). Discard and mill
+ * choices (hand, library) are deliberately left out — AF397 is battlefield departures only.
+ */
+export function doomAskOf(match: LiveMatch): { candidates: ReadonlySet<number>; fate: 'keep-one' | 'chosen-goes' } | undefined {
+  const selection = match.promptSelection;
+  if (selection === undefined || selection === null) return undefined;
+  const keepOne = selection.keepOne;
+  if (keepOne !== undefined && keepOne.cards.length > 1) {
+    return { candidates: new Set(keepOne.cards.map((c) => c.id)), fate: 'keep-one' };
+  }
+  const sacrifice = selection.sacrifice;
+  if (sacrifice !== undefined && sacrifice.cards.length > 0) {
+    return { candidates: new Set(sacrifice.cards.map((c) => c.id)), fate: 'chosen-goes' };
+  }
+  const offBattlefield = selection.offBattlefield;
+  if (offBattlefield !== undefined && offBattlefield.cards.length > 0) {
+    return { candidates: new Set(offBattlefield.cards.map((c) => c.id)), fate: 'chosen-goes' };
+  }
+  return undefined;
 }
 
 /** A click is out: hold what is offered now — the clicked card already spent — through Forge's turnaround. */
@@ -3244,7 +3291,16 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     match.promptPoolPays = frame.poolPays ?? null;
     match.promptPoolChoice = frame.poolChoice !== undefined;
     match.promptTargetMore = frame.targetAbility?.more ?? 0;
-    match.promptSelection = frame.selection === undefined ? null : { targets: frame.selection.targets, aimed: frame.selection.aimed ?? [] };
+    match.promptSelection =
+      frame.selection === undefined
+        ? null
+        : {
+            targets: frame.selection.targets,
+            aimed: frame.selection.aimed ?? [],
+            sacrifice: frame.selection.sacrifice,
+            offBattlefield: frame.selection.offBattlefield,
+            keepOne: frame.selection.keepOne,
+          };
     match.sameTarget = false;
     match.inputLive = true;
   } else if (frame.kind === 'notify' && frame.method === 'updateButtons') {

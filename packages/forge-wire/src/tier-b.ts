@@ -299,7 +299,16 @@ export const ShowPromptMessageSchema = z.strictObject({
    * a card to exile for a cost, picked after the targets), is what that ability is aimed at. `sacrifice`,
    * on a pick of what to sacrifice — a sacrifice cost of a spell the seat casts or an ability it
    * activates, or an edict it must obey (`PlayBridge.java`'s `sacrificeAsked`) — is the cards it may
-   * sacrifice and how many it must. Absent on every other prompt.
+   * sacrifice and how many it must. `offBattlefield` — AF397 — is, while `targets` is true, the cards
+   * this target choice would send to a graveyard or exile if answered with them as it now stands
+   * (`PlayBridge.java`'s `leavesBattlefield`): the ability's own API and params, never a card name —
+   * `Destroy` always, `ChangeZone` only when its own `Destination` is `Graveyard` or `Exile`. Most
+   * targeted abilities (a bounce, a tap, a counter added) do not set it. `keepOne` — AF397 — is the
+   * legend rule's own ask (`ApiType.InternalLegendaryRule`, always offered through THIS selection on
+   * our headless server, never the `chooseSingleEntityForEffect` RPC — see the field's own note in
+   * `PlayBridge.java`): every legendary of the one name it is asking about, the opposite of
+   * `sacrifice` in what answering it does (every card but the one picked goes, not the one picked).
+   * Absent on every other prompt.
    */
   selection: z
     .strictObject({
@@ -310,6 +319,16 @@ export const ShowPromptMessageSchema = z.strictObject({
           cards: z.array(CardRefSchema),
           min: z.number().int().nonnegative(),
           max: z.number().int().nonnegative(),
+        })
+        .optional(),
+      offBattlefield: z
+        .strictObject({
+          cards: z.array(CardRefSchema),
+        })
+        .optional(),
+      keepOne: z
+        .strictObject({
+          cards: z.array(CardRefSchema),
         })
         .optional(),
     })

@@ -6130,3 +6130,77 @@ describe('one table (operator, 2026-10-27): the seam between the seats', () => {
     }
   });
 });
+
+/*
+ * AF397 (doomed cards): `data-doomed`, from an open `doomAsk` and where the seat points
+ * (`Board.tsx`'s own `doomedMark`). `keep-one` is the legend rule (candidates default to `maybe`,
+ * hovering one clears it and marks every other candidate `sure`); `chosen-goes` is a sacrifice or a
+ * destroy/exile target (nothing marked until a hover makes its own candidate `sure`).
+ */
+describe('AF397: doomed cards — data-doomed from an open choice and where the seat points', () => {
+  const view = boardFromFixture(fixture);
+  const me = view.players.find((p) => p.isViewer)!;
+  const [a, b] = [me.battlefield[0]!.id, me.battlefield[1]!.id];
+  const doomed = (container: HTMLElement, id: number) => container.querySelector<HTMLElement>(`[data-card-id="${id}"]`)!.dataset.doomed;
+  const hover = (container: HTMLElement, id: number) => fireEvent.pointerEnter(container.querySelector<HTMLElement>(`[data-card-id="${id}"]`)!);
+  const unhover = (container: HTMLElement, id: number) => fireEvent.pointerLeave(container.querySelector<HTMLElement>(`[data-card-id="${id}"]`)!);
+
+  it('no doomAsk: neither card is marked', () => {
+    const { container } = renderBoard(view, spyInteraction([]).interaction);
+    expect(doomed(container, a)).toBeUndefined();
+    expect(doomed(container, b)).toBeUndefined();
+  });
+
+  it('keep-one, no hover yet: every candidate is maybe', () => {
+    const { container } = renderBoard(view, { ...spyInteraction([]).interaction, doomAsk: { candidates: new Set([a, b]), fate: 'keep-one' } });
+    expect(doomed(container, a)).toBe('maybe');
+    expect(doomed(container, b)).toBe('maybe');
+  });
+
+  it('keep-one, hovering one candidate: the hovered one clears (it is the one staying), the other turns sure', () => {
+    const { container } = renderBoard(view, { ...spyInteraction([]).interaction, doomAsk: { candidates: new Set([a, b]), fate: 'keep-one' } });
+    hover(container, a);
+    expect(doomed(container, a), 'the pointed-at copy is the one being kept').toBeUndefined();
+    expect(doomed(container, b), 'every other copy would go').toBe('sure');
+    unhover(container, a);
+    expect(doomed(container, a), 'back to maybe once the pointer leaves').toBe('maybe');
+    expect(doomed(container, b)).toBe('maybe');
+  });
+
+  it('chosen-goes (a sacrifice or a destroy/exile target), no hover yet: nothing is marked', () => {
+    const { container } = renderBoard(view, { ...spyInteraction([]).interaction, doomAsk: { candidates: new Set([a, b]), fate: 'chosen-goes' } });
+    expect(doomed(container, a)).toBeUndefined();
+    expect(doomed(container, b)).toBeUndefined();
+  });
+
+  it('chosen-goes, hovering one candidate: only that one turns sure', () => {
+    const { container } = renderBoard(view, { ...spyInteraction([]).interaction, doomAsk: { candidates: new Set([a, b]), fate: 'chosen-goes' } });
+    hover(container, a);
+    expect(doomed(container, a), 'this one goes if chosen').toBe('sure');
+    expect(doomed(container, b), 'untouched — the other was never at stake').toBeUndefined();
+  });
+
+  it('after the pick: the ask closes (no more doomAsk) and the mark clears, whatever the last hover was', () => {
+    const { container, rerender } = renderBoard(view, { ...spyInteraction([]).interaction, doomAsk: { candidates: new Set([a, b]), fate: 'keep-one' } });
+    hover(container, a);
+    expect(doomed(container, b)).toBe('sure');
+    rerender(createElement(Board, { view, interaction: spyInteraction([]).interaction, boardLayout: 'type-separated' }));
+    expect(doomed(container, a)).toBeUndefined();
+    expect(doomed(container, b)).toBeUndefined();
+  });
+
+  it('never both colours at once: `sure` replaces the selectable ring, it does not add to it', () => {
+    const css = withoutComments(CARD_CSS);
+    expect(css).toMatch(/\.board-card\[data-doomed='sure'\] > \.board-card__face \.card\s*\{[^}]*border-color: var\(--danger\);[^}]*box-shadow: 0 0 0 2px var\(--danger\);/);
+    // `maybe` touches only the overlay, never the ring's own colour — the blue ring stays.
+    expect(css).not.toMatch(/\.board-card\[data-doomed='maybe'\][^{]*\.card\s*\{[^}]*border-color/);
+  });
+
+  it('no filter on a card (cardImageRules.test.ts’s own rule) — overlays only', () => {
+    expect(CARD_CSS).not.toMatch(/(?<!backdrop-)filter:\s*[^;]*\b(grayscale|brightness|saturate|sepia|hue-rotate|blur|contrast|invert)\(/);
+  });
+
+  it('stands still for reduced motion', () => {
+    expect(withoutComments(CARD_CSS)).toMatch(/prefers-reduced-motion: reduce\) \{[^@]*\[data-doomed\][^}]*\{\s*animation: none;/);
+  });
+});
