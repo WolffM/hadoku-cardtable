@@ -47,11 +47,21 @@ e2e/              Playwright specs against a real Forge
 
 ## Building
 
-You can read everything here, but you **cannot build it as-is from outside**:
-it depends on private `@wolffm/*` packages published to GitHub Packages and on
-the private `hadoku-watchparty` repo for the room layer, and it is deployed
-behind infrastructure that is not part of this repo. The Forge side builds from
-the public submodule with JDK 21 and Maven — see
+The app builds from a fresh clone with no credentials: Node 24 and pnpm (the
+`packageManager` field pins the version), then
+
+```sh
+pnpm install --frozen-lockfile
+pnpm run build
+```
+
+The shared fleet packages it imports as `@wolffm/*` (themes, prefs, the
+hadoku-watchparty room layer and others) install from the public npm registry
+as `@hadoku/*`, through aliases such as
+`"@wolffm/themes": "npm:@hadoku/themes@5.12.15"`. The source of those packages
+lives in other repos, some private, but nothing here needs it. Running it the
+way hadoku.me does needs infrastructure that is not part of this repo. The
+Forge side builds from the public submodule with JDK 21 and Maven — see
 [`docs/FORGE_JAR.md`](docs/FORGE_JAR.md).
 
 ## Licence

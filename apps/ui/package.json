@@ -17,15 +17,16 @@
     "@hadoku/deck": "workspace:*",
     "@hadoku/forge-wire": "workspace:*",
     "@hadoku/shared": "workspace:*",
-    "@wolffm/game-stats-ui": "0.1.7",
-    "@wolffm/prefs-client": "1.1.0",
-    "@wolffm/rooms-protocol": "0.43.15",
-    "@wolffm/task-ui-components": "4.20.3",
-    "@wolffm/themes": "5.12.15",
-    "@wolffm/watchparty-ui": "0.43.15",
+    "@wolffm/game-stats-ui": "npm:@hadoku/game-stats-ui@0.1.7",
+    "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.1.0",
+    "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.43.15",
+    "@wolffm/task-ui-components": "npm:@hadoku/task-ui-components@4.20.3",
+    "@wolffm/themes": "npm:@hadoku/themes@5.12.15",
+    "@wolffm/watchparty-ui": "npm:@hadoku/watchparty-ui@0.43.15",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "socket.io-client": "^4.8.3"
+    "socket.io-client": "^4.8.3",
+    "zod": "4.5.4"
   },
   "devDependencies": {
     "@testing-library/dom": "10.4.1",
@@ -33,7 +34,7 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",
     "@vitejs/plugin-react": "6.1.1",
-    "@wolffm/catalogue": "^1.0.11",
+    "@wolffm/catalogue": "npm:@hadoku/catalogue@^1.0.11",
     "vite": "8.2.2"
   }
 }
