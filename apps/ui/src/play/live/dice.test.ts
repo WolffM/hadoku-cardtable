@@ -156,6 +156,18 @@ describe('the die on the board', () => {
     dice.dispose();
   });
 
+  it('tells its host of each roll it throws, once, as it is thrown — with reduced motion too — and of a stale roll never', () => {
+    const canvas = board();
+    const thrown: number[] = [];
+    const dice = installDice(canvas, { reducedMotion: () => true, onThrow: (r) => thrown.push(r.id) });
+    const stale = shownRoll({ player: { kind: 'player', id: 0 }, sides: 20, results: [2], source: { kind: 'card', id: 7 } }, Date.now() - 60_000);
+    const fresh = roll({ results: [11, 18] });
+    dice.notify([stale, fresh], view);
+    dice.notify([stale, fresh], view);
+    expect(thrown).toEqual([fresh.id]);
+    dice.dispose();
+  });
+
   it('draws nothing for a roll that arrived long before the board did', () => {
     const canvas = board();
     const dice = installDice(canvas, { reducedMotion: () => true });

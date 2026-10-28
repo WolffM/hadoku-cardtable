@@ -11,7 +11,8 @@ import { type WireObject } from '../wire.ts';
 import { damagePower } from '../motion.ts';
 import type { DelayedSoundEvent } from '../../sound/index.ts';
 import poolData from '../../draft/pool.json' with { type: 'json' };
-import { attackDeclared, castRole, colourCell, colourRow, deriveSoundEvents, LAND_THUD_DELAY_MS, UNTAP_REPEAT_GAP_MS, UNTAP_REPEAT_MAX, wasShuffled } from './sound-events.ts';
+import { attackDeclared, castRole, colourCell, colourRow, deriveSoundEvents, LAND_THUD_DELAY_MS, thrownSoundEvents, UNTAP_REPEAT_GAP_MS, UNTAP_REPEAT_MAX, wasShuffled } from './sound-events.ts';
+import { shownFlip, shownRoll } from './shown.ts';
 
 function card(typeLine: string, colors: DraftCard['colors'] = [], oracleText = ''): DraftCard {
   return {
@@ -550,5 +551,17 @@ describe('against a real captured game', () => {
     // Mountain and Island are their colour's basic; Great Furnace (adds {R}) and Izzet Guildgate (adds {U} or {R}) are lands.
     for (const cell of ['R|basic', 'U|basic', 'R|land', 'UR|land']) expect(cells, cell).toContain(cell);
     expect(cells).toContain('R|creature');
+  });
+});
+
+describe('a die or a coin thrown in the game', () => {
+  const roll = (player: number) => shownRoll({ player: { kind: 'player', id: player }, sides: 6, results: [4], source: null });
+  const flip = (player: number) => shownFlip({ player: { kind: 'player', id: player }, outcome: 'tails', won: null, source: null }, 'tails');
+
+  it('sounds its own slot once, as it starts: the thrower’s own full, the other seat’s and a watcher’s quieter', () => {
+    expect(thrownSoundEvents(roll(0), 0)).toEqual([{ role: 'g.die-roll', seat: 'me' }]);
+    expect(thrownSoundEvents(roll(1), 0)).toEqual([{ role: 'g.die-roll', seat: 'opp' }]);
+    expect(thrownSoundEvents(flip(0), 0)).toEqual([{ role: 'g.coin-flip', seat: 'me' }]);
+    expect(thrownSoundEvents(flip(0), null)).toEqual([{ role: 'g.coin-flip', seat: 'opp' }]);
   });
 });

@@ -72,6 +72,18 @@ describe('impact and cheer tiers', () => {
 	});
 });
 
+describe('chance (the operator, 2026-10-28: "for missing sounds, make sure they show up in the sound picker")', () => {
+	it('a die roll and an in-game coin flip are builder roles with cells, in Turn and game; the flip falls back to the toss', () => {
+		const turn = SOUND_ROLE_GROUPS.find((g) => g.id === 'turn')!.roles.map((r) => r.id);
+		expect(turn).toEqual(expect.arrayContaining(['g.die-roll', 'g.coin-flip']));
+		expect(isCellId('g.die-roll|play')).toBe(true);
+		expect(isCellId('g.coin-flip|play')).toBe(true);
+		expect(SOUND_ROLES.get('g.die-roll')?.name).toBe('Die roll');
+		expect(SOUND_ROLES.get('g.coin-flip')?.name).toBe('Coin flip');
+		expect(FALLBACK_ROLES['g.coin-flip']).toBe('g.game-start');
+	});
+});
+
 describe('CellId', () => {
 	it('accepts a colour row paired with a paradigm column', () => {
 		expect(isCellId('WU|spell')).toBe(true);

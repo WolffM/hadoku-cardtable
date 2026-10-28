@@ -565,6 +565,20 @@ describe('SoundBuilder', () => {
     expect(screen.queryByRole('button', { name: /Water · 1: play and pick up/ })).toBeNull();
   });
 
+  it('the die roll and the in-game coin flip have their own roles in the picker, each offering the takes made for it', async () => {
+    const dieTake = { ...TAKE_B, file: 'g.die-roll/take-v1-15000.ogg', name: 'Die roll', label: 'Die roll · 1a', prompt: 'a die' };
+    const coinTake = { ...TAKE_B, file: 'g.coin-flip/take-v1-15000.ogg', name: 'Coin flip', label: 'Coin flip · 1a', prompt: 'a coin' };
+    const client = stubClient({ cells: {}, canEdit: true }, [TAKE_A, dieTake, coinTake]);
+    const { container } = render(createElement(SoundBuilder, { client, player: stubPlayer() }));
+    await screen.findByText('Sound Builder');
+    expect(container.querySelector('[data-cell="g.die-roll|play"]')).not.toBeNull();
+    expect(container.querySelector('[data-cell="g.coin-flip|play"]')).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show takes for Die roll' }));
+    expect(screen.getByRole('button', { name: /Die roll · 1a: play and pick up/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Coin flip · 1a: play and pick up/ })).toBeNull();
+  });
+
   it('the search and the unplaced filter narrow the bin', async () => {
     const client = stubClient({ cells: { 'g.draw|play': [TAKE_A.file] }, canEdit: true });
     render(createElement(SoundBuilder, { client, player: stubPlayer() }));

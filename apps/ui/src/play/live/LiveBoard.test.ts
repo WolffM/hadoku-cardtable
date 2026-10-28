@@ -31,7 +31,7 @@ import { setRolePlayer } from '../../sound/index.ts';
 import type { SoundEvent } from '../../sound/mix.ts';
 
 import type { BoardInteraction, BoardLayout } from '../Board.tsx';
-import { PHASE_LABEL, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
+import { PHASE_LABEL, viewerOf, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
 import { PROMPT_FIXTURES, askFor } from '../prompts/fixtures.ts';
 import { PROMPT_COMPONENTS, PROMPT_METHODS } from '../prompts/index.ts';
 
@@ -4914,6 +4914,30 @@ describe('W1 — the pregame decision-area pop-up (the coin toss, either seat’
     ]);
     await new Promise((r) => setTimeout(r, 50));
     expect(soundCalls.filter((e) => e.role === 'g.game-start')).toHaveLength(1);
+  });
+
+  it('a die thrown and a coin flipped in the game each sound their own slot as they start, the other seat’s quieter, and say so in the match log', async () => {
+    const { s, m } = await liveBoard();
+    const them = m.view!.players.find((p) => !p.isViewer)!;
+    const me = viewerOf(m.view!)!;
+    const telemetry = () => s.received.filter((r) => r.event === 'forge:client').map((r) => (r.payload as { data: Record<string, unknown> }).data);
+    s.send(
+      parseServerFrame({ kind: 'notify', method: 'message', message: `${me.name} rolled 14`, title: '', roll: { player: { kind: 'player', id: me.id }, sides: 20, results: [14], source: null } }),
+    );
+    await waitFor(() => expect(soundCalls.filter((e) => e.role === 'g.die-roll')).toEqual([expect.objectContaining({ role: 'g.die-roll', seat: 'me' })]));
+    await waitFor(() => expect(telemetry()).toContainEqual(expect.objectContaining({ why: 'throw', roles: 'g.die-roll' })));
+    s.send(
+      parseServerFrame({
+        kind: 'notify',
+        method: 'message',
+        message: `${them.name}’s flip comes up heads`,
+        title: '',
+        flip: { player: { kind: 'player', id: them.id }, outcome: 'heads', won: null, source: null },
+      }),
+    );
+    await waitFor(() => expect(soundCalls.filter((e) => e.role === 'g.coin-flip')).toEqual([expect.objectContaining({ role: 'g.coin-flip', seat: 'opp' })]));
+    await waitFor(() => expect(telemetry()).toContainEqual(expect.objectContaining({ why: 'throw', roles: 'g.coin-flip@opp' })));
+    expect(soundCalls.map((e) => e.role), 'an in-game flip is not the toss').not.toContain('g.game-start');
   });
 
   it(
