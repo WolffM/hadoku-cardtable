@@ -41,6 +41,14 @@
   background-size: var(--trim-corner-s, auto), var(--trim-frame-s, auto), var(--trim-edge-s, auto), var(--trim-texture-s, auto);
   background-repeat: var(--trim-corner-r, no-repeat), var(--trim-frame-r, no-repeat), var(--trim-edge-r, no-repeat), var(--trim-texture-r, no-repeat);
   background-origin: border-box;
+  /*
+   * A panel that is its own scroller (the stats popout, a modal, the settings popover) keeps these
+   * layers still while its content scrolls, and wears scoop's mask. Chromium will not composite
+   * that scroll on its own, so it re-rastered the whole panel every frame: measured over 30 wheel
+   * steps on the stats popout with the default Trim, 1101 ms of raster, 7.5 ms with this hint. On a
+   * panel that does not scroll it does nothing.
+   */
+  will-change: scroll-position;
 }
 
 [data-trim-frame='glint'] .ct-panel {
