@@ -5,16 +5,18 @@
  *
  *   AGENT_KEY_FILE=<signing.key> CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… \
  *   CARDTABLE_PLAY_WORK_DIR=<scratch>/play ACCEPT_DIR=<scratch> \
- *     apps/server/node_modules/.bin/tsx scripts/agent/claw-acceptance.ts <claw> [matches]
+ *     apps/server/node_modules/.bin/tsx scripts/agent/claw-acceptance.ts <claw>[,<claw>…] [matches]
  *
- * Run it only under a lease drain of <claw> (`fleet drain <claw> --kind lease`), with the agent
+ * Run it only under a lease drain of every claw named (`fleet drain <claw> --kind lease`), with the agent
  * built from the same key (`deploy.sh build`, `deploy.sh install`). Each match is a precon AI against
  * a seat that passes every priority; the alert
  * webhook is a local fake. The faults go through ssh and sudo on the claw, killing only the pids
  * this run printed.
  *
- *   D1  the claw's agent and its JVMs SIGKILLed with live matches: every match restored on the
- *       backstop (from its snapshot where it had one), one alert, the claw quarantined
+ *   D1  the busiest claw's agent and its JVMs SIGKILLed with live matches: every match restored
+ *       on another claw, or on the backstop when none has room (from its snapshot where it had
+ *       one), one alert, the claw quarantined. With `CARDTABLE_PLAY_MATCHES_PER_JVM=50` and two
+ *       claws, 50 matches is D5.
  *   D3  the agent back (systemd restarts it): a canary before the claw hosts again, ✅ alert
  *   D4  the coordinator SIGTERMed with matches on the claw: the agent holds them past the fencing
  *       window, and the next coordinator re-attaches the same JVM
@@ -32,10 +34,10 @@ import { createMatchRegistry, type Match } from '../../apps/server/src/play/matc
 import { clawPlacement, registryRestorer } from '../../apps/server/src/play/placement/index.js';
 import { AGENT_KEY_ENV } from '../../apps/server/src/play/remote/index.js';
 
-const claw = process.argv[2] ?? '';
+const claws = (process.argv[2] ?? '').split(',').filter((c) => c !== '');
 const role = process.env.ACCEPT_ROLE ?? 'driver';
 const dir = process.env.ACCEPT_DIR ?? '';
-if (claw === '' || dir === '') throw new Error('usage: ACCEPT_DIR=<scratch> claw-acceptance.ts <claw> [matches]');
+if (claws.length === 0 || dir === '') throw new Error('usage: ACCEPT_DIR=<scratch> claw-acceptance.ts <claw>[,<claw>…] [matches]');
 const COUNT = Number(process.argv[3] ?? '8');
 /** What the placement says, as it says it: every event a step below waits on. */
 const SHOWN = new Set([
@@ -136,10 +138,10 @@ async function driver(): Promise<void> {
 	const say = (what: string): void => console.log(`[${((Date.now() - t0) / 1000).toFixed(1).padStart(7)} s] ${what}`);
 	const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 	const secs = (from: number, to: number): string => `${((to - from) / 1000).toFixed(1)} s`;
-	const onClaw = (script: string): string => execFileSync('ssh', ['-o', 'BatchMode=yes', claw, script], { encoding: 'utf8', timeout: 30_000 }).trim();
-	/** The agent and its JVMs on the claw, as `pid comm` lines (the agent's user owns both). */
-	const clawProcs = (): { pid: number; comm: string }[] =>
-		onClaw('pgrep -u cardtable-agent -l || true')
+	const onClaw = (claw: string, script: string): string => execFileSync('ssh', ['-o', 'BatchMode=yes', claw, script], { encoding: 'utf8', timeout: 30_000 }).trim();
+	/** The agent and its JVMs on a claw, as `pid comm` lines (the agent's user owns both). */
+	const clawProcs = (claw: string): { pid: number; comm: string }[] =>
+		onClaw(claw, 'pgrep -u cardtable-agent -l || true')
 			.split('\n')
 			.filter((l) => l !== '')
 			.map((l) => ({ pid: Number(l.split(' ')[0]), comm: l.split(' ')[1] ?? '' }));
@@ -158,7 +160,7 @@ async function driver(): Promise<void> {
 	const env = { ...process.env, ACCEPT_ROLE: 'coordinator', HOOK_PORT: String((hook.address() as { port: number }).port), [AGENT_KEY_ENV]: readFileSync(process.env.AGENT_KEY_FILE ?? '', 'utf8').trim() };
 
 	const start = (adopt: boolean): Coord => {
-		const proc = spawn(process.execPath, [...process.execArgv, process.argv[1]!, claw], { stdio: ['pipe', 'pipe', 'inherit'], env: { ...env, ACCEPT_ROLE: adopt ? 'adopt' : 'coordinator' } });
+		const proc = spawn(process.execPath, [...process.execArgv, process.argv[1]!, claws.join(',')], { stdio: ['pipe', 'pipe', 'inherit'], env: { ...env, ACCEPT_ROLE: adopt ? 'adopt' : 'coordinator' } });
 		const seen: Record<string, unknown>[] = [];
 		createInterface({ input: proc.stdout! }).on('line', (l) => {
 			appendFileSync(join(dir, 'events.jsonl'), `${l}\n`);
@@ -201,13 +203,16 @@ async function driver(): Promise<void> {
 	let c1: Coord | null = null;
 	let c2: Coord | null = null;
 	try {
-		say(`claw ${claw} before: ${JSON.stringify(clawProcs())}`);
+		const jvmsOnClaws = (): string => claws.map((c) => `${c} ${JSON.stringify(clawProcs(c).filter((p) => p.comm === 'java'))}`).join(', ');
+		for (const claw of claws) say(`claw ${claw} before: ${JSON.stringify(clawProcs(claw))}`);
 		c1 = start(false);
-		await c1.until(`${claw} connected`, (e) => e.evt === 'claw-connected' && e.host === claw, 300_000);
-		await c1.until(`${claw} warm`, (e) => e.evt === 'jvm-warm' && e.host === claw, 300_000);
-		say(`${claw} connected and warm: ${JSON.stringify(c1.seen.find((e) => e.evt === 'claw-connected'))}`);
+		for (const claw of claws) {
+			await c1.until(`${claw} connected`, (e) => e.evt === 'claw-connected' && e.host === claw, 300_000);
+			await c1.until(`${claw} warm`, (e) => e.evt === 'jvm-warm' && e.host === claw, 300_000);
+			say(`${claw} connected and warm: ${JSON.stringify(c1.seen.find((e) => e.evt === 'claw-connected' && e.host === claw))}`);
+		}
 
-		/* D1: matches on the claw, then its agent and JVMs killed */
+		/* D1: matches on the claws, then the busiest one's agent and JVMs killed */
 		c1.send(`start ${COUNT}`);
 		const startedAt = Date.now();
 		for (;;) {
@@ -231,12 +236,14 @@ async function driver(): Promise<void> {
 			await sleep(3000);
 		}
 		const before = await c1.status();
-		const onIt = live(before).filter((m) => m.host === claw);
-		const procs = clawProcs();
-		say(`${claw}: ${onIt.length} live matches; killing ${JSON.stringify(procs)}`);
+		const onEach = claws.map((c) => ({ claw: c, n: live(before).filter((m) => m.host === c).length }));
+		const victim = onEach.sort((a, b) => b.n - a.n)[0]!.claw;
+		const onIt = live(before).filter((m) => m.host === victim);
+		const procs = clawProcs(victim);
+		say(`live matches per claw ${JSON.stringify(onEach)}; ${victim}: killing ${JSON.stringify(procs)}`);
 		const killedAt = Date.now();
-		onClaw(`sudo kill -9 ${procs.map((p) => p.pid).join(' ')}`);
-		const failed = await c1.until('failover', (e) => e.evt === 'claw-failed-over' && e.host === claw, 60_000, killedAt);
+		onClaw(victim, `sudo kill -9 ${procs.map((p) => p.pid).join(' ')}`);
+		const failed = await c1.until('failover', (e) => e.evt === 'claw-failed-over' && e.host === victim, 60_000, killedAt);
 		say(`D1 failover ${secs(killedAt, Number(failed.at))} after the kill: moved ${JSON.stringify(failed.moved)}, lost ${JSON.stringify(failed.lost)}`);
 		const restored = c1.seen.filter((e) => e.evt === 'match-restored' && Number(e.at) >= killedAt);
 		say(`D1 restores: ${restored.map((e) => `${String(e.matchId)} from ${String(e.from)}${e.turn === undefined ? '' : ` turn ${String(e.turn)}`}`).join(', ')}`);
@@ -244,6 +251,9 @@ async function driver(): Promise<void> {
 			const s = await c1.status();
 			const moved = s.matches.filter((m) => onIt.some((o) => o.id === m.id));
 			if (moved.every((m) => m.status !== 'starting')) {
+				const went = new Map<string, number>();
+				for (const m of moved) went.set(m.host ?? '-', (went.get(m.host ?? '-') ?? 0) + 1);
+				say(`D1 the ${moved.length} moved went to ${JSON.stringify(Object.fromEntries(went))}`);
 				say(`D1 ${secs(killedAt, Date.now())} after the kill: ${table(s)}; failures ${JSON.stringify(moved.filter((m) => m.failure !== null).map((m) => m.failure))}`);
 				break;
 			}
@@ -254,11 +264,13 @@ async function driver(): Promise<void> {
 		say(`D1 hosts: ${JSON.stringify((await c1.status()).hosts)} backstop ${JSON.stringify((await c1.status()).backstop)}`);
 
 		/* D3: systemd brings the agent back; a canary must pass before the claw hosts again */
-		const recovered = await c1.until('recovered', (e) => (e.evt === 'claw-recovered' || e.evt === 'canary-failed') && e.host === claw, 300_000, killedAt);
-		say(`D3 ${String(recovered.evt)} ${secs(killedAt, Number(recovered.at))} after the kill; ${claw} now ${JSON.stringify(clawProcs())}`);
+		const recovered = await c1.until('recovered', (e) => (e.evt === 'claw-recovered' || e.evt === 'canary-failed') && e.host === victim, 300_000, killedAt);
+		say(`D3 ${String(recovered.evt)} ${secs(killedAt, Number(recovered.at))} after the kill; ${victim} now ${JSON.stringify(clawProcs(victim))}`);
 		say(`D3 alerts: ${hooks.filter((h) => h.at >= Number(recovered.at) - 1000).map((h) => h.content).join(' | ')}`);
-		await c1.until('backstop demoted', (e) => e.evt === 'backstop-demoted', 300_000, Number(recovered.at));
-		say(`backstop demoted: ${JSON.stringify((await c1.status()).backstop)}`);
+		if (c1.seen.some((e) => e.evt === 'backstop-promoted' && Number(e.at) >= killedAt)) {
+			await c1.until('backstop demoted', (e) => e.evt === 'backstop-demoted', 300_000, Number(recovered.at));
+			say(`backstop demoted: ${JSON.stringify((await c1.status()).backstop)}`);
+		} else say(`the backstop was never promoted: ${JSON.stringify((await c1.status()).backstop)}`);
 
 		/* D4: matches on the claw again, then the coordinator SIGTERMed past the fencing window */
 		c1.send('start 4');
@@ -273,20 +285,19 @@ async function driver(): Promise<void> {
 			if (Date.now() - second > 180_000) throw new Error(`the 4 never ran: ${table(s)}`);
 			await sleep(2000);
 		}
-		const jvmsBefore = clawProcs().filter((p) => p.comm === 'java');
-		say(`D4 SIGTERM the coordinator; ${claw} JVMs ${JSON.stringify(jvmsBefore)}`);
+		say(`D4 SIGTERM the coordinator; JVMs ${jvmsOnClaws()}`);
 		const termAt = Date.now();
 		c1.proc.kill('SIGTERM');
 		await new Promise((r) => c1!.proc.once('exit', r));
 		say(`D4 handed over: ${JSON.stringify(c1.seen.find((e) => e.evt === 'handed-over'))}`);
 		await sleep(15_000);
-		say(`D4 15 s later (past the 10 s fencing window): ${claw} JVMs ${JSON.stringify(clawProcs().filter((p) => p.comm === 'java'))}`);
+		say(`D4 15 s later (past the 10 s fencing window): JVMs ${jvmsOnClaws()}`);
 		c2 = start(true);
 		const adopted = await c2.until('adopted', (e) => e.evt === 'adopted', 300_000);
 		say(`D4 re-attached ${secs(termAt, Number(adopted.at))} after the SIGTERM: ${JSON.stringify(adopted.matches)}`);
 		await sleep(10_000);
 		const after = await c2.status();
-		say(`D4 10 s on: ${table(after)}; ${claw} JVMs ${JSON.stringify(clawProcs().filter((p) => p.comm === 'java'))}`);
+		say(`D4 10 s on: ${table(after)}; JVMs ${jvmsOnClaws()}`);
 	} finally {
 		for (const c of [c2, c1]) {
 			if (c === null || c.proc.exitCode !== null) continue;
@@ -296,7 +307,7 @@ async function driver(): Promise<void> {
 			await new Promise((r) => c.proc.once('exit', r));
 		}
 		await sleep(5000);
-		say(`cleanup: ${claw} now ${JSON.stringify(clawProcs())}`);
+		for (const claw of claws) say(`cleanup: ${claw} now ${JSON.stringify(clawProcs(claw))}`);
 		hook.close();
 	}
 	say('done');
