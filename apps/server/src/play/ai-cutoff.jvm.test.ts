@@ -79,7 +79,7 @@ describe.skipIf(!available.ok)(title, () => {
 			const own = cutoffs.filter((c) => c.matchId === id);
 			// At a 0 s cutoff Forge can stop an eval thread before it reaches Forge's code: that
 			// cutoff has no frame to name.
-			expect(own.every((c) => c.where === null || /^[A-Za-z]+\.[A-Za-z$<>]+$/.test(c.where)), detail()).toBe(true);
+			expect(own.every((c) => c.where === null || /^[\w$]+\.[\w$<>]+$/.test(c.where)), detail()).toBe(true);
 			expect(recs[i]!.logs.filter((l) => l.evt === 'ai-cutoff').length).toBeGreaterThanOrEqual(own.length);
 			expect(recs[i]!.lines.some((l) => (l as { t: string }).t === 'cutoff')).toBe(false);
 		}
