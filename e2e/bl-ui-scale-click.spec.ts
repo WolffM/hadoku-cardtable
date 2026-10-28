@@ -24,6 +24,8 @@ const scaleOf = (page: Page): Promise<string> => page.evaluate(() => getComputed
 async function clickScale(page: Page, wanted: string): Promise<string> {
   const slider = page.getByTestId('settings-ui-scale');
   await expect(slider).toBeVisible();
+  // A panel taller than its room scrolls inside (`Popover`'s max height), and a hand scrolls to the slider.
+  await slider.scrollIntoViewIfNeeded();
   const at = await slider.evaluate((el: HTMLInputElement, value) => {
     const box = el.getBoundingClientRect();
     const thumb = 16;

@@ -20,15 +20,26 @@ interface Placement {
   bottom?: number;
   left?: number;
   right?: number;
+  /** The room on its side of the anchor: a taller panel scrolls inside instead of running off the screen. */
+  maxHeight: number;
 }
 
-/** Above an anchor in the lower half, below one in the upper; aligned to the anchor's nearer side. */
+/**
+ * Above an anchor in the lower half, below one in the upper; aligned to the anchor's nearer side, and
+ * no taller than the room between the anchor and that edge of the viewport. Capped at the viewport's
+ * height alone, a panel above an anchor low on the screen ran off its top: the match settings at
+ * 125% UI scale in a 720px window, whose scale slider was then out of reach.
+ */
 function place(anchor: DOMRect): Placement {
   const vw = globalThis.innerWidth;
   const vh = globalThis.innerHeight;
-  const vertical = anchor.top + anchor.height / 2 > vh / 2 ? { bottom: Math.max(GAP, vh - anchor.top + GAP) } : { top: anchor.bottom + GAP };
   const horizontal = anchor.left + anchor.width / 2 > vw / 2 ? { right: Math.max(GAP, vw - anchor.right) } : { left: Math.max(GAP, anchor.left) };
-  return { ...vertical, ...horizontal };
+  if (anchor.top + anchor.height / 2 > vh / 2) {
+    const bottom = Math.max(GAP, vh - anchor.top + GAP);
+    return { bottom, ...horizontal, maxHeight: Math.max(0, vh - bottom - GAP) };
+  }
+  const top = anchor.bottom + GAP;
+  return { top, ...horizontal, maxHeight: Math.max(0, vh - top - GAP) };
 }
 
 export interface PopoverProps {
