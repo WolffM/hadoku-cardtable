@@ -1,14 +1,16 @@
 /*
- * Projectiles (`projectile.ts`): the ball, its trail of embers and the impact where it lands. One block
- * per look, under its name from `PROJECTILES`. The ball is placed by its animation's transform from the
- * overlay's top left, so it has no `left`/`top` of its own.
+ * Projectiles (`projectile.ts`): the ball, its fire trail and the explosion where it lands. One block
+ * per look (`ProjectileLook`). The ball is placed by its animation's transform from the overlay's top
+ * left, so it has no `left`/`top` of its own.
  *
  * A bolt is drawn in the colour of the card that dealt it: `data-colour` (a mana letter, `C` for
  * colourless) picks the colour-pie hue (`styles.css`'s `--c-*`), and every shade below is mixed from
- * it — a hot core toward `--c-white` (`--bolt-heat` of the hue in it), a deep rim toward `--c-black`.
+ * it — a hot core toward `--c-white` (`--bolt-heat` of the hue in it), a deep rim toward `--c-black`. A
+ * heal mote keeps its own green look (`--success`, not the colour-pie), but overrides `--bolt` itself
+ * so its trail and its blast — built on the SAME `--bolt-core`/`--bolt-rim` mix as a bolt's — come out
+ * green too (AF420: "heal motes keep their look but take the trail and the sling").
  */
-.effect-hit,
-.effect-hit-ember {
+.effect-hit {
   position: absolute;
   left: 0;
   top: 0;
@@ -44,11 +46,18 @@
   --bolt: var(--c-generic);
 }
 
-.effect-hit[data-projectile='bolt'],
-.effect-hit-ember[data-projectile='bolt'],
-.effect-impact[data-projectile='bolt'] {
+/*
+ * Built from `--bolt` on every projectile element, bolt or heal: a bolt's trail and blast read it
+ * straight (the colour-pie rules above); a heal's reads the `--success` override below instead,
+ * never computed twice.
+ */
+.effect-hit,
+.effect-trail,
+.effect-impact {
   --bolt-core: color-mix(in oklab, var(--bolt) var(--bolt-heat, 35%), var(--c-white));
   --bolt-rim: color-mix(in oklab, var(--bolt) 75%, var(--c-black));
+  /* The cooled, smoky end every ember and puff fades to. */
+  --smoke: color-mix(in oklab, var(--bolt-rim) 45%, var(--c-generic));
 }
 
 /* A bolt: a hot core in its colour's flame, a glow around it. */
@@ -61,15 +70,7 @@
     0 0 36px 14px color-mix(in srgb, var(--bolt) 50%, transparent);
 }
 
-.effect-hit-ember[data-projectile='bolt'] {
-  width: calc(16px - var(--ember) * 3px);
-  height: calc(16px - var(--ember) * 3px);
-  background: radial-gradient(circle, var(--bolt-core) 0 30%, var(--bolt) 70%, transparent 100%);
-  opacity: calc(0.75 - var(--ember) * 0.18);
-  filter: blur(1px);
-}
-
-/* Heal: a soft green orb. */
+/* Heal: a soft green orb — its own look, never the colour-pie. */
 .effect-hit[data-projectile='heal'] {
   width: 14px;
   height: 14px;
@@ -77,17 +78,45 @@
   box-shadow: 0 0 14px 5px color-mix(in srgb, var(--success) 60%, transparent);
 }
 
-.effect-hit-ember[data-projectile='heal'] {
-  width: 8px;
-  height: 8px;
-  background: var(--success);
-  opacity: calc(0.6 - var(--ember) * 0.2);
-  filter: blur(1px);
+/* Every heal-look trail ember and blast particle below is built on `--bolt`: pointing it at `--success` turns the whole generic mix green, with no colour rule of its own to keep in step. */
+.effect-trail[data-projectile='heal'],
+.effect-blast[data-projectile='heal'] {
+  --bolt: var(--success);
 }
 
-/* The impact: a flash that blows outward and sparks that fly off it, bigger for a heavier hit. */
+/*
+ * The fire trail (`trail()` in `projectile.ts`): embers shed along the path the ball actually
+ * travelled, cooling from the hot core through the flame to smoke. Centred on the path: `translate`
+ * is always `-50% -50%` plus the drift, never the drift alone (v3's bug — the drift replaced the
+ * centring, so every ember sat half its own size down-right of the path it was meant to follow).
+ */
+.effect-trail {
+  position: absolute;
+  z-index: calc(var(--z-overlay, 20) + 1);
+  margin: 0;
+  translate: -50% -50%;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, var(--bolt-core) 0 18%, var(--bolt) 45%, color-mix(in srgb, var(--bolt-rim) 60%, transparent) 70%, transparent 72%);
+  animation: effect-trail-cool 420ms linear forwards;
+}
+
+@keyframes effect-trail-cool {
+  60% {
+    background: radial-gradient(circle, var(--bolt) 0 20%, color-mix(in srgb, var(--bolt-rim) 70%, transparent) 55%, transparent 72%);
+  }
+
+  100% {
+    background: radial-gradient(circle, color-mix(in srgb, var(--smoke) 60%, transparent) 0 30%, transparent 72%);
+  }
+}
+
+/*
+ * The explosion (`explode()` in `projectile.ts`, `impact()`'s own burst): a white-hot flash, a
+ * fireball of puffs billowing out and leaving smoke ghosts, a shockwave ring, spark streaks thrown on
+ * their own arcs, and falling embers for a heavy blow. Every layer in the bolt's own colour.
+ */
 .effect-impact {
-  scale: var(--power-size, 1);
   position: absolute;
   z-index: calc(var(--z-overlay, 20) + 2);
   width: 0;
@@ -95,76 +124,142 @@
   pointer-events: none;
 }
 
-.effect-impact::before {
-  content: '';
+.effect-blast > * {
   position: absolute;
-  left: -48px;
-  top: -48px;
-  width: 96px;
-  height: 96px;
+  pointer-events: none;
+}
+
+.effect-blast__flash {
+  left: calc(-1 * var(--r));
+  top: calc(-1 * var(--r));
+  width: calc(2 * var(--r));
+  height: calc(2 * var(--r));
   border-radius: 50%;
-  animation: effect-impact-flash 420ms ease-out forwards;
+  background: radial-gradient(circle, var(--c-white) 0 25%, var(--bolt-core) 45%, transparent 70%);
+  animation: effect-blast-flash 160ms ease-out forwards;
 }
 
-.effect-impact[data-projectile='bolt']::before {
-  background: radial-gradient(
-    circle,
-    var(--bolt-core) 0 15%,
-    color-mix(in srgb, var(--bolt) 90%, transparent) 35%,
-    color-mix(in srgb, var(--bolt-rim) 50%, transparent) 60%,
-    transparent 72%
-  );
-}
-
-.effect-impact[data-projectile='heal']::before {
-  background: radial-gradient(circle, color-mix(in srgb, var(--success) 25%, var(--c-white)) 0 15%, color-mix(in srgb, var(--success) 70%, transparent) 45%, transparent 72%);
-}
-
-@keyframes effect-impact-flash {
+@keyframes effect-blast-flash {
   0% {
-    scale: 0.2;
+    scale: 0.3;
     opacity: 1;
   }
 
   100% {
-    scale: 1.6;
+    scale: 1.8;
     opacity: 0;
   }
 }
 
-.effect-impact__spark {
+.effect-blast__puff {
+  border-radius: 50%;
+  /* Soft all the way out: a glow, never a disc with an edge. */
+  background: radial-gradient(circle, color-mix(in srgb, var(--bolt-core) 95%, transparent) 0, color-mix(in srgb, var(--bolt) 70%, transparent) 35%, color-mix(in srgb, var(--bolt-rim) 30%, transparent) 60%, transparent 70%);
+  scale: 0.2;
+  animation: effect-blast-puff var(--blast-ms) cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+}
+
+/* The heart of it: white-hot first. */
+.effect-blast__puff[data-core] {
+  background: radial-gradient(circle, var(--c-white) 0 12%, var(--bolt-core) 28%, color-mix(in srgb, var(--bolt) 70%, transparent) 50%, transparent 70%);
+}
+
+@keyframes effect-blast-puff {
+  0% {
+    scale: 0.2;
+    opacity: 0.95;
+    translate: 0 0;
+  }
+
+  25% {
+    scale: 1;
+    opacity: 0.9;
+  }
+
+  100% {
+    scale: 1.4;
+    opacity: 0;
+    translate: var(--drift-x) var(--drift-y);
+  }
+}
+
+/* Smoke rising after the fire: the same puffs' ghosts, darker and slower. */
+.effect-blast__puff::after {
+  content: '';
   position: absolute;
+  inset: 10%;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--smoke) 45%, transparent) 0, transparent 70%);
+  opacity: 0;
+  animation: effect-blast-smoke var(--blast-ms) ease-out forwards;
+}
+
+@keyframes effect-blast-smoke {
+  40% {
+    opacity: 0;
+  }
+
+  60% {
+    opacity: 0.8;
+  }
+
+  100% {
+    opacity: 0;
+    translate: 0 -12px;
+  }
+}
+
+.effect-blast__ring {
+  left: calc(-1 * var(--r));
+  top: calc(-1 * var(--r));
+  width: calc(2 * var(--r));
+  height: calc(2 * var(--r));
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--bolt-core) 80%, transparent);
+  scale: 0.15;
+  animation: effect-blast-ring 380ms cubic-bezier(0.15, 0.7, 0.3, 1) forwards;
+}
+
+@keyframes effect-blast-ring {
+  0% {
+    scale: 0.15;
+    opacity: 0.9;
+    border-width: 5px;
+  }
+
+  100% {
+    scale: 1;
+    opacity: 0;
+    border-width: 1px;
+  }
+}
+
+.effect-blast__spark {
+  left: 0;
+  top: -1px;
+  height: 2px;
+  border-radius: 1px;
+  transform-origin: 0 50%;
+  background: linear-gradient(to right, transparent, var(--bolt) 40%, var(--bolt-core));
+  box-shadow: 0 0 4px color-mix(in srgb, var(--bolt) 70%, transparent);
+}
+
+.effect-blast__ember {
   left: -2px;
   top: -2px;
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  animation: effect-impact-spark 420ms cubic-bezier(0.2, 0.7, 0.4, 1) forwards;
-}
-
-.effect-impact[data-projectile='bolt'] .effect-impact__spark {
   background: var(--bolt-core);
-  box-shadow: 0 0 6px 2px color-mix(in srgb, var(--bolt) 80%, transparent);
-}
-
-.effect-impact[data-projectile='heal'] .effect-impact__spark {
-  background: var(--success);
-}
-
-@keyframes effect-impact-spark {
-  0% {
-    transform: rotate(var(--angle)) translateX(0);
-    opacity: 1;
-  }
-
-  100% {
-    transform: rotate(var(--angle)) translateX(52px);
-    opacity: 0;
-  }
+  box-shadow: 0 0 5px 1px color-mix(in srgb, var(--bolt) 80%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .effect-impact__spark {
+  .effect-trail,
+  .effect-blast__spark,
+  .effect-blast__ember,
+  .effect-blast__puff {
     display: none;
   }
 }

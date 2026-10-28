@@ -63,6 +63,6 @@ describe('crash', () => {
     claimParticles(root, PARTICLE_BUDGET, 6, Date.now(), Date.now() + 5000);
     const el = crash(root, { x: 0, y: 0 }, 1, 'c');
     expect([el.querySelectorAll('.effect-crash__rock').length, el.querySelectorAll('.effect-crash__dust').length]).toEqual([4, 2]);
-    expect(impact(root, { x: 0, y: 0 }, 'bolt', 'i', 'R', 1).querySelectorAll('.effect-impact__spark')).toHaveLength(2);
+    expect(impact(root, { x: 0, y: 0 }, 'bolt', 'i', 'R', 1).querySelectorAll('.effect-blast__spark')).toHaveLength(3);
   });
 });

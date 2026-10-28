@@ -94,19 +94,22 @@ export const ATTACK_BEAT_MS = 600;
 export const HIT_MS = 850;
 
 /**
- * The damage at which every effect is at its heaviest. It was 20 (the operator, 2026-10-16: "let's allow
- * it to scale up to 20"); re-anchored 2026-10-17 on a survey of every loaded deck (ledger AF149: 1,459
- * decks, 21,361 creature copies — median power 2, p90 5, p99 10) after the operator found the growth
- * "too linear": "we should escalate the effects a bit faster". A ten is now the full blow; the shake
- * (`crash.ts`'s table) still climbs by amount past it.
+ * The damage at which every effect is at its heaviest — one scale, for every damage effect, creature
+ * combat blows included (AF420: the spell-damage preview, approved 2026-10-27, "looks great. i can
+ * approve that animation"; asked whether combat should share a spell's cap, the recommendation taken
+ * was yes, kept as this one constant so it can be changed back on its own). It was 20 (the operator,
+ * 2026-10-16: "let's allow it to scale up to 20"), then 10 (re-anchored 2026-10-17 on a survey of every
+ * loaded deck — ledger AF149: 1,459 decks, 21,361 creature copies — median power 2, p90 5, p99 10 —
+ * after the operator found the growth "too linear"), and 20 again from AF420's preview, which found the
+ * ten-point scale left a spell's biggest hits looking the same size.
  */
-export const MAX_DAMAGE = 10;
+export const MAX_DAMAGE = 20;
 
 /**
  * How much a hit of `amount` damage weighs, 0 to 1: one point is the lightest, `MAX_DAMAGE` and more
  * the heaviest, on a square-root curve so the first few points each count and the top still climbs
- * (a log curve flattened out near its cap, and 9 looked no lighter than 10): a two is a third of the
- * way, a three nearly half, a five two thirds, a seven over four fifths. Every damage effect
+ * (a log curve flattened out near its cap, and 9 looked no lighter than 10): a two is a sixth of the
+ * way, a three a bit over a fifth, a five nearly half, a ten two thirds. Every damage effect
  * scales with it — its size, its pace and its sound (the operator, 2026-10-16: "any animation
  * involving damage (spell or combat) must scale with how much damage it is").
  */
@@ -117,6 +120,18 @@ export function damagePower(amount: number): number {
 /** An effect's size at `power`: four fifths for a point, about one and a half at five, 1.9 times at ten and beyond. */
 export function powerSize(power: number): number {
   return 0.8 + 1.1 * power;
+}
+
+/**
+ * A DAMAGE effect's size at `power`: a spell's ball and burst (`live/projectile.ts`), a combat blow's
+ * crash (`live/crash.ts`) — the bigger scale AF420 gave damage once its cap reached 20 (0.8 to 2.5,
+ * `powerSize`'s own 0.8 to 1.9). Kept apart from `powerSize` on purpose: a creature's own LANDING
+ * weight (`live/entries.ts`, out of scope for AF420) reuses `powerSize` too, at a scale the operator
+ * approved the same day (AF413) — raising `powerSize` itself would have grown its debris along with
+ * every spell, with nobody having looked at that.
+ */
+export function damageSize(power: number): number {
+  return 0.8 + 1.7 * power;
 }
 
 /**

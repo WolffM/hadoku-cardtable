@@ -6,7 +6,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { afterGlide, animationsSettled, BEAT_ANIMATION_ID, boardWaitingOn, damagePower, GLIDE_MS, MAX_DAMAGE, noteBoardDrawing, powerSize, whenBoardStill } from './motion.ts';
+import { afterGlide, animationsSettled, BEAT_ANIMATION_ID, boardWaitingOn, damagePower, damageSize, GLIDE_MS, MAX_DAMAGE, noteBoardDrawing, powerSize, whenBoardStill } from './motion.ts';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -178,21 +178,27 @@ describe('the board’s stillness', () => {
 });
 
 describe('how heavy a hit is', () => {
-  // The operator, 2026-10-17 (ledger AF149): "we should escalate the effects a bit faster then. our
-  // escalation is too linear" — full weight at ten, the p99 creature power across every loaded deck,
-  // where it used to take twenty.
-  it('a point is the lightest, a ten and anything above the heaviest, and the middle climbs fast', () => {
-    expect(MAX_DAMAGE).toBe(10);
+  // AF420 (2026-10-27): the spell-damage preview put the cap back at twenty — the ten-point scale
+  // (ledger AF149) left a spell's biggest hits all looking the same size — as one constant every
+  // damage effect shares, creature combat blows included.
+  it('a point is the lightest, TWENTY and anything above the heaviest, and the middle climbs fast', () => {
+    expect(MAX_DAMAGE).toBe(20);
     expect(damagePower(1)).toBe(0);
-    expect(damagePower(2)).toBeCloseTo(1 / 3, 5);
-    expect(damagePower(5)).toBeCloseTo(2 / 3, 5);
-    expect(damagePower(10)).toBe(1);
+    expect(damagePower(5)).toBeCloseTo(Math.sqrt(4 / 19), 5);
+    expect(damagePower(10)).toBeCloseTo(Math.sqrt(9 / 19), 5);
     expect(damagePower(20)).toBe(1);
+    expect(damagePower(30), 'damage above the cap is no heavier than the cap itself').toBe(damagePower(20));
     expect(damagePower(0)).toBe(0);
   });
-  it('an effect is four fifths for a point and about one and a half at five', () => {
-    expect(powerSize(damagePower(1))).toBeCloseTo(0.8, 5);
-    expect(powerSize(damagePower(5))).toBeCloseTo(1.533, 2);
-    expect(powerSize(damagePower(10))).toBeCloseTo(1.9, 5);
+  it('powerSize (a creature landing’s own curve, `entries.ts`) is four fifths for nothing and 1.9 times at full power — untouched by AF420’s bigger damage scale', () => {
+    expect(powerSize(0)).toBeCloseTo(0.8, 5);
+    expect(powerSize(1)).toBeCloseTo(1.9, 5);
+  });
+  it('damageSize (a spell’s ball and burst, a combat blow’s crash) is four fifths for a point and two and a half at twenty and beyond', () => {
+    expect(damageSize(damagePower(1))).toBeCloseTo(0.8, 5);
+    expect(damageSize(damagePower(5))).toBeCloseTo(0.8 + 1.7 * Math.sqrt(4 / 19), 5);
+    expect(damageSize(damagePower(10))).toBeCloseTo(0.8 + 1.7 * Math.sqrt(9 / 19), 5);
+    expect(damageSize(damagePower(20))).toBeCloseTo(2.5, 5);
+    expect(damageSize(damagePower(30)), 'damage above the cap is no bigger than the cap itself').toBe(damageSize(damagePower(20)));
   });
 });
