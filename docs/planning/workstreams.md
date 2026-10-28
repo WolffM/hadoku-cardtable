@@ -195,6 +195,7 @@ it. PR-5 is new and exists to serve it.
 | steady glow through phases | `.claude/worktrees/w80a` / `w80a` | dispatched; artifact gate before land | — |
 | Frontline Medic's orange glow (which mark, then the class) | `.claude/worktrees/w80b` / `w80b` | dispatched; measure first, design call if can-act | — |
 | unlock on an animation's last 10% | `.claude/worktrees/w80c` / `w80c` | dispatched; `numbers.ts` waits on w79b; artifact gate | — |
+| release a permanent anywhere → next board space | — | queued: after w79a lands (`install.ts`/arrival path) | — |
 
 ## Wave 79 (trailer cut 1 feedback) dispatched as four single sessions (2026-10-28)
 
