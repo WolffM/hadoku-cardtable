@@ -187,6 +187,14 @@ export async function sync(options: SyncOptions): Promise<SyncResult> {
   }
 
   const out = createWriteStream(tempPath, { encoding: 'utf8' });
+  // Listened to from the start, for the same reason as `decompressing` below: a download that dies
+  // mid-stream destroys `out` with a write still in flight, and that write's ERR_STREAM_DESTROYED
+  // on a stream nobody listens to was an uncaught 'error' that took the whole server down
+  // (2026-10-28, the catalog refresh's "terminated"). The download's own error is what is thrown.
+  let writeError: unknown = null;
+  out.on('error', (error: unknown) => {
+    writeError ??= error;
+  });
   const gunzip = createGunzip();
 
   // Decompress in the background while we consume decoded lines off the other
@@ -242,7 +250,7 @@ export async function sync(options: SyncOptions): Promise<SyncResult> {
     }
     await new Promise<void>((resolve, reject) => {
       out.on('error', reject);
-      out.end(() => resolve());
+      out.end(() => (writeError === null ? resolve() : reject(writeError as Error)));
     });
   } catch (error) {
     out.destroy();
