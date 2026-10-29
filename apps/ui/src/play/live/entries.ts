@@ -22,13 +22,12 @@
  * every frame, so a row that reflows while it falls (the card's own arrival widening the row) moves
  * where it lands, and it lands there in one motion.
  *
- * `playEntry` plays a motion's own arrival (the climb to the hang point) and the landing as one
- * run, for `rise` and `blink`: nothing else travels the card to them (a graveyard pile, exile has no
- * ghost of its own). `playLanding` is the landing alone, for a card something else already carried
- * to its slot: `gestures/cast.ts`'s `landCastGhost` is the one trip a played or arriving card makes
- * on either screen (a cast, a token's travel from its maker, the other seat's echo) — its own flight
- * already ends in the slot, so the weight lands there as its last leg, never a second animation
- * bolted on after a gap.
+ * `playEntry` is every arrival on the battlefield, on either screen: a motion's own arrival (the
+ * climb to the hang point) and the landing as one run, drawn by one stand-in from its first frame to
+ * the row card taking over where it touches down. A cast or played card, the other seat's echo of
+ * one, and a card travelling from its maker are the `cast` motion, from wherever the card is drawn
+ * when it starts (`gestures/cast.ts`'s `landCastGhost` hands it over); `rise`, `blink` and `release`
+ * have nowhere else to come from. `playLanding` is the landing alone, for Fast Mode: no travel.
  */
 
 import { copyOfCard } from './departures.ts';
@@ -37,7 +36,7 @@ import { shake } from './crash.ts';
 import { BEAT_ANIMATION_ID, powerEase, powerSize } from '../motion.ts';
 import './entries.css';
 
-/** Where a permanent came from, picking its entry motion. A cast creature's own motion is `gestures/cast.ts`'s, not this module's — see the header. */
+/** Where a permanent came from, picking its entry motion. */
 export type EntryOrigin = 'stack' | 'graveyard' | 'exile' | 'token';
 
 /** How the table cracks under a landing, continuous with power — see {@link entryWeight}. */
@@ -138,8 +137,8 @@ export function landingWeight(heft: number): EntryWeight | null {
 }
 
 export const ENTRY_MOTIONS = {
-  /** Off the stack: the cast card's own glide ends lifted over its slot, then drops. Never driven from here — see the header. */
-  cast: { ms: 0 },
+  /** Off the stack, or from its maker: from where it is drawn when it starts, up over its slot, then it drops. */
+  cast: { ms: 420 },
   /** Out of a graveyard: drained of colour, it flies up from the pile in a pall of shadow, then takes its colour back. */
   rise: { ms: 640 },
   /** Back from exile: it flickers in out of light. */
@@ -158,9 +157,9 @@ export function entryMotionFor(origin: EntryOrigin): EntryMotion {
 }
 
 /** A rough budget for how long a motion plus its landing run, for a caller's own pacing — never the effects' own timing, which is the `Promise` `playEntry`/`playLanding` return. */
-export function entryDurationMs(motion: EntryMotion, weight: EntryWeight): number {
-  const dropMs = Math.round(260 + 260 * weight.power);
-  const tailMs = motion === 'rise' ? 300 : motion === 'cast' ? 60 + 120 * weight.power : 0;
+export function entryDurationMs(motion: EntryMotion, weight: EntryWeight | null): number {
+  const { dropMs } = hang(weight);
+  const tailMs = weight === null ? 0 : motion === 'rise' ? 300 : motion === 'cast' ? 60 + 120 * weight.power : 0;
   return ENTRY_MOTIONS[motion].ms + tailMs + dropMs;
 }
 
@@ -173,8 +172,9 @@ interface Box {
 
 const rel = (r: DOMRect, to: DOMRect): Box => ({ left: r.left - to.left, top: r.top - to.top, width: r.width, height: r.height });
 
-/** How high the stand-in hangs before it drops, how big it is there, and how long the drop takes. */
-function hang(w: EntryWeight): { lift: number; scale: number; dropMs: number } {
+/** How high the stand-in hangs before it drops, how big it is there, and how long the drop takes. Weightless: it glides straight into its slot. */
+function hang(w: EntryWeight | null): { lift: number; scale: number; dropMs: number } {
+  if (w === null) return { lift: 0, scale: 1, dropMs: 0 };
   return { lift: 26 + 50 * w.power, scale: 1.1 + 0.2 * w.power, dropMs: Math.round(260 + 260 * w.power) };
 }
 
@@ -184,12 +184,18 @@ export interface EntryRun {
   overlay: HTMLElement;
   /** The creature's row card, already rendered; hidden until the stand-in lands. */
   card: HTMLElement;
-  /** Where it came from: a graveyard pile; null when it has nowhere to travel from (exile). */
+  /** Where it came from — a graveyard pile, or whatever draws the card when a `cast` starts (its stand-in, the stack's card); null when it has nowhere to travel from (exile). Read once, as `playEntry` starts. */
   from: HTMLElement | null;
   motion: EntryMotion;
-  weight: EntryWeight;
+  /** Null: a weightless landing (a land, a 0-power creature) — it glides into its slot, nothing more. */
+  weight: EntryWeight | null;
   key: string;
+  /** The stand-in has touched down and the row card (as drawn now) is shown in its place: the weight effects are still to run. */
+  onLanded?: (card: HTMLElement) => void;
 }
+
+/** What a row card wears while it waits for its arrival — `gestures/cast.ts`'s landing mark hides it, `numbers.ts`'s arrival mark fades it in — and its stand-in must not. */
+const WAITING_MARKS = ['data-cast-landing', 'data-arriving-from'];
 
 /**
  * A stand-in copy of `card`, in `overlay`, kept on its row card's box every frame until `stop`. Once
@@ -197,7 +203,7 @@ export interface EntryRun {
  * card is centred in its upright place by margins the copy does not have), the copy's own face is
  * moved onto the row card's face, so taking over from it and handing back to it never jumps.
  */
-function standIn(overlay: HTMLElement, card: HTMLElement, cls: string): { wrap: HTMLElement; box: () => Box; mount: () => void; stop: () => void } {
+function standIn(overlay: HTMLElement, card: HTMLElement, cls: string): { wrap: HTMLElement; box: () => Box; card: () => HTMLElement; mount: () => void; stop: () => void } {
   const wrap = document.createElement('div');
   wrap.className = cls;
   wrap.dataset.standIn = card.dataset.boardCard ?? '';
@@ -207,6 +213,7 @@ function standIn(overlay: HTMLElement, card: HTMLElement, cls: string): { wrap: 
   const copy = copyOfCard(card);
   // The row card may already be hidden for its arrival; its copy never is.
   copy.style.visibility = '';
+  for (const mark of WAITING_MARKS) copy.removeAttribute(mark);
   piece.append(copy);
   wrap.append(piece);
   let at: Box = rel(card.getBoundingClientRect(), overlay.getBoundingClientRect());
@@ -242,7 +249,7 @@ function standIn(overlay: HTMLElement, card: HTMLElement, cls: string): { wrap: 
     place();
     requestAnimationFrame(loop);
   };
-  return { wrap, box: () => at, mount, stop: () => (live = false) };
+  return { wrap, box: () => at, card: () => card, mount, stop: () => (live = false) };
 }
 
 const DRAINED = 'grayscale(1) brightness(0.55) contrast(1.1)';
@@ -314,13 +321,14 @@ export async function playEntry(run: EntryRun): Promise<void> {
   s.mount();
   wrap.dataset.entry = motion;
   card.style.visibility = 'hidden';
+  // Read now, while the caller's own element still draws the card: it is taken away once this returns.
+  const src = from === null ? null : rel(from.getBoundingClientRect(), box());
 
   const hung: Keyframe = { translate: `0 ${-lift}px`, scale: String(scale), filter: shadow(lift) };
 
   // 1. Arrive at the hang point, by origin. Every offset is from the slot, which the stand-in follows.
-  if (motion === 'rise' && from !== null) {
+  if (motion === 'rise' && src !== null) {
     const slot = s.box();
-    const src = rel(from.getBoundingClientRect(), box());
     const dx = src.left + src.width / 2 - (slot.left + slot.width / 2);
     const dy = src.top + src.height / 2 - (slot.top + slot.height / 2);
     const s0 = Math.max(0.3, src.width / slot.width);
@@ -344,7 +352,7 @@ export async function playEntry(run: EntryRun): Promise<void> {
       easing: 'ease-out',
       fill: 'forwards',
     });
-    await wait(60 + 80 * weight.power);
+    await wait(60 + 80 * (weight?.power ?? 0));
   } else if (motion === 'blink') {
     await play(
       wrap,
@@ -358,9 +366,8 @@ export async function playEntry(run: EntryRun): Promise<void> {
       { id: BEAT_ANIMATION_ID, duration: ENTRY_MOTIONS.blink.ms, easing: 'ease-out', fill: 'forwards' },
     );
   } else {
-    // Cast: off the stack (where it resolved) up over its slot, hung there for the drop.
+    // Cast: from where the card is drawn (the stack's card, its stand-in) up over its slot, hung there for the drop.
     const slot = s.box();
-    const src = from === null ? null : rel(from.getBoundingClientRect(), box());
     const dx = src === null ? 0 : src.left + src.width / 2 - (slot.left + slot.width / 2);
     const dy = src === null ? -lift * 2 : src.top + src.height / 2 - (slot.top + slot.height / 2);
     await play(
@@ -369,19 +376,21 @@ export async function playEntry(run: EntryRun): Promise<void> {
         { translate: `${dx}px ${dy}px`, scale: String(src === null ? scale : Math.max(0.5, src.width / slot.width)), filter: shadow(lift * 1.4), opacity: src === null ? 0 : 1 },
         { ...hung, offset: 1 },
       ],
-      { id: BEAT_ANIMATION_ID, duration: 420, easing: 'cubic-bezier(0.3, 0, 0.2, 1)', fill: 'forwards' },
+      { id: BEAT_ANIMATION_ID, duration: ENTRY_MOTIONS.cast.ms, easing: 'cubic-bezier(0.3, 0, 0.2, 1)', fill: 'forwards' },
     );
-    await wait(60 + 120 * weight.power);
+    if (weight !== null) await wait(60 + 120 * weight.power);
   }
 
   // 2. The landing: the same for every origin, as heavy as the creature.
-  await landingDrop(wrap, weight);
+  if (weight !== null) await landingDrop(wrap, weight);
   const slot = s.box();
-  const done = landingEffects(board, overlay, card, slot, weight, key);
   s.stop();
-  card.style.visibility = '';
+  // The row card as the stand-in last followed it: React may have drawn it again meanwhile.
+  const landed = s.card();
+  landed.style.visibility = '';
+  run.onLanded?.(landed);
   wrap.remove();
-  await done;
+  if (weight !== null) await landingEffects(board, overlay, landed, slot, weight, key);
 }
 
 /** The squish from the hang point down onto the table. */
@@ -411,14 +420,12 @@ function landingEffects(board: HTMLElement, overlay: HTMLElement, card: HTMLElem
 }
 
 /**
- * The landing alone, for a card something else already carried to its slot (`gestures/cast.ts`'s
- * `landCastGhost`, or Fast Mode's "landing only, no rise/no travel"): a quick hang-and-drop squish on
- * `wrap` (the ghost already standing in `card`'s place, or `card` itself when nothing need stand in
- * for it — Fast Mode draws no travel, so the row card is never hidden), then the same weight effects
- * `playEntry` ends with.
+ * The landing alone, for Fast Mode's "landing only, no rise/no travel": a quick hang-and-drop squish
+ * on the row card itself (Fast Mode draws no travel, so it is never hidden), then the same weight
+ * effects `playEntry` ends with.
  */
-export async function playLanding(board: HTMLElement, overlay: HTMLElement, card: HTMLElement, weight: EntryWeight, key: string, wrap: HTMLElement = card): Promise<void> {
-  await landingDrop(wrap, weight);
+export async function playLanding(board: HTMLElement, overlay: HTMLElement, card: HTMLElement, weight: EntryWeight, key: string): Promise<void> {
+  await landingDrop(card, weight);
   const slot = rel(card.getBoundingClientRect(), overlay.getBoundingClientRect());
   await landingEffects(board, overlay, card, slot, weight, key);
 }

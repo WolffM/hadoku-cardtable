@@ -225,7 +225,7 @@ test(titled('letting go of a held card with no further pointer move takes the ba
     // Let go with NO further pointer move: the release message is the only thing that can move
     // the back now, since nothing will throttle a move in to do it instead. It leaves the cursor at
     // once — for the gap her row reserved, where it waits for the card (2026-10-08) — and hands over
-    // to the card's own tile copy the moment Memnite is on her battlefield.
+    // to the card's arrival (`entries.ts`'s `.board-entry`) the moment Memnite is on her battlefield.
     //
     // Watched from BEFORE the release, as a record: the waiting back and the reserved gap live only
     // until Forge's frame, which on a CI runner is tens of milliseconds — a locator poll started after
@@ -242,7 +242,7 @@ test(titled('letting go of a held card with no further pointer move takes the ba
       new MutationObserver(() => {
         if (document.querySelector('.presence__back[data-waiting]') !== null) note('back waiting');
         if (document.querySelector('.seat:not([data-viewer]) [data-zone="battlefield"] li.zone__gap[data-expected]') !== null) note('gap reserved');
-        if (document.querySelector('.presence__handoff') !== null) note('tile copy flying');
+        if (document.querySelector('.board-entry[data-entry="cast"]') !== null) note('arrival flying');
         if (document.querySelector('.seat:not([data-viewer]) [data-zone="battlefield"] [data-board-card] .card__name') !== null) note('card drawn');
       }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-waiting', 'data-expected'] });
     });
@@ -252,13 +252,13 @@ test(titled('letting go of a held card with no further pointer move takes the ba
     // AE26: if Memnite sat on the stack for a beat (bob held priority), the back turned into its face
     // at the release point first; the flight into the column comes when it resolves. Either way the
     // trip is made — wait for it, not for the back alone.
-    await expect.poll(async () => (await record()).some((s) => s.endsWith('tile copy flying')), { timeout: 20_000 }).toBe(true);
+    await expect.poll(async () => (await record()).some((s) => s.endsWith('arrival flying')), { timeout: 20_000 }).toBe(true);
     const seen = await record();
     console.log(`[presence memnite] bob saw: ${seen.join(' → ')}`);
     expect(seen.some((s) => s.endsWith('back waiting')), `the back left the cursor at once, for the reserved gap — bob saw: ${seen.join(' → ')}`).toBe(true);
     expect(seen.some((s) => s.endsWith('gap reserved')), `his screen reserved her column — bob saw: ${seen.join(' → ')}`).toBe(true);
-    expect(seen.some((s) => s.endsWith('tile copy flying')), `and the card's tile copy finished the trip — bob saw: ${seen.join(' → ')}`).toBe(true);
-    await expect(bob.page.locator('.presence__handoff'), 'the copy landed').toHaveCount(0, { timeout: 5_000 });
+    expect(seen.some((s) => s.endsWith('arrival flying')), `and the card's arrival finished the trip — bob saw: ${seen.join(' → ')}`).toBe(true);
+    await expect(bob.page.locator('.board-entry'), 'it landed').toHaveCount(0, { timeout: 5_000 });
   } finally {
     await stack.stop();
   }

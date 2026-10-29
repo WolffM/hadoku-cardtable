@@ -701,7 +701,7 @@ describe('receiving', () => {
     handle.dispose();
   });
 
-  it('their placement (the act’s own message) reserves the column for THEIR player by card id, keeps the back waiting in the gap, and hands it over to the card’s own tile copy once the board has drawn the card there', async () => {
+  it('their placement (the act’s own message) reserves the column for THEIR player by card id, keeps the back waiting in the gap, and hands it over to the card’s arrival once the board has drawn the card there', async () => {
     // The operator, 2026-10-08, from the opponent's seat: the card flashed at the row's end first, and
     // the back lingered on the cursor. The column and the release point come WITH the act, through
     // the server, before any Forge frame about the card; the card's arrival is drawn in the gap.
@@ -725,8 +725,8 @@ describe('receiving', () => {
     t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: null, held: false, from: null, arranging: null });
     expect(canvas.querySelector('.presence__back[data-waiting]'), 'still waiting after their release and their pointer left').not.toBeNull();
     // The card arrives: the board draws it in the gap and consumes the reservation. The stand-in
-    // hands over to a copy of the card's own tile, which finishes the trip from wherever the back
-    // is (`landCastGhost`, the same trip the owner's screen draws) — never cut short: Forge answers
+    // hands over to the card's arrival, which finishes the trip from wherever the back is
+    // (`landCastGhost`: the same one entry the owner's screen draws) — never cut short: Forge answers
     // a cast faster than the back's 300 ms glide, and taking the back down at once popped the card
     // into the gap mid-glide (presence.spec's Memnite case, red on a fast CI runner).
     const li = document.createElement('li');
@@ -735,15 +735,21 @@ describe('receiving', () => {
     canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.append(li);
     theirs = [77];
     forgetPendingPlacements();
+    // jsdom has no Web Animations, so an entry would be over in a microtask: hold every animation it starts.
+    const animate = vi.fn(() => ({ finished: new Promise(() => undefined), cancel: () => undefined }));
+    HTMLElement.prototype.animate = animate as unknown as HTMLElement['animate'];
+    onTestFinished(() => {
+      delete (HTMLElement.prototype as { animate?: unknown }).animate;
+    });
     wake!();
     await new Promise((r) => requestAnimationFrame(() => r(undefined)));
     expect(canvas.querySelector('.presence__back'), 'the back is gone the moment the card is there').toBeNull();
-    const flight = canvas.querySelector<HTMLElement>('.presence__handoff');
-    expect(flight, 'and its tile copy is on the trip in its place').not.toBeNull();
-    expect(flight!.getAttribute('data-cast-lift'), 'the same trip a played card makes').toBe('returning');
+    expect(canvas.querySelector('.presence__handoff'), 'the tile copy only marks where the trip starts').toBeNull();
+    const flight = canvas.querySelector<HTMLElement>('[data-board-overlay] .board-entry[data-entry="cast"]');
+    expect(flight, 'the card’s entry is on the trip in its place: the same one a played card makes').not.toBeNull();
     expect(flight!.querySelector('.card__name')!.textContent).toBe('Memnite');
     expect(flight!.querySelector('[data-card-id]'), 'the copy is not a card the DOM can address').toBeNull();
-    expect(li.hasAttribute('data-cast-landing'), 'the real card waits hidden in its slot until the copy lands').toBe(true);
+    expect(li.hasAttribute('data-cast-landing'), 'the real card waits hidden in its slot until the entry lands').toBe(true);
     handle.dispose();
     forgetPendingPlacements();
   });
@@ -1029,7 +1035,7 @@ describe('receiving', () => {
     forgetPendingPlacements();
   });
 
-  it('a creature that resolves while its back is still gliding is hidden under its flying copy on the commit that draws it — never a painted frame in its slot first (w67-shaman bears)', async () => {
+  it('a creature that resolves while its back is still gliding is hidden under its entry on the commit that draws it — never a painted frame in its slot first (w67-shaman bears)', async () => {
     const { canvas } = board();
     fakeClock();
     document.elementFromPoint = () => null;
@@ -1063,7 +1069,7 @@ describe('receiving', () => {
     forgetPendingPlacements();
     await Promise.resolve();
     expect(li.hasAttribute('data-cast-landing'), 'the card is hidden before the frame paints').toBe(true);
-    expect(canvas.querySelector('.presence__handoff'), 'its copy covers it').not.toBeNull();
+    expect(canvas.querySelector('.board-entry[data-entry="cast"]'), 'its entry covers it').not.toBeNull();
     expect(canvas.querySelector('.presence__back'), 'the back handed over to the copy').toBeNull();
     expect(placedMod.placeSpell, 'the stack layer never drew it').not.toHaveBeenCalled();
     handle.dispose();

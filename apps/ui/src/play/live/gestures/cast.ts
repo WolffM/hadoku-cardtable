@@ -25,7 +25,7 @@ import type { LiveMatch } from '../match.ts';
 import { handCardWidth, sizeAsCard } from '../../card-size.ts';
 import { GLIDE_MS, prefersReducedMotion } from '../../motion.ts';
 import { cardBox, overlayOf } from '../board-dom.ts';
-import { entryHeft, landingWeight, playLanding, type EntryWeight } from '../entries.ts';
+import { entryHeft, landingWeight, playEntry, type EntryWeight } from '../entries.ts';
 import type { Point } from './types.ts';
 
 /**
@@ -218,7 +218,6 @@ export function floatCastLiftHome(
   if (id !== null) returnTimers.set(id, { timer, onDone });
 }
 
-/** Marks the stand-in `parkedGhost` draws; it carries no card id, so `cardBox` never finds it. */
 /**
  * The reserved gap a stand-in glides into: the `data-expected` gap `Board`
  * draws in that side's battlefield while a placement waits. Measured on the
@@ -233,6 +232,7 @@ export function expectedGapBox(root: ParentNode, owner: 'you' | 'them'): DOMRect
   return box.width > 0 && box.height > 0 ? box : null;
 }
 
+/** Marks the stand-in `parkedGhost` draws; it carries no card id, so `cardBox` never finds it. */
 const CAST_GHOST_ATTR = 'data-cast-ghost';
 
 /**
@@ -245,11 +245,12 @@ export function parkedGhost(root: ParentNode, id: number): HTMLElement | null {
   const el = cardBox(root, id);
   if (!(el instanceof HTMLElement)) return null;
   const ghost = el.cloneNode(true) as HTMLElement;
-  // Nothing that finds a card by id or by test id may find the copy.
-  for (const node of [ghost, ...ghost.querySelectorAll('[data-board-card], [data-card-id], [data-testid]')]) {
+  // Nothing that finds a card by id or by test id may find the copy, and it is on offer for nothing.
+  for (const node of [ghost, ...ghost.querySelectorAll('[data-board-card], [data-card-id], [data-testid], [data-selectable]')]) {
     node.removeAttribute('data-board-card');
     node.removeAttribute('data-card-id');
     node.removeAttribute('data-testid');
+    node.removeAttribute('data-selectable');
   }
   // Outside the zone it was drawn in, the zone's own sizing no longer reaches it.
   const { width, height } = el.getBoundingClientRect();
@@ -266,8 +267,7 @@ export function parkedGhost(root: ParentNode, id: number): HTMLElement | null {
 /**
  * How close a stand-in's centre is to its card's to count as already there (`landCastGhost`). The
  * other screen's back can be caught in the last few px of its glide into the gap when the card is
- * drawn there (w67-shaman's Grizzly Bears: 449,280 and 450,282 against 454,280), and a 300 ms trip
- * across that is a flight to nowhere with the real card hidden under it.
+ * drawn there (w67-shaman's Grizzly Bears: 449,280 and 450,282 against 454,280).
  */
 const IN_PLACE_PX = 8;
 
@@ -284,51 +284,17 @@ export interface Landing {
   readonly shrink: number;
 }
 
-/** On a card's own battlefield element while its stand-in is still travelling to it. `./gestures.css` hides it; the row keeps its place. */
+/** On a card's own element while its arrival is still drawn by something else. `./gestures.css` hides it; the row keeps its place. */
 export const CAST_LANDING_ATTR = 'data-cast-landing';
 
-/**
- * A played card arrives: its stand-in travels from where it was let go to the
- * place `arrived` already holds in its row, and only then does the real card
- * show. The row is laid out with the card in it from the first frame, so
- * nothing around it moves twice.
- *
- * The stand-in is the travelling thing, never `arrived` itself: a transform on
- * a card inside the battlefield counts toward that zone's scroll overflow, and
- * a card lifted out of the row would close the gap it is flying to.
- *
- * The same trip takes the other seat's cancelled card home (`../presence.ts`):
- * `arrived` is then a back in their hand, and `id` null — see
- * `floatCastLiftHome`.
- *
- * A stand-in already standing where the card is drawn, at the size it is drawn
- * (it waited in the gap the card took), does not travel: it is a swap in place.
- * The trip it used to make there — the gap to itself, 300 ms with the real card
- * hidden under it — was on every landing (the Viridian Shaman recording,
- * 2026-10-09: `dx: 0, dy: 0`). A cast card waits over its gap at a hand card's
- * size, so its landing is the shrink into the slot, in place.
- *
- * `weight`, when given (`castLandingWeight`), draws the landing's own weight tail once this trip
- * ends — the same weight effects `entries.ts`'s `playEntry` ends with, by the permanent's own
- * card data, never a badge read off `arrived`: a creature by its power, any other permanent by its
- * mana value. Null — no tail — for a trip with nothing to weigh (a float home, an echo this
- * screen cannot name).
- */
 /**
  * A permanent's landing weight from its own card data — `entries.ts`'s `entryHeft`: a creature's
  * power, every other permanent (artifact, enchantment, planeswalker, battle) by its mana value —
  * looked up live off `view`'s battlefield, either seat's, never a badge read off the DOM: a cast
- * noncreature permanent has no P/T badge to read, so reading one left it weightless. Null when
- * `view` has no battlefield card at `cardId` yet (Forge has not drawn it there), `cardId` is null
- * (nothing of this screen's own to weigh — a float back to a hand, the other seat's echo of a card
- * this screen cannot name), or the heft is 0 (a land, a 0-power creature: `entries.ts`'s own words,
- * "a 0-heft permanent lands light: nothing but the drop") — the cast path's own flight and shrink
- * already ARE that drop, so a zero-weight tail drew nothing extra and nothing before this fix ever
- * ran one; running `landingDrop`'s own `el.animate` on the SAME ghost `floatCastLiftHome`'s CSS
- * transition is still moving fought it for the rest of that transition's run (a shockland's decline,
- * Memnite's 0 power: the ghost drifted and resized for a second-plus past its real landing,
- * played-card.spec.ts, 2026-10-28). The one place every cast or arriving permanent's landing learns
- * its weight, so a caller holding `view` and an id never has to thread the weight through itself.
+ * noncreature permanent has no P/T badge to read. Null when `view` has no battlefield card at
+ * `cardId` yet, `cardId` is null (nothing of this screen's own to weigh: the other seat's echo of a
+ * card this screen cannot name), or the heft is 0 (a land, a 0-power creature: it glides into its
+ * slot and nothing more).
  */
 export function castLandingWeight(view: BoardView | null, cardId: number | null): EntryWeight | null {
   if (cardId === null || view === null) return null;
@@ -341,34 +307,32 @@ export function castLandingWeight(view: BoardView | null, cardId: number | null)
 }
 
 /**
- * The weight tail onto a landing already at its slot — `landCastGhost`'s own flight (a cast, a
- * token's travel from its maker, the other seat's echo) ends there, so this is its last leg, never
- * a second animation bolted on after a gap (the brief's own words for AF413's cast join): a quick
- * hang-and-drop squish on `ghost`, still standing in for the card, then the same weight effects
- * `entries.ts`'s `playEntry` ends with. Null — no tail — with no weight to draw it by, or with
- * motion off.
+ * A played or arriving card reaches `arrived`, its place: the one trip it makes there on either
+ * screen — this seat's played card (`./install.ts`), the other seat's echo of one (`../presence.ts`),
+ * a card travelling from its maker (`../numbers.ts`). `ghost` is what draws the card when the trip
+ * starts (the stand-in at the park point, the stack's card's place, the back they held); it is drawn
+ * at `from` for the one read it takes to start from it, and is gone once this returns.
+ *
+ * On a battlefield the trip is `entries.ts`'s `cast` entry: ONE stand-in, in the board's overlay,
+ * from where the ghost was drawn up over the slot and down into it as heavy as `weight` — the same
+ * stand-in a reanimated or blinked creature arrives as. It follows the row card's box every frame,
+ * so a row that reflows meanwhile moves where it lands, and lives in the overlay, so the table shaking
+ * under the landing moves it with the cards (a `position: fixed` stand-in inside `.board` was moved by
+ * the board's own shake transform: Emrakul jerked 85 px off its slot and back, W79 2c). The row card
+ * is hidden until it touches down. Weightless and already standing in place: a swap, no trip.
+ *
+ * Anywhere else — a back going home to the other seat's hand when their cast is cancelled — it floats
+ * there, shrinking to its slot's size.
  */
-function weightTail(root: ParentNode, ghost: HTMLElement, arrived: HTMLElement, key: string, weight: EntryWeight | null): (() => Promise<void>) | null {
-  if (weight === null || prefersReducedMotion()) return null;
-  const board = (root.querySelector('.board') ?? root) as HTMLElement;
-  const overlay = overlayOf(root);
-  if (overlay === null) return null;
-  return () => playLanding(board, overlay, arrived, weight, key, ghost);
-}
-
 export function landCastGhost(root: ParentNode, id: number | null, ghost: HTMLElement, from: Point, arrived: HTMLElement, weight: EntryWeight | null = null): Landing {
   const box = arrived.getBoundingClientRect();
   const to = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
   const turned = arrived.hasAttribute('data-tapped');
   const size = { width: turned ? box.height : box.width, height: turned ? box.width : box.height };
-  const key = `cast:${id ?? arrived.getAttribute('data-board-card') ?? `${to.x}:${to.y}`}`;
-  const tail = weightTail(root, ghost, arrived, key, weight);
   ghost.setAttribute(CAST_LIFT_ATTR, 'parked');
   ghost.style.left = `${from.x}px`;
   ghost.style.top = `${from.y}px`;
   if (!ghost.isConnected) (root.querySelector('.board') ?? (root as Element)).appendChild(ghost);
-  // The start — its point and the size it is drawn at, in px, so the shrink has two lengths to run
-  // between — has to be a painted style before the end replaces it, or there is no transition to run.
   const start = ghost.getBoundingClientRect();
   const drawn = start.width > 0 && start.height > 0;
   const landing = {
@@ -376,20 +340,24 @@ export function landCastGhost(root: ParentNode, id: number | null, ghost: HTMLEl
     to,
     shrink: drawn ? start.width - size.width : 0,
   };
-  // The weight's own hang-and-drop keeps the ghost (and so `arrived`, hidden under it) a moment
-  // longer: never finish before that tail has played.
-  const finish = (): void => {
-    ghost.remove();
-    if (id !== null) clearCastLift(root, id);
-    arrived.removeAttribute(CAST_LANDING_ATTR);
-  };
   const sameSize = !drawn || (Math.abs(start.width - size.width) < IN_PLACE_PX && Math.abs(start.height - size.height) < IN_PLACE_PX);
-  if (Math.hypot(to.x - from.x, to.y - from.y) < IN_PLACE_PX && sameSize) {
-    if (tail !== null) {
-      arrived.setAttribute(CAST_LANDING_ATTR, '');
-      void tail().then(finish);
-    } else finish();
-    return { how: 'swap', ...landing };
+  const how = Math.hypot(to.x - landing.from.x, to.y - landing.from.y) < IN_PLACE_PX && sameSize ? 'swap' : 'flight';
+  const overlay = overlayOf(root);
+  if (overlay !== null && arrived.closest('[data-zone="battlefield"]') !== null) {
+    if (id !== null) clearCastLift(root, id);
+    if (how === 'swap' && weight === null) {
+      ghost.remove();
+      arrived.removeAttribute(CAST_LANDING_ATTR);
+      return { how, ...landing };
+    }
+    // The stand-in hides the row card itself from here; the landing mark goes back on once it has copied the card.
+    arrived.removeAttribute(CAST_LANDING_ATTR);
+    const board = (root.querySelector('.board') ?? root) as HTMLElement;
+    const key = `cast:${id ?? arrived.getAttribute('data-board-card') ?? `${to.x}:${to.y}`}`;
+    void playEntry({ board, overlay, card: arrived, from: ghost, motion: 'cast', weight, key, onLanded: (card) => card.removeAttribute(CAST_LANDING_ATTR) });
+    arrived.setAttribute(CAST_LANDING_ATTR, '');
+    ghost.remove();
+    return { how, ...landing };
   }
   arrived.setAttribute(CAST_LANDING_ATTR, '');
   if (drawn) {
@@ -402,19 +370,38 @@ export function landCastGhost(root: ParentNode, id: number | null, ghost: HTMLEl
     id,
     to,
     () => {
-      if (tail !== null) void tail().then(finish);
-      else finish();
+      ghost.remove();
+      arrived.removeAttribute(CAST_LANDING_ATTR);
     },
     ghost,
   );
-  // It shrinks to the size it will have in the row on the way there. A tapped
-  // card's box is the card turned on its side, so its sides are swapped back:
-  // the stand-in stays upright for the whole trip.
   if (box.width > 0 && box.height > 0) {
     ghost.style.width = `${size.width}px`;
     ghost.style.height = `${size.height}px`;
   }
-  return { how: 'flight', ...landing };
+  return { how, ...landing };
+}
+
+/**
+ * Where the stack draws a card while it waits there (`../placed.ts`'s `[data-placed-spell]`, its face or
+ * back carrying the card's own wire id), read every frame for up to `forMs`: the stack lays its items
+ * out on its own — a cast trigger joining it moves the spell — and takes the element away the moment
+ * the card resolves onto a battlefield, before its landing can ask. The landing starts from the last
+ * place it was drawn (`landCastGhost`'s `from`): on the other screen Emrakul's trip started from the
+ * point it was released at, 180 px from where the stack drew it (W79 2b/2c).
+ */
+export function followStackCard(root: ParentNode, cardId: number, forMs = Infinity): { readonly at: () => Point | null; readonly stop: () => void } {
+  let at: Point | null = null;
+  let live = true;
+  const until = Date.now() + forMs;
+  const look = (): void => {
+    if (!live || Date.now() > until) return;
+    const box = root.querySelector(`[data-placed-spell] [data-card-id="w${cardId}"]`)?.closest('[data-placed-spell]')?.getBoundingClientRect();
+    if (box !== undefined && box.width > 0) at = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    requestAnimationFrame(look);
+  };
+  look();
+  return { at: () => at, stop: () => (live = false) };
 }
 
 /** Every lift away, whoever it belonged to — on dispose, so a board left behind carries none, and every pending float-back timer with it. */

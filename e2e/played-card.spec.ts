@@ -92,7 +92,8 @@ async function record(page: Page, cardId: number): Promise<void> {
     const tick = (): void => {
       if (!state.run) return;
       const el = document.querySelector(`[data-board-card="${id}"]`);
-      const ghost = document.querySelector(`[data-cast-ghost="${id}"]`);
+      // Its stand-in: the ghost while it waits, then its arrival (`entries.ts`'s `.board-entry`, standing in for the row card).
+      const ghost = document.querySelector(`[data-cast-ghost="${id}"]`) ?? document.querySelector(`.board-entry[data-stand-in="${id}"]`);
       // §S: once Forge actually has the spell on the stack, `live/placed.ts` draws it — the ghost's
       // own handoff target, found by the SAME card id, through the CardTile it mounts (`w<id>`).
       // The WRAPPER's own existence is the continuity signal — its position
@@ -116,7 +117,7 @@ async function record(page: Page, cardId: number): Promise<void> {
         tapped: el?.hasAttribute('data-tapped') ?? false,
         at: box(el),
         ghost: box(ghost),
-        ghostLift: ghost?.getAttribute('data-cast-lift') ?? null,
+        ghostLift: ghost === null ? null : (ghost.getAttribute('data-cast-lift') ?? 'entry'),
         // The gap the row reserved for the card at its release (`Board`'s `notePlayedTo`): where its stand-in waits.
         gap: box(document.querySelector('[data-zone="battlefield"][data-owner="you"] li.zone__gap[data-expected]')),
         placed: placed !== null && getComputedStyle(placed).visibility !== 'hidden' ? box(placed) : null,
@@ -264,7 +265,7 @@ function expectWaitedThere(frames: Frame[], released: { x: number; y: number }):
     if (landed) continue;
     const seen = seenAt(f);
     expect(seen, `the card is drawn somewhere in every frame until it lands (t=${f.t})\n${story}`).not.toBeNull();
-    const travelling = f.ghostLift === 'returning';
+    const travelling = f.ghostLift === 'returning' || f.ghostLift === 'entry';
     if (!travelling) expect(waitingAt(seen!, released, gap), `the card is at the point it was let go or in its reserved gap (t=${f.t}), not ${seen!.x},${seen!.y}\n${story}`).toBe(true);
     expect(f.zone === 'hand' && f.lift === null, `the card is never back in the hand's own row (t=${f.t})\n${story}`).toBe(false);
     expect(f.tapped && !f.hidden && f.zone !== 'battlefield', `the card is never drawn tapped off the battlefield (t=${f.t})\n${story}`).toBe(false);
@@ -280,7 +281,7 @@ function expectWaitedThere(frames: Frame[], released: { x: number; y: number }):
 
 /** It left the point it was let go: a stand-in seen away from it (the glide into its gap), or a flight. */
 function travelledFrom(flight: Frame[], released: { x: number; y: number }): boolean {
-  return flight.some((f) => f.ghostLift === 'returning' || (f.ghostLift === 'parked' && seenAt(f) !== null && !near(seenAt(f)!, released, 6)));
+  return flight.some((f) => f.ghostLift === 'returning' || f.ghostLift === 'entry' || (f.ghostLift === 'parked' && seenAt(f) !== null && !near(seenAt(f)!, released, 6)));
 }
 
 /** The recording, kept beside the run's other evidence (`e2e/.run/`) whether the test passes or not. */

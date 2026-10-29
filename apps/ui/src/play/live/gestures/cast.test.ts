@@ -92,39 +92,83 @@ describe('castLandingWeight', () => {
   });
 });
 
-function arrivedAt(x: number, y: number): HTMLElement {
+const rect = (x: number, y: number, width: number, height: number): DOMRect =>
+  ({ left: x - width / 2, top: y - height / 2, width, height, right: x + width / 2, bottom: y + height / 2, x: x - width / 2, y: y - height / 2, toJSON: () => null }) as DOMRect;
+
+/** A card drawn at `x`,`y` in a board with an overlay: on a battlefield, or (`zone`) somewhere else. */
+function arrivedAt(x: number, y: number, zone = 'battlefield'): HTMLElement {
   const board = document.createElement('div');
   board.className = 'board';
+  const overlay = document.createElement('div');
+  overlay.setAttribute('data-board-overlay', '');
+  const row = document.createElement('ul');
+  row.setAttribute('data-zone', zone);
   const li = document.createElement('li');
-  li.getBoundingClientRect = () => ({ left: x - 30, top: y - 42, width: 60, height: 84, right: x + 30, bottom: y + 42, x: x - 30, y: y - 42, toJSON: () => null }) as DOMRect;
-  board.append(li);
+  li.setAttribute('data-board-card', '7');
+  li.getBoundingClientRect = () => rect(x, y, 60, 84);
+  row.append(li);
+  board.append(row, overlay);
   document.body.append(board);
   return li;
 }
 
+/** A stand-in drawn at `x`,`y`, `width` wide. */
+function ghostAt(x: number, y: number, width = 60): HTMLElement {
+  const ghost = document.createElement('div');
+  ghost.getBoundingClientRect = () => rect(x, y, width, width * 1.4);
+  document.body.append(ghost);
+  return ghost;
+}
+
+const entries = (): NodeListOf<HTMLElement> => document.querySelectorAll<HTMLElement>('.board-entry');
+
 describe('landCastGhost', () => {
-  it('a stand-in already where the card is drawn swaps in place: no flight, the card shown at once', () => {
+  it('a weightless stand-in already where the card is drawn swaps in place: no trip, the card shown at once', () => {
     const arrived = arrivedAt(400, 300);
     arrived.setAttribute(CAST_LANDING_ATTR, '');
-    const ghost = document.createElement('div');
-    document.body.append(ghost);
+    const ghost = ghostAt(401, 302);
     expect(landCastGhost(document, 7, ghost, { x: 401, y: 302 }, arrived)).toEqual({ how: 'swap', from: { x: 401, y: 302 }, to: { x: 400, y: 300 }, shrink: 0 });
     expect(ghost.isConnected, 'the stand-in is gone').toBe(false);
+    expect(entries(), 'nothing travels').toHaveLength(0);
     expect(arrived.hasAttribute(CAST_LANDING_ATTR), 'the card is not hidden').toBe(false);
   });
 
   it('a stand-in at rest in the gap its card took, a few px off the card, swaps in place too (w67-shaman’s bears: a 300 ms flight of 4–5 px)', () => {
     const arrived = arrivedAt(454, 280);
-    const ghost = document.createElement('div');
-    document.body.append(ghost);
+    const ghost = ghostAt(450, 283);
     landCastGhost(document, 7, ghost, { x: 450, y: 283 }, arrived);
-    expect(ghost.isConnected, 'no flight').toBe(false);
+    expect(ghost.isConnected, 'no trip').toBe(false);
     expect(arrived.hasAttribute(CAST_LANDING_ATTR), 'the card is shown at once').toBe(false);
   });
 
-  it('from anywhere else it travels, the card hidden until it lands — a card of no id (their hidden hand) included', () => {
-    vi.useFakeTimers();
+  it('onto a battlefield from anywhere else it is ONE entry stand-in from the start (W79 2b/2c): the ghost gone at once, the card hidden until it touches down', async () => {
     const arrived = arrivedAt(400, 60);
+    const ghost = ghostAt(500, 400, 85);
+    expect(landCastGhost(document, null, ghost, { x: 500, y: 400 }, arrived, entryWeight(15)).how).toBe('flight');
+    expect(ghost.isConnected, 'the ghost hands over to the entry in the same task').toBe(false);
+    expect([...entries()].map((e) => e.dataset.entry)).toEqual(['cast']);
+    expect(entries()[0]!.closest('[data-board-overlay]'), 'in the overlay, never position: fixed inside the board a shake transforms').not.toBeNull();
+    expect(arrived.hasAttribute(CAST_LANDING_ATTR)).toBe(true);
+    await vi.waitFor(() => expect(entries(), 'it touched down').toHaveLength(0));
+    expect(arrived.hasAttribute(CAST_LANDING_ATTR), 'the row card is shown where it landed').toBe(false);
+  });
+
+  it('a weighted card already over its slot still lifts and drops: the landing is the entry, never a swap that skips it', () => {
+    const arrived = arrivedAt(400, 300);
+    landCastGhost(document, 7, ghostAt(400, 300), { x: 400, y: 300 }, arrived, entryWeight(5));
+    expect(entries()).toHaveLength(1);
+  });
+
+  it('the stand-in never carries the landing mark that hides its row card', () => {
+    const arrived = arrivedAt(400, 60);
+    arrived.setAttribute(CAST_LANDING_ATTR, '');
+    landCastGhost(document, 7, ghostAt(500, 400), { x: 500, y: 400 }, arrived);
+    expect(entries()[0]!.querySelector(`[${CAST_LANDING_ATTR}]`)).toBeNull();
+  });
+
+  it('a card going home to a hand back — not a battlefield — floats there, the back hidden until it does', () => {
+    vi.useFakeTimers();
+    const arrived = arrivedAt(400, 60, 'hand');
     const ghost = document.createElement('div');
     expect(landCastGhost(document, null, ghost, { x: 500, y: 400 }, arrived).how).toBe('flight');
     expect(ghost.getAttribute(CAST_LIFT_ATTR)).toBe('returning');
@@ -135,14 +179,9 @@ describe('landCastGhost', () => {
     expect(arrived.hasAttribute(CAST_LANDING_ATTR)).toBe(false);
   });
 
-  it('a stand-in waiting over its slot at a hand card’s size shrinks into it in place, and says so from the box it starts at — not a frame sampled later in the shrink', () => {
-    vi.useFakeTimers();
+  it('a stand-in waiting over its slot at a hand card’s size says so from the box it starts at — not a frame sampled later', () => {
     const arrived = arrivedAt(454, 602);
-    const ghost = document.createElement('div');
-    ghost.getBoundingClientRect = () => ({ left: 454 - 42.5, top: 602 - 59, width: 85, height: 118, right: 454 + 42.5, bottom: 602 + 59, x: 454 - 42.5, y: 602 - 59, toJSON: () => null }) as DOMRect;
-    document.body.append(ghost);
+    const ghost = ghostAt(454, 602, 85);
     expect(landCastGhost(document, 7, ghost, { x: 454, y: 602 }, arrived)).toEqual({ how: 'flight', from: { x: 454, y: 602 }, to: { x: 454, y: 602 }, shrink: 25 });
-    expect([ghost.style.width, ghost.style.height], 'it ends at the slot’s size').toEqual(['60px', '84px']);
-    expect(arrived.hasAttribute(CAST_LANDING_ATTR), 'the card hidden under it until it lands').toBe(true);
   });
 });

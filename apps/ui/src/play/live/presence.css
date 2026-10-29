@@ -113,7 +113,7 @@
   transform: rotate(45deg);
 }
 
-/* The card they let go, travelling from where its back was to its place — or, cancelled, a back going home to their hand (`[data-cast-lift]` positions it; `gestures.css`). */
+/* Where the card they let go starts its arrival from — or, cancelled, a back going home to their hand (`[data-cast-lift]` positions it; `gestures.css`). */
 .presence__handoff {
   z-index: 3;
   width: var(--card-w);

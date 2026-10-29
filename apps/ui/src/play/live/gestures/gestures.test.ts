@@ -3468,7 +3468,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
   const onMyBattlefield = (c: HTMLElement, id: number) =>
     c.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="you"] [data-board-card="${id}"]`);
 
-  it('the landing waits a frame and flies to the element the card KEEPS, even when Board re-keyed it after the frame arrived', async () => {
+  it('the landing waits a frame and lands on the element the card KEEPS, even when Board re-keyed it after the frame arrived', async () => {
     // The operator, 2026-10-08 (Fast Mode off, a card let go at a column past the end): "it immediately
     // appears on the board". Board moves a placed card into its column in a layout effect after the
     // gesture's notify, and a card that becomes its own pile is a new element: the old one was hidden
@@ -3512,11 +3512,12 @@ describe('a played card waits where it was let go until Forge has it on the batt
     // in the order they were requested, against the ALREADY re-keyed DOM.
     for (const { cb } of heldFrames.splice(0)) cb(performance.now());
 
-    expect(fresh.hasAttribute('data-cast-landing'), 'the element the card keeps is the one hidden for the flight').toBe(true);
+    expect(fresh.hasAttribute('data-cast-landing'), 'the element the card keeps is the one hidden for the landing').toBe(true);
     expect(old.hasAttribute('data-cast-landing'), 'and the one React dropped is let go').toBe(false);
-    const ghost = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
-    expect(ghost.getAttribute('data-cast-lift')).toBe('returning');
-    expect([ghost.style.left, ghost.style.top], 'and the flight ends at ITS centre').toEqual(['620px', '528px']);
+    expect(canvas.querySelector(`[data-cast-ghost="${card}"]`), 'the ghost hands over to the entry at once').toBeNull();
+    const entry = canvas.querySelector<HTMLElement>('[data-board-overlay] .board-entry[data-entry="cast"]')!;
+    // jsdom lays out no copy, so the face-alignment offset is not read: the box it follows is its width.
+    expect([entry.dataset.standIn, entry.style.width], 'and the entry stands on ITS box').toEqual([String(card), '40px']);
     void s; void m;
   });
 
@@ -3566,7 +3567,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     expect(onMyBattlefield(canvas, card)!.hasAttribute('data-cast-landing'), 'reduced motion: it is simply there').toBe(false);
   });
 
-  it('with motion on, its stand-in travels from the park point and the row’s own card shows when it gets there', async () => {
+  it('with motion on, one entry stand-in travels from the park point and the row’s own card shows when it gets there', async () => {
     const { canvas, card, arrive } = await play(() => false);
     arrive();
     const arrived = await waitFor(() => {
@@ -3576,11 +3577,10 @@ describe('a played card waits where it was let go until Forge has it on the batt
     });
     // The flight starts one frame after the arrival, past Board's placement commit.
     await new Promise((r) => requestAnimationFrame(() => r(undefined)));
-    const ghost = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
-    expect(ghost, 'the stand-in is what moves').not.toBeNull();
-    expect(ghost.getAttribute('data-cast-lift')).toBe('returning');
+    expect(canvas.querySelector('[data-cast-ghost]'), 'the ghost hands over at once').toBeNull();
+    expect(canvas.querySelectorAll('.board-entry[data-entry="cast"]'), 'one entry stand-in is what moves').toHaveLength(1);
     expect(arrived.hasAttribute('data-cast-lift'), 'the card in the row is never lifted out of it').toBe(false);
-    await waitFor(() => expect(canvas.querySelector('[data-cast-ghost]')).toBeNull(), { timeout: GLIDE_MS + 1000 });
+    await waitFor(() => expect(canvas.querySelector('.board-entry')).toBeNull(), { timeout: GLIDE_MS + 1000 });
     expect(arrived.hasAttribute('data-cast-landing')).toBe(false);
   });
 

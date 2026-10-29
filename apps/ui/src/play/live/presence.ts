@@ -82,7 +82,7 @@ import { PLACED_EVENT, PlacedEchoSchema,
 
 import { newArrow, positionArrow } from './gestures/arrow.ts';
 import { endPlacement, expectPlacement, pendingPlacementFor, renewPlacement, type PlayEnd } from '../Board.tsx';
-import { CAST_LANDING_ATTR, expectedGapBox, landCastGhost } from './gestures/cast.ts';
+import { CAST_LANDING_ATTR, expectedGapBox, followStackCard, landCastGhost } from './gestures/cast.ts';
 import type { EntryWeight } from './entries.ts';
 import { drawnCentreOf, PRESENCE_CARD_ATTR, reportHandover, type HandoverFacts, type Report } from './handover-report.ts';
 import { commitSpell, holdSpell, onSpellMoved, placeSpell, placeStackItem, releaseSpell } from './placed.ts';
@@ -1224,7 +1224,13 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
               return;
             }
             const at = handToSpell(onStack);
-            if (at !== null) flyWhenDrawn(onStack, () => at);
+            if (at === null) return;
+            // It lands from where the stack draws it then, which need not be where it was handed over.
+            const drawn = followStackCard(canvas, onStack, PLACEMENT_WAIT_MS);
+            flyWhenDrawn(onStack, () => {
+              drawn.stop();
+              return drawn.at() ?? at;
+            });
           };
           settle();
         });
@@ -1252,10 +1258,12 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    * draws, from the same message.
    */
   /**
-   * A copy of their card's own tile travels from `from` to the card's place in
-   * its row (`landCastGhost`: the one trip a played card makes on EITHER
-   * screen), the card itself hidden there until the copy lands. Nothing
-   * travels with motion off, or before the board has drawn the tile.
+   * Their card arrives from `from` in its place in its row (`landCastGhost`:
+   * the one trip a played card makes on EITHER screen), the card itself hidden
+   * there until it lands. `ghost` is only where that trip starts: at `from`, at
+   * the size its stand-in was drawn at (the back, the stack card: a hand
+   * card's). Nothing travels with motion off, or before the board has drawn
+   * the tile.
    */
   function flyTile(card: number, from: Point): void {
     const settled = battlefieldCard(canvas, card, 'them');
@@ -1266,16 +1274,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     }
     const ghost = document.createElement('div');
     ghost.className = 'presence__handoff';
-    ghost.setAttribute(PRESENCE_CARD_ATTR, String(card));
-    // From the size its stand-in was drawn at — the back, the stack card: a hand card's — down to its slot's.
     sizeAsCard(ghost, handCardWidth(canvas));
     ghost.setAttribute('aria-hidden', 'true');
-    const copy = tile.cloneNode(true) as HTMLElement;
-    for (const el of [copy, ...copy.querySelectorAll('[data-card-id], [data-testid]')]) {
-      el.removeAttribute('data-card-id');
-      el.removeAttribute('data-testid');
-    }
-    ghost.append(copy);
     const landing = landCastGhost(canvas, card, ghost, from, settled, host.landingWeightOf?.(card) ?? null);
     reportHandover(host.report, 'landing', canvas, { ...receiverFacts(card, landing.how, landing.from, landing.to), shrink: landing.shrink });
   }

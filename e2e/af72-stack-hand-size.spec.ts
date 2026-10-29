@@ -63,7 +63,8 @@ async function recordLanding(page: Page, name: string): Promise<void> {
     let shownAt: number | null = null;
     const tick = (): void => {
       const now = performance.now() - t0;
-      const ghost = document.querySelector<HTMLElement>('[data-cast-ghost][data-cast-lift], .presence__handoff');
+      // The landing's stand-in: the ghost while it waits, then the arrival (`entries.ts`'s `.board-entry`), on either screen.
+      const ghost = document.querySelector<HTMLElement>('[data-cast-ghost][data-cast-lift], .presence__handoff, .board-entry:not(.board-entry--shoved)');
       const li = Array.from(document.querySelectorAll<HTMLElement>('[data-zone="battlefield"] li.board-card')).find(
         (el) => el.querySelector(':scope > .board-card__face .card__name')?.textContent?.trim() === card,
       );

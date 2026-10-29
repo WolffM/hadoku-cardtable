@@ -255,6 +255,7 @@ import { CAST_LANDING_ATTR, expectedGapBox,
   castCardTypeLine,
   castLandingWeight,
   castZoneOf,
+  followStackCard,
   clearAllCastLifts,
   clearCastLift,
   clearDropCues,
@@ -352,6 +353,8 @@ interface Parked {
   gliding: boolean;
   /** The stack item drawn (hidden) while it glided, handed over when the glide ends. */
   drawnMidGlide: number | null;
+  /** Once handed over to the stack, where the stack draws it (`followStackCard`): where its landing starts. */
+  stack: ReturnType<typeof followStackCard> | null;
 }
 
 /**
@@ -977,7 +980,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // A played card is drawn by its stand-in from here on; a cast being aimed
     // is drawn by its own element for as long as the board has one.
     drawCastLift(canvas, source, point, !spell && ghost !== null ? 'carried' : 'parked');
-    parked = { source, at: point, home: state.from, ghost, zone, leftZone: false, played: !spell, onStack: false, ghostHandedOff: false, releasedAt: Date.now(), glideStartedAt: null, stackFrameAt: null, gliding: false, drawnMidGlide: null };
+    parked = { source, at: point, home: state.from, ghost, zone, leftZone: false, played: !spell, onStack: false, ghostHandedOff: false, releasedAt: Date.now(), glideStartedAt: null, stackFrameAt: null, gliding: false, drawnMidGlide: null, stack: null };
     syncParkedGhost();
     // A played card's stand-in glides from the release point into the gap the row reserved for
     // it (`notePlayedTo` above) and waits THERE — the same motion the other screen draws for its
@@ -1042,6 +1045,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     if (p !== null) options.report?.('park', { how, card: p.source, ms: Date.now() - p.releasedAt, played: p.played, ask: match.asks[0]?.method ?? '-', selection: match.selectables !== null, paying: payingMana(match), ...cause });
     stopGlide?.();
     stopGlide = null;
+    p?.stack?.stop();
     if (p !== null && p.gliding) {
       p.gliding = false;
       releaseSpell(p.source);
@@ -1238,18 +1242,19 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // operator, 2026-10-08: "it immediately appears on the board"). The next
       // animation frame is after that commit: the element found then is the one
       // the card keeps, and its box is where it will stay.
-      // Hidden from this very frame, or the row's card and its stand-in are both drawn until the flight starts.
+      // Hidden from this very frame, or the row's card and its stand-in are both drawn until its arrival starts.
       arrived.setAttribute(CAST_LANDING_ATTR, '');
       const ghost = p.ghost;
+      const from = p.stack?.at() ?? p.at;
       // §S: if the stack handoff already retired this ghost (`ghostHandedOff`),
-      // it is detached right now — re-attach it, AT ITS LAST KNOWN POINT, on
+      // it is detached right now — re-attach it, WHERE THE STACK LAST DREW IT, on
       // this same synchronous frame, so hiding the real card below never opens
-      // a gap with nothing drawn. The flight itself still waits the one frame
+      // a gap with nothing drawn. The arrival itself still waits the one frame
       // `landCastGhost` always has (the comment above this block explains why).
       if (!ghost.isConnected) {
         ghost.setAttribute(CAST_LIFT_ATTR, 'parked');
-        ghost.style.left = `${p.at.x}px`;
-        ghost.style.top = `${p.at.y}px`;
+        ghost.style.left = `${from.x}px`;
+        ghost.style.top = `${from.y}px`;
         (canvas.querySelector('.board') ?? canvas).appendChild(ghost);
       }
       landingFrame = requestAnimationFrame(() => {
@@ -1257,7 +1262,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
         const settled = cardBox(canvas, p.source);
         if (settled !== arrived) arrived.removeAttribute(CAST_LANDING_ATTR);
         if (settled instanceof HTMLElement && settled.closest('[data-zone="battlefield"]') !== null) {
-          const landing = landCastGhost(canvas, p.source, ghost, p.at, settled, castLandingWeight(match.view, p.source));
+          const landing = landCastGhost(canvas, p.source, ghost, from, settled, castLandingWeight(match.view, p.source));
           reportHandover(options.report, 'landing', canvas, { ...casterFacts(p, landing.how, landing.from, landing.to), shrink: landing.shrink });
         } else {
           reportHandover(options.report, 'landing', canvas, casterFacts(p, 'gone-before-frame', drawnCentreOf(ghost), null));
@@ -1825,6 +1830,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
   function handOverToStack(p: Parked, id: number): void {
     if (p.ghost === null || p.ghostHandedOff) return;
     p.ghostHandedOff = true;
+    p.stack = followStackCard(canvas, p.source);
     const from = drawnCentreOf(p.ghost);
     p.ghost.remove();
     reportHandover(options.report, 'handover', canvas, casterFacts(p, 'stack', from, canvas.querySelector(`[data-placed-spell="${id}"]`)));
