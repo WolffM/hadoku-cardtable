@@ -207,7 +207,7 @@ it. PR-5 is new and exists to serve it.
 | w67-counter's "face where the back stood" check compares against the last SAMPLED back frame: dropped frames on a loaded claw read 4.12 px > 4 px (40837318083); compare to the glide's target (found by w79b, a test change) | — | queued | w79b frame records: face at the back's rest point 916,468 in both runs |
 | departure copies and floating numbers are removed by timers that run up to a long frame ahead of their CSS animation (a number 117 ms early, a death copy 254 ms early on a loaded runner; on main too — found by w80c) | — | queued: after w80c lands | `numbers.ts` `letGo`, the departure copy's timer |
 | the server forwards `setWeaklySelectable` for priority windows it then withholds (`apps/server/src/play/match.ts` `decideWindow`): on the opponent's turn the browser lights them for a frame or two (found by w80a; its spec prints `withheld-lit`) | — | queued: after w80a lands | — |
-| release a permanent anywhere → next board space | `.claude/worktrees/w80d` / `w80d` | dispatched 2026-10-29 ~01:10 after w79a landed | — |
+| release a permanent anywhere → next board space | removed | **landed + verified** `cdf83829c` (AF448), PPE `6f84a866` restarted 09:07Z; awaiting operator ✅ | spec red on base (Memnite over bob's board floated home), green 3/3 locally with video; claw 40843087945 ✓, CI 40846221391 ✓ (tracker re-read); 2 mutations each red; `drag.spec`'s "land over the stack stays in hand" case deleted (it pinned the retired rule); video only seen as a contact sheet (`~/.cache/cardtable-manager/w80d-video/`). Note `~/.cache/cardtable-manager/w80d-closing.md` |
 
 ## Wave 79 (trailer cut 1 feedback) dispatched as four single sessions (2026-10-28)
 
