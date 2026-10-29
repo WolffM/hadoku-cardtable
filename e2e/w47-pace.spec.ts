@@ -103,11 +103,15 @@ function onBattlefield(page: Page, seat: 'viewer' | 'opponent', id: number): Pro
 /**
  * Cast whichever hand creature bob is offered, and report:
  *  - the id, so the caller can watch for it landing elsewhere;
- *  - how long (from the click) bob's OWN board took to show it resolved —
- *    his transport is never paced, so this is the real round trip's floor;
- *  - how long alice's OWN board took to show the SAME creature resolved
- *    onto bob's battlefield, from the same click — this is the number
- *    pacing is free to hold back.
+ *  - how long alice's OWN board took to show the creature resolved onto
+ *    bob's battlefield, from the click — this is the number pacing is free
+ *    to hold back.
+ *
+ * Alice is watched from the click on, beside bob's own poll (which answers
+ * his prompts until the creature lands). Watching her only once bob's board
+ * showed it counted his round trip and his poll's prompt answers as her
+ * hold: run 40854445398's alice showed the creature 110 ms BEFORE bob did,
+ * and this read 1497 ms.
  *
  * Deliberately ONE click, no retry: `board.ts`'s own `castCard` gives up
  * after a fixed 3 s, and a caller built on its exception retrying by
@@ -122,19 +126,22 @@ async function castAndMeasure(bob: Page, alice: Page): Promise<{ id: number; ali
   const id = (await offeredHandCardIds(bob))[0]!;
   const t0 = Date.now();
   await clickHandCard(bob, id);
-  await expect
-    .poll(
-      async () => {
-        await answerPrompt(bob);
-        return onBattlefield(bob, 'viewer', id);
-      },
-      { timeout: 20_000, intervals: [50], message: `${id} lands on bob's own battlefield` },
-    )
-    .toBeGreaterThan(0);
-  await expect
-    .poll(() => onBattlefield(alice, 'opponent', id), { timeout: 20_000, intervals: [20], message: `${id} shows resolved on alice's view of bob's battlefield` })
-    .toBeGreaterThan(0);
-  return { id, aliceMs: Date.now() - t0 };
+  const [aliceMs] = await Promise.all([
+    expect
+      .poll(() => onBattlefield(alice, 'opponent', id), { timeout: 20_000, intervals: [20], message: `${id} shows resolved on alice's view of bob's battlefield` })
+      .toBeGreaterThan(0)
+      .then(() => Date.now() - t0),
+    expect
+      .poll(
+        async () => {
+          await answerPrompt(bob);
+          return onBattlefield(bob, 'viewer', id);
+        },
+        { timeout: 20_000, intervals: [50], message: `${id} lands on bob's own battlefield` },
+      )
+      .toBeGreaterThan(0),
+  ]);
+  return { id, aliceMs };
 }
 
 test(titled('w47 — Fast Mode off holds a resolving spell on the stack; on, it does not'), async ({ browser }) => {

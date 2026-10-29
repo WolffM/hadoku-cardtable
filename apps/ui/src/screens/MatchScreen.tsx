@@ -50,7 +50,7 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
 
 import { LiveBoard } from '../play/live/LiveBoard.tsx';
-import { knownRoomOfMatch, takeWarmMatch, warmMatchesWith } from '../play/live/matchStart.ts';
+import { holdOnScreen, knownRoomOfMatch, takeWarmMatch, warmMatchesWith } from '../play/live/matchStart.ts';
 import { pacedMatchTransport } from '../play/live/pace.ts';
 import { PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
 import { roomsClient } from '../rooms/api.ts';
@@ -96,8 +96,12 @@ export function MatchScreen({ matchId, makeTransport }: MatchScreenProps) {
   // Before paint, so a match the room already opened is drawn in the first frame, not after an empty one.
   useLayoutEffect(() => {
     const handle = (makeTransport === undefined ? takeWarmMatch(matchId) : null) ?? openMatch(matchId, makeTransport?.());
+    const release = holdOnScreen(matchId);
     setMatch(handle);
-    return () => closeMatch(handle);
+    return () => {
+      release();
+      closeMatch(handle);
+    };
   }, [matchId, makeTransport]);
 
   // The room that started this match: the board's way back, and the table its

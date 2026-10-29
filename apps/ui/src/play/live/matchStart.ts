@@ -84,6 +84,13 @@ let opener: ((matchId: string) => LiveMatch) | null = null;
 const warm = new Map<string, LiveMatch>();
 /** Each entered match's room, as the server answered it (`null`: none). */
 const roomsKnown = new Map<string, RoomView | null>();
+/**
+ * Matches a match screen holds its own handle for. Entering one opens nothing: a second socket for
+ * the same seat replaces the screen's, and the board then draws a handle the server dropped. The
+ * screen gets there first when the page is moved to a match while the room is carrying it in (the
+ * room's next match seen by the board it leaves, run 40854445398's w71-bo3).
+ */
+const onScreen = new Set<string>();
 
 /** The room of a match this page entered, once the server has answered; `undefined` until then. */
 export function knownRoomOfMatch(matchId: string): RoomView | null | undefined {
@@ -94,6 +101,12 @@ export function warmMatchesWith(open: ((matchId: string) => LiveMatch) | null): 
   opener = open;
 }
 
+/** The match screen holds `matchId`'s handle until the returned function is called. */
+export function holdOnScreen(matchId: string): () => void {
+  onScreen.add(matchId);
+  return () => onScreen.delete(matchId);
+}
+
 /** The handle {@link enter} opened for this match, handed over once: the screen owns it from here. */
 export function takeWarmMatch(matchId: string): LiveMatch | null {
   const match = warm.get(matchId) ?? null;
@@ -102,7 +115,7 @@ export function takeWarmMatch(matchId: string): LiveMatch | null {
 }
 
 function enter(matchId: string): void {
-  if (opener === null) {
+  if (opener === null || onScreen.has(matchId)) {
     navigate({ kind: 'match', matchId });
     return;
   }

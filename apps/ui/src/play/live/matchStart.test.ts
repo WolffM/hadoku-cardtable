@@ -12,7 +12,7 @@ vi.mock('../../rooms/api.ts', () => ({
   roomsClient: () => ({ roomOfMatch: (matchId: string) => new Promise((resolve) => roomAnswers.set(matchId, resolve)) }),
 }));
 
-const { BOARD_WAIT_MS, forgetMatchesFollowed, knownRoomOfMatch, matchStartSounded, openNewMatch, takeWarmMatch, warmMatchesWith } = await import('./matchStart.ts');
+const { BOARD_WAIT_MS, forgetMatchesFollowed, holdOnScreen, knownRoomOfMatch, matchStartSounded, openNewMatch, takeWarmMatch, warmMatchesWith } = await import('./matchStart.ts');
 
 describe('openNewMatch', () => {
   beforeEach(() => {
@@ -114,5 +114,15 @@ describe('the walk from the room to the board (w79d, item 5)', () => {
     vi.advanceTimersByTime(BOARD_WAIT_MS);
     expect(opened[0]!.closed).toBe(true);
     expect(takeWarmMatch('m-12')).toBeNull();
+  });
+
+  it('a match the screen already holds is not opened again: the second socket would replace the screen\'s', () => {
+    const release = holdOnScreen('m-13');
+    openNewMatch('m-13');
+    expect(opened).toHaveLength(0);
+    expect(navigated).toEqual([{ kind: 'match', matchId: 'm-13' }]);
+    release();
+    openNewMatch('m-13');
+    expect(opened).toHaveLength(1);
   });
 });

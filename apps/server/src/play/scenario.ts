@@ -73,8 +73,12 @@ export function scenarioText(name: string): string {
 	return readFileSync(join(here, 'scenarios', `${name}.state`), 'utf8');
 }
 
-/** How many of `sent`'s most recent entries go into the dump file (not the inline error text — see `lastMethods`). */
-const DUMP_FRAMES = 80;
+/**
+ * How many of `sent`'s most recent entries go into the dump file (not the inline error text — see
+ * `lastMethods`). Enough to reach back to the start of a minute's wait: 80 kept only the turn after
+ * blockers.jvm Q10's lost pass (run 40854445398), not the combat it was lost in.
+ */
+const DUMP_FRAMES = 1_000;
 
 function slug(label: string): string {
 	return label
@@ -109,7 +113,7 @@ export interface TimeoutDump {
 	label: string;
 	/** Already-summarized frames (`summarizeFrame`), most recent last. */
 	frames: Record<string, unknown>[];
-	/** Server log entries worth keeping — this file's own `stop-decided`/`auto-passed`/`press-refused` filter, or the caller's own. */
+	/** Server log entries worth keeping — every one, from this file's own call; the caller's own choice otherwise. */
 	decisions: Record<string, unknown>[];
 	/** Where this match's `bridge.stderr.txt` lives (`matchStderrPath`); null before it was placed. */
 	stderrPath: string | null;
@@ -166,12 +170,16 @@ export function dumpTimeoutReport(input: TimeoutDump): string {
 	return `dump: ${path} — last 20 frame methods: ${lastMethods}`;
 }
 
-/** This file's own call: a `Scenario`'s frames, decisions and stderr path. */
+/**
+ * This file's own call: a `Scenario`'s frames, its server log and stderr path. The whole log: a press
+ * can come from any decider (`auto-confirmed`, `auto-paid`, …), a re-sent window (`window-resent`) or
+ * the test itself (`forge-command`), and a filter to three events hid which one passed Q10's window.
+ */
 function dumpOnTimeout(s: Scenario, label: string): string {
 	return dumpTimeoutReport({
 		label,
 		frames: s.sent.slice(-DUMP_FRAMES).map(frameSummary),
-		decisions: s.logs.filter((l) => l.evt === 'stop-decided' || l.evt === 'auto-passed' || l.evt === 'press-refused'),
+		decisions: s.logs,
 		stderrPath: s.stderrPath(),
 	});
 }

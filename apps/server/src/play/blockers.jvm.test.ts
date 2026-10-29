@@ -15,7 +15,21 @@
  *     --pool=forks --poolOptions.forks.singleFork=true
  */
 
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
+
+// A timed-out wait's dump is only as good as the log behind it: Q10 lost the defender's pass at
+// Declare Blockers to a press no logged decider made (run 40854445398), and who sends a press
+// (`forge-command`) and why each window was kept (`stop-decided`) are traced in probe mode only.
+// `match.ts` reads the flag once, at import, so it is set before any — as w46-block-stop does.
+const probeBefore = vi.hoisted(() => {
+	const was = process.env.CARDTABLE_PLAY_PROBE;
+	process.env.CARDTABLE_PLAY_PROBE = '1';
+	return was;
+});
+afterAll(() => {
+	if (probeBefore === undefined) delete process.env.CARDTABLE_PLAY_PROBE;
+	else process.env.CARDTABLE_PLAY_PROBE = probeBefore;
+});
 
 import { available, castNamed, deck, inOwnMain, isStop, passUntil, startScenario, waitUntil, type Scenario } from './scenario.js';
 
