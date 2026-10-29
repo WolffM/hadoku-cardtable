@@ -64,19 +64,19 @@ const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
 /**
- * Comfortably below `pace.ts`'s `PACE_DELAYS_MS.resolve` (600ms) — the
- * frame that moves a just-cast creature onto the battlefield is classified
- * `'resolve'`, so a paced viewer cannot see it sooner than that delay after
- * the frame arrives, on top of whatever real round trip bob's own cast
- * already cost.
+ * How far alice's board must trail bob's own when she is paced. Comfortably
+ * below `pace.ts`'s `PACE_DELAYS_MS.resolve` (600ms): the frame that moves a
+ * just-cast creature onto the battlefield is classified `'resolve'` and
+ * reaches both seats together, and bob (Fast Mode, his own act) draws it at
+ * once while a paced alice holds it that long.
  */
 const PACED_LOWER_BOUND_MS = 400;
 /**
- * Comfortably above ordinary same-host round-trip noise (bob's own click,
- * the server broadcast, alice's render) and comfortably below the paced
- * bound's floor, so the two can never both pass by accident.
+ * How far alice's board may trail bob's when neither is paced: same-host
+ * render and poll noise only, and below the paced floor, so the two bounds
+ * can never both pass by accident.
  */
-const FAST_UPPER_BOUND_MS = 1_000;
+const FAST_UPPER_BOUND_MS = PACED_LOWER_BOUND_MS;
 
 /**
  * The ids Forge currently offers, scoped to the viewer's OWN HAND only —
@@ -100,18 +100,29 @@ function onBattlefield(page: Page, seat: 'viewer' | 'opponent', id: number): Pro
   return page.locator(`${scope} [data-zone="battlefield"] [data-board-card="${id}"]`).count();
 }
 
+/** Milliseconds from now until `page`'s board shows `id` on SEAT's battlefield. */
+async function msUntilOnBattlefield(page: Page, seat: 'viewer' | 'opponent', id: number, who: string): Promise<number> {
+  const t0 = Date.now();
+  await expect
+    .poll(() => onBattlefield(page, seat, id), { timeout: 20_000, intervals: [20], message: `${id} shows resolved on ${who}'s board` })
+    .toBeGreaterThan(0);
+  return Date.now() - t0;
+}
+
 /**
- * Cast whichever hand creature bob is offered, and report:
- *  - the id, so the caller can watch for it landing elsewhere;
- *  - how long alice's OWN board took to show the creature resolved onto
- *    bob's battlefield, from the click — this is the number pacing is free
- *    to hold back.
+ * Cast whichever hand creature bob is offered, and report the id and
+ * `lagMs`: how much later alice's OWN board showed it resolved onto bob's
+ * battlefield than bob's own board did — the number pacing is free to hold
+ * back. Both are watched from the click, side by side, and apart from the
+ * loop that answers bob's prompts.
  *
- * Alice is watched from the click on, beside bob's own poll (which answers
- * his prompts until the creature lands). Watching her only once bob's board
- * showed it counted his round trip and his poll's prompt answers as her
- * hold: run 40854445398's alice showed the creature 110 ms BEFORE bob did,
- * and this read 1497 ms.
+ * Alice's time alone is not the measure. From the click it also counts
+ * bob's lift, his driver answering the ability ask and Forge casting and
+ * resolving the spell: run 40868462232 read 1232 ms for an unpaced alice
+ * whose board drew the creature 31 ms before bob's did, the frame having
+ * reached both seats within 11 ms. Watching alice only once bob's board
+ * showed it (before that) counted his poll and prompt answers as her hold:
+ * run 40854445398 read 1497 ms for an alice 110 ms AHEAD of bob.
  *
  * Deliberately ONE click, no retry: `board.ts`'s own `castCard` gives up
  * after a fixed 3 s, and a caller built on its exception retrying by
@@ -121,16 +132,13 @@ function onBattlefield(page: Page, seat: 'viewer' | 'opponent', id: number): Pro
  * first one's effect is still in flight, consuming both creatures in what
  * was meant to be only the first (paced) cast.
  */
-async function castAndMeasure(bob: Page, alice: Page): Promise<{ id: number; aliceMs: number }> {
+async function castAndMeasure(bob: Page, alice: Page): Promise<{ id: number; lagMs: number }> {
   await expect.poll(() => offeredHandCardIds(bob), { timeout: 150_000, message: 'bob is offered a hand creature' }).not.toEqual([]);
   const id = (await offeredHandCardIds(bob))[0]!;
-  const t0 = Date.now();
   await clickHandCard(bob, id);
-  const [aliceMs] = await Promise.all([
-    expect
-      .poll(() => onBattlefield(alice, 'opponent', id), { timeout: 20_000, intervals: [20], message: `${id} shows resolved on alice's view of bob's battlefield` })
-      .toBeGreaterThan(0)
-      .then(() => Date.now() - t0),
+  const [aliceMs, bobMs] = await Promise.all([
+    msUntilOnBattlefield(alice, 'opponent', id, 'alice'),
+    msUntilOnBattlefield(bob, 'viewer', id, 'bob'),
     expect
       .poll(
         async () => {
@@ -141,7 +149,7 @@ async function castAndMeasure(bob: Page, alice: Page): Promise<{ id: number; ali
       )
       .toBeGreaterThan(0),
   ]);
-  return { id, aliceMs };
+  return { id, lagMs: aliceMs - bobMs };
 }
 
 test(titled('w47 — Fast Mode off holds a resolving spell on the stack; on, it does not'), async ({ browser }) => {
@@ -160,8 +168,8 @@ test(titled('w47 — Fast Mode off holds a resolving spell on the stack; on, it 
     /* ── Paced: bob's first cast must take noticeably longer to show on alice's board ── */
     const first = await castAndMeasure(bob.page, alice.page);
     expect(
-      first.aliceMs,
-      `paced: alice's board should hold ${first.id} off the battlefield for roughly pace.ts's resolve delay; it showed resolved after only ${first.aliceMs}ms`,
+      first.lagMs,
+      `paced: alice's board should hold ${first.id} off the battlefield for roughly pace.ts's resolve delay after bob's shows it; it trailed by only ${first.lagMs}ms`,
     ).toBeGreaterThanOrEqual(PACED_LOWER_BOUND_MS);
 
     /* ── Fast: bob's second cast must show on alice's board with no artificial hold ── */
@@ -171,8 +179,8 @@ test(titled('w47 — Fast Mode off holds a resolving spell on the stack; on, it 
 
     const second = await castAndMeasure(bob.page, alice.page);
     expect(
-      second.aliceMs,
-      `fast: no artificial hold is allowed; alice's board took ${second.aliceMs}ms to show ${second.id} resolved`,
+      second.lagMs,
+      `fast: no artificial hold is allowed; alice's board showed ${second.id} resolved ${second.lagMs}ms after bob's`,
     ).toBeLessThan(FAST_UPPER_BOUND_MS);
   } finally {
     await stack.stop();
