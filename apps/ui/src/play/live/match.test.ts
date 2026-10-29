@@ -3763,6 +3763,17 @@ describe('spectator, names and the end of the game (wave 31 §S)', () => {
     expect(m.finished, 'no game result came with it').toBe(false);
   });
 
+  it('the game’s end closes whatever Forge asked before it: a concede that met the coin toss leaves no Play/Draw under the result (#19)', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [bar(true), prompt('Do you want to play or draw?')]);
+    expect(m.buttons).not.toBeNull();
+    await sendAndApply(s, m, [parseServerFrame({ kind: 'notify', method: 'finishGame', losers: [1] })]);
+    expect(m.over).toBe(true);
+    expect(m.buttons).toBeNull();
+    expect(m.prompt).toBeNull();
+    expect(m.asks).toEqual([]);
+  });
+
   it('an unrelated error dialog does not end the game, whatever its title', async () => {
     const { s, m } = await fullGame();
     await sendAndApply(s, m, [

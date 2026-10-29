@@ -3441,8 +3441,11 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     match.inputLive = true;
     match.offerHold = null;
   } else if (frame.kind === 'notify' && frame.method === 'finishGame') {
+    // Whatever Forge asked before the end can no longer be answered: a concede that met the coin
+    // toss left its Play/Draw open under the result (#19).
     match.finished = true;
     match.over = true;
+    dropOpenInput(match);
     if (frame.losers !== undefined) match.losers = new Set(frame.losers);
     if (frame.lost !== undefined) match.lost = new Map(frame.lost.map((l) => [l.player, l]));
   } else if (frame.kind === 'notify' && frame.method === 'showErrorDialog' && frame.matchEnded === true) {
