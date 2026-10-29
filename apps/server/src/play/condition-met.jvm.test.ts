@@ -109,13 +109,24 @@
  * backwards for a hand: 0 cards is Hellbent, the NAMED, rare state, and GE1 ("at least one card") is
  * the default that should stay dark. An eighth game holds Infernal Tutor in a seven-card hand, dark.
  *
+ * The operator, 2026-10-28: "frontline medic is showing orange on the battle field while not
+ * attacking. … i dont think it should have an orange glow at all since it's not really a passive
+ * effect, it triggers when attacking." Battalion is scripted on the attack trigger itself
+ * (`Mode$ Attacks | ValidCard$ Card.Self | IsPresent$ Creature.attacking+Other | PresentCompare$
+ * GE2`): a count of the creatures the declaration it triggers on made attackers, anyone's, so the
+ * rim lit the AI's Medic while the human attacked with two creatures (prod match m-b7b9edfcefd6).
+ * A ninth game has seat 0 attack with two Grizzly Bears and one of its two Frontline Medics, beside
+ * the AI's Medic: no Medic lights before, during or after the declaration — the one that stayed
+ * home, the one whose battalion fired, the opponent's. Courageous Goblin's attack trigger, whose
+ * `IsPresent$ Creature.YouCtrl+powerGE4` is a board it stands on (Craw Wurm), lights throughout.
+ *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=$HOME/.cache/cardtable-play-work/condition-met \
  *   pnpm exec vitest run apps/server/src/play/condition-met.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
  */
 
 import { describe, expect, it } from 'vitest';
 
-import { available, castNamed, deck, finishMulligan, inOwnMain, passUntil, startScenario, waitUntil, type Card, type Scenario } from './scenario.js';
+import { available, castNamed, deck, finishMulligan, inOwnMain, passUntil, startScenario, toDeclareAttackers, waitUntil, type Card, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'condition-met: the frame names the cards whose condition is on, against real Forge'
@@ -273,6 +284,23 @@ const HELLBENT_HAND = [
 	'aigraveyard=',
 ].join('\n');
 
+/** Two Frontline Medics and two Grizzly Bears that can attack, the AI's Medic, and Courageous Goblin beside Craw Wurm. */
+const COMBAT_EVENT = [
+	'turn=1',
+	'activeplayer=human',
+	'activephase=MAIN1',
+	'humanlife=20',
+	'ailife=20',
+	'humanhand=',
+	'humanbattlefield=Frontline Medic;Frontline Medic;Grizzly Bears;Grizzly Bears;Courageous Goblin;Craw Wurm;Plains',
+	'humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp',
+	'humangraveyard=',
+	'aihand=',
+	'aibattlefield=Frontline Medic;Plains',
+	'ailibrary=Plains;Plains;Plains;Plains;Plains;Plains',
+	'aigraveyard=',
+].join('\n');
+
 /** The graveyard incarnations: each lights from its owner's graveyard while its owner controls its basic land type. */
 const INCARNATIONS = ['Anger', 'Brawn', 'Wonder', 'Filth'];
 
@@ -314,6 +342,21 @@ function latestHeld(s: Scenario, seat: number, from = 0): Map<number, Held> | nu
 /** The cost the hand shows for `c`: the changed cost when `held` lists one, else the printed cost (absent). */
 function shown(held: Map<number, Held> | null, c: Card): Held | undefined {
 	return held?.get(c.id);
+}
+
+/** Every `conditionMet` snapshot `seat` was sent from `from` on. */
+function conditionMetFrom(s: Scenario, seat: number, from: number): number[][] {
+	return s.sent
+		.slice(from)
+		.filter((x) => x.seat === seat && x.envelope.frame.kind === 'notify')
+		.map((x) => (x.envelope.frame as unknown as { payload?: { conditionMet?: number[] } }).payload?.conditionMet)
+		.filter((p): p is number[] => Array.isArray(p));
+}
+
+/** Whether seat 0's wire state marks the card attacking. */
+function attackingOnWire(s: Scenario, id: number): boolean {
+	const view = [...s.state(0).values()].find((o) => o._type === 0 && o._id === id);
+	return (view?.Attacking as { v?: boolean } | undefined)?.v === true;
 }
 
 function named(cards: readonly Card[], name: string): Card {
@@ -688,6 +731,51 @@ describe.skipIf(!available.ok)(title, () => {
 					const c = named(hand, name);
 					expect(seat0, `${c.name}#${c.id} is off with a full hand and an empty graveyard`).not.toContain(c.id);
 				}
+			} finally {
+				await s.stop();
+			}
+		},
+		120_000,
+	);
+
+	it(
+		"a count of the creatures a combat trigger's own declaration made attackers is not a condition: no Frontline Medic lights while two creatures attack, whether it attacks, stays home or is the opponent's; Courageous Goblin beside Craw Wurm lights throughout",
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, { seed: 92, decks: DECKS, scenario: COMBAT_EVENT });
+			try {
+				await finishMulligan(s);
+				await waitUntil(() => {
+					s.answerAsks();
+					return inOwnMain(s, 0, 1) && s.zone(0, 'Battlefield').some((c) => c.name === 'Frontline Medic') && s.zone(1, 'Battlefield').some((c) => c.name === 'Frontline Medic');
+				}, 'seat 0 to hold priority in its own main with the scenario applied', 30_000, s);
+				const board = s.zone(0, 'Battlefield');
+				const medics = [...board.filter((c) => c.name === 'Frontline Medic'), named(s.zone(1, 'Battlefield'), 'Frontline Medic')];
+				const [attacking, home] = board.filter((c) => c.name === 'Frontline Medic');
+				const bears = board.filter((c) => c.name === 'Grizzly Bears');
+				const goblin = named(board, 'Courageous Goblin');
+				const lit = (met: number[] | null | undefined): string =>
+					`[${[...board, ...s.zone(1, 'Battlefield')].filter((c) => met?.includes(c.id)).map((c) => `${c.name}#${c.id}`).join(', ')}]`;
+				const main = latestConditionMet(s, 0);
+				console.log(`[w80b-condition-met.jvm] main 1: conditionMet=${JSON.stringify(main)} → ${lit(main)}`);
+				expect(main, 'seat 0 was sent a conditionMet snapshot').not.toBeNull();
+				expect(main, `Courageous Goblin#${goblin.id} is on beside Craw Wurm`).toContain(goblin.id);
+				for (const m of medics) expect(main, `Frontline Medic#${m.id} is off before combat`).not.toContain(m.id);
+
+				await toDeclareAttackers(s, 0);
+				const from = s.sent.length;
+				for (const c of [...bears, attacking!]) s.select(0, c.id);
+				await waitUntil(() => [...bears, attacking!].every((c) => attackingOnWire(s, c.id)), 'two Grizzly Bears and one Frontline Medic to be declared', 15_000, s);
+				expect(attackingOnWire(s, home!.id), `Frontline Medic#${home!.id} stays home`).toBe(false);
+				s.ok(0);
+				await passUntil(s, () => /^Phase: Main phase, postcombat$/m.test(s.prompt(0)) || (s.turn(0)?.n ?? 1) > 1, "seat 0's combat to end");
+				const during = conditionMetFrom(s, 0, from);
+				for (const met of during) console.log(`[w80b-condition-met.jvm] combat: conditionMet=${JSON.stringify(met)} → ${lit(met)}`);
+				expect(during.length, 'seat 0 was sent conditionMet snapshots during combat').toBeGreaterThan(0);
+				for (const met of during) {
+					for (const m of medics) expect(met, `Frontline Medic#${m.id} is off during combat`).not.toContain(m.id);
+				}
+				expect(during.at(-1), `Courageous Goblin#${goblin.id} is still on`).toContain(goblin.id);
 			} finally {
 				await s.stop();
 			}

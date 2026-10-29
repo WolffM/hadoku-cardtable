@@ -1539,7 +1539,9 @@ public final class PlayBridge {
      * the branch Forge takes now is not the one it takes at 0. Nor does a check that is only a turn
      * or a phase ("during your turn"): it is when an ability works, and would light the card every
      * turn. Nor does a presence check whose only subject is the card itself ({@code IsPresent$ Card.Self},
-     * {@link #self}): the card being where it is, not a condition it can meet. Nor does a count of the
+     * {@link #self}): the card being where it is, not a condition it can meet. Nor does a combat
+     * trigger's count of the creatures its own declaration made attackers or blockers
+     * ({@link #declared}): Frontline Medic's battalion is the attack, not a state. Nor does a count of the
      * card's memory that the same ability acts on ({@link #referent}): Spell Queller's guard that "the
      * exiled card" is still there, its referent and not a condition. Nor do two triggers on one event
      * one of which always holds ({@link #eitherOr}): Preacher of the Schism's draw while you have the
@@ -1965,7 +1967,7 @@ public final class PlayBridge {
             svar(out, c, trait, p, "ConditionCheckSVar", "ConditionSVarCompare");
             for (final Presence presence : PRESENCES) {
                 final String spec = p.get(presence.spec);
-                if (spec == null || self(spec)) { continue; }
+                if (spec == null || ownSubject(trait, spec)) { continue; }
                 final StringBuilder count = new StringBuilder("present:").append(spec);
                 for (final String where : presence.where) { count.append('|').append(p.get(where)); }
                 out.add(new Check(count.toString(), presence.compare(p), trait));
@@ -2027,15 +2029,47 @@ public final class PlayBridge {
         private static final Set<String> SELF = Set.of("Card.Self", "Card.StrictlySelf");
 
         /**
+         * Whether a presence spec of {@code trait} counts what the trait is not conditioned on but
+         * about: the card itself ({@link #self}), or the creatures a combat trigger's own declaration
+         * put in a combat role ({@link #declared}).
+         */
+        private static boolean ownSubject(final forge.game.CardTraitBase trait, final String spec) {
+            return self(spec) || declared(trait, spec);
+        }
+
+        /**
+         * Whether {@code trait} is a trigger on a combat declaration (Forge's {@code Attack…} and
+         * {@code Block…} modes: attackers or blockers declared, a creature attacking, blocking,
+         * blocked or not) whose presence spec counts creatures in a combat role (a Forge property
+         * {@code attacking…}, {@code blocking…}, {@code blocked…}). Those creatures are the event's own,
+         * declared by the very event the trigger waits on: Frontline Medic's battalion
+         * ({@code IsPresent$ Creature.attacking+Other | PresentCompare$ GE2}) counts anyone's attackers,
+         * so it is met while the opponent attacks with two and while its trigger has already fired,
+         * and never before an attack, which is when the player could act on it. A combat trigger's
+         * standing board is still a condition: Courageous Goblin's "attacks while you control a
+         * creature with power 4 or greater" ({@code Creature.YouCtrl+powerGE4}).
+         */
+        private static boolean declared(final forge.game.CardTraitBase trait, final String spec) {
+            if (!(trait instanceof final forge.game.trigger.Trigger t)) { return false; }
+            final String mode = t.getMode().name();
+            if (!mode.startsWith("Attack") && !mode.startsWith("Block")) { return false; }
+            for (final String property : spec.split("[.+,]")) {
+                final String p = property.trim();
+                if (p.startsWith("attack") || p.startsWith("block")) { return true; }
+            }
+            return false;
+        }
+
+        /**
          * Whether the condition keys a checker {@code found} make a condition this card lights for: at
-         * least one that is neither timing, nor part of a presence check on the card itself, nor a
-         * check on the trait's own referent.
+         * least one that is neither timing, nor part of a presence check on the trait's own subject
+         * ({@link #ownSubject}), nor a check on the trait's own referent.
          */
         private static boolean counts(final Set<String> found, final forge.game.CardTraitBase trait) {
             final Map<String, String> params = trait.getMapParams();
             final Set<String> conditions = new java.util.HashSet<>(found);
             conditions.removeIf(key -> timing(key, params.get(key)));
-            conditions.removeAll(selfPresence(params));
+            conditions.removeAll(ownPresence(trait));
             conditions.removeAll(referent(trait));
             return !conditions.isEmpty();
         }
@@ -2080,17 +2114,18 @@ public final class PlayBridge {
         }
 
         /**
-         * The keys of the presence checks whose only subject is the card itself ({@link #self}),
+         * The keys of the presence checks that count the trait's own subject ({@link #ownSubject}),
          * less any key a real presence check on the same trait shares (two of Forge's checks read one
          * {@code ConditionZone$}).
          */
-        private static Set<String> selfPresence(final Map<String, String> params) {
+        private static Set<String> ownPresence(final forge.game.CardTraitBase trait) {
+            final Map<String, String> params = trait.getMapParams();
             final Set<String> own = new java.util.HashSet<>();
             final Set<String> real = new java.util.HashSet<>();
             for (final Presence presence : PRESENCES) {
                 final String spec = params.get(presence.spec);
                 if (spec == null) { continue; }
-                final Set<String> keys = self(spec) ? own : real;
+                final Set<String> keys = ownSubject(trait, spec) ? own : real;
                 keys.add(presence.spec);
                 if (presence.compareKey != null) { keys.add(presence.compareKey); }
                 keys.addAll(presence.where);
