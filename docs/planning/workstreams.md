@@ -201,7 +201,7 @@ it. PR-5 is new and exists to serve it.
 | lane | worktree / branch | status | evidence |
 | --- | --- | --- | --- |
 | steady glow through phases | `.claude/worktrees/w80a` / `w80a` | dispatched; artifact gate before land | — |
-| Frontline Medic's orange glow (which mark, then the class) | `.claude/worktrees/w80b` / `w80b` | dispatched; measure first, design call if can-act | — |
+| Frontline Medic's orange glow (which mark, then the class) | removed | **landed** `00934b030` (AF439), PPE `ba47b15d` restarted 06:53Z; awaiting operator ✅ | the condition rim, not can-act: prod `m-b7b9edfcefd6` frames 36–44 lit Sage's Medic while Hadoku attacked; `condition-met.jvm` red on unchanged code → green; claw 40829096583 ✓, CI 40830865443 ✓ (tracker re-read both); mutation 1/1 reverted-fails 1/1 restored-passes; unverified in a browser; 35 other Attack/Block presence scripts darkened by grep, not played (closing note `~/.cache/cardtable-manager/w80b-closing.md`) |
 | unlock on an animation's last 10% | `.claude/worktrees/w80c` / `w80c` | dispatched; `numbers.ts` waits on w79b; artifact gate | — |
 | release a permanent anywhere → next board space | — | queued: after w79a lands (`install.ts`/arrival path) | — |
 
@@ -214,7 +214,7 @@ it. PR-5 is new and exists to serve it.
 | A one arrival path (2a–c) | `.claude/worktrees/w79a` / `w79a` | dispatched | — |
 | B the stack (1, 8, face-down spell) | `.claude/worktrees/w79b` / `w79b` | dispatched; 8 gated on artifact | — |
 | C deaths (11a–c) | `.claude/worktrees/w79c` / `w79c` | dispatched | — |
-| D room → table → match (5, 12, 12a, 12b) | `.claude/worktrees/w79d` / `w79d` | dispatched | — |
+| D room → table → match (5, 12, 12a, 12b) | `.claude/worktrees/w79d` / `w79d` | landed `1131c3643`..`17653537f` (specs first); deploy + closing note pending | 12 avatars: product fine, the e2e edge 404s sprites — promo rig now fetches them (`promo-clips` b1c174554) |
 | E draft visuals (13, 13b) | — | queued: 13b artifact first | — |
 | F front-page replay, omniscient (3) | — | superseded by wave 81 | — |
 | trailer v2 re-shoot | `promo-clips` (e1) | waits on A–F | cut 1 https://claude.ai/artifact/RTwUZ5jEHvJRnHXoZ7r6bF |
