@@ -22,9 +22,9 @@
  * `library-match` alone is 386 s of 1774, `prompts` 201, `scenario-start` 129,
  * and most files are 5–15 s, so a count split leaves one shard holding most
  * of the time. `jvm-seconds.json` is each file's duration in claw-8 seconds,
- * refreshed 2026-10-28 from full runs 40605856143 and 40577661708: a shard run
+ * refreshed 2026-10-29 from full run 40791785977 (one shard on claw-8, two on hokon): a shard run
  * on claw-9 or hokon is divided by its median slowdown against the previous
- * table (2.4–2.8×), so all three machines read in one unit. A file missing
+ * table (claw-8 1.19×, hokon 2.4–2.5×), so all three machines read in one unit. A file missing
  * from it weighs the table's median, a stale entry makes the split uneven,
  * and every file still lands in exactly one shard either way. Refresh it from
  * a full run's `✓ <file> (N tests) <ms>ms` lines when the split drifts.
@@ -42,9 +42,12 @@ import { join } from 'node:path';
  * shards of 600; 620 × 2.4 (the worst slowdown measured) is ~25 min, plus a
  * cold bundle build, still inside forge-jvm's 35-minute timeout. 740 since
  * 2026-10-27: 113 suites measure 2153 s, three shards of ~720 s; 740 × 2.4 is
- * ~30 min, plus the build, so forge-jvm's timeout went to 45 minutes with it.
+ * ~30 min, plus the build, so forge-jvm's timeout went to 45 minutes with it. 800 since
+ * 2026-10-29: 124 suites measure 2377 s, three shards of ~790 s; claw-9 ran shard 1 past 45
+ * minutes (run 40829932240, `library-match` alone 18 min there), so 800 × 2.8 is ~37 min plus
+ * the build, and forge-jvm's timeout went to 60 minutes with it.
  */
-export const SHARD_SECONDS = 740;
+export const SHARD_SECONDS = 800;
 
 /** Three jdk21 claws: a fourth shard would only queue behind the other three. */
 export const MAX_SHARDS = 3;
