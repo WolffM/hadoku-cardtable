@@ -1,0 +1,18 @@
+# e2e/w80-steady-glow.spec.ts — a normal turn each, played as the operator plays it (Fast Mode
+# off): alice's upkeep and draw, a land, a Forest tapped for mana, Grizzly Bears cast and resolved,
+# then through combat to her end. Bob's turn: he plays a Forest and casts his own Bears, and alice
+# answers it with a Lightning Bolt at his Llanowar Elves — an instant on the stack in response.
+# Two Mountains, so whichever land the Bears' payment takes, alice keeps red for the Bolt.
+turn=2
+activeplayer=human
+activephase=UPKEEP
+humanlife=20
+ailife=20
+humanhand=Forest;Grizzly Bears;Lightning Bolt
+humanbattlefield=Forest;Mountain;Mountain
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=Forest;Grizzly Bears
+aibattlefield=Llanowar Elves;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=

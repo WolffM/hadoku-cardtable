@@ -368,7 +368,9 @@ describe.skipIf(!available.ok)(title, () => {
        * updates arrive outside `act`, from socket events. `spent` must be empty
        * for the same reason the one-shot check required it: a card this client
        * has already clicked is deliberately not offered again, so Forge's raw
-       * set is only the authority while nothing is spent.
+       * set is only the authority while nothing is spent — nor pressed under a
+       * hold, which keeps that card dark past Forge's next frame until Forge
+       * names a set again (`./offer-hold.ts`).
        */
       const parity = {
         samples: 0,
@@ -401,7 +403,7 @@ describe.skipIf(!available.ok)(title, () => {
           parity.skipped.cleared += 1;
           return;
         }
-        if (s.live.spent.cards.size > 0) {
+        if (s.live.spent.cards.size > 0 || (s.live.offerHold?.pressed.cards.size ?? 0) > 0) {
           parity.skipped.spent += 1;
           return;
         }

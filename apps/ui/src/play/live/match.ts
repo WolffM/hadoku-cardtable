@@ -262,8 +262,8 @@ import type { Revealed } from './numbers.ts';
 import { shownFlip, shownRoll, type ShownFlip, type ShownRoll } from './shown.ts';
 import { preloadMatchArt } from './art-preload.ts';
 import { pressableBar, type BarHold } from './bar-hold.ts';
-import { drawnOfferOf, followOffer, type OfferHold } from './offer-hold.ts';
-import { lapseHold } from './timed-hold.ts';
+import { drawnOfferOf, dropMarked, type OfferHold, type Pressed } from './offer-hold.ts';
+import { holdStands, lapseHold } from './timed-hold.ts';
 import { mistakeOfAutoCancel, mistakeOfClick, type MistakeKey } from './mistakes.ts';
 import { SELF_ANSWERING } from '../prompts/answer-table.ts';
 import type { PromptParts } from '../prompts/lookup.ts';
@@ -706,9 +706,10 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
   /** Cards and players clicked since Forge last spoke — not clickable again until it does. */
   spent: { cards: Set<number>; players: Set<number> };
   /**
-   * The offer the board keeps DRAWING through the turnaround after a click (`./offer-hold.ts`):
-   * set by {@link selectCard} and {@link selectPlayer}, read only by {@link drawnOffer}. Never a
-   * clickability signal — that is {@link boardInteraction}, always.
+   * The offer the board keeps DRAWING through Forge's silences (`./offer-hold.ts`): taken by
+   * {@link selectCard}, {@link selectPlayer}, {@link pressButton} and Forge's `clearWeaklySelectable`,
+   * read only by {@link drawnOffer}. Never a clickability signal — that is {@link boardInteraction},
+   * always.
    */
   offerHold: OfferHold | null;
   /**
@@ -1328,6 +1329,11 @@ export function pressButton(match: LiveMatch, which: 'ok' | 'cancel'): boolean {
   // Forge's game thread is parked on the open question; a press now would
   // reach whichever input is current once it is answered.
   if (match.asks.length > 0) return false;
+  // A pass: the offer stays drawn until Forge names the next one (`./offer-hold.ts`); a press kept
+  // under the old hold belonged to the window this answers.
+  match.deferredSelect = null;
+  const drawn = drawnOffer(match);
+  if (!drawn.selectionOpen) holdOffer(match, drawn);
   send(match, { kind: 'act', method: which === 'ok' ? 'selectButtonOk' : 'selectButtonCancel' });
   // Forge sends a fresh bar for the next decision; until it does, the bar we
   // just answered must not be pressable twice.
@@ -1542,6 +1548,8 @@ function adoptSeats(match: LiveMatch, payload: unknown): void {
     if (seat.waitingOn !== undefined) waitingOn.set(seat.seat, seat.waitingOn);
   }
   match.waitingOn = waitingOn;
+  // The decision has left this seat: whatever it held is not drawn again (`./offer-hold.ts`).
+  if (waitingOnAnother(match)) match.offerHold = null;
   match.awaySeats = new Set(parsed.value.seats.filter((seat) => seat.away === true).map((seat) => seat.seat));
   const tossed = parsed.value.seats.find((seat) => seat.coinToss !== undefined)?.coinToss;
   match.coinToss =
@@ -1703,10 +1711,8 @@ export function drawnOffer(match: LiveMatch): LiveClickables {
   return drawnOfferOf(real, match.offerHold, {
     now: Date.now(),
     turn: view.turn,
-    phase: view.phase,
-    forgeNamedASet: match.selectables !== null || match.weaklySelectable !== null,
-    askedByHand: match.asks.some((ask) => !SELF_ANSWERING.has(ask.method) && selfAnswer(ask) === null),
-    waitingOnAnother: [...(match.waitingOn?.keys() ?? [])].some((seat) => seat !== match.seat),
+    askedByHand: match.asks.some(askedByHand),
+    waitingOnAnother: waitingOnAnother(match),
   });
 }
 
@@ -1747,11 +1753,32 @@ export function doomAskOf(match: LiveMatch): { candidates: ReadonlySet<number>; 
   return undefined;
 }
 
-/** A click is out: hold what is offered now — the clicked card already spent — through Forge's turnaround. */
-function holdOffer(match: LiveMatch): void {
+/** A question this seat answers by hand, not one its browser answers itself. */
+const askedByHand = (ask: LiveAsk): boolean => !SELF_ANSWERING.has(ask.method) && selfAnswer(ask) === null;
+
+/** The game waits on a seat that is not this one (`forge:seats`' `waitingOn`). */
+const waitingOnAnother = (match: LiveMatch): boolean => [...(match.waitingOn?.keys() ?? [])].some((seat) => seat !== match.seat);
+
+/** Whether a hold is still drawn: its time is not up and the turn has not moved on. */
+function holdStandsNow(match: LiveMatch): boolean {
+  return holdStands(match.offerHold, Date.now()) && match.offerHold.turn === match.view?.turn;
+}
+
+const ownTurn = (match: LiveMatch): boolean => match.view?.players.find((p) => p.isViewer)?.isActive === true;
+
+const without = (ids: ReadonlySet<number>, id: number): ReadonlySet<number> => new Set([...ids].filter((other) => other !== id));
+
+/**
+ * Forge falls silent about this seat's offer: keep drawing `offer` until it names the next one
+ * (`./offer-hold.ts`). `pressed` is what a click just sent; what was pressed under a hold that still
+ * stands carries over.
+ */
+function holdOffer(match: LiveMatch, offer: LiveClickables, pressed: { card?: number; player?: number } = {}): void {
   const view = match.view;
   if (view === null) return;
-  const hold: OfferHold = { offer: boardInteraction(match), since: Date.now(), turn: view.turn, phase: view.phase };
+  const carried: Pressed = holdStandsNow(match) ? match.offerHold!.pressed : { cards: new Set(), players: new Set() };
+  const plus = (ids: ReadonlySet<number>, id: number | undefined): ReadonlySet<number> => (id === undefined ? ids : new Set([...ids, id]));
+  const hold: OfferHold = { offer, since: Date.now(), turn: view.turn, pressed: { cards: plus(carried.cards, pressed.card), players: plus(carried.players, pressed.player) } };
   match.offerHold = hold;
   lapseHold(hold, () => match.offerHold, () => {
     match.offerHold = null;
@@ -1924,7 +1951,7 @@ export function selectCard(match: LiveMatch, cardId: number, placement?: Placeme
     // A held outline (`./offer-hold.ts`) is a promise the card is playable: keep the press for
     // Forge's word instead of refusing it — but only a play, never a choice a selection asks for.
     const drawn = drawnOffer(match);
-    if (match.offerHold === null || drawn.selectionOpen || !drawn.selectable.has(cardId)) {
+    if (match.offerHold === null || match.offerHold.pressed.cards.has(cardId) || drawn.selectionOpen || !drawn.selectable.has(cardId)) {
       reportRefusedClick(match, cardId);
       return false;
     }
@@ -1933,8 +1960,10 @@ export function selectCard(match: LiveMatch, cardId: number, placement?: Placeme
   }
   match.deferredSelect = null;
   if (match.selectables === null && !payingMana(match)) match.actCard = cardId;
+  const drawn = drawnOffer(match);
   match.spent.cards.add(cardId);
-  holdOffer(match);
+  // The card pressed is dark until Forge says what came of it; the rest stays drawn.
+  holdOffer(match, { ...drawn, selectable: without(drawn.selectable, cardId) }, { card: cardId });
   match.lastSelectedCard = cardId;
   noteAttackIntent(match, cardId);
   return sendAct(
@@ -2009,8 +2038,9 @@ export function clickCard(match: LiveMatch, cardId: number): void {
 /** Click a player: Forge's `selectPlayer`. Same rule as `selectCard`. */
 export function selectPlayer(match: LiveMatch, playerId: number): boolean {
   if (!boardInteraction(match).selectablePlayers.has(playerId)) return false;
+  const drawn = drawnOffer(match);
   match.spent.players.add(playerId);
-  holdOffer(match);
+  holdOffer(match, { ...drawn, selectablePlayers: without(drawn.selectablePlayers, playerId) }, { player: playerId });
   return sendAct(match, { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: playerId }, triggerEvent: null, ...sameTargetOf(match) });
 }
 
@@ -3192,7 +3222,7 @@ function ingestNow(match: LiveMatch, raw: unknown): void {
   if (envelope.value.pairsWithNext === true) match.windowHalf = parsed.value;
   else if (envelope.value.displayOnly === true) showReveal(match, parsed.value, envelope.value.forceNotice === true);
   else applyFrame(match, parsed.value);
-  if (match.offerHold !== null) followOffer(match.offerHold, boardInteraction(match), { cards: match.highlighted, players: match.highlightedPlayers });
+  if (match.offerHold !== null) dropMarked(match.offerHold, { cards: match.highlighted, players: match.highlightedPlayers });
   sendDeferredSelect(match);
   notify(match);
 }
@@ -3303,6 +3333,8 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     if (askedKey(match) !== asked) redraw(match);
     // The seat's next real decision takes the place of a reveal still showing.
     match.reveal = null;
+    // A question to answer by hand ends the silence: what was held is not drawn under it, nor after.
+    if (askedByHand(frame)) match.offerHold = null;
     unspend(match);
     return;
   }
@@ -3353,6 +3385,8 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     // A selection is a decision too: it takes the reveal's place, as an ask does.
     match.reveal = null;
     match.inputLive = true;
+    // Forge's word on what this seat may do: nothing held is drawn past it.
+    match.offerHold = null;
   } else if (frame.kind === 'notify' && frame.method === 'clearSelectables') {
     match.selectables = null;
     // The marks belonged to the input that has just stopped. Forge unmarks them
@@ -3392,6 +3426,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     }
     if (frame.heldChanges !== undefined) match.heldChanges = new Map(frame.heldChanges.map((h) => [h.card.id, heldChange(h)]));
     match.inputLive = true;
+    match.offerHold = null;
   } else if (frame.kind === 'notify' && frame.method === 'finishGame') {
     match.finished = true;
     match.over = true;
@@ -3423,7 +3458,12 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     // The input that offered them has stopped. `inputLive` is NOT cleared
     // here: Forge clears the set at the END of priority and again at the start
     // of payment, with the prompt and bar for the next input still standing.
-    // With nothing named, nothing is offered either way.
+    // With nothing named, nothing is offered either way — and until Forge names the next set, the
+    // board keeps drawing this one (`./offer-hold.ts`), unless a hold already stands. Only on this
+    // seat's own turn: on the other's, the windows the server passes for it were never its to draw,
+    // and what it does there itself (a click, a press) holds on its own.
+    const drawn = drawnOffer(match);
+    if (!holdStandsNow(match) && !drawn.selectionOpen && ownTurn(match)) holdOffer(match, drawn);
     match.weaklySelectable = null;
     match.weaklySelectableManaOnly = null;
   }

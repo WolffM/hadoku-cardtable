@@ -814,7 +814,8 @@ describe('clicking the board: only what Forge offered', () => {
     await sendAndApply(s, m, [clearActionable()]);
     expect(m.weaklySelectable).toBeNull();
     expect(boardInteraction(m).selectable.size).toBe(0);
-    expect(selectCard(m, mine[0]!)).toBe(false);
+    // Still drawn (`./offer-hold.ts`), so the press is kept for Forge's next set — and a pass drops it.
+    expect(selectCard(m, mine[0]!)).toBe(true);
     // The input has not been answered, so the bar Forge sent is still pressable.
     expect(m.inputLive).toBe(true);
     expect(pressButton(m, 'ok')).toBe(true);
@@ -962,15 +963,15 @@ describe('clicking the board: only what Forge offered', () => {
     expect(m.mistake).toBeNull();
   });
 
-  it('a button press spends the whole input: no click until Forge shows the next one', async () => {
+  it('a button press spends the whole input: a click under it waits for the next one, and is sent there once', async () => {
     const { s, m } = await fullGame();
     const { mine } = ids(m);
     await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([mine[0]!])]);
     expect(pressButton(m, 'ok')).toBe(true);
-    expect(selectCard(m, mine[0]!)).toBe(false);
+    expect(boardInteraction(m).selectable.size).toBe(0);
+    expect(selectCard(m, mine[0]!), 'kept, the offer being drawn').toBe(true);
     await until('the press', () => s.clientFrames().length === 1);
     await sendAndApply(s, m, [prompt('Next'), bar(true), actionable([mine[0]!])]);
-    expect(selectCard(m, mine[0]!)).toBe(true);
     await until('the click', () => s.clientFrames().length === 2);
     expect(s.clientFrames().map((f) => (f.ok && 'method' in f.value ? f.value.method : null))).toEqual(['selectButtonOk', 'selectCard']);
   });
@@ -1195,6 +1196,7 @@ describe('the offer through a click’s turnaround', () => {
     expect(selectCard(m, first)).toBe(true);
     await sendAndApply(s, m, [clearActionable()]);
     expect(drawnOffer(m).selectable).toEqual(new Set([second]));
+    expect(selectCard(m, first), 'the card already pressed is not pressed again').toBe(false);
     expect(selectCard(m, second), 'the held outline takes the press').toBe(true);
     expect(await selected(), 'not sent while Forge has not offered it').toEqual([first]);
     await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([second])]);
@@ -1281,13 +1283,77 @@ describe('the offer through a click’s turnaround', () => {
     expect(drawnOffer(m).selectable.size).toBe(0);
   });
 
-  it('a click on a button holds nothing: passing priority clears the board at once', async () => {
+  /*
+   * The operator, 2026-10-28: *"there is a lot of flashing going on when proceeding through phases.
+   * this happens whenever cards are clickable and briefly become not-clickable between phases."*
+   * Measured in e2e/w80-steady-glow.spec.ts: Next Phase, then Forge's clear and its next set a pacer
+   * beat later, in every step it passes through.
+   */
+  it('a pass holds the offer through the steps Forge passes, until it names the next set', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const viewer = m.view!.players.find((p) => p.isViewer)!.id;
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([mine[0]!, mine[1]!])]);
+    expect(pressButton(m, 'ok')).toBe(true);
+    expect(drawnOffer(m).selectable, 'the press').toEqual(new Set([mine[0], mine[1]]));
+    await sendAndApply(s, m, [clearActionable(), phase('COMBAT_BEGIN', viewer)]);
+    expect(drawnOffer(m).selectable, 'Forge’s clear, and the next step').toEqual(new Set([mine[0], mine[1]]));
+    // A step the server passes for this seat: its set shows, then clears — and stays drawn.
+    await sendAndApply(s, m, [actionable([mine[0]!]), clearActionable(), phase('COMBAT_DECLARE_ATTACKERS', viewer)]);
+    expect(drawnOffer(m).selectable).toEqual(new Set([mine[0]]));
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([mine[1]!])]);
+    expect(drawnOffer(m).selectable, 'Forge’s word: the card it dropped goes').toEqual(new Set([mine[1]]));
+  });
+
+  it('a pass to a seat that then decides: nothing is drawn while it decides, nor once it is done', async () => {
     const { s, m } = await fullGame();
     const { mine } = ids(m);
     await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([mine[0]!, mine[1]!])]);
     expect(pressButton(m, 'ok')).toBe(true);
     await sendAndApply(s, m, [clearActionable()]);
+    expect(drawnOffer(m).selectable.size).toBe(2);
+    s.sendSeats([{ seat: 0, claimed: true, playerId: 0 }, { seat: 1, claimed: true, playerId: 1, waitingOn: { method: 'priority', hostCard: null } }]);
+    await until('the other seat deciding', () => (m.waitingOn?.size ?? 0) > 0);
     expect(drawnOffer(m).selectable.size).toBe(0);
+    s.sendSeats([{ seat: 0, claimed: true, playerId: 0 }, { seat: 1, claimed: true, playerId: 1 }]);
+    await until('the other seat done', () => m.waitingOn?.size === 0);
+    expect(drawnOffer(m).selectable.size, 'the old offer does not come back').toBe(0);
+  });
+
+  it('the card pressed stays dark until Forge names it again: never lit from the set its press answered', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([mine[0]!, mine[1]!])]);
+    expect(selectCard(m, mine[0]!)).toBe(true);
+    // Forge disables the bar first: an input frame, so the spend is lifted while the old set still stands.
+    await sendAndApply(s, m, [bar(false)]);
+    expect(boardInteraction(m).selectable.has(mine[0]!), 'Forge’s stale set still names it').toBe(true);
+    expect(drawnOffer(m).selectable).toEqual(new Set([mine[1]]));
+    await sendAndApply(s, m, [clearActionable(), prompt('Priority'), bar(true), actionable([mine[0]!, mine[1]!])]);
+    expect(drawnOffer(m).selectable, 'Forge offers it again: drawn').toEqual(new Set([mine[0], mine[1]]));
+  });
+
+  it('on the other seat’s turn, Forge’s end of a window this seat never acted in holds nothing', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const opponent = m.view!.players.find((p) => !p.isViewer)!.id;
+    await sendAndApply(s, m, [phase('UPKEEP', opponent), prompt('Priority'), bar(true), actionable([mine[0]!])]);
+    expect(m.view!.players.find((p) => p.isViewer)!.isActive).toBe(false);
+    await sendAndApply(s, m, [clearActionable()]);
+    expect(drawnOffer(m).selectable.size).toBe(0);
+  });
+
+  it('a pass drops a press kept under the hold: it was made for the window the pass answered', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([mine[0]!, mine[1]!])]);
+    expect(selectCard(m, mine[0]!)).toBe(true);
+    await sendAndApply(s, m, [clearActionable(), prompt('Priority'), bar(true)]);
+    expect(selectCard(m, mine[1]!), 'kept').toBe(true);
+    expect(pressButton(m, 'ok')).toBe(true);
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([mine[1]!])]);
+    const sent = (await s.framesFrom(m)).flatMap((f) => (f.ok && 'method' in f.value ? [f.value.method] : []));
+    expect(sent).toEqual(['selectCard', 'selectButtonOk']);
   });
 });
 
