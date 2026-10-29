@@ -214,13 +214,18 @@ function turnsOf(envs: { at: number; env: unknown }[]): { at: number; player: nu
   return out;
 }
 
-/** The player drawn at the bottom of a board, by the name on its hand. */
-const bottomPlayer = (scope: Page, within: string): Promise<string> =>
-  scope
-    .locator(`${within} .seat[data-viewer] section[data-zone="hand"][aria-label]`)
-    .first()
-    .getAttribute('aria-label')
-    .then((l) => (l ?? '').replace(/ Hand$/, ''));
+/**
+ * The turn a board draws and the player at its bottom (by the name on their hand), read together
+ * off the board itself: the card's title follows the match at once, the board a paced beat later.
+ */
+const drawnTurn = (scope: Page, within: string): Promise<{ turn: number; bottom: string }> =>
+  scope.evaluate((root) => {
+    const board = document.querySelector(root);
+    return {
+      turn: Number(board?.querySelector('[data-testid="live-phases"]')?.getAttribute('data-turn') ?? 0),
+      bottom: (board?.querySelector('.seat[data-viewer] section[data-zone="hand"][aria-label]')?.getAttribute('aria-label') ?? '').replace(/ Hand$/, ''),
+    };
+  }, within);
 
 /** Presses on through every priority stop until `until`. */
 const grind = (alice: Friend, bob: Friend, until: () => Promise<boolean>, timeoutMs = 60_000): Promise<void> => grindPriority([alice.page, bob.page], until, { timeoutMs });
@@ -491,7 +496,8 @@ test(
         const turn = Number(/Turn (\d+)/.exec((await looper.getByTestId('featured-match').textContent()) ?? '')?.[1] ?? 0);
         if (turn < lastTurn) loops += 1;
         lastTurn = turn;
-        if (turn > 0) bottomByTurn.set(turn, (bottomByTurn.get(turn) ?? new Set()).add(await bottomPlayer(looper, '[data-testid="featured-match"]')));
+        const drawn = await drawnTurn(looper, '[data-testid="featured-match"]');
+        if (drawn.turn > 0) bottomByTurn.set(drawn.turn, (bottomByTurn.get(drawn.turn) ?? new Set()).add(drawn.bottom));
         if (turn === 3) {
           const seen = await looper.locator('.featured-match__viewport').evaluate((viewport) => {
             const box = viewport.getBoundingClientRect();
