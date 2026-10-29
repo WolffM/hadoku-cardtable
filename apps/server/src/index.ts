@@ -626,14 +626,6 @@ const roomFeed = attachRoomFeed(io, { lobby });
 // A table's game resolved from its card: concede, abandon, drop match (`http/table-actions.ts`).
 attachTableActions(api, { lobby, match: (id) => play?.matches.get(id), seriesEnded: (roomId, tableId) => tables.seriesEnded(roomId, tableId) });
 
-// ── Rooms are not immortal ───────────────────────────────────────────────────
-// `create` had no opposite for its whole life: no leave, no close, no expiry,
-// so every room ever made stayed on the front page. A room untouched for
-// `ROOM_IDLE_MS` is forgotten, on disk as well as in memory — at boot, because
-// this process restarts on every deploy and again at 08:00 UTC, and hourly so
-// a long-running process is not the exception.
-const ROOM_SWEEP_MS = 60 * 60_000;
-setInterval(() => sweepRooms(lobby, roomsLog), ROOM_SWEEP_MS).unref();
 
 // ── Constructed ──────────────────────────────────────────────────────────────
 // Formats, the deck library, and the deck gate on POST /api/play/matches. MUST
@@ -822,6 +814,31 @@ if (clawHosts !== null) clawHosts.restoreWith(registryRestorer(play.matches));
 // room still pointing at one that did not come back can let go of it.
 await play.adopted;
 tables.releaseGoneMatches();
+
+// ── Rooms are not immortal, and neither is a game ────────────────────────────
+// `create` had no opposite for its whole life: no leave, no close, no expiry,
+// so every room ever made stayed on the front page. A room untouched for its
+// idle window (`ROOM_IDLE_MS`, `CASUAL_ROOM_IDLE_MS`) is forgotten, on disk as
+// well as in memory, and a game that has run `GAME_DRAWN_AFTER_MS` is called a
+// draw (`boot.ts`'s `sweepRooms`) — at boot, because this process restarts on
+// every deploy and again at 08:00 UTC, and every few minutes, so a game is drawn
+// close to its eighth hour rather than up to an hour after it.
+const ROOM_SWEEP_MS = 5 * 60_000;
+const sweepAll = (now?: number): void => sweepRooms(lobby, roomsLog, { matches: play?.matches.active() ?? [], ...(now === undefined ? {} : { now }) });
+setInterval(() => sweepAll(), ROOM_SWEEP_MS).unref();
+// Diagnostics only, like play's own probes: the sweep run on a clock `aheadMs` from now, so a spec can
+// see a game its eight hours old end (`e2e/w82-forced-draw.spec.ts`). Never set in production.
+if (CONFIG.playProbe) {
+	api.post('/play/sweep', (req, res) => {
+		const aheadMs = Number((req.body as { aheadMs?: unknown } | undefined)?.aheadMs ?? 0);
+		if (!Number.isFinite(aheadMs)) {
+			res.status(400).json({ error: 'aheadMs is a number of milliseconds' });
+			return;
+		}
+		sweepAll(Date.now() + aheadMs);
+		res.status(204).end();
+	});
+}
 
 // ── The browser bridge ───────────────────────────────────────────────────────
 // `GET /play/ws`: the SECOND client type for the same matches — a plain

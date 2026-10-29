@@ -110,6 +110,8 @@ export {
   GameLogLineSchema,
   type GameLogLine,
   ShowErrorDialogSchema,
+  ENDED_BY,
+  type EndedBy,
   ShowConfirmDialogSchema,
   ShowConfirmDialogReplySchema,
   ShowOptionDialogSchema,

@@ -38,6 +38,7 @@ import forge.deck.Deck;
 import forge.deck.DeckSection;
 import forge.deck.io.DeckSerializer;
 import forge.game.Game;
+import forge.game.GameEndReason;
 import forge.game.GameEntityView;
 import forge.game.GameRules;
 import forge.game.GameState;
@@ -67,6 +68,7 @@ import forge.game.zone.ZoneType;
 import forge.gamemodes.match.GameLobby.GameLobbyData;
 import forge.gamemodes.match.HostedMatch;
 import forge.gamemodes.match.LobbySlot;
+import forge.gamemodes.match.input.ActGate;
 import forge.gamemodes.match.input.Input;
 import forge.gamemodes.match.input.InputLockUI;
 import forge.gamemodes.match.input.InputPayMana;
@@ -7650,6 +7652,42 @@ public final class PlayBridge {
     }
 
     /**
+     * The game ends as a draw, through Forge's own end: every player's {@code intentionalDraw()} and
+     * {@code setGameOver(GameEndReason.Draw)}, what a "the game is a draw" card does
+     * ({@code GameDrawEffect}). The server asks for it when a
+     * game has run eight hours (`Match.forceDraw`). Taken through the game's {@link ActGate} like a
+     * concede, once the game waits on an input, so it never runs beside the game thread's own moves
+     * (a concede that did met a {@code ConcurrentModificationException}, `concede-deal.jvm.test.ts`);
+     * then every human seat's input queue is let go, as Forge's own concede does, since a seat
+     * parked on an input is woken by nothing else. The {@code gameover} line follows as for any end.
+     */
+    static void forceDraw(final MatchContext match) {
+        final Game game = match.liveGame();
+        if (game == null || game.isGameOver()) { return; }
+        final List<PlayerControllerHuman> humans = new ArrayList<>();
+        for (final forge.game.player.Player p : game.getRegisteredPlayers()) {
+            if (p.getController() instanceof PlayerControllerHuman h) { humans.add(h); }
+        }
+        final ActGate gate = ActGate.of(game);
+        final long ticket = gate.ticket();
+        final Thread t = new Thread(() -> gate.run(ticket, () -> {
+            // Any seat's live input is the game waiting; against the AI on its turn, none comes and the cap lets it through.
+            gate.settle(() -> game.isGameOver() || humans.stream().anyMatch(h -> {
+                final Input input = h.getInputProxy().getInput();
+                return input != null && !(input instanceof InputLockUI);
+            }), 5_000);
+            if (game.isGameOver()) { return; }
+            // Forge's own draw (`GameDrawEffect`, `DrawOfferCoordinator`): every player still in the game
+            // draws, then the game ends. Without the first half `onGameOver` makes each of them a winner.
+            for (final forge.game.player.Player p : game.getPlayers()) { p.intentionalDraw(); }
+            game.setGameOver(GameEndReason.Draw);
+            for (final PlayerControllerHuman h : humans) { h.getInputQueue().onGameOver(true); }
+        }), "bridge-draw-" + match.matchId);
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /**
      * Wave 33 §S item 4 — the concede race, now a BACKSTOP only. Until wave 33
      * this loop, polling at 500 ms, was the ONLY way the {@code gameover} line
      * was ever emitted — and {@code GameOver} itself reaches a browser far
@@ -7745,6 +7783,7 @@ public final class PlayBridge {
             case "cancel-payment" -> seat(match, cmd).cancelPayment();
             case "resend-pending" -> seat(match, cmd).resendPending();
             case "probe" -> probe(match, cmd);
+            case "draw" -> forceDraw(match);
             case "stop" -> match.stop.countDown();
             default -> throw new IllegalArgumentException("unknown command " + cmd.get("t"));
         }

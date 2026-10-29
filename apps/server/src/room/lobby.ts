@@ -934,7 +934,8 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 }
 
 /**
- * How long a room may sit untouched before the lobby forgets it.
+ * How long a tournament room (`usesPod`) may sit untouched before the lobby
+ * forgets it; every other room has `CASUAL_ROOM_IDLE_MS`.
  *
  * Rooms used to be permanent: `create` had no opposite, and neither `leave`
  * nor any expiry existed, so every room ever made stayed on the front page for
@@ -950,6 +951,18 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 export const ROOM_IDLE_MS = 12 * 60 * 60_000;
 /** How long a started pod's room is spared the idle sweep: a day is a long tournament night. */
 export const POD_SPARED_MS = 24 * 60 * 60_000;
+/**
+ * How long a room that is not a tournament (`usesPod`) may sit idle before the sweep forgets it.
+ * The operator, 2026-10-29: *"non-tournament rooms should close after being idle for 8hrs. do not
+ * close rooms that have a game in progress."* A tournament room keeps `ROOM_IDLE_MS`.
+ */
+export const CASUAL_ROOM_IDLE_MS = 8 * 60 * 60_000;
+/**
+ * How long a game may run, in any room, before the sweep calls it a draw (`boot.ts`'s `sweepRooms`).
+ * The operator, 2026-10-29: *"games that are in-progress for >8hrs should be forced into a draw and
+ * players sent back to the lobby"* — "every game", tournament or not.
+ */
+export const GAME_DRAWN_AFTER_MS = 8 * 60 * 60_000;
 
 /**
  * How long a room may go without a touch before the front page stops
@@ -1249,11 +1262,15 @@ export interface Lobby {
 	setSettings(roomId: string, callerId: string, settings: Partial<RoomSettings>): SetSettingsResult;
 	/**
 	 * Forget every room untouched for longer than `idleMs`, on disk as well as
-	 * in memory. Returns the ids dropped, for the caller's log.
+	 * in memory. Returns the ids dropped, for the caller's log. Without `idleMs`,
+	 * a tournament room (`usesPod`) idles `ROOM_IDLE_MS` and any other room
+	 * `CASUAL_ROOM_IDLE_MS`.
 	 *
-	 * A room whose draft STARTED less than `POD_SPARED_MS` ago is not dropped: a
-	 * pod runs for hours without anybody touching the lobby, and reaping it would
-	 * take the tournament with it. Older than that, it ages out like any room.
+	 * A room with a match on any of its tables is never dropped, whatever its
+	 * idle age: a game in progress keeps its room. A room whose draft STARTED
+	 * less than `POD_SPARED_MS` ago is not dropped either: a pod runs for hours
+	 * without anybody touching the lobby, and reaping it would take the
+	 * tournament with it. Older than that, it ages out like any room.
 	 */
 	sweep(idleMs?: number): string[];
 
@@ -3195,16 +3212,19 @@ class FileLobby implements Lobby {
 		return { ok: true, room: this.#view(room) };
 	}
 
-	sweep(idleMs: number = ROOM_IDLE_MS): string[] {
-		const cutoff = this.#now() - idleMs;
+	sweep(idleMs?: number): string[] {
 		const dropped: string[] = [];
 		for (const [id, room] of this.#rooms) {
 			// A seeded testing room is never idle-reaped — it is seeded with its
 			// system creator as its only member for its whole life, so "nobody has
 			// touched it" would otherwise be true of it the instant it is created.
 			if (room.testing) continue;
+			// A game in progress: its players are on the match's screen, not touching the lobby. A
+			// game that never ends is the sweep's other half, called a draw at `GAME_DRAWN_AFTER_MS`.
+			if (room.tables.some((t) => t.matchId !== null)) continue;
+			const idle = idleMs ?? (usesPod(room) ? ROOM_IDLE_MS : CASUAL_ROOM_IDLE_MS);
 			// A room made for an event ages from its start, not from when it was made.
-			if (Math.max(room.updatedAt, room.scheduledFor ?? 0) > cutoff) continue;
+			if (Math.max(room.updatedAt, room.scheduledFor ?? 0) > this.#now() - idle) continue;
 			// A pod in progress. Nobody touches the lobby for the forty minutes a
 			// draft takes, and the room is the pod's container — reaping it would
 			// end the game. A pod survives restarts now, so the spare is bounded by
@@ -3213,7 +3233,7 @@ class FileLobby implements Lobby {
 			this.#archive(room);
 			this.#forget(id);
 			dropped.push(id);
-			this.#log({ event: 'room-forgotten', roomId: id, idleMs });
+			this.#log({ event: 'room-forgotten', roomId: id, idleMs: idle });
 		}
 		return dropped;
 	}

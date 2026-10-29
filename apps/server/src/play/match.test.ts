@@ -1907,6 +1907,35 @@ describe('a match that outlives its server', () => {
 		}
 	});
 
+	// The operator, 2026-10-29: "games that are in-progress for >8hrs should be forced into a draw".
+	it('a game called a draw for its age asks Forge for the draw, and tells every seat why', () => {
+		const h = harness();
+		h.match.claim(ALICE);
+		h.match.claim(BOB);
+		h.host.push(...OPENING);
+		expect(h.match.forceDraw('time-limit')).toBe(true);
+		expect(h.host.commands.at(-1)).toEqual({ t: 'draw' });
+		// Asked once: a second sweep before Forge answers sends nothing more.
+		expect(h.match.forceDraw('time-limit')).toBe(false);
+		expect(h.host.commands.filter((c) => c.t === 'draw')).toHaveLength(1);
+		const mark = h.sent.length;
+		// Forge's draw: nobody won, and both players drew (`PlayerOutcome.draw()`), as real Forge says it.
+		const drew = [
+			{ player: 0, reason: 'IntentionalDraw' },
+			{ player: 1, reason: 'IntentionalDraw' },
+		];
+		h.host.push({ t: 'gameover', winner: null, losers: [0, 1], lost: drew });
+		const told = { kind: 'notify', method: 'finishGame', losers: [0, 1], lost: drew, endedBy: 'time-limit' };
+		expect(h.sent.slice(mark).map((s) => ({ seat: s.seat, frame: s.envelope.frame }))).toEqual([
+			{ seat: 0, frame: told },
+			{ seat: WATCHER_SEAT, frame: told },
+			{ seat: 1, frame: told },
+		]);
+		expect(h.match.outcome()).toEqual({ kind: 'drawn' });
+		// Nothing to draw once the game is over.
+		expect(h.match.forceDraw('time-limit')).toBe(false);
+	});
+
 	it('a game conceded before the coin toss never shows the toss Forge asks after the end, live or on a reload (#19)', () => {
 		vi.useFakeTimers();
 		onTestFinished(() => void vi.useRealTimers());

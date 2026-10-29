@@ -103,6 +103,7 @@ import {
 	safeParseServerFrame,
 	type ChoiceOption,
 	type ClientFrame,
+	type EndedBy,
 	type GameLogLine,
 	type PhaseType,
 	type ServerFrame,
@@ -243,6 +244,9 @@ function askGist(frame: ServerFrame): { source?: number; title?: string } {
 }
 
 export type MatchStatus = 'starting' | 'running' | 'over' | 'failed' | 'stopped';
+
+/** Why the server called a game a draw ({@link Match.forceDraw}): it ran `GAME_DRAWN_AFTER_MS`. */
+export type DrawReason = EndedBy;
 
 /**
  * How a game ended. A game is finished only when Forge called it — a victory
@@ -1067,6 +1071,8 @@ export class Match {
 	winnerSeat: 0 | 1 | null = null;
 	/** The seat whose concede Forge was sent, or null — the one end reason the board cannot show. */
 	concededBy: number | null = null;
+	/** Why the server asked Forge for a draw ({@link forceDraw}), or null: told with the game's end. */
+	drawnFor: DrawReason | null = null;
 	/**
 	 * When the match was started, in ms. A match taken back after a restart
 	 * keeps the start its JVM's record has (`MatchRecord.startedAt`), so this is
@@ -2149,6 +2155,20 @@ export class Match {
 		});
 	}
 
+	/**
+	 * End the game as a draw, through Forge's own end (`GameEndReason.Draw`): the sweep's call on a
+	 * game that has run `GAME_DRAWN_AFTER_MS` (`boot.ts`'s `sweepRooms`). The `gameover` line that
+	 * follows ends the match as any game's end does, and tells every seat why ({@link drawnFor}).
+	 * False when there is no running game to draw, or Forge was already asked.
+	 */
+	forceDraw(reason: DrawReason): boolean {
+		if (this.status !== 'running' || this.drawnFor !== null) return false;
+		this.drawnFor = reason;
+		this.deps.log({ evt: 'draw-forced', matchId: this.id, reason, ranMs: this.now() - this.startedAt });
+		this.command({ t: 'draw' });
+		return true;
+	}
+
 	/** Stop on purpose. The JVM's exit that follows is then not a failure. */
 	stop(): void {
 		if (this.status !== 'starting' && this.status !== 'running' && this.status !== 'over') return;
@@ -2433,7 +2453,13 @@ export class Match {
 				this.deps.log({ evt: 'game-over', matchId: this.id, winner: line.winner, losers: line.losers });
 				for (const s of this.seats) {
 					if (s.ai || s.playerId === null) continue;
-					this.finishSeat(s, { kind: 'notify', method: 'finishGame', ...(line.losers === undefined ? {} : { losers: line.losers }), ...(line.lost === undefined ? {} : { lost: line.lost }) } as ServerFrame);
+					this.finishSeat(s, {
+						kind: 'notify',
+						method: 'finishGame',
+						...(line.losers === undefined ? {} : { losers: line.losers }),
+						...(line.lost === undefined ? {} : { lost: line.lost }),
+						...(this.drawnFor === null ? {} : { endedBy: this.drawnFor }),
+					} as ServerFrame);
 				}
 				this.logFrames();
 				if (!this.replaying) this.deps.onGameOver?.();

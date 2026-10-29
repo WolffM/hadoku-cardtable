@@ -18,10 +18,10 @@ import { afterAll, describe, expect, it, vi } from 'vitest';
 import { packOf, pick, runBots } from '@hadoku/draft';
 import { GAUNTLET_SNAKE, type DraftCard, type GauntletSeatIndex } from '@hadoku/shared';
 
-import { restoreRooms, type RestoredRooms } from './boot.ts';
+import { restoreRooms, sweepRooms, type RestoredRooms, type SweptMatch } from './boot.ts';
 import { DEFAULT_PLAN, joinDraftRoom, singlePoolResolver, stateOf } from './room/draftRooms.ts';
 import { act, drawGauntlet, newGauntlet, startBanpick, type GauntletEraPool, type GauntletState } from './room/gauntlet.ts';
-import type { Lobby, PodChecks } from './room/lobby.ts';
+import { GAME_DRAWN_AFTER_MS, openLobby, type Lobby, type PodChecks } from './room/lobby.ts';
 import { loadPool, type CubePool } from './room/pool.ts';
 
 const CUBE_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../ui/src/draft/pool.json');
@@ -309,5 +309,41 @@ describe('a restart gives every room in flight back the way it was left', () => 
 			phase: 'rounds',
 			round: 1,
 		});
+	});
+});
+
+/*
+ * The operator, 2026-10-29: "games that are in-progress for >8hrs should be forced into a draw and
+ * players sent back to the lobby" — "every game", in any room. The sweep that ages rooms out is the
+ * one clock, and a match's age is its own recorded start.
+ */
+describe('the sweep calls a game a draw once it has run eight hours', () => {
+	it('asks every running match older than eight hours for a draw, and no other', async () => {
+		const dir = await mkdtemp(join(tmpdir(), 'cardtable-boot-draw-'));
+		dirs.push(dir);
+		const now = 6_000_000_000_000;
+		const lobby = await openLobby({ dir, now: () => now });
+		const asked: string[] = [];
+		const match = (id: string, status: SweptMatch['status'], age: number): SweptMatch => ({
+			id,
+			status,
+			startedAt: now - age,
+			forceDraw: (reason: 'time-limit') => {
+				asked.push(`${id}:${reason}`);
+				return true;
+			},
+		});
+		const logged: Record<string, unknown>[] = [];
+		sweepRooms(lobby, (e) => void logged.push(e), {
+			matches: [
+				match('m-old', 'running', GAME_DRAWN_AFTER_MS + 1),
+				match('m-young', 'running', GAME_DRAWN_AFTER_MS - 1),
+				match('m-over', 'over', GAME_DRAWN_AFTER_MS * 2),
+				match('m-starting', 'starting', GAME_DRAWN_AFTER_MS * 2),
+			],
+			now,
+		});
+		expect(asked).toEqual(['m-old:time-limit']);
+		expect(logged).toContainEqual(expect.objectContaining({ event: 'games-drawn', matches: ['m-old'] }));
 	});
 });

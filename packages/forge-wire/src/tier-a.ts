@@ -80,16 +80,22 @@ export const LossSchema = z.strictObject({
 });
 export type Loss = z.infer<typeof LossSchema>;
 
+/** Why the server, not the game, ended a game: `time-limit` is a game called a draw after eight hours. */
+export const ENDED_BY = ['time-limit'] as const;
+export type EndedBy = (typeof ENDED_BY)[number];
+
 /**
  * `void finishGame()` — IGuiGame.java:100. `losers`: the player ids Forge has lost when the game
  * ended (`Player.hasLost`), and `lost` why each of them did, both added by the bridge, so a screen
- * whose view never caught up with the end still knows who won and how.
+ * whose view never caught up with the end still knows who won and how. `endedBy`: the server ended
+ * the game itself ({@link ENDED_BY}), added by the server.
  */
 export const FinishGameSchema = z.strictObject({
   kind: z.literal('notify'),
   method: z.literal('finishGame'),
   losers: z.array(z.number().int()).optional(),
   lost: z.array(LossSchema).optional(),
+  endedBy: z.enum(ENDED_BY).optional(),
 });
 
 /** `void clearSelectables()` — IGuiGame.java:273. */

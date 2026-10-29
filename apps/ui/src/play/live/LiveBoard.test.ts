@@ -3547,7 +3547,8 @@ describe('R16 — Victory, Defeat or Draw, and how it ended (pure logic)', () =>
       missingCardIds: [],
     };
   }
-  const matchWithView = (view: BoardView | null, lost: LiveMatch['lost'] = null): LiveMatch => ({ view, losers: null, lost }) as unknown as LiveMatch;
+  const matchWithView = (view: BoardView | null, lost: LiveMatch['lost'] = null, endedBy: LiveMatch['endedBy'] = null): LiveMatch =>
+    ({ view, losers: null, lost, endedBy }) as unknown as LiveMatch;
 
   it('the viewer lost, the opponent did not: Defeat', () => {
     const view = fakeView([
@@ -3610,6 +3611,16 @@ describe('R16 — Victory, Defeat or Draw, and how it ended (pure logic)', () =>
       'You — lost to Door to Nothingness',
     );
     expect(endingSentence(matchWithView(decked), decked), "without Forge's reason, the board's").toBe('You — had to draw from an empty library');
+  });
+
+  // The operator, 2026-10-29: a game in progress for more than 8 hours is forced into a draw.
+  it('a game the server called a draw after eight hours says so, and is a Draw for both seats', () => {
+    // Forge's draw marks both players drawn, which `hasLost` reads as lost.
+    const view = fakeView([fakePlayer({ id: 0, name: 'You', isViewer: true, hasLost: true }), fakePlayer({ id: 1, name: 'Them', hasLost: true })]);
+    const drew = new Map([0, 1].map((player) => [player, { player, reason: 'IntentionalDraw' }]));
+    const drawn = { ...matchWithView(view, drew, 'time-limit'), finished: true } as LiveMatch;
+    expect(gameOutcome(drawn)).toBe('draw');
+    expect(endingSentence(drawn, view)).toBe('The game ran for 8 hours and ended in a draw');
   });
 });
 

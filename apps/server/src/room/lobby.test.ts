@@ -42,6 +42,7 @@ import {
 	POD_AI,
 	POD_CLOSED,
 	randomFormat,
+	CASUAL_ROOM_IDLE_MS,
 	POD_SPARED_MS,
 	ROOM_IDLE_MS,
 	ROOM_MATCHES_KEPT,
@@ -674,7 +675,7 @@ describe('Lobby.sweep', () => {
 		expect(lobby.sweep()).toEqual([]);
 
 		// Still inside the window after most of it has passed.
-		clock += ROOM_IDLE_MS - 1;
+		clock += CASUAL_ROOM_IDLE_MS - 1;
 		expect(lobby.sweep()).toEqual([]);
 		expect(lobby.list()).toHaveLength(1);
 
@@ -682,12 +683,74 @@ describe('Lobby.sweep', () => {
 		// somebody who just arrived.
 		if (!made.ok) return;
 		lobby.join(made.room.id, BOB);
-		clock += ROOM_IDLE_MS - 1;
+		clock += CASUAL_ROOM_IDLE_MS - 1;
 		expect(lobby.sweep()).toEqual([]);
 
 		clock += 2;
 		expect(lobby.sweep()).toEqual([made.room.id]);
 		expect(lobby.list()).toEqual([]);
+	});
+});
+
+/*
+ * The operator, 2026-10-29: "non-tournament rooms should close after being idle for 8hrs. do not
+ * close rooms that have a game in progress." A tournament room keeps its twelve hours, and a room
+ * with a live match on any table is never swept, whatever its idle age.
+ */
+describe('Lobby.sweep: eight hours for a room that is not a tournament, never while a game is on', () => {
+	async function constructed(opts: { tournament?: boolean } = {}) {
+		let clock = 5_000_000_000_000;
+		const lobby = await openLobby({ dir: await tempDir(), now: () => clock });
+		const made = lobby.create(ALICE, { name: 'kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		const tableId = made.room.tables[0]!.id;
+		if (opts.tournament === true) expect(lobby.setSettings(id, ALICE.id, { tournament: true }).ok).toBe(true);
+		return { lobby, id, tableId, advance: (ms: number) => void (clock += ms) };
+	}
+
+	it('forgets a non-tournament room idle for eight hours', async () => {
+		const { lobby, id, advance } = await constructed();
+		advance(CASUAL_ROOM_IDLE_MS - 1);
+		expect(lobby.sweep()).toEqual([]);
+		advance(2);
+		expect(lobby.sweep()).toEqual([id]);
+		expect(lobby.get(id)).toBeUndefined();
+	});
+
+	it('keeps a room idle for eight hours while a match is live on its table — a day, too', async () => {
+		const { lobby, id, tableId, advance } = await constructed();
+		expect(lobby.join(id, BOB).ok).toBe(true);
+		expect(lobby.sit(id, tableId, ALICE.id) && lobby.sit(id, tableId, BOB.id)).toBe(true);
+		expect(lobby.setTableMatch(id, tableId, 'm-long-game')).toBe(true);
+		advance(CASUAL_ROOM_IDLE_MS + 1);
+		expect(lobby.sweep()).toEqual([]);
+		advance(POD_SPARED_MS);
+		expect(lobby.sweep()).toEqual([]);
+		expect(lobby.get(id)?.tables[0]?.matchId).toBe('m-long-game');
+	});
+
+	it('keeps a tournament room idle for eight hours: its twelve still apply', async () => {
+		const { lobby, id, advance } = await constructed({ tournament: true });
+		advance(CASUAL_ROOM_IDLE_MS + 1);
+		expect(lobby.sweep()).toEqual([]);
+		advance(ROOM_IDLE_MS - CASUAL_ROOM_IDLE_MS);
+		expect(lobby.sweep()).toEqual([id]);
+	});
+
+	it('a forced draw is activity: the idle clock starts again from it', async () => {
+		const { lobby, id, tableId, advance } = await constructed();
+		expect(lobby.join(id, BOB).ok).toBe(true);
+		expect(lobby.sit(id, tableId, ALICE.id) && lobby.sit(id, tableId, BOB.id)).toBe(true);
+		expect(lobby.setTableMatch(id, tableId, 'm-drawn')).toBe(true);
+		advance(CASUAL_ROOM_IDLE_MS + 1);
+		// The game hit its eight hours and was drawn: the room records it as a drawn game.
+		expect(lobby.recordGameResult(id, tableId, { matchId: 'm-drawn', winner: null })).toMatchObject({ ok: true });
+		expect(lobby.get(id)?.tables[0]?.series.games).toEqual([expect.objectContaining({ matchId: 'm-drawn', winner: null })]);
+		advance(CASUAL_ROOM_IDLE_MS - 1);
+		expect(lobby.sweep()).toEqual([]);
+		advance(2);
+		expect(lobby.sweep()).toEqual([id]);
 	});
 });
 
@@ -1582,8 +1645,10 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 			expect(ended).toEqual([{ ...bo1(id, tableId, 'm-gauntlet-1', 1), mode: 'gauntlet' }]);
 		});
 
-		it('the room is swept mid-series at 1-1: a drawn Bo3, and the game in play is not one of its games', async () => {
-			const { lobby, id, tableId, ended } = await oneAllAndPlaying();
+		it('the room is swept mid-series at 1-1: a drawn Bo3 — between games, never with one in play', async () => {
+			const playing = await oneAllAndPlaying();
+			expect(playing.lobby.sweep(-1), 'a game in progress keeps its room').toEqual([]);
+			const { lobby, id, tableId, ended } = await oneAllBetween();
 			expect(lobby.sweep(-1)).toEqual([id]);
 			expect(ended).toEqual([drawnBo3(id, tableId)]);
 		});

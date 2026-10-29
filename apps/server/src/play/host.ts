@@ -236,6 +236,8 @@ export type BridgeCommand =
 	/** Forge's Cancel on the seat's open mana payment only, never on an input opened after it (`PlayBridge.java`'s `cancelPayment`). */
 	| { t: 'cancel-payment'; seat: number }
 	| { t: 'probe'; seat: number; probeId: string; message: string }
+	/** End the game as a draw, Forge's `GameEndReason.Draw` (`PlayBridge.java`'s `forceDraw`; `Match.forceDraw`). */
+	| { t: 'draw' }
 	| { t: 'stop' };
 
 /**

@@ -258,7 +258,7 @@ import { Component, memo, useEffect, useId, useLayoutEffect, useMemo, useRef, us
 
 import { CLIENT_EVENT, selfAnswer, type ClientEvent, type DraftCard } from '@hadoku/shared';
 import type { RoomTable as SharedRoomTable } from '@hadoku/shared';
-import { YIELDING, type GameLogLine } from '@hadoku/forge-wire';
+import { YIELDING, type EndedBy, type GameLogLine } from '@hadoku/forge-wire';
 import { usePrefs } from '@wolffm/prefs-client/react';
 import { parseDck } from '@hadoku/carddata/dck';
 import { CONSTRUCTED_LIMITS, LIMITED_MIN_MAIN_DECK_SIZE, deckFromDeckFile, type Deck } from '@hadoku/deck';
@@ -1782,8 +1782,17 @@ function lostPlayers(match: LiveMatch, view: BoardView): BoardPlayer[] {
   return view.players.filter((p) => (match.losers === null ? p.hasLost : match.losers.has(p.id)));
 }
 
-/** One sentence per loser (almost always one; a double-loss draw gets both). `null` when nobody lost. */
+/** Why the server ended a game itself (`LiveMatch.endedBy`), as the result screen says it. */
+const ENDED_BY_WORDS: Readonly<Record<EndedBy, string>> = {
+  'time-limit': 'The game ran for 8 hours and ended in a draw',
+};
+
+/**
+ * One sentence per loser (almost always one; a double-loss draw gets both), or the server's own
+ * reason for a game it ended. `null` when nobody lost and the game ended by itself.
+ */
 export function endingSentence(match: LiveMatch, view: BoardView): string | null {
+  if (match.endedBy !== null) return ENDED_BY_WORDS[match.endedBy];
   const losers = lostPlayers(match, view);
   if (losers.length === 0) return null;
   return losers

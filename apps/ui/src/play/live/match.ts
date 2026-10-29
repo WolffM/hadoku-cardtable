@@ -244,6 +244,7 @@ import {
   type BlockingMethod,
   type CardRef,
   type ClientAbort,
+  type EndedBy,
   type GameEntityRef,
   type GameLogLine,
   type Loss,
@@ -957,6 +958,8 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
   losers: ReadonlySet<number> | null;
   /** Why each loser lost, by player id, as Forge decided it (`finishGame`'s `lost`). `null` like `losers`. */
   lost: ReadonlyMap<number, Loss> | null;
+  /** The server ended the game itself (`finishGame`'s `endedBy`): a game called a draw after eight hours. `null` like `losers`. */
+  endedBy: EndedBy | null;
   /** The most recent failure worth showing. Cleared when a snapshot lands. */
   lastError: string | null;
   /** Why the most recent malformed envelope or frame was refused. */
@@ -1141,6 +1144,7 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     ended: null,
     losers: null,
     lost: null,
+    endedBy: null,
     fullControl: false,
     stopAtEndStep: true,
     autoYield: null,
@@ -2977,6 +2981,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   match.ended = null;
   match.losers = null;
   match.lost = null;
+  match.endedBy = null;
   unspend(match);
   match.lastError = null;
   match.lastInvalid = null;
@@ -3448,6 +3453,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     dropOpenInput(match);
     if (frame.losers !== undefined) match.losers = new Set(frame.losers);
     if (frame.lost !== undefined) match.lost = new Map(frame.lost.map((l) => [l.player, l]));
+    if (frame.endedBy !== undefined) match.endedBy = frame.endedBy;
   } else if (frame.kind === 'notify' && frame.method === 'showErrorDialog' && frame.matchEnded === true) {
     // The server's own ending notice (`Match.endNotice`): the match cannot
     // continue, whatever the board still shows — and nothing still open on it
@@ -3595,6 +3601,7 @@ function discardLocal(match: LiveMatch): void {
   match.ended = null;
   match.losers = null;
   match.lost = null;
+  match.endedBy = null;
   unspend(match);
 }
 

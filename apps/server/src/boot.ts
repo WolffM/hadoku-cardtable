@@ -12,7 +12,8 @@
  * Imports only; nothing runs at import (the server is one bundle — see `index.ts`).
  */
 import { createDraftRooms, type DraftRooms } from './room/draftRooms.js';
-import { openLobby, type Lobby } from './room/lobby.js';
+import { GAME_DRAWN_AFTER_MS, openLobby, type Lobby } from './room/lobby.js';
+import type { Match } from './play/match.js';
 
 export interface RestoreRoomsOptions {
 	lobby: Parameters<typeof openLobby>[0];
@@ -37,8 +38,29 @@ export async function restoreRooms(options: RestoreRoomsOptions): Promise<Restor
 	return { lobby, draftRooms, lostDrafts };
 }
 
-/** Forget the rooms untouched for the idle window, on disk as well as in memory: at boot, and hourly from `index.ts`. */
-export function sweepRooms(lobby: Lobby, log: RestoreRoomsOptions['log']): void {
+/** The part of a match the sweep reads and calls (`play/match.ts`'s `Match`). */
+export type SweptMatch = Pick<Match, 'id' | 'status' | 'startedAt' | 'forceDraw'>;
+
+export interface SweepOptions {
+	/** Play's matches. None at boot: play adopts the running ones after the rooms are restored. */
+	matches?: Iterable<SweptMatch>;
+	/** The clock a match's age is read on. */
+	now?: number;
+}
+
+/**
+ * The lobby's one clock, at boot and every few minutes from `index.ts`. A game that has run
+ * `GAME_DRAWN_AFTER_MS` from its own recorded start is called a draw, in any room; its end is the
+ * room's activity, so its room's idle clock starts again from it. Then the rooms untouched for their
+ * idle window are forgotten, on disk as well as in memory — never one with a game in progress.
+ */
+export function sweepRooms(lobby: Lobby, log: RestoreRoomsOptions['log'], options: SweepOptions = {}): void {
+	const now = options.now ?? Date.now();
+	const drawn: string[] = [];
+	for (const match of options.matches ?? []) {
+		if (match.status === 'running' && now - match.startedAt > GAME_DRAWN_AFTER_MS && match.forceDraw('time-limit')) drawn.push(match.id);
+	}
+	if (drawn.length > 0) log({ event: 'games-drawn', matches: drawn });
 	const dropped = lobby.sweep();
 	if (dropped.length > 0) log({ event: 'rooms-swept', rooms: dropped.length });
 }
