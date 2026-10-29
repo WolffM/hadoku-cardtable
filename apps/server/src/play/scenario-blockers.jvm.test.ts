@@ -161,10 +161,12 @@ describe.skipIf(!available.ok)(title, () => {
 
 				// The block can actually be made.
 				s.select(1, blocker.id);
+				// Forge's delta marking the blocker can land a frame before the bar it re-arms, and an OK
+				// pressed under the bar the select greyed is refused (`press-refused`), never sent.
 				await waitUntil(() => {
 					const view = [...s.state(1).values()].find((o) => o._type === 0 && o._id === blocker.id);
-					return (view?.Blocking as { v?: boolean } | undefined)?.v === true;
-				}, 'the creature to be declared blocking', 10_000, s);
+					return (view?.Blocking as { v?: boolean } | undefined)?.v === true && s.buttons(1)?.enable1 === true;
+				}, 'the creature to be declared blocking, under a live OK', 10_000, s);
 				const linesBeforeOk = s.lines.length;
 				s.ok(1);
 				// Forge took the block and moved on to the step's priority, which the

@@ -109,7 +109,7 @@ export interface TimeoutDump {
 	label: string;
 	/** Already-summarized frames (`summarizeFrame`), most recent last. */
 	frames: Record<string, unknown>[];
-	/** Server log entries worth keeping — this file's own `stop-decided`/`auto-passed` filter, or the caller's own. */
+	/** Server log entries worth keeping — this file's own `stop-decided`/`auto-passed`/`press-refused` filter, or the caller's own. */
 	decisions: Record<string, unknown>[];
 	/** Where this match's `bridge.stderr.txt` lives (`matchStderrPath`); null before it was placed. */
 	stderrPath: string | null;
@@ -171,7 +171,7 @@ function dumpOnTimeout(s: Scenario, label: string): string {
 	return dumpTimeoutReport({
 		label,
 		frames: s.sent.slice(-DUMP_FRAMES).map(frameSummary),
-		decisions: s.logs.filter((l) => l.evt === 'stop-decided' || l.evt === 'auto-passed'),
+		decisions: s.logs.filter((l) => l.evt === 'stop-decided' || l.evt === 'auto-passed' || l.evt === 'press-refused'),
 		stderrPath: s.stderrPath(),
 	});
 }

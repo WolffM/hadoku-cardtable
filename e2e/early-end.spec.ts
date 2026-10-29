@@ -81,9 +81,20 @@ function serverSaid(stack: PlayStack, evt: string, matchId: string): boolean {
     .some((line) => line.includes(`"evt":"${evt}"`) && line.includes(`"matchId":"${matchId}"`));
 }
 
+/**
+ * The report runs after the assertions, so it must not spend the test's time: a long-poll GET that a
+ * reload cut off can leave its `res.text()` unsettled, and the 2026-10-29 full run spent 3.8 min of a
+ * passing test waiting on one. Whatever has not settled in this long is reported as such.
+ */
+const REPORT_WAIT_MS = 5_000;
+
 /** Every match message alice's browser was sent, one line each. */
 async function report(f: Friend, when: string, raw: boolean): Promise<void> {
-  await Promise.all(f.pending);
+  const settled = await Promise.race([
+    Promise.all(f.pending).then(() => true),
+    new Promise<false>((done) => setTimeout(() => done(false), REPORT_WAIT_MS)),
+  ]);
+  if (!settled) say(`${when} ${f.name} some polling captures had not settled after ${REPORT_WAIT_MS} ms`);
   const over = (raw: string): string => (/"GameOver":\{"t":"bool","v":true\}/.test(raw) ? ' GameOver' : '');
   for (const m of messages(f)) {
     if (m.dir !== 'in') continue;
@@ -98,7 +109,7 @@ async function report(f: Friend, when: string, raw: boolean): Promise<void> {
   }
   const concede = f.page.getByTestId('live-concede');
   say(
-    `${when} ${f.name} draws: result=${(await result(f).getAttribute('data-result').catch(() => null)) ?? 'none'} concede=${(await concede.count()) === 0 ? 'absent' : (await concede.isDisabled()) ? 'disabled' : 'enabled'} url=${f.page.url().split('#')[1]}`,
+    `${when} ${f.name} draws: result=${(await result(f).getAttribute('data-result', { timeout: REPORT_WAIT_MS }).catch(() => null)) ?? 'none'} concede=${(await concede.count()) === 0 ? 'absent' : (await concede.isDisabled({ timeout: REPORT_WAIT_MS })) ? 'disabled' : 'enabled'} url=${f.page.url().split('#')[1]}`,
   );
 }
 

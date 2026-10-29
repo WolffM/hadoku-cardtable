@@ -95,8 +95,13 @@ describe.skipIf(!available.ok)(title, () => {
 				await waitUntil(() => {
 					s.answerAsks();
 					first();
-					return doors(s, 0, locked).current === `${LEFT}:Walk-In Closet` && /^Stack: Empty$/m.test(s.prompt(0)) && s.buttons(0)?.enable1 === true;
-				}, 'the never-cast Room’s Walk-In Closet to unlock', 40_000, s);
+					return (
+						doors(s, 0, locked).current === `${LEFT}:Walk-In Closet` &&
+						doors(s, 1, locked).current === `${LEFT}:Walk-In Closet` &&
+						/^Stack: Empty$/m.test(s.prompt(0)) &&
+						s.buttons(0)?.enable1 === true
+					);
+				}, 'the never-cast Room’s Walk-In Closet to unlock on both seats', 40_000, s);
 				const picked = { offers: offers.slice(before), a: doors(s, 0, locked), b: doors(s, 1, locked) };
 				console.log(`[rooms.jvm] picked ${JSON.stringify(picked)}`);
 				expect(picked.offers[0]?.map((a) => a.face)).toEqual(['Walk-In Closet', 'Forgotten Cellar']);
@@ -107,8 +112,13 @@ describe.skipIf(!available.ok)(title, () => {
 				await waitUntil(() => {
 					s.answerAsks();
 					pay();
-					return s.zone(0, 'Battlefield').some((c) => c.id === id) && /^Stack: Empty$/m.test(s.prompt(0)) && s.buttons(0)?.enable1 === true;
-				}, 'Walk-In Closet to resolve', 40_000, s);
+					return (
+						s.zone(0, 'Battlefield').some((c) => c.id === id) &&
+						doors(s, 1, id).current === `${LEFT}:Walk-In Closet` &&
+						/^Stack: Empty$/m.test(s.prompt(0)) &&
+						s.buttons(0)?.enable1 === true
+					);
+				}, 'Walk-In Closet to resolve, on both seats', 40_000, s);
 				const cast = { a: doors(s, 0, id), b: doors(s, 1, id) };
 				console.log(`[rooms.jvm] cast ${JSON.stringify({ offers: offers.slice(1), ...cast })}`);
 				expect(cast.a.room).toBe(true);
@@ -122,8 +132,13 @@ describe.skipIf(!available.ok)(title, () => {
 				await waitUntil(() => {
 					s.answerAsks();
 					unlock();
-					return doors(s, 0, id).current === `${ORIGINAL}:Walk-In Closet // Forgotten Cellar` && /^Stack: Empty$/m.test(s.prompt(0)) && s.buttons(0)?.enable1 === true;
-				}, 'Forgotten Cellar to unlock', 40_000, s);
+					return (
+						doors(s, 0, id).current === `${ORIGINAL}:Walk-In Closet // Forgotten Cellar` &&
+						doors(s, 1, id).current === `${ORIGINAL}:Walk-In Closet // Forgotten Cellar` &&
+						/^Stack: Empty$/m.test(s.prompt(0)) &&
+						s.buttons(0)?.enable1 === true
+					);
+				}, 'Forgotten Cellar to unlock on both seats', 40_000, s);
 				const asked = s.sent
 					.slice(mark)
 					.filter((x) => x.seat === 0 && x.envelope.frame.kind === 'ask')
