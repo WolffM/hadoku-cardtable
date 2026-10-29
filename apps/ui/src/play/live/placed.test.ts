@@ -14,7 +14,6 @@ import type { BoardView, StackEntry } from '../adapter.ts';
 import { noteResolutionEffects, PLACEMENT_WAIT_MS } from '../motion.ts';
 import {
   besideSource,
-  commitSpell,
   defaultSpot,
   forgetPlacements,
   holdSpell,
@@ -35,6 +34,8 @@ import {
   STACK_SETTLE_ATTR,
   SHIMMER_MS,
   scatter,
+  stackBoxOf,
+  CHIP_DWELL_MS,
   squareWidth,
 } from './placed.ts';
 
@@ -140,7 +141,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-/* ── placeSpell / moveSpell / commitSpell / onSpellMoved ──────────────── */
+/* ── placeSpell / moveSpell / onSpellMoved ──────────────── */
 
 describe('the seam', () => {
   it('placeSpell then installPlaced draws a card at that point, centred', () => {
@@ -157,23 +158,19 @@ describe('the seam', () => {
     handle.dispose();
   });
 
-  it('a committed "them" item is its face; an uncommitted one is a back, and commitSpell turns it over', async () => {
+  it('their spell is its face from its registration on — a later registration at the same point never leaves it a back', async () => {
+    // The trailer's counter war (2026-10-28): every spell let go at one point, and the later ones of the
+    // other seat stayed backs, because turning one over looked it up by where it was drawn.
     const { canvas } = board();
-    placeSpell(302, { x: 200, y: 200 }, 'them');
     const handle = installPlaced(canvas);
-    handle.notify(view([stackItem(9, { sourceCardId: 302 })]));
-    let el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
-    expect(el.querySelector('.card-back'), 'not committed yet: a back').not.toBeNull();
-    expect(el.querySelector('.card__name')).toBeNull();
-
-    commitSpell(9);
-    // The flip tears the old root down and mounts a fresh one (`placed.ts`'s
-    // own note on why — `flushSync` nested inside a React effect warns in
-    // the real app). React schedules a fresh root's first commit on its own
-    // clock, so this waits for the face, as for any React DOM update read from outside `act()`.
-    await vi.waitFor(() => expect(canvas.querySelector('[data-placed-spell="9"] .card__name')?.textContent).toBe('Card 9'));
-    el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
-    expect(el.querySelector('.card-back')).toBeNull();
+    placeSpell(301, { x: 200, y: 200 }, 'them');
+    handle.notify(view([stackItem(7, { sourceCardId: 301 })]));
+    placeSpell(302, { x: 200, y: 200 }, 'them');
+    handle.notify(view([stackItem(9, { sourceCardId: 302 }), stackItem(7, { sourceCardId: 301 })]));
+    for (const id of [7, 9]) {
+      await vi.waitFor(() => expect(canvas.querySelector(`[data-placed-spell="${id}"] .card__name`)?.textContent).toBe(`Card ${id}`));
+      expect(canvas.querySelector(`[data-placed-spell="${id}"] .card-back`)).toBeNull();
+    }
     handle.dispose();
   });
 
@@ -242,7 +239,7 @@ describe('installPlaced: drawing', () => {
     handle.dispose();
   });
 
-  it('an unregistered spell is drawn hidden for PLACED_PENDING_MS; a registration inside the window draws the back AT the point, then the face there (AE26)', async () => {
+  it('an unregistered spell is drawn hidden for PLACED_PENDING_MS; a registration inside the window draws it AT the point (AE26)', async () => {
     const { canvas } = board();
     const handle = installPlaced(canvas);
     handle.notify(view([stackItem(5, { sourceCardId: 48 })]));
@@ -251,12 +248,9 @@ describe('installPlaced: drawing', () => {
     expect(el!.hasAttribute('data-placed-pending'), 'but not shown yet').toBe(true);
     placeSpell(48, { x: 400, y: 320 }, 'them');
     expect(el!.hasAttribute('data-placed-pending'), 'the registration shows it').toBe(false);
-    expect(el!.querySelector('.placed__back'), 'as the back, at the point').not.toBeNull();
+    expect(el!.querySelector('.placed__back'), 'as its face, at the point').toBeNull();
     expect(el!.style.left).toBe('400px');
     expect(el!.style.top).toBe('320px');
-    commitSpell(5);
-    await Promise.resolve();
-    expect(el!.querySelector('.placed__back'), 'turned over in place').toBeNull();
     handle.dispose();
   });
 
@@ -309,7 +303,6 @@ describe('installPlaced: drawing', () => {
     const handle = installPlaced(canvas);
     const hidden = { ...draftCard('Hidden card'), cardId: 'w61' };
     placeSpell(61, { x: 400, y: 320 }, 'them');
-    commitSpell(61);
     handle.notify(view([stackItem(4, { sourceCardId: 61, sourceCard: hidden, sourceName: 'Hidden card', sourceHidden: true, controllerName: 'Bob' })]));
     await vi.waitFor(() => expect(canvas.querySelector('[data-placed-spell="4"] [data-card-back]')).not.toBeNull());
     const el = canvas.querySelector<HTMLElement>('[data-placed-spell="4"]')!;
@@ -415,7 +408,7 @@ describe('installPlaced: drawing', () => {
   it('their ability, dragged by them, moves without ever turning over or being rebuilt — it hides no card', async () => {
     // The operator, 2026-10-10: "moving around ability chips is weirdly visually laggy … only see from
     // the opponents view." Their first move registers the chip here (`presence.ts`'s `onPlaced`:
-    // `placeStackItem(…, 'them', true)` then `commitSpell`), which used to flip it to a back and back again.
+    // `placeStackItem(…, 'them', true)`), which used to flip it to a back and back again.
     const { canvas } = board();
     setChainHalted(true);
     const handle = installPlaced(canvas);
@@ -428,7 +421,6 @@ describe('installPlaced: drawing', () => {
       placeStackItem(8, { x, y: 400 }, 'them', true);
       expect(el.querySelector('.placed__back'), 'never a back').toBeNull();
       expect(el.hasAttribute('data-placed-gliding'), 'every move of their drag glides, the first one included').toBe(true);
-      commitSpell(8);
     }
     // A point that is not their drag (a release point, a hand-over) is drawn in place.
     placeStackItem(8, { x: 330, y: 400 }, 'them');
@@ -736,6 +728,19 @@ describe('installPlaced: resolution (item 4, decision c)', () => {
     handle.dispose();
   });
 
+  it('a spell leaving for the battlefield leaves its drawn box for its arrival to start from (`stackBoxOf`), once', () => {
+    const { canvas } = board();
+    placeSpell(301, { x: 400, y: 300 }, 'you');
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(9, { sourceCardId: 301 })]));
+    const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    el.getBoundingClientRect = () => rect({ left: 342, top: 220, width: 116, height: 161 });
+    handle.notify(view([], [{ id: 301 }]));
+    expect(stackBoxOf(301)?.left).toBe(342);
+    expect(stackBoxOf(301), 'read once').toBeNull();
+    handle.dispose();
+  });
+
   it('leaving for anywhere else travels and fades, and is gone when its fade ends', () => {
     vi.useFakeTimers();
     const { canvas } = board();
@@ -908,6 +913,36 @@ describe('installPlaced: an ability is drawn only when the chain halts over it',
     const handle = installPlaced(canvas);
     handle.notify(view([stackItem(9)]));
     expect(canvas.querySelector('[data-placed-spell="9"]')).not.toBeNull();
+    handle.dispose();
+  });
+});
+
+describe('installPlaced: a cast trigger (the operator’s Emrakul, 2026-10-28)', () => {
+  it('a release is the spell’s, never its cast trigger’s: the trigger shares the card’s id and is above it on the stack', () => {
+    const { canvas } = board();
+    setChainHalted(true);
+    placeSpell(301, { x: 400, y: 300 }, 'them');
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(12, { sourceCardId: 301, isAbility: true }), stackItem(9, { sourceCardId: 301 })]));
+    const spell = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    expect(spell.style.left, 'the spell stands at the release').toBe('400px');
+    expect(spell.style.top).toBe('300px');
+    handle.dispose();
+  });
+
+  it('a chip that was seen stays its `CHIP_DWELL_MS` however soon it resolved, then goes', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    setChainHalted(true);
+    const handle = installPlaced(canvas, { reducedMotion: () => false });
+    handle.notify(view([stackItem(12, { sourceCardId: 301, isAbility: true })]));
+    const chip = canvas.querySelector<HTMLElement>('[data-placed-spell="12"]')!;
+    expect(chip.hasAttribute('data-placed-pending'), 'shown').toBe(false);
+    vi.advanceTimersByTime(200);
+    handle.notify(view([]));
+    expect(chip.hasAttribute('data-placed-leaving'), 'still there, still').toBe(false);
+    vi.advanceTimersByTime(CHIP_DWELL_MS - 200);
+    expect(chip.hasAttribute('data-placed-leaving'), 'then it goes').toBe(true);
     handle.dispose();
   });
 });
@@ -1168,3 +1203,4 @@ describe('installPlaced: layout reads per commit', () => {
     handle.dispose();
   });
 });
+
