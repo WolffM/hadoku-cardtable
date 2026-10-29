@@ -186,6 +186,14 @@ it. PR-5 is new and exists to serve it.
 | **PR-3** | **Room module** — our P3–P6 contributions to `@wolffm/rooms-protocol` / `-server` (**renamed**: `@wolffm/rooms` never shipped) | **implemented Wave 5, locally.** Designs W1, delivered to watchparty W2/W3, built here W5. Upstream still ships **none** of P4–P6, so ours are our own packages consuming their primitives — `@wolffm/rooms-server@0.38.111` is `RoomRegistry` + seating + emit + rate limiting + `collectGC` and nothing else. The socket wiring is ours |
 | **PR-4** | **Play** — WS/JSON bridge at `IToClient`, headless Forge, the embedded client | **spiked and de-risked** (D). Forge runs headless; 38 of 60 protocol methods required; jUPnP is a config flag. Not greenfield — a 3,919-line headless net harness already exists in-tree |
 
+## Wave 82 (idle rooms, 8 h forced draw) dispatched as one single session (2026-10-29)
+
+`docs/planning/wave82-2026-10-29.md`. Operator: non-tournament rooms close after 8 h idle, never with a game in progress; a game in progress over 8 h is forced to a draw (every room) and players go back to their room.
+
+| lane | worktree / branch | status | evidence |
+| --- | --- | --- | --- |
+| idle rooms + 8 h forced draw | `.claude/worktrees/w82` / `w82` | dispatched | — |
+
 ## Wave 81 (replays rebuilt) dispatched as one single session (2026-10-28)
 
 `docs/planning/wave81-2026-10-28.md`. Operator: "the replay feature just doesn't really work at all". Cause read from code: the player fakes a socket and seeks by forcing resyncs (`replayTransport.ts:217`); the only e2e replays a turn-1 concede.
