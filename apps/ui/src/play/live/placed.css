@@ -30,7 +30,35 @@
    * (`e2e/w33.spec.ts`/`e2e/w36.spec.ts`'s own hover cases).
    */
   pointer-events: auto;
+  /*
+   * The stack's room (`placed.ts`'s `settleStack`): a card let go on another slides to the free spot
+   * beside it, and a deep stack shrinks together, all at one size (`--stack-scale`).
+   */
+  scale: var(--stack-scale, 1);
+  transition:
+    opacity var(--fade-ms) ease,
+    left var(--stack-move-ms) cubic-bezier(0.2, 0.8, 0.25, 1.1),
+    top var(--stack-move-ms) cubic-bezier(0.2, 0.8, 0.25, 1.1),
+    scale var(--stack-move-ms) ease;
+}
+
+/* Being dragged, or not yet shown: exactly where it is put, never slid there. */
+.placed[data-placed-held] {
   transition: opacity var(--fade-ms) ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .placed {
+    transition: opacity var(--fade-ms) ease;
+  }
+}
+
+/*
+ * A stack item's arrows are drawn over the stack's cards, from the card's own edge: drawn under them,
+ * an arrow between two stack cards was all but hidden (the operator, 2026-10-28: "i don't see the arrows").
+ */
+.arrow.placed__arrow {
+  z-index: calc(var(--z-overlay, 20) + 1);
 }
 
 /*
@@ -236,7 +264,7 @@
  */
 .placed[data-placed-leaving] {
   opacity: 0;
-  scale: 0.5;
+  scale: calc(var(--stack-scale, 1) * 0.5);
   transition:
     left var(--leave-fade-ms) cubic-bezier(0.3, 0.7, 0.3, 1),
     top var(--leave-fade-ms) cubic-bezier(0.3, 0.7, 0.3, 1),

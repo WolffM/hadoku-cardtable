@@ -33,7 +33,7 @@
  */
 
 import { expect, test, type Page } from '@playwright/test';
-import { away, centre, eight, landing, type Box, type Point } from './aim.ts';
+import { away, eight, landing, type Box, type Point } from './aim.ts';
 
 import { castCard, clickOnce, makeTitled, offered, pressPaymentAuto, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -248,12 +248,10 @@ test.describe(titled('the counterspell arc'), () => {
       expect(inside(shot.tail!, shot.fromBox!), `the tail sits inside Counterspell's own thumbnail`).toBe(true);
       expect(inside(shot.tip!, shot.toBox!), `the tip sits inside Memnite's thumbnail`).toBe(true);
 
-      // Ledger Z9 (`aimAt`, `gestures/arrow.ts`; its ADJACENT_PX, which this tsconfig cannot import): a target within 72px of the tail — the next thumbnail in the stack row is — takes the
-      // tip at its centre, so the shaft crosses the cards instead of vanishing in the gap; a farther one, just inside its nearest edge.
-      const middle = centre(shot.toBox!);
+      // The stack's arrows run over its cards from the caster's own edge (wave 79, the operator: "i don't see the
+      // arrows"), and the stack keeps a gap between cards: the tip lands just inside Memnite's nearest edge point.
       const nearestEdge = eight(shot.toBox!).reduce((best, p) => (away(p, shot.tail!) < away(best, shot.tail!) ? p : best));
-      const aimed = away(shot.tail!, middle) < 72 ? middle : landing(nearestEdge, shot.toBox!);
-      expect(away(shot.tip!, aimed), `the tip is Memnite's centre when adjacent to the tail, else just inside the nearest of its eight edge points`).toBeLessThanOrEqual(1);
+      expect(away(shot.tip!, landing(nearestEdge, shot.toBox!)), `the tip is just inside the nearest of Memnite's eight edge points`).toBeLessThanOrEqual(1);
     } finally {
       await seated?.alice.context.close();
       await seated?.bob.context.close();

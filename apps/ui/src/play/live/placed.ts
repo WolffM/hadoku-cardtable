@@ -105,10 +105,10 @@ import { GLIDE_MS, HOUSE_DURATIONS, PLACEMENT_WAIT_MS, prefersReducedMotion, tak
 import { AbilityChip } from './AbilityChip.tsx';
 import { HiddenCard } from '../HiddenCard.tsx';
 import { viewerOf, type BoardView, type StackEntry } from '../adapter.ts';
-import { aimAt, breathe, markArrow, newArrow, positionArrow, removeArrow, retireCommitted } from './gestures/arrow.ts';
+import { aimAt, breathe, edgeNearest, markArrow, newArrow, positionArrow, removeArrow, retireCommitted } from './gestures/arrow.ts';
 import { shards } from './departures.ts';
 import { centreOf } from '../lift.ts';
-import { cardBox, faceBox, overlayOf } from './board-dom.ts';
+import { cardBox, faceBox, overlayOf, zoneOf } from './board-dom.ts';
 import type { Point } from './gestures/types.ts';
 import './placed.css';
 
@@ -131,6 +131,8 @@ const COUNTERED_CRACKS = 5;
  * already said.
  */
 export const COUNTER_HOLD_MS = 1000;
+/** A stack card sliding to the room the others left it (`placed.css`'s `--stack-move-ms`). */
+export const STACK_MOVE_MS = 360;
 /** A placed card easing to the opacity its state draws it at. */
 const FADE_MS = 250;
 /** The lengths `placed.css` animates over, set on the canvas so the sheet never restates one. */
@@ -140,6 +142,7 @@ const DURATIONS = [
   ['--leave-fade-ms', LEAVE_FADE_MS],
   ['--resolve-blink-ms', RESOLVE_BLINK_MS],
   ['--countered-ms', COUNTERED_MS],
+  ['--stack-move-ms', STACK_MOVE_MS],
 ] as const;
 /** On a permanent's own board card once it resolves off the stack, until its settle has run (`placed.css`'s `stack-settle`). */
 export const STACK_SETTLE_ATTR = 'data-stack-settle';
@@ -174,6 +177,11 @@ export const CHIP_DWELL_MS = 1500;
 /** The longest a chip waits, hidden, for its art and its credit before it is drawn without them. */
 export const CHIP_ART_WAIT_MS = 1000;
 
+/**
+ * A card being dragged stands exactly where the pointer puts it, and the stack makes room round it; this
+ * long after its last move it is let go, and comes to rest clear of the others like any card.
+ */
+export const DRAG_HOLD_MS = 400;
 
 /** How far a card sits to the right of its source's own box (the ephemeral tile, Settled). */
 const BESIDE_GAP = 6;
@@ -189,6 +197,8 @@ interface Placement {
   readonly registeredAt: number;
   /** The other seat is dragging it: their moves arrive a message at a time, and it glides between them. */
   gliding: boolean;
+  /** `Date.now()` of the last move of a drag (either seat's): until `DRAG_HOLD_MS` after it, it stands where it was put. */
+  movedAt: number | null;
 }
 
 /** One record per stack item, by its stack id — module-level so `gestures/install.ts` and lane W's `presence.ts` can reach it without a React tree. */
@@ -246,6 +256,7 @@ function register(records: Map<number, Placement>, id: number, at: Point, side: 
     side,
     registeredAt: Date.now(),
     gliding: glide,
+    movedAt: glide ? Date.now() : null,
   });
   requestRepaint();
 }
@@ -300,6 +311,7 @@ export function moveSpell(id: number, at: Point): void {
   const p = placements.get(id);
   if (p === undefined) return;
   p.at = at;
+  p.movedAt = Date.now();
   for (const listener of moveListeners) listener(id, at);
   requestRepaint();
 }
@@ -459,6 +471,81 @@ export function squareWidth(area: number, fixed: number, padX: number, min: numb
   return Math.min(Math.max(w, min), Math.max(min, max));
 }
 
+/**
+ * The stack's room (the operator, 2026-10-28: "cards on the stack having some collision property that
+ * allows them to bump against eachother and gently make space so the full card is always visible", and
+ * a deep stack shrinks to fit). Each item asks for a spot (`want`: where it was released, beside its
+ * source, the default spot) at its own size. The oldest is settled first and keeps its spot; each newer
+ * one takes the free spot nearest the one it asked for, clear of every card settled before it by
+ * `gap` — so a card let go on top of another comes to rest beside it, and the cards under it never
+ * move. A `pinned` item (one being dragged) is settled before all of them, exactly where it is.
+ * When some item finds no free spot inside `bounds`, every item shrinks a step and it starts again.
+ * Deterministic: the same asks always settle the same way, on every repaint.
+ */
+export interface StackAsk {
+  readonly want: Point;
+  readonly width: number;
+  readonly height: number;
+  readonly pinned?: boolean;
+}
+
+/** The room kept between two stack cards: an arrow between them has somewhere to be seen. */
+export const STACK_GAP = 28;
+/** The smallest a deep stack shrinks to, of its cards' own size. */
+export const STACK_MIN_SCALE = 0.4;
+const SHRINK_STEP = 0.9;
+
+/** `asks` is in stack order, top first — the order `view.stack` is in. */
+export function settleStack(asks: readonly StackAsk[], bounds: Rect, gap = STACK_GAP): { at: Point[]; scale: number } {
+  const order = asks.map((_, i) => i).sort((i, j) => Number(asks[j]!.pinned === true) - Number(asks[i]!.pinned === true) || j - i);
+  for (let scale = 1; ; scale *= SHRINK_STEP) {
+    const settled = settleAt(asks, order, bounds, gap * scale, scale);
+    if (settled !== null) return { at: settled, scale };
+    if (scale * SHRINK_STEP < STACK_MIN_SCALE) {
+      // Smaller than this a card cannot be read: what is left over overlaps, nearest where it asked.
+      return { at: asks.map((a) => within(a.want, { width: a.width * scale, height: a.height * scale }, bounds)), scale };
+    }
+  }
+}
+
+function settleAt(asks: readonly StackAsk[], order: readonly number[], bounds: Rect, gap: number, scale: number): Point[] | null {
+  const at: Point[] = new Array<Point>(asks.length);
+  const done: { at: Point; width: number; height: number }[] = [];
+  for (const i of order) {
+    const ask = asks[i]!;
+    const size = { width: ask.width * scale, height: ask.height * scale };
+    const clear = (p: Point): boolean =>
+      done.every((o) => Math.abs(p.x - o.at.x) >= (size.width + o.width) / 2 + gap - 0.01 || Math.abs(p.y - o.at.y) >= (size.height + o.height) / 2 + gap - 0.01);
+    const want = ask.pinned === true ? ask.want : within(ask.want, size, bounds);
+    let best: Point | null = ask.pinned === true || clear(want) ? want : null;
+    if (best === null) {
+      // Where a free spot can be: touching a settled card on one axis, or in line with the ask, on each.
+      const xs = [want.x, ...done.flatMap((o) => [o.at.x - (o.width + size.width) / 2 - gap, o.at.x + (o.width + size.width) / 2 + gap])];
+      const ys = [want.y, ...done.flatMap((o) => [o.at.y - (o.height + size.height) / 2 - gap, o.at.y + (o.height + size.height) / 2 + gap])];
+      let bestD = Infinity;
+      for (const x of xs) {
+        for (const y of ys) {
+          const p = { x, y };
+          const d = Math.hypot(x - want.x, y - want.y);
+          if (d >= bestD || !fits(p, size, bounds) || !clear(p)) continue;
+          bestD = d;
+          best = p;
+        }
+      }
+    }
+    if (best === null) return null;
+    at[i] = best;
+    done.push({ at: best, ...size });
+  }
+  return at;
+}
+
+/** Whether a `tile` centred on `p` lies inside `bounds`, as `within` would keep it. */
+function fits(p: Point, tile: { width: number; height: number }, bounds: Rect): boolean {
+  const q = within(p, tile, bounds);
+  return Math.abs(q.x - p.x) < 0.01 && Math.abs(q.y - p.y) < 0.01;
+}
+
 /* ── installPlaced: the DOM ───────────────────────────────────────────── */
 
 export interface PlacedHost {
@@ -535,6 +622,8 @@ interface Drawn {
   readonly drawnAt: number;
   /** When it was first shown (no longer pending): a chip dwells from here (`CHIP_DWELL_MS`). */
   shownAt: number | null;
+  /** Shown at its asked-for spot once: from the next paint it slides to its room (`settleStack`); until then it is drawn in place. */
+  placedOnce: boolean;
 }
 
 /** An item this paint draws, with what its place is worked out from. */
@@ -760,6 +849,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         current: false,
         drawnAt: Date.now(),
         shownAt: null,
+        placedOnce: false,
       };
       // A chip is placed beside its source by its own drawn width, which it only has once its text has rendered.
       if (item.isAbility) resized?.observe(el);
@@ -1133,7 +1223,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     for (const item of items) {
       const d = drawn.get(item.id);
       if (d === undefined || d.leaving) continue;
-      const targets: { key: string; to: Element }[] = [];
+      const targets: { key: string; to: Element; box?: Rect | undefined }[] = [];
       for (const id of item.targetCardIds ?? []) {
         const to = cardBox(canvas, id);
         if (to !== null) targets.push({ key: `${item.id}:card:${id}`, to });
@@ -1144,13 +1234,16 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       }
       if (item.targetStackItemId !== null && item.targetStackItemId !== undefined) {
         const target = drawn.get(item.targetStackItemId);
-        if (target !== undefined && !target.leaving) targets.push({ key: `${item.id}:stack:${item.targetStackItemId}`, to: target.el });
+        if (target !== undefined && !target.leaving) targets.push({ key: `${item.id}:stack:${item.targetStackItemId}`, to: target.el, box: settledBoxes.get(item.targetStackItemId) });
       }
       if (targets.length === 0) continue;
-      const from = centreOf(d.el);
-      for (const { key, to } of targets) {
-        const at = rectOf(to);
-        aims.push({ key, item: item.id, to, at, aimed: aimAt(from, at, { neighbours: true }) });
+      // From the card's own edge facing its target to just inside the target's, drawn over the stack (`placed.css`):
+      // never from under a face, so a near target needs no tip at its centre.
+      const own = settledBoxes.get(item.id) ?? rectOf(d.el);
+      for (const { key, to, box } of targets) {
+        const at = box ?? rectOf(to);
+        const from = edgeNearest(own, { x: (at.left + at.right) / 2, y: (at.top + at.bottom) / 2 });
+        aims.push({ key, item: item.id, to, at, aimed: aimAt(from, at, { neighbours: false }) });
       }
     }
     const box = aims.length === 0 ? null : overlayBox();
@@ -1283,7 +1376,21 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     pruneStale(view.stack);
   }
 
-  /** Square the chips, read every box the places come from, then write each item's place. */
+  /** The last `settleStack` this board ran, by what it was asked: a repaint with the same asks reuses it. */
+  let lastSettle: { key: string; result: ReturnType<typeof settleStack> } | null = null;
+  /** Each drawn item's box as this paint settles it, for its arrows: never a box read mid-slide. */
+  const settledBoxes = new Map<number, Rect>();
+
+  /** Where the stack may stand: across the board, from the top of their battlefield to the foot of this seat's. */
+  function tableBounds(overlayBox: DOMRect): Rect {
+    const them = zoneOf(canvas, 'them', 'battlefield')?.getBoundingClientRect();
+    const you = zoneOf(canvas, 'you', 'battlefield')?.getBoundingClientRect();
+    const top = them !== undefined && them.height > 0 ? them.top : overlayBox.top;
+    const bottom = you !== undefined && you.height > 0 ? you.bottom : overlayBox.bottom;
+    return { left: overlayBox.left, right: overlayBox.right, top, bottom: bottom > top ? bottom : overlayBox.bottom };
+  }
+
+  /** Square the chips, read every box the places come from, settle the stack's room, then write each item's place. */
   function place(shown: readonly Shown[], { overlayBox, cardWidth }: { overlayBox: DOMRect; cardWidth: number | null }): void {
     squareChips(
       shown.filter((s) => s.d.isAbility).map((s) => s.d),
@@ -1293,15 +1400,48 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     const chips = shown.map(({ item, d }) => chipBoxesOf(item, d));
     const spot = chips.some((chip, n) => chip === null && !placements.has(shown[n]!.item.id)) ? defaultSpot(canvas) : null;
     const taken: Rect[] = [];
-    shown.forEach(({ item, index, d, record }, n) => {
+    const now = Date.now();
+    const wants = shown.map(({ item, d, record }, n) => {
       const resolved = positionOf(item, d, chips[n]!, spot, taken, overlayBox);
-      if (resolved === null) return;
-      const { at, reserved } = resolved;
-      if (reserved !== null) taken.push(reserved);
+      if (resolved?.reserved != null) taken.push(resolved.reserved);
+      const held = record?.movedAt != null && now - record.movedAt < DRAG_HOLD_MS;
+      if (held) schedule(render, record!.movedAt! + DRAG_HOLD_MS - now + 1);
+      // A card's own size, before `--stack-scale`: hidden ones (pending) and ones not laid out yet take no room.
+      const size = { width: d.el.offsetWidth, height: d.el.offsetHeight };
+      const settles = resolved !== null && size.width > 0 && !d.el.hasAttribute('data-placed-pending');
+      return resolved === null ? null : { at: resolved.at, held, settles, size };
+    });
+    // Top first, as `settleStack` reads it: a trigger still waiting to go on the stack is newer than anything on it.
+    const settling = wants.flatMap((w, n) => (w !== null && w.settles ? [n] : [])).sort((a, b) => Number(shown[b]!.item.pending === true) - Number(shown[a]!.item.pending === true) || a - b);
+    const asks: StackAsk[] = settling.map((n) => ({ want: wants[n]!.at, ...wants[n]!.size, pinned: wants[n]!.held }));
+    const bounds = tableBounds(overlayBox);
+    const key = JSON.stringify([asks, bounds]);
+    if (lastSettle?.key !== key) lastSettle = { key, result: settleStack(asks, bounds) };
+    const { at: settled, scale } = lastSettle.result;
+    const settledAt = new Map(settling.map((n, k) => [n, settled[k]!]));
+    settledBoxes.clear();
+    let again = false;
+    shown.forEach(({ item, index, d, record }, n) => {
+      const want = wants[n];
+      if (want === null || want === undefined) return;
+      const room = settledAt.get(n) ?? want.at;
+      // First shown where it was let go — the hand-over's own point — then it slides to its room.
+      const at = d.placedOnce ? room : want.at;
+      // Hidden, or shown for the first time: drawn in place, never slid in from where it waited unseen.
+      const inPlace = want.held || !d.placedOnce;
+      if (!d.placedOnce && !d.el.hasAttribute('data-placed-pending')) {
+        d.placedOnce = true;
+        if (room.x !== want.at.x || room.y !== want.at.y) again = true;
+      }
       const p = overlayPoint(at, overlayBox);
       d.el.toggleAttribute('data-placed-gliding', record?.gliding === true);
+      d.el.toggleAttribute('data-placed-held', inPlace);
+      d.el.style.setProperty('--stack-scale', String(scale));
       d.el.style.left = `${p.x}px`;
       d.el.style.top = `${p.y}px`;
+      const w = (want.size.width * scale) / 2;
+      const h = (want.size.height * scale) / 2;
+      if (want.size.width > 0) settledBoxes.set(item.id, { left: at.x - w, right: at.x + w, top: at.y - h, bottom: at.y + h });
       d.el.setAttribute('aria-label', itemLabel(item));
       // AE28: a trigger or ability of the viewer's own has no placement record (nothing was released
       // anywhere) — it is still theirs to move, like a spell they placed.
@@ -1319,6 +1459,8 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       d.el.toggleAttribute('data-placed-waiting', item.pending === true);
       d.el.toggleAttribute('data-placed-current', d.current);
     });
+    // The slide starts from the drawn spot: the next frame, once this one has painted it.
+    if (again) requestAnimationFrame(() => live && render());
   }
 
   const hook = (): void => render();
