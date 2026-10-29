@@ -32,6 +32,7 @@ import { warmRoom } from '../rooms/warm.ts';
 import { REPLAYS_ON } from '../replay/transport.ts';
 import { navigate, routeHash } from '../screens/route.ts';
 import { playRole } from '../sound/index.ts';
+import { avatarColour, avatarInitial, discordTime, groupMessages } from './discordChat.ts';
 import { openSeats, pickWildcard, sampleArt, spotlightCube, type WildcardKind } from './wildcardItems.ts';
 
 interface WildcardItem {
@@ -39,7 +40,7 @@ interface WildcardItem {
   kind: string;
   title: string;
   body: string;
-  /** The Discord's last few messages, newest last, drawn in place of the body. */
+  /** The Discord's last few messages, newest last, drawn as Discord's own client draws them in place of the title and body. */
   messages?: readonly DiscordMessage[];
   /** Where its button goes, or what it does (Play now). Absent: no button. */
   action?: { label: string; href: string; external: boolean } | { label: string; run: () => Promise<string | null> };
@@ -256,6 +257,42 @@ export function WildcardCard() {
   );
 }
 
+/** The chat drawn as Discord's own client draws a channel: its header, then the messages grouped under avatars (`./discordChat.ts`). */
+function DiscordChat({ channel, messages }: { channel: string; messages: readonly DiscordMessage[] }) {
+  return (
+    <div className="discord-chat">
+      <p className="discord-chat__channel">
+        <span className="discord-chat__hash" aria-hidden="true">
+          #
+        </span>
+        {channel.replace(/^#/, '')}
+      </p>
+      <ol className="discord-chat__messages" data-testid="front-wildcard-messages">
+        {groupMessages(messages).map((g, i) => (
+          <li key={i} className="discord-chat__group">
+            <span className={`discord-chat__avatar discord-chat__avatar--${String(avatarColour(g.author))}`} aria-hidden="true">
+              {avatarInitial(g.author)}
+            </span>
+            <div className="discord-chat__body">
+              <p className="discord-chat__head">
+                <span className="discord-chat__author">{g.author}</span>
+                <time className="discord-chat__time" dateTime={g.at}>
+                  {discordTime(g.at)}
+                </time>
+              </p>
+              {g.texts.map((text, j) => (
+                <p key={j} className="discord-chat__text">
+                  {text}
+                </p>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
 function WildcardBody({ item }: { item: WildcardItem }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -273,17 +310,13 @@ function WildcardBody({ item }: { item: WildcardItem }) {
             ))}
           </div>
         )}
-        <p className="front-card__release-title">{item.title}</p>
         {item.messages === undefined ? (
-          <p className="front-card__wildcard-body">{item.body}</p>
+          <>
+            <p className="front-card__release-title">{item.title}</p>
+            <p className="front-card__wildcard-body">{item.body}</p>
+          </>
         ) : (
-          <ul className="front-card__chat" data-testid="front-wildcard-messages">
-            {item.messages.map((m, i) => (
-              <li key={i} className="front-card__chat-line">
-                <span className="front-card__chat-author">{m.author}</span> {m.text}
-              </li>
-            ))}
-          </ul>
+          <DiscordChat channel={item.title} messages={item.messages} />
         )}
         {error !== null && (
           <p className="ct-error" role="alert">

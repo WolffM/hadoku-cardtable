@@ -341,31 +341,129 @@
   max-width: none;
 }
 
-/* The Discord's last messages: one line each, newest last, straight under the channel's name. */
-.front-card__chat {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+/*
+ * The Discord's last messages, drawn as Discord's own dark client draws #general (the operator,
+ * 2026-10-28: "make it look exactly like discord chat"). These are Discord's colours, not theme
+ * tokens — the panel is a picture of Discord, the one place the page does not follow its own theme.
+ * Newest last, pinned to the bottom like the client: a squeezed card loses the oldest at the top.
+ */
+.discord-chat {
+  --discord-bg: #313338;
+  --discord-divider: #1f2023;
+  --discord-header: #f2f3f5;
+  --discord-text: #dbdee1;
+  --discord-muted: #949ba4;
+  --discord-hash: #80848e;
   display: flex;
   flex-direction: column;
-  gap: 6px;
   min-height: 0;
   flex: 1 1 auto;
   overflow: hidden;
-  font-size: 13px;
-  color: var(--ink-dim);
+  border-radius: var(--radius);
+  background: var(--discord-bg);
+  color: var(--discord-text);
+  font-family: 'gg sans', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
-.front-card__chat-line {
+.discord-chat p {
+  margin: 0;
+}
+
+.discord-chat__channel {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--discord-divider);
+  box-shadow: 0 1px 0 rgb(4 4 5 / 0.2);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--discord-header);
+}
+
+.discord-chat__hash {
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--discord-hash);
+}
+
+.discord-chat__messages {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.discord-chat__group {
+  flex-shrink: 0;
+  display: flex;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 2px 12px;
+}
+
+.discord-chat__avatar {
+  flex: 0 0 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  margin-top: 2px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+}
+
+/* Discord's default-avatar colours, in `./discordChat.ts`'s `AVATAR_COLOURS` order. */
+.discord-chat__avatar--0 { background: #5865f2; }
+.discord-chat__avatar--1 { background: #757e8a; }
+.discord-chat__avatar--2 { background: #3ba55c; }
+.discord-chat__avatar--3 { background: #faa61a; }
+.discord-chat__avatar--4 { background: #ed4245; }
+.discord-chat__avatar--5 { background: #eb459f; }
+
+.discord-chat__body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.discord-chat__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  line-height: 1.375;
+}
+
+.discord-chat__author {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--discord-header);
 }
 
-.front-card__chat-author {
-  font-weight: 600;
-  color: var(--ink);
+.discord-chat__time {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--discord-muted);
+}
+
+.discord-chat__text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.375;
 }
 
 .front-card__wildcard-body {
