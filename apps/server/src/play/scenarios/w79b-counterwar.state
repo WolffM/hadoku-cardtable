@@ -1,0 +1,17 @@
+# w79b §B item 8 and the face-down spell (from promo-counterwar.state, the trailer's counter war, with
+# hard counters so no alternative cost asks a question): seat 1 (bob, active) casts Oko; alice Counterspells
+# it; bob Swan Songs the Counterspell; alice Negates the Swan Song; bob Dispels the Negate; alice
+# Counterspells the Dispel. Six spells on the stack, each but Oko aimed at the one below it.
+turn=4
+activeplayer=ai
+activephase=MAIN1
+humanlife=15
+ailife=17
+humanhand=Counterspell;Negate;Counterspell;Thoughtseize
+humanbattlefield=Delver of Secrets;Island;Island;Island;Island;Island;Island
+humanlibrary=Island;Island;Island;Island;Island;Island;Island;Island
+humangraveyard=Ponder;Fatal Push
+aihand=Oko, Thief of Crowns;Swan Song;Dispel;Wasteland
+aibattlefield=Ragavan, Nimble Pilferer;Tropical Island;Volcanic Island;Volcanic Island;Island;Tropical Island
+ailibrary=Island;Island;Island;Island;Island;Island;Island;Island
+aigraveyard=Lightning Bolt;Ponder
