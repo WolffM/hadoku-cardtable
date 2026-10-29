@@ -47,6 +47,33 @@ export interface Friend {
   captureErrors: string[];
   /** Requests that tried to leave 127.0.0.1 — blocked, and asserted on. */
   blocked: string[];
+  /** What the page's network and console did, for a red that stops before the server hears the page ({@link describePage}). */
+  trace: PageTrace;
+}
+
+/**
+ * A page's own side of its boot: requests still in flight, failed ones, console errors and websocket opens and
+ * closes. A page that never reaches the server leaves nothing in the server log (w68-untap, run 40841248727: bob's
+ * page drew "Connecting…" and sent neither its second room lookup nor a socket handshake for 60 s).
+ */
+interface PageTrace {
+  since: number;
+  inFlight: Map<object, { url: string; t: number }>;
+  events: string[];
+}
+
+const TRACE_EVENTS = 40;
+
+function traced(trace: PageTrace, line: string): void {
+  trace.events.push(`+${Date.now() - trace.since}ms ${line}`);
+  if (trace.events.length > TRACE_EVENTS) trace.events.shift();
+}
+
+/** The page's trace in one line set: in-flight requests with their ages, then the last events. */
+export function describePage(f: Friend): string {
+  const now = Date.now();
+  const open = [...f.trace.inFlight.values()].map((r) => `${r.url} (${now - r.t}ms)`);
+  return [`${f.name}: ${open.length} request(s) in flight`, ...open.map((o) => `  open ${o}`), ...f.trace.events.map((e) => `  ${e}`)].join('\n');
 }
 
 function isPolling(url: string): boolean {
@@ -75,7 +102,22 @@ export async function openFriend(browser: Browser, name: string): Promise<Friend
   await setPlayFastModeDefault(context, true);
   const page = await context.newPage();
   registerFriendContext(context, videoDir === null ? undefined : { page, dir: videoDir, name });
-  const friend: Friend = { name, context, page, captures: [], pending: [], captureErrors: [], blocked: [] };
+  const friend: Friend = { name, context, page, captures: [], pending: [], captureErrors: [], blocked: [], trace: { since: Date.now(), inFlight: new Map(), events: [] } };
+  const { trace } = friend;
+  const short = (url: string): string => url.replace(/^https?:\/\/[^/]+/, '').slice(0, 120);
+  page.on('request', (req) => trace.inFlight.set(req, { url: `${req.method()} ${short(req.url())}`, t: Date.now() }));
+  page.on('requestfinished', (req) => trace.inFlight.delete(req));
+  page.on('requestfailed', (req) => {
+    trace.inFlight.delete(req);
+    traced(trace, `failed ${req.method()} ${short(req.url())}: ${req.failure()?.errorText ?? '?'}`);
+  });
+  page.on('console', (m) => {
+    if (m.type() === 'error' || m.type() === 'warning') traced(trace, `console.${m.type()} ${m.text().slice(0, 200)}`);
+  });
+  page.on('pageerror', (err) => traced(trace, `pageerror ${String(err).slice(0, 200)}`));
+  page.on('framenavigated', (frame) => {
+    if (frame === page.mainFrame()) traced(trace, `navigated ${short(frame.url())}`);
+  });
 
   await context.route('**/*', (route) => {
     const url = new URL(route.request().url());
@@ -85,6 +127,9 @@ export async function openFriend(browser: Browser, name: string): Promise<Friend
   });
 
   page.on('websocket', (ws) => {
+    traced(trace, `ws open ${short(ws.url())}`);
+    ws.on('close', () => traced(trace, `ws close ${short(ws.url())}`));
+    ws.on('socketerror', (err) => traced(trace, `ws error ${short(ws.url())}: ${err}`));
     ws.on('framereceived', (f) => {
       friend.captures.push({ t: Date.now(), dir: 'in', via: 'ws', text: String(f.payload) });
     });

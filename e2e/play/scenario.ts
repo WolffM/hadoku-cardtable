@@ -44,7 +44,7 @@ import { expect, type Browser, type Page } from '@playwright/test';
 
 import { setPlayFastModeDefault } from '../prefsLocal.ts';
 import { enabledCancel, enabledOk, says } from './board.ts';
-import { openFriend, type Friend } from './browser.ts';
+import { describePage, openFriend, type Friend } from './browser.ts';
 import { confirmYes } from './confirm.ts';
 import type { PlayStack } from './harness.ts';
 import { TURN_TEXT } from './turn.ts';
@@ -128,9 +128,14 @@ export const matchUrl = (origin: string, matchId: string): string => `${origin}$
 
 export { says, enabledOk, enabledCancel };
 
-async function boardUp(page: Page): Promise<void> {
-  await expect(page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId('live-turn-n')).toHaveText(TURN_TEXT, { timeout: 30_000 });
+async function boardUp(f: Friend): Promise<void> {
+  try {
+    await expect(f.page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 30_000 });
+    await expect(f.page.getByTestId('live-turn-n')).toHaveText(TURN_TEXT, { timeout: 30_000 });
+  } catch (err) {
+    console.log(`[board-up] ${describePage(f)}`);
+    throw err;
+  }
 }
 
 /**
@@ -329,10 +334,10 @@ export async function startScenarioMatch(
   // alice FIRST and settled before bob opens, so claim order gives her seat 0.
   await options.beforeAlice?.(alice.page);
   await alice.page.goto(matchUrl(stack.origin, matchId));
-  await boardUp(alice.page);
+  await boardUp(alice);
   await options.beforeBob?.(bob.page);
   await bob.page.goto(matchUrl(stack.origin, matchId));
-  await boardUp(bob.page);
+  await boardUp(bob);
 
   await keepBothHands(alice, bob, /^activeplayer=ai$/m.test(scenario) ? bob : alice);
 
@@ -371,7 +376,7 @@ export async function startScenarioVsAi(
   if (res.status() !== 201) throw new Error(`scenario "${scenarioName}" vs the AI: POST /api/play/matches answered ${res.status()} ${await res.text()}`);
   const { matchId } = (await res.json()) as { matchId: string };
   await alice.page.goto(matchUrl(stack.origin, matchId));
-  await boardUp(alice.page);
+  await boardUp(alice);
   await options.beforeKeep?.(alice);
 
   // Applied once her screen draws every card the scenario scripts that she can see: seat 1's battlefield,
