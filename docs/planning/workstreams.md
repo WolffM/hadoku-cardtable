@@ -200,12 +200,13 @@ it. PR-5 is new and exists to serve it.
 
 | lane | worktree / branch | status | evidence |
 | --- | --- | --- | --- |
-| steady glow through phases | `.claude/worktrees/w80a` / `w80a` | dispatched; artifact gate before land | — |
+| steady glow through phases | `.claude/worktrees/w80a` / `w80a` | built; re-proving on a rebase; **awaiting operator approval** https://claude.ai/artifact/TvfLA95uV9D9r8jJR3zsQx | red on main 40833439653 (21 flashes, 9 causes), green ×3 40833441943; a clicked card stays dark until Forge names it again (play.spec's drag driver caught the first rule) |
 | Frontline Medic's orange glow (which mark, then the class) | removed | **landed** `00934b030` (AF439), PPE `ba47b15d` restarted 06:53Z; awaiting operator ✅ | the condition rim, not can-act: prod `m-b7b9edfcefd6` frames 36–44 lit Sage's Medic while Hadoku attacked; `condition-met.jvm` red on unchanged code → green; claw 40829096583 ✓, CI 40830865443 ✓ (tracker re-read both); mutation 1/1 reverted-fails 1/1 restored-passes; unverified in a browser; 35 other Attack/Block presence scripts darkened by grep, not played (closing note `~/.cache/cardtable-manager/w80b-closing.md`) |
 | unlock on an animation's last 10% | `.claude/worktrees/w80c` / `w80c` | built + proven on head 30f8397e4, **awaiting operator approval** https://claude.ai/artifact/HZHgXzyxivyknijPtcBfgC | red on main 40835149779, green ×3 40841046825, timing set 40841050123 (tracker re-read all three); UNLOCK_AT→1 mutation 8 red |
 | spellsHeld has no bound: a view that jumps past a resolving spell's beat holds it out of its graveyard forever (found by w81, in `placed.ts`/`Board.tsx`) | — | queued: after w79b + w79c land | w81 works around it by remounting per seek |
 | w67-counter's "face where the back stood" check compares against the last SAMPLED back frame: dropped frames on a loaded claw read 4.12 px > 4 px (40837318083); compare to the glide's target (found by w79b, a test change) | — | queued | w79b frame records: face at the back's rest point 916,468 in both runs |
 | departure copies and floating numbers are removed by timers that run up to a long frame ahead of their CSS animation (a number 117 ms early, a death copy 254 ms early on a loaded runner; on main too — found by w80c) | — | queued: after w80c lands | `numbers.ts` `letGo`, the departure copy's timer |
+| the server forwards `setWeaklySelectable` for priority windows it then withholds (`apps/server/src/play/match.ts` `decideWindow`): on the opponent's turn the browser lights them for a frame or two (found by w80a; its spec prints `withheld-lit`) | — | queued: after w80a lands | — |
 | release a permanent anywhere → next board space | `.claude/worktrees/w80d` / `w80d` | dispatched 2026-10-29 ~01:10 after w79a landed | — |
 
 ## Wave 79 (trailer cut 1 feedback) dispatched as four single sessions (2026-10-28)
