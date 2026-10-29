@@ -232,7 +232,8 @@ describe('entering a pod before its table has arrived', () => {
     room.read(ctxOf(pod({ phase: 'drafting' })));
     const waiting = screen.getByTestId('pod-waiting');
     expect(waiting.textContent).not.toMatch(/joining|waiting/i);
-    expect(waiting.querySelector('.skeleton')).not.toBeNull();
+    // The pack face down, the picks' header, and the pod's ring of faces (`DraftSkeleton`).
+    for (const part of ['pack', 'pool-head', 'seats', 'face-0']) expect(waiting.querySelector(`[data-skeleton="${part}"]`), part).not.toBeNull();
     expect(screen.getByTestId('pod-seats').closest('.draft__aside'), 'the bar is where the draft puts it').not.toBeNull();
     expect(document.querySelector('header.pod__bar'), 'nothing on top to move away').toBeNull();
 

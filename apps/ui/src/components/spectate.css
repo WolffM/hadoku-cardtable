@@ -156,6 +156,12 @@
   marker-end: url(#podcircle-head);
 }
 
+/* The ring before the draft arrives (`SeatBarSkeleton`): arcs without heads, which way the packs go is not known yet. */
+.podcircle__arc--ghost {
+  marker-end: none;
+  stroke-dasharray: 1.5 2;
+}
+
 /* The arc into the seat in view (yours, or the one you watch): where its next pack comes from. */
 .podcircle__arc--in {
   stroke: var(--accent);

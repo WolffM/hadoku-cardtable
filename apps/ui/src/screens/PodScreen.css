@@ -143,12 +143,4 @@
   }
 }
 
-/* Until the draft's table arrives (`DraftSkeleton`): the pack's half and the picks' half. */
-.pod__skeleton-pack {
-  grid-area: pack;
-}
-
-.pod__skeleton-pool {
-  grid-area: pool;
-}
 

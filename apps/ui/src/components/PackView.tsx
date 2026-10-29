@@ -63,7 +63,7 @@ const BOTTOM = 8;
 const MIN_SHOW = 0.17;
 const MAX_SHOW = 0.62;
 /** The largest a card is drawn, however much room there is, at 100%. */
-const MAX_CARD_H = 420;
+export const MAX_CARD_H = 420;
 /** Below this width there is no readable fan: the grid. */
 export const FAN_MIN_WIDTH = 480;
 /** A related card's size beside the open card's. */
@@ -160,6 +160,17 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
   const shown = fan === null || cards.length === 0 ? null : Math.min(focus ?? 0, cards.length - 1);
   const cursor = fan !== null || focus === null || cards.length === 0 ? null : Math.min(focus, cards.length - 1);
   const cols = grid?.cols ?? 1;
+
+  // The fan's first placement is drawn where it lands: its slots are laid out
+  // once unmeasured, in the same frame, and would otherwise slide out from the
+  // middle as the draft replaces its skeleton. Moves after it transition.
+  const [placed, setPlaced] = useState(false);
+  const fanned = fan !== null;
+  useEffect(() => {
+    if (!fanned) return setPlaced(false);
+    const frame = requestAnimationFrame(() => setPlaced(true));
+    return () => cancelAnimationFrame(frame);
+  }, [fanned]);
 
   // A new pack opens on its first card.
   const packKey = cards.map((c) => c.cardId).join(',');
@@ -289,11 +300,13 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
 
   return (
     <div
-      className={`pack pack--${fan === null ? 'grid' : 'fan'}`}
+      // Unmeasured, it already wears the fan's box (no margin under it), so the first measure is the fan's own.
+      className={`pack pack--${fan !== null || (layout === 'fan' && !measured) ? 'fan' : 'grid'}`}
       data-testid="pack"
       data-layout={layout}
       data-card-count={cards.length}
       data-art-pending={artLoaded ? undefined : ''}
+      data-placed={fan !== null && placed ? '' : undefined}
       ref={measure}
       style={style}
       onPointerLeave={() => {

@@ -38,7 +38,7 @@
  * and a `null` `from` is `PoolView`'s whole "skip it" signal.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { usePrefs } from '@wolffm/prefs-client/react';
 
 import type { ConnectionState } from '../draft/connection.ts';
@@ -55,16 +55,17 @@ import {
 } from '../draft/table.ts';
 import { ConnectionBanner } from './ConnectionBanner.tsx';
 import { DeckView } from './DeckView.tsx';
-import { useFitScale } from './cardFit.ts';
+import { CARD_RATIO, cssPx, fitGrid, useBox, useFitScale } from './cardFit.ts';
 import { useNewPackSound } from '../draft/packSound.ts';
-import { PackView, type PackLayout } from './PackView.tsx';
+import { FAN_MIN_WIDTH, fanGeometry, fanLayer, fanX, MAX_CARD_H, PackView, type PackLayout } from './PackView.tsx';
 import { PoolView, POOL_ENTER_MS, type PoolEnterRect } from './PoolView.tsx';
 import type { GroupBy } from '../deck/cardOrder.ts';
 import { useDraftBuild, type DraftBuildStore } from '../deck/useDraftBuild.ts';
-import { SeatBar } from './SeatBar.tsx';
+import { Ghost, SeatBar, SeatBarSkeleton } from './SeatBar.tsx';
 import { SpectatorNotice } from './SpectatorNotice.tsx';
 import { prefersReducedMotion } from '../play/motion.ts';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
+import { uiPx } from '../settings/ui-scale.ts';
 import './draft.css';
 
 const rectOf = (r: DOMRect): PoolEnterRect => ({ left: r.left, top: r.top, width: r.width, height: r.height });
@@ -138,6 +139,24 @@ export function fitToWindow(el: HTMLDivElement | null): (() => void) | undefined
   };
 }
 
+/** The pack's layout: the player's own, wherever they draft next (`play/live/prefs.ts`). */
+function usePackLayout(): [PackLayout, (layout: PackLayout) => void] {
+  const { prefs, save } = usePrefs(getPlayPrefsClient());
+  return [prefs?.packLayout ?? PLAY_PREFS_DEFAULTS.packLayout, (packLayout) => void save({ packLayout })];
+}
+
+function PackLayoutControl({ layout, onLayout }: { layout: PackLayout; onLayout: (layout: PackLayout) => void }) {
+  return (
+    <div className="segmented" role="group" aria-label="Pack layout">
+      {(['fan', 'grid'] as const).map((option) => (
+        <button key={option} type="button" className={layout === option ? 'segmented__on' : ''} aria-pressed={layout === option} onClick={() => onLayout(option)}>
+          {option}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function DraftScreen({
   state,
   onChange,
@@ -152,10 +171,7 @@ export function DraftScreen({
   buildStore = null,
   arrivedWhole = false,
 }: DraftScreenProps) {
-  // The player's own, wherever they draft next (`play/live/prefs.ts`).
-  const { prefs, save: savePrefs } = usePrefs(getPlayPrefsClient());
-  const layout = prefs?.packLayout ?? PLAY_PREFS_DEFAULTS.packLayout;
-  const setLayout = (packLayout: PackLayout) => void savePrefs({ packLayout });
+  const [layout, setLayout] = usePackLayout();
   const fitAside = useFitScale();
 
   const [message, setMessage] = useState<string | null>(null);
@@ -298,19 +314,7 @@ export function DraftScreen({
           <SeatBar view={view} onWatch={onWatch} arrivedWhole={arrivedWhole} />
           <header className="draft__bar">
             <div className="draft__controls">
-              <div className="segmented" role="group" aria-label="Pack layout">
-                {(['fan', 'grid'] as const).map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    className={layout === option ? 'segmented__on' : ''}
-                    aria-pressed={layout === option}
-                    onClick={() => setLayout(option)}
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
+              <PackLayoutControl layout={layout} onLayout={setLayout} />
               {onAdvance && (
                 <button
                   type="button"
@@ -326,6 +330,96 @@ export function DraftScreen({
           </header>
         </aside>
       </div>
+    </div>
+  );
+}
+
+/* ── until the draft's table arrives ──────────────────────────────────── */
+
+/** How many backs the skeleton's pack is dealt: a pack's worth, as many as the fan draws. */
+const GHOST_PACK = 15;
+
+/**
+ * The draft's own layout with nothing in it yet (`PodScreen`, until the
+ * table arrives): the pack as backs in the places its cards will take, the
+ * picks' header, the pod's ring with its faces and counters, and the pack's
+ * layout control, each in the box the draft draws it in, so the draft lands on
+ * the same lines and the page changes once (the operator, 2026-10-20: *"can we
+ * add a loading skeleton while this is still loading so i dont see the page
+ * change so many times?"*; 2026-10-28: *"improve the loading skeleton so it
+ * looks a bit better"*). `seats` is the pod's size, when the room knows it.
+ */
+export function DraftSkeleton({ side, seats = 8 }: { side?: ReactNode; seats?: number }) {
+  const [layout, setLayout] = usePackLayout();
+  const fitAside = useFitScale();
+  return (
+    <div className="draft draft--skeleton" data-testid="pod-waiting" aria-busy="true">
+      <div className="draft__body" ref={fitToWindow}>
+        <main className="draft__main" aria-hidden="true">
+          <PackSkeleton layout={layout} />
+          <section className="pool" data-skeleton="pool">
+            <header className="pool__head" data-skeleton="pool-head">
+              <span className="pool__title">
+                <Ghost em={7} />
+              </span>
+              <span className="pool__colors">
+                {Array.from({ length: 5 }, (_, i) => (
+                  <span key={i} className="pool__color">
+                    <span className="draft-ghost draft-ghost--pip" />
+                  </span>
+                ))}
+              </span>
+              <span className="segmented pool__sort draft-ghost">
+                <span className="draft-ghost__seg">{'\u00a0'}</span>
+                <span className="draft-ghost__seg">{'\u00a0'}</span>
+              </span>
+            </header>
+          </section>
+        </main>
+        <aside className="draft__aside fit-scale" ref={fitAside}>
+          {side}
+          <SeatBarSkeleton seats={seats} />
+          <header className="draft__bar" data-skeleton="controls">
+            <div className="draft__controls">
+              <PackLayoutControl layout={layout} onLayout={setLayout} />
+            </div>
+          </header>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+/** The pack as `PackView` lays it out, dealt face down: the same slots, fan or grid, at the same sizes. */
+function PackSkeleton({ layout }: { layout: PackLayout }) {
+  const [measure, box, root] = useBox<HTMLDivElement>();
+  const measured = box.width > 0 && box.height > 0;
+  const maxH = uiPx(MAX_CARD_H, root);
+  const fan = layout === 'fan' && measured && box.width >= FAN_MIN_WIDTH ? fanGeometry(box.width, box.height, maxH) : null;
+  const grid = fan === null && measured ? fitGrid(GHOST_PACK, box, cssPx(root, 'column-gap', 10), maxH * CARD_RATIO) : null;
+  const style =
+    fan !== null
+      ? ({ '--fan-w': `${fan.cardW.toFixed(1)}px`, '--fan-h': `${fan.cardH.toFixed(1)}px` } as CSSProperties)
+      : grid !== null
+        ? ({ '--grid-w': `${grid.cardW.toFixed(1)}px`, gridTemplateColumns: `repeat(${grid.cols}, var(--grid-w))` } as CSSProperties)
+        : undefined;
+  return (
+    <div className={`pack pack--${fan === null ? 'grid' : 'fan'}`} data-skeleton="pack" ref={measure} style={style}>
+      {measured &&
+        Array.from({ length: GHOST_PACK }, (_, i) => {
+          const x = fan === null ? null : fanX(fan, i, 0, GHOST_PACK);
+          if (fan !== null && x === null) return null;
+          return (
+            <div
+              key={i}
+              className="pack__slot"
+              data-focused={fan !== null && i === 0 ? '' : undefined}
+              style={x === null ? undefined : ({ '--fan-x': `${x.toFixed(1)}px`, zIndex: fanLayer(i, 0, GHOST_PACK) } as CSSProperties)}
+            >
+              <span className="card-back draft-ghost__card" />
+            </div>
+          );
+        })}
     </div>
   );
 }

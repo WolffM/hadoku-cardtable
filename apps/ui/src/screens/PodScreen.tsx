@@ -57,7 +57,7 @@
  * every card this pod ever draws.
  */
 
-import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { planDisplayName } from '@hadoku/shared';
 
 import {
@@ -70,8 +70,7 @@ import {
   type SocketDraft,
 } from '../draft/socket.ts';
 import { initialState, type TableState } from '../draft/table.ts';
-import { DraftScreen, fitToWindow } from '../components/DraftScreen.tsx';
-import { useFitScale } from '../components/cardFit.ts';
+import { DraftScreen, DraftSkeleton } from '../components/DraftScreen.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
 import { navigate, routeHash } from './route.ts';
 import { TopLayer } from '../topLayer.tsx';
@@ -292,7 +291,7 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
           )}
         </RoomHub>
       ) : done || inRounds ? null : table === null ? (
-        <DraftSkeleton side={side} />
+        <DraftSkeleton side={side} seats={ctx?.pod?.drafters.length || undefined} />
       ) : (
         <DraftScreen
           state={table}
@@ -313,29 +312,6 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
     </div>
   );
 }
-
-/* ── until the draft's table arrives ──────────────────────────────────── */
-
-/**
- * The draft's own layout with nothing in it yet: the pack and the picks as
- * placeholders, the room's bar already in the side column, so the draft lands
- * on the same lines and the page changes once (the operator, 2026-10-20: *"can
- * we add a loading skeleton while this is still loading so i dont see the page
- * change so many times?"*).
- */
-function DraftSkeleton({ side }: { side: ReactNode }) {
-  const fitAside = useFitScale();
-  return (
-    <div className="draft" data-testid="pod-waiting" aria-busy="true">
-      <div className="draft__body" ref={fitToWindow}>
-        <span className="skeleton pod__skeleton-pack" />
-        <span className="skeleton pod__skeleton-pool" />
-        <aside className="draft__aside fit-scale" ref={fitAside}>{side}</aside>
-      </div>
-    </div>
-  );
-}
-
 
 /* ── who is at the table ─────────────────────────────────────────────── */
 

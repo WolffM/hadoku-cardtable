@@ -516,3 +516,68 @@ function Leaver({
     </span>
   );
 }
+
+/** A loading ghost the width of `em` characters, one line tall. */
+export function Ghost({ em }: { em: number }) {
+  return (
+    <span className="draft-ghost draft-ghost--text" style={{ width: `${em}em` }}>
+      {' '}
+    </span>
+  );
+}
+
+/**
+ * The pod before the draft's table arrives (`DraftSkeleton`): the same ring,
+ * faces, names and counters in the same boxes, with nobody in them yet.
+ */
+export function SeatBarSkeleton({ seats: n }: { seats: number }) {
+  const track = ring();
+  const seatS = (at: number): number => (at * track.length) / n;
+  const arcs = Array.from({ length: n }, (_, at) => {
+    const s0 = seatS(at) + CLEAR;
+    let s1 = seatS(at + 1) - CLEAR;
+    if (s1 < s0) s1 += track.length;
+    return track.path(track.points(s0, s1));
+  });
+  const counter = (label: string) => (
+    <div className="counter">
+      <span className="counter__label">{label}</span>
+      <span className="counter__value">
+        <Ghost em={0.6} />
+      </span>
+      <span className="counter__of">
+        <Ghost em={2.6} />
+      </span>
+    </div>
+  );
+  return (
+    <section className="seats" data-skeleton="seats" aria-hidden="true">
+      <div className="podcircle">
+        <svg className="podcircle__ring" viewBox="0 0 100 100">
+          {n > 1 && arcs.map((d, at) => <path key={at} className="podcircle__arc podcircle__arc--ghost" d={d} />)}
+        </svg>
+        <div className="podcircle__centre" data-skeleton="centre">
+          <div className="counters">
+            {counter('Pack')}
+            {counter('Pick')}
+          </div>
+        </div>
+        <ol className="podcircle__seats">
+          {Array.from({ length: n }, (_, at) => {
+            const p = track.at(seatS(at));
+            return (
+              <li key={at} className="seatbar__seat" style={{ left: `${fixed(p.x)}%`, top: `${fixed(p.y)}%` }}>
+                <span className="seatbar__face draft-ghost" data-skeleton={`face-${at}`} />
+                <span className="seatbar__label" data-skeleton={`name-${at}`}>
+                  <span className="seatbar__name">
+                    <Ghost em={3.4} />
+                  </span>
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+    </section>
+  );
+}
