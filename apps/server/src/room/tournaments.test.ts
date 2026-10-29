@@ -31,9 +31,9 @@ const t = (id: string, endedAt: number, over: Partial<Tournament> = {}): Tournam
 	...over,
 });
 
-/** Until the store's queued write has landed. */
-async function written(file: string): Promise<unknown> {
-	return vi.waitFor(async () => JSON.parse(await readFile(file, 'utf8')) as unknown);
+/** Until the store's queued writes have landed: the file holds `count` records. An earlier write can land first. */
+async function written(file: string, count: number): Promise<void> {
+	await vi.waitFor(async () => expect(JSON.parse(await readFile(file, 'utf8'))).toHaveLength(count));
 }
 
 describe('the tournaments store', () => {
@@ -47,7 +47,7 @@ describe('the tournaments store', () => {
 			['b', false],
 			['a', false],
 		]);
-		await written(file);
+		await written(file, 2);
 		const reopened = await openTournaments(file, () => {});
 		expect(reopened.list().map((x) => x.id)).toEqual(['b', 'a']);
 	});
@@ -58,7 +58,7 @@ describe('the tournaments store', () => {
 		const logged: Record<string, unknown>[] = [];
 		const store = await openTournaments(file, () => {});
 		store.record(t('a', 1));
-		await written(file);
+		await written(file, 1);
 		await writeFile(file, JSON.stringify([t('a', 1), { id: 'broken' }]));
 		const reopened = await openTournaments(file, (e) => void logged.push(e));
 		expect(reopened.list().map((x) => x.id)).toEqual(['a']);
