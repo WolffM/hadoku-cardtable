@@ -17,6 +17,28 @@ import { userIdOf } from '../edge-auth.js';
 import { jsonLogger, type JsonLog } from '../log.js';
 import { bodyErrors } from './request.js';
 
+/** How much of a client-chosen name (a kind, a `what`, a field's key) a `client-malformed` line keeps. */
+const NAME_MAX = 32;
+
+function shortName(value: unknown): string | undefined {
+	return typeof value === 'string' ? value.slice(0, NAME_MAX) : undefined;
+}
+
+/**
+ * What a `client-malformed` line says about telemetry the schema turned away: the event's `kind` and
+ * `data.what`, when they are strings, and each failing field by its path. Never a value. "Invalid input"
+ * alone could not say which report or which field (#20: a refused click's `said: null`, 12 drops in e2e).
+ */
+export function malformedFacts(raw: unknown, issues: readonly { path: readonly PropertyKey[]; message: string }[]): Record<string, unknown> {
+	const event = typeof raw === 'object' && raw !== null ? (raw as { kind?: unknown; data?: unknown }) : {};
+	const data = typeof event.data === 'object' && event.data !== null ? (event.data as { what?: unknown }) : {};
+	return {
+		kind: shortName(event.kind),
+		what: shortName(data.what),
+		errors: issues.slice(0, 3).map((i) => `${i.path.map((k) => String(k).slice(0, NAME_MAX)).join('.') || '(event)'}: ${i.message}`),
+	};
+}
+
 export interface ClientEventsDeps {
 	log?: JsonLog;
 	now?: () => number;
@@ -33,7 +55,7 @@ export function attachClientEvents(api: Router, deps: ClientEventsDeps = {}): vo
 		const parsed = PageEventSchema.safeParse(req.body);
 		const userId = userIdOf(req);
 		if (!parsed.success) {
-			log({ evt: 'client-malformed', userId, errors: parsed.error.issues.slice(0, 3).map((i) => i.message) });
+			log({ evt: 'client-malformed', userId, ...malformedFacts(req.body, parsed.error.issues) });
 			return res.status(400).json({ error: 'not a page event' });
 		}
 		const second = Math.floor(now() / 1000);

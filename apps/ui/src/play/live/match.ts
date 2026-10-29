@@ -2005,7 +2005,9 @@ function refusal(match: LiveMatch, cardId: number): string {
  * was open. A watcher sends nothing, as for every other client event.
  *
  * the same reason feeds `mistakes.ts`'s classifier, and `said` stamps what it found onto
- * this telemetry — so the match log keeps saying what this seat was told, next to why.
+ * this telemetry — so the match log keeps saying what this seat was told, next to why, and
+ * `-` when the refusal is nobody's mistake: a `null` there failed the schema and the server
+ * dropped the whole event (#20).
  */
 function reportRefusedClick(match: LiveMatch, cardId: number): void {
   if (match.watcher) return;
@@ -2019,7 +2021,7 @@ function reportRefusedClick(match: LiveMatch, cardId: number): void {
       what: 'click-refused',
       card: cardId,
       reason,
-      said,
+      said: said ?? '-',
       asks: match.asks.length,
       ask: match.asks[0]?.method ?? '-',
       selection: match.selectables !== null,
@@ -2028,7 +2030,7 @@ function reportRefusedClick(match: LiveMatch, cardId: number): void {
       manaOnly: match.weaklySelectableManaOnly?.has(cardId) ?? false,
       prompt: (match.prompt ?? '').split('\n')[0]!.slice(0, 80),
     },
-  });
+  } satisfies ClientEvent);
 }
 
 /**

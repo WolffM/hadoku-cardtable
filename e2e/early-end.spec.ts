@@ -119,11 +119,19 @@ async function bobConcedes(bob: Friend): Promise<void> {
   await bob.page.getByTestId('live-concede-yes').click();
 }
 
+/** Every place the board puts a question to the seat (`LiveBoard.tsx`'s question hosts and its ask). */
+const OPEN_QUESTION = ['live-prompt', 'live-play-or-draw-host', 'live-confirm-host', 'live-decision-host', 'live-payment-host', 'live-selection-host', 'live-target-host']
+  .map((id) => `[data-testid="${id}"]`)
+  .join(', ');
+
 async function bothSeeTheEnd(alice: Friend, bob: Friend, when: string): Promise<void> {
   let failed = true;
   try {
     await expect(result(alice), "alice's result screen").toHaveAttribute('data-result', 'victory', { timeout: 30_000 });
     await expect(result(bob), "bob's result screen").toHaveAttribute('data-result', 'defeat', { timeout: 30_000 });
+    // Nothing left to answer under the result: a concede before the coin toss had a reloaded alice's
+    // screen bring the toss's Play/Draw back behind her Victory (#19).
+    for (const f of [alice, bob]) await expect(f.page.locator(OPEN_QUESTION), `${f.name}: no question under the result`).toHaveCount(0);
     failed = false;
   } finally {
     // A red prints every frame each screen was sent, byte for byte: the claws keep no artifact of a page's socket.

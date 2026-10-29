@@ -12,6 +12,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseServerFrame, type ServerFrame, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
+import { ClientEventSchema } from '@hadoku/shared';
 
 import { opponentOf, viewerOf, type BoardCard, type BoardView } from '../adapter.ts';
 import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
@@ -3119,10 +3120,14 @@ describe('a tapped permanent is clicked to untap exactly when Forge offers it', 
     await sendAndApply(s, m, [actionable([b]), optionAsk('q-2')]);
     expect(selectCard(m, a)).toBe(false);
     await until('the refusal at the server', () => s.received.some((r) => r.event === 'forge:client'));
-    expect(s.received.find((r) => r.event === 'forge:client')?.payload).toMatchObject({
+    const payload = s.received.find((r) => r.event === 'forge:client')?.payload;
+    expect(payload).toMatchObject({
       kind: 'info',
-      data: { what: 'click-refused', card: a, reason: 'ask-open', asks: 1, ask: 'showOptionDialog', selection: false, offered: false },
+      data: { what: 'click-refused', card: a, reason: 'ask-open', asks: 1, ask: 'showOptionDialog', selection: false, offered: false, said: '-' },
     });
+    // What the server keeps: a refusal that is nobody's mistake once said `null`, which the schema
+    // turns away, so the refusal never reached the match log (issue #20).
+    expect(ClientEventSchema.safeParse(payload).success).toBe(true);
   });
 
   it('while targets are chosen, the tapped land Forge offers is clickable beside the targets', async () => {

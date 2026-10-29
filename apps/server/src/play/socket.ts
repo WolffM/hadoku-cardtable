@@ -124,6 +124,7 @@ import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type Rea
 import { COLD_STARTS, queueColdStarts } from './start-queue.js';
 import { WATCHER_SEAT, createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity } from './match.js';
 import type { SpellCopy } from './spell-copiers.js';
+import { malformedFacts } from '../http/client-events.js';
 import { httpCaller, readBody } from '../http/request.js';
 import { jsonLogger } from '../log.js';
 
@@ -1243,7 +1244,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		socket.on(CLIENT_EVENT, (raw: unknown) => {
 			const parsed = ClientEventSchema.safeParse(raw);
 			if (!parsed.success) {
-				log({ evt: 'client-malformed', participantId, errors: parsed.error.issues.slice(0, 3).map((i) => i.message) });
+				log({ evt: 'client-malformed', participantId, ...malformedFacts(raw, parsed.error.issues) });
 				return;
 			}
 			const match = matches.get(parsed.data.matchId);

@@ -1839,6 +1839,11 @@ export class Match {
 		const s = this.seats[seat];
 		if (s === undefined) return;
 		for (const said of s.says) this.send(s, said);
+		if (s.endNotices.length > 0) {
+			// A game that is over has nothing left to answer: whatever was open when it ended is not shown again.
+			this.resendEndNotices(s);
+			return;
+		}
 		if (s.prompt !== null && s.buttons !== null) this.sendWindow(s, s.prompt, s.buttons);
 		else if (s.prompt !== null) this.send(s, s.prompt);
 		else if (s.buttons !== null) this.send(s, s.buttons);
@@ -1854,8 +1859,14 @@ export class Match {
 			this.send(s, { kind: 'notify', method: 'setHighlighted', entities: [...s.highlighted.values()], on: true } as unknown as ServerFrame);
 		}
 		if (s.weakly !== null) this.send(s, s.weakly);
-		// `'finished'` before `'ended'` when both are present — the one order the
-		// two separate fields this replaced were always sent in (S7, wave 64).
+		this.resendEndNotices(s);
+	}
+
+	/**
+	 * `'finished'` before `'ended'` when both are present — the one order the
+	 * two separate fields this replaced were always sent in (S7, wave 64).
+	 */
+	private resendEndNotices(s: SeatState): void {
 		for (const kind of ['finished', 'ended'] as const) {
 			const notice = s.endNotices.find((n) => n.kind === kind);
 			if (notice !== undefined) this.send(s, notice.frame);
@@ -2499,6 +2510,13 @@ export class Match {
 			return;
 		}
 		const frame = parsed.value;
+		if (s.endNotices.length > 0 && (answersAnInput(frame) || frame.method === 'setWeaklySelectable')) {
+			// The seat has been told the game is over, so nothing it could answer is shown any more: a concede
+			// before the opening coin toss still has Forge's thread go on to ask the toss (#19), and a reload
+			// drew it under the result.
+			this.deps.log({ evt: 'input-after-game-over', matchId: this.id, seat, method: frame.method });
+			return;
+		}
 
 		// An ask is a different window altogether, so whatever is held was not
 		// going to pair. State and actionable-set frames do not flush: a payment

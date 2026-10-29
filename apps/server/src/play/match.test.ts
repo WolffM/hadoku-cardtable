@@ -13,7 +13,7 @@
  *      after a snapshot on the next cursor
  */
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { ClientFrameSchema, deltaKeyOf, safeParseServerFrame, type ClientFrame, DELTA_TYPE, cardIdOfState, deltaKey } from '@hadoku/forge-wire';
 import {
 	selfAnswer,
@@ -1905,6 +1905,28 @@ describe('a match that outlives its server', () => {
 			h.match.resendAfterSnapshot(seat);
 			expect(h.sent.at(-1)).toMatchObject({ seat, envelope: { frame: { kind: 'notify', method: 'finishGame', losers: [1], lost: [{ player: 1, reason: 'Conceded' }] } } });
 		}
+	});
+
+	it('a game conceded before the coin toss never shows the toss Forge asks after the end, live or on a reload (#19)', () => {
+		vi.useFakeTimers();
+		onTestFinished(() => void vi.useRealTimers());
+		const h = harness();
+		h.match.claim(ALICE);
+		h.match.claim(BOB);
+		h.host.push(...OPENING);
+		h.host.push({ t: 'gameover', winner: 'Seat 0', losers: [1], lost: [{ player: 1, reason: 'Conceded' }] });
+		const mark = h.sent.length;
+		// Forge's game thread was already on its way to the opening toss (early-end, m-ae9553e0b926).
+		h.host.push(
+			{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 0 }, label1: 'Play', label2: 'Draw', enable1: true, enable2: true, focus1: true } },
+			{ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Seat 0, you have won the coin toss.\n\nWould you like to play or draw?', card: null } },
+		);
+		vi.advanceTimersByTime(1_000);
+		expect(h.sent.slice(mark).map((s) => s.envelope.frame.method)).toEqual([]);
+		// A reload is told the result, and nothing to answer under it.
+		const before = h.sent.length;
+		h.match.resendAfterSnapshot(0);
+		expect(h.sent.slice(before).map((s) => s.envelope.frame.method)).toEqual(['finishGame']);
 	});
 
 	it("a registry whose host cannot re-attach adopts nothing rather than pretending to", () => {

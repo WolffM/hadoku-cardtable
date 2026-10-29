@@ -639,10 +639,14 @@ describe('two seats over the socket', () => {
 		const [info, landing] = h.logs.filter((l) => l.evt === 'client');
 		expect(info).toMatchObject({ matchId, seat: 0, kind: 'info', fastMode: false, boardLayout: 'single', reducedMotion: false });
 		expect(landing).toMatchObject({ matchId, seat: 0, kind: 'landing', card: 42, how: 'flight', dx: 180, dy: -220 });
-		// Malformed (a nested value, an unknown kind): logged as such, never written as an event.
-		alice.socket.emit('forge:client', { matchId, kind: 'info', data: { nested: { a: 1 } } });
+		// Malformed (a `null` value, an unknown kind): logged as such, naming the report and the field,
+		// never written as an event. The `null` is #20's refused click, whose `said` was null.
+		alice.socket.emit('forge:client', { matchId, kind: 'info', data: { what: 'click-refused', card: 7, said: null } });
 		alice.socket.emit('forge:client', { matchId, kind: 'guess', data: {} });
 		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'client-malformed')).toHaveLength(2));
+		const [nullValue, unknownKind] = h.logs.filter((l) => l.evt === 'client-malformed');
+		expect(nullValue).toMatchObject({ kind: 'info', what: 'click-refused', errors: ['data.said: Invalid input'] });
+		expect(unknownKind).toMatchObject({ kind: 'guess', errors: [expect.stringMatching(/^kind: /)] });
 		expect(h.logs.filter((l) => l.evt === 'client')).toHaveLength(2);
 		await new Promise((r) => setTimeout(r, 60));
 		expect(bob.presences, 'nothing reaches the other seat').toHaveLength(0);

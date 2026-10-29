@@ -65,7 +65,11 @@ describe('/api/client-events', () => {
 		const base = await openApp();
 		expect(await post(base, { page: 'front', kind: 'perf', data: { nested: { no: 1 } } })).toBe(400);
 		expect(await post(base, { matchId: 'm-1', kind: 'perf', data: {} })).toBe(400);
-		expect(logged.map((e) => e.evt)).toEqual(['client-malformed', 'client-malformed']);
+		// Each line names the field the schema turned away, never its value (#20).
+		expect(logged).toEqual([
+			{ evt: 'client-malformed', userId: 'u-1', kind: 'perf', what: undefined, errors: ['data.nested: Invalid input'] },
+			{ evt: 'client-malformed', userId: 'u-1', kind: 'perf', what: undefined, errors: ['page: Invalid input: expected "front"', '(event): Unrecognized key: "matchId"'] },
+		]);
 	});
 
 	it('keeps at most the play socket’s per-second count from one user', async () => {
