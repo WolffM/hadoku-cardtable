@@ -214,7 +214,7 @@ it. PR-5 is new and exists to serve it.
 | --- | --- | --- | --- |
 | A one arrival path (2a–c) | `.claude/worktrees/w79a` / `w79a` | dispatched | — |
 | B the stack (1, 8, face-down spell) | `.claude/worktrees/w79b` / `w79b` | dispatched; 8 gated on artifact | — |
-| C deaths (11a–c) | `.claude/worktrees/w79c` / `w79c` | dispatched | — |
+| C deaths (11a–c) | `.claude/worktrees/w79c` (closing) | **landed + verified** `45b6606b4` spec, `03c17e162` fix (AF444), PPE `18960210` restarted 08:02Z; awaiting operator ✅ | cause measured, not the flying: Forge sends the wipe as two views ~50 ms apart; the second view's places indexed against an already-shrunk row (11a), got no hits so died at once (11b), uncovered the angels' stand-ins (11c). Claw 40837099724 ×3 with video ✓, CI 40838688326 ✓ (tracker re-read); 6 unit mutations each fail; unverified: Board `holds` past DEPARTURE_MAX_MS has no unit test; edited `numbers.ts` with w79b's written consent. Note `~/.cache/cardtable-manager/w79c-closing.md` |
 | D room → table → match (5, 12, 12a, 12b) | removed | **landed + verified** `1131c3643`..`17653537f` (AF440–443), PPE `5b688f38` restarted 07:17Z; awaiting operator ✅ | claw 40832236897 ✓ with video (tracker re-read); boot spec red on base `[-]`→`(connecting)` 170 ms–1.1 s, green after; mutation 1/1; 12 = e2e edge sprites, not product; unverified: prod latency (settle from the match log after a real Ready); closing note in `wave79-2026-10-28.md` |
 | E draft visuals (13, 13b) | — | queued: 13b artifact first | — |
 | F front-page replay, omniscient (3) | — | superseded by wave 81 | — |
