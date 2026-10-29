@@ -369,6 +369,14 @@ test(
         'the warm load fetched nothing over the network',
       ).toEqual([]);
       await expect(front.getByTestId('featured-match-tag')).toHaveText('REPLAY');
+    const fit = await front.locator('.featured-match__viewport').evaluate((viewport) => {
+      const frame = viewport.querySelector('.featured-match__frame')!.getBoundingClientRect();
+      const box = viewport.getBoundingClientRect();
+      return { frame: [Math.round(frame.width), Math.round(frame.height)], box: [Math.round(box.width), Math.round(box.height)] };
+    });
+    console.log(`[w81] front card fit: ${JSON.stringify(fit)}`);
+    expect(fit.frame[0], 'the board is scaled down into the card, never cropped').toBeLessThanOrEqual(fit.box[0] + 1);
+    expect(fit.frame[1], 'the board is scaled down into the card, never cropped').toBeLessThanOrEqual(fit.box[1] + 1);
       await expect(front.getByTestId('featured-match-watch')).toHaveAttribute('href', `#/replay/${matchId}`);
 
       // Three loops, on the page's own clock run fast.

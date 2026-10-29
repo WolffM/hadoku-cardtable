@@ -63,8 +63,11 @@ const BOARD_HEIGHT = 800;
 
 type Source = { kind: 'live'; match: LiveMatch } | { kind: 'replay'; match: LiveMatch; clock: ReplayClock };
 
-/** Scale `BOARD_WIDTH × BOARD_HEIGHT` down to whatever box `ref` measures, preserving aspect ratio. */
-function useFitScale(ref: RefObject<HTMLDivElement | null>): number {
+/**
+ * Scale `BOARD_WIDTH × BOARD_HEIGHT` down to whatever box `ref` measures, preserving aspect ratio.
+ * `drawn`: the box is on the page (a replay's card holds its place without one until it is ready).
+ */
+function useFitScale(ref: RefObject<HTMLDivElement | null>, drawn: boolean): number {
   const [scale, setScale] = useState(1);
   useEffect(() => {
     const el = ref.current;
@@ -74,10 +77,10 @@ function useFitScale(ref: RefObject<HTMLDivElement | null>): number {
       if (width > 0 && height > 0) setScale(Math.min(width / BOARD_WIDTH, height / BOARD_HEIGHT));
     };
     measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [ref]);
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, [ref, drawn]);
   return scale;
 }
 
@@ -108,7 +111,7 @@ function TitleBar({ source, watchHref }: { source: Source; watchHref: string }) 
 export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback = REPLAYS_ON }: FeaturedMatchProps) {
   const [source, setSource] = useState<Source | 'loading' | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const scale = useFitScale(viewportRef);
+  const scale = useFitScale(viewportRef, source !== null && source !== 'loading');
 
   useEffect(() => holdMatchQuiet(), []);
 
