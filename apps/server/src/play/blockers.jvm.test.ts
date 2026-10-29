@@ -76,7 +76,7 @@ async function attack(s: Scenario, attacker: number, defender: number, until: ()
 			s.ok(seat);
 		}
 		return false;
-	}, 'the attack to reach the defender', 60_000);
+	}, 'the attack to reach the defender', 60_000, s);
 }
 
 describe.skipIf(!available.ok)(title, () => {
@@ -129,7 +129,7 @@ describe.skipIf(!available.ok)(title, () => {
 				await waitUntil(() => {
 					const view = [...s.state(defender).values()].find((o) => o._type === 0 && o._id === sick?.id);
 					return (view?.Blocking as { v?: boolean } | undefined)?.v === true;
-				}, 'the creature to be declared blocking', 10_000);
+				}, 'the creature to be declared blocking', 10_000, s);
 				s.ok(defender);
 				// Wave 46 §C: with nothing else castable here, the ordinary priority
 				// window that follows a declared block now auto-passes on its own
@@ -145,6 +145,7 @@ describe.skipIf(!available.ok)(title, () => {
 						s.logs.some((l) => l.evt === 'auto-passed' && l.seat === defender && l.phase === 'Declare Blockers Step'),
 					'the Declare Blockers priority window after the block',
 					10_000,
+					s,
 				);
 			} finally {
 				await s.stop();
