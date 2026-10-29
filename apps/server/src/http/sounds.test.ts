@@ -221,8 +221,9 @@ describe('GET /api/sounds/assignments', () => {
 		// remembering to list it (hadoku_site's tier audit, 2026-10-07).
 		for (const tier of TIER_ORDER) {
 			const res = await call(h, 'GET', '/api/sounds/assignments', { tier });
-			if (tier === 'public') {
-				// Below the friend gate: refused outright, never a read with canEdit false.
+			if (TIER_ORDER.indexOf(tier) < TIER_ORDER.indexOf('friend')) {
+				// Below the default friend floor (public, member): refused outright,
+				// never a read with canEdit false.
 				expect(res.status, tier).toBe(404);
 				continue;
 			}
@@ -541,7 +542,7 @@ describe('every /api/sounds route is friend tier and above', () => {
 		await writeTakeFile(dir, TAKE.file);
 		const h = await openApp(dir);
 		const below = TIER_ORDER.filter((t) => TIER_ORDER.indexOf(t) < TIER_ORDER.indexOf('friend'));
-		expect(below).toEqual(['public']);
+		expect(below).toEqual(['public', 'member']);
 		for (const r of ROUTES) {
 			for (const tier of [...below, 'not-a-tier']) {
 				const res = await call(h, r.method, r.path, { tier, body: r.body });

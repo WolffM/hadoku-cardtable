@@ -17,13 +17,29 @@ import type { NextFunction, Request, Response } from 'express';
 import { CONFIG } from './config.js';
 
 /**
- * The platform tier ladder. Mirrors requireMinTier in
- * workers/edge-router/src/tiers.ts — `wife` sits above `service` and below
- * `admin` deliberately: full reach across the apps, none of the
- * credential-management surface.
+ * The platform tier ladder. Mirrors TIER_RANK in @wolffm/worker-utils — `wife`
+ * sits above `service` and below `admin` deliberately: full reach across the
+ * apps, none of the credential-management surface. `member` (2026-10-29) is a
+ * self-signed-up account: a passkey and a name, no key anyone handed out.
+ * Cardtable is the one app that admits them, as players exactly like friends.
  */
-export const TIER_ORDER = ['public', 'friend', 'service', 'wife', 'admin'] as const;
+export const TIER_ORDER = ['public', 'member', 'friend', 'service', 'wife', 'admin'] as const;
 export type Tier = (typeof TIER_ORDER)[number];
+
+/**
+ * The floor must be a tier this build knows, and never `public`. An unknown
+ * name ranks as public in `rankOf`, so a floor this build has not heard of
+ * (`CARDTABLE_MIN_TIER=member` on a build without `member`) would silently
+ * admit everyone, the direct tunnel hits included. Refusing to boot is the
+ * only safe answer.
+ */
+export function assertFloor(tier: string): Tier {
+	if (!(TIER_ORDER as readonly string[]).includes(tier) || tier === 'public') {
+		throw new Error(`CARDTABLE_MIN_TIER=${tier} is not a tier floor this build knows`);
+	}
+	return tier as Tier;
+}
+assertFloor(CONFIG.minTier);
 
 export function rankOf(tier: string): number {
 	const i = TIER_ORDER.indexOf(tier as Tier);
