@@ -458,6 +458,24 @@ export async function castWatch(page: Page, cardId: number): Promise<{ stack: nu
 }
 
 /**
+ * Wait until Forge offers `cardId` from the viewer's hand (`data-selectable`) before the cast's
+ * press. A hand card lifts whether or not the seat holds a live window, and a release with none is
+ * dropped by the board, so a press made while the seat can see the stack but Forge has not yet
+ * handed it priority never reaches Forge (w62-condescend, run 40829932240: alice saw Bears on the
+ * stack 250 ms before her window, cast into that gap, and waited 10 s on nothing). A card not in
+ * the hand is left to the caller's own at-once failure.
+ */
+async function awaitHandOffer(page: Page, cardId: number): Promise<void> {
+  if ((await castState(page, cardId)).at !== 'hand:you') return;
+  const offer = page.locator(`[data-zone="hand"][data-owner="you"] [data-board-card="${cardId}"][data-selectable]`);
+  try {
+    await expect.poll(() => offer.count(), { timeout: 30_000, intervals: [50] }).toBeGreaterThan(0);
+  } catch {
+    throw new Error(`card ${cardId} was never offered from the hand — stuck on "${await says(page)}"`);
+  }
+}
+
+/**
  * `tt-cryptic.state`'s opening: bob casts Memnite and, holding priority (full control for those two
  * casts only), Dark Ritual over it, then passes — two spells on the stack, so a counterspell's
  * target is a real choice. Returns once `alice` sees both.
@@ -501,6 +519,7 @@ export async function stackTwoSpells(alice: Page, bob: Page): Promise<void> {
  * not a cast (on a land in play it is a tap), and nothing will come of waiting.
  */
 export async function castCard(page: Page, cardId: number, opts: { x?: number } = {}): Promise<void> {
+  await awaitHandOffer(page, cardId);
   const watch = await castWatch(page, cardId);
   if (!(await clickHandCard(page, cardId))) {
     throw new Error(`castCard(${cardId}): not a card in this seat's hand (it is at ${(await castState(page, cardId)).at ?? 'nowhere drawn'}) — says "${await says(page)}"`);
@@ -634,6 +653,7 @@ export async function castUntilOnStack(
   targets: readonly Locator[],
   opts: { timeoutMs?: number } = {},
 ): Promise<void> {
+  await awaitHandOffer(page, cardId);
   const watch = await castWatch(page, cardId);
   expect(await clickHandCard(page, cardId), `card ${cardId} lifted out of the hand`).toBe(true);
   const deadline = Date.now() + (opts.timeoutMs ?? 30_000);
