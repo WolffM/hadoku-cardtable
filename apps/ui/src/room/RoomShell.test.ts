@@ -75,7 +75,7 @@ import { THEMES } from '@wolffm/themes';
 
 import { RoomShell, roomKeyFor, watchpartyTheme } from './RoomShell.tsx';
 import { watchpartyPrefsCacheKey } from './avatar.ts';
-import { roomIdFor, tableChatId } from '../App.tsx';
+import { matchPlaceOf, roomIdFor, tableChatId } from '../App.tsx';
 import { parseRoute } from '../screens/route.ts';
 
 afterEach(() => {
@@ -332,6 +332,17 @@ describe('the room a match route puts the chat in', () => {
     // function would answer `null` instead.
     expect(roomIdFor(route, null)).toEqual({ roomId: 'm-090bf01ba811', chatId: 'm-090bf01ba811' });
     expect(roomKeyFor(roomIdFor(route, null)!.chatId)).toBe('cardtable-m-090bf01ba811');
+  });
+
+  it('puts a watcher who is no member in the table’s chat, the one its players are in (the operator, 2026-10-29)', async () => {
+    const table = { id: 'r-ee9ce9eacda7', tables: [{ id: 't-b1f72387', matchId: 'm-07e77e92db5c', series: { games: [] } }] };
+    const watcher = { roomOfMatch: () => Promise.resolve(null), tableOfMatch: () => Promise.resolve(table) };
+    const place = await matchPlaceOf(watcher, 'm-07e77e92db5c');
+    expect(place?.chatId).toBe('r-ee9ce9eacda7-t-b1f72387');
+    expect(roomKeyFor(place!.chatId), 'the players’ key, never cardtable-m-<match>').toBe('cardtable-r-ee9ce9eacda7-t-b1f72387');
+    expect(place?.roomId, 'no avatar asserted to a room they are not in').toBe('m-07e77e92db5c');
+    const roomless = { roomOfMatch: () => Promise.resolve(null), tableOfMatch: () => Promise.resolve(null) };
+    expect(await matchPlaceOf(roomless, 'm-07e77e92db5c'), 'no room started it: the match keeps its own').toBeNull();
   });
 
   it('every other route is unchanged by the new parameter', () => {

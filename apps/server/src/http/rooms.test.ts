@@ -2237,6 +2237,36 @@ describe('GET /api/rooms/of-match/:matchId', () => {
 	});
 });
 
+/*
+ * A watcher's way to the table's chat. The operator, 2026-10-29, spectating m-07e77e92db5c: the
+ * chat showed only themselves, because a non-member got of-match's 404 and joined a chat named
+ * after the match while the players sat in the table's — "players should be able to chat with
+ * spectators". Anyone may watch a match, so anyone may learn which table it is at: the room's id
+ * and its tables, and nothing a member alone may read (no members, no settings, no password state).
+ */
+describe('GET /api/rooms/table-of-match/:matchId', () => {
+	it('answers the room and its tables to anyone, member or not, during and after the match', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Kitchen table' } })).json() as
+			import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob', body: {} });
+		const tableId = room.tables[0]!.id;
+		h.lobby.setTableMatch(room.id, tableId, 'm-3f3db8ae2945');
+
+		const watcher = await call(h, 'GET', '/api/rooms/table-of-match/m-3f3db8ae2945', { as: 'carol' });
+		expect(watcher.status, 'carol is no member, and watches anyway').toBe(200);
+		const body = watcher.json() as { id: string; tables: { id: string; matchId: string | null }[] };
+		expect(body.id).toBe(room.id);
+		expect(body.tables.map((t) => t.id)).toContain(tableId);
+		expect(Object.keys(body).sort(), 'only what names the table').toEqual(['id', 'tables']);
+
+		h.lobby.releaseTableMatch(room.id, tableId);
+		expect((await call(h, 'GET', '/api/rooms/table-of-match/m-3f3db8ae2945', { as: 'carol' })).status, 'after the match too').toBe(200);
+		expect((await call(h, 'GET', '/api/rooms/table-of-match/m-000000000000', { as: 'carol' })).status).toBe(404);
+		expect((await call(h, 'GET', '/api/rooms/table-of-match/NOT_AN_ID', { as: 'carol' })).status).toBe(404);
+	});
+});
+
 describe('a constructed room’s mode over HTTP', () => {
 	it('POST takes an optional mode with its options, and refuses an unknown one', async () => {
 		const h = await openApp(await tempDir());
