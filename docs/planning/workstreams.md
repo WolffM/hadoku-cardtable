@@ -203,6 +203,7 @@ it. PR-5 is new and exists to serve it.
 | steady glow through phases | `.claude/worktrees/w80a` / `w80a` | dispatched; artifact gate before land | — |
 | Frontline Medic's orange glow (which mark, then the class) | removed | **landed** `00934b030` (AF439), PPE `ba47b15d` restarted 06:53Z; awaiting operator ✅ | the condition rim, not can-act: prod `m-b7b9edfcefd6` frames 36–44 lit Sage's Medic while Hadoku attacked; `condition-met.jvm` red on unchanged code → green; claw 40829096583 ✓, CI 40830865443 ✓ (tracker re-read both); mutation 1/1 reverted-fails 1/1 restored-passes; unverified in a browser; 35 other Attack/Block presence scripts darkened by grep, not played (closing note `~/.cache/cardtable-manager/w80b-closing.md`) |
 | unlock on an animation's last 10% | `.claude/worktrees/w80c` / `w80c` | dispatched; `numbers.ts` waits on w79b; artifact gate | — |
+| spellsHeld has no bound: a view that jumps past a resolving spell's beat holds it out of its graveyard forever (found by w81, in `placed.ts`/`Board.tsx`) | — | queued: after w79b + w79c land | w81 works around it by remounting per seek |
 | release a permanent anywhere → next board space | — | queued: after w79a lands (`install.ts`/arrival path) | — |
 
 ## Wave 79 (trailer cut 1 feedback) dispatched as four single sessions (2026-10-28)
