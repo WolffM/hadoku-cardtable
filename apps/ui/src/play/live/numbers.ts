@@ -158,6 +158,13 @@ export const RISE_MS = 700;
 export const POP_MS = 90;
 export const POP_THRESHOLD = 5;
 export const STACK_OFFSET_PX = 12;
+/**
+ * How long past its hit's due time a death waits for that hit to land (`strike`) before it goes anyway. Every
+ * hit lands (`hit` calls its `land` on every path), so this is for one this module stopped drawing; a page
+ * running a second late is no reason to draw a death before its blow.
+ */
+export const STRIKE_SLACK_MS = 2000;
+
 export const STACK_STAGGER_MS = 80;
 export const TICK_STEP_MS = 150;
 export const LIFE_COLOUR_MS = 1500;
@@ -494,6 +501,8 @@ export interface NumbersHost {
   readonly report?: (data: Record<string, string | number | boolean>) => void;
   /** Permanents left the battlefield: draw each leaving, from its `delayMs` on (`departures.ts`'s `leave`) — the view's whole batch in one call. */
   readonly leave?: (batch: readonly { departure: Departure; delayMs: number }[]) => void;
+  /** A hit landed on this card: a death waiting on it starts now (`departures.ts`'s `strike`). */
+  readonly strike?: (cardId: number) => void;
 }
 
 export interface NumbersHandle {
@@ -539,6 +548,14 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   const fast = (): boolean => host.fastMode?.() ?? false;
   /** Each ram drawn, to put back at once on dispose. */
   const rams = new Set<() => void>();
+  /**
+   * When the last hit drawn at each card is due to land (epoch ms), across views, until it has. Forge sends a wipe as more than one
+   * view (measured, Blasphemous Act: the resolution with every hit and five deaths, then the other six deaths
+   * 30–80 ms later, with no hits): a card that leaves in a later view than the hit that killed it still goes
+   * as that hit lands, never before it (the operator, 2026-10-28: "6 opponent creatures all did their death
+   * animation immediately before being hit by a fireball").
+   */
+  const hitsDue = new Map<number, number>();
   /** When each creature attacking now was first drawn attacking: how long its attack was seen before it rammed. */
   const attackingSince = new Map<number, number>();
   /** Each shake of the table, likewise. */
@@ -774,8 +791,22 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     }
   }
 
-  /** One hit: a mark from `from` to `to`, then `land` — at once under reduced motion, where only the flash is drawn. */
-  function hit(from: Boxed, to: Element, key: string, colour: NumberColour, delayMs: number, land: () => void, hue: ManaColor | null, amount: number): void {
+  /**
+   * One hit: a mark from `from` to `to`, then `land` — at once under reduced motion, where only the flash is drawn.
+   * `retarget` finds where it lands again when `to` is no longer drawn by its beat: a card that left its row in a
+   * view after this one is its kept gap, and its stand-in, by then.
+   */
+  function hit(
+    from: Boxed,
+    to: Element,
+    key: string,
+    colour: NumberColour,
+    delayMs: number,
+    land: () => void,
+    hue: ManaColor | null,
+    amount: number,
+    retarget?: () => Element | null,
+  ): void {
     const power = damagePower(amount);
     const ms = HIT_MS;
     const root = overlay();
@@ -787,11 +818,12 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       return;
     }
     atBeat(() => {
-      if (!to.isConnected) return land();
+      const target = to.isConnected ? to : (retarget?.() ?? null);
+      if (target === null) return land();
       const box = root.getBoundingClientRect();
       // A card leaving is drawn as its copy over the kept gap (`departures.ts`): aim at the card, not the gap.
-      const leavingId = to.getAttribute(LEAVING_GAP_ATTR);
-      const end = centreIn((leavingId === null ? null : root.querySelector(`[${DEPARTURE_ATTR}="${leavingId}"]`)) ?? to, box);
+      const leavingId = target.getAttribute(LEAVING_GAP_ATTR);
+      const end = centreIn((leavingId === null ? null : root.querySelector(`[${DEPARTURE_ATTR}="${leavingId}"]`)) ?? target, box);
       const look = colour === 'danger' ? 'bolt' : 'heal';
       const ball = fly(root, centreIn(from, box), end, key, look, ms, hue, power);
       schedule(() => {
@@ -801,7 +833,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         // `SHAKE_PX`, left as it is) — nothing below 5, 0.6px at 5 climbing to the same 16px ceiling at
         // the cap.
         if (look === 'bolt') shakes.add(shake(canvas, boltShakePx(amount), key));
-        flash(to, colour);
+        flash(target.isConnected ? target : (retarget?.() ?? target), colour);
         land();
       }, ms);
     }, delayMs);
@@ -1088,12 +1120,17 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       if (target === null) continue;
       const departure = leaving.get(h.cardId);
       // No number: the slam is the hit (the operator, 2026-10-15) — what is left of its toughness is the badge's.
-      const land = (): void => flash(target, 'danger');
+      const land = (): void => {
+        flash(hitTarget(h.cardId) ?? target, 'danger');
+        hitsDue.delete(h.cardId);
+        host.strike?.(h.cardId);
+      };
       const key = `card:${h.cardId}:${h.seq}`;
       // A projectile only from what resolved: combat damage is a crash, as its rammer strikes.
       const delay = origin === null ? (combat?.hitAt.get(h.seq) ?? 0) : nextBolt();
       const landsAt = origin === null ? delay : delay + HIT_MS;
       if (departure !== undefined) fatalLand.set(h.cardId, Math.max(fatalLand.get(h.cardId) ?? 0, landsAt));
+      hitsDue.set(h.cardId, Math.max(hitsDue.get(h.cardId) ?? 0, Date.now() + landsAt));
       if (firstCardImpact === null || landsAt < firstCardImpact) firstCardImpact = landsAt;
       endMs = Math.max(endMs, landsAt);
       if (origin === null) {
@@ -1103,7 +1140,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
           land();
         }, delay);
       } else {
-        hit(origin, target, key, 'danger', delay, land, spellHue, h.amount);
+        hit(origin, target, key, 'danger', delay, land, spellHue, h.amount, () => hitTarget(h.cardId));
         boltSound(landsAt, h.amount);
       }
     }
@@ -1127,12 +1164,17 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     for (const dep of diff.departures) {
       // Why it died: Forge's word, else a hit drawn here killed it, else unknown (`departures.ts`'s `exitMotionFor`).
       const said = prevView?.deathCauses?.get(dep.cardId);
-      const cause = said !== undefined ? departureCause(said) : fatalLand.has(dep.cardId) ? 'damage' : undefined;
+      // A hit an earlier view drew at it, still to land (`hitsDue`): due by now, perhaps, on a page running late.
+      const due = hitsDue.get(dep.cardId);
+      const dueMs = due === undefined ? undefined : Math.max(0, due - Date.now());
+      const cause = said !== undefined ? departureCause(said) : fatalLand.has(dep.cardId) || dueMs !== undefined ? 'damage' : undefined;
       const departure: Departure = { ...dep, ...(cause === undefined ? {} : { cause }), ...(spellHue === null ? {} : { hue: spellHue }) };
-      const delay = fast() ? 0 : (fatalLand.get(departure.cardId) ?? startMs);
+      const hitAt = fatalLand.get(departure.cardId) ?? dueMs;
+      const delay = fast() ? 0 : (hitAt ?? startMs);
       if (firstExit === null || delay < firstExit) firstExit = delay;
       endMs = Math.max(endMs, delay + exitMs(departure));
-      exits.push({ departure, delayMs: delay });
+      // Killed by a hit drawn here: it goes as that hit lands (`strike`); its due time, a little late, only should it never.
+      exits.push({ departure, delayMs: hitAt === undefined || fast() ? delay : delay + STRIKE_SLACK_MS });
       if (exitMotionFor(departure) === 'shatter') {
         const killedBy = Math.max(0, ...diff.hits.filter((h) => h.cardId === departure.cardId).map((h) => h.amount));
         sounds.push({ role: 'g.crumble', ms: delay, intensity: damagePower(killedBy), mine: viewers(departure.cardId) });

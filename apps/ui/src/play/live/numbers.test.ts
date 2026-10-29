@@ -22,6 +22,7 @@ import {
   RISE_MS,
   STACK_OFFSET_PX,
   STACK_STAGGER_MS,
+  STRIKE_SLACK_MS,
   TICK_STEP_MS,
   diffViews,
   formatDelta,
@@ -757,9 +758,9 @@ describe('installNumbers: a sweeper (the operator’s Slagstorm, 2026-10-15)', (
     const ball = overlay.querySelector<HTMLElement>('.effect-hit');
     expect(ball?.dataset.hit, 'the first fireball leaves the spell at once: no blink first').toBe('card:7:1');
     expect(ball?.dataset.colour, 'in Slagstorm’s colour').toBe('R');
-    expect(left.map(([d, ms]) => [d.cardId, d.to, d.cause, ms]), 'each goes the moment its own fireball lands, killed by damage').toEqual([
-      [7, 'graveyard', 'damage', HIT_MS],
-      [9, 'graveyard', 'damage', BOLT_STAGGER_MS + HIT_MS],
+    expect(left.map(([d, ms]) => [d.cardId, d.to, d.cause, ms]), 'each goes as its own fireball lands (`strike`), killed by damage — its due time, a little late, only should that never come').toEqual([
+      [7, 'graveyard', 'damage', HIT_MS + STRIKE_SLACK_MS],
+      [9, 'graveyard', 'damage', BOLT_STAGGER_MS + HIT_MS + STRIKE_SLACK_MS],
     ]);
     expect(takeResolutionEffects(40), 'the spell fades once the last creature is gone').toBe(at + BOLT_STAGGER_MS + HIT_MS + EXIT_MOTIONS.shatter.ms);
 
@@ -800,6 +801,45 @@ describe('installNumbers: a sweeper (the operator’s Slagstorm, 2026-10-15)', (
       [7, 0, undefined],
       [9, 0, undefined],
     ]);
+    handle.dispose();
+  });
+
+  it('a wipe in two views (measured, Blasphemous Act): a creature that leaves in the later one, with no hits, still goes as its own fireball lands, and that fireball is drawn at its kept place', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay } = sweeperBoard();
+    const left: [number, number, string | undefined][] = [];
+    const struck: number[] = [];
+    const handle = installNumbers(canvas, {
+      reducedMotion: () => false,
+      fastMode: () => false,
+      leave: (batch) => batch.forEach(({ departure: d, delayMs: ms }) => left.push([d.cardId, ms, d.cause])),
+      strike: (id) => struck.push(id),
+    });
+    handle.notify(before);
+    // The resolution's view: both hits, and only 7 died in it.
+    const resolved: BoardView = { ...view([player(0, 20, { isViewer: true, battlefield: [card(9, 0)], graveyard: [card(7, 0)] }), player(1, 20)]), hits: after.hits };
+    const gap = document.createElement('li');
+    gap.setAttribute(LEAVING_GAP_ATTR, '7');
+    gap.getBoundingClientRect = () => rect({ left: 300, top: 400, width: 60, height: 84 });
+    canvas.querySelector('[data-board-card="7"]')!.replaceWith(gap);
+    handle.notify(resolved);
+    // 9 dies in the next view, 80 ms on, which carries no hits: its row card is replaced by its kept gap.
+    vi.advanceTimersByTime(80);
+    const gap9 = document.createElement('li');
+    gap9.setAttribute(LEAVING_GAP_ATTR, '9');
+    gap9.getBoundingClientRect = () => rect({ left: 380, top: 400, width: 60, height: 84 });
+    canvas.querySelector('[data-board-card="9"]')!.replaceWith(gap9);
+    handle.notify({ ...after, hits: [] });
+    expect(left, 'each waits on its own fireball, killed by damage').toEqual([
+      [7, HIT_MS + STRIKE_SLACK_MS, 'damage'],
+      [9, BOLT_STAGGER_MS + HIT_MS - 80 + STRIKE_SLACK_MS, 'damage'],
+    ]);
+    vi.advanceTimersByTime(BOLT_STAGGER_MS - 80);
+    expect(overlay.querySelector<HTMLElement>('.effect-hit[data-hit="card:9:2"]'), 'its fireball flies, at its kept place').not.toBeNull();
+    expect(struck, 'nothing has landed yet').toEqual([]);
+    vi.advanceTimersByTime(HIT_MS);
+    expect(canvas.querySelector(`[${LEAVING_GAP_ATTR}="9"]`)!.hasAttribute('data-hit-flash'), 'and lands there').toBe(true);
+    expect(struck, 'each death starts on its own impact').toEqual([7, 9]);
     handle.dispose();
   });
 

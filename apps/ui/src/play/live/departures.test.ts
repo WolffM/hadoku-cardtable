@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
 import { claimParticles, PARTICLE_BUDGET } from './effect-budget.ts';
-import { departureCause, departuresOf, DISSOLVE_SWEEP, EXIT_MOTIONS, shards, exitMotionFor, installDepartures, LANDING_ATTR, LEAVING_GAP_ATTR, specks, type Departure, type DepartureCause } from './departures.ts';
+import { closeUp, departureCause, departuresOf, DISSOLVE_SWEEP, withLeaving, EXIT_MOTIONS, shards, exitMotionFor, installDepartures, LANDING_ATTR, LEAVING_GAP_ATTR, specks, type Departure, type DepartureCause } from './departures.ts';
 
 const rect = (left: number, top: number, width: number, height: number): DOMRect =>
   ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
@@ -100,6 +100,29 @@ describe('departuresOf', () => {
     const next = view(player(0, { hand: [] }), player(1, { handCount: 4, handShown: [null, null, null, card(7)] }));
     expect(departuresOf(prev, next).map((d) => [d.to, d.toPlayerId])).toEqual([['hand', 1]]);
   });
+
+  it('a wipe Forge sends in two views keeps every place where its card was drawn, and closes each in turn', () => {
+    // Measured (Blasphemous Act): the resolution's view takes the first two, a later view the rest.
+    const row = [1, 2, 3, 4, 5, 6].map(card);
+    const lands = [card(50), card(51)];
+    const prev = view(player(0, { battlefield: [...row, ...lands] }));
+    const mid = view(player(0, { battlefield: [...row.slice(2), ...lands], graveyard: row.slice(0, 2) }));
+    const after = view(player(0, { battlefield: lands, graveyard: row }));
+    const first = departuresOf(prev, mid);
+    const second = departuresOf(mid, after, first);
+    expect(second.map((d) => [d.cardId, d.index])).toEqual([
+      [3, 2],
+      [4, 3],
+      [5, 4],
+      [6, 5],
+    ]);
+    const drawn = (leaving: readonly Departure[]): number[] => withLeaving(after.players[0]!.battlefield, leaving).map((c) => c.id);
+    expect(drawn([...first, ...second]), 'both views’ gaps, each where its card stood').toEqual([1, 2, 3, 4, 5, 6, 50, 51]);
+    // The first two finish first: the rest keep their places among what is left.
+    const once = closeUp([...first.slice(1), ...second], first[0]!);
+    const rest = closeUp(once.slice(1), once[0]!);
+    expect(drawn(rest)).toEqual([3, 4, 5, 6, 50, 51]);
+  });
 });
 
 describe('installDepartures', () => {
@@ -126,6 +149,43 @@ describe('installDepartures', () => {
     vi.advanceTimersByTime(EXIT_MOTIONS.crumple.ms);
     expect(canvas.querySelector('.board-departure')).toBeNull();
     expect(onDone).toHaveBeenCalledWith(7);
+    handle.dispose();
+  });
+
+  it('the stand-in is drawn where the card was drawn, not where its kept place lies: a row still gliding closed is no reason for a death to jump', () => {
+    vi.useFakeTimers();
+    const canvas = board();
+    const handle = installDepartures(canvas, { onDone: () => undefined });
+    handle.snapshot();
+    // Its row is mid-glide: the card is drawn 62 px right of the place its gap will take.
+    canvas.querySelector<HTMLElement>('[data-board-card="7"]')!.getBoundingClientRect = () => rect(362, 400, 60, 84);
+    handle.capture();
+    keepPlace(canvas);
+    handle.leave([{ departure: departure('graveyard', 'damage'), delayMs: 0 }]);
+    const standIn = canvas.querySelector<HTMLElement>('[data-board-overlay] .board-departure')!;
+    expect([standIn.style.left, standIn.style.top, standIn.style.width]).toEqual(['362px', '400px', '60px']);
+    handle.dispose();
+  });
+
+  it('its killing hit landing starts its exit then, once — however late or early that is next to its beat — and its place is held until its exit is over', () => {
+    vi.useFakeTimers();
+    const canvas = board();
+    const onDone = vi.fn();
+    const handle = installDepartures(canvas, { onDone });
+    handle.snapshot();
+    keepPlace(canvas);
+    handle.leave([{ departure: departure('graveyard', 'damage'), delayMs: 900 }]);
+    const standIn = canvas.querySelector<HTMLElement>('[data-board-overlay] .board-departure')!;
+    vi.advanceTimersByTime(600);
+    expect(standIn.hasAttribute('data-exit-go'), 'still, until its hit lands').toBe(false);
+    expect(handle.holds(7), 'its place is held').toBe(true);
+    handle.strike(7);
+    expect(standIn.hasAttribute('data-exit-go'), 'the hit landed: it goes').toBe(true);
+    vi.advanceTimersByTime(300);
+    handle.strike(7);
+    vi.advanceTimersByTime(EXIT_MOTIONS.shatter.ms - 300);
+    expect(onDone, 'once, a motion after its hit — not after its beat').toHaveBeenCalledTimes(1);
+    expect(handle.holds(7)).toBe(false);
     handle.dispose();
   });
 

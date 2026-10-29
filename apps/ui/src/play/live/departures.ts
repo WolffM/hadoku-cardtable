@@ -255,8 +255,15 @@ function destinationIn(view: BoardView, cardId: number): { to: ExitDestination |
  * A card found in no zone of `next` went to a hand this screen does not see into when a hidden hand
  * grew by more than it shows — one card per card it grew by, the hand of the battlefield it left
  * first — and otherwise nowhere shown (`gone`).
+ *
+ * Each one's `index` is its place in its battlefield as drawn: `prev`'s list with `stillLeaving` — the
+ * departures of earlier views whose places are still kept — put back ({@link withLeaving}). Forge sends a
+ * wipe as more than one view (measured, Blasphemous Act: the resolution and five deaths, then the other
+ * six 30–80 ms later), and an index into `prev`'s own list put the later ones' gaps where the earlier
+ * ones' cards stood, so their stand-ins were drawn over those (the operator, 2026-10-28: "two creatures
+ * instantly disappeared … the disappeared creature suddenly reappeared underneath the ones that just died").
  */
-export function departuresOf(prev: BoardView | null, next: BoardView): Departure[] {
+export function departuresOf(prev: BoardView | null, next: BoardView, stillLeaving: readonly Departure[] = []): Departure[] {
   if (prev === null) return [];
   const out: Departure[] = [];
   const grown = new Map<number, number>();
@@ -270,16 +277,38 @@ export function departuresOf(prev: BoardView | null, next: BoardView): Departure
     return id;
   };
   for (const player of prev.players) {
-    player.battlefield.forEach((card, index) => {
+    const drawn = withLeaving(player.battlefield, stillLeaving.filter((d) => d.playerId === player.id));
+    for (const card of player.battlefield) {
       const { to, playerId } = destinationIn(next, card.id);
-      if (to === 'battlefield') return;
-      const base = { cardId: card.id, playerId: player.id, card, index };
+      if (to === 'battlefield') continue;
+      const base = { cardId: card.id, playerId: player.id, card, index: drawn.findIndex((c) => c.id === card.id) };
       const hiddenHand = to === 'gone' ? intoHidden(player.id) : null;
       if (hiddenHand !== null) out.push({ ...base, to: 'hand', toPlayerId: hiddenHand });
       else out.push({ ...base, to, toPlayerId: playerId ?? player.id });
-    });
+    }
   }
   return out;
+}
+
+/**
+ * A battlefield's cards with the ones still drawn leaving put back where they were — each at its
+ * `index`, and holding nothing: whatever was attached to it is a permanent of its own now. Put back
+ * lowest index first, every index being a place in the one list they were all drawn in, so the list
+ * comes back as it was drawn.
+ */
+export function withLeaving(cards: readonly BoardCard[], leaving: readonly Departure[]): readonly BoardCard[] {
+  if (leaving.length === 0) return cards;
+  const out = [...cards];
+  for (const d of [...leaving].sort((a, b) => a.index - b.index)) {
+    if (out.some((c) => c.id === d.cardId)) continue;
+    out.splice(Math.min(d.index, out.length), 0, { ...d.card, attachedCardIds: [] });
+  }
+  return out;
+}
+
+/** The departures still leaving once `gone`'s place has closed: each after it on its battlefield one place nearer the front. */
+export function closeUp<T extends Departure>(rest: readonly T[], gone: Departure): T[] {
+  return rest.map((d) => (d.playerId === gone.playerId && d.index > gone.index ? { ...d, index: d.index - 1 } : d));
 }
 
 /* ── the DOM ─────────────────────────────────────────────────────────── */
@@ -290,7 +319,7 @@ export const LEAVING_GAP_ATTR = 'data-leaving-gap';
 /** On the copy drawn leaving: the departed card's id, so a hit in flight can aim at it. */
 export const DEPARTURE_ATTR = 'data-departure';
 
-/** How long a departure may keep its place at most, should its beat never come. */
+/** How long a departure may keep its place at most, should its beat never come: one this module has a beat for keeps it until then (`holds`). */
 export const DEPARTURE_MAX_MS = 4000;
 
 export interface DeparturesHost {
@@ -317,6 +346,14 @@ export interface DeparturesHandle {
   capture(): void;
   /** The gaps where a commit's departures' cards were: start each one's exit `delayMs` from now. One call per commit, so every box is read before anything is drawn. */
   leave(batch: readonly { departure: Departure; delayMs: number }[]): void;
+  /**
+   * The hit that killed `cardId` has landed: its exit starts now, if it has not yet. Its `delayMs` is when
+   * that hit was due; the hit's own drawing runs on its own timers, which a busy page runs late, and a death
+   * drawn before its blow is the operator's 11b ("did their death animation immediately before being hit").
+   */
+  strike(cardId: number): void;
+  /** Whether `cardId`'s exit is still to come or still playing: its place is kept until `onDone`, however late its hit lands. */
+  holds(cardId: number): boolean;
   dispose(): void;
 }
 
@@ -382,7 +419,26 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
   let pending: { count: number; copyDx: number; copyDy: number } | null = null;
   const timers = new Set<ReturnType<typeof setTimeout>>();
   const standIns = new Set<HTMLElement>();
+  /** The cards whose exit is scheduled and not yet over. */
+  const held = new Set<number>();
   let live = true;
+
+  /** Each card's exit still to start: run at its beat, or sooner by `strike`, once. */
+  const beats = new Map<number, () => void>();
+
+  function beatOf(cardId: number, go: () => void, delayMs: number): void {
+    beats.set(cardId, go);
+    schedule(() => {
+      if (beats.get(cardId) !== go) return;
+      beats.delete(cardId);
+      go();
+    }, delayMs);
+  }
+
+  function done(cardId: number): void {
+    held.delete(cardId);
+    host.onDone(cardId);
+  }
 
   function schedule(fn: () => void, ms: number): void {
     const t = setTimeout(() => {
@@ -519,19 +575,26 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
       for (const { departure, delayMs } of batch) {
         const gap = canvas.querySelector<HTMLElement>(`[${LEAVING_GAP_ATTR}="${departure.cardId}"]`);
         const from = drawn.get(departure.cardId);
+        held.add(departure.cardId);
         if (still || gap === null || from === undefined) {
-          schedule(() => host.onDone(departure.cardId), delayMs);
+          beatOf(departure.cardId, () => done(departure.cardId), delayMs);
           continue;
         }
         const motion = exitMotionFor(departure);
-        const at = gap.getBoundingClientRect();
+        const place = gap.getBoundingClientRect();
         const was = boxes.get(departure.cardId);
         pending ??= { count: 0, copyDx: 0, copyDy: 0 };
         pending.count += 1;
         if (was !== undefined) {
-          pending.copyDx = Math.max(pending.copyDx, Math.abs(at.left - was.left));
-          pending.copyDy = Math.max(pending.copyDy, Math.abs(at.top - was.top));
+          pending.copyDx = Math.max(pending.copyDx, Math.abs(place.left - was.left));
+          pending.copyDy = Math.max(pending.copyDy, Math.abs(place.top - was.top));
         }
+        /*
+         * Where the card was drawn in the frame before, at its place's size: its row may have been gliding
+         * as a card beside it closed up (measured: 62–186 px off its gap, a wipe's later deaths, whose
+         * stand-ins were drawn over the earlier ones' — the operator's "two creatures instantly disappeared").
+         */
+        const at = was === undefined ? place : new DOMRect(was.left, was.top, place.width, place.height);
         const landing = travels(motion) ? handLanding(canvas, departure, taken) : null;
         if (landing !== null) taken.add(landing);
         plans.push({ departure, delayMs, from, at, motion, landing, to: landing?.getBoundingClientRect() ?? null });
@@ -560,21 +623,35 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
         // Only a card or a back is hidden while it is flown to — never a whole hand.
         const hides = landing !== null && landing.getAttribute('data-zone') === null;
         if (hides) landing.setAttribute(LANDING_ATTR, '');
-        schedule(() => {
-          // Aimed again at its beat: the hand may have laid itself out anew since the card left.
-          if (landing?.isConnected === true) aim(wrap, at, landing.getBoundingClientRect());
-          wrap.setAttribute('data-exit-go', '');
-        }, delayMs);
-        schedule(() => {
-          if (hides) landing.removeAttribute(LANDING_ATTR);
-          wrap.remove();
-          standIns.delete(wrap);
-          host.onDone(departure.cardId);
-        }, delayMs + EXIT_MOTIONS[motion].ms);
+        beatOf(
+          departure.cardId,
+          () => {
+            // Aimed again at its beat: the hand may have laid itself out anew since the card left.
+            if (landing?.isConnected === true) aim(wrap, at, landing.getBoundingClientRect());
+            wrap.setAttribute('data-exit-go', '');
+            schedule(() => {
+              if (hides) landing.removeAttribute(LANDING_ATTR);
+              wrap.remove();
+              standIns.delete(wrap);
+              done(departure.cardId);
+            }, EXIT_MOTIONS[motion].ms);
+          },
+          delayMs,
+        );
       });
+    },
+    strike(cardId) {
+      const go = beats.get(cardId);
+      beats.delete(cardId);
+      go?.();
+    },
+    holds(cardId) {
+      return held.has(cardId);
     },
     dispose() {
       live = false;
+      held.clear();
+      beats.clear();
       for (const t of timers) clearTimeout(t);
       timers.clear();
       for (const el of standIns) el.remove();

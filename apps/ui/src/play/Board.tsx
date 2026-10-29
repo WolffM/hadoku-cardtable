@@ -422,7 +422,7 @@ import { installNumbers, type Revealed } from './live/numbers.ts';
 import { addWork } from './live/work-meter.ts';
 import { pinFlight } from './flight.ts';
 import { installPlaced } from './live/placed.ts';
-import { DEPARTURE_MAX_MS, departuresOf, installDepartures, LEAVING_GAP_ATTR, type Departure } from './live/departures.ts';
+import { closeUp, DEPARTURE_MAX_MS, departuresOf, installDepartures, LEAVING_GAP_ATTR, withLeaving, type Departure } from './live/departures.ts';
 import { AbilityChip } from './live/AbilityChip.tsx';
 import { HiddenCard } from './HiddenCard.tsx';
 import { PileView } from './PileView.tsx';
@@ -3075,6 +3075,24 @@ function ZoneShell({
  */
 const NOTHING_LEAVING: readonly Departure[] = [];
 
+/** How often a departure past `DEPARTURE_MAX_MS` whose exit is still to come is looked at again. */
+const DEPARTURE_RECHECK_MS = 250;
+
+/** A permanent drawn leaving, and when it started to. */
+interface Leaving {
+  readonly departure: Departure;
+  readonly at: number;
+}
+
+/** The cards still drawn leaving once `cardId`'s place has closed, each after it one place nearer the front of its row (`closeUp`). */
+function placeClosed(leaving: ReadonlyMap<number, Leaving>, cardId: number): ReadonlyMap<number, Leaving> {
+  const gone = leaving.get(cardId);
+  if (gone === undefined) return leaving;
+  const rest = [...leaving.values()].filter((l) => l.departure.cardId !== cardId);
+  const moved = closeUp(rest.map((l) => l.departure), gone.departure);
+  return new Map(rest.map((l, i) => [l.departure.cardId, { ...l, departure: moved[i]! }]));
+}
+
 const NOTHING_HELD: ReadonlySet<number> = new Set();
 
 const NOTHING_FOREIGN: readonly BoardCard[] = [];
@@ -3082,20 +3100,6 @@ const NOTHING_FOREIGN: readonly BoardCard[] = [];
 /** A pile less the cards still on their way to it. */
 function unheld(cards: readonly BoardCard[], held: ReadonlySet<number>): readonly BoardCard[] {
   return held.size === 0 || !cards.some((c) => held.has(c.id)) ? cards : cards.filter((c) => !held.has(c.id));
-}
-
-/**
- * A battlefield's cards with the ones still drawn leaving put back where they were — each at its
- * old index, and holding nothing: whatever was attached to it is a permanent of its own now.
- */
-function withLeaving(cards: readonly BoardCard[], leaving: readonly Departure[]): readonly BoardCard[] {
-  if (leaving.length === 0) return cards;
-  const out = [...cards];
-  for (const d of [...leaving].sort((a, b) => a.index - b.index)) {
-    if (out.some((c) => c.id === d.cardId)) continue;
-    out.splice(Math.min(d.index, out.length), 0, { ...d.card, attachedCardIds: [] });
-  }
-  return out;
 }
 
 function Battlefield({
@@ -4333,39 +4337,40 @@ export function Board({
    * `placed` reads below), and `departures` is told what each card looked like only after.
    */
   const departures = useRef<ReturnType<typeof installDepartures> | null>(null);
-  const [shown, setShown] = useState<{ view: BoardView; leaving: ReadonlyMap<number, { departure: Departure; at: number }> }>(() => ({
+  const [shown, setShown] = useState<{ view: BoardView; leaving: ReadonlyMap<number, Leaving> }>(() => ({
     view,
     leaving: new Map(),
   }));
   let leaving = shown.leaving;
   if (shown.view !== view) {
-    const next = new Map(leaving);
-    for (const id of next.keys()) if (view.players.some((p) => p.battlefield.some((c) => c.id === id))) next.delete(id);
-    const gone = fastMode ? [] : departuresOf(shown.view, view);
-    for (const departure of gone) next.set(departure.cardId, { departure, at: Date.now() });
+    let next: ReadonlyMap<number, Leaving> = leaving;
+    for (const id of leaving.keys()) if (view.players.some((p) => p.battlefield.some((c) => c.id === id))) next = placeClosed(next, id);
+    // Indexed as the battlefield is drawn, with the places still kept: a wipe Forge sends in two views keeps every gap where its card stood.
+    const gone = fastMode ? [] : departuresOf(shown.view, view, [...next.values()].map((l) => l.departure));
+    if (gone.length > 0) next = new Map([...next, ...gone.map((departure) => [departure.cardId, { departure, at: Date.now() }] as const)]);
     // Read here, while the DOM is still the last commit's: the one commit that draws a departure reads boxes.
     if (gone.length > 0) departures.current?.capture();
     leaving = next;
     setShown({ view, leaving: next });
   }
   const departed = useCallback((cardId: number) => {
-    setShown((s) => {
-      if (!s.leaving.has(cardId)) return s;
-      const next = new Map(s.leaving);
-      next.delete(cardId);
-      return { ...s, leaving: next };
-    });
+    setShown((s) => (s.leaving.has(cardId) ? { ...s, leaving: placeClosed(s.leaving, cardId) } : s));
   }, []);
-  // A departure whose beat never came — nothing drew it — gives its place back all the same.
+  // A departure whose beat never came — nothing drew it — gives its place back all the same; one still to be drawn keeps it (`holds`).
   useEffect(() => {
     if (leaving.size === 0) return undefined;
-    const oldest = Math.min(...[...leaving.values()].map((l) => l.at));
-    const timer = setTimeout(
-      () => {
-        for (const [id, l] of leaving) if (Date.now() - l.at >= DEPARTURE_MAX_MS) departed(id);
-      },
-      Math.max(0, oldest + DEPARTURE_MAX_MS - Date.now()),
-    );
+    let timer: ReturnType<typeof setTimeout>;
+    const check = (): void => {
+      let next = Infinity;
+      for (const [id, l] of leaving) {
+        const left = l.at + DEPARTURE_MAX_MS - Date.now();
+        if (left > 0) next = Math.min(next, left);
+        else if (departures.current?.holds(id) === true) next = Math.min(next, DEPARTURE_RECHECK_MS);
+        else departed(id);
+      }
+      if (next !== Infinity) timer = setTimeout(check, next);
+    };
+    timer = setTimeout(check, Math.max(0, Math.min(...[...leaving.values()].map((l) => l.at)) + DEPARTURE_MAX_MS - Date.now()));
     return () => clearTimeout(timer);
   }, [leaving, departed]);
   const leavingOn = (playerId: number): readonly Departure[] => {
@@ -4403,6 +4408,7 @@ export function Board({
       report: (data) => reportEffect.current?.(data),
       fastMode: () => fastNow.current,
       leave: (batch) => departures.current?.leave(batch),
+      strike: (cardId) => departures.current?.strike(cardId),
     });
     numbers.current = handle;
     return () => {
