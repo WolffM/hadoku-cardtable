@@ -34,9 +34,12 @@ import {
   STACK_SETTLE_ATTR,
   SHIMMER_MS,
   scatter,
+  settleStack,
   stackBoxOf,
   CHIP_DWELL_MS,
   squareWidth,
+  STACK_GAP,
+  STACK_MIN_SCALE,
 } from './placed.ts';
 
 /* ── fixtures ──────────────────────────────────────────────────────────── */
@@ -930,6 +933,41 @@ describe('installPlaced: a cast trigger (the operator’s Emrakul, 2026-10-28)',
     handle.dispose();
   });
 
+  it('a trigger still waiting to go on the stack makes room for the spell, never the spell for it', () => {
+    const { canvas } = board();
+    setChainHalted(true);
+    placeSpell(301, { x: 400, y: 300 }, 'you');
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(9, { sourceCardId: 301 })]));
+    for (const el of canvas.querySelectorAll<HTMLElement>('[data-placed-spell]')) Object.defineProperties(el, { offsetWidth: { value: 116 }, offsetHeight: { value: 161 } });
+    const waiting = { ...stackItem(-4, { sourceCardId: 301, isAbility: true }), pending: true as const };
+    handle.notify({ ...view([stackItem(9, { sourceCardId: 301 })]), pendingTriggers: [waiting] });
+    // Laid out: the spell where it was let go, the chip its own card's size (beside it, 6 px off — inside the stack's gap).
+    for (const el of canvas.querySelectorAll<HTMLElement>('[data-placed-spell]')) {
+      if (el.offsetWidth === 0) Object.defineProperties(el, { offsetWidth: { value: 116 }, offsetHeight: { value: 161 } });
+      el.getBoundingClientRect = () => rect({ left: 342, top: 220, width: 116, height: 161 });
+    }
+    handle.notify({ ...view([stackItem(9, { sourceCardId: 301 })]), pendingTriggers: [waiting] });
+    const spell = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    expect(spell.style.left, 'the spell keeps its release').toBe('400px');
+    expect(spell.style.top).toBe('300px');
+    handle.dispose();
+  });
+
+  it('a card shown for the first time is drawn in place — never slid in from where it waited hidden', () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    handle.notify(view([stackItem(5, { sourceCardId: 48 })]));
+    const el = canvas.querySelector<HTMLElement>('[data-placed-spell="5"]')!;
+    expect(el.hasAttribute('data-placed-held'), 'hidden: no slide').toBe(true);
+    placeSpell(48, { x: 400, y: 320 }, 'them');
+    expect(el.hasAttribute('data-placed-pending')).toBe(false);
+    expect(el.hasAttribute('data-placed-held'), 'first shown: in place').toBe(true);
+    handle.notify(view([stackItem(5, { sourceCardId: 48 })]));
+    expect(el.hasAttribute('data-placed-held'), 'from then on it may slide to its room').toBe(false);
+    handle.dispose();
+  });
+
   it('a chip that was seen stays its `CHIP_DWELL_MS` however soon it resolved, then goes', () => {
     vi.useFakeTimers();
     const { canvas } = board();
@@ -1204,3 +1242,60 @@ describe('installPlaced: layout reads per commit', () => {
   });
 });
 
+describe('settleStack: the stack makes room (the operator, 2026-10-28)', () => {
+  const board = { left: 0, top: 0, right: 1600, bottom: 1000 };
+  const card = { width: 116, height: 161 };
+  /** The largest share of one card another covers, gap or no gap. */
+  const worstOverlap = (at: readonly { x: number; y: number }[], w: number, h: number): number => {
+    let worst = 0;
+    for (let i = 0; i < at.length; i++) {
+      for (let j = i + 1; j < at.length; j++) {
+        const ox = Math.max(0, w - Math.abs(at[i]!.x - at[j]!.x));
+        const oy = Math.max(0, h - Math.abs(at[i]!.y - at[j]!.y));
+        worst = Math.max(worst, (ox * oy) / (w * h));
+      }
+    }
+    return worst;
+  };
+  const inside = (at: readonly { x: number; y: number }[], w: number, h: number): boolean =>
+    at.every((p) => p.x - w / 2 >= board.left && p.x + w / 2 <= board.right && p.y - h / 2 >= board.top && p.y + h / 2 <= board.bottom);
+
+  it.each([2, 6, 12])('%i cards released at one point all stand whole, at full size, apart by the gap', (n) => {
+    const { at, scale } = settleStack(Array.from({ length: n }, () => ({ want: { x: 800, y: 420 }, ...card })), board);
+    expect(scale).toBe(1);
+    expect(worstOverlap(at, card.width + STACK_GAP - 1, card.height + STACK_GAP - 1)).toBe(0);
+    expect(inside(at, card.width, card.height)).toBe(true);
+  });
+
+  it('a stack too deep for the table shrinks only as far as it must, and every card is whole', () => {
+    const { at, scale } = settleStack(Array.from({ length: 70 }, () => ({ want: { x: 800, y: 420 }, ...card })), board);
+    expect(scale).toBeGreaterThanOrEqual(STACK_MIN_SCALE);
+    expect(scale).toBeLessThan(1);
+    expect(worstOverlap(at, card.width * scale, card.height * scale)).toBe(0);
+    expect(inside(at, card.width * scale, card.height * scale)).toBe(true);
+  });
+
+  it('25 cards stand whole on a desktop table (its battlefields, 1600 × 640), shrunk to fit', () => {
+    const table = { left: 0, top: 180, right: 1600, bottom: 820 };
+    const { at, scale } = settleStack(Array.from({ length: 25 }, () => ({ want: { x: 800, y: 500 }, ...card })), table);
+    expect(scale).toBeGreaterThanOrEqual(STACK_MIN_SCALE);
+    expect(worstOverlap(at, card.width * scale, card.height * scale)).toBe(0);
+    expect(at.every((p) => p.y - (card.height * scale) / 2 >= table.top && p.y + (card.height * scale) / 2 <= table.bottom)).toBe(true);
+  });
+
+  it('a pinned card stands exactly where it asked; the others make room round it', () => {
+    const { at } = settleStack([{ want: { x: 800, y: 420 }, ...card, pinned: true }, { want: { x: 800, y: 420 }, ...card }], board);
+    expect(at[0]).toEqual({ x: 800, y: 420 });
+    expect(worstOverlap(at, card.width, card.height)).toBe(0);
+  });
+
+  it('cards already clear of each other stay where they asked', () => {
+    const asks = [{ want: { x: 300, y: 300 }, ...card }, { want: { x: 900, y: 600 }, ...card }];
+    expect(settleStack(asks, board).at).toEqual(asks.map((a) => a.want));
+  });
+
+  it('the same asks always settle the same way', () => {
+    const asks = Array.from({ length: 9 }, (_, i) => ({ want: { x: 700 + (i % 3) * 20, y: 400 }, ...card }));
+    expect(settleStack(asks, board)).toEqual(settleStack(asks, board));
+  });
+});

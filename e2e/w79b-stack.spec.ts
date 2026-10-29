@@ -7,7 +7,9 @@
  *
  * Scenario `w79b-counterwar`: six spells, each but the first aimed at the one below, every one released
  * at the SAME point of its caster's battlefield — the trailer's own gesture (`e2e/promo/drive.ts`'s
- * `cast`). With all six on the stack, on both screens: every stack item is a face (never a back).
+ * `cast`). With all six on the stack, on both screens: every stack item is a face (never a back), no
+ * item's box is covered by another's beyond a small margin, and every spell aimed at another has an
+ * arrow drawn between them.
  */
 import { expect, test, type Page } from '@playwright/test';
 
@@ -28,6 +30,10 @@ async function serveArt(page: Page): Promise<void> {
   });
 }
 
+/** How much of a stack card another may cover: its corner, never its face. */
+const OVERLAP_MAX = 0.04;
+/** How much of an arrow must be in sight, not under a stack card: enough to see which way it points. */
+const ARROW_SEEN_MIN = 24;
 
 type Item = { id: string; label: string; x: number; y: number; w: number; h: number; back: boolean };
 type Arrow = { for: string; key: string; length: number };
@@ -62,6 +68,11 @@ async function readStack(page: Page): Promise<{ items: Item[]; arrows: Arrow[] }
   });
 }
 
+const overlap = (a: Item, b: Item): number => {
+  const w = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+  const h = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+  return (w * h) / Math.min(a.w * a.h, b.w * b.h);
+};
 
 /** Release `name` over `seat`'s own battlefield at the trailer's one point. */
 async function release(seat: Page, name: string): Promise<void> {
@@ -123,7 +134,7 @@ async function respond(seat: Page, other: Page, name: string, target: string | n
     .toBe(true);
 }
 
-test(titled('a six-deep counter war, every spell let go at one point: every stack card is face up — on both screens'), async ({ browser }) => {
+test(titled('a six-deep counter war: every stack card face up, whole and clear of the others, with an arrow per aimed spell — on both screens'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(5 * 60_000);
@@ -152,6 +163,16 @@ test(titled('a six-deep counter war, every spell let go at one point: every stac
       console.log(`[w79b-stack] ${who} arrows: ${arrows.map((a) => `${a.key} ${Math.round(a.length)}px seen`).join(' | ')}`);
       expect.soft(items.length, `${who}: six stack cards drawn`).toBe(6);
       expect.soft(items.filter((i) => i.back).map((i) => i.label), `${who}: no stack card is a back`).toEqual([]);
+      const covered: string[] = [];
+      for (let a = 0; a < items.length; a++) {
+        for (let b = a + 1; b < items.length; b++) {
+          const o = overlap(items[a]!, items[b]!);
+          if (o > OVERLAP_MAX) covered.push(`${items[a]!.label.split(' → ')[0]} × ${items[b]!.label.split(' → ')[0]}: ${Math.round(o * 100)}%`);
+        }
+      }
+      expect.soft(covered, `${who}: no stack card covers another beyond ${OVERLAP_MAX * 100}%`).toEqual([]);
+      const aimed = arrows.filter((a) => a.key.includes(':stack:') && a.length >= ARROW_SEEN_MIN);
+      expect.soft(aimed.length, `${who}: an arrow, at least ${ARROW_SEEN_MIN} px of it in sight, from each of the five aimed spells`).toBe(5);
     }
   } finally {
     await stack.stop();
