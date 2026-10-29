@@ -192,7 +192,7 @@ it. PR-5 is new and exists to serve it.
 
 | lane | worktree / branch | status | evidence |
 | --- | --- | --- | --- |
-| replays: fold-based player, both hands, preload + cache, real e2e | `.claude/worktrees/w81` / `w81` | dispatched; artifact gate | — |
+| replays: fold-based player, both hands, preload + cache, real e2e; part 2 the 540 active-player corner, flip every turn, recorded cursor, default + temporary capture regions | removed | **landed + verified**: part 1 `31c45cd40` `9a34ac8be` (AF450), part 2 `c4d84e1b4` (AF452), test fix `18291bcfc`; PPE `e909f4a8` 19:16Z; both approved by the operator | cause: per-pixel scrubber seeks forced 4 resyncs → MAX_RESYNCS guard; red 40833802381 → green 40833919696; part 2 claw 40934598527 ✓, w81-replay ×3 40939877046 ✓ after a test-only flip-read fix (tracker re-read). Old v1 recordings not offered; cursor values from e2e timings (no prod recording has one yet). Note `~/.cache/cardtable-manager/w81-closing.md` |
 
 ## Wave 80 (steady glow) dispatched as three single sessions (2026-10-28)
 
