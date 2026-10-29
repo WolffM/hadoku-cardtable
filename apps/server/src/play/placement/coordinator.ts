@@ -464,7 +464,12 @@ export function placement(opts: PlacementOptions): Placement {
 
 	/** Ask fleet-manager for this poll's count of slices. */
 	async function askSlices(): Promise<void> {
-		const declared = claws().filter((h) => h.fleet?.hosting != null);
+		// A slice the converger is already ending is on its way out at our own asking: it is neither
+		// serving nor broken, so it never counts as usable nor gets a replacement. Counting its end
+		// notice as "unusable" asked for a replacement 10 min after asking to release it (2026-10-28
+		// 23:33 → 23:47), and the converger ended claw-9 and declared claw-5 instead.
+		const ending = new Set(converger?.ending ?? []);
+		const declared = claws().filter((h) => h.fleet?.hosting != null && !ending.has(h.name));
 		for (const h of declared) {
 			if (usable(h)) h.unusableSince = null;
 			else h.unusableSince ??= now();

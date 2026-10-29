@@ -160,7 +160,7 @@ interface Rig {
 	fleetDown: { on: boolean };
 	/** Every `hosting-demand` asked, and whether the converger answers as `placement.auto`. */
 	demands: { slices: number; releaseOrder: readonly string[] }[];
-	converger: { auto: boolean };
+	converger: { auto: boolean; ending: string[] };
 	posted: string[];
 	logs: Record<string, unknown>[];
 	backstopJvms: ScriptedJvm[];
@@ -187,12 +187,12 @@ async function rig(nodes: FleetNode[], opts: { forceFile?: string; takenBack?: R
 	const logs: Record<string, unknown>[] = [];
 	const sink: AlertSink = { post: (text) => (posted.push(text), Promise.resolve()) };
 	const demands: Rig['demands'] = [];
-	const converger = { auto: true };
+	const converger = { auto: true, ending: [] as string[] };
 	const fleet: FleetSource = {
 		status: () => Promise.resolve(fleetDown.on ? null : ({ at: clock.t, nodes } satisfies FleetStatus)),
 		demand: (slices, releaseOrder) => {
 			demands.push({ slices, releaseOrder });
-			const answer: FleetDemand = { auto: converger.auto, live: converger.auto, declared: nodes.filter((n) => n.hosting !== null).map((n) => n.node), ending: [], actions: [], blocked: [] };
+			const answer: FleetDemand = { auto: converger.auto, live: converger.auto, declared: nodes.filter((n) => n.hosting !== null).map((n) => n.node), ending: [...converger.ending], actions: [], blocked: [] };
 			return Promise.resolve(answer);
 		},
 	};
@@ -497,6 +497,24 @@ describe('slice demand', () => {
 		r.fleetDown.on = true;
 		await r.p.poll();
 		expect(r.demands).toHaveLength(asked);
+	});
+
+	it('a slice the converger is ending at our asking is never replaced: idle, released to 1, still 1 past the replace window', async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
+		expect(r.demands.at(-1)?.slices).toBe(2);
+		r.clock.t += DEMAND_CALM_MS;
+		await r.p.poll();
+		expect(r.demands.at(-1)).toEqual({ slices: 1, releaseOrder: ['claw-9', 'claw-8'] });
+		// The converger ends claw-9 with our notice: its end shows as a hosting notice, and in `ending`.
+		r.converger.ending = ['claw-9'];
+		const end = new Date(r.clock.t + 15 * 60_000).toISOString();
+		r.nodes[0] = fleetNode('claw-9', { notices: [{ event: 'ends', at: end, kind: 'hosting' }] });
+		await r.p.poll();
+		r.clock.t += REPLACE_AFTER_MS + 60_000;
+		await r.p.poll();
+		await r.p.poll();
+		expect(r.demands.slice(-3).map((d) => d.slices)).toEqual([1, 1, 1]);
+		expect(r.demands.at(-1)?.releaseOrder).toEqual(['claw-8']);
 	});
 
 	it('a dry-run converger: the Capacity alert says declaring is the operator\'s call', async () => {

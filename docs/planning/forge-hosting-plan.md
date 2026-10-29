@@ -282,7 +282,7 @@ Only what ruling 2 allows; it goes to them as a request in `docs/requests/`:
   cardtable --slices N --release-order …` for `rules.ts` `demandStep`'s count.
   It asks for the next slice past 70% of the usable ones (capped at what
   `MAX_CONCURRENT_MATCHES` needs), and for a replacement for a claw unusable for
-  10 min. It asks for fewer only after 30 min calm. It ends unusable claws
+  10 min. It asks for fewer only after 2 h calm, and a slice it is already ending is never replaced. It ends unusable claws
   first, then the emptiest, then the slowest. The converger declares and ends
   slices through `fleet hosting` with our `noticeMin`, so a planned move takes
   what is still on one. It acts only after the operator registers the request

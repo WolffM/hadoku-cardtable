@@ -214,8 +214,12 @@ export function readForce(file: string, now: number): { until: number } | null {
 export const SCALE_UP_AT = 0.7;
 /** A declared claw unusable this long is replaced, so one failed claw does not cost a slice. */
 export const REPLACE_AFTER_MS = 10 * 60_000;
-/** The count drops only after asking for fewer this long without a break (the calm spell). */
-export const DEMAND_CALM_MS = 30 * 60_000;
+/**
+ * The count drops only after asking for fewer this long without a break (the calm spell). Each
+ * release costs the converger a `noticeMin` end (15 min), so a spell much shorter than a quiet
+ * evening pays notice cycles for nothing.
+ */
+export const DEMAND_CALM_MS = 2 * 60 * 60_000;
 /** `hosting.json`'s `slices.min..max`. */
 export const MIN_SLICES = 1;
 export const MAX_SLICES = 4;
