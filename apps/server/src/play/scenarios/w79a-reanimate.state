@@ -1,0 +1,16 @@
+# W79 lane A, one arrival path: a reanimated creature arrives the same way a cast one does. Seat 0 casts
+# Reanimate on Griselbrand, the one creature in its graveyard, into a table with cards on both sides.
+# `e2e/w79a-arrival.spec.ts` samples every frame of Griselbrand's arrival on both screens.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Reanimate
+humanbattlefield=Swamp;Island;Baleful Strix
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+humangraveyard=Griselbrand
+aihand=
+aibattlefield=Grizzly Bears;Forest;Plains
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
