@@ -11,7 +11,8 @@
  * Each new flip sounds Coin flip, which falls back to the toss's coin (`onFlip`, quieter for the other seat's, as their sounds
  * are) and is a beat of the board (`../motion.ts`'s `noteBoardDrawing`): the pacer holds every
  * frame after it, the seat's own and in Fast Mode too, until the coin has landed (`./pace.ts`'s
- * `inTheAir`, as for a die). Reduced motion lands the coin at once and holds nothing.
+ * `inTheAir`, as for a die), let go at `UNLOCK_AT` of the flip as every beat is. Reduced motion lands the coin
+ * at once and holds nothing.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -49,7 +50,8 @@ export function CoinFlips({ flips, viewer, onFlip }: { flips: readonly ShownFlip
       const left = FLIP_MS - (started - flip.at);
       if (left <= 0) continue;
       onFlip(flip);
-      if (!prefersReducedMotion()) noteBoardDrawing(new Promise((landed) => setTimeout(landed, left)));
+      // The pacer lets go `UNLOCK_AT` through the flip, the coin all but still; it lands under what comes next.
+      if (!prefersReducedMotion()) noteBoardDrawing(new Promise((landed) => setTimeout(landed, left)), { endsInMs: left });
     }
   }, [flips]);
   // Redrawn as the oldest coin on the table runs out, so it goes.

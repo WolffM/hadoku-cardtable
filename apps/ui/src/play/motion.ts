@@ -164,34 +164,88 @@ export const BEAT_STAGGER_MS = 120;
 /** Between two bolts of one resolution: each slam, and the death it causes, on its own. */
 export const BOLT_STAGGER_MS = 300;
 
+/**
+ * How far through its beats the board is when what waits on them may go (the operator, 2026-10-28: "let's
+ * "unlock" the game state when it's waiting on the last ~10% of an animation"). The pacer's every wait on the
+ * board's beats ends here ({@link whenBoardUnlocked}) — a view's beats (`live/numbers.ts`), a die or a coin in
+ * the air (`live/dice.ts`, `live/coin-flip.tsx`, `live/pace.ts`), the running animations
+ * ({@link animationsSettled}) — while the beat itself still plays to its end, under whatever is drawn next.
+ */
+export const UNLOCK_AT = 0.9;
+
+/** When a beat `ms` long lets go of what waits on it: {@link UNLOCK_AT} of the way through. */
+export function unlockAfter(ms: number): number {
+  return Math.round(ms * UNLOCK_AT);
+}
+
 /*
  * What the board is drawing now, for what must wait until it is over (the operator, 2026-10-15: "the
  * game-loss trigger should also only happen after the fireball actually hits"; 2026-10-17: "the final
  * creature doesn't even get to attack because the game ends immediately"): the game's end is the last
- * beat — its result screen and its sound come once every beat drawn before it has played out.
+ * beat — its result screen and its sound come once every beat drawn before it has played out
+ * ({@link whenBoardStill}). The pacer's frames go sooner, at each beat's {@link UNLOCK_AT}
+ * ({@link whenBoardUnlocked}): a bolt's view ends as it hits, so its 90% is still in the air.
  */
 const drawing = new Set<Promise<void>>();
+const locked = new Set<Promise<void>>();
 const stillWaiters = new Set<() => void>();
+const unlockWaiters = new Set<() => void>();
 
 /** When a view last began drawing beats (epoch ms), for a held frame's report. */
 let lastBeatAt: number | null = null;
 
-/** `live/numbers.ts` is drawing a view's beats: the board is busy until `over` settles. */
-export function noteBoardDrawing(over: Promise<unknown>): void {
-  lastBeatAt = Date.now();
-  const settled = over.then(
-    () => undefined,
-    () => undefined,
-  );
-  drawing.add(settled);
-  void settled.then(() => {
-    drawing.delete(settled);
-    if (drawing.size > 0) return;
-    for (const wake of [...stillWaiters]) {
-      stillWaiters.delete(wake);
+/** How long a drawing on the board is meant to last, so what waits on it can go at its {@link UNLOCK_AT}. */
+export interface Unlocks {
+  /** From now until its last beat is meant to be over. */
+  endsInMs: number;
+  /** Where its beats run: each still running there once that point has come is waited for to its own {@link UNLOCK_AT}. */
+  root?: Element;
+}
+
+function hold(set: Set<Promise<void>>, waiters: Set<() => void>, until: Promise<void>): void {
+  set.add(until);
+  void until.then(() => {
+    set.delete(until);
+    if (set.size > 0) return;
+    for (const wake of [...waiters]) {
+      waiters.delete(wake);
       wake();
     }
   });
+}
+
+function whenEmpty(set: Set<Promise<void>>, waiters: Set<() => void>, done: () => void): () => void {
+  if (set.size === 0) {
+    done();
+    return () => undefined;
+  }
+  waiters.add(done);
+  return () => {
+    waiters.delete(done);
+  };
+}
+
+/**
+ * `live/numbers.ts` is drawing a view's beats (or `live/dice.ts` a roll, `live/coin-flip.tsx` a coin): the board
+ * is busy until `over` settles, and locked until `unlocks` says it is {@link UNLOCK_AT} through — or `over`
+ * settles first. Without `unlocks` it is locked until `over`.
+ */
+export function noteBoardDrawing(over: Promise<unknown>, unlocks?: Unlocks): void {
+  lastBeatAt = Date.now();
+  let done = false;
+  const settled = over.then(
+    () => void (done = true),
+    () => void (done = true),
+  );
+  hold(drawing, stillWaiters, settled);
+  if (unlocks === undefined) return hold(locked, unlockWaiters, settled);
+  const unlocked = new Promise<void>((at) => {
+    setTimeout(() => {
+      if (done || unlocks.root === undefined) return at();
+      void animationsSettled(unlocks.root, UNLOCK_AT).then(at);
+    }, unlockAfter(unlocks.endsInMs));
+  });
+  hold(locked, unlockWaiters, Promise.race([settled, unlocked]));
 }
 
 /** How many views' beats the board is drawing now: the frame rate's reports read it (`live/frame-watch.ts`). */
@@ -212,14 +266,12 @@ export function boardHold(): BoardHold {
 
 /** Runs `done` once nothing the board is drawing is still playing — at once when it is still. Returns a cancel. */
 export function whenBoardStill(done: () => void): () => void {
-  if (drawing.size === 0) {
-    done();
-    return () => undefined;
-  }
-  stillWaiters.add(done);
-  return () => {
-    stillWaiters.delete(done);
-  };
+  return whenEmpty(drawing, stillWaiters, done);
+}
+
+/** Runs `done` once everything the board is drawing is {@link UNLOCK_AT} through — at once when it is. Returns a cancel. The pacer's wait (`live/pace.ts`). */
+export function whenBoardUnlocked(done: () => void): () => void {
+  return whenEmpty(locked, unlockWaiters, done);
 }
 
 /**
@@ -256,24 +308,43 @@ export function boardWaitingOn(): string {
   return [...counts].map(([name, n]) => `${name}×${n}`).join(' ');
 }
 
+/** How long (ms) until a running beat is `through` of the way through (1: over), at its own playback rate: 0 once it is. */
+function untilThrough(a: Animation, through: number): number {
+  const end = Number(a.effect?.getComputedTiming().endTime ?? 0);
+  const at = Number(a.currentTime ?? 0);
+  return Math.max(0, (through * end - at) / (Math.abs(a.playbackRate) || 1));
+}
+
 /**
- * Settles once every finite BEAT running on `root` and inside it has finished — a ram, a crash, a crumble, a
- * floating number — looking again after each round, since one may start another. Anything else the board is
+ * Settles once every finite BEAT running on `root` and inside it is `through` of the way through — over, or
+ * {@link UNLOCK_AT} for the pacer — a ram, a crash, a crumble, a floating number — looking again after each
+ * round, since one may start another. The beat plays on to its end either way. Anything else the board is
  * animating is not a beat and is not waited for: an endless one (a pulse, a shimmer), and a finite one that is
- * no beat (the turn's banner, the stack settling, a glide). Waiting on those held the next frame, and the
- * decision behind it, until the pacer's cap with nothing left to draw (the operator, 2026-10-23, of the holds
- * that idled past their last beat: "fix stray holds").
+ * no beat (the turn's banner, the stack settling, a glide). Waiting on those held the next frame, and the decision behind it, until the pacer's
+ * cap with nothing left to draw (the operator, 2026-10-23, of the holds that idled past their last beat: "fix
+ * stray holds").
  */
-export function animationsSettled(root: Element): Promise<void> {
+export function animationsSettled(root: Element, through = 1): Promise<void> {
   return new Promise((resolve) => {
+    let round = 0;
+    const done = (): void => {
+      round = -1;
+      resolve();
+    };
     const look = (): void => {
-      if (typeof root.getAnimations !== 'function') return resolve();
+      if (typeof root.getAnimations !== 'function') return done();
       const running = root
         .getAnimations({ subtree: true })
-        .filter((a) => a.playState !== 'finished' && a.playState !== 'idle' && a.effect?.getComputedTiming().endTime !== Infinity && isBeat(a));
+        .filter((a) => a.playState !== 'finished' && a.playState !== 'idle' && a.effect?.getComputedTiming().endTime !== Infinity && isBeat(a) && untilThrough(a, through) > 0);
       waitingOn = running;
-      if (running.length === 0) return resolve();
-      void Promise.allSettled(running.map((a) => a.finished)).then(look);
+      if (running.length === 0) return done();
+      // Looked at again as soon as one is far enough through or ends early (cancelled, its card gone) — once per round.
+      const mine = ++round;
+      const again = (): void => {
+        if (mine === round) look();
+      };
+      const soonest = new Promise<void>((at) => setTimeout(at, Math.min(...running.map((a) => untilThrough(a, through)))));
+      void Promise.race([soonest, ...running.map((a) => a.finished.then(() => undefined, () => undefined))]).then(again);
     };
     look();
   });

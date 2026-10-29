@@ -6,7 +6,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { afterGlide, animationsSettled, BEAT_ANIMATION_ID, boardWaitingOn, damagePower, damageSize, GLIDE_MS, MAX_DAMAGE, noteBoardDrawing, powerSize, whenBoardStill } from './motion.ts';
+import { afterGlide, animationsSettled, BEAT_ANIMATION_ID, boardWaitingOn, damagePower, damageSize, GLIDE_MS, MAX_DAMAGE, noteBoardDrawing, powerSize, UNLOCK_AT, unlockAfter, whenBoardStill, whenBoardUnlocked } from './motion.ts';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -174,6 +174,146 @@ describe('the board’s stillness', () => {
     await settle();
     expect(settled, 'the banner and the glide are not beats').toBe(true);
     expect(boardWaitingOn()).toBe('');
+  });
+});
+
+describe('unlocking on the last tenth of a beat (the operator, 2026-10-28)', () => {
+  /** A beat on the page's clock: `currentTime` follows the fake timers from `startedAt`, at `rate`. */
+  function playing(endTime: number, rate = 1): Animation {
+    const startedAt = Date.now();
+    const anim = {
+      id: BEAT_ANIMATION_ID,
+      playbackRate: rate,
+      effect: { getComputedTiming: () => ({ endTime }) },
+      finished: new Promise<void>(() => undefined),
+      get currentTime() {
+        return Math.min(endTime, (Date.now() - startedAt) * rate);
+      },
+      get playState() {
+        return (Date.now() - startedAt) * rate >= endTime ? 'finished' : 'running';
+      },
+    };
+    return anim as unknown as Animation;
+  }
+
+  it('UNLOCK_AT is 90%, and a timed beat lets go that far through', () => {
+    expect(UNLOCK_AT).toBe(0.9);
+    expect(unlockAfter(1000)).toBe(900);
+    expect(unlockAfter(600), 'an attack beat').toBe(540);
+  });
+
+  it('animationsSettled at UNLOCK_AT settles once the beat is 90% through, while it still plays', async () => {
+    vi.useFakeTimers();
+    const ram = playing(1000);
+    const root = { getAnimations: () => [ram] } as unknown as Element;
+    let settled = false;
+    void animationsSettled(root, UNLOCK_AT).then(() => (settled = true));
+    await vi.advanceTimersByTimeAsync(899);
+    expect(settled, 'at 89.9%').toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(settled, 'at 90%').toBe(true);
+    expect(ram.playState, 'the beat itself plays on to its end').toBe('running');
+  });
+
+  it('respects the beat’s playback rate', async () => {
+    vi.useFakeTimers();
+    const fast = playing(1000, 2);
+    const root = { getAnimations: () => [fast] } as unknown as Element;
+    let settled = false;
+    void animationsSettled(root, UNLOCK_AT).then(() => (settled = true));
+    await vi.advanceTimersByTimeAsync(449);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(settled, 'twice as fast: 90% at 450 ms').toBe(true);
+  });
+
+  it('waits for the latest 90% of all, looking again for a beat that starts meanwhile', async () => {
+    vi.useFakeTimers();
+    let anims = [playing(400), playing(1000)];
+    const root = { getAnimations: () => anims } as unknown as Element;
+    let settled = false;
+    void animationsSettled(root, UNLOCK_AT).then(() => (settled = true));
+    await vi.advanceTimersByTimeAsync(500);
+    anims = [...anims, playing(1000)]; // a crash set off by the ram, at 500
+    await vi.advanceTimersByTimeAsync(899);
+    expect(settled, 'the crash is 89.9% through').toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(settled).toBe(true);
+  });
+
+  it('a beat already 90% through holds nothing', async () => {
+    vi.useFakeTimers();
+    const ram = playing(1000);
+    await vi.advanceTimersByTimeAsync(950);
+    let settled = false;
+    void animationsSettled({ getAnimations: () => [ram] } as unknown as Element, UNLOCK_AT).then(() => (settled = true));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(settled).toBe(true);
+  });
+  it('animationsSettled with no fraction still waits for the beat to be over', async () => {
+    vi.useFakeTimers();
+    const ram = playing(1000);
+    let settled = false;
+    void animationsSettled({ getAnimations: () => [ram] } as unknown as Element).then(() => (settled = true));
+    await vi.advanceTimersByTimeAsync(999);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(settled).toBe(true);
+  });
+
+  it('the pacer’s wait lets go at 90% of a drawing; the board is still only once it is over (the result screen’s wait)', async () => {
+    vi.useFakeTimers();
+    let over!: () => void;
+    noteBoardDrawing(new Promise<void>((res) => (over = res)), { endsInMs: 1000 });
+    let unlocked = false;
+    let still = false;
+    whenBoardUnlocked(() => (unlocked = true));
+    whenBoardStill(() => (still = true));
+    await vi.advanceTimersByTimeAsync(899);
+    expect(unlocked, 'at 89.9%').toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(unlocked, 'at 90%').toBe(true);
+    expect(still, 'a bolt still in the air: the result screen waits').toBe(false);
+    over();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(still).toBe(true);
+  });
+
+  it('once its time has come, a drawing still waits for its beats running on the board to be 90% through', async () => {
+    vi.useFakeTimers();
+    let anims: Animation[] = [];
+    const root = { getAnimations: () => anims } as unknown as Element;
+    noteBoardDrawing(new Promise<void>(() => undefined), { endsInMs: 500, root });
+    await vi.advanceTimersByTimeAsync(100);
+    anims = [playing(1000)]; // a crash its beat set off, longer than the view said
+    let unlocked = false;
+    whenBoardUnlocked(() => (unlocked = true));
+    await vi.advanceTimersByTimeAsync(350);
+    expect(unlocked, 'the view’s own 90% has come, the crash is at 35%').toBe(false);
+    await vi.advanceTimersByTimeAsync(549);
+    expect(unlocked).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(unlocked, 'the crash is 90% through').toBe(true);
+  });
+
+  it('a drawing over before its 90% lets go at once; one with no length is locked until it is over', async () => {
+    vi.useFakeTimers();
+    let over!: () => void;
+    noteBoardDrawing(new Promise<void>((res) => (over = res)), { endsInMs: 1000 });
+    let unlocked = false;
+    whenBoardUnlocked(() => (unlocked = true));
+    over();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(unlocked, 'cut short (a board taken down)').toBe(true);
+    let done!: () => void;
+    noteBoardDrawing(new Promise<void>((res) => (done = res)));
+    let later = false;
+    whenBoardUnlocked(() => (later = true));
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(later).toBe(false);
+    done();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(later).toBe(true);
   });
 });
 

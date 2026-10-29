@@ -94,9 +94,10 @@
  *   - a frame the board draws ({@link HELD_BY_THE_BOARD}) never goes out in the same task as another: React
  *     draws each as its own view, and every beat of it is diffed on its own;
  *   - and it waits while the board is still drawing the beats of what came before
- *     (`../motion.ts`'s `whenBoardStill`: a ram, a bolt, a death, an attack being shown), at most
- *     {@link BOARD_HOLD_MAX_MS}. A beat is as long as it always was; the next act simply starts after it,
- *     as a person's would. A cast's own pieces draw no beat, so a cast is still one moment.
+ *     (`../motion.ts`'s `whenBoardUnlocked`: a ram, a bolt, a death, an attack being shown), at most
+ *     {@link BOARD_HOLD_MAX_MS}. A beat is as long as it always was; the next act starts on its last tenth
+ *     (`UNLOCK_AT`, the operator, 2026-10-28: "let's "unlock" the game state when it's waiting on the last
+ *     ~10% of an animation") and draws while it finishes. A cast's own pieces draw no beat, so a cast is still one moment.
  *
  * A new turn is drawn too — its "Your turn" (`TurnCue.tsx`), its sound, the edge light moving to the
  * other seat — so the frame that moves `Turn` or `PlayerTurn` is a {@link classify | `turn`}, held by the
@@ -141,7 +142,8 @@
  *
  * The operator, 2026-10-28: *"lets make sure the dice roll completes before any action is triggered."* A
  * frame that throws a die or flips a coin (`message`'s `roll` and `flip`, `./dice.ts` and
- * `./coin-flip.tsx`) holds every frame after it until what it threw has landed ({@link inTheAir}): the
+ * `./coin-flip.tsx`) holds every frame after it until what it threw has landed ({@link inTheAir}, let go at
+ * `../motion.ts`'s `UNLOCK_AT` of it, as every beat is: the tumble is over by then, the pop still plays): the
  * other seat's and the seat's own, a question included, in Fast Mode too — what the roll decides is
  * never shown, and never asked about, under a die still tumbling. The die starts when its frame has been
  * drawn, a render after it goes out, so the clock is not the whole wait: once it has run, the next frame
@@ -166,9 +168,9 @@
 import { DELTA_TYPE } from '@hadoku/forge-wire';
 import { CLIENT_EVENT, type ClientEvent } from '@hadoku/shared';
 
-import { boardHold, prefersReducedMotion, whenBoardStill, type BoardHold } from '../motion.ts';
+import { boardHold, prefersReducedMotion, unlockAfter, whenBoardUnlocked, type BoardHold } from '../motion.ts';
 import { FLIP_MS } from './CoinToss.tsx';
-import { DIE_STAGGER_MS, POP_MS, TUMBLE_MS } from './dice.ts';
+import { rollMs } from './dice.ts';
 import type { MatchTransport } from './match.ts';
 import { MATCH_EVENTS } from './transport.ts';
 
@@ -288,7 +290,7 @@ export function inTheAir(payload: unknown): number {
   const roll = frame.roll as { results?: unknown; ignored?: unknown } | undefined;
   if (typeof roll === 'object' && roll !== null) {
     const dice = (Array.isArray(roll.results) ? roll.results.length : 1) + (Array.isArray(roll.ignored) ? roll.ignored.length : 0);
-    return (Math.max(1, dice) - 1) * DIE_STAGGER_MS + TUMBLE_MS + POP_MS;
+    return rollMs(dice);
   }
   return typeof frame.flip === 'object' && frame.flip !== null ? FLIP_MS : 0;
 }
@@ -524,7 +526,7 @@ export interface PaceOptions {
   schedule?: (run: () => void, delayMs: number) => unknown;
   /** Test seam, paired with `schedule`. Defaults to the real `clearTimeout`. */
   cancel?: (handle: unknown) => void;
-  /** Runs `done` once the board has drawn every beat it is drawing, at once when it is still; returns a cancel. Defaults to `../motion.ts`'s `whenBoardStill`. */
+  /** Runs `done` once every beat the board is drawing is `UNLOCK_AT` through, at once when none is left; returns a cancel. Defaults to `../motion.ts`'s `whenBoardUnlocked`. */
   boardStill?: (done: () => void) => () => void;
   /** Where an {@link InputHeld} or a {@link BoardHoldCapped} goes, with the payload it is about. Defaults to the match's client telemetry, on the inner transport. */
   report?: (held: InputHeld | BoardHoldCapped, payload: unknown) => void;
@@ -554,7 +556,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   const now = options.now ?? (() => Date.now());
   const schedule = options.schedule ?? ((run: () => void, delayMs: number) => setTimeout(run, delayMs));
   const cancel = options.cancel ?? ((handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>));
-  const boardStill = options.boardStill ?? whenBoardStill;
+  const boardStill = options.boardStill ?? whenBoardUnlocked;
   const report = options.report ?? reportOn(inner);
   const holdNow = options.boardHold ?? boardHold;
   const reducedMotion = options.reducedMotion ?? prefersReducedMotion;
@@ -637,7 +639,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
     delivered += 1;
     const air = inTheAir(next.payload);
     if (air > 0 && !reducedMotion()) {
-      landsAt = Math.max(landsAt, lastDeliveredAt + air);
+      landsAt = Math.max(landsAt, lastDeliveredAt + unlockAfter(air));
       thrown = true;
     }
     deliverTo?.(next.payload);

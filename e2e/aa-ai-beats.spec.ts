@@ -18,7 +18,8 @@
  * - the blow: the ram is drawn, and alice's life moves only once it has set off;
  * - the views: no one drawn view holds both the attack and its blow;
  * - the turn: alice's "Your turn" comes once the blow is over, not with it (the operator, 2026-10-20:
- *   the turn banner waits until the AI's attack animation finishes).
+ *   the turn banner waits until the AI's attack animation finishes) — on its last tenth, as every frame
+ *   behind a beat does (the operator, 2026-10-28: "unlock" on the last ~10% of an animation).
  *
  * Once against the Forge AI, once against bob playing the same turn by hand (the control). `[aa]`
  * lines are the evidence: the marks, every view alice's screen drew with the roles it sounded, and when
@@ -193,7 +194,7 @@ test(titled("the Forge AI's turn draws every beat: its creature's cast, the deat
     }
     const marks = await marksOf(alice.page);
     judge(stack, marks, 'vs the AI');
-    expect(marks.cue!, 'vs the AI: "Your turn" came once the ram was over').toBeGreaterThanOrEqual(marks.ramGone!);
+    expect(marks.cue!, 'vs the AI: "Your turn" came on the ram’s last tenth, not with it').toBeGreaterThanOrEqual(marks.ram! + 0.9 * (marks.ramGone! - marks.ram!));
     const turnWithBlow = drawnViews(stack).filter((v) => /g\.turn-mine/.test(v.roles) && /g\.(charge|crash|damage-player)/.test(v.roles));
     expect(turnWithBlow, 'vs the AI: no one view drew the blow and the turn after it together').toEqual([]);
   } finally {

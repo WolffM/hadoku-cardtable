@@ -10,6 +10,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { unlockAfter } from '../motion.ts';
 import type { MatchTransport } from './match.ts';
 import { MATCH_EVENTS } from './transport.ts';
 import { FLIP_MS } from './CoinToss.tsx';
@@ -858,7 +859,8 @@ describe('a die or a coin in the air', () => {
     expect(inTheAir(ASK)).toBe(0);
   });
 
-  it("the seat's own question after its own roll waits for the die to land", async () => {
+  it("the seat's own question after its own roll waits for the die to land: UNLOCK_AT of its tumble and pop, the tumble over", async () => {
+    expect(unlockAfter(ONE_DIE), 'the die is down before the board lets go').toBeGreaterThan(TUMBLE_MS);
     const inner = fakeInner();
     const { transport, received } = paced(inner, { reducedMotion: () => false });
     transport.setSeatPlayer(() => ALICE);
@@ -866,7 +868,7 @@ describe('a die or a coin in the air', () => {
     inner.deliver(rolled([14]));
     inner.deliver(DEFAULT_DELTA);
     inner.deliver(ASK);
-    await vi.advanceTimersByTimeAsync(ONE_DIE - 1);
+    await vi.advanceTimersByTimeAsync(unlockAfter(ONE_DIE) - 1);
     expect(received).toHaveLength(2);
     await vi.advanceTimersByTimeAsync(1);
     expect(received).toEqual([ASK, rolled([14]), DEFAULT_DELTA, ASK]);
@@ -892,23 +894,24 @@ describe('a die or a coin in the air', () => {
     expect(received).toHaveLength(4);
   });
 
-  it('two dice: held until the second has landed', async () => {
+  it('two dice: held until the second has landed, UNLOCK_AT through the roll', async () => {
     const inner = fakeInner();
     const { received } = paced(inner, { reducedMotion: () => false });
     inner.deliver(rolled([16], [13]));
     inner.deliver(DEFAULT_DELTA);
-    await vi.advanceTimersByTimeAsync(DIE_STAGGER_MS + ONE_DIE - 1);
+    expect(unlockAfter(DIE_STAGGER_MS + ONE_DIE), 'the second die is down').toBeGreaterThan(DIE_STAGGER_MS + TUMBLE_MS);
+    await vi.advanceTimersByTimeAsync(unlockAfter(DIE_STAGGER_MS + ONE_DIE) - 1);
     expect(received).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(1);
     expect(received).toHaveLength(2);
   });
 
-  it('a coin holds until it lands, in Fast Mode too', async () => {
+  it('a coin holds until UNLOCK_AT of its flip, in Fast Mode too', async () => {
     const inner = fakeInner();
     const { received } = paced(inner, { initialFast: true, reducedMotion: () => false });
     inner.deliver(flipped);
     inner.deliver(ASK);
-    await vi.advanceTimersByTimeAsync(FLIP_MS - 1);
+    await vi.advanceTimersByTimeAsync(unlockAfter(FLIP_MS) - 1);
     expect(received).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(1);
     expect(received).toEqual([flipped, ASK]);

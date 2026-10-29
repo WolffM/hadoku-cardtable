@@ -26,7 +26,8 @@
  * `inTheAir`, timed off `TUMBLE_MS`, `DIE_STAGGER_MS` and `POP_MS`): what the other seat did next, and
  * the seat's own next frame and question too, in Fast Mode as well (the operator, 2026-10-28: "make sure
  * the dice roll completes before any action is triggered"). The tumble and its landing are also a beat
- * (`../motion.ts`'s `noteBoardDrawing`, the animations carrying `BEAT_ANIMATION_ID`). Reduced motion: the
+ * (`../motion.ts`'s `noteBoardDrawing`, the animations carrying `BEAT_ANIMATION_ID`), let go, as every beat
+ * is, at `UNLOCK_AT` of the roll: the last die has landed by then, its pop still playing. Reduced motion: the
  * die appears where it lands, showing its result, and nothing waits.
  *
  * Every element is in the board's overlay, never a transform on a card in a row (table-fit).
@@ -50,6 +51,10 @@ export const DIE_STAGGER_MS = 120;
 /** How long a landed die stays on the table, then how long it takes to fade. */
 export const LINGER_MS = 1800;
 export const FADE_MS = 300;
+/** How long a roll of `dice` dice is in the air: the last die's tumble and pop, a stagger after the one before. */
+export function rollMs(dice: number): number {
+  return (Math.max(1, dice) - 1) * DIE_STAGGER_MS + TUMBLE_MS + POP_MS;
+}
 /** A roll that arrived longer ago than this is history (a board mounted late): it is not drawn. */
 const FRESH_MS = 1000;
 
@@ -429,7 +434,8 @@ export function installDice(canvas: HTMLElement, host: DiceHost = {}): DiceHandl
           else schedule(go, i * DIE_STAGGER_MS);
         }),
     );
-    if (!still) noteBoardDrawing(Promise.all(thrown));
+    // The pacer lets go once the roll is `UNLOCK_AT` through: every die down, the last pop still playing.
+    if (!still) noteBoardDrawing(Promise.all(thrown), { endsInMs: rollMs(thrown.length), root });
   }
 
   return {
