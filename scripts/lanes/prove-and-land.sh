@@ -69,7 +69,7 @@ git -C "$W" push -q origin ":refs/heads/$V" 2>/dev/null || echo "prove: could no
 # The manager's invocation (`land-worktree.sh`: the dev-vault wrapper from the main checkout,
 # Node 24). Its exit status is land.sh's own, not a pipe's: `land.sh | tail && cleanup` read a
 # refused land as success twice. A zero exit with no `land: pushed` line is not a land either.
-LOG=$LOGS/$B.land.log
+LOG=$LOGS/${B//\//_}.land.log
 set +e
 bash "$HERE/land-worktree.sh" $DRY "$W" > "$LOG" 2>&1
 rc=$?; set -e
