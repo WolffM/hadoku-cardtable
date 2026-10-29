@@ -281,7 +281,8 @@ export interface Scenario {
 	phase(seat: number): string | null;
 	/**
 	 * Press OK for the seat. It records the seat's latest prompt in {@link Scenario.pressed}, so no
-	 * driver presses that prompt again.
+	 * driver presses that prompt again. A press refused under the bar the seat's own act greyed goes
+	 * again on the seat's next live bar; so does {@link Scenario.cancel}.
 	 */
 	ok(seat: number): void;
 	/**
@@ -349,6 +350,13 @@ export interface ScenarioOptions {
 export async function startScenario(config: JvmHostConfig, options: ScenarioOptions): Promise<Scenario> {
 	const names = options.names ?? ['A', 'B'];
 	const sent: Stamped[] = [];
+	/**
+	 * A press the server refused under the bar this seat's own act greyed (`press-refused`,
+	 * `SeatState.staleBar`), sent again on the seat's next live bar — as a player presses a greyed
+	 * button again once it lights. An OK right after a select otherwise races Forge re-arming the
+	 * bar and is lost (blockers.jvm Q12, run 40841248727).
+	 */
+	const refused = new Map<number, 'selectButtonOk' | 'selectButtonCancel'>();
 	const lines: Scenario['lines'] = [];
 	const logs: Record<string, unknown>[] = [];
 	const seats: Scenario['seats'] = [];
@@ -369,7 +377,15 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 		overGraceMs: 60_000,
 		...(options.actSilenceMs === undefined ? {} : { actSilenceMs: options.actSilenceMs }),
 		...(options.policy === undefined ? {} : { stopPolicy: options.policy }),
-		emit: (_m, seat, envelope) => sent.push({ seat, envelope, t: performance.now() }),
+		emit: (_m, seat, envelope) => {
+			sent.push({ seat, envelope, t: performance.now() });
+			const method = refused.get(seat);
+			const bar = envelope.frame as unknown as Partial<Buttons>;
+			if (method === undefined || envelope.frame.method !== 'updateButtons') return;
+			if ((method === 'selectButtonOk' ? bar.enable1 : bar.enable2) !== true) return;
+			refused.delete(seat);
+			setImmediate(() => press(seat, method));
+		},
 	});
 	const first = registry.create({
 		seed: options.seed,
@@ -381,6 +397,10 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 		...(options.skipOpening === undefined ? {} : { skipOpening: options.skipOpening }),
 	});
 	const current = (): Match => registry.get(first.id) ?? first;
+	function press(seat: number, method: 'selectButtonOk' | 'selectButtonCancel'): void {
+		const outcome = current().fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method }));
+		if (!outcome.ok && outcome.error.startsWith('press-refused')) refused.set(seat, method);
+	}
 	/** What the server sent on the current match's epoch: a restore starts every seat's stream again. */
 	const live = (): Stamped[] => {
 		const epoch = current().epoch;
@@ -460,10 +480,10 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 		ok: (seat) => {
 			const at = sent.findLastIndex((x) => x.seat === seat && x.envelope.frame.method === 'showPromptMessage');
 			if (at >= 0) pressed.add(at);
-			current().fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
+			press(seat, 'selectButtonOk');
 		},
 		pressed,
-		cancel: (seat) => void current().fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonCancel' })),
+		cancel: (seat) => press(seat, 'selectButtonCancel'),
 		select: (seat, id) =>
 			void current().fromClient(
 				seat,
