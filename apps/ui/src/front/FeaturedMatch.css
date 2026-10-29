@@ -1,8 +1,8 @@
 /*
- * The front page's hero (`FeaturedMatch.tsx`). Fills whatever box lane A's
- * banner grid gives it — two card-widths, at most ~380px tall (the plan's
- * own ruling) — and scales `LiveBoard`'s own 1280×800 down to fit it rather
- * than asking the board to re-lay itself out.
+ * The front page's hero (`FeaturedMatch.tsx`). One card-width of lane A's
+ * banner grid: a title bar over a square window onto `LiveBoard`'s own
+ * 1280×800, its bottom-left corner scaled to the square rather than asking the
+ * board to re-lay itself out.
  *
  * Theme tokens only.
  */
@@ -58,8 +58,12 @@
 
 .featured-match__viewport {
   position: relative;
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
+  aspect-ratio: 1;
+  /* Square inside the banner's ~380px cap (`front.css`), less the title bar: wider columns centre it. */
+  width: 100%;
+  max-width: 348px;
+  align-self: center;
   overflow: hidden;
   background: var(--color-bg-alt);
 }

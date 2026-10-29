@@ -35,7 +35,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import type { ServerEnvelope } from '@hadoku/shared';
+import type { PresenceMessage, ServerEnvelope } from '@hadoku/shared';
 
 import type { JsonLog } from '../../log.js';
 import { artOf } from '../art.js';
@@ -110,13 +110,28 @@ export interface Recorder {
 	host(inner: MatchHostFactory): MatchHostFactory;
 	/** Wire to the registry's `emit`, via `PlayDeps.onEnvelope`: every seat's envelope, every match. Only `WATCHER_SEAT` is recorded. */
 	onEnvelope(matchId: string, seat: number, envelope: ServerEnvelope): void;
+	/**
+	 * Wire to `PlayDeps.onPresence`: the ACTIVE seat's pointer, for the replay's cursor. At most one line per
+	 * {@link PRESENCE_RECORD_MS}, except that a message changing what the hands are doing (a card lifted,
+	 * let go, parked, an arrow started or ended, the pointer leaving) is always kept.
+	 */
+	onPresence(matchId: string, seat: number, playerId: number, presence: PresenceMessage): void;
 	/** Wire to `PlayDeps.onGameOver`: remembers the seat that won, for the public stream's `end` line. */
 	onGameOver(match: OutcomeFacts & { id: string }): void;
 }
 
+/** The recorded pointer's rate: 10 a second, a sixth of what the seats send each other (`PRESENCE_SEND_MS`). */
+export const PRESENCE_RECORD_MS = 100;
+
+/** What a presence message says the hands are doing — the part a throttle must never drop. */
+const handsState = (p: PresenceMessage): string =>
+	[p.pointer === null, p.held, p.from === null, p.placing === null, p.arranging === null, p.handMove === null].join();
+
 interface Session {
 	writer: MatchRecordingWriter;
 	startedAtMs: number;
+	/** The last presence line kept: when, and what the hands were doing. */
+	lastPresence: { at: number; seat: number; hands: string } | null;
 	/** Each seat's board, folded as it goes, for the end line's `boards`. */
 	positions: [SeatPosition, SeatPosition];
 }
@@ -167,7 +182,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 					},
 					log,
 				});
-				const session: Session = { writer, startedAtMs: now(), positions: [createSeatPosition(0), createSeatPosition(1)] };
+				const session: Session = { writer, startedAtMs: now(), lastPresence: null, positions: [createSeatPosition(0), createSeatPosition(1)] };
 				// Every ask's callId per seat, in the order Forge sent them: a reply's `ask` number.
 				const asks = new Map<number, string[]>();
 				sessions.set(matchId, session);
@@ -237,6 +252,17 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 			const session = sessions.get(matchId);
 			if (session === undefined) return;
 			guarded(log, matchId, 'envelope', () => session.writer.publicEnv({ at: now() - session.startedAtMs, env: envelope }));
+		},
+
+		onPresence(matchId, seat, playerId, presence) {
+			const session = sessions.get(matchId);
+			if (session === undefined) return;
+			const at = now() - session.startedAtMs;
+			const hands = handsState(presence);
+			const last = session.lastPresence;
+			if (last !== null && last.seat === seat && last.hands === hands && at - last.at < PRESENCE_RECORD_MS) return;
+			session.lastPresence = { at, seat, hands };
+			guarded(log, matchId, 'presence', () => session.writer.publicPresence({ at, seat, playerId, presence }));
 		},
 
 		// The recording is finished when the game is, not when its JVM goes: a finished match keeps

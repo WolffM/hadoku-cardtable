@@ -613,6 +613,33 @@ describe('receiving: anchored', () => {
     handle.dispose();
   });
 
+  it('a watcher draws the player at the BOTTOM as itself: their own card here, nothing mirrored, no name tag; the other seat’s pointer is not drawn', () => {
+    // A watcher's board (and a replay's) is drawn from the active player's side: seat 1 is player 1, at the bottom.
+    const { canvas } = board();
+    const mine = document.createElement('li');
+    mine.className = 'board-card';
+    mine.setAttribute('data-card-id', '9');
+    mine.getBoundingClientRect = () => rect({ left: 300, top: 420, width: 60, height: 84 });
+    const row = document.createElement('ul');
+    row.append(mine);
+    canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!.append(row);
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: { ...host(t, null), playerOfSeat: (seat) => seat, viewerPlayerId: () => 1 } });
+    const pointer = { matchId: 'm-1', type: 'presence', held: true, from: null, arranging: null } as const;
+
+    t.receive({ ...pointer, seat: 0, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, anchor: { zone: 'battlefield', own: true, row: null, card: 7, item: null, x: 0.5, y: 0.5 } });
+    expect(canvas.querySelector('.presence'), 'the seat at the top is not the one being watched').toBeNull();
+
+    t.receive({ ...pointer, seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.6 }, anchor: { zone: 'battlefield', own: true, row: null, card: 9, item: null, x: 0.3, y: 0.8 } });
+    const cursor = canvas.querySelector<HTMLElement>('.presence')!;
+    expect(cursor.style.left).toBe(`${300 + 0.3 * 60}px`);
+    expect(Number.parseFloat(cursor.style.top), '0.8 down their card is 0.8 down it here').toBeCloseTo(420 + 0.8 * 84, 6);
+    expect(cursor.querySelector('.presence__name')!.textContent).toBe('');
+    expect(placeSpot(canvas, { zone: null, x: 0.1, y: 0.25 }, false), 'the board fraction, unmirrored').toEqual({ x: 100, y: 200 });
+    handle.dispose();
+  });
+
   it('is continuous across a card’s edge on differently sized boards — the cursor never jumps onto the card', () => {
     // Sender: the card is (120,200)-(180,284). Receiver: the twin is twice the size, elsewhere.
     const sender = board().canvas;

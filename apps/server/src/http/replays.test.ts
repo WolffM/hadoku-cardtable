@@ -155,11 +155,13 @@ describe('GET /api/replays', () => {
 });
 
 describe('GET /api/replays/:matchId', () => {
-	it('serves the header, every env in order, and the end for a stream on disk', async () => {
+	it('serves the header, every env in order, the active seat\'s pointer, and the end for a stream on disk', async () => {
 		const dir = await recordingsDir();
+		const pointer = { matchId: 'm-1', type: 'presence', pointer: { zone: 'hand', x: 0.2, y: 0.6 }, anchor: null, held: true, from: null, arranging: null, placing: null, handMove: null };
 		writePublic(dir, 'm-1', {
 			envs: [
 				{ t: 'env', at: 0, env: { matchId: 'm-1', cursor: { epoch: 'e', seq: 1 }, frame: { kind: 'notify', method: 'openView', payload: { myPlayers: [0] } } } },
+				{ t: 'presence', at: 20, seat: 1, playerId: 1, presence: pointer },
 				{ t: 'env', at: 50, env: { matchId: 'm-1', cursor: { epoch: 'e', seq: 2 }, frame: { kind: 'notify', method: 'openView', payload: { myPlayers: [1] } } } },
 			],
 		});
@@ -168,6 +170,7 @@ describe('GET /api/replays/:matchId', () => {
 		expect(status).toBe(200);
 		expect(cache, 'a finished replay never changes: the browser keeps it, and no shared cache may').toBe('private, max-age=31536000, immutable');
 		expect((json.envs as unknown[]).length).toBe(2);
+		expect(json.presence).toEqual([{ at: 20, seat: 1, playerId: 1, presence: pointer }]);
 		expect((json.header as { matchId: string }).matchId).toBe('m-1');
 		expect((json.end as { winner: number | null }).winner).toBeNull();
 	});

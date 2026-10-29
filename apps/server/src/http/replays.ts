@@ -2,7 +2,7 @@
  * `/api/replays` — contract 2 of `docs/planning/wave77-2026-10-27.md` §C.
  *
  *   GET /api/replays?limit=20   → 200 { replays: ReplaySummary[] }   newest first
- *   GET /api/replays/:matchId   → 200 { header, envs, end } | 404
+ *   GET /api/replays/:matchId   → 200 { header, envs, presence, end } | 404
  *
  * Reads `CARDTABLE_RECORDINGS_DIR` directly — never the live recorder's
  * in-memory state, so this answers the same way across a restart. The list
@@ -27,7 +27,7 @@ import { Router as makeRouter } from 'express';
 import { isAdmin } from '../edge-auth.js';
 import type { JsonLog } from '../log.js';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '../play/recording/retention.js';
-import { PUBLIC_VERSION } from '../play/recording/writer.js';
+import { PUBLIC_VERSION, type PublicEnvLine, type PublicPresenceLine } from '../play/recording/writer.js';
 
 interface PublicHeaderLine {
 	t: 'header';
@@ -271,13 +271,13 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 					res.status(404).json({ error: 'no such replay' });
 					return;
 				}
-				const envs = lines
-					.slice(1, -1)
-					.map((l) => parseJson<{ t: 'env'; at: number; env: unknown }>(l))
-					.filter((l): l is { t: 'env'; at: number; env: unknown } => l !== null && l.t === 'env')
-					.map((l) => ({ at: l.at, env: l.env }));
+				const body = lines.slice(1, -1).map((l) => parseJson<PublicEnvLine | PublicPresenceLine>(l));
+				const envs = body.filter((l): l is PublicEnvLine => l !== null && l.t === 'env').map((l) => ({ at: l.at, env: l.env }));
+				const presence = body
+					.filter((l): l is PublicPresenceLine => l !== null && l.t === 'presence')
+					.map((l) => ({ at: l.at, seat: l.seat, playerId: l.playerId, presence: l.presence }));
 				res.set('Cache-Control', REPLAY_CACHE);
-				res.json({ header, envs, end });
+				res.json({ header, envs, presence, end });
 				return;
 			}
 			if (!row.hasActions) {

@@ -123,6 +123,19 @@ export interface PublicEnvLine {
 	env: unknown;
 }
 
+/**
+ * The active seat's pointer, as `forge:presence` relayed it (`@hadoku/shared`'s `presence.ts`: it names no
+ * hidden card), so a replay draws their cursor and their drags. `playerId` is that seat's Forge player: the
+ * replay draws the seat at the bottom, from the player whose turn it is. Absent before wave 81 part 2.
+ */
+export interface PublicPresenceLine {
+	t: 'presence';
+	at: number;
+	seat: number;
+	playerId: number;
+	presence: unknown;
+}
+
 export interface PublicEndLine {
 	t: 'end';
 	endedAt: string;
@@ -141,6 +154,8 @@ export interface MatchRecordingWriter {
 	actionCmd(line: Omit<ActionsCmdLine, 't'>): void;
 	/** Append one `env` line. Buffered. */
 	publicEnv(line: Omit<PublicEnvLine, 't'>): void;
+	/** Append one `presence` line. Buffered. */
+	publicPresence(line: Omit<PublicPresenceLine, 't'>): void;
 	/**
 	 * Write the `end` line onto both buffers, gzip each, and write both files.
 	 * Never throws; a failed write is one `log` line, not a rejection. Resolves
@@ -185,6 +200,9 @@ export function createMatchRecordingWriter(deps: MatchRecordingWriterDeps): Matc
 		},
 		publicEnv(line) {
 			publicLines.push({ t: 'env', ...line });
+		},
+		publicPresence(line) {
+			publicLines.push({ t: 'presence', ...line });
 		},
 		async finish(actionsEnd, publicEnd) {
 			actionLines.push({ t: 'end', ...actionsEnd });

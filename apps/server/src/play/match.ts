@@ -2309,6 +2309,13 @@ export class Match {
 		return this.seats.find((s) => !s.ai && s.playerId !== null && s.playerId === active) ?? this.watcherSource();
 	}
 
+	/** The seat whose turn it is, with its Forge player; null before Forge has said, or on an AI's turn (it has no pointer). */
+	activeSeat(): { seat: number; playerId: number } | null {
+		const active = this.watcher.projector.activePlayer();
+		const s = this.seats.find((x) => !x.ai && x.playerId !== null && x.playerId === active);
+		return s === undefined || s.playerId === null ? null : { seat: s.seat, playerId: s.playerId };
+	}
+
 	/**
 	 * One frame to every watcher, on the watcher channel's own cursor, and kept for the next
 	 * watcher's snapshot unless `kept` is false: what a player was told in the moment (a reveal, a

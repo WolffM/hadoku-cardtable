@@ -178,6 +178,50 @@ async function expectArtDecoded(page: Page, what: string): Promise<void> {
   expect(faces, `${what}: faces are drawn with art`).toBeGreaterThan(0);
 }
 
+/** The active player moves their pointer across their own hand and battlefield, as a player looking things over does. */
+async function sweep(page: Page): Promise<void> {
+  for (const zone of ['hand', 'battlefield']) {
+    const box = await page.locator(`.seat[data-viewer] [data-zone="${zone}"]`).first().boundingBox();
+    if (box === null) continue;
+    for (let i = 0; i <= 8; i += 1) {
+      await page.mouse.move(box.x + (box.width * i) / 16, box.y + box.height / 2, { steps: 2 });
+      await page.waitForTimeout(120);
+    }
+  }
+}
+
+/**
+ * The active player parks their pointer over the far side of the table (reading the other player's
+ * board) for longer than a pointer stays drawn without a move, then rests it in their own hand.
+ */
+async function parkAway(page: Page): Promise<void> {
+  const far = await page.locator('.seat:not([data-viewer]) [data-zone="battlefield"]').first().boundingBox();
+  const hand = await page.locator('.seat[data-viewer] [data-zone="hand"]').first().boundingBox();
+  if (far === null || hand === null) throw new Error('no board to park the pointer on');
+  await page.mouse.move(far.x + far.width * 0.85, far.y + far.height * 0.5, { steps: 8 });
+  await page.waitForTimeout(8_000);
+  await page.mouse.move(hand.x + hand.width * 0.15, hand.y + hand.height * 0.5, { steps: 8 });
+  await page.waitForTimeout(3_000);
+}
+
+/** Who each recorded `PlayerTurn` names, from when: the recording's own turn changes. */
+function turnsOf(envs: { at: number; env: unknown }[]): { at: number; player: number }[] {
+  const out: { at: number; player: number }[] = [];
+  for (const { at, env } of envs) {
+    const m = /"PlayerTurn":\{"t":"int","v":(\d+)\}/.exec(JSON.stringify(env));
+    if (m !== null && out.at(-1)?.player !== Number(m[1])) out.push({ at, player: Number(m[1]) });
+  }
+  return out;
+}
+
+/** The player drawn at the bottom of a board, by the name on its hand. */
+const bottomPlayer = (scope: Page, within: string): Promise<string> =>
+  scope
+    .locator(`${within} .seat[data-viewer] section[data-zone="hand"][aria-label]`)
+    .first()
+    .getAttribute('aria-label')
+    .then((l) => (l ?? '').replace(/ Hand$/, ''));
+
 /** Presses on through every priority stop until `until`. */
 const grind = (alice: Friend, bob: Friend, until: () => Promise<boolean>, timeoutMs = 60_000): Promise<void> => grindPriority([alice.page, bob.page], until, { timeoutMs });
 
@@ -248,8 +292,12 @@ test(
       // to do at, so presses stop the moment the turn is reached: each then holds a land to play, and waits.
       await grind(alice, bob, async () => ((await railAt(alice.page))?.turn ?? 0) >= 2);
       marks.push(await mark('turn 2', alice.page, bob.page));
+      // Each player looks over their own side on their own turn; the other moves too, and is not recorded.
+      await Promise.all([sweep(alice.page), sweep(bob.page)]);
       await grind(alice, bob, async () => ((await railAt(alice.page))?.turn ?? 0) >= 3);
       marks.push(await mark('turn 3', alice.page, bob.page));
+      await Promise.all([sweep(bob.page), sweep(alice.page)]);
+      await parkAway(bob.page);
 
       await bob.page.getByTestId('live-concede').click();
       await bob.page.getByTestId('live-concede-yes').click();
@@ -261,6 +309,7 @@ test(
       const api = alice.context.request;
       let startedAt = 0;
       let durationMs = 0;
+      let recorded: { envs: { at: number; env: unknown }[]; presence: { at: number; seat: number; playerId: number; presence: { held: boolean } }[] } = { envs: [], presence: [] };
       await expect
         .poll(
           async () => {
@@ -268,8 +317,10 @@ test(
             if (!res.ok()) return res.status();
             const body = (await res.json()) as {
               header: { startedAt: string };
-              envs: { at: number }[];
+              envs: { at: number; env: unknown }[];
+              presence: { at: number; seat: number; playerId: number; presence: { held: boolean } }[];
             };
+            recorded = body;
             startedAt = Date.parse(body.header.startedAt);
             durationMs = body.envs.at(-1)?.at ?? 0;
             console.log(`[w81] recording ${matchId}: ${body.envs.length} frames over ${durationMs} ms; cache-control ${res.headers()['cache-control']}`);
@@ -278,6 +329,18 @@ test(
           { timeout: 30_000, message: 'the recording is served' },
         )
         .toBe(200);
+
+      // The pointer kept is the active player's only: every line names the player whose turn it was.
+      const turns = turnsOf(recorded.envs);
+      const activeAt = (at: number): number | undefined => turns.filter((t) => t.at <= at).at(-1)?.player;
+      const pointerPlayers = [...new Set(recorded.presence.map((p) => p.playerId))];
+      console.log(`[w81] pointer: ${recorded.presence.length} lines, players ${JSON.stringify(pointerPlayers)}, held ${recorded.presence.filter((p) => p.presence.held).length}; turns ${JSON.stringify(turns)}`);
+      expect(recorded.presence.filter((p) => p.playerId !== activeAt(p.at)), 'every recorded pointer is the active player’s').toEqual([]);
+      expect(pointerPlayers.length, 'both players’ turns carry their pointer').toBe(2);
+      expect(recorded.presence.some((p) => p.presence.held), 'a drag (a card held) is in the recording').toBe(true);
+      const gaps = recorded.presence.slice(1).map((p, i) => p.at - recorded.presence[i]!.at);
+      expect(recorded.presence.length / (durationMs / 1000), 'at most ~10 a second on average').toBeLessThanOrEqual(12);
+      console.log(`[w81] pointer gaps: min ${Math.min(...gaps)} ms`);
 
       // ── #/replay/<id> ────────────────────────────────────────────────
       const carol = await openFriend(browser, 'carol');
@@ -299,11 +362,39 @@ test(
       }
       await expectArtDecoded(carol.page, 'the end, seeked');
 
+      // Played back, the active player's cursor is drawn on their own side: the bottom of the board.
+      const cursorSeen: { y: number; boardTop: number; boardBottom: number; name: string }[] = [];
       for (const speed of [1, 2, 4] as const) {
         await seek(carol.page, 0);
         await carol.page.getByTestId(`replay-bar-speed-${speed}`).click();
         const started = Date.now();
         await carol.page.getByTestId('replay-bar-play').click();
+        if (speed === 1) {
+          await expect
+            .poll(
+              async () => {
+                const seen = await carol.page.evaluate(() => {
+                  const cursor = document.querySelector('.presence');
+                  const overlay = document.querySelector('[data-board-overlay]');
+                  if (cursor === null || overlay === null) return null;
+                  const c = cursor.getBoundingClientRect();
+                  const o = overlay.getBoundingClientRect();
+                  return { y: c.top, boardTop: o.top, boardBottom: o.bottom, name: cursor.querySelector('.presence__name')?.textContent ?? '' };
+                });
+                // Distinct places only: a cursor standing still is one sample, however long it stands.
+                if (seen !== null && cursorSeen.at(-1)?.y !== seen.y) cursorSeen.push(seen);
+                return (await carol.page.getByTestId('replay-bar-play').textContent()) === '↺';
+              },
+              { timeout: durationMs + 30_000, intervals: [50], message: 'the replay plays to its end' },
+            )
+            .toBe(true);
+          console.log(`[w81] cursor places: ${JSON.stringify(cursorSeen.map((c) => Math.round(c.y)))}`);
+          expect(cursorSeen.length, 'the recorded cursor moves while the replay plays').toBeGreaterThanOrEqual(10);
+          const below = cursorSeen.filter((c) => c.y > (c.boardTop + c.boardBottom) / 2).length;
+          console.log(`[w81] cursor on the replay: ${below}/${cursorSeen.length} samples in the bottom half; first ${JSON.stringify(cursorSeen[0])}`);
+          expect(below / cursorSeen.length, 'the active player’s cursor is on their own side, the bottom half').toBeGreaterThanOrEqual(0.8);
+          expect([...new Set(cursorSeen.map((c) => c.name))], 'no name tag: it is the bottom player’s own pointer').toEqual(['']);
+        }
         await expect(carol.page.getByTestId('replay-bar-play'), `${speed}× plays to the end`).toHaveText('↺', { timeout: durationMs / speed + 30_000 });
         console.log(`[w81] ${speed}×: played ${durationMs} ms of game in ${Date.now() - started} ms`);
         expectSameBoard(await still(carol.page), end, owners(end));
@@ -369,14 +460,17 @@ test(
         'the warm load fetched nothing over the network',
       ).toEqual([]);
       await expect(front.getByTestId('featured-match-tag')).toHaveText('REPLAY');
-    const fit = await front.locator('.featured-match__viewport').evaluate((viewport) => {
-      const frame = viewport.querySelector('.featured-match__frame')!.getBoundingClientRect();
-      const box = viewport.getBoundingClientRect();
-      return { frame: [Math.round(frame.width), Math.round(frame.height)], box: [Math.round(box.width), Math.round(box.height)] };
-    });
-    console.log(`[w81] front card fit: ${JSON.stringify(fit)}`);
-    expect(fit.frame[0], 'the board is scaled down into the card, never cropped').toBeLessThanOrEqual(fit.box[0] + 1);
-    expect(fit.frame[1], 'the board is scaled down into the card, never cropped').toBeLessThanOrEqual(fit.box[1] + 1);
+      // The card is a square window onto the board's bottom-left 540 board pixels (of 1280×800).
+      const fit = await front.locator('.featured-match__viewport').evaluate((viewport) => {
+        const frame = viewport.querySelector('.featured-match__frame')!.getBoundingClientRect();
+        const box = viewport.getBoundingClientRect();
+        return { frame: { left: frame.left, bottom: frame.bottom, width: frame.width }, box: { left: box.left, bottom: box.bottom, width: box.width, height: box.height } };
+      });
+      console.log(`[w81] front card window: ${JSON.stringify(fit)}`);
+      expect(Math.abs(fit.box.width - fit.box.height), 'the card is square').toBeLessThanOrEqual(1);
+      expect(Math.abs(fit.frame.width - (fit.box.width * 1280) / 540), 'the board at 540 board pixels to the card’s side').toBeLessThanOrEqual(2);
+      expect(Math.abs(fit.frame.left - fit.box.left), 'its left edge is the board’s').toBeLessThanOrEqual(1);
+      expect(Math.abs(fit.frame.bottom - fit.box.bottom), 'its bottom edge is the board’s').toBeLessThanOrEqual(1);
       await expect(front.getByTestId('featured-match-watch')).toHaveAttribute('href', `#/replay/${matchId}`);
 
       // Three loops, on the page's own clock run fast.
@@ -387,12 +481,34 @@ test(
       await expect(looper.locator('[data-testid="featured-match"] [data-testid="player"]').first()).toBeVisible({ timeout: 30_000 });
       let loops = 0;
       let lastTurn = 0;
+      /** Each turn's bottom player on the card: whose turn it is (bob on 1 and 3, alice on 2). */
+      const bottomByTurn = new Map<number, Set<string>>();
+      /** Turn 3's capture regions, in order (one entry per change), and whether the cursor showed while temporary. */
+      const regions: string[] = [];
+      let cursorShownAway = false;
       for (let ran = 0; ran < durationMs * 3.5 && loops < 3; ran += 500) {
         await looper.clock.runFor(500);
         const turn = Number(/Turn (\d+)/.exec((await looper.getByTestId('featured-match').textContent()) ?? '')?.[1] ?? 0);
         if (turn < lastTurn) loops += 1;
         lastTurn = turn;
+        if (turn > 0) bottomByTurn.set(turn, (bottomByTurn.get(turn) ?? new Set()).add(await bottomPlayer(looper, '[data-testid="featured-match"]')));
+        if (turn === 3) {
+          const seen = await looper.locator('.featured-match__viewport').evaluate((viewport) => {
+            const box = viewport.getBoundingClientRect();
+            const tip = viewport.querySelector('.presence')?.getBoundingClientRect();
+            const shown = tip !== undefined && tip.left >= box.left && tip.left <= box.right && tip.top >= box.top && tip.top <= box.bottom;
+            return { region: (viewport as HTMLElement).dataset.captureRegion ?? '', shown };
+          });
+          if (regions.at(-1) !== seen.region) regions.push(seen.region);
+          if (seen.region === 'temporary' && seen.shown) cursorShownAway = true;
+        }
       }
+      console.log(`[w81] front card, turn 3 capture regions: ${JSON.stringify(regions)}; cursor shown in the temporary region: ${cursorShownAway}`);
+      expect(regions.join(' '), 'bob parks away: a temporary capture region opens, then retires to the default once he is back').toMatch(/default temporary default/);
+      expect(cursorShownAway, 'the temporary region shows his cursor').toBe(true);
+      const flips = Object.fromEntries([...bottomByTurn].map(([t, names]) => [t, [...names]]));
+      console.log(`[w81] front card, bottom player by turn: ${JSON.stringify(flips)}`);
+      expect(flips, 'the card flips to the active player at every turn').toEqual({ 1: ['Bob'], 2: ['Alice'], 3: ['Bob'] });
       const frontTrouble = await trouble(looper);
       console.log(`[w81] front card: ${loops} loops; trouble ${JSON.stringify(frontTrouble)}`);
       expect(loops, 'the card loops the replay at least three times').toBeGreaterThanOrEqual(3);

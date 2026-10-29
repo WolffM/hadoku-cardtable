@@ -47,6 +47,7 @@ function replayData(matchId: string, names: readonly [string, string]): ReplayDa
       { at: 0, env: { matchId, cursor: { epoch: 'e1', seq: 1 }, frame: setGameView } },
       { at: 0, env: { matchId, cursor: { epoch: 'e1', seq: 2 }, frame: openView } },
     ],
+    presence: [],
     end: null,
   };
 }

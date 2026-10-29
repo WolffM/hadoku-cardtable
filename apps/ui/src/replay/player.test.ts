@@ -5,11 +5,13 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { parseServerFrame, type ServerFrame } from '@hadoku/forge-wire';
+import { PRESENCE_EVENT, type PresenceMessage } from '@hadoku/shared';
 
 import { liveStatus } from '../play/live/LiveBoard.tsx';
 import { closeMatch } from '../play/live/match.ts';
-import type { ReplayData, ReplayHeader } from './transport.ts';
-import { createReplayPlayer } from './player.ts';
+import type { RecordedPresence, ReplayData, ReplayHeader } from './transport.ts';
+import { createReplayPlayer, POINTER_RESTATE_MS } from './player.ts';
+import { PRESENCE_STALE_MS } from '../play/live/presence.ts';
 
 /** The minimal two-player baseline `bridge-flying-seat1.ndjson` already commits — reused here rather than re-invented. */
 function gameView(life0: number, life1: number): Record<string, unknown> {
@@ -38,6 +40,7 @@ function threeFrameReplay(deltaAt: number): ReplayData {
       { at: 0, env: { matchId: HEADER.matchId, cursor: { epoch: 'e1', seq: 2 }, frame: openView } },
       { at: deltaAt, env: { matchId: HEADER.matchId, cursor: { epoch: 'e1', seq: 3 }, frame: applyDelta } },
     ],
+    presence: [],
     end: { endedAt: '2026-10-27T00:10:00.000Z', winner: 0 },
   };
 }
@@ -53,7 +56,7 @@ function longReplay(frames: number): ReplayData {
     const delta = { [268435456 + player]: { _type: 1, _id: player, Life: { t: 'int', v: lifeAfter(i) } } };
     envs.push({ at: (i + 1) * 1000, env: { matchId: HEADER.matchId, cursor: { epoch: 'e1', seq: i + 3 }, frame: frame('applyDelta', { packet: { seq: i, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: delta, events: [] } }) } });
   }
-  return { header: HEADER, envs, end: { endedAt: '2026-10-27T00:10:00.000Z', winner: 0 } };
+  return { header: HEADER, envs, presence: [], end: { endedAt: '2026-10-27T00:10:00.000Z', winner: 0 } };
 }
 
 /** The life `longReplay`'s `i`-th delta sets. */
@@ -247,7 +250,7 @@ describe('createReplayPlayer', () => {
 
   it('an empty recording ends at once, without throwing', () => {
     vi.useFakeTimers();
-    const data: ReplayData = { header: HEADER, envs: [], end: null };
+    const data: ReplayData = { header: HEADER, envs: [], presence: [], end: null };
     const { match, clock } = createReplayPlayer(data);
     clock.play();
 
@@ -330,6 +333,66 @@ describe('createReplayPlayer', () => {
     }
     closeMatch(match);
     clock.dispose();
+    vi.useRealTimers();
+  });
+
+  it("hands the board the bottom player's recorded pointer as it comes due, follows the turn to the other player's, and a board drawn afresh gets the last one", async () => {
+    vi.useFakeTimers();
+    const pointer = (playerId: number, at: number, x: number): RecordedPresence => ({
+      at,
+      seat: playerId,
+      playerId,
+      presence: { matchId: HEADER.matchId, type: 'presence', pointer: { zone: 'hand', x, y: 0.5 }, anchor: null, held: false, from: null, arranging: null, placing: null, handMove: null } as PresenceMessage,
+    });
+    const turnToBob = frame('applyDelta', { packet: { seq: 0, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: { 805306369: { _type: 3, _id: 1, PlayerTurn: { t: 'int', v: 1 } } }, events: [] } });
+    const base = threeFrameReplay(5000);
+    const data: ReplayData = {
+      ...base,
+      envs: [...base.envs.slice(0, 2), { at: 1000, env: { matchId: HEADER.matchId, cursor: { epoch: 'e1', seq: 3 }, frame: turnToBob } }, { ...base.envs[2]!, env: { ...base.envs[2]!.env, cursor: { epoch: 'e1', seq: 4 } } }],
+      // Alice's turn (the recording names no turn yet: the openView's player, Alice, is at the bottom), then Bob's.
+      presence: [pointer(0, 200, 0.1), pointer(1, 400, 0.9), pointer(0, 600, 0.2), pointer(1, 1200, 0.3)],
+    };
+    const { match, clock } = createReplayPlayer(data);
+    const heard: number[] = [];
+    match.transport.on(PRESENCE_EVENT, (p) => heard.push((p as { pointer: { x: number } }).pointer.x));
+    clock.play();
+    vi.advanceTimersByTime(700);
+    expect(heard, "only the bottom player's pointer, in order").toEqual([0.1, 0.2]);
+    vi.advanceTimersByTime(600);
+    expect(heard, "the turn passed to Bob: now his is drawn").toEqual([0.1, 0.2, 0.3]);
+
+    clock.pause();
+    clock.seek(650);
+    const again: number[] = [];
+    match.transport.on(PRESENCE_EVENT, (p) => again.push((p as { pointer: { x: number } }).pointer.x));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(again, 'a board drawn afresh at 650 ms gets the pointer from 600 ms').toEqual([0.2]);
+    clock.dispose();
+    closeMatch(match);
+    vi.useRealTimers();
+  });
+
+  it('a pointer standing still is handed to the board again before it would go stale, and one that left the board is not', () => {
+    vi.useFakeTimers();
+    const still = (at: number, pointer: PresenceMessage['pointer']): RecordedPresence => ({
+      at,
+      seat: 0,
+      playerId: 0,
+      presence: { matchId: HEADER.matchId, type: 'presence', pointer, anchor: null, held: false, from: null, arranging: null, placing: null, handMove: null } as PresenceMessage,
+    });
+    const data: ReplayData = { ...threeFrameReplay(20_000), presence: [still(100, { zone: 'battlefield', x: 0.9, y: 0.1 }), still(10_000, null)] };
+    const { match, clock } = createReplayPlayer(data);
+    const heard: number[] = [];
+    match.transport.on(PRESENCE_EVENT, () => heard.push(Math.round(clock.positionMs() / 100) * 100));
+    clock.play();
+    vi.advanceTimersByTime(9_900);
+    expect(heard.length, 'handed at 100 ms, then again at least every POINTER_RESTATE_MS').toBeGreaterThanOrEqual(1 + Math.floor(9_800 / POINTER_RESTATE_MS));
+    expect(Math.max(...heard.slice(1).map((t, i) => t - heard[i]!)), 'never left to go stale').toBeLessThan(PRESENCE_STALE_MS);
+    const before = heard.length;
+    vi.advanceTimersByTime(9_000);
+    expect(heard.length, 'the pointer left the board at 10 s (null): handed once, never restated').toBe(before + 1);
+    clock.dispose();
+    closeMatch(match);
     vi.useRealTimers();
   });
 });

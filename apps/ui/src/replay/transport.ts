@@ -5,7 +5,7 @@
  *
  *   GET /api/replays?limit=N       → { replays: [{ matchId, roomId, players,
  *                                      decks, startedAt, endedAt, winner, source }] }
- *   GET /api/replays/:matchId      → { header, envs: [{ at, env }], end }
+ *   GET /api/replays/:matchId      → { header, envs: [{ at, env }], presence: [{ at, seat, playerId, presence }], end }
  *
  * `header`/`envs`/`end` mirror the recording's own three line kinds
  * (contract 1): a header, one `env` per frame the watcher channel emitted
@@ -14,13 +14,15 @@
  * through `parseServerEnvelope`, the same function `match.ts`'s `ingest`
  * uses, so a malformed entry is dropped here rather than crashing the fold
  * later — a recording this client did not write is not assumed trustworthy.
+ * A `presence` entry is the active seat's pointer (wave 81 part 2), checked by the same
+ * `PresenceSchema` a live board's own messages are.
  *
  * This file does not know how the frames get INTO a board: that is
  * `./player.ts`, which folds `ReplayData` into a read-only board, paced.
  */
 
 import { safeParseServerFrame } from '@hadoku/forge-wire';
-import { ArtCardSchema, type ArtCard } from '@hadoku/shared';
+import { ArtCardSchema, PresenceSchema, type ArtCard, type PresenceMessage } from '@hadoku/shared';
 
 import { apiUrl, bodyOf, getJson, isRecord, sendJson, serverMessage, type Fetch } from '../http.ts';
 import { parseServerEnvelope, type ServerEnvelope } from '../play/live/transport.ts';
@@ -57,11 +59,22 @@ export interface RecordedEnv {
   env: ServerEnvelope;
 }
 
+/** One recorded pointer message of the seat whose turn it was, timestamped like `RecordedEnv`. */
+export interface RecordedPresence {
+  at: number;
+  seat: number;
+  /** That seat's Forge player: the replay draws its cursor only while its player is at the bottom. */
+  playerId: number;
+  presence: PresenceMessage;
+}
+
 /** `GET /api/replays/:matchId`'s body, parsed and ready to drive a `MatchTransport`. */
 export interface ReplayData {
   header: ReplayHeader;
   /** Oldest first. `fetchReplay` sorts defensively; a well-formed recording is already in order. */
   envs: readonly RecordedEnv[];
+  /** Oldest first. Empty for a recording made before pointers were kept. */
+  presence: readonly RecordedPresence[];
   end: ReplayEnd | null;
 }
 
@@ -124,6 +137,15 @@ function parseRecordedEnv(v: unknown): RecordedEnv | null {
   return { at, env: { ...envelope.value, frame: frame.value } };
 }
 
+function parseRecordedPresence(v: unknown): RecordedPresence | null {
+  if (!isRecord(v)) return null;
+  const { at, seat, playerId, presence } = v;
+  if (typeof at !== 'number' || !Number.isFinite(at)) return null;
+  if (!Number.isInteger(seat) || !Number.isInteger(playerId)) return null;
+  const parsed = PresenceSchema.safeParse(presence);
+  return parsed.success ? { at, seat: seat as number, playerId: playerId as number, presence: parsed.data } : null;
+}
+
 /** `null` on anything this client cannot use as a replay — a 404, a malformed body, a network error. */
 export function parseReplayData(body: unknown): ReplayData | null {
   if (!isRecord(body)) return null;
@@ -132,8 +154,12 @@ export function parseReplayData(body: unknown): ReplayData | null {
   if (!Array.isArray(body.envs)) return null;
   const envs = body.envs.map(parseRecordedEnv).filter((e): e is RecordedEnv => e !== null);
   const sorted = [...envs].sort((a, b) => a.at - b.at);
+  const presence = (Array.isArray(body.presence) ? body.presence : [])
+    .map(parseRecordedPresence)
+    .filter((p): p is RecordedPresence => p !== null)
+    .sort((a, b) => a.at - b.at);
   const end = body.end === null || body.end === undefined ? null : parseEnd(body.end);
-  return { header, envs: sorted, end };
+  return { header, envs: sorted, presence, end };
 }
 
 function parseSource(v: unknown): ReplayListing['source'] {

@@ -1,4 +1,5 @@
 import { gunzipSync } from 'node:zlib';
+import type { PresenceMessage } from '@hadoku/shared';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -250,6 +251,45 @@ describe('createRecorder', () => {
 		const pub = linesOf(join(dir, 'm-1.public.jsonl.gz'));
 		// header + exactly the one WATCHER_SEAT envelope + end
 		expect(pub.filter((l) => l.t === 'env')).toHaveLength(1);
+	});
+
+	it('onPresence keeps the active seat\'s pointer at most every 100 ms, but never drops a change of what the hands are doing', async () => {
+		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
+		const inner = fakeFactory();
+		let clock = 1_000;
+		const recorder = createRecorder({ dir, identity: { pin: null, bridge: 'b', server: 's' }, roomOf: () => null, deckCosts: NO_COSTS, now: () => clock });
+		const hosted = recorder.host(inner);
+		hosted('m-1', spec(1), { line: () => undefined, exit: () => undefined, log: () => undefined });
+		const events = inner.calls[0]!.events;
+		const at = (x: number, held = false): PresenceMessage => ({
+			matchId: 'm-1',
+			type: 'presence',
+			pointer: { zone: 'hand', x, y: 0.5 },
+			anchor: null,
+			held,
+			from: null,
+			arranging: null,
+			placing: null,
+			handMove: null,
+		});
+
+		recorder.onPresence('m-1', 0, 1, at(0.1)); // kept: the first
+		clock += 40;
+		recorder.onPresence('m-1', 0, 1, at(0.2)); // dropped: 40 ms on, same hands
+		clock += 20;
+		recorder.onPresence('m-1', 0, 1, at(0.3, true)); // kept: a card lifted, 60 ms on
+		clock += 100;
+		recorder.onPresence('m-1', 0, 1, at(0.4, true)); // kept: 100 ms on
+		recorder.onPresence('m-unknown', 0, 1, at(0.5)); // no session: nothing
+
+		(events.exit as (r: string) => void)('stopped');
+		await vi.waitFor(() => expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true));
+		const kept = linesOf(join(dir, 'm-1.public.jsonl.gz')).filter((l) => l.t === 'presence');
+		expect(kept.map((l) => [l.at, l.seat, l.playerId, (l.presence as PresenceMessage).pointer?.x, (l.presence as PresenceMessage).held])).toEqual([
+			[0, 0, 1, 0.1, false],
+			[60, 0, 1, 0.3, true],
+			[160, 0, 1, 0.4, true],
+		]);
 	});
 
 	it('a late onEnvelope/onGameOver after exit is a quiet no-op, and never recreates the files', async () => {

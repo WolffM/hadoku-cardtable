@@ -305,10 +305,13 @@ export function anchorOf(canvas: HTMLElement, point: Point): PresenceAnchor | nu
  * up this one everywhere, on a card or between cards alike. Kept inside the
  * twin zone (or row). Null when the twin is not drawn here (yet), so the
  * caller falls back to the board fraction.
+ *
+ * `mirrored: false` is a sender THIS board draws at the bottom, as itself (a watcher's board follows
+ * the active player, and so does a replay's): their own zone is this board's "you", and nothing flips.
  */
-export function placeAnchor(canvas: HTMLElement, anchor: PresenceAnchor): Point | null {
+export function placeAnchor(canvas: HTMLElement, anchor: PresenceAnchor, mirrored = true): Point | null {
   if (anchor === null) return null;
-  const zoneEl = canvas.querySelector<HTMLElement>(`[data-zone="${anchor.zone}"][data-owner="${anchor.own ? 'them' : 'you'}"]`);
+  const zoneEl = canvas.querySelector<HTMLElement>(`[data-zone="${anchor.zone}"][data-owner="${anchor.own === mirrored ? 'them' : 'you'}"]`);
   if (zoneEl === null) return null;
   const frame = anchor.row === null ? zoneEl : zoneEl.querySelector<HTMLElement>(`[data-tier="${anchor.row}"], [data-board-row="${anchor.row}"]`);
   if (frame === null) return null;
@@ -324,7 +327,7 @@ export function placeAnchor(canvas: HTMLElement, anchor: PresenceAnchor): Point 
   if (r.width === 0 || r.height === 0) return null;
   return {
     x: Math.max(bounds.left, Math.min(bounds.right, r.left + anchor.x * r.width)),
-    y: Math.max(bounds.top, Math.min(bounds.bottom, r.top + (1 - anchor.y) * r.height)),
+    y: Math.max(bounds.top, Math.min(bounds.bottom, r.top + (mirrored ? 1 - anchor.y : anchor.y) * r.height)),
   };
 }
 
@@ -336,12 +339,13 @@ export function placeAnchor(canvas: HTMLElement, anchor: PresenceAnchor): Point 
  * opponent's side, at their top, is drawn at this board's bottom (this seat's
  * own place). No zone's box scales it, on either side. The operator,
  * 2026-10-07: *"i'm hovering the top left card on my board, but looking at
- * the other screen it seems to be hovering the bottom left card."*
+ * the other screen it seems to be hovering the bottom left card."* `mirrored: false`, as
+ * {@link placeAnchor}'s: a sender drawn at the bottom.
  */
-export function placeSpot(canvas: HTMLElement, spot: PresenceSpot): Point | null {
+export function placeSpot(canvas: HTMLElement, spot: PresenceSpot, mirrored = true): Point | null {
   const board = boardBox(canvas);
   if (board === null) return null;
-  return { x: board.left + spot.x * board.width, y: board.top + (1 - spot.y) * board.height };
+  return { x: board.left + spot.x * board.width, y: board.top + (mirrored ? 1 - spot.y : spot.y) * board.height };
 }
 
 /** What this seat's hands are doing, off the gesture layer's own marks. */
@@ -875,7 +879,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
 
   /** Their rearrange, mirrored: their card dims in place and its tile stands as far off it, in cards, as theirs does. */
   let liftedCard: { id: number; el: HTMLElement; tile: HTMLElement } | null = null;
-  function drawArranging(root: HTMLElement, box: DOMRect, arranging: PresenceEcho['arranging']): void {
+  function drawArranging(root: HTMLElement, box: DOMRect, arranging: PresenceEcho['arranging'], mirrored: boolean): void {
     if (arranging === null) {
       if (liftedCard !== null) {
         liftedCard.el.removeAttribute('data-arrange-dragging');
@@ -885,9 +889,9 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       return;
     }
     // A redraw of their row replaces the card's element: the tile is rebuilt on the new one.
-    if (liftedCard !== null && (liftedCard.id !== arranging.card || !liftedCard.el.isConnected)) drawArranging(root, box, null);
+    if (liftedCard !== null && (liftedCard.id !== arranging.card || !liftedCard.el.isConnected)) drawArranging(root, box, null, mirrored);
     if (liftedCard === null) {
-      const el = battlefieldCard(canvas, arranging.card, 'them');
+      const el = battlefieldCard(canvas, arranging.card, mirrored ? 'them' : 'you');
       const face = el?.querySelector('.card');
       if (!(el instanceof HTMLElement) || !face) return;
       const tile = document.createElement('div');
@@ -907,7 +911,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     // Off the card's home as THIS board draws it, by the same fraction of a card, the height mirrored.
     const home = liftedCard.el.getBoundingClientRect();
     liftedCard.tile.style.left = `${home.left + home.width * (0.5 + arranging.x) - box.left}px`;
-    liftedCard.tile.style.top = `${home.top + home.height * (0.5 - arranging.y) - box.top}px`;
+    liftedCard.tile.style.top = `${home.top + home.height * (0.5 + (mirrored ? -arranging.y : arranging.y)) - box.top}px`;
   }
 
   /**
@@ -946,12 +950,14 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const root = overlay();
     if (root === null) return;
     const box = root.getBoundingClientRect();
-    drawArranging(root, box, echo.arranging);
-    glideHandMove(root, box, echo.handMove);
+    const mirrored = !drawnAtBottom(echo.seat);
+    drawArranging(root, box, echo.arranging, mirrored);
+    // A reorder glides one of their hidden hand's backs; a hand drawn at the bottom is face up, and its frames reorder it.
+    if (mirrored) glideHandMove(root, box, echo.handMove);
     if (echo.placing !== null) renewWait();
     // Anchored to the twin of what their pointer is in (`anchorOf`) — the board fraction drifts off
     // a card the moment the two screens size a row differently; it is the fallback outside every zone.
-    const at = echo.pointer === null ? null : placeAnchor(canvas, echo.anchor) ?? placeSpot(canvas, echo.pointer);
+    const at = echo.pointer === null ? null : placeAnchor(canvas, echo.anchor, mirrored) ?? placeSpot(canvas, echo.pointer, mirrored);
     if (at === null) {
       takeDown();
       return;
@@ -965,7 +971,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
         '<svg class="presence__pointer" viewBox="0 0 16 16"><path d="M1 1 L1 13 L4.5 9.8 L7 15 L9.3 14 L6.8 9 L11.5 9 Z"/></svg><span class="presence__name"></span>';
       root.append(cursor);
     }
-    cursor.querySelector('.presence__name')!.textContent = host.opponentName() ?? '';
+    // The tag names the other seat; a sender at the bottom is the player whose board this is, named beside it already.
+    cursor.querySelector('.presence__name')!.textContent = mirrored ? (host.opponentName() ?? '') : '';
     cursor.style.left = `${at.x - box.left}px`;
     cursor.style.top = `${at.y - box.top}px`;
 
@@ -980,7 +987,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       waiting.diag.lastEcho = echo.placing !== null ? 'placing' : echo.held ? 'held' : 'none';
     }
     if (echo.placing !== null) {
-      const placingAt = placeSpot(canvas, echo.placing.at);
+      const placingAt = placeSpot(canvas, echo.placing.at, mirrored);
       // A play already handed over (no lift since): this echo was true when it was SENT, and is
       // that play's stale tail now — see `lifted`.
       if (waiting === null && placingAt !== null && lifted) {
@@ -1024,7 +1031,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
 
     // The arrow is the tail of an active aim — `from` is sent for nothing else (a parked card
     // being aimed from, or the targeter's own start), so it is drawn whenever it is there.
-    const from = echo.from === null ? null : placeSpot(canvas, echo.from);
+    const from = echo.from === null ? null : placeSpot(canvas, echo.from, mirrored);
     if (from !== null) {
       if (arrow === null) {
         arrow = newArrow({ className: 'arrow--theirs presence__arrow', ghost: true });
@@ -1039,6 +1046,12 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
 
     if (staleTimer !== null) clearTimeout(staleTimer);
     staleTimer = setTimeout(takeDown, PRESENCE_STALE_MS);
+  }
+
+  /** Whether `seat`'s player is the one THIS board draws at the bottom: only ever true for a watcher. */
+  function drawnAtBottom(seat: number): boolean {
+    const player = host.playerOfSeat?.(seat) ?? null;
+    return player !== null && player === (host.viewerPlayerId?.() ?? null);
   }
 
   function onTheirBattlefield(id: number): boolean {
@@ -1341,6 +1354,9 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (!parsed.success || parsed.data.matchId !== host.matchId) return;
     // This seat's own echo never comes back (the server relays to the others), but a resync could; never draw oneself.
     if (parsed.data.seat === host.seat) return;
+    // A watcher sees the table from the active player's side (the operator, 2026-10-28), and so sees
+    // that player's pointer — not the other seat's, which would share the one cursor and jump between them.
+    if (host.seat === null && host.playerOfSeat?.(parsed.data.seat) != null && !drawnAtBottom(parsed.data.seat)) return;
     draw(parsed.data);
   }
 

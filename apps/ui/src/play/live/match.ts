@@ -3623,17 +3623,21 @@ const endsTheGame = (frame: ServerFrame): boolean =>
 
 /**
  * A read-only board fed frames directly: a finished match's recording, drawn as its watchers saw it
- * (`../../replay/player.ts`). No transport, no cursor, no resync — the recording is the whole
- * stream and it is already here. `playerId` is the player the recording's `openView` names.
+ * (`../../replay/player.ts`). No server and no resync — the recording is the whole stream and it is
+ * already here. `playerId` is the player the recording's `openView` names. `pointers`: what carries the
+ * recorded pointer messages to the board's own presence layer (its `on`; nothing is ever sent), and
+ * `seats`, each seat's Forge player, so that layer knows whose pointer is drawn at the bottom.
  */
-export function replayMatch(matchId: string, playerId: number): ReplayFold {
-  const match = newMatch({ matchId, transport: NO_SERVER });
+export function replayMatch(matchId: string, playerId: number, options: { pointers?: Pick<MatchTransport, 'on'>; seats?: ReadonlyMap<number, number> } = {}): ReplayFold {
+  const match = newMatch({ matchId, transport: options.pointers === undefined ? NO_SERVER : { ...NO_SERVER, on: options.pointers.on } });
+  const seats = options.seats ?? null;
   match.seat = 0;
   match.playerId = playerId;
   match.connected = true;
   match.everConnected = true;
   match.spectator = true;
   match.watcher = true;
+  match.playerIdBySeat = seats;
   return {
     match,
     fold(frames, from) {
@@ -3642,6 +3646,7 @@ export function replayMatch(matchId: string, playerId: number): ReplayFold {
         match.reveal = null;
         match.revealed = null;
         foldFrames(match, frames.map((f) => f.frame), 'history');
+        match.playerIdBySeat = seats;
         for (const { frame } of frames) if (endsTheGame(frame)) applyFrame(match, frame);
       } else {
         for (const { frame, displayOnly, forceNotice } of frames) {

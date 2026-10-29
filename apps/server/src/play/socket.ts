@@ -91,6 +91,7 @@ import {
 	PRESENCE_EVENT,
 	PRESENCE_MAX_PER_SECOND,
 	PresenceSchema,
+	type PresenceMessage,
 	fullControlFrame,
 	MATCH_EVENTS,
 	StartMatchBodySchema,
@@ -198,6 +199,12 @@ export interface PlayDeps {
 	 * from outside `match.ts`, which lane C does not own this wave.
 	 */
 	onEnvelope?(matchId: string, seat: number, envelope: ServerEnvelope): void;
+	/**
+	 * Wave 81 part 2 — the ACTIVE seat's presence (its pointer and what its hands are doing), after it
+	 * is relayed: the recorder keeps it so a replay draws that seat's cursor. A message carries no
+	 * card (`@hadoku/shared`'s `presence.ts`), so there is nothing to redact. Additive only.
+	 */
+	onPresence?(matchId: string, seat: number, playerId: number, presence: PresenceMessage): void;
 	/** `GET /play/hosts`: where matches run, each host's eligibility and health (`placement/`). Absent: this machine only. */
 	hosts?(): unknown;
 }
@@ -1155,6 +1162,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			presenceSent += 1;
 			if (presenceSent > PRESENCE_MAX_PER_SECOND) return;
 			socket.to(roomFor(match).roomId).emit(PRESENCE_EVENT, { ...parsed.data, seat });
+			const active = match.activeSeat();
+			if (active !== null && active.seat === seat) deps.onPresence?.(match.id, seat, active.playerId, parsed.data);
 		});
 
 		/*

@@ -6,17 +6,28 @@
  * that came due since the last tick to `fold(…, 'here')`, as a live board applies its stream. A seek
  * folds the recording from its start to the target with `fold(…, 'start')`. A loop is a seek to the
  * replay's first board.
- * A replay has no server, so it has no cursor and nothing to resync: wave 77's player fed the board a
- * made-up frame to force a resync on every seek, and a scrub of four seeks tripped the live socket's
- * guard against a server that never catches up (wave 81, `docs/handoff/w81-closing.md`).
+ * A replay has no server, so it has nothing to resync: wave 77's player fed the board a made-up frame
+ * to force a resync on every seek, and a scrub of four seeks tripped the live socket's guard against a
+ * server that never catches up (wave 81, `docs/handoff/w81-closing.md`).
+ *
+ * The cursor is the recording's own: the active seat's pointer messages (`data.presence`), handed to
+ * the board's presence layer (`../play/live/presence.ts`) as they came due, exactly as a live board
+ * hears the other seat's — drawn only while that seat's player is the one at the bottom. A board
+ * drawn afresh (a seek) is handed the last one, if it is recent enough to still be drawn. A seat
+ * sends nothing while its pointer is still, so silence in a recording is a pointer standing where it
+ * was: the last one is handed again every {@link POINTER_RESTATE_MS} until the next, never left to go
+ * stale (a player parked reading a card is still there; one whose pointer left sent that, as null).
  *
  * A seek re-folds from frame 0, not from a checkpoint: the longest recording on record (564 frames,
  * a 12-minute game) folds whole in about 7 ms, and `player.test.ts` prints a 1202-frame one's cost,
  * well inside a scrub's frame budget.
  */
 
-import { replayMatch, type LiveMatch, type ReplayFrame } from '../play/live/match.ts';
-import type { RecordedEnv, ReplayData } from './transport.ts';
+import { PRESENCE_EVENT, type PresenceEcho } from '@hadoku/shared';
+
+import { replayMatch, viewerPlayerIdOf, type LiveMatch, type ReplayFrame } from '../play/live/match.ts';
+import { PRESENCE_STALE_MS } from '../play/live/presence.ts';
+import type { RecordedEnv, RecordedPresence, ReplayData } from './transport.ts';
 
 export type ReplaySpeed = 1 | 2 | 4;
 
@@ -55,6 +66,9 @@ export interface ReplayPlayer {
 /** How often the clock checks whether another frame is due. Playback is paced by `at`, not by this. */
 const TICK_MS = 50;
 
+/** How often a pointer standing still is handed to the board again: well inside `PRESENCE_STALE_MS`. */
+export const POINTER_RESTATE_MS = PRESENCE_STALE_MS / 2;
+
 /** The Forge player id the recording's `openView` names: the watcher channel's own perspective. */
 function firstViewerPlayerId(envs: readonly RecordedEnv[]): number {
   for (const { env } of envs) {
@@ -87,7 +101,48 @@ export function createReplayPlayer(data: ReplayData, options: { loop?: boolean }
    */
   const startMs = data.envs.find((e) => e.env.frame.method === 'setGameView')?.at ?? 0;
   const loop = options.loop === true;
-  const { match, fold } = replayMatch(data.header.matchId, firstViewerPlayerId(data.envs));
+  const pointers = data.presence;
+  const seats = new Map(pointers.map((p) => [p.seat, p.playerId] as const));
+  /** The board's presence layer: one at a time (a seek draws the board afresh, and its layer anew). */
+  let hearPointer: ((payload: unknown) => void) | null = null;
+  /** How many of `pointers` have come due, and the last one that did. */
+  let pointersDue = 0;
+  let lastPointer: RecordedPresence | null = null;
+  /** When (match time) the board was last handed a pointer. */
+  let handedAt = 0;
+  const { match, fold } = replayMatch(data.header.matchId, firstViewerPlayerId(data.envs), {
+    pointers: {
+      on(event, handler) {
+        if (event !== PRESENCE_EVENT) return;
+        hearPointer = handler;
+        // A board drawn afresh: the cursor where it last was, unless it had left the board.
+        const last = lastPointer;
+        if (last !== null && last.presence.pointer !== null) queueMicrotask(() => deliver(last));
+      },
+    },
+    seats,
+  });
+
+  /** One pointer message to the board, as the live relay stamps it — only the bottom player's is drawn. */
+  function deliver(p: RecordedPresence): void {
+    if (p.playerId !== viewerPlayerIdOf(match)) return;
+    const echo: PresenceEcho = { ...p.presence, matchId: data.header.matchId, seat: p.seat };
+    hearPointer?.(echo);
+  }
+
+  /** Every pointer message sent at or before `ms` has come due; with `hand`, the new ones go to the board. */
+  function pointersThrough(ms: number, hand: boolean): void {
+    while (pointersDue < pointers.length && pointers[pointersDue]!.at <= ms) {
+      lastPointer = pointers[pointersDue]!;
+      pointersDue += 1;
+      handedAt = lastPointer.at;
+      if (hand) deliver(lastPointer);
+    }
+    if (hand && lastPointer !== null && lastPointer.presence.pointer !== null && ms - handedAt >= POINTER_RESTATE_MS) {
+      handedAt = ms;
+      deliver(lastPointer);
+    }
+  }
 
   const listeners = new Set<() => void>();
   let speedMult: ReplaySpeed = 1;
@@ -140,6 +195,7 @@ export function createReplayPlayer(data: ReplayData, options: { loop?: boolean }
       fold(frames.slice(delivered, due), 'here');
       delivered = due;
     }
+    pointersThrough(position, true);
     if (position >= duration && delivered >= frames.length) {
       basePositionMs = duration;
       isEnded = true;
@@ -182,6 +238,9 @@ export function createReplayPlayer(data: ReplayData, options: { loop?: boolean }
     const target = Math.max(startMs, Math.min(duration, ms));
     delivered = indexThrough(target);
     fold(frames.slice(0, delivered), 'start');
+    pointersDue = 0;
+    lastPointer = null;
+    pointersThrough(target, false);
     seekCount += 1;
     basePositionMs = target;
     anchorWallClock = now();

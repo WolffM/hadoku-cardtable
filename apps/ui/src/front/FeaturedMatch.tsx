@@ -17,9 +17,16 @@
  * (`../replay/load.ts`). It never reads "Connecting…".
  *
  * `LiveBoard` is rendered whole, at the size its own table-fit expects
- * (`e2e/table-fit.spec.ts`'s own reference, 1280×800), inside a box scaled
- * down by a CSS `transform` to whatever this banner slot is — never
- * re-laid-out, and never a line changed in `LiveBoard.tsx` itself.
+ * (`e2e/table-fit.spec.ts`'s own reference, 1280×800) — never re-laid-out, and
+ * never a line changed in `LiveBoard.tsx` itself — and the card is a square
+ * window onto it at the board's own proportions: its default capture region, the
+ * bottom-left square, or a temporary one following the active player's cursor
+ * (`./camera.ts`). The operator, 2026-10-29: *"i don't want to show the whole
+ * zoomed out board, that's too hard to see anything. maybe we can focus on the
+ * bottom left corner"*. The bottom player is the one whose turn it is (a
+ * watcher's view, `match.ts`'s `viewerPlayerIdOf`), so the card flips at every
+ * turn change; the cursor is that player's, as the board draws it (live, the
+ * relayed pointer; in a replay, the recorded one, `../replay/player.ts`).
  *
  * ## Quiet — the match only, for this mount only
  *
@@ -36,6 +43,7 @@ import {
   socketIoMatchTransport,
   startMatch,
   subscribe,
+  viewerPlayerIdOf,
   type LiveMatch,
   type MatchTransport,
 } from '../play/live/match.ts';
@@ -45,6 +53,7 @@ import { latestReplay, readyPlayer } from '../replay/load.ts';
 import type { ReplayClock } from '../replay/player.ts';
 import { ReplayBoard } from '../replay/ReplayBoard.tsx';
 import { REPLAYS_ON } from '../replay/transport.ts';
+import { BOARD_HEIGHT, BOARD_WIDTH, CORNER, DEFAULT_REGION, initialCamera, stepCamera, type Point } from './camera.ts';
 import './FeaturedMatch.css';
 
 export interface FeaturedMatchProps {
@@ -57,14 +66,38 @@ export interface FeaturedMatchProps {
   replayFallback?: boolean;
 }
 
-/** `e2e/table-fit.spec.ts`'s own reference room size — what `LiveBoard`'s table-fit is designed against. */
-const BOARD_WIDTH = 1280;
-const BOARD_HEIGHT = 800;
-
 type Source = { kind: 'live'; match: LiveMatch } | { kind: 'replay'; match: LiveMatch; clock: ReplayClock };
 
+const placed = (at: Point, scale: number): string => `translate(${-at.x * scale}px, ${-at.y * scale}px) scale(${scale})`;
+
 /**
- * Scale `BOARD_WIDTH × BOARD_HEIGHT` down to whatever box `ref` measures, preserving aspect ratio.
+ * The camera, every animation frame: the active player's cursor as the board draws it (`.presence`,
+ * `../play/live/presence.ts`), in board pixels, steps `./camera.ts`, and the frame is moved to the
+ * region it captures. `data-capture-region` on the viewport says which.
+ */
+function useCamera(viewportRef: RefObject<HTMLDivElement | null>, frameRef: RefObject<HTMLDivElement | null>, match: LiveMatch | null, scale: number): void {
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    const frame = frameRef.current;
+    if (viewport === null || frame === null || match === null || typeof requestAnimationFrame === 'undefined') return undefined;
+    let camera = initialCamera(performance.now(), viewerPlayerIdOf(match));
+    let raf = 0;
+    const step = (): void => {
+      const box = frame.getBoundingClientRect();
+      const tip = frame.querySelector('.presence')?.getBoundingClientRect() ?? null;
+      const cursor = tip === null ? null : { x: (tip.left - box.left) / scale, y: (tip.top - box.top) / scale };
+      camera = stepCamera(camera, performance.now(), cursor, viewerPlayerIdOf(match));
+      frame.style.transform = placed(camera.at, scale);
+      viewport.dataset.captureRegion = camera.region;
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [viewportRef, frameRef, match, scale]);
+}
+
+/**
+ * Scale a capture region ({@link CORNER} square) to whatever square box `ref` measures.
  * `drawn`: the box is on the page (a replay's card holds its place without one until it is ready).
  */
 function useFitScale(ref: RefObject<HTMLDivElement | null>, drawn: boolean): number {
@@ -74,7 +107,7 @@ function useFitScale(ref: RefObject<HTMLDivElement | null>, drawn: boolean): num
     if (el === null) return undefined;
     const measure = (): void => {
       const { width, height } = el.getBoundingClientRect();
-      if (width > 0 && height > 0) setScale(Math.min(width / BOARD_WIDTH, height / BOARD_HEIGHT));
+      if (width > 0 && height > 0) setScale(Math.min(width, height) / CORNER);
     };
     measure();
     const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
@@ -111,7 +144,9 @@ function TitleBar({ source, watchHref }: { source: Source; watchHref: string }) 
 export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback = REPLAYS_ON }: FeaturedMatchProps) {
   const [source, setSource] = useState<Source | 'loading' | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const scale = useFitScale(viewportRef, source !== null && source !== 'loading');
+  useCamera(viewportRef, frameRef, source === null || source === 'loading' ? null : source.match, scale);
 
   useEffect(() => holdMatchQuiet(), []);
 
@@ -165,7 +200,7 @@ export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback =
     <div className="featured-match" data-testid="featured-match">
       <TitleBar source={source} watchHref={watchHref} />
       <div className="featured-match__viewport" ref={viewportRef}>
-        <div className="featured-match__frame" style={{ width: BOARD_WIDTH, height: BOARD_HEIGHT, transform: `scale(${scale})` }}>
+        <div className="featured-match__frame" ref={frameRef} style={{ width: BOARD_WIDTH, height: BOARD_HEIGHT, transform: placed(DEFAULT_REGION, scale) }}>
           {source.kind === 'replay' ? <ReplayBoard match={source.match} clock={source.clock} /> : <LiveBoard match={source.match} roomId={null} />}
         </div>
       </div>
