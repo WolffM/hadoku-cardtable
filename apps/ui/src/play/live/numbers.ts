@@ -1269,7 +1269,8 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       endMs = Math.max(endMs, ATTACK_BEAT_MS);
       host.report?.({ what: 'attack', attackers: diff.attacks.length, beatMs: ATTACK_BEAT_MS });
     }
-    if (endMs > 0) noteBoardDrawing(beatsOver(endMs));
+    // What waits on these beats goes at their 90% (`../motion.ts`'s `UNLOCK_AT`); the result screen waits for `beatsOver`.
+    if (endMs > 0) noteBoardDrawing(beatsOver(endMs), { endsInMs: endMs, root: canvas });
     if (firstLifeLand !== null && prevView !== null) noteLifeImpact(prevView.seq, Date.now() + firstLifeLand);
     if (beat > 0 || bolt > 0 || reveal !== null || diff.departures.length > 0 || (combat?.rams.length ?? 0) > 0) {
       host.report?.({
