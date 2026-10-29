@@ -563,6 +563,18 @@ describe('pacedMatchTransport: one act at a time', () => {
     expect(received).toEqual([INPUT_NOTIFY, ASK]);
   });
 
+  it('a question is held by beats that never end no longer than the cap', async () => {
+    const inner = fakeInner();
+    const board = fakeBoard();
+    const { received } = paced(inner, { boardStill: board.still, report: () => undefined });
+    board.busy(true);
+    inner.deliver(ASK);
+    await vi.advanceTimersByTimeAsync(BOARD_HOLD_MAX_MS - 1);
+    expect(received).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(received).toEqual([ASK]);
+  });
+
   it('a log line is not held by the board', () => {
     const inner = fakeInner();
     const board = fakeBoard();
@@ -732,6 +744,16 @@ describe('the seat’s own act', () => {
       expect(ownAct(NEW_TURN, acts, ALICE)).toBe(false);
     });
 
+    it("a counter is its caster's act, though it takes the opponent's spell off the stack with it", () => {
+      const acts = actMemory();
+      ownAct(pushed(3, BOB), acts, ALICE);
+      ownAct(pushed(4, ALICE, [3]), acts, ALICE);
+      expect(ownAct(popped(), acts, ALICE), "alice's counter resolving, bob's spell gone with it").toBe(true);
+      ownAct(pushed(5, ALICE), acts, ALICE);
+      ownAct(pushed(6, BOB, [5]), acts, ALICE);
+      expect(ownAct(popped(), acts, ALICE), "bob's counter of hers is his").toBe(false);
+    });
+
     it('a watcher has no act of its own', () => {
       const acts = actMemory();
       expect(ownAct(ASK, acts, null)).toBe(false);
@@ -806,6 +828,36 @@ describe('the seat’s own act', () => {
       board.busy(false);
       await vi.advanceTimersByTimeAsync(0);
       expect(received.at(-1)).toBe(ask);
+    });
+
+    // The operator, 2026-10-29: "AF216 is important, we dont want to violate that. the game needs to feel smooth
+    // to play, and ideally the user isn't blocked as much as possible."
+    it("the seat's own Doom Blade and its own counter open its next decision at once, over their beats", async () => {
+      const inner = fakeInner();
+      const board = fakeBoard();
+      const { transport, received } = paced(inner, { boardStill: board.still });
+      transport.setSeatPlayer(() => ALICE);
+      // Her Doom Blade: it resolves, its slice is drawing, and her next window opens.
+      inner.deliver(pushed(3, ALICE));
+      board.busy(true);
+      inner.deliver(popped());
+      inner.deliver(INPUT_NOTIFY);
+      inner.deliver(ASK);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(received, 'her Doom Blade: at once').toHaveLength(4);
+      // Her Counterspell at bob's Bolt: both leave, the counter's crack is drawing, and her window opens.
+      board.busy(false);
+      inner.deliver(pushed(4, BOB));
+      await vi.advanceTimersByTimeAsync(0);
+      inner.deliver(pushed(5, ALICE, [4]));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(received).toHaveLength(6);
+      board.busy(true);
+      const ask = { frame: { ...ASK.frame, callId: 'c2' } };
+      inner.deliver(popped());
+      inner.deliver(ask);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(received.at(-1), 'her counter: at once, no gap, no wait on its beats').toBe(ask);
     });
 
     it("the opponent's act after the seat's waits for the seat's beats and keeps its gaps", async () => {

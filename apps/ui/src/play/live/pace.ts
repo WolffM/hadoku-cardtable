@@ -370,7 +370,8 @@ export function ownAct(payload: unknown, acts: ActMemory, viewer: number | null)
         const added = ids.filter((id) => !acts.stack.includes(id));
         const gone = acts.stack.filter((id) => !ids.includes(id));
         acts.stack = ids;
-        const moved = added.length > 0 ? added : gone;
+        // What resolved is the top item that went: a counter takes the spell it countered with it, and is still its caster's act.
+        const moved = added.length > 0 ? added : gone.slice(0, 1);
         if (moved.length > 0) acts.actor = viewer !== null && moved.every((id) => acts.activators.get(id) === viewer) ? 'own' : 'other';
         for (const id of gone) acts.activators.delete(id);
         return viewer !== null && acts.actor === 'own';

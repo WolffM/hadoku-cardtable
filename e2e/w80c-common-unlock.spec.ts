@@ -8,8 +8,8 @@
  * every animation, when the stack shrank, and when her next decision opened (an enabled OK, or a hand card she
  * can cast). That moment is a share of the resolution's effect, the animations the frame that shrank the stack
  * set off (the slice; the counter's blink and its target's crack and fade), not the spell then fading off the
- * stack. After bob's act it opens on the effect's last tenth; after her own it opens at once, as Forge asks
- * (AF216). `[w80c-common]` lines are the evidence.
+ * stack. After bob's act it opens on the effect's last tenth; after her own (her counter of his Bolt included)
+ * it opens at once, as Forge asks (AF216). `[w80c-common]` lines are the evidence.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without one this SKIPS and the
  * title says why.
@@ -224,16 +224,20 @@ test(titled('a counter and a removal resolving: when alice’s next decision ope
     await passTo(a, b, 3);
     since = await clock(a);
     await passUntilBelow(b, a, 3, 'her Counterspell resolves');
-    results.push(await measure(a, 'alice’s Counterspell at bob’s Bolt', since, 3));
+    results.push(await measure(a, 'own Counterspell', since, 3));
 
     for (const r of serverLog(stack).filter((x) => x.evt === 'client' && x.seat === 0 && x.what === 'input-held')) {
       console.log(`[w80c-common] input-held ${String(r.method)} ${String(r.ms)}ms board ${String(r.boardMs)} gaps ${String(r.gapMs)} ahead ${String(r.classes)}`);
     }
     console.log(`[w80c-common] summary ${results.map((r) => `${r.act} ${Math.round(r.share * 100)}%`).join('; ')}`);
-    // Alice's own Doom Blade is her own act, drawn as Forge sends it (AF216): printed, not judged. Every other one
-    // takes bob's spell off the stack, and her decision after it opens on the effect's last tenth — a frame of a
-    // loaded runner either side.
-    for (const r of results.filter((x) => x.act !== 'own Doom Blade')) {
+    // Bob's acts: her decision after one opens on the effect's last tenth, a frame of a loaded runner either side.
+    // Her own (AF216, the operator, 2026-10-29: "AF216 is important, we dont want to violate that"): at once, as
+    // Forge asks, over its beats — her counter too, though it takes bob's Bolt off the stack with it.
+    for (const r of results) {
+      if (r.act.startsWith('own ')) {
+        expect(r.share, `${r.act}: her own act's next decision opens as it resolves, not held`).toBeLessThanOrEqual(0.15);
+        continue;
+      }
       expect(r.share, `${r.act}: alice's next decision opens on the effect's last tenth, not as it starts`).toBeGreaterThanOrEqual(0.8);
       expect(r.share, `${r.act}: and not after it is over`).toBeLessThanOrEqual(1.1);
     }
