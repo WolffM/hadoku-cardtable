@@ -22,8 +22,10 @@
  *
  * It mounts no `RoomChrome`: `App` mounts the one the page has, and its store
  * and socket are module singletons. This screen owns the match handle's
- * lifetime and nothing else: it opens the connection on mount and closes it
- * on unmount, so leaving the route does not leave a socket behind.
+ * lifetime and nothing else: it opens the connection on mount — or adopts the
+ * one a room opened before handing the page over (`play/live/matchStart.ts`),
+ * so the walk from Ready to the board has no loading screen — and closes it on
+ * unmount, so leaving the route does not leave a socket behind.
  *
  * ## Fast Mode's transport (wave 47)
  *
@@ -45,9 +47,10 @@
  * opened, and the room is reached from the room list.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 
 import { LiveBoard } from '../play/live/LiveBoard.tsx';
+import { knownRoomOfMatch, takeWarmMatch, warmMatchesWith } from '../play/live/matchStart.ts';
 import { pacedMatchTransport } from '../play/live/pace.ts';
 import { PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
 import { roomsClient } from '../rooms/api.ts';
@@ -68,6 +71,18 @@ function reportTrouble(matchId: string, what: MatchTrouble, detail: Record<strin
   void sendJson(url, 'POST', { what, ui: __HADOKU_UI_VERSION__, detail }, undefined, { keepalive: true }).catch((err: unknown) => console.warn('[match] could not report', what, err));
 }
 
+/** The page's one way to open a match: a paced socket, its trouble reported over HTTP. */
+function openMatch(matchId: string, transport?: MatchTransport): LiveMatch {
+  return startMatch({
+    matchId,
+    transport: transport ?? pacedMatchTransport(socketIoMatchTransport(), { initialFast: PLAY_PREFS_DEFAULTS.fastMode }),
+    report: (what, detail) => reportTrouble(matchId, what, detail),
+  });
+}
+
+// A room opens its new match through this before it hands the page over (`matchStart.ts`).
+warmMatchesWith(openMatch);
+
 export interface MatchScreenProps {
   matchId: string;
   /** Tests pass a stub transport. Production leaves it undefined and gets a paced socket.io transport. */
@@ -78,10 +93,9 @@ export function MatchScreen({ matchId, makeTransport }: MatchScreenProps) {
   const shellRef = useChromeShell('match');
   const [match, setMatch] = useState<LiveMatch | null>(null);
 
-  useEffect(() => {
-    const transport =
-      makeTransport?.() ?? pacedMatchTransport(socketIoMatchTransport(), { initialFast: PLAY_PREFS_DEFAULTS.fastMode });
-    const handle = startMatch({ matchId, transport, report: (what, detail) => reportTrouble(matchId, what, detail) });
+  // Before paint, so a match the room already opened is drawn in the first frame, not after an empty one.
+  useLayoutEffect(() => {
+    const handle = (makeTransport === undefined ? takeWarmMatch(matchId) : null) ?? openMatch(matchId, makeTransport?.());
     setMatch(handle);
     return () => closeMatch(handle);
   }, [matchId, makeTransport]);
@@ -94,8 +108,13 @@ export function MatchScreen({ matchId, makeTransport }: MatchScreenProps) {
   // Unknown is a legitimate answer (a match link from elsewhere, a server that
   // would not answer): the board then says "Back to the lobby", which is where
   // that viewer belongs.
-  const [roomId, setRoomId] = useState<string | null>(null);
+  const [roomId, setRoomId] = useState<string | null>(() => knownRoomOfMatch(matchId)?.id ?? null);
   useEffect(() => {
+    const known = knownRoomOfMatch(matchId);
+    if (known !== undefined) {
+      setRoomId(known?.id ?? null);
+      return;
+    }
     let live = true;
     roomsClient()
       .roomOfMatch(matchId)

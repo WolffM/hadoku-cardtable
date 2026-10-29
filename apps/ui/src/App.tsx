@@ -41,7 +41,8 @@ import { AppChrome } from './chrome/AppChrome.tsx';
 import { HeaderLinks } from './chrome/HeaderLinks.tsx';
 import { RoomShell } from './room/RoomShell.tsx';
 import { useWhoami } from './room/whoami.ts';
-import { roomsClient } from './rooms/api.ts';
+import { knownRoomOfMatch } from './play/live/matchStart.ts';
+import { roomsClient, type RoomView } from './rooms/api.ts';
 import { useUiScale } from './settings/Settings.tsx';
 import { useTrim } from './settings/siteTrim.ts';
 
@@ -115,16 +116,27 @@ export interface RoomPlace {
  * room" by itself — which is why this is its own piece of state, set
  * alongside `roomId` in the very same update, rather than computed from it.
  */
+function placeOfMatch(room: RoomView | null, matchId: string): RoomPlace | null {
+  return room === null ? null : { roomId: room.id, chatId: tableChatId(room, matchId) };
+}
+
 function useMatchRoomId(matchId: string | null): { room: RoomPlace | null; pending: boolean } {
   const [state, setState] = useState<{ room: RoomPlace | null; everAnswered: boolean }>({ room: null, everAnswered: false });
+  // A match entered from its room had its room asked before the route changed (`matchStart.ts`):
+  // the board then draws in the route's first frame, with no empty one while this asks again.
+  const known = matchId === null ? undefined : knownRoomOfMatch(matchId);
   useEffect(() => {
     if (matchId === null) return;
+    if (known !== undefined) {
+      setState({ room: placeOfMatch(known, matchId), everAnswered: true });
+      return;
+    }
     let live = true;
     roomsClient()
       .roomOfMatch(matchId)
       .then(
         (room) => {
-          if (live) setState({ room: room === null ? null : { roomId: room.id, chatId: tableChatId(room, matchId) }, everAnswered: true });
+          if (live) setState({ room: placeOfMatch(room, matchId), everAnswered: true });
         },
         () => {
           if (live) setState({ room: null, everAnswered: true });
@@ -133,7 +145,8 @@ function useMatchRoomId(matchId: string | null): { room: RoomPlace | null; pendi
     return () => {
       live = false;
     };
-  }, [matchId]);
+  }, [matchId, known]);
+  if (matchId !== null && known !== undefined) return { room: placeOfMatch(known, matchId), pending: false };
   return { room: state.room, pending: matchId !== null && !state.everAnswered };
 }
 
