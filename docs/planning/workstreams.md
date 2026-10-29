@@ -214,7 +214,7 @@ it. PR-5 is new and exists to serve it.
 | A one arrival path (2a–c) | `.claude/worktrees/w79a` / `w79a` | dispatched | — |
 | B the stack (1, 8, face-down spell) | `.claude/worktrees/w79b` / `w79b` | dispatched; 8 gated on artifact | — |
 | C deaths (11a–c) | `.claude/worktrees/w79c` / `w79c` | dispatched | — |
-| D room → table → match (5, 12, 12a, 12b) | `.claude/worktrees/w79d` / `w79d` | landed `1131c3643`..`17653537f` (specs first); deploy + closing note pending | 12 avatars: product fine, the e2e edge 404s sprites — promo rig now fetches them (`promo-clips` b1c174554) |
+| D room → table → match (5, 12, 12a, 12b) | removed | **landed + verified** `1131c3643`..`17653537f` (AF440–443), PPE `5b688f38` restarted 07:17Z; awaiting operator ✅ | claw 40832236897 ✓ with video (tracker re-read); boot spec red on base `[-]`→`(connecting)` 170 ms–1.1 s, green after; mutation 1/1; 12 = e2e edge sprites, not product; unverified: prod latency (settle from the match log after a real Ready); closing note in `wave79-2026-10-28.md` |
 | E draft visuals (13, 13b) | — | queued: 13b artifact first | — |
 | F front-page replay, omniscient (3) | — | superseded by wave 81 | — |
 | trailer v2 re-shoot | `promo-clips` (e1) | waits on A–F | cut 1 https://claude.ai/artifact/RTwUZ5jEHvJRnHXoZ7r6bF |
