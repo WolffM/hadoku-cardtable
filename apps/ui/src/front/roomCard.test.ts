@@ -140,8 +140,8 @@ describe('roomCardView — state, every phase', () => {
 });
 
 describe('roomCardView — the way in', () => {
-  it('offers Sit down to a non-member with an open seat in the lobby', () => {
-    expect(roomCardView(room(), false).primaryAction).toBe('Sit down');
+  it('offers Join to a non-member with an open seat in the lobby', () => {
+    expect(roomCardView(room(), false).primaryAction).toBe('Join');
   });
 
   it('offers Join to a member, whatever the state', () => {

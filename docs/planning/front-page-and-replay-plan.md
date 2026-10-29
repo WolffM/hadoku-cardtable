@@ -110,7 +110,7 @@ cards, and there is **no "Recent games"** (that belongs on the player's profile)
     the cube for a draft, then Bo1 or Bo3.
   - **State.** A dot and a label: lobby, drafting, building, playing, sideboarding, rounds or done,
     then one detail ("Pack 2 · pick 5", "Game 2 · turn 7", "Round 2 of 3").
-  - **Actions.** Sit down, Join or Watch, chosen by the state, plus Watch whenever a game is on. This
+  - **Actions.** Join or Watch, chosen by the state (one Join for members and newcomers alike, the operator, 2026-10-29), plus Watch whenever a game is on. This
     replaces a separate "also live" rail.
   - Everything here except the draft's pack and pick is already on the room wire.
 

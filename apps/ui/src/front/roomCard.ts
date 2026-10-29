@@ -35,7 +35,7 @@ export interface RoomModeChip {
   text: string;
 }
 
-export type RoomPrimaryAction = 'Sit down' | 'Join' | 'Watch';
+export type RoomPrimaryAction = 'Join' | 'Watch';
 
 export interface RoomCardView {
   tournament: boolean;
@@ -173,7 +173,8 @@ function phaseState(room: RoomView): RoomCardState {
 function actions(room: RoomView, state: RoomCardState, isMine: boolean): { primaryAction: RoomPrimaryAction; extraWatch: boolean } {
   const capacity = room.pod !== null ? POD_SEATS : 2;
   const seatOpen = state.key === 'lobby' && room.members.length < capacity;
-  const primaryAction: RoomPrimaryAction = isMine ? 'Join' : seatOpen ? 'Sit down' : 'Watch';
+  // One way in, member or not (the operator, 2026-10-29: a separate button for each "seems pointless").
+  const primaryAction: RoomPrimaryAction = isMine || seatOpen ? 'Join' : 'Watch';
   const inProgress = state.key !== 'lobby' && state.key !== 'done';
   const extraWatch = (inProgress || matchIsLive(room)) && primaryAction !== 'Watch';
   return { primaryAction, extraWatch };

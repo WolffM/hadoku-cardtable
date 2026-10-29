@@ -621,7 +621,7 @@ function RoomRow({
           {names.join(', ')}
         </span>
 
-        {/* Row 4: the way in, chosen by state — Sit down, Join or Watch — plus a second Watch when a game is on.
+        {/* Row 4: the way in, chosen by state — Join or Watch — plus a second Watch when a game is on.
             A password-protected room (ruling 8, amended mid-wave by the operator): the lock glyph leads the
             PRIMARY button's own label, inside it, rather than sitting in the title row. */}
         <div className="room-card__row4">
