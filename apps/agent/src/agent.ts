@@ -295,9 +295,10 @@ export class Agent {
 		}
 		const session: Session = { socket, nonce: randomBytes(24).toString('base64url'), nextSeq: 1 };
 		this.session = session;
+		const silentMs = this.now() - this.lastHeard;
 		this.heard();
 		if (this.holdUntil !== 0) {
-			this.log('hold-ended', { note: 'a coordinator is back', heldMs: this.holdUntil - this.now() });
+			this.log('hold-ended', { note: 'a coordinator is back', heldMs: silentMs });
 			this.hold(0);
 		}
 		this.fenced = false;

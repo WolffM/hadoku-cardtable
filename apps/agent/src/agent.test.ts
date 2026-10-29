@@ -19,6 +19,7 @@ import { RemoteJvmLauncher } from '../../server/src/play/remote/launcher.ts';
 import type { JvmTransport } from '../../server/src/play/jvm-transport.ts';
 import { EMPTY_SHA, RELAY_PROTOCOL, sha256Hex, signRequest } from '../../server/src/play/remote/wire.ts';
 import { Agent } from './agent.ts';
+import type { Log } from './jvm.ts';
 import { procStartTicks } from './jvm.ts';
 
 const { privateKey, publicKey } = generateKeyPairSync('ed25519');
@@ -72,8 +73,8 @@ function fakeCgroups(): { root: string; ownCgroupFile: string; service: string }
 const clock = { t: Date.now() };
 const now = (): number => clock.t;
 
-async function startAgent(home: string, cg = fakeCgroups(), fenceMs = 10_000): Promise<{ agent: Agent; port: number; cg: typeof cg }> {
-	const agent = new Agent({ home, port: 0, host: '127.0.0.1', publicKey, version: 'test', fenceMs, heartbeatMs: 100, cgroupRoot: cg.root, ownCgroupFile: cg.ownCgroupFile, now, log: () => {} });
+async function startAgent(home: string, cg = fakeCgroups(), fenceMs = 10_000, log: Log = () => {}): Promise<{ agent: Agent; port: number; cg: typeof cg }> {
+	const agent = new Agent({ home, port: 0, host: '127.0.0.1', publicKey, version: 'test', fenceMs, heartbeatMs: 100, cgroupRoot: cg.root, ownCgroupFile: cg.ownCgroupFile, now, log });
 	const port = await agent.listen();
 	cleanup.push(() => agent.close());
 	return { agent, port, cg };
@@ -221,7 +222,8 @@ describe('host agent', () => {
 		first.agent.tick();
 		expect(fenced(first.agent)).toBe(false);
 		first.agent.close();
-		const second = await startAgent(home, cg);
+		const logged: { what: string; data?: Record<string, unknown> }[] = [];
+		const second = await startAgent(home, cg, undefined, (what, data) => void logged.push({ what, data }));
 		clock.t += 39_000;
 		second.agent.tick();
 		expect(fenced(second.agent)).toBe(false);
@@ -229,6 +231,8 @@ describe('host agent', () => {
 		// The next coordinator ends the hold: once it goes silent without a word, the window alone counts.
 		const c2 = await coordinator(second.port, fakeRuntime());
 		await until('relay open', () => (second.agent as unknown as { session: unknown }).session !== null);
+		// How long the claw went without a coordinator, not what was left of the hold.
+		expect(logged.find((l) => l.what === 'hold-ended')?.data?.heldMs).toBe(99_000);
 		c2.client.close();
 		await until('relay closed', () => !(second.agent as unknown as { session: unknown }).session);
 		clock.t += 11_000;
