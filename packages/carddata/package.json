@@ -21,6 +21,6 @@
     "upload-art": "node src/cli/upload-art.ts"
   },
   "dependencies": {
-    "@wolffm/cdn-client": "npm:@hadoku/cdn-client@2.0.2"
+    "@wolffm/cdn-client": "npm:@hadoku/cdn-client@2.0.3"
   }
 }

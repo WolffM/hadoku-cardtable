@@ -14,7 +14,7 @@
   "dependencies": {
     "@hadoku/carddata": "workspace:*",
     "@hadoku/forge-wire": "workspace:*",
-    "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.43.15",
+    "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.44.1",
     "zod": "4.5.4"
   }
 }
