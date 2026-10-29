@@ -869,6 +869,28 @@ describe('failover', () => {
 		expect(r.canary.runs).toEqual([claw]);
 	});
 
+	it('a slice the converger ended at our asking, past its end: its lost agent is a release, not a page or a quarantine', async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
+		const end = new Date(r.clock.t + 15 * 60_000).toISOString();
+		r.nodes[0] = fleetNode('claw-9', { notices: [{ event: 'ends', at: end, kind: 'hosting' }] });
+		r.converger.ending = ['claw-9'];
+		await r.p.poll();
+		await r.p.poll();
+		r.clock.t += 15 * 60_000 + 30_000;
+		r.claws.get('claw-9')!.link.lose('agent heartbeat lost for 11 s (window 10 s)');
+		expect(r.posted).toEqual([]);
+		expect(hostOf(r, 'claw-9').quarantine).toBeNull();
+		expect(r.logs.some((l) => l.evt === 'claw-released' && l.host === 'claw-9')).toBe(true);
+		// Before its end, the same loss is still a fault.
+		const early = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
+		early.nodes[0] = fleetNode('claw-9', { notices: [{ event: 'ends', at: end, kind: 'hosting' }] });
+		early.converger.ending = ['claw-9'];
+		await early.p.poll();
+		await early.p.poll();
+		early.claws.get('claw-9')!.link.lose('agent heartbeat lost for 11 s (window 10 s)');
+		expect(early.posted[0]).toMatch(/^⚠️ Claw heartbeat lost: claw-9/);
+	});
+
 	it('agent lost with matches: one failover for the claw, not one per JVM', async () => {
 		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
 		for (const id of ['m-1', 'm-2', 'm-3']) start(r, id);

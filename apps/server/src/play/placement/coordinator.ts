@@ -86,6 +86,8 @@ export const HEALTH_TICK_MS = HEARTBEAT_MS;
 export const HEARTBEAT_FRESH_MS = 3 * HEARTBEAT_MS;
 /** How long agents hold their JVMs, past the fencing window, for the next coordinator. */
 export const RESTART_GRACE_MS = 90_000;
+/** How early a slice's removal may come before the end time fleet-manager showed us. */
+export const RELEASE_SLACK_MS = 60_000;
 /** A canary that failed is tried again after this. */
 export const CANARY_RETRY_MS = 5 * 60_000;
 export const CANARY_TIMEOUT_MS = 120_000;
@@ -766,6 +768,15 @@ export function placement(opts: PlacementOptions): Placement {
 		const live = [...placed.values()].some((p) => p.host === host && !p.moved);
 		if (live) {
 			failClaw(host, reason);
+			return;
+		}
+		// A slice the converger was ending at our asking, past its end: the lost link is its removal.
+		// Paging it as a fault (claw-9 23:51, claw-5 00:39 on 2026-10-28) cried wolf twice in a night.
+		const end = nextEvent(host.fleet);
+		if (converger?.ending.includes(host.name) === true && end !== null && end.at <= now() + RELEASE_SLACK_MS) {
+			detach(host, reason);
+			log({ evt: 'claw-released', host: host.name, endedAt: new Date(end.at).toISOString(), reason });
+			notifyRoom();
 			return;
 		}
 		const hadPool = host.pool !== null;
