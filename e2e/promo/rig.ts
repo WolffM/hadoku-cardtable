@@ -166,9 +166,14 @@ export async function openPromoFriend(browser: Browser, name: string, opts: { fi
     if (res.request().resourceType() === 'image' && res.status() >= 400) console.warn(`[promo] art ${res.status()}: ${res.url()}`);
   });
   const friend: Friend = { name, context, page, captures: [], pending: [], captureErrors: [], blocked: [] };
-  await context.route('**/*', (route) => {
+  await context.route('**/*', async (route) => {
     const req = route.request();
     const url = new URL(req.url());
+    // The e2e edge serves no watchparty sprites, so portraits fell back to initials (w79d, item 12):
+    // the same sprite from production, which serves it publicly.
+    if (url.hostname === '127.0.0.1' && url.pathname.startsWith('/watchparty/media/sprites/')) {
+      return route.fulfill({ response: await route.fetch({ url: `https://hadoku.me${url.pathname}` }) });
+    }
     if (url.hostname === '127.0.0.1' || req.resourceType() === 'image' || req.resourceType() === 'font' || IMAGE.test(url.pathname)) return route.continue();
     friend.blocked.push(url.href);
     return route.abort('blockedbyclient');
