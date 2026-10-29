@@ -11,7 +11,7 @@ import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardView, StackEntry } from '../adapter.ts';
-import { noteResolutionEffects, PLACEMENT_WAIT_MS } from '../motion.ts';
+import { noteResolutionEffects, PLACEMENT_WAIT_MS, unlockAfter, whenBoardStill, whenBoardUnlocked } from '../motion.ts';
 import {
   besideSource,
   defaultSpot,
@@ -1040,6 +1040,30 @@ describe('installPlaced: a counter (AE27)', () => {
     expect(counter.hasAttribute('data-placed-leaving'), 'then the counter fades').toBe(true);
     vi.advanceTimersByTime(LEAVE_FADE_MS);
     expect(canvas.querySelector('[data-placed-spell]')).toBeNull();
+    handle.dispose();
+  });
+
+  // The operator, 2026-10-29: "my 90% rule was more about the more common animations like cards on the stack getting countered".
+  it('a counter is a beat of the board until its target has cracked and faded: what waits on the board goes at its 90%', async () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    placeSpell(301, { x: 400, y: 300 }, 'them');
+    placeSpell(302, { x: 450, y: 300 }, 'you');
+    const handle = installPlaced(canvas, { reducedMotion: () => false });
+    handle.notify(view([stackItem(10, { sourceCardId: 302, targetStackItemId: 9 }), stackItem(9, { sourceCardId: 301 })]));
+    handle.notify(view([], [], [9]));
+    let unlocked = false;
+    let still = false;
+    whenBoardUnlocked(() => (unlocked = true));
+    whenBoardStill(() => (still = true));
+    const countered = RESOLVE_BLINK_MS + COUNTERED_MS;
+    await vi.advanceTimersByTimeAsync(unlockAfter(countered) - 1);
+    expect(unlocked, 'held while the counter blinks and its target cracks').toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(unlocked, 'let go on the last tenth').toBe(true);
+    expect(still).toBe(false);
+    await vi.advanceTimersByTimeAsync(countered - unlockAfter(countered));
+    expect(still, 'over once the target has faded').toBe(true);
     handle.dispose();
   });
 

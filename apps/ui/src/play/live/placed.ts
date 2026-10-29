@@ -101,7 +101,7 @@ import { CardTile } from '../../components/CardTile.tsx';
 import { artistsReady } from '../../draft/artists.ts';
 import { artReady, cardImageUrl } from '../../draft/cardImage.ts';
 import { battlefieldCardWidth, handCardWidth, onCardWidthsChanged, sizeAsCard } from '../card-size.ts';
-import { GLIDE_MS, HOUSE_DURATIONS, PLACEMENT_WAIT_MS, prefersReducedMotion, takeResolutionEffects, writeDurations } from '../motion.ts';
+import { GLIDE_MS, HOUSE_DURATIONS, noteBoardDrawing, PLACEMENT_WAIT_MS, prefersReducedMotion, takeResolutionEffects, writeDurations } from '../motion.ts';
 import { AbilityChip } from './AbilityChip.tsx';
 import { HiddenCard } from '../HiddenCard.tsx';
 import { viewerOf, type BoardView, type StackEntry } from '../adapter.ts';
@@ -1151,7 +1151,18 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       return;
     }
     crack(id, d);
+    countering(COUNTERED_MS);
     schedule(() => removeNow(id), COUNTERED_MS);
+  }
+
+  /**
+   * A spell being countered is a beat of the board, until the countered spell has cracked and faded: what
+   * waits on the board's beats waits on it (`../motion.ts`'s `noteBoardDrawing`; the operator, 2026-10-29:
+   * *"my 90% rule was more about the more common animations like cards on the stack getting countered"*). On
+   * its own clock, so a disposed layer still lets it go.
+   */
+  function countering(ms: number): void {
+    noteBoardDrawing(new Promise((over) => setTimeout(over, ms)), { endsInMs: ms });
   }
 
   /**
@@ -1172,6 +1183,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     }
     resolver.el.removeAttribute('data-placed-next');
     resolver.el.setAttribute('data-placed-resolving', '');
+    countering(RESOLVE_BLINK_MS + COUNTERED_MS);
     schedule(() => {
       crack(targetId, target);
       schedule(() => removeNow(targetId), COUNTERED_MS);

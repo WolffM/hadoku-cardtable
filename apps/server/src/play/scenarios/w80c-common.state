@@ -1,0 +1,17 @@
+# w80c (`e2e/w80c-common-unlock.spec.ts`): the common acts, a counter and a single-target removal resolving, each
+# once as alice's own act and once as bob's, with alice (seat 0, active) the one asked next every time. Alice
+# Doom Blades bob's Bears; Bolts bob and bob Counterspells it; Shocks bob and bob Doom Blades her Bears; Shocks
+# bob, bob Bolts her back and she Counterspells his Bolt. Every cost is fixed, and each land pays one spell.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Doom Blade;Lightning Bolt;Shock;Shock;Counterspell
+humanbattlefield=Grizzly Bears;Swamp;Island;Island;Mountain;Mountain;Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Counterspell;Doom Blade;Lightning Bolt
+aibattlefield=Grizzly Bears;Island;Island;Swamp;Mountain;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

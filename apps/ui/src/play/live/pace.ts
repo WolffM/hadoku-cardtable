@@ -106,9 +106,12 @@
  * operator, 2026-10-20: the turn banner waits until the AI's attack animation has finished). Between it
  * and the frame before it, it keeps a phase step's gap, passed straight through like one.
  *
- * Input, a log line, a frame of nothing drawn and a phase step are never held by the board: an ask is
- * still drawn at once, over the motion (`../motion.ts`), once what came before it in the queue has gone.
- * Fast Mode holds nothing.
+ * A log line, a frame of nothing drawn and a phase step are never held by the board. Input is: what the other
+ * side did is seen before the next decision about it — an ask, the prompt line, the buttons, what is castable —
+ * and that opens on the last tenth of the act's beats like any frame (the operator, 2026-10-29: *"my 90% rule
+ * was more about the more common animations like cards on the stack getting countered or resolving single
+ * effects like doomblade"*; `e2e/w80c-common-unlock.spec.ts` measured the next decision opening as the
+ * resolution began, 0% of it). Fast Mode holds nothing.
  *
  * ## The seat's own acts go out as Forge sends them
  *
@@ -262,6 +265,9 @@ function opensDecision(payload: unknown): boolean {
   const frame = (payload as { frame?: { kind?: unknown; method?: unknown } } | null)?.frame;
   return frame?.kind === 'ask' || frame?.method === 'showPromptMessage';
 }
+
+/** Whether a frame waits for the board's beats before it goes out: one the board draws, or input (module header). */
+const waitsForTheBoard = (pace: PaceClass): boolean => HELD_BY_THE_BOARD.has(pace) || pace === 'input';
 
 const WIRE_TYPE_NAMES: Readonly<Record<number, string>> = { 0: 'Card', 1: 'Player', 2: 'StackItem', 3: 'Game' };
 
@@ -485,7 +491,7 @@ export function classify(payload: unknown, memory: PaceMemory = { stackDepth: nu
 interface Entry {
   payload: unknown;
   pace: PaceClass;
-  /** Part of the seat's own act ({@link ownAct}): no gap, no wait on the board. */
+  /** Part of the seat's own act ({@link ownAct}), or input following it: no gap, no wait on the board. */
   own: boolean;
   arrivedAt: number;
   boardAt: number;
@@ -655,7 +661,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   /** Start waiting for the board's beats before `entry` goes out, when it must: `false` when it need not, or the board is already still. */
   function waitForBoard(entry: Entry): boolean {
     if (boardFreed === entry) return false;
-    if (!thrown && (fast || entry.own || !HELD_BY_THE_BOARD.has(entry.pace))) return false;
+    if (!thrown && (fast || entry.own || !waitsForTheBoard(entry.pace))) return false;
     thrown = false;
     let waiting = false;
     let stillNow = false;
@@ -715,8 +721,9 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
       return;
     }
     const drawn = !fast && HELD_BY_THE_BOARD.has(head.pace);
-    if (drawn && drewThisTask) {
-      // Another frame the board draws went out in this task: this one waits for a task of its own, after that one's render.
+    if (drewThisTask && (drawn || (!fast && !head.own && head.pace === 'input'))) {
+      // Another frame the board draws went out in this task: this one waits for a task of its own, after that one's
+      // render — input too, or it would look at the board before what went out ahead of it had started drawing.
       timer = schedule(() => {
         timer = null;
         drewThisTask = false;
@@ -778,7 +785,11 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
       }
       deliverTo = handler;
       inner.on(event, (payload) => {
-        queue.push(entryOf(payload, classify(payload, memory), ownAct(payload, acts, seatPlayer())))
+        // A question starts the seat's act, but input waits as the act it follows does: after the seat's own at once, after anyone else's on its beats.
+        const follows = acts.actor;
+        const own = ownAct(payload, acts, seatPlayer());
+        const pace = classify(payload, memory);
+        queue.push(entryOf(payload, pace, pace === 'input' ? seatPlayer() !== null && follows === 'own' : own))
         // A step waiting on its gap has just been superseded: let it go now.
         if (timer !== null && queue.length === 2 && STEPS.has(queue[0]!.pace) && !fast) stopTimer();
         pump();

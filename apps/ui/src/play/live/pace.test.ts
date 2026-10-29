@@ -247,12 +247,15 @@ describe('pacedMatchTransport', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('an input frame is never held, even mid-burst: its own delay is zero, so it is due the instant it is next', () => {
+  it('an input frame keeps no gap, even mid-burst: its own delay is zero, so it is due the instant it is next', async () => {
     const inner = fakeInner();
     const { received } = paced(inner);
     inner.deliver(RESOLVE); // quiet: delivered at once
-    inner.deliver(ASK); // next in the FIFO queue, but ASK's own delay is 0 — no wait at all
-    expect(received).toEqual([RESOLVE, ASK]);
+    inner.deliver(INPUT_NOTIFY); // next in the FIFO queue: only the task the resolution's render takes, never the resolve gap
+    inner.deliver(ASK);
+    expect(received).toEqual([RESOLVE]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(received).toEqual([RESOLVE, INPUT_NOTIFY, ASK]);
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -544,10 +547,51 @@ describe('pacedMatchTransport: one act at a time', () => {
     expect(received).toEqual([BLOW, NEW_TURN]);
   });
 
-  it('an ask at the head of the queue is never held by the board', () => {
+  // The operator, 2026-10-29: "my 90% rule was more about the more common animations like cards on the stack
+  // getting countered or resolving single effects like doomblade".
+  it('input waits for the board’s beats, as a drawn frame does: what is castable, and the question', async () => {
     const inner = fakeInner();
     const board = fakeBoard();
     const { received } = paced(inner, { boardStill: board.still });
+    board.busy(true);
+    inner.deliver(INPUT_NOTIFY);
+    inner.deliver(ASK);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(received).toEqual([]);
+    board.busy(false);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(received).toEqual([INPUT_NOTIFY, ASK]);
+  });
+
+  it('a log line is not held by the board', () => {
+    const inner = fakeInner();
+    const board = fakeBoard();
+    const { received } = paced(inner, { boardStill: board.still });
+    board.busy(true);
+    inner.deliver(MESSAGE);
+    expect(received).toEqual([MESSAGE]);
+  });
+
+  it('a question right behind a resolution waits a task, for the beats that resolution starts', async () => {
+    const inner = fakeInner();
+    const board = fakeBoard();
+    const { received } = paced(inner, { boardStill: board.still });
+    inner.deliver(RESOLVE);
+    inner.deliver(ASK);
+    expect(received, 'the resolution goes; the question waits for its render').toEqual([RESOLVE]);
+    board.busy(true); // what the resolution drew
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(received).toEqual([RESOLVE]);
+    board.busy(false);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(received).toEqual([RESOLVE, ASK]);
+  });
+
+  it('Fast Mode holds a question for nothing', () => {
+    const inner = fakeInner();
+    const board = fakeBoard();
+    const { transport, received } = paced(inner, { boardStill: board.still });
+    transport.setFast(true);
     board.busy(true);
     inner.deliver(ASK);
     inner.deliver(MESSAGE);
@@ -577,14 +621,15 @@ describe('pacedMatchTransport: one act at a time', () => {
 
   it("an ask held behind a default frame's gap names what that frame changed", async () => {
     const inner = fakeInner();
-    const { received } = paced(inner);
+    const { received } = paced(inner, { boardStill: fakeBoard().still });
     inner.deliver({ ...(HAND_OUT as object), matchId: 'm-1' });
     inner.deliver({ ...(DEFAULT_DELTA as object), matchId: 'm-1' });
     inner.deliver({ ...ASK, matchId: 'm-1' });
-    await vi.advanceTimersByTimeAsync(PACE_DELAYS_MS.default);
+    // The gap, then the task the frame's render takes (a fake timer's tick).
+    await vi.advanceTimersByTimeAsync(PACE_DELAYS_MS.default + 1);
     expect(received).toHaveLength(3);
     expect(inner.emits.map((e) => (e.payload as { data: unknown }).data)).toEqual([
-      { what: 'input-held', method: 'showConfirmDialog', ms: 150, boardMs: 0, gapMs: 150, ahead: 1, classes: 'default×1', defaults: 'Player.Life' },
+      { what: 'input-held', method: 'showConfirmDialog', ms: PACE_DELAYS_MS.default + 1, boardMs: 0, gapMs: 150, ahead: 1, classes: 'default×1', defaults: 'Player.Life' },
     ]);
   });
 
@@ -732,6 +777,35 @@ describe('the seat’s own act', () => {
       expect(Date.now() - from, 'no gap waited').toBeLessThan(frames.length);
       expect(new Set(views).size, 'the drawn frames went out one task apart').toBe(views.length);
       expect(held, 'the question was held by nothing').toEqual([]);
+    });
+
+    it("a question after the seat's own resolution goes at once; after the opponent's, on its beats", async () => {
+      const inner = fakeInner();
+      const board = fakeBoard();
+      const { transport, received } = paced(inner, { boardStill: board.still });
+      transport.setSeatPlayer(() => ALICE);
+      inner.deliver(pushed(3, ALICE));
+      board.busy(true); // her Doom Blade's beats
+      inner.deliver(popped());
+      inner.deliver(ASK);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(received, 'her own: at once, over the beats').toHaveLength(3);
+      inner.deliver(pushed(4, BOB));
+      await vi.advanceTimersByTimeAsync(0);
+      board.busy(false);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(received).toHaveLength(4);
+      inner.deliver(popped());
+      await vi.advanceTimersByTimeAsync(PACE_DELAYS_MS.resolve);
+      expect(received, "bob's spell resolves after its gap").toHaveLength(5);
+      board.busy(true); // what bob's spell drew
+      const ask = { frame: { ...ASK.frame, callId: 'c2' } };
+      inner.deliver(ask);
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(received, "her question after bob's waits for its beats").toHaveLength(5);
+      board.busy(false);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(received.at(-1)).toBe(ask);
     });
 
     it("the opponent's act after the seat's waits for the seat's beats and keeps its gaps", async () => {
