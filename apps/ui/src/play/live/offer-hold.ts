@@ -29,6 +29,10 @@
  *  - Forge names a set, even an empty one (`setSelectables`, `setWeaklySelectable`): its word is drawn;
  *  - a question this seat answers by hand opens (any ask `selfAnswer` does not answer);
  *  - the game waits on another seat (`forge:seats`' `waitingOn`): the decision has left this seat;
+ *  - another seat's spell or ability resolves ({@link resolvedByAnother}): what it does is drawn first, and
+ *    this seat's next offer comes on its last tenth (`./pace.ts`); lit through it, the hand read as open
+ *    with nothing it could do (the operator, 2026-10-29, of a counter: "from what i can see it's 0% now
+ *    not 90%?");
  *  - the turn moves on;
  *  - or it has stood `HOLD_MAX_MS` (`./timed-hold.ts`).
  *
@@ -46,6 +50,7 @@
  * answers anything Forge did not offer.
  */
 
+import type { BoardView } from '../adapter.ts';
 import type { LiveClickables } from './match.ts';
 import { holdStands, type TimedHold } from './timed-hold.ts';
 
@@ -91,6 +96,19 @@ export function drawnOfferOf(real: LiveClickables, hold: OfferHold | null, facts
     selectablePlayers: joined(hold.offer.selectablePlayers, real.selectablePlayers, hold.pressed.players),
     selectionOpen: hold.offer.selectionOpen || real.selectionOpen,
   };
+}
+
+/**
+ * Whether the stack's top item left between `before` and `after` and was another seat's: a resolution, a
+ * counter (its target goes with it), a fizzle. Its controller decides, as the pacer's act does (`./pace.ts`'s
+ * `ownAct`): the seat's own counter is its own, though the other seat's spell leaves with it. `viewerName` is
+ * this seat's player as Forge names it, which is what `controllerName` carries (not the board's seat name).
+ */
+export function resolvedByAnother(before: BoardView | null, after: BoardView | null, viewerName: string | null): boolean {
+  if (before === null || after === null || viewerName === null) return false;
+  const left = new Set(after.stack.map((item) => item.id));
+  const resolved = before.stack.find((item) => !left.has(item.id));
+  return resolved !== undefined && resolved.controllerName !== null && resolved.controllerName !== viewerName;
 }
 
 /** What Forge has marked (`setHighlighted`): cards and players. */

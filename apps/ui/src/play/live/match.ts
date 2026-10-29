@@ -250,7 +250,9 @@ import {
   type ServerFrame,
   YIELDING,
   DELTA_TYPE,
+  deltaKey,
   intOf,
+  strOf,
 } from '@hadoku/forge-wire';
 import { classifySeq, needsResync, type SeqVerdict } from '@wolffm/rooms-protocol';
 import { io } from 'socket.io-client';
@@ -262,7 +264,7 @@ import type { Revealed } from './numbers.ts';
 import { shownFlip, shownRoll, type ShownFlip, type ShownRoll } from './shown.ts';
 import { preloadMatchArt } from './art-preload.ts';
 import { pressableBar, type BarHold } from './bar-hold.ts';
-import { drawnOfferOf, dropMarked, type OfferHold, type Pressed } from './offer-hold.ts';
+import { drawnOfferOf, dropMarked, resolvedByAnother, type OfferHold, type Pressed } from './offer-hold.ts';
 import { holdStands, lapseHold } from './timed-hold.ts';
 import { mistakeOfAutoCancel, mistakeOfClick, type MistakeKey } from './mistakes.ts';
 import { SELF_ANSWERING } from '../prompts/answer-table.ts';
@@ -3105,6 +3107,7 @@ function noteCountered(match: LiveMatch, ids: readonly number[]): void {
 
 function redraw(match: LiveMatch): void {
   const viewerPlayerId = viewerPlayerIdOf(match);
+  const before = match.view;
   match.view =
     viewerPlayerId === null || match.state.size === 0
       ? null
@@ -3137,6 +3140,9 @@ function redraw(match: LiveMatch): void {
         });
   match.attackLocked = match.view?.phase === 'COMBAT_DECLARE_ATTACKERS' && (match.attackLocked || attackLockedIn(match.view.players));
   if (match.view?.gameOver === true) match.over = true;
+  // Another seat's spell resolved: nothing held is drawn over what it does (`./offer-hold.ts`).
+  const viewerName = viewerPlayerId === null ? null : strOf(match.state.get(deltaKey(DELTA_TYPE.player, viewerPlayerId)), 'Name');
+  if (resolvedByAnother(before, match.view, viewerName)) match.offerHold = null;
 }
 
 /* ── Inbound ─────────────────────────────────────────────────────────── */

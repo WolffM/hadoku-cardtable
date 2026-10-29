@@ -1333,6 +1333,51 @@ describe('the offer through a click’s turnaround', () => {
     expect(drawnOffer(m).selectable, 'Forge offers it again: drawn').toEqual(new Set([mine[0], mine[1]]));
   });
 
+  /*
+   * The operator, 2026-10-29, of the other seat's counter: "from what i can see it's 0% now not 90%?" — the held
+   * offer kept the hand lit through what it did, with nothing a click could do until the next offer.
+   */
+  it('another seat’s spell resolving ends the hold; the seat’s own counter of it does not', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const me = m.view!.players.find((p) => p.isViewer)!.id;
+    const them = m.view!.players.find((p) => !p.isViewer)!.id;
+    const item = (id: number, activator: number): ServerFrame => {
+      seq += 1;
+      return parseServerFrame({
+        kind: 'notify',
+        method: 'applyDelta',
+        payload: {
+          packet: {
+            seq,
+            checksum: 0,
+            checksumProperties: [],
+            newObjects: { [deltaKey(DELTA_TYPE.stackItem, id)]: { _type: DELTA_TYPE.stackItem, _id: id, ActivatingPlayer: { t: 'int', v: activator }, Description: { t: 'str', v: `item ${id}` } } },
+            objectDeltas: {},
+            events: [],
+          },
+        },
+      });
+    };
+    const stackOf = (ids: number[]): ServerFrame => stateDelta({ [GAME_KEY]: { _type: DELTA_TYPE.game, _id: 1, Stack: { t: 'list', v: ids.map((id) => ({ t: 'int', v: id })) } } });
+    const passOver = async (stack: number[]): Promise<void> => {
+      await sendAndApply(s, m, [stackOf(stack), prompt('Priority'), bar(true), actionable([mine[0]!, mine[1]!])]);
+      expect(pressButton(m, 'ok')).toBe(true);
+      await sendAndApply(s, m, [clearActionable()]);
+      expect(drawnOffer(m).selectable.size, 'her pass: the offer stays drawn').toBe(2);
+    };
+    // Her Counterspell at his spell resolves: her own act, so the hold stands.
+    await sendAndApply(s, m, [item(9201, them), item(9202, me)]);
+    await passOver([9202, 9201]);
+    await sendAndApply(s, m, [stackOf([])]);
+    expect(drawnOffer(m).selectable.size, 'her own counter, his spell gone with it').toBe(2);
+    // His spell resolves: what it does is drawn with her hand dark.
+    await sendAndApply(s, m, [item(9203, them)]);
+    await passOver([9203]);
+    await sendAndApply(s, m, [stackOf([])]);
+    expect(drawnOffer(m).selectable.size, 'his spell resolved').toBe(0);
+  });
+
   it('on the other seat’s turn, Forge’s end of a window this seat never acted in holds nothing', async () => {
     const { s, m } = await fullGame();
     const { mine } = ids(m);

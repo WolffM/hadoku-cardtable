@@ -1159,10 +1159,11 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
    * A spell being countered is a beat of the board, until the countered spell has cracked and faded: what
    * waits on the board's beats waits on it (`../motion.ts`'s `noteBoardDrawing`; the operator, 2026-10-29:
    * *"my 90% rule was more about the more common animations like cards on the stack getting countered"*). On
-   * its own clock, so a disposed layer still lets it go.
+   * its own clock, so a disposed layer still lets it go; and not before its animations, started a render late
+   * on a loaded page, are 90% through themselves.
    */
   function countering(ms: number): void {
-    noteBoardDrawing(new Promise((over) => setTimeout(over, ms)), { endsInMs: ms });
+    noteBoardDrawing(new Promise((over) => setTimeout(over, ms)), { endsInMs: ms, root: canvas });
   }
 
   /**
