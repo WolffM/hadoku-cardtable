@@ -37,6 +37,18 @@ function load(): Promise<ArtistTable | null> {
   return loading;
 }
 
+/**
+ * Whether the table has loaded, for a drawer outside React that must not show art before it can
+ * credit it (`play/live/placed.ts`'s chip): false starts the load, and `onLoad` runs once it lands.
+ */
+export function artistsReady(onLoad: () => void): boolean {
+  if (table !== null) return true;
+  void load().then((loaded) => {
+    if (loaded !== null) onLoad();
+  });
+  return false;
+}
+
 function lookup(t: ArtistTable, artId: string): string | null {
   const i = t.ids[artId];
   return i === undefined ? null : (t.names[i] ?? null);

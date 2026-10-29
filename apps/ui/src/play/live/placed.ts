@@ -29,9 +29,10 @@
  *     keeps from hand to stack to battlefield): the caster's own release
  *     happens before Forge has pushed a stack item at all. `notify` below
  *     promotes that registration onto the stack item's own `id` the moment
- *     a matching entry appears in `view.stack`, so every call after that — a
- *     drag's `moveSpell`, lane W's `commitSpell` — addresses the same record
- *     by the stack id. The two namespaces are kept apart: Forge numbers cards
+ *     a matching SPELL entry appears in `view.stack` (never an ability of the
+ *     same card — a cast trigger's source is the spell itself), so every call
+ *     after that — a drag's `moveSpell` — addresses the same record by the
+ *     stack id. The two namespaces are kept apart: Forge numbers cards
  *     and stack items separately, so a land just played as card 37 and the
  *     opponent's spell that is stack item 37 are different things, and the
  *     land's release must never place that spell.
@@ -42,9 +43,6 @@
  *     lane W's `forge:placed` echo) and every `onSpellMoved` listener hears
  *     it, which is what redraws this id's arrows and what lane W relays over
  *     the wire.
- *   - `commitSpell(id)` — the back (`side: 'them'`) turns over to the real
- *     face. A no-op for `side: 'you'`, which is always its own face — the
- *     owner never needs telling what their own card is.
  *   - `onSpellMoved(listener)` — every `moveSpell` call, including this
  *     module's own drag handling in `gestures/install.ts`. Returns the
  *     unsubscribe.
@@ -100,6 +98,7 @@ import { createElement, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
 import { CardTile } from '../../components/CardTile.tsx';
+import { artistsReady } from '../../draft/artists.ts';
 import { artReady, cardImageUrl } from '../../draft/cardImage.ts';
 import { battlefieldCardWidth, handCardWidth, onCardWidthsChanged, sizeAsCard } from '../card-size.ts';
 import { GLIDE_MS, HOUSE_DURATIONS, PLACEMENT_WAIT_MS, prefersReducedMotion, takeResolutionEffects, writeDurations } from '../motion.ts';
@@ -166,13 +165,22 @@ export const SHIMMER_MS = 1100;
  */
 export const PLACED_PENDING_MS = 300;
 
+/**
+ * How long an ability's chip stays on screen, still and with its art, before it goes — however soon
+ * Forge resolved it (the operator, 2026-10-28: "the ability chip showed for only a brief moment and
+ * was missing the art").
+ */
+export const CHIP_DWELL_MS = 1500;
+/** The longest a chip waits, hidden, for its art and its credit before it is drawn without them. */
+export const CHIP_ART_WAIT_MS = 1000;
+
+
 /** How far a card sits to the right of its source's own box (the ephemeral tile, Settled). */
 const BESIDE_GAP = 6;
 
 interface Placement {
   at: Point;
   readonly side: 'you' | 'them';
-  committed: boolean;
   /**
    * `Date.now()` when this was last registered, so an unmatched one expires `PLACEMENT_WAIT_MS` after
    * the last word, never after a first one: a card played again inherits nothing of an earlier release
@@ -233,11 +241,9 @@ export function setChainHalted(halted: boolean | null): void {
 }
 
 function register(records: Map<number, Placement>, id: number, at: Point, side: 'you' | 'them', glide = false): void {
-  const existing = records.get(id);
   records.set(id, {
     at,
     side,
-    committed: existing?.committed ?? side === 'you',
     registeredAt: Date.now(),
     gliding: glide,
   });
@@ -246,9 +252,8 @@ function register(records: Map<number, Placement>, id: number, at: Point, side: 
 
 /**
  * Register (or move) a released card's point, by its CARD id — see the module
- * header. A fresh one starts `committed` on `side === 'you'` (the owner
- * always knows their own card) and face-down otherwise — lane W's
- * `commitSpell` turns it over once the opponent's spell is public.
+ * header. A spell of theirs is registered once it is public, so it is drawn
+ * as its face as soon as its art has decoded.
  */
 export function placeSpell(cardId: number, at: Point, side: 'you' | 'them'): void {
   holds.delete(cardId);
@@ -299,12 +304,17 @@ export function moveSpell(id: number, at: Point): void {
   requestRepaint();
 }
 
-/** Turn a back over to its face. No-op once committed, or for an id nothing ever placed. */
-export function commitSpell(id: number): void {
-  const p = placements.get(id) ?? releases.get(id);
-  if (p === undefined || p.committed) return;
-  p.committed = true;
-  requestRepaint();
+/**
+ * Where the stack last drew a spell that resolved onto a battlefield, by its CARD id: its arrival
+ * (`gestures/cast.ts`) starts from this box, so a card the stack moved lands from where it was seen.
+ * Read once; gone after `PLACEMENT_WAIT_MS`.
+ */
+const landedFrom = new Map<number, { box: DOMRect; at: number }>();
+
+export function stackBoxOf(cardId: number): DOMRect | null {
+  const seen = landedFrom.get(cardId);
+  landedFrom.delete(cardId);
+  return seen === undefined || Date.now() - seen.at > PLACEMENT_WAIT_MS ? null : seen.box;
 }
 
 /** Every `moveSpell` call, this module's own drag included. Returns the unsubscribe. */
@@ -324,6 +334,7 @@ export function forgetPlacements(): void {
   placements.clear();
   holds.clear();
   releases.clear();
+  landedFrom.clear();
   chainHalted = null;
 }
 
@@ -493,7 +504,8 @@ interface Drawn {
   readonly hover: HTMLElement;
   /** Null for a back (no `CardTile` to mount) and for the no-card-data text fallback. */
   root: Root | null;
-  committed: boolean;
+  /** What is mounted now: a face (true) or a back (false), so it only remounts on an actual flip. */
+  face: boolean;
   isAbility: boolean;
   /** The underlying card's id, remembered from when this was drawn — `view.stack` no longer has it once the item is gone. */
   readonly sourceCardId: number | null;
@@ -519,6 +531,10 @@ interface Drawn {
   readonly seed: number;
   /** A waiting trigger's chip whose target question was open when last drawn — the one that goes on the stack next. */
   current: boolean;
+  /** When this was first drawn: a chip waits for its art from here, at most `CHIP_ART_WAIT_MS`. */
+  readonly drawnAt: number;
+  /** When it was first shown (no longer pending): a chip dwells from here (`CHIP_DWELL_MS`). */
+  shownAt: number | null;
 }
 
 /** An item this paint draws, with what its place is worked out from. */
@@ -575,6 +591,8 @@ function itemLabel(item: StackEntry): string {
 
 export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): PlacedHandle {
   writeDurations(canvas, DURATIONS);
+  // A chip's credit is the artist table, a lazy chunk: asked for now, so the first chip never waits on it.
+  artistsReady(() => undefined);
   let live = true;
   let lastView: BoardView | null = null;
   let interaction: PlacedInteraction | undefined;
@@ -609,7 +627,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   /** Promote a placement keyed by the caster's own card id onto the stack item's real id, the moment both are known. */
   function promote(items: readonly StackEntry[]): void {
     for (const item of items) {
-      if (placements.has(item.id)) continue;
+      if (item.isAbility || placements.has(item.id)) continue;
       if (item.sourceCardId === null) continue;
       const pending = releases.get(item.sourceCardId);
       if (pending === undefined) continue;
@@ -683,7 +701,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     // own tests, a mutation run) finds the FIRST draw of a freshly-created
     // element already there — React commits a fresh root's first render
     // without a scheduling hop in that case — but a later FLIP
-    // (`commitSpell`, which tears the old root down and makes a new one
+    // (its art decoding, which tears the old root down and makes a new one
     // rather than re-rendering — see below) is an ordinary React DOM update
     // and needs the same wait any such update does from outside `act()`.
     // of re-rendering it; see `ensureElement`, which only ever calls this once
@@ -693,7 +711,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     return root;
   }
 
-  /** `d.committed` tracks what is CURRENTLY mounted — a face, true; a back, false — so this only remounts on an actual flip. */
+  /** `d.face` tracks what is CURRENTLY mounted, so this only remounts on an actual flip. */
   function ensureElement(item: StackEntry, record: Placement | undefined): Drawn {
     let d = drawn.get(item.id);
     // Their spell stays a back until it is public AND its art is decoded — a click-cast of theirs too,
@@ -701,7 +719,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     // An ability is never a back: it hides no card, so their first drag of it (which registers it here
     // face-down, `presence.ts`'s `onPlaced`) must not turn it over and rebuild it mid-move.
     const theirs = !item.isAbility && (record !== undefined ? record.side === 'them' : item.controllerName !== viewerName());
-    const wantBack = theirs && ((record !== undefined && !record.committed) || !artReady(cardImageUrl(item.sourceCard?.scryfallId), requestRepaint));
+    const wantBack = theirs && !artReady(cardImageUrl(item.sourceCard?.scryfallId), requestRepaint);
     if (d === undefined) {
       const el = document.createElement('div');
       el.className = 'placed';
@@ -728,7 +746,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         el,
         hover,
         root: null,
-        committed: !wantBack,
+        face: !wantBack,
         isAbility: item.isAbility,
         sourceCardId: item.sourceCardId,
         targetStackItemId: null,
@@ -740,6 +758,8 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         offset: null,
         seed: item.id,
         current: false,
+        drawnAt: Date.now(),
+        shownAt: null,
       };
       // A chip is placed beside its source by its own drawn width, which it only has once its text has rendered.
       if (item.isAbility) resized?.observe(el);
@@ -753,12 +773,11 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       // fresh root's first render commits without a scheduling hop) is
       // actually in the DOM. See `drawnListeners`'s own note.
       for (const listener of drawnListeners) listener(item.id);
-    } else if (d.committed === wantBack) {
-      // `d.committed` says "showing a face" and `wantBack` says "should show a back" — equal only on
-      // a flip (lane W's `commitSpell` turned it over, or — defensively — the other direction).
+    } else if (d.face === wantBack) {
+      // Showing a face where a back is wanted, or the other way: its art has just decoded.
       deferUnmount(d.root);
       d.root = mount(d.hover, item, wantBack);
-      d.committed = !wantBack;
+      d.face = !wantBack;
     }
     return d;
   }
@@ -796,12 +815,41 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     }
   }
 
+  /**
+   * A spell's own card on the stack — a cast trigger's source is there, not on a battlefield — where
+   * this paint puts it: at its placement when it has one, so a chip beside it moves with it in the same
+   * paint, never a frame behind; else where it is drawn.
+   */
+  function spellOf(cardId: number): Rect | null {
+    for (const [id, d] of drawn) {
+      if (d.isAbility || d.leaving || d.sourceCardId !== cardId) continue;
+      const at = placements.get(id)?.at;
+      if (at === undefined || d.el.offsetWidth === 0) return rectOf(d.el);
+      const w = d.el.offsetWidth / 2;
+      const h = d.el.offsetHeight / 2;
+      return { left: at.x - w, right: at.x + w, top: at.y - h, bottom: at.y + h };
+    }
+    return null;
+  }
+
+  /**
+   * Whether a chip's art band can be drawn whole: its source's art decoded and its credit known
+   * (`AbilityChip` shows no art it cannot credit). A source with no art of its own is ready at once.
+   */
+  function chipReady(item: StackEntry): boolean {
+    const url = cardImageUrl(item.sourceCard?.scryfallId);
+    if (url === null) return true;
+    // Both asked every time, so both loads start together.
+    const credited = artistsReady(requestRepaint);
+    return artReady(url, requestRepaint) && credited;
+  }
+
   /** What `positionOf` reads of an ability's chip: its source's box and its own drawn size, read before any chip is moved. */
   function chipBoxesOf(item: StackEntry, d: Drawn): { source: Rect; tile: { width: number; height: number } } | null {
     if (!item.isAbility || item.sourceCardId === null || placements.has(item.id)) return null;
-    const source = cardBox(canvas, item.sourceCardId);
-    if (source === null) return null;
-    const sourceBox = rectOf(source);
+    const onTable = cardBox(canvas, item.sourceCardId);
+    const sourceBox = onTable !== null ? rectOf(onTable) : spellOf(item.sourceCardId);
+    if (sourceBox === null) return null;
     const drawnBox = d.el.getBoundingClientRect();
     const tile =
       drawnBox.width > 0 ? { width: drawnBox.width, height: drawnBox.height } : { width: sourceBox.right - sourceBox.left, height: sourceBox.bottom - sourceBox.top };
@@ -859,6 +907,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       // AC8's own reservation draws the arrival (`gestures/cast.ts`'s `landCastGhost`, on either
       // screen): one object at a time, so this card goes at once. The permanent settles instead
       // (`settleArrivals`).
+      landedFrom.set(cardId, { box: d.el.getBoundingClientRect(), at: Date.now() });
       removeNow(id);
       return;
     }
@@ -872,9 +921,14 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     // What it did is drawn first (`numbers.ts`'s beats: hits, a creature destroyed): it stays where it
     // is while that plays, and then goes the ordinary way — no blink (the operator, 2026-10-15: the
     // "double blink" was "a bit slow and weird").
-    const effectsUntil = takeResolutionEffects(id);
-    if (effectsUntil !== null && effectsUntil > Date.now()) {
-      schedule(() => fadeInto(id, d, cardId), effectsUntil - Date.now());
+    // A chip nobody ever saw goes as it came; one that was seen stays its `CHIP_DWELL_MS` first.
+    if (d.isAbility && d.shownAt === null) {
+      removeNow(id);
+      return;
+    }
+    const until = Math.max(takeResolutionEffects(id) ?? 0, d.isAbility ? d.shownAt! + CHIP_DWELL_MS : 0);
+    if (until > Date.now()) {
+      schedule(() => fadeInto(id, d, cardId), until - Date.now());
       return;
     }
     fadeInto(id, d, cardId);
@@ -1212,7 +1266,14 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         schedule(render, held - Date.now() + 1);
       }
       if (d.pendingUntil !== null && (record !== undefined || Date.now() >= d.pendingUntil)) d.pendingUntil = null;
-      d.el.toggleAttribute('data-placed-pending', held !== null || d.pendingUntil !== null);
+      const artWait = d.isAbility && d.shownAt === null && Date.now() < d.drawnAt + CHIP_ART_WAIT_MS && !chipReady(item);
+      if (artWait && d.holdCheckAt !== d.drawnAt + CHIP_ART_WAIT_MS) {
+        d.holdCheckAt = d.drawnAt + CHIP_ART_WAIT_MS;
+        schedule(render, CHIP_ART_WAIT_MS - (Date.now() - d.drawnAt) + 1);
+      }
+      const pending = held !== null || d.pendingUntil !== null || artWait;
+      d.el.toggleAttribute('data-placed-pending', pending);
+      if (!pending) d.shownAt ??= Date.now();
       if (d.leaving) return; // a resolved id Forge is reusing before the fade finished — rare, leave it be
       shown.push({ item, index, d, record });
     });

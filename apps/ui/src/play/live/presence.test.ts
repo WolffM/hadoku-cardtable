@@ -13,7 +13,7 @@ import { GLIDE_MS, PLACEMENT_WAIT_MS } from '../motion.ts';
 
 /*
  * `placed.ts` (lane S) is the seam this module calls into for the stack
- * layer's own drawing (`placeSpell`/`placeStackItem`/`moveSpell`/`commitSpell`/`onSpellMoved`)
+ * layer's own drawing (`placeSpell`/`placeStackItem`/`moveSpell`/`onSpellMoved`)
  * — this module "calls them and never draws" (wave 59's Settled seam). Mocked
  * here so this file's own receive/send logic proves itself without needing
  * that drawing layer at all.
@@ -24,7 +24,6 @@ const { placedMod, spellMovedBox } = vi.hoisted(() => {
     placeSpell: vi.fn(),
     placeStackItem: vi.fn(),
     moveSpell: vi.fn(),
-    commitSpell: vi.fn(),
     holdSpell: vi.fn(),
     releaseSpell: vi.fn(),
     onSpellMoved: vi.fn((listener: (id: number, at: { x: number; y: number }) => void) => {
@@ -137,7 +136,6 @@ afterEach(() => {
   placedMod.placeSpell.mockClear();
   placedMod.placeStackItem.mockClear();
   placedMod.moveSpell.mockClear();
-  placedMod.commitSpell.mockClear();
   placedMod.holdSpell.mockClear();
   placedMod.releaseSpell.mockClear();
   placedMod.onSpellMoved.mockClear();
@@ -789,20 +787,19 @@ describe('receiving', () => {
     // Their pointer leaving the board changes nothing: the back is the spell's stand-in now.
     t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: null, held: false, from: null, arranging: null });
     expect(canvas.querySelector('.presence__back[data-waiting]'), 'still waiting').not.toBeNull();
-    expect(placedMod.commitSpell, 'not yet — the id is not public').not.toHaveBeenCalled();
+    expect(placedMod.placeSpell, 'not yet — the id is not public').not.toHaveBeenCalled();
     // An unrelated permanent of theirs arriving does not end the wait: it is not the awaited spell.
     const land = document.createElement('li');
     land.setAttribute('data-board-card', '9');
     canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.append(land);
     theirs = [9];
     wake!();
-    expect(placedMod.commitSpell).not.toHaveBeenCalled();
+    expect(placedMod.placeSpell).not.toHaveBeenCalled();
     expect(canvas.querySelector('.presence__back'), 'the wait survives an unrelated arrival').not.toBeNull();
     // Their spell shows up on the stack (never on the battlefield): hand the point to `placed.ts`.
     theirs = [9, 48];
     wake!();
     expect(placedMod.placeSpell, 'placed at the exact point the back was waiting at, for THEIR side').toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them');
-    expect(placedMod.commitSpell, 'turned over in place').toHaveBeenCalledWith(48);
     expect(canvas.querySelector('.presence__back'), 'the stand-in is gone — the placed-cards layer draws it now').toBeNull();
     handle.dispose();
   });
@@ -868,7 +865,6 @@ describe('receiving', () => {
       placing: { at: { zone: 'stack', x: 0.4, y: 0.6 } },
     });
     expect(placedMod.placeSpell, 'the point goes to the placed-cards layer the moment it arrives').toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them');
-    expect(placedMod.commitSpell, 'turned over in place').toHaveBeenCalledWith(48);
     expect(canvas.querySelector('.presence__back'), 'no back stands beside the face').toBeNull();
     handle.dispose();
   });
@@ -925,7 +921,6 @@ describe('receiving', () => {
     expect(back.isConnected, 'the back finishes its glide').toBe(true);
     await glide();
     expect(placedMod.placeSpell, 'handed over where the glide ends: the gap the card lands in').toHaveBeenCalledWith(121, { x: 430, y: 242 }, 'them');
-    expect(placedMod.commitSpell, 'turned over in place').toHaveBeenCalledWith(121);
     expect(canvas.querySelector('.presence__back'), 'one object: the back is gone').toBeNull();
     handle.dispose();
     forgetPendingPlacements();
@@ -1175,7 +1170,7 @@ describe('receiving', () => {
     forgetPendingPlacements();
   });
 
-  it('a permanent’s own placement message is unaffected by the spell-wait path: `pendingPlacementFor` still clears it, never `commitSpell`', async () => {
+  it('a permanent’s own placement message is unaffected by the spell-wait path: `pendingPlacementFor` still clears it, never `placeSpell`', async () => {
     const { canvas } = board();
     document.elementFromPoint = () => null;
     const t = fakeTransport();
@@ -1195,8 +1190,7 @@ describe('receiving', () => {
     wake!();
     await new Promise((r) => requestAnimationFrame(() => r(undefined)));
     expect(canvas.querySelector('.presence__back'), 'gone — the reservation cleared it').toBeNull();
-    expect(placedMod.commitSpell, 'a permanent is never handed to the placed-cards layer').not.toHaveBeenCalled();
-    expect(placedMod.placeSpell).not.toHaveBeenCalled();
+    expect(placedMod.placeSpell, 'a permanent is never handed to the placed-cards layer').not.toHaveBeenCalled();
     handle.dispose();
     forgetPendingPlacements();
   });
@@ -1264,7 +1258,6 @@ describe('receiving', () => {
     const handle = installPresence({ canvas, host: host(t) });
     t.receivePlaced({ matchId: 'm-1', type: 'placed', seat: 1, spell: 48, at: { zone: 'stack', x: 0.4, y: 0.6 } });
     expect(placedMod.placeStackItem).toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them', true);
-    expect(placedMod.commitSpell).toHaveBeenCalledWith(48);
     // This seat's own echo (a resync) and another match's are both ignored.
     t.receivePlaced({ matchId: 'm-1', type: 'placed', seat: 0, spell: 49, at: { zone: 'stack', x: 0.1, y: 0.1 } });
     t.receivePlaced({ matchId: 'm-2', type: 'placed', seat: 1, spell: 50, at: { zone: 'stack', x: 0.1, y: 0.1 } });
@@ -1285,7 +1278,6 @@ describe('receiving', () => {
     canvas.querySelector('.board')!.append(overlay);
     vi.advanceTimersByTime(60);
     expect(placedMod.placeStackItem, 'retried once the board painted').toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them', true);
-    expect(placedMod.commitSpell).toHaveBeenCalledWith(48);
     handle.dispose();
   });
 
@@ -1305,7 +1297,6 @@ describe('receiving', () => {
     canvas.querySelector('.board')!.append(overlay);
     const second = installPresence({ canvas, host: host(t, 0) });
     expect(placedMod.placeStackItem, 'the next mount retried it at its own start').toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them', true);
-    expect(placedMod.commitSpell).toHaveBeenCalledWith(48);
     second.dispose();
   });
 

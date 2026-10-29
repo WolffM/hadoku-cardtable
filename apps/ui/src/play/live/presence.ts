@@ -57,10 +57,10 @@
  * A SPELL is different (AD4 rule 2, wave 59): nothing travels. A release
  * carrying `placing.at` parks the back AT that exact point and waits — not a
  * battlefield gap, a spell has none — until the id shows up (their spell is
- * now on the stack, `theirCards`): `./placed.ts`'s `placeSpell`/`commitSpell`
- * take the stand-in over from there, drawn as a card at the same point. This
+ * now on the stack, `theirCards`): `./placed.ts`'s `placeSpell`
+ * takes the stand-in over from there, drawn as a card at the same point. This
  * module never draws the placed-card layer itself, only the plain back while
- * the id is still unknown, and calls `placeSpell`/`commitSpell` again when
+ * the id is still unknown, and calls `placeStackItem` when
  * `forge:placed` says the owner moved it (a live drag, or the server's own
  * replay to a joiner, who has no earlier registration to `moveSpell`).
  *
@@ -85,7 +85,7 @@ import { endPlacement, expectPlacement, pendingPlacementFor, renewPlacement, typ
 import { CAST_LANDING_ATTR, expectedGapBox, followStackCard, landCastGhost } from './gestures/cast.ts';
 import type { EntryWeight } from './entries.ts';
 import { drawnCentreOf, PRESENCE_CARD_ATTR, reportHandover, type HandoverFacts, type Report } from './handover-report.ts';
-import { commitSpell, holdSpell, onSpellMoved, placeSpell, placeStackItem, releaseSpell } from './placed.ts';
+import { holdSpell, onSpellMoved, placeSpell, placeStackItem, releaseSpell } from './placed.ts';
 import { handCardWidth, sizeAsCard } from '../card-size.ts';
 import { afterGlide, GLIDE_MS, HOUSE_DURATIONS, PLACEMENT_WAIT_MS, prefersReducedMotion, writeDurations } from '../motion.ts';
 import { battlefieldCard, overlayOf, zoneOf } from './board-dom.ts';
@@ -753,26 +753,6 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     return r.width > 0 ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
   }
 
-  /**
-   * The `[data-placed-spell]` element `placed.ts` drew at exactly `at` (its
-   * own `overlayPoint`, inverted) — this seam's only way to recover an id
-   * `promote` may have already renamed by the time the caller can act on it.
-   */
-  function findPlacedSpellAt(at: Point): number | null {
-    const box = overlay()?.getBoundingClientRect();
-    if (box === undefined) return null;
-    for (const el of canvas.querySelectorAll<HTMLElement>('[data-placed-spell]')) {
-      const left = Number.parseFloat(el.style.left);
-      const top = Number.parseFloat(el.style.top);
-      if (!Number.isFinite(left) || !Number.isFinite(top)) continue;
-      if (Math.abs(left + box.left - at.x) < 1 && Math.abs(top + box.top - at.y) < 1) {
-        const id = Number(el.getAttribute('data-placed-spell'));
-        return Number.isFinite(id) ? id : null;
-      }
-    }
-    return null;
-  }
-
   /** A wait its card never ended — a clock did: said, with how long the back stood, then taken down. */
   function expire(how: 'grace' | 'timeout'): void {
     if (waiting !== null) {
@@ -1079,7 +1059,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   /**
    * A SPELL of theirs: its id is public now — the stand-in's point goes to the
    * placed-cards layer (`placeSpell` where the back stands) and the card is
-   * turned over there; the back is retired. A back still gliding into its gap is
+   * drawn there; the back is retired. A back still gliding into its gap is
    * never handed over mid-way: the stack case in `handoff` waits for the glide to
    * end, so the face is drawn where the back came to rest, which is where the
    * card lands.
@@ -1089,19 +1069,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     play.stackFrameAt ??= Date.now();
     back?.setAttribute(PRESENCE_CARD_ATTR, String(id));
     reportHandover(host.report, 'handover', canvas, receiverFacts(id, 'stack', back === null ? null : drawnCentre(back), at));
-    if (at !== null) {
-      placeSpell(id, at, 'them');
-      // `placeSpell`'s own repaint runs `placed.ts`'s `promote` SYNCHRONOUSLY, inside this very
-      // call — which, the moment `id` (the CARD's) matches a `view.stack` entry's `sourceCardId`,
-      // re-keys the registration onto that entry's OWN id at once. `commitSpell(id)` right after
-      // would silently no-op on a key that is already gone, so the real id — the one the element
-      // `placeSpell` just (re)drew at this exact point now carries — is read back off the DOM,
-      // the same way every other geometry fact here is.
-      const committed = findPlacedSpellAt(at) ?? id;
-      commitSpell(committed);
-    } else {
-      commitSpell(id);
-    }
+    if (at !== null) placeSpell(id, at, 'them');
     stopWaiting('spell');
     return at;
   }
@@ -1382,9 +1350,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    * seat's copy to match. `placeStackItem`, not `moveSpell`: the server replays
    * this to a JOINER too (a reload), who has no earlier registration for the
    * id at all — `moveSpell` is a no-op without one. `placeStackItem` registers it
-   * fresh when needed and just updates the point otherwise, and
-   * `commitSpell` is a no-op once already committed — a stack item named on
-   * this wire is public either way.
+   * fresh when needed and just updates the point otherwise.
    *
    * A replay can reach this BEFORE the board itself has ever rendered (the
    * match is still "Connecting…" when `forge:join`'s ack carries it) —
@@ -1411,13 +1377,12 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const owner = ownerOf(parsed.data.seat);
     const side = owner !== null && owner === (host.viewerPlayerId?.() ?? null) ? 'you' : 'them';
     placeStackItem(parsed.data.spell, at, side, true);
-    commitSpell(parsed.data.spell);
   }
 
   /**
    * This seat dragged a placed spell of its own (`placed.ts`'s own gesture,
    * `gestures/install.ts` — the only caller of `moveSpell` left, since
-   * `onPlaced` above uses `placeSpell`/`commitSpell` instead): tell the other
+   * `onPlaced` above uses `placeStackItem` instead): tell the other
    * screen. `theirCards` is a defensive check should anything else ever call
    * `moveSpell` for the opponent's own spell — that must never bounce back
    * out as if it were this seat's own move. Throttled to `PRESENCE_SEND_MS`

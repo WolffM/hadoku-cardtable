@@ -3636,7 +3636,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     s.send(stackIs([]));
     arrive();
     await waitFor(() => expect(onMyBattlefield(canvas, card)).not.toBeNull());
-    await waitFor(() => expect(canvas.querySelector('[data-placed-spell]')).toBeNull());
+    await waitFor(() => expect(canvas.querySelector('[data-placed-spell="9101"]')).toBeNull());
     expect(stackEl(canvas).getAttribute('data-count')).toBe('0');
   });
 
@@ -3669,7 +3669,8 @@ describe('a played card waits where it was let go until Forge has it on the batt
     // Its own cast trigger, above it.
     s.send(stackItem(9102, card, true));
     s.send(stackIs([9102, 9101]));
-    await waitFor(() => expect(canvas.querySelectorAll('[data-placed-spell]')).toHaveLength(2));
+    // Its own two: a chip resolved earlier may still be on screen for its dwell (`CHIP_DWELL_MS`).
+    await waitFor(() => expect(canvas.querySelectorAll('[data-placed-spell="9101"], [data-placed-spell="9102"]')).toHaveLength(2));
   });
 
   it('W17 — its cast trigger asks for a target: the spell is still the card where it was let go, and the arrow leaves from there', async () => {
@@ -3693,7 +3694,8 @@ describe('a played card waits where it was let go until Forge has it on the batt
     // Its trigger joins it on the stack: both are drawn now.
     s.send(stackItem(9102, card, true));
     s.send(stackIs([9102, 9101]));
-    await waitFor(() => expect(canvas.querySelectorAll('[data-placed-spell]')).toHaveLength(2));
+    // Its own two: a chip resolved earlier may still be on screen for its dwell (`CHIP_DWELL_MS`).
+    await waitFor(() => expect(canvas.querySelectorAll('[data-placed-spell="9101"], [data-placed-spell="9102"]')).toHaveLength(2));
   });
 
   it('AD3: once parked, the card stays at the park point however much the pointer moves — only the aim arrow follows it', async () => {
