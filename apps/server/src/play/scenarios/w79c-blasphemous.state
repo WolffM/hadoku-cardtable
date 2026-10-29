@@ -1,0 +1,16 @@
+# w79c (`e2e/w79c-deaths.spec.ts`): the trailer's board wipe, with a flyer on each side. Twelve creatures,
+# so Blasphemous Act costs only {R}; thirteen damage to each creature and every one of them dies, flyers and
+# ground alike. No creature here has a death or "dies" trigger, so nothing asks.
+turn=7
+activeplayer=human
+activephase=MAIN1
+humanlife=6
+ailife=19
+humanhand=Blasphemous Act;Lightning Bolt;Fireblast
+humanbattlefield=Goblin Guide;Monastery Swiftspear;Eidolon of the Great Revel;Birds of Paradise;Mountain;Mountain;Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=Chain Lightning;Lava Spike;Rift Bolt
+aihand=
+aibattlefield=Baneslayer Angel;Serra Angel;Thalia, Guardian of Thraben;Adanto Vanguard;Brimaz, King of Oreskos;Thraben Inspector;Tarmogoyf;Knight of the White Orchid;Plains;Plains;Plains;Plains;Plains;Horizon Canopy
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=Swords to Plowshares;Path to Exile
