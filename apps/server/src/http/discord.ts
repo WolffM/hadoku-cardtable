@@ -11,7 +11,7 @@
  * `CACHE_MS`, and callers arriving while a read is out share it. Without the secret (PPE, local
  * dev) or on any answer but a 200 the route answers 204, and the card leaves the chat out.
  *
- *   GET /api/discord/recent → 200 { messages: [{ author, text, at }] } (newest last) | 204
+ *   GET /api/discord/recent → 200 { messages: [{ author, avatar, color, text, at }] } (newest last) | 204
  */
 
 import { createHmac } from 'node:crypto';

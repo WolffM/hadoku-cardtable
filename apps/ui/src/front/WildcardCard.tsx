@@ -257,7 +257,7 @@ export function WildcardCard() {
   );
 }
 
-/** The chat drawn as Discord's own client draws a channel: its header, then the messages grouped under avatars (`./discordChat.ts`). */
+/** The chat drawn as Discord's own client draws a channel: its header, then the messages grouped under the authors' own avatars and role colours (`./discordChat.ts`). */
 function DiscordChat({ channel, messages }: { channel: string; messages: readonly DiscordMessage[] }) {
   return (
     <div className="discord-chat">
@@ -270,12 +270,18 @@ function DiscordChat({ channel, messages }: { channel: string; messages: readonl
       <ol className="discord-chat__messages" data-testid="front-wildcard-messages">
         {groupMessages(messages).map((g, i) => (
           <li key={i} className="discord-chat__group">
-            <span className={`discord-chat__avatar discord-chat__avatar--${String(avatarColour(g.author))}`} aria-hidden="true">
-              {avatarInitial(g.author)}
-            </span>
+            {g.avatar === null ? (
+              <span className={`discord-chat__avatar discord-chat__avatar--${String(avatarColour(g.author))}`} aria-hidden="true">
+                {avatarInitial(g.author)}
+              </span>
+            ) : (
+              <img className="discord-chat__avatar" src={g.avatar} alt="" draggable={false} />
+            )}
             <div className="discord-chat__body">
               <p className="discord-chat__head">
-                <span className="discord-chat__author">{g.author}</span>
+                <span className="discord-chat__author" style={g.color === null ? undefined : { color: g.color }}>
+                  {g.author}
+                </span>
                 <time className="discord-chat__time" dateTime={g.at}>
                   {discordTime(g.at)}
                 </time>

@@ -1,9 +1,9 @@
 /*
  * The wildcard's Discord chat (`./WildcardCard.tsx`), laid out the way Discord's own client lays out
  * a channel: consecutive messages from one author within seven minutes share a header, and each
- * header carries Discord's own timestamp wording. ArchiveBot sends no avatars (`@hadoku/shared`'s
- * `discord.ts`), so an author's avatar is their initial on one of Discord's default-avatar colours,
- * picked from their name so it stays the same between visits.
+ * header carries Discord's own timestamp wording. Avatars and name colours are the real ones, from
+ * ArchiveBot (`@hadoku/shared`'s `discord.ts`); only when it could not read an avatar does the author
+ * get their initial on one of Discord's default-avatar colours, picked from their name.
  */
 
 import type { DiscordMessage } from '@hadoku/shared';
@@ -13,6 +13,9 @@ export const GROUP_GAP_MS = 7 * 60_000;
 
 export interface ChatGroup {
   author: string;
+  /** The first message's avatar and name colour: Discord draws the header from it. */
+  avatar: string | null;
+  color: string | null;
   /** The first message's `at`, for the header's timestamp. */
   at: string;
   texts: string[];
@@ -26,7 +29,7 @@ export function groupMessages(messages: readonly DiscordMessage[]): ChatGroup[] 
     const at = Date.parse(m.at);
     const prev = groups.at(-1);
     if (prev !== undefined && prev.author === m.author && at - lastAt < GROUP_GAP_MS) prev.texts.push(m.text);
-    else groups.push({ author: m.author, at: m.at, texts: [m.text] });
+    else groups.push({ author: m.author, avatar: m.avatar, color: m.color, at: m.at, texts: [m.text] });
     lastAt = at;
   }
   return groups;

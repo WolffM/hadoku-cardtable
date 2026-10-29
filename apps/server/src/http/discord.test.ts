@@ -57,7 +57,13 @@ async function openApp(deps: { secret: string; archivebotUrl: string; now?: () =
 	return { get, logged };
 }
 
-const MESSAGES = { messages: [{ author: 'alice', text: 'anyone up for a pod?', at: '2026-10-28T18:02:11Z' }, { author: 'bob', text: 'in 10', at: '2026-10-28T18:03:40Z' }] };
+const AVATAR = 'data:image/webp;base64,UklGRg==';
+const MESSAGES = {
+	messages: [
+		{ author: 'alice', avatar: AVATAR, color: '#1abc9c', text: 'anyone up for a pod?', at: '2026-10-28T18:02:11Z' },
+		{ author: 'bob', avatar: null, color: null, text: 'in 10', at: '2026-10-28T18:03:40Z' },
+	],
+};
 
 describe('/api/discord/recent', () => {
 	it('relays ArchiveBot’s messages, asking for general’s last five with the query signed', async () => {
@@ -65,6 +71,28 @@ describe('/api/discord/recent', () => {
 		const { get } = await openApp({ secret: SECRET, archivebotUrl: bot.url });
 		expect(await get()).toEqual({ status: 200, body: MESSAGES });
 		expect(bot.seen).toEqual([{ query: 'channel=general&limit=5', signed: true }]);
+	});
+
+	it('a missing or malformed avatar or colour is null, never the whole snapshot', async () => {
+		const bot = await fakeArchiveBot({
+			status: 200,
+			body: {
+				messages: [
+					{ author: 'alice', text: 'from before avatars', at: '2026-10-28T18:02:11Z' },
+					{ author: 'bob', avatar: 'https://cdn.discordapp.com/avatars/1/2.webp', color: 'teal', text: 'hi', at: '2026-10-28T18:03:40Z' },
+				],
+			},
+		});
+		const { get } = await openApp({ secret: SECRET, archivebotUrl: bot.url });
+		expect(await get()).toEqual({
+			status: 200,
+			body: {
+				messages: [
+					{ author: 'alice', avatar: null, color: null, text: 'from before avatars', at: '2026-10-28T18:02:11Z' },
+					{ author: 'bob', avatar: null, color: null, text: 'hi', at: '2026-10-28T18:03:40Z' },
+				],
+			},
+		});
 	});
 
 	it('reads ArchiveBot once a minute whoever asks, then again', async () => {

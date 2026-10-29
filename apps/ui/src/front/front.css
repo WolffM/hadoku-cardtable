@@ -421,6 +421,10 @@
   color: #fff;
 }
 
+img.discord-chat__avatar {
+  object-fit: cover;
+}
+
 /* Discord's default-avatar colours, in `./discordChat.ts`'s `AVATAR_COLOURS` order. */
 .discord-chat__avatar--0 { background: #5865f2; }
 .discord-chat__avatar--1 { background: #757e8a; }

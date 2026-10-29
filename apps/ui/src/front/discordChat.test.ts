@@ -7,16 +7,17 @@ import { AVATAR_COLOURS, avatarColour, avatarInitial, discordTime, groupMessages
 
 describe('groupMessages', () => {
   it('runs of one author within seven minutes share a header', () => {
+    const avatar = 'data:image/webp;base64,AAAA';
     const groups = groupMessages([
-      { author: 'alice', text: 'a', at: '2026-10-28T12:00:00Z' },
-      { author: 'alice', text: 'b', at: '2026-10-28T12:06:00Z' },
-      { author: 'bob', text: 'c', at: '2026-10-28T12:07:00Z' },
-      { author: 'bob', text: 'd', at: '2026-10-28T12:20:00Z' },
+      { author: 'alice', avatar, color: '#1abc9c', text: 'a', at: '2026-10-28T12:00:00Z' },
+      { author: 'alice', avatar, color: '#1abc9c', text: 'b', at: '2026-10-28T12:06:00Z' },
+      { author: 'bob', avatar: null, color: null, text: 'c', at: '2026-10-28T12:07:00Z' },
+      { author: 'bob', avatar: null, color: null, text: 'd', at: '2026-10-28T12:20:00Z' },
     ]);
     expect(groups).toEqual([
-      { author: 'alice', at: '2026-10-28T12:00:00Z', texts: ['a', 'b'] },
-      { author: 'bob', at: '2026-10-28T12:07:00Z', texts: ['c'] },
-      { author: 'bob', at: '2026-10-28T12:20:00Z', texts: ['d'] },
+      { author: 'alice', avatar, color: '#1abc9c', at: '2026-10-28T12:00:00Z', texts: ['a', 'b'] },
+      { author: 'bob', avatar: null, color: null, at: '2026-10-28T12:07:00Z', texts: ['c'] },
+      { author: 'bob', avatar: null, color: null, at: '2026-10-28T12:20:00Z', texts: ['d'] },
     ]);
   });
 });

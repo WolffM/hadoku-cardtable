@@ -1,6 +1,6 @@
 # Request to ArchiveBot: a read-only feed of recent #general messages
 
-**From:** hadoku-cardtable, 2026-10-28. **Done:** WolffM/ArchiveBot#37, shipped in ArchiveBot 891263c; the contract is the issue's last comment, and cardtable reads it in `apps/server/src/http/discord.ts`. **Re:** `ARCHIVEBOT_DISCORD_INTEGRATION_REPLY.md`.
+**From:** hadoku-cardtable, 2026-10-28. **Done:** WolffM/ArchiveBot#37, shipped in ArchiveBot 891263c; the contract is the issue's last comment, and cardtable reads it in `apps/server/src/http/discord.ts`. **Amended 2026-10-28** by the operator ("all that data should come from archivebot"): each message also carries the author's `avatar` as a 64px `data:` URI and their name's role `color`, in ArchiveBot d381964. **Re:** `ARCHIVEBOT_DISCORD_INTEGRATION_REPLY.md`.
 
 ## What for
 
@@ -21,7 +21,7 @@ X-Hadoku-Signature: sha256=<HMAC of the query string>     (same secret, same che
 
 - Newest last, at most `limit` (cap it at 10), from the server `/setup` bound to cardtable only.
 - Plain text: mentions resolved to display names, attachments and embeds dropped, each message
-  cut to ~200 characters. No user ids, avatars or message links.
+  cut to ~200 characters. No user ids or message links (the avatar, since the amendment, comes as image bytes, never a CDN URL).
 - Nothing from any channel other than the one configured as general.
 
 cardtable's server would call it at most once a minute and cache the answer, and serve the
