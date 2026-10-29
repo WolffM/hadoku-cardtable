@@ -717,7 +717,12 @@ function emptyRows<T>(): Record<BoardRow, T[]> {
  * artifact creature attacks.
  */
 function permanentType(card: BoardCard): (typeof BOARD_ROWS)[number] {
-  const types = card.card.typeLine.split('—')[0] ?? '';
+  return typeRow(card.card.typeLine);
+}
+
+/** `permanentType` off a bare type line: the row a card in hand goes to before there is a permanent to read. */
+function typeRow(typeLine: string): (typeof BOARD_ROWS)[number] {
+  const types = typeLine.split('—')[0] ?? '';
   if (/\bLand\b/i.test(types)) return 'lands';
   if (/\bCreature\b/i.test(types)) return 'creatures';
   if (/\bArtifact\b/i.test(types)) return 'artifacts';
@@ -1643,13 +1648,12 @@ function liveViewerGeometry(): SlotGeometry[] {
 
 /**
  * The seam with the gestures lane's cast gesture (`live/gestures/cast.ts`):
- * where a cast's release said the resulting permanent should land, so it does
- * not simply join the end of its type row. Called exactly once per cast, at
- * the release — before Forge has replied, so the card is not on the
- * battlefield yet. Hit-tests `point` through the exact same `snapTo` an
- * arrange-drag's own indicator uses, against the live DOM. A point that hits
- * no slot, or hits `'hand'`, records nothing, same as a drag indicator going
- * `hidden`.
+ * where a cast's release said the resulting permanent should land. Called
+ * exactly once per cast, at the release — before Forge has replied, so the
+ * card is not on the battlefield yet. `placementAt` reads the column: the slot
+ * under `point` on the viewer's own battlefield, else — `point` null, a release
+ * anywhere else, or one that hits no slot — the next free space of the row
+ * `typeLine` goes to. Without a type line either, it records nothing.
  *
  * `cardId` is the HAND card's own id, which IS the battlefield id it
  * arrives/sits under: Forge's `TrackableObject.id` is `final` and no code
@@ -1658,21 +1662,44 @@ function liveViewerGeometry(): SlotGeometry[] {
  * `forge/forge-game/src/main/java/forge/trackable/TrackableObject.java` and
  * the zone-change paths, not assumed.
  */
-export function notePlayedTo(cardId: number, point: { x: number; y: number }): void {
-  const at = placementAt(point);
+export function notePlayedTo(cardId: number, point: { x: number; y: number } | null, typeLine: string | null = null): void {
+  const at = placementAt(point, typeLine);
   if (at === null || LIVE_VIEWER_ID === null) return;
   PENDING_PLACEMENTS.set(LIVE_VIEWER_ID, { cardId, slot: at.slot, target: at.target, expiresAt: Date.now() + PLACEMENT_WAIT_MS });
   for (const wake of MOUNTED_BOARDS) wake();
 }
 
-/** The column a release at `point` (client coordinates) means on the viewer's own battlefield, or null off it. */
-export function placementAt(point: { x: number; y: number }): { slot: BoardRow; target: DropTarget } | null {
-  const snap = snapTo(liveViewerGeometry(), point.x, point.y);
+/**
+ * The column a release at `point` (client coordinates, over the viewer's own battlefield) means, or — with
+ * `point` null, or a point that hits no slot — the next free space of the row a `typeLine` card goes to.
+ * The operator, 2026-10-28: "if they release it in an invalid location, just have the card land in the next
+ * avaliable board space."
+ */
+export function placementAt(point: { x: number; y: number } | null, typeLine: string | null = null): { slot: BoardRow; target: DropTarget } | null {
+  const snap = point === null ? null : snapTo(liveViewerGeometry(), point.x, point.y);
   // A cast lands ON THE BATTLEFIELD by definition — 'hand' is in the same
   // geometry list (the hand is arrangeable too) but is never a meaningful
   // target for "where a newly played permanent goes".
-  if (snap === null || snap.slot === 'hand') return null;
-  return { slot: snap.slot, target: snap.target };
+  if (snap !== null && snap.slot !== 'hand') return { slot: snap.slot, target: snap.target };
+  return typeLine === null ? null : nextFreeSpace(typeLine);
+}
+
+/**
+ * Where `group()` puts an arrival nobody placed — the first free column of its row, else the row's end —
+ * read off the viewer's rows as drawn, so the act can carry it and both screens glide to the same column.
+ * Null when the board draws no arrangeable rows.
+ */
+function nextFreeSpace(typeLine: string): { slot: BoardRow; target: DropTarget } | null {
+  const rows = [...documentScope().querySelectorAll<HTMLElement>('.board .seat[data-viewer] [data-arrange-slot]')];
+  const type = typeRow(typeLine);
+  const slot: BoardRow = rows.some((el) => el.getAttribute('data-arrange-slot') === 'front') ? (type === 'lands' ? 'back' : 'front') : type;
+  const row = rows.find((el) => el.getAttribute('data-arrange-slot') === slot);
+  if (row === undefined) return null;
+  const list = row.matches('.zone__cards') ? row : row.querySelector<HTMLElement>(':scope > .zone__cards');
+  const columns = [...(list?.querySelectorAll<HTMLElement>(':scope > li.board-card, :scope > li.zone__gap:not([data-virtual])') ?? [])];
+  // A gap the player left; never one a leaving card keeps, or one already reserved for another card.
+  const free = columns.findIndex((li) => li.matches(`.zone__gap:not([data-expected]):not([${LEAVING_GAP_ATTR}])`));
+  return { slot, target: free === -1 ? { kind: 'end' } : { kind: 'at', column: free } };
 }
 
 /**

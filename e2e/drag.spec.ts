@@ -5,8 +5,9 @@
  *
  *  - nothing reaches Forge until the release;
  *  - a no-target card (by type line: anything but an Instant, Sorcery or
- *    Aura) is played if released over the viewer's own battlefield, else it
- *    floats back and nothing is sent;
+ *    Aura) is played wherever it is released outside the hand (w80d:
+ *    anywhere off the viewer's own battlefield it takes its row's next free
+ *    space — `w80d-release-anywhere.spec.ts`);
  *  - a targeted card is cast at release anywhere outside the viewer's own
  *    hand (the battlefield included), parks there, and a SEPARATE click on a
  *    legal target answers it;
@@ -73,37 +74,6 @@ async function offeredNamed(page: Page, name: string): Promise<number | undefine
 async function handIds(page: Page): Promise<number[]> {
   return page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-board-card'))));
 }
-
-/* ── 1. a land released outside the battlefield is still in hand ────────── */
-
-test(titled('a land released outside the battlefield is still in hand, and nothing was sent'), async ({ browser }) => {
-  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
-  if (!forge.ok) return;
-  test.setTimeout(2 * 60_000);
-  const stack = await startPlayStack(forge);
-  try {
-    const { alice, bob } = await startScenarioMatch(browser, stack, 'land-into-middle');
-    void bob;
-
-    await expect.poll(() => handCardNamed(alice.page, 'Island'), { timeout: 20_000, message: "alice holds the Island this test releases" }).not.toBeUndefined();
-    const island = (await handCardNamed(alice.page, 'Island'))!;
-    const before = actsSent(alice);
-
-    // Released over the STACK zone: on the table, but nowhere near either
-    // battlefield — the demo's "anywhere else" for a no-target card.
-    const stackZone = (await alice.page.locator('[data-zone="stack"]').first().boundingBox())!;
-    const armed = await dragHandCard(alice.page, island, { x: stackZone.x + stackZone.width / 2, y: stackZone.y + stackZone.height / 2 });
-    expect(armed, 'the press armed the Arena gesture — the precondition this spec needs').toBe(true);
-
-    // Nothing reached Forge: the hand still has it, and no c2s frame left
-    // the browser for this release.
-    await expect(alice.page.locator(`[data-board-card="${island}"]`).first(), 'the Island floated back to the hand').toBeVisible();
-    await expect(alice.page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]', { hasText: 'Island' })).toHaveCount(1);
-    expect(actsSent(alice), 'no act reached the server for this release').toBe(before);
-  } finally {
-    await stack.stop();
-  }
-});
 
 /* ── 2. a land released over the battlefield is on it ────────────────────── */
 

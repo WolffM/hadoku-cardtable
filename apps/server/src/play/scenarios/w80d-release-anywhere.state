@@ -1,0 +1,17 @@
+# w80d, "allow players to release permanent cards anywhere, but if they release it in an invalid location,
+# just have the card land in the next avaliable board space." Seat 0 holds two free creatures and a land
+# with its land drop unused, and already has a creature and two lands down, so a row's next space is not
+# its first. `e2e/w80d-release-anywhere.spec.ts` releases each one away from its own battlefield.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Memnite;Ornithopter;Island
+humanbattlefield=Forest;Mountain;Grizzly Bears
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Grizzly Bears;Forest
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

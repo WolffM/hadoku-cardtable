@@ -49,6 +49,7 @@ import { expectPlacement, pendingPlacementFor, applyTheirArrangement, onOwnArran
   group,
   handOrder,
   notePlayedTo,
+  placementAt,
   previewPlayedTo,
   showPlacementColumns,
   slotKey,
@@ -5256,6 +5257,35 @@ describe('notePlayedTo hands a cast’s drop point to Board', () => {
     notePlayedTo(99004, { x: -5000, y: -5000 });
     rerender(createElement(Board, { view: withNewLand(99004), boardLayout: 'single' }));
     expect(backIds(container)).toEqual(['8', '24', '6', '25', '99004']);
+  });
+
+  it('a release anywhere else (no point) takes the next free space of the row its type goes to (mutation: reverted, it records nothing)', () => {
+    // w80d, the operator: "if they release it in an invalid location, just have the card land in the next avaliable board space."
+    const { container, rerender } = renderBoard(base, undefined, 'single');
+    layOut(container);
+    expect(placementAt(null, 'Basic Land — Mountain'), 'a land: the back row, which has no gap, at its end').toEqual({ slot: 'back', target: { kind: 'end' } });
+    expect(placementAt(null, 'Creature — Bear'), 'anything else: the front row').toEqual({ slot: 'front', target: { kind: 'end' } });
+    expect(placementAt(null), 'without a type line there is no row to name').toBeNull();
+
+    notePlayedTo(99005, null, 'Basic Land — Mountain');
+    rerender(createElement(Board, { view: withNewLand(99005), boardLayout: 'single' }));
+    expect(backIds(container)).toEqual(['8', '24', '6', '25', '99005']);
+  });
+
+  it('the next free space is the row’s first gap the player left, never one reserved or kept for a leaving card', () => {
+    const { container } = renderBoard(base, undefined, 'single');
+    layOut(container);
+    const back = container.querySelector<HTMLElement>('.seat[data-viewer] [data-tier="back"]')!;
+    const gap = (attr?: string): HTMLLIElement => {
+      const li = document.createElement('li');
+      li.className = 'zone__gap';
+      if (attr !== undefined) li.setAttribute(attr, '');
+      return li;
+    };
+    back.insertBefore(gap('data-expected'), back.children[1]!);
+    back.insertBefore(gap('data-leaving-gap'), back.children[2]!);
+    back.insertBefore(gap(), back.children[4]!);
+    expect(placementAt(null, 'Basic Land — Mountain')).toEqual({ slot: 'back', target: { kind: 'at', column: 4 } });
   });
 
   it('previewPlayedTo draws and clears the same indicator bar an arrange-drag uses, without touching arrangement', () => {

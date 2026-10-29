@@ -119,12 +119,11 @@
  *
  *  - over the viewer's own hand → the card floats back; nothing is sent,
  *    whatever the card is (nothing was ever sent to undo);
- *  - no target needed, over the viewer's own battlefield → `selectCard`
- *    (the play), one call telling `Board` where it landed, at the slot under
- *    the release point, and the card PARKS at that point exactly as a
- *    targeted cast does — see "A played card waits where it was let go";
- *  - no target needed, anywhere else → the card floats back; nothing is
- *    sent;
+ *  - no target needed, anywhere outside the hand → `selectCard` (the play),
+ *    one call telling `Board` where it lands — the slot under the release
+ *    point over the viewer's own battlefield, anywhere else its row's next
+ *    free space — and the card PARKS at that point exactly as a targeted
+ *    cast does — see "A played card waits where it was let go";
  *  - a target is needed, anywhere outside the hand → `selectCard` (the cast)
  *    goes out now, the card is pinned at the release point (`drawCastLift`
  *    with `'parked'`), and this module's `parked` holds that fact until
@@ -213,7 +212,7 @@
  *
  * `selectCard` alone tells Forge WHAT to cast, never WHERE the player put it,
  * so a newly-arrived permanent used to append to the end of its type row
- * every time. `Board.tsx` exports `notePlayedTo(cardId, point)` for exactly
+ * every time. `Board.tsx` exports `notePlayedTo(cardId, point, typeLine)` for exactly
  * this gap, read across the lane boundary like every other cross-lane import
  * in this file, never written to. This module calls it exactly once, from
  * `resolveLift`, at the release that actually plays the card: by the time
@@ -334,7 +333,7 @@ interface Parked {
   readonly zone: CastZone;
   /** Forge's state has shown the card out of `zone` since the cast went out. */
   leftZone: boolean;
-  /** A permanent played to the viewer's own battlefield rather than a cast being aimed. */
+  /** A permanent played, rather than a cast being aimed. */
   readonly played: boolean;
   /** The stack has taken this card's spell back (`syncStackStandIn`). Never returns to false. */
   onStack: boolean;
@@ -928,17 +927,18 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // Left its zone before release: `onPointerMove`'s own transition already cleared the
     // hand's indicator the moment the pointer crossed out of it.
     handPressIndex = null;
-    const spell = needsTarget(castCardTypeLine(match, source));
+    const typeLine = castCardTypeLine(match, source);
+    const spell = needsTarget(typeLine);
     previewAt(null);
-    if (!spell && !overOwnBattlefield(node)) {
-      floatCastLiftHome(canvas, source, state.from, () => {});
-      return;
-    }
     // An earlier card still on its way is on its own from here: one park at a time.
     if (parked !== null) releaseParked(endPark('next-play')!, false);
-    // The play, or the cast: it goes out now, and the card parks where it was
-    // let go — a permanent over the viewer's own battlefield, a card that
-    // needs a target wherever it was released outside the hand.
+    // The play, or the cast: it goes out now, wherever outside the hand it was
+    // let go, and the card parks there. A permanent then glides to the slot
+    // under the point on the viewer's own battlefield, and anywhere else to its
+    // row's next free space (the operator, 2026-10-28: "if they release it in
+    // an invalid location, just have the card land in the next avaliable board
+    // space").
+    const over = overOwnBattlefield(node) ? point : null;
     const ghost = parkedGhost(canvas, source);
     // The column and the release point go WITH the act: the server tells every screen at once,
     // before any Forge frame about the card, and both screens draw the same glide into the gap.
@@ -947,7 +947,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // the release (the operator: "a bit of desync between where the phantom card was and
     // where the cursor actually released the card"). `cardBox` finds the exact element
     // `drawCastLift` has been positioning all along; hit-testing below still uses the real point.
-    const column = spell ? null : placementAt(point);
+    const column = spell ? null : placementAt(over, typeLine);
     const liftedNow = cardBox(canvas, source);
     const liftedRect = liftedNow instanceof HTMLElement ? liftedNow.getBoundingClientRect() : null;
     const ghostAt = liftedRect !== null && liftedRect.width > 0 ? { x: liftedRect.left + liftedRect.width / 2, y: liftedRect.top + liftedRect.height / 2 } : point;
@@ -970,8 +970,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // spot" fallback in `live/placed.ts` — no special-casing needed here.
     placeSpell(source, point, 'you');
     if (!spell) {
-      // The one placement call, at the release — the slot under the release point.
-      notePlayedTo(source, point);
+      // The one placement call, at the release — the same column the act carries.
+      notePlayedTo(source, over, typeLine);
       carryCastOffStack(source);
     }
     // A played card is drawn by its stand-in from here on; a cast being aimed

@@ -2766,7 +2766,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     await s.untilClientFrames(1);
     expect(await sent(s, m)).toEqual([['selectCard', hand[0]!]]);
     expect(noteSpy).toHaveBeenCalledTimes(1);
-    expect(noteSpy).toHaveBeenCalledWith(hand[0], { x: 400, y: 300 });
+    expect(noteSpy).toHaveBeenCalledWith(hand[0], { x: 400, y: 300 }, mineOf(m).hand![0]!.card.typeLine);
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'out of the hand’s row, and not drawn: its stand-in is').toBe('carried');
     const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${hand[0]}"]`)!;
     expect(standIn.getAttribute('data-cast-lift'), 'it waits where it was let go, not back in the hand').toBe('parked');
@@ -2775,8 +2775,12 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     expect(board.hasAttribute('data-placing'), 'the columns clear with the release').toBe(false);
   });
 
-  it('a no-target card released off the viewer’s own battlefield floats back, and nothing is sent', async () => {
+  it('a no-target card released off the viewer’s own battlefield is played, for its row’s next free space', async () => {
+    // The operator, 2026-10-28: "allow players to release permanent cards anywhere, but if they release it in
+    // an invalid location, just have the card land in the next avaliable board space." Before w80d this
+    // floated the card back and sent nothing.
     const { s, m, canvas } = await gestureBoard();
+    const noteSpy = vi.spyOn(BoardModule, 'notePlayedTo');
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
     await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
@@ -2788,13 +2792,14 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     expect(board.hasAttribute('data-placing'), 'out of the hand, the same columns wherever it is carried').toBe(true);
     expect(cardEl(canvas, hand[0]!).hasAttribute('data-cast-verdict'), 'no text on a lifted card').toBe(false);
 
-    holdBoardClock();
     fireEvent.pointerUp(document.body, { clientX: 900, clientY: 900 });
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'floating back').toBe('returning');
+    await s.untilClientFrames(1);
+    expect(await sent(s, m)).toEqual([['selectCard', hand[0]!]]);
+    expect(noteSpy, 'no point over her battlefield: the row’s next free space').toHaveBeenCalledWith(hand[0], null, mineOf(m).hand![0]!.card.typeLine);
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'never floating back').toBe('carried');
+    const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${hand[0]}"]`)!;
+    expect(standIn.style.left, 'it waits where it was let go').toBe('900px');
     expect(board.hasAttribute('data-placing'), 'and the columns are gone').toBe(false);
-    vi.advanceTimersByTime(GLIDE_MS);
-    expect(await s.framesFrom(m)).toHaveLength(0);
-    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
   });
 
   it('any card released over the hand reorders it, and nothing is sent, whatever the card is', async () => {
@@ -2903,7 +2908,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     fireEvent.pointerDown(myBattlefield, { button: 0, clientX: 600, clientY: 480 });
     await s.untilClientFrames(1);
     expect(await sent(s, m)).toEqual([['selectCard', hand[0]!]]);
-    expect(noteSpy).toHaveBeenCalledWith(hand[0], { x: 600, y: 480 });
+    expect(noteSpy).toHaveBeenCalledWith(hand[0], { x: 600, y: 480 }, mineOf(m).hand![0]!.card.typeLine);
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('carried');
     expect(canvas.querySelector<HTMLElement>(`[data-cast-ghost="${hand[0]}"]`)!.style.left).toBe('600px');
   });
@@ -4093,7 +4098,7 @@ describe('a cast tells Board where it landed, through the seam Board provides', 
     fireEvent.pointerMove(myBattlefield, { clientX: 650, clientY: 500 });
     fireEvent.pointerUp(myBattlefield, { clientX: 700, clientY: 520 });
     expect(noteSpy).toHaveBeenCalledTimes(1);
-    expect(noteSpy).toHaveBeenCalledWith(hand[0], { x: 700, y: 520 });
+    expect(noteSpy).toHaveBeenCalledWith(hand[0], { x: 700, y: 520 }, mineOf(m).hand![0]!.card.typeLine);
   });
 
   it('previewPlayedTo tracks the pointer for a no-target card over the viewer’s own battlefield, and goes null off it', async () => {
