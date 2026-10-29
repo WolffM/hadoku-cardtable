@@ -143,7 +143,7 @@ describe('rebuild: one at a time per server', () => {
 				dir,
 				matchId,
 				actionsHeader: { matchId, roomId: 'r', pin: 'p', bridge: 'b', server: 'test', startedAt: new Date().toISOString(), spec: { seed: 1, seats: [{ name: 'A', ai: false, deck: null }, { name: 'B', ai: false, deck: null }] } },
-				publicHeader: { matchId, roomId: 'r', players: ['A', 'B'], ai: [false, false], decks: [null, null], startedAt: new Date().toISOString() },
+				publicHeader: { matchId, roomId: 'r', players: ['A', 'B'], ai: [false, false], decks: [null, null], art: [], startedAt: new Date().toISOString() },
 				log: () => {},
 			});
 		// A reply, not an act: a reply waits for its ask, which this stub host (silent) never

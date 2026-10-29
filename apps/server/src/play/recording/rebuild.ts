@@ -58,6 +58,7 @@ import { gunzipSync, gzipSync } from 'node:zlib';
 
 import type { ServerEnvelope } from '@hadoku/shared';
 
+import { artOf } from '../art.js';
 import { seatDeckColors, type DeckCosts } from '../deck-colors.js';
 import { winnerSeatFromLosers } from '../match.js';
 import { jvmHostConfig, type BridgeCommand, type BridgeLine, type MatchHost, type MatchHostFactory, type MatchSpec } from '../host.js';
@@ -65,7 +66,7 @@ import { createProjector, EVERY_PLAYER, type StateFrame } from '../visibility.js
 import { bridgeDigest, forgePin } from './recorder.js';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from './retention.js';
 import { boardDigest, isStateLine } from './position.js';
-import type { ActionsCmdLine, ActionsEndLine, ActionsHeader, PublicEndLine, PublicEnvLine, PublicHeader } from './writer.js';
+import { PUBLIC_VERSION, type ActionsCmdLine, type ActionsEndLine, type ActionsHeader, type PublicEndLine, type PublicEnvLine, type PublicHeader } from './writer.js';
 
 /* ── Contract 1: the two files on disk, narrowed to this file's own needs ──────────────────────
  *
@@ -411,12 +412,13 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 
 	const publicHeader: PublicHeader = {
 		t: 'header',
-		v: 1,
+		v: PUBLIC_VERSION,
 		matchId: header.matchId,
 		roomId: header.roomId,
 		players: [header.spec.seats[0].name, header.spec.seats[1].name],
 		ai: [header.spec.seats[0].ai, header.spec.seats[1].ai],
 		decks: [0, 1].map((seat) => seatDeckColors(header.spec, seat, deps.deckCosts)),
+		art: artOf(header.spec),
 		startedAt: header.startedAt,
 	};
 	const publicEnd: PublicEndLine = { t: 'end', endedAt, winner: winnerSeat };

@@ -1,0 +1,23 @@
+# e2e/w81-replay.spec.ts — a real game for a replay to play back: combat with a
+# death on each side, a stack of two, draws, three turns.
+# bob (ai keys, seat 1) is attacking alice (human keys, seat 0) with Runeclaw
+# Bear; `activephase` lands on Declare ATTACKERS Step, never Declare Blockers
+# itself (README: "Combat, specifically"). alice blocks with Grizzly Bears and
+# the two trade. In bob's second main phase he casts Memnite and, holding
+# priority, Dark Ritual over it (`stackTwoSpells`). Then turns pass: alice draws
+# a Mountain on turn 2, bob a Swamp on turn 3, and bob concedes.
+# alice keeps Lightning Bolt in hand throughout, so both hands hold a card a
+# replay must show face up.
+turn=1
+activeplayer=ai
+activephase=COMBAT_DECLARE_ATTACKERS
+humanlife=20
+ailife=20
+humanhand=Lightning Bolt
+humanbattlefield=Mountain;Grizzly Bears
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Memnite;Dark Ritual
+aibattlefield=Swamp;Runeclaw Bear|Attacking
+ailibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+aigraveyard=

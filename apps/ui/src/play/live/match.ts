@@ -1070,17 +1070,10 @@ function send(match: LiveMatch, frame: ClientEnvelope['frame'], placement?: Plac
   match.transport.emit(MATCH_EVENTS.clientToServer, envelope);
 }
 
-/**
- * Connect, join, listen.
- *
- * The join goes out at once (socket.io buffers an emit made before the
- * handshake) and again on every RE-connect, which is what returns a refreshed
- * browser to its seat. The first `connect` is not a re-join — joining twice
- * would fetch two snapshots for nothing. Same rule as the draft's driver.
- */
-export function startMatch(options: LiveMatchOptions): LiveMatch {
+/** A board with nothing in it yet, on `options`' transport. */
+function newMatch(options: LiveMatchOptions): LiveMatch {
   const { seq: forgeSeq, ...folded } = foldPackets([]);
-  const match: LiveMatch = {
+  return {
     matchId: options.matchId,
     seat: null,
     playerId: null,
@@ -1164,6 +1157,18 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     buffer: [],
     listeners: new Set(),
   };
+}
+
+/**
+ * Connect, join, listen.
+ *
+ * The join goes out at once (socket.io buffers an emit made before the
+ * handshake) and again on every RE-connect, which is what returns a refreshed
+ * browser to its seat. The first `connect` is not a re-join — joining twice
+ * would fetch two snapshots for nothing. Same rule as the draft's driver.
+ */
+export function startMatch(options: LiveMatchOptions): LiveMatch {
+  const match = newMatch(options);
 
   match.transport.on(MATCH_EVENTS.serverToClient, (payload) => {
     ingest(match, payload);
@@ -3580,4 +3585,71 @@ function discardLocal(match: LiveMatch): void {
   match.losers = null;
   match.lost = null;
   unspend(match);
+}
+
+/* ── A replay ────────────────────────────────────────────────────────── */
+
+/** One recorded frame, with the marks its envelope carried (`displayOnly`: a reveal shown, not kept). */
+export interface ReplayFrame {
+  frame: ServerFrame;
+  displayOnly?: boolean;
+  forceNotice?: boolean;
+}
+
+/** What {@link replayMatch} hands a replay's player: the board, and the one way frames reach it. */
+export interface ReplayFold {
+  match: LiveMatch;
+  /**
+   * `'start'`: the board from nothing, `frames` folded as a snapshot's history is (a seek, a loop) —
+   * no hit, no reveal, only the game's end. `'here'`: `frames` applied on top, as a live board
+   * applies its stream (playback), so what a live watcher saw happen is drawn happening.
+   */
+  fold(frames: readonly ReplayFrame[], from: 'start' | 'here'): void;
+}
+
+/** A board with no server: nothing is sent, nothing arrives but what {@link ReplayFold.fold} is handed. */
+const NO_SERVER: MatchTransport = {
+  on() {},
+  emit() {},
+  request(_event, _payload, onAck) {
+    onAck(new Error('a replay has no server'), undefined);
+  },
+  disconnect() {},
+};
+
+/** The frames that end a game: a fold from the start applies them, so a seek past the end shows the result. */
+const endsTheGame = (frame: ServerFrame): boolean =>
+  frame.method === 'finishGame' || (frame.kind === 'notify' && frame.method === 'showErrorDialog' && frame.matchEnded === true);
+
+/**
+ * A read-only board fed frames directly: a finished match's recording, drawn as its watchers saw it
+ * (`../../replay/player.ts`). No transport, no cursor, no resync — the recording is the whole
+ * stream and it is already here. `playerId` is the player the recording's `openView` names.
+ */
+export function replayMatch(matchId: string, playerId: number): ReplayFold {
+  const match = newMatch({ matchId, transport: NO_SERVER });
+  match.seat = 0;
+  match.playerId = playerId;
+  match.connected = true;
+  match.everConnected = true;
+  match.spectator = true;
+  match.watcher = true;
+  return {
+    match,
+    fold(frames, from) {
+      if (from === 'start') {
+        discardLocal(match);
+        match.reveal = null;
+        match.revealed = null;
+        foldFrames(match, frames.map((f) => f.frame), 'history');
+        for (const { frame } of frames) if (endsTheGame(frame)) applyFrame(match, frame);
+      } else {
+        for (const { frame, displayOnly, forceNotice } of frames) {
+          if (displayOnly === true) showReveal(match, frame, forceNotice === true);
+          else applyFrame(match, frame);
+        }
+      }
+      notify(match);
+    },
+  };
 }

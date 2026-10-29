@@ -75,3 +75,7 @@
      was never meant to receive. */
   pointer-events: none;
 }
+
+.featured-match--loading {
+  visibility: hidden;
+}

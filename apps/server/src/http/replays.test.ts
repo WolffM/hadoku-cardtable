@@ -44,6 +44,7 @@ async function openApp(dir: string, extra: Partial<Parameters<typeof replaysMod.
 	app.use(edgeMod.edgeProvenance);
 	app.use(edgeMod.requireMinTier);
 	const api = express.Router();
+	api.use(express.json({ limit: '1mb' }));
 	replaysMod.attachReplays(api, { dir, isTesting: (roomId) => roomId !== null && testingRooms.has(roomId), log: (entry) => logged.push(entry), ...extra });
 	app.use('/api', api);
 	const server = createServer(app);
@@ -62,9 +63,9 @@ function writeGz(path: string, lines: unknown[]): void {
 	writeFileSync(path, gzipSync(Buffer.from(lines.map((l) => JSON.stringify(l)).join('\n') + '\n', 'utf8')));
 }
 
-function writePublic(dir: string, matchId: string, opts: { roomId?: string | null; winner?: 0 | 1 | null; startedAt?: string; envs?: unknown[] } = {}): void {
+function writePublic(dir: string, matchId: string, opts: { roomId?: string | null; winner?: 0 | 1 | null; startedAt?: string; envs?: unknown[]; v?: number } = {}): void {
 	writeGz(join(dir, `${matchId}.public.jsonl.gz`), [
-		{ t: 'header', v: 1, matchId, roomId: opts.roomId ?? null, players: ['A', 'B'], ai: [false, false], decks: [null, null], startedAt: opts.startedAt ?? '2026-01-01T00:00:00.000Z' },
+		{ t: 'header', v: opts.v ?? 2, matchId, roomId: opts.roomId ?? null, players: ['A', 'B'], ai: [false, false], decks: [null, null], startedAt: opts.startedAt ?? '2026-01-01T00:00:00.000Z' },
 		...(opts.envs ?? [{ t: 'env', at: 0, env: { matchId, cursor: { epoch: 'e', seq: 1 }, frame: { kind: 'notify', method: 'openView', payload: { myPlayers: [0] } } } }]),
 		{ t: 'end', endedAt: '2026-01-01T00:10:00.000Z', winner: opts.winner ?? null },
 	]);
@@ -88,16 +89,17 @@ function writeActionsOnly(dir: string, matchId: string, opts: { roomId?: string 
 	]);
 }
 
-async function call(base: string, path: string, tier = 'friend'): Promise<{ status: number; json: Record<string, unknown> }> {
+async function call(base: string, path: string, tier = 'friend', body?: unknown): Promise<{ status: number; json: Record<string, unknown>; cache: string | null }> {
 	const headers: Record<string, string> = { 'x-edge-auth': EDGE_SECRET, 'x-hadoku-tier': tier, 'x-user-id': 'u-1', 'x-user-name': 'u-1', 'x-user-key': 'k' };
-	const res = await fetch(`${base}${path}`, { headers });
-	return { status: res.status, json: (await res.json()) as Record<string, unknown> };
+	const res = await fetch(`${base}${path}`, body === undefined ? { headers } : { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+	const text = await res.text();
+	return { status: res.status, json: (text === '' ? {} : JSON.parse(text)) as Record<string, unknown>, cache: res.headers.get('cache-control') };
 }
 
 describe('GET /api/replays', () => {
 	it('is empty for an empty directory', async () => {
 		const base = await openApp(await recordingsDir());
-		expect(await call(base, '/api/replays')).toEqual({ status: 200, json: { replays: [] } });
+		expect(await call(base, '/api/replays')).toEqual({ status: 200, json: { replays: [] }, cache: 'private, max-age=15' });
 	});
 
 	it('lists a finished match whose public stream is on disk, source "stream"', async () => {
@@ -109,14 +111,24 @@ describe('GET /api/replays', () => {
 		expect(json.replays).toEqual([{ matchId: 'm-1', roomId: 'r-1', players: ['A', 'B'], decks: [null, null], startedAt: '2026-01-01T00:00:00.000Z', endedAt: '2026-01-01T00:10:00.000Z', winner: 1, source: 'stream' }]);
 	});
 
-	it('answers "rebuild" when only the action log remains and canRebuild says yes, "none" when it says no', async () => {
+	it('answers "rebuild" when only the action log remains and canRebuild says yes, and does not offer one it says no to', async () => {
 		const dir = await recordingsDir();
 		writeActionsOnly(dir, 'm-yes');
 		writeActionsOnly(dir, 'm-no');
 		const base = await openApp(dir, { canRebuild: (header) => header.matchId === 'm-yes' });
 		const { json } = await call(base, '/api/replays');
 		const byId = Object.fromEntries((json.replays as { matchId: string; source: string }[]).map((r) => [r.matchId, r.source]));
-		expect(byId).toEqual({ 'm-yes': 'rebuild', 'm-no': 'none' });
+		expect(byId).toEqual({ 'm-yes': 'rebuild' });
+	});
+
+	it('does not offer a v:1 stream (it drew no hand): a replay that cannot show both hands is no replay', async () => {
+		const dir = await recordingsDir();
+		writePublic(dir, 'm-v1', { v: 1 });
+		writePublic(dir, 'm-v2');
+		const base = await openApp(dir);
+		const { json } = await call(base, '/api/replays');
+		expect((json.replays as { matchId: string }[]).map((r) => r.matchId)).toEqual(['m-v2']);
+		expect((await call(base, '/api/replays/m-v1')).status).toBe(404);
 	});
 
 	it('sorts newest first and honours limit', async () => {
@@ -152,8 +164,9 @@ describe('GET /api/replays/:matchId', () => {
 			],
 		});
 		const base = await openApp(dir);
-		const { status, json } = await call(base, '/api/replays/m-1');
+		const { status, json, cache } = await call(base, '/api/replays/m-1');
 		expect(status).toBe(200);
+		expect(cache, 'a finished replay never changes: the browser keeps it, and no shared cache may').toBe('private, max-age=31536000, immutable');
 		expect((json.envs as unknown[]).length).toBe(2);
 		expect((json.header as { matchId: string }).matchId).toBe('m-1');
 		expect((json.end as { winner: number | null }).winner).toBeNull();
@@ -161,7 +174,9 @@ describe('GET /api/replays/:matchId', () => {
 
 	it('404s for a match with neither file', async () => {
 		const base = await openApp(await recordingsDir());
-		expect((await call(base, '/api/replays/m-missing')).status).toBe(404);
+		const missing = await call(base, '/api/replays/m-missing');
+		expect(missing.status).toBe(404);
+		expect(missing.cache, 'a 404 is never kept').toBeNull();
 	});
 
 	it('404s a testing room for a friend even if it finds the files', async () => {
@@ -185,7 +200,7 @@ describe('GET /api/replays/:matchId', () => {
 		expect((await call(notWired, '/api/replays/m-reb')).status).toBe(404);
 
 		const rebuilt = {
-			header: { t: 'header' as const, matchId: 'm-reb', roomId: null, players: ['A', 'B'] as [string, string], ai: [false, false] as [boolean, boolean], decks: [null, null], startedAt: '2026-01-01T00:00:00.000Z' },
+			header: { t: 'header' as const, v: 2, matchId: 'm-reb', roomId: null, players: ['A', 'B'] as [string, string], ai: [false, false] as [boolean, boolean], decks: [null, null], startedAt: '2026-01-01T00:00:00.000Z' },
 			envs: [],
 			end: { t: 'end' as const, endedAt: '2026-01-01T00:05:00.000Z', winner: 0 as const },
 		};
@@ -193,5 +208,14 @@ describe('GET /api/replays/:matchId', () => {
 		const { status, json } = await call(wired, '/api/replays/m-reb');
 		expect(status).toBe(200);
 		expect(json).toEqual(rebuilt);
+	});
+});
+
+describe('POST /api/replays/report', () => {
+	it('logs a known trouble with its match, and refuses an unknown one', async () => {
+		const base = await openApp(await recordingsDir());
+		expect((await call(base, '/api/replays/report', 'friend', { what: 'player-error', matchId: 'm-1', ui: '0.1.0', detail: { error: 'x' } })).status).toBe(204);
+		expect(logged).toContainEqual({ evt: 'replay-report', what: 'player-error', matchId: 'm-1', ui: '0.1.0', detail: { error: 'x' } });
+		expect((await call(base, '/api/replays/report', 'friend', { what: 'anything', detail: {} })).status).toBe(400);
 	});
 });

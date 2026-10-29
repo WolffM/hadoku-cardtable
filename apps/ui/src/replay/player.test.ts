@@ -1,17 +1,15 @@
 /*
- * `createReplayTransport` against `startMatch` — a real `LiveMatch`, driven by
- * the recording instead of a socket. This is the one path `./replayTransport.ts`'s
- * own header describes: paced delivery, and a seek that re-folds from the
- * start by forcing `match.ts` through its own resync machinery.
+ * `createReplayPlayer`: a real `LiveMatch` fed the recording's frames directly — paced playback, and
+ * a seek that folds the recording from its start (`./player.ts`'s header).
  */
 
 import { describe, expect, it, vi } from 'vitest';
 import { parseServerFrame, type ServerFrame } from '@hadoku/forge-wire';
 
 import { liveStatus } from '../play/live/LiveBoard.tsx';
-import { closeMatch, startMatch } from '../play/live/match.ts';
+import { closeMatch } from '../play/live/match.ts';
 import type { ReplayData, ReplayHeader } from './transport.ts';
-import { createReplayTransport } from './replayTransport.ts';
+import { createReplayPlayer } from './player.ts';
 
 /** The minimal two-player baseline `bridge-flying-seat1.ndjson` already commits — reused here rather than re-invented. */
 function gameView(life0: number, life1: number): Record<string, unknown> {
@@ -26,7 +24,7 @@ function frame(method: string, payload: Record<string, unknown>): ServerFrame {
   return parseServerFrame({ kind: 'notify', method, payload }, method);
 }
 
-const HEADER: ReplayHeader = { matchId: 'm-replay-1', roomId: 'r-1', players: ['Alice', 'Bob'], ai: [false, false], decks: [], startedAt: '2026-10-27T00:00:00.000Z' };
+const HEADER: ReplayHeader = { matchId: 'm-replay-1', roomId: 'r-1', players: ['Alice', 'Bob'], ai: [false, false], decks: [], art: [], startedAt: '2026-10-27T00:00:00.000Z' };
 
 /** `setGameView` at life 20/20, `openView([0])`, then a life-total `applyDelta` at `deltaAt` ms. */
 function threeFrameReplay(deltaAt: number): ReplayData {
@@ -44,23 +42,47 @@ function threeFrameReplay(deltaAt: number): ReplayData {
   };
 }
 
-describe('createReplayTransport', () => {
-  it('answers the join with an empty snapshot, then delivers frames paced by `at`', () => {
+/** A `frames`-long game: the baseline, then one life-total delta per second, alternating players, life floored at 1. */
+function longReplay(frames: number): ReplayData {
+  const envs: ReplayData['envs'][number][] = [
+    { at: 0, env: { matchId: HEADER.matchId, cursor: { epoch: 'e1', seq: 1 }, frame: frame('setGameView', { gameView: gameView(20, 20), sequenceNumber: -1 }) } },
+    { at: 0, env: { matchId: HEADER.matchId, cursor: { epoch: 'e1', seq: 2 }, frame: frame('openView', { myPlayers: [0] }) } },
+  ];
+  for (let i = 0; i < frames; i += 1) {
+    const player = i % 2;
+    const delta = { [268435456 + player]: { _type: 1, _id: player, Life: { t: 'int', v: lifeAfter(i) } } };
+    envs.push({ at: (i + 1) * 1000, env: { matchId: HEADER.matchId, cursor: { epoch: 'e1', seq: i + 3 }, frame: frame('applyDelta', { packet: { seq: i, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: delta, events: [] } }) } });
+  }
+  return { header: HEADER, envs, end: { endedAt: '2026-10-27T00:10:00.000Z', winner: 0 } };
+}
+
+/** The life `longReplay`'s `i`-th delta sets. */
+const lifeAfter = (i: number): number => Math.max(1, 20 - Math.floor(i / 2) - 1);
+
+/** The two life totals `longReplay` shows `ms` into the game. */
+function livesAt(ms: number): number[] {
+  const applied = Math.floor(ms / 1000);
+  const last = (player: number): number => {
+    for (let i = applied - 1; i >= 0; i -= 1) if (i % 2 === player) return lifeAfter(i);
+    return 20;
+  };
+  return [last(0), last(1)];
+}
+
+describe('createReplayPlayer', () => {
+  it('draws the first moment at once, paused, then delivers frames paced by `at`', () => {
     vi.useFakeTimers();
     const data = threeFrameReplay(1000);
-    const { transport, clock } = createReplayTransport(data);
-    const match = startMatch({ matchId: data.header.matchId, transport });
+    const { match, clock } = createReplayPlayer(data);
 
-    // The join resolved synchronously (no socket, no await) and named the watcher channel's own id.
-    expect(match.seat).toBe(0);
+    // `at: 0`'s two frames are on the board before anything plays, as the openView's player's watcher.
+    expect(match.view?.players.map((p) => p.life)).toEqual([20, 20]);
     expect(match.playerId).toBe(0);
     expect(match.watcher).toBe(true);
     expect(clock.durationMs).toBe(1000);
+    expect(clock.playing()).toBe(false);
+    clock.play();
     expect(clock.playing()).toBe(true);
-
-    // `at: 0`'s two frames are due immediately — the very next tick.
-    vi.advanceTimersByTime(50);
-    expect(match.view?.players.map((p) => p.life)).toEqual([20, 20]);
 
     // The delta at 1000ms has not arrived yet.
     vi.advanceTimersByTime(900);
@@ -80,8 +102,8 @@ describe('createReplayTransport', () => {
   it('pause stops delivery; play resumes it from where it left off', () => {
     vi.useFakeTimers();
     const data = threeFrameReplay(1000);
-    const { transport, clock } = createReplayTransport(data);
-    const match = startMatch({ matchId: data.header.matchId, transport });
+    const { match, clock } = createReplayPlayer(data);
+    clock.play();
 
     vi.advanceTimersByTime(50); // the two at-0 frames land
     clock.pause();
@@ -101,8 +123,8 @@ describe('createReplayTransport', () => {
   it('setSpeed paces delivery faster without re-delivering what already landed', () => {
     vi.useFakeTimers();
     const data = threeFrameReplay(2000);
-    const { transport, clock } = createReplayTransport(data);
-    const match = startMatch({ matchId: data.header.matchId, transport });
+    const { match, clock } = createReplayPlayer(data);
+    clock.play();
 
     vi.advanceTimersByTime(50);
     clock.setSpeed(4);
@@ -119,8 +141,8 @@ describe('createReplayTransport', () => {
   it('seek re-folds from the start — a jump back after the delta shows the original board again', () => {
     vi.useFakeTimers();
     const data = threeFrameReplay(1000);
-    const { transport, clock } = createReplayTransport(data);
-    const match = startMatch({ matchId: data.header.matchId, transport });
+    const { match, clock } = createReplayPlayer(data);
+    clock.play();
 
     vi.advanceTimersByTime(1050); // past the delta
     expect(match.view?.players.map((p) => p.life)).toEqual([15, 20]);
@@ -145,8 +167,8 @@ describe('createReplayTransport', () => {
   it('seek forward skips straight to the folded state at that point, with nothing beyond it applied twice', () => {
     vi.useFakeTimers();
     const data = threeFrameReplay(1000);
-    const { transport, clock } = createReplayTransport(data);
-    const match = startMatch({ matchId: data.header.matchId, transport });
+    const { match, clock } = createReplayPlayer(data);
+    clock.play();
 
     clock.pause();
     clock.seek(1000);
@@ -166,8 +188,8 @@ describe('createReplayTransport', () => {
     envs.splice(2, 0, { at: 500, env: { matchId: HEADER.matchId, cursor: { epoch: 'e1', seq: 3 }, frame: reveal, displayOnly: true } });
     const last = envs[3]!;
     envs[3] = { ...last, env: { ...last.env, cursor: { epoch: 'e1', seq: 4 } } };
-    const { transport, clock } = createReplayTransport({ ...data, envs });
-    const match = startMatch({ matchId: data.header.matchId, transport });
+    const { match, clock } = createReplayPlayer({ ...data, envs });
+    clock.play();
 
     clock.pause();
     clock.seek(1000);
@@ -183,8 +205,8 @@ describe('createReplayTransport', () => {
   it('loop restarts from 0 one tick after reaching the end — never the same tick, which would erase the final frame before anyone saw it', () => {
     vi.useFakeTimers();
     const data = threeFrameReplay(200);
-    const { transport, clock } = createReplayTransport(data, { loop: true });
-    const match = startMatch({ matchId: data.header.matchId, transport });
+    const { match, clock } = createReplayPlayer(data, { loop: true });
+    clock.play();
 
     vi.advanceTimersByTime(200); // reaches the end: held for one tick, not yet looped
     expect(clock.ended()).toBe(true);
@@ -203,14 +225,12 @@ describe('createReplayTransport', () => {
     vi.useRealTimers();
   });
 
-  it('is a connected watcher: once its first snapshot lands, the status is never connecting — through play, a seek and a loop', async () => {
+  it('is live from its first frame — never connecting — through play, a seek and a loop', async () => {
     vi.useFakeTimers();
     const data = threeFrameReplay(200);
-    const { transport, clock } = createReplayTransport(data, { loop: true });
-    const match = startMatch({ matchId: data.header.matchId, transport });
-    await vi.advanceTimersByTimeAsync(0);
-    expect(match.stats.snapshots).toBeGreaterThan(0);
-    expect(liveStatus(match)).not.toBe('connecting');
+    const { match, clock } = createReplayPlayer(data, { loop: true });
+    expect(liveStatus(match)).toBe('live');
+    clock.play();
 
     for (let i = 0; i < 12; i += 1) {
       await vi.advanceTimersByTimeAsync(50);
@@ -218,24 +238,96 @@ describe('createReplayTransport', () => {
     }
     clock.seek(0);
     expect(liveStatus(match)).toBe('live');
-    // One join, and no second one when the transport reports itself connected.
-    expect(match.stats.joins).toBe(1);
+    expect(match.lastError).toBeNull();
 
     closeMatch(match);
     clock.dispose();
     vi.useRealTimers();
   });
 
-  it('an empty recording answers the join and ends at once, without throwing', () => {
+  it('an empty recording ends at once, without throwing', () => {
     vi.useFakeTimers();
     const data: ReplayData = { header: HEADER, envs: [], end: null };
-    const { transport, clock } = createReplayTransport(data);
-    const match = startMatch({ matchId: data.header.matchId, transport });
+    const { match, clock } = createReplayPlayer(data);
+    clock.play();
 
     expect(clock.durationMs).toBe(0);
     vi.advanceTimersByTime(50);
     expect(clock.ended()).toBe(true);
 
+    closeMatch(match);
+    clock.dispose();
+    vi.useRealTimers();
+  });
+  it('the operator\'s error, 2026-10-28: a scrub — many seeks with no frame between — lands every one on its own board, and never stops', () => {
+    vi.useFakeTimers();
+    const data = longReplay(60);
+    const { match, clock } = createReplayPlayer(data);
+    clock.play();
+    vi.advanceTimersByTime(100);
+    clock.pause();
+    // wave 77's player stopped at the fourth: "stopped after 3 resyncs in a row that did not catch up".
+    for (const ms of [5_000, 17_000, 33_000, 41_000, 48_000, 2_000, 60_000, 0, 30_000, 59_500]) {
+      clock.seek(ms);
+      expect(match.lastError, `seek to ${ms}`).toBeNull();
+      expect(match.view?.players.map((p) => p.life), `the board at ${ms}`).toEqual(livesAt(ms));
+      expect(clock.positionMs()).toBe(ms);
+    }
+    // Played from the last seek, it goes on from there.
+    clock.play();
+    vi.advanceTimersByTime(600);
+    expect(match.view?.players.map((p) => p.life)).toEqual(livesAt(60_000));
+    expect(match.lastError).toBeNull();
+    closeMatch(match);
+    clock.dispose();
+    vi.useRealTimers();
+  });
+
+  it('a seek folds a long game from its start in milliseconds: no checkpoints needed', () => {
+    const data = longReplay(1200);
+    const { match, clock } = createReplayPlayer(data);
+    const started = performance.now();
+    for (let i = 0; i < 20; i += 1) clock.seek(clock.durationMs * ((i % 10) + 1) / 10);
+    const perSeek = (performance.now() - started) / 20;
+    console.log(`[w81] a seek in a ${data.envs.length}-frame game folds in ${perSeek.toFixed(2)} ms`);
+    expect(match.view?.players.map((p) => p.life)).toEqual(livesAt(clock.durationMs));
+    expect(perSeek, 'one seek fits well inside a frame').toBeLessThan(16);
+    closeMatch(match);
+    clock.dispose();
+  });
+
+  it('1×, 2× and 4× each play the whole game to its last board with no error', () => {
+    for (const speed of [1, 2, 4] as const) {
+      vi.useFakeTimers();
+      const data = longReplay(30);
+      const { match, clock } = createReplayPlayer(data);
+      clock.setSpeed(speed);
+      clock.play();
+      vi.advanceTimersByTime(30_000 / speed + 100);
+      expect(clock.ended(), `${speed}× reached the end`).toBe(true);
+      expect(match.view?.players.map((p) => p.life), `${speed}×`).toEqual(livesAt(30_000));
+      expect(match.lastError).toBeNull();
+      closeMatch(match);
+      clock.dispose();
+      vi.useRealTimers();
+    }
+  });
+  it('starts at the first board, never before it: a loop never draws an empty table', () => {
+    vi.useFakeTimers();
+    const data = threeFrameReplay(3000);
+    // The recording opens on who is watching, and its first board comes 2 s later.
+    const [setGameView, openView, delta] = data.envs;
+    const late: ReplayData = { ...data, envs: [{ ...openView!, at: 0 }, { ...setGameView!, at: 2000 }, delta!] };
+    const { match, clock } = createReplayPlayer(late, { loop: true });
+    expect(clock.startMs).toBe(2000);
+    expect(match.view, 'drawn at once').not.toBeNull();
+    clock.seek(0);
+    expect(clock.positionMs(), 'a seek before the first board lands on it').toBe(2000);
+    clock.play();
+    for (let i = 0; i < 80; i += 1) {
+      vi.advanceTimersByTime(50);
+      expect(match.view, `tick ${i}: a board, through the end and the loop`).not.toBeNull();
+    }
     closeMatch(match);
     clock.dispose();
     vi.useRealTimers();

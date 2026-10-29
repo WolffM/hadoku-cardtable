@@ -1,6 +1,6 @@
 /*
  * Play/pause, 1×/2×/4×, and a turn… really a time scrubber — `#/replay/<id>`'s
- * own controls over `./replayTransport.ts`'s clock (wave 77 §B). `R5` of the
+ * own controls over `./player.ts`'s clock (wave 77 §B). `R5` of the
  * plan calls it "scrub by turn"; the clock has no notion of a turn boundary
  * (it paces by the recording's own `at`, in ms), so this scrubs by time, which
  * is the data actually on hand — a turn-aware scrubber is further work, not
@@ -9,7 +9,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from 'react';
 
-import type { ReplayClock, ReplaySpeed } from './replayTransport.ts';
+import type { ReplayClock, ReplaySpeed } from './player.ts';
 
 /**
  * `clock.positionMs()` recomputes from the wall clock on every call, so two
@@ -19,7 +19,7 @@ import type { ReplayClock, ReplaySpeed } from './replayTransport.ts';
  * reads is exactly what it exists to catch: the subscription fires, re-reads
  * disagree again, and React loops ("Maximum update depth exceeded"), caught
  * by `TransportBar.test.ts`'s own run before this shipped. So position is
- * NOT read that way: it is the clock's own `notify` ticks (`replayTransport.ts`'s
+ * NOT read that way: it is the clock's own `notify` ticks (`player.ts`'s
  * `TICK_MS`) turned into ordinary React state, which only changes on an
  * explicit subscriber callback — a stable snapshot between those.
  */
@@ -83,7 +83,7 @@ export function TransportBar({ clock, className }: TransportBarProps) {
       <input
         type="range"
         data-testid="replay-bar-scrub"
-        min={0}
+        min={clock.startMs}
         max={Math.max(clock.durationMs, 1)}
         value={Math.min(position, clock.durationMs)}
         onChange={(e) => clock.seek(Number(e.currentTarget.value))}

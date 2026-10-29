@@ -6,12 +6,10 @@
  * `makeTransport` and `roomsClient`'s `fetchImpl`), so production's call
  * site is unaffected.
  *
- * The LIVE case's stub transport is `./replayTransport.ts`'s own — it already
- * implements `MatchTransport` end to end, so standing in for "a transport
- * that answers a join" needs nothing hand-rolled a second time. What this
- * file actually proves is FEATUREDMATCH's wiring: the tag, the players, the
- * watch link, the mute toggle, and a clean teardown — not the transport
- * contract itself, which `./replayTransport.test.ts` already covers.
+ * The LIVE case's stub transport answers the join with a snapshot of a few
+ * frames and nothing more. What this file proves is FEATUREDMATCH's wiring: the
+ * tag, the players, the watch link, the mute toggle, a replay held invisible
+ * until it is ready, and a clean teardown.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -22,7 +20,7 @@ import { parseServerFrame } from '@hadoku/forge-wire';
 import type { Fetch } from '../http.ts';
 import { playRole, resetRolePlayerForTests, setRolePlayer } from '../sound/index.ts';
 import { isMuted, resetMutedForTests, setMuted } from '../sound/mute.ts';
-import { createReplayTransport } from '../replay/replayTransport.ts';
+import type { MatchTransport } from '../play/live/match.ts';
 import type { ReplayData } from '../replay/transport.ts';
 import { FeaturedMatch } from './FeaturedMatch.tsx';
 
@@ -44,12 +42,26 @@ function replayData(matchId: string, names: readonly [string, string]): ReplayDa
   const setGameView = parseServerFrame({ kind: 'notify', method: 'setGameView', payload: { gameView: gameView(names), sequenceNumber: -1 } });
   const openView = parseServerFrame({ kind: 'notify', method: 'openView', payload: { myPlayers: [0] } });
   return {
-    header: { matchId, roomId: null, players: names, ai: [false, false], decks: [], startedAt: '2026-10-27T00:00:00.000Z' },
+    header: { matchId, roomId: null, players: names, ai: [false, false], decks: [], art: [], startedAt: '2026-10-27T00:00:00.000Z' },
     envs: [
       { at: 0, env: { matchId, cursor: { epoch: 'e1', seq: 1 }, frame: setGameView } },
       { at: 0, env: { matchId, cursor: { epoch: 'e1', seq: 2 }, frame: openView } },
     ],
     end: null,
+  };
+}
+
+/** A live server that answers the join with `data`'s frames as its snapshot, and says nothing else. */
+function snapshotTransport(data: ReplayData): MatchTransport {
+  const frames = data.envs.map((e) => e.env.frame);
+  const cursor = data.envs.at(-1)?.env.cursor ?? null;
+  return {
+    on() {},
+    emit() {},
+    request(_event, _payload, onAck) {
+      onAck(null, { matchId: data.header.matchId, seat: 0, playerId: 0, cursor, frames });
+    },
+    disconnect() {},
   };
 }
 
@@ -76,20 +88,23 @@ describe('FeaturedMatch', () => {
       if (url.includes('limit=1')) return Promise.resolve(json(200, { replays: [{ matchId: 'm-replay', roomId: null, players: ['Alice', 'Bob'], decks: [], startedAt: data.header.startedAt, endedAt: null, winner: null, source: 'stream' }] }));
       return Promise.resolve(json(200, data));
     };
-    const { getByTestId } = render(createElement(FeaturedMatch, { pick: null, fetchImpl, replayFallback: true }));
+    const { getByTestId, queryByTestId } = render(createElement(FeaturedMatch, { pick: null, fetchImpl, replayFallback: true }));
+    // Held in place and drawn as nothing until the replay is ready: never a "Connecting…".
+    expect(getByTestId('featured-match-loading').textContent).toBe('');
     await waitFor(() => expect(getByTestId('featured-match-tag').textContent).toBe('REPLAY'));
+    expect(queryByTestId('featured-match-loading')).toBeNull();
+    expect(getByTestId('featured-match').textContent).not.toContain('Connecting');
     expect(getByTestId('featured-match-watch').getAttribute('href')).toBe('#/replay/m-replay');
     await waitFor(() => expect(getByTestId('featured-match').textContent).toContain('Alice'));
   });
 
   it('with a pick, joins live, tagged LIVE, linking to #/match/<id>, and shows the players once the board folds', async () => {
     const data = replayData('m-live', ['Carol', 'Dave']);
-    const stub = createReplayTransport(data);
-    const { getByTestId } = render(createElement(FeaturedMatch, { pick: { matchId: 'm-live', roomId: 'r-1' }, makeTransport: () => stub.transport }));
+    const stub = snapshotTransport(data);
+    const { getByTestId } = render(createElement(FeaturedMatch, { pick: { matchId: 'm-live', roomId: 'r-1' }, makeTransport: () => stub }));
     expect(getByTestId('featured-match-tag').textContent).toBe('LIVE');
     expect(getByTestId('featured-match-watch').getAttribute('href')).toBe('#/match/m-live');
     await waitFor(() => expect(getByTestId('featured-match').textContent).toContain('Carol'));
-    stub.clock.dispose();
   });
 
   it('keeps the match quiet while mounted, lets the page’s own cues play, and never touches the saved mute', async () => {
@@ -97,8 +112,8 @@ describe('FeaturedMatch', () => {
     const played: string[] = [];
     setRolePlayer({ play: (e) => void played.push(e.role) });
     const data = replayData('m-live', ['Carol', 'Dave']);
-    const stub = createReplayTransport(data);
-    const { unmount } = render(createElement(FeaturedMatch, { pick: { matchId: 'm-live', roomId: 'r-1' }, makeTransport: () => stub.transport }));
+    const stub = snapshotTransport(data);
+    const { unmount } = render(createElement(FeaturedMatch, { pick: { matchId: 'm-live', roomId: 'r-1' }, makeTransport: () => stub }));
     playRole('g.game-start');
     playRole('ui.select');
     expect(played).toEqual(['ui.select']);
@@ -106,23 +121,19 @@ describe('FeaturedMatch', () => {
     unmount();
     playRole('g.game-start');
     expect(played).toEqual(['ui.select', 'g.game-start']);
-    stub.clock.dispose();
   });
 
   it('leaves the match cleanly when the pick changes — the old transport is disconnected', async () => {
     const dataA = replayData('m-a', ['A1', 'A2']);
     const dataB = replayData('m-b', ['B1', 'B2']);
-    const stubA = createReplayTransport(dataA);
-    const stubB = createReplayTransport(dataB);
-    const disconnectedA = vi.spyOn(stubA.transport, 'disconnect');
-    const { getByTestId, rerender } = render(createElement(FeaturedMatch, { pick: { matchId: 'm-a', roomId: 'r-1' }, makeTransport: () => stubA.transport }));
+    const stubA = snapshotTransport(dataA);
+    const stubB = snapshotTransport(dataB);
+    const disconnectedA = vi.spyOn(stubA, 'disconnect');
+    const { getByTestId, rerender } = render(createElement(FeaturedMatch, { pick: { matchId: 'm-a', roomId: 'r-1' }, makeTransport: () => stubA }));
     await waitFor(() => expect(getByTestId('featured-match').textContent).toContain('A1'));
 
-    rerender(createElement(FeaturedMatch, { pick: { matchId: 'm-b', roomId: 'r-2' }, makeTransport: () => stubB.transport }));
+    rerender(createElement(FeaturedMatch, { pick: { matchId: 'm-b', roomId: 'r-2' }, makeTransport: () => stubB }));
     expect(disconnectedA).toHaveBeenCalled();
     await waitFor(() => expect(getByTestId('featured-match').textContent).toContain('B1'));
-
-    stubA.clock.dispose();
-    stubB.clock.dispose();
   });
 });

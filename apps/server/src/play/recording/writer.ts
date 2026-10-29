@@ -25,6 +25,8 @@ import { join } from 'node:path';
 import { gzip as gzipCb } from 'node:zlib';
 import { promisify } from 'node:util';
 
+import type { ArtCard } from '@hadoku/shared';
+
 import type { JsonLog } from '../../log.js';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from './retention.js';
 
@@ -93,15 +95,24 @@ export interface ActionsEndLine {
 	boards?: [string, string];
 }
 
+/**
+ * The public stream's version. `2` since wave 81: the stream is the watcher channel as every player
+ * (`visibility.ts`'s `EVERY_PLAYER`), so both hands are face up, and the header names the match's
+ * art. A `v:1` stream drew no hand, and is never served.
+ */
+export const PUBLIC_VERSION = 2;
+
 /** Line 1 of the public stream — contract 1. */
 export interface PublicHeader {
 	t: 'header';
-	v: 1;
+	v: typeof PUBLIC_VERSION;
 	matchId: string;
 	roomId: string | null;
 	players: [string, string];
 	ai: [boolean, boolean];
 	decks: unknown[];
+	/** Every card both decks (or the scenario) name, as `forge:art` tells a live board (`art.ts`): what a replay warms. */
+	art: ArtCard[];
 	startedAt: string;
 }
 
@@ -166,7 +177,7 @@ export function createMatchRecordingWriter(deps: MatchRecordingWriterDeps): Matc
 		log({ evt: 'recording-dir-failed', dir: deps.dir, error: (err as Error).message });
 	}
 	const actionLines: unknown[] = [{ t: 'header', v: 2, ...deps.actionsHeader }];
-	const publicLines: unknown[] = [{ t: 'header', v: 1, ...deps.publicHeader }];
+	const publicLines: unknown[] = [{ t: 'header', v: PUBLIC_VERSION, ...deps.publicHeader }];
 
 	return {
 		actionCmd(line) {

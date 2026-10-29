@@ -38,6 +38,7 @@ import { basename, dirname, join } from 'node:path';
 import type { ServerEnvelope } from '@hadoku/shared';
 
 import type { JsonLog } from '../../log.js';
+import { artOf } from '../art.js';
 import type { DeckCosts } from '../deck-colors.js';
 import { seatDeckColors } from '../deck-colors.js';
 import type { BridgeCommand, MatchHost, MatchHostFactory, MatchSpec } from '../host.js';
@@ -161,6 +162,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 						players: [seeded.seats[0].name, seeded.seats[1].name],
 						ai: [seeded.seats[0].ai, seeded.seats[1].ai],
 						decks: [0, 1].map((seat) => seatDeckColors(seeded, seat, deps.deckCosts)),
+						art: artOf(seeded),
 						startedAt,
 					},
 					log,

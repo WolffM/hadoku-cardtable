@@ -16,22 +16,20 @@
  * later — a recording this client did not write is not assumed trustworthy.
  *
  * This file does not know how the frames get INTO a board: that is
- * `./replayTransport.ts`, which consumes `ReplayData` and drives a
- * `MatchTransport` from it, paced.
+ * `./player.ts`, which folds `ReplayData` into a read-only board, paced.
  */
 
 import { safeParseServerFrame } from '@hadoku/forge-wire';
+import { ArtCardSchema, type ArtCard } from '@hadoku/shared';
 
-import { apiUrl, bodyOf, getJson, isRecord, serverMessage, type Fetch } from '../http.ts';
+import { apiUrl, bodyOf, getJson, isRecord, sendJson, serverMessage, type Fetch } from '../http.ts';
 import { parseServerEnvelope, type ServerEnvelope } from '../play/live/transport.ts';
 
 /**
- * Whether the front page links to replays at all (the operator, 2026-10-28: "disable the replay
- * feature for now until we make it properly working" — the featured slot sat on "Seat 1, waiting
- * for the state."). Off: no REPLAY fallback in the featured slot, no "Last game" wildcard. The
- * `#/replay/<id>` route itself still answers, for whoever fixes it.
+ * Whether the front page links to replays at all. Off from 2026-10-28 (the operator: "disable the
+ * replay feature for now until we make it properly working") until wave 81 rebuilt the player.
  */
-export const REPLAYS_ON = false;
+export const REPLAYS_ON = true;
 
 /** The recorded public stream's header line (contract 1), as contract 2 serves it back. */
 export interface ReplayHeader {
@@ -41,6 +39,8 @@ export interface ReplayHeader {
   players: readonly [string, string];
   ai: readonly [boolean, boolean];
   decks: readonly unknown[];
+  /** Every card the match's decks name: what a replay warms. Empty for a header that names none. */
+  art: readonly ArtCard[];
   startedAt: string;
 }
 
@@ -88,13 +88,14 @@ const isBoolean = (v: unknown): v is boolean => typeof v === 'boolean';
 /** `null` on anything that is not a well-formed header — a server bug, not this viewer's to recover from. */
 function parseHeader(v: unknown): ReplayHeader | null {
   if (!isRecord(v)) return null;
-  const { matchId, roomId, players, ai, decks, startedAt } = v;
+  const { matchId, roomId, players, ai, decks, art, startedAt } = v;
   if (!isString(matchId) || matchId === '') return null;
   if (!isPair(players, isString)) return null;
   if (!isPair(ai, isBoolean)) return null;
   if (!Array.isArray(decks)) return null;
   if (!isString(startedAt)) return null;
-  return { matchId, roomId: isString(roomId) ? roomId : null, players, ai, decks, startedAt };
+  const cards = Array.isArray(art) ? art.flatMap((c) => (ArtCardSchema.safeParse(c).success ? [c as ArtCard] : [])) : [];
+  return { matchId, roomId: isString(roomId) ? roomId : null, players, ai, decks, art: cards, startedAt };
 }
 
 function parseEnd(v: unknown): ReplayEnd | null {
@@ -197,4 +198,13 @@ export async function fetchReplay(matchId: string, fetchImpl: Fetch = defaultFet
   const data = parseReplayData(body);
   if (data === null) throw new Error('The server sent something that is not a replay.');
   return data;
+}
+
+export type ReplayTrouble = 'load-failed' | 'player-error';
+
+/** A replay this viewer could not play, told to the server log (`POST /api/replays/report`): the page shows nothing. */
+export function reportReplayTrouble(what: ReplayTrouble, matchId: string | null, detail: Record<string, unknown>, fetchImpl: Fetch = defaultFetch): void {
+  void sendJson(apiUrl('replays/report'), 'POST', { what, matchId, ui: __HADOKU_UI_VERSION__, detail }, fetchImpl, { keepalive: true }).catch((err: unknown) =>
+    console.warn('[replay] could not report', what, err),
+  );
 }

@@ -154,7 +154,7 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(cmdLines.length).toBe(applied + answers);
 
 				const publicLines = linesOf(publicPath);
-				expect(publicLines[0]).toMatchObject({ t: 'header', v: 1, matchId: match.id, roomId: 'r-jvm-test' });
+				expect(publicLines[0]).toMatchObject({ t: 'header', v: 2, matchId: match.id, roomId: 'r-jvm-test' });
 				expect(publicLines.at(-1)).toMatchObject({ t: 'end' });
 				const envLines = publicLines.filter((l) => l.t === 'env');
 				expect(envLines.length).toBe(watcherEnvelopes.length);

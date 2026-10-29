@@ -27,7 +27,7 @@ describe('createMatchRecordingWriter', () => {
 			dir,
 			matchId: 'm-1',
 			actionsHeader: { matchId: 'm-1', roomId: 'r-1', pin: 'abc', bridge: 'def', server: '0.0.0', startedAt: '2026-01-01T00:00:00.000Z', spec: { seed: 1 } },
-			publicHeader: { matchId: 'm-1', roomId: 'r-1', players: ['A', 'B'], ai: [false, false], decks: [null, null], startedAt: '2026-01-01T00:00:00.000Z' },
+			publicHeader: { matchId: 'm-1', roomId: 'r-1', players: ['A', 'B'], ai: [false, false], decks: [null, null], art: [], startedAt: '2026-01-01T00:00:00.000Z' },
 		});
 		writer.actionCmd({ seat: 0, cmd: { t: 'act', seat: 0, frame: { method: 'selectButtonOk' } } });
 		writer.actionCmd({ seat: 1, ask: 0, cmd: { t: 'reply', seat: 1, callId: 'c1', result: true } });
@@ -44,7 +44,7 @@ describe('createMatchRecordingWriter', () => {
 
 		const pub = linesOf(join(dir, 'm-1.public.jsonl.gz'));
 		expect(pub).toEqual([
-			{ t: 'header', v: 1, matchId: 'm-1', roomId: 'r-1', players: ['A', 'B'], ai: [false, false], decks: [null, null], startedAt: '2026-01-01T00:00:00.000Z' },
+			{ t: 'header', v: 2, matchId: 'm-1', roomId: 'r-1', players: ['A', 'B'], ai: [false, false], decks: [null, null], art: [], startedAt: '2026-01-01T00:00:00.000Z' },
 			{ t: 'env', at: 10, env: { matchId: 'm-1', cursor: { epoch: 'e', seq: 1 }, frame: { kind: 'notify' } } },
 			{ t: 'end', endedAt: '2026-01-01T00:10:00.000Z', winner: 0 },
 		]);
@@ -56,7 +56,7 @@ describe('createMatchRecordingWriter', () => {
 			dir,
 			matchId: 'm-2',
 			actionsHeader: { matchId: 'm-2', roomId: null, pin: null, bridge: 'def', server: '0.0.0', startedAt: '2026-01-01T00:00:00.000Z', spec: {} },
-			publicHeader: { matchId: 'm-2', roomId: null, players: ['A', 'B'], ai: [false, true], decks: [null, null], startedAt: '2026-01-01T00:00:00.000Z' },
+			publicHeader: { matchId: 'm-2', roomId: null, players: ['A', 'B'], ai: [false, true], decks: [null, null], art: [], startedAt: '2026-01-01T00:00:00.000Z' },
 		});
 		await writer.finish({ endedAt: '2026-01-01T00:01:00.000Z', reason: 'stopped' }, { endedAt: '2026-01-01T00:01:00.000Z', winner: null });
 		expect(linesOf(join(dir, 'm-2.public.jsonl.gz'))).toHaveLength(2);
@@ -72,7 +72,7 @@ describe('createMatchRecordingWriter', () => {
 			dir: blocked,
 			matchId: 'm-3',
 			actionsHeader: { matchId: 'm-3', roomId: null, pin: null, bridge: 'def', server: '0.0.0', startedAt: '2026-01-01T00:00:00.000Z', spec: {} },
-			publicHeader: { matchId: 'm-3', roomId: null, players: ['A', 'B'], ai: [false, false], decks: [null, null], startedAt: '2026-01-01T00:00:00.000Z' },
+			publicHeader: { matchId: 'm-3', roomId: null, players: ['A', 'B'], ai: [false, false], decks: [null, null], art: [], startedAt: '2026-01-01T00:00:00.000Z' },
 			log: (e) => errors.push(e),
 		});
 		await expect(writer.finish({ endedAt: '2026-01-01T00:01:00.000Z', reason: 'clean' }, { endedAt: '2026-01-01T00:01:00.000Z', winner: null })).resolves.toBeUndefined();

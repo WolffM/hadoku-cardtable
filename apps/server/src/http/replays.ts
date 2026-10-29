@@ -27,14 +27,17 @@ import { Router as makeRouter } from 'express';
 import { isAdmin } from '../edge-auth.js';
 import type { JsonLog } from '../log.js';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '../play/recording/retention.js';
+import { PUBLIC_VERSION } from '../play/recording/writer.js';
 
 interface PublicHeaderLine {
 	t: 'header';
+	v: number;
 	matchId: string;
 	roomId: string | null;
 	players: [string, string];
 	ai: [boolean, boolean];
 	decks: unknown[];
+	art?: unknown[];
 	startedAt: string;
 }
 
@@ -68,6 +71,19 @@ export interface ReplaysDeps {
 	rebuild?(matchId: string): Promise<RebuildResult>;
 	log?: JsonLog;
 }
+
+/**
+ * A finished match's replay never changes, so a browser keeps it: the front page's second visit draws
+ * its card from the cache. `private`, never `public`: every `/api` answer is friend-gated, and a shared
+ * cache in front of the gate must not hold one.
+ */
+const REPLAY_CACHE = 'private, max-age=31536000, immutable';
+/** The list changes with every finished match: short-lived. */
+const LIST_CACHE = 'private, max-age=15';
+/** What a viewer may report about a replay it could not play (`POST /api/replays/report`). */
+const REPORT_KINDS: ReadonlySet<string> = new Set(['load-failed', 'player-error']);
+const REPORT_MAX_CHARS = 2_000;
+const REPORTS_PER_MINUTE = 30;
 
 const DEFAULT_LIST_LIMIT = 20;
 const MAX_LIST_LIMIT = 100;
@@ -160,10 +176,12 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 				if (row.hasPublic) {
 					const read = await firstAndLastLine(join(deps.dir, `${row.matchId}${PUBLIC_SUFFIX}`));
 					const header = read === null ? null : parseJson<PublicHeaderLine>(read.first);
-					if (header === null) continue;
-					const end = read === null ? null : parseJson<PublicEndLine>(read.last);
-					summaries.push({ header, endedAt: end?.t === 'end' ? end.endedAt : null, winner: end?.t === 'end' ? end.winner : null, source: 'stream' });
-					continue;
+					// An older stream draws no hand: it is no replay, but its action log may still rebuild one.
+					if (header !== null && header.v === PUBLIC_VERSION) {
+						const end = read === null ? null : parseJson<PublicEndLine>(read.last);
+						summaries.push({ header, endedAt: end?.t === 'end' ? end.endedAt : null, winner: end?.t === 'end' ? end.winner : null, source: 'stream' });
+						continue;
+					}
 				}
 				if (!row.hasActions) continue;
 				const read = await firstAndLastLine(join(deps.dir, `${row.matchId}${ACTIONS_SUFFIX}`));
@@ -176,6 +194,7 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 				const seats = Array.isArray(spec?.seats) && spec.seats.length === 2 ? spec.seats : null;
 				const header: PublicHeaderLine = {
 					t: 'header',
+					v: PUBLIC_VERSION,
 					matchId: actionsHeader.matchId,
 					roomId: actionsHeader.roomId,
 					players: seats === null ? ['', ''] : [seats[0]!.name, seats[1]!.name],
@@ -191,8 +210,10 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 			}
 		}
 
-		const visible = summaries.filter((s) => admin || !deps.isTesting(s.header.roomId));
+		// A recording that cannot be played is not offered (wave 81): the worst case is no replay.
+		const visible = summaries.filter((s) => s.source !== 'none' && (admin || !deps.isTesting(s.header.roomId)));
 		visible.sort((a, b) => (a.header.startedAt < b.header.startedAt ? 1 : a.header.startedAt > b.header.startedAt ? -1 : 0));
+		res.set('Cache-Control', LIST_CACHE);
 		res.json({
 			replays: visible.slice(0, limit).map((s) => ({
 				matchId: s.header.matchId,
@@ -205,6 +226,24 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 				source: s.source,
 			})),
 		});
+	});
+
+	// A viewer's trouble with a replay, in the server log: the board shows none, so this is where it is seen.
+	let reports = { minute: 0, count: 0 };
+	replays.post('/report', (req: Request, res: Response) => {
+		const body = (req.body ?? {}) as { what?: unknown; matchId?: unknown; ui?: unknown; detail?: unknown };
+		const detail = typeof body.detail === 'object' && body.detail !== null && !Array.isArray(body.detail) ? body.detail : {};
+		if (typeof body.what !== 'string' || !REPORT_KINDS.has(body.what) || JSON.stringify(detail).length > REPORT_MAX_CHARS) {
+			res.status(400).json({ error: 'a report is { what, matchId, ui, detail } with a known what' });
+			return;
+		}
+		const minute = Math.floor(Date.now() / 60_000);
+		reports = reports.minute === minute ? { minute, count: reports.count + 1 } : { minute, count: 1 };
+		if (reports.count <= REPORTS_PER_MINUTE) {
+			const matchId = typeof body.matchId === 'string' && MATCH_ID_RE.test(body.matchId) ? body.matchId : null;
+			log({ evt: 'replay-report', what: body.what, matchId, ui: typeof body.ui === 'string' ? body.ui.slice(0, 40) : null, detail });
+		}
+		res.status(204).end();
 	});
 
 	replays.get('/:matchId', async (req: Request, res: Response) => {
@@ -220,11 +259,11 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 			return;
 		}
 		try {
-			if (row.hasPublic) {
-				const lines = await allLines(publicPath);
-				const header = parseJson<PublicHeaderLine>(lines[0] ?? '');
+			const lines = row.hasPublic ? await allLines(publicPath) : [];
+			const header = parseJson<PublicHeaderLine>(lines[0] ?? '');
+			if (header !== null && header.v === PUBLIC_VERSION) {
 				const end = parseJson<PublicEndLine>(lines[lines.length - 1] ?? '');
-				if (header === null || header.t !== 'header' || end === null || end.t !== 'end') {
+				if (header.t !== 'header' || end === null || end.t !== 'end') {
 					res.status(404).json({ error: 'replay file is corrupt' });
 					return;
 				}
@@ -237,7 +276,12 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 					.map((l) => parseJson<{ t: 'env'; at: number; env: unknown }>(l))
 					.filter((l): l is { t: 'env'; at: number; env: unknown } => l !== null && l.t === 'env')
 					.map((l) => ({ at: l.at, env: l.env }));
+				res.set('Cache-Control', REPLAY_CACHE);
 				res.json({ header, envs, end });
+				return;
+			}
+			if (!row.hasActions) {
+				res.status(404).json({ error: 'no such replay' });
 				return;
 			}
 			const actionsLines = await allLines(join(deps.dir, `${matchId}${ACTIONS_SUFFIX}`));
@@ -256,6 +300,7 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 				res.status(404).json({ error: 'rebuild failed' });
 				return;
 			}
+			res.set('Cache-Control', REPLAY_CACHE);
 			res.json(result);
 		} catch (err) {
 			log({ evt: 'replay-detail-read-failed', matchId, error: (err as Error).message });

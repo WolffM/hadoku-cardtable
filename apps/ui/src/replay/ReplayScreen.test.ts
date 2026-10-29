@@ -2,7 +2,7 @@
 /*
  * `ReplayScreen` (`#/replay/<id>`) against a stubbed global `fetch` — same
  * convention `screens/lobby.test.ts` uses for a screen with no `fetchImpl`
- * seam of its own. `./replayTransport.test.ts` already proves the clock and
+ * seam of its own. `./player.test.ts` already proves the clock and
  * the fold; this proves the SCREEN: it fetches the right URL, shows the
  * board and the transport bar on success, an error line on a 404, and tears
  * the match down cleanly on unmount.

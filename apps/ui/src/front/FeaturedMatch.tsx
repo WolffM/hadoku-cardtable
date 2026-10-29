@@ -12,6 +12,10 @@
  * it falls back to the newest replay, looping, with a REPLAY tag in place of
  * LIVE. With neither, it renders nothing and lane A's grid closes the gap.
  *
+ * A replay is a file, not a connection (wave 81): it is fetched when the front page mounts, and the
+ * card holds its place, drawn invisibly, until its first board and that board's art are ready
+ * (`../replay/load.ts`). It never reads "Connecting…".
+ *
  * `LiveBoard` is rendered whole, at the size its own table-fit expects
  * (`e2e/table-fit.spec.ts`'s own reference, 1280×800), inside a box scaled
  * down by a CSS `transform` to whatever this banner slot is — never
@@ -37,8 +41,10 @@ import {
 } from '../play/live/match.ts';
 import type { Fetch } from '../http.ts';
 import { holdMatchQuiet } from '../sound/index.ts';
-import { createReplayTransport, type ReplayClock } from '../replay/replayTransport.ts';
-import { fetchLatestReplay, fetchReplay, REPLAYS_ON } from '../replay/transport.ts';
+import { latestReplay, readyPlayer } from '../replay/load.ts';
+import type { ReplayClock } from '../replay/player.ts';
+import { ReplayBoard } from '../replay/ReplayBoard.tsx';
+import { REPLAYS_ON } from '../replay/transport.ts';
 import './FeaturedMatch.css';
 
 export interface FeaturedMatchProps {
@@ -55,7 +61,7 @@ export interface FeaturedMatchProps {
 const BOARD_WIDTH = 1280;
 const BOARD_HEIGHT = 800;
 
-type Source = { kind: 'live'; match: LiveMatch } | { kind: 'replay'; match: LiveMatch };
+type Source = { kind: 'live'; match: LiveMatch } | { kind: 'replay'; match: LiveMatch; clock: ReplayClock };
 
 /** Scale `BOARD_WIDTH × BOARD_HEIGHT` down to whatever box `ref` measures, preserving aspect ratio. */
 function useFitScale(ref: RefObject<HTMLDivElement | null>): number {
@@ -100,7 +106,7 @@ function TitleBar({ source, watchHref }: { source: Source; watchHref: string }) 
 }
 
 export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback = REPLAYS_ON }: FeaturedMatchProps) {
-  const [source, setSource] = useState<Source | null>(null);
+  const [source, setSource] = useState<Source | 'loading' | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const scale = useFitScale(viewportRef);
 
@@ -117,23 +123,24 @@ export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback =
       built = match;
       setSource({ kind: 'live', match });
     } else if (replayFallback) {
-      void fetchLatestReplay(fetchImpl).then(
-        (listing) => {
-          if (!live || listing === null) return;
-          void fetchReplay(listing.matchId, fetchImpl).then(
-            (data) => {
-              if (!live || data === null) return;
-              const replay = createReplayTransport(data, { loop: true });
-              const match = startMatch({ matchId: data.header.matchId, transport: replay.transport });
-              built = match;
-              clock = replay.clock;
-              setSource({ kind: 'replay', match });
-            },
-            () => undefined,
-          );
-        },
-        () => undefined,
-      );
+      setSource('loading');
+      void latestReplay(fetchImpl).then(async (data) => {
+        if (!live) return;
+        if (data === null) {
+          setSource(null);
+          return;
+        }
+        const player = await readyPlayer(data, { loop: true });
+        built = player.match;
+        clock = player.clock;
+        if (!live) {
+          closeMatch(player.match);
+          player.clock.dispose();
+          return;
+        }
+        player.clock.play();
+        setSource({ kind: 'replay', match: player.match, clock: player.clock });
+      });
     }
 
     return () => {
@@ -147,6 +154,8 @@ export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback =
   }, [pick === null ? null : pick.matchId]);
 
   if (source === null) return null;
+  // Held in place, never drawn: the slot keeps its size while the replay readies, and shows nothing.
+  if (source === 'loading') return <div className="featured-match featured-match--loading" data-testid="featured-match-loading" aria-hidden="true" />;
   const watchHref = source.kind === 'live' ? `#/match/${encodeURIComponent(source.match.matchId)}` : `#/replay/${encodeURIComponent(source.match.matchId)}`;
 
   return (
@@ -154,7 +163,7 @@ export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback =
       <TitleBar source={source} watchHref={watchHref} />
       <div className="featured-match__viewport" ref={viewportRef}>
         <div className="featured-match__frame" style={{ width: BOARD_WIDTH, height: BOARD_HEIGHT, transform: `scale(${scale})` }}>
-          <LiveBoard match={source.match} roomId={null} />
+          {source.kind === 'replay' ? <ReplayBoard match={source.match} clock={source.clock} /> : <LiveBoard match={source.match} roomId={null} />}
         </div>
       </div>
     </div>
