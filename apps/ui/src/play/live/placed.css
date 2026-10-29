@@ -262,6 +262,11 @@
  * as it arrives, in the house glide (`LEAVE_FADE_MS`). An arrival on a battlefield is never this
  * (`[data-stack-settle]`, below).
  */
+/* Gone from the stack (`placed.ts`'s `markGone`): it only plays out, and a press goes to what is under it. */
+.placed[data-placed-gone] {
+  pointer-events: none;
+}
+
 .placed[data-placed-leaving] {
   opacity: 0;
   scale: calc(var(--stack-scale, 1) * 0.5);

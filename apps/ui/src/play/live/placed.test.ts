@@ -983,6 +983,20 @@ describe('installPlaced: a cast trigger (the operator’s Emrakul, 2026-10-28)',
     expect(chip.hasAttribute('data-placed-leaving'), 'then it goes').toBe(true);
     handle.dispose();
   });
+
+  it('a resolved chip takes no press while it dwells: the click goes to the card under it', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    setChainHalted(true);
+    const handle = installPlaced(canvas, { reducedMotion: () => false });
+    handle.notify(view([stackItem(12, { sourceCardId: 301, isAbility: true })]));
+    const chip = canvas.querySelector<HTMLElement>('[data-placed-spell="12"]')!;
+    expect(chip.hasAttribute('data-placed-gone'), 'on the stack: it can be hovered').toBe(false);
+    handle.notify(view([]));
+    expect(chip.hasAttribute('data-placed-leaving'), 'dwelling, not fading yet').toBe(false);
+    expect(chip.hasAttribute('data-placed-gone'), 'but already gone from the stack').toBe(true);
+    handle.dispose();
+  });
 });
 
 describe('installPlaced: a resolution with something to draw (the operator’s Slagstorm, 2026-10-15)', () => {

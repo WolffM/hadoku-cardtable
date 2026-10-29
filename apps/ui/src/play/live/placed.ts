@@ -1002,7 +1002,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       return;
     }
     if (d.leaving) return;
-    d.leaving = true;
+    markGone(d);
     hold(id, cardId);
     if (reduced()) {
       removeNow(id);
@@ -1022,6 +1022,17 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       return;
     }
     fadeInto(id, d, cardId);
+  }
+
+  /**
+   * An item has left the stack: from here it only plays out (a chip's dwell, a crack, a fade) and
+   * takes no pointer. A resolved chip dwells `CHIP_DWELL_MS` beside its source and, at `auto`, swallowed
+   * the press meant for the permanent under it (`e2e/tf-thopter-sword.spec.ts`: the Foundry's own
+   * click landed on the leaving chip).
+   */
+  function markGone(d: Drawn): void {
+    d.leaving = true;
+    d.el.setAttribute('data-placed-gone', '');
   }
 
   /** A resolved item travels into wherever its card went, fading as it arrives, and is gone there. */
@@ -1144,7 +1155,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
    */
   function crackAndFade(id: number, d: Drawn): void {
     if (d.leaving) return;
-    d.leaving = true;
+    markGone(d);
     hold(id, d.isAbility ? null : d.sourceCardId);
     if (reduced()) {
       removeNow(id);
@@ -1175,8 +1186,8 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     const resolver = drawn.get(resolverId);
     const target = drawn.get(targetId);
     if (resolver === undefined || target === undefined) return;
-    resolver.leaving = true;
-    target.leaving = true;
+    markGone(resolver);
+    markGone(target);
     if (reduced()) {
       removeNow(resolverId);
       removeNow(targetId);
