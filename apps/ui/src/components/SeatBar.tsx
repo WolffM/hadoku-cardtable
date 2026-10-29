@@ -16,6 +16,17 @@
  * seat in view — yours, or the one you watch — is drawn lit: where its next pack
  * comes from. The pack and pick counters are the circle's centre.
  *
+ * ## The pack a seat is looking at, in its hands
+ *
+ * A seat that owes a pick holds the pack it is picking from, fanned on its
+ * portrait (the operator, 2026-10-28: *"visually display the cardpack that is
+ * currently being viewed by a player on their portrait rather than just their
+ * border flashing"*), held up in front of the lower part of its face. A seat
+ * with nothing to pick holds nothing. A pack passed to an empty-handed seat
+ * hops along the arrow into its hands; the next one it takes from its pile is
+ * lifted off the pile into them (2026-10-29: *"animate them picking up a new
+ * pack"*).
+ *
  * ## The packs waiting in front of a seat
  *
  * Every seat picks at its own pace, so packs queue in front of a slow one
@@ -92,6 +103,21 @@ interface Leaving {
   from: Pose;
   to: { x: number; y: number };
 }
+
+/**
+ * The held pack, in face pixels (the face is 40 across): 16 wide, so 22.3 tall,
+ * centred under the face's middle and sunk so the face's bottom edge cuts it,
+ * showing its top 12 — the lower 30% of the portrait, up to the character's
+ * mouth (the operator, 2026-10-29). `HAND_CUT` is the share of it below that
+ * edge (`.packq__hand`'s clip).
+ */
+const HAND = { x: 0, y: 19.15, angle: 0 };
+const HAND_CUT = 'inset(-60% -60% 46.2% -60%)';
+const HAND_WHOLE = 'inset(-60% -60% 0% -60%)';
+/** The held pack's size against a waiting pack's (`.packq__hand`'s width). */
+const HAND_SCALE = 1.6;
+/** How long a seat takes to pick up the next pack from its pile. */
+const PICK_UP_MS = 520;
 
 interface Box {
   left: number;
@@ -224,6 +250,15 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
   };
   const tailOf = (at: number): number => seatS(giverOf(at)) - giverSide * CLEAR;
 
+  const waitingKey = seats.map((s) => (isWaiting(view, s.id) ? 1 : 0)).join(',');
+  const holding = useMemo(() => waitingKey.split(',').map((w) => w === '1'), [waitingKey]);
+  /** Where seat `at`'s held pack is drawn: on its face, in the face's own pixels. */
+  const handOf = (at: number): Pose => {
+    const face = track.at(seatS(at));
+    const px = (measures?.faceHalf ?? 0) / 22;
+    return { x: face.x + HAND.x * px, y: face.y + HAND.y * px, angle: HAND.angle, pose: 'tidy', depth: 0, s: onArrow(at, 0) };
+  };
+
   // One motion rule: the pod moves only when the draft steps on screen. A pick
   // seen live changes the depths, and only that starts motion — all of it here,
   // in the depth change's own effect. A pack that arrives hops from the giver's
@@ -234,7 +269,7 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
   // that moves a pose — the first draw, a view that arrived whole (a reload, a
   // rejoin, a watch), the table measured again, another seat watched — is drawn
   // in place: no pack has a transition of its own.
-  const previous = useRef<readonly number[] | null>(null);
+  const previous = useRef<{ queue: readonly number[]; holding: readonly boolean[] } | null>(null);
   const angles = useRef<Map<string, number>>(new Map());
   const lastPoses = useRef<Map<string, Pose>>(new Map());
   const elements = useRef<Map<string, HTMLElement>>(new Map());
@@ -271,6 +306,17 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
     return { frames, duration };
   };
 
+  /** The pile's front pack lifted into the hands: from its pile pose at a pile pack's size, up off the pile, and down into the hands, fanned. */
+  const pickUp = (from: Pose, to: Pose): Keyframe[] => {
+    const mid = { x: (from.x + to.x) / 2, y: Math.min(from.y, to.y) - 1.2 * PACK };
+    const angle = closest(from.angle, to.angle);
+    return [
+      { offset: 0, ...pct(from), rotate: `${fixed(angle)}deg`, scale: `${fixed(1 / HAND_SCALE)}`, clipPath: HAND_WHOLE },
+      { offset: 0.55, ...pct(mid), rotate: `${fixed((angle + to.angle) / 2)}deg`, scale: '1', clipPath: HAND_WHOLE },
+      { offset: 1, ...pct(to), rotate: `${fixed(to.angle)}deg`, scale: '1', clipPath: HAND_CUT },
+    ];
+  };
+
   const poses = new Map<string, Pose>();
   seats.forEach((seat, at) => {
     for (let i = 0; i < depthOf(at); i++) {
@@ -281,9 +327,11 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
     }
   });
 
-  /** The motion of one step of the draft, from the depths `was` to these. */
-  const step = (was: readonly number[]): Leaving[] => {
+  /** The motion of one step of the draft, from the depths and hands `was` to these. */
+  const step = ({ queue: was, holding: held }: { queue: readonly number[]; holding: readonly boolean[] }): Leaving[] => {
     const gone: Leaving[] = [];
+    /** Whether seat `at` passed a pack this step: it holds, or has waiting, fewer than it did. */
+    const passed = (at: number): boolean => (holding[at] ? 1 : 0) + depthOf(at) < (held[at] ? 1 : 0) + (was[at] ?? 0);
     const animate = (key: string, frames: Keyframe[], options: KeyframeAnimationOptions) => {
       const el = elements.current.get(key);
       if (el !== undefined && typeof el.animate === 'function') el.animate(frames, { easing: 'cubic-bezier(.45,.05,.35,1)', fill: 'backwards', ...options });
@@ -299,9 +347,14 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
         animate(key, frames, { duration, delay });
         landed = Math.max(landed, delay + duration);
       }
+      // Picked up: the pile's front pack is lifted off it into the seat's hands and fanned there — the
+      // hand itself flies from where that pack stood — and the packs behind it each move up a place.
+      // Any other pack leaving goes into the seat.
+      const front = lastPoses.current.get(`${seat.id}:0`);
+      const pickedUp = holding[at] && held[at] === true && depth < before && front !== undefined;
       for (let i = 0; i < Math.min(before, depth); i++) {
         const key = `${seat.id}:${i}`;
-        const from = lastPoses.current.get(key);
+        const from = lastPoses.current.get(pickedUp ? `${seat.id}:${i + 1}` : key);
         const to = poses.get(key)!;
         if (from === undefined || (from.x === to.x && from.y === to.y && from.angle === to.angle)) continue;
         animate(
@@ -313,10 +366,17 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
           { duration: SHOVE_MS, delay: (depth > before ? landed : 0) + i * REACT_MS },
         );
       }
+      if (pickedUp) animate(`${seat.id}:hand`, pickUp(front, handOf(at)), { duration: PICK_UP_MS });
       const seatAt = track.at(seatS(at));
-      for (let i = depth; i < before; i++) {
+      for (let i = pickedUp ? depth + 1 : depth; i < before; i++) {
         const from = lastPoses.current.get(`${seat.id}:${i}`);
         if (from) gone.push({ key: `${seat.id}:${i}:${performance.now()}`, from, to: seatAt });
+      }
+      // Empty-handed, and passed a pack: it hops along the arrow into the seat's hands. A pack opened at the table's start of a round is drawn in place.
+      if (holding[at] && held[at] === false && depth === 0 && passed(giverOf(at))) {
+        const { frames, duration } = hop(at, handOf(at));
+        // Whole in flight; the face's edge cuts it as it lands.
+        animate(`${seat.id}:hand`, frames.map((f, k) => ({ ...f, clipPath: k === frames.length - 1 ? HAND_CUT : HAND_WHOLE })), { duration });
       }
     });
     return gone;
@@ -324,13 +384,13 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
 
   useLayoutEffect(() => {
     const was = previous.current;
-    previous.current = queue;
+    previous.current = { queue, holding };
     const width = boxRef.current?.getBoundingClientRect().width;
     if (width) unitPx.current = width / 100;
     const gone = was !== null && !arrivedWhole && !prefersReducedMotion() ? step(was) : [];
     if (gone.length > 0) setLeaving((all) => [...all, ...gone]);
-    // Keyed on the queue: `step` and `poses` are this render's.
-  }, [queue]);
+    // Keyed on the queue and the hands: `step` and `poses` are this render's.
+  }, [queue, holding]);
   // Every drawn pose, whatever drew it, is where the next step moves from.
   useLayoutEffect(() => {
     for (const [key, pose] of poses) angles.current.set(key, pose.angle);
@@ -376,6 +436,19 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
                 />
               );
             })}
+            {seats.map((seat, at) =>
+              holding[at] ? (
+                <Hand
+                  key={`${seat.id}:hand`}
+                  testId={`seat-${seat.id}-holding`}
+                  place={pct(handOf(at))}
+                  ref={(el) => {
+                    if (el) elements.current.set(`${seat.id}:hand`, el);
+                    else elements.current.delete(`${seat.id}:hand`);
+                  }}
+                />
+              ) : null,
+            )}
             {leaving.map((l) => (
               <Leaver key={l.key} from={l.from} place={pct} to={l.to} onDone={() => setLeaving((all) => all.filter((x) => x.key !== l.key))} />
             ))}
@@ -474,7 +547,16 @@ const Pack = forwardRef<HTMLSpanElement, { pose: Pose; place: { left: string; to
   );
 });
 
-/** A pack that left its pile: from its last pose into its seat, fading. */
+/** The pack a seat is picking from: three backs fanned in its hands, held up in front of its portrait. */
+const Hand = forwardRef<HTMLSpanElement, { place: { left: string; top: string }; testId: string }>(function Hand({ place, testId }, ref) {
+  return (
+    <span ref={ref} className="packq__hand" data-testid={testId} style={{ left: place.left, top: place.top, rotate: `${HAND.angle}deg`, clipPath: HAND_CUT }}>
+      <Backs />
+    </span>
+  );
+});
+
+/** A pack that left its pile and was not picked up: from its last pose into its seat, fading. */
 function Leaver({
   from,
   to,

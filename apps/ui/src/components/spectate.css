@@ -232,24 +232,9 @@
   image-rendering: pixelated;
 }
 
-/* Still owes a pick: the ring is lit and breathes. */
+/* Still owes a pick: the ring is lit, and the pack it is picking from is in its hands (`.packq__hand`). */
 .seatbar__seat--waiting .seatbar__face {
   box-shadow: 0 0 0 2px var(--accent);
-  animation: seat-picking 1.4s ease-in-out infinite;
-}
-
-@keyframes seat-picking {
-  50% {
-    box-shadow:
-      0 0 0 2px var(--accent),
-      0 0 0 6px color-mix(in srgb, var(--accent) 30%, transparent);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .seatbar__seat--waiting .seatbar__face {
-    animation: none;
-  }
 }
 
 .seatbar__seat--you .seatbar__name {
@@ -338,6 +323,27 @@
   width: var(--pack-w);
   aspect-ratio: 488 / 680;
   translate: -50% -50%;
+}
+
+/* The pack a seat is picking from, fanned in its hands and held up in front of its portrait's lower
+   30%, cut off by the face's bottom edge (`SeatBar`'s `Hand`, `HAND`, `HAND_CUT`): 16 face pixels wide. */
+.packq__hand {
+  position: absolute;
+  z-index: 2;
+  width: calc(var(--pack-w) * 1.6);
+  aspect-ratio: 488 / 680;
+  translate: -50% -50%;
+}
+
+/* Fanned from the bottom, as a hand of cards is held; the pile's own nudge (below) does not apply. */
+.packq .packq__hand .card-back.packq__card {
+  transform-origin: 50% 100%;
+  translate: none;
+  rotate: calc(var(--k) * 11deg);
+}
+
+.packq__hand .card-back::before {
+  border-radius: 1px;
 }
 
 /* The seats and the counters sit under every pack. */

@@ -1,14 +1,17 @@
 /**
- * The draft's loading skeleton (the operator, trailer cut 1, 2026-10-28):
+ * The draft's loading skeleton and the pack on the portrait (the operator, trailer cut 1, 2026-10-28):
  * - *"13. the draft clip generally looks pretty good but we need to improve the loading skeleton so it
  *   looks a bit better."*
+ * - *"13b. … let's visually display the cardpack that is currently being viewed by a player on their
+ *   portrait rather than just their border flashing."*
  *
  * Measured on the REAL screens (`apps/ui/src/fit/draft-load.html` mounts `DraftScreen.tsx`'s `DraftSkeleton`,
  * then swaps in `DraftScreen` with the same side column), served by the app's own Vite config, at
  * 1280×800 and at 125% UI scale. Every part the skeleton draws (`data-skeleton="<part>"`) must sit
  * where that part of the loaded page lands, so the page changes once and nothing jumps (AF212, AF225,
  * AF252); every part the loaded page has must have its skeleton. A part as wide as its text (a seat's
- * name, the counters) must be centred where the text lands, on its line and at its height.
+ * name, the counters) must be centred where the text lands, on its line and at its height. And a seat that owes a pick holds its
+ * pack on its portrait; a seat that does not, holds none.
  *
  * Needs no server: it only reads the screen. No Forge, never skipped. `[w79e]` lines are the evidence.
  */
@@ -175,4 +178,47 @@ test('on the grid layout too, the draft lands in the skeleton’s box and does n
   await expect(page.locator('[data-testid="pack"].pack--grid')).toBeVisible();
   expect(frames.length).toBeGreaterThan(0);
   expect([...new Set(frames)], 'the pack, every frame from the swap on').toEqual([box]);
+});
+
+test('a seat that owes a pick holds its pack on its portrait; a seat that does not, holds none', async ({ page }) => {
+  // Seats 0–2 owe a pick (seat 1 with two more waiting); 3–7 are waiting for a pack.
+  await page.goto(`${base}src/fit/draft-load.html?w=0,1,2&q=0,2,0`);
+  await page.evaluate(() => window.load());
+  await expect(page.getByTestId('draft-screen')).toBeVisible();
+  // The ring is measured before its packs are drawn (`SeatBar`'s `useMeasures`).
+  await expect(page.locator('.packq')).toBeAttached();
+  const held = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('[data-testid="seat-bar"] li[data-testid^="seat-"]')).map((li) => {
+      const id = li.getAttribute('data-testid')!.slice('seat-'.length);
+      const hand = document.querySelector(`[data-testid="seat-${id}-holding"]`);
+      const face = li.querySelector('.seatbar__face')!.getBoundingClientRect();
+      const r = hand?.getBoundingClientRect();
+      // The pack is held up in front of the portrait (the operator, 2026-10-29: "anchored to the bottom
+      // middle of the avatar … the bottom of the cards is cut off … up to 30% of the bottom of the avatar
+      // frame"): centred on the face, its backs inside the face's ringed box across (what the piles keep
+      // clear of, `pack-queue.ts`), their tops at about 70% of the way down, and cut at the face's bottom.
+      const cards = hand === null ? [] : [...hand.querySelectorAll('.packq__card')].map((c) => c.getBoundingClientRect());
+      // `inset(top right bottom left)`, which the browser may shorten to three values: the bottom is the third.
+      const inset = (/inset\(([^)]*)\)/.exec(hand === null ? '' : getComputedStyle(hand).clipPath)?.[1] ?? '').split(/\s+/);
+      const cut = r === undefined ? 0 : r.bottom - (r.height * parseFloat(inset[2] ?? '0')) / 100;
+      const top = Math.min(...cards.map((c) => c.top));
+      const onFace =
+        r !== undefined &&
+        r.width > 0 &&
+        cards.length === 3 &&
+        Math.abs(r.x + r.width / 2 - (face.left + face.width / 2)) < 1 &&
+        cards.every((c) => c.left >= face.left - 2 && c.right <= face.right + 2) &&
+        top > face.top + face.height * 0.6 &&
+        top < face.top + face.height * 0.78 &&
+        Math.abs(cut - face.bottom) < 1;
+      const at = hand === null ? null : { face: [face.x, face.y, face.width, face.height].map(Math.round), top: Math.round(top), cut: Math.round(cut) };
+      return { id: Number(id), waiting: li.getAttribute('data-waiting') === 'true', holding: hand !== null, onFace, at };
+    }),
+  );
+  console.log(`[w79e] held: ${JSON.stringify(held)}`);
+  expect(held.length).toBeGreaterThan(3);
+  for (const seat of held) {
+    expect(seat.holding, `seat ${seat.id} ${seat.waiting ? 'owes a pick and holds no pack' : 'owes nothing and holds a pack'}`).toBe(seat.waiting);
+    if (seat.waiting) expect(seat.onFace, `seat ${seat.id}'s pack is on its portrait`).toBe(true);
+  }
 });

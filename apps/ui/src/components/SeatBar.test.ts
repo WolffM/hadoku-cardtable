@@ -217,14 +217,14 @@ describe('the pod moves only when the draft steps on screen', () => {
     expect(started).toEqual([]);
   });
 
-  it('moves a pick seen live: the pack passed on hops in, the one taken leaves, the pile it joins shoves up', () => {
+  it('moves a pick seen live: the pack passed on hops in, the one taken is picked up, the pile it joins shoves up', () => {
     laidOut();
     const started = recordMotion();
     const { rerender } = render(createElement(SeatBar, { view: queued(seatView(0, 'left'), DEPTHS) }));
     // Seat 2 takes a pack and passes it to seat 3.
     rerender(createElement(SeatBar, { view: queued(seatView(0, 'left'), [0, 1, 1, 4, 4, 2, 1, 0]) }));
     expect(started).toContain('seat-3-pack-3');
-    expect(started).toContain('leaving');
+    expect(started, 'seat 2 picks up its next pack').toContain('seat-2-holding');
     expect(started.filter((id) => /^seat-3-pack-[012]$/.test(id)), 'the three already there make room').toHaveLength(3);
     expect(started.filter((id) => /^seat-[0145-7]-/.test(id)), 'no seat the pick did not touch').toEqual([]);
   });
@@ -252,3 +252,47 @@ describe('the pod moves only when the draft steps on screen', () => {
   });
 });
 
+
+/* ── the pack a seat is looking at, in its hands (the operator, 2026-10-28, trailer cut 1 item 13b) ── */
+
+describe('a seat that owes a pick holds its pack on its portrait', () => {
+  afterEach(() => {
+    delete (Element.prototype as { animate?: unknown }).animate;
+  });
+
+  const owing = (view: DraftView, ids: readonly number[]): DraftView => ({ ...view, waitingOn: [...ids] });
+  const holders = (container: HTMLElement): string[] => [...container.querySelectorAll('.packq__hand')].map((el) => el.getAttribute('data-testid')!);
+
+  it('draws a pack in the hands of every seat that owes a pick, and none in any other', () => {
+    laidOut();
+    const { container } = render(createElement(SeatBar, { view: owing(queued(seatView(0, 'left'), [0, 2]), [0, 1, 5]) }));
+    expect(holders(container)).toEqual(['seat-0-holding', 'seat-1-holding', 'seat-5-holding']);
+    // The hands are not a pile: the piles keep their own count.
+    expect(container.querySelectorAll('.packq__pack[data-testid]')).toHaveLength(2);
+  });
+
+  it('hops a pack passed to an empty-handed seat into its hands, and opens a round in place', () => {
+    laidOut();
+    const started = recordMotion();
+    const { rerender } = render(createElement(SeatBar, { view: owing(queued(seatView(0, 'left'), []), [2]) }));
+    // Seat 2 picks and passes left: seat 3 now holds it.
+    rerender(createElement(SeatBar, { view: owing(queued(seatView(0, 'left'), []), [3]) }));
+    expect(started).toEqual(['seat-3-holding']);
+    // Seat 3 picks the pack's last card: nothing passes. Then the next pack opens at every seat at once.
+    rerender(createElement(SeatBar, { view: owing(queued(seatView(0, 'left'), []), []) }));
+    rerender(createElement(SeatBar, { view: owing(queued(seatView(0, 'left'), []), [0, 1, 2, 3, 4, 5, 6, 7]) }));
+    expect(started, 'a pack nobody passed is drawn in place').toEqual(['seat-3-holding']);
+  });
+
+  it('picks up the next pack: the hands fly from the pile’s front pack, and nothing fades into the seat', () => {
+    laidOut();
+    const started = recordMotion();
+    const { container, rerender } = render(createElement(SeatBar, { view: owing(queued(seatView(0, 'left'), [0, 0, 2]), [2]) }));
+    // Seat 2 picks, passes to seat 3, and picks up the front of its two waiting packs.
+    rerender(createElement(SeatBar, { view: owing(queued(seatView(0, 'left'), [0, 0, 1]), [2, 3]) }));
+    expect(started).toContain('seat-2-holding');
+    expect(started).toContain('seat-3-holding');
+    expect(started, 'the one left behind moves up').toContain('seat-2-pack-0');
+    expect(container.querySelectorAll('.packq__leaving')).toHaveLength(0);
+  });
+});
