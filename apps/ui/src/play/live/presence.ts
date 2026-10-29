@@ -82,10 +82,10 @@ import { PLACED_EVENT, PlacedEchoSchema,
 
 import { newArrow, positionArrow } from './gestures/arrow.ts';
 import { endPlacement, expectPlacement, pendingPlacementFor, renewPlacement, type PlayEnd } from '../Board.tsx';
-import { CAST_LANDING_ATTR, expectedGapBox, followStackCard, landCastGhost } from './gestures/cast.ts';
+import { CAST_LANDING_ATTR, expectedGapBox, landCastGhost } from './gestures/cast.ts';
 import type { EntryWeight } from './entries.ts';
 import { drawnCentreOf, PRESENCE_CARD_ATTR, reportHandover, type HandoverFacts, type Report } from './handover-report.ts';
-import { holdSpell, onSpellMoved, placeSpell, placeStackItem, releaseSpell } from './placed.ts';
+import { holdSpell, onSpellMoved, placeSpell, placeStackItem, releaseSpell, stackBoxOf } from './placed.ts';
 import { handCardWidth, sizeAsCard } from '../card-size.ts';
 import { afterGlide, GLIDE_MS, HOUSE_DURATIONS, PLACEMENT_WAIT_MS, prefersReducedMotion, writeDurations } from '../motion.ts';
 import { battlefieldCard, overlayOf, zoneOf } from './board-dom.ts';
@@ -1194,10 +1194,9 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
             const at = handToSpell(onStack);
             if (at === null) return;
             // It lands from where the stack draws it then, which need not be where it was handed over.
-            const drawn = followStackCard(canvas, onStack, PLACEMENT_WAIT_MS);
             flyWhenDrawn(onStack, () => {
-              drawn.stop();
-              return drawn.at() ?? at;
+              const drawn = stackBoxOf(onStack);
+              return drawn === null ? at : { x: drawn.left + drawn.width / 2, y: drawn.top + drawn.height / 2 };
             });
           };
           settle();

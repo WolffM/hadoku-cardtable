@@ -242,7 +242,7 @@ import { carryCastOffStack, endPlacement, notePlayedTo, placementAt, previewPlay
 // (`placeSpell`); a drag of the viewer's own placed spell moves it
 // (`moveSpell`), which is also what tells lane W to relay it; `onSpellDrawn`
 // is the ghost's own handoff signal — see `syncParkedGhost`'s own note.
-import { holdSpell, isPlaced, moveSpell, onSpellDrawn, placeSpell, placeStackItem, releaseSpell } from '../placed.ts';
+import { holdSpell, isPlaced, moveSpell, onSpellDrawn, placeSpell, placeStackItem, releaseSpell, stackBoxOf } from '../placed.ts';
 import { spotOf } from '../presence.ts';
 import { afterGlide, HOUSE_DURATIONS, prefersReducedMotion, writeDurations } from '../../motion.ts';
 import { drawnCentreOf, reportHandover, type HandoverFacts } from '../handover-report.ts';
@@ -255,7 +255,6 @@ import { CAST_LANDING_ATTR, expectedGapBox,
   castCardTypeLine,
   castLandingWeight,
   castZoneOf,
-  followStackCard,
   clearAllCastLifts,
   clearCastLift,
   clearDropCues,
@@ -353,8 +352,6 @@ interface Parked {
   gliding: boolean;
   /** The stack item drawn (hidden) while it glided, handed over when the glide ends. */
   drawnMidGlide: number | null;
-  /** Once handed over to the stack, where the stack draws it (`followStackCard`): where its landing starts. */
-  stack: ReturnType<typeof followStackCard> | null;
 }
 
 /**
@@ -980,7 +977,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // A played card is drawn by its stand-in from here on; a cast being aimed
     // is drawn by its own element for as long as the board has one.
     drawCastLift(canvas, source, point, !spell && ghost !== null ? 'carried' : 'parked');
-    parked = { source, at: point, home: state.from, ghost, zone, leftZone: false, played: !spell, onStack: false, ghostHandedOff: false, releasedAt: Date.now(), glideStartedAt: null, stackFrameAt: null, gliding: false, drawnMidGlide: null, stack: null };
+    parked = { source, at: point, home: state.from, ghost, zone, leftZone: false, played: !spell, onStack: false, ghostHandedOff: false, releasedAt: Date.now(), glideStartedAt: null, stackFrameAt: null, gliding: false, drawnMidGlide: null };
     syncParkedGhost();
     // A played card's stand-in glides from the release point into the gap the row reserved for
     // it (`notePlayedTo` above) and waits THERE — the same motion the other screen draws for its
@@ -1045,7 +1042,6 @@ export function installGestures(options: GestureOptions): GestureHandle {
     if (p !== null) options.report?.('park', { how, card: p.source, ms: Date.now() - p.releasedAt, played: p.played, ask: match.asks[0]?.method ?? '-', selection: match.selectables !== null, paying: payingMana(match), ...cause });
     stopGlide?.();
     stopGlide = null;
-    p?.stack?.stop();
     if (p !== null && p.gliding) {
       p.gliding = false;
       releaseSpell(p.source);
@@ -1245,7 +1241,9 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // Hidden from this very frame, or the row's card and its stand-in are both drawn until its arrival starts.
       arrived.setAttribute(CAST_LANDING_ATTR, '');
       const ghost = p.ghost;
-      const from = p.stack?.at() ?? p.at;
+      // From where the stack last drew it (`stackBoxOf`), when it resolved off the stack; else where it was let go.
+      const drawn = stackBoxOf(p.source);
+      const from = drawn === null ? p.at : { x: drawn.left + drawn.width / 2, y: drawn.top + drawn.height / 2 };
       // §S: if the stack handoff already retired this ghost (`ghostHandedOff`),
       // it is detached right now — re-attach it, WHERE THE STACK LAST DREW IT, on
       // this same synchronous frame, so hiding the real card below never opens
@@ -1830,7 +1828,6 @@ export function installGestures(options: GestureOptions): GestureHandle {
   function handOverToStack(p: Parked, id: number): void {
     if (p.ghost === null || p.ghostHandedOff) return;
     p.ghostHandedOff = true;
-    p.stack = followStackCard(canvas, p.source);
     const from = drawnCentreOf(p.ghost);
     p.ghost.remove();
     reportHandover(options.report, 'handover', canvas, casterFacts(p, 'stack', from, canvas.querySelector(`[data-placed-spell="${id}"]`)));

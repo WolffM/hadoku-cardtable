@@ -382,28 +382,6 @@ export function landCastGhost(root: ParentNode, id: number | null, ghost: HTMLEl
   return { how, ...landing };
 }
 
-/**
- * Where the stack draws a card while it waits there (`../placed.ts`'s `[data-placed-spell]`, its face or
- * back carrying the card's own wire id), read every frame for up to `forMs`: the stack lays its items
- * out on its own — a cast trigger joining it moves the spell — and takes the element away the moment
- * the card resolves onto a battlefield, before its landing can ask. The landing starts from the last
- * place it was drawn (`landCastGhost`'s `from`): on the other screen Emrakul's trip started from the
- * point it was released at, 180 px from where the stack drew it (W79 2b/2c).
- */
-export function followStackCard(root: ParentNode, cardId: number, forMs = Infinity): { readonly at: () => Point | null; readonly stop: () => void } {
-  let at: Point | null = null;
-  let live = true;
-  const until = Date.now() + forMs;
-  const look = (): void => {
-    if (!live || Date.now() > until) return;
-    const box = root.querySelector(`[data-placed-spell] [data-card-id="w${cardId}"]`)?.closest('[data-placed-spell]')?.getBoundingClientRect();
-    if (box !== undefined && box.width > 0) at = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
-    requestAnimationFrame(look);
-  };
-  look();
-  return { at: () => at, stop: () => (live = false) };
-}
-
 /** Every lift away, whoever it belonged to — on dispose, so a board left behind carries none, and every pending float-back timer with it. */
 export function clearAllCastLifts(root: ParentNode): void {
   for (const { timer } of returnTimers.values()) clearTimeout(timer);

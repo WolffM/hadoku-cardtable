@@ -100,7 +100,8 @@ async function record(page: Page, name: string): Promise<void> {
       add('ghost', document.querySelectorAll('[data-cast-ghost]'));
       add('echo', document.querySelectorAll('.presence__handoff'));
       add('entry', document.querySelectorAll('.board-entry:not(.board-entry--shoved)'));
-      add('stack', document.querySelectorAll('[data-placed-spell]'));
+      // The card's own stack card; never a chip, which draws an ability of it (its cast trigger's) and stays its dwell.
+      add('stack', document.querySelectorAll('[data-placed-spell]:not(:has([data-ability-chip]))'));
       w.__arr.push({ t: Math.round(performance.now() - t0), drawn });
       requestAnimationFrame(tick);
     };

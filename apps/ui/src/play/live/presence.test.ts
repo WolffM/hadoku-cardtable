@@ -26,6 +26,7 @@ const { placedMod, spellMovedBox } = vi.hoisted(() => {
     moveSpell: vi.fn(),
     holdSpell: vi.fn(),
     releaseSpell: vi.fn(),
+    stackBoxOf: vi.fn(() => null),
     onSpellMoved: vi.fn((listener: (id: number, at: { x: number; y: number }) => void) => {
       spellMovedBox.current = listener;
       return () => {
