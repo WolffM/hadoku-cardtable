@@ -191,6 +191,22 @@
   --c-green: #6da879;
   --c-generic: #565d68;
 
+  /* Discord's own dark-client colours: the front page's chat card is a picture of Discord (the operator, 2026-10-28). */
+  --discord-bg: #313338;
+  --discord-divider: #1f2023;
+  --discord-header: #f2f3f5;
+  --discord-text: #dbdee1;
+  --discord-muted: #949ba4;
+  --discord-hash: #80848e;
+  --discord-on-avatar: #ffffff;
+  /* Its default-avatar colours, in `front/discordChat.ts`'s `AVATAR_COLOURS` order. */
+  --discord-avatar-0: #5865f2;
+  --discord-avatar-1: #757e8a;
+  --discord-avatar-2: #3ba55c;
+  --discord-avatar-3: #faa61a;
+  --discord-avatar-4: #ed4245;
+  --discord-avatar-5: #eb459f;
+
   --radius: 8px;
   --card-w: 190px;
   --card-h: 268px;

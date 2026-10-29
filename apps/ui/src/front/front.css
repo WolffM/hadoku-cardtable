@@ -343,17 +343,11 @@
 
 /*
  * The Discord's last messages, drawn as Discord's own dark client draws #general (the operator,
- * 2026-10-28: "make it look exactly like discord chat"). These are Discord's colours, not theme
- * tokens — the panel is a picture of Discord, the one place the page does not follow its own theme.
+ * 2026-10-28: "make it look exactly like discord chat"). Its colours are Discord's, the `--discord-*`
+ * palette in `../styles.css`: the panel is a picture of Discord, so it does not follow the theme.
  * Newest last, pinned to the bottom like the client: a squeezed card loses the oldest at the top.
  */
 .discord-chat {
-  --discord-bg: #313338;
-  --discord-divider: #1f2023;
-  --discord-header: #f2f3f5;
-  --discord-text: #dbdee1;
-  --discord-muted: #949ba4;
-  --discord-hash: #80848e;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -376,7 +370,6 @@
   gap: 6px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--discord-divider);
-  box-shadow: 0 1px 0 rgb(4 4 5 / 0.2);
   font-size: 15px;
   font-weight: 600;
   color: var(--discord-header);
@@ -418,20 +411,36 @@
   margin-top: 2px;
   font-size: 15px;
   font-weight: 600;
-  color: #fff;
+  color: var(--discord-on-avatar);
 }
 
 img.discord-chat__avatar {
   object-fit: cover;
 }
 
-/* Discord's default-avatar colours, in `./discordChat.ts`'s `AVATAR_COLOURS` order. */
-.discord-chat__avatar--0 { background: #5865f2; }
-.discord-chat__avatar--1 { background: #757e8a; }
-.discord-chat__avatar--2 { background: #3ba55c; }
-.discord-chat__avatar--3 { background: #faa61a; }
-.discord-chat__avatar--4 { background: #ed4245; }
-.discord-chat__avatar--5 { background: #eb459f; }
+.discord-chat__avatar--0 {
+  background: var(--discord-avatar-0);
+}
+
+.discord-chat__avatar--1 {
+  background: var(--discord-avatar-1);
+}
+
+.discord-chat__avatar--2 {
+  background: var(--discord-avatar-2);
+}
+
+.discord-chat__avatar--3 {
+  background: var(--discord-avatar-3);
+}
+
+.discord-chat__avatar--4 {
+  background: var(--discord-avatar-4);
+}
+
+.discord-chat__avatar--5 {
+  background: var(--discord-avatar-5);
+}
 
 .discord-chat__body {
   min-width: 0;

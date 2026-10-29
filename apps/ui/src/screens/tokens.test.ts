@@ -256,21 +256,22 @@ describe('the stacking scale (wave 32 shape 2)', () => {
  * The operator, 2026-10-10: "do not use hardcoded colors, that is forbidden.
  * use a color from the theme system". Every stylesheet the app owns, comments
  * aside, holds no literal colour — not even as a `var()` fallback, which paints
- * its literal the moment a token is missing. The one exception is the
- * colour-pie palette in `styles.css`: a card's colour identity, which no theme
- * has a token for. The vendored symbol fonts' sheets are third-party.
+ * its literal the moment a token is missing. The exceptions are two palettes
+ * in `styles.css` that no theme has a token for: the colour pie (a card's
+ * colour identity) and Discord's own colours (the front page's chat card is a
+ * picture of Discord, the operator 2026-10-28). The vendored symbol fonts' sheets are third-party.
  */
 describe('no hardcoded colours', () => {
   // A relative colour derived from a token (`oklch(from var(--bg) …)`) is the theme's own colour, not a literal.
   const LITERAL = /#[0-9a-f]{3,8}\b|\b(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch)\((?!from\s+var\()|(?<![-\w])(?:white|black|red|blue|green|gray|grey|silver)(?![-\w])/i;
-  const PALETTE = /^\s*--c-(?:white|blue|black|red|green|generic):\s*#[0-9a-f]{6};\s*$/i;
+  const PALETTE = /^\s*--(?:c-(?:white|blue|black|red|green|generic)|discord-[a-z0-9-]+):\s*#[0-9a-f]{6};\s*$/i;
 
   it('finds the app’s stylesheets', () => {
     expect(sheets).toContain('styles.css');
     expect(sheets).toContain('settings/settings.css');
   });
 
-  it('no stylesheet writes a literal colour, outside the colour-pie palette', () => {
+  it('no stylesheet writes a literal colour, outside the colour-pie and Discord palettes', () => {
     const found: string[] = [];
     for (const rel of sheets) {
       const css = readFileSync(new URL(rel, root), 'utf8').replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
