@@ -51,31 +51,33 @@
 
 .table-card__phases {
   display: flex;
-  gap: 4px;
+  gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/*
+ * Where the game stands is a label, never a pill: filled in the way-in's colour it read as a button
+ * that did nothing (the operator, 2026-10-28: "why is there a 'start' button on the matches? that's a
+ * useless button"). The phase it is at is full ink and bold, the others secondary; a chevron between
+ * steps keeps the full card's row a sequence.
+ */
 .table-card__phase {
-  padding: 2px 8px;
-  border: 1px solid var(--color-border-light);
-  border-radius: 999px;
   color: var(--color-text-secondary);
   font-size: 0.72rem;
+  white-space: nowrap;
 }
 
-.table-card__phase[data-past] {
-  border-color: transparent;
-  background: var(--color-bg-hover);
-  color: var(--color-text);
+.table-card__phase + .table-card__phase::before {
+  margin-right: 6px;
+  color: var(--color-text-secondary);
+  content: '›';
 }
 
 .table-card__phase[data-at] {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: var(--color-bg);
-  font-weight: 600;
+  color: var(--color-text);
+  font-weight: 700;
 }
 
 .table-card__body {

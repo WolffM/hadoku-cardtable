@@ -10,6 +10,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* The page's whole width, not the title's: the two rush in from its edges (operator item 12a, 2026-10-28). */
+  align-self: stretch;
   gap: 12px;
   margin: 0 0 1rem;
 }
