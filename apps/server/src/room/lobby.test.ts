@@ -580,8 +580,8 @@ describe('Lobby.setSettings', () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		if (!made.ok) throw new Error(made.reason);
-		expect(made.room.settings).toEqual({ handSmoothing: true, tournament: false, tournamentDecks: 'locked' });
-		expect(lobby.list().map((r) => r.settings)).toEqual([{ handSmoothing: true, tournament: false, tournamentDecks: 'locked' }]);
+		expect(made.room.settings).toEqual({ handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 } });
+		expect(lobby.list().map((r) => r.settings)).toEqual([{ handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 } }]);
 	});
 
 	it('lets only the leader change it, and leaves every readiness flag and deck hold alone', async () => {
@@ -592,7 +592,7 @@ describe('Lobby.setSettings', () => {
 		expect(lobby.get(id)?.settings.handSmoothing).toBe(true);
 
 		const off = lobby.setSettings(id, ALICE.id, { handSmoothing: false });
-		expect(off.ok && off.room.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked' });
+		expect(off.ok && off.room.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 } });
 		// A setting is not a deck question: nobody is stood down by it.
 		expect(lobby.get(id)?.members.map((m) => m.ready)).toEqual([true, true]);
 		expect(lobby.playerState(id, BOB.id)).toEqual({ v: 1, ready: true });
@@ -611,7 +611,7 @@ describe('Lobby.setSettings', () => {
 		if (!made.ok) throw new Error(made.reason);
 		expect(first.setSettings(made.room.id, ALICE.id, { handSmoothing: false }).ok).toBe(true);
 		const second = await openLobby({ dir });
-		expect(second.get(made.room.id)?.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked' });
+		expect(second.get(made.room.id)?.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 } });
 	});
 
 	it('reads a record written before settings existed back on the defaults', async () => {
@@ -619,7 +619,7 @@ describe('Lobby.setSettings', () => {
 		writeFixtureRoom(dir, 'r-presettings01', legacyApp());
 		expect(Object.keys(legacyApp())).not.toContain('settings');
 		const lobby = await openLobby({ dir });
-		expect(lobby.get('r-presettings01')?.settings).toEqual({ handSmoothing: true, tournament: false, tournamentDecks: 'locked' });
+		expect(lobby.get('r-presettings01')?.settings).toEqual({ handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 } });
 	});
 
 	it('quarantines a record whose settings hold a value this build does not understand', async () => {
@@ -1823,7 +1823,7 @@ describe('a room stored with the old match-length settings', () => {
 		const dir = await tempDir();
 		writeFixtureRoom(dir, 'r-oldsettings1', legacyApp({ settings: { handSmoothing: false, matchLength: 'bo3', sideboarding: true } }));
 		const lobby = await openLobby({ dir });
-		expect(lobby.get('r-oldsettings1')?.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked' });
+		expect(lobby.get('r-oldsettings1')?.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 } });
 		expect(lobby.get('r-oldsettings1')?.tables[0]?.series).toMatchObject({ length: 1, phase: 'seating' });
 	});
 });

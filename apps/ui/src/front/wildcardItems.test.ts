@@ -39,7 +39,7 @@ const room = (over: Partial<RoomView> = {}): RoomView => ({
   leader: '',
   gameType: 'constructed-1v1',
   format: '2026-01-01',
-  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked' },
+  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 } },
   mode: 'classic',
   modeOptions: {},
   clientMode: 'builtin',

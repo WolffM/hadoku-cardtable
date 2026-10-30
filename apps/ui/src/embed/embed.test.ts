@@ -36,7 +36,7 @@ const ROOM: RoomView = {
   leader: 'fk:alice',
   gameType: 'constructed-1v1',
   format: 'unavailable',
-  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked' },
+  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 } },
   mode: null,
   modeOptions: null,
   you: { id: 'http-a', leader: true, ready: false },

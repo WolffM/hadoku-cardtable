@@ -379,7 +379,7 @@ function stubServer(table: Table) {
     leader: 'p-alice',
     gameType: gameType(),
     format: table.format,
-    settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', ...table.settings },
+    settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, ...table.settings },
     ...(table.mode === undefined ? { mode: 'classic', modeOptions: {} } : table.mode === null ? { mode: null, modeOptions: null } : table.mode),
     // Caller-scoped, as `http/rooms.ts` serialises it: whether the leader is
     // this caller, and whether this caller is ready. `p-alice` is us.
@@ -1235,7 +1235,7 @@ describe('a room’s table', () => {
                   leader: 'p-alice',
                   gameType: 'constructed-1v1' as const,
                   format: '2010-07-16',
-                  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked' as const },
+                  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked' as const, clock: 'auto' as const, pickTimer: { on: false, speed: 1 } },
                   mode: null,
                   modeOptions: null,
                   you: { id: 'p-alice', leader: true, ready: false },

@@ -59,6 +59,13 @@ export const DEFAULT_CLIENT_MODE: ClientMode = 'builtin';
  * every round. `'per-round'`: each round deals or re-picks fresh, as a normal
  * table already does.
  *
+ * `clock` (`'auto'` by default): the chess clock, {@link MATCH_CLOCK_MS} per
+ * player for a whole series. `'auto'` is on exactly when the room is a
+ * tournament; `'on'`/`'off'` are the leader's word either way ({@link clockOn}).
+ *
+ * `pickTimer` (off by default): a draft's per-pick timer, the MTR's times by
+ * cards left in the pack divided by `speed` (2 is twice as fast).
+ *
  * How long a series runs is not a setting: it is the room's game type, mode
  * and `tournament` flag (`room/series.ts`'s `seriesFormatOf`).
  */
@@ -66,13 +73,40 @@ export const TOURNAMENT_DECK_POLICIES = ['locked', 'per-round'] as const;
 export const TournamentDecksSchema = z.enum(TOURNAMENT_DECK_POLICIES);
 export type TournamentDecks = z.infer<typeof TournamentDecksSchema>;
 
+export const CLOCK_SETTINGS = ['auto', 'on', 'off'] as const;
+export const ClockSettingSchema = z.enum(CLOCK_SETTINGS);
+export type ClockSetting = z.infer<typeof ClockSettingSchema>;
+/** Each player's time for a whole series (operator, 2026-10-30: "20 minutes per player per match"). */
+export const MATCH_CLOCK_MS = 20 * 60_000;
+
+export const PICK_TIMER_SPEED_MIN = 0.25;
+export const PICK_TIMER_SPEED_MAX = 4;
+export const PickTimerSchema = z.strictObject({
+	on: z.boolean(),
+	speed: z.number().min(PICK_TIMER_SPEED_MIN).max(PICK_TIMER_SPEED_MAX),
+});
+export type PickTimer = z.infer<typeof PickTimerSchema>;
+
 export const RoomSettingsSchema = z.strictObject({
 	handSmoothing: z.boolean(),
 	tournament: z.boolean(),
 	tournamentDecks: TournamentDecksSchema,
+	clock: ClockSettingSchema,
+	pickTimer: PickTimerSchema,
 });
 export type RoomSettings = z.infer<typeof RoomSettingsSchema>;
-export const DEFAULT_ROOM_SETTINGS: Readonly<RoomSettings> = Object.freeze({ handSmoothing: true, tournament: false, tournamentDecks: 'locked' });
+export const DEFAULT_ROOM_SETTINGS: Readonly<RoomSettings> = Object.freeze({
+	handSmoothing: true,
+	tournament: false,
+	tournamentDecks: 'locked',
+	clock: 'auto',
+	pickTimer: Object.freeze({ on: false, speed: 1 }),
+});
+
+/** Whether a room's games run the chess clock: `'auto'` follows `tournament`. */
+export function clockOn(settings: Pick<RoomSettings, 'clock' | 'tournament'>): boolean {
+	return settings.clock === 'on' || (settings.clock === 'auto' && settings.tournament);
+}
 
 /**
  * What makes a room's pool a DRAFTED pool rather than a frozen era.
@@ -198,6 +232,10 @@ const SETTINGS_FIELD_SCHEMAS: { [K in keyof RoomSettings]: z.ZodType<RoomSetting
   handSmoothing: z.boolean({ error: 'settings.handSmoothing must be a boolean' }),
   tournament: z.boolean({ error: 'settings.tournament must be a boolean' }),
   tournamentDecks: z.enum(TOURNAMENT_DECK_POLICIES, { error: oneOf('settings.tournamentDecks', TOURNAMENT_DECK_POLICIES) }),
+  clock: z.enum(CLOCK_SETTINGS, { error: oneOf('settings.clock', CLOCK_SETTINGS) }),
+  pickTimer: z.custom<PickTimer>((v) => PickTimerSchema.safeParse(v).success, {
+    error: `settings.pickTimer must be { on: boolean, speed: ${PICK_TIMER_SPEED_MIN}–${PICK_TIMER_SPEED_MAX} }`,
+  }),
 };
 
 /**

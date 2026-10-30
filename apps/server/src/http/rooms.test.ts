@@ -738,7 +738,7 @@ describe('PATCH /api/rooms/:id { settings }', () => {
 		const dir = await tempDir();
 		const h = await openApp(dir);
 		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } })).json() as View;
-		expect(created.settings).toEqual({ handSmoothing: true, tournament: false, tournamentDecks: 'locked' });
+		expect(created.settings).toEqual({ handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 } });
 		await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' });
 		await call(h, 'POST', `/api/rooms/${created.id}/ready`, { as: 'bob', body: { ready: true } });
 
@@ -749,12 +749,12 @@ describe('PATCH /api/rooms/:id { settings }', () => {
 		const byLeader = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { settings: { handSmoothing: false } } });
 		expect(byLeader.status).toBe(200);
 		const after = byLeader.json() as View;
-		expect(after.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked' });
+		expect(after.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 } });
 		// Not a deck question, so bob is still ready.
 		expect(after.members.map((m) => m.ready)).toEqual([false, true]);
 
 		const restored = (await call(await openApp(dir), 'GET', `/api/rooms/${created.id}`)).json() as View;
-		expect(restored.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked' });
+		expect(restored.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 } });
 	});
 
 	it('refuses a setting it does not know, a value that is not a boolean, and an empty or mixed body', async () => {
@@ -775,7 +775,7 @@ describe('PATCH /api/rooms/:id { settings }', () => {
 			expect(res.json()).toEqual({ error });
 		}
 		const after = (await call(h, 'GET', `/api/rooms/${created.id}`)).json() as View;
-		expect([after.settings, after.format]).toEqual([{ handSmoothing: true, tournament: false, tournamentDecks: 'locked' }, NEWEST_POOL]);
+		expect([after.settings, after.format]).toEqual([{ handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 } }, NEWEST_POOL]);
 	});
 
 	it('sizes a Constructed room’s series Bo1 and a draft room’s Bo3', async () => {
@@ -783,7 +783,7 @@ describe('PATCH /api/rooms/:id { settings }', () => {
 		const constructed = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } })).json() as View;
 		expect(constructed.tables[0]?.series).toMatchObject({ length: 1, phase: 'seating' });
 		const draft = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Draft room', gameType: 'draft' } })).json() as View;
-		expect(draft.settings).toEqual({ handSmoothing: true, tournament: false, tournamentDecks: 'locked' });
+		expect(draft.settings).toEqual({ handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto', pickTimer: { on: false, speed: 1 } });
 		expect(draft.tables[0]?.series).toMatchObject({ length: 3 });
 	});
 });
