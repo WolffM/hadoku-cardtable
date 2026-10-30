@@ -603,6 +603,18 @@ export interface BoardPlayer {
    * so one null check is the whole fallback.
    */
   avatarId?: string;
+  /** This player's chess clock (`AdaptOptions.clockByPlayerId`); absent in a game without one. */
+  clock?: PlayerClock;
+}
+
+/**
+ * A chess clock as the server last told it (`SeatIdentity.clock`): `ms` left and whether it runs,
+ * with `at`, when this screen heard it — a running clock is drawn as `ms - (now - at)`.
+ */
+export interface PlayerClock {
+  ms: number;
+  running: boolean;
+  at: number;
 }
 
 /** One emblem a player has — {@link BoardPlayer.emblems}. */
@@ -891,6 +903,8 @@ export interface AdaptOptions {
    * what the board showed before the names went in.
    */
   nameByPlayerId?: ReadonlyMap<number, string>;
+  /** Every player's chess clock, keyed by Forge PLAYER id (`LiveMatch.clockByPlayerId`). Absent: no clock. */
+  clockByPlayerId?: ReadonlyMap<number, PlayerClock>;
   /**
    * Wave 49 §A — `PlayBridge.java`'s own `stackTargetSpells` wire fact
    * (`../fold.ts`'s `FoldResult.stackTargetSpells`), a `fromId → toId` map
@@ -1917,6 +1931,7 @@ export function toBoardView(
     avatarByPlayerId,
     unclaimed,
     nameByPlayerId,
+    clockByPlayerId,
     stackTargetSpells,
     pendingTriggers,
     waitingEffects,
@@ -1984,6 +1999,7 @@ export function toBoardView(
     // The viewer holds a seat whether or not the roster has named its player yet.
     const unheld = unclaimed !== undefined && !isViewer && !unclaimed.seated.has(pid);
     const avatarId = avatarByPlayerId?.get(pid) ?? (unheld ? unclaimed.avatarId : undefined);
+    const clock = clockByPlayerId?.get(pid);
     const emblems = readEmblems(state, p, artIds, printedPT);
     const command = cardsIn(idsOf(p, 'Command').filter((id) => drawnInCommand(state, id)));
     const hand = ownHand ? cardsIn(handIds).map((c) => seenByOthers(state, c, viewerPlayerId)) : null;
@@ -2020,6 +2036,7 @@ export function toBoardView(
       // undefined` — so an in-process `'avatarId' in player` reader and a JSON
       // reader agree (`D-avatar-field.md` §3).
       ...(avatarId === undefined ? {} : { avatarId }),
+      ...(clock === undefined ? {} : { clock }),
     };
   });
   players.sort((a, b) => Number(b.isViewer) - Number(a.isViewer));

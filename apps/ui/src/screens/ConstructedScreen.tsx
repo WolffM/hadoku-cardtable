@@ -163,7 +163,7 @@ import { LIBRARY_CARD_COSTS, LIBRARY_DECK_STYLES, type DeckStyle } from '@hadoku
  * name if both were imported bare into this file.
  */
 import { DEFAULT_ROOM_SETTINGS } from '@hadoku/shared';
-import { FREE_PICK, type ConstructedMode, type GauntletOptions as GauntletModeOptions, type GauntletView, type PodView, type RandomOptions, type RoomTable as SharedRoomTable, type TournamentDecks } from '@hadoku/shared';
+import { clockOn, FREE_PICK, type ConstructedMode, type GauntletOptions as GauntletModeOptions, type GauntletView, type PodView, type RandomOptions, type RoomTable as SharedRoomTable, type TournamentDecks } from '@hadoku/shared';
 
 import { navigate, routeHash } from './route.ts';
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
@@ -1118,6 +1118,7 @@ function RoomTableScreen({
    * room's does. `tournamentDecks` only matters once `tournament` is on.
    */
   const tournament = view?.settings.tournament === true;
+  const clock = view !== null && view !== undefined && clockOn(view.settings, view.gameType);
   const tournamentDecks = view?.settings.tournamentDecks ?? 'locked';
   const pod: PodView | null = view?.pod ?? null;
   /** The pod's seats are still open — Tournament/Decks are the leader's, and seats, AI and Lock all act. */
@@ -1849,6 +1850,7 @@ function RoomTableScreen({
 
   /** The LEADER flipped hand smoothing. */
   const toggleHandSmoothing = (): void => writeRoom(() => rooms.setSettings(roomId, { handSmoothing: !handSmoothing }));
+  const toggleClock = (): void => writeRoom(() => rooms.setSettings(roomId, { clock: clock ? 'off' : 'on' }));
 
   /** The LEADER flipped Free pick: the pool moves, and the browse with it. */
   const toggleFreePick = (formats: readonly TableFormat[]): void => {
@@ -2294,6 +2296,7 @@ function RoomTableScreen({
                     lockDecks={mode === 'random' && randomOptions !== null ? { on: randomOptions.lock === true, locked: modeLocked, onToggle: toggleRandomLock } : undefined}
                     // A Gauntlet's decks are each table's own draw: it has none to lock (the server reads it per-round).
                     tournamentDecks={tournament && mode !== 'gauntlet' ? { value: tournamentDecks, locked: modeLocked, onChange: chooseTournamentDecks } : undefined}
+                    clock={{ on: clock, onToggle: toggleClock }}
                   />
                 )}
               </RoomHeader>

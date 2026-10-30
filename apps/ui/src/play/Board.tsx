@@ -424,6 +424,7 @@ import { pinFlight } from './flight.ts';
 import { installPlaced } from './live/placed.ts';
 import { closeUp, DEPARTURE_MAX_MS, departuresOf, installDepartures, LEAVING_GAP_ATTR, withLeaving, type Departure } from './live/departures.ts';
 import { AbilityChip } from './live/AbilityChip.tsx';
+import { MatchClock } from './live/Clock.tsx';
 import { HiddenCard } from './HiddenCard.tsx';
 import { PileView } from './PileView.tsx';
 import { useCardMenu } from './card-menu/CardMenu.tsx';
@@ -3370,6 +3371,7 @@ function PlayerFace({ player, interaction }: { player: BoardPlayer; interaction:
         </span>
         {poison > 0 && <PoisonMark count={poison} />}
       </span>
+      {player.clock !== undefined && <MatchClock clock={player.clock} />}
     </>
   );
   return (

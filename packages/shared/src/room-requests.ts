@@ -60,8 +60,9 @@ export const DEFAULT_CLIENT_MODE: ClientMode = 'builtin';
  * table already does.
  *
  * `clock` (`'auto'` by default): the chess clock, {@link MATCH_CLOCK_MS} per
- * player for a whole series. `'auto'` is on exactly when the room is a
- * tournament; `'on'`/`'off'` are the leader's word either way ({@link clockOn}).
+ * player for a whole series. `'auto'` is on exactly when the room plays a
+ * pod — a tournament, or a draft; `'on'`/`'off'` are the leader's word either
+ * way ({@link clockOn}).
  *
  * `pickTimer` (off by default): a draft's per-pick timer, the MTR's times by
  * cards left in the pack divided by `speed` (2 is twice as fast).
@@ -103,9 +104,9 @@ export const DEFAULT_ROOM_SETTINGS: Readonly<RoomSettings> = Object.freeze({
 	pickTimer: Object.freeze({ on: false, speed: 1 }),
 });
 
-/** Whether a room's games run the chess clock: `'auto'` follows `tournament`. */
-export function clockOn(settings: Pick<RoomSettings, 'clock' | 'tournament'>): boolean {
-	return settings.clock === 'on' || (settings.clock === 'auto' && settings.tournament);
+/** Whether a room's games run the chess clock: `'auto'` is on in a room that plays a pod (a tournament, or a draft). */
+export function clockOn(settings: Pick<RoomSettings, 'clock' | 'tournament'>, gameType: string): boolean {
+	return settings.clock === 'on' || (settings.clock === 'auto' && (settings.tournament || gameType === 'draft'));
 }
 
 /**

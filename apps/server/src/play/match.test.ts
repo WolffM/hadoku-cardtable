@@ -4281,3 +4281,112 @@ describe('activity', () => {
 		expect(match.activity()).toEqual({ lastAt: null, recent: 0 });
 	});
 });
+
+describe('the chess clock (MatchSpec.clockMs)', () => {
+	function clocked(clockMs: [number, number]): Harness & { told: SeatIdentity[][] } {
+		const { factory, hosts } = replayFactory();
+		const sent: Harness['sent'] = [];
+		const logs: Record<string, unknown>[] = [];
+		const told: SeatIdentity[][] = [];
+		const registry = createMatchRegistry({
+			host: factory,
+			log: (e) => logs.push(e),
+			overGraceMs: 60_000,
+			emit: (_match, seat, envelope) => sent.push({ seat, envelope }),
+			seatsChanged: (_match, seats) => told.push(seats),
+			// The replay host answers no press: seat 1's coin-toss press would otherwise have its
+			// window re-sent after `ACT_SILENCE_MS`, live again, and its clock running.
+			actSilenceMs: 10 * 60_000,
+		});
+		const match = registry.create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }], clockMs });
+		return { match, host: hosts[0] as ReplayHost, sent, logs, told };
+	}
+
+	/** The opening, seat 1's coin-toss bar pressed, then seat 0 parked on a question of its own. */
+	function waitingOnSeat0(h: Harness): void {
+		h.host.push(...OPENING);
+		h.match.fromClient(1, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
+		h.host.push(PROBE_ASK);
+	}
+
+	it('is absent from the roster in a game without one', () => {
+		const h = harness();
+		for (const identity of h.match.seatIdentities()) expect(identity).not.toHaveProperty('clock');
+		expect(h.match.clockLeft()).toBeNull();
+	});
+
+	it("runs only the seat the game is waiting on, and tells both screens on the roster when it starts and stops", () => {
+		vi.useFakeTimers();
+		const h = clocked([60_000, 60_000]);
+		waitingOnSeat0(h);
+		const [mine, theirs] = h.match.seatIdentities();
+		expect(mine!.clock?.running).toBe(true);
+		expect(theirs!.clock).toEqual({ ms: 60_000, running: false });
+		expect(h.told.at(-1)![0]!.clock?.running, 'the start was told').toBe(true);
+		vi.advanceTimersByTime(10_000);
+		expect(h.match.clockLeft()![1], "seat 1 is not charged for seat 0's question").toBe(60_000);
+		expect(h.match.clockLeft()![0]).toBeLessThanOrEqual(50_000);
+		h.match.fromClient(0, reply((PROBE_ASK.frame as { callId: string }).callId, true));
+		const answered = h.match.clockLeft()![0];
+		expect(h.told.at(-1)![0]!.clock?.running, 'the stop was told').toBe(false);
+		vi.advanceTimersByTime(30_000);
+		expect(h.match.clockLeft()![0], 'nothing is charged once it answered').toBe(answered);
+	});
+
+	it('flags at zero: the server concedes for the seat, logs it, and the win is a timeout', () => {
+		vi.useFakeTimers();
+		const h = clocked([20_000, 60_000]);
+		waitingOnSeat0(h);
+		vi.advanceTimersByTime(19_000);
+		expect(h.host.commands.some((c) => c.t === 'act' && c.frame.method === 'concede')).toBe(false);
+		vi.advanceTimersByTime(2_000);
+		expect(h.logs.find((l) => l.evt === 'clock-flag')).toMatchObject({ seat: 0 });
+		expect(h.host.commands.filter((c) => c.t === 'act' && c.frame.method === 'concede')).toEqual([{ t: 'act', seat: 0, frame: { kind: 'act', method: 'concede' } }]);
+		h.host.push({ t: 'gameover', winner: 'Seat 2', losers: [0], lost: [{ player: 0, reason: 'Conceded' }] } as BridgeLine);
+		expect(h.match.outcome()).toEqual({ kind: 'won', winner: 1, conceded: true, timedOut: true });
+		expect(h.match.clockLeft()).toEqual([0, 60_000]);
+	});
+
+	it("keeps running for a seat that disconnected: being away answers nothing", () => {
+		vi.useFakeTimers();
+		const h = clocked([60_000, 60_000]);
+		h.match.claim(ALICE);
+		h.match.claim(BOB);
+		waitingOnSeat0(h);
+		h.match.seatConnected(0);
+		h.match.seatDisconnected(0);
+		vi.advanceTimersByTime(45_000);
+		expect(h.match.clockLeft()![0]).toBeLessThanOrEqual(15_000);
+	});
+
+	it('comes back after a restart with the time its record kept, and runs on from there', () => {
+		vi.useFakeTimers();
+		const { factory, attach, state } = survivable();
+		const deps = { host: factory, attach, log: () => undefined, overGraceMs: 60_000, emit: () => undefined, actSilenceMs: 10 * 60_000 };
+		const first = createMatchRegistry(deps).create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }], clockMs: [60_000, 60_000] });
+		first.claim(ALICE);
+		first.claim(BOB);
+		state.push(...OPENING);
+		first.fromClient(1, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
+		state.push(PROBE_ASK);
+		vi.advanceTimersByTime(5_000);
+		expect(first.handOver()).toBe(true);
+		const kept = first.clockLeft()!;
+		expect(kept[0]).toBeLessThanOrEqual(55_000);
+		// The server is down for a minute: that is nobody's time.
+		vi.advanceTimersByTime(60_000);
+		const next = createMatchRegistry(deps).adopt({ ...recordFor(first, state), clockMs: kept })!;
+		expect(next.clockLeft()).toEqual(kept);
+		expect(next.seatIdentities()[0]!.clock?.running, 'still waiting on seat 0').toBe(true);
+		vi.advanceTimersByTime(2_000);
+		expect(next.clockLeft()![0]).toBe(kept[0] - 2_000);
+	});
+
+	it("an ordinary concede is not a timeout", () => {
+		const h = clocked([60_000, 60_000]);
+		waitingOnSeat0(h);
+		h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'concede' }));
+		h.host.push({ t: 'gameover', winner: 'Seat 2', losers: [0], lost: [{ player: 0, reason: 'Conceded' }] } as BridgeLine);
+		expect(h.match.outcome()).toEqual({ kind: 'won', winner: 1, conceded: true });
+	});
+});

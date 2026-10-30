@@ -35,6 +35,7 @@ export function MatchRules({
   freePick,
   lockDecks,
   tournamentDecks,
+  clock,
 }: {
   /** Only the leader moves a rule; everybody else reads them. */
   leader: boolean;
@@ -47,14 +48,16 @@ export function MatchRules({
   lockDecks?: RuleSwitch;
   /** A tournament's deck policy: absent when the room is not a tournament. */
   tournamentDecks?: { value: TournamentDecks; locked: boolean; onChange: (decks: TournamentDecks) => void };
+  /** The chess clock: 20 minutes a player for a series, on by itself in a tournament. */
+  clock?: RuleSwitch;
 }) {
   const { trigger, toggle, close } = usePopover();
   const off = !leader || disabled;
   // A tournament of All Random can lock its decks twice over; the button names it once.
-  const on = [...new Set([handSmoothing?.on === true && 'Hand smoothing', freePick?.on === true && 'Free pick', lockDecks?.on === true && 'Decks locked', tournamentDecks !== undefined && (tournamentDecks.value === 'locked' ? 'Decks locked' : 'Re-pick')])].filter(
+  const on = [...new Set([handSmoothing?.on === true && 'Hand smoothing', freePick?.on === true && 'Free pick', lockDecks?.on === true && 'Decks locked', tournamentDecks !== undefined && (tournamentDecks.value === 'locked' ? 'Decks locked' : 'Re-pick'), clock?.on === true && 'Chess clock'])].filter(
     (name): name is string => typeof name === 'string',
   );
-  if (handSmoothing === undefined && freePick === undefined && lockDecks === undefined && tournamentDecks === undefined) return null;
+  if (handSmoothing === undefined && freePick === undefined && lockDecks === undefined && tournamentDecks === undefined && clock === undefined) return null;
   return (
     <>
       <button type="button" className="lobby__rules ct-toggle" aria-expanded={trigger !== null} data-testid="match-rules" onClick={(event) => toggle(event.currentTarget)}>
@@ -100,6 +103,18 @@ export function MatchRules({
                 onPress={lockDecks.onToggle}
               >
                 Lock decks
+              </ActionButton>
+            )}
+            {clock !== undefined && (
+              <ActionButton
+                action={clock.on ? 'clock-off' : 'clock-on'}
+                className="lobby__free-pick ct-toggle"
+                aria-pressed={clock.on}
+                data-testid="chess-clock"
+                disabled={off || clock.locked === true}
+                onPress={clock.onToggle}
+              >
+                Chess clock
               </ActionButton>
             )}
             {tournamentDecks !== undefined && (

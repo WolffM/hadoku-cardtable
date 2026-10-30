@@ -29,6 +29,7 @@ import { moveToMain } from '@hadoku/deck';
 import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
 import type { MatchReport } from '@wolffm/prefs-client/games';
 import type { ClientFrame } from '@hadoku/forge-wire';
+import { MATCH_CLOCK_MS, type ClockSetting } from '@hadoku/shared';
 import type { MatchRecord, MatchHostFactory, MatchSpec } from '../play/host.js';
 import type { MatchRegistry } from '../play/match.js';
 import {
@@ -294,7 +295,7 @@ interface FakeRoom {
 	gameType: string;
 	/** The room's pool: one per table, for both seats. Mutable here, so a test can put a room in a state the leader's setter would never leave it in. */
 	format: string;
-	settings: { handSmoothing: boolean };
+	settings: { handSmoothing: boolean; clock?: ClockSetting };
 	leader: string;
 	/** `avatarId` optional and never blank, exactly as `RoomViewLike` states it. */
 	members: { id: string; name: string; avatarId?: string }[];
@@ -330,6 +331,8 @@ function emptyTable(id: string, length: 1 | 3): RoomTable {
 
 function fakeLobby(): FakeLobby {
 	const held = new Map<string, FakeRoom>();
+	/** Each table's series clock pool, as `Lobby.seriesClockMs` keeps it. */
+	const clocks = new Map<string, [number, number]>();
 	const member = (roomId: string, memberId: string): FakeRoom | undefined => {
 		const room = held.get(roomId);
 		return room !== undefined && room.members.some((m) => m.id === memberId) ? room : undefined;
@@ -449,8 +452,10 @@ function fakeLobby(): FakeLobby {
 			seatsAt(roomId, tableId)!.seats.ready = [false, false];
 			const { length, wins, games, phase } = recordGame({ ...table.series, played: [null, null], mode: 'classic', settled: false }, seriesFormatOf(room), result);
 			table.series = { length, wins, games, phase };
+			if (result.clockMs !== undefined) clocks.set(`${roomId}/${tableId}`, result.clockMs);
 			return { ok: true };
 		},
+		seriesClockMs: (roomId, tableId) => clocks.get(`${roomId}/${tableId}`) ?? null,
 		beginSideboarding(roomId, tableId) {
 			const room = held.get(roomId);
 			const table = room?.tables.find((t) => t.id === tableId);
@@ -2814,6 +2819,47 @@ describe('a room table', () => {
 		 * when the series began — a library deck as that library deck, name and
 		 * all — not the sideboarded 75 it played the last game with.
 		 */
+		describe("the room's chess clock", () => {
+			it('starts no clock in a casual room, and the whole 20 minutes a seat once the leader turns it on', async () => {
+				const h = await boot();
+				openRoom(h);
+				await bothLoaded(h);
+				await setReady(h, 'alice');
+				await setReady(h, 'bob');
+				expect((await startRoom(h, 'alice')).status).toBe(201);
+				expect(h.specs.at(-1)).not.toHaveProperty('clockMs');
+
+				const on = await boot();
+				openRoom(on).settings.clock = 'on';
+				await bothLoaded(on);
+				await setReady(on, 'alice');
+				await setReady(on, 'bob');
+				expect((await startRoom(on, 'alice')).status).toBe(201);
+				expect(on.specs.at(-1)?.clockMs).toEqual([MATCH_CLOCK_MS, MATCH_CLOCK_MS]);
+			});
+
+			it("carries what a game's clock left into the series' next game: one pool, and the break costs nobody", async () => {
+				const h = await boot();
+				openRoom(h).settings.clock = 'on';
+				await bothLoaded(h);
+				await setReady(h, 'alice');
+				await setReady(h, 'bob');
+				const started = await startRoom(h, 'alice');
+				expect(started.status).toBe(201);
+				const match = h.matches.get(started.body.matchId as string)!;
+				match.clockLeft = () => [700_000, 900_000];
+				(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: 'user-alice' });
+				await view(h, 'alice');
+				// The Rematch makes the Bo1 a Bo3 and goes to sideboarding.
+				await setReady(h, 'alice');
+				await setReady(h, 'bob');
+				await setReady(h, 'alice');
+				await setReady(h, 'bob');
+				expect((await startAnother(h, 'alice')).status).toBe(201);
+				expect(h.specs.at(-1)?.clockMs).toEqual([700_000, 900_000]);
+			});
+		});
+
 		describe('a finished series puts each seat back on its registered deck', () => {
 			/** The game on the newest host ends, `winner` taking it; a read records it. */
 			async function finish(h: Harness, winner: 'alice' | 'bob'): Promise<void> {

@@ -84,6 +84,12 @@ export interface SeriesRecord {
 	settled: boolean;
 	/** When the game under way started (ms since epoch), timing it for `SeriesGame.ms`; null between games. */
 	gameStartedAt?: number | null;
+	/**
+	 * Each seat's chess-clock time left when the series' last game ended (`play/clock.ts`): the next
+	 * game starts from it, so the clock is one pool across a series and the break between games costs
+	 * nobody. Absent before a first game, or with no clock.
+	 */
+	clockMs?: [number, number];
 }
 
 /** A room's next series, sized by its format, played by `played`. */
@@ -105,13 +111,13 @@ export function newSeries(room: SeriesRoom, played: readonly (string | null)[], 
  * (a game with no attributable winner must never strand a series), and between
  * games otherwise — `sideboarding` or `between`, by the format.
  */
-export function recordGame<S extends SeriesRecord>(series: S, format: SeriesFormat, game: SeriesGame): S {
+export function recordGame<S extends SeriesRecord>(series: S, format: SeriesFormat, game: SeriesGame, clockMs?: [number, number]): S {
 	const wins: [number, number] = [...series.wins];
 	if (game.winner !== null) wins[game.winner] += 1;
 	const games = [...series.games, { ...game }];
 	const need = series.length === 3 ? 2 : 1;
 	const over = wins[0] >= need || wins[1] >= need || games.length >= series.length;
-	return { ...series, wins, games, phase: over ? 'done' : format.sideboarding ? 'sideboarding' : 'between' };
+	return { ...series, wins, games, phase: over ? 'done' : format.sideboarding ? 'sideboarding' : 'between', ...(clockMs === undefined ? {} : { clockMs: [...clockMs] }) };
 }
 
 /** A Rematch of a finished, unrecorded Bo1: the same series as Bo3, its game kept as game 1, going to sideboarding. `null` for any other series. */

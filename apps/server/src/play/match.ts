@@ -161,6 +161,7 @@ import { eachTypeAsk, firstEachType, nextEachType } from './each-type.js';
 import { firstMode, modesAsk, nextMode } from './modes.js';
 import { chosenTargetConfirm, pickedBy, sameTargetAct, targetAbilityOf, type SameTarget } from './trigger-targets.js';
 import { artOf } from './art.js';
+import { ChessClock } from './clock.js';
 import { fallbackFor, type Fallback } from './unparsed.js';
 import type { BridgeCommand, BridgeLine, HostEvents, MatchHost, MatchHostFactory, MatchRecord, MatchSpec, TurnSnapshot } from './host.js';
 import type { StartEvents } from './start-queue.js';
@@ -256,7 +257,8 @@ export type DrawReason = EndedBy;
  * in its table's series.
  */
 export type GameOutcome =
-	| { kind: 'won'; winner: 0 | 1; conceded: boolean }
+	/** `timedOut`: the loser's chess clock ran out, which loses the whole series, not only this game. */
+	| { kind: 'won'; winner: 0 | 1; conceded: boolean; timedOut?: true }
 	| { kind: 'drawn' }
 	/** Forge named a winner that no seat can be told from. */
 	| { kind: 'unplaced' };
@@ -267,6 +269,8 @@ export interface OutcomeFacts {
 	winner: string | null;
 	winnerSeat: 0 | 1 | null;
 	concededBy: number | null;
+	/** The seat whose chess clock ran out; its concede is the server's ({@link Match.timedOut}). */
+	timedOut?: number | null;
 	spec: { seats: readonly { name: string }[] };
 }
 
@@ -279,7 +283,9 @@ export interface OutcomeFacts {
  */
 export function gameOutcome(match: OutcomeFacts): GameOutcome | null {
 	if (match.endedAt === null) return null;
-	if (match.concededBy === 0 || match.concededBy === 1) return { kind: 'won', winner: match.concededBy === 0 ? 1 : 0, conceded: true };
+	if (match.concededBy === 0 || match.concededBy === 1) {
+		return { kind: 'won', winner: match.concededBy === 0 ? 1 : 0, conceded: true, ...(match.timedOut === match.concededBy ? { timedOut: true as const } : {}) };
+	}
 	// Forge names no winner only for a draw (`GameOutcome.getWinningLobbyPlayer`).
 	if (match.winner === null) return { kind: 'drawn' };
 	if (match.winnerSeat !== null) return { kind: 'won', winner: match.winnerSeat, conceded: false };
@@ -1073,6 +1079,17 @@ export class Match {
 	concededBy: number | null = null;
 	/** Why the server asked Forge for a draw ({@link forceDraw}), or null: told with the game's end. */
 	drawnFor: DrawReason | null = null;
+	/** The seat whose chess clock ran out, or null. The server conceded the game for it ({@link flag}). */
+	timedOut: number | null = null;
+	/**
+	 * The chess clock (`clock.ts`), or null in a game without one (`MatchSpec.clockMs`). A seat's
+	 * runs exactly while {@link waitingOnFor} names it — the same fact the other seat's banner
+	 * reads — so a window the server answers for it never reaches it live and never costs it time.
+	 * A disconnected seat's keeps running: being away answers nothing.
+	 */
+	private readonly clock: ChessClock | null;
+	/** Fires when the running seat with the least time left runs out ({@link syncClock}). */
+	private flagTimer: NodeJS.Timeout | null = null;
 	/**
 	 * When the match was started, in ms. A match taken back after a restart
 	 * keeps the start its JVM's record has (`MatchRecord.startedAt`), so this is
@@ -1207,12 +1224,16 @@ export class Match {
 		 * would be handed the other player's hand. The start time is the third:
 		 * a replay would stamp it with the restart.
 		 */
-		restore?: { epoch: string | null; owners: (string | null)[]; startedAt: number; snapshot?: TurnSnapshot | null },
+		restore?: { epoch: string | null; owners: (string | null)[]; startedAt: number; snapshot?: TurnSnapshot | null; clockMs?: [number, number] },
 	) {
 		this.id = id;
 		this.spec = spec;
 		this.deps = deps;
 		this.now = deps.now ?? Date.now;
+		// A match taken back keeps the time its seats had left when it was last written down; the gap the
+		// server was down for is nobody's (`remember`'s callers say how stale that can be).
+		const clockMs = restore?.clockMs ?? spec.clockMs;
+		this.clock = clockMs === undefined ? null : new ChessClock(clockMs);
 		this.startedAt = restore?.startedAt ?? this.now();
 		this.epoch = restore?.epoch ?? `${id}:${this.startedAt}`;
 		this.latestSnapshot = restore?.snapshot ?? null;
@@ -1331,6 +1352,7 @@ export class Match {
 		} finally {
 			this.replaying = false;
 		}
+		this.syncClock();
 		this.remember();
 		this.deps.log({
 			evt: 'match-resumed',
@@ -1396,8 +1418,72 @@ export class Match {
 	}
 
 	/** What a re-attach or a restore of this match needs that only the match knows, onto its record on disk. */
+	/**
+	 * Also the chess clock's time left: written at the start, at each turn's snapshot and when the
+	 * server hands the match over, so a crash between two of those gives a seat back at most a turn.
+	 */
 	private remember(): void {
-		this.host?.remember?.({ epoch: this.epoch, owners: this.owners(), snapshot: this.latestSnapshot });
+		const clockMs = this.clockLeft();
+		this.host?.remember?.({ epoch: this.epoch, owners: this.owners(), snapshot: this.latestSnapshot, ...(clockMs === null ? {} : { clockMs }) });
+	}
+
+	/** Each seat's chess-clock time left, or null in a game without one. */
+	clockLeft(): [number, number] | null {
+		return this.clock?.left(this.now()) ?? null;
+	}
+
+	/**
+	 * Run each seat's clock exactly while the game waits on it, and re-tell the roster when that
+	 * changed — the clock rides on `forge:seats` ({@link seatIdentities}), so both screens and every
+	 * watcher draw the same reading. Called wherever {@link waitingOnFor}'s inputs move: every
+	 * {@link checkWaitingOn}, and every bar {@link send} puts on the wire.
+	 */
+	private syncClock(): void {
+		if (this.clock === null || this.replaying) return;
+		const now = this.now();
+		const running = this.status === 'running' && this.timedOut === null;
+		const moved = this.clock.set([running && this.waitedOn(0), running && this.waitedOn(1)], now);
+		if (!moved) return;
+		if (this.flagTimer !== null) clearTimeout(this.flagTimer);
+		this.flagTimer = null;
+		const next = this.clock.nextFlag(now);
+		if (next !== null) {
+			this.flagTimer = setTimeout(() => {
+				this.flagTimer = null;
+				const flagged = this.clock?.flagged(this.now()) ?? null;
+				if (flagged !== null) this.flag(flagged);
+				else this.syncClock();
+			}, next.inMs);
+			this.flagTimer.unref();
+		}
+		this.deps.seatsChanged?.(this.seatIdentities());
+	}
+
+	/** Nobody's time runs any more: the match is letting go of its game. */
+	private stopClock(): void {
+		if (this.flagTimer !== null) clearTimeout(this.flagTimer);
+		this.flagTimer = null;
+		this.clock?.stop(this.now());
+	}
+
+	private waitedOn(seat: number): boolean {
+		const s = this.seats[seat];
+		return s !== undefined && !s.ai && this.waitingOnFor(s) !== null;
+	}
+
+	/**
+	 * A seat's chess clock reached zero: it loses (the operator, 2026-10-30: *"at zero, that player
+	 * loses the match"*). The server concedes the game for it, exactly as its own Concede would, and
+	 * {@link gameOutcome} marks the win `timedOut` so the room ends the whole series, not one game.
+	 */
+	private flag(seat: number): void {
+		if (this.status !== 'running' || this.timedOut !== null) return;
+		this.timedOut = seat;
+		this.concededBy = seat;
+		this.clock?.stop(this.now());
+		this.deps.log({ evt: 'clock-flag', matchId: this.id, seat, left: this.clockLeft() });
+		this.deps.seatsChanged?.(this.seatIdentities());
+		this.command({ t: 'act', seat, frame: { kind: 'act', method: 'concede' } });
 	}
 
 	/**
@@ -1634,6 +1720,10 @@ export class Match {
 			})(),
 			...(this.coinToss === null ? {} : { coinToss: this.coinToss }),
 			...(s.away ? { away: true } : {}),
+			...(() => {
+				const reading = this.clock?.reading(this.now())[s.seat];
+				return reading === undefined ? {} : { clock: reading };
+			})(),
 		}));
 	}
 
@@ -1763,6 +1853,7 @@ export class Match {
 	 * Cheap to over-call: the key comparison is the guard, not the call site.
 	 */
 	private checkWaitingOn(): void {
+		this.syncClock();
 		const facts = this.seats.map((s) => this.waitingOnFor(s));
 		const key = JSON.stringify(facts);
 		// The same not-yet-told fact as the timer already pending: let that timer run. Resetting it
@@ -2124,6 +2215,8 @@ export class Match {
 		this.rejoinTimer = null;
 		if (this.overTimer !== null) clearTimeout(this.overTimer);
 		this.overTimer = null;
+		this.stopClock();
+		this.remember();
 		this.deps.log({ evt: 'match-handed-over', matchId: this.id, epoch: this.epoch });
 		return true;
 	}
@@ -2173,6 +2266,7 @@ export class Match {
 	stop(): void {
 		if (this.status !== 'starting' && this.status !== 'running' && this.status !== 'over') return;
 		this.status = 'stopped';
+		this.stopClock();
 		this.logFrames();
 		for (const done of this.runningWaiters.splice(0)) done({ ok: false, error: 'stopped' });
 		this.closeAllAsks();
@@ -2252,6 +2346,7 @@ export class Match {
 		if (TRACE_FRAMES) this.deps.log({ evt: 'wire-frame', matchId: this.id, seat: s.seat, seq: s.seq, ...frameGist(frame) });
 		const cursor: WireCursor = { epoch: this.epoch, seq: s.seq };
 		this.deps.emit(s.seat, { matchId: this.id, cursor, frame, ...(mark === null ? {} : { [mark]: true }), ...(extra ?? {}) });
+		if (frame.method === 'updateButtons') this.syncClock();
 	}
 
 	/**
@@ -2447,6 +2542,7 @@ export class Match {
 					return;
 				}
 				this.status = 'over';
+				this.syncClock();
 				this.winner = line.winner;
 				this.winnerSeat = winnerSeatFromLosers(this.seats, line.losers);
 				this.endedAt = this.now();
@@ -3975,6 +4071,7 @@ export class Match {
 		if (this.status === 'failed' || this.status === 'stopped') return;
 		this.status = 'failed';
 		this.failure = reason;
+		this.stopClock();
 		this.deps.log({ evt: 'match-failed', matchId: this.id, reason });
 		this.logFrames();
 		for (const done of this.runningWaiters.splice(0)) done({ ok: false, error: reason });
@@ -4031,6 +4128,7 @@ export class Match {
 
 	private onExit(reason: string): void {
 		if (this.overTimer !== null) clearTimeout(this.overTimer);
+		this.stopClock();
 		this.closeAllAsks();
 		for (const [, done] of this.probes) done({ error: 'the match ended' });
 		this.probes.clear();
@@ -4167,6 +4265,7 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 				owners: record.owners,
 				startedAt: Date.parse(record.startedAt),
 				snapshot: record.snapshot ?? null,
+				...(record.clockMs === undefined ? {} : { clockMs: record.clockMs }),
 			});
 			matches.set(record.matchId, match);
 			match.resume((events) => attach(record, events));
@@ -4184,6 +4283,10 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 				owners: old.owners(),
 				startedAt: old.startedAt,
 				snapshot,
+				...(() => {
+					const clockMs = old.clockLeft();
+					return clockMs === null ? {} : { clockMs };
+				})(),
 			});
 			matches.set(id, match);
 			old.stop();

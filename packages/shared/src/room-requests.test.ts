@@ -13,11 +13,12 @@ describe('the room settings', () => {
     });
   });
 
-  it('runs the clock on auto exactly in a tournament, and as the leader said otherwise', () => {
-    expect(clockOn({ clock: 'auto', tournament: true })).toBe(true);
-    expect(clockOn({ clock: 'auto', tournament: false })).toBe(false);
-    expect(clockOn({ clock: 'on', tournament: false })).toBe(true);
-    expect(clockOn({ clock: 'off', tournament: true })).toBe(false);
+  it('runs the clock on auto exactly in a pod (a tournament or a draft), and as the leader said otherwise', () => {
+    expect(clockOn({ clock: 'auto', tournament: true }, 'constructed-1v1')).toBe(true);
+    expect(clockOn({ clock: 'auto', tournament: false }, 'constructed-1v1')).toBe(false);
+    expect(clockOn({ clock: 'auto', tournament: false }, 'draft')).toBe(true);
+    expect(clockOn({ clock: 'on', tournament: false }, 'constructed-1v1')).toBe(true);
+    expect(clockOn({ clock: 'off', tournament: true }, 'draft')).toBe(false);
   });
 
   it('patches the clock and the pick timer as settings', () => {

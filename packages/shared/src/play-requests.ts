@@ -7,6 +7,7 @@
 import { z } from 'zod';
 
 import { MAX_DCK_BYTES } from './draft.ts';
+import { MATCH_CLOCK_MS } from './room-requests.ts';
 
 /** A puzzle `[state]` section is bounded like a deck. */
 export const SCENARIO_MAX = 64 * 1024;
@@ -15,11 +16,14 @@ export const FORMAT_ID_MAX = 200;
 const DECK_ERROR = 'each deck is .dck text (at most 64 KiB) or null';
 const SCENARIO_ERROR = 'scenario is the text of a puzzle [state] section (at most 64 KiB)';
 const FORMAT_ERROR = 'format is a format id';
+const CLOCK_ERROR = `clockMs is each seat's time left, two whole numbers of ms 0..${MATCH_CLOCK_MS}`;
+const clockLeft = z.int({ error: CLOCK_ERROR }).min(0, { error: CLOCK_ERROR }).max(MATCH_CLOCK_MS, { error: CLOCK_ERROR });
 
 const deck = z.string({ error: DECK_ERROR }).min(1, { error: DECK_ERROR }).max(MAX_DCK_BYTES, { error: DECK_ERROR }).nullable();
 
 /**
- * `{ opponent?, decks?, names?, scenario?, format?, handSmoothing?, chooser? }`.
+ * `{ opponent?, decks?, names?, scenario?, format?, handSmoothing?, chooser?, clockMs? }`.
+ * `clockMs` runs the chess clock from each seat's time left; absent, there is none.
  * No body, a `null` opponent and `null` decks read as a human opponent and two
  * precon seats. `names` are taken as sent; the server cleans them.
  */
@@ -40,6 +44,7 @@ export const StartMatchBodySchema = z.preprocess(
       format: z.string({ error: FORMAT_ERROR }).min(1, { error: FORMAT_ERROR }).max(FORMAT_ID_MAX, { error: FORMAT_ERROR }).optional(),
       handSmoothing: z.boolean({ error: 'handSmoothing is a boolean' }).optional(),
       chooser: z.union([z.literal(0), z.literal(1)], { error: 'chooser is 0 or 1' }).optional(),
+      clockMs: z.tuple([clockLeft, clockLeft], { error: CLOCK_ERROR }).optional(),
     },
     { error: (iss) => (iss.code === 'unrecognized_keys' ? `unknown field ${iss.keys[0]}` : 'body must be an object') },
   ),

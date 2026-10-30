@@ -1,0 +1,34 @@
+/*
+ * The chess clock (`Clock.tsx`): the life total's badge, one line under it. Dim while the game
+ * is not waiting on this player; full ink with an accent edge while it runs; the theme's warning
+ * in the last minute and its danger in the last ten seconds.
+ */
+.match-clock {
+  display: inline-block;
+  min-width: 2.25rem;
+  padding: 0 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-dim);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.match-clock[data-running] {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+
+.match-clock[data-low] {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+.match-clock[data-out] {
+  color: var(--danger);
+  border-color: var(--danger);
+}

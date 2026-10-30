@@ -349,7 +349,7 @@ function uniqueSeatNames(names: [string | undefined, string | undefined]): [stri
 }
 
 /**
- * `POST /play/matches` body: `{ opponent?: 'human' | 'ai', decks?: [dck | null, dck | null], names?: [string?, string?], scenario?: string, format?: string, handSmoothing?: boolean, chooser?: 0 | 1 }`.
+ * `POST /play/matches` body: `{ opponent?: 'human' | 'ai', decks?: [dck | null, dck | null], names?: [string?, string?], scenario?: string, format?: string, handSmoothing?: boolean, chooser?: 0 | 1, clockMs?: [number, number] }`.
  * `format` is the room's format id, which a card-name ask is narrowed to (`names.ts`),
  * and `handSmoothing` is the room's setting of that name (`MatchSpec.handSmoothing`).
  *
@@ -375,7 +375,7 @@ function uniqueSeatNames(names: [string | undefined, string | undefined]): [stri
 export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | { ok: false; error: string } {
 	const parsed = readBody(StartMatchBodySchema, body);
 	if (!parsed.ok) return parsed;
-	const { opponent, decks, scenario, format, handSmoothing, chooser } = parsed.value;
+	const { opponent, decks, scenario, format, handSmoothing, chooser, clockMs } = parsed.value;
 	const names = parsed.value.names === undefined ? [undefined, undefined] : uniqueSeatNames([sanitizeSeatName(parsed.value.names[0]), sanitizeSeatName(parsed.value.names[1])]);
 	// `CARDTABLE_PLAY_SEED` fixes Forge's shuffles, the coin toss and the precon
 	// pick (`play/README.md`, `MatchSpec.seed`), and `bridgeConfig` spreads the
@@ -425,6 +425,7 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 		...(format === undefined ? {} : { format }),
 		...(handSmoothing === undefined ? {} : { handSmoothing }),
 		...(chooser === undefined ? {} : { chooser }),
+		...(clockMs === undefined ? {} : { clockMs }),
 	};
 	return { ok: true, spec };
 }

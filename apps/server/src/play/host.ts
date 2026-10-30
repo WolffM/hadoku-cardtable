@@ -219,6 +219,12 @@ export interface MatchSpec {
 	 * to `forge/` — a fork change is a jar switch, and that switch is the operator's.
 	 */
 	chooser?: 0 | 1;
+	/**
+	 * The chess clock: each seat's time left, in ms, when this game starts — a room
+	 * with the clock on carries what the series' last game left (`play/clock.ts`).
+	 * Absent: no clock. Inert in the JVM, like `format`.
+	 */
+	clockMs?: [number, number];
 }
 
 type AbortReason = (typeof AbortReasonSchema)['_zod']['output'];
@@ -338,7 +344,7 @@ export interface MatchHost {
 	 * turn-start snapshot. Absent on a host that cannot outlive the process (the
 	 * replay host in the tests).
 	 */
-	remember?(state: { epoch: string; owners: (string | null)[]; snapshot?: TurnSnapshot | null }): void;
+	remember?(state: { epoch: string; owners: (string | null)[]; snapshot?: TurnSnapshot | null; clockMs?: [number, number] }): void;
 	/**
 	 * The server is going down and this match is being LEFT RUNNING. Let go of
 	 * the transport without killing anything and without settling the run
@@ -367,6 +373,8 @@ export interface MatchRecord {
 	spec: MatchSpec;
 	/** The match's latest turn-start snapshot, absent before its first turn. */
 	snapshot?: TurnSnapshot | null;
+	/** Each seat's chess-clock time left when the match last wrote this record; absent with no clock. */
+	clockMs?: [number, number];
 	/** When the server that ran it handed its JVM over. */
 	orphanedAt?: string;
 }
@@ -469,6 +477,8 @@ export function matchStderrPath(workDir: string, log: readonly Record<string, un
 	return typeof placed?.hostId === 'string' ? join(workDir, placed.hostId, 'bridge.stderr.txt') : null;
 }
 
+const isClockMs = (v: unknown): v is [number, number] => Array.isArray(v) && v.length === 2 && v.every((ms) => Number.isInteger(ms) && ms >= 0);
+
 /** `<dir>/jvm.json`, or null when it is missing, unreadable or not a record. */
 export function readJvmRecord(dir: string): JvmRecord | null {
 	let parsed: unknown;
@@ -493,6 +503,7 @@ export function readJvmRecord(dir: string): JvmRecord | null {
 			epoch: typeof m.epoch === 'string' ? m.epoch : null,
 			owners: Array.isArray(m.owners) ? m.owners.map((o) => (typeof o === 'string' ? o : null)) : [],
 			spec: m.spec,
+			...(isClockMs(m.clockMs) ? { clockMs: m.clockMs } : {}),
 		})),
 	};
 }
@@ -996,7 +1007,13 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 			},
 			stop: () => stopMatch(h),
 			remember: (state) => {
-				h.entry = { ...h.entry, epoch: state.epoch, owners: state.owners, ...(state.snapshot === undefined ? {} : { snapshot: state.snapshot }) };
+				h.entry = {
+					...h.entry,
+					epoch: state.epoch,
+					owners: state.owners,
+					...(state.snapshot === undefined ? {} : { snapshot: state.snapshot }),
+					...(state.clockMs === undefined ? {} : { clockMs: state.clockMs }),
+				};
 				writeRecord(h.jvm);
 			},
 			handOver: () => {

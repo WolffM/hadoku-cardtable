@@ -494,6 +494,12 @@ export const SeatIdentitySchema = z
     coinToss: z.object({ winner: z.number().int().min(0), at: z.unknown() }).strict().optional(),
     /** This seat's player left, past the server's grace. Absent while they are here. */
     away: z.boolean().optional(),
+    /**
+     * This seat's chess clock, as of the roster: `ms` left and whether it is running. Re-sent
+     * whenever a clock starts or stops, so a screen counts a running one down from when this
+     * arrived and never decides time itself. Absent in a game without a clock.
+     */
+    clock: z.object({ ms: z.number().int().min(0), running: z.boolean() }).strict().optional(),
   })
   .strict();
 export type SeatIdentity = z.infer<typeof SeatIdentitySchema>;

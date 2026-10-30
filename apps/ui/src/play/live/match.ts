@@ -260,7 +260,7 @@ import { io } from 'socket.io-client';
 
 import { defaultSocketPath } from '../../draft/socket.ts';
 import { normalizeAvatarId } from '../../room/avatar.ts';
-import { attackLockedIn, drawsFaceUp, manaCostTokens, toBoardView, viewerOf, type BoardCard, type BoardView, type DamageHit, type DeathCause, type FaceHit, type PoolColor } from '../adapter.ts';
+import { attackLockedIn, drawsFaceUp, manaCostTokens, toBoardView, viewerOf, type BoardCard, type BoardView, type DamageHit, type DeathCause, type FaceHit, type PlayerClock, type PoolColor } from '../adapter.ts';
 import type { Revealed } from './numbers.ts';
 import { shownFlip, shownRoll, type ShownFlip, type ShownRoll } from './shown.ts';
 import { preloadMatchArt } from './art-preload.ts';
@@ -899,6 +899,12 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
   /** The seats whose player left, past the server's grace — `forge:seats`' `away`. */
   awaySeats: ReadonlySet<number>;
   /**
+   * Each player's chess clock, keyed by Forge PLAYER id, from `forge:seats`' `clock` — the
+   * server's reading and when this screen got it (`at`, its own `Date.now()`), so a running one
+   * is counted down from there (`Clock.tsx`). `null` in a game without a clock.
+   */
+  clockByPlayerId: ReadonlyMap<number, PlayerClock> | null;
+  /**
    * The coin toss while the winner's Play/Draw question is open —
    * `forge:seats`' `coinToss`, the same on every seat's entry. `winner` is a
    * SEAT; `playerId` is that seat's Forge player when the roster already names
@@ -1135,6 +1141,7 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     playerIdBySeat: null,
     waitingOn: null,
     awaySeats: new Set(),
+    clockByPlayerId: null,
     coinToss: null,
     spectator: false,
     watcher: false,
@@ -1562,6 +1569,12 @@ function adoptSeats(match: LiveMatch, payload: unknown): void {
   // The decision has left this seat: whatever it held is not drawn again (`./offer-hold.ts`).
   if (waitingOnAnother(match)) match.offerHold = null;
   match.awaySeats = new Set(parsed.value.seats.filter((seat) => seat.away === true).map((seat) => seat.seat));
+  const clocks = new Map<number, PlayerClock>();
+  const at = Date.now();
+  for (const seat of parsed.value.seats) {
+    if (seat.playerId !== null && seat.clock !== undefined) clocks.set(seat.playerId, { ...seat.clock, at });
+  }
+  match.clockByPlayerId = clocks.size === 0 ? null : clocks;
   const tossed = parsed.value.seats.find((seat) => seat.coinToss !== undefined)?.coinToss;
   match.coinToss =
     tossed === undefined
@@ -3128,6 +3141,7 @@ function redraw(match: LiveMatch): void {
             ? {}
             : { unclaimed: { avatarId: match.unclaimedAvatar, seated: new Set(match.playerIdBySeat.values()) } }),
           nameByPlayerId: match.nameByPlayerId ?? undefined,
+          clockByPlayerId: match.clockByPlayerId ?? undefined,
           stackTargetSpells: match.stackTargetSpells,
           pendingTriggers: match.pendingTriggers,
           waitingEffects: match.waitingEffects,
