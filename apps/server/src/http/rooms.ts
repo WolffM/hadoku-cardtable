@@ -10,7 +10,6 @@
  *   POST  /api/rooms            { name, gameType?, clientMode?, password?, mode?, modeOptions? } → 201 RoomView
  *   GET   /api/rooms/:id        → 200 RoomView | 404
  *   GET   /api/rooms/of-match/:matchId → 200 RoomView (the room that started it, members only) | 404
- *   GET   /api/rooms/table-of-match/:matchId → 200 { id, tables } (anyone: which table a watcher's chat is) | 404
  *   POST  /api/rooms/:id/join   { password? }                   → 200 RoomView | 404 | 429
  *   POST  /api/rooms/:id/ready  { ready }                       → 200 RoomView | 400 | 403 | 404
  *   POST  /api/rooms/:id/leave  {} or no body                   → 200 RoomView | 403 | 404
@@ -373,18 +372,6 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		const me = callerOf(req).id;
 		if (room === undefined || !lobby.isMember(room.id, me)) return noMatch(res);
 		res.json(roomBody(room, me));
-	});
-
-	// The table a match is at, for anyone who may watch it (everyone): a watcher's chat is the table's,
-	// the same one its players are in. Only what names the table, never a member's view of the room.
-	rooms.get('/table-of-match/:matchId', (req: Request, res: Response) => {
-		const matchId = String(req.params.matchId);
-		const room = ROOM_ID_RE.test(matchId) ? lobby.roomOfMatch(matchId) : undefined;
-		if (room === undefined) return noMatch(res);
-		res.json({
-			id: room.id,
-			tables: room.tables.map((t) => ({ id: t.id, matchId: t.matchId, series: { games: t.series.games.map((g) => ({ matchId: g.matchId })) } })),
-		});
 	});
 
 	rooms.get('/:id', (req: Request, res: Response) => {

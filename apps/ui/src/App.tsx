@@ -42,7 +42,7 @@ import { HeaderLinks } from './chrome/HeaderLinks.tsx';
 import { RoomShell } from './room/RoomShell.tsx';
 import { useWhoami } from './room/whoami.ts';
 import { knownRoomOfMatch } from './play/live/matchStart.ts';
-import { roomsClient, type RoomOfMatchClient, type RoomView, type TableOfMatch } from './rooms/api.ts';
+import { roomsClient, type RoomView } from './rooms/api.ts';
 import { useUiScale } from './settings/Settings.tsx';
 import { useTrim } from './settings/siteTrim.ts';
 
@@ -55,7 +55,7 @@ export type AppProps = ScreenProps;
  * — one table — keep one chat between them. A match no table names (it has
  * since been let go) is its own.
  */
-export function tableChatId(room: TableOfMatch, matchId: string): string {
+export function tableChatId(room: { id: string; tables: readonly { id: string; matchId: string | null; series: { games: readonly { matchId: string }[] } }[] }, matchId: string): string {
   const table = room.tables.find((t) => t.matchId === matchId || t.series.games.some((g) => g.matchId === matchId));
   return `${room.id}-${table?.id ?? matchId}`;
 }
@@ -120,20 +120,6 @@ function placeOfMatch(room: RoomView | null, matchId: string): RoomPlace | null 
   return room === null ? null : { roomId: room.id, chatId: tableChatId(room, matchId) };
 }
 
-/**
- * A match screen's place: a member's room and its table chat, or, for a watcher who is no member
- * (`roomOfMatch`'s 404), the same table chat with their avatar on the match's own id, since a
- * non-member asserts none to the room. The operator, 2026-10-29, spectating a game whose chat
- * listed only themselves: "players should be able to chat with spectators". `null`: no room
- * started this match at all.
- */
-export async function matchPlaceOf(client: RoomOfMatchClient, matchId: string): Promise<RoomPlace | null> {
-  const room = await client.roomOfMatch(matchId);
-  if (room !== null) return placeOfMatch(room, matchId);
-  const table = await client.tableOfMatch(matchId);
-  return table === null ? null : { roomId: matchId, chatId: tableChatId(table, matchId) };
-}
-
 function useMatchRoomId(matchId: string | null): { room: RoomPlace | null; pending: boolean } {
   const [state, setState] = useState<{ room: RoomPlace | null; everAnswered: boolean }>({ room: null, everAnswered: false });
   // A match entered from its room had its room asked before the route changed (`matchStart.ts`):
@@ -146,9 +132,11 @@ function useMatchRoomId(matchId: string | null): { room: RoomPlace | null; pendi
       return;
     }
     let live = true;
-    matchPlaceOf(roomsClient(), matchId).then(
+    roomsClient()
+      .roomOfMatch(matchId)
+      .then(
         (room) => {
-          if (live) setState({ room, everAnswered: true });
+          if (live) setState({ room: placeOfMatch(room, matchId), everAnswered: true });
         },
         () => {
           if (live) setState({ room: null, everAnswered: true });

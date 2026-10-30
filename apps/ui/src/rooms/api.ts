@@ -311,33 +311,6 @@ export interface RoomBindClient {
  */
 export interface RoomOfMatchClient {
   roomOfMatch(matchId: string): Promise<RoomView | null>;
-  /**
-   * Which room and table a match is at, for anyone (a watcher who is no member gets `roomOfMatch`'s
-   * 404): enough to name the table's chat (`App.tsx`'s `tableChatId`), nothing a member alone reads.
-   * `null` is the server's 404.
-   */
-  tableOfMatch(matchId: string): Promise<TableOfMatch | null>;
-}
-
-/** `GET /api/rooms/table-of-match/:matchId`: the room's id and its tables, as far as they name a match. */
-export interface TableOfMatch {
-  id: string;
-  tables: readonly { id: string; matchId: string | null; series: { games: readonly { matchId: string }[] } }[];
-}
-
-function parseTableOfMatch(body: unknown): TableOfMatch | null {
-  if (typeof body !== 'object' || body === null) return null;
-  const { id, tables } = body as { id?: unknown; tables?: unknown };
-  if (typeof id !== 'string' || !Array.isArray(tables)) return null;
-  const parsed: TableOfMatch['tables'][number][] = [];
-  for (const t of tables as unknown[]) {
-    const table = t as { id?: unknown; matchId?: unknown; series?: { games?: unknown } } | null;
-    if (table === null || typeof table.id !== 'string' || !(typeof table.matchId === 'string' || table.matchId === null)) return null;
-    const games = Array.isArray(table.series?.games) ? (table.series.games as { matchId?: unknown }[]) : null;
-    if (games === null || !games.every((g) => typeof g?.matchId === 'string')) return null;
-    parsed.push({ id: table.id, matchId: table.matchId, series: { games: games.map((g) => ({ matchId: g.matchId as string })) } });
-  }
-  return { id, tables: parsed };
 }
 
 /**
@@ -462,21 +435,6 @@ export function roomsClient(
 
     roomOfMatch(matchId) {
       return read(`/of-match/${encodeURIComponent(matchId)}`);
-    },
-
-    async tableOfMatch(matchId) {
-      let res: Response;
-      try {
-        res = await getJson(url(`/table-of-match/${encodeURIComponent(matchId)}`), fetchImpl);
-      } catch {
-        throw new Error('Could not reach the server.');
-      }
-      if (res.status === 404) return null;
-      const body = await bodyOf(res);
-      if (!res.ok) throw new Error(`Could not load the match's table: ${serverMessage(body, res.status)}.`);
-      const table = parseTableOfMatch(body);
-      if (table === null) throw new Error("The server sent something that is not a match's table.");
-      return table;
     },
 
     create(req) {
