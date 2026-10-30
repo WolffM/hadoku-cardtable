@@ -3944,3 +3944,125 @@ describe('a table resolved from its card: Abandon and Drop match (docs/planning/
 		expect(pod.pairings.map((p) => p.tableId)).toContain(second!.tableId);
 	});
 });
+
+describe('Leader tools: DQ a player, reset a game', () => {
+	/** Bob and Carol against two AI entrants, Alice leading — watching, or at seat 3 in the AI's place. */
+	async function fourEntrants(opts: { leaderSeated?: boolean } = {}) {
+		const entries: Record<string, unknown>[] = [];
+		const ended: SeriesEnd[] = [];
+		const dir = await tempDir();
+		const lobby = await openLobby({ dir, log: (e) => entries.push(e), onSeriesEnd: (end) => ended.push(end) });
+		const made = lobby.create(ALICE, { name: 'DQ night', gameType: 'constructed-1v1', clientMode: 'builtin', mode: { mode: 'classic', modeOptions: {} } });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		for (const m of [BOB, CAROL]) expect(lobby.join(id, m).ok).toBe(true);
+		expect(lobby.setSettings(id, ALICE.id, { tournament: true }).ok).toBe(true);
+		expect(lobby.sitPod(id, BOB.id, 0).ok).toBe(true);
+		expect(lobby.sitPod(id, CAROL.id, 1).ok).toBe(true);
+		expect(lobby.aiPod(id, ALICE.id, 2, true).ok).toBe(true);
+		if (opts.leaderSeated === true) expect(lobby.sitPod(id, ALICE.id, 3).ok).toBe(true);
+		else expect(lobby.aiPod(id, ALICE.id, 3, true).ok).toBe(true);
+		lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id, CAROL.id]) }));
+		const started = lobby.startDraft(id, ALICE.id);
+		if (!started.ok) throw new Error('rounds did not start');
+		const tableOf = (who: string) => lobby.get(id)!.pod!.pairings.find((p) => p.players.includes(who))!.tableId;
+		return { lobby, dir, id, entries, ended, tableOf };
+	}
+
+	it('the leader, watching, DQs a player mid-round: their match is a loss, their later pairings are byes, and the standings keep them, marked', async () => {
+		const { lobby, dir, id, entries, tableOf } = await fourEntrants();
+		const bobs = tableOf(BOB.id);
+		expect(lobby.setTableMatch(id, bobs, 'm-bob1')).toBe(true);
+
+		expect(lobby.dqPlayer(id, ALICE.id, BOB.id)).toEqual({ ok: true, tableId: bobs, matchIds: ['m-bob1'] });
+		let view = lobby.get(id)!;
+		const round1 = view.pod!.results.filter((r) => r.round === 1 && (r.playerA === BOB.id || r.playerB === BOB.id));
+		expect(round1, 'his match this round is recorded once, as a loss').toHaveLength(1);
+		const r1 = round1[0]!;
+		expect(r1.playerA === BOB.id ? [r1.gamesA, r1.gamesB] : [r1.gamesB, r1.gamesA]).toEqual([0, 2]);
+		expect(view.tables.find((t) => t.id === bobs)).toMatchObject({ matchId: null, series: { phase: 'done' } });
+		expect(view.pod!.dropped).toEqual([BOB.id]);
+		expect(entries).toContainEqual(expect.objectContaining({ event: 'player-dq', roomId: id, by: ALICE.id, memberId: BOB.id }));
+
+		// Carol's table finishes round 1; round 2 pairs, and whoever drew Bob gets a bye instead of a table.
+		const carols = tableOf(CAROL.id);
+		for (const m of ['m-c1', 'm-c2']) {
+			expect(lobby.setTableMatch(id, carols, m)).toBe(true);
+			lobby.recordGameResult(id, carols, { matchId: m, winner: 0 });
+		}
+		view = lobby.get(id)!;
+		expect(view.pod!.round).toBe(2);
+		expect(view.pod!.pairings.flatMap((p) => p.players), 'no table in round 2 seats him').not.toContain(BOB.id);
+		const round2 = view.pod!.results.filter((r) => r.round === 2);
+		expect(round2.some((r) => r.playerA === BOB.id || r.playerB === BOB.id), 'he plays no further match, so his record is kept').toBe(false);
+		expect(round2.filter((r) => r.playerB === null), 'his opponent has a bye').toHaveLength(1);
+		expect(view.pod!.standings.map((s) => s.id)).toContain(BOB.id);
+
+		// Survives a restart.
+		const reopened = await openLobby({ dir });
+		expect(reopened.get(id)!.pod!.dropped).toEqual([BOB.id]);
+	});
+
+	it('a seated leader may DQ too; nobody else may, and a player is DQ’d once', async () => {
+		const { lobby, id } = await fourEntrants({ leaderSeated: true });
+		expect(lobby.dqPlayer(id, CAROL.id, BOB.id)).toEqual({ ok: false, reason: 'not-leader' });
+		expect(lobby.dqPlayer(id, ALICE.id, 'fk:9999999999999999')).toEqual({ ok: false, reason: 'not-entrant' });
+		expect(lobby.dqPlayer(id, ALICE.id, BOB.id)).toMatchObject({ ok: true, matchIds: [] });
+		expect(lobby.dqPlayer(id, ALICE.id, BOB.id)).toEqual({ ok: false, reason: 'already-dropped' });
+		expect(lobby.get(id)!.pod!.dropped).toEqual([BOB.id]);
+	});
+
+	it('DQ is a pod’s: a room with no rounds under way refuses it', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		expect(lobby.join(made.room.id, BOB).ok).toBe(true);
+		expect(lobby.dqPlayer(made.room.id, ALICE.id, BOB.id)).toEqual({ ok: false, reason: 'no-pod' });
+		expect(lobby.dqPlayer('r-000000000000', ALICE.id, BOB.id)).toEqual({ ok: false, reason: 'no-room' });
+	});
+
+	it('the leader resets a game: the game in play is let go, the series score stands, and the next start is the same game again', async () => {
+		const { lobby, id, entries, ended, tableOf } = await fourEntrants();
+		const carols = tableOf(CAROL.id);
+		expect(lobby.setTableMatch(id, carols, 'm-c1')).toBe(true);
+		lobby.recordGameResult(id, carols, { matchId: 'm-c1', winner: 0 });
+		expect(lobby.setTableMatch(id, carols, 'm-c2')).toBe(true);
+
+		expect(lobby.resetGame(id, CAROL.id, carols)).toEqual({ ok: false, reason: 'not-leader' });
+		expect(lobby.resetGame(id, ALICE.id, carols)).toEqual({ ok: true, matchId: 'm-c2' });
+		const table = () => lobby.get(id)!.tables.find((t) => t.id === carols)!;
+		expect(table()).toMatchObject({ matchId: null, series: { wins: [1, 0], phase: 'playing' } });
+		expect(table().series.games).toHaveLength(1);
+		expect(entries).toContainEqual(expect.objectContaining({ event: 'game-reset', roomId: id, tableId: carols, by: ALICE.id, matchId: 'm-c2' }));
+		expect(lobby.resetGame(id, ALICE.id, carols), 'nothing in play to reset').toEqual({ ok: false, reason: 'no-game' });
+
+		// The restarted game is game 2 again, of the same series.
+		expect(lobby.setTableMatch(id, carols, 'm-c2b')).toBe(true);
+		expect(table().series).toMatchObject({ wins: [1, 0], phase: 'playing' });
+		lobby.recordGameResult(id, carols, { matchId: 'm-c2b', winner: 0 });
+		expect(table().series).toMatchObject({ wins: [2, 0], phase: 'done' });
+		expect(table().series.games.map((g) => g.matchId)).toEqual(['m-c1', 'm-c2b']);
+		expect(ended.filter((e) => e.tableId === carols)).toHaveLength(1);
+	});
+
+	it('an entrant who leaves mid-round is dropped the same way: the match is forfeited, its game handed back to end, and they stay in the standings, marked', async () => {
+		const { lobby, id, entries, tableOf } = await fourEntrants();
+		const bobs = tableOf(BOB.id);
+		expect(lobby.setTableMatch(id, bobs, 'm-bob1')).toBe(true);
+		const left = lobby.leave(id, BOB.id);
+		expect(left).toMatchObject({ ok: true, forfeited: { tableId: bobs, matchIds: ['m-bob1'] } });
+		const pod = lobby.get(id)!.pod!;
+		expect(pod.dropped).toEqual([BOB.id]);
+		expect(pod.results.filter((r) => r.round === 1 && (r.playerA === BOB.id || r.playerB === BOB.id))).toHaveLength(1);
+		expect(entries).toContainEqual(expect.objectContaining({ event: 'pod-entrant-left', memberId: BOB.id, matchIds: ['m-bob1'] }));
+		expect(lobby.leave(id, ALICE.id), 'a watching leader leaving drops nobody').not.toHaveProperty('forfeited');
+	});
+
+	it('a seated leader resets their own table’s game the same way', async () => {
+		const { lobby, id, tableOf } = await fourEntrants({ leaderSeated: true });
+		const alices = tableOf(ALICE.id);
+		expect(lobby.setTableMatch(id, alices, 'm-a1')).toBe(true);
+		expect(lobby.resetGame(id, ALICE.id, alices)).toEqual({ ok: true, matchId: 'm-a1' });
+		expect(lobby.resetGame(id, ALICE.id, 't-00000000')).toEqual({ ok: false, reason: 'no-such-table' });
+	});
+});

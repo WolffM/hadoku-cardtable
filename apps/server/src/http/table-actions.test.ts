@@ -33,24 +33,41 @@ interface Harness {
 }
 
 /** A room alice leads and bob is in, its table playing `MATCH` with alice at seat 0 and bob at seat 1 — mounted after the rooms router, as `index.ts` mounts it. */
-async function open(opts: { refuse?: string } = {}): Promise<Harness> {
+async function open(opts: { refuse?: string; pod?: boolean } = {}): Promise<Harness> {
 	const dir = await mkdtemp(join(tmpdir(), 'cardtable-table-actions-'));
 	const lobby = await openLobby({ dir });
-	const made = lobby.create({ id: ALICE, name: 'alice' }, { name: 'tonight', gameType: 'constructed-1v1', clientMode: 'builtin' });
+	const made = lobby.create({ id: ALICE, name: 'alice' }, { name: 'tonight', gameType: 'constructed-1v1', clientMode: 'builtin', ...(opts.pod === true ? { mode: { mode: 'classic', modeOptions: {} } } : {}) });
 	if (!made.ok) throw new Error(made.reason);
 	const roomId = made.room.id;
 	expect(lobby.join(roomId, { id: BOB, name: 'bob' }).ok).toBe(true);
 	expect(lobby.join(roomId, { id: CAROL, name: 'carol' }).ok).toBe(true);
-	const tableId = lobby.get(roomId)!.tables[0]!.id;
-	expect(lobby.sit(roomId, tableId, ALICE) && lobby.sit(roomId, tableId, BOB)).toBe(true);
+	// A pod: Bob and Carol play the tournament's one pairing, Alice leads it watching.
+	const players = opts.pod === true ? [BOB, CAROL] : [ALICE, BOB];
+	let tableId = lobby.get(roomId)!.tables[0]!.id;
+	if (opts.pod === true) {
+		expect(lobby.setSettings(roomId, ALICE, { tournament: true }).ok).toBe(true);
+		players.forEach((id, seat) => expect(lobby.sitPod(roomId, id, seat).ok).toBe(true));
+		lobby.setPodChecks({
+			draftComplete: () => true,
+			built: () => true,
+			seatState: () => null,
+			holdsSeriesDeck: () => true,
+			roundNamesOf: () => ['', '', ''],
+			hasLegalSeatDeck: () => true,
+			currentTournamentDeck: () => null,
+			seatTournamentDeck: () => {},
+		});
+		const started = lobby.startDraft(roomId, ALICE);
+		if (!started.ok) throw new Error(started.reason);
+		tableId = started.room.pod!.pairings[0]!.tableId;
+	} else {
+		expect(lobby.sit(roomId, tableId, ALICE) && lobby.sit(roomId, tableId, BOB)).toBe(true);
+	}
 	expect(lobby.setTableMatch(roomId, tableId, MATCH)).toBe(true);
 	const acts: Harness['acts'] = [];
 	const stopped: string[] = [];
 	const ended: string[] = [];
-	const seats = new Map<string, number>([
-		[ALICE, 0],
-		[BOB, 1],
-	]);
+	const seats = new Map<string, number>(players.map((id, seat) => [id, seat]));
 	const app = express();
 	const api = express.Router();
 	api.use(express.json());
@@ -143,5 +160,55 @@ describe('POST /api/rooms/:roomId/tables/:tableId/abandon', () => {
 		h.lobby.releaseTableMatch(h.roomId, h.tableId);
 		expect((await act(h, 'abandon', ALICE)).status).toBe(409);
 		expect(h.stopped).toEqual([]);
+	});
+});
+
+const leader = (h: Harness, as: string, path: string, body?: unknown) =>
+	fetch(`${h.base}/api/rooms/${h.roomId}/${path}`, { method: 'POST', headers: { 'x-test-user': as, 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) });
+
+describe('POST /api/rooms/:roomId/tables/:tableId/reset', () => {
+	it('the leader, watching, restarts the game in play: it is stopped, the series score stands', async () => {
+		const h = await open({ pod: true });
+		const res = await leader(h, ALICE, `tables/${h.tableId}/reset`);
+		expect(res.status).toBe(200);
+		expect(h.stopped).toEqual([MATCH]);
+		expect(h.acts, 'a reset concedes nothing').toEqual([]);
+		expect(h.lobby.get(h.roomId)!.tables.find((t) => t.id === h.tableId)).toMatchObject({ matchId: null, series: { phase: 'playing', wins: [0, 0] } });
+	});
+
+	it('a seated leader may too; a player who is not the leader may not, and a non-member hears of no room', async () => {
+		const h = await open();
+		expect((await leader(h, BOB, `tables/${h.tableId}/reset`)).status).toBe(403);
+		expect((await leader(h, 'fk:dddddddddddddddd', `tables/${h.tableId}/reset`)).status).toBe(404);
+		expect(h.stopped).toEqual([]);
+		expect((await leader(h, ALICE, `tables/${h.tableId}/reset`)).status).toBe(200);
+		expect((await leader(h, ALICE, `tables/${h.tableId}/reset`)).status, 'nothing left in play').toBe(409);
+		expect(h.stopped).toEqual([MATCH]);
+	});
+});
+
+describe('POST /api/rooms/:roomId/pod/dq', () => {
+	it('the leader disqualifies a player: their game is conceded for their seat, their match lost, and they are marked out', async () => {
+		const h = await open({ pod: true });
+		const res = await leader(h, ALICE, 'pod/dq', { memberId: CAROL });
+		expect(res.status).toBe(200);
+		expect(h.acts).toEqual([{ seat: 1, frame: { kind: 'act', method: 'concede' } }]);
+		expect(h.stopped).toEqual([]);
+		expect(h.ended).toEqual([h.tableId]);
+		const pod = h.lobby.get(h.roomId)!.pod!;
+		expect(pod.dropped).toEqual([CAROL]);
+		expect(pod.results).toEqual([{ round: 1, playerA: BOB, playerB: CAROL, gamesA: 2, gamesB: 0 }]);
+	});
+
+	it('refuses anyone but the leader, a body that names nobody, a non-entrant, and a room with no rounds', async () => {
+		const h = await open({ pod: true });
+		expect((await leader(h, BOB, 'pod/dq', { memberId: CAROL })).status).toBe(403);
+		expect((await leader(h, ALICE, 'pod/dq', {})).status).toBe(400);
+		expect((await leader(h, ALICE, 'pod/dq', { memberId: CAROL, extra: 1 })).status).toBe(400);
+		expect((await leader(h, ALICE, 'pod/dq', { memberId: ALICE })).status).toBe(404);
+		expect(h.lobby.get(h.roomId)!.pod!.dropped).toEqual([]);
+		const plain = await open();
+		expect((await leader(plain, ALICE, 'pod/dq', { memberId: BOB })).status).toBe(409);
+		expect(h.acts).toEqual([]);
 	});
 });

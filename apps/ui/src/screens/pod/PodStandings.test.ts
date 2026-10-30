@@ -96,4 +96,13 @@ describe('the pod standings', () => {
     expect(screen.getByTestId('pod-standings-row-2').hasAttribute('data-mine')).toBe(true);
     expect(screen.getByTestId('pod-standings-row-2').textContent).not.toContain('(you)');
   });
+
+  it('keeps a dropped entrant ranked on their record, marked Dropped', () => {
+    const rows = [row({ id: 'u-alice', rank: 1 }), row({ id: 'u-bob', rank: 2, matchPoints: 0, decidedBy: 'matchPoints' })];
+    render(createElement(PodStandings, { rows, nameOf, myMemberId: null, dropped: ['u-bob'] }));
+
+    expect(screen.getByTestId('pod-standings-row-1').hasAttribute('data-dropped')).toBe(false);
+    expect(screen.getByTestId('pod-standings-row-2').hasAttribute('data-dropped')).toBe(true);
+    expect(screen.getByTestId('pod-standings-row-2').textContent).toContain('Dropped');
+  });
 });

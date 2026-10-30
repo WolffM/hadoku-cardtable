@@ -169,4 +169,38 @@ describe('TableCard', () => {
     expect(onDrop).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('card-drop').closest('a'), 'never inside the way in').toBeNull();
   });
+
+  it('offers the watching leader Reset game on a game in play: the confirm leaves the score as it is, Cancel backs out, Reset asks the server', async () => {
+    const onReset = vi.fn(async () => null as string | null);
+    card({ onReset, myMemberId: 'u-carol', go: null });
+    fireEvent.click(screen.getByTestId('card-reset'));
+    expect(screen.getByTestId('card-reset-confirm').querySelector('.table-card__change')?.textContent).toBe('1–0→1–0');
+    expect(screen.getByTestId('card-reset-keep').textContent).toBe('Cancel');
+    fireEvent.click(screen.getByTestId('card-reset-keep'));
+    expect(onReset).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('card-reset'));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('card-reset-yes'));
+    });
+    expect(onReset).toHaveBeenCalledTimes(1);
+    cleanup();
+    card({ onReset, matchId: null, series: { length: 3, wins: [1, 0], played: 1, phase: 'sideboarding' } });
+    expect(screen.queryByTestId('card-reset'), 'nothing in play to reset').toBeNull();
+  });
+
+  it('offers the leader DQ for each human seat of a match under way: the confirm shows that seat’s forfeit, DQ asks the server for that player', async () => {
+    const onDq = vi.fn(async (_id: string) => null as string | null);
+    card({ onDq, dqable: (id) => id !== 'u-alice', myMemberId: 'u-alice' });
+    expect(screen.queryByTestId('card-dq0'), 'a seat that cannot be DQ’d offers none').toBeNull();
+    expect(screen.getByTestId('card-dq1').textContent).toBe('DQ Bob');
+    fireEvent.click(screen.getByTestId('card-dq1'));
+    expect(screen.getByTestId('card-dq1-confirm').querySelector('.table-card__change')?.textContent).toBe('1–0→2–0');
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('card-dq1-yes'));
+    });
+    expect(onDq).toHaveBeenCalledWith('u-bob');
+    cleanup();
+    card({ onDq, series: { length: 3, wins: [2, 0], played: 2, phase: 'done' } });
+    expect(screen.queryByTestId('card-dq0'), 'a finished match has nobody to DQ').toBeNull();
+  });
 });
