@@ -16,7 +16,8 @@ import { whoami as hadokuWhoami } from '@wolffm/prefs-client';
 
 export interface Who {
   userId: string;
-  tier: 'admin' | 'wife' | 'service' | 'friend' | 'public';
+  /** The fleet's own tier list, so a tier it adds (`member`) is not a type error here. */
+  tier: Awaited<ReturnType<typeof hadokuWhoami>>['userType'];
   /** The viewer's display name. Null when the fleet has none for them. */
   name: string | null;
 }
