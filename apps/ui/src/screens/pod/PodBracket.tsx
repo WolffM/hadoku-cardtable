@@ -25,7 +25,7 @@ import type { RoomTable, SeriesPhase, TableGame } from '@hadoku/shared';
 import { Avatar } from '../../components/Avatar.tsx';
 import { routeHash } from '../route.ts';
 import { TableCard } from '../TableCard.tsx';
-import { resolveTable } from '../tableActions.ts';
+import { dqPlayer, resolveTable } from '../tableActions.ts';
 import { isPodAi, type PodView } from './wire.ts';
 import './PodBracket.css';
 
@@ -88,6 +88,8 @@ export interface PodBracketProps {
   pod: PodView;
   tables: readonly RoomTable[];
   myMemberId: string | null;
+  /** I lead the room: each live match offers Reset game and DQ (`TableCard.tsx`), seated or watching. */
+  leader?: boolean | undefined;
   nameOf: (memberId: string) => string;
   /** A player's watchparty character, or `null` for none. */
   avatarOf: (memberId: string) => string | null;
@@ -100,7 +102,8 @@ function Face({ id, nameOf, avatarOf }: { id: string; nameOf: (id: string) => st
   return <Avatar id={avatarOf(id)} fallback="initial" name={nameOf(id)} className="pod-bracket__face" fallbackClassName="pod-bracket__face pod-bracket__face--none" width={32} height={32} />;
 }
 
-export function PodBracket({ roomId, pod, tables, myMemberId, nameOf, avatarOf, games }: PodBracketProps) {
+export function PodBracket({ roomId, pod, tables, myMemberId, leader = false, nameOf, avatarOf, games }: PodBracketProps) {
+  const out = new Set(pod.dropped ?? []);
   const rounds = bracketRounds(pod, tables);
   return (
     <div className="pod-bracket" data-testid="pod-tables">
@@ -143,6 +146,9 @@ export function PodBracket({ roomId, pod, tables, myMemberId, nameOf, avatarOf, 
                     go={go}
                     onConcede={go !== null && mine && matchId !== null && m.table !== null ? () => resolveTable('concede', roomId, m.table!.id) : undefined}
                     onDrop={mine && r.state === 'now' && m.table !== null ? () => resolveTable('drop', roomId, m.table!.id) : undefined}
+                    onReset={leader && r.state === 'now' && m.table !== null ? () => resolveTable('reset', roomId, m.table!.id) : undefined}
+                    onDq={leader && r.state === 'now' ? (memberId) => dqPlayer(roomId, memberId) : undefined}
+                    dqable={(id) => !isPodAi(id) && !out.has(id)}
                   />
                 );
               })}

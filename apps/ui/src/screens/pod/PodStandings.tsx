@@ -33,6 +33,8 @@ export interface PodStandingsProps {
   rows: PodStandingsRowLike[];
   nameOf: (memberId: string) => string;
   myMemberId: string | null;
+  /** Entrants out of the rounds (`PodView.dropped`): ranked on their record, marked. */
+  dropped?: readonly string[] | undefined;
 }
 
 /** `62%`, never `61.999…%`. */
@@ -55,7 +57,7 @@ const TIEBREAK_COLUMNS: readonly { key: Exclude<PodTiebreak, 'matchPoints'>; hea
   { key: 'medianGameMs', head: 'Median Game', show: (r) => minutes(r.medianGameMs) },
 ];
 
-export function PodStandings({ rows, nameOf, myMemberId }: PodStandingsProps) {
+export function PodStandings({ rows, nameOf, myMemberId, dropped = [] }: PodStandingsProps) {
   if (rows.length === 0) return null;
   // Each row's own `decidedBy` (against the row above), and the row above's (against this one).
   const decided = (i: number): ReadonlySet<PodTiebreak> =>
@@ -79,9 +81,12 @@ export function PodStandings({ rows, nameOf, myMemberId }: PodStandingsProps) {
         {rows.map((row, i) => {
           const marks = decided(i);
           return (
-            <tr key={row.id} data-testid={`pod-standings-row-${row.rank}`} data-mine={row.id === myMemberId ? '' : undefined}>
+            <tr key={row.id} data-testid={`pod-standings-row-${row.rank}`} data-mine={row.id === myMemberId ? '' : undefined} data-dropped={dropped.includes(row.id) ? '' : undefined}>
               <td>{row.rank}</td>
-              <td>{nameOf(row.id)}</td>
+              <td>
+                {nameOf(row.id)}
+                {dropped.includes(row.id) && <span className="pod-standings__dropped">Dropped</span>}
+              </td>
               <td>{row.matchPoints}</td>
               {TIEBREAK_COLUMNS.map((c) => (
                 <td key={c.key} data-key={c.key} data-decided={marks.has(c.key) ? '' : undefined}>

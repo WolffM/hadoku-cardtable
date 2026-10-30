@@ -11,7 +11,9 @@
  * in: Return to game, Sideboard, Play or Watch, as the screen drawing it says. Beside it, a seated
  * player's own ways to resolve the game, each confirmed with the score it leaves: Concede game (any
  * room), Abandon (a constructed room: the series ends with no result) and Drop match (a pod or
- * tournament: the match is forfeited).
+ * tournament: the match is forfeited). The room leader's, seated or watching (the operator, 2026-10-30:
+ * *"the room leader is the admin"*): Reset game (the game in play starts again, the score stands) and
+ * DQ a player (their match is forfeited and they are out of the rounds), confirmed the same way.
  *
  * `full` is a room's own table between games or a player's own; `compact` is every table on a pod's
  * or tournament's hub. What the card shows comes from the room body: the table (`RoomTable`) and its
@@ -77,17 +79,19 @@ export interface TableCardProps {
   onAbandon?: (() => Promise<string | null>) | undefined;
   /** A pod's or tournament's match of mine: drop it, a forfeit. */
   onDrop?: (() => Promise<string | null>) | undefined;
+  /** The leader's: restart the game in play. */
+  onReset?: (() => Promise<string | null>) | undefined;
+  /** The leader's: disqualify the player at a seat. Offered for a human seat of a match still under way. */
+  onDq?: ((memberId: string) => Promise<string | null>) | undefined;
+  /** Whether a seat's player can be disqualified (a human, not yet out). Absent: every seat. */
+  dqable?: ((memberId: string) => boolean) | undefined;
 }
 
-type Resolve = 'concede' | 'abandon' | 'drop';
+type Resolve = 'concede' | 'abandon' | 'drop' | 'reset' | 'dq0' | 'dq1';
 
-const RESOLVE_LABEL: Readonly<Record<Resolve, { offer: string; confirm: string }>> = {
-  concede: { offer: 'Concede game', confirm: 'Concede' },
-  abandon: { offer: 'Abandon', confirm: 'Abandon' },
-  drop: { offer: 'Drop match', confirm: 'Drop match' },
-};
+const RESOLVES: readonly Resolve[] = ['concede', 'abandon', 'drop', 'reset', 'dq0', 'dq1'];
 
-export function TableCard({ size, players, nameOf, avatarOf, myMemberId, series, matchId, game, go, testId, tableId, onConcede, onAbandon, onDrop }: TableCardProps) {
+export function TableCard({ size, players, nameOf, avatarOf, myMemberId, series, matchId, game, go, testId, tableId, onConcede, onAbandon, onDrop, onReset, onDq, dqable }: TableCardProps) {
   const [confirming, setConfirming] = useState<Resolve | null>(null);
   const [error, setError] = useState<string | null>(null);
   const phase = tablePhase(series.phase, matchId, game);
@@ -105,16 +109,38 @@ export function TableCard({ size, players, nameOf, avatarOf, myMemberId, series,
   if (onConcede !== undefined && seated && matchId !== null && !finished && phase !== 'sideboard') run.concede = onConcede;
   if (onAbandon !== undefined && under) run.abandon = onAbandon;
   if (onDrop !== undefined && seated && !finished) run.drop = onDrop;
-  const offered = (Object.keys(RESOLVE_LABEL) as Resolve[]).filter((r) => run[r] !== undefined);
+  if (onReset !== undefined && matchId !== null && !finished && series.phase === 'playing') run.reset = onReset;
+  if (onDq !== undefined && !finished) {
+    for (const seat of [0, 1] as const) if (dqable?.(players[seat]) ?? true) run[seat === 0 ? 'dq0' : 'dq1'] = () => onDq(players[seat]);
+  }
+  const label: Readonly<Record<Resolve, { offer: string; confirm: string }>> = {
+    concede: { offer: 'Concede game', confirm: 'Concede' },
+    abandon: { offer: 'Abandon', confirm: 'Abandon' },
+    drop: { offer: 'Drop match', confirm: 'Drop match' },
+    reset: { offer: 'Reset game', confirm: 'Reset game' },
+    dq0: { offer: `DQ ${nameOf(players[0])}`, confirm: 'DQ' },
+    dq1: { offer: `DQ ${nameOf(players[1])}`, confirm: 'DQ' },
+  };
+  const offered = RESOLVES.filter((r) => run[r] !== undefined);
   const score = (wins: readonly [number, number]) => `${wins[0]}–${wins[1]}`;
-  // The score each leaves: a conceded game is the other seat's; a dropped match is theirs by the majority, my won games standing below it.
+  // The score each leaves: a conceded game is the other seat's; a forfeited match (dropped, or its player DQ'd) is the other seat's by the majority, the loser's won games standing below it.
   const needed = Math.floor(series.length / 2) + 1;
-  const theirs = mySeat === 0 ? 1 : 0;
-  const forfeit: [number, number] = [0, 0];
-  forfeit[theirs] = Math.max(series.wins[theirs] ?? 0, needed);
-  forfeit[mySeat === 0 ? 0 : 1] = Math.min(series.wins[mySeat === 0 ? 0 : 1] ?? 0, needed - 1);
+  const forfeitBy = (loser: 0 | 1): [number, number] => {
+    const wins: [number, number] = [0, 0];
+    const other = loser === 0 ? 1 : 0;
+    wins[other] = Math.max(series.wins[other] ?? 0, needed);
+    wins[loser] = Math.min(series.wins[loser] ?? 0, needed - 1);
+    return wins;
+  };
   const conceded: [number, number] = mySeat === 0 ? [series.wins[0], series.wins[1] + 1] : [series.wins[0] + 1, series.wins[1]];
-  const after: Readonly<Record<Resolve, string>> = { concede: score(conceded), abandon: 'No result', drop: score(forfeit) };
+  const after: Readonly<Record<Resolve, string>> = {
+    concede: score(conceded),
+    abandon: 'No result',
+    drop: score(forfeitBy(mySeat === 0 ? 0 : 1)),
+    reset: score(series.wins),
+    dq0: score(forfeitBy(0)),
+    dq1: score(forfeitBy(1)),
+  };
   const side = (seat: 0 | 1) => {
     const id = players[seat];
     const deck = game?.decks[seat] ?? null;
@@ -184,20 +210,20 @@ export function TableCard({ size, players, nameOf, avatarOf, myMemberId, series,
           {confirming === null &&
             offered.map((r) => (
               <button key={r} type="button" className="table-card__resolve" data-testid={`${testId}-${r}`} onClick={() => setConfirming(r)}>
-                {RESOLVE_LABEL[r].offer}
+                {label[r].offer}
               </button>
             ))}
         </footer>
       )}
       {confirming !== null && run[confirming] !== undefined && (
-        <div className="table-card__confirm" role="group" aria-label={RESOLVE_LABEL[confirming].offer} data-testid={`${testId}-${confirming}-confirm`}>
+        <div className="table-card__confirm" role="group" aria-label={label[confirming].offer} data-testid={`${testId}-${confirming}-confirm`}>
           <span className="table-card__change">
             <span>{score(series.wins)}</span>
             <span aria-hidden="true">→</span>
             <strong>{after[confirming]}</strong>
           </span>
           <button type="button" className="table-card__resolve" data-testid={`${testId}-${confirming}-keep`} onClick={() => setConfirming(null)}>
-            Keep playing
+            {confirming === 'reset' || confirming === 'dq0' || confirming === 'dq1' ? 'Cancel' : 'Keep playing'}
           </button>
           <button
             type="button"
@@ -210,7 +236,7 @@ export function TableCard({ size, players, nameOf, avatarOf, myMemberId, series,
               });
             }}
           >
-            {RESOLVE_LABEL[confirming].confirm}
+            {label[confirming].confirm}
           </button>
         </div>
       )}

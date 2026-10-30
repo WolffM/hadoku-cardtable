@@ -174,6 +174,8 @@ export const PodViewSchema = z.strictObject({
   pairings: z.array(PodPairingSchema),
   /** The CURRENT round's bye, or `null` (an even round, or outside `rounds`). */
   bye: z.string().min(1).nullable(),
+  /** Entrants out of the rounds — disqualified by the leader, or gone from the room — whose standings rows stay, marked. */
+  dropped: z.array(z.string().min(1)).optional(),
   /**
    * Every human drafting this pod, in pod seat order — the list `built` is a
    * subset of, and the one the server's own gate for starting `rounds` checks.

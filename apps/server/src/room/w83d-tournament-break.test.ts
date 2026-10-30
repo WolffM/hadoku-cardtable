@@ -242,15 +242,7 @@ describe('dropping out: a self-drop versus leaving the room mid-round', () => {
 		expect(view(pod).pod!.round, 'the other table finishing advances the round').toBe(2);
 	});
 
-	/*
-	 * Red on main, owned by lane C (leaving the room is a drop, and shares DQ's mechanism: the tracker's
-	 * ruling, 2026-10-30). `Lobby.leave` settles a pod table's series through `#settleSeries` and never
-	 * through `#finishPodTable`: with no game played that settles nothing and the round waits forever; with
-	 * one played the series ends but its result never reaches `pod.results`; and the leaver stays an entrant
-	 * to be paired again. `it.fails` keeps each one running and visible: whoever fixes `leave` turns these
-	 * red, and flips them to `it` in the same commit.
-	 */
-	it.fails('a player who leaves the room mid-round, before any game, does not strand the round', async () => {
+	it('a player who leaves the room mid-round, before any game, does not strand the round', async () => {
 		const pod = await tournament(4);
 		const [first] = view(pod).pod!.pairings;
 		const [stayer, leaver] = first!.players;
@@ -266,7 +258,7 @@ describe('dropping out: a self-drop versus leaving the room mid-round', () => {
 		);
 	});
 
-	it.fails('a player who leaves the room mid-round after a game does not strand the round', async () => {
+	it('a player who leaves the room mid-round after a game does not strand the round', async () => {
 		const pod = await tournament(4);
 		const [first, second] = view(pod).pod!.pairings;
 		game(pod, first!.tableId, 0);
@@ -279,7 +271,7 @@ describe('dropping out: a self-drop versus leaving the room mid-round', () => {
 		expect(after.results.find((r) => r.round === 1 && r.playerA === first!.players[0]), 'the leaver’s match is the stayer’s win').toMatchObject({ playerB: first!.players[1], gamesA: 2, gamesB: 0 });
 	});
 
-	it.fails('a player who left is never paired into a live table again', async () => {
+	it('a player who left is never paired into a live table again', async () => {
 		const pod = await tournament(4);
 		const [first] = view(pod).pod!.pairings;
 		const leaver = first!.players[1];

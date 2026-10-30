@@ -47,8 +47,8 @@ export function RoomHub({ roomId, pod, tables, myMemberId, nameOf, avatarOf, mem
         )}
         {children}
         <div className="pod__board">
-          <PodBracket roomId={roomId} pod={pod} tables={tables} myMemberId={myMemberId} nameOf={nameOf} avatarOf={avatarOf} games={games} />
-          {!building && <PodStandings rows={pod.standings} nameOf={nameOf} myMemberId={myMemberId} />}
+          <PodBracket roomId={roomId} pod={pod} tables={tables} myMemberId={myMemberId} leader={myMemberId !== null && myMemberId === leaderId} nameOf={nameOf} avatarOf={avatarOf} games={games} />
+          {!building && <PodStandings rows={pod.standings} nameOf={nameOf} myMemberId={myMemberId} dropped={pod.dropped} />}
         </div>
         <PodSpectators pod={pod} members={members} myId={myMemberId} leaderId={leaderId} />
       </div>

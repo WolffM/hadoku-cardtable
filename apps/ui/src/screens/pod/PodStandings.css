@@ -28,3 +28,16 @@
   text-decoration-color: var(--color-primary);
   text-underline-offset: 3px;
 }
+
+/* An entrant out of the rounds: still ranked on their record, dimmed and marked. */
+.pod-standings tr[data-dropped] td {
+  color: var(--color-text-secondary);
+}
+
+.pod-standings__dropped {
+  margin-left: 8px;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--danger);
+}

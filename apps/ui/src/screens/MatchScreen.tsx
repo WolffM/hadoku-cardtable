@@ -64,6 +64,7 @@ import {
 } from '../play/live/match.ts';
 import { apiUrl, sendJson } from '../http.ts';
 import { useChromeShell } from '../chrome/shell.ts';
+import { useFollowReplacedGame } from './matchFollow.ts';
 
 /** A board's trouble, to the server over HTTP: the socket is what is in trouble. */
 function reportTrouble(matchId: string, what: MatchTrouble, detail: Record<string, unknown>): void {
@@ -132,6 +133,9 @@ export function MatchScreen({ matchId, makeTransport }: MatchScreenProps) {
       live = false;
     };
   }, [matchId]);
+
+  // A game its room let go of with no result (a Reset) is followed to the table's next game.
+  useFollowReplacedGame(matchId, roomId);
 
   return (
     <div ref={shellRef} className="shell shell--match" data-testid="match" style={{ position: 'relative' }}>

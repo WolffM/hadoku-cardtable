@@ -381,6 +381,11 @@ type ResolveTableResult =
 	| { ok: true; matchId: string | null }
 	| { ok: false; reason: 'no-room' | 'no-such-table' | 'not-seated' | 'pod-table' | 'not-pod-table' | 'nothing-to-abandon' | 'nothing-to-drop' };
 
+/** `Lobby.dqPlayer`: the games it let go of, for the caller to stop. */
+type DqPlayerResult = { ok: true; tableId: string | null; matchIds: string[] } | { ok: false; reason: 'no-room' | 'not-leader' | 'no-pod' | 'not-entrant' | 'already-dropped' };
+
+type ResetGameResult = { ok: true; matchId: string } | { ok: false; reason: 'no-room' | 'not-leader' | 'no-such-table' | 'no-game' };
+
 type RecordGameResultResult =
 	| { ok: true; room: RoomView; phase: SeriesPhase }
 	| { ok: false; reason: 'no-room' | 'no-such-table' };
@@ -395,7 +400,8 @@ type StartDraftResult =
  * needs that is different from "no such room".
  */
 type LeaveResult =
-	| { ok: true; room: RoomView }
+	/** `forfeited`: a pod entrant's match this leave forfeited (`#dropEntrant`), its games for the caller to end. */
+	| { ok: true; room: RoomView; forfeited?: { tableId: string; matchIds: string[] } }
 	| { ok: false; reason: 'no-room' | 'not-member' };
 
 /* ── the pod (wave 72 §P) ─────────────────────────────────────────────────── */
@@ -754,6 +760,8 @@ interface PodRecord {
 	pairings: { tableId: string; players: [string, string] }[];
 	/** The CURRENT round's bye, or null. Cleared once the pod is done. */
 	bye: string | null;
+	/** Entrants the leader disqualified (`dqPlayer`), in order. Absent on a record written before it. */
+	dropped?: string[];
 }
 
 function isStoredMatchResult(v: unknown): v is MatchResult {
@@ -787,6 +795,7 @@ function isStoredPodRecord(v: unknown): v is PodRecord {
 	if (typeof p.round !== 'number' || typeof p.rounds !== 'number') return false;
 	if (!Array.isArray(p.results) || !p.results.every(isStoredMatchResult)) return false;
 	if (!Array.isArray(p.pairings) || !p.pairings.every(isStoredPodPairing)) return false;
+	if (p.dropped !== undefined && !(Array.isArray(p.dropped) && p.dropped.every((d) => typeof d === 'string'))) return false;
 	return p.bye === null || typeof p.bye === 'string';
 }
 
@@ -892,7 +901,7 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 	// answer from — this field is not a second source for either.
 	const seats = phase === 'lobby' ? podSeatsView(room) : EMPTY_POD_SEATS;
 	if (phase === 'lobby') {
-		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, drafters: [], built: [], personas: {}, ...planFields };
+		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, dropped: [], drafters: [], built: [], personas: {}, ...planFields };
 	}
 	// Seated at `draftStartedAt` and fixed from there (`#dealPodRounds`'s own
 	// `humans`), falling back to the CURRENT seats for a pod whose rounds have
@@ -900,12 +909,12 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 	// back to before `#dealPodRounds` has run.
 	const humans = room.pod?.humans ?? seatedHumans(room);
 	if (phase === 'drafting') {
-		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, drafters: humans, built: [], personas: podPersonas(room, humans), ...planFields };
+		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, dropped: [], drafters: humans, built: [], personas: podPersonas(room, humans), ...planFields };
 	}
 	// Done building: pressed Play (`playPod`) with a deck that is still legal.
 	const built = humans.filter((id) => room.podPlaying.includes(id) && checks.built(room.id, id));
 	if (phase === 'building') {
-		return { phase, seats, round: 0, rounds: roundsFor(humans.length), results: [], standings: [], pairings: [], bye: null, drafters: humans, built, personas: podPersonas(room, humans), ...planFields };
+		return { phase, seats, round: 0, rounds: roundsFor(humans.length), results: [], standings: [], pairings: [], bye: null, dropped: [], drafters: humans, built, personas: podPersonas(room, humans), ...planFields };
 	}
 	// `podPhaseOf` already answers `rounds`/`done` only when `room.pod !== null`
 	// (it throws otherwise, above) — but this cast is the one place that
@@ -924,6 +933,7 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 		standings: ranked,
 		pairings: pod.pairings,
 		bye: pod.bye,
+		dropped: pod.dropped ?? [],
 		drafters: humans,
 		// A tournament pod never builds a deck: every entrant who locked in
 		// counts as "built" at once, rather than reading as permanently empty.
@@ -1149,6 +1159,19 @@ export interface Lobby {
 	 * advances once its last table is done. A game in play is let go of, as by `abandonTable`.
 	 */
 	dropTableMatch(roomId: string, callerId: string, tableId: string): ResolveTableResult;
+	/**
+	 * The leader disqualifies an entrant of a pod whose rounds are under way, seated or watching (the
+	 * operator, 2026-10-30: *"the room leader is the admin"*). Their current match is forfeited as by
+	 * `dropTableMatch`, every later pairing of theirs is a bye for its opponent (`#pairRound`), and the
+	 * standings keep their record, marked (`PodView.dropped`).
+	 */
+	dqPlayer(roomId: string, leaderId: string, entrantId: string): DqPlayerResult;
+	/**
+	 * The leader restarts a table's game in play from scratch. Forge cannot rewind, so the game is let go
+	 * of (returned for the caller to stop) without a result; the series stands at its score, still
+	 * `playing`, and the table's next start is the same game again with the decks its seats hold.
+	 */
+	resetGame(roomId: string, leaderId: string, tableId: string): ResetGameResult;
 	/**
 	 * Rematch: `http/routes.ts`'s `POST …/ready` calls this UNCONDITIONALLY
 	 * every time a `ready: true` leaves every seat of a table ready, and the
@@ -2485,16 +2508,28 @@ class FileLobby implements Lobby {
 		if (table === undefined) return { ok: false, reason: 'no-such-table' };
 		const pairing = room.pod?.pairings.find((p) => p.tableId === tableId);
 		if (room.pod === null || pairing === undefined) return { ok: false, reason: 'not-pod-table' };
-		const dropper = table.seats.indexOf(callerId);
-		if (dropper === -1 || !pairing.players.includes(callerId)) return { ok: false, reason: 'not-seated' };
+		if (!table.seats.includes(callerId) || !pairing.players.includes(callerId)) return { ok: false, reason: 'not-seated' };
 		if (table.series.phase === 'done') return { ok: false, reason: 'nothing-to-drop' };
 		const { matchId } = table;
+		const wins = this.#forfeit(room, table, callerId);
+		this.#persist(room);
+		this.#log({ event: 'table-dropped', roomId, tableId, by: callerId, matchId, wins });
+		return { ok: true, matchId };
+	}
+
+	/**
+	 * `loser`'s pod match at `table`, still under way, is forfeited: the other side wins the series — its
+	 * wins raised to the majority, the loser's won games standing below it — recorded as any finished
+	 * series is, and the round advances once its last table is done. A game in play is let go of.
+	 */
+	#forfeit(room: RoomRecord, table: TableRecord, loser: string): [number, number] {
 		const { series } = table;
+		const dropper = isAiEntrant(loser) ? table.seats.indexOf(null) : table.seats.indexOf(loser);
 		const needed = Math.floor(series.length / 2) + 1;
 		const other = dropper === 0 ? 1 : 0;
 		const wins: [number, number] = [0, 0];
 		wins[other] = Math.max(series.wins[other] ?? 0, needed);
-		wins[dropper] = Math.min(series.wins[dropper] ?? 0, needed - 1);
+		wins[dropper === 0 ? 0 : 1] = Math.min(series.wins[dropper === 0 ? 0 : 1] ?? 0, needed - 1);
 		table.matchId = null;
 		table.ready = [false, false];
 		// Before a first game the series names nobody; the seats are who played it.
@@ -2503,8 +2538,54 @@ class FileLobby implements Lobby {
 		this.#settleSeries(room, table, true);
 		table.series = { ...table.series, settled: true };
 		this.#finishPodTable(room, table);
+		return wins;
+	}
+
+	dqPlayer(roomId: string, leaderId: string, entrantId: string): DqPlayerResult {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		if (room.leader !== leaderId) return { ok: false, reason: 'not-leader' };
+		const pod = room.pod;
+		if (pod === null || pod.round > pod.rounds) return { ok: false, reason: 'no-pod' };
+		if (!pod.humans.includes(entrantId)) return { ok: false, reason: 'not-entrant' };
+		if ((pod.dropped ?? []).includes(entrantId)) return { ok: false, reason: 'already-dropped' };
+		const { tableId, matchIds } = this.#dropEntrant(room, pod, entrantId);
 		this.#persist(room);
-		this.#log({ event: 'table-dropped', roomId, tableId, by: callerId, matchId, wins });
+		this.#log({ event: 'player-dq', roomId, by: leaderId, memberId: entrantId, tableId, matchIds });
+		return { ok: true, tableId, matchIds };
+	}
+
+	/**
+	 * `entrantId` is out of the pod's rounds — disqualified (`dqPlayer`) or gone from the room (`leave`):
+	 * marked dropped, and their current match, still under way, forfeited (`#forfeit`). Later pairings
+	 * of theirs are byes (`#pairRound`).
+	 */
+	#dropEntrant(room: RoomRecord, pod: PodRecord, entrantId: string): { tableId: string | null; matchIds: string[] } {
+		// Marked first: a forfeit that finishes the round pairs the next one, which must already know.
+		room.pod = { ...pod, dropped: [...(pod.dropped ?? []), entrantId] };
+		const pairing = pod.pairings.find((p) => p.players.includes(entrantId));
+		const table = pairing === undefined ? undefined : room.tables.find((t) => t.id === pairing.tableId);
+		if (table === undefined || table.series.phase === 'done') return { tableId: table?.id ?? null, matchIds: [] };
+		const matchIds = table.matchId === null ? [] : [table.matchId];
+		this.#forfeit(room, table, entrantId);
+		return { tableId: table.id, matchIds };
+	}
+
+	resetGame(roomId: string, leaderId: string, tableId: string): ResetGameResult {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		if (room.leader !== leaderId) return { ok: false, reason: 'not-leader' };
+		const table = room.tables.find((t) => t.id === tableId);
+		if (table === undefined) return { ok: false, reason: 'no-such-table' };
+		const { matchId } = table;
+		if (matchId === null || table.series.phase !== 'playing') return { ok: false, reason: 'no-game' };
+		// `releaseTableMatch`'s letting-go: no result, and the series' phase stays `playing`, so
+		// `setTableMatch` starts the same game again.
+		table.matchId = null;
+		table.ready = [false, false];
+		table.series = { ...table.series, gameStartedAt: null };
+		this.#persist(room);
+		this.#log({ event: 'game-reset', roomId, tableId, by: leaderId, matchId, wins: table.series.wins });
 		return { ok: true, matchId };
 	}
 
@@ -2594,15 +2675,20 @@ class FileLobby implements Lobby {
 		const paired = pairRound({ players, results, round });
 		const pairings: { tableId: string; players: [string, string] }[] = [];
 		const settled: MatchResult[] = [];
+		const dropped = new Set(room.pod?.dropped ?? []);
 		for (const [a, b] of paired.tables) {
-			if (isAiEntrant(a) && isAiEntrant(b)) {
+			// A disqualified entrant's pairing is its opponent's bye (`dqPlayer`); two of them, nothing.
+			if (dropped.has(a) || dropped.has(b)) {
+				const other = dropped.has(a) ? b : a;
+				if (!dropped.has(other)) settled.push({ round, playerA: other, playerB: null, gamesA: 2, gamesB: 0 });
+			} else if (isAiEntrant(a) && isAiEntrant(b)) {
 				const [winner, loser] = aiEntrantSeat(a) < aiEntrantSeat(b) ? [a, b] : [b, a];
 				settled.push({ round, playerA: winner, playerB: loser, gamesA: 2, gamesB: 0 });
 			} else {
 				pairings.push({ tableId: this.#newPodTable(room, a, b), players: [a, b] });
 			}
 		}
-		return { pairings, settled, bye: paired.bye };
+		return { pairings, settled, bye: paired.bye !== null && dropped.has(paired.bye) ? null : paired.bye };
 	}
 
 	/**
@@ -2825,6 +2911,15 @@ class FileLobby implements Lobby {
 		const index = room.members.findIndex((m) => m.id === memberId);
 		if (index === -1) return { ok: false, reason: 'not-member' };
 		const wasLeader = room.leader === memberId;
+		// An entrant who leaves mid-tournament has dropped out. Not a testing room's seed, which stands in
+		// for an entrant through round 1 and leaves so a real admin can take its seat (`testing-rooms.ts`).
+		const pod = room.pod;
+		let forfeited: { tableId: string; matchIds: string[] } | undefined;
+		if (pod !== null && pod.round <= pod.rounds && pod.humans.includes(memberId) && !(pod.dropped ?? []).includes(memberId) && room.testing !== true) {
+			const { tableId, matchIds } = this.#dropEntrant(room, pod, memberId);
+			if (tableId !== null) forfeited = { tableId, matchIds };
+			this.#log({ event: 'pod-entrant-left', roomId, memberId, tableId, matchIds });
+		}
 		for (const table of room.tables) {
 			this.#settleSeries(room, table, false, memberId);
 			leaveSeat(table, memberId);
@@ -2838,7 +2933,7 @@ class FileLobby implements Lobby {
 		}
 		this.#persist(room);
 		this.#log({ event: 'room-left', roomId, members: room.members.length, newLeader: room.leader });
-		return { ok: true, room: this.#view(room) };
+		return { ok: true, room: this.#view(room), ...(forfeited === undefined ? {} : { forfeited }) };
 	}
 
 	create(caller: Caller, input: CreateRoomInput): CreateResult {
