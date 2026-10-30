@@ -563,6 +563,7 @@ const roomClosed = (roomId: string, matches: readonly string[]): void => {
 attachRooms(api, {
 	lobby,
 	checkPlan: checkDraftPlan,
+	...(CONFIG.testNoRateLimits ? { createRateLimit: null } : {}),
 	// Read per request; `featured` is built further down, beside play.
 	featured: () => featured.current(),
 	closed: roomClosed,
@@ -595,7 +596,7 @@ attachRooms(api, {
 	},
 });
 attachTournaments(api, { tournaments });
-attachEvents(api, { events, lobby, closed: roomClosed });
+attachEvents(api, { events, lobby, closed: roomClosed, ...(CONFIG.testNoRateLimits ? { createRateLimit: null } : {}) });
 // The Discord's last few #general messages, through ArchiveBot (prod only: it holds the secret).
 attachDiscord(api, { secret: CONFIG.archivebotSecret, archivebotUrl: CONFIG.archivebotUrl, log: jsonLogger('cardtable-discord') });
 
@@ -770,6 +771,7 @@ play = attachPlay(io, api, {
 	coldStarts: coldStartsFrom(),
 	// Diagnostics for a live check only. Never set in production (see play/socket.ts).
 	probe: CONFIG.playProbe,
+	...(CONFIG.testNoRateLimits ? { startRateLimit: null } : {}),
 	devIdentity: CONFIG.allowUnverifiedEdge && CONFIG.edgeAuthSecret === '',
 	// Three listeners on one event: the stats report (`matchStats.gameOver`), the
 	// room's own series ledger, recorded AT ONCE rather than waiting for a
@@ -998,6 +1000,9 @@ httpServer.listen(CONFIG.port, CONFIG.host, () => {
 				? '[cardtable] EDGE_AUTH_SECRET unset and INSECURE_NO_EDGE_AUTH=1 — identity headers are TRUSTED UNVERIFIED. Local dev only.'
 				: '[cardtable] EDGE_AUTH_SECRET unset — failing closed, every request degraded to public/anon.'
 		);
+	}
+	if (CONFIG.testNoRateLimits) {
+		console.warn('[cardtable] CARDTABLE_E2E_NO_RATE_LIMITS=1 — no per-caller limit on rooms, events or match starts. e2e stacks only, never production.');
 	}
 	if (CONFIG.testUncheckedPools) {
 		console.warn('[cardtable] CARDTABLE_E2E_UNCHECKED_POOLS=1 — a plan with no jar passes unchecked (missingText still refuses). e2e/harness.ts only, never production.');

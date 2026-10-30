@@ -3,7 +3,7 @@
  * route; every friend sees every event, and only its organizer edits or cancels it.
  *
  *   GET    /api/events       → 200 { events: EventView[] }, soonest first
- *   POST   /api/events       { kind, title, startsAt, room? } → 201 EventView | 400 | 403
+ *   POST   /api/events       { kind, title, startsAt, room? } → 201 EventView | 400 | 403 | 429
  *   PATCH  /api/events/:id   { title?, startsAt? } → 200 EventView | 400 | 403 | 404
  *   DELETE /api/events/:id   → 200 { ok: true } | 403 | 404
  *
@@ -14,20 +14,33 @@
 
 import type { Request, Response, Router } from 'express';
 import { isDurableParticipantId } from '@wolffm/rooms-protocol';
+import type { RateLimitConfig } from '@wolffm/rooms-server';
 import { CreateEventBodySchema, DEFAULT_CLIENT_MODE, UpdateEventBodySchema, type EventView } from '@hadoku/shared';
 
 import { userNameOf } from '../edge-auth.js';
 import type { Lobby } from '../room/lobby.js';
 import type { EventRecord, Events } from '../room/events.js';
-import { httpCaller, parseBody } from './request.js';
+import { httpCaller, parseBody, perCallerLimit } from './request.js';
 
 export interface EventsDeps {
 	events: Events;
 	lobby: Lobby;
 	/** A room an event's cancel closed, for its matches to be stopped as `/rooms/:id/close` does. */
 	closed?: (roomId: string, matches: readonly string[]) => void;
+	/** Overrides `EVENT_CREATE_RATE_LIMIT`; `null` is none (`perCallerLimit`). */
+	createRateLimit?: RateLimitConfig | null;
 	now?: () => number;
 }
+
+/**
+ * Events organized per caller: a burst of 5, then one every five minutes. A room
+ * event makes its room at once, so this is the room limit's other door.
+ */
+export const EVENT_CREATE_RATE_LIMIT: RateLimitConfig = {
+	capacity: 5,
+	refillAmount: 1,
+	refillIntervalMs: 5 * 60_000,
+};
 
 /** A start this far in the past is still accepted: a form filled in a minute late. */
 const STARTS_AT_GRACE_MS = 5 * 60_000;
@@ -56,6 +69,7 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		res.json({ events: events.upcoming(now()).map((e) => view(e, me)) });
 	});
 
+	const createLimit = perCallerLimit(deps.createRateLimit === undefined ? EVENT_CREATE_RATE_LIMIT : deps.createRateLimit, 'too many new events; wait a little and try again', { now });
 	api.post('/events', (req: Request, res: Response) => {
 		const body = parseBody(CreateEventBodySchema, req, res);
 		if (body === null) return;
@@ -63,6 +77,7 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		if (!isDurableParticipantId(caller.id)) return res.status(403).json({ error: 'the edge did not name you, so you cannot organize an event' });
 		const startsAt = Date.parse(body.startsAt);
 		if (startsAt < now() - STARTS_AT_GRACE_MS) return res.status(400).json({ error: 'startsAt must not be in the past' });
+		if (!createLimit(req, res)) return;
 
 		let roomId: string | null = null;
 		if (body.kind !== 'casual') {

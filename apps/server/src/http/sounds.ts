@@ -2,9 +2,9 @@
  * `/api/sounds` — the sound-builder's catalogue, take audio, and assignments.
  *
  * Mounted on the `api` router the same way `/api/rooms` is (after
- * `requireMinTier`, so every caller here is already friend tier). Reads are
- * friend tier on purpose — the game will play these takes to every player,
- * later — and every WRITE additionally requires admin:
+ * `requireMinTier`, so every caller here is already at the app's floor). Reads
+ * are open at the floor on purpose — the game plays these takes to every
+ * player — and every WRITE additionally requires admin:
  * `rankOf(tierOf(req)) >= rankOf('admin')`, the same ladder `edge-auth.ts`
  * defines and nothing here re-implements.
  *
@@ -12,8 +12,12 @@
  *   GET /api/sounds/audio/:folder/:file   → 200 audio/ogg | 304 | 400 | 404
  *   GET /api/sounds/assignments           → 200 { cells, gains, names, canEdit }
  *   PUT /api/sounds/assignments/:cell     { files: string[], gain?: number } → 200 { cell, files, gain } | 400 | 403
- *   POST /api/sounds/music-review         MusicReviewBody → 200 MusicReviewRecord | 400   (friend tier)
- *   GET /api/sounds/music-review/mine     → 200 { review: MusicReviewRecord | null }      (friend tier)
+ *   POST /api/sounds/music-review         MusicReviewBody → 200 MusicReviewRecord | 400 | 403   (friend tier)
+ *   GET /api/sounds/music-review/mine     → 200 { review: MusicReviewRecord | null } | 403      (friend tier)
+ *
+ * The two music-review routes check friend tier THEMSELVES rather than lean on
+ * the app's floor: the floor drops to `member` for the public release, and the
+ * review stays a job for friends.
  *
  * ## Storage, and what a missing directory means
  *
@@ -49,7 +53,7 @@
 
 import { createHash, randomUUID } from 'node:crypto';
 import { appendFile, mkdir, open, readFile, rename } from 'node:fs/promises';
-import type { Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import { Router } from 'express';
 import { join, resolve as resolvePath, sep } from 'node:path';
 
@@ -72,7 +76,7 @@ import {
 	type MusicReviewRecord,
 	type SoundTake,
 } from '@hadoku/shared';
-import { isAdmin, userIdOf, userNameOf } from '../edge-auth.js';
+import { isAdmin, rankOf, tierOf, userIdOf, userNameOf } from '../edge-auth.js';
 import { jsonLogger, type JsonLog } from '../log.js';
 import { bodyErrors } from './request.js';
 
@@ -509,6 +513,11 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 	 * rating must name a take its slot offers right now (`musicReviewSlots`, the same grouping the page
 	 * draws from).
 	 */
+	sounds.use('/music-review', (req: Request, res: Response, next: NextFunction) => {
+		if (rankOf(tierOf(req)) >= rankOf('friend')) return next();
+		res.status(403).json({ error: 'friend tier required' });
+	});
+
 	sounds.post('/music-review', async (req: Request, res: Response) => {
 		const parsed = MusicReviewBodySchema.safeParse(req.body);
 		if (!parsed.success) return badRequest(res, parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '));

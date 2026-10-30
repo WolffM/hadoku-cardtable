@@ -198,6 +198,16 @@ export const CONFIG = {
 	testUncheckedPools: process.env.CARDTABLE_E2E_UNCHECKED_POOLS === '1',
 
 	/**
+	 * `CARDTABLE_E2E_NO_RATE_LIMITS=1`: both e2e stacks' escape from the
+	 * per-caller limits on making rooms, organizing events and starting matches
+	 * (`http/request.ts`'s `perCallerLimit`). One test identity makes every room
+	 * and starts every match of a whole run, far past any limit a person meets.
+	 * Never set by the deploy path; `config.test.ts` pins it false from a bare
+	 * environment, and `index.ts` warns at boot whenever it reads true.
+	 */
+	testNoRateLimits: process.env.CARDTABLE_E2E_NO_RATE_LIMITS === '1',
+
+	/**
 	 * `CARDTABLE_CATALOG_REFRESH`: on by default, so production needs no
 	 * cross-repo change to keep its catalog current with Scryfall's daily
 	 * bulk file (`pools/refresh.ts`, wave 74 §G). `index.ts` starts the job

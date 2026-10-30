@@ -628,6 +628,8 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
         CARDTABLE_FORGE_JAR: forge.jar,
         CARDTABLE_FORGE_RES: forge.res,
         CARDTABLE_PLAY_PROBE: '1',
+        // One test identity makes every room and starts every match of a run (`config.ts`).
+        CARDTABLE_E2E_NO_RATE_LIMITS: '1',
         /*
          * ONE game, every run — and this is the server that plays it.
          *

@@ -136,6 +136,8 @@ const server = spawn(process.execPath, [SERVER_JS], {
     CARDTABLE_DRAFTS_DIR: DRAFTS_DIR,
     CARDTABLE_RECORDINGS_DIR: RECORDINGS_DIR,
     EDGE_AUTH_SECRET: secret,
+    // One test identity makes every room and starts every match of a run (`config.ts`).
+    CARDTABLE_E2E_NO_RATE_LIMITS: '1',
     // ── This server may only ever touch ITS OWN containers ──────────────────
     // Every cardtable boot runs `sweepOrphans()`, which removes every container
     // matching its name prefix that its own `live` map does not own. That is

@@ -96,7 +96,7 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import { MultiRateLimiter, type RateLimitConfig } from '@wolffm/rooms-server';
 import { isDurableParticipantId } from '@wolffm/rooms-protocol';
 import { isAdmin, userNameOf } from '../edge-auth.js';
-import { bodyErrors, httpCaller, parseBody } from './request.js';
+import { bodyErrors, httpCaller, parseBody, perCallerLimit } from './request.js';
 import {
 	CreateRoomBodySchema,
 	EmptyBodySchema,
@@ -144,6 +144,17 @@ export const JOIN_RATE_LIMIT: RateLimitConfig = {
 	refillIntervalMs: 30_000,
 };
 
+/**
+ * Rooms made per caller: a burst of 10, then one a minute. Every room is a file
+ * on disk and a row on everyone's front page, so a script cannot paper the
+ * lobby; a friend setting up a night's tables never meets it.
+ */
+export const ROOM_CREATE_RATE_LIMIT: RateLimitConfig = {
+	capacity: 10,
+	refillAmount: 1,
+	refillIntervalMs: 60_000,
+};
+
 export interface RoomsDeps {
 	lobby: Lobby;
 	/** Structured log lines. Never carries a password, hash or salt. */
@@ -167,6 +178,8 @@ export interface RoomsDeps {
 	featured?(): { matchId: string; roomId: string } | null;
 	/** Overrides `JOIN_RATE_LIMIT`. */
 	joinRateLimit?: RateLimitConfig;
+	/** Overrides `ROOM_CREATE_RATE_LIMIT`; `null` is none (`perCallerLimit`). */
+	createRateLimit?: RateLimitConfig | null;
 	/** Injected for tests; the limiter's clock. */
 	now?: () => number;
 	/**
@@ -334,9 +347,13 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		res.json({ rooms: offered.map((room) => roomBody(room, me)), featured });
 	});
 
+	const createLimit = perCallerLimit(deps.createRateLimit === undefined ? ROOM_CREATE_RATE_LIMIT : deps.createRateLimit, 'too many new rooms; wait a little and try again', {
+		now,
+		onRefused: () => log({ event: 'room-create-refused', reason: 'rate-limited' }),
+	});
 	rooms.post('/', (req: Request, res: Response) => {
 		const body = parseBody(CreateRoomBodySchema, req, res);
-		if (body === null) return;
+		if (body === null || !createLimit(req, res)) return;
 		const caller = callerOf(req);
 		const result = lobby.create(caller, body);
 		if (!result.ok) return notDurable(res);

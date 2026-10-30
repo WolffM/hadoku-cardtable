@@ -2,6 +2,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { ParticipantId } from '@wolffm/rooms-protocol';
+import { MultiRateLimiter, type RateLimitConfig } from '@wolffm/rooms-server';
 import type { ErrorRequestHandler, Request, Response } from 'express';
 
 import { identityFromHeaders } from '../room/identity.js';
@@ -13,6 +14,31 @@ import { identityFromHeaders } from '../room/identity.js';
  */
 export function httpCaller(req: Request): ParticipantId {
 	return identityFromHeaders(req.headers, `http-${randomUUID()}`);
+}
+
+/**
+ * A per-caller token bucket for a route's costly step: false once the 429 (with
+ * `Retry-After`) is sent. A route asks AFTER reading its body, so only a
+ * request that would do the work spends a token. `null` is no limit — the e2e
+ * stacks' `CARDTABLE_E2E_NO_RATE_LIMITS`, where one test identity makes every
+ * room and starts every match of a run.
+ */
+export function perCallerLimit(
+	cfg: RateLimitConfig | null,
+	refusal: string,
+	opts: { now?: () => number; onRefused?: () => void } = {},
+): (req: Request, res: Response) => boolean {
+	if (cfg === null) return () => true;
+	const limiter = new MultiRateLimiter<ParticipantId>(cfg);
+	const now = opts.now ?? Date.now;
+	const retryAfter = String(Math.ceil(cfg.refillIntervalMs / 1000));
+	return (req, res) => {
+		if (limiter.allow(httpCaller(req), 1, now())) return true;
+		opts.onRefused?.();
+		res.setHeader('Retry-After', retryAfter);
+		res.status(429).json({ error: refusal });
+		return false;
+	};
 }
 
 /** A `@hadoku/shared` request schema, as this file reads one. */

@@ -73,6 +73,7 @@ import {
 	leaveRoom,
 	type CoreRoomState,
 	type EmitPolicy,
+	type RateLimitConfig,
 } from '@wolffm/rooms-server';
 import {
 	ART_EVENT,
@@ -125,10 +126,21 @@ import { COLD_STARTS, queueColdStarts } from './start-queue.js';
 import { WATCHER_SEAT, createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity } from './match.js';
 import type { SpellCopy } from './spell-copiers.js';
 import { malformedFacts } from '../http/client-events.js';
-import { httpCaller, readBody } from '../http/request.js';
+import { httpCaller, perCallerLimit, readBody } from '../http/request.js';
 import { jsonLogger } from '../log.js';
 
 export type PlayLog = (entry: Record<string, unknown>) => void;
+
+/**
+ * Match starts per caller: a burst of 20, then one every 30 s. Each start boots a
+ * JVM, so this keeps one caller from holding the whole `maxMatches` ceiling; a
+ * leader starting a round's tables at once stays inside the burst.
+ */
+export const MATCH_START_RATE_LIMIT: RateLimitConfig = {
+	capacity: 20,
+	refillAmount: 1,
+	refillIntervalMs: 30_000,
+};
 
 export interface PlayDeps {
 	/** The tier floor. `CONFIG.minTier` in production. */
@@ -154,6 +166,8 @@ export interface PlayDeps {
 	 * a deliberate ceiling; `host.ts`'s header, "The ceiling", has the argument.
 	 */
 	maxMatches?: number;
+	/** Overrides `MATCH_START_RATE_LIMIT`; `null` is none (`perCallerLimit`). */
+	startRateLimit?: RateLimitConfig | null;
 	/**
 	 * How long a seat with no connection keeps its open asks before they are
 	 * aborted as `disconnected`. Default 30 s: a browser refresh closes the old
@@ -561,12 +575,16 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	/** Starts still in flight, and who is waiting on each. */
 	const waitingOn = new Map<Match, Set<ParticipantId>>();
 
+	const startLimit = perCallerLimit(deps.startRateLimit === undefined ? MATCH_START_RATE_LIMIT : deps.startRateLimit, 'too many match starts; wait a little and try again', {
+		onRefused: () => log({ evt: 'match-start-refused', reason: 'rate-limited' }),
+	});
 	router.post('/matches', async (req: Request, res: Response) => {
 		const parsed = parseStartBody(req.body);
 		if (!parsed.ok) {
 			res.status(400).json({ error: parsed.error });
 			return;
 		}
+		if (!startLimit(req, res)) return;
 		// Wave 33 §S, shape 1: a scenario is a TEST facility, never a production
 		// one — honoured only behind `CARDTABLE_PLAY_PROBE=1` (`deps.probe`, which
 		// `index.ts` sets from exactly that variable). A request carrying `scenario`
