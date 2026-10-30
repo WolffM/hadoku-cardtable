@@ -20,7 +20,7 @@ import { CardTile } from '../components/CardTile.tsx';
 import type { DraftCard } from '../draft/types.ts';
 import type { SoundEvent } from './mix.ts';
 import { SoundSettings } from '../settings/SoundSettings.tsx';
-import { LEVEL_KEYS, MUSIC_PICKS_KEY, MUTE_KEY, getLevel, getMusicPick, isMuted, resetMutedForTests, setMusicPick, setMuted } from './mute.ts';
+import { LEGACY_KEYS, connectSoundPrefs, getLevel, getMusicPick, isMuted, resetMutedForTests, setMusicPick, setMuted } from './mute.ts';
 import { matchMusicRoles, useMatchMusic } from './match-music.ts';
 import {
   holdMatchQuiet,
@@ -35,6 +35,52 @@ import {
   setTrackNames,
   takeUiTally,
 } from './index.ts';
+
+/**
+ * The fleet's preference service, one row per app id, in memory. Every save is recorded with its
+ * scope, and `push` is a save from somewhere else — another tab, or another host on the page.
+ */
+const prefs = vi.hoisted(() => {
+  type Row = Record<string, unknown>;
+  const rows = new Map<string, Row>();
+  const saves: { appId: string; patch: Row; scope: string }[] = [];
+  const subscribers = new Map<string, Set<(row: Row) => void>>();
+  const listenersOf = (appId: string): Set<(row: Row) => void> => {
+    let set = subscribers.get(appId);
+    if (set === undefined) subscribers.set(appId, (set = new Set()));
+    return set;
+  };
+  return {
+    rows,
+    saves,
+    reset(): void {
+      rows.clear();
+      saves.length = 0;
+      subscribers.clear();
+    },
+    push(appId: string, patch: Row): void {
+      const row = { ...rows.get(appId), ...patch };
+      rows.set(appId, row);
+      for (const fn of listenersOf(appId)) fn(row);
+    },
+    client(appId: string) {
+      return {
+        appId,
+        read: () => Promise.resolve({ ...rows.get(appId) }),
+        save(patch: Row, opts?: { scope?: string }) {
+          saves.push({ appId, patch, scope: opts?.scope ?? 'user' });
+          rows.set(appId, { ...rows.get(appId), ...patch });
+          return Promise.resolve();
+        },
+        subscribe(fn: (row: Row) => void) {
+          listenersOf(appId).add(fn);
+          return () => void listenersOf(appId).delete(fn);
+        },
+      };
+    },
+  };
+});
+vi.mock('@wolffm/prefs-client', () => ({ createPrefsClient: ({ appId }: { appId: string }) => prefs.client(appId) }));
 
 /** A player that records instead of sounding. The whole testing strategy. */
 function recorder() {
@@ -63,6 +109,7 @@ const CARD: DraftCard = {
 beforeEach(() => {
   resetRolePlayerForTests();
   resetMutedForTests();
+  prefs.reset();
   try {
     globalThis.localStorage.clear();
   } catch {
@@ -239,34 +286,80 @@ describe('mute', () => {
     expect(rolesOf(events)).toEqual(['ui.select']);
   });
 
-  it('is remembered per viewer', () => {
+  it('is saved per device in the games row every hadoku game shares, and read back on the next page', async () => {
+    await connectSoundPrefs().ready;
     setMuted(true);
-    expect(globalThis.localStorage.getItem(MUTE_KEY)).toBe('true');
-    // A fresh page load: forget the in-memory value, keep the store.
+    expect(prefs.saves).toEqual([{ appId: 'games', patch: { muted: true }, scope: 'device' }]);
+
+    // A fresh page load: the page forgets, the service does not.
     resetMutedForTests();
+    await connectSoundPrefs().ready;
     expect(isMuted()).toBe(true);
   });
 
-  it('survives a blocked store on read AND on write', () => {
+  it('follows a change saved elsewhere: another tab, or another host on the page', async () => {
+    prefs.rows.set('games', { muted: true, volume: 0.3 });
+    await connectSoundPrefs().ready;
+    expect([isMuted(), getLevel('volume')]).toEqual([true, 0.3]);
+
+    prefs.push('games', { muted: false });
+    expect(isMuted()).toBe(false);
+  });
+
+  it('holds a change for the page before it connects, and saves nothing once disconnected', async () => {
+    setMuted(true);
+    expect(isMuted()).toBe(true);
+    const { ready, disconnect } = connectSoundPrefs();
+    await ready;
+    disconnect();
+    setMuted(false);
+    expect(prefs.saves).toEqual([]);
+  });
+});
+
+describe('the old localStorage keys', () => {
+  it('are the first value, are moved into the service once, and are removed', async () => {
+    globalThis.localStorage.setItem(LEGACY_KEYS.muted, 'true');
+    globalThis.localStorage.setItem(LEGACY_KEYS.volume, '0.4');
+    globalThis.localStorage.setItem(LEGACY_KEYS.music, '0.15');
+    globalThis.localStorage.setItem(LEGACY_KEYS.musicPicks, JSON.stringify({ 'music.match.UB': 'music-b/take-1.ogg' }));
+    const { ready } = connectSoundPrefs();
+    expect([isMuted(), getLevel('volume'), getLevel('music'), getMusicPick('music.match.UB')]).toEqual([true, 0.4, 0.15, 'music-b/take-1.ogg']);
+
+    await ready;
+    expect(prefs.saves).toEqual([
+      { appId: 'games', patch: { muted: true, volume: 0.4 }, scope: 'device' },
+      { appId: 'cardtable-sound', patch: { music: 0.15 }, scope: 'device' },
+      { appId: 'cardtable-sound', patch: { musicPicks: { 'music.match.UB': 'music-b/take-1.ogg' } }, scope: 'user' },
+    ]);
+    expect(Object.values(LEGACY_KEYS).map((k) => globalThis.localStorage.getItem(k))).toEqual([null, null, null, null]);
+  });
+
+  it('never overwrite what the service already holds', async () => {
+    prefs.rows.set('games', { muted: false });
+    globalThis.localStorage.setItem(LEGACY_KEYS.muted, 'true');
+    await connectSoundPrefs().ready;
+    expect(isMuted()).toBe(false);
+    expect(prefs.saves).toEqual([]);
+  });
+
+  it('are ignored when they hold junk, and cost nothing when the store is blocked', async () => {
+    globalThis.localStorage.setItem(LEGACY_KEYS.muted, 'yes-please');
+    globalThis.localStorage.setItem(LEGACY_KEYS.musicPicks, '["not", "a map"]');
+    await connectSoundPrefs().ready;
+    expect([isMuted(), getMusicPick('music.match.W')]).toEqual([false, null]);
+    expect(prefs.saves).toEqual([]);
+
+    resetMutedForTests();
     vi.spyOn(globalThis.localStorage, 'getItem').mockImplementation(() => {
       throw new Error('private window');
     });
-    vi.spyOn(globalThis.localStorage, 'setItem').mockImplementation(() => {
+    vi.spyOn(globalThis.localStorage, 'removeItem').mockImplementation(() => {
       throw new Error('private window');
     });
-    expect(isMuted()).toBe(false);
+    await connectSoundPrefs().ready;
     expect(() => setMuted(true)).not.toThrow();
     expect(isMuted()).toBe(true);
-
-    const events = recorder();
-    playRole('ui.hover-card');
-    expect(events).toEqual([]);
-  });
-
-  it('ignores junk in the store rather than trusting it', () => {
-    globalThis.localStorage.setItem(MUTE_KEY, 'yes-please');
-    resetMutedForTests();
-    expect(isMuted()).toBe(false);
   });
 });
 
@@ -320,7 +413,8 @@ describe('a card tile plays roles', () => {
 /* ── the wiring: the sound settings ──────────────────────────────────── */
 
 describe('the sound settings', () => {
-  it('turns sound off and on, persists it, and is silent going off and audible coming back', () => {
+  it('turns sound off and on, saves it, and is silent going off and audible coming back', async () => {
+    await connectSoundPrefs().ready;
     const events = recorder();
     render(createElement(SoundSettings));
     const on = screen.getByTestId('settings-sound-on') as HTMLInputElement;
@@ -328,7 +422,7 @@ describe('the sound settings', () => {
 
     fireEvent.click(on);
     expect(isMuted()).toBe(true);
-    expect(globalThis.localStorage.getItem(MUTE_KEY)).toBe('true');
+    expect(prefs.saves).toEqual([{ appId: 'games', patch: { muted: true }, scope: 'device' }]);
     expect(on.checked).toBe(false);
     expect(events).toEqual([]);
 
@@ -337,7 +431,8 @@ describe('the sound settings', () => {
     expect(rolesOf(events)).toEqual(['ui.select']);
   });
 
-  it('sets the two levels, persists them, and samples the new level once the slider is let go', () => {
+  it('sets the two levels, saves them per device, and samples the new level once the slider is let go', async () => {
+    await connectSoundPrefs().ready;
     const events = recorder();
     render(createElement(SoundSettings));
     const volume = screen.getByTestId('settings-volume') as HTMLInputElement;
@@ -349,8 +444,10 @@ describe('the sound settings', () => {
     fireEvent.change(music, { target: { value: '15' } });
     expect(getLevel('volume')).toBe(0.4);
     expect(getLevel('music')).toBe(0.15);
-    expect(globalThis.localStorage.getItem(LEVEL_KEYS.volume)).toBe('0.4');
-    expect(globalThis.localStorage.getItem(LEVEL_KEYS.music)).toBe('0.15');
+    expect(prefs.saves).toEqual([
+      { appId: 'games', patch: { volume: 0.4 }, scope: 'device' },
+      { appId: 'cardtable-sound', patch: { music: 0.15 }, scope: 'device' },
+    ]);
     expect(events).toEqual([]);
 
     fireEvent.pointerUp(volume);
@@ -378,7 +475,8 @@ describe('the sound settings', () => {
       expect(track.textContent).toBe('Deep current');
     });
 
-    it('offers every track when the role holds several; a choice is persisted and plays', () => {
+    it('offers every track when the role holds several; a choice is saved for the player and plays', async () => {
+      await connectSoundPrefs().ready;
       playing('music.match.UB', ['music-a/take-1.ogg', 'music-b/take-1.ogg']);
       setScreenMusic('music.lobby');
       render(createElement(SoundSettings));
@@ -388,10 +486,11 @@ describe('the sound settings', () => {
 
       fireEvent.change(select, { target: { value: 'music-b/take-1.ogg' } });
       expect(getMusicPick('music.match.UB')).toBe('music-b/take-1.ogg');
-      expect(JSON.parse(globalThis.localStorage.getItem(MUSIC_PICKS_KEY)!)).toEqual({ 'music.match.UB': 'music-b/take-1.ogg' });
+      expect(prefs.saves).toEqual([{ appId: 'cardtable-sound', patch: { musicPicks: { 'music.match.UB': 'music-b/take-1.ogg' } }, scope: 'user' }]);
       expect((screen.getByTestId('settings-music-track') as HTMLSelectElement).value).toBe('music-b/take-1.ogg');
 
       resetMutedForTests();
+      await connectSoundPrefs().ready;
       expect(getMusicPick('music.match.UB')).toBe('music-b/take-1.ogg');
     });
 
@@ -403,29 +502,14 @@ describe('the sound settings', () => {
     });
   });
 
-  it('music picks survive a blocked or garbled store: none on read, held for the page on write', () => {
-    globalThis.localStorage.setItem(MUSIC_PICKS_KEY, '["not", "a map"]');
-    expect(getMusicPick('music.match.W')).toBeNull();
-    resetMutedForTests();
-    vi.spyOn(globalThis.localStorage, 'getItem').mockImplementation(() => {
-      throw new Error('blocked');
-    });
-    vi.spyOn(globalThis.localStorage, 'setItem').mockImplementation(() => {
-      throw new Error('blocked');
-    });
-    expect(getMusicPick('music.match.W')).toBeNull();
-    setMusicPick('music.match.W', 'music-a/take-1.ogg');
-    expect(getMusicPick('music.match.W')).toBe('music-a/take-1.ogg');
-  });
-
-  it('reads the stored levels back, and the sliders rest while sound is off', () => {
-    globalThis.localStorage.setItem(LEVEL_KEYS.volume, '0.25');
-    globalThis.localStorage.setItem(LEVEL_KEYS.music, 'not a number');
+  it('reads the saved levels back, and the sliders rest while sound is off', async () => {
+    prefs.rows.set('games', { volume: 0.25 });
+    await connectSoundPrefs().ready;
     setMuted(true);
     render(createElement(SoundSettings));
     const volume = screen.getByTestId('settings-volume') as HTMLInputElement;
     expect(volume.value).toBe('25');
-    // An unreadable music level is its default, half.
+    // A music level nobody saved is its default, half.
     expect((screen.getByTestId('settings-music') as HTMLInputElement).value).toBe('50');
     expect(volume.disabled).toBe(true);
   });

@@ -45,6 +45,7 @@ import { knownRoomOfMatch } from './play/live/matchStart.ts';
 import { roomsClient, type RoomView } from './rooms/api.ts';
 import { useUiScale } from './settings/Settings.tsx';
 import { useTrim } from './settings/siteTrim.ts';
+import { useSoundPrefs } from './sound/mute.ts';
 
 export type AppProps = ScreenProps;
 
@@ -199,6 +200,7 @@ export function App({ transport }: AppProps) {
   const route = useRoute();
   useUiScale(documentRoot);
   useTrim(documentRoot);
+  useSoundPrefs();
   const { room: matchRoom, pending: matchPending } = useMatchRoomId(route.kind === 'match' ? route.matchId : null);
   // `pending` is only ever true for a `match` route (see the hook's own
   // comment); read here as a single flag because it gates TWO things below

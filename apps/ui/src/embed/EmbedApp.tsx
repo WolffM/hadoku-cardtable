@@ -53,6 +53,7 @@ import { Screen } from '../screens/Screen.tsx';
 import { navigate, useRoute, type Route } from '../screens/route.ts';
 import { useUiScale } from '../settings/Settings.tsx';
 import { useTrim } from '../settings/siteTrim.ts';
+import { useSoundPrefs } from '../sound/mute.ts';
 import { scaleRootOf } from '../settings/ui-scale.ts';
 import type { GameBundleContext } from './contract.ts';
 import './embed.css';
@@ -116,6 +117,7 @@ export function EmbedApp({ ctx, rooms: givenRooms }: EmbedAppProps) {
   useUiScale(useCallback(() => (main.current === null ? null : scaleRootOf(main.current)), []));
   // Trim's attributes go on the chrome root itself: the stylesheet, inside the shadow root, cannot see the host's.
   useTrim(useCallback(() => main.current, []));
+  useSoundPrefs();
 
   let body = null;
   if (binding.state === 'failed') {

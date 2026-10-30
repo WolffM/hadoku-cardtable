@@ -20,7 +20,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { LobbyScreen } from '../screens/LobbyScreen.tsx';
 import { parseRoute } from '../screens/route.ts';
 import { resetRolePlayerForTests, setRolePlayer } from '../sound/index.ts';
-import { MUTE_KEY, resetMutedForTests, setMuted } from '../sound/mute.ts';
+import { resetMutedForTests, setMuted } from '../sound/mute.ts';
 import type { SoundEvent } from '../sound/mix.ts';
 import {
   clientModeLabel,
@@ -1042,22 +1042,14 @@ describe('the front page’s cues', () => {
 
   afterEach(() => {
     setRolePlayer(null);
-    // The muted case CLICKS the button, which persists `true`. Leaving it there
-    // would silence every case that ran afterwards — and they would pass, since
-    // most of what they assert is a cue arriving, so the failure would have read
-    // as a product bug. Clearing the store as well as the memo is the fix.
+    // The muted case CLICKS the button, which mutes. Leaving it there would
+    // silence every case that ran afterwards — and they would pass, since most
+    // of what they assert is a cue arriving, so the failure would have read as
+    // a product bug.
     unmute();
   });
 
-  /** Forget the mute, in memory and in the store. */
-  const unmute = (): void => {
-    resetMutedForTests();
-    try {
-      globalThis.localStorage.removeItem(MUTE_KEY);
-    } catch {
-      // jsdom always has a store; this only guards a hostile one.
-    }
-  };
+  const unmute = (): void => resetMutedForTests();
 
   const recorder = () => {
     const requests: SoundEvent[] = [];

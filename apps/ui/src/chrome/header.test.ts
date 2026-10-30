@@ -34,7 +34,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 vi.mock('@wolffm/prefs-client', () => ({
   whoami: () =>
     Promise.resolve({ userId: 'u-test', userType: 'friend' as const, name: 'Test Friend' }),
-  createPrefsClient: () => ({}),
+  // A client with nothing saved: the app connects its sound settings to it on mount.
+  createPrefsClient: () => ({ read: () => Promise.resolve({}), subscribe: () => () => undefined, save: () => Promise.resolve() }),
 }));
 // The gear's game section reads the saved preferences; nothing here is about them.
 vi.mock('@wolffm/prefs-client/react', () => ({

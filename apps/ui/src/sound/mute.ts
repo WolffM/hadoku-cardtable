@@ -18,28 +18,36 @@
  *
  * Default: **on, at a low volume.** A first-time visitor hears the app.
  *
- * ## Persistence is best-effort, by design
+ * ## Where they are kept: the fleet's preference service (2026-10-30)
  *
- * `localStorage` is per-viewer, per-origin browser storage and it can throw on
- * READ as well as write — a private window, cleared site data, a blocked
- * third-party context. Every access here is inside a `try`/`catch` that falls
- * back to the in-memory value, because a blocked store must cost you a
- * remembered preference and never a blank page. `eslint`'s `no-empty` allows an
- * empty catch in this repo precisely for cases like this one, but these are not
- * empty: each one has the fallback written in it.
+ * The operator: settings move into hadoku_site's prefs, so the same values reach cardtable whether
+ * it is its own page or a watchparty room's game. Two rows:
  *
- * Per browser, not per player: the right volume is the speakers' and the room's,
- * not the account's. The keys are namespaced (`cardtable.sound.*`) because the
- * origin is shared with whatever else is served from it.
+ *   - **`games`** — `muted` and `volume`, the master controls every hadoku game shares (bomberman's
+ *     half is `docs/requests/SETTINGS_GAMES_PREFS.md`). Not `.strict()`: another game may keep its
+ *     own fields beside these.
+ *   - **`cardtable-sound`** — `music`, the music bus under the master, and `musicPicks`.
+ *
+ * The three levels are saved per DEVICE, as they were when they lived in `localStorage`: the right
+ * volume is the speakers' and the room's, not the account's. The track picks are per PLAYER: a
+ * taste follows its player to another browser.
+ *
+ * The values are held here, in memory, and every read is synchronous: the mixer asks on every
+ * sound. `useSoundPrefs` connects them to the service once per page — `../App.tsx` and
+ * `../embed/EmbedApp.tsx` both call it — adopting what it holds and saving every change back.
+ * Until it answers, the in-memory value stands; the service's own `localStorage` cache answers
+ * within a frame on every load after the first.
+ *
+ * The `cardtable.sound.*` keys these used to live in are read once, as the first value and as a
+ * migration: a value the service does not hold yet is saved to it, and the keys are removed.
  */
 
-/** The `localStorage` keys. Namespaced; the origin is shared. */
-export const MUTE_KEY = 'cardtable.sound.muted';
-export const LEVEL_KEYS = { volume: 'cardtable.sound.volume', music: 'cardtable.sound.music' } as const;
-export const MUSIC_PICKS_KEY = 'cardtable.sound.music-picks';
+import { useEffect } from 'react';
+import { z } from 'zod';
+import { createPrefsClient, type PrefsClient } from '@wolffm/prefs-client';
 
 /** `volume` scales everything; `music` scales the music bus under it. Both 0..1. */
-export type LevelName = keyof typeof LEVEL_KEYS;
+export type LevelName = 'volume' | 'music';
 
 /**
  * A level nobody has set. The music starts at half (the operator, 2026-10-19:
@@ -48,119 +56,87 @@ export type LevelName = keyof typeof LEVEL_KEYS;
  */
 export const LEVEL_DEFAULTS: Readonly<Record<LevelName, number>> = { volume: 1, music: 0.5 };
 
-/** `true` when the player has muted. Authoritative once loaded. */
-let muted: boolean | null = null;
-/** The player's track per music role, by role id. */
-let musicPicks: Record<string, string> | null = null;
-const levels: Partial<Record<LevelName, number>> = {};
+const LevelSchema = z.number().min(0).max(1);
+
+export const GamesPrefsSchema = z.object({
+  muted: z.boolean().optional(),
+  volume: LevelSchema.optional(),
+});
+export type GamesPrefs = z.infer<typeof GamesPrefsSchema>;
+
+export const SoundPrefsSchema = z
+  .object({
+    music: LevelSchema.optional(),
+    /** The track per music role, by role id. */
+    musicPicks: z.record(z.string(), z.string()).optional(),
+  })
+  .strict();
+export type SoundPrefs = z.infer<typeof SoundPrefsSchema>;
+
+/** The `localStorage` keys the values lived in before the service held them. Read once, to move them. */
+export const LEGACY_KEYS = {
+  muted: 'cardtable.sound.muted',
+  volume: 'cardtable.sound.volume',
+  music: 'cardtable.sound.music',
+  musicPicks: 'cardtable.sound.music-picks',
+} as const;
+
+let muted = false;
+let musicPicks: Record<string, string> = {};
+const levels: Record<LevelName, number> = { ...LEVEL_DEFAULTS };
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
 
-/**
- * Read the stored preference.
- *
- * Returns `null` for "nothing stored, or the store would not tell us", which is
- * the same answer on purpose: both mean *use the default*.
- */
-function load(): boolean | null {
-  try {
-    const raw = globalThis.localStorage?.getItem(MUTE_KEY);
-    if (raw === 'true') return true;
-    if (raw === 'false') return false;
-    return null;
-  } catch {
-    // A blocked or unavailable store. The in-memory default stands.
-    return null;
-  }
+interface Connection {
+  games: PrefsClient<GamesPrefs>;
+  sound: PrefsClient<SoundPrefs>;
 }
-
-function save(value: boolean): void {
-  try {
-    globalThis.localStorage?.setItem(MUTE_KEY, value ? 'true' : 'false');
-  } catch {
-    // Nothing to do and nothing to report: the preference holds for this page
-    // and is simply not remembered for the next one.
-  }
-}
-
-/** Whether sounds are currently silenced. Reads the store once, then memoises. */
-export function isMuted(): boolean {
-  if (muted === null) muted = load() ?? false;
-  return muted;
-}
-
-/** Set the preference, persist it best-effort, and tell every subscriber. */
-export function setMuted(value: boolean): void {
-  if (muted !== null && muted === value) return;
-  muted = value;
-  save(value);
-  notify();
-}
+/** The service, once `useSoundPrefs` has connected it; until then a change is held for the page. */
+let connection: Connection | null = null;
 
 function notify(): void {
   for (const fn of [...listeners]) fn();
 }
 
-/** A level, 0..1. Reads the store once, then memoises; anything unreadable is its default. */
-export function getLevel(name: LevelName): number {
-  const known = levels[name];
-  if (known !== undefined) return known;
-  let value = LEVEL_DEFAULTS[name];
-  try {
-    const raw = globalThis.localStorage?.getItem(LEVEL_KEYS[name]);
-    const n = raw == null ? NaN : Number(raw);
-    if (Number.isFinite(n)) value = clamp(n);
-  } catch {
-    // A blocked store: the default.
-  }
-  levels[name] = value;
-  return value;
+/** Whether sounds are currently silenced. */
+export function isMuted(): boolean {
+  return muted;
 }
 
-/** Set a level, persist it best-effort, and tell every subscriber. */
-export function setLevel(name: LevelName, value: number): void {
-  const next = clamp(value);
-  if (getLevel(name) === next) return;
-  levels[name] = next;
-  try {
-    globalThis.localStorage?.setItem(LEVEL_KEYS[name], String(next));
-  } catch {
-    // Held for this page, not remembered for the next.
-  }
+/** Set the preference, save it, and tell every subscriber. */
+export function setMuted(value: boolean): void {
+  if (muted === value) return;
+  muted = value;
+  void connection?.games.save({ muted: value }, { scope: 'device' });
   notify();
 }
 
-function picks(): Record<string, string> {
-  if (musicPicks !== null) return musicPicks;
-  let value: Record<string, string> = {};
-  try {
-    const raw = globalThis.localStorage?.getItem(MUSIC_PICKS_KEY);
-    const v: unknown = raw == null ? null : JSON.parse(raw);
-    if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
-      value = Object.fromEntries(Object.entries(v).filter((e): e is [string, string] => typeof e[1] === 'string'));
-    }
-  } catch {
-    // Unreadable or blocked: no picks, and every role plays one of its tracks at random.
-  }
-  musicPicks = value;
-  return value;
+/** A level, 0..1. */
+export function getLevel(name: LevelName): number {
+  return levels[name];
+}
+
+/** Set a level, save it, and tell every subscriber. */
+export function setLevel(name: LevelName, value: number): void {
+  const next = clamp(value);
+  if (levels[name] === next) return;
+  levels[name] = next;
+  if (name === 'volume') void connection?.games.save({ volume: next }, { scope: 'device' });
+  else void connection?.sound.save({ music: next }, { scope: 'device' });
+  notify();
 }
 
 /** The take the player chose for a music role, or `null` for none chosen. */
 export function getMusicPick(role: string): string | null {
-  return picks()[role] ?? null;
+  return musicPicks[role] ?? null;
 }
 
-/** Choose a music role's track, persist it best-effort, and tell every subscriber. */
+/** Choose a music role's track, save it, and tell every subscriber. */
 export function setMusicPick(role: string, file: string): void {
   if (getMusicPick(role) === file) return;
-  musicPicks = { ...picks(), [role]: file };
-  try {
-    globalThis.localStorage?.setItem(MUSIC_PICKS_KEY, JSON.stringify(musicPicks));
-  } catch {
-    // Held for this page, not remembered for the next.
-  }
+  musicPicks = { ...musicPicks, [role]: file };
+  void connection?.sound.save({ musicPicks });
   notify();
 }
 
@@ -171,10 +147,9 @@ function clamp(n: number): number {
 /**
  * Subscribe to any change: mute, a level or a music pick. Returns the unsubscribe.
  *
- * Shaped for `useSyncExternalStore`, which is what `SoundSettings` uses: two tabs
- * of the app do not share this (each has its own module instance), but two
- * controls on one page must agree, and a React component must not read a mutable
- * module global during render without a subscription.
+ * Shaped for `useSyncExternalStore`, which is what `SoundSettings` uses: two controls on one page
+ * must agree, and a React component must not read a mutable module global during render without
+ * a subscription. Another tab's change arrives through the service's own broadcast and lands here.
  */
 export function subscribeSound(fn: Listener): () => void {
   listeners.add(fn);
@@ -183,17 +158,128 @@ export function subscribeSound(fn: Listener): () => void {
   };
 }
 
+/** What the service holds, adopted field by field: a field it does not hold keeps the page's value. */
+function adopt(games: GamesPrefs, sound: SoundPrefs): void {
+  const before = JSON.stringify([muted, levels, musicPicks]);
+  if (games.muted !== undefined) muted = games.muted;
+  if (games.volume !== undefined) levels.volume = games.volume;
+  if (sound.music !== undefined) levels.music = sound.music;
+  if (sound.musicPicks !== undefined) musicPicks = sound.musicPicks;
+  if (JSON.stringify([muted, levels, musicPicks]) !== before) notify();
+}
+
+/** Whatever the old `cardtable.sound.*` keys still hold, parsed; anything unreadable is absent. */
+export function readLegacy(store: Storage | undefined = globalThis.localStorage): GamesPrefs & SoundPrefs {
+  const out: GamesPrefs & SoundPrefs = {};
+  if (store === undefined) return out;
+  const raw = (key: string): string | null => {
+    try {
+      return store.getItem(key);
+    } catch {
+      // A blocked store holds nothing to move.
+      return null;
+    }
+  };
+  const m = raw(LEGACY_KEYS.muted);
+  if (m === 'true' || m === 'false') out.muted = m === 'true';
+  for (const name of ['volume', 'music'] as const) {
+    const v = raw(LEGACY_KEYS[name]);
+    const n = v === null ? NaN : Number(v);
+    if (Number.isFinite(n)) out[name] = clamp(n);
+  }
+  const p = raw(LEGACY_KEYS.musicPicks);
+  if (p !== null) {
+    try {
+      const parsed = SoundPrefsSchema.shape.musicPicks.safeParse(JSON.parse(p));
+      if (parsed.success && parsed.data !== undefined) out.musicPicks = parsed.data;
+    } catch {
+      // Not JSON: no picks to move.
+    }
+  }
+  return out;
+}
+
+function removeLegacy(store: Storage | undefined = globalThis.localStorage): void {
+  for (const key of Object.values(LEGACY_KEYS)) {
+    try {
+      store?.removeItem(key);
+    } catch {
+      // A blocked store: the keys stay, and are read again (and found already moved) next time.
+    }
+  }
+}
+
+/** Each a row of its own, built on first connect; one per app id, as the SDK promises. */
+let clients: Connection | null = null;
+
+function soundClients(): Connection {
+  clients ??= {
+    games: createPrefsClient({ appId: 'games', schema: GamesPrefsSchema }) as PrefsClient<GamesPrefs>,
+    sound: createPrefsClient({ appId: 'cardtable-sound', schema: SoundPrefsSchema }) as PrefsClient<SoundPrefs>,
+  };
+  return clients;
+}
+
 /**
- * Drop the memoised value and every subscriber, so the next `isMuted()` re-reads
- * the store.
+ * Connect the sound settings to the preference service for as long as the calling component is
+ * mounted: adopt what it holds, follow its changes (another tab, another host on this page), and
+ * save every change made here. The first time a page connects, a value only the old keys hold is
+ * saved to the service and the keys are removed. `ready` settles once the service's first answer
+ * is adopted.
+ */
+export function connectSoundPrefs(): { ready: Promise<void>; disconnect: () => void } {
+  const c = soundClients();
+  connection = c;
+  const legacy = readLegacy();
+  adopt(legacy, legacy);
+  let games: GamesPrefs = {};
+  let sound: SoundPrefs = {};
+  const offGames = c.games.subscribe((next) => {
+    games = next;
+    adopt(games, sound);
+  });
+  const offSound = c.sound.subscribe((next) => {
+    sound = next;
+    adopt(games, sound);
+  });
+  const ready = Promise.all([c.games.read(), c.sound.read()]).then(([g, s]) => {
+    if (connection !== c) return;
+    games = g;
+    sound = s;
+    const toGames: GamesPrefs = {};
+    if (g.muted === undefined && legacy.muted !== undefined) toGames.muted = legacy.muted;
+    if (g.volume === undefined && legacy.volume !== undefined) toGames.volume = legacy.volume;
+    if (Object.keys(toGames).length > 0) void c.games.save(toGames, { scope: 'device' });
+    if (s.music === undefined && legacy.music !== undefined) void c.sound.save({ music: legacy.music }, { scope: 'device' });
+    if (s.musicPicks === undefined && legacy.musicPicks !== undefined) void c.sound.save({ musicPicks: legacy.musicPicks });
+    removeLegacy();
+    adopt(games, sound);
+  });
+  return {
+    ready,
+    disconnect() {
+      offGames();
+      offSound();
+      if (connection === c) connection = null;
+    },
+  };
+}
+
+/** `connectSoundPrefs` for the life of the component that calls it: the app's root, standalone or embedded. */
+export function useSoundPrefs(): void {
+  useEffect(() => connectSoundPrefs().disconnect, []);
+}
+
+/**
+ * Back to the defaults, disconnected, with no subscribers.
  *
- * For tests, which swap `localStorage` between cases. Production never calls it;
- * the preference does not change behind the app's back within one page.
+ * For tests, which start each case from a fresh page. Production never calls it.
  */
 export function resetMutedForTests(): void {
-  muted = null;
-  musicPicks = null;
-  delete levels.volume;
-  delete levels.music;
+  muted = false;
+  musicPicks = {};
+  Object.assign(levels, LEVEL_DEFAULTS);
   listeners.clear();
+  connection = null;
+  clients = null;
 }

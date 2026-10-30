@@ -285,8 +285,6 @@ export function roleHandler(role: string): () => void {
 
 export {
   LEVEL_DEFAULTS,
-  MUSIC_PICKS_KEY,
-  MUTE_KEY,
   getLevel,
   getMusicPick,
   isMuted,
@@ -295,6 +293,7 @@ export {
   setMusicPick,
   setMuted,
   subscribeSound,
+  useSoundPrefs,
   type LevelName,
 } from './mute.ts';
 
