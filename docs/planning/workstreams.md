@@ -196,7 +196,7 @@ it. PR-5 is new and exists to serve it.
 | B draft rope | `.claude/worktrees/w83b` / `w83b` | dispatched; after A's schema; artifact gate | — |
 | C leader tools (DQ, reset) | `.claude/worktrees/w83c` / `w83c` | dispatched | — |
 | D tournament break-it e2e | `.claude/worktrees/w83d` / `w83d` | dispatched; tests only, files failures to owners | — |
-| E rate limits, music-review gate, D1 licensing docs | `.claude/worktrees/w83e` / `w83e` | dispatched; lands first | — |
+| E rate limits, music-review gate, D1 licensing docs | removed | **landed + verified** `53e24e355` specs, `446dbabd2` fix (AF457), `8d25176d8` D24; PPE `e4996697` 19:31Z | CI 41114257923 ✓ (tracker re-read); limits rooms 10 then 1/min, events 5 then 1/5 min, match starts 20 then 1/30 s, each 429 red→green; member gets 403 on music review; 5 mutations each red; AGENTS/NOTICE/LICENSING carry D24. Not done: CARDTABLE_MIN_TIER=member flip (hadoku_site wrapper, PPE first, operator's call); a real 429 through the edge unverified |
 | 84 brackets at any size (multi-pod, field Swiss, rounds, tiebreak robustness for >16) | — | queued after 83 | — |
 | 85 events + front page (Create event: Tournament w/ full settings or Form via Rally; calendar = scrolling event list, room is source of truth; Upcoming → Calendar/Polls gallery; wildcard manual gallery w/ priority+random default) | — | queued after 83; Rally lane in hadoku-rally | — |
 | 86 Majors flag + leaderboard podium + avatar medals | — | queued; hadoku_site game-stats + cardtable tournament reporting | — |
