@@ -2480,14 +2480,18 @@ class FileLobby implements Lobby {
 		// A game that ends after its series was left is discarded: that series is already recorded.
 		const startedAt = table.series.gameStartedAt ?? null;
 		const ms = startedAt === null ? {} : { ms: Math.max(0, this.#now() - startedAt) };
-		if (!table.series.settled) table.series = recordGame(table.series, seriesFormatOf(seriesRoomOf(room)), { matchId: result.matchId, winner: result.winner, ...ms }, result.clockMs);
+		const open = !table.series.settled;
+		if (open) table.series = recordGame(table.series, seriesFormatOf(seriesRoomOf(room)), { matchId: result.matchId, winner: result.winner, ...ms }, result.clockMs);
 		table.series = { ...table.series, gameStartedAt: null };
 		table.ready = [false, false];
+		// A seat whose chess clock ran out loses the match, not only the game (the operator, 2026-10-30).
+		const timedOut = open && result.timedOut === true && result.winner !== null ? (table.seats[result.winner === 0 ? 1 : 0] ?? null) : null;
+		if (timedOut !== null) this.#forfeit(room, table, timedOut);
 		// Wave 72 §P: a pod round advances ITSELF the instant every one of its
 		// tables is `done` — see `#finishPodTable`.
-		if (table.series.phase === 'done' && room.pod !== null) this.#finishPodTable(room, table);
+		else if (table.series.phase === 'done' && room.pod !== null) this.#finishPodTable(room, table);
 		this.#persist(room);
-		this.#log({ event: 'table-game-recorded', roomId, tableId, matchId: result.matchId, winner: result.winner, phase: table.series.phase });
+		this.#log({ event: 'table-game-recorded', roomId, tableId, matchId: result.matchId, winner: result.winner, phase: table.series.phase, ...(timedOut === null ? {} : { timedOut }) });
 		return { ok: true, room: this.#view(room), phase: table.series.phase };
 	}
 

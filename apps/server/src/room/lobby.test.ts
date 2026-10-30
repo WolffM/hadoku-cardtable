@@ -1401,6 +1401,32 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 		expect(ended, 'settled at once: nothing is held open for a Rematch').toHaveLength(1);
 	});
 
+	it("keeps each seat's chess-clock time left from game to game, and a seat that ran out of time loses the series at once", async () => {
+		const { lobby, id, tableId, ended, logged } = await playingTable();
+		expect(lobby.seriesClockMs(id, tableId), 'before a first game: nothing carried').toBeNull();
+		lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 1, clockMs: [900_000, 1_000_000] });
+		expect(lobby.seriesClockMs(id, tableId)).toEqual([900_000, 1_000_000]);
+		expect(lobby.beginSideboarding(id, tableId)).toBe(true);
+		expect(lobby.setTableMatch(id, tableId, 'm-game-2')).toBe(true);
+		// Alice's clock runs out in game 2: Bob wins the Bo3 2-0 on it, settled now.
+		expect(lobby.recordGameResult(id, tableId, { matchId: 'm-game-2', winner: 1, clockMs: [0, 700_000], timedOut: true })).toMatchObject({ phase: 'done' });
+		expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ length: 3, wins: [0, 2], phase: 'done' });
+		expect(lobby.seriesClockMs(id, tableId)).toEqual([0, 700_000]);
+		expect(ended).toHaveLength(1);
+		expect(ended[0]).toMatchObject({ wins: [0, 2], winner: 1 });
+		expect(logged.find((e) => e.event === 'table-game-recorded' && e.matchId === 'm-game-2')).toMatchObject({ timedOut: ALICE.id });
+	});
+
+	it("a seat that won game 1 still loses the series when its clock runs out in game 2", async () => {
+		const { lobby, id, tableId, ended } = await playingTable();
+		lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 0 });
+		expect(lobby.beginSideboarding(id, tableId)).toBe(true);
+		expect(lobby.setTableMatch(id, tableId, 'm-game-2')).toBe(true);
+		lobby.recordGameResult(id, tableId, { matchId: 'm-game-2', winner: 1, timedOut: true });
+		expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ wins: [1, 2], phase: 'done' });
+		expect(ended[0]).toMatchObject({ winner: 1 });
+	});
+
 	it('Rematch converts it in place: Bo3, game 1 kept, 1-0, sideboarding — and game 2 continues the same series', async () => {
 		const { lobby, id, tableId, ended } = await playingTable();
 		lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 1 });
