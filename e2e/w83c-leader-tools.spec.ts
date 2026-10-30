@@ -189,17 +189,15 @@ test(titled('a seated leader resets their own game and both seats are back in a 
     await Promise.all([intoGame(alice, stack.origin, roomId, table.id), intoGame(bob, stack.origin, roomId, table.id)]);
     const game1 = tableOf(await room(), bobId).matchId!;
 
-    // Alice, seated, resets it from the hub; both seats come back to a fresh game.
-    const hub = await alice.context.newPage();
-    await hub.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
-    await expect(card(hub, table.id)).toBeVisible({ timeout: UI_TIMEOUT });
-    await expect(card(hub, table.id).getByRole('button', { name: /^Drop match$/ }), 'her own tools beside the leader’s').toBeVisible();
-    await confirmOnCard(hub, table.id, /^Reset game$/);
-    await hub.close();
-    for (const p of [alice, bob]) {
-      await p.page.waitForURL((u) => matchUrl.test(u.hash) && !u.hash.endsWith(game1), { timeout: UI_TIMEOUT });
-      await expect(p.page.locator('[aria-label="Game board"]'), `${p.name}: a fresh game`).toBeVisible({ timeout: UI_TIMEOUT });
-    }
+    // Alice, seated, steps out to the hub and resets it there; Bob's board follows to the fresh game, and hers starts from her table.
+    await alice.page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
+    await expect(card(alice.page, table.id)).toBeVisible({ timeout: UI_TIMEOUT });
+    await expect(card(alice.page, table.id).getByRole('button', { name: /^Drop match$/ }), 'her own tools beside the leader’s').toBeVisible();
+    await confirmOnCard(alice.page, table.id, /^Reset game$/);
+    await intoGame(alice, stack.origin, roomId, table.id);
+    await bob.page.waitForURL((u) => matchUrl.test(u.hash) && !u.hash.endsWith(game1), { timeout: UI_TIMEOUT });
+    await expect(bob.page.locator('[aria-label="Game board"]'), 'bob: carried to the fresh game').toBeVisible({ timeout: UI_TIMEOUT });
+    expect(matchUrl.exec(alice.page.url())![1], 'both in the same fresh game').toBe(matchUrl.exec(bob.page.url())![1]);
     const after = tableOf(await room(), bobId);
     console.log(`[w83c] seated reset: ${game1} -> ${after.matchId} series ${JSON.stringify(after.series)}`);
     expect(after.series).toMatchObject({ wins: [0, 0], phase: 'playing' });
@@ -207,7 +205,7 @@ test(titled('a seated leader resets their own game and both seats are back in a 
     // Bob leaves the room mid-game: a drop. Alice's board ends on her win within seconds.
     expect((await call(bob, stack.origin, 'POST', `/rooms/${roomId}/leave`)).status).toBe(200);
     await expect(alice.page.getByTestId('game-result'), 'alice: the game ends on the leave').toBeVisible({ timeout: 15_000 });
-    await expect(alice.page.getByTestId('game-result')).toHaveAttribute('data-result', 'won');
+    await expect(alice.page.getByTestId('game-result')).toHaveAttribute('data-result', 'victory');
     const done = await room();
     console.log(`[w83c] after leave: ${JSON.stringify(done.pod)}`);
     expect(done.pod.dropped).toEqual([bobId]);

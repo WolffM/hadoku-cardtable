@@ -162,6 +162,11 @@ export interface RoomsDeps {
 	/** A room its owner closed: stop the matches it was playing and drop its draft if unfinished. */
 	closed?: (roomId: string, matches: readonly string[]) => void;
 	/**
+	 * A tournament entrant left mid-round, which is a drop (`Lobby.leave`): their match at `tableId` was
+	 * forfeited, and these are its games to end (`table-actions.ts`'s `endForfeitedGame`), and its seats' decks to restore.
+	 */
+	forfeited?: (roomId: string, tableId: string, loser: string, matches: readonly string[]) => void;
+	/**
 	 * "Reset = Close" (the operator's testing-room spec): when the room
 	 * `/:id/close` just forgot was a testing room, this runs AFTER `closed`
 	 * — the same `seedTestingRooms` call `index.ts` makes at boot, which is
@@ -446,7 +451,9 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	 * A member steps out of their own room (R16). No body (`EmptyBodySchema`).
 	 *
 	 * If the leader leaves, leadership passes to whoever remaining joined
-	 * earliest — `lobby.leave`'s own ruling, not this file's. A non-member and
+	 * earliest — `lobby.leave`'s own ruling, not this file's. A tournament
+	 * entrant who leaves mid-round has dropped out: their game in play is
+	 * conceded for them (`forfeited`), so the other board ends on its win. A non-member and
 	 * a room that does not exist are the server's usual single 404, same as
 	 * `ready` and `start`: there is no sentence someone who was never in a room
 	 * needs that differs from "no such room".
@@ -464,6 +471,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		if (!ROOM_ID_RE.test(id)) return noMatch(res);
 		const result = lobby.leave(id, caller.id);
 		if (!result.ok) return noMatch(res);
+		if (result.forfeited !== undefined) deps.forfeited?.(id, result.forfeited.tableId, caller.id, result.forfeited.matchIds);
 		res.json(roomBody(result.room, caller.id));
 	});
 

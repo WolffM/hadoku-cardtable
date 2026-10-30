@@ -98,7 +98,7 @@ import { attachTables, loadTablesLibrary } from './http/index.js';
 import { attachDecks } from './http/decks.js';
 import { attachDrafts } from './http/drafts.js';
 import { attachRooms } from './http/rooms.js';
-import { attachTableActions } from './http/table-actions.js';
+import { attachTableActions, endForfeitedGame } from './http/table-actions.js';
 import { seedTestingRooms } from './room/testing-rooms.js';
 import { attachDiscord } from './http/discord.js';
 import { attachEvents } from './http/events.js';
@@ -567,6 +567,10 @@ attachRooms(api, {
 	// Read per request; `featured` is built further down, beside play.
 	featured: () => featured.current(),
 	closed: roomClosed,
+	forfeited: (roomId, tableId, loser, matches) => {
+		for (const id of matches) endForfeitedGame(play?.matches.get(id), loser);
+		tables.seriesEnded(roomId, tableId);
+	},
 	// "Reset = Close": the testing room `/:id/close` just forgot is recreated
 	// fresh under the same name, the moment the close answers — not a
 	// separate reset feature.

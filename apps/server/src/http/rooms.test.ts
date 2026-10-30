@@ -96,6 +96,7 @@ async function openApp(
 		/** A new room's format is drawn with this; without it every new room opens on `NEWEST_POOL`. */
 		random?: () => number;
 		closed?: (roomId: string, matches: readonly string[]) => void;
+		forfeited?: import('./rooms.ts').RoomsDeps['forfeited'];
 		/** Wave 73 §A: `PUT …/pod/plan`'s verdict. Defaults to always-ok — the plan tests that need a refusal pass their own. */
 		checkPlan?: (plan: DraftPlan) => Promise<PoolVerdict>;
 		/** Wave 74 §E step 2: `/start`'s realistic-round pre-fetch. Omitted everywhere a test never plans a realistic round. */
@@ -123,6 +124,7 @@ async function openApp(
 		log,
 		joinRateLimit: opts.joinRateLimit,
 		closed: opts.closed,
+		...(opts.forfeited === undefined ? {} : { forfeited: opts.forfeited }),
 		checkPlan: opts.checkPlan ?? (async (plan) => ({ ok: true, cards: plan.rounds.length * 10 })),
 		...(opts.realistic === undefined ? {} : { realistic: opts.realistic }),
 		...(opts.tableGames === undefined ? {} : { tableGames: opts.tableGames }),
@@ -1522,6 +1524,27 @@ describe('POST /api/rooms/:id/leave', () => {
 		expect(
 			(reopened.lobby.get(room.id) as import('../room/lobby.ts').RoomView | undefined)?.members.map((m) => m.name),
 		).toEqual(['user-alice']);
+	});
+
+	it('a tournament entrant who leaves mid-round has dropped out: their forfeited game is handed on to end, theirs to lose', async () => {
+		const forfeits: { roomId: string; tableId: string; loser: string; matches: readonly string[] }[] = [];
+		const h = await openApp(await tempDir(), { forfeited: (roomId, tableId, loser, matches) => void forfeits.push({ roomId, tableId, loser, matches }) });
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Leave night', gameType: 'constructed-1v1', mode: 'classic', modeOptions: {} } })).json() as import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
+		const ids = h.lobby.get(room.id)!.members.map((m) => m.id);
+		expect(h.lobby.setSettings(room.id, ids[0]!, { tournament: true }).ok).toBe(true);
+		ids.forEach((id, seat) => expect(h.lobby.sitPod(room.id, id, seat).ok).toBe(true));
+		h.lobby.setPodChecks({ draftComplete: () => true, built: () => true, seatState: () => null, holdsSeriesDeck: () => true, roundNamesOf: () => ['', '', ''], hasLegalSeatDeck: () => true, currentTournamentDeck: () => null, seatTournamentDeck: () => {} });
+		const started = h.lobby.startDraft(room.id, ids[0]!);
+		if (!started.ok) throw new Error(started.reason);
+		const tableId = started.room.pod!.pairings[0]!.tableId;
+		expect(h.lobby.setTableMatch(room.id, tableId, 'm-0000000000a1')).toBe(true);
+
+		expect((await call(h, 'POST', `/api/rooms/${room.id}/leave`, { as: 'bob' })).status).toBe(200);
+		expect(forfeits).toEqual([{ roomId: room.id, tableId, loser: ids[1], matches: ['m-0000000000a1'] }]);
+		expect(h.lobby.get(room.id)!.pod).toMatchObject({ dropped: [ids[1]], phase: 'done' });
+		expect((await call(h, 'POST', `/api/rooms/${room.id}/leave`, { as: 'alice' })).status).toBe(200);
+		expect(forfeits, 'the pod is over: nothing more to forfeit').toHaveLength(1);
 	});
 
 	it('hands leadership to whoever remains and joined earliest when the leader leaves', async () => {
