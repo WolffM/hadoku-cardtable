@@ -262,6 +262,15 @@ export function readJvmRecord(run: string): JvmRecordSeen | null {
   };
 }
 
+/** The pid of the bridge JVM playing `matchId` under `workDir`: the one whose record lists it among its matches. */
+export function matchPid(workDir: string, matchId: string): number {
+  for (const dir of readdirSync(workDir)) {
+    const record = readJvmRecord(join(workDir, dir));
+    if (record?.matches.some((m) => m.matchId === matchId) === true) return record.pid;
+  }
+  throw new Error(`no jvm.json names ${matchId} under ${workDir}`);
+}
+
 /**
  * Every match's protocol stream under a stack's work dir — `host.ts`'s `streamFile`,
  * `<workDir>/<hostId>/<matchId>.jsonl`, oldest first. A degraded match's

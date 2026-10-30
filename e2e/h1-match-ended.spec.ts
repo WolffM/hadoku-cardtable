@@ -11,27 +11,15 @@
  *
  * `[h1]` lines are the evidence: the pid killed, and what each screen shows.
  */
-import { readdirSync } from 'node:fs';
-import { join } from 'node:path';
-
 import { expect, test } from '@playwright/test';
 
 import { makeTitled } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { enterMatch } from './play/enter.ts';
-import { forgeAvailability, readJvmRecord, startPlayStack, type PlayStack } from './play/harness.ts';
+import { forgeAvailability, matchPid, startPlayStack } from './play/harness.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
-
-/** The bridge JVM playing `matchId`: the one whose record lists it among its matches. */
-function matchPid(stack: PlayStack, matchId: string): number {
-  for (const dir of readdirSync(stack.workDir)) {
-    const record = readJvmRecord(join(stack.workDir, dir));
-    if (record?.matches.some((m) => m.matchId === matchId) === true) return record.pid;
-  }
-  throw new Error(`no jvm.json names ${matchId} under ${stack.workDir}`);
-}
 
 const notice = (f: Friend) => f.page.getByTestId('match-ended');
 /** Every decision the board can hold open is drawn in a `.live__prompt` host (`movable.tsx`'s `QuestionHost`). */
@@ -52,7 +40,7 @@ test(titled('a match whose Forge dies ends on both screens: the server’s words
       .poll(async () => (await openPrompts(alice).count()) + (await openPrompts(bob).count()), { message: 'something is open before the kill', timeout: 60_000 })
       .toBeGreaterThan(0);
 
-    const pid = matchPid(stack, matchId);
+    const pid = matchPid(stack.workDir, matchId);
     console.log(`[h1] killing match ${matchId}'s bridge JVM, pid ${pid}`);
     process.kill(pid, 'SIGKILL');
 
