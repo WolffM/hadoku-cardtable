@@ -64,6 +64,7 @@ import {
   SAYS_KEPT,
   socketIoMatchTransport,
   startMatch,
+  subscribe,
   type LiveMatch,
   type MatchTransport,
 } from './match.ts';
@@ -1094,8 +1095,12 @@ describe('the mistake bubble’s classifier, wired to a live refusal', () => {
     expect(selectCard(m, land.id)).toBe(false);
     expect(m.mistake, 'the limit is not reached yet').toBeNull();
     patchViewer(m, { numLandThisTurn: 1 });
+    const woken: number[] = [];
+    const off = subscribe(m, () => woken.push(m.revision));
     expect(selectCard(m, land.id)).toBe(false);
+    off();
     expect(m.mistake).toEqual({ key: 'land', seq: 1 });
+    expect(woken.length, 'the board is woken to draw it, with nothing else from Forge').toBeGreaterThan(0);
     await until('the telemetry', () => s.received.filter((r) => r.event === 'forge:client').length >= 2);
     const clicks = s.received.filter((r) => r.event === 'forge:client');
     expect(clicks.at(-1)?.payload).toMatchObject({ data: { what: 'click-refused', reason: 'not-offered', said: 'land' } });

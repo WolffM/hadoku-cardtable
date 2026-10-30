@@ -3512,11 +3512,16 @@ function refuse(match: LiveMatch, card: number): void {
 export const MISTAKE_SAY_MS = 3200;
 export const MISTAKE_EXIT_MS = 260;
 
-/** the one setter for {@link LiveMatch.mistake} — a null `key` (no certain classification) is a no-op. */
+/**
+ * the one setter for {@link LiveMatch.mistake} — a null `key` (no certain classification) is a no-op.
+ * It notifies, as the clear below does: a refused click Forge never saw changes nothing else, so
+ * without it the bubble waited on whatever redrew the board next, and a quiet board drew none.
+ */
 function setMistake(match: LiveMatch, key: MistakeKey | null): void {
   if (key === null) return;
   const seq = (match.mistake?.seq ?? 0) + 1;
   match.mistake = { key, seq };
+  notify(match);
   setTimeout(() => {
     if (match.mistake?.seq !== seq) return;
     match.mistake = null;
