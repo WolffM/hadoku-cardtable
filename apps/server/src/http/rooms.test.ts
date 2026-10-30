@@ -688,6 +688,21 @@ describe('POST /api/rooms/:id/join', () => {
 	});
 });
 
+describe('POST /api/rooms rate limit', () => {
+	it('answers 429 once a caller has made a burst of rooms, and only that caller', async () => {
+		const h = await openApp(await tempDir());
+		const { capacity } = roomsMod.ROOM_CREATE_RATE_LIMIT;
+		const statuses: number[] = [];
+		for (let i = 0; i < capacity + 1; i++) {
+			statuses.push((await call(h, 'POST', '/api/rooms', { as: 'mallory', body: { name: `Spam ${i}` } })).status);
+		}
+		expect(statuses).toEqual([...Array.from({ length: capacity }, () => 201), 429]);
+		expect(h.lobby.list()).toHaveLength(capacity);
+		expect((await call(h, 'POST', '/api/rooms', { as: 'bob', body: { name: 'Mine' } })).status).toBe(201);
+		expect(logged).toContainEqual({ event: 'room-create-refused', reason: 'rate-limited' });
+	});
+});
+
 /* ── the leader ──────────────────────────────────────────────────────── */
 
 describe('PATCH /api/rooms/:id', () => {

@@ -39,7 +39,8 @@ afterEach(async () => {
 	await Promise.all(servers.splice(0).map((s) => new Promise<void>((resolve) => s.close(() => resolve()))));
 });
 afterAll(async () => {
-	await Promise.all(dirs.map((d) => rm(d, { recursive: true, force: true })));
+	// The stores write after a route answers, so a write can land while its directory is being removed.
+	await Promise.all(dirs.map((d) => rm(d, { recursive: true, force: true, maxRetries: 5 })));
 });
 
 async function openApp(clock: { now: number }) {
@@ -196,5 +197,21 @@ describe('openEvents', () => {
 		const second = await eventsStore.openEvents(file, () => {}, () => clock.now);
 		expect(second.upcoming(clock.now).map((e) => e.title)).toEqual(['Soon']);
 		expect(second.upcoming(clock.now - 30 * DAY).map((e) => e.title)).toEqual(['Soon']);
+	});
+});
+
+describe('POST /api/events rate limit', () => {
+	it('answers 429 once a caller has organized a burst of events, and only that caller', async () => {
+		const clock = { now: Date.UTC(2026, 9, 28, 12) };
+		const { base, lobby } = await openApp(clock);
+		const startsAt = new Date(clock.now + DAY).toISOString();
+		const { capacity } = eventsHttp.EVENT_CREATE_RATE_LIMIT;
+		const statuses: number[] = [];
+		for (let i = 0; i < capacity + 1; i++) {
+			statuses.push((await call(base, 'mallory', 'POST', '/events', { kind: 'draft-pod', title: `Spam ${i}`, startsAt })).status);
+		}
+		expect(statuses).toEqual([...Array.from({ length: capacity }, () => 201), 429]);
+		expect(lobby.list()).toHaveLength(capacity);
+		expect((await call(base, 'bob', 'POST', '/events', { kind: 'casual', title: 'Come play', startsAt })).status).toBe(201);
 	});
 });

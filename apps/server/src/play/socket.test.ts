@@ -72,6 +72,7 @@ async function boot(
 		disconnectGraceMs?: number;
 		probe?: boolean;
 		maxMatches?: number;
+		startRateLimit?: { capacity: number; refillAmount: number; refillIntervalMs: number };
 		rejoinGraceMs?: number;
 		coldStarts?: number;
 		startTimeoutMs?: number;
@@ -102,6 +103,7 @@ async function boot(
 		disconnectGraceMs: options.disconnectGraceMs,
 		probe: options.probe,
 		maxMatches: options.maxMatches,
+		startRateLimit: options.startRateLimit,
 		rejoinGraceMs: options.rejoinGraceMs,
 		seatAvatar: (_matchId, owner) => [...(options.faces ?? [])].find(([user]) => identityFromHeaders(edgeHeaders(user), 'test') === owner)?.[1],
 	});
@@ -267,6 +269,20 @@ describe('POST /api/play/matches', () => {
 		});
 		expect(res.status).toBe(400);
 		expect(h.hosts).toHaveLength(0);
+	});
+
+	it('answers 429 once a caller has spent their starts, before any JVM is spent, and only for that caller', async () => {
+		const h = await boot({ startRateLimit: { capacity: 1, refillAmount: 1, refillIntervalMs: 60_000 } });
+		expect((await startMatch(h)).status).toBe(201);
+		const res = await fetch(`http://127.0.0.1:${h.port}/api/play/matches`, {
+			method: 'POST',
+			headers: { ...edgeHeaders('alice'), 'content-type': 'application/json' },
+			body: JSON.stringify({ opponent: 'human' }),
+		});
+		expect(res.status).toBe(429);
+		expect(res.headers.get('retry-after')).toBe('60');
+		expect(h.hosts).toHaveLength(1);
+		expect((await startMatch(h, 'bob')).status).toBe(201);
 	});
 
 	it('refuses a match past the server-wide ceiling, and a finished match no longer holds a slot', async () => {

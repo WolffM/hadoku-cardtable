@@ -112,3 +112,21 @@ describe('CONFIG.dataDir', () => {
     }
   });
 });
+
+describe('CONFIG.testNoRateLimits', () => {
+  it('is false from a bare environment and true only from the exact flag', async () => {
+    const saved = process.env.CARDTABLE_E2E_NO_RATE_LIMITS;
+    try {
+      for (const [value, expected] of [[undefined, false], ['true', false], ['1', true]] as const) {
+        vi.resetModules();
+        if (value === undefined) delete process.env.CARDTABLE_E2E_NO_RATE_LIMITS;
+        else process.env.CARDTABLE_E2E_NO_RATE_LIMITS = value;
+        const { CONFIG } = await import('./config.ts');
+        expect(CONFIG.testNoRateLimits, String(value)).toBe(expected);
+      }
+    } finally {
+      if (saved === undefined) delete process.env.CARDTABLE_E2E_NO_RATE_LIMITS;
+      else process.env.CARDTABLE_E2E_NO_RATE_LIMITS = saved;
+    }
+  });
+});

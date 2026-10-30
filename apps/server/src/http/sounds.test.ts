@@ -56,13 +56,13 @@ interface Harness {
 	base: string;
 }
 
-async function openApp(dir: string): Promise<Harness> {
+async function openApp(dir: string, mods = { sounds: soundsMod, edge: edgeMod }): Promise<Harness> {
 	const app = express();
-	app.use(edgeMod.edgeProvenance);
-	app.use(edgeMod.requireMinTier);
+	app.use(mods.edge.edgeProvenance);
+	app.use(mods.edge.requireMinTier);
 	const api = express.Router();
 	api.use(express.json({ limit: '1mb' }));
-	soundsMod.attachSounds(api, { dir, log: (entry) => logged.push(entry) });
+	mods.sounds.attachSounds(api, { dir, log: (entry) => logged.push(entry) });
 	app.use('/api', api);
 
 	const server = createServer(app);
@@ -556,6 +556,35 @@ describe('every /api/sounds route is friend tier and above', () => {
 			const res = await call(h, r.method, r.path, { tier: 'friend', body: r.body });
 			expect(res.status, `friend ${r.method} ${r.path}`).not.toBe(404);
 		}
+	});
+});
+
+describe('the music review is friend tier and above even when the app lets members in', () => {
+	let mods: { sounds: typeof import('./sounds.ts'); edge: typeof import('../edge-auth.ts') };
+
+	beforeAll(async () => {
+		const saved = process.env.CARDTABLE_MIN_TIER;
+		process.env.CARDTABLE_MIN_TIER = 'member';
+		try {
+			vi.resetModules();
+			mods = { sounds: await import('./sounds.ts'), edge: await import('../edge-auth.ts') };
+		} finally {
+			if (saved === undefined) delete process.env.CARDTABLE_MIN_TIER;
+			else process.env.CARDTABLE_MIN_TIER = saved;
+		}
+	});
+
+	it('a member gets 403 from both music-review routes and writes nothing; the takes themselves stay open to them', async () => {
+		const dir = await tempDir();
+		await writeCatalogue(dir, [TAKE]);
+		const h = await openApp(dir, mods);
+		const post = await call(h, 'POST', '/api/sounds/music-review', { tier: 'member', body: { slots: {} } });
+		const mine = await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'member' });
+		expect(post.status).toBe(403);
+		expect(mine.status).toBe(403);
+		expect((await readdir(dir)).sort()).toEqual(['catalogue.json']);
+		expect((await call(h, 'GET', '/api/sounds/catalogue', { tier: 'member' })).status).toBe(200);
+		expect((await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'friend' })).status).toBe(200);
 	});
 });
 
