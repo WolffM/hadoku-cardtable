@@ -186,6 +186,22 @@ it. PR-5 is new and exists to serve it.
 | **PR-3** | **Room module** — our P3–P6 contributions to `@wolffm/rooms-protocol` / `-server` (**renamed**: `@wolffm/rooms` never shipped) | **implemented Wave 5, locally.** Designs W1, delivered to watchparty W2/W3, built here W5. Upstream still ships **none** of P4–P6, so ours are our own packages consuming their primitives — `@wolffm/rooms-server@0.38.111` is `RoomRegistry` + seating + emit + rate limiting + `collectGC` and nothing else. The socket wiring is ours |
 | **PR-4** | **Play** — WS/JSON bridge at `IToClient`, headless Forge, the embedded client | **spiked and de-risked** (D). Forge runs headless; 38 of 60 protocol methods required; jUPnP is a config flag. Not greenfield — a 3,919-line headless net harness already exists in-tree |
 
+## Wave 83 (tournament core) dispatched as five single sessions (2026-10-30)
+
+`docs/planning/wave83-2026-10-30.md`. The operator's first-public-release tournament list. Settled: 20 min/player/match clock, match loss at zero; MTR Appendix B pick rope, configurable, bot pick on timeout; leader DQ + reset game (leader is the admin); members-only, anyone may join.
+
+| lane | worktree / branch | status | evidence |
+| --- | --- | --- | --- |
+| A chess clock | `.claude/worktrees/w83a` / `w83a` | dispatched; owns the settings schema, lands it first; artifact gate | — |
+| B draft rope | `.claude/worktrees/w83b` / `w83b` | dispatched; after A's schema; artifact gate | — |
+| C leader tools (DQ, reset) | `.claude/worktrees/w83c` / `w83c` | dispatched | — |
+| D tournament break-it e2e | `.claude/worktrees/w83d` / `w83d` | dispatched; tests only, files failures to owners | — |
+| E rate limits, music-review gate, D1 licensing docs | `.claude/worktrees/w83e` / `w83e` | dispatched; lands first | — |
+| 84 brackets at any size (multi-pod, field Swiss, rounds, tiebreak robustness for >16) | — | queued after 83 | — |
+| 85 events + front page (Create event: Tournament w/ full settings or Form via Rally; calendar = scrolling event list, room is source of truth; Upcoming → Calendar/Polls gallery; wildcard manual gallery w/ priority+random default) | — | queued after 83; Rally lane in hadoku-rally | — |
+| 86 Majors flag + leaderboard podium + avatar medals | — | queued; hadoku_site game-stats + cardtable tournament reporting | — |
+| linked accounts (Discord/Steam) + uploaded avatars | — | hadoku_site prefs layer, then watchparty; cardtable hands-off | — |
+
 ## Wave 82 (idle rooms, 8 h forced draw) dispatched as one single session (2026-10-29)
 
 `docs/planning/wave82-2026-10-29.md`. Operator: non-tournament rooms close after 8 h idle, never with a game in progress; a game in progress over 8 h is forced to a draw (every room) and players go back to their room.
