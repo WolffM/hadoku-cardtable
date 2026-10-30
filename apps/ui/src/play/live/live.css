@@ -54,6 +54,7 @@
  * | phase rail | 8.4% wide, 31% down, 35% tall, right | `--live-rail-w`, `.live__phases` |
  * | controls | 112 × 84 → 112 × 110 → 112 × 84, 67% down, under the rail | `--live-controls-*`, `.live__buttons` |
  * | log button | 36 × 32, above the rail | `.live__log-button` |
+ * | settings gear | 32 round, above the log button; inside a watchparty room only | `.live__settings` |
  *
  * ## The drawing's WIDTH is real and its HEIGHT was not (wave 27 §B.1)
  *
@@ -1082,6 +1083,15 @@
   background: var(--bg-raised);
   color: var(--ink-dim);
   cursor: pointer;
+}
+
+/* Our own settings gear, drawn only where no host draws the settings (inside a watchparty room):
+   directly above the Log button, on the same right edge. */
+.live__settings {
+  position: absolute;
+  z-index: var(--z-overlay, 20);
+  top: calc(31% - 80px);
+  right: calc(var(--live-gutter) + 2px);
 }
 
 .live__log-button:hover {

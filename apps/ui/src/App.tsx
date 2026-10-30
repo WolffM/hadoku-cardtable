@@ -43,7 +43,7 @@ import { RoomShell } from './room/RoomShell.tsx';
 import { useWhoami } from './room/whoami.ts';
 import { knownRoomOfMatch } from './play/live/matchStart.ts';
 import { roomsClient, type RoomView } from './rooms/api.ts';
-import { useUiScale } from './settings/Settings.tsx';
+import { CardtableSettings, HostDrawsSettingsProvider, useUiScale } from './settings/Settings.tsx';
 import { useTrim } from './settings/siteTrim.ts';
 import { useSoundPrefs } from './sound/mute.ts';
 
@@ -260,7 +260,13 @@ export function App({ transport }: AppProps) {
       // `ConnectedSettings` otherwise calls its own `whoami()` against
       // `/session/whoami`, which is a second identity path to the same fact.
       settingsProps={viewer === null ? undefined : { userType: viewer.tier, name: viewer.name }}
-    />
+    >
+      {/* The game's settings, under the popout's "App preferences" (the operator, 2026-10-30):
+          the one gear at the top of every screen, a match included. `settings/Settings.tsx`. */}
+      <div className="ct-settings__hosted">
+        <CardtableSettings />
+      </div>
+    </AppHeader>
   );
 
   // ONE chrome for the page. Their store and socket are module singletons, so
@@ -283,9 +289,11 @@ export function App({ transport }: AppProps) {
       {/* The operator, 2026-10-10: *"theres really no reason to close the chat
           in the lobby screen"*. A room's lobby keeps it open; the draft, deck
           and match screens still let a viewer hide it. */}
-      <RoomShell roomId={place?.roomId ?? null} chatId={place?.chatId ?? null} collapsible={route.kind !== 'room'}>
-        {matchPending ? null : <Screen transport={transport} />}
-      </RoomShell>
+      <HostDrawsSettingsProvider value>
+        <RoomShell roomId={place?.roomId ?? null} chatId={place?.chatId ?? null} collapsible={route.kind !== 'room'}>
+          {matchPending ? null : <Screen transport={transport} />}
+        </RoomShell>
+      </HostDrawsSettingsProvider>
     </AppChrome>
   );
 }

@@ -354,13 +354,12 @@ import {
   type MatchTransport,
   type Say,
 } from './match.ts';
-import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS, type PlayPrefs } from './prefs.ts';
+import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from './prefs.ts';
 import { StopPhaseSchema, stopStep, type StopPhase } from './transport.ts';
 import { MistakeBubble } from './MistakeBubble.tsx';
-import { SettingsPanel } from './SettingsPanel.tsx';
 import { fetchOwnDeck, OwnDeckPeek, type OwnDeck } from './own-deck.tsx';
-import { usePopover } from '../../components/Popover.tsx';
-import { SettingsPopover } from '../../settings/Settings.tsx';
+import { SettingsGear } from '../../settings/Settings.tsx';
+import { usePublishLiveMatchSettings } from '../../settings/liveMatch.ts';
 import { eventTarget } from '../../dom.ts';
 import { castForbiddenTip, costTip, flashTip } from '../tip/words.ts';
 import './live.css';
@@ -3228,12 +3227,6 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   }, [logOpen, match.says.length]);
 
   /*
-   * Board layout (item 11): a PROP of `Board`, `single` by default, read from
-   * the persisted preference below once it loads. Lives here, not inside
-   * `SettingsPanel`, because `<Board>` needs it whether or not Settings is
-   * ever opened.
-   */
-  /*
    * The control box's one game button, `End Turn`, is always drawn and enabled
    * only while Forge names its button two `End Turn` (`InputPassPriority`'s
    * cancel slot, `offersEndTurn`).
@@ -3297,8 +3290,6 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     match.buttons,
     match.barHold,
   ]);
-  const [boardLayout, setBoardLayout] = useState<BoardLayout>(PLAY_PREFS_DEFAULTS.boardLayout);
-  const settings = usePopover();
   const [ownDeck, setOwnDeck] = useState<{ deck: OwnDeck; from: Element } | null>(null);
   const closeOwnDeck = useMemo(() => () => setOwnDeck(null), []);
   const toggleOwnDeck = (from: Element): void => {
@@ -3312,92 +3303,56 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     );
   };
   /*
-   * Item 6's persistence, and item 2/6's wire message.
-   *
-   * `usePrefs` is called ONCE, here, rather than inside `SettingsPanel`:
-   * applying a persisted preference to a FRESH match has to happen whether or
-   * not the player ever opens Settings this match (a preference set last
-   * match must still reach this seat), so it cannot be gated behind a panel
-   * that may never mount. Manager, 2026-09-30: *"send it on join/rejoin with
-   * the stored preference as well as on toggle, since the server default is
-   * off and does not remember."*
-   *
-   * `sendStopPreference(..., true)` is keyed on `[prefs, match, match.stats.snapshots]`:
-   * `prefs` so the first load applies immediately once it resolves, and
-   * `match.stats.snapshots` — bumped by every successful `forge:join` /
-   * `forge:resync` (`./match.ts`'s `fetchSnapshot`) — so a RESYNC, which
-   * hands this seat a freshly-created-or-recovered server `StopPolicy` with
-   * no memory of an earlier preference, gets the stored value re-sent too.
-   * `force: true` because the persisted value may already equal the
-   * client's own initial value (`true`) while the server still needs telling —
-   * `sendStopPreference`'s own doc comment has the full case.
+   * The seat's preferences (`./prefs.ts`), applied from the service itself: board layout, Fast
+   * Mode, "Say my mistakes" and the End step stop. The settings panel only saves
+   * (`../../settings/GameSettings.tsx`), and it may be drawn by a host this board never sees, the
+   * fleet header's popout, so whatever changes them, this reads the change and applies it.
+   * Before the first read, each is its default.
    */
-  const { prefs, save: savePrefs } = usePrefs(getPlayPrefsClient());
-  const appliedBoardLayout = useRef(false);
-  useEffect(() => {
-    if (appliedBoardLayout.current || prefs === null) return;
-    appliedBoardLayout.current = true;
-    if (prefs.boardLayout === 'type-separated') setBoardLayout('type-separated');
-  }, [prefs]);
+  const { prefs } = usePrefs(getPlayPrefsClient());
+  const boardLayout: BoardLayout = prefs?.boardLayout === 'type-separated' ? 'type-separated' : PLAY_PREFS_DEFAULTS.boardLayout;
+  const fastMode = prefs?.fastMode ?? PLAY_PREFS_DEFAULTS.fastMode;
+  const mistakeBubbles = prefs?.mistakeBubbles ?? PLAY_PREFS_DEFAULTS.mistakeBubbles;
+  const prefsRead = prefs !== null;
+  const endStepStop = prefs?.endStepStop ?? PLAY_PREFS_DEFAULTS.endStepStop;
   /*
-   * Fast Mode (wave 47), the same shape as board layout above: client-only,
-   * so there is no server echo to adopt the way `stopAtEndStep` has one —
-   * this is this client's own last word, held here because `<SettingsPanel>`
-   * only exists while the popout is open and a toggle set last match still
-   * has to reach `./pace.ts`'s wrapper whether or not this seat ever opens
-   * it. `match.transport` is `./match.ts`'s own field (unowned, read not
-   * written) — `isPacedTransport` narrows it without needing `match.ts` to
-   * know pacing exists at all.
+   * Fast Mode is client-only: nothing about pacing crosses to the server. `match.transport` is
+   * `./match.ts`'s own field (read, not written) — `isPacedTransport` narrows it without
+   * `match.ts` knowing pacing exists at all.
    */
-  const [fastMode, setFastModeState] = useState<boolean>(PLAY_PREFS_DEFAULTS.fastMode);
-  const appliedFastMode = useRef(false);
   useEffect(() => {
-    if (appliedFastMode.current || prefs === null) return;
-    appliedFastMode.current = true;
-    const persisted = prefs.fastMode ?? PLAY_PREFS_DEFAULTS.fastMode;
-    setFastModeState(persisted);
-    if (isPacedTransport(match.transport)) match.transport.setFast(persisted);
-  }, [prefs, match]);
+    if (isPacedTransport(match.transport)) match.transport.setFast(fastMode);
+  }, [match, fastMode]);
   // Whose acts go out as Forge sends them (`./pace.ts`, "The seat's own acts"): this seat's player, never a watcher's.
   useEffect(() => {
     if (isPacedTransport(match.transport)) match.transport.setSeatPlayer(() => (match.spectator ? null : match.playerId));
   }, [match]);
-  function handleFastModeChange(next: boolean): void {
-    setFastModeState(next);
-    if (isPacedTransport(match.transport)) match.transport.setFast(next);
-  }
-  // "Say my mistakes": client-only, read once from the persisted prefs like Fast Mode above.
-  const [mistakeBubbles, setMistakeBubblesState] = useState<boolean>(PLAY_PREFS_DEFAULTS.mistakeBubbles);
-  const appliedMistakeBubbles = useRef(false);
-  useEffect(() => {
-    if (appliedMistakeBubbles.current || prefs === null) return;
-    appliedMistakeBubbles.current = true;
-    setMistakeBubblesState(prefs.mistakeBubbles ?? PLAY_PREFS_DEFAULTS.mistakeBubbles);
-  }, [prefs]);
+  usePublishLiveMatchSettings(match, !spectator);
   // The seat's settings, in the match's log: once they have been read, and on every change — with the
   // window they are laid out in, so a layout report is read from the log rather than guessed.
-  const settingsReported = useRef(false);
   useEffect(() => {
-    if (spectator || prefs === null) return;
-    // The first report is of the persisted values, so it waits for the effects above to have put them
-    // into state (the same commit they arrive in still holds the defaults). After it, every change.
-    if (!settingsReported.current) {
-      const persistedLayout = prefs.boardLayout === 'type-separated' ? 'type-separated' : PLAY_PREFS_DEFAULTS.boardLayout;
-      if (boardLayout !== persistedLayout || fastMode !== (prefs.fastMode ?? PLAY_PREFS_DEFAULTS.fastMode)) return;
-      settingsReported.current = true;
-    }
+    // The first report is of the persisted values, once they have been read. After it, every change.
+    if (spectator || !prefsRead) return;
     reportClient(match.transport, match.matchId, 'info', { ui: __HADOKU_UI_VERSION__, fastMode, boardLayout, reducedMotion: prefersReducedMotion(), window: `${window.innerWidth}x${window.innerHeight}` });
-  }, [match, spectator, prefs, fastMode, boardLayout]);
+  }, [match, spectator, prefsRead, fastMode, boardLayout]);
+  /*
+   * The End step stop is the one preference the server hears of, and it remembers nothing: sent on
+   * every change, and on join and resync (manager, 2026-09-30: *"send it on join/rejoin with the
+   * stored preference as well as on toggle, since the server default is off and does not
+   * remember"*). `match.stats.snapshots` — bumped by every successful `forge:join` /
+   * `forge:resync` (`./match.ts`'s `fetchSnapshot`), and not `match.stats` itself, a
+   * mutated-in-place object with a stable identity — is the join/resync trigger. `force: true`
+   * because the stored value may already equal the client's own initial one while the server still
+   * needs telling (`sendStopPreference`'s own doc comment).
+   */
   useEffect(() => {
     // `snapshots === 0` is "no join has completed yet" — sending before that
     // would fire on mount, before the socket has so much as connected, and
     // then fire AGAIN the moment the real join lands (`stats.snapshots`
     // 0 → 1), which is a real double-send and not merely a wasted one.
-    if (spectator || prefs === null || match.stats.snapshots === 0) return;
-    sendStopPreference(match, prefs.endStepStop ?? PLAY_PREFS_DEFAULTS.endStepStop, true);
-    // `match.stats.snapshots` (not `match.stats` itself, which is a mutated-in-place
-    // object with a stable identity) is the join/resync trigger; see the block comment above.
-  }, [match, prefs, spectator, match.stats.snapshots]);
+    if (spectator || !prefsRead || match.stats.snapshots === 0) return;
+    sendStopPreference(match, endStepStop, true);
+  }, [match, prefsRead, endStepStop, spectator, match.stats.snapshots]);
 
   /*
    * The pointer layer is lane B's (`./gestures/`), and the element is the whole
@@ -3690,7 +3645,6 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           onRoll={(roll) => soundThrow(match, roll)}
           boardLayout={boardLayout}
           fastMode={fastMode}
-          onOpenSettings={settings.toggle}
           onOpenDeck={spectator ? undefined : toggleOwnDeck}
           // A watcher sends none (`reportClient`'s own rule).
           onEffect={spectator ? undefined : (data) => reportClient(match.transport, match.matchId, 'effect', data)}
@@ -3784,6 +3738,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * other inline icon in this codebase follows (`Board.tsx`'s mark and
        * count icons).
        */}
+      {/* Our own settings gear, where no host draws them: inside a watchparty room. Standalone it draws nothing, and the header's gear is the way in (`../../settings/Settings.tsx`). */}
+      <SettingsGear className="live__settings" />
       <button
         type="button"
         className="live__log-button"
@@ -4066,22 +4022,6 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       {/* R16: Victory/Defeat/Draw, in place of the toast (`Board`'s old `game over` banner). Over the board, which stays visible behind it. */}
       {resultShown && match.view !== null && <GameResultScreen match={match} roomId={roomId} />}
       {match.ended !== null && gameOutcome(match) === null && <MatchEndedNotice ended={match.ended} roomId={roomId} />}
-      {/* Cardtable's own settings, opened from the viewer's own face (`../../settings/Settings.tsx`). */}
-      {settings.trigger !== null && (
-        <SettingsPopover trigger={settings.trigger} onClose={settings.close}>
-          <SettingsPanel
-            match={match}
-            inert={spectator}
-            boardLayout={boardLayout}
-            onBoardLayoutChange={setBoardLayout}
-            fastMode={fastMode}
-            onFastModeChange={handleFastModeChange}
-            mistakeBubbles={mistakeBubbles}
-            onMistakeBubblesChange={setMistakeBubblesState}
-            onSave={(patch: Partial<PlayPrefs>) => void savePrefs(patch)}
-          />
-        </SettingsPopover>
-      )}
       {ownDeck !== null && <OwnDeckPeek deck={ownDeck.deck} from={ownDeck.from} onClose={closeOwnDeck} />}
     </div>
   );

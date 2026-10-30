@@ -5965,19 +5965,20 @@ describe('copiesIn: the ×N a pile of copies wears', () => {
 });
 
 /**
- * Your own face stays a circle while it is the way into the settings — the operator, 2026-10-10:
+ * Your own face stays a circle while it is a button — the operator, 2026-10-10:
  * *"small bug, i notice that when clicking on my avatar to bring up the settings it causes it to
- * become square instead of circular. why does the circle mask break?"*
+ * become square instead of circular. why does the circle mask break?"* The face opened the settings
+ * then; since 2026-10-30 it is a button only while Forge asks for a player, and the bug was the same.
  *
  * There is no mask: the circle is the priority ring (`.seat__ring`) around the mark. What drew the
- * square was the face button's own focus outline — the press that closes the settings leaves focus
- * on the face, and the next key makes it keyboard focus, which a browser outlines on the BUTTON: a
+ * square was the face button's own focus outline — a press leaves focus on the face, and the next
+ * key makes it keyboard focus, which a browser outlines on the BUTTON: a
  * column of the mark and the life under it. So the claim is the cascade on the real markup: with
  * keyboard focus on your face the button overrides the browser's outline and the ring — a circle —
  * carries it, with a character and with the drawn mark, while you are asked (outside the lit ring) and not.
  * jsdom draws no browser defaults, so an outline no rule mentions reads as empty here, not `none`.
  */
-describe('your own face stays a circle when it is the way into the settings', () => {
+describe('your own face stays a circle while it is a button', () => {
   for (const [who, avatarId] of [
     ['a character', 'rogue'],
     ['the drawn mark', undefined],
@@ -5986,8 +5987,9 @@ describe('your own face stays a circle when it is the way into the settings', ()
       const css = styled();
       const base = boardFromFixture(fixture);
       const view = { ...base, players: base.players.map((p) => (p.isViewer ? { ...p, avatarId } : p)) };
-      const { container } = render(createElement(Board, { view, onOpenSettings: () => undefined }));
-      const button = container.querySelector<HTMLElement>('[data-testid="seat-settings"]')!;
+      const { interaction } = spyInteraction([], [view.players.find((p) => p.isViewer)!.id]);
+      const { container } = render(createElement(Board, { view, interaction }));
+      const button = container.querySelector<HTMLElement>('[data-viewer] button.face__hit')!;
       expect(button.querySelector(avatarId === undefined ? 'svg.face__art' : 'img.face__avatar'), `${who} is what the face draws`).not.toBeNull();
       const seat = button.closest('[data-testid="player"]')!;
       const ring = button.querySelector('.seat__ring')!;

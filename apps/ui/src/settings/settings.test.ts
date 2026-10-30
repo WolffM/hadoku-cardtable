@@ -42,7 +42,7 @@ describe('the gear outside a match', () => {
     fireEvent.click(screen.getByTestId('settings-gear'));
     const dialog = screen.getByTestId('settings');
     expect(dialog.querySelector('[data-testid="settings-sound"]')).not.toBeNull();
-    expect([...dialog.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Display', 'Sound', 'Game']);
+    expect([...dialog.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Game', 'Sound', 'Display']);
     expect((screen.getByTestId('live-settings-fast-mode') as HTMLInputElement).checked).toBe(true);
     expect((screen.getByTestId('live-settings-stop-end-step') as HTMLInputElement).checked).toBe(false);
     expect((dialog.querySelector('input[name="board-layout"][value="type-separated"]') as HTMLInputElement).checked).toBe(true);
@@ -63,7 +63,7 @@ describe('the gear outside a match', () => {
     store.prefs = { uiScale: 1.1 };
     render(createElement(SettingsGear));
     fireEvent.click(screen.getByTestId('settings-gear'));
-    expect([...screen.getByTestId('settings').querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Display', 'Sound', 'Game']);
+    expect([...screen.getByTestId('settings').querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Game', 'Sound', 'Display']);
     const slider = screen.getByTestId('settings-ui-scale') as HTMLInputElement;
     expect(slider.type).toBe('range');
     expect([slider.min, slider.max, slider.value]).toEqual([String(UI_SCALE.min * 100), String(UI_SCALE.max * 100), '110']);

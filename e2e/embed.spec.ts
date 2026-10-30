@@ -309,7 +309,9 @@ test(titled('the embed plays a match against Forge’s AI, and unmount closes it
     await page.getByTestId('play-vs-bot').click();
     await expect(page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 120_000 });
     await expect(page.getByTestId('live-turn-n')).toHaveText(TURN_TEXT, { timeout: 60_000 });
-    await expect(page.getByTestId('seat-settings'), 'the match settings open from your own face, no header needed').toBeVisible();
+    // No host draws the settings here yet (docs/requests/SETTINGS_WATCHPARTY_SLOT.md): our own gear does, beside the Log.
+    await expect(page.getByTestId('settings-gear'), 'the match settings open from our own gear, no header needed').toBeVisible();
+    await expect(page.getByTestId('seat-settings')).toHaveCount(0);
     expect((await residue(page)).hash).toBe('#/host-route');
     const playing = await leaks(page);
     expect(playing.openSockets, 'the match is on a live socket').toBeGreaterThan(0);

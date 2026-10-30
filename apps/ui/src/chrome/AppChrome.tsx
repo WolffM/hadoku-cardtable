@@ -122,12 +122,15 @@
  *   looking like a link, plus the header's edge buffer. A wrapper that slots
  *   a different header in has to bring both.
  *
- * ## The game's settings are NOT in the header's gear
+ * ## The game's settings ARE in the header's gear, through its slot
  *
- * They were (wave 32, a portal into the popout) until 2026-10-10, when the
- * operator moved them out: a host's settings menu is not ours to fill, and
- * embedded there is no header at all. `../settings/Settings.tsx` is where they
- * are now. Nothing below the chrome reaches into the header.
+ * Out of it from 2026-10-10 (a host's menu is not ours to fill, and embedded
+ * there is no header), back in on 2026-10-30 when the operator made the fleet's
+ * popout the one place for settings. `App.tsx` passes `CardtableSettings` as
+ * `<AppHeader>`'s `children`, the slot the fleet made for exactly this: drawn
+ * under "App preferences", never reaching into the header's own markup.
+ * Embedded, `../settings/Settings.tsx`'s own gear stands in until watchparty
+ * draws the popout.
  *
  * ## Theming is NOT ours, and must not become ours
  *

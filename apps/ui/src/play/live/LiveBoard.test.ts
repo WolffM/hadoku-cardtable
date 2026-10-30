@@ -21,7 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 
 vi.setConfig({ testTimeout: 30_000 });
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { createElement, type ComponentType } from 'react';
+import { createElement, Fragment, type ComponentType } from 'react';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { parseServerFrame, type GameLogLine, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
 import { ClientEventSchema } from '@hadoku/shared';
@@ -77,6 +77,7 @@ import {
 import { FLIP_MS } from './CoinToss.tsx';
 import { whenBoardStill } from '../motion.ts';
 import type { PlayPrefs } from './prefs.ts';
+import { CardtableSettings, HostDrawsSettingsProvider } from '../../settings/Settings.tsx';
 import { confirmAsk, fixtureFrames, startReplayServer, untilMatch, type ReplayServer } from './replay-server.ts';
 import { parseMatchAck } from './transport.ts';
 import { PHASE_SETTLE_MS } from './phase-sound.ts';
@@ -254,26 +255,41 @@ vi.mock('../Board.tsx', async (importOriginal) => {
 /*
  * `@wolffm/prefs-client/react`'s `usePrefs` is mocked rather than let loose:
  * the real one reads localStorage and fetches `hadoku.me/prefs` over the
- * network, neither of which this suite may depend on. `prefsState.value` is
- * this file's own knob — a test sets `prefs` before rendering to simulate a
- * returning viewer, and every `save` call is captured in `saved` rather than
- * actually persisted anywhere.
+ * network, neither of which this suite may depend on. `prefsState` is this
+ * file's own one-row service: a test sets `prefs` before rendering to simulate
+ * a returning viewer; every `save` is captured in `saved` and, as the real
+ * client does, lands in `prefs` at once and re-renders every reader — the board
+ * and the settings panel both read it, and the board applies what the panel
+ * saved from there.
  */
 const prefsState = vi.hoisted(() => ({
   prefs: null as PlayPrefs | null,
   saved: [] as Partial<PlayPrefs>[],
+  readers: new Set<() => void>(),
 }));
-vi.mock('@wolffm/prefs-client/react', () => ({
-  usePrefs: () => ({
-    prefs: prefsState.prefs,
-    loading: prefsState.prefs === null,
-    error: null,
-    save: (patch: Partial<PlayPrefs>) => {
-      prefsState.saved.push(patch);
-      return Promise.resolve();
+vi.mock('@wolffm/prefs-client/react', async () => {
+  const { useSyncExternalStore } = await import('react');
+  const subscribe = (fn: () => void) => {
+    prefsState.readers.add(fn);
+    return () => void prefsState.readers.delete(fn);
+  };
+  return {
+    usePrefs: () => {
+      const prefs = useSyncExternalStore(subscribe, () => prefsState.prefs);
+      return {
+        prefs,
+        loading: prefs === null,
+        error: null,
+        save: (patch: Partial<PlayPrefs>) => {
+          prefsState.saved.push(patch);
+          prefsState.prefs = { ...prefsState.prefs, ...patch };
+          for (const fn of [...prefsState.readers]) fn();
+          return Promise.resolve();
+        },
+      };
     },
-  }),
-}));
+  };
+});
 
 let server: ReplayServer | null = null;
 let match: LiveMatch | null = null;
@@ -294,6 +310,7 @@ afterEach(async () => {
   server = null;
   prefsState.prefs = null;
   prefsState.saved = [];
+  prefsState.readers.clear();
   roomsClientState.leave.mockClear();
   roomsClientState.room = null;
   roomsClientState.afterGet = null;
@@ -318,13 +335,14 @@ afterEach(async () => {
  * `menu`: open cardtable's settings once the board is up, the way a player
  * does — a click on their own face.
  */
-async function liveBoard(playerId = 0, menu = false) {
+/** `settings`: draw the settings panel beside the board, where a host's popout draws it, sharing the board's preferences. */
+async function liveBoard(playerId = 0, settings = false) {
   const s = (server = await startReplayServer({ playerId }));
   const m = (match = startMatch({
     matchId: s.matchId,
     transport: socketIoMatchTransport({ url: s.url, path: '/socket.io/', transports: ['websocket'] }),
   }));
-  const utils = render(createElement(LiveBoard, { match: m }));
+  const utils = render(createElement(Fragment, null, createElement(LiveBoard, { match: m }), settings ? createElement(CardtableSettings) : null));
   await untilMatch(m, () => expect(m.stats.snapshots).toBe(1));
   const frames = fixtureFrames();
   for (const f of frames) s.send(f);
@@ -343,7 +361,6 @@ async function liveBoard(playerId = 0, menu = false) {
   // The turn number is the RAIL's: §A deleted `.board__bar`, which carried
   // `turn`, and `live-turn-n` is Forge's own counter on its own (wave 26 §B.2).
   await waitFor(() => expect(utils.getByTestId('live-turn-n').textContent).toBe('14'));
-  if (menu) fireEvent.click(utils.getByTestId('seat-settings'));
   return { s, m, ...utils };
 }
 
@@ -1335,6 +1352,8 @@ describe('Leave is deleted (item 5); Concede is the cluster’s only own control
       'board',
       'live__phases',
       'live__logbook',
+      // Our own settings gear: no host draws the settings here, as inside a watchparty room.
+      'ct-round-button live__settings',
       'live__log-button',
       'live__buttons',
       'live__prompt',
@@ -1808,6 +1827,8 @@ describe('a prompt belongs where the player is looking', () => {
       'board',
       'live__phases',
       'live__logbook',
+      // Our own settings gear: no host draws the settings here, as inside a watchparty room.
+      'ct-round-button live__settings',
       'live__log-button',
       'live__buttons',
       'live__prompt',
@@ -2573,51 +2594,57 @@ describe('§A.11 — the log is coloured by what happened, and its card names re
 });
 
 /*
- * ── items 4-7, then wave 32 Q15 — the match's settings, in the HEADER ──────
+ * ── items 4-7 — the match's settings ───────────────────────────────────────
  *
  * The operator, 2026-09-30: *"i think by default this should be off, but can
  * be turned on in settings (always stop at endstep). same place that we
- * should allow the board config to show differently."* — and, wave 32:
- * *"the settings live in the top settings menu, and the extra button goes."*
+ * should allow the board config to show differently."*
  *
- * 2026-10-10, the operator: *"i dont want watchparty's settings menu to get
- * clogged up by our game settings … we can expose it by making the avatar
- * clickable in-game"*. `liveBoard(0, true)` opens them from the viewer's face.
+ * 2026-10-30: two players could not find them behind their own face. The panel
+ * moved to the host's popout (the fleet header's gear, standalone), and inside
+ * a watchparty room to our own gear above the Log button. The board only reads
+ * the preferences and applies them. `liveBoard(0, true)` draws the panel beside
+ * the board, as a host does.
  */
-describe('the match settings open from your own face (items 4-7, 2026-10-10)', () => {
-  it('there is no Settings button in the cluster; your face opens the popover, with sound and the match', async () => {
+describe('the match settings (items 4-7, 2026-10-30)', () => {
+  it('your own face is no way in; with no host to draw them, a gear above the Log opens every section', async () => {
     const { container, queryByTestId, getByTestId } = await liveBoard();
-    expect(queryByTestId('live-settings')).toBeNull();
-    expect(queryByTestId('live-settings-panel')).toBeNull();
-    const face = getByTestId('seat-settings');
-    expect(face.closest('[data-viewer]'), 'the viewer’s own face, not the opponent’s').not.toBeNull();
-    expect(container.querySelectorAll('[data-testid="seat-settings"]')).toHaveLength(1);
+    expect(queryByTestId('seat-settings')).toBeNull();
+    expect(container.querySelector('[data-viewer] button.face__hit'), 'the face is a button only when Forge asks for a player').toBeNull();
 
-    fireEvent.click(face);
+    fireEvent.click(getByTestId('settings-gear'));
     const dialog = getByTestId('settings');
-    expect(dialog.contains(getByTestId('settings-sound'))).toBe(true);
-    expect(dialog.contains(getByTestId('live-settings-panel'))).toBe(true);
+    expect([...dialog.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Game', 'Sound', 'Display']);
     expect(container.querySelector('.live__ask')).toBeNull();
-  });
 
-  it('Escape, the close button and a press outside each close it', async () => {
-    const { queryByTestId, getByTestId } = await liveBoard(0, true);
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(queryByTestId('settings')).toBeNull();
-
-    fireEvent.click(getByTestId('seat-settings'));
+    fireEvent.click(getByTestId('settings-gear'));
     fireEvent.click(getByTestId('settings-close'));
     expect(queryByTestId('settings')).toBeNull();
-
-    fireEvent.click(getByTestId('seat-settings'));
+    fireEvent.click(getByTestId('settings-gear'));
     fireEvent.pointerDown(getByTestId('live-turn-n'));
     expect(queryByTestId('settings')).toBeNull();
+  });
+
+  it('where the host draws the settings, the board draws no gear of its own', async () => {
+    const s = (server = await startReplayServer({ playerId: 0 }));
+    const m = (match = startMatch({
+      matchId: s.matchId,
+      transport: socketIoMatchTransport({ url: s.url, path: '/socket.io/', transports: ['websocket'] }),
+    }));
+    const { queryByTestId, getByTestId } = render(
+      createElement(HostDrawsSettingsProvider, { value: true }, createElement(LiveBoard, { match: m })),
+    );
+    await untilMatch(m, () => expect(m.stats.snapshots).toBe(1));
+    expect(getByTestId('live-log-toggle')).toBeTruthy();
+    expect(queryByTestId('settings-gear')).toBeNull();
   });
 
   it('board layout: single is the default `Board` prop, and the radio flips it to type-separated and back', async () => {
     const { getByTestId } = await liveBoard(0, true);
     expect(captured.boardLayout).toBe('single');
-    const panel = getByTestId('live-settings-panel');
+    const panel = getByTestId('settings-game');
     const radios = [...panel.querySelectorAll<HTMLInputElement>('input[name="board-layout"]')];
     expect(radios.map((r) => r.value)).toEqual(['single', 'type-separated']);
     expect(radios[0]!.checked).toBe(true);

@@ -55,7 +55,7 @@ test(titled('the UI scale by a mouse click: the value clicked is the value kept,
     await signIn(front.page);
     await front.page.goto(`${stack.origin}/cardtable/`);
     for (const wanted of ['110', '90', '125', '100']) {
-      await front.page.getByTestId('settings-gear').click();
+      await openSettings(front.page);
       const kept = await clickScale(front.page, wanted);
       console.log(`[bl] front page, clicked ${wanted}%: slider ${kept}, page ${await scaleOf(front.page)}`);
       expect(kept, `front page: the slider still shows the clicked ${wanted}%`).toBe(wanted);

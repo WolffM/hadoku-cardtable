@@ -1,22 +1,29 @@
 /**
- * Wave 32's shared hands for the specs: cardtable's own settings (moved out of
- * the header on 2026-10-10), and a pointer drag of a permanent (Q4), which
- * replaced the browser's HTML5 drag.
+ * Wave 32's shared hands for the specs: cardtable's settings (in the fleet
+ * header's popout since 2026-10-30), and a pointer drag of a permanent (Q4),
+ * which replaced the browser's HTML5 drag.
  */
 
 import { expect, type Locator, type Page } from '@playwright/test';
 
 import type { Friend } from './browser.ts';
 
-/* ── cardtable's settings, opened from your own face ─────────────────── */
+/* ── cardtable's settings ────────────────────────────────────────────── */
 
-/** The popover (`apps/ui/src/settings/Settings.tsx`). */
-export const settingsPopover = (page: Page): Locator => page.getByTestId('settings');
+/**
+ * Whichever popout holds them (`apps/ui/src/settings/Settings.tsx`): the fleet header's, standalone,
+ * or our own gear's where no host draws them (inside a watchparty room).
+ */
+export const settingsPopover = (page: Page): Locator => page.locator('.settings-popout__panel, [data-testid="settings"]');
 
-/** Open the settings the way a player does in a match — their own face — and wait for the match's section. */
+/** Open the settings the way a player does — the header's gear, or our own where there is no header — and wait for the game's section. */
 export async function openSettings(page: Page): Promise<Locator> {
-  if ((await settingsPopover(page).count()) === 0) await page.getByTestId('seat-settings').click();
-  await expect(page.getByTestId('live-settings-panel'), 'the match settings opened from the face').toBeVisible();
+  if ((await settingsPopover(page).count()) === 0) {
+    const own = page.getByTestId('settings-gear');
+    if ((await own.count()) > 0) await own.click();
+    else await page.getByRole('button', { name: /^User settings/ }).click();
+  }
+  await expect(page.getByTestId('settings-game'), 'the settings opened, with the game’s section').toBeVisible();
   return settingsPopover(page);
 }
 

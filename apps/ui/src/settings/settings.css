@@ -34,6 +34,12 @@
   border-top: 1px solid var(--color-border);
 }
 
+/* Under a host's own divider (the fleet popout's App preferences), the first section draws no second line. */
+.ct-settings__hosted > .ct-settings__section:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
 .ct-settings__section + .ct-settings__section {
   margin-top: 10px;
 }

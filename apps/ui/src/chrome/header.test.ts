@@ -108,21 +108,19 @@ describe('the GitHub link', () => {
 });
 
 /*
- * 2026-10-10: the operator moved the game's settings out of the header — a
- * host's settings menu is not ours to fill. The fleet's gear holds the fleet's
- * settings; cardtable's are behind its own gear.
+ * 2026-10-30: the operator made the fleet's popout the one place for settings
+ * (after 2026-10-10 had moved the game's out of it). The game's sections sit in
+ * its "App preferences" slot, and no screen draws a gear of its own.
  */
-describe('the game’s settings are its own, not the header’s', () => {
-  it('leaves the fleet’s popout alone and opens its own from the corner gear', () => {
+describe('the game’s settings are in the header’s popout', () => {
+  it('holds every section under the fleet’s own rows, and the screen draws no second gear', () => {
     render(createElement(App));
+    expect(screen.queryByTestId('settings-gear')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'User settings' }));
     const popout = document.querySelector('.settings-popout__panel');
     expect(popout, 'the fleet’s popout opened').not.toBeNull();
-    expect(popout!.querySelector('[data-testid="settings-sound"]')).toBeNull();
-
-    fireEvent.click(screen.getByTestId('settings-gear'));
-    const dialog = screen.getByRole('dialog', { name: 'Settings' });
-    expect(dialog.querySelector('[data-testid="settings-sound"]')).not.toBeNull();
-    expect(dialog.querySelector('[data-testid="live-settings-panel"]'), 'the game section, outside a match too').not.toBeNull();
+    const app = popout!.querySelector('.settings-popout__app');
+    expect(app, 'under its App preferences').not.toBeNull();
+    expect([...app!.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Game', 'Sound', 'Display']);
   });
 });

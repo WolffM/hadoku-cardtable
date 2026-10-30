@@ -3349,15 +3349,7 @@ function HiddenHand({ player, ownerSide, interaction }: { player: BoardPlayer; o
  * (`data-active`, `board.css`), never a ring. Both hooks are the section's, so an e2e spec
  * selects them without reaching into this component's own markup.
  */
-function PlayerFace({
-  player,
-  interaction,
-  onOpenSettings,
-}: {
-  player: BoardPlayer;
-  interaction: BoardInteraction | undefined;
-  onOpenSettings: ((from: Element) => void) | undefined;
-}) {
+function PlayerFace({ player, interaction }: { player: BoardPlayer; interaction: BoardInteraction | undefined }) {
   const selectable = interaction !== undefined && interaction.selectablePlayers.has(player.id);
   const emblems = player.emblems ?? [];
   const poison = poisonOf(player);
@@ -3396,18 +3388,6 @@ function PlayerFace({
           className="face__hit"
           aria-label={`Select ${player.name}`}
           onClick={() => interaction.onSelectPlayer(player.id)}
-        >
-          {mark}
-        </button>
-      ) : player.isViewer && onOpenSettings !== undefined ? (
-        /* Your own face opens cardtable's settings (`../settings/Settings.tsx`) whenever Forge is not asking for a player. */
-        <button
-          type="button"
-          className="face__hit face__hit--settings"
-          aria-label="Settings"
-          aria-haspopup="dialog"
-          data-testid="seat-settings"
-          onClick={(event) => onOpenSettings(event.currentTarget)}
         >
           {mark}
         </button>
@@ -3720,7 +3700,6 @@ function PlayerArea({
   foreign = NOTHING_FOREIGN,
   held,
   onOpenPile,
-  onOpenSettings,
   onOpenDeck,
 }: {
   player: BoardPlayer;
@@ -3734,7 +3713,6 @@ function PlayerArea({
   /** Cards still on their way to a pile (`Board`'s `held`): left out of the graveyard and exile until they arrive. */
   held: ReadonlySet<number>;
   onOpenPile: (zone: PileZone) => void;
-  onOpenSettings?: (from: Element) => void;
   onOpenDeck?: (from: Element) => void;
 }) {
   const selectable = interaction !== undefined && interaction.selectablePlayers.has(player.id);
@@ -3786,7 +3764,7 @@ function PlayerArea({
       <div className="seat__side">
         <div className="seat__who" data-player-bar="">
           <div className="seat__ident">
-            <PlayerFace player={player} interaction={interaction} onOpenSettings={onOpenSettings} />
+            <PlayerFace player={player} interaction={interaction} />
             <h3 className="seat__name">
               {selectable ? (
                 <button
@@ -4241,7 +4219,6 @@ export function Board({
   view,
   interaction: rawInteraction,
   boardLayout = 'single',
-  onOpenSettings,
   onOpenDeck,
   onEffect,
   revealed,
@@ -4261,8 +4238,6 @@ export function Board({
   interaction?: BoardInteraction;
   /** What each view's change was drawn as (`live/numbers.ts`'s beats) — the seat's `effect` client event. */
   onEffect?: (data: Record<string, string | number | boolean>) => void;
-  /** The viewer's own face opens the game's settings: `LiveBoard` owns them. */
-  onOpenSettings?: (from: Element) => void;
   /** The viewer's own library count opens their deck list: `LiveBoard` fetches it. */
   onOpenDeck?: (from: Element) => void;
   /**
@@ -4671,7 +4646,6 @@ export function Board({
           foreign={foreignBattlefieldOf(viewer.id)}
           held={held}
           onOpenPile={openPileOf(viewer.id)}
-          onOpenSettings={onOpenSettings}
           onOpenDeck={onOpenDeck}
         />
       )}

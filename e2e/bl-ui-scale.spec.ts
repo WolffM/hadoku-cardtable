@@ -14,7 +14,7 @@
  *      scroll, every zone lies inside the window and every battlefield card inside its zone, a hand
  *      card clicked onto the battlefield is played, and the board is drawn at that scale. After a
  *      reload the scale is still the one she chose.
- *   3. The same slider, from the front page's gear: at either end the front page does not scroll.
+ *   3. The same slider, from the header's settings on the front page: at either end the front page does not scroll.
  */
 import { expect, test, type Page } from '@playwright/test';
 
@@ -154,7 +154,7 @@ test(titled('a UI scale slider in the settings: at either end the table fits the
   }
 });
 
-test(titled('the UI scale from the front page’s gear: at either end the front page does not scroll'), async ({ browser }) => {
+test(titled('the UI scale from the header’s settings on the front page: at either end the front page does not scroll'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -170,8 +170,7 @@ test(titled('the UI scale from the front page’s gear: at either end the front 
     await page.goto(`${stack.origin}/cardtable/`);
     await expect(page.getByTestId('room-row').first()).toBeVisible({ timeout: 30_000 });
     for (const key of ['Home', 'End'] as const) {
-      await page.getByTestId('settings-gear').click();
-      const slider = page.getByTestId('settings-ui-scale');
+      const slider = (await openSettings(page)).getByTestId('settings-ui-scale');
       await slider.focus();
       await page.keyboard.press(key);
       const scale = String(Number(await slider.inputValue()) / 100);
