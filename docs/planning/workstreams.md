@@ -192,7 +192,7 @@ it. PR-5 is new and exists to serve it.
 
 | lane | worktree / branch | status | evidence |
 | --- | --- | --- | --- |
-| idle rooms + 8 h forced draw | `.claude/worktrees/w82` / `w82` | dispatched | — |
+| idle rooms + 8 h forced draw | removed | **landed + verified** `2ec9d504c` (AF456), PPE `3279a88d` 23:39Z; awaiting operator ✅ | red on main 40970291512/40970855120, green 40970294150/40970858272/40970307209, CI 40973664415 (tracker re-read all six); real Forge caught setGameOver(Draw) naming every player a winner (fixed with intentionalDraw); 5 mutations each red; probe-only POST /api/play/sweep behind CARDTABLE_PLAY_PROBE, unset on prod and PPE (tracker checked); stills `~/.cache/cardtable-manager/w82/`; unverified: no real 8 h game drawn yet — watch for evt draw-forced after release; a replay rebuilt from actions won't end in the draw |
 
 ## Wave 81 (replays rebuilt) dispatched as one single session (2026-10-28)
 
