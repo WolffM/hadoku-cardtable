@@ -305,13 +305,14 @@ export async function keepBothHands(alice: Friend, bob: Friend, first: Friend): 
  * no mulligan question is outstanding on either side, and both scripted
  * hands have landed. `beforeAlice`/`beforeBob` run on that seat's page before it opens the match —
  * where a spec routes his socket (`page.routeWebSocket` must precede the connection). `format` is
- * the room format id the match plays in (what a card-name ask is narrowed to).
+ * the room format id the match plays in (what a card-name ask is narrowed to). `clockMs` starts the chess
+ * clock with each seat's time left (a test-only length: a room's own is the setting's 20 minutes).
  */
 export async function startScenarioMatch(
   browser: Browser,
   stack: PlayStack,
   scenarioName: string,
-  options: { beforeAlice?: (page: Page) => Promise<void>; beforeBob?: (page: Page) => Promise<void>; format?: string } = {},
+  options: { beforeAlice?: (page: Page) => Promise<void>; beforeBob?: (page: Page) => Promise<void>; format?: string; clockMs?: [number, number] } = {},
 ): Promise<ScenarioMatch> {
   const scenario = readScenario(scenarioName);
   const alice = await openFriend(browser, 'alice');
@@ -324,6 +325,7 @@ export async function startScenarioMatch(
       names: ['Alice', 'Bob'],
       scenario,
       ...(options.format === undefined ? {} : { format: options.format }),
+      ...(options.clockMs === undefined ? {} : { clockMs: options.clockMs }),
     },
   });
   if (res.status() !== 201) {
