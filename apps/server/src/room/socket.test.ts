@@ -56,8 +56,10 @@ import {
 	safeParseServerMessage,
 	type DraftCard,
 	type DraftView,
+	type RoomSettings,
 	type ServerMessage,
 } from '@hadoku/shared';
+import { pickTimeMs } from '@hadoku/draft';
 
 import type { DraftRoom, DraftRooms } from './draftRooms.js';
 import { identityFromHeaders } from './identity.js';
@@ -131,7 +133,7 @@ const dirs: string[] = [];
 let harness: Harness | null = null;
 
 /** Three rooms in a real lobby: a started draft, a draft still in its lobby, a constructed room. */
-async function bootLobby(): Promise<Lobby> {
+async function bootLobby(settings: Partial<RoomSettings> = {}): Promise<Lobby> {
 	const dir = await mkdtemp(join(tmpdir(), 'cardtable-socket-test-'));
 	dirs.push(dir);
 	const lobby = await lobbyMod.openLobby({ dir });
@@ -144,6 +146,7 @@ async function bootLobby(): Promise<Lobby> {
 	pendingRoomId = make('pod-socket-pending', 'draft');
 	constructedRoomId = make('table-socket', 'constructed-1v1');
 
+	if (!lobby.setSettings(startedRoomId, OWNER.id, settings).ok) throw new Error('the lobby refused the settings');
 	// Only the first one is started, through the lobby's own rules: every member
 	// ready, then `startDraft`. Nothing here sets `draftStartedAt` by hand.
 	if (!lobby.setReady(startedRoomId, OWNER.id, true)) throw new Error('the lobby refused a ready flag');
@@ -168,10 +171,12 @@ async function boot(
 		/** A test's own clock, so it never waits out the real 30 s. */
 		seatReleaseMs?: number;
 		schedule?: (fn: () => void, ms: number) => void;
+		/** The started room's settings, set before its draft is dealt. */
+		settings?: Partial<RoomSettings>;
 	} = {},
 ): Promise<Harness> {
 	const rooms = roomsMod.createDraftRooms({ ...roomsMod.singlePoolResolver(pool) });
-	const lobby = await bootLobby();
+	const lobby = await bootLobby(deps.settings);
 	const http = createServer();
 	const io = new SocketIOServer(http, { serveClient: false });
 	// Collected, not printed: nothing reaches the test output, and the one line
@@ -780,6 +785,70 @@ describe('bots on the clock', () => {
 		if (piled?.viewer.kind !== 'seat') throw new Error('alice should be seated');
 		expect(piled.viewer.pack.map((c) => c.cardId)).toEqual(opening.viewer.pack.map((c) => c.cardId));
 		expect(piled.pickNumber).toBe(1);
+	});
+});
+
+/* ── The draft rope ──────────────────────────────────────────────────── */
+
+describe('the draft rope', () => {
+	const rope = { pickTimer: { on: true, speed: 4 } };
+
+	it("times each human seat's pick by the cards left over the room's speed, and a pick starts the next one's", async () => {
+		await harness?.close();
+		harness = await boot({ settings: rope });
+		const alice = await connect(live().port, edgeHeaders('alice'));
+		await joinAndSettle(alice);
+		const first = lastView(alice);
+		if (first?.viewer.kind !== 'seat') throw new Error('alice should be seated');
+		expect(first.viewer.timer?.totalMs).toBe(pickTimeMs(15, 4));
+		expect(first.viewer.timer?.msLeft).toBeLessThanOrEqual(pickTimeMs(15, 4)!);
+		expect(first.viewer.timer?.msLeft).toBeGreaterThan(0);
+		// Bots are never on the rope.
+		const state = roomsMod.stateOf(room());
+		for (const seat of room().app.rope.keys()) expect(state.table.seats[seat]?.occupant?.kind).not.toBe('bot');
+
+		const before = alice.received.length;
+		alice.send(pickCard(startedRoomId, first.viewer.pack[0]!.cardId));
+		await waitUntil(() => alice.received.length > before, 'the pick to be confirmed');
+		const next = lastView(alice);
+		if (next?.viewer.kind !== 'seat') throw new Error('alice should be seated');
+		expect(next.viewer.pack).toHaveLength(14);
+		expect(next.viewer.timer?.totalMs).toBe(pickTimeMs(14, 4));
+	});
+
+	it("gives a seat whose time ran out the draft bot's pick, with nothing from its browser", async () => {
+		await harness?.close();
+		harness = await boot({ settings: rope });
+		const alice = await connect(live().port, edgeHeaders('alice'));
+		await joinAndSettle(alice);
+		const opening = lastView(alice);
+		if (opening?.viewer.kind !== 'seat') throw new Error('alice should be seated');
+		const seat = opening.viewer.seatId;
+		// The deadline, already past. The next change to the draft (a watcher's join) re-arms
+		// the room's timer for it, which then fires at once — the real path, minus 10 s.
+		const deadline = room().app.rope.get(seat);
+		if (deadline === undefined) throw new Error("alice's pick has no deadline");
+		deadline.endsAt = Date.now() - 1;
+		await joinAndSettle(await connect(live().port, edgeHeaders('bob')));
+
+		await waitUntil(() => roomsMod.stateOf(room()).pools[seat]?.length === 1, "the timeout's pick");
+		const taken = roomsMod.stateOf(room()).pools[seat]![0]!.cardId;
+		expect(opening.viewer.pack.map((c) => c.cardId)).toContain(taken);
+		expect(lines().filter((l) => l.evt === 'pick-timeout' && l.seat === seat).map((l) => l.totalMs)).toEqual([pickTimeMs(15, 4)]);
+		expect(lines().some((l) => l.evt === 'pick' && l.seat === seat)).toBe(false);
+		await waitUntil(() => {
+			const v = lastView(alice);
+			return v?.viewer.kind === 'seat' && v.viewer.pool.some((c) => c.cardId === taken);
+		}, 'alice to be told');
+	});
+
+	it('is absent with the room’s pick timer off', async () => {
+		const alice = await connect(live().port, edgeHeaders('alice'));
+		await joinAndSettle(alice);
+		const view = lastView(alice);
+		if (view?.viewer.kind !== 'seat') throw new Error('alice should be seated');
+		expect(view.viewer.timer).toBeUndefined();
+		expect(room().app.rope.size).toBe(0);
 	});
 });
 

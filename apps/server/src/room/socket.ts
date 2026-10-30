@@ -81,6 +81,23 @@
  * and the skipped seqs are superseded rather than missing. Unmarked, the client
  * read every round as a gap and resynced (Wave 10: 90 picks, 90 resyncs).
  *
+ * ## The rope: a deadline on every human pick (wave 83 D3)
+ *
+ * With the room's `pickTimer` on, every seat that is not a bot has a deadline
+ * on the pick in front of it: MTR Appendix B by cards left, over the room's
+ * speed (`@hadoku/draft`'s `pickTimeMs`). The deadline is this server's, kept
+ * on the room (`DraftApp.rope`) and sent to the seat as a duration
+ * (`viewForClient`). It is set when the pick reaches the seat — not when the
+ * seat looks at it — and it keeps running for a seat nobody is connected to,
+ * which is what keeps one dropped drafter from holding the pod. When it runs
+ * out the seat gets the draft bot's pick (`timeoutPick`). The last card of a
+ * pack has no timer and nothing to choose, so the seat takes it at once. Bots
+ * keep their own pace (`botPickMs`); the rope never applies to them.
+ *
+ * `syncRope` runs after every change to the draft, and is the only writer of
+ * the deadlines: a seat whose pick moved on gets a new one, a seat with
+ * nothing in front of it has none. One timer per room, for the earliest.
+ *
  * ## A seat with nobody connected to it, 30 s
  *
  * `io.on('connection')` fires for every socket this server holds, not only a
@@ -104,7 +121,7 @@ import type { IncomingHttpHeaders } from 'node:http';
 import type { Server as SocketIOServer } from 'socket.io';
 import { MultiRateLimiter, emitPerRecipient, type EmitPolicy, type RateLimitConfig } from '@wolffm/rooms-server';
 import { seatOf, type ParticipantId } from '@wolffm/rooms-protocol';
-import { botTurn, botsOwe, pick as enginePick, runBots } from '@hadoku/draft';
+import { botTurn, botsOwe, isBotSeat, packOf, pick as enginePick, pickTimeMs, runBots, timeoutPick } from '@hadoku/draft';
 import {
 	DRAFT_CHANNEL,
 	errorMessage,
@@ -253,6 +270,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 	const limiter = new MultiRateLimiter<ParticipantId>(deps.rateLimit ?? PICK_RATE_LIMIT);
 	const botPickMs = deps.botPickMs ?? 0;
 	const botTimers = new Map<string, ReturnType<typeof setTimeout>>();
+	const ropeTimers = new Map<string, ReturnType<typeof setTimeout>>();
 	const seatReleaseMs = deps.seatReleaseMs ?? SEAT_RELEASE_MS;
 	const schedule =
 		deps.schedule ??
@@ -286,12 +304,96 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 			if (turn.picks > 0) {
 				current.app.state = turn.state;
 				log({ evt: 'bot-picks', draftId, picks: turn.picks, seq: turn.state.seq });
+				syncRope(current);
 				emitPickStep(io, current, policy);
 			}
 			if (!turn.stalled) advanceBots(current);
 		}, botPickMs);
 		timer.unref();
 		botTimers.set(draftId, timer);
+	};
+
+	/** The room's pick-timer speed, or null when its draft has no rope. */
+	const ropeSpeed = (room: DraftRoom): number | null => {
+		const timer = deps.lobby.get(room.roomId)?.settings.pickTimer;
+		return timer?.on === true ? timer.speed : null;
+	};
+
+	/**
+	 * Bring the room's deadlines up to date with its draft. See the module
+	 * header. Takes every last card at once, so the draft may have moved:
+	 * true when it did, and the caller then lets the bots answer it.
+	 */
+	const syncRope = (room: DraftRoom): boolean => {
+		const draftId = room.roomId;
+		const pending = ropeTimers.get(draftId);
+		if (pending !== undefined) clearTimeout(pending);
+		ropeTimers.delete(draftId);
+		const rope = room.app.rope;
+		const speed = ropeSpeed(room);
+		if (speed === null || stateOf(room).status === 'complete') {
+			rope.clear();
+			return false;
+		}
+		let changed = false;
+		for (let seat = 0; seat < stateOf(room).seatCount; seat++) {
+			const state = stateOf(room);
+			if (isBotSeat(state, seat) || packOf(state, seat).length !== 1) continue;
+			const taken = timeoutPick(state, seat);
+			if (taken === null || !taken.ok) continue;
+			room.app.state = taken.state;
+			log({ evt: 'pick-last-card', draftId, seat, seq: taken.state.seq });
+			changed = true;
+		}
+		const state = stateOf(room);
+		const now = Date.now();
+		let earliest = Infinity;
+		for (let seat = 0; seat < state.seatCount; seat++) {
+			const left = packOf(state, seat).length;
+			const totalMs = isBotSeat(state, seat) ? null : pickTimeMs(left, speed);
+			if (totalMs === null) {
+				rope.delete(seat);
+				continue;
+			}
+			const key = `${state.packNumber}:${state.roundPicks[seat] ?? 0}`;
+			let deadline = rope.get(seat);
+			if (deadline?.key !== key) {
+				deadline = { key, endsAt: now + totalMs, totalMs };
+				rope.set(seat, deadline);
+			}
+			earliest = Math.min(earliest, deadline.endsAt);
+		}
+		if (earliest !== Infinity) {
+			const timer = setTimeout(() => ropeOut(draftId), Math.max(0, earliest - now));
+			timer.unref();
+			ropeTimers.set(draftId, timer);
+		}
+		return changed;
+	};
+
+	/** After a change to the draft: the bots, then the rope, until neither moves it. */
+	const settle = (room: DraftRoom): void => {
+		advanceBots(room);
+		for (let rounds = 0; rounds < stateOf(room).seatCount * 2 && syncRope(room); rounds++) advanceBots(room);
+	};
+
+	/** A deadline ran out: every seat past its own gets the draft bot's pick. */
+	const ropeOut = (draftId: string): void => {
+		ropeTimers.delete(draftId);
+		const room = deps.rooms?.find(draftId);
+		if (room === undefined) return;
+		const now = Date.now();
+		let timedOut = 0;
+		for (const [seat, deadline] of room.app.rope) {
+			if (deadline.endsAt > now) continue;
+			const taken = timeoutPick(stateOf(room), seat);
+			if (taken === null || !taken.ok) continue;
+			room.app.state = taken.state;
+			timedOut += 1;
+			log({ evt: 'pick-timeout', draftId, seat, totalMs: deadline.totalMs, seq: taken.state.seq });
+		}
+		settle(room);
+		if (timedOut > 0) emitPickStep(io, room, policy);
 	};
 
 	// (1) Provenance. Runs on the handshake request itself, which is the only
@@ -426,6 +528,9 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 					// someone is at the table; a join to a pod already going finds
 					// them running. Picking at once, they wait for a pick to feed them.
 					if (botPickMs > 0) advanceBots(room);
+					// The rope starts on the first join of a dealt pod, and on the
+					// first after a restore; any other join finds it running.
+					if (syncRope(room)) advanceBots(room);
 					// A baseline for the arrival; a step for everyone already
 					// here, and only when the table actually changed — an
 					// unchanged seq would reach them as a duplicate anyway.
@@ -535,8 +640,9 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 						draftId: room.roomId,
 						seq: result.state.seq,
 					});
-					// The pack this pick passed may be a bot's next.
-					advanceBots(room);
+					// The pack this pick passed may be a bot's next, and the
+					// seat's next pick starts its own time.
+					settle(room);
 					emitPickStep(io, room, policy);
 					return;
 				}
@@ -547,8 +653,9 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 	return {
 		close(): void {
 			limiter.deregister();
-			for (const timer of botTimers.values()) clearTimeout(timer);
+			for (const timer of [...botTimers.values(), ...ropeTimers.values()]) clearTimeout(timer);
 			botTimers.clear();
+			ropeTimers.clear();
 		},
 	};
 }

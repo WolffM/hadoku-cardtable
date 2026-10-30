@@ -57,7 +57,7 @@ import { ConnectionBanner } from './ConnectionBanner.tsx';
 import { DeckView } from './DeckView.tsx';
 import { CARD_RATIO, cssPx, fitGrid, useBox, useFitScale } from './cardFit.ts';
 import { useNewPackSound } from '../draft/packSound.ts';
-import { FAN_MIN_WIDTH, fanGeometry, fanLayer, fanX, MAX_CARD_H, PackView, type PackLayout } from './PackView.tsx';
+import { FAN_MIN_WIDTH, fanGeometry, fanLayer, fanX, MAX_CARD_H, PackView, PickRope, type PackLayout } from './PackView.tsx';
 import { PoolView, POOL_ENTER_MS, type PoolEnterRect } from './PoolView.tsx';
 import type { GroupBy } from '../deck/cardOrder.ts';
 import { useDraftBuild, type DraftBuildStore } from '../deck/useDraftBuild.ts';
@@ -190,6 +190,8 @@ export function DraftScreen({
   // Picked, and the pack not yet passed: the cards left in it are not this
   // seat's to take, so the pack gives way to the wait rather than sitting dimmed.
   const waiting = blocked?.reason === 'not-your-turn';
+  // The rope burns over the pick in front of the seat: gone once it is made, and for nobody's seat.
+  const rope = view.viewer.kind === 'spectator' || waiting || (!watching && blocked !== null) ? undefined : view.viewer.timer;
 
   // The viewer's own picks are their build; a watched drafter's are only looked at.
   const pool = useMemo(() => visiblePool(state), [state]);
@@ -279,6 +281,7 @@ export function DraftScreen({
             />
           ) : (
             <>
+              {rope !== undefined && <PickRope timer={rope} pickKey={`${view.packNumber}:${view.pickNumber}`} />}
               <PackView
                 cards={waiting ? [] : visiblePack(state)}
                 layout={layout}

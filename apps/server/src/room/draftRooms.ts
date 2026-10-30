@@ -195,6 +195,20 @@ export interface DraftApp {
 	 * already uses for the same reason.
 	 */
 	persist: (room: DraftRoom) => void;
+	/**
+	 * The draft rope: each seat's deadline on the pick in front of it, set by
+	 * `room/socket.ts` when the room has a pick timer and read here into that
+	 * seat's view. In memory only — a restored pod starts every pick's time
+	 * afresh rather than timing a seat out for the minutes the server was down.
+	 */
+	rope: Map<SeatId, PickDeadline>;
+}
+
+/** One seat's deadline: on which pick (`key`), when it runs out, and how long it was given. */
+export interface PickDeadline {
+	key: string;
+	endsAt: number;
+	totalMs: number;
 }
 
 interface DeckMeta {
@@ -550,6 +564,7 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 			builtDecks: initial.builtDecks,
 			deckMeta: initial.deckMeta,
 			persist: persistRoom,
+			rope: new Map(),
 			get state() {
 				return current;
 			},
@@ -781,12 +796,20 @@ export function viewForParticipant(room: DraftRoom, participantId: ParticipantId
  * sent anything but their own seat. The socket's emits use this; the HTTP
  * routes keep `viewForParticipant`, which is seat or nothing.
  */
-export function viewForClient(room: DraftRoom, client: ClientMeta<DraftClient>): DraftView {
+export function viewForClient(room: DraftRoom, client: ClientMeta<DraftClient>, now: number = Date.now()): DraftView {
 	const view = viewForParticipant(room, client.participantId);
-	if (view.viewer.kind === 'seat') return view;
+	if (view.viewer.kind === 'seat') return withRope(room, view, now);
 	const state = stateOf(room);
 	const watched = watchedSeat(state, client.app.watching);
-	return watched === null ? view : watcherView(state, watched);
+	return watched === null ? view : withRope(room, watcherView(state, watched), now);
+}
+
+/** The viewed seat's rope, as a duration from `now` (`PickTimerViewSchema`): the seat and whoever watches it see the same one. */
+function withRope(room: DraftRoom, view: DraftView, now: number): DraftView {
+	if (view.viewer.kind === 'spectator') return view;
+	const deadline = room.app.rope.get(view.viewer.seatId);
+	if (deadline === undefined) return view;
+	return { ...view, viewer: { ...view.viewer, timer: { totalMs: deadline.totalMs, msLeft: Math.max(0, deadline.endsAt - now) } } };
 }
 
 function watchedSeat(state: DraftState, wanted: SeatId | null): SeatId | null {

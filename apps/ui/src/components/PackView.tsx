@@ -354,3 +354,36 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
     </div>
   );
 }
+
+/** The share of a pick the rope burns through: its last third (the operator, 2026-10-30). */
+const ROPE_SHARE = 1 / 3;
+
+/**
+ * The draft rope (wave 83 D3): a fuse along the top of the pack that burns down
+ * through the last third of the pick. The time is the server's, sent as how
+ * much was left when the envelope left it (`viewer.timer`); the page only
+ * counts down from when it arrived, and the burn is a CSS animation whose delay
+ * places it on that clock. `waiting` before the last third (drawn as nothing),
+ * `burning` through it, `out` at zero — the server picks for the seat then.
+ */
+export function PickRope({ timer, pickKey }: { timer: { totalMs: number; msLeft: number }; pickKey: string }) {
+  const burnMs = timer.totalMs * ROPE_SHARE;
+  const [state, setState] = useState<'waiting' | 'burning' | 'out'>(timer.msLeft <= 0 ? 'out' : timer.msLeft <= burnMs ? 'burning' : 'waiting');
+  useEffect(() => {
+    const toBurn = timer.msLeft - burnMs;
+    setState(timer.msLeft <= 0 ? 'out' : toBurn <= 0 ? 'burning' : 'waiting');
+    const burn = toBurn > 0 ? setTimeout(() => setState('burning'), toBurn) : undefined;
+    const out = timer.msLeft > 0 ? setTimeout(() => setState('out'), timer.msLeft) : undefined;
+    return () => {
+      clearTimeout(burn);
+      clearTimeout(out);
+    };
+  }, [pickKey, timer.msLeft, burnMs]);
+  // A negative delay starts the burn part-way through, where the server's clock already is.
+  const style = { animationDuration: `${burnMs}ms`, animationDelay: `${timer.msLeft - burnMs}ms` } as CSSProperties;
+  return (
+    <div className="pick-rope" data-testid="pick-rope" data-state={state} aria-hidden="true">
+      <div key={pickKey} className="pick-rope__fuse" style={style} />
+    </div>
+  );
+}

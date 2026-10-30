@@ -173,18 +173,32 @@ export const DraftSeatViewSchema = z.object({
  * because everything that acts on a seat (a pick, the deck builder, a finished
  * pool) reads `kind === 'seat'` and must not act for a watcher.
  */
+/**
+ * The draft rope on the viewed seat's current pick (wave 83 D3): how long the
+ * pick was given, and how much of it was left when the server sent this. A
+ * duration, not a time of day, so a browser's clock never decides anything:
+ * the client counts down from when the envelope arrived. Absent when the room
+ * has no pick timer, or the seat has nothing to pick.
+ */
+const PickTimerViewSchema = z.object({
+  totalMs: z.number().int().positive(),
+  msLeft: z.number().int().nonnegative(),
+});
+
 export const ViewerViewSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('seat'),
     seatId: SeatIdSchema,
     pack: z.array(DraftCardSchema),
     pool: z.array(DraftCardSchema),
+    timer: PickTimerViewSchema.optional(),
   }),
   z.object({
     kind: z.literal('watcher'),
     seatId: SeatIdSchema,
     pack: z.array(DraftCardSchema),
     pool: z.array(DraftCardSchema),
+    timer: PickTimerViewSchema.optional(),
   }),
   z.object({ kind: z.literal('spectator') }),
 ]);

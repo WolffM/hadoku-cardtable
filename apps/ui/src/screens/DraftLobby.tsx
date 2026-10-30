@@ -80,10 +80,11 @@
 
 import { useEffect, useState } from 'react';
 
-import type { CubeSummary, DraftPlan, DraftPreset, PoolSource, SetSummary } from '@hadoku/shared';
+import type { CubeSummary, DraftPlan, DraftPreset, PickTimer, PoolSource, SetSummary } from '@hadoku/shared';
 
 import { poolsClient, roomsClient, type PoolsClient, type RoomsClient, type RoomMember } from '../rooms/api.ts';
 import { latestReads } from '../rooms/latest.ts';
+import { PickTimerRule } from '../draft/PickTimerRule.tsx';
 import { PoolPicker, refusalOf, type PoolTab, type Refusal, type SourceStyle } from '../draft/PoolPicker.tsx';
 import { preloadCubeArt } from '../play/live/art-preload.ts';
 import { PodLobby } from './pod/PodLobby.tsx';
@@ -142,6 +143,7 @@ export function DraftLobby({
   error,
   onReady,
   onRetry,
+  pickTimer,
   pools = defaultPools,
   rooms = defaultRooms,
 }: {
@@ -158,9 +160,11 @@ export function DraftLobby({
   error: string | null;
   onReady: (ready: boolean) => void;
   onRetry: () => void;
+  /** The room's draft rope (`settings.pickTimer`). */
+  pickTimer: PickTimer;
   /** Tests inject a stub. Production leaves it undefined. */
   pools?: PoolsClient;
-  rooms?: Pick<RoomsClient, 'setPlan'>;
+  rooms?: Pick<RoomsClient, 'setPlan' | 'setSettings'>;
 }) {
   const myMemberId = myId === '' ? null : myId;
   const amLeader = myId !== '' && myId === leaderId;
@@ -427,6 +431,12 @@ export function DraftLobby({
         )
       }
     >
+      <PickTimerRule
+        timer={pickTimer}
+        leader={amLeader}
+        disabled={dealing}
+        onChange={(next) => void rooms.setSettings(roomId, { pickTimer: next })}
+      />
       {pod !== null && (
         <>
           <h2>Pool</h2>

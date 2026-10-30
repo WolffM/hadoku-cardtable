@@ -93,6 +93,66 @@
   display: contents;
 }
 
+/* The draft rope (wave 83 D3): over the pack's top edge, drawn only through the
+   last third of a pick. A fuse in the state-colour tokens burns from the right
+   toward the left, its burning end a glowing ember; `out` leaves nothing. */
+.pick-rope {
+  grid-area: pack;
+  align-self: start;
+  z-index: 3;
+  height: 6px;
+  margin: 0 4px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 240ms ease;
+}
+
+.pick-rope[data-state='burning'] {
+  opacity: 1;
+}
+
+.pick-rope__fuse {
+  position: relative;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--warn), var(--danger));
+  box-shadow: 0 0 6px color-mix(in srgb, var(--danger) 55%, transparent);
+  animation-name: pick-rope-burn;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+
+/* The ember: rides the fuse's burning end. The fuse shrinks by width, not a
+   scale, so the ember stays round all the way down. */
+.pick-rope__fuse::after {
+  content: '';
+  position: absolute;
+  right: -5px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  translate: 0 -50%;
+  background: radial-gradient(circle, var(--warn) 0 30%, var(--danger) 60%, transparent 72%);
+  animation: pick-rope-ember 420ms ease-in-out infinite alternate;
+}
+
+@keyframes pick-rope-burn {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+@keyframes pick-rope-ember {
+  from { opacity: 0.7; scale: 0.85; }
+  to { opacity: 1; scale: 1.15; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pick-rope__fuse::after {
+    animation: none;
+  }
+}
+
 .draft__main > .pack {
   grid-area: pack;
   min-width: 0;

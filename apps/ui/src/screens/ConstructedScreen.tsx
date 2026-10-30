@@ -162,6 +162,7 @@ import { LIBRARY_CARD_COSTS, LIBRARY_DECK_STYLES, type DeckStyle } from '@hadoku
  * `RoomTable` (a seat's whole state at one table), and the two would clash by
  * name if both were imported bare into this file.
  */
+import { DEFAULT_ROOM_SETTINGS } from '@hadoku/shared';
 import { FREE_PICK, type ConstructedMode, type GauntletOptions as GauntletModeOptions, type GauntletView, type PodView, type RandomOptions, type RoomTable as SharedRoomTable, type TournamentDecks } from '@hadoku/shared';
 
 import { navigate, routeHash } from './route.ts';
@@ -2253,6 +2254,7 @@ function RoomTableScreen({
             dealing={dealing}
             error={draftError}
             onReady={setDraftReady}
+            pickTimer={view?.settings.pickTimer ?? DEFAULT_ROOM_SETTINGS.pickTimer}
             onRetry={() => {
               askedDeal.current = false;
               setDraftError(null);
