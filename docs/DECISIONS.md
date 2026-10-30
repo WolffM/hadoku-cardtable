@@ -836,3 +836,16 @@ footer's border. The operator asked for both to go. `NOTICE.md` keeps its
 disclaimer; the footer remains only in dev builds, for the developer-harness
 link. Do not restore the UI line from rule 6's old wording or D15's
 "Closed 2026-10-11" note.
+
+## D24 — Free forever, members only, anyone can be a member · settled · 2026-10-30 · operator
+
+**Amends `LICENSING.md` §2 rules 5 and 7, its risk table, §3.1 and §3.2's
+anti-paywall section; `AGENTS.md`'s gate rule; `NOTICE.md`'s "private".** The
+operator, on wave 83's D1: *"we will be always free, i dont see any issues. But
+if it helps to make it 'members' only for legal reasons that's fine, let's just
+make it so anyone can get member status for now."* The floor moves from friend
+to member tier; no public or anonymous tier, ever; no money, ever. The full
+entry and what it costs are in `LICENSING.md` §2. Flipping
+`CARDTABLE_MIN_TIER=member` is a hadoku_site wrapper change, PPE first, and the
+operator's.
+

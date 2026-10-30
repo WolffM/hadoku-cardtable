@@ -1,8 +1,9 @@
 # hadoku-cardtable
 
-Cube drafting + Magic play for a private friend group. Forge (GPL-3) supplies the
-rules engine; the hadoku-watchparty room layer replaces Forge's online infra.
-Behind `hadoku.me/cardtable/` at friend tier.
+Cube drafting + Magic play, free, for signed-in members (D24; it began as a
+private friend group). Forge (GPL-3) supplies the rules engine; the
+hadoku-watchparty room layer replaces Forge's online infra. Behind
+`hadoku.me/cardtable/` at friend tier until the floor moves to member.
 
 **Read `docs/ARCHITECTURE.md`, `docs/FORGE_ANALYSIS.md` and
 `docs/WASM_AND_PORTING.md` before touching anything.** They're short, and they're the result of reading the actual Forge
@@ -51,8 +52,15 @@ before planning cross-game work.
   still true: do not ship `mplantin` from the Mana pack (Monotype's typeface,
   a different question, and we need none of it) and do not rename either font
   (OFL reserved-font-name).
-- **Keep the friend gate.** `/cardtable/*` is friend-tier at the edge. Never add
-  a public or anonymous tier, not even "just for drafting".
+- ~~**Keep the friend gate.**~~ **Keep the member gate** — amended 2026-10-30
+  (**D24**) by the operator: *"we will be always free … let's just make it so
+  anyone can get member status for now."* `/cardtable/*` is gated at the edge:
+  member tier once the operator moves `CARDTABLE_MIN_TIER` (hadoku_site's
+  wrapper, PPE first — not ours to flip), friend tier until then. Membership is
+  free and open. Never add a public or anonymous tier, not even "just for
+  drafting". Friend-only features (the music review, admin writes) check their
+  own tier rather than lean on the floor; making rooms, events and matches is
+  rate limited per caller (`perCallerLimit`). `docs/LICENSING.md` §2 has D24.
 - **GPL-3.0-or-later** applies to this whole repo (we vendored Forge). Don't
   strip Forge's per-file copyright headers.
 - **No `.env`.** Secrets come from the vault broker through the PM2 wrapper. The
@@ -174,7 +182,7 @@ scaffolding still to build. Read it before scaffolding or managing a wave.
 
 - Does NOT commit image bytes, and does NOT serve images from its own origin
 - Does NOT accept money in any form
-- Does NOT expose a public or anonymous tier
+- Does NOT expose a public or anonymous tier (members only, free — D24)
 - Does NOT use `.env` files
 
 ## Telemetry: where your app's data lives

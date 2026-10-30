@@ -28,17 +28,19 @@ symbols, card frames and related marks are property of Wizards of the Coast LLC.
 individual artists who created it. No ownership of, and no licence to, any of
 this is claimed or implied by this project.
 
-### Non-commercial, and private
+### Non-commercial, and members only
 
 Both of these statements are load-bearing, and more so since this project began
 showing card art (see below):
 
-- **Non-commercial.** This project is not sold, licensed, monetized, advertised,
-  sponsored or donated to, in any form, ever. There is no payment path of any
-  kind and none will be added.
-- **Private.** It is not publicly available. Access is limited to a small,
-  invited group behind an authentication gate; there is no public tier, no open
-  signup and no anonymous access.
+- **Non-commercial.** This project is free, always. It is not sold, licensed,
+  monetized, advertised, sponsored or donated to, in any form, ever. There is no
+  payment path of any kind and none will be added.
+- **Members only.** It is not publicly available. Every page and request sits
+  behind an authentication gate; there is no public tier and no anonymous
+  access. Membership is free and open to anyone who signs in for it. This
+  changed on 2026-10-30; this notice previously described access limited to a
+  small, invited group.
 
 ### Card artwork
 

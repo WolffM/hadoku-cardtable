@@ -126,11 +126,46 @@ Roughly in order of how much attention each attracts:
 | Risk | Us |
 | --- | --- |
 | **Money** — sales, subs, ads, donations, Patreon | **None. Ever.** Not even "buy me a coffee". This is the single brightest line. |
-| **Public availability** — open signup, SEO, app stores | Friend-tier edge gate, no public signup, no indexing. **The source is public** (since 2026-10-13, the whole repo and its history); the running app is not — reading the code gives nobody a way to play. |
+| **Public availability** — open signup, SEO, app stores | **Members only, and anyone may become a member, free** (D24, 2026-10-30). An edge gate at member tier: no anonymous access, no public tier, no indexing. Until the operator moves the floor (`CARDTABLE_MIN_TIER=member`, PPE first), the gate is still friend tier. **The source is public** (since 2026-10-13, the whole repo and its history); the running app is not — reading the code gives nobody a way to play. Before D24 this row read *"Friend-tier edge gate, no public signup."* |
 | **Card images at scale** — hosting/mirroring scans | **Card images are shown, loaded from Scryfall's image CDN (`cards.scryfall.io`).** D15 (2026-09-15) also allowed hosting art on `cdn.hadoku.me`; the per-card manifest that would point at it is currently empty, so nothing is served from there today. Either way the art is a replaceable placeholder; §3.1 records the trade. Before D15 this row read *"Never mirror."* |
 | **Looking official** — WotC logos, mana symbols, set symbols, the Magic wordmark, card frames | **Mana and set SYMBOLS ship from Keyrune and Mana** as of 2026-09-27 (D20) — third-party fonts, not WotC's own files; §3.2 records the trade. No WotC **logo**, no Magic **wordmark**, no card **frames**, and the UI still says unofficial. Before that date this row read *"Our own visual language. No WotC marks anywhere in the UI."* |
-| **Scale / visibility** — big playerbase, streams, press | A handful of friends |
+| **Scale / visibility** — big playerbase, streams, press | A friend group, opening to members for its first public release and tournament (D24). Before D24 this row read *"A handful of friends."* |
 | Card names + Oracle text | Unavoidable for any engine; functional; lowest-attention item on this list |
+
+### D24 — Free forever, members only, anyone can be a member · settled · 2026-10-30 · operator
+
+Asked (wave 83, D1) whether the first public release changes the posture, the
+operator answered:
+
+> *"we will be always free, i dont see any issues. But if it helps to make it
+> 'members' only for legal reasons that's fine, let's just make it so anyone can
+> get member status for now."*
+
+So, from here:
+
+- **Always free.** Rule 1 is unchanged and now has the operator's own words
+  behind it: no money in any form, ever.
+- **Members only.** The app's floor moves from `friend` to `member`, the tier
+  below friend on hadoku's ladder (`apps/server/src/edge-auth.ts`'s
+  `TIER_ORDER`). There is still **no anonymous access and no public tier**:
+  you sign in or you see nothing.
+- **Anyone can get member status.** Membership is not an invitation list. That is
+  the change from "a small invited group", and it is deliberate.
+
+**What it costs, written down rather than waved away.** Every §2 mitigation was
+"we are tiny and private" (rule 7), and D24 spends part of that: the gate stops
+being a guest list. What still holds is **no money**, **a login in front of
+every request**, no indexing, and the disclaimer in `NOTICE.md`. The scale row
+above moves with it. This is a judgement, the same kind as D15 and D18, not a
+compliance argument.
+
+**What the code does about it.** The friend-only corners stay friend-only by
+their own check, not by the floor: the music review (`http/sounds.ts`) and the
+admin-tier writes. Making rooms, organizing events and starting matches are
+rate limited per caller (`http/request.ts`'s `perCallerLimit`), since a free
+account is cheap to make. **Not done by D24:** flipping `CARDTABLE_MIN_TIER`.
+That is a config change on hadoku_site's wrapper, made on PPE first, and it is
+the operator's.
 
 ### Concrete rules for this repo
 
@@ -169,7 +204,8 @@ Roughly in order of how much attention each attracts:
    **Why it was nonetheless a reasonable call.** Nothing in the row table above
    moved. The exposure was always carried by *scale* and *money*, and both
    mitigations are untouched: no revenue in any form, a friend-tier gate, a
-   handful of players, and the `NOTICE.md` disclaimer. The repealed rule was
+   handful of players, and the `NOTICE.md` disclaimer (the gate is member tier
+   since D24, and the player count with it). The repealed rule was
    belt-and-braces on top of those, not one of them.
 
    **What survived, and why.** The gate still fails image BYTES in the bundle
@@ -187,13 +223,19 @@ Roughly in order of how much attention each attracts:
    logo, the Magic wordmark, and card frames.** `ManaPip.tsx`'s old rationale
    (a plain disc and a letter, Phyrexian as a dashed ring) is superseded; its
    token PARSER is not, and is what maps onto the font's classes.
-5. **Keep the friend gate.** The `/cardtable/` prefix is friend-tier at the edge.
-   Do not add a public tier. Do not add anonymous access "just for the draft".
+5. ~~**Keep the friend gate.**~~ **Keep the member gate** — amended 2026-10-30
+   (D24). The `/cardtable/` prefix is gated at the edge, at member tier once the
+   operator moves the floor and at friend tier until then. Membership is free and
+   open to anyone. Still forbidden: a public tier, and anonymous access "just
+   for the draft". Before D24 this rule read *"Keep the friend gate. The
+   `/cardtable/` prefix is friend-tier at the edge."*
 6. **Carry the disclaimer** in `NOTICE.md`. The UI footer carried it too until
    2026-10-21, when the operator removed it (D23).
-7. **If we ever want to open this up** — stop and think properly first. Every
-   mitigation above is "we are tiny and private". Opening up removes all of them
-   at once.
+7. **If we ever want to open this up further** — stop and think properly first.
+   D24 is the one time it was thought through: members only, free, no anonymous
+   access. Going past that (a public tier, anonymous play, app stores, ads of
+   any kind) removes what is left of the "small and private" mitigations at
+   once, and is the operator's call.
 
 ---
 
@@ -236,9 +278,10 @@ served by a third party, with no licence grant to us at all. Both fonts are a
 better position than that, and Keyrune is a genuinely defensible one.
 
 **What holds the posture up is unchanged**, and D20 leans on it exactly as D18
-did: **no money**, the **friend gate**, a handful of players, and the disclaimer
+did: **no money**, the **gate**, a small playerbase, and the disclaimer
 in `NOTICE.md`. D20 spends some of the "looking official" mitigation; it spends
-none of those four.
+none of those four. (D24, 2026-10-30, moved the gate from friend to member tier,
+free to anyone; that is §2's call, not D20's.)
 
 **Obligations D20 creates.**
 
@@ -327,7 +370,7 @@ argument was never refuted; it was weighed and overruled:
 
 - **D15 (2026-09-15)** allowed card art, including hosting it on
   `cdn.hadoku.me`, on the grounds that the project takes **no money**, sits
-  behind a **friend gate**, and holds the art as a **replaceable placeholder**
+  behind a **friend gate** (a member gate since D24), and holds the art as a **replaceable placeholder**
   behind the per-card manifest. `cdn.hadoku.me` is public-read by design, so
   anything uploaded there is fetchable by URL; that was accepted knowingly.
 - **D18 (2026-09-19)** repealed "our own origin never serves an image" (§2 rule 3).
@@ -335,7 +378,7 @@ argument was never refuted; it was weighed and overruled:
 This is a **judgement, not a compliance argument**. Showing card art moves us up
 §2's risk table, and no reading of Scryfall's terms grants the permission that
 only Wizards and the artists could give. What carries the posture is unchanged:
-no money, no public tier, a handful of players, and the disclaimer. If art is
+no money, no public tier, a login in front of everything, and the disclaimer. If art is
 ever hosted at more than one cube's scale, bring it back to the operator first.
 
 ### 3.2 The anti-paywall clause, and the tension we are not resolving
@@ -354,35 +397,31 @@ Where we stand against it, honestly, both halves:
   (§2, rule 1, and the brightest line in `CLAUDE.md`). No payments, no
   subscriptions, no surveys, no ratings, no follows. That is the clause's
   subject and we are clear of it by construction.
-- **The last sentence we do not satisfy.** We have an account system — the
-  friend-tier gate — and it offers **neither** anonymous access **nor** free
-  accounts. There is no signup at all. You are on the list or you are not.
+- **The last sentence is met once the floor moves to member (D24).** Our account
+  system is hadoku's, and D24 makes member status free and open to anyone. That
+  is *"with free accounts"*. Anonymous access stays off: the clause asks for
+  anonymous OR free, and free is the half we give.
 
-Those two facts do not cancel out and this document is not going to pretend
-they do. Note also that the enumerated list is not purely financial: *"join
-chat servers, or follow channels"* are social gates, not payments, which is the
-part of the clause nearest to what a friend gate actually is.
+**How it read before D24, and why it changed.** Until 2026-10-30 this section
+recorded a tension it would not resolve: the gate was a friend list, with no
+signup at all, so we met neither half of the last sentence, and the friend gate
+was itself one of §2's WotC-IP mitigations, so the two mitigations pulled
+against each other and we chose the WotC one. D24 changed the gate, not the
+reasoning: members only, anyone may become a member, free. Until the operator
+moves `CARDTABLE_MIN_TIER`, the gate is still the friend list and the old
+tension still stands.
 
-**The tension, written down rather than resolved:**
+Two points from the old reading still hold:
 
 1. The clause's evident purpose is to stop people **monetising or farming
-   engagement off** Scryfall's free database. We do neither, and a private
-   eight-person tool is not the harm it was written against.
-2. The clause's literal text says end-users of an account system should be able
-   to get at card data anonymously or with a free account. We do not offer
-   that, and we are not going to — **the friend gate is itself one of §2's
-   primary WotC-IP mitigations** (`CLAUDE.md`: "Never add a public or anonymous
-   tier, not even 'just for drafting'"). Opening access to satisfy Scryfall
-   would worsen the larger risk.
-3. So the two mitigations **pull against each other**, and we have chosen the
-   WotC one. That is a judgement, not a compliance argument.
-4. Scryfall's own remedy is stated and proportionate: *"Repeated mishandling or
+   engagement off** Scryfall's free database. We do neither.
+2. Scryfall's own remedy is stated and proportionate: *"Repeated mishandling or
    misrepresentation of data or images in your project may result in Scryfall
    restricting or blocking your API access."* The downside risk here is losing
    bulk-data access, which would cost us an ingest, not a lawsuit.
 
-**Do not "fix" this by opening a public tier.** If it ever needs resolving, the
-resolution is on the other side: ask Scryfall, or source the data elsewhere.
+**Do not "fix" anything here by opening a public or anonymous tier.** D24 is
+the line: members, free, signed in.
 
 One more thing worth noticing: Scryfall offers this database *"As part of the
 Wizards of the Coast Fan Content Policy"* — the same policy §2 says does not
