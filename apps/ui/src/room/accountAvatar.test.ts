@@ -1,44 +1,41 @@
 // @vitest-environment jsdom
 /*
  * Wave 31 P3b: a fresh browser has no prefs cache, so the avatar has to come from
- * the ACCOUNT (`@wolffm/prefs-client`, app `watchparty`). The SDK is mocked at its
+ * the ACCOUNT (`@wolffm/prefs-client/avatar`). The SDK is mocked at its
  * edge; what is asserted is which value wins and what happens when it cannot be
  * read.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const { read, create } = vi.hoisted(() => {
-  const read = vi.fn();
-  const create = vi.fn(() => ({ read }));
-  return { read, create };
+const { get, create } = vi.hoisted(() => {
+  const get = vi.fn();
+  const create = vi.fn(() => ({ get }));
+  return { get, create };
 });
 
-vi.mock('@wolffm/prefs-client', () => ({ createPrefsClient: create }));
+vi.mock('@wolffm/prefs-client/avatar', () => ({ createAvatarClient: create }));
 
 import { accountAvatarId, watchpartyPrefsCacheKey } from './avatar.ts';
 
 afterEach(() => {
-  read.mockReset();
+  get.mockReset();
   globalThis.localStorage.clear();
 });
 
 describe('accountAvatarId', () => {
   it('reads the account, for a browser with no cache row', async () => {
-    read.mockResolvedValue({ sprite: 'knight', theme: 'dark' });
+    get.mockResolvedValue({ avatar: { source: 'discord', url: 'https://cdn.example/a.png' }, sprite: 'knight' });
     expect(await accountAvatarId('u-fresh')).toBe('knight');
-    expect(create).toHaveBeenCalledWith(expect.objectContaining({ appId: 'watchparty' }));
   });
 
   it('points the SDK at this page’s origin, not a hardcoded host', async () => {
-    read.mockResolvedValue({});
+    get.mockResolvedValue({ sprite: null });
     await accountAvatarId('u-x');
-    expect(create).toHaveBeenCalledWith(
-      expect.objectContaining({ apiBase: `${globalThis.location.origin}/prefs` }),
-    );
+    expect(create).toHaveBeenCalledWith({ baseUrl: `${globalThis.location.origin}/prefs` });
   });
 
   it('falls back to this browser’s cache when the account cannot be read', async () => {
-    read.mockRejectedValue(new Error('offline'));
+    get.mockRejectedValue(new Error('offline'));
     globalThis.localStorage.setItem(
       watchpartyPrefsCacheKey('u-cached'),
       JSON.stringify({ blob: { sprite: 'rogue' } }),
@@ -47,7 +44,7 @@ describe('accountAvatarId', () => {
   });
 
   it('is null when neither knows: the unset case is watchparty’s to fill', async () => {
-    read.mockResolvedValue({});
+    get.mockResolvedValue({ sprite: null });
     expect(await accountAvatarId('u-none')).toBeNull();
   });
 });

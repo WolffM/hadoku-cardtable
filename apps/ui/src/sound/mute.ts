@@ -23,9 +23,9 @@
  * The operator: settings move into hadoku_site's prefs, so the same values reach cardtable whether
  * it is its own page or a watchparty room's game. Two rows:
  *
- *   - **`games`** — `muted` and `volume`, the master controls every hadoku game shares (bomberman's
- *     half is `docs/requests/SETTINGS_GAMES_PREFS.md`). Not `.strict()`: another game may keep its
- *     own fields beside these.
+ *   - **`games`** — `muted` and `volume`, the master controls every hadoku game shares. The row is
+ *     the fleet's, not ours: `GAMES_ROW` from `@wolffm/prefs-client/platform` names it, so bomberman
+ *     reads the same one.
  *   - **`cardtable-sound`** — `music`, the music bus under the master, and `musicPicks`.
  *
  * The three levels are saved per DEVICE, as they were when they lived in `localStorage`: the right
@@ -45,6 +45,7 @@
 import { useEffect } from 'react';
 import { z } from 'zod';
 import { createPrefsClient, type PrefsClient } from '@wolffm/prefs-client';
+import { GAMES_DEFAULTS, GAMES_ROW, type GamesPrefs } from '@wolffm/prefs-client/platform';
 
 /** `volume` scales everything; `music` scales the music bus under it. Both 0..1. */
 export type LevelName = 'volume' | 'music';
@@ -54,15 +55,9 @@ export type LevelName = 'volume' | 'music';
  * "let's change default music volume to be 50%") so it sits under the game's
  * own sounds; everything else starts full.
  */
-export const LEVEL_DEFAULTS: Readonly<Record<LevelName, number>> = { volume: 1, music: 0.5 };
+export const LEVEL_DEFAULTS: Readonly<Record<LevelName, number>> = { volume: GAMES_DEFAULTS.volume, music: 0.5 };
 
 const LevelSchema = z.number().min(0).max(1);
-
-export const GamesPrefsSchema = z.object({
-  muted: z.boolean().optional(),
-  volume: LevelSchema.optional(),
-});
-export type GamesPrefs = z.infer<typeof GamesPrefsSchema>;
 
 export const SoundPrefsSchema = z
   .object({
@@ -81,7 +76,7 @@ export const LEGACY_KEYS = {
   musicPicks: 'cardtable.sound.music-picks',
 } as const;
 
-let muted = false;
+let muted = GAMES_DEFAULTS.muted;
 let musicPicks: Record<string, string> = {};
 const levels: Record<LevelName, number> = { ...LEVEL_DEFAULTS };
 
@@ -108,7 +103,7 @@ export function isMuted(): boolean {
 export function setMuted(value: boolean): void {
   if (muted === value) return;
   muted = value;
-  void connection?.games.save({ muted: value }, { scope: 'device' });
+  void connection?.games.save({ muted: value }, { scope: GAMES_ROW.scope });
   notify();
 }
 
@@ -122,7 +117,7 @@ export function setLevel(name: LevelName, value: number): void {
   const next = clamp(value);
   if (levels[name] === next) return;
   levels[name] = next;
-  if (name === 'volume') void connection?.games.save({ volume: next }, { scope: 'device' });
+  if (name === 'volume') void connection?.games.save({ volume: next }, { scope: GAMES_ROW.scope });
   else void connection?.sound.save({ music: next }, { scope: 'device' });
   notify();
 }
@@ -214,7 +209,8 @@ let clients: Connection | null = null;
 
 function soundClients(): Connection {
   clients ??= {
-    games: createPrefsClient({ appId: 'games', schema: GamesPrefsSchema }) as PrefsClient<GamesPrefs>,
+    // No `defaults`: an unset field is how `connectSoundPrefs` knows the legacy key still has to move.
+    games: createPrefsClient({ appId: GAMES_ROW.appId, schema: GAMES_ROW.schema }) as PrefsClient<GamesPrefs>,
     sound: createPrefsClient({ appId: 'cardtable-sound', schema: SoundPrefsSchema }) as PrefsClient<SoundPrefs>,
   };
   return clients;
@@ -249,7 +245,7 @@ export function connectSoundPrefs(): { ready: Promise<void>; disconnect: () => v
     const toGames: GamesPrefs = {};
     if (g.muted === undefined && legacy.muted !== undefined) toGames.muted = legacy.muted;
     if (g.volume === undefined && legacy.volume !== undefined) toGames.volume = legacy.volume;
-    if (Object.keys(toGames).length > 0) void c.games.save(toGames, { scope: 'device' });
+    if (Object.keys(toGames).length > 0) void c.games.save(toGames, { scope: GAMES_ROW.scope });
     if (s.music === undefined && legacy.music !== undefined) void c.sound.save({ music: legacy.music }, { scope: 'device' });
     if (s.musicPicks === undefined && legacy.musicPicks !== undefined) void c.sound.save({ musicPicks: legacy.musicPicks });
     removeLegacy();
@@ -276,7 +272,7 @@ export function useSoundPrefs(): void {
  * For tests, which start each case from a fresh page. Production never calls it.
  */
 export function resetMutedForTests(): void {
-  muted = false;
+  muted = GAMES_DEFAULTS.muted;
   musicPicks = {};
   Object.assign(levels, LEVEL_DEFAULTS);
   listeners.clear();

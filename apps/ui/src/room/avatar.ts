@@ -45,9 +45,8 @@
  * refuses a longer value.
  */
 
-import { createPrefsClient, type PrefsClient } from '@wolffm/prefs-client';
-import { AVATAR_ID_MAX, SeqCursorSchema } from '@hadoku/shared';
-import { CallIdSchema } from '@hadoku/forge-wire';
+import { createAvatarClient, type AvatarClient } from '@wolffm/prefs-client/avatar';
+import { AVATAR_ID_MAX } from '@hadoku/shared';
 
 /**
  * Watchparty's server, on whatever origin serves this page. In production that
@@ -185,39 +184,18 @@ export function selectedAvatarId(userId: string | null | undefined, store: Avata
  *
  * `selectedAvatarId` above reads the prefs SDK's write-through CACHE, which only
  * exists on a browser that has already opened watchparty's chrome. A fresh
- * browser has no cache row and so asserted nothing (wave 31 P3b). The value
- * itself lives in the account: watchparty's prefs row (app `watchparty`, `user`
- * scope), which is what `createPrefsClient(...).read()` returns. We only ever
- * read it, never save, so asking for the same app id cannot change what the
- * chrome stores. The schema is loose on purpose: the row holds every one of
- * watchparty's own fields and we want one.
+ * browser has no cache row and so asserted nothing (wave 31 P3b). The account's
+ * answer comes from the fleet's avatar endpoint (`@wolffm/prefs-client/avatar`),
+ * which reads the same watchparty row server-side; its `sprite` is the character
+ * the viewer picked whatever avatar source they chose, and the character is all a
+ * seat draws.
  *
- * `apiBase` is this page's origin for the reason `watchpartyOrigin` gives: the
+ * `baseUrl` is this page's origin for the reason `watchpartyOrigin` gives: the
  * SDK's default is a hardcoded `https://hadoku.me/prefs`, which a local e2e
  * would reach off-host.
  */
 
-/** Only `sprite` is read. `.loose()` keeps the rest of watchparty's fields from failing validation. */
-const WatchpartyPrefsSchema = SeqCursorSchema.pick({}).extend({ sprite: CallIdSchema.optional() }).loose();
-
-interface WatchpartyPrefs {
-  [key: string]: unknown;
-  sprite?: string;
-}
-
-let accountClient: PrefsClient<WatchpartyPrefs> | null = null;
-
-function watchpartyPrefsClient(): PrefsClient<WatchpartyPrefs> {
-  accountClient ??= createPrefsClient({
-    appId: 'watchparty',
-    // Two zod copies in one lockfile make the schema types nominally different;
-    // `play/live/prefs.ts` explains the same cast at length.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- see play/live/prefs.ts
-    schema: WatchpartyPrefsSchema as any,
-    apiBase: `${globalThis.location.origin}/prefs`,
-  }) as unknown as PrefsClient<WatchpartyPrefs>;
-  return accountClient;
-}
+let accountClient: AvatarClient | null = null;
 
 /**
  * This viewer's chosen avatar from their ACCOUNT, falling back to this browser's
@@ -228,8 +206,8 @@ function watchpartyPrefsClient(): PrefsClient<WatchpartyPrefs> {
  */
 export async function accountAvatarId(userId: string | null | undefined): Promise<string | null> {
   try {
-    const prefs = await watchpartyPrefsClient().read();
-    const id = normalizeAvatarId(prefs.sprite);
+    accountClient ??= createAvatarClient({ baseUrl: `${globalThis.location.origin}/prefs` });
+    const id = normalizeAvatarId((await accountClient.get()).sprite);
     if (id !== null) return id;
   } catch {
     // Unreadable account is not an error to show anybody: the cache read below
