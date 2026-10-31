@@ -7,7 +7,9 @@
  * screens — hers, where it is the viewer's seat, and bob's, where it is the opponent's — her life
  * total and her poison sit side by side on one line in the seat's bar: two equal columns, each
  * centred in its own, the poison drawn as a skull-and-crossbones mark and the count, never a
- * letter, with the full words in its tip. Bob has no poison, so his life is drawn alone, centred
+ * letter, with the full words in its tip. The line sits between the avatar and the life side of
+ * the bar: under the viewer's avatar, over the opponent's, whose bar mirrors the viewer's
+ * (the operator, 2026-10-30: "enemy time, enemy life, enemy profile, my profile, my life, my time"). Bob has no poison, so his life is drawn alone, centred
  * under his avatar. Poison is drawn in that one place: the counts line keeps energy and experience
  * and has no poison mark of its own. Measured in both board layouts and at both of the operator's
  * window sizes.
@@ -142,7 +144,8 @@ test(titled('poison sits beside the life total in two centred columns, as a skul
           expect(Math.abs(mid(row!).x - mid(art!).x), `${where}: the row is centred under the avatar`).toBeLessThanOrEqual(1.5);
           expect(inside(life!.box, bar!), `${where}: life inside the seat's bar`).toBe(true);
           expect(inside(poison!.box, bar!), `${where}: poison inside the seat's bar`).toBe(true);
-          expect(life!.box.y, `${where}: the line is under the avatar`).toBeGreaterThanOrEqual(art!.y + art!.h);
+          if (poisoned === 'you') expect(life!.box.y, `${where}: the line is under the viewer's avatar`).toBeGreaterThanOrEqual(art!.y + art!.h);
+          else expect(life!.box.y + life!.box.h, `${where}: the opponent's bar mirrors it — the line is over their avatar`).toBeLessThanOrEqual(art!.y + 0.5);
 
           const c = await vitalsOf(f.page, clean);
           log(`${where} clean seat`, c);
