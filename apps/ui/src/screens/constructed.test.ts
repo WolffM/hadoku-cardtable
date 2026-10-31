@@ -743,6 +743,8 @@ const sweeps = (server: { calls: Call[] }): string[] =>
 async function deckPicker(): Promise<HTMLElement> {
   const group = await screen.findByTestId('deck-mine');
   await waitFor(() => expect(group.getAttribute('aria-disabled')).toBeNull());
+  // The list draws once its art can (`deckSwap.ts`): no outlines, and nothing of a last list fading.
+  await waitFor(() => expect(group.querySelector('.skeleton, .deckpick__option--leaving')).toBeNull());
   return group;
 }
 

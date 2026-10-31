@@ -36,8 +36,8 @@ async function open(browser: Browser, name: string): Promise<{ context: BrowserC
     const url = new URL(route.request().url());
     if (url.hostname === '127.0.0.1') return route.continue();
     if (!ART_HOSTS.has(url.hostname)) return route.abort('blockedbyclient');
-    // Slow, and unevenly so: some faces land well after the grid has its list.
-    await new Promise((r) => setTimeout(r, 150 + ((n++ * 137) % 900)));
+    // Slow, and unevenly so: some faces land after the grid has stopped waiting for them (`ART_WAIT_MS`).
+    await new Promise((r) => setTimeout(r, 150 + ((n++ * 337) % 2600)));
     return route.fulfill({ status: 200, contentType: 'image/svg+xml', body: face(url.href) }).catch(() => undefined);
   });
   // Every frame: any art <img> in the grid that is painted while it has no decoded image is a violation.

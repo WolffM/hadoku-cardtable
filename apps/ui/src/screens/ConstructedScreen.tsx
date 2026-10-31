@@ -132,9 +132,11 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react';
@@ -177,7 +179,8 @@ import artIdsData from '../draft/art-ids.json' with { type: 'json' };
 import deckArtTraits from '../draft/deck-art-traits.json' with { type: 'json' };
 import { assignDeckArt, rankDeckArt, traitsOfDraftCard, type DeckArtChoice } from './deckArt.ts';
 import { artCredit, useArtist } from '../draft/artists.ts';
-import { cardImageUrl, prefetchCardImages } from '../draft/cardImage.ts';
+import { artReady, cardImageUrl, prefetchCardImages } from '../draft/cardImage.ts';
+import { useDeckSwap } from './deckSwap.ts';
 import { cardIndex, withSuggestedBasics } from '../deck/build.ts';
 import { dckTextOf, deckFromPool, draftBuild, savedBuild } from '../draft/deckFromPool.ts';
 import type { DraftTransport } from '../draft/socket.ts';
@@ -617,6 +620,10 @@ function PoolSets({ format }: { format: TableFormat | null }) {
  * A URL that 404s (a CDN key never uploaded) only shows up at fetch time, so
  * `onError` falls back to the same empty band an unresolved id gets.
  *
+ * The `<img>` goes in only once `artReady` has its bytes decoded, so it paints
+ * whole on its first frame (fading in, `screens.css`) and never draws in half
+ * loaded — the band stands in until then.
+ *
  * The slice drops the illustrator and copyright line printed at the card's
  * foot, so the band carries them itself (Scryfall's image guidelines for art
  * shown cropped), and shows no art it cannot credit.
@@ -625,12 +632,22 @@ export function DeckArt({ artId }: { artId: string | undefined }) {
   const [broken, setBroken] = useState(false);
   const artist = useArtist(artId ?? null);
   const url = artId === undefined ? null : cardImageUrl(artId);
-  if (url === null || typeof artist !== 'string' || broken) {
+  const [decoded, setDecoded] = useState<string | null>(null);
+  // Before paint: a face already decoded draws on the tile's first frame.
+  useLayoutEffect(() => {
+    if (url === null) return;
+    let live = true;
+    if (artReady(url, () => live && setDecoded(url))) setDecoded(url);
+    return () => {
+      live = false;
+    };
+  }, [url]);
+  if (url === null || typeof artist !== 'string' || broken || decoded !== url) {
     return <span className="deckpick__art deckpick__art--none" aria-hidden="true" />;
   }
   return (
     <span className="deckpick__art" aria-hidden="true">
-      <img src={url} alt="" loading="lazy" onError={() => setBroken(true)} />
+      <img src={url} alt="" onError={() => setBroken(true)} />
       <span className="deckpick__credit">{artCredit(artist)}</span>
     </span>
   );
@@ -738,14 +755,18 @@ export function openDraftedDeck(saved: string | null | undefined, draftId: strin
  * `aria-checked` is what says which deck is chosen; `data-chosen` on the root is
  * the same fact for a test, and the row also paints a mark.
  */
+/** Tiles past this many arrive with the last of the stagger (`--deckpick-i` in `screens.css`): a long list is not a long wait. */
+const ENTER_STAGGERED = 24;
+
 export function DeckChooser({
-  options,
+  options: given,
   value,
   disabled,
   onChoose,
   empty,
   pending = false,
   pendingTiles = 8,
+  swapKey = '',
   tileAction,
 }: {
   options: readonly DeckOption[];
@@ -756,11 +777,15 @@ export function DeckChooser({
   pending?: boolean;
   /** How many outlines `pending` draws. */
   pendingTiles?: number;
+  /** Which list this is (an era, a tab): a change fades the old tiles out and brings the new in (`deckSwap.ts`). */
+  swapKey?: string;
   /** Drawn in place of the tiles when there are none, if given. */
   empty?: string | undefined;
   /** A control drawn over a tile's corner, beside the tile's button rather than inside it. */
   tileAction?: (option: DeckOption) => ReactNode;
 }) {
+  const swap = useDeckSwap(given, swapKey, pending);
+  const options = swap.shown;
   /** Where Tab lands. Null until the reader moves it, so it follows the choice. */
   const [focus, setFocus] = useState<number | null>(null);
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -878,7 +903,9 @@ export function DeckChooser({
             option={option}
             checked={option.value === value}
             role="radio"
+            className="deckpick__option--in"
             data-testid="deck-option"
+            style={{ '--deckpick-i': Math.min(index, ENTER_STAGGERED) } as CSSProperties}
             tabIndex={stop === index ? 0 : -1}
             disabled={disabled}
             ref={(el) => {
@@ -904,8 +931,20 @@ export function DeckChooser({
           </div>
         );
       })}
-      {pending && options.length === 0 && <SkeletonTiles count={pendingTiles} />}
-      {options.length === 0 && empty !== undefined && (
+      {/* The last list going: no deck id, no focus, no press — a picture of the grid as it was. */}
+      {swap.leaving.map((option) => (
+        <DeckTile
+          key={`leaving:${option.value}`}
+          option={option}
+          className="deckpick__option--leaving"
+          data-deck-id={undefined}
+          tabIndex={-1}
+          aria-hidden="true"
+          inert
+        />
+      ))}
+      {swap.waiting && <SkeletonTiles count={pendingTiles} />}
+      {!swap.waiting && swap.leaving.length === 0 && options.length === 0 && empty !== undefined && (
         <p className="deckpick__empty" data-testid="deck-none">
           {empty}
         </p>
@@ -1578,6 +1617,8 @@ function RoomTableScreen({
    * filter hides stays chosen. Kept across an era change, so a search follows
    * the reader from one year to the next.
    */
+  /** Which list the grid is showing: the pool, and on Free pick the tab browsed. A change of it is a switch, not a filter (`deckSwap.ts`). */
+  const deckGrid = freePick ? `${poolId}|${browse.family}|${browse.era}` : poolId;
   const [deckFilter, setDeckFilter] = useState<DeckFilter>(NO_DECK_FILTER);
   const visibleOptions = useMemo(
     () => (shownOptions === null ? shownOptions : shownOptions.filter((o) => deckPasses(o, deckFilter))),
@@ -2359,6 +2400,7 @@ function RoomTableScreen({
                     disabled={deckOptions === null || underway}
                     pending={shownOptions === null}
                     pendingTiles={ROOM_SKELETON_TILES}
+                    swapKey={deckGrid}
                     onChoose={chooseDeck}
                   />
                 )}
@@ -2386,6 +2428,7 @@ function RoomTableScreen({
                       disabled={deckOptions === null}
                       pending={shownOptions === null}
                       pendingTiles={ROOM_SKELETON_TILES}
+                      swapKey={deckGrid}
                       onChoose={chooseTournamentTableDeck}
                     />
                   )}
@@ -2586,6 +2629,7 @@ function RoomTableScreen({
                     disabled={deckOptions === null || underway}
                     pending={shownOptions === null}
                     pendingTiles={ROOM_SKELETON_TILES}
+                    swapKey={deckGrid}
                     onChoose={chooseDeck}
                   />
                 </section>
