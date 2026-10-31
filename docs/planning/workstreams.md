@@ -203,6 +203,7 @@ it. PR-5 is new and exists to serve it.
 | 88e table card | `.claude/worktrees/w88e` / `w88e` | dispatched | — |
 | 88f deck grid transitions | `.claude/worktrees/w88f` / `w88f` | dispatched | — |
 | z boot stall | `.claude/worktrees/wz` / `wz` | dispatched | — |
+| wfloor hosting floor 2 + two-poll hokon promotion + whyNone in the promotion log (operator approved 2026-10-31 via fleet-manager) | `.claude/worktrees/wfloor` / `wfloor` | dispatched | — |
 | H trailer cut 3 | `.claude/worktrees/promo` / `promo-clips` | waits for 87+88 on PPE | cut 2 https://claude.ai/artifact/GsUN4VziEmaDAaSZL5Kpc2 |
 
 ## Wave 83 (tournament core) — COMPLETE 2026-10-31, all five lanes landed + verified
