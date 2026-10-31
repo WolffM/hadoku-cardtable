@@ -16,7 +16,10 @@
  * DQ a player (their match is forfeited and they are out of the rounds), confirmed the same way.
  *
  * `full` is a room's own table between games or a player's own; `compact` is every table on a pod's
- * or tournament's hub. What the card shows comes from the room body: the table (`RoomTable`) and its
+ * or tournament's hub, one line each (the operator, 2026-10-30: *"those 'mini cards' are poorly
+ * designed"*, then of the match strip, *"this looks clean. ship that."*): each player's face, name and
+ * deck colours, the score between them with where the game is under it, and the ways to resolve behind
+ * one ⋯ button. The whole card is the way in; my own table shows it as a chip where the state goes. What the card shows comes from the room body: the table (`RoomTable`) and its
  * game (`tableGames`, `@hadoku/shared`'s `TableGameSchema`).
  */
 import { useState } from 'react';
@@ -93,6 +96,7 @@ const RESOLVES: readonly Resolve[] = ['concede', 'abandon', 'drop', 'reset', 'dq
 
 export function TableCard({ size, players, nameOf, avatarOf, myMemberId, series, matchId, game, go, testId, tableId, onConcede, onAbandon, onDrop, onReset, onDq, dqable }: TableCardProps) {
   const [confirming, setConfirming] = useState<Resolve | null>(null);
+  const [menu, setMenu] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const phase = tablePhase(series.phase, matchId, game);
   const live = phase === 'mid' || phase === 'start' ? (game?.live ?? null) : null;
@@ -141,6 +145,21 @@ export function TableCard({ size, players, nameOf, avatarOf, myMemberId, series,
     dq0: score(forfeitBy(0)),
     dq1: score(forfeitBy(1)),
   };
+  const offers = offered.map((r) => (
+    <button
+      key={r}
+      type="button"
+      className="table-card__resolve"
+      role={size === 'compact' ? 'menuitem' : undefined}
+      data-testid={`${testId}-${r}`}
+      onClick={() => {
+        setMenu(false);
+        setConfirming(r);
+      }}
+    >
+      {label[r].offer}
+    </button>
+  ));
   const side = (seat: 0 | 1) => {
     const id = players[seat];
     const deck = game?.decks[seat] ?? null;
@@ -169,51 +188,22 @@ export function TableCard({ size, players, nameOf, avatarOf, myMemberId, series,
       </div>
     );
   };
-  return (
-    <section className={`table-card table-card--${size} ct-panel`} data-testid={testId} data-table-id={tableId} data-phase={series.phase} data-moment={phase} data-mine={mine ? '' : undefined}>
-      <header className="table-card__head">
-        <span className="table-card__game">
-          <strong>{title}</strong>
-          {detail !== null && <span className="table-card__detail">{detail}</span>}
-        </span>
-        {size === 'full' ? (
-          <ol className="table-card__phases" aria-label="Phase">
-            {PHASES.map((p) => (
-              <li key={p} className="table-card__phase" data-at={p === phase ? '' : undefined} data-past={PHASES.indexOf(p) < PHASES.indexOf(phase) ? '' : undefined}>
-                {PHASE_LABEL[p]}
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <span className="table-card__phase" data-at="">
-            {PHASE_LABEL[phase]}
-          </span>
-        )}
-      </header>
-      <div className="table-card__body">
-        {side(0)}
-        <div className="table-card__score" aria-label={`${series.wins[0]} to ${series.wins[1]}`}>
-          <span className="table-card__wins">
-            {series.wins[0]}–{series.wins[1]}
-          </span>
-          {series.length > 1 && <span className="table-card__of">Best of {series.length}</span>}
+  const goLink = go !== null && (
+    <a className="table-card__go" data-testid={go.testId} href={go.href}>
+      {go.label}
+    </a>
+  );
+  const more = confirming === null && offered.length > 0 && (
+    <button type="button" className="table-card__more" data-testid={`${testId}-more`} aria-label="Table options" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(!menu)}>
+      ⋯
+    </button>
+  );
+  const resolving = (
+    <>
+      {menu && confirming === null && (
+        <div className="table-card__menu" role="menu">
+          {offers}
         </div>
-        {side(1)}
-      </div>
-      {(go !== null || offered.length > 0) && (
-        <footer className="table-card__foot">
-          {go !== null && (
-            <a className="table-card__go" data-testid={go.testId} href={go.href}>
-              {go.label}
-            </a>
-          )}
-          {confirming === null &&
-            offered.map((r) => (
-              <button key={r} type="button" className="table-card__resolve" data-testid={`${testId}-${r}`} onClick={() => setConfirming(r)}>
-                {label[r].offer}
-              </button>
-            ))}
-        </footer>
       )}
       {confirming !== null && run[confirming] !== undefined && (
         <div className="table-card__confirm" role="group" aria-label={label[confirming].offer} data-testid={`${testId}-${confirming}-confirm`}>
@@ -245,6 +235,80 @@ export function TableCard({ size, players, nameOf, avatarOf, myMemberId, series,
           {error}
         </p>
       )}
+    </>
+  );
+  const attrs = { 'data-testid': testId, 'data-table-id': tableId, 'data-phase': series.phase, 'data-moment': phase, 'data-mine': mine ? '' : undefined };
+  if (size === 'compact') {
+    const status = finished ? 'Final' : live !== null ? `G${gameNo} · T${live.turn}` : title;
+    const player = (seat: 0 | 1) => {
+      const id = players[seat];
+      const deck = game?.decks[seat] ?? null;
+      const won = finished && series.wins[seat] > series.wins[1 - seat]!;
+      return (
+        <div className="table-card__player" data-side={seat === 0 ? 'left' : 'right'} data-won={won ? '' : undefined} data-lost={finished && !won ? '' : undefined}>
+          <Avatar id={avatarOf(id)} fallback="initial" name={nameOf(id)} className="table-card__face" fallbackClassName="table-card__face table-card__face--none" width={28} height={28} />
+          <span className="table-card__who">
+            <span className="table-card__name" title={nameOf(id)}>
+              {nameOf(id)}
+            </span>
+            {deck !== null && <DeckColors colors={deck.colors} />}
+          </span>
+        </div>
+      );
+    };
+    return (
+      <section className="table-card table-card--compact ct-panel" {...attrs}>
+        <div className="table-card__strip">
+          {player(0)}
+          <div className="table-card__score" aria-label={`${series.wins[0]} to ${series.wins[1]}`}>
+            <span className="table-card__wins">
+              {series.wins[0]}–{series.wins[1]}
+            </span>
+            {/* My own table's way in is a chip where the state goes; anybody else's is the whole card. */}
+            <span className="table-card__state" data-live={live !== null ? '' : undefined}>
+              {mine && goLink !== false ? goLink : status}
+            </span>
+          </div>
+          {player(1)}
+          {more !== false ? more : <span className="table-card__more-slot" />}
+          {!mine && goLink}
+        </div>
+        {resolving}
+      </section>
+    );
+  }
+  return (
+    <section className="table-card table-card--full ct-panel" {...attrs}>
+      <header className="table-card__head">
+        <span className="table-card__game">
+          <strong>{title}</strong>
+          {detail !== null && <span className="table-card__detail">{detail}</span>}
+        </span>
+        <ol className="table-card__phases" aria-label="Phase">
+          {PHASES.map((p) => (
+            <li key={p} className="table-card__phase" data-at={p === phase ? '' : undefined} data-past={PHASES.indexOf(p) < PHASES.indexOf(phase) ? '' : undefined}>
+              {PHASE_LABEL[p]}
+            </li>
+          ))}
+        </ol>
+      </header>
+      <div className="table-card__body">
+        {side(0)}
+        <div className="table-card__score" aria-label={`${series.wins[0]} to ${series.wins[1]}`}>
+          <span className="table-card__wins">
+            {series.wins[0]}–{series.wins[1]}
+          </span>
+          {series.length > 1 && <span className="table-card__of">Best of {series.length}</span>}
+        </div>
+        {side(1)}
+      </div>
+      {(go !== null || offered.length > 0) && (
+        <footer className="table-card__foot">
+          {goLink}
+          {confirming === null && offers}
+        </footer>
+      )}
+      {resolving}
     </section>
   );
 }

@@ -119,6 +119,8 @@ test(titled('Drop match: a tournament match dropped from the hub card is the oth
     // Alice, on the hub, drops her live match from her card. The confirm shows the forfeit it leaves.
     await alice.page.evaluate((hash) => (window.location.hash = hash), `#/room/${roomId}`);
     await expect(alice.page.getByTestId('pod-rounds'), 'alice: the hub').toBeVisible({ timeout: UI_TIMEOUT });
+    // My hub card's ways to resolve sit behind its ⋯ button.
+    await alice.page.locator('[data-testid="pod-tables-row"][data-mine]').getByTestId('pod-tables-row-more').click();
     await alice.page.getByTestId('pod-tables-row-drop').click();
     await expect(alice.page.getByTestId('pod-tables-row-drop-confirm')).toContainText('0–0→0–2');
     await alice.page.getByTestId('pod-tables-row-drop-yes').click();

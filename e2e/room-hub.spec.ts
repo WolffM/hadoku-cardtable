@@ -137,7 +137,7 @@ test(
       // their games that way").
       await expect(alice.page.getByTestId('pod-tables-play')).toHaveText('Return to game');
       await expect(alice.page.getByTestId('pod-tables-play')).toHaveAttribute('href', `#/match/${matchId}`);
-      await alice.page.locator(`[data-testid="pod-tables-row"][data-table-id="${tableId}"]`).click({ position: { x: 20, y: 60 } });
+      await alice.page.locator(`[data-testid="pod-tables-row"][data-table-id="${tableId}"]`).click({ position: { x: 20, y: 20 } });
       await alice.page.waitForURL(new RegExp(`#/match/${matchId}$`), { timeout: UI_TIMEOUT });
       await expect(alice.page.locator('.live[data-role="watcher"]'), 'alice is back in her seat, not watching').toHaveCount(0);
       await expect(alice.page.locator('[aria-label="Game board"]'), 'alice: back in her game').toBeVisible({ timeout: UI_TIMEOUT });
@@ -147,6 +147,8 @@ test(
       // allow us to resolve games without having to close rooms". The confirm shows the score it leaves.
       await bob.page.evaluate((hash) => (window.location.hash = hash), `#/room/${roomId}`);
       await expect(bob.page.getByTestId('pod-rounds'), 'bob: the hub').toBeVisible({ timeout: UI_TIMEOUT });
+      // My hub card's ways to resolve sit behind its ⋯ button.
+      await bob.page.locator('[data-testid="pod-tables-row"][data-mine]').getByTestId('pod-tables-row-more').click();
       await bob.page.getByTestId('pod-tables-row-concede').click();
       await expect(bob.page.getByTestId('pod-tables-row-concede-confirm')).toContainText('0–0→1–0');
       await bob.page.getByTestId('pod-tables-row-concede-yes').click();

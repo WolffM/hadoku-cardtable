@@ -86,10 +86,18 @@ async function intoGame(p: Friend, origin: string, roomId: string, tableId: stri
 /** The hub's card for the table `tableId`. */
 const card = (page: Page, tableId: string) => page.locator(`[data-testid="pod-tables-row"][data-table-id="${tableId}"]`);
 
+/** A table card's tools, behind its ⋯: opened, or left open. */
+async function tools(page: Page, tableId: string) {
+  const row = card(page, tableId);
+  const more = row.getByTestId('pod-tables-row-more');
+  if ((await more.getAttribute('aria-expanded')) !== 'true') await more.click();
+  return row.getByRole('menu');
+}
+
 /** Offers, confirms and answers a leader tool on a table card. */
 async function confirmOnCard(page: Page, tableId: string, offer: RegExp): Promise<void> {
   const row = card(page, tableId);
-  await row.getByRole('button', { name: offer }).click();
+  await (await tools(page, tableId)).getByRole('menuitem', { name: offer }).click();
   const confirm = row.locator('.table-card__confirm');
   await expect(confirm, 'a destructive tool asks first').toBeVisible();
   await confirm.locator('[data-testid$="-yes"]').click();
@@ -192,7 +200,7 @@ test(titled('a seated leader resets their own game and both seats are back in a 
     // Alice, seated, steps out to the hub and resets it there; Bob's board follows to the fresh game, and hers starts from her table.
     await alice.page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
     await expect(card(alice.page, table.id)).toBeVisible({ timeout: UI_TIMEOUT });
-    await expect(card(alice.page, table.id).getByRole('button', { name: /^Drop match$/ }), 'her own tools beside the leader’s').toBeVisible();
+    await expect((await tools(alice.page, table.id)).getByRole('menuitem', { name: /^Drop match$/ }), 'her own tools beside the leader’s').toBeVisible();
     await confirmOnCard(alice.page, table.id, /^Reset game$/);
     await intoGame(alice, stack.origin, roomId, table.id);
     await bob.page.waitForURL((u) => matchUrl.test(u.hash) && !u.hash.endsWith(game1), { timeout: UI_TIMEOUT });

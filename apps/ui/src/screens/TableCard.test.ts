@@ -98,10 +98,55 @@ describe('TableCard', () => {
     expect(document.querySelector('[data-side="right"]')?.hasAttribute('data-lost')).toBe(true);
   });
 
-  it('draws a compact card with its one phase', () => {
+  it('draws a compact card as one strip: each player’s face, name and colours either side of the score, where the game is under it', () => {
+    card({ size: 'compact', myMemberId: 'u-carol', go: { label: 'Watch', href: '#/room/r-1/table/t-1', testId: 'card-go' } });
+    const strip = screen.getByTestId('card');
+    expect(strip.className).toContain('table-card--compact');
+    expect([...strip.querySelectorAll('.table-card__player')].map((p) => [p.querySelector('.table-card__name')?.textContent, p.querySelector('[data-testid="deck-colors"]')?.getAttribute('data-colors')])).toEqual([
+      ['Alice', 'R'],
+      ['Bob', 'WUB'],
+    ]);
+    expect(strip.querySelector('.table-card__wins')?.textContent).toBe('1–0');
+    expect(strip.querySelector('.table-card__state')?.textContent).toBe('G2 · T7');
+    expect(strip.querySelector('.table-card__state')?.hasAttribute('data-live')).toBe(true);
+    expect(strip.querySelectorAll('.table-card__head, .table-card__art, .table-card__foot, .table-card__counts, .table-card__of'), 'no header, art band, foot, counts or Best of').toHaveLength(0);
+    // Anybody else's table: the whole card is the way in, its link named for what it does.
+    expect(screen.getByTestId('card-go').textContent).toBe('Watch');
+    expect(screen.getByTestId('card-go').closest('.table-card__state')).toBeNull();
+  });
+
+  it('a compact card of mine shows its way in as the state, a decided one says Final with its loser marked', () => {
     card({ size: 'compact' });
-    expect(screen.getByTestId('card').className).toContain('table-card--compact');
-    expect([...document.querySelectorAll('.table-card__phase')].map((p) => p.textContent)).toEqual(['Mid']);
+    expect(screen.getByTestId('card-go').closest('.table-card__state'), 'my way in sits where the state goes').not.toBeNull();
+    cleanup();
+    card({ size: 'compact', series: { length: 3, wins: [2, 1], played: 3, phase: 'done' }, matchId: null, go: null });
+    expect(document.querySelector('.table-card__state')?.textContent).toBe('Final');
+    expect(document.querySelector('.table-card__player[data-side="right"]')?.hasAttribute('data-lost')).toBe(true);
+    cleanup();
+    card({ size: 'compact', series: { length: 3, wins: [1, 0], played: 1, phase: 'sideboarding' }, matchId: null, myMemberId: 'u-carol', go: null });
+    expect(document.querySelector('.table-card__state')?.textContent).toBe('Game 2 next');
+  });
+
+  it('keeps a compact card’s ways to resolve behind one ⋯ button: the hub draws no row of them under every card', async () => {
+    const onConcede = vi.fn(async () => null as string | null);
+    card({ size: 'compact', onConcede, onDrop: async () => null, onReset: async () => null });
+    expect(screen.queryByTestId('card-concede'), 'none drawn until asked for').toBeNull();
+    const more = screen.getByTestId('card-more');
+    expect(more.closest('a'), 'never inside the way in').toBeNull();
+    expect(more.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(more);
+    expect(more.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getAllByRole('menuitem').map((b) => b.textContent)).toEqual(['Concede game', 'Drop match', 'Reset game']);
+    fireEvent.click(screen.getByTestId('card-concede'));
+    expect(screen.queryByRole('menu'), 'choosing one closes the menu').toBeNull();
+    expect(screen.getByTestId('card-concede-confirm').querySelector('.table-card__change')?.textContent).toBe('1–0→1–1');
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('card-concede-yes'));
+    });
+    expect(onConcede).toHaveBeenCalledTimes(1);
+    cleanup();
+    card({ size: 'compact', myMemberId: 'u-carol' });
+    expect(screen.queryByTestId('card-more'), 'nothing to offer, no button').toBeNull();
   });
 
   it('offers my own game in play to concede: the confirm shows the score it leaves, Keep playing backs out, Concede asks the server', async () => {

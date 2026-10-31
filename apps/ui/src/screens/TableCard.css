@@ -1,6 +1,7 @@
 /*
- * A table's game (`TableCard.tsx`): a header with the game and its phase, two halves with the score
- * between them, and the way in at the foot. Colour from `@wolffm/themes` only, as the pod screens.
+ * A table's game (`TableCard.tsx`). Full: a header with the game and its phase, two halves with the
+ * score between them, and the way in at the foot. Compact: one strip, each player either side of the
+ * score. Colour from `@wolffm/themes` only, as the pod screens.
  */
 
 .table-card {
@@ -24,7 +25,7 @@
 }
 
 .table-card--compact {
-  width: 320px;
+  width: 340px;
 }
 
 .table-card__head {
@@ -102,10 +103,6 @@
   display: block;
   width: 100%;
   height: 72px;
-}
-
-.table-card--compact .table-card__art {
-  height: 40px;
 }
 
 .table-card__art > .deckpick__art {
@@ -196,10 +193,6 @@
   font-size: 1.6rem;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-}
-
-.table-card--compact .table-card__wins {
-  font-size: 1.2rem;
 }
 
 .table-card__of {
@@ -302,4 +295,157 @@
   z-index: 1;
   margin: 0;
   padding: 0 12px 8px;
+}
+
+/* A compact card's ways to resolve, behind one button at the strip's end; the menu opens under it. */
+.table-card__more {
+  position: relative;
+  z-index: 1;
+  min-width: 36px;
+  min-height: 36px;
+  margin-left: auto;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.table-card__more:focus-visible,
+.table-card__more[aria-expanded='true'] {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.table-card__strip .table-card__more {
+  min-width: 32px;
+  min-height: 32px;
+}
+
+.table-card__menu {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.table-card__menu .table-card__resolve {
+  margin-left: 0;
+  text-align: left;
+}
+
+/* ── compact: the match strip ── */
+
+.table-card__strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) 32px;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 4px 6px 10px;
+}
+
+/* A decided table steps back: flat, its loser dimmed. */
+.table-card--compact[data-phase='done'] {
+  background: transparent;
+}
+
+.table-card__player {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.table-card__player[data-side='right'] {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+.table-card__player .table-card__who {
+  display: grid;
+  gap: 2px;
+  padding: 0;
+}
+
+.table-card__player[data-side='right'] .table-card__who {
+  justify-items: end;
+}
+
+.table-card--compact .table-card__face {
+  width: 28px;
+  height: 28px;
+}
+
+.table-card__player[data-lost] {
+  opacity: 0.55;
+}
+
+.table-card--compact .table-card__score {
+  min-width: 52px;
+  padding: 0;
+  border: 0;
+}
+
+.table-card--compact .table-card__wins {
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.table-card__state {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  color: var(--color-text-secondary);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.table-card__state[data-live]::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-bg);
+  content: '';
+}
+
+/* My own table's way in: a chip where the state goes. */
+.table-card__state .table-card__go {
+  min-height: 20px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.table-card__state:has(.table-card__go)::before {
+  content: none;
+}
+
+/*
+ * Anybody else's table: the whole card is the way in, and the link draws only its hit area. It is cut to
+ * a pixel by `overflow`, which never clips its `::after` (that is placed by the card, not by the link).
+ */
+.table-card__strip > .table-card__go {
+  grid-row: 1;
+  grid-column: 1;
+  align-self: start;
+  justify-self: start;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  background: none;
+  white-space: nowrap;
+}
+
+.table-card__more-slot {
+  width: 32px;
 }
