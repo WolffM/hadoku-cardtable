@@ -133,7 +133,7 @@ function TitleBar({ source, watchHref }: { source: Source; watchHref: string }) 
         {source.kind === 'live' ? 'LIVE' : 'REPLAY'}
       </span>
       <span className="featured-match__players">{names.length === 0 ? 'Connecting…' : names.join(' vs ')}</span>
-      {view !== null && <span className="featured-match__turn">Turn {view.turn}</span>}
+      {view !== null && view.turn > 0 && <span className="featured-match__turn">Turn {view.turn}</span>}
       <a className="featured-match__watch" href={watchHref} data-testid="featured-match-watch">
         Watch
       </a>

@@ -95,6 +95,15 @@ import './presence.css';
 
 /** After this long without a message, the other seat's presence is taken down. */
 export const PRESENCE_STALE_MS = 6000;
+
+/**
+ * A replay's own channel, never a server's: the card the drawn seat is holding, which the replay
+ * reads from the recording's own future (`../../replay/player.ts`), as `{ card: number | null }`
+ * just before each pointer it hands the board. No server sends this event, and the wire's echo is
+ * strict and names no card, so a live board never learns what a held card is. The face drawn is
+ * the one the board already draws face up in that hand; a hand of backs keeps the back.
+ */
+export const REPLAY_HELD_EVENT = 'replay:held';
 /**
  * How often a card still parked on this screen is said again (`armRestate`): the other screen's wait
  * for it starts its clock over on each (`renewWait`), so a long target or payment is never taken
@@ -818,13 +827,32 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       requestAnimationFrame(() => turnOver(standIn, card));
       return;
     }
+    standIn.append(faceCopy(face));
+    standIn.setAttribute('data-face', '');
+  }
+
+  /** A drawn face, stripped of everything the DOM addresses a card by. */
+  function faceCopy(face: Element): HTMLElement {
     const copy = face.cloneNode(true) as HTMLElement;
     for (const el of [copy, ...copy.querySelectorAll('[data-card-id], [data-testid]')]) {
       el.removeAttribute('data-card-id');
       el.removeAttribute('data-testid');
     }
-    standIn.append(copy);
-    standIn.setAttribute('data-face', '');
+    return copy;
+  }
+
+  /** A replay's held card (`REPLAY_HELD_EVENT`); null on a live board, always. */
+  let replayHeld: number | null = null;
+  function onReplayHeld(payload: unknown): void {
+    replayHeld = typeof payload === 'object' && payload !== null && typeof (payload as { card?: unknown }).card === 'number' ? (payload as { card: number }).card : null;
+  }
+  /** The held back shows its card's face when a replay named it and a hand on this board draws that card face up. */
+  function showHeldFace(): void {
+    if (back === null || replayHeld === null || back.hasAttribute('data-face')) return;
+    const face = canvas.querySelector(`[data-zone="hand"] [data-board-card="${replayHeld}"] .card`);
+    if (face === null) return;
+    back.append(faceCopy(face));
+    back.setAttribute('data-face', '');
   }
 
   /** The one element every back/stand-in on this board is — appended, never reused across one. */
@@ -1012,7 +1040,10 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       heldAt = Date.now();
       // Lifted: the back follows the pointer. A wait pending (a card of theirs still arriving)
       // keeps its stand-in; their new lift is drawn once that wait ends.
-      if (waiting === null) standBack(root, box, at);
+      if (waiting === null) {
+        standBack(root, box, at);
+        showHeldFace();
+      }
     } else if (waiting === null) {
       back?.remove();
       back = null;
@@ -1437,6 +1468,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   host.transport.on(PRESENCE_EVENT, onEcho);
   host.transport.on(PLACEMENT_EVENT, onPlacement);
   host.transport.on(PLACED_EVENT, onPlaced);
+  host.transport.on(REPLAY_HELD_EVENT, onReplayHeld);
   // A replay an EARLIER mount of this module received and could not yet place (the board had not
   // painted) — this mount gets its own fresh attempt, since the server only ever sends it once.
   if (pendingPlaced !== null) onPlaced(pendingPlaced);
