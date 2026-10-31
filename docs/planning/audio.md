@@ -110,7 +110,7 @@ has not been checked against a real dump.
 | `g.cast.<type>` | spell joins `stack` (`!isAbility`). One role per spell type: creature, instant, sorcery, artifact, enchantment, planeswalker, battle. Low in the mix. | **none** (operator: no colours on cast) |
 | `g.ability` | ability joins `stack` (`isAbility`) | — |
 | `g.resolve` | top `stack` entry leaves | — |
-| `g.creature` | a creature spell resolves: the creature's own voice, played just before it lands | **colour × creature cell** (artifact creature → colour × artifact-creature) |
+| `g.creature` | a creature spell resolves: the creature's own voice, played just before it lands. An artifact creature is `g.creature.artifact`, a colourless non-artifact creature `g.creature.colourless` (the operator, 2026-10-30: *"need a different sound for artifact creatures and colorless creatures"*), each falling back to `g.creature` | **colour × creature cell** (artifact creature → `C|artifact-creature`) |
 | `g.enter` | permanent joins `battlefield` (not a land play): the generic "lands on the table" | non-creature artifact → colour × artifact cell |
 | `g.token` | `token` card joins `battlefield` | — |
 | `g.counter` | stack entry leaves with no `GameEventSpellResolved` | from Forge's event *(unverified)* |
@@ -131,7 +131,7 @@ object, but the id may still be stable.
 | Role | Trigger |
 | --- | --- |
 | `g.tap` / `g.untap` | `tapped` flips; the untap step plays `g.untap` once per card, 90 ms apart, at most 8 (2026-10-10; `g.untap-all` retired). Since 2026-10-15 `g.untap` has no cell: it plays the Tap take backwards (`REVERSED_ROLES`). The operator: *"untap should always be the reverse of tap, doesn't need its own sound"* |
-| `g.landing.<tier>` | a creature lands with power 3–4, 5–6, 7–9 or 10+: its thud after the voice (`landingRole`), under 3 still `g.enter`; each tier falls back to the one below. The operator, 2026-10-25: *"progressive sounds for bigger creatures landing on the board"* |
+| `g.landing.<tier>` | a creature lands with power 5–6, 7, 8–11 or 12+: its thud after the voice (`landingRole`), under 5 still `g.enter`; each tier falls back to the one below. The tiers are `entryWeight`'s stages (shake 5, cracks 7, knock-away 8, a second ring 12), since 2026-10-31. The operator, 2026-10-25: *"progressive sounds for bigger creatures landing on the board"*; 2026-10-30: *"a progressively more intense creature land sound that matches the effect of the creature landing"* |
 | `g.counter-on` / `g.counter-off` | `counters` count changes |
 | `g.attach` | `attachedToId` changes |
 | `g.transform` | `changedFrom` appears or changes |

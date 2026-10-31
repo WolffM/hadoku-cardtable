@@ -29,6 +29,8 @@ import {
 	IMPACT_TIERS,
 	cheerRole,
 	impactRole,
+	LANDING_TIERS,
+	landingRole,
 } from './sounds.ts';
 
 const VALID_TAKE = {
@@ -262,5 +264,35 @@ describe('SOUND_MATRIX', () => {
 
 	it('SOUND_SECTIONS has exactly the five sections every SoundTake.section must be one of', () => {
 		expect(SOUND_SECTIONS).toEqual(['Library', 'Land types', 'Moments', 'Colour sounds', 'Music']);
+	});
+});
+
+describe('creatures landing and their voices (the operator, 2026-10-30)', () => {
+	it('a landing tier starts where the picture gains a stage: shake 5, cracks 7, knock-away 8, a second ring 12', () => {
+		expect([...LANDING_TIERS]).toEqual([5, 7, 8, 12]);
+		expect([0, 4, 5, 6, 7, 8, 11, 12, 30].map(landingRole)).toEqual([
+			'g.enter',
+			'g.enter',
+			'g.landing.5',
+			'g.landing.5',
+			'g.landing.7',
+			'g.landing.8',
+			'g.landing.8',
+			'g.landing.12',
+			'g.landing.12',
+		]);
+		expect(SOUND_ROLES.get('g.landing.8')?.name).toBe('Creature lands: 8–11 power');
+		expect(SOUND_ROLES.get('g.landing.12')?.name).toBe('Creature lands: 12 or more power');
+		const chain = (role: string): string[] => (FALLBACK_ROLES[role] === undefined ? [role] : [role, ...chain(FALLBACK_ROLES[role]!)]);
+		expect(chain('g.landing.12')).toEqual(['g.landing.12', 'g.landing.8', 'g.landing.7', 'g.landing.5', 'g.enter']);
+	});
+
+	it('an artifact creature and a colourless creature have their own voice, falling back to the Creature voice', () => {
+		const battlefield = SOUND_ROLE_GROUPS.find((g) => g.id === 'battlefield')!.roles.map((r) => r.id);
+		expect(battlefield).toEqual(expect.arrayContaining(['g.creature.artifact', 'g.creature.colourless']));
+		for (const role of ['g.creature.artifact', 'g.creature.colourless']) {
+			expect(isCellId(`${role}|play`), role).toBe(true);
+			expect(FALLBACK_ROLES[role], role).toBe('g.creature');
+		}
 	});
 });

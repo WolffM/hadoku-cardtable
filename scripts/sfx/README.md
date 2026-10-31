@@ -334,6 +334,24 @@ $P scripts/sfx/finish.py --min-seed 15000 --only g.die-roll,g.coin-flip --out fi
 python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r15-chance-picked --to <sounds dir> --add
 ```
 
+## Round 16: landings on entryWeight's stages, artifact and colourless voices (2026-10-31)
+
+The operator, 2026-10-30: *"we should get a progressively more intense creature land sound that matches the effect of
+the creature landing"* and *"need a different sound for artifact creatures and colorless creatures"*. `LANDING_TIERS`
+moved from 3/5/7/10 to entryWeight's stages, 5 (the table shakes), 7 (it cracks), 8 (the cards around it are knocked
+away) and 12 (a second ring of them is), and a sound-events test pins the one to the other. Each tier's prompts name
+what the picture does at that stage, and `finish.py` cuts and levels them rising (`TIER_CAP`, `TIER_LOUDNESS`).
+Round 14's takes for 3/5/7/10 were never placed and stay in the bin under their old folders. The voices are
+`g.creature.artifact` and `g.creature.colourless`, short like the Creature voice's grunt they fall back to.
+
+```sh
+P=~/.local/opt/stable-audio/.venv/bin/python
+$P scripts/sfx/generate.py --spec scripts/sfx/round16-landing.json --takes 3 --seed 16000 --offload model
+$P scripts/sfx/generate.py --spec scripts/sfx/round16-voices.json --takes 3 --seed 16100 --offload model
+$P scripts/sfx/finish.py --min-seed 16000 --only g.landing.5,g.landing.7,g.landing.8,g.landing.12,g.creature.artifact,g.creature.colourless --out finished-r16
+python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r16 --to <sounds dir> --add
+```
+
 ## Match music, generated locally (2026-10-17)
 
 The operator: *"we can use local models to generate better stuff … keep the variance high. not everything should

@@ -179,7 +179,7 @@ export const SCENARIOS: readonly Scenario[] = [
       { at: 4060, role: 'g.enter', label: 'Artifact lands', layer: 'artifact' },
       { at: 5200, role: 'g.cast.artifact', label: 'Cast an artifact creature' },
       { at: 6000, role: 'g.resolve', label: 'Resolves' },
-      { at: 6060, role: 'g.creature', label: 'Artifact creature voice', layer: 'artifact-creature' },
+      { at: 6060, role: 'g.creature.artifact', label: 'Artifact creature voice', layer: 'artifact-creature' },
       { at: 6450, role: 'g.enter', label: 'It lands' },
       { at: 7600, role: 'g.cast.instant', label: 'Cast an instant' },
       { at: 8400, role: 'g.resolve', label: 'Instant resolves', layer: 'spell' },

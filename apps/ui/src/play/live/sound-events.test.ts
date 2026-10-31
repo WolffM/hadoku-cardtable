@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { DraftCard } from '@hadoku/shared';
+import { LANDING_TIERS, type DraftCard } from '@hadoku/shared';
 
 import { cardStateKey, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
 
@@ -13,6 +13,7 @@ import type { DelayedSoundEvent } from '../../sound/index.ts';
 import poolData from '../../draft/pool.json' with { type: 'json' };
 import { attackDeclared, castRole, colourCell, colourRow, deriveSoundEvents, LAND_THUD_DELAY_MS, thrownSoundEvents, UNTAP_REPEAT_GAP_MS, UNTAP_REPEAT_MAX, wasShuffled } from './sound-events.ts';
 import { shownFlip, shownRoll } from './shown.ts';
+import { ENTRY_MAX, entryWeight, type EntryWeight } from './entries.ts';
 
 function card(typeLine: string, colors: DraftCard['colors'] = [], oracleText = ''): DraftCard {
   return {
@@ -311,13 +312,48 @@ describe('deriveSoundEvents', () => {
     ]);
   });
 
-  it('a bigger creature lands heavier: from power 3 its thud is its power tier’s, and below that the plain thud', () => {
+  it('a bigger creature lands heavier: from power 5 its thud is its power tier’s, and below that the plain thud', () => {
+    const landing = (power: number): string | undefined => {
+      const beast = { ...card('Creature — Beast', ['R']), power: String(power), toughness: String(power) };
+      return deriveSoundEvents(view(1, {}, {}, { stack: [spell(1, beast, 'alice')] }), view(2, { battlefield: [entry(101, beast)] })).at(-1)?.role;
+    };
+    expect([2, 4, 5, 6, 7, 8, 11, 12, 20].map(landing)).toEqual([
+      'g.enter',
+      'g.enter',
+      'g.landing.5',
+      'g.landing.5',
+      'g.landing.7',
+      'g.landing.8',
+      'g.landing.8',
+      'g.landing.12',
+      'g.landing.12',
+    ]);
     const giant = { ...card('Creature — Giant', ['R']), power: '7', toughness: '7' };
-    const cast = view(1, {}, {}, { stack: [spell(1, giant, 'alice')] });
-    const landed = deriveSoundEvents(cast, view(2, { battlefield: [entry(101, giant)] }));
+    const landed = deriveSoundEvents(view(1, {}, {}, { stack: [spell(1, giant, 'alice')] }), view(2, { battlefield: [entry(101, giant)] }));
     expect(landed.at(-1)).toEqual({ role: 'g.landing.7', seat: 'me', delayMs: 60 + LAND_THUD_DELAY_MS });
-    const cub = { ...card('Creature — Cat', ['G']), power: '2', toughness: '2' };
-    expect(deriveSoundEvents(view(1, {}, {}, { stack: [spell(1, cub, 'alice')] }), view(2, { battlefield: [entry(101, cub)] })).at(-1)?.role).toBe('g.enter');
+  });
+
+  it('a landing gets heavier exactly where the picture does: each tier is a step of entryWeight', () => {
+    // Every power where a landing's picture gains a stage: the table starts shaking, it cracks, the
+    // cards around it are knocked away, and a second ring of them is.
+    const steps: number[] = [];
+    for (let p = 1; p <= ENTRY_MAX; p++) {
+      const [was, now] = [entryWeight(p - 1), entryWeight(p)];
+      const stage = (w: EntryWeight): number => (w.shakePx > 0 ? 1 : 0) + (w.cracks !== null ? 1 : 0) + w.shove.rings;
+      if (stage(now) > stage(was)) steps.push(p);
+    }
+    expect([...LANDING_TIERS]).toEqual(steps);
+  });
+
+  it('an artifact creature and a colourless creature each have their own voice, with their colourless cell on top', () => {
+    const resolve = (c: DraftCard): DelayedSoundEvent | undefined =>
+      deriveSoundEvents(view(1, {}, {}, { stack: [spell(1, c, 'alice')] }), view(2, { battlefield: [entry(101, c)] })).find((e) => e.role.startsWith('g.creature'));
+    expect(resolve(GOLEM)).toEqual({ role: 'g.creature.artifact', seat: 'me', colourCell: 'C|artifact-creature', delayMs: 60 });
+    // A coloured artifact creature is still an artifact's voice: the type line decides before the colours.
+    expect(resolve(card('Artifact Creature — Construct', ['U', 'R']))?.role).toBe('g.creature.artifact');
+    const eldrazi = card('Creature — Eldrazi');
+    expect(resolve(eldrazi)).toEqual({ role: 'g.creature.colourless', seat: 'me', colourCell: 'C|creature', delayMs: 60 });
+    expect(resolve(BEAR)?.role).toBe('g.creature');
   });
 
   it("the opponent's instant resolves with its colour's spell cell, from their seat", () => {

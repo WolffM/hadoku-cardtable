@@ -22,7 +22,8 @@
  *
  * The operator's three sounds for a creature spell: the quiet cast when it
  * goes on the stack, then its voice (the colour × creature cell) as it
- * resolves, then the thud of it landing, heavier the bigger it is (`landingRole`).
+ * resolves (`creatureVoice`: an artifact or a colourless creature has its own), then the thud of it
+ * landing, heavier the bigger it is (`landingRole`).
  * The last two arrive in the same view, so they carry `delayMs` to stay in that order.
  */
 
@@ -167,6 +168,17 @@ function paradigmOf(entry: BoardCard): ParadigmId | null {
   return null;
 }
 
+/**
+ * The voice a creature resolves with: an artifact creature's own whatever its colours, a colourless
+ * creature's own (an Eldrazi), every other creature the Creature voice. An empty cell plays the
+ * Creature voice (`FALLBACK_ROLES`).
+ */
+export function creatureVoice(entry: BoardCard): string {
+  if (isType(entry, 'Artifact')) return 'g.creature.artifact';
+  if (entry.card.colors.length === 0) return 'g.creature.colourless';
+  return 'g.creature';
+}
+
 /** `g.cast.<type>` for a spell's type line: the most specific permanent type first. */
 export function castRole(typeLine: string): string {
   const t = typeLine.split('—')[0] ?? '';
@@ -291,7 +303,7 @@ export function deriveSoundEvents(prev: BoardView | null, next: BoardView): Dela
       }
       if (was?.zone === 'graveyard') push('g.reanimate', active);
       if (isType(entry, 'Creature')) {
-        push('g.creature', owner, { colourCell: colourCell(entry), delayMs: 60 });
+        push(creatureVoice(entry), owner, { colourCell: colourCell(entry), delayMs: 60 });
         push(landingRole(boardPT(entry)?.power ?? 0), owner, { delayMs: 60 + LAND_THUD_DELAY_MS });
       } else {
         push('g.enter', owner, { colourCell: isType(entry, 'Artifact') ? colourCell(entry) : null });

@@ -198,10 +198,12 @@ function tierLabel(tiers: readonly number[], i: number): string {
 
 /**
  * A creature lands as heavy as it is big (the operator, 2026-10-25: *"we're missing progressive sounds for bigger
- * creatures landing on the board"*): its power's tier from 3, the plain thud (`g.enter`) below. Each tier runs to
- * the next: 3–4, 5–6, 7–9, 10 or more.
+ * creatures landing on the board"*), and as heavy as it looks (2026-10-30: *"a progressively more intense creature
+ * land sound that matches the effect of the creature landing"*). The tiers are the powers where the landing's picture
+ * gains a stage (`entryWeight`, `apps/ui/src/play/live/entries.ts`): the table shakes from 5, cracks from 7, the
+ * cards around it are knocked away from 8 and a second ring of them from 12. Below 5 it is the plain thud (`g.enter`).
  */
-export const LANDING_TIERS = [3, 5, 7, 10] as const;
+export const LANDING_TIERS = [5, 7, 8, 12] as const;
 
 function landingTierRole(tier: number): string {
 	return `g.landing.${tier}`;
@@ -227,8 +229,8 @@ export function cheerRole(amount: number): string | null {
 /**
  * A role whose cell is empty plays this one's instead, and so on down: an impact tier the tier below it, the
  * smallest Creatures collide (what a blow to a player played before the tiers), and Spell hits Creatures collide
- * too; Hit a planeswalker the smallest player hit; a landing tier the tier below, the smallest Hits the table; a
- * coin flipped in the game the toss's coin; a cheer the cheer below it; a Gauntlet moment the nearest sound the app already had for it. So a role
+ * too; Hit a planeswalker the smallest player hit; a landing tier the tier below, the smallest Hits the table; an
+ * artifact or colourless creature's voice the Creature voice; a coin flipped in the game the toss's coin; a cheer the cheer below it; a Gauntlet moment the nearest sound the app already had for it. So a role
  * nobody has filled yet still sounds.
  */
 export const FALLBACK_ROLES: Readonly<Record<string, string>> = Object.fromEntries([
@@ -238,6 +240,8 @@ export const FALLBACK_ROLES: Readonly<Record<string, string>> = Object.fromEntri
 	['g.coin-flip', 'g.game-start'],
 	['g.walker-hit', impactTierRole(IMPACT_TIERS[0])],
 	...LANDING_TIERS.map((t, i) => [landingTierRole(t), i === 0 ? 'g.enter' : landingTierRole(LANDING_TIERS[i - 1]!)]),
+	['g.creature.artifact', 'g.creature'],
+	['g.creature.colourless', 'g.creature'],
 	['ui.gauntlet-deal', 'g.draw'],
 	['ui.gauntlet-ban', 'g.exile'],
 	['ui.gauntlet-pick', 'ui.draft-pick'],
@@ -292,10 +296,13 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 		roles: [
 			game('g.land', 'Play a land', 'You play a land from your hand. Its colour cell (its land, or its basic) plays on top.'),
 			game('g.creature', 'Creature voice', "A creature resolves. The colour layer is the colour's creature cell."),
+			// The operator, 2026-10-30: "need a different sound for artifact creatures and colorless creatures".
+			game('g.creature.artifact', 'Artifact creature voice', 'An artifact creature resolves, whatever its colours. Colourless Artifact creature on top. Empty: Creature voice plays.'),
+			game('g.creature.colourless', 'Colourless creature voice', 'A colourless creature that is not an artifact resolves, an Eldrazi say. Colourless Creature on top. Empty: Creature voice plays.'),
 			// Not lands: a played land is `g.land` alone. "Lands on the table" read as the card type (the operator, 2026-10-11).
 			game('g.enter', 'Hits the table', 'Any other permanent arrives: the thud after a creature’s voice, an artifact, an enchantment.'),
 			...LANDING_TIERS.map((t, i) =>
-				game(landingTierRole(t), `Creature lands: ${tierLabel(LANDING_TIERS, i).replace('damage', 'power')}`, `The thud after the voice of a creature with ${tierLabel(LANDING_TIERS, i).replace('damage', 'power')}. Empty: the tier below plays, and below 3 Hits the table.`),
+				game(landingTierRole(t), `Creature lands: ${tierLabel(LANDING_TIERS, i).replace('damage', 'power')}`, `The thud after the voice of a creature with ${tierLabel(LANDING_TIERS, i).replace('damage', 'power')}. Empty: the tier below plays, and below 5 Hits the table.`),
 			),
 			game('g.token', 'Token appears', 'A token is created.'),
 			game('g.tap', 'Tap', 'A permanent turns sideways. Untapping plays it backwards.'),

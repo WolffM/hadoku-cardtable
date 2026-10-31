@@ -1,0 +1,48 @@
+{
+ "note": "Round 16 (2026-10-31): the operator, 2026-10-30: \"no creature land sound? we should get a progressively more intense creature land sound that matches the effect of the creature landing.\" The tiers moved onto entryWeight's stages (apps/ui/src/play/live/entries.ts): g.landing.5 the table shakes, g.landing.7 it cracks, g.landing.8 the cards around it are knocked away, g.landing.12 a second ring of them is. Under 5 it is still g.enter (Hits the table). Each tier's prompts name what the picture does at that stage, so the sound gets heavier exactly where the picture does. Round 14's takes (tiers 3/5/7/10) were never placed and stay in the bin. The colour's creature voice plays first, so these carry no voices.",
+ "suffix": "High-quality, stereo, 44.1kHz, sound effect, foley, one landing, full low end, clean tail.",
+ "negative": "low quality, muffled, lo-fi, hiss, clipping, distortion, music, melody, song, speech, voice, vocals, roar, growl, animal call, chime, bell, gong, laser, sci-fi, beeping, whoosh, explosion, gunshot",
+ "seconds": 2.0,
+ "sounds": {
+  "g.landing.5": {
+   "group": "Round 16", "name": "Creature lands: 5–6 power", "section": "Moments", "seconds": 1.4,
+   "prompts": [
+    "A heavy beast dropping onto a wooden table, one deep thud and the table legs shuddering",
+    "A big armoured body landing on thick floorboards, a solid boom and the boards rattling under it",
+    "A boulder set down hard on a wooden stage, a deep dull thump and a short shake of the planks",
+    "An ogre jumping down onto a wooden floor, a heavy stomp and loose cups trembling on a shelf",
+    "A massive iron chest dropped onto a heavy oak table, a weighty thud and a brief wooden shudder"
+   ]
+  },
+  "g.landing.7": {
+   "group": "Round 16", "name": "Creature lands: 7 power", "section": "Moments", "seconds": 1.8,
+   "prompts": [
+    "A giant landing on a stone floor, a deep boom and the stone cracking under its weight",
+    "A huge stone golem slamming down onto flagstones, a heavy impact and a sharp crack splitting the slab",
+    "A massive creature dropping onto frozen ground, a deep thud and the ice cracking outward",
+    "An enormous weight hitting a marble floor, a booming impact with a dry splitting crack",
+    "A troll king landing on cobblestones, a heavy crash and stones fracturing with a gritty crunch"
+   ]
+  },
+  "g.landing.8": {
+   "group": "Round 16", "name": "Creature lands: 8–11 power", "section": "Moments", "seconds": 2.2,
+   "prompts": [
+    "A titan crashing down onto a stone courtyard, a huge boom, the ground cracking and crates knocked over and tumbling away",
+    "A dragon slamming onto a rocky ledge, a massive impact, cracking stone and loose rocks thrown aside clattering",
+    "A colossal beast landing in a market square, a deep boom, splitting cobbles and wooden carts and barrels knocked flying",
+    "An enormous stone giant dropping onto a hall floor, a booming crack and benches and tables shoved aside scraping",
+    "A huge creature landing hard on a wooden deck, a heavy crash, splintering boards and barrels sent rolling away"
+   ]
+  },
+  "g.landing.12": {
+   "group": "Round 16", "name": "Creature lands: 12 or more power", "section": "Moments", "seconds": 3.0,
+   "prompts": [
+    "A mountain-sized colossus slamming into the earth, a seismic boom, the ground splitting wide and rubble thrown far in every direction, a long rumble",
+    "An ancient world-ending titan landing, an enormous deep impact, rock shattering, debris raining down and a long low tremor",
+    "A leviathan crashing onto a city plaza, a colossal boom, stone breaking apart, walls and carts knocked away and falling rubble settling",
+    "A gigantic beast dropping from the sky onto a valley, a massive ground-shaking slam, cracking bedrock, boulders tumbling and a rolling rumble",
+    "A titanic creature striking the ground, a huge deep thud, a shockwave of breaking stone and scattered debris, then a slow rumbling settle"
+   ]
+  }
+ }
+}

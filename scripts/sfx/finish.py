@@ -48,8 +48,8 @@ TAIL_PAD_S = 0.03
 # shorter and simpler"), so the roles that answer a gesture or tick by often get their own short limit.
 MOMENT_CAP = {'m-turn': 2.5, 'm-win': 4.0, 'm-lose': 4.0}
 ROLE_CAP = {'ui.prompt': 1.0, 'g.turn-mine': 2.5, 'g.combat': 2.6, 'g.spell-hit': 1.0, 'g.walker-hit': 1.6,
-            'g.die-roll': 1.6, 'g.coin-flip': 2.4,
-            'g.landing.3': 1.0, 'g.landing.5': 1.4, 'g.landing.7': 1.8, 'g.landing.10': 2.4, 'g.game-start': 2.5, 'g.match-start': 3.0,
+            'g.die-roll': 1.6, 'g.coin-flip': 2.4, 'g.creature.artifact': 1.0, 'g.creature.colourless': 1.0,
+            'g.landing.3': 1.0, 'g.landing.10': 2.4, 'g.game-start': 2.5, 'g.match-start': 3.0,
             'ui.hover-card': 0.25, 'ui.select': 0.3, 'ui.pass': 0.4, 'ui.lift': 0.35,
             'ui.place': 0.35, 'ui.deny': 0.4, 'ui.target': 0.4, 'ui.inspect': 0.4, 'ui.draft-pick': 0.4,
             'g.tap': 0.35, 'g.untap': 0.35, 'g.counter-on': 0.4, 'g.counter-off': 0.4,
@@ -59,9 +59,13 @@ UI_CAP, GAME_CAP = 0.6, 2.0
 # A blow to a player sounds as big as its damage (2026-10-20, round 11): each tier rings longer and sits louder than
 # the one below, from a body blow to a castle coming down, and the crowd over the heaviest ones swells longer still.
 # Past GAME_CAP from tier 5 up, which would have cut the big tails; the small tiers sit under `game` on purpose.
-TIER_CAP = {'g.impact.1': 1.0, 'g.impact.2': 1.2, 'g.impact.3': 1.5, 'g.impact.4': 1.8, 'g.impact.5': 2.2,
+# A creature's landing likewise (round 16, 2026-10-31): each of entryWeight's stages (shake, cracks, knock-away, a
+# second ring) rings longer and sits louder, in step with the picture. Round 14's 3 and 10 are no tier any more.
+TIER_CAP = {'g.landing.5': 1.4, 'g.landing.7': 1.8, 'g.landing.8': 2.2, 'g.landing.12': 3.0,
+            'g.impact.1': 1.0, 'g.impact.2': 1.2, 'g.impact.3': 1.5, 'g.impact.4': 1.8, 'g.impact.5': 2.2,
             'g.impact.7': 2.8, 'g.impact.10': 3.5, 'g.cheer.5': 3.0, 'g.cheer.7': 4.0, 'g.cheer.10': 4.5}
-TIER_LOUDNESS = {'g.impact.1': -28.0, 'g.impact.2': -27.0, 'g.impact.3': -26.0, 'g.impact.4': -25.0,
+TIER_LOUDNESS = {'g.landing.5': -26.0, 'g.landing.7': -25.0, 'g.landing.8': -24.0, 'g.landing.12': -22.5,
+                 'g.impact.1': -28.0, 'g.impact.2': -27.0, 'g.impact.3': -26.0, 'g.impact.4': -25.0,
                  'g.impact.5': -24.0, 'g.impact.7': -23.0, 'g.impact.10': -22.0,
                  'g.cheer.5': -29.0, 'g.cheer.7': -28.0, 'g.cheer.10': -27.0}
 
