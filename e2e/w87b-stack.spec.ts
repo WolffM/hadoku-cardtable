@@ -39,10 +39,17 @@ async function tiles(page: Page): Promise<{ id: number; text: string }[]> {
     .evaluateAll((els) => els.map((e) => ({ id: Number(e.getAttribute('data-card-id')), text: (e.textContent ?? '').replace(/\s+/g, ' ').trim() })));
 }
 
-/** Tick `ids` on the open sheet and submit it. */
+/**
+ * Tick `ids` on the open sheet and submit it — only if it is still that sheet: a pick that reaches its
+ * maximum is answered by its last tick, and the sheet then open is the NEXT question (claw run
+ * 41174121649 answered Scapeshift's search with nothing this way).
+ */
 async function pick(page: Page, ids: readonly number[]): Promise<void> {
   const sheet = page.locator('[data-testid="live-selection-host"], [data-testid="live-prompt"]').first();
   for (const id of ids) await sheet.locator(`[data-testid="prompt-cards"] > li[data-card-id="${id}"]`).click({ timeout: 2_000 }).catch(() => undefined);
+  await page.waitForTimeout(400);
+  const still = new Set((await tiles(page)).map((t) => t.id));
+  if (!ids.some((id) => still.has(id))) return;
   await sheet.locator('[data-testid="selection-done"]:enabled, [data-testid="prompt-submit"]:enabled').first().click({ timeout: 2_000 }).catch(() => undefined);
 }
 
