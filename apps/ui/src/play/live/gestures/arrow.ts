@@ -510,9 +510,11 @@ type Box = { left: number; top: number; right: number; bottom: number };
  * facing its target to just inside the target (`aimAt`). When that would be shorter than `HOP_MIN` —
  * two stack cards side by side, or overlapping (the operator, 2026-10-30, on a counter war: *"the
  * arrows are too small and they look weird. probably because the cards are too close"*) — it HOPS:
- * from the middle of one edge of `own` to the same edge of the target, the edge on the side the
- * arrow bows to (`arrowShape`: a rightward arrow arcs up, a leftward one down, an upward one left,
- * a downward one right), so the arc rises clear of both cards with its head whole. A hop is never
+ * from the middle of one edge of `own`, the edge on the side the arrow bows to (`arrowShape`: a
+ * rightward arrow arcs up, a leftward one down, an upward one left, a downward one right), so the arc
+ * rises clear of both cards with its head whole, down onto the target's middle. Stack cards overlap
+ * at their edges (`placed.ts`'s `STACK_CORE`), so an edge of the target may be under a neighbour; its
+ * middle never is. A hop is never
  * shorter than `HOP_MIN` along that edge: two cards nearly on top of each other get it spread either
  * side of their middle.
  */
@@ -527,15 +529,11 @@ export function aimBetween(own: Box, to: Box): { from: Point; tip: Point } {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   if (Math.abs(dx) >= Math.abs(dy)) {
-    const up = dx >= 0;
-    const [y0, y1] = up ? [own.top, to.top] : [own.bottom, to.bottom];
-    const [x0, x1] = apart(a.x, b.x, HOP_MIN, up ? 1 : -1);
-    return { from: { x: x0, y: y0 }, tip: { x: x1, y: lerp(y1, b.y, TIP_INSET) } };
+    const [x0, x1] = apart(a.x, b.x, HOP_MIN, dx >= 0 ? 1 : -1);
+    return { from: { x: x0, y: dx >= 0 ? own.top : own.bottom }, tip: { x: x1, y: b.y } };
   }
-  const left = dy < 0;
-  const [x0, x1] = left ? [own.left, to.left] : [own.right, to.right];
-  const [y0, y1] = apart(a.y, b.y, HOP_MIN, left ? -1 : 1);
-  return { from: { x: x0, y: y0 }, tip: { x: lerp(x1, b.x, TIP_INSET), y: y1 } };
+  const [y0, y1] = apart(a.y, b.y, HOP_MIN, dy < 0 ? -1 : 1);
+  return { from: { x: dy < 0 ? own.left : own.right, y: y0 }, tip: { x: b.x, y: y1 } };
 }
 
 /** `p` and `q` along one edge, spread evenly about their middle to at least `min` apart, `p` before `q` in `sign`'s direction. */

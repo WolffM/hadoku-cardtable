@@ -178,12 +178,12 @@ describe('aimBetween: an arrow between two stack cards', () => {
     expect(arcOf(aim), 'its middle stands well off the chord').toBeGreaterThanOrEqual(ARC_MIN / 2 - 0.01);
   });
 
-  it('a rightward hop leaves from the top edge and lands just inside the target\'s top: the arc bows up, over both cards', () => {
+  it('a rightward hop leaves from the top edge and lands on the target\'s middle, which no neighbour covers: the arc bows up, over both cards', () => {
     const own = card(100, 300);
     const to = card(244, 300);
     const aim = aimBetween(own, to);
     expect(aim.from.y).toBe(300);
-    expect(aim.tip.y).toBeCloseTo(300 + (161 / 2) * TIP_INSET, 6);
+    expect(aim.tip).toEqual({ x: 302, y: 380.5 });
     expect(parse(arrowShape(aim.from.x, aim.from.y, aim.tip.x, aim.tip.y).d).cy, 'bows up, away from the cards').toBeLessThan(300);
   });
 
