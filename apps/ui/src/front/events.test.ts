@@ -2,15 +2,15 @@ import { describe, expect, it } from 'vitest';
 import type { EventView } from '@hadoku/shared';
 
 import { countdown } from './countdown.ts';
-import { fromLocalInput, soonest, toLocalInput } from './events.ts';
+import { fromLocalInput, toLocalInput, upcoming } from './events.ts';
 
-const at = (iso: string, title = iso): EventView => ({ id: title, kind: 'casual', title, startsAt: iso, organizer: 'alice', mine: false, roomId: null });
+const at = (iso: string, title = iso): EventView => ({ id: title, kind: 'room', title, startsAt: iso, organizer: 'alice', mine: false, roomId: null, room: null });
 
-describe('soonest', () => {
-  it('keeps the next three, soonest first, whatever order they came in', () => {
+describe('upcoming', () => {
+  it('is every event, soonest first, whatever order they came in: the calendar scrolls, it never cuts', () => {
     const events = [at('2026-11-04T20:00:00Z'), at('2026-11-01T20:00:00Z'), at('2026-11-03T20:00:00Z'), at('2026-11-02T20:00:00Z')];
-    expect(soonest(events).map((e) => e.startsAt)).toEqual(['2026-11-01T20:00:00Z', '2026-11-02T20:00:00Z', '2026-11-03T20:00:00Z']);
-    expect(soonest([])).toEqual([]);
+    expect(upcoming(events).map((e) => e.startsAt)).toEqual(['2026-11-01T20:00:00Z', '2026-11-02T20:00:00Z', '2026-11-03T20:00:00Z', '2026-11-04T20:00:00Z']);
+    expect(upcoming([])).toEqual([]);
   });
 });
 

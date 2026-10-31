@@ -1,9 +1,11 @@
 /*
- * The banner's wildcard card (`docs/planning/wave77-2026-10-27.md` §A): ONE thing, picked once per
- * visit (`./wildcardItems.ts`'s `pickWildcard` — each kind's weight plus a random draw), never a
- * carousel (the operator, 2026-10-28: "let's not do that … pick a single thing to show"). It picks
- * once every source has answered, so it never flips from one to another as they arrive, and picks
- * again only if what it showed goes away (the room filled). The kinds:
+ * The banner's wildcard card: a manual gallery (`./Gallery.tsx`) of everything it has to show. It
+ * opens on one weighted pick (`./wildcardItems.ts`'s `pickWildcard` — each kind's priority plus a
+ * random draw) and the reader turns to the rest, highest priority first (`wildcardPages`) — the
+ * operator, 2026-10-30: "manual is better, but let's still have the priority system for what is
+ * shown by default and the randomness system beyond that". It picks once every source has
+ * answered, so it never opens on one and jumps to another as they arrive, and picks again only if
+ * what it opened on goes away (the room filled). The kinds:
  *
  *   - **Open seats now** — the room closest to starting that the viewer could sit down in, from
  *     the list the room list below already reads (`../rooms/api.ts`'s `onRoomList`): no read of
@@ -33,7 +35,8 @@ import { REPLAYS_ON } from '../replay/transport.ts';
 import { navigate, routeHash } from '../screens/route.ts';
 import { playRole } from '../sound/index.ts';
 import { avatarColour, avatarInitial, discordTime, groupMessages } from './discordChat.ts';
-import { openSeats, pickWildcard, sampleArt, spotlightCube, type WildcardKind } from './wildcardItems.ts';
+import { Gallery } from './Gallery.tsx';
+import { openSeats, pickWildcard, sampleArt, spotlightCube, wildcardPages, type WildcardKind } from './wildcardItems.ts';
 
 interface WildcardItem {
   key: WildcardKind;
@@ -244,15 +247,19 @@ export function WildcardCard() {
   const settled = waited || sources.every((s) => s !== ASKING);
 
   const [picked, setPicked] = useState<WildcardKind | null>(null);
-  const showing = available.find((i) => i.key === picked);
+  const opened = available.some((i) => i.key === picked);
   useEffect(() => {
-    // Once, when every source has answered; again only if what it shows has gone (its room filled).
-    if (settled && showing === undefined) setPicked(pickWildcard(available.map((i) => i.key)));
-  }, [settled, showing, available]);
+    // Once, when every source has answered; again only if what it opened on has gone (its room filled).
+    if (settled && !opened) setPicked(pickWildcard(available.map((i) => i.key)));
+  }, [settled, opened, available]);
+  const pages = settled && opened ? wildcardPages(available.map((i) => i.key), picked).map((key) => available.find((i) => i.key === key)!) : [];
+  /** What went wrong with a page's action (Play now), shown on that page. */
+  const [errors, setErrors] = useState<Partial<Record<WildcardKind, string>>>({});
+  const setError = (key: WildcardKind, message: string | null): void => setErrors((e) => ({ ...e, [key]: message ?? undefined }));
 
   return (
     <section className="front-card front-card--wildcard" data-testid="front-wildcard">
-      {showing !== undefined && <WildcardBody key={showing.key} item={showing} />}
+      <Gallery testId="front-wildcard" pages={pages.map((item) => ({ key: item.key, title: item.kind, body: <WildcardBody item={item} error={errors[item.key] ?? null} />, action: <WildcardAction item={item} onError={(m) => setError(item.key, m)} /> }))} />
     </section>
   );
 }
@@ -299,66 +306,63 @@ function DiscordChat({ channel, messages }: { channel: string; messages: readonl
   );
 }
 
-function WildcardBody({ item }: { item: WildcardItem }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const action = item.action;
+function WildcardBody({ item, error }: { item: WildcardItem; error: string | null }) {
   return (
-    <>
-      <header className="front-card__head">
-        <h3 className="front-card__title">{item.kind}</h3>
-      </header>
-      <div className="front-card__wildcard-item" data-testid={`front-wildcard-${item.key}`}>
-        {item.arts !== undefined && (
-          <div className="front-card__wildcard-arts" aria-hidden="true">
-            {item.arts.map((id) => (
-              <ArtSlot key={id} artId={id} />
-            ))}
-          </div>
-        )}
-        {item.messages === undefined ? (
-          <>
-            <p className="front-card__release-title">{item.title}</p>
-            <p className="front-card__wildcard-body">{item.body}</p>
-          </>
-        ) : (
-          <DiscordChat channel={item.title} messages={item.messages} />
-        )}
-        {error !== null && (
-          <p className="ct-error" role="alert">
-            {error}
-          </p>
-        )}
-      </div>
-      {action !== undefined && (
-        <div className="front-card__foot">
-          {'run' in action ? (
-            <button
-              type="button"
-              className="button front-card__more"
-              data-testid="front-wildcard-action"
-              disabled={busy}
-              onClick={() => {
-                playRole('ui.select');
-                setBusy(true);
-                setError(null);
-                void action.run().then((failed) => {
-                  setBusy(false);
-                  if (failed === null) return;
-                  playRole('ui.deny');
-                  setError(failed);
-                });
-              }}
-            >
-              {action.label}
-            </button>
-          ) : (
-            <a className="button front-card__more" data-testid="front-wildcard-action" href={action.href} target={action.external ? '_blank' : undefined} rel={action.external ? 'noopener noreferrer' : undefined}>
-              {action.label}
-            </a>
-          )}
+    <div className="front-card__wildcard-item" data-testid={`front-wildcard-${item.key}`}>
+      {item.arts !== undefined && (
+        <div className="front-card__wildcard-arts" aria-hidden="true">
+          {item.arts.map((id) => (
+            <ArtSlot key={id} artId={id} />
+          ))}
         </div>
       )}
-    </>
+      {item.messages === undefined ? (
+        <>
+          <p className="front-card__release-title">{item.title}</p>
+          <p className="front-card__wildcard-body">{item.body}</p>
+        </>
+      ) : (
+        <DiscordChat channel={item.title} messages={item.messages} />
+      )}
+      {error !== null && (
+        <p className="ct-error" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function WildcardAction({ item, onError }: { item: WildcardItem; onError: (message: string | null) => void }) {
+  const [busy, setBusy] = useState(false);
+  const action = item.action;
+  if (action === undefined) return null;
+  if (!('run' in action)) {
+    return (
+      <a className="button front-card__more" data-testid="front-wildcard-action" href={action.href} target={action.external ? '_blank' : undefined} rel={action.external ? 'noopener noreferrer' : undefined}>
+        {action.label}
+      </a>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className="button front-card__more"
+      data-testid="front-wildcard-action"
+      disabled={busy}
+      onClick={() => {
+        playRole('ui.select');
+        setBusy(true);
+        onError(null);
+        void action.run().then((failed) => {
+          setBusy(false);
+          if (failed === null) return;
+          playRole('ui.deny');
+          onError(failed);
+        });
+      }}
+    >
+      {action.label}
+    </button>
   );
 }

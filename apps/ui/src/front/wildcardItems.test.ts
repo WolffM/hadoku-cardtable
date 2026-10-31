@@ -1,11 +1,11 @@
 /*
- * The wildcard carousel's pure choices (`./wildcardItems.ts`).
+ * The wildcard gallery's pure choices (`./wildcardItems.ts`).
  */
 import { describe, expect, it } from 'vitest';
 import type { CubeSummary, DraftCard, PodView, RoomTable } from '@hadoku/shared';
 
 import type { RoomView } from '../rooms/api.ts';
-import { openSeats, pickWildcard, sampleArt, spotlightCube, WILDCARD_PRIORITY } from './wildcardItems.ts';
+import { openSeats, pickWildcard, sampleArt, spotlightCube, wildcardPages, WILDCARD_PRIORITY } from './wildcardItems.ts';
 
 const table = (over: Partial<RoomTable> = {}): RoomTable => ({
   id: 't-1',
@@ -107,6 +107,17 @@ describe('sampleArt', () => {
     const drawn = sampleArt(cards, 3, () => 0);
     expect(drawn).toEqual(['a', 'b', 'c']);
     expect(sampleArt(cards.slice(0, 3), 3)).toEqual(['a']);
+  });
+});
+
+describe('wildcardPages', () => {
+  it('opens on the weighted pick, then every other kind there is, highest priority first', () => {
+    expect(wildcardPages(['lfg', 'last-game', 'cube', 'open-seats'], 'cube')).toEqual(['cube', 'open-seats', 'last-game', 'lfg']);
+    expect(wildcardPages(['chat', 'cube'], 'chat')).toEqual(['chat', 'cube']);
+  });
+  it('is every kind by priority before anything is picked, and nothing when there is nothing', () => {
+    expect(wildcardPages(['lfg', 'open-seats'], null)).toEqual(['open-seats', 'lfg']);
+    expect(wildcardPages([], null)).toEqual([]);
   });
 });
 
