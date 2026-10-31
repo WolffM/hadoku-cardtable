@@ -312,6 +312,24 @@ export function fanOf(froms: readonly Box[], to: Box, key: string, table: Box): 
   return offsets(spots.map((sp, j) => ({ i: sp.i, ...places[j]! })));
 }
 
+/**
+ * Which way each of a pack's chargers bends its charge at `to`, from its place in the fan (`spots`, where it
+ * winds up): outward, the ones on the pack's left out to the left and those on its right out to the right,
+ * so the pack opens like a hand and no two paths cross; one alone, or near the pack's middle, tosses a coin
+ * (the operator, 2026-10-31: "everyone attacking in the same arc is weird. and the arc shouldn't always bend
+ * in the same direction"). +1 is the charger's right as it faces `to`, as in `chargeControl`.
+ */
+export function bendOf(spots: readonly Point[], to: Point, random: () => number = Math.random): (-1 | 1)[] {
+  const c = { x: spots.reduce((n, p) => n + p.x, 0) / Math.max(1, spots.length), y: spots.reduce((n, p) => n + p.y, 0) / Math.max(1, spots.length) };
+  const spread = Math.max(0, ...spots.map((p) => Math.hypot(p.x - c.x, p.y - c.y)));
+  return spots.map((p) => {
+    const u = unit(p, to);
+    const lateral = (p.x - c.x) * -u.y + (p.y - c.y) * u.x;
+    if (Math.abs(lateral) <= spread * 0.2) return random() < 0.5 ? -1 : 1;
+    return lateral < 0 ? -1 : 1;
+  });
+}
+
 /** A charger's pose before it flies: at `at` (its place in the fan, `fanOf`), turned so its top points at the player — an upright card's top is up, a turned card's (an attacker drawn sideways) its right. */
 export function alignOf(from: Box, to: Box, at: Point): { at: Point; rot: number } {
   const toward = Math.atan2(to.y - (from.y + at.y), to.x - (from.x + at.x)) * (180 / Math.PI);
@@ -350,26 +368,30 @@ export function windUpOf(weight: number): { px: number; ms: number } {
  * wind-up it bursts, accelerating hard right into the blow (the operator, 2026-10-17: "burst into motion
  * with intense acceleration until impact"; 2026-10-30: "both the floor and the ceiling for how much
  * velocity is reached with each 'punch' should be harder"; 2026-10-31: "then an even faster and harder
- * punch"). No creep of its own: the wind-up is its slow start. The heavier, the harder the burst. An
- * exponential, since a cubic bezier ease could not hold still long enough and still burst.
+ * punch"); then a tenth off every level ("we can actually shave off 10% of the top speed for all levels").
+ * No creep of its own: the wind-up is its slow start. The heavier, the harder the burst, though less and
+ * less so, since a heavier wind-up leaves it less time to land in. An exponential, since a cubic bezier
+ * ease could not hold still long enough and still burst.
  */
 export function punchAt(t: number, power: number): number {
-  const k = 12 + 9 * Math.min(1, Math.max(0, power));
+  const p = Math.min(1, Math.max(0, power));
+  const k = 10.6 + 8.2 * p - 1.9 * p * p;
   return (Math.exp(k * t) - 1) / (Math.exp(k) - 1);
 }
 
 /**
- * A charge's curve: its control point off the straight line to either side, from barely to well over a
- * third of its length, and anywhere from early to late along it — so one swings wide at once and the next
- * hooks in at the end (the operator, 2026-10-17: "add a bit of variance for the direction and curvature of
- * the arc? a bit of randomness would be nice here"). `random` gives 0 to 1; each charge draws its own.
+ * A charge's curve: its control point off the straight line to `side` (+1 its right, −1 its left; a coin
+ * when not given), from barely to well over a third of its length, and anywhere from early to late along
+ * it — so one swings wide at once and the next hooks in at the end (the operator, 2026-10-17: "add a bit of
+ * variance for the direction and curvature of the arc? a bit of randomness would be nice here"). `random`
+ * gives 0 to 1; each charge draws its own.
  */
-export function chargeControl(start: Point, end: Point, random: () => number): Point {
+export function chargeControl(start: Point, end: Point, random: () => number, side?: -1 | 1): Point {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const length = Math.hypot(dx, dy) || 1;
-  const side = random() < 0.5 ? -1 : 1;
-  const bend = (0.06 + 0.4 * random()) * length * side;
+  const coin = random() < 0.5 ? -1 : 1;
+  const bend = (0.06 + 0.4 * random()) * length * (side ?? coin);
   const at = 0.3 + 0.4 * random();
   return { x: start.x + dx * at + (-dy / length) * bend, y: start.y + dy * at + (dx / length) * bend };
 }
@@ -406,8 +428,8 @@ function windUpFrames(align: { at: Point; rot: number }, strike: Point, back: nu
  * still facing it. Each sample at the punch's distance along the curve (`punchAt`), so the pace is in the
  * frames: run it linear. Sampled closer together toward the blow, where it moves furthest between frames.
  */
-function chargeFrames(from: Point, rot: number, strike: Point, power: number, random: () => number = Math.random): Keyframe[] {
-  const at = alongLength(from, chargeControl(from, strike, random), strike);
+function chargeFrames(from: Point, rot: number, strike: Point, power: number, side?: -1 | 1, random: () => number = Math.random): Keyframe[] {
+  const at = alongLength(from, chargeControl(from, strike, random, side), strike);
   return Array.from({ length: SAMPLES + 1 }, (_, i) => {
     const t = 1 - (1 - i / SAMPLES) ** 2;
     return { offset: t, translate: px(at(punchAt(t, power))), rotate: `${rot.toFixed(1)}deg` };
@@ -480,8 +502,8 @@ function play(el: HTMLElement, parts: readonly { frames: Keyframe[]; delay: numb
  * Draw one creature's ram: `source` (its element in its row, or its departure's stand-in) strikes
  * `to` after `delayMs` plus its contact time, and ends as `end` says. `away` is the way a blasted
  * creature is knocked: from the one that struck it. A charge forms up from `formation.start` at
- * `formation.at`, and winds up and punches by `formation.weight` (its damage on the landing's curve;
- * `power` when not given). Returns a cancel that puts everything back.
+ * `formation.at`, winds up and punches by `formation.weight` (its damage on the landing's curve;
+ * `power` when not given) and bends to `formation.side` (`bendOf`; a coin when not given). Returns a cancel that puts everything back.
  */
 export function ram(
   root: HTMLElement,
@@ -494,7 +516,7 @@ export function ram(
   delayMs: number,
   power: number,
   struckPower: number,
-  formation: { start: number; at: Point | null; weight?: number } = { start: delayMs, at: null },
+  formation: { start: number; at: Point | null; weight?: number; side?: -1 | 1 } = { start: delayMs, at: null },
 ): () => void {
   if (typeof source.animate !== 'function') return () => undefined;
   const { el, standIn } = mover(root, source, from);
@@ -519,7 +541,7 @@ export function ram(
     const wind = windUpOf(weight);
     const cocked = windUpFrames(align, strike, wind.px);
     parts.push({ frames: cocked.frames, delay: formed, duration: wind.ms, easing: WIND_UP_EASE });
-    parts.push({ frames: chargeFrames(cocked.at, align.rot, strike, weight), delay: formed + wind.ms, duration: CHARGE_MS - wind.ms });
+    parts.push({ frames: chargeFrames(cocked.at, align.rot, strike, weight, formation.side), delay: formed + wind.ms, duration: CHARGE_MS - wind.ms });
   } else {
     tilt = tiltOf(key);
     const rear = rearOf(strike, tilt);

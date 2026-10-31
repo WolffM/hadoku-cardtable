@@ -142,7 +142,7 @@ import {
 } from '../motion.ts';
 import { battlefieldCard, faceBox, overlayOf, zoneOf } from './board-dom.ts';
 import { DEPARTURE_ATTR, departureCause, departuresOf, exitMotionFor, exitMs, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
-import { ALIGN_MS, BLAST_MS, blast, boxIn, contactMs, fanOf, ram, RAM_STAGGER_MS, ramMs, strikeOffset, windUpOf, type Point, type RamEnd, type RamKind } from './ram.ts';
+import { ALIGN_MS, bendOf, BLAST_MS, blast, boxIn, contactMs, fanOf, ram, RAM_STAGGER_MS, ramMs, strikeOffset, windUpOf, type Point, type RamEnd, type RamKind } from './ram.ts';
 import { crash, crashParticles, shake } from './crash.ts';
 import { particleShare } from './effect-budget.ts';
 import { fly, impact } from './projectile.ts';
@@ -1193,10 +1193,12 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     // After the departures: a creature that died in the fight rams as its departure's stand-in.
     const root = overlay();
     const rammers = new Set((combat?.rams ?? []).map((r) => r.sourceId));
-    // The chargers form up together, at the first one's start, in a fan around the player or the card each attacks.
+    // The chargers form up together, at the first one's start, in a fan around the player or the card each attacks,
+    // and each bends its charge out from the pack (`bendOf`).
     const chargers = (combat?.rams ?? []).filter((r) => r.kind === 'charge');
     const chargeStart = chargers.length === 0 ? 0 : Math.min(...chargers.map((r) => r.delayMs));
     const fanned = new Map<number, Point>();
+    const bent = new Map<number, -1 | 1>();
     const struckEl = (target: RamPlan['target']): HTMLElement | null =>
       'playerId' in target ? faceBox(canvas, target.playerId) : (root?.querySelector<HTMLElement>(`[${DEPARTURE_ATTR}="${target.cardId}"]`) ?? hitTarget(target.cardId));
     const packOf = (target: RamPlan['target']): string => ('playerId' in target ? `fan:${target.playerId}` : `fan:card:${target.cardId}`);
@@ -1207,8 +1209,14 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         const at = struckEl(members[0]!.target);
         const boxes = members.map((r) => root.querySelector<HTMLElement>(`[${DEPARTURE_ATTR}="${r.sourceId}"]`) ?? battlefieldCard(canvas, r.sourceId));
         if (at === null || boxes.some((b) => b === null)) continue;
-        const spots = fanOf(boxes.map((b) => boxIn(b!, root)), boxIn(at, root), key, boxIn(root, root));
-        members.forEach((r, i) => fanned.set(r.sourceId, spots[i]!));
+        const froms = boxes.map((b) => boxIn(b!, root));
+        const to = boxIn(at, root);
+        const spots = fanOf(froms, to, key, boxIn(root, root));
+        const sides = bendOf(froms.map((b, i) => ({ x: b.x + spots[i]!.x, y: b.y + spots[i]!.y })), to);
+        members.forEach((r, i) => {
+          fanned.set(r.sourceId, spots[i]!);
+          bent.set(r.sourceId, sides[i]!);
+        });
       }
     }
     const keep = (cancel: () => void, untilMs: number): void => {
@@ -1262,7 +1270,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       // Blasted as hard as what struck it hit: its partner's power when they met.
       const struckBy = (combat?.rams ?? []).find((r) => 'cardId' in r.target && r.target.cardId === plan.sourceId)?.power ?? plan.power;
       keep(
-        ram(root, source, from, to, plan.kind, end, `ram:${plan.sourceId}`, plan.delayMs, plan.power, struckBy, { start: plan.kind === 'charge' ? chargeStart : plan.delayMs, at: fanned.get(plan.sourceId) ?? null, weight }),
+        ram(root, source, from, to, plan.kind, end, `ram:${plan.sourceId}`, plan.delayMs, plan.power, struckBy, { start: plan.kind === 'charge' ? chargeStart : plan.delayMs, at: fanned.get(plan.sourceId) ?? null, weight, side: bent.get(plan.sourceId) }),
         plan.delayMs + ramMs(plan.kind, end),
       );
       // A creature killed by a blow it did not ram back into is blasted away from the one that struck it.
