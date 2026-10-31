@@ -70,7 +70,9 @@ test(titled('promo-valakut at 1920×1080: all ten triggers drawn, inside the boa
     await clickHandCard(page, scapeshift!);
 
     // Pay, sacrifice all eleven lands, fetch Valakut and every Mountain, until the first Valakut target question.
+    // Nothing else is answered before the search: an empty answer to the sacrifice sheet sacrifices nothing.
     let lastSays = '';
+    let searched = false;
     await expect
       .poll(
         async () => {
@@ -80,11 +82,12 @@ test(titled('promo-valakut at 1920×1080: all ten triggers drawn, inside the boa
           const sheet = await tiles(page);
           if (sheet.some((t) => /Valakut/.test(t.text))) {
             await pick(page, [...sheet.filter((t) => /Valakut/.test(t.text)), ...sheet.filter((t) => t.text.startsWith('Mountain'))].map((t) => t.id));
-          } else if (sheet.length >= 11) {
+            searched = true;
+          } else if (sheet.length >= 11 && !searched) {
             await pick(page, sheet.map((t) => t.id));
           } else if (!(await pressPaymentAuto(page))) {
             await pressIfThere(page, '[data-testid="prompt-confirm-yes"]:enabled');
-            if (sheet.length === 0) await answerPrompt(page).catch(() => null);
+            if (searched) await answerPrompt(page).catch(() => null);
           }
           await pressIfThere(bob.page, '[data-testid="live-decision-ok"]:enabled');
           return false;
