@@ -5,7 +5,7 @@
  * answer draws to that target arrives, the gesture is cancelled, or nothing came.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CLOSE_MS, COMMITTED_MAX_MS, clearArrow, clearCommitted, commitArrowAt, drawArrow, markArrow, newArrow, retireCommitted } from './arrow.ts';
+import { CLOSE_MS, COMMITTED_MAX_MS, clearArrow, clearCommitted, commitArrowAt, drawArrow, newArrow, retireCommitted } from './arrow.ts';
 
 let overlay: HTMLElement;
 let target: HTMLElement;
@@ -143,11 +143,15 @@ describe('committing the aim', () => {
   });
 });
 
-describe('the target brackets', () => {
-  it('stand at the four corners of the target, outside it', () => {
-    const svg = newArrow();
-    const box = { left: 10, top: 20 } as DOMRect;
-    markArrow(svg, { left: 110, top: 220, right: 170, bottom: 304 }, box);
+/*
+ * The operator, 2026-10-30: "the corner targeter boxes are ugly. i think i only want to keep those for
+ * when a target hasn't been committed yet. they are way too noisy."
+ */
+describe('the target brackets: only while a target is being chosen', () => {
+  it('stand at the four corners of the target the aim is snapped to, outside it', () => {
+    overlay.getBoundingClientRect = () => ({ left: 10, top: 20 }) as DOMRect;
+    target.getBoundingClientRect = () => ({ left: 110, top: 220, right: 170, bottom: 304, width: 60, height: 84 }) as DOMRect;
+    const svg = aim();
     const paths = svg.querySelectorAll('.arrow__mark path');
     expect(paths).toHaveLength(2);
     const d = paths[0]!.getAttribute('d')!;
@@ -155,5 +159,20 @@ describe('the target brackets', () => {
     // 6px outside the box, in the overlay's own coordinates.
     expect(d).toMatch(/^M 94 /);
     expect(d).toContain('L 166 290');
+  });
+
+  it('an aim that is not snapped to anything has none, and loses them when it slides off', () => {
+    const svg = aim();
+    drawArrow(overlay, { from: { x: 300, y: 300 }, to: { x: 5, y: 5 }, source: 1, target: null, snap: null, tail: null, mode: 'click' });
+    expect(svg.querySelector('.arrow__mark')).toBeNull();
+  });
+
+  it('a committed target has none: they go the moment it is chosen', () => {
+    const svg = aim();
+    expect(svg.querySelector('.arrow__mark')).not.toBeNull();
+    commitArrowAt(overlay, inner);
+    expect(svg.querySelector('.arrow__mark')).toBeNull();
+    runFrames(performance.now() + CLOSE_MS + 1);
+    expect(svg.querySelector('.arrow__mark'), 'nor once it has closed solid').toBeNull();
   });
 });

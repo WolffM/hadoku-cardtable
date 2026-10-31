@@ -38,8 +38,7 @@ import {
   stackBoxOf,
   CHIP_DWELL_MS,
   squareWidth,
-  STACK_GAP,
-  STACK_MIN_SCALE,
+  STACK_CORE,
 } from './placed.ts';
 
 /* ── fixtures ──────────────────────────────────────────────────────────── */
@@ -482,46 +481,17 @@ describe('installPlaced: drawing', () => {
     handle.dispose();
   });
 
-  it('besideSource pushes a second ephemeral tile clear of the first at the same source row', () => {
-    const sourceBox: Rect = { left: 100, top: 500, right: 180, bottom: 610 };
-    const first = besideSource(sourceBox, []);
-    const firstBox: Rect = { left: first.x - 40, right: first.x + 40, top: first.y - 55, bottom: first.y + 55 };
-    const second = besideSource(sourceBox, [firstBox]);
-    expect(second.x, 'the second sits clear of the first, not on top of it').toBeGreaterThan(firstBox.right);
-  });
-
   it('besideSource places a chip by its own drawn width, and on the source\'s left when its right is off the board', () => {
     const sourceBox: Rect = { left: 100, top: 500, right: 180, bottom: 610 };
     const wide = { width: 240, height: 90 };
     const bounds: Rect = { left: 0, top: 0, right: 1000, bottom: 800 };
-    expect(besideSource(sourceBox, [], wide, bounds).x, 'clear of the source by its own half-width').toBe(180 + 6 + 120);
+    expect(besideSource(sourceBox, wide, bounds), 'clear of the source by its own half-width, on its row').toEqual({ x: 180 + 6 + 120, y: 555 });
     const nearEdge: Rect = { left: 800, top: 500, right: 880, bottom: 610 };
-    expect(besideSource(nearEdge, [], wide, bounds).x, 'no room on the right: on the left').toBe(800 - 6 - 120);
+    expect(besideSource(nearEdge, wide, bounds).x, 'no room on the right: on the left').toBe(800 - 6 - 120);
     const narrow: Rect = { left: 0, top: 0, right: 300, bottom: 800 };
-    const squeezed = besideSource({ left: 100, top: 500, right: 180, bottom: 610 }, [], wide, narrow);
+    const squeezed = besideSource({ left: 100, top: 500, right: 180, bottom: 610 }, wide, narrow);
     expect(squeezed.x - 120, 'room on neither side: inside the board').toBeGreaterThanOrEqual(6);
     expect(squeezed.x + 120).toBeLessThanOrEqual(300 - 6);
-  });
-
-  it('besideSource wraps a full row to the row above or below, inside the board, never onto the same spot', () => {
-    const sourceBox: Rect = { left: 100, top: 500, right: 180, bottom: 610 };
-    const tile = { width: 240, height: 90 };
-    const bounds: Rect = { left: 0, top: 0, right: 700, bottom: 800 };
-    const taken: Rect[] = [];
-    const spots = [0, 1, 2, 3].map(() => {
-      const at = besideSource(sourceBox, taken, tile, bounds);
-      taken.push({ left: at.x - 120, right: at.x + 120, top: at.y - 45, bottom: at.y + 45 });
-      return at;
-    });
-    expect(spots[0], 'the first beside the source').toEqual({ x: 180 + 6 + 120, y: 555 });
-    expect(spots[1]!.y, 'the second further along the same row').toBe(555);
-    expect(new Set(spots.map((s) => `${s.x},${s.y}`)).size, 'four spots').toBe(4);
-    expect(spots[2]!.y, 'the row is full: the next row').not.toBe(555);
-    for (const s of spots) {
-      expect(s.x - 120).toBeGreaterThanOrEqual(6);
-      expect(s.x + 120).toBeLessThanOrEqual(700 - 6);
-      expect(s.y + 45).toBeLessThanOrEqual(800 - 6);
-    }
   });
 
   it('scatter: the same nudge for the same id on every call, different ones for different ids, never past a fifth of the width or a quarter of the height', () => {
@@ -1280,11 +1250,13 @@ describe('installPlaced: layout reads per commit', () => {
   });
 });
 
-describe('settleStack: the stack makes room (the operator, 2026-10-28)', () => {
+describe('settleStack: the stack bumps, spreads and piles (the operator, 2026-10-30)', () => {
   const board = { left: 0, top: 0, right: 1600, bottom: 1000 };
   const card = { width: 116, height: 161 };
-  /** The largest share of one card another covers, gap or no gap. */
-  const worstOverlap = (at: readonly { x: number; y: number }[], w: number, h: number): number => {
+  const chip = { width: 150, height: 150 };
+  type P = { x: number; y: number };
+  /** The largest share of one box another covers, for boxes `w` × `h` centred on `at`. */
+  const worstOverlap = (at: readonly P[], w: number, h: number): number => {
     let worst = 0;
     for (let i = 0; i < at.length; i++) {
       for (let j = i + 1; j < at.length; j++) {
@@ -1295,45 +1267,65 @@ describe('settleStack: the stack makes room (the operator, 2026-10-28)', () => {
     }
     return worst;
   };
-  const inside = (at: readonly { x: number; y: number }[], w: number, h: number): boolean =>
-    at.every((p) => p.x - w / 2 >= board.left && p.x + w / 2 <= board.right && p.y - h / 2 >= board.top && p.y + h / 2 <= board.bottom);
+  const inside = (at: readonly P[], w: number, h: number, b = board): boolean =>
+    at.every((p) => p.x - w / 2 >= b.left - 0.01 && p.x + w / 2 <= b.right + 0.01 && p.y - h / 2 >= b.top - 0.01 && p.y + h / 2 <= b.bottom + 0.01);
+  const at = (n: number, want: P, size = card, seed = 1): { want: P; width: number; height: number; seed: number }[] =>
+    Array.from({ length: n }, (_, i) => ({ want, ...size, seed: seed + i }));
 
-  it.each([2, 6, 12])('%i cards released at one point all stand whole, at full size, apart by the gap', (n) => {
-    const { at, scale } = settleStack(Array.from({ length: n }, () => ({ want: { x: 800, y: 420 }, ...card })), board);
-    expect(scale).toBe(1);
-    expect(worstOverlap(at, card.width + STACK_GAP - 1, card.height + STACK_GAP - 1)).toBe(0);
-    expect(inside(at, card.width, card.height)).toBe(true);
+  it('collides on the inner half of a card\'s area only: cards released at one point bump to touching cores, overlapping at their edges', () => {
+    const spots = settleStack(at(6, { x: 800, y: 420 }), board);
+    expect(STACK_CORE ** 2, 'the core is half the card\'s area').toBeCloseTo(0.5);
+    expect(worstOverlap(spots, card.width * STACK_CORE - 0.5, card.height * STACK_CORE - 0.5), 'no two cores overlap').toBe(0);
+    expect(worstOverlap(spots, card.width, card.height), 'whole cards do: the edges are free to touch').toBeGreaterThan(0);
+    expect(inside(spots, card.width, card.height)).toBe(true);
   });
 
-  it('a stack too deep for the table shrinks only as far as it must, and every card is whole', () => {
-    const { at, scale } = settleStack(Array.from({ length: 70 }, () => ({ want: { x: 800, y: 420 }, ...card })), board);
-    expect(scale).toBeGreaterThanOrEqual(STACK_MIN_SCALE);
-    expect(scale).toBeLessThan(1);
-    expect(worstOverlap(at, card.width * scale, card.height * scale)).toBe(0);
-    expect(inside(at, card.width * scale, card.height * scale)).toBe(true);
+  it('ten triggers on a board with room for four pile on top of each other: every one is placed, inside the board, none dropped or shrunk', () => {
+    const small = { left: 0, top: 0, right: 420, bottom: 340 };
+    const spots = settleStack(at(10, { x: 200, y: 170 }, chip), small);
+    expect(spots).toHaveLength(10);
+    expect(spots.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))).toBe(true);
+    expect(inside(spots, chip.width, chip.height, small)).toBe(true);
+    expect(worstOverlap(spots, chip.width * STACK_CORE, chip.height * STACK_CORE), 'out of room: cores pile').toBeGreaterThan(0);
+    expect(new Set(spots.map((p) => `${Math.round(p.x)},${Math.round(p.y)}`)).size, 'piled where the pile is thinnest, never all on one spot').toBeGreaterThan(4);
   });
 
-  it('25 cards stand whole on a desktop table (its battlefields, 1600 × 640), shrunk to fit', () => {
-    const table = { left: 0, top: 180, right: 1600, bottom: 820 };
-    const { at, scale } = settleStack(Array.from({ length: 25 }, () => ({ want: { x: 800, y: 500 }, ...card })), table);
-    expect(scale).toBeGreaterThanOrEqual(STACK_MIN_SCALE);
-    expect(worstOverlap(at, card.width * scale, card.height * scale)).toBe(0);
-    expect(at.every((p) => p.y - (card.height * scale) / 2 >= table.top && p.y + (card.height * scale) / 2 <= table.bottom)).toBe(true);
+  it('the spread is seeded by each item: the same items always settle the same way, other items another way', () => {
+    const asks = at(9, { x: 800, y: 420 }, card, 40);
+    expect(settleStack(asks, board)).toEqual(settleStack(asks, board));
+    expect(settleStack(at(9, { x: 800, y: 420 }, card, 90), board)).not.toEqual(settleStack(asks, board));
   });
 
-  it('a pinned card stands exactly where it asked; the others make room round it', () => {
-    const { at } = settleStack([{ want: { x: 800, y: 420 }, ...card, pinned: true }, { want: { x: 800, y: 420 }, ...card }], board);
-    expect(at[0]).toEqual({ x: 800, y: 420 });
-    expect(worstOverlap(at, card.width, card.height)).toBe(0);
+  it('a bumped card leaves along a turned push, not along the grid', () => {
+    const turned = [3, 4, 5, 6, 7, 8].map((seed) => {
+      // Top first: the newer card, released just right of the older one, is the one that bumps.
+      const [second] = settleStack([{ want: { x: 830, y: 420 }, ...card, seed }, { want: { x: 800, y: 420 }, ...card, seed: 1 }], board);
+      const angle = Math.atan2(second!.y - 420, second!.x - 800);
+      return Math.round((angle * 180) / Math.PI);
+    });
+    expect(new Set(turned).size, 'each seed turns it its own way').toBeGreaterThan(3);
+    expect(turned.every((deg) => Math.abs(deg) <= 25), 'about the straight push, no further than the jitter').toBe(true);
+    expect(turned.filter((deg) => deg !== 0).length, 'off the axis').toBeGreaterThan(3);
+  });
+
+  it('never covers the control box: a card asked onto it, and every card bumped toward it, stays clear', () => {
+    const control = { left: 1400, top: 600, right: 1590, bottom: 700 };
+    const clear = (p: P, size = card): boolean =>
+      p.x + size.width / 2 <= control.left || p.x - size.width / 2 >= control.right || p.y + size.height / 2 <= control.top || p.y - size.height / 2 >= control.bottom;
+    const onIt = settleStack([{ want: { x: 1490, y: 650 }, ...card, seed: 1 }], board, [control]);
+    expect(clear(onIt[0]!), `asked onto it: moved off (${JSON.stringify(onIt[0])})`).toBe(true);
+    const crowd = settleStack(at(12, { x: 1350, y: 620 }, chip), board, [control]);
+    expect(crowd.filter((p) => !clear(p, chip)), 'twelve chips beside it').toEqual([]);
+  });
+
+  it('a pinned card stands exactly where it asked; the others bump off it', () => {
+    const spots = settleStack([{ want: { x: 800, y: 420 }, ...card, seed: 1, pinned: true }, { want: { x: 800, y: 420 }, ...card, seed: 2 }], board);
+    expect(spots[0]).toEqual({ x: 800, y: 420 });
+    expect(worstOverlap(spots, card.width * STACK_CORE - 0.5, card.height * STACK_CORE - 0.5)).toBe(0);
   });
 
   it('cards already clear of each other stay where they asked', () => {
-    const asks = [{ want: { x: 300, y: 300 }, ...card }, { want: { x: 900, y: 600 }, ...card }];
-    expect(settleStack(asks, board).at).toEqual(asks.map((a) => a.want));
-  });
-
-  it('the same asks always settle the same way', () => {
-    const asks = Array.from({ length: 9 }, (_, i) => ({ want: { x: 700 + (i % 3) * 20, y: 400 }, ...card }));
-    expect(settleStack(asks, board)).toEqual(settleStack(asks, board));
+    const asks = [{ want: { x: 300, y: 300 }, ...card, seed: 1 }, { want: { x: 900, y: 600 }, ...card, seed: 2 }];
+    expect(settleStack(asks, board)).toEqual(asks.map((a) => a.want));
   });
 });

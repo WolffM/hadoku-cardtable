@@ -8,8 +8,9 @@
  * Scenario `w79b-counterwar`: six spells, each but the first aimed at the one below, every one released
  * at the SAME point of its caster's battlefield — the trailer's own gesture (`e2e/promo/drive.ts`'s
  * `cast`). With all six on the stack, on both screens: every stack item is a face (never a back), no
- * item's box is covered by another's beyond a small margin, and every spell aimed at another has an
- * arrow drawn between them.
+ * item's core is covered by another's (the operator, 2026-10-30: *"make the collision only the inner 50%
+ * of the card's area"* — edges may overlap), and every spell aimed at another has an arrow drawn
+ * between them.
  */
 import { expect, test, type Page } from '@playwright/test';
 
@@ -30,8 +31,8 @@ async function serveArt(page: Page): Promise<void> {
   });
 }
 
-/** How much of a stack card another may cover: its corner, never its face. */
-const OVERLAP_MAX = 0.04;
+/** A stack card's core: the inner half of its area (`placed.ts`'s `STACK_CORE`), which no other card's core enters. */
+const CORE = Math.SQRT1_2;
 /** How much of an arrow must be in sight, not under a stack card: enough to see which way it points. */
 const ARROW_SEEN_MIN = 24;
 
@@ -68,10 +69,13 @@ async function readStack(page: Page): Promise<{ items: Item[]; arrows: Arrow[] }
   });
 }
 
+/** How much of the smaller core the two cards' cores share, with a pixel's give for rounding. */
 const overlap = (a: Item, b: Item): number => {
-  const w = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
-  const h = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
-  return (w * h) / Math.min(a.w * a.h, b.w * b.h);
+  const core = (i: Item) => ({ cx: i.x + i.w / 2, cy: i.y + i.h / 2, hw: (i.w * CORE) / 2 - 1, hh: (i.h * CORE) / 2 - 1 });
+  const [p, q] = [core(a), core(b)];
+  const w = Math.max(0, Math.min(p.cx + p.hw, q.cx + q.hw) - Math.max(p.cx - p.hw, q.cx - q.hw));
+  const h = Math.max(0, Math.min(p.cy + p.hh, q.cy + q.hh) - Math.max(p.cy - p.hh, q.cy - q.hh));
+  return (w * h) / Math.min(4 * p.hw * p.hh, 4 * q.hw * q.hh);
 };
 
 /** Release `name` over `seat`'s own battlefield at the trailer's one point. */
@@ -134,7 +138,7 @@ async function respond(seat: Page, other: Page, name: string, target: string | n
     .toBe(true);
 }
 
-test(titled('a six-deep counter war: every stack card face up, whole and clear of the others, with an arrow per aimed spell — on both screens'), async ({ browser }) => {
+test(titled('a six-deep counter war: every stack card face up, its core clear of the others, with an arrow per aimed spell — on both screens'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(5 * 60_000);
@@ -167,10 +171,10 @@ test(titled('a six-deep counter war: every stack card face up, whole and clear o
       for (let a = 0; a < items.length; a++) {
         for (let b = a + 1; b < items.length; b++) {
           const o = overlap(items[a]!, items[b]!);
-          if (o > OVERLAP_MAX) covered.push(`${items[a]!.label.split(' → ')[0]} × ${items[b]!.label.split(' → ')[0]}: ${Math.round(o * 100)}%`);
+          if (o > 0) covered.push(`${items[a]!.label.split(' → ')[0]} × ${items[b]!.label.split(' → ')[0]}: ${Math.round(o * 100)}%`);
         }
       }
-      expect.soft(covered, `${who}: no stack card covers another beyond ${OVERLAP_MAX * 100}%`).toEqual([]);
+      expect.soft(covered, `${who}: no stack card's core covers another's`).toEqual([]);
       const aimed = arrows.filter((a) => a.key.includes(':stack:') && a.length >= ARROW_SEEN_MIN);
       expect.soft(aimed.length, `${who}: an arrow, at least ${ARROW_SEEN_MIN} px of it in sight, from each of the five aimed spells`).toBe(5);
     }

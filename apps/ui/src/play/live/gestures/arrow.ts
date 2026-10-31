@@ -18,9 +18,9 @@
  *   g.arrow__core            then the same two again in the arrow's own colour on
  *                            top: one ribbon with an outline that clears 3:1 on every
  *                            theme's board (`arrow.css`), whatever the colour itself.
- *   g.arrow__mark            the corner brackets on a stack item's target (`markArrow`).
+ *   g.arrow__mark            the corner brackets on the target, only while it is being chosen (`markArrow`).
  *
- * The item that resolves next BREATHES (`breathe`): a blurred copy of its arrow and brackets in a
+ * The item that resolves next BREATHES (`breathe`): a blurred copy of its arrow in a
  * sibling `svg.arrow-glow`, sized to them, whose opacity rises and falls. Only that layer's
  * opacity moves, so the compositor runs the pulse and nothing is drawn again per frame
  * (`composited-loops.test.ts`: a breathing `filter` once ran a game at 7 fps); the arrow itself
@@ -62,13 +62,16 @@ export interface ArrowSpec {
 
 /**
  * How far the shaft bows off its chord: a share of the chord's length, never
- * flatter than `BOW_MIN` (two neighbouring stack items still read as an arc
- * over the carousel — a counterspell aimed at the spell beside it) and never
- * deeper than `BOW_MAX` (a hand-to-far-corner drag stays a gentle sweep).
+ * flatter than `BOW_MIN` and never deeper than `BOW_MAX` (a hand-to-far-corner
+ * drag stays a gentle sweep). A short arrow bows at least `ARC_MIN`, or half its
+ * chord when that is less: the operator, 2026-10-30, on a counter war: *"the
+ * arrows are too small and they look weird"* — a share of a short chord was
+ * nearly straight.
  */
 const BOW = 0.22;
 const BOW_MIN = 24;
 const BOW_MAX = 110;
+export const ARC_MIN = 56;
 
 /**
  * The ribbon's measures, in the overlay's own units: a committed arrow, and the
@@ -117,7 +120,7 @@ export function arrowShape(x1: number, y1: number, x2: number, y2: number, weigh
   const dx = x2 - x1;
   const dy = y2 - y1;
   const len = Math.hypot(dx, dy);
-  const bow = len === 0 ? 0 : Math.min(BOW_MAX, Math.max(BOW_MIN, len * BOW)) / len;
+  const bow = len === 0 ? 0 : Math.min(BOW_MAX, Math.max(BOW_MIN, len * BOW, Math.min(ARC_MIN, len / 2))) / len;
   const cx = (x1 + x2) / 2 + dy * bow;
   const cy = (y1 + y2) / 2 - dx * bow;
   const angle = len === 0 ? 0 : Math.atan2(y2 - cy, x2 - cx);
@@ -243,11 +246,13 @@ const MARK_PAD = 6;
 const MARK_ARM = 18;
 
 /**
- * The corner brackets on the box `to` (client coordinates, against `box`): what says a card, a
- * face or a stack item is TARGETED, beside the arrow that says by what. Brackets, never a ring:
- * the accent outline already means "you can pick this" and the warn glow "this can act".
+ * The corner brackets on the box `to` (client coordinates, against `box`): the target an aim is
+ * snapped to, before it is committed. Brackets, never a ring: the accent outline already means
+ * "you can pick this" and the warn glow "this can act". Only while it is being chosen — the
+ * operator, 2026-10-30: *"the corner targeter boxes are ugly. i think i only want to keep those for
+ * when a target hasn't been committed yet. they are way too noisy."*
  */
-export function markArrow(svg: SVGSVGElement, to: { left: number; top: number; right: number; bottom: number }, box: DOMRect): void {
+function markArrow(svg: SVGSVGElement, to: { left: number; top: number; right: number; bottom: number }, box: DOMRect): void {
   let mark = svg.querySelector('.arrow__mark');
   if (mark === null) {
     mark = el('g', 'arrow__mark');
@@ -259,15 +264,8 @@ export function markArrow(svg: SVGSVGElement, to: { left: number; top: number; r
   const d =
     `M ${x0} ${y0 + a} L ${x0} ${y0} L ${x0 + a} ${y0} M ${x1 - a} ${y0} L ${x1} ${y0} L ${x1} ${y0 + a} ` +
     `M ${x1} ${y1 - a} L ${x1} ${y1} L ${x1 - a} ${y1} M ${x0 + a} ${y1} L ${x0} ${y1} L ${x0} ${y1 - a}`;
-  if (mark.querySelector('path')?.getAttribute('d') !== d) {
-    marked.set(svg, [x0, y0, x1, y1]);
-    for (const p of mark.querySelectorAll('path')) p.setAttribute('d', d);
-    syncGlow(svg);
-  }
+  if (mark.querySelector('path')?.getAttribute('d') !== d) for (const p of mark.querySelectorAll('path')) p.setAttribute('d', d);
 }
-
-/** Each arrow's brackets as last drawn, overlay-relative: the glow covers them too. */
-const marked = new WeakMap<SVGSVGElement, [number, number, number, number]>();
 /** Each breathing arrow's glow layer. */
 const glows = new WeakMap<SVGSVGElement, SVGSVGElement>();
 /** How far the glow's blur reaches past what it copies. */
@@ -289,7 +287,7 @@ export function breathe(svg: SVGSVGElement, on: boolean): void {
   }
   const layer = el('svg', 'arrow-glow');
   layer.setAttribute('aria-hidden', 'true');
-  layer.append(el('path', 'arrow-glow__body'), el('path', 'arrow-glow__mark'));
+  layer.append(el('path', 'arrow-glow__body'));
   svg.after(layer);
   glows.set(svg, layer);
   syncGlow(svg);
@@ -304,25 +302,18 @@ export function removeArrow(svg: Element): void {
   svg.remove();
 }
 
-/** Copy the arrow (or its new shape) and its brackets into its glow, and fit the glow's box to them. */
+/** Copy the arrow (or its new shape) into its glow, and fit the glow's box to it. */
 function syncGlow(svg: SVGSVGElement, shape?: Pick<ArrowShape, 'd' | 'points' | 'shaft'>): void {
   const glow = glows.get(svg);
   if (glow === undefined) return;
   const shaft = shape?.shaft ?? svg.querySelector('.arrow__shaft')?.getAttribute('d') ?? '';
   const points = shape?.points ?? svg.querySelector('.arrow__head')?.getAttribute('points') ?? '';
   const spine = shape?.d ?? svg.querySelector('.arrow__spine')?.getAttribute('d') ?? '';
-  const mark = svg.querySelector('.arrow__mark path')?.getAttribute('d') ?? '';
   glow.querySelector('.arrow-glow__body')!.setAttribute('d', points === '' ? shaft : `${shaft} M ${points.replaceAll(' ', ' L ').replaceAll(',', ' ')} Z`);
-  glow.querySelector('.arrow-glow__mark')!.setAttribute('d', mark);
-  // The box: the curve's hull (a quadratic lies inside its three points) and the brackets, padded for the blur.
+  // The box: the curve's hull (a quadratic lies inside its three points), padded for the blur.
   const n = spine.replace(/[MQ]/g, ' ').trim().split(/\s+/).map(Number);
   const xs = [n[0], n[2], n[4]].filter((v): v is number => Number.isFinite(v));
   const ys = [n[1], n[3], n[5]].filter((v): v is number => Number.isFinite(v));
-  const m = marked.get(svg);
-  if (m !== undefined) {
-    xs.push(m[0], m[2]);
-    ys.push(m[1], m[3]);
-  }
   if (xs.length === 0) return;
   const [left, top] = [Math.min(...xs) - GLOW_PAD, Math.min(...ys) - GLOW_PAD];
   const [width, height] = [Math.max(...xs) - left + GLOW_PAD, Math.max(...ys) - top + GLOW_PAD];
@@ -356,7 +347,10 @@ export function drawArrow(overlay: HTMLElement, spec: ArrowSpec): void {
   flag(svg, 'data-target', spec.target === null ? null : `${spec.target.kind}:${spec.target.id}`);
   flag(svg, 'data-snapped', spec.snap === null ? null : 'true');
   flag(svg, 'data-mode', spec.mode);
-  positionArrow(svg, aimed.from, aimed.tip, overlay.getBoundingClientRect());
+  const box = overlay.getBoundingClientRect();
+  positionArrow(svg, aimed.from, aimed.tip, box);
+  if (spec.snap !== null) markArrow(svg, spec.snap.getBoundingClientRect(), box);
+  else svg.querySelector('.arrow__mark')?.remove();
 }
 
 /** The element each targeter's tip snapped to when it was last drawn. */
@@ -394,6 +388,8 @@ export function commitArrowAt(overlay: HTMLElement | null, node: EventTarget | n
 function settle(svg: SVGSVGElement): void {
   const ends = shaped.get(svg);
   const dashes = [...svg.querySelectorAll<SVGPathElement>('.arrow__stem')];
+  // Committed: the target is chosen, and its brackets go at once.
+  svg.querySelector('.arrow__mark')?.remove();
   const solid = (): void => {
     svg.removeAttribute('data-ghost');
     dashes.forEach((p) => p.remove());
@@ -499,6 +495,54 @@ export function aimAt(
   if (opts.neighbours !== false && Math.hypot(dx, dy) < ADJACENT_PX) return { from, tip: centre };
   const edge = edgeNearest(to, from);
   return { from, tip: { x: lerp(edge.x, centre.x, TIP_INSET), y: lerp(edge.y, centre.y, TIP_INSET) } };
+}
+
+/**
+ * An arrow shorter than this hops over the cards instead (`aimBetween`): room for a whole head
+ * (`SOLID.head`) and an arc that reads as one.
+ */
+export const HOP_MIN = 120;
+
+type Box = { left: number; top: number; right: number; bottom: number };
+
+/**
+ * The arrow from the card `own` to the box `to`, both drawn on the stack's layer: from `own`'s edge
+ * facing its target to just inside the target (`aimAt`). When that would be shorter than `HOP_MIN` —
+ * two stack cards side by side, or overlapping (the operator, 2026-10-30, on a counter war: *"the
+ * arrows are too small and they look weird. probably because the cards are too close"*) — it HOPS:
+ * from the middle of one edge of `own` to the same edge of the target, the edge on the side the
+ * arrow bows to (`arrowShape`: a rightward arrow arcs up, a leftward one down, an upward one left,
+ * a downward one right), so the arc rises clear of both cards with its head whole. A hop is never
+ * shorter than `HOP_MIN` along that edge: two cards nearly on top of each other get it spread either
+ * side of their middle.
+ */
+export function aimBetween(own: Box, to: Box): { from: Point; tip: Point } {
+  const a = { x: (own.left + own.right) / 2, y: (own.top + own.bottom) / 2 };
+  const b = { x: (to.left + to.right) / 2, y: (to.top + to.bottom) / 2 };
+  const from = edgeNearest(own, b);
+  if (!within(to, from)) {
+    const straight = aimAt(from, to, { neighbours: false });
+    if (Math.hypot(straight.tip.x - straight.from.x, straight.tip.y - straight.from.y) >= HOP_MIN) return straight;
+  }
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    const up = dx >= 0;
+    const [y0, y1] = up ? [own.top, to.top] : [own.bottom, to.bottom];
+    const [x0, x1] = apart(a.x, b.x, HOP_MIN, up ? 1 : -1);
+    return { from: { x: x0, y: y0 }, tip: { x: x1, y: lerp(y1, b.y, TIP_INSET) } };
+  }
+  const left = dy < 0;
+  const [x0, x1] = left ? [own.left, to.left] : [own.right, to.right];
+  const [y0, y1] = apart(a.y, b.y, HOP_MIN, left ? -1 : 1);
+  return { from: { x: x0, y: y0 }, tip: { x: lerp(x1, b.x, TIP_INSET), y: y1 } };
+}
+
+/** `p` and `q` along one edge, spread evenly about their middle to at least `min` apart, `p` before `q` in `sign`'s direction. */
+function apart(p: number, q: number, min: number, sign: 1 | -1): [number, number] {
+  if ((q - p) * sign >= min) return [p, q];
+  const mid = (p + q) / 2;
+  return [mid - (sign * min) / 2, mid + (sign * min) / 2];
 }
 
 /** `p` lies on or inside the box. */

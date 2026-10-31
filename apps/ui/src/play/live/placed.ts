@@ -105,7 +105,7 @@ import { GLIDE_MS, HOUSE_DURATIONS, noteBoardDrawing, PLACEMENT_WAIT_MS, prefers
 import { AbilityChip } from './AbilityChip.tsx';
 import { HiddenCard } from '../HiddenCard.tsx';
 import { viewerOf, type BoardView, type StackEntry } from '../adapter.ts';
-import { aimAt, breathe, edgeNearest, markArrow, newArrow, positionArrow, removeArrow, retireCommitted } from './gestures/arrow.ts';
+import { aimBetween, breathe, newArrow, positionArrow, removeArrow, retireCommitted } from './gestures/arrow.ts';
 import { shards } from './departures.ts';
 import { centreOf } from '../lift.ts';
 import { cardBox, faceBox, overlayOf, zoneOf } from './board-dom.ts';
@@ -185,6 +185,8 @@ export const DRAG_HOLD_MS = 400;
 
 /** How far a card sits to the right of its source's own box (the ephemeral tile, Settled). */
 const BESIDE_GAP = 6;
+/** The match's control box (`LiveBoard.tsx`'s End Turn and the buttons with it), which no stack card covers. */
+const CONTROL_BOX = '[data-testid="live-buttons"]';
 
 interface Placement {
   at: Point;
@@ -372,63 +374,36 @@ export function defaultSpot(canvas: ParentNode): Point | null {
 }
 
 /**
- * Where an ephemeral ability card sits beside its source (Settled): to the
- * source's right, clear of it, and clear of any ephemeral tile already
- * placed there this pass (`taken`) — the next free spot along the row's
- * edge. `tile` is the ephemeral tile's own drawn size — a chip is as wide
- * as its text needs to be near square (`squareChip`) — and the source's own box
- * before it has one. Within `bounds` (the overlay) when given: on the
- * source's LEFT when its right has no room, else as far in as it must be.
+ * Where an ephemeral ability card sits beside its source (Settled): to the source's right, clear of
+ * it, at its own drawn size (`tile` — a chip is as wide as its text needs to be near square,
+ * `squareChip` — and the source's own box before it has one). Within `bounds` (the overlay) when
+ * given: on the source's LEFT when its right has no room, else as far in as it must be. Several
+ * chips of one source all ask for this one spot; the stack spreads them from it (`settleStack`).
  */
 export function besideSource(
   sourceBox: Rect,
-  taken: readonly Rect[],
   tile: { width: number; height: number } = { width: sourceBox.right - sourceBox.left, height: sourceBox.bottom - sourceBox.top },
   bounds: Rect | null = null,
 ): Point {
-  const sourceHeight = sourceBox.bottom - sourceBox.top;
-  const centreY = sourceBox.top + sourceHeight / 2;
-  // A row that is full on both sides wraps to the rows above and below it, never piles up at the edge.
-  for (const row of bounds === null ? [0] : [0, -1, 1, -2, 2]) {
-    const spot = alongRow(sourceBox, taken, tile, bounds, centreY + row * (tile.height + BESIDE_GAP));
-    if (spot !== null) return spot;
-  }
-  let left = sourceBox.right + BESIDE_GAP;
-  for (const box of taken) {
-    const sameRow = Math.abs(box.top - sourceBox.top) < sourceHeight;
-    if (sameRow && left < box.right + BESIDE_GAP) left = box.right + BESIDE_GAP;
-  }
-  let x = left + tile.width / 2;
-  let y = centreY;
-  if (bounds !== null) {
-    const minX = bounds.left + BESIDE_GAP + tile.width / 2;
-    const maxX = bounds.right - BESIDE_GAP - tile.width / 2;
-    const onLeft = sourceBox.left - BESIDE_GAP - tile.width / 2;
-    if (x > maxX) x = onLeft >= minX ? onLeft : Math.max(minX, maxX);
-    y = Math.min(Math.max(y, bounds.top + BESIDE_GAP + tile.height / 2), Math.max(bounds.top + BESIDE_GAP + tile.height / 2, bounds.bottom - BESIDE_GAP - tile.height / 2));
-  }
-  return { x, y };
+  const y = (sourceBox.top + sourceBox.bottom) / 2;
+  const right = sourceBox.right + BESIDE_GAP + tile.width / 2;
+  if (bounds === null) return { x: right, y };
+  const left = sourceBox.left - BESIDE_GAP - tile.width / 2;
+  const roomRight = right + tile.width / 2 <= bounds.right - BESIDE_GAP;
+  const roomLeft = left - tile.width / 2 >= bounds.left + BESIDE_GAP;
+  return within({ x: roomRight || !roomLeft ? right : left, y }, tile, bounds);
 }
 
-/**
- * The first free spot on the row centred at `y`: right of the source, clear of every tile already
- * there, else left of it — or null when neither side has room inside `bounds`.
- */
-function alongRow(sourceBox: Rect, taken: readonly Rect[], tile: { width: number; height: number }, bounds: Rect | null, y: number): Point | null {
-  const top = y - tile.height / 2;
-  const bottom = y + tile.height / 2;
-  if (bounds !== null && (top < bounds.top + BESIDE_GAP || bottom > bounds.bottom - BESIDE_GAP)) return null;
-  const inRow = taken.filter((box) => box.bottom > top && box.top < bottom);
-  let left = sourceBox.right + BESIDE_GAP;
-  for (const box of [...inRow].sort((a, b) => a.left - b.left)) {
-    if (box.right + BESIDE_GAP > left && box.left < left + tile.width + BESIDE_GAP) left = box.right + BESIDE_GAP;
-  }
-  if (bounds === null || left + tile.width <= bounds.right - BESIDE_GAP) return { x: left + tile.width / 2, y };
-  let right = sourceBox.left - BESIDE_GAP;
-  for (const box of [...inRow].sort((a, b) => b.right - a.right)) {
-    if (box.left - BESIDE_GAP < right && box.right > right - tile.width - BESIDE_GAP) right = box.left - BESIDE_GAP;
-  }
-  return right - tile.width >= bounds.left + BESIDE_GAP ? { x: right - tile.width / 2, y } : null;
+/** A stream of numbers in [0, 1) seeded by `id`: the same id draws the same numbers on both screens and on every repaint. */
+function seeded(id: number): () => number {
+  let h = (Math.abs(id) * 2654435761) >>> 0;
+  return () => {
+    h ^= h << 13;
+    h ^= h >>> 17;
+    h ^= h << 5;
+    h >>>= 0;
+    return h / 0x1_0000_0000;
+  };
 }
 
 /**
@@ -438,14 +413,7 @@ function alongRow(sourceBox: Rect, taken: readonly Rect[], tile: { width: number
  * its height either way.
  */
 export function scatter(id: number, tile: { width: number; height: number }): { dx: number; dy: number } {
-  let h = (Math.abs(id) * 2654435761) >>> 0;
-  const next = (): number => {
-    h ^= h << 13;
-    h ^= h >>> 17;
-    h ^= h << 5;
-    h >>>= 0;
-    return h / 0x1_0000_0000;
-  };
+  const next = seeded(id);
   return { dx: (next() - 0.5) * 0.4 * tile.width, dy: (next() - 0.5) * 0.5 * tile.height };
 }
 
@@ -472,72 +440,108 @@ export function squareWidth(area: number, fixed: number, padX: number, min: numb
 }
 
 /**
- * The stack's room (the operator, 2026-10-28: "cards on the stack having some collision property that
- * allows them to bump against eachother and gently make space so the full card is always visible", and
- * a deep stack shrinks to fit). Each item asks for a spot (`want`: where it was released, beside its
- * source, the default spot) at its own size. The oldest is settled first and keeps its spot; each newer
- * one takes the free spot nearest the one it asked for, clear of every card settled before it by
- * `gap` — so a card let go on top of another comes to rest beside it, and the cards under it never
- * move. A `pinned` item (one being dragged) is settled before all of them, exactly where it is.
- * When some item finds no free spot inside `bounds`, every item shrinks a step and it starts again.
- * Deterministic: the same asks always settle the same way, on every repaint.
+ * The stack's room. The operator, 2026-10-30, on ten Valakut triggers: *"if there isn't enough space
+ * to fit more triggers, i wish for them to stack on top of eachother. it's okay if it's messy. allow
+ * them to bump into eachother and make the collision only the inner 50% of the card's area. also when
+ * they spread out can we apply a slight randomization to the directional vector?"*
+ *
+ * Each item asks for a spot (`want`: where it was released, beside its source, the default spot) at
+ * its own size. The oldest is settled first and keeps its spot; each newer one bumps off the cards
+ * settled before it: only their CORES collide (`STACK_CORE`, the inner half of a card's area), so
+ * neighbours overlap at their edges. A bumped card moves the shortest way to a free spot, starting
+ * from the push straight away from what it hit, turned by up to `STACK_JITTER` either way by its own
+ * `seed` (its stack item), so a spread looks thrown rather than gridded, and a replay of the same
+ * items draws the same layout. With no free spot left inside `bounds` it piles on top, where the
+ * cards under it are thinnest: no card is ever refused a place or shrunk. A `pinned` item (one being
+ * dragged) is settled before all of them, exactly where it is. No card's whole box enters a
+ * `keepOut` box (the match's control box). Deterministic: the same asks always settle the same way.
  */
 export interface StackAsk {
   readonly want: Point;
   readonly width: number;
   readonly height: number;
+  readonly seed: number;
   readonly pinned?: boolean;
 }
 
-/** The room kept between two stack cards: an arrow between them has somewhere to be seen. */
-export const STACK_GAP = 28;
-/** The smallest a deep stack shrinks to, of its cards' own size. */
-export const STACK_MIN_SCALE = 0.4;
-const SHRINK_STEP = 0.9;
+/** The share of a stack card's width and of its height that collides: the inner half of its area. */
+export const STACK_CORE = Math.SQRT1_2;
+/** How far a bumped card's direction turns off the straight push, either way, in radians (about 20°). */
+export const STACK_JITTER = 0.35;
+/** The directions a bumped card tries, nearest the push first, and how far apart its tries are, as a share of its core. */
+const SPREAD_RAYS = 24;
+const SPREAD_STEP = 0.2;
 
-/** `asks` is in stack order, top first — the order `view.stack` is in. */
-export function settleStack(asks: readonly StackAsk[], bounds: Rect, gap = STACK_GAP): { at: Point[]; scale: number } {
-  const order = asks.map((_, i) => i).sort((i, j) => Number(asks[j]!.pinned === true) - Number(asks[i]!.pinned === true) || j - i);
-  for (let scale = 1; ; scale *= SHRINK_STEP) {
-    const settled = settleAt(asks, order, bounds, gap * scale, scale);
-    if (settled !== null) return { at: settled, scale };
-    if (scale * SHRINK_STEP < STACK_MIN_SCALE) {
-      // Smaller than this a card cannot be read: what is left over overlaps, nearest where it asked.
-      return { at: asks.map((a) => within(a.want, { width: a.width * scale, height: a.height * scale }, bounds)), scale };
-    }
+type Core = { x: number; y: number; hw: number; hh: number };
+
+/** How much of `a`'s core the cores in `done` cover, in px². */
+function crowding(a: Core, done: readonly Core[]): number {
+  let sum = 0;
+  for (const o of done) {
+    const w = Math.min(a.x + a.hw, o.x + o.hw) - Math.max(a.x - a.hw, o.x - o.hw);
+    const h = Math.min(a.y + a.hh, o.y + o.hh) - Math.max(a.y - a.hh, o.y - o.hh);
+    if (w > 0.01 && h > 0.01) sum += w * h;
   }
+  return sum;
 }
 
-function settleAt(asks: readonly StackAsk[], order: readonly number[], bounds: Rect, gap: number, scale: number): Point[] | null {
-  const at: Point[] = new Array<Point>(asks.length);
-  const done: { at: Point; width: number; height: number }[] = [];
+/** `asks` is in stack order, top first — the order `view.stack` is in. */
+export function settleStack(asks: readonly StackAsk[], bounds: Rect, keepOut: readonly Rect[] = []): Point[] {
+  const order = asks.map((_, i) => i).sort((i, j) => Number(asks[j]!.pinned === true) - Number(asks[i]!.pinned === true) || j - i);
+  const at = new Array<Point>(asks.length);
+  const done: Core[] = [];
   for (const i of order) {
     const ask = asks[i]!;
-    const size = { width: ask.width * scale, height: ask.height * scale };
-    const clear = (p: Point): boolean =>
-      done.every((o) => Math.abs(p.x - o.at.x) >= (size.width + o.width) / 2 + gap - 0.01 || Math.abs(p.y - o.at.y) >= (size.height + o.height) / 2 + gap - 0.01);
-    const want = ask.pinned === true ? ask.want : within(ask.want, size, bounds);
-    let best: Point | null = ask.pinned === true || clear(want) ? want : null;
-    if (best === null) {
-      // Where a free spot can be: touching a settled card on one axis, or in line with the ask, on each.
-      const xs = [want.x, ...done.flatMap((o) => [o.at.x - (o.width + size.width) / 2 - gap, o.at.x + (o.width + size.width) / 2 + gap])];
-      const ys = [want.y, ...done.flatMap((o) => [o.at.y - (o.height + size.height) / 2 - gap, o.at.y + (o.height + size.height) / 2 + gap])];
-      let bestD = Infinity;
-      for (const x of xs) {
-        for (const y of ys) {
-          const p = { x, y };
-          const d = Math.hypot(x - want.x, y - want.y);
-          if (d >= bestD || !fits(p, size, bounds) || !clear(p)) continue;
-          bestD = d;
-          best = p;
-        }
-      }
-    }
-    if (best === null) return null;
-    at[i] = best;
-    done.push({ at: best, ...size });
+    const p = ask.pinned === true ? ask.want : spread(ask, bounds, keepOut, done);
+    at[i] = p;
+    done.push({ x: p.x, y: p.y, hw: (ask.width * STACK_CORE) / 2, hh: (ask.height * STACK_CORE) / 2 });
   }
   return at;
+}
+
+function spread(ask: StackAsk, bounds: Rect, keepOut: readonly Rect[], done: readonly Core[]): Point {
+  const size = { width: ask.width, height: ask.height };
+  const hw = (ask.width * STACK_CORE) / 2;
+  const hh = (ask.height * STACK_CORE) / 2;
+  const start = within(ask.want, size, bounds);
+  const allowed = (p: Point): boolean =>
+    fits(p, size, bounds) &&
+    keepOut.every((k) => p.x + size.width / 2 <= k.left || p.x - size.width / 2 >= k.right || p.y + size.height / 2 <= k.top || p.y - size.height / 2 >= k.bottom);
+  const crowd = (p: Point): number => crowding({ x: p.x, y: p.y, hw, hh }, done);
+  if (allowed(start) && crowd(start) === 0) return start;
+  // The push: straight away from what is in the way (the cores it hits, else the box it must stay out of), turned by its seed.
+  let ax = 0;
+  let ay = 0;
+  for (const o of done) {
+    const c = crowding({ x: start.x, y: start.y, hw, hh }, [o]);
+    ax += (start.x - o.x) * c;
+    ay += (start.y - o.y) * c;
+  }
+  if (ax === 0 && ay === 0) {
+    for (const k of keepOut) {
+      ax += start.x - (k.left + k.right) / 2;
+      ay += start.y - (k.top + k.bottom) / 2;
+    }
+  }
+  const next = seeded(ask.seed);
+  const turn = (next() * 2 - 1) * STACK_JITTER;
+  const push = (ax === 0 && ay === 0 ? next() * 2 * Math.PI : Math.atan2(ay, ax)) + turn;
+  const step = Math.max(4, Math.min(hw, hh) * SPREAD_STEP);
+  const reach = Math.hypot(bounds.right - bounds.left, bounds.bottom - bounds.top);
+  let pile: { p: Point; crowd: number } | null = allowed(start) ? { p: start, crowd: crowd(start) } : null;
+  for (let r = step; r <= reach; r += step) {
+    for (let k = 0; k < SPREAD_RAYS; k++) {
+      // Nearest the push first: 0, +1, −1, +2, −2 … rays off it.
+      const off = k % 2 === 0 ? k / 2 : -(k + 1) / 2;
+      const a = push + (off * 2 * Math.PI) / SPREAD_RAYS;
+      const p = { x: start.x + r * Math.cos(a), y: start.y + r * Math.sin(a) };
+      if (!allowed(p)) continue;
+      const c = crowd(p);
+      if (c === 0) return p;
+      if (pile === null || c < pile.crowd - 0.01) pile = { p, crowd: c };
+    }
+  }
+  return pile?.p ?? start;
 }
 
 /** Whether a `tile` centred on `p` lies inside `bounds`, as `within` would keep it. */
@@ -947,12 +951,12 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   }
 
   /**
-   * The point for an item with no registered placement, plus the box it occupies — for the NEXT ability's own collision check, when it is one.
+   * The point an item asks for (`settleStack` makes the room).
    * Worked out from boxes read before any item moved (`chipBoxesOf`, the default `spot`). A chip goes beside its source, nudged by its own `scatter`, and stays at that offset from the source once it has its size.
    */
-  function positionOf(item: StackEntry, d: Drawn, chip: ReturnType<typeof chipBoxesOf>, spot: Point | null, taken: readonly Rect[], bounds: Rect): { at: Point; reserved: Rect | null } | null {
+  function positionOf(item: StackEntry, d: Drawn, chip: ReturnType<typeof chipBoxesOf>, spot: Point | null, bounds: Rect): Point | null {
     const promoted = placements.get(item.id);
-    if (promoted !== undefined) return { at: promoted.at, reserved: null };
+    if (promoted !== undefined) return promoted.at;
     if (chip !== null) {
       const { source: sourceBox, tile } = chip;
       const centre = { x: (sourceBox.left + sourceBox.right) / 2, y: (sourceBox.top + sourceBox.bottom) / 2 };
@@ -960,14 +964,14 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       if (d.offset !== null) {
         at = within({ x: centre.x + d.offset.dx, y: centre.y + d.offset.dy }, tile, bounds);
       } else {
-        const spot = besideSource(sourceBox, taken, tile, bounds);
+        const spot = besideSource(sourceBox, tile, bounds);
         const { dx, dy } = scatter(d.seed, tile);
         at = within({ x: spot.x + dx, y: spot.y + dy }, tile, bounds);
         if (d.squaredFor !== null) d.offset = { dx: at.x - centre.x, dy: at.y - centre.y };
       }
-      return { at, reserved: { left: at.x - tile.width / 2, right: at.x + tile.width / 2, top: at.y - tile.height / 2, bottom: at.y + tile.height / 2 } };
+      return at;
     }
-    return spot === null ? null : { at: spot, reserved: null };
+    return spot;
   }
 
   /** The spells drawn here — arriving, waiting or on their way out — by item id: their card ids, for `PlacedHost.onHolding`. */
@@ -1243,7 +1247,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   function drawArrows(items: readonly StackEntry[], overlayBox: () => DOMRect): void {
     const root = overlay();
     if (root === null) return;
-    const aims: { key: string; item: number; to: Element; at: Rect; aimed: { from: Point; tip: Point } }[] = [];
+    const aims: { key: string; item: number; to: Element; aimed: { from: Point; tip: Point } }[] = [];
     for (const item of items) {
       const d = drawn.get(item.id);
       if (d === undefined || d.leaving) continue;
@@ -1261,20 +1265,16 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         if (target !== undefined && !target.leaving) targets.push({ key: `${item.id}:stack:${item.targetStackItemId}`, to: target.el, box: settledBoxes.get(item.targetStackItemId) });
       }
       if (targets.length === 0) continue;
-      // From the card's own edge facing its target to just inside the target's, drawn over the stack (`placed.css`):
-      // never from under a face, so a near target needs no tip at its centre.
+      // From the card's own edge to just inside its target's, drawn over the stack (`placed.css`): a near
+      // target is hopped over to (`aimBetween`), never pointed at with a stub.
       const own = settledBoxes.get(item.id) ?? rectOf(d.el);
-      for (const { key, to, box } of targets) {
-        const at = box ?? rectOf(to);
-        const from = edgeNearest(own, { x: (at.left + at.right) / 2, y: (at.top + at.bottom) / 2 });
-        aims.push({ key, item: item.id, to, at, aimed: aimAt(from, at, { neighbours: false }) });
-      }
+      for (const { key, to, box } of targets) aims.push({ key, item: item.id, to, aimed: aimBetween(own, box ?? rectOf(to)) });
     }
     const box = aims.length === 0 ? null : overlayBox();
-    // The top of the stack resolves next: its arrows, and the brackets on its targets, breathe.
+    // The top of the stack resolves next: its arrows breathe.
     const next = items[0]?.id;
     const seen = new Set<string>();
-    for (const { key, item, at, aimed } of aims) {
+    for (const { key, item, aimed } of aims) {
       seen.add(key);
       let svg = root.querySelector<SVGSVGElement>(`.placed__arrow[data-key="${key}"]`);
       if (svg === null) {
@@ -1285,7 +1285,6 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       }
       breathe(svg, item === next);
       positionArrow(svg, aimed.from, aimed.tip, box!);
-      markArrow(svg, at, box!);
     }
     for (const el of [...root.querySelectorAll('.placed__arrow')]) {
       if (!seen.has(el.getAttribute('data-key') ?? '')) removeArrow(el);
@@ -1325,7 +1324,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     const currentIds = new Set(items.map((i) => i.id));
     handOver(view.stack, currentIds);
 
-    // Resolved/left items first, so a leaving one never counts toward `taken` below.
+    // Resolved/left items first, so a leaving one never takes room below.
     const departed = [...drawn].filter(([id]) => !currentIds.has(id));
     const departedIds = new Set(departed.map(([id]) => id));
     const counteredIds = view.counteredStackItems;
@@ -1405,6 +1404,15 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   /** Each drawn item's box as this paint settles it, for its arrows: never a box read mid-slide. */
   const settledBoxes = new Map<number, Rect>();
 
+  /**
+   * What the stack never covers: the match's control box (cut 2 of the trailer: a Valakut trigger sat over
+   * End Turn). It is the board's sibling, in the match's own root, not inside the board.
+   */
+  function controlBoxes(): Rect[] {
+    const scope = canvas.closest('.live') ?? canvas;
+    return [...scope.querySelectorAll(CONTROL_BOX)].map(rectOf).filter((r) => r.right > r.left && r.bottom > r.top);
+  }
+
   /** Where the stack may stand: across the board, from the top of their battlefield to the foot of this seat's. */
   function tableBounds(overlayBox: DOMRect): Rect {
     const them = zoneOf(canvas, 'them', 'battlefield')?.getBoundingClientRect();
@@ -1423,25 +1431,24 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     );
     const chips = shown.map(({ item, d }) => chipBoxesOf(item, d));
     const spot = chips.some((chip, n) => chip === null && !placements.has(shown[n]!.item.id)) ? defaultSpot(canvas) : null;
-    const taken: Rect[] = [];
     const now = Date.now();
     const wants = shown.map(({ item, d, record }, n) => {
-      const resolved = positionOf(item, d, chips[n]!, spot, taken, overlayBox);
-      if (resolved?.reserved != null) taken.push(resolved.reserved);
+      const at = positionOf(item, d, chips[n]!, spot, overlayBox);
       const held = record?.movedAt != null && now - record.movedAt < DRAG_HOLD_MS;
       if (held) schedule(render, record!.movedAt! + DRAG_HOLD_MS - now + 1);
-      // A card's own size, before `--stack-scale`: hidden ones (pending) and ones not laid out yet take no room.
+      // A card's own size: hidden ones (pending) and ones not laid out yet take no room.
       const size = { width: d.el.offsetWidth, height: d.el.offsetHeight };
-      const settles = resolved !== null && size.width > 0 && !d.el.hasAttribute('data-placed-pending');
-      return resolved === null ? null : { at: resolved.at, held, settles, size };
+      const settles = at !== null && size.width > 0 && !d.el.hasAttribute('data-placed-pending');
+      return at === null ? null : { at, held, settles, size, seed: d.seed };
     });
     // Top first, as `settleStack` reads it: a trigger still waiting to go on the stack is newer than anything on it.
     const settling = wants.flatMap((w, n) => (w !== null && w.settles ? [n] : [])).sort((a, b) => Number(shown[b]!.item.pending === true) - Number(shown[a]!.item.pending === true) || a - b);
-    const asks: StackAsk[] = settling.map((n) => ({ want: wants[n]!.at, ...wants[n]!.size, pinned: wants[n]!.held }));
+    const asks: StackAsk[] = settling.map((n) => ({ want: wants[n]!.at, ...wants[n]!.size, seed: wants[n]!.seed, pinned: wants[n]!.held }));
     const bounds = tableBounds(overlayBox);
-    const key = JSON.stringify([asks, bounds]);
-    if (lastSettle?.key !== key) lastSettle = { key, result: settleStack(asks, bounds) };
-    const { at: settled, scale } = lastSettle.result;
+    const keepOut = asks.length === 0 ? [] : controlBoxes();
+    const key = JSON.stringify([asks, bounds, keepOut]);
+    if (lastSettle?.key !== key) lastSettle = { key, result: settleStack(asks, bounds, keepOut) };
+    const settled = lastSettle.result;
     const settledAt = new Map(settling.map((n, k) => [n, settled[k]!]));
     settledBoxes.clear();
     let again = false;
@@ -1460,11 +1467,10 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       const p = overlayPoint(at, overlayBox);
       d.el.toggleAttribute('data-placed-gliding', record?.gliding === true);
       d.el.toggleAttribute('data-placed-held', inPlace);
-      d.el.style.setProperty('--stack-scale', String(scale));
       d.el.style.left = `${p.x}px`;
       d.el.style.top = `${p.y}px`;
-      const w = (want.size.width * scale) / 2;
-      const h = (want.size.height * scale) / 2;
+      const w = want.size.width / 2;
+      const h = want.size.height / 2;
       if (want.size.width > 0) settledBoxes.set(item.id, { left: at.x - w, right: at.x + w, top: at.y - h, bottom: at.y + h });
       d.el.setAttribute('aria-label', itemLabel(item));
       // AE28: a trigger or ability of the viewer's own has no placement record (nothing was released

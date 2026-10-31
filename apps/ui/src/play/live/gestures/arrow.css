@@ -96,7 +96,7 @@
   35% { stroke-width: 7.5; }
 }
 
-/* The corner brackets on a stack item's target (`markArrow`), in the arrow's colours. They snap in once when drawn. */
+/* The corner brackets on the target an aim is snapped to, until it is committed (`markArrow`), in the arrow's colours. They snap in once when drawn. */
 .arrow__mark {
   fill: none;
   stroke-linecap: round;
@@ -121,8 +121,8 @@
 }
 
 /*
- * The top of the stack — the next thing to resolve (`breathe`): a blurred copy of its arrow and
- * brackets, under them, fades up and down. Its own layer, sized to what it copies, and only its
+ * The top of the stack — the next thing to resolve (`breathe`): a blurred copy of its arrow, under
+ * it, fades up and down. Its own layer, sized to what it copies, and only its
  * opacity moves: the blur is drawn once and the compositor runs the pulse.
  */
 .arrow-glow {
@@ -136,22 +136,13 @@
   animation: arrow-glow 1.4s ease-in-out infinite alternate;
 }
 
-.arrow-glow__body,
-.arrow-glow__mark {
+.arrow-glow__body {
+  fill: var(--arrow-ink);
   stroke: var(--arrow-ink);
+  stroke-width: 6;
   stroke-linecap: round;
   stroke-linejoin: round;
   filter: blur(4px);
-}
-
-.arrow-glow__body {
-  fill: var(--arrow-ink);
-  stroke-width: 6;
-}
-
-.arrow-glow__mark {
-  fill: none;
-  stroke-width: 9;
 }
 
 @keyframes arrow-glow {
