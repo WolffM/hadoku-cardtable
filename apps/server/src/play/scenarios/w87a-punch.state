@@ -1,0 +1,21 @@
+# e2e/w87a-punch.spec.ts — a creature's blow on a player shakes, cracks and knocks the table as its landing would.
+# bob (ai, seat 1) is the active player with four vanilla attackers already attacking alice (human, seat 0)
+# at 30 life: Grizzly Bears (2), Spined Wurm (5), Pelakka Wurm (7) and Ancient Brontodon (9), one charge per
+# rung of `entries.ts`'s `entryWeight` (nothing at 2, the shake from 5, cracks from 7, the cards around it
+# knocked away from 8). 23 damage, so alice lives and every blow is drawn. alice's Grizzly Bears are what a
+# heavy blow knocks away; she declares no blocks.
+# `activephase` lands on Declare ATTACKERS Step, as `cp-lethal-ram.state` does and for its reason; bob holds a
+# Lightning Bolt so each of his stops on the way to combat damage is kept for the spec to press.
+turn=1
+activeplayer=ai
+activephase=COMBAT_DECLARE_ATTACKERS
+humanlife=30
+ailife=20
+humanhand=
+humanbattlefield=Mountain;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bears
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Lightning Bolt
+aibattlefield=Grizzly Bears|Attacking;Spined Wurm|Attacking;Pelakka Wurm|Attacking;Ancient Brontodon|Attacking;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

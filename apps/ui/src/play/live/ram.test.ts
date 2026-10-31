@@ -6,8 +6,8 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { powerEase } from '../motion.ts';
-import { alignOf, BLAST_MS, boxIn, chargeControl, contactMs, fanOf, punchAt, ram, RAMMING_ATTR, ramMs, RETURN_MS, strikeOffset } from './ram.ts';
+import { damagePower, powerEase } from '../motion.ts';
+import { ALIGN_MS, alignOf, BLAST_MS, boxIn, chargeControl, contactMs, fanOf, punchAt, ram, RAMMING_ATTR, ramMs, RETURN_MS, strikeOffset } from './ram.ts';
 
 const rect = (left: number, top: number, width: number, height: number): DOMRect =>
   ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
@@ -176,6 +176,67 @@ describe('punchAt', () => {
   });
   it('only ever speeds up', () => {
     for (const power of [0, 0.5, 1]) for (let t = 0.05; t <= 1; t += 0.05) expect(speed(t, power)).toBeGreaterThan(speed(t - 0.05, power));
+  });
+});
+
+describe('a charge’s peak speed', () => {
+  /**
+   * The flight a charge of `amount` damage hands the browser (its keyframes, run linear), over a 400px
+   * straight line: the furthest it moves in one 60 fps frame, in px/ms, and when it lands. The operator,
+   * 2026-10-30: "both the floor and the ceiling for how much velocity is reached with each 'punch' should
+   * be harder". Measured on main before the change: 3.88 px/ms at 1 damage, 6.10 at 4, 7.72 at 10, 9.43
+   * at 20 on its fastest-ending curve, and 2.95, 4.60, 5.82, 7.13 on its slowest: the punch ran along the
+   * curve's parameter, not its length, so a curve bending late slowed every blow it drew.
+   */
+  const flight = (amount: number, draw = 0): { peak: number; lands: number } => {
+    const root = document.createElement('div');
+    root.getBoundingClientRect = () => rect(0, 0, 1000, 1000);
+    const card = document.createElement('li');
+    document.body.append(root, card);
+    const calls: { frames: Keyframe[]; options: KeyframeAnimationOptions }[] = [];
+    HTMLElement.prototype.animate = vi.fn((frames: Keyframe[], options: KeyframeAnimationOptions) => {
+      calls.push({ frames, options });
+      return { finished: new Promise(() => undefined), cancel: () => undefined } as unknown as Animation;
+    }) as unknown as typeof HTMLElement.prototype.animate;
+    // Formed up exactly where it stands, 400px from where it strikes the avatar (less 0.4 of its own reach), on the curve `draw` picks.
+    vi.spyOn(Math, 'random').mockReturnValue(draw);
+    ram(root, card, { x: 500, y: 900, w: 60, h: 84 }, { x: 500, y: 900 - 400 - 84 * 0.2, w: 40, h: 40 }, 'charge', 'charge', 'k', 0, damagePower(amount), 0, { start: 0, at: { x: 0, y: 0 } });
+    const fly = calls[1]!;
+    const keys = fly.frames.map((f) => {
+      const [x, y] = String(f.translate).split(' ').map((v) => Number(v.replace('px', '')));
+      return { t: Number(f.offset), x: x!, y: y! };
+    });
+    const at = (t: number): { x: number; y: number } => {
+      const i = Math.max(1, keys.findIndex((k) => k.t >= t));
+      const a = keys[i - 1]!;
+      const b = keys[i]!;
+      const f = (t - a.t) / (b.t - a.t || 1);
+      return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+    };
+    const ms = Number(fly.options.duration);
+    const frame = 1000 / 60;
+    let peak = 0;
+    // Every frame's window, wherever the frame falls: the fastest is the one that ends on the blow.
+    for (let t = 0; t + frame <= ms; t += 1) {
+      const a = at(t / ms);
+      const b = at((t + frame) / ms);
+      peak = Math.max(peak, Math.hypot(b.x - a.x, b.y - a.y) / frame);
+    }
+    return { peak, lands: Number(fly.options.delay) + ms };
+  };
+  it('lands harder at both ends: a point, four, ten and twenty each reach a higher peak than before', () => {
+    const peaks = [1, 4, 10, 20].map((a) => flight(a).peak);
+    console.log(`[w87a] charge peak px/ms at 1, 4, 10, 20 damage: ${peaks.map((p) => p.toFixed(2)).join(', ')}; on its latest-bending curve ${[1, 4, 10, 20].map((a) => flight(a, 0.99).peak.toFixed(2)).join(', ')}`);
+    const floors = [6, 9, 11, 13];
+    peaks.forEach((p, i) => expect(p, `${[1, 4, 10, 20][i]} damage: ${p.toFixed(2)} px/ms`).toBeGreaterThan(floors[i]!));
+    for (let i = 1; i < peaks.length; i++) expect(peaks[i]!).toBeGreaterThan(peaks[i - 1]!);
+  });
+  it('however its curve bends: the punch is a distance along the flight, so no curve slows the blow', () => {
+    for (const a of [1, 10, 20]) expect(flight(a, 0.99).peak / flight(a, 0).peak, `${a} damage`).toBeGreaterThan(0.9);
+  });
+  it('and every blow still lands when it did: the impact frame does not move', () => {
+    for (const a of [1, 4, 10, 20]) expect(flight(a).lands).toBe(contactMs('charge'));
+    expect(contactMs('charge')).toBe(ALIGN_MS + 640);
   });
 });
 
