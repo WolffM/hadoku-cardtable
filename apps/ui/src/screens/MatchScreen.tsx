@@ -47,7 +47,7 @@
  * opened, and the room is reached from the room list.
  */
 
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from 'react';
 
 import { LiveBoard } from '../play/live/LiveBoard.tsx';
 import { holdOnScreen, knownRoomOfMatch, takeWarmMatch, warmMatchesWith } from '../play/live/matchStart.ts';
@@ -58,6 +58,7 @@ import {
   closeMatch,
   socketIoMatchTransport,
   startMatch,
+  subscribe,
   type LiveMatch,
   type MatchTransport,
   type MatchTrouble,
@@ -134,8 +135,12 @@ export function MatchScreen({ matchId, makeTransport }: MatchScreenProps) {
     };
   }, [matchId]);
 
-  // A game its room let go of with no result (a Reset) is followed to the table's next game.
-  useFollowReplacedGame(matchId, roomId);
+  // A game its room let go of with no result (a Reset) is followed to the table's next game; one that is over is not.
+  const over = useSyncExternalStore(
+    (listener) => (match === null ? () => undefined : subscribe(match, listener)),
+    () => match?.over ?? false,
+  );
+  useFollowReplacedGame(matchId, roomId, over);
 
   return (
     <div ref={shellRef} className="shell shell--match" data-testid="match" style={{ position: 'relative' }}>

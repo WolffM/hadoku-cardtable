@@ -22,10 +22,14 @@ export function replacedGameRoute(room: RoomView, matchId: string, tableId: stri
   return table.matchId === null ? { kind: 'room', roomId: room.id, tableId } : { kind: 'match', matchId: table.matchId };
 }
 
-/** Follows `roomId` while `matchId` is on screen, and goes on to its table's next game once it is replaced. */
-export function useFollowReplacedGame(matchId: string, roomId: string | null): void {
+/**
+ * Follows `roomId` while `matchId` is on screen and still in play, and goes on to its table's next game once
+ * it is replaced. A game that is over has its result screen as the way on, so its board stops following: an
+ * idle result screen reads nothing (`e2e/aa-polling.spec.ts`).
+ */
+export function useFollowReplacedGame(matchId: string, roomId: string | null, over: boolean): void {
   useEffect(() => {
-    if (roomId === null) return;
+    if (roomId === null || over) return;
     let tableId: string | null = null;
     let live = true;
     const read = (): void => {
@@ -48,5 +52,5 @@ export function useFollowReplacedGame(matchId: string, roomId: string | null): v
       live = false;
       stop();
     };
-  }, [matchId, roomId]);
+  }, [matchId, roomId, over]);
 }
