@@ -208,6 +208,23 @@ describe('playLanding / playEntry: stand-in alignment and the shove', () => {
     for (const c of cards) expect(c.style.visibility).toBe('');
   });
 
+  it('a board taken down mid-arrival is drawn into no more, and its card is left shown', async () => {
+    stubAnimate();
+    for (const start of [
+      (b: ReturnType<typeof boardWith>) => playEntry({ board: b.board, overlay: b.overlay, card: b.cards[4]!, from: null, motion: 'cast', weight: entryWeight(12), key: 'gone' }),
+      (b: ReturnType<typeof boardWith>) => playLanding(b.board, b.overlay, b.cards[4]!, entryWeight(12), 'gone'),
+    ]) {
+      const b = boardWith(9, 4);
+      const run = start(b);
+      // The match left (or the test that drew it ended) before the landing came down.
+      b.board.remove();
+      const drawn = vi.spyOn(b.overlay, 'append');
+      await run;
+      expect(drawn, 'nothing appended to a board no longer on the page').not.toHaveBeenCalled();
+      expect(b.cards[4]!.style.visibility).toBe('');
+    }
+  });
+
   it('playLanding alone (Fast Mode) draws the weight effects without hiding or moving the card', async () => {
     stubAnimate();
     const { board, overlay, cards } = boardWith(1, 0);
