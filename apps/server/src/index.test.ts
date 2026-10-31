@@ -25,7 +25,8 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { LIBRARY, formatIdOf } from '@hadoku/deck/library';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { testPort } from './testPort.ts';
 
@@ -53,6 +54,8 @@ interface Served {
 }
 
 interface Booted {
+	/** Everything the process printed until it was stopped. */
+	output: string;
 	health: { status: number; body: { status: string; bundle: string } };
 	page: { status: number; body: string };
 	/** The embed bundle watchparty imports (D21): its entry, a hashed chunk, a name that is not there. */
@@ -95,8 +98,34 @@ function silentForge(): NodeJS.ProcessEnv {
 	};
 }
 
-/** Boot the server against `webDir`, ask it both questions, stop it. `forgeEnv` replaces the default of no Forge at all; `listenWithinMs` is how long it may take to listen. */
-async function boot(webDir: string, forgeEnv: NodeJS.ProcessEnv = {}, listenWithinMs = 30_000): Promise<Booted> {
+/**
+ * A preload (`node --import`) that makes every read of an era's frozen pool (`decks/pools/*.json`)
+ * take `ms` longer, and says so on stderr as it starts: the slowest step of a boot, slowed the way a
+ * loaded claw slowed it, with nothing in the server itself knowing about the test.
+ */
+function slowPoolReads(ms: number): NodeJS.ProcessEnv {
+	const file = join(root, 'slow-pool-reads.mjs');
+	writeFileSync(
+		file,
+		`import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
+const read = fs.readFileSync;
+fs.readFileSync = function (path, ...rest) {
+	if (typeof path === 'string' && /[\\/]decks[\\/]pools[\\/][^\\/]+\\.json$/.test(path)) {
+		process.stderr.write('slow-pool-read ' + path + '\\n');
+		const until = Date.now() + ${ms};
+		while (Date.now() < until);
+	}
+	return read.call(this, path, ...rest);
+};
+syncBuiltinESMExports();
+`,
+	);
+	return { NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import ${pathToFileURL(file).href}`.trim() };
+}
+
+/** Boot the server against `webDir`, ask it both questions, then stop it once `until` (if given) is printed. `forgeEnv` replaces the default of no Forge at all, and is merged over it; `listenWithinMs` is how long it may take to listen. */
+async function boot(webDir: string, forgeEnv: NodeJS.ProcessEnv = {}, listenWithinMs = 30_000, until?: string): Promise<Booted> {
 	mkdirSync(webDir, { recursive: true });
 	writeFileSync(join(webDir, 'index.html'), INDEX);
 	mkdirSync(join(webDir, 'embed', 'assets'), { recursive: true });
@@ -114,6 +143,8 @@ async function boot(webDir: string, forgeEnv: NodeJS.ProcessEnv = {}, listenWith
 		// stopping at the tier floor. The probe itself needs none.
 		EDGE_AUTH_SECRET: '',
 		CARDTABLE_INSECURE_NO_EDGE_AUTH: '1',
+		// Never the host's own card catalog: a claw has none, and a test reads what CI reads.
+		CARDTABLE_CATALOG: join(root, 'no-catalog', 'cards.json'),
 	};
 	// Never a real Forge JVM for a boot test.
 	delete env.CARDTABLE_FORGE_JAR;
@@ -144,14 +175,17 @@ async function boot(webDir: string, forgeEnv: NodeJS.ProcessEnv = {}, listenWith
 		const base = `http://127.0.0.1:${port}`;
 		const h = await fetch(`${base}/health`);
 		const p = await fetch(`${base}/`);
+		const embed = {
+			entry: await served(`${base}/embed/cardtable-embed.js`),
+			chunk: await served(`${base}/embed/assets/chunk-a1b2c3.js`),
+			missing: await served(`${base}/embed/nope.js`),
+		};
+		if (until !== undefined) await printed(child, () => output, until, listenWithinMs);
 		return {
+			output,
 			health: { status: h.status, body: (await h.json()) as Booted['health']['body'] },
 			page: { status: p.status, body: await p.text() },
-			embed: {
-				entry: await served(`${base}/embed/cardtable-embed.js`),
-				chunk: await served(`${base}/embed/assets/chunk-a1b2c3.js`),
-				missing: await served(`${base}/embed/nope.js`),
-			},
+			embed,
 		};
 	} finally {
 		child.kill('SIGTERM');
@@ -159,13 +193,56 @@ async function boot(webDir: string, forgeEnv: NodeJS.ProcessEnv = {}, listenWith
 	}
 }
 
+/** Resolves once `text` is in the output, rejects after `withinMs`. */
+function printed(child: ChildProcess, output: () => string, text: string, withinMs: number): Promise<void> {
+	return new Promise((resolveSeen, rejectSeen) => {
+		const timer = setTimeout(() => rejectSeen(new Error(`never printed ${text} within ${withinMs} ms:\n${output()}`)), withinMs);
+		const watch = () => {
+			if (!output().includes(text)) return;
+			clearTimeout(timer);
+			child.stdout?.off('data', watch);
+			resolveSeen();
+		};
+		child.stdout?.on('data', watch);
+		watch();
+	});
+}
+
+/** The `boot-phase` and `library-warmed` lines the server printed, parsed. */
+function bootLines(output: string): Record<string, unknown>[] {
+	return output
+		.split('\n')
+		.filter((line) => line.includes('"evt":"boot-phase"') || line.includes('"evt":"library-warmed"'))
+		.map((line) => JSON.parse(line) as Record<string, unknown>);
+}
+
 describe('a server started from a path', () => {
-	it('outside any dot-directory is healthy and serves the page', async () => {
-		const { health, page } = await boot(join(root, 'plain', 'apps', 'ui', 'dist'));
+	it('outside any dot-directory is healthy and serves the page, then reads every era\'s pool', async () => {
+		const { health, page, output } = await boot(join(root, 'plain', 'apps', 'ui', 'dist'), {}, 30_000, '"evt":"library-warmed"');
 		expect(health.status).toBe(200);
 		expect(health.body).toMatchObject({ status: 'healthy', bundle: 'ok' });
 		expect(page.status).toBe(200);
 		expect(page.body).toContain('fixture');
+		const lines = bootLines(output);
+		// Every step between process start and listen is timed, in order, ending at listen.
+		const phases = lines.filter((l) => l.evt === 'boot-phase').map((l) => l.phase);
+		expect(phases[0]).toBe('imports');
+		expect(phases.at(-1)).toBe('listen');
+		// The pools come after: every catalogued era, none of them faulted.
+		const warmed = lines.find((l) => l.evt === 'library-warmed');
+		expect(warmed).toMatchObject({ formats: new Set(LIBRARY.map((c) => formatIdOf(c))).size, faults: [] });
+	}, 60_000);
+
+	it('listens, healthy, while every era\'s pool is slow to read — the pools are never on the boot path', async () => {
+		// 67 eras at 400 ms each is 27 s of pool reads: a boot that waits for them never listens in 15.
+		const { health, page, output } = await boot(join(root, 'slow-pools', 'apps', 'ui', 'dist'), slowPoolReads(400), 15_000);
+		expect(health.status).toBe(200);
+		expect(health.body).toMatchObject({ status: 'healthy', bundle: 'ok' });
+		expect(page.status).toBe(200);
+		const listened = output.indexOf('listening on 127.0.0.1:');
+		const firstPoolRead = output.indexOf('slow-pool-read ');
+		expect(listened).toBeGreaterThanOrEqual(0);
+		if (firstPoolRead >= 0) expect(firstPoolRead).toBeGreaterThan(listened);
 	}, 60_000);
 
 	it('serves the embed entry as revalidated JS, its chunks immutable, and a missing file as a 404', async () => {

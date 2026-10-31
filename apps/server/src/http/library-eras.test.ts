@@ -154,3 +154,49 @@ describe('a format id carries its family once Standard, Modern and Legacy share 
 		expect(loaded.formats.map((f) => f.id)).toEqual(['modern-2012-07-13']);
 	});
 });
+
+/*
+ * The server reads the eras' pools after it listens (`pools: 'later'`, `index.ts`): an era is read
+ * when something asks for it or when `warm()` reaches it, and one that will not load leaves
+ * `formats` then, as an eager load leaves it out.
+ */
+describe('an era read on first use', () => {
+	function collection(id: string, date: string): LibraryCollection {
+		return { id, directory: `decks/${id}`, event: id, format: id, date, source: 'test', decks: [], family: 'standard' };
+	}
+
+	let tempDir: string | null = null;
+	afterEach(() => {
+		if (tempDir !== null) rmSync(tempDir, { recursive: true, force: true });
+		tempDir = null;
+	});
+
+	function fixtureTree(): { library: LibraryCollection[] } {
+		tempDir = mkdtempSync(join(tmpdir(), 'cardtable-lazy-eras-'));
+		mkdirSync(join(tempDir, 'decks', 'pools'), { recursive: true });
+		const good = { date: '2012-07-13', name: 'Good', effective: '2012-07-13', source: 'test', sets: ['AAA'], banned: [], cards: ['Test Card'], manaCost: {}, colors: {} };
+		writeFileSync(join(tempDir, poolFixturePath('2012-07-13')), JSON.stringify(good));
+		writeFileSync(join(tempDir, poolFixturePath('2013-07-19')), '{ not json');
+		return { library: [collection('fx-good', '2012-07-13'), collection('fx-broken', '2013-07-19')] };
+	}
+
+	it('lists every catalogued era before reading a pool, and a broken one leaves when it is asked for', () => {
+		const { library } = fixtureTree();
+		const loaded = loadTablesLibrary(tempDir!, library, { pools: 'later' });
+		expect(loaded.formats.map((f) => f.id)).toEqual(['2012-07-13', '2013-07-19']);
+		expect(loaded.faults).toEqual([]);
+		expect(loaded.format('2013-07-19')).toBeUndefined();
+		expect(loaded.faults).toHaveLength(1);
+		expect(loaded.formats.map((f) => f.id)).toEqual(['2012-07-13']);
+		expect(loaded.format('2012-07-13')?.fixture.name).toBe('Good');
+	});
+
+	it('warm() reads the rest and answers the same faults an eager load does', async () => {
+		const { library } = fixtureTree();
+		const eager = loadTablesLibrary(tempDir!, library);
+		const lazy = loadTablesLibrary(tempDir!, library, { pools: 'later' });
+		expect(await lazy.warm()).toEqual(eager.faults);
+		expect(lazy.formats.map((f) => f.id)).toEqual(eager.formats.map((f) => f.id));
+		expect(lazy.formats[0]!.pool).toEqual(eager.formats[0]!.pool);
+	});
+});
