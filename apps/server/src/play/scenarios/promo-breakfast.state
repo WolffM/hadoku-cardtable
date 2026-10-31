@@ -1,17 +1,18 @@
-# Promo footage (`e2e/promo/breakfast.promo.ts`): Cephalid Breakfast. Seat 0 holds priority (Full control)
-# and activates Nomads en-Kor at Cephalid Illusionist four times before anything resolves. Four mill
-# triggers mill all twelve cards, both Narcomoebas join the board on the way, and Thassa's Oracle off
-# the last two lands wins with an empty library.
+# Promo footage (`e2e/promo/breakfast.promo.ts`): Cephalid Breakfast, Alessandro Teneggi's 2007 list
+# (`decks/legacy-2007/1-alessandro-teneggi-cephalid-breakfast.dck`). Seat 0 holds priority (Full control)
+# and activates Nomads en-Kor at Cephalid Illusionist four times. Four mill triggers mill all twelve
+# cards and the three Narcomoebas join the board; Dread Return's flashback sacrifices them for Sutured
+# Ghoul, which exiles every creature in the graveyard, and Dragon Breath rides in on it for haste.
 turn=3
 activeplayer=human
 activephase=MAIN1
 humanlife=18
-ailife=20
-humanhand=Thassa's Oracle;Force of Will;Daze
-humanbattlefield=Cephalid Illusionist;Nomads en-Kor;Underground Sea;Island
-humanlibrary=Narcomoeba;Cabal Therapy;Brainstorm;Narcomoeba;Dread Return;Ponder;Lotus Petal;Island;Dark Ritual;Force of Will;Gitaxian Probe;Island
-humangraveyard=Shuko;Thoughtseize
+ailife=12
+humanhand=Force of Will;Brainstorm;Worldly Tutor;Tarmogoyf
+humanbattlefield=Cephalid Illusionist;Nomads en-Kor;Tundra;Tropical Island;Underground Sea
+humanlibrary=Narcomoeba;Tarmogoyf;Brainstorm;Narcomoeba;Dread Return;Portent;Sutured Ghoul;Tarmogoyf;Narcomoeba;Dragon Breath;Flooded Strand;Tarmogoyf
+humangraveyard=Cabal Therapy;Aether Vial
 aihand=
-aibattlefield=Thalia, Guardian of Thraben;Stoneforge Mystic;Plains;Plains;Karakas
-ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
-aigraveyard=Swords to Plowshares
+aibattlefield=Goblin Lackey|Tapped:True;Goblin Piledriver|Tapped:True;Mountain;Mountain;Wooded Foothills
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=Gempalm Incinerator;Rite of Flame

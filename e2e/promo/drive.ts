@@ -145,3 +145,11 @@ export async function until(what: string, step: () => Promise<boolean>, timeoutM
     await new Promise((r) => setTimeout(r, ms));
   }
 }
+
+/** Put `page`'s seat on Auto Yield for the turn it is watching, so none of its priority windows interrupt the hero's. */
+export async function autoYield(page: Page): Promise<void> {
+  const slot = page.getByTestId('live-button-end-turn');
+  await until('the rival can Auto Yield', async () => (await slot.textContent())?.trim() === 'Auto Yield' && (await slot.isEnabled()), 30_000, 150, page);
+  await slot.click();
+  await until('the rival yields', async () => (await slot.getAttribute('data-yield')) === 'on', 10_000, 100, page);
+}

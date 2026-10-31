@@ -5,9 +5,9 @@
  */
 import { test } from '@playwright/test';
 
-import { pressPaymentAuto, says, stackCount } from '../play/board.ts';
+import { pressPaymentAuto, says } from '../play/board.ts';
 import { answerPrompt } from '../play/prompts.ts';
-import { cast, deliberateClick, lifeOf, okEnabled, opponentFace, pickTiles, pressIfThere, selectionTiles, shootScenario, until, wrap, type Shoot } from './drive.ts';
+import { autoYield, cast, deliberateClick, lifeOf, okEnabled, opponentFace, pickTiles, pressIfThere, selectionTiles, shootScenario, until, wrap, type Shoot } from './drive.ts';
 
 test('valakut: Scapeshift for ten triggers', async ({ browser }) => {
   let shoot: Shoot | undefined;
@@ -15,17 +15,18 @@ test('valakut: Scapeshift for ten triggers', async ({ browser }) => {
     shoot = await shootScenario(browser, 'valakut', 'promo-valakut');
     const { film, hero, rival } = shoot;
     const page = hero.page;
+    // Nothing from the rival's seat interrupts the combo.
+    await autoYield(rival.page);
     film.mark('board');
     await film.beat(1_800);
 
     film.mark('cast');
     await cast(page, 'Scapeshift', { hover: 1_100 });
 
-    // Pay, let the rival pass, say yes to "sacrifice?", until the eleven-land sheet is open.
+    // Pay and say yes to "sacrifice?", until the eleven-land sheet is open.
     await until('the sacrifice sheet', async () => {
       if ((await selectionTiles(page)).length >= 11) return true;
       await pressPaymentAuto(page);
-      if ((await stackCount(rival.page)) > 0) await pressIfThere(okEnabled(rival.page));
       await pressIfThere(page.locator('[data-testid="prompt-confirm-yes"]:enabled'));
       return false;
     });
@@ -51,7 +52,6 @@ test('valakut: Scapeshift for ten triggers', async ({ browser }) => {
     await until('the first Valakut target question', async () => {
       if (/Valakut, the Molten Pinnacle/.test(await says(page)) && !/^Priority/.test(await says(page))) return true;
       await answerPrompt(page).catch(() => null);
-      await pressIfThere(okEnabled(rival.page));
       return false;
     });
     film.mark('triggers');
@@ -68,7 +68,6 @@ test('valakut: Scapeshift for ten triggers', async ({ browser }) => {
       if (life <= 0 || (await page.getByText(/you win|victory/i).count()) > 0) return true;
       const yes = page.locator('[data-testid="prompt-confirm-yes"]:enabled');
       if (/^Do you want to deal/.test(await says(page))) await pressIfThere(yes);
-      await pressIfThere(okEnabled(rival.page));
       await pressIfThere(okEnabled(page));
       return false;
     }, 120_000, 300);

@@ -12,6 +12,8 @@ export CARDTABLE_FORGE_RES="${CARDTABLE_FORGE_RES:-/home/hadoku/srv/hadoku-cardt
 export CARDTABLE_PLAY_WORK_DIR="${CARDTABLE_PLAY_WORK_DIR:-$HOME/.cache/cardtable-play-work/promo}"
 # The deploy tree's sound library, read only: the clips carry the game's own sound.
 export CARDTABLE_SOUNDS_DIR="${CARDTABLE_SOUNDS_DIR:-/home/hadoku/srv/hadoku-cardtable/apps/server/data/sounds}"
+# Draft bots at production's pace (`config.ts`'s default), so packs do not pile up on the filmed seat.
+export CARDTABLE_DRAFT_BOT_PICK_MS="${CARDTABLE_DRAFT_BOT_PICK_MS:-1200}"
 export CARDTABLE_E2E_PLAY_EDGE_PORT="${CARDTABLE_E2E_PLAY_EDGE_PORT:-19328}"
 export CARDTABLE_E2E_PLAY_SERVER_PORT="${CARDTABLE_E2E_PLAY_SERVER_PORT:-19228}"
 test -f "$CARDTABLE_FORGE_JAR" || { echo "shoot: no jar for pin $pin at $CARDTABLE_FORGE_JAR" >&2; exit 1; }

@@ -665,7 +665,8 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
         // Bots take a turn every 100 ms rather than production's 1.2 s: a spec drives
         // 45 picks a drafter, and at production's pace the bots, not the product,
         // would be what it waits on. Still a clock, so packs queue as they do live.
-        CARDTABLE_DRAFT_BOT_PICK_MS: '100',
+        // `promo/` films at production's own pace (`shoot.sh`).
+        CARDTABLE_DRAFT_BOT_PICK_MS: process.env.CARDTABLE_DRAFT_BOT_PICK_MS ?? '100',
         // `promo/` films with the real sound library; a spec never sets it, so the stack stays silent.
         ...(process.env.CARDTABLE_SOUNDS_DIR === undefined ? {} : { CARDTABLE_SOUNDS_DIR: process.env.CARDTABLE_SOUNDS_DIR }),
       },
