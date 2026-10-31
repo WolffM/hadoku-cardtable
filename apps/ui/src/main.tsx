@@ -1,8 +1,9 @@
 /*
  * The mount, the stylesheet order, and nothing else.
  *
- * No app logic lives here on purpose (the one exception is putting a stray
- * path back into the hash before the first render reads the route): `App.tsx` routes and
+ * No app logic lives here on purpose (the two exceptions are putting a stray
+ * path back into the hash before the first render reads the route, and taking
+ * Rally's return trip off the query, `rooms/event-forms.ts`): `App.tsx` routes and
  * `chrome/AppChrome.tsx` frames, and that file's header states the boundary a
  * replacement wrapper lands on. The one app-specific value on this path is the
  * catalogue token, and it is not read here — vite's `define` substitutes
@@ -50,9 +51,11 @@ import '@wolffm/task-ui-components/tooltip.css';
 import '@wolffm/task-ui-components/scrollbar.css';
 import './styles.css';
 import { App } from './App.tsx';
+import { finishRallyReturn } from './rooms/event-forms.ts';
 import { canonicalizeAddress } from './screens/route.ts';
 
 canonicalizeAddress();
+void finishRallyReturn();
 
 const root = document.getElementById('root');
 if (!root) throw new Error('index.html is missing #root');

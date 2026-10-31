@@ -600,7 +600,7 @@ attachRooms(api, {
 	},
 });
 attachTournaments(api, { tournaments });
-attachEvents(api, { events, lobby, closed: roomClosed, ...(CONFIG.testNoRateLimits ? { createRateLimit: null } : {}) });
+attachEvents(api, { events, lobby, checkPlan: checkDraftPlan, rally: { serviceKey: CONFIG.statsServiceKey }, log: roomsLog, closed: roomClosed, ...(CONFIG.testNoRateLimits ? { createRateLimit: null } : {}) });
 // The Discord's last few #general messages, through ArchiveBot (prod only: it holds the secret).
 attachDiscord(api, { secret: CONFIG.archivebotSecret, archivebotUrl: CONFIG.archivebotUrl, log: jsonLogger('cardtable-discord') });
 

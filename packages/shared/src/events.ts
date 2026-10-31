@@ -62,6 +62,7 @@ const formatField = z
  */
 const TournamentRoomSchema = strict({
   gameType: z.unknown().optional(),
+  clientMode: z.unknown().optional(),
   mode: z.unknown().optional(),
   modeOptions: z.unknown().optional(),
   password: z.unknown().optional(),
@@ -137,7 +138,8 @@ export const EventViewSchema = z.object({
   mine: z.boolean().catch(false),
   /** The event's room. An event whose room has closed is not listed. */
   roomId: z.string().nullable().catch(null),
-  room: EventRoomSchema.nullable().catch(null),
+  /** The room as it is now. Always sent; optional only so a reader's fixture may leave it out. */
+  room: EventRoomSchema.nullable().catch(null).optional(),
 });
 export type EventView = z.infer<typeof EventViewSchema>;
 

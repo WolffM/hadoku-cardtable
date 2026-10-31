@@ -469,6 +469,7 @@
 .rooms__password input,
 .rooms__create input,
 .event-create input,
+.event-create select,
 .rooms__create select {
   min-width: 0;
   background: var(--bg);
