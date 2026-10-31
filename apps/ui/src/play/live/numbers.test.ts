@@ -919,13 +919,34 @@ describe('planRams', () => {
   });
 
   it('an unblocked attacker charges its player; a creature hit by one that is not hit back is struck; each next ram a stagger later', () => {
-    const { rams, hitAt } = planRams([hit(2, 20, 11)], [face(1, 1, 10)], anyone);
+    const { rams, hitAt } = planRams([hit(1, 20, 11)], [face(2, 1, 10)], anyone);
     expect(rams.map((r) => [r.sourceId, r.kind, r.target, r.delayMs])).toEqual([
-      [10, 'charge', { playerId: 1 }, 0],
-      [11, 'strike', { cardId: 20 }, RAM_STAGGER_MS],
+      [11, 'strike', { cardId: 20 }, 0],
+      [10, 'charge', { playerId: 1 }, RAM_STAGGER_MS],
     ]);
-    expect(hitAt.get(1)).toBe(contactMs('charge'));
-    expect(hitAt.get(2)).toBe(RAM_STAGGER_MS + contactMs('strike'));
+    expect(hitAt.get(1)).toBe(contactMs('strike'));
+    expect(hitAt.get(2)).toBe(RAM_STAGGER_MS + contactMs('charge'));
+  });
+
+  it('a multi-attack goes in order of strength, the strongest last; ties in the order Forge dealt them; a pair that meets by its heavier', () => {
+    // The operator, 2026-10-31: "when handling a multi-attack scenario have the creature attack in order of strength with the strongest creatures hitting at the end."
+    const at = (seq: number, sourceId: number, amount: number) => ({ seq, playerId: 1, sourceId, amount, combat: true });
+    const { rams, hitAt } = planRams([], [at(1, 10, 5), at(2, 11, 1), at(3, 12, 9), at(4, 13, 3), at(5, 14, 3)], anyone);
+    expect(rams.map((r) => [r.sourceId, r.amount, r.delayMs])).toEqual([
+      [11, 1, 0],
+      [13, 3, RAM_STAGGER_MS],
+      [14, 3, 2 * RAM_STAGGER_MS],
+      [10, 5, 3 * RAM_STAGGER_MS],
+      [12, 9, 4 * RAM_STAGGER_MS],
+    ]);
+    expect(hitAt.get(3), 'the 9 lands last').toBe(4 * RAM_STAGGER_MS + contactMs('charge'));
+    // A 2 that meets a 6 goes as a 6: after a lone 4, before nothing heavier.
+    const fight = planRams([{ seq: 1, cardId: 20, sourceId: 10, amount: 2 }, { seq: 2, cardId: 10, sourceId: 20, amount: 6 }], [at(3, 11, 4)], anyone);
+    expect(fight.rams.map((r) => [r.sourceId, r.delayMs])).toEqual([
+      [11, 0],
+      [10, RAM_STAGGER_MS],
+      [20, RAM_STAGGER_MS],
+    ]);
   });
 
   it('an attacker that hits a planeswalker or a battle charges it, as it would a player', () => {
@@ -1133,7 +1154,8 @@ describe('installNumbers: a ram', () => {
 
     vi.advanceTimersByTime(RAM_STAGGER_MS);
     expect(numbers(), 'the same number, not a second one').toEqual([first]);
-    expect(first.textContent).toBe('-5');
+    // The strongest last: the 2 before the 4.
+    expect(first.textContent).toBe('-3');
     expect(first.dataset.numberBump, 'the change bumps').toBeDefined();
     vi.advanceTimersByTime(TICK_STEP_MS);
     expect(life.textContent, 'the counter steps on from the first blow’s total, not from the start').toBe('18');

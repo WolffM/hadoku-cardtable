@@ -141,6 +141,8 @@ test(titled('a charge’s blow on a player shakes, cracks and knocks the table e
         .sort((x, y) => x.power - y.power);
       console.log(`[w87a] blows ${who} ${JSON.stringify(byPower)}`);
       expect(byPower.map((b) => b.power), `${who}: each blow is one attacker's`).toEqual([2, 5, 7, 9]);
+      // The operator, 2026-10-31: "have the creature attack in order of strength with the strongest creatures hitting at the end".
+      for (let i = 1; i < byPower.length; i++) expect(byPower[i]!.at, `${who}: the ${byPower[i]!.power} lands after the ${byPower[i - 1]!.power}`).toBeGreaterThan(byPower[i - 1]!.at);
       const [two, five, seven, nine] = byPower as [typeof byPower[0], typeof byPower[0], typeof byPower[0], typeof byPower[0]];
       expect([two.shakePx, two.cracks, two.shoved], `${who}: a blow of 2 moves nothing`).toEqual([0, 0, 0]);
       expect(five.shakePx, `${who}: 5 shakes the table`).toBeGreaterThan(0);

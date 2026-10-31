@@ -3,7 +3,8 @@
 # at 30 life: Grizzly Bears (2), Spined Wurm (5), Pelakka Wurm (7) and Ancient Brontodon (9), one charge per
 # rung of `entries.ts`'s `entryWeight` (nothing at 2, the shake from 5, cracks from 7, the cards around it
 # knocked away from 8). 23 damage, so alice lives and every blow is drawn. alice's Grizzly Bears are what a
-# heavy blow knocks away; she declares no blocks.
+# heavy blow knocks away; she declares no blocks. The attackers stand out of order of power (9, 2, 7, 5): their
+# blows still land weakest first, the 9 last.
 # `activephase` lands on Declare ATTACKERS Step, as `cp-lethal-ram.state` does and for its reason; bob holds a
 # Lightning Bolt so each of his stops on the way to combat damage is kept for the spec to press.
 turn=1
@@ -16,6 +17,6 @@ humanbattlefield=Mountain;Grizzly Bears;Grizzly Bears;Grizzly Bears;Grizzly Bear
 humanlibrary=Mountain;Mountain;Mountain;Mountain
 humangraveyard=
 aihand=Lightning Bolt
-aibattlefield=Grizzly Bears|Attacking;Spined Wurm|Attacking;Pelakka Wurm|Attacking;Ancient Brontodon|Attacking;Mountain
+aibattlefield=Ancient Brontodon|Attacking;Grizzly Bears|Attacking;Pelakka Wurm|Attacking;Spined Wurm|Attacking;Mountain
 ailibrary=Mountain;Mountain;Mountain;Mountain
 aigraveyard=

@@ -317,6 +317,58 @@ describe('a charge’s wind-up and punch', () => {
   });
 });
 
+describe('a charge’s way home', () => {
+  /**
+   * The operator, 2026-10-31, on the third cut: "enhance the 'weight' of the stronger cards a bit more. 1 damage card
+   * should be quickest to retreat back after landing. stronger cards should linger a bit more and accelerate more
+   * slowly to their starting position." Before: every charge held the blow 180 ms and went home in 620 ms, its ease
+   * set off a little slower the heavier (`homeEase`).
+   */
+  const home = (amount: number): { hold: number; ms: number; ease: string; ends: number } => {
+    const root = document.createElement('div');
+    root.getBoundingClientRect = () => rect(0, 0, 1000, 1000);
+    const card = document.createElement('li');
+    document.body.append(root, card);
+    const calls: KeyframeAnimationOptions[] = [];
+    HTMLElement.prototype.animate = vi.fn((_: Keyframe[], options: KeyframeAnimationOptions) => {
+      calls.push(options);
+      return { finished: new Promise(() => undefined), cancel: () => undefined } as unknown as Animation;
+    }) as unknown as typeof HTMLElement.prototype.animate;
+    const weight = entryWeight(amount).power;
+    ram(root, card, { x: 500, y: 900, w: 60, h: 84 }, { x: 500, y: 480, w: 40, h: 40 }, 'charge', 'charge', 'k', 0, damagePower(amount), 0, { start: 0, at: { x: 0, y: 0 }, weight });
+    const back = calls[calls.length - 1]!;
+    return { hold: Number(back.delay) - contactMs('charge'), ms: Number(back.duration), ease: String(back.easing), ends: ramMs('charge', 'charge', weight) };
+  };
+  /** How far home a `cubic-bezier` ease is a share `x` of the way through its time. */
+  const progress = (ease: string, x: number): number => {
+    const [x1, y1, x2, y2] = /cubic-bezier\(([^)]+)\)/.exec(ease)![1]!.split(',').map(Number) as [number, number, number, number];
+    const b = (t: number, a: number, c: number): number => 3 * (1 - t) ** 2 * t * a + 3 * (1 - t) * t * t * c + t ** 3;
+    let lo = 0;
+    let hi = 1;
+    for (let i = 0; i < 40; i++) {
+      const m = (lo + hi) / 2;
+      if (b(m, x1, x2) < x) lo = m;
+      else hi = m;
+    }
+    return b(lo, y1, y2);
+  };
+  it('a point is home first; the heavier lingers on the blow longer and sets off home more slowly', () => {
+    const tiers = [1, 4, 10, 15].map(home);
+    console.log(`[w87a] home at 1, 4, 10, 15: hold ${tiers.map((h) => h.hold).join(', ')} ms; way home ${tiers.map((h) => h.ms).join(', ')} ms; a fifth of the way home after 120 ms: ${tiers.map((h) => progress(h.ease, 120 / h.ms).toFixed(2)).join(', ')}`);
+    expect(tiers[0]!.hold, 'a point barely holds').toBeLessThan(140);
+    expect(tiers[0]!.hold + tiers[0]!.ms, 'and is home sooner than any charge was').toBeLessThan(180 + 620);
+    for (let i = 1; i < tiers.length; i++) {
+      expect(tiers[i]!.hold, `${[1, 4, 10, 15][i]} lingers longer`).toBeGreaterThan(tiers[i - 1]!.hold);
+      expect(tiers[i]!.hold + tiers[i]!.ms, `${[1, 4, 10, 15][i]} is home later`).toBeGreaterThan(tiers[i - 1]!.hold + tiers[i - 1]!.ms);
+      expect(progress(tiers[i]!.ease, 120 / tiers[i]!.ms), `${[1, 4, 10, 15][i]} sets off home more slowly`).toBeLessThan(progress(tiers[i - 1]!.ease, 120 / tiers[i - 1]!.ms));
+    }
+    expect(tiers[3]!.hold, 'fifteen lingers a third of a second').toBeGreaterThan(300);
+    expect(progress(tiers[0]!.ease, 120 / tiers[0]!.ms), 'a point is off at once').toBeGreaterThan(0.25);
+    expect(progress(tiers[3]!.ease, 120 / tiers[3]!.ms), 'fifteen barely stirs at first').toBeLessThan(0.05);
+    tiers.forEach((h, i) => expect(h.ends, `${[1, 4, 10, 15][i]}: its part ends when it is home`).toBe(contactMs('charge') + h.hold + h.ms));
+  });
+});
+
 describe('chargeControl', () => {
   const start = { x: 0, y: 0 };
   const end = { x: 0, y: -200 };
