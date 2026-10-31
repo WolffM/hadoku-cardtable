@@ -381,8 +381,9 @@ export async function playEntry(run: EntryRun): Promise<void> {
     if (weight !== null) await wait(60 + 120 * weight.power);
   }
 
-  // 2. The landing: the same for every origin, as heavy as the creature.
-  if (weight !== null) await landingDrop(wrap, weight);
+  // 2. The landing: the same for every origin, as heavy as the creature. A board taken down while
+  // the card was on its way (the match left) is drawn into no more: the row card is handed back as it is.
+  if (weight !== null && overlay.isConnected) await landingDrop(wrap, weight);
   const slot = s.box();
   s.stop();
   // The row card as the stand-in last followed it: React may have drawn it again meanwhile.
@@ -390,7 +391,7 @@ export async function playEntry(run: EntryRun): Promise<void> {
   landed.style.visibility = '';
   run.onLanded?.(landed);
   wrap.remove();
-  if (weight !== null) await landingEffects(board, overlay, landed, slot, weight, key);
+  if (weight !== null && overlay.isConnected) await landingEffects(board, overlay, landed, slot, weight, key);
 }
 
 /** The squish from the hang point down onto the table. */
@@ -426,6 +427,8 @@ function landingEffects(board: HTMLElement, overlay: HTMLElement, card: HTMLElem
  */
 export async function playLanding(board: HTMLElement, overlay: HTMLElement, card: HTMLElement, weight: EntryWeight, key: string): Promise<void> {
   await landingDrop(card, weight);
+  // A board taken down while the card came down is drawn into no more.
+  if (!overlay.isConnected) return;
   const slot = rel(card.getBoundingClientRect(), overlay.getBoundingClientRect());
   await landingEffects(board, overlay, card, slot, weight, key);
 }
