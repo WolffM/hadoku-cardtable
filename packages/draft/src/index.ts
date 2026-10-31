@@ -62,7 +62,9 @@ export { pickSeconds, pickTimeMs, timeoutPick } from './pick-timer.ts';
 export { viewFor, spectatorView, watcherView, viewsForAllSeats } from './view.ts';
 
 export {
+  MAX_ROUNDS,
   pairRound,
+  rankedStandings,
   rankStandings,
   roundsFor,
   standings,
