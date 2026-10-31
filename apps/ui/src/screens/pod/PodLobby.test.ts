@@ -107,6 +107,22 @@ describe('PodLobby', () => {
     expect(screen.queryByTestId('pod-seats')).toBeNull();
   });
 
+  it('once the room is split, the pods take the seats’ place, Ready is locked on, and the leader gets Start draft', () => {
+    const people = Array.from({ length: 9 }, (_, i) => `u-${i}`);
+    const members = people.map((id) => ({ id, name: id, ready: true, joinedAt: '' }));
+    const split = pod({ seats: people.map((memberId) => ({ memberId, name: memberId })), pods: [people.slice(0, 5), people.slice(5)] });
+    const { rerender } = renderLobby({ pod: split, members, leaderId: 'u-0', myMemberId: 'u-3' });
+    expect(screen.queryByTestId('pod-seats')).toBeNull();
+    expect(screen.getByTestId('pod-split-pods')).not.toBeNull();
+    expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByTestId('pod-split-start')).toBeNull();
+    rerender(
+      createElement(PodLobby, { testId: 'draft-lobby', roomId: 'r-1', pod: split, members, leaderId: 'u-0', myMemberId: 'u-0', iAmReady: true, readyDisabled: false, onReady: vi.fn() }),
+    );
+    expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByTestId('pod-split-start')).not.toBeNull();
+  });
+
   it('draws the Classic deck chooser slot under the strip when the caller gives one', () => {
     renderLobby({ children: createElement('div', { 'data-testid': 'stand-in-deck-picker' }) });
     expect(screen.getByTestId('stand-in-deck-picker')).not.toBeNull();

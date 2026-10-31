@@ -374,3 +374,53 @@ describe('the pod seat grid', () => {
     });
   });
 });
+
+describe('a room past 8: one list of seats, pods decided only at the split', () => {
+  const base = {
+    leaderId: 'u-alice',
+    readyOf: () => false,
+    avatarIdOf: () => undefined,
+    onStand: () => undefined,
+    onAi: () => undefined,
+    onClose: () => undefined,
+  };
+  const full = (length: number): PodSeatsValue => Array.from({ length }, (_, i) => ({ memberId: `u-${i}`, name: `m${i}` }));
+
+  it('draws 13 seats as one list with no pod markers', () => {
+    render(createElement(PodSeats, { ...base, seats: full(13), myMemberId: 'u-0', onSit: () => undefined }));
+    expect(screen.getByTestId('pod-seat-12')).toBeTruthy();
+    expect(screen.getByTestId('pod-seats').querySelectorAll('li')).toHaveLength(13);
+    expect(screen.getByTestId('pod-seats').textContent).not.toMatch(/Pod \d/);
+    expect(screen.getByTestId('pod-seats').dataset.pods).toBeUndefined();
+  });
+
+  it('a full room offers someone who has not sat one more seat, and nobody already seated', () => {
+    const onSit = vi.fn();
+    const { rerender } = render(createElement(PodSeats, { ...base, seats: full(8), myMemberId: 'u-new', onSit }));
+    const sit = screen.getByTestId('pod-seat-8').querySelector('[data-testid="pod-seat-sit"]') as HTMLElement;
+    expect(sit.dataset.seat).toBe('8');
+    fireEvent.click(sit);
+    expect(onSit).toHaveBeenCalledWith(8);
+    // Nobody may close a seat the room does not have yet.
+    expect(screen.getByTestId('pod-seat-8').querySelector('[data-testid="pod-seat-close"]')).toBeNull();
+
+    rerender(createElement(PodSeats, { ...base, seats: full(8), myMemberId: 'u-3', onSit }));
+    expect(screen.queryByTestId('pod-seat-8')).toBeNull();
+  });
+
+  it('offers the seated owner one more seat for an AI', () => {
+    const onAi = vi.fn();
+    const seats = full(8);
+    seats[0] = { memberId: 'u-alice', name: 'Alice' };
+    render(createElement(PodSeats, { ...base, seats, myMemberId: 'u-alice', onSit: () => undefined, onAi }));
+    const seat = screen.getByTestId('pod-seat-8');
+    expect((seat.querySelector('[data-testid="pod-seat-sit"]') as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(seat.querySelector('[data-testid="pod-seat-ai"]') as HTMLElement);
+    expect(onAi).toHaveBeenCalledWith(8, true);
+  });
+
+  it('stops offering a seat at 64', () => {
+    render(createElement(PodSeats, { ...base, seats: full(64), myMemberId: 'u-new', onSit: () => undefined }));
+    expect(screen.queryByTestId('pod-seat-64')).toBeNull();
+  });
+});

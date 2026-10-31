@@ -1,0 +1,96 @@
+/*
+ * The split's pods, side by side as cards that wrap (never a fixed grid), the viewer's own lifted by the accent
+ * border. They reveal top to bottom: each pod's name first, then its names a row at a time (`--reveal-row`),
+ * every pod's row together, so each pod fills in at the same pace. Reduced motion shows them at once.
+ */
+
+.pod-split {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.pod-split__pod {
+  flex: 1 1 200px;
+  min-width: 0;
+  max-width: 320px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg-card);
+}
+
+.pod-split__pod[data-mine] {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.pod-split__name {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  animation: pod-split-reveal 320ms ease-out both;
+}
+
+.pod-split__drafters {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pod-split__drafter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pod-split__face {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 999px;
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--color-bg-hover);
+}
+
+.pod-split__drafter-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pod-split__drafter {
+  animation: pod-split-reveal 380ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(300ms + var(--reveal-row, 0) * 260ms);
+}
+
+@keyframes pod-split-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    clip-path: inset(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pod-split__name,
+  .pod-split__drafter {
+    animation: none;
+  }
+}

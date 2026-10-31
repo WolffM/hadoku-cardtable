@@ -4,6 +4,10 @@
  * refused seat change, and who is watching. `children` is the one per-type
  * input under the strip: a draft's pool picker, Classic's deck chooser.
  *
+ * A draft room of more than 8 splits into pods before its draft (`PodSplit`):
+ * the leader's button beside Ready, then the pods in the seats' place, Ready
+ * locked on, and the leader's Start draft.
+ *
  * Seat changes go out one at a time, held here and not drawn: disabling every
  * seat's buttons for the round trip made the whole list blink on each press
  * (the operator, 2026-10-19: *"whenever i click sit here or ai, i notice all
@@ -14,9 +18,10 @@
 import { useRef, useState, type ReactNode } from 'react';
 
 import type { RoomMember } from '../../rooms/api.ts';
-import { aiPod, closePod, sitPod, standPod, type PodActionOutcome } from './client.ts';
+import { aiPod, closePod, sitPod, splitPod, standPod, startSplitDraft, type PodActionOutcome } from './client.ts';
 import { PodSeats } from './PodSeats.tsx';
 import { PodSpectators } from './PodSpectators.tsx';
+import { PodSplit, PodSplitAction, standingPods } from './PodSplit.tsx';
 import { ReadyToggle } from './ReadyToggle.tsx';
 import type { PodView } from './wire.ts';
 
@@ -58,7 +63,30 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, i
       });
   };
 
-  const side = <ReadyToggle ready={iAmReady} disabled={readyDisabled} onReady={onReady} note={note} />;
+  const splitStands = pod !== null && standingPods(pod) !== null;
+  // The leader's Split, then Start draft, sit with Ready; once split, every position is locked, Ready included.
+  const side = (
+    <ReadyToggle
+      ready={iAmReady}
+      disabled={readyDisabled || splitStands}
+      onReady={onReady}
+      note={
+        <>
+          {note}
+          {pod !== null && (
+            <PodSplitAction
+              pod={pod}
+              members={members}
+              leaderId={leaderId}
+              myMemberId={myMemberId}
+              onSplit={() => act(() => splitPod(roomId))}
+              onStart={() => act(() => startSplitDraft(roomId))}
+            />
+          )}
+        </>
+      }
+    />
+  );
 
   return (
     <section className="lobby__card" data-testid={testId}>
@@ -67,17 +95,21 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, i
       ) : (
         <>
           <div className="pod-strip">
-            <PodSeats
-              seats={pod.seats}
-              myMemberId={myMemberId}
-              leaderId={leaderId}
-              readyOf={(id) => members.find((m) => m.id === id)?.ready === true}
-              avatarIdOf={(id) => members.find((m) => m.id === id)?.avatarId}
-              onSit={(seat) => act(() => sitPod(roomId, seat))}
-              onStand={() => act(() => standPod(roomId))}
-              onAi={(seat, on) => act(() => aiPod(roomId, seat, on))}
-              onClose={(seat, closed) => act(() => closePod(roomId, seat, closed))}
-            />
+            {splitStands ? (
+              <PodSplit pod={pod} members={members} myMemberId={myMemberId} />
+            ) : (
+              <PodSeats
+                seats={pod.seats}
+                myMemberId={myMemberId}
+                leaderId={leaderId}
+                readyOf={(id) => members.find((m) => m.id === id)?.ready === true}
+                avatarIdOf={(id) => members.find((m) => m.id === id)?.avatarId}
+                onSit={(seat) => act(() => sitPod(roomId, seat))}
+                onStand={() => act(() => standPod(roomId))}
+                onAi={(seat, on) => act(() => aiPod(roomId, seat, on))}
+                onClose={(seat, closed) => act(() => closePod(roomId, seat, closed))}
+              />
+            )}
             {side}
           </div>
           {seatError !== null && (

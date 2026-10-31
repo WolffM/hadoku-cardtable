@@ -618,8 +618,41 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 						? 'this room is not playing a draft'
 						: result.reason === 'plan-not-ready'
 							? 'the draft pool is still being checked, or was refused — pick a different one, or wait'
-							: 'every seat needs a player or the AI, and every player ready, before the draft starts',
+							: result.reason === 'not-split'
+								? 'a room of more than 8 drafts once the leader has split it into pods'
+								: result.reason === 'not-leader'
+									? 'only the room owner starts the draft of a split room'
+								: 'every seat needs a player or the AI, and every player ready, before the draft starts',
 			});
+		}
+		res.json(roomBody(result.room, caller.id));
+	});
+
+	/**
+	 * Split & randomize (`lobby.splitPod`): the leader of a ready draft room of more than 8 splits its drafters
+	 * into random pods, which fixes every seat until the leader's own `/start`. No body. Idempotent while the
+	 * split stands.
+	 */
+	rooms.post('/:id/pod/split', (req: Request, res: Response) => {
+		if (parseBody(EmptyBodySchema, req, res) === null) return;
+		const caller = callerOf(req);
+		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
+		const id = String(req.params.id);
+		if (!ROOM_ID_RE.test(id)) return noMatch(res);
+		const result = lobby.splitPod(id, caller.id);
+		if (!result.ok) {
+			if (result.reason === 'no-room' || result.reason === 'not-member') return noMatch(res);
+			const error =
+				result.reason === 'not-leader'
+					? 'only the room owner splits the pods'
+					: result.reason === 'not-draft'
+						? 'this room is not drafting from its lobby'
+						: result.reason === 'one-pod'
+							? 'a room of 8 or fewer drafts as one pod'
+							: result.reason === 'plan-not-ready'
+								? 'the draft pool is still being checked, or was refused — pick a different one, or wait'
+								: 'every seat needs a player or the AI, and every player ready, before the split';
+			return res.status(409).json({ error });
 		}
 		res.json(roomBody(result.room, caller.id));
 	});
@@ -643,9 +676,9 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 				result.reason === 'not-draft'
 					? 'this room does not have a pod'
 					: result.reason === 'not-lobby'
-						? 'the pod has already started — seats are fixed'
+						? 'seats are fixed once the room is split or its draft has started'
 						: result.reason === 'bad-seat'
-							? `seat must be an integer 0..${POD_SEATS - 1}`
+							? 'that seat is past the last one'
 							: result.reason === 'seat-taken'
 								? 'that seat is already taken'
 								: 'the pod is full';
@@ -665,7 +698,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		if (!result.ok) {
 			if (result.reason === 'no-room' || result.reason === 'not-member') return noMatch(res);
 			return res.status(409).json({
-				error: result.reason === 'not-draft' ? 'this room does not have a pod' : 'the pod has already started — seats are fixed',
+				error: result.reason === 'not-draft' ? 'this room does not have a pod' : 'seats are fixed once the room is split or its draft has started',
 			});
 		}
 		res.json(roomBody(result.room, caller.id));
@@ -690,7 +723,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 				result.reason === 'not-draft'
 					? 'this room does not have a pod'
 					: result.reason === 'not-lobby'
-						? 'the pod has already started — seats are fixed'
+						? 'seats are fixed once the room is split or its draft has started'
 						: 'that seat is already taken';
 			return res.status(409).json({ error });
 		}
@@ -713,7 +746,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 				result.reason === 'not-draft'
 					? 'this room does not have a pod'
 					: result.reason === 'not-lobby'
-						? 'the pod has already started — seats are fixed'
+						? 'seats are fixed once the room is split or its draft has started'
 						: result.reason === 'too-few'
 							? `a pod keeps at least ${POD_MIN_OPEN} seats`
 							: 'that seat is taken';

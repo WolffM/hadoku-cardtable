@@ -42,6 +42,10 @@ export const FRIENDS: Readonly<Record<string, Friend>> = {
     name: 'e2e-admin',
     tier: 'admin',
   },
+  // wave 84 §w84b only: a room of more than 8 drafters, seven of whom join, sit and ready over HTTP alone.
+  ...Object.fromEntries(
+    Array.from({ length: 7 }, (_, i) => [`drafter${i + 3}`, { key: `e2e-friend-key-drafter-${i + 3}`, userId: `e2e-drafter${i + 3}-id`, name: `e2e-drafter${i + 3}` }]),
+  ),
 };
 
 /** Ports. Overridable so a runner with something on these can move them. */

@@ -65,9 +65,10 @@ describe('parsePodView', () => {
     expect(parsePodView(fixture({ phase: 'unknown-phase' as PodView['phase'] }))).toBeNull();
   });
 
-  it('refuses seats of the wrong length — exactly 8 or nothing', () => {
+  it('refuses seats of the wrong length — one pod’s 8 up to 64, a seat at a time past 8', () => {
     expect(parsePodView({ ...fixture(), seats: seats().slice(0, 7) })).toBeNull();
-    expect(parsePodView({ ...fixture(), seats: [...seats(), null] })).toBeNull();
+    expect(parsePodView({ ...fixture(), seats: [...seats(), null] })?.seats).toHaveLength(9);
+    expect(parsePodView({ ...fixture(), seats: Array.from({ length: 65 }, () => null) })).toBeNull();
   });
 
   it('refuses a seat missing memberId or name', () => {
