@@ -24,28 +24,35 @@ FPS = 60
 ACCENT = "0xB497FF"  # the site's own purple, close enough for a caption bar
 
 # (clip, from (mark, offset), to (mark, offset), speed, caption, subcaption)
+# Every join is a hard cut. Two segments that share a mark are one continuous shot at two speeds.
 SEGMENTS = [
     ("emrakul", ("cast", -0.2), ("landed", 2.2), 1.0, None, None),
     "TITLE",
-    ("constructed", ("front", 0.2), ("create", 0.0), 1.0, "Play the decks that made history", "with your friends"),
+    ("constructed", ("front", 0.2), ("front", 3.3), 1.0, "Play the decks that made history", "with your friends"),
     ("constructed", ("legacy", 0.0), ("decks", 0.0), 1.2, "30 years of real tournament decks", "1,459 decklists  ·  Standard  ·  Modern  ·  Legacy"),
-    ("constructed", ("decks", 0.0), ("pick", 0.6), 1.0, "Every list, as it was played", None),
     ("constructed", ("ready", -0.4), ("board", 1.8), 1.4, "Pick a deck. Sit down. Play.", None),
-    ("counterwar", ("counterspell", -0.3), ("oko-countered", 1.6), 1.7, "Every response. Every rule.", "A full rules engine under every game"),
-    ("valakut", ("cast", -0.2), ("triggers", 0.0), 3.0, None, None),
-    ("valakut", ("triggers", 0.0), ("lethal", 2.0), 3.0, "Ten triggers. One click.", None),
+    ("counterwar", ("counterspell", -0.3), ("daze", 4.6), 2.4, "Watch the stack unfold", None),
+    ("counterwar", ("daze", 4.6), ("oko-countered", 1.6), 0.7, None, None),
+    ("valakut", ("cast", -0.2), ("search", 0.0), 2.5, None, None),
+    ("valakut", ("search", 0.0), ("triggers", -1.5), 2.0, None, None),
+    ("valakut", ("triggers", -1.5), ("targeted", 1.0), 1.0, None, None),
+    ("valakut", ("targeted", 1.0), ("lethal", 1.5), 1.6, None, None),
     ("breakfast", ("loop", -0.3), ("milled", 0.5), 2.0, "Combos go off at full speed", None),
-    ("breakfast", ("oracle", 0.0), ("win", 2.2), 1.2, None, None),
-    ("blasphemous", ("cast", 0.0), ("wiped", 3.4), 1.0, "Board wipes hit like board wipes", None),
+    ("breakfast", ("dread-return", -0.2), ("ghoul", 1.0), 1.8, None, None),
+    ("breakfast", ("attack", -0.3), ("win", 2.2), 1.2, None, None),
+    ("blasphemous", ("cast", 0.0), ("wiped", 5.5), 1.25, None, None),
     ("gauntlet", ("ready", 0.0), ("choose", 2.0), 2.2, "Gauntlet", "Ten decks from one era. Ban, pick, battle."),
     ("tournament", ("seats", 0.0), ("bracket", 3.6), 1.8, "Tournaments", "Swiss rounds for the whole group"),
-    ("draft", ("lobby", 0.2), ("end", 0.6), 1.7, "Draft", "100+ cubes  ·  fan or grid  ·  every face of every card"),
+    ("draft", ("lobby", 0.2), ("fan", 0.0), 1.7, None, None),
+    ("draft", ("fan", 0.0), ("grid", 1.5), 1.4, "Draft", "100+ cubes  ·  fan or grid  ·  every face of every card"),
+    ("draft", ("flip", -0.3), ("end", 0.0), 1.0, None, None),
     "END",
 ]
 
+# The end card follows D24: free forever, members only, and anyone can be a member.
 END_LINES = {
     "title": "CARD TABLE",
-    "line": "Now live in open beta  ·  Free to play",
+    "line": "Free to play  ·  members only",
     "cta": "Join us on Discord",
     "url": "discord.gg/VvntUGQVwm",
 }
@@ -89,8 +96,8 @@ def render_clip(n: int, seg: tuple) -> Path:
     out = OUT / f"{n:02d}-{clip}-{a}.mp4"
     # A soft vignette at the foot so a caption reads over any board; cards stay untouched above it.
     shade = "drawbox=x=0:y=740:w=1920:h=340:color=black@0.30:t=fill,drawbox=x=0:y=800:w=1920:h=280:color=black@0.35:t=fill" if caption else "null"
-    vf = f"trim=start={start:.3f}:end={end:.3f},setpts=(PTS-STARTPTS)/{speed},fps={FPS},{shade}{caption_filter(caption, sub, length)},fade=t=in:st=0:d=0.12,fade=t=out:st={max(0, length - 0.12):.3f}:d=0.12"
-    af = f"atrim=start={start:.3f}:end={end:.3f},asetpts=PTS-STARTPTS,atempo={speed},afade=t=in:d=0.08,afade=t=out:st={max(0, length - 0.1):.3f}:d=0.1"
+    vf = f"trim=start={start:.3f}:end={end:.3f},setpts=(PTS-STARTPTS)/{speed},fps={FPS},{shade}{caption_filter(caption, sub, length)}"
+    af = f"atrim=start={start:.3f}:end={end:.3f},asetpts=PTS-STARTPTS,atempo={speed},afade=t=in:d=0.01,afade=t=out:st={max(0, length - 0.01):.3f}:d=0.01"
     run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(FOOTAGE / clip / f"{clip}.mkv"), "-vf", vf, "-af", af,
          "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-r", str(FPS), "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", str(out)])
     print(f"cut: {out.name}  {length:5.1f}s  ({clip} {a}{da:+} → {b}{db:+} at {speed}x)")
@@ -111,10 +118,10 @@ def render_card(n: int, kind: str) -> Path:
                  (BOLD, END_LINES["cta"], 60, "650", ACCENT),
                  (REGULAR, END_LINES["url"], 44, "735", "0xE8E3F7")]
     draw = ",".join(
-        f"drawtext=fontfile={font}:text='{esc(text)}':fontsize={size}:fontcolor={color}:x=(w-text_w)/2:y={y}:alpha='if(lt(t,0.5),t/0.5,1)'"
+        f"drawtext=fontfile={font}:text='{esc(text)}':fontsize={size}:fontcolor={color}:x=(w-text_w)/2:y={y}"
         for font, text, size, y, color in texts
     )
-    vf = f"{draw},vignette=PI/4,fade=t=in:st=0:d=0.3,fade=t=out:st={length - 0.5:.2f}:d=0.5"
+    vf = f"{draw},vignette=PI/4"
     run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", f"color=c=0x141218:s=1920x1080:r={FPS}:d={length}",
          "-f", "lavfi", "-i", f"anullsrc=r=48000:cl=stereo:d={length}", "-vf", vf, "-shortest",
          "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", str(out)])
@@ -125,6 +132,14 @@ def render_card(n: int, kind: str) -> Path:
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     parts = [render_card(n, s) if isinstance(s, str) else render_clip(n, s) for n, s in enumerate(SEGMENTS)]
+    # The beat list, for the review page: where each part starts in the cut and what it shows.
+    beats, at = [], 0.0
+    for seg, part in zip(SEGMENTS, parts):
+        length = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(part)], capture_output=True, text=True).stdout)
+        clip, caption = (seg.lower(), None) if isinstance(seg, str) else (seg[0], seg[4])
+        beats.append({"at": round(at, 2), "length": round(length, 2), "clip": clip, "caption": caption})
+        at += length
+    (OUT / "beats.json").write_text(json.dumps(beats, indent=2))
     listing = OUT / "parts.txt"
     listing.write_text("".join(f"file '{p}'\n" for p in parts))
     joined = OUT / "joined.mp4"
