@@ -10,7 +10,7 @@ import { PRESENCE_EVENT, type PresenceMessage } from '@hadoku/shared';
 import { liveStatus } from '../play/live/LiveBoard.tsx';
 import { closeMatch } from '../play/live/match.ts';
 import type { RecordedPresence, ReplayData, ReplayHeader } from './transport.ts';
-import { createReplayPlayer, POINTER_RESTATE_MS } from './player.ts';
+import { createReplayPlayer, heldCards, HELD_GRACE_MS, POINTER_RESTATE_MS } from './player.ts';
 import { PRESENCE_STALE_MS } from '../play/live/presence.ts';
 
 /** The minimal two-player baseline `bridge-flying-seat1.ndjson` already commits — reused here rather than re-invented. */
@@ -336,6 +336,25 @@ describe('createReplayPlayer', () => {
     vi.useRealTimers();
   });
 
+  it('starts at the first board that draws a card: the empty table before the deal is never shown, and a loop comes back to the deal', () => {
+    // A real game's recording (m-07e77e92db5c, prod, 2026-10-29) opens on its first board at 537 ms and
+    // deals at 5667 ms: the front card showed an empty "Turn 0" square for those five seconds.
+    vi.useFakeTimers();
+    const data = threeFrameReplay(9000);
+    const [setGameView, openView, delta] = data.envs;
+    const card = { _type: 0, _id: 7, Owner: { t: 'int', v: 0 }, Controller: { t: 'int', v: 0 }, Zone: { t: 'enum', c: 'forge.game.zone.ZoneType', v: 'Hand' }, Name: { t: 'str', v: 'Memnite' } };
+    const deal = frame('applyDelta', { packet: { seq: 1, checksum: 0, checksumProperties: [], newObjects: { 7: card }, objectDeltas: { 268435456: { _type: 1, _id: 0, Hand: { t: 'list', v: [{ t: 'int', v: 7 }] } } }, events: [] } });
+    const dealt: ReplayData = { ...data, envs: [openView!, { ...setGameView!, at: 537 }, { at: 5667, env: { matchId: HEADER.matchId, cursor: { epoch: 'e1', seq: 4 }, frame: deal } }, delta!] };
+    const { match, clock } = createReplayPlayer(dealt, { loop: true });
+    expect(clock.startMs, 'the deal, not the empty board before it').toBe(5667);
+    expect(match.view?.players.reduce((n, p) => n + p.handCount, 0), 'drawn at the deal').toBe(1);
+    clock.seek(1000);
+    expect(clock.positionMs(), 'a seek before the deal lands on it').toBe(5667);
+    closeMatch(match);
+    clock.dispose();
+    vi.useRealTimers();
+  });
+
   it("hands the board the bottom player's recorded pointer as it comes due, follows the turn to the other player's, and a board drawn afresh gets the last one", async () => {
     vi.useFakeTimers();
     const pointer = (playerId: number, at: number, x: number): RecordedPresence => ({
@@ -393,6 +412,60 @@ describe('createReplayPlayer', () => {
     expect(heard.length, 'the pointer left the board at 10 s (null): handed once, never restated').toBe(before + 1);
     clock.dispose();
     closeMatch(match);
+    vi.useRealTimers();
+  });
+});
+
+describe('heldCards', () => {
+  const pointer = (at: number, held: boolean, seat = 1, playerId = 1): RecordedPresence => ({
+    at,
+    seat,
+    playerId,
+    presence: { matchId: HEADER.matchId, type: 'presence', pointer: { zone: 'hand', x: 0.5, y: 0.9 }, anchor: null, held, from: null, arranging: null, placing: null, handMove: null } as never,
+  });
+
+  it('names, for every pointer of a hold, the card that left that player\'s hand between the lift and just after the release', () => {
+    const lift = pointer(1000, true);
+    const moving = pointer(1200, true);
+    const release = pointer(1400, false);
+    const named = heldCards([lift, moving, release], [
+      { at: 500, playerId: 1, card: 9 },
+      { at: 1500, playerId: 0, card: 8 },
+      { at: 1600, playerId: 1, card: 42 },
+    ]);
+    expect(named.get(lift)).toBe(42);
+    expect(named.get(moving)).toBe(42);
+    expect(named.has(release), 'let go: no longer held').toBe(false);
+  });
+
+  it('a cancelled hold — nothing left the hand in time — names nothing, and the back stays a back', () => {
+    const lift = pointer(1000, true);
+    const release = pointer(1400, false);
+    expect(heldCards([lift, release], [{ at: 1400 + HELD_GRACE_MS + 1, playerId: 1, card: 42 }]).size).toBe(0);
+  });
+});
+
+describe('a replay names the held card to the board, and only on its own channel', () => {
+  it('hands the board REPLAY_HELD_EVENT with the card just before each held pointer of the bottom player', () => {
+    vi.useFakeTimers();
+    const data = threeFrameReplay(9000);
+    const [setGameView, openView, delta] = data.envs;
+    const card = (id: number) => ({ _type: 0, _id: id, Owner: { t: 'int', v: 0 }, Controller: { t: 'int', v: 0 }, Zone: { t: 'enum', c: 'forge.game.zone.ZoneType', v: 'Hand' }, Name: { t: 'str', v: 'Memnite' } });
+    const hand = (ids: number[]) => ({ 268435456: { _type: 1, _id: 0, Hand: { t: 'list', v: ids.map((v) => ({ t: 'int', v })) } } });
+    const deal = frame('applyDelta', { packet: { seq: 1, checksum: 0, checksumProperties: [], newObjects: { 42: card(42), 43: card(43) }, objectDeltas: hand([42, 43]), events: [] } });
+    const cast = frame('applyDelta', { packet: { seq: 2, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: hand([43]), events: [] } });
+    const env = (at: number, seq: number, f: ServerFrame) => ({ at, env: { matchId: HEADER.matchId, cursor: { epoch: 'e1', seq }, frame: f } });
+    const presence = (at: number, held: boolean): RecordedPresence => ({ at, seat: 0, playerId: 0, presence: { matchId: HEADER.matchId, type: 'presence', pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held, from: null, arranging: null } as PresenceMessage });
+    const recorded: ReplayData = { ...data, envs: [openView!, setGameView!, env(100, 4, deal), env(2600, 5, cast), delta!], presence: [presence(2000, true), presence(2500, false)] };
+    const { match, clock } = createReplayPlayer(recorded);
+    const said: { event: string; payload: unknown }[] = [];
+    for (const event of ['replay:held', PRESENCE_EVENT]) match.transport.on(event, (payload) => said.push({ event, payload }));
+    clock.seek(1900);
+    clock.play();
+    vi.advanceTimersByTime(300);
+    expect(said.filter((s) => s.event === 'replay:held').map((s) => s.payload)).toContainEqual({ card: 42 });
+    closeMatch(match);
+    clock.dispose();
     vi.useRealTimers();
   });
 });

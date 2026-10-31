@@ -1,0 +1,18 @@
+# e2e/w85a-replay-held.spec.ts — a card held for a while, then cast, for a replay to play back.
+# alice (human keys, seat 0) is in her first main phase with Memnite and Lightning Bolt in hand:
+# she lifts Memnite, carries it over the board for a few seconds, and lets go on her battlefield
+# (it costs nothing, so it is cast and resolves). Then she concedes. Played back, the back her
+# pointer carried is drawn as Memnite's face, because a replay draws both hands face up.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Memnite;Lightning Bolt
+humanbattlefield=Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Swamp
+ailibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+aigraveyard=

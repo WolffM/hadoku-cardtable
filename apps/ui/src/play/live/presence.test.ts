@@ -38,7 +38,7 @@ const { placedMod, spellMovedBox } = vi.hoisted(() => {
 });
 vi.mock('./placed.ts', () => placedMod);
 
-import { forgetPendingPlaced, anchorOf, installPresence, placeAnchor, placeSpot, PRESENCE_STALE_MS, queueHandMove, spotOf, type PresenceHost, CLEARED_GRACE_MS, PARKED_RESTATE_MS } from './presence.ts';
+import { forgetPendingPlaced, anchorOf, installPresence, placeAnchor, placeSpot, PRESENCE_STALE_MS, queueHandMove, REPLAY_HELD_EVENT, spotOf, type PresenceHost, CLEARED_GRACE_MS, PARKED_RESTATE_MS } from './presence.ts';
 
 type Box = { left: number; top: number; width: number; height: number };
 const rect = (b: Box): DOMRect =>
@@ -111,6 +111,8 @@ function fakeTransport() {
     receive: (payload: unknown) => handlers.get(PRESENCE_EVENT)!(payload),
     receivePlacement: (payload: unknown) => handlers.get(PLACEMENT_EVENT)!(payload),
     receivePlaced: (payload: unknown) => handlers.get(PLACED_EVENT)!(payload),
+    /** What only a replay's own transport ever sends (`../../replay/player.ts`); a server never does. */
+    receiveReplayHeld: (payload: unknown) => handlers.get(REPLAY_HELD_EVENT)!(payload),
   };
 }
 
@@ -1666,6 +1668,56 @@ describe('receiving', () => {
     t.receive({ matchId: 'm-1', type: 'presence', seat: 0, pointer: { zone: null, x: 0.5, y: 0.5 }, held: false, from: null, arranging: null });
     t.receive({ matchId: 'm-2', type: 'presence', seat: 1, pointer: { zone: null, x: 0.5, y: 0.5 }, held: false, from: null, arranging: null });
     expect(overlay.querySelector('.presence'), 'neither drawn').toBeNull();
+    handle.dispose();
+  });
+});
+
+describe('a held card in a replay is drawn face up; on a live board it is only ever a back', () => {
+  /** Their hand drawn face up, as a watcher's or a replay's board draws it: Memnite, card 42. */
+  function faceUpHand(canvas: HTMLElement): void {
+    canvas.querySelector('[data-zone="hand"][data-owner="them"]')!.innerHTML =
+      '<ul><li class="board-card" data-board-card="42" data-card-id="42"><button class="board-card__face"><article class="card" data-card-id="w42" data-testid="card"><span class="card__name">Memnite</span></article></button></li></ul>';
+  }
+  const held = { matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, held: true, from: null, arranging: null };
+
+  it('live: a held card draws the back, with no face and no card id, even over a hand drawn face up', () => {
+    const { canvas } = board();
+    faceUpHand(canvas);
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t, null) });
+    t.receive(held);
+    const back = canvas.querySelector<HTMLElement>('.presence__back');
+    expect(back, 'their held card follows the pointer').not.toBeNull();
+    expect(back!.hasAttribute('data-face'), 'never a face').toBe(false);
+    expect(back!.querySelector('.card, [data-card-id], [data-board-card]'), 'nothing that names a card').toBeNull();
+    handle.dispose();
+  });
+
+  it('replay: the card the recording says is held is drawn face up on the back, stripped of its ids', () => {
+    const { canvas } = board();
+    faceUpHand(canvas);
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t, null) });
+    t.receiveReplayHeld({ card: 42 });
+    t.receive(held);
+    const back = canvas.querySelector<HTMLElement>('.presence__back');
+    expect(back!.hasAttribute('data-face')).toBe(true);
+    expect(back!.querySelector('.card__name')?.textContent).toBe('Memnite');
+    expect(back!.querySelector('[data-card-id], [data-testid]'), 'the copy is not addressable as the card').toBeNull();
+    handle.dispose();
+  });
+
+  it('replay: a hand of backs keeps the back — the face is only ever one the board already draws', () => {
+    const { canvas } = board();
+    theirHandBacks(canvas, 3);
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t, null) });
+    t.receiveReplayHeld({ card: 42 });
+    t.receive(held);
+    expect(canvas.querySelector('.presence__back')!.hasAttribute('data-face')).toBe(false);
     handle.dispose();
   });
 });

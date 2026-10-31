@@ -80,6 +80,15 @@
   pointer-events: none;
 }
 
+/*
+ * The board fills the frame's own 1280×800, which is what the camera's regions are measured in
+ * (`camera.ts`). `.live` is `100dvh` tall on its own, so on a 1080-tall screen it laid out ~1070px
+ * tall in here and the bottom-left square framed the middle of the table, the near hand below it.
+ */
+.featured-match__frame .live {
+  height: 100%;
+}
+
 .featured-match--loading {
   visibility: hidden;
 }
