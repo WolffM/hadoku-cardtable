@@ -1,7 +1,7 @@
 /*
  * The wildcard card's own choices (`./WildcardCard.tsx`), pure so they are tested without mounting
- * it: which room is asking for players, which cube is in the spotlight, which of its cards show, and
- * which one thing the card shows (`pickWildcard`).
+ * it: which room is asking for players, which cube is in the spotlight, which of its cards show,
+ * which page the gallery opens on (`pickWildcard`) and the order of the rest (`wildcardPages`).
  */
 
 import type { CubeSummary, DraftCard } from '@hadoku/shared';
@@ -10,9 +10,11 @@ import { gameTypeLabel, type RoomView } from '../rooms/api.ts';
 import { roomCardView } from './roomCard.ts';
 
 /**
- * The card shows one thing. Each kind's weight in the draw: how much it is worth showing over the
- * others when both are there — the start of a priority system the operator means to refine. A
- * room asking for players now outranks everything; the Discord invite is the fallback.
+ * Each kind's weight in the draw for the gallery's first page, and the order of the pages after it:
+ * how much it is worth showing over the others when both are there (the operator, 2026-10-30:
+ * "manual is better, but let's still have the priority system for what is shown by default and the
+ * randomness system beyond that"). A room asking for players outranks everything; the Discord
+ * invite is the fallback.
  */
 export const WILDCARD_PRIORITY = { 'open-seats': 6, cube: 3, chat: 3, 'last-game': 2, lfg: 1 } as const;
 export type WildcardKind = keyof typeof WILDCARD_PRIORITY;
@@ -26,6 +28,12 @@ export function pickWildcard(available: readonly WildcardKind[], random: () => n
     if (roll < 0) return kind;
   }
   return available.at(-1) ?? null;
+}
+
+/** The gallery's pages: the pick first, then every other kind there is, highest priority first. */
+export function wildcardPages(available: readonly WildcardKind[], picked: WildcardKind | null): WildcardKind[] {
+  const rest = available.filter((k) => k !== picked).sort((a, b) => WILDCARD_PRIORITY[b] - WILDCARD_PRIORITY[a]);
+  return picked !== null && available.includes(picked) ? [picked, ...rest] : rest;
 }
 
 export interface OpenSeats {

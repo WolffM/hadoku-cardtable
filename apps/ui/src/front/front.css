@@ -48,6 +48,8 @@
 
 .front-card--upcoming {
   border-top-color: var(--success);
+  /* Always the banner's cap: turning from Calendar to a shorter Polls page never moves the page under the reader. */
+  height: 380px;
 }
 
 .front-card--wildcard {
@@ -100,7 +102,7 @@
   margin-top: auto;
 }
 
-/* A card's one action — "Read all", "Calendar", the wildcard's "Open Discord" — right-aligned, in the card's accent; a link drawn as one too. */
+/* A card's one action — "Read all", the wildcard's "Open Discord" — right-aligned, in the card's accent; a link drawn as one too. */
 .front-card__more {
   margin-left: auto;
   display: inline-flex;
@@ -173,21 +175,101 @@
   color: var(--ink);
 }
 
-/* Upcoming's rows: a date block, then the title and one dim detail line. */
+/*
+ * A card as a manual gallery (`Gallery.tsx`): the arrows in its head, the page between, the dots
+ * in its foot. A page fills what the card has left and scrolls inside itself, never the card.
+ */
+.gallery__arrows {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.gallery__arrow {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--ink-dim);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.gallery__arrow:hover,
+.gallery__arrow:focus-visible {
+  color: var(--ink);
+  border-color: var(--ink-faint);
+}
+
+.gallery__page {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .gallery__page {
+    animation: gallery-page-in 200ms ease-out;
+  }
+}
+
+@keyframes gallery-page-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+}
+
+.gallery__dots {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.gallery__dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--line);
+  cursor: pointer;
+}
+
+.gallery__dot[aria-current='true'] {
+  background: var(--ink-dim);
+}
+
+/* Calendar and Polls rows: a date block, then the title, dim detail lines and the row's buttons. One list, scrolling. */
 .front-card__events {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 0 2px 0 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  overflow: hidden;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .front-card__event {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
+}
+
+.front-card__event + .front-card__event {
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
 }
 
 .front-card__date-block {
@@ -213,6 +295,8 @@
 .front-card__event-text {
   display: flex;
   flex-direction: column;
+  gap: 1px;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -226,72 +310,36 @@
   color: var(--ink-faint);
 }
 
-/* The calendar (`UpcomingCard.tsx`), in `../components/Modal.tsx`: every event, soonest first. */
-.calendar {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.front-card__event-actions {
   display: flex;
-  flex-direction: column;
-}
-
-.calendar__event {
-  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  padding: 10px 0;
+  gap: 6px;
+  margin-top: 5px;
 }
 
-.calendar__event + .calendar__event {
-  border-top: 1px solid var(--line);
-}
-
-.calendar__body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.calendar__title {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.calendar__when {
-  font-size: 13px;
-  color: var(--ink-dim);
-}
-
-.calendar__detail {
+.front-card__event-actions .button {
+  padding: 3px 10px;
   font-size: 12px;
-  color: var(--ink-faint);
 }
 
-.calendar__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+/* The row's main action sits with the others, not pushed to the far edge as a card's one action is. */
+.front-card__event-actions .front-card__more {
+  margin-left: 0;
 }
 
-.calendar__edit {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.calendar__edit input {
+.front-card__event-actions input {
   min-width: 0;
   background: var(--bg);
   color: var(--ink);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 5px 8px;
+  padding: 3px 6px;
   font: inherit;
+  font-size: 12px;
 }
 
-/* The wildcard: the one thing it picked. */
+/* A wildcard page: the one thing it shows. */
 .front-card__wildcard-item {
   display: flex;
   flex-direction: column;
@@ -299,18 +347,6 @@
   min-height: 0;
   flex: 1 1 auto;
   overflow: hidden;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .front-card__wildcard-item {
-    animation: front-wildcard-in 240ms ease-out;
-  }
-}
-
-@keyframes front-wildcard-in {
-  from {
-    opacity: 0;
-  }
 }
 
 /* The cube spotlight's cards, framed on their illustrations (`WildcardCard.tsx`'s `ART_RATIO`). */

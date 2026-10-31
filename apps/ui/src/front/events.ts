@@ -1,7 +1,7 @@
 /*
  * The front page's events (`/api/events`, `apps/server/src/http/events.ts`): one client, one store
- * the Upcoming card and the Create event dialog share, so an event made in one shows in the other
- * at once, and the pure pieces the card draws with.
+ * the Upcoming card's calendar and the Create event dialog share, so an event made in one shows in
+ * the other at once, and the pure pieces the calendar draws with.
  */
 
 import { useEffect, useState } from 'react';
@@ -15,9 +15,6 @@ export const EVENT_KIND_LABELS: Readonly<Record<EventKind, string>> = {
   room: 'Room',
   casual: 'Casual',
 };
-
-/** How many the Upcoming card shows; the calendar shows every one. */
-export const CARD_EVENTS = 3;
 
 export type EventOutcome = { ok: true; event: EventView } | { ok: false; message: string };
 export type EventDone = { ok: true } | { ok: false; message: string };
@@ -111,9 +108,9 @@ export function useEvents(): { events: EventView[] | null; now: number } {
 
 /* ── what the card draws ─────────────────────────────────────────────── */
 
-/** The next `n` events, soonest first: the server's order, cut. */
-export function soonest(events: readonly EventView[], n: number = CARD_EVENTS): EventView[] {
-  return [...events].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt)).slice(0, n);
+/** Every event, soonest first: the calendar is one scrolling list, never cut. */
+export function upcoming(events: readonly EventView[]): EventView[] {
+  return [...events].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
 }
 
 /** A start as the viewer's own weekday, date and time: `Sat 1 Nov, 20:00`. */
