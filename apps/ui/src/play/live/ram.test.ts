@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { damagePower, powerEase } from '../motion.ts';
 import { entryWeight } from './entries.ts';
-import { ALIGN_MS, alignOf, BLAST_MS, boxIn, chargeControl, contactMs, fanOf, punchAt, ram, RAMMING_ATTR, ramMs, RETURN_MS, strikeOffset, windUpOf } from './ram.ts';
+import { ALIGN_MS, alignOf, bendOf, BLAST_MS, boxIn, chargeControl, contactMs, fanOf, punchAt, ram, RAMMING_ATTR, ramMs, RETURN_MS, strikeOffset, windUpOf } from './ram.ts';
 
 const rect = (left: number, top: number, width: number, height: number): DOMRect =>
   ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
@@ -251,12 +251,62 @@ describe('a charge’s wind-up and punch', () => {
     tiers.forEach((c, i) => expect(c.windPeak, `${[1, 4, 10, 15, 20][i]}: slowly back`).toBeLessThan(c.peak / 5));
     expect(windUpOf(0)).toEqual(windUpOf(-1));
   });
-  it('then punches faster and harder the heavier: a point, four, ten and twenty each well past the first cut', () => {
+  it('then punches faster and harder the heavier: a point, four, ten and twenty each past the first cut, a tenth under the second', () => {
     const peaks = [1, 4, 10, 20].map((a) => charge(a).peak);
     console.log(`[w87a] charge peak px/ms at 1, 4, 10, 20 damage: ${peaks.map((p) => p.toFixed(2)).join(', ')}; on its latest-bending curve ${[1, 4, 10, 20].map((a) => charge(a, 0.99).peak.toFixed(2)).join(', ')}`);
-    const floors = [7, 11, 15, 18];
-    peaks.forEach((p, i) => expect(p, `${[1, 4, 10, 20][i]} damage: ${p.toFixed(2)} px/ms`).toBeGreaterThan(floors[i]!));
+    // The operator on the second cut (2026-10-31): "we can actually shave off 10% of the top speed for all levels". It peaked at 7.50, 12.59, 17.58, 20.92.
+    const second = [7.5, 12.59, 17.58, 20.92];
+    peaks.forEach((p, i) => expect(Math.abs(p / second[i]! - 0.9), `${[1, 4, 10, 20][i]} damage: within 2% of a tenth off`).toBeLessThan(0.02));
     for (let i = 1; i < peaks.length; i++) expect(peaks[i]!).toBeGreaterThan(peaks[i - 1]! * 1.15);
+  });
+  it('a pack bends outward, each its own arc: those on the left of it arc out left, those on the right out right, so no two cross', () => {
+    // The operator, 2026-10-31: "i would prefer a bit of randomness to the arc, everyone attacking in the same arc is weird. and the arc shouldn't always bend in the same direction."
+    const root = document.createElement('div');
+    root.getBoundingClientRect = () => rect(0, 0, 1000, 1000);
+    document.body.append(root);
+    const flights: Keyframe[][] = [];
+    HTMLElement.prototype.animate = vi.fn((frames: Keyframe[], options: KeyframeAnimationOptions) => {
+      if (Number(options.delay) + Number(options.duration) === contactMs('charge')) flights.push(frames);
+      return { finished: new Promise(() => undefined), cancel: () => undefined } as unknown as Animation;
+    }) as unknown as typeof HTMLElement.prototype.animate;
+    // Every coin the same way: the side must come from the pack, not the coin.
+    vi.spyOn(Math, 'random').mockReturnValue(0.2);
+    const player = { x: 500, y: 100, w: 56, h: 56 };
+    const froms = [0, 1, 2, 3, 4].map((i) => ({ x: 260 + i * 120, y: 700, w: 60, h: 84 }));
+    const spots = fanOf(froms, player, 'k', { x: 500, y: 500, w: 1000, h: 1000 });
+    const sides = bendOf(froms.map((b, i) => ({ x: b.x + spots[i]!.x, y: b.y + spots[i]!.y })), player, () => 0.2);
+    froms.forEach((from, i) => {
+      const card = document.createElement('li');
+      document.body.append(card);
+      ram(root, card, from, player, 'charge', 'charge', `k${i}`, 0, damagePower(4), 0, { start: 0, at: spots[i]!, weight: entryWeight(4).power, side: sides[i] });
+    });
+    // Which way each bows off the straight line from where it winds up to the avatar: + its right, − its left.
+    const bows = flights.map((frames) => {
+      const pts = frames.map((f) => String(f.translate).split(' ').map((v) => Number(v.replace('px', ''))) as [number, number]);
+      const [a, b] = [pts[0]!, pts[pts.length - 1]!];
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      const right = { x: -(b[1] - a[1]) / len, y: (b[0] - a[0]) / len };
+      return pts.reduce((m, p) => {
+        const d = (p[0] - a[0]) * right.x + (p[1] - a[1]) * right.y;
+        return Math.abs(d) > Math.abs(m) ? d : m;
+      }, 0);
+    });
+    expect(bows).toHaveLength(5);
+    expect(Math.sign(bows[0]!), `the leftmost arcs out left: ${bows.map((x) => x.toFixed(0)).join(', ')}`).toBe(-1);
+    expect(Math.sign(bows[1]!)).toBe(-1);
+    expect(Math.sign(bows[3]!), 'the right ones out right').toBe(1);
+    expect(Math.sign(bows[4]!)).toBe(1);
+    expect(sides[2], 'the middle one: the coin').toBe(-1);
+    expect(bendOf([{ x: 500, y: 700 }], player, () => 0.8), 'one charger alone: the coin').toEqual([1]);
+  });
+  it('and each its own bend: five chargers on a fair random draw five different arcs', () => {
+    const arcs = [0, 1, 2, 3, 4].map((i) => {
+      let n = i * 3;
+      const draws = [0.9, 0.13, 0.71, 0.42, 0.88, 0.05, 0.37, 0.64, 0.21, 0.96, 0.58, 0.3, 0.77, 0.49, 0.11];
+      const c = chargeControl({ x: 0, y: 0 }, { x: 0, y: -400 }, () => draws[n++ % draws.length]!, 1);
+      return `${c.x.toFixed(0)},${c.y.toFixed(0)}`;
+    });
+    expect(new Set(arcs).size, arcs.join(' ')).toBe(5);
   });
   it('however its curve bends: the punch is a distance along the flight, so no curve slows the blow', () => {
     for (const a of [1, 10, 20]) expect(charge(a, 0.99).peak / charge(a, 0).peak, `${a} damage`).toBeGreaterThan(0.9);
