@@ -49,6 +49,8 @@ export interface PromptShellProps {
    * node per answer, affirmative first, so the row can count them.
    */
   actions?: ReactNode;
+  /** `AnswerRow`'s own `aside`: a box beside the answers (a trigger target's "Same target for all"). */
+  aside?: ReactNode;
   /**
    * `AnswerRow`'s own `yesNo`: set only by a caller whose `actions` are a real yes/no. A generic action
    * list (a selection's Cancel, a mode's options) leaves it unset and never splits left/right.
@@ -152,6 +154,7 @@ export function PromptShell({
   submitLabel = 'OK',
   onSubmit,
   actions,
+  aside,
   yesNo,
   face,
   effectText = true,
@@ -200,8 +203,8 @@ export function PromptShell({
           )}
         </ul>
       )}
-      {(onSubmit !== undefined || actions !== undefined) && (
-        <AnswerRow className="prompt__actions" yesNo={yesNo}>
+      {(onSubmit !== undefined || actions !== undefined || aside !== undefined) && (
+        <AnswerRow className="prompt__actions" yesNo={yesNo} aside={aside}>
           {onSubmit !== undefined && (
             <button
               type="button"

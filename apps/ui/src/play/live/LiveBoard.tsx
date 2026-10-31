@@ -564,9 +564,9 @@ function theirWaitingOn(match: LiveMatch): { method: string; hostCard: string | 
 
 /**
  * The verb for the T2 banner's sentence ("Waiting for {name} to {verb}…" —
- * Settled). Keyed by the ask's own wire method, plus the synthetic `'pay'`
- * {@link theirWaitingOn} never sends for a real ask (`match.ts`'s own note on
- * why payment and an ask never hold at once). Every other blocking method —
+ * Settled). Keyed by the ask's own wire method, plus the server's synthetic
+ * `'pay'` (`match.ts`'s own note on why payment and an ask never hold at once)
+ * and `'target'` (any target question, whichever shape Forge asks it in). Every other blocking method —
  * an attack assignment, a mana-X slider, a sideboard, an option list — reads
  * as plain "decide": precise enough to be true, not so precise it needs a
  * fifteenth entry.
@@ -577,6 +577,7 @@ const WAITING_VERB: Readonly<Record<string, string>> = {
   chooseEntitiesForEffect: 'choose cards',
   confirm: 'decide',
   pay: 'pay',
+  target: 'choose a target',
 };
 
 /**
@@ -612,12 +613,72 @@ function waitingSentence(name: string, fact: { method: string; hostCard: string 
  * `live-waiting-pop`).
  */
 function WaitingPop({ sentence }: { sentence: string }) {
+  const ref = useRef<HTMLElement>(null);
+  // Trailer cut 2 (counterwar.mkv ~30 s): the pop sat over the Oko stack card. A wait is something to
+  // read, not to answer, so it steps aside for the stack: the cards land where `placed.ts` puts them and
+  // move as more arrive, so it looks again while it is up.
+  useLayoutEffect(() => {
+    const pop = ref.current;
+    if (pop === null) return undefined;
+    const step = (): void => {
+      const root = pop.closest('.live');
+      if (root === null) return;
+      const board = root.getBoundingClientRect();
+      const at = offsetOf(pop);
+      const drawn = pop.getBoundingClientRect();
+      const rest = { left: drawn.left - at.x, top: drawn.top - at.y, right: drawn.right - at.x, bottom: drawn.bottom - at.y };
+      const items = Array.from(root.querySelectorAll('[data-stack-id]'), (el) => el.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
+      const next = clearOfStack(rest, items, board);
+      if (Math.abs(next.x - at.x) >= 1 || Math.abs(next.y - at.y) >= 1) pop.style.translate = next.x === 0 && next.y === 0 ? '' : `${Math.round(next.x)}px ${Math.round(next.y)}px`;
+    };
+    step();
+    const timer = window.setInterval(step, STACK_CHECK_MS);
+    return () => window.clearInterval(timer);
+  }, []);
   return (
     <QuestionHost>
-      <section className="confirm" data-testid="live-waiting-pop" role="status" aria-live="polite">
+      <section ref={ref} className="confirm" data-testid="live-waiting-pop" role="status" aria-live="polite">
         <p className="confirm__message">{sentence}</p>
       </section>
     </QuestionHost>
+  );
+}
+
+/** How often the waiting pop looks for stack cards under it, in ms. */
+const STACK_CHECK_MS = 250;
+/** The room the waiting pop keeps from a stack card it stepped clear of, in px. */
+const STACK_GAP_PX = 8;
+
+interface Rect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+function offsetOf(el: HTMLElement): { x: number; y: number } {
+  const [x = '0', y = '0'] = el.style.translate.split(/\s+/);
+  return { x: Number.parseFloat(x) || 0, y: Number.parseFloat(y) || 0 };
+}
+
+const overlaps = (a: Rect, b: Rect): boolean => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+
+/**
+ * The nearest offset that puts `pop` (drawn at offset zero) clear of every stack card in `items`, inside
+ * `board`: up or down first (the pop is wide and short), then left or right; zero when nothing is under
+ * it, and when nowhere on the board is clear, so it never wanders off for nothing.
+ */
+export function clearOfStack(pop: Rect, items: readonly Rect[], board: Rect, gap = STACK_GAP_PX): { x: number; y: number } {
+  const at = (x: number, y: number): Rect => ({ left: pop.left + x, top: pop.top + y, right: pop.right + x, bottom: pop.bottom + y });
+  const fits = (r: Rect): boolean => r.left >= board.left && r.right <= board.right && r.top >= board.top && r.bottom <= board.bottom && !items.some((i) => overlaps(r, i));
+  if (!items.some((i) => overlaps(pop, i))) return { x: 0, y: 0 };
+  const nearest = (moves: number[], along: 'x' | 'y'): { x: number; y: number } | null => {
+    const ok = moves.filter((d) => fits(along === 'y' ? at(0, d) : at(d, 0))).sort((a, b) => Math.abs(a) - Math.abs(b));
+    return ok.length === 0 ? null : along === 'y' ? { x: 0, y: ok[0]! } : { x: ok[0]!, y: 0 };
+  };
+  return (
+    nearest(items.flatMap((i) => [i.bottom + gap - pop.top, i.top - gap - pop.bottom]), 'y') ??
+    nearest(items.flatMap((i) => [i.right + gap - pop.left, i.left - gap - pop.right]), 'x') ?? { x: 0, y: 0 }
   );
 }
 
@@ -3949,8 +4010,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           />
         </QuestionHost>
       )}
-      {/* A trigger's target with identical ones waiting and no button of Forge's to draw: the box alone, under Forge's own line. */}
-      {sameTargetCheck !== undefined && !(decision && bar !== null) && (
+      {/* A trigger's target with identical ones waiting and no sheet of its own to sit in: the box alone, under Forge's own line. */}
+      {sameTargetCheck !== undefined && !(decision && bar !== null) && !selectionPopup && (
         <QuestionHost data-testid="live-target-host">
           <ConfirmPrompt testId="live-target" message={promptText(question)} context={context} check={sameTargetCheck} />
         </QuestionHost>
@@ -3978,6 +4039,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
             onPick={(id) => selectCard(match, id)}
             done={bar?.enable1 === true ? { label: bar.label1, enabled: true, onClick: () => pressWithSound(match, 'ok') } : undefined}
             cancel={bar?.enable2 === true ? { label: bar.label2, enabled: true, onClick: () => pressWithSound(match, 'cancel') } : undefined}
+            check={sameTargetCheck}
           />
         </QuestionHost>
       )}

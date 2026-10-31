@@ -65,6 +65,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { CardTile } from '../../components/CardTile.tsx';
 
+import { PromptCheckBox, type PromptCheck } from './ConfirmPrompt.tsx';
 import { PickChoice, PromptShell, promptThumb, promptTileFor } from './PromptShell.tsx';
 import { promptText, type PromptLookup } from './lookup.ts';
 
@@ -127,6 +128,8 @@ export interface SelectionPromptProps {
   done?: SelectionButton;
   /** Forge's own Cancel, unchanged — present only while Forge enabled it. */
   cancel?: SelectionButton;
+  /** A trigger target's "Same target for all", in this sheet's own answer row: a second sheet would sit under this one. */
+  check?: PromptCheck;
 }
 
 /**
@@ -140,7 +143,7 @@ export interface SelectionPromptProps {
  * area owns a question once one is open) — never drawn when Forge has not
  * enabled them.
  */
-export function SelectionPrompt({ message: rawMessage, context = null, source = null, cards, lookup, picked, onPick, done, cancel }: SelectionPromptProps) {
+export function SelectionPrompt({ message: rawMessage, context = null, source = null, cards, lookup, picked, onPick, done, cancel, check }: SelectionPromptProps) {
   const message = promptText(rawMessage);
   /*
    * A double click (`PickChoice`): pick the card and press Done. The picks are
@@ -192,6 +195,7 @@ export function SelectionPrompt({ message: rawMessage, context = null, source = 
           </button>
         ),
       ]}
+      aside={check === undefined ? undefined : <PromptCheckBox check={check} />}
     >
       <ul className="prompt__cards" data-testid="prompt-cards">
         {cards.map((id) => {

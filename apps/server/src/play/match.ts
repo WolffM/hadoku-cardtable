@@ -857,6 +857,9 @@ const LOG_HOLD_MAX_MS = 1000;
  * state — never off the raw stream. A card the projection hid has no name here,
  * and the id it falls back to is the one the seat already holds.
  */
+/** Forge's own wording for a target question: "Select target noncreature spell", "Valakut, … - Select any target". */
+const TARGET_QUESTION = /\btargets?\b/i;
+
 function cardName(state: ReadonlyMap<string, WireObj>, id: number): string | null {
 	const view = state.get(deltaKey(DELTA_TYPE.card, id));
 	if (view === undefined) return null;
@@ -1773,8 +1776,9 @@ export class Match {
 	 * The host card comes off `s.prompt`'s own `card` — `showPromptMessage`'s
 	 * third argument, which Forge sends fresh with an ask or a payment prompt
 	 * alike (`InputPayMana.updateMessage`, `InputConfirm.showMessage`,
-	 * `InputPassPriority`'s own prompt ahead of `getAbilityToPlay`) — falling
-	 * back to {@link stackTopHostCardId} when the prompt is stale or card-less,
+	 * `InputPassPriority`'s own prompt ahead of `getAbilityToPlay`) — then the
+	 * seat's own {@link SeatState.chosenAbility} while it is still casting, and
+	 * {@link stackTopHostCardId} when the prompt is stale or card-less,
 	 * which is exactly `setSelectables`' own case: measured against the real
 	 * jar, the one-shot "Priority: … Stack: 1 to Resolve." prompt Forge sends
 	 * the caster right before Thirst for Knowledge resolves carries `card:
@@ -1808,27 +1812,38 @@ export class Match {
 		// 'Waiting for Hadoku to decide…' but on Hadoku's side, there is nothing since they clicked end
 		// turn"* — while that full-control seat held priority itself.
 		const barLive = s.wireButtonsLive && !YIELDING.test(promptMessage);
+		// A target is its own verb, whichever shape Forge asks it in: a selection under a "… target"
+		// prompt (a trigger's, `targetAbility`), or a pick list of stack items for a counterspell.
+		const targeting =
+			s.selection !== null
+				? targetAbilityOf(s.prompt) !== null || TARGET_QUESTION.test(promptMessage)
+				: decision !== undefined && decision.frame.method === 'getChoices' && TARGET_QUESTION.test(decision.frame.message);
 		const method =
 			s.payment !== null
 				? 'pay'
-				: s.selection !== null
-					? s.selection.method === 'setSelectables' && s.selection.min === 1 && s.selection.max === 1
-						? 'chooseSingleEntityForEffect'
-						: 'getChoices'
-					: decision !== undefined
-						? decision.method
-						: barLive
-							? ordinaryPriority
-								? 'priority'
-								: 'confirm'
-							: null;
+				: targeting
+					? 'target'
+					: s.selection !== null
+						? s.selection.method === 'setSelectables' && s.selection.min === 1 && s.selection.max === 1
+							? 'chooseSingleEntityForEffect'
+							: 'getChoices'
+						: decision !== undefined
+							? decision.method
+							: barLive
+								? ordinaryPriority
+									? 'priority'
+									: 'confirm'
+								: null;
 		if (method === null) return null;
 		if (method === 'priority') return { method, hostCard: null };
 		const other = this.seats.find((o) => o.seat !== s.seat);
 		const otherState = other === undefined ? null : this.foldedStateOf(other);
 		const prompt = s.prompt;
 		const promptCardId = prompt !== null && prompt.method === 'showPromptMessage' ? prompt.card?.id ?? null : null;
-		const cardId = promptCardId ?? (otherState === null ? null : stackTopHostCardId(otherState));
+		// Then the spell or ability the seat is in the middle of casting: Forge asks its targets and costs
+		// before it is on the stack, so the stack's top is someone else's (trailer cut 2: "… for Force of
+		// Will…" while Spell Pierce was being aimed at it).
+		const cardId = promptCardId ?? s.chosenAbility?.hostCard ?? (otherState === null ? null : stackTopHostCardId(otherState));
 		if (cardId === null || otherState === null) return { method, hostCard: null };
 		return { method, hostCard: cardName(otherState, cardId) };
 	}

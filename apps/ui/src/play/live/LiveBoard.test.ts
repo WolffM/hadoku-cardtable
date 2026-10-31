@@ -36,6 +36,7 @@ import { PROMPT_FIXTURES, askFor } from '../prompts/fixtures.ts';
 import { PROMPT_COMPONENTS, PROMPT_METHODS } from '../prompts/index.ts';
 
 import {
+  clearOfStack,
   decisionMessage,
   nextStepName,
   END_TURN_NUDGE_MS,
@@ -4686,6 +4687,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
     ['chooseEntitiesForEffect', 'Fact or Fiction', 'choose cards for Fact or Fiction'],
     ['confirm', 'Giant Growth', 'decide for Giant Growth'],
     ['pay', 'Lightning Bolt', 'pay for Lightning Bolt'],
+    ['target', 'Spell Pierce', 'choose a target for Spell Pierce'],
     ['confirm', null, 'decide'],
     ['getAbilityToPlay', null, 'decide'],
   ] as const)('the shipped verb table: %s + %s → "%s"', async (method, hostCard, tail) => {
@@ -5965,5 +5967,34 @@ describe('a stop on the phase rail', () => {
     s.sendPhaseStop(null);
     await waitFor(() => expect(rowOf(container, 'MAIN2').hasAttribute('data-stop')).toBe(false));
     expect(m.phaseStop).toBeNull();
+  });
+});
+
+/** Trailer cut 2 (counterwar.mkv ~30 s): the waiting pop sat over the Oko stack card. */
+describe('the waiting pop steps clear of the stack', () => {
+  const box = (left: number, top: number, w: number, h: number) => ({ left, top, right: left + w, bottom: top + h });
+  const board = box(0, 0, 1600, 900);
+  const pop = box(900, 540, 420, 44);
+
+  it('stays put with nothing under it', () => {
+    expect(clearOfStack(pop, [box(600, 300, 120, 170)], board)).toEqual({ x: 0, y: 0 });
+  });
+
+  it('moves the least it can, up or down, to clear a card it covers', () => {
+    // The card's foot (560) is 20 px into the pop (540): down 28 clears it, up would be 202.
+    expect(clearOfStack(pop, [box(860, 390, 120, 170)], board)).toEqual({ x: 0, y: 28 });
+  });
+
+  it('never lands on another card on the way, and stays on the board', () => {
+    // Down is taken by a second card, and up past the first runs off nothing: up clears both.
+    const cards = [box(860, 390, 120, 170), box(1000, 570, 120, 170)];
+    expect(clearOfStack(pop, cards, board)).toEqual({ x: 0, y: 390 - 8 - 584 });
+    // A pop near the board's foot cannot go down past a card's foot.
+    expect(clearOfStack(box(900, 840, 420, 44), [box(860, 760, 120, 120)], board)).toEqual({ x: 0, y: 760 - 8 - 884 });
+  });
+
+  it('steps sideways when a column of cards fills the board top to bottom', () => {
+    const column = [box(1000, 0, 120, 450), box(1000, 450, 120, 450)];
+    expect(clearOfStack(pop, column, board)).toEqual({ x: 1120 + 8 - 900, y: 0 });
   });
 });

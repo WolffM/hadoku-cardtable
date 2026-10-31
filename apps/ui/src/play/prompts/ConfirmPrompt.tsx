@@ -265,7 +265,7 @@ export interface ConfirmPromptProps {
    * A box beside the buttons: an optional trigger's "Always" (ticked, the answer pressed is the one
    * Forge keeps giving), a trigger target's "Same target for all".
    */
-  check?: { label: string; testId: string; checked: boolean; onChange: (checked: boolean) => void };
+  check?: PromptCheck;
   /**
    * The card the question is about, drawn in the window, when the board has no face of it to point at —
    * a scry 1's library card (the operator, 2026-10-11: *"we should have a proper decision card for this"*).
@@ -273,6 +273,24 @@ export interface ConfirmPromptProps {
   card?: { id: number; tile: DraftCard };
   /** The answers sit bottom-left, where a No goes (`AnswerRow`'s `start`). */
   start?: boolean;
+}
+
+/** A box beside a question's answers (`ConfirmPromptProps.check`, `SelectionPromptProps.check`). */
+export interface PromptCheck {
+  label: string;
+  testId: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}
+
+/** The box itself, for `AnswerRow`'s `aside`. */
+export function PromptCheckBox({ check }: { check: PromptCheck }) {
+  return (
+    <label className="confirm__check">
+      <input type="checkbox" data-testid={check.testId} checked={check.checked} onChange={(event) => check.onChange(event.currentTarget.checked)} />
+      {check.label}
+    </label>
+  );
 }
 
 /**
@@ -317,14 +335,7 @@ export function ConfirmPrompt({ testId, role = 'dialog', title, message, context
       <AnswerRow
         yesNo={isYesNoPair(button1, button2)}
         start={start}
-        aside={
-          check !== undefined && (
-            <label className="confirm__check">
-              <input type="checkbox" data-testid={check.testId} checked={check.checked} onChange={(event) => check.onChange(event.currentTarget.checked)} />
-              {check.label}
-            </label>
-          )
-        }
+        aside={check !== undefined && <PromptCheckBox check={check} />}
       >
         {[button1, button2].map((b, i) => {
           if (b === undefined) return null;

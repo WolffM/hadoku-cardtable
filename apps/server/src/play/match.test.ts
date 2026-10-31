@@ -609,6 +609,67 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'getChoices', hostCard: 'Thirst for Knowledge' } });
 		});
 
+		// Trailer cut 2 (counterwar.mkv ~30 s): "Waiting for Nightjar to choose cards for Force of Will…"
+		// while Nightjar picked Spell Pierce's target. Forge asks a spell's targets while it is cast, before
+		// it is on the stack, and the bridge names no source then: the stack's top was someone else's spell.
+		it("a spell's target while it is being cast names that spell, and reads as choosing a target", () => {
+			const h = waitingHarness();
+			openGame(h, { ...gameViewWithStack(81, 'Force of Will'), ...card(87, 'Spell Pierce') });
+			h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: 87 }, otherCardViewsToSelect: [], triggerEvent: null }));
+			h.host.push({
+				t: 'frame',
+				seat: 0,
+				frame: { kind: 'ask', callId: 'pierce-1', method: 'getAbilityToPlay', hostCard: { kind: 'card', id: 87 }, abilities: [{ kind: 'spellAbility', id: 301, label: 'Spell Pierce' }], triggerEvent: null },
+			});
+			h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'reply', callId: 'pierce-1', method: 'getAbilityToPlay', result: { kind: 'spellAbility', id: 301, label: 'Spell Pierce' } }));
+			h.host.push({
+				t: 'frame',
+				seat: 0,
+				frame: {
+					kind: 'ask',
+					callId: 'pierce-2',
+					method: 'getChoices',
+					message: 'Select target noncreature spell',
+					min: 1,
+					max: 1,
+					choices: [
+						{ key: 'c0', label: 'Force of Will', ref: { kind: 'stackItem', id: 900 } },
+						{ key: 'c1', label: 'Counterspell', ref: { kind: 'stackItem', id: 901 } },
+					],
+					selected: [],
+				},
+			});
+			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'target', hostCard: 'Spell Pierce' } });
+		});
+
+		it('never names the spell being cast while the other seat cannot see it yet', () => {
+			const h = waitingHarness();
+			const table = gameViewWithStack(81, 'Force of Will');
+			const seat0 = String(deltaKeyOf(DELTA_TYPE.player, 0));
+			openGame(h, { ...table, [seat0]: { ...(table[seat0] as object), Hand: list(87) }, ...card(87, 'Spell Pierce') });
+			h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: 87 }, otherCardViewsToSelect: [], triggerEvent: null }));
+			h.host.push({
+				t: 'frame',
+				seat: 0,
+				frame: { kind: 'ask', callId: 'pierce-1', method: 'getAbilityToPlay', hostCard: { kind: 'card', id: 87 }, abilities: [{ kind: 'spellAbility', id: 301, label: 'Spell Pierce' }], triggerEvent: null },
+			});
+			h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'reply', callId: 'pierce-1', method: 'getAbilityToPlay', result: { kind: 'spellAbility', id: 301, label: 'Spell Pierce' } }));
+			h.host.push({
+				t: 'frame',
+				seat: 0,
+				frame: { kind: 'ask', callId: 'pierce-2', method: 'getChoices', message: 'Select target noncreature spell', min: 1, max: 1, choices: [{ key: 'c0', label: 'Force of Will', ref: { kind: 'stackItem', id: 900 } }, { key: 'c1', label: 'Counterspell', ref: { kind: 'stackItem', id: 901 } }], selected: [] },
+			});
+			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'target', hostCard: null } });
+		});
+
+		it("a trigger's target selection reads as choosing a target too", () => {
+			const h = waitingHarness();
+			openGame(h, gameViewWithStack(81, 'Valakut, the Molten Pinnacle'));
+			h.host.push({ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Valakut, the Molten Pinnacle - Select any target', card: null } });
+			openSelection(h, 1, 1, [82]);
+			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'target', hostCard: 'Valakut, the Molten Pinnacle' } });
+		});
+
 		it('clears the instant clearSelectables arrives, with the ask still open', () => {
 			const h = waitingHarness();
 			openGame(h, gameViewWithStack(81, 'Thirst for Knowledge'));
