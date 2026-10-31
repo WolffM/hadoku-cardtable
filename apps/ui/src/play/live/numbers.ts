@@ -285,7 +285,9 @@ export interface RamPlan {
  * its hits lands as it strikes. Two creatures that hit each other first meet halfway, at one time.
  * A hit on a card that is no creature — a planeswalker, a battle — is a charge at it, as at a player:
  * nothing can fight back (the operator, 2026-10-17: "make sure that works when attacking planeswalkers also").
- * Rams go one after another, `RAM_STAGGER_MS` apart, in the order Forge dealt the damage; each as hard
+ * Rams go one after another, `RAM_STAGGER_MS` apart, weakest first and the strongest last, ties in the order
+ * Forge dealt the damage (the operator, 2026-10-31: "have the creature attack in order of strength with the
+ * strongest creatures hitting at the end"); a pair that meets goes by the heavier of the two. Each as hard
  * as its heaviest hit, and two that meet as hard as the heavier of them, so they arrive together. `hitAt`: when
  * each hit (by `seq`) lands; a hit not in it has no ram and lands at once.
  */
@@ -322,8 +324,17 @@ export function planRams(
     for (const h of [...g.cards, ...g.faces]) hitAt.set(h.seq, delayMs + contactMs(kind));
     planned.add(sourceId);
   };
-  for (const [sourceId, g] of groups) {
+  // Whom each ram meets, if it is hit back by what it hits: the two go as one, as hard as the heavier.
+  const partnerOf = (sourceId: number): number | undefined => {
+    const target = groups.get(sourceId)!.cards[0]?.cardId;
+    return target !== undefined && groups.get(target)?.cards[0]?.cardId === sourceId ? target : undefined;
+  };
+  const strength = (sourceId: number): number => Math.max(most(sourceId), ...[partnerOf(sourceId)].filter((t) => t !== undefined).map(most));
+  // Weakest first, the strongest last; ties in the order Forge dealt them (a stable sort of the dealt order).
+  const order = [...groups.keys()].sort((a, b) => strength(a) - strength(b));
+  for (const sourceId of order) {
     if (planned.has(sourceId)) continue;
+    const g = groups.get(sourceId)!;
     const delayMs = slot++ * RAM_STAGGER_MS;
     const target = g.cards[0]?.cardId;
     const back = target === undefined ? undefined : groups.get(target)?.cards[0]?.cardId;
@@ -1271,7 +1282,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       const struckBy = (combat?.rams ?? []).find((r) => 'cardId' in r.target && r.target.cardId === plan.sourceId)?.power ?? plan.power;
       keep(
         ram(root, source, from, to, plan.kind, end, `ram:${plan.sourceId}`, plan.delayMs, plan.power, struckBy, { start: plan.kind === 'charge' ? chargeStart : plan.delayMs, at: fanned.get(plan.sourceId) ?? null, weight, side: bent.get(plan.sourceId) }),
-        plan.delayMs + ramMs(plan.kind, end),
+        plan.delayMs + ramMs(plan.kind, end, weight),
       );
       // A creature killed by a blow it did not ram back into is blasted away from the one that struck it.
       if (struck !== null && !rammers.has(struck) && leaving.has(struck)) {

@@ -12,7 +12,7 @@
  *    bounced off");
  *  - at a player: it rears back and turns to face the avatar, in a cone with the others attacking —
  *    spread a little apart, all pointing at it — then arcs in for the slam, pauses on the blow and goes
- *    slowly back, straightening (the operator: "rear back and rotate the card so it 'faces' the players
+ *    back, straightening — a light one at once, a heavy one lingering and slow to set off (`homeOf`) (the operator: "rear back and rotate the card so it 'faces' the players
  *    avatar … then arc towards it for the slam … correct back to position"; "when there are a lot of
  *    attckers it would be nice if they spread out a bit in a sort of 'cone formation'").
  *
@@ -75,12 +75,12 @@ const RUSH_MS = 200;
 /** A charge at a player: rearing back to face it (all chargers at once, in formation), then the flight in. */
 export const ALIGN_MS = 300;
 const CHARGE_MS = 640;
-/** How long a winner and a charge hold the blow before they go back: a pause that lets the blow land. */
-export const HOLD_MS: Readonly<Record<'win' | 'charge', number>> = { win: 280, charge: 180 };
+/** How long a winner holds the blow before it goes back: a pause that lets the blow land. A charge's is its weight's (`homeOf`). */
+export const HOLD_MS: Readonly<Record<'win', number>> = { win: 280 };
 /** Two that both live bounce off each other this fast, settle this long, then take the way home. */
 const BOUNCE_MS = 190;
 const SETTLE_MS = 70;
-/** The slow way back to its place, the same for a winner, a bounce and a charge. */
+/** The slow way back to its place, the same for a winner and a bounce. A charge's is its weight's (`homeOf`). */
 export const RETURN_MS = 620;
 /** Knocked away and gone: inside a crumple's own length (`departures.ts`), so its stand-in outlives it. */
 export const BLAST_MS = 380;
@@ -95,11 +95,24 @@ export function contactMs(kind: RamKind): number {
   return kind === 'charge' ? ALIGN_MS + CHARGE_MS : REAR_MS + RUSH_MS;
 }
 
-/** How long a creature's part lasts, from its start: a crumple's and a blast's end are the stand-in's own. */
-export function ramMs(kind: RamKind, end: RamEnd): number {
+/**
+ * A charger's way home after its blow at `weight` (`entries.ts`'s `entryWeight(damage).power`): how long it
+ * holds the blow, how long it takes home, and its pace there (the operator, 2026-10-31: "1 damage card should
+ * be quickest to retreat back after landing. stronger cards should linger a bit more and accelerate more
+ * slowly to their starting position"). A point holds a tenth of a second and is off at once, home in under
+ * six tenths; fifteen and up lingers a third of a second and barely stirs before it sets off, home in 1.2 s.
+ */
+export function homeOf(weight: number): { holdMs: number; ms: number; ease: string } {
+  const w = Math.min(1, Math.max(0, weight));
+  return { holdMs: Math.round(110 + 230 * w), ms: Math.round(460 + 400 * w), ease: `cubic-bezier(${(0.15 + 0.75 * w).toFixed(3)}, ${(0.3 * (1 - w)).toFixed(3)}, 0.25, 1)` };
+}
+
+/** How long a creature's part lasts, from its start: a crumple's and a blast's end are the stand-in's own; a charge's by its `weight`. */
+export function ramMs(kind: RamKind, end: RamEnd, weight = 0): number {
   const contact = contactMs(kind);
   if (end === 'crumple' || end === 'blasted') return contact + BLAST_MS;
   if (end === 'bounce') return contact + BOUNCE_MS + SETTLE_MS + RETURN_MS;
+  if (end === 'charge') return contact + homeOf(weight).holdMs + homeOf(weight).ms;
   return contact + HOLD_MS[end] + RETURN_MS;
 }
 
@@ -524,6 +537,7 @@ export function ram(
   const contact = delayMs + contactMs(kind);
   const pace = powerEase(power);
   const home = homeEase(power);
+  const weight = formation.weight ?? power;
   const parts: { frames: Keyframe[]; delay: number; duration: number; easing?: string }[] = [];
   // How it is turned when it lands the blow: for the way home.
   let tilt: number;
@@ -537,7 +551,6 @@ export function ram(
     const formed = delayMs + ALIGN_MS;
     parts.push({ frames: [{ translate: '0px 0px', rotate: '0deg' }, { translate: px(align.at), rotate: `${align.rot.toFixed(1)}deg` }], delay: formation.start, duration: formed - formation.start, easing: ALIGN_EASE });
     // Then slowly back, cocked, and the punch: both inside the flight, so the blow lands when it always did.
-    const weight = formation.weight ?? power;
     const wind = windUpOf(weight);
     const cocked = windUpFrames(align, strike, wind.px);
     parts.push({ frames: cocked.frames, delay: formed, duration: wind.ms, easing: WIND_UP_EASE });
@@ -556,6 +569,9 @@ export function ram(
     const off = bounceFrames(strike, unit(from, to), tilt, key, power);
     parts.push({ frames: off.frames, delay: contact, duration: BOUNCE_MS, easing: 'cubic-bezier(0.1, 0.75, 0.3, 1)' });
     parts.push({ frames: returnFrames(off.at, off.rot), delay: contact + BOUNCE_MS + SETTLE_MS, duration: RETURN_MS, easing: home });
+  } else if (end === 'charge') {
+    const back = homeOf(weight);
+    parts.push({ frames: returnFrames(strike, tilt), delay: contact + back.holdMs, duration: back.ms, easing: back.ease });
   } else if (end !== 'crumple') {
     parts.push({ frames: returnFrames(strike, tilt), delay: contact + HOLD_MS[end], duration: RETURN_MS, easing: home });
   }
