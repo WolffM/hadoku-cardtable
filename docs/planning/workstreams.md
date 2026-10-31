@@ -186,6 +186,25 @@ it. PR-5 is new and exists to serve it.
 | **PR-3** | **Room module** — our P3–P6 contributions to `@wolffm/rooms-protocol` / `-server` (**renamed**: `@wolffm/rooms` never shipped) | **implemented Wave 5, locally.** Designs W1, delivered to watchparty W2/W3, built here W5. Upstream still ships **none** of P4–P6, so ours are our own packages consuming their primitives — `@wolffm/rooms-server@0.38.111` is `RoomRegistry` + seating + emit + rate limiting + `collectGC` and nothing else. The socket wiring is ours |
 | **PR-4** | **Play** — WS/JSON bridge at `IToClient`, headless Forge, the embedded client | **spiked and de-risked** (D). Forge runs headless; 38 of 60 protocol methods required; jUPnP is a config flag. Not greenfield — a 3,919-line headless net harness already exists in-tree |
 
+## Waves 84, 85, 87, 88 and Z — eleven single sessions dispatched overnight (2026-10-31)
+
+`docs/planning/waves84-88-2026-10-31.md`. Operator: brackets are one field-wide Swiss, ≤3 rounds, no cut, tiebreakers decide; events per their 10-30 answers; trailer cut 2 feedback (promo handoff). Trailer cut 3 (H) after 87+88 reach PPE.
+
+| session | worktree / branch | status | evidence |
+| --- | --- | --- | --- |
+| 84a pairing (field Swiss, ≤3 rounds, total tiebreak order) | `.claude/worktrees/w84a` / `w84a` | dispatched | — |
+| 84b multi-pod rooms | `.claude/worktrees/w84b` / `w84b` | dispatched | — |
+| 85a front page (Calendar|Polls, calendar list, wildcard gallery, replay-card bugs) | `.claude/worktrees/w85a` / `w85a` | dispatched | — |
+| 85b events + Rally (full tournament settings, room as truth, forms) | `.claude/worktrees/w85b` / `w85b` | dispatched | — |
+| 87a the punch | `.claude/worktrees/w87a` / `w87a` | dispatched | — |
+| 87b stack placement + arrows | `.claude/worktrees/w87b` / `w87b` | dispatched | — |
+| 87c prompt chrome (same-target, waiting bar) | `.claude/worktrees/w87c` / `w87c` | dispatched | — |
+| 88d creature sounds | `.claude/worktrees/w88d` / `w88d` | dispatched | — |
+| 88e table card | `.claude/worktrees/w88e` / `w88e` | dispatched | — |
+| 88f deck grid transitions | `.claude/worktrees/w88f` / `w88f` | dispatched | — |
+| z boot stall | `.claude/worktrees/wz` / `wz` | dispatched | — |
+| H trailer cut 3 | `.claude/worktrees/promo` / `promo-clips` | waits for 87+88 on PPE | cut 2 https://claude.ai/artifact/GsUN4VziEmaDAaSZL5Kpc2 |
+
 ## Wave 83 (tournament core) — COMPLETE 2026-10-31, all five lanes landed + verified
 
 `docs/planning/wave83-2026-10-30.md`. The operator's first-public-release tournament list. Settled: 20 min/player/match clock, match loss at zero; MTR Appendix B pick rope, configurable, bot pick on timeout; leader DQ + reset game (leader is the admin); members-only, anyone may join.
