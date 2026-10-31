@@ -108,21 +108,16 @@ const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
  * The curved arrow from (x1, y1) to (x2, y2) — the operator, 2026-10-05: *"the
  * straight arrow looks ugly … show a curved arrow in pretty much all cases"*.
  *
- * The control point sits off the chord's midpoint along the normal that is
- * ALWAYS on the same rotational side of the travel direction, so the bow turns
- * smoothly as a drag sweeps around its tail and never flips sides: a rightward
- * arrow arcs up, an upward one arcs left. The head lies along the curve's own
- * tangent at the tip (control point → tip), so it points the way the shaft
- * arrives, not along the chord. `weight` runs from a committed arrow (0) to a
- * ghost (1); a commit tweens it.
+ * The control point sits off the chord's midpoint along a normal to it. `side` 1 (the default) is
+ * always the same rotational side of the travel direction, so the bow turns smoothly as a free
+ * drag sweeps around its tail and never flips: a rightward arrow arcs up, an upward one arcs left.
+ * `side` -1 is the mirror; an arrow with a target card picks one by `bendToward`. The head lies along
+ * the curve's own tangent at the tip (control point → tip), so it points the way the shaft arrives,
+ * not along the chord. `weight` runs from a committed arrow (0) to a ghost (1); a commit tweens it.
  */
-export function arrowShape(x1: number, y1: number, x2: number, y2: number, weight = 0): ArrowShape {
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const len = Math.hypot(dx, dy);
-  const bow = len === 0 ? 0 : Math.min(BOW_MAX, Math.max(BOW_MIN, len * BOW, Math.min(ARC_MIN, len / 2))) / len;
-  const cx = (x1 + x2) / 2 + dy * bow;
-  const cy = (y1 + y2) / 2 - dx * bow;
+export function arrowShape(x1: number, y1: number, x2: number, y2: number, weight = 0, side: Side = 1): ArrowShape {
+  const [cx, cy] = controlOf(x1, y1, x2, y2, side);
+  const len = Math.hypot(x2 - x1, y2 - y1);
   const angle = len === 0 ? 0 : Math.atan2(y2 - cy, x2 - cx);
   // A short arrow keeps a head it can carry: never more than half its own chord.
   const head = Math.min(lerp(SOLID.head, GHOST.head, weight), len / 2);
@@ -135,6 +130,39 @@ export function arrowShape(x1: number, y1: number, x2: number, y2: number, weigh
     ].join(' '),
     ...shaftOf([x1, y1, cx, cy, x2, y2], head * Math.cos(SPREAD) * SHAFT_INTO_HEAD, weight),
   };
+}
+
+/** Which way an arrow bows off its chord (`arrowShape`). */
+export type Side = 1 | -1;
+
+/** The curve's control point: off the chord's midpoint by the bow, on `side`. */
+function controlOf(x1: number, y1: number, x2: number, y2: number, side: Side): [number, number] {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.hypot(dx, dy);
+  const bow = len === 0 ? 0 : (side * Math.min(BOW_MAX, Math.max(BOW_MIN, len * BOW, Math.min(ARC_MIN, len / 2)))) / len;
+  return [(x1 + x2) / 2 + dy * bow, (y1 + y2) / 2 - dx * bow];
+}
+
+/**
+ * The side an arrow from `from` to `tip` bows to, so its head points as nearly as it can at
+ * `centre`, its target's middle: the operator, 2026-10-31: *"when choosing whether to arc left or
+ * right we should pick the direction that results in the vector of the ending arrow that points
+ * closest to the center of the target card."* The head's direction is the curve's tangent at the
+ * tip; it is compared with the line from the head's base (a head's length back along it) to the
+ * centre. A tip on the centre itself points there either way, and keeps side 1.
+ */
+export function bendToward(from: Point, tip: Point, centre: Point): Side {
+  const miss = (side: Side): number => {
+    const [cx, cy] = controlOf(from.x, from.y, tip.x, tip.y, side);
+    const hx = tip.x - cx;
+    const hy = tip.y - cy;
+    const hl = Math.hypot(hx, hy) || 1;
+    const bx = centre.x - (tip.x - (hx / hl) * SOLID.head);
+    const by = centre.y - (tip.y - (hy / hl) * SOLID.head);
+    return Math.abs(Math.atan2(hx * by - hy * bx, hx * bx + hy * by));
+  };
+  return miss(-1) < miss(1) - 1e-9 ? -1 : 1;
 }
 
 /** Samples along the curve: plenty for a smooth outline at any board size. */
@@ -223,13 +251,17 @@ function el<K extends keyof SVGElementTagNameMap>(tag: K, className: string): SV
 }
 
 /** Where each arrow was last shaped, overlay-relative, so a commit can re-shape it at another weight. */
-const shaped = new WeakMap<SVGSVGElement, { x1: number; y1: number; x2: number; y2: number }>();
+const shaped = new WeakMap<SVGSVGElement, { x1: number; y1: number; x2: number; y2: number; side: Side }>();
 
-/** Shape an arrow `newArrow` built, from `from` to `tip`, both in client coordinates, against `box` (the overlay's own). */
-export function positionArrow(svg: SVGSVGElement, from: Point, tip: Point, box: DOMRect): void {
-  const ends = { x1: from.x - box.left, y1: from.y - box.top, x2: tip.x - box.left, y2: tip.y - box.top };
+/**
+ * Shape an arrow `newArrow` built, from `from` to `tip`, both in client coordinates, against `box` (the
+ * overlay's own). `to`, the target's box when the arrow has one, picks the side it bows to (`bendToward`).
+ */
+export function positionArrow(svg: SVGSVGElement, from: Point, tip: Point, box: DOMRect, to?: Box): void {
+  const side = to === undefined ? 1 : bendToward(from, tip, { x: (to.left + to.right) / 2, y: (to.top + to.bottom) / 2 });
+  const ends = { x1: from.x - box.left, y1: from.y - box.top, x2: tip.x - box.left, y2: tip.y - box.top, side };
   shaped.set(svg, ends);
-  write(svg, arrowShape(ends.x1, ends.y1, ends.x2, ends.y2, svg.hasAttribute('data-ghost') ? 1 : 0));
+  write(svg, arrowShape(ends.x1, ends.y1, ends.x2, ends.y2, svg.hasAttribute('data-ghost') ? 1 : 0, side));
 }
 
 function write(svg: SVGSVGElement, { d, points, shaft, stem }: ArrowShape): void {
@@ -348,8 +380,9 @@ export function drawArrow(overlay: HTMLElement, spec: ArrowSpec): void {
   flag(svg, 'data-snapped', spec.snap === null ? null : 'true');
   flag(svg, 'data-mode', spec.mode);
   const box = overlay.getBoundingClientRect();
-  positionArrow(svg, aimed.from, aimed.tip, box);
-  if (spec.snap !== null) markArrow(svg, spec.snap.getBoundingClientRect(), box);
+  const to = spec.snap?.getBoundingClientRect();
+  positionArrow(svg, aimed.from, aimed.tip, box, to);
+  if (to !== undefined) markArrow(svg, to, box);
   else svg.querySelector('.arrow__mark')?.remove();
 }
 
@@ -393,7 +426,7 @@ function settle(svg: SVGSVGElement): void {
   const solid = (): void => {
     svg.removeAttribute('data-ghost');
     dashes.forEach((p) => p.remove());
-    if (ends !== undefined) write(svg, arrowShape(ends.x1, ends.y1, ends.x2, ends.y2, 0));
+    if (ends !== undefined) write(svg, arrowShape(ends.x1, ends.y1, ends.x2, ends.y2, 0, ends.side));
     svg.setAttribute('data-settle', '');
   };
   if (ends === undefined || prefersReducedMotion()) {
@@ -592,10 +625,10 @@ const AUTO_TESTID = 'stack-target-arrow';
  */
 export function drawAutoTargetArrows(overlay: HTMLElement, specs: readonly AutoTargetArrow[]): void {
   // Every end read before any arrow is written: one layout for the lot, and none with nothing to draw.
-  const aims = specs.map((spec) => ({ spec, aimed: aimOn(spec.to, spec.from, spec.kind === 'player' ? 'player' : 'card') }));
+  const aims = specs.map((spec) => ({ spec, aimed: aimOn(spec.to, spec.from, spec.kind === 'player' ? 'player' : 'card'), to: spec.to.getBoundingClientRect() }));
   const box = aims.length === 0 ? null : overlay.getBoundingClientRect();
   const seen = new Set<string>();
-  for (const { spec, aimed } of aims) {
+  for (const { spec, aimed, to } of aims) {
     seen.add(spec.key);
     let svg = overlay.querySelector<SVGSVGElement>(`[data-testid="${AUTO_TESTID}"][data-key="${spec.key}"]`);
     if (svg === null) {
@@ -604,7 +637,7 @@ export function drawAutoTargetArrows(overlay: HTMLElement, specs: readonly AutoT
       svg.setAttribute('data-role', spec.role);
       overlay.append(svg);
     }
-    positionArrow(svg, aimed.from, aimed.tip, box!);
+    positionArrow(svg, aimed.from, aimed.tip, box!, to);
   }
   for (const el of [...overlay.querySelectorAll(`[data-testid="${AUTO_TESTID}"]`)]) {
     if (!seen.has(el.getAttribute('data-key') ?? '')) el.remove();

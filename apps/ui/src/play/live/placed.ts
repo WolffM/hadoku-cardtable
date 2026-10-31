@@ -1247,7 +1247,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   function drawArrows(items: readonly StackEntry[], overlayBox: () => DOMRect): void {
     const root = overlay();
     if (root === null) return;
-    const aims: { key: string; item: number; to: Element; aimed: { from: Point; tip: Point } }[] = [];
+    const aims: { key: string; item: number; to: Element; at: Rect; aimed: { from: Point; tip: Point } }[] = [];
     for (const item of items) {
       const d = drawn.get(item.id);
       if (d === undefined || d.leaving) continue;
@@ -1268,13 +1268,16 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       // From the card's top centre to just inside its target, drawn over the stack (`placed.css`): a near
       // target is landed on at its middle (`aimBetween`), never pointed at with a stub.
       const own = settledBoxes.get(item.id) ?? rectOf(d.el);
-      for (const { key, to, box } of targets) aims.push({ key, item: item.id, to, aimed: aimBetween(own, box ?? rectOf(to)) });
+      for (const { key, to, box } of targets) {
+        const at = box ?? rectOf(to);
+        aims.push({ key, item: item.id, to, at, aimed: aimBetween(own, at) });
+      }
     }
     const box = aims.length === 0 ? null : overlayBox();
     // The top of the stack resolves next: its arrows breathe.
     const next = items[0]?.id;
     const seen = new Set<string>();
-    for (const { key, item, aimed } of aims) {
+    for (const { key, item, at, aimed } of aims) {
       seen.add(key);
       let svg = root.querySelector<SVGSVGElement>(`.placed__arrow[data-key="${key}"]`);
       if (svg === null) {
@@ -1284,7 +1287,8 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         root.append(svg);
       }
       breathe(svg, item === next);
-      positionArrow(svg, aimed.from, aimed.tip, box!);
+      // It bows to the side whose head points nearer its target's middle (`bendToward`).
+      positionArrow(svg, aimed.from, aimed.tip, box!, at);
     }
     for (const el of [...root.querySelectorAll('.placed__arrow')]) {
       if (!seen.has(el.getAttribute('data-key') ?? '')) removeArrow(el);

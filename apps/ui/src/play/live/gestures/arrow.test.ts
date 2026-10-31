@@ -3,7 +3,7 @@
  * curve with its head along the tangent at the tip, drawn as a tapered ribbon.
  */
 import { describe, expect, it } from 'vitest';
-import { ADJACENT_PX, ARC_MIN, GHOST, HOP_MIN, ORIGIN_DOWN, SOLID, SPREAD, TIP_INSET, aimAt, aimBetween, arrowShape } from './arrow.ts';
+import { ADJACENT_PX, ARC_MIN, GHOST, HOP_MIN, ORIGIN_DOWN, SOLID, SPREAD, TIP_INSET, aimAt, aimBetween, arrowShape, bendToward, type Side } from './arrow.ts';
 
 function parse(d: string): { x1: number; y1: number; cx: number; cy: number; x2: number; y2: number } {
   const n = d.replace(/[MQ]/g, ' ').trim().split(/\s+/).map(Number);
@@ -200,5 +200,50 @@ describe('aimBetween: an arrow between two stack cards', () => {
 
   it('two cards on top of each other: the arrow runs down across the target, HOP_MIN long', () => {
     expect(aimBetween(card(100, 300), card(100, 300))).toEqual({ from: { x: 158, y: 340.25 }, tip: { x: 158, y: 460.25 } });
+  });
+});
+
+describe('bendToward: the side an arrow bows to', () => {
+  const card = (left: number, top: number, w = 116, h = 161) => ({ left, top, right: left + w, bottom: top + h });
+  const middle = (b: { left: number; top: number; right: number; bottom: number }) => ({ x: (b.left + b.right) / 2, y: (b.top + b.bottom) / 2 });
+  /** How far, in radians, the drawn head (the curve's tangent at the tip) turns away from the line from its base to `centre`. */
+  const missOf = (aim: { from: { x: number; y: number }; tip: { x: number; y: number } }, centre: { x: number; y: number }, side: Side): number => {
+    const { cx, cy, x2, y2 } = parse(arrowShape(aim.from.x, aim.from.y, aim.tip.x, aim.tip.y, 0, side).d);
+    const [hx, hy] = [x2 - cx, y2 - cy];
+    const hl = Math.hypot(hx, hy);
+    const [bx, by] = [centre.x - (x2 - (hx / hl) * SOLID.head), centre.y - (y2 - (hy / hl) * SOLID.head)];
+    return Math.abs(Math.atan2(hx * by - hy * bx, hx * bx + hy * by));
+  };
+
+  it('side -1 mirrors the bow across the chord, and the ends stay put', () => {
+    const a = parse(arrowShape(100, 100, 300, 100, 0, 1).d);
+    const b = parse(arrowShape(100, 100, 300, 100, 0, -1).d);
+    expect([b.x1, b.y1, b.x2, b.y2]).toEqual([a.x1, a.y1, a.x2, a.y2]);
+    expect(b.cx).toBeCloseTo(a.cx, 9);
+    expect(b.cy - 100).toBeCloseTo(100 - a.cy, 9);
+  });
+
+  it.each([
+    ['the counter war: Swan Song down onto Counterspell', card(735, 375, 128, 172), card(795, 592, 128, 172)],
+    ['a target down and to the right', card(100, 100), card(400, 400)],
+    ['a target down and to the left', card(400, 100), card(100, 400)],
+    ['a target up and to the right', card(100, 400), card(400, 100)],
+    ['a target straight right', card(100, 100), card(500, 100)],
+    ['a target straight below', card(100, 100), card(100, 450)],
+  ])('%s: the head points at least as near the target\'s middle as the other side would', (_, own, to) => {
+    const aim = aimBetween(own, to);
+    const side = bendToward(aim.from, aim.tip, middle(to));
+    expect(missOf(aim, middle(to), side)).toBeLessThanOrEqual(missOf(aim, middle(to), side === 1 ? -1 : 1) + 1e-9);
+  });
+
+  it('the counter war the operator saw: the bow flips, and the head turns in toward Counterspell\'s middle', () => {
+    const to = card(795, 592, 128, 172);
+    const aim = aimBetween(card(735, 375, 128, 172), to);
+    expect(bendToward(aim.from, aim.tip, middle(to))).toBe(-1);
+    expect(missOf(aim, middle(to), -1)).toBeLessThan(missOf(aim, middle(to), 1) - 0.1);
+  });
+
+  it('a tip on the middle itself points there either way, and keeps side 1', () => {
+    expect(bendToward({ x: 100, y: 100 }, { x: 300, y: 180 }, { x: 300, y: 180 })).toBe(1);
   });
 });

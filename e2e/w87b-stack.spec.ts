@@ -213,16 +213,31 @@ test(titled('promo-counterwar at 1920×1080: every stack arrow is a readable hop
           const own = document.querySelector(`[data-stack-id="${key.split(':')[0]}"]`)?.getBoundingClientRect();
           // How far the tail is from the card's top centre a quarter down (`arrow.ts`'s ORIGIN_DOWN).
           const off = own === undefined ? Infinity : Math.hypot(n[0]! + at.left - (own.left + own.width / 2), n[1]! + at.top - (own.top + own.height / 4));
-          return { key, off, chord: Math.hypot(n[4]! - n[0]!, n[5]! - n[1]!), bow: Math.hypot(n[2]! - (n[0]! + n[4]!) / 2, n[3]! - (n[1]! + n[5]!) / 2) };
+          // How far the head (the curve's tangent at the tip) turns from its base's line to the target's middle, as
+          // drawn and with the bow mirrored across the chord (`arrow.ts`'s bendToward; its SOLID.head is 27).
+          const target = document.querySelector(`[data-stack-id="${key.split(':')[2]}"]`)?.getBoundingClientRect();
+          const miss = (cx: number, cy: number): number => {
+            if (target === undefined) return Infinity;
+            const [tx, ty] = [n[4]! + at.left, n[5]! + at.top];
+            const [hx, hy] = [n[4]! - cx, n[5]! - cy];
+            const hl = Math.hypot(hx, hy);
+            const [bx, by] = [target.left + target.width / 2 - (tx - (hx / hl) * 27), target.top + target.height / 2 - (ty - (hy / hl) * 27)];
+            return Math.abs(Math.atan2(hx * by - hy * bx, hx * bx + hy * by));
+          };
+          const drawn = miss(n[2]!, n[3]!);
+          const mirrored = miss(n[0]! + n[4]! - n[2]!, n[1]! + n[5]! - n[3]!);
+          return { key, off, drawn, mirrored, chord: Math.hypot(n[4]! - n[0]!, n[5]! - n[1]!), bow: Math.hypot(n[2]! - (n[0]! + n[4]!) / 2, n[3]! - (n[1]! + n[5]!) / 2) };
         }),
         brackets: document.querySelectorAll('.placed__arrow .arrow__mark, [data-testid="targeter-committed"] .arrow__mark, [data-testid="stack-target-arrow"] .arrow__mark').length,
       }));
-      console.log(`[w87b-counterwar] ${who}: ${read.arrows.map((a) => `${a.key} chord ${Math.round(a.chord)} bow ${Math.round(a.bow)} origin off ${a.off.toFixed(1)}`).join(' | ')}; brackets ${read.brackets}`);
+      console.log(`[w87b-counterwar] ${who}: ${read.arrows.map((a) => `${a.key} chord ${Math.round(a.chord)} bow ${Math.round(a.bow)} origin off ${a.off.toFixed(1)} head miss ${a.drawn.toFixed(2)} (mirrored ${a.mirrored.toFixed(2)})`).join(' | ')}; brackets ${read.brackets}`);
       expect.soft(read.arrows.length, `${who}: Counterspell → Oko and Swan Song → Counterspell`).toBe(2);
       // `arrow.ts`'s HOP_MIN (120) and ARC_MIN (56): long enough for a whole head, bowed enough to read as an arc.
       expect.soft(read.arrows.filter((a) => a.chord < 119 || a.bow < 55).map((a) => a.key), `${who}: every stack arrow at least a hop long, with a real arc`).toEqual([]);
       // The operator, 2026-10-31: "closer to the 12 o-clock position but 50% inward".
       expect.soft(read.arrows.filter((a) => a.off > 2).map((a) => a.key), `${who}: every stack arrow leaves from its card's top centre, a quarter down`).toEqual([]);
+      // The operator, 2026-10-31: "pick the direction that results in the vector of the ending arrow that points closest to the center of the target card".
+      expect.soft(read.arrows.filter((a) => a.drawn > a.mirrored + 0.01).map((a) => a.key), `${who}: every stack arrow bows to the side whose head points nearer its target's middle`).toEqual([]);
       expect.soft(read.brackets, `${who}: no corner brackets on a committed target`).toBe(0);
     }
   } finally {
