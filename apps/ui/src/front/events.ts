@@ -69,7 +69,9 @@ export async function refreshEvents(): Promise<void> {
     current = await client.list();
   } catch {
     // Unreachable for a moment: the card keeps the list it has and the next refresh tries again.
-    return;
+    // Never read at all: an empty list, so the card draws rather than stand as its skeleton.
+    if (current !== null) return;
+    current = [];
   }
   for (const listener of listeners) listener(current);
 }

@@ -64,6 +64,11 @@ export interface FeaturedMatchProps {
   fetchImpl?: Fetch;
   /** Fall back to the newest replay when there is no pick. Defaults to `REPLAYS_ON`. */
   replayFallback?: boolean;
+  /**
+   * Told once per pick what came of it: `true` when a board is drawn (the live match's first view, or
+   * the replay ready), `false` when there is nothing to show. The front page waits on it (`./gate.ts`).
+   */
+  onSettled?: (drawn: boolean) => void;
 }
 
 type Source = { kind: 'live'; match: LiveMatch } | { kind: 'replay'; match: LiveMatch; clock: ReplayClock };
@@ -141,8 +146,10 @@ function TitleBar({ source, watchHref }: { source: Source; watchHref: string }) 
   );
 }
 
-export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback = REPLAYS_ON }: FeaturedMatchProps) {
+export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback = REPLAYS_ON, onSettled }: FeaturedMatchProps) {
   const [source, setSource] = useState<Source | 'loading' | null>(null);
+  const settledRef = useRef(onSettled);
+  settledRef.current = onSettled;
   const viewportRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const scale = useFitScale(viewportRef, source !== null && source !== 'loading');
@@ -154,18 +161,30 @@ export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback =
     let live = true;
     let built: LiveMatch | null = null;
     let clock: ReplayClock | null = null;
+    let stopWatching = (): void => undefined;
+    let told = false;
+    const settle = (drawn: boolean): void => {
+      if (told || !live) return;
+      told = true;
+      settledRef.current?.(drawn);
+    };
     setSource(null);
 
     if (pick !== null) {
       const match = startMatch({ matchId: pick.matchId, transport: makeTransport?.() ?? socketIoMatchTransport() });
       built = match;
       setSource({ kind: 'live', match });
+      // Drawn once the first view arrives: until then the card would read "Connecting…".
+      stopWatching = subscribe(match, () => {
+        if (match.view !== null) settle(true);
+      });
     } else if (replayFallback) {
       setSource('loading');
       void latestReplay(fetchImpl).then(async (data) => {
         if (!live) return;
         if (data === null) {
           setSource(null);
+          settle(false);
           return;
         }
         const player = await readyPlayer(data, { loop: true });
@@ -178,11 +197,15 @@ export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback =
         }
         player.clock.play();
         setSource({ kind: 'replay', match: player.match, clock: player.clock });
+        settle(true);
       });
+    } else {
+      settle(false);
     }
 
     return () => {
       live = false;
+      stopWatching();
       if (built !== null) closeMatch(built);
       clock?.dispose();
     };

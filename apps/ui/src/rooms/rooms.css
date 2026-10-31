@@ -81,6 +81,13 @@
   }
 }
 
+/* The list's skeleton and the list itself (`../components/Reveal.tsx`), each laid out as the panel lays out its own. */
+.rooms__layer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
 .rooms__status {
   margin: 0;
   color: var(--ink-dim);

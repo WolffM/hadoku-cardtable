@@ -38,8 +38,33 @@
   min-height: 0;
 }
 
-.front-live:not(:has(*)) {
+/* No match and no replay to show: the slot leaves the grid and the other cards close the gap (`LiveSlot.tsx`). */
+.front-live[data-present='false'] {
   display: none;
+}
+
+.front-live__reveal {
+  flex: 1 1 auto;
+}
+
+/*
+ * What a card read, under its head (`../components/Reveal.tsx`: the skeleton and the content, one
+ * over the other). `contain: size`: what it read never sizes the banner's row — the patch notes and
+ * the live slot do, from the first frame — so the row is the same height before and after every read
+ * answers, and the card's skeleton stands in the box its content lands in. Each body keeps at least
+ * room for three events or a short message.
+ */
+.front-card__body {
+  flex: 1 1 auto;
+  min-height: 200px;
+  contain: size;
+}
+
+.front-card__layer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
 }
 
 .front-card--patch-notes {

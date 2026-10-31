@@ -1,0 +1,110 @@
+/*
+ * `Reveal.tsx`: a skeleton and its content in one grid cell, crossfaded. And `ghost`, the placeholder
+ * a skeleton draws with: it takes the box of the thing it stands for (wrap the real text in it, in
+ * the real element's classes, and the line lands where the text will), breathing in opacity only, so
+ * the compositor runs it (`../composited-loops.test.ts`). Theme tokens only.
+ */
+
+.reveal {
+  --reveal-ms: 280ms;
+
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+}
+
+.reveal__layer {
+  grid-area: 1 / 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.reveal__skeleton {
+  pointer-events: none;
+}
+
+/* Laid out and reading, never seen or reached, until it is ready. */
+.reveal[data-phase='waiting'] > .reveal__content {
+  visibility: hidden;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .reveal[data-phase='fading'] > .reveal__content {
+    animation: reveal-in var(--reveal-ms) ease-out both;
+  }
+
+  .reveal[data-phase='fading'] > .reveal__skeleton {
+    animation: reveal-out var(--reveal-ms) ease-in both;
+  }
+}
+
+/* No fade: the content replaces its skeleton at once. */
+@media (prefers-reduced-motion: reduce) {
+  .reveal[data-phase='fading'] > .reveal__skeleton {
+    visibility: hidden;
+  }
+}
+
+@keyframes reveal-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes reveal-out {
+  to {
+    opacity: 0;
+  }
+}
+
+.ghost {
+  border-radius: 4px;
+  animation: ghost-breathe 1.6s ease-in-out infinite alternate;
+}
+
+/*
+ * Inside a skeleton, a ghost's words and glyphs are never seen, whatever colour the real element's own
+ * classes give them (a chip, a tag, a button): two classes, so it outranks every one-class colour rule.
+ */
+.reveal__skeleton .ghost {
+  color: transparent;
+  background: color-mix(in srgb, var(--ink-faint) 22%, var(--bg-card));
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.reveal__skeleton .ghost * {
+  color: transparent;
+  background: transparent;
+}
+
+/* A line of text: as tall as the text it stands for, as wide as the words it wraps. */
+.ghost--text {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+/* A block that fills the box it is put in. */
+.ghost--fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes ghost-breathe {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ghost {
+    animation: none;
+  }
+}

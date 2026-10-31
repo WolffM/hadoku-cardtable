@@ -11,7 +11,9 @@
  *
  * ## Four states, each with something to do
  *
- *   loading  — says so; Create room already works
+ *   loading  — the list's skeleton, as many rooms as it drew last visit (`../front/shape.ts`), in
+ *              the cards' own markup, crossfaded into the list once the page shows itself
+ *              (`../front/gate.ts`); Create room already works
  *   failed   — says why, and offers Retry
  *   empty    — says so, with Create room above it
  *   rooms    — the list
@@ -49,7 +51,7 @@
  * Mute and volume are in cardtable's own settings (`../settings/Settings.tsx`).
  */
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Icon } from '@wolffm/themes';
 import { PAGE_EVENT_PATH, ROOM_NAME_MAX, ROOM_PASSWORD_MAX } from '@hadoku/shared';
 
@@ -70,6 +72,9 @@ import {
   type RoomsClient,
 } from './api.ts';
 import { Avatar } from '../components/Avatar.tsx';
+import { Reveal } from '../components/Reveal.tsx';
+import { FrontGateContext, usePartShown } from '../front/gate.ts';
+import { MAX_ROOM_GHOSTS } from '../front/shape.ts';
 import { NEW_ROOM_FIELDS, RoomFields, roomRequest, type RoomFieldValues } from './RoomFields.tsx';
 import { CreateEventDialog } from './CreateEventDialog.tsx';
 import { latestReads } from './latest.ts';
@@ -161,18 +166,23 @@ export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomL
 
   /** The list's reads, latest-wins (`./latest.ts`): this screen writes no list, so a read is kept or dropped. */
   const [reads] = useState(latestReads);
+  /** A list has landed at least once. */
+  const listed = useRef(false);
 
   const refresh = useCallback(async (): Promise<void> => {
     const landed = reads.read();
     try {
       const { rooms, featured } = await client.list();
       if (landed() !== 'keep') return;
+      listed.current = true;
       setState({ kind: 'ready', rooms, stale: null });
       onFeatured?.(featured);
     } catch (err) {
       if (landed() !== 'keep') return;
       const message = err instanceof Error ? err.message : String(err);
       setState((prev) => (prev.kind === 'ready' ? { ...prev, stale: message } : { kind: 'failed', message }));
+      // Never listed: nothing is known to be live, so the banner's live slot falls back on its own.
+      if (!listed.current) onFeatured?.(null);
     }
   }, [client, reads, onFeatured]);
 
@@ -196,6 +206,13 @@ export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomL
   const normal = state.kind === 'ready' ? normalRooms(state.rooms) : [];
   const testing = state.kind === 'ready' ? testingRooms(state.rooms) : [];
 
+  const { shape, remember } = useContext(FrontGateContext);
+  const shown = usePartShown('rooms', state.kind !== 'loading');
+  const drawnRooms = state.kind === 'ready' ? Math.min(normal.length, MAX_ROOM_GHOSTS) : null;
+  useEffect(() => {
+    if (drawnRooms !== null) remember({ rooms: drawnRooms });
+  }, [drawnRooms, remember]);
+
   /*
    * Order: a room that matches every filter that is ON sorts ahead of one that does not (ruling 6);
    * within each of those two groups, your own rooms still come first (the ordering this screen
@@ -209,7 +226,7 @@ export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomL
   const orderedTesting = orderByMatch(testing, matches);
 
   return (
-    <section className="rooms ct-panel" data-testid="rooms" aria-labelledby="rooms-title" ref={sectionRef}>
+    <section className="rooms ct-panel" data-testid="rooms" aria-labelledby="rooms-title" aria-busy={!shown} ref={sectionRef}>
       <div className="rooms__head">
         <h2 id="rooms-title" className="rooms__title ct-panel__title">
           Rooms
@@ -243,79 +260,132 @@ export function RoomList({ client: given, feed = roomFeed(), onFeatured }: RoomL
         </span>
       </div>
 
-      {state.kind === 'loading' && (
-        <p className="rooms__status" role="status" data-testid="rooms-loading">
-          Loading rooms&hellip;
-        </p>
-      )}
-
-      {state.kind === 'failed' && (
-        <div className="rooms__status rooms__status--bad" role="alert" data-testid="rooms-error">
-          <p>{state.message}</p>
-          <button type="button" data-testid="rooms-retry" onClick={retry}>
-            Retry
-          </button>
-        </div>
-      )}
-
-      {state.kind === 'ready' && normal.length === 0 && testing.length === 0 && (
-        <p className="rooms__status" data-testid="rooms-empty">
-          No rooms yet.
-        </p>
-      )}
-
-      {state.kind === 'ready' && normal.length > 0 && (
-        <ul className="rooms__list" data-testid="room-list">
-          {orderedNormal.map((room) => (
-            <RoomRow key={room.id} room={room} client={client} matchesFilters={matches(room)} onGone={() => void refresh()} />
-          ))}
-        </ul>
-      )}
-
-      {/*
-       * Admin only, visible by construction: `GET /rooms` omits every testing
-       * room from a non-admin's list entirely (`http/rooms.ts`), so this
-       * section is present exactly when the list it was handed carries one —
-       * never a client-side tier check. Same row component as the normal
-       * list, a separate `<ul>` under its own heading, which folds it away.
-       */}
-      {state.kind === 'ready' && testing.length > 0 && (
-        <div className="rooms__testing" data-testid="rooms-testing">
-          <h3 className="rooms__title ct-panel__title">
-            <button
-              type="button"
-              className="rooms__fold"
-              aria-expanded={!testingFolded}
-              aria-controls="room-list-testing"
-              data-testid="rooms-testing-fold"
-              onClick={toggleTesting}
-            >
-              <svg className="rooms__fold-chevron" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M9 5l7 7-7 7" />
-              </svg>
-              Testing
+      <Reveal name="rooms" shown={shown} skeleton={<RoomGhosts count={shape.rooms} />} layerClassName="rooms__layer">
+        {state.kind === 'failed' && (
+          <div className="rooms__status rooms__status--bad" role="alert" data-testid="rooms-error">
+            <p>{state.message}</p>
+            <button type="button" data-testid="rooms-retry" onClick={retry}>
+              Retry
             </button>
-          </h3>
-          {!testingFolded && (
-            <ul className="rooms__list" id="room-list-testing" data-testid="room-list-testing">
-              {orderedTesting.map((room) => (
-                <RoomRow key={room.id} room={room} client={client} matchesFilters={matches(room)} onGone={() => void refresh()} />
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+          </div>
+        )}
 
-      {state.kind === 'ready' && state.stale !== null && (
-        <p className="rooms__stale" data-testid="rooms-stale">
-          List may be out of date.
-        </p>
-      )}
+        {state.kind === 'ready' && normal.length === 0 && testing.length === 0 && (
+          <p className="rooms__status" data-testid="rooms-empty">
+            No rooms yet.
+          </p>
+        )}
+
+        {state.kind === 'ready' && normal.length > 0 && (
+          <ul className="rooms__list" data-testid="room-list">
+            {orderedNormal.map((room) => (
+              <RoomRow key={room.id} room={room} client={client} matchesFilters={matches(room)} onGone={() => void refresh()} />
+            ))}
+          </ul>
+        )}
+
+        {/*
+         * Admin only, visible by construction: `GET /rooms` omits every testing
+         * room from a non-admin's list entirely (`http/rooms.ts`), so this
+         * section is present exactly when the list it was handed carries one —
+         * never a client-side tier check. Same row component as the normal
+         * list, a separate `<ul>` under its own heading, which folds it away.
+         */}
+        {state.kind === 'ready' && testing.length > 0 && (
+          <div className="rooms__testing" data-testid="rooms-testing">
+            <h3 className="rooms__title ct-panel__title">
+              <button
+                type="button"
+                className="rooms__fold"
+                aria-expanded={!testingFolded}
+                aria-controls="room-list-testing"
+                data-testid="rooms-testing-fold"
+                onClick={toggleTesting}
+              >
+                <svg className="rooms__fold-chevron" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 5l7 7-7 7" />
+                </svg>
+                Testing
+              </button>
+            </h3>
+            {!testingFolded && (
+              <ul className="rooms__list" id="room-list-testing" data-testid="room-list-testing">
+                {orderedTesting.map((room) => (
+                  <RoomRow key={room.id} room={room} client={client} matchesFilters={matches(room)} onGone={() => void refresh()} />
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {state.kind === 'ready' && state.stale !== null && (
+          <p className="rooms__stale" data-testid="rooms-stale">
+            List may be out of date.
+          </p>
+        )}
+      </Reveal>
 
       {creating && <CreateRoomDialog client={client} onClose={closeCreate} />}
       {scheduling && <CreateEventDialog onClose={closeSchedule} />}
       <TopLayer fixed />
     </section>
+  );
+}
+
+/* ── until the list arrives ─────────────────────────────────────────── */
+
+/**
+ * The list as it will be drawn, with nothing in it yet: `count` cards in `RoomRow`'s own classes and
+ * rows, every word a placeholder (`../components/reveal.css`'s `ghost`), so each card stands in the
+ * box the room's card lands in. No rooms last visit: the empty line's placeholder.
+ */
+function RoomGhosts({ count }: { count: number }) {
+  if (count === 0) {
+    return (
+      <p className="rooms__status" data-testid="rooms-loading">
+        <span className="ghost ghost--text">No rooms yet.</span>
+      </p>
+    );
+  }
+  return (
+    <ul className="rooms__list" data-testid="rooms-loading">
+      {Array.from({ length: count }, (_, i) => (
+        <li key={i} className="room-card" data-skeleton={`room-${i}`}>
+          <div className="room-card__body">
+            <div className="room-card__row1">
+              <span className="room-card__type-icon ghost">
+                <ConstructedIcon />
+              </span>
+              <span className="room-card__name">
+                <span className="ghost ghost--text">A room&apos;s name</span>
+              </span>
+              <span className="room-card__seats ghost">
+                <PersonIcon />
+                0/2
+              </span>
+            </div>
+            <div className="room-card__row2">
+              <span className="room-card__mode-chip ghost">
+                <span className="room-card__mode-text">Mode unset</span>
+              </span>
+              <span className="room-card__series-chip ghost">Bo1</span>
+            </div>
+            <div className="room-card__row3">
+              <span className="room-card__state ghost">Lobby</span>
+              <span className="room-card__state-detail">
+                <span className="ghost ghost--text">Waiting for players</span>
+              </span>
+            </div>
+            <div className="rooms__meta room-card__legacy" />
+            <div className="room-card__row4">
+              <button type="button" className="rooms__enter room-card__go ghost" tabIndex={-1} disabled>
+                Join
+              </button>
+            </div>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 

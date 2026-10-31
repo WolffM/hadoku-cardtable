@@ -11,7 +11,8 @@ import { UpcomingCard } from './UpcomingCard.tsx';
 import { WildcardCard } from './WildcardCard.tsx';
 import './front.css';
 
-export function Banner({ featured }: { featured: FeaturedPick | null }) {
+/** `featured`: the live slot's pick, `undefined` until the first room list has answered. */
+export function Banner({ featured }: { featured: FeaturedPick | null | undefined }) {
   return (
     <div className="front-banner" data-testid="front-banner">
       <LiveSlot pick={featured} />

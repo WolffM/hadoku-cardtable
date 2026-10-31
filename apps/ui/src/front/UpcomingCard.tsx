@@ -10,11 +10,16 @@
  *   - **Polls** — the open Rally forms attached to events (`./polls.ts`), each with Open to Rally.
  *
  * Events are made from the room list's Create event (`../rooms/CreateEventDialog.tsx`).
+ *
+ * Until the first events read answers, the card stands as its skeleton — the gallery's head, as many
+ * Calendar rows as it drew last visit (`./shape.ts`), the dots — and crossfades in with the rest of
+ * the page (`./gate.ts`).
  */
 
-import { useState, type FormEvent } from 'react';
+import { useContext, useEffect, useState, type FormEvent } from 'react';
 import type { EventView } from '@hadoku/shared';
 
+import { Reveal } from '../components/Reveal.tsx';
 import { roomsClient } from '../rooms/api.ts';
 import { navigate } from '../screens/route.ts';
 import { playRole } from '../sound/index.ts';
@@ -22,6 +27,7 @@ import { countdown } from './countdown.ts';
 import { EVENT_KIND_LABELS, eventsApi, fromLocalInput, refreshEvents, toLocalInput, upcoming, useEvents, whenLabel } from './events.ts';
 import { formatEraLabel } from './formatLabel.ts';
 import { Gallery } from './Gallery.tsx';
+import { FrontGateContext, usePartShown } from './gate.ts';
 import { usePolls, type Poll } from './polls.ts';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -44,46 +50,108 @@ function roomLine(event: EventView): string | null {
   return parts.filter((p): p is string => p !== null).join(' · ');
 }
 
+/** The gallery as it opens, on Calendar, with `count` rows of placeholders (none: the empty line's). */
+function UpcomingSkeleton({ count }: { count: number }) {
+  return (
+    <>
+      <header className="front-card__head">
+        <h3 className="front-card__title">Calendar</h3>
+        <span className="gallery__arrows">
+          <span className="gallery__arrow ghost">‹</span>
+          <span className="gallery__arrow ghost">›</span>
+        </span>
+      </header>
+      <div className="gallery__page">
+        {count === 0 ? (
+          <p className="front-card__empty">
+            <span className="ghost ghost--text">Nothing scheduled yet.</span>
+          </p>
+        ) : (
+          <ul className="front-card__events">
+            {Array.from({ length: count }, (_, i) => (
+              <li key={i} className="front-card__event">
+                <span className="front-card__date-block">
+                  <span className="front-card__date-month ghost">Nov</span>
+                  <span className="front-card__date-day ghost">30</span>
+                </span>
+                <span className="front-card__event-text">
+                  <span className="front-card__event-title">
+                    <span className="ghost ghost--text">An event&apos;s title</span>
+                  </span>
+                  <span className="front-card__event-detail">
+                    <span className="ghost ghost--text">Sat 1 Nov, 20:00 · in 2 days</span>
+                  </span>
+                  <span className="front-card__event-detail">
+                    <span className="ghost ghost--text">Draft · someone · 3 signed up</span>
+                  </span>
+                  <span className="front-card__event-actions">
+                    <span className="button ghost">View</span>
+                    <span className="button ghost">Sign up</span>
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="front-card__foot">
+        <span className="gallery__dots">
+          <span className="gallery__dot ghost" />
+          <span className="gallery__dot ghost" />
+        </span>
+      </div>
+    </>
+  );
+}
+
 export function UpcomingCard() {
   const { events, now } = useEvents();
   const polls = usePolls();
   const shown = upcoming(events ?? []);
+  const { shape, remember } = useContext(FrontGateContext);
+  const ready = usePartShown('upcoming', events !== null);
+  const drawnEvents = events === null ? null : shown.length;
+  useEffect(() => {
+    if (drawnEvents !== null) remember({ events: drawnEvents });
+  }, [drawnEvents, remember]);
 
   return (
     <section className="front-card front-card--upcoming" data-testid="front-upcoming">
-      <Gallery
-        testId="front-upcoming"
-        pages={[
-          {
-            key: 'calendar',
-            title: 'Calendar',
-            body:
-              events !== null && shown.length === 0 ? (
-                <p className="front-card__empty">Nothing scheduled yet.</p>
-              ) : (
-                <ul className="front-card__events" data-testid="front-calendar">
-                  {shown.map((e) => (
-                    <CalendarRow key={e.id} event={e} now={now} />
-                  ))}
-                </ul>
-              ),
-          },
-          {
-            key: 'polls',
-            title: 'Polls',
-            body:
-              polls !== null && polls.length === 0 ? (
-                <p className="front-card__empty">No open polls.</p>
-              ) : (
-                <ul className="front-card__events" data-testid="front-polls">
-                  {(polls ?? []).map((p) => (
-                    <PollRow key={p.id} poll={p} now={now} />
-                  ))}
-                </ul>
-              ),
-          },
-        ]}
-      />
+      <Reveal name="upcoming" shown={ready} skeleton={<UpcomingSkeleton count={shape.events} />} className="front-card__body" layerClassName="front-card__layer">
+        <Gallery
+          testId="front-upcoming"
+          pages={[
+            {
+              key: 'calendar',
+              title: 'Calendar',
+              body:
+                events !== null && shown.length === 0 ? (
+                  <p className="front-card__empty">Nothing scheduled yet.</p>
+                ) : (
+                  <ul className="front-card__events" data-testid="front-calendar">
+                    {shown.map((e) => (
+                      <CalendarRow key={e.id} event={e} now={now} />
+                    ))}
+                  </ul>
+                ),
+            },
+            {
+              key: 'polls',
+              title: 'Polls',
+              body:
+                polls !== null && polls.length === 0 ? (
+                  <p className="front-card__empty">No open polls.</p>
+                ) : (
+                  <ul className="front-card__events" data-testid="front-polls">
+                    {(polls ?? []).map((p) => (
+                      <PollRow key={p.id} poll={p} now={now} />
+                    ))}
+                  </ul>
+                ),
+            },
+          ]}
+        />
+      </Reveal>
     </section>
   );
 }

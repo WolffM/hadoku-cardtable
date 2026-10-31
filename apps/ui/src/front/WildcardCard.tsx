@@ -20,6 +20,9 @@
  *
  * A read that fails or answers nothing drops its kind quietly: a reachability problem is not shown
  * as an error on the front page.
+ *
+ * Until it has picked, the card stands as its skeleton — the gallery's head, a title and a line, the
+ * dots and a button — and crossfades in with the rest of the page (`./gate.ts`).
  */
 
 import { useEffect, useState } from 'react';
@@ -28,6 +31,7 @@ import { DiscordRecentSchema, type DiscordMessage } from '@hadoku/shared';
 import { apiUrl, bodyOf, getJson, isRecord } from '../http.ts';
 import { DISCORD_INVITE_URL } from '../chrome/HeaderLinks.tsx';
 import { coverCropStyle, ILLUSTRATION_BOX } from '../components/faceCrop.ts';
+import { Reveal } from '../components/Reveal.tsx';
 import { cardImageUrl } from '../draft/cardImage.ts';
 import { onRoomList, poolsClient, roomsClient } from '../rooms/api.ts';
 import { warmRoom } from '../rooms/warm.ts';
@@ -35,6 +39,7 @@ import { REPLAYS_ON } from '../replay/transport.ts';
 import { navigate, routeHash } from '../screens/route.ts';
 import { playRole } from '../sound/index.ts';
 import { avatarColour, avatarInitial, discordTime, groupMessages } from './discordChat.ts';
+import { usePartShown } from './gate.ts';
 import { Gallery } from './Gallery.tsx';
 import { openSeats, pickWildcard, sampleArt, spotlightCube, wildcardPages, type WildcardKind } from './wildcardItems.ts';
 
@@ -257,10 +262,49 @@ export function WildcardCard() {
   const [errors, setErrors] = useState<Partial<Record<WildcardKind, string>>>({});
   const setError = (key: WildcardKind, message: string | null): void => setErrors((e) => ({ ...e, [key]: message ?? undefined }));
 
+  const shown = usePartShown('wildcard', pages.length > 0);
+
   return (
     <section className="front-card front-card--wildcard" data-testid="front-wildcard">
-      <Gallery testId="front-wildcard" pages={pages.map((item) => ({ key: item.key, title: item.kind, body: <WildcardBody item={item} error={errors[item.key] ?? null} />, action: <WildcardAction item={item} onError={(m) => setError(item.key, m)} /> }))} />
+      <Reveal name="wildcard" shown={shown} skeleton={<WildcardSkeleton />} className="front-card__body" layerClassName="front-card__layer">
+        <Gallery testId="front-wildcard" pages={pages.map((item) => ({ key: item.key, title: item.kind, body: <WildcardBody item={item} error={errors[item.key] ?? null} />, action: <WildcardAction item={item} onError={(m) => setError(item.key, m)} /> }))} />
+      </Reveal>
     </section>
+  );
+}
+
+/** The gallery before it has picked: its head, a title and a line, its dots and a button, as placeholders. */
+function WildcardSkeleton() {
+  return (
+    <>
+      <header className="front-card__head">
+        <h3 className="front-card__title">
+          <span className="ghost ghost--text">Looking for a game</span>
+        </h3>
+        <span className="gallery__arrows">
+          <span className="gallery__arrow ghost">‹</span>
+          <span className="gallery__arrow ghost">›</span>
+        </span>
+      </header>
+      <div className="gallery__page">
+        <div className="front-card__wildcard-item">
+          <p className="front-card__release-title">
+            <span className="ghost ghost--text">Short a player?</span>
+          </p>
+          <p className="front-card__wildcard-body">
+            <span className="ghost ghost--text">Ask in the Discord, someone is around.</span>
+          </p>
+        </div>
+      </div>
+      <div className="front-card__foot">
+        <span className="gallery__dots">
+          <span className="gallery__dot ghost" />
+          <span className="gallery__dot ghost" />
+          <span className="gallery__dot ghost" />
+        </span>
+        <span className="button front-card__more ghost">Open Discord</span>
+      </div>
+    </>
   );
 }
 

@@ -35,15 +35,24 @@
  * "Entering a room joins it" comment has the live incident that put it there).
  * So a friend with a link clicks it, and a friend without one finds the room in
  * the list.
+ *
+ * ## Loading once
+ *
+ * The page shows itself once (`../front/gate.ts`): each part that reads stands as its skeleton, in its
+ * loaded boxes, until all of them have their answers, then they crossfade in together. The live slot
+ * does not start until the first room list has said what is live (`featured` is `undefined` until
+ * then): started early, it fetched a replay and then threw it away for the live match.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Banner } from '../front/Banner.tsx';
+import { FrontGateContext, useFrontGateState } from '../front/gate.ts';
 import { RoomList } from '../rooms/RoomList.tsx';
 import type { FeaturedPick, RoomsClient } from '../rooms/api.ts';
 import type { RoomFeed } from '../rooms/feed.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
+import { useSiteTrim } from '../settings/siteTrim.ts';
 import { StatsButton, StatsPopout, type StatsSource } from '../stats/StatsPopout.tsx';
 import { DecksButton } from './DecksButton.tsx';
 import { InventoryButton } from './InventoryButton.tsx';
@@ -62,7 +71,14 @@ export interface LobbyScreenProps {
 
 export function LobbyScreen({ rooms, feed, stats, statsSource }: LobbyScreenProps) {
   const shellRef = useChromeShell('fit');
-  const [featured, setFeatured] = useState<FeaturedPick | null>(null);
+  /** The server's pick for the live slot; `undefined` until the first room list has answered. */
+  const [featured, setFeatured] = useState<FeaturedPick | null | undefined>(undefined);
+  const gate = useFrontGateState();
+  const trimLoaded = useSiteTrim().loaded;
+  const { settle } = gate;
+  useEffect(() => {
+    if (trimLoaded) settle('trim');
+  }, [trimLoaded, settle]);
   return (
     <div ref={shellRef} className="shell shell--fit" data-testid="lobby">
       {/* No title here. The fleet's AppHeader already says "Card Table" at the
@@ -76,10 +92,12 @@ export function LobbyScreen({ rooms, feed, stats, statsSource }: LobbyScreenProp
         <StatsButton source={statsSource} />
         <SettingsGear />
       </nav>
-      <main className="front">
-        <Banner featured={featured} />
-        <RoomList client={rooms} feed={feed} onFeatured={setFeatured} />
-      </main>
+      <FrontGateContext.Provider value={gate}>
+        <main className="front" aria-busy={!gate.revealed}>
+          <Banner featured={featured} />
+          <RoomList client={rooms} feed={feed} onFeatured={setFeatured} />
+        </main>
+      </FrontGateContext.Provider>
       {stats !== undefined && <StatsPopout player={stats.player} tournaments={stats.tournaments === true} source={statsSource} />}
     </div>
   );

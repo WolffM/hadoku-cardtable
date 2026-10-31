@@ -163,9 +163,10 @@ test(titled('the page and the chat stay the window’s height on the front page 
     await alice.page.goto(`${stack.origin}${PREFIX}/`);
     await expect(alice.page.getByTestId('room-create-open')).toBeVisible();
     await expect(alice.page.getByTestId('room-row')).toHaveCount(ROOMS_OPEN);
-    // The banner lands inside the window unscrolled (every card it draws: the live slot holds nothing,
-    // and takes no room, while no match is live and no replay is kept); the room list is what scrolls.
-    await fitsAt(alice.page, 'alice', 'front', '[data-testid="front-banner"] > :has(*)', FRONT_MAY_SCROLL, failures);
+    // The banner lands inside the window unscrolled (every card it draws: the live slot is not drawn,
+    // `data-present="false"`, while no match is live and no replay is kept); the room list is what scrolls.
+    await expect(alice.page.locator('[data-reveal]:not([data-phase="shown"])')).toHaveCount(0);
+    await fitsAt(alice.page, 'alice', 'front', '[data-testid="front-banner"] > :not([data-present="false"])', FRONT_MAY_SCROLL, failures);
 
     await submitCreateRoom(alice.page, { name: `lobby fit ${Date.now()}` });
     await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
