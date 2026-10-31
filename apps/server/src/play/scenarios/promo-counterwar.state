@@ -1,0 +1,18 @@
+# Promo footage (`e2e/promo/counterwar.promo.ts`): a Legacy counter war, five spells over one Oko.
+# Seat 1 (Temur Delver, active) casts Oko; seat 0 (UB Delver, filmed) Counterspells it; seat 1 Swan Songs
+# the Counterspell; seat 0 pitches Brainstorm to Force of Will the Swan Song; seat 1 Spell Pierces the
+# Force; seat 0 Dazes the Pierce with seat 1 tapped out, and the whole stack unwinds into Oko countered.
+# Every land is a dual or a basic, so nothing asks a question when the board applies.
+turn=4
+activeplayer=ai
+activephase=MAIN1
+humanlife=15
+ailife=17
+humanhand=Counterspell;Force of Will;Brainstorm;Daze;Thoughtseize
+humanbattlefield=Delver of Secrets;Tamiyo, Inquisitive Student;Underground Sea;Island;Polluted Delta|Tapped:True
+humanlibrary=Island;Island;Island;Island;Island;Island;Island;Island
+humangraveyard=Ponder;Fatal Push;Lightning Bolt;Flooded Strand
+aihand=Oko, Thief of Crowns;Swan Song;Spell Pierce;Wasteland
+aibattlefield=Ragavan, Nimble Pilferer;Brazen Borrower;Tropical Island;Volcanic Island;Volcanic Island;Island;Tropical Island
+ailibrary=Island;Island;Island;Island;Island;Island;Island;Island
+aigraveyard=Lightning Bolt;Ponder;Daze;Misty Rainforest

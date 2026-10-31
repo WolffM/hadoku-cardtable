@@ -1,0 +1,17 @@
+# Promo footage (`e2e/promo/valakut.promo.ts`): Modern Titan Shift's whole combo in one spell. Seat 0
+# casts Scapeshift with eleven lands out, sacrifices all eleven and fetches Valakut, the Molten Pinnacle
+# and ten Mountains: all eleven enter at once, every Mountain sees nine others, so Valakut triggers ten
+# times — thirty damage into seat 1's twenty. Seat 1 is a Jund board with nothing in hand to answer.
+turn=6
+activeplayer=human
+activephase=MAIN1
+humanlife=14
+ailife=20
+humanhand=Scapeshift;Lightning Bolt;Search for Tomorrow;Summoner's Pact
+humanbattlefield=Cinder Glade;Cinder Glade;Sheltered Thicket;Ketria Triome;Wooded Foothills;Forest;Forest;Forest;Island;Island;Snow-Covered Forest
+humanlibrary=Valakut, the Molten Pinnacle;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Forest;Forest;Island;Primeval Titan;Prismatic Omen
+humangraveyard=Farseek;Explore;Sakura-Tribe Elder
+aihand=
+aibattlefield=Tarmogoyf;Scavenging Ooze;Dark Confidant;Swamp;Swamp;Raging Ravine;Forest;Verdant Catacombs|Tapped:True
+ailibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+aigraveyard=Thoughtseize;Lightning Bolt;Inquisition of Kozilek;Abrupt Decay
