@@ -89,10 +89,11 @@ export function attachDrafts(api: Router, deps: DraftsDeps): void {
 		const draftRooms = deps.draftRooms;
 		const podId = String(req.params.podId);
 		if (draftRooms === null) return noSuchPod(res, podId);
-		const room = draftRooms.find(podId);
+		const caller = httpCaller(req);
+		// A room of several pods: the caller's own pod's draft (`DraftRooms.findFor`).
+		const room = draftRooms.findFor(podId, caller);
 		if (room === undefined) return noSuchPod(res, podId);
 
-		const caller = httpCaller(req);
 		const view = viewForParticipant(room, caller);
 		if (view.viewer.kind !== 'seat') return noSeat(res, podId);
 
@@ -103,10 +104,11 @@ export function attachDrafts(api: Router, deps: DraftsDeps): void {
 		const draftRooms = deps.draftRooms;
 		const podId = String(req.params.podId);
 		if (draftRooms === null) return noSuchPod(res, podId);
-		const room = draftRooms.find(podId);
+		const caller = httpCaller(req);
+		// A room of several pods: the caller's own pod's draft (`DraftRooms.findFor`).
+		const room = draftRooms.findFor(podId, caller);
 		if (room === undefined) return noSuchPod(res, podId);
 
-		const caller = httpCaller(req);
 		const view = viewForParticipant(room, caller);
 		if (view.viewer.kind !== 'seat') return noSeat(res, podId);
 

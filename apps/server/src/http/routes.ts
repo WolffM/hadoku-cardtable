@@ -462,7 +462,8 @@ const defaultLog = jsonLogger('cardtable-tables');
 export function draftPoolForMember(memberId: string, rooms: DraftRooms | null): DraftPoolLookup | null {
 	if (rooms === null) return null;
 	return (draftId) => {
-		const room = rooms.find(draftId);
+		// A room of several pods: the member's own pod's draft (`DraftRooms.findFor`).
+		const room = rooms.findFor(draftId, memberId);
 		if (room === undefined) return { ok: false, error: `no draft ${JSON.stringify(draftId)} on this server` };
 		const view = viewForParticipant(room, memberId);
 		if (view.viewer.kind !== 'seat') return { ok: false, error: `you have no seat in draft ${JSON.stringify(draftId)}` };

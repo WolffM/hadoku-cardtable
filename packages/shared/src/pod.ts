@@ -35,8 +35,36 @@ export const POD_PHASES = ['lobby', 'drafting', 'building', 'rounds', 'done'] as
 export const PodPhaseSchema = z.enum(POD_PHASES);
 export type PodPhase = z.infer<typeof PodPhaseSchema>;
 
-/** How many pod seats there are on the seat UI (ruling 4: up to 8, reused from the 1v1 table's own seat components). */
+/** How many seats one pod has (ruling 4: up to 8, reused from the 1v1 table's own seat components). */
 export const POD_SEATS = 8;
+
+/** The most seats a room grows to: eight pods of eight. A room grows a whole pod at a time. */
+export const POD_MAX_SEATS = 64;
+
+/**
+ * How a field of `n` drafters splits into pods (the operator, 2026-10-31: *"pods as close to 8 as possible,
+ * preferring even sizes (13 → 7 + 6)"*): the fewest pods of at most 8, never two odd pods while even ones
+ * would do (14 → 8 + 6, not 7 + 7), and otherwise as even as possible (21 → 8 + 7 + 6). Largest first.
+ */
+export function splitPods(n: number): number[] {
+  if (n <= 0) return [];
+  const pods = Math.ceil(n / POD_SEATS);
+  if (pods === 1) return [n];
+  // The one odd pod an odd field needs, tried at every odd size; the rest split into even pods.
+  const odd = n % 2 === 1 ? [7, 5, 3, 1] : [0];
+  let best: number[] | null = null;
+  for (const o of odd) {
+    const evenPods = o === 0 ? pods : pods - 1;
+    const pairs = (n - o) / 2;
+    if (pairs > evenPods * (POD_SEATS / 2) || (evenPods > 0 && pairs < evenPods)) continue;
+    const base = Math.floor(pairs / evenPods);
+    const sizes = Array.from({ length: evenPods }, (_, i) => 2 * (base + (i < pairs % evenPods ? 1 : 0)));
+    const all = (o === 0 ? sizes : [...sizes, o]).sort((a, b) => b - a);
+    if (best === null || all[0]! - all[all.length - 1]! < best[0]! - best[best.length - 1]!) best = all;
+  }
+  if (best === null) throw new Error(`splitPods: no split for ${n}`);
+  return best;
+}
 
 /** One pod seat in the lobby phase: who is sitting there, or nobody. */
 export const PodMemberSchema = z.strictObject({
@@ -47,8 +75,12 @@ export const PodMemberSchema = z.strictObject({
 });
 export type PodMember = z.infer<typeof PodMemberSchema>;
 
-/** The 8 pod seats, in seat order. An empty seat is `null`. */
-export const PodSeatsSchema = z.array(PodMemberSchema.nullable()).length(POD_SEATS);
+/** The room's pod seats, in seat order, 8 to a pod. An empty seat is `null`. */
+export const PodSeatsSchema = z
+  .array(PodMemberSchema.nullable())
+  .min(POD_SEATS)
+  .max(POD_MAX_SEATS)
+  .refine((seats) => seats.length % POD_SEATS === 0, { error: `seats come ${POD_SEATS} to a pod` });
 export type PodSeats = z.infer<typeof PodSeatsSchema>;
 
 /**
@@ -161,7 +193,7 @@ export function isPodAi(id: string): boolean {
 
 export const PodViewSchema = z.strictObject({
   phase: PodPhaseSchema,
-  /** The 8 pod seats — filled only in the `lobby` phase; empty (all `null`) once drafting starts. */
+  /** The room's pod seats — filled only in the `lobby` phase; empty (all `null`) once drafting starts. */
   seats: PodSeatsSchema,
   /** 0 until rounds start; 1-based once they have. */
   round: z.number().int().min(0),
@@ -183,6 +215,11 @@ export const PodViewSchema = z.strictObject({
    * Empty in `lobby`, where `seats` says who is sitting.
    */
   drafters: z.array(z.string().min(1)),
+  /**
+   * The drafters of each pod, in pod order (`splitPods`): one pod for a room of 8 or fewer, which drafts on
+   * the room's own id. Empty in `lobby` and for a constructed tournament, which drafts nothing.
+   */
+  pods: z.array(z.array(z.string().min(1))).optional(),
   /** Drafters whose deck is saved and legal — `building`'s own gate for starting `rounds`. */
   built: z.array(z.string().min(1)),
   /**

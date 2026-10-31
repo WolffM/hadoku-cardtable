@@ -29,7 +29,7 @@ import { SaveDraftDeckBodySchema, type DraftCard } from '@hadoku/shared';
 
 import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
 import { loadPool, type CubePool } from '../room/pool.ts';
-import { createDraftRooms, joinDraftRoom, releaseSeat, singlePoolResolver, stateOf, type DraftRoom, type DraftRooms } from '../room/draftRooms.ts';
+import { createDraftRooms, DEFAULT_PLAN, joinDraftRoom, releaseSeat, singlePoolResolver, stateOf, type DraftRoom, type DraftRooms } from '../room/draftRooms.ts';
 import { identityFromHeaders } from '../room/identity.ts';
 import { loadTablesLibrary } from './library.ts';
 
@@ -405,5 +405,38 @@ describe('the pick that completes a pod is persisted by itself', () => {
 		const mine = await call(h, 'GET', '/api/drafts/pod-g/mine', { as: 'alice' });
 		expect(mine.status).toBe(200);
 		expect((mine.json.pool as unknown[]).length).toBe(finishedPool.length);
+	});
+});
+
+describe('a room of several pods: every seam that holds only the room id finds the caller’s own pod', () => {
+	it('a pod-2 drafter reads their pool, saves their deck, and passes the drafted-deck check, all through the room id', async () => {
+		const draftRooms = createDraftRooms({ ...singlePoolResolver(cube), storeDir: null });
+		// Pod 1 drafts on the room's own id, pod 2 on `<roomId>~1` (`room/lobby.ts`'s `podDraftId`).
+		finishPodFor(draftRooms, 'room-x', 'bob', 'sock-b');
+		const { pool } = finishPodFor(draftRooms, 'room-x~1', 'alice', 'sock-a');
+		const alice = identityFromHeaders(edgeHeaders('alice'), 'sock-a');
+		const bob = identityFromHeaders(edgeHeaders('bob'), 'sock-b');
+		const h = await openApp(draftRooms);
+		// The lobby's deal names each drafter's own pod (`PodDeal.podOf`); wired after `attachTables`, which wires its own.
+		const podOf = { [bob]: 'room-x', [alice]: 'room-x~1' };
+		draftRooms.setPodLookup((id) => (id.startsWith('room-x') ? { seats: 8, humans: [], bots: [], plan: DEFAULT_PLAN, podOf } : null));
+
+		const mine = await call(h, 'GET', '/api/drafts/room-x/mine', { as: 'alice' });
+		expect(mine.status).toBe(200);
+		expect((mine.json.pool as unknown[]).length).toBe(pool.length);
+
+		const dck = legalDeckFor('room-x', pool);
+		const put = await call(h, 'PUT', '/api/drafts/room-x/deck', { as: 'alice', body: { dck } });
+		expect(put.status).toBe(200);
+		expect((await call(h, 'GET', '/api/drafts/room-x/mine', { as: 'alice' })).json.deck).toBe(dck);
+
+		// What Ready checks: the browser names the room's id as the drafted deck's draft.
+		const check = await call(h, 'POST', '/api/tables/check', { as: 'alice', body: { deck: { dck }, rules: { kind: 'draft', draftId: 'room-x' } } });
+		expect(check.status).toBe(200);
+		expect(check.json).toMatchObject({ legal: true });
+
+		// And pod 1's drafter still finds their own, not pod 2's.
+		expect((await call(h, 'GET', '/api/drafts/room-x/mine', { as: 'bob' })).status).toBe(200);
+		expect((await call(h, 'GET', '/api/drafts/room-x/mine', { as: 'bob' })).json.deck).toBeNull();
 	});
 });

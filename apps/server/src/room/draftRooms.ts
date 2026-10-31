@@ -351,6 +351,14 @@ export interface DraftRooms {
 	open(draftId: string): DraftRoom;
 	/** The room for a draft that already exists, or undefined. */
 	find(draftId: string): DraftRoom | undefined;
+	/**
+	 * The draft `memberId` sits in when a seam knows only the room's id (`room/socket.ts`'s messages, the deck
+	 * routes, the drafted-deck check at Ready): their own pod's, in a room that drafts as several pods
+	 * (`PodDeal.podOf`), else `draftId` itself.
+	 */
+	routeFor(draftId: string, memberId: string): string;
+	/** `find` of `routeFor`. */
+	findFor(draftId: string, memberId: string): DraftRoom | undefined;
 	all(): DraftRoom[];
 	/**
 	 * Forget a room and everything it owns.
@@ -421,6 +429,11 @@ export interface PodDeal {
 	 * rather than by a second lock.
 	 */
 	plan: DraftPlan;
+	/**
+	 * A room that drafts as several pods (`room/lobby.ts`'s `podDraftId`): every drafter's own pod's draft id,
+	 * by member id. Absent for a room that drafts as one pod on its own id.
+	 */
+	podOf?: Readonly<Record<string, string>>;
 }
 
 /*
@@ -690,6 +703,12 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 		});
 	};
 
+	const find = (draftId: string): DraftRoom | undefined => {
+		const room = registry.get(draftId);
+		return room?.app.state === null ? undefined : room;
+	};
+	const routeFor = (draftId: string, memberId: string): string => podLookup(draftId)?.podOf?.[memberId] ?? draftId;
+
 	return {
 		params,
 		open(draftId) {
@@ -712,10 +731,9 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 			room.app.state = state;
 			return room;
 		},
-		find: (draftId) => {
-			const room = registry.get(draftId);
-			return room?.app.state === null ? undefined : room;
-		},
+		find,
+		routeFor,
+		findFor: (draftId, memberId) => find(routeFor(draftId, memberId)),
 		all: () => registry.all().filter((r) => r.app.state !== null),
 		delete: (draftId) => {
 			registry.delete(draftId);

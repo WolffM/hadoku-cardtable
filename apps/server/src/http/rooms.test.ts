@@ -1123,7 +1123,7 @@ describe('POST /api/rooms/:id/pod/close', () => {
 
 		expect((await close('carol', { seat: 7, closed: true })).status).toBe(404);
 		expect((await close('bob', { seat: 7, closed: true })).status).toBe(403);
-		expect((await close('alice', { seat: 8, closed: true })).status).toBe(400);
+		expect((await close('alice', { seat: 64, closed: true })).status).toBe(400);
 		expect((await close('alice', { seat: 7, closed: 'yes' })).status).toBe(400);
 		const ok = await close('alice', { seat: 7, closed: true });
 		expect(ok.status).toBe(200);

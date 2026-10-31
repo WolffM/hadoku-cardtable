@@ -10,7 +10,7 @@
 
 import { z } from 'zod';
 
-import { POD_SEATS } from './pod.ts';
+import { POD_MAX_SEATS } from './pod.ts';
 import { CONSTRUCTED_MODES, DEFAULT_GAME_TYPE, GAME_TYPES, GameTypeSchema, RoomModeSchema, type RoomMode } from './room-modes.ts';
 
 export const ROOM_NAME_MAX = 60;
@@ -130,7 +130,7 @@ function body<S extends z.ZodRawShape>(shape: S) {
 
 const oneOf = (field: string, values: readonly string[]): string => `${field} must be one of: ${values.join(', ')}`;
 const gameTypeField = z.enum(GAME_TYPES, { error: oneOf('gameType', GAME_TYPES) });
-const seatField = z.int({ error: `seat must be an integer 0..${POD_SEATS - 1}` }).min(0).max(POD_SEATS - 1);
+const seatField = z.int({ error: `seat must be an integer 0..${POD_MAX_SEATS - 1}` }).min(0).max(POD_MAX_SEATS - 1);
 
 /**
  * `undefined`, `null` and `""` all mean "no password": a blank form field is

@@ -50,6 +50,13 @@
  * claimed are filled at that instant rather than at connect time, and nobody who
  * has not readied is ever standing in for a bot mid-decision.
  *
+ * ## A room of several pods: the room's id, routed per drafter
+ *
+ * A room of more than 8 drafts as several pods (`room/lobby.ts`'s `podDraftId`), each its own draft. The
+ * browser still names the ROOM's id in every message; `DraftRooms.routeFor` turns that into the sender's
+ * own pod's draft, so nothing on the client has to know which pod it is in. Someone in no pod (a watcher)
+ * is routed to the room's first.
+ *
  * ## One event name per direction
  *
  * `DRAFT_CHANNEL.clientToServer` is the only thing a client may emit, so there
@@ -515,7 +522,8 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 						reject(null, 'unknown-draft', REFUSAL_DETAIL[refusal]);
 						return;
 					}
-					const room = rooms.open(msg.draftId);
+					// A room of several pods: the joiner's own pod's draft (`DraftRooms.routeFor`).
+					const room = rooms.open(rooms.routeFor(msg.draftId, participantId));
 					const outcome = joinDraftRoom(room, socket.id, participantId, tier, rooms.drafters(room.roomId));
 					log({
 						evt: 'join',
@@ -547,7 +555,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 				}
 
 				case 'leave': {
-					const room = rooms.find(msg.draftId);
+					const room = rooms.findFor(msg.draftId, participantId);
 					if (room === undefined) {
 						reject(null, 'unknown-draft');
 						return;
@@ -562,7 +570,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 				}
 
 				case 'resync': {
-					const room = rooms.find(msg.draftId);
+					const room = rooms.findFor(msg.draftId, participantId);
 					if (room === undefined) {
 						reject(null, 'unknown-draft');
 						return;
@@ -581,7 +589,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 				}
 
 				case 'watch': {
-					const room = rooms.find(msg.draftId);
+					const room = rooms.findFor(msg.draftId, participantId);
 					const client = room?.clients.get(socket.id);
 					if (room === undefined || client === undefined) {
 						reject(null, 'unknown-draft');
@@ -598,7 +606,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 				}
 
 				case 'pick': {
-					const room = rooms.find(msg.draftId);
+					const room = rooms.findFor(msg.draftId, participantId);
 					if (room === undefined) {
 						reject(null, 'unknown-draft');
 						return;

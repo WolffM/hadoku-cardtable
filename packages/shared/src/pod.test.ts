@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isPodAi,
   POD_PHASES,
+  POD_MAX_SEATS,
   POD_SEATS,
   PodMatchResultSchema,
   PodMemberSchema,
@@ -18,6 +19,7 @@ import {
   PodStandingsRowSchema,
   PodViewSchema,
   RoomPodSchema,
+  splitPods,
 } from './pod.ts';
 
 const MEMBER = { memberId: 'fk:alice', name: 'alice' } as const;
@@ -167,5 +169,41 @@ describe('isPodAi — one predicate for both AI sentinels', () => {
     expect(isPodAi('ai:')).toBe(false);
     expect(isPodAi('ai:x')).toBe(false);
     expect(isPodAi('')).toBe(false);
+  });
+});
+
+describe('splitPods — pods of at most 8, as even as possible, never two odd pods while even ones would do', () => {
+  it.each([
+    [0, []],
+    [1, [1]],
+    [8, [8]],
+    [9, [5, 4]],
+    [10, [6, 4]],
+    [13, [7, 6]],
+    [14, [8, 6]],
+    [16, [8, 8]],
+    [21, [8, 7, 6]],
+    [22, [8, 8, 6]],
+    [40, [8, 8, 8, 8, 8]],
+    [64, [8, 8, 8, 8, 8, 8, 8, 8]],
+  ])('%i entrants → %j', (n, sizes) => {
+    expect(splitPods(n)).toEqual(sizes);
+  });
+
+  it('covers every count up to the room cap with pods of at most 8, at most one odd, summing to the field', () => {
+    for (let n = 1; n <= POD_MAX_SEATS; n++) {
+      const sizes = splitPods(n);
+      expect(sizes.reduce((a, b) => a + b, 0)).toBe(n);
+      expect(sizes).toHaveLength(Math.ceil(n / POD_SEATS));
+      expect(sizes.every((s) => s >= 1 && s <= POD_SEATS)).toBe(true);
+      expect(sizes.filter((s) => s % 2 === 1).length).toBe(n % 2);
+    }
+  });
+});
+
+describe('a room seats several pods', () => {
+  it('accepts seats in whole pods of 8, up to the room cap', () => {
+    for (const length of [8, 16, 24, POD_MAX_SEATS]) expect(PodSeatsSchema.safeParse(new Array(length).fill(null)).success).toBe(true);
+    for (const length of [0, 7, 9, 15, POD_MAX_SEATS + 8]) expect(PodSeatsSchema.safeParse(new Array(length).fill(null)).success).toBe(false);
   });
 });

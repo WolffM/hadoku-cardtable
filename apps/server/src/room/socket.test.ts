@@ -1159,3 +1159,39 @@ describe('a seat with nobody connected to it, for the window', () => {
 		await waitUntil(() => timers.length > 0, 'the release timer to be scheduled once the LAST tab is gone');
 	});
 });
+
+describe('a room of several pods', () => {
+	it('a drafter in the second pod names the room’s id and is seated, and picks, in their own pod’s draft', async () => {
+		const { lobby, rooms } = live();
+		const people = Array.from({ length: 9 }, (_, i) => ({ id: identityFromHeaders(edgeHeaders(`pod-m${i}`), 'unused'), name: `m${i}` }));
+		const made = lobby.create(people[0]!, { name: 'pods', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error(made.reason);
+		const id = made.room.id;
+		for (const m of people.slice(1)) expect(lobby.join(id, m).ok).toBe(true);
+		for (const m of people) expect(lobby.sitPod(id, m.id).ok).toBe(true);
+		lobby.get(id)!.pod!.seats.forEach((s, seat) => {
+			if (s === null) expect(lobby.aiPod(id, people[0]!.id, seat, true).ok).toBe(true);
+		});
+		for (const m of people) expect(lobby.setReady(id, m.id, true)).toBe(true);
+		lobby.setPodPlan(id, people[0]!.id, lobby.get(id)!.pod!.plan!, { ok: true, cards: 1 });
+		expect(lobby.startDraft(id, people[0]!.id).ok).toBe(true);
+		expect(lobby.get(id)!.pod?.pods?.map((p) => p.length)).toEqual([5, 4]);
+		rooms.setPodLookup((draftId) => lobby.podDraft(draftId));
+
+		const first = await connect(live().port, edgeHeaders('pod-m0'));
+		const last = await connect(live().port, edgeHeaders('pod-m8'));
+		await joinAndSettle(first, id);
+		await joinAndSettle(last, id);
+		expect(lastView(first)?.draftId).toBe(id);
+		const view = lastView(last);
+		expect(view?.draftId).toBe(`${id}~1`);
+		expect(view?.viewer.kind).toBe('seat');
+		if (view?.viewer.kind !== 'seat') return;
+
+		const taken = view.viewer.pack[0]!;
+		last.send(pickCard(id, taken.cardId));
+		await waitUntil(() => (lastView(last)?.seq ?? 0) > view.seq, 'the pod-2 pick to land');
+		expect(errors(last)).toEqual([]);
+		expect(roomsMod.stateOf(rooms.find(`${id}~1`)!).pools[seatOf(rooms.find(`${id}~1`)!.seats, people[8]!.id)!]!.map((c) => c.cardId)).toContain(taken.cardId);
+	});
+});
