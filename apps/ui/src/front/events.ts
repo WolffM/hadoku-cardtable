@@ -9,24 +9,15 @@ import { EventListSchema, EventViewSchema, type EventKind, type EventView } from
 
 import { apiUrl, bodyOf, getJson, sendJson, serverMessage, type Fetch } from '../http.ts';
 
-export const EVENT_KIND_LABELS: Readonly<Record<EventKind, string>> = {
+/** What each kind of event is called; the server sends only these (an event is always a room's). */
+export const EVENT_KIND_LABELS: Readonly<Partial<Record<EventKind, string>>> = {
   'draft-pod': 'Draft pod',
   'constructed-tournament': 'Constructed tournament',
   room: 'Room',
-  casual: 'Casual',
 };
 
 export type EventOutcome = { ok: true; event: EventView } | { ok: false; message: string };
 export type EventDone = { ok: true } | { ok: false; message: string };
-
-export interface CreateEventRequest {
-  kind: EventKind;
-  title: string;
-  /** ISO date-time. */
-  startsAt: string;
-  /** A `room` event's Create room fields. */
-  room?: Record<string, unknown>;
-}
 
 const defaultFetch: Fetch = (input, init) => fetch(input, init);
 
@@ -43,10 +34,8 @@ export function eventsClient(fetchImpl: Fetch = defaultFetch) {
       if (!res.ok) throw new Error(serverMessage(await bodyOf(res), res.status));
       return EventListSchema.parse(await bodyOf(res)).events;
     },
-    async create(req: CreateEventRequest): Promise<EventOutcome> {
-      return answer(await sendJson(apiUrl('events'), 'POST', req, fetchImpl));
-    },
-    async update(id: string, change: { title?: string; startsAt?: string }): Promise<EventOutcome> {
+    /** The organizer moves their event; its title is its room's name, changed in the room. */
+    async update(id: string, change: { startsAt: string }): Promise<EventOutcome> {
       return answer(await sendJson(apiUrl(`events/${encodeURIComponent(id)}`), 'PATCH', change, fetchImpl));
     },
     async cancel(id: string): Promise<EventDone> {
