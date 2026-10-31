@@ -2723,7 +2723,7 @@ describe('a Match with an unpayable cost in front of it (item 7)', () => {
 		expect(frames(h, 0).filter((f) => f.method === 'showPromptMessage' && /Pay Mana Cost/.test(f.message))).toEqual([]);
 		expect(h.logs.filter((l) => l.evt === 'prompt-withheld' && l.seat === 0).map((l) => l.why)).toContain('auto-cancel');
 		// The seat did not cancel it; it sees its play turned away, once, and the other seat sees nothing.
-		expect(frames(h, 0).filter((f) => f.method === 'flashIncorrectAction')).toEqual([{ kind: 'notify', method: 'flashIncorrectAction' }]);
+		expect(frames(h, 0).filter((f) => f.method === 'flashIncorrectAction')).toEqual([{ kind: 'notify', method: 'flashIncorrectAction', cause: 'unpayable' }]);
 		expect(frames(h, 1).filter((f) => f.method === 'flashIncorrectAction')).toEqual([]);
 	});
 

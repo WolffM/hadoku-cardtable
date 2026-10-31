@@ -267,7 +267,7 @@ import { preloadMatchArt } from './art-preload.ts';
 import { pressableBar, type BarHold } from './bar-hold.ts';
 import { drawnOfferOf, dropMarked, resolvedByAnother, type OfferHold, type Pressed } from './offer-hold.ts';
 import { holdStands, lapseHold } from './timed-hold.ts';
-import { mistakeOfAutoCancel, mistakeOfClick, type MistakeKey } from './mistakes.ts';
+import { mistakeOfClick, type MistakeKey } from './mistakes.ts';
 import { SELF_ANSWERING } from '../prompts/answer-table.ts';
 import type { PromptParts } from '../prompts/lookup.ts';
 import { foldPackets, type FoldablePacket, type FoldResult, type WireState } from '../fold.ts';
@@ -3489,6 +3489,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
       match.flips = [...match.flips, shownFlip(frame.flip, frame.message)].slice(-ROLLS_KEPT);
     }
   } else if (frame.kind === 'notify' && frame.method === 'flashIncorrectAction') {
+    if (frame.cause === 'unpayable') setMistake(match, 'mana');
     if (match.actCard !== null) refuse(match, match.actCard);
   } else if (frame.kind === 'notify' && frame.method === 'clearWeaklySelectable') {
     // The input that offered them has stopped. `inputLive` is NOT cleared
@@ -3512,9 +3513,6 @@ export const REFUSED_MS = 900;
 function refuse(match: LiveMatch, card: number): void {
   const seq = (match.refused?.seq ?? 0) + 1;
   match.refused = { card, seq };
-  // the one `flashIncorrectAction` cause this classifier can tell apart from Forge's own two
-  // (`InputPassPriority`, `InputAttack`) — see `mistakes.ts`'s own header on why the order holds.
-  setMistake(match, payingMana(match) ? mistakeOfAutoCancel() : null);
   setTimeout(() => {
     if (match.refused?.seq !== seq) return;
     match.refused = null;

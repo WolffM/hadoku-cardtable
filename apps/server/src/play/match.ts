@@ -3744,7 +3744,7 @@ export class Match {
 		// lands, which then ends the turn at the next priority window (af57, run 39163377412).
 		this.command({ t: 'cancel-payment', seat: s.seat });
 		// The seat did not cancel it: a refusal it sees, as Forge's own turned-away click is.
-		this.send(s, { kind: 'notify', method: 'flashIncorrectAction' });
+		this.send(s, { kind: 'notify', method: 'flashIncorrectAction', cause: 'unpayable' });
 		return true;
 	}
 

@@ -2415,11 +2415,19 @@ describe('payingMana: the payment input, and not a bar that outlived it', () => 
   });
 
   // the server's own auto-cancel of an unpayable cost (`apps/server/src/play/match.ts`'s
-  // `maybeCancelUnpayable`) sends the exact same `flashIncorrectAction` Forge's own two causes do
-  // (`mistakes.ts`'s own header). The one fact that tells it apart is timing: the explicit notify is
-  // sent synchronously, ahead of whatever frames would otherwise close the payment, so `payingMana`
-  // is still true when this frame lands.
-  it('flashIncorrectAction while payingMana is still true is the "mana" mistake', async () => {
+  // `maybeCancelUnpayable`) withholds the payment window, so the seat never sees a payment: the
+  // frame's `cause` is the only thing that says "mana" (claw run 41170793426).
+  it('an unpayable cancel is the "mana" mistake, with no payment ever shown', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([mine[0]!])]);
+    expect(selectCard(m, mine[0]!)).toBe(true);
+    expect(payingMana(m)).toBe(false);
+    await sendAndApply(s, m, [parseServerFrame({ kind: 'notify', method: 'flashIncorrectAction', cause: 'unpayable' })]);
+    expect(m.mistake).toEqual({ key: 'mana', seq: 1 });
+  });
+
+  it('Forge’s own flash, with no cause, says nothing — even mid-payment', async () => {
     const { s, m } = await fullGame();
     const { mine } = ids(m);
     await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([mine[0]!])]);
@@ -2428,7 +2436,7 @@ describe('payingMana: the payment input, and not a bar that outlived it', () => 
     expect(payingMana(m)).toBe(true);
     await sendAndApply(s, m, [parseServerFrame({ kind: 'notify', method: 'flashIncorrectAction' })]);
     expect(m.refused).toEqual({ card: mine[0], seq: 1 });
-    expect(m.mistake).toEqual({ key: 'mana', seq: 1 });
+    expect(m.mistake).toBeNull();
   });
 });
 

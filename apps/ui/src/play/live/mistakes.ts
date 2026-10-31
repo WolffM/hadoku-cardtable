@@ -14,21 +14,14 @@
  *    `reportRefusedClick`): the second land, a press with no priority, an
  *    attack aim at a creature the board already marks summoning sick (haste
  *    included — `BoardCard.summoningSick` is already haste-aware).
- *  - {@link mistakeOfAutoCancel} — the one case Forge's own
- *    `flashIncorrectAction` answers for certain: the server's own
- *    `maybeCancelUnpayable` (`apps/server/src/play/match.ts`) pressing Cancel
- *    for a cost it can see nothing pays. `match.ts`'s `refuse()` calls this
- *    only while `payingMana(match)` is STILL true when the notify frame
- *    lands — true because the server's explicit
- *    `{kind:'notify',method:'flashIncorrectAction'}` is sent synchronously,
- *    right after the `cancel-payment` command, ahead of whatever frames
- *    Forge's own bridge answers that command with (those are what would
- *    otherwise clear the payment first). The two OTHER sources of
- *    `flashIncorrectAction` — `InputPassPriority.java:350`, a click with
+ *  - "mana" — the server's own `maybeCancelUnpayable`
+ *    (`apps/server/src/play/match.ts`) pressing Cancel for a cost it can see
+ *    nothing pays. It withholds that payment window, so this seat never sees
+ *    the payment; the server says why on the `flashIncorrectAction` it sends
+ *    instead (`cause: 'unpayable'`), and `match.ts` reads that. Forge's own
+ *    two sources of the frame (`InputPassPriority.java:350`, a click with
  *    nothing left to offer, and `InputAttack.java:173`, an illegal attack
- *    target — never open a mana payment, so they can never pass this gate;
- *    there is nothing left to tell them apart from an auto-cancel but this
- *    one fact, which is exactly why `match.ts` reads it instead of guessing.
+ *    target) carry no cause and say nothing.
  *
  * `not-offered` on a plain spell (not a land, not a sick creature) is
  * deliberately NOT a "mana" mistake here: Forge's own actionable set also
@@ -82,10 +75,8 @@ export function mistakeOfClick(view: BoardView | null, reason: string, cardId: n
     return 'land';
   }
   if (CREATURE.test(card.card.typeLine) && card.summoningSick) return 'sick';
+  // On the other seat's turn Forge keeps this seat on a live "Waiting for …" input with its own
+  // offered set, so a press there reads `not-offered`, not `no-input` (claw run 41170793426).
+  if (!me.isActive && !me.hasPriority) return 'priority';
   return null;
-}
-
-/** The one case Forge's own `flashIncorrectAction` answers for certain — see the module header. */
-export function mistakeOfAutoCancel(): MistakeKey {
-  return 'mana';
 }

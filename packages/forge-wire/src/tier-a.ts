@@ -124,11 +124,13 @@ export const ClearWeaklySelectableSchema = z.strictObject({
  * Forge turned away what the seat just did: a click whose every ability it
  * would refuse (`InputPassPriority.onCardSelected`). The server sends the same
  * frame when it cancels a payment nothing can pay (`Match.maybeCancelUnpayable`),
- * so neither refusal is silent.
+ * so neither refusal is silent — with `cause: 'unpayable'`, because it withholds
+ * that payment window and the seat could not otherwise tell the two apart.
  */
 export const FlashIncorrectActionSchema = z.strictObject({
   kind: z.literal('notify'),
   method: z.literal('flashIncorrectAction'),
+  cause: z.literal('unpayable').optional(),
 });
 
 /**

@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
-import { mistakeOfAutoCancel, mistakeOfClick, MISTAKE_LINES, type MistakeKey } from './mistakes.ts';
+import { mistakeOfClick, MISTAKE_LINES, type MistakeKey } from './mistakes.ts';
 
 function card(id: number, typeLine: string, extra: Partial<BoardCard> = {}): BoardCard {
   return {
@@ -111,6 +111,14 @@ describe('mistakeOfClick: only the shapes Forge’s own state answers for certai
     expect(mistakeOfClick(view(me), 'not-offered', 4)).toBeNull();
   });
 
+  it('a "not-offered" press on the other seat’s turn, without priority, is "priority" — Forge holds a waiting input there', () => {
+    const land = card(5, 'Basic Land — Forest');
+    const waiting = player({ hand: [land], isActive: false, hasPriority: false, numLandThisTurn: 0, maxLandPlay: 1 });
+    expect(mistakeOfClick(view(waiting), 'not-offered', 5)).toBe('priority');
+    const ownTurn = player({ hand: [land], isActive: true, hasPriority: false, numLandThisTurn: 0, maxLandPlay: 1 });
+    expect(mistakeOfClick(view(ownTurn), 'not-offered', 5), 'on its own turn (attacks, blocks) it is not this').toBeNull();
+  });
+
   it('every other refusal reason says nothing', () => {
     const me = player();
     for (const reason of ['no-view', 'disconnected', 'spent', 'ask-open', 'not-in-selection', 'not-in-view']) {
@@ -125,12 +133,6 @@ describe('mistakeOfClick: only the shapes Forge’s own state answers for certai
   it('a card id in neither the viewer’s hand nor battlefield says nothing', () => {
     const me = player();
     expect(mistakeOfClick(view(me), 'not-offered', 999)).toBeNull();
-  });
-});
-
-describe('mistakeOfAutoCancel: the one case flashIncorrectAction answers for certain', () => {
-  it('is always "mana" — match.ts calls it only while payingMana(match) is still true', () => {
-    expect(mistakeOfAutoCancel()).toBe('mana');
   });
 });
 
