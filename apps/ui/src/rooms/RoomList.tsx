@@ -376,7 +376,6 @@ function RoomGhosts({ count }: { count: number }) {
                 <span className="ghost ghost--text">Waiting for players</span>
               </span>
             </div>
-            <div className="rooms__meta room-card__legacy" />
             <div className="room-card__row4">
               <button type="button" className="rooms__enter room-card__go ghost" tabIndex={-1} disabled>
                 Join
@@ -649,35 +648,6 @@ function RoomRow({
           {view.state.detail !== null && <span className="room-card__state-detail">{view.state.detail}</span>}
         </div>
 
-        {/* The room's own details: still the exact words a streamed or already-dealt room always said. */}
-        <div className="rooms__meta room-card__legacy">
-          <span className="rooms__sr" data-testid="room-type">
-            {gameTypeLabel(room.gameType)}
-          </span>
-          {/* Only on a streamed room (the operator, 2026-10-10): the form makes
-              nothing but our table now, so the label is said where it is the
-              exception, not on every row. */}
-          {room.clientMode === 'streamed' && (
-            <span className="rooms__mode" data-testid="room-mode" data-mode={room.clientMode}>
-              {clientModeLabel(room.clientMode)}
-            </span>
-          )}
-          {room.matchId !== null && (
-            <span className="rooms__playing" data-testid="room-playing">
-              playing
-            </span>
-          )}
-          {/* A draft room whose pod has been dealt. Without this the row is
-              identical to one still sitting in its lobby, and Enter would take
-              you to a pack instead of a Ready button with nothing to explain
-              the difference. A late arrival is welcome — they evict a bot — so
-              this is a label, not a closed door. */}
-          {room.draftStartedAt !== null && (
-            <span className="rooms__playing" data-testid="room-drafting">
-              drafting
-            </span>
-          )}
-        </div>
 
         {/* The roster, for a screen reader only: the seats count (row 1) is what the card shows, and the
             operator cut the visible names line (2026-10-27) — the card is four rows. */}
@@ -724,6 +694,38 @@ function RoomRow({
             Reset
           </button>
         )}
+
+        {/* The room's own details: still the exact words a streamed or already-dealt room always said,
+            at the end of row 4, so a card with them is no taller than one without (a taller card made its
+            whole grid row taller, and the front page's skeleton could not know which: `e2e/front-skeleton.spec.ts`). */}
+        <div className="rooms__meta room-card__legacy">
+          <span className="rooms__sr" data-testid="room-type">
+            {gameTypeLabel(room.gameType)}
+          </span>
+          {/* Only on a streamed room (the operator, 2026-10-10): the form makes
+              nothing but our table now, so the label is said where it is the
+              exception, not on every row. */}
+          {room.clientMode === 'streamed' && (
+            <span className="rooms__mode" data-testid="room-mode" data-mode={room.clientMode}>
+              {clientModeLabel(room.clientMode)}
+            </span>
+          )}
+          {room.matchId !== null && (
+            <span className="rooms__playing" data-testid="room-playing">
+              playing
+            </span>
+          )}
+          {/* A draft room whose pod has been dealt. Without this the row is
+              identical to one still sitting in its lobby, and Enter would take
+              you to a pack instead of a Ready button with nothing to explain
+              the difference. A late arrival is welcome — they evict a bot — so
+              this is a label, not a closed door. */}
+          {room.draftStartedAt !== null && (
+            <span className="rooms__playing" data-testid="room-drafting">
+              drafting
+            </span>
+          )}
+        </div>
       </div>
 
       {asking && (

@@ -233,6 +233,12 @@
   flex-wrap: nowrap;
 }
 
+/* Nor the chips: a long cube name ellipsises in its chip rather than push Bo3 onto a line of its own, so every card is the same height. */
+.room-card__row2 {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
 .room-card__type-icon {
   display: inline-flex;
   flex: 0 0 auto;
@@ -397,11 +403,12 @@
   font-weight: 600;
 }
 
-/* The room's own exact words — locked, streamed, dealt — kept verbatim but folded under the new rows. */
+/* The room's own exact words — streamed, playing, drafting — kept verbatim at the end of row 4, beside the buttons, so they never add a row. */
 .room-card__legacy {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
+  margin-left: auto;
   font-size: 12px;
   color: var(--ink-dim);
 }

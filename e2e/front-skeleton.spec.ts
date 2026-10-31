@@ -116,6 +116,7 @@ async function visitTwice(browser: Browser, origin: string, minRooms: number, ex
   await expect(page.locator('[data-reveal]:not([data-phase="shown"])')).toHaveCount(0);
   if (expectLive) await expect(page.getByTestId('featured-match-tag')).toBeVisible({ timeout: 30_000 });
   const rooms = await page.locator('[data-testid="room-list"] > [data-testid="room-row"]').count();
+  console.log(`[front-skeleton] rows with their own words: ${await page.locator('[data-testid="room-list"] [data-testid="room-mode"], [data-testid="room-list"] [data-testid="room-playing"], [data-testid="room-list"] [data-testid="room-drafting"]').count()}`);
   const PARTS = partsFor(Math.min(rooms, MAX_ROOM_GHOSTS));
   console.log(`[front-skeleton] first visit shifts: ${JSON.stringify(await page.evaluate(() => (window as unknown as { __shifts: string[] }).__shifts))}`);
 
