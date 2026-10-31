@@ -36,7 +36,8 @@ test('blasphemous: thirteen creatures die at once', async ({ browser }) => {
       return false;
     }, 60_000, 250, page);
     film.mark('wiped');
-    await film.beat(4_500);
+    // The rival's creatures die one by one after their fireballs, well after the DOM has let them go.
+    await film.beat(7_000);
     film.mark('end');
   } finally {
     await wrap(shoot ?? {});
