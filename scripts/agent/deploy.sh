@@ -17,7 +17,14 @@ set -euo pipefail
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
-FLEET=${FLEET:-$HOME/repos/hadoku-fleet-manager/dist/cli.js}
+# The fleet-manager install mgmt-api runs, as the server's placement reads it (fleet.ts): a stale
+# checkout build misread the fleet once (2026-10-31 17:54Z). The checkout is only a fallback.
+MGMT_FLEET=$HOME/srv/hadoku_site/services/mgmt-api/node_modules/@wolffm/fleet-manager/dist/cli.js
+if [ -z "${FLEET:-}" ]; then
+	if [ -f "$MGMT_FLEET" ]; then FLEET=$MGMT_FLEET
+	else FLEET=$HOME/repos/hadoku-fleet-manager/dist/cli.js; echo "deploy: mgmt-api's fleet-manager install is missing; using the checkout, which may lag it" >&2
+	fi
+fi
 ESBUILD=${ESBUILD:-$ROOT/apps/server/node_modules/.bin/esbuild}
 # The claws run node 22 (/usr/bin/node); the bundle is checked with one.
 NODE22=${NODE22:-/usr/local/bin/node}
