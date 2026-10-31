@@ -192,17 +192,17 @@ it. PR-5 is new and exists to serve it.
 
 | session | worktree / branch | status | evidence |
 | --- | --- | --- | --- |
-| 84a pairing (field Swiss, ≤3 rounds, total tiebreak order) | `.claude/worktrees/w84a` / `w84a` | dispatched | — |
-| 84b multi-pod rooms | `.claude/worktrees/w84b` / `w84b` | dispatched | — |
-| 85a front page (Calendar|Polls, calendar list, wildcard gallery, replay-card bugs) | `.claude/worktrees/w85a` / `w85a` | dispatched | — |
-| 85b events + Rally (full tournament settings, room as truth, forms) | `.claude/worktrees/w85b` / `w85b` | dispatched | — |
-| 87a the punch | `.claude/worktrees/w87a` / `w87a` | dispatched | — |
-| 87b stack placement + arrows | `.claude/worktrees/w87b` / `w87b` | dispatched | — |
-| 87c prompt chrome (same-target, waiting bar) | `.claude/worktrees/w87c` / `w87c` | dispatched | — |
-| 88d creature sounds | `.claude/worktrees/w88d` / `w88d` | dispatched | — |
-| 88e table card | `.claude/worktrees/w88e` / `w88e` | dispatched | — |
-| 88f deck grid transitions | `.claude/worktrees/w88f` / `w88f` | dispatched | — |
-| z boot stall | `.claude/worktrees/wz` / `wz` | dispatched | — |
+| 84a pairing (field Swiss, ≤3 rounds, total tiebreak order) | removed | **landed + verified** `dfc749cdb` (AF461) + export `7c6cd84a8`; PPE ✓ | claw 41171674025 ✓, CI 41177485851 ✓; 6 mutation families red; unverified: a live 9+-human tournament to round 3 |
+| 84b multi-pod rooms | `.claude/worktrees/w84b` / `w84b-look` | server/shared half **landed** `2981b8190`, PPE ✓, CI 41179108288 ✓; **seat-strip UI parked at the operator's look gate** https://claude.ai/artifact/5SaRmyXCBbn1W3sHmjqvjg | proof 41177547626 23 passed; seat strip e2e ×3 41174117569 |
+| 85a front page | `.claude/worktrees/w85a` | roomCard POD_MAX_SEATS fix **landed** `f3c29abba` (PPE ✓); **galleries + replay card parked at the look gate** https://claude.ai/artifact/QV3Cnj3MmNFJKBfF2ZrfjJ | base red 41175516726 (0 faces), green ×3 41176375834 |
+| 85b events + Rally (full tournament settings, room as truth, forms) | removed | **landed + verified** `a486b8bb2` (AF462); PPE ✓, /api/events + /api/events/forms 200 live | claw ×3 41173179700, CI 41175716310 ✓; dialog stills `~/.cache/cardtable-manager/w85b-stills/`; unverified: a real event-signup@1 form end to end; follow-up: delete 'casual' (done by w85a) |
+| 87a the punch | `.claude/worktrees/w87a` | **parked at the look gate** https://claude.ai/artifact/1smu4RQ7BKuxrfC5W7NQh2 (decision: mid hits shake less on the entry curve); side fix landed `fcabab67e` (entries stop drawing on a detached board; fixed an intermittent CI red) | claw ×3 41173434677 |
+| 87b stack placement + arrows | `.claude/worktrees/w87b` | **parked at the look gate** https://claude.ai/artifact/JRjJr3J3c34jRp5GjyKmXb | base red proven 41176202284 (trigger on the control box), branch ×3 41176951792 (w70-valakut 1/3 red = a confirm-suppression race in the play layer, new ticket) |
+| 87c prompt chrome (same-target, waiting bar) | `.claude/worktrees/w87c` | **parked at the look gate** https://claude.ai/artifact/1vZAPGyEBwwC4PmPJ87wQt (decision: the pop doesn't name a spell whose cast is still hidden) | claw 41174651885 30 passed |
+| 88d creature sounds | removed | code **landed + verified** `669092827` (AF463), slots fall back to today's sounds; **the operator places the takes** https://claude.ai/artifact/CHJdgbQQTNeAbb6xN6QSFi (89 candidates in #/sounds) | CI 41178268237 ✓, PPE ✓ |
+| 88e table card (hub mini cards) | removed | **landed + verified** `0213fa14c` (AF464), operator chose A (match strip); also fixed main's tournament-gauntlet red from the clock | proof 41176370988 19 passed, CI 41178776162 ✓, PPE ✓ |
+| 88f deck grid transitions | `.claude/worktrees/w88f` | **parked at the look gate** https://claude.ai/artifact/4DASAF6droxPQ2Hx9mjuEp | claw 41173786074 15 passed |
+| z boot stall | removed | **landed + verified** `afc19eaba` (AF465): era pools load lazily, rest warm after listen; PPE listens in 709 ms | claws ×3 + cold-pool test; CI 41178776162 ✓ |
 | wfloor hosting floor 2 + two-poll hokon promotion + whyNone (operator approved 2026-10-31 via fleet-manager) | removed | **landed + verified** `4551366d5` (AF460); PPE `82db6877` 05:39Z; fleet re-registered slices.min 2 at 05:32Z | CI 41171897945 ✓ (tracker re-read), placement.test 47/47, 8 mutations killed; behaviour change for the operator: the last claw's AI cutoff alone no longer promotes hokon (only with a waiting start); 10 s fence confirmed fixed by b68cc034 with a new test |
 | H trailer cut 3 | `.claude/worktrees/promo` / `promo-clips` | waits for 87+88 on PPE | cut 2 https://claude.ai/artifact/GsUN4VziEmaDAaSZL5Kpc2 |
 
