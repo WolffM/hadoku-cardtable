@@ -17,7 +17,10 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import express from 'express';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { MUSIC_REVIEW_APP_ID } from '@hadoku/shared';
 import { TIER_ORDER } from '../edge-auth.ts';
+import { createMusicReviewStore } from './musicReviewStore.ts';
+import { createPrefsRowsStandIn, standInFetch, type PrefsRowsStandIn } from './prefsRowsStandIn.ts';
 
 vi.mock('node:fs/promises', async () => {
 	const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
@@ -54,7 +57,14 @@ async function tempDir(): Promise<string> {
 
 interface Harness {
 	base: string;
+	/** prefs-api, as far as these routes reach it: people's review rows. */
+	prefs: PrefsRowsStandIn;
 }
+
+const SERVICE_KEY = 'cardtable-service-key';
+const PREFS_BASE = 'https://prefs.test/prefs';
+/** A person's key, as the edge stamps it: one per user, so whose row a write lands in is checked. */
+const keyOf = (user: string) => `key-${user}`;
 
 async function openApp(dir: string, mods = { sounds: soundsMod, edge: edgeMod }): Promise<Harness> {
 	const app = express();
@@ -62,14 +72,21 @@ async function openApp(dir: string, mods = { sounds: soundsMod, edge: edgeMod })
 	app.use(mods.edge.requireMinTier);
 	const api = express.Router();
 	api.use(express.json({ limit: '1mb' }));
-	mods.sounds.attachSounds(api, { dir, log: (entry) => logged.push(entry) });
+	const prefs = createPrefsRowsStandIn({ app: 'cardtable', serviceKey: SERVICE_KEY, userOfKey: (k) => (k.startsWith('key-') ? k.slice(4) : null) });
+	const reviews = createMusicReviewStore({
+		baseUrl: PREFS_BASE,
+		serviceKey: SERVICE_KEY,
+		fetch: standInFetch(prefs, PREFS_BASE),
+		onBadRow: (userId) => logged.push({ event: 'sounds-music-review-bad-row', userId }),
+	});
+	mods.sounds.attachSounds(api, { dir, reviews, log: (entry) => logged.push(entry) });
 	app.use('/api', api);
 
 	const server = createServer(app);
 	await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
 	servers.push(server);
 	const { port } = server.address() as AddressInfo;
-	return { base: `http://127.0.0.1:${port}` };
+	return { base: `http://127.0.0.1:${port}`, prefs };
 }
 
 function headersFor(tier: string, user = 'user-1'): Record<string, string> {
@@ -78,7 +95,7 @@ function headersFor(tier: string, user = 'user-1'): Record<string, string> {
 		'x-hadoku-tier': tier,
 		'x-user-id': user,
 		'x-user-name': user,
-		'x-user-key': 'friend-key-1',
+		'x-user-key': keyOf(user),
 	};
 }
 
@@ -93,9 +110,9 @@ async function call(
 	h: Harness,
 	method: string,
 	path: string,
-	opts: { tier?: string; body?: unknown; user?: string } = {},
+	opts: { tier?: string; body?: unknown; user?: string; key?: string } = {},
 ): Promise<Reply> {
-	const headers: Record<string, string> = { ...headersFor(opts.tier ?? 'friend', opts.user) };
+	const headers: Record<string, string> = { ...headersFor(opts.tier ?? 'friend', opts.user), ...(opts.key === undefined ? {} : { 'x-user-key': opts.key }) };
 	let body: string | undefined;
 	if (opts.body !== undefined) {
 		body = JSON.stringify(opts.body);
@@ -534,6 +551,7 @@ describe('every /api/sounds route is friend tier and above', () => {
 		{ method: 'PUT', path: '/api/sounds/marks', body: { file: TAKE.file, mark: 'keep' } },
 		{ method: 'POST', path: '/api/sounds/music-review', body: { slots: {} } },
 		{ method: 'GET', path: '/api/sounds/music-review/mine' },
+		{ method: 'GET', path: '/api/sounds/music-review' },
 	];
 
 	it('below friend is refused before any route runs; friend and above get past the gate', async () => {
@@ -574,7 +592,7 @@ describe('the music review is friend tier and above even when the app lets membe
 		}
 	});
 
-	it('a member gets 403 from both music-review routes and writes nothing; the takes themselves stay open to them', async () => {
+	it('a member gets 403 from the music-review routes and writes nothing; the takes themselves stay open to them', async () => {
 		const dir = await tempDir();
 		await writeCatalogue(dir, [TAKE]);
 		const h = await openApp(dir, mods);
@@ -582,6 +600,8 @@ describe('the music review is friend tier and above even when the app lets membe
 		const mine = await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'member' });
 		expect(post.status).toBe(403);
 		expect(mine.status).toBe(403);
+		expect((await call(h, 'GET', '/api/sounds/music-review', { tier: 'member' })).status).toBe(403);
+		expect(h.prefs.rows(MUSIC_REVIEW_APP_ID).size).toBe(0);
 		expect((await readdir(dir)).sort()).toEqual(['catalogue.json']);
 		expect((await call(h, 'GET', '/api/sounds/catalogue', { tier: 'member' })).status).toBe(200);
 		expect((await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'friend' })).status).toBe(200);
@@ -615,11 +635,6 @@ describe('POST /api/sounds/music-review and GET /mine', () => {
 		return dir;
 	}
 
-	async function lines(dir: string): Promise<unknown[]> {
-		const raw = await readFile(join(dir, 'music-reviews.jsonl'), 'utf8');
-		return raw.trimEnd().split('\n').map((l) => JSON.parse(l));
-	}
-
 	it('names the takes the music cells hold, and only those', async () => {
 		const dir = await reviewDir();
 		await writeFile(join(dir, 'assignments.json'), JSON.stringify({ cells: { [W]: [WEB.file], 'g.draw|play': [TAKE.file] }, gains: {} }), 'utf8');
@@ -628,14 +643,14 @@ describe('POST /api/sounds/music-review and GET /mine', () => {
 		expect((res.json() as { names: unknown }).names).toEqual({ [WEB.file]: WEB.name });
 	});
 
-	it('a missing file is no review, not an error', async () => {
+	it('nobody has a review until they submit one', async () => {
 		const h = await openApp(join(await tempDir(), 'does-not-exist'));
 		const res = await call(h, 'GET', '/api/sounds/music-review/mine');
 		expect(res.status).toBe(200);
 		expect(res.json()).toEqual({ review: null });
 	});
 
-	it('a friend submits; the line carries who and when; mine returns the latest of their own only', async () => {
+	it('a friend submits into their own prefs row; a new one replaces it; mine reads their own only', async () => {
 		const dir = await reviewDir();
 		const h = await openApp(dir);
 		const first = await call(h, 'POST', '/api/sounds/music-review', {
@@ -644,13 +659,14 @@ describe('POST /api/sounds/music-review and GET /mine', () => {
 			body: { slots: { [W]: { picks: [JIG.file, FANFARE.file], ratings: { [WEB.file]: 'maybe', [FANFARE.file]: 'no' }, note: 'the jig' } } },
 		});
 		expect(first.status).toBe(200);
-		const rec = first.json() as { at: string; userId: string; name: string | null; slots: unknown };
-		expect(rec).toMatchObject({
-			userId: 'bob',
-			name: 'bob',
+		const rec = first.json() as { at: string; slots: unknown };
+		expect(rec).toEqual({
+			at: rec.at,
 			slots: { [W]: { picks: [JIG.file, FANFARE.file], ratings: { [WEB.file]: 'maybe', [FANFARE.file]: 'no' }, note: 'the jig' } },
 		});
 		expect(Number.isNaN(Date.parse(rec.at))).toBe(false);
+		// The row is bob's, named by his key, and holds no name or id of its own.
+		expect(h.prefs.rows(MUSIC_REVIEW_APP_ID).get('bob')?.blob).toEqual(rec);
 
 		await call(h, 'POST', '/api/sounds/music-review', { tier: 'admin', user: 'alice', body: { slots: { [WU]: { picks: [SENATE.file] } } } });
 		const second = await call(h, 'POST', '/api/sounds/music-review', {
@@ -660,20 +676,34 @@ describe('POST /api/sounds/music-review and GET /mine', () => {
 		});
 		expect(second.status).toBe(200);
 
-		// Append-only: three lines, in order, nothing rewritten.
-		expect((await lines(dir)).map((l) => (l as { userId: string }).userId)).toEqual(['bob', 'alice', 'bob']);
-		expect(await lines(dir)).toContainEqual(rec);
-
+		// Newest replaces older, whole: the first review's W ratings and note are gone, not merged in.
 		const bob = (await call(h, 'GET', '/api/sounds/music-review/mine', { user: 'bob' })).json() as { review: { slots: unknown } };
 		expect(bob.review.slots).toEqual({
 			[W]: { picks: [WEB.file], ratings: {}, note: '' },
 			[WU]: { picks: [], ratings: {}, note: 'none of these' },
 		});
-		const alice = (await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'admin', user: 'alice' })).json() as { review: { userId: string } };
-		expect(alice.review.userId).toBe('alice');
+		expect([...h.prefs.rows(MUSIC_REVIEW_APP_ID).keys()].sort()).toEqual(['alice', 'bob']);
+		const alice = (await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'admin', user: 'alice' })).json() as { review: { slots: unknown } };
+		expect(alice.review.slots).toEqual({ [WU]: { picks: [SENATE.file], ratings: {}, note: '' } });
 		const carol = (await call(h, 'GET', '/api/sounds/music-review/mine', { user: 'carol' })).json();
 		expect(carol).toEqual({ review: null });
 		expect(logged).toContainEqual(expect.objectContaining({ event: 'sounds-music-review-saved', userId: 'bob', slots: 1 }));
+		// No file: a review is the person's row, and nothing of it is kept here.
+		expect(await readdir(dir)).not.toContain('music-reviews.jsonl');
+	});
+
+	it('an admin lists every review by userId; a friend may not', async () => {
+		const dir = await reviewDir();
+		const h = await openApp(dir);
+		await call(h, 'POST', '/api/sounds/music-review', { user: 'bob', body: { slots: { [W]: { picks: [JIG.file] } } } });
+		await call(h, 'POST', '/api/sounds/music-review', { user: 'carol', body: { slots: { [WU]: { picks: [SENATE.file] } } } });
+		expect((await call(h, 'GET', '/api/sounds/music-review', { user: 'bob' })).status).toBe(403);
+		const list = (await call(h, 'GET', '/api/sounds/music-review', { tier: 'admin', user: 'alice' })).json() as { reviews: { userId: string; slots: unknown }[] };
+		expect(list.reviews.map((r) => [r.userId, r.slots])).toEqual([
+			['bob', { [W]: { picks: [JIG.file], ratings: {}, note: '' } }],
+			['carol', { [WU]: { picks: [SENATE.file], ratings: {}, note: '' } }],
+		]);
+		expect(list.reviews.every((r) => !('name' in r))).toBe(true);
 	});
 
 	it('refuses a slot that is not match music, a take its slot never offered, and a bad body — and stores nothing', async () => {
@@ -692,38 +722,25 @@ describe('POST /api/sounds/music-review and GET /mine', () => {
 			const res = await call(h, 'POST', '/api/sounds/music-review', { body });
 			expect(res.status, JSON.stringify(body)).toBe(400);
 		}
-		expect(await readdir(dir)).not.toContain('music-reviews.jsonl');
+		expect(h.prefs.rows(MUSIC_REVIEW_APP_ID).size).toBe(0);
 	});
 
-	it('skips a torn line, logs it, and the next submission starts on a fresh line', async () => {
+	it('a key prefs-api does not know stores nothing and answers 502, logged without the key', async () => {
 		const dir = await reviewDir();
-		await writeFile(join(dir, 'music-reviews.jsonl'), '{"at":"2026-10-17T00:00:00Z","userId":"bob","na', 'utf8');
 		const h = await openApp(dir);
+		const res = await call(h, 'POST', '/api/sounds/music-review', { user: 'bob', body: { slots: { [W]: { picks: [JIG.file] } } }, key: 'nobody-knows-this-key' });
+		expect(res.status).toBe(502);
+		expect(h.prefs.rows(MUSIC_REVIEW_APP_ID).size).toBe(0);
+		const line = logged.find((l) => l.event === 'sounds-music-review-prefs-error');
+		expect(line).toMatchObject({ route: 'save', status: 403 });
+		expect(JSON.stringify(logged)).not.toContain('nobody-knows-this-key');
+	});
+
+	it('a row that does not parse is no review, and is logged', async () => {
+		const dir = await reviewDir();
+		const h = await openApp(dir);
+		h.prefs.rows(MUSIC_REVIEW_APP_ID).set('bob', { blob: { at: 7 }, version: 1, updatedAt: 0 });
 		expect((await call(h, 'GET', '/api/sounds/music-review/mine', { user: 'bob' })).json()).toEqual({ review: null });
-		expect(logged).toContainEqual(expect.objectContaining({ event: 'sounds-file-corrupt', file: 'music-reviews.jsonl', count: 1 }));
-		expect((await call(h, 'POST', '/api/sounds/music-review', { user: 'bob', body: { slots: { [W]: { picks: [JIG.file] } } } })).status).toBe(200);
-		const mine = (await call(h, 'GET', '/api/sounds/music-review/mine', { user: 'bob' })).json() as { review: { slots: unknown } };
-		expect(mine.review.slots).toEqual({ [W]: { picks: [JIG.file], ratings: {}, note: '' } });
-	});
-
-	it('reads a line written before the picks were a list as what it picked, and leaves the line as it was', async () => {
-		const dir = await reviewDir();
-		const old = `{"at":"2026-10-17T20:00:00.000Z","userId":"bob","name":"bob","slots":{"${W}":{"pick":"${JIG.file}","ratings":{},"note":"jig"}}}\n`;
-		await writeFile(join(dir, 'music-reviews.jsonl'), old, 'utf8');
-		const h = await openApp(dir);
-		const mine = (await call(h, 'GET', '/api/sounds/music-review/mine', { user: 'bob' })).json() as { review: { slots: unknown } };
-		expect(mine.review.slots).toEqual({ [W]: { picks: [JIG.file], ratings: {}, note: 'jig' } });
-		expect(await readFile(join(dir, 'music-reviews.jsonl'), 'utf8')).toBe(old);
-	});
-
-	it('concurrent submissions each land as a whole line', async () => {
-		const dir = await reviewDir();
-		const h = await openApp(dir);
-		const users = Array.from({ length: 8 }, (_, i) => `u${i}`);
-		const results = await Promise.all(
-			users.map((user) => call(h, 'POST', '/api/sounds/music-review', { user, body: { slots: { [W]: { picks: [JIG.file], note: user.repeat(200) } } } })),
-		);
-		expect(results.map((r) => r.status)).toEqual(users.map(() => 200));
-		expect((await lines(dir)).map((l) => (l as { userId: string }).userId).sort()).toEqual(users);
+		expect(logged).toContainEqual({ event: 'sounds-music-review-bad-row', userId: 'bob' });
 	});
 });

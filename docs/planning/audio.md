@@ -227,24 +227,22 @@ assignment (badged) and every Music take named `<code> · `. Each card loops its
 take on the music bus at the player's levels, one at a time; its pick button
 puts it in the slot, any number per slot; keep / maybe / no rate it; a note
 goes with the slot. Submit is `POST /api/sounds/music-review`,
-validated against the same grouping and appended to
-**`<sounds dir>/music-reviews.jsonl`** — in production
-`apps/server/data/sounds/music-reviews.jsonl` in the deploy tree — as
-`{at, userId, name, slots: {<cell>: {picks: [file, …], ratings, note}}}`.
-Older lines carry one `pick` (2026-10-17) or a `{normal, chiptune}` pair
-(2026-10-18 to 2026-10-20); each reads as the list of what it picked, and the
-file is never rewritten. Re-opening restores the browser's unsent draft,
-else the viewer's latest line (`GET /api/sounds/music-review/mine`).
+validated against the same grouping and stored as the submitter's own
+prefs-api row, app `cardtable-music-review` (`{at, slots: {<cell>: {picks:
+[file, …], ratings, note}}}`; whose it is is the row's userId, and no name is
+kept; hadoku_site IDENTITY_MODEL R12, cardtable#25). A new submission replaces
+the row whole; no history is kept. Re-opening restores the browser's unsent
+draft, else the viewer's row (`GET /api/sounds/music-review/mine`).
 
 **Reset** (pressed twice; *"a 'reset' button so i can give a fresh round of
 feedback"*) blanks the form and drops the draft. It writes nothing to the
 server: the browser remembers the `at` of the submission it set aside
 (`cardtable.sound.music-review.fresh-since`), and a re-open restores nothing at
-or before it. The next submission is simply a later line, so "latest line per
-viewer" stays the answer. The marker is per browser: another device still
-restores the old line until it is reset there too.
+or before it. The next submission replaces the row. The marker is per browser:
+another device still restores the old review until it is reset there too.
 
-Nothing writes the assignments: a later session reads the file and puts each
+Nothing writes the assignments: a later session lists the reviews (admin
+`GET /api/sounds/music-review`, by userId) and puts each
 slot's picks in its cell, `music.match.<code>|play` (`musicReviewCell`,
 `packages/shared/src/music-review.ts`; `scripts/sfx/README.md`, Music review).
 

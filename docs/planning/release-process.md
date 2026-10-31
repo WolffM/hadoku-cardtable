@@ -64,7 +64,7 @@ operator: "cut a release" ──► scripts/release/collect.ts ──► agent d
 | rooms / drafts / tournaments / sounds / logs | tree's `apps/server/{data,logs}` | same, in its own tree | automatic: `config.ts` resolves them under the package root |
 | Forge run dirs | `/tmp/cardtable-play` (today) | `~/.cache/cardtable-ppe/play` | wrapper `CARDTABLE_PLAY_WORK_DIR`. **Must differ:** the pool boot-sweeps its work dir, so sharing it kills the other instance's matches |
 | Stream ports / container names | 6080+, 6100+, `cardtable-room` | 6280+, 6300+, `cardtable-ppe-room` | wrapper `CARDTABLE_STREAM_PORT`, `CARDTABLE_ROOM_STREAM_PORT`, `CARDTABLE_STREAM_NAME_PREFIX` |
-| Game stats | recorded | not recorded | PPE's wrapper passes no `CARDTABLE_SERVICE_KEY`, its only consumer (`config.ts` `statsServiceKey`) |
+| Game stats, music reviews | recorded, stored | not recorded; a music review answers 502 | PPE's wrapper passes no `CARDTABLE_SERVICE_KEY` (`config.ts` `serviceKey`): stats are off, and prefs-api refuses the review rows (`http/musicReviewStore.ts`) |
 | Catalog, Scryfall cache | shared | shared | read-only caches under `~/.local/share/cardtable` |
 | Forge jar | its release's pin | main's pin | per-pin jars, below |
 

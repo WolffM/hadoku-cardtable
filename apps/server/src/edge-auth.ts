@@ -108,6 +108,16 @@ export function userIdOf(req: Request): string {
 }
 
 /**
+ * The caller's own live key (`X-User-Key`), edge-stamped and stripped from an
+ * unvouched request. A credential: pass it to prefs-api to name the caller's
+ * own row, never log it or store it. null when the edge sent none.
+ */
+export function userKeyOf(req: Request): string | null {
+	const k = req.headers['x-user-key'];
+	return typeof k === 'string' && k !== '' ? k : null;
+}
+
+/**
  * The caller's DISPLAY NAME, edge-injected from the registry beside
  * `X-User-Id` (same trust class: exclusively edge-set, stripped from
  * unvouched requests). null when the edge sent none — an unnamed key.

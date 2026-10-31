@@ -130,6 +130,8 @@ export {
   MUSIC_RATINGS,
   MusicReviewBodySchema,
   MusicReviewEntrySchema,
+  MUSIC_REVIEW_APP_ID,
+  MusicReviewListSchema,
   MusicReviewMineSchema,
   MusicReviewRecordSchema,
   musicReviewCell,
@@ -139,6 +141,7 @@ export {
   type MusicReviewBody,
   type MusicReviewCandidate,
   type MusicReviewEntry,
+  type MusicReviewList,
   type MusicReviewRecord,
   type MusicReviewSlot,
 } from './music-review.ts';

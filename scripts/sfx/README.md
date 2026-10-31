@@ -416,17 +416,16 @@ takes named `<code> · ` (`musicReviewSlots`, `packages/shared/src/music-review.
 number of picks per slot, a keep / maybe / no per take and a note per slot; nothing writes `assignments.json`. Reset (pressed twice) starts a blank round in that
 browser and writes nothing to the server.
 
-Submissions append to **`<sounds dir>/music-reviews.jsonl`** (production: `apps/server/data/sounds/` in the deploy
-tree), one JSON object per line, never rewritten:
+A submission is stored as the submitter's own prefs-api row, app **`cardtable-music-review`** (hadoku_site
+IDENTITY_MODEL R12, cardtable#25), and replaces the one before it whole:
 
 ```json
-{"at":"2026-10-18T23:59:00.000Z","userId":"…","name":"Bob","slots":{"music.match.W|play":{"picks":["music-w-tavern-jig/take-1.ogg"],"ratings":{"music-dawnlight-sanctum/take-1.ogg":"no"},"note":""}}}
+{"at":"2026-10-18T23:59:00.000Z","slots":{"music.match.W|play":{"picks":["music-w-tavern-jig/take-1.ogg"],"ratings":{"music-dawnlight-sanctum/take-1.ogg":"no"},"note":""}}}
 ```
 
-Older lines carry a single `"pick"` (before 2026-10-18) or a `{"normal", "chiptune"}` pair (2026-10-18 to
-2026-10-20); `MusicReviewRecordSchema` reads each as the list of what it picked. A slot left out was not reviewed;
-no picks with ratings or a note is a slot reviewed without a choice. A viewer's latest line is their current answer
-(`GET /api/sounds/music-review/mine`). To act on it, read the file and put each slot's picks in its cell,
+Whose it is is the row's userId; no name is kept. A slot left out was not reviewed; no picks with ratings or a note
+is a slot reviewed without a choice. A viewer's row is their current answer
+(`GET /api/sounds/music-review/mine`). To act on them, list every row (admin `GET /api/sounds/music-review`) and put each slot's picks in its cell,
 `music.match.<code>|play`, with the admin `PUT /api/sounds/assignments/<cell>` (the builder does the same). A cell
 holding several takes lets each player choose among them by name in sound settings; until they do, one plays at
 random.

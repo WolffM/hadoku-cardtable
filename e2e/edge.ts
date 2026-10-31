@@ -18,6 +18,7 @@ import { readFileSync } from 'node:fs';
 import { createServer, request, type IncomingHttpHeaders, type Server } from 'node:http';
 import { connect } from 'node:net';
 
+import type { PrefsRowsStandIn } from '../apps/server/src/http/prefsRowsStandIn.ts';
 import { FRIENDS, PREFIX, SESSION_COOKIE } from './identities.ts';
 
 /** Where `embed-host.html` is served: a watchparty-shaped path, outside `/cardtable/`. */
@@ -28,7 +29,12 @@ export interface EdgeOptions {
   port: number;
   upstreamPort: number;
   secret: string;
+  /** prefs-api's `_service/cardtable/rows`, served at `/prefs/api/v1/_service/…` for the server's own calls. */
+  prefs?: PrefsRowsStandIn;
 }
+
+/** Where the stand-in prefs-api is mounted: the server's `CARDTABLE_PREFS_BASE_URL` is the edge plus this. */
+export const PREFS_MOUNT = '/prefs';
 
 const STRIPPED = /^(x-edge-auth|x-hadoku-.*|x-user-.*)$/i;
 
@@ -80,6 +86,27 @@ export function startEdge(opts: EdgeOptions): Promise<Server> {
     // on the same origin and outside the prefix, that mounts the embed (D21).
     if (new URL(req.url ?? '/', 'http://edge').pathname === EMBED_HOST_PATH) {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }).end(readFileSync(EMBED_HOST_PAGE));
+      return;
+    }
+    const prefsPath = (req.url ?? '/').startsWith(`${PREFS_MOUNT}/`) ? (req.url ?? '/').slice(PREFS_MOUNT.length) : null;
+    if (prefsPath !== null && opts.prefs !== undefined) {
+      const prefs = opts.prefs;
+      const chunks: Buffer[] = [];
+      req.on('data', (c: Buffer) => chunks.push(c));
+      req.on('error', () => res.destroy());
+      req.on('end', () => {
+        const raw = Buffer.concat(chunks).toString('utf8');
+        let body: unknown;
+        try {
+          body = raw === '' ? null : (JSON.parse(raw) as unknown);
+        } catch {
+          res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'Bad Request' }));
+          return;
+        }
+        const key = typeof req.headers['x-user-key'] === 'string' ? req.headers['x-user-key'] : null;
+        const out = prefs.handle(req.method ?? 'GET', prefsPath, { key }, body) ?? { status: 404, json: { error: 'Not Found' } };
+        res.writeHead(out.status, { 'content-type': 'application/json' }).end(JSON.stringify(out.json));
+      });
       return;
     }
     const path = stripPrefix(req.url ?? '/');

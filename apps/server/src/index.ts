@@ -104,6 +104,7 @@ import { attachDiscord } from './http/discord.js';
 import { attachEvents } from './http/events.js';
 import { attachTournaments } from './http/tournaments.js';
 import { attachSounds } from './http/sounds.js';
+import { createMusicReviewStore } from './http/musicReviewStore.js';
 import { attachClientEvents } from './http/client-events.js';
 import { attachTrim } from './http/trim.js';
 import { attachCubeRoutes, createCubeStore } from './pools/cubes.js';
@@ -411,9 +412,9 @@ const matchStats = createMatchStats({
 	reporter: createStatsReporter({
 		log: statsLog,
 		record:
-			CONFIG.statsServiceKey === ''
+			CONFIG.serviceKey === ''
 				? null
-				: (report) => recordMatch({ gameId: 'cardtable', baseUrl: CONFIG.statsBaseUrl, serviceKey: CONFIG.statsServiceKey }, report),
+				: (report) => recordMatch({ gameId: 'cardtable', baseUrl: CONFIG.statsBaseUrl, serviceKey: CONFIG.serviceKey }, report),
 	}),
 });
 
@@ -613,7 +614,7 @@ attachRooms(api, {
 	},
 });
 attachTournaments(api, { tournaments });
-attachEvents(api, { events, lobby, checkPlan: checkDraftPlan, rally: { serviceKey: CONFIG.statsServiceKey }, log: roomsLog, closed: roomClosed, ...(CONFIG.testNoRateLimits ? { createRateLimit: null } : {}) });
+attachEvents(api, { events, lobby, checkPlan: checkDraftPlan, rally: { serviceKey: CONFIG.serviceKey }, log: roomsLog, closed: roomClosed, ...(CONFIG.testNoRateLimits ? { createRateLimit: null } : {}) });
 // The Discord's last few #general messages, through ArchiveBot (prod only: it holds the secret).
 attachDiscord(api, { secret: CONFIG.archivebotSecret, archivebotUrl: CONFIG.archivebotUrl, log: jsonLogger('cardtable-discord') });
 
@@ -622,8 +623,15 @@ attachDiscord(api, { secret: CONFIG.archivebotSecret, archivebotUrl: CONFIG.arch
 // gitignored-`data/` reasoning as rooms above: a redeploy must not wipe an
 // admin's assignments. No in-memory open step — `attachSounds` reads and
 // writes the directory per request, same as `attachTables` reads `decks/`.
+const soundsLog = jsonLogger('cardtable-sounds');
 attachSounds(api, {
 	dir: CONFIG.soundsDir,
+	log: soundsLog,
+	reviews: createMusicReviewStore({
+		baseUrl: CONFIG.prefsBaseUrl,
+		serviceKey: CONFIG.serviceKey,
+		onBadRow: (userId) => soundsLog({ event: 'sounds-music-review-bad-row', userId }),
+	}),
 });
 attachTrim(api, { file: resolve(CONFIG.dataDir, 'trim.json') });
 // Client telemetry from a screen with no match: the front page's scroll smoothness (`http/client-events.ts`).

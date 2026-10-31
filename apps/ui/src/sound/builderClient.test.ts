@@ -168,8 +168,6 @@ describe('pickRandom', () => {
 describe('musicReviewClient', () => {
   const RECORD = {
     at: '2026-10-17T12:00:00.000Z',
-    userId: 'bob',
-    name: 'Bob',
     slots: { 'music.match.W|play': { picks: ['music-w-tavern-jig/take-1.ogg'], ratings: {}, note: '' } },
   };
 

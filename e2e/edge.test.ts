@@ -13,7 +13,7 @@ import { createServer, request, type RequestListener, type Server } from 'node:h
 import { connect, type AddressInfo } from 'node:net';
 import { test } from 'node:test';
 
-import { startEdge } from './edge.ts';
+import { PREFS_MOUNT, startEdge } from './edge.ts';
 import { PREFIX } from './identities.ts';
 
 const portOf = (server: Server): number => (server.address() as AddressInfo).port;
@@ -114,4 +114,28 @@ test('a client that resets an upgrade the edge refuses throws nothing in the pro
     ),
   );
   assert.deepEqual(seen, { result: 'closed', errors: [] });
+});
+
+test('the edge serves the prefs stand-in to the server’s own review store: a person’s row, by their key, read by userId', async () => {
+  const { createPrefsRowsStandIn } = await import('../apps/server/src/http/prefsRowsStandIn.ts');
+  const { createMusicReviewStore } = await import('../apps/server/src/http/musicReviewStore.ts');
+  const prefs = createPrefsRowsStandIn({ app: 'cardtable', serviceKey: '', userOfKey: (k) => (k === 'bob-key' ? 'bob-id' : null) });
+  const probe = await listen(createServer());
+  const port = portOf(probe);
+  await new Promise((resolve) => probe.close(resolve));
+  const edge = await startEdge({ port, upstreamPort: 1, secret: 's', prefs });
+  try {
+    const bad: string[] = [];
+    const store = createMusicReviewStore({ baseUrl: `http://127.0.0.1:${port}${PREFS_MOUNT}`, serviceKey: '', onBadRow: (u) => bad.push(u) });
+    const review = { at: '2026-10-31T00:00:00.000Z', slots: { 'music.match.W|play': { picks: [], ratings: {}, note: 'hm' } } };
+    await store.save('bob-key', review);
+    assert.deepEqual(await store.mine('bob-id'), review);
+    assert.equal(await store.mine('carol-id'), null);
+    assert.deepEqual(await store.all(), [{ userId: 'bob-id', ...review }]);
+    await assert.rejects(store.save('nobody', review), /does not sign anyone in/);
+    assert.deepEqual(bad, []);
+  } finally {
+    edge.closeAllConnections();
+    await new Promise((resolve) => edge.close(resolve));
+  }
 });

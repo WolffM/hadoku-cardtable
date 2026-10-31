@@ -169,26 +169,15 @@ describe('MusicReviewBodySchema and musicReviewProblems', () => {
 		]);
 	});
 
-	it('reads the older lines: a single pick, and a two-lane pair, are each the list of what they picked', () => {
-		// The first line of production's music-reviews.jsonl shape, 2026-10-17.
-		const old = MusicReviewRecordSchema.parse({
-			at: '2026-10-17T20:00:00.000Z',
-			userId: 'u1',
-			name: 'Op',
-			slots: { [W]: { pick: 'music-w-tavern-jig/take-1.ogg', ratings: {}, note: '' }, [musicReviewCell('U')]: { pick: null, ratings: {}, note: 'meh' } },
+	it('dedupes a slot’s picks, keeping the order picked', () => {
+		const body = MusicReviewBodySchema.parse({
+			slots: { [W]: { picks: ['music-w-tavern-jig/take-1.ogg', 'music-w-heraldic-fanfare/take-1.ogg', 'music-w-tavern-jig/take-1.ogg'] } },
 		});
-		expect(old.slots[W]!.picks).toEqual(['music-w-tavern-jig/take-1.ogg']);
-		expect(old.slots[musicReviewCell('U')]!.picks).toEqual([]);
-		expect(old.slots[W]).not.toHaveProperty('pick');
-		// The two-lane review's shape, 2026-10-18 to 2026-10-20: one take in both lanes is one pick.
-		const lanes = MusicReviewBodySchema.parse({
-			slots: {
-				[W]: { picks: { normal: 'music-w-tavern-jig/take-1.ogg', chiptune: 'music-w-heraldic-fanfare/take-1.ogg' } },
-				[musicReviewCell('U')]: { picks: { normal: 'music-w-tavern-jig/take-1.ogg', chiptune: 'music-w-tavern-jig/take-1.ogg' } },
-			},
-		});
-		expect(lanes.slots[W]!.picks).toEqual(['music-w-tavern-jig/take-1.ogg', 'music-w-heraldic-fanfare/take-1.ogg']);
-		expect(lanes.slots[musicReviewCell('U')]!.picks).toEqual(['music-w-tavern-jig/take-1.ogg']);
-		expect(MusicReviewBodySchema.safeParse({ slots: { [W]: { pick: '../../etc/passwd' } } }).success).toBe(false);
+		expect(body.slots[W]!.picks).toEqual(['music-w-tavern-jig/take-1.ogg', 'music-w-heraldic-fanfare/take-1.ogg']);
+	});
+
+	it('a stored review carries no name and no userId: whose it is is the row’s', () => {
+		const rec = MusicReviewRecordSchema.parse({ at: '2026-10-31T00:00:00.000Z', userId: 'u1', name: 'Op', slots: {} });
+		expect(rec).toEqual({ at: '2026-10-31T00:00:00.000Z', slots: {} });
 	});
 });

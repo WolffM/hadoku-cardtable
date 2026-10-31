@@ -71,25 +71,12 @@ export type MusicRating = (typeof MUSIC_RATINGS)[number];
 
 const TakeFileSchema = z.string().regex(TAKE_FILE_RE, 'file must be <folder>/take-<suffix>.ogg');
 
-/**
- * One slot's verdict: the takes picked for its cell, in the order picked. Lines written before
- * 2026-10-20 carry a single `pick`, or a `{ normal, chiptune }` pair from the two-lane review; both read
- * as the list of what they picked, so `music-reviews.jsonl` is never rewritten to keep up.
- */
-export const MusicReviewEntrySchema = z.preprocess(
-	(v) => {
-		if (typeof v !== 'object' || v === null || Array.isArray(v)) return v;
-		const { pick, picks, ...rest } = v as Record<string, unknown>;
-		const lanes = typeof picks === 'object' && picks !== null && !Array.isArray(picks) ? Object.values(picks) : null;
-		const list = lanes ?? picks ?? (pick === undefined ? undefined : [pick]);
-		return { ...rest, picks: Array.isArray(list) ? [...new Set(list.filter((f) => f !== null))] : list };
-	},
-	z.object({
-		picks: z.array(TakeFileSchema).default([]),
-		ratings: z.record(TakeFileSchema, z.enum(MUSIC_RATINGS)).default({}),
-		note: z.string().max(1000).default(''),
-	}),
-);
+/** One slot's verdict: the takes picked for its cell, in the order picked. */
+export const MusicReviewEntrySchema = z.object({
+	picks: z.array(TakeFileSchema).default([]).transform((files) => [...new Set(files)]),
+	ratings: z.record(TakeFileSchema, z.enum(MUSIC_RATINGS)).default({}),
+	note: z.string().max(1000).default(''),
+});
 export type MusicReviewEntry = z.output<typeof MusicReviewEntrySchema>;
 
 /** `POST /api/sounds/music-review`. A slot left out is a slot not reviewed. */
@@ -102,17 +89,27 @@ export const MusicReviewBodySchema = z
 	});
 export type MusicReviewBody = z.output<typeof MusicReviewBodySchema>;
 
-/** One line of `music-reviews.jsonl`: who, when, and what they sent. */
+/**
+ * The prefs-api app a person's review is stored under: one row per person (hadoku_site IDENTITY_MODEL
+ * R12, cardtable#25). A new submission replaces the last one whole; no history is kept.
+ */
+export const MUSIC_REVIEW_APP_ID = 'cardtable-music-review';
+
+/** A person's review, as their row holds it. Whose it is is the row's userId, never a field here. */
 export const MusicReviewRecordSchema = z.object({
 	at: z.string(),
-	userId: z.string(),
-	name: z.string().nullable(),
 	slots: z.record(z.string(), MusicReviewEntrySchema),
 });
 export type MusicReviewRecord = z.output<typeof MusicReviewRecordSchema>;
 
-/** `GET /api/sounds/music-review/mine`: the viewer's latest submission, or null. */
+/** `GET /api/sounds/music-review/mine`: the viewer's submission, or null. */
 export const MusicReviewMineSchema = z.object({ review: MusicReviewRecordSchema.nullable() });
+
+/** `GET /api/sounds/music-review` (admin): every person's review, by userId. Names are looked up where shown. */
+export const MusicReviewListSchema = z.object({
+	reviews: z.array(MusicReviewRecordSchema.extend({ userId: z.string() })),
+});
+export type MusicReviewList = z.output<typeof MusicReviewListSchema>;
 
 /**
  * Every pick and rating must name a candidate its slot offered. Returns the problems, empty when the

@@ -53,7 +53,7 @@
  * nothing.
  */
 
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
@@ -137,6 +137,18 @@ test.beforeAll(async () => {
 interface Friend {
   context: BrowserContext;
   page: Page;
+}
+
+/** A person's music-review row, as the edge's stand-in prefs-api holds it (`harness.ts`); null for none. */
+async function reviewRow(userId: string): Promise<{ blob: Record<string, unknown>; version: number } | null> {
+  const res = await fetch(`${EDGE_ORIGIN}/prefs/api/v1/_service/cardtable/rows/cardtable-music-review/read`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-user-key': '' },
+    body: JSON.stringify({ userIds: [userId] }),
+  });
+  expect(res.status, 'the stand-in prefs-api answered').toBe(200);
+  const { rows } = (await res.json()) as { rows: { blob: Record<string, unknown>; version: number }[] };
+  return rows[0] ?? null;
 }
 
 async function open(browser: Browser, name: string): Promise<Friend> {
@@ -236,7 +248,7 @@ test('admin can place a take and reload to find it saved; a friend listens and e
   }
 });
 
-test('a friend reviews the match music: picks both lanes, submits, finds it restored and on disk, then resets to a blank round', async ({ browser }) => {
+test('a friend reviews the match music: picks both lanes, submits, finds it restored and in their prefs row, then resets to a blank round', async ({ browser }) => {
   const friend = await open(browser, 'bob');
   const pageErrors: Error[] = [];
   friend.page.on('pageerror', (err) => pageErrors.push(err));
@@ -269,14 +281,14 @@ test('a friend reviews the match music: picks both lanes, submits, finds it rest
     await expect(slot.getByRole('textbox', { name: 'W note' })).toHaveValue('the jig');
     await expect(submit).toHaveAttribute('data-state', 'saved');
 
-    const lines = (await readFile(resolve(SOUNDS_DIR, 'music-reviews.jsonl'), 'utf8')).trimEnd().split('\n');
-    const last = JSON.parse(lines.at(-1)!) as { userId: string; slots: Record<string, unknown> };
-    expect(last.userId).toBe('e2e-bob-id');
-    expect(last.slots).toEqual({
+    // bob's own prefs row holds it, with no name in it.
+    const row = await reviewRow('e2e-bob-id');
+    expect(Object.keys(row!.blob).sort()).toEqual(['at', 'slots']);
+    expect(row!.blob.slots).toEqual({
       [MUSIC_CELL]: { picks: [MUSIC_GEN, MUSIC_WEB], ratings: { [MUSIC_WEB]: 'no' }, note: 'the jig' },
     });
 
-    // Reset, pressed twice: a blank form that a reload does not fill back in, and the file as it was.
+    // Reset, pressed twice: a blank form that a reload does not fill back in, and the row as it was.
     const reset = friend.page.getByTestId('music-review-reset');
     await reset.click();
     await expect(reset).toHaveAttribute('data-armed', '');
@@ -288,7 +300,7 @@ test('a friend reviews the match music: picks both lanes, submits, finds it rest
     await expect(friend.page.getByRole('heading', { name: 'Match Music' })).toBeVisible();
     await expect(friend.page.locator(said)).toHaveCount(0);
     await expect(submit).toBeDisabled();
-    expect((await readFile(resolve(SOUNDS_DIR, 'music-reviews.jsonl'), 'utf8')).trimEnd().split('\n')).toEqual(lines);
+    expect(await reviewRow('e2e-bob-id'), 'reset wrote nothing').toEqual(row);
     expect(pageErrors).toEqual([]);
   } finally {
     await friend.context.close();

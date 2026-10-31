@@ -7,15 +7,16 @@
  * candidates: the take the cell plays today (badged) and the generated ones. A card plays its take on a
  * loop through the mixer's music bus, one at a time; its pick button puts it in the slot (any number of
  * takes: a player whose slot holds several chooses among them in sound settings); three small verdicts
- * rate it; a note goes with the slot. Submit appends the whole review server-side.
+ * rate it; a note goes with the slot. Submit stores the whole review as the viewer's own prefs row (through
+ * the server, which checks it), replacing the one before.
  *
  * Friend tier and above, the same server-answered gate as the builder (`canView`). Re-opening restores
- * this browser's unsent draft, or else the viewer's latest submission; the submit button shows saved
+ * this browser's unsent draft, or else the viewer's stored submission; the submit button shows saved
  * while what is on screen is what was sent.
  *
  * Reset (pressed twice) starts a fresh round: it drops the draft and remembers, in this browser, the `at`
  * of the submission on screen (`FRESH_KEY`), so a re-open no longer restores that one or anything older.
- * The server's file is untouched; the next submission is simply a later line.
+ * The stored review is untouched; the next submission replaces it.
  *
  * Each slot is a panel of track rows — play and name, three verdicts, the pick — under the builder's own
  * header and buttons, so it reads as one of the sound screens.

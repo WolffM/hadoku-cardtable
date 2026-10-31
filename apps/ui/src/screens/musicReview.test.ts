@@ -64,7 +64,7 @@ function stubReviews(initial: MusicReviewRecord | null = null): MusicReviewClien
     async submit(body: MusicReviewBody) {
       out.sent.push(body);
       if (out.fail) return null;
-      latest = { at: '2026-10-17T12:00:00.000Z', userId: 'bob', name: 'Bob', slots: body.slots };
+      latest = { at: '2026-10-17T12:00:00.000Z', slots: body.slots };
       return latest;
     },
   };
@@ -190,8 +190,6 @@ describe('MusicReview', () => {
   it('re-opening restores the latest submission; an unsent draft wins over it', async () => {
     const record: MusicReviewRecord = {
       at: '2026-10-17T12:00:00.000Z',
-      userId: 'bob',
-      name: 'Bob',
       slots: {
         [W]: { picks: ['music-w-three/take-1.ogg'], ratings: { 'music-w-one/take-1.ogg': 'keep' }, note: 'three' },
       },
@@ -242,11 +240,9 @@ describe('MusicReview', () => {
     ]);
   });
 
-  it('reset, pressed twice, blanks the form; a re-open does not restore the set-aside submission; the file is untouched', async () => {
+  it('reset, pressed twice, blanks the form; a re-open does not restore the set-aside submission; the stored review is untouched', async () => {
     const record: MusicReviewRecord = {
       at: '2026-10-17T12:00:00.000Z',
-      userId: 'bob',
-      name: 'Bob',
       slots: { [W]: { picks: ['music-w-three/take-1.ogg'], ratings: {}, note: 'three' } },
     };
     const reviews = stubReviews(record);

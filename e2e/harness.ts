@@ -39,9 +39,10 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { startEdge } from './edge.ts';
+import { createPrefsRowsStandIn } from '../apps/server/src/http/prefsRowsStandIn.ts';
+import { PREFS_MOUNT, startEdge } from './edge.ts';
 import { STREAM_BASE_PORT, STREAM_NAME_PREFIX, STREAM_PORT_MAX } from './streamNamespace.ts';
-import { EDGE_PORT, SERVER_PORT } from './identities.ts';
+import { EDGE_PORT, FRIENDS, SERVER_PORT } from './identities.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
@@ -132,6 +133,8 @@ const server = spawn(process.execPath, [SERVER_JS], {
     // A new room opens on the newest Standard era, not a random one: specs read a fresh room's pool.
     CARDTABLE_NEW_ROOM_FORMAT: 'newest',
     CARDTABLE_WEB_DIR: WEB_DIR,
+    // People's prefs rows go to the edge's stand-in (below), never to hadoku.me.
+    CARDTABLE_PREFS_BASE_URL: `http://127.0.0.1:${EDGE_PORT}${PREFS_MOUNT}`,
     CARDTABLE_LOG_DIR: resolve(RUN_DIR, 'logs'),
     CARDTABLE_DRAFTS_DIR: DRAFTS_DIR,
     CARDTABLE_RECORDINGS_DIR: RECORDINGS_DIR,
@@ -214,7 +217,14 @@ async function waitForHealth(): Promise<void> {
 }
 
 await waitForHealth();
-const edge = await startEdge({ port: EDGE_PORT, upstreamPort: SERVER_PORT, secret });
+// prefs-api's people's rows (music reviews), on the edge. The server holds no service key here, so the
+// stand-in expects none: the stats specs need `stats-disabled`, and `sounds.test.ts` proves the key is sent.
+const prefs = createPrefsRowsStandIn({
+  app: 'cardtable',
+  serviceKey: '',
+  userOfKey: (key) => Object.values(FRIENDS).find((f) => f.key === key)?.userId ?? null,
+});
+const edge = await startEdge({ port: EDGE_PORT, upstreamPort: SERVER_PORT, secret, prefs });
 console.log(`[e2e-harness] server :${SERVER_PORT}, edge :${EDGE_PORT} — ready`);
 
 function shutdown(): void {

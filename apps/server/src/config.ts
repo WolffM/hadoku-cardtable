@@ -84,10 +84,18 @@ export const CONFIG = {
 	devTier: process.env.CARDTABLE_DEV_TIER || process.env.CARDTABLE_MIN_TIER || 'friend',
 
 	/**
-	 * This server's own service-tier key for the game-stats store, from the
-	 * vault via the PM2 wrapper. Unset = match stats are off (logged once).
+	 * This server's own service-tier key for the game-stats store and for
+	 * people's prefs rows, from the vault via the PM2 wrapper. Unset = match
+	 * stats are off (logged once), and a music-review read or write is refused
+	 * by prefs-api and answers 502.
 	 */
-	statsServiceKey: process.env.CARDTABLE_SERVICE_KEY || '',
+	serviceKey: process.env.CARDTABLE_SERVICE_KEY || '',
+
+	/**
+	 * The prefs mount people's own rows are read and written on (`http/musicReviewStore.ts`),
+	 * without `/api/v1`, with the same service key.
+	 */
+	prefsBaseUrl: process.env.CARDTABLE_PREFS_BASE_URL || 'https://hadoku.me/prefs',
 
 	/** The prefs mount the stats are reported to, without `/api/v1`. */
 	statsBaseUrl: process.env.CARDTABLE_STATS_BASE_URL || 'https://hadoku.me/prefs',

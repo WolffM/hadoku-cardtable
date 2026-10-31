@@ -48,7 +48,7 @@ import { httpCaller, parseBody, perCallerLimit } from './request.js';
 type RallyFetch = (input: string, init?: RequestInit) => Promise<globalThis.Response>;
 
 export interface RallyDeps {
-	/** This server's service key (`CONFIG.statsServiceKey`): Rally answers its summary to signed-in callers only. */
+	/** This server's service key (`CONFIG.serviceKey`): Rally answers its summary to signed-in callers only. */
 	serviceKey: string;
 	/** Rally's mount, without `/api`. */
 	baseUrl?: string;

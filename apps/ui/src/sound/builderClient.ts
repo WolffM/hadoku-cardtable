@@ -186,7 +186,7 @@ export function soundsClient(
 
 /** The match-music review's two calls (`#/sounds/music`). */
 export interface MusicReviewClient {
-  /** `GET /api/sounds/music-review/mine`: the viewer's latest submission; null for none or a failure. */
+  /** `GET /api/sounds/music-review/mine`: the viewer's stored submission; null for none or a failure. */
   mine(): Promise<MusicReviewRecord | null>;
   /** `POST /api/sounds/music-review`: the stored record, or null when it was refused or unreachable. */
   submit(body: MusicReviewBody): Promise<MusicReviewRecord | null>;
