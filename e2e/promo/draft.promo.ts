@@ -8,7 +8,7 @@ import { fillWithAi, readyPod } from '../podSeats.ts';
 import { submitCreateRoom } from '../play/rooms.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from '../play/harness.ts';
 import { until } from './drive.ts';
-import { HERO, openPromoFriend, startFilm, TAGS } from './rig.ts';
+import { HERO, openPromoFriend, startFilm } from './rig.ts';
 
 const PREFIX = '/cardtable';
 
@@ -41,12 +41,6 @@ test('draft: the pod, fan and grid, a card turned over', async () => {
     await page.goto(`${stack.origin}${PREFIX}/`);
     await submitCreateRoom(page, { name: 'Vintage Cube Night', gameType: 'draft' });
     await page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
-    const roomId = page.url().split('/room/')[1]!;
-    // "Which seat is mine" reads `/session/whoami`, which the e2e edge does not serve (`dr-draft-picks.spec.ts`).
-    const room = (await (await hero.context.request.get(`${stack.origin}${PREFIX}/api/rooms/${roomId}`)).json()) as { members: { id: string; name: string }[] };
-    const me = room.members.find((m) => m.name === TAGS[HERO])!;
-    await hero.context.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: me.id, userType: 'friend', name: TAGS[HERO] } }));
-    await page.reload();
     await page.getByTestId('pod-seats').waitFor({ timeout: 30_000 });
     await film.beat(1_500);
     await film.roll();
