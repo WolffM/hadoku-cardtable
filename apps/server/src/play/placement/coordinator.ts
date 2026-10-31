@@ -652,7 +652,7 @@ export function placement(opts: PlacementOptions): Placement {
 		const t0 = now();
 		quarantine(host, cause);
 		// Losing the last claw promotes hokon before anything is moved, so the moves can use it.
-		stepBackstop(true, true);
+		stepBackstop(true, true, true);
 		const victims = [...placed.values()].filter((p) => p.host === host && !p.moved);
 		const results = victims.map((p) => move(p, cause, host));
 		detach(host, cause);
@@ -812,8 +812,11 @@ export function placement(opts: PlacementOptions): Placement {
 		notifyRoom();
 	}
 
-	/** One backstop step. `promoteOnly` is an event between polls: it may promote, never count calm. */
-	function stepBackstop(fresh: boolean, promoteOnly = false): void {
+	/**
+	 * One backstop step. `between` is an event between polls: it may promote, never count a poll.
+	 * `waiting` is a start that found no host since the last poll, or a failed claw's matches.
+	 */
+	function stepBackstop(fresh: boolean, between = false, waiting = short): void {
 		const declared = claws().filter((h) => h.fleet?.hosting != null);
 		const step = backstopStep(backstop, {
 			fresh: fresh && fleetReadAt !== null,
@@ -821,12 +824,15 @@ export function placement(opts: PlacementOptions): Placement {
 			reachable: declared.filter((h) => h.fleet?.reachable === true).length,
 			eligible: claws().filter((h) => eligible(barsOf(h))).length,
 			forced: opts.forceFile === undefined ? false : readForce(opts.forceFile, now()) !== null,
+			waiting,
+			between,
 		});
-		if (promoteOnly && step.change !== 'promote') return;
+		if (between && step.change !== 'promote') return;
 		backstop = step.state;
 		if (step.change === 'promote') {
-			log({ evt: 'backstop-promoted', why: backstop.why });
-			alerts.fire('backstop', `🔺 hokon promoted to the Forge backstop: ${backstop.why}.`);
+			const none = whyNone();
+			log({ evt: 'backstop-promoted', why: backstop.why, whyNone: none });
+			alerts.fire('backstop', `🔺 hokon promoted to the Forge backstop: ${backstop.why}. ${none}.`);
 		} else if (step.change === 'demote') {
 			log({ evt: 'backstop-demoted', why: backstop.why });
 			alerts.resolve('backstop', `🔻 hokon stood down as the Forge backstop: ${backstop.why}. Its live matches finish there.`, '');

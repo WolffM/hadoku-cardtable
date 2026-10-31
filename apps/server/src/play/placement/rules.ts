@@ -24,10 +24,11 @@
  * ## hokon as the backstop (§4.3)
  *
  * The same shape as fleet-manager's CI backstop: promoted when no claw is eligible, or when fewer
- * than half the declared claws are reachable; demoted after `CALM_POLLS` calm polls in a row; a
- * poll that could not read fleet status holds whatever is current; an operator force, time-boxed
- * (`FORCE_DEFAULT_MS`, at most `FORCE_MAX_MS`), promotes regardless. Demotion takes no new matches
- * on hokon and moves none: a healthy match is never restored for nothing.
+ * than half the declared claws are reachable, for `OUTAGE_POLLS` polls in a row — at once when a
+ * start is waiting or a failed claw's matches need a host; demoted after `CALM_POLLS` calm polls in
+ * a row; a poll that could not read fleet status holds whatever is current; an operator force,
+ * time-boxed (`FORCE_DEFAULT_MS`, at most `FORCE_MAX_MS`), promotes regardless. Demotion takes no
+ * new matches on hokon and moves none: a healthy match is never restored for nothing.
  *
  * ## Slices on demand (§6)
  *
@@ -44,6 +45,11 @@ import { coreRank, type FleetNode } from './fleet.js';
 export const NOTICE_HORIZON_MS = 30 * 60_000;
 /** This close to that event, its remaining matches move at their next turn start. */
 export const MOVE_AHEAD_MS = 5 * 60_000;
+/**
+ * Outage polls in a row before hokon steps in unasked. One was a hair trigger: on 2026-10-30 a
+ * one-poll blip on the only claw promoted hokon, the prod box, again and again.
+ */
+export const OUTAGE_POLLS = 2;
 /** Calm polls in a row before hokon stands down. */
 export const CALM_POLLS = 3;
 /** The operator's force on hokon: the default, and the ceiling from when it was written. */
@@ -145,6 +151,8 @@ export interface BackstopState {
 	promoted: boolean;
 	/** Calm polls in a row while promoted. */
 	calm: number;
+	/** Outage polls in a row while not promoted. */
+	outages: number;
 	why: string;
 }
 
@@ -158,9 +166,13 @@ export interface BackstopInput {
 	eligible: number;
 	/** The operator's force is in effect. */
 	forced: boolean;
+	/** A start found no host since the last poll, or a failed claw's matches need one now. */
+	waiting: boolean;
+	/** An event between polls: it counts no poll, so it promotes only for a waiting start. */
+	between: boolean;
 }
 
-export const BACKSTOP_IDLE: BackstopState = { promoted: false, calm: 0, why: 'the claws are serving' };
+export const BACKSTOP_IDLE: BackstopState = { promoted: false, calm: 0, outages: 0, why: 'the claws are serving' };
 
 /** One poll of the backstop. `change` is set on the poll that promotes or demotes. */
 export function backstopStep(state: BackstopState, input: BackstopInput): { state: BackstopState; change: 'promote' | 'demote' | null } {
@@ -168,7 +180,7 @@ export function backstopStep(state: BackstopState, input: BackstopInput): { stat
 		state: s,
 		change: s.promoted === state.promoted ? null : s.promoted ? 'promote' : 'demote',
 	});
-	if (input.forced) return next({ promoted: true, calm: 0, why: 'forced by the operator' });
+	if (input.forced) return next({ promoted: true, calm: 0, outages: 0, why: 'forced by the operator' });
 	if (!input.fresh) return { state, change: null };
 	const outage =
 		input.eligible === 0
@@ -176,8 +188,14 @@ export function backstopStep(state: BackstopState, input: BackstopInput): { stat
 			: input.reachable * 2 < input.declared
 				? `only ${input.reachable} of ${input.declared} declared claws are reachable`
 				: null;
-	if (outage !== null) return next({ promoted: true, calm: 0, why: outage });
-	if (!state.promoted) return { state, change: null };
+	if (outage !== null && (state.promoted || input.waiting)) return next({ promoted: true, calm: 0, outages: 0, why: outage });
+	if (input.between) return { state, change: null };
+	if (outage !== null) {
+		const outages = state.outages + 1;
+		if (outages >= OUTAGE_POLLS) return next({ promoted: true, calm: 0, outages: 0, why: outage });
+		return { state: { ...state, outages }, change: null };
+	}
+	if (!state.promoted) return { state: state.outages === 0 ? state : { ...state, outages: 0 }, change: null };
 	const calm = state.calm + 1;
 	if (calm >= CALM_POLLS) return next({ ...BACKSTOP_IDLE, why: `calm for ${calm} polls` });
 	return { state: { ...state, calm }, change: null };
@@ -220,8 +238,12 @@ export const REPLACE_AFTER_MS = 10 * 60_000;
  * evening pays notice cycles for nothing.
  */
 export const DEMAND_CALM_MS = 2 * 60 * 60_000;
-/** `hosting.json`'s `slices.min..max`. */
-export const MIN_SLICES = 1;
+/**
+ * `hosting.json`'s `slices.min..max` (a unit test pins them equal). The floor is 2: one slice left
+ * a calm evening on one claw, so any blip on it promoted hokon, and a failover had nowhere else to
+ * go (operator, 2026-10-31).
+ */
+export const MIN_SLICES = 2;
 export const MAX_SLICES = 4;
 
 export interface DemandClaw {

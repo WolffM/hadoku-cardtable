@@ -3,7 +3,7 @@
  * claws (no JVM), fake agent links, a fake fleet and a fake clock.
  */
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -20,6 +20,8 @@ import {
 	BACKSTOP_IDLE,
 	DEMAND_CALM_MS,
 	DEMAND_IDLE,
+	MAX_SLICES,
+	MIN_SLICES,
 	REPLACE_AFTER_MS,
 	backstopStep,
 	bars,
@@ -398,7 +400,8 @@ describe('eligibility', () => {
 });
 
 describe('the backstop', () => {
-	const calm = { fresh: true, declared: 4, reachable: 4, eligible: 3, forced: false };
+	const calm = { fresh: true, declared: 4, reachable: 4, eligible: 3, forced: false, waiting: false, between: false };
+	const out = { ...calm, eligible: 0 };
 	const run = (inputs: (typeof calm)[], from: BackstopState = BACKSTOP_IDLE) => {
 		let s = from;
 		return inputs.map((i) => {
@@ -408,17 +411,34 @@ describe('the backstop', () => {
 		});
 	};
 
-	it('promotes when no claw is eligible, or under half the declared claws answer; stands down after 3 calm polls', () => {
-		expect(run([calm, { ...calm, eligible: 0 }, calm, calm, calm, calm])).toEqual(['down', 'promote', 'up', 'up', 'demote', 'down']);
-		expect(run([{ ...calm, reachable: 1 }])).toEqual(['promote']);
-		expect(run([{ ...calm, reachable: 2 }])).toEqual(['down']);
+	it('promotes after 2 outage polls in a row (no claw eligible, or under half the declared claws answer); stands down after 3 calm polls', () => {
+		expect(run([calm, out, out, calm, calm, calm, calm])).toEqual(['down', 'down', 'promote', 'up', 'up', 'demote', 'down']);
+		expect(run([{ ...calm, reachable: 1 }, { ...calm, reachable: 1 }])).toEqual(['down', 'promote']);
+		expect(run([{ ...calm, reachable: 2 }, { ...calm, reachable: 2 }])).toEqual(['down', 'down']);
 		// A storm in the calm resets the count.
-		expect(run([{ ...calm, eligible: 0 }, calm, calm, { ...calm, eligible: 0 }, calm, calm, calm])).toEqual(['promote', 'up', 'up', 'up', 'up', 'up', 'demote']);
+		expect(run([out, out, calm, calm, out, calm, calm, calm])).toEqual(['down', 'promote', 'up', 'up', 'up', 'up', 'up', 'demote']);
 	});
 
-	it('an unreadable fleet status holds: it neither promotes nor demotes', () => {
-		expect(run([{ ...calm, fresh: false, eligible: 0 }])).toEqual(['down']);
-		expect(run([{ ...calm, eligible: 0 }, { ...calm, fresh: false }, { ...calm, fresh: false }, { ...calm, fresh: false }, calm])).toEqual(['promote', 'up', 'up', 'up', 'up']);
+	it('a single outage poll promotes nothing: a calm poll between two starts the count again', () => {
+		expect(run([out])).toEqual(['down']);
+		expect(run([out, calm, out, calm, out])).toEqual(['down', 'down', 'down', 'down', 'down']);
+	});
+
+	it('a waiting start promotes on the first outage poll; with a claw eligible it promotes nothing', () => {
+		expect(run([{ ...out, waiting: true }])).toEqual(['promote']);
+		expect(run([{ ...calm, waiting: true }])).toEqual(['down']);
+	});
+
+	it('an event between polls counts no poll: it promotes only for a waiting start', () => {
+		expect(run([out, { ...out, between: true }])).toEqual(['down', 'down']);
+		expect(run([{ ...out, between: true }, { ...out, between: true }, out])).toEqual(['down', 'down', 'down']);
+		expect(run([{ ...out, between: true, waiting: true }])).toEqual(['promote']);
+	});
+
+	it('an unreadable fleet status holds: it neither promotes nor demotes, nor breaks an outage count', () => {
+		expect(run([{ ...out, fresh: false }, { ...out, fresh: false }])).toEqual(['down', 'down']);
+		expect(run([out, { ...calm, fresh: false }, out])).toEqual(['down', 'down', 'promote']);
+		expect(run([out, out, { ...calm, fresh: false }, { ...calm, fresh: false }, { ...calm, fresh: false }, calm])).toEqual(['down', 'promote', 'up', 'up', 'up', 'up']);
 	});
 
 	it("the operator's force promotes, is time-boxed, and is capped at 6 h from when it was written", () => {
@@ -448,12 +468,21 @@ describe('slice demand', () => {
 		...over,
 	});
 
+	it('the floor is 2 slices, and hosting.json declares the same min..max', () => {
+		expect(MIN_SLICES).toBe(2);
+		const declared = (JSON.parse(readFileSync(new URL('../../../../../hosting.json', import.meta.url), 'utf8')) as { slices: { min: number; max: number } }).slices;
+		expect({ min: declared.min, max: declared.max }).toEqual({ min: MIN_SLICES, max: MAX_SLICES });
+		// A quiet evening on one claw still asks for a second, so a blip has somewhere to go but hokon.
+		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 0)])).slices).toBe(2);
+		expect(demandStep(DEMAND_IDLE, input([])).slices).toBe(2);
+	});
+
 	it('asks for the next slice once live matches pass 70% of the usable ones, never past the ceiling', () => {
-		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 17)])).slices).toBe(1);
-		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 18)])).slices).toBe(2);
+		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 34), claw('claw-9', 0)])).slices).toBe(2);
+		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 35), claw('claw-9', 0)], { ceiling: 100 })).slices).toBe(3);
 		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 25), claw('claw-9', 25)])).slices).toBe(2);
 		// A start that found no host asks for one more than is usable.
-		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 3)], { short: true })).slices).toBe(2);
+		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 3), claw('claw-9', 3)], { short: true, ceiling: 100 })).slices).toBe(3);
 	});
 
 	it('replaces a claw unusable for 10 min, and keeps its slice for its canary', () => {
@@ -466,19 +495,21 @@ describe('slice demand', () => {
 	});
 
 	it('asks for more at once and for fewer only after the calm spell; the first poll starts from what is declared', () => {
-		const two = [claw('claw-8', 1), claw('claw-9', 0)];
+		const three = [claw('claw-8', 1), claw('claw-9', 0), claw('claw-5', 0)];
 		let state: DemandState = DEMAND_IDLE;
 		const at = (t: number): number => {
-			const step = demandStep(state, input(two, { now: t }));
+			const step = demandStep(state, input(three, { now: t }));
 			state = step.state;
 			return step.slices;
 		};
-		expect(at(T0)).toBe(2);
-		expect(at(T0 + DEMAND_CALM_MS - 1)).toBe(2);
-		expect(at(T0 + DEMAND_CALM_MS)).toBe(1);
+		expect(at(T0)).toBe(3);
+		expect(at(T0 + DEMAND_CALM_MS - 1)).toBe(3);
+		expect(at(T0 + DEMAND_CALM_MS)).toBe(2);
+		// Never under the floor, however long the calm.
+		expect(at(T0 + 10 * DEMAND_CALM_MS)).toBe(2);
 		// A poll that wants more breaks the spell.
-		state = { slices: 2, lowSince: T0 };
-		expect(demandStep(state, input([claw('claw-8', 18), claw('claw-9', 0)], { now: T0 + 60_000 })).state).toEqual({ slices: 2, lowSince: null });
+		state = { slices: 3, lowSince: T0 };
+		expect(demandStep(state, input([claw('claw-8', 35), claw('claw-9', 0), claw('claw-5', 0)], { now: T0 + 60_000, ceiling: 100 })).state).toEqual({ slices: 3, lowSince: null });
 	});
 
 	it('ends unusable claws first, then the emptiest, then the slowest core', () => {
@@ -499,22 +530,22 @@ describe('slice demand', () => {
 		expect(r.demands).toHaveLength(asked);
 	});
 
-	it('a slice the converger is ending at our asking is never replaced: idle, released to 1, still 1 past the replace window', async () => {
-		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
-		expect(r.demands.at(-1)?.slices).toBe(2);
+	it('a slice the converger is ending at our asking is never replaced: idle, released to the floor, still there past the replace window', async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8'), fleetNode('claw-5')]);
+		expect(r.demands.at(-1)?.slices).toBe(3);
 		r.clock.t += DEMAND_CALM_MS;
 		await r.p.poll();
-		expect(r.demands.at(-1)).toEqual({ slices: 1, releaseOrder: ['claw-9', 'claw-8'] });
-		// The converger ends claw-9 with our notice: its end shows as a hosting notice, and in `ending`.
-		r.converger.ending = ['claw-9'];
+		expect(r.demands.at(-1)).toEqual({ slices: 2, releaseOrder: ['claw-5', 'claw-9', 'claw-8'] });
+		// The converger ends claw-5 with our notice: its end shows as a hosting notice, and in `ending`.
+		r.converger.ending = ['claw-5'];
 		const end = new Date(r.clock.t + 15 * 60_000).toISOString();
-		r.nodes[0] = fleetNode('claw-9', { notices: [{ event: 'ends', at: end, kind: 'hosting' }] });
+		r.nodes[2] = fleetNode('claw-5', { notices: [{ event: 'ends', at: end, kind: 'hosting' }] });
 		await r.p.poll();
 		r.clock.t += REPLACE_AFTER_MS + 60_000;
 		await r.p.poll();
 		await r.p.poll();
-		expect(r.demands.slice(-3).map((d) => d.slices)).toEqual([1, 1, 1]);
-		expect(r.demands.at(-1)?.releaseOrder).toEqual(['claw-8']);
+		expect(r.demands.slice(-3).map((d) => d.slices)).toEqual([2, 2, 2]);
+		expect(r.demands.at(-1)?.releaseOrder).toEqual(['claw-9', 'claw-8']);
 	});
 
 	it('a dry-run converger: the Capacity alert says declaring is the operator\'s call', async () => {
@@ -585,7 +616,7 @@ describe('placement', () => {
 		// The incident is open: asking again posts nothing.
 		r.p.room();
 		expect(r.logs.filter((l) => l.evt === 'alert' && l.key === 'capacity')).toHaveLength(1);
-		// A poll sees no eligible claw and promotes hokon, which takes the next start.
+		// A start is waiting: the first poll that sees no eligible claw promotes hokon, which takes the next start.
 		await r.p.poll();
 		expect(r.posted.some((t) => t.startsWith('🔺 hokon promoted to the Forge backstop: no claw is eligible'))).toBe(true);
 		expect(r.p.room()).not.toBe('full');
@@ -594,9 +625,33 @@ describe('placement', () => {
 		expect(r.posted.at(-1)).toMatch(/^✅ Capacity: Forge matches are being placed again/);
 	});
 
+	it('one outage poll promotes nothing; the second in a row does, and its log and alert say which bar emptied the eligible set', async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
+		r.nodes[0] = fleetNode('claw-9', { reachable: false });
+		r.nodes[1] = fleetNode('claw-8', { reachable: false });
+		await r.p.poll();
+		expect(r.p.hosts().backstop.promoted).toBe(false);
+		expect(r.posted.filter((t) => t.startsWith('🔺'))).toEqual([]);
+		// A blip: back on the next poll, and nothing was promoted.
+		r.nodes[0] = fleetNode('claw-9');
+		r.nodes[1] = fleetNode('claw-8');
+		await r.p.poll();
+		r.nodes[0] = fleetNode('claw-9', { reachable: false });
+		r.nodes[1] = fleetNode('claw-8', { reachable: false });
+		await r.p.poll();
+		expect(r.p.hosts().backstop.promoted).toBe(false);
+		expect(r.logs.filter((l) => l.evt === 'backstop-promoted')).toEqual([]);
+		await r.p.poll();
+		expect(r.p.hosts().backstop.promoted).toBe(true);
+		const whyNone = 'claw-9: fleet (fleet-manager cannot reach it); claw-8: fleet (fleet-manager cannot reach it); hokon: promoted';
+		expect(r.logs.filter((l) => l.evt === 'backstop-promoted')).toEqual([{ evt: 'backstop-promoted', why: 'no claw is eligible', whyNone }]);
+		expect(r.posted.filter((t) => t.startsWith('🔺'))).toEqual([`🔺 hokon promoted to the Forge backstop: no claw is eligible. ${whyNone}.`]);
+	});
+
 	it('hokon stands down after 3 calm polls and keeps its live matches', async () => {
 		const r = await rig([fleetNode('claw-9')]);
 		r.nodes[0] = fleetNode('claw-9', { reachable: false });
+		await r.p.poll();
 		await r.p.poll();
 		start(r, 'm-1');
 		expect(jvmOf(r, 'm-1').claw).toBe('hokon');
@@ -690,6 +745,7 @@ describe('AI degraded', () => {
 		const r = await rig([fleetNode('claw-9')]);
 		r.nodes[0] = fleetNode('claw-9', { reachable: false });
 		await r.p.poll();
+		await r.p.poll();
 		start(r, 'm-1');
 		const { claw, jvm } = jvmOf(r, 'm-1');
 		expect(claw).toBe('hokon');
@@ -706,13 +762,28 @@ describe('AI degraded', () => {
 		expect(jvmOf(r, 'm-2').claw).toBe('hokon');
 	});
 
-	it('the last eligible claw degrading promotes hokon at once, without waiting for a poll', async () => {
+	it('the last eligible claw degrading promotes nothing by itself; a start that then waits promotes hokon on the next poll', async () => {
 		const r = await rig([fleetNode('claw-9')]);
 		start(r, 'm-1');
 		jvmOf(r, 'm-1').jvm.say({ t: 'cutoff', match: 'm-1' });
+		expect(r.p.hosts().backstop.promoted).toBe(false);
+		expect(() => start(r, 'm-2')).toThrow(/claw-9: ai \(1 AI decision cut short in the last 5 min\); hokon: not promoted/);
+		await r.p.poll();
 		expect(r.p.hosts().backstop).toMatchObject({ promoted: true, why: 'no claw is eligible' });
 		start(r, 'm-2');
 		expect(jvmOf(r, 'm-2').claw).toBe('hokon');
+	});
+
+	it('a degrading claw promotes hokon at once when a start is already waiting', async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
+		r.nodes[1] = fleetNode('claw-8', { reachable: false });
+		await r.p.poll();
+		for (const id of ['m-1', 'm-2', 'm-3', 'm-4']) start(r, id);
+		// claw-9 is full and claw-8 unreachable: the start that found no host is waiting.
+		expect(() => start(r, 'm-5')).toThrow(/no Forge host/);
+		expect(r.p.hosts().backstop.promoted).toBe(false);
+		jvmOf(r, 'm-1').jvm.say({ t: 'cutoff', match: 'm-1' });
+		expect(r.p.hosts().backstop).toMatchObject({ promoted: true, why: 'no claw is eligible' });
 	});
 });
 
@@ -823,6 +894,28 @@ describe('failover', () => {
 		await Promise.resolve();
 		expect(r.posted).toHaveLength(1);
 		expect(r.posted[0]).toMatch(/^🔁 Fenced: claw-\d — fenced: no word from the coordinator .* stays in service\. Moved 1: m-1 → claw-\d \(restored at the start of turn 3/);
+	});
+
+	it('a coordinator restart longer than the 10 s fence window quarantines no claw: both claws fence the JVMs it took back, every match moves, and hokon stays down', async () => {
+		// Prod 2026-10-28T21:10:22Z: an 11 s restart, then both claws quarantined with this cause (fixed by b68cc034).
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')], { takenBack: { 'claw-9': ['h-old-9'], 'claw-8': ['h-old-8'] } });
+		start(r, 'm-1');
+		start(r, 'm-2');
+		ready(r, 'm-1');
+		ready(r, 'm-2');
+		const before = ['m-1', 'm-2'].map((id) => jvmOf(r, id));
+		expect(before.map((j) => j.jvm.hostId).sort()).toEqual(['h-old-8', 'h-old-9']);
+		const cause = 'fenced: no word from the coordinator for 11 s (window 10 s)';
+		for (const { jvm } of before) jvm.die(cause);
+		await Promise.resolve();
+		for (const claw of ['claw-9', 'claw-8']) {
+			expect(hostOf(r, claw).quarantine).toBeNull();
+			expect(hostOf(r, claw).eligible).toBe(true);
+		}
+		for (const id of ['m-1', 'm-2']) expect(['h-old-9', 'h-old-8']).not.toContain(jvmOf(r, id).jvm.hostId);
+		expect(r.p.hosts().backstop.promoted).toBe(false);
+		expect(r.logs.filter((l) => l.evt === 'claw-quarantined')).toEqual([]);
+		expect(r.posted.filter((t) => t.startsWith('🚨') || t.startsWith('🔺'))).toEqual([]);
 	});
 
 	it('an agent silent past the window with no match on it: a heartbeat-lost alert and quarantine, then back after a healthy status and a canary', async () => {

@@ -198,7 +198,7 @@ in `src/runners/backstop.ts` and `backstop-force.ts`, read 2026-10-25:
 
 | CI backstop (fleet-manager) | Forge backstop (ours) |
 | --- | --- |
-| **Outage**: fewer than half the registered claws answer, or zero registered. Promotes regardless of queue | fewer than half the eligible hosts (§4.1) answer, or none are eligible |
+| **Outage**: fewer than half the registered claws answer, or zero registered. Promotes regardless of queue | fewer than half the eligible hosts (§4.1) answer, or none are eligible, for **2 polls in a row** — at once when a start is waiting or a failed claw's matches need a host (operator, 2026-10-31: one-poll blips promoted hokon over and over on 2026-10-30) |
 | **Saturation**: the oldest queued run has waited ≥ 100 s (`SATURATION_QUEUE_SECONDS`, the measured p90) | a match has waited ≥ N s for a host under admission control (§4.2). N comes from data, as 100 did |
 | **Idle gate** on saturation: load ≤ 4/core, ≥ 12 GB available, /tmp ≥ 2 GB (the last refuses even a forced mint) | the same gate, the same constants |
 | Saturation yields to prod work (the pm2-host rung, deploys); an outage does not | the same: a deploy or reserved prod work beats saturation, never an outage |
@@ -212,7 +212,9 @@ What is ours on top:
   measured knee, lowered by what prod is using at the moment.
 - **Demotion takes no new matches.** Live matches finish on hokon; moving a
   healthy match is a restore, and that costs quality for nothing.
-- **Promote and demote are alerts** (🔺/🔻, §7).
+- **Promote and demote are alerts** (🔺/🔻, §7). The 🔺 and its `backstop-promoted` log
+  line carry `whyNone()`: every claw's failing bars, so the promotion names what emptied the
+  eligible set.
 
 **One implementation, not two.** The decision is pure and tested in
 fleet-manager but not exported from `@wolffm/fleet-manager`. Cardtable asks for
@@ -282,7 +284,9 @@ Only what ruling 2 allows; it goes to them as a request in `docs/requests/`:
   cardtable --slices N --release-order …` for `rules.ts` `demandStep`'s count.
   It asks for the next slice past 70% of the usable ones (capped at what
   `MAX_CONCURRENT_MATCHES` needs), and for a replacement for a claw unusable for
-  10 min. It asks for fewer only after 2 h calm, and a slice it is already ending is never replaced. It ends unusable claws
+  10 min. It asks for fewer only after 2 h calm, never under **2 slices** (`MIN_SLICES` =
+  `hosting.json` `slices.min`, since 2026-10-31: one slice left a calm evening on one claw, so a
+  blip promoted hokon and a failover could only go there), and a slice it is already ending is never replaced. It ends unusable claws
   first, then the emptiest, then the slowest. The converger declares and ends
   slices through `fleet hosting` with our `noticeMin`, so a planned move takes
   what is still on one. It acts only after the operator registers the request
