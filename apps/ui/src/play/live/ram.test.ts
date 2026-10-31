@@ -7,7 +7,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { damagePower, powerEase } from '../motion.ts';
-import { ALIGN_MS, alignOf, BLAST_MS, boxIn, chargeControl, contactMs, fanOf, punchAt, ram, RAMMING_ATTR, ramMs, RETURN_MS, strikeOffset } from './ram.ts';
+import { entryWeight } from './entries.ts';
+import { ALIGN_MS, alignOf, BLAST_MS, boxIn, chargeControl, contactMs, fanOf, punchAt, ram, RAMMING_ATTR, ramMs, RETURN_MS, strikeOffset, windUpOf } from './ram.ts';
 
 const rect = (left: number, top: number, width: number, height: number): DOMRect =>
   ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
@@ -166,29 +167,28 @@ describe('punchAt', () => {
     expect(punchAt(1, 1)).toBeCloseTo(1);
     expect(speed(0, 0)).toBeLessThan(0.05);
   });
-  it('creeps, then bursts — the heavier, the slower off the mark and the faster at the blow', () => {
+  it('snaps: the heavier, the harder the burst at the blow', () => {
     expect(punchAt(0.5, 0)).toBeLessThan(0.15);
-    expect(punchAt(0.5, 1)).toBeLessThan(punchAt(0.5, 0.5));
-    expect(punchAt(0.5, 0.5)).toBeLessThan(punchAt(0.5, 0));
-    expect(speed(1, 0)).toBeGreaterThan(4.5);
-    expect(speed(1, 0.5)).toBeGreaterThan(speed(1, 0) * 1.8);
-    expect(speed(1, 1)).toBeGreaterThan(14);
+    expect(speed(1, 0.5)).toBeGreaterThan(speed(1, 0));
+    expect(speed(1, 1)).toBeGreaterThan(speed(1, 0.5));
+    expect(speed(1, 0)).toBeGreaterThan(9);
   });
   it('only ever speeds up', () => {
     for (const power of [0, 0.5, 1]) for (let t = 0.05; t <= 1; t += 0.05) expect(speed(t, power)).toBeGreaterThan(speed(t - 0.05, power));
   });
 });
 
-describe('a charge’s peak speed', () => {
+describe('a charge’s wind-up and punch', () => {
   /**
-   * The flight a charge of `amount` damage hands the browser (its keyframes, run linear), over a 400px
-   * straight line: the furthest it moves in one 60 fps frame, in px/ms, and when it lands. The operator,
-   * 2026-10-30: "both the floor and the ceiling for how much velocity is reached with each 'punch' should
-   * be harder". Measured on main before the change: 3.88 px/ms at 1 damage, 6.10 at 4, 7.72 at 10, 9.43
-   * at 20 on its fastest-ending curve, and 2.95, 4.60, 5.82, 7.13 on its slowest: the punch ran along the
-   * curve's parameter, not its length, so a curve bending late slowed every blow it drew.
+   * The charge a creature dealing `amount` damage hands the browser, over a 400px straight line: where
+   * its card is at each ms from its turn to face the player to the blow, read off its keyframes (run
+   * linear). The operator, 2026-10-31, on the first harder punch: "it can still be improved if the arc
+   * was instead first slowly backward, then rapidly forward … kind of like the slam is being wound up.
+   * this 'back up' should be further exaggerated with higher power creatures. they have a slower start
+   * and longer wind up, but then an even faster and harder punch."
+   * The punch before it (on w87a's first cut): 6.30, 9.36, 11.44, 13.54 px/ms at 1, 4, 10, 20 damage.
    */
-  const flight = (amount: number, draw = 0): { peak: number; lands: number } => {
+  const charge = (amount: number, draw = 0): { peak: number; lands: number; back: number; windMs: number; windPeak: number } => {
     const root = document.createElement('div');
     root.getBoundingClientRect = () => rect(0, 0, 1000, 1000);
     const card = document.createElement('li');
@@ -198,44 +198,71 @@ describe('a charge’s peak speed', () => {
       calls.push({ frames, options });
       return { finished: new Promise(() => undefined), cancel: () => undefined } as unknown as Animation;
     }) as unknown as typeof HTMLElement.prototype.animate;
-    // Formed up exactly where it stands, 400px from where it strikes the avatar (less 0.4 of its own reach), on the curve `draw` picks.
+    // Formed up exactly where it stands, 400px below where it strikes the avatar (less 0.4 of its own reach), on the curve `draw` picks.
     vi.spyOn(Math, 'random').mockReturnValue(draw);
-    ram(root, card, { x: 500, y: 900, w: 60, h: 84 }, { x: 500, y: 900 - 400 - 84 * 0.2, w: 40, h: 40 }, 'charge', 'charge', 'k', 0, damagePower(amount), 0, { start: 0, at: { x: 0, y: 0 } });
-    const fly = calls[1]!;
-    const keys = fly.frames.map((f) => {
-      const [x, y] = String(f.translate).split(' ').map((v) => Number(v.replace('px', '')));
-      return { t: Number(f.offset), x: x!, y: y! };
-    });
-    const at = (t: number): { x: number; y: number } => {
-      const i = Math.max(1, keys.findIndex((k) => k.t >= t));
-      const a = keys[i - 1]!;
-      const b = keys[i]!;
+    ram(root, card, { x: 500, y: 900, w: 60, h: 84 }, { x: 500, y: 900 - 400 - 84 * 0.2, w: 40, h: 40 }, 'charge', 'charge', 'k', 0, damagePower(amount), 0, { start: 0, at: { x: 0, y: 0 }, weight: entryWeight(amount).power });
+    const launch = ALIGN_MS;
+    const lands = contactMs('charge');
+    // Every part between its turn to face the player and the blow, as a position at a given ms.
+    const parts = calls
+      .map((c) => ({ from: Number(c.options.delay), ms: Number(c.options.duration), keys: c.frames.map((f, i) => {
+        const [x, y] = String(f.translate).split(' ').map((v) => Number(v.replace('px', '')));
+        return { t: f.offset === undefined || f.offset === null ? i / (c.frames.length - 1) : Number(f.offset), x: x!, y: y! };
+      }) }))
+      .filter((p) => p.from >= launch && p.from + p.ms <= lands);
+    const at = (ms: number): { x: number; y: number } => {
+      const part = parts.find((p) => ms >= p.from && ms <= p.from + p.ms)!;
+      const t = (ms - part.from) / part.ms;
+      const i = Math.max(1, part.keys.findIndex((k) => k.t >= t));
+      const a = part.keys[i - 1]!;
+      const b = part.keys[i]!;
       const f = (t - a.t) / (b.t - a.t || 1);
       return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
     };
-    const ms = Number(fly.options.duration);
     const frame = 1000 / 60;
+    const strikeFrom = parts.length > 1 ? parts[parts.length - 1]!.from : launch;
     let peak = 0;
-    // Every frame's window, wherever the frame falls: the fastest is the one that ends on the blow.
-    for (let t = 0; t + frame <= ms; t += 1) {
-      const a = at(t / ms);
-      const b = at((t + frame) / ms);
-      peak = Math.max(peak, Math.hypot(b.x - a.x, b.y - a.y) / frame);
+    let windPeak = 0;
+    let back = 0;
+    // Every frame's window, wherever the frame falls: the punch's fastest is the one that ends on the blow.
+    for (let ms = launch; ms + frame <= lands; ms += 1) {
+      const a = at(ms);
+      const b = at(ms + frame);
+      const v = Math.hypot(b.x - a.x, b.y - a.y) / frame;
+      if (ms + frame <= strikeFrom) windPeak = Math.max(windPeak, v);
+      else peak = Math.max(peak, v);
+      // Down the screen is away from the avatar.
+      back = Math.max(back, a.y);
     }
-    return { peak, lands: Number(fly.options.delay) + ms };
+    return { peak, lands: launch + parts.reduce((n, p) => Math.max(n, p.from + p.ms - launch), 0), back, windMs: strikeFrom - launch, windPeak };
   };
-  it('lands harder at both ends: a point, four, ten and twenty each reach a higher peak than before', () => {
-    const peaks = [1, 4, 10, 20].map((a) => flight(a).peak);
-    console.log(`[w87a] charge peak px/ms at 1, 4, 10, 20 damage: ${peaks.map((p) => p.toFixed(2)).join(', ')}; on its latest-bending curve ${[1, 4, 10, 20].map((a) => flight(a, 0.99).peak.toFixed(2)).join(', ')}`);
-    const floors = [6, 9, 11, 13];
+  it('first draws slowly back, away from the player: further and longer the heavier, a point small and quick, fifteen and up the deepest', () => {
+    const tiers = [1, 4, 10, 15, 20].map((a) => charge(a));
+    console.log(`[w87a] wind-up px at 1, 4, 10, 15, 20 damage: ${tiers.map((c) => c.back.toFixed(1)).join(', ')}; ms ${tiers.map((c) => c.windMs.toFixed(0)).join(', ')}; its fastest px/ms ${tiers.map((c) => c.windPeak.toFixed(2)).join(', ')}`);
+    expect(tiers[0]!.back, 'a point still winds up').toBeGreaterThan(4);
+    expect(tiers[0]!.windMs).toBeLessThan(150);
+    for (let i = 1; i < 4; i++) {
+      expect(tiers[i]!.back, `${[1, 4, 10, 15][i]} draws back further`).toBeGreaterThan(tiers[i - 1]!.back * 1.2);
+      expect(tiers[i]!.windMs, `${[1, 4, 10, 15][i]} winds up longer`).toBeGreaterThan(tiers[i - 1]!.windMs);
+    }
+    expect(tiers[3]!.back, 'fifteen draws back most of a card').toBeGreaterThan(55);
+    expect(tiers[3]!.windMs).toBeGreaterThan(300);
+    expect(tiers[4]!.back, 'nothing grows past fifteen, as a landing').toBeCloseTo(tiers[3]!.back);
+    tiers.forEach((c, i) => expect(c.windPeak, `${[1, 4, 10, 15, 20][i]}: slowly back`).toBeLessThan(c.peak / 5));
+    expect(windUpOf(0)).toEqual(windUpOf(-1));
+  });
+  it('then punches faster and harder the heavier: a point, four, ten and twenty each well past the first cut', () => {
+    const peaks = [1, 4, 10, 20].map((a) => charge(a).peak);
+    console.log(`[w87a] charge peak px/ms at 1, 4, 10, 20 damage: ${peaks.map((p) => p.toFixed(2)).join(', ')}; on its latest-bending curve ${[1, 4, 10, 20].map((a) => charge(a, 0.99).peak.toFixed(2)).join(', ')}`);
+    const floors = [7, 11, 15, 18];
     peaks.forEach((p, i) => expect(p, `${[1, 4, 10, 20][i]} damage: ${p.toFixed(2)} px/ms`).toBeGreaterThan(floors[i]!));
-    for (let i = 1; i < peaks.length; i++) expect(peaks[i]!).toBeGreaterThan(peaks[i - 1]!);
+    for (let i = 1; i < peaks.length; i++) expect(peaks[i]!).toBeGreaterThan(peaks[i - 1]! * 1.15);
   });
   it('however its curve bends: the punch is a distance along the flight, so no curve slows the blow', () => {
-    for (const a of [1, 10, 20]) expect(flight(a, 0.99).peak / flight(a, 0).peak, `${a} damage`).toBeGreaterThan(0.9);
+    for (const a of [1, 10, 20]) expect(charge(a, 0.99).peak / charge(a, 0).peak, `${a} damage`).toBeGreaterThan(0.9);
   });
   it('and every blow still lands when it did: the impact frame does not move', () => {
-    for (const a of [1, 4, 10, 20]) expect(flight(a).lands).toBe(contactMs('charge'));
+    for (const a of [1, 4, 10, 20]) expect(charge(a).lands).toBe(contactMs('charge'));
     expect(contactMs('charge')).toBe(ALIGN_MS + 640);
   });
 });

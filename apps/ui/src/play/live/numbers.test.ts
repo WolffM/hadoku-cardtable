@@ -14,7 +14,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BoardCard, BoardPlayer, BoardView, StackEntry } from '../adapter.ts';
 import { ATTACK_BEAT_MS, boardSoundsAt, BOLT_STAGGER_MS, HIT_MS, damageSize, damagePower, GLIDE_MS, lifeImpactAt, REVEAL_BEAT_MS, takeResolutionEffects, whenBoardStill } from '../motion.ts';
 import { EXIT_MOTIONS, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
-import { ALIGN_MS, contactMs, RAM_STAGGER_MS } from './ram.ts';
+import { entryWeight } from './entries.ts';
+import { ALIGN_MS, contactMs, RAM_STAGGER_MS, windUpOf } from './ram.ts';
 import {
   LIFE_COLOUR_MS,
   POP_MS,
@@ -1060,7 +1061,8 @@ describe('installNumbers: a ram', () => {
     });
     expect(boardSoundsAt(1).map((s) => [s.role, s.at - now, s.intensity, s.mine])).toEqual([
       ['g.impact.3', contactMs('charge'), damagePower(3), false],
-      ['g.charge', ALIGN_MS, damagePower(3), false],
+      // The charge sounds as it launches, out of its wind-up.
+      ['g.charge', ALIGN_MS + windUpOf(entryWeight(3).power).ms, damagePower(3), false],
     ]);
     handle.dispose();
   });
@@ -1097,7 +1099,7 @@ describe('installNumbers: a ram', () => {
     expect(boardSoundsAt(1).map((s) => [s.role, s.at - now])).toEqual([
       ['g.impact.7', contactMs('charge')],
       ['g.cheer.7', contactMs('charge')],
-      ['g.charge', ALIGN_MS],
+      ['g.charge', ALIGN_MS + windUpOf(entryWeight(8).power).ms],
     ]);
     handle.dispose();
   });
