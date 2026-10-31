@@ -1,0 +1,19 @@
+# The mistake bubble's two board-click lines, on a board where nothing else moves. Seat 0 (alice)
+# has priority in an uncontested turn-1 Main Phase 1 with a Runeclaw Bear that came in this turn:
+# pressing it is refused ("not-offered", summoning sick) and says the "sick" line. Seat 1 (bob)
+# holds a Forest he cannot play on alice's turn: pressing it is refused ("no-input", no priority)
+# and says the "priority" line. Nothing Forge sends follows either press, so the bubble shows only
+# because the press itself redraws the board. Used by `e2e/mistake-bubbles.spec.ts`.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Runeclaw Bear|SummonSick
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=Forest
+aibattlefield=
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=
