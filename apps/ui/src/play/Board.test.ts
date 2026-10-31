@@ -936,12 +936,14 @@ describe('BoardInteraction', () => {
    * R10 fix, found live: a real browser suppresses pointer events on a
    * `disabled` element, which breaks the arrange-drag's own press; jsdom does
    * not reproduce that, so no unit test caught it the first time). `tabIndex`
-   * alone keeps every behaviour this test pins: out of the tab order, not
-   * clickable (no `onClick` to call), and reported nowhere.
+   * alone keeps every behaviour this test pins: out of the tab order, and
+   * never selected. Its click is reported as refused, so the
+   * match log keeps it and a summoning-sick creature can say so.
    */
-  it('an inert card is a button taken OUT of the tab order, and a click on it calls nothing', () => {
+  it('an inert card is a button taken OUT of the tab order, and a click on it is refused, never selected', () => {
     const { interaction, onSelectCard } = spyInteraction(picks);
-    const { container } = renderBoard(view, interaction);
+    const onRefusedCard = vi.fn<(id: number) => void>();
+    const { container } = renderBoard(view, { ...interaction, onRefusedCard });
     const inert = [...container.querySelectorAll<HTMLElement>('[data-board-card]:not([data-selectable])')];
     // 5 + 8 battlefield, 3 + 3 graveyard, 5 in hand: 24 cards, 4 of them picked.
     expect(inert).toHaveLength(24 - picks.length);
@@ -957,6 +959,8 @@ describe('BoardInteraction', () => {
       fireEvent.click(card.querySelector('[data-testid="card"]')!);
     }
     expect(onSelectCard).not.toHaveBeenCalled();
+    expect(new Set(onRefusedCard.mock.calls.map(([id]) => id)), 'every inert card, each of its two clicks').toEqual(new Set(inert.map((c) => Number(c.dataset.boardCard))));
+    expect(onRefusedCard).toHaveBeenCalledTimes(inert.length * 2);
   });
 
   it('a selectable player’s seat is a button that reports the player id; the other is inert', () => {

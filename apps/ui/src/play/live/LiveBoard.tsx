@@ -336,6 +336,7 @@ import {
   pressButton,
   relayout,
   SAYS_KEPT,
+  reportRefusedClick,
   selectCard,
   selectPlayer,
   sendStopPreference,
@@ -3154,6 +3155,9 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     stagedCardId: stagedHandCardId(match, offered, askOpen || paying || playOrDraw || confirmPrompt || selectionPopup || pregameWait),
     onSelectCard: (cardId) => {
       if (!spectator) clickCard(match, cardId);
+    },
+    onRefusedCard: (cardId) => {
+      if (!spectator) reportRefusedClick(match, cardId);
     },
     onSelectPlayer: (playerId) => {
       if (!spectator) selectPlayer(match, playerId);

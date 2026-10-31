@@ -630,6 +630,8 @@ export interface BoardInteraction {
   onPayFromPool?(color: PoolColor): void;
   /** A card was clicked. Only ever called for an id in `selectable`. */
   onSelectCard(cardId: number): void;
+  /** A card Forge does not offer was clicked: never sent, only logged and, when it is a mistake, said. */
+  onRefusedCard?(cardId: number): void;
   onSelectPlayer(playerId: number): void;
 }
 
@@ -2789,8 +2791,9 @@ function CardOnBoard({
        * arrange-drag could never START on a real mouse, because
        * `useArrangeDrag`'s board-level listener never saw the press at all.
        * `tabIndex={-1}` keeps the same accessibility outcome (out of the tab
-       * order) without touching whether the browser delivers pointer events —
-       * `onClick` being `undefined` already keeps a click from doing anything.
+       * order) without touching whether the browser delivers pointer events.
+       * An unoffered card's click sends nothing either way: it reaches only
+       * `onRefusedCard`, which logs it and says a summoning-sick creature's line.
        */}
       <button
         type="button"
@@ -2803,7 +2806,13 @@ function CardOnBoard({
         }
         /* The same fact the drawing says, for anything that cannot see the mark. */
         aria-pressed={selectable ? picked : undefined}
-        onClick={selectable ? () => interaction.onSelectCard(entry.id) : undefined}
+        onClick={
+          selectable
+            ? () => interaction.onSelectCard(entry.id)
+            : interaction?.onRefusedCard === undefined
+              ? undefined
+              : () => interaction.onRefusedCard!(entry.id)
+        }
       >
         {/*
          * `liveText`: Forge's live `AbilityText` (`adapter.ts`), shown in

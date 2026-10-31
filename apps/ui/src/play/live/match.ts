@@ -2026,7 +2026,7 @@ function refusal(match: LiveMatch, cardId: number): string {
  * `-` when the refusal is nobody's mistake: a `null` there failed the schema and the server
  * dropped the whole event (#20).
  */
-function reportRefusedClick(match: LiveMatch, cardId: number): void {
+export function reportRefusedClick(match: LiveMatch, cardId: number): void {
   if (match.watcher) return;
   const reason = refusal(match, cardId);
   const said = mistakeOfClick(match.view, reason, cardId);
