@@ -342,14 +342,19 @@ moved from 3/5/7/10 to entryWeight's stages, 5 (the table shakes), 7 (it cracks)
 away) and 12 (a second ring of them is), and a sound-events test pins the one to the other. Each tier's prompts name
 what the picture does at that stage, and `finish.py` cuts and levels them rising (`TIER_CAP`, `TIER_LOUDNESS`).
 Round 14's takes for 3/5/7/10 were never placed and stay in the bin under their old folders. The voices are
-`g.creature.artifact` and `g.creature.colourless`, short like the Creature voice's grunt they fall back to.
+`g.creature.artifact` and `g.creature.colourless`, short like the Creature voice's grunt they fall back to. The colourless voice's
+single-hit prompts came out as blips (12 of 15 under 0.25 s), so it was re-rolled asking for half a second; takes under
+0.3 s were not imported (89 of 105).
 
 ```sh
 P=~/.local/opt/stable-audio/.venv/bin/python
 $P scripts/sfx/generate.py --spec scripts/sfx/round16-landing.json --takes 3 --seed 16000 --offload model
 $P scripts/sfx/generate.py --spec scripts/sfx/round16-voices.json --takes 3 --seed 16100 --offload model
+$P scripts/sfx/generate.py --spec scripts/sfx/round16-voices.json --only g.creature.colourless --takes 3 --seed 16110 --offload model
 $P scripts/sfx/finish.py --min-seed 16000 --only g.landing.5,g.landing.7,g.landing.8,g.landing.12,g.creature.artifact,g.creature.colourless --out finished-r16
-python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r16 --to <sounds dir> --add
+$P scripts/sfx/finish.py --min-seed 16110 --only g.creature.colourless --out finished-r16b
+# finished-r16-picked: both, voices under 0.3 s left out
+python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r16-picked --to <sounds dir> --add
 ```
 
 ## Match music, generated locally (2026-10-17)

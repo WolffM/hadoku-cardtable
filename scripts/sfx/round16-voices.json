@@ -1,11 +1,14 @@
 {
- "note": "Round 16 (2026-10-31): the operator, 2026-10-30: \"need a different sound for artifact creatures and colorless creatures.\" Two new voices, the generic layer a creature resolves with: g.creature.artifact for an artifact creature whatever its colours (C|artifact-creature's clank plays on top), g.creature.colourless for a colourless creature that is not an artifact, an Eldrazi (C|creature on top). Both fall back to g.creature, whose keepers are one short low grunt, so these are as short: one sound of the creature itself, not a landing (the thud follows).",
+ "note": "Round 16 (2026-10-31): the operator, 2026-10-30: \"need a different sound for artifact creatures and colorless creatures.\" Two new voices, the generic layer a creature resolves with: g.creature.artifact for an artifact creature whatever its colours (C|artifact-creature's clank plays on top), g.creature.colourless for a colourless creature that is not an artifact, an Eldrazi (C|creature on top). Both fall back to g.creature, whose keepers are one short low grunt, so these are as short: one sound of the creature itself, not a landing (the thud follows). The colourless voice was re-rolled (seed 16110) asking for a half-second sound: 12 of the first 15 came out as blips under 0.25 s, the single-hit suffix fighting a drone.",
  "suffix": "Fantasy card game sound effect, one single hit, dry, close-mic, no reverb, no echo, short clean ending. High-quality, stereo, 44.1kHz.",
  "negative": "low quality, muffled, lo-fi, hiss, clipping, distortion, music, melody, song, speech, words, singing, laser, beeping, chime, bell, gong, whoosh, explosion, long reverb, footsteps, crowd",
  "seconds": 1.5,
  "sounds": {
   "g.creature.artifact": {
-   "group": "Round 16", "name": "Artifact creature voice", "section": "Moments", "seconds": 1.5,
+   "group": "Round 16",
+   "name": "Artifact creature voice",
+   "section": "Moments",
+   "seconds": 1.5,
    "prompts": [
     "A clockwork construct waking, a short servo whir rising and a low metallic hum",
     "A brass automaton powering on, a hiss of steam and a deep mechanical groan",
@@ -15,13 +18,26 @@
    ]
   },
   "g.creature.colourless": {
-   "group": "Round 16", "name": "Colourless creature voice", "section": "Moments", "seconds": 1.5,
+   "group": "Round 16",
+   "name": "Colourless creature voice",
+   "section": "Moments",
+   "seconds": 1.5,
    "prompts": [
-    "An alien void creature's short low warbling drone, eerie and otherworldly",
-    "A tentacled horror from beyond, a wet gurgling chitter and a deep resonant throb",
-    "An ancient eldritch being, a short hollow moan like wind through a hollow shell",
-    "A cosmic abomination stirring, a low pulsing hum and a strange clicking rattle",
-    "A thing from the void emerging, a deep reverse-swelling groan and a wet crackle"
+    {
+     "prompt": "An alien void creature giving a low warbling drone that swells and fades, eerie and otherworldly. Fantasy card game sound effect, one sound lasting about half a second, dry, close-mic, no reverb, clean ending. High-quality, stereo, 44.1kHz."
+    },
+    {
+     "prompt": "A tentacled horror from beyond, a wet gurgling chitter over a deep resonant throb. Fantasy card game sound effect, one sound lasting about half a second, dry, close-mic, no reverb, clean ending. High-quality, stereo, 44.1kHz."
+    },
+    {
+     "prompt": "An ancient eldritch being exhaling a hollow moan like wind through a giant shell. Fantasy card game sound effect, one sound lasting about half a second, dry, close-mic, no reverb, clean ending. High-quality, stereo, 44.1kHz."
+    },
+    {
+     "prompt": "A cosmic abomination stirring, a low pulsing hum with a strange clicking rattle. Fantasy card game sound effect, one sound lasting about half a second, dry, close-mic, no reverb, clean ending. High-quality, stereo, 44.1kHz."
+    },
+    {
+     "prompt": "A thing from the void emerging, a deep swelling groan with a wet crackle. Fantasy card game sound effect, one sound lasting about half a second, dry, close-mic, no reverb, clean ending. High-quality, stereo, 44.1kHz."
+    }
    ]
   }
  }
