@@ -35,20 +35,28 @@ export function openPolls(polls: readonly Poll[]): Poll[] {
   return [...polls].sort((a, b) => closes(a) - closes(b));
 }
 
-/** The open polls, read once on mount: `null` until the read answers, the empty list when it cannot. */
+/** How often a mounted reader re-reads the polls, so a form attached since shows without a reload (as `./events.ts` does). */
+const REFRESH_MS = 60_000;
+
+/** The open polls, kept fresh while mounted: `null` until the first read answers; a failed read keeps what it had, or none. */
 export function usePolls(fetchImpl?: Fetch): Poll[] | null {
   const [polls, setPolls] = useState<Poll[] | null>(null);
   useEffect(() => {
     let live = true;
-    pollsClient(fetchImpl)
-      .list()
-      .then((list) => live && setPolls(openPolls(list)))
-      .catch(() => {
-        // Not reachable (or not yet served): the page says there are none rather than an error.
-        if (live) setPolls([]);
-      });
+    const read = (): void => {
+      pollsClient(fetchImpl)
+        .list()
+        .then((list) => live && setPolls(openPolls(list)))
+        .catch(() => {
+          // Not reachable for a moment: the page keeps what it showed, or says there are none.
+          if (live) setPolls((had) => had ?? []);
+        });
+    };
+    read();
+    const reread = setInterval(read, REFRESH_MS);
     return () => {
       live = false;
+      clearInterval(reread);
     };
   }, []);
   return polls;

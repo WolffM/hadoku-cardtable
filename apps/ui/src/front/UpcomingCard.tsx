@@ -144,7 +144,7 @@ function CalendarRow({ event, now }: { event: EventView; now: number }) {
           {whenLabel(event.startsAt)} · {countdown(event.startsAt, now)}
         </span>
         <span className="front-card__event-detail">
-          {EVENT_KIND_LABELS[event.kind]} · {event.organizer}
+          {EVENT_KIND_LABELS[event.kind] ?? 'Event'} · {event.organizer}
           {line !== null && ` · ${line}`}
         </span>
         {moving ? (
