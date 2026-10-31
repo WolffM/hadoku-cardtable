@@ -55,7 +55,7 @@ test(titled('the UI scale by a mouse click: the value clicked is the value kept,
     await signIn(front.page);
     await front.page.goto(`${stack.origin}/cardtable/`);
     for (const wanted of ['110', '90', '125', '100']) {
-      await openSettings(front.page);
+      await openSettings(front.page, 'Display');
       const kept = await clickScale(front.page, wanted);
       console.log(`[bl] front page, clicked ${wanted}%: slider ${kept}, page ${await scaleOf(front.page)}`);
       expect(kept, `front page: the slider still shows the clicked ${wanted}%`).toBe(wanted);
@@ -68,7 +68,7 @@ test(titled('the UI scale by a mouse click: the value clicked is the value kept,
     const page = alice.page;
     await expect.poll(() => offeredNamed(page, 'Divination'), { timeout: 60_000, message: 'alice has priority at her main phase' }).not.toBeUndefined();
     for (const wanted of ['110', '90', '125', '100']) {
-      await openSettings(page);
+      await openSettings(page, 'Display');
       const kept = await clickScale(page, wanted);
       console.log(`[bl] in a match, clicked ${wanted}%: slider ${kept}, page ${await scaleOf(page)}`);
       expect(kept, `in a match: the slider still shows the clicked ${wanted}%`).toBe(wanted);

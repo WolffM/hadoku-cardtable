@@ -16,14 +16,25 @@ import type { Friend } from './browser.ts';
  */
 export const settingsPopover = (page: Page): Locator => page.locator('.settings-popout__panel, [data-testid="settings"]');
 
-/** Open the settings the way a player does — the header's gear, or our own where there is no header — and wait for the game's section. */
-export async function openSettings(page: Page): Promise<Locator> {
+/** The game's tabs in the header's popout, and the section each one opens on. */
+const TAB_SECTION = { Game: 'settings-game', Sound: 'settings-sound', Display: 'settings-display' } as const;
+export type SettingsTab = keyof typeof TAB_SECTION;
+
+/**
+ * Open the settings the way a player does — the header's gear, or our own where there is no header —
+ * and wait for `tab`'s section. The header's popout is tabbed and opens on the tab last used, so its
+ * tab is pressed; our own gear draws every section at once and has no tabs to press.
+ */
+export async function openSettings(page: Page, tab: SettingsTab = 'Game'): Promise<Locator> {
   if ((await settingsPopover(page).count()) === 0) {
     const own = page.getByTestId('settings-gear');
     if ((await own.count()) > 0) await own.click();
     else await page.getByRole('button', { name: /^User settings/ }).click();
   }
-  await expect(page.getByTestId('settings-game'), 'the settings opened, with the game’s section').toBeVisible();
+  await expect(settingsPopover(page), 'the settings opened').toBeVisible();
+  const pressed = settingsPopover(page).getByRole('tab', { name: tab, exact: true });
+  if ((await pressed.count()) > 0) await pressed.click();
+  await expect(page.getByTestId(TAB_SECTION[tab]), `the settings show the ${tab} section`).toBeVisible();
   return settingsPopover(page);
 }
 

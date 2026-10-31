@@ -109,21 +109,31 @@ describe('the GitHub link', () => {
 
 /*
  * 2026-10-30: the operator made the fleet's popout the one place for settings
- * (after 2026-10-10 had moved the game's out of it). The game's sections sit in
- * its "App" tab (task-ui-components 4.22+: the popout is tabbed), and no screen draws a gear
- * of its own.
+ * (after 2026-10-10 had moved the game's out of it). Since task-ui-components 4.22
+ * the popout is tabbed, and the game's sections are tabs of their own after the
+ * site's (2026-10-31: *"let's organize our settings by tabs"*). No screen draws a
+ * gear of its own.
  */
 describe('the game’s settings are in the header’s popout', () => {
-  it('holds every section under the fleet’s own rows, and the screen draws no second gear', () => {
+  it('as tabs of their own after the site’s, each holding its sections, and the screen draws no second gear', () => {
     render(createElement(App));
     expect(screen.queryByTestId('settings-gear')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'User settings' }));
     const popout = document.querySelector('.settings-popout__panel');
     expect(popout, 'the fleet’s popout opened').not.toBeNull();
-    // Since task-ui-components 4.22 the popout is tabbed: the game's panel is its "App" tab.
-    fireEvent.click(screen.getByRole('tab', { name: 'App' }));
-    const app = screen.getByRole('tabpanel');
-    expect(popout!.contains(app), 'under its App tab').toBe(true);
-    expect([...app.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Game', 'Sound', 'Display']);
+    const tabs = screen.getAllByRole('tab').map((t) => t.textContent);
+    expect(tabs.slice(-3), 'the game’s tabs, last').toEqual(['Game', 'Sound', 'Display']);
+    expect(tabs, 'no catch-all App tab').not.toContain('App');
+    expect(screen.getByRole('tab', { name: 'Game' }).getAttribute('aria-selected'), 'nothing remembered: the game’s first tab').toBe('true');
+    for (const [tab, sections] of [
+      ['Game', ['settings-game']],
+      ['Sound', ['settings-sound']],
+      ['Display', ['settings-display']],
+    ] as const) {
+      fireEvent.click(screen.getByRole('tab', { name: tab }));
+      const panel = screen.getByRole('tabpanel');
+      expect(popout!.contains(panel), `${tab}: inside the popout`).toBe(true);
+      expect([...panel.querySelectorAll('fieldset')].map((f) => f.dataset.testid), tab).toEqual(sections);
+    }
   });
 });

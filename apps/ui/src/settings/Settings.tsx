@@ -6,11 +6,14 @@
  * as possible … we can utilize the generic 'site settings' section that already exists in that
  * settings modal and shove everything in there."* So:
  *
- *   - **Standalone**, `CardtableSettings` is the `children` of the fleet's `AppHeader`, drawn under
- *     its "App preferences" divider in the one gear at the top of every screen, a match included
- *     (`../App.tsx`). `HostDrawsSettings` tells the screens so, and their own gear draws nothing.
+ *   - **Standalone**, `CARDTABLE_SETTINGS_TABS` are the `appTabs` of the fleet's `AppHeader`: tabs
+ *     of their own after the site's Profile, Content and Account, in the one gear at the top of
+ *     every screen, a match included (`../App.tsx`). `HostDrawsSettings` tells the screens so, and
+ *     their own gear draws nothing.
  *   - **Inside a watchparty room** there is no fleet header yet, so `SettingsGear` draws our own,
- *     in each screen's head row and beside the board's Log button.
+ *     in each screen's head row and beside the board's Log button, with the same tabs' contents
+ *     one under another (`CardtableSettings`), as watchparty's own popout draws a game's settings:
+ *     one panel in its App tab.
  *     `docs/requests/SETTINGS_WATCHPARTY_SLOT.md` asks watchparty for a popout and a
  *     `mountSettings` hook that will put this same panel in it.
  *
@@ -20,8 +23,9 @@
  * (`./liveMatch.ts`).
  */
 
-import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createContext, Fragment, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from '@wolffm/themes';
+import type { AppSettingsTab } from '@wolffm/task-ui-components';
 
 import { usePrefs } from '@wolffm/prefs-client/react';
 
@@ -33,14 +37,29 @@ import { Popover, usePopover } from '../components/Popover.tsx';
 import { applyUiScale, clampUiScale, UI_SCALE, uiLength } from './ui-scale.ts';
 import './settings.css';
 
-/** Every section, in the order a player looks for them: how the game plays first, one slider last. */
+/** The settings as tabs, in the order a player looks for them: how the game plays first, one slider last. */
+export const CARDTABLE_SETTINGS_TABS: AppSettingsTab[] = [
+  {
+    id: 'game',
+    label: 'Game',
+    render: () => (
+      <div className="ct-settings__tab">
+        <GameSettings />
+        <MatchSettings />
+      </div>
+    ),
+  },
+  { id: 'sound', label: 'Sound', render: () => <div className="ct-settings__tab"><SoundSettings /></div> },
+  { id: 'display', label: 'Display', render: () => <div className="ct-settings__tab"><DisplaySettings /></div> },
+];
+
+/** Every tab's sections one under another, for a popout with no tabs of its own. */
 export function CardtableSettings() {
   return (
     <>
-      <GameSettings />
-      <SoundSettings />
-      <DisplaySettings />
-      <MatchSettings />
+      {CARDTABLE_SETTINGS_TABS.map((tab) => (
+        <Fragment key={tab.id}>{tab.render()}</Fragment>
+      ))}
     </>
   );
 }

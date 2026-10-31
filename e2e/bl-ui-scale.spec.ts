@@ -113,7 +113,7 @@ test(titled('a UI scale slider in the settings: at either end the table fits the
     const atOne = await columnWidth(page);
 
     const choose = async (key: 'Home' | 'End'): Promise<string> => {
-      const slider = (await openSettings(page)).getByTestId('settings-ui-scale');
+      const slider = (await openSettings(page, 'Display')).getByTestId('settings-ui-scale');
       await expect(slider, 'the settings have a UI scale slider').toBeVisible();
       await slider.focus();
       await page.keyboard.press(key);
@@ -147,7 +147,7 @@ test(titled('a UI scale slider in the settings: at either end the table fits the
     await page.reload();
     await expect(page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 30_000 });
     await expect.poll(() => scaleOf(page), { timeout: 10_000, message: 'after a reload the page is still drawn at the scale she chose' }).toBe(chosen);
-    expect(await (await openSettings(page)).getByTestId('settings-ui-scale').inputValue(), 'and the slider shows it').toBe(String(Number(chosen) * 100));
+    expect(await (await openSettings(page, 'Display')).getByTestId('settings-ui-scale').inputValue(), 'and the slider shows it').toBe(String(Number(chosen) * 100));
     console.log(`[bl] reload: still ${chosen}`);
   } finally {
     await stack.stop();
@@ -170,7 +170,7 @@ test(titled('the UI scale from the header’s settings on the front page: at eit
     await page.goto(`${stack.origin}/cardtable/`);
     await expect(page.getByTestId('room-row').first()).toBeVisible({ timeout: 30_000 });
     for (const key of ['Home', 'End'] as const) {
-      const slider = (await openSettings(page)).getByTestId('settings-ui-scale');
+      const slider = (await openSettings(page, 'Display')).getByTestId('settings-ui-scale');
       await slider.focus();
       await page.keyboard.press(key);
       const scale = String(Number(await slider.inputValue()) / 100);

@@ -126,9 +126,9 @@
  *
  * Out of it from 2026-10-10 (a host's menu is not ours to fill, and embedded
  * there is no header), back in on 2026-10-30 when the operator made the fleet's
- * popout the one place for settings. `App.tsx` passes `CardtableSettings` as
- * `<AppHeader>`'s `children`, the slot the fleet made for exactly this: drawn
- * under "App preferences", never reaching into the header's own markup.
+ * popout the one place for settings. `App.tsx` passes `CARDTABLE_SETTINGS_TABS`
+ * as `<AppHeader>`'s `appTabs`, the slot the fleet made for exactly this: tabs
+ * of the game's own after the site's, never reaching into the header's own markup.
  * Embedded, `../settings/Settings.tsx`'s own gear stands in until watchparty
  * draws the popout.
  *
