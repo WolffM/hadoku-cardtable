@@ -158,9 +158,9 @@ export interface PodActionOutcome {
   message: string | null;
 }
 
-async function postPod(roomId: string, action: 'sit' | 'stand' | 'play' | 'ai' | 'close', body: Record<string, unknown>): Promise<PodActionOutcome> {
+async function postRoom(roomId: string, path: string, body: Record<string, unknown>): Promise<PodActionOutcome> {
   try {
-    const res = await sendJson(apiUrl(`rooms/${encodeURIComponent(roomId)}/pod/${action}`), 'POST', body);
+    const res = await sendJson(apiUrl(`rooms/${encodeURIComponent(roomId)}/${path}`), 'POST', body);
     if (res.ok) return { ok: true, message: null };
     const parsed = await bodyOf(res);
     const message = isRecord(parsed) && 'error' in parsed ? String(parsed.error) : `The server refused that (${res.status}).`;
@@ -170,7 +170,11 @@ async function postPod(roomId: string, action: 'sit' | 'stand' | 'play' | 'ai' |
   }
 }
 
-/** Claims a pod seat — the leader's choice of `seat` (0-7), or the server's own pick when omitted. */
+function postPod(roomId: string, action: 'sit' | 'stand' | 'play' | 'ai' | 'close' | 'split', body: Record<string, unknown>): Promise<PodActionOutcome> {
+  return postRoom(roomId, `pod/${action}`, body);
+}
+
+/** Claims a pod seat — the leader's choice of `seat`, or the server's own pick when omitted. */
 export function sitPod(roomId: string, seat?: number): Promise<PodActionOutcome> {
   return postPod(roomId, 'sit', seat === undefined ? {} : { seat });
 }
@@ -188,6 +192,19 @@ export function closePod(roomId: string, seat: number, closed: boolean): Promise
 /** Gives my own seat back. A no-op (refused, not thrown) once drafting has started. */
 export function standPod(roomId: string): Promise<PodActionOutcome> {
   return postPod(roomId, 'stand', {});
+}
+
+/** Split & randomize: the leader splits a ready room of more than 8 into random pods (`room/lobby.ts`'s `splitPod`). */
+export function splitPod(roomId: string): Promise<PodActionOutcome> {
+  return postPod(roomId, 'split', {});
+}
+
+/**
+ * Deals a split room's draft once its pods have stood their moment. Every browser in the room asks, as for a
+ * room of one pod (`ConstructedScreen.tsx`'s deal); the server deals once and the room's feed carries it.
+ */
+export function startSplitDraft(roomId: string): Promise<PodActionOutcome> {
+  return postRoom(roomId, 'start', {});
 }
 
 /**

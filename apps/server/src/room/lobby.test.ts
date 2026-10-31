@@ -2316,7 +2316,7 @@ describe('Lobby.sitPod / standPod', () => {
 
 		expect(lobby.join(draft.room.id, BOB).ok).toBe(true);
 		expect(lobby.sitPod(draft.room.id, ALICE.id, -1)).toEqual({ ok: false, reason: 'bad-seat' });
-		// Seat 8 is the next pod's first, which grows the room (multi-pod rooms); seat 9 is past it.
+		// Seat 8 is the one past the last, which grows the room (multi-pod rooms); seat 9 is past it.
 		expect(lobby.sitPod(draft.room.id, ALICE.id, 9)).toEqual({ ok: false, reason: 'bad-seat' });
 
 		const first = lobby.sitPod(draft.room.id, ALICE.id, 0);
@@ -2341,10 +2341,10 @@ describe('Lobby.sitPod / standPod', () => {
 		for (const m of members.slice(0, 6)) expect(lobby.sitPod(draft.room.id, m.id).ok).toBe(true);
 		// Seats taken so far: 1 (BOB), 2 (ALICE), and the first free one six times — 0,3,4,5,6,7. Every seat is full.
 		expect(lobby.get(draft.room.id)?.pod?.seats.filter((s) => s !== null)).toHaveLength(8);
-		// Every seat full: the next sit opens a second pod and takes its first seat (multi-pod rooms).
+		// Every seat full: the next sit grows the room by one seat and takes it (multi-pod rooms, one list).
 		const grown = lobby.sitPod(draft.room.id, members[6]!.id);
 		expect(grown.ok).toBe(true);
-		if (grown.ok) expect(grown.room.pod?.seats.map((s) => s?.memberId ?? null).slice(8)).toEqual([members[6]!.id, null, null, null, null, null, null, null]);
+		if (grown.ok) expect(grown.room.pod?.seats.map((s) => s?.memberId ?? null).slice(8)).toEqual([members[6]!.id]);
 
 		expect(lobby.standPod(draft.room.id, BOB.id).ok).toBe(true);
 		expect(lobby.get(draft.room.id)?.pod?.seats[1]).toBeNull();

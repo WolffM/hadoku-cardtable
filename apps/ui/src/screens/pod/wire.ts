@@ -13,9 +13,9 @@
  * `@hadoku/shared`'s own naming and this screen's.
  */
 
-import { isPodAi, POD_SEATS, RoomPodSchema, type PodMember, type PodSeats, type PodStandingsRow, type PodView } from '@hadoku/shared';
+import { isPodAi, POD_MAX_SEATS, POD_SEATS, POD_SPLIT_GRACE_MS, RoomPodSchema, type PodMember, type PodSeats, type PodStandingsRow, type PodView } from '@hadoku/shared';
 
-export { isPodAi, POD_SEATS };
+export { isPodAi, POD_MAX_SEATS, POD_SEATS, POD_SPLIT_GRACE_MS };
 export type { PodMember, PodSeats, PodStandingsRow, PodView };
 
 /** The AI's seat occupant (`apps/server/src/room/lobby.ts`'s `POD_AI`). */
@@ -25,14 +25,26 @@ export const POD_AI = 'ai';
 export const POD_CLOSED = 'closed';
 
 /**
- * Whether the draft deals: no seat open — every one a member or the AI — and
- * every seated member ready. A member who never sat is watching, and is not
- * waited on (the operator, 2026-10-19). The server's `startDraft` holds the same gate.
+ * Whether every seat is filled — a member or the AI — and every seated member ready. A member who never sat
+ * is watching, and is not waited on (the operator, 2026-10-19). The server's `startDraft` holds the same gate.
+ */
+export function podReady(seats: PodSeats | undefined, members: readonly { id: string; ready: boolean }[]): boolean {
+  if (seats === undefined || seats.some((s) => s === null)) return false;
+  const humans = seatedDrafters(seats);
+  return humans.length > 0 && humans.every((id) => members.find((m) => m.id === id)?.ready === true);
+}
+
+/** The members in `seats`, in seat order: never an AI or a closed seat. */
+export function seatedDrafters(seats: PodSeats): string[] {
+  return seats.flatMap((s) => (s === null || isPodAi(s.memberId) || s.memberId === POD_CLOSED ? [] : [s.memberId]));
+}
+
+/**
+ * Whether the draft deals as soon as the room is ready (`podReady`): a room of one pod's drafters. One of more
+ * deals from the leader's Split & randomize instead (`PodSplit.tsx`).
  */
 export function podDealable(seats: PodSeats | undefined, members: readonly { id: string; ready: boolean }[]): boolean {
-  if (seats === undefined || seats.some((s) => s === null)) return false;
-  const humans = seats.filter((s) => s !== null && !isPodAi(s.memberId) && s.memberId !== POD_CLOSED).map((s) => s!.memberId);
-  return humans.length > 0 && humans.every((id) => members.find((m) => m.id === id)?.ready === true);
+  return seats !== undefined && seatedDrafters(seats).length <= POD_SEATS && podReady(seats, members);
 }
 
 /**
@@ -44,7 +56,7 @@ export function podDealable(seats: PodSeats | undefined, members: readonly { id:
  */
 export function podPlayers(pod: PodView): Set<string> {
   if (pod.phase !== 'lobby') return new Set(pod.drafters.filter((id) => !isPodAi(id)));
-  return new Set(pod.seats.flatMap((s) => (s === null || isPodAi(s.memberId) || s.memberId === POD_CLOSED ? [] : [s.memberId])));
+  return new Set(seatedDrafters(pod.seats));
 }
 
 /**

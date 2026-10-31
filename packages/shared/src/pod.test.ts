@@ -89,12 +89,11 @@ describe('PodMemberSchema', () => {
 });
 
 describe('PodSeatsSchema', () => {
-  it('is exactly 8 seats, each a member or null', () => {
+  it('is at least one pod’s 8 seats, each a member or null', () => {
     expect(POD_SEATS).toBe(8);
     expect(PodSeatsSchema.safeParse(EMPTY_SEATS).success).toBe(true);
     expect(PodSeatsSchema.safeParse([MEMBER, ...new Array(7).fill(null)]).success).toBe(true);
     expect(PodSeatsSchema.safeParse(new Array(7).fill(null)).success).toBe(false);
-    expect(PodSeatsSchema.safeParse(new Array(9).fill(null)).success).toBe(false);
   });
 });
 
@@ -202,8 +201,8 @@ describe('splitPods — pods of at most 8, as even as possible, never two odd po
 });
 
 describe('a room seats several pods', () => {
-  it('accepts seats in whole pods of 8, up to the room cap', () => {
-    for (const length of [8, 16, 24, POD_MAX_SEATS]) expect(PodSeatsSchema.safeParse(new Array(length).fill(null)).success).toBe(true);
-    for (const length of [0, 7, 9, 15, POD_MAX_SEATS + 8]) expect(PodSeatsSchema.safeParse(new Array(length).fill(null)).success).toBe(false);
+  it('accepts one list of seats from one pod’s 8 up to the room cap, a seat at a time', () => {
+    for (const length of [8, 9, 13, 16, POD_MAX_SEATS]) expect(PodSeatsSchema.safeParse(new Array(length).fill(null)).success).toBe(true);
+    for (const length of [0, 7, POD_MAX_SEATS + 1]) expect(PodSeatsSchema.safeParse(new Array(length).fill(null)).success).toBe(false);
   });
 });

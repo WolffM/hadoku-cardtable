@@ -1622,6 +1622,36 @@ describe('POST /api/rooms/:id/leave', () => {
 	});
 });
 
+describe('POST /api/rooms/:id/pod/split', () => {
+	it('splits a ready room of 9 into 5 + 4 for its leader alone, and the draft waits for it', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+		const people = ['alice', 'bob', 'carol', 'dan', 'erin', 'finn', 'gus', 'hal', 'ivy'];
+		for (const p of people.slice(1)) expect((await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: p })).status).toBe(200);
+		for (const p of people) expect((await call(h, 'POST', `/api/rooms/${room.id}/pod/sit`, { as: p })).status).toBe(200);
+		await approvePlan(h, room.id);
+		for (const p of people.slice(0, -1)) await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: p, body: { ready: true } });
+
+		const early = await call(h, 'POST', `/api/rooms/${room.id}/pod/split`, { as: 'alice' });
+		expect(early.status).toBe(409);
+		expect((early.json() as { error: string }).error).toContain('every player ready');
+		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'ivy', body: { ready: true } });
+		const notLeader = await call(h, 'POST', `/api/rooms/${room.id}/pod/split`, { as: 'bob' });
+		expect(notLeader.status).toBe(409);
+		expect((notLeader.json() as { error: string }).error).toContain('room owner');
+		const start = await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'bob' });
+		expect(start.status).toBe(409);
+		expect((start.json() as { error: string }).error).toContain('split');
+
+		const split = await call(h, 'POST', `/api/rooms/${room.id}/pod/split`, { as: 'alice' });
+		expect(split.status).toBe(200);
+		const pods = (split.json() as import('../room/lobby.ts').RoomView).pod?.pods;
+		expect(pods?.map((p) => p.length)).toEqual([5, 4]);
+		expect(((await call(h, 'GET', `/api/rooms/${room.id}`, { as: 'ivy' })).json() as import('../room/lobby.ts').RoomView).pod?.pods).toEqual(pods);
+	});
+});
+
 describe('POST /api/rooms/:id/start', () => {
 	it('starts the draft once no seat is open and every seated player is ready, for either of them, idempotently', async () => {
 		const h = await openApp(await tempDir());

@@ -1,0 +1,101 @@
+/*
+ * The split's pods, side by side as cards that wrap (never a fixed grid), the viewer's own lifted by the
+ * accent border. The clock under them is a bar that drains over the split's moment before the draft.
+ */
+
+.pod-split {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pod-split__pods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.pod-split__pod {
+  flex: 1 1 200px;
+  min-width: 0;
+  max-width: 320px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg-card);
+}
+
+.pod-split__pod[data-mine] {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.pod-split__name {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pod-split__drafters {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pod-split__drafter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pod-split__face {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 999px;
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--color-bg-hover);
+}
+
+.pod-split__drafter-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pod-split__clock {
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  transform-origin: left center;
+  animation-name: pod-split-drain;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@keyframes pod-split-drain {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pod-split__clock {
+    animation-name: none;
+  }
+}

@@ -23,6 +23,13 @@
  * a ready ring for whoever is seated but never toggles it — `ready-toggle`
  * stays the single, global control it already is.
  *
+ * Past 8, the room is still ONE list of seats (the operator, 2026-10-31:
+ * *"several pods: we dont need to show this in the lobby screen"*): pods are
+ * decided only by the leader's Split & randomize (`PodSplit.tsx`). A full room
+ * offers someone who has not sat (and the owner, for an AI) one seat more,
+ * which grows the room by that seat (`apps/server/src/room/lobby.ts`'s
+ * `sitPod`/`aiPod`).
+ *
  * Purely presentational: a parent (`DraftLobby.tsx`) owns the fetch and the
  * sit/stand calls, which is what makes this unit-testable with fixtures
  * (`PodSeats.test.ts`) instead of a mocked server.
@@ -32,11 +39,11 @@ import { ActionButton } from '../../components/ActionButton.tsx';
 import { Avatar } from '../../components/Avatar.tsx';
 import { StatusPill } from '../../components/StatusPill.tsx';
 import { CROWN } from '../ConstructedScreen.tsx';
-import { isPodAi, POD_CLOSED, POD_SEATS, type PodSeats as PodSeatsValue } from './wire.ts';
+import { isPodAi, POD_CLOSED, POD_MAX_SEATS, type PodSeats as PodSeatsValue } from './wire.ts';
 import './PodSeats.css';
 
 export interface PodSeatsProps {
-  /** Always `POD_SEATS` long. */
+  /** 8, or one more for each seat a room past 8 has grown by. */
   seats: PodSeatsValue;
   /** The viewer's own member id, or `null` before identity resolves. */
   myMemberId: string | null;
@@ -57,10 +64,13 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, avatarIdOf, onS
   const iLead = myMemberId !== null && myMemberId === leaderId;
   const mySeat = myMemberId === null ? null : seats.findIndex((s) => s?.memberId === myMemberId);
   const iAmSeated = mySeat !== null && mySeat >= 0;
+  // A full room: one seat more, for someone who has not sat yet, and for the owner's AI.
+  const grows = (iLead || (!iAmSeated && myMemberId !== null)) && seats.length < POD_MAX_SEATS && seats.every((s) => s !== null);
+  const drawn = seats.length + (grows ? 1 : 0);
 
   return (
     <ul className="pod-seats" data-testid="pod-seats">
-      {Array.from({ length: POD_SEATS }, (_, seat) => {
+      {Array.from({ length: drawn }, (_, seat) => {
         const occupant = seats[seat] ?? null;
         if (occupant === null) {
           return (
@@ -83,7 +93,7 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, avatarIdOf, onS
                 <ActionButton action="ai" className="pod-seats__action" data-testid="pod-seat-ai" data-seat={seat} aria-label={`Fill seat ${seat + 1} with AI`} onPress={() => onAi(seat, true)}>
                   AI
                 </ActionButton>
-                {iLead && (
+                {iLead && seat < seats.length && (
                   <ActionButton action="close" className="pod-seats__action" data-testid="pod-seat-close" data-seat={seat} aria-label={`Close seat ${seat + 1}`} onPress={() => onClose(seat, true)}>
                     Close
                   </ActionButton>

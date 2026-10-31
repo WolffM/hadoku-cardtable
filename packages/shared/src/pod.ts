@@ -38,8 +38,14 @@ export type PodPhase = z.infer<typeof PodPhaseSchema>;
 /** How many seats one pod has (ruling 4: up to 8, reused from the 1v1 table's own seat components). */
 export const POD_SEATS = 8;
 
-/** The most seats a room grows to: eight pods of eight. A room grows a whole pod at a time. */
+/** The most seats a room grows to: eight pods' worth. Past 8 a room grows a seat at a time, one list. */
 export const POD_MAX_SEATS = 64;
+
+/**
+ * How long a split's pods stand before the draft deals (the operator, 2026-10-31: Split & randomize
+ * *"would give everyone time to go to their own rooms"*). The server refuses the deal before it.
+ */
+export const POD_SPLIT_GRACE_MS = 10_000;
 
 /**
  * How a field of `n` drafters splits into pods (the operator, 2026-10-31: *"pods as close to 8 as possible,
@@ -75,12 +81,8 @@ export const PodMemberSchema = z.strictObject({
 });
 export type PodMember = z.infer<typeof PodMemberSchema>;
 
-/** The room's pod seats, in seat order, 8 to a pod. An empty seat is `null`. */
-export const PodSeatsSchema = z
-  .array(PodMemberSchema.nullable())
-  .min(POD_SEATS)
-  .max(POD_MAX_SEATS)
-  .refine((seats) => seats.length % POD_SEATS === 0, { error: `seats come ${POD_SEATS} to a pod` });
+/** The room's pod seats, in seat order: one pod's 8, then a seat more for each drafter past them. An empty seat is `null`. */
+export const PodSeatsSchema = z.array(PodMemberSchema.nullable()).min(POD_SEATS).max(POD_MAX_SEATS);
 export type PodSeats = z.infer<typeof PodSeatsSchema>;
 
 /**
@@ -217,7 +219,8 @@ export const PodViewSchema = z.strictObject({
   drafters: z.array(z.string().min(1)),
   /**
    * The drafters of each pod, in pod order (`splitPods`): one pod for a room of 8 or fewer, which drafts on
-   * the room's own id. Empty in `lobby` and for a constructed tournament, which drafts nothing.
+   * the room's own id. In `lobby`, the leader's Split & randomize while it stands, absent before it. Empty for
+   * a constructed tournament, which drafts nothing.
    */
   pods: z.array(z.array(z.string().min(1))).optional(),
   /** Drafters whose deck is saved and legal — `building`'s own gate for starting `rounds`. */

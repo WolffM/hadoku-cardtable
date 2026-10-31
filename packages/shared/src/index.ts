@@ -394,6 +394,7 @@ export {
   isPodAi,
   POD_PHASES,
   POD_MAX_SEATS,
+  POD_SPLIT_GRACE_MS,
   POD_SEATS,
   splitPods,
   PodPhaseSchema,

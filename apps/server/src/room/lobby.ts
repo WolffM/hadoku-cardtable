@@ -82,6 +82,7 @@ import {
 	newestStandardEra,
 	POD_MAX_SEATS,
 	POD_SEATS,
+	POD_SPLIT_GRACE_MS,
 	PoolVerdictSchema,
 	splitPods,
 	ROOM_ID_RE,
@@ -109,7 +110,7 @@ import {
 // `@hadoku/draft` depends on `@hadoku/shared`, never the reverse, so `pod.ts`
 // (which `@hadoku/shared` holds) cannot import these — this file is the one
 // place both sides meet (wave 72 §P).
-import { botSeatAcross, pairRound, rankStandings, roundsFor, standings, type MatchResult, type PodPlayer, type RankedStandingsRow } from '@hadoku/draft';
+import { botSeatAcross, pairRound, rankedStandings, rngFromSeed, roundsFor, shuffle, type MatchResult, type PodPlayer, type RankedStandingsRow } from '@hadoku/draft';
 import { DEFAULT_PLAN, type PodDeal } from './draftRooms.ts';
 import { gauntletHoldsTable, isGauntletState, type GauntletState } from './gauntlet.ts';
 import { roundNamesOf } from './plan.ts';
@@ -394,7 +395,22 @@ type RecordGameResultResult =
 
 type StartDraftResult =
 	| { ok: true; room: RoomView }
-	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-ready' | 'plan-not-ready' };
+	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-ready' | 'plan-not-ready' | 'not-split' };
+
+type SplitPodResult =
+	| { ok: true; room: RoomView }
+	| { ok: false; reason: 'no-room' | 'not-member' | 'not-leader' | 'not-draft' | 'one-pod' | 'not-ready' | 'plan-not-ready' };
+
+/** A Split & randomize (`RoomRecord.podSplit`). */
+interface PodSplit {
+	seed: string;
+	at: number;
+	pods: string[][];
+}
+
+function copySplit(split: PodSplit): PodSplit {
+	return { seed: split.seed, at: split.at, pods: split.pods.map((p) => [...p]) };
+}
 
 /**
  * `not-member` covers a room that does not exist too (same bucket `join` and
@@ -530,23 +546,60 @@ function memberDraftId(room: RoomRecord, memberId: string): string {
 	return podDraftId(room.id, Math.max(0, pod));
 }
 
-/** `seats` grown to hold `seat`, a whole pod at a time, the room's AI characters grown beside them. */
+/** `seats` grown to hold `seat`, a seat at a time (one list, no pods until the split), the room's AI characters grown beside them. */
 function grownSeats(room: RoomRecord, seat: number): void {
 	while (room.podSeats.length <= seat) {
-		room.podSeats = [...room.podSeats, ...new Array<string | null>(POD_SEATS).fill(null)];
-		room.podAi = [...room.podAi, ...new Array<string | null>(POD_SEATS).fill(null)];
+		room.podSeats = [...room.podSeats, null];
+		room.podAi = [...room.podAi, null];
 	}
 }
 
-/** The last pod's seats taken away while every one of them is open and the room keeps at least one pod. */
+/** Open seats past one pod's 8 taken away from the end. */
 function trimmedSeats(room: RoomRecord): void {
-	while (room.podSeats.length > POD_SEATS && room.podSeats.slice(-POD_SEATS).every((id) => id === null)) {
-		room.podSeats = room.podSeats.slice(0, -POD_SEATS);
-		room.podAi = room.podAi.slice(0, -POD_SEATS);
+	while (room.podSeats.length > POD_SEATS && room.podSeats.at(-1) === null) {
+		room.podSeats = room.podSeats.slice(0, -1);
+		room.podAi = room.podAi.slice(0, -1);
 	}
 }
 
-/** Whether `seat` is one the lobby may act on: one the room has, or the first of the next pod (which grows it). */
+/**
+ * Split & randomize (the operator, 2026-10-31: *"the pods can be randomized and decided when the round
+ * starts"*): `drafters` shuffled by `seed`, then cut into `splitPods`' sizes. The same seed and drafters give
+ * the same pods, so a logged seed reproduces a split.
+ */
+export function splitIntoPods(drafters: readonly string[], seed: string): string[][] {
+	const order = shuffle(drafters, rngFromSeed(seed));
+	let next = 0;
+	return splitPods(order.length).map((size) => order.slice(next, (next += size)));
+}
+
+/**
+ * Why a draft room's lobby may not deal yet, or null when it may: every seat filled — a member or the AI —
+ * and every seated member ready (the operator, 2026-10-19: *"drafts should not immediately start with open
+ * seats"* and *"the room should not wait on spectators to be ready"*: a member who never sat is watching, and
+ * is not waited on). Then the plan's verdict, last, so an unrelated refusal still reports its OWN reason:
+ * the operator, on playability, "it shouldn't even get to the drafting stage" — a SERVER rule, because a UI
+ * disabling Start is not this and a direct POST must refuse too. `null` (never checked, or a check still in
+ * flight) and `ok: false` (refused) are the same answer here — neither may deal.
+ */
+function dealGate(room: RoomRecord): 'not-ready' | 'plan-not-ready' | null {
+	const seated = seatedHumans(room);
+	if (seated.length === 0 || room.podSeats.includes(null)) return 'not-ready';
+	if (seated.some((id) => room.members.find((m) => m.id === id)?.ready !== true)) return 'not-ready';
+	if (room.planVerdict === null || !room.planVerdict.ok) return 'plan-not-ready';
+	return null;
+}
+
+/** The room's split while it still stands: its pods hold exactly the drafters seated now. */
+function heldSplit(room: RoomRecord): PodSplit | null {
+	const split = room.podSplit;
+	if (split === null) return null;
+	const seated = new Set(seatedHumans(room));
+	const split_ = split.pods.flat();
+	return split_.length === seated.size && split_.every((id) => seated.has(id)) ? split : null;
+}
+
+/** Whether `seat` is one the lobby may act on: one the room has, or the one past the last (which grows it). */
 function seatInReach(room: RoomRecord, seat: number): boolean {
 	return Number.isInteger(seat) && seat >= 0 && seat < POD_MAX_SEATS && seat <= room.podSeats.length;
 }
@@ -848,7 +901,13 @@ function isStoredPodRecord(v: unknown): v is PodRecord {
 }
 
 function isStoredPodSeats(v: unknown): v is (string | null)[] {
-	return Array.isArray(v) && v.length >= POD_SEATS && v.length <= POD_MAX_SEATS && v.length % POD_SEATS === 0 && v.every((s) => s === null || typeof s === 'string');
+	return Array.isArray(v) && v.length >= POD_SEATS && v.length <= POD_MAX_SEATS && v.every((s) => s === null || typeof s === 'string');
+}
+
+function isStoredPodSplit(v: unknown): v is PodSplit {
+	if (typeof v !== 'object' || v === null) return false;
+	const p = v as { seed?: unknown; at?: unknown; pods?: unknown };
+	return typeof p.seed === 'string' && typeof p.at === 'number' && Array.isArray(p.pods) && p.pods.every((pod) => Array.isArray(pod) && pod.every((m) => typeof m === 'string'));
 }
 
 /** Each entrant's locked deck is an object (Classic/Random's opaque deck choice; an older record's Gauntlet deck-id array) — never a bare primitive. */
@@ -933,8 +992,7 @@ function tournamentId(room: RoomRecord): string {
 
 /** The whole field's one standings, every row its own rank and naming the tiebreak that put it below the one above. */
 function podStandings(room: RoomRecord, humans: string[], results: MatchResult[]): RankedStandingsRow[] {
-	const seed = tournamentId(room);
-	return rankStandings(standings(players(humans, results), results, seed), results, seed);
+	return rankedStandings(players(humans, results), results, tournamentId(room));
 }
 
 /**
@@ -956,7 +1014,8 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 	// answer from — this field is not a second source for either.
 	const seats = phase === 'lobby' ? podSeatsView(room) : EMPTY_POD_SEATS;
 	if (phase === 'lobby') {
-		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, dropped: [], drafters: [], built: [], personas: {}, ...planFields };
+		const split = heldSplit(room);
+		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, dropped: [], drafters: [], ...(split === null ? {} : { pods: split.pods }), built: [], personas: {}, ...planFields };
 	}
 	// Seated at `draftStartedAt` and fixed from there (`#dealPodRounds`'s own
 	// `humans`), falling back to the CURRENT seats for a pod whose rounds have
@@ -1144,6 +1203,13 @@ export interface Lobby {
 	 * connects evicts one.
 	 */
 	startDraft(roomId: string, callerId: string): StartDraftResult;
+	/**
+	 * Split & randomize: the leader of a draft room of more than 8 seated drafters, every one ready and no
+	 * seat open, splits them into random pods (`splitIntoPods`, a fresh seed, logged). The pods stand while
+	 * the seated drafters do not change, and `startDraft` deals from them `POD_SPLIT_GRACE_MS` later. A
+	 * second press while one stands changes nothing.
+	 */
+	splitPod(roomId: string, callerId: string): SplitPodResult;
 	/** Who sits at `tableId`, in seat order, with each seat's Ready. Empty when there is no such room or table. */
 	seats(roomId: string, tableId: string): TableSeat[];
 	/**
@@ -1569,11 +1635,18 @@ interface RoomRecord {
 	/** The character each AI seat plays as, by pod seat — null where no AI sits. Kept the tournament through. */
 	podAi: (string | null)[];
 	/**
-	 * The drafters of each pod, fixed when a room of more than one pod's seats starts its draft
-	 * (`splitPods`); pod `k` drafts on `podDraftId(id, k)`. Null for a room that drafts as one pod on its own
-	 * id, as every room did before multi-pod rooms.
+	 * The drafters of each pod, fixed when a room of more than one pod's seats starts its draft (the
+	 * leader's `podSplit`); pod `k` drafts on `podDraftId(id, k)`. Null for a room that drafts as one pod on
+	 * its own id, as every room did before multi-pod rooms.
 	 */
 	podDrafts: string[][] | null;
+	/**
+	 * The leader's Split & randomize in the lobby of a room of more than 8 drafters: the seed, when, and the
+	 * pods it made (`splitIntoPods`). It stands only while its pods hold exactly the drafters seated
+	 * (`heldSplit`); the draft deals from it, `POD_SPLIT_GRACE_MS` after `at`. Null before a split and once
+	 * the draft is dealt.
+	 */
+	podSplit: PodSplit | null;
 	/** The pod's rounds, once dealt. Null until every drafter has pressed Play (`playPod`). */
 	pod: PodRecord | null;
 	/** Who has pressed Play in `building` (`playPod`). Persisted with `pod`, so a restart mid-build keeps the presses. */
@@ -1661,6 +1734,8 @@ interface StoredApp {
 	podAi?: (string | null)[];
 	/** Absent for a room that drafts as one pod (`RoomRecord.podDrafts`). */
 	podDrafts?: string[][];
+	/** Absent for a room with no split standing (`RoomRecord.podSplit`). */
+	podSplit?: PodSplit;
 	/** Absent for a room written before wave 72 §P, or whose rounds have never started. */
 	pod: PodRecord | null;
 	/** Absent for a room written before it was persisted: nobody has pressed Play. */
@@ -1860,6 +1935,7 @@ const appCodec: AppCodec<StoredApp> = {
 		if (a.podDrafts !== undefined && !(Array.isArray(a.podDrafts) && a.podDrafts.every((p) => Array.isArray(p) && p.every((m) => typeof m === 'string')))) {
 			throw new Error('app.podDrafts is invalid');
 		}
+		if (a.podSplit !== undefined && !isStoredPodSplit(a.podSplit)) throw new Error('app.podSplit is invalid');
 		// Absent is a room written before wave 72 §P, or whose rounds never started.
 		if (a.pod !== null && a.pod !== undefined && !isStoredPodRecord(a.pod)) throw new Error('app.pod is invalid');
 		if (a.podPlaying !== undefined && !(Array.isArray(a.podPlaying) && a.podPlaying.every((m) => typeof m === 'string'))) {
@@ -1921,6 +1997,7 @@ const appCodec: AppCodec<StoredApp> = {
 			podSeats: a.podSeats === undefined ? new Array<string | null>(POD_SEATS).fill(null) : [...(a.podSeats as (string | null)[])],
 			podAi: a.podAi === undefined ? new Array<string | null>(POD_SEATS).fill(null) : [...(a.podAi as (string | null)[])],
 			...(a.podDrafts === undefined ? {} : { podDrafts: (a.podDrafts as string[][]).map((p) => [...p]) }),
+			...(a.podSplit === undefined ? {} : { podSplit: copySplit(a.podSplit as PodSplit) }),
 			pod: a.pod === undefined || a.pod === null ? null : (a.pod as PodRecord),
 			podPlaying: a.podPlaying === undefined ? [] : [...(a.podPlaying as string[])],
 			lockedDecks: a.lockedDecks === undefined ? {} : { ...(a.lockedDecks as Record<string, unknown>) },
@@ -2264,6 +2341,7 @@ class FileLobby implements Lobby {
 			podSeats: [...room.podSeats],
 			podAi: [...room.podAi],
 			...(room.podDrafts === null ? {} : { podDrafts: room.podDrafts.map((p) => [...p]) }),
+			...(room.podSplit === null ? {} : { podSplit: copySplit(room.podSplit) }),
 			podPlaying: [...room.podPlaying],
 			lockedDecks: { ...room.lockedDecks },
 			gauntlets: { ...room.gauntlets },
@@ -3070,6 +3148,7 @@ class FileLobby implements Lobby {
 			podSeats: new Array<string | null>(POD_SEATS).fill(null),
 			podAi: new Array<string | null>(POD_SEATS).fill(null),
 			podDrafts: null,
+			podSplit: null,
 			pod: null,
 			podPlaying: [],
 			lockedDecks: {},
@@ -3217,29 +3296,37 @@ class FileLobby implements Lobby {
 		if (room.draftStartedAt !== null) return { ok: true, room: this.#view(room) };
 		if (isTournamentRoom(room)) return this.#lockTournament(room);
 		if (room.gameType !== 'draft') return { ok: false, reason: 'not-draft' };
-		// Every seat filled — a member or the AI — and every seated member ready.
-		// The operator, 2026-10-19: *"drafts should not immediately start with
-		// open seats"* and *"the room should not wait on spectators to be
-		// ready"*: a member who never sat is watching, and is not waited on.
+		const gate = dealGate(room);
+		if (gate !== null) return { ok: false, reason: gate };
 		const seated = seatedHumans(room);
-		if (seated.length === 0 || room.podSeats.includes(null)) return { ok: false, reason: 'not-ready' };
-		if (seated.some((id) => room.members.find((m) => m.id === id)?.ready !== true)) return { ok: false, reason: 'not-ready' };
-		// The operator, on playability: "it shouldn't even get to the drafting
-		// stage" — a SERVER rule, checked last (after every other gate, so an
-		// unrelated refusal still reports its OWN reason), because this is the
-		// one gate nothing upstream of here can be trusted to have enforced. A
-		// UI disabling Start on a bad verdict is not this: a direct POST must
-		// refuse too. `null` (never checked, or a check still in flight) and
-		// `ok: false` (refused) are the same answer here — neither may deal.
-		if (room.planVerdict === null || !room.planVerdict.ok) return { ok: false, reason: 'plan-not-ready' };
+		// More than one pod's drafters: the draft deals only from the leader's split, once it has stood its moment.
+		const split = heldSplit(room);
+		if (seated.length > POD_SEATS && (split === null || this.#now() < split.at + POD_SPLIT_GRACE_MS)) return { ok: false, reason: 'not-split' };
 		room.draftStartedAt = this.#now();
-		// More than one pod's seats: the drafters split into pods (`splitPods`), in seat order, each drafting apart.
-		if (room.podSeats.length > POD_SEATS) {
-			let next = 0;
-			room.podDrafts = splitPods(seated.length).map((size) => seated.slice(next, (next += size)));
-		}
+		if (split !== null) room.podDrafts = split.pods.map((p) => [...p]);
+		else if (room.podSeats.length > POD_SEATS) room.podDrafts = [seated];
+		room.podSplit = null;
 		this.#persist(room);
 		this.#log({ event: 'room-draft-started', roomId, members: room.members.length, seated: seated.length, pods: room.podDrafts?.map((p) => p.length) ?? [seated.length] });
+		return { ok: true, room: this.#view(room) };
+	}
+
+	splitPod(roomId: string, callerId: string): SplitPodResult {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		if (!room.members.some((m) => m.id === callerId)) return { ok: false, reason: 'not-member' };
+		if (room.gameType !== 'draft' || isTournamentRoom(room) || room.draftStartedAt !== null) return { ok: false, reason: 'not-draft' };
+		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
+		const seated = seatedHumans(room);
+		if (seated.length <= POD_SEATS) return { ok: false, reason: 'one-pod' };
+		const gate = dealGate(room);
+		if (gate !== null) return { ok: false, reason: gate };
+		if (heldSplit(room) === null) {
+			const seed = randomBytes(8).toString('hex');
+			room.podSplit = { seed, at: this.#now(), pods: splitIntoPods(seated, seed) };
+			this.#persist(room);
+			this.#log({ event: 'room-pods-split', roomId, seed, pods: room.podSplit.pods.map((p) => p.length) });
+		}
 		return { ok: true, room: this.#view(room) };
 	}
 
@@ -3612,7 +3699,7 @@ class FileLobby implements Lobby {
 		if (target === undefined) {
 			// Their own seat counts as open, as it always has: a sit with no seat never moves them past it.
 			const open = room.podSeats.findIndex((id, i) => id === null || i === already);
-			// No seat open: the next pod's first, growing the room by a pod.
+			// No seat open: one past the last, growing the room by that seat.
 			target = open === -1 ? room.podSeats.length : open;
 			if (target >= POD_MAX_SEATS) return { ok: false, reason: 'pod-full' };
 		} else if (target !== already && (room.podSeats[target] ?? null) !== null) {
@@ -3858,6 +3945,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					podSeats: app.podSeats,
 					podAi: app.podAi ?? new Array<string | null>(POD_SEATS).fill(null),
 					podDrafts: app.podDrafts ?? null,
+					podSplit: app.podSplit ?? null,
 					// Restored with `draftStartedAt`, and released with it.
 					pod: app.pod,
 					podPlaying: app.podPlaying ?? [],

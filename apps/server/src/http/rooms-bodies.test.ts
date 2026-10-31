@@ -99,6 +99,7 @@ const CASES: [method: string, path: string, body: unknown, error: string][] = [
 	['POST', `${ROOM}/close`, [], 'body must be a JSON object'],
 	['POST', `${ROOM}/close`, { x: 1 }, 'unknown field(s): x'],
 	['POST', `${ROOM}/pod/stand`, { x: 1 }, 'unknown field(s): x'],
+	['POST', `${ROOM}/pod/split`, { x: 1 }, 'unknown field(s): x'],
 	['POST', `${ROOM}/pod/play`, { x: 1 }, 'unknown field(s): x'],
 	['POST', `${ROOM}/pod/sit`, [], 'body must be a JSON object'],
 	['POST', `${ROOM}/pod/sit`, { x: 1 }, 'unknown field(s): x'],
