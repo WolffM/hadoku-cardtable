@@ -124,8 +124,19 @@ syncBuiltinESMExports();
 	return { NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import ${pathToFileURL(file).href}`.trim() };
 }
 
-/** Boot the server against `webDir`, ask it both questions, then stop it once `until` (if given) is printed. `forgeEnv` replaces the default of no Forge at all, and is merged over it; `listenWithinMs` is how long it may take to listen. */
-async function boot(webDir: string, forgeEnv: NodeJS.ProcessEnv = {}, listenWithinMs = 30_000, until?: string): Promise<Booted> {
+/**
+ * Boot the server against `webDir`, ask it both questions, then stop it once `until` (if given) is
+ * printed. `forgeEnv` replaces the default of no Forge at all, and is merged over it;
+ * `listenWithinMs` is how long it may take to listen; `first` is asked the moment it listens, before
+ * anything else, with what the server has printed so far.
+ */
+async function boot(
+	webDir: string,
+	forgeEnv: NodeJS.ProcessEnv = {},
+	listenWithinMs = 30_000,
+	until?: string,
+	first?: (base: string, output: () => string) => Promise<void>,
+): Promise<Booted> {
 	mkdirSync(webDir, { recursive: true });
 	writeFileSync(join(webDir, 'index.html'), INDEX);
 	mkdirSync(join(webDir, 'embed', 'assets'), { recursive: true });
@@ -173,6 +184,7 @@ async function boot(webDir: string, forgeEnv: NodeJS.ProcessEnv = {}, listenWith
 		});
 
 		const base = `http://127.0.0.1:${port}`;
+		await first?.(base, () => output);
 		const h = await fetch(`${base}/health`);
 		const p = await fetch(`${base}/`);
 		const embed = {
@@ -243,6 +255,27 @@ describe('a server started from a path', () => {
 		const firstPoolRead = output.indexOf('slow-pool-read ');
 		expect(listened).toBeGreaterThanOrEqual(0);
 		if (firstPoolRead >= 0) expect(firstPoolRead).toBeGreaterThan(listened);
+	}, 60_000);
+
+	it('answers a request on an era nobody has read yet in full, the moment it listens', async () => {
+		const eras = [...new Set(LIBRARY.map((c) => formatIdOf(c)))];
+		const last = eras.at(-1)!;
+		await boot(join(root, 'cold-pools', 'apps', 'ui', 'dist'), slowPoolReads(50), 30_000, undefined, async (base, output) => {
+			// The newest era is the warm-up's last read: it is cold here, so this request reads it.
+			const legal = await fetch(`${base}/api/tables/legal/${last}`);
+			expect(output()).not.toContain('"evt":"library-warmed"');
+			expect(legal.status).toBe(200);
+			expect(((await legal.json()) as { legal: string[] }).legal.length).toBeGreaterThan(0);
+			// The picker's list reads every era, cold or not: all of them, each with its pool's own name.
+			const formats = await fetch(`${base}/api/tables/formats`);
+			expect(formats.status).toBe(200);
+			const listed = ((await formats.json()) as { formats: { id: string; name: string; cardCount: number }[] }).formats.slice(1);
+			expect(listed.map((f) => f.id)).toEqual(eras);
+			for (const f of listed) {
+				expect(f.name).not.toBe('');
+				expect(f.cardCount).toBeGreaterThan(0);
+			}
+		});
 	}, 60_000);
 
 	it('serves the embed entry as revalidated JS, its chunks immutable, and a missing file as a 404', async () => {
