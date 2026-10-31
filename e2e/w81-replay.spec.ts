@@ -466,7 +466,7 @@ test(
       ).toEqual([]);
       await expect(front.getByTestId('featured-match-tag')).toHaveText('REPLAY');
       // The card is a square window onto the board's bottom-left 540 board pixels (of 1280×800).
-      const fit = await front.locator('.featured-match__viewport').evaluate((viewport) => {
+      const fit = await front.locator('[data-testid="featured-match"] .featured-match__viewport').evaluate((viewport) => {
         const frame = viewport.querySelector('.featured-match__frame')!.getBoundingClientRect();
         const box = viewport.getBoundingClientRect();
         return { frame: { left: frame.left, bottom: frame.bottom, width: frame.width }, box: { left: box.left, bottom: box.bottom, width: box.width, height: box.height } };
@@ -499,7 +499,7 @@ test(
         const drawn = await drawnTurn(looper, '[data-testid="featured-match"]');
         if (drawn.turn > 0) bottomByTurn.set(drawn.turn, (bottomByTurn.get(drawn.turn) ?? new Set()).add(drawn.bottom));
         if (turn === 3) {
-          const seen = await looper.locator('.featured-match__viewport').evaluate((viewport) => {
+          const seen = await looper.locator('[data-testid="featured-match"] .featured-match__viewport').evaluate((viewport) => {
             const box = viewport.getBoundingClientRect();
             const tip = viewport.querySelector('.presence')?.getBoundingClientRect();
             const shown = tip !== undefined && tip.left >= box.left && tip.left <= box.right && tip.top >= box.top && tip.top <= box.bottom;
