@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 /*
- * A ram's crash (`crash.ts`): rocks and a shake as heavy as the damage, and a crash that cleans up.
+ * A ram's crash (`crash.ts`): rocks as heavy as the damage, and a crash that cleans up.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { damagePower } from '../motion.ts';
-import { crash, CRASH_MS, rocks, shakeOf } from './crash.ts';
+import { crash, CRASH_MS, rocks } from './crash.ts';
 import { claimParticles, PARTICLE_BUDGET } from './effect-budget.ts';
 import { impact } from './projectile.ts';
 
@@ -30,16 +30,6 @@ describe('rocks', () => {
     const full = rocks('k', 1).length;
     expect(rocks('k', 1, 0.5).length).toBe(Math.floor(full / 2));
     expect(rocks('k', 1, 0.01).length).toBeGreaterThan(0);
-  });
-});
-
-describe('shakeOf', () => {
-  it('barely at five, the full shake at seven, never for a point; further and longer the heavier', () => {
-    expect(shakeOf(1)).toEqual({ px: 0, ms: 0 });
-    expect(shakeOf(5).px).toBeLessThan(3);
-    expect(shakeOf(7).px).toBe(7);
-    for (let a = 2; a < 20; a++) expect(shakeOf(a + 1).px, `${a + 1} over ${a}`).toBeGreaterThan(shakeOf(a).px);
-    expect(shakeOf(25), 'capped at twenty').toEqual(shakeOf(20));
   });
 });
 

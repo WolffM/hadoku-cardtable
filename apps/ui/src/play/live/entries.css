@@ -1,16 +1,4 @@
-/* A creature's entry (`entries.ts`). Stand-ins and marks in the board's overlay, theme colours only. */
-
-.board-entry {
-  position: absolute;
-  z-index: 4;
-  pointer-events: none;
-  transform-origin: 50% 60%;
-}
-
-.board-entry__piece > .board-card {
-  margin: 0;
-  list-style: none;
-}
+/* A creature's entry (`entries.ts`): its marks in the board's overlay, theme colours only. Its stand-in and the table's quake are `quake.css`. */
 
 /* A pressure ring flattening out from under a heavy card. */
 .board-entry__thump {
@@ -34,57 +22,8 @@
   pointer-events: none;
 }
 
-/*
- * Cracks in the table under a heavy creature: a layer in each battlefield, clipped to it, first in
- * it and so under its cards (they are positioned; it has no z-index of its own). The battlefield is
- * its containing block — positioned, but no stacking context: a card that rises over the focus
- * layer still rises over everything.
- */
-[data-zone='battlefield'] {
-  position: relative;
-}
-
-.board-entry__crackle {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.board-entry__crackle > svg {
-  position: absolute;
-  overflow: visible;
-}
-
-.board-entry__crack-run {
-  /* Its stroke is the mask's own reveal, set inline (`entries.ts`): mask luminance, not a themed colour. */
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: board-entry-crack linear forwards;
-}
-
-.board-entry__crack--glow {
-  /* Blurred by its own SVG filter (`entries.ts`'s `feGaussianBlur`), not a CSS filter: a card image
-     sits in every battlefield this draws into, and no rule reaching it may carry one. */
-  fill: color-mix(in srgb, var(--c-red) 55%, var(--c-white));
-}
-
-.board-entry__crack--line {
-  fill: color-mix(in oklab, var(--ink) 82%, var(--c-generic));
-}
-
-@keyframes board-entry-crack {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .board-entry__wisp,
-  .board-entry__crackle,
   .board-entry__thump {
     display: none;
   }

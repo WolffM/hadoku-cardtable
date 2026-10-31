@@ -143,12 +143,13 @@ import {
 import { battlefieldCard, faceBox, overlayOf, zoneOf } from './board-dom.ts';
 import { DEPARTURE_ATTR, departureCause, departuresOf, exitMotionFor, exitMs, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
 import { ALIGN_MS, BLAST_MS, blast, boxIn, contactMs, fanOf, ram, RAM_STAGGER_MS, ramMs, strikeOffset, type Point, type RamEnd, type RamKind } from './ram.ts';
-import { crash, crashParticles, shake, shakeOf } from './crash.ts';
+import { crash, crashParticles, shake } from './crash.ts';
 import { particleShare } from './effect-budget.ts';
 import { fly, impact } from './projectile.ts';
 import { cardColours, colourRow } from './sound-events.ts';
 import { CAST_LANDING_ATTR, landCastGhost, parkedGhost } from './gestures/cast.ts';
 import { entryHeft, entryMotionFor, entryWeight, entryDurationMs, landingWeight, playEntry, playLanding } from './entries.ts';
+import { quake } from './quake.ts';
 import './numbers.css';
 import { timed } from './work-meter.ts';
 
@@ -174,10 +175,8 @@ const HIT_FLASH_MS = 360;
 const ARRIVE_FADE_MS = 240;
 
 /**
- * How far a SPELL's own blow shakes the table (px), 0 to the cap: gentler than a creature's ram
- * (`crash.ts`'s `SHAKE_PX`, left as it is — AF420 only changed what the DAMAGE itself scales to,
- * not combat's own curve) — nothing below 5, 0.6px at 5 climbing straight to the same 16px ceiling
- * a ram's own table reaches at the cap.
+ * How far a SPELL's own blow shakes the table (px), 0 to the cap (AF420): nothing below 5, 0.6px at
+ * 5 climbing straight to 16px at the cap. A creature's blow shakes by `entryWeight` (`quake.ts`).
  */
 export function boltShakePx(amount: number): number {
   if (amount < 5) return 0;
@@ -829,9 +828,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       schedule(() => {
         ball.remove();
         impact(root, end, look, key, hue, power);
-        // AF420: a spell's own blow shakes the table too, gentler than a creature's ram (`crash.ts`'s
-        // `SHAKE_PX`, left as it is) — nothing below 5, 0.6px at 5 climbing to the same 16px ceiling at
-        // the cap.
+        // AF420: a spell's own blow shakes the table too (`boltShakePx`).
         if (look === 'bolt') shakes.add(shake(canvas, boltShakePx(amount), key));
         flash(target.isConnected ? target : (retarget?.() ?? target), colour);
         land();
@@ -841,14 +838,26 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
 
   /**
    * A blow with no projectile (combat damage): a crash where it lands — dust and rocks, not fire — and
-   * the table shaking, both as heavy as the damage (`crash.ts`). At `at` when given (where two cards
-   * meet), else on `to`.
+   * the table shaking, as heavy as the damage: the crash by `damagePower` (`crash.ts`), the table as a
+   * landing of that power moves it (`entries.ts`'s `entryWeight`, the one curve). At `at` when given
+   * (where two cards meet), else on `to`. A charge's blow (`charger`, the size of the card that struck)
+   * is the whole quake a landing draws (`quake.ts`): from 7 the table cracks under it, from 8 the cards
+   * around it are knocked away (the operator, 2026-10-30: "remember how we added that nice board
+   * animation for when emrakul hits the board? i want to try something similar with when strong
+   * creatures hit the opponent"); two creatures' blow only shakes it, the rammers being out on the table.
    */
-  function bang(to: Element, key: string, amount: number, at: Point | null = null, share = 1): void {
+  function bang(to: Element, key: string, amount: number, at: Point | null = null, share = 1, charger: { w: number; h: number } | null = null): void {
     const root = overlay();
     if (root === null || reduced()) return;
-    crash(root, at ?? centreIn(to, root.getBoundingClientRect()), damagePower(amount), key, share);
-    shakes.add(shake(canvas, shakeOf(amount).px, key));
+    const point = at ?? centreIn(to, root.getBoundingClientRect());
+    crash(root, point, damagePower(amount), key, share);
+    const weight = entryWeight(amount);
+    if (charger === null) {
+      shakes.add(shake(canvas, weight.shakePx, key));
+      return;
+    }
+    const box = root.getBoundingClientRect();
+    shakes.add(quake(canvas, root, { x: box.left + point.x, y: box.top + point.y, ...charger }, weight, key).cancel);
   }
 
   /**
@@ -1237,7 +1246,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         const strike = strikeOffset(from, to, plan.kind);
         const hitPoint = plan.kind === 'charge' ? to : { x: (from.x + strike.x + to.x) / 2, y: (from.y + strike.y + to.y) / 2 };
         const at = plan.kind === 'meet' ? { x: from.x + strike.x, y: from.y + strike.y } : hitPoint;
-        atBeat(() => bang(target, `crash:${plan.sourceId}`, plan.amount, at, crashShare), plan.delayMs + contactMs(plan.kind));
+        atBeat(() => bang(target, `crash:${plan.sourceId}`, plan.amount, at, crashShare, plan.kind === 'charge' ? { w: from.w, h: from.h } : null), plan.delayMs + contactMs(plan.kind));
         const contact = plan.delayMs + contactMs(plan.kind);
         const mine = viewers(plan.sourceId);
         // On a player the blow is as big as its damage, and a crowd cheers from 5 (`impactRole`, `cheerRole`).

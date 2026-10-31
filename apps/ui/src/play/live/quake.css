@@ -1,0 +1,68 @@
+/* The table's quake (`quake.ts`) and the board's stand-ins: in the board's overlay and under the cards, theme colours only. */
+
+/* A stand-in: a copy of a row card in the overlay, following the card's own box (a landing, a card knocked away). */
+.board-entry {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+  transform-origin: 50% 60%;
+}
+
+.board-entry__piece > .board-card {
+  margin: 0;
+  list-style: none;
+}
+
+/*
+ * Cracks in the table under a heavy blow: a layer in each battlefield, clipped to it, first in
+ * it and so under its cards (they are positioned; it has no z-index of its own). The battlefield is
+ * its containing block — positioned, but no stacking context: a card that rises over the focus
+ * layer still rises over everything.
+ */
+[data-zone='battlefield'] {
+  position: relative;
+}
+
+.board-entry__crackle {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.board-entry__crackle > svg {
+  position: absolute;
+  overflow: visible;
+}
+
+.board-entry__crack-run {
+  /* Its stroke is the mask's own reveal, set inline (`quake.ts`): mask luminance, not a themed colour. */
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: board-entry-crack linear forwards;
+}
+
+.board-entry__crack--glow {
+  /* Blurred by its own SVG filter (`quake.ts`'s `feGaussianBlur`), not a CSS filter: a card image
+     sits in every battlefield this draws into, and no rule reaching it may carry one. */
+  fill: color-mix(in srgb, var(--c-red) 55%, var(--c-white));
+}
+
+.board-entry__crack--line {
+  fill: color-mix(in oklab, var(--ink) 82%, var(--c-generic));
+}
+
+@keyframes board-entry-crack {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-entry__crackle {
+    display: none;
+  }
+}

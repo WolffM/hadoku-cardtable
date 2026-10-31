@@ -1,6 +1,6 @@
 /*
  * The blow of a ram (`ram.ts`): a neutral crash, not an explosion — a ring of dust, chips of rock
- * thrown out and falling, and the table shaking, all as heavy as the damage (the operator,
+ * thrown out and falling, and the table shaking (`shake`, as far as `quake.ts` says), all as heavy as the damage (the operator,
  * 2026-10-16: "more of something like what hearthstone does with a more neutral crash. hearthstone
  * also has a cool screenshake and dust/rocks fly about depending on how much damage was dealt").
  *
@@ -106,29 +106,15 @@ export function crash(root: HTMLElement, at: Point, power: number, key: string, 
   return el;
 }
 
-/**
- * How far the table shakes (px) for a blow of each amount of damage, 0 to 20: barely at all until it
- * is heavy (the operator, 2026-10-16: "screenshake should be very subtle at 5dmg. i think 7damage is
- * when i'd expect that level of screenshake"), then on up to twenty. A table, not a curve, so each
- * step can be tuned on its own.
- */
-const SHAKE_PX: readonly number[] = [0, 0, 0.5, 1, 1.5, 2.5, 4.5, 7, 8, 9, 10, 10.6, 11.2, 11.8, 12.4, 13, 13.6, 14.2, 14.8, 15.4, 16];
-
-/** How far and how long the table shakes for a blow of `amount` damage; nothing for one point, the twenty's beyond it. */
-export function shakeOf(amount: number): { px: number; ms: number } {
-  const px = SHAKE_PX[Math.min(SHAKE_PX.length - 1, Math.max(0, Math.round(amount)))]!;
-  return { px, ms: shakeMsOf(px) };
-}
-
-/** How long a shake of `px` runs: longer the further it goes. Shared by a blow's own curve (`shakeOf`) and a landing's (`entries.ts`'s `entryWeight`, which climbs by distance, not by damage). */
+/** How long a shake of `px` runs: longer the further it goes. */
 export function shakeMsOf(px: number): number {
   return px === 0 ? 0 : Math.round(160 + 22 * px);
 }
 
 /**
- * Shake `board` by `px`: a few quick, dying jolts, as far and as long as `px` says — a blow's own
- * curve (`shakeOf`'s damage table) or a landing's (`entries.ts`'s `entryWeight`, by the creature's
- * power). Its container clips while it does. Returns a cancel.
+ * Shake `board` by `px`: a few quick, dying jolts, as far and as long as `px` says — a blow's or a
+ * landing's (`entries.ts`'s `entryWeight`, the one curve, drawn by `quake.ts`) or a spell's own
+ * (`numbers.ts`'s `boltShakePx`). Its container clips while it does. Returns a cancel.
  */
 export function shake(board: HTMLElement, px: number, key: string): () => void {
   const ms = shakeMsOf(px);

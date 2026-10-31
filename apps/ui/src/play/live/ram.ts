@@ -21,7 +21,8 @@
  * one starts slow and accelerates hard; its rear back and its way home take the same pace (the
  * operator: "creatures with greater attack must have a greater impact feeling but should arrive at the
  * location in the same time"). `motion.ts`'s `powerEase` and `homeEase`.
- * A charge at a player is a punch instead (`punchAt`): it draws back to rest, creeps, then bursts into the blow.
+ * A charge at a player is a punch instead (`punchAt`): it draws back to rest, creeps, then bursts into the blow,
+ * as hard whichever way its curve bends (`alongLength`), and its blow moves the table as a landing does (`quake.ts`).
  *
  * Every lunge at a creature runs on a slight curve and tilts into the blow, its side and lean seeded by
  * the creature ("can we add a slight arc and rotation for how they ram into eachother? it looks boring
@@ -146,8 +147,10 @@ function turned(p: Point, deg: number): Point {
   const a = (deg * Math.PI) / 180;
   return { x: p.x * Math.cos(a) - p.y * Math.sin(a), y: p.x * Math.sin(a) + p.y * Math.cos(a) };
 }
-/** Samples of a charge's curve: enough that the burst at its end stays smooth. */
-const SAMPLES = 32;
+/** Samples of a charge's flight, closer and closer together toward the blow, so the burst into it is drawn whole. */
+const SAMPLES = 40;
+/** Samples of a charge's curve when it is measured along its length. */
+const LENGTH_SAMPLES = 64;
 /** A charger's draw back: it comes to rest just as its punch sets off, so the two read as one move. */
 const WIND_UP_EASE = 'cubic-bezier(0.2, 0.6, 0.3, 1)';
 /** How far a charger draws back as it turns to face the player. */
@@ -331,15 +334,17 @@ function bounceFrames(strike: Point, toward: Point, tilt: number, key: string, p
  * then bursts, accelerating hard right into the blow (the operator, 2026-10-17: "the start should be
  * slower and then burst into motion with intense acceleration until impact"; "even small creatures
  * should punch harder than this"). The heavier, the longer the creep and the harder the burst ("larger
- * creature should start slower and then accelerate to faster speeds"): a point is a tenth of the way
- * at half time and lands at five times its average speed; seven, under a twentieth and ten times; twenty,
- * barely off the mark at half time and fifteen times. An exponential, since a cubic bezier ease could not
- * start slow enough and still burst.
+ * creature should start slower and then accelerate to faster speeds"), and both ends harder again
+ * since (2026-10-30: "both the floor and the ceiling for how much velocity is reached with each 'punch'
+ * should be harder"): a point is a twenty-fifth of the way at half time and lands at twelve times its
+ * average speed; seven, a fiftieth and twenty-three times; twenty, barely off the mark at half time
+ * and thirty-three times. An exponential, since a cubic bezier ease could not start slow enough and
+ * still burst.
  */
 export function punchAt(t: number, power: number): number {
   const p = Math.min(1, Math.max(0, power));
-  const k = 6 + 10 * p;
-  const creep = 0.25 - 0.2 * p;
+  const k = 14 + 20 * p;
+  const creep = 0.16 - 0.14 * p;
   return creep * t * t + ((1 - creep) * (Math.exp(k * t) - 1)) / (Math.exp(k) - 1);
 }
 
@@ -360,13 +365,35 @@ export function chargeControl(start: Point, end: Point, random: () => number): P
 }
 
 /**
+ * Where on the curve from `start` by `control` to `end` a share `d` (0 to 1) of its LENGTH is: a curve's
+ * own parameter runs fast or slow along it as it bends, so a punch run on it would land as hard as its
+ * random bend let it — on main a blow bending late struck at three quarters of the speed of one bending early.
+ */
+function alongLength(start: Point, control: Point, end: Point): (d: number) => Point {
+  const pts = Array.from({ length: LENGTH_SAMPLES + 1 }, (_, i) => along(start, control, end, i / LENGTH_SAMPLES));
+  const run = pts.reduce<number[]>((acc, p, i) => [...acc, i === 0 ? 0 : acc[i - 1]! + Math.hypot(p.x - pts[i - 1]!.x, p.y - pts[i - 1]!.y)], []);
+  const total = run[LENGTH_SAMPLES]! || 1;
+  return (d) => {
+    const want = Math.min(1, Math.max(0, d)) * total;
+    const i = Math.max(1, run.findIndex((r) => r >= want));
+    const a = pts[i - 1]!;
+    const b = pts[i]!;
+    const f = (want - run[i - 1]!) / (run[i]! - run[i - 1]! || 1);
+    return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+  };
+}
+
+/**
  * A charge's flight: from its aligned pose along its curve (`chargeControl`) onto what it strikes, still
- * facing it. Sampled evenly in time, each sample at the punch's distance (`punchAt`), so the pace is in the
- * frames: run it linear.
+ * facing it. Each sample at the punch's distance along the curve (`punchAt`), so the pace is in the
+ * frames: run it linear. Sampled closer together toward the blow, where it moves furthest between frames.
  */
 function chargeFrames(align: { at: Point; rot: number }, strike: Point, power: number, random: () => number = Math.random): Keyframe[] {
-  const control = chargeControl(align.at, strike, random);
-  return Array.from({ length: SAMPLES + 1 }, (_, i) => ({ offset: i / SAMPLES, translate: px(along(align.at, control, strike, punchAt(i / SAMPLES, power))), rotate: `${align.rot.toFixed(1)}deg` }));
+  const at = alongLength(align.at, chargeControl(align.at, strike, random), strike);
+  return Array.from({ length: SAMPLES + 1 }, (_, i) => {
+    const t = 1 - (1 - i / SAMPLES) ** 2;
+    return { offset: t, translate: px(at(punchAt(t, power))), rotate: `${align.rot.toFixed(1)}deg` };
+  });
 }
 
 /** Slowly back to its place from `at`, turned `rot` degrees, straightening as it goes. */
