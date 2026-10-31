@@ -108,6 +108,15 @@ describe('roomCardView — tournament and seats', () => {
     expect(roomCardView(room({ gameType: 'draft', pod: pod({ phase: 'lobby' }), members: [{ id: 'm1', name: 'a', joinedAt: '', ready: false }] }), false).seatsCapacity).toBe(8);
     expect(roomCardView(room(), false)).toMatchObject({ seatsCapacity: 2, seatsFilled: 1 });
   });
+
+  it('a pod room with 8 members still offers Join: past 8 the room drafts as several pods, and counts the pod now filling, up to 64', () => {
+    const members = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `m${String(i)}`, name: `p${String(i)}`, joinedAt: '', ready: false }));
+    const lobby = (n: number) => roomCardView(room({ gameType: 'draft', pod: pod({ phase: 'lobby' }), members: members(n) }), false);
+    expect(lobby(8)).toMatchObject({ primaryAction: 'Join', seatsFilled: 8, seatsCapacity: 16 });
+    expect(lobby(13)).toMatchObject({ primaryAction: 'Join', seatsCapacity: 16 });
+    expect(lobby(63)).toMatchObject({ primaryAction: 'Join', seatsCapacity: 64 });
+    expect(lobby(64)).toMatchObject({ primaryAction: 'Watch', seatsFilled: 64, seatsCapacity: 64 });
+  });
 });
 
 describe('roomCardView — state, every phase', () => {
@@ -169,7 +178,8 @@ describe('roomCardView — the way in', () => {
     expect(roomCardView(full, false).primaryAction).toBe('Watch');
     const fullPod = room({
       gameType: 'draft',
-      members: new Array(8).fill(null).map((_, i) => ({ id: `m${String(i)}`, name: `p${String(i)}`, joinedAt: '', ready: false })),
+      // Full at 64: past 8 a room drafts as several pods (w84b).
+      members: new Array(64).fill(null).map((_, i) => ({ id: `m${String(i)}`, name: `p${String(i)}`, joinedAt: '', ready: false })),
       pod: pod({ phase: 'lobby' }),
     });
     expect(roomCardView(fullPod, false).primaryAction).toBe('Watch');

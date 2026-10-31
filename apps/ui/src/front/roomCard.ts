@@ -14,7 +14,7 @@
  * the name itself, and `RoomList.tsx` reads that straight off `room.name`.
  */
 
-import { FREE_PICK, POD_SEATS, planDisplayName } from '@hadoku/shared';
+import { FREE_PICK, POD_MAX_SEATS, POD_SEATS, planDisplayName } from '@hadoku/shared';
 
 import type { RoomView } from '../rooms/api.ts';
 import { countdown } from './countdown.ts';
@@ -171,8 +171,7 @@ function phaseState(room: RoomView): RoomCardState {
  * table's own series phase (and so this card's `state.key`) has caught up.
  */
 function actions(room: RoomView, state: RoomCardState, isMine: boolean): { primaryAction: RoomPrimaryAction; extraWatch: boolean } {
-  const capacity = room.pod !== null ? POD_SEATS : 2;
-  const seatOpen = state.key === 'lobby' && room.members.length < capacity;
+  const seatOpen = state.key === 'lobby' && room.members.length < (room.pod !== null ? POD_MAX_SEATS : 2);
   // One way in, member or not (the operator, 2026-10-29: a separate button for each "seems pointless").
   const primaryAction: RoomPrimaryAction = isMine || seatOpen ? 'Join' : 'Watch';
   const inProgress = state.key !== 'lobby' && state.key !== 'done';
@@ -180,10 +179,19 @@ function actions(room: RoomView, state: RoomCardState, isMine: boolean): { prima
   return { primaryAction, extraWatch };
 }
 
+/**
+ * The seats a card counts out of. A pod room past 8 drafts as several pods of up to 8 (`POD_MAX_SEATS` in
+ * all), so it counts the pod now filling: 5 of 8, 8 of 16, and 64 of 64 once it is full.
+ */
+function seatsCapacity(room: RoomView): number {
+  if (room.pod === null) return 2;
+  return Math.min(POD_MAX_SEATS, Math.max(POD_SEATS, Math.ceil((room.members.length + 1) / POD_SEATS) * POD_SEATS));
+}
+
 /** Everything one room card draws, from the room body alone. `isMine`: the caller is already a member. */
 export function roomCardView(room: RoomView, isMine: boolean, now: number = Date.now()): RoomCardView {
   const state = roomState(room, now);
-  const capacity = room.pod !== null ? POD_SEATS : 2;
+  const capacity = seatsCapacity(room);
   const { primaryAction, extraWatch } = actions(room, state, isMine);
   return {
     tournament: room.gameType === 'draft' || room.settings.tournament,
