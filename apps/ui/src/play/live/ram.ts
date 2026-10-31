@@ -21,8 +21,9 @@
  * one starts slow and accelerates hard; its rear back and its way home take the same pace (the
  * operator: "creatures with greater attack must have a greater impact feeling but should arrive at the
  * location in the same time"). `motion.ts`'s `powerEase` and `homeEase`.
- * A charge at a player is a punch instead (`punchAt`): it draws back to rest, creeps, then bursts into the blow,
- * as hard whichever way its curve bends (`alongLength`), and its blow moves the table as a landing does (`quake.ts`).
+ * A charge at a player is a punch instead: it winds up, drawing slowly back (`windUpOf`), then snaps into the
+ * blow (`punchAt`), as hard whichever way its curve bends (`alongLength`), and its blow moves the table as a
+ * landing does (`quake.ts`). The heavier, the deeper and longer the wind-up and the harder the snap.
  *
  * Every lunge at a creature runs on a slight curve and tilts into the blow, its side and lean seeded by
  * the creature ("can we add a slight arc and rotation for how they ram into eachother? it looks boring
@@ -151,8 +152,10 @@ function turned(p: Point, deg: number): Point {
 const SAMPLES = 40;
 /** Samples of a charge's curve when it is measured along its length. */
 const LENGTH_SAMPLES = 64;
-/** A charger's draw back: it comes to rest just as its punch sets off, so the two read as one move. */
-const WIND_UP_EASE = 'cubic-bezier(0.2, 0.6, 0.3, 1)';
+/** A charger's turn to face the player: it comes to rest just as its wind-up sets off, so the two read as one move. */
+const ALIGN_EASE = 'cubic-bezier(0.2, 0.6, 0.3, 1)';
+/** The wind-up: slowly off from rest, slowly into its deepest point, cocked for the punch. */
+const WIND_UP_EASE = 'cubic-bezier(0.45, 0, 0.55, 1)';
 /** How far a charger draws back as it turns to face the player. */
 const ALIGN_BACK_PX = 18;
 
@@ -330,22 +333,29 @@ function bounceFrames(strike: Point, toward: Point, tilt: number, key: string, p
 }
 
 /**
- * How far along its flight a punch at `power` is at `t` (both 0 to 1): it sets off from rest and creeps,
- * then bursts, accelerating hard right into the blow (the operator, 2026-10-17: "the start should be
- * slower and then burst into motion with intense acceleration until impact"; "even small creatures
- * should punch harder than this"). The heavier, the longer the creep and the harder the burst ("larger
- * creature should start slower and then accelerate to faster speeds"), and both ends harder again
- * since (2026-10-30: "both the floor and the ceiling for how much velocity is reached with each 'punch'
- * should be harder"): a point is a twenty-fifth of the way at half time and lands at twelve times its
- * average speed; seven, a fiftieth and twenty-three times; twenty, barely off the mark at half time
- * and thirty-three times. An exponential, since a cubic bezier ease could not start slow enough and
- * still burst.
+ * A charger's wind-up at `weight` (`entries.ts`'s `entryWeight(damage).power`, the landing's curve):
+ * how far it draws back from its place in the fan, away from the player, and for how long, before it
+ * punches. The operator, 2026-10-31: "first slowly backward, then rapidly forward … kind of like the
+ * slam is being wound up. this 'back up' should be further exaggerated with higher power creatures.
+ * they have a slower start and longer wind up". A point, a few px in a tenth of a second; fifteen and
+ * up, most of a card's height over two fifths of a second.
+ */
+export function windUpOf(weight: number): { px: number; ms: number } {
+  const w = Math.min(1, Math.max(0, weight));
+  return { px: 6 + 62 * w, ms: Math.round(100 + 300 * w) };
+}
+
+/**
+ * How far along its flight a punch at `power` is at `t` (both 0 to 1): from rest at the end of its
+ * wind-up it bursts, accelerating hard right into the blow (the operator, 2026-10-17: "burst into motion
+ * with intense acceleration until impact"; 2026-10-30: "both the floor and the ceiling for how much
+ * velocity is reached with each 'punch' should be harder"; 2026-10-31: "then an even faster and harder
+ * punch"). No creep of its own: the wind-up is its slow start. The heavier, the harder the burst. An
+ * exponential, since a cubic bezier ease could not hold still long enough and still burst.
  */
 export function punchAt(t: number, power: number): number {
-  const p = Math.min(1, Math.max(0, power));
-  const k = 14 + 20 * p;
-  const creep = 0.16 - 0.14 * p;
-  return creep * t * t + ((1 - creep) * (Math.exp(k * t) - 1)) / (Math.exp(k) - 1);
+  const k = 12 + 9 * Math.min(1, Math.max(0, power));
+  return (Math.exp(k * t) - 1) / (Math.exp(k) - 1);
 }
 
 /**
@@ -383,16 +393,24 @@ function alongLength(start: Point, control: Point, end: Point): (d: number) => P
   };
 }
 
+/** The wind-up: from its place in the fan `back` px straight away from `strike`, still facing it. */
+function windUpFrames(align: { at: Point; rot: number }, strike: Point, back: number): { frames: Keyframe[]; at: Point } {
+  const u = unit(strike, align.at);
+  const at = { x: align.at.x + u.x * back, y: align.at.y + u.y * back };
+  const rot = `${align.rot.toFixed(1)}deg`;
+  return { frames: [{ translate: px(align.at), rotate: rot }, { translate: px(at), rotate: rot }], at };
+}
+
 /**
- * A charge's flight: from its aligned pose along its curve (`chargeControl`) onto what it strikes, still
- * facing it. Each sample at the punch's distance along the curve (`punchAt`), so the pace is in the
+ * A charge's flight: from the end of its wind-up along its curve (`chargeControl`) onto what it strikes,
+ * still facing it. Each sample at the punch's distance along the curve (`punchAt`), so the pace is in the
  * frames: run it linear. Sampled closer together toward the blow, where it moves furthest between frames.
  */
-function chargeFrames(align: { at: Point; rot: number }, strike: Point, power: number, random: () => number = Math.random): Keyframe[] {
-  const at = alongLength(align.at, chargeControl(align.at, strike, random), strike);
+function chargeFrames(from: Point, rot: number, strike: Point, power: number, random: () => number = Math.random): Keyframe[] {
+  const at = alongLength(from, chargeControl(from, strike, random), strike);
   return Array.from({ length: SAMPLES + 1 }, (_, i) => {
     const t = 1 - (1 - i / SAMPLES) ** 2;
-    return { offset: t, translate: px(at(punchAt(t, power))), rotate: `${align.rot.toFixed(1)}deg` };
+    return { offset: t, translate: px(at(punchAt(t, power))), rotate: `${rot.toFixed(1)}deg` };
   });
 }
 
@@ -461,7 +479,9 @@ function play(el: HTMLElement, parts: readonly { frames: Keyframe[]; delay: numb
 /**
  * Draw one creature's ram: `source` (its element in its row, or its departure's stand-in) strikes
  * `to` after `delayMs` plus its contact time, and ends as `end` says. `away` is the way a blasted
- * creature is knocked: from the one that struck it. Returns a cancel that puts everything back.
+ * creature is knocked: from the one that struck it. A charge forms up from `formation.start` at
+ * `formation.at`, and winds up and punches by `formation.weight` (its damage on the landing's curve;
+ * `power` when not given). Returns a cancel that puts everything back.
  */
 export function ram(
   root: HTMLElement,
@@ -474,7 +494,7 @@ export function ram(
   delayMs: number,
   power: number,
   struckPower: number,
-  formation: { start: number; at: Point | null } = { start: delayMs, at: null },
+  formation: { start: number; at: Point | null; weight?: number } = { start: delayMs, at: null },
 ): () => void {
   if (typeof source.animate !== 'function') return () => undefined;
   const { el, standIn } = mover(root, source, from);
@@ -492,9 +512,14 @@ export function ram(
     // to that right away").
     const align = alignOf(from, to, formation.at ?? fanOf([from], to, key, boxIn(root, root))[0]!);
     tilt = align.rot;
-    const launch = delayMs + ALIGN_MS;
-    parts.push({ frames: [{ translate: '0px 0px', rotate: '0deg' }, { translate: px(align.at), rotate: `${align.rot.toFixed(1)}deg` }], delay: formation.start, duration: launch - formation.start, easing: WIND_UP_EASE });
-    parts.push({ frames: chargeFrames(align, strike, power), delay: launch, duration: CHARGE_MS });
+    const formed = delayMs + ALIGN_MS;
+    parts.push({ frames: [{ translate: '0px 0px', rotate: '0deg' }, { translate: px(align.at), rotate: `${align.rot.toFixed(1)}deg` }], delay: formation.start, duration: formed - formation.start, easing: ALIGN_EASE });
+    // Then slowly back, cocked, and the punch: both inside the flight, so the blow lands when it always did.
+    const weight = formation.weight ?? power;
+    const wind = windUpOf(weight);
+    const cocked = windUpFrames(align, strike, wind.px);
+    parts.push({ frames: cocked.frames, delay: formed, duration: wind.ms, easing: WIND_UP_EASE });
+    parts.push({ frames: chargeFrames(cocked.at, align.rot, strike, weight), delay: formed + wind.ms, duration: CHARGE_MS - wind.ms });
   } else {
     tilt = tiltOf(key);
     const rear = rearOf(strike, tilt);

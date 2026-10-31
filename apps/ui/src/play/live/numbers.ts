@@ -142,7 +142,7 @@ import {
 } from '../motion.ts';
 import { battlefieldCard, faceBox, overlayOf, zoneOf } from './board-dom.ts';
 import { DEPARTURE_ATTR, departureCause, departuresOf, exitMotionFor, exitMs, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
-import { ALIGN_MS, BLAST_MS, blast, boxIn, contactMs, fanOf, ram, RAM_STAGGER_MS, ramMs, strikeOffset, type Point, type RamEnd, type RamKind } from './ram.ts';
+import { ALIGN_MS, BLAST_MS, blast, boxIn, contactMs, fanOf, ram, RAM_STAGGER_MS, ramMs, strikeOffset, windUpOf, type Point, type RamEnd, type RamKind } from './ram.ts';
 import { crash, crashParticles, shake } from './crash.ts';
 import { particleShare } from './effect-budget.ts';
 import { fly, impact } from './projectile.ts';
@@ -1256,11 +1256,13 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         const cheer = plan.kind === 'charge' ? cheerRole(plan.amount) : null;
         if (cheer !== null) sounds.push({ role: cheer, ms: contact, intensity: plan.power, mine });
       }
-      if (plan.kind === 'charge') sounds.push({ role: 'g.charge', ms: plan.delayMs + ALIGN_MS, intensity: plan.power, mine: viewers(plan.sourceId) });
+      // A charge winds up and punches by its damage on the landing's curve; it sounds as it launches, out of its wind-up.
+      const weight = entryWeight(plan.amount).power;
+      if (plan.kind === 'charge') sounds.push({ role: 'g.charge', ms: plan.delayMs + ALIGN_MS + windUpOf(weight).ms, intensity: plan.power, mine: viewers(plan.sourceId) });
       // Blasted as hard as what struck it hit: its partner's power when they met.
       const struckBy = (combat?.rams ?? []).find((r) => 'cardId' in r.target && r.target.cardId === plan.sourceId)?.power ?? plan.power;
       keep(
-        ram(root, source, from, to, plan.kind, end, `ram:${plan.sourceId}`, plan.delayMs, plan.power, struckBy, { start: plan.kind === 'charge' ? chargeStart : plan.delayMs, at: fanned.get(plan.sourceId) ?? null }),
+        ram(root, source, from, to, plan.kind, end, `ram:${plan.sourceId}`, plan.delayMs, plan.power, struckBy, { start: plan.kind === 'charge' ? chargeStart : plan.delayMs, at: fanned.get(plan.sourceId) ?? null, weight }),
         plan.delayMs + ramMs(plan.kind, end),
       );
       // A creature killed by a blow it did not ram back into is blasted away from the one that struck it.
