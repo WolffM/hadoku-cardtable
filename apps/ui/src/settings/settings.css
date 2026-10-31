@@ -1,8 +1,9 @@
 /*
  * Cardtable's own settings and its gear (`Settings.tsx`), drawn in a `components/Popover.tsx`.
  *
- * Painted only from `@wolffm/themes` tokens — no literal colour anywhere,
- * native controls included (`accent-color`): inside a match it sits in the
+ * Painted only from `@wolffm/themes` tokens — no literal colour anywhere; its
+ * native controls take the theme's accent from the fleet's `controls.css`
+ * (`main.tsx`), which reaches it in the header's popout too: inside a match it sits in the
  * `.live` island, outside it on the themed screens, and either way it reads as
  * a card over the page.
  */

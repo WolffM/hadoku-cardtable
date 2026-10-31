@@ -41,6 +41,7 @@ import type { GameBundleContext, GameBundleModule, MountedGameBundle } from './c
 // lands in the one `cardtable-embed.css` the build emits.
 import '@wolffm/themes/style.css';
 import '@wolffm/themes/icons.css';
+import '@wolffm/task-ui-components/controls.css';
 import '../styles.css';
 import '../chrome/chrome.css';
 import '../chrome/trim.css';
@@ -90,7 +91,8 @@ async function mountCardtable(el: HTMLElement, ctx: GameBundleContext): Promise<
     undo.push(adoptStyles(shadow, await fetchStyles(STYLESHEET)));
 
     const container = document.createElement('div');
-    container.className = 'cardtable-embed';
+    // `hdk-controls` here, not on the host's <html>: a shadow root's selectors cannot see past it.
+    container.className = 'cardtable-embed hdk-controls';
     shadow.append(container);
     undo.push(() => container.remove());
 

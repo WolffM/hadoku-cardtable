@@ -121,7 +121,6 @@ a.sound-builder__btn {
 
 .sound-gain input[type='range'] {
   width: 96px;
-  accent-color: var(--color-primary);
 }
 
 .sound-gain output {

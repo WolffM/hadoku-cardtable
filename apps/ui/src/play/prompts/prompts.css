@@ -1168,7 +1168,6 @@
   flex: 1 1 auto;
   min-width: 0;
   margin: 0;
-  accent-color: var(--accent);
 }
 
 /* The most X the seat can pay: a notch through the track at that value. */

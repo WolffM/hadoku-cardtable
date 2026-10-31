@@ -1,8 +1,9 @@
 /*
  * A popover (`Popover.tsx`): the settings gear's and a room's Match rules.
  *
- * Painted only from `@wolffm/themes` tokens — no literal colour anywhere,
- * native controls included (`accent-color`): inside a match it sits in the
+ * Painted only from `@wolffm/themes` tokens — no literal colour anywhere; its
+ * native controls take the theme's accent from the fleet's `controls.css`
+ * (`main.tsx`): inside a match it sits in the
  * `.live` island, outside it on the themed screens, and either way it reads as
  * a card over the page.
  */
@@ -20,11 +21,6 @@
 
 .ct-popover:focus {
   outline: none;
-}
-
-/* Checkboxes, radios and sliders take the theme's primary, not the browser's blue. */
-.ct-popover input {
-  accent-color: var(--color-primary);
 }
 
 .ct-popover__head {

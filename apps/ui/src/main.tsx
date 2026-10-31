@@ -29,7 +29,7 @@ import { createRoot } from 'react-dom/client';
  *      imported by `App.tsx`), which CONSUME the tokens above and redefine
  *      none of them.
  *
- * All six fleet imports are required, and the reasons are not interchangeable:
+ * All seven fleet imports are required, and the reasons are not interchangeable:
  * `style.css` is the token set itself, `icons.css` is icon sizing and the
  * accent tiles, `theme-picker.css` is the picker AppHeader renders,
  * `app-header.css` is the header plus the settings popout — without that one
@@ -41,6 +41,11 @@ import { createRoot } from 'react-dom/client';
  * the browser's own bar, which on Chrome swells and darkens when the pointer reaches it (the operator,
  * 2026-10-28: "why does the scrollbar change in color and style when hovered? that's pretty ugly"). Bundling them is also what keeps this page self-contained
  * instead of depending on `/mf/*` being reachable.
+ *
+ * `controls.css` is the fleet's colouring of the browser's own controls, under `<html class="hdk-controls">`:
+ * every checkbox, radio, range and progress takes the theme's accent, and an unstyled field, select or
+ * button the theme's surface (the operator, 2026-10-30: "i noticed a hardcoded color or default color on
+ * the volume slider"). No sheet of ours sets `accent-color`; `controls.test.ts` holds that.
  */
 // REQUIRED: @wolffm/themes CSS — DO NOT REMOVE
 import '@wolffm/themes/style.css';
@@ -49,6 +54,7 @@ import '@wolffm/task-ui-components/theme-picker.css';
 import '@wolffm/task-ui-components/app-header.css';
 import '@wolffm/task-ui-components/tooltip.css';
 import '@wolffm/task-ui-components/scrollbar.css';
+import '@wolffm/task-ui-components/controls.css';
 import './styles.css';
 import { App } from './App.tsx';
 import { finishRallyReturn } from './rooms/event-forms.ts';
