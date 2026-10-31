@@ -976,24 +976,34 @@
 }
 
 /*
- * A change of list (`deckSwap.ts`): the old tiles fade where they stood, then the
- * new ones fade in, in reading order. Opacity and a lift from above only: a tile
- * keeps its size throughout, and nothing is pushed past the grid's last row.
+ * A change of list (`deckSwap.ts`): the boxes stay where they stand and only
+ * their content changes. The old content fades out of its box; outlines drawn as
+ * the same boxes wait out a slow list; the new content cascades in, in reading
+ * order, as one stagger. A box past the last grid's count fades in with its
+ * content. Opacity and a lift from above only: a tile keeps its size
+ * throughout, and nothing is pushed past the grid's last row.
  */
-.deckpick__option--in {
-  animation: deckpick-in 260ms ease-out both;
-  animation-delay: calc(var(--deckpick-i, 0) * 22ms);
+.deckpick__option--in > *,
+.deckpick__option--grow {
+  animation: deckpick-in 280ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  animation-delay: calc(var(--deckpick-i, 0) * 20ms);
+}
+
+.deckpick__option--grow {
+  animation-name: deckpick-fade-in;
 }
 
 .deckpick__option--leaving {
-  animation: deckpick-out 180ms ease-in forwards;
   pointer-events: none;
 }
 
+.deckpick__option--leaving > * {
+  animation: deckpick-out 180ms ease-in forwards;
+}
+
+/* The same box as a tile's, so outlines take over from an emptied grid without a seam. */
 .deckpick > .skeleton--tile {
-  animation:
-    skeleton-sheen 1.6s ease-in-out infinite,
-    deckpick-in 260ms ease-out both;
+  border: 1px solid var(--color-border-light);
 }
 
 @keyframes deckpick-in {
@@ -1003,7 +1013,7 @@
   }
 }
 
-@keyframes deckpick-art-in {
+@keyframes deckpick-fade-in {
   from {
     opacity: 0;
   }
@@ -1016,9 +1026,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .deckpick__option--in,
-  .deckpick__option--leaving,
-  .deckpick > .skeleton--tile,
+  .deckpick__option--in > *,
+  .deckpick__option--grow,
+  .deckpick__option--leaving > *,
   .deckpick__art img {
     animation: none;
   }
@@ -1049,7 +1059,7 @@
   object-fit: cover;
   object-position: center 22%;
   /* Decoded before it is placed (`DeckArt`): a face arriving after its tile eases in rather than snapping. */
-  animation: deckpick-art-in 160ms ease-out both;
+  animation: deckpick-fade-in 160ms ease-out both;
 }
 
 /* The slice drops the card's printed credit line, so the band carries it. */

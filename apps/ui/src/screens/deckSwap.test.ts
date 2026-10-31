@@ -18,13 +18,12 @@ vi.mock('../draft/artists.ts', () => ({ artistsReady: () => true }));
 const { ART_WAIT_MS, FADE_MS, useDeckSwap } = await import('./deckSwap.ts');
 
 type Tile = { value: string; artId?: string };
+type Props = { options: Tile[]; swapKey: string; pending: boolean };
 const tiles = (...ids: string[]): Tile[] => ids.map((value) => ({ value, artId: value }));
 const values = (list: readonly Tile[]): string[] => list.map((t) => t.value);
 
-function grid(initial: { options: Tile[]; swapKey: string; pending: boolean }) {
-  return renderHook((p: { options: Tile[]; swapKey: string; pending: boolean }) => useDeckSwap(p.options, p.swapKey, p.pending), {
-    initialProps: initial,
-  });
+function grid(initial: Props) {
+  return renderHook((p: Props) => useDeckSwap(p.options, p.swapKey, p.pending, 12), { initialProps: initial });
 }
 
 beforeEach(() => {
@@ -45,12 +44,13 @@ describe('the deck grid’s change of list', () => {
     expect(result.current.leaving).toEqual([]);
   });
 
-  it('a switch fades the old tiles out, then draws the new list', () => {
+  it('a switch fades the old tiles out, keyed by their own list, then draws the new list', () => {
     const { result, rerender } = grid({ options: tiles('a', 'b'), swapKey: '2014', pending: false });
     rerender({ options: [], swapKey: '2025', pending: true });
     expect(values(result.current.leaving)).toEqual(['a', 'b']);
+    expect(result.current.leavingKey).toBe('2014');
     expect(result.current.shown).toEqual([]);
-    expect(result.current.waiting).toBe(false);
+    expect(result.current.outlines).toBe(0);
     rerender({ options: tiles('x', 'y'), swapKey: '2025', pending: false });
     expect(result.current.shown, 'not over the fade').toEqual([]);
     act(() => vi.advanceTimersByTime(FADE_MS));
@@ -58,14 +58,27 @@ describe('the deck grid’s change of list', () => {
     expect(values(result.current.shown)).toEqual(['x', 'y']);
   });
 
-  it('a list slower than the fade waits under the outlines', () => {
-    const { result, rerender } = grid({ options: tiles('a'), swapKey: '2014', pending: false });
+  it('a list slower than the fade waits under as many outlines as the grid had boxes', () => {
+    const { result, rerender } = grid({ options: tiles('a', 'b', 'c'), swapKey: '2014', pending: false });
     rerender({ options: [], swapKey: '2025', pending: true });
+    expect(result.current.outlines, 'none over the fade').toBe(0);
     act(() => vi.advanceTimersByTime(FADE_MS));
     expect(result.current.leaving).toEqual([]);
-    expect(result.current.waiting).toBe(true);
-    rerender({ options: tiles('x'), swapKey: '2025', pending: false });
-    expect(values(result.current.shown)).toEqual(['x']);
+    expect(result.current.outlines, 'the boxes the old grid had').toBe(3);
+    rerender({ options: tiles('x', 'y', 'z', 'w'), swapKey: '2025', pending: false });
+    expect(values(result.current.shown)).toEqual(['x', 'y', 'z', 'w']);
+    expect(result.current.outlines).toBe(0);
+    expect(result.current.boxes, 'the fourth tile brings its own box').toBe(3);
+  });
+
+  it('a switch made while the outlines wait keeps them, the same many', () => {
+    const { result, rerender } = grid({ options: tiles('a', 'b'), swapKey: '2014', pending: false });
+    rerender({ options: [], swapKey: '2020', pending: true });
+    act(() => vi.advanceTimersByTime(FADE_MS));
+    expect(result.current.outlines).toBe(2);
+    rerender({ options: [], swapKey: '2025', pending: true });
+    expect(result.current.leaving).toEqual([]);
+    expect(result.current.outlines).toBe(2);
   });
 
   it('the new list draws once its faces have decoded', () => {
@@ -79,7 +92,7 @@ describe('the deck grid’s change of list', () => {
 
   it('a face that never decodes holds the list for no longer than the cap', () => {
     const { result } = grid({ options: tiles('slow-1'), swapKey: '2014', pending: false });
-    expect(result.current.waiting).toBe(true);
+    expect(result.current.outlines, 'the first list waits under outlines').toBe(12);
     act(() => vi.advanceTimersByTime(ART_WAIT_MS - 1));
     expect(result.current.shown).toEqual([]);
     act(() => vi.advanceTimersByTime(1));
@@ -91,7 +104,19 @@ describe('the deck grid’s change of list', () => {
     rerender({ options: tiles('x'), swapKey: '2020', pending: false });
     rerender({ options: tiles('q'), swapKey: '2025', pending: false });
     expect(values(result.current.leaving)).toEqual(['a']);
+    expect(result.current.leavingKey).toBe('2014');
     act(() => vi.advanceTimersByTime(FADE_MS));
     expect(values(result.current.shown)).toEqual(['q']);
+  });
+
+  it('back to a list seen before, the grid fades again', () => {
+    const { result, rerender } = grid({ options: tiles('a'), swapKey: '2014', pending: false });
+    rerender({ options: tiles('x'), swapKey: '2025', pending: false });
+    act(() => vi.advanceTimersByTime(FADE_MS));
+    rerender({ options: tiles('a'), swapKey: '2014', pending: false });
+    expect(values(result.current.leaving)).toEqual(['x']);
+    expect(result.current.shown).toEqual([]);
+    act(() => vi.advanceTimersByTime(FADE_MS));
+    expect(values(result.current.shown)).toEqual(['a']);
   });
 });

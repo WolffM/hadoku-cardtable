@@ -632,8 +632,8 @@ export function DeckArt({ artId }: { artId: string | undefined }) {
   const [broken, setBroken] = useState(false);
   const artist = useArtist(artId ?? null);
   const url = artId === undefined ? null : cardImageUrl(artId);
-  const [decoded, setDecoded] = useState<string | null>(null);
-  // Before paint: a face already decoded draws on the tile's first frame.
+  // A face already decoded draws on the tile's first render: no second pass over a grid of new tiles.
+  const [decoded, setDecoded] = useState<string | null>(() => (url !== null && artReady(url, () => undefined) ? url : null));
   useLayoutEffect(() => {
     if (url === null) return;
     let live = true;
@@ -784,7 +784,7 @@ export function DeckChooser({
   /** A control drawn over a tile's corner, beside the tile's button rather than inside it. */
   tileAction?: (option: DeckOption) => ReactNode;
 }) {
-  const swap = useDeckSwap(given, swapKey, pending);
+  const swap = useDeckSwap(given, swapKey, pending, pendingTiles);
   const options = swap.shown;
   /** Where Tab lands. Null until the reader moves it, so it follows the choice. */
   const [focus, setFocus] = useState<number | null>(null);
@@ -896,55 +896,49 @@ export function DeckChooser({
         pointerAt.current = null;
       }}
     >
-      {options.map((option, index) => {
-        const tile = (
-          <DeckTile
-            key={option.value}
-            option={option}
-            checked={option.value === value}
-            role="radio"
-            className="deckpick__option--in"
-            data-testid="deck-option"
-            style={{ '--deckpick-i': Math.min(index, ENTER_STAGGERED) } as CSSProperties}
-            tabIndex={stop === index ? 0 : -1}
-            disabled={disabled}
-            ref={(el) => {
-              refs.current[index] = el;
-            }}
-            onFocus={() => setFocus(index)}
-            onClick={() => onChoose(option.value)}
-            onPointerEnter={(event) => {
-              if (event.pointerType !== 'touch' && option.list !== undefined) openPeekSoon(index);
-            }}
-            onPointerLeave={hover.closeSoon}
-            // A press is a choice made: the list it was read from goes, and comes back on the next hover.
-            onPointerDown={hover.close}
-            aria-describedby={peek?.key === index ? 'deck-peek' : undefined}
-          />
-        );
+      {[...options.map((option, index) => ({ option, index })), ...swap.leaving.map((option) => ({ option, index: -1 }))].map(({ option, index }) => {
+        // One array, keyed by list: an old tile keeps its element while it fades, and a new one always cascades in.
+        const key = `${index < 0 ? swap.leavingKey : swapKey}:${option.value}`;
+        const tile =
+          index < 0 ? (
+            // The last list going: no deck id, no focus, no press — a picture of the grid as it was.
+            <DeckTile key={key} option={option} className="deckpick__option--leaving" data-deck-id={undefined} tabIndex={-1} aria-hidden="true" inert />
+          ) : (
+            <DeckTile
+              key={key}
+              option={option}
+              checked={option.value === value}
+              role="radio"
+              className={index < swap.boxes ? 'deckpick__option--in' : 'deckpick__option--in deckpick__option--grow'}
+              data-testid="deck-option"
+              style={{ '--deckpick-i': Math.min(index, ENTER_STAGGERED) } as CSSProperties}
+              tabIndex={stop === index ? 0 : -1}
+              disabled={disabled}
+              ref={(el) => {
+                refs.current[index] = el;
+              }}
+              onFocus={() => setFocus(index)}
+              onClick={() => onChoose(option.value)}
+              onPointerEnter={(event) => {
+                if (event.pointerType !== 'touch' && option.list !== undefined) openPeekSoon(index);
+              }}
+              onPointerLeave={hover.closeSoon}
+              // A press is a choice made: the list it was read from goes, and comes back on the next hover.
+              onPointerDown={hover.close}
+              aria-describedby={peek?.key === index ? 'deck-peek' : undefined}
+            />
+          );
         return tileAction === undefined ? (
           tile
         ) : (
-          <div key={option.value} className="deckpick__cell">
+          <div key={key} className="deckpick__cell">
             {tile}
-            {tileAction(option)}
+            {index >= 0 && tileAction(option)}
           </div>
         );
       })}
-      {/* The last list going: no deck id, no focus, no press — a picture of the grid as it was. */}
-      {swap.leaving.map((option) => (
-        <DeckTile
-          key={`leaving:${option.value}`}
-          option={option}
-          className="deckpick__option--leaving"
-          data-deck-id={undefined}
-          tabIndex={-1}
-          aria-hidden="true"
-          inert
-        />
-      ))}
-      {swap.waiting && <SkeletonTiles count={pendingTiles} />}
-      {!swap.waiting && swap.leaving.length === 0 && options.length === 0 && empty !== undefined && (
+      {swap.outlines > 0 && <SkeletonTiles count={swap.outlines} />}
+      {swap.outlines === 0 && swap.leaving.length === 0 && options.length === 0 && empty !== undefined && (
         <p className="deckpick__empty" data-testid="deck-none">
           {empty}
         </p>
