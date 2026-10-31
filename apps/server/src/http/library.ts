@@ -1,6 +1,6 @@
 /**
  * The formats and decks a constructed match can be started from, read off disk
- * once at boot.
+ * once: the decks at boot, each era's pool at boot or on first use (`pools`).
  *
  * ## Where they come from
  *
@@ -43,6 +43,8 @@
  * broken deck file is an artifact to fix, and a process that will not boot over
  * one is a worse failure than a picker missing one entry — as long as the
  * missing entry is SAID somewhere, which is what `faults` and the boot log are.
+ * An era read on first use (`pools: 'later'`) is left out the same way, when it
+ * is read: `formats` and `faults` are live, and `warm()` reads the rest.
  *
  * ## Wave 48 §U: a format's `id` is no longer always its date
  *
@@ -97,19 +99,35 @@ export interface TableDeck {
 }
 
 export interface TablesLibrary {
-	/** In date order, oldest first. */
+	/** In date order, oldest first. Live: an era whose pool does not load leaves it when it is read. */
 	readonly formats: readonly TableFormat[];
 	/** In catalog order. */
 	readonly decks: readonly TableDeck[];
-	/** Every file that did not load, and why. Empty is healthy. */
+	/** Every file that did not load, and why. Empty is healthy. Live, like `formats`. */
 	readonly faults: readonly string[];
+	/** An era, its pool read if it was not yet — `undefined` for one that is not catalogued or did not load. */
 	format(id: string): TableFormat | undefined;
 	deck(id: string): TableDeck | undefined;
 }
 
+/** A library as `loadTablesLibrary` hands it to its owner, who decides when the rest is read. */
+export interface LoadedTablesLibrary extends TablesLibrary {
+	/** Read every era's pool not yet read, one file per turn of the event loop, and answer the faults. */
+	warm(): Promise<readonly string[]>;
+}
+
+export interface LoadTablesLibraryOptions {
+	/**
+	 * `'now'` (the default) reads every era's pool before returning. `'later'` reads one only when
+	 * something asks for it, or when `warm()` gets to it: 46 MB of JSON parsed and checked
+	 * synchronously is the slowest step of a boot, and the server must listen without it.
+	 */
+	pools?: 'now' | 'later';
+}
+
 /**
- * Read every catalogued era's frozen pool, and every catalogued deck, under
- * `repoRoot`.
+ * Read every catalogued deck under `repoRoot`, and every catalogued era's frozen pool now or on
+ * first use (`options.pools`).
  *
  * `library` is injectable so a test can hand in a catalog that points at a
  * broken file, or at a shorter list of eras than production's; production
@@ -118,7 +136,8 @@ export interface TablesLibrary {
 export function loadTablesLibrary(
 	repoRoot: string,
 	library: readonly LibraryCollection[] = LIBRARY,
-): TablesLibrary {
+	options: LoadTablesLibraryOptions = {},
+): LoadedTablesLibrary {
 	const faults: string[] = [];
 
 	// Exactly the catalogued eras' own (family, date) pairs — never a directory
@@ -133,15 +152,44 @@ export function loadTablesLibrary(
 		if (!keys.has(id)) keys.set(id, { family: collection.family, date: collection.date });
 	}
 	const formats: TableFormat[] = [];
+	const formatById = new Map<string, TableFormat>();
+	const read = new Map<string, { fixture: PoolFixture; pool: FormatPool }>();
+	const pending = new Map<string, () => boolean>();
 	for (const [id, { family, date }] of keys) {
 		const path = join(repoRoot, poolFixturePath(date, family));
-		try {
-			const fixture = parsePoolFixture(JSON.parse(readFileSync(path, 'utf8')) as unknown);
-			formats.push({ id, family, fixture, pool: poolFromFixture(fixture) });
-		} catch (err) {
-			faults.push(`${path}: ${(err as Error).message}`);
-		}
+		// True when the era's pool is in hand; a pool that will not load is a fault and takes its era out.
+		const load = (): boolean => {
+			pending.delete(id);
+			try {
+				const fixture = parsePoolFixture(JSON.parse(readFileSync(path, 'utf8')) as unknown);
+				read.set(id, { fixture, pool: poolFromFixture(fixture) });
+				return true;
+			} catch (err) {
+				faults.push(`${path}: ${(err as Error).message}`);
+				formats.splice(formats.indexOf(format), 1);
+				formatById.delete(id);
+				return false;
+			}
+		};
+		const loaded = (): { fixture: PoolFixture; pool: FormatPool } => {
+			if (!read.has(id) && !(pending.get(id)?.() ?? false)) throw new Error(`era ${id} has no pool (the library's faults say why)`);
+			return read.get(id)!;
+		};
+		const format: TableFormat = {
+			id,
+			family,
+			get fixture() {
+				return loaded().fixture;
+			},
+			get pool() {
+				return loaded().pool;
+			},
+		};
+		formats.push(format);
+		formatById.set(id, format);
+		pending.set(id, load);
 	}
+	if (options.pools !== 'later') for (const load of [...pending.values()]) load();
 
 	const decks: TableDeck[] = [];
 	for (const collection of library) {
@@ -156,14 +204,23 @@ export function loadTablesLibrary(
 		}
 	}
 
-	const formatById = new Map(formats.map((f) => [f.id, f]));
 	const deckById = new Map(decks.map((d) => [d.id, d]));
 	return {
 		formats,
 		decks,
 		faults,
-		format: (id) => formatById.get(id),
+		format: (id) => {
+			pending.get(id)?.();
+			return formatById.get(id);
+		},
 		deck: (id) => deckById.get(id),
+		async warm() {
+			for (const id of [...pending.keys()]) {
+				await new Promise((resolveTurn) => setImmediate(resolveTurn));
+				pending.get(id)?.();
+			}
+			return faults;
+		},
 	};
 }
 

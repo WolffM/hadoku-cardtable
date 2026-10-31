@@ -76,7 +76,7 @@ import { CONFIG, INDEX_HTML } from './config.js';
 import { edgeProvenance, requireMinTier, tierOf, userIdOf } from './edge-auth.js';
 import { checkBundle, diagnosticPage, isEmbedEntry, sendIndex } from './base-path.js';
 import { announceRelease } from './announce.js';
-import { restoreRooms, sweepRooms } from './boot.js';
+import { bootClock, restoreRooms, sweepRooms } from './boot.js';
 import { DEFAULT_CUBE_ID, DEFAULT_PLAN, stateOf, type PoolSourceResolver } from './room/draftRooms.js';
 import { checkCards, checkPlan } from './room/plan.js';
 import type { DraftPlan, PoolVerdict, TableGame } from '@hadoku/shared';
@@ -121,6 +121,9 @@ import { createKeyBook, createMatchStats, createStatsReporter } from './stats/in
 import { recordMatch } from '@wolffm/prefs-client/games';
 
 mkdirSync(CONFIG.logDir, { recursive: true });
+// Every step from here to `listen`, timed (`boot.ts`'s `bootClock`).
+const bootPhase = bootClock(jsonLogger('cardtable'));
+bootPhase('imports');
 
 const app = express();
 app.set('trust proxy', true);
@@ -139,6 +142,7 @@ app.disable('x-powered-by');
 // started under a dot-directory report `unservable` instead of a green probe
 // over a 404 on every page. See base-path.ts.
 const basePath = await checkBundle(INDEX_HTML, CONFIG.basePrefix);
+bootPhase('bundle');
 
 // ── Provenance + access log ──────────────────────────────────────────────────
 app.use(edgeProvenance);
@@ -341,12 +345,15 @@ app.get(/.*/, (_req: Request, res: Response, next: NextFunction) => {
 
 // ── Rooms ───────────────────────────────────────────────────────────────────
 // ── The library ──────────────────────────────────────────────────────────────
-// Every catalogued era's frozen pool and every library deck, read once, here,
-// before the server listens: ~16 MB of JSON parsed synchronously, which on a
-// request path blocks every room, match and socket for most of a second. Both
-// readers share this one copy — the lobby draws a new room's era from its
-// `formats` (so a pool fixture that failed to parse, which lands in `faults`,
-// is never a room's era), and `attachTables` serves it.
+// Every library deck, read here, and every catalogued era's frozen pool, read
+// AFTER the server listens (`library.warm()` in the listen callback) or when a
+// request asks for that era first. The pools are 46 MB of JSON parsed and
+// checked synchronously: the slowest step of a boot by far (~2 s on hokon), and
+// on a loaded claw the step a boot sat in for 30 s without listening. Warmed one
+// file per turn of the event loop, so no request waits on more than one era.
+// Both readers share this one copy — the lobby draws a new room's era from its
+// `formats` (live: a pool fixture that fails to parse lands in `faults` and
+// leaves `formats` when it is read), and `attachTables` serves it.
 //
 // `PKG_ROOT` is computed the way `config.ts` computes it, and it has to be:
 // `dist/index.js` and `src/index.ts` are both exactly one directory below the
@@ -354,7 +361,8 @@ app.get(/.*/, (_req: Request, res: Response, next: NextFunction) => {
 // and `tsx`. A module one level deeper could not do this.
 const PKG_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const REPO_ROOT = resolve(PKG_ROOT, '../..');
-const library = loadTablesLibrary(REPO_ROOT);
+const library = loadTablesLibrary(REPO_ROOT, undefined, { pools: 'later' });
+bootPhase('library');
 
 // ── Forge availability ───────────────────────────────────────────────────────
 // Read once, here rather than down by `attachPlay` where it used to live:
@@ -388,6 +396,7 @@ const tournaments = await openTournaments(
 );
 // The front page's calendar; an event's room is the lobby's own.
 const events = await openEvents(CONFIG.eventsFile, roomsLog);
+bootPhase('tournaments-events');
 // ── Match stats ──────────────────────────────────────────────────────────────
 // A finished room match is reported with this server's service key; without
 // one, nothing is recorded. Its start is read from the room and the match at
@@ -423,8 +432,10 @@ const matchStats = createMatchStats({
 // it to be the import dir directly, not a parent of one.
 const SHORTLIST_DIR = resolve(PKG_ROOT, 'pools/cubes');
 const catalog = loadCardCatalog(CONFIG.catalogPath);
+bootPhase('catalog');
 const cubeStore = createCubeStore({ shortlistDir: SHORTLIST_DIR, importDir: CONFIG.cubesDir, catalog });
 if (cubeStore.list().length === 0) console.warn(`[cardtable] draft pool: no shortlist cubes loaded from ${SHORTLIST_DIR} — draft rooms are disabled`);
+bootPhase('cubes');
 
 // The pool service's own long-lived JVM (`play/bridge/PoolService.java`),
 // never the match bridge — a pool request can never stall a game. `null`
@@ -445,6 +456,7 @@ const forgePools: ForgePools | null = forge.ok
 // for the warm-up it joins. `[]` without a jar, no warming to do.
 const setsStore = createSetsStore({ forge: forgePools, catalog, log: jsonLogger('cardtable-pools') });
 void warmSetsStore(setsStore);
+bootPhase('pools');
 
 const poolResolver: PoolSourceResolver = {
 	cards(src) {
@@ -522,6 +534,7 @@ const { lobby, draftRooms } = await restoreRooms({
 // draft room is read again once they arrive. Wired before `listen`, so no
 // view can have been served without this listener in place.
 setsStore.onNamed(() => lobby.poolNamesChanged());
+bootPhase('rooms');
 // The seeded, admin-only testing rooms (the operator: "set up some testing
 // rooms for me … in a separate room section … admin only visible"). Idempotent
 // by name (`seedTestingRooms`'s own doc), so calling it again — at boot, and
@@ -615,6 +628,7 @@ attachSounds(api, {
 attachTrim(api, { file: resolve(CONFIG.dataDir, 'trim.json') });
 // Client telemetry from a screen with no match: the front page's scroll smoothness (`http/client-events.ts`).
 attachClientEvents(api);
+bootPhase('routes');
 
 const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {
@@ -709,6 +723,7 @@ const catalogRefresh = createCatalogRefresh({
 });
 const stopCatalogRefresh = CONFIG.catalogRefresh ? catalogRefresh.start() : (): void => undefined;
 if (!CONFIG.catalogRefresh) console.log('[cardtable] catalog refresh disabled (CARDTABLE_CATALOG_REFRESH=0)');
+bootPhase('tables');
 
 // ── Matches ──────────────────────────────────────────────────────────────────
 // One child JVM per match; see src/play/README.md. Without a configured Forge
@@ -740,6 +755,7 @@ const recorder = createRecorder({
 const RECORDINGS_SWEEP_MS = 60 * 60_000;
 sweepRecordings(RECORDINGS_DIR, Date.now(), recordingsLog);
 setInterval(() => sweepRecordings(RECORDINGS_DIR, Date.now(), recordingsLog), RECORDINGS_SWEEP_MS).unref();
+bootPhase('recordings');
 // Wave 78 §A (recording/rebuild.ts): a match whose public stream has expired is rebuilt on its
 // own JVM, through a SEPARATE same-sized boot queue from `attachPlay`'s own — `play/socket.ts`
 // does not expose its internal `queueColdStarts` wrapper — but `rebuild.ts`'s own "one rebuild at
@@ -814,12 +830,14 @@ play = attachPlay(io, api, {
 });
 // Failover restores through the registry, which exists only now.
 if (clawHosts !== null) clawHosts.restoreWith(registryRestorer(play.matches));
+bootPhase('play');
 // Once `attachPlay` has adopted every match an earlier server left running — the host finds
 // them asynchronously, and a room must not be told its match is gone before then (a deploy
 // cleared a live match's table that way, so an avatar change after it reached no match) — a
 // room still pointing at one that did not come back can let go of it.
 await play.adopted;
 tables.releaseGoneMatches();
+bootPhase('adopted');
 
 // ── Rooms are not immortal, and neither is a game ────────────────────────────
 // `create` had no opposite for its whole life: no leave, no close, no expiry,
@@ -988,6 +1006,11 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 // ── Listen ───────────────────────────────────────────────────────────────────
 httpServer.listen(CONFIG.port, CONFIG.host, () => {
 	console.log(`[cardtable] listening on ${CONFIG.host}:${CONFIG.port}`);
+	bootPhase('listen');
+	const warmedFrom = performance.now();
+	void library.warm().then((faults) => {
+		jsonLogger('cardtable')({ evt: 'library-warmed', formats: library.formats.length, ms: Math.round(performance.now() - warmedFrom), faults });
+	});
 	console.log(`[cardtable] tier floor: ${CONFIG.minTier}`);
 	console.log(`[cardtable] browser bridge on ${browserBridge.path} (same floor, re-applied at the upgrade)`);
 	if (cubeStore.list().length > 0) {
