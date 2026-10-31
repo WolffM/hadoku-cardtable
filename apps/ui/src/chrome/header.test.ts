@@ -110,7 +110,8 @@ describe('the GitHub link', () => {
 /*
  * 2026-10-30: the operator made the fleet's popout the one place for settings
  * (after 2026-10-10 had moved the game's out of it). The game's sections sit in
- * its "App preferences" slot, and no screen draws a gear of its own.
+ * its "App" tab (task-ui-components 4.22+: the popout is tabbed), and no screen draws a gear
+ * of its own.
  */
 describe('the game’s settings are in the header’s popout', () => {
   it('holds every section under the fleet’s own rows, and the screen draws no second gear', () => {
@@ -119,8 +120,10 @@ describe('the game’s settings are in the header’s popout', () => {
     fireEvent.click(screen.getByRole('button', { name: 'User settings' }));
     const popout = document.querySelector('.settings-popout__panel');
     expect(popout, 'the fleet’s popout opened').not.toBeNull();
-    const app = popout!.querySelector('.settings-popout__app');
-    expect(app, 'under its App preferences').not.toBeNull();
-    expect([...app!.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Game', 'Sound', 'Display']);
+    // Since task-ui-components 4.22 the popout is tabbed: the game's panel is its "App" tab.
+    fireEvent.click(screen.getByRole('tab', { name: 'App' }));
+    const app = screen.getByRole('tabpanel');
+    expect(popout!.contains(app), 'under its App tab').toBe(true);
+    expect([...app.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Game', 'Sound', 'Display']);
   });
 });
