@@ -19,7 +19,7 @@ import { resolve } from 'node:path';
 
 import { chromium, type Browser, type BrowserContext } from '@playwright/test';
 
-import { SESSION_COOKIE } from '../identities.ts';
+import { FRIENDS, SESSION_COOKIE } from '../identities.ts';
 import type { Friend } from '../play/browser.ts';
 import { PLAY_EDGE_ORIGIN, RUN_DIR } from '../play/harness.ts';
 import { registerFriendContext } from '../play/open-friends.ts';
@@ -34,6 +34,8 @@ export const PROMO_DIR = resolve(RUN_DIR, 'promo');
 export const HERO = 'ashgrove';
 export const RIVAL = 'nightjar';
 export const TAGS: Record<string, string> = { ashgrove: 'Ashgrove', nightjar: 'Nightjar', vexmoor: 'Vexmoor', lumen: 'Lumen' };
+/** Each tag's watchparty sprite: the hero is Fern (`mage`) and the rival Himmel (`herald`), as the operator asked. */
+export const AVATARS: Record<string, string> = { ashgrove: 'mage', nightjar: 'herald', vexmoor: 'sage', lumen: 'knight' };
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -143,19 +145,29 @@ export async function openPromoFriend(browser: Browser, name: string, opts: { fi
   await keepPrefsLocal(context, PLAY_EDGE_ORIGIN);
   await setPlayFastModeDefault(context, false);
   // No match music in the clips: the trailer lays one bed under all of them (`mute.ts`'s level key).
-  await context.addInitScript(() => {
-    try {
-      localStorage.setItem('cardtable.sound.music', '0');
-    } catch (err) {
-      console.warn(`[promo] could not silence the match music: ${String(err)}`);
-    }
-  });
+  // And the friend's avatar, where watchparty's picker leaves it (`room/avatar.ts`'s `selectedAvatarId`).
+  const userId = FRIENDS[name]?.userId ?? null;
+  await context.addInitScript(
+    ({ userId, sprite }) => {
+      try {
+        localStorage.setItem('cardtable.sound.music', '0');
+        if (userId !== null && sprite !== null) {
+          localStorage.setItem(`prefs-cache:${userId}:watchparty`, JSON.stringify({ blob: { sprite }, userVersion: 1, deviceVersion: 1, cachedAt: Date.now() }));
+        }
+      } catch (err) {
+        console.warn(`[promo] could not set the local prefs: ${String(err)}`);
+      }
+    },
+    { userId, sprite: AVATARS[name] ?? null },
+  );
   const page = await context.newPage();
   if (opts.filmed === true) {
     // `--kiosk` is not honoured under Playwright; the window's own fullscreen hides the browser's chrome.
     const cdp = await context.newCDPSession(page);
     const { windowId } = (await cdp.send('Browser.getWindowForTarget')) as { windowId: number };
     await cdp.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'fullscreen' } });
+    // Chromium's "To exit full screen, press F11" bubble shows for a few seconds: wait it out off camera.
+    await page.waitForTimeout(4_500);
   }
   registerFriendContext(context);
   // A card drawn as a blank ◆ is art that never arrived: say which.
@@ -172,7 +184,13 @@ export async function openPromoFriend(browser: Browser, name: string, opts: { fi
     // The e2e edge serves no watchparty sprites, so portraits fell back to initials (w79d, item 12):
     // the same sprite from production, which serves it publicly.
     if (url.hostname === '127.0.0.1' && url.pathname.startsWith('/watchparty/media/sprites/')) {
-      return route.fulfill({ response: await route.fetch({ url: `https://hadoku.me${url.pathname}` }) });
+      // Without the page's 127.0.0.1 Referer: production refuses a hotlink from another origin (403).
+      const headers = Object.fromEntries(Object.entries(req.headers()).filter(([k]) => k !== 'referer' && k !== 'origin'));
+      return route.fulfill({ response: await route.fetch({ url: `https://hadoku.me${url.pathname}`, headers }) });
+    }
+    // The e2e edge serves no `/session/whoami` either, and without it the room never asserts the avatar.
+    if (url.hostname === '127.0.0.1' && url.pathname.endsWith('/session/whoami') && userId !== null) {
+      return route.fulfill({ json: { valid: true, userId, userType: 'friend', name: TAGS[name] ?? name } });
     }
     if (url.hostname === '127.0.0.1' || req.resourceType() === 'image' || req.resourceType() === 'font' || IMAGE.test(url.pathname)) return route.continue();
     friend.blocked.push(url.href);
