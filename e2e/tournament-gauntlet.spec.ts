@@ -73,9 +73,13 @@ test(
       const patched = await alice.context.request.patch(`${stack.origin}${PREFIX}/api/rooms/${roomId}`, { data: { settings: { tournament: true, tournamentDecks: 'locked' } } });
       expect(patched.status(), await patched.text()).toBe(200);
       expect(((await patched.json()) as { settings: { tournamentDecks: string } }).settings.tournamentDecks, 'a Gauntlet tournament reads per-round').toBe('per-round');
-      // Nor does its room offer the choice: a Gauntlet's rules have nothing else, so it draws no Rules button.
+      // Nor does its room offer the choice: its Match rules (a tournament's chess clock) hold no deck policy.
       await expect(bob.page.getByTestId('tournament-lobby')).toBeVisible({ timeout: 15_000 });
-      await expect(bob.page.getByTestId('match-rules'), 'a Gauntlet tournament offers no Decks locked').toHaveCount(0);
+      await bob.page.getByTestId('match-rules').click();
+      await expect(bob.page.getByTestId('match-rules-popover')).toBeVisible();
+      await expect(bob.page.getByTestId('tournament-decks'), 'a Gauntlet tournament offers no Decks locked').toHaveCount(0);
+      await bob.page.keyboard.press('Escape');
+      await expect(bob.page.getByTestId('match-rules-popover')).toHaveCount(0);
 
       // Alice seat 0, Bob seat 1, two AI seats 2 and 3 — round 1's "across the table" pairing
       // (`@hadoku/draft`'s `round1`) splits [alice, bob, ai:2, ai:3] in half and pairs each top
