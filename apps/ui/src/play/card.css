@@ -1703,6 +1703,40 @@
   margin-top: 6px;
 }
 
+/*
+ * The opponent's bar mirrors the viewer's down to the face (the operator, 2026-10-30: "enemy time,
+ * enemy life, enemy profile, my profile, my life, my time"): their mark is at the bottom, against
+ * the centre line, with the life total and the clock above it, and the name outermost. The ring
+ * and the emblems' orbit follow the mark to the bottom of its box.
+ */
+.seat:not([data-viewer]) .seat__ident,
+.seat:not([data-viewer]) .seat__ident .face__hit {
+  flex-direction: column-reverse;
+}
+
+.seat:not([data-viewer]) .seat__ident .seat__ring {
+  inset: auto auto 0 50%;
+}
+
+.seat:not([data-viewer]) .seat__ident .face__emblems {
+  top: auto;
+  bottom: 0;
+}
+
+.seat:not([data-viewer]) .seat__ident .face__vitals {
+  margin-top: 0;
+  margin-bottom: 6px;
+}
+
+/* The two marks meet at the centre line: each bar keeps room on its centre side so the rings stand apart. */
+.seat[data-viewer] .seat__ident {
+  padding-top: 16px;
+}
+
+.seat:not([data-viewer]) .seat__ident {
+  padding-bottom: 16px;
+}
+
 /* The same badge as the life total's, in the warning ink: ten of it ends the game the way losing does. */
 .face__poison {
   display: inline-flex;
