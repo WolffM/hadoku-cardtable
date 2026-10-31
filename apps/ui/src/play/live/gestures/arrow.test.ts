@@ -3,7 +3,7 @@
  * curve with its head along the tangent at the tip, drawn as a tapered ribbon.
  */
 import { describe, expect, it } from 'vitest';
-import { ADJACENT_PX, ARC_MIN, GHOST, HOP_MIN, SOLID, SPREAD, TIP_INSET, aimAt, aimBetween, arrowShape } from './arrow.ts';
+import { ADJACENT_PX, ARC_MIN, GHOST, HOP_MIN, ORIGIN_DOWN, SOLID, SPREAD, TIP_INSET, aimAt, aimBetween, arrowShape } from './arrow.ts';
 
 function parse(d: string): { x1: number; y1: number; cx: number; cy: number; x2: number; y2: number } {
   const n = d.replace(/[MQ]/g, ' ').trim().split(/\s+/).map(Number);
@@ -178,24 +178,27 @@ describe('aimBetween: an arrow between two stack cards', () => {
     expect(arcOf(aim), 'its middle stands well off the chord').toBeGreaterThanOrEqual(ARC_MIN / 2 - 0.01);
   });
 
-  it('a rightward hop leaves from the top edge and lands on the target\'s middle, which no neighbour covers: the arc bows up, over both cards', () => {
-    const own = card(100, 300);
-    const to = card(244, 300);
-    const aim = aimBetween(own, to);
-    expect(aim.from.y).toBe(300);
-    expect(aim.tip).toEqual({ x: 302, y: 380.5 });
-    expect(parse(arrowShape(aim.from.x, aim.from.y, aim.tip.x, aim.tip.y).d).cy, 'bows up, away from the cards').toBeLessThan(300);
+  it.each([
+    ['to its right', card(100, 300), card(244, 300)],
+    ['to its left', card(400, 300), card(300, 300)],
+    ['above it', card(100, 300), card(110, 140)],
+    ['below it', card(100, 300), card(90, 480)],
+    ['far away', card(100, 300), card(600, 300)],
+    ['under it', card(100, 300), card(104, 302)],
+  ])('a target %s: the arrow leaves from the card\'s top centre, a quarter of its height down', (_, own, to) => {
+    expect(aimBetween(own, to).from).toEqual({ x: own.left + 58, y: 300 + 161 * ORIGIN_DOWN });
   });
 
-  it('a leftward hop runs along the bottom edges: its bow is down, still clear of the cards', () => {
-    const aim = aimBetween(card(400, 300), card(300, 300));
-    expect(Math.abs(aim.from.y - 461), 'from the bottom edge (spread a little to HOP_MIN)').toBeLessThan(5);
-    expect(parse(arrowShape(aim.from.x, aim.from.y, aim.tip.x, aim.tip.y).d).cy).toBeGreaterThan(461);
+  it('a close target is landed on at its middle, which no neighbour covers', () => {
+    expect(aimBetween(card(100, 300), card(244, 300)).tip).toEqual({ x: 302, y: 380.5 });
   });
 
-  it('a target far enough away is aimed at as before: from the facing edge to just inside its own', () => {
-    const own = card(100, 300);
+  it('a target far enough away is aimed at as before: just inside its own nearest edge', () => {
     const to = card(600, 300);
-    expect(aimBetween(own, to)).toEqual(aimAt({ x: 216, y: 380.5 }, to, { neighbours: false }));
+    expect(aimBetween(card(100, 300), to)).toEqual(aimAt({ x: 158, y: 340.25 }, to, { neighbours: false }));
+  });
+
+  it('two cards on top of each other: the arrow runs down across the target, HOP_MIN long', () => {
+    expect(aimBetween(card(100, 300), card(100, 300))).toEqual({ from: { x: 158, y: 340.25 }, tip: { x: 158, y: 460.25 } });
   });
 });

@@ -208,14 +208,21 @@ test(titled('promo-counterwar at 1920×1080: every stack arrow is a readable hop
       const read = await p.evaluate(() => ({
         arrows: [...document.querySelectorAll<SVGSVGElement>('.placed__arrow[data-key*=":stack:"]')].map((svg) => {
           const n = (svg.querySelector('.arrow__spine')?.getAttribute('d') ?? '').replace(/[MQ]/g, ' ').trim().split(/\s+/).map(Number);
-          return { key: svg.getAttribute('data-key') ?? '', chord: Math.hypot(n[4]! - n[0]!, n[5]! - n[1]!), bow: Math.hypot(n[2]! - (n[0]! + n[4]!) / 2, n[3]! - (n[1]! + n[5]!) / 2) };
+          const key = svg.getAttribute('data-key') ?? '';
+          const at = svg.getBoundingClientRect();
+          const own = document.querySelector(`[data-stack-id="${key.split(':')[0]}"]`)?.getBoundingClientRect();
+          // How far the tail is from the card's top centre a quarter down (`arrow.ts`'s ORIGIN_DOWN).
+          const off = own === undefined ? Infinity : Math.hypot(n[0]! + at.left - (own.left + own.width / 2), n[1]! + at.top - (own.top + own.height / 4));
+          return { key, off, chord: Math.hypot(n[4]! - n[0]!, n[5]! - n[1]!), bow: Math.hypot(n[2]! - (n[0]! + n[4]!) / 2, n[3]! - (n[1]! + n[5]!) / 2) };
         }),
         brackets: document.querySelectorAll('.placed__arrow .arrow__mark, [data-testid="targeter-committed"] .arrow__mark, [data-testid="stack-target-arrow"] .arrow__mark').length,
       }));
-      console.log(`[w87b-counterwar] ${who}: ${read.arrows.map((a) => `${a.key} chord ${Math.round(a.chord)} bow ${Math.round(a.bow)}`).join(' | ')}; brackets ${read.brackets}`);
+      console.log(`[w87b-counterwar] ${who}: ${read.arrows.map((a) => `${a.key} chord ${Math.round(a.chord)} bow ${Math.round(a.bow)} origin off ${a.off.toFixed(1)}`).join(' | ')}; brackets ${read.brackets}`);
       expect.soft(read.arrows.length, `${who}: Counterspell → Oko and Swan Song → Counterspell`).toBe(2);
       // `arrow.ts`'s HOP_MIN (120) and ARC_MIN (56): long enough for a whole head, bowed enough to read as an arc.
       expect.soft(read.arrows.filter((a) => a.chord < 119 || a.bow < 55).map((a) => a.key), `${who}: every stack arrow at least a hop long, with a real arc`).toEqual([]);
+      // The operator, 2026-10-31: "closer to the 12 o-clock position but 50% inward".
+      expect.soft(read.arrows.filter((a) => a.off > 2).map((a) => a.key), `${who}: every stack arrow leaves from its card's top centre, a quarter down`).toEqual([]);
       expect.soft(read.brackets, `${who}: no corner brackets on a committed target`).toBe(0);
     }
   } finally {

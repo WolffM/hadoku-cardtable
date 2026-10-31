@@ -1265,8 +1265,8 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         if (target !== undefined && !target.leaving) targets.push({ key: `${item.id}:stack:${item.targetStackItemId}`, to: target.el, box: settledBoxes.get(item.targetStackItemId) });
       }
       if (targets.length === 0) continue;
-      // From the card's own edge to just inside its target's, drawn over the stack (`placed.css`): a near
-      // target is hopped over to (`aimBetween`), never pointed at with a stub.
+      // From the card's top centre to just inside its target, drawn over the stack (`placed.css`): a near
+      // target is landed on at its middle (`aimBetween`), never pointed at with a stub.
       const own = settledBoxes.get(item.id) ?? rectOf(d.el);
       for (const { key, to, box } of targets) aims.push({ key, item: item.id, to, aimed: aimBetween(own, box ?? rectOf(to)) });
     }

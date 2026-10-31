@@ -498,49 +498,44 @@ export function aimAt(
 }
 
 /**
- * An arrow shorter than this hops over the cards instead (`aimBetween`): room for a whole head
- * (`SOLID.head`) and an arc that reads as one.
+ * The shortest arrow between stack cards (`aimBetween`): room for a whole head (`SOLID.head`) and an
+ * arc that reads as one.
  */
 export const HOP_MIN = 120;
 
 type Box = { left: number; top: number; right: number; bottom: number };
 
 /**
- * The arrow from the card `own` to the box `to`, both drawn on the stack's layer: from `own`'s edge
- * facing its target to just inside the target (`aimAt`). When that would be shorter than `HOP_MIN` —
- * two stack cards side by side, or overlapping (the operator, 2026-10-30, on a counter war: *"the
- * arrows are too small and they look weird. probably because the cards are too close"*) — it HOPS:
- * from the middle of one edge of `own`, the edge on the side the arrow bows to (`arrowShape`: a
- * rightward arrow arcs up, a leftward one down, an upward one left, a downward one right), so the arc
- * rises clear of both cards with its head whole, down onto the target's middle. Stack cards overlap
- * at their edges (`placed.ts`'s `STACK_CORE`), so an edge of the target may be under a neighbour; its
- * middle never is. A hop is never
- * shorter than `HOP_MIN` along that edge: two cards nearly on top of each other get it spread either
- * side of their middle.
+ * How far down its card a stack arrow starts, as a share of the card's height: the top centre,
+ * pulled halfway in from the edge toward the middle. The operator, 2026-10-31, on a counter war: *"why
+ * is it on the left side of the card? i feel like it would make more sense to have it be closer to
+ * the 12 o-clock position but 50% inward."*
+ */
+export const ORIGIN_DOWN = 0.25;
+
+/**
+ * The arrow from the card `own` to the box `to`, both drawn on the stack's layer. It always leaves
+ * from `own`'s top centre, `ORIGIN_DOWN` of the way down, whichever way its target lies, and lands
+ * just inside the target (`aimAt`). When that would be shorter than `HOP_MIN` — two stack cards side
+ * by side, or overlapping (the operator, 2026-10-30: *"the arrows are too small and they look weird.
+ * probably because the cards are too close"*) — it lands on the target's middle instead: stack cards
+ * overlap at their edges (`placed.ts`'s `STACK_CORE`), so an edge of the target may be under a
+ * neighbour; its middle never is. A middle nearer than `HOP_MIN` is reached past, along the same
+ * line, so the head stays whole.
  */
 export function aimBetween(own: Box, to: Box): { from: Point; tip: Point } {
-  const a = { x: (own.left + own.right) / 2, y: (own.top + own.bottom) / 2 };
-  const b = { x: (to.left + to.right) / 2, y: (to.top + to.bottom) / 2 };
-  const from = edgeNearest(own, b);
+  const from = { x: (own.left + own.right) / 2, y: own.top + (own.bottom - own.top) * ORIGIN_DOWN };
   if (!within(to, from)) {
     const straight = aimAt(from, to, { neighbours: false });
-    if (Math.hypot(straight.tip.x - straight.from.x, straight.tip.y - straight.from.y) >= HOP_MIN) return straight;
+    if (Math.hypot(straight.tip.x - from.x, straight.tip.y - from.y) >= HOP_MIN) return straight;
   }
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  if (Math.abs(dx) >= Math.abs(dy)) {
-    const [x0, x1] = apart(a.x, b.x, HOP_MIN, dx >= 0 ? 1 : -1);
-    return { from: { x: x0, y: dx >= 0 ? own.top : own.bottom }, tip: { x: x1, y: b.y } };
-  }
-  const [y0, y1] = apart(a.y, b.y, HOP_MIN, dy < 0 ? -1 : 1);
-  return { from: { x: dy < 0 ? own.left : own.right, y: y0 }, tip: { x: b.x, y: y1 } };
-}
-
-/** `p` and `q` along one edge, spread evenly about their middle to at least `min` apart, `p` before `q` in `sign`'s direction. */
-function apart(p: number, q: number, min: number, sign: 1 | -1): [number, number] {
-  if ((q - p) * sign >= min) return [p, q];
-  const mid = (p + q) / 2;
-  return [mid - (sign * min) / 2, mid + (sign * min) / 2];
+  const dx = (to.left + to.right) / 2 - from.x;
+  const dy = (to.top + to.bottom) / 2 - from.y;
+  const d = Math.hypot(dx, dy);
+  if (d >= HOP_MIN) return { from, tip: { x: from.x + dx, y: from.y + dy } };
+  // Two cards on top of each other have no line between them: down, across the target.
+  const [ux, uy] = d < 1 ? [0, 1] : [dx / d, dy / d];
+  return { from, tip: { x: from.x + ux * HOP_MIN, y: from.y + uy * HOP_MIN } };
 }
 
 /** `p` lies on or inside the box. */
