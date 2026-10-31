@@ -203,7 +203,7 @@ it. PR-5 is new and exists to serve it.
 | 88e table card | `.claude/worktrees/w88e` / `w88e` | dispatched | — |
 | 88f deck grid transitions | `.claude/worktrees/w88f` / `w88f` | dispatched | — |
 | z boot stall | `.claude/worktrees/wz` / `wz` | dispatched | — |
-| wfloor hosting floor 2 + two-poll hokon promotion + whyNone in the promotion log (operator approved 2026-10-31 via fleet-manager) | `.claude/worktrees/wfloor` / `wfloor` | dispatched | — |
+| wfloor hosting floor 2 + two-poll hokon promotion + whyNone (operator approved 2026-10-31 via fleet-manager) | removed | **landed + verified** `4551366d5` (AF460); PPE `82db6877` 05:39Z; fleet re-registered slices.min 2 at 05:32Z | CI 41171897945 ✓ (tracker re-read), placement.test 47/47, 8 mutations killed; behaviour change for the operator: the last claw's AI cutoff alone no longer promotes hokon (only with a waiting start); 10 s fence confirmed fixed by b68cc034 with a new test |
 | H trailer cut 3 | `.claude/worktrees/promo` / `promo-clips` | waits for 87+88 on PPE | cut 2 https://claude.ai/artifact/GsUN4VziEmaDAaSZL5Kpc2 |
 
 ## Wave 83 (tournament core) — COMPLETE 2026-10-31, all five lanes landed + verified
