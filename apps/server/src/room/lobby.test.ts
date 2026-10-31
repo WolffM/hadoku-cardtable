@@ -2654,9 +2654,9 @@ describe('a 3-human pod with a bye, through two rounds — wave 72 §P', () => {
 
 		// ALICE won both her rounds (6 match points) and ranks first; BOB and
 		// CAROL each took a bye and lost 0-2 to her, in games nobody timed: level
-		// on all five keys, so they share second place.
+		// on all five keys and never met, so the seeded draw places them.
 		expect(done.pod?.standings).toHaveLength(3);
-		expect(done.pod?.standings.map((r) => r.rank)).toEqual([1, 2, 2]);
+		expect(done.pod?.standings.map((r) => [r.rank, r.decidedBy])).toEqual([[1, null], [2, 'matchPoints'], [3, 'seededDraw']]);
 		expect(done.pod?.standings[0]).toMatchObject({ id: ALICE.id, matchPoints: 6, rank: 1 });
 		expect(new Set(done.pod?.standings.slice(1).map((r) => r.id))).toEqual(new Set([BOB.id, CAROL.id]));
 		expect(done.pod?.standings.slice(1).every((r) => r.matchPoints === 3)).toBe(true);

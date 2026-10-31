@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 import { rngFromSeed, type Rng } from './rng.ts';
 import {
   pairRound,
+  rankedStandings,
   rankStandings,
   roundsFor,
   standings,
@@ -34,6 +35,11 @@ function bye(round: number, a: string): MatchResult {
   return { round, playerA: a, playerB: null, gamesA: 2, gamesB: 0 };
 }
 
+describe('roundsFor: one field-wide Swiss, at most 3 rounds (the operator, 2026-10-31)', () => {
+  it('13 entrants play 3 rounds', () => expect(roundsFor(13)).toBe(3));
+  it('40 entrants play 3 rounds', () => expect(roundsFor(40)).toBe(3));
+});
+
 describe('roundsFor', () => {
   it.each([
     [1, 0],
@@ -44,9 +50,12 @@ describe('roundsFor', () => {
     [6, 3],
     [7, 3],
     [8, 3],
-    [9, 4],
-    [16, 4],
-    [17, 5],
+    [9, 3],
+    [13, 3],
+    [16, 3],
+    [17, 3],
+    [40, 3],
+    [64, 3],
   ])('roundsFor(%i) === %i', (n, expected) => {
     expect(roundsFor(n)).toBe(expected);
   });
@@ -179,9 +188,12 @@ describe('no player gets two byes, and no pairing repeats, over a simulated pod'
     return { allTables, byes };
   }
 
-  for (const h of [2, 3, 4, 5, 6, 7, 8]) {
-    it(`H=${h}: 200 seeded pods never repeat a pairing and never double-bye`, () => {
-      for (let seed = 0; seed < 200; seed++) {
+  // One pod's sizes take 200 seeds each; a field-wide Swiss over several pods (9–64 entrants) takes 20.
+  const sizes = Array.from({ length: 63 }, (_, i) => i + 2);
+  for (const h of sizes) {
+    const seeds = h <= 8 ? 200 : 20;
+    it(`H=${h}: ${seeds} seeded fields never repeat a pairing and never double-bye`, () => {
+      for (let seed = 0; seed < seeds; seed++) {
         const { allTables, byes } = simulate(h, `h${h}-seed${seed}`);
 
         const seenPairs = new Set<string>();
@@ -297,17 +309,79 @@ describe('standings: five tiebreakers, the fifth the fastest median game (the op
     ]);
   });
 
-  it('a tie on all five shares a rank, and the next row takes its own place', () => {
-    const row = { matchPoints: 6, opponentMatchWinPct: 0.5, gameWinPct: 0.6, opponentGameWinPct: 0.5, medianGameMs: 500 };
-    const ranked = rankStandings([
-      { id: 'a', ...row },
-      { id: 'b', ...row },
-      { id: 'c', ...row, matchPoints: 3 },
-    ]);
-    expect(ranked.map((r) => [r.id, r.rank, r.decidedBy])).toEqual([
-      ['a', 1, null],
-      ['b', 1, null],
-      ['c', 3, 'matchPoints'],
-    ]);
+
+});
+
+describe('a complete order: head-to-head, then a seeded draw (the operator, 2026-10-31)', () => {
+  const ids = (rows: readonly { id: string }[]) => rows.map((r) => r.id);
+
+  it('40 entrants over 3 field-wide rounds rank in one total order: every rank its own, every row a reason', () => {
+    const rng = rngFromSeed('field-40');
+    const field = players(Array.from({ length: 40 }, (_, i) => `p${i + 1}`));
+    const results: MatchResult[] = [];
+    for (let round = 1; round <= roundsFor(field.length); round++) {
+      const { tables, bye: byeId } = pairRound({ players: field, results, round });
+      if (byeId !== null) results.push(bye(round, byeId));
+      for (const [a, b] of tables) results.push(rng.int(2) === 0 ? win(round, a, b) : win(round, b, a));
+    }
+    const ranked = rankedStandings(field, results, 'room-1-1700000000000');
+    expect(ranked.map((r) => r.rank)).toEqual(Array.from({ length: 40 }, (_, i) => i + 1));
+    expect(ranked[0]?.decidedBy).toBeNull();
+    for (const row of ranked.slice(1)) expect(row.decidedBy).not.toBeNull();
+  });
+
+  // a beat b, b beat c, c beat a, d beat e, e beat f, f beat d — then the two triangles cross: a–d, b–e, c–f
+  // all drawn 1–1. Six players, each 1 win 1 loss 1 draw, every percentage equal, no game timed: a full
+  // tie on all five keys. Head-to-head inside the tie: each one's points against the other five are the
+  // same (3+0+1), so it cannot separate them either, and the seeded draw has to.
+  const sixWay: MatchResult[] = [
+    win(1, 'a', 'b'),
+    win(1, 'd', 'e'),
+    { round: 1, playerA: 'c', playerB: 'f', gamesA: 1, gamesB: 1 },
+    win(2, 'b', 'c'),
+    win(2, 'e', 'f'),
+    { round: 2, playerA: 'a', playerB: 'd', gamesA: 1, gamesB: 1 },
+    win(3, 'c', 'a'),
+    win(3, 'f', 'd'),
+    { round: 3, playerA: 'b', playerB: 'e', gamesA: 1, gamesB: 1 },
+  ];
+  const six = ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => ({ id }));
+
+  it('a full tie on all five keys is broken by the seeded draw, and every row names it', () => {
+    const ranked = rankedStandings(six, sixWay, 'tourney-x');
+    expect(new Set(ranked.map((r) => r.matchPoints)).size).toBe(1);
+    expect(ranked.map((r) => r.rank)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(ranked.slice(1).map((r) => r.decidedBy)).toEqual(Array(5).fill('seededDraw'));
+  });
+
+  it('the seeded draw is a function of the tournament id: the same id draws the same order, another id may not', () => {
+    const order = ids(rankedStandings(six, sixWay, 'tourney-x'));
+    expect(ids(rankedStandings(six, sixWay, 'tourney-x'))).toEqual(order);
+    const others = ['tourney-y', 'tourney-z', 'room-7-1', 'room-7-2'].map((seed) => ids(rankedStandings(six, sixWay, seed)).join());
+    expect(others.some((o) => o !== order.join()), 'four other ids all drew the identical order').toBe(true);
+  });
+
+  it('head-to-head breaks a five-key tie before the draw: where the tied players met, the winner ranks higher', () => {
+    // Rows tied on all five keys, injected directly; only the results among them can separate them.
+    const row = { matchPoints: 6, opponentMatchWinPct: 0.5, gameWinPct: 0.6, opponentGameWinPct: 0.5, medianGameMs: null };
+    const results = [win(1, 'q', 'p'), win(2, 'r', 'q'), win(3, 'q', 's')];
+    // Of the tied p, q, r: q took 3 from p and lost to r (3 points among the tied), r took 3 from q (3), p none.
+    // q and r tie on head-to-head too, so the draw separates them; p is last on head-to-head whatever the seed.
+    for (const seed of ['s1', 's2', 's3', 's4', 's5']) {
+      const tied = [{ id: 'p', ...row }, { id: 'q', ...row }, { id: 'r', ...row }];
+      const ranked = rankStandings(tied, results, seed);
+      expect(ranked.map((r) => r.id).at(-1), `seed ${seed}`).toBe('p');
+      expect(ranked.at(-1)?.decidedBy).toBe('headToHead');
+      expect(ranked[1]?.decidedBy).toBe('seededDraw');
+    }
+  });
+
+  it('the order and every reason are the same however the results arrive', () => {
+    const base = rankedStandings(six, sixWay, 'tourney-x');
+    for (let i = 0; i < sixWay.length * 2; i++) {
+      const rotated = [...sixWay.slice(i % sixWay.length), ...sixWay.slice(0, i % sixWay.length)];
+      if (i >= sixWay.length) rotated.reverse();
+      expect(rankedStandings([...six].reverse(), rotated, 'tourney-x')).toEqual(base);
+    }
   });
 });

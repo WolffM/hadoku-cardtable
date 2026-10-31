@@ -187,8 +187,8 @@ describe('odd and full counts: every entrant plays each round once, byes rotate,
 	});
 });
 
-describe('ties: a full tie on every key ranks alike and orders the same however the results arrive', () => {
-	it('a 4-entrant field tied two-and-two shares ranks, decidedBy null, and is identical across result orders', () => {
+describe('ties: a full tie on every key is still decided, the same however the results arrive', () => {
+	it('a 4-entrant field tied two-and-two orders identically across result orders', () => {
 		const players = ['a', 'b', 'c', 'd'].map((id) => ({ id }));
 		// a and c each beat one of b/d and lost to the other: a full tie on every key, timed games and all.
 		const results: MatchResult[] = [
@@ -208,7 +208,7 @@ describe('ties: a full tie on every key ranks alike and orders the same however 
 		expect(ranks.size, 'all four on 3 points').toBe(1);
 	});
 
-	it('a tournament whose standings fully tie ranks alike, and a restart reads the same order back', async () => {
+	it('a tournament whose standings fully tie is decided past the five keys, and a restart reads the same order back', async () => {
 		const pod = await tournament(4);
 		// Round 1: the top seat of each table wins. Round 2: the winners meet and the losers meet; the bottom seat wins each.
 		const seat = (id: string) => pod.players.findIndex((p) => p.id === id);
@@ -218,12 +218,12 @@ describe('ties: a full tie on every key ranks alike and orders the same however 
 		expect(done.phase).toBe('done');
 		const reopened = await openLobby({ dir: pod.dir, now });
 		expect(reopened.get(pod.id)!.pod!.standings, 'the same order and ranks after a restart').toEqual(done.standings);
-		// Rows equal on every key share a rank and name no deciding key.
+		// Every row its own place; rows equal on every key are decided by head-to-head or the seeded draw.
 		for (let i = 1; i < done.standings.length; i++) {
 			const [above, row] = [done.standings[i - 1]!, done.standings[i]!];
 			const tied = above.matchPoints === row.matchPoints && above.opponentMatchWinPct === row.opponentMatchWinPct && above.gameWinPct === row.gameWinPct && above.opponentGameWinPct === row.opponentGameWinPct && above.medianGameMs === row.medianGameMs;
-			if (tied) expect(row).toMatchObject({ rank: above.rank, decidedBy: null });
-			else expect(row.rank).toBe(i + 1);
+			expect(row.rank).toBe(i + 1);
+			if (tied) expect(['headToHead', 'seededDraw']).toContain(row.decidedBy);
 		}
 	});
 });
@@ -380,7 +380,7 @@ describe('odd series results', () => {
 		expect(done.phase).toBe('done');
 		expect(done.results[0]).toMatchObject({ gamesA: 1, gamesB: 1 });
 		expect(done.standings.map((r) => r.matchPoints)).toEqual([1, 1]);
-		expect(done.standings.map((r) => r.rank), 'a full tie shares first').toEqual([1, 1]);
+		expect(done.standings.map((r) => [r.rank, r.decidedBy]), 'a drawn match leaves head-to-head level, so the draw decides').toEqual([[1, null], [2, 'seededDraw']]);
 		expect(pod.ended.map((e) => e.winner)).toEqual([null]);
 	});
 

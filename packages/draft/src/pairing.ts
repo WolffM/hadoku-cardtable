@@ -2,9 +2,10 @@
  * Pod pairings and standings.
  *
  * Pure and transport-free, like the rest of this package: no I/O, no room,
- * no socket. `pairRound` decides who plays whom for one round of a draft
- * pod's Swiss rounds; `standings` ranks the pod between rounds and at the
- * end. The AI-bye option the operator left open (`draft-pods-plan.md`
+ * no socket. `pairRound` decides who plays whom for one round of the
+ * tournament's single Swiss — every entrant of every pod in one field, at
+ * most three rounds, no cut (the operator, 2026-10-31); `standings` ranks
+ * that field between rounds and at the end. The AI-bye option the operator left open (`draft-pods-plan.md`
  * ruling 3) is not built here — an unpaired human always gets a bye, never
  * an AI seat.
  *
@@ -16,7 +17,10 @@
  * fetched; nothing here was looked up on the web. A fifth is our own: the
  * faster median game ranks higher (the operator, 2026-10-23: *"it is still
  * possible to reach a tie this way. lets also add a 5th tie breaker for
- * game-speed. the player that had fastest median game wins"*).
+ * game-speed. the player that had fastest median game wins"*). After those,
+ * so that a winner is always decided (the operator, 2026-10-31: *"tiebreakers
+ * at the end determine who wins"*): head-to-head among the players still
+ * tied, then a draw seeded by the tournament id.
  */
 
 import { POD_TIEBREAKS, type PodTiebreak } from '@hadoku/shared';
@@ -66,7 +70,7 @@ function pointsFor(result: MatchResult, side: 'A' | 'B'): number {
   return result.gamesB > result.gamesA ? 3 : 0;
 }
 
-function matchPointsTotal(id: string, results: MatchResult[]): number {
+function matchPointsTotal(id: string, results: readonly MatchResult[]): number {
   let total = 0;
   for (const r of results) {
     if (r.playerA === id) total += pointsFor(r, 'A');
@@ -86,8 +90,11 @@ function pairKey(a: string, b: string): string {
  * rejects any pair already in `played`; this is tried first, and only when it
  * has no solution does `pairRound` fall back to allowing one.
  *
- * `remaining.length` is at most 8 (the pod cap), so the search space — at
- * most 7!! = 105 matchings — is trivial.
+ * The strict search cannot dead-end into an exhaustive one within
+ * `roundsFor`'s three rounds: each player has met at most two others, so in
+ * a group of six or more every player still has an unmet opponent among at
+ * least half the rest, and a repeat-free matching exists and is found by the
+ * first few branches.
  */
 function tryPair(remaining: PodPlayer[], played: ReadonlySet<string>, avoidRepeats: boolean): [string, string][] | null {
   if (remaining.length === 0) return [];
@@ -171,9 +178,9 @@ function laterRound(players: PodPlayer[], results: MatchResult[]): PairRoundResu
         break;
       }
     }
-    // Every player has already had a bye (shouldn't happen within
-    // roundsFor(players.length) rounds, since there are always more players
-    // than rounds); fall back to the lowest rank rather than crash.
+    // Every player has already had a bye (can't happen within roundsFor's
+    // rounds, since there are always more players than rounds); fall back to
+    // the lowest rank rather than crash.
     if (byeIndex === -1) byeIndex = ranked.length - 1;
     bye = (ranked[byeIndex] as PodPlayer).id;
     pool = ranked.slice(0, byeIndex).concat(ranked.slice(byeIndex + 1));
@@ -182,7 +189,7 @@ function laterRound(players: PodPlayer[], results: MatchResult[]): PairRoundResu
   return { tables: pairDown(pool, played), bye };
 }
 
-/** Pair one round of a pod. See `round1` and `laterRound` for the per-round rules. */
+/** Pair one round of the whole field. See `round1` and `laterRound` for the per-round rules. */
 export function pairRound(input: PairRoundInput): PairRoundResult {
   const { players, results, round } = input;
   if (players.length === 0) return { tables: [], bye: null };
@@ -190,16 +197,13 @@ export function pairRound(input: PairRoundInput): PairRoundResult {
   return round === 1 ? round1(players) : laterRound(players, results);
 }
 
-/** How many Swiss rounds a pod of `n` humans plays: `ceil(log2(n))`. */
+/** The most Swiss rounds a tournament plays, however large its field (the operator, 2026-10-31). */
+export const MAX_ROUNDS = 3;
+
+/** How many Swiss rounds a field of `n` entrants plays: `min(3, ceil(log2(n)))`. */
 export function roundsFor(n: number): number {
   if (n <= 1) return 0;
-  let rounds = 0;
-  let capacity = 1;
-  while (capacity < n) {
-    capacity *= 2;
-    rounds++;
-  }
-  return rounds;
+  return Math.min(MAX_ROUNDS, Math.ceil(Math.log2(n)));
 }
 
 export interface StandingsRow {
@@ -217,16 +221,20 @@ export const TIEBREAKS = POD_TIEBREAKS;
 export type Tiebreak = PodTiebreak;
 
 export interface RankedStandingsRow extends StandingsRow {
-  /** 1-based; rows equal on every tiebreak share one, and the next row takes its own place (1, 1, 3). */
+  /** 1-based, and every row its own: the seeded draw leaves no two rows level. */
   rank: number;
-  /** The first key on which this row ranks below the one above it; `null` for the first row and for a full tie. */
+  /** The first key on which this row ranks below the one above it; `null` only for the first row. */
   decidedBy: Tiebreak | null;
 }
+
+/** The five keys a row carries; head-to-head and the draw are read from the results and the seed. */
+const ROW_KEYS = ['matchPoints', 'opponentMatchWinPct', 'gameWinPct', 'opponentGameWinPct', 'medianGameMs'] as const;
+type RowKey = (typeof ROW_KEYS)[number];
 
 /** 33% floor applied to a player's own percentage before it counts toward an opponent's average (MTR Appendix C). */
 const FLOOR = 1 / 3;
 
-function ownMatchWinPct(id: string, results: MatchResult[]): number {
+function ownMatchWinPct(id: string, results: readonly MatchResult[]): number {
   let played = 0;
   let won = 0;
   for (const r of results) {
@@ -241,7 +249,7 @@ function ownMatchWinPct(id: string, results: MatchResult[]): number {
   return played === 0 ? 0 : won / played;
 }
 
-function ownGameWinPct(id: string, results: MatchResult[]): number {
+function ownGameWinPct(id: string, results: readonly MatchResult[]): number {
   let gamesPlayed = 0;
   let gamesWon = 0;
   for (const r of results) {
@@ -262,7 +270,7 @@ function ownGameWinPct(id: string, results: MatchResult[]): number {
 }
 
 /** Every opponent a player actually faced (a bye round contributes no opponent). */
-function opponentsOf(id: string, results: MatchResult[]): string[] {
+function opponentsOf(id: string, results: readonly MatchResult[]): string[] {
   const out: string[] = [];
   for (const r of results) {
     if (r.playerB === null) continue;
@@ -277,7 +285,7 @@ function average(xs: number[]): number {
 }
 
 /** Every timed game a player played, a bye none. */
-function gameLengths(id: string, results: MatchResult[]): number[] {
+function gameLengths(id: string, results: readonly MatchResult[]): number[] {
   return results.flatMap((r) => (r.playerB !== null && (r.playerA === id || r.playerB === id) ? (r.gameMs ?? []) : []));
 }
 
@@ -289,7 +297,7 @@ function median(xs: number[]): number | null {
 }
 
 /** How `b` compares to `a` on one key: negative ranks `b` higher. Faster is higher, and untimed last. */
-function compareOn(key: Tiebreak, a: StandingsRow, b: StandingsRow): number {
+function compareOn(key: RowKey, a: StandingsRow, b: StandingsRow): number {
   if (key !== 'medianGameMs') return b[key] - a[key];
   if (a.medianGameMs === b.medianGameMs) return 0;
   if (a.medianGameMs === null) return 1;
@@ -297,37 +305,97 @@ function compareOn(key: Tiebreak, a: StandingsRow, b: StandingsRow): number {
   return a.medianGameMs - b.medianGameMs;
 }
 
-function compareRows(a: StandingsRow, b: StandingsRow): number {
-  for (const key of TIEBREAKS) {
+function compareRowKeys(a: StandingsRow, b: StandingsRow): number {
+  for (const key of ROW_KEYS) {
     const c = compareOn(key, a, b);
     if (c !== 0) return c;
   }
   return 0;
 }
 
+/** FNV-1a, 32-bit: a stable hash with no dependency, enough to shuffle a handful of tied players. */
+function fnv1a(text: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash;
+}
+
+/** The seeded draw's ticket: lower ranks higher. The id itself settles the (vanishing) hash collision. */
+function drawOrder(seed: string, a: string, b: string): number {
+  const d = fnv1a(`${seed}\u0000${a}`) - fnv1a(`${seed}\u0000${b}`);
+  if (d !== 0) return d;
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 /**
- * Ranked standings' places: rows equal on all five keys share a rank, and each other row names the key it
- * fell below the row above on. `rows` must already be in `standings`' order.
+ * Each row's head-to-head score: the match points it took from the other rows it is tied with on all
+ * five keys (where the tied players met), so it compares within a tie group and means nothing across one.
  */
-export function rankStandings(rows: readonly StandingsRow[]): RankedStandingsRow[] {
-  const out: RankedStandingsRow[] = [];
-  rows.forEach((row, i) => {
-    const above = out[i - 1];
-    const decidedBy = above === undefined ? null : (TIEBREAKS.find((key) => compareOn(key, above, row) !== 0) ?? null);
-    const rank = above !== undefined && decidedBy === null ? above.rank : i + 1;
-    out.push({ ...row, rank, decidedBy });
+function headToHeadScores(rows: readonly StandingsRow[], results: readonly MatchResult[]): Map<string, number> {
+  const groupOf = new Map<string, number>();
+  const groups: StandingsRow[][] = [];
+  for (const row of rows) {
+    const group = groups.findIndex((g) => compareRowKeys(g[0]!, row) === 0);
+    if (group === -1) {
+      groupOf.set(row.id, groups.length);
+      groups.push([row]);
+    } else {
+      groupOf.set(row.id, group);
+      groups[group]!.push(row);
+    }
+  }
+  const scores = new Map(rows.map((r) => [r.id, 0]));
+  for (const r of results) {
+    if (r.playerB === null) continue;
+    const group = groupOf.get(r.playerA);
+    if (group === undefined || group !== groupOf.get(r.playerB)) continue;
+    scores.set(r.playerA, scores.get(r.playerA)! + pointsFor(r, 'A'));
+    scores.set(r.playerB, scores.get(r.playerB)! + pointsFor(r, 'B'));
+  }
+  return scores;
+}
+
+/** The whole order, as a list of keys: the five a row carries, then head-to-head, then the draw. */
+function comparator(rows: readonly StandingsRow[], results: readonly MatchResult[], seed: string) {
+  const h2h = headToHeadScores(rows, results);
+  const on = (key: Tiebreak, a: StandingsRow, b: StandingsRow): number => {
+    if (key === 'headToHead') return h2h.get(b.id)! - h2h.get(a.id)!;
+    if (key === 'seededDraw') return drawOrder(seed, a.id, b.id);
+    return compareOn(key, a, b);
+  };
+  const compare = (a: StandingsRow, b: StandingsRow): number => {
+    for (const key of TIEBREAKS) {
+      const c = on(key, a, b);
+      if (c !== 0) return c;
+    }
+    return 0;
+  };
+  return { on, compare };
+}
+
+/** Ranked standings' places, in the full order: every row its own rank, naming the key it fell below the row above on. */
+export function rankStandings(rows: readonly StandingsRow[], results: readonly MatchResult[] = [], seed = ''): RankedStandingsRow[] {
+  const { on, compare } = comparator(rows, results, seed);
+  const ordered = [...rows].sort(compare);
+  return ordered.map((row, i) => {
+    const above = ordered[i - 1];
+    const decidedBy = above === undefined ? null : (TIEBREAKS.find((key) => on(key, above, row) !== 0) ?? null);
+    return { ...row, rank: i + 1, decidedBy };
   });
-  return out;
 }
 
 /**
  * Standings, ranked by match points, then opponents' match-win %, then
- * game-win %, then opponents' game-win %, then the faster median game — see
- * the file header for the citation. A player who has faced no opponents yet (round 0, or an
+ * game-win %, then opponents' game-win %, then the faster median game, then
+ * head-to-head among the still tied, then the draw `seed` (the tournament id)
+ * makes — see the file header for the citations. A player who has faced no opponents yet (round 0, or an
  * all-byes run) gets 0 for both opponent percentages; there is no opponent
  * data to average.
  */
-export function standings(players: readonly { id: string }[], results: MatchResult[]): StandingsRow[] {
+export function standings(players: readonly { id: string }[], results: readonly MatchResult[], seed = ''): StandingsRow[] {
   const rows = players.map((p): StandingsRow => {
     const opponents = opponentsOf(p.id, results);
     const opponentMatchPcts = opponents.map((o) => Math.max(FLOOR, ownMatchWinPct(o, results)));
@@ -341,5 +409,10 @@ export function standings(players: readonly { id: string }[], results: MatchResu
       medianGameMs: median(gameLengths(p.id, results)),
     };
   });
-  return rows.sort(compareRows);
+  return rows.sort(comparator(rows, results, seed).compare);
+}
+
+/** `standings` ranked: the field's one leaderboard, every place decided. `seed` is the tournament id. */
+export function rankedStandings(players: readonly { id: string }[], results: readonly MatchResult[], seed: string): RankedStandingsRow[] {
+  return rankStandings(standings(players, results, seed), results, seed);
 }

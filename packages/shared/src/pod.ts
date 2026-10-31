@@ -69,16 +69,17 @@ export type PodMatchResult = z.infer<typeof PodMatchResultSchema>;
 
 /**
  * The standings' ranking keys, in order (`@hadoku/draft`'s `standings`): match points, the three Swiss
- * tiebreakers, then the faster median game (the operator, 2026-10-23).
+ * tiebreakers, the faster median game (the operator, 2026-10-23), then head-to-head among the tied and a
+ * draw seeded by the tournament id, so every place is decided (the operator, 2026-10-31).
  */
-export const POD_TIEBREAKS = ['matchPoints', 'opponentMatchWinPct', 'gameWinPct', 'opponentGameWinPct', 'medianGameMs'] as const;
+export const POD_TIEBREAKS = ['matchPoints', 'opponentMatchWinPct', 'gameWinPct', 'opponentGameWinPct', 'medianGameMs', 'headToHead', 'seededDraw'] as const;
 export const PodTiebreakSchema = z.enum(POD_TIEBREAKS);
 export type PodTiebreak = z.infer<typeof PodTiebreakSchema>;
 
 /**
  * One player's standing — the wire mirror of `@hadoku/draft`'s
  * `RankedStandingsRow`: `rank` is this row's 1-based place in the ranked
- * list the engine already produced (shared by a tie on every key), and
+ * list the engine already produced, and
  * `decidedBy` the key it fell below the row above on, so a pod screen draws
  * a leaderboard without re-deriving the tiebreak order itself. A record kept
  * from before the fifth key (a past tournament) reads `null` for both.
