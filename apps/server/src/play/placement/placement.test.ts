@@ -15,14 +15,15 @@ import type { JvmHealth } from '../remote/wire.js';
 import { Alerts, type AlertSink } from './alerts.js';
 import { placement, type AgentLink, type Placement, type Restorer } from './coordinator.js';
 import type { FleetDemand, FleetNode, FleetSource, FleetStatus } from './fleet.js';
-import { parseDemand, parseNodeStatus } from './fleet.js';
+import { CHECKOUT_FLEET_CLI, MGMT_API_FLEET_CLI, fleetCli, fleetCliPath, parseDemand, parseNodeStatus } from './fleet.js';
 import {
 	BACKSTOP_IDLE,
 	DEMAND_CALM_MS,
 	DEMAND_IDLE,
+	HOST_ORDER,
 	MAX_SLICES,
 	MIN_SLICES,
-	REPLACE_AFTER_MS,
+	SERVING,
 	backstopStep,
 	bars,
 	demandStep,
@@ -397,10 +398,54 @@ describe('eligibility', () => {
 		expect(parseDemand('{"contract":2,"auto":true}')).toBeNull();
 		expect(parseDemand('not json')).toBeNull();
 	});
+
+	it('finds our slice among a node\'s tenants, wherever it sits; `hosting` is only the oldest', () => {
+		const slice = (tenant: string) => ({ state: 'guaranteed', declared: { tenant, memoryMb: 4096, cores: 4, port: 7621 }, until: null, observed: null });
+		const read = (node: object) => parseNodeStatus(JSON.stringify({ contract: 1, generatedAt: '2026-10-31T17:54:00.000Z', nodes: [{ node: 'claw-4', reachable: true, ok: true, ...node }] }))?.nodes[0]?.hosting;
+		expect(read({ hosting: slice('pygmalion'), tenants: [slice('pygmalion'), slice('cardtable')] })?.state).toBe('guaranteed');
+		expect(read({ hosting: slice('pygmalion'), tenants: [slice('pygmalion')] })).toBeNull();
+		// A fleet-manager from before `tenants`.
+		expect(read({ hosting: slice('cardtable') })?.state).toBe('guaranteed');
+	});
+
+	it("reads the fleet through mgmt-api's install by default; CARDTABLE_FLEET_CLI overrides; a missing install falls back to the checkout, loudly", async () => {
+		expect(MGMT_API_FLEET_CLI).toMatch(/\/srv\/hadoku_site\/services\/mgmt-api\/node_modules\/@wolffm\/fleet-manager\/dist\/cli\.js$/);
+		expect(fleetCliPath({}, (p) => p === MGMT_API_FLEET_CLI)).toEqual({ cli: MGMT_API_FLEET_CLI, fallback: null });
+		expect(fleetCliPath({ CARDTABLE_FLEET_CLI: '/x/cli.js' }, () => true)).toEqual({ cli: '/x/cli.js', fallback: null });
+		const missing = fleetCliPath({}, () => false);
+		expect(missing.cli).toBe(CHECKOUT_FLEET_CLI);
+		expect(missing.fallback).toMatch(/mgmt-api's fleet-manager install is missing/);
+		// fleetCli says so in its log.
+		const logs: Record<string, unknown>[] = [];
+		const cli = join(scratch, 'fake-fleet-cli.mjs');
+		writeFileSync(cli, 'process.stdout.write(process.argv[2])');
+		fleetCli({ env: { CARDTABLE_FLEET_CLI: cli }, log: (e) => logs.push(e) });
+		expect(logs).toEqual([]);
+	});
+
+	it('an unreadable answer is logged with the document\'s own reason, not a blanket "not contract 1"', async () => {
+		const logs: Record<string, unknown>[] = [];
+		const cli = join(scratch, 'refusing-fleet-cli.mjs');
+		writeFileSync(
+			cli,
+			`const cmd = process.argv[2];
+process.stdout.write(cmd === 'hosting-demand'
+	? JSON.stringify({ contract: 1, ok: false, app: 'cardtable', at: '2026-10-31T07:00:00Z', reason: 'cannot read fleet state: EACCES' })
+	: cmd === 'node-status' ? JSON.stringify({ contract: 2, ok: true }) : 'fleet-manager=0.34.109');
+process.exit(1);`,
+		);
+		const fleet = fleetCli({ env: { CARDTABLE_FLEET_CLI: cli }, log: (e) => logs.push(e) });
+		expect(await fleet.demand(2, ['claw-5'])).toBeNull();
+		expect(await fleet.status()).toBeNull();
+		expect(logs).toEqual([
+			{ evt: 'fleet-unreadable', args: 'hosting-demand', error: 'cannot read fleet state: EACCES' },
+			{ evt: 'fleet-unreadable', args: 'node-status', error: 'contract 2, not 1' },
+		]);
+	});
 });
 
 describe('the backstop', () => {
-	const calm = { fresh: true, declared: 4, reachable: 4, eligible: 3, forced: false, waiting: false, between: false };
+	const calm = { fresh: true, serving: 2, eligible: 2, forced: false, waiting: false, between: false };
 	const out = { ...calm, eligible: 0 };
 	const run = (inputs: (typeof calm)[], from: BackstopState = BACKSTOP_IDLE) => {
 		let s = from;
@@ -411,10 +456,15 @@ describe('the backstop', () => {
 		});
 	};
 
-	it('promotes after 2 outage polls in a row (no claw eligible, or under half the declared claws answer); stands down after 3 calm polls', () => {
+	it('promotes after 2 outage polls in a row (no claw eligible, or fewer than 2 serving claws up); stands down after 3 calm polls', () => {
 		expect(run([calm, out, out, calm, calm, calm, calm])).toEqual(['down', 'down', 'promote', 'up', 'up', 'demote', 'down']);
-		expect(run([{ ...calm, reachable: 1 }, { ...calm, reachable: 1 }])).toEqual(['down', 'promote']);
-		expect(run([{ ...calm, reachable: 2 }, { ...calm, reachable: 2 }])).toEqual(['down', 'down']);
+		// One of claw-8 and claw-9 down: hokon comes up, after the same two polls.
+		expect(SERVING).toEqual(['claw-8', 'claw-9']);
+		expect(run([{ ...calm, serving: 1, eligible: 1 }, { ...calm, serving: 1, eligible: 1 }])).toEqual(['down', 'promote']);
+		expect(run([{ ...calm, serving: 1, eligible: 1 }])).toEqual(['down']);
+		expect(backstopStep(BACKSTOP_IDLE, { ...calm, serving: 1, eligible: 1, waiting: true }).state.why).toBe('only 1 of the 2 serving claws (claw-8, claw-9) is up');
+		// claw-8 or claw-9 healthy again: hokon stands down as before.
+		expect(run([{ ...calm, serving: 1 }, { ...calm, serving: 1 }, calm, calm, calm])).toEqual(['down', 'promote', 'up', 'up', 'demote']);
 		// A storm in the calm resets the count.
 		expect(run([out, out, calm, calm, out, calm, calm, calm])).toEqual(['down', 'promote', 'up', 'up', 'up', 'up', 'up', 'demote']);
 	});
@@ -460,43 +510,57 @@ describe('slice demand', () => {
 	const claw = (node: string, live = 0, unusableSince: number | null = null): DemandClaw => ({ node, usable: unusableSince === null, unusableSince, live });
 	const input = (claws: DemandClaw[], over: Partial<Parameters<typeof demandStep>[1]> = {}) => ({
 		claws,
-		live: claws.reduce((n, c) => n + c.live, 0),
 		perSlice: 25,
-		ceiling: 50,
+		ceiling: 100,
+		backstop: false,
 		short: false,
 		now: T0,
 		...over,
 	});
 
-	it('the floor is 2 slices, and hosting.json declares the same min..max', () => {
+	it('the floor is 2 slices, and hosting.json declares the same min..max and the same host order', () => {
 		expect(MIN_SLICES).toBe(2);
-		const declared = (JSON.parse(readFileSync(new URL('../../../../../hosting.json', import.meta.url), 'utf8')) as { slices: { min: number; max: number } }).slices;
-		expect({ min: declared.min, max: declared.max }).toEqual({ min: MIN_SLICES, max: MAX_SLICES });
+		const hosting = JSON.parse(readFileSync(new URL('../../../../../hosting.json', import.meta.url), 'utf8')) as {
+			slices: { min: number; max: number };
+			placement: { order?: string[] };
+		};
+		expect({ min: hosting.slices.min, max: hosting.slices.max }).toEqual({ min: MIN_SLICES, max: MAX_SLICES });
+		expect(HOST_ORDER).toEqual(['claw-8', 'claw-9', 'claw-5']);
+		expect(hosting.placement.order).toEqual(HOST_ORDER);
 		// A quiet evening on one claw still asks for a second, so a blip has somewhere to go but hokon.
 		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 0)])).slices).toBe(2);
 		expect(demandStep(DEMAND_IDLE, input([])).slices).toBe(2);
 	});
 
-	it('asks for the next slice once live matches pass 70% of the usable ones, never past the ceiling', () => {
-		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 34), claw('claw-9', 0)])).slices).toBe(2);
-		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 35), claw('claw-9', 0)], { ceiling: 100 })).slices).toBe(3);
+	it('idle is the floor: a restart with three declared and none busy asks for 2 at once, not after the calm spell', () => {
+		const three = [claw('claw-8'), claw('claw-9'), claw('claw-5')];
+		expect(demandStep(DEMAND_IDLE, input(three)).slices).toBe(2);
+		// A restart keeps a slice that still carries matches.
+		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 1), claw('claw-9', 1), claw('claw-5', 1)])).slices).toBe(3);
+	});
+
+	it('the third unit of demand is hokon, not a slice: busy serving claws, or a start that waits while hokon is down, ask for 2', () => {
 		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 25), claw('claw-9', 25)])).slices).toBe(2);
-		// A start that found no host asks for one more than is usable.
-		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 3), claw('claw-9', 3)], { short: true, ceiling: 100 })).slices).toBe(3);
+		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 25), claw('claw-9', 25)], { short: true })).slices).toBe(2);
 	});
 
-	it('replaces a claw unusable for 10 min, and keeps its slice for its canary', () => {
-		const down = claw('claw-9', 0, T0 - REPLACE_AFTER_MS + 1);
-		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 2), down])).slices).toBe(2);
-		const long = claw('claw-9', 0, T0 - REPLACE_AFTER_MS);
-		const step = demandStep(DEMAND_IDLE, input([claw('claw-8', 20), long]));
-		expect(step.slices).toBe(3);
-		expect(step.releaseOrder[0]).toBe('claw-9');
+	it('no replacement slice is asked for while hokon is up, however long a serving claw is dead', () => {
+		const dead = claw('claw-9', 0, T0 - 60 * 60_000);
+		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 2), dead], { backstop: true })).slices).toBe(2);
+		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 2), dead])).slices).toBe(2);
 	});
 
-	it('asks for more at once and for fewer only after the calm spell; the first poll starts from what is declared', () => {
+	it('claw-5 is asked for only when hokon is up AND still short, never past the ceiling', () => {
+		const both = [claw('claw-8', 0, T0 - 60_000), claw('claw-9', 0, T0 - 60_000)];
+		expect(demandStep(DEMAND_IDLE, input(both, { backstop: true })).slices).toBe(2);
+		expect(demandStep(DEMAND_IDLE, input(both, { short: true })).slices).toBe(2);
+		expect(demandStep(DEMAND_IDLE, input(both, { backstop: true, short: true })).slices).toBe(3);
+		expect(demandStep(DEMAND_IDLE, input(both, { backstop: true, short: true, ceiling: 50 })).slices).toBe(2);
+	});
+
+	it('asks for more at once and for fewer only after the calm spell', () => {
 		const three = [claw('claw-8', 1), claw('claw-9', 0), claw('claw-5', 0)];
-		let state: DemandState = DEMAND_IDLE;
+		let state: DemandState = { slices: 3, lowSince: null };
 		const at = (t: number): number => {
 			const step = demandStep(state, input(three, { now: t }));
 			state = step.state;
@@ -509,12 +573,13 @@ describe('slice demand', () => {
 		expect(at(T0 + 10 * DEMAND_CALM_MS)).toBe(2);
 		// A poll that wants more breaks the spell.
 		state = { slices: 3, lowSince: T0 };
-		expect(demandStep(state, input([claw('claw-8', 35), claw('claw-9', 0), claw('claw-5', 0)], { now: T0 + 60_000, ceiling: 100 })).state).toEqual({ slices: 3, lowSince: null });
+		expect(demandStep(state, input(three, { now: T0 + 60_000, backstop: true, short: true })).state).toEqual({ slices: 4, lowSince: null });
 	});
 
-	it('ends unusable claws first, then the emptiest, then the slowest core', () => {
-		const order = demandStep(DEMAND_IDLE, input([claw('claw-8', 0), claw('claw-9', 0), claw('claw-4', 3), claw('claw-6', 0, T0 - 1)])).releaseOrder;
-		expect(order).toEqual(['claw-6', 'claw-9', 'claw-8', 'claw-4']);
+	it('the release order is HOST_ORDER backwards: anything unlisted, then claw-5, then claw-9, then claw-8, whatever their state', () => {
+		const order = demandStep(DEMAND_IDLE, input([claw('claw-8', 0, T0 - 1), claw('claw-5', 3), claw('claw-9', 0)])).releaseOrder;
+		expect(order).toEqual(['claw-5', 'claw-9', 'claw-8']);
+		expect(demandStep(DEMAND_IDLE, input([claw('claw-8'), claw('claw-6'), claw('claw-5'), claw('claw-9')])).releaseOrder).toEqual(['claw-6', 'claw-5', 'claw-9', 'claw-8']);
 	});
 
 	it('every poll that read fleet status restates the count with its release order; one that could not look asks nothing', async () => {
@@ -530,34 +595,57 @@ describe('slice demand', () => {
 		expect(r.demands).toHaveLength(asked);
 	});
 
-	it('a slice the converger is ending at our asking is never replaced: idle, released to the floor, still there past the replace window', async () => {
+	it('a restart with claw-5 declared and idle asks for the floor at once, claw-5 first; once it is ending, the count holds at 2', async () => {
 		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8'), fleetNode('claw-5')]);
-		expect(r.demands.at(-1)?.slices).toBe(3);
-		r.clock.t += DEMAND_CALM_MS;
-		await r.p.poll();
 		expect(r.demands.at(-1)).toEqual({ slices: 2, releaseOrder: ['claw-5', 'claw-9', 'claw-8'] });
 		// The converger ends claw-5 with our notice: its end shows as a hosting notice, and in `ending`.
 		r.converger.ending = ['claw-5'];
 		const end = new Date(r.clock.t + 15 * 60_000).toISOString();
 		r.nodes[2] = fleetNode('claw-5', { notices: [{ event: 'ends', at: end, kind: 'hosting' }] });
 		await r.p.poll();
-		r.clock.t += REPLACE_AFTER_MS + 60_000;
+		r.clock.t += 60 * 60_000;
 		await r.p.poll();
 		await r.p.poll();
 		expect(r.demands.slice(-3).map((d) => d.slices)).toEqual([2, 2, 2]);
 		expect(r.demands.at(-1)?.releaseOrder).toEqual(['claw-9', 'claw-8']);
+		expect(r.p.hosts().backstop.promoted).toBe(false);
 	});
 
 	it('a dry-run converger: the Capacity alert says declaring is the operator\'s call', async () => {
-		const r = await rig([fleetNode('claw-9')]);
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
 		r.converger.auto = false;
 		await r.p.poll();
-		for (const id of ['m-1', 'm-2', 'm-3', 'm-4']) start(r, id);
-		expect(() => start(r, 'm-5')).toThrow(/no Forge host/);
+		for (const id of ['m-1', 'm-2', 'm-3', 'm-4', 'm-5', 'm-6', 'm-7', 'm-8']) start(r, id);
+		expect(() => start(r, 'm-9')).toThrow(/no Forge host/);
 		expect(r.posted.at(-1)).toMatch(/its converger only plans \(no placement\.auto\), so declaring another is the operator's call\.$/);
-		// The next poll asks for one more than is usable.
+		// The next poll promotes hokon, and asks for no third slice: hokon was not short.
+		await r.p.poll();
+		expect(r.p.hosts().backstop.promoted).toBe(true);
+		expect(r.demands.at(-1)?.slices).toBe(2);
+	});
+
+	it('claw-5 is asked for only once hokon is up and a start still finds no host; it is released first', async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
+		r.nodes[0] = fleetNode('claw-9', { reachable: false });
 		await r.p.poll();
 		expect(r.demands.at(-1)?.slices).toBe(2);
+		await r.p.poll();
+		expect(r.p.hosts().backstop.promoted).toBe(true);
+		expect(r.logs.find((l) => l.evt === 'backstop-promoted')?.why).toBe('only 1 of the 2 serving claws (claw-8, claw-9) is up');
+		// Past the old 10 min replace window: still no replacement for claw-9 while hokon covers it.
+		r.clock.t += 30 * 60_000;
+		await r.p.poll();
+		expect(r.demands.at(-1)?.slices).toBe(2);
+		// claw-8 and hokon fill up; the next start waits, and only now is a third slice asked for.
+		for (let i = 0; i < 100 && r.p.room() !== 'full'; i += 1) start(r, `m-${i}`);
+		expect(r.p.room()).toBe('full');
+		expect(() => start(r, 'm-short')).toThrow(/no Forge host/);
+		await r.p.poll();
+		expect(r.demands.at(-1)).toEqual({ slices: 3, releaseOrder: ['claw-9', 'claw-8'] });
+		// claw-5 arrives; it is the first to end.
+		r.nodes.push(fleetNode('claw-5'));
+		await r.p.poll();
+		expect(r.demands.at(-1)?.releaseOrder[0]).toBe('claw-5');
 	});
 });
 
@@ -612,7 +700,7 @@ describe('placement', () => {
 		expect(r.p.room()).toBe('full');
 		expect(() => start(r, 'm-5')).toThrow(/no Forge host can take a match now \(claw-9: room \(full\); hokon: not promoted/);
 		await vi.waitFor(() => expect(r.posted.filter((t) => t.startsWith('⚠️ Capacity'))).toHaveLength(1));
-		expect(r.posted[0]).toMatch(/fleet-manager has 1 declared for us; the next poll asks for more\.$/);
+		expect(r.posted[0]).toMatch(/fleet-manager has 1 declared for us; hokon steps in before another slice is asked for\.$/);
 		// The incident is open: asking again posts nothing.
 		r.p.room();
 		expect(r.logs.filter((l) => l.evt === 'alert' && l.key === 'capacity')).toHaveLength(1);
@@ -649,13 +737,15 @@ describe('placement', () => {
 	});
 
 	it('hokon stands down after 3 calm polls and keeps its live matches', async () => {
-		const r = await rig([fleetNode('claw-9')]);
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
 		r.nodes[0] = fleetNode('claw-9', { reachable: false });
+		r.nodes[1] = fleetNode('claw-8', { reachable: false });
 		await r.p.poll();
 		await r.p.poll();
 		start(r, 'm-1');
 		expect(jvmOf(r, 'm-1').claw).toBe('hokon');
 		r.nodes[0] = fleetNode('claw-9');
+		r.nodes[1] = fleetNode('claw-8');
 		r.fleetDown.on = true;
 		await r.p.poll();
 		await r.p.poll();
@@ -669,7 +759,20 @@ describe('placement', () => {
 		expect(r.posted.at(-1)).toMatch(/^🔻 hokon stood down as the Forge backstop: calm for 3 polls/);
 		expect(hostOf(r, 'hokon').matches).toEqual(['m-1']);
 		start(r, 'm-2');
-		expect(jvmOf(r, 'm-2').claw).toBe('claw-9');
+		expect(jvmOf(r, 'm-2').claw).toBe('claw-8');
+	});
+
+	it('one of the two serving claws down promotes hokon on the second poll, and it stands down once the claw is back', async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
+		r.nodes[1] = fleetNode('claw-8', { reachable: false });
+		await r.p.poll();
+		expect(r.p.hosts().backstop.promoted).toBe(false);
+		await r.p.poll();
+		expect(r.p.hosts().backstop.promoted).toBe(true);
+		expect(r.posted.filter((t) => t.startsWith('🔺'))).toHaveLength(1);
+		r.nodes[1] = fleetNode('claw-8');
+		for (let i = 0; i < 3; i += 1) await r.p.poll();
+		expect(r.p.hosts().backstop.promoted).toBe(false);
 	});
 
 	it('a heap that wants recycling takes no new match, and its JVM retires once empty', async () => {
@@ -963,25 +1066,25 @@ describe('failover', () => {
 	});
 
 	it('a slice the converger ended at our asking, past its end: its lost agent is a release, not a page or a quarantine', async () => {
-		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8'), fleetNode('claw-5')]);
 		const end = new Date(r.clock.t + 15 * 60_000).toISOString();
-		r.nodes[0] = fleetNode('claw-9', { notices: [{ event: 'ends', at: end, kind: 'hosting' }] });
-		r.converger.ending = ['claw-9'];
+		r.nodes[2] = fleetNode('claw-5', { notices: [{ event: 'ends', at: end, kind: 'hosting' }] });
+		r.converger.ending = ['claw-5'];
 		await r.p.poll();
 		await r.p.poll();
 		r.clock.t += 15 * 60_000 + 30_000;
-		r.claws.get('claw-9')!.link.lose('agent heartbeat lost for 11 s (window 10 s)');
+		r.claws.get('claw-5')!.link.lose('agent heartbeat lost for 11 s (window 10 s)');
 		expect(r.posted).toEqual([]);
-		expect(hostOf(r, 'claw-9').quarantine).toBeNull();
-		expect(r.logs.some((l) => l.evt === 'claw-released' && l.host === 'claw-9')).toBe(true);
+		expect(hostOf(r, 'claw-5').quarantine).toBeNull();
+		expect(r.logs.some((l) => l.evt === 'claw-released' && l.host === 'claw-5')).toBe(true);
 		// Before its end, the same loss is still a fault.
-		const early = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
-		early.nodes[0] = fleetNode('claw-9', { notices: [{ event: 'ends', at: end, kind: 'hosting' }] });
-		early.converger.ending = ['claw-9'];
+		const early = await rig([fleetNode('claw-9'), fleetNode('claw-8'), fleetNode('claw-5')]);
+		early.nodes[2] = fleetNode('claw-5', { notices: [{ event: 'ends', at: end, kind: 'hosting' }] });
+		early.converger.ending = ['claw-5'];
 		await early.p.poll();
 		await early.p.poll();
-		early.claws.get('claw-9')!.link.lose('agent heartbeat lost for 11 s (window 10 s)');
-		expect(early.posted[0]).toMatch(/^⚠️ Claw heartbeat lost: claw-9/);
+		early.claws.get('claw-5')!.link.lose('agent heartbeat lost for 11 s (window 10 s)');
+		expect(early.posted[0]).toMatch(/^⚠️ Claw heartbeat lost: claw-5/);
 	});
 
 	it('agent lost with matches: one failover for the claw, not one per JVM', async () => {
@@ -990,7 +1093,9 @@ describe('failover', () => {
 		for (const id of ['m-1', 'm-2', 'm-3']) ready(r, id);
 		r.claws.get('claw-8')!.link.lose('agent heartbeat lost for 11 s (window 10 s)');
 		expect(r.posted.filter((t) => t.startsWith('🚨'))).toHaveLength(1);
-		expect(r.posted[0]).toMatch(/^🚨 Failover: claw-8 — agent heartbeat lost .* Moved 2: m-1 → claw-9 .*; m-3 → claw-9/);
+		// claw-8 is a serving claw and its matches are waiting: hokon steps up at once, and claw-9 still takes them.
+		expect(r.p.hosts().backstop.promoted).toBe(true);
+		expect(r.posted.find((t) => t.startsWith('🚨'))).toMatch(/^🚨 Failover: claw-8 — agent heartbeat lost .* Moved 2: m-1 → claw-9 .*; m-3 → claw-9/);
 		expect(r.posted.some((t) => t.startsWith('⚠️ Claw heartbeat lost'))).toBe(false);
 	});
 });

@@ -3,18 +3,23 @@
  *
  * fleet-manager's part is to get claws online, report their status and serve the declared slice
  * (the hosting rulings); placement is ours. Only the fields of its pinned tenant contract
- * (`TENANT_CONTRACT`, number `FLEET_CONTRACT`) are read: `contract`, `generatedAt`, `nodes[].node`,
- * `reachable`, `ok`, `findings[]`, `notices[]{event,at,kind}`, `hosting.state`,
- * `hosting.declared.{tenant,memoryMb,cores,port,role}`, `hosting.observed.{agent,portReach,memoryInUseMb}`
- * and `hosting.until`. Every non-guest node is a row, so a slice that ended reads `hosting: null`.
- * Only our tenant's primary slice counts: another tenant's slice, or a standby
- * (`declared.role: "standby"`, for a tenant with `availability.standby`; absent is primary), reads
- * as no slice of ours.
+ * (number `FLEET_CONTRACT`) are read: `contract`, `generatedAt`, `nodes[].node`, `reachable`, `ok`,
+ * `findings[]`, `notices[]{event,at,kind}`, and of each slice in `tenants[]` (or `hosting`, the
+ * node's oldest slice, from a fleet-manager before `tenants`) `state`,
+ * `declared.{tenant,memoryMb,cores,port,role}`, `observed.{agent,portReach,memoryInUseMb}` and
+ * `until`. Every non-guest node is a row, so a slice that ended reads `hosting: null`. Only our
+ * tenant's primary slice counts: another tenant's slice, or a standby (`declared.role: "standby"`,
+ * for a tenant with `availability.standby`; absent is primary), reads as no slice of ours.
  *
  * Readable is stdout that parses AND carries our contract number; the exit code reports findings
  * only. Anything else is "could not look", which holds the current state and never promotes or
- * demotes anything (forge-hosting-plan §4.3). A live read ssh's to every node (~10 s), so the poll
- * takes a copy up to `STATUS_MAX_AGE_S` old, and the status is as of its own `generatedAt`.
+ * demotes anything (forge-hosting-plan §4.3), and is logged with the document's own `reason` when it
+ * gives one (`unreadableWhy`). A live read ssh's to every node (~10 s), so the poll takes a copy up
+ * to `STATUS_MAX_AGE_S` old, and the status is as of its own `generatedAt`.
+ *
+ * The CLI is the install mgmt-api runs (`MGMT_API_FLEET_CLI`), so we read the fleet with the build
+ * that writes it: a stale `~/repos/hadoku-fleet-manager/dist` read the list-of-slices format as "no
+ * slice of ours" and promoted hokon for nothing (2026-10-31 17:54Z).
  *
  * `hosting-demand` is how many slices we want: a count restated every poll (the same count is a
  * no-op), with the order fleet-manager's converger ends them in when the count drops. It declares
@@ -23,6 +28,7 @@
  */
 
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -106,14 +112,37 @@ function parseContract(text: string): Record<string, unknown> | null {
 	return isObject(raw) && raw.contract === FLEET_CONTRACT ? raw : null;
 }
 
+/**
+ * Why a document the parsers refused is unreadable, in its own words when it has them:
+ * fleet-manager answers a failure as `{contract, ok: false, reason}` (hosting-demand's "not a
+ * registered tenant", "cannot read fleet state: …"). 157 such answers on 2026-10-31 logged only
+ * "not contract 1" and could not be diagnosed.
+ */
+export function unreadableWhy(text: string): string {
+	let raw: unknown;
+	try {
+		raw = JSON.parse(text);
+	} catch {
+		return `not JSON: ${text.trim().slice(0, 200)}`;
+	}
+	if (!isObject(raw)) return 'not a JSON object';
+	if (typeof raw.reason === 'string' && raw.reason !== '') return raw.reason;
+	if (raw.contract !== FLEET_CONTRACT) return `contract ${JSON.stringify(raw.contract ?? null)}, not ${FLEET_CONTRACT}`;
+	return `contract ${FLEET_CONTRACT} without the fields it promises (ok: ${JSON.stringify(raw.ok ?? null)})`;
+}
+
 /** Our app in fleet-manager's hosting registry. */
 export const TENANT = 'cardtable';
 
-/** A node's `hosting` when it is our tenant's primary slice, else null. */
-function ourSlice(h: unknown): Record<string, unknown> | null {
-	if (!isObject(h)) return null;
-	const declared = isObject(h.declared) ? h.declared : {};
-	return declared.tenant === TENANT && (declared.role ?? 'primary') === 'primary' ? h : null;
+/** Our tenant's primary slice on a node: among its `tenants`, else its `hosting`; else null. */
+function ourSlice(n: Record<string, unknown>): Record<string, unknown> | null {
+	const ours = (h: unknown): h is Record<string, unknown> => {
+		if (!isObject(h)) return false;
+		const declared = isObject(h.declared) ? h.declared : {};
+		return declared.tenant === TENANT && (declared.role ?? 'primary') === 'primary';
+	};
+	const slices = Array.isArray(n.tenants) ? n.tenants : [n.hosting];
+	return slices.find(ours) ?? null;
 }
 
 /** The contract's fields of one `node-status --json`, or null when it is not that. */
@@ -124,7 +153,7 @@ export function parseNodeStatus(text: string): FleetStatus | null {
 	const nodes: FleetNode[] = [];
 	for (const n of raw.nodes) {
 		if (!isObject(n) || typeof n.node !== 'string') return null;
-		const h = ourSlice(n.hosting);
+		const h = ourSlice(n);
 		const declared = h !== null && isObject(h.declared) ? h.declared : null;
 		const observed = h !== null && isObject(h.observed) ? h.observed : null;
 		nodes.push({
@@ -175,8 +204,23 @@ export function parseDemand(text: string): FleetDemand | null {
 	};
 }
 
+/** The fleet-manager install mgmt-api runs: cardtable reads the fleet through the same build. */
+export const MGMT_API_FLEET_CLI = join(homedir(), 'srv', 'hadoku_site', 'services', 'mgmt-api', 'node_modules', '@wolffm', 'fleet-manager', 'dist', 'cli.js');
+/** The fallback when that install is missing: the checkout, which may lag it. */
+export const CHECKOUT_FLEET_CLI = join(homedir(), 'repos', 'hadoku-fleet-manager', 'dist', 'cli.js');
+
+/**
+ * Which fleet-manager CLI to run: `CARDTABLE_FLEET_CLI` when set, else mgmt-api's install, else
+ * (with `fallback` set, for a loud log) the checkout.
+ */
+export function fleetCliPath(env: NodeJS.ProcessEnv, exists: (path: string) => boolean = existsSync): { cli: string; fallback: string | null } {
+	if (env.CARDTABLE_FLEET_CLI) return { cli: env.CARDTABLE_FLEET_CLI, fallback: null };
+	if (exists(MGMT_API_FLEET_CLI)) return { cli: MGMT_API_FLEET_CLI, fallback: null };
+	return { cli: CHECKOUT_FLEET_CLI, fallback: `mgmt-api's fleet-manager install is missing (${MGMT_API_FLEET_CLI}); reading the fleet through the checkout, which may lag it` };
+}
+
 export interface FleetCliOptions {
-	/** fleet-manager's `dist/cli.js`. Default `~/repos/hadoku-fleet-manager/dist/cli.js`. */
+	/** fleet-manager's `dist/cli.js`. Default `fleetCliPath`'s answer. */
 	cli?: string;
 	env?: NodeJS.ProcessEnv;
 	timeoutMs?: number;
@@ -186,8 +230,12 @@ export interface FleetCliOptions {
 /** fleet-manager's CLI, run as an operator runs it: `node <cli> node-status --json`. */
 export function fleetCli(opts: FleetCliOptions = {}): FleetSource {
 	const env = opts.env ?? process.env;
-	const cli = opts.cli ?? env.CARDTABLE_FLEET_CLI ?? join(homedir(), 'repos', 'hadoku-fleet-manager', 'dist', 'cli.js');
 	const log = opts.log ?? (() => {});
+	const path = opts.cli === undefined ? fleetCliPath(env) : { cli: opts.cli, fallback: null };
+	const cli = path.cli;
+	if (path.fallback !== null) {
+		log({ evt: 'fleet-cli-fallback', level: 'error', cli, why: path.fallback });
+	}
 	// fleet-manager finds the hadoku_site checkout through REPOS_DIR; without it, it refuses to run.
 	const childEnv = { ...env, REPOS_DIR: env.REPOS_DIR ?? join(homedir(), 'repos') };
 	const run = (args: string[]): Promise<string | null> =>
@@ -206,7 +254,7 @@ export function fleetCli(opts: FleetCliOptions = {}): FleetSource {
 		async status() {
 			const text = await run(['node-status', '--json', '--max-age', String(STATUS_MAX_AGE_S)]);
 			const status = text === null ? null : parseNodeStatus(text);
-			if (text !== null && status === null) log({ evt: 'fleet-unreadable', args: 'node-status', error: `not contract ${FLEET_CONTRACT}` });
+			if (text !== null && status === null) log({ evt: 'fleet-unreadable', args: 'node-status', error: unreadableWhy(text) });
 			return status;
 		},
 		async demand(slices, releaseOrder) {
@@ -214,7 +262,7 @@ export function fleetCli(opts: FleetCliOptions = {}): FleetSource {
 			if (releaseOrder.length > 0) args.push('--release-order', releaseOrder.join(','));
 			const text = await run(args);
 			const demand = text === null ? null : parseDemand(text);
-			if (text !== null && demand === null) log({ evt: 'fleet-unreadable', args: 'hosting-demand', error: `not contract ${FLEET_CONTRACT}` });
+			if (text !== null && demand === null) log({ evt: 'fleet-unreadable', args: 'hosting-demand', error: unreadableWhy(text) });
 			return demand;
 		},
 	};

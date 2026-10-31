@@ -23,18 +23,22 @@
  *
  * ## hokon as the backstop (§4.3)
  *
- * The same shape as fleet-manager's CI backstop: promoted when no claw is eligible, or when fewer
- * than half the declared claws are reachable, for `OUTAGE_POLLS` polls in a row — at once when a
- * start is waiting or a failed claw's matches need a host; demoted after `CALM_POLLS` calm polls in
- * a row; a poll that could not read fleet status holds whatever is current; an operator force,
- * time-boxed (`FORCE_DEFAULT_MS`, at most `FORCE_MAX_MS`), promotes regardless. Demotion takes no
- * new matches on hokon and moves none: a healthy match is never restored for nothing.
+ * The operator's host priority (2026-10-31): **claw-8 → claw-9 → hokon → claw-5** (`HOST_ORDER`,
+ * with hokon as the step between the serving claws and the emergency one). The same shape as
+ * fleet-manager's CI backstop: promoted when no claw is eligible, or when fewer than `MIN_SLICES` of
+ * the serving claws (`SERVING`) are usable, for `OUTAGE_POLLS` polls in a row — at once when a start
+ * is waiting or a failed claw's matches need a host; demoted after `CALM_POLLS` calm polls in a row;
+ * a poll that could not read fleet status holds whatever is current; an operator force, time-boxed
+ * (`FORCE_DEFAULT_MS`, at most `FORCE_MAX_MS`), promotes regardless. Demotion takes no new matches
+ * on hokon and moves none: a healthy match is never restored for nothing.
  *
  * ## Slices on demand (§6)
  *
- * `demandStep` decides, every poll, how many slices to ask fleet-manager for: more as load rises or
- * a claw stays unusable, fewer only after a calm spell, and the order they may be ended in.
- * fleet-manager's converger declares and ends them; which match runs where stays here.
+ * `demandStep` decides, every poll, how many slices to ask fleet-manager for: `MIN_SLICES` (the
+ * serving claws), one more only while hokon is promoted and still short (the emergency claw), fewer
+ * only after a calm spell, and the order they may be ended in, the emergency claw first.
+ * fleet-manager's converger declares and ends them, ranking nodes by `hosting.json`'s
+ * `placement.order`; which match runs where stays here.
  */
 
 import { readFileSync, statSync } from 'node:fs';
@@ -159,10 +163,8 @@ export interface BackstopState {
 export interface BackstopInput {
 	/** This poll read fleet status. False: hold. */
 	fresh: boolean;
-	/** Claws with a slice declared for us. */
-	declared: number;
-	/** Of those, the ones fleet-manager reached. */
-	reachable: number;
+	/** `SERVING` claws with a slice declared for us that are usable (`DemandClaw.usable`). */
+	serving: number;
 	eligible: number;
 	/** The operator's force is in effect. */
 	forced: boolean;
@@ -185,8 +187,8 @@ export function backstopStep(state: BackstopState, input: BackstopInput): { stat
 	const outage =
 		input.eligible === 0
 			? 'no claw is eligible'
-			: input.reachable * 2 < input.declared
-				? `only ${input.reachable} of ${input.declared} declared claws are reachable`
+			: input.serving < MIN_SLICES
+				? `only ${input.serving} of the ${MIN_SLICES} serving claws (${SERVING.join(', ')}) ${input.serving === 1 ? 'is' : 'are'} up`
 				: null;
 	if (outage !== null && (state.promoted || input.waiting)) return next({ promoted: true, calm: 0, outages: 0, why: outage });
 	if (input.between) return { state, change: null };
@@ -228,10 +230,6 @@ export function readForce(file: string, now: number): { until: number } | null {
 
 /* ── Slice demand ─────────────────────────────────────────────────────── */
 
-/** A usable slice past this share of its matches asks for the next one (forge-hosting-plan §6). */
-export const SCALE_UP_AT = 0.7;
-/** A declared claw unusable this long is replaced, so one failed claw does not cost a slice. */
-export const REPLACE_AFTER_MS = 10 * 60_000;
 /**
  * The count drops only after asking for fewer this long without a break (the calm spell). Each
  * release costs the converger a `noticeMin` end (15 min), so a spell much shorter than a quiet
@@ -246,6 +244,22 @@ export const DEMAND_CALM_MS = 2 * 60 * 60_000;
 export const MIN_SLICES = 2;
 export const MAX_SLICES = 4;
 
+/**
+ * The operator's Forge host priority (2026-10-31), hokon aside: `hosting.json`'s `placement.order`
+ * (a unit test pins them equal), which fleet-manager's converger ranks nodes by. The first
+ * `MIN_SLICES` are the serving claws; the rest are for "truly horrific emergencies" only, after
+ * hokon, and end first. A node not listed ranks after every listed one.
+ */
+export const HOST_ORDER: readonly string[] = ['claw-8', 'claw-9', 'claw-5'];
+/** The claws whose being down promotes hokon. */
+export const SERVING: readonly string[] = HOST_ORDER.slice(0, MIN_SLICES);
+
+/** Where a node stands in `HOST_ORDER`; an unlisted one after them all. */
+export function hostRank(node: string): number {
+	const i = HOST_ORDER.indexOf(node);
+	return i < 0 ? HOST_ORDER.length : i;
+}
+
 export interface DemandClaw {
 	node: string;
 	/** Takes matches, room and AI quality aside: the fleet, agent, notice and quarantine bars hold. */
@@ -259,13 +273,13 @@ export interface DemandClaw {
 export interface DemandInput {
 	/** Claws with a slice declared for us. */
 	claws: readonly DemandClaw[];
-	/** Matches placed anywhere, hokon included. */
-	live: number;
 	/** Matches one slice holds. */
 	perSlice: number;
 	/** The server's match ceiling (`MAX_CONCURRENT_MATCHES`): no slice is asked for past it. */
 	ceiling: number;
-	/** A start found no host since the last poll. */
+	/** hokon is promoted: the step between the serving claws and the emergency one is taken. */
+	backstop: boolean;
+	/** A start found no host since the last poll while hokon was promoted: hokon is short too. */
 	short: boolean;
 	now: number;
 }
@@ -282,27 +296,28 @@ export const DEMAND_IDLE: DemandState = { slices: null, lowSince: null };
 /**
  * How many slices to ask fleet-manager for, and which to end first when that drops.
  *
- * Enough usable slices that live matches stay under `SCALE_UP_AT` of them, never more than the
- * ceiling needs, at least one more after a start found no host, plus one for each claw unusable for
- * `REPLACE_AFTER_MS` (its slice stays declared, so its canary can bring it back). More is asked for
- * at once; fewer only after `DEMAND_CALM_MS` of wanting fewer. The release order puts unusable claws
- * first (longest first), then the emptiest, then the slowest core: the converger ends from its head
- * with our notice, and a planned move takes what is still on it.
+ * `MIN_SLICES`, the serving claws, however busy: the next unit of demand is hokon, not a slice. A
+ * dead serving claw is not replaced, since that is what pulled claw-5 in; it stays declared for its
+ * canary, and hokon covers it. One more than is declared only when hokon is promoted AND a start
+ * still found no host, never past the ceiling's need. More is asked for at once; fewer only after
+ * `DEMAND_CALM_MS` of wanting fewer. The first poll after a restart starts from that floor, or from
+ * the claws still carrying matches if more: a restart is no reason to keep an idle third slice.
+ *
+ * The release order is `HOST_ORDER` backwards (the emergency claw, and anything unlisted, first),
+ * then unusable claws (longest first), then the emptiest: the converger ends from its head with our
+ * notice, and a planned move takes what is still on it.
  */
 export function demandStep(state: DemandState, input: DemandInput): { state: DemandState; slices: number; releaseOrder: string[] } {
 	const per = Math.max(1, input.perSlice);
-	const usable = input.claws.filter((c) => c.usable).length;
-	const cap = Math.max(MIN_SLICES, Math.ceil(input.ceiling / per));
-	let load = Math.min(cap, Math.floor(input.live / (SCALE_UP_AT * per)) + 1);
-	if (input.short) load = Math.min(cap, Math.max(load, usable + 1));
-	const replacing = input.claws.filter((c) => !c.usable && c.unusableSince !== null && input.now - c.unusableSince >= REPLACE_AFTER_MS).length;
-	const want = Math.min(MAX_SLICES, Math.max(MIN_SLICES, load + replacing));
-	const current = state.slices ?? input.claws.length;
+	const cap = Math.min(MAX_SLICES, Math.max(MIN_SLICES, Math.ceil(input.ceiling / per)));
+	const want = input.backstop && input.short ? Math.min(cap, Math.max(MIN_SLICES, input.claws.length + 1)) : MIN_SLICES;
+	const current = state.slices ?? Math.max(want, input.claws.filter((c) => c.live > 0).length);
 	const lowSince = want >= current ? null : (state.lowSince ?? input.now);
 	const slices = lowSince === null || input.now - lowSince >= DEMAND_CALM_MS ? want : current;
 	const releaseOrder = [...input.claws]
 		.sort(
 			(a, b) =>
+				hostRank(b.node) - hostRank(a.node) ||
 				Number(a.usable) - Number(b.usable) ||
 				(a.unusableSince ?? 0) - (b.unusableSince ?? 0) ||
 				a.live - b.live ||

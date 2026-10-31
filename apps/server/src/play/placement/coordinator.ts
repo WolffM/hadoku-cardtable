@@ -65,6 +65,7 @@ import {
 	BACKSTOP_IDLE,
 	DEMAND_IDLE,
 	MOVE_AHEAD_MS,
+	SERVING,
 	aiBar,
 	backstopStep,
 	bars,
@@ -309,6 +310,8 @@ export function placement(opts: PlacementOptions): Placement {
 	let converger: FleetDemand | null = null;
 	/** A start found no host since the last poll. */
 	let short = false;
+	/** A start found no host since the last poll while hokon was promoted: the emergency claw's cue. */
+	let hokonShort = false;
 	/** Set while a restore runs: the factory never places onto the host being failed. */
 	let exceptHost: Host | null = null;
 	const fencedBatches = new Map<Host, Moved[]>();
@@ -445,11 +448,13 @@ export function placement(opts: PlacementOptions): Placement {
 
 	function capacityShort(): void {
 		short = true;
+		if (backstop.promoted) hokonShort = true;
 		if (alerts.isOpen('capacity') || closing) return;
+		const next = backstop.promoted ? 'the next poll asks for one more' : 'hokon steps in before another slice is asked for';
 		const fleet =
 			converger === null
 				? ''
-				: ` fleet-manager has ${converger.declared.length} declared for us; ${converger.auto ? 'the next poll asks for more' : "its converger only plans (no placement.auto), so declaring another is the operator's call"}.`;
+				: ` fleet-manager has ${converger.declared.length} declared for us; ${converger.auto ? next : "its converger only plans (no placement.auto), so declaring another is the operator's call"}.`;
 		alerts.fire('capacity', `⚠️ Capacity: a Forge match is waiting for a host. ${whyNone()}.${fleet}`);
 	}
 
@@ -479,13 +484,14 @@ export function placement(opts: PlacementOptions): Placement {
 		const capacities = declared.map((h) => h.maxJvms * perJvm).filter((n) => n > 0);
 		const step = demandStep(demand, {
 			claws: declared.map((h) => ({ node: h.name, usable: h.unusableSince === null, unusableSince: h.unusableSince, live: matchesOn(h) })),
-			live: placed.size,
 			perSlice: capacities.length === 0 ? perJvm : Math.max(...capacities),
 			ceiling: MAX_CONCURRENT_MATCHES,
-			short,
+			backstop: backstop.promoted,
+			short: hokonShort,
 			now: now(),
 		});
 		short = false;
+		hokonShort = false;
 		if (step.slices !== demand.slices || step.releaseOrder.join() !== releaseOrder.join()) {
 			log({ evt: 'slice-demand', slices: step.slices, was: demand.slices, releaseOrder: step.releaseOrder, live: placed.size });
 		}
@@ -817,11 +823,9 @@ export function placement(opts: PlacementOptions): Placement {
 	 * `waiting` is a start that found no host since the last poll, or a failed claw's matches.
 	 */
 	function stepBackstop(fresh: boolean, between = false, waiting = short): void {
-		const declared = claws().filter((h) => h.fleet?.hosting != null);
 		const step = backstopStep(backstop, {
 			fresh: fresh && fleetReadAt !== null,
-			declared: declared.length,
-			reachable: declared.filter((h) => h.fleet?.reachable === true).length,
+			serving: claws().filter((h) => SERVING.includes(h.name) && h.fleet?.hosting != null && usable(h)).length,
 			eligible: claws().filter((h) => eligible(barsOf(h))).length,
 			forced: opts.forceFile === undefined ? false : readForce(opts.forceFile, now()) !== null,
 			waiting,

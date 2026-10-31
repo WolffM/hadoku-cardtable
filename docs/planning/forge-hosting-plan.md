@@ -198,7 +198,7 @@ in `src/runners/backstop.ts` and `backstop-force.ts`, read 2026-10-25:
 
 | CI backstop (fleet-manager) | Forge backstop (ours) |
 | --- | --- |
-| **Outage**: fewer than half the registered claws answer, or zero registered. Promotes regardless of queue | fewer than half the eligible hosts (§4.1) answer, or none are eligible, for **2 polls in a row** — at once when a start is waiting or a failed claw's matches need a host (operator, 2026-10-31: one-poll blips promoted hokon over and over on 2026-10-30) |
+| **Outage**: fewer than half the registered claws answer, or zero registered. Promotes regardless of queue | fewer than 2 of the serving claws (claw-8, claw-9) are usable, or none are eligible, for **2 polls in a row** — at once when a start is waiting or a failed claw's matches need a host (operator, 2026-10-31: one-poll blips promoted hokon over and over on 2026-10-30; and the host priority below) |
 | **Saturation**: the oldest queued run has waited ≥ 100 s (`SATURATION_QUEUE_SECONDS`, the measured p90) | a match has waited ≥ N s for a host under admission control (§4.2). N comes from data, as 100 did |
 | **Idle gate** on saturation: load ≤ 4/core, ≥ 12 GB available, /tmp ≥ 2 GB (the last refuses even a forced mint) | the same gate, the same constants |
 | Saturation yields to prod work (the pm2-host rung, deploys); an outage does not | the same: a deploy or reserved prod work beats saturation, never an outage |
@@ -208,6 +208,12 @@ in `src/runners/backstop.ts` and `backstop-force.ts`, read 2026-10-25:
 
 What is ours on top:
 
+- **Host priority (operator, 2026-10-31): claw-8 → claw-9 → hokon → claw-5.**
+  If either serving claw goes down, hokon comes up; claw-5 is declared only when
+  hokon is promoted and a start still finds no host ("truly horrific
+  emergencies"), and it is the first slice to end. `rules.ts` `HOST_ORDER` =
+  `hosting.json` `placement.order` (hokon is not listed: it is our step, not a
+  slice), which fleet-manager's converger ranks nodes by.
 - **Promoted hokon still obeys quality first.** Its per-tier cap is half its own
   measured knee, lowered by what prod is using at the moment.
 - **Demotion takes no new matches.** Live matches finish on hokon; moving a
@@ -282,12 +288,16 @@ Only what ruling 2 allows; it goes to them as a request in `docs/requests/`:
   **Since 2026-10-28 this runs by itself** (the operator approved fleet-manager's
   converger and `placement.auto`): every poll asks `fleet hosting-demand
   cardtable --slices N --release-order …` for `rules.ts` `demandStep`'s count.
-  It asks for the next slice past 70% of the usable ones (capped at what
-  `MAX_CONCURRENT_MATCHES` needs), and for a replacement for a claw unusable for
-  10 min. It asks for fewer only after 2 h calm, never under **2 slices** (`MIN_SLICES` =
-  `hosting.json` `slices.min`, since 2026-10-31: one slice left a calm evening on one claw, so a
-  blip promoted hokon and a failover could only go there), and a slice it is already ending is never replaced. It ends unusable claws
-  first, then the emptiest, then the slowest. The converger declares and ends
+  **Since 2026-10-31 (the host priority, §4.3) it asks for 2 slices** (`MIN_SLICES` =
+  `hosting.json` `slices.min`), however busy: the third unit of demand is hokon,
+  not a slice. No replacement for a dead claw (that pulled claw-5 in): hokon
+  covers it, and its slice stays declared for its canary. One more than is
+  declared only while hokon is promoted AND a start still found no host, capped
+  at what `MAX_CONCURRENT_MATCHES` needs. It asks for fewer only after 2 h calm;
+  the first poll after a restart starts from the floor (or from the claws still
+  carrying matches), so a deploy no longer re-pins an idle third slice for 2 h.
+  It ends `HOST_ORDER` backwards — claw-5 (and anything unlisted) first — then
+  unusable claws, then the emptiest. The converger declares and ends
   slices through `fleet hosting` with our `noticeMin`, so a planned move takes
   what is still on one. It acts only after the operator registers the request
   (`fleet hosting-request WolffM/hadoku-cardtable --register`); until then it
