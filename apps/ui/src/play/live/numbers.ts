@@ -514,6 +514,10 @@ export interface NumbersHost {
   readonly leave?: (batch: readonly { departure: Departure; delayMs: number }[]) => void;
   /** A hit landed on this card: a death waiting on it starts now (`departures.ts`'s `strike`). */
   readonly strike?: (cardId: number) => void;
+  /** A hit is on its way to this card: draw `damage`, its damage before the hit, until it lands (`./damage-hold.ts`). */
+  readonly holdDamage?: (cardId: number, damage: number) => void;
+  /** That hit has landed: draw the card's damage as Forge marks it. */
+  readonly releaseDamage?: (cardId: number) => void;
 }
 
 export interface NumbersHandle {
@@ -1141,8 +1145,12 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       const target = hitTarget(h.cardId);
       if (target === null) continue;
       const departure = leaving.get(h.cardId);
+      // Its badge keeps the damage it had until the hit lands: Forge marks a wipe's damage before any of it is drawn.
+      const wasDamage = before?.players.flatMap((pl) => pl.battlefield).find((c) => c.id === h.cardId)?.damage;
+      if (wasDamage !== undefined) host.holdDamage?.(h.cardId, wasDamage);
       // No number: the slam is the hit (the operator, 2026-10-15) — what is left of its toughness is the badge's.
       const land = (): void => {
+        if (wasDamage !== undefined) host.releaseDamage?.(h.cardId);
         flash(hitTarget(h.cardId) ?? target, 'danger');
         hitsDue.delete(h.cardId);
         host.strike?.(h.cardId);

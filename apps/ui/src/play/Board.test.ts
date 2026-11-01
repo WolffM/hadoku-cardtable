@@ -19,7 +19,7 @@ import type { DraftCard } from '@hadoku/shared';
 
 import { createProjector, type StateFrame } from '../../../server/src/play/visibility.ts';
 import { EXIT_MOTIONS, LEAVING_GAP_ATTR } from './live/departures.ts';
-import { UNLOCK_BEAT_MS } from './motion.ts';
+import { HIT_MS, UNLOCK_BEAT_MS } from './motion.ts';
 import { forgetCardWidths } from './card-size.ts';
 import { cardImageUrl } from '../draft/cardImage.ts';
 import poolData from '../draft/pool.json';
@@ -3183,6 +3183,22 @@ describe('power and toughness on the board (#12, #18)', () => {
     const stated = [...numbers(urchin(3, 4, 3, { power: 1, toughness: 2 })), ...numbers(urchin(0, 1, 0, { power: 1, toughness: 2 }))];
     expect(new Set(stated.map((n) => n.dataset.ptState))).toEqual(new Set(['buffed', 'damaged', 'hurt']));
     for (const n of stated) expect(css(n, 'font-weight'), n.dataset.ptState).not.toBe(css(plain, 'font-weight'));
+  });
+
+  // The operator, 2026-11-01, trailer cut 4: Blasphemous Act's creatures read `2/-12` before any fireball landed.
+  it("a creature's damage is drawn as the bolt that deals it lands, not when Forge marks it", async () => {
+    vi.useFakeTimers();
+    const spell = boardFromFixture(fixture).stack.find((item) => !item.isAbility)!;
+    const before = { ...urchin(1, 2, 0, { power: 1, toughness: 2 }), stack: [spell] } as BoardView;
+    const after = { ...urchin(1, 2, 1, { power: 1, toughness: 2 }), stack: [], hits: [{ seq: 1, cardId: 21, sourceId: spell.sourceCardId ?? 0, amount: 1 }] } as BoardView;
+    const { container, rerender } = renderBoard(before);
+    expect(badge(container, 21)?.text).toBe('1/2');
+    rerender(createElement(Board, { view: after, boardLayout: 'type-separated' }));
+    expect(badge(container, 21)?.text, 'the bolt is in the air: the badge reads as before').toBe('1/2');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HIT_MS);
+    });
+    expect(badge(container, 21)?.text, 'it landed').toBe('1/1');
   });
 
   it('is out of flow and takes no click: it may not move a card or eat a selection', () => {

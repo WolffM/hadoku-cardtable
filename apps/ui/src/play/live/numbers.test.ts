@@ -1314,3 +1314,45 @@ describe('installNumbers: the stylesheet reads its durations', () => {
     handle.dispose();
   });
 });
+
+/*
+ * The operator, 2026-11-01, trailer cut 4's Blasphemous Act: thirteen creatures read `2/-12` while the fireballs
+ * were still in the air. A creature's damage is drawn as what hits it lands (`./damage-hold.ts`).
+ */
+describe('installNumbers: a creature’s damage waits for its hit', () => {
+  it('a creature hit by a bolt keeps its old damage drawn until the bolt lands', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    canvas.querySelector('[data-card-id="7"]')!.setAttribute('data-board-card', '7');
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    overlay.insertAdjacentHTML('beforeend', '<div data-placed-spell="40"></div>');
+    overlay.querySelector<HTMLElement>('[data-placed-spell="40"]')!.getBoundingClientRect = () => rect({ left: 450, top: 350, width: 96, height: 134 });
+    const holds: string[] = [];
+    const handle = installNumbers(canvas, {
+      reducedMotion: () => false,
+      fastMode: () => false,
+      holdDamage: (id, damage) => holds.push(`hold ${id}@${damage}`),
+      releaseDamage: (id) => holds.push(`release ${id}`),
+    });
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(7, 1)] }), player(1, 20)]), [item(40, 131)]));
+    handle.notify({ ...view([player(0, 20, { isViewer: true, battlefield: [card(7, 4)] }), player(1, 20)]), hits: [{ seq: 1, cardId: 7, sourceId: 131, amount: 3 }] });
+    expect(holds, 'its damage before the bolt is held as the bolt sets off').toEqual(['hold 7@1']);
+    vi.advanceTimersByTime(HIT_MS - 1);
+    expect(holds, 'still in the air').toEqual(['hold 7@1']);
+    vi.advanceTimersByTime(1);
+    expect(holds, 'drawn as it lands').toEqual(['hold 7@1', 'release 7']);
+    handle.dispose();
+  });
+
+  it('a hit at a card this view never drew on a battlefield holds nothing', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const holds: string[] = [];
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false, holdDamage: (id) => holds.push(`hold ${id}`), releaseDamage: (id) => holds.push(`release ${id}`) });
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20)]));
+    handle.notify({ ...view([player(0, 20, { isViewer: true }), player(1, 20)]), hits: [{ seq: 1, cardId: 99, sourceId: 131, amount: 3 }] });
+    vi.advanceTimersByTime(HIT_MS * 2);
+    expect(holds).toEqual([]);
+    handle.dispose();
+  });
+});

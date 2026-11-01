@@ -374,8 +374,10 @@
  */
 
 import {
+  createContext,
   Fragment,
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -419,6 +421,7 @@ import { clickLatch, pastSlop } from './live/gestures/types.ts';
 import { installDice } from './live/dice.ts';
 import type { ShownRoll } from './live/shown.ts';
 import { installNumbers, type Revealed } from './live/numbers.ts';
+import { damageHold, type DamageHold } from './live/damage-hold.ts';
 import { addWork } from './live/work-meter.ts';
 import { pinFlight } from './flight.ts';
 import { installPlaced } from './live/placed.ts';
@@ -2112,7 +2115,21 @@ function PowerToughness({ entry }: { entry: BoardCard }) {
   );
 }
 
-function CreaturePT({ entry }: { entry: BoardCard }) {
+/** The board's {@link DamageHold}: a creature's damage while a hit is still on its way to it. */
+const DamageHoldContext = createContext<DamageHold | null>(null);
+const NO_HOLD = (): (() => void) => () => undefined;
+
+/** The damage to draw on `entry`: what it had before a hit still in the air, else Forge's (`./live/damage-hold.ts`). */
+function useShownDamage(entry: BoardCard): number {
+  const holds = useContext(DamageHoldContext);
+  const shown = (): number | undefined => holds?.shown(entry.id);
+  const held = useSyncExternalStore(holds?.subscribe ?? NO_HOLD, shown, shown);
+  return held ?? entry.damage;
+}
+
+function CreaturePT({ entry: forge }: { entry: BoardCard }) {
+  const damage = useShownDamage(forge);
+  const entry = damage === forge.damage ? forge : { ...forge, damage };
   const pt = boardPT(entry);
   /*
    * No P/T and damage marked anyway — a planeswalker, a damaged non-creature,
@@ -4319,6 +4336,8 @@ export function Board({
    * delegation and draws into the overlay root. One mount, one dispose.
    */
   const root = useRef<HTMLElement>(null);
+  /** A creature's damage while a hit is on its way to it (`./live/damage-hold.ts`), drawn by its P/T badge. */
+  const [damageHolds] = useState(damageHold);
   useEffect(() => {
     const el = root.current;
     if (el === null) return undefined;
@@ -4422,13 +4441,16 @@ export function Board({
       fastMode: () => fastNow.current,
       leave: (batch) => departures.current?.leave(batch),
       strike: (cardId) => departures.current?.strike(cardId),
+      holdDamage: (cardId, damage) => damageHolds.hold(cardId, damage),
+      releaseDamage: (cardId) => damageHolds.release(cardId),
     });
     numbers.current = handle;
     return () => {
       numbers.current = null;
       handle.dispose();
+      damageHolds.clear();
     };
-  }, []);
+  }, [damageHolds]);
   /* A die roll (`live/dice.ts`), booted the same way: drawn once per roll, over the view drawn with it. */
   const dice = useRef<ReturnType<typeof installDice> | null>(null);
   const reportRoll = useRef(onRoll);
@@ -4608,98 +4630,100 @@ export function Board({
   const focus = interaction?.selectionOpen === true || (interaction?.combatReady?.size ?? 0) > 0;
 
   return (
-    <section className="board" aria-label="Game board" ref={root} data-focus={focus || undefined}>
-      <div className="board__opponents">
-        {others.map((p) => (
+    <DamageHoldContext.Provider value={damageHolds}>
+      <section className="board" aria-label="Game board" ref={root} data-focus={focus || undefined}>
+        <div className="board__opponents">
+          {others.map((p) => (
+            <PlayerArea
+              key={p.id}
+              player={p}
+              interaction={interaction}
+              arranging={undefined}
+              arranged={arranged}
+              /* Mine only (Q15c): the opponent's board is always the default one. */
+              layout="single"
+              leaving={leavingOn(p.id)}
+              foreign={foreignBattlefieldOf(p.id)}
+              held={held}
+              onOpenPile={openPileOf(p.id)}
+            />
+          ))}
+        </div>
+
+        {/*
+         * The old stack band's column. `data-question` is the whole of items 7
+         * and 13 on this side: ROOMY by default, compact while a question
+         * stands in front of it (`board.css` reads it) — still true, because
+         * `live/placed.ts`'s default spot (decision a) is this column's own
+         * centre, so a question narrowing it moves where an unplaced spell
+         * lands too. `StackView` itself draws nothing here any more (§S): every
+         * item is a card, at a point, in the overlay — see `live/placed.ts`.
+         */}
+        <div
+          className="board__mid"
+          data-testid="board-mid"
+          data-question={interaction?.questionOpen === true || undefined}
+        >
+          <StackView count={view.stack.length} carried={carried} />
+        </div>
+
+        {staged !== undefined && <StagingArea card={staged} interaction={interaction} />}
+
+        {viewer !== undefined && (
           <PlayerArea
-            key={p.id}
-            player={p}
+            player={viewer}
             interaction={interaction}
-            arranging={undefined}
+            arranging={arranging}
             arranged={arranged}
-            /* Mine only (Q15c): the opponent's board is always the default one. */
-            layout="single"
-            leaving={leavingOn(p.id)}
-            foreign={foreignBattlefieldOf(p.id)}
+            layout={boardLayout}
+            leaving={leavingOn(viewer.id)}
+            foreign={foreignBattlefieldOf(viewer.id)}
             held={held}
-            onOpenPile={openPileOf(p.id)}
+            onOpenPile={openPileOf(viewer.id)}
+            onOpenDeck={onOpenDeck}
           />
-        ))}
-      </div>
-
-      {/*
-       * The old stack band's column. `data-question` is the whole of items 7
-       * and 13 on this side: ROOMY by default, compact while a question
-       * stands in front of it (`board.css` reads it) — still true, because
-       * `live/placed.ts`'s default spot (decision a) is this column's own
-       * centre, so a question narrowing it moves where an unplaced spell
-       * lands too. `StackView` itself draws nothing here any more (§S): every
-       * item is a card, at a point, in the overlay — see `live/placed.ts`.
-       */}
-      <div
-        className="board__mid"
-        data-testid="board-mid"
-        data-question={interaction?.questionOpen === true || undefined}
-      >
-        <StackView count={view.stack.length} carried={carried} />
-      </div>
-
-      {staged !== undefined && <StagingArea card={staged} interaction={interaction} />}
-
-      {viewer !== undefined && (
-        <PlayerArea
-          player={viewer}
-          interaction={interaction}
-          arranging={arranging}
-          arranged={arranged}
-          layout={boardLayout}
-          leaving={leavingOn(viewer.id)}
-          foreign={foreignBattlefieldOf(viewer.id)}
-          held={held}
-          onOpenPile={openPileOf(viewer.id)}
-          onOpenDeck={onOpenDeck}
-        />
-      )}
-
-      {/*
-       * Out of flow: the missing-card alert may appear mid-game and a track
-       * that appears is exactly what the static rule forbids.
-       *
-       * The old `game over` banner (`.board__over`) that used to render here
-       * is GONE (wave 35, R16, the manager's ruling on seam 4 in
-       * `docs/planning/wave35-2026-10-02.md`): `LiveBoard` (lane L) now draws
-       * a full result screen over the board when `view.gameOver`, as
-       * `<section data-testid="game-result" class="board__over">`, styled
-       * entirely in `live.css`. `Board` itself draws no game-over text and
-       * owns no `.board__over` rule — see `Board.test.ts`'s
-       * "the turn bar is deleted" describe block.
-       */}
-      {view.missingCardIds.length > 0 && (
-        <p className="board__warn" role="alert">
-          {view.missingCardIds.length} card(s) named by a zone never arrived: {view.missingCardIds.join(', ')}
-        </p>
-      )}
-      <div className="board__overlay" data-board-overlay="">
-        {cardMenu}
-        {shownPile !== null && pileOwner !== undefined && (
-          <PileView
-            ownerSide={pileOwner.isViewer ? 'you' : 'them'}
-            zone={shownPile.zone}
-            label={PILE_LABEL[shownPile.zone]}
-            count={pileCards.length}
-            onClose={closePile}
-          >
-            {/* Newest first — and before them every card Forge offers from the pile, however deep it lies. */}
-            {[...pileCards]
-              .reverse()
-              .sort((a, b) => Number(interaction?.actionable?.has(b.id) === true) - Number(interaction?.actionable?.has(a.id) === true))
-              .map((c) => (
-              <CardOnBoard key={c.id} entry={c} interaction={pileInteraction} inExile={shownPile.zone === 'exile'} />
-            ))}
-          </PileView>
         )}
-      </div>
-      <TopLayer clip />
-    </section>
+
+        {/*
+         * Out of flow: the missing-card alert may appear mid-game and a track
+         * that appears is exactly what the static rule forbids.
+         *
+         * The old `game over` banner (`.board__over`) that used to render here
+         * is GONE (wave 35, R16, the manager's ruling on seam 4 in
+         * `docs/planning/wave35-2026-10-02.md`): `LiveBoard` (lane L) now draws
+         * a full result screen over the board when `view.gameOver`, as
+         * `<section data-testid="game-result" class="board__over">`, styled
+         * entirely in `live.css`. `Board` itself draws no game-over text and
+         * owns no `.board__over` rule — see `Board.test.ts`'s
+         * "the turn bar is deleted" describe block.
+         */}
+        {view.missingCardIds.length > 0 && (
+          <p className="board__warn" role="alert">
+            {view.missingCardIds.length} card(s) named by a zone never arrived: {view.missingCardIds.join(', ')}
+          </p>
+        )}
+        <div className="board__overlay" data-board-overlay="">
+          {cardMenu}
+          {shownPile !== null && pileOwner !== undefined && (
+            <PileView
+              ownerSide={pileOwner.isViewer ? 'you' : 'them'}
+              zone={shownPile.zone}
+              label={PILE_LABEL[shownPile.zone]}
+              count={pileCards.length}
+              onClose={closePile}
+            >
+              {/* Newest first — and before them every card Forge offers from the pile, however deep it lies. */}
+              {[...pileCards]
+                .reverse()
+                .sort((a, b) => Number(interaction?.actionable?.has(b.id) === true) - Number(interaction?.actionable?.has(a.id) === true))
+                .map((c) => (
+                <CardOnBoard key={c.id} entry={c} interaction={pileInteraction} inExile={shownPile.zone === 'exile'} />
+              ))}
+            </PileView>
+          )}
+        </div>
+        <TopLayer clip />
+      </section>
+    </DamageHoldContext.Provider>
   );
 }
