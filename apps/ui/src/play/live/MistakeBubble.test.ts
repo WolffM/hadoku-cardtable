@@ -5,7 +5,7 @@
  * from) — and never when that node is not in the document at all (a watcher's turned-around table,
  * or a page that has not drawn the board yet).
  */
-import { createElement } from 'react';
+import { createElement, Profiler } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render } from '@testing-library/react';
 
@@ -107,5 +107,53 @@ describe('MistakeBubble: the exit — up for MISTAKE_SAY_MS, then its own fade',
   it('MISTAKE_EXIT_MS is a real, positive window (the pop/out keeps using it in mistake.css)', () => {
     expect(MISTAKE_EXIT_MS).toBeGreaterThan(0);
     expect(MISTAKE_SAY_MS).toBeGreaterThan(MISTAKE_EXIT_MS);
+  });
+});
+
+describe('MistakeBubble: measures the face only while a line is up, and never polls (cut 3, 2026-11-01)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('with no line up: no timer left running and no box read', () => {
+    mountFace();
+    vi.useFakeTimers();
+    const read = vi.spyOn(Element.prototype, 'getBoundingClientRect');
+    render(createElement(MistakeBubble, { mistake: null, enabled: true }));
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(vi.getTimerCount(), 'no poll').toBe(0);
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it('with a line up: only its own exit clock runs', () => {
+    mountFace();
+    vi.useFakeTimers();
+    render(createElement(MistakeBubble, { mistake: { key: 'land', seq: 1 }, enabled: true }));
+    expect(vi.getTimerCount()).toBe(1);
+  });
+
+  it('a scroll that leaves the face where it was draws nothing again; one that moves it moves the bubble', () => {
+    mountFace();
+    let top = 100;
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(() => new DOMRect(10, top, 60, 60));
+    let renders = 0;
+    const { getByTestId } = render(
+      createElement(Profiler, { id: 'bubble', onRender: () => (renders += 1) }, createElement(MistakeBubble, { mistake: { key: 'land', seq: 1 }, enabled: true })),
+    );
+    const settled = renders;
+    act(() => {
+      window.dispatchEvent(new Event('scroll'));
+      window.dispatchEvent(new Event('resize'));
+    });
+    expect(renders, 'the same box twice: no render').toBe(settled);
+    top = 140;
+    act(() => {
+      window.dispatchEvent(new Event('scroll'));
+    });
+    expect(renders).toBe(settled + 1);
+    expect(getByTestId('mistake-bubble').style.top).toBe(`${140 + 60 * 0.3}px`);
   });
 });

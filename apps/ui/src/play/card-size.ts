@@ -32,14 +32,9 @@ function drawnWidth(card: HTMLElement | null): number | null {
   return width > 0 ? width : null;
 }
 
-/**
- * The width `probe` draws at inside `list`, measured and taken out again. No layout (a test DOM):
- * the probe's own inherited `--card-w`, when it is already a px value, is the same answer.
- */
-function probeWidth(list: HTMLElement, probe: HTMLElement): number | null {
-  list.append(probe);
+/** A probe's width, once it is laid out. No layout (a test DOM): its own inherited `--card-w`, when that is already a px value, is the same answer. */
+function probeWidth(probe: HTMLElement): number | null {
   const width = probe.getBoundingClientRect().width || Number.parseFloat(getComputedStyle(probe).getPropertyValue('--card-w')) || 0;
-  probe.remove();
   return width > 0 ? width : null;
 }
 
@@ -49,9 +44,19 @@ interface Measured {
   width: number | null;
 }
 
+/**
+ * One measure, split so a batch of them lays the page out once: `start` puts any probe in (a write),
+ * `read` reads, `done` takes the probe out again. Every start of a batch, then every read, then every
+ * done — a probe put in and taken out around each read cost a layout of the whole board per row.
+ */
+interface Measure {
+  read: () => number | null;
+  done: () => void;
+}
+
 /** By row: a drawn card's width (`cardWidthIn`), and the row's own `--card-w` (`handCardWidth`). */
 const kept = { drawn: new Map<HTMLElement, Measured>(), row: new Map<HTMLElement, Measured>() };
-const measures = { drawn: drawnOrProbed, row: rowWidth };
+const starts = { drawn: startDrawn, row: startRow };
 const changed = new Set<() => void>();
 let resizes: ResizeObserver | null = null;
 const watched = new Set<Element>();
@@ -60,19 +65,35 @@ function firstCard(list: HTMLElement): HTMLElement | null {
   return list.querySelector<HTMLElement>(':scope > li.board-card');
 }
 
-function drawnOrProbed(list: HTMLElement): number | null {
-  const drawn = drawnWidth(firstCard(list));
-  if (drawn !== null) return drawn;
+function probed(list: HTMLElement, probe: HTMLElement): Measure {
+  list.append(probe);
+  return { read: () => probeWidth(probe), done: () => probe.remove() };
+}
+
+function cardProbe(): HTMLElement {
   const probe = document.createElement('li');
   probe.className = 'board-card';
   probe.style.visibility = 'hidden';
-  return probeWidth(list, probe);
+  return probe;
 }
 
-function rowWidth(list: HTMLElement): number | null {
+function startDrawn(list: HTMLElement): Measure {
+  const card = firstCard(list);
+  if (card === null) return probed(list, cardProbe());
+  // A card drawn with no width (not laid out at all) is probed after all, on its own.
+  return { read: () => drawnWidth(card) ?? measureNow(probed(list, cardProbe())), done: () => undefined };
+}
+
+function startRow(list: HTMLElement): Measure {
   const probe = document.createElement('div');
   probe.style.cssText = 'position: absolute; visibility: hidden; width: var(--card-w); height: 0';
-  return probeWidth(list, probe);
+  return probed(list, probe);
+}
+
+function measureNow(m: Measure): number | null {
+  const width = m.read();
+  m.done();
+  return width;
 }
 
 /**
@@ -83,17 +104,22 @@ function rowWidth(list: HTMLElement): number | null {
  * layers drawing at the widths redraw only when one moved.
  */
 export function remeasureCardWidths(): void {
-  let moved = false;
+  const batch: { m: Measured; measure: Measure; width?: number | null }[] = [];
   for (const kind of ['drawn', 'row'] as const) {
     for (const [list, m] of kept[kind]) {
       if (!list.isConnected || firstCard(list) !== m.first) {
         kept[kind].delete(list);
         continue;
       }
-      const width = measures[kind](list);
-      if (width !== m.width) moved = true;
-      m.width = width;
+      batch.push({ m, measure: starts[kind](list) });
     }
+  }
+  for (const b of batch) b.width = b.measure.read();
+  for (const b of batch) b.measure.done();
+  let moved = false;
+  for (const { m, width = null } of batch) {
+    if (width !== m.width) moved = true;
+    m.width = width;
   }
   const wanted = new Set<Element>([...kept.drawn, ...kept.row].flatMap(([list, m]) => (m.first === null ? [list] : [list, m.first])));
   for (const el of [...watched]) {
@@ -115,11 +141,11 @@ function watch(list: HTMLElement, m: Measured): void {
 /** `kind`'s width in `list`, from the last measure while it still holds. Measured every call where nothing can say it went stale. */
 function widthIn(kind: keyof typeof kept, list: HTMLElement): number | null {
   if (resizes === null && typeof ResizeObserver === 'function') resizes = new ResizeObserver(remeasureCardWidths);
-  if (resizes === null) return measures[kind](list);
+  if (resizes === null) return measureNow(starts[kind](list));
   const first = firstCard(list);
   const known = kept[kind].get(list);
   if (known !== undefined && known.first === first) return known.width;
-  const m: Measured = { first, width: measures[kind](list) };
+  const m: Measured = { first, width: measureNow(starts[kind](list)) };
   kept[kind].set(list, m);
   watch(list, m);
   return m.width;

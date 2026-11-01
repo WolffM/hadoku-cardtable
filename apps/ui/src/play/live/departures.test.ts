@@ -376,6 +376,43 @@ describe('installDepartures', () => {
     handle.dispose();
   });
 
+  it('a turned card’s step is worked out from the row card before it left, never read off its copies once they are built (cut 3: the wipe’s second layout)', () => {
+    const canvas = board();
+    const card = canvas.querySelector<HTMLElement>('[data-board-card="7"]')!;
+    // A card 100px wide whose face is a pile's 10px fan narrower, turned: its margins a share of the face.
+    Object.assign(card.style, { width: '100px', marginTop: '27px', marginBottom: '27px' });
+    card.insertAdjacentHTML('afterbegin', '<div class="board-card__face" style="width: 90px"></div>');
+    card.getBoundingClientRect = () => rect(300, 400, 100, 84);
+    const handle = installDepartures(canvas, { onDone: () => undefined });
+    handle.snapshot();
+    handle.capture();
+    keepPlace(canvas);
+    const styled = vi.spyOn(window, 'getComputedStyle');
+    handle.leave([{ departure: departure('exile'), delayMs: 0 }]);
+    const standIn = canvas.querySelector<HTMLElement>('.board-departure')!;
+    // Its place is 60px wide: the copy's face is 50px, so its step is 27 × 50 / 90 = 15.
+    expect(standIn.style.top, 'moved down by the copy’s own step').toBe('415px');
+    expect(styled.mock.calls.filter(([el]) => standIn.contains(el)), 'no copy read').toEqual([]);
+    handle.dispose();
+  });
+
+  it('a turned card with no face to measure is read off its copy, as before', () => {
+    const canvas = board();
+    const card = canvas.querySelector<HTMLElement>('[data-board-card="7"]')!;
+    card.style.marginTop = '26px';
+    card.getBoundingClientRect = () => rect(300, 400, 60, 84);
+    const handle = installDepartures(canvas, { onDone: () => undefined });
+    handle.snapshot();
+    handle.capture();
+    keepPlace(canvas);
+    const styled = vi.spyOn(window, 'getComputedStyle');
+    handle.leave([{ departure: departure('exile'), delayMs: 0 }]);
+    const standIn = canvas.querySelector<HTMLElement>('.board-departure')!;
+    expect(styled.mock.calls.filter(([el]) => standIn.contains(el))).toHaveLength(1);
+    expect(standIn.style.top).toBe('426px');
+    handle.dispose();
+  });
+
   it('killed by damage: seven pieces, each clipped to its shard and sent its own way, the cracks drawn over them, and falling dust', () => {
     const canvas = board();
     const handle = installDepartures(canvas, { onDone: () => undefined });

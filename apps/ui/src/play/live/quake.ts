@@ -12,6 +12,7 @@
  * motion at all.
  */
 
+import { everyFrame } from '../frame-phases.ts';
 import { BEAT_ANIMATION_ID } from '../motion.ts';
 import { shake } from './crash.ts';
 import { copyOfCard, LEAVING_GAP_ATTR } from './departures.ts';
@@ -98,7 +99,8 @@ export function standIn(overlay: HTMLElement, card: HTMLElement, cls: string): {
   let live = true;
   const id = card.dataset.boardCard;
   const root = card.closest('.board') ?? document;
-  const place = (): void => {
+  /** The read: where the row card is drawn now. */
+  const measure = (): void => {
     // React may draw the row card again (a row reordered): the card as it is drawn now, still hidden.
     if (!card.isConnected) {
       const now = root.querySelector<HTMLElement>(`[data-zone="battlefield"] [data-board-card="${id}"]`);
@@ -108,23 +110,29 @@ export function standIn(overlay: HTMLElement, card: HTMLElement, cls: string): {
       }
     }
     if (card.isConnected) at = rel(card.getBoundingClientRect(), overlay.getBoundingClientRect());
+  };
+  /** The write: the copy over it. */
+  const draw = (): void => {
     Object.assign(wrap.style, { left: `${at.left + fix.x}px`, top: `${at.top + fix.y}px`, width: `${at.width}px` });
     wrap.style.setProperty('--card-w', `${at.width}px`);
   };
-  const loop = (): void => {
-    if (!live) return;
-    place();
-    requestAnimationFrame(loop);
-  };
   const mount = (): void => {
-    place();
+    measure();
+    draw();
     overlay.append(wrap);
-    // Read with no motion on it yet: where the copy's card is drawn against where the row's is.
+    // Read with no motion on it yet: where the copy's card is drawn against where the row's is. One
+    // layout, which the row card's own box comes out of as well: it is not read a second time.
     const want = card.getBoundingClientRect();
     const got = copy.getBoundingClientRect();
     fix = { x: want.left - got.left, y: want.top - got.top };
-    place();
-    requestAnimationFrame(loop);
+    at = rel(want, overlay.getBoundingClientRect());
+    draw();
+    // Every frame after, with every other loop's reads and then its writes (`../frame-phases.ts`).
+    everyFrame(() => {
+      if (!live) return null;
+      measure();
+      return draw;
+    });
   };
   return { wrap, box: () => at, card: () => card, mount, stop: () => (live = false) };
 }

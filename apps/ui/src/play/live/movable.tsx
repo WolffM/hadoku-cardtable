@@ -161,11 +161,12 @@ function boardOf(frame: Element): HTMLElement | null {
   return frame.closest<HTMLElement>('.live');
 }
 
-/** Hold a moved frame on the board, as it is drawn now. */
+/** Hold a moved frame on the board, as it is drawn now. A frame at its default spot reads nothing: every box read here lays the page out. */
 function keepOnBoard(frame: HTMLElement): void {
+  if (!frame.hasAttribute(MOVED_ATTR)) return;
   const board = boardOf(frame);
   const drawn = drawnBox(frame);
-  if (board === null || drawn === null || !frame.hasAttribute(MOVED_ATTR)) return;
+  if (board === null || drawn === null) return;
   const by = offsetOf(frame);
   setOffset(frame, clampOffset(by, atRest(drawn, by), board.getBoundingClientRect()));
 }
@@ -176,13 +177,13 @@ function keepOnBoard(frame: HTMLElement): void {
  * it has one: measured empty, every question would fit anywhere.
  */
 function openAtSpot(frame: HTMLElement): boolean {
-  setOffset(frame, null);
-  const drawn = drawnBox(frame);
-  if (drawn === null) return false;
-  const spot = readSpot();
-  const board = boardOf(frame);
-  if (spot !== null && board !== null) setOffset(frame, offsetToSpot(spot, drawn, board.getBoundingClientRect()));
-  return true;
+  // Its default box read where it is drawn now, less its offset: every read before the one write.
+  const seen = drawnBox(frame);
+  const drawn = seen === null ? null : atRest(seen, offsetOf(frame));
+  const spot = drawn === null ? null : readSpot();
+  const board = spot === null ? null : boardOf(frame);
+  setOffset(frame, drawn === null || spot === null || board === null ? null : offsetToSpot(spot, drawn, board.getBoundingClientRect()));
+  return drawn !== null;
 }
 
 /** The top of a question's drawn element as it would stand at its default spot: a moved question leaves the stack where it was. */

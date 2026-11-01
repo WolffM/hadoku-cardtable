@@ -313,6 +313,28 @@ export function buildScenario(options: BoardOptions): Scenario {
     return packet(newObjects, deltas);
   };
 
+  // A board wipe (the trailer's Blasphemous Act): every creature on both sides takes 13, then all of them
+  // die in one packet, then the same creatures come back (an entry each) so the next step can wipe them again.
+  let wipeStep = 0;
+  const wipe = (): Packet => {
+    const step = wipeStep++ % 3;
+    const dying = [...creatures[0]!, ...creatures[1]!];
+    const d: Packet['objectDeltas'] = {};
+    if (step === 0) {
+      // Every other one turned, as attackers and mana creatures are: a turned card leaves at its own box.
+      dying.forEach((id, i) => (d[key(CARD, id)] = { _type: CARD, _id: id, Damage: int(13), Tapped: bool(i % 2 === 0) }));
+      return packet({}, d);
+    }
+    const dead = step === 1;
+    for (const owner of [0, 1]) {
+      const mine = creatures[owner]!;
+      const bf = dead ? lists.bf[owner]!.filter((x) => !mine.includes(x)) : [...lists.bf[owner]!.filter((x) => !mine.includes(x)), ...mine];
+      d[key(PLAYER, owner)] = { _type: PLAYER, _id: owner, Battlefield: list(bf), Graveyard: list(dead ? [...(owner === 0 ? lists.gy0 : []), ...mine] : owner === 0 ? lists.gy0 : []) };
+      for (const id of mine) d[key(CARD, id)] = { _type: CARD, _id: id, Zone: zone(dead ? 'Graveyard' : 'Battlefield'), Damage: null, ...(dead ? {} : { Tapped: null }) };
+    }
+    return packet({}, d);
+  };
+
   // The leak loop: every animation in turn, then life totals ticking.
   let mixStep = 0;
   let life = 20;
@@ -327,7 +349,7 @@ export function buildScenario(options: BoardOptions): Scenario {
 
   return {
     packets,
-    loops: { tap, attack, stack, mix, targets },
+    loops: { tap, attack, stack, mix, targets, wipe },
     counts: { p0: lists.bf[0]!.length, p1: lists.bf[1]!.length, hand: lists.hand.length, flyers },
   };
 

@@ -27,26 +27,45 @@ export const MISTAKE_EXIT_MS = 260;
 
 const FACE_HIT_SELECTOR = '[data-player-face][data-viewer] .face__hit';
 
-/** The viewer's own face, in viewport coordinates — `position: fixed` reads these directly, no stage to subtract. */
-function useFaceBox(): DOMRect | null {
+/** The same box: a new `DOMRect` for a face that did not move must not draw the bubble again. */
+function sameBox(a: DOMRect | null, b: DOMRect | null): boolean {
+  if (a === null || b === null) return a === b;
+  return a.left === b.left && a.top === b.top && a.width === b.width && a.height === b.height;
+}
+
+/**
+ * The viewer's own face, in viewport coordinates — `position: fixed` reads these directly, no stage to
+ * subtract. Measured only while a line is up (`showing`, a new one for each mistake), and again whenever
+ * the face could have moved under it: the face or the page resized, or anything scrolled. Every read
+ * lays the page out, so nothing polls: a 500 ms poll here forced a layout and a render twice a second
+ * for the whole match, a line up or not (the trailer's cut 3 capture, 2026-11-01).
+ */
+function useFaceBox(showing: number | null): DOMRect | null {
   const [box, setBox] = useState<DOMRect | null>(null);
+  // What is drawn, so an unchanged box never reaches React: even an updater handing back the same box re-renders once.
+  const drawn = useRef<DOMRect | null>(null);
   useLayoutEffect(() => {
+    if (showing === null) return undefined;
+    const face = document.querySelector(FACE_HIT_SELECTOR);
     const measure = (): void => {
-      const face = document.querySelector(FACE_HIT_SELECTOR);
-      setBox(face === null ? null : face.getBoundingClientRect());
+      const now = face?.isConnected === true ? face : document.querySelector(FACE_HIT_SELECTOR);
+      const next = now === null ? null : now.getBoundingClientRect();
+      if (sameBox(drawn.current, next)) return;
+      drawn.current = next;
+      setBox(next);
     };
     measure();
-    const face = document.querySelector(FACE_HIT_SELECTOR);
     const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
     if (face !== null) ro?.observe(face);
-    // A fallback poll, same as the preview: the face can move (a resize, a layout change) without
-    // firing the observer when it is the PAGE that scrolled under a fixed-position bubble.
-    const t = window.setInterval(measure, 500);
+    ro?.observe(document.documentElement);
+    window.addEventListener('scroll', measure, { capture: true, passive: true });
+    window.addEventListener('resize', measure);
     return () => {
       ro?.disconnect();
-      window.clearInterval(t);
+      window.removeEventListener('scroll', measure, { capture: true });
+      window.removeEventListener('resize', measure);
     };
-  }, []);
+  }, [showing]);
   return box;
 }
 
@@ -59,7 +78,7 @@ export interface MistakeBubbleProps {
 
 /** The seat's own character says what it got wrong — a speech bubble out of its own face, with a tail. */
 export function MistakeBubble({ mistake, enabled }: MistakeBubbleProps) {
-  const box = useFaceBox();
+  const box = useFaceBox(enabled && mistake !== null ? mistake.seq : null);
   const [leaving, setLeaving] = useState(false);
   const shownSeq = useRef<number | null>(null);
 

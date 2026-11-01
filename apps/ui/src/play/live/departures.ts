@@ -392,11 +392,38 @@ export function copyOfCard(from: HTMLElement): HTMLElement {
 
 /**
  * A turned card is centred in its upright place by margins above and below (`card.css`), a share of
- * its container's width, so a copy's are read off the copy where it is drawn. How far down they put it.
- * A read: in a batch, every copy is read before any is changed, so the page lays itself out once.
+ * its container's width: read off the row card before the commit that takes it away (`capture`, then
+ * `stepAt`), or off a copy where that cannot say. How far down they put it. A read: every card is read
+ * before any is changed, so the page lays itself out once.
  */
-function turnedStep(copy: HTMLElement | undefined): number {
-  return copy === undefined ? 0 : Math.max(0, parseFloat(getComputedStyle(copy).marginTop) || 0);
+function turnedStep(card: HTMLElement | undefined): number {
+  return card === undefined ? 0 : Math.max(0, parseFloat(getComputedStyle(card).marginTop) || 0);
+}
+
+/** A row card's turned step, with its own width and its face's: the face is a pile's fan narrower. Null without a face to read. */
+interface Turn {
+  readonly step: number;
+  readonly width: number;
+  readonly face: number;
+}
+
+function turnOf(card: HTMLElement): Turn | null {
+  const step = turnedStep(card);
+  if (step === 0) return { step, width: 0, face: 0 };
+  const face = card.querySelector<HTMLElement>(':scope > .board-card__face');
+  if (face === null) return null;
+  return { step, width: Number.parseFloat(getComputedStyle(card).width), face: Number.parseFloat(getComputedStyle(face).width) };
+}
+
+/**
+ * The step of a copy of `turn`'s card drawn `width` wide. The margins are a share of the face's width
+ * (`card.css`), and a copy keeps the card's fan, so the share is the same: the row card's step, scaled
+ * from its face to the copy's. Undefined where that cannot be worked out, and the copy is read instead.
+ */
+function stepAt(turn: Turn, width: number): number | undefined {
+  if (turn.step === 0) return 0;
+  const fan = turn.width - turn.face;
+  return turn.face > 0 && width > fan ? (turn.step * (width - fan)) / turn.face : undefined;
 }
 
 /**
@@ -415,6 +442,8 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
   let drawn = new Map<number, HTMLElement>();
   /** Each battlefield card's box before the commit that draws departures, by id (`capture`). */
   let boxes = new Map<number, DOMRect>();
+  /** Each battlefield card's turn (`turnOf`) as of the same read, by id. */
+  let turns = new Map<number, Turn | null>();
   /** This commit's departures, for its layout report: how many, and the most a copy sat off its card. */
   let pending: { count: number; copyDx: number; copyDy: number } | null = null;
   const timers = new Set<ReturnType<typeof setTimeout>>();
@@ -563,7 +592,10 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
     },
     capture() {
       boxes = new Map();
+      turns = new Map();
       for (const [id, el] of drawn) if (el.isConnected) boxes.set(id, el.getBoundingClientRect());
+      // In the layout the boxes were just read from: no second one.
+      for (const [id, el] of drawn) if (el.isConnected) turns.set(id, turnOf(el));
     },
     leave(batch) {
       const root = overlay();
@@ -571,7 +603,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
       // Every box first, then every write: one layout for the whole batch, never one per card.
       const box = still ? null : root.getBoundingClientRect();
       const taken = new Set<Element>();
-      const plans: { departure: Departure; delayMs: number; from: HTMLElement; at: DOMRect; motion: ExitMotion; landing: HTMLElement | null; to: DOMRect | null }[] = [];
+      const plans: { departure: Departure; delayMs: number; from: HTMLElement; at: DOMRect; step: number | undefined; motion: ExitMotion; landing: HTMLElement | null; to: DOMRect | null }[] = [];
       for (const { departure, delayMs } of batch) {
         const gap = canvas.querySelector<HTMLElement>(`[${LEAVING_GAP_ATTR}="${departure.cardId}"]`);
         const from = drawn.get(departure.cardId);
@@ -597,7 +629,11 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
         const at = was === undefined ? place : new DOMRect(was.left, was.top, place.width, place.height);
         const landing = travels(motion) ? handLanding(canvas, departure, taken) : null;
         if (landing !== null) taken.add(landing);
-        plans.push({ departure, delayMs, from, at, motion, landing, to: landing?.getBoundingClientRect() ?? null });
+        // Its copy's turned step, from the row card's: reading it off the copy, after every stand-in is
+        // built, is the same number for the price of laying out the whole batch of copies a second time.
+        const turn = turns.get(departure.cardId);
+        const step = turn == null ? undefined : stepAt(turn, place.width);
+        plans.push({ departure, delayMs, from, at, step, motion, landing, to: landing?.getBoundingClientRect() ?? null });
       }
       if (root === null || box === null || plans.length === 0) return;
       // The batch's specks share one budget, and so do its shatters' shards — each shard a whole copy of
@@ -616,9 +652,10 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
         if (p.to !== null) aim(wrap, p.at, p.to);
         return { ...p, wrap, copies: [...wrap.querySelectorAll<HTMLElement>(':scope > .board-departure__piece > .board-card')] };
       });
-      const steps = built.map((b) => turnedStep(b.copies[0]));
+      // Only a copy `stepAt` could not answer for is read; the first such read lays out the batch, the rest are free.
+      const fits = built.map((b) => b.step ?? turnedStep(b.copies[0]));
       built.forEach((b, i) => {
-        fitTurned(b.wrap, b.copies, b.at.top - box.top, steps[i]!);
+        fitTurned(b.wrap, b.copies, b.at.top - box.top, fits[i]!);
         const { wrap, at, landing, departure, delayMs, motion } = b;
         // Only a card or a back is hidden while it is flown to — never a whole hand.
         const hides = landing !== null && landing.getAttribute('data-zone') === null;

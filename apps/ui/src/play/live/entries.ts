@@ -232,13 +232,14 @@ export async function playEntry(run: EntryRun): Promise<void> {
   const { lift, scale } = hang(weight);
   const box = (): DOMRect => overlay.getBoundingClientRect();
 
+  // Read now, while the caller's own element still draws the card: it is taken away once this returns.
+  // And first, in the layout the stand-in's own first read uses, before anything here writes.
+  const src = from === null ? null : rel(from.getBoundingClientRect(), box());
   const s = standIn(overlay, card, 'board-entry');
   const wrap = s.wrap;
   s.mount();
   wrap.dataset.entry = motion;
   card.style.visibility = 'hidden';
-  // Read now, while the caller's own element still draws the card: it is taken away once this returns.
-  const src = from === null ? null : rel(from.getBoundingClientRect(), box());
 
   const hung: Keyframe = { translate: `0 ${-lift}px`, scale: String(scale), filter: shadow(lift) };
 

@@ -203,3 +203,25 @@ describe('a card’s width is measured once, and again only when what it was rea
     expect(battlefieldCardWidth(canvas, 'you')).toBe(77);
   });
 });
+
+describe('a remeasure lays the page out once (cut 3, 2026-11-01)', () => {
+  it('every row’s probe goes in before any width is read, and all of them come out after', () => {
+    vi.stubGlobal('ResizeObserver', Resizes);
+    const canvas = board();
+    canvas.querySelector('.board')!.insertAdjacentHTML('beforeend', '<div data-zone="hand" data-owner="you"><ul class="zone__cards" style="--card-w: 92px"></ul></div>');
+    expect(battlefieldCardWidth(canvas, 'you')).toBe(64);
+    expect(battlefieldCardWidth(canvas, 'them')).toBe(64);
+    expect(handCardWidth(canvas)).toBe(92);
+    const probes = (): number => canvas.querySelectorAll('.zone__cards > li.board-card[style*="hidden"], .zone__cards > div[style*="hidden"]').length;
+    const seen: number[] = [];
+    const read = Element.prototype.getBoundingClientRect;
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      seen.push(probes());
+      return read.call(this);
+    });
+    Resizes.last!.resize(canvas.querySelector('[data-owner="you"] .zone__cards')!);
+    expect(seen, 'one read per row').toHaveLength(3);
+    expect(seen, 'every probe in at every read').toEqual([3, 3, 3]);
+    expect(probes(), 'and none left behind').toBe(0);
+  });
+});

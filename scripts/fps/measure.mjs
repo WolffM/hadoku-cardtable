@@ -10,9 +10,10 @@
  * recording — an A/B for a rule's cost that edits nothing in the app.
  *
  * Common: --dist <built harness dir> (default ~/.cache/cardtable-fps/dist), --cases a/b,c/d (board/anim),
- * where anim is a loop (tap, attack, stack, mix, targets), an input (hover, click), the harness's own
+ * where anim is a loop (tap, attack, stack, mix, targets, wipe), an input (hover, click), the harness's own
  * targeter (aim: still and snapped; aim-sweep: re-shaped every frame) or idle,
- * --secs N recording window, --repeat N.
+ * --secs N recording window, --repeat N. trace: --stack-depth N (frames per forced layout, default 1),
+ * --top-forced N (forced-layout sites listed, default 3).
  */
 import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -70,7 +71,7 @@ const VIEWPORTS = {
   phone: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
 };
 /** One packet per this many ms: Forge's own pace in a busy turn is a frame every few hundred ms. */
-const LOOP_PERIOD = { tap: 1200, attack: 1000, stack: 1000, mix: 400, targets: 1000 };
+const LOOP_PERIOD = { tap: 1200, attack: 1000, stack: 1000, mix: 400, targets: 1000, wipe: 1500 };
 /** The targeter drawn by the harness's own `fps.aim`: still and snapped, or swept every frame. */
 const AIMS = { aim: 'still', 'aim-sweep': 'sweep' };
 
@@ -304,8 +305,9 @@ async function trace() {
           if (stack.some((s) => kindOf.get(s.name) === 'script')) {
             forced += 1;
             forcedMs += e.dur / 1000;
-            const frame = e.args?.beginData?.stackTrace?.[0] ?? null;
-            const at = frame === null ? 'unknown' : sourceOf(frame.functionName || '(anon)', frame.lineNumber, (frame.columnNumber ?? 1) - 1);
+            // The reader and the two callers above it: the reader alone is often a shared helper.
+            const frames = (e.args?.beginData?.stackTrace ?? []).slice(0, Number(arg('stack-depth', '1')));
+            const at = frames.length === 0 ? 'unknown' : frames.map((f) => sourceOf(f.functionName || '(anon)', f.lineNumber, (f.columnNumber ?? 1) - 1)).join('<');
             forcedFrom.set(at, (forcedFrom.get(at) ?? 0) + e.dur / 1000);
           }
         }
@@ -344,7 +346,7 @@ async function trace() {
         full_restyles: fullRestyles,
         full_restyle_ms: f1(fullRestyleMs),
         dropped_rules: dropRules === null ? '' : `${dropped}:${dropRules}`,
-        top_forced_from: [...forcedFrom.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k}=${f1(v)}`).join(' '),
+        top_forced_from: [...forcedFrom.entries()].sort((a, b) => b[1] - a[1]).slice(0, Number(arg('top-forced', '3'))).map(([k, v]) => `${k}=${f1(v)}`).join(' '),
         top_script_fns: topFunctions(profile, 5),
         load1: load(),
       });

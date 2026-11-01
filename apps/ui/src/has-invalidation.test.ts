@@ -8,6 +8,13 @@
  *
  * So a count reads the element's own `data-count` (or a class React sets), never `:nth-*` inside `:has()`.
  * Measured on `:nth-child`; the other `:nth-*` forms are refused with it, unmeasured.
+ *
+ * `:hover` inside `:has()` is the same trap: two rules lifting a hovered card's overlays
+ * (`.board-card:has(> .board-card__face:hover) > …`) restyled the whole board 141 times in 8 s of a
+ * board wipe with no pointer on it at all, 2.9 s of style; without them, 6 times and 65 ms
+ * (`scripts/fps/measure.mjs trace --cases crowded/wipe --drop-rules face:hover`, cut 3, 2026-11-01).
+ * A hovered element's later siblings are reached with `~` instead. Measured on `:hover`; the other
+ * `:has()` rules that test a state (`:checked`, `:focus-visible`) changed nothing and stay.
  */
 // @reads apps/ui/src/
 import { readdirSync, readFileSync } from 'node:fs';
@@ -37,11 +44,20 @@ function hasArguments(text: string): { line: number; arg: string }[] {
   return out;
 }
 
-describe(':has() never counts children', () => {
+describe(':has() never counts children and never asks for a hover', () => {
   it('no stylesheet puts an :nth-* pseudo-class inside :has()', () => {
     const offenders = sheets(SRC).flatMap((file) =>
       hasArguments(readFileSync(file, 'utf8'))
         .filter(({ arg }) => /:nth-/.test(arg))
+        .map(({ line, arg }) => `${relative(SRC, file)}:${line} :has(${arg})`),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it('no stylesheet puts :hover inside :has()', () => {
+    const offenders = sheets(SRC).flatMap((file) =>
+      hasArguments(readFileSync(file, 'utf8'))
+        .filter(({ arg }) => /:hover\b/.test(arg))
         .map(({ line, arg }) => `${relative(SRC, file)}:${line} :has(${arg})`),
     );
     expect(offenders).toEqual([]);

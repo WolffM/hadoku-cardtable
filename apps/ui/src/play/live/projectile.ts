@@ -38,6 +38,7 @@
 
 import type { ManaColor } from '@hadoku/shared';
 
+import { everyFrame } from '../frame-phases.ts';
 import { BEAT_ANIMATION_ID, damageSize, powerEase } from '../motion.ts';
 import { claimParticles } from './effect-budget.ts';
 
@@ -164,10 +165,14 @@ function trail(root: HTMLElement, ball: HTMLElement, look: ProjectileLook, key: 
   const budget = claimParticles(root, wanted, 2, now, now + ms);
   let n = 0;
   let last: { x: number; y: number } | null = null;
-  const tick = (): void => {
-    if (!ball.isConnected || performance.now() - t0 > ms || n >= budget) return;
+  // Read where the ball is with every other loop's reads, then shed its embers (`../frame-phases.ts`).
+  everyFrame(() => {
+    if (!ball.isConnected || performance.now() - t0 > ms || n >= budget) return null;
     const r = ball.getBoundingClientRect();
     const b = root.getBoundingClientRect();
+    return () => shed(r, b);
+  });
+  function shed(r: DOMRect, b: DOMRect): void {
     const here = { x: r.left - b.left + r.width / 2, y: r.top - b.top + r.height / 2 };
     const from = last ?? here;
     const steps = Math.min(budget - n, Math.max(1, Math.round(Math.hypot(here.x - from.x, here.y - from.y) / spacing)));
@@ -205,9 +210,7 @@ function trail(root: HTMLElement, ball: HTMLElement, look: ProjectileLook, key: 
       }
     }
     last = here;
-    if (n < budget) requestAnimationFrame(tick);
-  };
-  requestAnimationFrame(tick);
+  }
 }
 
 /** The slam where a projectile of `look` landed: `explode`'s burst, at `at`. */

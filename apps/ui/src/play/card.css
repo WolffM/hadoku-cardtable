@@ -1039,9 +1039,12 @@
  * (below): the P/T, counters and tags are the face's siblings, so on a lifted card they stayed on
  * the table under it — the P/T hung past the art's bottom once cards were small enough that its
  * inset no longer covered the 3px (tg-tapped-overlays, after the one-table seam shrank them). A
- * flyer's badges already sit at the same -3px as its art.
+ * flyer's badges already sit at the same -3px as its art. They are reached as the face's later
+ * siblings (the face is always the card's first child, `Board.tsx`), never with `:has(… :hover)`:
+ * that made Chromium restyle the whole board on every node added anywhere under it
+ * (`has-invalidation.test.ts`).
  */
-.board-card[data-selectable]:not([data-flying]):has(> .board-card__face:hover) > :not(.board-card__face, .board-card__pile) {
+.board-card[data-selectable]:not([data-flying]) > .board-card__face:hover ~ :not(.board-card__pile) {
   translate: 0 -3px;
 }
 
@@ -1173,7 +1176,7 @@
   translate: 0 -7px;
 }
 
-.board-card[data-combat-ready][data-selectable]:not([data-flying]):has(> .board-card__face:hover) > :not(.board-card__face, .board-card__pile) {
+.board-card[data-combat-ready][data-selectable]:not([data-flying]) > .board-card__face:hover ~ :not(.board-card__pile) {
   translate: 0 -7px;
 }
 
