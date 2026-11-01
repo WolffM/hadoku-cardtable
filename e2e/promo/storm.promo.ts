@@ -5,7 +5,7 @@
 import { test } from '@playwright/test';
 
 import { says, stackCount } from '../play/board.ts';
-import { autoYield, cast, deliberateClick, opponentFace, pressIfThere, resolveStack, restCursor, shootScenario, until, untilWon, wrap, type Shoot } from './drive.ts';
+import { autoYield, cast, deliberateClick, faceTargetable, opponentFace, pressIfThere, resolveStack, restCursor, shootScenario, until, untilWon, wrap, type Shoot } from './drive.ts';
 
 const RITUALS = ['Rite of Flame', 'Desperate Ritual', 'Pyretic Ritual', 'Lotus Petal'];
 
@@ -27,26 +27,17 @@ test('storm: five Grapeshots', async ({ browser }) => {
     await cast(page, 'Grapeshot', { hover: 700 });
     // The original's target, then each copy's: keep the rival's face (no new targets), or point at it.
     let heard = '';
-    let copies = false;
-    await until('every Grapeshot is on the stack', async () => {
+    await until('the Grapeshots are on the stack', async () => {
       const text = await says(page);
       if (text !== heard) console.log(`[promo:storm] ${(heard = text).replace(/\s+/g, ' ').slice(0, 140)}`);
-      if (!copies && (await stackCount(page)) >= 3) {
-        copies = true;
-        film.mark('copies');
-      }
-      if ((await stackCount(page)) >= 6) return true;
-      if (/new targets/i.test(text)) return (await pressIfThere(page.locator('[data-testid="prompt-confirm-no"]:enabled'))) && false;
-      if (/target/i.test(text) && !/^Priority/.test(text)) {
-        await deliberateClick(page, opponentFace(page), { hover: 250 });
-        return false;
-      }
-      await pressIfThere(page.locator('[data-testid="live-payment-ok"]:enabled'));
-      return /^Priority/.test(text) && (await stackCount(page)) >= 2;
-    }, 60_000, 250, page);
+      if ((await stackCount(page)) >= 2 || (await page.getByTestId('game-result').count()) > 0) return true;
+      if (/new targets/i.test(text)) await pressIfThere(page.locator('[data-testid="prompt-confirm-no"]:enabled'));
+      else if (await faceTargetable(page)) await deliberateClick(page, opponentFace(page), { hover: 250 });
+      else await pressIfThere(page.locator('[data-testid="live-payment-ok"]:enabled'));
+      return false;
+    }, 60_000, 200, page);
+    film.mark('copies');
     await restCursor(page);
-    film.mark('stacked');
-    await film.beat(1_200);
     await untilWon(film, page);
     await film.beat(4_000);
     film.mark('end');

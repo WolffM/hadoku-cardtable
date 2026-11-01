@@ -5,7 +5,7 @@
  */
 import { test, type Page } from '@playwright/test';
 
-import { clickPermanent, ownNamed, says, stackCount } from '../play/board.ts';
+import { clickPermanent, ownNamed, stackCount } from '../play/board.ts';
 import type { Film } from './rig.ts';
 import { autoYield, deliberateClick, humanMove, humanRest, okEnabled, pickTiles, pressIfThere, resolveStack, restCursor, selectionTiles, shootScenario, theirCard, until, wrap, type Shoot } from './drive.ts';
 
@@ -35,7 +35,7 @@ test('walkers: an Elk, a Brainstorm, an emblem', async ({ browser }) => {
     await film.beat(1_500);
 
     await activate(page, film, 'Oko, Thief of Crowns', /Elk/, 'oko');
-    await until('Oko asks for a target', async () => /target/i.test(await says(page)), 20_000, 200, page);
+    await until('Oko asks for a target', async () => (await theirCard(page, 'Tarmogoyf').getAttribute('data-selectable')) !== null, 20_000, 150, page);
     await deliberateClick(page, theirCard(page, 'Tarmogoyf').locator('button').first(), { hover: 500 });
     await restCursor(page);
     await resolveStack(page, 'the Elk');
