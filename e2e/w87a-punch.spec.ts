@@ -1,18 +1,23 @@
 /**
- * A creature's blow on a player moves the table as its landing would, against real Forge.
+ * A creature's blow on a player moves the table as its landing would, less the cracks, and knocks the
+ * struck player's avatar back, against real Forge.
  *
  * The operator, 2026-10-30: *"remember how we added that nice board animation for when emrakul hits the
  * board? i want to try something similar with when strong creatures hit the opponent"*, then *"we should
  * match the power of the board effects to how they scale with entry"*. So a charge's blow is
  * `entries.ts`'s `entryWeight` for its damage, drawn by the one module a landing draws with
- * (`quake.ts`): nothing at 2, the table shaking from 5, cracks from 7, the cards around it knocked
- * away from 8, each further the heavier.
+ * (`quake.ts`): nothing at 2, the table shaking from 5, the cards around it knocked away from 8, each
+ * further the heavier. Never a crack: that is a landing's alone (the operator, 2026-11-01, of a crack
+ * out of the struck player's portrait: "the crack looks ugly. but something i would have liked is the
+ * actual player avatar moving a bit from the impact"). So the struck avatar recoils from each blow, in
+ * turn, further the heavier (`recoil.ts`).
  *
  * `w87a-punch`: bob's Grizzly Bears (2), Spined Wurm (5), Pelakka Wurm (7) and Ancient Brontodon (9)
  * charge alice at 30 life, paced (Fast Mode off, as the operator plays). Each screen records, every
  * frame, each blow's crash (`.effect-crash[data-crash]`, keyed by its attacker), every shake the board
  * starts (an additive animation on `.board`, paired with the crash that started on the same frame)
- * and every crack layer and knocked-away card a quake draws (`[data-quake]`, keyed as the crash is).
+ * and every crack layer and knocked-away card a quake draws (`[data-quake]`, keyed as the crash is), and
+ * every recoil of a face's avatar (`recoil:<crash key>`, its furthest push and when it started).
  * `[w87a]` lines are the evidence.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without one every test SKIPS and
@@ -37,12 +42,17 @@ interface Blow {
   shakePx: number;
   cracks: number;
   shoved: number;
+  /** The furthest the struck avatar was pushed by this blow's recoil, px; 0 for none. */
+  recoilPx: number;
+  /** When its recoil started, ms from the recording's start; -1 for none. */
+  recoilAt: number;
 }
 
 async function record(page: Page): Promise<void> {
   await page.evaluate(() => {
     const t0 = performance.now();
-    const blows: Record<string, { at: number; shakePx: number; cracks: number; shoved: number }> = {};
+    const blows: Record<string, { at: number; shakePx: number; cracks: number; shoved: number; recoilPx: number; recoilAt: number }> = {};
+    const recoiled = new WeakSet<Animation>();
     (window as unknown as { __blows: typeof blows }).__blows = blows;
     const seenShakes = new WeakSet<Animation>();
     const shoved = new WeakSet<Element>();
@@ -60,7 +70,7 @@ async function record(page: Page): Promise<void> {
       for (const el of document.querySelectorAll<HTMLElement>('.effect-crash[data-crash^="crash:"]')) {
         const key = el.dataset.crash!;
         if (blows[key] === undefined) {
-          blows[key] = { at: t, shakePx: 0, cracks: 0, shoved: 0 };
+          blows[key] = { at: t, shakePx: 0, cracks: 0, shoved: 0, recoilPx: 0, recoilAt: -1 };
           fresh.push(key);
         }
       }
@@ -71,6 +81,14 @@ async function record(page: Page): Promise<void> {
         // A shake starts with its blow's crash: the crash new on this frame, else the latest one.
         const key = fresh[0] ?? Object.entries(blows).sort((x, y) => y[1].at - x[1].at)[0]?.[0];
         if (key !== undefined) blows[key]!.shakePx = Math.max(blows[key]!.shakePx, furthest(a));
+      }
+      for (const art of document.querySelectorAll('[data-player-face] .face__avatar')) {
+        for (const a of art.getAnimations()) {
+          if (recoiled.has(a) || !a.id.startsWith('recoil:')) continue;
+          recoiled.add(a);
+          const b = blows[a.id.slice('recoil:'.length)];
+          if (b !== undefined) [b.recoilPx, b.recoilAt] = [furthest(a), t];
+        }
       }
       for (const el of document.querySelectorAll<HTMLElement>('.board-entry__crackle[data-quake]')) {
         if (cracked.has(el)) continue;
@@ -104,7 +122,7 @@ async function attackerNames(page: Page): Promise<Record<string, string>> {
 
 const POWER: Record<string, number> = { 'Grizzly Bears': 2, 'Spined Wurm': 5, 'Pelakka Wurm': 7, 'Ancient Brontodon': 9 };
 
-test(titled('a charge’s blow on a player shakes, cracks and knocks the table exactly as a landing of its power would'), async ({ browser }) => {
+test(titled('a charge’s blow on a player shakes and knocks the table as a landing of its power would, never cracks it, and knocks the avatar back'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -130,7 +148,7 @@ test(titled('a charge’s blow on a player shakes, cracks and knocks the table e
         { timeout: 60_000, intervals: [100], message: 'all four blows land on both screens' },
       )
       .toBe(true);
-    // The heaviest blow's knock-away and cracks run on past the crash: give them time to be drawn.
+    // The heaviest blow's knock-away runs on past the crash: give it time to be drawn.
     await alice.page.waitForTimeout(2500);
 
     for (const [who, page] of [['alice', alice.page], ['bob', bob.page]] as const) {
@@ -144,15 +162,19 @@ test(titled('a charge’s blow on a player shakes, cracks and knocks the table e
       // The operator, 2026-10-31: "have the creature attack in order of strength with the strongest creatures hitting at the end".
       for (let i = 1; i < byPower.length; i++) expect(byPower[i]!.at, `${who}: the ${byPower[i]!.power} lands after the ${byPower[i - 1]!.power}`).toBeGreaterThan(byPower[i - 1]!.at);
       const [two, five, seven, nine] = byPower as [typeof byPower[0], typeof byPower[0], typeof byPower[0], typeof byPower[0]];
-      expect([two.shakePx, two.cracks, two.shoved], `${who}: a blow of 2 moves nothing`).toEqual([0, 0, 0]);
+      expect([two.shakePx, two.shoved], `${who}: a blow of 2 moves no table`).toEqual([0, 0]);
       expect(five.shakePx, `${who}: 5 shakes the table`).toBeGreaterThan(0);
-      expect([five.cracks, five.shoved], `${who}: 5 neither cracks nor knocks`).toEqual([0, 0]);
+      expect(five.shoved, `${who}: 5 knocks nobody away`).toBe(0);
       expect(seven.shakePx, `${who}: 7 shakes harder than 5`).toBeGreaterThan(five.shakePx);
-      expect(seven.cracks, `${who}: 7 cracks the table`).toBeGreaterThan(0);
       expect(seven.shoved, `${who}: 7 knocks nobody away`).toBe(0);
       expect(nine.shakePx, `${who}: 9 shakes harder than 7`).toBeGreaterThan(seven.shakePx);
-      expect(nine.cracks, `${who}: 9 cracks the table`).toBeGreaterThan(0);
       expect(nine.shoved, `${who}: 9 knocks the cards around the avatar away`).toBeGreaterThan(0);
+      expect(byPower.map((b) => b.cracks), `${who}: no blow cracks the table`).toEqual([0, 0, 0, 0]);
+      for (const b of byPower) {
+        expect(b.recoilPx, `${who}: the ${b.power} knocks the avatar back`).toBeGreaterThan(0);
+        expect(Math.abs(b.recoilAt - b.at), `${who}: the ${b.power}'s recoil starts with its blow`).toBeLessThanOrEqual(50);
+      }
+      for (let i = 1; i < byPower.length; i++) expect(byPower[i]!.recoilPx, `${who}: the ${byPower[i]!.power} knocks it further than the ${byPower[i - 1]!.power}`).toBeGreaterThan(byPower[i - 1]!.recoilPx);
     }
   } finally {
     await seated?.alice.context.close();

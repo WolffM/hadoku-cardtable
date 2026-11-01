@@ -4,7 +4,9 @@
  * away, settling back into their own places. One module for every such blow: a creature landing
  * (`entries.ts`) and a creature's charge striking a player (`numbers.ts`) — the operator, 2026-10-30:
  * "we should match the power of the board effects to how they scale with entry". Each starts at
- * `entryWeight`'s own threshold and grows with it; nothing here decides how heavy a blow is.
+ * `entryWeight`'s own threshold and grows with it; nothing here decides how heavy a blow is. A
+ * charge's weight carries no cracks (`cracks: null`): the table cracks under a landing alone (the
+ * operator, 2026-11-01: "the crack looks ugly").
  *
  * Also the board's stand-ins (`standIn`): a copy of a row card in the overlay that follows the card's
  * box every frame — what a knocked card and a landing card are drawn as, never a transform on a card

@@ -898,6 +898,95 @@ describe('installNumbers: combat damage', () => {
   });
 });
 
+/*
+ * The operator, 2026-11-01, of trailer cut 3's Ghoul: "the crack looks ugly. but something i would have
+ * liked is the actual player avatar moving a bit from the impact. currently it doesn't move at all".
+ * A charge on a player cracks nothing (the crack is a landing's alone) and recoils the struck face's
+ * avatar, away from its attacker, on the blow's own frame, as hard as the blow.
+ */
+describe('installNumbers: a charge on a player', () => {
+  type Played = { el: Element; frames: Keyframe[]; options: KeyframeAnimationOptions };
+  /** Attackers 50, 51, … charge player 0 for `amounts`; the clock stops `at` ms in (default: just past the first blow). */
+  function charge(amounts: number[], at = RAM_STAGGER_MS + contactMs('charge') + 50): { played: Played[]; canvas: HTMLElement; dispose: () => void } {
+    vi.useFakeTimers();
+    const played: Played[] = [];
+    // jsdom has no Web Animations: a stand-in that records what is played and never finishes.
+    Element.prototype.animate = function (this: Element, frames: Keyframe[] | PropertyIndexedKeyframes | null, options?: number | KeyframeAnimationOptions) {
+      played.push({ el: this, frames: frames as Keyframe[], options: options as KeyframeAnimationOptions });
+      return { finished: new Promise(() => undefined), cancel: () => undefined, effect: null } as unknown as Animation;
+    };
+    const { canvas } = board();
+    canvas.querySelector('[data-player-face][data-player-id="0"]')!.insertAdjacentHTML('afterbegin', '<span class="face__avatar"></span>');
+    const theirs = canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!;
+    amounts.forEach((_, i) => {
+      theirs.insertAdjacentHTML('beforeend', `<li class="board-card" data-card-id="${50 + i}" data-board-card="${50 + i}"></li>`);
+      theirs.querySelector<HTMLElement>(`[data-board-card="${50 + i}"]`)!.getBoundingClientRect = () => rect({ left: 400 + 70 * i, top: 200, width: 60, height: 84 });
+    });
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const attackers = amounts.map((_, i) => ({ ...card(50 + i, 0), attacking: true }));
+    const total = amounts.reduce((a, b) => a + b, 0);
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20, { battlefield: attackers })]));
+    handle.notify({
+      ...view([player(0, 20 - total, { isViewer: true }), player(1, 20, { battlefield: attackers })]),
+      faceHits: amounts.map((amount, i) => ({ seq: i + 1, playerId: 0, sourceId: 50 + i, amount, combat: true })),
+    });
+    vi.advanceTimersByTime(at);
+    return {
+      played,
+      canvas,
+      dispose: () => {
+        handle.dispose();
+        delete (Element.prototype as Partial<Element>).animate;
+        vi.useRealTimers();
+      },
+    };
+  }
+
+  it.each([7, 18])('a %i-damage charge on a player cracks nothing', (amount) => {
+    const { canvas, played, dispose } = charge([amount]);
+    expect(canvas.querySelector('.effect-crash[data-crash="crash:50"]'), 'the blow landed').not.toBeNull();
+    expect(played.some((p) => p.el === canvas && p.options.composite === 'add'), 'it shook the table').toBe(true);
+    expect(canvas.querySelectorAll('.board-entry__crackle')).toHaveLength(0);
+    dispose();
+  });
+
+  it('the struck avatar recoils away from its attacker, on the blow, and further the heavier the blow', () => {
+    const push = (amount: number): number => {
+      const { played, dispose } = charge([amount]);
+      const mine = played.filter((p) => p.el.matches('[data-player-id="0"] .face__avatar'));
+      dispose();
+      expect(mine, `${amount}: one recoil`).toHaveLength(1);
+      expect(mine[0]!.options.id).toBe('recoil:crash:50');
+      const peak = /(-?[\d.]+)px (-?[\d.]+)px/.exec(String(mine[0]!.frames[1]!.translate))!;
+      const [x, y] = [Number(peak[1]), Number(peak[2])];
+      // The attacker stands up and right of the face (430,242 → 130,730): pushed down and left.
+      expect(x, `${amount}: pushed left`).toBeLessThan(0);
+      expect(y, `${amount}: pushed down`).toBeGreaterThan(0);
+      return Math.hypot(x, y);
+    };
+    const light = push(1);
+    const heavy = push(18);
+    expect(light, 'a poke barely nudges').toBeLessThan(3);
+    expect(heavy, 'a big blow shoves further').toBeGreaterThan(3 * light);
+    expect(heavy, 'never off the bar').toBeLessThanOrEqual(12);
+  });
+
+  it('a multi-attack recoils the avatar once per blow, each on its own blow, the strongest last', () => {
+    const recoils = (at: number): string[] => {
+      const { played, dispose } = charge([10, 1, 18, 4], at);
+      dispose();
+      return played.filter((p) => p.el.matches('.face__avatar')).map((p) => String(p.options.id));
+    };
+    // `planRams` sends them weakest first, a stagger apart: 51 (1), 53 (4), 50 (10), 52 (18).
+    const plan = planRams([], [10, 1, 18, 4].map((amount, i) => ({ seq: i + 1, playerId: 0, sourceId: 50 + i, amount, combat: true })), () => true);
+    expect(plan.rams.map((r) => r.sourceId)).toEqual([51, 53, 50, 52]);
+    const blow = (n: number): number => plan.rams[n]!.delayMs + contactMs('charge');
+    expect(recoils(blow(0) - 1), 'nothing before the first blow').toEqual([]);
+    expect(recoils(blow(0)), 'the 1 at its blow').toEqual(['recoil:crash:51']);
+    expect(recoils(blow(3)), 'all four, in turn').toEqual(['recoil:crash:51', 'recoil:crash:53', 'recoil:crash:50', 'recoil:crash:52']);
+  });
+});
+
 describe('planRams', () => {
   const hit = (seq: number, cardId: number, sourceId: number | null) => ({ seq, cardId, sourceId, amount: 2 });
   const face = (seq: number, playerId: number, sourceId: number | null, combat = true) => ({ seq, playerId, sourceId, amount: 3, combat });

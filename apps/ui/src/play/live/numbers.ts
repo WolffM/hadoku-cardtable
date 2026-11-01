@@ -150,6 +150,7 @@ import { cardColours, colourRow } from './sound-events.ts';
 import { CAST_LANDING_ATTR, landCastGhost, parkedGhost } from './gestures/cast.ts';
 import { entryHeft, entryMotionFor, entryWeight, entryDurationMs, landingWeight, playEntry, playLanding } from './entries.ts';
 import { quake } from './quake.ts';
+import { recoil } from './recoil.ts';
 import './numbers.css';
 import { timed } from './work-meter.ts';
 
@@ -852,10 +853,11 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
    * the table shaking, as heavy as the damage: the crash by `damagePower` (`crash.ts`), the table as a
    * landing of that power moves it (`entries.ts`'s `entryWeight`, the one curve). At `at` when given
    * (where two cards meet), else on `to`. A charge's blow (`charger`, the size of the card that struck)
-   * is the whole quake a landing draws (`quake.ts`): from 7 the table cracks under it, from 8 the cards
-   * around it are knocked away (the operator, 2026-10-30: "remember how we added that nice board
-   * animation for when emrakul hits the board? i want to try something similar with when strong
-   * creatures hit the opponent"); two creatures' blow only shakes it, the rammers being out on the table.
+   * is a landing's quake (`quake.ts`) less its cracks: from 8 the cards around it are knocked away (the
+   * operator, 2026-10-30: "remember how we added that nice board animation for when emrakul hits the
+   * board? i want to try something similar with when strong creatures hit the opponent"), but the
+   * table cracks only under a landing (2026-11-01, of a crack out of the struck player's portrait: "the
+   * crack looks ugly"); two creatures' blow only shakes it, the rammers being out on the table.
    */
   function bang(to: Element, key: string, amount: number, at: Point | null = null, share = 1, charger: { w: number; h: number } | null = null): void {
     const root = overlay();
@@ -868,7 +870,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       return;
     }
     const box = root.getBoundingClientRect();
-    shakes.add(quake(canvas, root, { x: box.left + point.x, y: box.top + point.y, ...charger }, weight, key).cancel);
+    shakes.add(quake(canvas, root, { x: box.left + point.x, y: box.top + point.y, ...charger }, { ...weight, cracks: null }, key).cancel);
   }
 
   /**
@@ -1266,6 +1268,12 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         const hitPoint = plan.kind === 'charge' ? to : { x: (from.x + strike.x + to.x) / 2, y: (from.y + strike.y + to.y) / 2 };
         const at = plan.kind === 'meet' ? { x: from.x + strike.x, y: from.y + strike.y } : hitPoint;
         atBeat(() => bang(target, `crash:${plan.sourceId}`, plan.amount, at, crashShare, plan.kind === 'charge' ? { w: from.w, h: from.h } : null), plan.delayMs + contactMs(plan.kind));
+        // The struck player's avatar recoils from the blow, away from where the charge set off (`recoil.ts`).
+        if (plan.kind === 'charge' && 'playerId' in plan.target) {
+          const spot = fanned.get(plan.sourceId) ?? { x: 0, y: 0 };
+          const launch = { x: from.x + spot.x, y: from.y + spot.y };
+          atBeat(() => shakes.add(recoil(target, launch, to, plan.amount, `crash:${plan.sourceId}`)), plan.delayMs + contactMs(plan.kind));
+        }
         const contact = plan.delayMs + contactMs(plan.kind);
         const mine = viewers(plan.sourceId);
         // On a player the blow is as big as its damage, and a crowd cheers from 5 (`impactRole`, `cheerRole`).
