@@ -123,7 +123,7 @@ import { seatDeckColors, type DeckCosts } from './deck-colors.js';
 import { namedStopPolicy, STOP_POLICY_NAMES, withEndStepStop, type StopPolicy } from './auto.js';
 import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from './host.js';
 import { COLD_STARTS, queueColdStarts } from './start-queue.js';
-import { WATCHER_SEAT, createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity } from './match.js';
+import { WATCHER_SEAT, createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity, type SeatSpecWithIdentity } from './match.js';
 import type { SpellCopy } from './spell-copiers.js';
 import { malformedFacts } from '../http/client-events.js';
 import { httpCaller, perCallerLimit, readBody } from '../http/request.js';
@@ -360,9 +360,11 @@ function uniqueSeatNames(names: [string | undefined, string | undefined]): [stri
  *
  * `names` (wave 31 §S) is what Forge shows for each seat, in seat order — see
  * {@link sanitizeSeatName}. It IS the Forge player's name, so Forge's own
- * prompt text says it too; absent, the seat is `Seat N`. There is no avatar
- * field: a seat's avatar is read from its holder's room on every roster
- * (`MatchDeps.seatAvatar`), never carried on the spec.
+ * prompt text says it too; absent, the seat is `Seat N`. A seat's avatar is
+ * read from its holder's room on every roster (`MatchDeps.seatAvatar`). The one
+ * exception is `avatars`, a probe-only hatch for a match no room started (a
+ * scenario filmed for the trailer): it is refused without the probe flag, like
+ * `scenario`, and a room's own avatar still wins over it.
  *
  * `scenario` (wave 33 §S, shape 1) is the text of a Forge puzzle file's
  * `[state]` section — `human…` keys for seat 0, `ai…` keys for seat 1 — carried
@@ -375,7 +377,7 @@ function uniqueSeatNames(names: [string | undefined, string | undefined]): [stri
 export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | { ok: false; error: string } {
 	const parsed = readBody(StartMatchBodySchema, body);
 	if (!parsed.ok) return parsed;
-	const { opponent, decks, scenario, format, handSmoothing, chooser, clockMs } = parsed.value;
+	const { opponent, decks, scenario, format, handSmoothing, chooser, clockMs, avatars } = parsed.value;
 	const names = parsed.value.names === undefined ? [undefined, undefined] : uniqueSeatNames([sanitizeSeatName(parsed.value.names[0]), sanitizeSeatName(parsed.value.names[1])]);
 	// `CARDTABLE_PLAY_SEED` fixes Forge's shuffles, the coin toss and the precon
 	// pick (`play/README.md`, `MatchSpec.seed`), and `bridgeConfig` spreads the
@@ -412,12 +414,14 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 				ai: false,
 				deck: decks[0],
 				...(names[0] === undefined ? {} : { displayName: names[0] }),
+				...(avatars?.[0] == null ? {} : { avatarId: avatars[0] }),
 			},
 			{
 				name: names[1] ?? (opponent === 'ai' ? 'Forge AI' : 'Seat 2'),
 				ai: opponent === 'ai',
 				deck: decks[1],
 				...(names[1] === undefined ? {} : { displayName: names[1] }),
+				...(avatars?.[1] == null ? {} : { avatarId: avatars[1] }),
 			},
 		],
 		...(seed === undefined ? {} : { seed }),
@@ -603,6 +607,10 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		// production path for it, not a second probe hatch.
 		if (parsed.spec.scenario !== undefined && deps.probe !== true && res.locals.trustedScenario !== true) {
 			res.status(400).json({ error: 'scenario-needs-probe' });
+			return;
+		}
+		if (parsed.spec.seats.some((s) => (s as SeatSpecWithIdentity).avatarId !== undefined) && deps.probe !== true) {
+			res.status(400).json({ error: 'avatars-needs-probe' });
 			return;
 		}
 		// A match started now would be handed a JVM this process is about to stop

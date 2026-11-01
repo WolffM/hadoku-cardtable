@@ -10,7 +10,7 @@ import { test, type Page } from '@playwright/test';
 import { clickPermanent, isOffered, ownNamed, pressPaymentAuto, says, stackCount } from '../play/board.ts';
 import { passToDeclareAttackers } from '../play/combat.ts';
 import { answerPrompt } from '../play/prompts.ts';
-import { autoYield, deliberateClick, okEnabled, pickTiles, pressIfThere, restCursor, selectionTiles, shootScenario, until, wrap, type Shoot } from './drive.ts';
+import { autoYield, deliberateClick, humanMove, humanRest, okEnabled, pickTiles, pressIfThere, restCursor, selectionTiles, shootScenario, until, untilWon, wrap, type Shoot } from './drive.ts';
 
 const LOOPS = 4;
 const YARD = '.seat [data-zone="graveyard"][data-owner="you"]';
@@ -47,19 +47,19 @@ async function castFromYard(page: Page, id: number): Promise<void> {
     [YARD, id] as const,
   );
   const field = (await page.locator('.seat[data-viewer] [data-zone="battlefield"]').first().boundingBox())!;
-  await page.mouse.move(at.x, at.y, { steps: 16 });
-  await page.waitForTimeout(900);
+  await humanMove(page, at);
+  await humanRest(page, 900);
   await page.mouse.down();
-  await page.mouse.move(field.x + field.width / 2, field.y + field.height * 0.35, { steps: 24 });
-  await page.waitForTimeout(200);
+  await humanMove(page, { x: field.x + field.width / 2, y: field.y + field.height * 0.35 });
+  await humanRest(page, 200);
   await page.mouse.up();
   await restCursor(page);
 }
 
 async function glide(page: Page, id: number, rest: number): Promise<void> {
   const box = await page.locator(`[data-board-card="${id}"]`).first().boundingBox();
-  if (box !== null) await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.7, { steps: 10 });
-  await page.waitForTimeout(rest);
+  if (box !== null) await humanMove(page, { x: box.x + box.width / 2, y: box.y + box.height * 0.7 });
+  await humanRest(page, rest);
 }
 
 test('breakfast: Nomads at the Illusionist, four deep, into Sutured Ghoul', async ({ browser }) => {
@@ -171,12 +171,7 @@ test('breakfast: Nomads at the Illusionist, four deep, into Sutured Ghoul', asyn
     await passToDeclareAttackers(page);
     await deliberateClick(page, page.locator(`[data-board-card="${ghoul}"] button`).first(), { hover: 500 });
     await film.beat(600);
-    await until('the game is won', async () => {
-      if ((await page.getByText(/victory/i).count()) > 0) return true;
-      await pressIfThere(okEnabled(page));
-      return false;
-    }, 60_000, 400, page);
-    film.mark('win');
+    await untilWon(film, page);
     await film.beat(4_000);
     film.mark('end');
   } finally {
