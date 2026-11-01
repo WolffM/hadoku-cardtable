@@ -31,7 +31,7 @@ test('constructed: historical decks with a friend', async ({ browser }) => {
   try {
     stack = await startPlayStack(forge);
     const origin = stack.origin;
-    const hero = await openPromoFriend(film.hero, HERO, { filmed: true });
+    const hero = await openPromoFriend(film.hero, HERO);
     const rival = await openPromoFriend(browser, RIVAL);
     const page = hero.page;
     await page.goto(`${origin}${PREFIX}/`);

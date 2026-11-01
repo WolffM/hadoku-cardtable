@@ -25,7 +25,7 @@ test('tournament: eight entrants, the field pairs', async ({ browser }) => {
   try {
     stack = await startPlayStack(forge);
     const base = `${stack.origin}${PREFIX}/api`;
-    const hero = await openPromoFriend(film.hero, HERO, { filmed: true });
+    const hero = await openPromoFriend(film.hero, HERO);
     const leader = await openPromoFriend(browser, 'vexmoor');
     const friends = [hero, leader, await openPromoFriend(browser, RIVAL), await openPromoFriend(browser, 'lumen')];
     const call = async (f: (typeof friends)[number], method: 'POST' | 'PATCH', path: string, data: unknown): Promise<unknown> => {
