@@ -29,6 +29,14 @@ R12 deviation this route would let us delete).
 
 ## The ask
 
+**Preferred (cheapest): add `name` to `_avatar/resolve`.** Checked twice on 2026-11-01: prefs-api
+already resolves userId → name internally, through a cached `registryNameMap` in
+`workers/prefs-api/src/routes/games.ts:79-86`, but no route returns it by userId. The avatar
+resolve route (`routes/avatar.ts:412`) is already the right gate and shape (service tier, ≤ 100
+userIds, offline people, erased = default answer), so `ResolvedAvatar` gaining `name: string | null`
+gives a server a roster's faces and names in one call. If a separate route fits better, the shape
+below is the same idea:
+
 ```
 POST /session/identity/names      (service tier; an allow list per app if you prefer)
   { "userIds": ["<uuid>", …] }    ≤ 100, deduped
