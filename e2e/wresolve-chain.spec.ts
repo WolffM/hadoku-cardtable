@@ -3,7 +3,7 @@
  * same time? i feel like there should be a small delay between each of them resolving even if the other player
  * did auto-yield. i would like it if the triggers can be seen resolving one at a time individually".
  *
- * `promo-valakut` at the trailer's 1920×1080, bob on Auto Yield as in the trailer: alice's Scapeshift fetches
+ * `promo-valakut` at the trailer's 1920×1080, Fast Mode off and bob on Auto Yield as in the trailer: alice's Scapeshift fetches
  * Valakut and ten Mountains, she aims the first trigger at bob with "same target for all", and the triggers
  * resolve with nobody deciding anything between them. Forge sends each resolution as its own frame, ~40 ms
  * apart. On BOTH screens every trigger's fireball sets off on its own beat, `RESOLVE_CHAIN_GAP_MS` (300 ms)
@@ -16,6 +16,7 @@ import { clickHandCard, makeTitled, offeredNamed, pressPaymentAuto, resizeWindow
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
+import { setPlayFastModeDefault } from './prefsLocal.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -73,7 +74,9 @@ test(titled('promo-valakut, bob on Auto Yield: the triggers resolve one at a tim
   test.setTimeout(5 * 60_000);
   const stack = await startPlayStack(forge);
   try {
-    const { alice, bob } = await startScenarioMatch(browser, stack, 'promo-valakut');
+    // Paced, as the trailer was filmed: e2e seats default to Fast Mode, which holds nothing.
+    const slow = async (p: Page): Promise<void> => setPlayFastModeDefault(p.context(), false);
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'promo-valakut', { beforeAlice: slow, beforeBob: slow });
     for (const p of [alice.page, bob.page]) await resizeWindow(p, TRAILER);
     const page = alice.page;
     let scapeshift: number | undefined;
