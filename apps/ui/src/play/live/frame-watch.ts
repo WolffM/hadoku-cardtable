@@ -2,7 +2,8 @@
  * The frame rate, in the match's log (the operator, 2026-10-21: *"ship some performance telemetry and
  * capture moments when performance gets bad … ui performance telemetry that fire whenever the framerate
  * gets too low"*). One `requestAnimationFrame` loop times the gap between frames while a match is on
- * screen and its tab is visible, and sends `perf` client events (`@hadoku/shared`'s `telemetry.ts`):
+ * screen, its tab is visible and the page is drawing, and sends `perf` client events (`@hadoku/shared`'s
+ * `telemetry.ts`):
  *
  * - `what: 'stretch'` — a bad stretch: a second with {@link SLOW_IN_WINDOW} slow gaps, or one gap over
  *   {@link FREEZE_MS}, until the frames recover. One report per stretch, however long it lasts.
@@ -19,6 +20,16 @@
  *
  * A frame costs two clock reads, a few counter writes and one histogram bump: no allocation, no DOM read,
  * no layout. Everything else is computed only when a stretch opens or a report goes out.
+ *
+ * It never asks for a frame the page would not draw. A `requestAnimationFrame` loop makes the browser
+ * draw every frame, and each frame the main thread draws samples every running animation, the ones the
+ * compositor runs included: a table of flyers, each looping on the compositor, cost the main thread a
+ * restyle of every part of every flyer sixty times a second, for as long as a match was open — a cost
+ * that grew with each Thopter a combo made. So once nothing has been drawn for {@link QUIET_MS} (no DOM
+ * change, no input, no animation or transition starting: `pageActivity`), and no stretch is open, the
+ * loop stops. The next change starts it again. While it is stopped, a timer every {@link HEARTBEAT_MS}
+ * stands in for the frames: one that runs over {@link FREEZE_MS} late was a freeze, timed as a frame from
+ * when it was due. The frames a summary counts are the frames the page drew.
  */
 import type { ClientEvent } from '@hadoku/shared';
 
@@ -63,6 +74,10 @@ export const PAGE_EVERY_MS = 1_000;
 export const TOP_LONG_FRAMES = 3;
 /** How many of a long frame's scripts are named. */
 export const TOP_SCRIPTS = 3;
+/** With nothing drawn for this long, the loop stops asking for frames (`pageActivity` starts it again). */
+export const QUIET_MS = 1_000;
+/** While the loop is stopped, a timer this often times the main thread: a late one was a freeze. */
+export const HEARTBEAT_MS = 100;
 /** A summary every this many turns, beside the one as the match closes. */
 export const SUMMARY_EVERY_TURNS = 4;
 
@@ -118,6 +133,10 @@ export interface FrameWatchHost {
   observer?: ObserverClass | null;
   /** What our own hot paths have spent, by label (`./work-meter.ts`'s `workSpent`, the default). */
   work?: () => ReadonlyMap<string, number>;
+  /** Calls `wake` whenever the page draws something new; returns the uninstall. {@link pageActivity} by default. */
+  wakeOn?: (wake: () => void) => () => void;
+  /** The heartbeat's timer: `setTimeout`/`clearTimeout` by default. */
+  timer?: { set: (callback: () => void, ms: number) => number; clear: (handle: number) => void };
 }
 
 export interface FrameWatch {
@@ -234,6 +253,21 @@ export function pageFacts(): Data {
   };
 }
 
+/** What makes the page draw: input, DOM changes, and animations and transitions starting. */
+const ACTIVITY_EVENTS = ['pointerdown', 'pointermove', 'pointerup', 'wheel', 'keydown', 'scroll', 'resize', 'animationstart', 'transitionrun'] as const;
+
+/** Calls `wake` on everything that makes the page draw a frame (`ACTIVITY_EVENTS`, any DOM change). Returns the uninstall. */
+export function pageActivity(wake: () => void): () => void {
+  const observer = typeof MutationObserver === 'function' ? new MutationObserver(wake) : null;
+  observer?.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
+  const options = { capture: true, passive: true } as const;
+  for (const type of ACTIVITY_EVENTS) window.addEventListener(type, wake, options);
+  return () => {
+    observer?.disconnect();
+    for (const type of ACTIVITY_EVENTS) window.removeEventListener(type, wake, options);
+  };
+}
+
 /** The attribution the browser offers: Chrome 123+'s long animation frames, else long tasks, else none (Firefox, Safari). */
 export function attributionOf(observer: ObserverClass | null | undefined): 'loaf' | 'longtask' | 'none' {
   const types = observer?.supportedEntryTypes ?? [];
@@ -273,6 +307,8 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
   const Observer = host.observer === undefined ? (typeof PerformanceObserver === 'function' ? (PerformanceObserver as unknown as ObserverClass) : null) : host.observer;
   const attribution = attributionOf(Observer);
   const work = host.work ?? workSpent;
+  const wakeOn = host.wakeOn ?? pageActivity;
+  const timer = host.timer ?? { set: (cb: () => void, ms: number) => window.setTimeout(cb, ms), clear: (h: number) => window.clearTimeout(h) };
   /** What our hot paths had spent as the open stretch began. */
   let workAtOpen = new Map<string, number>();
   let phase = 'none';
@@ -324,6 +360,11 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
   let last = -1;
   let handle: number | null = null;
   let disposed = false;
+  // When the page last drew something new; while the loop is stopped, the heartbeat and when it is due.
+  let lastWake = now();
+  let asleep = false;
+  let beat: number | null = null;
+  let beatDue = 0;
 
   const long: LongFrame[] = [];
   let observer: InstanceType<ObserverClass> | null = null;
@@ -431,14 +472,16 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
 
   function tick(t: number): void {
     const began = now();
-    handle = raf(tick);
-    if (last < 0) {
-      // The first frame after a (re)start has no gap of its own.
-      last = t;
-      return;
-    }
-    const gap = t - last;
+    handle = null;
+    // The first frame after a start has no gap of its own; one after a wake is timed from it.
+    if (last >= 0) time(t, began);
     last = t;
+    if (!open && t - lastWake >= QUIET_MS) sleep();
+    else handle = raf(tick);
+  }
+
+  function time(t: number, began: number): void {
+    const gap = t - last;
     gaps[at] = gap;
     ends[at] = t;
     at = (at + 1) % RING;
@@ -483,6 +526,8 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
 
   function startLoop(): void {
     if (disposed || handle !== null || doc.visibilityState === 'hidden') return;
+    stopBeat();
+    lastWake = now();
     last = -1;
     handle = raf(tick);
   }
@@ -491,6 +536,46 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
     if (handle !== null) caf(handle);
     handle = null;
     last = -1;
+    stopBeat();
+  }
+
+  /** Nothing drawn for a while: no more frames asked for, the heartbeat instead. */
+  function sleep(): void {
+    asleep = true;
+    armBeat();
+  }
+
+  function armBeat(): void {
+    beatDue = now() + HEARTBEAT_MS;
+    beat = timer.set(onBeat, HEARTBEAT_MS);
+  }
+
+  function stopBeat(): void {
+    if (beat !== null) timer.clear(beat);
+    beat = null;
+    asleep = false;
+  }
+
+  /** A heartbeat that ran over a freeze late: the main thread was held, timed as a frame from when it was due. */
+  function onBeat(): void {
+    beat = null;
+    if (now() - beatDue > FREEZE_MS) wakeFrom(beatDue);
+    else armBeat();
+  }
+
+  /** The page drew something new: the loop runs again, its first frame timed from `from`. */
+  function wakeFrom(from: number): void {
+    if (disposed || doc.visibilityState === 'hidden') return;
+    stopBeat();
+    lastWake = now();
+    last = from;
+    if (handle === null) handle = raf(tick);
+  }
+
+  function onActivity(): void {
+    lastWake = now();
+    // A change made while the main thread was held past the heartbeat's due time is timed from that time.
+    if (asleep) wakeFrom(Math.min(lastWake, beatDue));
   }
 
   function onVisibility(): void {
@@ -545,6 +630,7 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
 
   doc.addEventListener('visibilitychange', onVisibility);
   win.addEventListener('pagehide', onPageHide);
+  const unwake = wakeOn(onActivity);
   startLoop();
 
   return {
@@ -566,6 +652,7 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
       if (disposed) return;
       stopLoop();
       disposed = true;
+      unwake();
       doc.removeEventListener('visibilitychange', onVisibility);
       win.removeEventListener('pagehide', onPageHide);
       observer?.disconnect();

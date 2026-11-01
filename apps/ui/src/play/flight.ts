@@ -21,6 +21,8 @@
  * the SAME pass as everything else, before the first frame it is drawn in.
  */
 
+import './flight.css';
+
 const FLYING = '[data-flying]';
 
 /**
