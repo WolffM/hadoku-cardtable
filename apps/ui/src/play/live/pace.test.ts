@@ -1176,6 +1176,63 @@ describe('a chain of resolutions nobody decides between', () => {
     for (const g of gaps(times)) expect(g, `gaps ${gaps(times).join(',')}`).toBeGreaterThanOrEqual(RESOLVE_CHAIN_GAP_MS);
   });
 
+  // e2e/w80c-common-unlock.spec.ts: bob's Doom Blade over alice's Shock. His resolution leaves hers on the stack, and her
+  // priority follows at once: the castable glow, the prompt line, a live bar. It opens on the effect's last tenth (AF454).
+  it("the other player's resolution with an item left under it: the seat's decision still waits for its beats", async () => {
+    const board = fakeBoard();
+    const { inner, received } = watch(ALICE, { boardStill: board.still });
+    inner.deliver(pushed([200], ALICE));
+    inner.deliver(pushed([201, 200], BOB));
+    await vi.advanceTimersByTimeAsync(5_000);
+    inner.deliver(deltaOf({ g: stackOf([200]) }));
+    await vi.advanceTimersByTimeAsync(PACE_DELAYS_MS.resolve);
+    expect(received).toHaveLength(3);
+    board.busy(true); // his Doom Blade's slice and the Bears' death
+    const PROMPT = { frame: { kind: 'notify', method: 'showPromptMessage', message: 'Priority: Alice' } };
+    for (const f of [INPUT_NOTIFY, PROMPT, bar(true)]) inner.deliver(f);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(received, 'nothing of her decision shows while his effect plays').toHaveLength(3);
+    board.busy(false);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(received).toHaveLength(6);
+  });
+
+  it("the glow taken away again is a window passed for the seat: the chain goes on without waiting out the other's beats", async () => {
+    const board = fakeBoard();
+    const { inner, times, received } = watch(BOB, { boardStill: board.still });
+    for (const t of triggers) inner.deliver(t);
+    await run(() => received.length === triggers.length);
+    await vi.advanceTimersByTimeAsync(5_000);
+    // Forge on a slow host: each resolution 500 ms after the last, longer than the gap, its window passed in between.
+    for (const f of [resolved(0), AFTER, INPUT_NOTIFY, CLEAR_WEAK]) inner.deliver(f);
+    await run(() => times.length === 1);
+    board.busy(true); // the first hit's beats, and every one after
+    for (let k = 1; k < 4; k++) {
+      for (const f of [resolved(k), AFTER, INPUT_NOTIFY, CLEAR_WEAK]) inner.deliver(f);
+      await vi.advanceTimersByTimeAsync(500);
+    }
+    await run(() => times.length === 4, 2_000);
+    expect(times, 'four resolutions, none held for the beats').toHaveLength(4);
+    for (const g of gaps(times)) expect(g, `gaps ${gaps(times).join(',')}`).toBeLessThan(550);
+  });
+
+  it('an input frame mid-chain that nothing settles is taken as a decision: it waits for the beats', async () => {
+    const board = fakeBoard();
+    const { inner, received } = watch(ALICE, { boardStill: board.still });
+    inner.deliver(pushed([200], ALICE));
+    inner.deliver(pushed([201, 200], BOB));
+    await vi.advanceTimersByTimeAsync(5_000);
+    inner.deliver(deltaOf({ g: stackOf([200]) }));
+    await vi.advanceTimersByTimeAsync(PACE_DELAYS_MS.resolve);
+    board.busy(true);
+    inner.deliver(INPUT_NOTIFY);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(received, 'held for his beats, past the settle window').toHaveLength(3);
+    board.busy(false);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(received.at(-1)).toBe(INPUT_NOTIFY);
+  });
+
   it("the seat's click mid-chain is sent at once, and what is queued catches up", async () => {
     const { inner, transport, received } = watch(ALICE);
     for (const t of triggers) inner.deliver(t);

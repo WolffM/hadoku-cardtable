@@ -150,7 +150,10 @@
  * screen's waited a resolve gap and the board's beats each, two seconds apart. So once a resolution leaves items
  * on the stack, the next one to leave goes {@link RESOLVE_CHAIN_GAP_MS} after it — on every screen, whoever owns
  * the chain — and neither it nor anything Forge sends between them waits for the board: each hit plays over the
- * last. The chain ends when the seat can act (an ask, a button bar with a button live) or acts (its own click), the stack
+ * last. Forge's windows inside a chain come as input frames whose meaning only the next one gives: a live bar is the
+ * seat's decision and keeps every wait it had, a dead bar or the glow taken away again is a window passed for it and goes
+ * with the chain ({@link CHAIN_INPUT_SETTLES_MS}; `e2e/w80c-common-unlock.spec.ts` caught a decision opening early).
+ * The chain ends when the seat can act (an ask, a button bar with a button live) or acts (its own click), the stack
  * grows, the step moves, or the stack empties; what of it is still queued then goes as it comes, so the seat's
  * input is never held by a gap (AF216), and frames still go out in order.
  *
@@ -239,8 +242,23 @@ export const RESOLVE_CHAIN_GAP_MS = BOLT_STAGGER_MS;
  * A frame's place in a chain of resolutions nobody decides in (module header, "A chain resolves one item at a
  * time"): `resolve`, an item after the first leaving, which goes {@link RESOLVE_CHAIN_GAP_MS} after the one
  * before it; `between`, what Forge sends round them, which goes as it comes. Neither waits for the board.
+ * `pending`: an input frame whose window is not settled yet ({@link CHAIN_INPUT_SETTLES_MS}).
  */
-type Chain = 'resolve' | 'between' | null;
+type Chain = 'resolve' | 'between' | 'pending' | null;
+
+/**
+ * An input frame inside a chain is one half of a window, and only the frame after it tells which window: a live bar
+ * or a question is the seat's decision (everything of it waits as it always did), a dead bar or the glow taken away
+ * again is a window passed for the seat (it goes with the chain). Forge sends the halves within milliseconds; one
+ * whose other half has not come by this long is taken as a decision.
+ */
+export const CHAIN_INPUT_SETTLES_MS = 100;
+
+/** Input frames that close a window the seat was not asked in: the glow taken away, a bar with no button live. */
+function passedWindow(payload: unknown): boolean {
+  const frame = (payload as { frame?: { method?: unknown; enable1?: unknown; enable2?: unknown } } | null)?.frame;
+  return frame?.method === 'clearWeaklySelectable' || (frame?.method === 'updateButtons' && frame.enable1 !== true && frame.enable2 !== true);
+}
 
 /** The longest a frame waits on the board's beats: a beat that never says it is over must not freeze the table. */
 export const BOARD_HOLD_MAX_MS = 5_000;
@@ -618,10 +636,21 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   /** The last frame that carried the stack was a resolution that left items on it, and nobody has decided anything since. */
   let chainOpen = false;
 
+  /** Settle the queued input frames still waiting on their window ({@link CHAIN_INPUT_SETTLES_MS}) as `to`. */
+  function settle(to: Chain): boolean {
+    let settled = false;
+    for (const entry of queue) {
+      if (entry.chain !== 'pending') continue;
+      entry.chain = to;
+      settled = true;
+    }
+    return settled;
+  }
+
   /** The chain is over (a decision, the seat's click, the stack growing, a step): what of it is queued goes as it comes. */
   function endChain(): void {
     chainOpen = false;
-    let caught = false;
+    let caught = settle(null);
     for (const entry of queue) {
       if (entry.chain !== 'resolve') continue;
       entry.chain = 'between';
@@ -637,10 +666,21 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
       endChain();
       return null;
     }
-    if (pace !== 'resolve' || after === before) return chainOpen ? 'between' : null;
-    const chain: Chain = chainOpen ? 'resolve' : null;
+    const resolves = pace === 'resolve' && after !== before;
+    if (!chainOpen) {
+      // A resolution that leaves items on the stack opens a chain; it goes at its own pace.
+      if (resolves) chainOpen = (after ?? 0) > 0;
+      return null;
+    }
+    if (pace === 'input') {
+      if (!passedWindow(payload)) return 'pending';
+      if (settle('between') && boardWait === null) stopTimer();
+      return 'between';
+    }
+    if (!resolves) return 'between';
+    if (settle('between') && boardWait === null) stopTimer();
     chainOpen = (after ?? 0) > 0;
-    return chain;
+    return 'resolve';
   }
   /** When the die or coin last thrown lands: nothing goes out before it ({@link inTheAir}). */
   let landsAt = -Infinity;
@@ -776,6 +816,17 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   function pump(): void {
     if (timer !== null || boardWait !== null || queue.length === 0) return;
     const head = queue[0]!;
+    if (head.chain === 'pending' && !fast) {
+      const settlesIn = head.arrivedAt + CHAIN_INPUT_SETTLES_MS - now();
+      if (settlesIn > 0) {
+        timer = schedule(() => {
+          timer = null;
+          pump();
+        }, settlesIn);
+        return;
+      }
+      head.chain = null;
+    }
     const due = head.chain === null ? lastDeliveredAt + delayFor(head.pace, queue.length > 1, head.own) : head.chain === 'resolve' && !fast ? lastResolveAt + RESOLVE_CHAIN_GAP_MS : 0;
     const waitMs = Math.max(0, due - now(), landsAt - now());
     if (waitMs > 0) {
