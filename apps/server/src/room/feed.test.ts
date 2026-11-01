@@ -30,7 +30,7 @@ interface Person {
 
 const person = (name: string): Person => {
 	const key = `friend-key-${name}`;
-	return { key, name, id: deriveParticipantId({ friendKey: key, deviceId: `user-${name}`, socketId: 'unused' }) };
+	return { key, name, id: deriveParticipantId({ accountId: `user-${name}`, socketId: 'unused' }) };
 };
 const ALICE = person('alice');
 const BOB = person('bob');

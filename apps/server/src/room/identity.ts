@@ -8,35 +8,38 @@
  * asked for in `docs/requests/P5_SERVICE_PARTICIPANT.md` §7.2, so this file is
  * the domain string and the header plumbing and nothing else.
  *
- * **The ids did not change.** The package hashes
- * `` `${domain}\u001f${tier}\u001f${material}` `` with SHA-256, hex, truncated to
- * `PARTICIPANT_ID_DIGEST_LENGTH` — byte for byte what this file did, including
- * the U+001F separator, and under the same `PARTICIPANT_ID_DOMAIN`. That is not
- * taken on trust: `identity.test.ts` pins a known friend key to the exact `fk:`
- * id it derived before the upgrade, so a future bump that DOES re-identify
- * everybody arrives as a red test rather than as a room full of strangers.
+ * The package hashes `` `${domain}\u001f${tier}\u001f${material}` `` with
+ * SHA-256, hex, truncated to `PARTICIPANT_ID_DIGEST_LENGTH`. `identity.test.ts`
+ * pins a known userId to the exact `fk:` id it derives, so a future bump that
+ * re-identifies everybody arrives as a red test rather than as a room full of
+ * strangers.
+ *
+ * ## The material is the userId, never the key
+ *
+ * The id is minted from `X-User-Id`, the registry's userId, passed as the
+ * deriver's `accountId` (the `account` tier). It used to be minted from
+ * `X-User-Key`, the credential, and a rotated key then made the same person a
+ * stranger to every room, pod and recording that named them (cardtable#2,
+ * hadoku_site IDENTITY_MODEL R7/R12, cardtable#25). The key is not an input at
+ * all now. Stores written under the key-derived ids are refused rather than
+ * remapped (`@hadoku/room-store`'s `STORE_VERSION` 2).
  *
  * ## Derived, never accepted
  *
- * The inputs come from the EDGE HEADERS and from nowhere else. `X-User-Key` is
- * the friend key (the `account` tier), `X-User-Id` the device-ish fallback, and
- * a caller with neither gets an `ephemeral` id tied to the socket. A browser
- * that puts a `participantId` in a join payload is a parse error one layer up
+ * The input comes from the EDGE HEADERS and from nowhere else. A caller the
+ * edge named nobody gets an `ephemeral` id tied to the socket. A browser that
+ * puts a `participantId` in a join payload is a parse error one layer up
  * (`@hadoku/shared`'s strict client schemas), not a value anything here reads.
  *
- * Those headers are only believable after `sanitizeHeaders` has run — it
- * overwrites tier and DELETES `x-user-key`/`x-user-id` on anything the edge did
- * not vouch for. So this must run after `edgeProvenance`, which for a socket
- * means after `io.engine.use(edgeProvenance)`. Handed unsanitized headers it
- * would happily mint an `fk:` identity for a forged key.
+ * `X-User-Id` is only believable after `sanitizeHeaders` has run — it
+ * overwrites tier and DELETES `x-user-id` on anything the edge did not vouch
+ * for. So this must run after `edgeProvenance`, which for a socket means after
+ * `io.engine.use(edgeProvenance)`. Handed unsanitized headers it would happily
+ * mint an `fk:` identity for a forged userId.
  *
- * ## The friend key never leaves the deriver
- *
- * It IS the credential. What comes out is a truncated SHA-256 of it, which is
- * what the id format is designed around: the digest can be logged, put on the
- * wire and shown in a seat row, and the key cannot be recovered from it. There
- * is exactly one id per participant rather than an internal id plus a wire
- * handle to keep in sync.
+ * The id is a domain-separated digest, so it can be logged, put on the wire and
+ * shown in a seat row; there is exactly one id per participant rather than an
+ * internal id plus a wire handle to keep in sync.
  */
 
 import type { IncomingHttpHeaders } from 'node:http';
@@ -68,10 +71,8 @@ export const PARTICIPANT_ID_DOMAIN = 'hadoku.cardtable.participant.v1';
 export { participantHandle } from '@wolffm/rooms-protocol';
 
 interface IdentityInputs {
-	/** `X-User-Key`, post-sanitize. The `account` tier's source material. */
-	friendKey?: string | null;
-	/** `X-User-Id`, post-sanitize. The `device` tier's source material. */
-	deviceId?: string | null;
+	/** `X-User-Id`, post-sanitize: the registry userId. The `account` tier's source material. */
+	accountId?: string | null;
 	/** Fallback for a caller the edge could not name at all. */
 	socketId: string;
 }
@@ -111,9 +112,5 @@ export function identityFromHeaders(
 	headers: IncomingHttpHeaders,
 	socketId: string,
 ): ParticipantId {
-	return deriveParticipantId({
-		friendKey: headerValue(headers, 'x-user-key'),
-		deviceId: headerValue(headers, 'x-user-id'),
-		socketId,
-	});
+	return deriveParticipantId({ accountId: headerValue(headers, 'x-user-id'), socketId });
 }

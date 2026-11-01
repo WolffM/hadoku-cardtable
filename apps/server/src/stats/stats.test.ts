@@ -304,7 +304,8 @@ describe('the reporter', () => {
 
 describe('who a report names', () => {
 	function requestWith(key: string | undefined): Request {
-		return { headers: key === undefined ? {} : { 'x-user-key': key } } as unknown as Request;
+		// The edge stamps the key beside the userId it signs in; `user-<name>` for `k-<name>`.
+		return { headers: key === undefined ? {} : { 'x-user-key': key, 'x-user-id': `user-${key.slice(2)}` } } as unknown as Request;
 	}
 
 	it('remembers a caller’s key under the id the room knows them by, bounded', () => {
@@ -313,10 +314,16 @@ describe('who a report names', () => {
 		for (const key of ['k-alice', 'k-bob', 'k-carol']) book.remember(requestWith(key), {} as Response, next);
 		book.remember(requestWith(undefined), {} as Response, next);
 		expect(next).toHaveBeenCalledTimes(4);
-		const id = (key: string) => identityFromHeaders({ 'x-user-key': key }, 'unused');
+		const id = (key: string) => identityFromHeaders({ 'x-user-id': `user-${key.slice(2)}` }, 'unused');
 		expect(book.keyOf(id('k-alice'))).toBeNull();
 		expect(book.keyOf(id('k-bob'))).toBe('k-bob');
 		expect(book.keyOf(id('k-carol'))).toBe('k-carol');
+	});
+
+	it('files no key the edge stamped without a userId: that id is the socket’s, and names nobody', () => {
+		const book = createKeyBook();
+		book.remember({ headers: { 'x-user-key': 'k-dave' } } as unknown as Request, {} as Response, () => undefined);
+		expect(book.keyOf(identityFromHeaders({}, ''))).toBeNull();
 	});
 
 	it('reports a room member with a key as a user, one without as a guest, the AI as a bot', async () => {
@@ -337,7 +344,7 @@ describe('who a report names', () => {
 							startedAt: 0,
 							attrs: {},
 							seats: [
-								{ ai: false, memberId: identityFromHeaders({ 'x-user-key': 'k-alice' }, 'unused'), displayName: 'Alice', deck: null },
+								{ ai: false, memberId: identityFromHeaders({ 'x-user-id': 'user-alice' }, 'unused'), displayName: 'Alice', deck: null },
 								{ ai: false, memberId: 'fk:nobodyknowsme0', displayName: 'Bob', deck: null },
 							],
 						},
@@ -372,7 +379,7 @@ describe('who a report names', () => {
 });
 
 describe('a series result', () => {
-	const ALICE_ID = identityFromHeaders({ 'x-user-key': 'k-alice' }, 'unused');
+	const ALICE_ID = identityFromHeaders({ 'x-user-id': 'user-alice' }, 'unused');
 	const GAMES = [
 		{ matchId: 'm-aaaaaaaaaaaa', winner: 1 as const },
 		{ matchId: 'm-bbbbbbbbbbbb', winner: 0 as const },
@@ -381,7 +388,7 @@ describe('a series result', () => {
 
 	function seriesStats() {
 		const book = createKeyBook();
-		book.remember({ headers: { 'x-user-key': 'k-alice' } } as unknown as Request, {} as Response, () => undefined);
+		book.remember({ headers: { 'x-user-key': 'k-alice', 'x-user-id': 'user-alice' } } as unknown as Request, {} as Response, () => undefined);
 		const sent: MatchReport[] = [];
 		const stats = createMatchStats({
 			keys: book,

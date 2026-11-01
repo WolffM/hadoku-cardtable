@@ -45,13 +45,18 @@ import {
 import type { ClientMeta, CoreRoomState } from '@wolffm/rooms-server';
 
 /**
- * Bumped when the shape in THIS file changes.
+ * Bumped when the shape in THIS file changes, or what its ids mean does.
  *
  * A snapshot whose `storeVersion` this build does not recognise is quarantined,
  * never guessed at (§4.5). The host's own blob versions independently through
  * `appVersion`, so a host migrating its app state does not need us to bump.
+ *
+ * 2 (2026-10-31): participant ids are minted from the userId, not the key
+ * (cardtable#2, #25). A version-1 snapshot names people by key-derived ids no
+ * caller can present any more, and they cannot be mapped without the keys, so
+ * it is quarantined like any other unknown version (the operator chose a reset).
  */
-export const STORE_VERSION = 1;
+export const STORE_VERSION = 2;
 
 /** One durable participant, flattened out of `CoreRoomState.clients`. */
 export interface SerializedMember {

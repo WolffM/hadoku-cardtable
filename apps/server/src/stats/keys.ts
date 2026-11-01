@@ -24,6 +24,8 @@
 import type { IncomingHttpHeaders } from 'node:http';
 import type { NextFunction, Request, Response } from 'express';
 
+import { isDurableParticipantId } from '@wolffm/rooms-protocol';
+
 import { identityFromHeaders } from '../room/identity.js';
 
 export interface KeyBook {
@@ -43,8 +45,10 @@ export function createKeyBook(capacity = DEFAULT_CAPACITY): KeyBook {
 	function learn(headers: IncomingHttpHeaders): void {
 		const raw = headers['x-user-key'];
 		if (typeof raw !== 'string' || raw === '') return;
-		// The socket id is only reached when there is no key, and there is one.
+		// The id is minted from the userId beside the key. With none, it is the socket's, and a key
+		// filed under that would name nobody the room knows.
 		const id = identityFromHeaders(headers, '');
+		if (!isDurableParticipantId(id)) return;
 		keys.delete(id);
 		keys.set(id, raw);
 		if (keys.size > capacity) keys.delete(keys.keys().next().value as string);
