@@ -13,8 +13,9 @@
  * whether the source is the 23 MB oracle file or the 375 MB all-languages one.
  */
 
+import { randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { createGunzip } from 'node:zlib';
 import { Readable } from 'node:stream';
@@ -174,7 +175,10 @@ export async function sync(options: SyncOptions): Promise<SyncResult> {
 
   await mkdir(outDir, { recursive: true });
   const finalPath = join(outDir, CARDS_FILE);
-  const tempPath = `${finalPath}.partial`;
+  // This writer's own temp file. A shared name let two ingests at once (PPE's boot refresh beside
+  // another, 2026-11-01) truncate each other's file and rename a 187 MB cache that was 80% NUL bytes
+  // into place; with one each, the later rename simply wins and both are whole.
+  const tempPath = `${finalPath}.${process.pid}-${randomUUID()}.partial`;
 
   const url = downloadUrl(entry);
   report(`Downloading ${url}`);
@@ -254,14 +258,19 @@ export async function sync(options: SyncOptions): Promise<SyncResult> {
     });
   } catch (error) {
     out.destroy();
+    await rm(tempPath, { force: true });
     throw error;
   }
 
   await decompressing;
   // A deliberately aborted stream rejects with a premature-close error; that is
   // expected. Anything else means the download really did fail, and a truncated
-  // cache must not be renamed into place and called complete.
-  if (downloadError !== null && !aborted) throw downloadError;
+  // cache must not be renamed into place and called complete — nor left behind,
+  // since every writer's temp file has its own name.
+  if (downloadError !== null && !aborted) {
+    await rm(tempPath, { force: true });
+    throw downloadError;
+  }
 
   await rename(tempPath, finalPath);
 
@@ -273,8 +282,11 @@ export async function sync(options: SyncOptions): Promise<SyncResult> {
     limit,
     skippedLines,
   };
-  await mkdir(dirname(join(outDir, MANIFEST_FILE)), { recursive: true });
-  await writeFile(join(outDir, MANIFEST_FILE), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+  const manifestPath = join(outDir, MANIFEST_FILE);
+  await mkdir(dirname(manifestPath), { recursive: true });
+  const manifestTemp = `${manifestPath}.${process.pid}-${randomUUID()}.partial`;
+  await writeFile(manifestTemp, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+  await rename(manifestTemp, manifestPath);
 
   report(`Wrote ${cardCount} cards to ${finalPath}`);
   return { manifest, upToDate: false, outDir };

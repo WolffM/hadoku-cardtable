@@ -5,7 +5,7 @@
  */
 
 import { existsSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
@@ -28,6 +28,36 @@ function gzippedCards(count: number): Uint8Array {
     lines.push(JSON.stringify({ id: `id-${i}`, oracle_id: `o-${i}`, name: `Card ${i} ${'x'.repeat(200)}`, set: 'tst', collector_number: String(i), rarity: 'common', oracle_text: 'y'.repeat(400) }));
   }
   return gzipSync(lines.join('\n'));
+}
+
+/** All of `bytes`, in one piece. */
+function gzippedStream(bytes: Uint8Array): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(bytes);
+      controller.close();
+    },
+  });
+}
+
+/** A body that hands over `bytes` in pieces, holding at `holdAt` until `release` is called. */
+function heldBody(bytes: Uint8Array, holdAt: number): { body: ReadableStream<Uint8Array>; release: () => void } {
+  let release!: () => void;
+  const released = new Promise<void>((r) => (release = r));
+  let sent = 0;
+  const body = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      if (sent >= bytes.length) {
+        controller.close();
+        return;
+      }
+      if (sent >= holdAt) await released;
+      const end = Math.min(sent + 4096, bytes.length, sent < holdAt ? holdAt : bytes.length);
+      controller.enqueue(bytes.slice(sent, end));
+      sent = end;
+    },
+  });
+  return { body, release };
 }
 
 /** A body that hands over `bytes` in pieces, then fails the way a dropped connection does. */
@@ -57,5 +87,34 @@ describe('sync', () => {
     await expect(sync({ outDir })).rejects.toThrow('terminated');
     expect(existsSync(join(outDir, 'cards.jsonl'))).toBe(false);
     expect(existsSync(join(outDir, 'manifest.json'))).toBe(false);
+    // ...and no temp file either: each writer's has its own name, so nothing would ever overwrite it.
+    expect(await readdir(outDir)).toEqual([]);
+  });
+
+  it('two ingests into one directory at once each write a whole cache; neither tears the other (2026-11-01: 150 MB of NULs)', async () => {
+    const outDir = await mkdtemp(join(tmpdir(), 'carddata-bulk-'));
+    dirs.push(outDir);
+    const count = 3_000;
+    const bytes = gzippedCards(count);
+    // The first download holds half way; the second runs whole meanwhile, as PPE's boot refresh did
+    // beside another ingest.
+    const held = heldBody(bytes, Math.floor(bytes.length / 2));
+    let downloads = 0;
+    vi.stubGlobal('fetch', async (url: string) =>
+      url.includes('/bulk-data')
+        ? new Response(JSON.stringify(LISTING), { headers: { 'content-type': 'application/json' } })
+        : new Response(downloads++ === 0 ? held.body : gzippedStream(bytes)),
+    );
+    const first = sync({ outDir });
+    await vi.waitFor(async () => expect((await readdir(outDir)).filter((f) => f.endsWith('.partial'))).toHaveLength(1));
+    const second = await sync({ outDir });
+    held.release();
+    const results = [await first, second];
+    expect(results.map((r) => r.manifest.cardCount)).toEqual([count, count]);
+    const text = await readFile(join(outDir, 'cards.jsonl'), 'utf8');
+    expect(text.includes('\0')).toBe(false);
+    expect(text.trimEnd().split('\n')).toHaveLength(count);
+    expect(JSON.parse(await readFile(join(outDir, 'manifest.json'), 'utf8')).cardCount).toBe(count);
+    expect((await readdir(outDir)).sort()).toEqual(['cards.jsonl', 'manifest.json']);
   });
 });
