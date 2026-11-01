@@ -103,7 +103,7 @@
  * `docs/spikes/itoclient.md`, answered the opposite of the default both ways;
  * a dialog that pre-answered would have failed it).
  */
-import { Fragment, useId } from 'react';
+import { Fragment, useId, useLayoutEffect, useRef, type RefObject } from 'react';
 import type { DraftCard } from '@hadoku/shared';
 
 import { CardTile } from '../../components/CardTile.tsx';
@@ -293,6 +293,52 @@ export function PromptCheckBox({ check }: { check: PromptCheck }) {
   );
 }
 
+/** The wrapped text a question's card holds: its question and the rules text under it. */
+const WRAPPING = ':scope > :is(.confirm__message, .confirm__context)';
+
+/**
+ * A question's card no wider than its words (the operator, trailer cut 4: *"display on one line, but just
+ * not be wider than is necessary"*). `live.css` sizes the card to its content, which holds while each line
+ * fits; a paragraph that wraps (longer than the column) would still fill the column, since a box keeps the
+ * width it wrapped at. So once laid out, each wrapped paragraph takes its widest line's width, and the
+ * card shrinks to it. Only in the decision column (`.live__prompt`), measured again when the column
+ * changes size; every read comes before any write.
+ */
+function useWrappedFit(card: RefObject<HTMLElement | null>, text: string): void {
+  useLayoutEffect(() => {
+    const el = card.current;
+    const column = el?.parentElement;
+    // A DOM with no layout (jsdom) has no line boxes to measure.
+    if (el == null || column == null || !column.classList.contains('live__prompt') || typeof Range.prototype.getClientRects !== 'function') return undefined;
+    const fit = (): void => {
+      const paragraphs = [...el.querySelectorAll<HTMLElement>(WRAPPING)];
+      for (const p of paragraphs) p.style.maxInlineSize = '';
+      const widths = paragraphs.map((p) => {
+        const range = document.createRange();
+        range.selectNodeContents(p);
+        const lines = [...range.getClientRects()].filter((r) => r.width > 0);
+        if (new Set(lines.map((r) => Math.round(r.top))).size < 2) return null;
+        return Math.ceil(Math.max(...lines.map((r) => r.right)) - Math.min(...lines.map((r) => r.left))) + 1;
+      });
+      paragraphs.forEach((p, i) => {
+        const width = widths[i];
+        if (width != null) p.style.maxInlineSize = `${width}px`;
+      });
+    };
+    fit();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    let last = column.getBoundingClientRect().width;
+    const resized = new ResizeObserver(([entry]) => {
+      const width = entry?.contentRect.width ?? last;
+      if (width === last) return;
+      last = width;
+      fit();
+    });
+    resized.observe(column);
+    return () => resized.disconnect();
+  }, [card, text]);
+}
+
 /**
  * Presentational only — never touches `LiveMatch` or the wire. `LiveBoard.tsx`
  * mounts this for every one of its two-button questions: `isConfirmPrompt`'s
@@ -303,9 +349,12 @@ export function PromptCheckBox({ check }: { check: PromptCheck }) {
  */
 export function ConfirmPrompt({ testId, role = 'dialog', title, message, context, coin, callId, button1, button2, check, card, start }: ConfirmPromptProps) {
   const titleId = useId();
+  const sheet = useRef<HTMLElement>(null);
+  useWrappedFit(sheet, `${message}\n${context ?? ''}`);
   const messageId = useId();
   return (
     <section
+      ref={sheet}
       className="confirm ct-panel"
       data-testid={testId}
       data-call-id={callId}

@@ -682,8 +682,9 @@
   pointer-events: auto;
   /* The column IS the width now — 26.5% of the match, about 339px on the
      operator's own canvas and 254px on the 960 the table actually gets
-     (wave 27) — so the sheet fills it rather than choosing a width of its own.
-     What does not fit scrolls inside the sheet's body (`prompts.css`). */
+     (wave 27) — so the sheet fills it rather than choosing a width of its own
+     (a question's card is the exception, below). What does not fit scrolls
+     inside the sheet's body (`prompts.css`). */
   width: 100%;
   max-width: none;
   min-height: 0;
@@ -705,11 +706,21 @@
   border-radius: var(--radius);
 }
 
+/*
+ * A question's card is no wider than it needs to be, centred in the column: the operator, trailer cut 4,
+ * *"i didn't realize the decision modal was so much wider than it needed to be. instead let's have it
+ * display on one line, but just not be wider than is necessary"*. The card's width is the larger of the
+ * question on one line and its answers row; only a question longer than the column wraps, and then into
+ * balanced lines.
+ */
 .live__prompt > .confirm {
-  align-self: stretch;
-  /* `.confirm`'s own `max-width: 480px` is wider than the column, so it would
-     otherwise be the thing choosing the width. */
-  max-width: none;
+  align-self: center;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.live__prompt > .confirm > :is(.confirm__message, .confirm__context) {
+  text-wrap: balance;
 }
 
 /*

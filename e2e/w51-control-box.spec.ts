@@ -111,6 +111,20 @@ test(titled('the empty-stack pass is the pop-up’s Next Phase; a target’s Can
     await expect(nextPhaseLive(page), 'Main 1, nothing on the stack: the pop-up asks to proceed').toHaveCount(1);
     await expect(decisionOk(page), 'and names the next step').toHaveText('Next Phase');
     await expect(decision(page)).toContainText('Proceed to Combat?');
+    // Trailer cut 4: the card is no wider than its question on one line or its answers, never the column.
+    const shape = await decision(page).evaluate((card) => {
+      const text = document.createRange();
+      text.selectNodeContents(card.querySelector('.confirm__message')!);
+      const lines = new Set([...text.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)));
+      const row = card.querySelector('.answers')!;
+      const buttons = [...row.children].reduce((w, b) => w + b.getBoundingClientRect().width, 0) + parseFloat(getComputedStyle(row).columnGap || '0') * Math.max(0, row.children.length - 1);
+      const style = getComputedStyle(card);
+      const frame = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
+      return { lines: lines.size, card: card.getBoundingClientRect().width, need: Math.max(text.getBoundingClientRect().width, buttons) + frame, column: card.parentElement!.getBoundingClientRect().width };
+    });
+    expect(shape.lines, 'the question on one line').toBe(1);
+    expect(shape.card, `no wider than it needs: ${JSON.stringify(shape)}`).toBeLessThanOrEqual(shape.need + 2);
+    expect(shape.card, 'narrower than its column').toBeLessThan(shape.column);
     await expect(endTurn(page), 'End Turn is live too').toBeEnabled();
     await expectThree(page, 'empty-stack priority');
     await expectThree(bob.page, 'bob, waiting', 'Auto Yield');
