@@ -7,11 +7,13 @@ import type { Browser, Locator, Page } from '@playwright/test';
 
 import { resolve } from 'node:path';
 
-import { dragHandCard, says } from '../play/board.ts';
+import { pressPaymentAuto, says, stackCount } from '../play/board.ts';
+import { passToDeclareAttackers } from '../play/combat.ts';
 import type { Friend } from '../play/browser.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from '../play/harness.ts';
 import { startScenarioMatch } from '../play/scenario.ts';
-import { HERO, openPromoFriend, PROMO_DIR, RIVAL, startFilm, TAGS, type Film } from './rig.ts';
+import { humanMove, humanRest } from './mouse.ts';
+import { AVATARS, HERO, openPromoFriend, PROMO_DIR, RIVAL, startFilm, TAGS, type Film } from './rig.ts';
 
 export interface Shoot {
   film: Film;
@@ -32,6 +34,8 @@ export async function shootScenario(browser: Browser, clip: string, scenario: st
       seats: {
         open: [() => openPromoFriend(film.hero, HERO, { filmed: true }), () => openPromoFriend(browser, RIVAL)],
         names: [TAGS[HERO]!, TAGS[RIVAL]!],
+        // A roomless match has no room to read a face from: the probe-only `avatars` field carries them.
+        avatars: [AVATARS[HERO]!, AVATARS[RIVAL]!],
       },
     });
     // Art decodes before the first frame is filmed.
@@ -50,12 +54,16 @@ export async function wrap(shoot: Partial<Shoot> & { film?: Film }): Promise<voi
   await shoot.stack?.stop();
 }
 
+export { humanMove, humanRest };
+
+const centre = (box: { x: number; y: number; width: number; height: number }) => ({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
+
 /** Glide to `target` and rest on it (the hover inspector opens), then click. */
 export async function deliberateClick(page: Page, target: Locator, opts: { hover?: number } = {}): Promise<void> {
   const box = await target.boundingBox();
   if (box === null) throw new Error('promo: nothing to click');
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 18 });
-  await page.waitForTimeout(opts.hover ?? 450);
+  await humanMove(page, centre(box));
+  await humanRest(page, opts.hover ?? 450);
   // The locator's own click: a bare mouse.click on a player's face never reached the board's pick handler.
   await target.click();
 }
@@ -66,15 +74,18 @@ export const handCard = (page: Page, name: string): Locator =>
 /** Hover the hand card (its inspector opens), then drag it up onto the battlefield and let go: a cast. */
 export async function cast(page: Page, name: string, opts: { hover?: number } = {}): Promise<void> {
   const card = handCard(page, name);
-  const id = Number(await card.getAttribute('data-board-card'));
   const box = await card.boundingBox();
   const field = await page.locator('.seat[data-viewer] [data-zone="battlefield"]').first().boundingBox();
   if (box === null || field === null) throw new Error(`promo: cannot cast ${name}: no box`);
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 18 });
-  await page.waitForTimeout(opts.hover ?? 900);
-  const to = { x: field.x + field.width / 2, y: field.y + field.height * 0.35 };
-  const mid = { x: (box.x + box.width / 2 + to.x) / 2, y: (box.y + to.y) / 2 };
-  if (!(await dragHandCard(page, id, to, [mid]))) throw new Error(`promo: ${name} (${id}) did not lift`);
+  await humanMove(page, centre(box));
+  await humanRest(page, opts.hover ?? 900);
+  await page.mouse.down();
+  if ((await card.getAttribute('data-cast-lift').catch(() => null)) !== 'lifted') {
+    await page.mouse.up();
+    throw new Error(`promo: ${name} did not lift`);
+  }
+  await humanMove(page, { x: field.x + field.width / 2, y: field.y + field.height * 0.35 });
+  await page.mouse.up();
   // Off the card at once: the cursor resting where it let go opens the inspector over the spell's flight.
   await restCursor(page);
 }
@@ -82,7 +93,7 @@ export async function cast(page: Page, name: string, opts: { hover?: number } = 
 /** Park the cursor over empty table, so no hover inspector covers the moment. */
 export async function restCursor(page: Page): Promise<void> {
   const field = await page.locator('.seat:not([data-viewer]) [data-zone="battlefield"]').first().boundingBox();
-  if (field !== null) await page.mouse.move(field.x + field.width * 0.92, field.y + field.height * 0.25, { steps: 14 });
+  if (field !== null) await humanMove(page, { x: field.x + field.width * 0.92, y: field.y + field.height * 0.25 });
 }
 
 export const okEnabled = (page: Page): Locator => page.locator('[data-testid="live-decision-ok"]:enabled');
@@ -113,9 +124,10 @@ export async function pickTiles(page: Page, ids: readonly number[], gapMs = 140)
     await tile.scrollIntoViewIfNeeded();
     const box = await tile.boundingBox();
     if (box === null) continue;
-    await page.mouse.move(box.x + box.width / 2, box.y + Math.min(box.height / 2, 24), { steps: 6 });
-    await page.mouse.click(box.x + box.width / 2, box.y + Math.min(box.height / 2, 24));
-    await page.waitForTimeout(gapMs);
+    const at = { x: box.x + box.width / 2, y: box.y + Math.min(box.height / 2, 24) };
+    await humanMove(page, at);
+    await page.mouse.click(at.x, at.y);
+    await humanRest(page, gapMs);
   }
   await page.waitForTimeout(400);
   // Only OK the sheet these tiles were on: once Forge closed it, the open sheet is the NEXT question.
@@ -153,3 +165,46 @@ export async function autoYield(page: Page): Promise<void> {
   await slot.click();
   await until('the rival yields', async () => (await slot.getAttribute('data-yield')) === 'on', 10_000, 100, page);
 }
+
+/** Pass the hero's priority until the stack is empty (the rival on Auto Yield), paying and saying yes as asked. */
+export async function resolveStack(page: Page, what: string): Promise<void> {
+  await until(what, async () => {
+    if ((await stackCount(page)) === 0 && (await page.getByTestId('live-prompt').count()) === 0) return true;
+    await pressPaymentAuto(page);
+    await pressIfThere(page.locator('[data-testid="prompt-confirm-yes"]:enabled'));
+    if ((await stackCount(page)) > 0) await pressIfThere(okEnabled(page));
+    return false;
+  }, 60_000, 300, page);
+}
+
+/** Into combat and swing: `all` presses the board's own All, a list clicks each attacker; then Done. */
+export async function swing(page: Page, attackers: 'all' | number[]): Promise<void> {
+  await passToDeclareAttackers(page);
+  await humanRest(page, 500);
+  if (attackers === 'all') await deliberateClick(page, page.getByTestId('live-attack-all'), { hover: 500 });
+  else for (const id of attackers) await deliberateClick(page, page.locator(`[data-board-card="${id}"] button`).first(), { hover: 450 });
+  await humanRest(page, 500);
+  await deliberateClick(page, okEnabled(page).first(), { hover: 350 });
+  await restCursor(page);
+}
+
+/** Until the hero has won, passing as asked; marks `hit` the moment the rival's life first drops. */
+export async function untilWon(film: Film, page: Page): Promise<void> {
+  const start = Number((await lifeOf(page, 'theirs').textContent()) ?? '20');
+  let hit = false;
+  await until('the game is won', async () => {
+    const life = Number((await lifeOf(page, 'theirs').textContent()) ?? '20');
+    if (!hit && life < start) {
+      hit = true;
+      film.mark('hit');
+    }
+    if ((await page.getByTestId('game-result').count()) > 0) return true;
+    await pressIfThere(okEnabled(page));
+    return false;
+  }, 90_000, 200, page);
+  film.mark('win');
+}
+
+/** The first card on the rival's battlefield named `name`. */
+export const theirCard = (page: Page, name: string): Locator =>
+  page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] [data-board-card]', { has: page.locator('.card__name', { hasText: name }) }).first();

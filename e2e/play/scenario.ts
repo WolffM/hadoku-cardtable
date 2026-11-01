@@ -318,7 +318,7 @@ export async function startScenarioMatch(
     format?: string;
     clockMs?: [number, number];
     /** Who sits in each seat and what they are called (`promo/`'s filmed seat and gamer tags); `openFriend` as alice and bob otherwise. */
-    seats?: { open: [() => Promise<Friend>, () => Promise<Friend>]; names: [string, string] };
+    seats?: { open: [() => Promise<Friend>, () => Promise<Friend>]; names: [string, string]; avatars?: [string, string] };
   } = {},
 ): Promise<ScenarioMatch> {
   const scenario = readScenario(scenarioName);
@@ -333,6 +333,7 @@ export async function startScenarioMatch(
       scenario,
       ...(options.format === undefined ? {} : { format: options.format }),
       ...(options.clockMs === undefined ? {} : { clockMs: options.clockMs }),
+      ...(options.seats?.avatars === undefined ? {} : { avatars: options.seats.avatars }),
     },
   });
   if (res.status() !== 201) {
