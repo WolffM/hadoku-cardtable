@@ -463,11 +463,19 @@ export interface SeatState {
 	highlighted: Map<string, unknown>;
 	weakly: ServerFrame | null;
 	/**
-	 * A `setSelectables` with no choice in it (`auto.ts`'s `forcedSet`), held off the seat's wire
-	 * until the prompt after it says whether it is a sacrifice the server takes itself
-	 * ({@link Match.maybeOnlySacrifice}), and sent on ahead of that prompt otherwise; null when none is.
+	 * A selection the server may make itself, held off the seat's wire until the prompt after it
+	 * says whether it does: a set with no choice in it (`auto.ts`'s `forcedSet`, taken by
+	 * {@link Match.maybeOnlySacrifice}), or any set while a "same target for all" is armed (the
+	 * next trigger's target, {@link Match.maybeSameTarget}). The set and the highlights Forge
+	 * sends with it, in order; sent on ahead of the prompt when the pick is the seat's, never when
+	 * the server makes it. Empty when none is held.
 	 */
-	heldSacrifice: ServerFrame | null;
+	heldSelection: ServerFrame[];
+	/**
+	 * The open selection is one the server made and the seat never saw: what Forge sends to
+	 * close it (its highlights going off, `clearSelectables`) stays off the wire too.
+	 */
+	selectionUnseen: boolean;
 	/** The server just took a sacrifice for this seat: the bar Forge sends with that pick's prompt is not the seat's. */
 	pickedSacrifice: boolean;
 	/** The payment being made, while its prompt is up. */
@@ -1271,7 +1279,8 @@ export class Match {
 			selection: null,
 			highlighted: new Map(),
 			weakly: null,
-			heldSacrifice: null,
+			heldSelection: [],
+			selectionUnseen: false,
 			pickedSacrifice: false,
 			payment: null,
 			autoPaid: null,
@@ -2754,9 +2763,12 @@ export class Match {
 			// decides on it (Z4: `maybeCancelUnpayable` must see the payment it is
 			// cancelling) — independent of whether this half is held or sent.
 			this.trackPayment(s, frame.message, frame.card?.id ?? null);
-			if (s.heldSacrifice !== null) {
+			if (s.heldSelection.length > 0) {
 				if (this.maybeOnlySacrifice(s, frame)) return;
-				this.releaseHeldSacrifice(s);
+				// The prompt says whether the server answers this pick: `maybeSameTarget` reads
+				// exactly this prompt, this selection and the seat's "same target for all".
+				if (sameTargetAct(frame, s.selection, s.sameTarget) !== null) this.dropHeldSelection(s);
+				else this.releaseHeldSelection(s);
 			}
 			this.holdPromptWindow(s, frame);
 			return;
@@ -2783,12 +2795,25 @@ export class Match {
 		} else if (frame.method === 'clearWeaklySelectable') {
 			s.actionable = null;
 		}
-		if (frame.method === 'setSelectables' || frame.method === 'clearSelectables') s.heldSacrifice = null;
-		if (frame.method === 'setSelectables' && !s.ai && this.status === 'running' && forcedSet(frame)) {
-			// Its prompt decides whether the seat ever sees it (`maybeOnlySacrifice`). Forge is waiting
-			// on the seat all the same, so the other seat is told, and a reload is told the set.
-			s.heldSacrifice = frame;
+		if (frame.method === 'setSelectables' || frame.method === 'clearSelectables') s.heldSelection = [];
+		if (frame.method === 'setSelectables') s.selectionUnseen = false;
+		if (frame.method === 'setSelectables' && !s.ai && this.status === 'running' && (forcedSet(frame) || s.sameTarget !== null)) {
+			// Its prompt decides whether the seat ever sees it. Forge is waiting on the seat all the
+			// same, so the other seat is told, and a reload is told the set.
+			s.heldSelection = [frame];
 			s.selection = frame;
+			this.checkWaitingOn();
+			return;
+		}
+		if (frame.method === 'setHighlighted' && (s.heldSelection.length > 0 || s.selectionUnseen)) {
+			this.foldHighlighted(s, frame);
+			if (s.heldSelection.length > 0) s.heldSelection.push(frame);
+			return;
+		}
+		if (frame.method === 'clearSelectables' && s.selectionUnseen) {
+			s.selectionUnseen = false;
+			s.selection = null;
+			s.highlighted.clear();
 			this.checkWaitingOn();
 			return;
 		}
@@ -2800,11 +2825,7 @@ export class Match {
 			s.selection = null;
 			s.highlighted.clear();
 		} else if (frame.method === 'setHighlighted') {
-			for (const entity of frame.entities) {
-				const key = `${entity.kind}:${entity.id}`;
-				if (frame.on) s.highlighted.set(key, entity);
-				else s.highlighted.delete(key);
-			}
+			this.foldHighlighted(s, frame);
 		} else if (frame.method === 'setWeaklySelectable') {
 			s.weakly = frame;
 		} else if (frame.method === 'clearWeaklySelectable') {
@@ -2918,7 +2939,13 @@ export class Match {
 	 * A window left to the seat goes out in the order Forge sent it.
 	 */
 	private decideWindow(s: SeatState, prompt: PromptFrame, buttons: ButtonsFrame | null, order: 'prompt-first' | 'buttons-first'): void {
-		const identity = JSON.stringify([prompt.message, prompt.confirmAbility ?? null, prompt.targetAbility ?? null, buttons?.label1 ?? null, buttons?.label2 ?? null]);
+		// A confirm is its input, whatever the frame carrying it says: the bridge names the confirm Forge
+		// has open (`confirmAbility`) on a prompt sent while it opens ("Waiting for Bob..."), and an
+		// answer to that one has answered the Yes/No window Forge sends for the same input after it.
+		const identity =
+			prompt.confirmAbility != null
+				? JSON.stringify(['confirm', prompt.confirmAbility.hostCard.id, prompt.confirmAbility.abilityId])
+				: JSON.stringify([prompt.message, prompt.targetAbility ?? null, buttons?.label1 ?? null, buttons?.label2 ?? null]);
 		// At most one decider answers a window: each one that acts sends Forge a press.
 		const why =
 			s.answeredWindow === identity
@@ -3617,9 +3644,9 @@ export class Match {
 		// Forge asks to show the selection's zones (`tempShowZones`) alongside it, and the seat's
 		// screen answers that whenever it gets to it: it is part of this pick, not another question.
 		const others = [...s.asks.values()].filter((a) => a.method !== 'tempShowZones').length;
-		const act = gate === null ? null : onlySacrifice({ ...gate.notes, openAsks: others }, s.heldSacrifice);
+		const act = gate === null ? null : onlySacrifice({ ...gate.notes, openAsks: others }, s.heldSelection[0] ?? null);
 		if (act === null || act.method !== 'selectCard') return false;
-		s.heldSacrifice = null;
+		this.dropHeldSelection(s);
 		s.pickedSacrifice = true;
 		// A held half from the input before this one is not this pick's.
 		this.flushPendingWindow(s);
@@ -3630,13 +3657,28 @@ export class Match {
 		return true;
 	}
 
-	/** The held set, on the seat's wire after all: its prompt left the pick to the seat. */
-	private releaseHeldSacrifice(s: SeatState): void {
-		const held = s.heldSacrifice;
-		if (held === null) return;
-		s.heldSacrifice = null;
-		this.send(s, held);
+	/** The held selection, on the seat's wire after all: its prompt left the pick to the seat. */
+	private releaseHeldSelection(s: SeatState): void {
+		for (const held of s.heldSelection.splice(0)) {
+			this.send(s, held);
+			this.tellWatchers(s, held);
+		}
 		this.checkWaitingOn();
+	}
+
+	/** The held selection is the server's to make: the seat never sees it open, or close. */
+	private dropHeldSelection(s: SeatState): void {
+		s.heldSelection = [];
+		s.selectionUnseen = true;
+	}
+
+	/** `setHighlighted` is incremental and signed: folded into the seat's open selection (`SeatState.highlighted`). */
+	private foldHighlighted(s: SeatState, frame: Extract<ServerFrame, { method: 'setHighlighted' }>): void {
+		for (const entity of frame.entities) {
+			const key = `${entity.kind}:${entity.id}`;
+			if (frame.on) s.highlighted.set(key, entity);
+			else s.highlighted.delete(key);
+		}
 	}
 
 	/**
@@ -3663,6 +3705,8 @@ export class Match {
 		if (act === null || asked === null) return false;
 		s.chosenTargets.add(asked.abilityId);
 		this.deps.log({ evt: 'same-target', matchId: this.id, seat: s.seat, trigger: asked.trigger, target: s.sameTarget?.target, more: asked.more });
+		// The last of the group: nothing Forge asks after it is the chain's.
+		if (asked.more === 0) s.sameTarget = null;
 		this.command({ t: 'act', seat: s.seat, frame: act });
 		return true;
 	}
@@ -3894,6 +3938,12 @@ export class Match {
 	 * it here is complete, not a partial duplicate.
 	 */
 	private openAsk(s: SeatState, offered: Extract<ServerFrame, { kind: 'ask' }>): void {
+		// The zones Forge opens for a pick of a "same target for all" chain: the server makes that pick
+		// and the seat is shown none of it, so no zone is opened for it (Forge then closes none).
+		if (s.sameTarget !== null && (offered.method === 'openZones' || offered.method === 'tempShowZones')) {
+			this.autoReply(s, offered.callId, offered.method, 'same-target', []);
+			return;
+		}
 		const owed = s.owed;
 		s.owed = null;
 		const paid = owed?.answer(offered) ?? null;

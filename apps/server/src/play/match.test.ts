@@ -3522,6 +3522,77 @@ describe('hold-decide-forward', () => {
 			expect(methodsSent(h, SEAT1_ID, shown).filter((m) => m === 'showPromptMessage'), 'the two answered questions never reached the seat').toEqual([]);
 		});
 
+		// Forge's order for each trigger of the chain (cut 3's Valakut log, play-server-stack-jh6w37):
+		// the zones ask, the selection and its highlight, then the target window.
+		const chainAsk = (h: Harness, abilityId: number, more: number) =>
+			h.host.push(
+				{
+					t: 'frame',
+					seat: SEAT1_ID,
+					frame: { kind: 'ask', callId: `zones-${abilityId}`, method: 'openZones', controller: { kind: 'player', id: 1 }, zones: ['Battlefield'], players: [{ kind: 'player', id: 1 }], backupLastZones: true },
+				},
+				// A set with a choice in it, as cut 3's was (three creatures besides the player).
+				{ t: 'frame', seat: SEAT1_ID, frame: { ...selectables, cards: [77, 78, 79].map((id) => ({ kind: 'card' as const, id })) } },
+				{ t: 'frame', seat: SEAT1_ID, frame: { kind: 'notify', method: 'setHighlighted', entities: [{ kind: 'card', id: VALAKUT }], on: true } },
+				{ t: 'frame', seat: SEAT1_ID, frame: targetPrompt(abilityId, more) },
+				{ t: 'frame', seat: SEAT1_ID, frame: targetBar },
+				// After the server's pick: the highlight goes off and the selection closes.
+				{ t: 'frame', seat: SEAT1_ID, frame: { kind: 'notify', method: 'setHighlighted', entities: [{ kind: 'card', id: VALAKUT }], on: false } },
+				{ t: 'frame', seat: SEAT1_ID, frame: { kind: 'notify', method: 'clearSelectables' } },
+			);
+
+		it('no frame of a trigger the server answers reaches the seat: not its zones ask, its selection, its highlight or its prompt', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			ask(h, 101, 2);
+			h.match.fromClient(SEAT1_ID, ClientFrameSchema.parse({ kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: BOB }, triggerEvent: null, sameTarget: true }));
+			const shown = envelopesFor(h, SEAT1_ID).length;
+			chainAsk(h, 102, 1);
+			chainAsk(h, 103, 0);
+			expect(picks(h)).toHaveLength(3);
+			const sent = envelopesFor(h, SEAT1_ID).slice(shown);
+			expect(sent.filter((e) => e.frame.kind === 'ask').map((e) => e.frame.method), 'no ask of the chain is forwarded').toEqual([]);
+			expect(
+				sent.map((e) => e.frame.method).filter((m) => m === 'setSelectables' || m === 'setHighlighted' || m === 'clearSelectables' || m === 'showPromptMessage'),
+				'the answered selections never open on the seat’s screen',
+			).toEqual([]);
+			expect(h.host.commands.filter((c) => c.t === 'reply' && c.callId.startsWith('zones-')), 'the server answers the zones it never shows').toEqual([
+				{ t: 'reply', seat: SEAT1_ID, callId: 'zones-102', result: [] },
+				{ t: 'reply', seat: SEAT1_ID, callId: 'zones-103', result: [] },
+			]);
+		});
+
+		it('the confirm of a trigger the server already answered is never put to the seat when its own window arrives late (w70-valakut, run 41176951792)', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			ask(h, 101, 0);
+			h.match.fromClient(SEAT1_ID, ClientFrameSchema.parse({ kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: BOB }, triggerEvent: null }));
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Priority: Seat 2\nTurn: 1 (Seat 2)\nPhase: Main phase, precombat\nStack: 1 to Resolve.') },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'OK', label2: 'End Turn', enable1: true, enable2: true }) },
+			);
+			const before = envelopesFor(h, SEAT1_ID).length;
+			const okBefore = oks(h);
+			// Forge's "Waiting for Bob..." goes out with the confirm already open (the bridge reads the
+			// live input), and the confirm's own Yes/No window follows it.
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: { ...promptFrame(1, 'Waiting for Bob...', VALAKUT), confirmAbility: { hostCard: { kind: 'card' as const, id: VALAKUT }, abilityId: 101 } } },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { enable1: false, enable2: false }) },
+				...dealConfirm(101),
+			);
+			expect(oks(h) - okBefore, 'answered Yes once').toBe(1);
+			const prompts = envelopesFor(h, SEAT1_ID)
+				.slice(before)
+				.flatMap((e) => (e.frame.method === 'showPromptMessage' ? [e.frame.message] : []));
+			expect(prompts, 'the answered confirm never reaches the seat').toEqual([]);
+			expect(
+				envelopesFor(h, SEAT1_ID)
+					.slice(before)
+					.filter((e) => e.frame.method === 'updateButtons' && (e.frame.enable1 || e.frame.enable2)),
+				'no live Yes/No for it',
+			).toEqual([]);
+		});
+
 		it('a target Forge no longer offers is asked again', () => {
 			const h = openedHarness();
 			closeDanglingBar(h, SEAT1_ID);
