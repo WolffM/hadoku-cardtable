@@ -92,7 +92,7 @@ test('gauntlet: two people reveal, ban and pick, choose', async ({ browser }) =>
         console.log(`[promo:gauntlet] Nightjar ${v.step.act}s ${deck.name}`);
         // Every act is marked, so the edit can show each ban and pick at real speed and cut only the waits.
         theirs += 1;
-        film.mark(`act-${mine + theirs}`);
+        film.mark(`act-${mine + theirs}-rival`);
         await rivalCall('/gauntlet/act', { act: v.step.act, deck: deck.id });
         return false;
       }
@@ -102,7 +102,7 @@ test('gauntlet: two people reveal, ban and pick, choose', async ({ browser }) =>
       if (n === 0) return false;
       mine += 1;
       console.log(`[promo:gauntlet] Ashgrove act ${mine}: ${(await banner.textContent())?.trim()}`);
-      film.mark(`act-${mine + theirs}`);
+      film.mark(`act-${mine + theirs}-hero`);
       await considerAndPress(page, open.nth((mine * 2) % n), mine <= 2 ? 1_200 : 750);
       if (mine === 1) film.mark('banned');
       return false;
