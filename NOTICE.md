@@ -65,6 +65,10 @@ previously stated that no artwork was stored or served. The specifics:
 appears here — and you would prefer your artwork not be shown by this project,
 it will be removed on request. Because art is resolved through a per-card
 manifest, removing or repointing a specific image is a small, immediate change.
+The same applies to the project as a whole: on a request from Wizards of the
+Coast it will be taken offline. Requests can be made by opening an issue at
+<https://github.com/WolffM/hadoku-cardtable/issues> or by contacting the
+repository owner, [WolffM](https://github.com/WolffM), through GitHub.
 
 See `docs/LICENSING.md` for the full reasoning, and `docs/DECISIONS.md` **D15**
 for the decision and what it rules out.

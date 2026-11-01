@@ -237,6 +237,41 @@ the operator's.
    any kind) removes what is left of the "small and private" mitigations at
    once, and is the operator's call.
 
+### If a takedown request arrives · 2026-11-01 · operator
+
+From the 2026-11-01 legal review. Where WotC has acted against fan Magic
+software, a letter came first: Wagic (2009 C&D, five-day deadline, asked
+about revenue), Forge (2011 DMCA, which moved the download host), Cockatrice
+(~2013 Hasbro C&D), and Card Conjurer (2022 C&D, free and unmonetised, shut
+down over logos, frames and art). The posture is to comply quickly and quietly,
+not to argue. The operator chose this minimal response over contacting WotC
+first. Asking cannot get a licence, and a "no" turns tolerated use into knowing
+infringement.
+
+1. **Take the app offline.** Disable the `/cardtable/` route at the edge. That
+   alone is enough for a request about the app or its art.
+2. **If a notice names the GitHub repo**, comply on GitHub too. The repo is
+   under the same account as every other hadoku app, and a repeat-infringer
+   strike there costs more than this app.
+3. **Reply briefly and privately**, saying the app is offline. If they ask about
+   revenue, the answer is none: there is no payment path in the code, by rule 1.
+   Don't post the letter.
+4. **The first thing to drop if asked is the Mana font's symbols.** The Fan
+   Content Policy FAQ names mana symbols among the marks that need written
+   permission, and the Mana pack attributes the symbol art to WotC (§3.2).
+   Keyrune's hand-redrawn set symbols are on firmer ground.
+
+What already keeps the app out of sight, checked 2026-11-01: an anonymous
+request or crawler gets a bare `401` JSON body for every `/cardtable/` path, so
+there is nothing to index, and a link posted to Discord unfurls no card art.
+The repo has no topics and no Pages site. The contact line for rights holders
+is in `NOTICE.md`.
+
+**When to get a lawyer:** any money anywhere near the project, a public store
+listing (itch.io was considered and declined: its terms require rights to the
+content), press or a large streamer, or any letter arriving. Player count alone
+is not the trigger.
+
 ---
 
 ## 3.2 Symbols — D20, and why the two fonts are not one decision
