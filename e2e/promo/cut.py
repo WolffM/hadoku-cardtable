@@ -94,17 +94,19 @@ SEGMENTS = [
     ("valakut", ("stack:1", -1.5), ("stack:1", 1.0), None),
     ("valakut", ("sacrifice", 0.7), ("sacrifice", 2.3), None),
     ("valakut", ("search", 0.6), ("search", 2.1), None),
-    ("valakut", ("targeted", -2.0), ("lethal", 0.8), None),
+    # The answered target sheet flashes back for ~0.2 s after the click (a client bug, reported): cut it out.
+    ("valakut", ("targeted", -2.0), ("targeted", 0.5), None),
+    ("valakut", ("targeted", 0.75), ("lethal", 0.8), None),
     ("breakfast", ("stack:1", -1.1), ("stack:1", 2.5), Caption("Combos go off at full speed", "COMBOS", "board-left", "slide")),
     ("breakfast", ("imprint", -0.8), ("ghoul", 0.2), None),
-    ("breakfast", ("hit", -1.3), ("win", 0.9), None),
+    ("breakfast", ("hit", -1.3), ("win", 0.8), None),
     ("blasphemous", ("stack:1", -1.3), ("stack:1", 0.3), None),
     ("blasphemous", ("stack:0", 0.3), ("wiped", 5.3), None),
     ("gauntlet", ("revealed", -3.0), ("revealed", 1.2), Caption("Ban, pick, battle.", "GAUNTLET · TEN DECKS FROM ONE ERA", "gauntlet-reveal", "rise")),
     "GAUNTLET_ACTS",
     ("gauntlet", ("chosen", -2.2), ("chosen", 0.8), None),
     ("tournament", ("seats", 0.0), ("seats", 3.4), Caption("Swiss rounds for the whole group", "TOURNAMENTS", "lobby-title", "wipe")),
-    ("tournament", ("bracket", 0.0), ("bracket", 1.8), None),
+    ("tournament", ("bracket", 0.0), ("bracket", 1.6), None),
     ("draft", ("pod", -2.0), ("pod", 0.5), None),
     ("draft", ("fan", 0.0), ("fan", 4.0), Caption("Fan or grid, every face of every card", "DRAFT · 100+ CUBES", "draft-pool", "slide")),
     ("draft", ("picked", -0.6), ("picked", 0.9), None),
@@ -118,22 +120,24 @@ SEGMENTS = [
 # The montage: one in-point per shot, in order. Each runs from (mark + offset), for as long as the beat grid
 # allows. Offsets are picked from a frame strip of each moment, not from a mark alone: a game's marks are when
 # the driver acted, and the hit lands a beat later.
+# One zoom for every montage shot: 1.3×, which drops the chat rail and the header and keeps the board.
+Z = (1.3, 760, 560)
 MONTAGE = [
-    ("emrakul", "landed", 5.9),
-    ("bolt", "targeted", 0.5),
-    ("counterwar", "force", 29.0),
-    ("gauntlet", "banned", -0.1),
-    ("walkers", "elk", -6.0),
-    ("valakut", "targeted", 0.5),
-    ("draft", "picked", -0.2),
-    ("storm", "hit", -0.1),
-    ("tournament", "bracket", 0.4),
-    ("counterwar", "oko-countered", -5.8),
-    ("blasphemous", "wiped", 0.6),
-    ("breakfast", "hit", -1.5),
-    ("valakut", "triggers", 0.2),
-    ("craterhoof", "declared", 0.1),
-    ("bolt", "win", 0.3),
+    ("m-tokens", "stack:0", 0.0, *Z),
+    ("m-thoughtseize", "stack:0", -1.0, *Z),
+    ("m-bolt-bob", "stack:0", 0.4, *Z),
+    ("m-swords", "stack:0", 0.3, *Z),
+    ("m-helix", "life:theirs:8", -0.35, *Z),
+    ("m-gary", "life:mine:9", -0.15, *Z),
+    ("m-griselbrand", "stack:0", -0.05, *Z),
+    ("m-pyroclasm", "stack:0", 0.1, *Z),
+    ("m-wrath", "stack:0", 0.05, *Z),
+    ("blasphemous", "stack:0", 1.0, *Z),
+    ("valakut", "targeted", 0.9, *Z),
+    ("storm", "hit", -0.3, *Z),
+    ("m-lava-axe", "life:theirs:4", -0.3, *Z),
+    ("craterhoof", "life:theirs:19", -0.4, *Z),
+    ("m-emrakul-swing", "life:theirs:14", -0.45, *Z),
 ]
 MONTAGE_GAPS = (0.7, 0.35)
 
@@ -300,7 +304,7 @@ def caption_graph(cap: Caption, length: float) -> tuple[list[str], list[str]]:
 
 def encode(out: Path, inputs: list[str], graph: str, length: float, maps: list[str]) -> None:
     run(["ffmpeg", "-y", "-loglevel", "error", *inputs, "-filter_complex", graph, *maps,
-         "-t", f"{length:.3f}", "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-r", str(FPS),
+         "-t", f"{length:.3f}", "-c:v", "h264_nvenc", "-preset", "p6", "-rc", "constqp", "-qp", "17", "-pix_fmt", "yuv420p", "-r", str(FPS),
          "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", str(out)])
 
 
@@ -352,7 +356,7 @@ def render_card(n: int, kind: str) -> Path:
     )
     run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", f"color=c=0x141218:s=1920x1080:r={FPS}:d={length}",
          "-f", "lavfi", "-i", f"anullsrc=r=48000:cl=stereo:d={length}", "-vf", f"{draw},vignette=PI/4", "-shortest",
-         "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", str(out)])
+         "-c:v", "h264_nvenc", "-preset", "p6", "-rc", "constqp", "-qp", "17", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", str(out)])
     print(f"cut: {out.name}  {length:5.1f}s  (card)")
     return out
 
