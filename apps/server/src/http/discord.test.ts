@@ -70,7 +70,7 @@ describe('/api/discord/recent', () => {
 		const bot = await fakeArchiveBot({ status: 200, body: MESSAGES });
 		const { get } = await openApp({ secret: SECRET, archivebotUrl: bot.url });
 		expect(await get()).toEqual({ status: 200, body: MESSAGES });
-		expect(bot.seen).toEqual([{ query: 'channel=general&limit=5', signed: true }]);
+		expect(bot.seen).toEqual([{ query: 'channel=general&limit=50', signed: true }]);
 	});
 
 	it('a missing or malformed avatar or colour is null, never the whole snapshot', async () => {
@@ -127,7 +127,7 @@ describe('/api/discord/recent', () => {
 		const bot = await fakeArchiveBot({ status: 200, body: MESSAGES });
 		const { get, logged } = await openApp({ secret: 'not-the-secret', archivebotUrl: bot.url });
 		expect((await get()).status).toBe(204);
-		expect(bot.seen).toEqual([{ query: 'channel=general&limit=5', signed: false }]);
+		expect(bot.seen).toEqual([{ query: 'channel=general&limit=50', signed: false }]);
 		expect(logged[0]).toMatchObject({ outcome: 'refused', status: 401 });
 	});
 

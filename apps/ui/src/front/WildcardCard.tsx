@@ -11,10 +11,12 @@
  *     the list the room list below already reads (`../rooms/api.ts`'s `onRoomList`): no read of
  *     its own, so the lobby's read budget (`e2e/aa-polling.spec.ts`) is unchanged.
  *   - **Cube spotlight** — a cube, three of its cards' art through the art manifest
- *     (`../draft/cardImage.ts`, never a stored URL), and Play now: a draft room on that cube.
+ *     (`../draft/cardImage.ts`, never a stored URL), and Play now: a draft room on that cube. Its
+ *     art starts loading the moment the ids are known, not when the card is drawn: the pick waits
+ *     on the slowest source (the Discord read, up to `PICK_WAIT_MS`), and the art should not.
  *   - **Last game** — the newest replay, `GET /api/replays?limit=1`; only while `REPLAYS_ON`.
- *   - **In the Discord** — #general's last few messages and Join Discord (`/api/discord/recent`,
- *     ArchiveBot's, prod only).
+ *   - **In the Discord** — #general's recent messages, scrollable and opened on the newest, and Join
+ *     Discord (`/api/discord/recent`, ArchiveBot's, prod only).
  *   - **Looking for a game** — the bare Discord invite (`../chrome/HeaderLinks.tsx`): there whenever
  *     the chat is not, so the card always has something.
  *
@@ -25,14 +27,14 @@
  * dots and a button — and crossfades in with the rest of the page (`./gate.ts`).
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DiscordRecentSchema, type DiscordMessage } from '@hadoku/shared';
 
 import { apiUrl, bodyOf, getJson, isRecord } from '../http.ts';
 import { DISCORD_INVITE_URL } from '../chrome/HeaderLinks.tsx';
 import { coverCropStyle, ILLUSTRATION_BOX } from '../components/faceCrop.ts';
 import { Reveal } from '../components/Reveal.tsx';
-import { cardImageUrl } from '../draft/cardImage.ts';
+import { artReady, cardImageUrl } from '../draft/cardImage.ts';
 import { onRoomList, poolsClient, roomsClient } from '../rooms/api.ts';
 import { warmRoom } from '../rooms/warm.ts';
 import { REPLAYS_ON } from '../replay/transport.ts';
@@ -48,7 +50,7 @@ interface WildcardItem {
   kind: string;
   title: string;
   body: string;
-  /** The Discord's last few messages, newest last, drawn as Discord's own client draws them in place of the title and body. */
+  /** The Discord's recent messages, newest last, drawn as Discord's own client draws them in place of the title and body. */
   messages?: readonly DiscordMessage[];
   /** Where its button goes, or what it does (Play now). Absent: no button. */
   action?: { label: string; href: string; external: boolean } | { label: string; run: () => Promise<string | null> };
@@ -141,7 +143,7 @@ function useOpenSeats(): WildcardItem | null | typeof ASKING {
   return item;
 }
 
-/** The Discord's last few #general messages (`/api/discord/recent`, prod only): `null` when there are none to show. */
+/** The Discord's recent #general messages (`/api/discord/recent`, prod only): `null` when there are none to show. */
 function useDiscordChat(): WildcardItem | null | typeof ASKING {
   const [item, setItem] = useState<WildcardItem | null | typeof ASKING>(ASKING);
   useEffect(() => {
@@ -203,14 +205,17 @@ function useCubeSpotlight(): WildcardItem | null | typeof ASKING {
           setItem(null);
           return;
         }
-        const arts = sampleArt(cards ?? [], 3);
+        const sampled = sampleArt(cards ?? [], 3);
+        const arts = sampled.length > 0 ? sampled : cube.artId === null ? [] : [cube.artId];
+        // Fetch now, in parallel with the other sources, so the art is in the cache when the card draws it.
+        for (const id of arts) artReady(cardImageUrl(id), () => undefined);
         setItem({
           key: 'cube',
           kind: 'Cube spotlight',
           title: cube.name,
           body: `${String(cube.size)} cards · 8-seat pod`,
           action: { label: 'Play now!', run: () => playCube(cube) },
-          ...(arts.length > 0 ? { arts } : cube.artId === null ? {} : { arts: [cube.artId] }),
+          ...(arts.length > 0 ? { arts } : {}),
         });
       })
       .catch(() => {
@@ -230,7 +235,7 @@ function ArtSlot({ artId }: { artId: string }) {
   return (
     <span className="front-card__wildcard-art">
       {url !== null && !failed && (
-        <img src={url} alt="" loading="lazy" decoding="async" draggable={false} style={coverCropStyle(ILLUSTRATION_BOX, ART_RATIO)} onError={() => setFailed(true)} />
+        <img src={url} alt="" fetchPriority="high" decoding="async" draggable={false} style={coverCropStyle(ILLUSTRATION_BOX, ART_RATIO)} onError={() => setFailed(true)} />
       )}
     </span>
   );
@@ -308,8 +313,13 @@ function WildcardSkeleton() {
   );
 }
 
-/** The chat drawn as Discord's own client draws a channel: its header, then the messages grouped under the authors' own avatars and role colours (`./discordChat.ts`). */
+/** The chat drawn as Discord's own client draws a channel: its header, then the messages grouped under the authors' own avatars and role colours (`./discordChat.ts`), scrolled to the newest. */
 function DiscordChat({ channel, messages }: { channel: string; messages: readonly DiscordMessage[] }) {
+  const list = useRef<HTMLOListElement>(null);
+  useLayoutEffect(() => {
+    const el = list.current;
+    if (el !== null) el.scrollTop = el.scrollHeight;
+  }, [messages]);
   return (
     <div className="discord-chat">
       <p className="discord-chat__channel">
@@ -318,7 +328,7 @@ function DiscordChat({ channel, messages }: { channel: string; messages: readonl
         </span>
         {channel.replace(/^#/, '')}
       </p>
-      <ol className="discord-chat__messages" data-testid="front-wildcard-messages">
+      <ol ref={list} className="discord-chat__messages" data-testid="front-wildcard-messages">
         {groupMessages(messages).map((g, i) => (
           <li key={i} className="discord-chat__group">
             {g.avatar === null ? (

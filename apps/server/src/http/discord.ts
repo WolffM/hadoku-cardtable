@@ -1,5 +1,5 @@
 /*
- * `GET /api/discord/recent` — the cardtable Discord's last few #general messages, for the front
+ * `GET /api/discord/recent` — the cardtable Discord's recent #general messages, for the front
  * page's wildcard card. Friend-gated like every `/api` route: the snapshot never reaches the public.
  *
  * The messages are ArchiveBot's (`GET /api/messages/recent`, WolffM/ArchiveBot#37): it is already
@@ -23,8 +23,8 @@ import type { JsonLog } from '../log.js';
 
 /** How long an answer is kept, a failure included. */
 export const CACHE_MS = 60_000;
-/** How many messages the card shows. */
-export const RECENT_LIMIT = 5;
+/** How much #general history the card can scroll back through: ArchiveBot's own cap (`MAX_LIMIT`). */
+export const RECENT_LIMIT = 50;
 
 export interface DiscordDeps {
 	/** `ARCHIVEBOT_CARDTABLE_WEBHOOK_SECRET`; empty = no snapshot (every environment but prod). */

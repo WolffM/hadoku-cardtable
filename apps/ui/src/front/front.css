@@ -405,7 +405,7 @@
  * The Discord's last messages, drawn as Discord's own dark client draws #general (the operator,
  * 2026-10-28: "make it look exactly like discord chat"). Its colours are Discord's, the `--discord-*`
  * palette in `../styles.css`: the panel is a picture of Discord, so it does not follow the theme.
- * Newest last, pinned to the bottom like the client: a squeezed card loses the oldest at the top.
+ * Newest last, opened at the bottom like the client, and scrolled up through the older ones.
  */
 .discord-chat {
   display: flex;
@@ -448,10 +448,18 @@
   padding: 0 0 12px;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
   min-height: 0;
   flex: 1 1 auto;
-  overflow: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--discord-divider) transparent;
+}
+
+/* Sits a short chat at the bottom, as `justify-content: flex-end` would without cutting off the top of a long one. */
+.discord-chat__messages::before {
+  content: '';
+  flex: 1 1 auto;
 }
 
 .discord-chat__group {
