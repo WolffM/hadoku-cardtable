@@ -78,40 +78,40 @@ ANCHORS = {
 
 # (clip, from (mark, offset), to (mark, offset), caption). Every join is a hard cut; every shot is at 1×.
 SEGMENTS = [
-    # Cold open: Emrakul lifted and dropped, then (after the rival's answer, cut) the landing at full weight.
-    ("emrakul", ("cast", 11.0), ("cast", 15.3), 1.0, None),
-    ("emrakul", ("landed", 4.9), ("landed", 8.4), 1.0, None),
+    # Cold open: Emrakul hovered, lifted, dropped, and landing at full weight, as one shot.
+    ("emrakul", ("cast", 3.2), ("landed", 1.6), None),
     "TITLE",
-    ("constructed", ("legacy", 0.0), ("pick", 0.0), 2.8, Caption("Play the decks that made history", "WITH YOUR FRIENDS", "lobby-title", "rise")),
-    ("tournament", ("paired", -0.2), ("faceoff", 2.4), 1.0, Caption("Pick a deck. Sit down. Play.", "HEAD TO HEAD", "faceoff", "drop")),
-    # The counter war, jump-cut from landing to landing (the waits between are each seat's turn to answer),
-    # then the unwind slowed. Offsets are this take's: re-measure after a re-shoot.
-    ("counterwar", ("counterspell", 8.6), ("counterspell", 12.6), 1.2, Caption("Watch the stack unfold", "THE STACK", "board-right", "wipe")),
-    ("counterwar", ("swan-song", 13.6), ("swan-song", 18.1), 1.6, None),
-    ("counterwar", ("force", 21.6), ("force", 30.0), 3.2, None),
-    ("counterwar", ("pierce", 20.0), ("pierce", 24.0), 1.6, None),
-    ("counterwar", ("daze", 15.1), ("daze", 28.3), 4.5, None),
-    ("counterwar", ("oko-countered", -6.0), ("oko-countered", -2.4), 0.9, None),
-    ("valakut", ("cast", -0.2), ("sacrifice", 1.0), 3.5, None),
-    ("valakut", ("search", 0.0), ("triggers", -1.0), 4.5, None),
-    ("valakut", ("triggers", -1.0), ("targeted", 0.8), 1.5, None),
-    ("valakut", ("targeted", 0.8), ("lethal", 1.5), 2.0, None),
-    ("breakfast", ("loop", -0.3), ("stacked", 0.0), 4.0, Caption("Combos go off at full speed", "COMBOS", "board-left", "slide")),
-    ("breakfast", ("mill", 0.0), ("milled", 0.5), 3.0, None),
-    ("breakfast", ("imprint", 0.0), ("ghoul", 1.0), 3.0, None),
-    ("breakfast", ("hit", -2.4), ("win", 1.2), 1.0, None),
-    ("blasphemous", ("cast", 0.0), ("cast", 2.6), 1.0, None),
-    ("blasphemous", ("on-stack", 5.0), ("wiped", 3.5), 1.25, None),
-    ("gauntlet", ("ready", -0.2), ("snake", 0.2), 1.8, Caption("Ban, pick, battle.", "GAUNTLET · TEN DECKS FROM ONE ERA", "gauntlet-reveal", "rise")),
-    ("gauntlet", ("banned", -1.6), ("banned", 2.4), 1.8, None),
-    ("gauntlet", ("choose", -0.3), ("chosen", 0.6), 2.5, None),
-    ("tournament", ("seats", 0.0), ("ready", 0.4), 2.0, Caption("Swiss rounds for the whole group", "TOURNAMENTS", "lobby-title", "wipe")),
-    ("tournament", ("bracket", 0.0), ("bracket", 3.2), 1.0, None),
-    ("draft", ("lobby", 0.2), ("fan", 0.0), 3.0, None),
-    ("draft", ("fan", 0.0), ("grid", 1.5), 2.0, Caption("Fan or grid, every face of every card", "DRAFT · 100+ CUBES", "draft-pool", "slide")),
-    ("draft", ("flip", -0.3), ("flip", 3.0), 1.0, None),
+    ("constructed", ("legacy", -0.2), ("eras", 2.9), Caption("Play the decks that made history", "WITH YOUR FRIENDS", "lobby-title", "rise")),
+    ("constructed", ("decks", 0.5), ("decks", 3.5), None),
+    ("tournament", ("paired", -0.1), ("paired", 3.0), Caption("Pick a deck. Sit down. Play.", "HEAD TO HEAD", "faceoff", "drop")),
+    # The counter war, landing by landing (`stack:N` is each spell arriving), then the whole unwind.
+    ("counterwar", ("stack:2", -2.6), ("stack:2", 0.0), Caption("Watch the stack unfold", "THE STACK", "board-right", "wipe")),
+    ("counterwar", ("stack:3", -1.3), ("stack:3", 1.0), None),
+    ("counterwar", ("stack:4", -1.3), ("stack:4", 1.0), None),
+    ("counterwar", ("stack:5", -1.3), ("stack:5", 1.0), None),
+    ("counterwar", ("stack:6", -1.0), ("stack:0", 1.4), None),
+    # Valakut: Scapeshift lands, the lands go, the Mountains come, then the box, one click, ten triggers.
+    ("valakut", ("stack:1", -1.5), ("stack:1", 1.0), None),
+    ("valakut", ("sacrifice", 0.7), ("sacrifice", 2.3), None),
+    ("valakut", ("search", 0.6), ("search", 2.1), None),
+    ("valakut", ("targeted", -2.0), ("lethal", 0.8), None),
+    ("breakfast", ("stack:1", -1.1), ("stack:1", 2.5), Caption("Combos go off at full speed", "COMBOS", "board-left", "slide")),
+    ("breakfast", ("imprint", -0.8), ("ghoul", 0.2), None),
+    ("breakfast", ("hit", -1.3), ("win", 0.9), None),
+    ("blasphemous", ("stack:1", -1.3), ("stack:1", 0.3), None),
+    ("blasphemous", ("stack:0", 0.3), ("wiped", 5.3), None),
+    ("gauntlet", ("revealed", -3.0), ("revealed", 1.2), Caption("Ban, pick, battle.", "GAUNTLET · TEN DECKS FROM ONE ERA", "gauntlet-reveal", "rise")),
+    "GAUNTLET_ACTS",
+    ("gauntlet", ("chosen", -2.2), ("chosen", 0.8), None),
+    ("tournament", ("seats", 0.0), ("seats", 3.4), Caption("Swiss rounds for the whole group", "TOURNAMENTS", "lobby-title", "wipe")),
+    ("tournament", ("bracket", 0.0), ("bracket", 1.8), None),
+    ("draft", ("pod", -2.0), ("pod", 0.5), None),
+    ("draft", ("fan", 0.0), ("fan", 4.0), Caption("Fan or grid, every face of every card", "DRAFT · 100+ CUBES", "draft-pool", "slide")),
+    ("draft", ("picked", -0.6), ("picked", 0.9), None),
+    ("draft", ("grid", 0.0), ("grid", 1.5), None),
+    ("draft", ("flip", -0.2), ("flip", 4.0), None),
     "MONTAGE",
-    ("progenitus", ("declared", -0.4), ("win", 2.6), 1.0, None),
+    ("progenitus", ("declared", -0.4), ("win", 2.6), None),
     "END",
 ]
 
@@ -161,8 +161,32 @@ def esc(text: str) -> str:
 
 
 def marks(clip: str) -> dict[str, float]:
+    """A clip's marks by label. A label that recurs (the rig's `stack:1`, say) is its first occurrence, and
+    `label#2`, `label#3`… are the later ones."""
     data = json.loads((FOOTAGE / clip / f"{clip}.marks.json").read_text())
-    return {m["label"]: m["t"] for m in data["marks"]}
+    out: dict[str, float] = {}
+    seen: dict[str, int] = {}
+    for m in data["marks"]:
+        seen[m["label"]] = seen.get(m["label"], 0) + 1
+        out[m["label"] if seen[m["label"]] == 1 else f"{m['label']}#{seen[m['label']]}"] = m["t"]
+    return out
+
+
+def gauntlet_acts() -> list[tuple[float, float]]:
+    """Every ban and pick of the Gauntlet clip as its own shot, at real speed, with only the waits cut: the
+    hero's acts from the hover (the decklist opens) through the press, the rival's from just before its
+    tile turns. Shots that touch are merged."""
+    windows = []
+    for label, t in marks("gauntlet").items():
+        if label.startswith("act-"):
+            windows.append((t, t + 2.0) if label.endswith("-hero") else (t - 0.1, t + 1.3))
+    merged: list[tuple[float, float]] = []
+    for a, b in sorted(windows):
+        if merged and a <= merged[-1][1] + 0.15:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], b))
+        else:
+            merged.append((a, b))
+    return merged
 
 
 # ── captions ──────────────────────────────────────────────────────────────────────────────────────────
@@ -280,10 +304,18 @@ def encode(out: Path, inputs: list[str], graph: str, length: float, maps: list[s
          "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", str(out)])
 
 
-def render_clip(n: int, clip: str, start: float, end: float, cap: Caption | None, label: str) -> Path:
+def render_clip(n: int, clip: str, start: float, end: float, cap: Caption | None, label: str, zoom: tuple[float, float, float] | None = None) -> Path:
+    """One shot at real speed. `zoom` is (factor, cx, cy): a crop of the 1080p frame centred on (cx, cy),
+    scaled back to 1080p, for a montage shot whose moment is small on the full board."""
     length = end - start
     out = OUT / f"{n:02d}-{clip}-{label}.mp4"
-    base = f"[0:v]trim=start={start:.3f}:end={end:.3f},setpts=PTS-STARTPTS,fps={FPS}"
+    crop = ""
+    if zoom is not None:
+        f, cx, cy = zoom
+        w, h = round(1920 / f / 2) * 2, round(1080 / f / 2) * 2
+        x, y = min(max(0, round(cx - w / 2)), 1920 - w), min(max(0, round(cy - h / 2)), 1080 - h)
+        crop = f",crop={w}:{h}:{x}:{y},scale=1920:1080:flags=lanczos"
+    base = f"[0:v]trim=start={start:.3f}:end={end:.3f},setpts=PTS-STARTPTS,fps={FPS}{crop}"
     if cap is None:
         graph = f"{base}[v]"
     else:
@@ -430,12 +462,19 @@ def main() -> None:
                 parts[-1] = render_clip(n - 1, prev[0], m[prev[1][0]] + prev[1][1], m[prev[2][0]] + prev[2][1] + extra, prev[3], prev[1][0])
                 at = cuts[0] + cold
                 rows[-1]["length"] = round(at - rows[-1]["at"], 2)
-            for k, (clip, mark, off) in enumerate(MONTAGE):
+            for k, (clip, mark, off, *zoom) in enumerate(MONTAGE):
                 length = cuts[k + 1] - cuts[k]
                 t = marks(clip)[mark] + off
-                part = render_clip(n * 100 + k, clip, t, t + length, None, f"m{k:02d}-{mark}")
+                part = render_clip(n * 100 + k, clip, t, t + length, None, f"m{k:02d}-{mark}", tuple(zoom) if zoom else None)
                 parts.append(part)
                 rows.append({"at": round(at, 2), "length": round(duration(part), 2), "clip": clip, "caption": None, "montage": True})
+                at += duration(part)
+            continue
+        if seg == "GAUNTLET_ACTS":
+            for k, (a, b) in enumerate(gauntlet_acts()):
+                part = render_clip(n * 100 + k, "gauntlet", a, b, None, f"act{k:02d}")
+                parts.append(part)
+                rows.append({"at": round(at, 2), "length": round(duration(part), 2), "clip": "gauntlet", "caption": None})
                 at += duration(part)
             continue
         if seg == "TITLE":
