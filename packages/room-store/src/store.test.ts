@@ -34,7 +34,6 @@ function snap(roomId: string, seq = 1): RoomSnapshot {
     updatedAt: 2,
     members: [],
     usedAvatars: [],
-    clientNames: {},
     seats: { capacity: null, seats: [], remembered: {}, reservations: {}, reservationTtlMs: 0 },
     app: { picks: ['Sol Ring'] },
     appVersion: 1,

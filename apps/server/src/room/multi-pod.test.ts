@@ -30,7 +30,7 @@ async function tempDir(): Promise<string> {
 	return dir;
 }
 
-const member = (i: number) => ({ id: `fk:${String(i + 1).padStart(16, '0')}`, name: `user-${i + 1}` });
+const member = (i: number) => ({ id: `fk:${String(i + 1).padStart(16, '0')}`, name: `user-${i + 1}`, userId: null });
 
 /** Checks that answer every pod complete and every drafter built, and record which draft id each question named. */
 function recordingChecks(asked: { built: [string, string][]; seatState: [string, string][] }): PodChecks {

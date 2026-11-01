@@ -34,6 +34,16 @@
  *     anything on a socket. Writing it out would put every friend's credential
  *     in a file, looking entirely normal.
  *
+ * ## No names, no faces: a person is their userId (R12)
+ *
+ * A member is written as their `participantId` and, beside it, `accountId`: the
+ * registry userId the id was minted from. Never a display name, never an avatar
+ * id, and no `clientNames` (hadoku_site IDENTITY_MODEL R12, cardtable#25). A
+ * name or face on disk is a copy an account delete never reaches and a rename
+ * never updates; the userId is what a name or face is looked up by when shown,
+ * and an erased account's userId simply stops resolving. A live member brings
+ * both back on their next request.
+ *
  * `leaderId` is absent too, for a different reason; see `decodeSnapshot`.
  */
 
@@ -64,8 +74,8 @@ export interface SerializedMember {
   participantId: ParticipantId;
   joinedAt: number;
   lastSeen: number;
-  name?: string;
-  avatarId?: string;
+  /** The registry userId `participantId` was minted from; what the person is looked up by. */
+  accountId?: string;
   /** `ClientMeta<TClient>.app`, through the host's client codec. */
   app: unknown;
   // NOTE: `clientId`, `socketId` and `friendKey` are deliberately absent. See
@@ -83,7 +93,6 @@ export interface RoomSnapshot {
 
   members: SerializedMember[];
   usedAvatars: string[];
-  clientNames: Record<ParticipantId, string>;
   seats: SeatTable;
 
   /** Opaque to the store. Goes through `AppCodec`. */
@@ -237,16 +246,10 @@ export function snapshotRoom<TApp, TClient>(
       lastSeen: meta.lastSeen,
       app: codec.client ? codec.client.serialize(meta.app) : clone(meta.app),
     };
-    if (meta.name !== undefined) member.name = meta.name;
-    if (meta.avatarId !== undefined) member.avatarId = meta.avatarId;
+    if (meta.accountId !== undefined) member.accountId = meta.accountId;
     members.push(member);
   }
   members.sort((a, b) => (a.participantId < b.participantId ? -1 : 1));
-
-  const clientNames: Record<ParticipantId, string> = {};
-  for (const [pid, name] of room.clientNames) {
-    if (isDurableParticipantId(pid)) clientNames[pid] = name;
-  }
 
   return {
     storeVersion: STORE_VERSION,
@@ -257,7 +260,6 @@ export function snapshotRoom<TApp, TClient>(
     updatedAt: room.updatedAt,
     members,
     usedAvatars: [...room.usedAvatars].sort(),
-    clientNames,
     seats: pruneNonDurable(clone(room.seats)),
     app: codec.app.serialize(room.app),
     appVersion: codec.app.version,
@@ -269,8 +271,7 @@ export interface RestoredMember<TClient> {
   participantId: ParticipantId;
   joinedAt: number;
   lastSeen: number;
-  name?: string;
-  avatarId?: string;
+  accountId?: string;
   app: TClient;
 }
 
@@ -281,7 +282,6 @@ export interface DecodedSnapshot<TApp, TClient> {
   lastEventSeq: number;
   createdAt: number;
   usedAvatars: Set<string>;
-  clientNames: Map<ParticipantId, string>;
   seats: SeatTable;
   app: TApp;
   members: Array<RestoredMember<TClient>>;
@@ -343,9 +343,6 @@ export function decodeSnapshot<TApp, TClient>(
   if (!Array.isArray(snapshot.members) || !Array.isArray(snapshot.usedAvatars)) {
     throw new SnapshotUnreadableError('malformed', roomId, 'members/usedAvatars missing');
   }
-  if (!isRecord(snapshot.clientNames)) {
-    throw new SnapshotUnreadableError('malformed', roomId, 'clientNames missing');
-  }
   if (!looksLikeSeatTable(snapshot.seats)) {
     throw new SnapshotUnreadableError('malformed', roomId, 'seats is not a SeatTable');
   }
@@ -381,14 +378,9 @@ export function decodeSnapshot<TApp, TClient>(
       lastSeen: typeof raw.lastSeen === 'number' ? raw.lastSeen : ctx.restoredAt,
       app: clientApp,
     };
-    if (typeof raw.name === 'string') member.name = raw.name;
-    if (typeof raw.avatarId === 'string') member.avatarId = raw.avatarId;
+    // A name or avatar id a snapshot still carries is not read back (see the header).
+    if (typeof raw.accountId === 'string' && raw.accountId !== '') member.accountId = raw.accountId;
     members.push(member);
-  }
-
-  const clientNames = new Map<ParticipantId, string>();
-  for (const [pid, name] of Object.entries(snapshot.clientNames)) {
-    if (typeof name === 'string' && isDurableParticipantId(pid)) clientNames.set(pid, name);
   }
 
   return {
@@ -397,7 +389,6 @@ export function decodeSnapshot<TApp, TClient>(
     lastEventSeq: snapshot.lastEventSeq,
     createdAt: snapshot.createdAt,
     usedAvatars: new Set(snapshot.usedAvatars.filter((a): a is string => typeof a === 'string')),
-    clientNames,
     seats: pruneNonDurable(clone(snapshot.seats)),
     app,
     members,
@@ -438,7 +429,7 @@ export function applySnapshot<TApp, TClient>(
   room.updatedAt = now;
   room.clients.clear();
   room.usedAvatars = decoded.usedAvatars;
-  room.clientNames = decoded.clientNames;
+  room.clientNames = new Map();
   room.seats = decoded.seats;
   room.app = decoded.app;
 }

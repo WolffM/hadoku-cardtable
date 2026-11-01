@@ -96,7 +96,7 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import { MultiRateLimiter, type RateLimitConfig } from '@wolffm/rooms-server';
 import { isDurableParticipantId } from '@wolffm/rooms-protocol';
 import { isAdmin, userNameOf } from '../edge-auth.js';
-import { bodyErrors, httpCaller, parseBody, perCallerLimit } from './request.js';
+import { bodyErrors, callerOf, httpCaller, parseBody, perCallerLimit } from './request.js';
 import {
 	CreateRoomBodySchema,
 	EmptyBodySchema,
@@ -120,7 +120,6 @@ import {
 import {
 	POD_MIN_OPEN,
 	watchpartyRoomId,
-	type Caller,
 	type Lobby,
 	type RoomView,
 } from '../room/lobby.js';
@@ -258,14 +257,6 @@ export function resolveBoosterCard(catalog: RealisticCatalog, card: { name: stri
 	return card.foil === true ? { ...resolved, foil: true } : resolved;
 }
 
-function callerOf(req: Request): Caller {
-	// The DISPLAY NAME, not the id. This was `userIdOf(req)` — an opaque
-	// registry identifier — so every room roster read like
-	// "2a25151a-5ec8-…". The name arrives edge-injected beside the id
-	// (`X-User-Name`); a key that was never named falls back to a word rather
-	// than an identifier, because a roster is for humans.
-	return { id: httpCaller(req), name: userNameOf(req) ?? 'friend' };
-}
 
 /**
  * The room, as this caller is told it: the public `RoomView` plus their own row.

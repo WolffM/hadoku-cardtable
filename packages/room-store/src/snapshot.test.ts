@@ -33,7 +33,7 @@ function populated() {
   room.lastEventSeq = 42;
   room.leaderId = 'socket-fk:alice';
   room.clients.set('socket-a', makeClient('fk:alice', { note: 'a' }, { friendKey: 'SECRET-KEY-ALICE' }));
-  room.clients.set('socket-b', makeClient('dev:bob', { note: 'b' }, { name: 'Bob', avatarId: 'av2' }));
+  room.clients.set('socket-b', makeClient('dev:bob', { note: 'b' }, { name: 'Bob', avatarId: 'av2', accountId: 'user-bob-0001' }));
   room.clients.set('socket-c', makeClient('eph:socket-c', { note: 'c' }));
   room.usedAvatars.add('av2');
   room.usedAvatars.add('av5');
@@ -47,7 +47,7 @@ function populated() {
 }
 
 describe('snapshotRoom — the three containers that are not JSON', () => {
-  it('flattens clients, usedAvatars and clientNames, and survives JSON', () => {
+  it('flattens clients and usedAvatars, and survives JSON', () => {
     const room = populated();
     const snapshot = snapshotRoom(room, codec);
 
@@ -61,7 +61,6 @@ describe('snapshotRoom — the three containers that are not JSON', () => {
     // Two durable members; the `eph:` one is not written (§4.2).
     expect(roundTripped.members.map((m) => m.participantId)).toEqual(['dev:bob', 'fk:alice']);
     expect(roundTripped.usedAvatars).toEqual(['av2', 'av5']);
-    expect(roundTripped.clientNames).toEqual({ 'dev:bob': 'Bob', 'fk:alice': 'Alice' });
     expect(roundTripped.storeVersion).toBe(STORE_VERSION);
     expect(roundTripped.appVersion).toBe(7);
   });
@@ -77,6 +76,41 @@ describe('snapshotRoom — the three containers that are not JSON', () => {
     expect(text).not.toContain('clientId');
     // ...and the value is genuinely on the room, so the absence means something.
     expect(room.clients.get('socket-a')?.friendKey).toBe('SECRET-KEY-ALICE');
+  });
+
+  it('writes no name, no avatar id and no clientNames: a member is their participant id and userId (R12)', () => {
+    const room = populated();
+    const snapshot = snapshotRoom(room, codec);
+    const text = JSON.stringify(snapshot);
+    expect(text).not.toContain('Bob');
+    expect(text).not.toContain('Alice');
+    expect(text).not.toContain('clientNames');
+    expect(snapshot.members.find((m) => m.participantId === 'dev:bob')).toEqual({
+      participantId: 'dev:bob',
+      joinedAt: 0,
+      lastSeen: 0,
+      accountId: 'user-bob-0001',
+      app: { note: 'b' },
+    });
+    // ...and the names are genuinely on the room, so their absence means something.
+    expect(room.clientNames.get('dev:bob')).toBe('Bob');
+  });
+
+  it('reads back the userId, and not a name or avatar an older snapshot still carries', () => {
+    const snapshot = snapshotRoom(populated(), codec);
+    const old = { ...snapshot, clientNames: { 'dev:bob': 'Bob' }, members: snapshot.members.map((m) => ({ ...m, name: 'Bob', avatarId: 'av2' })) };
+    const decoded = decodeSnapshot(old as RoomSnapshot, codec, ctx);
+    expect(decoded.members.find((m) => m.participantId === 'dev:bob')).toEqual({
+      participantId: 'dev:bob',
+      joinedAt: 0,
+      lastSeen: 0,
+      accountId: 'user-bob-0001',
+      app: { note: 'b' },
+    });
+    const target = makeRoom<App, { note: string }>('r1', { picks: 0 }, { now: 3 });
+    target.clientNames.set('dev:bob', 'stale');
+    applySnapshot(target, decoded, 3);
+    expect(target.clientNames.size).toBe(0);
   });
 
   it('collapses two sockets for one refreshing participant into one member', () => {
@@ -120,7 +154,7 @@ describe('decodeSnapshot — nothing is applied until everything decodes', () =>
     expect(fresh.usedAvatars).toBeInstanceOf(Set);
     expect([...fresh.usedAvatars]).toEqual(['av2', 'av5']);
     expect(fresh.clientNames).toBeInstanceOf(Map);
-    expect(fresh.clientNames.get('fk:alice')).toBe('Alice');
+    expect(fresh.clientNames.size).toBe(0);
     expect(fresh.app).toEqual({ picks: 3 });
     expect(fresh.lastEventSeq).toBe(42);
   });

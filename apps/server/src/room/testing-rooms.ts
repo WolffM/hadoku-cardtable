@@ -52,7 +52,7 @@ import type { DraftPlan, PoolVerdict, RoomMode } from '@hadoku/shared';
  * string `testing-seed`. Exported so a test can recognise "the seed's own
  * member" without hard-coding the id a second time.
  */
-export const TESTING_SEED_CALLER: Caller = { id: 'dev:testing-seed', name: 'Testing' };
+export const TESTING_SEED_CALLER: Caller = { id: 'dev:testing-seed', name: 'Testing', userId: null };
 
 interface TestingRoomSpec {
 	name: string;

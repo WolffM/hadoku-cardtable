@@ -125,7 +125,6 @@ describe('§4.1 — restore beats the first join, it does not race it', () => {
       updatedAt: 20,
       members: [],
       usedAvatars: [],
-      clientNames: {},
       seats: { capacity: 4, seats: [], remembered: {}, reservations: {}, reservationTtlMs: 0 },
       app: { picks: ['restored'] },
       appVersion: 1,

@@ -91,7 +91,7 @@ async function watch(peer: Peer, rooms: string[], list = false): Promise<void> {
 const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 60));
 
 function room(lobby: Lobby, owner: Person): string {
-	const made = lobby.create({ id: owner.id, name: owner.name }, { name: 'tonight', gameType: 'constructed-1v1', clientMode: 'builtin' });
+	const made = lobby.create({ id: owner.id, name: owner.name, userId: null }, { name: 'tonight', gameType: 'constructed-1v1', clientMode: 'builtin' });
 	if (!made.ok) throw new Error(made.reason);
 	return made.room.id;
 }
@@ -101,7 +101,7 @@ describe('the room feed', () => {
 		const { lobby, port } = await boot();
 		const id = room(lobby, ALICE);
 		const other = room(lobby, CAROL);
-		expect(lobby.join(id, { id: BOB.id, name: BOB.name }).ok).toBe(true);
+		expect(lobby.join(id, { id: BOB.id, name: BOB.name, userId: null }).ok).toBe(true);
 		const alice = await connect(port, ALICE);
 		const bob = await connect(port, BOB);
 		const carol = await connect(port, CAROL);
@@ -154,7 +154,7 @@ describe('the room feed', () => {
 		lobby.setReady(id, ALICE.id, true);
 		await settle();
 		expect(bob.heard).toEqual([]);
-		lobby.join(id, { id: BOB.id, name: BOB.name });
+		lobby.join(id, { id: BOB.id, name: BOB.name, userId: null });
 		await settle();
 		expect(bob.heard).toEqual([{ room: id }]);
 	});

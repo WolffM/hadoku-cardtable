@@ -10,6 +10,7 @@
  * A live match is handed to the next process by play (`shutdown-matches handed`); what is checked
  * here is that the room still points at it.
  */
+import { readdirSync, readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -21,14 +22,15 @@ import { GAUNTLET_SNAKE, type DraftCard, type GauntletSeatIndex } from '@hadoku/
 import { restoreRooms, sweepRooms, type RestoredRooms, type SweptMatch } from './boot.ts';
 import { DEFAULT_PLAN, joinDraftRoom, singlePoolResolver, stateOf } from './room/draftRooms.ts';
 import { act, drawGauntlet, newGauntlet, startBanpick, type GauntletEraPool, type GauntletState } from './room/gauntlet.ts';
-import { GAME_DRAWN_AFTER_MS, openLobby, type Lobby, type PodChecks } from './room/lobby.ts';
+import { GAME_DRAWN_AFTER_MS, UNNAMED, openLobby, type Lobby, type PodChecks } from './room/lobby.ts';
+import { participantHandle } from './room/identity.ts';
 import { loadPool, type CubePool } from './room/pool.ts';
 
 const CUBE_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../ui/src/draft/pool.json');
 
-const ALICE = { id: 'fk:1111111111111111', name: 'user-alice' };
-const BOB = { id: 'fk:2222222222222222', name: 'user-bob' };
-const CAROL = { id: 'fk:3333333333333333', name: 'user-carol' };
+const ALICE = { id: 'fk:1111111111111111', name: 'user-alice', userId: 'uid-user-alice' };
+const BOB = { id: 'fk:2222222222222222', name: 'user-bob', userId: 'uid-user-bob' };
+const CAROL = { id: 'fk:3333333333333333', name: 'user-carol', userId: 'uid-user-carol' };
 const EVERYONE = [ALICE, BOB, CAROL];
 
 const dirs: string[] = [];
@@ -279,18 +281,33 @@ describe('a restart gives every room in flight back the way it was left', () => 
 		const left = snapshot(lobby);
 		for (const [key, room] of Object.entries(left)) expect(room.view, key).toBeDefined();
 
+		// Nothing on disk names a person (R12): every room and pod file holds ids, never a name.
+		for (const d of [roomsDir, draftsDir]) {
+			for (const f of readdirSync(d).filter((x) => x.endsWith('.json'))) {
+				const text = readFileSync(join(d, f), 'utf8');
+				for (const m of EVERYONE) expect(text, `${f} names ${m.name}`).not.toContain(`"${m.name}"`);
+			}
+		}
 		const after = await boot(roomsDir, draftsDir, cube);
 		expect(after.lostDrafts).toEqual([]);
+		// A saved room keeps no names (R12): everyone is UNNAMED until their next request names them.
+		expect(after.lobby.get(rooms.draftMidPick)!.members.every((m) => m.name === UNNAMED)).toBe(true);
+		for (const m of EVERYONE) after.lobby.rename(m);
 		// A plan's verdict is not kept: a restored room checks its plan again, in the background (`OpenLobbyOptions.checkPlan`).
 		await vi.waitFor(() => {
 			const back = snapshot(after.lobby);
 			for (const key of Object.keys(rooms)) expect(back[key], key).toEqual(left[key]);
 		});
 		// The draft is where its pick left it, under a new epoch: a restored draft is a new session for its sockets.
-		const { epoch: leftEpoch, ...leftDraft } = stateOf(pod);
-		const { epoch: backEpoch, ...backDraft } = stateOf(after.draftRooms!.find(rooms.draftMidPick)!);
+		// The pod file keeps no human seat's name or character: Alice's seat is her handle until she
+		// joins again; the bots' personas came back as they were.
+		const { epoch: leftEpoch, displayNames: leftNames, avatarIds: leftFaces, ...leftDraft } = stateOf(pod);
+		const { epoch: backEpoch, displayNames: backNames, avatarIds: backFaces, ...backDraft } = stateOf(after.draftRooms!.find(rooms.draftMidPick)!);
 		expect(backDraft).toEqual(leftDraft);
 		expect(backEpoch).not.toBe(leftEpoch);
+		expect(backNames).toEqual({ ...leftNames, [seat]: participantHandle(ALICE.id) });
+		const { [seat]: _aliceFace, ...botFaces } = leftFaces;
+		expect(backFaces).toEqual(botFaces);
 	});
 
 	it('a draft room whose draft did not come back is the one room the boot sends back to its lobby', async () => {

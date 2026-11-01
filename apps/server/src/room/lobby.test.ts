@@ -31,9 +31,10 @@ import { loadTablesLibrary } from '../http/library.ts';
 import { createDraftRooms, DEFAULT_PLAN, singlePoolResolver, stateOf } from './draftRooms.ts';
 import { loadPool } from './pool.ts';
 import { roundNamesOf } from './plan.ts';
-import { AVATAR_ID_MAX, CLIENT_MODES, DEFAULT_CLIENT_MODE, POD_SEATS, type ClientMode, type PoolVerdict, type Tournament } from '@hadoku/shared';
+import { AVATAR_ID_MAX, CLIENT_MODES, DEFAULT_CLIENT_MODE, POD_SEATS, type ClientMode, type GauntletPlayer, type PoolVerdict, type Tournament } from '@hadoku/shared';
 import {
 	AVATAR_POOL,
+	UNNAMED,
 	draftIdOfPool,
 	draftPoolId,
 	newestFormat,
@@ -64,14 +65,14 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..'
 const CATALOG = loadTablesLibrary(REPO_ROOT).formats.map(({ id, family }) => ({ id, family }));
 const POOLS = CATALOG.filter((f) => f.family === 'standard').map((f) => f.id);
 
-const CAROL = { id: 'fk:3333333333333333', name: 'user-carol' };
+const CAROL = { id: 'fk:3333333333333333', name: 'user-carol', userId: 'uid-user-carol' };
 
 /** The cube the app ships with — for the tests that drive a REAL `DraftRooms` off `podDraft`. */
 const CUBE_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../ui/src/draft/pool.json');
 
 /** A draft room with `members` in it, all of them ready, and its draft started. */
 /** A draft room with `members` in it, all ready, no seat open — `startDraft`'s OWN gates are all clear, but its plan verdict is still whatever the lobby gave it (null, absent a `checkPlan`). */
-async function readyToStart(lobby: Lobby, members: Array<{ id: string; name: string }> = [ALICE]): Promise<string> {
+async function readyToStart(lobby: Lobby, members: Array<{ id: string; name: string; userId: string | null }> = [ALICE]): Promise<string> {
 	const made = lobby.create(members[0], { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
 	expect(made.ok).toBe(true);
 	if (!made.ok) throw new Error(made.reason);
@@ -81,7 +82,7 @@ async function readyToStart(lobby: Lobby, members: Array<{ id: string; name: str
 	return made.room.id;
 }
 
-async function startedDraft(lobby: Lobby, members: Array<{ id: string; name: string }> = [ALICE]): Promise<string> {
+async function startedDraft(lobby: Lobby, members: Array<{ id: string; name: string; userId: string | null }> = [ALICE]): Promise<string> {
 	const id = await readyToStart(lobby, members);
 	approvePlan(lobby, id);
 	const started = lobby.startDraft(id, members[0].id);
@@ -111,8 +112,8 @@ function fillWithAi(lobby: Lobby, roomId: string, by: string): void {
 	});
 }
 
-const ALICE = { id: 'fk:1111111111111111', name: 'user-alice' };
-const BOB = { id: 'fk:2222222222222222', name: 'user-bob' };
+const ALICE = { id: 'fk:1111111111111111', name: 'user-alice', userId: 'uid-user-alice' };
+const BOB = { id: 'fk:2222222222222222', name: 'user-bob', userId: 'uid-user-bob' };
 
 const dirs: string[] = [];
 
@@ -141,9 +142,8 @@ function writeFixtureRoom(dir: string, roomId: string, app: Record<string, unkno
 		lastEventSeq: 0,
 		createdAt: 1_700_000_000_000,
 		updatedAt,
-		members: [{ participantId: ALICE.id, joinedAt: 1_700_000_000_000, lastSeen: 1_700_000_000_000, name: ALICE.name, app: null }],
+		members: [{ participantId: ALICE.id, accountId: ALICE.userId, joinedAt: 1_700_000_000_000, lastSeen: 1_700_000_000_000, app: null }],
 		usedAvatars: [],
-		clientNames: {},
 		seats: createSeatTable(null),
 		app,
 		appVersion: 1,
@@ -222,7 +222,8 @@ describe('a room stored before clientMode existed', () => {
 		// Everything else about the old room came back untouched.
 		expect(lobby.get('r-aaaaaaaaaaaa')?.name).toBe('Kitchen table');
 		expect(lobby.get('r-aaaaaaaaaaaa')?.gameType).toBe('constructed-1v1');
-		expect(lobby.get('r-aaaaaaaaaaaa')?.members.map((m) => m.name)).toEqual([ALICE.name]);
+		// The member came back as who they are; their name returns with their next request (R12).
+		expect(lobby.get('r-aaaaaaaaaaaa')?.members.map((m) => [m.id, m.name])).toEqual([[ALICE.id, UNNAMED]]);
 		// The wave-23 fields are additive too: a member blob of `null` is not
 		// ready, and a room-level blob with no `draftStartedAt` is in its lobby.
 		expect(Object.keys(legacyApp())).not.toContain('draftStartedAt');
@@ -800,9 +801,9 @@ describe('Lobby.setReady', () => {
 		// click again.
 		expect(lobby.setReady(id, BOB.id, true)).toBe(true);
 		const second = await openLobby({ dir });
-		expect(second.get(id)?.members.map((m) => [m.name, m.ready])).toEqual([
-			[ALICE.name, false],
-			[BOB.name, true],
+		expect(second.get(id)?.members.map((m) => [m.id, m.ready])).toEqual([
+			[ALICE.id, false],
+			[BOB.id, true],
 		]);
 	});
 });
@@ -1172,7 +1173,7 @@ describe('a member\'s avatar', () => {
 
 	it('is handed out only while a character is free, and a leaver frees theirs', async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
-		const callers = [ALICE, BOB, CAROL, ...Array.from({ length: AVATAR_POOL.length - 2 }, (_, i) => ({ id: `fk:${String(i + 4).repeat(16).slice(0, 16)}`, name: `user-${i + 4}` }))];
+		const callers = [ALICE, BOB, CAROL, ...Array.from({ length: AVATAR_POOL.length - 2 }, (_, i) => ({ id: `fk:${String(i + 4).repeat(16).slice(0, 16)}`, name: `user-${i + 4}`, userId: null }))];
 		const made = lobby.create(callers[0]!, { name: 'Crowd', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		expect(made.ok).toBe(true);
 		if (!made.ok) return;
@@ -1184,12 +1185,12 @@ describe('a member\'s avatar', () => {
 		expect(members[AVATAR_POOL.length]).not.toHaveProperty('avatarId');
 
 		lobby.leave(id, BOB.id);
-		const late = { id: 'fk:eeeeeeeeeeeeeeee', name: 'user-late' };
+		const late = { id: 'fk:eeeeeeeeeeeeeeee', name: 'user-late', userId: 'uid-user-late' };
 		expect(lobby.join(id, late).ok).toBe(true);
 		expect(avatarOf(lobby.get(id), late.id)?.avatarId).toBe('herald');
 	});
 
-	it('survives a restart, because it is persisted beside the name and not in the opaque blob', async () => {
+	it('is not saved: after a restart a member wears a handed-out character until their screen asserts theirs (R12)', async () => {
 		const dir = await tempDir();
 		const first = await openLobby({ dir });
 		const made = first.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
@@ -1198,13 +1199,31 @@ describe('a member\'s avatar', () => {
 		expect(first.join(made.room.id, BOB).ok).toBe(true);
 		expect(first.setAvatar(made.room.id, ALICE.id, 'knight')).toBe(true);
 
-		// Room-store's `SerializedMember.avatarId` is what carries it; nothing in
-		// the per-member `app` blob does, so this also pins that the field went to
-		// the right half of the snapshot.
+		const saved = (await new FileRoomStore(dir).load(made.room.id))!;
+		expect(JSON.stringify(saved)).not.toContain('knight');
 		const second = await openLobby({ dir });
+		expect(avatarOf(second.get(made.room.id), ALICE.id)?.avatarId).toBe(AVATAR_POOL[0]);
+		expect(avatarOf(second.get(made.room.id), BOB.id)?.avatarId).toBe(AVATAR_POOL[1]);
+		// Her screen asserts hers, and it takes over the handed-out one.
+		expect(second.setAvatar(made.room.id, ALICE.id, 'knight')).toBe(true);
 		expect(avatarOf(second.get(made.room.id), ALICE.id)?.avatarId).toBe('knight');
-		// A handed-out one is persisted the same way: bob keeps his face across a deploy.
-		expect(avatarOf(second.get(made.room.id), BOB.id)?.avatarId).toBe('herald');
+	});
+
+	it('a Gauntlet saves no member player’s name; read back, it names them as the room does now (R12)', async () => {
+		const dir = await tempDir();
+		const first = await openLobby({ dir });
+		const made = first.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) return;
+		const g = { ...newGauntlet(), players: [{ memberId: ALICE.id, name: ALICE.name }, { memberId: null, name: 'Ajani' }] as [GauntletPlayer, GauntletPlayer] };
+		expect(first.setGauntlet(made.room.id, g)).toBe(true);
+		expect(first.gauntlet(made.room.id)?.players?.map((p) => p.name)).toEqual([ALICE.name, 'Ajani']);
+		expect(JSON.stringify(await new FileRoomStore(dir).load(made.room.id))).not.toContain(`"${ALICE.name}"`);
+
+		const second = await openLobby({ dir });
+		expect(second.gauntlet(made.room.id)?.players?.map((p) => p.name)).toEqual([UNNAMED, 'Ajani']);
+		second.rename({ id: ALICE.id, name: 'Alicia' });
+		expect(second.gauntlet(made.room.id)?.players?.map((p) => p.name)).toEqual(['Alicia', 'Ajani']);
 	});
 
 	it('folds null and every blank spelling to ABSENT, never to an empty string', async () => {
@@ -1227,10 +1246,6 @@ describe('a member\'s avatar', () => {
 		expect(avatarOf(lobby.get(id), ALICE.id)?.avatarId).toBe('mage');
 		expect(lobby.setAvatar(id, ALICE.id, null)).toBe(true);
 		expect(avatarOf(lobby.get(id), ALICE.id)).not.toHaveProperty('avatarId');
-		// Cleared on disk too. A clear that only happened in memory would come
-		// back wearing the old face after the next deploy.
-		const second = await openLobby({ dir });
-		expect(avatarOf(second.get(id), ALICE.id)).not.toHaveProperty('avatarId');
 	});
 
 	it('is trimmed, and is NOT checked against watchparty\'s eight characters', async () => {
@@ -1261,34 +1276,39 @@ describe('a member\'s avatar', () => {
 		expect(lobby.get(made.room.id)?.members.map((m) => m.id)).toEqual([ALICE.id]);
 	});
 
-	it('reads an empty string stored by some other build back as ABSENT', async () => {
+	it('a restored member keeps their userId, is UNNAMED and wears a handed-out character until their own requests say otherwise', async () => {
 		const dir = await tempDir();
-		// A snapshot this build would never write: room-store's field carries the
-		// value, and a looser writer could put `''` in it. The restore path
-		// re-normalises rather than trusting the file, so the one value that must
-		// never reach a client cannot arrive from disk either.
-		const snapshot: RoomSnapshot = {
+		// What an older build wrote: a name and a picked avatar beside the id. Neither is read back (R12).
+		const snapshot = {
 			storeVersion: STORE_VERSION,
-			roomId: 'r-blankavatar',
-			roomKey: 'r-blankavatar',
+			roomId: 'r-restored',
+			roomKey: 'r-restored',
 			lastEventSeq: 0,
 			createdAt: 1_700_000_000_000,
 			updatedAt: 1_700_000_000_000,
 			members: [
-				{ participantId: ALICE.id, joinedAt: 1, lastSeen: 1, name: ALICE.name, avatarId: '', app: null },
-				{ participantId: BOB.id, joinedAt: 2, lastSeen: 2, name: BOB.name, avatarId: 'herald', app: null },
+				{ participantId: ALICE.id, accountId: ALICE.userId, joinedAt: 1, lastSeen: 1, name: ALICE.name, avatarId: 'rogue', app: null },
+				{ participantId: BOB.id, accountId: BOB.userId, joinedAt: 2, lastSeen: 2, name: BOB.name, avatarId: '', app: null },
 			],
 			usedAvatars: [],
-			clientNames: {},
 			seats: createSeatTable(null),
 			app: legacyApp(),
 			appVersion: 1,
-		};
+		} as unknown as RoomSnapshot;
 		new FileRoomStore(dir).saveSync(snapshot);
 
 		const lobby = await openLobby({ dir });
-		expect(avatarOf(lobby.get('r-blankavatar'), ALICE.id)).not.toHaveProperty('avatarId');
-		expect(avatarOf(lobby.get('r-blankavatar'), BOB.id)?.avatarId).toBe('herald');
+		const room = lobby.get('r-restored');
+		expect(room?.members.map((m) => [m.name, m.avatarId])).toEqual([
+			[UNNAMED, AVATAR_POOL[0]],
+			[UNNAMED, AVATAR_POOL[1]],
+		]);
+		// Alice's next request names her; the next save still writes no name, and keeps her userId.
+		lobby.rename({ id: ALICE.id, name: ALICE.name });
+		expect(lobby.get('r-restored')?.members[0]?.name).toBe(ALICE.name);
+		const saved = (await new FileRoomStore(dir).load('r-restored'))!;
+		expect(saved.members[0]).toEqual({ participantId: ALICE.id, accountId: ALICE.userId, joinedAt: 1, lastSeen: 1, app: null });
+		expect(JSON.stringify(saved)).not.toContain(`"${ALICE.name}"`);
 	});
 });
 
@@ -2336,7 +2356,7 @@ describe('Lobby.sitPod / standPod', () => {
 		}
 
 		// Omitting `seat` takes the first free one.
-		const members = Array.from({ length: 7 }, (_, i) => ({ id: `fk:seat-filler-${String(i)}`, name: `filler${String(i)}` }));
+		const members = Array.from({ length: 7 }, (_, i) => ({ id: `fk:seat-filler-${String(i)}`, name: `filler${String(i)}`, userId: null }));
 		for (const m of members) expect(lobby.join(draft.room.id, m).ok).toBe(true);
 		for (const m of members.slice(0, 6)) expect(lobby.sitPod(draft.room.id, m.id).ok).toBe(true);
 		// Seats taken so far: 1 (BOB), 2 (ALICE), and the first free one six times — 0,3,4,5,6,7. Every seat is full.
@@ -3169,7 +3189,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 	/** A Constructed room, `mode`, with Tournament on and nobody seated yet. */
 	async function tournamentRoom(
 		lobby: Lobby,
-		leader: { id: string; name: string },
+		leader: { id: string; name: string; userId: string | null },
 		mode: 'classic' | 'gauntlet' | 'random' = 'classic',
 	): Promise<string> {
 		const made = lobby.create(leader, {
@@ -3956,7 +3976,7 @@ describe('a table resolved from its card: Abandon and Drop match (docs/planning/
 		const made = lobby.create(ALICE, { name: 'Four', gameType: 'constructed-1v1', clientMode: 'builtin', mode: { mode: 'classic', modeOptions: {} } });
 		if (!made.ok) throw new Error('create failed');
 		const id = made.room.id;
-		const DAVE = { id: 'fk:4444444444444444', name: 'user-dave' };
+		const DAVE = { id: 'fk:4444444444444444', name: 'user-dave', userId: 'uid-user-dave' };
 		for (const m of [BOB, CAROL, DAVE]) expect(lobby.join(id, m).ok).toBe(true);
 		expect(lobby.setSettings(id, ALICE.id, { tournament: true }).ok).toBe(true);
 		[ALICE, BOB, CAROL, DAVE].forEach((m, seat) => expect(lobby.sitPod(id, m.id, seat).ok).toBe(true));

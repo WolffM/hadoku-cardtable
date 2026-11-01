@@ -118,6 +118,16 @@ export function userKeyOf(req: Request): string | null {
 }
 
 /**
+ * The caller's registry userId (`X-User-Id`), edge-stamped and stripped from an
+ * unvouched request: what a saved room names a person by (R12). null when the
+ * edge sent none, never a stand-in word.
+ */
+export function accountIdOf(req: Request): string | null {
+	const u = req.headers['x-user-id'];
+	return typeof u === 'string' && u !== '' ? u : null;
+}
+
+/**
  * The caller's DISPLAY NAME, edge-injected from the registry beside
  * `X-User-Id` (same trust class: exclusively edge-set, stripped from
  * unvouched requests). null when the edge sent none — an unnamed key.

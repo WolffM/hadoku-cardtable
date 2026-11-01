@@ -275,11 +275,19 @@ function freeAvatar(members: readonly MemberRecord[]): string | undefined {
 	return AVATAR_POOL.find((a) => !worn.has(a));
 }
 
+/**
+ * What a member is called before any request of theirs has named them: one restored from a saved
+ * room, which keeps no names (R12). The same word the HTTP layer gives a key the edge sent no
+ * name for.
+ */
+export const UNNAMED = 'friend';
+
 /** A new member, wearing the room's next free character. */
 function newMember(room: readonly MemberRecord[], caller: Caller, joinedAt: number): MemberRecord {
 	const avatarId = freeAvatar(room);
 	return {
 		id: caller.id,
+		userId: caller.userId,
 		name: caller.name,
 		joinedAt,
 		state: undefined,
@@ -297,10 +305,15 @@ export interface RoomView extends PublicRoomView {
 	ai: AiPersona;
 }
 
-/** Who is asking. `id` from `identityFromHeaders`, `name` from `userIdOf`. */
+/**
+ * Who is asking. `id` from `identityFromHeaders`, `name` from `userNameOf`, `userId` from
+ * `accountIdOf`: the registry userId `id` was minted from, which is what a saved room keeps
+ * (R12). null for a caller the edge named nobody, and for the testing seed.
+ */
 export interface Caller {
 	id: string;
 	name: string;
+	userId: string | null;
 }
 
 interface CreateRoomInput {
@@ -1376,7 +1389,7 @@ export interface Lobby {
 	 * "spare-961b02" beside a leaderboard showing "kib" (2026-10-26). Writes
 	 * only the rooms whose copy moved.
 	 */
-	rename(caller: Caller): void;
+	rename(caller: Pick<Caller, 'id' | 'name'>): void;
 	/**
 	 * Leader only. Changes the game type — a room's `clientMode` is immutable.
 	 * Every member's `ready` is cleared: readiness is readiness for a particular
@@ -1592,6 +1605,12 @@ interface TableRecord extends TableSeats {
 
 interface MemberRecord {
 	id: string;
+	/** The registry userId, saved with the room. null for a member the edge named nobody. */
+	userId: string | null;
+	/**
+	 * In memory only, from the member's own requests (`rename`): a saved room keeps no names (R12).
+	 * A member restored from disk is `UNNAMED` until their next request.
+	 */
 	name: string;
 	joinedAt: number;
 	state: unknown;
@@ -2190,6 +2209,26 @@ function inPlay(room: RoomRecord): boolean {
 }
 
 /** A Gauntlet whose reveal has started, and that is not yet done — true if ANY of the room's tables is one. */
+/**
+ * A Gauntlet as the room file keeps it: a member player's name left out (R12). The AI's is the
+ * room's persona and stays.
+ */
+function gauntletWithoutNames(g: GauntletState): GauntletState {
+	if (g.players === null) return g;
+	const [a, b] = g.players.map((p) => (p.memberId === null ? p : { ...p, name: '' }));
+	return { ...g, players: [a!, b!] };
+}
+
+/** A Gauntlet's member players named as the room knows them now; a leaver keeps what the state said. */
+function gauntletNamed(g: GauntletState, members: readonly MemberRecord[]): GauntletState {
+	if (g.players === null) return g;
+	const [a, b] = g.players.map((p) => {
+		const m = p.memberId === null ? undefined : members.find((x) => x.id === p.memberId);
+		return m === undefined ? p : { ...p, name: m.name };
+	});
+	return { ...g, players: [a!, b!] };
+}
+
 function gauntletUnderWay(gauntlets: Record<string, GauntletState>): boolean {
 	return Object.values(gauntlets).some((g) => g.phase !== 'options' && g.phase !== 'done');
 }
@@ -2302,11 +2341,13 @@ class FileLobby implements Lobby {
 		const now = this.#now();
 		room.updatedAt = now;
 		const members: SerializedMember[] = room.members.map((m) => {
+			// No name and no avatar id (R12): a member is saved as who they are, not as what they
+			// were called. Both come back from their next request (`rename`, the avatar assert).
 			const member: SerializedMember = {
 				participantId: m.id,
+				...(m.userId === null ? {} : { accountId: m.userId }),
 				joinedAt: m.joinedAt,
 				lastSeen: m.joinedAt,
-				name: m.name,
 				// Boxed, so a state of `null` survives a restart as `null`, and
 				// `ready` rides the same blob — it is per-member state like the
 				// deck choice. A member with neither still writes `null`, which
@@ -2316,13 +2357,6 @@ class FileLobby implements Lobby {
 						? null
 						: { state: structuredClone(m.state), ready: m.ready },
 			};
-			// Room-store's own field (`SerializedMember.avatarId`), not the
-			// per-member `app` blob: the avatar is a fleet-wide identity property
-			// `@wolffm/rooms-protocol` already names, so it belongs beside `name`
-			// rather than inside our opaque blob. Written only when there is one,
-			// so a member with no avatar produces the bytes a pre-wave-28 room
-			// wrote, byte for byte.
-			if (m.avatarId !== undefined) member.avatarId = m.avatarId;
 			return member;
 		});
 		const app: StoredApp = {
@@ -2348,7 +2382,7 @@ class FileLobby implements Lobby {
 			...(room.podSplit === null ? {} : { podSplit: copySplit(room.podSplit) }),
 			podPlaying: [...room.podPlaying],
 			lockedDecks: { ...room.lockedDecks },
-			gauntlets: { ...room.gauntlets },
+			gauntlets: Object.fromEntries(Object.entries(room.gauntlets).map(([t, g]) => [t, gauntletWithoutNames(g)])),
 			testing: room.testing,
 			...(room.scenario === undefined ? {} : { scenario: room.scenario }),
 			...(room.scheduledFor === undefined ? {} : { scheduledFor: room.scheduledFor }),
@@ -2372,7 +2406,6 @@ class FileLobby implements Lobby {
 			updatedAt: now,
 			members,
 			usedAvatars: [],
-			clientNames: {},
 			seats: createSeatTable(null),
 			app: appCodec.serialize(app),
 			appVersion: APP_VERSION,
@@ -3204,7 +3237,7 @@ class FileLobby implements Lobby {
 		return { ok: true, room: this.#view(room), alreadyMember: false };
 	}
 
-	rename(caller: Caller): void {
+	rename(caller: Pick<Caller, 'id' | 'name'>): void {
 		for (const room of this.#rooms.values()) {
 			const member = room.members.find((m) => m.id === caller.id);
 			if (member === undefined || member.name === caller.name) continue;
@@ -3609,7 +3642,8 @@ class FileLobby implements Lobby {
 	gauntlet(roomId: string, tableId?: string): GauntletState | null {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return null;
-		return room.gauntlets[tableId ?? room.tables[0]!.id] ?? null;
+		const g = room.gauntlets[tableId ?? room.tables[0]!.id];
+		return g === undefined ? null : gauntletNamed(g, room.members);
 	}
 
 	setGauntlet(roomId: string, gauntlet: GauntletState | null, tableId?: string): boolean {
@@ -3891,25 +3925,25 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 			// A constructed room stored before modes existed was a Classic room.
 			const restoredAsClassic = app.mode === undefined && app.gameType === 'constructed-1v1';
 			if (restoredAsClassic) log({ event: 'room-mode-restored', roomId, mode: 'classic' });
-			const members: MemberRecord[] = decoded.members.map((m) => {
-				// Re-normalised on the way in rather than trusted. `decodeSnapshot`
-				// already drops a non-string, but a record written by a build with a
-				// looser rule could carry `''` — the one value `avatarIdOf` exists to
-				// keep off the wire. Absent when there is none, so a restored room and
-				// a fresh one present the same two states.
-				const avatarId = avatarIdOf(m.avatarId);
-				return {
+			const members: MemberRecord[] = [];
+			for (const m of decoded.members) {
+				// Nothing names a member on disk (R12): they are `UNNAMED` until their next
+				// request renames them, and wear the room's next free character until their
+				// screen asserts their own, exactly as on a first join.
+				const avatarId = freeAvatar(members);
+				members.push({
 					id: m.participantId,
-					name: m.name ?? 'anon',
+					userId: m.accountId ?? null,
+					name: UNNAMED,
 					joinedAt: m.joinedAt,
 					state: offPod ? undefined : unboxState(m.app),
 					// Kept across the restart, unlike the draft itself: the room comes
 					// back in its lobby phase with everybody still ready, which is one
 					// click from starting again rather than four.
 					ready: !offPod && unboxReady(m.app),
-					...(avatarId === undefined ? {} : { avatarId }),
-				};
-			});
+					...(avatarId === undefined ? {} : { avatarId, avatarGiven: true as const }),
+				});
+			}
 			lobby.restore(
 				{
 					id: roomId,

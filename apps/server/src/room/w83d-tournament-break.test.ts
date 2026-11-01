@@ -37,8 +37,8 @@ afterAll(async () => {
 	for (const dir of dirs) await rm(dir, { recursive: true, force: true });
 });
 
-function member(n: number): { id: string; name: string } {
-	return { id: `fk:${String(n).repeat(16).slice(0, 16)}`, name: `user-${n}` };
+function member(n: number): { id: string; name: string; userId: string | null } {
+	return { id: `fk:${String(n).repeat(16).slice(0, 16)}`, name: `user-${n}`, userId: null };
 }
 
 function checks(ready: ReadonlySet<string>): PodChecks {

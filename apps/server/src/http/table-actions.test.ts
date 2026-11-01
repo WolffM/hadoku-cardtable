@@ -36,11 +36,11 @@ interface Harness {
 async function open(opts: { refuse?: string; pod?: boolean } = {}): Promise<Harness> {
 	const dir = await mkdtemp(join(tmpdir(), 'cardtable-table-actions-'));
 	const lobby = await openLobby({ dir });
-	const made = lobby.create({ id: ALICE, name: 'alice' }, { name: 'tonight', gameType: 'constructed-1v1', clientMode: 'builtin', ...(opts.pod === true ? { mode: { mode: 'classic', modeOptions: {} } } : {}) });
+	const made = lobby.create({ id: ALICE, name: 'alice', userId: null }, { name: 'tonight', gameType: 'constructed-1v1', clientMode: 'builtin', ...(opts.pod === true ? { mode: { mode: 'classic', modeOptions: {} } } : {}) });
 	if (!made.ok) throw new Error(made.reason);
 	const roomId = made.room.id;
-	expect(lobby.join(roomId, { id: BOB, name: 'bob' }).ok).toBe(true);
-	expect(lobby.join(roomId, { id: CAROL, name: 'carol' }).ok).toBe(true);
+	expect(lobby.join(roomId, { id: BOB, name: 'bob', userId: null }).ok).toBe(true);
+	expect(lobby.join(roomId, { id: CAROL, name: 'carol', userId: null }).ok).toBe(true);
 	// A pod: Bob and Carol play the tournament's one pairing, Alice leads it watching.
 	const players = opts.pod === true ? [BOB, CAROL] : [ALICE, BOB];
 	let tableId = lobby.get(roomId)!.tables[0]!.id;

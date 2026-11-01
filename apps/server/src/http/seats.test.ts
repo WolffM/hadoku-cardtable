@@ -30,7 +30,7 @@ const DECK = { deck: { library: 'power-2010-3-antoine-ruel-ug-polymorph' } };
 const OTHER = { deck: { library: 'power-2010-1-emanuele-giusti-jund' } };
 
 const headers = (user: string): Record<string, string> => ({ 'x-user-id': `user-${user}`, 'x-user-key': `friend-key-${user}` });
-const person = (user: string) => ({ id: identityFromHeaders(headers(user), 'unused'), name: user });
+const person = (user: string) => ({ id: identityFromHeaders(headers(user), 'unused'), name: user, userId: `uid-${user}` });
 const ALICE = person('alice');
 const BOB = person('bob');
 const CAROL = person('carol');
@@ -210,6 +210,9 @@ describe('a constructed table', () => {
 		await s.close();
 		open.splice(open.indexOf(s), 1);
 		const after = await boot(s.dir, s.roomId);
+		// A saved room keeps no names (R12): each player's next request (the rooms router's rename) names them again.
+		expect(roomSeats(after)).toEqual([['friend', 'friend']]);
+		for (const p of [BOB, ALICE]) after.lobby.rename(p);
 		expect(roomSeats(after)).toEqual([['bob', 'alice']]);
 		expect(await seats(after)).toEqual({ players: [['bob', false], ['alice', true]], locked: false });
 		expect(after.lobby.setMode(after.roomId, ALICE.id, { mode: 'gauntlet', modeOptions: {} })).toEqual({ ok: false, reason: 'mode-locked' });
@@ -252,6 +255,7 @@ describe('a room stored before the lobby held its seats', () => {
 
 	it('seats each player from their own blob, in the order they sat, with their Ready and their deck', async () => {
 		const s = await storedTheOldWay();
+		for (const p of [BOB, ALICE]) s.lobby.rename(p);
 		expect(roomSeats(s)).toEqual([['bob', 'alice']]);
 		expect(await seats(s)).toEqual({ players: [['bob', false], ['alice', true]], locked: false });
 		const mine = await s.call('alice', 'GET', '');

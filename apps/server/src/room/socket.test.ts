@@ -89,7 +89,7 @@ let pendingRoomId = '';
 let constructedRoomId = '';
 
 /** The lobby's member, and the caller that starts the draft. Durable, so `create` accepts it. */
-const OWNER = { id: 'fk:1111111111111111', name: 'user-owner' };
+const OWNER = { id: 'fk:1111111111111111', name: 'user-owner', userId: 'uid-user-owner' };
 
 beforeAll(async () => {
 	process.env.EDGE_AUTH_SECRET = EDGE_SECRET;
@@ -1074,7 +1074,7 @@ describe('a seat with nobody connected to it, for the window', () => {
 	/** `userKey` joins `constructedRoomId` and sits at its one table. Returns the ids the test reads back by. */
 	async function seatedAt(userKey: string): Promise<{ tableId: string; memberId: string }> {
 		const memberId = participantIdFor(userKey);
-		expect(live().lobby.join(constructedRoomId, { id: memberId, name: `user-${userKey}` }).ok).toBe(true);
+		expect(live().lobby.join(constructedRoomId, { id: memberId, name: `user-${userKey}`, userId: null }).ok).toBe(true);
 		const tableId = live().lobby.get(constructedRoomId)!.tables[0]!.id;
 		expect(live().lobby.sit(constructedRoomId, tableId, memberId)).toBe(true);
 		return { tableId, memberId };
@@ -1163,7 +1163,7 @@ describe('a seat with nobody connected to it, for the window', () => {
 describe('a room of several pods', () => {
 	it('a drafter in the second pod names the room’s id and is seated, and picks, in their own pod’s draft', async () => {
 		const { lobby, rooms } = live();
-		const people = Array.from({ length: 9 }, (_, i) => ({ id: identityFromHeaders(edgeHeaders(`pod-m${i}`), 'unused'), name: `m${i}` }));
+		const people = Array.from({ length: 9 }, (_, i) => ({ id: identityFromHeaders(edgeHeaders(`pod-m${i}`), 'unused'), name: `m${i}`, userId: null }));
 		const made = lobby.create(people[0]!, { name: 'pods', gameType: 'draft', clientMode: 'builtin' });
 		if (!made.ok) throw new Error(made.reason);
 		const id = made.room.id;

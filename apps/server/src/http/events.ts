@@ -40,10 +40,9 @@ import {
 	type RoomView,
 } from '@hadoku/shared';
 
-import { userNameOf } from '../edge-auth.js';
 import type { Lobby } from '../room/lobby.js';
 import type { EventRecord, Events, FormRecord } from '../room/events.js';
-import { httpCaller, parseBody, perCallerLimit } from './request.js';
+import { callerOf, httpCaller, parseBody, perCallerLimit } from './request.js';
 
 type RallyFetch = (input: string, init?: RequestInit) => Promise<globalThis.Response>;
 
@@ -194,7 +193,7 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 	api.post('/events/forms', async (req: Request, res: Response) => {
 		const body = parseBody(AttachFormBodySchema, req, res);
 		if (body === null) return;
-		const caller = { id: httpCaller(req), name: userNameOf(req) ?? 'friend' };
+		const caller = callerOf(req);
 		if (!isDurableParticipantId(caller.id)) return res.status(403).json({ error: 'the edge did not name you, so you cannot attach a form' });
 		const found = await summary(body.formId);
 		if (!found.ok || !isEventSignupForm(found.summary)) {
@@ -233,7 +232,7 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 	api.post('/events', async (req: Request, res: Response) => {
 		const body = parseBody(CreateEventBodySchema, req, res);
 		if (body === null) return;
-		const caller = { id: httpCaller(req), name: userNameOf(req) ?? 'friend' };
+		const caller = callerOf(req);
 		if (!isDurableParticipantId(caller.id)) return res.status(403).json({ error: 'the edge did not name you, so you cannot organize an event' });
 		const startsAt = Date.parse(body.startsAt);
 		if (startsAt < now() - STARTS_AT_GRACE_MS) return res.status(400).json({ error: 'startsAt must not be in the past' });

@@ -523,6 +523,37 @@ function quarantineSnapshotSync(dir: string, draftId: string, reason: string): v
 const logDraft = jsonLogger('cardtable-draft');
 
 /** What persists for one pod. Everything else on `DraftApp` is config echoed back in (`disconnectGraceMs`) or reconstructed fresh (`onDeferredChange`, `vacating`, `persist`) — never read off disk. */
+/** The human seats of a draft, by the participant in each. */
+function humanSeatsOf(state: DraftState): Array<{ seat: number; participantId: string }> {
+	return state.table.seats.flatMap((s) => (s.occupant?.kind === 'human' ? [{ seat: s.id, participantId: s.occupant.participantId }] : []));
+}
+
+/**
+ * The state as a pod file keeps it: a human seat's name and character are left out (hadoku_site
+ * IDENTITY_MODEL R12, cardtable#25). The seat itself names its drafter by participant id; a bot's
+ * name and face are the room's own persona, so they stay.
+ */
+function withoutPeople(state: DraftState): DraftState {
+	const displayNames = { ...state.displayNames };
+	const avatarIds = { ...state.avatarIds };
+	for (const { seat } of humanSeatsOf(state)) {
+		delete displayNames[seat];
+		delete avatarIds[seat];
+	}
+	return { ...state, displayNames, avatarIds };
+}
+
+/** A restored draft's human seats, named by their handle until each drafter's next join. */
+function unnamedPeople(state: DraftState): DraftState {
+	const displayNames = { ...state.displayNames };
+	const avatarIds = { ...state.avatarIds };
+	for (const { seat, participantId } of humanSeatsOf(state)) {
+		displayNames[seat] = participantHandle(participantId);
+		delete avatarIds[seat];
+	}
+	return { ...state, displayNames, avatarIds };
+}
+
 interface PersistedDraftApp {
 	state: DraftState | null;
 	builtDecks: Record<ParticipantId, string>;
@@ -593,7 +624,7 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 	const codec: RoomCodec<DraftApp, DraftClient> = {
 		app: {
 			version: 1,
-			serialize: (app): PersistedDraftApp => ({ state: app.state, builtDecks: app.builtDecks, deckMeta: app.deckMeta }),
+			serialize: (app): PersistedDraftApp => ({ state: app.state === null ? null : withoutPeople(app.state), builtDecks: app.builtDecks, deckMeta: app.deckMeta }),
 			deserialize: (raw, _version, ctx): DraftApp => {
 				const persisted = raw as PersistedDraftApp;
 				return makeDraftApp({
@@ -603,14 +634,16 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 					// module's header and `draftRestore.test.ts`.
 					// A snapshot from before seats carried characters has no `avatarIds`;
 					// one from before packs queued has a pack per seat (`fromLockstep`).
+					// A human seat comes back named by its handle and wearing nothing (`withoutPeople`);
+					// the drafter's next join names and dresses it from the room (`joinDraftRoom`).
 					state:
 						persisted.state === null
 							? null
-							: {
+							: unnamedPeople({
 									...fromLockstep(persisted.state as DraftState | LockstepState),
 									avatarIds: (persisted.state as Partial<DraftState>).avatarIds ?? {},
 									epoch: ctx.restoreId,
-								},
+								}),
 					builtDecks: persisted.builtDecks ?? {},
 					deckMeta: persisted.deckMeta ?? {},
 				});

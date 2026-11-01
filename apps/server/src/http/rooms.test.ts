@@ -315,9 +315,12 @@ describe('a member is named by their display name, never their id', () => {
 		await call(h, 'GET', '/api/rooms', { as: 'bob', headers: { 'x-user-name': '' } });
 		expect(names()).toEqual(['user-alice', 'kib']);
 
-		// Stored, not just in memory: a restart reads the new name back.
+		// In memory only: a saved room keeps no names (R12). After a restart both are UNNAMED, and
+		// bob's next request names him again.
 		const again = await openApp(dir);
-		expect(again.lobby.get(room.id)?.members.map((m) => m.name)).toEqual(['user-alice', 'kib']);
+		expect(again.lobby.get(room.id)?.members.map((m) => m.name)).toEqual(['friend', 'friend']);
+		await call(again, 'GET', '/api/rooms', { as: 'bob', headers: { 'x-user-name': 'kib' } });
+		expect(again.lobby.get(room.id)?.members.map((m) => m.name)).toEqual(['friend', 'kib']);
 	});
 });
 
@@ -560,7 +563,9 @@ describe('GET /api/rooms', () => {
 		// done (`avatarRelay.test.ts`, "a room and its match across a restart").
 		expect(rooms[0].matchId).toBe('match-42');
 		expect(rooms[0].leader).toBe(created.creator);
-		expect(rooms[0].members.map((m) => m.name).sort()).toEqual(['user-alice', 'user-bob']);
+		// The same two members, unnamed until their next request (a saved room keeps no names, R12).
+		expect(rooms[0].members.map((m) => m.id).sort()).toEqual(first.lobby.get(created.id)!.members.map((m) => m.id).sort());
+		expect(rooms[0].members.map((m) => m.name)).toEqual(['friend', 'friend']);
 		expect(second.lobby.playerState(created.id, created.creator)).toEqual({
 			deck: 'mono-red',
 			ready: true,
@@ -1390,7 +1395,7 @@ describe('the lobby', () => {
 		// rooms created in one click tied on `createdAt`, and the tie-break is
 		// the random room id, so the front page's order flipped run to run.
 		const dir = await tempDir();
-		const caller = { id: 'fk:1111111111111111', name: 'user-alice' };
+		const caller = { id: 'fk:1111111111111111', name: 'user-alice', userId: 'uid-user-alice' };
 		const first = await lobbyMod.openLobby({ dir, now: () => 1_000 });
 		for (const name of ['one', 'two', 'three']) {
 			const made = first.create(caller, { name, gameType: 'constructed-1v1', clientMode: 'builtin' });
@@ -1522,8 +1527,8 @@ describe('POST /api/rooms/:id/leave', () => {
 		// And it is persisted: still gone after a restart, over the SAME dir.
 		const reopened = await openApp(dir);
 		expect(
-			(reopened.lobby.get(room.id) as import('../room/lobby.ts').RoomView | undefined)?.members.map((m) => m.name),
-		).toEqual(['user-alice']);
+			(reopened.lobby.get(room.id) as import('../room/lobby.ts').RoomView | undefined)?.members.map((m) => m.id),
+		).toEqual([room.creator]);
 	});
 
 	it('a tournament entrant who leaves mid-round has dropped out: their forfeited game is handed on to end, theirs to lose', async () => {

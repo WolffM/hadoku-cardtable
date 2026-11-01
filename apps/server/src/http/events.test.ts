@@ -191,7 +191,7 @@ describe('/api/events', () => {
 		expect(lobby.setGameType(event.roomId!, leader, 'draft').ok).toBe(true);
 		expect(await listed()).toMatchObject({ kind: 'draft-pod', room: { gameType: 'draft', mode: null } });
 
-		expect(lobby.join(event.roomId!, { id: 'fk:2222222222222222', name: 'user-bob' }).ok).toBe(true);
+		expect(lobby.join(event.roomId!, { id: 'fk:2222222222222222', name: 'user-bob', userId: 'uid-user-bob' }).ok).toBe(true);
 		expect((await listed())?.room?.members).toBe(2);
 	});
 

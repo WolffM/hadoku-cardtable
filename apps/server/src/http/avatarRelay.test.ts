@@ -99,8 +99,8 @@ describe('an avatar change reaches the running match (Q6)', () => {
 });
 
 describe('a room and its match across a restart', () => {
-	const ALICE = { id: 'fk:1111111111111111', name: 'user-alice' };
-	const BOB = { id: 'fk:2222222222222222', name: 'user-bob' };
+	const ALICE = { id: 'fk:1111111111111111', name: 'user-alice', userId: 'uid-user-alice' };
+	const BOB = { id: 'fk:2222222222222222', name: 'user-bob', userId: 'uid-user-bob' };
 	const dirs: string[] = [];
 
 	afterAll(async () => {
