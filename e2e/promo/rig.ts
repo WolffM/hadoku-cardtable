@@ -9,7 +9,7 @@
  *
  * Frames arrive as JPEGs at `capture.mjs`, a process of its own (so a busy test never delays a frame's
  * ack), which keeps each with its arrival time. At `stop` ffmpeg lays them out with exactly those
- * durations and converts to 60 fps CFR. The screencast delivers about 95% of the compositor's frames
+ * durations (`frame-list.ts`) and converts to 60 fps CFR. The screencast delivers about 95% of the compositor's frames
  * however it is tuned (JPEG quality, acking off-process), so a missed frame is blended from its two
  * neighbours instead of repeating the last one. The sound comes from the null sink, and the encode runs
  * on NVENC, so nothing competes for the CPU. The other seat runs headless in software; nobody sees it.
@@ -37,11 +37,11 @@ import type { Friend } from '../play/browser.ts';
 import { PLAY_EDGE_ORIGIN, RUN_DIR } from '../play/harness.ts';
 import { registerFriendContext } from '../play/open-friends.ts';
 import { keepPrefsLocal, setPlayFastModeDefault } from '../prefsLocal.ts';
+import { FILM_FILTER, FPS, frameList } from './frame-list.ts';
 import { seedMouse } from './mouse.ts';
 
 export const WIDTH = 1920;
 export const HEIGHT = 1080;
-const FPS = 60;
 export const PROMO_DIR = resolve(RUN_DIR, 'promo');
 
 /** The hero's GPU path: ANGLE on Vulkan, raster on the GPU, Chromium's own 60 Hz frame clock left alone. */
@@ -157,20 +157,11 @@ export async function startFilm(clip: string): Promise<Film & { roll(): Promise<
         const late = gaps.filter((g) => g > (1000 / FPS) * 1.5).length;
         console.log(`[promo:${clip}] captured ${arrivals.length} frames over ${((end - t0) / 1000).toFixed(1)} s, ${late} gaps over 25 ms, longest ${Math.max(0, ...gaps)} ms`);
         writeFileSync(resolve(dir, `${clip}.frames.json`), JSON.stringify({ arrivals: arrivals.map((t) => t - t0) }));
-        // The clip's clock is t0 (what the marks count from): the first frame holds from t0 to its successor.
-        const times = [t0, ...arrivals.slice(1), end];
-        const list = arrivals.map((_, i) => `file '${String(i + 1).padStart(6, '0')}.jpg'\nduration ${((times[i + 1]! - times[i]!) / 1000).toFixed(4)}\n`).join('');
-        // A still screen sends no frames, and minterpolate ends at the last frame it is given, ignoring how long
-        // that frame was meant to hold: so the last frame is given again at the clip's real end. (A Victory
-        // screen is still, and is the shot: Progenitus lost its last five seconds to this.)
-        const last = `file '${String(arrivals.length).padStart(6, '0')}.jpg'\n`;
-        writeFileSync(resolve(frames, 'list.txt'), `${list}${last}duration 0.0167\n${last}`);
+        writeFileSync(resolve(frames, 'list.txt'), frameList(arrivals, t0, end));
         execFileSync('ffmpeg', ['-y', '-loglevel', 'error',
           '-f', 'concat', '-safe', '0', '-i', resolve(frames, 'list.txt'),
           '-ss', ((t0 - audioAt) / 1000).toFixed(3), '-i', resolve(dir, 'audio.flac'),
-          // A frame the screencast missed (it delivers ~95% of them) is blended from its two neighbours,
-          // not a repeat of the one before: a single missed frame reads as motion, not a hitch.
-          '-vf', `minterpolate=fps=${FPS}:mi_mode=blend,format=yuv420p`, '-c:v', 'h264_nvenc', '-preset', 'p5', '-rc', 'constqp', '-qp', '14',
+          '-vf', FILM_FILTER, '-c:v', 'h264_nvenc', '-preset', 'p5', '-rc', 'constqp', '-qp', '14',
           '-t', ((end - t0) / 1000).toFixed(3), '-c:a', 'flac', out]);
         rmSync(frames, { recursive: true, force: true });
         rmSync(resolve(dir, 'audio.flac'), { force: true });
