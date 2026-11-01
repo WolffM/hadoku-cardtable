@@ -287,11 +287,11 @@
 .board-departure__cracks polyline {
   fill: none;
   stroke: var(--shadow);
-  stroke-width: 2px;
+  /* In the 100×100 box's own units: about 2 px on a board card. Never `non-scaling-stroke` — the dash would be measured on screen, and the hidden crack show before its beat (`dash-draw.test.ts`). */
+  stroke-width: 1.6;
   stroke-linejoin: round;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  vector-effect: non-scaling-stroke;
 }
 
 .board-departure[data-exit-go] > .board-departure__cracks polyline {

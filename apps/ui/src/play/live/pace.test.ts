@@ -15,7 +15,7 @@ import type { MatchTransport } from './match.ts';
 import { MATCH_EVENTS } from './transport.ts';
 import { FLIP_MS } from './CoinToss.tsx';
 import { DIE_STAGGER_MS, POP_MS, TUMBLE_MS } from './dice.ts';
-import { actMemory, BOARD_HOLD_MAX_MS, classify, inTheAir, isPacedTransport, ownAct, pacedMatchTransport, PACE_DELAYS_MS, type PaceClass } from './pace.ts';
+import { actMemory, BOARD_HOLD_MAX_MS, classify, inTheAir, isPacedTransport, ownAct, pacedMatchTransport, PACE_DELAYS_MS, RESOLVE_CHAIN_GAP_MS, type PaceClass } from './pace.ts';
 
 /* ── Building the shapes `classify` reads ────────────────────────────── */
 
@@ -1060,5 +1060,125 @@ describe('PACE_DELAYS_MS', () => {
     expect(PACE_DELAYS_MS.input).toBe(0);
     expect(PACE_DELAYS_MS.cast).toBe(0);
     expect(PACE_DELAYS_MS.unseen).toBe(0);
+  });
+});
+
+/*
+ * The operator, 2026-11-01, watching trailer cut 4's Valakut: "the valakut triggers all seem to resolve at the
+ * same time? i feel like there should be a small delay between each of them resolving even if the other player
+ * did auto-yield. i would like it if the triggers can be seen resolving one at a time individually".
+ * Forge sends each trigger's resolution as its own frame, ~40 ms apart (cut3-evidence-valakut2's server log):
+ * the seat's own went out as they came (AF216), the other screen's 2 s apart on the board's beats.
+ */
+describe('a chain of resolutions nobody decides between', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const ALICE = 0;
+  const BOB = 1;
+  const N = 10;
+  const pushed = (ids: number[], activator: number) =>
+    deltaOf({ g: stackOf(ids) }, { [`s${ids[0]}`]: { _type: 2, _id: ids[0], ActivatingPlayer: { t: 'int', v: activator } } });
+  /** Trigger `k` (of `N`, the top first) resolving: it leaves the stack and bob is hit. */
+  const resolved = (k: number) => deltaOf({ g: stackOf(Array.from({ length: N - k - 1 }, (_, i) => 100 + k + 1 + i)), p1: { _type: 1, _id: 1, Life: { t: 'int', v: 20 - 3 * (k + 1) } } });
+  const CLEAR_WEAK = { frame: { kind: 'notify', method: 'clearWeaklySelectable' } };
+  const AFTER = deltaOf({ g: { _type: 3, _id: 1, PriorityPlayer: { t: 'int', v: 0 } } });
+  /** The triggers going on, the top last; then each resolving with what Forge sends round it, auto-passed by both. */
+  const triggers = Array.from({ length: N }, (_, i) => pushed(Array.from({ length: i + 1 }, (_, j) => 100 + N - 1 - i + j), ALICE));
+  const chain = Array.from({ length: N }, (_, k) => [resolved(k), AFTER, INPUT_NOTIFY, CLEAR_WEAK]).flat();
+  const isResolve = (p: unknown): boolean => Array.from({ length: N }, (_, k) => resolved(k)).some((r) => JSON.stringify(r) === JSON.stringify(p));
+
+  function watch(viewer: number | null, opts: Parameters<typeof pacedMatchTransport>[1] = {}) {
+    const inner = fakeInner();
+    const transport = pacedMatchTransport(inner, opts);
+    const times: number[] = [];
+    const received: unknown[] = [];
+    transport.on(MATCH_EVENTS.serverToClient, (p) => {
+      received.push(p);
+      if (isResolve(p)) times.push(Date.now());
+    });
+    transport.setSeatPlayer(() => viewer);
+    return { inner, transport, times, received };
+  }
+
+  async function run(until: () => boolean, maxMs = 30_000): Promise<void> {
+    const from = Date.now();
+    while (!until() && Date.now() - from < maxMs) await vi.advanceTimersByTimeAsync(1);
+  }
+
+  const gaps = (times: number[]): number[] => times.slice(1).map((t, i) => t - times[i]!);
+
+  for (const [who, viewer] of [['alice, whose triggers they are', ALICE], ['bob, on Auto Yield', BOB], ['a watcher', null]] as const) {
+    it(`${who}: each of ten triggers resolves on its own beat, ${RESOLVE_CHAIN_GAP_MS} ms apart, over the board's beats`, async () => {
+      const board = fakeBoard();
+      const { inner, times, received } = watch(viewer, { boardStill: board.still });
+      for (const t of triggers) inner.deliver(t);
+      await run(() => received.length === triggers.length);
+      await vi.advanceTimersByTimeAsync(5_000);
+      board.busy(true); // every hit's beats run longer than the gap: the chain does not wait them out
+      for (const f of chain) inner.deliver(f);
+      await run(() => times.length === N);
+      expect(times, 'every resolution went out').toHaveLength(N);
+      board.busy(false); // what follows the chain's end waits for the board as before
+      await vi.advanceTimersByTimeAsync(1_000);
+      for (const g of gaps(times)) {
+        expect(g, `gaps ${gaps(times).join(',')}`).toBeGreaterThanOrEqual(RESOLVE_CHAIN_GAP_MS);
+        expect(g, `gaps ${gaps(times).join(',')}`).toBeLessThanOrEqual(RESOLVE_CHAIN_GAP_MS + 2);
+      }
+      expect(received.slice(triggers.length), 'in the order Forge sent them').toEqual(chain);
+    });
+  }
+
+  it('a question for the seat mid-chain is not held by the gap: the rest catch up and it opens at once', async () => {
+    const { inner, received } = watch(ALICE);
+    for (const t of triggers) inner.deliver(t);
+    await vi.advanceTimersByTimeAsync(5_000);
+    for (const f of chain.slice(0, 4 * 4)) inner.deliver(f);
+    await vi.advanceTimersByTimeAsync(RESOLVE_CHAIN_GAP_MS + 2);
+    expect(received.length, 'the chain is being paced').toBeLessThan(triggers.length + 16);
+    inner.deliver(ASK);
+    await vi.advanceTimersByTimeAsync(4);
+    expect(received.at(-1), 'the question is up within a few ms').toBe(ASK);
+    expect(received.slice(triggers.length)).toEqual([...chain.slice(0, 16), ASK]);
+  });
+
+  it("the seat's click mid-chain is sent at once, and what is queued catches up", async () => {
+    const { inner, transport, received } = watch(ALICE);
+    for (const t of triggers) inner.deliver(t);
+    await vi.advanceTimersByTimeAsync(5_000);
+    for (const f of chain) inner.deliver(f);
+    await vi.advanceTimersByTimeAsync(RESOLVE_CHAIN_GAP_MS + 2);
+    expect(received.length).toBeLessThan(triggers.length + chain.length);
+    transport.emit(MATCH_EVENTS.clientToServer, { matchId: 'm1', frame: { kind: 'act', method: 'selectCard' } });
+    expect(inner.emits, 'the click went out at once').toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(N * 2);
+    expect(received.slice(triggers.length), 'the rest caught up').toEqual(chain);
+  });
+
+  it('Fast Mode spaces nothing', async () => {
+    const { inner, times } = watch(ALICE, { initialFast: true });
+    for (const t of triggers) inner.deliver(t);
+    for (const f of chain) inner.deliver(f);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(times).toHaveLength(N);
+  });
+
+  it('the stack emptying ends the chain: what follows keeps its own pace on the other screen', async () => {
+    const board = fakeBoard();
+    const { inner, received } = watch(BOB, { boardStill: board.still });
+    for (const t of triggers.slice(0, 2)) inner.deliver(t);
+    await vi.advanceTimersByTimeAsync(5_000);
+    const two = [deltaOf({ g: stackOf([101]) }), deltaOf({ g: stackOf([]) })];
+    for (const f of two) inner.deliver(f);
+    await vi.advanceTimersByTimeAsync(PACE_DELAYS_MS.resolve + RESOLVE_CHAIN_GAP_MS + 2);
+    expect(received).toHaveLength(4);
+    board.busy(true);
+    inner.deliver(DEFAULT_DELTA);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(received, 'a frame after the chain waits for the board as before').toHaveLength(4);
   });
 });

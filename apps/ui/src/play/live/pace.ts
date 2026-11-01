@@ -141,6 +141,19 @@
  * theirs, so the opponent's blocks after the seat's attack are still drawn one at a time. A setting the seat
  * changes (auto-yield, a stop) is not an act.
  *
+ * ## A chain resolves one item at a time
+ *
+ * The operator, 2026-11-01, of trailer cut 4's ten Valakut triggers: *"i would like it if the triggers can be seen
+ * resolving one at a time individually, the slight delay between each one should accomplish that."* Forge sends
+ * each resolution as its own frame, about 40 ms apart, when nobody stops between them (the seat's own triggers
+ * auto-passed, the other seat on Auto Yield): the seat's own went out as they came and read as one, the other
+ * screen's waited a resolve gap and the board's beats each, two seconds apart. So once a resolution leaves items
+ * on the stack, the next one to leave goes {@link RESOLVE_CHAIN_GAP_MS} after it — on every screen, whoever owns
+ * the chain — and neither it nor anything Forge sends between them waits for the board: each hit plays over the
+ * last. The chain ends when anything is decided (an ask, Forge's prompt line, the seat's own click), the stack
+ * grows, the step moves, or the stack empties; what of it is still queued then goes as it comes, so the seat's
+ * input is never held by a gap (AF216), and frames still go out in order.
+ *
  * ## A die or a coin lands before anything goes on
  *
  * The operator, 2026-10-28: *"lets make sure the dice roll completes before any action is triggered."* A
@@ -171,7 +184,7 @@
 import { DELTA_TYPE } from '@hadoku/forge-wire';
 import { CLIENT_EVENT, type ClientEvent } from '@hadoku/shared';
 
-import { boardHold, prefersReducedMotion, unlockAfter, whenBoardUnlocked, type BoardHold } from '../motion.ts';
+import { BOLT_STAGGER_MS, boardHold, prefersReducedMotion, unlockAfter, whenBoardUnlocked, type BoardHold } from '../motion.ts';
 import { FLIP_MS } from './CoinToss.tsx';
 import { rollMs } from './dice.ts';
 import type { MatchTransport } from './match.ts';
@@ -215,6 +228,19 @@ const HELD_BY_THE_BOARD: ReadonlySet<PaceClass> = new Set<PaceClass>(['cast', 'r
 
 /** The classes that step the game on: one queued behind another frame was passed straight through, so it keeps no gap. */
 const STEPS: ReadonlySet<PaceClass> = new Set<PaceClass>(['phase', 'turn']);
+
+/**
+ * Between two resolutions of a chain nobody decides in ({@link Chain}): each stack item is drawn leaving on its own
+ * beat, the bolts' own stagger apart, on every screen and whoever owns the chain.
+ */
+export const RESOLVE_CHAIN_GAP_MS = BOLT_STAGGER_MS;
+
+/**
+ * A frame's place in a chain of resolutions nobody decides in (module header, "A chain resolves one item at a
+ * time"): `resolve`, an item after the first leaving, which goes {@link RESOLVE_CHAIN_GAP_MS} after the one
+ * before it; `between`, what Forge sends round them, which goes as it comes. Neither waits for the board.
+ */
+type Chain = 'resolve' | 'between' | null;
 
 /** The longest a frame waits on the board's beats: a beat that never says it is over must not freeze the table. */
 export const BOARD_HOLD_MAX_MS = 5_000;
@@ -494,6 +520,7 @@ interface Entry {
   pace: PaceClass;
   /** Part of the seat's own act ({@link ownAct}), or input following it: no gap, no wait on the board. */
   own: boolean;
+  chain: Chain;
   arrivedAt: number;
   boardAt: number;
   gapAt: number;
@@ -577,6 +604,35 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   let seatPlayer: () => number | null = () => null;
   let timer: unknown = null;
   let lastDeliveredAt = -Infinity;
+  /** When the last resolution went out: the next item of a chain goes {@link RESOLVE_CHAIN_GAP_MS} after it. */
+  let lastResolveAt = -Infinity;
+  /** The last frame that carried the stack was a resolution that left items on it, and nobody has decided anything since. */
+  let chainOpen = false;
+
+  /** The chain is over (a decision, the seat's click, the stack growing, a step): what of it is queued goes as it comes. */
+  function endChain(): void {
+    chainOpen = false;
+    let caught = false;
+    for (const entry of queue) {
+      if (entry.chain !== 'resolve') continue;
+      entry.chain = 'between';
+      caught = true;
+    }
+    if (caught && boardWait === null) stopTimer();
+  }
+
+  /** Where a frame arriving now stands in a chain ({@link Chain}); `before` is the stack's depth before it. */
+  function chainOf(payload: unknown, pace: PaceClass, before: number | null): Chain {
+    const after = memory.stackDepth;
+    if (opensDecision(payload) || STEPS.has(pace) || (after !== null && before !== null && after > before)) {
+      endChain();
+      return null;
+    }
+    if (pace !== 'resolve' || after === before) return chainOpen ? 'between' : null;
+    const chain: Chain = chainOpen ? 'resolve' : null;
+    chainOpen = (after ?? 0) > 0;
+    return chain;
+  }
   /** When the die or coin last thrown lands: nothing goes out before it ({@link inTheAir}). */
   let landsAt = -Infinity;
   /** Something was thrown, and no frame since has waited for it to land on the board. */
@@ -612,15 +668,16 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
     board: boardMs + (boardSince === null ? 0 : now() - boardSince),
     gap: gapMs + (gapSince === null ? 0 : now() - gapSince),
   });
-  function entryOf(payload: unknown, pace: PaceClass, own: boolean): Entry {
+  function entryOf(payload: unknown, pace: PaceClass, own: boolean, chain: Chain): Entry {
     const at = spent();
-    return { payload, pace, own, arrivedAt: now(), boardAt: at.board, gapAt: at.gap, deliveredAt: delivered };
+    return { payload, pace, own, chain, arrivedAt: now(), boardAt: at.board, gapAt: at.gap, deliveredAt: delivered };
   }
 
   function deliverNext(): void {
     const next = queue.shift();
     if (next === undefined) return;
     lastDeliveredAt = now();
+    if (next.pace === 'resolve') lastResolveAt = lastDeliveredAt;
     const held = lastDeliveredAt - next.arrivedAt;
     if (next.pace === 'input' && held >= INPUT_HELD_REPORT_MS && opensDecision(next.payload)) {
       const at = spent();
@@ -662,7 +719,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   /** Start waiting for the board's beats before `entry` goes out, when it must: `false` when it need not, or the board is already still. */
   function waitForBoard(entry: Entry): boolean {
     if (boardFreed === entry) return false;
-    if (!thrown && (fast || entry.own || !waitsForTheBoard(entry.pace))) return false;
+    if (!thrown && (fast || entry.own || entry.chain !== null || !waitsForTheBoard(entry.pace))) return false;
     thrown = false;
     let waiting = false;
     let stillNow = false;
@@ -710,7 +767,8 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   function pump(): void {
     if (timer !== null || boardWait !== null || queue.length === 0) return;
     const head = queue[0]!;
-    const waitMs = Math.max(0, lastDeliveredAt + delayFor(head.pace, queue.length > 1, head.own) - now(), landsAt - now());
+    const due = head.chain === null ? lastDeliveredAt + delayFor(head.pace, queue.length > 1, head.own) : head.chain === 'resolve' && !fast ? lastResolveAt + RESOLVE_CHAIN_GAP_MS : 0;
+    const waitMs = Math.max(0, due - now(), landsAt - now());
     if (waitMs > 0) {
       gapSince = now();
       timer = schedule(() => {
@@ -789,8 +847,10 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
         // A question starts the seat's act, but input waits as the act it follows does: after the seat's own at once, after anyone else's on its beats.
         const follows = acts.actor;
         const own = ownAct(payload, acts, seatPlayer());
+        const depth = memory.stackDepth;
         const pace = classify(payload, memory);
-        queue.push(entryOf(payload, pace, pace === 'input' ? seatPlayer() !== null && follows === 'own' : own))
+        const chain = chainOf(payload, pace, depth);
+        queue.push(entryOf(payload, pace, pace === 'input' ? seatPlayer() !== null && follows === 'own' : own, chain));
         // A step waiting on its gap has just been superseded: let it go now.
         if (timer !== null && queue.length === 2 && STEPS.has(queue[0]!.pace) && !fast) stopTimer();
         pump();
@@ -798,7 +858,11 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
     },
     // Outgoing, and the ack of a request: never paced. See the module header's own note on why a resync's snapshot never enters this queue at all.
     emit(event, payload) {
-      if (event === MATCH_EVENTS.clientToServer && seatPlayer() !== null) acts.actor = 'own';
+      if (event === MATCH_EVENTS.clientToServer && seatPlayer() !== null) {
+        acts.actor = 'own';
+        endChain();
+        pump();
+      }
       inner.emit(event, payload);
     },
     request(event, payload, onAck) {
