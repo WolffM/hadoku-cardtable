@@ -7,7 +7,7 @@ import { test } from '@playwright/test';
 
 import { pressPaymentAuto } from '../play/board.ts';
 import { answerPrompt } from '../play/prompts.ts';
-import { cast, okEnabled, pressIfThere, restCursor, shootScenario, until, wrap, type Shoot } from './drive.ts';
+import { autoYield, cast, okEnabled, pressIfThere, restCursor, shootScenario, until, wrap, type Shoot } from './drive.ts';
 
 test('emrakul: fifteen power lands', async ({ browser }) => {
   let shoot: Shoot | undefined;
@@ -16,6 +16,8 @@ test('emrakul: fifteen power lands', async ({ browser }) => {
     const { film, hero, rival } = shoot;
     const page = hero.page;
     const emrakul = page.locator('.seat[data-viewer] [data-zone="battlefield"] [data-board-card]', { hasText: 'Emrakul' });
+    // The rival answers nothing: without Auto Yield the landing waited ~15 s on its priority (cut 3).
+    await autoYield(rival.page);
     film.mark('board');
     await film.beat(2_000);
 

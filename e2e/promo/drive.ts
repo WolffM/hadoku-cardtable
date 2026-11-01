@@ -32,7 +32,7 @@ export async function shootScenario(browser: Browser, clip: string, scenario: st
     stack = await startPlayStack(forge);
     const { alice, bob } = await startScenarioMatch(browser, stack, scenario, {
       seats: {
-        open: [() => openPromoFriend(film.hero, HERO, { filmed: true }), () => openPromoFriend(browser, RIVAL)],
+        open: [() => openPromoFriend(film.hero, HERO), () => openPromoFriend(browser, RIVAL)],
         names: [TAGS[HERO]!, TAGS[RIVAL]!],
         // A roomless match has no room to read a face from: the probe-only `avatars` field carries them.
         avatars: [AVATARS[HERO]!, AVATARS[RIVAL]!],
@@ -42,6 +42,7 @@ export async function shootScenario(browser: Browser, clip: string, scenario: st
     await alice.page.waitForLoadState('networkidle').catch(() => undefined);
     await film.beat(2_000);
     await film.roll();
+    watchEvents(film, alice.page);
     return { film, stack, hero: alice, rival: bob };
   } catch (err) {
     await wrap({ film, stack });
@@ -49,7 +50,36 @@ export async function shootScenario(browser: Browser, clip: string, scenario: st
   }
 }
 
+/**
+ * Mark the game's own events while a clip rolls: every change in the stack's size (`stack:N`) and in either
+ * life total (`life:theirs:N`, `life:mine:N`), polled every 100 ms. Landings, resolutions and hits are then
+ * in the marks, so the edit cuts on what the board did rather than on when the driver pressed.
+ */
+function watchEvents(film: Film, page: Page): void {
+  const last = new Map<string, string>();
+  const timer = setInterval(() => {
+    void (async () => {
+      const now = await page
+        .evaluate(() => ({
+          stack: document.querySelector('[data-zone="stack"]')?.getAttribute('data-count') ?? '0',
+          'life:mine': document.querySelector('.seat[data-viewer] [data-testid="life"]')?.textContent?.trim() ?? '',
+          'life:theirs': document.querySelector('.seat:not([data-viewer]) [data-testid="life"]')?.textContent?.trim() ?? '',
+        }))
+        .catch(() => null);
+      if (now === null) return;
+      for (const [key, value] of Object.entries(now)) {
+        if (last.has(key) && last.get(key) !== value) film.mark(`${key}:${value}`);
+        last.set(key, value);
+      }
+    })();
+  }, 100);
+  watching.set(film, timer);
+}
+
+const watching = new WeakMap<Film, ReturnType<typeof setInterval>>();
+
 export async function wrap(shoot: Partial<Shoot> & { film?: Film }): Promise<void> {
+  if (shoot.film !== undefined) clearInterval(watching.get(shoot.film));
   await shoot.film?.stop();
   await shoot.stack?.stop();
 }

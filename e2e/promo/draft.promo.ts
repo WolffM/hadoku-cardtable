@@ -36,7 +36,7 @@ test('draft: the pod, fan and grid, a card turned over', async () => {
   let stack: PlayStack | undefined;
   try {
     stack = await startPlayStack(forge);
-    const hero = await openPromoFriend(film.hero, HERO, { filmed: true });
+    const hero = await openPromoFriend(film.hero, HERO);
     const page = hero.page;
     await page.goto(`${stack.origin}${PREFIX}/`);
     await submitCreateRoom(page, { name: 'Vintage Cube Night', gameType: 'draft' });
