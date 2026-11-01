@@ -1,0 +1,16 @@
+# Promo footage (`e2e/promo/bigattack.promo.ts`): a wide board swings at once. Twelve creatures of every size
+# attack a rival at 20 with no blockers; the strikes land weakest first and strongest last (w87a), and the
+# defender's avatar recoils under the weight (wavatar).
+turn=7
+activeplayer=human
+activephase=MAIN1
+humanlife=13
+ailife=20
+humanhand=
+humanbattlefield=Llanowar Elves;Goblin Guide;Monastery Swiftspear;Young Pyromancer;Tarmogoyf;Kitchen Finks;Knight of the Reliquary;Thragtusk;Baneslayer Angel;Wurmcoil Engine;Woodfall Primus;Craterhoof Behemoth;Forest;Forest;Forest;Mountain;Plains;Savannah
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=
+aibattlefield=Island;Island;Island;Volcanic Island;Polluted Delta
+aigraveyard=Force of Will;Counterspell
+ailibrary=Island;Island;Island;Island;Island;Island
