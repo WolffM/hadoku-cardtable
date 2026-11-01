@@ -41,8 +41,17 @@ makes "an id that no longer resolves to anyone" (R12's erase story) render as a 
 seat. A `@wolffm/prefs-client` (or session-client) helper alongside `resolveAvatars` would be
 welcome but is not needed.
 
+## Caching is yours
+
+The operator, 2026-11-01: *"data always keep userid. when retrieved and displayed, we can do whoami
+calls to lookup their user data when it is needed. i do expect hadoku_site to build some resilient
+and intelligent caching for whoami calls."* So this is a **whoami by userId**: cardtable stores
+only userIds and calls this route every time it shows people, with no cache of its own. Resilient
+caching (and whatever invalidation a rename or an erase needs) lives behind the route, once, for
+every app, not in each consumer.
+
 ## What cardtable does meanwhile
 
-An in-memory userId → name map, fed from `X-User-Name` on every vouched request and socket
-handshake, never written to disk. Someone not seen since the last restart shows unnamed. When
-this route exists, the map becomes a cache in front of it and history views name everyone.
+Stored state keeps only userIds. Until this route exists, a name is shown only for someone the
+server can see on a live request (`X-User-Name` on their own request or socket); anyone else shows
+unnamed. When the route lands, cardtable calls it at display time and that gap closes.
