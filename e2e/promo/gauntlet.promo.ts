@@ -34,7 +34,7 @@ test('gauntlet: two people reveal, ban and pick, choose', async ({ browser }) =>
   let stack: PlayStack | undefined;
   try {
     stack = await startPlayStack(forge);
-    const hero = await openPromoFriend(film.hero, HERO, { filmed: true });
+    const hero = await openPromoFriend(film.hero, HERO);
     const rival = await openPromoFriend(browser, RIVAL);
     const page = hero.page;
     const made = await hero.context.request.post(`${stack.origin}${PREFIX}/api/rooms`, {
@@ -84,13 +84,15 @@ test('gauntlet: two people reveal, ban and pick, choose', async ({ browser }) =>
       if (v.phase !== 'banpick' || v.step === null) return false;
       // `you` is the rival's own seat: the view is read with the rival's cookie.
       if (v.step.seat === v.you) {
-        if (rivalDue === 0) rivalDue = Date.now() + 1_300 + ((theirs * 397) % 900);
+        if (rivalDue === 0) rivalDue = Date.now() + 1_000 + ((theirs * 397) % 800);
         if (Date.now() < rivalDue) return false;
         rivalDue = 0;
         const open = v.decks.filter((d) => d.status === 'open');
         const deck = open[(theirs * 3 + 1) % open.length]!;
-        theirs += 1;
         console.log(`[promo:gauntlet] Nightjar ${v.step.act}s ${deck.name}`);
+        // Every act is marked, so the edit can show each ban and pick at real speed and cut only the waits.
+        theirs += 1;
+        film.mark(`act-${mine + theirs}`);
         await rivalCall('/gauntlet/act', { act: v.step.act, deck: deck.id });
         return false;
       }
@@ -100,7 +102,8 @@ test('gauntlet: two people reveal, ban and pick, choose', async ({ browser }) =>
       if (n === 0) return false;
       mine += 1;
       console.log(`[promo:gauntlet] Ashgrove act ${mine}: ${(await banner.textContent())?.trim()}`);
-      await considerAndPress(page, open.nth((mine * 2) % n), mine <= 2 ? 1_600 : 800);
+      film.mark(`act-${mine + theirs}`);
+      await considerAndPress(page, open.nth((mine * 2) % n), mine <= 2 ? 1_200 : 750);
       if (mine === 1) film.mark('banned');
       return false;
     }, 180_000, 250);

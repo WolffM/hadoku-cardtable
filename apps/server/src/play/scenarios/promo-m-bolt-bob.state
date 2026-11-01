@@ -1,0 +1,12 @@
+# Promo montage (`e2e/promo/montage.promo.ts`): Lightning Bolt kills the rival's Dark Confidant.
+turn=6
+activeplayer=human
+activephase=MAIN1
+humanlife=16
+ailife=14
+humanhand=Lightning Bolt
+humanbattlefield=Goblin Guide;Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aihand=
+aibattlefield=Dark Confidant;Swamp;Bayou;Polluted Delta
+ailibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
