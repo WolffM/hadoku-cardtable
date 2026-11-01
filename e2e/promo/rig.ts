@@ -24,6 +24,7 @@ import type { Friend } from '../play/browser.ts';
 import { PLAY_EDGE_ORIGIN, RUN_DIR } from '../play/harness.ts';
 import { registerFriendContext } from '../play/open-friends.ts';
 import { keepPrefsLocal, setPlayFastModeDefault } from '../prefsLocal.ts';
+import { seedMouse } from './mouse.ts';
 
 export const WIDTH = 1920;
 export const HEIGHT = 1080;
@@ -64,6 +65,7 @@ export interface Film {
 export async function startFilm(clip: string, display = Number(process.env.PROMO_DISPLAY ?? '97')): Promise<Film & { roll(): Promise<void> }> {
   const dir = resolve(PROMO_DIR, clip);
   mkdirSync(dir, { recursive: true });
+  seedMouse(clip);
   const lock = `/tmp/.X${display}-lock`;
   if (existsSync(lock)) throw new Error(`promo rig: display :${display} is taken (${lock}); set PROMO_DISPLAY`);
   const xvfb = spawn('Xvfb', [`:${display}`, '-screen', '0', `${WIDTH}x${HEIGHT}x24`, '-nolisten', 'tcp', '-ac'], { stdio: 'ignore' });

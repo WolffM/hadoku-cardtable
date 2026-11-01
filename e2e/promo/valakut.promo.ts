@@ -57,9 +57,8 @@ test('valakut: Scapeshift for ten triggers', async ({ browser }) => {
     film.mark('triggers');
     await film.beat(2_200);
     const same = page.getByTestId('live-same-target');
-    // At 1920×1080 the box is drawn under the popup's own tiles (a real overlap — reported, not fixed
-    // here), so it is ticked without a pointer; the face click below is the shot.
-    if ((await same.count()) > 0) await same.evaluate((el) => (el as HTMLInputElement).click());
+    // The same-target box, ticked by a real click (§C put it clear of the popup's tiles).
+    if ((await same.count()) > 0) await deliberateClick(page, same, { hover: 500 });
     await deliberateClick(page, opponentFace(page), { hover: 700 });
     film.mark('targeted');
 
