@@ -189,6 +189,8 @@ export type SeatSpecWithIdentity = MatchSpec['seats'][number] & {
 	 * only a fallback (`Seat 1`) and {@link SeatIdentity.name} says nothing.
 	 */
 	displayName?: string;
+	/** A probe-only portrait for a match no room started (`socket.ts`'s `avatars`); a room's own avatar wins. */
+	avatarId?: string;
 };
 
 /** `MatchSpec`, with both seats widened the same way. */
@@ -329,6 +331,8 @@ export interface SeatState {
 	playerId: number | null;
 	/** See {@link SeatSpecWithIdentity.displayName}. */
 	displayName?: string;
+	/** See {@link SeatSpecWithIdentity.avatarId}. */
+	avatarId?: string;
 	readonly projector: SeatProjector;
 	/** The last `forge:s2c` seq this seat was sent. 0 = none yet. */
 	seq: number;
@@ -1254,6 +1258,7 @@ export class Match {
 			owner: null,
 			playerId: null,
 			displayName: (s as SeatSpecWithIdentity).displayName,
+			...((s as SeatSpecWithIdentity).avatarId === undefined ? {} : { avatarId: (s as SeatSpecWithIdentity).avatarId }),
 			projector: createProjector(),
 			seq: 0,
 			history: [],
@@ -1722,7 +1727,7 @@ export class Match {
 			playerId: s.playerId,
 			...(() => {
 				const owner = s.ai ? AI_SEAT_OWNER : s.owner;
-				const avatarId = owner === null ? undefined : this.deps.seatAvatar?.(this.id, owner);
+				const avatarId = owner === null ? undefined : (this.deps.seatAvatar?.(this.id, owner) ?? s.avatarId);
 				return avatarId === undefined ? {} : { avatarId };
 			})(),
 			...(s.displayName === undefined ? {} : { name: s.displayName }),

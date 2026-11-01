@@ -3,51 +3,124 @@
 The trailer's edit: `python3 -I e2e/promo/cut.py` after every clip is shot (`shoot.sh <clip>`).
 
 Each segment names a clip, two of its marks (`<clip>.marks.json`, seconds from the first frame) with
-offsets, a speed, and an optional caption. Segments are rendered one by one to 1080p60, the title and end
-cards are drawn by ffmpeg itself, they are joined in order, and one music bed from the game's own library
-runs under the whole cut. Output: e2e/.run/promo/trailer/trailer.mp4 (and each segment beside it, so a
-re-edit in another editor can start from them). Nothing here is committed footage.
+offsets, a speed, and an optional caption. Segments are rendered one by one to 1080p60 and joined with hard
+cuts; the title and end cards are drawn by ffmpeg itself, and one music bed from the game's own library
+runs under the whole cut. Output: e2e/.run/promo/trailer/trailer.mp4 (each part and `beats.json` beside
+it, so a re-edit in another editor can start from them). Nothing here is committed footage.
+
+Captions are C2, varied per page (the operator, 2026-10-30). One family: Noto Sans Black headline, a
+letter-spaced SemiBold kicker, the accent purple, a rule, ease-out timing, and one exit (everything lifts
+away together). What varies is the ANCHOR, fixed to something on that page (`ANCHORS`, measured from a
+still of each clip), and the ENTRANCE (`rise`, `wipe`, `slide`, `drop`). No two consecutive captions share
+both; `check_captions` refuses an edit that does.
+
+The ending is a montage cut on the bed's onsets (`onsets`, a spectral-flux detector), accelerating from
+`MONTAGE_GAPS[0]` to `MONTAGE_GAPS[1]` seconds a shot, into Progenitus at full length and real speed.
 """
 
 import json
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+
+import numpy as np
+from PIL import ImageFont
 
 HERE = Path(__file__).resolve().parent
 FOOTAGE = HERE.parent / ".run" / "promo"
 OUT = FOOTAGE / "trailer"
 MUSIC = Path("/home/hadoku/srv/hadoku-cardtable/apps/server/data/sounds/takes/music-br-hellfire-tango/take-1.ogg")
-BOLD = "/usr/share/fonts/truetype/noto/NotoSans-Black.ttf"
+BLACK = "/usr/share/fonts/truetype/noto/NotoSans-Black.ttf"
+SEMI = "/usr/share/fonts/truetype/noto/NotoSans-SemiBold.ttf"
 REGULAR = "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf"
 FPS = 60
-ACCENT = "0xB497FF"  # the site's own purple, close enough for a caption bar
+ACCENT = "0xB497FF"  # the site's own purple
+BED_LEVEL = 0.42
 
-# (clip, from (mark, offset), to (mark, offset), speed, caption, subcaption)
+
+@dataclass(frozen=True)
+class Caption:
+    text: str
+    kicker: str
+    anchor: str
+    entrance: str  # rise | wipe | slide | drop
+
+
+@dataclass(frozen=True)
+class Anchor:
+    """Where a caption sits: `x` is the edge it hangs from (`align` says which), `y` the kicker's top."""
+    x: float
+    y: float
+    align: str  # left | right | centre
+    size: int = 60
+
+
+# Measured from a still of each clip at 1920×1080 (`python3 -I e2e/promo/cut.py --stills` writes them).
+ANCHORS = {
+    # The game board's top band, against the battlefield's right edge (C2 as approved).
+    "board-right": Anchor(1560, 100, "right"),
+    # The same band from the left, where the opponent's hand is empty.
+    "board-left": Anchor(360, 100, "left"),
+    # A lobby's page-title row: the room name's line, its right side.
+    "lobby-title": Anchor(1856, 34, "right", 52),
+    # The draft: the band above the pack.
+    "draft-pack": Anchor(120, 150, "left", 56),
+    # Gauntlet: the reveal row's empty top.
+    "gauntlet-reveal": Anchor(960, 168, "centre", 58),
+    # Tournament: centred above the face-off.
+    "faceoff": Anchor(960, 140, "centre", 64),
+}
+
+# (clip, from (mark, offset), to (mark, offset), speed, caption)
 # Every join is a hard cut. Two segments that share a mark are one continuous shot at two speeds.
 SEGMENTS = [
-    ("emrakul", ("cast", -0.2), ("landed", 2.2), 1.0, None, None),
+    ("emrakul", ("cast", -0.2), ("landed", 2.2), 1.0, None),
     "TITLE",
-    ("constructed", ("front", 0.2), ("front", 3.3), 1.0, "Play the decks that made history", "with your friends"),
-    ("constructed", ("legacy", 0.0), ("decks", 0.0), 1.2, "30 years of real tournament decks", "1,459 decklists  ·  Standard  ·  Modern  ·  Legacy"),
-    ("constructed", ("ready", -0.4), ("board", 1.8), 1.4, "Pick a deck. Sit down. Play.", None),
-    ("counterwar", ("counterspell", -0.3), ("daze", 4.6), 2.4, "Watch the stack unfold", None),
-    ("counterwar", ("daze", 4.6), ("oko-countered", 1.6), 0.7, None, None),
-    ("valakut", ("cast", -0.2), ("search", 0.0), 2.5, None, None),
-    ("valakut", ("search", 0.0), ("triggers", -1.5), 2.0, None, None),
-    ("valakut", ("triggers", -1.5), ("targeted", 1.0), 1.0, None, None),
-    ("valakut", ("targeted", 1.0), ("lethal", 1.5), 1.6, None, None),
-    ("breakfast", ("loop", -0.3), ("milled", 0.5), 2.0, "Combos go off at full speed", None),
-    ("breakfast", ("dread-return", -0.2), ("ghoul", 1.0), 1.8, None, None),
-    ("breakfast", ("attack", -0.3), ("win", 2.2), 1.2, None, None),
-    ("blasphemous", ("cast", 0.0), ("wiped", 5.5), 1.25, None, None),
-    ("gauntlet", ("ready", 0.0), ("choose", 2.0), 2.2, "Gauntlet", "Ten decks from one era. Ban, pick, battle."),
-    ("tournament", ("seats", 0.0), ("bracket", 3.6), 1.8, "Tournaments", "Swiss rounds for the whole group"),
-    ("draft", ("lobby", 0.2), ("fan", 0.0), 1.7, None, None),
-    ("draft", ("fan", 0.0), ("grid", 1.5), 1.4, "Draft", "100+ cubes  ·  fan or grid  ·  every face of every card"),
-    ("draft", ("flip", -0.3), ("end", 0.0), 1.0, None, None),
+    ("constructed", ("legacy", 0.0), ("decks", 0.0), 1.2, Caption("Play the decks that made history", "WITH YOUR FRIENDS", "lobby-title", "rise")),
+    ("constructed", ("decks", 0.0), ("pick", 0.0), 1.4, None),
+    ("tournament", ("paired", -0.2), ("faceoff", 2.4), 1.0, Caption("Pick a deck. Sit down. Play.", "HEAD TO HEAD", "faceoff", "drop")),
+    ("counterwar", ("counterspell", -0.3), ("daze", 4.6), 2.4, Caption("Watch the stack unfold", "THE STACK", "board-right", "wipe")),
+    ("counterwar", ("daze", 4.6), ("oko-countered", 1.6), 1.0, None),
+    ("valakut", ("cast", -0.2), ("search", 0.0), 2.5, None),
+    ("valakut", ("search", 0.0), ("triggers", -1.5), 2.0, None),
+    ("valakut", ("triggers", -1.5), ("targeted", 1.0), 1.0, None),
+    ("valakut", ("targeted", 1.0), ("lethal", 1.5), 1.6, None),
+    ("breakfast", ("loop", -0.3), ("milled", 0.5), 2.0, Caption("Combos go off at full speed", "COMBOS", "board-left", "slide")),
+    ("breakfast", ("dread-return", -0.2), ("ghoul", 1.0), 1.8, None),
+    ("breakfast", ("attack", -0.3), ("win", 2.2), 1.2, None),
+    ("blasphemous", ("cast", 0.0), ("wiped", 5.5), 1.25, None),
+    ("gauntlet", ("ready", 0.0), ("choose", 2.0), 2.2, Caption("Ten decks from one era. Ban, pick, battle.", "GAUNTLET", "gauntlet-reveal", "rise")),
+    ("tournament", ("seats", 0.0), ("ready", 0.4), 2.0, Caption("Swiss rounds for the whole group", "TOURNAMENTS", "lobby-title", "wipe")),
+    ("tournament", ("bracket", 0.0), ("bracket", 3.2), 1.0, None),
+    ("draft", ("lobby", 0.2), ("fan", 0.0), 1.7, None),
+    ("draft", ("fan", 0.0), ("grid", 1.5), 1.4, Caption("Fan or grid, every face of every card", "DRAFT · 100+ CUBES", "draft-pack", "slide")),
+    ("draft", ("flip", -0.3), ("end", 0.0), 1.0, None),
+    "MONTAGE",
+    ("progenitus", ("declared", -0.4), ("win", 2.6), 1.0, None),
     "END",
 ]
+
+# The montage: one in-point per shot, in order. Each runs from (mark + offset) for as long as the bed's
+# next onset allows, at real speed.
+MONTAGE = [
+    ("emrakul", "landed", -0.15),
+    ("bolt", "hit", -0.25),
+    ("counterwar", "force", -0.1),
+    ("gauntlet", "banned", -0.1),
+    ("walkers", "elk", -0.6),
+    ("valakut", "targeted", 0.5),
+    ("draft", "picked", -0.2),
+    ("storm", "copies", 0.0),
+    ("tournament", "bracket", 0.4),
+    ("walkers", "brainstormed", -0.5),
+    ("blasphemous", "wiped", 0.6),
+    ("breakfast", "hit", -0.2),
+    ("walkers", "emblem", -0.5),
+    ("craterhoof", "hit", -0.3),
+    ("bolt", "win", 0.3),
+]
+MONTAGE_GAPS = (0.7, 0.35)
 
 # The end card follows D24: free forever, members only, and anyone can be a member.
 END_LINES = {
@@ -64,8 +137,12 @@ def run(args: list[str]) -> None:
         sys.exit(f"cut: ffmpeg failed: {' '.join(args[:6])}…\n{proc.stderr[-2000:]}")
 
 
+def duration(path: Path) -> float:
+    return float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)], capture_output=True, text=True).stdout)
+
+
 def esc(text: str) -> str:
-    return text.replace("\\", "\\\\").replace(":", "\\:").replace("'", "’").replace("%", "\\%")
+    return text.replace("\\", "\\\\").replace(":", "\\:").replace("'", "’").replace("%", "\\%").replace(",", "\\,")
 
 
 def marks(clip: str) -> dict[str, float]:
@@ -73,35 +150,140 @@ def marks(clip: str) -> dict[str, float]:
     return {m["label"]: m["t"] for m in data["marks"]}
 
 
-def caption_filter(caption: str | None, sub: str | None, length: float) -> str:
-    """A lower-left caption: an accent bar, a bold line and an optional quieter one, faded in and out."""
-    if caption is None:
-        return ""
-    fade = f"if(lt(t,0.35),t/0.35,if(gt(t,{length - 0.35:.2f}),({length:.2f}-t)/0.35,1))"
-    y = 870 if sub is None else 830
-    parts = [
-        f"drawbox=x=96:y={y - 6}:w=8:h={78 if sub is None else 134}:color={ACCENT}@0.95:t=fill:enable='between(t,0.15,{length - 0.15:.2f})'",
-        f"drawtext=fontfile={BOLD}:text='{esc(caption)}':x=128:y={y}:fontsize=62:fontcolor=white:alpha='{fade}':shadowcolor=black@0.85:shadowx=0:shadowy=3:borderw=0",
-    ]
-    if sub is not None:
-        parts.append(f"drawtext=fontfile={REGULAR}:text='{esc(sub)}':x=130:y={y + 84}:fontsize=34:fontcolor=0xE8E3F7:alpha='{fade}':shadowcolor=black@0.85:shadowx=0:shadowy=2")
-    return "," + ",".join(parts)
+# ── captions ──────────────────────────────────────────────────────────────────────────────────────────
+
+KSIZE, KSP = 22, 4.0  # the kicker's size and letter spacing
+IN = 0.25  # the entrance starts this long into the segment
+EXIT = 0.3  # and everything lifts away over this long, ending EXIT before the cut
 
 
-def render_clip(n: int, seg: tuple) -> Path:
-    clip, (a, da), (b, db), speed, caption, sub = seg
-    m = marks(clip)
-    start, end = m[a] + da, m[b] + db
+def width(font: str, size: int, text: str) -> float:
+    return ImageFont.truetype(font, size).getlength(text)
+
+
+def ease(t0: float, d: float) -> str:
+    return f"(1-pow(1-clip((t-{t0:.3f})/{d:.3f},0,1),3))"
+
+
+def settle(t0: float, d: float) -> str:
+    """Ease-out-back: overshoots a little, then settles."""
+    p = f"clip((t-{t0:.3f})/{d:.3f},0,1)"
+    return f"(1+2.2*pow({p}-1,3)+1.2*pow({p}-1,2))"
+
+
+def check_captions(segments: list) -> None:
+    last = None
+    for seg in segments:
+        if isinstance(seg, str) or seg[4] is None:
+            continue
+        cap: Caption = seg[4]
+        if cap.anchor not in ANCHORS or cap.entrance not in ("rise", "wipe", "slide", "drop"):
+            sys.exit(f"cut: caption {cap.text!r}: unknown anchor or entrance")
+        if last is not None and (last.anchor, last.entrance) == (cap.anchor, cap.entrance):
+            sys.exit(f"cut: {last.text!r} and {cap.text!r} share both anchor and entrance")
+        last = cap
+
+
+def caption_graph(cap: Caption, length: float) -> tuple[list[str], list[str]]:
+    """drawtext filters for the headline and kicker, plus the rule as an overlay source and its placement."""
+    a = ANCHORS[cap.anchor]
+    out = length - EXIT - 0.05
+    gone = f"clip((t-{out:.3f})/{EXIT},0,1)"
+    alpha = lambda t0, d=0.35: f"{ease(t0, d)}*(1-{gone})"  # noqa: E731
+    lift = f"(-10*{gone})"
+    size = a.size
+    space = width(BLACK, size, " ")
+    words = cap.text.split(" ")
+    total = sum(width(BLACK, size, w) for w in words) + space * (len(words) - 1)
+    left = a.x - total if a.align == "right" else a.x - total / 2 if a.align == "centre" else a.x
+    head_y = a.y + 28
+    kw = sum(width(SEMI, KSIZE, ch) + KSP for ch in cap.kicker) - KSP
+    rule_w = 44
+    if a.align == "right":
+        kx, rx = a.x - kw, a.x - kw - 14 - rule_w
+    elif a.align == "centre":
+        kx = a.x - kw / 2 + (rule_w + 14) / 2
+        rx = kx - 14 - rule_w
+    else:
+        rx, kx = a.x, a.x + rule_w + 14
+    shadow = "shadowcolor=black@0.7:shadowy=3"
+    draws: list[str] = []
+    # The kicker: letters cascade in, from the anchored side.
+    letters, cx = [], kx
+    for ch in cap.kicker:
+        letters.append((ch, cx))
+        cx += width(SEMI, KSIZE, ch) + KSP
+    order = letters[::-1] if a.align == "right" else letters
+    for i, (ch, x) in enumerate(order):
+        if ch == " ":
+            continue
+        t0 = IN + 0.18 + i * 0.018
+        draws.append(f"drawtext=fontfile={SEMI}:text='{esc(ch)}':fontsize={KSIZE}:fontcolor={ACCENT}:x={x:.1f}:y='{a.y}+10*(1-{ease(t0, 0.3)})+{lift}':alpha='{alpha(t0, 0.3)}'")
+    # The headline, by entrance.
+    h0 = IN + 0.32
+    if cap.entrance in ("rise", "drop"):
+        x = left
+        for i, w in enumerate(words):
+            if cap.entrance == "rise":
+                t0 = h0 + i * 0.07
+                y = f"{head_y}+22*(1-{ease(t0, 0.45)})+{lift}"
+            else:
+                t0 = h0
+                y = f"{head_y}-46*(1-{settle(t0, 0.55)})+{lift}"
+            draws.append(f"drawtext=fontfile={BLACK}:text='{esc(w)}':fontsize={size}:fontcolor=white:x={x:.1f}:y='{y}':alpha='{alpha(t0)}':{shadow}")
+            x += width(BLACK, size, w) + space
+    else:
+        # wipe: a soft front sweeps left to right; slide: letters slide in from the anchored edge.
+        chars, x = [], left
+        for ch in cap.text:
+            chars.append((ch, x))
+            x += width(BLACK, size, ch)
+        sweep = 0.55
+        for i, (ch, cx) in enumerate(chars):
+            if ch == " ":
+                continue
+            if cap.entrance == "wipe":
+                t0 = h0 + sweep * (cx - left) / max(total, 1)
+                draws.append(f"drawtext=fontfile={BLACK}:text='{esc(ch)}':fontsize={size}:fontcolor=white:x={cx:.1f}:y='{head_y}+{lift}':alpha='{alpha(t0, 0.12)}':{shadow}")
+            else:
+                rank = (len(chars) - 1 - i) if a.align == "right" else i
+                t0 = h0 + rank * 0.016
+                d = 30 if a.align == "right" else -30
+                draws.append(f"drawtext=fontfile={BLACK}:text='{esc(ch)}':fontsize={size}:fontcolor=white:x='{cx:.1f}+{d}*(1-{ease(t0, 0.4)})':y='{head_y}+{lift}':alpha='{alpha(t0, 0.3)}':{shadow}")
+    # The rule leads, from the anchored side.
+    src = f"color=c={ACCENT}:s={rule_w}x5:r={FPS}:d={length:.3f},format=rgba,fade=t=in:st={IN}:d=0.2:alpha=1,fade=t=out:st={out:.3f}:d={EXIT}:alpha=1"
+    sign = "+" if a.align == "right" else "-"
+    place = f"x='{rx:.1f}{sign}{rule_w}*(1-{ease(IN, 0.4)})':y={a.y + 10}"
+    return draws, [src, place]
+
+
+# ── segments ──────────────────────────────────────────────────────────────────────────────────────────
+
+def encode(out: Path, inputs: list[str], graph: str, length: float, maps: list[str]) -> None:
+    run(["ffmpeg", "-y", "-loglevel", "error", *inputs, "-filter_complex", graph, *maps,
+         "-t", f"{length:.3f}", "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-r", str(FPS),
+         "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", str(out)])
+
+
+def render_clip(n: int, clip: str, start: float, end: float, speed: float, cap: Caption | None, label: str) -> Path:
     length = (end - start) / speed
-    out = OUT / f"{n:02d}-{clip}-{a}.mp4"
-    # A soft vignette at the foot so a caption reads over any board; cards stay untouched above it.
-    shade = "drawbox=x=0:y=740:w=1920:h=340:color=black@0.30:t=fill,drawbox=x=0:y=800:w=1920:h=280:color=black@0.35:t=fill" if caption else "null"
-    vf = f"trim=start={start:.3f}:end={end:.3f},setpts=(PTS-STARTPTS)/{speed},fps={FPS},{shade}{caption_filter(caption, sub, length)}"
-    af = f"atrim=start={start:.3f}:end={end:.3f},asetpts=PTS-STARTPTS,atempo={speed},afade=t=in:d=0.01,afade=t=out:st={max(0, length - 0.01):.3f}:d=0.01"
-    run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(FOOTAGE / clip / f"{clip}.mkv"), "-vf", vf, "-af", af,
-         "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-r", str(FPS), "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", str(out)])
-    print(f"cut: {out.name}  {length:5.1f}s  ({clip} {a}{da:+} → {b}{db:+} at {speed}x)")
+    out = OUT / f"{n:02d}-{clip}-{label}.mp4"
+    base = f"[0:v]trim=start={start:.3f}:end={end:.3f},setpts=(PTS-STARTPTS)/{speed},fps={FPS}"
+    if cap is None:
+        graph = f"{base}[v]"
+    else:
+        draws, (src, place) = caption_graph(cap, length)
+        graph = f"{base}[b];{src}[bar];[b][bar]overlay={place}:shortest=1[r];[r]{','.join(draws)}[v]"
+    graph += f";[0:a]atrim=start={start:.3f}:end={end:.3f},asetpts=PTS-STARTPTS,atempo={speed},afade=t=in:d=0.01,afade=t=out:st={max(0, length - 0.01):.3f}:d=0.01[a]"
+    encode(out, ["-i", str(FOOTAGE / clip / f"{clip}.mkv")], graph, length, ["-map", "[v]", "-map", "[a]"])
+    print(f"cut: {out.name}  {length:5.2f}s  ({clip} {start:.2f}→{end:.2f} at {speed}x{'' if cap is None else ', ' + cap.entrance + '@' + cap.anchor})")
     return out
+
+
+def render_segment(n: int, seg: tuple) -> Path:
+    clip, (a, da), (b, db), speed, cap = seg
+    m = marks(clip)
+    return render_clip(n, clip, m[a] + da, m[b] + db, speed, cap, a)
 
 
 def render_card(n: int, kind: str) -> Path:
@@ -109,48 +291,138 @@ def render_card(n: int, kind: str) -> Path:
     out = OUT / f"{n:02d}-{kind.lower()}.mp4"
     if kind == "TITLE":
         length = 2.6
-        texts = [(BOLD, END_LINES["title"], 150, "(h-text_h)/2-30", "white"),
+        texts = [(BLACK, END_LINES["title"], 150, "(h-text_h)/2-30", "white"),
                  (REGULAR, "Historical constructed  ·  Draft  ·  Tournaments", 40, "(h)/2+80", "0xD8D0F0")]
     else:
         length = 6.5
-        texts = [(BOLD, END_LINES["title"], 130, "300", "white"),
+        texts = [(BLACK, END_LINES["title"], 130, "300", "white"),
                  (REGULAR, END_LINES["line"], 52, "490", "0xE8E3F7"),
-                 (BOLD, END_LINES["cta"], 60, "650", ACCENT),
+                 (BLACK, END_LINES["cta"], 60, "650", ACCENT),
                  (REGULAR, END_LINES["url"], 44, "735", "0xE8E3F7")]
     draw = ",".join(
         f"drawtext=fontfile={font}:text='{esc(text)}':fontsize={size}:fontcolor={color}:x=(w-text_w)/2:y={y}"
         for font, text, size, y, color in texts
     )
-    vf = f"{draw},vignette=PI/4"
     run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", f"color=c=0x141218:s=1920x1080:r={FPS}:d={length}",
-         "-f", "lavfi", "-i", f"anullsrc=r=48000:cl=stereo:d={length}", "-vf", vf, "-shortest",
+         "-f", "lavfi", "-i", f"anullsrc=r=48000:cl=stereo:d={length}", "-vf", f"{draw},vignette=PI/4", "-shortest",
          "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", str(out)])
     print(f"cut: {out.name}  {length:5.1f}s  (card)")
     return out
 
 
+# ── the montage, on the beat ──────────────────────────────────────────────────────────────────────────
+
+def onsets(path: Path, sr: int = 22050, hop: int = 256, win: int = 1024) -> np.ndarray:
+    """Onset times in seconds: half-wave-rectified spectral flux on a log magnitude, peak-picked against a
+    moving median. The same idea as `aubio onset`'s default, in numpy."""
+    pcm = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", str(path), "-ac", "1", "-ar", str(sr), "-f", "f32le", "-"], capture_output=True, check=True).stdout
+    x = np.frombuffer(pcm, dtype=np.float32)
+    frames = np.lib.stride_tricks.sliding_window_view(x, win)[::hop] * np.hanning(win)
+    mag = np.log1p(10 * np.abs(np.fft.rfft(frames, axis=1)))
+    flux = np.maximum(0, np.diff(mag, axis=0)).sum(axis=1)
+    flux = (flux - flux.mean()) / (flux.std() + 1e-9)
+    k = 16
+    pad = np.pad(flux, k, mode="edge")
+    median = np.array([np.median(pad[i:i + 2 * k + 1]) for i in range(len(flux))])
+    peaks = [i for i in range(1, len(flux) - 1) if flux[i] > flux[i - 1] and flux[i] >= flux[i + 1] and flux[i] > median[i] + 0.6]
+    times = (np.array(peaks) + 1) * hop / sr
+    # One onset per 120 ms at most: the strongest wins.
+    kept: list[float] = []
+    for t, i in zip(times, peaks):
+        if kept and t - kept[-1] < 0.12:
+            if flux[i] > flux[int(kept[-1] * sr / hop) - 1]:
+                kept[-1] = t
+            continue
+        kept.append(t)
+    return np.array(kept)
+
+
+def montage_cuts(beats: np.ndarray, start: float, shots: int) -> list[float]:
+    """Cut points from `start` (a bed time): shot k's target length falls from GAPS[0] to GAPS[1], and each
+    cut snaps to the onset nearest that target within the allowed range. Returns shots + 1 times."""
+    lo, hi = MONTAGE_GAPS[1] - 0.03, MONTAGE_GAPS[0] + 0.08
+    first = beats[beats >= start - 0.05]
+    cuts = [float(first[0]) if len(first) else start]
+    for k in range(shots):
+        want = MONTAGE_GAPS[0] + (MONTAGE_GAPS[1] - MONTAGE_GAPS[0]) * k / max(1, shots - 1)
+        # Never longer than the shot before it: the montage only ever speeds up.
+        # Every cut is on an onset; with none short enough, the shortest one in range.
+        cap = hi if k == 0 else min(hi, cuts[-1] - cuts[-2] + 0.03)
+        near = beats[(beats > cuts[-1] + lo) & (beats < cuts[-1] + hi)]
+        if len(near) == 0:
+            cuts.append(cuts[-1] + want)
+            continue
+        short = near[near < cuts[-1] + cap]
+        cuts.append(float(short[np.argmin(np.abs(short - cuts[-1] - want))]) if len(short) else float(near[0]))
+    return cuts
+
+
+# ── main ──────────────────────────────────────────────────────────────────────────────────────────────
+
+def stills() -> None:
+    """One still per captioned segment at its caption's resting moment, captioned, for measuring anchors."""
+    (OUT / "stills").mkdir(parents=True, exist_ok=True)
+    for n, seg in enumerate(SEGMENTS):
+        if isinstance(seg, str) or seg[4] is None:
+            continue
+        part = render_segment(n, seg)
+        run(["ffmpeg", "-y", "-loglevel", "error", "-ss", "1.6", "-i", str(part), "-frames:v", "1", "-q:v", "2", str(OUT / "stills" / f"{n:02d}-{seg[0]}.jpg")])
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    parts = [render_card(n, s) if isinstance(s, str) else render_clip(n, s) for n, s in enumerate(SEGMENTS)]
-    # The beat list, for the review page: where each part starts in the cut and what it shows.
-    beats, at = [], 0.0
-    for seg, part in zip(SEGMENTS, parts):
-        length = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(part)], capture_output=True, text=True).stdout)
-        clip, caption = (seg.lower(), None) if isinstance(seg, str) else (seg[0], seg[4])
-        beats.append({"at": round(at, 2), "length": round(length, 2), "clip": clip, "caption": caption})
+    check_captions(SEGMENTS)
+    if "--stills" in sys.argv:
+        stills()
+        return
+    beats = onsets(MUSIC)
+    print(f"cut: {len(beats)} onsets in the bed")
+    parts: list[Path] = []
+    rows: list[dict] = []
+    at = 0.0
+    cold = 0.0
+    for n, seg in enumerate(SEGMENTS):
+        if seg == "MONTAGE":
+            # The bed starts after the cold open: its clock is the cut's, less `cold`.
+            cuts = montage_cuts(beats, at - cold, len(MONTAGE))
+            # Shift the montage so its first cut lands on the first onset: lengthen the part before it.
+            if parts and cuts[0] > at - cold + 0.01:
+                prev = SEGMENTS[n - 1]
+                m = marks(prev[0])
+                extra = (cuts[0] - (at - cold)) * prev[3]
+                parts[-1] = render_clip(n - 1, prev[0], m[prev[1][0]] + prev[1][1], m[prev[2][0]] + prev[2][1] + extra, prev[3], prev[4], prev[1][0])
+                at = cuts[0] + cold
+                rows[-1]["length"] = round(at - rows[-1]["at"], 2)
+            for k, (clip, mark, off) in enumerate(MONTAGE):
+                length = cuts[k + 1] - cuts[k]
+                t = marks(clip)[mark] + off
+                part = render_clip(n * 100 + k, clip, t, t + length, 1.0, None, f"m{k:02d}-{mark}")
+                parts.append(part)
+                rows.append({"at": round(at, 2), "length": round(duration(part), 2), "clip": clip, "caption": None, "montage": True})
+                at += duration(part)
+            continue
+        part = render_card(n, seg) if isinstance(seg, str) else render_segment(n, seg)
+        length = duration(part)
+        if n == 0:
+            cold = length
+        cap = None if isinstance(seg, str) else seg[4]
+        rows.append({"at": round(at, 2), "length": round(length, 2), "clip": seg.lower() if isinstance(seg, str) else seg[0],
+                     "caption": None if cap is None else {"text": cap.text, "kicker": cap.kicker, "anchor": cap.anchor, "entrance": cap.entrance}})
+        parts.append(part)
         at += length
-    (OUT / "beats.json").write_text(json.dumps(beats, indent=2))
+    (OUT / "beats.json").write_text(json.dumps(rows, indent=2))
     listing = OUT / "parts.txt"
     listing.write_text("".join(f"file '{p}'\n" for p in parts))
     joined = OUT / "joined.mp4"
     run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", str(listing), "-c", "copy", str(joined)])
-    total = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(joined)], capture_output=True, text=True).stdout)
-    # Loudness: -15 LUFS integrated, where online video players expect it.
-    # The bed starts with the title card (after the cold open's own sound), sits under the game's sounds,
-    # and fades out with the end card.
-    cold = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(parts[0])], capture_output=True, text=True).stdout)
+    total = duration(joined)
+    bed = duration(MUSIC)
+    if total - cold > bed:
+        print(f"cut: warning: the cut runs {total - cold - bed:.1f}s past the bed's end")
+    # Loudness: -15 LUFS integrated. The bed starts with the title card (after the cold open's own sound),
+    # sits under the game's sounds, and fades out with the end card.
     mix = (
-        f"[1:a]atrim=0:{total - cold:.2f},asetpts=PTS-STARTPTS,volume=0.42,afade=t=in:d=0.8,afade=t=out:st={total - cold - 3:.2f}:d=3,adelay={int(cold * 1000)}|{int(cold * 1000)}[bed];"
+        f"[1:a]atrim=0:{total - cold:.2f},asetpts=PTS-STARTPTS,volume={BED_LEVEL},afade=t=in:d=0.8,afade=t=out:st={total - cold - 3:.2f}:d=3,adelay={int(cold * 1000)}|{int(cold * 1000)}[bed];"
         f"[0:a]volume=1.0[game];[game][bed]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-15:TP=-1.5:LRA=11,aresample=48000[a]"
     )
     trailer = OUT / "trailer.mp4"
