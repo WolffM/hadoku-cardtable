@@ -142,6 +142,9 @@ export const lifeOf = (page: Page, whose: 'mine' | 'theirs'): Locator =>
 
 export const opponentFace = (page: Page): Locator => page.locator('[data-player-face]:not([data-viewer])').first();
 
+/** The rival's face is offered as a target (a target prompt's words sit in its popup, not the status line). */
+export const faceTargetable = async (page: Page): Promise<boolean> => (await page.locator('[data-player-face][data-selectable]:not([data-viewer])').count()) > 0;
+
 /** Poll `step` every `ms` until it answers true, or throw naming `what`. */
 export async function until(what: string, step: () => Promise<boolean>, timeoutMs = 90_000, ms = 200, witness?: Page): Promise<void> {
   const deadline = Date.now() + timeoutMs;
@@ -199,6 +202,8 @@ export async function untilWon(film: Film, page: Page): Promise<void> {
       film.mark('hit');
     }
     if ((await page.getByTestId('game-result').count()) > 0) return true;
+    // A storm copy asks for its own target: the rival's face again.
+    if (await faceTargetable(page)) await opponentFace(page).locator('button').first().click({ timeout: 1_000 }).catch(() => undefined);
     await pressIfThere(okEnabled(page));
     return false;
   }, 90_000, 200, page);
