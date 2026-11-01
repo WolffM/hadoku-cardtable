@@ -118,6 +118,7 @@ import { serveCover } from './cover.js';
 import { newestFormat } from './room/lobby.js';
 import { openEvents } from './room/events.js';
 import { openTournaments } from './room/tournaments.js';
+import { remapLegacyIds } from './legacyIds.js';
 import { jsonLogger } from './log.js';
 import { createKeyBook, createMatchStats, createStatsReporter } from './stats/index.js';
 import { recordMatch } from '@wolffm/prefs-client/games';
@@ -391,6 +392,8 @@ if (newRoomFormat !== undefined && newRoomFormat !== 'newest') {
 	throw new Error(`CARDTABLE_NEW_ROOM_FORMAT must be 'newest' or unset, not ${JSON.stringify(newRoomFormat)}`);
 }
 const roomsLog = jsonLogger('cardtable-rooms');
+// ONE-OFF (cardtable#25): key-derived ids onto userId-derived ones, before these files are read.
+remapLegacyIds(CONFIG.dataDir, roomsLog);
 // Every pod that played a round, kept past its room for the stats popout's Tournaments tab.
 const tournaments = await openTournaments(
 	CONFIG.tournamentsFile,
