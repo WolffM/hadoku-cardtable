@@ -20,7 +20,7 @@ import { tablesClient, type TableFormat } from '../screens/tables.ts';
 import { playRole } from '../sound/index.ts';
 import { fromLocalInput, refreshEvents } from '../front/events.ts';
 import { poolsClient } from './api.ts';
-import { eventFormsClient, startRallyCreate } from './event-forms.ts';
+import { attachRallyForm, eventFormsClient, startRallyCreate } from './event-forms.ts';
 import { NEW_ROOM_FIELDS, NEW_TOURNAMENT, RoomFields, TournamentFields, tournamentRoom, type RoomFieldValues, type TournamentValues } from './RoomFields.tsx';
 
 type EventChoice = 'tournament' | 'form';
@@ -97,7 +97,7 @@ export function CreateEventDialog({ onClose }: { onClose: () => void }) {
     if (formId === null) return fail('Paste a Rally form link.');
     playRole('ui.select');
     setBusy(true);
-    const outcome = await eventFormsClient().attachForm(formId);
+    const outcome = await attachRallyForm(formId);
     setBusy(false);
     if (!outcome.ok) return fail(outcome.message);
     onClose();

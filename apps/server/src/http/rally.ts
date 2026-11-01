@@ -2,9 +2,9 @@
  * `/api/rally` — Cardtable's drafts as a Rally pick catalogue (cardtable#24; the brief is
  * hadoku-rally `docs/requests/CARDTABLE_PICK_CATALOGUES.md`).
  *
- *   GET /api/rally/sources                    → the three catalogues and their two views
- *   GET /api/rally/options/:kind?q=           → up to 8 matches, best first
- *   GET /api/rally/views/:kind/:id/cards      → every card the option drafts from
+ *   GET /api/rally/sources                    → the three catalogues, each listing its Sample pack view
+ *   GET /api/rally/options/:kind?q=           → up to 8 matches, best first, each with its kind and a line per source
+ *   GET /api/rally/views/:kind/:id/cards      → every card a source drafts from (what an option's line opens)
  *   GET /api/rally/views/:kind/:id/pack       → a freshly opened pack (one per round for a mixed preset)
  *
  * Every answer is Rally's `{ success, data }` wrapper. The first two are read by Rally's builder,
@@ -25,7 +25,7 @@
  *
  * ## Options are snapshots
  *
- * Rally keeps `{id, label, detail, image}` in the form. An option deleted since (an imported cube,
+ * Rally keeps `{id, label, detail, image, lines}` in the form. An option deleted since (an imported cube,
  * a preset) answers 404 with a sentence the page shows, never a blank frame.
  */
 
@@ -46,6 +46,7 @@ import {
 	type RallyCardGroup,
 	type RallyCardsView,
 	type RallyCatalogue,
+	type RallyLine,
 	type RallyPackView,
 	type RallySource,
 	type RallySuggestion,
@@ -80,10 +81,11 @@ export const PACK_RATE_LIMIT: RateLimitConfig = { capacity: 20, refillAmount: 1,
 /** "About 8 results, best match first." */
 const MAX_SUGGESTIONS = 8;
 
-const VIEWS: RallySource['views'] = [
-	{ id: 'cards', label: 'All cards' },
-	{ id: 'pack', label: 'Sample pack' },
-];
+/** The pack is the one view a source lists; an option's cards open from its lines. */
+const VIEWS: RallySource['views'] = [{ id: 'pack', label: 'Sample pack' }];
+
+/** Rally's cap on a line's text. */
+const LINE_MAX = 80;
 
 const SOURCES: readonly RallySource[] = [
 	{ kind: 'draft-preset', label: 'Draft presets', views: VIEWS },
@@ -142,8 +144,20 @@ function best<T>(items: readonly T[], rank: (item: T) => number | null): T[] {
 		.map((x) => x.item);
 }
 
+/** A cube or a set drafted all three rounds: what a room drafting it runs. */
+const thrice = (src: PoolSource): DraftPlan => ({ rounds: [src, src, src] });
+
+/** One card list per key: a set's two styles draw on the same cards, so they share a cards page and a line. */
+const poolKey = (src: PoolSource): string => (src.kind === 'cube' ? `cube:${src.cubeId}` : `set:${src.code}`);
+
+const KIND_LABEL = (src: PoolSource): string => (src.kind === 'cube' ? 'Cube' : src.style === 'realistic' ? 'Realistic' : 'Set cube');
+
+/** The plan's draft kinds in first-round order: `Cube`, `Realistic`, or `Realistic + Set cube`. */
+const kindOf = (plan: DraftPlan): string => [...new Set(plan.rounds.map(KIND_LABEL))].join(' + ');
+
+const clip = (text: string, max: number): string => (text.length <= max ? text : `${text.slice(0, max - 1)}…`);
+
 const isPlayable = (verdict: { ok: boolean } | null): boolean => verdict === null || verdict.ok;
-const year = (date: string): string => date.slice(0, 4);
 
 export function attachRally(api: Router, deps: RallyDeps): void {
 	const log = deps.log ?? jsonLogger('cardtable-rally');
@@ -167,40 +181,46 @@ export function attachRally(api: Router, deps: RallyDeps): void {
 		return setCover(await deps.sets.cardsFor(src.code));
 	}
 
+	/** A plan as one search result: its kind, and a line per source opening that source's cards. */
+	function optionOf(id: string, label: string, plan: DraftPlan, image: string | null): RallySuggestion {
+		return { id, label, detail: kindOf(plan), image, lines: linesOf(plan) };
+	}
+
+	/** `3x Bloomburrow packs`, or `1x Final Fantasy`, linked to that source's own cards page. */
+	function linesOf(plan: DraftPlan): RallyLine[] {
+		return grouped(plan, poolKey).map(({ src, rounds }) => {
+			const n = rounds.length;
+			const text = n === 1 ? `1x ${clip(nameOf(src), LINE_MAX - 3)}` : `${n}x ${clip(nameOf(src), LINE_MAX - 9)} packs`;
+			return { text, view: src.kind === 'cube' ? `cube/${src.cubeId}/cards` : `set/${src.code}/cards` };
+		});
+	}
+
+	/** Every source in the plan has an id Rally can carry in a line's view. */
+	const linkable = (plan: DraftPlan): boolean => plan.rounds.every((src) => RALLY_OPTION_ID.test(src.kind === 'cube' ? src.cubeId : src.code));
+
 	async function suggest(kind: RallyCatalogue, q: string): Promise<RallySuggestion[]> {
 		switch (kind) {
 			case 'cube':
 				return best(
 					deps.cubes.list().filter((c) => isPlayable(c.verdict) && RALLY_OPTION_ID.test(c.id)),
 					(c) => matchRank(q, c.name),
-				).map((c) => ({
-					id: c.id,
-					label: c.name,
-					detail: `${c.size} cards${c.origin === 'cubecobra' ? ' · from Cube Cobra' : ''}`,
-					image: coverUrl(c.artId),
-				}));
+				).map((c) => optionOf(c.id, c.name, thrice({ kind: 'cube', cubeId: c.id }), coverUrl(c.artId)));
 			case 'set': {
 				const sets = (await deps.sets.list()).filter((s) => isPlayable(s.verdict) && RALLY_OPTION_ID.test(s.code));
 				return Promise.all(
-					best(sets, (s) => matchRank(q, s.name, s.code)).map(async (s) => ({
-						id: s.code,
-						label: s.name,
-						detail: `${s.code} · ${year(s.date)} · ${s.cards} cards`,
-						image: setCover(await deps.sets.cardsFor(s.code)),
-					})),
+					best(sets, (s) => matchRank(q, s.name, s.code)).map(async (s) =>
+						optionOf(s.code, s.name, thrice({ kind: 'set', code: s.code, style: 'realistic' }), setCover(await deps.sets.cardsFor(s.code))),
+					),
 				);
 			}
 			case 'draft-preset': {
 				await named();
-				const presets = deps.presets.list().filter((p) => RALLY_OPTION_ID.test(p.id));
+				const presets = deps.presets.list().filter((p) => RALLY_OPTION_ID.test(p.id) && linkable(p.plan));
 				const described = presets.map((p) => ({ preset: p, plan: planDisplayName(p.plan, roundNames(p.plan)) }));
 				return Promise.all(
-					best(described, (d) => matchRank(q, d.preset.name, d.plan)).map(async ({ preset, plan }) => ({
-						id: preset.id,
-						label: preset.name,
-						detail: plan.slice(0, 200),
-						image: await sourceCover(preset.plan.rounds[0]),
-					})),
+					best(described, (d) => matchRank(q, d.preset.name, d.plan)).map(async ({ preset }) =>
+						optionOf(preset.id, preset.name, preset.plan, await sourceCover(preset.plan.rounds[0])),
+					),
 				);
 			}
 		}
@@ -214,14 +234,12 @@ export function attachRally(api: Router, deps: RallyDeps): void {
 			case 'cube': {
 				const cube = deps.cubes.list().find((c) => c.id === id);
 				if (cube === undefined) throw new RallyRefusal(404, 'This cube is no longer on Cardtable.');
-				const src: PoolSource = { kind: 'cube', cubeId: id };
-				return { plan: { rounds: [src, src, src] }, name: cube.name };
+				return { plan: thrice({ kind: 'cube', cubeId: id }), name: cube.name };
 			}
 			case 'set': {
 				const set = (await deps.sets.list()).find((s) => s.code === id);
 				if (set === undefined) throw new RallyRefusal(404, 'Cardtable cannot draft this set.');
-				const src: PoolSource = { kind: 'set', code: id, style: 'realistic' };
-				return { plan: { rounds: [src, src, src] }, name: set.name };
+				return { plan: thrice({ kind: 'set', code: id, style: 'realistic' }), name: set.name };
 			}
 			case 'draft-preset': {
 				const preset = deps.presets.list().find((p) => p.id === id);
@@ -266,8 +284,7 @@ export function attachRally(api: Router, deps: RallyDeps): void {
 
 	async function cardsView(kind: RallyCatalogue, id: string): Promise<RallyCardsView> {
 		const { plan, name } = await planOf(kind, id);
-		// A set's two styles draw on one card list, so they are one group here.
-		const groups = grouped(plan, (src) => (src.kind === 'cube' ? `cube:${src.cubeId}` : `set:${src.code}`));
+		const groups = grouped(plan, poolKey);
 		const resolved = new Map<PoolSource, readonly DraftCard[]>();
 		for (const { src } of groups) resolved.set(src, await sourceCards(src));
 		return {

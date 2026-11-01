@@ -7,6 +7,7 @@
 
 import { AttachedFormSchema, EventViewSchema, rallyCreateUrl, rallyReturnOf, type AttachedForm, type EventView } from '@hadoku/shared';
 
+import { pollAttached } from '../front/polls.ts';
 import { apiUrl, bodyOf, sendJson, serverMessage, type Fetch } from '../http.ts';
 
 export type CreateTournamentOutcome = { ok: true; event: EventView } | { ok: false; message: string };
@@ -41,6 +42,16 @@ export function eventFormsClient(fetchImpl: Fetch = defaultFetch) {
 }
 export type EventFormsClient = ReturnType<typeof eventFormsClient>;
 
+/**
+ * Attach a Rally form to the events, and put it under Polls the moment the attach answers: every
+ * attach goes through here, so no path waits on the Polls list's next tick.
+ */
+export async function attachRallyForm(formId: string, client: Pick<EventFormsClient, 'attachForm'> = eventFormsClient()): Promise<AttachOutcome> {
+  const outcome = await client.attachForm(formId);
+  if (outcome.ok) void pollAttached(outcome.form);
+  return outcome;
+}
+
 const REF_KEY = 'cardtable.rally-ref';
 
 /** Where this page is, without its query: what Rally returns to, with the new form added. */
@@ -70,5 +81,5 @@ export async function finishRallyReturn(
   history.replaceState(history.state, '', returnUrl(loc));
   if (storage.getItem(REF_KEY) !== trip.ref) return 'foreign';
   storage.removeItem(REF_KEY);
-  return client.attachForm(trip.formId);
+  return attachRallyForm(trip.formId, client);
 }

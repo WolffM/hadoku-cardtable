@@ -112,8 +112,16 @@ const MIXED: DraftPlan = {
 	],
 };
 
+const THREE: DraftPlan = {
+	rounds: [
+		{ kind: 'set', code: 'ALA', style: 'realistic' },
+		{ kind: 'set', code: 'ARB', style: 'realistic' },
+		{ kind: 'cube', cubeId: VINTAGE },
+	],
+};
+
 describe('GET /api/rally/sources', () => {
-	it('lists the three catalogues, each with All cards and Sample pack', async () => {
+	it('lists the three catalogues, each with only the Sample pack: the cards pages open from an option\'s lines', async () => {
 		const { get } = await setup();
 		const { sources } = data(SourcesBody, (await get('/api/rally/sources')).json);
 		expect(sources.map((s) => [s.kind, s.label])).toEqual([
@@ -121,16 +129,18 @@ describe('GET /api/rally/sources', () => {
 			['set', 'Sets'],
 			['cube', 'Cubes'],
 		]);
-		for (const s of sources) expect(s.views).toEqual([{ id: 'cards', label: 'All cards' }, { id: 'pack', label: 'Sample pack' }]);
+		for (const s of sources) expect(s.views).toEqual([{ id: 'pack', label: 'Sample pack' }]);
 	});
 });
 
 describe('GET /api/rally/options/:kind', () => {
-	it('finds a shipped cube by a word of its name, with its size and Scryfall art', async () => {
+	it('finds a shipped cube by a word of its name: kind Cube, one line of three packs opening its cards, Scryfall art', async () => {
 		const { get } = await setup();
 		const { suggestions } = data(OptionsBody, (await get('/api/rally/options/cube?q=pau')).json);
-		expect(suggestions[0]).toMatchObject({ id: PAUPER, label: expect.stringMatching(/Pauper/), detail: expect.stringMatching(/^\d+ cards$/) });
-		expect(suggestions[0]!.image).toMatch(/^https:\/\/cards\.scryfall\.io\//);
+		const pauper = suggestions[0]!;
+		expect(pauper).toMatchObject({ id: PAUPER, label: expect.stringMatching(/Pauper/), detail: 'Cube' });
+		expect(pauper.lines).toEqual([{ text: `3x ${pauper.label} packs`, view: `cube/${PAUPER}/cards` }]);
+		expect(pauper.image).toMatch(/^https:\/\/cards\.scryfall\.io\//);
 	});
 
 	it('ranks a name that starts with the query above one that only contains it', async () => {
@@ -140,15 +150,61 @@ describe('GET /api/rally/options/:kind', () => {
 		expect(suggestions.map((s) => s.id)).toEqual(['ARB', 'ALA']);
 		// 264: the set's 249 plus the 15 names its booster sample adds (`pools/sets.ts`'s `cardsFor`).
 		const { suggestions: shards } = data(OptionsBody, (await get('/api/rally/options/set?q=shards')).json);
-		expect(shards).toEqual([{ id: 'ALA', label: 'Shards of Alara', detail: 'ALA · 2008 · 264 cards', image: null }]);
+		expect(shards).toEqual([
+			{ id: 'ALA', label: 'Shards of Alara', detail: 'Realistic', image: null, lines: [{ text: '3x Shards of Alara packs', view: 'set/ALA/cards' }] },
+		]);
 	});
 
-	it('names a preset by its saved name, its plan on the second line', async () => {
+	it('a preset of three sources: a line per source, each opening only that source\'s cards', async () => {
 		const { get, presets } = await setup();
-		const saved = await presets.create('Alara block', MIXED, 'fk:alice');
+		const saved = await presets.create('Three of a kind', THREE, 'fk:alice');
+		const { suggestions } = data(OptionsBody, (await get('/api/rally/options/draft-preset?q=three')).json);
+		expect(suggestions).toEqual([
+			{
+				id: saved.id,
+				label: 'Three of a kind',
+				detail: 'Realistic + Cube',
+				image: expect.toSatisfy((url: unknown) => url === null || typeof url === 'string'),
+				lines: [
+					{ text: '1x Shards of Alara', view: 'set/ALA/cards' },
+					{ text: '1x Alara Reborn', view: 'set/ARB/cards' },
+					{ text: expect.stringMatching(/^1x .*Vintage/), view: `cube/${VINTAGE}/cards` },
+				],
+			},
+		]);
+	});
+
+	it('a preset mixing kinds names each kind; a source drafted twice is one line', async () => {
+		const { get, presets } = await setup();
+		await presets.create('Alara block', MIXED, 'fk:alice');
 		const { suggestions } = data(OptionsBody, (await get('/api/rally/options/draft-preset?q=alara')).json);
-		expect(suggestions).toHaveLength(1);
-		expect(suggestions[0]).toMatchObject({ id: saved.id, label: 'Alara block', detail: 'Shards of Alara · Realistic / Shards of Alara · Realistic / Alara Reborn · Set-cube' });
+		expect(suggestions[0]).toMatchObject({
+			label: 'Alara block',
+			detail: 'Realistic + Set cube',
+			lines: [
+				{ text: '2x Shards of Alara packs', view: 'set/ALA/cards' },
+				{ text: '1x Alara Reborn', view: 'set/ARB/cards' },
+			],
+		});
+	});
+
+	it('every line is one Rally accepts: at most four, 1–80 characters, a view it can open', async () => {
+		const { get, presets } = await setup();
+		await presets.create('Three of a kind', THREE, 'fk:alice');
+		for (const kind of ['cube', 'set', 'draft-preset']) {
+			const { suggestions } = data(OptionsBody, (await get(`/api/rally/options/${kind}`)).json);
+			expect(suggestions.length).toBeGreaterThan(0);
+			for (const s of suggestions) {
+				expect(s.lines.length).toBeGreaterThan(0);
+				expect(s.lines.length).toBeLessThanOrEqual(4);
+				for (const line of s.lines) {
+					expect(line.text.length).toBeGreaterThan(0);
+					expect(line.text.length).toBeLessThanOrEqual(80);
+					expect(line.view).toMatch(/^[a-z][a-z0-9-]{0,31}\/[A-Za-z0-9._:-]{1,64}\/[a-z][a-z0-9-]{0,31}$/);
+					expect((await get(`/api/rally/views/${line.view}`)).status).toBe(200);
+				}
+			}
+		}
 	});
 
 	it('answers an unknown catalogue with 404 in the wrapper', async () => {
@@ -165,8 +221,7 @@ describe('GET /api/rally/views/:kind/:id/cards', () => {
 		const view = data(CardsBody, (await get(`/api/rally/views/cube/${PAUPER}/cards`)).json);
 		expect(view.groups).toHaveLength(1);
 		expect(view.groups[0]!.label).toBeNull();
-		const { suggestions } = data(OptionsBody, (await get('/api/rally/options/cube?q=pauper')).json);
-		expect(`${view.groups[0]!.cards.length} cards`).toBe(suggestions[0]!.detail);
+		expect(view.groups[0]!.cards.length).toBeGreaterThan(300);
 	});
 
 	it("a mixed preset shows each pool once, under the rounds that draft it, less the plan's without", async () => {

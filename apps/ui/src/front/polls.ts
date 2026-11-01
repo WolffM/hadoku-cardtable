@@ -35,27 +35,72 @@ export function openPolls(polls: readonly Poll[]): Poll[] {
   return [...polls].sort((a, b) => closes(a) - closes(b));
 }
 
-/** How often a mounted reader re-reads the polls, so a form attached since shows without a reload (as `./events.ts` does). */
+/* ── the shared store ────────────────────────────────────────────────── */
+
+type PollsClient = Pick<ReturnType<typeof pollsClient>, 'list'>;
+
+/** `null` until the first read answers; the last good list after a failed read. */
+let current: Poll[] | null = null;
+const listeners = new Set<(polls: Poll[] | null) => void>();
+let client: PollsClient = pollsClient();
+/** Bumped by every read and every attach: only the newest read may set the list, so a read begun before an attach never drops its form. */
+let generation = 0;
+
+/** Tests swap the client (and reset the store) here. */
+export function setPollsClient(next: PollsClient): void {
+  client = next;
+  current = null;
+  generation += 1;
+}
+
+function publish(polls: Poll[]): void {
+  current = polls;
+  for (const listener of listeners) listener(current);
+}
+
+/** Tell `listener` the polls now and on every change; answers the unsubscribe. */
+export function subscribePolls(listener: (polls: Poll[] | null) => void): () => void {
+  listeners.add(listener);
+  listener(current);
+  return () => listeners.delete(listener);
+}
+
+/** Re-read the polls and tell every reader. A failed read keeps what they have; a read overtaken by a newer one changes nothing. */
+export async function refreshPolls(): Promise<void> {
+  const mine = ++generation;
+  let next: Poll[];
+  try {
+    next = openPolls(await client.list());
+  } catch {
+    // Not reachable for a moment: the page keeps what it showed, or says there are none.
+    if (current !== null || mine !== generation) return;
+    next = [];
+  }
+  if (mine === generation) publish(next);
+}
+
+/**
+ * A form just attached (Create event's Load form, or Rally's return trip): it shows at once, and
+ * the list is re-read behind it, never left to the next tick.
+ */
+export async function pollAttached(form: Poll): Promise<void> {
+  generation += 1;
+  if (form.status === 'open') publish(openPolls([...(current ?? []).filter((p) => p.id !== form.id), form]));
+  await refreshPolls();
+}
+
+/** How often a mounted reader re-reads the polls, so another organizer's form shows without a reload (as `./events.ts` does). */
 const REFRESH_MS = 60_000;
 
-/** The open polls, kept fresh while mounted: `null` until the first read answers; a failed read keeps what it had, or none. */
-export function usePolls(fetchImpl?: Fetch): Poll[] | null {
-  const [polls, setPolls] = useState<Poll[] | null>(null);
+/** The open polls, kept fresh while mounted: `null` until the first read answers. */
+export function usePolls(): Poll[] | null {
+  const [polls, setPolls] = useState<Poll[] | null>(current);
   useEffect(() => {
-    let live = true;
-    const read = (): void => {
-      pollsClient(fetchImpl)
-        .list()
-        .then((list) => live && setPolls(openPolls(list)))
-        .catch(() => {
-          // Not reachable for a moment: the page keeps what it showed, or says there are none.
-          if (live) setPolls((had) => had ?? []);
-        });
-    };
-    read();
-    const reread = setInterval(read, REFRESH_MS);
+    const stop = subscribePolls(setPolls);
+    void refreshPolls();
+    const reread = setInterval(() => void refreshPolls(), REFRESH_MS);
     return () => {
-      live = false;
+      stop();
       clearInterval(reread);
     };
   }, []);

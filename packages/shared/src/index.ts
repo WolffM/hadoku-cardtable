@@ -548,6 +548,7 @@ export {
   rallyEnvelope,
   type RallyCatalogue,
   type RallyView,
+  type RallyLine,
   type RallySource,
   type RallySuggestion,
   type RallyCardGroup,

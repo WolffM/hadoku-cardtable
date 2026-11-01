@@ -3,8 +3,8 @@
  *
  * A Rally form's "Pick from a catalogue" question can offer Cardtable's drafts: the organizer picks
  * a catalogue (`RallyCatalogue`), searches it, and every option Rally stores is a snapshot of one
- * `RallySuggestion`. A respondent then opens that option's two view pages in a frame, which read
- * `RallyCardsView` and `RallyPackView`.
+ * `RallySuggestion`. A respondent opens an option's sample pack, and each of its lines opens that
+ * source's cards, in a frame; those pages read `RallyPackView` and `RallyCardsView`.
  *
  * Rally checks `RallySource` and `RallySuggestion` against its own rules, so the patterns and caps
  * here are Rally's, copied: a kind or view id is `^[a-z][a-z0-9-]{0,31}$`, an option id
@@ -22,7 +22,10 @@ export const RALLY_CATALOGUES = ['draft-preset', 'set', 'cube'] as const;
 export const RallyCatalogueSchema = z.enum(RALLY_CATALOGUES);
 export type RallyCatalogue = z.infer<typeof RallyCatalogueSchema>;
 
-/** Each catalogue's two pages, `#/embed/{kind}/{id}/{view}`. */
+/**
+ * Each catalogue's two pages, `#/embed/{kind}/{id}/{view}`. Only `pack` is listed as a source's
+ * view; `cards` opens from an option's lines, one source at a time (round 2).
+ */
 export const RALLY_VIEWS = ['cards', 'pack'] as const;
 export const RallyViewSchema = z.enum(RALLY_VIEWS);
 export type RallyView = z.infer<typeof RallyViewSchema>;
@@ -43,10 +46,23 @@ export const RallySourceSchema = z.strictObject({
 });
 export type RallySource = z.infer<typeof RallySourceSchema>;
 
+/** A line's page, `{kind}/{id}/{view}`, as Rally checks it. */
+const RALLY_LINE_VIEW = /^[a-z][a-z0-9-]{0,31}\/[A-Za-z0-9._:-]{1,64}\/[a-z][a-z0-9-]{0,31}$/;
+
+/** One source an option drafts from, `3x Bloomburrow packs`, opening that source's cards page. */
+const RallyLineSchema = z.strictObject({
+  text: z.string().min(1).max(80),
+  view: z.string().regex(RALLY_LINE_VIEW),
+});
+export type RallyLine = z.infer<typeof RallyLineSchema>;
+
 export const RallySuggestionSchema = z.strictObject({
   id: z.string().regex(RALLY_OPTION_ID),
   label: z.string().min(1).max(200),
+  /** The draft kind: `Cube`, `Set cube`, `Realistic`, or a preset's kinds joined with ` + `. */
   detail: z.string().max(200).nullable(),
+  /** What it drafts from, a line per source in first-round order. */
+  lines: z.array(RallyLineSchema).min(1).max(4),
   image: z
     .string()
     .refine((url) => RALLY_IMAGE_HOSTS.some((host) => url.startsWith(host)), 'an image Rally can draw')

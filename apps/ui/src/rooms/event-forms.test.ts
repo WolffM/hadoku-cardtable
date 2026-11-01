@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { CreateEventBodySchema } from '@hadoku/shared';
 
-import { finishRallyReturn } from './event-forms.ts';
+import { refreshPolls, setPollsClient, subscribePolls } from '../front/polls.ts';
+import { attachRallyForm, finishRallyReturn } from './event-forms.ts';
 import { NEW_ROOM_FIELDS, NEW_TOURNAMENT, tournamentRoom } from './RoomFields.tsx';
 
 const at = (href: string) => {
@@ -54,5 +55,65 @@ describe('a tournament’s room, as Create event sends it', () => {
       settings: { clock: 'auto', pickTimer: { on: true, speed: 2 }, handSmoothing: true },
     });
     expect(CreateEventBodySchema.safeParse({ title: 'Pod', startsAt: '2026-11-01T20:00:00.000Z', room }).success).toBe(true);
+  });
+});
+
+describe('a form attached from Create event shows under Polls at once (cardtable#24 item 5)', () => {
+  const form = (id: string) => ({
+    id,
+    title: `Form ${id}`,
+    status: 'open' as const,
+    closesAt: null,
+    url: `https://hadoku.me/rally/f/${id}`,
+    createdBy: 'alice',
+    schema: { name: 'event-signup', version: 1 },
+    attachedBy: 'alice',
+    mine: true,
+  });
+
+  /** A polls read the test answers by hand, in whatever order it likes. */
+  function deferredReads() {
+    const reads: { answer: (forms: ReturnType<typeof form>[]) => void }[] = [];
+    const list = () =>
+      new Promise<ReturnType<typeof form>[]>((resolve) => {
+        reads.push({ answer: resolve });
+      });
+    return { reads, client: { list } };
+  }
+
+  it('the attach puts the form in the polls the moment it answers, and a read begun before it cannot take it away', async () => {
+    const { reads, client } = deferredReads();
+    setPollsClient(client);
+    const seen: (string[] | null)[] = [];
+    const stop = subscribePolls((polls) => seen.push(polls === null ? null : polls.map((p) => p.id)));
+
+    // The Polls card mounts and reads; Rally's return attaches the form while that read is out.
+    void refreshPolls();
+    const attachForm = vi.fn(async () => ({ ok: true as const, form: form('new') }));
+    const outcome = await attachRallyForm('new', { attachForm });
+    expect(outcome).toMatchObject({ ok: true });
+    expect(seen.at(-1)).toEqual(['new']);
+
+    // The first read answers late, without the form: it is stale, and changes nothing.
+    reads[0]!.answer([]);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(seen.at(-1)).toEqual(['new']);
+
+    // The read the attach began is the one that counts.
+    reads.at(-1)!.answer([form('old'), form('new')]);
+    await vi.waitFor(() => expect(seen.at(-1)).toEqual(['old', 'new']));
+    stop();
+  });
+
+  it('Rally’s return trip attaches through the same path', async () => {
+    const { client } = deferredReads();
+    setPollsClient(client);
+    const seen: (string[] | null)[] = [];
+    const stop = subscribePolls((polls) => seen.push(polls === null ? null : polls.map((p) => p.id)));
+    const attachForm = vi.fn(async () => ({ ok: true as const, form: form('trip') }));
+    await finishRallyReturn(at('https://hadoku.me/cardtable/?form=trip&ref=ct-1#/'), { replaceState: vi.fn(), state: null }, { getItem: () => 'ct-1', removeItem: vi.fn() }, { attachForm });
+    expect(seen.at(-1)).toEqual(['trip']);
+    stop();
   });
 });
