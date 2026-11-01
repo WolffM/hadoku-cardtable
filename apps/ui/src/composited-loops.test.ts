@@ -77,6 +77,20 @@ describe('endless animations move only what the compositor moves', () => {
     expect([...new Set(offenders)]).toEqual([]);
   });
 
+  it('never adds an animation onto what it animates: Chromium runs no effect that composites `add` on the compositor', () => {
+    // `animation-composition: add` (or `accumulate`) puts the animation back on the main thread: the
+    // trace's `compositeFailed` 16 (kEffectHasNonReplaceCompositeMode), and a restyle of the element on
+    // every frame. The flyers' loops were added onto each part's resting lift, so every Thopter a combo
+    // made cost every frame more (`play/card.css`, the flight loop).
+    const offenders: string[] = [];
+    texts.forEach((text, n) => {
+      for (const m of text.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/animation-composition\s*:\s*([^;}]*)/g)) {
+        if (m[1]!.split(',').some((v) => v.trim() !== 'replace')) offenders.push(`${relative(SRC, files[n]!)}: animation-composition: ${m[1]!.trim()}`);
+      }
+    });
+    expect(offenders).toEqual([]);
+  });
+
   it('lists only keyframes that still exist and still need it', () => {
     for (const [name, why] of Object.entries(NOT_YET)) {
       const props = frames.get(name);

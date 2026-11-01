@@ -145,7 +145,7 @@ test(titled('an aura that grants flying tags the creature and floats it, on both
           .toContain('flying');
         expect(seen!.flying, `${who}: the Bears float`).toBe(true);
         expect(seen!.translate, `${who}: the art is lifted`).not.toMatch(/^(none|0px)$/);
-        if (who === 'alice') expect(seen!.animation, `${who}: and loops on the wing`).toContain('fly-across');
+        if (who === 'alice') expect(seen!.animation, `${who}: and loops on the wing`).toContain('fly-figure');
       } finally {
         log(`after the aura (${who})`, seen);
       }

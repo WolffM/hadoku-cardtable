@@ -76,12 +76,16 @@ interface Recording {
 }
 let rec: Recording | null = null;
 let lastFrame = 0;
+// Only while recording: a frame asked for is a frame the page draws, and every running animation is sampled on it.
 const onFrame = (t: number): void => {
-  if (rec !== null && lastFrame > 0) rec.frames.push(t - lastFrame);
+  if (rec === null) {
+    lastFrame = 0;
+    return;
+  }
+  if (lastFrame > 0) rec.frames.push(t - lastFrame);
   lastFrame = t;
   requestAnimationFrame(onFrame);
 };
-requestAnimationFrame(onFrame);
 
 const observe = (type: string, fn: (e: PerformanceEntry) => void, extra: Record<string, unknown> = {}): void => {
   if (!PerformanceObserver.supportedEntryTypes.includes(type)) return;
@@ -174,12 +178,21 @@ const api = {
     if (step === undefined) throw new Error(`no loop ${name}; have ${Object.keys(scenario.loops).join(', ')}`);
     loopTimer = setInterval(() => deliver(step()), periodMs);
   },
+  /** One packet of a loop, now. Resolves with the ms from its delivery to the frame after the one that drew it. */
+  step(name: string): Promise<number> {
+    const step = scenario.loops[name];
+    if (step === undefined) throw new Error(`no loop ${name}; have ${Object.keys(scenario.loops).join(', ')}`);
+    const at = performance.now();
+    deliver(step());
+    return new Promise((done) => requestAnimationFrame(() => requestAnimationFrame((t) => done(t - at))));
+  },
   stop(): void {
     if (loopTimer !== null) clearInterval(loopTimer);
     loopTimer = null;
   },
   start(): void {
     rec = { frames: [], longtasks: [], loaf: [], events: [], inputs: [] };
+    requestAnimationFrame(onFrame);
   },
   take(): Recording | null {
     const r = rec;

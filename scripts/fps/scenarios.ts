@@ -335,6 +335,69 @@ export function buildScenario(options: BoardOptions): Scenario {
     return packet({}, d);
   };
 
+  // The Thopter Foundry + Sword of the Meek engine, one loop per three steps, as the promo's server log sends
+  // it: the Foundry resolving (a flying Thopter token and a life), the Sword's trigger returning it attached
+  // to that Thopter, the next activation sacrificing it (a departure). Every loop leaves one more flyer.
+  // A clone made after the setup packet, sent as the packet that brings it: its objects leave `fresh`.
+  const cloneLater = (template: number, where: string, extra: Record<string, unknown> = {}): { id: number; made: Table } => {
+    const id = clone(template, 0, where, extra);
+    const made: Table = {};
+    for (const k of [key(CARD, id), stateKey(id)]) {
+      made[k] = fresh[k]!;
+      delete fresh[k];
+    }
+    return { id, made };
+  };
+  let thopterStep = 0;
+  let thopterLife = 20;
+  let sword: number | null = null;
+  const thopters: number[] = [];
+  const thopter = (): Packet => {
+    const step = thopterStep++ % 3;
+    if (step === 0) {
+      // The Foundry resolves: a Thopter and a life. The first loop's Sword arrives with it, in the graveyard.
+      const swordNew = sword === null ? cloneLater(T.talon, 'Graveyard') : null;
+      if (swordNew !== null) {
+        sword = swordNew.id;
+        lists.gy0 = [...lists.gy0, sword];
+      }
+      const token = cloneLater(options.flyers ? T.whelp : T.replica, 'Battlefield', { Token: { t: 'bool', v: true }, Sickness: { t: 'bool', v: true } });
+      thopters.push(token.id);
+      lists.bf[0] = [...lists.bf[0]!, token.id];
+      thopterLife += 1;
+      return packet(
+        { ...swordNew?.made, ...token.made },
+        { [key(PLAYER, 0)]: { _type: PLAYER, _id: 0, Battlefield: list(lists.bf[0]!), Graveyard: list(lists.gy0), Life: int(thopterLife) } },
+      );
+    }
+    const id = sword!;
+    const host = thopters.at(-1)!;
+    if (step === 1) {
+      // The Sword's trigger: back onto the battlefield, attached to the new Thopter.
+      lists.gy0 = lists.gy0.filter((x) => x !== id);
+      lists.bf[0] = [...lists.bf[0]!, id];
+      return packet(
+        {},
+        {
+          [key(CARD, id)]: { _type: CARD, _id: id, Zone: zone('Battlefield'), EntityAttachedTo: { t: 'ints', v: [0, host] } },
+          [key(CARD, host)]: { _type: CARD, _id: host, AttachedCards: list([id]) },
+          [key(PLAYER, 0)]: { _type: PLAYER, _id: 0, Battlefield: list(lists.bf[0]!), Graveyard: list(lists.gy0) },
+        },
+      );
+    }
+    // The next activation sacrifices it: a departure.
+    lists.bf[0] = lists.bf[0]!.filter((x) => x !== id);
+    lists.gy0 = [...lists.gy0, id];
+    return packet(
+      {},
+      {
+        [key(CARD, id)]: { _type: CARD, _id: id, Zone: zone('Graveyard'), EntityAttachedTo: null },
+        [key(CARD, host)]: { _type: CARD, _id: host, AttachedCards: null },
+        [key(PLAYER, 0)]: { _type: PLAYER, _id: 0, Battlefield: list(lists.bf[0]!), Graveyard: list(lists.gy0) },
+      },
+    );
+  };
+
   // The leak loop: every animation in turn, then life totals ticking.
   let mixStep = 0;
   let life = 20;
@@ -349,7 +412,7 @@ export function buildScenario(options: BoardOptions): Scenario {
 
   return {
     packets,
-    loops: { tap, attack, stack, mix, targets, wipe },
+    loops: { tap, attack, stack, mix, targets, wipe, thopter },
     counts: { p0: lists.bf[0]!.length, p1: lists.bf[1]!.length, hand: lists.hand.length, flyers },
   };
 

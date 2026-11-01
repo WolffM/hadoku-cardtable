@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /*
  * `frame-watch.ts`: the frame rate in the match's log. A fake `requestAnimationFrame` and clock drive
  * it frame by frame; a fake document says whether the tab is visible; a stub `PerformanceObserver`
@@ -8,12 +9,14 @@ import { ClientEventSchema } from '@hadoku/shared';
 
 import {
   MAX_REPORTS,
+  QUIET_MS,
   RECOVER_MS,
   REPORT_EVERY_MS,
   SUMMARY_EVERY_TURNS,
   animationTop,
   boardFacts,
   loafFields,
+  pageActivity,
   phaseField,
   scriptField,
   watchFrames,
@@ -36,6 +39,8 @@ function tab(options: { hidden?: boolean; types?: readonly string[] } = {}) {
   const sent: Data[] = [];
   let reads = 0;
   let pageReads = 0;
+  let wake: (() => void) | null = null;
+  let timers: { at: number; cb: () => void; handle: number }[] = [];
   const observers: { callback: (list: { getEntries(): readonly unknown[] }) => void; type: string; disconnected: boolean }[] = [];
   const Observer = class {
     static supportedEntryTypes = options.types ?? [];
@@ -86,6 +91,30 @@ function tab(options: { hidden?: boolean; types?: readonly string[] } = {}) {
       removeEventListener: (_: string, l: () => void) => pageHide.delete(l),
     } as unknown as FrameWatchHost['win'],
     observer: Observer,
+    wakeOn: (w) => {
+      wake = w;
+      return () => {
+        wake = null;
+      };
+    },
+    timer: {
+      set: (cb, ms) => {
+        timers.push({ at: clock + ms, cb, handle: nextHandle });
+        return nextHandle++;
+      },
+      clear: (h) => {
+        timers = timers.filter((x) => x.handle !== h);
+      },
+    },
+  };
+  /** Runs every timer due by now, in order: the main thread free again. */
+  const runTimers = (): void => {
+    for (;;) {
+      const due = timers.filter((x) => x.at <= clock).sort((a, b) => a.at - b.at)[0];
+      if (due === undefined) return;
+      timers = timers.filter((x) => x !== due);
+      due.cb();
+    }
   };
   return {
     host,
@@ -94,12 +123,49 @@ function tab(options: { hidden?: boolean; types?: readonly string[] } = {}) {
     get scheduled() {
       return pending !== null;
     },
-    /** One frame, `gap` ms after the last. */
+    /** One frame of the page drawing something, `gap` ms after the last. */
     frame(gap: number): void {
+      clock += gap;
+      wake?.();
+      const run = pending;
+      pending = null;
+      run?.(clock);
+    },
+    /** A frame in which nothing new was drawn: only the watch asked for it. */
+    idleFrame(gap: number): void {
       clock += gap;
       const run = pending;
       pending = null;
       run?.(clock);
+    },
+    /** `ms` pass with nothing new drawn: a frame every 16 ms while the watch asks for one, the timers on time. */
+    idle(ms: number): void {
+      const end = clock + ms;
+      while (clock < end) {
+        const next = Math.min(end, pending === null ? Infinity : clock + 16, ...timers.map((x) => x.at));
+        clock = next;
+        if (pending !== null && next === clock) {
+          const run = pending;
+          pending = null;
+          run(clock);
+        }
+        runTimers();
+      }
+    },
+    /** The main thread held for `ms`: nothing runs, then the timers that came due run, late. */
+    hold(ms: number): void {
+      clock += ms;
+      runTimers();
+    },
+    /** The page draws something new, with no frame yet. */
+    change(): void {
+      wake?.();
+    },
+    get timers() {
+      return timers.length;
+    },
+    get waking() {
+      return wake !== null;
     },
     frames(count: number, gap: number): void {
       for (let i = 0; i < count; i += 1) this.frame(gap);
@@ -391,6 +457,96 @@ describe('watchFrames', () => {
     // What each label spent while the stretch was open, the work before it left out.
     expect(t.of('work')).toEqual([{ what: 'work', n: 1, ms: stretch!.ms, ours: 160, oursPct: Math.round((160 * 100) / (stretch!.ms as number)), forge: 40, effects: 120 }]);
     watch.dispose();
+  });
+
+  it('asks for no frame once the page has drawn nothing new for a while, and asks again at the next change', () => {
+    const t = tab();
+    const watch = watchFrames(t.host);
+    t.frames(60, 16);
+    t.idleFrame(16);
+    expect(t.scheduled, 'still inside the quiet time').toBe(true);
+    let quiet = 1;
+    for (; quiet < 2 * QUIET_MS && t.scheduled; quiet += 1) t.idleFrame(16);
+    expect(quiet * 16, 'asleep once the quiet time is up').toBeGreaterThanOrEqual(QUIET_MS);
+    expect(t.scheduled, 'every running animation is sampled on each frame the page is made to draw').toBe(false);
+    expect(t.timers, 'the heartbeat stands in').toBe(1);
+    t.idle(30_000);
+    expect(t.scheduled).toBe(false);
+    t.change();
+    expect(t.scheduled, 'woken by the change').toBe(true);
+    expect(t.timers).toBe(0);
+    t.frames(120, 16);
+    watch.noteGameOver();
+    // The first frame starts the clock; the one after the change is timed from it.
+    expect(t.of('summary')[0], 'a summary counts the frames drawn, not the quiet').toMatchObject({ frames: 59 + quiet + 120, worstMs: 16 });
+    watch.dispose();
+  });
+
+  it('times a freeze while it sleeps: a heartbeat that ran late is a frame from when it was due', () => {
+    const t = tab();
+    const watch = watchFrames(t.host);
+    t.frames(30, 16);
+    t.idle(QUIET_MS + 100);
+    expect(t.scheduled).toBe(false);
+    t.idle(1_000);
+    t.hold(600);
+    expect(t.scheduled, 'the late heartbeat wakes the loop').toBe(true);
+    t.frame(16);
+    t.frames(Math.ceil(RECOVER_MS / 16) + 1, 16);
+    expect(t.of('stretch')).toHaveLength(1);
+    expect(t.of('stretch')[0], 'from the heartbeat due inside the hold to the frame after it').toMatchObject({ freeze: true });
+    expect(t.of('stretch')[0]!.worstMs).toBeGreaterThan(500);
+    watch.dispose();
+  });
+
+  it('times a change made in a hold from when the heartbeat was due, not from the change', () => {
+    const t = tab();
+    const watch = watchFrames(t.host);
+    t.frames(30, 16);
+    t.idle(QUIET_MS + 500);
+    t.hold(450);
+    expect(t.of('stretch')).toEqual([]);
+    expect(t.scheduled).toBe(true);
+    t.frame(20);
+    t.frames(Math.ceil(RECOVER_MS / 16) + 1, 16);
+    expect(t.of('stretch')[0]!.worstMs, 'the hold, not 20 ms').toBeGreaterThan(400);
+    watch.dispose();
+  });
+
+  it('keeps asking while a stretch is open, however quiet the page', () => {
+    const t = tab();
+    const watch = watchFrames(t.host);
+    t.frames(30, 16);
+    t.frame(400);
+    for (let i = 0; i < 3 * QUIET_MS / 80 && t.scheduled; i += 1) t.idleFrame(i % 4 === 0 ? 80 : 16);
+    expect(t.scheduled).toBe(true);
+    watch.dispose();
+  });
+
+  it('lets go of the heartbeat and what wakes it when it stops', () => {
+    const t = tab();
+    const watch = watchFrames(t.host);
+    t.frames(10, 16);
+    t.idle(QUIET_MS + 100);
+    expect([t.timers, t.waking]).toEqual([1, true]);
+    watch.dispose();
+    expect([t.timers, t.waking, t.scheduled]).toEqual([0, false, false]);
+  });
+
+  it('wakes on the page’s own activity: input, a DOM change, an animation starting', () => {
+    const calls: string[] = [];
+    const stop = pageActivity(() => calls.push('wake'));
+    document.body.append(document.createElement('div'));
+    return Promise.resolve().then(() => {
+      expect(calls.length, 'a DOM change').toBeGreaterThan(0);
+      const before = calls.length;
+      window.dispatchEvent(new Event('pointermove'));
+      window.dispatchEvent(new Event('animationstart'));
+      expect(calls.length).toBe(before + 2);
+      stop();
+      window.dispatchEvent(new Event('pointermove'));
+      expect(calls.length).toBe(before + 2);
+    });
   });
 
   it('summarises as the game ends, and sends what it saw as the tab closes', () => {

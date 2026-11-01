@@ -5,6 +5,7 @@
  *   node scripts/fps/measure.mjs frames  --browser chromium --throttle 1,4,6 --viewport desktop --out <tsv>
  *   node scripts/fps/measure.mjs trace   --throttle 4 --out <tsv>          (Chromium: where the time goes)
  *   node scripts/fps/measure.mjs leak    --minutes 10 --out <tsv>          (Chromium: heap + DOM over a loop)
+ *   node scripts/fps/measure.mjs growth  --loops 8 --period 9000 --assert 10 (Chromium: cost per loop of a combo)
  *
  * --drop-rules <regex> (frames, trace): CSS rules whose selector matches are deleted in the page before
  * recording — an A/B for a rule's cost that edits nothing in the app.
@@ -52,6 +53,7 @@ const BOARDS = {
   crowded: 'size=crowded',
   'crowded-nofly': 'size=crowded&flyers=0',
   'crowded-noanim': 'size=crowded&noanim=1',
+  'mid-nofly': 'size=mid&flyers=0',
   huge: 'size=huge',
 };
 const DEFAULT_CASES = [
@@ -383,6 +385,82 @@ function topFunctions(profile, n) {
   return [...self.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => `${k}=${f1(v)}`).join(' ');
 }
 
+/**
+ * Cost per loop of a combo that grows the board (`thopter`: a flyer more each loop), loop after loop:
+ * main-thread busy time and style recalcs per second (CDP `Performance` metrics over the loop's window)
+ * and each step's delivery → painted. Each loop's steps go out at the spacing the promo's server log
+ * shows: the Foundry's Thopter at 0, the Sword back at 1.2 s, the next sacrifice at the loop's end. The
+ * recorder's own frame loop stays off: a frame asked for is a frame drawn, and every running animation is
+ * sampled on it, so the board is measured as the app alone drives it. `quiet_*` is the loop's quiet
+ * part, from 4 s (the Sword's beats over, and the quiet second after them) to the next sacrifice: the
+ * board standing as a player decides, the next offer up. `--assert N` exits 1 when any loop's quiet part
+ * restyles more than N times a second: a board standing still whose main thread draws anyway, at a cost
+ * that grows with every flyer on it. Assert with `--period 9000` (a player who decides in 3 s): at the
+ * promo's 6 s the quiet part still holds the last step's tail.
+ */
+async function growth() {
+  const loops = Number(arg('loops', '6'));
+  const period = Number(arg('period', '6000'));
+  const board = arg('board', 'mid');
+  const anim = arg('anim', 'thopter');
+  const limit = arg('assert', null);
+  const header = ['board', 'anim', 'loop', 'flyers', 'busy_ms_per_s', 'style_recalcs_per_s', 'style_ms_per_s', 'layout_ms_per_s', 'quiet_busy_ms_per_s', 'quiet_recalcs_per_s', 'apply_ms_max', 'dom_nodes', 'load1'];
+  const browser = await launch('chromium');
+  const { context, page } = await openBoard(browser, board, viewportName);
+  const cdp = await context.newCDPSession(page);
+  await cdp.send('Performance.enable');
+  const metrics = async () => Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map((m) => [m.name, m.value]));
+  const quietRecalcs = [];
+  for (let n = 1; n <= loops; n++) {
+    const t0 = Date.now();
+    const m0 = await metrics();
+    const applied = [];
+    const at = async (ms) => {
+      const wait = t0 + ms - Date.now();
+      if (wait > 0) await page.waitForTimeout(wait);
+    };
+    applied.push(await page.evaluate((a) => window.fps.step(a), anim));
+    await at(1200);
+    applied.push(await page.evaluate((a) => window.fps.step(a), anim));
+    await at(4000);
+    const q0 = await metrics();
+    await at(period - 400);
+    const q1 = await metrics();
+    applied.push(await page.evaluate((a) => window.fps.step(a), anim));
+    await at(period);
+    const m1 = await metrics();
+    const r = await page.evaluate(() => ({ dom: document.getElementsByTagName('*').length, flyers: document.querySelectorAll('[data-flying]').length }));
+    const secs = (m1.Timestamp - m0.Timestamp) || period / 1000;
+    const per = (k) => (m1[k] - m0[k]) / secs;
+    const quiet = (k) => (q1[k] - q0[k]) / ((q1.Timestamp - q0.Timestamp) || 1);
+    quietRecalcs.push(quiet('RecalcStyleCount'));
+    writeRow(header, {
+      board,
+      anim,
+      loop: n,
+      flyers: r.flyers,
+      busy_ms_per_s: f1(per('TaskDuration') * 1000),
+      style_recalcs_per_s: f1(per('RecalcStyleCount')),
+      style_ms_per_s: f1(per('RecalcStyleDuration') * 1000),
+      layout_ms_per_s: f1(per('LayoutDuration') * 1000),
+      quiet_busy_ms_per_s: f1(quiet('TaskDuration') * 1000),
+      quiet_recalcs_per_s: f1(quiet('RecalcStyleCount')),
+      apply_ms_max: f1(Math.max(...applied)),
+      dom_nodes: r.dom,
+      load1: load(),
+    });
+  }
+  await context.close();
+  await browser.close();
+  if (limit !== null) {
+    const most = Math.max(...quietRecalcs);
+    if (most > Number(limit)) {
+      console.error(`growth: the board standing still restyled up to ${f1(most)} times a second over ${loops} loops, over ${limit}`);
+      process.exitCode = 1;
+    } else console.error(`growth: still, at most ${f1(most)} restyles a second standing over ${loops} loops`);
+  }
+}
+
 /** Heap and DOM over a long loop of state updates: a leak grows with time, a cache plateaus. */
 async function leak() {
   const minutes = Number(arg('minutes', '10'));
@@ -434,7 +512,8 @@ try {
   if (mode === 'frames') await frames();
   else if (mode === 'trace') await trace();
   else if (mode === 'leak') await leak();
-  else throw new Error(`mode must be frames, trace or leak; got ${mode}`);
+  else if (mode === 'growth') await growth();
+  else throw new Error(`mode must be frames, trace, leak or growth; got ${mode}`);
 } finally {
   server.close();
 }

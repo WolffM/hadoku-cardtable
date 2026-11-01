@@ -1182,6 +1182,8 @@ describe('marks', () => {
 
 const BOARD_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play', 'board.css'), 'utf8');
 const CARD_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play', 'card.css'), 'utf8');
+/** The flight loop's keyframes, sampled from its curves (`flight.test.ts` reads them against those). */
+const FLIGHT_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play', 'flight.css'), 'utf8');
 const MANA_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play', '../symbols/mana.css'), 'utf8');
 /** `CardTile`'s own sheet: every card the board draws is one. */
 const TILE_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play', '../components/CardTile.css'), 'utf8');
@@ -1536,18 +1538,21 @@ describe('no rotated text (operator, 2026-09-26)', () => {
   it('sets no text sideways in board.css, and rotates only a CARD in card.css', () => {
     expect(withoutComments(BOARD_CSS).match(SIDEWAYS), 'board.css turns nothing on its side').toBeNull();
     /*
-     * card.css keeps exactly two kinds of rotation and neither is a word: a
+     * A card keeps exactly two kinds of rotation and neither is a word: a
      * flyer's tilt, a few degrees in depth as it loops (the operator,
-     * 2026-10-15: "the card distortion should be a diagonal tilt") — its four
-     * keyframes, each about the x or the y axis, never the screen's own — and
-     * a tapped permanent turned a quarter inside a landscape box, which is the
+     * 2026-10-15: "the card distortion should be a diagonal tilt") — one
+     * keyframe list in flight.css, each frame about an axis in the card's own
+     * plane (z 0), never the screen's own — and, in card.css, a tapped
+     * permanent turned a quarter inside a landscape box, which is the
      * operator's own affordance and stays. If a third one appears, this is the
      * test that says so.
      */
     const cards = withoutComments(CARD_CSS);
     const inCards = cards.match(SIDEWAYS) ?? [];
-    expect(inCards, 'a flyer’s tilt, then the tapped card’s quarter turn ("marks tapped permanents by turning them")').toEqual(['rotate:', 'rotate:', 'rotate:', 'rotate:', 'rotate(']);
-    for (const tilt of cards.match(/rotate:[^;]*/g) ?? []) expect(tilt, 'a tilt in depth, never a turn on the screen').toMatch(/rotate:\s*[xy]\s/);
+    expect(inCards, 'the tapped card’s quarter turn ("marks tapped permanents by turning them")').toEqual(['rotate(']);
+    const tilts = withoutComments(FLIGHT_CSS).match(/rotate:[^;]*/g) ?? [];
+    expect(tilts.length, 'a flyer’s tilt').toBeGreaterThan(0);
+    for (const tilt of tilts) expect(tilt, 'a tilt in depth, never a turn on the screen').toMatch(/rotate:\s*-?[\d.]+ -?[\d.]+ 0 -?[\d.]+deg$/);
   });
 
   it('draws the lane labels that are left horizontally, with their counts', () => {
@@ -2412,10 +2417,11 @@ describe('drag to stack (#1, #19)', () => {
     expect(lift('.board-card[data-combat-ready] > .board-card__face'), 'the face rises 4px').toMatch(/translate:\s*0 -4px/);
     expect(lift('.board-card[data-combat-ready] > :not(.board-card__face, .board-card__pile)'), 'and its badges with it').toMatch(/translate:\s*0 -4px/);
     const flyer = lift('.board-card[data-flying][data-combat-ready] > :not(.board-card__face, .board-card__pile)');
-    expect(flyer, 'a flyer’s rests 4px over its own rest').toMatch(/translate:\s*0 -7px/);
+    expect(flyer, 'a flyer’s rests 4px over its own rest, the lift its loop is drawn about').toMatch(/--fly-rest:\s*-7px/);
     const riding = lift('.board-card[data-flying] > .board-card__face > .card,\n.board-card[data-flying] > :not(.board-card__face, .board-card__pile)');
     expect(riding, 'and rides its loop on top of that rest').toContain('--fly-path');
-    expect(riding, 'added to the rest, not in place of it').toMatch(/animation-composition:\s*add/);
+    expect(riding, 'drawn about the rest, which the loop’s own frames add').toMatch(/translate:\s*0 var\(--fly-rest\)/);
+    expect(FLIGHT_CSS, 'the loop’s frames are drawn about the rest').toMatch(/@keyframes fly-figure\s*\{[^@]*var\(--fly-rest\)/);
   });
 
   /**
@@ -2442,7 +2448,7 @@ describe('drag to stack (#1, #19)', () => {
     expect(ring, 'the ring rule was found at all').not.toBe('');
     expect(ring, 'a ring in the same danger token the grounded outline uses').toContain('var(--danger)');
     expect(ring, 'rides the SAME loop the art does').toContain('--fly-path');
-    expect(ring, 'added to its own base offset, not in place of it').toMatch(/animation-composition:\s*add/);
+    expect(ring, 'drawn about the same rest the art is').toMatch(/translate:\s*0 var\(--fly-rest\)/);
     // Reduced motion stops the ring looping too, same as every other part of a flyer.
     expect(css, 'reduced motion turns the ring off along with everything else it flies').toMatch(
       /prefers-reduced-motion: reduce\) \{[^@]*\[data-flying\]\[data-attacking\][^}]*board-card__face::before[^}]*\{\s*animation: none;/,
