@@ -48,9 +48,13 @@ async function pick(page: Page, ids: readonly number[]): Promise<void> {
   const sheet = page.locator('[data-testid="live-selection-host"], [data-testid="live-prompt"]').first();
   for (const id of ids) await sheet.locator(`[data-testid="prompt-cards"] > li[data-card-id="${id}"]`).click({ timeout: 2_000 }).catch(() => undefined);
   await page.waitForTimeout(400);
-  const still = new Set((await tiles(page)).map((t) => t.id));
-  if (!ids.some((id) => still.has(id))) return;
-  await sheet.locator('[data-testid="selection-done"]:enabled, [data-testid="prompt-submit"]:enabled').first().click({ timeout: 2_000 }).catch(() => undefined);
+  if (ids.length === 0) return;
+  // A pick that reaches its max closes itself and the next sheet can already be up: press only a Done
+  // in a sheet that still shows these tiles, never the next question's.
+  const ours = page
+    .locator('[data-testid="live-selection-host"], [data-testid="live-prompt"]')
+    .filter({ has: page.locator(ids.map((id) => `[data-testid="prompt-cards"] > li[data-card-id="${id}"]`).join(', ')) });
+  await ours.locator('[data-testid="selection-done"]:enabled, [data-testid="prompt-submit"]:enabled').first().click({ timeout: 2_000 }).catch(() => undefined);
 }
 
 const okEnabled = (page: Page) => page.locator('[data-testid="live-decision-ok"]:enabled');

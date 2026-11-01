@@ -55,13 +55,17 @@ async function tiles(page: Page): Promise<{ id: number; text: string }[]> {
 
 /** Tick each tile in `ids`, then press the sheet's own Done while it is still this sheet. */
 async function pick(page: Page, ids: readonly number[]): Promise<void> {
+  if (ids.length === 0) return;
   for (const id of ids) {
     const tile = sheet(page).locator(`[data-testid="prompt-cards"] > li[data-card-id="${id}"] label`);
     if ((await tile.count()) > 0) await tile.click({ timeout: 2_000 }).catch(() => undefined);
   }
-  const still = new Set((await tiles(page)).map((t) => t.id));
-  if (!ids.some((id) => still.has(id))) return;
-  await pressIfThere(sheet(page).locator('[data-testid="selection-done"]:enabled, [data-testid="prompt-submit"]:enabled'));
+  // A pick that reaches its max closes itself, and the next sheet can already be up: press only a Done
+  // in a sheet that still shows these tiles (a run once answered Scapeshift's search with nothing).
+  const ours = page
+    .locator('[data-testid="live-selection-host"], [data-testid="live-prompt"]')
+    .filter({ has: page.locator(ids.map((id) => `[data-testid="prompt-cards"] > li[data-card-id="${id}"]`).join(', ')) });
+  await pressIfThere(ours.locator('[data-testid="selection-done"]:enabled, [data-testid="prompt-submit"]:enabled'));
 }
 
 /** What is drawn at an element's centre: itself (or inside it), or the element that covers it. */
