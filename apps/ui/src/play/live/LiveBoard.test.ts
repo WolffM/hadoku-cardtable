@@ -2783,7 +2783,7 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
       enable2: true,
       focus1: true,
     });
-  const flag = (m: LiveMatch, patch: { spectator?: boolean; watcher?: boolean; over?: boolean }, rerender: (ui: ReturnType<typeof createElement>) => void) => {
+  const flag = (m: LiveMatch, patch: { spectator?: boolean; watcher?: boolean; over?: boolean; followsTurn?: boolean }, rerender: (ui: ReturnType<typeof createElement>) => void) => {
     Object.assign(m, patch);
     rerender(createElement(LiveBoard, { match: m }));
   };
@@ -2836,7 +2836,7 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     expect(fireEvent.dragStart(card)).toBe(true);
   });
 
-  it('watcher (2026-10-12): no control box at all, a Watching line and nothing to flip', async () => {
+  it('watcher (2026-10-12): no control box at all, and a Watching line with the one control it has — switching sides (2026-11-01)', async () => {
     const { s, m, getByTestId, queryByTestId, rerender } = await liveBoard();
     s.send(buttons());
     await untilMatch(m, () => expect(m.buttons?.enable1).toBe(true));
@@ -2852,13 +2852,29 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     expect(queryByTestId('live-decision')).toBeNull();
     expect(getByTestId('live-log-toggle'), 'reading stays').toBeTruthy();
 
-    expect(queryByTestId('perspective-flip'), 'the table follows the turn: nothing to flip').toBeNull();
+    // The operator, 2026-11-01: "Spectators should be able to have the switch perspective button".
+    const bottom = () => document.querySelector('.seat[data-viewer] [data-player-id]')?.getAttribute('data-player-id');
+    const first = viewerOf(m.view)!.id;
+    fireEvent.click(getByTestId('perspective-flip'));
+    expect(viewerOf(m.view)!.id, 'the other seat is at the bottom').not.toBe(first);
+    await waitFor(() => expect(bottom()).toBe(String(viewerOf(m.view)!.id)));
+    fireEvent.click(getByTestId('perspective-flip'));
+    expect(viewerOf(m.view)!.id, 'and back').toBe(first);
     expect(await s.framesFrom(m), 'a watcher sends nothing').toHaveLength(frames);
 
-    // Promotion to a seat: the box is back and the table is the seat’s way round.
+    // The front page's card follows the turn by itself, and its title says LIVE: no line, nothing to switch.
+    flag(m, { followsTurn: true }, rerender);
+    expect(queryByTestId('watcher-status')).toBeNull();
+    expect(queryByTestId('perspective-flip')).toBeNull();
+    flag(m, { followsTurn: false }, rerender);
+
+    // Promotion to a seat: the box is back and the table is the seat’s way round. A seat never sees the switch.
     flag(m, { spectator: false, watcher: false }, rerender);
     expect(getByTestId('live-buttons')).toBeTruthy();
     expect(queryByTestId('watcher-status')).toBeNull();
+    expect(queryByTestId('perspective-flip')).toBeNull();
+    flag(m, { spectator: true }, rerender);
+    expect(queryByTestId('perspective-flip'), 'nor a seat watching from another window').toBeNull();
   });
 
   it('spectator: a click on a card Forge offered sends nothing — and does, for the seat’s own window', async () => {

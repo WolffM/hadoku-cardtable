@@ -368,6 +368,7 @@ import './live.css';
 import { TossCoin, useCoinFlipping } from './CoinToss.tsx';
 import { CoinFlips } from './coin-flip.tsx';
 import type { ShownFlip, ShownRoll } from './shown.ts';
+import { WatcherStatus } from './WatcherStatus.tsx';
 import { TurnCue, useYourTurnCue } from './TurnCue.tsx';
 import { installDialogMover, QuestionHost, restingTop } from './movable.tsx';
 
@@ -3477,6 +3478,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         theirPlayerId: () => opponentOf(match.view)?.id ?? null,
         playerOfSeat: (seat) => playerIdOfSeat(match, seat),
         viewerPlayerId: () => viewerPlayerIdOf(match),
+        activePlayerId: () => match.view?.activePlayerId ?? null,
         // `from` (the arrow's tail) is sent only while this seat is actually aiming — the
         // same condition `paint()` (`gestures/install.ts`) already uses for its own arrow.
         aiming: () => match.selectables !== null || stackAsk(match) !== null,
@@ -3666,12 +3668,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           Watching: this seat is being played in another window
         </p>
       )}
-      {/* No seat (2026-10-12): the one word. Same perch as the wave-31 banner, which it replaces for this role. */}
-      {watcher && (
-        <p className="live__spectator live__spectator--watcher" role="status" data-testid="watcher-status" data-role="watcher">
-          <span>Watching</span>
-        </p>
-      )}
+      {/* No seat (2026-10-12): the one word and the switch, between the two avatars (`WatcherStatus.tsx`). Not on the front page's card. */}
+      {watcher && !match.followsTurn && <WatcherStatus match={match} />}
       {/*
        * `data-live-line` marks every row of text this component draws about
        * itself, so a test can count them: three at once was the bug.

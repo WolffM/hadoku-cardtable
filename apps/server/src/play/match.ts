@@ -2506,7 +2506,7 @@ export class Match {
 	/**
 	 * The snapshot for a socket with no seat: the watcher channel so far, named
 	 * as the source seat (`seat`/`playerId` are that seat's, as the `openView` it
-	 * carries is; the client draws whoever's turn it is at the bottom).
+	 * carries is; the client draws that seat at the bottom until the watcher switches sides).
 	 * `match-starting` until that seat's `openView` has arrived, exactly as
 	 * {@link Match.snapshot} says it.
 	 */

@@ -38,8 +38,10 @@ function gameView(names: readonly [string, string]): Record<string, unknown> {
   };
 }
 
-function replayData(matchId: string, names: readonly [string, string]): ReplayData {
-  const setGameView = parseServerFrame({ kind: 'notify', method: 'setGameView', payload: { gameView: gameView(names), sequenceNumber: -1 } });
+function replayData(matchId: string, names: readonly [string, string], playerTurn?: number): ReplayData {
+  const view = gameView(names);
+  if (playerTurn !== undefined) view[805306369] = { ...(view[805306369] as object), PlayerTurn: { t: 'int', v: playerTurn } };
+  const setGameView = parseServerFrame({ kind: 'notify', method: 'setGameView', payload: { gameView: view, sequenceNumber: -1 } });
   const openView = parseServerFrame({ kind: 'notify', method: 'openView', payload: { myPlayers: [0] } });
   return {
     header: { matchId, roomId: null, players: names, ai: [false, false], decks: [], art: [], startedAt: '2026-10-27T00:00:00.000Z' },
@@ -52,12 +54,14 @@ function replayData(matchId: string, names: readonly [string, string]): ReplayDa
   };
 }
 
-/** A live server that answers the join with `data`'s frames as its snapshot, and says nothing else. */
-function snapshotTransport(data: ReplayData): MatchTransport {
+/** A live server that answers the join with `data`'s frames as its snapshot, and says nothing else — but, with `watcher`, that this socket holds no seat. */
+function snapshotTransport(data: ReplayData, watcher = false): MatchTransport {
   const frames = data.envs.map((e) => e.env.frame);
   const cursor = data.envs.at(-1)?.env.cursor ?? null;
   return {
-    on() {},
+    on(event, handler) {
+      if (watcher && event === 'forge:role') queueMicrotask(() => handler({ matchId: data.header.matchId, role: 'watcher' }));
+    },
     emit() {},
     request(_event, _payload, onAck) {
       onAck(null, { matchId: data.header.matchId, seat: 0, playerId: 0, cursor, frames });
@@ -136,5 +140,34 @@ describe('FeaturedMatch', () => {
     rerender(createElement(FeaturedMatch, { pick: { matchId: 'm-b', roomId: 'r-2' }, makeTransport: () => stubB }));
     expect(disconnectedA).toHaveBeenCalled();
     await waitFor(() => expect(getByTestId('featured-match').textContent).toContain('B1'));
+  });
+
+  /*
+   * The operator, 2026-11-01: "The 'auto-switch' should only be for the front-page recorded games showing the
+   * focused bottom left region." A spectator's own board stays where it is put; this card does not.
+   */
+  const bottomPlayer = (): string | null | undefined => document.querySelector('.featured-match .seat[data-viewer] [data-player-id]')?.getAttribute('data-player-id');
+
+  it('the replay card follows the turn: the player whose turn it is is at the bottom, and there is no switch', async () => {
+    const data = replayData('m-replay', ['Alice', 'Bob'], 1);
+    const fetchImpl: Fetch = (input) => {
+      const url = String(input);
+      if (url.includes('limit=1')) return Promise.resolve(json(200, { replays: [{ matchId: 'm-replay', roomId: null, players: ['Alice', 'Bob'], decks: [], startedAt: data.header.startedAt, endedAt: null, winner: null, source: 'stream' }] }));
+      return Promise.resolve(json(200, data));
+    };
+    const { getByTestId, queryByTestId } = render(createElement(FeaturedMatch, { pick: null, fetchImpl, replayFallback: true }));
+    await waitFor(() => expect(getByTestId('featured-match-tag').textContent).toBe('REPLAY'));
+    await waitFor(() => expect(bottomPlayer(), 'Bob’s turn: Bob at the bottom, though the recording is seat 0’s').toBe('1'));
+    expect(queryByTestId('perspective-flip')).toBeNull();
+  });
+
+  it('the live card follows the turn too, as a watcher, and has no switch', async () => {
+    const data = replayData('m-live', ['Carol', 'Dave'], 1);
+    const stub = snapshotTransport(data, true);
+    const { getByTestId, queryByTestId } = render(createElement(FeaturedMatch, { pick: { matchId: 'm-live', roomId: 'r-1' }, makeTransport: () => stub }));
+    await waitFor(() => expect(getByTestId('featured-match').textContent).toContain('Carol'));
+    await waitFor(() => expect(document.querySelector('.featured-match .live[data-role="watcher"]')).not.toBeNull());
+    await waitFor(() => expect(bottomPlayer(), 'Dave’s turn: Dave at the bottom').toBe('1'));
+    expect(queryByTestId('perspective-flip')).toBeNull();
   });
 });

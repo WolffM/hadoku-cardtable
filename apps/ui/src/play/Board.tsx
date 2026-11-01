@@ -839,7 +839,7 @@ const ARRANGED = new Map<string, Arrangement>();
 /**
  * Which match a view is: its title and its seats. The ids are SORTED, not in
  * the view's order — that order puts the viewer first, and a watcher's viewer
- * changes with the turn; a key that changed with it lost every arrangement when
+ * changes when it switches sides; a key that changed with it lost every arrangement when
  * the bottom side changed (2026-10-12).
  */
 function matchKey(view: BoardView): string {

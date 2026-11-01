@@ -157,6 +157,8 @@ export interface PresenceHost {
   readonly playerOfSeat?: (seat: number) => number | null;
   /** The player drawn at the BOTTOM (`match.ts`'s `viewerPlayerIdOf`); a release of THEIRS is reserved and not animated. */
   readonly viewerPlayerId?: () => number | null;
+  /** The player whose turn it is (`view.activePlayerId`): a watcher's one cursor is theirs. Absent: the bottom player's. */
+  readonly activePlayerId?: () => number | null;
   /** Wake on every change of the match (`subscribe`), for the handoff; absent, no handoff is drawn. */
   readonly watch?: (onChange: () => void) => () => void;
   /** The ids of the other seat's cards the board draws as cards: their battlefield, and their spells on the stack. */
@@ -1079,6 +1081,12 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     staleTimer = setTimeout(takeDown, PRESENCE_STALE_MS);
   }
 
+  /** Whether `seat`'s pointer is the one a watcher draws: the player whose turn it is, or before Forge has said, the bottom one. */
+  function watchedPointer(seat: number): boolean {
+    const player = host.playerOfSeat?.(seat) ?? null;
+    return player !== null && player === (host.activePlayerId?.() ?? host.viewerPlayerId?.() ?? null);
+  }
+
   /** Whether `seat`'s player is the one THIS board draws at the bottom: only ever true for a watcher. */
   function drawnAtBottom(seat: number): boolean {
     const player = host.playerOfSeat?.(seat) ?? null;
@@ -1306,7 +1314,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (owner === null || root === null || from === null) return;
     const { card, slot, target } = parsed.data;
     expectPlacement(owner, slot, target, card);
-    // A watcher's bottom side (whoever's turn it is) is someone else's seat too: the column is
+    // A watcher's bottom side (the side it chose) is someone else's seat too: the column is
     // reserved, which is what puts the card where its owner let it go, and the stand-in — a back
     // from the TOP hand into the top battlefield — is not drawn for it.
     if (owner === (host.viewerPlayerId?.() ?? null)) return;
@@ -1385,9 +1393,10 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (!parsed.success || parsed.data.matchId !== host.matchId) return;
     // This seat's own echo never comes back (the server relays to the others), but a resync could; never draw oneself.
     if (parsed.data.seat === host.seat) return;
-    // A watcher sees the table from the active player's side (the operator, 2026-10-28), and so sees
-    // that player's pointer — not the other seat's, which would share the one cursor and jump between them.
-    if (host.seat === null && host.playerOfSeat?.(parsed.data.seat) != null && !drawnAtBottom(parsed.data.seat)) return;
+    // A watcher draws ONE pointer — both seats' would share the one cursor and jump between them — and
+    // it is the acting player's, on that player's own side: the table stays the way the watcher turned
+    // it when the turn passes (the operator, 2026-11-01), and the idle player's cursor says nothing.
+    if (host.seat === null && host.playerOfSeat?.(parsed.data.seat) != null && !watchedPointer(parsed.data.seat)) return;
     draw(parsed.data);
   }
 

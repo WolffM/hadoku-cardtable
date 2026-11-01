@@ -7,12 +7,18 @@
  * 2. The match: the third person sees the game live with no game controls,
  *    and — the operator, 2026-10-28: *"the spectator impersonates the view of
  *    the active player … with the small added benefit of seeing the hidden
- *    cards"* — both hands face up, and on the wire no library card that no
+ *    cards"* — both hands face up (the hidden-cards half still holds; the
+ *    turn-following half was replaced 2026-11-01, see 3), and on the wire no library card that no
  *    player was shown. Their input is dropped by the server.
- * 3. The board follows both seats and the turn: whoever's turn it is is at the
- *    bottom, and where each player puts their own cards is where the watcher
- *    sees them. (The first party, 2026-10-12: *"card placement on board doesnt
- *    update as players move things around"* — every echo went to the top side.)
+ * 3. The board follows both seats: where each player puts their own cards is
+ *    where the watcher sees them. (The first party, 2026-10-12: *"card placement
+ *    on board doesnt update as players move things around"* — every echo went to
+ *    the top side.) Seat 0 is at the bottom and STAYS there when the turn passes;
+ *    the watcher's switch turns the table, and a reload keeps the side it chose.
+ *    The operator, 2026-11-01, correcting 2026-10-28's turn-following: *"Spectators
+ *    should be able to have the switch perspective button, but it shouldn't
+ *    auto-swap for them."* (The front page's recorded-game card is the one place
+ *    that follows the turn — `apps/ui/src/front/FeaturedMatch.test.ts`.)
  * 4. What the active player is shown, the watcher is shown: Goblin Guide's
  *    reveal reaches the watcher, and the card under it never does.
  */
@@ -66,6 +72,34 @@ const forge = forgeAvailability();
 const seatSit = (page: Page) => page.getByTestId('seat-sit');
 const seatStand = (page: Page) => page.getByTestId('seat-stand');
 const viewerName = (page: Page) => page.locator('[data-testid="player"][data-viewer] .face__name');
+
+/**
+ * The watching line sits between the two avatars (the operator, 2026-11-01: "let's put the watching
+ * button between the two avatars"): centred on the marks, in the gap between them, and over no
+ * mark, life total, clock or the stack.
+ */
+async function expectWatchingBetweenAvatars(page: Page, label: string): Promise<void> {
+  await expect(page.locator('[data-testid="watcher-status"][data-placed]'), `${label}: placed`).toBeVisible();
+  const g = await page.evaluate(() => {
+    const r = (el: Element | null) => (el === null ? null : (({ left, top, right, bottom }) => ({ left, top, right, bottom }))(el.getBoundingClientRect()));
+    return {
+      line: r(document.querySelector('[data-testid="watcher-status"]')),
+      topMark: r(document.querySelector('.seat:not([data-viewer]) .seat__ident .face__art')),
+      bottomMark: r(document.querySelector('.seat[data-viewer] .seat__ident .face__art')),
+      vitals: [...document.querySelectorAll('.seat__ident .face__vitals, .seat__ident .face__life')].map(r),
+      stack: r(document.querySelector('[data-zone="stack"]')),
+    };
+  });
+  console.log(`[watcher line] ${label}: ${JSON.stringify(g)}`);
+  const { line, topMark, bottomMark } = g;
+  if (line === null || topMark === null || bottomMark === null) throw new Error(`${label}: the line or a mark is not drawn`);
+  const overlaps = (a: typeof line, b: typeof line) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  expect(line.top, `${label}: below the top avatar`).toBeGreaterThanOrEqual(topMark.bottom);
+  expect(line.bottom, `${label}: above the bottom avatar`).toBeLessThanOrEqual(bottomMark.top);
+  expect(Math.abs((line.left + line.right) / 2 - (topMark.left + topMark.right) / 2), `${label}: centred on the avatars`).toBeLessThanOrEqual(2);
+  for (const v of g.vitals) if (v !== null) expect(overlaps(line, v), `${label}: over no life total or clock`).toBe(false);
+  if (g.stack !== null) expect(overlaps(line, g.stack), `${label}: not over the stack`).toBe(false);
+}
 /** The battlefield cards of one side, in DOM order. */
 const fieldOrder = (page: Page, side: 'you' | 'them'): Promise<number[]> =>
   page
@@ -159,7 +193,10 @@ test('a third person watches the match with no controls, sees both hands, and no
       await expect(carol.page.getByTestId(id), `${id} is not drawn for a watcher`).toHaveCount(0);
     }
     await expect(carol.page.getByTestId('player'), 'both seats are drawn').toHaveCount(2);
-    await expect(carol.page.getByTestId('perspective-flip'), 'the table follows the turn: nothing to flip').toHaveCount(0);
+    // Changed 2026-11-01 (was: "the table follows the turn: nothing to flip"): the watcher has the switch, a seat never does.
+    await expect(carol.page.getByTestId('perspective-flip'), 'a watcher can switch sides').toBeVisible();
+    await expect(alice.page.getByTestId('perspective-flip'), 'a seat cannot').toHaveCount(0);
+    await expect(bob.page.getByTestId('perspective-flip')).toHaveCount(0);
 
     // The payload: what a watcher's socket is actually sent.
     const raw = await connectSio(stack.origin, 'carol');
@@ -249,7 +286,7 @@ test('a third person watches the match with no controls, sees both hands, and no
 
 /* ── 3. the board follows both seats ───────────────────────────────── */
 
-test('a watcher sees each side as its owner arranged it, with whoever’s turn it is at the bottom', async ({ browser }) => {
+test('a watcher sees each side as its owner arranged it; the table stays put when the turn passes, and turns when the watcher switches', async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(4 * 60_000);
@@ -285,18 +322,29 @@ test('a watcher sees each side as its owner arranged it, with whoever’s turn i
     const after = { alice: await fieldOrder(alice.page, 'you'), bob: await fieldOrder(bob.page, 'you') };
     console.log(`[watcher arrangement] alice ${before.alice.join(',')} -> ${after.alice.join(',')}; bob ${before.bob.join(',')} -> ${after.bob.join(',')}`);
 
-    // Alice's turn: she is at the bottom, her side in her order, his in his — the bottom side moves too.
-    await expect(viewerName(carol.page), 'alice’s turn: alice at the bottom').toHaveText(/alice/i);
+    // Seat 0 (alice) is at the bottom, her side in her order, his in his — the bottom side moves too.
+    await expect(viewerName(carol.page), 'seat 0, alice, at the bottom').toHaveText(/alice/i);
     await expect.poll(() => fieldOrder(carol.page, 'you'), { timeout: 10_000, message: 'the bottom side (alice) is as alice arranged it' }).toEqual(after.alice);
     await expect.poll(() => fieldOrder(carol.page, 'them'), { timeout: 10_000, message: 'the top side (bob) is as bob arranged it' }).toEqual(after.bob);
     await expect(gaps(carol.page, 'you'), 'her gap is drawn on the bottom side').not.toHaveCount(0);
     await expect(gaps(carol.page, 'them'), 'his gap is drawn on the top side').not.toHaveCount(0);
 
-    // The turn passes to bob: the watcher's table turns with it, each side still as its owner arranged it.
+    // The turn passes to bob: the watcher's table does NOT turn with it (2026-11-01).
     await grindPriority([alice.page, bob.page], async () => (await alice.page.locator('.seat[data-active]:not([data-viewer])').count()) === 1, { timeoutMs: 90_000 });
-    await expect(viewerName(carol.page), 'bob’s turn: bob at the bottom').toHaveText(/bob/i, { timeout: 15_000 });
-    await expect(carol.page.locator('.seat[data-viewer][data-active]'), 'the bottom side is the active one').toHaveCount(1);
+    await expect(carol.page.locator('.seat[data-active]:not([data-viewer])'), 'bob’s turn, at the top').toHaveCount(1, { timeout: 15_000 });
+    await expect(viewerName(carol.page), 'no auto-swap: alice is still at the bottom').toHaveText(/alice/i);
+    await expectWatchingBetweenAvatars(carol.page, '1280×800, seat 0 at the bottom');
+    await expect.poll(() => fieldOrder(carol.page, 'you'), { timeout: 10_000, message: 'the bottom side (alice) is as alice arranged it' }).toEqual(after.alice);
+
+    // The watcher switches sides: bob at the bottom, each side still as its owner arranged it.
+    await carol.page.getByTestId('perspective-flip').click();
+    await expect(viewerName(carol.page), 'switched: bob at the bottom').toHaveText(/bob/i, { timeout: 10_000 });
+    await expect(carol.page.locator('.seat[data-viewer][data-active]'), 'the bottom side is now the active one').toHaveCount(1);
     await expect.poll(() => fieldOrder(carol.page, 'you'), { timeout: 10_000, message: 'turned: the bottom side (bob) is as bob arranged it' }).toEqual(after.bob);
+    await expectWatchingBetweenAvatars(carol.page, '1280×800, switched');
+    await resizeWindow(carol.page, { width: 390, height: 844 });
+    await expectWatchingBetweenAvatars(carol.page, 'phone width, switched');
+    await resizeWindow(carol.page, { width: 1280, height: 800 });
     await expect.poll(() => fieldOrder(carol.page, 'them'), { timeout: 10_000, message: 'turned: the top side (alice) is as alice arranged it' }).toEqual(after.alice);
 
     // A move made AFTER the turn passed reaches the side it belongs to.
@@ -306,14 +354,19 @@ test('a watcher sees each side as its owner arranged it, with whoever’s turn i
     await expect.poll(() => fieldOrder(carol.page, 'them'), { timeout: 10_000, message: 'her second move reaches the top side' }).toEqual(again);
     await expect.poll(() => fieldOrder(carol.page, 'you'), { timeout: 5_000, message: 'and bob’s side did not move' }).toEqual(after.bob);
 
-    // A watcher arriving now is drawn from bob's side and sent both arrangements on joining.
+    // A reload keeps the side the watcher chose.
+    await carol.page.reload();
+    await expect(carol.page.locator('.live[data-role="watcher"]')).toBeVisible({ timeout: 60_000 });
+    await expect(viewerName(carol.page), 'reloaded: still bob at the bottom').toHaveText(/bob/i, { timeout: 30_000 });
+
+    // A watcher arriving now opens on seat 0 (alice), though it is bob's turn, and is sent both arrangements on joining.
     const dave = await openFriend(browser, 'carol');
     await resizeWindow(dave.page, { width: 1280, height: 800 });
     await dave.page.goto(matchUrl(stack.origin, matchId));
     await expect(dave.page.locator('.live[data-role="watcher"]')).toBeVisible({ timeout: 60_000 });
-    await expect(viewerName(dave.page), 'a late watcher: bob’s turn, bob at the bottom').toHaveText(/bob/i, { timeout: 30_000 });
-    await expect.poll(() => fieldOrder(dave.page, 'you'), { timeout: 30_000, message: 'a late watcher: bob’s side as he left it' }).toEqual(after.bob);
-    await expect.poll(() => fieldOrder(dave.page, 'them'), { timeout: 10_000, message: 'a late watcher: alice’s side as she left it' }).toEqual(again);
+    await expect(viewerName(dave.page), 'a late watcher: seat 0, alice, at the bottom').toHaveText(/alice/i, { timeout: 30_000 });
+    await expect.poll(() => fieldOrder(dave.page, 'you'), { timeout: 30_000, message: 'a late watcher: alice’s side as she left it' }).toEqual(again);
+    await expect.poll(() => fieldOrder(dave.page, 'them'), { timeout: 10_000, message: 'a late watcher: bob’s side as he left it' }).toEqual(after.bob);
   } finally {
     await stack.stop();
   }
@@ -333,7 +386,7 @@ test('a watcher is shown the active player’s reveal: Goblin Guide’s top card
     await resizeWindow(carol.page, { width: 1280, height: 800 });
     await carol.page.goto(matchUrl(stack.origin, matchId));
     await expect(carol.page.locator('.live[data-role="watcher"]'), 'carol watches').toBeVisible({ timeout: 60_000 });
-    await expect(viewerName(carol.page), 'alice’s turn: alice at the bottom').toHaveText(/alice/i, { timeout: 30_000 });
+    await expect(viewerName(carol.page), 'seat 0, alice, at the bottom').toHaveText(/alice/i, { timeout: 30_000 });
 
     const guide = alice.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card').filter({ hasText: 'Goblin Guide' });
     await expect(guide, 'Goblin Guide is on her battlefield').toHaveCount(1, { timeout: 60_000 });

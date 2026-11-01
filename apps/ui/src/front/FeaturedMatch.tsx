@@ -23,8 +23,9 @@
  * bottom-left square, or a temporary one following the active player's cursor
  * (`./camera.ts`). The operator, 2026-10-29: *"i don't want to show the whole
  * zoomed out board, that's too hard to see anything. maybe we can focus on the
- * bottom left corner"*. The bottom player is the one whose turn it is (a
- * watcher's view, `match.ts`'s `viewerPlayerIdOf`), so the card flips at every
+ * bottom left corner"*. The bottom player is the one whose turn it is — this card
+ * alone asks for that (`followTurn`, `match.ts`'s `viewerPlayerIdOf`; a spectator's
+ * own board stays put, the operator 2026-11-01) — so the card flips at every
  * turn change; the cursor is that player's, as the board draws it (live, the
  * relayed pointer; in a replay, the recorded one, `../replay/player.ts`).
  *
@@ -171,7 +172,7 @@ export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback =
     setSource(null);
 
     if (pick !== null) {
-      const match = startMatch({ matchId: pick.matchId, transport: makeTransport?.() ?? socketIoMatchTransport() });
+      const match = startMatch({ matchId: pick.matchId, followTurn: true, transport: makeTransport?.() ?? socketIoMatchTransport() });
       built = match;
       setSource({ kind: 'live', match });
       // Drawn once the first view arrives: until then the card would read "Connecting…".
@@ -187,7 +188,7 @@ export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback =
           settle(false);
           return;
         }
-        const player = await readyPlayer(data, { loop: true });
+        const player = await readyPlayer(data, { loop: true, followTurn: true });
         built = player.match;
         clock = player.clock;
         if (!live) {

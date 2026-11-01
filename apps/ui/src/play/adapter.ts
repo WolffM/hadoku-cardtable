@@ -836,8 +836,8 @@ export interface BoardView {
 }
 
 /**
- * The player drawn at the bottom (`isViewer`): this seat's own, or for a watcher the player whose
- * turn it is (`match.ts`'s `viewerPlayerIdOf`). For every window that may act this is the seat's own player.
+ * The player drawn at the bottom (`isViewer`): this seat's own, or for a watcher the side it chose
+ * (`match.ts`'s `viewerPlayerIdOf`; the front page's card, whose turn it is). For every window that may act this is the seat's own player.
  */
 export function viewerOf(view: BoardView | null | undefined): BoardPlayer | undefined {
   return view?.players.find((p) => p.isViewer);

@@ -260,7 +260,7 @@ import { io } from 'socket.io-client';
 
 import { defaultSocketPath } from '../../draft/socket.ts';
 import { normalizeAvatarId } from '../../room/avatar.ts';
-import { attackLockedIn, drawsFaceUp, manaCostTokens, toBoardView, viewerOf, type BoardCard, type BoardView, type DamageHit, type DeathCause, type FaceHit, type PlayerClock, type PoolColor } from '../adapter.ts';
+import { attackLockedIn, drawsFaceUp, manaCostTokens, opponentOf, toBoardView, viewerOf, type BoardCard, type BoardView, type DamageHit, type DeathCause, type FaceHit, type PlayerClock, type PoolColor } from '../adapter.ts';
 import type { Revealed } from './numbers.ts';
 import { shownFlip, shownRoll, type ShownFlip, type ShownRoll } from './shown.ts';
 import { preloadMatchArt } from './art-preload.ts';
@@ -878,7 +878,7 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    * keeps by player — an arrangement or a placement echo
    * (`arrangement-sync.ts`, `presence.ts`). A player's own window could read
    * "the other seat" off `isViewer`; a watcher cannot, because every echo is
-   * someone else's and its bottom side follows the turn. Same three-state
+   * someone else's and its bottom side is its own choice. Same three-state
    * rule as {@link LiveMatch.avatarByPlayerId}: `null` until the seat table
    * has arrived, then a real Map holding only the seats Forge has named.
    */
@@ -927,10 +927,24 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    * No prompt ever arrives, and nothing it does is sent. A watcher is also a
    * `spectator` (every gate that keeps a spectator's hands off the table holds
    * for it); this flag is what the board reads for the differences — the
-   * controls are not drawn at all, both hands are face up, and whoever's turn
-   * it is is drawn at the bottom ({@link viewerPlayerIdOf}).
+   * controls are not drawn at all, both hands are face up, and the table can
+   * be turned around ({@link flipPerspective}).
    */
   watcher: boolean;
+  /**
+   * The Forge player a watcher drew at the BOTTOM when it is not the snapshot's own
+   * ({@link flipPerspective}), remembered per match on this browser. Client-only: a watcher's wire
+   * holds every hand whichever side is at the bottom. `null` is the snapshot's `playerId` — seat 0's.
+   */
+  perspective: number | null;
+  /**
+   * The bottom follows the turn: whoever's turn it is is drawn there, and the table cannot be turned
+   * by hand. Only the front page's card (`../../front/FeaturedMatch.tsx`) — the operator, 2026-11-01:
+   * *"The 'auto-switch' should only be for the front-page recorded games showing the focused bottom
+   * left region. Spectators should be able to have the switch perspective button, but it shouldn't
+   * auto-swap for them."*
+   */
+  followsTurn: boolean;
   /**
    * This screen has seen the current Declare Attackers step's attack locked in (`attackLockedIn`), kept
    * until the step ends: once the attacker passes, a vigilant attack looks on the wire as it did mid-pick.
@@ -1000,6 +1014,8 @@ export interface LiveMatchOptions {
    * (the operator, 2026-10-20: *"we absolutely need logging"*).
    */
   report?: (what: MatchTrouble, detail: Record<string, unknown>) => void;
+  /** The front page's card: the bottom follows the turn ({@link LiveMatch.followsTurn}). */
+  followTurn?: boolean;
 }
 
 export type MatchTrouble = 'connect-error' | 'disconnected' | 'snapshot-failed' | 'no-snapshot';
@@ -1145,6 +1161,8 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     coinToss: null,
     spectator: false,
     watcher: false,
+    perspective: options.followTurn === true ? null : rememberedPerspective(options.matchId),
+    followsTurn: options.followTurn === true,
     attackLocked: false,
     over: false,
     finished: false,
@@ -1613,20 +1631,64 @@ function adoptRole(match: LiveMatch, payload: unknown): void {
   match.spectator = spectator;
   match.watcher = watcher;
   // The role lands AFTER the snapshot's frames drew a view: a watcher's is
-  // re-drawn from the active player's side now.
+  // re-drawn now, from the side it chose, and a promoted seat's from its own.
   redraw(match);
   notify(match);
 }
 
 /**
- * The Forge player id the board is drawn FROM: the snapshot's. A watcher's follows the turn —
- * whoever's turn it is is drawn at the bottom (the operator, 2026-10-28: *"the spectator
- * impersonates the view of the active player"*), and the snapshot's before Forge has said.
+ * The Forge player id the board is drawn FROM: the snapshot's (a watcher's is seat 0's), unless a
+ * watcher turned the table ({@link flipPerspective}). The front page's card follows the turn
+ * instead ({@link LiveMatch.followsTurn}), and the snapshot's before Forge has said whose it is.
  */
 export function viewerPlayerIdOf(match: LiveMatch): number | null {
   if (!match.watcher) return match.playerId;
-  const game = [...match.state.values()].find((o) => o._type === DELTA_TYPE.game);
-  return intOf(game, 'PlayerTurn') ?? match.playerId;
+  if (match.followsTurn) {
+    const game = [...match.state.values()].find((o) => o._type === DELTA_TYPE.game);
+    return intOf(game, 'PlayerTurn') ?? match.playerId;
+  }
+  const chosen = match.perspective;
+  const known = chosen !== null && [...match.state.values()].some((o) => o._type === DELTA_TYPE.player && o._id === chosen);
+  return known ? chosen : match.playerId;
+}
+
+/**
+ * A watcher turns the table around: the OTHER player is drawn at the bottom, at any time, and the
+ * choice is remembered for this match. Client-only — nothing is sent, and nothing hidden changes
+ * hands. Refused (`false`) for a seat's own window (its hand is its own and belongs at the bottom),
+ * for the front page's card (it follows the turn), and while there is nothing to turn to.
+ */
+export function flipPerspective(match: LiveMatch): boolean {
+  if (!match.watcher || match.followsTurn || match.view === null) return false;
+  const other = opponentOf(match.view);
+  if (other === undefined) return false;
+  match.perspective = other.id;
+  rememberPerspective(match.matchId, other.id);
+  redraw(match);
+  notify(match);
+  return true;
+}
+
+const PERSPECTIVE_KEY = 'cardtable.watch.perspective.';
+
+/** The side a watcher last left this match's table on, on this browser; null for none. */
+function rememberedPerspective(matchId: string): number | null {
+  try {
+    const raw = globalThis.localStorage?.getItem(PERSPECTIVE_KEY + matchId);
+    if (raw === null || raw === undefined) return null;
+    const id = Number(raw);
+    return Number.isInteger(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+function rememberPerspective(matchId: string, playerId: number): void {
+  try {
+    globalThis.localStorage?.setItem(PERSPECTIVE_KEY + matchId, String(playerId));
+  } catch {
+    // Unremembered is the whole fallback: the table still turned.
+  }
 }
 
 /** The seat across the table from this one; null for a socket that holds none. */
@@ -3676,8 +3738,8 @@ const endsTheGame = (frame: ServerFrame): boolean =>
  * recorded pointer messages to the board's own presence layer (its `on`; nothing is ever sent), and
  * `seats`, each seat's Forge player, so that layer knows whose pointer is drawn at the bottom.
  */
-export function replayMatch(matchId: string, playerId: number, options: { pointers?: Pick<MatchTransport, 'on'>; seats?: ReadonlyMap<number, number> } = {}): ReplayFold {
-  const match = newMatch({ matchId, transport: options.pointers === undefined ? NO_SERVER : { ...NO_SERVER, on: options.pointers.on } });
+export function replayMatch(matchId: string, playerId: number, options: { pointers?: Pick<MatchTransport, 'on'>; seats?: ReadonlyMap<number, number>; followTurn?: boolean } = {}): ReplayFold {
+  const match = newMatch({ matchId, followTurn: options.followTurn, transport: options.pointers === undefined ? NO_SERVER : { ...NO_SERVER, on: options.pointers.on } });
   const seats = options.seats ?? null;
   match.seat = 0;
   match.playerId = playerId;

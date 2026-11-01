@@ -295,6 +295,73 @@
   pointer-events: none;
 }
 
+/*
+ * A watcher's line (`WatcherStatus.tsx`): the word and the switch, centred on the line between the
+ * two seats' marks. 20px tall, the room the two priority rings leave between the marks (32px less
+ * 6px of ring each). Held unseen until it has been placed.
+ */
+.live__watching {
+  position: absolute;
+  z-index: var(--z-overlay, 20);
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  box-sizing: border-box;
+  height: 20px;
+  margin: 0;
+  padding: 0 2px 0 7px;
+  translate: -50% -50%;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-raised);
+  box-shadow: 0 1px 4px var(--shadow);
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  visibility: hidden;
+}
+
+.live__watching[data-placed] {
+  visibility: visible;
+}
+
+.live__flip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.live__flip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.live__flip:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+.live__flip svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+.live__flip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .live__error {
   flex: none;
   max-height: 2.6em;

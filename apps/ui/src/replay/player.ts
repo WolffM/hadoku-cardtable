@@ -170,9 +170,11 @@ function now(): number {
 
 /**
  * The board, drawn at the recording's first board (`startMs`), and a paused clock over the rest. `loop`: past the end, play again from the start — the front page's card. `#/replay/<id>`
- * leaves it off, and the end just stops with the scrubber there.
+ * leaves it off, and the end just stops with the scrubber there. `followTurn`: whoever's turn it is is
+ * drawn at the bottom — the front page's card again; `#/replay/<id>` is watched like a live match, from
+ * seat 0's side until the viewer switches (`match.ts`'s `flipPerspective`).
  */
-export function createReplayPlayer(data: ReplayData, options: { loop?: boolean } = {}): ReplayPlayer {
+export function createReplayPlayer(data: ReplayData, options: { loop?: boolean; followTurn?: boolean } = {}): ReplayPlayer {
   const frames = data.envs.map(replayFrame);
   const ats = data.envs.map((e) => e.at);
   const duration = ats.length === 0 ? 0 : ats[ats.length - 1]!;
@@ -214,11 +216,12 @@ export function createReplayPlayer(data: ReplayData, options: { loop?: boolean }
       },
     },
     seats,
+    followTurn: options.followTurn,
   });
 
-  /** One pointer message to the board, as the live relay stamps it — only the bottom player's is drawn. */
+  /** One pointer message to the board, as the live relay stamps it — only the acting player's is drawn (the bottom one's before Forge names a turn). */
   function deliver(p: RecordedPresence): void {
-    if (p.playerId !== viewerPlayerIdOf(match)) return;
+    if (p.playerId !== (match.view?.activePlayerId ?? viewerPlayerIdOf(match))) return;
     const echo: PresenceEcho = { ...p.presence, matchId: data.header.matchId, seat: p.seat };
     hearHeld?.({ card: held.get(p) ?? null });
     hearPointer?.(echo);

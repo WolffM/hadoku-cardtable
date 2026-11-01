@@ -642,6 +642,26 @@ describe('receiving: anchored', () => {
     handle.dispose();
   });
 
+  it('a watcher draws the ACTING player’s pointer on that player’s own side, though the table is turned the other way (2026-11-01)', () => {
+    // The watcher keeps player 1 at the bottom; it is player 0's turn, at the top.
+    const { canvas } = board({ '[data-board-card="7"]': { left: 600, top: 160, width: 120, height: 168 } });
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: { ...host(t, null), playerOfSeat: (seat) => seat, viewerPlayerId: () => 1, activePlayerId: () => 0 } });
+    const pointer = { matchId: 'm-1', type: 'presence', held: false, from: null, arranging: null } as const;
+
+    t.receive({ ...pointer, seat: 1, pointer: { zone: 'battlefield', x: 0.5, y: 0.6 }, anchor: null });
+    expect(canvas.querySelector('.presence'), 'the idle player at the bottom: not drawn').toBeNull();
+
+    t.receive({ ...pointer, seat: 0, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, anchor: { zone: 'battlefield', own: true, row: null, item: 0, x: 0.3, y: 0.8 } });
+    const cursor = canvas.querySelector<HTMLElement>('.presence')!;
+    expect(cursor, 'the acting player at the top: drawn').not.toBeNull();
+    // On their card at the top, mirrored as a seat's opponent's pointer is: 0.8 down their card is 0.2 down it here.
+    expect(cursor.style.left).toBe('636px');
+    expect(Number.parseFloat(cursor.style.top)).toBeCloseTo(160 + 0.2 * 168, 6);
+    handle.dispose();
+  });
+
   it('is continuous across a card’s edge on differently sized boards — the cursor never jumps onto the card', () => {
     // Sender: the card is (120,200)-(180,284). Receiver: the twin is twice the size, elsewhere.
     const sender = board().canvas;

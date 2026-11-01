@@ -32,7 +32,7 @@ function decoded(urls: readonly string[]): Promise<void> {
  * A player over `data`, its first moment drawn with every face decoded. The rest of the match's art
  * (`header.art`, both decks) starts warming once that is done.
  */
-export async function readyPlayer(data: ReplayData, options: { loop?: boolean } = {}): Promise<ReplayPlayer> {
+export async function readyPlayer(data: ReplayData, options: { loop?: boolean; followTurn?: boolean } = {}): Promise<ReplayPlayer> {
   const player = createReplayPlayer(data, options);
   // A board that says it is in trouble on a replay is a bug in the recording or the player: the server hears it once.
   let reported = false;
