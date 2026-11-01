@@ -13,6 +13,7 @@
  * An explicit `public` cannot be read that way.
  */
 
+import type { IncomingHttpHeaders } from 'node:http';
 import type { NextFunction, Request, Response } from 'express';
 import { CONFIG } from './config.js';
 
@@ -133,7 +134,12 @@ export function accountIdOf(req: Request): string | null {
  * unvouched requests). null when the edge sent none — an unnamed key.
  */
 export function userNameOf(req: Request): string | null {
-	const n = req.headers['x-user-name'];
+	return userNameFromHeaders(req.headers);
+}
+
+/** `userNameOf` for a socket's handshake, whose headers went through the same sanitizing. */
+export function userNameFromHeaders(headers: IncomingHttpHeaders): string | null {
+	const n = headers['x-user-name'];
 	return typeof n === 'string' && n !== '' ? n : null;
 }
 

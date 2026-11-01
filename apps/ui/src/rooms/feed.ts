@@ -45,9 +45,15 @@ export interface RoomFeed {
   follow(target: FeedTarget, refresh: () => void): () => void;
 }
 
+/**
+ * Why a follower is pinged: the room `changed`, or the server has just `heard` the watch naming it —
+ * at the start and after every reconnect, which is also when a restarted server has this screen back.
+ */
+export type PingReason = 'changed' | 'heard';
+
 /** Where the "it changed" pings come from. `onPing` is also called after a reconnect. */
 export interface PingSource {
-  subscribe(target: FeedTarget, onPing: () => void): () => void;
+  subscribe(target: FeedTarget, onPing: (why: PingReason) => void): () => void;
 }
 
 /** The tab's visibility. */
@@ -115,7 +121,7 @@ export function createRoomFeed(deps: FeedDeps): RoomFeed {
  * A reconnect makes every follower unheard again.
  */
 export function socketPings(connect: () => FeedSocket = () => io({ path: defaultSocketPath() }) as unknown as FeedSocket): PingSource {
-  const followers = new Map<number, { target: FeedTarget; onPing: () => void; heard: boolean }>();
+  const followers = new Map<number, { target: FeedTarget; onPing: (why: PingReason) => void; heard: boolean }>();
   let next = 0;
   let socket: FeedSocket | null = null;
 
@@ -136,7 +142,7 @@ export function socketPings(connect: () => FeedSocket = () => io({ path: default
         const f = followers.get(id);
         if (f === undefined || f.heard) continue;
         f.heard = true;
-        f.onPing();
+        f.onPing('heard');
       }
     });
   };
@@ -152,7 +158,7 @@ export function socketPings(connect: () => FeedSocket = () => io({ path: default
       if (!parsed.success) return;
       const changed = parsed.data;
       for (const f of [...followers.values()]) {
-        if ('list' in changed ? f.target === 'list' : f.target !== 'list' && f.target.room === changed.room) f.onPing();
+        if ('list' in changed ? f.target === 'list' : f.target !== 'list' && f.target.room === changed.room) f.onPing('changed');
       }
     });
     return opened;
@@ -186,10 +192,17 @@ export function socketPings(connect: () => FeedSocket = () => io({ path: default
   };
 }
 
+let sharedPings: PingSource | undefined;
 let shared: RoomFeed | undefined;
+
+/** The page's one socket's pings, for a follower that acts on a reconnect rather than reading the room. */
+export function roomPings(): PingSource {
+  sharedPings ??= socketPings();
+  return sharedPings;
+}
 
 /** The page's feed. Nothing connects until a screen follows something. */
 export function roomFeed(): RoomFeed {
-  shared ??= createRoomFeed({ pings: socketPings() });
+  shared ??= createRoomFeed({ pings: roomPings() });
   return shared;
 }

@@ -34,6 +34,12 @@
  * presence: every followed room is touched for its member when the watch
  * arrives and every `FEED_TOUCH_MS` after, for as long as the socket stays.
  *
+ * ## Who is back
+ *
+ * A watch is a member's screen back, after a page load or a reconnect (a deploy restarts this
+ * server). A room restored from disk names nobody (R12), so the watch names its member again from
+ * the edge's `X-User-Name`, and its ack is what tells the screen to assert its avatar again.
+ *
  * ## The gate
  *
  * This adds handlers to the default namespace and installs no gate of its own:
@@ -45,6 +51,7 @@
 import type { Server as SocketIOServer, Socket } from 'socket.io';
 import { ROOM_FEED_CHANNEL, RoomWatchSchema, type RoomChanged } from '@hadoku/shared';
 
+import { userNameFromHeaders } from '../edge-auth.js';
 import { identityFromHeaders } from './identity.js';
 import { ROOM_STALE_MS, type Lobby } from './lobby.js';
 import { jsonLogger } from '../log.js';
@@ -118,6 +125,7 @@ export function attachRoomFeed(io: SocketIOServer, deps: RoomFeedDeps): RoomFeed
 
 	io.on('connection', (socket) => {
 		const participantId = identityFromHeaders(socket.request.headers, socket.id);
+		const name = userNameFromHeaders(socket.request.headers);
 		// Acknowledged once it is in force: a change made before then was never going to
 		// be said, so the client reads again on the ack (`apps/ui/src/rooms/feed.ts`).
 		socket.on(ROOM_FEED_CHANNEL.watch, (raw: unknown, ack?: unknown) => {
@@ -132,6 +140,11 @@ export function attachRoomFeed(io: SocketIOServer, deps: RoomFeedDeps): RoomFeed
 			} else {
 				watchers.set(socket.id, watcher);
 				touch(watcher);
+				// A watch is its member's screen back, and the first thing it sends after a reconnect.
+				// A room restored from disk names nobody (R12), so this is where a member is named
+				// again, as every room request of theirs does (`http/rooms.ts`); their avatar is
+				// re-asserted by the same screen on this watch's ack (`apps/ui/src/room/avatarAssert.ts`).
+				if (name !== null) deps.lobby.rename({ id: participantId, name });
 			}
 			if (typeof ack === 'function') ack();
 		});

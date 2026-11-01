@@ -35,7 +35,11 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
  * `vi.hoisted`, because `vi.mock` factories are hoisted above every import and
  * a plain `const` would be out of scope inside one.
  */
-const { UNKNOWN_THEME } = vi.hoisted(() => ({ UNKNOWN_THEME: 'aurora-dusk' }));
+const { UNKNOWN_THEME, feedPings } = vi.hoisted(() => ({
+  UNKNOWN_THEME: 'aurora-dusk',
+  /** The page feed's followers, by room, so a spec can play the server's ack after a reconnect. */
+  feedPings: new Map<string, (why: 'changed' | 'heard') => void>(),
+}));
 
 vi.mock('@wolffm/prefs-client', () => ({
   whoami: () =>
@@ -67,6 +71,21 @@ vi.mock('@wolffm/watchparty-ui/room-chrome', () => ({
 vi.mock('@wolffm/themes', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@wolffm/themes')>()),
   useHadokuTheme: () => ({ theme: UNKNOWN_THEME }),
+}));
+
+/*
+ * The page's room-feed socket, played by the spec: a real socket.io client would retry its connect
+ * forever under the fake timers below, and the server's ack after a reconnect is a call here.
+ */
+vi.mock('../rooms/feed.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../rooms/feed.ts')>()),
+  roomPings: () => ({
+    subscribe: (target: { room: string } | 'list', onPing: (why: 'changed' | 'heard') => void) => {
+      const room = target === 'list' ? 'list' : target.room;
+      feedPings.set(room, onPing);
+      return () => feedPings.delete(room);
+    },
+  }),
 }));
 
 // The vi.mock calls above are hoisted above these imports by vitest's
@@ -209,6 +228,30 @@ describe('the avatar the viewer picked in watchparty', () => {
 
     expect(posts[0].url).toContain('/rooms/r-cube/identity');
     expect(posts[0].body).toEqual({ avatarId: 'wanderer' });
+  });
+
+  // A deploy restarts the server mid-match and a saved room keeps no faces (R12): the room comes back
+  // wearing a handed-out character on this seat until the screen says its pick again.
+  it('asserts again when the room feed is heard after a reconnect, and not on an ordinary change', async () => {
+    globalThis.localStorage.setItem(watchpartyPrefsCacheKey('u-test'), ROW);
+    const posts: string[] = [];
+    // Accepted, so no refusal's back-off can be what sends the second.
+    const room = { id: 'r-cube', name: 'Cube night', gameType: 'draft', locked: false, members: [] };
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      posts.push(String(input));
+      return Promise.resolve(new Response(JSON.stringify(room), { status: 200, headers: { 'content-type': 'application/json' } }));
+    });
+    const identity = (): string[] => posts.filter((u) => u.includes('/rooms/r-cube/identity'));
+
+    const view = render(createElement(RoomShell, { roomId: 'r-cube', children: createElement('div', null, 'content') }));
+    await waitFor(() => expect(identity()).toHaveLength(1));
+    // The assert's fetch goes out synchronously with the ping, so the count is read straight after.
+    feedPings.get('r-cube')!('changed');
+    expect(identity(), 'a change in the room is not a reconnect').toHaveLength(1);
+    feedPings.get('r-cube')!('heard');
+    expect(identity()).toHaveLength(2);
+    view.unmount();
+    expect(feedPings.has('r-cube'), 'unmounted: no longer following').toBe(false);
   });
 
   it('asserts again when the first try is refused, because a joiner’s first screen beats their own join', async () => {

@@ -17,6 +17,10 @@
  * start, for a fresh browser whose cache is empty (w31 P3b); after that the cache
  * is the newer of the two, because the picker writes it on every save.
  *
+ * A server that has the viewer back after a reconnect is told the same id again:
+ * a deploy restarts it, and a saved room keeps no faces (R12), so it came back
+ * wearing a handed-out character on this viewer's seat (`room/lobby.ts`'s restore).
+ *
  * A viewer with no readable avatar asserts nothing: the room handed them a
  * character on joining (`room/lobby.ts`'s `AVATAR_POOL`), and that stands.
  * A viewer who CLEARS theirs is not noticed either, for the same reason the
@@ -28,8 +32,13 @@ export interface AvatarWatchDeps {
   readAccount: () => Promise<string | null>;
   /** This browser's cache, read every tick. */
   readCache: () => string | null;
-  /** Called with each new id, once per change. */
+  /** Called with each new id, once per change, and again with the same one when the server has the viewer back. */
   assert: (avatarId: string) => void;
+  /**
+   * Subscribes to "the server has this viewer back" (a reconnect: a deploy restarts it). A saved room
+   * keeps no faces (R12), so a restarted server has forgotten the pick it was told. Returns the stop.
+   */
+  rejoined: (listener: () => void) => () => void;
   intervalMs?: number;
   setInterval?: (fn: () => void, ms: number) => unknown;
   clearInterval?: (handle: unknown) => void;
@@ -51,6 +60,10 @@ export function watchAvatar(deps: AvatarWatchDeps): () => void {
     deps.assert(id);
   };
 
+  const stopRejoined = deps.rejoined(() => {
+    if (live && last !== null) deps.assert(last);
+  });
+
   const handle = every(() => {
     see(deps.readCache());
   }, deps.intervalMs ?? AVATAR_POLL_MS);
@@ -68,5 +81,6 @@ export function watchAvatar(deps: AvatarWatchDeps): () => void {
   return () => {
     live = false;
     stopEvery(handle);
+    stopRejoined();
   };
 }

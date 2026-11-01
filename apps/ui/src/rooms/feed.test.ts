@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { ROOM_FEED_CHANNEL, type RoomWatch } from '@hadoku/shared';
 
-import { createRoomFeed, FALLBACK_MS, socketPings, type FeedSocket, type FeedTarget, type PageVisibility, type PingSource } from './feed.ts';
+import { createRoomFeed, FALLBACK_MS, socketPings, type FeedSocket, type FeedTarget, type PageVisibility, type PingReason, type PingSource } from './feed.ts';
 
 /** A page whose visibility a test flips, telling every listener as a browser does. */
 function page(): PageVisibility & { setHidden(hidden: boolean): void } {
@@ -28,14 +28,14 @@ function page(): PageVisibility & { setHidden(hidden: boolean): void } {
 
 /** Pings a test sends by hand. */
 function pings(): PingSource & { ping(): void; count(): number } {
-  const subs = new Set<() => void>();
+  const subs = new Set<(why: PingReason) => void>();
   return {
     subscribe: (_target, onPing) => {
       subs.add(onPing);
       return () => subs.delete(onPing);
     },
     ping: () => {
-      for (const s of [...subs]) s();
+      for (const s of [...subs]) s('changed');
     },
     count: () => subs.size,
   };
@@ -236,6 +236,20 @@ describe('the page’s one socket', () => {
     fake.say({ room: 'r-9' });
     fake.say({ nonsense: 1 });
     expect(heard).toEqual(['r-2', 'list']);
+  });
+
+  it('says why: a change is `changed`, and the server taking the watch in (the start, a reconnect) is `heard`', () => {
+    const fake = fakeSocket();
+    const source = socketPings(() => fake.socket);
+    const why: string[] = [];
+    source.subscribe({ room: 'r-1' }, (w) => why.push(w));
+    fake.connect();
+    fake.ack();
+    fake.say({ room: 'r-1' });
+    fake.drop();
+    fake.connect();
+    fake.ack();
+    expect(why).toEqual(['heard', 'changed', 'heard']);
   });
 
   it('reads once more when the server confirms the watch — at the start, for a late follower, and after a drop', () => {

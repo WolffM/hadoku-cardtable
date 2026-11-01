@@ -12,9 +12,11 @@ import { useEffect } from 'react';
 import { accountAvatarId, selectedAvatarId } from './avatar.ts';
 import { watchAvatar } from './avatarWatch.ts';
 import type { RoomIdentityClient } from '../rooms/api.ts';
+import { roomPings, type PingSource } from '../rooms/feed.ts';
 
 /**
- * Tell our own room which avatar this viewer is wearing, once per room.
+ * Tell our own room which avatar this viewer is wearing: once per room, on every change, and
+ * again whenever the server has this viewer back.
  *
  * This is the hop the operator's *"why not?"* was about. The id is watchparty's,
  * read from their prefs cache (`avatar.ts` says why there is no accessor to ask);
@@ -29,7 +31,7 @@ import type { RoomIdentityClient } from '../rooms/api.ts';
  * case exists for a viewer who HAD one and dropped it, which only the chrome can
  * tell us about, and it cannot yet.
  */
-export function useAvatarAssert(roomId: string | null, userId: string | null, client: RoomIdentityClient): void {
+export function useAvatarAssert(roomId: string | null, userId: string | null, client: RoomIdentityClient, pings: PingSource = roomPings()): void {
   useEffect(() => {
     if (roomId === null || userId === null) return;
     let live = true;
@@ -54,6 +56,9 @@ export function useAvatarAssert(roomId: string | null, userId: string | null, cl
     const stop = watchAvatar({
       readAccount: () => accountAvatarId(userId),
       readCache: () => selectedAvatarId(userId),
+      // The page's room feed, whose watch the server acknowledges at the start and after every
+      // reconnect: the moment a restarted server, which kept no faces (R12), has this viewer back.
+      rejoined: (again) => pings.subscribe({ room: roomId }, (why) => why === 'heard' && again()),
       assert: (avatarId) => {
         clearTimeout(timer);
         generation += 1;
@@ -65,7 +70,7 @@ export function useAvatarAssert(roomId: string | null, userId: string | null, cl
       stop();
       clearTimeout(timer);
     };
-  }, [roomId, userId, client]);
+  }, [roomId, userId, client, pings]);
 }
 
 /** Waits between re-asserts after a refusal: the joiner's first screen can beat their own join. */
