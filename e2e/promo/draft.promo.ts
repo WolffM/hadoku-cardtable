@@ -7,7 +7,7 @@ import { test, type Page } from '@playwright/test';
 import { fillWithAi, readyPod } from '../podSeats.ts';
 import { submitCreateRoom } from '../play/rooms.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from '../play/harness.ts';
-import { until } from './drive.ts';
+import { humanMove, humanRest, until } from './drive.ts';
 import { HERO, openPromoFriend, startFilm } from './rig.ts';
 
 const PREFIX = '/cardtable';
@@ -63,16 +63,19 @@ test('draft: the pod, fan and grid, a card turned over', async () => {
     const pack = await page.getByTestId('pack').boundingBox();
     if (pack !== null) {
       const y = pack.y + pack.height * 0.55;
-      await page.mouse.move(pack.x + pack.width * 0.25, y, { steps: 12 });
+      await humanMove(page, { x: pack.x + pack.width * 0.25, y });
       for (let i = 0; i < 6; i++) {
         await page.mouse.wheel(0, 120);
-        await page.waitForTimeout(420);
+        await humanRest(page, 420);
       }
-      await page.mouse.move(pack.x + pack.width * 0.7, y, { steps: 30 });
-      await page.waitForTimeout(800);
+      await humanMove(page, { x: pack.x + pack.width * 0.7, y: y + 6 });
+      await humanRest(page, 800);
     }
     film.mark('picks');
-    for (let i = 0; i < 3; i++) await pickOne(page);
+    for (let i = 0; i < 3; i++) {
+      await pickOne(page);
+      if (i === 0) film.mark('picked');
+    }
 
     // The grid, and a double-faced card turned over in the inspector.
     film.mark('grid');
@@ -94,11 +97,11 @@ test('draft: the pod, fan and grid, a card turned over', async () => {
     if (id !== null) {
       film.mark('flip');
       const box = (await faced.boundingBox())!;
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 20 });
-      await page.waitForTimeout(1_400);
+      await humanMove(page, { x: box.x + box.width / 2, y: box.y + box.height / 2 });
+      await humanRest(page, 1_400);
       for (const dy of [120, 120, -120]) {
         await page.mouse.wheel(0, dy);
-        await page.waitForTimeout(1_300);
+        await humanRest(page, 1_300);
       }
       console.log(`[promo:draft] turned over: ${(await faced.locator('.card__name').first().textContent())?.trim()}`);
     } else {
