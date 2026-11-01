@@ -790,17 +790,39 @@ export function DeckChooser({
   const [focus, setFocus] = useState<number | null>(null);
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  /** The tile whose list is open, by index (`usePeekHover`). */
-  const hover = usePeekHover<number>();
+  /**
+   * Which decks are drawn, and in what order: content, not the array's own
+   * identity (`byWinRate` returns a fresh array on every records update).
+   */
+  const optionKey = options.map((o) => o.value).join('\u0000');
+  /** The list as last committed, for a hover's delay to measure when it ends. */
+  const drawn = useRef({ options, optionKey });
+  useLayoutEffect(() => {
+    drawn.current = { options, optionKey };
+  });
+
+  /**
+   * The tile whose list is open, by its deck (`usePeekHover`), and the list it
+   * was placed over. Nothing closes it when the grid changes: it is drawn only
+   * while that same list is, which the render decides. An effect that closed it
+   * instead ran a task after the list it reacted to was committed, and so
+   * cancelled a hover that began on a tile in between — the CI-only red of
+   * `constructed.test.ts`'s "a peeked list the pointer can reach" (run
+   * 41358378234), made certain by `deckChooser.test.ts`.
+   */
+  const hover = usePeekHover<string>();
   const peek = hover.peek;
-  const openPeekSoon = (index: number): void =>
-    hover.openSoon(index, () => {
-      const tile = refs.current[index];
+  const [placedOver, setPlacedOver] = useState<string | null>(null);
+  const openPeekSoon = (value: string): void =>
+    hover.openSoon(value, () => {
+      const now = drawn.current;
+      const tile = refs.current[now.options.findIndex((o) => o.value === value)];
       if (tile === null || tile === undefined) return null;
+      setPlacedOver(now.optionKey);
       const screen = tile.closest('[data-testid="constructed"]') ?? document.documentElement;
       return { anchor: tile.getBoundingClientRect(), bounds: screen.getBoundingClientRect() };
     });
-  const peeked = peek === null ? undefined : options[peek.key];
+  const peeked = peek === null || placedOver !== optionKey ? undefined : options.find((o) => o.value === peek.key);
   /** Where the pointer last was over the grid, so a scroll can find the tile now under it. */
   const pointerAt = useRef<{ x: number; y: number } | null>(null);
   const grid = useRef<HTMLDivElement | null>(null);
@@ -810,7 +832,8 @@ export function DeckChooser({
     if (at === null) return;
     const tile = document.elementFromPoint(at.x, at.y)?.closest<HTMLElement>('[data-deck-id]');
     const index = tile === null || tile === undefined ? -1 : refs.current.indexOf(tile as HTMLButtonElement);
-    if (index >= 0 && options[index]?.list !== undefined) openPeekSoon(index);
+    const row = index < 0 ? undefined : options[index];
+    if (row?.list !== undefined) openPeekSoon(row.value);
   };
   // The grid is never its own scroller: the room's screen, or the page, scrolls it.
   // A scroll does not bubble, so the listener is on the document in the capture
@@ -825,25 +848,11 @@ export function DeckChooser({
     return () => document.removeEventListener('scroll', onScroll, { capture: true });
   }, []);
 
-  /**
-   * Which decks are offered, and in what order — content, not the array's own
-   * identity. `byWinRate` (`stats/deckOrder.ts`) returns a FRESH array on every
-   * records update even when nothing reordered (every deck still unplayed
-   * sorts back to its own index), so keying this effect on `options` itself
-   * closed an open or opening peek the instant the win-rate fetch resolved,
-   * for a list that had not actually changed — `constructed.test.ts`'s "a
-   * peeked list the pointer can reach" caught it as a race, timing-dependent
-   * on which settled first (the server run that found it: CI job 117402002655
-   * on `a4a4a7c3`, red once locally in 50 runs the same shape).
-   */
-  const optionKey = options.map((o) => o.value).join('\u0000');
   // A filter changes which tiles there are, so an index into the old list means
-  // nothing: Tab goes back to following the choice, and an open list closes.
-  const closeHover = hover.close;
+  // nothing: Tab goes back to following the choice.
   useEffect(() => {
     setFocus(null);
-    closeHover();
-  }, [optionKey, closeHover]);
+  }, [optionKey]);
 
   const chosen = options.findIndex((o) => o.value === value);
   const stop = focus !== null && focus < options.length ? focus : chosen >= 0 ? chosen : 0;
@@ -920,12 +929,12 @@ export function DeckChooser({
               onFocus={() => setFocus(index)}
               onClick={() => onChoose(option.value)}
               onPointerEnter={(event) => {
-                if (event.pointerType !== 'touch' && option.list !== undefined) openPeekSoon(index);
+                if (event.pointerType !== 'touch' && option.list !== undefined) openPeekSoon(option.value);
               }}
               onPointerLeave={hover.closeSoon}
               // A press is a choice made: the list it was read from goes, and comes back on the next hover.
               onPointerDown={hover.close}
-              aria-describedby={peek?.key === index ? 'deck-peek' : undefined}
+              aria-describedby={peeked !== undefined && peeked.value === option.value ? 'deck-peek' : undefined}
             />
           );
         return tileAction === undefined ? (
