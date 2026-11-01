@@ -3,7 +3,8 @@
 The trailer's edit: `python3 e2e/promo/cut.py` (not `-I`: numpy is in the user site) after every clip is shot (`shoot.sh <clip>`).
 
 Each segment names a clip, two of its marks (`<clip>.marks.json`, seconds from the first frame) with
-offsets, a speed, and an optional caption. Segments are rendered one by one to 1080p60 and joined with hard
+offsets, and an optional caption. Every shot plays at real speed (the operator, cut 3: "please avoid speeding up
+any clips, keep it natural"); length is controlled by cutting. Segments are rendered one by one to 1080p60 and joined with hard
 cuts; the title and end cards are drawn by ffmpeg itself, and one music bed from the game's own library
 runs under the whole cut. Output: e2e/.run/promo/trailer/trailer.mp4 (each part and `beats.json` beside
 it, so a re-edit in another editor can start from them). Nothing here is committed footage.
@@ -75,8 +76,7 @@ ANCHORS = {
     "faceoff": Anchor(803, 622, "centre", 60),
 }
 
-# (clip, from (mark, offset), to (mark, offset), speed, caption)
-# Every join is a hard cut. Two segments that share a mark are one continuous shot at two speeds.
+# (clip, from (mark, offset), to (mark, offset), caption). Every join is a hard cut; every shot is at 1×.
 SEGMENTS = [
     # Cold open: Emrakul lifted and dropped, then (after the rival's answer, cut) the landing at full weight.
     ("emrakul", ("cast", 11.0), ("cast", 15.3), 1.0, None),
@@ -115,8 +115,9 @@ SEGMENTS = [
     "END",
 ]
 
-# The montage: one in-point per shot, in order. Each runs from (mark + offset) for as long as the bed's
-# next onset allows, at real speed.
+# The montage: one in-point per shot, in order. Each runs from (mark + offset), for as long as the beat grid
+# allows. Offsets are picked from a frame strip of each moment, not from a mark alone: a game's marks are when
+# the driver acted, and the hit lands a beat later.
 MONTAGE = [
     ("emrakul", "landed", 5.9),
     ("bolt", "targeted", 0.5),
@@ -188,9 +189,9 @@ def settle(t0: float, d: float) -> str:
 def check_captions(segments: list) -> None:
     last = None
     for seg in segments:
-        if isinstance(seg, str) or seg[4] is None:
+        if isinstance(seg, str) or seg[3] is None:
             continue
-        cap: Caption = seg[4]
+        cap: Caption = seg[3]
         if cap.anchor not in ANCHORS or cap.entrance not in ("rise", "wipe", "slide", "drop"):
             sys.exit(f"cut: caption {cap.text!r}: unknown anchor or entrance")
         if last is not None and (last.anchor, last.entrance) == (cap.anchor, cap.entrance):
@@ -279,25 +280,25 @@ def encode(out: Path, inputs: list[str], graph: str, length: float, maps: list[s
          "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", str(out)])
 
 
-def render_clip(n: int, clip: str, start: float, end: float, speed: float, cap: Caption | None, label: str) -> Path:
-    length = (end - start) / speed
+def render_clip(n: int, clip: str, start: float, end: float, cap: Caption | None, label: str) -> Path:
+    length = end - start
     out = OUT / f"{n:02d}-{clip}-{label}.mp4"
-    base = f"[0:v]trim=start={start:.3f}:end={end:.3f},setpts=(PTS-STARTPTS)/{speed},fps={FPS}"
+    base = f"[0:v]trim=start={start:.3f}:end={end:.3f},setpts=PTS-STARTPTS,fps={FPS}"
     if cap is None:
         graph = f"{base}[v]"
     else:
         draws, (src, place) = caption_graph(cap, length)
         graph = f"{base}[b];{src}[bar];[b][bar]overlay={place}:shortest=1[r];[r]{','.join(draws)}[v]"
-    graph += f";[0:a]atrim=start={start:.3f}:end={end:.3f},asetpts=PTS-STARTPTS,atempo={speed},afade=t=in:d=0.01,afade=t=out:st={max(0, length - 0.01):.3f}:d=0.01[a]"
+    graph += f";[0:a]atrim=start={start:.3f}:end={end:.3f},asetpts=PTS-STARTPTS,afade=t=in:d=0.01,afade=t=out:st={max(0, length - 0.01):.3f}:d=0.01[a]"
     encode(out, ["-i", str(FOOTAGE / clip / f"{clip}.mkv")], graph, length, ["-map", "[v]", "-map", "[a]"])
-    print(f"cut: {out.name}  {length:5.2f}s  ({clip} {start:.2f}→{end:.2f} at {speed}x{'' if cap is None else ', ' + cap.entrance + '@' + cap.anchor})")
+    print(f"cut: {out.name}  {length:5.2f}s  ({clip} {start:.2f}→{end:.2f}{'' if cap is None else ', ' + cap.entrance + '@' + cap.anchor})")
     return out
 
 
 def render_segment(n: int, seg: tuple) -> Path:
-    clip, (a, da), (b, db), speed, cap = seg
+    clip, (a, da), (b, db), cap = seg
     m = marks(clip)
-    return render_clip(n, clip, m[a] + da, m[b] + db, speed, cap, a)
+    return render_clip(n, clip, m[a] + da, m[b] + db, cap, a)
 
 
 def render_card(n: int, kind: str) -> Path:
@@ -377,7 +378,7 @@ def montage_cuts(beats: np.ndarray, start: float, shots: int) -> list[float]:
     cuts = [float(first[0]) if len(first) else start]
     for k in range(shots):
         want = MONTAGE_GAPS[0] + (MONTAGE_GAPS[1] - MONTAGE_GAPS[0]) * k / max(1, shots - 1)
-        # Never longer than the shot before it: the montage only ever speeds up.
+        # Never longer than the shot before it: the montage's cutting only ever quickens.
         # Every cut is on an onset; with none short enough, the shortest one in range.
         cap = hi if k == 0 else min(hi, cuts[-1] - cuts[-2] + 0.03)
         near = beats[(beats > cuts[-1] + lo) & (beats < cuts[-1] + hi)]
@@ -397,7 +398,7 @@ def stills() -> None:
     """One still per captioned segment at its caption's resting moment, captioned, for measuring anchors."""
     (OUT / "stills").mkdir(parents=True, exist_ok=True)
     for n, seg in enumerate(SEGMENTS):
-        if isinstance(seg, str) or seg[4] is None:
+        if isinstance(seg, str) or seg[3] is None:
             continue
         part = render_segment(n, seg)
         run(["ffmpeg", "-y", "-loglevel", "error", "-ss", "1.6", "-i", str(part), "-frames:v", "1", "-q:v", "2", str(OUT / "stills" / f"{n:02d}-{seg[0]}.jpg")])
@@ -425,14 +426,14 @@ def main() -> None:
             if parts and cuts[0] > at - cold + 0.01:
                 prev = SEGMENTS[n - 1]
                 m = marks(prev[0])
-                extra = (cuts[0] - (at - cold)) * prev[3]
-                parts[-1] = render_clip(n - 1, prev[0], m[prev[1][0]] + prev[1][1], m[prev[2][0]] + prev[2][1] + extra, prev[3], prev[4], prev[1][0])
+                extra = cuts[0] - (at - cold)
+                parts[-1] = render_clip(n - 1, prev[0], m[prev[1][0]] + prev[1][1], m[prev[2][0]] + prev[2][1] + extra, prev[3], prev[1][0])
                 at = cuts[0] + cold
                 rows[-1]["length"] = round(at - rows[-1]["at"], 2)
             for k, (clip, mark, off) in enumerate(MONTAGE):
                 length = cuts[k + 1] - cuts[k]
                 t = marks(clip)[mark] + off
-                part = render_clip(n * 100 + k, clip, t, t + length, 1.0, None, f"m{k:02d}-{mark}")
+                part = render_clip(n * 100 + k, clip, t, t + length, None, f"m{k:02d}-{mark}")
                 parts.append(part)
                 rows.append({"at": round(at, 2), "length": round(duration(part), 2), "clip": clip, "caption": None, "montage": True})
                 at += duration(part)
@@ -442,7 +443,7 @@ def main() -> None:
             cold = at
         part = render_card(n, seg) if isinstance(seg, str) else render_segment(n, seg)
         length = duration(part)
-        cap = None if isinstance(seg, str) else seg[4]
+        cap = None if isinstance(seg, str) else seg[3]
         rows.append({"at": round(at, 2), "length": round(length, 2), "clip": seg.lower() if isinstance(seg, str) else seg[0],
                      "caption": None if cap is None else {"text": cap.text, "kicker": cap.kicker, "anchor": cap.anchor, "entrance": cap.entrance}})
         parts.append(part)

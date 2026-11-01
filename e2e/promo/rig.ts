@@ -1,20 +1,33 @@
 /**
- * The promo film rig: one seat filmed at 1920×1080, 60 fps, with card art.
+ * The promo film rig: one seat filmed at 1920×1080, 60 fps, with card art and the game's sound.
  *
- * Playwright's own `recordVideo` is ~25 fps VP8 at a low bitrate — fine for a test's evidence, not for a
- * trailer. So the HERO seat runs a headed, fullscreen Chromium on a private Xvfb display (never the operator's screen), and ffmpeg's
- * `x11grab` films that display losslessly enough to cut from. The other seat runs headless; nobody sees it.
+ * The HERO seat runs headless Chromium rendering on the GPU (ANGLE over Vulkan), and the clip is taken
+ * from its compositor over CDP (`Page.startScreencast`), not by grabbing a display. Cut 3 grabbed a headed
+ * Chromium on Xvfb, which can only rasterise in software: ~45 fps on an idle box, 6–12 real frames a second
+ * under load (the operator saw it as lag). Xvfb has no GPU present path, so a GPU Chromium there paints
+ * almost nothing to the window; headless has no window to paint, and tab capture is not supported headless.
+ *
+ * Frames arrive as JPEGs at `capture.mjs`, a process of its own (so a busy test never delays a frame's
+ * ack), which keeps each with its arrival time. At `stop` ffmpeg lays them out with exactly those
+ * durations and converts to 60 fps CFR. The screencast delivers about 95% of the compositor's frames
+ * however it is tuned (JPEG quality, acking off-process), so a missed frame is blended from its two
+ * neighbours instead of repeating the last one. The sound comes from the null sink, and the encode runs
+ * on NVENC, so nothing competes for the CPU. The other seat runs headless in software; nobody sees it.
  *
  * The e2e `openFriend` blocks every request that leaves 127.0.0.1 (a test must not depend on the network).
  * A promo clip wants the art, which resolves to the CDN or Scryfall (`packages/carddata/src/art/index.ts`),
  * so `openPromoFriend` lets image requests out and still blocks everything else.
  *
- * Fast Mode is OFF: the animations are the point. Clips land in `e2e/.run/promo/<clip>/` as
- * `<clip>.mkv` plus `<clip>.marks.json` — the moments the driver named, in seconds from the first frame,
- * which is what the edit cuts on. Never committed: `.run/` is ignored, and video bytes stay out of the repo.
+ * Fast Mode is OFF: the animations are the point. Clips land in `e2e/.run/promo/<clip>/` as `<clip>.mkv`
+ * and `<clip>.marks.json` (the moments the driver named, in seconds from the first frame, which is what the
+ * edit cuts on), with the evidence for every dropped frame: `<clip>.frames.json` (when each captured frame
+ * arrived), `<clip>.raf.json` (the page's own late frames) and `<clip>.loaf.json` (its long animation
+ * frames, with the scripts behind them). Never committed: `.run/` is ignored, and video bytes stay out of
+ * the repo.
  */
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 
 import { chromium, type Browser, type BrowserContext } from '@playwright/test';
@@ -28,8 +41,11 @@ import { seedMouse } from './mouse.ts';
 
 export const WIDTH = 1920;
 export const HEIGHT = 1080;
-const FPS = Number(process.env.PROMO_FPS ?? '60');
+const FPS = 60;
 export const PROMO_DIR = resolve(RUN_DIR, 'promo');
+
+/** The hero's GPU path: ANGLE on Vulkan, raster on the GPU, Chromium's own 60 Hz frame clock left alone. */
+const GPU_ARGS = ['--use-gl=angle', '--use-angle=vulkan', '--enable-features=Vulkan,VulkanFromANGLE,DefaultANGLEVulkan', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'];
 
 /** The gamer tags on screen (`identities.ts`'s promo rows): never a real friend's name in a public video. */
 export const HERO = 'ashgrove';
@@ -39,14 +55,6 @@ export const TAGS: Record<string, string> = { ashgrove: 'Ashgrove', nightjar: 'N
 export const AVATARS: Record<string, string> = { ashgrove: 'mage', nightjar: 'herald', vexmoor: 'sage', lumen: 'knight' };
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
-async function waitFor(what: string, ok: () => boolean, ms = 10_000): Promise<void> {
-  const deadline = Date.now() + ms;
-  while (!ok()) {
-    if (Date.now() > deadline) throw new Error(`promo rig: ${what} never came up`);
-    await sleep(100);
-  }
-}
 
 export interface Film {
   hero: Browser;
@@ -59,55 +67,53 @@ export interface Film {
 }
 
 /**
- * Start Xvfb on `:<display>`, a headed Chromium on it, and (once `roll()` is called) ffmpeg filming it.
- * The capture starts at `roll`, not here, so the clip does not open on a white tab and a mulligan.
+ * Launch the hero's GPU Chromium and (once `roll()` is called) start filming its page. The capture starts at
+ * `roll`, not here, so the clip does not open on a blank tab and a mulligan. The filmed page is the hero
+ * browser's newest page at `roll`.
  */
-export async function startFilm(clip: string, display = Number(process.env.PROMO_DISPLAY ?? '97')): Promise<Film & { roll(): Promise<void> }> {
+export async function startFilm(clip: string): Promise<Film & { roll(): Promise<void> }> {
   const dir = resolve(PROMO_DIR, clip);
   mkdirSync(dir, { recursive: true });
   seedMouse(clip);
-  const lock = `/tmp/.X${display}-lock`;
-  if (existsSync(lock)) throw new Error(`promo rig: display :${display} is taken (${lock}); set PROMO_DISPLAY`);
-  const xvfb = spawn('Xvfb', [`:${display}`, '-screen', '0', `${WIDTH}x${HEIGHT}x24`, '-nolisten', 'tcp', '-ac'], { stdio: 'ignore' });
-  await waitFor(`Xvfb :${display}`, () => existsSync(lock));
   // A private null sink: the game's sound goes into the clip, never to the operator's speakers.
-  const sink = `promo_${display}`;
+  const sink = `promo_${clip}_${process.pid}`;
   const sinkModule = execFileSync('pactl', ['load-module', 'module-null-sink', `sink_name=${sink}`, `sink_properties=device.description=${sink}`], { encoding: 'utf8' }).trim();
+  const port = await freePort();
   const hero = await chromium.launch({
-    headless: false,
-    // Never the operator's desktop: with WAYLAND_DISPLAY set, Chromium opens on Wayland and ignores DISPLAY.
-    env: { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== 'WAYLAND_DISPLAY')), DISPLAY: `:${display}`, PULSE_SINK: sink },
-    args: [
-      '--ozone-platform=x11',
-      `--window-size=${WIDTH},${HEIGHT}`,
-      '--window-position=0,0',
-      '--force-device-scale-factor=1',
-      '--hide-scrollbars',
-      '--disable-infobars',
-      '--no-first-run',
-      '--autoplay-policy=no-user-gesture-required',
-      '--disable-site-isolation-trials',
-      '--disable-features=IsolateOrigins,site-per-process,Translate',
-    ],
+    headless: true,
+    // Playwright mutes a headless browser; the clip wants the game's sound, on the null sink above.
+    ignoreDefaultArgs: ['--mute-audio'],
+    env: { ...process.env, PULSE_SINK: sink },
+    // The DevTools port is for `capture.mjs`, which films from its own process.
+    args: [...GPU_ARGS, `--remote-debugging-port=${port}`, `--window-size=${WIDTH},${HEIGHT}`, '--force-device-scale-factor=1', '--hide-scrollbars', '--autoplay-policy=no-user-gesture-required'],
   });
 
-  let ffmpeg: ChildProcess | null = null;
+  let audio: ChildProcess | null = null;
+  let audioAt = 0;
+  let catcher: ChildProcess | null = null;
   let t0 = 0;
   const marks: { label: string; t: number }[] = [];
+  let arrivals: number[] = [];
+  const frames = resolve(dir, 'frames');
   const out = resolve(dir, `${clip}.mkv`);
   let stopped: Promise<string> | null = null;
 
   return {
     hero,
     async roll() {
-      ffmpeg = spawn(
-        'ffmpeg',
-        ['-y', '-loglevel', 'error',
-          '-thread_queue_size', '1024', '-f', 'x11grab', '-draw_mouse', '0', '-framerate', String(FPS), '-video_size', `${WIDTH}x${HEIGHT}`, '-i', `:${display}`,
-          '-thread_queue_size', '1024', '-f', 'pulse', '-i', `${sink}.monitor`,
-          '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '12', '-pix_fmt', 'yuv420p', '-c:a', 'flac', out],
-        { stdio: ['pipe', 'ignore', 'inherit'] },
-      );
+      const page = hero.contexts().flatMap((c) => c.pages()).at(-1);
+      if (page === undefined) throw new Error('promo rig: the hero has no page to film');
+      rmSync(frames, { recursive: true, force: true });
+      mkdirSync(frames, { recursive: true });
+      audio = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'pulse', '-i', `${sink}.monitor`, '-c:a', 'flac', resolve(dir, 'audio.flac')], { stdio: ['pipe', 'ignore', 'inherit'] });
+      audioAt = Date.now();
+      // Each frame is written with the time it arrived; `stop` assembles them with exactly those durations.
+      // (Piping them into ffmpeg stamped them as it read them, in bursts, and lost nine in ten.)
+      catcher = spawn(process.execPath, [resolve(import.meta.dirname, 'capture.mjs'), String(port), frames], { stdio: ['ignore', 'pipe', 'inherit'] });
+      await new Promise<void>((ok, fail) => {
+        catcher!.stdout!.on('data', (chunk: Buffer) => (chunk.toString().includes('capture: filming') ? ok() : undefined));
+        catcher!.once('exit', (code) => fail(new Error(`promo rig: capture.mjs exited ${String(code)} before filming`)));
+      });
       t0 = Date.now();
       await sleep(300);
     },
@@ -119,15 +125,45 @@ export async function startFilm(clip: string, display = Number(process.env.PROMO
     beat: (ms = 700) => sleep(ms),
     stop() {
       stopped ??= (async () => {
-        if (ffmpeg !== null) {
-          const done = new Promise<void>((r) => ffmpeg!.once('exit', () => r()));
-          ffmpeg.stdin?.write('q');
-          await Promise.race([done, sleep(15_000)]);
+        const end = Date.now();
+        if (catcher !== null && catcher.exitCode === null) {
+          const done = new Promise<void>((r) => catcher!.once('exit', () => r()));
+          catcher.kill('SIGTERM');
+          await Promise.race([done, sleep(20_000)]);
+          if (catcher.exitCode === null) console.warn(`[promo:${clip}] capture.mjs ${catcher.pid} did not finish writing`);
         }
-        writeFileSync(resolve(dir, `${clip}.marks.json`), JSON.stringify({ clip, fps: FPS, marks }, null, 2));
+        try {
+          arrivals = JSON.parse(readFileSync(resolve(frames, 'arrivals.json'), 'utf8')) as number[];
+        } catch (err) {
+          console.warn(`[promo:${clip}] no arrivals from capture.mjs: ${String(err)}`);
+        }
+        await stopProcess(clip, audio);
+        const filmed = hero.contexts().flatMap((c) => c.pages()).at(-1);
+        const loaf = ((await filmed?.evaluate(() => (window as unknown as { __promoLoaf?: { at: number }[] }).__promoLoaf ?? []).catch(() => [])) ?? []).map((e) => ({ ...e, at: Math.round(e.at - t0) / 1000 }));
+        writeFileSync(resolve(dir, `${clip}.loaf.json`), JSON.stringify(loaf, null, 1));
+        const raf = ((await filmed?.evaluate(() => (window as unknown as { __promoRaf?: number[][] }).__promoRaf ?? []).catch(() => [])) ?? []).map(([at, ms]) => [Math.round(at! - t0) / 1000, ms]);
+        writeFileSync(resolve(dir, `${clip}.raf.json`), JSON.stringify(raf));
         await hero.close().catch((err: unknown) => console.warn(`[promo:${clip}] hero browser close: ${String(err)}`));
-        xvfb.kill('SIGTERM');
         execFileSync('pactl', ['unload-module', sinkModule]);
+        writeFileSync(resolve(dir, `${clip}.marks.json`), JSON.stringify({ clip, fps: FPS, marks }, null, 2));
+        if (arrivals.length === 0) return out;
+        const gaps = arrivals.slice(1).map((t, i) => t - arrivals[i]!);
+        const late = gaps.filter((g) => g > (1000 / FPS) * 1.5).length;
+        console.log(`[promo:${clip}] captured ${arrivals.length} frames over ${((end - t0) / 1000).toFixed(1)} s, ${late} gaps over 25 ms, longest ${Math.max(0, ...gaps)} ms`);
+        writeFileSync(resolve(dir, `${clip}.frames.json`), JSON.stringify({ arrivals: arrivals.map((t) => t - t0) }));
+        // The clip's clock is t0 (what the marks count from): the first frame holds from t0 to its successor.
+        const times = [t0, ...arrivals.slice(1), end];
+        const list = arrivals.map((_, i) => `file '${String(i + 1).padStart(6, '0')}.jpg'\nduration ${((times[i + 1]! - times[i]!) / 1000).toFixed(4)}\n`).join('');
+        writeFileSync(resolve(frames, 'list.txt'), `${list}file '${String(arrivals.length).padStart(6, '0')}.jpg'\n`);
+        execFileSync('ffmpeg', ['-y', '-loglevel', 'error',
+          '-f', 'concat', '-safe', '0', '-i', resolve(frames, 'list.txt'),
+          '-ss', ((t0 - audioAt) / 1000).toFixed(3), '-i', resolve(dir, 'audio.flac'),
+          // A frame the screencast missed (it delivers ~95% of them) is blended from its two neighbours,
+          // not a repeat of the one before: a single missed frame reads as motion, not a hitch.
+          '-vf', `minterpolate=fps=${FPS}:mi_mode=blend,format=yuv420p`, '-c:v', 'h264_nvenc', '-preset', 'p5', '-rc', 'constqp', '-qp', '14',
+          '-c:a', 'flac', '-shortest', out]);
+        rmSync(frames, { recursive: true, force: true });
+        rmSync(resolve(dir, 'audio.flac'), { force: true });
         return out;
       })();
       return stopped;
@@ -135,14 +171,47 @@ export async function startFilm(clip: string, display = Number(process.env.PROMO
   };
 }
 
+/** A free TCP port on 127.0.0.1, for the hero's DevTools endpoint. */
+function freePort(): Promise<number> {
+  return new Promise((ok, fail) => {
+    const srv = createServer();
+    srv.once('error', fail);
+    srv.listen(0, '127.0.0.1', () => {
+      const addr = srv.address();
+      srv.close(() => (typeof addr === 'object' && addr !== null ? ok(addr.port) : fail(new Error('no port'))));
+    });
+  });
+}
+
+/** Stop an ffmpeg that records an endless input: `q`, then SIGINT, then SIGKILL, saying so if it came to that. */
+async function stopProcess(clip: string, proc: ChildProcess | null): Promise<void> {
+  if (proc === null || proc.exitCode !== null) return;
+  const done = new Promise<void>((r) => proc.once('exit', () => r()));
+  proc.stdin?.write('q');
+  await Promise.race([done, sleep(3_000)]);
+  if (proc.exitCode === null) proc.kill('SIGINT');
+  await Promise.race([done, sleep(5_000)]);
+  if (proc.exitCode === null) {
+    console.warn(`[promo:${clip}] ffmpeg ${proc.pid} would not stop; killing it`);
+    proc.kill('SIGKILL');
+  }
+}
+
+interface LoafEntry {
+  startTime: number;
+  duration: number;
+  blockingDuration: number;
+  styleAndLayoutStart: number;
+  scripts: { sourceURL: string; sourceFunctionName: string; sourceCharPosition: number; invoker: string; duration: number; forcedStyleAndLayoutDuration: number }[];
+}
+
 const IMAGE = /\.(jpe?g|png|webp|avif|svg)(\?|$)/i;
 
 /**
- * A friend for a promo clip: the hero on the filmed browser (window-sized, no viewport override), anyone
- * else headless. Same identity cookie and local prefs as `openFriend`, Fast Mode off, art let through.
+ * A friend for a promo clip, on `browser`: the filmed hero's GPU browser, or the shared headless one. Same identity cookie and local prefs as `openFriend`, Fast Mode off, art let through.
  */
-export async function openPromoFriend(browser: Browser, name: string, opts: { filmed?: boolean } = {}): Promise<Friend> {
-  const context: BrowserContext = await browser.newContext(opts.filmed === true ? { viewport: null, colorScheme: 'dark' } : { viewport: { width: WIDTH, height: HEIGHT }, colorScheme: 'dark' });
+export async function openPromoFriend(browser: Browser, name: string): Promise<Friend> {
+  const context: BrowserContext = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT }, colorScheme: 'dark' });
   await context.addCookies([{ name: SESSION_COOKIE, value: name, domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' }]);
   await keepPrefsLocal(context, PLAY_EDGE_ORIGIN);
   await setPlayFastModeDefault(context, false);
@@ -162,15 +231,38 @@ export async function openPromoFriend(browser: Browser, name: string, opts: { fi
     },
     { userId, sprite: AVATARS[name] ?? null },
   );
+  // Every long animation frame (50 ms or more), with the scripts behind it: where a clip's dropped frames
+  // come from when it is the game, not the capture (`<clip>.loaf.json`, written by the film's `stop`).
+  await context.addInitScript(() => {
+    const w = window as unknown as { __promoLoaf: unknown[]; __promoRaf: number[][] };
+    w.__promoLoaf = [];
+    // The page's own frame clock: every requestAnimationFrame interval over 25 ms, so a drop in a clip can
+    // be put on the game (it painted late) or on the capture (it painted on time and the frame was lost).
+    w.__promoRaf = [];
+    let last = 0;
+    const tick = (t: number): void => {
+      if (last > 0 && t - last > 25) w.__promoRaf.push([performance.timeOrigin + last, Math.round(t - last)]);
+      last = t;
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    try {
+      new PerformanceObserver((list) => {
+        for (const e of list.getEntries() as unknown as LoafEntry[]) {
+          w.__promoLoaf.push({
+            at: performance.timeOrigin + e.startTime,
+            ms: Math.round(e.duration),
+            blockingMs: Math.round(e.blockingDuration),
+            styleLayoutMs: e.styleAndLayoutStart > 0 ? Math.round(e.startTime + e.duration - e.styleAndLayoutStart) : 0,
+            scripts: e.scripts.map((x) => ({ src: x.sourceURL.split('/').pop(), fn: x.sourceFunctionName, at: x.sourceCharPosition, invoker: x.invoker, ms: Math.round(x.duration), forcedMs: Math.round(x.forcedStyleAndLayoutDuration) })),
+          });
+        }
+      }).observe({ type: 'long-animation-frame', buffered: true });
+    } catch (err) {
+      console.warn(`[promo] no long-animation-frame observer: ${String(err)}`);
+    }
+  });
   const page = await context.newPage();
-  if (opts.filmed === true) {
-    // `--kiosk` is not honoured under Playwright; the window's own fullscreen hides the browser's chrome.
-    const cdp = await context.newCDPSession(page);
-    const { windowId } = (await cdp.send('Browser.getWindowForTarget')) as { windowId: number };
-    await cdp.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'fullscreen' } });
-    // Chromium's "To exit full screen, press F11" bubble shows for a few seconds: wait it out off camera.
-    await page.waitForTimeout(4_500);
-  }
   registerFriendContext(context);
   // A card drawn as a blank ◆ is art that never arrived: say which.
   page.on('requestfailed', (req) => {
@@ -179,7 +271,7 @@ export async function openPromoFriend(browser: Browser, name: string, opts: { fi
   page.on('response', (res) => {
     if (res.request().resourceType() === 'image' && res.status() >= 400) console.warn(`[promo] art ${res.status()}: ${res.url()}`);
   });
-  const friend: Friend = { name, context, page, captures: [], pending: [], captureErrors: [], blocked: [] };
+  const friend: Friend = { name, context, page, captures: [], pending: [], captureErrors: [], blocked: [], trace: { since: Date.now(), inFlight: new Map(), events: [] } };
   await context.route('**/*', async (route) => {
     const req = route.request();
     const url = new URL(req.url());
