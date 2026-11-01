@@ -89,6 +89,7 @@ export async function startFilm(clip: string): Promise<Film & { roll(): Promise<
   });
 
   let audio: ChildProcess | null = null;
+  let keepAlive: ChildProcess | null = null;
   let audioAt = 0;
   let catcher: ChildProcess | null = null;
   let t0 = 0;
@@ -105,7 +106,11 @@ export async function startFilm(clip: string): Promise<Film & { roll(): Promise<
       if (page === undefined) throw new Error('promo rig: the hero has no page to film');
       rmSync(frames, { recursive: true, force: true });
       mkdirSync(frames, { recursive: true });
-      audio = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'pulse', '-i', `${sink}.monitor`, '-c:a', 'flac', resolve(dir, 'audio.flac')], { stdio: ['pipe', 'ignore', 'inherit'] });
+      // An idle PulseAudio sink suspends and its monitor sends nothing, so the sound came out shorter than
+      // the picture and slid out of sync across silences. A silent stream keeps the sink running, and the
+      // recording is stamped by the wall clock, its gaps filled with silence.
+      keepAlive = spawn('ffmpeg', ['-loglevel', 'error', '-re', '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=stereo', '-f', 'pulse', sink], { stdio: ['pipe', 'ignore', 'inherit'] });
+      audio = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-use_wallclock_as_timestamps', '1', '-f', 'pulse', '-i', `${sink}.monitor`, '-af', 'aresample=async=1:first_pts=0', '-c:a', 'flac', resolve(dir, 'audio.flac')], { stdio: ['pipe', 'ignore', 'inherit'] });
       audioAt = Date.now();
       // Each frame is written with the time it arrived; `stop` assembles them with exactly those durations.
       // (Piping them into ffmpeg stamped them as it read them, in bursts, and lost nine in ten.)
@@ -138,6 +143,7 @@ export async function startFilm(clip: string): Promise<Film & { roll(): Promise<
           console.warn(`[promo:${clip}] no arrivals from capture.mjs: ${String(err)}`);
         }
         await stopProcess(clip, audio);
+        await stopProcess(clip, keepAlive);
         const filmed = hero.contexts().flatMap((c) => c.pages()).at(-1);
         const loaf = ((await filmed?.evaluate(() => (window as unknown as { __promoLoaf?: { at: number }[] }).__promoLoaf ?? []).catch(() => [])) ?? []).map((e) => ({ ...e, at: Math.round(e.at - t0) / 1000 }));
         writeFileSync(resolve(dir, `${clip}.loaf.json`), JSON.stringify(loaf, null, 1));
@@ -161,7 +167,7 @@ export async function startFilm(clip: string): Promise<Film & { roll(): Promise<
           // A frame the screencast missed (it delivers ~95% of them) is blended from its two neighbours,
           // not a repeat of the one before: a single missed frame reads as motion, not a hitch.
           '-vf', `minterpolate=fps=${FPS}:mi_mode=blend,format=yuv420p`, '-c:v', 'h264_nvenc', '-preset', 'p5', '-rc', 'constqp', '-qp', '14',
-          '-c:a', 'flac', '-shortest', out]);
+          '-t', ((end - t0) / 1000).toFixed(3), '-c:a', 'flac', out]);
         rmSync(frames, { recursive: true, force: true });
         rmSync(resolve(dir, 'audio.flac'), { force: true });
         return out;

@@ -92,7 +92,10 @@ test('draft: the pod, fan and grid, a card turned over', async () => {
         return null;
       });
     for (let i = 0; i < 30 && (await transformer()) === null; i++) await pickOne(page);
-    const id = await transformer();
+    // Thirty packs without a transform card happens (cut 4's take): any card with another face will do.
+    const anyFaces = async (): Promise<string | null> =>
+      page.evaluate(() => document.querySelector('[data-testid="pack"] [data-testid="card"][data-faces]')?.getAttribute('data-card-id') ?? null);
+    const id = (await transformer()) ?? (await anyFaces());
     const faced = page.locator(`[data-testid="pack"] [data-testid="card"][data-card-id="${id}"]`).first();
     if (id !== null) {
       film.mark('flip');
