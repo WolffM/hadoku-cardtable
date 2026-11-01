@@ -296,7 +296,9 @@ test(
  *
  * - 2026-10-08 (AD4 decision c): *"with several things on the stack they resolve one at a time with a
  *   small delay each — a chain reaction."* Every departure is its own mutation, one item at a time, and
- *   another player's item leaves after the pacer's `resolve` gap (600 ms, read here as ≥ 500).
+ *   another player's item leaves at least the pacer's chain gap after the one before it (2026-11-01, of Valakut's
+ *   triggers, approved "both look good, ship it": a stack draining with nobody on this screen deciding goes one item
+ *   per `RESOLVE_CHAIN_GAP_MS`, 300 ms, read here as ≥ 250; it was the 600 ms resolve gap).
  * - 2026-10-20 (AF216): *"shorten own-resolve pauses"* — *"i like the idea of lots of animations
  *   happening at the same time, seems fun."* The seat's OWN item resolving keeps no class gap
  *   (`pace.ts`, "The seat's own acts go out as Forge sends them"): it still leaves on its own, in order,
@@ -308,7 +310,7 @@ test(
  * bob's are paced and hers are not, and on bob's the other way round.
  */
 test(
-  titled('the chain reaction: a four-item stack drains one departure at a time, the other player’s spaced by the pacer’s 600 ms'),
+  titled('the chain reaction: a four-item stack drains one departure at a time, the other player’s spaced by the pacer’s chain gap'),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
     if (!forge.ok) return;
@@ -383,7 +385,7 @@ test(
           const gap = at[k + 1]! - at[k]!;
           const owner = casters[casters.length - 1 - k]!;
           console.log(`[w59-chain] ${who} departure ${k} (${owner}'s Quicken) ${gap.toFixed(1)} ms after departure ${k - 1}`);
-          if (owner !== who) expect(gap, `${who}: ${owner}'s Quicken's departure ${k} is spaced by the resolve gap`).toBeGreaterThanOrEqual(500);
+          if (owner !== who) expect(gap, `${who}: ${owner}'s Quicken's departure ${k} is spaced by the chain gap`).toBeGreaterThanOrEqual(250);
         }
       }
     } finally {
