@@ -146,6 +146,17 @@ test(titled('six Valakut triggers: all six chips before the first target, one pi
     if (offeredSame) await same.check();
     console.log(`[w70-valakut] same-target box offered: ${offeredSame}`);
     expect.soft(offeredSame, 'the target question offers "use same target for all"').toBe(true);
+    // The answered question never comes back (wsheet): every time the box is drawn from here on, counted in the page itself.
+    await alice.page.evaluate(() => {
+      const w = window as unknown as { __sameTargetDrawn: number };
+      w.__sameTargetDrawn = 0;
+      let shown = document.querySelector('[data-testid="live-same-target"]') !== null;
+      new MutationObserver(() => {
+        const now = document.querySelector('[data-testid="live-same-target"]') !== null;
+        if (now && !shown) w.__sameTargetDrawn += 1;
+        shown = now;
+      }).observe(document.body, { childList: true, subtree: true });
+    });
     let picks = 0;
     let deals = 0;
     await expect
@@ -177,6 +188,9 @@ test(titled('six Valakut triggers: all six chips before the first target, one pi
     const dealWired = log.filter((r) => r.evt === 'wire-frame' && r.seat === 0 && r.method === 'showPromptMessage' && DEAL.test(String(r.message ?? '')));
     console.log(`[w70-valakut] target picks ${picks}, target prompts wired ${wiredTargets(stack, fromCast).length}; "Do you want to deal" asked by Forge ${dealAsked.length}, wired ${dealWired.length}, drawn ${deals}`);
     expect.soft(picks, 'one target pick covered all six triggers').toBe(1);
+    const redrawn = await alice.page.evaluate(() => (window as unknown as { __sameTargetDrawn: number }).__sameTargetDrawn);
+    console.log(`[w70-valakut] answered target question drawn again: ${redrawn}`);
+    expect.soft(redrawn, 'the answered target question is not drawn again').toBe(0);
     expect.soft(dealWired.length, 'no "Do you want to deal 3 damage" reached alice after she chose the target').toBe(0);
 
     const autoOrders = log.filter((r) => r.evt === 'ask-auto-answered' && r.seat === 0 && r.method === 'order').map((r) => String(r.why));

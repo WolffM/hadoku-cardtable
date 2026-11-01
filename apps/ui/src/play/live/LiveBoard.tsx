@@ -345,6 +345,7 @@ import {
   playerIdOfSeat,
   setFullControl,
   setPhaseStop,
+  sameTargetOffered,
   setSameTarget,
   setTriggerDecision,
   subscribe,
@@ -2969,7 +2970,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   }, [confirmPrompt]);
   /* "Same target for all" on a trigger's or a spell copy's target question while identical ones wait behind it (the operator, 2026-10-11 and 2026-10-14). */
   const sameTargetCheck =
-    !spectator && match.promptTargetMore > 0 && match.inputLive
+    !spectator && sameTargetOffered(match)
       ? { label: 'Same target for all', testId: 'live-same-target', checked: match.sameTarget, onChange: (on: boolean) => setSameTarget(match, on) }
       : undefined;
   // The decision goes BEFORE the press, so the server still holds this confirm as the seat's prompt when it checks the key.

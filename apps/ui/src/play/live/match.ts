@@ -2075,6 +2075,11 @@ function sameTargetOf(match: LiveMatch): { sameTarget?: true } {
   return match.sameTarget && match.promptTargetMore > 0 ? { sameTarget: true } : {};
 }
 
+/** The open target question offers "same target for all": identical triggers wait behind it, and its input is live. */
+export function sameTargetOffered(match: LiveMatch): boolean {
+  return match.promptTargetMore > 0 && match.inputLive;
+}
+
 /** Tick or clear "same target for all" on the open target question. */
 export function setSameTarget(match: LiveMatch, on: boolean): void {
   match.sameTarget = on;
@@ -3429,6 +3434,14 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     match.highlightedPlayers = null;
     match.inputLive = false;
     match.lastSelectedCard = null;
+    // So did its question: only Forge's two selection inputs send this, from `onStop`
+    // (`InputSelectTargets.java:454`, `InputSelectEntitiesFromList.java:171`). A mark or an offer
+    // after it sets `inputLive` again without asking anything (cut3 valakut2: the last trigger's
+    // empty mark, an auto-passed priority's offer), so the answered question's own facts go now
+    // and only the next `showPromptMessage` brings a question back.
+    match.promptTargetMore = 0;
+    match.promptSelection = null;
+    match.sameTarget = false;
   } else if (frame.kind === 'notify' && frame.method === 'setHighlighted') {
     // INCREMENTAL, unlike the two frames either side of it: fold, never
     // replace. Cards only — see the field's note on why a marked player is not

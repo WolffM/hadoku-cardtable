@@ -60,6 +60,7 @@ import {
   selectPlayer,
   setAutoYield,
   setFullControl,
+  sameTargetOffered,
   setSameTarget,
   SAYS_KEPT,
   socketIoMatchTransport,
@@ -1031,6 +1032,47 @@ describe('clicking the board: only what Forge offered', () => {
     expect(selectPlayer(m, 1)).toBe(true);
     await until('the second act', () => s.clientFrames().length === 2);
     expect(s.clientFrames()[1], 'nothing waits behind the last one').toEqual({ ok: true, value: { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: 1 }, triggerEvent: null } });
+  });
+
+  /*
+   * cut3 valakut2 (m-bd6418a7bf16, seat 0, wire seq 122–190): the first trigger's sheet, answered with
+   * the box ticked, came back for ~0.4 s while the other nine resolved. After its clearSelectables the
+   * server sent no new question, only an empty mark for the last trigger (seq 184, ahead of its held
+   * set) and the auto-passed priority's offer (seq 189). Each set `inputLive`, and the answered
+   * prompt's `targetAbility.more` was still there to draw the box from.
+   */
+  it('an answered target question is not drawn again by what arrives after it, only by a new one', async () => {
+    const { s, m } = await fullGame();
+    const { mine, theirs } = ids(m);
+    const target = (more: number) =>
+      parseServerFrame({
+        kind: 'notify',
+        method: 'showPromptMessage',
+        player: { kind: 'player', id: 0 },
+        message: 'Valakut, the Molten Pinnacle - Select any target',
+        card: null,
+        targetAbility: { hostCard: { kind: 'card', id: 40 }, abilityId: 7, trigger: '40:9', more },
+        selection: { targets: true },
+      });
+    await sendAndApply(s, m, [selectables([theirs[0]!], 1, 1), highlight([], true), target(9), bar(false)]);
+    expect(sameTargetOffered(m)).toBe(true);
+    setSameTarget(m, true);
+    expect(selectPlayer(m, 1)).toBe(true);
+    await sendAndApply(s, m, [highlight([{ kind: 'player', id: 1 }], true), highlight([{ kind: 'player', id: 1 }], false), clear()]);
+    expect(sameTargetOffered(m), 'gone on the answer').toBe(false);
+    const after: Array<[string, ServerFrame]> = [
+      ['the last trigger’s empty mark', highlight([], true)],
+      ['the withheld priority’s offer', actionable([mine[0]!])],
+      ['its end', clearActionable()],
+      ['a bar', bar(false)],
+    ];
+    for (const [what, frame] of after) {
+      await sendAndApply(s, m, [frame]);
+      expect(sameTargetOffered(m), what).toBe(false);
+      expect(m.promptSelection, what).toBeNull();
+    }
+    await sendAndApply(s, m, [selectables([theirs[0]!], 1, 1), target(3)]);
+    expect(sameTargetOffered(m), 'a new question draws it').toBe(true);
   });
 
   it('selectPlayer carries the player, and a snapshot is followed by the selection the server re-sends', async () => {
@@ -3978,6 +4020,16 @@ describe('AF397: doomAskOf — what an open choice would send off the battlefiel
     await sendAndApply(s, m, [selectionPrompt({ targets: false, keepOne: { cards: [{ kind: 'card', id: a }, { kind: 'card', id: b }] } })]);
     expect(doomAskOf(m)).not.toBeUndefined();
     await sendAndApply(s, m, [prompt('Priority'), bar(true)]);
+    expect(doomAskOf(m)).toBeUndefined();
+  });
+
+  it('clears when the selection stops, whatever arrives after it without a question of its own', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const [a, b] = [mine[0]!, mine[1]!];
+    await sendAndApply(s, m, [selectionPrompt({ targets: false, sacrifice: { cards: [{ kind: 'card', id: a }, { kind: 'card', id: b }], min: 1, max: 1 } })]);
+    expect(doomAskOf(m)).not.toBeUndefined();
+    await sendAndApply(s, m, [clear(), actionable([a])]);
     expect(doomAskOf(m)).toBeUndefined();
   });
 });
