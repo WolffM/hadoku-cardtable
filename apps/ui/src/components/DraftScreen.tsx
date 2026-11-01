@@ -140,12 +140,12 @@ export function fitToWindow(el: HTMLDivElement | null): (() => void) | undefined
 }
 
 /** The pack's layout: the player's own, wherever they draft next (`play/live/prefs.ts`). */
-function usePackLayout(): [PackLayout, (layout: PackLayout) => void] {
+export function usePackLayout(): [PackLayout, (layout: PackLayout) => void] {
   const { prefs, save } = usePrefs(getPlayPrefsClient());
   return [prefs?.packLayout ?? PLAY_PREFS_DEFAULTS.packLayout, (packLayout) => void save({ packLayout })];
 }
 
-function PackLayoutControl({ layout, onLayout }: { layout: PackLayout; onLayout: (layout: PackLayout) => void }) {
+export function PackLayoutControl({ layout, onLayout }: { layout: PackLayout; onLayout: (layout: PackLayout) => void }) {
   return (
     <div className="segmented" role="group" aria-label="Pack layout">
       {(['fan', 'grid'] as const).map((option) => (

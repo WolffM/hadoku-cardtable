@@ -15,6 +15,7 @@ import { LobbyScreen } from './LobbyScreen.tsx';
 import { MatchScreen } from './MatchScreen.tsx';
 import { MusicReview } from './MusicReview.tsx';
 import { ReplayScreen } from '../replay/ReplayScreen.tsx';
+import { RallyEmbed } from '../rally/RallyEmbed.tsx';
 import { SoundBuilder } from './SoundBuilder.tsx';
 import { SoundSandbox } from './SoundSandbox.tsx';
 import { navigate, useRoute } from './route.ts';
@@ -80,5 +81,7 @@ export function Screen({ transport }: ScreenProps) {
       return route.draftId === undefined ? <DecksScreen /> : <DeckScreen key={route.draftId} draftId={route.draftId} standalone />;
     case 'inventory':
       return <InventoryScreen />;
+    case 'rally-embed':
+      return <RallyEmbed key={`${route.catalogue}/${route.id}/${route.view}`} catalogue={route.catalogue} id={route.id} view={route.view} />;
   }
 }

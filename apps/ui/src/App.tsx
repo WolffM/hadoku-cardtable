@@ -210,7 +210,7 @@ export function App({ transport }: AppProps) {
 
   // The lobby's music everywhere a player is, silence on the tools. A match
   // swaps in its own (`LiveBoard` → `setMatchMusic`).
-  const silent = route.kind === 'sounds' || route.kind === 'sounds-sandbox' || route.kind === 'sounds-music';
+  const silent = route.kind === 'sounds' || route.kind === 'sounds-sandbox' || route.kind === 'sounds-music' || route.kind === 'rally-embed';
   useEffect(() => setScreenMusic(silent ? null : 'music.lobby'), [silent]);
 
   // The fleet's identity, read once here and threaded down. `RoomShell` reads
@@ -281,6 +281,15 @@ export function App({ transport }: AppProps) {
   // wave fixes (wave 72 §R): the board would draw once at its un-chromed
   // width and again at its chromed one once `matchRoom` settles.
   const place = matchPending ? null : roomIdFor(route, matchRoom);
+  // A Rally pick option, in Rally's frame (cardtable#24): the theme root and the page, with no
+  // header and no room. `rally/RallyEmbed.tsx` says why.
+  if (route.kind === 'rally-embed') {
+    return (
+      <AppChrome header={null}>
+        <Screen transport={transport} />
+      </AppChrome>
+    );
+  }
   return (
     <AppChrome header={header}>
       {/* The operator, 2026-10-10: *"theres really no reason to close the chat

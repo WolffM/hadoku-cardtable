@@ -66,7 +66,7 @@ import { ManaPip } from './ManaPip.tsx';
 /** The largest a pick is drawn, at 100%. */
 const MAX_POOL_W = 140;
 
-function GroupHead({ id }: { id: GroupId }) {
+export function GroupHead({ id }: { id: GroupId }) {
   if (id === 'L') return <i className="ms ms-land" aria-label="lands" />;
   if (/^[WUBRGMC]$/.test(id)) return <ColorSymbol symbol={id as ColorSymbolId} />;
   return <>{mvLabel(id)}</>;

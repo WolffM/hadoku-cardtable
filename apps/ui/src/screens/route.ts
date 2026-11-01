@@ -30,6 +30,7 @@
  *   `#/decks`            your decks: every draft you finished
  *   `#/decks/<draftId>`  that deck in the editor, outside any game
  *   `#/inventory`        imported cubes: refresh, delete, import (AF305 §B) — shortlist cubes aren't managed here
+ *   `#/embed/<catalogue>/<id>/<view>`  one Rally pick option's page, chromeless, for Rally's frame (`rally/RallyEmbed.tsx`, cardtable#24)
  *
  * An unrecognised hash is the lobby. That is deliberate: a mistyped invite link
  * lands on the room list, which offers a way in, rather than on an error page
@@ -62,6 +63,8 @@
 
 import { useMemo, useSyncExternalStore } from 'react';
 
+import { RallyCatalogueSchema, RallyViewSchema, type RallyCatalogue, type RallyView } from '@hadoku/shared';
+
 /** Where the app is. The single source of truth for what gets rendered. */
 export type Route =
   | { kind: 'lobby' }
@@ -83,7 +86,9 @@ export type Route =
   | { kind: 'stats'; player?: string; tournaments?: true }
   /** `draftId` opens that deck in the editor; absent is the list. */
   | { kind: 'decks'; draftId?: string }
-  | { kind: 'inventory' };
+  | { kind: 'inventory' }
+  /** A Rally pick option's page in Rally's frame: no header, no room (cardtable#24). */
+  | { kind: 'rally-embed'; catalogue: RallyCatalogue; id: string; view: RallyView };
 
 /**
  * `#/room/r-1a2b3c` → `{ kind: 'room', roomId: 'r-1a2b3c' }`.
@@ -107,6 +112,12 @@ export function parseRoute(hash: string): Route {
   if (path === 'inventory') return { kind: 'inventory' };
 
   const parts = path.split('/');
+  if (parts.length === 4 && parts[0] === 'embed') {
+    const catalogue = RallyCatalogueSchema.safeParse(parts[1]);
+    const view = RallyViewSchema.safeParse(parts[3]);
+    const id = decodeSegment(parts[2]!);
+    return catalogue.success && view.success && id !== '' ? { kind: 'rally-embed', catalogue: catalogue.data, id, view: view.data } : { kind: 'lobby' };
+  }
   if (parts.length === 4 && parts[0] === 'room' && parts[2] === 'table') {
     const [roomId, tableId] = [decodeSegment(parts[1]!), decodeSegment(parts[3]!)];
     return roomId === '' ? { kind: 'lobby' } : tableId === '' ? { kind: 'room', roomId } : { kind: 'room', roomId, tableId };
@@ -180,6 +191,8 @@ export function routeHash(route: Route): string {
       return route.draftId === undefined ? '#/decks' : `#/decks/${encodeURIComponent(route.draftId)}`;
     case 'inventory':
       return '#/inventory';
+    case 'rally-embed':
+      return `#/embed/${route.catalogue}/${encodeURIComponent(route.id)}/${route.view}`;
   }
 }
 

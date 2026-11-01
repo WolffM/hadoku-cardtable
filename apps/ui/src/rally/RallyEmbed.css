@@ -1,0 +1,76 @@
+/* A Rally pick option's page (`RallyEmbed.tsx`): content height, never the viewport's, since the
+   frame is sized from this element's own height. */
+
+.rally-embed {
+  box-sizing: border-box;
+  padding: 12px 16px 16px;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* The chrome's content column stretches its child; this page is as tall as what it draws. */
+.cardtable-chrome__content > .rally-embed {
+  flex: 0 0 auto;
+}
+
+.rally-embed__name {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.rally-embed__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.rally-embed__group + .rally-embed__group {
+  margin-top: 16px;
+}
+
+.rally-embed__label {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-dim);
+}
+
+/* The pack fills the box `packBox` sized; PackView fits its cards to it. */
+.rally-embed__pack > .pack {
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+}
+
+.rally-embed__colour + .rally-embed__colour {
+  margin-top: 12px;
+}
+
+.rally-embed__colour-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rally-embed__count {
+  color: var(--ink-dim);
+  font-weight: 400;
+}
+
+.rally-embed__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 6px;
+  align-items: start;
+}
+
+/* A card as wide as its column, as tall as a card that wide. */
+.rally-embed__tile {
+  aspect-ratio: var(--card-ratio);
+  --card-h: 100%;
+}

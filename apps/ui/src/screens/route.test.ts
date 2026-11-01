@@ -87,6 +87,9 @@ describe('parseRoute', () => {
       { kind: 'decks' },
       { kind: 'decks', draftId: 'r-friday' },
       { kind: 'inventory' },
+      { kind: 'rally-embed', catalogue: 'cube', id: 'the-pauper-cube-2026-02', view: 'pack' },
+      { kind: 'rally-embed', catalogue: 'draft-preset', id: '0b6c2d5e-6f1a-4c8e-9d3b-2a7e5f4c1b9a', view: 'cards' },
+      { kind: 'rally-embed', catalogue: 'set', id: 'ALA', view: 'cards' },
     ];
     for (const route of routes) {
       expect(parseRoute(routeHash(route)), routeHash(route)).toEqual(route);
@@ -203,5 +206,17 @@ describe('canonicalAddress', () => {
   it('drops a stray path that is no route', () => {
     expect(at('/cardtable/index.html')).toBe('/cardtable/');
     expect(at('/cardtable', '', '?x=1')).toBe('/cardtable/?x=1');
+  });
+});
+
+describe('Rally embed routes', () => {
+  it('reads the address Rally frames, #/embed/<catalogue>/<id>/<view>', () => {
+    expect(parseRoute('#/embed/set/ALA/pack')).toEqual({ kind: 'rally-embed', catalogue: 'set', id: 'ALA', view: 'pack' });
+  });
+
+  it('an unknown catalogue or view, or a missing id, is the lobby', () => {
+    expect(parseRoute('#/embed/deck/ALA/pack')).toEqual({ kind: 'lobby' });
+    expect(parseRoute('#/embed/set/ALA/hand')).toEqual({ kind: 'lobby' });
+    expect(parseRoute('#/embed/set//pack')).toEqual({ kind: 'lobby' });
   });
 });

@@ -110,6 +110,7 @@ import { attachTrim } from './http/trim.js';
 import { attachCubeRoutes, createCubeStore } from './pools/cubes.js';
 import { attachSetRoutes, createSetsStore, warmSetsStore } from './pools/sets.js';
 import { attachPresetRoutes, createPresetStore } from './pools/presets.js';
+import { attachRally } from './http/rally.js';
 import { createCatalogRefresh } from './pools/refresh.js';
 import { loadCardCatalog } from './pools/catalog.js';
 import { createForgePools, type ForgePools } from './pools/forge.js';
@@ -706,6 +707,17 @@ attachSetRoutes(api, { store: setsStore });
 // the group (wave 74 §G). `data/presets.json`, alongside `data/cubes`.
 const presetStore = createPresetStore({ path: join(CONFIG.dataDir, 'presets.json') });
 attachPresetRoutes(api, { store: presetStore });
+
+// GET /api/rally/* — the presets, sets and cubes above as Rally's pick catalogues, and each
+// option's two view pages' data (cardtable#24, `http/rally.ts`).
+attachRally(api, {
+	cubes: cubeStore,
+	sets: setsStore,
+	presets: presetStore,
+	boosters: forgePools,
+	catalog,
+	...(CONFIG.testNoRateLimits ? { packRateLimit: null } : {}),
+});
 
 // Keep the catalog current with Scryfall's daily bulk file, with no restart
 // (wave 74 §G). `CARDTABLE_SCRYFALL_DIR`, same shared cache land.sh's art

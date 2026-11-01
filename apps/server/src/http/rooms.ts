@@ -239,7 +239,7 @@ export interface RealisticCatalog {
  * copy dealt across the whole pod). Absent/false stays absent on the
  * `DraftCard`, matching `DraftCardSchema.foil`'s "absent means not foil".
  */
-function resolveBoosterCard(catalog: RealisticCatalog, card: { name: string; set: string; collectorNumber: string; foil?: boolean }): DraftCard {
+export function resolveBoosterCard(catalog: RealisticCatalog, card: { name: string; set: string; collectorNumber: string; foil?: boolean }): DraftCard {
 	const resolved =
 		catalog.byPrinting(card.set, card.collectorNumber) ??
 		catalog.byName(card.name) ??
