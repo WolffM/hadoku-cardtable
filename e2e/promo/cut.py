@@ -33,10 +33,11 @@ HERE = Path(__file__).resolve().parent
 FOOTAGE = HERE.parent / ".run" / "promo"
 OUT = FOOTAGE / "trailer"
 TANGO = Path("/home/hadoku/srv/hadoku-cardtable/apps/server/data/sounds/takes/music-br-hellfire-tango/take-1.ogg")
-# The bed: the tango twice, crossfaded over BED_XFADE s. Cut 5 runs every clip at full length (the operator:
+# The bed: the tango BED_COPIES times, crossfaded over BED_XFADE s. Cut 5 runs every clip at full length (the operator:
 # "i'll be cutting it later … i need to see the raw clip performing properly first"), past one 2:04 take.
 MUSIC = OUT_BED = Path(__file__).resolve().parent.parent / ".run" / "promo" / "trailer" / "bed.flac"
 BED_XFADE = 4.0
+BED_COPIES = 4  # ~8 minutes: cut 5 with every clip whole runs about 6½
 BLACK = "/usr/share/fonts/truetype/noto/NotoSans-Black.ttf"
 SEMI = "/usr/share/fonts/truetype/noto/NotoSans-SemiBold.ttf"
 REGULAR = "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf"
@@ -86,7 +87,7 @@ SEGMENTS = [
     # 1. Gauntlet: two people ban and pick. (The caption is a draft: their sentence ended at "from".)
     ("gauntlet", ("room", 0.0), ("end", 0.0), Caption("Play the decks that made history.", "GAUNTLET · AGAINST YOUR FRIENDS", "gauntlet-reveal", "rise")),
     # 2. The deck picker, flipping through the years and formats.
-    ("constructed", ("create", 0.0), ("pick", 1.5), Caption("Any format. Any year.", "HISTORICAL CONSTRUCTED", "lobby-title", "wipe")),
+    ("constructed", ("legacy", -1.0), ("pick", 1.5), Caption("Any format. Any year.", "HISTORICAL CONSTRUCTED", "lobby-title", "wipe")),
     # 3. Combos, each one take, every click shown.
     ("valakut", ("board", 0.0), ("end", 0.0), Caption("Execute fun combos with no fuss.", "COMBOS", "board-right", "slide")),
     ("breakfast", ("board", 0.0), ("end", 0.0), None),
@@ -407,8 +408,15 @@ def stills() -> None:
         run(["ffmpeg", "-y", "-loglevel", "error", "-ss", "1.6", "-i", str(part), "-frames:v", "1", "-q:v", "2", str(OUT / "stills" / f"{n:02d}-{seg[0]}.jpg")])
 
 
-def make_bed() -> None:
-    run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(TANGO), "-i", str(TANGO), "-filter_complex", f"[0:a][1:a]acrossfade=d={BED_XFADE}:c1=tri:c2=tri[a]", "-map", "[a]", "-c:a", "flac", str(MUSIC)])
+def make_bed(copies: int = BED_COPIES) -> None:
+    """The tango `copies` times over, each join crossfaded over BED_XFADE s."""
+    inputs = [arg for _ in range(copies) for arg in ("-i", str(TANGO))]
+    chain, last = [], "[0:a]"
+    for k in range(1, copies):
+        out = f"[x{k}]" if k < copies - 1 else "[a]"
+        chain.append(f"{last}[{k}:a]acrossfade=d={BED_XFADE}:c1=tri:c2=tri{out}")
+        last = out
+    run(["ffmpeg", "-y", "-loglevel", "error", *inputs, "-filter_complex", ";".join(chain), "-map", "[a]", "-c:a", "flac", str(MUSIC)])
 
 
 def extras() -> None:
