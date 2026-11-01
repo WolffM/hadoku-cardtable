@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-The trailer's edit: `python3 -I e2e/promo/cut.py` after every clip is shot (`shoot.sh <clip>`).
+The trailer's edit: `python3 e2e/promo/cut.py` (not `-I`: numpy is in the user site) after every clip is shot (`shoot.sh <clip>`).
 
 Each segment names a clip, two of its marks (`<clip>.marks.json`, seconds from the first frame) with
 offsets, a speed, and an optional caption. Segments are rendered one by one to 1080p60 and joined with hard
@@ -14,7 +14,8 @@ away together). What varies is the ANCHOR, fixed to something on that page (`ANC
 still of each clip), and the ENTRANCE (`rise`, `wipe`, `slide`, `drop`). No two consecutive captions share
 both; `check_captions` refuses an edit that does.
 
-The ending is a montage cut on the bed's onsets (`onsets`, a spectral-flux detector), accelerating from
+The ending is a montage cut on the bed's beat grid (`onsets`, a spectral-flux detector, then `beat_grid`,
+the local eighth-note grid those onsets sit on), accelerating from
 `MONTAGE_GAPS[0]` to `MONTAGE_GAPS[1]` seconds a shot, into Progenitus at full length and real speed.
 """
 
@@ -56,46 +57,59 @@ class Anchor:
     size: int = 60
 
 
-# Measured from a still of each clip at 1920×1080 (`python3 -I e2e/promo/cut.py --stills` writes them).
+# Measured from a still of each clip at 1920×1080 (`python3 e2e/promo/cut.py --stills` writes them).
 ANCHORS = {
     # The game board's top band, against the battlefield's right edge (C2 as approved).
     "board-right": Anchor(1560, 100, "right"),
     # The same band from the left, where the opponent's hand is empty.
-    "board-left": Anchor(360, 100, "left"),
-    # A lobby's page-title row: the room name's line, its right side.
-    "lobby-title": Anchor(1856, 34, "right", 52),
-    # The draft: the band above the pack.
-    "draft-pack": Anchor(120, 150, "left", 56),
-    # Gauntlet: the reveal row's empty top.
-    "gauntlet-reveal": Anchor(960, 168, "centre", 58),
-    # Tournament: centred above the face-off.
-    "faceoff": Anchor(960, 140, "centre", 64),
+    "board-left": Anchor(164, 120, "left"),
+    # A lobby's page-title row: the room name's line, right-aligned short of the room's Close (x 1440).
+    "lobby-title": Anchor(1416, 86, "right", 42),
+    # The draft: under the pool, on the pack's left edge (x 156). The band above the pack is 40 px; the
+    # rows under the pool stay empty in both fan and grid.
+    "draft-pool": Anchor(156, 900, "left", 56),
+    # Gauntlet: right-aligned in the seating panel's empty half, directly over the reveal row (panel 300–508).
+    "gauntlet-reveal": Anchor(1466, 336, "right", 52),
+    # Tournament: centred on the face-off (x 803). The band above it is 80 px under the room panel, too
+    # little for two lines, so the caption hangs under the two seats' ready pills instead.
+    "faceoff": Anchor(803, 622, "centre", 60),
 }
 
 # (clip, from (mark, offset), to (mark, offset), speed, caption)
 # Every join is a hard cut. Two segments that share a mark are one continuous shot at two speeds.
 SEGMENTS = [
-    ("emrakul", ("cast", -0.2), ("landed", 2.2), 1.0, None),
+    # Cold open: Emrakul lifted and dropped, then (after the rival's answer, cut) the landing at full weight.
+    ("emrakul", ("cast", 11.0), ("cast", 15.3), 1.0, None),
+    ("emrakul", ("landed", 4.9), ("landed", 8.4), 1.0, None),
     "TITLE",
-    ("constructed", ("legacy", 0.0), ("decks", 0.0), 1.2, Caption("Play the decks that made history", "WITH YOUR FRIENDS", "lobby-title", "rise")),
-    ("constructed", ("decks", 0.0), ("pick", 0.0), 1.4, None),
+    ("constructed", ("legacy", 0.0), ("pick", 0.0), 2.8, Caption("Play the decks that made history", "WITH YOUR FRIENDS", "lobby-title", "rise")),
     ("tournament", ("paired", -0.2), ("faceoff", 2.4), 1.0, Caption("Pick a deck. Sit down. Play.", "HEAD TO HEAD", "faceoff", "drop")),
-    ("counterwar", ("counterspell", -0.3), ("daze", 4.6), 2.4, Caption("Watch the stack unfold", "THE STACK", "board-right", "wipe")),
-    ("counterwar", ("daze", 4.6), ("oko-countered", 1.6), 1.0, None),
-    ("valakut", ("cast", -0.2), ("search", 0.0), 2.5, None),
-    ("valakut", ("search", 0.0), ("triggers", -1.5), 2.0, None),
-    ("valakut", ("triggers", -1.5), ("targeted", 1.0), 1.0, None),
-    ("valakut", ("targeted", 1.0), ("lethal", 1.5), 1.6, None),
-    ("breakfast", ("loop", -0.3), ("milled", 0.5), 2.0, Caption("Combos go off at full speed", "COMBOS", "board-left", "slide")),
-    ("breakfast", ("dread-return", -0.2), ("ghoul", 1.0), 1.8, None),
-    ("breakfast", ("attack", -0.3), ("win", 2.2), 1.2, None),
-    ("blasphemous", ("cast", 0.0), ("wiped", 5.5), 1.25, None),
-    ("gauntlet", ("ready", 0.0), ("choose", 2.0), 2.2, Caption("Ten decks from one era. Ban, pick, battle.", "GAUNTLET", "gauntlet-reveal", "rise")),
+    # The counter war, jump-cut from landing to landing (the waits between are each seat's turn to answer),
+    # then the unwind slowed. Offsets are this take's: re-measure after a re-shoot.
+    ("counterwar", ("counterspell", 8.6), ("counterspell", 12.6), 1.2, Caption("Watch the stack unfold", "THE STACK", "board-right", "wipe")),
+    ("counterwar", ("swan-song", 13.6), ("swan-song", 18.1), 1.6, None),
+    ("counterwar", ("force", 21.6), ("force", 30.0), 3.2, None),
+    ("counterwar", ("pierce", 20.0), ("pierce", 24.0), 1.6, None),
+    ("counterwar", ("daze", 15.1), ("daze", 28.3), 4.5, None),
+    ("counterwar", ("oko-countered", -6.0), ("oko-countered", -2.4), 0.9, None),
+    ("valakut", ("cast", -0.2), ("sacrifice", 1.0), 3.5, None),
+    ("valakut", ("search", 0.0), ("triggers", -1.0), 4.5, None),
+    ("valakut", ("triggers", -1.0), ("targeted", 0.8), 1.5, None),
+    ("valakut", ("targeted", 0.8), ("lethal", 1.5), 2.0, None),
+    ("breakfast", ("loop", -0.3), ("stacked", 0.0), 4.0, Caption("Combos go off at full speed", "COMBOS", "board-left", "slide")),
+    ("breakfast", ("mill", 0.0), ("milled", 0.5), 3.0, None),
+    ("breakfast", ("imprint", 0.0), ("ghoul", 1.0), 3.0, None),
+    ("breakfast", ("hit", -2.4), ("win", 1.2), 1.0, None),
+    ("blasphemous", ("cast", 0.0), ("cast", 2.6), 1.0, None),
+    ("blasphemous", ("on-stack", 5.0), ("wiped", 3.5), 1.25, None),
+    ("gauntlet", ("ready", -0.2), ("snake", 0.2), 1.8, Caption("Ban, pick, battle.", "GAUNTLET · TEN DECKS FROM ONE ERA", "gauntlet-reveal", "rise")),
+    ("gauntlet", ("banned", -1.6), ("banned", 2.4), 1.8, None),
+    ("gauntlet", ("choose", -0.3), ("chosen", 0.6), 2.5, None),
     ("tournament", ("seats", 0.0), ("ready", 0.4), 2.0, Caption("Swiss rounds for the whole group", "TOURNAMENTS", "lobby-title", "wipe")),
     ("tournament", ("bracket", 0.0), ("bracket", 3.2), 1.0, None),
-    ("draft", ("lobby", 0.2), ("fan", 0.0), 1.7, None),
-    ("draft", ("fan", 0.0), ("grid", 1.5), 1.4, Caption("Fan or grid, every face of every card", "DRAFT · 100+ CUBES", "draft-pack", "slide")),
-    ("draft", ("flip", -0.3), ("end", 0.0), 1.0, None),
+    ("draft", ("lobby", 0.2), ("fan", 0.0), 3.0, None),
+    ("draft", ("fan", 0.0), ("grid", 1.5), 2.0, Caption("Fan or grid, every face of every card", "DRAFT · 100+ CUBES", "draft-pool", "slide")),
+    ("draft", ("flip", -0.3), ("flip", 3.0), 1.0, None),
     "MONTAGE",
     ("progenitus", ("declared", -0.4), ("win", 2.6), 1.0, None),
     "END",
@@ -104,20 +118,20 @@ SEGMENTS = [
 # The montage: one in-point per shot, in order. Each runs from (mark + offset) for as long as the bed's
 # next onset allows, at real speed.
 MONTAGE = [
-    ("emrakul", "landed", -0.15),
-    ("bolt", "hit", -0.25),
-    ("counterwar", "force", -0.1),
+    ("emrakul", "landed", 5.9),
+    ("bolt", "targeted", 0.5),
+    ("counterwar", "force", 29.0),
     ("gauntlet", "banned", -0.1),
-    ("walkers", "elk", -0.6),
+    ("walkers", "elk", -6.0),
     ("valakut", "targeted", 0.5),
     ("draft", "picked", -0.2),
-    ("storm", "copies", 0.0),
+    ("storm", "hit", -0.1),
     ("tournament", "bracket", 0.4),
-    ("walkers", "brainstormed", -0.5),
+    ("counterwar", "oko-countered", -5.8),
     ("blasphemous", "wiped", 0.6),
-    ("breakfast", "hit", -0.2),
-    ("walkers", "emblem", -0.5),
-    ("craterhoof", "hit", -0.3),
+    ("breakfast", "hit", -1.5),
+    ("valakut", "triggers", 0.2),
+    ("craterhoof", "declared", 0.1),
     ("bolt", "win", 0.3),
 ]
 MONTAGE_GAPS = (0.7, 0.35)
@@ -218,7 +232,7 @@ def caption_graph(cap: Caption, length: float) -> tuple[list[str], list[str]]:
         if ch == " ":
             continue
         t0 = IN + 0.18 + i * 0.018
-        draws.append(f"drawtext=fontfile={SEMI}:text='{esc(ch)}':fontsize={KSIZE}:fontcolor={ACCENT}:x={x:.1f}:y='{a.y}+10*(1-{ease(t0, 0.3)})+{lift}':alpha='{alpha(t0, 0.3)}'")
+        draws.append(f"drawtext=y_align=font:fontfile={SEMI}:text='{esc(ch)}':fontsize={KSIZE}:fontcolor={ACCENT}:x={x:.1f}:y='{a.y}+10*(1-{ease(t0, 0.3)})+{lift}':alpha='{alpha(t0, 0.3)}'")
     # The headline, by entrance.
     h0 = IN + 0.32
     if cap.entrance in ("rise", "drop"):
@@ -230,7 +244,7 @@ def caption_graph(cap: Caption, length: float) -> tuple[list[str], list[str]]:
             else:
                 t0 = h0
                 y = f"{head_y}-46*(1-{settle(t0, 0.55)})+{lift}"
-            draws.append(f"drawtext=fontfile={BLACK}:text='{esc(w)}':fontsize={size}:fontcolor=white:x={x:.1f}:y='{y}':alpha='{alpha(t0)}':{shadow}")
+            draws.append(f"drawtext=y_align=font:fontfile={BLACK}:text='{esc(w)}':fontsize={size}:fontcolor=white:x={x:.1f}:y='{y}':alpha='{alpha(t0)}':{shadow}")
             x += width(BLACK, size, w) + space
     else:
         # wipe: a soft front sweeps left to right; slide: letters slide in from the anchored edge.
@@ -244,12 +258,12 @@ def caption_graph(cap: Caption, length: float) -> tuple[list[str], list[str]]:
                 continue
             if cap.entrance == "wipe":
                 t0 = h0 + sweep * (cx - left) / max(total, 1)
-                draws.append(f"drawtext=fontfile={BLACK}:text='{esc(ch)}':fontsize={size}:fontcolor=white:x={cx:.1f}:y='{head_y}+{lift}':alpha='{alpha(t0, 0.12)}':{shadow}")
+                draws.append(f"drawtext=y_align=font:fontfile={BLACK}:text='{esc(ch)}':fontsize={size}:fontcolor=white:x={cx:.1f}:y='{head_y}+{lift}':alpha='{alpha(t0, 0.12)}':{shadow}")
             else:
                 rank = (len(chars) - 1 - i) if a.align == "right" else i
                 t0 = h0 + rank * 0.016
                 d = 30 if a.align == "right" else -30
-                draws.append(f"drawtext=fontfile={BLACK}:text='{esc(ch)}':fontsize={size}:fontcolor=white:x='{cx:.1f}+{d}*(1-{ease(t0, 0.4)})':y='{head_y}+{lift}':alpha='{alpha(t0, 0.3)}':{shadow}")
+                draws.append(f"drawtext=y_align=font:fontfile={BLACK}:text='{esc(ch)}':fontsize={size}:fontcolor=white:x='{cx:.1f}+{d}*(1-{ease(t0, 0.4)})':y='{head_y}+{lift}':alpha='{alpha(t0, 0.3)}':{shadow}")
     # The rule leads, from the anchored side.
     src = f"color=c={ACCENT}:s={rule_w}x5:r={FPS}:d={length:.3f},format=rgba,fade=t=in:st={IN}:d=0.2:alpha=1,fade=t=out:st={out:.3f}:d={EXIT}:alpha=1"
     sign = "+" if a.align == "right" else "-"
@@ -337,6 +351,24 @@ def onsets(path: Path, sr: int = 22050, hop: int = 256, win: int = 1024) -> np.n
     return np.array(kept)
 
 
+def beat_grid(beats: np.ndarray, lo: float, hi: float) -> np.ndarray:
+    """The eighth-note grid over [lo, hi]: the period and phase that put the most onsets in that window
+    within 25 ms of a grid line. The detector misses quieter beats, so cutting on raw onsets alone leaves
+    holes; the tempo drifts over the whole bed, so the fit is local."""
+    x = beats[(beats > lo - 2) & (beats < hi + 2)]
+    best = (-1.0, 0.0, 0.0)
+    for period in np.arange(0.20, 0.27, 0.0002):
+        phase = np.angle(np.mean(np.exp(2j * np.pi * x / period))) * period / (2 * np.pi)
+        r = x - phase - np.round((x - phase) / period) * period
+        score = float(np.mean(np.abs(r) < 0.025))
+        if score > best[0]:
+            best = (score, period, phase)
+    _, period, phase = best
+    k = np.arange(np.ceil((lo - phase) / period), np.floor((hi - phase) / period) + 1)
+    print(f"cut: beat grid {period * 1000:.1f} ms an eighth over bed {lo:.1f}–{hi:.1f}s, {best[0]:.0%} of onsets on it")
+    return phase + k * period
+
+
 def montage_cuts(beats: np.ndarray, start: float, shots: int) -> list[float]:
     """Cut points from `start` (a bed time): shot k's target length falls from GAPS[0] to GAPS[1], and each
     cut snaps to the onset nearest that target within the allowed range. Returns shots + 1 times."""
@@ -350,7 +382,9 @@ def montage_cuts(beats: np.ndarray, start: float, shots: int) -> list[float]:
         cap = hi if k == 0 else min(hi, cuts[-1] - cuts[-2] + 0.03)
         near = beats[(beats > cuts[-1] + lo) & (beats < cuts[-1] + hi)]
         if len(near) == 0:
-            cuts.append(cuts[-1] + want)
+            # A gap in the onsets: hold to the next one rather than cut off the beat.
+            later = beats[(beats > cuts[-1] + lo) & (beats < cuts[-1] + 1.0)]
+            cuts.append(float(later[0]) if len(later) else cuts[-1] + want)
             continue
         short = near[near < cuts[-1] + cap]
         cuts.append(float(short[np.argmin(np.abs(short - cuts[-1] - want))]) if len(short) else float(near[0]))
@@ -384,7 +418,9 @@ def main() -> None:
     for n, seg in enumerate(SEGMENTS):
         if seg == "MONTAGE":
             # The bed starts after the cold open: its clock is the cut's, less `cold`.
-            cuts = montage_cuts(beats, at - cold, len(MONTAGE))
+            grid = beat_grid(beats, at - cold - 1, at - cold + 14)
+            cuts = montage_cuts(grid, at - cold, len(MONTAGE))
+            print(f"cut: montage at bed {cuts[0]:.2f}s, shots {[round(b - a, 2) for a, b in zip(cuts, cuts[1:])]}")
             # Shift the montage so its first cut lands on the first onset: lengthen the part before it.
             if parts and cuts[0] > at - cold + 0.01:
                 prev = SEGMENTS[n - 1]
@@ -401,10 +437,11 @@ def main() -> None:
                 rows.append({"at": round(at, 2), "length": round(duration(part), 2), "clip": clip, "caption": None, "montage": True})
                 at += duration(part)
             continue
+        if seg == "TITLE":
+            # Everything before the title card is the cold open: the bed starts with the title.
+            cold = at
         part = render_card(n, seg) if isinstance(seg, str) else render_segment(n, seg)
         length = duration(part)
-        if n == 0:
-            cold = length
         cap = None if isinstance(seg, str) else seg[4]
         rows.append({"at": round(at, 2), "length": round(length, 2), "clip": seg.lower() if isinstance(seg, str) else seg[0],
                      "caption": None if cap is None else {"text": cap.text, "kicker": cap.kicker, "anchor": cap.anchor, "entrance": cap.entrance}})
