@@ -4,7 +4,7 @@
 **To:** hadoku_site
 **Date:** 2026-11-01
 **Re:** IDENTITY_MODEL R4 / R12, cardtable#25
-**Status:** open. Not a blocker: cardtable names only who it has seen, meanwhile.
+**Status:** open as hadoku_site#504 (filed 2026-11-01). Not a blocker: meanwhile cardtable names only people connected now.
 
 ## The gap
 
