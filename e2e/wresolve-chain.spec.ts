@@ -24,8 +24,12 @@ const titled = makeTitled(forge);
 const TRAILER = { width: 1920, height: 1080 };
 /** `apps/ui/src/play/live/pace.ts`'s `RESOLVE_CHAIN_GAP_MS`. */
 const GAP_MS = 300;
-/** A timer on a busy claw fires late, never early by more than a frame. */
-const EARLY_MS = 40;
+/**
+ * The pacer spaces the frames; a fireball is timed when it is drawn, and a busy claw draws at ~10 fps, so one late
+ * paint shortens the gap after it. Together is under half the gap; the chain's own pace is its median.
+ */
+const TOGETHER_MS = GAP_MS / 2;
+const MEDIAN_MS = GAP_MS - 40;
 /** "without dragging": the slowest a chain's next fireball may be. */
 const SLOWEST_MS = 900;
 
@@ -137,7 +141,9 @@ test(titled('promo-valakut, bob on Auto Yield: the triggers resolve one at a tim
       const gaps = gapsOf(times);
       console.log(`[wresolve] ${who}: ${times.length} fireballs, gaps ${gaps.join(',')} ms`);
       expect.soft(times.length, `${who}: a fireball per trigger that resolved before bob died`).toBeGreaterThanOrEqual(6);
-      expect.soft(gaps.filter((g) => g < GAP_MS - EARLY_MS), `${who}: no two triggers resolve together (each ≥ ${GAP_MS - EARLY_MS} ms after the last)`).toEqual([]);
+      expect.soft(gaps.filter((g) => g < TOGETHER_MS), `${who}: no two triggers resolve together (each ≥ ${TOGETHER_MS} ms after the last)`).toEqual([]);
+      const median = [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)] ?? 0;
+      expect.soft(median, `${who}: the chain keeps its gap (median ≥ ${MEDIAN_MS} ms)`).toBeGreaterThanOrEqual(MEDIAN_MS);
       expect.soft(gaps.filter((g) => g > SLOWEST_MS), `${who}: the chain does not drag (each ≤ ${SLOWEST_MS} ms after the last)`).toEqual([]);
     }
     const held = serverLog(stack)
