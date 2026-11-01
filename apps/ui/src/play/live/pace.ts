@@ -150,7 +150,7 @@
  * screen's waited a resolve gap and the board's beats each, two seconds apart. So once a resolution leaves items
  * on the stack, the next one to leave goes {@link RESOLVE_CHAIN_GAP_MS} after it — on every screen, whoever owns
  * the chain — and neither it nor anything Forge sends between them waits for the board: each hit plays over the
- * last. The chain ends when anything is decided (an ask, Forge's prompt line, the seat's own click), the stack
+ * last. The chain ends when the seat can act (an ask, a button bar with a button live) or acts (its own click), the stack
  * grows, the step moves, or the stack empties; what of it is still queued then goes as it comes, so the seat's
  * input is never held by a gap (AF216), and frames still go out in order.
  *
@@ -290,6 +290,15 @@ const REPORT_TEXT_MAX = 80;
 function opensDecision(payload: unknown): boolean {
   const frame = (payload as { frame?: { kind?: unknown; method?: unknown } } | null)?.frame;
   return frame?.kind === 'ask' || frame?.method === 'showPromptMessage';
+}
+
+/**
+ * Whether a frame lets the seat act: an ask, or a button bar with a button live. Forge's prompt line alone is not
+ * one — the other seat is told "Waiting for Alice..." under a dead bar while her triggers resolve.
+ */
+function canAct(payload: unknown): boolean {
+  const frame = (payload as { frame?: { kind?: unknown; method?: unknown; enable1?: unknown; enable2?: unknown } } | null)?.frame;
+  return frame?.kind === 'ask' || (frame?.method === 'updateButtons' && (frame.enable1 === true || frame.enable2 === true));
 }
 
 /** Whether a frame waits for the board's beats before it goes out: one the board draws, or input (module header). */
@@ -624,7 +633,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   /** Where a frame arriving now stands in a chain ({@link Chain}); `before` is the stack's depth before it. */
   function chainOf(payload: unknown, pace: PaceClass, before: number | null): Chain {
     const after = memory.stackDepth;
-    if (opensDecision(payload) || STEPS.has(pace) || (after !== null && before !== null && after > before)) {
+    if (canAct(payload) || STEPS.has(pace) || (after !== null && before !== null && after > before)) {
       endChain();
       return null;
     }

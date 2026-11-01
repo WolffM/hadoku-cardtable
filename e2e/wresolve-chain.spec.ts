@@ -128,6 +128,8 @@ test(titled('promo-valakut, bob on Auto Yield: the triggers resolve one at a tim
         { timeout: 60_000, intervals: [250], message: 'the triggers took bob to 0' },
       )
       .toBeLessThanOrEqual(0);
+    // The other screen draws what alice did after alice's own beats, one act at a time: it runs seconds behind.
+    for (const p of [alice.page, bob.page]) await expect.poll(async () => (await fireballs(p)).length, { timeout: 30_000, message: 'every hit is drawn' }).toBeGreaterThanOrEqual(6);
     await page.waitForTimeout(2_000);
 
     for (const [who, p] of [['alice', alice.page], ['bob', bob.page]] as const) {

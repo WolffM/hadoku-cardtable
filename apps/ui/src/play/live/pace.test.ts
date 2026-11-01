@@ -1146,6 +1146,36 @@ describe('a chain of resolutions nobody decides between', () => {
     expect(received.slice(triggers.length)).toEqual([...chain.slice(0, 16), ASK]);
   });
 
+  const bar = (live: boolean) => ({ frame: { kind: 'notify', method: 'updateButtons', label1: 'OK', label2: 'Cancel', enable1: live, enable2: false } });
+  const WAITING = { frame: { kind: 'notify', method: 'showPromptMessage', message: 'Waiting for Alice...' } };
+
+  it('a live button bar mid-chain is the seat able to act: the rest catch up and the bar is up at once', async () => {
+    const { inner, received } = watch(ALICE);
+    for (const t of triggers) inner.deliver(t);
+    await vi.advanceTimersByTimeAsync(5_000);
+    for (const f of chain.slice(0, 16)) inner.deliver(f);
+    await vi.advanceTimersByTimeAsync(RESOLVE_CHAIN_GAP_MS + 2);
+    const live = bar(true);
+    inner.deliver(live);
+    await vi.advanceTimersByTimeAsync(4);
+    expect(received.at(-1)).toBe(live);
+  });
+
+  it('"Waiting for Alice..." under a dead bar is nobody acting: the chain keeps its beats on the other screen', async () => {
+    const board = fakeBoard();
+    const { inner, times, received } = watch(BOB, { boardStill: board.still });
+    for (const t of triggers) inner.deliver(t);
+    await run(() => received.length === triggers.length);
+    await vi.advanceTimersByTimeAsync(5_000);
+    board.busy(true);
+    inner.deliver(chain[0]!);
+    inner.deliver(WAITING);
+    inner.deliver(bar(false));
+    for (const f of chain.slice(1)) inner.deliver(f);
+    await run(() => times.length === N);
+    for (const g of gaps(times)) expect(g, `gaps ${gaps(times).join(',')}`).toBeGreaterThanOrEqual(RESOLVE_CHAIN_GAP_MS);
+  });
+
   it("the seat's click mid-chain is sent at once, and what is queued catches up", async () => {
     const { inner, transport, received } = watch(ALICE);
     for (const t of triggers) inner.deliver(t);
