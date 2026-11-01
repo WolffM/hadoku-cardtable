@@ -98,6 +98,12 @@ export function LobbyScreen({ rooms, feed, stats, statsSource }: LobbyScreenProp
           <RoomList client={rooms} feed={feed} onFeatured={setFeatured} />
         </main>
       </FrontGateContext.Provider>
+      {/* LICENSING.md D25: strangers can sign up, so the Fan Content Policy's "unofficial" line is back,
+          small, at the foot of the page's own scroll. D23 took the old bordered footer away. */}
+      <p className="shell__disclaimer">
+        Unofficial fan project, not affiliated with or endorsed by Wizards of the Coast. Card names, text and images
+        are ™ &amp; © Wizards of the Coast.
+      </p>
       {stats !== undefined && <StatsPopout player={stats.player} tournaments={stats.tournaments === true} source={statsSource} />}
     </div>
   );

@@ -849,3 +849,14 @@ entry and what it costs are in `LICENSING.md` §2. Flipping
 `CARDTABLE_MIN_TIER=member` is a hadoku_site wrapper change, PPE first, and the
 operator's.
 
+## D25 — Going public: the disclaimer comes back, the launch stays art-light · settled · 2026-11-01 · operator
+
+**Amends D23 and `LICENSING.md` §2 rule 6.** Strangers can sign up once the
+floor moves to member (D24), and a stranger never reads `NOTICE.md`. So, asked
+during the 2026-11-01 legal review, the operator chose *"Yes, small and out of
+the way"*: one muted line at the foot of the front page's own scroll
+(`LobbyScreen.tsx`, `.shell__disclaimer`). It has no border and no footer bar,
+the two things D23 removed. The launch itself: the trailer goes to unlisted
+YouTube and Discord; the launch is announced in friends' Discords, in large
+MTG/cube communities and on the hadoku.me homepage. `LICENSING.md` §2 "Going
+public" has what that changes and what each channel needs.

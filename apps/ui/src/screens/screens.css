@@ -143,6 +143,13 @@
   height: auto;
 }
 
+/* The Wizards disclaimer at the foot of the front page (LICENSING.md D25). */
+.shell__disclaimer {
+  margin: auto 0 0;
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
 /* ── a screen that fits the window: the front page and a room ─────── */
 
 /* The chrome pins these routes to the window (`chrome/chrome.css`), so the

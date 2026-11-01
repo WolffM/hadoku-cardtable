@@ -229,13 +229,40 @@ the operator's.
    open to anyone. Still forbidden: a public tier, and anonymous access "just
    for the draft". Before D24 this rule read *"Keep the friend gate. The
    `/cardtable/` prefix is friend-tier at the edge."*
-6. **Carry the disclaimer** in `NOTICE.md`. The UI footer carried it too until
-   2026-10-21, when the operator removed it (D23).
+6. **Carry the disclaimer** in `NOTICE.md` **and in the UI**: one muted line at
+   the foot of the front page (D25, 2026-11-01). The UI footer carried it until
+   2026-10-21, when the operator removed it (D23). D25 brought it back without
+   the footer bar, because strangers who can sign up never read `NOTICE.md`.
 7. **If we ever want to open this up further** — stop and think properly first.
    D24 is the one time it was thought through: members only, free, no anonymous
    access. Going past that (a public tier, anonymous play, app stores, ads of
    any kind) removes what is left of the "small and private" mitigations at
    once, and is the operator's call.
+
+### Going public · D25 · 2026-11-01 · operator
+
+Once the floor moves to member, anyone can sign up. Being free, behind a login
+and not indexed still holds. What changes is **visibility**, and in WotC's
+record of letters (below) visibility is what draws them, along with art, logos
+and money. The operator's launch plan, and what each part needs:
+
+| Channel | What it needs |
+| --- | --- |
+| **Trailer: unlisted YouTube + Discord** | No WotC logo, no Magic wordmark, no card frames as a title card. Never framed as an Arena/MTGO alternative: substitution is the argument a letter would make. Post it from a channel whose loss would cost nothing else: a claim against an unlisted video still counts against the channel. |
+| **Friends' Discords** | Nothing. This is today's posture. |
+| **Large MTG/cube communities** | Only where the server's rules allow self-promotion, in that channel. Text plus the trailer link. Describe it as free cube drafting and play with friends; "Magic" may appear as a plain description ("plays Magic cards"), never in the product's name, never with logos. Never WotC's official servers or forums. |
+| **hadoku.me homepage** | The homepage is public and indexed, unlike `/cardtable/`. List it by name and a one-line description with **no card art** in the tile: the art stays behind the login. Today the app is `includeInRegistry: false` in hadoku_site's `child-apps.json`; flipping it is hadoku_site's change. |
+
+**Already true, checked 2026-11-01:** an anonymous request or crawler gets a
+bare `401` for every `/cardtable/` path, so a link in a big Discord unfurls no
+art, and nothing behind the login is indexable. The UI carries the disclaimer
+again (rule 6, D25). Rate limits on room, event and match creation landed in
+wave 83.
+
+**Not ours, but on the launch path:** the account system strangers sign up to
+(its terms, privacy notice and age floor) is hadoku_site's, and so is chat
+moderation for strangers in watchparty's room chat. Raise both there before the
+floor moves.
 
 ### If a takedown request arrives · 2026-11-01 · operator
 
