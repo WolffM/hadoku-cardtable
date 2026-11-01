@@ -9,6 +9,7 @@ import { resolve } from 'node:path';
 
 import { pressPaymentAuto, says, stackCount } from '../play/board.ts';
 import { passToDeclareAttackers } from '../play/combat.ts';
+import { answerPrompt } from '../play/prompts.ts';
 import type { Friend } from '../play/browser.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from '../play/harness.ts';
 import { startScenarioMatch } from '../play/scenario.ts';
@@ -102,11 +103,25 @@ export const handCard = (page: Page, name: string): Locator =>
   page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]', { hasText: name }).first();
 
 /** Hover the hand card (its inspector opens), then drag it up onto the battlefield and let go: a cast. */
-export async function cast(page: Page, name: string, opts: { hover?: number } = {}): Promise<void> {
+export async function cast(page: Page, name: string, opts: { hover?: number; offCamera?: boolean } = {}): Promise<void> {
   const card = handCard(page, name);
   const box = await card.boundingBox();
   const field = await page.locator('.seat[data-viewer] [data-zone="battlefield"]').first().boundingBox();
   if (box === null || field === null) throw new Error(`promo: cannot cast ${name}: no box`);
+  if (opts.offCamera === true) {
+    // The unfilmed seat: no hand to imitate and no viewer to read a hover, so it casts at once. The filmed
+    // seat sees the card leave the other hand and fly in, which is all the clip needs of it.
+    const c = centre(box);
+    await page.mouse.move(c.x, c.y);
+    await page.mouse.down();
+    if ((await card.getAttribute('data-cast-lift').catch(() => null)) !== 'lifted') {
+      await page.mouse.up();
+      throw new Error(`promo: ${name} did not lift`);
+    }
+    await page.mouse.move(field.x + field.width / 2, field.y + field.height * 0.35, { steps: 4 });
+    await page.mouse.up();
+    return;
+  }
   await humanMove(page, centre(box));
   await humanRest(page, opts.hover ?? 900);
   await page.mouse.down();
@@ -155,7 +170,7 @@ export async function pickTiles(page: Page, ids: readonly number[], gapMs = 140)
     const box = await tile.boundingBox();
     if (box === null) continue;
     const at = { x: box.x + box.width / 2, y: box.y + Math.min(box.height / 2, 24) };
-    await humanMove(page, at);
+    await humanMove(page, at, 0.45);
     await page.mouse.click(at.x, at.y);
     await humanRest(page, gapMs);
   }
@@ -214,10 +229,22 @@ export async function resolveStack(page: Page, what: string): Promise<void> {
 export async function swing(page: Page, attackers: 'all' | number[]): Promise<void> {
   await passToDeclareAttackers(page);
   await humanRest(page, 500);
-  if (attackers === 'all') await deliberateClick(page, page.getByTestId('live-attack-all'), { hover: 500 });
-  else for (const id of attackers) await deliberateClick(page, page.locator(`[data-board-card="${id}"] button`).first(), { hover: 450 });
+  let ids = attackers === 'all' ? [] : attackers;
+  if (attackers === 'all') {
+    const all = page.locator('[data-testid="live-attack-all"]:visible');
+    const deadline = Date.now() + 4_000;
+    while ((await all.count()) === 0 && Date.now() < deadline) await page.waitForTimeout(150);
+    if ((await all.count()) > 0) await deliberateClick(page, all.first(), { hover: 500 });
+    // No All on the bar (Forge's own second button holds that slot): every creature that can attack, by hand.
+    else ids = await page.locator('.seat[data-viewer] [data-zone="battlefield"] [data-board-card][data-selectable]:has(.board-card__pt)').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-board-card'))));
+  }
+  for (const id of ids) await deliberateClick(page, page.locator(`[data-board-card="${id}"] button`).first(), { hover: 250 });
   await humanRest(page, 500);
-  await deliberateClick(page, okEnabled(page).first(), { hover: 350 });
+  // Done, once it is offered; a declaration Forge has already taken leaves nothing to press.
+  const done = okEnabled(page).first();
+  const deadline = Date.now() + 5_000;
+  while ((await done.count()) === 0 && Date.now() < deadline) await page.waitForTimeout(150);
+  if ((await done.count()) > 0) await deliberateClick(page, done, { hover: 350 });
   await restCursor(page);
 }
 
@@ -234,6 +261,8 @@ export async function untilWon(film: Film, page: Page): Promise<void> {
     if ((await page.getByTestId('game-result').count()) > 0) return true;
     // A storm copy asks for its own target: the rival's face again.
     if (await faceTargetable(page)) await opponentFace(page).locator('button').first().click({ timeout: 1_000 }).catch(() => undefined);
+    // Any other ask on the way (an attack trigger's "use it?") takes its default.
+    await answerPrompt(page).catch(() => null);
     await pressIfThere(okEnabled(page));
     return false;
   }, 90_000, 200, page);

@@ -40,19 +40,20 @@ async function payAlternative(page: Page, card: string): Promise<void> {
 }
 
 /** `seat` casts `name` at `target` once Forge offers it, and pays, until the stack holds `depth` spells. */
-async function respond(seat: Page, other: Page, name: string, target: string | null, depth: number, opts: { alt?: { asks: RegExp; card: string }; orDone?: () => Promise<boolean> } = {}): Promise<void> {
+async function respond(seat: Page, other: Page, name: string, target: string | null, depth: number, opts: { alt?: { asks: RegExp; card: string }; orDone?: () => Promise<boolean>; offCamera?: boolean } = {}): Promise<void> {
   // The other seat passes: with a free Daze in hand Forge never auto-passes it.
   await until(`${name} is offered`, async () => {
     if ((await offeredNamed(seat, name)) !== undefined) return true;
     await pressIfThere(okEnabled(other));
     return false;
-  }, 60_000, 300);
-  await cast(seat, name, { hover: 1_000 });
+  }, 60_000, 120);
+  const began = Date.now();
+  await cast(seat, name, { hover: 650, offCamera: opts.offCamera === true });
   let heard = '';
   await until(`${name} is on the stack`, async () => {
     const prompt = seat.locator('[data-testid="live-prompt"]');
     const now = `${await says(seat)} | ${(await prompt.count()) > 0 ? await prompt.first().getAttribute('data-method') : '-'}`;
-    if (now !== heard) console.log(`[promo:counterwar] ${name}: ${(heard = now).replace(/\s+/g, ' ').slice(0, 140)}`);
+    if (now !== heard) console.log(`[promo:counterwar] ${((Date.now() - began) / 1000).toFixed(2)}s ${name}: ${(heard = now).replace(/\s+/g, ' ').slice(0, 140)}`);
     const placed = (await seat.locator(`[data-stack-id][aria-label*="${name.split(',')[0]}"]`).count()) > 0;
     const asking = (await seat.locator('[data-testid="live-prompt"]').count()) > 0 || /pay|choose|select|target|exile|return/i.test(await says(seat));
     if ((await stackCount(seat)) >= depth && placed && !asking) return true;
@@ -65,8 +66,8 @@ async function respond(seat: Page, other: Page, name: string, target: string | n
     if (target !== null && (await aimAtStack(seat, target))) return false;
     await pressPaymentAuto(seat);
     return false;
-  }, 30_000, 250, seat);
-  await restCursor(seat);
+  }, 30_000, 120, seat);
+  if (opts.offCamera !== true) await restCursor(seat);
   console.log(`[promo:counterwar] ${name} on the stack (${depth}); says "${(await says(seat)).slice(0, 80)}"`);
 }
 
@@ -79,20 +80,22 @@ test('counterwar: five counters over one Oko', async ({ browser }) => {
     await film.beat(1_500);
 
     film.mark('oko');
-    await respond(rival.page, hero.page, 'Oko, Thief of Crowns', null, 1);
+    // The war is filmed as one continuous take (the operator, cut 4: "i dont feel like cuts should be
+    // needed here"): the unfilmed rival casts at once, and each answer comes after a short, human beat.
+    await respond(rival.page, hero.page, 'Oko, Thief of Crowns', null, 1, { offCamera: true });
     await film.beat(700);
     film.mark('counterspell');
     await respond(hero.page, rival.page, 'Counterspell', 'Oko', 2);
-    await film.beat(900);
+    await film.beat(500);
     film.mark('swan-song');
-    await respond(rival.page, hero.page, 'Swan Song', 'Counterspell', 3);
-    await film.beat(900);
+    await respond(rival.page, hero.page, 'Swan Song', 'Counterspell', 3, { offCamera: true });
+    await film.beat(500);
     film.mark('force');
     await respond(hero.page, rival.page, 'Force of Will', 'Swan Song', 4, { alt: { asks: /Exile \d+ card/i, card: 'Brainstorm' } });
-    await film.beat(900);
+    await film.beat(500);
     film.mark('pierce');
-    await respond(rival.page, hero.page, 'Spell Pierce', 'Force of Will', 5);
-    await film.beat(900);
+    await respond(rival.page, hero.page, 'Spell Pierce', 'Force of Will', 5, { offCamera: true });
+    await film.beat(500);
     film.mark('daze');
     const okoCountered = async (): Promise<boolean> =>
       (await hero.page.locator('.seat:not([data-viewer]) [data-zone="graveyard"] [data-board-card]', { hasText: 'Oko' }).count()) > 0;
@@ -106,7 +109,7 @@ test('counterwar: five counters over one Oko', async ({ browser }) => {
       await answerPrompt(rival.page).catch(() => null);
       for (const page of [hero.page, rival.page]) if ((await stackCount(page)) > 0) await pressIfThere(okEnabled(page));
       return false;
-    }, 90_000, 400, hero.page);
+    }, 90_000, 150, hero.page);
     film.mark('oko-countered');
     await film.beat(4_000);
     film.mark('end');
