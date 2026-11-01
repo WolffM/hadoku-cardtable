@@ -1,7 +1,7 @@
 /**
  * Trailer footage, never a test gate: `*.promo.ts` (not `*.spec.ts`, so the main config's glob never
  * picks these up). Each driver starts its own play stack and films through `rig.ts`. Run one at a time —
- * every clip boots Forge and an Xvfb display.
+ * every clip boots Forge and films on the GPU.
  *
  *   npx playwright test --config e2e/promo/playwright.config.ts valakut
  */

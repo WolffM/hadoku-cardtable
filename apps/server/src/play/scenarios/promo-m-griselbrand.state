@@ -1,0 +1,12 @@
+# Promo montage (`e2e/promo/montage.promo.ts`): Griselbrand cast off eight lands, a 7/7 landing.
+turn=6
+activeplayer=human
+activephase=MAIN1
+humanlife=10
+ailife=18
+humanhand=Griselbrand
+humanbattlefield=Swamp;Swamp;Swamp;Swamp;Underground Sea;Underground Sea;Ancient Tomb;City of Traitors
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+aihand=
+aibattlefield=Delver of Secrets;Island;Island;Volcanic Island
+ailibrary=Island;Island;Island;Island;Island;Island

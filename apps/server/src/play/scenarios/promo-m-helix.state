@@ -1,0 +1,12 @@
+# Promo montage (`e2e/promo/montage.promo.ts`): Lightning Helix to the face: three damage, three life.
+turn=6
+activeplayer=human
+activephase=MAIN1
+humanlife=4
+ailife=9
+humanhand=Lightning Helix
+humanbattlefield=Plains;Mountain;Plateau
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aihand=
+aibattlefield=Swamp;Swamp;Scrubland
+ailibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
