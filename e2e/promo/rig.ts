@@ -160,7 +160,11 @@ export async function startFilm(clip: string): Promise<Film & { roll(): Promise<
         // The clip's clock is t0 (what the marks count from): the first frame holds from t0 to its successor.
         const times = [t0, ...arrivals.slice(1), end];
         const list = arrivals.map((_, i) => `file '${String(i + 1).padStart(6, '0')}.jpg'\nduration ${((times[i + 1]! - times[i]!) / 1000).toFixed(4)}\n`).join('');
-        writeFileSync(resolve(frames, 'list.txt'), `${list}file '${String(arrivals.length).padStart(6, '0')}.jpg'\n`);
+        // A still screen sends no frames, and minterpolate ends at the last frame it is given, ignoring how long
+        // that frame was meant to hold: so the last frame is given again at the clip's real end. (A Victory
+        // screen is still, and is the shot: Progenitus lost its last five seconds to this.)
+        const last = `file '${String(arrivals.length).padStart(6, '0')}.jpg'\n`;
+        writeFileSync(resolve(frames, 'list.txt'), `${list}${last}duration 0.0167\n${last}`);
         execFileSync('ffmpeg', ['-y', '-loglevel', 'error',
           '-f', 'concat', '-safe', '0', '-i', resolve(frames, 'list.txt'),
           '-ss', ((t0 - audioAt) / 1000).toFixed(3), '-i', resolve(dir, 'audio.flac'),
