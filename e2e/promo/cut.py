@@ -16,8 +16,8 @@ still of each clip), and the ENTRANCE (`rise`, `wipe`, `slide`, `drop`). No two 
 both; `check_captions` refuses an edit that does.
 
 The ending is a montage cut on the bed's beat grid (`onsets`, a spectral-flux detector, then `beat_grid`,
-the local eighth-note grid those onsets sit on), accelerating from
-`MONTAGE_GAPS[0]` to `MONTAGE_GAPS[1]` seconds a shot, into Progenitus at full length and real speed.
+the local eighth-note grid those onsets sit on), each shot a whole number of beats long enough to read,
+into Progenitus at full length and real speed, then the credits (`credits.mjs`).
 """
 
 import json
@@ -32,7 +32,11 @@ from PIL import ImageFont
 HERE = Path(__file__).resolve().parent
 FOOTAGE = HERE.parent / ".run" / "promo"
 OUT = FOOTAGE / "trailer"
-MUSIC = Path("/home/hadoku/srv/hadoku-cardtable/apps/server/data/sounds/takes/music-br-hellfire-tango/take-1.ogg")
+TANGO = Path("/home/hadoku/srv/hadoku-cardtable/apps/server/data/sounds/takes/music-br-hellfire-tango/take-1.ogg")
+# The bed: the tango twice, crossfaded over BED_XFADE s. Cut 5 runs every clip at full length (the operator:
+# "i'll be cutting it later … i need to see the raw clip performing properly first"), past one 2:04 take.
+MUSIC = OUT_BED = Path(__file__).resolve().parent.parent / ".run" / "promo" / "trailer" / "bed.flac"
+BED_XFADE = 4.0
 BLACK = "/usr/share/fonts/truetype/noto/NotoSans-Black.ttf"
 SEMI = "/usr/share/fonts/truetype/noto/NotoSans-SemiBold.ttf"
 REGULAR = "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf"
@@ -78,43 +82,33 @@ ANCHORS = {
 
 # (clip, from (mark, offset), to (mark, offset), caption). Every join is a hard cut; every shot is at 1×.
 SEGMENTS = [
-    # Cold open: Emrakul hovered, lifted, dropped, and landing at full weight, as one shot.
-    ("emrakul", ("cast", 3.2), ("landed", 1.6), None),
-    "TITLE",
-    ("constructed", ("legacy", -0.2), ("eras", 2.9), Caption("Play the decks that made history", "WITH YOUR FRIENDS", "lobby-title", "rise")),
-    ("constructed", ("decks", 0.5), ("decks", 3.5), None),
-    ("tournament", ("paired", -0.1), ("paired", 3.0), Caption("Pick a deck. Sit down. Play.", "HEAD TO HEAD", "faceoff", "drop")),
-    # The counter war, landing by landing (`stack:N` is each spell arriving), then the whole unwind.
-    ("counterwar", ("stack:2", -2.6), ("stack:2", 0.0), Caption("Watch the stack unfold", "THE STACK", "board-right", "wipe")),
-    ("counterwar", ("stack:3", -1.3), ("stack:3", 1.0), None),
-    ("counterwar", ("stack:4", -1.3), ("stack:4", 1.0), None),
-    ("counterwar", ("stack:5", -1.3), ("stack:5", 1.0), None),
-    ("counterwar", ("stack:6", -1.0), ("stack:0", 1.4), None),
-    # Valakut: Scapeshift lands, the lands go, the Mountains come, then the box, one click, ten triggers.
-    ("valakut", ("stack:1", -1.5), ("stack:1", 1.0), None),
-    ("valakut", ("sacrifice", 0.7), ("sacrifice", 2.3), None),
-    ("valakut", ("search", 0.6), ("search", 2.1), None),
-    # The answered target sheet flashes back for ~0.2 s after the click (a client bug, reported): cut it out.
-    ("valakut", ("targeted", -2.0), ("targeted", 0.5), None),
-    ("valakut", ("targeted", 0.75), ("lethal", 0.8), None),
-    ("breakfast", ("stack:1", -1.1), ("stack:1", 2.5), Caption("Combos go off at full speed", "COMBOS", "board-left", "slide")),
-    ("breakfast", ("imprint", -0.8), ("ghoul", 0.2), None),
-    ("breakfast", ("hit", -1.3), ("win", 0.8), None),
-    ("blasphemous", ("stack:1", -1.3), ("stack:1", 0.3), None),
-    ("blasphemous", ("stack:0", 0.3), ("wiped", 5.3), None),
-    ("gauntlet", ("revealed", -3.0), ("revealed", 1.2), Caption("Ban, pick, battle.", "GAUNTLET · TEN DECKS FROM ONE ERA", "gauntlet-reveal", "rise")),
-    "GAUNTLET_ACTS",
-    ("gauntlet", ("chosen", -2.2), ("chosen", 0.8), None),
-    ("tournament", ("seats", 0.0), ("seats", 3.4), Caption("Swiss rounds for the whole group", "TOURNAMENTS", "lobby-title", "wipe")),
-    ("tournament", ("bracket", 0.0), ("bracket", 1.6), None),
-    ("draft", ("pod", -2.0), ("pod", 0.5), None),
-    ("draft", ("fan", 0.0), ("fan", 4.0), Caption("Fan or grid, every face of every card", "DRAFT · 100+ CUBES", "draft-pool", "slide")),
-    ("draft", ("picked", -0.6), ("picked", 0.9), None),
-    ("draft", ("grid", 0.0), ("grid", 1.5), None),
-    ("draft", ("flip", -0.2), ("flip", 4.0), None),
+    # Cut 5's structure, the operator's (2026-11-01). Every clip whole and continuous: they cut it later.
+    # 1. Gauntlet: two people ban and pick. (The caption is a draft: their sentence ended at "from".)
+    ("gauntlet", ("room", 0.0), ("end", 0.0), Caption("Play the decks that made history.", "GAUNTLET · AGAINST YOUR FRIENDS", "gauntlet-reveal", "rise")),
+    # 2. The deck picker, flipping through the years and formats.
+    ("constructed", ("create", 0.0), ("pick", 1.5), Caption("Any format. Any year.", "HISTORICAL CONSTRUCTED", "lobby-title", "wipe")),
+    # 3. Combos, each one take, every click shown.
+    ("valakut", ("board", 0.0), ("end", 0.0), Caption("Execute fun combos with no fuss.", "COMBOS", "board-right", "slide")),
+    ("breakfast", ("board", 0.0), ("end", 0.0), None),
+    ("thopter", ("board", 0.0), ("end", 0.0), None),
+    # 4. The draft.
+    ("draft", ("lobby", 0.0), ("end", 0.0), Caption("Organize custom draft tournaments.", "ANY SET IN MAGIC · ANY CUSTOM CUBE", "draft-pool", "drop")),
+    # 5. The finale: rapid-fire, hard cuts, no captions, Emrakul's landing last, then Progenitus.
     "MONTAGE",
-    ("progenitus", ("declared", -0.4), ("win", 2.6), None),
+    ("progenitus", ("declared", -0.4), ("end", 0.0), None),
+    # 6. Credits.
     "END",
+]
+
+# Raw clips outside the structure, filmed whole for the operator to place (cut 5).
+EXTRAS = [
+    ("counterwar", ("board", 0.0), ("end", 0.0)),
+    ("tournament", ("lobby", 0.0), ("end", 0.0)),
+    ("sideboard", ("board", 0.0), ("end", 0.0)),
+    ("bigattack", ("board", 0.0), ("end", 0.0)),
+    ("blasphemous", ("board", 0.0), ("end", 0.0)),
+    ("craterhoof", ("board", 0.0), ("end", 0.0)),
+    ("storm", ("board", 0.0), ("end", 0.0)),
 ]
 
 # The montage: one in-point per shot, in order. Each runs from (mark + offset), for as long as the beat grid
@@ -123,31 +117,23 @@ SEGMENTS = [
 # One zoom for every montage shot: 1.3×, which drops the chat rail and the header and keeps the board.
 Z = (1.3, 760, 560)
 MONTAGE = [
-    ("m-tokens", "stack:0", 0.0, *Z),
-    ("m-thoughtseize", "stack:0", -1.0, *Z),
-    ("m-bolt-bob", "stack:0", 0.4, *Z),
-    ("m-swords", "stack:0", 0.3, *Z),
-    ("m-helix", "life:theirs:8", -0.35, *Z),
-    ("m-gary", "life:mine:9", -0.15, *Z),
-    ("m-griselbrand", "stack:0", -0.05, *Z),
-    ("m-pyroclasm", "stack:0", 0.1, *Z),
-    ("m-wrath", "stack:0", 0.05, *Z),
-    ("blasphemous", "stack:0", 1.0, *Z),
-    ("valakut", "targeted", 0.9, *Z),
-    ("storm", "hit", -0.3, *Z),
-    ("m-lava-axe", "life:theirs:4", -0.3, *Z),
-    ("craterhoof", "life:theirs:19", -0.4, *Z),
-    ("m-emrakul-swing", "life:theirs:14", -0.45, *Z),
+    # (clip, mark, offset, length in eighths of the bed's beat grid (~0.23 s each), *zoom). Each board looks
+    # different: early and late game, empty and crowded, every colour; the strong spells last.
+    ("m-thoughtseize", "stack:0", -1.0, 4, *Z),
+    ("m-griselbrand", "stack:0", -0.05, 4, *Z),
+    ("m-swords", "stack:0", 0.3, 4, *Z),
+    ("m-gary", "life:mine:9", -0.15, 4, *Z),
+    ("storm", "hit", -0.3, 4, *Z),
+    ("m-pyroclasm", "stack:0", 0.1, 4, *Z),
+    ("m-wrath", "stack:0", 0.05, 4, *Z),
+    ("craterhoof", "life:theirs:19", -0.4, 4, *Z),
+    ("m-time-spiral", "stack:0", 0.0, 6, *Z),
+    ("m-tremors", "life:theirs:19", -0.4, 6, *Z),
+    ("m-worldfire", "stack:0", 0.0, 6, *Z),
+    ("emrakul", "landed", 0.1, 8, *Z),
 ]
-MONTAGE_GAPS = (0.7, 0.35)
 
 # The end card follows D24: free forever, members only, and anyone can be a member.
-END_LINES = {
-    "title": "CARD TABLE",
-    "line": "Free to play  ·  members only",
-    "cta": "Join us on Discord",
-    "url": "discord.gg/VvntUGQVwm",
-}
 
 
 def run(args: list[str]) -> None:
@@ -198,6 +184,7 @@ def gauntlet_acts() -> list[tuple[float, float]]:
 KSIZE, KSP = 22, 4.0  # the kicker's size and letter spacing
 IN = 0.25  # the entrance starts this long into the segment
 EXIT = 0.3  # and everything lifts away over this long, ending EXIT before the cut
+CAPTION_HOLD = 5.0  # and leaves at most this long after it came in
 
 
 def width(font: str, size: int, text: str) -> float:
@@ -230,7 +217,8 @@ def check_captions(segments: list) -> None:
 def caption_graph(cap: Caption, length: float) -> tuple[list[str], list[str]]:
     """drawtext filters for the headline and kicker, plus the rule as an overlay source and its placement."""
     a = ANCHORS[cap.anchor]
-    out = length - EXIT - 0.05
+    # Up for CAPTION_HOLD at most: a section is now a whole, continuous clip, a minute or more long.
+    out = min(length - EXIT - 0.05, IN + CAPTION_HOLD)
     gone = f"clip((t-{out:.3f})/{EXIT},0,1)"
     alpha = lambda t0, d=0.35: f"{ease(t0, d)}*(1-{gone})"  # noqa: E731
     lift = f"(-10*{gone})"
@@ -338,26 +326,15 @@ def render_segment(n: int, seg: tuple) -> Path:
 
 
 def render_card(n: int, kind: str) -> Path:
-    """The title card after the cold open, and the end card: drawn, not filmed."""
+    """The closing credits, drawn by `credits.mjs` (a page photographed in Chromium) and held as the last shot."""
     out = OUT / f"{n:02d}-{kind.lower()}.mp4"
-    if kind == "TITLE":
-        length = 2.6
-        texts = [(BLACK, END_LINES["title"], 150, "(h-text_h)/2-30", "white"),
-                 (REGULAR, "Historical constructed  ·  Draft  ·  Tournaments", 40, "(h)/2+80", "0xD8D0F0")]
-    else:
-        length = 6.5
-        texts = [(BLACK, END_LINES["title"], 130, "300", "white"),
-                 (REGULAR, END_LINES["line"], 52, "490", "0xE8E3F7"),
-                 (BLACK, END_LINES["cta"], 60, "650", ACCENT),
-                 (REGULAR, END_LINES["url"], 44, "735", "0xE8E3F7")]
-    draw = ",".join(
-        f"drawtext=fontfile={font}:text='{esc(text)}':fontsize={size}:fontcolor={color}:x=(w-text_w)/2:y={y}"
-        for font, text, size, y, color in texts
-    )
-    run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", f"color=c=0x141218:s=1920x1080:r={FPS}:d={length}",
-         "-f", "lavfi", "-i", f"anullsrc=r=48000:cl=stereo:d={length}", "-vf", f"{draw},vignette=PI/4", "-shortest",
-         "-c:v", "h264_nvenc", "-preset", "p6", "-rc", "constqp", "-qp", "17", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", str(out)])
-    print(f"cut: {out.name}  {length:5.1f}s  (card)")
+    still = OUT / "credits.png"
+    subprocess.run(["node", str(HERE / "credits.mjs"), str(still)], check=True, cwd=HERE.parent, capture_output=True)
+    length = 8.0
+    run(["ffmpeg", "-y", "-loglevel", "error", "-loop", "1", "-framerate", str(FPS), "-t", f"{length}", "-i", str(still),
+         "-f", "lavfi", "-i", f"anullsrc=r=48000:cl=stereo:d={length}", "-shortest", "-vf", "format=yuv420p",
+         "-c:v", "h264_nvenc", "-preset", "p6", "-rc", "constqp", "-qp", "17", "-pix_fmt", "yuv420p", "-r", str(FPS), "-c:a", "aac", "-b:a", "192k", str(out)])
+    print(f"cut: {out.name}  {length:5.1f}s  (credits)")
     return out
 
 
@@ -406,25 +383,15 @@ def beat_grid(beats: np.ndarray, lo: float, hi: float) -> np.ndarray:
     return phase + k * period
 
 
-def montage_cuts(beats: np.ndarray, start: float, shots: int) -> list[float]:
-    """Cut points from `start` (a bed time): shot k's target length falls from GAPS[0] to GAPS[1], and each
-    cut snaps to the onset nearest that target within the allowed range. Returns shots + 1 times."""
-    lo, hi = MONTAGE_GAPS[1] - 0.03, MONTAGE_GAPS[0] + 0.08
-    first = beats[beats >= start - 0.05]
-    cuts = [float(first[0]) if len(first) else start]
-    for k in range(shots):
-        want = MONTAGE_GAPS[0] + (MONTAGE_GAPS[1] - MONTAGE_GAPS[0]) * k / max(1, shots - 1)
-        # Never longer than the shot before it: the montage's cutting only ever quickens.
-        # Every cut is on an onset; with none short enough, the shortest one in range.
-        cap = hi if k == 0 else min(hi, cuts[-1] - cuts[-2] + 0.03)
-        near = beats[(beats > cuts[-1] + lo) & (beats < cuts[-1] + hi)]
-        if len(near) == 0:
-            # A gap in the onsets: hold to the next one rather than cut off the beat.
-            later = beats[(beats > cuts[-1] + lo) & (beats < cuts[-1] + 1.0)]
-            cuts.append(float(later[0]) if len(later) else cuts[-1] + want)
-            continue
-        short = near[near < cuts[-1] + cap]
-        cuts.append(float(short[np.argmin(np.abs(short - cuts[-1] - want))]) if len(short) else float(near[0]))
+def montage_cuts(grid: np.ndarray, start: float, eighths: list[int]) -> list[float]:
+    """Cut points on the beat grid from `start` (a bed time): shot k lasts `eighths[k]` grid steps, so every
+    cut is on the beat and no shot is shorter than it needs to read (cut 4: "some of them go too fast")."""
+    first = grid[grid >= start - 0.02]
+    i = int(np.searchsorted(grid, first[0])) if len(first) else 0
+    cuts = [float(grid[i])]
+    for n in eighths:
+        i += n
+        cuts.append(float(grid[i]) if i < len(grid) else cuts[-1] + n * float(np.median(np.diff(grid))))
     return cuts
 
 
@@ -440,8 +407,29 @@ def stills() -> None:
         run(["ffmpeg", "-y", "-loglevel", "error", "-ss", "1.6", "-i", str(part), "-frames:v", "1", "-q:v", "2", str(OUT / "stills" / f"{n:02d}-{seg[0]}.jpg")])
 
 
+def make_bed() -> None:
+    run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(TANGO), "-i", str(TANGO), "-filter_complex", f"[0:a][1:a]acrossfade=d={BED_XFADE}:c1=tri:c2=tri[a]", "-map", "[a]", "-c:a", "flac", str(MUSIC)])
+
+
+def extras() -> None:
+    """The raw clips outside the main cut, each whole, for the operator to slot in (`trailer/extras/`)."""
+    (OUT / "extras").mkdir(parents=True, exist_ok=True)
+    for clip, (a, da), (b, db) in EXTRAS:
+        if not (FOOTAGE / clip / f"{clip}.mkv").exists():
+            print(f"cut: extra {clip} not filmed yet")
+            continue
+        m = marks(clip)
+        start, end = m[a] + da, m[b] + db
+        out = OUT / "extras" / f"{clip}.mp4"
+        run(["ffmpeg", "-y", "-loglevel", "error", "-ss", f"{start:.3f}", "-to", f"{end:.3f}", "-i", str(FOOTAGE / clip / f"{clip}.mkv"),
+             "-c:v", "h264_nvenc", "-preset", "p6", "-rc", "constqp", "-qp", "17", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", str(out)])
+        print(f"cut: extra {out.name}  {end - start:5.1f}s")
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
+    make_bed()
+    extras()
     check_captions(SEGMENTS)
     if "--stills" in sys.argv:
         stills()
@@ -455,8 +443,8 @@ def main() -> None:
     for n, seg in enumerate(SEGMENTS):
         if seg == "MONTAGE":
             # The bed starts after the cold open: its clock is the cut's, less `cold`.
-            grid = beat_grid(beats, at - cold - 1, at - cold + 14)
-            cuts = montage_cuts(grid, at - cold, len(MONTAGE))
+            grid = beat_grid(beats, at - cold - 1, at - cold + 30)
+            cuts = montage_cuts(grid, at - cold, [shot[3] for shot in MONTAGE])
             print(f"cut: montage at bed {cuts[0]:.2f}s, shots {[round(b - a, 2) for a, b in zip(cuts, cuts[1:])]}")
             # Shift the montage so its first cut lands on the first onset: lengthen the part before it.
             if parts and cuts[0] > at - cold + 0.01:
@@ -466,7 +454,7 @@ def main() -> None:
                 parts[-1] = render_clip(n - 1, prev[0], m[prev[1][0]] + prev[1][1], m[prev[2][0]] + prev[2][1] + extra, prev[3], prev[1][0])
                 at = cuts[0] + cold
                 rows[-1]["length"] = round(at - rows[-1]["at"], 2)
-            for k, (clip, mark, off, *zoom) in enumerate(MONTAGE):
+            for k, (clip, mark, off, _eighths, *zoom) in enumerate(MONTAGE):
                 length = cuts[k + 1] - cuts[k]
                 t = marks(clip)[mark] + off
                 part = render_clip(n * 100 + k, clip, t, t + length, None, f"m{k:02d}-{mark}", tuple(zoom) if zoom else None)

@@ -1,0 +1,15 @@
+# Promo montage (`e2e/promo/montage.promo.ts`): Time Spiral in a blue late game. Hands and graveyards are
+# shuffled away, both players draw seven, and the caster's lands untap.
+turn=8
+activeplayer=human
+activephase=MAIN1
+humanlife=6
+ailife=9
+humanhand=Time Spiral;Brainstorm
+humanbattlefield=Island;Island;Island;Island;Island;Underground Sea;Volcanic Island;Tolarian Academy;Mox Sapphire;Jace, the Mind Sculptor|Counters:LOYALTY=3
+humanlibrary=Force of Will;Ancestral Recall;Tinker;Time Walk;Brainstorm;Ponder;Island;Island;Island;Island;Island;Island;Island;Island
+humangraveyard=Ponder;Preordain;Counterspell;Mana Drain;Fact or Fiction;Gitaxian Probe
+aihand=Lightning Bolt;Chain Lightning
+aibattlefield=Swamp;Swamp;Badlands;Bloodstained Mire;Dark Confidant;Young Pyromancer
+aigraveyard=Thoughtseize;Duress;Lightning Bolt;Kolaghan's Command
+ailibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
