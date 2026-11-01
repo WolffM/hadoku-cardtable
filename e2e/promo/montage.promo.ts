@@ -2,7 +2,9 @@
  * Clips for the trailer's closing montage: one short moment each, from its own scenario
  * (`apps/server/src/play/scenarios/promo-m-<name>.state`), filmed as `m-<name>`. The operator asked for
  * "fresh moments in different situations", so each is a different kind of play: a removal spell, a wipe,
- * a burn finish, a big landing, tokens, a drain, a discard, an Emrakul swing.
+ * a burn finish, a big landing, tokens, a drain, a discard, an Emrakul swing; and (cut 4: "some kind of chain
+ * reaction or some powerful spells like world fire or time spiral") Worldfire, Time Spiral and an Impact
+ * Tremors chain.
  *
  * Each moment is data: the steps the hero takes. `go` is marked as the hero commits the step that makes
  * the moment (the target click, or the Done after attackers); `cut.py` finds the moment's peak itself, as
@@ -23,6 +25,8 @@ interface Moment {
   steps: Step[];
   /** A card the hero takes from a revealed selection (Thoughtseize). */
   take?: RegExp;
+  /** The hero's X, for a spell that asks (Secure the Wastes). */
+  x?: number;
 }
 
 const MOMENTS: Moment[] = [
@@ -37,6 +41,9 @@ const MOMENTS: Moment[] = [
   { name: 'helix', steps: [{ cast: 'Lightning Helix', target: 'face' }] },
   { name: 'emrakul-swing', steps: [{ attack: 'all' }] },
   { name: 'thoughtseize', steps: [{ cast: 'Thoughtseize', target: 'face' }], take: /Show and Tell/ },
+  { name: 'worldfire', steps: [{ cast: 'Worldfire' }] },
+  { name: 'time-spiral', steps: [{ cast: 'Time Spiral' }] },
+  { name: 'tremors', steps: [{ cast: 'Secure the Wastes' }], x: 6 },
 ];
 
 /** Answer whatever the step leaves open until the stack is empty and nobody is asked anything. */
@@ -45,8 +52,10 @@ async function settle(page: Page, rival: Page, moment: Moment, target: Target | 
   // A cast is done once its spell has been on the stack and the stack is empty again: an untargeted spell
   // otherwise reads as settled before it is even paid for (cut 3's Wrath was filmed unresolved).
   let stacked = cast === null;
-  // …or once the card has left the stack for its next zone, in case it came and went between two polls.
-  const landed = page.locator('.seat[data-viewer] [data-zone="battlefield"] [data-board-card], .seat [data-zone="graveyard"][data-owner="you"] [data-board-card]', { hasText: cast ?? '\u0000' });
+  // …or once the card has been out of the hand for two polls running: a spell that exiles itself (Time Spiral)
+  // reaches no graveyard, and the stack may hold it for less than one poll.
+  const inHand = page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]', { has: page.locator('.card__name', { hasText: cast ?? '\u0000' }) });
+  let gone = 0;
   await until(`${moment.name} settles`, async () => {
     if ((await page.getByTestId('game-result').count()) > 0) return true;
     if (!aimed && target === 'face' && (await faceTargetable(page))) {
@@ -71,10 +80,11 @@ async function settle(page: Page, rival: Page, moment: Moment, target: Target | 
         await pickTiles(who, (want.length > 0 ? want : tiles).map((t) => t.id), 220);
         return false;
       }
-      await answerPrompt(who).catch(() => null);
+      await answerPrompt(who, who === page && moment.x !== undefined ? { x: moment.x } : {}).catch(() => null);
     }
     await pressPaymentAuto(page);
-    if ((await stackCount(page)) > 0 || (await landed.count()) > 0) stacked = true;
+    gone = cast !== null && (await inHand.count()) === 0 ? gone + 1 : 0;
+    if ((await stackCount(page)) > 0 || gone >= 2) stacked = true;
     const open = (await page.getByTestId('live-prompt').count()) + (await rival.getByTestId('live-prompt').count());
     if ((await stackCount(page)) > 0) await pressIfThere(okEnabled(page));
     return stacked && (await stackCount(page)) === 0 && open === 0 && (target === undefined || aimed);
