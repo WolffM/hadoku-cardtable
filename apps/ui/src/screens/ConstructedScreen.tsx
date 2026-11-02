@@ -180,7 +180,8 @@ import deckArtTraits from '../draft/deck-art-traits.json' with { type: 'json' };
 import { assignDeckArt, rankDeckArt, traitsOfDraftCard, type DeckArtChoice } from './deckArt.ts';
 import { artCredit, useArtist } from '../draft/artists.ts';
 import { artReady, cardImageUrl, prefetchCardImages } from '../draft/cardImage.ts';
-import { useDeckSwap } from './deckSwap.ts';
+import { browseNeighbours, poolNeighbours } from './deckNeighbours.ts';
+import { firstFaces, useDeckSwap } from './deckSwap.ts';
 import { cardIndex, withSuggestedBasics } from '../deck/build.ts';
 import { dckTextOf, deckFromPool, draftBuild, savedBuild } from '../draft/deckFromPool.ts';
 import type { DraftTransport } from '../draft/socket.ts';
@@ -757,6 +758,35 @@ export function openDraftedDeck(saved: string | null | undefined, draftId: strin
  * `aria-checked` is what says which deck is chosen; `data-chosen` on the root is
  * the same fact for a test, and the row also paints a mark.
  */
+/** The library decks a pool offers, as the grid lists them: winners first (`stats/deckOrder.ts`). */
+function libraryOptions(decks: readonly TableDeck[], records: DeckRecords): DeckOption[] {
+  return byWinRate(
+    decks.map((d) => {
+      const peek = libraryDeckPeek(d);
+      return { value: d.id, ...peek, art: libraryDeckArt(peek.list) };
+    }),
+    records,
+  );
+}
+
+/** A list as one grid shows it: each deck's art chosen over the whole list, so no two tiles repeat a card (the operator, 2026-10-11). */
+function withDeckArt(shown: readonly DeckOption[]): DeckOption[] {
+  const artIds = assignDeckArt(shown.map((o) => o.art ?? []));
+  return shown.map((o, i) => ({ ...o, artId: artIds[i] }));
+}
+
+/** Free pick's tab and era, narrowing the whole offer. */
+function browsed(options: readonly DeckOption[], eraOfDeck: ReadonlyMap<string, TableFormat>, browse: Browse): DeckOption[] {
+  if (browse.family === 'mine') return options.filter((o) => o.value.startsWith(MY_DECK));
+  return options.filter((o) => {
+    const era = eraOfDeck.get(o.value);
+    return era !== undefined && era.family === browse.family && (browse.era === '' || era.id === browse.era);
+  });
+}
+
+/** How long a grid stands before the lists beside it warm: its own faces go first. */
+const NEIGHBOUR_WARM_DELAY_MS = 600;
+
 /** Tiles past this many arrive with the last of the stagger (`--deckpick-i` in `screens.css`): a long list is not a long wait. */
 const ENTER_STAGGERED = 24;
 
@@ -1480,6 +1510,28 @@ function RoomTableScreen({
   // `legalDecksIn`. Gated on the card being drawn, so a streamed room, a
   // locked room and a spectator ask nothing. The leader moving the pool re-runs
   // it, which is what narrows the dropdown for everybody in the room.
+  /**
+   * A pool's sweep, remembered once the server has answered it. A sweep the
+   * server refused is NOT remembered: it offers every deck, and caching that
+   * would leave the pool un-narrowed for as long as the page is open over one
+   * dropped request. Coming back to it retries.
+   */
+  const asking = useRef(new Map<string, Promise<LegalSweep>>());
+  const sweepOf = (formatId: string, decks: readonly TableDeck[]): Promise<LegalSweep> => {
+    const known = sweeps.current.get(formatId);
+    if (known !== undefined) return Promise.resolve(known);
+    const asked = asking.current.get(formatId);
+    if (asked !== undefined) return asked;
+    const ask = legalDecksIn(client, formatId, decks).then((sweep) => {
+      asking.current.delete(formatId);
+      if (sweep.error === null) sweeps.current.set(sweep.formatId, sweep);
+      return sweep;
+    });
+    asking.current.set(formatId, ask);
+    return ask;
+  };
+  const latestSweepOf = useRef(sweepOf);
+  latestSweepOf.current = sweepOf;
   useEffect(() => {
     if (!picking || loaded === null || poolId === '') return;
     const cached = sweeps.current.get(poolId);
@@ -1488,11 +1540,7 @@ function RoomTableScreen({
       return;
     }
     let live = true;
-    void legalDecksIn(client, poolId, loaded.decks).then((sweep) => {
-      // A sweep the server refused is NOT remembered: it offers every deck,
-      // and caching that would leave the pool un-narrowed for as long as the
-      // page is open over one dropped request. Coming back to it retries.
-      if (sweep.error === null) sweeps.current.set(sweep.formatId, sweep);
+    void latestSweepOf.current(poolId, loaded.decks).then((sweep) => {
       if (!live) return;
       setLegal(sweep);
       if (sweep.error !== null) setActionError(sweep.error);
@@ -1599,16 +1647,7 @@ function RoomTableScreen({
   const deckOptions = useMemo<DeckOption[] | null>(() => {
     if (offered === null) return null;
     const mine = freePick ? (myDeckOptions ?? []).map((m) => m.option) : [];
-    return [
-      ...byWinRate(
-        offered.map((d) => {
-          const peek = libraryDeckPeek(d);
-          return { value: d.id, ...peek, art: libraryDeckArt(peek.list) };
-        }),
-        deckRecords,
-      ),
-      ...mine,
-    ];
+    return [...libraryOptions(offered, deckRecords), ...mine];
   }, [offered, deckRecords, freePick, myDeckOptions]);
 
   /**
@@ -1637,16 +1676,7 @@ function RoomTableScreen({
     if (deckOptions === null) return null;
     // "My decks" draws nothing until they have answered, not an empty tab that then fills.
     if (freePick && browse.family === 'mine' && myDeckOptions === null) return null;
-    const shown = !freePick
-      ? deckOptions
-      : browse.family === 'mine'
-        ? deckOptions.filter((o) => o.value.startsWith(MY_DECK))
-        : deckOptions.filter((o) => {
-            const era = eraOfDeck.get(o.value);
-            return era !== undefined && era.family === browse.family && (browse.era === '' || era.id === browse.era);
-          });
-    const artIds = assignDeckArt(shown.map((o) => o.art ?? []));
-    return shown.map((o, i) => ({ ...o, artId: artIds[i] }));
+    return withDeckArt(freePick ? browsed(deckOptions, eraOfDeck, browse) : deckOptions);
   }, [deckOptions, freePick, eraOfDeck, browse, myDeckOptions]);
 
   /**
@@ -1691,6 +1721,31 @@ function RoomTableScreen({
     });
     prefetchCardImages(urls, prefetchedArt.current);
   }, [shownOptions]);
+
+  // While the grid is idle, the lists one press away decode their first screen of art at low
+  // priority (`deckNeighbours.ts`), built exactly as the grid would build them, so switching to one
+  // crossfades at once instead of holding the old grid while its art loads. A pool's own deck list
+  // is the server's sweep, asked for and remembered as a switch would.
+  useEffect(() => {
+    if (!picking || loaded === null || shownOptions === null) return;
+    let live = true;
+    const warm = (options: readonly DeckOption[]): void => {
+      if (live) for (const url of firstFaces(withDeckArt(options))) artReady(url, () => undefined, 'low');
+    };
+    const timer = setTimeout(() => {
+      if (freePick) {
+        if (deckOptions !== null) for (const near of browseNeighbours(loaded.formats, browse)) warm(browsed(deckOptions, eraOfDeck, near));
+        return;
+      }
+      for (const near of poolNeighbours(loaded.formats, poolId)) {
+        void latestSweepOf.current(near, loaded.decks).then((s) => warm(libraryOptions(loaded.decks.filter((d) => s.ids.has(d.id)), deckRecords)));
+      }
+    }, NEIGHBOUR_WARM_DELAY_MS);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [picking, loaded, shownOptions, freePick, deckOptions, eraOfDeck, browse, poolId, deckRecords]);
 
   // A deck the new pool does not offer is no longer chosen. The `PUT` under the
   // new rules has already gone (the re-send below), so its verdict is on the

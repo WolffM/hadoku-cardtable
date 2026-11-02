@@ -32,6 +32,14 @@ export const ART_FIRST = 24;
 /** The longest the new list waits for those faces. */
 export const ART_WAIT_MS = 4000;
 
+/** The art URLs of a list's first screen of tiles: what a switch to it waits on, and what a warm-up decodes ahead. */
+export function firstFaces(options: readonly { artId?: string | undefined }[]): string[] {
+  return options.slice(0, ART_FIRST).flatMap((o) => {
+    const url = o.artId === undefined ? null : cardImageUrl(o.artId);
+    return url === null ? [] : [url];
+  });
+}
+
 interface Swap<T> {
   /** The list this state is for. */
   key: string;
@@ -114,13 +122,7 @@ export function useDeckSwap<T extends { value: string; artId?: string | undefine
 
   // The faces that must decode first, as one string: a list that reorders under the same key (win
   // rates landing) does not restart the wait.
-  const faces = options
-    .slice(0, ART_FIRST)
-    .flatMap((o) => {
-      const url = o.artId === undefined ? null : cardImageUrl(o.artId);
-      return url === null ? [] : [url];
-    })
-    .join('\n');
+  const faces = firstFaces(options).join('\n');
   useEffect(() => {
     if (pending || readyFor === swapKey || !current) return;
     const urls = faces === '' ? [] : faces.split('\n');
