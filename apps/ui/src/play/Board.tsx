@@ -3096,6 +3096,7 @@ function Zone({
   interaction,
   arranging,
   onOpen,
+  portrait = false,
 }: {
   owner: string;
   ownerSide: ZoneOwner;
@@ -3115,6 +3116,14 @@ function Zone({
    * `cards` arrives already in the player's order (`handOrder`).
    */
   arranging?: Arranging;
+  /**
+   * Portrait (the operator, after the look artifact: "use a similar scrolling carousel" for the
+   * hand): only ever passed `true` on the viewer's own hand (`PlayerArea` only renders `Zone` with
+   * `zone="hand"` for `player.isViewer`). Gives the hand's own `<ul>` the `lane-my-hand` test id
+   * `usePortraitLanes` (`Board.tsx`) finds every lane scroller by, so it gets the identical peek,
+   * edge fade and `lane-more` every board lane already has — not a second scroller.
+   */
+  portrait?: boolean;
 }) {
   return (
     <ZoneShell
@@ -3142,6 +3151,7 @@ function Zone({
          */
         style={zone === 'hand' ? ({ '--cols': cards.length } as CSSProperties) : undefined}
         data-arrange-slot={arranging === undefined ? undefined : 'hand'}
+        data-testid={portrait && zone === 'hand' ? 'lane-my-hand' : undefined}
       >
         {cards.map((c) => (
           <Fragment key={c.id}>
@@ -4060,6 +4070,7 @@ function PlayerArea({
             cards={handOrder(player.hand, player.id, arranged).filter((c) => c.id !== interaction?.stagedCardId)}
             interaction={interaction}
             arranging={arranging}
+            portrait={portrait}
           />
         ) : (
           <HiddenHand player={player} ownerSide={side} interaction={interaction} />
@@ -4136,6 +4147,24 @@ function measurePortraitLane(lane: HTMLUListElement): void {
   // container-query attempts this replaced, and why both resolved to the wrong number).
   const laneW = `${lane.clientWidth}px`;
   if (lane.style.getPropertyValue('--portrait-lane-w') !== laneW) lane.style.setProperty('--portrait-lane-w', laneW);
+  /*
+   * The hand is a lane too (the operator, after the look artifact: "cards are too small in hand,
+   * use a similar scrolling carousel") — same `--card-w` formula, but its OWN height
+   * (`--portrait-hand-h`) has to grow to fit that card, and B's action bar and C's decision dock
+   * already read that token, so it is written here, once, globally, rather than asking either of
+   * them to also know the hand card's own formula. Read back off the lane's OWN computed `--card-w`
+   * (set by `portrait.css` from `--portrait-lane-w` just written) rather than recomputed in script,
+   * so there is exactly one formula for it.
+   */
+  if (lane.dataset.testid === 'lane-my-hand') {
+    const cardW = Number.parseFloat(getComputedStyle(lane).getPropertyValue('--card-w'));
+    if (Number.isFinite(cardW) && cardW > 0) {
+      const handH = `${Math.round((cardW * 88) / 63 + 16)}px`;
+      if (document.documentElement.style.getPropertyValue('--portrait-hand-h') !== handH) {
+        document.documentElement.style.setProperty('--portrait-hand-h', handH);
+      }
+    }
+  }
   const laneLeft = lane.scrollLeft;
   const laneRight = laneLeft + lane.clientWidth;
   let left = 0;
@@ -4169,9 +4198,14 @@ function measurePortraitLane(lane: HTMLUListElement): void {
   }
 }
 
-/** Every `.zone__tiers[data-portrait-lanes] > .zone__cards` under `root` — the four lanes, while portrait is on. */
+/**
+ * Every lane scroller under `root` — the four board lanes AND the hand (the operator: "use a
+ * similar scrolling carousel" for the hand too) — found by the SAME `data-testid` the contract
+ * table already names, so adding the hand here needed no second query and no second installer:
+ * `lane-more` is excluded, it is a lane's own CHILD, not a lane.
+ */
 function portraitLanesIn(root: HTMLElement): HTMLUListElement[] {
-  return [...root.querySelectorAll<HTMLUListElement>('.zone__tiers[data-portrait-lanes] > .zone__cards')];
+  return [...root.querySelectorAll<HTMLUListElement>('[data-testid^="lane-"]:not([data-testid="lane-more"])')];
 }
 
 function usePortraitLanes(root: { readonly current: HTMLElement | null }, enabled: boolean): void {

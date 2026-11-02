@@ -110,21 +110,24 @@
 }
 
 /*
- * The hand stays the bottom row (§3, D owns its input), exactly `--portrait-hand-h` tall, no more —
- * the prototype's own `--hand-h`/`.hc { width: 78px }`. The room for B's fixed action bar is NOT
- * taken out of the hand (it used to be, as padding, which left ~30px of it for the cards and no
- * visible bar either, since B's bar is `position: fixed` and never actually sits inside this box);
- * it comes off the battlefield instead, directly below — see `.seat[data-viewer] > .zone--battlefield`.
+ * The hand stays the bottom row (§3, D owns its input), exactly `--portrait-hand-h` tall, no more.
+ * The operator, after the look artifact: "cards are too small in hand, use a similar scrolling
+ * carousel" — so the hand is a lane now (`lane-my-hand`, `Zone` below) at the SAME `--card-w` every
+ * board lane draws (lane-card size at 1×, 3 across plus a peek — not the prototype's fixed 78px),
+ * and `--portrait-hand-h` (its root default above, 116px, is only what shows before the first
+ * measure) GROWS to fit that card — `Board.tsx`'s `measurePortraitLane` writes it, once, as the
+ * card's own height (`--card-w * 88/63`) plus a little padding, so B's action bar and C's decision
+ * dock, which both already key off this token, need no number of their own for it. The room for B's
+ * fixed action bar is NOT taken out of the hand (it used to be, as padding, which left ~30px of it
+ * for the cards and no visible bar either, since B's bar is `position: fixed` and never actually
+ * sits inside this box); it comes off the battlefield instead, directly below — see
+ * `.seat[data-viewer] > .zone--battlefield`.
  */
 :root[data-layout='portrait'] .seat[data-viewer] > .zone--hand {
   flex: 0 0 var(--portrait-hand-h);
   /* Same `--right-gutter` reset as the battlefield just above — this zone shares that desktop rule too. */
   padding-right: 0;
   box-sizing: border-box;
-}
-
-:root[data-layout='portrait'] .seat[data-viewer] > .zone--hand > .zone__cards {
-  --card-w: 78px;
 }
 
 /* The gap B's fixed action bar (`position: fixed; bottom: var(--portrait-hand-h)`) actually sits in. */
@@ -142,14 +145,17 @@
 }
 
 /*
- * One lane: `[data-testid]` is present on exactly these four `<ul>`s in portrait
- * (`Board.tsx`'s `laneTestId`) and raises this rule's specificity past
- * `board.css`'s own `--card-w`/sizing rules for the same element, so it wins
- * without depending on import order.
+ * One lane: `[data-testid]` is present on exactly these FIVE `<ul>`s in portrait — the four board
+ * lanes (`Board.tsx`'s `laneTestId`) and the hand (`lane-my-hand`, `Zone`, below — the operator,
+ * after the look artifact: "cards are too small in hand, use a similar scrolling carousel") — and
+ * raises this rule's specificity past `board.css`'s own `--card-w`/sizing rules for the same
+ * elements, so it wins without depending on import order.
  *
  * `--card-w`, the prototype's `.slot`'s `--cw` verbatim: the lane's own content width, less its two
  * end paddings, less the gap between the (up to) three whole cards it shows, less the next card's
- * peek — split three ways, then scaled by the zoom factor.
+ * peek — split three ways, then scaled by the zoom factor. The hand reads the SAME formula (the
+ * operator's own "similar… carousel"), not 78px — `Board.tsx`'s `measurePortraitLane` is also what
+ * grows `--portrait-hand-h` to fit the card this produces.
  *
  * `--portrait-lane-w` is `Board.tsx`'s own `measurePortraitLane`, writing each lane's OWN measured
  * `clientWidth` directly onto itself, every render/scroll/resize — the same reasoning
@@ -160,7 +166,8 @@
  * (A+B+C+D) build measured at only ~2/3 of the true width once sibling chrome shared the page.
  * `clientWidth`, read on the exact element the cards live in, has neither failure mode.
  */
-:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid] {
+:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid],
+:root[data-layout='portrait'] .zone--hand > .zone__cards[data-testid] {
   --card-w: calc((var(--portrait-lane-w, 300px) - 2 * var(--portrait-pad) - 2 * var(--portrait-gap) - var(--portrait-peek)) / 3 * var(--portrait-zoom));
 
   display: flex;
@@ -174,6 +181,11 @@
   overflow-y: hidden;
   overscroll-behavior-x: contain;
   scrollbar-width: none;
+  /*
+   * D2 owns this on the CARDS themselves (`hand.css`'s own `touch-action`, switched to `pan-x` so a
+   * sideways swipe scrolls the carousel and an upward drag still plays) — this is the SCROLLER's
+   * own, a lane's already, unchanged by that.
+   */
   touch-action: pan-x;
   position: relative;
 }
@@ -200,19 +212,32 @@
   min-height: calc(var(--card-w) * 88 / 63 + 10px);
 }
 
-:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid]::-webkit-scrollbar {
+/*
+ * The hand (`lane-my-hand`): a lane too, now, but its OWN height — not flex-grow against a sibling,
+ * since it has none — is `.zone--hand`'s `flex: 0 0 var(--portrait-hand-h)` (below), which
+ * `measurePortraitLane` grows to fit exactly the card this lane's own `--card-w` produces.
+ */
+:root[data-layout='portrait'] .zone--hand > .zone__cards[data-testid] {
+  height: 100%;
+}
+
+:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid]::-webkit-scrollbar,
+:root[data-layout='portrait'] .zone--hand > .zone__cards[data-testid]::-webkit-scrollbar {
   display: none;
 }
 
 /* Every card and gap in a lane is one flex item, `--card-w` wide, never shrinking past it. */
-:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid] > li {
+:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid] > li,
+:root[data-layout='portrait'] .zone--hand > .zone__cards[data-testid] > li {
   flex: 0 0 var(--card-w);
   width: var(--card-w);
 }
 
 /* The edge fade (Settled 3): only while `measurePortraitLane` (`Board.tsx`) finds something past that edge. */
 :root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid].lane--fade-r::after,
-:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid].lane--fade-l::before {
+:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid].lane--fade-l::before,
+:root[data-layout='portrait'] .zone--hand > .zone__cards[data-testid].lane--fade-r::after,
+:root[data-layout='portrait'] .zone--hand > .zone__cards[data-testid].lane--fade-l::before {
   content: '';
   position: sticky;
   top: 0;
@@ -223,12 +248,14 @@
   pointer-events: none;
   z-index: 1;
 }
-:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid].lane--fade-r::after {
+:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid].lane--fade-r::after,
+:root[data-layout='portrait'] .zone--hand > .zone__cards[data-testid].lane--fade-r::after {
   right: 0;
   order: 999;
   background: linear-gradient(90deg, transparent, var(--bg));
 }
-:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid].lane--fade-l::before {
+:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid].lane--fade-l::before,
+:root[data-layout='portrait'] .zone--hand > .zone__cards[data-testid].lane--fade-l::before {
   left: 0;
   order: -999;
   background: linear-gradient(-90deg, transparent, var(--bg));
@@ -310,18 +337,17 @@
 /*
  * ── the top band (Settled 2, test-id contract: `portrait-hud`) ─────────
  *
- * Both chips in one row, the stack chip between them while the stack holds
- * anything. The second row this band's own height implies is
- * `--portrait-phase-h` tall and left EMPTY here on purpose — B's
- * `.live__phases` renders into it from `LiveBoard.tsx`/`live.css`, not from
- * this file or `Board.tsx`.
- *
- * `--portrait-hud-h` is this band's own total height, FIXED rather than
- * measured (`--portrait-hud-pad-top` + `--portrait-hud-row-h` +
- * `--portrait-phase-h`, every term a token so the sum stays correct if any
- * of them changes) — B's action bar positions itself against it
- * (`live.css`), `position: fixed; top: var(--portrait-hud-h)` or the
- * equivalent, with no measuring of its own.
+ * Both chips in one row. B's `.live__phases` is `position: fixed` (its own file, not this one) at
+ * `top: var(--portrait-hud-h)` — the integrated (A+B+C) tour showed the FIRST lane starting under
+ * it: this band's own box, below, used to CLAIM `--portrait-hud-h` as its fixed height (a chip row
+ * plus an empty `::after` the exact height of `--portrait-phase-h`, so the two summed to the
+ * token), but a fixed-height box that assumes its own row is exactly `--portrait-hud-row-h` tall is
+ * one more number that has to stay in sync with whatever the chip row really draws at. This band is
+ * CHIPS ONLY now — auto height, whatever that turns out to be — and the phase row's own gap is
+ * reserved separately, directly above the first lane (`.board__opponents > .seat > .zone--battlefield`,
+ * below): the two together still total `--portrait-hud-h`, the token every reader (this file's own
+ * `.stack-sheet`, B's bar, C's dock) already keys off, but nothing here has to assume the chip
+ * row's own height to get there.
  */
 :root[data-layout='portrait'] {
   --portrait-hud-pad-top: 6px;
@@ -333,7 +359,12 @@
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  height: var(--portrait-hud-h);
+  /*
+   * Top padding only, no bottom: this band's own total height is
+   * `--portrait-hud-pad-top` + `--portrait-hud-row-h`, which, plus the phase-row `margin-top` on
+   * the first lane just below, sums to exactly `--portrait-hud-h` — the same arithmetic the token
+   * itself states, just split across two elements instead of one fixed-height box with an `::after`.
+   */
   padding: var(--portrait-hud-pad-top) var(--portrait-pad) 0;
   background: linear-gradient(var(--bg-raised), var(--bg));
   border-bottom: 1px solid var(--line-soft);
@@ -341,11 +372,15 @@
   box-sizing: border-box;
 }
 
-:root[data-layout='portrait'] .portrait-hud::after {
-  content: '';
-  display: block;
-  height: var(--portrait-phase-h);
-  flex: none;
+/*
+ * The phase row's own gap, reserved AFTER the chip row rather than claimed as part of a fixed-height
+ * `.portrait-hud` box — see that rule's own doc for why. `.board__opponents` and `.seat` are
+ * `display: contents` (Settled 9's note elsewhere in this file), so their OPPONENT battlefield —
+ * the very first lane, `their-lands` — is `.portrait-hud`'s next flex sibling in `.board`'s own
+ * column, and this is exactly the gap B's fixed phase bar needs under it.
+ */
+:root[data-layout='portrait'] .board__opponents > .seat > .zone--battlefield {
+  margin-top: var(--portrait-phase-h);
 }
 
 :root[data-layout='portrait'] .portrait-hud__row {
