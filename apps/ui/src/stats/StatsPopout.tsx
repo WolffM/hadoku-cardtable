@@ -57,6 +57,7 @@ import { DeckPeekHost, DeckStatsFilterBar, deckLookup, decksSpec, NO_STATS_FILTE
 import { OverPage } from '../components/OverPage.tsx';
 import { navigate, routeHash } from '../screens/route.ts';
 import { Tournaments } from './Tournaments.tsx';
+import { UnfinishedGames } from './UnfinishedGames.tsx';
 import './stats.css';
 import { uiLength } from '../settings/ui-scale.ts';
 
@@ -248,6 +249,7 @@ export function StatsPopout({ player, tournaments = false, source = sharedSource
             <Tournaments />
           ) : (
             <DeckPeekHost lookup={lookup} ownDecks={player === undefined}>
+              {player === undefined && <UnfinishedGames />}
               <GameStats
                 key={player ?? ''}
                 client={source.client}
