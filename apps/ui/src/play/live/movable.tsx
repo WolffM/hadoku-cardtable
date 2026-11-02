@@ -245,7 +245,7 @@ export function restingTop(el: Element): number {
  *
  * In portrait every question's host — `QuestionHost` below, the one mechanism for all fourteen asks, the
  * selection pop-up, the payment window, the bar decision and the waits — stops floating over the board and
- * docks over the hand and the action bar instead: `dock.css` repositions `.live__prompt` under
+ * docks over the hand, above the action bar, instead: `dock.css` repositions `.live__prompt` under
  * `:root[data-layout="portrait"]`, each rule written specific enough to outrank every one of `live.css`'s
  * own `.live__prompt` variants, so nothing here is edited there (the blast-radius table's own rule).
  *

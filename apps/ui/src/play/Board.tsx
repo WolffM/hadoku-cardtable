@@ -436,7 +436,7 @@ import { PileView } from './PileView.tsx';
 import { useCardMenu } from './card-menu/CardMenu.tsx';
 import { CheckMark } from './marks.tsx';
 import { Relations } from './Relations.tsx';
-import { cardWidthIn } from './card-size.ts';
+import { cardWidthIn, onCardWidthsChanged } from './card-size.ts';
 import { useRailFit } from './tag-rail.ts';
 import { liftGhost, type Ghost } from './lift.ts';
 import { observeZoneBoxes, type ZoneBoxes } from './zone-box.ts';
@@ -4149,15 +4149,18 @@ function measurePortraitLane(lane: HTMLUListElement): void {
   /*
    * The hand is a lane too (the operator, after the look artifact: "cards are too small in hand,
    * use a similar scrolling carousel") — same `--card-w` formula, but its OWN height
-   * (`--portrait-hand-h`) has to grow to fit that card, and B's action bar and C's decision dock
-   * already read that token, so it is written here, once, globally, rather than asking either of
-   * them to also know the hand card's own formula. Read back off the lane's OWN computed `--card-w`
-   * (set by `portrait.css` from `--portrait-lane-w` just written) rather than recomputed in script,
-   * so there is exactly one formula for it.
+   * (`--portrait-hand-h`) has to grow to fit that card, and the hand's row and the stack sheet's cap
+   * read that token, so it is written here, once, globally, rather than asking either of them to
+   * also know the hand card's own formula. The card's width is the one every layer reads
+   * (`cardWidthIn`, `card-size.ts`: a drawn card's used width, a probe's in an empty hand), never
+   * the lane's `--card-w` read back as a string — the build writes every px as
+   * `calc(N * var(--ui-px))` for the UI scale, so that read was an unevaluated `calc(…)`, parsed to
+   * NaN, and the hand never grew past its 116px default under 149px cards (measured in real
+   * portrait; `usePortraitLanes` re-measures when the width moves).
    */
   if (lane.dataset.testid === 'lane-my-hand') {
-    const cardW = Number.parseFloat(getComputedStyle(lane).getPropertyValue('--card-w'));
-    if (Number.isFinite(cardW) && cardW > 0) {
+    const cardW = cardWidthIn(lane);
+    if (cardW !== null) {
       const handH = `${Math.round((cardW * 88) / 63 + 16)}px`;
       if (document.documentElement.style.getPropertyValue('--portrait-hand-h') !== handH) {
         document.documentElement.style.setProperty('--portrait-hand-h', handH);
@@ -4203,7 +4206,12 @@ function usePortraitLanes(root: { readonly current: HTMLElement | null }, enable
       for (const lane of portraitLanesIn(el)) measurePortraitLane(lane);
     };
     window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    // A card width that moved without a commit or a window resize (a zoom, the UI scale).
+    const unsubscribe = onCardWidthsChanged(onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      unsubscribe();
+    };
   }, [root, enabled]);
 }
 

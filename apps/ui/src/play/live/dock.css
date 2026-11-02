@@ -1,6 +1,8 @@
 /*
  * Wave 89 §C — the decision dock (Settled 6). In portrait every question's host (`../movable.tsx`'s
- * `QuestionHost`) docks over the hand and the action bar instead of floating over the board.
+ * `QuestionHost`) docks over the hand instead of floating over the board, standing on the action
+ * bar's band (`--portrait-bar-band`, `../portrait.css`): the bar stays on the bottom edge, never
+ * covered (the operator, 2026-11-02).
  * `data-mode` (`dock`/`full`/`min`, set by `movable.tsx`) is the only thing any rule below reads; no
  * selector here ever names a prompt method.
  *
@@ -28,7 +30,7 @@
   top: auto;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: var(--portrait-bar-band);
   width: 100%;
   height: auto;
   pointer-events: none;
@@ -52,11 +54,10 @@
   border-top: 1px solid var(--line);
   border-radius: 14px 14px 0 0;
   box-shadow: 0 -10px 30px var(--shadow);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /*
- * Docked: as tall as what it holds, up to a cap — over the hand and the action bar, never the board
+ * Docked: as tall as what it holds, up to a cap — over the hand, never the board or the bar
  * (Settled 6). The operator, 2026-11-02, on declare blockers: "seems like some empty modal is blocking
  * half the screen" — a fixed `min(46dvh, 380px)` drew ~270px of empty dock above a ~110px question. The
  * cap is that old height, on the host itself so the host stays a flex column with a definite limit:
@@ -76,15 +77,14 @@
  */
 :root[data-layout="portrait"] .dock[data-mode='full'] {
   top: max(8dvh, 56px);
-  bottom: 0;
   height: auto;
 }
 
-/* Minimized: the pill, bottom-right, no longer the full width of the dock. */
+/* Minimized: the pill, bottom-right just above the bar, no longer the full width of the dock. */
 :root[data-layout="portrait"] .dock[data-mode='min'] {
   left: auto;
   right: 12px;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  bottom: calc(var(--portrait-bar-band) + 12px);
   width: auto;
   height: auto;
 }

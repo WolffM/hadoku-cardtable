@@ -96,10 +96,10 @@ test(titled('promo-valakut in portrait: chips, four lanes, card width, no sidewa
     const wholeCardsVisible = cardBoxes.filter((b) => b.left >= laneBox!.x - 1 && b.right <= laneBox!.x + laneBox!.width + 1).length;
     expect.soft(wholeCardsVisible, 'no more than 3 whole cards visible at 1x zoom').toBeLessThanOrEqual(3);
 
-    // my-lands' own bottom never sits under B's action bar (manager's note: the bar's 52px gap is
-    // `--portrait-bar-h`, reserved as padding-bottom on the viewer's own battlefield, not eaten out
-    // of the hand). `action-bar` is B's own testid — asserted only when present, since this worktree
-    // may not have B's land yet; the integrated post-land run is where this must hold.
+    // my-lands' own bottom never sits under B's action bar: the hand is the row between them, and
+    // the bar is on the bottom edge (`--portrait-bar-band`, the board's own bottom padding).
+    // `action-bar` is B's own testid — asserted only when present, since this worktree may not have
+    // B's land yet; the integrated post-land run is where this must hold.
     const actionBar = page.getByTestId('action-bar');
     if ((await actionBar.count()) > 0) {
       const barBox = await actionBar.boundingBox();

@@ -1775,10 +1775,12 @@
  *   --portrait-hud-h    A's top band's own total height (its padding + chip
  *                        row + `--portrait-phase-h`) — this lane's phase bar
  *                        starts right at it, not under A's chips.
- *   --portrait-hand-h   116px. The hand's own fixed row height.
- *   --portrait-bar-h    52px. The room A's hand row leaves above itself for
- *                        this lane's `action-bar` (Settled 7: "the action bar
- *                        sits between board and hand").
+ *   --portrait-bar-h    52px. The `action-bar`'s own row: its buttons.
+ *   --portrait-bar-band The whole band the bar takes on the very bottom edge:
+ *                        its row plus the device's bottom safe area (the
+ *                        operator, 2026-11-02: "the bottom bar … isn't properly
+ *                        anchored to the bottom of the screen"). The menu and
+ *                        the chat sheet open on top of it, never over it.
  */
 
 .live__menu-items {
@@ -1900,15 +1902,16 @@
 /* `action-menu` (the action bar's own toggle) opens this, directly above
    itself — Settled 7's "Game log, End turn, Full control, Concede" in that
    order, which is the order these two elements are already written in
-   `LiveBoard.tsx`. */
+   `LiveBoard.tsx`. A menu the player just opened is drawn over a docked
+   decision (`dock.css`), which stands on the same band. */
 :root[data-layout='portrait'] .live__menu-items[data-open] {
   display: flex;
   flex-direction: column;
   gap: 6px;
   position: fixed;
-  z-index: var(--z-overlay, 30);
+  z-index: calc(var(--z-popover) + 1);
   right: 8px;
-  bottom: calc(var(--portrait-hand-h) + var(--portrait-bar-h));
+  bottom: var(--portrait-bar-band);
   width: 170px;
   padding: 8px;
   border: 1px solid var(--line);
@@ -1964,9 +1967,10 @@
   z-index: var(--z-overlay, 20);
   left: 0;
   right: 0;
-  bottom: var(--portrait-hand-h);
-  height: var(--portrait-bar-h);
-  padding: 4px 8px;
+  bottom: 0;
+  height: var(--portrait-bar-band);
+  /* The buttons keep the bar's own row; the safe area under them is background only. */
+  padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px));
   background: color-mix(in srgb, var(--bg-raised) 92%, transparent);
   border-top: 1px solid var(--line);
 }
@@ -2070,16 +2074,17 @@
  * caught by `e2e/w89b-action-bar.phone.spec.ts`'s own chat-sheet test against
  * real Forge, not by reading the selector.
  */
+/* It stands on the action bar's band, so the bar's own Chat toggle stays in reach to close it. */
 :root[data-layout='portrait'][data-chat-sheet='open'] .room-shell[data-collapsible] .wp-room-chrome-frame > .wp-room-chrome {
   display: flex;
   position: fixed;
   z-index: var(--z-popover, 40);
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: var(--portrait-bar-band);
   top: 30%;
   width: 100% !important;
-  height: 70%;
+  height: auto;
   box-shadow: 0 -4px 16px var(--shadow);
 }
 

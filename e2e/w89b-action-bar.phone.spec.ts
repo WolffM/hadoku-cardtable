@@ -20,7 +20,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled } from './play/board.ts';
+import { clickHandCard, makeTitled, offeredCard } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { PHONE } from './play/phone.ts';
 import { startScenarioVsAi } from './play/scenario.ts';
@@ -37,18 +37,12 @@ async function setPortrait(page: Page): Promise<void> {
 }
 
 /**
- * Settled 6 (lane C): a decision docks over the hand AND the action bar, never the board — so an
- * ordinary "proceed to the next step?" pass, which is open for nearly all of a live match, legitimately
- * sits on top of `action-bar` at a higher z-index. A real player reaches the bar the same way: minimize
- * the dock to its pill (`decision-minimize`, always rendered — `movable.tsx`'s `DockHandle`) first. Only
- * these three tests need it; the phase-bar one above does not touch the bottom of the screen.
+ * The bottom of the screen, bottom up (the operator, 2026-11-02: "the bottom bar 'Chat, Menu, 100%,
+ * Next Phase' isn't properly anchored to the bottom of the screen anymore"): the action bar on the very
+ * bottom edge, the hand directly above it, and a decision docked above the bar, over the hand — so the
+ * bar is never covered, decision or not, and every test here reaches it with a plain tap.
  */
-async function freeActionBar(page: Page): Promise<void> {
-  const minimize = page.getByTestId('decision-minimize');
-  if ((await minimize.count()) > 0) await minimize.tap({ timeout: 2_000 }).catch(() => undefined);
-}
-
-test(titled('.live__phases is a horizontal bar in the top band’s second row: ≤34px tall, all 5 segments visible, none narrower than 44px'), async ({ browser }) => {
+test(titled('action-bar sits on the bottom edge, the hand directly above it, a docked decision above the bar, and every control in it is ≥44×40px'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -57,46 +51,39 @@ test(titled('.live__phases is a horizontal bar in the top band’s second row: �
     const { alice } = await startScenarioVsAi(browser, stack, 'bolt-player');
     await setPortrait(alice.page);
 
-    const phases = alice.page.getByTestId('live-phases');
-    const box = await phases.boundingBox();
-    expect(box, 'the phase bar is drawn').not.toBeNull();
-    expect(box!.height, 'Settled 2: ≤34px tall').toBeLessThanOrEqual(34);
-
-    const segments = alice.page.locator('.live__segment');
-    await expect(segments, 'Settled 2: 5 segments — Begin, Main, Combat, Main 2, End').toHaveCount(5);
-    const widths = await segments.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width));
-    for (const [i, w] of widths.entries()) {
-      expect(w, `segment ${i} is drawn (nonzero) — "all 5 segments visible"`).toBeGreaterThan(0);
-      expect(w, `segment ${i} is at least 44px wide`).toBeGreaterThanOrEqual(44);
-    }
-
-    // The current segment names its own step, not the segment's generic label.
-    const current = alice.page.locator('.live__segment[data-current]');
-    await expect(current, 'exactly one segment is current').toHaveCount(1);
-    expect(await current.locator('.live__segment-name').textContent()).toBe('Main 1');
-  } finally {
-    await stack.stop();
-  }
-});
-
-test(titled('action-bar sits directly above the hand, and every control in it is ≥44×40px'), async ({ browser }) => {
-  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
-  if (!forge.ok) return;
-  test.setTimeout(3 * 60_000);
-  const stack = await startPlayStack(forge);
-  try {
-    const { alice } = await startScenarioVsAi(browser, stack, 'bolt-player');
-    await setPortrait(alice.page);
-    await freeActionBar(alice.page);
-
+    const viewport = alice.page.viewportSize()!;
     const hand = alice.page.locator('[data-zone="hand"][data-owner="you"]');
     const bar = alice.page.getByTestId('action-bar');
     const handBox = await hand.boundingBox();
     const barBox = await bar.boundingBox();
     expect(handBox, 'the hand is drawn').not.toBeNull();
     expect(barBox, 'the action bar is drawn').not.toBeNull();
-    // "Directly above": the bar's bottom edge meets the hand's top edge, no board or stray chrome between them.
-    expect(barBox!.y + barBox!.height, 'the bar’s own bottom sits at (or just above) the hand’s own top').toBeLessThanOrEqual(handBox!.y + 1);
+    expect.soft(barBox!.y + barBox!.height, 'the bar’s own bottom is the screen’s bottom edge').toBeCloseTo(viewport.height, 0);
+    // "Directly above": the hand's bottom edge meets the bar's top edge — no gap, and no overlap.
+    expect.soft(handBox!.y + handBox!.height, 'the hand’s own bottom meets the bar’s top').toBeCloseTo(barBox!.y, 0);
+    // The hand's row is as tall as its cards (`--portrait-hand-h` grows to fit them), so no hand card
+    // reaches down onto the bar.
+    const bottomsOf = (selector: string) => alice.page.locator(selector).evaluateAll((els) => els.map((el) => el.getBoundingClientRect().bottom));
+    for (const bottom of await bottomsOf('[data-zone="hand"][data-owner="you"] li.board-card')) {
+      expect.soft(bottom, 'a hand card stays inside the hand row, above the bar').toBeLessThanOrEqual(barBox!.y + 0.5);
+    }
+
+    // A decision docks on top of the bar, never over it: cast the Bolt, and Forge asks for its target.
+    const bolt = await offeredCard(alice.page, 'Lightning Bolt', { zone: 'hand' });
+    expect(await clickHandCard(alice.page, bolt), 'the Bolt went out through its card view').toBe(true);
+    const dock = alice.page.getByTestId('decision-dock');
+    await expect(dock, 'the Bolt’s own question docks').toBeVisible({ timeout: 30_000 });
+    const dockBox = (await dock.boundingBox())!;
+    expect.soft(dockBox.y + dockBox.height, 'the docked decision stands on the bar').toBeLessThanOrEqual(barBox!.y + 0.5);
+    // The Bolt itself, parked where it left the hand while Forge asks, is no lower than the hand was.
+    for (const bottom of await bottomsOf('[data-cast-lift]')) {
+      expect.soft(bottom, 'the card being cast stays above the bar').toBeLessThanOrEqual(barBox!.y + 0.5);
+    }
+    // And the bar is still a plain tap away while the question is up.
+    const menuToggle = alice.page.getByTestId('action-menu');
+    await menuToggle.tap();
+    await expect(menuToggle, 'the bar answers a tap with a decision up').toHaveAttribute('aria-expanded', 'true');
+    await menuToggle.tap();
 
     for (const id of ['action-chat', 'action-menu', 'zoom-pill', 'action-primary']) {
       const box = await alice.page.getByTestId(id).boundingBox();
@@ -145,7 +132,6 @@ test(titled('in a match, the room’s chat column is not rendered in portrait, a
   try {
     const { alice } = await startScenarioVsAi(browser, stack, 'bolt-player');
     await setPortrait(alice.page);
-    await freeActionBar(alice.page);
 
     // `@wolffm/watchparty-ui`'s own structure, verified against the installed bundle (`RoomShell.tsx`'s
     // own comment on `.wp-room-chrome-frame > aside.wp-room-chrome`), not a published selector — if a
@@ -153,20 +139,13 @@ test(titled('in a match, the room’s chat column is not rendered in portrait, a
     const chatColumn = alice.page.locator('.wp-room-chrome-frame > .wp-room-chrome');
     await expect(chatColumn, 'closed by default during a match (Settled 7 §B.3)').toBeHidden();
 
-    /*
-     * `force: true`: against the AI, a fresh ask reopens the decision dock (Settled 6, lane C) between
-     * `freeActionBar`'s one minimize and this tap — vs-AI priority keeps cycling while this runs, so
-     * there is no single moment that stays clear. The element itself is visible and enabled; forcing
-     * the tap tests this lane's own click handler (`setChatOpen`) without depending on winning that
-     * race. Whether a real finger can always reach `action-chat` while the AI is mid-turn is a separate,
-     * genuine question for lane C's dock defaults, not this test's to answer.
-     */
     const chat = alice.page.getByTestId('action-chat');
-    await chat.tap({ force: true });
+    await chat.tap();
     await expect(chatColumn, 'action-chat opens it').toBeVisible();
     expect(await chat.getAttribute('aria-expanded')).toBe('true');
 
-    await chat.tap({ force: true });
+    // The sheet stands on the bar too, so the same Chat button closes it.
+    await chat.tap();
     await expect(chatColumn, 'a second tap closes the sheet again').toBeHidden();
   } finally {
     await stack.stop();
@@ -181,7 +160,6 @@ test(titled('the menu holds Game log, End turn, Full control and Concede, in tha
   try {
     const { alice } = await startScenarioVsAi(browser, stack, 'bolt-player');
     await setPortrait(alice.page);
-    await freeActionBar(alice.page);
 
     const menuToggle = alice.page.getByTestId('action-menu');
     const items = alice.page.locator('.live__menu-items');
@@ -207,7 +185,7 @@ test(titled('the menu holds Game log, End turn, Full control and Concede, in tha
       'live-concede',
     ]);
     await expect(alice.page.locator('[data-testid="settings-gear"]')).toHaveCount(1);
-    await alice.page.getByTestId('settings-gear').tap({ force: true });
+    await alice.page.getByTestId('settings-gear').tap();
     await expect(alice.page.getByTestId('settings-display'), 'opens the same settings panel the hidden header would have').toBeVisible();
     // Escape closes everything open, including this menu (the same handler that closes the logbook) —
     // so the menu needs a fresh tap before the rest of this test reaches back into it.

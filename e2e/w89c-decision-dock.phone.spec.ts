@@ -44,7 +44,7 @@ async function dockMode(page: Page): Promise<string | null> {
 
 /**
  * The board's own lanes — every `lane-*` but the hand, which the dock is meant to cover (Settled 6:
- * docked "over the hand and the action bar — never the board").
+ * docked over the hand, standing on the action bar — never the board, never the bar).
  */
 const boardLanes = (page: Page): Locator => page.locator('[data-testid^="lane-"]:not([data-testid="lane-my-hand"])');
 
@@ -238,6 +238,10 @@ test(titled('declaring blockers: the dock is as tall as its question, covers no 
     expect(await dockSlack(alice.page), 'no empty room in the docked dock').toBeLessThanOrEqual(2);
     expect(await boardLanes(alice.page).count(), 'the four board lanes are drawn').toBe(4);
     await expectBoardLanesClear(alice.page);
+    // It stands on the action bar, which stays on the bottom edge, uncovered.
+    const dockBox = (await dock(alice.page).boundingBox())!;
+    const barBox = (await alice.page.getByTestId('action-bar').boundingBox())!;
+    expect.soft(dockBox.y + dockBox.height, 'the dock stands on the action bar, never over it').toBeLessThanOrEqual(barBox.y + 0.5);
 
     await minimizeBtn(alice.page).tap();
     await expect(dock(alice.page)).toHaveAttribute('data-mode', 'min');

@@ -41,16 +41,19 @@
   --portrait-zoom: 1;
 
   /*
-   * The bottom band B's chrome keys off (§7, "the action bar sits between
-   * board and hand"): the hand's own fixed height (the prototype's
-   * `--hand-h`) and the action bar's (`--bar-h`) it reserves room above the
-   * hand for. B's `action-bar` is free to position itself with
-   * `position: fixed; bottom: var(--portrait-hand-h)` against either token —
-   * neither is read by anything of A's own once the hand's flex-basis below
-   * is set from it.
+   * The bottom of the screen, bottom up (the operator, 2026-11-02: "the bottom bar 'Chat, Menu, 100%,
+   * Next Phase' isn't properly anchored to the bottom of the screen"): the action bar on the very
+   * bottom edge, the hand directly above it, and a decision docks above the bar, over the hand, never
+   * over the bar. `--portrait-hand-h` is the hand's own row (the prototype's `--hand-h`, grown by
+   * `measurePortraitLane` to fit its card); `--portrait-bar-h` is the bar's own row, its buttons;
+   * `--portrait-bar-band` is everything the bar takes at the bottom edge — its row plus the device's
+   * bottom safe area, which the bar's background fills and nothing else draws in. The board reserves
+   * the band below the hand, and every other bottom-anchored thing (the dock, its pill, the menu, the
+   * chat sheet) stands on it.
    */
   --portrait-hand-h: 116px;
   --portrait-bar-h: 52px;
+  --portrait-bar-band: calc(var(--portrait-bar-h) + env(safe-area-inset-bottom, 0px));
 }
 
 /*
@@ -70,11 +73,23 @@
  * true on desktop) — exactly "their lands, their permanents, my permanents,
  * my lands" once both seats' battlefields are flattened into one column.
  */
+/*
+ * The match fills the screen top to bottom in portrait. `.shell--match`'s own `4px 0 2px`
+ * (`screens.css`: the desktop table's room under the header) left the board 6px short of the
+ * viewport — measured at 4–842 on an 844px screen — so the hand, on the board's own bottom, missed
+ * the action bar, on the viewport's: B's carried 1–2px between the bar and the hand.
+ */
+:root[data-layout='portrait'] .shell--match {
+  padding-block: 0;
+}
+
 :root[data-layout='portrait'] .board {
   display: flex;
   flex-direction: column;
   height: 100dvh;
-  padding: 0;
+  box-sizing: border-box;
+  /* The bar's band, below the hand: the bar itself is `position: fixed` on that edge (`live.css`). */
+  padding: 0 0 var(--portrait-bar-band);
   gap: 0;
 }
 
@@ -110,29 +125,20 @@
 }
 
 /*
- * The hand stays the bottom row (§3, D owns its input), exactly `--portrait-hand-h` tall, no more.
+ * The hand is the board's last row, directly above the action bar (§3, D owns its input), exactly
+ * `--portrait-hand-h` tall, no more.
  * The operator, after the look artifact: "cards are too small in hand, use a similar scrolling
  * carousel" — so the hand is a lane now (`lane-my-hand`, `Zone` below) at the SAME `--card-w` every
  * board lane draws (lane-card size at 1×, 3 across plus a peek — not the prototype's fixed 78px),
  * and `--portrait-hand-h` (its root default above, 116px, is only what shows before the first
  * measure) GROWS to fit that card — `Board.tsx`'s `measurePortraitLane` writes it, once, as the
- * card's own height (`--card-w * 88/63`) plus a little padding, so B's action bar and C's decision
- * dock, which both already key off this token, need no number of their own for it. The room for B's
- * fixed action bar is NOT taken out of the hand (it used to be, as padding, which left ~30px of it
- * for the cards and no visible bar either, since B's bar is `position: fixed` and never actually
- * sits inside this box); it comes off the battlefield instead, directly below — see
- * `.seat[data-viewer] > .zone--battlefield`.
+ * card's own height (`--card-w * 88/63`) plus a little padding. The room for B's fixed action bar
+ * is the board's own bottom padding (`--portrait-bar-band`, `.board` above), directly below this row.
  */
 :root[data-layout='portrait'] .seat[data-viewer] > .zone--hand {
   flex: 0 0 var(--portrait-hand-h);
   /* Same `--right-gutter` reset as the battlefield just above — this zone shares that desktop rule too. */
   padding-right: 0;
-  box-sizing: border-box;
-}
-
-/* The gap B's fixed action bar (`position: fixed; bottom: var(--portrait-hand-h)`) actually sits in. */
-:root[data-layout='portrait'] .seat[data-viewer] > .zone--battlefield {
-  padding-bottom: var(--portrait-bar-h);
   box-sizing: border-box;
 }
 
@@ -525,7 +531,7 @@
   transform: translateX(-50%);
   z-index: 4;
   width: min(280px, calc(100% - 2 * var(--portrait-pad)));
-  max-height: calc(100dvh - var(--portrait-hud-h) - var(--portrait-hand-h) - var(--portrait-bar-h) - 16px);
+  max-height: calc(100dvh - var(--portrait-hud-h) - var(--portrait-hand-h) - var(--portrait-bar-band) - 16px);
   display: flex;
   flex-direction: column;
   background: var(--bg-raised);
