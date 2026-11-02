@@ -146,8 +146,8 @@ gate once and prints every step without running one.
    Card-Forge). Never build inside the vendored `forge/` tree — it must stay
    pristine (D2), and a build there leaves `target/` dirs that make the
    submodule dirty.
-3. **Builds with the off-`PATH` toolchain** (`~/.local/opt`: JDK 21, Maven
-   3.9.16): `mvn -q -pl forge-gui-desktop -am clean package -DskipTests
+3. **Builds with the fleet's toolchain** (JDK 21 and Maven on `PATH`, D14
+   amended): `mvn -q -pl forge-gui-desktop -am clean package -DskipTests
    -Dmaven.test.skip=true`. `clean` is not optional across a pin move: an
    incremental build can re-package stale classes from the previous checkout.
 4. **Verifies the jar** ("The jar check is not optional" below): `forge/view/Main.class`
@@ -159,17 +159,11 @@ gate once and prints every step without running one.
 Installing under `jars/$PIN.jar` changes no running server. CI does not read it:
 every `forge.yml` job resolves its bundle through `scripts/forge-bundle.sh`
 ("CI on the CI runners" above), and the claws build a pin they lack themselves.
-hokon cannot: its runner (which takes `forge.yml` jobs when the claws are full)
-has no `mvn` on `PATH`, so a pin missing from hokon's cache dies with
-`forge-bundle: required tool not on PATH: mvn` (2026-10-14, pin `f6f65d7`). So
-seed hokon's cache in the same quiet window as the build:
-
-```sh
-# hokon's CI cache for this pin (from the deploy tree, which carries the new pin).
-cd /home/hadoku/srv/hadoku-cardtable && \
-  PATH="$HOME/.local/opt/jdk-21.0.12.1+1/bin:$HOME/.local/opt/apache-maven-3.9.16/bin:$PATH" \
-  bash scripts/forge-bundle.sh
-```
+hokon's runner (which takes `forge.yml` jobs when the claws are full) had no
+`mvn` on `PATH` until the fleet began managing Maven (2026-11-01), so a pin
+missing from its cache died with `forge-bundle: required tool not on PATH: mvn`
+(2026-10-14, pin `f6f65d7`). It now builds a missing pin itself like the claws;
+no hand-seeding with a user-local toolchain.
 
 ## How a new pin reaches PPE and prod
 

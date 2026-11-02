@@ -41,10 +41,12 @@ describe('defaultJava', () => {
 		expect(java).toBe(join(root, 'home-jdk', 'bin', 'java'));
 	});
 
-	it('prefers the user-local Temurin over both (D14)', () => {
-		const root = tree('home/.local/opt/jdk-21.0.1', 'home-jdk');
-		const java = defaultJava({ HOME: join(root, 'home'), JAVA_HOME: join(root, 'home-jdk'), PATH: '' });
-		expect(java).toBe(join(root, 'home/.local/opt/jdk-21.0.1', 'bin', 'java'));
+	it('ignores a user-local ~/.local/opt JDK: the fleet manages the JDK on PATH (D14, amended)', () => {
+		const root = tree('home/.local/opt/jdk-21.0.1', 'fleet-jdk');
+		mkdirSync(join(root, 'usr-local-bin'));
+		symlinkSync(join(root, 'fleet-jdk', 'bin', 'java'), join(root, 'usr-local-bin', 'java'));
+		const java = defaultJava({ HOME: join(root, 'home'), PATH: join(root, 'usr-local-bin') });
+		expect(java).toBe(join(root, 'fleet-jdk', 'bin', 'java'));
 	});
 
 	it('is a bare java only when there is none to find', () => {

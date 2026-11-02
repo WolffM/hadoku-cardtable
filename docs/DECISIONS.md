@@ -378,6 +378,17 @@ operator action needed.
 With both present, stock `mvn install -pl forge-core,forge-game -am -DskipTests`
 passes in **13.2 s warm / 27 s cold `~/.m2`**.
 
+### Amended · 2026-11-02 · the fleet provides the JDK and Maven now
+
+The user-local install is **retired**. Since 2026-11-01 every fleet node carries a
+managed JDK 21 and Maven (`jdk21` and `maven` in `fleet converge-toolchain`:
+`/opt/fleet-tools/…` behind `/usr/local/bin/{java,javac,mvn}` on `PATH`), kept current by
+the fleet. `defaultJava` used to look in `~/.local/opt/jdk-21*` first, so the play
+engine stayed on the 2026-08-18 tarball (Temurin 21.0.12) that nothing updates, and
+the hub shipped that same JDK to the claws' agents (`packBase`). It now takes
+`JAVA_HOME`, then `java` on `PATH`; `CARDTABLE_JAVA` is still the override. The
+capture script finds its JDK through `javac` on `PATH` the same way. hadoku-cardtable#30.
+
 ## D15 — Card art is hosted on `cdn.hadoku.me` · settled · 2026-09-15 · operator
 
 **Supersedes D13's image clause.** D13 reads *"never commit, host, mirror, cache

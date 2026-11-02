@@ -132,16 +132,16 @@ does not anchor on the line start counts the commented-out constant at
 
 ## Build prerequisites
 
-Java 21 ✓ and Maven ✓ — **both are installed, and both are deliberately off
-`PATH`.** Wave 1 put them under `~/.local/opt` per D14 (no sudo, no host
-mutation): Temurin **JDK 21** and Maven **3.9.16**. `scripts/spike/run.sh`
-resolves them; a bare `which mvn` or `which javac` finds nothing and has now
-misled two separate sessions into reporting a missing toolchain.
+Java 21 ✓ and Maven ✓ — **the fleet provides both, on `PATH`** (D14, amended
+2026-11-02): `jdk21` and `maven` in `fleet converge-toolchain`, a Temurin JDK 21
+and Maven 3.9 under `/opt/fleet-tools`, behind `/usr/local/bin/{java,javac,mvn}`
+on every node, kept current by the fleet. `which javac` and `which mvn` find
+them. The old user-local tarballs under `~/.local/opt` are retired: nothing
+updates them, so never point anything there.
 
-**Before concluding the toolchain is absent, look in `~/.local/opt`.** The JRE
-that *is* on `PATH` has no `javac` and no `lib/ct.sym`, so a stock Forge build
-fails with `error: release version 17 not supported` — which reads like a
-version mismatch and is in fact a missing compiler (D14's amendment).
+A `java` with no `javac` beside it is a JRE, not this JDK, and a stock Forge
+build on it fails with `error: release version 17 not supported` — which reads
+like a version mismatch and is in fact a missing compiler (D14's amendment).
 
 **In a wave worktree, jar suites and e2e need env the worktree does not have**
 (Node 24, `CARDTABLE_FORGE_JAR`, `CARDTABLE_FORGE_RES` from the main checkout's

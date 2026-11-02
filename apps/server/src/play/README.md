@@ -715,9 +715,9 @@ playing it.
 
 ## Running a real match locally
 
-Prerequisites: the prebuilt jar and Forge's `res/` (read-only), and the
-user-local JDK 21 (found automatically under `~/.local/opt/jdk-21*`; the JRE on
-`PATH` cannot run a source-file program).
+Prerequisites: the prebuilt jar and Forge's `res/` (read-only), and a JDK 21: the
+fleet's, found through `JAVA_HOME` or `java` on `PATH` (`defaultJava`; a JRE cannot
+run a source-file program).
 
 ```sh
 # 1. The server (after the index.ts edit above), bare-local, with diagnostics on.

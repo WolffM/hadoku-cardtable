@@ -49,8 +49,8 @@
  *
  *   CARDTABLE_FORGE_JAR              the fat jar, `forge-gui-desktop-*-jar-with-dependencies.jar`  (required)
  *   CARDTABLE_FORGE_RES              Forge's `forge-gui/res` directory                              (required)
- *   CARDTABLE_JAVA                   a JDK 21 `java`; default: `~/.local/opt/jdk-21*\/bin/java` (D14), then
- *                                    `$JAVA_HOME/bin/java`, then `java` on `PATH` (`defaultJava`)
+ *   CARDTABLE_JAVA                   a JDK 21 `java`; default: `$JAVA_HOME/bin/java`, then `java` on `PATH`,
+ *                                    the fleet's managed JDK (`defaultJava`, D14 amended 2026-11-02)
  *   CARDTABLE_PLAY_WORK_DIR          per-JVM run directories; default `<os tmpdir>/cardtable-play`
  *   CARDTABLE_PLAY_JVM_OPTS          extra JVM flags, space-separated; an `-Xmx` here beats `JVM_HEAP_MB`
  *   CARDTABLE_PLAY_WARM_JVM          `0` to keep no JVM booted ahead of a match; default on
@@ -164,20 +164,17 @@ export type JvmAvailability = { ok: true; config: JvmHostConfig } | { ok: false;
  * never exists. That sent every JDK found only on `PATH` to the source launcher, and the pool
  * service with it, which needs the compiled bridge (no set drafts at all on a contributor's machine).
  *
- * In order: the user-local Temurin (D14), `$JAVA_HOME/bin/java`, then the first `java` on `PATH`
- * with its symlinks followed (`/usr/bin/java` is usually a link into the JDK, and `javac` sits beside
- * the real file, not the link). A bare `java` only when none of those exists.
+ * In order: `$JAVA_HOME/bin/java`, then the first `java` on `PATH` with its symlinks followed
+ * (`/usr/local/bin/java` is a link into the fleet's JDK, and `javac` sits beside the real file, not
+ * the link). A bare `java` only when neither exists.
+ *
+ * NOT `~/.local/opt/jdk-21*` any more (D14, amended 2026-11-02). That user-local Temurin was the
+ * right call when the host had only a JRE and no sudo, and this looked there FIRST, so once the
+ * fleet began managing the JDK (`jdk21` in `fleet converge-toolchain`, on PATH) the play engine
+ * kept a tarball from 2026-08-18 that nothing updates. The JDK the hub picks here is also the one
+ * it packs and ships to the claws' agents (`packBase`), so the stale copy travelled with it.
  */
 export function defaultJava(env: NodeJS.ProcessEnv = process.env): string {
-	const opt = join(env.HOME ?? homedir(), '.local', 'opt');
-	if (existsSync(opt)) {
-		const jdk = readdirSync(opt)
-			.filter((d) => d.startsWith('jdk-21'))
-			.sort()
-			.map((d) => join(opt, d, 'bin', 'java'))
-			.find((p) => existsSync(p));
-		if (jdk !== undefined) return jdk;
-	}
 	const candidates = [
 		...(env.JAVA_HOME ? [join(env.JAVA_HOME, 'bin', 'java')] : []),
 		...(env.PATH ?? '').split(delimiter).filter((dir) => dir !== '').map((dir) => join(dir, 'java')),

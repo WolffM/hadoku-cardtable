@@ -40,10 +40,12 @@ REPO="$(cd "$HERE/../../../../.." && pwd -P)"
 WORK_DIR="${WORK_DIR:?set WORK_DIR to a scratch directory}"
 OUT_DIR="${OUT_DIR:?set OUT_DIR to a scratch directory}"
 
-if [[ -z "${JAVA_HOME:-}" ]]; then
-  JAVA_HOME="$(ls -d "$HOME"/.local/opt/jdk-21* 2>/dev/null | head -1 || true)"
+# The fleet's managed JDK, found through the javac on PATH (D14, amended 2026-11-02:
+# no more ~/.local/opt tarball). JAVA_HOME still wins when set.
+if [[ -z "${JAVA_HOME:-}" ]] && command -v javac >/dev/null; then
+  JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")"
 fi
-[[ -n "$JAVA_HOME" && -x "$JAVA_HOME/bin/javac" ]] || { echo "No JDK 21 (javac) — set JAVA_HOME; see ~/.local/opt." >&2; exit 2; }
+[[ -n "${JAVA_HOME:-}" && -x "$JAVA_HOME/bin/javac" ]] || { echo "No JDK 21 (javac) — set JAVA_HOME, or install the fleet's jdk21 (fleet converge-toolchain)." >&2; exit 2; }
 
 [[ -n "${FORGE_DIR:-}" ]] || { echo "FORGE_DIR is not set (a BUILT scratch copy, never the vendored forge/)." >&2; exit 2; }
 FORGE_DIR="$(cd "$FORGE_DIR" && pwd -P)"
