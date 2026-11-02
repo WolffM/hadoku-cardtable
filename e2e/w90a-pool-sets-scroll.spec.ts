@@ -10,6 +10,7 @@ import { PREFIX } from './identities.ts';
 import { resizeWindow } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
 import { submitCreateRoom } from './play/rooms.ts';
+import { choosePool } from './play/pool.ts';
 
 const UI_TIMEOUT = 20_000;
 
@@ -38,8 +39,7 @@ test('a mouse drag scrolls the era’s set symbols sideways too, and never fires
     await alice.page.waitForURL(/#\/room\/[a-z0-9-]+$/, { timeout: UI_TIMEOUT });
 
     const richest = await richestStandardEra(alice.page);
-    await alice.page.getByTestId('format-tab-standard').click();
-    await alice.page.getByTestId('format').selectOption(richest.id);
+    await choosePool(alice.page, richest.id);
     await expect(alice.page.getByTestId('pool-sets')).toBeVisible({ timeout: UI_TIMEOUT });
 
     const row = alice.page.getByTestId('pool-sets');

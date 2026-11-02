@@ -14,6 +14,7 @@ import { forgeAvailability, startPlayStack, type PlayStack } from '../play/harne
 import { openCreateRoom, submitCreateRoom } from '../play/rooms.ts';
 import { fillWithAi, readyPod } from '../podSeats.ts';
 import { attempt, expect, openPhone, shot, shotSizes } from './phone.ts';
+import { choosePool, poolValue } from '../play/pool.ts';
 
 const forge = forgeAvailability();
 
@@ -177,19 +178,13 @@ test('room: constructed room, a live match through the room, spectator, result, 
       }
       await alice.page.getByRole('tab', { name: first, exact: true }).click();
       await alice.page.waitForTimeout(1_000);
-      await alice.page.getByTestId('format').selectOption(choice.format);
+      await choosePool(alice.page, choice.format);
       await alice.page.waitForTimeout(2_000);
       await shotSizes(alice.page, 'room-era', { area: 'rooms', route: '#/room/<id>', state: `era ${choice.format}: the deck grid` }, { small: true, full: true });
     });
 
     // The era the decks below are legal in, whatever the tour above left selected.
-    if ((await alice.page.getByTestId('format').inputValue().catch(() => '')) !== choice.format) {
-      for (const tab of await alice.page.getByRole('tab').all()) {
-        await tab.click();
-        if ((await alice.page.getByTestId('format').locator(`option[value="${choice.format}"]`).count()) > 0) break;
-      }
-      await alice.page.getByTestId('format').selectOption(choice.format);
-    }
+    if ((await poolValue(alice.page).catch(() => '')) !== choice.format) await choosePool(alice.page, choice.format);
     await bob.page.goto(roomUrl);
     await bob.page.getByTestId('constructed').waitFor({ timeout: 30_000 });
     await bob.page.waitForTimeout(1_500);

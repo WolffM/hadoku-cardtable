@@ -144,6 +144,7 @@ import {
 import { checkPlayIsolation, foldStream, unseenNamed, type PlaySeatLog } from './play/isolation.ts';
 import { FIXTURE_FILE, load, mutations, unseenCases } from './play/fixture.ts';
 import { TURN_TEXT, turnNumber } from './play/turn.ts';
+import { choosePool } from './play/pool.ts';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -600,20 +601,6 @@ function roomRow(f: Friend, roomId: string): Locator {
 }
 
 /**
- * Set the table's pool. The LEADER's control, and there is one of it.
- *
- * Wave 25: the pool is the room's, not the seat's — the leader moves it with a
- * `PATCH /api/rooms/:id` and everybody else reads it. So the wait is on the
- * select reading back what was asked for, which means the ROOM is on it: the
- * control is bound to the room record, so a refused or lost write snaps the
- * value back to whatever the table is actually on.
- */
-async function setRoomPool(f: Friend, format: string): Promise<void> {
-  await f.page.getByTestId('format').selectOption(format);
-  await expect(f.page.getByTestId('format'), `${f.name}: the room is on the pool they chose`).toHaveValue(format);
-}
-
-/**
  * Choose a deck in the room's own picker. Yours only, and no format with it.
  *
  * Choosing the deck IS loading it — the Load button is gone (wave 22 §B), so
@@ -769,7 +756,7 @@ test(LIVE_TITLE, async ({ browser }) => {
     // selects the room mode … people who join can only select from the deck
     // dropdown"*. Alice made the room, so the pool is hers; bob has no control
     // for it at all, and his screen follows hers without him pressing anything.
-    await setRoomPool(alice, choice.format);
+    await choosePool(alice.page, choice.format);
     const bobPool = bob.page.getByTestId('format-fixed');
     await expect(bobPool, "bob's screen follows the pool alice set").toHaveAttribute('data-format', choice.format);
     expect(await bob.page.getByTestId('format').count(), 'bob has no pool control, only a deck list').toBe(0);

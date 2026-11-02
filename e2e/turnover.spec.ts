@@ -10,6 +10,7 @@ import { makeTitled } from './play/board.ts';
 import { chooseClassic, embedContext, embedHostUrl, mountEmbed } from './play/embed.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { TURN_TEXT } from './play/turn.ts';
+import { choosePool } from './play/pool.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -35,7 +36,7 @@ test(titled('embed turnover: the loser and a watcher press Main menu and are bac
     // alice bound the room first, so she leads it and picks its mode.
     await chooseClassic(alice);
     const choice = await twoLegalDecks(alice.context().request, stack.origin);
-    await alice.getByTestId('format').selectOption(choice.format);
+    await choosePool(alice, choice.format);
     await expect(bob.getByTestId('format-fixed')).toHaveAttribute('data-format', choice.format);
     for (const [page, deck] of [[alice, choice.decks[0]], [bob, choice.decks[1]]] as const) {
       await expect(page.getByTestId('deck-mine')).toBeEnabled();

@@ -138,6 +138,7 @@ import { submitCreateRoom } from './play/rooms.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 import { turnNumber } from './play/turn.ts';
 import { boxOf, chooseLanes, DRAG_HOOKS, endOfSlot, onTopPoint, pointerDrag, touchDrag, viewerSlot } from './play/w32.ts';
+import { choosePool } from './play/pool.ts';
 
 const PREFIX = '/cardtable';
 /** Play at least this far, so the check has seen many turn transitions. */
@@ -639,13 +640,11 @@ async function enterMatch(alice: Friend, bob: Friend, origin: string, summary: R
    * The pool is the TABLE's and the leader is the one who moves it (wave 25 §B).
    * Alice made the room, so it is hers; bob has no `format` control at all, and
    * driving one on his page is a twenty-second wait for an element that is not
-   * coming. The wait is on the select reading its value back, which means the
-   * room record is on it — the control is bound to the room, so a refused write
-   * snaps it back.
+   * coming. `choosePool` waits for the room to answer, so the slider reads the
+   * pool the room is on.
    */
   await expect(alice.page.getByTestId('constructed')).toBeVisible();
-  await alice.page.getByTestId('format').selectOption(choice.format);
-  await expect(alice.page.getByTestId('format'), 'the room is on the pool alice chose').toHaveValue(choice.format);
+  await choosePool(alice.page, choice.format);
   await expect(bob.page.getByTestId('format-fixed'), "bob's screen follows it").toHaveAttribute(
     'data-format',
     choice.format,

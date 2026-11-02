@@ -25,6 +25,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { createRoom } from './play/board.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
+import { choosePool, poolEras, poolValue } from './play/pool.ts';
 
 /** The longest a switch to a warmed list may hold the old grid. */
 const HOLD_MS = 400;
@@ -113,10 +114,10 @@ test('a year switch crossfades the old decks straight into the new, with no dark
   await expect(picker.locator('.deckpick__option--leaving, .skeleton')).toHaveCount(0, { timeout: 15_000 });
   await page.waitForTimeout(2_500);
 
-  const select = page.getByTestId('format');
-  const eras = (await select.locator('option').evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value))).filter((v) => v !== '');
-  const current = await select.inputValue();
-  // Each switch to the year beside the last (the select lists them newest first).
+  const eras = await poolEras(page);
+  const current = await poolValue(page);
+  // Each switch to the year beside the last (the slider lays them out oldest first, so a room on the
+  // newest steps back through the three before it).
   const at = eras.indexOf(current);
   const order = at + 3 < eras.length ? eras.slice(at + 1, at + 4) : eras.slice(Math.max(0, at - 3), at).reverse();
   expect(order.length, 'three years in a row to step through').toBe(3);
@@ -125,8 +126,7 @@ test('a year switch crossfades the old decks straight into the new, with no dark
     // Idle long enough for the years beside this one to warm.
     await page.waitForTimeout(3_000);
     await begin(page);
-    await select.selectOption(era);
-    await expect(select).toHaveValue(era);
+    await choosePool(page, era);
     await expect.poll(() => tiles.count(), { timeout: 30_000 }).toBeGreaterThan(6);
     await expect(picker.locator('.deckpick__option--leaving, .skeleton')).toHaveCount(0, { timeout: 15_000 });
     // Past every animation, so a late fade-in on the new tiles is sampled too.

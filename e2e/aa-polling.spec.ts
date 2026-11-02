@@ -27,6 +27,7 @@ import { enterMatch, makeTitled, readyFromSideboard } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
+import { choosePool, poolEras, poolValue } from './play/pool.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -133,16 +134,14 @@ test('an open room, the lobby and a hidden tab: no polling, and a change arrives
 
     // Alice moves the pool: bob's screen follows without a poll.
     await expect(bobInRoom.getByTestId('format-fixed')).toBeVisible({ timeout: 30_000 });
-    const current = await room.getByTestId('format').inputValue();
-    const other = (await room.getByTestId('format').locator('option').evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value))).find(
-      (v) => v !== '' && v !== current,
-    );
-    if (other === undefined) throw new Error(`the format picker offers nothing but ${current}`);
+    const current = await poolValue(room);
+    const other = (await poolEras(room)).find((v) => v !== current);
+    if (other === undefined) throw new Error(`the year slider offers nothing but ${current}`);
     const bobLog = countRoomReads(bobInRoom);
     await bobInRoom.waitForTimeout(3_000);
     const bobIdle = bobLog.length;
     const patched = room.waitForResponse((r) => r.request().method() === 'PATCH' && /\/api\/rooms\/[^/]+$/.test(r.url()));
-    await room.getByTestId('format').selectOption(other);
+    await choosePool(room, other);
     await patched;
     const patchedAt = Date.now();
     const formatMs = await arrival(patchedAt, () =>

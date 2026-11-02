@@ -21,6 +21,7 @@ import { makeTitled, twoLegalDecks } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
+import { choosePool } from './play/pool.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -57,7 +58,7 @@ async function seat(alice: Friend, bob: Friend, stack: PlayStack): Promise<void>
   await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
   await bob.page.goto(alice.page.url());
   await expect(bob.page.getByTestId('constructed')).toBeVisible({ timeout: 30_000 });
-  await alice.page.getByTestId('format').selectOption(choice.format);
+  await choosePool(alice.page, choice.format);
   await expect(bob.page.getByTestId('format-fixed')).toHaveAttribute('data-format', choice.format);
   for (const [f, deck] of [
     [alice, choice.decks[0]],

@@ -79,6 +79,27 @@ export async function pinch(page: Page, opts: PinchOptions): Promise<void> {
 }
 
 /**
+ * A single-finger touch drag from `from` to `to` in `steps` moves, dispatched over CDP: real
+ * `touchStart`/`touchMove`/`touchEnd`, the same shape `pinch` proves works in this harness.
+ */
+export async function swipe(page: Page, from: { x: number; y: number }, to: { x: number; y: number }, steps = 12): Promise<void> {
+  const client = await page.context().newCDPSession(page);
+  const point = (x: number, y: number) => ({ x, y, radiusX: 11, radiusY: 11, force: 1, id: 1 });
+  try {
+    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point(from.x, from.y)] });
+    for (let i = 1; i <= steps; i++) {
+      const x = from.x + ((to.x - from.x) * i) / steps;
+      const y = from.y + ((to.y - from.y) * i) / steps;
+      await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [point(x, y)] });
+      await page.waitForTimeout(16);
+    }
+    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } finally {
+    await client.detach().catch(() => undefined);
+  }
+}
+
+/**
  * Settled 3: "the page body never scrolls sideways. Only lanes do." One assertion every phone spec
  * that renders the board makes: the document's own scrolling element has nothing to scroll past its
  * own width. A board lane's OWN scroller (Settled 3's four lanes) may scroll sideways on its own axis;

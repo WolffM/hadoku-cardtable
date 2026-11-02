@@ -23,6 +23,7 @@ import { openFriend, type Friend } from './play/browser.ts';
 import { twoLegalDecks } from './play/enter.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
+import { choosePool } from './play/pool.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -240,7 +241,7 @@ test(titled('against the AI in Classic: a Rematch keeps the bot’s deck, after 
     await alice.page.goto(`${stack.origin}/cardtable/`);
     await submitCreateRoom(alice.page, { name: `e2e bot deck ${Date.now()}` });
     await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
-    await alice.page.getByTestId('format').selectOption(choice.format);
+    await choosePool(alice.page, choice.format);
     await expect(alice.page.getByTestId('deck-mine')).toBeEnabled({ timeout: 15_000 });
     await alice.page.getByTestId('deck-mine').locator(`[data-deck-id="${choice.decks[0]}"]`).click();
 

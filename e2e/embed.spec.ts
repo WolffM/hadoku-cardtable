@@ -29,6 +29,7 @@ import { openFriend } from './play/browser.ts';
 import { chooseClassic, embedContext, embedHostUrl, mountEmbed } from './play/embed.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { TURN_TEXT } from './play/turn.ts';
+import { choosePool } from './play/pool.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -303,7 +304,7 @@ test(titled('the embed plays a match against Forge’s AI, and unmount closes it
     await mountEmbed(page);
     await expect(page.getByTestId('constructed')).toBeVisible({ timeout: 30_000 });
     await chooseClassic(page);
-    await page.getByTestId('format').selectOption(choice.format);
+    await choosePool(page, choice.format);
     await expect(page.getByTestId('deck-mine')).toBeEnabled();
     await page.getByTestId('deck-mine').locator(`[data-deck-id="${choice.decks[0]}"]`).click();
     await page.getByTestId('play-vs-bot').click();

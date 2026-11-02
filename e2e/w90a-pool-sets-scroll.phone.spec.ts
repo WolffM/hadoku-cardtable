@@ -14,8 +14,9 @@ import { expect, test, type Page } from '@playwright/test';
 import { PREFIX } from './identities.ts';
 import { openFriend } from './play/browser.ts';
 import { PHONE } from './play/phone.ts';
-import { noSideways } from './play/phone.ts';
+import { noSideways, swipe } from './play/phone.ts';
 import { submitCreateRoom } from './play/rooms.ts';
+import { choosePool } from './play/pool.ts';
 
 test.use(PHONE);
 
@@ -60,8 +61,7 @@ test('the era’s set symbols scroll sideways, with no visible scrollbar, and th
     await alice.page.waitForURL(/#\/room\/[a-z0-9-]+$/, { timeout: UI_TIMEOUT });
 
     const richest = await richestStandardEra(alice.page);
-    await alice.page.getByTestId('format-tab-standard').click();
-    await alice.page.getByTestId('format').selectOption(richest.id);
+    await choosePool(alice.page, richest.id);
     await expect(alice.page.getByTestId('pool-sets'), 'the richest Standard era draws its sets row').toBeVisible({ timeout: UI_TIMEOUT });
     await expect(alice.page.getByTestId('pool-sets')).toHaveAttribute('data-sets', new RegExp(richest.sets[richest.sets.length - 1] ?? ''));
 
@@ -88,22 +88,3 @@ test('the era’s set symbols scroll sideways, with no visible scrollbar, and th
     await alice.context.close();
   }
 });
-
-/** A single-finger touch swipe (left), dispatched over CDP — real `touchStart`/`touchMove`/
- *  `touchEnd`, the same shape `play/phone.ts`'s `pinch` already proves works in this harness. */
-async function swipe(page: Page, from: { x: number; y: number }, to: { x: number; y: number }, steps = 12): Promise<void> {
-  const client = await page.context().newCDPSession(page);
-  const point = (x: number, y: number) => ({ x, y, radiusX: 11, radiusY: 11, force: 1, id: 1 });
-  try {
-    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point(from.x, from.y)] });
-    for (let i = 1; i <= steps; i++) {
-      const x = from.x + ((to.x - from.x) * i) / steps;
-      const y = from.y + ((to.y - from.y) * i) / steps;
-      await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [point(x, y)] });
-      await page.waitForTimeout(16);
-    }
-    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  } finally {
-    await client.detach().catch(() => undefined);
-  }
-}

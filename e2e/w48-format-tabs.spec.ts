@@ -20,6 +20,7 @@ import { expect, test, type Browser, type BrowserContext, type Page } from '@pla
 
 import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { createRoom } from './play/board.ts';
+import { choosePool, expectPoolOn, poolEras, poolValue } from './play/pool.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
 
 test.describe.configure({ mode: 'serial' });
@@ -68,51 +69,43 @@ test('the leader switches Standard → Modern → Legacy and picking a Legacy er
   await expect(alice.page.getByTestId('format-tab-standard')).toHaveAttribute('aria-selected', 'true');
   await expect(alice.page.getByTestId('format-tab-modern')).toHaveAttribute('aria-selected', 'false');
   await expect(alice.page.getByTestId('format-tab-legacy')).toHaveAttribute('aria-selected', 'false');
-  const select = alice.page.getByTestId('format');
-  const standardOptions = await select.locator('option').allTextContents();
-  expect(standardOptions.length).toBeGreaterThan(0);
+  const standardEras = await poolEras(alice.page);
+  expect(standardEras.length).toBeGreaterThan(0);
 
-  // Switching to Modern changes which eras the select offers AND moves the room onto Modern's
-  // first (newest) era, since its Standard pool is not one of them (the operator, 2026-10-07:
+  // Switching to Modern changes which years the slider offers AND moves the room onto Modern's
+  // newest era, since its Standard pool is not one of them (the operator, 2026-10-07:
   // "selecting modern should default the year selection to the first available").
   await alice.page.getByTestId('format-tab-modern').click();
   await expect(alice.page.getByTestId('format-tab-modern')).toHaveAttribute('aria-selected', 'true');
-  const modernOptions = await select.locator('option').allTextContents();
-  expect(modernOptions.length).toBeGreaterThan(0);
-  expect(modernOptions).not.toEqual(standardOptions);
-  const firstModern = (await select.locator('option').evaluateAll((opts) => opts.map((o) => (o as HTMLOptionElement).value))).find((id) => id !== '')!;
-  await expect(select, 'Modern’s first era is chosen for the room at once').toHaveValue(firstModern);
+  const modernEras = await poolEras(alice.page);
+  expect(modernEras.length).toBeGreaterThan(0);
+  expect(modernEras).not.toEqual(standardEras);
+  await expectPoolOn(alice.page, modernEras.at(-1)!, 'Modern’s newest era is chosen for the room at once');
 
   // Legacy, the same way, then an actual pick of another era: the room's pool must move, proven
-  // by reading it back rather than trusting the click.
+  // by reading it back rather than trusting the gesture.
   await alice.page.getByTestId('format-tab-legacy').click();
   await expect(alice.page.getByTestId('format-tab-legacy')).toHaveAttribute('aria-selected', 'true');
-  const firstLegacy = (await select.locator('option').evaluateAll((opts) => opts.map((o) => (o as HTMLOptionElement).value))).find((id) => id !== '')!;
-  await expect(select, 'Legacy’s first era is chosen for the room at once').toHaveValue(firstLegacy);
-  const legacyIds = (await select.locator('option').evaluateAll((opts) => opts.map((o) => (o as HTMLOptionElement).value))).filter(
-    (id) => id !== '',
-  );
+  const legacyIds = await poolEras(alice.page);
+  const newestLegacy = legacyIds.at(-1)!;
+  await expectPoolOn(alice.page, newestLegacy, 'Legacy’s newest era is chosen for the room at once');
   expect(legacyIds.length).toBeGreaterThan(0);
   for (const id of legacyIds) expect(id.startsWith('legacy-')).toBe(true);
 
-  // The tab click already chose Legacy's first era, so the pick that proves a real change
-  // is the SECOND one: selecting the option already chosen fires no `change` at all (the
-  // native no-op this spec first caught live).
-  const chosen = legacyIds[1] ?? legacyIds[0]!;
-  expect(chosen, 'a second Legacy era exists to move to').not.toBe(firstLegacy);
+  const chosen = legacyIds.at(-2) ?? newestLegacy;
+  expect(chosen, 'a second Legacy era exists to move to').not.toBe(newestLegacy);
   const patched = alice.page.waitForResponse(
     (res) => res.request().method() === 'PATCH' && res.url().includes('/api/rooms/') && res.status() === 200,
   );
-  await select.selectOption(chosen);
+  await choosePool(alice.page, chosen);
   await patched;
-  await expect(select, 'the leader’s own control reads the pool it just set').toHaveValue(chosen);
 
   // Read the room back from a FRESH page — not the one that made the change —
   // so this proves the server's record moved, not merely this browser's local
   // state. A second friend is unnecessary: re-navigating is enough to force a
   // fresh read of `GET /api/tables/rooms/:roomId`.
   await alice.page.reload();
-  await expect(alice.page.getByTestId('format')).toHaveValue(chosen);
+  await expectPoolOn(alice.page, chosen);
   // And the tab re-opened on Legacy, matching the room's own era, not Standard.
   await expect(alice.page.getByTestId('format-tab-legacy')).toHaveAttribute('aria-selected', 'true');
 
@@ -130,13 +123,10 @@ test('a reload on a Legacy room opens the Legacy tab with its era chosen when th
   await expect(alice.page.getByTestId('room-create-open')).toBeVisible();
   const roomId = await createRoom(alice, `w48 reload ${Date.now()}`);
 
-  const select = alice.page.getByTestId('format');
   await alice.page.getByTestId('format-tab-legacy').click();
   await expect(alice.page.getByTestId('format-tab-legacy')).toHaveAttribute('aria-selected', 'true');
-  const firstLegacy = (await select.locator('option').evaluateAll((opts) => opts.map((o) => (o as HTMLOptionElement).value))).find(
-    (id) => id !== '',
-  )!;
-  await expect(select).toHaveValue(firstLegacy);
+  const firstLegacy = (await poolEras(alice.page)).at(-1)!;
+  await expectPoolOn(alice.page, firstLegacy);
 
   // On a reload the room record can answer before the deck catalogue (CI, 1 run in ~40). Holding
   // the catalogue until the room has answered makes that ordering the only one.
@@ -149,11 +139,11 @@ test('a reload on a Legacy room opens the Legacy tab with its era chosen when th
     await route.continue();
   });
   await alice.page.reload();
-  await expect(select).toBeVisible();
+  await expect(alice.page.getByTestId('format')).toBeVisible();
   const tab = await alice.page.locator('[data-testid^="format-tab-"][aria-selected="true"]').getAttribute('data-testid');
-  console.log(`[w48-reload] room on ${firstLegacy}: open tab ${tab}, select reads "${await select.inputValue()}"`);
+  console.log(`[w48-reload] room on ${firstLegacy}: open tab ${tab}, slider reads "${await poolValue(alice.page)}"`);
   await expect(alice.page.getByTestId('format-tab-legacy')).toHaveAttribute('aria-selected', 'true');
-  await expect(select).toHaveValue(firstLegacy);
+  await expectPoolOn(alice.page, firstLegacy);
 });
 
 // The operator, 2026-10-13: "let's go further back with the formats, try to back as far as
@@ -166,17 +156,15 @@ test('the Standard tab reaches back to Type 2’s 1995 summer and its decks load
   await createRoom(alice, `af41 oldest ${Date.now()}`);
 
   await expect(alice.page.getByTestId('format-tab-standard')).toHaveAttribute('aria-selected', 'true');
-  const select = alice.page.getByTestId('format');
-  const ids = (await select.locator('option').evaluateAll((opts) => opts.map((o) => (o as HTMLOptionElement).value))).filter((id) => id !== '');
-  console.log(`[af41] Standard eras ${ids.at(-1)} .. ${ids[0]} (${ids.length})`);
-  expect(ids.at(-1), 'the oldest Standard era is the last option').toBe('1995-07-01');
+  const ids = await poolEras(alice.page);
+  console.log(`[af41] Standard eras ${ids[0]} .. ${ids.at(-1)} (${ids.length})`);
+  expect(ids[0], 'the oldest Standard era is the slider’s left end').toBe('1995-07-01');
 
   const patched = alice.page.waitForResponse(
     (res) => res.request().method() === 'PATCH' && res.url().includes('/api/rooms/') && res.status() === 200,
   );
-  await select.selectOption('1995-07-01');
+  await choosePool(alice.page, '1995-07-01');
   await patched;
-  await expect(select).toHaveValue('1995-07-01');
 
   const picker = alice.page.getByTestId('deck-mine');
   await expect(picker).toBeEnabled();

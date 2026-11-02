@@ -16,6 +16,7 @@ import { makeTitled, serverLog, twoLegalDecks } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
+import { choosePool } from './play/pool.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -50,7 +51,7 @@ async function enterSideboardedMatch(
   await bob.page.goto(roomUrl);
   await expect(alice.page.getByTestId('constructed')).toBeVisible();
   await expect(bob.page.getByTestId('constructed'), 'bob is in the room alice made').toBeVisible({ timeout: 30_000 });
-  await alice.page.getByTestId('format').selectOption(choice.format);
+  await choosePool(alice.page, choice.format);
   await expect(bob.page.getByTestId('format-fixed')).toHaveAttribute('data-format', choice.format);
   for (const [f, deck] of [
     [alice, choice.decks[0]],

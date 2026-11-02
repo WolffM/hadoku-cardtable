@@ -12,6 +12,7 @@ import { expect, type APIRequestContext } from '@playwright/test';
 import type { Friend } from './browser.ts';
 import { submitCreateRoom } from './rooms.ts';
 import { TURN_TEXT } from './turn.ts';
+import { choosePool } from './pool.ts';
 
 const PREFIX = '/cardtable';
 
@@ -49,7 +50,7 @@ export async function seatBoth(alice: Friend, bob: Friend, origin: string): Prom
   await bob.page.goto(roomUrl);
   await expect(alice.page.getByTestId('constructed')).toBeVisible();
   await expect(bob.page.getByTestId('constructed'), 'bob is in the room alice made').toBeVisible({ timeout: 30_000 });
-  await alice.page.getByTestId('format').selectOption(choice.format);
+  await choosePool(alice.page, choice.format);
   await expect(bob.page.getByTestId('format-fixed')).toHaveAttribute('data-format', choice.format);
   for (const [f, deck] of [
     [alice, choice.decks[0]],

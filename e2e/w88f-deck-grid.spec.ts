@@ -21,6 +21,7 @@ import { expect, test, type Browser, type BrowserContext, type Page } from '@pla
 import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { createRoom } from './play/board.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
+import { choosePool, poolEras, poolValue } from './play/pool.ts';
 
 /** Hosts card art may come from (CLAUDE.md, D15; unrestricted since D18). */
 const ART_HOSTS = new Set(['cdn.hadoku.me', 'cards.scryfall.io']);
@@ -97,9 +98,8 @@ test('flipping eras: the old grid fades, no face paints before its art, and the 
   const tiles = picker.getByTestId('deck-option');
   await expect.poll(() => tiles.count(), { timeout: 30_000 }).toBeGreaterThan(0);
 
-  const select = page.getByTestId('format');
-  const eras = (await select.locator('option').evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value))).filter((v) => v !== '');
-  const current = await select.inputValue();
+  const eras = await poolEras(page);
+  const current = await poolValue(page);
   const flips = eras.filter((e) => e !== current).slice(0, 3);
   expect(flips.length, 'three other eras to flip through').toBe(3);
 
@@ -109,8 +109,7 @@ test('flipping eras: the old grid fades, no face paints before its art, and the 
     const before = (await seen(page)).leaving;
     const tall = await height();
     await watchFlip(page);
-    await select.selectOption(era);
-    await expect(select).toHaveValue(era);
+    await choosePool(page, era);
     // The new era's decks, and only those: every tile left over from the last era has gone.
     await expect.poll(() => tiles.count(), { timeout: 30_000 }).toBeGreaterThan(0);
     await expect(picker.locator('.deckpick__option--leaving, .skeleton')).toHaveCount(0, { timeout: 10_000 });

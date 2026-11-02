@@ -65,6 +65,7 @@ import { resizeWindow } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
 import { twoLegalDecks } from './play/enter.ts';
+import { choosePool } from './play/pool.ts';
 
 const PREFIX = '/cardtable';
 const forge = forgeAvailability();
@@ -157,7 +158,7 @@ test('a room with two live tables: a watcher is carried in once, stays in the ro
     expect(table2, 'the new table carries an id').toBeTruthy();
 
     // ── table 1: alice vs the AI, through the product ───────────────────
-    await alice.page.getByTestId('format').selectOption(choice.format);
+    await choosePool(alice.page, choice.format);
     await expect(alice.page.getByTestId('deck-mine')).toBeEnabled({ timeout: 15_000 });
     await alice.page.getByTestId('deck-mine').locator(`[data-deck-id="${choice.decks[0]}"]`).click();
     await expect(alice.page.getByTestId('play-vs-bot'), 'alice may start the AI once her deck is legal').toBeEnabled({ timeout: 15_000 });
