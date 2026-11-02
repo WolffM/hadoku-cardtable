@@ -103,6 +103,8 @@ for (const moment of MOMENTS) {
       film.mark('board');
       await film.beat(1_200);
       for (const step of moment.steps) {
+        // `cast` is where the hero starts the step (the lead-in of an uncut clip begins here).
+        film.mark('cast');
         if ('attack' in step) {
           await swing(page, step.attack);
           film.mark('go');
