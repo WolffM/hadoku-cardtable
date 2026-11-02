@@ -371,6 +371,7 @@ import type { ShownFlip, ShownRoll } from './shown.ts';
 import { WatcherStatus } from './WatcherStatus.tsx';
 import { TurnCue, useYourTurnCue } from './TurnCue.tsx';
 import { installDialogMover, QuestionHost, restingTop } from './movable.tsx';
+import { phaseSegmentsOf, PHASE_ORDER } from './phase-segments.ts';
 
 /* ── Where the match is: seven states, one line ───────────────────────── */
 
@@ -1260,22 +1261,12 @@ function sameLogLine(a: LogLineProps, b: LogLineProps): boolean {
  * renames none. The GROUPS are the turn's own structure, and they are what
  * makes a column of thirteen readable at a glance: a gap between groups, and
  * only the step the game is on says its name.
+ *
+ * Moved to `./phase-segments.ts` (wave 89 §B) so the portrait phase bar's
+ * five-segment grouping reads the same list rather than a second copy that
+ * could drift from this one. Re-imported here under its old name: every use
+ * below (`railRows`, `nextStepName`, `PhaseRail`) is unchanged.
  */
-const PHASE_ORDER: ReadonlyArray<{ phase: string; group: string }> = [
-  { phase: 'UNTAP', group: 'begin' },
-  { phase: 'UPKEEP', group: 'begin' },
-  { phase: 'DRAW', group: 'begin' },
-  { phase: 'MAIN1', group: 'main1' },
-  { phase: 'COMBAT_BEGIN', group: 'combat' },
-  { phase: 'COMBAT_DECLARE_ATTACKERS', group: 'combat' },
-  { phase: 'COMBAT_DECLARE_BLOCKERS', group: 'combat' },
-  { phase: 'COMBAT_FIRST_STRIKE_DAMAGE', group: 'combat' },
-  { phase: 'COMBAT_DAMAGE', group: 'combat' },
-  { phase: 'COMBAT_END', group: 'combat' },
-  { phase: 'MAIN2', group: 'main2' },
-  { phase: 'END_OF_TURN', group: 'end' },
-  { phase: 'CLEANUP', group: 'end' },
-];
 
 /**
  * Whose turn it is, in the one word the rail has room for.
@@ -1532,6 +1523,15 @@ function rowHoldsStop(row: string, stop: StopPhase | null, myTurn: boolean): boo
  * either turn, and the server clears it once spent. The pending stop is
  * `data-stop` on its row; a second click clears it. A spectator's rail takes no
  * click.
+ *
+ * **Wave 89 §B**: the same element also carries a second, portrait-only row
+ * (`.live__segments`) — Settled 2's five segments (Begin, Main, Combat, Main
+ * 2, End), computed by `./phase-segments.ts`'s pure `phaseSegmentsOf` from the
+ * same `view.phase`. It is not a second `PhaseRail`: `live.css` shows exactly
+ * one of `.live__steps` / `.live__segments` depending on
+ * `:root[data-layout]`, so desktop keeps drawing the thirteen-row column it
+ * always has and portrait draws the five-box bar, off the same `data-whose` /
+ * `data-phase` / `data-turn` this element already carries.
  */
 function PhaseRail({ view, stop, onStop }: { view: BoardView; stop: StopPhase | null; onStop: ((phase: StopPhase | null) => void) | null }) {
   const at = PHASE_ORDER.findIndex((p) => p.phase === view.phase);
@@ -1539,6 +1539,7 @@ function PhaseRail({ view, stop, onStop }: { view: BoardView; stop: StopPhase | 
   const inCombat = at >= 0 && PHASE_ORDER[at]!.group === 'combat';
   const rows = railRows(inCombat);
   const crawling = useCrawlGuard(view.phase);
+  const segments = phaseSegmentsOf(view.phase ?? null, rowLabel);
   return (
     <div
       className="live__phases"
@@ -1573,6 +1574,27 @@ function PhaseRail({ view, stop, onStop }: { view: BoardView; stop: StopPhase | 
             </li>
           );
         })}
+      </ol>
+      {/*
+       * Portrait only (`live.css` shows exactly one of this and `.live__steps`
+       * for a given `data-layout`); desktop never lays this out, so it costs
+       * the rail nothing there. `display: none` already keeps it (and
+       * `.live__steps` in portrait) out of the accessibility tree, so neither
+       * needs `aria-hidden` on top of that.
+       */}
+      <ol className="live__segments" aria-label="Phase">
+        {segments.map((seg) => (
+          <li key={seg.group} className="live__segment" data-group={seg.group} data-current={seg.current ? '' : undefined}>
+            <span className="live__segment-name">{seg.current ? seg.stepLabel : seg.label}</span>
+            {seg.current && seg.tickCount > 1 && (
+              <span className="live__segment-ticks" data-testid="live-phase-ticks">
+                {seg.steps.map((step, i) => (
+                  <span key={step} className="live__segment-tick" data-done={i < seg.tickIndex ? '' : undefined} data-current={i === seg.tickIndex ? '' : undefined} />
+                ))}
+              </span>
+            )}
+          </li>
+        ))}
       </ol>
     </div>
   );
@@ -3059,6 +3081,18 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   /** Null while there is nobody left for "All" to declare, or outside declare-attackers — {@link attackAllTarget}. */
   const allTarget = attackAllTarget(match);
   /*
+   * Wave 89 §B, `action-primary` (Settled 7: "Pass / next step / Resolve").
+   * NOT a new sender: it mirrors `live-decision-host`'s own OK button — same
+   * label computation (`combatDone ?? passLabel(route) ?? bar.label1`), same
+   * `pressWithSound(match, 'ok')` — so a tap here and a tap on the (lane C)
+   * docked decision's own OK do exactly the same thing. It stays off the
+   * mulligan bottom pick deliberately: that decision already reads as a
+   * count-down sentence with its own pop-up, and "Pass" on a second button
+   * for it would be confusing where this one is not.
+   */
+  const primaryEnabled = decisionOk && !mulliganPick;
+  const primaryLabel = combatDone ?? passLabel(route) ?? bar?.label1 ?? 'Pass';
+  /*
    * The operator, 2026-10-20 (m-b752a3424b43): Tinker's sacrifice "never popped up on my screen" until a
    * reload, and no repro failed to draw it (`e2e/tk-tinker.spec.ts`). What the board draws for a pick, and
    * every condition that decides it, as the pick opens and again 3 s later.
@@ -3253,23 +3287,81 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   const [logOpen, setLogOpen] = useState(false);
   const logbookId = useId();
   /*
+   * Wave 89 §B: the portrait action bar's own menu (Settled 7 — Game log, End
+   * turn, Full control, Concede, behind one disclosure). Local state, a
+   * preference about what is on screen like `logOpen` above, not a `LiveMatch`
+   * field. `live.css` only lays this out under `:root[data-layout="portrait"]`
+   * (`display: contents` elsewhere), so toggling it on desktop costs nothing —
+   * the same four controls just sit where they always have.
+   */
+  const [menuOpen, setMenuOpen] = useState(false);
+  /*
+   * The room's chat column, as a portrait sheet (Settled 7, §B.3): closed by
+   * default during a match, opened only from `action-chat`. `RoomShell.tsx`
+   * reads this off `document.documentElement`'s `data-chat-sheet` rather than
+   * through a prop, because the chat column is rendered by
+   * `@wolffm/watchparty-ui`'s `RoomChrome` — an ancestor of this component,
+   * not a child it can hand a prop to, and that package exposes no imperative
+   * open/close of its own (`RoomChromeProps` in the installed
+   * `room-chrome.d.ts`: `collapsible` is the nearest thing, and it only ever
+   * turns the "Hide chat" button off, not on). The attribute is the one seam
+   * both files can read without one owning the other.
+   */
+  const [chatOpen, setChatOpen] = useState(false);
+  useEffect(() => {
+    if (chatOpen) document.documentElement.dataset.chatSheet = 'open';
+    else delete document.documentElement.dataset.chatSheet;
+    return () => {
+      delete document.documentElement.dataset.chatSheet;
+    };
+  }, [chatOpen]);
+  /*
+   * The zoom pill (Settled 4, 7): the board's own zoom, read off lane A's
+   * `cardtable:zoom` event on `window` — `portrait.ts` is the dispatcher and
+   * documents the event's detail shape; this reads `detail.zoom` (1 = 100%)
+   * defensively, since this lane landed before that file did. Returning to
+   * 1× is lane A's own API in `portrait.ts`; until that exists, this asks for
+   * it the same way — a `cardtable:zoom-reset` event on `window` — rather
+   * than import a module that is not there yet (which would break the shared
+   * build for every lane, not just fail at runtime).
+   */
+  const [zoom, setZoom] = useState(1);
+  useEffect(() => {
+    const onZoom = (event: Event): void => {
+      const detail = (event as CustomEvent<{ zoom?: number }>).detail;
+      if (typeof detail?.zoom === 'number' && Number.isFinite(detail.zoom) && detail.zoom > 0) setZoom(detail.zoom);
+    };
+    window.addEventListener('cardtable:zoom', onZoom);
+    return () => window.removeEventListener('cardtable:zoom', onZoom);
+  }, []);
+  const resetZoom = (): void => {
+    window.dispatchEvent(new CustomEvent('cardtable:zoom-reset'));
+  };
+  /*
    * The log closes the way a menu does (the operator, 2026-10-07: "clicking
    * outside of the log should close the log, also clicking ESC could close
    * the log"): a press anywhere outside the panel and its own toggle, or
    * Escape. Capture phase, so the press still goes on to whatever it was
    * on; and Escape is not consumed, so a prompt or a cast that also wants it
    * still gets it (`inspect/index.ts` makes the same call).
+   *
+   * Wave 89 §B: `action-menu`'s own popover (Settled 7's Game log / End turn /
+   * Full control / Concede) closes the exact same way, off the same
+   * listeners — one outside-press/Escape handler for both disclosures rather
+   * than a second copy of it.
    */
   useEffect(() => {
-    if (!logOpen) return undefined;
+    if (!logOpen && !menuOpen) return undefined;
     const outside = (event: PointerEvent): void => {
       const target = eventTarget(event);
       if (!(target instanceof Element)) return;
-      if (target.closest(`#${CSS.escape(logbookId)}, [data-testid="live-log-toggle"]`) !== null) return;
-      setLogOpen(false);
+      if (target.closest(`#${CSS.escape(logbookId)}, [data-testid="live-log-toggle"]`) === null) setLogOpen(false);
+      if (target.closest(`[data-testid="action-menu"], .live__menu-items`) === null) setMenuOpen(false);
     };
     const escape = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setLogOpen(false);
+      if (event.key !== 'Escape') return;
+      setLogOpen(false);
+      setMenuOpen(false);
     };
     document.addEventListener('pointerdown', outside, true);
     document.addEventListener('keydown', escape);
@@ -3277,7 +3369,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       document.removeEventListener('pointerdown', outside, true);
       document.removeEventListener('keydown', escape);
     };
-  }, [logOpen, logbookId]);
+  }, [logOpen, menuOpen, logbookId]);
   /*
    * The logbook is scrollable and keeps the newest line in view. `.live__log`
    * (`live.css`) is the scroll owner — a bounded flex child with
@@ -3804,93 +3896,168 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        */}
       {/* Our own settings gear, where no host draws them: inside a watchparty room. Standalone it draws nothing, and the header's gear is the way in (`../../settings/Settings.tsx`). */}
       <SettingsGear className="live__settings" />
-      <button
-        type="button"
-        className="live__log-button"
-        data-testid="live-log-toggle"
-        aria-expanded={logOpen}
-        aria-controls={logbookId}
-        aria-label="Log"
-        title="The log"
-        onClick={() => setLogOpen(!logOpen)}
-      >
-        {/* Three equal blocks (the operator, 2026-10-17: "Log icon is ugly, should be three equally sized blockes"). */}
-        <svg className="live__log-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-          <rect x="2.5" y="2.5" width="11" height="2.6" rx="0.6" />
-          <rect x="2.5" y="6.7" width="11" height="2.6" rx="0.6" />
-          <rect x="2.5" y="10.9" width="11" height="2.6" rx="0.6" />
-        </svg>
-      </button>
       {/*
-       * The control cluster (§C.1). One container, every frame, the same
-       * children and the same box — `e2e/table-fit.spec.ts` measures that box on
-       * every animation frame of a real match, and now also fails a frame in
-       * which either text row came back into it. `live.css` pins it in the
-       * right-hand gutter under the rail, at the 112 wide the operator drew
-       * (wave 26 §B.3); it is in no flex flow and costs the table no height.
-       *
-       * Wave 27 §B.1 made it a single COLUMN of five — the shape
-       * `board-layout-2026-09-27.md` describes in words — because two 49px
-       * columns clipped `Full control` and `Concede`, and the cluster's width is
-       * what `board.css` reserves the gutter from and so cannot grow. Item 5
-       * (wave 30) deleted `Leave`; item 7 put `Settings` where it was, so the
-       * cluster is still five. They are written here in the order they are
-       * drawn, so the tab order and the reading order are one order; in two
-       * columns they were not.
+       * Wave 89 §B: `.live__menu-items` wraps the log toggle and the control
+       * cluster below (NOT a copy of either — the same two elements, just
+       * given one more ancestor) so portrait can re-lay them into
+       * `action-menu`'s popover (Settled 7's "Game log, End turn, Full
+       * control, Concede") without a second render of any of them. `live.css`
+       * makes the wrapper `display: contents` outside portrait, so desktop's
+       * box model is exactly what it was before this wrapper existed —
+       * `e2e/table-fit.spec.ts`'s per-frame box reads straight through it.
        */}
-      {/* A watcher has no seat, so no control box at all: not greyed, absent (2026-10-12). */}
-      {!watcher && (
-      <div className="live__buttons" data-testid="live-buttons">
-        {/*
-         * The same three buttons every frame, in this order — `End Turn`, `Full
-         * control`, `Concede` — greyed when they do not apply. Passing priority
-         * is the decision pop-up's (`barRoute`'s `pass`): the operator,
-         * 2026-10-24, *"the 'next phase' button must go"*. The labels are ours
-         * and never change. `data-highlight` (R5) is End Turn's, and
-         * `data-nudge` its escalation once that has held (`useIdleNudge`).
-         *
-         * The one exception: on the OTHER seat's turn the End Turn slot
-         * reads Auto Yield / Cancel Yield instead, same testid and place
-         * (`yieldMode`/`autoYieldOn`, above).
-         */}
-        <ActionButton
-          action={yieldMode ? (autoYieldOn ? 'yield-cancel' : 'yield') : 'end-turn'}
-          className="live__end-turn"
-          data-testid="live-button-end-turn"
-          data-highlight={endTurnHighlighted ? '' : undefined}
-          data-nudge={nudgeEndTurn ? '' : undefined}
-          data-yield={yieldMode ? (autoYieldOn ? 'on' : 'off') : undefined}
-          disabled={yieldMode ? spectator : !endTurnEnabled}
-          onPress={() => (yieldMode ? setAutoYield(match, !autoYieldOn) : endTurn(match))}
-        >
-          {yieldMode ? (autoYieldOn ? 'Cancel Yield' : 'Auto Yield') : 'End Turn'}
-        </ActionButton>
-        <ActionButton
-          action={match.fullControl ? 'full-control-off' : 'full-control-on'}
-          className="live__toggle"
-          data-testid="live-full-control"
-          aria-pressed={match.fullControl}
-          disabled={spectator}
-          onPress={() => setFullControl(match, !match.fullControl)}
-        >
-          Full control
-        </ActionButton>
-        {/*
-         * Concede (§C.4), last. It sends NOTHING: it opens the confirmation,
-         * and only that dialog's own yes reaches `concede`. Pressable with a
-         * question open — giving up is not an answer to what Forge asked.
-         */}
+      <div className="live__menu-items" data-open={menuOpen ? '' : undefined}>
         <button
           type="button"
-          className="live__concede"
-          data-testid="live-concede"
-          aria-expanded={conceding}
-          disabled={spectator || over}
-          onClick={() => setConceding(true)}
+          className="live__log-button"
+          data-testid="live-log-toggle"
+          aria-expanded={logOpen}
+          aria-controls={logbookId}
+          aria-label="Log"
+          title="The log"
+          onClick={() => setLogOpen(!logOpen)}
         >
-          Concede
+          {/* Three equal blocks (the operator, 2026-10-17: "Log icon is ugly, should be three equally sized blockes"). */}
+          <svg className="live__log-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <rect x="2.5" y="2.5" width="11" height="2.6" rx="0.6" />
+            <rect x="2.5" y="6.7" width="11" height="2.6" rx="0.6" />
+            <rect x="2.5" y="10.9" width="11" height="2.6" rx="0.6" />
+          </svg>
         </button>
+        {/*
+         * The control cluster (§C.1). One container, every frame, the same
+         * children and the same box — `e2e/table-fit.spec.ts` measures that box on
+         * every animation frame of a real match, and now also fails a frame in
+         * which either text row came back into it. `live.css` pins it in the
+         * right-hand gutter under the rail, at the 112 wide the operator drew
+         * (wave 26 §B.3); it is in no flex flow and costs the table no height.
+         *
+         * Wave 27 §B.1 made it a single COLUMN of five — the shape
+         * `board-layout-2026-09-27.md` describes in words — because two 49px
+         * columns clipped `Full control` and `Concede`, and the cluster's width is
+         * what `board.css` reserves the gutter from and so cannot grow. Item 5
+         * (wave 30) deleted `Leave`; item 7 put `Settings` where it was, so the
+         * cluster is still five. They are written here in the order they are
+         * drawn, so the tab order and the reading order are one order; in two
+         * columns they were not.
+         */}
+        {/* A watcher has no seat, so no control box at all: not greyed, absent (2026-10-12). */}
+        {!watcher && (
+        <div className="live__buttons" data-testid="live-buttons">
+          {/*
+           * The same three buttons every frame, in this order — `End Turn`, `Full
+           * control`, `Concede` — greyed when they do not apply. Passing priority
+           * is the decision pop-up's (`barRoute`'s `pass`): the operator,
+           * 2026-10-24, *"the 'next phase' button must go"*. The labels are ours
+           * and never change. `data-highlight` (R5) is End Turn's, and
+           * `data-nudge` its escalation once that has held (`useIdleNudge`).
+           *
+           * The one exception: on the OTHER seat's turn the End Turn slot
+           * reads Auto Yield / Cancel Yield instead, same testid and place
+           * (`yieldMode`/`autoYieldOn`, above).
+           */}
+          <ActionButton
+            action={yieldMode ? (autoYieldOn ? 'yield-cancel' : 'yield') : 'end-turn'}
+            className="live__end-turn"
+            data-testid="live-button-end-turn"
+            data-highlight={endTurnHighlighted ? '' : undefined}
+            data-nudge={nudgeEndTurn ? '' : undefined}
+            data-yield={yieldMode ? (autoYieldOn ? 'on' : 'off') : undefined}
+            disabled={yieldMode ? spectator : !endTurnEnabled}
+            onPress={() => (yieldMode ? setAutoYield(match, !autoYieldOn) : endTurn(match))}
+          >
+            {yieldMode ? (autoYieldOn ? 'Cancel Yield' : 'Auto Yield') : 'End Turn'}
+          </ActionButton>
+          <ActionButton
+            action={match.fullControl ? 'full-control-off' : 'full-control-on'}
+            className="live__toggle"
+            data-testid="live-full-control"
+            aria-pressed={match.fullControl}
+            disabled={spectator}
+            onPress={() => setFullControl(match, !match.fullControl)}
+          >
+            Full control
+          </ActionButton>
+          {/*
+           * Concede (§C.4), last. It sends NOTHING: it opens the confirmation,
+           * and only that dialog's own yes reaches `concede`. Pressable with a
+           * question open — giving up is not an answer to what Forge asked.
+           * In portrait (Settled §B.1's "needs a second tap") this same
+           * button opens the exact same `ConcedeAsk` confirmation desktop
+           * does — the second tap IS that dialog's own `Concede` button, not
+           * a second mechanism.
+           */}
+          <button
+            type="button"
+            className="live__concede"
+            data-testid="live-concede"
+            aria-expanded={conceding}
+            disabled={spectator || over}
+            onClick={() => setConceding(true)}
+          >
+            Concede
+          </button>
+        </div>
+        )}
       </div>
+      {/*
+       * Wave 89 §B, `action-bar` (Settled 7): portrait only — `live.css`
+       * leaves it `display: none` outside `:root[data-layout="portrait"]`, so
+       * it draws nothing on desktop and costs the table no layout there.
+       * Absent for a watcher, the same call `.live__buttons` already makes:
+       * a watcher presses none of End Turn / Full control / Concede /
+       * pass-priority, and chat/zoom are reachable from the room chrome and
+       * the pinch gesture either way.
+       */}
+      {!watcher && (
+        <div className="action-bar" data-testid="action-bar">
+          <button
+            type="button"
+            className="action-bar__chat"
+            data-testid="action-chat"
+            aria-expanded={chatOpen}
+            aria-label="Chat"
+            title="Chat"
+            onClick={() => setChatOpen((open) => !open)}
+          >
+            {/* The unread badge (Settled 7) has no signal to show yet: `@wolffm/watchparty-ui`'s
+                `RoomChromeProps` exposes no unread-count callback, only `onLayoutChange` (width,
+                collapsed). The slot is here so the element exists and the CSS is written; it reads
+                zero until a cross-repo ask gives this a real count. */}
+            <span className="action-bar__badge" data-testid="action-chat-badge" hidden />
+            Chat
+          </button>
+          <button
+            type="button"
+            className="action-bar__menu-toggle"
+            data-testid="action-menu"
+            aria-expanded={menuOpen}
+            aria-label="Menu"
+            title="Menu"
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            Menu
+          </button>
+          <button
+            type="button"
+            className="action-bar__zoom"
+            data-testid="zoom-pill"
+            disabled={zoom <= 1}
+            title="Zoom — tap to reset to 100%"
+            onClick={resetZoom}
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+          <ActionButton
+            action="action-primary"
+            className="action-bar__primary"
+            data-testid="action-primary"
+            disabled={!primaryEnabled}
+            onPress={() => pressWithSound(match, 'ok')}
+          >
+            {primaryLabel}
+          </ActionButton>
+        </div>
       )}
       {ask !== null && (
         <QuestionHost data-testid="live-prompt" data-call-id={ask.callId} data-method={ask.method}>

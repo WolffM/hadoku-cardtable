@@ -189,17 +189,31 @@ export function RoomShell({
   if (key === null || who === 'pending' || who === null) return <>{children}</>;
 
   return (
-    <RoomChrome
-      roomKey={key}
-      serverOrigin={watchpartyOrigin()}
-      userType={who.tier}
-      userId={who.userId}
-      theme={watchpartyTheme(theme)}
-      collapsible={collapsible}
-    >
-      {children}
-      {/* The frame says it is drawn, to the page around it (`chrome/shell.ts`): RoomChrome takes no ref of ours. */}
-      <span hidden ref={roomFrameRef} />
-    </RoomChrome>
+    /*
+     * Wave 89 §B: `data-collapsible` is this element's own, not a prop
+     * `RoomChrome` takes — `RoomChromeProps` (the installed `room-chrome.d.ts`)
+     * has nothing for a host to read or set the chat column's open state from
+     * outside. `live.css`'s portrait rules key the chat-sheet behaviour off
+     * this attribute rather than off `collapsible` turning the chrome's own
+     * "Hide chat" button on or off, because `collapsible` is a prop value, not
+     * a selector a stylesheet in another file can see — and only present at
+     * all when `collapsible` is true, i.e. a match route (`App.tsx`'s
+     * `route.kind !== 'room'`), never the room lobby (Settled 10: "the room
+     * lobby is unchanged").
+     */
+    <div className="room-shell" data-testid="room-shell" data-collapsible={collapsible ? '' : undefined}>
+      <RoomChrome
+        roomKey={key}
+        serverOrigin={watchpartyOrigin()}
+        userType={who.tier}
+        userId={who.userId}
+        theme={watchpartyTheme(theme)}
+        collapsible={collapsible}
+      >
+        {children}
+        {/* The frame says it is drawn, to the page around it (`chrome/shell.ts`): RoomChrome takes no ref of ours. */}
+        <span hidden ref={roomFrameRef} />
+      </RoomChrome>
+    </div>
   );
 }
