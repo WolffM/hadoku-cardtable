@@ -1,7 +1,7 @@
 # Request to hadoku_site: Majors, the leaderboard podium, and avatar medals
 
 **From:** hadoku-cardtable
-**Status:** request / not yet agreed
+**Status:** request / not yet agreed — filed as WolffM/hadoku_site#507
 **Board row:** wave 86 in `docs/planning/workstreams.md` (queued since 2026-10-30; this is its first write-up)
 **Asking for:** tournaments in the game-stats store, a Major flag set only with the admin key, a
 "last Major" podium for game-stats-ui's leaderboard, and medals that travel with the resolved avatar.
