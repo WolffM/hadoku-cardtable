@@ -119,6 +119,10 @@ export function stylesheetInSourceOrder(): Plugin {
       return sheets.map((sheet) => `import ${JSON.stringify(sheet)};`).join('\n');
     },
     generateBundle(_options, bundle) {
+      // A build whose entry does not import STYLESHEET_MODULE is a page of its own (`src/fit/*.html`,
+      // built by `e2e/wperf3-draft-open.spec.ts`): it splits nothing lazily, so the bundler already
+      // lays its sheets out in the order its source imports them, and there is no cascade to keep.
+      if (entry === null) return;
       const listed = new Set(sheets);
       const stray = [...this.getModuleIds()].filter((id) => SHEET.test(id) && !listed.has(id));
       if (stray.length > 0) this.error(`stylesheets the source walk did not list, so their place in the cascade is unknown: ${stray.join(', ')}`);
