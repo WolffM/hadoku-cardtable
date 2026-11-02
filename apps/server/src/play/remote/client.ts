@@ -36,6 +36,9 @@ export interface FrameSink {
 	resumeFrom(): number;
 }
 
+/** A gap between two link-clock ticks (each ≤ 1 s apart) past this is our own stall, not the claw's. */
+export const WATCH_STALL_MS = 3_000;
+
 export class AgentClient {
 	readonly url: URL;
 	private readonly key: KeyObject;
@@ -48,6 +51,8 @@ export class AgentClient {
 	private seq = 0;
 	private queue: ToAgent[] = [];
 	private lastHb: number;
+	/** When `watch` last ran: a gap far past its interval means this process, not the claw, went quiet. */
+	private lastWatch: number | null = null;
 	private reconnecting = false;
 	private timers: NodeJS.Timeout[] = [];
 	private readonly sinks = new Map<string, FrameSink>();
@@ -166,10 +171,25 @@ export class AgentClient {
 		this.reconnecting = false;
 	}
 
-	/** The link's clock: past the fencing window with no heartbeat, the claw is gone. */
+	/**
+	 * The link's clock: past the fencing window with no heartbeat, the claw is gone — unless this
+	 * process was the one stalled. After a stall, libuv runs due timers before it reads the sockets,
+	 * so this would judge the claw on heartbeats that are already in the buffer, unread. A gap since
+	 * the last watch past `WATCH_STALL_MS` is that case (hokon swapping on 2026-10-31: every claw
+	 * "lost" at once, all back within 150 ms): silence we could not hear is unknown, never loss, so
+	 * the clock restarts and the claw gets a whole fencing window from here.
+	 */
 	watch(): void {
 		if (this.lost !== null) return;
-		const silent = this.now() - this.lastHb;
+		const t = this.now();
+		const gap = this.lastWatch === null ? 0 : t - this.lastWatch;
+		this.lastWatch = t;
+		if (gap > WATCH_STALL_MS) {
+			this.log({ evt: 'agent-watch-stalled', agent: this.url.host, gapMs: gap, silentMs: t - this.lastHb });
+			this.lastHb = t;
+			return;
+		}
+		const silent = t - this.lastHb;
 		if (silent > this.fenceMs) this.lose(`agent heartbeat lost for ${Math.round(silent / 1000)} s (window ${this.fenceMs / 1000} s)`);
 	}
 
