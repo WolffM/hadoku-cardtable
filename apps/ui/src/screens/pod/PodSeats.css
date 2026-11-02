@@ -172,7 +172,7 @@
 
 /*
  * The constructed table's two seats, drawn as the pod's (`ConstructedScreen.tsx`'s `PlayerRow`):
- * wider, for the Ready button and Stand under the name.
+ * wider, for the Ready button under the name.
  */
 .pod-seats--table {
   margin: 0 0 1rem;
@@ -207,3 +207,33 @@
   font-size: 18px;
 }
 
+
+/*
+ * The 1v1 table's two sides (`ConstructedScreen.tsx`): its players, then its spectators
+ * (`TableSpectators.tsx`), on one line while it has the width, one under the other when it does not.
+ */
+.table-sides {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.75rem 2rem;
+  margin: 0 0 1rem;
+}
+
+.table-sides .pod-seats--table {
+  margin: 0;
+}
+
+.table-side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.table-side__heading {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+}

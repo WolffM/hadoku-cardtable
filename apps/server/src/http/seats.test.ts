@@ -62,6 +62,10 @@ async function boot(dir?: string, roomId?: string): Promise<Stack> {
 		id = made.room.id;
 		lobby.join(id, BOB);
 		lobby.join(id, CAROL);
+		// Alice and Bob sat as they came in (`Lobby.join`); these tests start from a table they have left.
+		const tableId = made.room.tables[0]!.id;
+		lobby.stand(id, tableId, ALICE.id);
+		lobby.stand(id, tableId, BOB.id);
 		expect(lobby.setMode(id, ALICE.id, { mode: 'classic', modeOptions: {} }).ok).toBe(true);
 	}
 	const api = express.Router();

@@ -42,7 +42,7 @@ test(titled('embed turnover: the loser and a watcher press Main menu and are bac
       await page.getByTestId('deck-mine').locator(`[data-deck-id="${deck}"]`).click();
       await expect(page.getByTestId('ready-toggle')).toBeEnabled();
     }
-    await expect(carol.getByTestId('room-spectator'), 'carol: table full').toBeVisible({ timeout: 15_000 });
+    await expect(carol.locator('[data-testid="room-spectator"][data-mine]'), 'carol: table full, a spectator').toBeVisible({ timeout: 15_000 });
     await alice.getByTestId('ready-toggle').click();
     await bob.getByTestId('ready-toggle').click();
     for (const [name, page] of Object.entries(pages)) {

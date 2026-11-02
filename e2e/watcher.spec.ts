@@ -116,7 +116,9 @@ async function createConstructedRoom(alice: Friend, origin: string): Promise<str
 
 /* ── 1. the lobby ───────────────────────────────────────────────────── */
 
-test('a seat is taken and given back on purpose; the third person with the table full is watching', async ({ browser }) => {
+// The operator, 2026-11-02: "new people who join automatically fill in seats as they join rooms", and
+// "click back and forth between player and spectator … that way we dont need a stand button at all".
+test('people who join fill the seats; the third is a spectator; a player moves to the spectators and the spectator sits', async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -130,34 +132,27 @@ test('a seat is taken and given back on purpose; the third person with the table
       await f.page.goto(roomUrl);
       await expect(f.page.getByTestId('constructed'), `${f.name} is in the room`).toBeVisible({ timeout: 30_000 });
     }
-    // Two empty seats, each with its own Sit here, for everyone.
-    await expect(seatSit(carol.page), 'two empty seats offer Sit here').toHaveCount(2);
-    await expect(seatStand(carol.page), 'nobody unseated has Stand up').toHaveCount(0);
+    const mySpectator = (page: Page) => page.locator('[data-testid="room-spectator"][data-mine]');
 
-    // Carol sits: her row holds the seat, she may stand, nobody may sit in it.
-    await seatSit(carol.page).first().click();
-    await expect(seatStand(carol.page), 'carol holds a seat').toBeVisible({ timeout: 15_000 });
-    await expect(seatSit(carol.page), 'the other seat is drawn, and a seated player cannot take it').toHaveCount(1);
-    await expect(seatSit(carol.page)).toBeDisabled();
-    await expect(seatSit(alice.page), 'one seat left for alice').toHaveCount(1, { timeout: 15_000 });
-    await expect(carol.page.getByTestId('deck-mine'), 'the deck picker appears once seated').toBeVisible();
-
-    // Carol stands: the seat is free again.
-    await seatStand(carol.page).click();
-    await expect(seatSit(alice.page), 'both seats free again').toHaveCount(2, { timeout: 15_000 });
-    await expect(seatSit(carol.page)).toHaveCount(2);
-
-    // Alice and bob sit; carol is the third person and is told so.
-    await seatSit(alice.page).first().click();
-    await expect(seatStand(alice.page)).toBeVisible({ timeout: 15_000 });
-    await seatSit(bob.page).first().click();
-    await expect(seatStand(bob.page)).toBeVisible({ timeout: 15_000 });
+    // Alice made the room and bob came next: both sat as they came in. Carol found it full.
+    for (const f of [alice, bob]) await expect(seatStand(f.page), `${f.name} holds a seat`).toBeVisible({ timeout: 15_000 });
     await expect(seatSit(carol.page), 'no seat left').toHaveCount(0, { timeout: 15_000 });
-    await expect(carol.page.getByTestId('room-spectator')).toBeVisible();
+    await expect(mySpectator(carol.page), 'carol is drawn among the spectators').toBeVisible();
+    await expect(seatStand(carol.page), 'no seat of carol’s to give back').toHaveCount(0);
     await expect(carol.page.getByTestId('deck-mine'), 'no deck picker for the unseated').toHaveCount(0);
+    await expect(alice.page.locator('[data-testid="room-spectator"]'), 'alice sees one spectator').toHaveCount(1);
+
+    // Bob moves to the spectators: his seat is free, and carol takes it.
+    await seatStand(bob.page).click();
+    await expect(mySpectator(bob.page), 'bob is a spectator now').toBeVisible({ timeout: 15_000 });
+    await expect(seatSit(carol.page), 'a seat is free for carol').toHaveCount(1, { timeout: 15_000 });
+    await seatSit(carol.page).click();
+    await expect(seatStand(carol.page), 'carol holds the seat').toBeVisible({ timeout: 15_000 });
+    await expect(carol.page.getByTestId('deck-mine'), 'the deck picker appears once seated').toBeVisible();
+    await expect(seatSit(bob.page), 'and bob finds the table full').toHaveCount(0, { timeout: 15_000 });
 
     // The server, not the button, is the refusal: a third sit with the table full is a 409.
-    const res = await carol.context.request.post(`${stack.origin}${PREFIX}/api/tables/rooms/${roomUrl.split('/room/')[1]}/sit`, { data: {} });
+    const res = await bob.context.request.post(`${stack.origin}${PREFIX}/api/tables/rooms/${roomUrl.split('/room/')[1]}/sit`, { data: {} });
     expect(res.status(), 'a third sit is refused by the server').toBe(409);
   } finally {
     await stack.stop();

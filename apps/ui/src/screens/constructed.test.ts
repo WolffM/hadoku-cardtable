@@ -974,18 +974,22 @@ describe('a room’s table', () => {
     expect(screen.queryByTestId('play-vs-bot')).toBeNull();
   });
 
-  it('Stand up gives the seat back', async () => {
+  // The operator, 2026-11-02: "you can just click back and forth between player and spectator … we dont need a stand button at all".
+  it('the spectators’ open slot gives the seat back, and I am drawn among the spectators', async () => {
     const server = await mountRoom({ players: [opponent({ you: true, name: 'user-alice' })], matchId: null });
     const stand = screen.getByTestId('seat-stand') as HTMLButtonElement;
+    expect(screen.getByTestId('room-spectators').contains(stand), 'on the spectators’ side, not on my seat').toBe(true);
+    expect(screen.getByTestId('room-players').textContent).not.toMatch(/Stand/);
     expect(stand.disabled).toBe(false);
     fireEvent.click(stand);
     await waitFor(() => expect(screen.queryByTestId('seat-stand')).toBeNull());
     expect(lastCall(server.calls, `/tables/rooms/${ROOM}/stand`)?.method).toBe('POST');
     expect(screen.getAllByTestId('seat-sit')).toHaveLength(2);
     expect(screen.getByTestId('deck-mine'), 'stood up with a seat free: the picker stays').toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId('room-spectators').querySelector('[data-testid="room-spectator"][data-mine]')).not.toBeNull());
   });
 
-  it('Stand up and Sit here are dead once the table is locked (both ready, or a match live)', async () => {
+  it('Spectate and Sit here are dead once the table is locked (both ready, or a match live)', async () => {
     await mountRoom({ players: [opponent({ you: true, name: 'user-alice', ready: true })], matchId: null, locked: true });
     expect((screen.getByTestId('seat-stand') as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByTestId('seat-sit') as HTMLButtonElement).disabled).toBe(true);
@@ -1006,14 +1010,16 @@ describe('a room’s table', () => {
 
   // The operator, 2026-10-21: "spectators dont need to take seats, anyone who loads the page is a
   // spectator by default. we dont need to represent this in the UI at all."
-  it('a 1v1 room draws its seats and nobody who holds none', async () => {
+  // The operator, 2026-11-02: "everyone in the room is always displayed there either as player or spectator".
+  it('a 1v1 room draws everyone: its seats, and every member who holds none as a spectator', async () => {
     await mountRoom({
       players: [opponent({ you: true, name: 'user-alice' }), opponent()],
       matchId: null,
       members: [{ id: 'p-alice', name: 'user-alice' }, { id: 'p-bob', name: 'user-bob' }, { id: 'p-w0', name: 'user-watcher' }],
     });
     await waitFor(() => expect(screen.getByTestId('constructed').getAttribute('data-members')).toBe('3'));
-    expect(screen.getByTestId('constructed').textContent).not.toMatch(/user-watcher|Spectator/);
+    expect(screen.getAllByTestId('room-spectator').map((li) => li.querySelector('.pod-seats__label')?.textContent)).toEqual(['user-watcher']);
+    expect(screen.getByTestId('room-players').textContent).not.toContain('user-watcher');
   });
 
   /*
@@ -1022,7 +1028,7 @@ describe('a room’s table', () => {
    */
   // The operator, 2026-10-22: "can we also show seats the same way we show seats then in draft?"
   // The operator, 2026-10-22: "remove the two lines below the character portrait at table … just Ready and stand are good enough".
-  it('draws each seat as a draft seat: avatar, name, the ready state, Stand — no deck lines, no middots, every state a shape AND a colour', async () => {
+  it('draws each seat as a draft seat: avatar, name, the ready state — no Stand, no deck lines, no middots, every state a shape AND a colour', async () => {
     await mountRoom({ players: [mySeat(), opponent({ seat: 1, ready: true })], matchId: null });
     const row = screen.getByTestId('room-seat-0');
     // No separator characters anywhere in the seat: the lines are the separation.
@@ -1032,7 +1038,6 @@ describe('a room’s table', () => {
       'pod-seats__avatar-wrap',
       'pod-seats__label',
       'pill',
-      'pod-seats__actions',
     ]);
     for (const line of ['deck', 'rules']) expect(screen.queryByTestId(`room-seat-0-${line}`), `no ${line} line`).toBeNull();
     expect(screen.getByTestId('room-seat-1').querySelector('.pod-seats__avatar')?.getAttribute('data-ready'), 'a ready seat is ringed').toBe('true');
@@ -1333,9 +1338,10 @@ describe('a room’s table', () => {
     expect(rooms.joins).toEqual([ROOM]);
   });
 
-  it('tells a third person there is no seat, rather than a picker that cannot work', async () => {
+  it('draws a third person among the spectators, rather than a picker that cannot work', async () => {
     await mountRoom({ players: [opponent(), opponent({ seat: 1, name: 'user-carol' })], matchId: null });
-    expect(screen.getByTestId('room-spectator').textContent).toContain('Table full');
+    await waitFor(() => expect(screen.getByTestId('room-spectators').querySelector('[data-mine]')).not.toBeNull());
+    expect(screen.queryByTestId('seat-stand'), 'no seat of mine to give back').toBeNull();
     expect(screen.queryByTestId('deck-mine')).toBeNull();
     expect(screen.getByTestId('room-seat-1').textContent).toContain('user-carol');
   });

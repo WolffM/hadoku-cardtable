@@ -207,6 +207,7 @@ import { GauntletOptions } from './constructed-mode/GauntletOptions.tsx';
 import { AllRandomOptions } from './random/AllRandomOptions.tsx';
 import { GauntletScreen } from './gauntlet/GauntletScreen.tsx';
 import { seatAvatars } from './gauntlet/seats.tsx';
+import { TableSpectators } from './TableSpectators.tsx';
 import './pod/PodSeats.css';
 import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
 import { StatusPill, TICK } from '../components/StatusPill.tsx';
@@ -2223,8 +2224,9 @@ function RoomTableScreen({
   };
 
   /**
-   * Taking a seat, and giving it back (2026-10-12). Sitting is its own act
-   * now: Sit here holds a seat before any deck is chosen, and Stand up gives
+   * Taking a seat, and giving it back. Joining the room seats you while a seat
+   * is open (`room/lobby.ts`'s `#autoSeat`, 2026-11-02); after that an open
+   * seat sits you and the spectators' open slot (`TableSpectators.tsx`) gives
    * it back. Choosing a deck while unseated still seats you when a seat is
    * free (the server's `PUT …/deck` auto-sits), so the one-click Random → Ready
    * path every spec and the watchparty production run drive is unchanged; the
@@ -2672,78 +2674,89 @@ function RoomTableScreen({
                 {matchLink}
               </div>
               {/* Drawn as the draft room draws its seats (the operator, 2026-10-22: "can we also show seats the same way we show seats then in draft?"). */}
-              <ul className="pod-seats pod-seats--table" data-testid="room-players">
-                {[0, 1].map((seat) => {
-                  const player = players[seat];
-                  if (aiSeat?.seat === seat) {
-                    return (
-                      <li key={seat} className="pod-seats__seat" data-testid={`room-seat-${seat}`} data-ai="">
-                        <span className="pod-seats__avatar pod-seats__avatar--ai">
-                          <Avatar id={aiSeat.avatarId} fallback="mark" className="pod-seats__avatar-img" fallbackClassName="pod-seats__avatar-fallback" />
-                        </span>
-                        <span className="pod-seats__label">{aiSeat.name}</span>
-                      </li>
-                    );
-                  }
-                  return player === undefined ? (
-                    <li key={seat} className="pod-seats__seat" data-testid={`room-seat-${seat}-empty`}>
-                      {/* Sitting is its own act (2026-10-12): dead once I hold a seat, once the table is locked, or once a match is under way. */}
-                      <ActionButton
-                        action="sit"
-                        className="pod-seats__avatar pod-seats__avatar--open"
-                        data-testid="seat-sit"
-                        data-seat={seat}
-                        aria-label={`Sit in seat ${seat + 1}`}
-                        disabled={seated || tableLocked || underway}
-                        onPress={sitDown}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
-                          <path d="M12 5v14M5 12h14" />
-                        </svg>
-                      </ActionButton>
-                      <span className="pod-seats__label">Open</span>
-                      {/*
-                       * Forge's AI takes this seat (the operator, 2026-10-02 and
-                       * 2026-10-16): offered while nobody ELSE is seated, on the one
-                       * empty seat that will not be mine — loading a deck seats me at
-                       * the first free one. Live once I am seated with a legal deck;
-                       * the server plays a random library deck legal in this room's
-                       * pool, and holds the same gate.
-                       */}
-                      {botSeat === seat && (
-                        <span className="pod-seats__actions">
+              <div className="table-sides">
+                <div className="table-side">
+                  <h3 className="table-side__heading">Players</h3>
+                  <ul className="pod-seats pod-seats--table" data-testid="room-players">
+                    {[0, 1].map((seat) => {
+                      const player = players[seat];
+                      if (aiSeat?.seat === seat) {
+                        return (
+                          <li key={seat} className="pod-seats__seat" data-testid={`room-seat-${seat}`} data-ai="">
+                            <span className="pod-seats__avatar pod-seats__avatar--ai">
+                              <Avatar id={aiSeat.avatarId} fallback="mark" className="pod-seats__avatar-img" fallbackClassName="pod-seats__avatar-fallback" />
+                            </span>
+                            <span className="pod-seats__label">{aiSeat.name}</span>
+                          </li>
+                        );
+                      }
+                      return player === undefined ? (
+                        <li key={seat} className="pod-seats__seat" data-testid={`room-seat-${seat}-empty`}>
+                          {/* Sitting is its own act (2026-10-12): dead once I hold a seat, once the table is locked, or once a match is under way. */}
                           <ActionButton
-                            action="vs-bot"
-                            className="pod-seats__action"
-                            data-testid="play-vs-bot"
-                            aria-label="Play the AI"
-                            disabled={!canReady || underway}
-                            onPress={mode === 'gauntlet' ? () => gauntletMove(() => client.gauntletReady(roomId, true, true)) : startVsBot}
+                            action="sit"
+                            className="pod-seats__avatar pod-seats__avatar--open"
+                            data-testid="seat-sit"
+                            data-seat={seat}
+                            aria-label={`Sit in seat ${seat + 1}`}
+                            disabled={seated || tableLocked || underway}
+                            onPress={sitDown}
                           >
-                            AI
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+                              <path d="M12 5v14M5 12h14" />
+                            </svg>
                           </ActionButton>
-                        </span>
-                      )}
-                    </li>
-                  ) : (
-                    <PlayerRow
-                      key={seat}
-                      seat={seat}
-                      player={{ ...player, ready: readyAt(seat) }}
-                      avatarId={members.find((m) => m.name === player.name)?.avatarId}
-                      leader={player.you ? iAmLeader : !iAmLeader && player.name === leaderMember?.name}
-                      {...(player.you
-                        ? {
-                            onReady: () =>
-                              mode === 'gauntlet' ? gauntletMove(() => client.gauntletReady(roomId, !readyAt(seat))) : setReady(!player.ready),
-                            readyDisabled: !canReady || underway,
-                          }
-                        : {})}
-                      {...(player.you ? { onStand: standUp, standDisabled: tableLocked || underway } : {})}
-                    />
-                  );
-                })}
-              </ul>
+                          <span className="pod-seats__label">Open</span>
+                          {/*
+                           * Forge's AI takes this seat (the operator, 2026-10-02 and
+                           * 2026-10-16): offered while nobody ELSE is seated, on the one
+                           * empty seat that will not be mine — loading a deck seats me at
+                           * the first free one. Live once I am seated with a legal deck;
+                           * the server plays a random library deck legal in this room's
+                           * pool, and holds the same gate.
+                           */}
+                          {botSeat === seat && (
+                            <span className="pod-seats__actions">
+                              <ActionButton
+                                action="vs-bot"
+                                className="pod-seats__action"
+                                data-testid="play-vs-bot"
+                                aria-label="Play the AI"
+                                disabled={!canReady || underway}
+                                onPress={mode === 'gauntlet' ? () => gauntletMove(() => client.gauntletReady(roomId, true, true)) : startVsBot}
+                              >
+                                AI
+                              </ActionButton>
+                            </span>
+                          )}
+                        </li>
+                      ) : (
+                        <PlayerRow
+                          key={seat}
+                          seat={seat}
+                          player={{ ...player, ready: readyAt(seat) }}
+                          avatarId={members.find((m) => m.name === player.name)?.avatarId}
+                          leader={player.you ? iAmLeader : !iAmLeader && player.name === leaderMember?.name}
+                          {...(player.you
+                            ? {
+                                onReady: () =>
+                                  mode === 'gauntlet' ? gauntletMove(() => client.gauntletReady(roomId, !readyAt(seat))) : setReady(!player.ready),
+                                readyDisabled: !canReady || underway,
+                              }
+                            : {})}
+                        />
+                      );
+                    })}
+                  </ul>
+                </div>
+                <TableSpectators
+                  spectators={members.filter((m) => !players.some((p) => p.name === m.name))}
+                  myId={view?.you.id ?? null}
+                  leaderId={view?.leader ?? ''}
+                  {...(seated ? { onWatch: standUp } : {})}
+                  watchDisabled={tableLocked || underway}
+                />
+              </div>
               {startRefused}
             </section>
 
@@ -2762,13 +2775,7 @@ function RoomTableScreen({
                   onChoose={(deck) => gauntletMove(() => client.gauntletChoose(roomId, deck))}
                 />
               )
-            ) : spectating ? (
-              <section className="lobby__card">
-                <p className="lobby__note" data-testid="room-spectator">
-                  Table full &mdash; watching.
-                </p>
-              </section>
-            ) : mySideboarding && players.some((p) => p.you) ? (
+            ) : spectating ? null : mySideboarding && players.some((p) => p.you) ? (
               // Between games, the room's table is its card (`TableCard.tsx`), the way back to the table page's sideboard.
               <TableCard
                 size="full"
@@ -2977,21 +2984,21 @@ export const CROWN = 'M2 9V3.5l2.2 2L6 2.6l1.8 2.9L10 3.5V9Z';
  * One seat at the table, drawn as a draft seat is (`pod/PodSeats.tsx`, the operator, 2026-10-22: "can
  * we also show seats the same way we show seats then in draft?"): the member's avatar, ringed once
  * ready and crowned for the room's owner, their name under it, then the ready state as a
- * `StatusPill` (a button on my own seat), and Stand on mine.
+ * `StatusPill` (a button on my own seat). Giving the seat back is the spectators' open slot beside
+ * the seats (`TableSpectators.tsx`), not a button on it (the operator, 2026-11-02).
  *
  * My own seat says so by `data-mine`, never in words beside my name (the operator, 2026-10-22:
  * "remove the (you) from the constructed table too").
  *
  * No deck lines under the name, mine included (the operator, 2026-10-22: "remove the two lines
- * below the character portrait at table … just Ready and stand are good enough"): the deck card
+ * below the character portrait at table … just Ready and stand are good enough"; Stand has since
+ * moved to the spectators' side): the deck card
  * shows the deck I chose, and Ready is what an unplayable one holds back.
  */
 function PlayerRow({
   seat,
   player,
   avatarId,
-  onStand,
-  standDisabled = false,
   leader = false,
   onReady,
   readyDisabled = false,
@@ -3005,9 +3012,6 @@ function PlayerRow({
   readyDisabled?: boolean;
   /** This seat's player sets the table: a crown on their avatar. */
   leader?: boolean;
-  /** My own row only: give the seat back (2026-10-12). */
-  onStand?: () => void;
-  standDisabled?: boolean;
 }) {
   return (
     <li className="pod-seats__seat" data-testid={`room-seat-${seat}`} data-mine={player.you ? '' : undefined}>
@@ -3046,13 +3050,6 @@ function PlayerRow({
           </svg>
           Ready
         </ActionButton>
-      )}
-      {onStand !== undefined && (
-        <span className="pod-seats__actions">
-          <ActionButton action="stand" className="pod-seats__action" data-testid="seat-stand" aria-label="Stand up" disabled={standDisabled} onPress={onStand}>
-            Stand
-          </ActionButton>
-        </span>
       )}
     </li>
   );

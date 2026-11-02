@@ -813,13 +813,13 @@ describe('PATCH /api/rooms/:id { settings }', () => {
 describe('a room always has at least one table', () => {
 	type View = import('../room/lobby.ts').RoomView;
 
-	it("gives a new room one table, empty, 'seating', with the first table's id stable across a restart", async () => {
+	it("gives a new room one table, its creator seated, 'seating', with the first table's id stable across a restart", async () => {
 		const dir = await tempDir();
 		const h = await openApp(dir);
 		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } })).json() as View;
 		expect(created.tables).toHaveLength(1);
+		expect(created.tables[0]?.players).toHaveLength(1);
 		expect(created.tables[0]).toMatchObject({
-			players: [],
 			matchId: null,
 			series: { length: 1, wins: [0, 0], games: [], phase: 'seating' },
 		});

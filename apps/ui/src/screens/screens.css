@@ -219,10 +219,10 @@
   height: 22px;
 }
 
-/* A seat's own size (`PodSeats.css`'s `.pod-seats--table` seat: avatar, name, pill, Stand), so the loaded seats replace these without a jump. */
+/* A seat's own size under its side's heading (`PodSeats.css`'s `.table-side`: the heading, then avatar, name, pill), so the loaded seats replace these without a jump. */
 .skeleton--seat {
   width: 132px;
-  height: 104px;
+  height: 115px;
 }
 
 .skeleton--row {

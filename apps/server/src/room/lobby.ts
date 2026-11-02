@@ -2618,6 +2618,22 @@ class FileLobby implements Lobby {
 		return room === undefined || table === undefined ? undefined : { room, table };
 	}
 
+	/**
+	 * A newcomer takes an open seat at a 1v1 room's table (the operator, 2026-11-02: "new people
+	 * who join automatically fill in seats as they join rooms"). Only on entering, never on a
+	 * member's return, so someone who chose to watch stays watching. Nothing moves once the
+	 * table is locked: a live match or a Gauntlet that holds it. A pod room seats through
+	 * `podSeats` and is left to its own Sit.
+	 */
+	#autoSeat(room: RoomRecord, memberId: string): void {
+		if (usesPod(room)) return;
+		const table = room.tables[0];
+		if (table === undefined || table.matchId !== null) return;
+		const gauntlet = room.gauntlets[table.id];
+		if (gauntlet !== undefined && gauntletHoldsTable(gauntlet)) return;
+		if (sitAt(room.tables, table, memberId)) this.#log({ event: 'seat-auto', roomId: room.id, tableId: table.id, memberId });
+	}
+
 	#recordMatch(room: RoomRecord, matchId: string): void {
 		if (!room.matches.includes(matchId)) room.matches = [...room.matches, matchId].slice(-ROOM_MATCHES_KEPT);
 	}
@@ -3255,6 +3271,7 @@ class FileLobby implements Lobby {
 			members: [newMember([], caller, now)],
 		};
 		this.#rooms.set(id, room);
+		this.#autoSeat(room, caller.id);
 		if (input.password !== undefined && input.password !== '') {
 			this.#secrets.set(id, makeSecret(input.password));
 		}
@@ -3287,6 +3304,7 @@ class FileLobby implements Lobby {
 		// first leads it (a seeded testing room is empty from the start).
 		if (room.members.length === 0) room.leader = caller.id;
 		room.members.push(newMember(room.members, caller, this.#now()));
+		this.#autoSeat(room, caller.id);
 		this.#persist(room);
 		this.#log({ event: 'room-joined', roomId, members: room.members.length });
 		return { ok: true, room: this.#view(room), alreadyMember: false };

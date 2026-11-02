@@ -1921,6 +1921,37 @@ describe('Lobby.addTable / removeTable', () => {
 });
 
 describe('Lobby.sit / stand / setSeatReady', () => {
+	it('seats newcomers as they come in, while a seat is open, and never re-seats a returning member', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		const tableId = made.room.tables[0]!.id;
+		expect(made.room.tables[0]?.players.map((p) => p.memberId), 'the creator sits').toEqual([ALICE.id]);
+		lobby.join(id, BOB);
+		lobby.join(id, CAROL);
+		expect(lobby.seats(id, tableId).map((s) => s.memberId), 'a full table leaves the third watching').toEqual([ALICE.id, BOB.id]);
+		lobby.stand(id, tableId, BOB.id);
+		lobby.join(id, BOB);
+		expect(lobby.seats(id, tableId).map((s) => s.memberId), 'a member coming back keeps watching').toEqual([ALICE.id]);
+	});
+
+	it('seats nobody at a table a match holds, nor in a pod room', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		const tableId = made.room.tables[0]!.id;
+		expect(lobby.setTableMatch(id, tableId, 'm-vs-ai')).toBe(true);
+		lobby.join(id, BOB);
+		expect(lobby.seats(id, tableId).map((s) => s.memberId)).toEqual([ALICE.id]);
+		const draft = lobby.create(ALICE, { name: 'Pod', gameType: 'draft', clientMode: 'builtin' });
+		if (!draft.ok) throw new Error('create failed');
+		lobby.join(draft.room.id, BOB);
+		expect(draft.room.tables[0]?.players ?? []).toEqual([]);
+		expect(lobby.seats(draft.room.id, draft.room.tables[0]!.id)).toEqual([]);
+	});
+
 	it('seats members in the order they sat, two at most, and a stand moves the other up with their Ready', async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
@@ -1929,6 +1960,9 @@ describe('Lobby.sit / stand / setSeatReady', () => {
 		const tableId = made.room.tables[0]!.id;
 		lobby.join(id, BOB);
 		lobby.join(id, CAROL);
+		// Alice and Bob sat as they came in; this test starts from a table they have left.
+		lobby.stand(id, tableId, ALICE.id);
+		lobby.stand(id, tableId, BOB.id);
 		expect(lobby.sit('r-000000000000', tableId, ALICE.id)).toBe(false);
 		expect(lobby.sit(id, 'not-a-table', ALICE.id)).toBe(false);
 		expect(lobby.sit(id, tableId, 'fk:not-a-member')).toBe(false);
