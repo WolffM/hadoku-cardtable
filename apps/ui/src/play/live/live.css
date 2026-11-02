@@ -1791,17 +1791,6 @@
   display: none;
 }
 
-/*
- * The second `SettingsGear` instance `LiveBoard.tsx` adds only when
- * `headerHasOwnGear` (the standalone app, whose fleet header this section
- * hides in portrait). `display: none` by default — `ct-round-button`'s own
- * round-icon styling makes no sense inside a menu ROW, and outside
- * `[data-open]` it must draw nothing at all, same as the rest of this menu.
- */
-.action-bar__settings {
-  display: none;
-}
-
 /* ── The phase bar: 5 segments, Settled 2 ("Begin, Main, Combat, Main 2, End") ── */
 
 :root[data-layout='portrait'] .live__phases {

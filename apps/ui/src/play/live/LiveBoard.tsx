@@ -361,6 +361,7 @@ import { StopPhaseSchema, stopStep, type StopPhase } from './transport.ts';
 import { MistakeBubble } from './MistakeBubble.tsx';
 import { fetchOwnDeck, OwnDeckPeek, type OwnDeck } from './own-deck.tsx';
 import { HostDrawsSettingsProvider, SettingsGear, useHostDrawsSettings } from '../../settings/Settings.tsx';
+import { usePortraitLayout } from '../portrait.ts';
 import { usePublishLiveMatchSettings } from '../../settings/liveMatch.ts';
 import { eventTarget } from '../../dom.ts';
 import { castForbiddenTip, costTip, flashTip } from '../tip/words.ts';
@@ -3375,9 +3376,13 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * this needs — the same context `SettingsGear` itself reads — rather than a
    * DOM sniff for whatever visible proxy the host's gear happens to be today:
    * true exactly where a host (the fleet header, standalone) is already
-   * drawing the gear this file is about to hide.
+   * drawing the gear this file is about to hide. And only in portrait, the
+   * one layout that hides the header: on desktop the header's gear is up,
+   * and this one was a second `settings-gear` drawn on the table itself.
    */
   const hostDrawsSettings = useHostDrawsSettings();
+  const portrait = usePortraitLayout();
+  const menuDrawsSettings = hostDrawsSettings && portrait;
   /*
    * The log closes the way a menu does (the operator, 2026-10-07: "clicking
    * outside of the log should close the log, also clicking ESC could close
@@ -3966,17 +3971,16 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           </svg>
         </button>
         {/*
-         * Only where a host is already drawing the gear (`hostDrawsSettings`,
-         * above — the standalone app) — the embed already has its own and
-         * must not get a second. `value={false}` overrides `App.tsx`'s
-         * ambient `HostDrawsSettingsProvider value` back to "no host is
-         * drawing settings" for this one instance, so it renders
-         * `OwnSettingsGear` — the same gear-and-popover `SettingsGear`
-         * already draws everywhere a host does not — opening the identical
-         * `CardtableSettings` panel. Portrait-only in `live.css`
-         * (`.action-bar__settings`), same as the rest of this menu.
+         * Only in portrait, and only where a host is already drawing the gear
+         * (`menuDrawsSettings`, above — the standalone app) — the embed already
+         * has its own and must not get a second. `value={false}` overrides
+         * `App.tsx`'s ambient `HostDrawsSettingsProvider value` back to "no
+         * host is drawing settings" for this one instance, so it renders
+         * `OwnSettingsGear` — the same gear-and-popover `SettingsGear` already
+         * draws everywhere a host does not — opening the identical
+         * `CardtableSettings` panel.
          */}
-        {hostDrawsSettings && (
+        {menuDrawsSettings && (
           <HostDrawsSettingsProvider value={false}>
             <SettingsGear className="action-bar__settings" />
           </HostDrawsSettingsProvider>

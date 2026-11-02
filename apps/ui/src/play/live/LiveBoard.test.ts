@@ -1610,6 +1610,11 @@ describe('wave 89 §B — the action bar', () => {
     });
 
     it('adds its own Settings entry, opening the same CardtableSettings panel, where the standalone app’s host is drawing the gear', async () => {
+      // Portrait, the one layout that hides the host's header (`../portrait.ts` reads this query).
+      vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true, addEventListener: () => undefined, removeEventListener: () => undefined }));
+      onTestFinished(() => {
+        vi.unstubAllGlobals();
+      });
       const { getByTestId } = await liveBoard(0, false, underHost(true));
       fireEvent.click(getByTestId('action-menu'));
       const gear = document.querySelector('.action-bar__settings') as HTMLButtonElement | null;
@@ -2857,13 +2862,13 @@ describe('the match settings (items 4-7, 2026-10-30)', () => {
 
   /*
    * Wave 89 §B (manager follow-up) narrowed this: the board's OWN head-row gear (`.live__settings`)
-   * stays gone wherever a host draws the settings, exactly as before — but the portrait action
-   * bar's menu now grows a SECOND one when the host is what `live.css` hides in portrait (the fleet
-   * header), so Settings stays reachable. That second one is `LiveBoard`'s own deliberate exception,
-   * not a hole in this gate: it reads the same `useHostDrawsSettings()` fact and overrides it back for
-   * itself alone (`HostDrawsSettingsProvider value={false}` around just that one instance).
+   * stays gone wherever a host draws the settings, exactly as before — and the portrait action
+   * bar's menu grows a SECOND one only in portrait, where `live.css` hides the host (the fleet
+   * header). Outside portrait that second gear was drawn on the desktop table itself (a stray
+   * `settings-gear` in its bottom-left corner, which also moved table-fit's graveyard column), so on
+   * a desktop board there is no `settings-gear` of the board's at all.
    */
-  it('where the host draws the settings, the board draws no gear of its own in its head row — only the portrait menu’s own exception', async () => {
+  it('where the host draws the settings, a desktop board draws no gear of its own — neither in its head row nor in the portrait menu', async () => {
     const s = (server = await startReplayServer({ playerId: 0 }));
     const m = (match = startMatch({
       matchId: s.matchId,
@@ -2875,10 +2880,8 @@ describe('the match settings (items 4-7, 2026-10-30)', () => {
     await untilMatch(m, () => expect(m.stats.snapshots).toBe(1));
     expect(getByTestId('live-log-toggle')).toBeTruthy();
     expect(container.querySelector('.live__settings')).toBeNull();
-    // The menu's own exception (wave 89 §B) is the one `settings-gear` left: never a second gear
-    // beside it anywhere else in the board.
-    expect(document.querySelectorAll('[data-testid="settings-gear"]')).toHaveLength(1);
-    expect(document.querySelector('.action-bar__settings')).not.toBeNull();
+    expect(document.querySelectorAll('[data-testid="settings-gear"]'), 'the host’s gear is the only one').toHaveLength(0);
+    expect(document.querySelector('.action-bar__settings')).toBeNull();
   });
 
   it('board layout: single is the default `Board` prop, and the radio flips it to type-separated and back', async () => {
