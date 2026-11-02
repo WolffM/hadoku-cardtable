@@ -64,39 +64,43 @@ export function PodStandings({ rows, nameOf, myMemberId, dropped = [] }: PodStan
     new Set([rows[i]?.decidedBy, rows[i + 1]?.decidedBy].filter((k): k is PodTiebreak => k !== null && k !== undefined && k !== 'matchPoints'));
 
   return (
-    <table className="pod-standings" data-testid="pod-standings">
-      <thead>
-        <tr>
-          <th scope="col">#</th>
-          <th scope="col">Player</th>
-          <th scope="col">Points</th>
-          {TIEBREAK_COLUMNS.map((c) => (
-            <th key={c.key} scope="col">
-              {c.head}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row, i) => {
-          const marks = decided(i);
-          return (
-            <tr key={row.id} data-testid={`pod-standings-row-${row.rank}`} data-mine={row.id === myMemberId ? '' : undefined} data-dropped={dropped.includes(row.id) ? '' : undefined}>
-              <td>{row.rank}</td>
-              <td>
-                {nameOf(row.id)}
-                {dropped.includes(row.id) && <span className="pod-standings__dropped">Dropped</span>}
-              </td>
-              <td>{row.matchPoints}</td>
-              {TIEBREAK_COLUMNS.map((c) => (
-                <td key={c.key} data-key={c.key} data-decided={marks.has(c.key) ? '' : undefined}>
-                  {c.show(row)}
+    // The table scrolls sideways inside its own box (never the page); the rank and player columns
+    // stay pinned, so a row is still whose while its tiebreak columns scroll underneath them.
+    <div className="pod-standings__wrap" data-testid="pod-standings-wrap">
+      <table className="pod-standings" data-testid="pod-standings">
+        <thead>
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col">Player</th>
+            <th scope="col">Points</th>
+            {TIEBREAK_COLUMNS.map((c) => (
+              <th key={c.key} scope="col">
+                {c.head}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => {
+            const marks = decided(i);
+            return (
+              <tr key={row.id} data-testid={`pod-standings-row-${row.rank}`} data-mine={row.id === myMemberId ? '' : undefined} data-dropped={dropped.includes(row.id) ? '' : undefined}>
+                <td>{row.rank}</td>
+                <td>
+                  {nameOf(row.id)}
+                  {dropped.includes(row.id) && <span className="pod-standings__dropped">Dropped</span>}
                 </td>
-              ))}
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+                <td>{row.matchPoints}</td>
+                {TIEBREAK_COLUMNS.map((c) => (
+                  <td key={c.key} data-key={c.key} data-decided={marks.has(c.key) ? '' : undefined}>
+                    {c.show(row)}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }

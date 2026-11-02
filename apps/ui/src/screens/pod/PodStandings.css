@@ -1,10 +1,24 @@
 /*
  * The pod's standings — wave 72 §R.2. Colour from `@wolffm/themes` only,
  * one discipline across the pod screens.
+ *
+ * Seven columns (#, Player, Points, four spelled-out tiebreak headers) never fit the standings
+ * card's own width (`PodScreen.css`'s `.pod__board`, `minmax(280px, 420px)`) — the operator found
+ * the last header cut at 1440 and every column running off the card at phone width. `__wrap` owns
+ * the horizontal scroll so it stays inside this card (never the page); `white-space: nowrap` on
+ * every cell keeps a header from wrapping into something that can read as cut off; the rank and
+ * player columns are pinned (`position: sticky`) so a scrolled row is still legible as whose it
+ * is, with an opaque background each so a pinned cell never shows another column's text through it.
  */
 
+.pod-standings__wrap {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .pod-standings {
-  width: 100%;
+  width: max-content;
   border-collapse: collapse;
   font-size: 0.85rem;
 }
@@ -13,7 +27,27 @@
 .pod-standings td {
   padding: 4px 8px;
   text-align: left;
+  white-space: nowrap;
   border-bottom: 1px solid var(--color-border-light);
+}
+
+/* The rank and player columns, pinned while the tiebreak columns scroll underneath them. */
+.pod-standings th:first-child,
+.pod-standings td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  box-sizing: border-box;
+  width: 32px;
+  background: var(--color-bg-card);
+}
+
+.pod-standings th:nth-child(2),
+.pod-standings td:nth-child(2) {
+  position: sticky;
+  left: 32px;
+  z-index: 1;
+  background: var(--color-bg-card);
 }
 
 .pod-standings tr[data-mine] td {

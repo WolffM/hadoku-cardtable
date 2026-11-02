@@ -35,7 +35,19 @@
     flex-wrap: nowrap;
     overflow-x: auto;
     overflow-y: hidden;
-    padding-bottom: 4px; /* clears the ready ring's box-shadow from the scrollbar */
+    /* The scroller clips at its own padding edge: without room on every side, it cut the ready
+       ring's top (every seat) and the first seat's left (the operator, "the circles around the
+       ready players is cutoff"). 6px clears the ring's 3px box-shadow plus a focus outline.
+       Right is 0 here — Chromium does not count a scroll container's own TRAILING padding
+       toward its scrollable extent, so at max scroll the last seat's ring still touched the
+       edge; `::after` below is a real flex item, which does count. */
+    padding: 6px 0 6px 6px;
+  }
+
+  .pod-seats::after {
+    content: '';
+    flex: none;
+    width: 6px;
   }
 }
 

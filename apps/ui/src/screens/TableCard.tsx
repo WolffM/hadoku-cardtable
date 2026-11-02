@@ -271,8 +271,11 @@ export function TableCard({ size, players, nameOf, avatarOf, myMemberId, series,
           </div>
           {player(1)}
           {more !== false ? more : <span className="table-card__more-slot" />}
-          {!mine && goLink}
         </div>
+        {/* A sibling of the strip, never a child: the strip is a 4-column grid, and a fifth child in
+            it — however it is placed — pushed the other four aside (the operator: "another table's
+            strip draws its left side empty and the score on top of the opponent's name"). */}
+        {!mine && goLink}
         {resolving}
       </section>
     );

@@ -429,21 +429,28 @@
 }
 
 /*
- * Anybody else's table: the whole card is the way in, and the link draws only its hit area. It is cut to
- * a pixel by `overflow`, which never clips its `::after` (that is placed by the card, not by the link).
+ * Anybody else's table: the whole card is the way in. A SIBLING of `.table-card__strip`
+ * (`TableCard.tsx`), never its child: the strip is a 4-column grid, and this used to be a fifth
+ * child in it — explicitly placed at `grid-row: 1; grid-column: 1` — which the operator found
+ * pushed the other four aside ("another table's strip draws its left side empty and the score on
+ * top of the opponent's name").
+ *
+ * `position: absolute; inset: 0` covers the card directly (no `::after` indirection needed here):
+ * it is a sibling of the strip, so it is never a grid item in the first place, and being
+ * out-of-flow it adds no height of its own — an ordinary 1px flow sibling here was ANOTHER way to
+ * grow the card: `room-hub.spec.ts` clicks a fixed point (20, 60) on the strength of "the link
+ * covers it edge to edge", which a taller card quietly moved out from under. `font-size: 0` hides
+ * the label text (still read by a screen reader; this is a purely visual change), since the box is
+ * now the whole card rather than a 1×1 corner `overflow: hidden` used to crop it to.
  */
-.table-card__strip > .table-card__go {
-  grid-row: 1;
-  grid-column: 1;
-  align-self: start;
-  justify-self: start;
-  width: 1px;
-  height: 1px;
+.table-card--compact > .table-card__go {
+  position: absolute;
+  inset: 0;
   min-height: 0;
   padding: 0;
   overflow: hidden;
   background: none;
-  white-space: nowrap;
+  font-size: 0;
 }
 
 .table-card__more-slot {

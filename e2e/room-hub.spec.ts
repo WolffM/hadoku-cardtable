@@ -117,8 +117,11 @@ test(
       // The whole card is the way in (the operator: "any spectator can click on any active game and enter it
       // that way"): a press on the card's body, away from its Watch, still opens the table.
       const card = carol.page.locator(`[data-testid="pod-tables-row"][data-table-id="${tableId}"]`);
-      // The card's own link covers it edge to edge, so a press anywhere on it is that link's.
-      await card.click({ position: { x: 20, y: 60 } });
+      // The card's own link covers it edge to edge, so a press anywhere on it is that link's. Mid-height,
+      // not a fixed y: the compact strip's own height is content-driven (wave 90 lane B, item 6's fix), so a
+      // magic pixel count is one layout tweak from landing outside the card instead of away from Watch.
+      const cardBox = (await card.boundingBox())!;
+      await card.click({ position: { x: 20, y: Math.round(cardBox.height / 2) } });
       await carol.page.waitForURL(new RegExp(`#/match/${matchId}$`), { timeout: UI_TIMEOUT });
       expect((await hashes(carol.page)).some((h) => h.endsWith(`/table/${tableId}`)), 'carol: through the table page').toBe(true);
       await expect(carol.page.locator('[aria-label="Game board"]'), 'carol is watching').toBeVisible({ timeout: UI_TIMEOUT });
