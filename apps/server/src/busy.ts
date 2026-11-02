@@ -24,7 +24,7 @@
  *
  * ## Who may ask — and why this is not a tier
  *
- * The repo's rule is "keep the friend gate; never add a public or anonymous tier",
+ * The repo's rule is "keep the member gate; never add a public or anonymous tier",
  * and `/health` is the one route that legitimately sits above the tier floor. This
  * sits above it too, because the caller is the deploy runner on this host, which
  * holds no session key. It stays inside that rule by answering ONLY a genuinely

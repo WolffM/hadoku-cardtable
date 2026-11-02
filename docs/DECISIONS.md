@@ -847,7 +847,10 @@ make it so anyone can get member status for now."* The floor moves from friend
 to member tier; no public or anonymous tier, ever; no money, ever. The full
 entry and what it costs are in `LICENSING.md` §2. Flipping
 `CARDTABLE_MIN_TIER=member` is a hadoku_site wrapper change, PPE first, and the
-operator's.
+operator's. **Done 2026-11-02** on the operator's go: hadoku_site 20b9f8f84
+moved the `/cardtable` edge rule and prod's `CARDTABLE_MIN_TIER` to member
+together, and b6091172b added `robots.txt` disallows for `/cardtable`. A daily
+security watch (`scripts/telemetry/daily.sh`) reads who comes in.
 
 ## D25 — Going public: the disclaimer comes back, the launch stays art-light · settled · 2026-11-01 · operator
 

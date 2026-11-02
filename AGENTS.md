@@ -3,7 +3,7 @@
 Cube drafting + Magic play, free, for signed-in members (D24; it began as a
 private friend group). Forge (GPL-3) supplies the rules engine; the
 hadoku-watchparty room layer replaces Forge's online infra. Behind
-`hadoku.me/cardtable/` at friend tier until the floor moves to member.
+`hadoku.me/cardtable/` at member tier since 2026-11-02.
 
 **Read `docs/ARCHITECTURE.md`, `docs/FORGE_ANALYSIS.md` and
 `docs/WASM_AND_PORTING.md` before touching anything.** They're short, and they're the result of reading the actual Forge
@@ -32,7 +32,7 @@ before planning cross-game work.
   friend-tier app. Image URLs are no longer restricted by host, and `scripts/d13-gate.sh`
   no longer checks them. `docs/LICENSING.md` §3.1 keeps the original argument.
   What still holds the licensing posture up is unchanged: **no money**, the
-  **friend gate**, a handful of players, and the disclaimer in `NOTICE.md`.
+  **member gate** (D24; it was the friend gate), a small player base, and the disclaimer in `NOTICE.md`.
   Still enforced, for reasons that are not about copyright: **no image bytes in
   the bundle** (a 5.85 MB inlined PNG is a performance bug) and **no copied
   Scryfall `image_uris` blob** (that is what keeps art swappable).
@@ -54,9 +54,11 @@ before planning cross-game work.
   (OFL reserved-font-name).
 - ~~**Keep the friend gate.**~~ **Keep the member gate** — amended 2026-10-30
   (**D24**) by the operator: *"we will be always free … let's just make it so
-  anyone can get member status for now."* `/cardtable/*` is gated at the edge:
-  member tier once the operator moves `CARDTABLE_MIN_TIER` (hadoku_site's
-  wrapper, PPE first — not ours to flip), friend tier until then. Membership is
+  anyone can get member status for now."* `/cardtable/*` is gated at the edge
+  at member tier, and the server's own seal (`CARDTABLE_MIN_TIER`, hadoku_site's
+  wrapper — not ours to flip) is member too; both moved on 2026-11-02
+  (hadoku_site 20b9f8f84). `config.ts` still defaults to friend, so a wrapper
+  that loses the variable fails closed. Membership is
   free and open. Never add a public or anonymous tier, not even "just for
   drafting". Friend-only features (the music review, admin writes) check their
   own tier rather than lean on the floor; making rooms, events and matches is

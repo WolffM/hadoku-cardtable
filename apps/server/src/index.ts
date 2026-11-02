@@ -194,7 +194,7 @@ app.get('/health', (_req: Request, res: Response) => {
 // match instead of SIGKILLing it. The caller is the deploy runner on this host,
 // which holds no session key — hence above the floor, like /health. It answers
 // ONLY a genuinely local caller and is a bare 404 to everything else, so it does
-// not become the anonymous tier the friend gate forbids. busy.ts has the why.
+// not become the anonymous tier the member gate forbids. busy.ts has the why.
 app.get(
 	'/health/busy',
 	busyHandler({

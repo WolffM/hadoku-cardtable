@@ -2,7 +2,7 @@
  * `/api/drafts` — a drafter's own pool, and the build they have saved against it.
  *
  * Mounted on the `api` router the same way `/api/rooms`/`/api/sounds` are —
- * after `requireMinTier`, so every caller here is already friend tier (see
+ * after `requireMinTier`, so every caller here is already at the floor, member tier (see
  * `index.ts`'s header).
  *
  *   GET /api/drafts/:podId/mine   → 200 { pool, deck } | 404 — no seat in that pod

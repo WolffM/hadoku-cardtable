@@ -126,7 +126,7 @@ Roughly in order of how much attention each attracts:
 | Risk | Us |
 | --- | --- |
 | **Money** — sales, subs, ads, donations, Patreon | **None. Ever.** Not even "buy me a coffee". This is the single brightest line. |
-| **Public availability** — open signup, SEO, app stores | **Members only, and anyone may become a member, free** (D24, 2026-10-30). An edge gate at member tier: no anonymous access, no public tier, no indexing. Until the operator moves the floor (`CARDTABLE_MIN_TIER=member`, PPE first), the gate is still friend tier. **The source is public** (since 2026-10-13, the whole repo and its history); the running app is not — reading the code gives nobody a way to play. Before D24 this row read *"Friend-tier edge gate, no public signup."* |
+| **Public availability** — open signup, SEO, app stores | **Members only, and anyone may become a member, free** (D24, 2026-10-30). An edge gate at member tier: no anonymous access, no public tier, no indexing (`robots.txt` disallows `/cardtable` since 2026-11-02). The floor moved to member on 2026-11-02 (hadoku_site 20b9f8f84: the edge rule and `CARDTABLE_MIN_TIER=member`). **The source is public** (since 2026-10-13, the whole repo and its history); the running app is not — reading the code gives nobody a way to play. Before D24 this row read *"Friend-tier edge gate, no public signup."* |
 | **Card images at scale** — hosting/mirroring scans | **Card images are shown, loaded from Scryfall's image CDN (`cards.scryfall.io`).** D15 (2026-09-15) also allowed hosting art on `cdn.hadoku.me`; the per-card manifest that would point at it is currently empty, so nothing is served from there today. Either way the art is a replaceable placeholder; §3.1 records the trade. Before D15 this row read *"Never mirror."* |
 | **Looking official** — WotC logos, mana symbols, set symbols, the Magic wordmark, card frames | **Mana and set SYMBOLS ship from Keyrune and Mana** as of 2026-09-27 (D20) — third-party fonts, not WotC's own files; §3.2 records the trade. No WotC **logo**, no Magic **wordmark**, no card **frames**, and the UI still says unofficial. Before that date this row read *"Our own visual language. No WotC marks anywhere in the UI."* |
 | **Scale / visibility** — big playerbase, streams, press | A friend group, opening to members for its first public release and tournament (D24). Before D24 this row read *"A handful of friends."* |
@@ -224,8 +224,8 @@ the operator's.
    (a plain disc and a letter, Phyrexian as a dashed ring) is superseded; its
    token PARSER is not, and is what maps onto the font's classes.
 5. ~~**Keep the friend gate.**~~ **Keep the member gate** — amended 2026-10-30
-   (D24). The `/cardtable/` prefix is gated at the edge, at member tier once the
-   operator moves the floor and at friend tier until then. Membership is free and
+   (D24). The `/cardtable/` prefix is gated at the edge at member tier (since
+   2026-11-02; friend tier before). Membership is free and
    open to anyone. Still forbidden: a public tier, and anonymous access "just
    for the draft". Before D24 this rule read *"Keep the friend gate. The
    `/cardtable/` prefix is friend-tier at the edge."*
@@ -459,7 +459,7 @@ Where we stand against it, honestly, both halves:
   (§2, rule 1, and the brightest line in `CLAUDE.md`). No payments, no
   subscriptions, no surveys, no ratings, no follows. That is the clause's
   subject and we are clear of it by construction.
-- **The last sentence is met once the floor moves to member (D24).** Our account
+- **The last sentence is met since the floor moved to member (D24, 2026-11-02).** Our account
   system is hadoku's, and D24 makes member status free and open to anyone. That
   is *"with free accounts"*. Anonymous access stays off: the clause asks for
   anonymous OR free, and free is the half we give.
@@ -469,9 +469,8 @@ recorded a tension it would not resolve: the gate was a friend list, with no
 signup at all, so we met neither half of the last sentence, and the friend gate
 was itself one of §2's WotC-IP mitigations, so the two mitigations pulled
 against each other and we chose the WotC one. D24 changed the gate, not the
-reasoning: members only, anyone may become a member, free. Until the operator
-moves `CARDTABLE_MIN_TIER`, the gate is still the friend list and the old
-tension still stands.
+reasoning: members only, anyone may become a member, free. The floor moved on
+2026-11-02, which resolved the tension.
 
 Two points from the old reading still hold:
 

@@ -5,7 +5,7 @@
  * ## Routes
  *
  * All on the `api` router `index.ts` mounts behind `requireMinTier`, so every
- * one of them is behind the same friend-tier floor as everything else. There is
+ * one of them is behind the same member-tier floor as everything else. There is
  * no public tier here and nothing to configure one.
  *
  *   GET  /api/tables/formats               the frozen pools (Standard, Modern, Legacy), each carrying its `family`

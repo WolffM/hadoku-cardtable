@@ -2,8 +2,8 @@
  * `/api/rooms` — the room list, create, join, and the leader's game-type switch.
  *
  * Mounted on the `api` router AFTER `requireMinTier`, so every caller here is
- * already friend tier. Every friend sees every room (the operator's rule); a
- * room password is privacy between friends, not authentication — see
+ * already member tier. Every member sees every room (the operator's rule); a
+ * room password is privacy between players, not authentication — see
  * `room/lobby.ts`'s header.
  *
  *   GET   /api/rooms            → 200 { rooms: RoomView[] }

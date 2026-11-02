@@ -11,7 +11,7 @@
  * keeping every envelope in memory: it needs the header and the end, not the
  * body. The detail route is the one place a whole stream is read.
  *
- * Mounted on `api`, which is already behind `requireMinTier` (friend tier) —
+ * Mounted on `api`, which is already behind `requireMinTier` (member tier) —
  * same gate as every other `/api` route; `isAdmin` only decides whether a
  * testing room's rows are in the list at all, the same rule `http/rooms.ts`
  * applies to the room list itself.
