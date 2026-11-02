@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
 import { claimParticles, PARTICLE_BUDGET } from './effect-budget.ts';
-import { closeUp, departureCause, departuresOf, DISSOLVE_SWEEP, withLeaving, EXIT_MOTIONS, shards, exitMotionFor, installDepartures, LANDING_ATTR, LEAVING_GAP_ATTR, specks, type Departure, type DepartureCause } from './departures.ts';
+import { closeUp, departureCause, departuresOf, DISSOLVE_SWEEP, dissolveSweep, withLeaving, EXIT_MOTIONS, shards, exitMotionFor, installDepartures, LANDING_ATTR, LEAVING_GAP_ATTR, specks, type Departure, type DepartureCause } from './departures.ts';
 
 const rect = (left: number, top: number, width: number, height: number): DOMRect =>
   ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
@@ -506,4 +506,42 @@ describe('shards', () => {
     }
     for (const p of parts) expect(p.dy, 'it falls').toBeGreaterThan(0);
   });
+});
+
+describe('dissolveSweep: the window that eats a dissolving card moves on the compositor and always covers what is left', () => {
+  /** Where a card point sits along the sweep (`p0`), and whether the window still holds it after `d` px. */
+  const at = (g: ReturnType<typeof dissolveSweep>, w: number, h: number, x: number, y: number, d: number) => {
+    const ux = w / g.diag;
+    const uy = h / g.diag;
+    const bh = g.pad + h + g.margin;
+    // The point in the window's own box (card at margin, pad), with the window moved d along the sweep.
+    const lx = g.margin + x - d * ux;
+    const ly = g.pad + y + d * uy;
+    const p0 = (g.margin + x) * ux + (bh - (g.pad + y)) * uy;
+    return { ahead: p0 - d > g.edge, inside: lx >= -0.01 && ly <= bh + 0.01 };
+  };
+
+  for (const [w, h] of [
+    [100, 140],
+    [140, 100],
+    [64, 88],
+    [180, 120],
+  ] as const) {
+    it(`a ${w}×${h} card: whole at the start, gone at the end, never uncovered while still drawn`, () => {
+      const g = dissolveSweep(w, h);
+      expect(g.sweepX).toBeCloseTo((g.travel * w) / g.diag);
+      expect(g.sweepY).toBeCloseTo((-g.travel * h) / g.diag);
+      for (let i = 0; i <= 10; i++)
+        for (let j = 0; j <= 10; j++) {
+          const x = (w * i) / 10;
+          const y = (h * j) / 10;
+          expect(at(g, w, h, x, y, 0).ahead, `(${x},${y}) whole at the start`).toBe(true);
+          expect(at(g, w, h, x, y, g.travel).ahead, `(${x},${y}) eaten at the end`).toBe(false);
+          for (let k = 0; k <= 40; k++) {
+            const p = at(g, w, h, x, y, (g.travel * k) / 40);
+            if (p.ahead) expect(p.inside, `(${x},${y}) at ${k}/40 is still drawn, so the window holds it`).toBe(true);
+          }
+        }
+    });
+  }
 });
