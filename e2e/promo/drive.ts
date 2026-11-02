@@ -90,10 +90,10 @@ export { humanMove, humanRest };
 const centre = (box: { x: number; y: number; width: number; height: number }) => ({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
 
 /** Glide to `target` and rest on it (the hover inspector opens), then click. */
-export async function deliberateClick(page: Page, target: Locator, opts: { hover?: number } = {}): Promise<void> {
+export async function deliberateClick(page: Page, target: Locator, opts: { hover?: number; pace?: number } = {}): Promise<void> {
   const box = await target.boundingBox();
   if (box === null) throw new Error('promo: nothing to click');
-  await humanMove(page, centre(box));
+  await humanMove(page, centre(box), opts.pace);
   await humanRest(page, opts.hover ?? 450);
   // The locator's own click: a bare mouse.click on a player's face never reached the board's pick handler.
   await target.click();
@@ -161,8 +161,9 @@ export async function selectionTiles(page: Page): Promise<{ id: number; text: st
 /**
  * Tick each tile in `ids` at a readable pace, then press the sheet's OK. Forge closes a selection itself
  * once its maximum is picked (the sheet counts down "up to 6…", "up to 2…"), so OK may be gone by then.
+ * `settleMs` is the look at the full sheet before its OK; a combo's repeated pick wants it short.
  */
-export async function pickTiles(page: Page, ids: readonly number[], gapMs = 140): Promise<void> {
+export async function pickTiles(page: Page, ids: readonly number[], gapMs = 140, settleMs = 400): Promise<void> {
   for (const id of ids) {
     const tile = openSheet(page).locator(`[data-testid="prompt-cards"] > li[data-card-id="${id}"]`);
     if ((await tile.count()) === 0) continue;
@@ -174,12 +175,12 @@ export async function pickTiles(page: Page, ids: readonly number[], gapMs = 140)
     await page.mouse.click(at.x, at.y);
     await humanRest(page, gapMs);
   }
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(settleMs);
   // Only OK the sheet these tiles were on: once Forge closed it, the open sheet is the NEXT question.
   const still = new Set((await selectionTiles(page)).map((t) => t.id));
   if (!ids.some((id) => still.has(id))) return;
   const ok = openSheet(page).locator('[data-testid="selection-done"]:enabled, [data-testid="prompt-submit"]:enabled');
-  if ((await ok.count()) > 0) await deliberateClick(page, ok.first(), { hover: 250 });
+  if ((await ok.count()) > 0) await deliberateClick(page, ok.first(), { hover: Math.min(250, settleMs) });
 }
 
 export const lifeOf = (page: Page, whose: 'mine' | 'theirs'): Locator =>
