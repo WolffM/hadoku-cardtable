@@ -435,10 +435,10 @@ import { CheckMark } from './marks.tsx';
 import { Relations } from './Relations.tsx';
 import { cardWidthIn } from './card-size.ts';
 import { useRailFit } from './tag-rail.ts';
-import { usePortraitLayout } from './portrait.ts';
 import { liftGhost, type Ghost } from './lift.ts';
 import { observeZoneBoxes, type ZoneBoxes } from './zone-box.ts';
 import { PLACEMENT_WAIT_MS, UNLOCK_BEAT_MS } from './motion.ts';
+import { clampZoom, dispatchZoomEvent, usePortraitLayout, ZOOM_RESET_EVENT } from './portrait.ts';
 import './board.css';
 import './card.css';
 import './portrait.css';
@@ -688,6 +688,17 @@ export type BoardRow = (typeof BOARD_ROWS)[number] | (typeof SINGLE_ROWS)[number
 /** Which rows a layout draws, and in what order `--cols` sums them. */
 function rowsForLayout(layout: BoardLayout): readonly BoardRow[] {
   return layout === 'single' ? SINGLE_ROWS : BOARD_ROWS;
+}
+
+/**
+ * Portrait's four lanes (test-id contract, `docs/planning/wave89-2026-11-01.md`): the SAME two
+ * tiers `layout === 'single'` already draws, named by whose battlefield it is and whether it is the
+ * back (lands) tier or the front (everything else) one.
+ */
+function laneTestId(ownerSide: ZoneOwner, tier: 'front' | 'back'): string {
+  const who = ownerSide === 'them' ? 'their' : 'my';
+  const what = tier === 'back' ? 'lands' : 'permanents';
+  return `lane-${who}-${what}`;
 }
 
 const ROW_LABEL: Readonly<Record<BoardRow, string>> = {
@@ -3167,6 +3178,7 @@ function Battlefield({
   layout,
   leaving = NOTHING_LEAVING,
   foreign = NOTHING_FOREIGN,
+  portrait = false,
 }: {
   player: BoardPlayer;
   ownerSide: ZoneOwner;
@@ -3178,6 +3190,17 @@ function Battlefield({
   leaving?: readonly Departure[];
   /** Every OTHER player's battlefield, for `group()` alone (item 6: an attachment follows its host, not its controller). */
   foreign?: readonly BoardCard[];
+  /**
+   * Portrait (Settled 3): `layout` is always `'single'` here (`Board` forces
+   * it), and each of the two tiers becomes its own sideways-scrolling lane —
+   * `lane-their-lands`/`lane-their-permanents`/`lane-my-permanents`/
+   * `lane-my-lands` (the test-id contract) — rather than the desktop's
+   * vertical stack. No markup here changes shape; only the tier's own
+   * `data-testid` (the contract's id) and the wrapping `.zone__tiers`'
+   * `data-portrait-lanes` (`portraitLanesIn`, below, finds every lane by it
+   * without re-querying `data-tier` itself) are added.
+   */
+  portrait?: boolean;
 }) {
   const leavingIds = new Set(leaving.map((d) => d.cardId));
   const grouped = drawnRows(group(withLeaving(player.battlefield, leaving), player.id, arranged, layout, foreign), layout);
@@ -3226,12 +3249,13 @@ function Battlefield({
          * not a type section: it is `data-arrange-slot`, and where a card goes by
          * default rather than a bucket it is confined to.
          */}
-        <div className="zone__tiers" data-tiers={ownerSide === 'them' ? 'mirrored' : undefined}>
+        <div className="zone__tiers" data-tiers={ownerSide === 'them' ? 'mirrored' : undefined} data-portrait-lanes={portrait || undefined}>
           {tiers.map((tier) => (
             <ul
               key={tier}
               className="zone__cards"
               data-tier={tier}
+              data-testid={portrait ? laneTestId(ownerSide, tier) : undefined}
               style={{ '--cols': cols(rows, layout) } as CSSProperties}
               data-arrange-slot={arranging === undefined ? undefined : tier}
             >
@@ -3731,6 +3755,7 @@ function PlayerArea({
   held,
   onOpenPile,
   onOpenDeck,
+  portrait = false,
 }: {
   player: BoardPlayer;
   interaction: BoardInteraction | undefined;
@@ -3744,6 +3769,14 @@ function PlayerArea({
   held: ReadonlySet<number>;
   onOpenPile: (zone: PileZone) => void;
   onOpenDeck?: (from: Element) => void;
+  /**
+   * Portrait (Settled 2, 3): the seat's own furniture — avatar, life, counts,
+   * piles — moves into `Board`'s `PortraitHud`, which renders the SAME
+   * `PlayerFace` for this player instead, so `.seat__side` is left out of the
+   * tree entirely rather than drawn twice (Settled 9: never a second
+   * component rendering a seat).
+   */
+  portrait?: boolean;
 }) {
   const selectable = interaction !== undefined && interaction.selectablePlayers.has(player.id);
   const libraryMark = (
@@ -3791,115 +3824,117 @@ function PlayerArea({
        * viewer the portrait is above and the graveyard below it, which is the
        * operator's own geometry (`board-layout-2026-09-27.md`).
        */}
-      <div className="seat__side">
-        <div className="seat__who" data-player-bar="">
-          <div className="seat__ident">
-            <PlayerFace player={player} interaction={interaction} />
-            <h3 className="seat__name">
-              {selectable ? (
+      {!portrait && (
+        <div className="seat__side">
+          <div className="seat__who" data-player-bar="">
+            <div className="seat__ident">
+              <PlayerFace player={player} interaction={interaction} />
+              <h3 className="seat__name">
+                {selectable ? (
+                  <button
+                    type="button"
+                    className="seat__select"
+                    aria-label={`Select ${player.name}`}
+                    onClick={() => interaction.onSelectPlayer(player.id)}
+                  >
+                    {name}
+                  </button>
+                ) : (
+                  name
+                )}
+              </h3>
+            </div>
+            <SeatStatus player={player} />
+            {/*
+             * The library's count, as a MARK rather than a word (item 10: *"can we get
+             * symbols to display hand/deck size instead of words?"*). The hand's count is
+             * gone (the operator, 2026-10-17: *"Hand count should be gone, instead let's
+             * allow the deck count number to be slightly bigger and the deck icon to be
+             * three stacked trapazoids"*) — a hand is drawn card by card, backs included,
+             * so it counts itself. Ours, drawn here as geometry like the player mark: no
+             * font to miss the glyph, no WotC symbol anywhere near it.
+             *
+             * `library-count` is the one handle anything has on the number, and it carries
+             * the word in its accessible name: the mark is for the eye, the label for
+             * everything else.
+             */}
+            <div className="seat__counts">
+              {player.isViewer && onOpenDeck !== undefined ? (
+                /* Your own opens your deck list (the operator, 2026-10-17: "Clicking on deck icon should let you open your deck list"). */
                 <button
                   type="button"
-                  className="seat__select"
-                  aria-label={`Select ${player.name}`}
-                  onClick={() => interaction.onSelectPlayer(player.id)}
+                  className="seat__count seat__count--open"
+                  data-testid="library-count"
+                  aria-label={`library ${player.libraryCount}`}
+                  aria-haspopup="dialog"
+                  onClick={(event) => onOpenDeck(event.currentTarget)}
                 >
-                  {name}
+                  {libraryMark}
                 </button>
               ) : (
-                name
+                <span className="seat__count" data-testid="library-count" aria-label={`library ${player.libraryCount}`}>
+                  {libraryMark}
+                </span>
               )}
-            </h3>
+              <PlayerCounters player={player} />
+            </div>
+            <ManaPool player={player} interaction={interaction} />
           </div>
-          <SeatStatus player={player} />
+          {player.libraryTop !== undefined && (
+            /*
+             * The library's top cards this screen knows, top first — revealed (Goblin Guide, Dark
+             * Confidant), standing revealed (Courser of Kruphix), or looked at and kept there (a fate
+             * seal, a scry) — under its owner's avatar (the operator, 2026-10-13: "when top of deck is
+             * revealed put it below the avatar"), in the seat's own column: under it on yours, the
+             * mirror on theirs. The top card whole, each under it a strip behind it. Not a permanent
+             * and not arranged; a land Forge offers from the top is played from here like a hand card
+             * (`live/gestures/cast.ts`).
+             */
+            <ZoneShell
+              owner={player.name}
+              ownerSide={side}
+              zone="library"
+              label="Library"
+              count={player.libraryCount}
+              canAct={interaction?.actionable?.has(player.libraryTop[0]!.id) === true}
+            >
+              <ul className="zone__cards">
+                {/* Keyed: the next top is another card, never this element reused with the last one's gesture styles. */}
+                {player.libraryTop.map((entry) => (
+                  <CardOnBoard key={entry.id} entry={entry} interaction={interaction} libraryTop />
+                ))}
+              </ul>
+            </ZoneShell>
+          )}
           {/*
-           * The library's count, as a MARK rather than a word (item 10: *"can we get
-           * symbols to display hand/deck size instead of words?"*). The hand's count is
-           * gone (the operator, 2026-10-17: *"Hand count should be gone, instead let's
-           * allow the deck count number to be slightly bigger and the deck icon to be
-           * three stacked trapazoids"*) — a hand is drawn card by card, backs included,
-           * so it counts itself. Ours, drawn here as geometry like the player mark: no
-           * font to miss the glyph, no WotC symbol anywhere near it.
-           *
-           * `library-count` is the one handle anything has on the number, and it carries
-           * the word in its accessible name: the mark is for the eye, the label for
-           * everything else.
+           * The piles, in the REST of the seat's one left column — under the avatar and
+           * the counts, with everything they leave (wave 32 Q9). The opponent's column
+           * is the vertical mirror (`board.css`, `column-reverse`): exile strip,
+           * graveyard, counts, avatar nearest the centre. Graveyard first: it is the
+           * one that fills up, and the one that gets the space.
            */}
-          <div className="seat__counts">
-            {player.isViewer && onOpenDeck !== undefined ? (
-              /* Your own opens your deck list (the operator, 2026-10-17: "Clicking on deck icon should let you open your deck list"). */
-              <button
-                type="button"
-                className="seat__count seat__count--open"
-                data-testid="library-count"
-                aria-label={`library ${player.libraryCount}`}
-                aria-haspopup="dialog"
-                onClick={(event) => onOpenDeck(event.currentTarget)}
-              >
-                {libraryMark}
-              </button>
-            ) : (
-              <span className="seat__count" data-testid="library-count" aria-label={`library ${player.libraryCount}`}>
-                {libraryMark}
-              </span>
-            )}
-            <PlayerCounters player={player} />
+          <div className="seat__piles">
+            <Zone
+              owner={player.name}
+              ownerSide={side}
+              zone="graveyard"
+              label="Graveyard"
+              cards={unheld(player.graveyard, held)}
+              interaction={interaction}
+              onOpen={() => onOpenPile('graveyard')}
+            />
+            <Zone
+              owner={player.name}
+              ownerSide={side}
+              zone="exile"
+              label="Exile"
+              cards={unheld(player.exile, held)}
+              interaction={interaction}
+              onOpen={() => onOpenPile('exile')}
+            />
           </div>
-          <ManaPool player={player} interaction={interaction} />
         </div>
-        {player.libraryTop !== undefined && (
-          /*
-           * The library's top cards this screen knows, top first — revealed (Goblin Guide, Dark
-           * Confidant), standing revealed (Courser of Kruphix), or looked at and kept there (a fate
-           * seal, a scry) — under its owner's avatar (the operator, 2026-10-13: "when top of deck is
-           * revealed put it below the avatar"), in the seat's own column: under it on yours, the
-           * mirror on theirs. The top card whole, each under it a strip behind it. Not a permanent
-           * and not arranged; a land Forge offers from the top is played from here like a hand card
-           * (`live/gestures/cast.ts`).
-           */
-          <ZoneShell
-            owner={player.name}
-            ownerSide={side}
-            zone="library"
-            label="Library"
-            count={player.libraryCount}
-            canAct={interaction?.actionable?.has(player.libraryTop[0]!.id) === true}
-          >
-            <ul className="zone__cards">
-              {/* Keyed: the next top is another card, never this element reused with the last one's gesture styles. */}
-              {player.libraryTop.map((entry) => (
-                <CardOnBoard key={entry.id} entry={entry} interaction={interaction} libraryTop />
-              ))}
-            </ul>
-          </ZoneShell>
-        )}
-        {/*
-         * The piles, in the REST of the seat's one left column — under the avatar and
-         * the counts, with everything they leave (wave 32 Q9). The opponent's column
-         * is the vertical mirror (`board.css`, `column-reverse`): exile strip,
-         * graveyard, counts, avatar nearest the centre. Graveyard first: it is the
-         * one that fills up, and the one that gets the space.
-         */}
-        <div className="seat__piles">
-          <Zone
-            owner={player.name}
-            ownerSide={side}
-            zone="graveyard"
-            label="Graveyard"
-            cards={unheld(player.graveyard, held)}
-            interaction={interaction}
-            onOpen={() => onOpenPile('graveyard')}
-          />
-          <Zone
-            owner={player.name}
-            ownerSide={side}
-            zone="exile"
-            label="Exile"
-            cards={unheld(player.exile, held)}
-            interaction={interaction}
-            onOpen={() => onOpenPile('exile')}
-          />
-        </div>
-      </div>
+      )}
 
       <Battlefield
         player={player}
@@ -3910,27 +3945,38 @@ function PlayerArea({
         layout={layout}
         leaving={leaving}
         foreign={foreign}
+        portrait={portrait}
       />
-      {player.hand !== null ? (
-        <Zone
-          owner={player.name}
-          ownerSide={side}
-          zone="hand"
-          label="Hand"
-          /*
-           * The player's own order, and the view's for anyone who has not
-           * moved a card — MINUS the one card staged in `.staging` right now
-           * (item 17.2). It is drawn there instead, not also here: two copies
-           * of one `data-card-id` would break every lane that queries it by
-           * value, this file's own invariant included.
-           */
-          cards={handOrder(player.hand, player.id, arranged).filter((c) => c.id !== interaction?.stagedCardId)}
-          interaction={interaction}
-          arranging={arranging}
-        />
-      ) : (
-        <HiddenHand player={player} ownerSide={side} interaction={interaction} />
-      )}
+      {/*
+       * Portrait (Settled 2, 3): the opponent's hand gets no lane at all — the chip already says
+       * its count — and the hand stays the viewer's own bottom row. Omitted from the render
+       * entirely rather than hidden by CSS: a `display: none` zone still carries its DESKTOP
+       * `--zone-w`/`--zone-h` box (`zone-box.ts`), which `e2e/play/board.ts`'s `resizeWindow`
+       * polls against every `ZONE_BOXES` element's live computed size and never converges for one
+       * that collapsed to a negative box under a now-inert `--right-gutter` padding — not a
+       * portrait bug, a reason to leave the node out rather than paint over it.
+       */}
+      {(!portrait || player.isViewer) &&
+        (player.hand !== null ? (
+          <Zone
+            owner={player.name}
+            ownerSide={side}
+            zone="hand"
+            label="Hand"
+            /*
+             * The player's own order, and the view's for anyone who has not
+             * moved a card — MINUS the one card staged in `.staging` right now
+             * (item 17.2). It is drawn there instead, not also here: two copies
+             * of one `data-card-id` would break every lane that queries it by
+             * value, this file's own invariant included.
+             */
+            cards={handOrder(player.hand, player.id, arranged).filter((c) => c.id !== interaction?.stagedCardId)}
+            interaction={interaction}
+            arranging={arranging}
+          />
+        ) : (
+          <HiddenHand player={player} ownerSide={side} interaction={interaction} />
+        ))}
       {/*
        * The Command zone: the initiative, the monarch, a dungeon, a commander — every card there
        * but an emblem, which is a medallion on the face. At the end of the hand row, the board's
@@ -3939,8 +3985,11 @@ function PlayerArea({
        * Drawn only while it holds a card, and the hand alone gives it room (`board.css`). Its cards
        * overlap past two cards' width, and a click opens them all as a pile, as a graveyard does (the
        * operator, 2026-10-22: "ideally it is expandable just liky gy/exile").
+       *
+       * Out of this wave's scope in portrait (closing note): no lane has room for it, and the
+       * Settled list names none. Left out of the render entirely, same reasoning as the hand above.
        */}
-      {player.command !== undefined && player.command.length > 0 && (
+      {!portrait && player.command !== undefined && player.command.length > 0 && (
         <Zone owner={player.name} ownerSide={side} zone="command" label={PILE_LABEL.command} cards={player.command} interaction={interaction} onOpen={() => onOpenPile('command')} />
       )}
     </section>
@@ -3982,6 +4031,176 @@ function PlayerArea({
  *
  * Nothing is sent to Forge. Everything it draws is removed again on every exit.
  */
+
+/**
+ * Portrait's lanes (Settled 3): "a sliver of the next card, an edge fade and a '+N' count show
+ * there is more." Imperative, the same reasoning as `zone-box.ts`'s own doc — a scroll fires every
+ * frame while a finger drags a lane, and writing two attributes and at most two `<li>`s per lane
+ * costs far less than a React re-render for the same frame.
+ *
+ * The badge is a real `<li class="lane-more" data-testid="lane-more">`, appended to the lane's own
+ * `<ul>` — a list item is the one child a card list already expects, so nothing that counts
+ * `:scope > li.board-card` sees it. `data-side` is `"left"` or `"right"`, its text the count, exactly
+ * the contract table's shape.
+ */
+function measurePortraitLane(lane: HTMLUListElement): void {
+  const laneLeft = lane.scrollLeft;
+  const laneRight = laneLeft + lane.clientWidth;
+  let left = 0;
+  let right = 0;
+  for (const child of lane.children) {
+    if (!(child instanceof HTMLElement) || child.classList.contains('lane-more')) continue;
+    const width = child.offsetWidth;
+    if (width === 0) continue;
+    const a = child.offsetLeft - lane.offsetLeft;
+    const b = a + width;
+    if (b > laneRight + 4 && a > laneRight - width * 0.5) right++;
+    if (a < laneLeft - 4 && b < laneLeft + width * 0.5) left++;
+  }
+  lane.classList.toggle('lane--fade-r', right > 0);
+  lane.classList.toggle('lane--fade-l', left > 0);
+  for (const [side, count] of [['left', left], ['right', right]] as const) {
+    const existing = lane.querySelector<HTMLLIElement>(`li.lane-more[data-side="${side}"]`);
+    if (count === 0) {
+      existing?.remove();
+      continue;
+    }
+    const li = existing ?? document.createElement('li');
+    if (existing === null) {
+      li.className = 'lane-more';
+      li.setAttribute('data-testid', 'lane-more');
+      li.setAttribute('data-side', side);
+      li.setAttribute('aria-hidden', 'true');
+      lane.append(li);
+    }
+    li.textContent = `+${count}`;
+  }
+}
+
+/** Every `.zone__tiers[data-portrait-lanes] > .zone__cards` under `root` — the four lanes, while portrait is on. */
+function portraitLanesIn(root: HTMLElement): HTMLUListElement[] {
+  return [...root.querySelectorAll<HTMLUListElement>('.zone__tiers[data-portrait-lanes] > .zone__cards')];
+}
+
+function usePortraitLanes(root: { readonly current: HTMLElement | null }, enabled: boolean): void {
+  const attached = useRef<Set<HTMLUListElement>>(new Set());
+  // Re-measured after every commit the board makes while portrait is on — a card arriving or
+  // leaving changes a lane's own scrollWidth without resizing the lane's own box, so nothing a
+  // ResizeObserver watches fires for it on its own.
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (el === null || !enabled) return;
+    for (const lane of portraitLanesIn(el)) {
+      if (!attached.current.has(lane)) {
+        attached.current.add(lane);
+        lane.addEventListener('scroll', () => measurePortraitLane(lane), { passive: true });
+      }
+      measurePortraitLane(lane);
+    }
+  });
+  useEffect(() => {
+    if (!enabled) return undefined;
+    const onResize = (): void => {
+      const el = root.current;
+      if (el === null) return;
+      for (const lane of portraitLanesIn(el)) measurePortraitLane(lane);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [root, enabled]);
+}
+
+/**
+ * Portrait's zoom (Settled 4, §A.5): pinch and double-tap-on-empty-table, both through the prototype's
+ * own `zoomTo` — the pointer's (or the two fingers' midpoint's) fraction along the board's own scroll
+ * and each lane's own scroll is held fixed across the zoom, so the card under the gesture stays under
+ * it. `--portrait-zoom` lives on the board element itself (an inline style beats the root token for
+ * everything under it), and every change is told to `window` via `dispatchZoomEvent` — B's `zoom-pill`
+ * listens for `cardtable:zoom` rather than reading the CSS variable, which script cannot observe.
+ */
+function currentPortraitZoom(board: HTMLElement): number {
+  const read = Number.parseFloat(getComputedStyle(board).getPropertyValue('--portrait-zoom'));
+  return Number.isFinite(read) && read > 0 ? read : 1;
+}
+
+function zoomPortraitTo(board: HTMLElement, lanes: readonly HTMLUListElement[], zoom: number, cx: number, cy: number): void {
+  const z = clampZoom(zoom);
+  const boardScrollHeight = board.scrollHeight || 1;
+  const fy = (board.scrollTop + cy) / boardScrollHeight;
+  const laneFx = lanes.map((lane) => ({ lane, fx: (lane.scrollLeft + cx) / (lane.scrollWidth || 1) }));
+  board.style.setProperty('--portrait-zoom', z.toFixed(3));
+  board.scrollTop = fy * board.scrollHeight - cy;
+  for (const { lane, fx } of laneFx) lane.scrollLeft = fx * lane.scrollWidth - cx;
+  for (const lane of lanes) measurePortraitLane(lane);
+  dispatchZoomEvent(z);
+}
+
+function usePortraitZoom(root: { readonly current: HTMLElement | null }, enabled: boolean): void {
+  useEffect(() => {
+    if (!enabled) return undefined;
+    const board = root.current;
+    if (board === null) return undefined;
+    let pinch: { d: number; z: number; cx: number; cy: number } | null = null;
+    const onTouchStart = (event: TouchEvent): void => {
+      if (event.touches.length !== 2) return;
+      const [a, b] = event.touches;
+      if (a === undefined || b === undefined) return;
+      const rect = board.getBoundingClientRect();
+      pinch = {
+        d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
+        z: currentPortraitZoom(board),
+        cx: (a.clientX + b.clientX) / 2 - rect.left,
+        cy: (a.clientY + b.clientY) / 2 - rect.top,
+      };
+    };
+    const onTouchMove = (event: TouchEvent): void => {
+      if (pinch === null || event.touches.length !== 2) return;
+      const [a, b] = event.touches;
+      if (a === undefined || b === undefined) return;
+      event.preventDefault();
+      const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+      zoomPortraitTo(board, portraitLanesIn(board), (pinch.z * d) / pinch.d, pinch.cx, pinch.cy);
+    };
+    const onTouchEnd = (event: TouchEvent): void => {
+      if (event.touches.length < 2) pinch = null;
+    };
+    let lastTap = 0;
+    const onClick = (event: globalThis.MouseEvent): void => {
+      const target = eventTarget(event);
+      if (target instanceof Element && target.closest('.board-card, button, .seat-chip, [data-player-face]') !== null) return;
+      const now = Date.now();
+      if (now - lastTap < 320) {
+        const rect = board.getBoundingClientRect();
+        const z = currentPortraitZoom(board);
+        zoomPortraitTo(board, portraitLanesIn(board), z > 1.2 ? 1 : 1.7, event.clientX - rect.left, event.clientY - rect.top);
+        lastTap = 0;
+      } else {
+        lastTap = now;
+      }
+    };
+    /*
+     * B's `zoom-pill` asks for 1× by dispatching `ZOOM_RESET_EVENT` on `window` (`portrait.ts`'s
+     * doc) rather than writing the board's zoom itself — answered the same way the pinch/double-tap
+     * gestures above are, anchored on the board's own centre so nothing jumps.
+     */
+    const onZoomReset = (): void => {
+      const rect = board.getBoundingClientRect();
+      zoomPortraitTo(board, portraitLanesIn(board), 1, rect.width / 2, rect.height / 2);
+    };
+    board.addEventListener('touchstart', onTouchStart, { passive: true });
+    board.addEventListener('touchmove', onTouchMove, { passive: false });
+    board.addEventListener('touchend', onTouchEnd);
+    board.addEventListener('click', onClick);
+    window.addEventListener(ZOOM_RESET_EVENT, onZoomReset);
+    return () => {
+      board.removeEventListener('touchstart', onTouchStart);
+      board.removeEventListener('touchmove', onTouchMove);
+      board.removeEventListener('touchend', onTouchEnd);
+      board.removeEventListener('click', onClick);
+      window.removeEventListener(ZOOM_RESET_EVENT, onZoomReset);
+    };
+  }, [root, enabled]);
+}
 
 /** Every box `board.css` sizes cards from, measured (`zone-box.ts`) — the boxes a render added, from that render's own commit. */
 function useZoneBoxes(root: { readonly current: HTMLElement | null }): void {
@@ -4245,6 +4464,109 @@ function StackView({ count, carried }: { count: number; carried: number }) {
   return <section className="stack" aria-label="Stack" data-zone="stack" data-owner="table" data-count={count} data-carried={carried > 0 ? carried : undefined} />;
 }
 
+/**
+ * Portrait's seat chip (test-id contract: `seat-chip-<me|opp>`), the top band's own avatar, life,
+ * hand, library and graveyard — the same five facts `PlayerArea`'s `.seat__who`/`.seat__piles` show
+ * on desktop, as one row instead of a column. Reuses `PlayerFace` rather than drawing a second
+ * avatar/life (Settled 9): `PlayerArea` leaves `.seat__side` out of the tree entirely in portrait
+ * (above), so this is the only place either player's face is rendered there. Its `.face` is the
+ * tap/target surface the contract names — `PlayerFace` already carries `data-player-face` and the
+ * select-player click Forge's own targeting uses.
+ */
+function SeatChip({
+  player,
+  side,
+  interaction,
+  onOpenPile,
+}: {
+  player: BoardPlayer;
+  side: 'me' | 'opp';
+  interaction: BoardInteraction | undefined;
+  onOpenPile: (playerId: number, zone: PileZone) => void;
+}) {
+  const handCount = player.isViewer && player.hand !== null ? player.hand.length : player.handCount;
+  return (
+    <div
+      className="seat-chip"
+      data-testid={`seat-chip-${side}`}
+      data-active={player.isActive || undefined}
+      /* `card.css`'s priority ring is scoped to `.seat[data-priority] .seat__ring`; the chip carries
+         the same fact itself (`portrait.css` restyles the ring from here instead), since in portrait
+         `PlayerFace` is no longer inside a `.seat` at all (Settled 9's note above). */
+      data-priority={player.hasPriority || undefined}
+    >
+      <PlayerFace player={player} interaction={interaction} />
+      <span className="seat-chip__counts">
+        <span className="seat-chip__count" data-count="hand" aria-label={`hand ${handCount}`}>
+          <svg className="seat-chip__count-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path d="M3 4.5 8.2 2.6l3 8.4-5.2 1.9zM9.5 2.2h3.6v9h-1.5V3.7H9.5z" />
+          </svg>
+          <span aria-hidden="true">{handCount}</span>
+        </span>
+        <span className="seat-chip__count" data-count="library" aria-label={`library ${player.libraryCount}`}>
+          <svg className="seat-chip__count-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path d="M4.6 1.6h6.8l2.4 3.4H2.2Z" />
+            <path d="M4.6 6.2h6.8l2.4 3.4H2.2Z" />
+            <path d="M4.6 10.8h6.8l2.4 3.4H2.2Z" />
+          </svg>
+          <span aria-hidden="true">{player.libraryCount}</span>
+        </span>
+        <button
+          type="button"
+          className="seat-chip__count seat-chip__count--open"
+          data-count="graveyard"
+          aria-label={`graveyard ${player.graveyard.length}`}
+          onClick={() => onOpenPile(player.id, 'graveyard')}
+        >
+          <svg className="seat-chip__count-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path d="M4 14V7a4 4 0 0 1 8 0v7z" />
+          </svg>
+          <span aria-hidden="true">{player.graveyard.length}</span>
+        </button>
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Portrait's top band (test-id contract: `portrait-hud`): both chips in one row, the stack chip
+ * between them while the stack holds anything (Settled 2). B's `.live__phases` lands in the second
+ * row this band reserves (`--portrait-phase-h`, `portrait.css`) — nothing here renders it; B's own
+ * file positions it against that token.
+ *
+ * Out of this wave's scope (closing note): the stack chip does not yet open a stack list on tap —
+ * `StackView` draws nothing on desktop either (every stack item is `live/placed.ts`'s own floating
+ * chip, not a list), so there is no existing list to surface here, and building one is new overlay
+ * UI past §A's lane-geometry brief.
+ */
+function PortraitHud({
+  opponent,
+  viewer,
+  interaction,
+  stackCount,
+  onOpenPile,
+}: {
+  opponent: BoardPlayer;
+  viewer: BoardPlayer;
+  interaction: BoardInteraction | undefined;
+  stackCount: number;
+  onOpenPile: (playerId: number, zone: PileZone) => void;
+}) {
+  return (
+    <header className="portrait-hud" data-testid="portrait-hud">
+      <div className="portrait-hud__row">
+        <SeatChip player={opponent} side="opp" interaction={interaction} onOpenPile={onOpenPile} />
+        {stackCount > 0 && (
+          <span className="portrait-hud__stack" data-testid="stack-chip" role="img" aria-label={`Stack, ${stackCount}`}>
+            {stackCount}
+          </span>
+        )}
+        <SeatChip player={viewer} side="me" interaction={interaction} onOpenPile={onOpenPile} />
+      </div>
+    </header>
+  );
+}
+
 export function Board({
   view,
   interaction: rawInteraction,
@@ -4281,8 +4603,13 @@ export function Board({
 }) {
   // The render's cost, to its layout effects (`live/work-meter.ts`): read again in the last layout effect below.
   const renderBegan = performance.now();
-  // Installs the portrait switch (`data-layout="portrait"` on <html>) for as long as a board is mounted.
-  usePortraitLayout();
+  /*
+   * The portrait switch (Settled 1, `portrait.ts`): mounting the hook is what
+   * installs it, so every other lane's `:root[data-layout="portrait"]` CSS is
+   * live from `Board`'s very first mount. The boolean itself drives the
+   * portrait-only restructuring below.
+   */
+  const portrait = usePortraitLayout();
   /*
    * AF397: which `doomAsk` candidate the seat points at, local to this board — the wire has no
    * concept of a mouse, and a stale hover from a PREVIOUS ask (a different choice, different
@@ -4579,6 +4906,8 @@ export function Board({
         },
   );
   useZoneBoxes(root);
+  usePortraitLanes(root, portrait);
+  usePortraitZoom(root, portrait);
 
   /*
    * Fold in any PENDING placement (`notePlayedTo`, above) for a card the
@@ -4633,9 +4962,26 @@ export function Board({
    */
   const focus = interaction?.selectionOpen === true || (interaction?.combatReady?.size ?? 0) > 0;
 
+  /*
+   * Portrait's one opponent (Settled 2's single HUD row: "the opponent is on
+   * the left, you on the right"). Multiplayer portrait is out of this wave's
+   * scope — see the closing note; `others[0]` is the only one the HUD and the
+   * lane geometry below know about, same as the prototype itself.
+   */
+  const portraitOpponent = others[0];
+
   return (
     <DamageHoldContext.Provider value={damageHolds}>
-      <section className="board" aria-label="Game board" ref={root} data-focus={focus || undefined}>
+      <section className="board" aria-label="Game board" ref={root} data-focus={focus || undefined} data-portrait={portrait || undefined}>
+        {portrait && portraitOpponent !== undefined && viewer !== undefined && (
+          <PortraitHud
+            opponent={portraitOpponent}
+            viewer={viewer}
+            interaction={interaction}
+            stackCount={view.stack.length}
+            onOpenPile={(playerId, zone) => openPileOf(playerId)(zone)}
+          />
+        )}
         <div className="board__opponents">
           {others.map((p) => (
             <PlayerArea
@@ -4650,6 +4996,7 @@ export function Board({
               foreign={foreignBattlefieldOf(p.id)}
               held={held}
               onOpenPile={openPileOf(p.id)}
+              portrait={portrait}
             />
           ))}
         </div>
@@ -4679,12 +5026,14 @@ export function Board({
             interaction={interaction}
             arranging={arranging}
             arranged={arranged}
-            layout={boardLayout}
+            /* Portrait fixes the four-lane geometry (Settled 3) whatever the settings panel's own choice is. */
+            layout={portrait ? 'single' : boardLayout}
             leaving={leavingOn(viewer.id)}
             foreign={foreignBattlefieldOf(viewer.id)}
             held={held}
             onOpenPile={openPileOf(viewer.id)}
             onOpenDeck={onOpenDeck}
+            portrait={portrait}
           />
         )}
 
