@@ -1,0 +1,16 @@
+# Perf bench (`e2e/perf/bench.spec.ts`, moment "storm"): Grapeshot with five storm copies. Seat 0 casts five
+# Rite of Flame first (unmeasured), then Grapeshot: six instances, each aimed at seat 1's face, resolve one
+# after another.
+turn=4
+activeplayer=human
+activephase=MAIN1
+humanlife=18
+ailife=20
+humanhand=Rite of Flame;Rite of Flame;Rite of Flame;Rite of Flame;Rite of Flame;Grapeshot
+humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Plains;Plains;Savannah
+aigraveyard=
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains

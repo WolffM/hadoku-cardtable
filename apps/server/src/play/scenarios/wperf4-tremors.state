@@ -1,0 +1,16 @@
+# Perf bench (`e2e/perf/bench.spec.ts`, moment "tokens"): the trailer finale's Secure the Wastes into Impact
+# Tremors (promo-ed's `promo-m-tremors`). Seat 0 casts it for X=6: six Warrior tokens arrive at once, and
+# two Impact Tremors plus Purphoros trigger for each, eighteen drains in a row.
+turn=6
+activeplayer=human
+activephase=MAIN1
+humanlife=15
+ailife=40
+humanhand=Secure the Wastes
+humanbattlefield=Impact Tremors;Impact Tremors;Purphoros, God of the Forge;Plains;Plains;Plains;Plains;Mountain;Mountain;Plateau;Plateau
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=Island;Island;Volcanic Island
+aigraveyard=
+ailibrary=Island;Island;Island;Island;Island;Island

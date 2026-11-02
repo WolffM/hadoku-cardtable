@@ -1,0 +1,16 @@
+# Perf bench (`e2e/perf/bench.spec.ts`, moment "worldfire"): the trailer finale's Worldfire (promo-ed's
+# `promo-m-worldfire`), where the mass dissolve skipped 1.0 s on film. Seat 0 casts Worldfire with ten lands:
+# every permanent, both hands and both graveyards are exiled at once and both players go to 1.
+turn=9
+activeplayer=human
+activephase=MAIN1
+humanlife=11
+ailife=16
+humanhand=Worldfire;Lightning Bolt;Fireblast
+humanbattlefield=Goblin Rabblemaster;Hellrider;Inferno Titan;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Volcanic Island;Plateau;Sword of Fire and Ice
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=Chain Lightning;Lava Spike;Rift Bolt
+aihand=Swords to Plowshares;Path to Exile;Brainstorm
+aibattlefield=Tarmogoyf;Knight of the Reliquary;Thalia, Guardian of Thraben;Baneslayer Angel;Elspeth, Knight-Errant|Counters:LOYALTY=5;Forest;Forest;Plains;Plains;Savannah;Windswept Heath;Umezawa's Jitte
+aigraveyard=Thoughtseize;Abrupt Decay
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
