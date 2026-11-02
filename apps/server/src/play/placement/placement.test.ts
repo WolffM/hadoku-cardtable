@@ -1087,6 +1087,41 @@ describe('failover', () => {
 		expect(early.posted[0]).toMatch(/^⚠️ Claw heartbeat lost: claw-5/);
 	});
 
+	it('a release still reads as one when the removal reached our snapshots before the lost link (claw-5, 2026-11-01 07:45Z)', async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8'), fleetNode('claw-5')]);
+		const end = new Date(r.clock.t + 15 * 60_000).toISOString();
+		r.nodes[2] = fleetNode('claw-5', { notices: [{ event: 'ends', at: end, kind: 'hosting' }] });
+		r.converger.ending = ['claw-5'];
+		await r.p.poll();
+		await r.p.poll();
+		// The end passes and fleet-manager removes the slice: its record, and so its `until` and its
+		// place in `ending`, are gone from the next reads — and only then does the agent's link drop.
+		r.clock.t += 15 * 60_000 + 30_000;
+		r.nodes[2] = fleetNode('claw-5', { hosting: null });
+		r.converger.ending = [];
+		await r.p.poll();
+		r.claws.get('claw-5')!.link.lose('agent heartbeat lost for 10 s (window 10 s)');
+		expect(r.posted).toEqual([]);
+		expect(hostOf(r, 'claw-5').quarantine).toBeNull();
+		expect(r.logs.some((l) => l.evt === 'claw-released' && l.host === 'claw-5')).toBe(true);
+	});
+
+	it('an end taken back with --keep makes a later loss a fault again', async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8'), fleetNode('claw-5')]);
+		const end = new Date(r.clock.t + 15 * 60_000).toISOString();
+		r.nodes[2] = fleetNode('claw-5', { notices: [{ event: 'ends', at: end, kind: 'hosting' }] });
+		r.converger.ending = ['claw-5'];
+		await r.p.poll();
+		await r.p.poll();
+		r.nodes[2] = fleetNode('claw-5');
+		r.converger.ending = [];
+		await r.p.poll();
+		await r.p.poll();
+		r.clock.t += 15 * 60_000 + 30_000;
+		r.claws.get('claw-5')!.link.lose('agent heartbeat lost for 11 s (window 10 s)');
+		expect(r.posted[0]).toMatch(/^⚠️ Claw heartbeat lost: claw-5/);
+	});
+
 	it('agent lost with matches: one failover for the claw, not one per JVM', async () => {
 		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
 		for (const id of ['m-1', 'm-2', 'm-3']) start(r, id);

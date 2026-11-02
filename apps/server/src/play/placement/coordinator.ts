@@ -163,6 +163,12 @@ interface Host {
 	cutoffs: number[];
 	/** Since when it has not been usable (`DemandClaw`); null while it is. */
 	unusableSince: number | null;
+	/**
+	 * When the slice the converger is ending at our asking ends, held here once seen. The removal
+	 * that follows the end erases both the `until` and the `ending` entry from the next reads, and
+	 * the agent's link can drop after those reads: this is what still knows it was a release.
+	 */
+	releaseAt: number | null;
 }
 
 /**
@@ -336,6 +342,7 @@ export function placement(opts: PlacementOptions): Placement {
 			moving: null,
 			cutoffs: [],
 			unusableSince: null,
+			releaseAt: null,
 		};
 		hosts.set(name, host);
 		return host;
@@ -501,6 +508,21 @@ export function placement(opts: PlacementOptions): Placement {
 		if (answer === null) return;
 		if (answer.actions.length > 0) log({ evt: 'slice-converger', auto: answer.auto, live: answer.live, actions: answer.actions, blocked: answer.blocked });
 		converger = answer;
+		noteReleases();
+	}
+
+	/**
+	 * Hold each ending slice's end. Drop it only on positive evidence the end was taken back
+	 * (`--keep`): declared, not ending, the slice still there and no end announced. A slice that is
+	 * simply gone from the reads is the removal, and keeps it.
+	 */
+	function noteReleases(): void {
+		if (converger === null) return;
+		for (const host of claws()) {
+			const end = nextEvent(host.fleet);
+			if (converger.ending.includes(host.name) && end !== null) host.releaseAt = end.at;
+			else if (!converger.ending.includes(host.name) && converger.declared.includes(host.name) && host.fleet?.hosting != null && end === null) host.releaseAt = null;
+		}
 	}
 
 	/* ── Matches ── */
@@ -777,11 +799,13 @@ export function placement(opts: PlacementOptions): Placement {
 			return;
 		}
 		// A slice the converger was ending at our asking, past its end: the lost link is its removal.
-		// Paging it as a fault (claw-9 23:51, claw-5 00:39 on 2026-10-28) cried wolf twice in a night.
-		const end = nextEvent(host.fleet);
-		if (converger?.ending.includes(host.name) === true && end !== null && end.at <= now() + RELEASE_SLACK_MS) {
+		// Paging it as a fault (claw-9 23:51, claw-5 00:39 on 2026-10-28) cried wolf twice in a night,
+		// and again at claw-5 07:45Z on 2026-11-01, when the removal had already reached our reads.
+		if (host.releaseAt !== null && host.releaseAt <= now() + RELEASE_SLACK_MS) {
+			const endedAt = new Date(host.releaseAt).toISOString();
+			host.releaseAt = null;
 			detach(host, reason);
-			log({ evt: 'claw-released', host: host.name, endedAt: new Date(end.at).toISOString(), reason });
+			log({ evt: 'claw-released', host: host.name, endedAt, reason });
 			notifyRoom();
 			return;
 		}
@@ -852,6 +876,7 @@ export function placement(opts: PlacementOptions): Placement {
 				if (node.hosting === null && !hosts.has(node.node)) continue;
 				ensureClaw(node).fleet = node;
 			}
+			noteReleases();
 		}
 		await Promise.all(
 			claws()
