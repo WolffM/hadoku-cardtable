@@ -61,6 +61,7 @@ import { tablesClient } from '../screens/tables.ts';
 import { openNewMatch } from '../play/live/matchStart.ts';
 import { warmRoom } from './warm.ts';
 import { roomFeed, type RoomFeed } from './feed.ts';
+import { markJoined } from './joined.ts';
 import { watchScroll } from './scroll-watch.ts';
 import { playRole } from '../sound/index.ts';
 import {
@@ -506,6 +507,17 @@ function RoomRow({
     setBusy(true);
     setError(null);
     const outcome = await client.join(room.id, withPassword);
+    if (outcome.ok) {
+      // Marked HERE, before the navigate below (or the match one above) ever fires: `App.tsx`'s
+      // gate on `rooms/joined.ts` reads this on the ROOM route's very first render, and a mark
+      // written only after that render (ConstructedScreen's own effects, next) is one render too
+      // late — RoomShell flips from unwrapped to RoomChrome-wrapped once it lands, which remounts
+      // everything RoomShell wraps (`draft.spec.ts`'s "drawn in pieces": entering a draft room
+      // through this exact Enter button showed the lobby skeleton reappear once that
+      // remount's fresh effects re-ran). Marking before the navigation this function already
+      // does means the join is already proven by the time that first render happens.
+      markJoined(outcome.room.id);
+    }
     if (outcome.ok && room.scenario !== undefined && room.pod === null) {
       // A board-state room (no pod: a tournament's board is its round's table) opens on its game, the one already running or a new one against the AI.
       const started = await tablesClient().startVsBot(room.id);

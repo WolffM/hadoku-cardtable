@@ -138,6 +138,8 @@ import {
   useState,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEventHandler,
+  type PointerEventHandler,
   type ReactNode,
 } from 'react';
 
@@ -235,7 +237,7 @@ import {
   type TablesClient,
 } from './tables.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
-import { DeckPeek, namedFace, usePeekHover, type PeekLine, type PeekList } from './DeckPeek.tsx';
+import { DeckPeek, namedFace, usePeekHover, useTouchPeek, type PeekLine, type PeekList } from './DeckPeek.tsx';
 import { DeckTile } from './DeckTile.tsx';
 import { DeckFilterBar } from './DeckFilterBar.tsx';
 import { NO_DECK_FILTER, deckPasses, type DeckFilter } from './deckFilter.ts';
@@ -244,6 +246,7 @@ import { fetchDeckRecords } from '../stats/StatsPopout.tsx';
 import { takeWarmRoom } from '../rooms/warm.ts';
 import { CloseRoom } from '../rooms/CloseRoom.tsx';
 import { roomFeed, type RoomFeed } from '../rooms/feed.ts';
+import { clearJoined, markJoined } from '../rooms/joined.ts';
 import { latestReads } from '../rooms/latest.ts';
 import { useChromeShell } from '../chrome/shell.ts';
 import { startingText, useQueuePlace } from './queue-place.ts';
@@ -567,11 +570,88 @@ export function groupSetsByBlock(sets: readonly string[]): SetBlockGroup[] {
  */
 const MAX_POOL_SETS = 40;
 
+/** How far a mouse has to move before a press on the sets row counts as a drag, not a click. */
+const SETS_DRAG_SLOP = 4;
+
+/**
+ * Drags `.lobby__sets` sideways with a mouse (item 2b: *"maybe we make this horizontall
+ * scrollable? do not display a scroll bar though, just allow it to be dragged."*). Touch already
+ * gets this for free — `overflow-x: auto` (`screens.css`) is a native scroller on a touchscreen,
+ * no JS needed — but a mouse has no equivalent gesture to pan one, so a press-and-move here moves
+ * `scrollLeft` directly by the same distance, with `setPointerCapture` keeping every further
+ * event routed here even once the pointer has left the row.
+ *
+ * A drag that actually moved must not ALSO fire the click the press would otherwise end in —
+ * nothing under this row is clickable today, but the row still owns the row's own clicks, not
+ * whatever a glyph becomes later. `onClickCapture` is the ROW's, fired on the way down to
+ * whatever the pointer lifted over, before that element's own click handler (if it ever grows
+ * one) sees the event at all.
+ */
+function useDragScroll(): {
+  onPointerDown: PointerEventHandler<HTMLElement>;
+  onPointerMove: PointerEventHandler<HTMLElement>;
+  onPointerUp: PointerEventHandler<HTMLElement>;
+  onPointerCancel: PointerEventHandler<HTMLElement>;
+  onClickCapture: MouseEventHandler<HTMLElement>;
+} {
+  const drag = useRef<{ x: number; scrollLeft: number; moved: boolean } | null>(null);
+  // Outlives `drag` itself (cleared the moment the gesture ends) long enough to reach the click
+  // that follows the pointerup in the same gesture.
+  const suppressClick = useRef(false);
+  const end = (event: { currentTarget: HTMLElement; pointerId: number }): void => {
+    const held = drag.current;
+    if (held === null) return;
+    if (held.moved) suppressClick.current = true;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    drag.current = null;
+  };
+  return {
+    onPointerDown: (event) => {
+      if (event.pointerType !== 'mouse') return;
+      drag.current = { x: event.clientX, scrollLeft: event.currentTarget.scrollLeft, moved: false };
+      // Capture is best-effort: a pointer id a dispatcher raised outside the real input pipeline
+      // (a synthetic test event, say) is one a browser can refuse to capture — the drag still
+      // works without it, just no longer immune to the pointer later straying off the row.
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        // See above.
+      }
+    },
+    onPointerMove: (event) => {
+      // Explicit, not merely implied by `drag.current` staying null for a pointer type
+      // `onPointerDown` never set it for: this row's own touch scroll is native and this hook
+      // must stay inert for it at every handler, not only the one that happens to gate the rest.
+      if (event.pointerType !== 'mouse') return;
+      const held = drag.current;
+      if (held === null) return;
+      const dx = event.clientX - held.x;
+      if (Math.abs(dx) > SETS_DRAG_SLOP) held.moved = true;
+      event.currentTarget.scrollLeft = held.scrollLeft - dx;
+    },
+    onPointerUp: (event) => {
+      if (event.pointerType !== 'mouse') return;
+      end(event);
+    },
+    onPointerCancel: (event) => {
+      if (event.pointerType !== 'mouse') return;
+      end(event);
+    },
+    onClickCapture: (event) => {
+      if (!suppressClick.current) return;
+      suppressClick.current = false;
+      event.preventDefault();
+      event.stopPropagation();
+    },
+  };
+}
+
 function PoolSets({ format }: { format: TableFormat | null }) {
+  const drag = useDragScroll();
   if (format === null || format.sets.length === 0) return null;
   const sets = format.sets.length > MAX_POOL_SETS ? format.sets.slice(-MAX_POOL_SETS) : format.sets;
   return (
-    <p className="lobby__sets" data-testid="pool-sets" data-sets={sets.join(' ')}>
+    <p className="lobby__sets" data-testid="pool-sets" data-sets={sets.join(' ')} {...drag}>
       {groupSetsByBlock(sets).map((group) => (
         <span
           key={group.blockCode}
@@ -859,17 +939,20 @@ export function DeckChooser({
    * 41358378234), made certain by `deckChooser.test.ts`.
    */
   const hover = usePeekHover<string>();
+  // Touch's long-hold way into the same peek (item 2c) — see `DeckPeek.tsx`'s `useTouchPeek` for
+  // why a hold that opens it never also chooses the tile.
+  const touch = useTouchPeek<string>(hover);
   const peek = hover.peek;
   const [placedOver, setPlacedOver] = useState<string | null>(null);
-  const openPeekSoon = (value: string): void =>
-    hover.openSoon(value, () => {
-      const now = drawn.current;
-      const tile = refs.current[now.options.findIndex((o) => o.value === value)];
-      if (tile === null || tile === undefined) return null;
-      setPlacedOver(now.optionKey);
-      const screen = tile.closest('[data-testid="constructed"]') ?? document.documentElement;
-      return { anchor: tile.getBoundingClientRect(), bounds: screen.getBoundingClientRect() };
-    });
+  const locateTile = (value: string) => (): { anchor: DOMRect; bounds: DOMRect } | null => {
+    const now = drawn.current;
+    const tile = refs.current[now.options.findIndex((o) => o.value === value)];
+    if (tile === null || tile === undefined) return null;
+    setPlacedOver(now.optionKey);
+    const screen = tile.closest('[data-testid="constructed"]') ?? document.documentElement;
+    return { anchor: tile.getBoundingClientRect(), bounds: screen.getBoundingClientRect() };
+  };
+  const openPeekSoon = (value: string): void => hover.openSoon(value, locateTile(value));
   const peeked = peek === null || placedOver !== optionKey ? undefined : options.find((o) => o.value === peek.key);
   /** Where the pointer last was over the grid, so a scroll can find the tile now under it. */
   const pointerAt = useRef<{ x: number; y: number } | null>(null);
@@ -958,6 +1041,7 @@ export function DeckChooser({
         const key = `${index < 0 ? swap.leavingKey : swapKey}:${option.value}`;
         // A held old tile, lifted over the box it held once the new list draws, and fading there.
         const ghost = index < 0 && swap.crossing ? { className: 'deckpick__ghost', style: leavingAt.current.get(key) } : undefined;
+        const forTouch = index >= 0 && option.list !== undefined ? touch(option.value, locateTile(option.value)) : null;
         const tile =
           index < 0 ? (
             // The last list going: no deck id, no focus, no press — a picture of the grid as it was.
@@ -992,8 +1076,18 @@ export function DeckChooser({
                 if (event.pointerType !== 'touch' && option.list !== undefined) openPeekSoon(option.value);
               }}
               onPointerLeave={hover.closeSoon}
-              // A press is a choice made: the list it was read from goes, and comes back on the next hover.
-              onPointerDown={hover.close}
+              onPointerDown={(event) => {
+                // A press is a choice made: the list it was read from goes, and comes back on the
+                // next hover. On touch — the only pointer type `forTouch.onPointerDown` itself
+                // acts on — nothing is open yet to close; this starts the hold timer instead.
+                hover.close();
+                forTouch?.onPointerDown(event);
+              }}
+              onPointerMove={forTouch?.onPointerMove}
+              onPointerUp={forTouch?.onPointerUp}
+              onPointerCancel={forTouch?.onPointerCancel}
+              onContextMenu={forTouch?.onContextMenu}
+              onClickCapture={forTouch?.onClickCapture}
               aria-describedby={peeked !== undefined && peeked.value === option.value ? 'deck-peek' : undefined}
             />
           );
@@ -1319,6 +1413,12 @@ function RoomTableScreen({
         if (outcome.ok) {
           setTable(outcome.table);
           setTableError(null);
+          // Proof enough that this tab is a member, whether that is because `rooms.join` just
+          // answered `ok` below (this is the re-read it triggers) or because the viewer already
+          // was one and the very FIRST read here came back `ok` — the server does not say which,
+          // and `App.tsx`'s gate does not need to: it is the one thing that tells it the room's
+          // chat may mount. See `rooms/joined.ts`.
+          markJoined(roomId);
           return;
         }
         if (joined) {
@@ -1373,7 +1473,10 @@ function RoomTableScreen({
           if (verdict === 'drop') return;
           if (room === null) {
             setResolved(true);
-            // The room was here and is not any more: its owner closed it.
+            // The room was here and is not any more: its owner closed it — so is this tab's
+            // membership, and the next room this id names (ids are not reused, but a stale mark
+            // costs nothing to clear and nothing to keep).
+            clearJoined(roomId);
             if (modeRef.current !== null) navigate({ kind: 'lobby' }, { replace: true });
             return;
           }

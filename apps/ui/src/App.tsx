@@ -43,6 +43,7 @@ import { RoomShell } from './room/RoomShell.tsx';
 import { useWhoami } from './room/whoami.ts';
 import { knownRoomOfMatch } from './play/live/matchStart.ts';
 import { roomsClient, type RoomView } from './rooms/api.ts';
+import { useJoined } from './rooms/joined.ts';
 import { CARDTABLE_SETTINGS_TABS, HostDrawsSettingsProvider, useUiScale } from './settings/Settings.tsx';
 import { useTrim } from './settings/siteTrim.ts';
 import { useSoundPrefs } from './sound/mute.ts';
@@ -281,6 +282,18 @@ export function App({ transport }: AppProps) {
   // wave fixes (wave 72 §R): the board would draw once at its un-chromed
   // width and again at its chromed one once `matchRoom` settles.
   const place = matchPending ? null : roomIdFor(route, matchRoom);
+  // A `room` route's chat does not mount until THIS TAB has actually joined that room — the
+  // operator, after a password room showed its chat beside the password form: *"this one exposed
+  // a bug in the site, the chat shouldn't load if the room hasn't been joined yet."* `roomIdFor`
+  // itself stays the pure, two-argument function `RoomShell.test.ts` already pins (it answers "what
+  // room does this ROUTE name", not "is the viewer in it"); the gate lives here, where the route and
+  // the membership mark are both in scope, so a `match` route (never gated — a board's own chat is
+  // joined server-side the moment the match exists) and every other kind keep `roomIdFor`'s answer
+  // untouched. `ConstructedScreen` is what marks `joined.ts`'s store, on a successful join OR a table
+  // read that already proves membership; ANY room route — draft pod or table — is a `room` route
+  // (`route.ts`), so gating here covers every one of them in the one place they all pass through.
+  const joinedRoom = useJoined(route.kind === 'room' ? route.roomId : null);
+  const gatedPlace = route.kind === 'room' && !joinedRoom ? null : place;
   // A Rally pick option, in Rally's frame (cardtable#24): the theme root and the page, with no
   // header and no room. `rally/RallyEmbed.tsx` says why.
   if (route.kind === 'rally-embed') {
@@ -296,7 +309,7 @@ export function App({ transport }: AppProps) {
           in the lobby screen"*. A room's lobby keeps it open; the draft, deck
           and match screens still let a viewer hide it. */}
       <HostDrawsSettingsProvider value>
-        <RoomShell roomId={place?.roomId ?? null} chatId={place?.chatId ?? null} collapsible={route.kind !== 'room'}>
+        <RoomShell roomId={gatedPlace?.roomId ?? null} chatId={gatedPlace?.chatId ?? null} collapsible={route.kind !== 'room'}>
           {matchPending ? null : <Screen transport={transport} />}
         </RoomShell>
       </HostDrawsSettingsProvider>

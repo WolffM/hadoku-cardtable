@@ -25,6 +25,11 @@ export type DeckTileProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'child
 export function DeckTile({ option, checked, className, children, ref, ...button }: DeckTileProps) {
   // A deck with a list opens its peek on hover, which names it and its style; a native tooltip on top doubles it.
   const peekable = option.list !== undefined;
+  // A long hold is how touch reaches the same peek (item 2c): neither iOS's own callout nor a text
+  // selection is the thing a held finger here is for, and both pre-empt the peek if left on. A
+  // caller's own `style`/`onContextMenu` (the deal animation's vars, say) still wins — merged
+  // first, so theirs takes precedence over this base, never the other way round.
+  const { style: callerStyle, onContextMenu: callerContextMenu, ...restButton } = button;
   return (
     <button
       ref={ref}
@@ -34,7 +39,12 @@ export function DeckTile({ option, checked, className, children, ref, ...button 
       data-colors={option.colors.join('')}
       data-style={option.deckStyle}
       aria-checked={checked}
-      {...button}
+      style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none', ...callerStyle }}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        callerContextMenu?.(event);
+      }}
+      {...restButton}
     >
       <DeckArt artId={option.artId} />
       <span className="deckpick__name" title={peekable ? undefined : option.label}>

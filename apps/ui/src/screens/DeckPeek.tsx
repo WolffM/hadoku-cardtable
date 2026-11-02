@@ -22,7 +22,7 @@
  * log line names a board card, and the inspector stands the enlargement
  * beside the list rather than on it. No second big-card view exists.
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEventHandler } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEventHandler, type PointerEventHandler } from 'react';
 
 import type { DraftCard } from '@hadoku/shared';
 import { BACK_FACE } from '@hadoku/carddata/art';
@@ -146,6 +146,99 @@ export interface PeekHover<K> {
   /** On the list: it stays, and a tile crossed on the way there opens nothing. */
   hold(): void;
   openSoon(key: K, locate: () => { anchor: DOMRect; bounds: DOMRect } | null): void;
+}
+
+/** The props a tile's touch half of the peek needs — spread onto the SAME element a tile's own
+ *  pointer-hover and click handlers already sit on; see {@link useTouchPeek} for why a click
+ *  survives sharing the element with `onClickCapture` here. */
+export interface TouchPeekHandlers {
+  onPointerDown: PointerEventHandler<HTMLElement>;
+  onPointerMove: PointerEventHandler<HTMLElement>;
+  onPointerUp: PointerEventHandler<HTMLElement>;
+  onPointerCancel: PointerEventHandler<HTMLElement>;
+  onContextMenu: MouseEventHandler<HTMLElement>;
+  onClickCapture: MouseEventHandler<HTMLElement>;
+}
+
+/**
+ * Touch's own way into the same peek a pointer hover opens — the operator, 2026-10-30 (item 2c):
+ * *"maybe 'long hold' can bring up the deck peek? and when finger is released it disappears
+ * again?"* A touch has no hover to rest; this drives {@link PeekHover.openSoon} off a PRESS
+ * instead, so the same {@link PEEK_DELAY_MS} that answers a mouse's rest answers a finger's hold.
+ *
+ * ## Closing has no grace
+ *
+ * A pointer hover's `closeSoon` waits {@link PEEK_GRACE_MS} so a path that crosses from the tile to
+ * the list does not close it first. A finger that lifts is simply gone — there is nowhere left for
+ * it to be heading — so lifting, or sliding off the tile the hold started on, closes the peek on
+ * the spot (`hover.close()`, no timer).
+ *
+ * ## A hold that opened the peek must not also choose the tile
+ *
+ * `onClickCapture` runs on the SAME element React invokes a target's capture handler on BEFORE that
+ * element's own bubble `onClick` — the deck-choosing handler every caller already wires separately
+ * — so a click that would follow a long-enough hold is swallowed here before it reaches it.
+ * A tap shorter than {@link PEEK_DELAY_MS} never opens the peek, so `suppress` is never armed for
+ * it, and the click it still fires chooses exactly as it always has.
+ */
+export function useTouchPeek<K>(hover: PeekHover<K>): (key: K, locate: () => { anchor: DOMRect; bounds: DOMRect } | null) => TouchPeekHandlers {
+  const held = useRef<{ key: K; rect: DOMRect | null } | null>(null);
+  /** The key a hold just opened the peek for; armed only long enough to eat the one click it owns. */
+  const suppress = useRef<K | null>(null);
+  // Mirrored every render so the pointerup handler — attached once per render, same as any React
+  // handler — reads the OPEN peek as of the moment the finger actually lifts, not as of whichever
+  // render last attached the listener.
+  const openRef = useRef(hover.peek);
+  openRef.current = hover.peek;
+
+  const release = (key: K): void => {
+    const was = held.current;
+    held.current = null;
+    if (was === null || !Object.is(was.key, key)) return;
+    const wasOpen = openRef.current !== null && Object.is(openRef.current.key, key);
+    hover.close();
+    if (wasOpen) suppress.current = key;
+  };
+
+  return (key, locate) => ({
+    onPointerDown: (event) => {
+      if (event.pointerType !== 'touch') return;
+      held.current = { key, rect: locate()?.anchor ?? null };
+      hover.openSoon(key, locate);
+    },
+    onPointerMove: (event) => {
+      if (event.pointerType !== 'touch') return;
+      const was = held.current;
+      if (was === null || !Object.is(was.key, key)) return;
+      const r = was.rect;
+      const inside = r !== null && event.clientX >= r.left && event.clientX <= r.right && event.clientY >= r.top && event.clientY <= r.bottom;
+      if (!inside) {
+        held.current = null;
+        hover.close();
+      }
+    },
+    onPointerUp: (event) => {
+      if (event.pointerType !== 'touch') return;
+      release(key);
+    },
+    onPointerCancel: (event) => {
+      if (event.pointerType !== 'touch') return;
+      const was = held.current;
+      held.current = null;
+      if (was !== null && Object.is(was.key, key)) hover.close();
+    },
+    onContextMenu: (event) => {
+      // The OS's own long-press menu, over a hold this is already answering with the peek.
+      if (held.current !== null && Object.is(held.current.key, key)) event.preventDefault();
+    },
+    onClickCapture: (event) => {
+      if (suppress.current !== null && Object.is(suppress.current, key)) {
+        suppress.current = null;
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    },
+  });
 }
 
 const GAP = 8;

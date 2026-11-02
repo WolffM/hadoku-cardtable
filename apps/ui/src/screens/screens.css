@@ -668,16 +668,46 @@
  * for the pool above it, not the thing being read, and it is an oversized shape
  * whose weight at `2rem` would otherwise out-shout the deck names below it.
  */
+/*
+ * One row, scrolled sideways rather than wrapped (item 2b) — the operator: *"they go off the
+ * page entirely. maybe we make this horizontall scrollable? do not display a scroll bar though,
+ * just allow it to be dragged."* `flex-wrap: wrap` used to be the rule here, which reads as
+ * "wrap the BLOCKS onto more rows", and does — but a single era's own block (`.lobby__block`,
+ * below) never wraps its OWN glyphs, so one block longer than the viewport still ran off the
+ * page before this ever got a chance to wrap anything. `overflow-x: auto` scrolls that block
+ * (and every other) instead; `scrollbar-width: none` plus the `::-webkit-scrollbar` rule hide
+ * the bar on every engine without hiding the scrolling itself. The drag that replaces it on a
+ * mouse is `ConstructedScreen.tsx`'s `useDragScroll`; a touch's own swipe needs nothing added.
+ */
 .lobby__sets {
   margin: 0;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 6px 26px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  cursor: grab;
+  /* Without this a flex item's default `min-width: auto` floors it at its OWN content's width —
+     the glyphs' combined min-content, which is exactly the width this is meant to clip — so it
+     would stretch `.lobby__setsrow` (and the page) wide rather than ever scrolling internally. */
+  min-width: 0;
+  max-width: 100%;
+  /* Tells the browser up front which axis a touch here pans, rather than letting it spend a
+     frame disambiguating against the page's own vertical scroll — the default `auto` allows
+     both and can cost exactly that frame of hesitation on a real finger, and gives a synthetic,
+     single-shot gesture (as an e2e drag is) nothing to recognise in time at all. */
+  touch-action: pan-x;
+}
+
+.lobby__sets::-webkit-scrollbar {
+  display: none;
 }
 
 .lobby__block {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: 7px;
   font-size: 2rem;
