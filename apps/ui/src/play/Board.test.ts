@@ -686,6 +686,31 @@ describe('groupedStack (Settled 2: "identical items group into one row with ×N"
   });
 });
 
+describe('the portrait stack chip counts what the board draws on the stack (Settled 2)', () => {
+  /*
+   * promo-valakut in real portrait: at the first Valakut target question the board draws ten trigger
+   * chips (`live/placed.ts` draws `view.stack` and `view.pendingTriggers` alike), but Forge has put
+   * none of them on the stack yet, so a chip that counted `view.stack` alone did not exist at all.
+   */
+  it('ten triggers waiting for their targets: the chip reads 10, and its list is one row ×10', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true, addEventListener: () => undefined, removeEventListener: () => undefined }));
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+    const base = boardFromFixture(fixture);
+    const ability = base.stack.find((item) => item.isAbility)!;
+    const waiting = Array.from({ length: 10 }, (_, i) => ({ ...ability, id: -(100 + i), pending: true as const }));
+    const { container } = renderBoard({ ...base, stack: [], pendingTriggers: waiting }, undefined, 'single');
+
+    const chip = container.querySelector<HTMLButtonElement>('[data-testid="stack-chip"]');
+    expect(chip?.textContent, 'the chip counts the ten waiting triggers').toBe('10');
+    fireEvent.click(chip!);
+    const rows = container.querySelectorAll('[data-testid="stack-sheet-row"]');
+    expect(rows, 'ten of one trigger are one row').toHaveLength(1);
+    expect(rows[0]!.textContent).toContain('×10');
+  });
+});
+
 describe('the stack', () => {
   it('data-carried tracks a played card standing in for its own spell, whatever placed.ts draws for it', () => {
     const base = boardFromFixture(fixture);

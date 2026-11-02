@@ -4731,8 +4731,8 @@ export function groupedStack(items: readonly StackEntry[]): readonly StackGroup[
 /**
  * Portrait's stack list (Settled 2: "Tapping it opens the stack list"), anchored under the stack
  * chip that opens it. Read-only — there is nothing here to answer, only what is on the stack right
- * now; `view.stack` is this screen's own live copy, so the list redraws itself on every change
- * without this component doing anything about it.
+ * now and what is waiting to go on it (`Board`'s `stackShown`), so the list redraws itself on every
+ * change without this component doing anything about it.
  */
 function StackSheet({ items, onClose }: { items: readonly StackEntry[]; onClose: () => void }) {
   const groups = groupedStack(items);
@@ -4807,6 +4807,12 @@ export function Board({
   const portrait = usePortraitLayout();
   /** Portrait's stack sheet (Settled 2): open/closed, toggled by `PortraitHud`'s own stack chip. */
   const [stackSheetOpen, setStackSheetOpen] = useState(false);
+  /*
+   * What portrait's stack chip and list count: the stack the board DRAWS, which is `view.stack` and
+   * the triggers still waiting to go on it (`live/placed.ts` draws both as chips) — at promo-valakut's
+   * first Valakut target question the board shows ten triggers while Forge has put none on the stack.
+   */
+  const stackShown = useMemo(() => [...view.stack, ...(view.pendingTriggers ?? [])], [view.stack, view.pendingTriggers]);
   /*
    * AF397: which `doomAsk` candidate the seat points at, local to this board — the wire has no
    * concept of a mouse, and a stale hover from a PREVIOUS ask (a different choice, different
@@ -5178,13 +5184,13 @@ export function Board({
             opponent={portraitOpponent}
             viewer={viewer}
             interaction={interaction}
-            stackCount={view.stack.length}
-            stackOpen={stackSheetOpen && view.stack.length > 0}
+            stackCount={stackShown.length}
+            stackOpen={stackSheetOpen && stackShown.length > 0}
             onToggleStack={() => setStackSheetOpen((open) => !open)}
             onOpenPile={(playerId, zone) => openPileOf(playerId)(zone)}
           />
         )}
-        {portrait && stackSheetOpen && view.stack.length > 0 && <StackSheet items={view.stack} onClose={() => setStackSheetOpen(false)} />}
+        {portrait && stackSheetOpen && stackShown.length > 0 && <StackSheet items={stackShown} onClose={() => setStackSheetOpen(false)} />}
         <div className="board__opponents">
           {others.map((p) => (
             <PlayerArea
