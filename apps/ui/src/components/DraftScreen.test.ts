@@ -13,6 +13,9 @@
  * `createElement` costs one line and keeps the test inside the gate.
  */
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement, Fragment, useMemo, useState } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
@@ -52,6 +55,7 @@ import { applyPayload, initialState, type TableState } from '../draft/table.ts';
 import { TopLayer } from '../topLayer.tsx';
 import { DraftScreen } from './DraftScreen.tsx';
 import { POOL_ENTER_MS } from './PoolView.tsx';
+import { fanRowHeight } from './PackView.tsx';
 
 afterEach(() => {
   cleanup();
@@ -373,5 +377,22 @@ describe('the draft screen, on committed fixtures', () => {
     mount();
     expect(pressed()).toBe('grid');
     expect(screen.getByTestId('pack').dataset.layout).toBe('grid');
+  });
+
+  it('in the fan, the pod and its controls drop into the picks\' row and the fan has the whole width; the grid keeps its column', () => {
+    const { container } = mount();
+    const body = container.querySelector('.draft__body')!;
+    expect(body.classList.contains('draft__body--fan')).toBe(true);
+    // The fan row is sized from the window, in CSS px, so it follows the browser's zoom (`fanRowHeight`).
+    expect(parseFloat((body as HTMLElement).style.getPropertyValue('--fan-row'))).toBeCloseTo(fanRowHeight(parseFloat((body as HTMLElement).style.getPropertyValue('--draft-h'))));
+    fireEvent.click(screen.getByRole('button', { name: 'grid' }));
+    expect(container.querySelector('.draft__body')!.classList.contains('draft__body--fan')).toBe(false);
+  });
+
+  it('the stylesheet puts the fan across the top and the pod beside the picks', () => {
+    const sheet = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/components', 'draft.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const fan = /\.draft__body--fan \{([^}]*)\}/.exec(sheet)?.[1] ?? '';
+    expect(fan.replace(/\s+/g, ' ')).toContain("grid-template-areas: 'pack pack' 'pool seats'");
+    expect(fan).toMatch(/grid-template-rows:\s*var\(--fan-row/);
   });
 });

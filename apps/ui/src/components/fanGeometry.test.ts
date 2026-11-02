@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { FAN_MIN_WIDTH, fanGeometry, fanLayer, fanX, type FanGeometry } from './PackView.tsx';
+import { FAN_MIN_WIDTH, fanGeometry, fanLayer, fanRowHeight, fanX, POOL_MIN_H, type FanGeometry } from './PackView.tsx';
 
 // The operator's window, a laptop, a wide screen, and the narrowest a fan is drawn at.
 const BOXES = [
@@ -81,5 +81,48 @@ describe('the open card', () => {
         if (away >= 0 && away < 15) expect(fanLayer(away, open, 15)).toBeLessThan(fanLayer(j, open, 15));
       }
     }
+  });
+});
+
+/*
+ * Browser zoom, modelled the way Chrome does it: at zoom z a W×H window lays out W/z × H/z CSS px and
+ * draws each at z screen pixels. The draft's body is the window less its padding (`draft.css`), the fan
+ * row is `fanRowHeight` of it across the whole width, and what the player sees is CSS px × z.
+ */
+describe('the fan row follows the browser zoom', () => {
+  const PAD = 24;
+  const seen = (width: number, height: number, zoom: number) => {
+    const body = height / zoom - PAD;
+    const row = fanRowHeight(body);
+    const fan = fanGeometry(width / zoom - 32, row);
+    return { cardPx: fan.cardW * zoom, rowPx: row * zoom, poolCss: body - row };
+  };
+  // Zooming further in on a laptop, the picks' row reaches its floor first and the fan gives way to it.
+  for (const [width, height, zooms] of [
+    [1920, 1080, [0.67, 0.8, 1, 1.25, 1.5]],
+    [1280, 800, [0.67, 0.8, 1, 1.25]],
+    [1366, 768, [0.67, 0.8, 1, 1.25]],
+  ] as const) {
+    it(`at ${width}×${height}, zooming in grows the row and its cards on screen, and zooming out shrinks them (${zooms.join(', ')})`, () => {
+      const at = zooms.map((z) => seen(width, height, z));
+      for (let i = 1; i < at.length; i++) {
+        expect(at[i]!.cardPx, `zoom ${zooms[i - 1]} → ${zooms[i]}`).toBeGreaterThan(at[i - 1]!.cardPx);
+        expect(at[i]!.rowPx, `zoom ${zooms[i - 1]} → ${zooms[i]}`).toBeGreaterThan(at[i - 1]!.rowPx);
+      }
+    });
+
+    it(`at ${width}×${height}, the picks' row keeps its room at every zoom`, () => {
+      for (const z of [...zooms, 1.5, 2]) expect(seen(width, height, z).poolCss, `zoom ${z}`).toBeGreaterThanOrEqual(POOL_MIN_H - 0.5);
+    });
+  }
+
+  it('is never taller than the largest card needs, so a tall window gives the rest to the picks', () => {
+    const tallest = fanGeometry(4000, 10_000);
+    expect(fanRowHeight(3000)).toBeLessThanOrEqual(tallest.cardH + 30 + 0.5);
+    expect(fanGeometry(4000, fanRowHeight(3000)).cardH).toBeCloseTo(tallest.cardH);
+  });
+
+  it('follows the UI scale as it follows zoom: the same row, in the scale\'s units', () => {
+    expect(fanRowHeight(800 * 1.25, 1.25)).toBeCloseTo(fanRowHeight(800) * 1.25);
   });
 });
