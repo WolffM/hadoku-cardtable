@@ -16,6 +16,7 @@
 import type { IncomingHttpHeaders } from 'node:http';
 import type { NextFunction, Request, Response } from 'express';
 import { CONFIG } from './config.js';
+import { reportSealRefused } from './telemetry.js';
 
 /**
  * The platform tier ladder. Mirrors TIER_RANK in @wolffm/worker-utils — `wife`
@@ -169,5 +170,6 @@ export function edgeProvenance(req: Request, _res: Response, next: NextFunction)
  */
 export function requireMinTier(req: Request, res: Response, next: NextFunction): void {
 	if (rankOf(tierOf(req)) >= rankOf(CONFIG.minTier)) return next();
+	reportSealRefused('http', req.headers, req.path);
 	res.status(404).type('text/plain').send('not found');
 }

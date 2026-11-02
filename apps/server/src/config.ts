@@ -97,6 +97,15 @@ export const CONFIG = {
 	 */
 	prefsBaseUrl: process.env.CARDTABLE_PREFS_BASE_URL || 'https://hadoku.me/prefs',
 
+	/**
+	 * Where security telemetry is posted (`/health/api/telemetry` under it), with
+	 * the same service key as the stats. Unset key = telemetry is off (logged once).
+	 */
+	monitoringBaseUrl: process.env.CARDTABLE_MONITORING_BASE_URL || 'https://hadoku.me',
+
+	/** Every user id this server has admitted, so `caller-first-seen` fires once per account. */
+	callersSeenFile: process.env.CARDTABLE_CALLERS_SEEN_FILE ?? join(DATA_DIR, 'callers-seen.json'),
+
 	/** The prefs mount the stats are reported to, without `/api/v1`. */
 	statsBaseUrl: process.env.CARDTABLE_STATS_BASE_URL || 'https://hadoku.me/prefs',
 

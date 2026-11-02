@@ -166,6 +166,7 @@ import {
 import { identityFromHeaders } from './identity.js';
 import type { Lobby } from './lobby.js';
 import { jsonLogger } from '../log.js';
+import { reportSealRefused } from '../telemetry.js';
 
 /**
  * Picks per participant, not per socket.
@@ -414,6 +415,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 		const tier = handshakeTier(socket.request.headers);
 		if (rankOf(tier) < rankOf(deps.minTier)) {
 			log({ evt: 'handshake-refused', tier });
+			reportSealRefused('draft-socket', socket.request.headers, null);
 			next(new Error('not found'));
 			return;
 		}

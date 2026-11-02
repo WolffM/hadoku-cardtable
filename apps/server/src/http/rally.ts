@@ -162,6 +162,7 @@ const isPlayable = (verdict: { ok: boolean } | null): boolean => verdict === nul
 export function attachRally(api: Router, deps: RallyDeps): void {
 	const log = deps.log ?? jsonLogger('cardtable-rally');
 	const packLimit = perCallerLimit(deps.packRateLimit === undefined ? PACK_RATE_LIMIT : deps.packRateLimit, 'too many sample packs; wait a little and try again', {
+		act: 'rally-pack',
 		onRefused: () => log({ evt: 'rally-pack-limited' }),
 	});
 

@@ -128,6 +128,7 @@ import type { SpellCopy } from './spell-copiers.js';
 import { malformedFacts } from '../http/client-events.js';
 import { httpCaller, perCallerLimit, readBody } from '../http/request.js';
 import { jsonLogger } from '../log.js';
+import { reportSealRefused } from '../telemetry.js';
 
 export type PlayLog = (entry: Record<string, unknown>) => void;
 
@@ -577,6 +578,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	const waitingOn = new Map<Match, Set<ParticipantId>>();
 
 	const startLimit = perCallerLimit(deps.startRateLimit === undefined ? MATCH_START_RATE_LIMIT : deps.startRateLimit, 'too many match starts; wait a little and try again', {
+		act: 'match-start',
 		onRefused: () => log({ evt: 'match-start-refused', reason: 'rate-limited' }),
 	});
 	router.post('/matches', async (req: Request, res: Response) => {
@@ -765,6 +767,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	io.use((socket, next) => {
 		const tier = handshakeTier(socket.request.headers);
 		if (rankOf(tier) < rankOf(deps.minTier)) {
+			reportSealRefused('play-socket', socket.request.headers, null);
 			next(new Error('not found'));
 			return;
 		}

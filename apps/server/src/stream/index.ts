@@ -61,6 +61,7 @@ import { request as httpRequest } from 'node:http';
 import express from 'express';
 
 import { rankOf, sanitizeHeaders, tierOf } from '../edge-auth.js';
+import { reportSealRefused } from '../telemetry.js';
 import { ROOM_ID_RE } from '@hadoku/shared';
 import { isStaticIndexLike, type RoomStreams } from './alloc.js';
 
@@ -301,6 +302,7 @@ export function attachStream(server: Server, deps: StreamDeps): StreamHandle | n
 		const floor = passesFloor(req, deps.minTier);
 		if (!floor.ok) {
 			log({ evt: 'stream-refused', reason: 'below the tier floor', tier: floor.tier });
+			reportSealRefused('stream', req.headers, req.url ?? null);
 			refuse(socket, 404, 'not found');
 			return;
 		}

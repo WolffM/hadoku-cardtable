@@ -58,6 +58,7 @@ import { jsonLogger } from '../../log.js';
 import { identityFromHeaders } from '../../room/identity.js';
 import type { MatchRegistry } from '../match.js';
 import type { PlayLog } from '../socket.js';
+import { reportSealRefused } from '../../telemetry.js';
 import { BrowserFanout, browserFanout } from './fanout.js';
 import { BROWSER_PROTOCOL_VERSION, BROWSER_WS_PATH, encodeBrowserMessage } from './protocol.js';
 import { BrowserSession } from './session.js';
@@ -132,6 +133,7 @@ export function attachBrowserBridge(server: HttpServer, deps: BrowserBridgeDeps)
 		const tier = tierOf({ headers: req.headers } as unknown as Request);
 		if (rankOf(tier) < rankOf(deps.minTier)) {
 			log({ evt: 'browser-refused', reason: 'below the tier floor', tier });
+			reportSealRefused('browser', req.headers, req.url ?? null);
 			refuseUpgrade(socket, 404, 'not found');
 			return;
 		}

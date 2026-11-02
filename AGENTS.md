@@ -202,6 +202,16 @@ curl -s -A "Mozilla/5.0 hadoku-agent" -H "X-User-Key: $K" \
   "https://hadoku.me/health/api/logs/query?path=/cardtable&since=2026-10-27T00:00:00Z&limit=200"
 ```
 
+- **Watch it:** `node scripts/telemetry/watch.ts [--hours 24]` summarises both
+  stores: new accounts, anonymous callers by agent and IP (our own egress
+  excluded), the busiest accounts, rate limits, errors. It exits 2 on a gate
+  breach (an anonymous caller cardtable itself answered) or a `seal-refused`.
+- **What the server reports** (`apps/server/src/telemetry.ts`, one post per
+  event and caller a minute, the rest counted as `suppressed`):
+  `caller-first-seen` (once per account, ever), `seal-refused` (the server's
+  own floor refused what the edge passed, on HTTP or any socket),
+  `costly-act` / `rate-limited` (every `perCallerLimit`, named by `act`).
+  A new expensive step goes through `perCallerLimit` and is covered.
 - Events your code posts go to `service_events`: `POST /health/api/telemetry`
   with `context.service: "cardtable"`, read back with
   `GET /health/api/service-events?service=cardtable`. Not `console.log`.

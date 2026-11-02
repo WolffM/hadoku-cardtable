@@ -7,6 +7,7 @@ import type { ErrorRequestHandler, Request, Response } from 'express';
 
 import { accountIdOf, userNameOf } from '../edge-auth.js';
 import { identityFromHeaders } from '../room/identity.js';
+import { callerContext, report } from '../telemetry.js';
 import { UNNAMED, type Caller } from '../room/lobby.js';
 
 /**
@@ -29,7 +30,9 @@ export function callerOf(req: Request): Caller {
 
 /**
  * A per-caller token bucket for a route's costly step: false once the 429 (with
- * `Retry-After`) is sent. A route asks AFTER reading its body, so only a
+ * `Retry-After`) is sent. Each pass reports `costly-act` and each refusal
+ * `rate-limited`, both named by `act`, so telemetry shows who is spending the
+ * expensive steps and who hit the ceiling (`telemetry.ts` throttles the posts). A route asks AFTER reading its body, so only a
  * request that would do the work spends a token. `null` is no limit — the e2e
  * stacks' `CARDTABLE_E2E_NO_RATE_LIMITS`, where one test identity makes every
  * room and starts every match of a run.
@@ -37,14 +40,18 @@ export function callerOf(req: Request): Caller {
 export function perCallerLimit(
 	cfg: RateLimitConfig | null,
 	refusal: string,
-	opts: { now?: () => number; onRefused?: () => void } = {},
+	opts: { act: string; now?: () => number; onRefused?: () => void },
 ): (req: Request, res: Response) => boolean {
 	if (cfg === null) return () => true;
 	const limiter = new MultiRateLimiter<ParticipantId>(cfg);
 	const now = opts.now ?? Date.now;
 	const retryAfter = String(Math.ceil(cfg.refillIntervalMs / 1000));
 	return (req, res) => {
-		if (limiter.allow(httpCaller(req), 1, now())) return true;
+		if (limiter.allow(httpCaller(req), 1, now())) {
+			report('costly-act', { act: opts.act, ...callerContext(req.headers) });
+			return true;
+		}
+		report('rate-limited', { act: opts.act, ...callerContext(req.headers) });
 		opts.onRefused?.();
 		res.setHeader('Retry-After', retryAfter);
 		res.status(429).json({ error: refusal });

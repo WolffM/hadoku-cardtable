@@ -119,6 +119,7 @@ import { newestFormat } from './room/lobby.js';
 import { openEvents } from './room/events.js';
 import { openTournaments } from './room/tournaments.js';
 import { jsonLogger } from './log.js';
+import { firstSeen, installTelemetry, monitoringSink } from './telemetry.js';
 import { createKeyBook, createMatchStats, createStatsReporter } from './stats/index.js';
 import { recordMatch } from '@wolffm/prefs-client/games';
 
@@ -145,6 +146,10 @@ app.disable('x-powered-by');
 // over a 404 on every page. See base-path.ts.
 const basePath = await checkBundle(INDEX_HTML, CONFIG.basePrefix);
 bootPhase('bundle');
+
+// ── Security telemetry ───────────────────────────────────────────────────────
+// Installed before any route, so the seals below report from the first request.
+installTelemetry(monitoringSink({ baseUrl: CONFIG.monitoringBaseUrl, serviceKey: CONFIG.serviceKey, log: jsonLogger('cardtable-telemetry') }));
 
 // ── Provenance + access log ──────────────────────────────────────────────────
 app.use(edgeProvenance);
@@ -208,6 +213,8 @@ app.get(
 // Everything below this line is gated. Register new public routes ABOVE it and
 // say why in a comment — this line moving down is the shape of a privilege bug.
 app.use(requireMinTier);
+// Who got in: one `caller-first-seen` per account, ever (`telemetry.ts`).
+app.use(firstSeen({ file: CONFIG.callersSeenFile, userIdOf, tierOf, log: jsonLogger('cardtable-telemetry') }));
 
 // ── API ──────────────────────────────────────────────────────────────────────
 // Mount the app's own routes here. They arrive prefix-stripped, so a browser

@@ -169,7 +169,7 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		else res.status(403).json({ error: 'only the organizer can change this event' });
 	};
 
-	const createLimit = perCallerLimit(deps.createRateLimit === undefined ? EVENT_CREATE_RATE_LIMIT : deps.createRateLimit, 'too many new events; wait a little and try again', { now });
+	const createLimit = perCallerLimit(deps.createRateLimit === undefined ? EVENT_CREATE_RATE_LIMIT : deps.createRateLimit, 'too many new events; wait a little and try again', { act: 'event-create', now });
 
 	api.get('/events/forms', async (req: Request, res: Response) => {
 		const me = httpCaller(req);

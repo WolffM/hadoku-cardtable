@@ -344,6 +344,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	});
 
 	const createLimit = perCallerLimit(deps.createRateLimit === undefined ? ROOM_CREATE_RATE_LIMIT : deps.createRateLimit, 'too many new rooms; wait a little and try again', {
+		act: 'room-create',
 		now,
 		onRefused: () => log({ event: 'room-create-refused', reason: 'rate-limited' }),
 	});
