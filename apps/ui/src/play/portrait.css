@@ -5,29 +5,424 @@
  * nothing until a portrait-scoped rule reads it — so importing this file
  * changes nothing visible on desktop or in landscape (Settled 1).
  *
- * These are the tokens the other lanes' CSS keys off: B's phase bar sizes
- * itself into `--portrait-phase-h`, and the lane card-width formula is the
- * prototype's own (`.slot`'s `--cw`).
+ * This first slice holds only the tokens the other lanes' CSS keys off from
+ * their own first commits: B's phase bar sizes itself into `--portrait-phase-h`
+ * (§ "Ordering, not sharing" in the wave brief), and the lane card-width
+ * formula is the prototype's own (`portrait/index.html`'s `.slot`'s `--cw`),
+ * carried over token-for-token so later work only has to apply it.
  */
 
 :root {
-  /* The HUD's second row, reserved for B's `.live__phases`; 0 outside portrait. */
+  /*
+   * The HUD's second row, reserved for B's `.live__phases` — 0 outside
+   * portrait, so it costs no space anywhere else.
+   */
   --portrait-phase-h: 0px;
 }
 
 :root[data-layout='portrait'] {
   --portrait-phase-h: 30px;
 
-  /* Lane geometry: each lane scroller's end padding, the gap between cards, and the sliver of the
-     next card that peeks past the edge to say there is more. */
+  /* The lane geometry (prototype `#board`'s `--pad`/`--gap`/`--peek`): the
+     padding each lane scroller keeps on either end, the gap between cards,
+     and the sliver of a card that peeks past the viewport to say there is
+     more before `lane-more` is measured. */
   --portrait-pad: 8px;
   --portrait-gap: 6px;
   --portrait-peek: 22px;
 
-  /* The board's zoom factor; `portrait.ts`'s ZOOM_MIN/ZOOM_MAX are its bounds. */
+  /*
+   * The board's own zoom factor: a CSS variable so every lane's card width
+   * reads one number, and B's `zoom-pill` reads the same value back through
+   * the `cardtable:zoom` event (`portrait.ts`) rather than this property
+   * directly — a custom property is not itself observable from script.
+   * `portrait.ts`'s `ZOOM_MIN`/`ZOOM_MAX` are this token's own bounds.
+   */
   --portrait-zoom: 1;
 
-  /* A lane card's width: the lane's own content width (`100cqw` of the lane scroller's inline-size
-     container), less two end paddings, two gaps and the peek, split three ways, times the zoom. */
-  --portrait-card-w: calc((100cqw - 2 * var(--portrait-pad) - 2 * var(--portrait-gap) - var(--portrait-peek)) / 3 * var(--portrait-zoom));
+  /*
+   * A lane card's width, the prototype's `.slot`'s `--cw` verbatim: the
+   * lane's own content width, less its two end paddings, less the gap
+   * between the (up to) three whole cards it shows, less the next card's
+   * peek — split three ways, then scaled by the zoom factor.
+   *
+   * `var(--zone-w)` is `zone-box.ts`'s own measured width of `.seat > .zone--battlefield`
+   * (`ZONE_BOXES` already watches it — see that file's header for why this codebase measures
+   * boxes in script rather than with a CSS size container: the per-card container-query cost
+   * `zone-box.ts` moved away from is exactly what a `container-type` on every lane's `<ul>` would
+   * have reintroduced). It inherits, unaltered, down through `.zone__tiers` into each lane's own
+   * `.zone__cards`, so every lane under one battlefield reads the same width without re-measuring.
+   */
+  --portrait-card-w: calc((var(--zone-w, 100vw) - 2 * var(--portrait-pad) - 2 * var(--portrait-gap) - var(--portrait-peek)) / 3 * var(--portrait-zoom));
+
+  /*
+   * The bottom band B's chrome keys off (§7, "the action bar sits between
+   * board and hand"): the hand's own fixed height (the prototype's
+   * `--hand-h`) and the action bar's (`--bar-h`) it reserves room above the
+   * hand for. B's `action-bar` is free to position itself with
+   * `position: fixed; bottom: var(--portrait-hand-h)` against either token —
+   * neither is read by anything of A's own once the hand's flex-basis below
+   * is set from it.
+   */
+  --portrait-hand-h: 116px;
+  --portrait-bar-h: 52px;
+}
+
+/*
+ * ── the four-lane board (Settled 2, 3) ──────────────────────────────────
+ *
+ * `.board__opponents` and every `.seat` go `display: contents`: each is
+ * purely a grouping wrapper on desktop (`board.css`'s own grid areas), and
+ * `display: contents` keeps them in the DOM — every selector elsewhere that
+ * matches `.seat[data-viewer] …` still matches — while handing their
+ * children up to become `.board`'s own flex items directly. Nothing here
+ * removes or duplicates a node; `Board.tsx` renders the identical tree, only
+ * this file reads it differently (Settled 9).
+ *
+ * The result, top to bottom, needs no reordering: the opponent's own tiers
+ * are drawn `[back (lands), front (permanents)]` and the viewer's
+ * `[front (permanents), back (lands)]` (`Board.tsx`'s `tiers` array, already
+ * true on desktop) — exactly "their lands, their permanents, my permanents,
+ * my lands" once both seats' battlefields are flattened into one column.
+ */
+:root[data-layout='portrait'] .board {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  padding: 0;
+  gap: 0;
+
+  /*
+   * Redeclared from the root token above, verbatim — NOT merely inherited. `Board.tsx`'s
+   * `zoomPortraitTo` writes `--portrait-zoom` as an inline style on THIS element (Settled 5: "the
+   * zoom value is a CSS variable on the board"), but a custom property inherits its ALREADY-RESOLVED
+   * value, not its formula: `:root`'s own `--portrait-card-w` baked in `:root`'s OWN `--portrait-zoom`
+   * (always 1, since nothing ever writes it there) the moment it was computed, and every lane below
+   * would have inherited that frozen 1× forever no matter what `.board`'s own override said. Resolving
+   * the same formula again here, where the override actually lives, is what lets a pinch reach the
+   * lanes at all — measured: without this rule the dispatched `cardtable:zoom` detail rose past 1
+   * but not one card's drawn width moved.
+   */
+  --portrait-card-w: calc((var(--zone-w, 100vw) - 2 * var(--portrait-pad) - 2 * var(--portrait-gap) - var(--portrait-peek)) / 3 * var(--portrait-zoom));
+}
+
+:root[data-layout='portrait'] .board__opponents,
+:root[data-layout='portrait'] .board .seat {
+  display: contents;
+}
+
+/* Each battlefield is two lanes; the two battlefields' four lanes share the room the HUD and the hand leave. */
+:root[data-layout='portrait'] .seat > .zone--battlefield {
+  flex: 1 1 0;
+  min-height: 0;
+  position: relative;
+}
+
+/*
+ * The old stack column: the stack chip (`portrait-hud`) replaces it (Settled 2). The opponent's
+ * hidden-hand strip and the command zone are not styled here at all — `PlayerArea` (`Board.tsx`)
+ * leaves both out of the render in portrait rather than hiding them, so there is no stale
+ * `ZONE_BOXES` node for `e2e/play/board.ts`'s `resizeWindow` to trip on.
+ */
+:root[data-layout='portrait'] .board__mid {
+  display: none;
+}
+
+/* The hand stays the bottom row (§3, D owns its input); room is left above it for B's fixed action bar. */
+:root[data-layout='portrait'] .seat[data-viewer] > .zone--hand {
+  flex: 0 0 var(--portrait-hand-h);
+  padding-bottom: var(--portrait-bar-h);
+  box-sizing: border-box;
+}
+
+/* The two tiers of a battlefield, stacked as two equal lanes rather than desktop's two grid rows. */
+:root[data-layout='portrait'] .zone__tiers {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: var(--portrait-gap);
+}
+
+/*
+ * One lane: `[data-testid]` is present on exactly these four `<ul>`s in portrait
+ * (`Board.tsx`'s `laneTestId`) and raises this rule's specificity past
+ * `board.css`'s own `--card-w`/sizing rules for the same element, so it wins
+ * without depending on import order.
+ */
+:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid] {
+  --card-w: var(--portrait-card-w);
+
+  display: flex;
+  flex: 1 1 0;
+  min-height: 0;
+  align-items: center;
+  gap: var(--portrait-gap);
+  padding: 0 var(--portrait-pad);
+  margin: 0;
+  list-style: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  touch-action: pan-x;
+  position: relative;
+}
+
+:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid]::-webkit-scrollbar {
+  display: none;
+}
+
+/* Every card and gap in a lane is one flex item, `--card-w` wide, never shrinking past it. */
+:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid] > li {
+  flex: 0 0 var(--card-w);
+  width: var(--card-w);
+}
+
+/* The edge fade (Settled 3): only while `measurePortraitLane` (`Board.tsx`) finds something past that edge. */
+:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid].lane--fade-r::after,
+:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid].lane--fade-l::before {
+  content: '';
+  position: sticky;
+  top: 0;
+  bottom: 0;
+  align-self: stretch;
+  width: 24px;
+  flex: none;
+  pointer-events: none;
+  z-index: 1;
+}
+:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid].lane--fade-r::after {
+  right: 0;
+  order: 999;
+  background: linear-gradient(90deg, transparent, var(--bg));
+}
+:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid].lane--fade-l::before {
+  left: 0;
+  order: -999;
+  background: linear-gradient(-90deg, transparent, var(--bg));
+}
+
+/* `lane-more`'s own `+N` chip (`measurePortraitLane`, `Board.tsx`): fixed to its lane's own edge, never part of the scroll. */
+:root[data-layout='portrait'] li.lane-more {
+  position: sticky;
+  flex: none;
+  width: auto;
+  align-self: center;
+  min-width: 26px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  font-variant-numeric: tabular-nums;
+  z-index: 2;
+  pointer-events: none;
+}
+:root[data-layout='portrait'] li.lane-more[data-side='right'] {
+  right: 4px;
+  order: 998;
+}
+:root[data-layout='portrait'] li.lane-more[data-side='left'] {
+  left: 4px;
+  order: -998;
+}
+
+/* Thin card frames (Settled 8): the desktop face's fixed padding is heavy at this size, not a literal `border-width`. */
+:root[data-layout='portrait'] .board .card {
+  padding: 3px 3px 3px 6px;
+}
+
+/*
+ * Tapped (Settled 3): a creature (the front lane) keeps the desktop quarter-turn (`card.css`'s own
+ * rule, untouched); a LAND (the back lane, always — `laneTestId`) dims and tilts instead, never
+ * rotates. The selector chain is `card.css`'s own, prefixed by the back lane, so it wins on
+ * specificity rather than import order — same reasoning as the lane sizing rule above.
+ */
+:root[data-layout='portrait'] [data-testid$='-lands'] > .board-card:is([data-tapped]:not([data-untapped-pending]), [data-tapped-pending]) {
+  margin-block: 0;
+}
+:root[data-layout='portrait'] [data-testid$='-lands'] > .board-card:is([data-tapped]:not([data-untapped-pending]), [data-tapped-pending]) > .board-card__pile {
+  margin-top: 0;
+}
+:root[data-layout='portrait'] [data-testid$='-lands'] > .board-card:is([data-tapped]:not([data-untapped-pending]), [data-tapped-pending]) > .board-card__face > .card {
+  position: static;
+  top: auto;
+  left: auto;
+  width: 100%;
+  transform: rotate(6deg) scale(0.94);
+  filter: brightness(0.6) saturate(0.7);
+}
+
+/*
+ * ── the top band (Settled 2, test-id contract: `portrait-hud`) ─────────
+ *
+ * Both chips in one row, the stack chip between them while the stack holds
+ * anything. The second row this band's own height implies is
+ * `--portrait-phase-h` tall and left EMPTY here on purpose — B's
+ * `.live__phases` renders into it from `LiveBoard.tsx`/`live.css`, not from
+ * this file or `Board.tsx`.
+ *
+ * `--portrait-hud-h` is this band's own total height, FIXED rather than
+ * measured (`--portrait-hud-pad-top` + `--portrait-hud-row-h` +
+ * `--portrait-phase-h`, every term a token so the sum stays correct if any
+ * of them changes) — B's action bar positions itself against it
+ * (`live.css`), `position: fixed; top: var(--portrait-hud-h)` or the
+ * equivalent, with no measuring of its own.
+ */
+:root[data-layout='portrait'] {
+  --portrait-hud-pad-top: 6px;
+  --portrait-hud-row-h: 44px;
+  --portrait-hud-h: calc(var(--portrait-hud-pad-top) + var(--portrait-hud-row-h) + var(--portrait-phase-h));
+}
+
+:root[data-layout='portrait'] .portrait-hud {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  height: var(--portrait-hud-h);
+  padding: var(--portrait-hud-pad-top) var(--portrait-pad) 0;
+  background: linear-gradient(var(--bg-raised), var(--bg));
+  border-bottom: 1px solid var(--line-soft);
+  z-index: 3;
+  box-sizing: border-box;
+}
+
+:root[data-layout='portrait'] .portrait-hud::after {
+  content: '';
+  display: block;
+  height: var(--portrait-phase-h);
+  flex: none;
+}
+
+:root[data-layout='portrait'] .portrait-hud__row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  height: var(--portrait-hud-row-h);
+}
+
+:root[data-layout='portrait'] .seat-chip {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line-soft);
+}
+
+:root[data-layout='portrait'] .seat-chip[data-active] {
+  border-color: var(--success);
+}
+
+:root[data-layout='portrait'] .seat-chip[data-testid='seat-chip-opp'] {
+  flex-direction: row;
+}
+
+:root[data-layout='portrait'] .seat-chip[data-testid='seat-chip-me'] {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+/*
+ * `PlayerFace`'s `.face` (`card.css`) is styled for the desktop seat column, where `.seat__ident`
+ * scopes a taller, vertically-stacked avatar+life. The chip is a horizontal row instead, and
+ * `PlayerFace` is no longer inside a `.seat` at all here (Settled 9's note on `SeatChip`) — so the
+ * priority ring (`card.css`'s `.seat[data-priority] .seat__ring`) is restyled from the chip's own
+ * `data-priority` instead of relying on that ancestor.
+ */
+:root[data-layout='portrait'] .seat-chip .face {
+  flex: none;
+  flex-direction: row;
+  width: auto;
+  gap: 6px;
+}
+:root[data-layout='portrait'] .seat-chip[data-testid='seat-chip-me'] .face {
+  flex-direction: row-reverse;
+}
+:root[data-layout='portrait'] .seat-chip .face__hit {
+  width: 32px;
+  height: 32px;
+}
+:root[data-layout='portrait'] .seat-chip .face__vitals {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+:root[data-layout='portrait'] .seat-chip[data-testid='seat-chip-me'] .face__vitals {
+  align-items: flex-end;
+}
+:root[data-layout='portrait'] .seat-chip .face__life {
+  font-size: 18px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+:root[data-layout='portrait'] .seat-chip .face__name {
+  font-size: 11px;
+  max-width: 9ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:root[data-layout='portrait'] .seat-chip[data-priority] .seat__ring {
+  box-shadow:
+    0 0 0 2px var(--bg-raised),
+    0 0 0 4px var(--accent);
+}
+
+:root[data-layout='portrait'] .seat-chip__counts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--ink-dim, var(--ink));
+  font-variant-numeric: tabular-nums;
+}
+
+:root[data-layout='portrait'] .seat-chip[data-testid='seat-chip-me'] .seat-chip__counts {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+:root[data-layout='portrait'] .seat-chip__count {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 20px;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+}
+
+:root[data-layout='portrait'] .seat-chip__count-art {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+  flex: none;
+}
+
+:root[data-layout='portrait'] .portrait-hud__stack {
+  flex: none;
+  align-self: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 15px;
+  background: var(--bg-raised);
+  border: 1px solid var(--accent, var(--line));
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
 }

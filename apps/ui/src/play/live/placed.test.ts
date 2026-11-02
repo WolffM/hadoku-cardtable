@@ -14,6 +14,7 @@ import type { BoardView, StackEntry } from '../adapter.ts';
 import { GLIDE_MS, noteResolutionEffects, PLACEMENT_WAIT_MS, unlockAfter, whenBoardStill, whenBoardUnlocked } from '../motion.ts';
 import {
   besideSource,
+  clampToLane,
   defaultSpot,
   forgetPlacements,
   holdSpell,
@@ -439,6 +440,41 @@ describe('installPlaced: drawing', () => {
     expect(el.style.getPropertyValue('--placed-y')).toBe(`${spot.y}px`);
     expect(el.hasAttribute('data-mine'), 'nobody ever claimed it').toBe(false);
     handle.dispose();
+  });
+
+  it('portrait (Settled 2): board-mid is display:none (a collapsed box), so the default spot follows the stack chip instead', () => {
+    const { canvas } = board();
+    const mid = canvas.querySelector<HTMLElement>('[data-testid="board-mid"]')!;
+    mid.getBoundingClientRect = () => rect({ left: 0, top: 0, width: 0, height: 0 });
+    const chip = document.createElement('div');
+    chip.setAttribute('data-testid', 'stack-chip');
+    chip.getBoundingClientRect = () => rect({ left: 180, top: 10, width: 30, height: 30 });
+    canvas.querySelector('.board')!.append(chip);
+    expect(defaultSpot(canvas)).toEqual({ x: 195, y: 25 });
+  });
+
+  it('portrait with no stack chip either (not yet rendered): falls back to the board’s own centre rather than null', () => {
+    const { canvas } = board();
+    const mid = canvas.querySelector<HTMLElement>('[data-testid="board-mid"]')!;
+    mid.getBoundingClientRect = () => rect({ left: 0, top: 0, width: 0, height: 0 });
+    canvas.querySelector<HTMLElement>('.board')!.getBoundingClientRect = () => rect({ left: 0, top: 0, width: 390, height: 844 });
+    expect(defaultSpot(canvas)).toEqual({ x: 195, y: 422 });
+  });
+
+  it('the board-centre fallback still finds it when `canvas` IS `.board` itself — Board.tsx’s own shape, not this file’s wrapper-div fixture', () => {
+    // A regression this exact shape caught: `Board.test.ts`'s "a spell on the stack is selectable by
+    // its card id" started failing silently (data-selectable never set — `want` fell to null,
+    // skipping the whole per-item update) the moment `defaultSpot`'s board-centre fallback used
+    // `canvas.querySelector('.board')`, which searches `canvas`'s DESCENDANTS: fine for this file's
+    // own `board()` fixture (a wrapper div around `.board`), null for `installPlaced(root.current, …)`
+    // in production, where `canvas` already IS the `.board` element and so is never its own descendant.
+    const el = document.createElement('div');
+    el.className = 'board';
+    el.innerHTML = '<div data-testid="board-mid"></div>';
+    document.body.append(el);
+    el.getBoundingClientRect = () => rect({ left: 0, top: 0, width: 390, height: 844 });
+    expect(defaultSpot(el)).toEqual({ x: 195, y: 422 });
+    el.remove();
   });
 
   it('an unregistered spell is drawn hidden for PLACED_PENDING_MS; a registration inside the window draws it AT the point (AE26)', async () => {
@@ -963,6 +999,50 @@ describe('installPlaced: arrows (item 2, item 8’s other mutation point)', () =
     const after = overlay.querySelector('.placed__arrow[data-for="9"] path')!.getAttribute('d');
     expect(after, 'the arrow followed the move without a fresh notify(view)').not.toBe(before);
     handle.dispose();
+  });
+});
+
+describe('clampToLane (portrait, Settled 4: "relation arrows clamp to the lane edge")', () => {
+  function laneAndCard(laneBox: { left: number; top: number; width: number; height: number }, cardBox: { left: number; top: number; width: number; height: number }): Element {
+    const lane = document.createElement('div');
+    lane.setAttribute('data-testid', 'lane-my-lands');
+    lane.getBoundingClientRect = () => rect(laneBox);
+    const card = document.createElement('li');
+    card.getBoundingClientRect = () => rect(cardBox);
+    lane.append(card);
+    document.body.append(lane);
+    return card;
+  }
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('is a no-op for a target with no lane ancestor (every desktop board)', () => {
+    const to = document.createElement('div');
+    to.getBoundingClientRect = () => rect({ left: 500, top: 500, width: 80, height: 110 });
+    const at = { left: 500, top: 500, right: 580, bottom: 610 };
+    expect(clampToLane(at, to)).toEqual(at);
+  });
+
+  it('is a no-op for a target fully inside its lane', () => {
+    const card = laneAndCard({ left: 0, top: 0, width: 390, height: 120 }, { left: 100, top: 10, width: 80, height: 100 });
+    expect(clampToLane({ left: 100, top: 10, right: 180, bottom: 110 }, card)).toEqual({ left: 100, top: 10, right: 180, bottom: 110 });
+  });
+
+  it('clamps the trailing edge of a target that has scrolled partly past the lane’s own right edge', () => {
+    const card = laneAndCard({ left: 0, top: 0, width: 390, height: 120 }, { left: 350, top: 10, width: 80, height: 100 });
+    expect(clampToLane({ left: 350, top: 10, right: 430, bottom: 110 }, card)).toEqual({ left: 350, top: 10, right: 390, bottom: 110 });
+  });
+
+  it('clamps the leading edge of a target that has scrolled partly past the lane’s own left edge', () => {
+    const card = laneAndCard({ left: 0, top: 0, width: 390, height: 120 }, { left: -40, top: 10, width: 80, height: 100 });
+    expect(clampToLane({ left: -40, top: 10, right: 40, bottom: 110 }, card)).toEqual({ left: 0, top: 10, right: 40, bottom: 110 });
+  });
+
+  it('collapses to a sliver at the edge the target left from when it no longer overlaps the lane at all', () => {
+    const card = laneAndCard({ left: 0, top: 0, width: 390, height: 120 }, { left: 500, top: 10, width: 80, height: 100 });
+    expect(clampToLane({ left: 500, top: 10, right: 580, bottom: 110 }, card)).toEqual({ left: 390, top: 10, right: 390, bottom: 110 });
   });
 });
 

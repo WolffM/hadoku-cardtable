@@ -491,11 +491,54 @@ function rectOf(el: Element): Rect {
   return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
 }
 
-/** The default spot (decision a): the middle of the column the old stack band stood in. */
+/**
+ * The default spot (decision a): the middle of the column the old stack band stood in — or, in
+ * portrait (Settled 2: "the stack chip replaces `board__mid`'s column"), the stack chip itself,
+ * since `board__mid` is `display: none` there (`portrait.css`) and its box has collapsed to
+ * nothing. Read by measuring, not by checking `data-layout`: a collapsed box is the one fact that
+ * actually matters here, and it is true exactly when `board__mid` has nothing to anchor on, however
+ * that came to be.
+ */
 export function defaultSpot(canvas: ParentNode): Point | null {
   const mid = canvas.querySelector('[data-testid="board-mid"]');
-  if (mid === null) return null;
-  return centreOf(mid);
+  if (mid !== null) {
+    const box = mid.getBoundingClientRect();
+    if (box.width > 0 && box.height > 0) return centreOf(mid);
+  }
+  const stackChip = canvas.querySelector('[data-testid="stack-chip"]');
+  if (stackChip !== null) return centreOf(stackChip);
+  /*
+   * `canvas` IS `.board` itself in production (`Board.tsx` calls `installPlaced(root.current, …)`,
+   * and `root` is the `<section className="board">` ref) — `canvas.querySelector('.board')` would
+   * search `.board`'s own DESCENDANTS for a SECOND `.board`, find none, and return null even though
+   * the board plainly exists. `canvas` is only ever an `Element` in every caller (`installPlaced`'s
+   * own signature) and in every test fixture's own wrapper div, so checking it against the selector
+   * itself first, the way `Element.closest` would, is what actually finds it either way.
+   */
+  const board = canvas instanceof Element && canvas.matches('.board') ? canvas : canvas.querySelector('.board');
+  return board === null ? null : centreOf(board);
+}
+
+/**
+ * Portrait (Settled 4: "relation arrows clamp to the lane edge"): a target scrolled out of its own
+ * lane still has a real (off-screen, possibly negative) box from `getBoundingClientRect` — aiming
+ * an arrow at it would point off the visible board. Clamped to the lane's own visible width when
+ * `to` sits inside one; a no-op everywhere else, including every desktop board, since
+ * `[data-testid^="lane-"]` exists on nothing outside portrait (`Board.tsx`'s lane `<ul>`s). A target
+ * scrolled PAST the lane entirely (nothing of it overlaps the lane's own box) clamps to a sliver at
+ * whichever edge it left from, rather than inverting into a negative-width rect.
+ */
+export function clampToLane(at: Rect, to: Element): Rect {
+  const lane = to.closest<HTMLElement>('[data-testid^="lane-"]');
+  if (lane === null) return at;
+  const laneBox = lane.getBoundingClientRect();
+  const left = Math.max(at.left, laneBox.left);
+  const right = Math.min(at.right, laneBox.right);
+  if (right <= left) {
+    const edge = at.right <= laneBox.left ? laneBox.left : laneBox.right;
+    return { left: edge, right: edge, top: at.top, bottom: at.bottom };
+  }
+  return { left, right, top: at.top, bottom: at.bottom };
 }
 
 /**
@@ -1508,7 +1551,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       // target is landed on at its middle (`aimBetween`), never pointed at with a stub.
       const own = settledBoxes.get(item.id) ?? rectOf(d.el);
       for (const { key, to, box } of targets) {
-        const at = box ?? rectOf(to);
+        const at = clampToLane(box ?? rectOf(to), to);
         aims.push({ key, item: item.id, to, at, aimed: aimBetween(own, at) });
       }
     }
