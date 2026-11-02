@@ -47,6 +47,7 @@ interface RingReport {
 /** Every ready avatar on the page: its ring, inflated by {@link RING}, against whatever actually clips it. */
 async function ringFits(page: Page): Promise<RingReport> {
   return page.evaluate((ring) => {
+    const chain: string[] = [];
     const clipRectOf = (el: Element) => {
       let left = -Infinity;
       let top = -Infinity;
@@ -61,6 +62,7 @@ async function ringFits(page: Page): Promise<RingReport> {
         const clipsY = cs.overflowY !== 'visible';
         if (!clipsX && !clipsY) continue;
         const r = node.getBoundingClientRect();
+        chain.push(`${node.tagName.toLowerCase()}.${Array.from(node.classList).join('.')} ovf=${cs.overflowX}/${cs.overflowY} rect=${Math.round(r.left)},${Math.round(r.top)}..${Math.round(r.right)},${Math.round(r.bottom)}`);
         if (clipsX) {
           left = Math.max(left, r.left);
           right = Math.min(right, r.right);
@@ -100,7 +102,7 @@ async function ringFits(page: Page): Promise<RingReport> {
       const clip = clipRectOf(avatar);
       const ok = box.left >= clip.left - EPS && box.top >= clip.top - EPS && box.right <= clip.right + EPS && box.bottom <= clip.bottom + EPS;
       const seat = avatar.closest('[data-testid]')?.getAttribute('data-testid') ?? '?';
-      const row = `${seat}: ring ${Math.round(box.left)},${Math.round(box.top)}..${Math.round(box.right)},${Math.round(box.bottom)} clip ${Math.round(clip.left)},${Math.round(clip.top)}..${Math.round(clip.right)},${Math.round(clip.bottom)} ${ok ? 'OK' : 'CLIPPED'}`;
+      const row = `${seat}: ring ${Math.round(box.left)},${Math.round(box.top)}..${Math.round(box.right)},${Math.round(box.bottom)} clip ${Math.round(clip.left)},${Math.round(clip.top)}..${Math.round(clip.right)},${Math.round(clip.bottom)} ${ok ? 'OK' : 'CLIPPED'} | chain: ${chain.join(' ; ')}`;
       rows.push(row);
       if (!ok) bad.push(seat);
     }
@@ -111,6 +113,30 @@ async function ringFits(page: Page): Promise<RingReport> {
 async function postJson(context: import('@playwright/test').BrowserContext, path: string, data: unknown): Promise<void> {
   const res = await context.request.post(`${EDGE_ORIGIN}${PREFIX}/api${path}`, { data });
   expect(res.status(), `${path}: ${await res.text()}`).toBe(200);
+}
+
+/**
+ * Waits until every `.pod-seats`'s own top edge stops moving (two reads a frame apart agree).
+ * A CI run (41428988383) caught the ring 1px past its OWN scroller's clip — the scroller's own
+ * 6px top padding was intact (the avatar sat exactly 6px under `.pod-seats`'s own top, in both
+ * that run's numbers and every local one), but `.pod-seats` itself sat only ~4px under the room
+ * chrome's outer frame (`.wp-room-chrome-frame`, `screens.css`/chrome — not this file), which also
+ * clips and is normally never the tighter bound (its own top sits well above `.pod-seats`'s,
+ * leaving `.pod-seats`'s own padding as the binding constraint) — until the content ABOVE the
+ * seats (the room header, loaded async on a slower run) hadn't finished laying out yet, pushing
+ * `.pod-seats` higher than usual and briefly making that OUTER frame the tighter one instead.
+ * Settling here before measuring is the fix: a real visitor never sees a ring mid-layout either.
+ */
+async function waitForSettledSeats(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const w = window as unknown as { __seatsTopSample?: number };
+    const el = document.querySelector('.pod-seats');
+    if (el === null) return false;
+    const top = el.getBoundingClientRect().top;
+    const stable = w.__seatsTopSample === top;
+    w.__seatsTopSample = top;
+    return stable;
+  }, null, { timeout: 10_000, polling: 100 });
 }
 
 test('a nine-seat draft pod, eight humans ready: the ring never spills past the scroller’s own clip, at phone width', async ({ browser }) => {
@@ -145,6 +171,7 @@ test('a nine-seat draft pod, eight humans ready: the ring never spills past the 
     // Nobody is ready: no draft dealt, so this needs no Forge build.
     await expect(alice.page.getByTestId('pod')).toHaveCount(0);
 
+    await waitForSettledSeats(alice.page);
     const report = await ringFits(alice.page);
     console.log(`[w90b-ready-ring] draft pod @390: ${report.rows.join(' | ')}`);
     expect(report.bad, `clipped rings: ${report.rows.filter((r) => r.includes('CLIPPED')).join(' | ')}`).toEqual([]);
@@ -166,6 +193,7 @@ test('the constructed table’s two seats share the same ring CSS: not clipped a
     await expect(alice.page.getByTestId('ready-toggle'), 'ready').toHaveAttribute('data-state', 'yes', { timeout: UI_TIMEOUT });
     await expect(alice.page.locator('.pod-seats--table .pod-seats__avatar[data-ready="true"]'), 'one ready ring at the table').toHaveCount(1);
 
+    await waitForSettledSeats(alice.page);
     const report = await ringFits(alice.page);
     console.log(`[w90b-ready-ring] table @390: ${report.rows.join(' | ')}`);
     expect(report.bad, `clipped rings: ${report.rows.filter((r) => r.includes('CLIPPED')).join(' | ')}`).toEqual([]);
