@@ -105,7 +105,7 @@ test('a year switch crossfades the old decks straight into the new, with no dark
   const page = await context.newPage();
   await page.goto(`${PREFIX}/`);
   await expect(page.getByTestId('room-create-open')).toBeVisible();
-  await createRoom({ context, page }, `wflash grid ${Date.now()}`);
+  await createRoom({ page }, `wflash grid ${Date.now()}`);
 
   const picker = page.getByTestId('deck-mine');
   const tiles = picker.getByTestId('deck-option');
