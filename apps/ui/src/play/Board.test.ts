@@ -3207,6 +3207,30 @@ describe('power and toughness on the board (#12, #18)', () => {
     expect(badge(container, 21)?.text, 'it landed').toBe('1/1');
   });
 
+  // The operator, 2026-11-01: "make sure the P/T update on the pill looks smooth".
+  it('a pump lands as a new number that rolls in from its first frame with the old digit rolling out on the same strip', async () => {
+    const css = styled();
+    const spell = boardFromFixture(fixture).stack.find((item) => !item.isAbility)!;
+    const before = { ...urchin(1, 2, 0, { power: 1, toughness: 2 }), stack: [spell] } as BoardView;
+    const after = { ...urchin(4, 5, 0, { power: 1, toughness: 2 }), stack: [] } as BoardView;
+    const { container, rerender } = renderBoard(before);
+    const was = container.querySelector<HTMLElement>('[data-card-id="21"] > .board-card__pt [data-pt-of="power"]')!;
+    await act(async () => {
+      rerender(createElement(Board, { view: after, boardLayout: 'type-separated' }));
+    });
+    const pill = container.querySelector<HTMLElement>('[data-card-id="21"] > .board-card__pt')!;
+    const power = pill.querySelector<HTMLElement>('[data-pt-of="power"]')!;
+    expect(pill.textContent).toBe('4/5');
+    expect(pill.dataset.ptImpact).toBe('up');
+    expect(pill.dataset.ptMoved).toBe('power toughness');
+    expect(power, 'the new number is a new element, so its roll starts with it').not.toBe(was);
+    expect(was.isConnected, 'the old element is gone').toBe(false);
+    expect(power.dataset.ptWas, 'the old digit rides on the new number, to roll out as it rolls in').toBe('1');
+    expect(pill.querySelector<HTMLElement>('[data-pt-of="toughness"]')!.dataset.ptWas).toBe('2');
+    expect(css(power, 'animation'), 'the roll rule matches the new number').toMatch(/pt-roll-up/);
+    expect(css(pill, 'font-variant-numeric'), 'digits keep their width').toBe('tabular-nums');
+  });
+
   it('is out of flow and takes no click: it may not move a card or eat a selection', () => {
     const css = styled();
     const { container } = renderBoard(urchin(3, 4, 3, { power: 1, toughness: 2 }));

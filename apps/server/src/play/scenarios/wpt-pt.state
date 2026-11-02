@@ -1,0 +1,16 @@
+# e2e/wpt-pt-impact.spec.ts — the operator, 2026-11-01: the P/T pill "ALWAYS displayed on top of the card", and a
+# change to a creature's power or toughness drawn as an impact on it. Alice holds Giant Growth with a Forest to pay
+# for it; both seats have creatures (printed, */*, artifact, tokens) and nothing on either is buffed or hurt.
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Giant Growth
+humanbattlefield=Grizzly Bears;Serra Angel;Hero of Bladehold;T:c_1_1_a_servo;Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=
+aibattlefield=Hill Giant;Watchwolf;Tarmogoyf;Wurmcoil Engine;Llanowar Elves;T:c_1_1_a_servo;T:c_1_1_a_servo;Forest
+aigraveyard=Lightning Bolt;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
