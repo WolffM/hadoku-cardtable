@@ -25,6 +25,17 @@ async function go(page: Page, url: string, settle = 1_500): Promise<void> {
   await page.waitForTimeout(settle);
 }
 
+/**
+ * Wave 89 §B moved End turn, Full control, Concede and the log toggle into `action-menu`'s own
+ * popover in portrait (Settled 7) — the same test ids as before, just behind one tap to open it.
+ * Open it first when it's there; an older build (no `action-menu` yet, or desktop) leaves it absent,
+ * and the direct press that follows still lands exactly as it always did.
+ */
+async function openActionMenuIfPresent(page: Page): Promise<void> {
+  const menu = page.getByTestId('action-menu');
+  if ((await menu.count()) > 0 && (await menu.isVisible().catch(() => false))) await menu.tap();
+}
+
 /** The header's settings popout: the fleet header's user button, then each of its tabs. */
 async function settingsTabs(page: Page, area: string, route: string, prefix: string): Promise<void> {
   await page.evaluate(() => {
@@ -241,7 +252,10 @@ test('room: constructed room, a live match through the room, spectator, result, 
 
     // A few real turns, so the board has something on it.
     for (let i = 0; i < 6; i++) {
-      for (const f of [alice, bob]) await f.page.getByTestId('live-button-end-turn').click({ timeout: 8_000 }).catch(() => undefined);
+      for (const f of [alice, bob]) {
+        await openActionMenuIfPresent(f.page);
+        await f.page.getByTestId('live-button-end-turn').click({ timeout: 8_000 }).catch(() => undefined);
+      }
       await alice.page.waitForTimeout(800);
     }
     await shotSizes(alice.page, 'match-board', { area: 'match', route: '#/match/<id>', state: 'a mid-game board (seat view)' }, { small: true, landscape: true });
@@ -261,6 +275,7 @@ test('room: constructed room, a live match through the room, spectator, result, 
     });
 
     await attempt('log', async () => {
+      await openActionMenuIfPresent(alice.page);
       await alice.page.getByTestId('live-log-toggle').click();
       await alice.page.waitForTimeout(600);
       await shotSizes(alice.page, 'match-log', { area: 'match', route: '#/match/<id>', state: 'the game log open' }, { landscape: true });
@@ -270,6 +285,7 @@ test('room: constructed room, a live match through the room, spectator, result, 
       await settingsTabs(alice.page, 'match', '#/match/<id>', 'match');
     });
 
+    await openActionMenuIfPresent(bob.page);
     await bob.page.getByTestId('live-concede').click();
     await shot(bob.page, 'match-concede-confirm', { area: 'match', route: '#/match/<id>', state: 'concede confirmation' });
     await bob.page.getByTestId('live-concede-yes').click();
@@ -665,6 +681,7 @@ test('tournament: lobby, face-off, hub and bracket, standings', async ({ browser
       const matchRe = /#\/match\/m-[0-9a-f]{12}$/;
       for (const f of [alice, bob]) await f.page.waitForURL(matchRe, { timeout: 60_000 });
       for (let game = 0; game < 2; game++) {
+        await openActionMenuIfPresent(bob.page);
         await bob.page.getByTestId('live-concede').tap();
         await bob.page.getByTestId('live-concede-yes').tap();
         await alice.page.getByTestId('game-result').waitFor({ timeout: 30_000 });
