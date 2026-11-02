@@ -151,6 +151,7 @@ interface Peer {
 	presences: unknown[];
 	arrangements: unknown[];
 	placeds: unknown[];
+	offereds: unknown[];
 	request(event: 'forge:join' | 'forge:resync', payload: unknown): Promise<unknown>;
 	send(payload: unknown): void;
 	/** Ask for full control, or give it back — the client → server direction. */
@@ -186,6 +187,7 @@ function connect(
 			presences: [],
 			arrangements: [],
 			placeds: [],
+			offereds: [],
 			request: async (event, payload) => {
 				const ack: unknown = await socket.timeout(3000).emitWithAck(event, payload);
 				peer.acks.push(ack);
@@ -202,6 +204,7 @@ function connect(
 		socket.on('forge:presence', (payload: unknown) => peer.presences.push(payload));
 		socket.on('forge:arrangement', (payload: unknown) => peer.arrangements.push(payload));
 		socket.on('forge:placed', (payload: unknown) => peer.placeds.push(payload));
+		socket.on('forge:offered', (payload: unknown) => peer.offereds.push(payload));
 		socket.on('forge:role', (payload: unknown) => peer.roles.push(payload));
 		socket.on('connect', () => done(peer));
 		socket.on('connect_error', (err) => fail(err));
@@ -613,6 +616,27 @@ describe('two seats over the socket', () => {
 		await again.request('forge:join', { matchId });
 		await vi.waitFor(() => expect(again.arrangements).toHaveLength(1), { timeout: 5_000 });
 		expect(again.arrangements[0]).toEqual({ ...message, seat: 0 });
+	});
+
+	/*
+	 * Offered (the operator, 2026-11-02): the battlefield cards a seat's board draws clickable,
+	 * so the other screen's chips keep clear of them. Only cards every other seat sees face up on
+	 * a battlefield cross; the opening has none, so a hand card's id and an unknown id are dropped.
+	 */
+	it('relays a seat’s clickable battlefield cards to the other seat, stamped with the seat, never a card off the battlefield, and replays the last to whoever joins next', async () => {
+		const { h, matchId, alice, bob } = await twoSeats();
+		await alice.request('forge:join', { matchId });
+		await bob.request('forge:join', { matchId });
+		// The opening has nothing on a battlefield: none of these may cross.
+		alice.socket.emit('forge:offered', { matchId, type: 'offered', cards: [1, 2, 3, 9999] });
+		await vi.waitFor(() => expect(bob.offereds).toHaveLength(1), { timeout: 5_000 });
+		expect(bob.offereds[0], 'nothing in it is on a battlefield').toEqual({ matchId, type: 'offered', cards: [], seat: 0 });
+		await new Promise((r) => setTimeout(r, 60));
+		expect(alice.offereds, 'nothing comes back to the sender').toHaveLength(0);
+		const again = await connect(h.port, edgeHeaders('bob'));
+		await again.request('forge:join', { matchId });
+		await vi.waitFor(() => expect(again.offereds).toHaveLength(1), { timeout: 5_000 });
+		expect(again.offereds[0]).toEqual({ matchId, type: 'offered', cards: [], seat: 0 });
 	});
 
 	/*

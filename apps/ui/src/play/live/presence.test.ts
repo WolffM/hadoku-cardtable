@@ -6,7 +6,7 @@
  */
 
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
-import { PLACED_EVENT, PLACEMENT_EVENT, PRESENCE_EVENT, PRESENCE_SEND_MS } from '@hadoku/shared';
+import { OFFERED_EVENT, PLACED_EVENT, PLACEMENT_EVENT, PRESENCE_EVENT, PRESENCE_SEND_MS } from '@hadoku/shared';
 
 import { forgetPendingPlacements, pendingPlacementFor } from '../Board.tsx';
 import { GLIDE_MS, PLACEMENT_WAIT_MS } from '../motion.ts';
@@ -18,9 +18,17 @@ import { GLIDE_MS, PLACEMENT_WAIT_MS } from '../motion.ts';
  * here so this file's own receive/send logic proves itself without needing
  * that drawing layer at all.
  */
-const { placedMod, spellMovedBox } = vi.hoisted(() => {
+const { placedMod, spellMovedBox, ownClickableBox } = vi.hoisted(() => {
   const spellMovedBox: { current: ((id: number, at: { x: number; y: number }) => void) | null } = { current: null };
+  const ownClickableBox: { current: ((cards: readonly number[]) => void) | null } = { current: null };
   const placedMod = {
+    setPeerClickable: vi.fn(),
+    onOwnClickable: vi.fn((listener: (cards: readonly number[]) => void) => {
+      ownClickableBox.current = listener;
+      return () => {
+        ownClickableBox.current = null;
+      };
+    }),
     placeSpell: vi.fn(),
     placeStackItem: vi.fn(),
     moveSpell: vi.fn(),
@@ -34,7 +42,7 @@ const { placedMod, spellMovedBox } = vi.hoisted(() => {
       };
     }),
   };
-  return { placedMod, spellMovedBox };
+  return { placedMod, spellMovedBox, ownClickableBox };
 });
 vi.mock('./placed.ts', () => placedMod);
 
@@ -111,6 +119,7 @@ function fakeTransport() {
     receive: (payload: unknown) => handlers.get(PRESENCE_EVENT)!(payload),
     receivePlacement: (payload: unknown) => handlers.get(PLACEMENT_EVENT)!(payload),
     receivePlaced: (payload: unknown) => handlers.get(PLACED_EVENT)!(payload),
+    receiveOffered: (payload: unknown) => handlers.get(OFFERED_EVENT)!(payload),
     /** What only a replay's own transport ever sends (`../../replay/player.ts`); a server never does. */
     receiveReplayHeld: (payload: unknown) => handlers.get(REPLAY_HELD_EVENT)!(payload),
   };
@@ -1363,6 +1372,32 @@ describe('receiving', () => {
     spellMovedBox.current!(48, { x: 300, y: 200 });
     expect(t.sent, 'the wire’s own echo never bounces back out').toHaveLength(1);
     handle.dispose();
+  });
+
+  it('this board’s clickable battlefield cards go out as `forge:offered`, at most once per `PRESENCE_SEND_MS`, the latest set winning; the other seat’s come in to `placed.ts`', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const t = fakeTransport();
+    const handle = installPresence({ canvas, host: host(t) });
+    const offered = () => t.sent.filter((m) => m.event === OFFERED_EVENT).map((m) => (m.payload as { cards: number[] }).cards);
+    ownClickableBox.current!([4, 5]);
+    expect(offered(), 'the first set goes at once').toEqual([[4, 5]]);
+    ownClickableBox.current!([5]);
+    ownClickableBox.current!([5, 9]);
+    expect(offered(), 'held for the rest of the window').toHaveLength(1);
+    vi.advanceTimersByTime(PRESENCE_SEND_MS);
+    expect(offered(), 'then the set that stands').toEqual([[4, 5], [5, 9]]);
+    expect(t.sent.find((m) => m.event === OFFERED_EVENT)!.payload).toEqual({ matchId: 'm-1', type: 'offered', cards: [4, 5] });
+    t.receiveOffered({ matchId: 'm-1', type: 'offered', seat: 1, cards: [7] });
+    expect(placedMod.setPeerClickable).toHaveBeenCalledWith(1, [7]);
+    t.receiveOffered({ matchId: 'm-1', type: 'offered', seat: 0, cards: [4] });
+    expect(placedMod.setPeerClickable, 'its own echo is no other seat’s').toHaveBeenCalledTimes(1);
+    handle.dispose();
+    const watcher = installPresence({ canvas, host: host(t, null) });
+    ownClickableBox.current!([1]);
+    vi.advanceTimersByTime(PRESENCE_SEND_MS);
+    expect(offered(), 'a watcher clicks nothing and says nothing').toHaveLength(2);
+    watcher.dispose();
   });
 
   it('a drag of its own placed card is sent at most once per `PRESENCE_SEND_MS`, its latest point winning — never once per pointer event', () => {

@@ -1,0 +1,20 @@
+# e2e/chips-clickable.spec.ts — the operator, 2026-11-02, on Cephalid Breakfast: "the ability chips
+# eventually start to cover the two cards". The trailer's Breakfast board (Cephalid Illusionist,
+# Nomads en-Kor, three duals) with a library of Islands, so each mill trigger asks nothing. Alice
+# holds priority (Full control) and activates Nomads en-Kor at Cephalid Illusionist again and again:
+# every round puts the activation and Cephalid's mill trigger on the stack as two more chips. Bob
+# holds a Lightning Bolt with two Mountains up, so when alice passes he has a real window of his own,
+# his lands clickable on his board, before the top of the stack resolves.
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=18
+ailife=12
+humanhand=
+humanbattlefield=Cephalid Illusionist;Nomads en-Kor;Tundra;Tropical Island;Underground Sea
+humanlibrary=Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=Lightning Bolt
+aibattlefield=Goblin Lackey|Tapped:True;Goblin Piledriver|Tapped:True;Mountain;Mountain;Wooded Foothills
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

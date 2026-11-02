@@ -39,6 +39,10 @@ import {
   CHIP_DWELL_MS,
   squareWidth,
   STACK_CORE,
+  HOVER_REACH,
+  onOwnClickable,
+  setPeerClickable,
+  slideCrosses,
 } from './placed.ts';
 
 /* ── fixtures ──────────────────────────────────────────────────────────── */
@@ -366,6 +370,82 @@ describe('installPlaced: drawing', () => {
     handle.dispose();
   });
 
+  describe('a chip keeps clear of the cards the viewer can click (the operator, 2026-11-02)', () => {
+    /** Board 201 (the source) with 202 just to its right, every placed element laid out `size` square at its own left/top. */
+    function laidOut(): { canvas: HTMLElement; chipBox: (id: number) => Rect; cardBox: Rect } {
+      const { canvas } = board();
+      const you = canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!;
+      you.insertAdjacentHTML('beforeend', '<li class="board-card" data-board-card="202" data-card-id="202"></li>');
+      const box = { left: 190, top: 500, width: 80, height: 110 };
+      canvas.querySelector<HTMLElement>('[data-card-id="202"]')!.getBoundingClientRect = () => rect(box);
+      vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+        return this.hasAttribute('data-placed-spell') ? 100 : 0;
+      });
+      vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+        return this.hasAttribute('data-placed-spell') ? 100 : 0;
+      });
+      const chipBox = (id: number): Rect => {
+        const el = canvas.querySelector<HTMLElement>(`[data-placed-spell="${id}"]`)!;
+        const x = Number.parseFloat(el.style.left);
+        const y = Number.parseFloat(el.style.top);
+        return { left: x - 50, top: y - 50, right: x + 50, bottom: y + 50 };
+      };
+      return { canvas, chipBox, cardBox: { left: box.left, top: box.top, right: box.left + box.width, bottom: box.top + box.height } };
+    }
+    const overlaps = (a: Rect, b: Rect): boolean => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    const clickableNow = (ids: readonly number[]) => ({ isSelectable: (id: number) => ids.includes(id), onSelect: () => undefined });
+    afterEach(() => vi.restoreAllMocks());
+
+    it('drawn clear of a clickable card from its first frame, where beside its source would cover it', () => {
+      const { canvas, chipBox, cardBox } = laidOut();
+      setChainHalted(true);
+      const handle = installPlaced(canvas, { reducedMotion: () => true });
+      const field = [{ id: 201 }, { id: 202 }];
+      const trigger = stackItem(9, { isAbility: true, sourceCardId: 201 });
+      handle.notify(view([], field), clickableNow([202]));
+      handle.notify(view([trigger], field), clickableNow([202]));
+      expect(overlaps(chipBox(9), cardBox), `first frame clear of 202 (${JSON.stringify(chipBox(9))})`).toBe(false);
+      handle.notify(view([trigger], field), clickableNow([202]));
+      expect(overlaps(chipBox(9), cardBox), 'and settled clear of it').toBe(false);
+      handle.dispose();
+    });
+
+    it('a card only the other seat can click is kept clear too (the operator, 2026-11-02: "avoid blocking the opponents playable cards"); this board tells its own once per change', () => {
+      const { canvas, chipBox, cardBox } = laidOut();
+      setChainHalted(true);
+      const told: number[][] = [];
+      const stop = onOwnClickable((cards) => told.push([...cards]));
+      const handle = installPlaced(canvas, { reducedMotion: () => true });
+      const field = [{ id: 201 }, { id: 202 }];
+      const trigger = stackItem(9, { isAbility: true, sourceCardId: 201 });
+      setPeerClickable(1, [202]);
+      handle.notify(view([trigger], field), clickableNow([201]));
+      handle.notify(view([trigger], field), clickableNow([201]));
+      expect(overlaps(chipBox(9), cardBox), `clear of what the other seat can click (${JSON.stringify(chipBox(9))})`).toBe(false);
+      expect(told, 'this board’s own clickable cards, told once').toEqual([[201]]);
+      handle.notify(view([trigger], field), clickableNow([]));
+      expect(told.at(-1), 'and again when they change').toEqual([]);
+      stop();
+      handle.dispose();
+    });
+
+    it('a card that stops being clickable keeps the chips off it for the rest of the turn; a new turn forgets it', () => {
+      const { canvas, chipBox, cardBox } = laidOut();
+      setChainHalted(true);
+      const handle = installPlaced(canvas, { reducedMotion: () => true });
+      const field = [{ id: 201 }, { id: 202 }];
+      const trigger = stackItem(9, { isAbility: true, sourceCardId: 201 });
+      handle.notify(view([trigger], field), clickableNow([202]));
+      handle.notify(view([trigger], field), clickableNow([202]));
+      const clear = chipBox(9);
+      handle.notify(view([trigger], field), clickableNow([]));
+      expect(chipBox(9), 'the next prompt offers nothing: the chip stays put').toEqual(clear);
+      handle.notify({ ...view([trigger], field), turn: 2 }, clickableNow([]));
+      expect(overlaps(chipBox(9), cardBox), 'next turn, back beside its source').toBe(true);
+      handle.dispose();
+    });
+  });
+
   it('AE29: an ability is the chip — the source\'s name and art band over the ability\'s own text, never a second card face', async () => {
     const { canvas } = board();
     setChainHalted(true);
@@ -566,9 +646,11 @@ describe('installPlaced: drawing', () => {
     handle.notify(view(stack, [{ id: 201 }]));
     const chip = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
     expect(chip.style.width, 'nothing to measure before its text has rendered').toBe('');
+    expect(chip.hasAttribute('data-placed-pending'), 'hidden until it has its own size: it is first shown at the size it keeps').toBe(true);
     // A fresh React root commits on its own clock; the chip's own resize redraws it then (the ResizeObserver jsdom lacks).
     await vi.waitFor(() => expect(chip.querySelector('.placed__chip-text')?.textContent).toBeTruthy());
     handle.notify(view(stack, [{ id: 201 }]));
+    await vi.waitFor(() => expect(chip.hasAttribute('data-placed-pending'), 'shown the frame after it is squared').toBe(false));
     const w = widthOf(chip);
     const h = BAND + textHeight(w);
     expect(w / h, `near square (${w}×${h})`).toBeGreaterThan(0.75);
@@ -1327,5 +1409,56 @@ describe('settleStack: the stack bumps, spreads and piles (the operator, 2026-10
   it('cards already clear of each other stay where they asked', () => {
     const asks = [{ want: { x: 300, y: 300 }, ...card, seed: 1 }, { want: { x: 900, y: 600 }, ...card, seed: 2 }];
     expect(settleStack(asks, board)).toEqual(asks.map((a) => a.want));
+  });
+
+  /** How much of `box` a `size` box centred on `p`, grown by the hover's reach, covers. */
+  const covered = (p: P, size: { width: number; height: number }, box: Rect): number => {
+    const w = Math.min(p.x + size.width / 2 + HOVER_REACH, box.right) - Math.max(p.x - size.width / 2 - HOVER_REACH, box.left);
+    const h = Math.min(p.y + size.height / 2 + HOVER_REACH, box.bottom) - Math.max(p.y - size.height / 2 - HOVER_REACH, box.top);
+    return w > 0 && h > 0 ? w * h : 0;
+  };
+
+  it('a chip never covers a card the viewer can click, hover and all: asked onto one, it moves clear; anything else stays where it asked', () => {
+    const nomads = { left: 740, top: 360, right: 856, bottom: 521 };
+    const [chipAt] = settleStack([{ want: { x: 800, y: 440 }, ...chip, seed: 1, yields: true }], board, [], [nomads]);
+    expect(covered(chipAt!, chip, nomads), `moved off it (${JSON.stringify(chipAt)})`).toBe(0);
+    expect(Math.hypot(chipAt!.x - 800, chipAt!.y - 440), 'to the nearest clear spot, not across the table').toBeLessThan(chip.width + card.width);
+    const [spellAt] = settleStack([{ want: { x: 800, y: 440 }, ...card, seed: 1 }], board, [], [nomads]);
+    expect(spellAt, 'a card a player put down stays where they put it').toEqual({ x: 800, y: 440 });
+  });
+
+  it('ten chips round two clickable cards: they pile on each other before one covers either', () => {
+    const small = { left: 0, top: 0, right: 900, bottom: 420 };
+    const cards = [
+      { left: 60, top: 120, right: 176, bottom: 281 },
+      { left: 190, top: 120, right: 306, bottom: 281 },
+    ];
+    const asks = Array.from({ length: 10 }, (_, i) => ({ want: { x: 250, y: 200 }, ...chip, seed: 30 + i, yields: true }));
+    const spots = settleStack(asks, small, [], cards);
+    expect(spots.filter((p) => cards.some((c) => covered(p, chip, c) > 0)), 'none covers a clickable card').toEqual([]);
+    expect(inside(spots, chip.width, chip.height, small)).toBe(true);
+    expect(worstOverlap(spots, chip.width * STACK_CORE, chip.height * STACK_CORE), 'out of clear room: the chips pile').toBeGreaterThan(0);
+  });
+
+  it('a slide between two clear spots can still cut across a clickable card: its whole path is tested, hover reach and overshoot included', () => {
+    const land = { left: 300, top: 300, right: 416, bottom: 461 };
+    const size = { w: 120, h: 120 };
+    // Both ends clear of the land by more than the reach; the straight line between them runs through it.
+    expect(slideCrosses({ x: 220, y: 200 }, { x: 500, y: 560 }, size.w, size.h, [land]), 'through it').toBe(true);
+    // The Underground Sea frame of claw run 41524219782: the corner clipped by a few px on the way past.
+    expect(slideCrosses({ x: 220, y: 200 }, { x: 560, y: 200 }, size.w, size.h, [land]), 'past its top edge, 40 px clear').toBe(false);
+    expect(slideCrosses({ x: 220, y: 300 - 60 - HOVER_REACH + 4 }, { x: 560, y: 300 - 60 - HOVER_REACH + 4 }, size.w, size.h, [land]), 'within the reach of its top edge').toBe(true);
+    // Toward it, stopping short: the easing's overshoot carries it 2% further.
+    expect(slideCrosses({ x: 0, y: 380 }, { x: 300 - 60 - HOVER_REACH - 1, y: 380 }, size.w, size.h, [land]), 'overshoot into it').toBe(true);
+    expect(slideCrosses({ x: 200, y: 380 }, { x: 200, y: 380 }, size.w, size.h, [land]), 'standing still, clear').toBe(false);
+  });
+
+  it('with no clear room anywhere, a chip covers as little of what can be clicked as it can', () => {
+    const small = { left: 0, top: 0, right: 400, bottom: 300 };
+    const wall = { left: 0, top: 0, right: 400, bottom: 220 };
+    const [p] = settleStack([{ want: { x: 200, y: 100 }, ...chip, seed: 1, yields: true }], small, [], [wall]);
+    // The lowest it fits is 219; the search steps a tenth of the chip's core at a time.
+    expect(p!.y, 'as low as it fits, within one step of the search').toBeGreaterThan(small.bottom - 6 - chip.height / 2 - 11);
+    expect(covered(p!, chip, wall), 'covering less than where it asked').toBeLessThan(covered({ x: 200, y: 100 }, chip, wall));
   });
 });

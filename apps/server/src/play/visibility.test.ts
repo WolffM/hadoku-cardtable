@@ -33,6 +33,7 @@ import { ApplyDeltaSchema, GameEventListSchema, safeParseServerFrame, type Print
 import {
 	cardVisibility,
 	createProjector,
+	faceUpOnBattlefield,
 	EVERY_PLAYER,
 	foldFrames,
 	type DeltaPacketJson,
@@ -1412,6 +1413,16 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		expect(held(aliceOut, 30)).toBeUndefined();
 		expect(lookHeld(bobOut, 30)).toBeUndefined();
 		expect(bob.visibilityOf(30)).toBe('full');
+	});
+
+	it('faceUpOnBattlefield: a seat’s clickable cards reach the others only where every one of them sees the card face up on a battlefield', () => {
+		// Bob's Bears on his battlefield and a card in his hand: alice may hear the Bears were clickable, never the hand card.
+		const open = both(table({ Hand: [10], Library: [20, 21, 22], Battlefield: [30] }));
+		expect(faceUpOnBattlefield([open.alice], [30, 10, 20, 99])).toEqual([30]);
+		// Face down, its being clickable says what it is (a manifest that may turn up is a creature card).
+		const faceDown = both(table({ Hand: [10], Library: [20, 21, 22], Battlefield: [30] }, { ...card(30), Facedown: { t: 'bool', v: true } }));
+		expect(faceUpOnBattlefield([faceDown.alice], [30])).toEqual([]);
+		expect(faceUpOnBattlefield([], [30]), 'nobody to tell').toEqual([]);
 	});
 
 	it('forgets a bounced card once its hand is shuffled into the library, and does not know it drawn again', () => {
