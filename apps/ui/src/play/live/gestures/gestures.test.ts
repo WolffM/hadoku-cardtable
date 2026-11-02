@@ -71,6 +71,7 @@ import { installGestures } from './index.ts';
 import { PARK_UNANSWERED_MS } from './install.ts';
 import { RAMMING_ATTR } from '../ram.ts';
 import type { GestureHandle } from './types.ts';
+import { LONG_PRESS_MS, mountInspector } from '../../inspect/index.ts';
 
 /*
  * Every case here is a real socket server, a real match and lane A's whole Board in jsdom, and
@@ -84,6 +85,8 @@ vi.setConfig({ testTimeout: 30_000 });
 let server: ReplayServer | null = null;
 let match: LiveMatch | null = null;
 let gestures: GestureHandle | null = null;
+/** Wave 89 §D's touch cases mount the inspector alongside the gesture layer, exactly as `Board.tsx` and `LiveBoard.tsx` do in production — disposed here like `gestures` is. */
+let inspectorDispose: (() => void) | null = null;
 
 afterEach(async () => {
   markScan = undefined;
@@ -91,6 +94,8 @@ afterEach(async () => {
   delete (globalThis as { jest?: unknown }).jest;
   gestures?.dispose();
   gestures = null;
+  inspectorDispose?.();
+  inspectorDispose = null;
   cleanup();
   if (match !== null) closeMatch(match);
   match = null;
@@ -4216,5 +4221,214 @@ describe('a cast tells Board where it landed, through the seam Board provides', 
     fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
     expect(noteSpy).not.toHaveBeenCalled();
     expect(previewSpy).not.toHaveBeenCalled();
+  });
+});
+
+/*
+ * Wave 89 §D, Settled 5/6: a touch tap reads a card instead of acting on it; a mouse click is every
+ * case above, byte-identical. The inspector is mounted alongside the gesture layer here, exactly as
+ * `Board.tsx` and `LiveBoard.tsx` wire them together in production — `card-view`/`card-view-action`
+ * are its own markup, and `install.ts` only ever reaches them through `openCardView`.
+ */
+describe('wave 89 §D — a touch tap opens the card view instead of acting; a mouse click is unchanged', () => {
+  /**
+   * Press and release at the same point with no movement — a tap, never a drag — plus the native
+   * `click` a real touch tap's `pointerup` always fires right after, on the same element: jsdom
+   * never synthesizes that click on its own (every other test in this file that cares fires it
+   * explicitly too, see "the native click is swallowed, not answered"), and this module's own
+   * swallow (`clicks.arm`) is written for THAT click, not a later, unrelated one.
+   */
+  function tap(el: HTMLElement, x = 10, y = 10): void {
+    fireEvent.pointerDown(el, { button: 0, pointerType: 'touch', clientX: x, clientY: y });
+    fireEvent.pointerUp(el, { pointerType: 'touch', clientX: x, clientY: y });
+    fireEvent.click(el, { clientX: x, clientY: y });
+  }
+
+  function mountedBoard(canvas: HTMLElement): HTMLElement {
+    const board = canvas.querySelector<HTMLElement>('.board')!;
+    inspectorDispose = mountInspector(board);
+    return board;
+  }
+
+  it('a tap on a hand card floats it home, opens the card view with a Cast action, and sends nothing — then the action casts it', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const board = mountedBoard(canvas);
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
+    const face = cardEl(canvas, hand[0]!).querySelector<HTMLButtonElement>('button')!;
+
+    tap(face);
+
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'the review’s own bug: this must never stay lifted/armed').not.toBe('lifted');
+    expect(await s.framesFrom(m), 'the tap itself reads; it never casts').toHaveLength(0);
+    const view = board.querySelector('[data-testid="card-view"]');
+    expect(view, 'the one expanded card view opened').not.toBeNull();
+    const action = view!.querySelector<HTMLButtonElement>('[data-testid="card-view-action"]')!;
+    expect(action.dataset.verb, 'a hand card’s offer is a cast').toBe('cast');
+
+    fireEvent.click(action);
+    await s.untilClientFrames(1);
+    expect(await sent(s, m)).toEqual([['selectCard', hand[0]!]]);
+  });
+
+  it('a tap on a card Forge offers nothing for opens the card view with no action, and sends nothing — the review’s exact sequence', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const board = mountedBoard(canvas);
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    const theirs = theirsOf(m).battlefield.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
+
+    // Tap the hand card first — the review's own first half.
+    tap(cardEl(canvas, hand[0]!).querySelector<HTMLButtonElement>('button')!);
+    expect(await s.framesFrom(m)).toHaveLength(0);
+
+    // Then tap the opponent's creature — Forge offers nothing for it at all.
+    tap(cardEl(canvas, theirs[0]!).querySelector<HTMLButtonElement>('button')!);
+
+    expect(await s.framesFrom(m), 'no cast reached Forge from either tap').toHaveLength(0);
+    expect(board.querySelector('[data-testid="card-view"]'), 'opened to read the opponent’s creature').not.toBeNull();
+    expect(board.querySelectorAll('[data-testid="card-view-action"]'), 'nothing offered — no action').toHaveLength(0);
+  });
+
+  it('dragging a hand card past the hand’s edge still plays it, on touch exactly as on mouse', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const noteSpy = vi.spyOn(BoardModule, 'notePlayedTo');
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    const face = cardEl(canvas, hand[0]!).querySelector<HTMLButtonElement>('button')!;
+
+    fireEvent.pointerDown(face, { button: 0, pointerType: 'touch', clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(myBattlefield, { pointerType: 'touch', clientX: 400, clientY: 300 });
+    fireEvent.pointerUp(myBattlefield, { pointerType: 'touch', clientX: 400, clientY: 300 });
+    await s.untilClientFrames(1);
+
+    expect(await sent(s, m)).toEqual([['selectCard', hand[0]!]]);
+    expect(noteSpy).toHaveBeenCalledWith(hand[0], { x: 400, y: 300 }, mineOf(m).hand![0]!.card.typeLine);
+  });
+
+  it('while a selection is open, a touch tap still chooses — Settled 6, same as a mouse click', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const theirs = theirsOf(m).battlefield.map((c) => c.id);
+    s.send(selectables([theirs[0]!], 1, 1));
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
+    const face = cardEl(canvas, theirs[0]!).querySelector<HTMLButtonElement>('button')!;
+
+    fireEvent.pointerDown(face, { button: 0, pointerType: 'touch', clientX: 10, clientY: 10 });
+    fireEvent.pointerUp(face, { pointerType: 'touch', clientX: 10, clientY: 10 });
+    fireEvent.click(face);
+    await s.untilClientFrames(1);
+
+    expect(await sent(s, m)).toEqual([['selectCard', theirs[0]!]]);
+  });
+
+  it('while a selection is open, a long-press opens the card view with a Target action instead of choosing', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const board = mountedBoard(canvas);
+    const theirs = theirsOf(m).battlefield.map((c) => c.id);
+    s.send(selectables([theirs[0]!], 1, 1));
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
+    const cardLi = cardEl(canvas, theirs[0]!);
+    const face = cardLi.querySelector<HTMLButtonElement>('button')!;
+
+    fireEvent.pointerDown(face, { button: 0, pointerType: 'touch', clientX: 10, clientY: 10 });
+    await new Promise((resolve) => setTimeout(resolve, LONG_PRESS_MS + 60));
+    fireEvent.pointerUp(face, { pointerType: 'touch', clientX: 10, clientY: 10 });
+    const click = fireEvent.click(face);
+
+    expect(click, 'the long-press’s own click is swallowed — it must not also choose').toBe(false);
+    expect(await s.framesFrom(m), 'read, not chosen').toHaveLength(0);
+    const view = board.querySelector('[data-testid="card-view"]');
+    expect(view, 'the long-press opened the view').not.toBeNull();
+    const action = view!.querySelector<HTMLButtonElement>('[data-testid="card-view-action"]')!;
+    expect(action.dataset.verb).toBe('target');
+
+    fireEvent.click(action);
+    await s.untilClientFrames(1);
+    expect(await sent(s, m)).toEqual([['selectCard', theirs[0]!]]);
+  });
+
+  it('mouse is unchanged: a click still arms the two-step lift, never opens the card view', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const board = mountedBoard(canvas);
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
+    const face = cardEl(canvas, hand[0]!).querySelector<HTMLButtonElement>('button')!;
+
+    fireEvent.pointerDown(face, { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerUp(face, { clientX: 10, clientY: 10 });
+
+    expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'still lifted — the mouse two-step, untouched').toBe('lifted');
+    expect(board.querySelector('[data-testid="card-view"]'), 'a mouse click never opens the card view').toBeNull();
+    expect(await s.framesFrom(m)).toHaveLength(0);
+  });
+});
+
+/*
+ * Portrait's hand carousel (`./hand.css`: `touch-action: pan-x` on the viewer's hand cards): a
+ * sideways swipe is the browser's scroll, a clear upward drag is still this layer's play. The card's
+ * own inline `touch-action` stands in for the stylesheet, which jsdom does not load.
+ */
+describe('portrait hand carousel — a sideways swipe scrolls, an upward drag plays', () => {
+  async function carouselBoard() {
+    const board = await gestureBoard();
+    const hand = mineOf(board.m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) board.s.send(f);
+    await untilMatch(board.m, () => expect(board.m.weaklySelectable).not.toBeNull());
+    const li = cardEl(board.canvas, hand[0]!);
+    li.style.touchAction = 'pan-x';
+    return { ...board, id: hand[0]!, li, face: li.querySelector<HTMLButtonElement>('button')! };
+  }
+
+  it('a sideways move leaves the press alone, and the pan’s pointercancel drops the lift quietly, sending nothing', async () => {
+    const { s, m, canvas, id, li, face } = await carouselBoard();
+
+    fireEvent.pointerDown(face, { button: 0, pointerType: 'touch', clientX: 100, clientY: 300 });
+    fireEvent.pointerMove(face, { pointerType: 'touch', clientX: 160, clientY: 290 });
+    expect(canvas.hasAttribute('data-dragging'), 'a sideways move never starts this layer’s drag').toBe(false);
+    fireEvent.pointerCancel(face, { pointerType: 'touch' });
+
+    expect(li.hasAttribute('data-cast-lift'), 'gone at once — no float home').toBe(false);
+    expect(await s.framesFrom(m)).toHaveLength(0);
+    expect(cardEl(canvas, id)).toBe(li);
+  });
+
+  it('a clear upward drag onto the battlefield still plays the card', async () => {
+    const { s, m, canvas, id, face } = await carouselBoard();
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+
+    fireEvent.pointerDown(face, { button: 0, pointerType: 'touch', clientX: 100, clientY: 300 });
+    fireEvent.pointerMove(myBattlefield, { pointerType: 'touch', clientX: 110, clientY: 120 });
+    fireEvent.pointerUp(myBattlefield, { pointerType: 'touch', clientX: 110, clientY: 120 });
+    await s.untilClientFrames(1);
+
+    expect(await sent(s, m)).toEqual([['selectCard', id]]);
+  });
+
+  it('a mouse pointer moving on its own mid-tap is not the touch’s move: the tap still reads, nothing cast', async () => {
+    const { s, m, canvas, face } = await carouselBoard();
+    const board = canvas.querySelector<HTMLElement>('.board')!;
+    inspectorDispose = mountInspector(board);
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+
+    fireEvent.pointerDown(face, { button: 0, pointerType: 'touch', pointerId: 2, clientX: 100, clientY: 300 });
+    // Chromium's own fake move for the parked mouse, far up the table — never this touch's.
+    fireEvent.pointerMove(myBattlefield, { pointerType: 'mouse', pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerUp(face, { pointerType: 'touch', pointerId: 2, clientX: 100, clientY: 300 });
+    fireEvent.click(face);
+
+    expect(await s.framesFrom(m), 'a tap reads; it never casts').toHaveLength(0);
+    expect(board.querySelector('[data-testid="card-view"]'), 'the tap opened the card view').not.toBeNull();
+  });
+
+  it('a mouse drag sideways is unchanged: it moves the lift as it always has', async () => {
+    const { canvas, face } = await carouselBoard();
+    fireEvent.pointerDown(face, { button: 0, clientX: 100, clientY: 300 });
+    fireEvent.pointerMove(face, { buttons: 1, clientX: 160, clientY: 300 });
+    expect(canvas.hasAttribute('data-dragging')).toBe(true);
   });
 });

@@ -61,6 +61,22 @@ export function pastSlop(press: Point, at: Point): boolean {
 }
 
 /**
+ * `pastSlop` for a touch press the browser may pan sideways (`touch-action: pan-x`, portrait's hand
+ * carousel in `./hand.css`): it becomes this layer's drag only once it is past the slop AND upward AND
+ * more vertical than horizontal. Anything else is the browser's pan to take, with a `pointercancel`.
+ */
+export function pastSlopUpward(press: Point, at: Point): boolean {
+  const up = press.y - at.y;
+  return pastSlop(press, at) && up > 0 && up > Math.abs(at.x - press.x);
+}
+
+/** Whether the browser may pan a touch press on `node` sideways — its card's `touch-action` names `pan-x`. */
+export function pansSideways(node: EventTarget | null): boolean {
+  const card = node instanceof Element ? node.closest('li.board-card') : null;
+  return card !== null && getComputedStyle(card).touchAction.includes('pan-x');
+}
+
+/**
  * The native `click` a resolved press leaves behind, swallowed once: `arm` it
  * when a press is claimed, `reset` it at the top of every fresh press (a press
  * that never produced a click must not eat an unrelated later one), and hang

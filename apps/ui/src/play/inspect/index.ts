@@ -156,6 +156,20 @@ export interface CardLongPress {
   readonly y: number;
 }
 
+/**
+ * One button in the card view's action row (wave 89 §D, Settled 5/6): what the card's own CURRENT
+ * legal interaction is — cast or play it out of a cast zone, activate an ambient priority offer, or
+ * answer the decision Forge has open (choose it as a target, declare or recall it as an attacker).
+ * `../live/gestures/install.ts` is the one place that builds these — it already holds `LiveMatch` and
+ * already decides every one of these cases for the mouse gesture this touch tap is replacing, so the
+ * verb here is read off that decision, never hand-listed again.
+ */
+export interface CardViewAction {
+  readonly verb: 'cast' | 'play' | 'activate' | 'target' | 'attack';
+  readonly label: string;
+  readonly run: () => void;
+}
+
 
 /** A board id: digits only (`data-card-id`). */
 const BOARD_ID = /^\d+$/;
@@ -174,6 +188,12 @@ interface InspectTarget {
    * and the preview is placed beside it.
    */
   trigger?: Element;
+  /**
+   * The action row (`card-view-action`), when this view was opened by `openCardView` with the card's
+   * current legal actions. Absent for every hover/long-press opened from inside this module — those
+   * never know a card's game actions, only its DOM.
+   */
+  actions?: readonly CardViewAction[];
 }
 
 /**
@@ -500,6 +520,26 @@ function enlarged(tile: Element): HTMLElement {
 const activeMounts = new WeakMap<ParentNode, () => void>();
 
 /**
+ * The mounted instance's own `openOn`, keyed exactly as `activeMounts` is — one external API per
+ * root, torn down and replaced on the same terms. `../live/gestures/install.ts` is the one caller:
+ * a touch tap that must read instead of act looks the card up, builds its actions off `LiveMatch`,
+ * and hands both here, outside the pointer gesture `show`/`dismiss` otherwise run on alone.
+ */
+const activeApis = new WeakMap<ParentNode, (cardId: number, actions: readonly CardViewAction[]) => boolean>();
+
+/**
+ * Open the card view on a card already drawn under `root`, from OUTSIDE this module's own pointer
+ * gestures (wave 89 §D's touch read-tap: Settled 5's ambient tap, Settled 6's in-decision long-press,
+ * both decided in `../live/gestures/install.ts`, which holds the `LiveMatch` this module never does).
+ * A no-op, returning false, when nothing is mounted on `root` or the card has no tile drawn — hidden
+ * information, or it already left — the same "nothing to show" this module already treats as final
+ * everywhere else.
+ */
+export function openCardView(root: ParentNode, cardId: number, actions: readonly CardViewAction[] = []): boolean {
+  return activeApis.get(root)?.(cardId, actions) ?? false;
+}
+
+/**
  * Boot the inspector on a board. `root` is the board lane A mounted; the only
  * thing looked up inside it is the zoom layer (and the viewer's hand zone,
  * for placement) — every card is found through the document, because prompt
@@ -529,6 +569,15 @@ export function mountInspector(root: ParentNode): () => void {
   let swallowClickIn: Element | null = null;
   /** The card a press or Escape put the preview away on: it opens nothing until the pointer or focus leaves it. */
   let quiet: Element | null = null;
+  /**
+   * Whether a touch opened the panel that is up (a tap's `openOn`, or a long-press). A touch-opened
+   * panel is the touch's to close — a tap elsewhere, a second tap on its card, Escape — never the
+   * mouse hover's: a touch screen still keeps a mouse pointer, parked wherever it last was, and the
+   * browser re-targets it with a fresh `pointerover` whenever the layout under it changes. The
+   * portrait sheet (`inspect.css`, full-screen) appearing under that parked pointer is exactly such
+   * a change, and it closed the panel in the same frame it opened.
+   */
+  let byTouch = false;
 
   const layer = (): HTMLElement | null => topLayerIn(root);
 
@@ -539,6 +588,7 @@ export function mountInspector(root: ParentNode): () => void {
   };
 
   function dismiss(): void {
+    byTouch = false;
     if (panel !== null) panel.remove();
     panel = null;
     current = null;
@@ -581,10 +631,53 @@ export function mountInspector(root: ParentNode): () => void {
     const el = document.createElement('div');
     el.className = 'inspect';
     el.dataset.inspect = '';
+    // The test-id contract's own name for this element (wave 89, Settled 5/6):
+    // the one expanded card view, however it was opened — hover, long-press, or
+    // `openCardView`'s touch read-tap.
+    el.dataset.testid = 'card-view';
     // A visual enlargement of content already in the accessibility tree; the
-    // tile underneath stays the readable one. Not a dialog, not a status.
+    // tile underneath stays the readable one. Not a dialog, not a status
+    // UNLESS it carries an action row, which is real buttons a touch tap must
+    // reach — see `.inspect__actions`'s own `pointer-events: auto` in
+    // `inspect.css`; the enlargement itself stays inert either way.
     el.setAttribute('aria-hidden', 'true');
+    // A press that reaches the panel itself — only portrait's full-screen sheet takes one
+    // (`inspect.css`); elsewhere it is `pointer-events: none` but for its action row — is the view's
+    // own scrim: it closes the view and goes no further. The table under the sheet never hears it,
+    // so `../live/gestures/install.ts` does not read it as a stray press on empty table, which
+    // cancels a cast parked waiting for its target.
+    el.addEventListener('pointerdown', (event) => {
+      event.stopPropagation();
+      dismiss();
+    });
     el.appendChild(clone);
+    const actions = target.actions ?? [];
+    if (actions.length > 0) {
+      const row = document.createElement('div');
+      row.className = 'inspect__actions';
+      for (const action of actions) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'inspect__action';
+        button.dataset.testid = 'card-view-action';
+        button.dataset.verb = action.verb;
+        button.textContent = action.label;
+        // A press here is the view's own, never the gesture layer's: without this, the SAME
+        // `pointerdown` bubbles to `../live/gestures/install.ts`'s canvas-level listener (it is
+        // bubble-phase, so the button's own handlers run first, but the event still reaches
+        // canvas right after) and, while a selection is open, that layer reads "a press on the
+        // table" and starts its own click-targeting drag from wherever the button happens to sit.
+        button.addEventListener('pointerdown', (event) => event.stopPropagation());
+        button.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          putAway();
+          action.run();
+        });
+        row.appendChild(button);
+      }
+      el.appendChild(row);
+    }
     // A card is a card's proportion at any width. Anything else — a chip, an avatar's column of
     // emblem chips — is as tall as its text: laid out at the preferred width and measured, placed by
     // that, and scaled down whole if it must shrink, so its text never re-wraps taller than measured.
@@ -637,7 +730,7 @@ export function mountInspector(root: ParentNode): () => void {
   }
 
   function onPointerOver(event: PointerEvent): void {
-    if (event.pointerType === 'touch') return;
+    if (event.pointerType === 'touch' || byTouch) return;
     // A held button is lane B's drag (or a selection): the pointer is spoken
     // for, and the arrow does not share the canvas with a preview.
     if (event.buttons !== 0) {
@@ -658,7 +751,7 @@ export function mountInspector(root: ParentNode): () => void {
     if (event.pointerType === 'touch') return;
     // Out of the quiet card — including out of the window, where no pointerover follows.
     if (inQuiet(event.target) && !inQuiet(event.relatedTarget)) quiet = null;
-    if (current === null) return;
+    if (current === null || byTouch) return;
     const zone = current.trigger ?? current.card;
     if (!(event.target instanceof Node) || !zone.contains(event.target)) return;
     const to = event.relatedTarget;
@@ -686,7 +779,9 @@ export function mountInspector(root: ParentNode): () => void {
   function onPointerDown(event: PointerEvent): void {
     swallowClickIn = null;
     if (event.pointerType !== 'touch') {
-      if (current !== null && event.target instanceof Node && (current.trigger ?? current.card).contains(event.target)) putAway();
+      // A real mouse press is the one thing the mouse may do to a touch-opened panel: close it.
+      if (byTouch) dismiss();
+      else if (current !== null && event.target instanceof Node && (current.trigger ?? current.card).contains(event.target)) putAway();
       return;
     }
     cancelPress();
@@ -708,6 +803,7 @@ export function mountInspector(root: ParentNode): () => void {
       pressAnchor = null;
       playRole('ui.inspect');
       show(opened);
+      byTouch = true;
       swallowClickIn = opened.card;
       opened.card.dispatchEvent(new CustomEvent(CARD_LONG_PRESS, { bubbles: true, detail }));
     }, LONG_PRESS_MS);
@@ -754,6 +850,24 @@ export function mountInspector(root: ParentNode): () => void {
     pressAnchor = null;
   }
 
+  /**
+   * `openCardView`'s own implementation: find the card's tile by id, exactly as a direct hover on it
+   * would, and show it with the given actions. Always a fresh `show` — never the dedupe `show` itself
+   * applies to a re-hover of the same card — because the caller may be handing back the SAME card with
+   * a DIFFERENT action (Forge's offer moved on since the last tap).
+   */
+  function openOn(cardId: number, actions: readonly CardViewAction[]): boolean {
+    const owner = scope.querySelector(`[data-card-id="${cardId}"]`);
+    const tile = owner?.querySelector('.card') ?? null;
+    if (owner === null || tile === null) return false;
+    cancelPress();
+    dismiss();
+    quiet = null;
+    show({ card: owner, tile, actions });
+    byTouch = true;
+    return true;
+  }
+
   const listeners: [string, EventListener, boolean][] = [
     ['pointerover', onPointerOver as EventListener, false],
     ['pointerout', onPointerOut as EventListener, false],
@@ -779,7 +893,9 @@ export function mountInspector(root: ParentNode): () => void {
     // Only clear the registry if nothing has re-mounted this root since:
     // a superseded instance's own (stale) dispose must stay a harmless no-op.
     if (activeMounts.get(root) === dispose) activeMounts.delete(root);
+    if (activeApis.get(root) === openOn) activeApis.delete(root);
   };
   activeMounts.set(root, dispose);
+  activeApis.set(root, openOn);
   return dispose;
 }

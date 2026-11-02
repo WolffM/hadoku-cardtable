@@ -223,6 +223,7 @@
 import {
   boardInteraction,
   choosingMulligan,
+  clickCard,
   declaringAttackers,
   declaringCombat,
   landsOffered,
@@ -289,10 +290,13 @@ import { playRole } from '../../../sound/index.ts';
 import { centreOf } from '../../lift.ts';
 import { viewerOf } from '../../adapter.ts';
 import { cardBox, faceBox, overlayOf } from '../board-dom.ts';
-import { boxOf, targetUnder } from './targets.ts';
+import { boxOf, cardIdUnder, targetUnder } from './targets.ts';
+import { CARD_LONG_PRESS, openCardView, type CardViewAction } from '../../inspect/index.ts';
 import {
   clickLatch,
+  pansSideways,
   pastSlop,
+  pastSlopUpward,
   type DragState,
   type DropTarget,
   type GestureHandle,
@@ -300,7 +304,7 @@ import {
   type MarqueeState,
   type Point,
 } from './types.ts';
-import { eventTarget } from '../../../dom.ts';
+import { eventTarget, hitAt, scopeOf } from '../../../dom.ts';
 import { timed } from '../work-meter.ts';
 import './gestures.css';
 
@@ -393,6 +397,19 @@ function decisionOpen(match: LiveMatch): boolean {
   return match.asks.length > 0 || match.selectables !== null || payingMana(match);
 }
 
+/**
+ * Whether a TOUCH tap should answer Forge now rather than open the card view (wave 89, Settled 5 vs
+ * 6). `decisionOpen` alone misses combat: `declaringCombat` is read off the state channel only, never
+ * a selection Forge publishes (its own doc comment — `InputAttack`/`InputBlock` are
+ * `setWeaklySelectable`, not `setSelectables`), so a legal attacker or blocker reaches the board
+ * exactly as any other ambient priority offer does and would otherwise be read instead of declared.
+ * Both halves are Forge ACTIVELY asking this seat something, never merely offering an ambient "you
+ * could" — that half stays a read, Settled 5's whole point.
+ */
+function touchChoosesNow(match: LiveMatch): boolean {
+  return decisionOpen(match) || declaringCombat(match);
+}
+
 /** The open ask offers the card `id` itself as one of its answers. */
 function askOffers(ask: LiveAsk, id: number): boolean {
   if (ask.method === 'getChoices') return ask.choices.some((c) => c.ref?.kind === 'card' && c.ref.id === id);
@@ -462,6 +479,20 @@ export function installGestures(options: GestureOptions): GestureHandle {
   let aim: { ids: number[]; at: Point; node: EventTarget | null } | null = null;
   /** The right-click in progress cancelled a live gesture: its `contextmenu` is the gesture's. */
   let cancelledByRightClick = false;
+  /** The press in progress is a touch the browser may pan sideways (`pansSideways`) — see `onPointerMove`. */
+  let sidewaysPan = false;
+  /**
+   * The pointer whose press started the gesture in progress. A gesture follows that pointer only: a
+   * touch screen still keeps a mouse pointer, and Chromium moves it on its own (a fake `pointermove`
+   * when the layout under its parked position changes) — read as the touch drag's own move, that
+   * made a plain tap on a hand card a drag and cast it.
+   */
+  let gesturePointer: number | null = null;
+
+  /** `event` is some other pointer than the one whose gesture is in progress — not this gesture's to hear. */
+  function otherPointer(event: PointerEvent): boolean {
+    return gesturePointer !== null && event.pointerId !== gesturePointer && (drag !== null || marquee !== null || placedDrag !== null);
+  }
   /** Where the pointer is while NO gesture is held — the click-targeting arrow's tip. */
   let hover: { at: Point; node: EventTarget | null } | null = null;
   /** What was drawn last, so `onChange` fires on a change and not on every move. */
@@ -908,6 +939,26 @@ export function installGestures(options: GestureOptions): GestureHandle {
   }
 
   /**
+   * What is under the pointer's CURRENT position, for `onPointerMove`/`onPointerUp` ONLY — never
+   * `onPointerDown`, where the press's own target already IS the current position.
+   *
+   * This module's header claims "the move and the release are listened for on `window` with no
+   * pointer capture, so the event's own target is the element UNDER the pointer" — true for a mouse,
+   * and false for touch: a touch's synthesized pointer events never retarget as the finger moves
+   * (Chromium carries the Touch Events spec's "every event of one touch sequence names the element
+   * first hit" into them), so `eventTarget(event)` at a touch's `pointermove`/`pointerup` is always
+   * the press's own origin — measured live (wave 89 §D): dragging a hand card up by touch released
+   * reporting the hand card's OWN element as the target, so `resolveLift`'s `overHome(node, 'hand')`
+   * read "released back inside the hand" however far the finger actually travelled, and the card
+   * never left. `hitAt` (`../../../dom.ts`) is the same real hit test a mouse's own retargeting gives
+   * for free; only touch ever needs it asked for.
+   */
+  function liveTarget(event: PointerEvent): EventTarget | null {
+    if (event.pointerType !== 'touch') return eventTarget(event);
+    return hitAt(scopeOf(canvas), event.clientX, event.clientY) ?? eventTarget(event);
+  }
+
+  /**
    * What a lifted card's RELEASE means — the one and only place a lifted
    * card's gesture reaches Forge. Called from `onPointerUp` (a held drag's
    * own release) and from `onPointerDown`'s resolving press (a click-armed
@@ -1026,6 +1077,61 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // the moment Forge asks for the target, before the pointer next moves.
     hover = { at: point, node };
     paint();
+  }
+
+  /**
+   * Cast or play `id` out of `zone` from the card view's own button (wave 89 §D, Settled 5): the
+   * SAME send `resolveLift` already makes for a real release, built a fake one for — the point is the
+   * card's own current box (nothing travelled, so there is nothing truer to park it at), and `node` is
+   * the canvas itself, never the card's tile, so `overHome`/`overOwnBattlefield` read it as "outside
+   * every zone" exactly as a release past the hand's edge would. One primitive, not a second cast path.
+   */
+  function quickCast(id: number, zone: CastZone): void {
+    const box = cardBox(canvas, id);
+    const point = box === null ? { x: 0, y: 0 } : centreOf(box);
+    resolveLift({ source: id, press: point, from: point, at: point, target: null, moved: true, lifted: zone, held: false }, point, canvas);
+    paint();
+  }
+
+  /**
+   * What the card view offers for `id` right now (wave 89 §D's test-id contract: `card-view-action`,
+   * `data-verb`) — read off the same primitives `onPointerDown`/`onPointerUp` already branch on for a
+   * touch tap, never a verb hand-listed per card type:
+   *
+   *  - Forge is actively asking this seat something (`touchChoosesNow`) and `id` is one of the
+   *    cards it named → the single action a plain tap would have sent: `attack` while this seat
+   *    declares or blocks (Settled: declaring/removing an attacker, assigning or recalling a
+   *    blocker — `clickCard` itself decides which, exactly as the board's own click does), `target`
+   *    for every other open selection or ask;
+   *  - otherwise, `id` is in one of this seat's own cast zones and Forge's ambient priority offer
+   *    names it (`castZoneOf`, gated the same way the real cast-from-hand branch gates it) → `play`
+   *    for a land, `cast` for everything else;
+   *  - otherwise, Forge's ambient offer merely names `id` (a mana ability, an activated ability at
+   *    priority) → `activate`;
+   *  - otherwise, nothing: an empty action row.
+   */
+  function viewActionsFor(id: number): CardViewAction[] {
+    if (touchChoosesNow(match)) {
+      if (stackAsk(match) !== null || !boardInteraction(match).selectable.has(id)) return [];
+      const verb: CardViewAction['verb'] = declaringCombat(match) ? 'attack' : 'target';
+      const label = verb === 'attack' ? 'Attack' : 'Target';
+      return [{ verb, label, run: () => { clickCard(match, id); paint(); } }];
+    }
+    const castZone =
+      match.selectables === null && match.asks.length === 0 && (match.weaklySelectable?.has(id) ?? false) ? castZoneOf(match, id) : null;
+    if (castZone !== null) {
+      const land = (castCardTypeLine(match, id) ?? '').includes('Land');
+      return [{ verb: land ? 'play' : 'cast', label: land ? 'Play land' : 'Cast', run: () => quickCast(id, castZone) }];
+    }
+    if (match.weaklySelectable?.has(id) ?? false) {
+      return [{ verb: 'activate', label: 'Activate', run: () => { clickCard(match, id); paint(); } }];
+    }
+    return [];
+  }
+
+  /** Open the card view for `id` with whatever `viewActionsFor` says it may do — the touch read-tap's one exit. */
+  function openTouchView(id: number): void {
+    openCardView(canvas.querySelector('.board') ?? canvas, id, viewActionsFor(id));
   }
 
   function casterFacts(p: Parked, how: string, from: Point | null, to: Point | Element | null): HandoverFacts {
@@ -1363,6 +1469,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
 
   function onPointerDown(event: PointerEvent): void {
     cancelledByRightClick = false;
+    sidewaysPan = event.pointerType === 'touch' && pansSideways(eventTarget(event));
+    gesturePointer = event.pointerId;
     // A press on the target the arrow is snapped to commits it, whichever branch below (or the card's own click) sends it.
     if (event.button === 0) commitArrowAt(overlayOf(canvas), eventTarget(event));
     /*
@@ -1607,6 +1715,25 @@ export function installGestures(options: GestureOptions): GestureHandle {
       paint();
       return;
     }
+    /*
+     * Wave 89 §D, Settled 5: a touch tap on a card Forge offers NOTHING for right now (the opponent's
+     * Tarmogoyf, with no selection open — the review's own sequence) still has a face to read. Every
+     * branch above already claims anything Forge DOES offer; this is the one left — a card under the
+     * pointer that `targetUnder` would not return a target for at all. Routed through the SAME `drag`
+     * (`lifted: null`, a `source` and no `held` two-step) the "offered, not a cast zone" branch above
+     * already produces, so one release-side check (`onPointerUp`) answers both: open the card view,
+     * with whatever `viewActionsFor` says — nothing, here, since nothing is offered.
+     */
+    if (event.pointerType === 'touch' && !touchChoosesNow(match)) {
+      const id = cardIdUnder(eventTarget(event));
+      if (id !== null) {
+        claim(event);
+        drag = { source: id, press: at, from: at, at, target: null, moved: false, lifted: null, held: true };
+        hover = null;
+        paint();
+        return;
+      }
+    }
     if (!inside(eventTarget(event))) return;
     if (declaringAttackers(match) || landsOffered(match).length > 0) {
       claim(event);
@@ -1630,15 +1757,20 @@ export function installGestures(options: GestureOptions): GestureHandle {
   }
 
   function onPointerMove(event: PointerEvent): void {
+    if (otherPointer(event)) return;
     const at = { x: event.clientX, y: event.clientY };
     if (drag !== null) {
+      // A sideways-pannable touch press (portrait's hand carousel) is the browser's until it clearly
+      // goes up: until then this layer leaves it alone — no lift following the finger — and a
+      // sideways pan ends it with a `pointercancel` (`onPointerCancel`).
+      if (sidewaysPan && !drag.moved && !pastSlopUpward(drag.press, at)) return;
       const moved = drag.moved || pastSlop(drag.press, at);
       // The card is in hand from the moment the press clears the slop, not at the press itself.
       if (drag.lifted && moved && !drag.moved) playRole('ui.lift');
-      const next: DragState = { ...drag, at, moved, target: targetAt(eventTarget(event), drag.source) };
+      const next: DragState = { ...drag, at, moved, target: targetAt(liveTarget(event), drag.source) };
       drag = next;
       if (next.lifted !== null && next.source !== null) {
-        const overZone = overHome(eventTarget(event), next.lifted);
+        const overZone = overHome(liveTarget(event), next.lifted);
         // Board-sized on every call, not only the first — `drawCastLift`'s own `'lifted'`
         // rule re-reads the battlefield's current `--card-w` each time; this module never
         // overrides or clears that property, inside the hand or out of it.
@@ -1655,13 +1787,13 @@ export function installGestures(options: GestureOptions): GestureHandle {
           const spell = needsTarget(castCardTypeLine(match, next.source));
           updateDropCues(canvas, spell, next.lifted, overZone);
           // Only a no-target card ever lands in a row.
-          previewAt(!spell && overOwnBattlefield(eventTarget(event)) ? at : null);
+          previewAt(!spell && overOwnBattlefield(liveTarget(event)) ? at : null);
         }
       }
     } else if (marquee !== null) {
       marquee = { press: marquee.press, at, moved: marquee.moved || pastSlop(marquee.press, at) };
     } else if (aim !== null) {
-      aim = { ...aim, at, node: eventTarget(event) };
+      aim = { ...aim, at, node: liveTarget(event) };
     } else if (placedDrag !== null) {
       // AD3 (item 6): this is the ONLY thing that moves a placed card — never
       // a bare hover, which is what the OLD stand-in's bug was. `gripStackItem`
@@ -1681,15 +1813,16 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // Past the slop this hand takes hold (AE28: an item nobody placed gets its first point here), then moves it.
       if (placedDrag.moved) gripStackItem(placedDrag.id, 'you', at, took ? 'grab' : 'move', placedDrag.side);
     } else {
-      const under = eventTarget(event);
+      const under = liveTarget(event);
       hover = canvas.contains(under instanceof Node ? under : null) ? { at, node: under } : null;
     }
     paint();
   }
 
   function onPointerUp(event: PointerEvent): void {
+    if (otherPointer(event)) return;
     // A drag let go over the target its arrow is snapped to: committed, as a press on it is.
-    if (event.button === 0) commitArrowAt(overlayOf(canvas), eventTarget(event));
+    if (event.button === 0) commitArrowAt(overlayOf(canvas), liveTarget(event));
     if (placedDrag !== null) {
       const p = placedDrag;
       placedDrag = null;
@@ -1705,8 +1838,32 @@ export function installGestures(options: GestureOptions): GestureHandle {
      * same as a held drag, until the next press resolves it (`onPointerDown`'s
      * own top-of-function check). Every other kind of drag, and a real drag
      * (`moved: true`), still ends here exactly as before.
+     *
+     * NEVER for touch (wave 89 §D, Settled 5): the review's own bug was this
+     * exact arm — a tap that lifted Scapeshift, then a second tap anywhere
+     * that resolved it. A touch tap that never moved floats the lift home
+     * and reads the card instead; it is never left pending for a second
+     * press, so the two-step cast this arm exists for cannot start on touch
+     * at all. The hand-reorder slot and the drop cues it lifted are cleared
+     * exactly as a cancel clears them, and the pending native click (already
+     * armed at the press, see the castZone/hand branches above) is re-armed
+     * here too so it still swallows — floating home does not touch it.
      */
     if (drag !== null && drag.lifted && !drag.moved) {
+      if (event.pointerType === 'touch') {
+        const d = drag;
+        drag = null;
+        handPressIndex = null;
+        scheduleHandIndicator(null);
+        clearDropCues(canvas);
+        previewAt(null);
+        hover = null;
+        if (d.source !== null) floatCastLiftHome(canvas, d.source, d.from, () => {});
+        clicks.arm();
+        paint();
+        if (d.source !== null) openTouchView(d.source);
+        return;
+      }
       drag = { ...drag, held: false };
       paint();
       return;
@@ -1717,18 +1874,31 @@ export function installGestures(options: GestureOptions): GestureHandle {
     marquee = null;
     hover = null;
     paint();
+    /*
+     * The ambient-offer sibling of the branch above: a card Forge offers at priority (a mana ability,
+     * an activatable permanent) but never lifted — `heldDrag.lifted` is null for every battlefield
+     * card, cast zone or not — so there is no "arm" to redirect; the native click this press would
+     * otherwise leave for `Board`'s own `onClick` is what must be swallowed instead. Only outside an
+     * actual decision (`touchChoosesNow`): Settled 6 keeps a plain tap choosing while Forge is asking,
+     * and `heldDrag.source === null` is the click-targeting/stack-aim drags, already Forge asking too.
+     */
+    if (event.pointerType === 'touch' && heldDrag !== null && heldDrag.lifted === null && !heldDrag.moved && heldDrag.source !== null && stackAsk(match) === null && !touchChoosesNow(match)) {
+      clicks.arm();
+      openTouchView(heldDrag.source);
+      return;
+    }
     if (heldDrag !== null) {
       if (stackAsk(match) !== null) {
         // The release IS the answer, a click on the item as much as a drag onto it.
-        const id = stackItemUnder(eventTarget(event), stackAsk(match)!);
+        const id = stackItemUnder(liveTarget(event), stackAsk(match)!);
         if (id !== null && commitStackTarget(match, id)) playRole('ui.target');
         return;
       }
       if (heldDrag.lifted) {
-        resolveLift(heldDrag, { x: event.clientX, y: event.clientY }, eventTarget(event));
+        resolveLift(heldDrag, { x: event.clientX, y: event.clientY }, liveTarget(event));
         return;
       }
-      if (heldDrag.moved) commitDrag(match, heldDrag, eventTarget(event));
+      if (heldDrag.moved) commitDrag(match, heldDrag, liveTarget(event));
       return;
     }
     if (heldMarquee !== null && heldMarquee.moved) {
@@ -1736,7 +1906,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       if (declaringAttackers(match)) {
         const result = commitMarquee(match, box, canvas);
         if (result.kind === 'aim') {
-          aim = { ids: result.ids, at: { x: event.clientX, y: event.clientY }, node: eventTarget(event) };
+          aim = { ids: result.ids, at: { x: event.clientX, y: event.clientY }, node: liveTarget(event) };
           paint();
         }
       } else {
@@ -1753,7 +1923,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
     }
   }
 
-  function onPointerCancel(): void {
+  function onPointerCancel(event: PointerEvent): void {
+    if (otherPointer(event)) return;
     if (placedDrag !== null) {
       // This hand lets go where it last put it — no cast went out, so there
       // is nothing Forge needs telling either way.
@@ -1775,7 +1946,11 @@ export function installGestures(options: GestureOptions): GestureHandle {
       clearDropCues(canvas);
       previewAt(null);
       const liftedSource = drag.source;
-      if (liftedSource !== null) floatCastLiftHome(canvas, liftedSource, drag.from, () => {});
+      // A lift that never left its card has nowhere to float home from: it just goes.
+      if (liftedSource !== null) {
+        if (drag.moved) floatCastLiftHome(canvas, liftedSource, drag.from, () => {});
+        else clearCastLift(canvas, liftedSource);
+      }
     }
     drag = null;
     marquee = null;
@@ -1807,10 +1982,23 @@ export function installGestures(options: GestureOptions): GestureHandle {
     event.stopPropagation();
   }
 
+  /**
+   * The inspector's own long-press (`inspect/index.ts`) already opened the card view by the time this
+   * fires — it is touch-only, and never raised for a press this layer did not also see. Settled 6: a
+   * long-press during a decision opens the view to READ, but the view is still the one place to ACT
+   * from, so this re-opens it with `viewActionsFor`'s answer — empty outside a decision, since the
+   * ambient read-tap above already owns that case and never gets here (its own tap resolves first).
+   */
+  function onCardLongPress(event: Event): void {
+    const id = cardIdUnder(event.target);
+    if (id !== null) openTouchView(id);
+  }
+
   const unguardText = guardTextSelection(canvas);
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('click', swallowClick, true);
   canvas.addEventListener('contextmenu', onContextMenu);
+  canvas.addEventListener(CARD_LONG_PRESS, onCardLongPress);
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);
   window.addEventListener('pointercancel', onPointerCancel);
@@ -1885,6 +2073,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('click', swallowClick, true);
       canvas.removeEventListener('contextmenu', onContextMenu);
+      canvas.removeEventListener(CARD_LONG_PRESS, onCardLongPress);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerCancel);

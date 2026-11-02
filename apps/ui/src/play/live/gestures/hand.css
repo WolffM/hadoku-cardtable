@@ -15,3 +15,37 @@
 [data-zone='hand'][data-owner='you'] li.board-card[data-hand-flip] {
   pointer-events: none;
 }
+
+/*
+ * Wave 89 §D, Settled 5's "dragging a hand card up past the hand's edge plays it", on a real touch
+ * device. Written here, STATICALLY, rather than on `./cast.ts`'s `[data-cast-lift]` (`./gestures.css`):
+ * the browser decides how to handle a touch gesture from its very first event, and `data-cast-lift`
+ * is not set until `install.ts`'s own `pointerdown` handler runs — one event too late to change how
+ * THAT gesture is already being classified. `board.css`'s `[data-arrange-card]` names the failure
+ * mode this exists to avoid: without `touch-action: none` from the first frame, the browser claims a
+ * vertical drag on the card for scrolling and sends `pointercancel` instead of the `pointermove`s
+ * `install.ts` needs to see it as a drag at all — measured on a real touch drag; a mouse has no
+ * `touch-action` to claim anything with, so this reaches no mouse behaviour.
+ *
+ * The same lift picks a card up out of the viewer's own graveyard or exile (flashback, unearth,
+ * escape…) or off the top of their library (Courser of Kruphix) exactly as it does a hand card
+ * (`./cast.ts`'s `castZoneOf`) — the same failure mode reaches those presses too, so they get the
+ * same rule, every one of them `[data-owner='you']` only: it is never this seat's lift that starts
+ * on a zone of the OTHER seat's.
+ */
+[data-zone='hand'][data-owner='you'] li.board-card,
+[data-zone='graveyard'][data-owner='you'] li.board-card,
+[data-zone='exile'][data-owner='you'] li.board-card,
+[data-zone='library'][data-owner='you'] li.board-card {
+  touch-action: none;
+}
+
+/*
+ * Portrait's hand is a sideways-scrolling carousel (wave 89, the operator: "a similar scrolling
+ * carousel to go back and forth through the hand"): there the browser keeps the sideways swipe, and
+ * only a vertical drag reaches `install.ts` — which leaves the press alone until it clearly goes up
+ * (`pastSlopUpward`, `./types.ts`) and lets a `pointercancel` from the pan drop it quietly.
+ */
+:root[data-layout='portrait'] [data-zone='hand'][data-owner='you'] li.board-card {
+  touch-action: pan-x;
+}

@@ -98,6 +98,23 @@ export function targetUnder(node: EventTarget | null, offered: LiveClickables): 
   return null;
 }
 
+/**
+ * The nearest card id under `node`, Forge-offered or not — unlike {@link targetUnder}, which stops at
+ * the first card the current offer does not name. Wave 89 §D's touch read-tap uses this: a card with
+ * nothing to do right now (the opponent's Tarmogoyf, with no selection open) still has a face to read,
+ * so the hit test for "open the card view" must not be gated on an offer the way acting on it is.
+ */
+export function cardIdUnder(node: EventTarget | null): number | null {
+  let el = node instanceof Element ? node : null;
+  while (el !== null) {
+    const cardId = boardId(el, 'data-board-card', 'data-card-id');
+    if (cardId !== null) return cardId;
+    if (el.hasAttribute('data-player-face')) return null;
+    el = el.parentElement;
+  }
+  return null;
+}
+
 /** Every board card's `<li>` under `root`, with the id it carries. Ours only — see `boardId`. */
 export function cardElements(root: ParentNode): { id: number; el: Element }[] {
   const out: { id: number; el: Element }[] = [];
