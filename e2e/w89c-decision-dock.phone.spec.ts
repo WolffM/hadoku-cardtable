@@ -42,6 +42,38 @@ async function dockMode(page: Page): Promise<string | null> {
   return dock(page).getAttribute('data-mode');
 }
 
+/**
+ * The board's own lanes — every `lane-*` but the hand, which the dock is meant to cover (Settled 6:
+ * docked "over the hand and the action bar — never the board").
+ */
+const boardLanes = (page: Page): Locator => page.locator('[data-testid^="lane-"]:not([data-testid="lane-my-hand"])');
+
+/** The dock covers none of the board's lanes. */
+async function expectBoardLanesClear(page: Page): Promise<void> {
+  const dockBox = (await dock(page).boundingBox())!;
+  for (const lane of await boardLanes(page).all()) {
+    const laneBox = (await lane.boundingBox())!;
+    const intersects = dockBox.y < laneBox.y + laneBox.height && laneBox.y < dockBox.y + dockBox.height;
+    expect.soft(intersects, `the dock does not cover ${await lane.getAttribute('data-testid')}`).toBe(false);
+  }
+}
+
+/**
+ * Empty room inside the docked host, in px: its own height less what it holds (the handle and the
+ * sheet) and its own border and padding. The operator, 2026-11-02, on declare blockers: "seems like
+ * some empty modal is blocking half the screen" — a docked dock is as tall as its content.
+ */
+async function dockSlack(page: Page): Promise<number> {
+  return dock(page)
+    .locator(':scope > .live__prompt')
+    .evaluate((host) => {
+      const style = getComputedStyle(host);
+      const chrome = ['borderTopWidth', 'borderBottomWidth', 'paddingTop', 'paddingBottom'].reduce((n, k) => n + Number.parseFloat(style[k as 'borderTopWidth']), 0);
+      const held = [...host.children].reduce((n, el) => n + el.getBoundingClientRect().height, 0);
+      return host.getBoundingClientRect().height - chrome - held;
+    });
+}
+
 /** Poll `step` until it answers true, or fail naming `what` — no sleep loop of the caller's own. */
 async function until(what: string, step: () => Promise<boolean>, timeout = 60_000): Promise<void> {
   const deadline = Date.now() + timeout;
@@ -162,20 +194,8 @@ test(titled('ten Valakut triggers dock below the board and are answered with one
       const says = (await alice.page.getByTestId('live-says').textContent().catch(() => null)) ?? '';
       return (await dock(alice.page).count()) > 0 && /Valakut/.test(says);
     });
-    const lanes = await alice.page.locator('[data-testid^="lane-"]').all();
-    if (lanes.length === 0) {
-      console.log('[w89c] pending A: no `lane-*` elements yet — the dock-below-the-lanes claim cannot be checked against the real board, only against the viewport.');
-      const dockBox = await dock(alice.page).boundingBox();
-      const viewport = alice.page.viewportSize();
-      expect(dockBox !== null && viewport !== null && dockBox.y + dockBox.height <= viewport.height + 1, 'the dock stays inside the viewport, pinned to the bottom').toBe(true);
-    } else {
-      const dockBox = (await dock(alice.page).boundingBox())!;
-      for (const lane of lanes) {
-        const laneBox = (await lane.boundingBox())!;
-        const intersects = dockBox.y < laneBox.y + laneBox.height && laneBox.y < dockBox.y + dockBox.height;
-        expect(intersects, `the dock does not cover ${await lane.getAttribute('data-testid')}`).toBe(false);
-      }
-    }
+    expect(await boardLanes(alice.page).count(), 'the four board lanes are drawn').toBe(4);
+    await expectBoardLanesClear(alice.page);
     expect(await dockMode(alice.page), "a target question has nothing to overflow into").not.toBeNull();
     await expect(expandBtn(alice.page), 'the target question needs no expand').toHaveCount(0);
 
@@ -198,7 +218,7 @@ test(titled('ten Valakut triggers dock below the board and are answered with one
   }
 });
 
-test(titled('declaring blockers: the dock has no expand control, and "–" shrinks it to a pill that restores'), async ({ browser }) => {
+test(titled('declaring blockers: the dock is as tall as its question, covers no lane, has no expand control, and "–" shrinks it to a pill that restores'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -213,6 +233,11 @@ test(titled('declaring blockers: the dock has no expand control, and "–" shrin
     });
     await expect(dock(alice.page)).toHaveAttribute('data-mode', 'dock');
     await expect(expandBtn(alice.page), 'a small decision needs no expand').toHaveCount(0);
+    // As tall as "Select creatures to block." and Done Blocking, no taller, and clear of the lanes
+    // it is asking about.
+    expect(await dockSlack(alice.page), 'no empty room in the docked dock').toBeLessThanOrEqual(2);
+    expect(await boardLanes(alice.page).count(), 'the four board lanes are drawn').toBe(4);
+    await expectBoardLanesClear(alice.page);
 
     await minimizeBtn(alice.page).tap();
     await expect(dock(alice.page)).toHaveAttribute('data-mode', 'min');
