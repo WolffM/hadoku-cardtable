@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { loadTranscript } from '../fixtures/transcript.js';
 import type { BridgeLine } from '../host.js';
 import { boardDigest, createSeatPosition, isStateLine, lastPrompt, normalisedBoard, STATE_METHODS } from './position.js';
 
@@ -90,6 +91,17 @@ describe('createSeatPosition — incremental matches boardDigest/lastPrompt over
 			expect(pos.digest()).toBe(boardDigest(seen, 0));
 			expect(pos.prompt()).toBe(lastPrompt(seen, 0));
 		}
+	});
+
+	it("folds a real bridge transcript, both seats, to boardDigest's whole-history fold after every line", () => {
+		const transcript = loadTranscript();
+		const positions = [createSeatPosition(0), createSeatPosition(1)];
+		for (let i = 0; i < transcript.length; i++) {
+			for (const pos of positions) pos.push(transcript[i]!);
+			const seen = transcript.slice(0, i + 1);
+			positions.forEach((pos, seat) => expect(pos.digest(), `seat ${seat}, line ${i}`).toBe(boardDigest(seen, seat)));
+		}
+		expect(transcript.filter((l) => isStateLine(l, 0)).length).toBeGreaterThan(4);
 	});
 
 	it('ignores lines for a different seat', () => {

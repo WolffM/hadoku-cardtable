@@ -18,20 +18,16 @@
  * each) but wrong for the recorder: a long human game is thousands of lines,
  * and refolding all of them for every command sent would make the recorder
  * `O(lines²)`. `createSeatPosition` instead keeps one running fold per seat and
- * applies each new line to it, in `O(board size)` rather than `O(lines so
- * far)` — the recorder's own, incremental use of exactly the same rule
- * `boardDigest` proves: {@link foldFrames}'s `setGameView` branch replaces the
- * whole table, so re-presenting the CURRENT fold as a synthetic `setGameView`
- * and folding the new line on top of it is the same fold `boardDigest` would
- * compute over the whole history, without visiting any line twice. This reuses
- * `visibility.ts`'s own exported fold rather than a second copy of it — lane C
- * does not own `visibility.ts` and must not fork its merge rules.
+ * folds each new line into it in place with {@link foldFrame} — the very step
+ * {@link foldFrames} takes per frame, so it is the same fold `boardDigest`
+ * computes over the whole history, without visiting any line twice and in
+ * `O(line size)`, not `O(board size)`: the board is never copied.
  */
 
 import { createHash } from 'node:crypto';
 
 import type { BridgeLine } from '../host.js';
-import { foldFrames, type ObjTable, type StateFrame, type WireObj } from '../visibility.js';
+import { foldFrame, foldFrames, type StateFrame, type WireObj } from '../visibility.js';
 
 /** The three state-carrying bridge methods a seat's board folds from. */
 export const STATE_METHODS: ReadonlySet<string> = new Set(['setGameView', 'applyDelta', 'openView']);
@@ -96,15 +92,8 @@ export interface SeatPosition {
 	prompt(): string;
 }
 
-/** A synthetic `setGameView` that re-presents `state` whole, so folding it is folding the CURRENT board, not the history. */
-function asGameView(state: ReadonlyMap<string, WireObj>): StateFrame {
-	const gameView: ObjTable = {};
-	for (const [key, obj] of state) gameView[key] = obj;
-	return { kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 0 } } as unknown as StateFrame;
-}
-
 export function createSeatPosition(seat: number): SeatPosition {
-	let state = new Map<string, WireObj>();
+	const state = new Map<string, WireObj>();
 	let prompt = '';
 	return {
 		push(line) {
@@ -115,7 +104,7 @@ export function createSeatPosition(seat: number): SeatPosition {
 				return;
 			}
 			if (!STATE_METHODS.has(frame.method ?? '')) return;
-			state = frame.method === 'setGameView' ? foldFrames([line.frame as StateFrame]) : foldFrames([asGameView(state), line.frame as StateFrame]);
+			foldFrame(state, line.frame as StateFrame);
 		},
 		digest: () => sha256(normalise(state)),
 		prompt: () => prompt,
