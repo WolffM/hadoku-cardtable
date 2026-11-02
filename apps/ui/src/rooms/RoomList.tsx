@@ -802,6 +802,9 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
     // rather than filling in piece by piece (`warm.ts`).
     await warmRoom(outcome.room);
     setBusy(false);
+    // The creator is in the room already: marked before the navigate, as the Enter path above does, so the
+    // room route's first render already wears the chat and never remounts the lobby under it.
+    markJoined(outcome.room.id);
     navigate({ kind: 'room', roomId: outcome.room.id });
   };
 
