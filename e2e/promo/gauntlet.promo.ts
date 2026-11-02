@@ -3,7 +3,9 @@
  * Ashgrove (Fern) and Nightjar (Himmel) sit, both ready, ten decks of one era are revealed, they ban and
  * pick in a snake, each secretly chooses an opening deck, and game 1's board comes up. Nightjar's seat is
  * headless and the driver presses its bans, picks and choice over the room's own HTTP, at a person's pace.
- * No AI seat anywhere in the clip.
+ * No AI seat anywhere in the clip. The operator (cut 5): "generally too slow … we can go through it
+ * quickly", so both seats act at one brisk, even pace: a short look at the hero's deck, a short think for
+ * Nightjar.
  */
 import { test, type Locator, type Page } from '@playwright/test';
 
@@ -20,11 +22,11 @@ const PREFIX = '/cardtable';
 async function considerAndPress(page: Page, tile: Locator, restMs: number): Promise<void> {
   const box = await tile.boundingBox();
   if (box === null) return;
-  await humanMove(page, { x: box.x + box.width / 2, y: box.y + box.height / 2 });
+  await humanMove(page, { x: box.x + box.width / 2, y: box.y + box.height / 2 }, 0.7);
   await humanRest(page, restMs);
   // The deck's peek can open over its own tile near the board's edge, so the press goes to the tile itself.
   await tile.evaluate((el) => (el as HTMLElement).click());
-  await humanMove(page, { x: 60, y: box.y + box.height / 2 });
+  await humanMove(page, { x: 60, y: box.y + box.height / 2 }, 0.6);
 }
 
 test('gauntlet: two people reveal, ban and pick, choose', async ({ browser }) => {
@@ -84,7 +86,7 @@ test('gauntlet: two people reveal, ban and pick, choose', async ({ browser }) =>
       if (v.phase !== 'banpick' || v.step === null) return false;
       // `you` is the rival's own seat: the view is read with the rival's cookie.
       if (v.step.seat === v.you) {
-        if (rivalDue === 0) rivalDue = Date.now() + 1_000 + ((theirs * 397) % 800);
+        if (rivalDue === 0) rivalDue = Date.now() + 500 + ((theirs * 397) % 300);
         if (Date.now() < rivalDue) return false;
         rivalDue = 0;
         const open = v.decks.filter((d) => d.status === 'open');
@@ -103,19 +105,19 @@ test('gauntlet: two people reveal, ban and pick, choose', async ({ browser }) =>
       mine += 1;
       console.log(`[promo:gauntlet] Ashgrove act ${mine}: ${(await banner.textContent())?.trim()}`);
       film.mark(`act-${mine + theirs}-hero`);
-      await considerAndPress(page, open.nth((mine * 2) % n), mine <= 2 ? 1_200 : 750);
+      await considerAndPress(page, open.nth((mine * 2) % n), mine === 1 ? 700 : 450);
       if (mine === 1) film.mark('banned');
       return false;
-    }, 180_000, 250);
+    }, 180_000, 100);
     film.mark('choose');
-    await film.beat(1_800);
+    await film.beat(900);
     const v = await view();
     const rivalDeck = v.decks.find((d) => d.status === 'picked' && d.by === v.you && !d.played);
     if (rivalDeck === undefined) throw new Error(`promo: Nightjar has no deck to choose: ${JSON.stringify(v.decks)}`);
     await rivalCall('/gauntlet/choose', { deck: rivalDeck.id });
-    await film.beat(900);
+    await film.beat(500);
     const myTile = page.getByTestId('gauntlet-choose-mine').locator('[data-testid="gauntlet-deck"]:not([data-played])').first();
-    await considerAndPress(page, myTile, 1_500);
+    await considerAndPress(page, myTile, 700);
     film.mark('chosen');
 
     // The match: both seats keep, the hero at a person's pace.
@@ -124,14 +126,14 @@ test('gauntlet: two people reveal, ban and pick, choose', async ({ browser }) =>
         const text = await says(p);
         if (/play or draw/i.test(text)) await pressIfThere(p.getByTestId('live-play-or-draw-play'));
         else if (/keep your hand/i.test(text)) {
-          if (p === page) await page.waitForTimeout(1_500);
+          if (p === page) await page.waitForTimeout(700);
           await pressIfThere(confirmYes(p));
         } else if (/return \d+ card/i.test(text)) await pressIfThere(p.locator('[data-testid="live-decision-ok"]:enabled'));
       }
       return (await page.locator('[aria-label="Game board"]').count()) > 0 && /^(Priority|Waiting)/.test(await says(page));
     }, 120_000, 300, page);
     film.mark('board');
-    await film.beat(4_000);
+    await film.beat(2_500);
     film.mark('end');
   } finally {
     await film.stop();
