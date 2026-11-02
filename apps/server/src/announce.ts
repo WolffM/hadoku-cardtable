@@ -14,11 +14,11 @@
 import { createHmac } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { newestReleaseFile } from '../../../scripts/release/build-version.js';
 import type { JsonLog } from './log.js';
 
 /** ArchiveBot's per-embed description cap. */
 const DESCRIPTION_MAX = 4096;
-const RELEASE_FILE = /^v(\d+)\.(\d+)\.(\d+)\.md$/;
 
 export interface ReleaseNotes {
 	version: string;
@@ -35,14 +35,9 @@ export interface Embed {
 
 /** The newest release notes in `dir`, by semver, or null when there are none. */
 export async function latestRelease(dir: string): Promise<ReleaseNotes | null> {
-	const files = (await readdir(dir)).flatMap((name) => {
-		const m = RELEASE_FILE.exec(name);
-		return m === null ? [] : [{ name, parts: [Number(m[1]), Number(m[2]), Number(m[3])] }];
-	});
-	if (files.length === 0) return null;
-	files.sort((a, b) => b.parts[0] - a.parts[0] || b.parts[1] - a.parts[1] || b.parts[2] - a.parts[2]);
-	const newest = files[0];
-	return parseNotes(newest.name.slice(0, -'.md'.length), await readFile(join(dir, newest.name), 'utf8'));
+	const newest = newestReleaseFile(await readdir(dir));
+	if (newest === null) return null;
+	return parseNotes(newest.slice(0, -'.md'.length), await readFile(join(dir, newest), 'utf8'));
 }
 
 /** The `# ` heading is the title; everything after it is the body. */

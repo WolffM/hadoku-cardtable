@@ -177,6 +177,10 @@ scaffolding still to build. Read it before scaffolding or managing a wave.
   a `docs/releases/vX.Y.Z.md` directly and never run `release.yml` yourself: the
   operator cuts a release with `/cutrelease`, which combines the pending files into
   that release's notes and runs it (`docs/RELEASE.md`).
+- **No commit edits a version.** A build's version is derived from the tree
+  (`scripts/release/build-version.ts`: the newest `docs/releases/vX.Y.Z.md` plus the
+  commit, or `CARDTABLE_VERSION`), and `release.yml` defaults to that notes file's
+  version. The `version` fields in `apps/*/package.json` are inert; never bump them.
 
 ## Does NOT
 

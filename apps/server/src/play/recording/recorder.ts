@@ -74,11 +74,16 @@ export function bridgeDigest(bridgeSourcePath: string): string {
 	return createHash('sha256').update(readFileSync(bridgeSourcePath)).digest('hex');
 }
 
-/** This server's own `package.json` version, for the action log's `server` field. `'unknown'` rather than throwing — a recording is never worth failing boot over. */
+/**
+ * The version this server was built as, for the action log's `server` field: `dist/version.txt`,
+ * which the build writes (scripts/release/build-version.ts — the newest release in the tree plus
+ * the commit). Read, never derived here: no `git` shell-out at runtime. `'unknown'` when there is
+ * none (a `tsx` dev server that was never built) rather than throwing: a recording is never worth
+ * failing boot over.
+ */
 export function serverVersion(pkgRoot: string): string {
 	try {
-		const pkg = JSON.parse(readFileSync(join(pkgRoot, 'package.json'), 'utf8')) as { version?: unknown };
-		return typeof pkg.version === 'string' ? pkg.version : 'unknown';
+		return readFileSync(join(pkgRoot, 'dist', 'version.txt'), 'utf8').trim() || 'unknown';
 	} catch {
 		return 'unknown';
 	}

@@ -1,6 +1,6 @@
 import { gunzipSync } from 'node:zlib';
 import type { PresenceMessage } from '@hadoku/shared';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -74,10 +74,11 @@ describe('forgePin / bridgeDigest / serverVersion', () => {
 		expect(bridgeDigest(file)).not.toBe(digest);
 	});
 
-	it('reads package.json version, and "unknown" when there is none', () => {
+	it('reads the version the build wrote to dist/version.txt, and "unknown" when there is none', () => {
 		dir = mkdtempSync(join(tmpdir(), 'cardtable-pkg-'));
-		writeFileSync(join(dir, 'package.json'), JSON.stringify({ version: '1.2.3' }));
-		expect(serverVersion(dir)).toBe('1.2.3');
+		mkdirSync(join(dir, 'dist'));
+		writeFileSync(join(dir, 'dist', 'version.txt'), 'v0.45.0+1a2b3c4d5\n');
+		expect(serverVersion(dir)).toBe('v0.45.0+1a2b3c4d5');
 		expect(serverVersion('/nonexistent-dir-xyz')).toBe('unknown');
 	});
 });

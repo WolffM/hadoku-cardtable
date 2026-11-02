@@ -100,16 +100,17 @@ No tracker hop. As soon as the manager has verified a lane and committed it on t
 `scripts/land.sh` from the wave worktree. The script:
 1. takes `/tmp/claude-1000/land.lock`;
 2. cherry-picks every wave commit that main lacks onto a throwaway worktree at the latest `origin/main`;
-3. bumps the app versions those commits touched;
-4. runs `pnpm run check`;
-5. pushes `HEAD:main`.
+3. runs `pnpm run check`;
+4. pushes `HEAD:main`.
+
+It edits no version: a build's version comes from the tree (`scripts/release/build-version.ts`).
 
 Lanes still working keep their uncommitted files, because the wave branch is never rebased. A later land skips
 what an earlier one pushed.
 
 **CI is the combined gate.** Each wave runs its own full gate once, before its last land; nobody re-runs it after
-a merge. A red CI run belongs to the wave that pushed it, and that wave fixes it and lands the fix. Waves never edit
-version fields by hand; the script does.
+a merge. A red CI run belongs to the wave that pushed it, and that wave fixes it and lands the fix. Nothing edits
+a version field: not waves, not the script.
 
 Why: w49 and w50 were READY at 00:30 and 00:50 on 2026-10-06 and reached main at 08:20, because they waited on the
 tracker's merge plus a duplicate local gate.

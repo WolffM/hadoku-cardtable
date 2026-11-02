@@ -6,5 +6,5 @@
  */
 /** The catalogue's display name (../app-name.ts). */
 declare const __HADOKU_APP_NAME__: string;
-/** apps/ui/package.json's version at build time, reported in a seat's `info` telemetry. */
+/** The build's version (scripts/release/build-version.ts), reported in a seat's `info` telemetry. */
 declare const __HADOKU_UI_VERSION__: string;

@@ -8,13 +8,20 @@ name: Release to prod
 # order, so a failed dispatch leaves no tag and the same release can be re-run. The notes are
 # announced by prod itself when it boots on the release. docs/RELEASE.md is
 # the runbook.
+#
+# The version is a release LABEL, never a committed number. By default it is the
+# newest docs/releases/vX.Y.Z.md on the sha, the notes /cutrelease just landed,
+# so `gh workflow run release.yml` needs no input at all; `version` overrides
+# it (a rollback names its own). The build reads the same notes file
+# (scripts/release/build-version.ts), so prod reports the version it was
+# released as.
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version, e.g. v0.33.0'
-        required: true
+        description: 'Release version, e.g. v0.33.0 (default: the newest docs/releases/vX.Y.Z.md on the sha)'
+        required: false
       sha:
         description: 'Commit to release (default: main''s head)'
         required: false
@@ -47,12 +54,18 @@ jobs:
         run: |
           set -euo pipefail
           api() { curl -fsS -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${REPO}/$1"; }
-          [[ "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::version must look like v0.33.0, got '${VERSION}'"; exit 1; }
-          if curl -fs -o /dev/null -H "Authorization: Bearer ${GH_TOKEN}" "https://api.github.com/repos/${REPO}/git/ref/tags/release/${VERSION}"; then
-            echo "::error::release/${VERSION} already exists"; exit 1
-          fi
           sha="${SHA_IN:-$(api commits/main | jq -r .sha)}"
           sha=$(api "commits/${sha}" | jq -r .sha)
+          if [ -z "${VERSION}" ]; then
+            VERSION=$(api "contents/docs/releases?ref=${sha}" | jq -r '.[].name' \
+              | sed -nE 's/^(v[0-9]+\.[0-9]+\.[0-9]+)\.md$/\1/p' | sort -V | tail -1)
+            [ -n "${VERSION}" ] || { echo "::error::no docs/releases/vX.Y.Z.md on ${sha}: write and land the notes first (docs/RELEASE.md)"; exit 1; }
+            echo "version ${VERSION}: the newest notes on ${sha}"
+          fi
+          [[ "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::version must look like v0.33.0, got '${VERSION}'"; exit 1; }
+          if curl -fs -o /dev/null -H "Authorization: Bearer ${GH_TOKEN}" "https://api.github.com/repos/${REPO}/git/ref/tags/release/${VERSION}"; then
+            echo "::error::release/${VERSION} already exists: land the next release's notes, or name a version"; exit 1
+          fi
           check_of() { api "commits/$1/check-runs?check_name=check&filter=latest" | jq -r '[.check_runs[].conclusion] | first // "none"'; }
           check=$(check_of "${sha}")
           # A docs-only push runs no CI (ci.yml's `paths`), so its sha has no
@@ -78,6 +91,7 @@ jobs:
             || { echo "::error::docs/releases/${VERSION}.md is not on ${sha}: write and land the notes first (docs/RELEASE.md)"; exit 1; }
           echo "releasing ${VERSION} at ${sha}"
           echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
       # Through mgmt-api with this repo's own service key: it derives the repo
       # from the key and refuses a service deploy-config.json does not map to
@@ -89,11 +103,11 @@ jobs:
           body: '{"event_type":"redeploy_service","client_payload":{"service":"cardtable","sha":"${{ steps.gate.outputs.sha }}"}}'
           service-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
 
-      - name: Tag release/${{ inputs.version }}
+      - name: Tag release/${{ steps.gate.outputs.version }}
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.gate.outputs.version }}
           SHA: ${{ steps.gate.outputs.sha }}
         run: |
           set -euo pipefail

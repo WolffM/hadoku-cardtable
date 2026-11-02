@@ -80,8 +80,12 @@ ls ~/.local/share/cardtable/jars/$(git rev-parse <sha>:forge).jar
 push cancelled it, use the newest main sha whose `check` is green and that contains the notes.
 
 ```sh
-gh workflow run release.yml -f version=vX.Y.Z -f sha=<sha>
+gh workflow run release.yml -f sha=<sha>
 ```
+
+With no `version` it releases as the newest notes file on that sha, the one you just landed;
+the run's log says which (`version vX.Y.Z: the newest notes on <sha>`). Pass `-f version=` only to
+release under a different name, as a rollback does.
 
 Then wait for that run the same way.
 

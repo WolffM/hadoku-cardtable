@@ -1,5 +1,7 @@
+import { fileURLToPath } from 'node:url';
+
+import { buildVersion } from '../../scripts/release/build-version.js';
 import { APP_NAME } from './app-name.js';
-import pkg from './package.json' with { type: 'json' };
 
 /**
  * Every build-time global the UI source reads, in ONE place. `define` is a
@@ -17,9 +19,11 @@ export const BUILD_DEFINES = {
   /** The catalogue's display name for this app (see app-name.ts). */
   __HADOKU_APP_NAME__: JSON.stringify(APP_NAME),
   /**
-   * apps/ui/package.json's version, reported in a seat's `info` telemetry: the
-   * one fact that tells a stale tab from a regression when a player reports an
-   * animation the deploy had replaced.
+   * The build's version (scripts/release/build-version.ts: the newest release
+   * in the tree plus the commit, e.g. `v0.45.0+1a2b3c4d5`, or
+   * `CARDTABLE_VERSION`), reported in a seat's `info` telemetry: the one fact
+   * that tells a stale tab from a regression when a player reports an
+   * animation the deploy had replaced. Never a committed number.
    */
-  __HADOKU_UI_VERSION__: JSON.stringify(pkg.version),
+  __HADOKU_UI_VERSION__: JSON.stringify(buildVersion(fileURLToPath(new URL('../..', import.meta.url)))),
 };

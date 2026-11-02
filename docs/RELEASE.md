@@ -18,7 +18,10 @@ combines the pending files, shows the notes for editing, lands them and runs the
 
 1. **Pick the version.** `vX.Y.Z`, one product version per release. Bump the minor when any
    pending file has a `## New` or `## Changed` bullet, the patch when they are all fixes. The
-   per-package versions `land.sh` bumps are build numbers and don't change here.
+   version is the notes file's NAME and nothing else: no file is ever edited to carry a version.
+   A build reports `<newest notes in its tree>+<commit>` (`scripts/release/build-version.ts`),
+   so a released sha reports this version and PPE reports the release it builds on. The
+   `version` fields in `apps/*/package.json` are inert: nothing bumps or reads them.
 2. **Collect what's in it:** every file in `docs/releases/pending/` (except its `README.md`), and
    every commit since the last `release/*` tag, because a land may have shipped without a file:
    ```sh
@@ -40,11 +43,12 @@ combines the pending files, shows the notes for editing, lands them and runs the
    (`docs/FORGE_JAR.md`).
 6. **Run the release:**
    ```sh
-   gh workflow run release.yml -f version=vX.Y.Z            # main's head
-   gh workflow run release.yml -f version=vX.Y.Z -f sha=<sha>
+   gh workflow run release.yml                      # main's head, as its newest notes' version
+   gh workflow run release.yml -f sha=<sha>         # that sha, likewise
+   gh workflow run release.yml -f version=vX.Y.Z -f sha=<sha>   # name it (a rollback)
    ```
-   It refuses unless `check` is green on that sha, the notes file is on it, and the tag is
-   new. Then it dispatches the prod redeploy for that exact sha and tags `release/vX.Y.Z`.
+   With no `version`, it releases as the newest `docs/releases/vX.Y.Z.md` on the sha. It refuses
+   unless `check` is green on that sha, the notes file is on it, and the tag is new. Then it dispatches the prod redeploy for that exact sha and tags `release/vX.Y.Z`.
 7. **Confirm prod.** `/health` on 9008 reports the deployed bundle (see the memory note
    "Confirm a deploy from /health"). Prod posts the notes to Discord's `#announcements` when it
    boots on the release: look for `"svc":"cardtable-release"` with `outcome: posted` (or

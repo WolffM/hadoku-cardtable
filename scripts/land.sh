@@ -9,10 +9,10 @@
 # origin/main, cherry-picks the commits main lacks (by patch id, so a second land skips what
 # the first one already pushed), numbers any `| AF??? |` ledger rows they add (re-adding them
 # on main's ledger when the ledger is a commit's only conflict), derives the art rows for any
-# card they add, bumps the app versions the commits touched, runs
-# typecheck, lint and the unit suites the change reaches (by import, or by an `@reads`
-# declaration), and pushes with an explicit refspec. One land at a
-# time: the lock is held from fetch to push, so two waves never bump the same version.
+# card they add, runs typecheck, lint and the unit suites the change reaches (by import, or by
+# an `@reads` declaration), and pushes with an explicit refspec. It edits no version: a build's
+# version is derived from the tree (scripts/release/build-version.ts). One land at a time: the
+# lock is held from fetch to push, so two waves never number the same ledger row.
 #
 # It does NOT wait for CI (memory: never wait inside a lock). CI is the combined gate: a red
 # run on the pushed sha belongs to the wave that pushed it.
@@ -136,22 +136,7 @@ else
   echo "land: no Scryfall cache at $ART_CACHE — art rows not derived; the coverage suite still runs"
 fi
 
-# Bump each app whose code (or a package it builds from) changed; docs-only lands bump nothing.
 CHANGED=$(git diff --name-only origin/main..HEAD)
-bump() {
-  local f=$1/package.json v n
-  v=$(jq -r .version "$f"); n=$(echo "$v" | awk -F. '{print $1"."$2"."$3+1}')
-  jq --arg n "$n" '.version = $n' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
-  echo "${1#apps/} $n"
-}
-BUMPS=()
-grep -qE '^(apps/ui/|packages/)' <<<"$CHANGED" && BUMPS+=("$(bump apps/ui)")
-grep -qE '^(apps/server/|packages/)' <<<"$CHANGED" && BUMPS+=("$(bump apps/server)")
-if [ ${#BUMPS[@]} -gt 0 ]; then
-  msg=$(IFS=,; echo "${BUMPS[*]}")
-  git commit -qam "${msg//,/, }"
-  echo "land: bumped ${BUMPS[*]}"
-fi
 
 # Typecheck and lint run whole. The unit suites run only where the change reaches
 # (`vitest related`: the test files whose import graph holds a changed file) — CI's `check` on

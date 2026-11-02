@@ -2703,7 +2703,7 @@ describe('the match settings (items 4-7, 2026-10-30)', () => {
     // `ui` is the bundle's version: a report of an animation the deploy had replaced is read as a stale tab
     // or a regression from this field (the operator, 2026-10-17: "i played a game a few hrs ago and the
     // animation was still bad" — the log of those matches could not say which build the tab ran).
-    expect(__HADOKU_UI_VERSION__).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(__HADOKU_UI_VERSION__).toMatch(/^v\d+\.\d+\.\d+\+[0-9a-f]+$/);
     expect(infos()[0]!.payload).toEqual({
       matchId: s.matchId,
       kind: 'info',
