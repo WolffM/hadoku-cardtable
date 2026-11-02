@@ -984,16 +984,17 @@ describe('clicking the board: only what Forge offered', () => {
   it('a press holds the bar back until Forge shows the next one, and never longer than HOLD_MAX_MS', async () => {
     const { s, m } = await fullGame();
     await sendAndApply(s, m, [prompt('Priority'), bar(true)]);
-    const pressedAt = Date.now();
     expect(pressButton(m, 'ok')).toBe(true);
     expect(m.barHold?.reason).toBe('pressed-ok');
     // The server's bar is never edited: the hold is the only thing between it and the screen.
     expect(m.buttons?.enable1).toBe(true);
     expect(liveBar(m)?.enable1).toBe(false);
     expect(pressButton(m, 'ok')).toBe(false);
+    s.holdClock.advance(HOLD_MAX_MS - 1);
+    expect(liveBar(m)?.enable1, 'Forge silent, inside the bound').toBe(false);
     // Forge says nothing more: the bar it showed is live again, as are the board's clicks.
-    await until('the hold to lapse', () => m.barHold === null, HOLD_MAX_MS + 2000);
-    expect(Date.now() - pressedAt).toBeGreaterThanOrEqual(HOLD_MAX_MS - 50);
+    s.holdClock.advance(1);
+    expect(m.barHold).toBeNull();
     expect(liveBar(m)?.enable1).toBe(true);
     expect(m.inputLive).toBe(true);
     expect(pressButton(m, 'ok')).toBe(true);
@@ -1647,7 +1648,7 @@ describe('genuinelyAsked: the fact the board’s priority flag gates on (T9)', (
     expect(pressButton(m, 'ok')).toBe(true);
     expect(genuinelyAsked(m, 'you', { ownDecisionOpen: false, waitingForOpponent: true })).toBe(false);
     expect(genuinelyAsked(m, 'them', { ownDecisionOpen: false, waitingForOpponent: true })).toBe(true);
-    await until('the hold to lapse', () => m.barHold === null, HOLD_MAX_MS + 2000);
+    s.holdClock.advance(HOLD_MAX_MS);
     expect(genuinelyAsked(m, 'you', { ownDecisionOpen: false, waitingForOpponent: false })).toBe(true);
   });
 
@@ -2966,7 +2967,7 @@ describe('X1/W14 — attackDefenders and attackAssignment, off the state channel
     expect([...combatCandidates(m)]).toEqual([attacker]);
     expect(pressButton(m, 'ok')).toBe(true);
     expect(combatCandidates(m).size).toBe(0);
-    await until('the hold to lapse', () => m.barHold === null, HOLD_MAX_MS + 2000);
+    s.holdClock.advance(HOLD_MAX_MS);
     expect([...combatCandidates(m)]).toEqual([attacker]);
   });
 

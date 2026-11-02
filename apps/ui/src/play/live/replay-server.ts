@@ -45,6 +45,7 @@ import { isTierC, parseServerFrame, safeParseClientFrame, type ServerFrame } fro
 
 import game1 from '../fixtures/tierc-game1-seq1-27.json';
 import { subscribe, type LiveMatch } from './match.ts';
+import { setHoldClock, type HoldClock } from './timed-hold.ts';
 import { MATCH_EVENTS, type MatchSnapshot, type ServerEnvelope, type WireCursor } from './transport.ts';
 
 interface IoSocket {
@@ -157,7 +158,39 @@ export interface ReplayServer {
   restart(epoch: string): void;
   /** Answer joins/resyncs with `{ error }` instead of a snapshot. */
   refuseWith: string | null;
+  /**
+   * The clock the client's holds run on while this server is up (`./timed-hold.ts`): it moves only
+   * when the test turns it. A hold times Forge's silence after a press or a click, and a replay never
+   * breaks that silence. On wall time every hold here lapsed `HOLD_MAX_MS` after it was taken, however
+   * slow the runner, so a check made after a socket round trip read whichever side of the lapse the
+   * runner fell on: on a loaded claw the pass pop-up came back under "pressed: the pop-up goes with
+   * the bar" (CI 41449433654). Here a hold stands until the test turns the clock past it.
+   */
+  holdClock: HandClock;
   close(): Promise<void>;
+}
+
+/** A {@link HoldClock} a test turns by hand. */
+export interface HandClock extends HoldClock {
+  /** Moves the clock `ms` on and runs, in order, everything that has come due. */
+  advance(ms: number): void;
+}
+
+function handClock(): HandClock {
+  let now = 0;
+  let pending: { at: number; run: () => void }[] = [];
+  return {
+    now: () => now,
+    after: (ms, run) => {
+      pending.push({ at: now + ms, run });
+    },
+    advance: (ms) => {
+      now += ms;
+      const due = pending.filter((p) => p.at <= now).sort((a, b) => a.at - b.at);
+      pending = pending.filter((p) => p.at > now);
+      for (const p of due) p.run();
+    },
+  };
 }
 
 export async function startReplayServer(options: { matchId?: string; playerId?: number } = {}): Promise<ReplayServer> {
@@ -172,6 +205,8 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
   });
   const io = new Server(http);
   const joined = new Set<IoSocket>();
+  const holdClock = handClock();
+  setHoldClock(holdClock);
 
   let seq = 0;
   let history: ServerFrame[] = [];
@@ -199,6 +234,7 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
     resyncs: 0,
     refuseWith: null,
     role: 'player',
+    holdClock,
     clientFrames: () =>
       server.received
         .filter((r) => r.event === MATCH_EVENTS.clientToServer)
@@ -263,6 +299,7 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
     // makes the close the server's alone.
     close: () =>
       new Promise<void>((done) => {
+        setHoldClock(null);
         http.close(() => done());
         io.close();
         for (const socket of connections) socket.destroy();

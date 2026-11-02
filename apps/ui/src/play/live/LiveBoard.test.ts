@@ -80,6 +80,7 @@ import { whenBoardStill } from '../motion.ts';
 import type { PlayPrefs } from './prefs.ts';
 import { CardtableSettings, HostDrawsSettingsProvider } from '../../settings/Settings.tsx';
 import { confirmAsk, fixtureFrames, startReplayServer, untilMatch, type ReplayServer } from './replay-server.ts';
+import { HOLD_MAX_MS } from './timed-hold.ts';
 import { parseMatchAck } from './transport.ts';
 import { PHASE_SETTLE_MS } from './phase-sound.ts';
 import type { DeckRules, SeatChoice } from '../../screens/tables.ts';
@@ -5323,8 +5324,13 @@ describe('the control box is fixed furniture; every answer to Forge, passing pri
     expect(getByTestId('board-mid').hasAttribute('data-question'), 'the stack knows a question is up').toBe(true);
 
     fireEvent.click(getByTestId('live-decision-ok'));
+    expect(queryByTestId('live-decision'), 'pressed: the pop-up goes with the bar').toBeNull();
     await waitFor(() => expect(acts(s)).toEqual(['selectButtonOk']));
-    await waitFor(() => expect(queryByTestId('live-decision'), 'pressed: the pop-up goes with the bar').toBeNull());
+    act(() => s.holdClock.advance(HOLD_MAX_MS - 1));
+    expect(queryByTestId('live-decision'), 'Forge silent, inside the hold').toBeNull();
+    // Forge kept the input it showed: its pass is pressable again.
+    act(() => s.holdClock.advance(1));
+    expect(getByTestId('live-decision-ok').textContent).toBe('Resolve');
   });
 
   it('the empty-stack pass asks to proceed to the next step, and its one Next Phase button presses Forge’s button one', async () => {

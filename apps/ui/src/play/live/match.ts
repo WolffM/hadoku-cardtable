@@ -266,7 +266,7 @@ import { shownFlip, shownRoll, type ShownFlip, type ShownRoll } from './shown.ts
 import { preloadMatchArt } from './art-preload.ts';
 import { pressableBar, type BarHold } from './bar-hold.ts';
 import { drawnOfferOf, dropMarked, resolvedByAnother, type OfferHold, type Pressed } from './offer-hold.ts';
-import { holdStands, lapseHold } from './timed-hold.ts';
+import { holdNow, holdStands, lapseHold } from './timed-hold.ts';
 import { mistakeOfClick, type MistakeKey } from './mistakes.ts';
 import { SELF_ANSWERING } from '../prompts/answer-table.ts';
 import type { PromptParts } from '../prompts/lookup.ts';
@@ -1381,7 +1381,7 @@ export function pressButton(match: LiveMatch, which: 'ok' | 'cancel'): boolean {
 
 /** The bar this seat may press now: Forge's latest, unless {@link LiveMatch.barHold} still stands. */
 export function liveBar(match: LiveMatch): LiveButtons | null {
-  return pressableBar(match.buttons, match.barHold, Date.now());
+  return pressableBar(match.buttons, match.barHold, holdNow());
 }
 
 /**
@@ -1390,7 +1390,7 @@ export function liveBar(match: LiveMatch): LiveButtons | null {
  * showed, and the bar and the board's clicks are live again as they were.
  */
 function holdBar(match: LiveMatch, reason: string): void {
-  const hold: BarHold = { reason, since: Date.now() };
+  const hold: BarHold = { reason, since: holdNow() };
   const wasLive = match.inputLive;
   match.barHold = hold;
   match.inputLive = false;
@@ -1795,7 +1795,7 @@ export function drawnOffer(match: LiveMatch): LiveClickables {
   const view = match.view;
   if (match.offerHold === null || view === null || !match.connected) return real;
   return drawnOfferOf(real, match.offerHold, {
-    now: Date.now(),
+    now: holdNow(),
     turn: view.turn,
     askedByHand: match.asks.some(askedByHand),
     waitingOnAnother: waitingOnAnother(match),
@@ -1847,7 +1847,7 @@ const waitingOnAnother = (match: LiveMatch): boolean => [...(match.waitingOn?.ke
 
 /** Whether a hold is still drawn: its time is not up and the turn has not moved on. */
 function holdStandsNow(match: LiveMatch): boolean {
-  return holdStands(match.offerHold, Date.now()) && match.offerHold.turn === match.view?.turn;
+  return holdStands(match.offerHold, holdNow()) && match.offerHold.turn === match.view?.turn;
 }
 
 const ownTurn = (match: LiveMatch): boolean => match.view?.players.find((p) => p.isViewer)?.isActive === true;
@@ -1864,7 +1864,7 @@ function holdOffer(match: LiveMatch, offer: LiveClickables, pressed: { card?: nu
   if (view === null) return;
   const carried: Pressed = holdStandsNow(match) ? match.offerHold!.pressed : { cards: new Set(), players: new Set() };
   const plus = (ids: ReadonlySet<number>, id: number | undefined): ReadonlySet<number> => (id === undefined ? ids : new Set([...ids, id]));
-  const hold: OfferHold = { offer, since: Date.now(), turn: view.turn, pressed: { cards: plus(carried.cards, pressed.card), players: plus(carried.players, pressed.player) } };
+  const hold: OfferHold = { offer, since: holdNow(), turn: view.turn, pressed: { cards: plus(carried.cards, pressed.card), players: plus(carried.players, pressed.player) } };
   match.offerHold = hold;
   lapseHold(hold, () => match.offerHold, () => {
     match.offerHold = null;
