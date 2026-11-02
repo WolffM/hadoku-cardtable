@@ -691,6 +691,32 @@ is asserted not to match `image|art_crop|png|jpg|uri`. The resolver reads a
 cache that was already projected onto the gameplay allowlist, so there is
 nothing image-shaped for it to reach.
 
+### 5.7 No Alchemy (the operator, 2026-11-01)
+
+> "i dont want to see anything alchemy related anymore. i dont want to see
+> alchemy sets, or alchemy cards."
+
+`src/alchemy.ts` decides it, and `buildCardIndex` applies it to every card it
+indexes, so the catalog, `build-pool`, the cube resolver and the art scripts
+never see one:
+
+- **Alchemy sets:** Scryfall's `set_type: "alchemy"` (19 sets, 1012 printings
+  in the 2026-11-01 sync: YMID … YFRA and HBG), any set named "Alchemy …", and
+  J21, the one Arena-only set of Alchemy designs Scryfall types otherwise.
+- **Rebalanced cards:** `promo_types: ["rebalanced"]`, an `A-` collector
+  number, or a digital `A-` name. `A-Town` is a paper card and stays.
+- **Alchemy cards:** a card with an Alchemy printing and no paper one goes
+  whole (775 on 2026-11-01). A paper card loses only its Alchemy printing.
+
+The catalog file lists the names it dropped under `alchemy`. The server drops
+any card or printing an older catalog still has in an Alchemy set, takes an
+unknown `A-` name for a rebalanced card, lists no Alchemy set from Forge's
+editions (`pools/sets.ts`, which Rally's catalogues read too), and leaves
+Alchemy cards out of a Forge set list and an imported cube, and refuses
+or hides a saved preset that drafts an Alchemy set. Two of the bundled
+cubes above, `The Arena Cube` and `MTG Arena Chromatic Cube June 24`, name
+Alchemy cards; those lines now resolve to nothing, and neither cube is offered.
+
 ---
 
 ## 6. What is not done

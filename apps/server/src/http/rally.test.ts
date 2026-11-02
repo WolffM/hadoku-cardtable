@@ -36,7 +36,7 @@ const SHORTLIST_DIR = resolve(import.meta.dirname, '../../pools/cubes');
 const PAUPER = 'the-pauper-cube-2026-02';
 const VINTAGE = 'mtgo-vintage-cube-2025-04';
 
-const EMPTY_CATALOG: CardCatalog = { byName: () => null, byNameInSet: () => null, byPrinting: () => null, swap: () => false };
+const EMPTY_CATALOG: CardCatalog = { byName: () => null, byNameInSet: () => null, byPrinting: () => null, isAlchemy: () => false, swap: () => false };
 
 const ALA: ForgeSetSummary = { code: 'ALA', name: 'Shards of Alara', date: '2008-10-03', type: 'Expansion' };
 const ARB: ForgeSetSummary = { code: 'ARB', name: 'Alara Reborn', date: '2009-04-30', type: 'Expansion' };

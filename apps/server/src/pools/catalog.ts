@@ -45,7 +45,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { foldName, normaliseName } from '@hadoku/carddata';
+import { foldName, isAlchemySet, normaliseName } from '@hadoku/carddata';
 import { DraftCardSchema, RaritySchema, type DraftCard, type Rarity } from '@hadoku/shared';
 import { jsonLogger } from '../log.js';
 
@@ -55,6 +55,13 @@ export interface CardCatalog {
 	byPrinting(set: string, collectorNumber: string): DraftCard | null;
 	/** The card named `name` as `set` printed it — its art and rarity there — or `null` when the set has no printing of it; callers fall back to `byName`. */
 	byNameInSet(name: string, set: string): DraftCard | null;
+	/**
+	 * Whether `name` is an Alchemy card (the operator, 2026-11-01: none in Cardtable). Every card
+	 * `build-catalog` left out as one, any card this file printed only in an Alchemy set, and an
+	 * "A-" name the catalog does not know as a paper card (a rebalanced card: `A-Town` is paper).
+	 * A Forge set list or an imported cube that names one leaves it out.
+	 */
+	isAlchemy(name: string): boolean;
 	/**
 	 * Reload from `path` (default: the path this catalog was built from) and,
 	 * on success, swap the live data in place. Returns `true` on a swap,
@@ -83,6 +90,8 @@ interface CatalogFile {
 	aliases: Record<string, unknown>;
 	/** `<SET>:<collector_number>` -> this printing's own ref (`build-catalog.ts`'s `PrintingRef`). Absent on an older file — see `parseCatalogState`. */
 	printings?: Record<string, unknown>;
+	/** Normalised names `build-catalog` left out as Alchemy. Absent on an older file. */
+	alchemy?: unknown;
 }
 
 interface CatalogState {
@@ -92,11 +101,13 @@ interface CatalogState {
 	printings: Map<string, PrintingRef>;
 	/** `<SET>|<canonical key>` -> that card's printing in that set, its lowest collector number (the set's own frame, not a showcase variant). */
 	inSet: Map<string, string>;
+	/** Normalised names of Alchemy cards: the file's own `alchemy` list, and any card it printed only in an Alchemy set. */
+	alchemy: Set<string>;
 }
 
 const log = jsonLogger('cardtable-pools');
 
-const EMPTY_STATE: CatalogState = { cards: new Map(), aliases: new Map(), printings: new Map(), inSet: new Map() };
+const EMPTY_STATE: CatalogState = { cards: new Map(), aliases: new Map(), printings: new Map(), inSet: new Map(), alchemy: new Set() };
 
 /** Uppercase the set so a caller's case never misses; the file's own keys are already uppercase (`build-catalog.ts` upper-cases `setCode`). */
 function printingKey(setCode: string, collectorNumber: string): string {
@@ -119,13 +130,20 @@ function parseCatalogState(path: string): CatalogState | null {
 	}
 	const file = raw as Partial<CatalogFile>;
 
+	// No Alchemy (`@hadoku/carddata`'s `alchemy.ts`). A current build already left it out; a file
+	// that still carries some (an older build, a hand-written fixture) serves none of it.
+	const alchemy = new Set<string>();
+	if (Array.isArray(file.alchemy)) {
+		for (const name of file.alchemy) if (typeof name === 'string') alchemy.add(normaliseName(name));
+	}
 	const cards = new Map<string, DraftCard>();
 	let rejected = 0;
 	if (typeof file.cards === 'object' && file.cards !== null) {
 		for (const [key, value] of Object.entries(file.cards)) {
 			const parsed = DraftCardSchema.safeParse(value);
-			if (parsed.success) cards.set(key, parsed.data);
-			else rejected++;
+			if (!parsed.success) rejected++;
+			else if (isAlchemySet({ code: parsed.data.setCode })) alchemy.add(key);
+			else cards.set(key, parsed.data);
 		}
 	}
 
@@ -150,6 +168,7 @@ function parseCatalogState(path: string): CatalogState | null {
 				printingsRejected++;
 				continue;
 			}
+			if (isAlchemySet({ code: printingKeyStr.slice(0, printingKeyStr.indexOf(':')) })) continue;
 			const rarity = RaritySchema.safeParse(ref.rarity);
 			printings.set(printingKeyStr, {
 				key: ref.key,
@@ -167,9 +186,9 @@ function parseCatalogState(path: string): CatalogState | null {
 		if (held === undefined || number(key) < number(held) || (Number.isNaN(number(held)) && !Number.isNaN(number(key)))) inSet.set(at, key);
 	}
 
-	log({ evt: 'catalog-loaded', path, cards: cards.size, aliases: aliases.size, printings: printings.size, rejected, printingsRejected });
+	log({ evt: 'catalog-loaded', path, cards: cards.size, aliases: aliases.size, printings: printings.size, alchemy: alchemy.size, rejected, printingsRejected });
 
-	return { cards, aliases, printings, inSet };
+	return { cards, aliases, printings, inSet, alchemy };
 }
 
 /**
@@ -208,6 +227,11 @@ export function loadCardCatalog(path: string): CardCatalog {
 			if (printing === undefined) return null;
 			const at = printing.indexOf(':');
 			return catalog.byPrinting(printing.slice(0, at), printing.slice(at + 1));
+		},
+
+		isAlchemy(name: string): boolean {
+			if (state.alchemy.has(normaliseName(name)) || state.alchemy.has(foldName(name))) return true;
+			return name.trim().startsWith('A-') && keyOf(name) === null;
 		},
 
 		byPrinting(set: string, collectorNumber: string): DraftCard | null {

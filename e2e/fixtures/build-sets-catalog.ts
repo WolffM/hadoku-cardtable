@@ -30,6 +30,7 @@
  * - The five basic lands' own canonical entries (`byName` fallback safety
  *   net), kept regardless of whether a target-set printing already
  *   covered them.
+ * - One Alchemy card, `ALCHEMY_PROBE`, that the server must never serve.
  * - Nothing else: no `scryfallId`-derived image field exists on
  *   `DraftCardSchema` to begin with, and this script copies fields,
  *   never invents one.
@@ -66,6 +67,26 @@ interface DraftCardLike {
 }
 
 const BASIC_LAND_NAMES = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest'];
+
+/**
+ * An Alchemy card, written in on purpose. The real catalog has none (`@hadoku/carddata`'s
+ * `alchemy.ts`), so this is the only way the stack ever holds one: `no-alchemy.spec.ts` asserts the
+ * server serves it nowhere (`pools/catalog.ts` drops an Alchemy set's card on load).
+ */
+const ALCHEMY_PROBE = {
+  cardId: 'gutmorn, pactbound servant',
+  name: 'Gutmorn, Pactbound Servant',
+  manaCost: ['1', 'B'],
+  manaValue: 2,
+  colors: ['B'],
+  typeLine: 'Creature — Human Warlock',
+  oracleText: 'Alchemy probe: never served.',
+  setCode: 'YMID',
+  collectorNumber: '28',
+  rarity: 'rare',
+  power: '2',
+  toughness: '2',
+};
 
 function argValue(name: string, fallback: string): string {
   const prefix = `--${name}=`;
@@ -116,6 +137,10 @@ function main(): void {
 
   const keptCards = Object.entries(sourceCards).filter(([key]) => keptKeys.has(key));
   const keptAliases = Object.entries(sourceAliases).filter(([, value]) => typeof value === 'string' && keptKeys.has(value));
+
+  // The Alchemy probe: one Alchemy: Innistrad card the server must never serve (see the header).
+  keptCards.push([ALCHEMY_PROBE.cardId, ALCHEMY_PROBE]);
+  keptPrintings.set(`${ALCHEMY_PROBE.setCode}:${ALCHEMY_PROBE.collectorNumber}`, { key: ALCHEMY_PROBE.cardId, rarity: ALCHEMY_PROBE.rarity });
 
   const out: CatalogFile = {
     cards: sortedObject(keptCards),

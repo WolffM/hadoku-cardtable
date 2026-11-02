@@ -32,6 +32,7 @@
 import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { join } from 'node:path';
+import { withoutAlchemy } from './alchemy.ts';
 import type { CardRequest } from './dck.ts';
 import type { GameplayCard } from './scryfall/project.ts';
 import { toScryfallSetCode, isKnownForgeSetCode } from './set-codes.ts';
@@ -129,8 +130,10 @@ export interface CardIndex {
   readonly knownSets: ReadonlySet<string>;
   /** How many printings were indexed. */
   readonly printings: number;
-  /** How many were skipped, and why — non-gameplay layouts and non-English. */
+  /** How many were skipped, and why — non-gameplay layouts, non-English, and Alchemy (`alchemy.ts`). */
   readonly skipped: Readonly<Record<string, number>>;
+  /** The cards left out whole as Alchemy (`alchemy.ts`'s `withoutAlchemy`), by name. */
+  readonly alchemyNames: readonly string[];
 }
 
 /**
@@ -238,6 +241,7 @@ function rankedOrder(a: RankedPrinting, b: RankedPrinting): number {
 
 /** Build an index from already-parsed cards. */
 export function buildCardIndex(cards: Iterable<GameplayCard>): CardIndex {
+  const { kept, dropped, alchemyNames } = withoutAlchemy(cards);
   const byName = new Map<string, RankedPrinting[]>();
   const bySetAndName = new Map<string, RankedPrinting[]>();
   const bySetNameCollector = new Map<string, RankedPrinting>();
@@ -246,10 +250,11 @@ export function buildCardIndex(cards: Iterable<GameplayCard>): CardIndex {
     'non-english': 0,
     'non-gameplay-layout': 0,
     'no-name': 0,
+    alchemy: dropped,
   };
   let printings = 0;
 
-  for (const card of cards) {
+  for (const card of kept) {
     const lang = str(card, 'lang');
     if (lang !== null && lang !== INDEX_LANG) {
       skipped['non-english']++;
@@ -297,7 +302,7 @@ export function buildCardIndex(cards: Iterable<GameplayCard>): CardIndex {
   for (const bucket of byName.values()) bucket.sort(rankedOrder);
   for (const bucket of bySetAndName.values()) bucket.sort(rankedOrder);
 
-  return { byName, bySetAndName, bySetNameCollector, knownSets, printings, skipped };
+  return { byName, bySetAndName, bySetNameCollector, knownSets, printings, skipped, alchemyNames };
 }
 
 /**

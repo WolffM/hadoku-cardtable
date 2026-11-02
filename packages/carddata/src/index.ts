@@ -58,6 +58,8 @@ export {
 
 export { cubesDir, listCubeFiles, loadCube, loadAllCubes } from './cubes.ts';
 
+export { isAlchemySet, isAlchemyPrinting, withoutAlchemy, type AlchemySplit, type SetIdentity } from './alchemy.ts';
+
 export {
   parseDraftRecipe,
   parseBoosterSlots,

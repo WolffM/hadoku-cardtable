@@ -30,7 +30,7 @@ function card(name: string, code: string): DraftCard {
 	};
 }
 
-const EMPTY_CATALOG: CatalogLookup = { byName: () => null, byNameInSet: () => null, byPrinting: () => null };
+const EMPTY_CATALOG: CatalogLookup = { byName: () => null, byNameInSet: () => null, byPrinting: () => null, isAlchemy: () => false };
 
 function booster(names: string[], code: string): BoosterCard[] {
 	return names.map((name) => ({ name, set: code, collectorNumber: '1', foil: false }));
@@ -198,7 +198,7 @@ describe('createSetsStore — cardsFor: the land/DFC slot setCards alone would m
 			setCards: { ISD: ['Card A', 'Card B'] },
 			boosters: { ISD: [booster(['Card A', 'Startled Awake // Persistent Nightmare'], 'ISD')] },
 		});
-		const catalog: CatalogLookup = { byName: (name) => card(name, 'ISD'), byNameInSet: () => null, byPrinting: () => null };
+		const catalog: CatalogLookup = { byName: (name) => card(name, 'ISD'), byNameInSet: () => null, byPrinting: () => null, isAlchemy: () => false };
 		const store = createSetsStore({ forge, catalog, sampleBoosters: 1 });
 		const cards = await store.cardsFor('ISD');
 		expect(cards?.map((c) => c.name).sort()).toEqual(['Card A', 'Card B', 'Startled Awake // Persistent Nightmare'].sort());
@@ -210,6 +210,7 @@ describe('createSetsStore — cardsFor: the land/DFC slot setCards alone would m
 			byName: (name) => card(name, 'LEA'),
 			byNameInSet: (name, set) => (name === 'Giant Growth' ? card(name, set) : null),
 			byPrinting: () => null,
+			isAlchemy: () => false,
 		};
 		const store = createSetsStore({ forge, catalog, sampleBoosters: 1 });
 		const cards = await store.cardsFor('ISD');
@@ -227,6 +228,7 @@ describe('createSetsStore — cardsFor: the land/DFC slot setCards alone would m
 			byName: (name) => card(name, 'SOM'),
 			byNameInSet: (name, set) => (name === 'Urza, Lord Protector' ? card(name, set) : null),
 			byPrinting,
+			isAlchemy: () => false,
 		};
 		const store = createSetsStore({ forge, catalog, sampleBoosters: 1 });
 		const cards = await store.cardsFor('BRO');
@@ -242,7 +244,7 @@ describe('createSetsStore — cardsFor: the land/DFC slot setCards alone would m
 			setCards: { CFX: ['Giant Growth'] },
 		});
 		const byNameInSet = vi.fn((name: string, set: string) => card(name, set));
-		const store = createSetsStore({ forge, catalog: { byName: (name) => card(name, 'LEA'), byNameInSet, byPrinting: () => null }, sampleBoosters: 0 });
+		const store = createSetsStore({ forge, catalog: { byName: (name) => card(name, 'LEA'), byNameInSet, byPrinting: () => null, isAlchemy: () => false }, sampleBoosters: 0 });
 		await store.list();
 		expect((await store.cardsFor('CFX'))?.[0]?.setCode).toBe('CON');
 		expect(byNameInSet).toHaveBeenCalledWith('Giant Growth', 'CON');
@@ -250,7 +252,7 @@ describe('createSetsStore — cardsFor: the land/DFC slot setCards alone would m
 
 	it('a name the catalog cannot resolve carries typeLine \'\' — missingText, same signal pools/cubes.ts uses', async () => {
 		const forge = fakeForge({ setCards: { ISD: ['Known', 'Mystery'] } });
-		const catalog: CatalogLookup = { byName: (name) => (name === 'Known' ? card(name, 'ISD') : null), byNameInSet: () => null, byPrinting: () => null };
+		const catalog: CatalogLookup = { byName: (name) => (name === 'Known' ? card(name, 'ISD') : null), byNameInSet: () => null, byPrinting: () => null, isAlchemy: () => false };
 		const store = createSetsStore({ forge, catalog, sampleBoosters: 1 });
 		const cards = await store.cardsFor('ISD');
 		expect(cards?.find((c) => c.name === 'Mystery')?.typeLine).toBe('');
@@ -272,7 +274,7 @@ describe('createSetsStore — cardsFor: the land/DFC slot setCards alone would m
 
 	it('the booster sample failing (no draft template, or a transient fault) still answers from setCards alone, logged', async () => {
 		const forge = fakeForge({ setCards: { ARB: ['Card D'] }, failBoosters: new Set(['ARB']) });
-		const catalog: CatalogLookup = { byName: (name) => card(name, 'ARB'), byNameInSet: () => null, byPrinting: () => null };
+		const catalog: CatalogLookup = { byName: (name) => card(name, 'ARB'), byNameInSet: () => null, byPrinting: () => null, isAlchemy: () => false };
 		const log = vi.fn();
 		const store = createSetsStore({ forge, catalog, log });
 		const cards = await store.cardsFor('ARB');
@@ -359,5 +361,46 @@ describe('attachSetRoutes', () => {
 		const base = await openApp(store);
 		const res = await fetch(`${base}/api/pools/sets`);
 		expect(res.status).toBe(503);
+	});
+});
+
+/**
+ * No Alchemy (the operator, 2026-11-01, on wrally2's look gate: "The two
+ * Alchemy rebalanced cards in Midnight Hunt's list (A-Falcon Abomination,
+ * A-Shipwreck Sifters)"). Forge has an edition, most with a booster, for every
+ * Alchemy set; none is listed, named or resolvable, and an Alchemy card a
+ * paper set's list still names is left out of it, not drawn as a name box.
+ */
+describe('createSetsStore — no Alchemy', () => {
+	const MID: ForgeSetSummary = { code: 'MID', name: 'Innistrad: Midnight Hunt', date: '2021-09-24', type: 'Expansion', scryfallCode: 'MID' };
+	const YMID: ForgeSetSummary = { code: 'YMID', name: 'Alchemy Innistrad', date: '2021-12-09', type: 'Online', scryfallCode: 'YMID' };
+	const HBG: ForgeSetSummary = { code: 'HBG', name: "Alchemy Horizons Baldur's Gate", date: '2022-07-07', type: 'Online', scryfallCode: 'HBG' };
+	const J21: ForgeSetSummary = { code: 'J21', name: 'Jumpstart Historic Horizons', date: '2021-08-12', type: 'Online', scryfallCode: 'J21' };
+
+	const ALCHEMY_AWARE: CatalogLookup = {
+		...EMPTY_CATALOG,
+		byName: (name) => (name.startsWith('A-') ? null : card(name, 'MID')),
+		isAlchemy: (name) => name.startsWith('A-') || name === 'Gutmorn, Pactbound Servant',
+	};
+
+	it('lists no Alchemy set, and never asks Forge for one\'s cards', async () => {
+		const forge = fakeForge({ sets: [MID, YMID, HBG, J21], setCards: { MID: ['Falcon Abomination'], YMID: ['Gutmorn, Pactbound Servant'] } });
+		const store = createSetsStore({ forge, catalog: ALCHEMY_AWARE, log: () => undefined });
+		expect((await store.list()).map((s) => s.code)).toEqual(['MID']);
+		expect(forge.setCards).not.toHaveBeenCalledWith('YMID');
+		expect(store.nameOf('YMID')).toBeNull();
+		expect(await store.cardsFor('YMID')).toBeNull();
+		expect(await store.cardsFor('HBG')).toBeNull();
+		expect(await store.cardsFor('J21')).toBeNull();
+	});
+
+	it("leaves a set's rebalanced and Alchemy cards out of its list", async () => {
+		const forge = fakeForge({
+			sets: [MID],
+			setCards: { MID: ['Falcon Abomination', 'A-Falcon Abomination', 'Shipwreck Sifters'] },
+			boosters: { MID: [booster(['A-Shipwreck Sifters', 'Gutmorn, Pactbound Servant', 'Shipwreck Sifters'], 'MID')] },
+		});
+		const store = createSetsStore({ forge, catalog: ALCHEMY_AWARE, log: () => undefined });
+		expect((await store.cardsFor('MID'))?.map((c) => c.name)).toEqual(['Falcon Abomination', 'Shipwreck Sifters']);
 	});
 });

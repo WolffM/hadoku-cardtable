@@ -87,6 +87,15 @@ describe('createPresetStore', () => {
 		expect(storeB.list()).toEqual([saved]);
 	});
 
+	it('refuses a preset drafting an Alchemy set, and lists none an older file holds (the operator, 2026-11-01)', async () => {
+		const path = await presetsPath();
+		const alchemy: DraftPlan = { rounds: [PLAN.rounds[0], { kind: 'set', code: 'YMID', style: 'realistic' }, PLAN.rounds[2]] };
+		await expect(createPresetStore({ path }).create('Alchemy', alchemy, 'fk:alice')).rejects.toThrow(/Alchemy/);
+		const kept = { id: 'p-isd', name: 'ISD x3', plan: PLAN, createdBy: 'fk:alice', createdAt: '2026-10-30T00:00:00.000Z' };
+		await writeFile(path, JSON.stringify({ presets: [kept, { ...kept, id: 'p-ymid', name: 'Alchemy', plan: alchemy }] }), 'utf8');
+		expect(createPresetStore({ path }).list().map((p) => p.id)).toEqual(['p-isd']);
+	});
+
 	it('lists newest first', async () => {
 		vi.useFakeTimers();
 		try {

@@ -41,6 +41,7 @@
 import { createReadStream, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
+import { withoutAlchemy } from '../../packages/carddata/src/alchemy.ts';
 
 const ROOT = resolve(import.meta.dirname, '../..');
 const arg = (name: string): string | undefined => process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
@@ -163,9 +164,28 @@ export function scryfallParts(row: Row): Part[] {
   ];
 }
 
+/** The fields `withoutAlchemy` reads, so a whole-cache pass holds a sliver of each row. */
+const ALCHEMY_FIELDS = ['oracle_id', 'name', 'set', 'set_name', 'set_type', 'collector_number', 'digital', 'promo_types'];
+
+/**
+ * Every Alchemy card, by the key this file uses (the operator, 2026-11-01: none in Cardtable). Forge
+ * ships a script for each, so without this their tokens rode into the bundle under their names.
+ */
+async function alchemyKeys(): Promise<Set<string>> {
+  const rows: Record<string, unknown>[] = [];
+  for await (const line of createInterface({ input: createReadStream(CACHE, 'utf8'), crlfDelay: Infinity })) {
+    if (line.length === 0) continue;
+    const row = JSON.parse(line.replace(/,$/, '')) as Record<string, unknown>;
+    rows.push(Object.fromEntries(ALCHEMY_FIELDS.filter((f) => f in row).map((f) => [f, row[f]])));
+  }
+  return new Set(withoutAlchemy(rows).alchemyNames.map(relatedKey));
+}
+
 async function main(): Promise<void> {
   const artIds = (JSON.parse(readFileSync(ART_IDS, 'utf8')) as { ids: Record<string, string> }).ids;
   const byName = forgeTokens(artIds);
+  const alchemy = await alchemyKeys();
+  for (const key of alchemy) byName.delete(key);
   const fromScryfall = new Set<string>();
   const lines = createInterface({ input: createReadStream(CACHE, 'utf8'), crlfDelay: Infinity });
   for await (const line of lines) {
@@ -173,7 +193,7 @@ async function main(): Promise<void> {
     const row = JSON.parse(line.replace(/,$/, '')) as Row;
     if (row.layout !== undefined && NOT_A_CARD.has(row.layout)) continue;
     const key = relatedKey(row.name);
-    if (fromScryfall.has(key)) continue;
+    if (fromScryfall.has(key) || alchemy.has(key)) continue;
     fromScryfall.add(key);
     const have = byName.get(key) ?? [];
     const names = new Set(have.map((p) => p.name));

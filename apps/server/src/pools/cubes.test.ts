@@ -32,7 +32,7 @@ const FIXTURE_PATH = join(HERE, 'fixtures', 'lsvcube-sample.json');
 
 // w74 §G widened `CardCatalog` with `byPrinting`/`swap`; this file's own stand-in
 // just needs to keep typechecking — none of these tests exercise either method.
-const EMPTY_CATALOG: CardCatalog = { byName: () => null, byPrinting: () => null, byNameInSet: () => null, swap: () => false };
+const EMPTY_CATALOG: CardCatalog = { byName: () => null, byPrinting: () => null, byNameInSet: () => null, isAlchemy: () => false, swap: () => false };
 
 function shortlistCard(name: string): DraftCard {
 	return {
@@ -247,6 +247,19 @@ describe('createCubeStore', () => {
 		const cards = store.cards(summary.id);
 		expect(cards).toHaveLength(36);
 		for (const card of cards ?? []) expect(card.typeLine).toBe('');
+	});
+
+	it('leaves an Alchemy card out of an imported cube (the operator, 2026-11-01: no Alchemy in Cardtable)', async () => {
+		const { shortlistDir, importDir } = await makeDirs();
+		const fixture = await readFixture();
+		const plain = createCubeStore({ shortlistDir, importDir, catalog: EMPTY_CATALOG, fetchJson: async () => fixture });
+		const banned = plain.cards((await plain.importLink('lsv-cube-fixture', 'fk:alice')).id)![0]!.name;
+		const store = createCubeStore({ shortlistDir, importDir: `${importDir}-alchemy`, catalog: { ...EMPTY_CATALOG, isAlchemy: (name) => name === banned }, fetchJson: async () => fixture });
+		dirs.push(`${importDir}-alchemy`);
+		const summary = await store.importLink('lsv-cube-fixture', 'fk:alice');
+		const names = store.cards(summary.id)?.map((c) => c.name) ?? [];
+		expect(names).toHaveLength(35);
+		expect(names).not.toContain(banned);
 	});
 
 	it('persists an imported cube across a restart (reloads importDir at construction)', async () => {

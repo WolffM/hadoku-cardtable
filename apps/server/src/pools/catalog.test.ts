@@ -328,3 +328,50 @@ describe('loadCardCatalog byNameInSet', () => {
 		expect(catalog.byNameInSet('Not A Card', 'M19')).toBeNull();
 	});
 });
+
+/**
+ * No Alchemy (the operator, 2026-11-01). `build-catalog` already leaves it out
+ * and lists what it dropped under `alchemy`; a catalog file that still carries
+ * an Alchemy printing (an older build, a hand-written fixture) serves none of it.
+ */
+describe('loadCardCatalog — no Alchemy', () => {
+	let dir: string;
+	beforeEach(async () => {
+		dir = await mkdtemp(join(tmpdir(), 'catalog-alchemy-'));
+	});
+	afterEach(async () => {
+		await rm(dir, { recursive: true, force: true });
+	});
+
+	const GUTMORN = { ...BOLT, cardId: 'gutmorn, pactbound servant', name: 'Gutmorn, Pactbound Servant', setCode: 'YMID', collectorNumber: '28' };
+
+	it('serves no card or printing from an Alchemy set, and answers isAlchemy for it and for the names build-catalog dropped', async () => {
+		const path = await writeCatalog(dir, {
+			cards: { 'lightning bolt': BOLT, 'gutmorn, pactbound servant': GUTMORN },
+			aliases: {},
+			printings: {
+				'LEA:161': { key: 'lightning bolt', scryfallId: LEA_BOLT_SCRYFALL_ID },
+				'YMID:28': { key: 'gutmorn, pactbound servant' },
+				'J21:777': { key: 'lightning bolt' },
+			},
+			alchemy: ['a-falcon abomination'],
+		} as Parameters<typeof writeCatalog>[1]);
+		const catalog = loadCardCatalog(path);
+		expect(catalog.byName('Gutmorn, Pactbound Servant')).toBeNull();
+		expect(catalog.byPrinting('YMID', '28')).toBeNull();
+		expect(catalog.byPrinting('J21', '777')).toBeNull();
+		expect(catalog.byNameInSet('Lightning Bolt', 'J21')).toBeNull();
+		expect(catalog.byName('Lightning Bolt')?.setCode).toBe('LEA');
+		expect(catalog.isAlchemy('Gutmorn, Pactbound Servant')).toBe(true);
+		expect(catalog.isAlchemy('A-Falcon Abomination')).toBe(true);
+		expect(catalog.isAlchemy('Lightning Bolt')).toBe(false);
+	});
+
+	it('takes an unknown "A-" name for a rebalanced card, and a known one (A-Town) for the paper card it is', async () => {
+		const aTown = { ...BOLT, cardId: 'a-town', name: 'A-Town', setCode: 'UNK', collectorNumber: '1' };
+		const path = await writeCatalog(dir, { cards: { 'lightning bolt': BOLT, 'a-town': aTown }, aliases: {} });
+		const catalog = loadCardCatalog(path);
+		expect(catalog.isAlchemy('A-Shipwreck Sifters')).toBe(true);
+		expect(catalog.isAlchemy('A-Town')).toBe(false);
+	});
+});

@@ -4954,6 +4954,25 @@
       "power": "1",
       "toughness": "2"
     },
+    "gutmorn, pactbound servant": {
+      "cardId": "gutmorn, pactbound servant",
+      "name": "Gutmorn, Pactbound Servant",
+      "manaCost": [
+        "1",
+        "B"
+      ],
+      "manaValue": 2,
+      "colors": [
+        "B"
+      ],
+      "typeLine": "Creature — Human Warlock",
+      "oracleText": "Alchemy probe: never served.",
+      "setCode": "YMID",
+      "collectorNumber": "28",
+      "rarity": "rare",
+      "power": "2",
+      "toughness": "2"
+    },
     "gutter grime": {
       "cardId": "gutter grime",
       "scryfallId": "a9d007a2-163d-4e09-a70b-280a6fa3203b",
@@ -15950,6 +15969,10 @@
     "ISD:99": {
       "key": "endless ranks of the dead",
       "scryfallId": "5db15c5f-80b7-4f7f-985a-9bbec3199ad9",
+      "rarity": "rare"
+    },
+    "YMID:28": {
+      "key": "gutmorn, pactbound servant",
       "rarity": "rare"
     }
   }

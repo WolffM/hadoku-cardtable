@@ -30,6 +30,7 @@ import { mkdir, open, rename } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import express, { type Request, type Response, type Router } from 'express';
 
+import { isAlchemySet } from '@hadoku/carddata';
 import { DraftPresetSchema, SavePresetBodySchema, type DraftPlan, type DraftPreset } from '@hadoku/shared';
 import { bodyErrors, httpCaller } from '../http/request.js';
 import { jsonLogger } from '../log.js';
@@ -110,6 +111,9 @@ export interface CreatePresetStoreOpts {
 	path: string;
 }
 
+/** A plan drafting an Alchemy set (the operator, 2026-11-01: no Alchemy in Cardtable). */
+const draftsAlchemy = (plan: DraftPlan): boolean => plan.rounds.some((src) => src.kind === 'set' && isAlchemySet({ code: src.code }));
+
 export function createPresetStore(opts: CreatePresetStoreOpts): PresetStore {
 	const { path } = opts;
 	const presets = loadPresetsFile(path);
@@ -118,10 +122,11 @@ export function createPresetStore(opts: CreatePresetStoreOpts): PresetStore {
 
 	return {
 		list(): DraftPreset[] {
-			return [...presets].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+			return presets.filter((p) => !draftsAlchemy(p.plan)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 		},
 
 		async create(name: string, plan: DraftPlan, by: string): Promise<DraftPreset> {
+			if (draftsAlchemy(plan)) throw new Error('Alchemy sets are not in Cardtable');
 			const preset: DraftPreset = {
 				id: randomUUID(),
 				name,

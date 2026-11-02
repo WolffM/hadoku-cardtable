@@ -123,6 +123,12 @@ export interface CatalogFile {
   aliases: Record<string, string>;
   /** Every printing read, keyed `<SET>:<collector_number>` — not only the one chosen for `cards`. */
   printings: Record<string, PrintingRef>;
+  /**
+   * The cards left out as Alchemy (`alchemy.ts`), by normalised name. The server answers
+   * `isAlchemy` from it, so a Forge set list or an imported cube that still names one leaves it
+   * out instead of drawing a name box.
+   */
+  alchemy: string[];
 }
 
 /**
@@ -160,7 +166,8 @@ export function buildCatalog(index: CardIndex): CatalogFile {
     }
   }
 
-  return { cards, aliases, printings };
+  const alchemy = [...new Set(index.alchemyNames.map(normaliseName))].sort();
+  return { cards, aliases, printings, alchemy };
 }
 
 export interface RunBuildCatalogOptions {

@@ -48,6 +48,7 @@
  * `index.ts` wires the call once G's refresh job exists (wave 74 §E step 5).
  */
 
+import { isAlchemySet } from '@hadoku/carddata';
 import type { DraftCard, PoolVerdict, SetSummary } from '@hadoku/shared';
 import express, { type Request, type Response, type Router } from 'express';
 import type { BoosterCard, SetSummary as ForgeSetSummary } from './forge.js';
@@ -65,6 +66,8 @@ export interface CatalogLookup {
 	byName(name: string): DraftCard | null;
 	byNameInSet(name: string, set: string): DraftCard | null;
 	byPrinting(set: string, collectorNumber: string): DraftCard | null;
+	/** `catalog.ts`'s `isAlchemy`: a name this set's list leaves out. */
+	isAlchemy(name: string): boolean;
 }
 
 export interface SetsStore {
@@ -138,9 +141,17 @@ export function createSetsStore(opts: CreateSetsStoreOpts): SetsStore {
 		};
 	}
 
+	/**
+	 * No Alchemy (the operator, 2026-11-01). Forge has an edition, most with a draft booster, for
+	 * every Alchemy set; none is listed, named or resolvable here, so no picker, plan or Rally
+	 * catalogue can reach one.
+	 */
+	const alchemyCodes = new Set<string>();
+	const isAlchemyCode = (code: string): boolean => alchemyCodes.has(code) || isAlchemySet({ code });
+
 	async function resolveCards(code: string): Promise<readonly DraftCard[] | null> {
 		const forge = opts.forge;
-		if (forge === null) return null;
+		if (forge === null || isAlchemyCode(code)) return null;
 		let setNames: string[];
 		try {
 			setNames = await forge.setCards(code);
@@ -162,7 +173,9 @@ export function createSetsStore(opts: CreateSetsStoreOpts): SetsStore {
 			// own `boosters` call later, which is the honest place for that error.
 			warn({ evt: 'set-booster-sample-failed', code, detail: (err as Error).message });
 		}
-		const names = Array.from(new Set([...setNames, ...dealtAs.keys()]));
+		// A paper set's list can still name an Alchemy card: Forge's `[rebalanced]` "A-" versions
+		// (wrally2's look gate showed Midnight Hunt's two as name boxes). Left out, not drawn.
+		const names = Array.from(new Set([...setNames, ...dealtAs.keys()])).filter((name) => !opts.catalog.isAlchemy(name));
 		const printed = printedCode.get(code) ?? code;
 		const asDealt = (name: string): DraftCard | null => {
 			const dealt = dealtAs.get(name);
@@ -215,7 +228,11 @@ export function createSetsStore(opts: CreateSetsStoreOpts): SetsStore {
 			}
 			const forge = opts.forge;
 			listPromise = (async () => {
-				const sets = await forge.sets();
+				const sets = (await forge.sets()).filter((s) => {
+					if (!isAlchemySet({ code: s.code, name: s.name }) && !isAlchemySet({ code: s.scryfallCode })) return true;
+					alchemyCodes.add(s.code);
+					return false;
+				});
 				const sorted = [...sets].sort((a, b) => b.date.localeCompare(a.date));
 				named(sorted);
 				const out: SetSummary[] = [];

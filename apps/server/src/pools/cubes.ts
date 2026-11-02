@@ -177,12 +177,14 @@ const SCRYFALL_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a
 
 /** Project the catalog's gameplay text (or the missing-text stand-in) onto an imported cube's raw names, with fresh per-copy ids. */
 function deriveImportedCards(id: string, raw: readonly CubeCobraCard[], catalog: CardCatalog): DraftCard[] {
-	return raw.map((card, i) => {
+	// No Alchemy (the operator, 2026-11-01): an Arena cube's Alchemy and "A-" cards are left out.
+	return raw.flatMap((card, i) => {
+		if (catalog.isAlchemy(card.name)) return [];
 		const cardId = `${id}-${i}`;
 		const resolved = catalog.byName(card.name);
-		if (resolved !== null) return { ...resolved, cardId };
+		if (resolved !== null) return [{ ...resolved, cardId }];
 		const scryfallId = card.scryfallId !== null && SCRYFALL_UUID_RE.test(card.scryfallId) ? card.scryfallId : null;
-		return missingTextCard(card.name, scryfallId, cardId);
+		return [missingTextCard(card.name, scryfallId, cardId)];
 	});
 }
 
