@@ -7,7 +7,8 @@
 import { describe, expect, it } from 'vitest';
 import { ROOM_FEED_CHANNEL, type RoomWatch } from '@hadoku/shared';
 
-import { createRoomFeed, FALLBACK_MS, socketPings, type FeedSocket, type FeedTarget, type PageVisibility, type PingReason, type PingSource } from './feed.ts';
+import type { PageVisibility } from '../visible.ts';
+import { createRoomFeed, FALLBACK_MS, socketPings, type FeedSocket, type FeedTarget, type PingReason, type PingSource } from './feed.ts';
 
 /** A page whose visibility a test flips, telling every listener as a browser does. */
 function page(): PageVisibility & { setHidden(hidden: boolean): void } {

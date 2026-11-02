@@ -33,6 +33,7 @@ import { io } from 'socket.io-client';
 import { ROOM_FEED_CHANNEL, ROOM_WATCH_MAX, RoomChangedSchema, type RoomWatch } from '@hadoku/shared';
 
 import { defaultSocketPath } from '../draft/socket.ts';
+import { documentVisibility, rereadWhileVisible, type PageVisibility } from '../visible.ts';
 
 /** How often a visible screen reads anyway. A lost ping costs at most this much staleness. */
 export const FALLBACK_MS = 30_000;
@@ -56,29 +57,12 @@ export interface PingSource {
   subscribe(target: FeedTarget, onPing: (why: PingReason) => void): () => void;
 }
 
-/** The tab's visibility. */
-export interface PageVisibility {
-  hidden(): boolean;
-  /** Called on every visibility change. Returns the unsubscribe. */
-  onChange(listener: () => void): () => void;
-}
-
 /** The part of a socket.io client this file uses. */
 export interface FeedSocket {
   on(event: string, handler: (payload?: unknown) => void): void;
   emit(event: string, payload: unknown, ack: () => void): void;
   readonly connected: boolean;
   close(): void;
-}
-
-function documentVisibility(doc: Document | undefined = globalThis.document): PageVisibility {
-  return {
-    hidden: () => doc?.visibilityState === 'hidden',
-    onChange: (listener) => {
-      doc?.addEventListener('visibilitychange', listener);
-      return () => doc?.removeEventListener('visibilitychange', listener);
-    },
-  };
 }
 
 export interface FeedDeps {
@@ -91,21 +75,15 @@ export interface FeedDeps {
 
 export function createRoomFeed(deps: FeedDeps): RoomFeed {
   const page = deps.page ?? documentVisibility();
-  const every = deps.setInterval ?? ((fn, ms) => globalThis.setInterval(fn, ms));
-  const stopEvery = deps.clearInterval ?? ((h) => globalThis.clearInterval(h as ReturnType<typeof setInterval>));
   return {
     follow(target, refresh) {
-      const whileVisible = (): void => {
+      const stopReread = rereadWhileVisible(refresh, deps.fallbackMs ?? FALLBACK_MS, { ...deps, page });
+      const stopPings = deps.pings.subscribe(target, () => {
         if (!page.hidden()) refresh();
-      };
-      whileVisible();
-      const stopPings = deps.pings.subscribe(target, whileVisible);
-      const timer = every(whileVisible, deps.fallbackMs ?? FALLBACK_MS);
-      const stopVisibility = page.onChange(whileVisible);
+      });
       return () => {
         stopPings();
-        stopEvery(timer);
-        stopVisibility();
+        stopReread();
       };
     },
   };

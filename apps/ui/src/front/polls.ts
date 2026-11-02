@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { AttachedFormSchema, type AttachedForm } from '@hadoku/shared';
 
 import { apiUrl, bodyOf, getJson, isRecord, serverMessage, type Fetch } from '../http.ts';
+import { rereadWhileVisible } from '../visible.ts';
 
 export type Poll = AttachedForm;
 
@@ -92,16 +93,15 @@ export async function pollAttached(form: Poll): Promise<void> {
 /** How often a mounted reader re-reads the polls, so another organizer's form shows without a reload (as `./events.ts` does). */
 const REFRESH_MS = 60_000;
 
-/** The open polls, kept fresh while mounted: `null` until the first read answers. */
+/** The open polls, kept fresh while mounted and shown (`../visible.ts`): `null` until the first read answers. */
 export function usePolls(): Poll[] | null {
   const [polls, setPolls] = useState<Poll[] | null>(current);
   useEffect(() => {
     const stop = subscribePolls(setPolls);
-    void refreshPolls();
-    const reread = setInterval(() => void refreshPolls(), REFRESH_MS);
+    const stopReread = rereadWhileVisible(() => void refreshPolls(), REFRESH_MS);
     return () => {
       stop();
-      clearInterval(reread);
+      stopReread();
     };
   }, []);
   return polls;

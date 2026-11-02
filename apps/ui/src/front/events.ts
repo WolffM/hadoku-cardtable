@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { EventListSchema, EventViewSchema, type EventKind, type EventView } from '@hadoku/shared';
 
 import { apiUrl, bodyOf, getJson, sendJson, serverMessage, type Fetch } from '../http.ts';
+import { rereadWhileVisible } from '../visible.ts';
 
 /** What each kind of event is called; the server sends only these (an event is always a room's). */
 export const EVENT_KIND_LABELS: Readonly<Partial<Record<EventKind, string>>> = {
@@ -79,18 +80,17 @@ export async function refreshEvents(): Promise<void> {
 /** How often a mounted reader re-reads the list, so another friend's event shows without a reload. */
 const REFRESH_MS = 60_000;
 
-/** The events, kept fresh while mounted, and the clock their countdowns read (ticking each half minute). */
+/** The events, kept fresh while mounted and shown (`../visible.ts`), and the clock their countdowns read (ticking each half minute). */
 export function useEvents(): { events: EventView[] | null; now: number } {
   const [events, setEvents] = useState<EventView[] | null>(current);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     listeners.add(setEvents);
-    void refreshEvents();
-    const reread = setInterval(() => void refreshEvents(), REFRESH_MS);
+    const stopReread = rereadWhileVisible(() => void refreshEvents(), REFRESH_MS);
     const tick = setInterval(() => setNow(Date.now()), 30_000);
     return () => {
       listeners.delete(setEvents);
-      clearInterval(reread);
+      stopReread();
       clearInterval(tick);
     };
   }, []);
