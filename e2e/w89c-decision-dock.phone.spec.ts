@@ -33,6 +33,10 @@ const dock = (page: Page): Locator => page.getByTestId('decision-dock');
 const expandBtn = (page: Page): Locator => page.getByTestId('decision-expand');
 const minimizeBtn = (page: Page): Locator => page.getByTestId('decision-minimize');
 const pillBtn = (page: Page): Locator => page.getByTestId('decision-pill');
+// Some searches route through the generic ask flow (`PromptShell`'s own `prompt-submit`) rather
+// than the selectables-driven `SelectionPrompt` (`selection-done`) — whichever one Forge's own ask
+// shape used, this is the one "Done"/submit the dock is showing.
+const doneBtn = (page: Page): Locator => dock(page).locator('[data-testid="selection-done"], [data-testid="prompt-submit"]');
 
 async function dockMode(page: Page): Promise<string | null> {
   return dock(page).getAttribute('data-mode');
@@ -107,7 +111,15 @@ async function castByTap(page: Page, name: string): Promise<void> {
   const view = page.getByTestId('card-view');
   await expect(view).toBeVisible({ timeout: 10_000 });
   const action = view.locator('[data-testid="card-view-action"][data-verb="cast"], [data-testid="card-view-action"][data-verb="play"]').first();
-  await action.tap({ timeout: 10_000, force: true });
+  try {
+    await action.tap({ timeout: 4_000, force: true });
+  } catch (err) {
+    // A one-cost, no-mode sorcery (Scapeshift) can cast the moment the view's single legal action is
+    // the only thing in it, closing the view before this tap lands — the cast already reached the
+    // stack (`offeredNamed` no longer names it in hand), not a miss on this lane's own part.
+    const stillInHand = await offeredNamed(page, name);
+    if (stillInHand !== undefined) throw err;
+  }
 }
 
 test(titled('ten Valakut triggers dock below the board and are answered with one tap on the opponent, "same target for all" ticked'), async ({ browser }) => {
@@ -121,26 +133,31 @@ test(titled('ten Valakut triggers dock below the board and are answered with one
     const bobLife = alice.page.locator('.seat:not([data-viewer]) [data-testid="life"]').first();
 
     await castByTap(alice.page, 'Scapeshift');
+    // Forge asks "Do you want to sacrifice?" (a real yes/no, `prompt-confirm-yes`) in alice's OWN
+    // docked dialog before the sacrifice-selection sheet ever shows a tile.
     await until('the sacrifice sheet (up to 11 lands) opens', async () => {
+      await tapConfirmYes(alice.page);
       await pumpOpponent(bob.page);
       return (await tiles(alice.page)).length >= 10;
     });
     for (const t of await tiles(alice.page)) await tapTile(alice.page, t.id);
-    await tapIfEnabled(dock(alice.page).getByTestId('selection-done'));
+    await tapIfEnabled(doneBtn(alice.page));
 
     await until('the search sheet (Valakut + ten Mountains) opens', async () => {
+      await tapConfirmYes(alice.page);
       await pumpOpponent(bob.page);
       return (await tiles(alice.page)).some((t) => /Valakut/.test(t.text));
     });
     const library = await tiles(alice.page);
     const picked = [...library.filter((t) => /Valakut/.test(t.text)), ...library.filter((t) => t.text.startsWith('Mountain'))];
     for (const t of picked) await tapTile(alice.page, t.id);
-    await tapIfEnabled(dock(alice.page).getByTestId('selection-done'));
+    await tapIfEnabled(doneBtn(alice.page));
 
     // The first trigger's own dock: below the board, covering no lane. A's `lane-*` test ids do not
     // exist in this worktree yet (checked, not assumed) — until then this reports what it found rather
     // than passing vacuously on zero lanes.
     await until('the first Valakut trigger opens', async () => {
+      await tapConfirmYes(alice.page);
       await pumpOpponent(bob.page);
       const says = (await alice.page.getByTestId('live-says').textContent().catch(() => null)) ?? '';
       return (await dock(alice.page).count()) > 0 && /Valakut/.test(says);
@@ -217,14 +234,18 @@ test(titled("Scapeshift's library search opens the dock full, scrolls only verti
     await forcePortrait(alice.page);
 
     await castByTap(alice.page, 'Scapeshift');
+    // Forge asks "Do you want to sacrifice?" (a real yes/no, `prompt-confirm-yes`) in alice's OWN
+    // docked dialog before the sacrifice-selection sheet ever shows a tile.
     await until('the sacrifice sheet opens', async () => {
+      await tapConfirmYes(alice.page);
       await pumpOpponent(bob.page);
       return (await tiles(alice.page)).length >= 10;
     });
     for (const t of await tiles(alice.page)) await tapTile(alice.page, t.id);
-    await tapIfEnabled(dock(alice.page).getByTestId('selection-done'));
+    await tapIfEnabled(doneBtn(alice.page));
 
     await until("the search sheet opens, full (the dock's own overflow measurement, not Scapeshift's name)", async () => {
+      await tapConfirmYes(alice.page);
       await pumpOpponent(bob.page);
       return (await dockMode(alice.page)) === 'full';
     });
@@ -236,7 +257,7 @@ test(titled("Scapeshift's library search opens the dock full, scrolls only verti
     expect(box.scrollWidth, 'no horizontal scroll inside the dock').toBe(box.clientWidth);
     expect(box.scrollHeight, "the search's tiles need the vertical scroll").toBeGreaterThan(box.clientHeight);
 
-    const done = dock(alice.page).getByTestId('selection-done');
+    const done = doneBtn(alice.page);
     await expect(done, 'Done is pinned and visible, never scrolled out of view').toBeVisible();
     const doneBox = (await done.boundingBox())!;
     const dockBox = (await dock(alice.page).boundingBox())!;
