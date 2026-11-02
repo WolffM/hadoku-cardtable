@@ -6,8 +6,10 @@
  *
  * Starts on the skeleton; `window.load()` swaps in the draft. `?w=` the seats
  * that still owe a pick (all of them when absent), `?q=` each seat's waiting
- * packs, `?scale=` the UI scale, `?real=1` draws
- * real card art and gives every seat a watchparty face (for screenshots).
+ * packs, `?scale=` the UI scale, `?side=` the room's bar's height in px (48
+ * when absent; it does not scale with the column's fit, as the real bar's name
+ * and Close do not), `?real=1` draws real card art and gives every seat a
+ * watchparty face (for screenshots).
  */
 import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -46,7 +48,7 @@ const view = { ...fixture, viewer, seats, waitingOn: waiting === null ? seats.ma
 applyUiScale(document.documentElement, Number(params.get('scale') ?? 1));
 
 /** A stand-in for the room's bar `PodScreen` puts at the top of the side column: the same in both states. */
-const side = <div data-fit-side="" style={{ height: 48 }} />;
+const side = <div data-fit-side="" style={{ height: Number(params.get('side') ?? 48) }} />;
 
 function Page() {
   const [loaded, setLoaded] = useState(false);
