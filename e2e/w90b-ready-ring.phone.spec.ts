@@ -128,6 +128,12 @@ async function postJson(context: import('@playwright/test').BrowserContext, path
  * Settling here before measuring is the fix: a real visitor never sees a ring mid-layout either.
  */
 async function waitForSettledSeats(page: Page): Promise<void> {
+  // The room is drawn inside a scrolling shell (`.shell--fit`): a seat row partly scrolled out of its top is
+  // hidden like any scrolled-off content, which is not the ring's clip (CI 41431333605: row top 77, shell's
+  // visible top 81). Bring every seat row fully into the shell's view first, then wait for it to hold still.
+  await page.evaluate(() => {
+    for (const el of Array.from(document.querySelectorAll('.pod-seats'))) el.scrollIntoView({ block: 'center', inline: 'nearest' });
+  });
   await page.waitForFunction(() => {
     const w = window as unknown as { __seatsTopSample?: number };
     const el = document.querySelector('.pod-seats');

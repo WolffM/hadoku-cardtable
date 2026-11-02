@@ -93,7 +93,7 @@ async function postJson(context: import('@playwright/test').BrowserContext, path
   expect(res.status(), `${path}: ${await res.text()}`).toBe(200);
 }
 
-test('a nine-seat draft pod, eight humans ready: the ring is not clipped at 1440×900', async ({ browser }) => {
+test('a nine-seat draft pod, seven of eight humans ready: the ring is not clipped at 1440×900', async ({ browser }) => {
   test.setTimeout(60_000);
   const alice = await openFriend(browser, 'alice');
   const extra: import('@playwright/test').BrowserContext[] = [];
@@ -113,13 +113,15 @@ test('a nine-seat draft pod, eight humans ready: the ring is not clipped at 1440
       await context.addCookies([{ name: SESSION_COOKIE, value: others[i]!, domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' }]);
       await postJson(context, `/rooms/${roomId}/join`, {});
       await postJson(context, `/rooms/${roomId}/pod/sit`, { seat: i + 1 });
-      await postJson(context, `/rooms/${roomId}/ready`, { ready: true });
+      // drafter8 stays seated but not ready: readying every base seat makes the room deal the draft
+      // (`ConstructedScreen`'s all-ready effect), and the seat strip is gone before it is measured.
+      if (others[i] !== 'drafter8') await postJson(context, `/rooms/${roomId}/ready`, { ready: true });
     }
 
     await alice.page.goto(`${EDGE_ORIGIN}${PREFIX}/#/room/${roomId}`);
     await resizeWindow(alice.page, { width: 1440, height: 900 });
     await expect(alice.page.getByTestId('pod-seat-8'), 'the ninth (growth) seat shows once all 8 are filled').toBeVisible({ timeout: UI_TIMEOUT });
-    await expect(alice.page.locator('.pod-seats__avatar[data-ready="true"]'), 'eight ready rings').toHaveCount(8);
+    await expect(alice.page.locator('.pod-seats__avatar[data-ready="true"]'), 'seven ready rings (drafter8 stays unready)').toHaveCount(7, { timeout: UI_TIMEOUT });
 
     const report = await ringFits(alice.page);
     console.log(`[w90b-ready-ring] draft pod @1440: ${report.rows.join(' | ')}`);
