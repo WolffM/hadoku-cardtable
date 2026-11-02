@@ -159,6 +159,9 @@ export const CONFIG = {
 	/** Every match's action log and public stream (`play/recording/`, `CARDTABLE_RECORDINGS_DIR`). */
 	recordingsDir: process.env.CARDTABLE_RECORDINGS_DIR ?? join(DATA_DIR, 'recordings'),
 
+	/** Every game both players walked away from, kept to be resumed (`play/parked.ts`, `CARDTABLE_PARKED_DIR`). */
+	parkedDir: process.env.CARDTABLE_PARKED_DIR ?? join(DATA_DIR, 'parked'),
+
 	/** The card catalog the pools resolve against (`CARDTABLE_CATALOG`). */
 	catalogPath: process.env.CARDTABLE_CATALOG ?? resolve(homedir(), '.local/share/cardtable/catalog/cards.json'),
 
@@ -190,6 +193,13 @@ export const CONFIG = {
 
 	/** `CARDTABLE_PLAY_PROBE=1`: the e2e harness's dev diagnostics — the scenario routes and the frame and stop traces. Never on in production. */
 	playProbe: process.env.CARDTABLE_PLAY_PROBE === '1',
+
+	/**
+	 * `CARDTABLE_PLAY_REJOIN_GRACE_MS`: how long a match nobody is at waits before it is parked
+	 * (`play/socket.ts`'s `PlayDeps.rejoinGraceMs`). Unset is play's own five minutes; a spec that
+	 * parks a game sets it shorter. Never set by the deploy path.
+	 */
+	playRejoinGraceMs: process.env.CARDTABLE_PLAY_REJOIN_GRACE_MS === undefined ? undefined : parseInt(process.env.CARDTABLE_PLAY_REJOIN_GRACE_MS, 10),
 
 	/**
 	 * `CARDTABLE_E2E_UNCHECKED_POOLS=1`: the jar-less e2e stack's own escape

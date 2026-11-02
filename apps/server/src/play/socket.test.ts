@@ -51,6 +51,7 @@ const AFTER_PROBE = TRANSCRIPT.slice(PROBE_AT + 1);
 
 interface Harness {
 	port: number;
+	io: SocketIOServer;
 	hosts: ReplayHost[];
 	handle: import('./socket.ts').PlayHandle;
 	logs: Record<string, unknown>[];
@@ -80,6 +81,7 @@ async function boot(
 		faces?: Map<string, string>;
 		/** The JVM pool, when the test needs the re-attach seam; its hosts are listed in `hosts`. */
 		host?: { factory: MatchHostFactory; hosts: ReplayHost[] };
+		onAbandoned?: (match: import('./match.ts').Match) => void;
 	} = {},
 ): Promise<Harness> {
 	const { factory, hosts } = options.host ?? replayFactory();
@@ -105,12 +107,14 @@ async function boot(
 		maxMatches: options.maxMatches,
 		startRateLimit: options.startRateLimit,
 		rejoinGraceMs: options.rejoinGraceMs,
+		...(options.onAbandoned === undefined ? {} : { onAbandoned: options.onAbandoned }),
 		seatAvatar: (_matchId, owner) => [...(options.faces ?? [])].find(([user]) => identityFromHeaders(edgeHeaders(user), 'test') === owner)?.[1],
 	});
 	await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
 	const port = (http.address() as AddressInfo).port;
 	harness = {
 		port,
+		io,
 		hosts,
 		handle,
 		logs,
@@ -348,10 +352,35 @@ describe('POST /api/play/matches', () => {
 
 		alice.socket.disconnect();
 		bob.socket.disconnect();
-		await waitUntil(() => h.handle.matches.get(matchId)?.status === 'stopped', 'the match nobody is at to stop');
+		await waitUntil(() => h.handle.matches.find(matchId)?.status === 'stopped', 'the match nobody is at to stop');
 		expect((h.hosts[0] as ReplayHost).stopped).toBe(true);
 		expect(h.logs.find((l) => l.evt === 'match-not-rejoined')).toMatchObject({ matchId, afterMs: 1500 });
 		expect((await startMatch(h)).status).toBe(201);
+	});
+
+	it('lets go of a match nobody came back to: what its readers ask is kept, its sockets leave its room, and a join hears it ended', async () => {
+		const abandoned: string[] = [];
+		const h = await boot({ disconnectGraceMs: 50, rejoinGraceMs: 300, onAbandoned: (m) => abandoned.push(`${m.id}:${m.status}`) });
+		const matchId = (await startMatch(h)).body.matchId as string;
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		const carol = await connect(h.port, edgeHeaders('carol'));
+		await alice.request('forge:join', { matchId });
+		await bob.request('forge:join', { matchId });
+		await carol.request('forge:join', { matchId });
+		alice.socket.disconnect();
+		bob.socket.disconnect();
+		await waitUntil(() => h.handle.matches.get(matchId) === undefined, 'the match nobody is at to be let go of');
+		expect(abandoned, 'told while it still ran, before the stop').toEqual([`${matchId}:running`]);
+		expect(h.handle.matches.find(matchId)?.status).toBe('stopped');
+		expect(h.logs.find((l) => l.evt === 'match-freed')).toMatchObject({ matchId, status: 'stopped' });
+		expect(h.io.sockets.adapter.rooms.has(matchId), 'the watcher still connected left its room').toBe(false);
+
+		const res = await fetch(`http://127.0.0.1:${h.port}/api/play/matches/${matchId}`, { headers: edgeHeaders('alice') });
+		expect(res.status).toBe(200);
+		expect(await res.json()).toMatchObject({ matchId, status: 'stopped', seats: [{ seat: 0, kind: 'human' }, { seat: 1, kind: 'human' }] });
+		const again = await connect(h.port, edgeHeaders('alice'));
+		expect(await again.request('forge:join', { matchId })).toEqual({ error: 'unknown-match', outcome: 'match-gone', message: 'This match has ended. Start a new match to play again.' });
 	});
 
 	it('reports a match Forge could not start as a failure, not a hang', async () => {
@@ -1589,7 +1618,7 @@ describe('shutdown', () => {
 			expect(notice.map((f) => f.method)).toContain('showErrorDialog');
 			expect(notice.find((f) => f.method === 'showErrorDialog')?.message).toBe('The server is restarting for a deploy.');
 		}
-		expect(h.handle.matches.get(matchId)?.status).toBe('stopped');
+		expect(h.handle.matches.find(matchId)?.status).toBe('stopped');
 
 		// And nothing new is started by a process on its way out.
 		const res = await fetch(`http://127.0.0.1:${h.port}/api/play/matches`, {
@@ -1687,7 +1716,7 @@ describe('shutdown', () => {
 		expect(outcome.ended).toEqual([matchId]);
 		// The point: something asked its host to stop. Before lane U nothing did.
 		expect(host.stopped).toBe(true);
-		expect(h.handle.matches.get(matchId)?.status).toBe('stopped');
+		expect(h.handle.matches.find(matchId)?.status).toBe('stopped');
 	});
 });
 

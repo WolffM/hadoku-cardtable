@@ -127,7 +127,7 @@ import { seatDeckColors, type DeckCosts } from './deck-colors.js';
 import { namedStopPolicy, STOP_POLICY_NAMES, withEndStepStop, type StopPolicy } from './auto.js';
 import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from './host.js';
 import { COLD_STARTS, queueColdStarts } from './start-queue.js';
-import { WATCHER_SEAT, createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity } from './match.js';
+import { WATCHER_SEAT, createMatchRegistry, type EndedMatch, type Match, type MatchRegistry, type MatchSpecWithIdentity, type ResumeFrom } from './match.js';
 import type { SpellCopy } from './spell-copiers.js';
 import { malformedFacts } from '../http/client-events.js';
 import { httpCaller, perCallerLimit, readBody } from '../http/request.js';
@@ -201,6 +201,8 @@ export interface PlayDeps {
 	keys?: Pick<KeyBook, 'learn'>;
 	/** A match's game ended: Forge's verdict and every seat's history are final. The stats reporter listens. */
 	onGameOver?(match: Match): void;
+	/** See {@link MatchDeps.abandoned}: nobody came back, and the match is about to stop unfinished. The parked store listens. */
+	onAbandoned?(match: Match): void;
 	/** See {@link MatchDeps.liveChanged}: the room the match was started from reads differently. */
 	liveChanged?(match: Match): void;
 	/** See {@link MatchDeps.formatNames}. */
@@ -229,8 +231,17 @@ export interface PlayDeps {
 	hosts?(): unknown;
 }
 
+/** {@link PlayHandle.start}'s answer: the match Forge opened, or why there is none, as an HTTP status and words. */
+export type StartOutcome = { ok: true; match: Match } | { ok: false; status: number; error: string; matchId?: string };
+
 export interface PlayHandle {
 	matches: MatchRegistry;
+	/**
+	 * Start a match the way `POST /play/matches` does — refused while draining, without Forge or at the
+	 * ceiling, then waited for until Forge has opened the game, and stopped if it never does. `from`: a
+	 * resumed game ({@link MatchRegistry.create}). `startedFor` can read its place in the queue.
+	 */
+	start(req: Request, spec: MatchSpec, startedFor: readonly ParticipantId[], from?: ResumeFrom): Promise<StartOutcome>;
 	/**
 	 * Settles once every match an earlier server left running has been adopted (or refused). The
 	 * host finds them asynchronously — a JVM may run on another machine — so anything that judges
@@ -259,6 +270,13 @@ export type MatchRefusal = MatchError & { outcome?: 'match-gone'; message?: stri
 /** What a player is told when the match they are asking for is not there any more. */
 export const MATCH_GONE_WORDS =
 	'This match is no longer running on the server — it ended when the server restarted or when Forge stopped. Nothing you did caused it. Start a new match to play again.';
+
+/** What a player is told when the match they are asking for ended, and why when it failed. */
+function endedWords(failure: string | null): string {
+	return failure === null
+		? 'This match has ended. Start a new match to play again.'
+		: `This match ended and cannot continue: ${failure.split('; see ')[0]}. Start a new match to play again.`;
+}
 
 /** The `match-gone` refusal: the code the wire always carried, plus the outcome and the words. */
 function matchGone(message = MATCH_GONE_WORDS): MatchRefusal {
@@ -292,7 +310,7 @@ type PlayRoom = CoreRoomState<PlayApp, PlayClient>;
  * the game starts we shouldn't know what deck they picked"*): its name goes to
  * the seat's own holder, and to everyone once the match is no longer being played.
  */
-function seatsSeenBy(match: Match, caller: ParticipantId): { seat: number; kind: 'ai' | 'human'; deck: string | null }[] {
+function seatsSeenBy(match: Pick<Match | EndedMatch, 'status' | 'seats'>, caller: ParticipantId): { seat: number; kind: 'ai' | 'human'; deck: string | null }[] {
 	const playing = match.status === 'starting' || match.status === 'running';
 	return match.seats.map((s) => ({ seat: s.seat, kind: s.ai ? 'ai' : 'human', deck: !playing || s.owner === caller ? s.deck : null }));
 }
@@ -529,6 +547,20 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		return room;
 	};
 
+	/**
+	 * The registry let go of a match: its socket room goes, with every socket still in it, and what
+	 * was kept for its joiners. The room held the match itself, so without this a stopped match's
+	 * whole state stayed in memory until the process restarted.
+	 */
+	const forget = (matchId: string): void => {
+		rooms.delete(matchId);
+		io.in(matchId).socketsLeave(matchId);
+		const prefix = `${matchId}#`;
+		for (const kept of [connected, arrangements, placements, placed] as Map<string, unknown>[]) {
+			for (const key of kept.keys()) if (key.startsWith(prefix)) kept.delete(key);
+		}
+	};
+
 	/** Set by `shutdown`: this process is going away, so it starts nothing new. */
 	let draining: string | null = null;
 
@@ -546,6 +578,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		overGraceMs: deps.overGraceMs ?? 10 * 60_000,
 		disconnectGraceMs: deps.disconnectGraceMs ?? 30_000,
 		...(deps.onGameOver === undefined ? {} : { onGameOver: deps.onGameOver }),
+		...(deps.onAbandoned === undefined ? {} : { abandoned: deps.onAbandoned }),
+		freed: (match) => forget(match.id),
 		...(deps.liveChanged === undefined ? {} : { liveChanged: deps.liveChanged }),
 		...(deps.formatNames === undefined ? {} : { formatNames: deps.formatNames }),
 		...(deps.spellCopiers === undefined ? {} : { spellCopiers: deps.spellCopiers }),
@@ -611,45 +645,50 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			res.status(400).json({ error: 'scenario-needs-probe' });
 			return;
 		}
-		// A match started now would be handed a JVM this process is about to stop
-		// watching, and its seats would never be told. Refused in words instead.
-		if (draining !== null) {
-			res.status(503).json({ error: draining });
-			return;
-		}
-		if (host === null) {
-			res.status(503).json({ error: 'Forge is not configured on this server (CARDTABLE_FORGE_JAR / CARDTABLE_FORGE_RES)' });
-			return;
-		}
-		// Only matches still being played hold a slot: a finished one keeps its JVM for
-		// `overGraceMs`, and counting it meant a conceded game blocked the next (2026-10-11).
-		const max = deps.maxMatches ?? MAX_CONCURRENT_MATCHES;
-		if (matches.active().filter((m) => m.status === 'starting' || m.status === 'running').length >= max) {
-			report('capacity-refused', { act: 'match-start', max, ...callerContext(req.headers) });
-			res.status(503).json({ error: `the server is already running ${max} matches` });
-			return;
-		}
-		// A board room's own board opens on the board itself: no coin toss, no mulligan (`MatchSpec.skipOpening`).
-		const match = matches.create(res.locals.trustedScenario === true ? { ...parsed.spec, skipOpening: true } : parsed.spec);
-		roomFor(match);
-		log({ evt: 'match-created', matchId: match.id, opponent: parsed.spec.seats[1].ai ? 'ai' : 'human' });
 		// Who is waiting on this start, for `GET /queue`: the caller, and a room start's players
 		// (`http/routes.ts`'s `startFromRoom`), whose own asks join this one.
 		const startedFor: unknown = res.locals.startedFor;
-		waitingOn.set(match, new Set([httpCaller(req), ...(Array.isArray(startedFor) ? (startedFor as ParticipantId[]) : [])]));
-		const running = await match.whenRunning(deps.startTimeoutMs ?? 60_000);
-		waitingOn.delete(match);
-		if (!running.ok) {
-			match.stop();
-			res.status(match.unstartable === null ? 500 : 503).json({ matchId: match.id, error: running.error });
+		// A board room's own board opens on the board itself: no coin toss, no mulligan (`MatchSpec.skipOpening`).
+		const started = await start(req, res.locals.trustedScenario === true ? { ...parsed.spec, skipOpening: true } : parsed.spec, [
+			httpCaller(req),
+			...(Array.isArray(startedFor) ? (startedFor as ParticipantId[]) : []),
+		]);
+		if (!started.ok) {
+			res.status(started.status).json({ ...(started.matchId === undefined ? {} : { matchId: started.matchId }), error: started.error });
 			return;
 		}
+		const { match } = started;
 		res.status(201).json({
 			matchId: match.id,
 			epoch: match.epoch,
 			seats: seatsSeenBy(match, httpCaller(req)),
 		});
 	});
+
+	async function start(req: Request, spec: MatchSpec, startedFor: readonly ParticipantId[], from?: ResumeFrom): Promise<StartOutcome> {
+		// A match started now would be handed a JVM this process is about to stop
+		// watching, and its seats would never be told. Refused in words instead.
+		if (draining !== null) return { ok: false, status: 503, error: draining };
+		if (host === null) return { ok: false, status: 503, error: 'Forge is not configured on this server (CARDTABLE_FORGE_JAR / CARDTABLE_FORGE_RES)' };
+		// Only matches still being played hold a slot: a finished one keeps its JVM for
+		// `overGraceMs`, and counting it meant a conceded game blocked the next (2026-10-11).
+		const max = deps.maxMatches ?? MAX_CONCURRENT_MATCHES;
+		if (matches.active().filter((m) => m.status === 'starting' || m.status === 'running').length >= max) {
+			report('capacity-refused', { act: 'match-start', max, ...callerContext(req.headers) });
+			return { ok: false, status: 503, error: `the server is already running ${max} matches` };
+		}
+		const match = matches.create(spec, from);
+		roomFor(match);
+		log({ evt: 'match-created', matchId: match.id, opponent: spec.seats[1].ai ? 'ai' : 'human', ...(from === undefined ? {} : { resumedAt: from.snapshot.turn }) });
+		waitingOn.set(match, new Set(startedFor));
+		const running = await match.whenRunning(deps.startTimeoutMs ?? 60_000);
+		waitingOn.delete(match);
+		if (!running.ok) {
+			match.stop();
+			return { ok: false, status: match.unstartable === null ? 500 : 503, error: running.error, matchId: match.id };
+		}
+		return { ok: true, match };
+	}
 
 	/**
 	 * The caller's place in the queue for a JVM (`start-queue.ts`) while a start they are waiting on
@@ -667,7 +706,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	});
 
 	router.get('/matches/:id', (req: Request, res: Response) => {
-		const match = matches.get(String(req.params.id));
+		const match = matches.find(String(req.params.id));
 		if (match === undefined) {
 			res.status(404).json({ error: 'no such match' });
 			return;
@@ -693,7 +732,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	 * does not exist. Names and counts, as the room's deck peek draws them.
 	 */
 	router.get('/matches/:id/deck', (req: Request, res: Response) => {
-		const match = matches.get(String(req.params.id));
+		const match = matches.find(String(req.params.id));
 		const seat = match?.seatOf(httpCaller(req)) ?? null;
 		const deck = seat === null ? null : (match?.spec.seats[seat]?.deck ?? null);
 		if (deck === null) {
@@ -860,11 +899,12 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			const request = parseMatchRequest(raw);
 			if (!request.ok) return { error: `malformed: ${request.errors[0]?.path ?? '$'} ${request.errors[0]?.message ?? ''}` };
 			const match = matches.get(request.value.matchId);
-			// The registry has never heard of it. Either it never existed, or — the
-			// case that actually happens — it died with an earlier process.
 			if (match === undefined) {
-				log({ evt: 'match-gone', matchId: request.value.matchId, participantId, event: isJoin ? 'join' : 'resync' });
-				return matchGone();
+				// Ended, and let go of: what is left of it says how it ended. Never heard of: it never
+				// existed, or — the case that actually happens — it died with an earlier process.
+				const ended = matches.find(request.value.matchId);
+				log({ evt: 'match-gone', matchId: request.value.matchId, ...(ended === undefined ? {} : { status: ended.status }), participantId, event: isJoin ? 'join' : 'resync' });
+				return ended === undefined ? matchGone() : matchGone(endedWords(ended.failure));
 			}
 			// It is here, and it is finished. A seat that has a board still gets it
 			// (with the notice the ending already put on its stream); one that has
@@ -872,11 +912,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			// which is what `snapshot` would say — is a lie.
 			if ((match.status === 'failed' || match.status === 'stopped') && !hasBoard(match, participantId)) {
 				log({ evt: 'match-gone', matchId: match.id, status: match.status, participantId, event: isJoin ? 'join' : 'resync' });
-				return matchGone(
-					match.failure === null
-						? 'This match has ended. Start a new match to play again.'
-						: `This match ended and cannot continue: ${match.failure.split('; see ')[0]}. Start a new match to play again.`,
-				);
+				return matchGone(endedWords(match.failure));
 			}
 
 			let seat = joined.get(match.id) ?? null;
@@ -1397,6 +1433,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 
 	return {
 		matches,
+		start,
 		adopted,
 		close(): void {
 			matches.stopAll();

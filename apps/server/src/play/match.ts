@@ -769,6 +769,14 @@ export interface MatchDeps {
 	 * read it live already told whoever was listening.
 	 */
 	onGameOver?(): void;
+	/**
+	 * Nobody came back ({@link Match.armRejoinGrace}): the match is about to be stopped with its game
+	 * unfinished. Told before the stop, while the match still holds what a later resume needs — its
+	 * latest turn-start snapshot, its seats' owners, its clock.
+	 */
+	abandoned?(): void;
+	/** The match let go of its JVM for good, stopped or failed, and says nothing more. Told once. */
+	ended?(): void;
 	/** {@link Match.armActWatch}'s silence before it asks the bridge to re-send. Absent is {@link ACT_SILENCE_MS}. */
 	actSilenceMs?: number;
 	now?: () => number;
@@ -1168,6 +1176,8 @@ export class Match {
 	private replaying = false;
 	/** Armed while no seat is here ({@link Match.armRejoinGrace}): a match nobody comes back to is stopped. */
 	private rejoinTimer: NodeJS.Timeout | null = null;
+	/** Whether {@link MatchDeps.ended} was told. */
+	private endedTold = false;
 	/**
 	 * Wave 35 §S, R4 — the card ids a discard choice JUST sent to Forge. The
 	 * next `getChoices` REVEAL (`min === max === -1`) whose `choices` are
@@ -1390,6 +1400,7 @@ export class Match {
 				return;
 			}
 			this.deps.log({ evt: 'match-not-rejoined', matchId: this.id, status: this.status, afterMs: grace });
+			this.deps.abandoned?.();
 			this.stop();
 		}, grace);
 		this.rejoinTimer.unref();
@@ -2290,6 +2301,13 @@ export class Match {
 		for (const done of this.runningWaiters.splice(0)) done({ ok: false, error: 'stopped' });
 		this.closeAllAsks();
 		this.host?.stop();
+		this.tellEnded();
+	}
+
+	private tellEnded(): void {
+		if (this.endedTold) return;
+		this.endedTold = true;
+		this.deps.ended?.();
 	}
 
 	/** See {@link gameOutcome}. */
@@ -4144,6 +4162,7 @@ export class Match {
 		this.closeAllAsks();
 		this.tellSeatsItEnded(reason);
 		this.host?.stop();
+		this.tellEnded();
 	}
 
 	/**
@@ -4202,7 +4221,9 @@ export class Match {
 			this.fail(reason);
 			return;
 		}
-		if (this.status === 'over') this.status = 'stopped';
+		if (this.status !== 'over') return;
+		this.status = 'stopped';
+		this.tellEnded();
 	}
 }
 
@@ -4238,8 +4259,21 @@ export function restoredSpec(spec: MatchSpec, snapshot: TurnSnapshot): MatchSpec
 /* ── The registry ────────────────────────────────────────────────────── */
 
 export interface MatchRegistry {
-	create(spec: MatchSpec): Match;
+	/**
+	 * A new match, under a new id. `from`: a game resumed from a parked match's turn-start snapshot
+	 * (`parked.ts`), opening on that board ({@link restoredSpec}) with its seats already held by
+	 * `from.owners` and its clock where it was left.
+	 */
+	create(spec: MatchSpec, from?: ResumeFrom): Match;
+	/** A match the registry holds: from its create until it ends ({@link MatchRegistry.find} has the rest). */
 	get(id: string): Match | undefined;
+	/**
+	 * What the registry still knows of a match: the match while it holds it, and once it has let go of
+	 * it, its {@link EndedMatch}. Let go of when it is stopped (by a stop, or past its finished game's
+	 * `overGraceMs`), or `overGraceMs` after it failed — the window a failed match is still restorable
+	 * in and its seats can still read why it ended. Only the most recent {@link ENDED_KEPT} are kept.
+	 */
+	find(id: string): Match | EndedMatch | undefined;
 	/** Matches that hold a JVM: starting, running, or over-but-not-yet-stopped. */
 	active(): Match[];
 	stopAll(): void;
@@ -4270,10 +4304,55 @@ export interface MatchRegistry {
 	handOver(): { handed: Match[]; ending: Match[] };
 }
 
+/** A resumed game's start: who holds each seat, the turn-start snapshot it opens on, and each seat's clock. */
+export interface ResumeFrom {
+	owners: readonly (string | null)[];
+	snapshot: TurnSnapshot;
+	clockMs?: [number, number];
+}
+
+/** How many {@link EndedMatch}es the registry keeps, newest first. Each is a spec and a few fields. */
+export const ENDED_KEPT = 256;
+
+/**
+ * What the registry keeps of a match once it has let go of it: what its readers still ask after the
+ * game — `GET /play/matches/:id`, a seat's own deck list, the table card's decks, a refused join's
+ * words — and nothing of its play. The histories, projectors, asks and frame ring a long game held
+ * (megabytes a seat) go with the match.
+ */
+export class EndedMatch {
+	readonly id: string;
+	readonly status: 'stopped' | 'failed';
+	readonly failure: string | null;
+	readonly winner: string | null;
+	/** The match's spec without a scenario: a resumed game's opening board is the parked record's to keep. */
+	readonly spec: MatchSpec;
+	readonly seats: readonly Pick<SeatState, 'seat' | 'ai' | 'owner' | 'playerId' | 'deck'>[];
+
+	constructor(match: Match) {
+		const { scenario: _scenario, ...spec } = match.spec;
+		this.id = match.id;
+		this.status = match.status === 'failed' ? 'failed' : 'stopped';
+		this.failure = match.failure;
+		this.winner = match.winner;
+		this.spec = spec;
+		this.seats = match.seats.map(({ seat, ai, owner, playerId, deck }) => ({ seat, ai, owner, playerId, deck }));
+	}
+
+	seatOf(participantId: ParticipantId): number | null {
+		return this.seats.find((s) => s.owner === participantId)?.seat ?? null;
+	}
+
+	/** Nothing is under way. */
+	live(): null {
+		return null;
+	}
+}
+
 /** What {@link MatchRegistry.restore} did: back to the start of turn `turn`, or a fresh game from the match's spec. */
 export type Restored = { match: Match; from: 'snapshot'; turn: number } | { match: Match; from: 'spec' };
 
-export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged' | 'phaseStopChanged' | 'onGameOver' | 'liveChanged'> & {
+export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged' | 'phaseStopChanged' | 'onGameOver' | 'liveChanged' | 'abandoned' | 'ended'> & {
 	emit(match: Match, seat: number, envelope: ServerEnvelope): void;
 	/** See {@link MatchDeps.seatsChanged}. */
 	seatsChanged?(match: Match, seats: SeatIdentity[]): void;
@@ -4282,12 +4361,31 @@ export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged' | 'phaseStopC
 	/** See {@link MatchDeps.onGameOver}. */
 	onGameOver?(match: Match): void;
 	liveChanged?(match: Match): void;
+	/** See {@link MatchDeps.abandoned}: the match can be parked (`parked.ts`). */
+	abandoned?(match: Match): void;
+	/** The registry let go of `match` ({@link MatchRegistry.find}): whatever was kept for it elsewhere can go too. */
+	freed?(match: Match): void;
 	/** The re-attach half of the host. Absent on a host whose JVMs die with us. */
 	attach?(record: MatchRecord, events: HostEvents): MatchHost;
 };
 
 export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 	const matches = new Map<string, Match>();
+	/** Oldest first, so the first key is the one to evict. */
+	const ended = new Map<string, EndedMatch>();
+	/** Let go of a match the registry holds: it keeps only its {@link EndedMatch}. */
+	const free = (m: Match): void => {
+		if (matches.get(m.id) !== m) return;
+		matches.delete(m.id);
+		ended.delete(m.id);
+		ended.set(m.id, new EndedMatch(m));
+		for (const id of ended.keys()) {
+			if (ended.size <= ENDED_KEPT) break;
+			ended.delete(id);
+		}
+		deps.log({ evt: 'match-freed', matchId: m.id, status: m.status });
+		deps.freed?.(m);
+	};
 	const active = (): Match[] => [...matches.values()].filter((m) => m.status === 'starting' || m.status === 'running' || m.status === 'over');
 	/** A match's deps: it reaches the seats only while it is the registry's match for its id, so a restored match's old self falls silent. */
 	const depsOf = (id: string, self: () => Match): MatchDeps => {
@@ -4308,17 +4406,35 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 			phaseStopChanged: when((m, seat: number, phase: StopPhase | null) => deps.phaseStopChanged?.(m, seat, phase)),
 			onGameOver: when((m) => deps.onGameOver?.(m)),
 			liveChanged: when((m) => deps.liveChanged?.(m)),
+			abandoned: when((m) => deps.abandoned?.(m)),
+			// A failed match stays restorable, and its seats can still read why, for the grace a finished one keeps its board.
+			ended: when((m) => {
+				if (m.status !== 'failed') {
+					free(m);
+					return;
+				}
+				setTimeout(() => free(m), deps.overGraceMs).unref();
+			}),
 		};
 	};
 	return {
-		create(spec) {
+		create(spec, from) {
 			const id = newMatchId();
-			const match: Match = new Match(id, spec, depsOf(id, () => match));
+			const match: Match = new Match(
+				id,
+				from === undefined ? spec : restoredSpec(spec, from.snapshot),
+				depsOf(id, () => match),
+				from === undefined
+					? undefined
+					: { epoch: null, owners: [...from.owners], startedAt: (deps.now ?? Date.now)(), snapshot: from.snapshot, ...(from.clockMs === undefined ? {} : { clockMs: from.clockMs }) },
+			);
 			matches.set(id, match);
+			ended.delete(id);
 			match.start();
 			return match;
 		},
 		get: (id) => matches.get(id),
+		find: (id) => matches.get(id) ?? ended.get(id),
 		active,
 		stopAll() {
 			for (const m of matches.values()) m.stop();
@@ -4334,6 +4450,7 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 				...(record.clockMs === undefined ? {} : { clockMs: record.clockMs }),
 			});
 			matches.set(record.matchId, match);
+			ended.delete(record.matchId);
 			match.resume((events) => attach(record, events));
 			return match;
 		},

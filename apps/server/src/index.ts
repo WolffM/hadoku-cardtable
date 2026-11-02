@@ -78,8 +78,9 @@ import { checkBundle, diagnosticPage, isEmbedEntry, sendIndex } from './base-pat
 import { announceRelease } from './announce.js';
 import { bootClock, restoreRooms, sweepRooms } from './boot.js';
 import { DEFAULT_CUBE_ID, DEFAULT_PLAN, stateOf, type PoolSourceResolver } from './room/draftRooms.js';
+import { draftIdOfPool } from './room/lobby.js';
 import { checkCards, checkPlan } from './room/plan.js';
-import type { DraftPlan, PoolVerdict, TableGame } from '@hadoku/shared';
+import { FREE_PICK, type DraftPlan, type PoolVerdict, type TableGame } from '@hadoku/shared';
 import { busyHandler } from './busy.js';
 import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { attachDraftSocket } from './room/socket.js';
@@ -99,6 +100,8 @@ import { attachDecks } from './http/decks.js';
 import { attachDrafts } from './http/drafts.js';
 import { attachRooms } from './http/rooms.js';
 import { attachTableActions, endForfeitedGame } from './http/table-actions.js';
+import { attachParked } from './http/parked.js';
+import { openParkedStore } from './play/parked.js';
 import { seedTestingRooms } from './room/testing-rooms.js';
 import { attachDiscord } from './http/discord.js';
 import { attachEvents } from './http/events.js';
@@ -620,7 +623,7 @@ attachRooms(api, {
 		const games: Record<string, TableGame> = {};
 		for (const table of room.tables) {
 			const matchId = table.matchId ?? table.series.games.at(-1)?.matchId;
-			const match = matchId === undefined ? undefined : play?.matches.get(matchId);
+			const match = matchId === undefined ? undefined : play?.matches.find(matchId);
 			if (match !== undefined) games[table.id] = tableGame(match, deckCosts);
 		}
 		return games;
@@ -814,6 +817,20 @@ attachReplays(api, {
 	...(rebuildHost === null ? {} : { rebuild: (matchId: string) => rebuildForReplays(matchId, { recordingsDir: RECORDINGS_DIR, host: rebuildHost, log: recordingsLog, deckCosts }) }),
 });
 
+// ── Parked games ─────────────────────────────────────────────────────────────
+// A game both players walked away from is parked once the rejoin grace runs out, and either of them
+// picks it up again from the stats popout's Unfinished games: a new room, the game from its last
+// turn-start snapshot (`play/parked.ts`, `http/parked.ts`). On disk for good, beside the rooms.
+const parkedLog = jsonLogger('cardtable-parked');
+const parked = openParkedStore({
+	dir: CONFIG.parkedDir,
+	log: parkedLog,
+	roomOf: (matchId) => lobby.roomOfMatch(matchId),
+	formatName: (pool) => (draftIdOfPool(pool) !== null ? 'Draft' : pool === FREE_PICK ? 'Free pick' : (library.format(pool)?.pool.name ?? pool)),
+	pin: forge.ok ? forgePin(forge.config.jar) : null,
+});
+attachParked(api, { store: parked, lobby, play: () => play, log: parkedLog, ...(CONFIG.testNoRateLimits ? { resumeRateLimit: null } : {}) });
+
 // Where matches run (`CARDTABLE_PLAY_HOSTS`): this machine's pool, or placement across the claws
 // with this machine as the backstop (`play/placement/`).
 const placementLog = jsonLogger('cardtable-placement');
@@ -831,17 +848,22 @@ play = attachPlay(io, api, {
 	probe: CONFIG.playProbe,
 	...(CONFIG.testNoRateLimits ? { startRateLimit: null } : {}),
 	devIdentity: CONFIG.allowUnverifiedEdge && CONFIG.edgeAuthSecret === '',
-	// Three listeners on one event: the stats report (`matchStats.gameOver`), the
+	// Four listeners on one event: the stats report (`matchStats.gameOver`), the
 	// room's own series ledger, recorded AT ONCE rather than waiting for a
 	// `/api/tables` read to notice the match is over (wave 72 §P step 1,
-	// `http/routes.ts`'s `TablesHandle.gameOver`), and the recorder's own winner
-	// for the public stream's `end` line. `play/**` itself is untouched — this is
-	// still the one hook it already exposed.
+	// `http/routes.ts`'s `TablesHandle.gameOver`), the recorder's own winner
+	// for the public stream's `end` line, and the parked store, for which a
+	// resumed game played to the end is finished with.
 	onGameOver: (match) => {
 		matchStats.gameOver(match);
 		tables.gameOver(match);
 		recorder.onGameOver(match);
+		parked.finished(match.id);
 	},
+	onAbandoned: (match) => {
+		parked.park(match);
+	},
+	...(CONFIG.playRejoinGraceMs === undefined ? {} : { rejoinGraceMs: CONFIG.playRejoinGraceMs }),
 	// The registry's `emit`, for every seat, before it reaches a socket — the recorder
 	// keeps only `WATCHER_SEAT`'s (`play/recording/recorder.ts`'s own doc).
 	onEnvelope: (matchId, seat, envelope) => recorder.onEnvelope(matchId, seat, envelope),
