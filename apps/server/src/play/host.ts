@@ -57,7 +57,10 @@
  * - **Every protocol line and every command of a match is appended to its own stream**,
  *   `<dir>/<matchId>.jsonl`, as it is read or sent; a re-attach replays that file into the new
  *   `Match` before a single live line reaches it. Replay is deterministic, so each seat's `seq`
- *   comes back identical.
+ *   comes back identical. A line is kept as the bridge wrote it, `match` stamp and all, through
+ *   a descriptor held open for the match's life; each append is synchronous, so the file is
+ *   whole for any reader the moment `persist` returns — this process's own `attach`, or the next
+ *   server's after a crash.
  * - **One record per JVM**, `<dir>/jvm.json` (`JvmRecord`): its host id, when it started, when it
  *   was handed over, and every match on it with its epoch, its seats' owners and its spec. A
  *   client therefore resyncs on the cursor it already held, and seat 2 cannot come back as seat 1.
@@ -116,7 +119,7 @@
  * is a bug and is logged, not parsed.
  */
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import type { AbortReasonSchema, ClientAction, GameLogLine, Loss, SendYieldUpdate } from '@hadoku/forge-wire';
@@ -538,6 +541,8 @@ interface Hosted {
 	/** The message of its `fatal`, for its exit. */
 	fatal: string | null;
 	stopTimer: NodeJS.Timeout | null;
+	/** Its stream's descriptor, open from its first entry until it ends, degrades or is let go. */
+	stream: number | null;
 }
 
 /** One `--host` JVM. */
@@ -668,13 +673,29 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		}
 	}
 
-	/** Keep a line or a command in the match's stream. A line that cannot be kept degrades the match. */
-	function persist(h: Hosted, entry: BridgeLine | { c: BridgeCommand }): void {
+	/**
+	 * Keep one entry — a bridge line as it came, or `{ c: command }` — in the match's stream. An
+	 * entry that cannot be kept degrades the match.
+	 */
+	function persist(h: Hosted, json: string): void {
 		if (h.degraded !== null) return;
 		try {
-			appendFileSync(streamFile(h.jvm.dir, h.id), `${JSON.stringify(entry)}\n`);
+			h.stream ??= openSync(streamFile(h.jvm.dir, h.id), 'a');
+			appendFileSync(h.stream, `${json}\n`);
 		} catch (err) {
 			degrade(h, `its stream could not be written (${(err as Error).message})`);
+		}
+	}
+
+	/** Let go of the match's stream descriptor: it has ended, degraded, or been handed over. */
+	function closeStream(h: Hosted): void {
+		if (h.stream === null) return;
+		const fd = h.stream;
+		h.stream = null;
+		try {
+			closeSync(fd);
+		} catch (err) {
+			(h.events?.log ?? poolLog)({ evt: 'match-stream-close-failed', matchId: h.id, error: (err as Error).message });
 		}
 	}
 
@@ -684,6 +705,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		h.degraded = `${cause}, so a replay would give the seats a board Forge does not have`;
 		const log = h.events?.log ?? poolLog;
 		log({ evt: 'match-degraded', level: 'error', matchId: h.id, hostId: h.jvm.hostId, why: h.degraded });
+		closeStream(h);
 		try {
 			renameSync(streamFile(h.jvm.dir, h.id), brokenStreamFile(h.jvm.dir, h.id));
 		} catch (err) {
@@ -721,7 +743,9 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 				continue;
 			}
 			if (!LINE_TYPES.has(String((entry as { t?: unknown }).t))) continue;
-			events.line(entry as BridgeLine);
+			// Kept with the bridge's `match` stamp, which `onText` takes off a live line.
+			const { match: _stamp, ...line } = entry as { match?: unknown };
+			events.line(line as BridgeLine);
 			replayed += 1;
 		}
 		return replayed;
@@ -832,7 +856,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 			return;
 		}
 		if (line.t === 'fatal') h.fatal = String(line.message);
-		persist(h, line as BridgeLine);
+		persist(h, text);
 		if (h.events !== null && !h.handed) h.events.line(line as BridgeLine);
 	}
 
@@ -870,6 +894,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		if (h.ended) return;
 		h.ended = true;
 		if (h.stopTimer !== null) clearTimeout(h.stopTimer);
+		closeStream(h);
 		pending.delete(h.id);
 		const jvm = h.jvm;
 		jvm.matches.delete(h.id);
@@ -893,6 +918,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		for (const h of lost) {
 			h.ended = true;
 			if (h.stopTimer !== null) clearTimeout(h.stopTimer);
+			closeStream(h);
 			pending.delete(h.id);
 			if (!reaping && h.events !== null && !h.handed) h.events.exit(h.stopping ? 'stopped' : why);
 		}
@@ -1002,7 +1028,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 				if (h.ended || h.jvm.exited) return;
 				// Kept in the same stream, in the same order, as the lines that came back: a replay
 				// has to know which asks the old server had already answered.
-				persist(h, { c: command });
+				persist(h, JSON.stringify({ c: command }));
 				h.jvm.transport.send(JSON.stringify({ ...command, match: h.id }));
 			},
 			stop: () => stopMatch(h),
@@ -1069,6 +1095,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 			degraded: null,
 			fatal: null,
 			stopTimer: null,
+			stream: null,
 		};
 		jvm.matches.set(matchId, h);
 		writeRecord(jvm);
@@ -1143,6 +1170,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 				degraded: null,
 				fatal: null,
 				stopTimer: null,
+				stream: null,
 			};
 			jvm.matches.set(h.id, h);
 			if (existsSync(streamFile(dir, h.id))) {
@@ -1220,7 +1248,10 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 		jvm.released = true;
 		if (jvm.liveness !== null) clearInterval(jvm.liveness);
 		if (jvm.idle !== null) clearTimeout(jvm.idle);
-		for (const h of jvm.matches.values()) if (h.stopTimer !== null) clearTimeout(h.stopTimer);
+		for (const h of jvm.matches.values()) {
+			if (h.stopTimer !== null) clearTimeout(h.stopTimer);
+			closeStream(h);
+		}
 		jvms.delete(jvm);
 		jvm.transport.release();
 	}

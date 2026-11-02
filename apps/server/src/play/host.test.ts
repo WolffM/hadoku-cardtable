@@ -833,9 +833,11 @@ describe('handing matches over on the way out', () => {
 		const first = jvmHostFactory({ ...config, workDir }, { warm: false, log: (e) => poolLog.push(e) });
 		pools.push(first);
 		const [a, b] = [recorder(), recorder()];
-		first('m-0000000000b1', SPEC, a);
+		const hostA = first('m-0000000000b1', SPEC, a);
 		first('m-0000000000b2', SPEC, b);
 		await waitUntil(() => ready(a) && ready(b), 'ready');
+		hostA.send({ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } });
+		await waitUntil(() => a.lines.some((l) => l.t === 'rejected'), 'the echo');
 		const hostId = first.jvms()[0]!.hostId;
 		const { pid } = spawned(poolLog, hostId);
 
@@ -853,7 +855,9 @@ describe('handing matches over on the way out', () => {
 		const resumed = recorder();
 		track(second.attach(back[0]!, resumed));
 		track(second.attach(back[1]!, recorder()));
-		expect(resumed.lines.map((l) => l.t)).toEqual(['ready']);
+		// The stream keeps each line as the bridge wrote it; the replay hands it over as it was handed live.
+		expect(resumed.lines.map((l) => l.t)).toEqual(['ready', 'rejected']);
+		expect(resumed.lines).toEqual(a.lines);
 	}, SLOW_TIMEOUT);
 
 	it('a pool that takes a JVM with room back boots no second one beside it', async () => {
