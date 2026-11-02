@@ -3120,8 +3120,8 @@ function Zone({
    * Portrait (the operator, after the look artifact: "use a similar scrolling carousel" for the
    * hand): only ever passed `true` on the viewer's own hand (`PlayerArea` only renders `Zone` with
    * `zone="hand"` for `player.isViewer`). Gives the hand's own `<ul>` the `lane-my-hand` test id
-   * `usePortraitLanes` (`Board.tsx`) finds every lane scroller by, so it gets the identical peek,
-   * edge fade and `lane-more` every board lane already has — not a second scroller.
+   * `usePortraitLanes` (`Board.tsx`) finds every lane scroller by, so it gets the identical peek
+   * and edge chevrons every board lane already has — not a second scroller.
    */
   portrait?: boolean;
 }) {
@@ -4131,15 +4131,14 @@ function PlayerArea({
  */
 
 /**
- * Portrait's lanes (Settled 3): "a sliver of the next card, an edge fade and a '+N' count show
- * there is more." Imperative, the same reasoning as `zone-box.ts`'s own doc — a scroll fires every
- * frame while a finger drags a lane, and writing two attributes and at most two `<li>`s per lane
- * costs far less than a React re-render for the same frame.
- *
- * The badge is a real `<li class="lane-more" data-testid="lane-more">`, appended to the lane's own
- * `<ul>` — a list item is the one child a card list already expects, so nothing that counts
- * `:scope > li.board-card` sees it. `data-side` is `"left"` or `"right"`, its text the count, exactly
- * the contract table's shape.
+ * Portrait's lanes (Settled 3): a sliver of the next card and an edge cue show there is more. The
+ * cue is the edge fade with a chevron in it, `‹` or `›`, pointing the way the lane scrolls (the
+ * operator, 2026-11-02: "i would prefer if there was a '>' or '<' for which direction the extra cards
+ * are so i know what direction to scroll in"). It is drawn by `portrait.css` off two classes on the
+ * lane, `lane--fade-l` and `lane--fade-r`, so a lane has no child of its own for it and no count:
+ * the direction is the information. Imperative, the same reasoning as `zone-box.ts`'s own doc: a
+ * scroll fires every frame while a finger drags a lane, and toggling two classes costs far less
+ * than a React re-render for the same frame.
  */
 function measurePortraitLane(lane: HTMLUListElement): void {
   // `portrait.css`'s own `--card-w` reads this directly: the lane's own visible content width,
@@ -4165,47 +4164,19 @@ function measurePortraitLane(lane: HTMLUListElement): void {
       }
     }
   }
-  const laneLeft = lane.scrollLeft;
-  const laneRight = laneLeft + lane.clientWidth;
-  let left = 0;
-  let right = 0;
-  for (const child of lane.children) {
-    if (!(child instanceof HTMLElement) || child.classList.contains('lane-more')) continue;
-    const width = child.offsetWidth;
-    if (width === 0) continue;
-    const a = child.offsetLeft - lane.offsetLeft;
-    const b = a + width;
-    if (b > laneRight + 4 && a > laneRight - width * 0.5) right++;
-    if (a < laneLeft - 4 && b < laneLeft + width * 0.5) left++;
-  }
-  lane.classList.toggle('lane--fade-r', right > 0);
-  lane.classList.toggle('lane--fade-l', left > 0);
-  for (const [side, count] of [['left', left], ['right', right]] as const) {
-    const existing = lane.querySelector<HTMLLIElement>(`li.lane-more[data-side="${side}"]`);
-    if (count === 0) {
-      existing?.remove();
-      continue;
-    }
-    const li = existing ?? document.createElement('li');
-    if (existing === null) {
-      li.className = 'lane-more';
-      li.setAttribute('data-testid', 'lane-more');
-      li.setAttribute('data-side', side);
-      li.setAttribute('aria-hidden', 'true');
-      lane.append(li);
-    }
-    li.textContent = `+${count}`;
-  }
+  // Room to scroll either way, with a pixel of slack for a fractional `scrollLeft`.
+  const room = lane.scrollWidth - lane.clientWidth;
+  lane.classList.toggle('lane--fade-l', lane.scrollLeft > 1);
+  lane.classList.toggle('lane--fade-r', lane.scrollLeft < room - 1);
 }
 
 /**
  * Every lane scroller under `root` — the four board lanes AND the hand (the operator: "use a
  * similar scrolling carousel" for the hand too) — found by the SAME `data-testid` the contract
- * table already names, so adding the hand here needed no second query and no second installer:
- * `lane-more` is excluded, it is a lane's own CHILD, not a lane.
+ * table already names, so adding the hand here needed no second query and no second installer.
  */
 function portraitLanesIn(root: HTMLElement): HTMLUListElement[] {
-  return [...root.querySelectorAll<HTMLUListElement>('[data-testid^="lane-"]:not([data-testid="lane-more"])')];
+  return [...root.querySelectorAll<HTMLUListElement>('[data-testid^="lane-"]')];
 }
 
 function usePortraitLanes(root: { readonly current: HTMLElement | null }, enabled: boolean): void {

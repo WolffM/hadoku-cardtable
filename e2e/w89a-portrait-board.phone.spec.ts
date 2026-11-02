@@ -35,7 +35,7 @@ import { SESSION_COOKIE } from './identities.ts';
 import { keepPrefsLocal, setPlayFastModeDefault } from './prefsLocal.ts';
 import { clickHandCard, makeTitled, offeredNamed, pressPaymentAuto, resizeWindow, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { noSideways, pinch, PHONE } from './play/phone.ts';
+import { laneCues, noSideways, pinch, PHONE } from './play/phone.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { matchUrl, startScenarioVsAi } from './play/scenario.ts';
 
@@ -46,7 +46,7 @@ test.use(PHONE);
 
 const LANE_IDS = ['lane-their-lands', 'lane-their-permanents', 'lane-my-permanents', 'lane-my-lands'] as const;
 
-test(titled('promo-valakut in portrait: chips, four lanes, card width, no sideways scroll, lane-more, pinch zoom'), async ({ browser }) => {
+test(titled('promo-valakut in portrait: chips, four lanes, card width, no sideways scroll, edge chevrons, pinch zoom'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -78,7 +78,7 @@ test(titled('promo-valakut in portrait: chips, four lanes, card width, no sidewa
 
     // Exactly 4 BOARD lane scrollers (the hand is a fifth, separate carousel — asserted further down).
     for (const id of LANE_IDS) await expect.soft(page.getByTestId(id), `${id} exists exactly once`).toHaveCount(1);
-    const laneCount = await page.locator('[data-testid^="lane-"]:not([data-testid="lane-more"]):not([data-testid="lane-my-hand"])').count();
+    const laneCount = await page.locator('[data-testid^="lane-"]:not([data-testid="lane-my-hand"])').count();
     expect.soft(laneCount, 'exactly 4 board lane scrollers').toBe(4);
 
     // Card width floor and "no more than 3 whole cards at 1x", on the lane the scenario fills:
@@ -138,7 +138,7 @@ test(titled('promo-valakut in portrait: chips, four lanes, card width, no sidewa
     // The hand is a carousel too (the operator, after the look artifact: "cards are too small in
     // hand, use a similar scrolling carousel") — lane-card size at 1x, scrolls to its 4th card
     // (promo-valakut's humanhand is exactly Scapeshift, Lightning Bolt, Search for Tomorrow,
-    // Summoner's Pact — four), same lane-more mechanic as the board lanes above. Hand cards are
+    // Summoner's Pact — four), same edge chevrons as the board lanes above. Hand cards are
     // `CardOnBoard`'s own `li.board-card`, the same as every other card on the board.
     const myHand = page.getByTestId('lane-my-hand');
     await expect(myHand).toBeVisible();
@@ -147,29 +147,45 @@ test(titled('promo-valakut in portrait: chips, four lanes, card width, no sidewa
     );
     expect.soft(handCardBoxes.length, 'promo-valakut deals a 4-card hand').toBe(4);
     for (const box of handCardBoxes) expect.soft(box.width, 'every hand card is at least 100px wide').toBeGreaterThanOrEqual(100);
-    const handMoreBefore = await myHand.locator('[data-testid="lane-more"][data-side="right"]').textContent().catch(() => null);
-    expect.soft(handMoreBefore, 'the hand starts with a lane-more count on the right (its 4th card is off the edge)').not.toBeNull();
+    const handBefore = await laneCues(myHand);
+    expect.soft(handBefore.right?.glyph, 'the hand starts with a › on the right (its 4th card is off the edge)').toBe('›');
+    expect.soft(handBefore.left, 'nothing to the left of an unscrolled hand').toBeNull();
     await myHand.evaluate((el) => {
       el.scrollLeft = el.scrollWidth;
     });
     await page.waitForTimeout(150);
-    const handStillOffRight = (await myHand.locator('[data-testid="lane-more"][data-side="right"]').count()) > 0;
-    expect.soft(handStillOffRight, 'scrolled all the way, nothing more to the right of the hand').toBe(false);
+    const handAfter = await laneCues(myHand);
+    expect.soft(handAfter.right, 'scrolled all the way, nothing more to the right of the hand').toBeNull();
+    expect.soft(handAfter.left?.glyph, 'scrolled all the way, a ‹ on the left of the hand').toBe('‹');
 
     // The page body never scrolls sideways (Settled 3).
     await noSideways(page);
 
-    // Scrolling a lane reveals its 4th card and lane-more counts it.
-    const moreBefore = await myLands.locator('[data-testid="lane-more"][data-side="right"]').textContent().catch(() => null);
-    expect.soft(moreBefore, 'my-lands starts with a lane-more count on the right').not.toBeNull();
+    // The edge cue (the operator, 2026-11-02: "they are too big, and i would prefer if there was a
+    // '>' or '<' for which direction the extra cards are"): a chevron the size of a glyph, not a
+    // card-wide pill, pointing the way the lane scrolls, and it takes no room in the lane — the
+    // first card does not move when a cue appears.
+    const firstLand = myLands.locator(':scope > li.board-card').first();
+    const before = await laneCues(myLands);
+    expect.soft(before.right?.glyph, 'my-lands starts with a › on the right').toBe('›');
+    expect.soft(before.right?.width ?? Infinity, 'the chevron is glyph-sized, not a card-wide pill').toBeLessThanOrEqual(24);
+    expect.soft(before.left, 'nothing to the left of an unscrolled lane').toBeNull();
+    const scrollWidthBefore = await myLands.evaluate((el) => el.scrollWidth);
+    const firstLeftBefore = (await firstLand.boundingBox())!.x;
+    await myLands.evaluate((el) => {
+      el.scrollLeft = 1;
+    });
+    await page.waitForTimeout(150);
+    expect.soft((await laneCues(myLands)).left?.glyph, 'scrolled a pixel, a ‹ appears on the left').toBe('‹');
+    expect.soft((await firstLand.boundingBox())!.x, 'the left chevron appearing moves no card').toBeCloseTo(firstLeftBefore - 1, 0);
+    expect.soft(await myLands.evaluate((el) => el.scrollWidth), 'the chevrons add no width to the lane').toBe(scrollWidthBefore);
     await myLands.evaluate((el) => {
       el.scrollLeft = el.scrollWidth;
     });
     await page.waitForTimeout(150);
-    const moreAfter = await myLands.locator('[data-testid="lane-more"][data-side="left"]').textContent().catch(() => null);
-    expect.soft(moreAfter, 'scrolled to the end, lane-more now counts what is left of view on the left').not.toBeNull();
-    const rightAfter = await myLands.locator('[data-testid="lane-more"][data-side="right"]').count();
-    expect.soft(rightAfter, 'scrolled all the way, nothing more to the right').toBe(0);
+    const after = await laneCues(myLands);
+    expect.soft(after.left?.glyph, 'scrolled to the end, a ‹ on the left').toBe('‹');
+    expect.soft(after.right, 'scrolled all the way, nothing more to the right').toBeNull();
 
     // Reset scroll for the zoom gesture below.
     await myLands.evaluate((el) => {

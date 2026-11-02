@@ -10,7 +10,7 @@
  * `confirm.ts`, `prompts.ts`, `hands.ts`), branching on `isPhone()` — this file holds only what
  * doesn't belong to any one of them.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 /**
  * True while the running test is in the `phone` project (`playwright.config.ts`'s own
@@ -127,4 +127,27 @@ export async function noSideways(page: Page): Promise<void> {
     return { scrollWidth: se.scrollWidth, clientWidth: se.clientWidth };
   });
   expect(scrollWidth, 'the page body does not scroll sideways').toBe(clientWidth);
+}
+
+/** One edge cue of a portrait lane, read off its pseudo-element: the glyph it draws and its width. */
+export interface LaneCue {
+  glyph: string;
+  width: number;
+}
+
+/**
+ * The edge cues a portrait lane draws (`portrait.css`): a chevron in the fade on each edge the lane
+ * can still scroll toward, `‹` on the left (`::before`) and `›` on the right (`::after`). Read off
+ * the computed pseudo-elements, since the cue is no element of its own; `null` where that edge has
+ * none.
+ */
+export async function laneCues(lane: Locator): Promise<{ left: LaneCue | null; right: LaneCue | null }> {
+  return lane.evaluate((el) => {
+    const read = (pseudo: '::before' | '::after') => {
+      const style = getComputedStyle(el, pseudo);
+      if (style.content === 'none' || style.content === 'normal') return null;
+      return { glyph: style.content.replace(/^"|"$/g, ''), width: Number.parseFloat(style.width) };
+    };
+    return { left: read('::before'), right: read('::after') };
+  });
 }
