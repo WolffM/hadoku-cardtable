@@ -4,7 +4,11 @@
 #   ~/.local/state/cardtable/telemetry/<YYYY-MM-DD>.txt   the report
 #   ~/.local/state/cardtable/telemetry/latest.txt         -> today's
 #   ~/.local/state/cardtable/telemetry/ALERTS             one line per day watch.ts exited 2
-#                                                         (a gate breach or a seal-refused)
+#                                                         (a gate breach or a seal-refused),
+#                                                         or failed (3 = the Discord post)
+#
+# Each run also posts a digest, with the report attached, to the Discord channel
+# behind the vault's DISCORD_CARDTABLE_DAILY_WEBHOOK (watch.ts --post).
 #
 # Installed in hadoku's crontab, run from the PPE tree (it tracks main). The
 # service key is the main checkout's .devvault.local.json, read by watch.ts
@@ -22,7 +26,7 @@ day=$(date -u +%F)
 report="$OUT/$day.txt"
 
 cd "$KEY_DIR" || exit 1
-"$NODE" "$WATCH" --hours 24 > "$report" 2>&1
+"$NODE" "$WATCH" --hours 24 --post > "$report" 2>&1
 code=$?
 ln -sfn "$day.txt" "$OUT/latest.txt"
 

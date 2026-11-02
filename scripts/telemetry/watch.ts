@@ -3,7 +3,7 @@
  * and this server's security events for a window, read with the repo's service
  * key and summarised for a person.
  *
- *   node scripts/telemetry/watch.ts [--hours 24] [--own-ip 187.15.91.*] [--json]
+ *   node scripts/telemetry/watch.ts [--hours 24] [--own-ip 187.15.91.*] [--json] [--post]
  *
  * Exits 2 when something needs a look NOW: an anonymous caller answered by
  * cardtable itself rather than the edge's sign-in page (a hole in the gate), or
@@ -12,6 +12,10 @@
  *
  * `--own-ip` is our own egress, masked the way the log masks it; agents' probes
  * and e2e browsers come from it and are not visitors. Default: looked up once.
+ *
+ * `--post` also sends a digest to Discord, with the full report attached, through
+ * the vault's `DISCORD_CARDTABLE_DAILY_WEBHOOK` (read from the broker with the same
+ * service key). A failed post exits 3 after printing the report.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -48,6 +52,7 @@ const { values: args } = parseArgs({
 		hours: { type: 'string', default: '24' },
 		'own-ip': { type: 'string' },
 		json: { type: 'boolean', default: false },
+		post: { type: 'boolean', default: false },
 	},
 });
 const since = new Date(Date.now() - Number(args.hours) * 3_600_000).toISOString();
@@ -241,13 +246,14 @@ const summary = {
 	).slice(0, 20),
 };
 
+const out: string[] = [];
 if (args.json) {
-	console.log(JSON.stringify(summary, null, 2));
+	out.push(JSON.stringify(summary, null, 2));
 } else {
 	const section = (title: string, lines: string[]) =>
-		console.log(`\n## ${title}\n${lines.length ? lines.join('\n') : '  (none)'}`);
+		out.push(`\n## ${title}\n${lines.length ? lines.join('\n') : '  (none)'}`);
 	const table = (xs: [string, number][]) => xs.map(([k, n]) => `${String(n).padStart(6)}  ${k}`);
-	console.log(
+	out.push(
 		`cardtable telemetry since ${since}: ${rows.length} edge rows, ${events.length} server events (own egress ${mine} excluded)`,
 	);
 	section('ALERT: anonymous callers cardtable itself answered', summary.alerts.gateBreaches);
@@ -303,5 +309,72 @@ if (args.json) {
 	);
 	section('Errors (excluding the edge sign-in 401s)', table(summary.errors));
 }
+const report = out.join('\n');
+console.log(report);
 
-if (breaches.length > 0 || sealRefused.length > 0) process.exit(2);
+const alerting = breaches.length > 0 || sealRefused.length > 0;
+
+/** The Discord message: what needs a look first, then one line per section; the report rides along as a file. */
+function digest(): string {
+	const n = (xs: unknown[]) => xs.length;
+	const sum = (xs: [string, number][]) => xs.reduce((t, [, k]) => t + k, 0);
+	const top = (xs: [string, number][], k = 3) => xs.slice(0, k).map(([key, c]) => `${c} × ${key}`).join(', ');
+	const lines = [
+		`**cardtable daily** · ${since.slice(0, 16).replace('T', ' ')} UTC → now · ${rows.length} edge rows, ${events.length} server events`,
+		alerting
+			? `🚨 **${n(summary.alerts.gateBreaches)} gate breach(es), ${n(summary.alerts.sealRefused)} seal-refused** — see the report`
+			: '✅ no gate breaches, no seal refusals',
+		`**New accounts:** ${
+			n(summary.newAccounts) === 0
+				? 'none'
+				: `${n(summary.newAccounts)} — ${summary.newAccounts
+						.slice(0, 10)
+						.map((a: Record<string, unknown>) => `${String(a.tier)} \`${String(a.userId).slice(0, 8)}\``)
+						.join(', ')}`
+		}`,
+		`**Traffic:** ${top(summary.traffic, 5) || 'none'}`,
+		`**Anonymous:** ${sum(summary.anonymous.byKind) === 0 ? 'none' : top(summary.anonymous.byKind)}`,
+		`**Scripted accounts:** ${n(summary.accounts.scripted) === 0 ? 'none' : summary.accounts.scripted.map((a) => `${a.tier} \`${a.id.slice(0, 8)}\` (${a.requests})`).join(', ')}`,
+		`**Costly acts / rate limits:** ${sum(summary.acts) === 0 ? 'none' : top(summary.acts)}`,
+		`**Capacity:** ${
+			summary.capacity.windows === 0
+				? 'no samples'
+				: `busiest ${summary.capacity.peakRequestsPerMin}/min, worst p95 ${Math.round(summary.capacity.worstP95Ms ?? 0)} ms, loop stall ${summary.capacity.worstLoopMaxMs} ms, lowest Forge headroom ${summary.capacity.lowestForgeFree}, ${summary.capacity.errors5xx} 5xx, ${sum(summary.capacity.refused)} refused`
+		}`,
+		`**Usage:** ${
+			summary.usage.windows === 0
+				? 'no samples'
+				: `${summary.usage.views} views, ${summary.usage.clicks} clicks, peak ${summary.usage.peakPeople} people`
+		}`,
+		`**Errors:** ${sum(summary.errors) === 0 ? 'none' : `${sum(summary.errors)} — ${top(summary.errors)}`}`,
+	];
+	const text = lines.join('\n');
+	return text.length <= 2000 ? text : `${text.slice(0, 1990)}…`;
+}
+
+async function post(): Promise<void> {
+	let hook = process.env.DISCORD_CARDTABLE_DAILY_WEBHOOK;
+	if (!hook) {
+		const res = await fetch('http://127.0.0.1:4000/api/secrets/get/DISCORD_CARDTABLE_DAILY_WEBHOOK', {
+			headers: { 'User-Agent': UA, 'X-User-Key': KEY },
+		});
+		const body = (await res.json()) as { success?: boolean; value?: string; error?: string };
+		if (!body.value) throw new Error(`vault: DISCORD_CARDTABLE_DAILY_WEBHOOK: ${body.error ?? `HTTP ${res.status}`}`);
+		hook = body.value;
+	}
+	const form = new FormData();
+	form.append('payload_json', JSON.stringify({ content: digest(), allowed_mentions: { parse: [] } }));
+	form.append('files[0]', new Blob([report], { type: 'text/plain' }), `cardtable-${new Date().toISOString().slice(0, 10)}.txt`);
+	const res = await fetch(hook, { method: 'POST', body: form });
+	if (!res.ok) throw new Error(`discord: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
+}
+
+if (args.post) {
+	try {
+		await post();
+	} catch (err) {
+		console.error(`PostError: ${(err as Error).message}`);
+		process.exit(3);
+	}
+}
+if (alerting) process.exit(2);
