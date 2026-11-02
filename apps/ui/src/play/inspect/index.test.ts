@@ -21,7 +21,7 @@ import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
 import { cardImageUrl } from '../../draft/cardImage.ts';
 import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
 import { Board, type BoardInteraction } from '../Board.tsx';
-import { CARD_LONG_PRESS, LONG_PRESS_MS, mountInspector, OPEN_WINDOW, PREF_W, type CardLongPress } from './index.ts';
+import { CARD_LONG_PRESS, LONG_PRESS_MS, mountInspector, OPEN_WINDOW, openCardView, PREF_W, type CardLongPress } from './index.ts';
 import { DRAG_SLOP_PX } from '../live/gestures/types.ts';
 
 /** Uuid-shaped, so the art resolver accepts it; nothing is fetched in jsdom. */
@@ -603,6 +603,52 @@ describe('touch', () => {
     longPress(theirCard().querySelector('.card')!);
     expect(panel()).not.toBeNull();
     fireEvent.pointerDown(theirCard().querySelector('.card')!, { pointerType: 'touch', clientX: 40, clientY: 40 });
+    expect(panel()).toBeNull();
+  });
+});
+
+describe('touch: the parked mouse pointer never closes a touch-opened view', () => {
+  // A touch screen still keeps a mouse pointer, parked where it last was, and Chromium re-targets it
+  // with a fresh `pointerover` whenever the layout under it changes — the portrait sheet appearing
+  // under it is one. Measured in real portrait (wave 89 §D2): that `pointerover` (pointerType mouse,
+  // target the sheet itself) closed the view in the same frame the tap opened it.
+  it('a mouse pointerover onto the view itself leaves the tap-opened view up', () => {
+    const { panel, board } = mountBoard();
+    expect(openCardView(board, 3)).toBe(true);
+    fireEvent.pointerOver(panel()!, { pointerType: 'mouse' });
+    expect(panel()).not.toBeNull();
+  });
+
+  it('a mouse pointerover onto empty table leaves a long-pressed view up', () => {
+    const { panel, board, theirCard } = mountBoard();
+    longPress(theirCard().querySelector('.card')!);
+    fireEvent.pointerOver(board.querySelector('.seat__counts')!, { pointerType: 'mouse' });
+    fireEvent.pointerOut(theirCard().querySelector('.card')!, { pointerType: 'mouse', relatedTarget: board });
+    expect(panel()).not.toBeNull();
+  });
+
+  it('a real mouse press closes a touch-opened view', () => {
+    const { panel, board } = mountBoard();
+    openCardView(board, 3);
+    fireEvent.pointerDown(board.querySelector('.seat__counts')!, { pointerType: 'mouse' });
+    expect(panel()).toBeNull();
+  });
+
+  it('a press on the view itself (portrait’s scrim) closes it and goes no further — the table never hears it', () => {
+    const { panel, board } = mountBoard();
+    openCardView(board, 3);
+    const heard = vi.fn();
+    board.addEventListener('pointerdown', heard);
+    fireEvent.pointerDown(panel()!, { pointerType: 'touch' });
+    expect(panel()).toBeNull();
+    expect(heard).not.toHaveBeenCalled();
+  });
+
+  it('a hover-opened view still closes when the mouse leaves it for empty table', () => {
+    const { panel, board, theirCard } = mountBoard();
+    hover(theirCard().querySelector('.card')!);
+    expect(panel()).not.toBeNull();
+    fireEvent.pointerOver(board.querySelector('.seat__counts')!, { pointerType: 'mouse' });
     expect(panel()).toBeNull();
   });
 });
