@@ -13,10 +13,11 @@
  * `screens/lobby.test.ts` gives.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
+import { FeaturedMatch } from '../front/LiveSlot.tsx';
 import { LobbyScreen } from '../screens/LobbyScreen.tsx';
 import { clearJoined, isJoined } from './joined.ts';
 import { parseRoute } from '../screens/route.ts';
@@ -154,6 +155,10 @@ function manualFeed(): RoomFeed & { ping(): void; targets(): FeedTarget[] } {
     targets: () => [...following.values()],
   };
 }
+
+// The lobby's featured card is a chunk of its own (`../lazy.ts`): loaded first, the lobby draws in one
+// render as before, and nothing lands between a test's presses.
+beforeAll(() => FeaturedMatch.preload());
 
 const mount = (client: ReturnType<typeof roomsClient>) => render(createElement(LobbyScreen, { rooms: client }));
 

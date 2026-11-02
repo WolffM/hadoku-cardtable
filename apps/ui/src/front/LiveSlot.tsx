@@ -8,14 +8,21 @@
  * keeps the place it had last visit (`./shape.ts`), drawn as its skeleton: the card's own title bar
  * and square window, in `FeaturedMatch`'s own classes. `FeaturedMatch` is not started until the
  * first room list has said what is live (`pick` is `undefined` until then).
+ *
+ * `FeaturedMatch` draws a whole board, so it is a chunk of its own (`../lazy.ts`): the lobby draws
+ * without it, and the slot starts loading it as it mounts, beside the room list it waits on. The
+ * skeleton stands in until the card has its answer either way.
  */
 
-import { useContext, useEffect, useState } from 'react';
+import { Suspense, useContext, useEffect, useState } from 'react';
 
 import { Reveal } from '../components/Reveal.tsx';
+import { lazyComponent } from '../lazy.ts';
 import type { FeaturedPick } from '../rooms/api.ts';
-import { FeaturedMatch } from './FeaturedMatch.tsx';
 import { FrontGateContext, usePartShown } from './gate.ts';
+
+/** The featured card's own chunk. A test preloads it to draw the lobby as the page does once it has landed. */
+export const FeaturedMatch = lazyComponent(() => import('./FeaturedMatch.tsx').then((m) => m.FeaturedMatch));
 
 /** `FeaturedMatch`'s card with nothing in it: its title bar and its square window. */
 function LiveSkeleton() {
@@ -44,11 +51,12 @@ export function LiveSlot({ pick }: { pick: FeaturedPick | null | undefined }) {
     if (drawn !== null) remember({ live: drawn });
   }, [drawn, remember]);
   const present = shown ? drawn === true : shape.live;
+  useEffect(() => void FeaturedMatch.preload(), []);
 
   return (
     <section className="front-live" data-testid="front-live-slot" data-present={present}>
       <Reveal name="live" shown={shown} skeleton={<LiveSkeleton />} className="front-live__reveal">
-        {pick !== undefined && <FeaturedMatch pick={pick} onSettled={setDrawn} />}
+        <Suspense fallback={null}>{pick !== undefined && <FeaturedMatch pick={pick} onSettled={setDrawn} />}</Suspense>
       </Reveal>
     </section>
   );

@@ -27,11 +27,14 @@
  * not change between builds) by `apps/server/src/index.ts`.
  */
 
+// Every sheet the table reaches, the lazy screens' too, in source order (`../../stylesheet.ts`).
+import 'virtual:cardtable-stylesheet';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { setDocumentScope } from '../dom.ts';
 import { navigate, parseRoute, routeInMemory } from '../screens/route.ts';
+import { preloadLikelyScreens } from '../screens/Screen.tsx';
 import { EmbedApp } from './EmbedApp.tsx';
 import { adoptStyles, fetchStyles } from './styles.ts';
 import type { GameBundleContext, GameBundleModule, MountedGameBundle } from './contract.ts';
@@ -88,6 +91,8 @@ async function mountCardtable(el: HTMLElement, ctx: GameBundleContext): Promise<
     hostTheme.set(ctx.theme);
     undo.push(hostTheme.undo);
     const shadow = el.shadowRoot ?? el.attachShadow({ mode: 'open' });
+    // A table is what the embed is mounted to show: its screens load beside the stylesheet.
+    preloadLikelyScreens();
     undo.push(adoptStyles(shadow, await fetchStyles(STYLESHEET)));
 
     const container = document.createElement('div');

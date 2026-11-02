@@ -1,9 +1,10 @@
 /*
  * The mount, the stylesheet order, and nothing else.
  *
- * No app logic lives here on purpose (the three exceptions are putting a stray
+ * No app logic lives here on purpose (the four exceptions are putting a stray
  * path back into the hash before the first render reads the route, taking
- * Rally's return trip off the query, `rooms/event-forms.ts`, and starting the usage counter, `usage.ts`): `App.tsx` routes and
+ * Rally's return trip off the query, `rooms/event-forms.ts`, starting the usage counter, `usage.ts`, and
+ * warming the screens a player opens next once the page is idle, `lazy.ts`): `App.tsx` routes and
  * `chrome/AppChrome.tsx` frames, and that file's header states the boundary a
  * replacement wrapper lands on. The one app-specific value on this path is the
  * catalogue token, and it is not read here — vite's `define` substitutes
@@ -13,6 +14,8 @@
  *
  * The import ORDER below is load-bearing; a wrapper swap keeps tier 1 first.
  */
+// Every sheet the app reaches, the lazy screens' too, in this file's import order (`../stylesheet.ts`).
+import 'virtual:cardtable-stylesheet';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
@@ -28,6 +31,9 @@ import { createRoot } from 'react-dom/client';
  *   3. the app's own sheets (`chrome/chrome.css`, `screens/screens.css`, both
  *      imported by `App.tsx`), which CONSUME the tokens above and redefine
  *      none of them.
+ *
+ * A screen that is a lazy chunk keeps its sheets' place in that order: the
+ * first import above lays out every sheet in source order (`../stylesheet.ts`).
  *
  * All seven fleet imports are required, and the reasons are not interchangeable:
  * `style.css` is the token set itself, `icons.css` is icon sizing and the
@@ -57,8 +63,10 @@ import '@wolffm/task-ui-components/scrollbar.css';
 import '@wolffm/task-ui-components/controls.css';
 import './styles.css';
 import { App } from './App.tsx';
+import { whenIdle } from './idle.ts';
 import { finishRallyReturn } from './rooms/event-forms.ts';
 import { canonicalizeAddress } from './screens/route.ts';
+import { preloadLikelyScreens } from './screens/Screen.tsx';
 import { startUsage } from './usage.ts';
 
 canonicalizeAddress();
@@ -74,3 +82,4 @@ createRoot(root).render(
     <App />
   </StrictMode>,
 );
+whenIdle(preloadLikelyScreens);

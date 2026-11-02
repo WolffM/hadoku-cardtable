@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { LiveMatch } from './match.ts';
+import { closeMatch, subscribe, type LiveMatch } from './match.ts';
 
 const played: string[] = [];
 const navigated: unknown[] = [];
@@ -12,7 +12,9 @@ vi.mock('../../rooms/api.ts', () => ({
   roomsClient: () => ({ roomOfMatch: (matchId: string) => new Promise((resolve) => roomAnswers.set(matchId, resolve)) }),
 }));
 
-const { BOARD_WAIT_MS, forgetMatchesFollowed, holdOnScreen, knownRoomOfMatch, matchStartSounded, openNewMatch, takeWarmMatch, warmMatchesWith } = await import('./matchStart.ts');
+const { BOARD_WAIT_MS, forgetMatchesFollowed, holdOnScreen, knownRoomOfMatch, matchStartSounded, openNewMatch, takeWarmMatch, warmMatchesFrom, warmMatchesWith } = await import(
+  './matchStart.ts'
+);
 
 describe('openNewMatch', () => {
   beforeEach(() => {
@@ -59,6 +61,15 @@ describe('the walk from the room to the board (w79d, item 5)', () => {
     for (const listener of match.listeners) listener();
   };
   let opened: (LiveMatch & { closed: boolean })[];
+  const opener = {
+    open: (matchId: string) => {
+      const match = fakeMatch(matchId);
+      opened.push(match);
+      return match;
+    },
+    subscribe,
+    close: closeMatch,
+  };
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -66,14 +77,11 @@ describe('the walk from the room to the board (w79d, item 5)', () => {
     roomAnswers.clear();
     opened = [];
     forgetMatchesFollowed();
-    warmMatchesWith((matchId) => {
-      const match = fakeMatch(matchId);
-      opened.push(match);
-      return match;
-    });
+    warmMatchesWith(opener);
   });
   afterEach(() => {
     warmMatchesWith(null);
+    warmMatchesFrom(null);
     vi.useRealTimers();
   });
 
@@ -124,5 +132,30 @@ describe('the walk from the room to the board (w79d, item 5)', () => {
     release();
     openNewMatch('m-13');
     expect(opened).toHaveLength(1);
+  });
+
+  it('a match entered before the board has loaded waits for it, and still walks in warm', async () => {
+    warmMatchesWith(null);
+    let landed: (loaded: typeof opener) => void = () => undefined;
+    warmMatchesFrom(() => new Promise((resolve) => (landed = resolve)));
+    openNewMatch('m-14');
+    expect(navigated, 'not in cold while the board is on its way').toEqual([]);
+    landed(opener);
+    await vi.waitFor(() => expect(opened).toHaveLength(1));
+    roomAnswers.get('m-14')!({ id: 'r-14' });
+    changed(opened[0]!, { view: {} as LiveMatch['view'] });
+    await vi.waitFor(() => expect(navigated).toEqual([{ kind: 'match', matchId: 'm-14' }]));
+    expect(takeWarmMatch('m-14')).toBe(opened[0]);
+  });
+
+  it('a board that cannot load is entered cold', async () => {
+    warmMatchesWith(null);
+    warmMatchesFrom(() => Promise.reject(new Error('chunk gone')));
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    openNewMatch('m-15');
+    await vi.waitFor(() => expect(navigated).toEqual([{ kind: 'match', matchId: 'm-15' }]));
+    expect(opened).toHaveLength(0);
+    expect(warned).toHaveBeenCalledOnce();
+    warned.mockRestore();
   });
 });

@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 
 import { APP_BASE } from './app-base.ts';
 import { BUILD_DEFINES } from './build-defines.ts';
+import { CHUNK_GROUPS, CHUNK_SIZE_WARNING_KB } from './chunks.ts';
+import { stylesheetInSourceOrder } from './stylesheet.ts';
 import { uiScaleCss } from './src/settings/ui-scale.ts';
 
 /**
@@ -78,13 +80,14 @@ const requireOneStylesheet: VitePlugin = {
 export default defineConfig({
   base: APP_BASE,
   define: BUILD_DEFINES,
-  plugins: [react(), requireOneStylesheet],
+  plugins: [react(), stylesheetInSourceOrder(), requireOneStylesheet],
   css: { postcss: { plugins: [shadowRootSelectors, uiScaleCss] } },
   build: {
     outDir: 'dist',
     emptyOutDir: false,
     sourcemap: true,
     cssCodeSplit: false,
+    chunkSizeWarningLimit: CHUNK_SIZE_WARNING_KB,
     assetsDir: 'embed/assets',
     rollupOptions: {
       input: 'src/embed/index.tsx',
@@ -92,6 +95,7 @@ export default defineConfig({
       output: {
         entryFileNames: ENTRY,
         chunkFileNames: 'embed/assets/[name]-[hash].js',
+        codeSplitting: { groups: CHUNK_GROUPS },
         assetFileNames: (asset) =>
           asset.names.some((name) => name.endsWith('.css')) ? STYLESHEET : 'embed/assets/[name]-[hash][extname]',
       },

@@ -56,6 +56,7 @@
 
 import { resolveArtUrl, type ArtManifestFile } from '@hadoku/carddata/art';
 import manifest from './art-manifest.json';
+import { whenIdle } from '../idle.ts';
 
 /** The image sizes the resolver knows how to build. */
 export type CardImageSize = 'small' | 'normal' | 'large';
@@ -199,11 +200,6 @@ export function artReady(url: string | null, onReady: () => void, priority: 'aut
 
 /** How many background art loads (`warmArt`) run at once. */
 export const PRELOAD_AT_ONCE = 3;
-
-function whenIdle(fn: () => void): void {
-  if (typeof requestIdleCallback === 'function') requestIdleCallback(fn, { timeout: 2000 });
-  else setTimeout(fn, 200);
-}
 
 /**
  * Warm `urls` in the background: `PRELOAD_AT_ONCE` at a time, at low priority, once the page is idle,

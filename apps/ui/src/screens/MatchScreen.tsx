@@ -50,7 +50,7 @@
 import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from 'react';
 
 import { LiveBoard } from '../play/live/LiveBoard.tsx';
-import { holdOnScreen, knownRoomOfMatch, takeWarmMatch, warmMatchesWith } from '../play/live/matchStart.ts';
+import { holdOnScreen, knownRoomOfMatch, takeWarmMatch, type MatchOpener } from '../play/live/matchStart.ts';
 import { pacedMatchTransport } from '../play/live/pace.ts';
 import { PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
 import { roomsClient } from '../rooms/api.ts';
@@ -82,8 +82,8 @@ function openMatch(matchId: string, transport?: MatchTransport): LiveMatch {
   });
 }
 
-// A room opens its new match through this before it hands the page over (`matchStart.ts`).
-warmMatchesWith(openMatch);
+/** How a room opens its new match before it hands the page over (`matchStart.ts`, given it by `Screen.tsx`). */
+export const matchOpener: MatchOpener = { open: (matchId) => openMatch(matchId), subscribe, close: closeMatch };
 
 export interface MatchScreenProps {
   matchId: string;

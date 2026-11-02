@@ -12,7 +12,7 @@
 import { roomsClient, type RoomView } from '../../rooms/api.ts';
 import { navigate } from '../../screens/route.ts';
 import { playRole } from '../../sound/index.ts';
-import { closeMatch, subscribe, type LiveMatch } from './match.ts';
+import type { LiveMatch } from './match.ts';
 
 const sounded = new Set<string>();
 /** Every match this page has been carried into, by a room or a start. */
@@ -78,10 +78,23 @@ export function openNewMatch(matchId: string): void {
 /** How long the room stays up for a board that has not drawn; after it the match screen says why. */
 export const BOARD_WAIT_MS = 5_000;
 
-/** How the page opens a match. The match screen registers it; with none, the route changes at once. */
-let opener: ((matchId: string) => LiveMatch) | null = null;
-/** Matches opened before their screen, waiting to be adopted by it. */
-const warm = new Map<string, LiveMatch>();
+/**
+ * How the page opens a match, follows it and closes it: the match screen's (`MatchScreen.tsx`'s
+ * `matchOpener`), or a test's. It is passed in rather than imported so the pages a match is started
+ * from (the room list, a room) do not carry the board's code: the match screen is a chunk of its own.
+ */
+export interface MatchOpener {
+  open(matchId: string): LiveMatch;
+  subscribe(match: LiveMatch, listener: () => void): () => void;
+  close(match: LiveMatch): void;
+}
+
+/** The opener; with none, and none to load, the route changes at once. */
+let opener: MatchOpener | null = null;
+/** Where the opener comes from until it has loaded: the match screen's chunk (`Screen.tsx`). */
+let loadOpener: (() => Promise<MatchOpener>) | null = null;
+/** Matches opened before their screen, waiting to be adopted by it, each with the opener that closes it. */
+const warm = new Map<string, { match: LiveMatch; opener: MatchOpener }>();
 /** Each entered match's room, as the server answered it (`null`: none). */
 const roomsKnown = new Map<string, RoomView | null>();
 /**
@@ -97,8 +110,13 @@ export function knownRoomOfMatch(matchId: string): RoomView | null | undefined {
   return roomsKnown.get(matchId);
 }
 
-export function warmMatchesWith(open: ((matchId: string) => LiveMatch) | null): void {
+export function warmMatchesWith(open: MatchOpener | null): void {
   opener = open;
+}
+
+/** The opener, loaded the first time a match is entered before it has been given one. */
+export function warmMatchesFrom(load: (() => Promise<MatchOpener>) | null): void {
+  loadOpener = load;
 }
 
 /** The match screen holds `matchId`'s handle until the returned function is called. */
@@ -109,19 +127,34 @@ export function holdOnScreen(matchId: string): () => void {
 
 /** The handle {@link enter} opened for this match, handed over once: the screen owns it from here. */
 export function takeWarmMatch(matchId: string): LiveMatch | null {
-  const match = warm.get(matchId) ?? null;
+  const match = warm.get(matchId)?.match ?? null;
   warm.delete(matchId);
   return match;
 }
 
 function enter(matchId: string): void {
+  if (opener === null && loadOpener !== null && !onScreen.has(matchId)) {
+    // The match screen's chunk is still on its way: wait for it, so this match walks in warm too.
+    loadOpener().then(
+      (loaded) => {
+        opener ??= loaded;
+        enter(matchId);
+      },
+      (err: unknown) => {
+        console.warn('[match] the board did not load ahead of its match; going in cold', err);
+        navigate({ kind: 'match', matchId });
+      },
+    );
+    return;
+  }
   if (opener === null || onScreen.has(matchId)) {
     navigate({ kind: 'match', matchId });
     return;
   }
   if (warm.has(matchId)) return;
-  const match = opener(matchId);
-  warm.set(matchId, match);
+  const by = opener;
+  const match = by.open(matchId);
+  warm.set(matchId, { match, opener: by });
   let roomAnswered = false;
   let gone = false;
   const go = (): void => {
@@ -132,13 +165,13 @@ function enter(matchId: string): void {
     navigate({ kind: 'match', matchId });
     // Still not adopted long after: the page went somewhere else, and the handle is nobody's.
     setTimeout(() => {
-      if (warm.get(matchId) === match) closeMatch(takeWarmMatch(matchId)!);
+      if (warm.get(matchId)?.match === match) by.close(takeWarmMatch(matchId)!);
     }, BOARD_WAIT_MS);
   };
   const settled = (): void => {
     if (roomAnswered && (match.view !== null || match.lastError !== null)) go();
   };
-  const stop = subscribe(match, settled);
+  const stop = by.subscribe(match, settled);
   const timer = setTimeout(go, BOARD_WAIT_MS);
   const answered = (room: RoomView | null | undefined): void => {
     if (room !== undefined) roomsKnown.set(matchId, room);
@@ -155,7 +188,7 @@ function enter(matchId: string): void {
 export function forgetMatchesFollowed(): void {
   followed.clear();
   tablesFollowed.clear();
-  for (const match of warm.values()) closeMatch(match);
+  for (const { match, opener: by } of warm.values()) by.close(match);
   warm.clear();
   roomsKnown.clear();
 }

@@ -26,7 +26,7 @@ import type { BreakdownRow, StatAttrs } from '@wolffm/prefs-client/games';
 
 import { ManaPip } from '../components/ManaPip.tsx';
 import { myDecksClient, type MyDecksClient } from '../deck/myDecks.ts';
-import { draftedDeckOption, libraryDeckPeek, openDraftedDeck, type PeekedDeck } from '../screens/ConstructedScreen.tsx';
+import type { PeekedDeck } from '../screens/ConstructedScreen.tsx';
 import { ChipFilterBar, toggled } from '../screens/DeckFilterBar.tsx';
 import { DeckPeek, usePeekHover } from '../screens/DeckPeek.tsx';
 import { FREE_PICK } from '@hadoku/shared';
@@ -132,17 +132,20 @@ export function deckLookup(tables: Pick<TablesClient, 'decks'> = tablesClient(),
   let library: ReturnType<TablesClient['decks']> | undefined;
   let drafted: ReturnType<MyDecksClient['list']> | undefined;
   return async (deckId) => {
+    // A deck's list reads as the room's picker reads it. The room screen is a chunk of its own, and
+    // the stats load without it.
+    const room = await import('../screens/ConstructedScreen.tsx');
     if (deckId.startsWith(DRAFTED)) {
       drafted ??= mine.list();
       const podId = deckId.slice(DRAFTED.length);
       const d = (await drafted).find((deck) => deck.id === podId);
       if (d === undefined || d.deck === null) return null;
-      const option = draftedDeckOption(deckId, d.name, openDraftedDeck(d.deck, d.id, d.pool), d.pool);
+      const option = room.draftedDeckOption(deckId, d.name, room.openDraftedDeck(d.deck, d.id, d.pool), d.pool);
       return option.list === undefined ? null : { label: option.label, colors: option.colors, list: option.list };
     }
     library ??= tables.decks();
     const d = (await library).find((deck) => deck.id === deckId);
-    return d === undefined ? null : libraryDeckPeek(d);
+    return d === undefined ? null : room.libraryDeckPeek(d);
   };
 }
 

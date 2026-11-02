@@ -5,7 +5,7 @@
  * name search narrows without asking, and the list a deck row opens on hover.
  */
 
-import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createElement } from 'react';
 import { createStatsCache } from '@wolffm/game-stats-ui';
@@ -135,6 +135,10 @@ describe('the Decks filter', () => {
 });
 
 describe('a deck row', () => {
+  // A deck's list reads through the room screen's module, a chunk the page has loaded by the time a
+  // row is hovered (`../screens/Screen.tsx` warms it); here it loads before the fake clock starts.
+  beforeAll(() => import('../screens/ConstructedScreen.tsx'));
+
   const useTimers = () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     onTestFinished(() => {

@@ -5,23 +5,45 @@
  * themselves are listed in `App.tsx`'s header and `route.ts`.
  */
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 
-import { ConstructedScreen } from './ConstructedScreen.tsx';
-import { DeckScreen } from './DeckScreen.tsx';
-import { DecksScreen } from './DecksScreen.tsx';
-import { InventoryScreen } from './InventoryScreen.tsx';
-import { LobbyScreen } from './LobbyScreen.tsx';
-import { MatchScreen } from './MatchScreen.tsx';
-import { MusicReview } from './MusicReview.tsx';
-import { ReplayScreen } from '../replay/ReplayScreen.tsx';
-import { RallyEmbed } from '../rally/RallyEmbed.tsx';
-import { SoundBuilder } from './SoundBuilder.tsx';
-import { SoundSandbox } from './SoundSandbox.tsx';
+import { lazyComponent } from '../lazy.ts';
+import { warmMatchesFrom } from '../play/live/matchStart.ts';
 import { navigate, useRoute } from './route.ts';
 import type { DraftTransport } from '../draft/socket.ts';
-import { TrimScreen } from '../settings/TrimScreen.tsx';
+
+/*
+ * Every screen but the lobby is a chunk of its own (`../lazy.ts`), loaded the first time its route
+ * draws. The lobby is the front door and draws with the page. The two a player opens next, a room
+ * and its match, are warmed once the page is idle ({@link preloadLikelyScreens}).
+ *
+ * The ORDER of the lines below is the cascade's: each screen's sheets sit in the one stylesheet
+ * where its import is written, a lazy one included (`../../stylesheet.ts`), so the lobby's import
+ * stays between the screens and `screens.css` comes after them all, as it always has.
+ */
+const ConstructedScreen = lazyComponent(() => import('./ConstructedScreen.tsx').then((m) => m.ConstructedScreen));
+const DeckScreen = lazyComponent(() => import('./DeckScreen.tsx').then((m) => m.DeckScreen));
+const DecksScreen = lazyComponent(() => import('./DecksScreen.tsx').then((m) => m.DecksScreen));
+const InventoryScreen = lazyComponent(() => import('./InventoryScreen.tsx').then((m) => m.InventoryScreen));
+import { LobbyScreen } from './LobbyScreen.tsx';
+const matchScreen = () => import('./MatchScreen.tsx');
+const MatchScreen = lazyComponent(() => matchScreen().then((m) => m.MatchScreen));
+const MusicReview = lazyComponent(() => import('./MusicReview.tsx').then((m) => m.MusicReview));
+const ReplayScreen = lazyComponent(() => import('../replay/ReplayScreen.tsx').then((m) => m.ReplayScreen));
+const RallyEmbed = lazyComponent(() => import('../rally/RallyEmbed.tsx').then((m) => m.RallyEmbed));
+const SoundBuilder = lazyComponent(() => import('./SoundBuilder.tsx').then((m) => m.SoundBuilder));
+const SoundSandbox = lazyComponent(() => import('./SoundSandbox.tsx').then((m) => m.SoundSandbox));
+const TrimScreen = lazyComponent(() => import('../settings/TrimScreen.tsx').then((m) => m.TrimScreen));
 import './screens.css';
+
+// A room opens its new match before it hands the page over, with the match screen's own opener.
+warmMatchesFrom(() => matchScreen().then((m) => m.matchOpener));
+
+/** Load a room's screen and its match's ahead of the press that opens them. The page calls this once it has drawn. */
+export function preloadLikelyScreens(): void {
+  void ConstructedScreen.preload();
+  void MatchScreen.preload();
+}
 
 export interface ScreenProps {
   /** Tests pass a stub socket. Production passes nothing. */
@@ -48,7 +70,16 @@ function LegacyDraftRedirect({ draftId }: { draftId: string }) {
   return null;
 }
 
-export function Screen({ transport }: ScreenProps) {
+/** Nothing in the screen's place while its chunk loads: the chrome around it is already drawn. */
+export function Screen(props: ScreenProps) {
+  return (
+    <Suspense fallback={null}>
+      <RouteScreen {...props} />
+    </Suspense>
+  );
+}
+
+function RouteScreen({ transport }: ScreenProps) {
   const route = useRoute();
 
   switch (route.kind) {

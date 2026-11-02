@@ -10,8 +10,9 @@
  *   - **A trophy beside the settings gear** opens it, and it is route-driven
  *     (`#/stats`, `#/stats/<name>`): Back closes it, a player's name opens
  *     theirs, and a stats link still works from anywhere.
- *   - **Prefetched.** The button warms every read the popout makes when the
- *     lobby mounts and again on hover, into one cache, so opening draws at once
+ *   - **Prefetched.** The button (`./StatsButton.tsx`) warms this chunk and every
+ *     read the popout makes once the lobby is idle and again on hover, into one
+ *     cache, so opening draws at once
  *     and refreshes behind what it shows (`@wolffm/game-stats-ui`'s cache) —
  *     for a signed-in viewer only, and never again after a refusal
  *     (`signedInStatsClient`).
@@ -170,25 +171,9 @@ export async function fetchDeckRecords(source: StatsSource = sharedSource()): Pr
   return new Map(rows.map(({ value, ...totals }) => [value, totals]));
 }
 
-/** Starts every read the popout opens with, for the viewer, so it draws at once. */
-function prefetchStats(source: StatsSource = sharedSource()): void {
+/** Starts every read the popout opens with, for the viewer, so it draws at once (`./StatsButton.tsx`). */
+export function prefetchStats(source: StatsSource = sharedSource()): void {
   prefetchGameStats({ ...source, mode: STATS_MODE, ratedOnly: true, breakdowns: breakdownsFor() });
-}
-
-/** The trophy beside the settings gear: opens the viewer's stats, and warms them first. */
-export function StatsButton({ source }: { source?: StatsSource }) {
-  useEffect(() => prefetchStats(source), [source]);
-  return (
-    <a
-      className="ct-round-button"
-      href={routeHash({ kind: 'stats' })}
-      aria-label="Stats"
-      data-testid="lobby-stats"
-      onPointerEnter={() => prefetchStats(source)}
-    >
-      <Icon name="trophy" size={uiLength('1.1rem')} />
-    </a>
-  );
 }
 
 const close = (): void => navigate({ kind: 'lobby' });

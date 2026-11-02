@@ -44,7 +44,7 @@
  * then): started early, it fetched a replay and then threw it away for the live match.
  */
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 
 import { Banner } from '../front/Banner.tsx';
 import { FrontGateContext, useFrontGateState } from '../front/gate.ts';
@@ -53,7 +53,8 @@ import type { FeaturedPick, RoomsClient } from '../rooms/api.ts';
 import type { RoomFeed } from '../rooms/feed.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import { useSiteTrim } from '../settings/siteTrim.ts';
-import { StatsButton, StatsPopout, type StatsSource } from '../stats/StatsPopout.tsx';
+import { StatsButton, StatsPopout } from '../stats/StatsButton.tsx';
+import type { StatsSource } from '../stats/StatsPopout.tsx';
 import { DecksButton } from './DecksButton.tsx';
 import { InventoryButton } from './InventoryButton.tsx';
 import { useChromeShell } from '../chrome/shell.ts';
@@ -104,7 +105,10 @@ export function LobbyScreen({ rooms, feed, stats, statsSource }: LobbyScreenProp
         Unofficial fan project, not affiliated with or endorsed by Wizards of the Coast. Card names, text and images
         are ™ &amp; © Wizards of the Coast.
       </p>
-      {stats !== undefined && <StatsPopout player={stats.player} tournaments={stats.tournaments === true} source={statsSource} />}
+      {/* Its own boundary: the popout's chunk loading must not take the lobby under it away. */}
+      <Suspense fallback={null}>
+        {stats !== undefined && <StatsPopout player={stats.player} tournaments={stats.tournaments === true} source={statsSource} />}
+      </Suspense>
     </div>
   );
 }

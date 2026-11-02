@@ -7,7 +7,7 @@
  * `@wolffm/game-stats-ui` tests the screen itself.
  */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createStatsCache } from '@wolffm/game-stats-ui';
@@ -23,6 +23,7 @@ import {
 
 import { LobbyScreen } from '../screens/LobbyScreen.tsx';
 import type { RoomFeed } from '../rooms/feed.ts';
+import { StatsPopout } from './StatsButton.tsx';
 import { prefsBaseUrl, signedInStatsClient, type StatsSource } from './StatsPopout.tsx';
 
 afterEach(() => {
@@ -116,6 +117,9 @@ const QUIET: RoomFeed = {
 /** The lobby, with the popout open for `player` when `open`. */
 const lobby = (source: StatsSource, open?: { player?: string }) =>
   createElement(LobbyScreen, { rooms: NO_ROOMS, feed: QUIET, statsSource: source, stats: open });
+
+// The popout is a chunk of its own, which the lobby's trophy loads before it is opened (`./StatsButton.tsx`).
+beforeAll(() => StatsPopout.preload());
 
 describe('the stats popout', () => {
   it('draws colours as pips, decks on each seat, turns, and names as links to their page, all in the constructed pool', async () => {
