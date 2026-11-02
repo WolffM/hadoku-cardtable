@@ -414,6 +414,19 @@ describe('attachCubeRoutes', () => {
 		expect(cards.map((c) => c.name).sort()).toEqual(['Forest', 'Island']);
 	});
 
+	it("GET :id/arts answers a few of the cube's own cards' art ids, without the cards", async () => {
+		const { shortlistDir, importDir } = await makeDirs();
+		const store = createCubeStore({ shortlistDir, importDir, catalog: EMPTY_CATALOG });
+		const base = await openApp(store);
+		const own = new Set(store.cards('demo-cube')!.map((c) => c.scryfallId).filter((id) => id !== undefined));
+		const res = await call(base, 'GET', '/api/pools/cubes/demo-cube/arts?n=3', 'alice');
+		expect(res.status).toBe(200);
+		const { arts } = res.json as { arts: string[] };
+		expect(arts.length).toBe(Math.min(3, own.size));
+		for (const id of arts) expect(own.has(id)).toBe(true);
+		expect((await call(base, 'GET', '/api/pools/cubes/nope/arts', 'alice')).status).toBe(404);
+	});
+
 	it('GET :id/cards is 404 for an unknown id', async () => {
 		const { shortlistDir, importDir } = await makeDirs();
 		const store = createCubeStore({ shortlistDir, importDir, catalog: EMPTY_CATALOG });

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import type { DraftCard } from './draft.ts';
+
 export const PoolSourceSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('cube'), cubeId: z.string().min(1) }),
   z.strictObject({ kind: z.literal('set'), code: z.string().min(1), style: z.enum(['realistic', 'set-cube']) }),
@@ -60,6 +62,19 @@ export const CubeSummarySchema = z.strictObject({
   artId: z.string().uuid().nullable(),
 });
 export type CubeSummary = z.infer<typeof CubeSummarySchema>;
+
+/** The most art ids `GET /api/pools/cubes/:id/arts` draws at once. */
+export const CUBE_ARTS_MAX = 12;
+/** `GET /api/pools/cubes/:id/arts?n=`: a few of a cube's own cards' art ids, drawn at random. */
+export const CubeArtsSchema = z.strictObject({ arts: z.array(z.string()).max(CUBE_ARTS_MAX) });
+
+/** Up to `n` distinct cards' art ids from a cube's own cards, drawn at random. */
+export function sampleArt(cards: readonly DraftCard[], n: number, random: () => number = Math.random): string[] {
+  const ids = [...new Set(cards.map((c) => c.scryfallId).filter((id): id is string => id !== undefined))];
+  const out: string[] = [];
+  while (out.length < n && ids.length > 0) out.push(ids.splice(Math.floor(random() * ids.length), 1)[0]!);
+  return out;
+}
 
 export const ImportCubeBodySchema = z.strictObject({ link: z.string().min(1).max(300) });
 export const SetDraftPlanBodySchema = z.strictObject({ plan: DraftPlanSchema });

@@ -5,7 +5,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { CubeSummarySchema, planDisplayName, type DraftPlan } from './pool.ts';
+import type { DraftCard } from './draft.ts';
+import { CubeSummarySchema, planDisplayName, sampleArt, type DraftPlan } from './pool.ts';
 
 const base = {
   id: 'a-cube',
@@ -53,5 +54,16 @@ describe('planDisplayName', () => {
 
   it('the same set in two styles is two sources', () => {
     expect(planDisplayName({ rounds: [ala, ala, { ...ala, style: 'set-cube' }] }, ['ALA', 'ALA', 'ALA'])).toBe('ALA · Realistic / ALA · Realistic / ALA · Set-cube');
+  });
+});
+
+describe('sampleArt', () => {
+  const card = (id: string | undefined, n: number): DraftCard => ({ cardId: `k${String(n)}`, name: `Card ${String(n)}`, ...(id === undefined ? {} : { scryfallId: id }) }) as DraftCard;
+
+  it('draws distinct art ids, skipping cards with none, never more than asked', () => {
+    const cards = [card('a', 1), card('a', 2), card(undefined, 3), card('b', 4), card('c', 5), card('d', 6)];
+    const drawn = sampleArt(cards, 3, () => 0);
+    expect(drawn).toEqual(['a', 'b', 'c']);
+    expect(sampleArt(cards.slice(0, 3), 3)).toEqual(['a']);
   });
 });

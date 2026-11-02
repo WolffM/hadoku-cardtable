@@ -2,10 +2,10 @@
  * The wildcard gallery's pure choices (`./wildcardItems.ts`).
  */
 import { describe, expect, it } from 'vitest';
-import type { CubeSummary, DraftCard, PodView, RoomTable } from '@hadoku/shared';
+import type { CubeSummary, PodView, RoomTable } from '@hadoku/shared';
 
 import type { RoomView } from '../rooms/api.ts';
-import { openSeats, pickWildcard, sampleArt, spotlightCube, wildcardPages, WILDCARD_PRIORITY } from './wildcardItems.ts';
+import { openSeats, pickWildcard, spotlightCube, wildcardPages, WILDCARD_PRIORITY } from './wildcardItems.ts';
 
 const table = (over: Partial<RoomTable> = {}): RoomTable => ({
   id: 't-1',
@@ -96,17 +96,6 @@ describe('spotlightCube', () => {
     const good = cube({ id: 'good', verdict: { ok: true, cards: 360 } });
     expect(spotlightCube([refused, empty, good], () => 0.99)?.id).toBe('good');
     expect(spotlightCube([refused, empty])).toBeNull();
-  });
-});
-
-describe('sampleArt', () => {
-  const card = (id: string | undefined, n: number): DraftCard => ({ cardId: `k${String(n)}`, name: `Card ${String(n)}`, ...(id === undefined ? {} : { scryfallId: id }) }) as DraftCard;
-
-  it('draws distinct art ids, skipping cards with none, never more than asked', () => {
-    const cards = [card('a', 1), card('a', 2), card(undefined, 3), card('b', 4), card('c', 5), card('d', 6)];
-    const drawn = sampleArt(cards, 3, () => 0);
-    expect(drawn).toEqual(['a', 'b', 'c']);
-    expect(sampleArt(cards.slice(0, 3), 3)).toEqual(['a']);
   });
 });
 

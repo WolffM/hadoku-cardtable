@@ -53,6 +53,7 @@ beforeEach(() => {
     refreshCube: vi.fn(),
     deleteCube: vi.fn(),
     cubeCards: vi.fn().mockResolvedValue(null),
+    cubeArts: vi.fn().mockResolvedValue(null),
     listSets: vi.fn().mockResolvedValue([]),
     listPresets: vi.fn().mockResolvedValue([]),
     savePreset: vi.fn(),

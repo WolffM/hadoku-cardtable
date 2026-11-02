@@ -35,6 +35,7 @@
 
 import {
   RoomBodySchema,
+  CubeArtsSchema,
   CubeSummarySchema,
   DraftCardSchema,
   DraftPresetSchema,
@@ -550,6 +551,8 @@ export interface PoolsClient {
    * between the room's plan and this call costs a warm-up, not a screen.
    */
   cubeCards(id: string): Promise<DraftCard[] | null>;
+  /** `GET /api/pools/cubes/:id/arts?n=`: `n` of its cards' art ids, drawn by the server; `null` on any failure. */
+  cubeArts(id: string, n: number): Promise<string[] | null>;
   /**
    * Every set Forge has a draft booster template for (ruling 8), newest
    * first — `GET /api/pools/sets` (wave 74 §E). `verdict` is cached-only; this
@@ -622,6 +625,17 @@ export function poolsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base
       if (res.ok) return { ok: true };
       const body = await bodyOf(res);
       return { ok: false, message: `Could not delete that cube: ${serverMessage(body, res.status)}.` };
+    },
+
+    async cubeArts(id, n) {
+      try {
+        const res = await getJson(url(`/${encodeURIComponent(id)}/arts?n=${String(n)}`), fetchImpl);
+        if (!res.ok) return null;
+        const parsed = CubeArtsSchema.safeParse(await bodyOf(res));
+        return parsed.success ? parsed.data.arts : null;
+      } catch {
+        return null;
+      }
     },
 
     async cubeCards(id) {

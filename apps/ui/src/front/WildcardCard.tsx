@@ -51,7 +51,7 @@ import { playRole } from '../sound/index.ts';
 import { avatarColour, avatarInitial, discordTime, groupMessages } from './discordChat.ts';
 import { usePartShown } from './gate.ts';
 import { Gallery } from './Gallery.tsx';
-import { openSeats, pickWildcard, sampleArt, spotlightCube, wildcardPages, type WildcardKind } from './wildcardItems.ts';
+import { openSeats, pickWildcard, spotlightCube, wildcardPages, type WildcardKind } from './wildcardItems.ts';
 
 interface WildcardItem {
   key: WildcardKind;
@@ -207,14 +207,13 @@ function useCubeSpotlight(): WildcardItem | null | typeof ASKING {
       .listCubes()
       .then(async (cubes) => {
         const cube = spotlightCube(cubes);
-        const cards = cube === null ? null : await pools.cubeCards(cube.id);
+        const sampled = cube === null ? null : await pools.cubeArts(cube.id, 3);
         if (!live) return;
         if (cube === null) {
           setItem(null);
           return;
         }
-        const sampled = sampleArt(cards ?? [], 3);
-        const arts = sampled.length > 0 ? sampled : cube.artId === null ? [] : [cube.artId];
+        const arts = sampled !== null && sampled.length > 0 ? sampled : cube.artId === null ? [] : [cube.artId];
         setItem({
           key: 'cube',
           kind: 'Cube spotlight',

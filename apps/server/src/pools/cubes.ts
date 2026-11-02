@@ -5,6 +5,7 @@
  *
  *   GET    /api/pools/cubes            → 200 CubeSummary[] (imported newest-first, then the shortlist)
  *   GET    /api/pools/cubes/:id/cards  → 200 DraftCard[] | 404 { error } — lane B's art preload reads a plan's cube from here, before the deal
+ *   GET    /api/pools/cubes/:id/arts   [?n=3] → 200 { arts } | 404 { error } — a few of its cards' art ids, at random: the lobby's spotlight
  *   POST   /api/pools/cubes/import     { link } → 201 CubeSummary | 400 { error }
  *   POST   /api/pools/cubes/:id/refresh → 200 CubeSummary | 400 | 403 | 404
  *   DELETE /api/pools/cubes/:id        → 204 | 400 | 403 | 404
@@ -45,7 +46,7 @@ import { mkdir, open, rename } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import express, { type Request, type Response, type Router } from 'express';
 
-import { DraftCardSchema, ImportCubeBodySchema, type CubeSummary, type DraftCard, type PoolVerdict } from '@hadoku/shared';
+import { CUBE_ARTS_MAX, DraftCardSchema, ImportCubeBodySchema, sampleArt, type CubeSummary, type DraftCard, type PoolVerdict } from '@hadoku/shared';
 import { bodyErrors, httpCaller } from '../http/request.js';
 import type { CardCatalog } from './catalog.ts';
 import { fetchCubeCobraCube, parseCubeCobraLink, type CubeCobraCard, type CubeCobraCube, type FetchJson } from './cubecobra.ts';
@@ -525,6 +526,19 @@ export function attachCubeRoutes(api: Router, deps: AttachCubeRoutesDeps): void 
 			return;
 		}
 		res.json(cards);
+	});
+
+	// The lobby's cube spotlight shows three of a cube's cards. It used to fetch the whole card list
+	// (the vintage cube's is 244 KB) on every visit to draw them itself.
+	cubes.get('/:id/arts', (req: Request, res: Response) => {
+		const id = String(req.params.id);
+		const cards = store.cards(id);
+		if (cards === null) {
+			res.status(404).json({ error: `no cube ${JSON.stringify(id)}` });
+			return;
+		}
+		const asked = Number.parseInt(String(req.query.n ?? '3'), 10);
+		res.json({ arts: sampleArt(cards, Number.isFinite(asked) ? Math.min(Math.max(asked, 0), CUBE_ARTS_MAX) : 3) });
 	});
 
 	cubes.post('/import', (req: Request, res: Response) => {

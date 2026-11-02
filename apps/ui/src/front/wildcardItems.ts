@@ -1,10 +1,9 @@
 /*
  * The wildcard card's own choices (`./WildcardCard.tsx`), pure so they are tested without mounting
- * it: which room is asking for players, which cube is in the spotlight, which of its cards show,
- * which page the gallery opens on (`pickWildcard`) and the order of the rest (`wildcardPages`).
+ * it: which room is asking for players, which cube is in the spotlight, which page the gallery opens on (`pickWildcard`) and the order of the rest (`wildcardPages`).
  */
 
-import type { CubeSummary, DraftCard } from '@hadoku/shared';
+import type { CubeSummary } from '@hadoku/shared';
 
 import { gameTypeLabel, type RoomView } from '../rooms/api.ts';
 import { roomCardView } from './roomCard.ts';
@@ -68,12 +67,4 @@ export function openSeats(rooms: readonly RoomView[], now: number = Date.now()):
 export function spotlightCube(cubes: readonly CubeSummary[], random: () => number = Math.random): CubeSummary | null {
   const playable = cubes.filter((c) => c.size > 0 && c.verdict?.ok !== false);
   return playable.length === 0 ? null : playable[Math.floor(random() * playable.length)]!;
-}
-
-/** Up to `n` distinct cards' art ids from a cube's own cards, drawn at random. */
-export function sampleArt(cards: readonly DraftCard[], n: number, random: () => number = Math.random): string[] {
-  const ids = [...new Set(cards.map((c) => c.scryfallId).filter((id): id is string => id !== undefined))];
-  const out: string[] = [];
-  while (out.length < n && ids.length > 0) out.push(ids.splice(Math.floor(random() * ids.length), 1)[0]!);
-  return out;
 }
