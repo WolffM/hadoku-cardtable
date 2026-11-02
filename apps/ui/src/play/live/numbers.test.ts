@@ -24,16 +24,15 @@ import {
   STACK_OFFSET_PX,
   STACK_STAGGER_MS,
   STRIKE_SLACK_MS,
-  TICK_STEP_MS,
   diffViews,
   formatDelta,
   installNumbers,
+  LIFE_PUNCH_MS,
+  lifeChunks,
   lifeColour,
   planRams,
   ramEnd,
-  runningTotal,
   stackLayout,
-  tickSteps,
 } from './numbers.ts';
 
 /* ── fixtures: the smallest BoardView/BoardPlayer/BoardCard that typechecks ── */
@@ -150,11 +149,48 @@ describe('stackLayout', () => {
   });
 });
 
-describe('tickSteps', () => {
-  it('counts down one at a time to a loss, up to a gain, and is empty for no change', () => {
-    expect(tickSteps(20, 17)).toEqual([19, 18, 17]);
-    expect(tickSteps(20, 23)).toEqual([21, 22, 23]);
-    expect(tickSteps(20, 20)).toEqual([]);
+describe('lifeChunks', () => {
+  it('each damage instance is its own chunk, in the order they land, adding up to the change', () => {
+    expect(lifeChunks(-7, [{ at: 100, amount: 1 }, { at: 380, amount: 4 }, { at: 660, amount: 2 }], 50)).toEqual([
+      { at: 100, delta: -1 },
+      { at: 380, delta: -4 },
+      { at: 660, delta: -2 },
+    ]);
+  });
+
+  it('hits are taken in the order they land, not the order given; two landing at the same moment land as one', () => {
+    expect(lifeChunks(-6, [{ at: 380, amount: 4 }, { at: 100, amount: 1 }, { at: 100, amount: 1 }], 50)).toEqual([
+      { at: 100, delta: -2 },
+      { at: 380, delta: -4 },
+    ]);
+  });
+
+  it('what the total moved beyond the hits is one more instance, a gap after the last: a gain beside the loss, or a loss that was not damage', () => {
+    expect(lifeChunks(-1, [{ at: 0, amount: 3 }], 50), 'a gain with the loss is never summed into it').toEqual([
+      { at: 0, delta: -3 },
+      { at: 50, delta: 2 },
+    ]);
+    expect(lifeChunks(2, [{ at: 0, amount: 3 }], 50), 'a net gain still lands the hit first').toEqual([
+      { at: 0, delta: -3 },
+      { at: 50, delta: 5 },
+    ]);
+    expect(lifeChunks(-5, [{ at: 0, amount: 3 }], 50)).toEqual([
+      { at: 0, delta: -3 },
+      { at: 50, delta: -2 },
+    ]);
+  });
+
+  it('no hits is one chunk with the whole change; no change is nothing', () => {
+    expect(lifeChunks(-3, [], 50)).toEqual([{ at: 0, delta: -3 }]);
+    expect(lifeChunks(4, [{ at: 10, amount: 0 }], 50)).toEqual([{ at: 0, delta: 4 }]);
+    expect(lifeChunks(0, [], 50)).toEqual([]);
+  });
+
+  it('the running total never passes through a value between two instances', () => {
+    const chunks = lifeChunks(-9, [{ at: 0, amount: 2 }, { at: 1, amount: 3 }, { at: 2, amount: 4 }], 1);
+    let total = 20;
+    const shown = chunks.map((c) => (total += c.delta));
+    expect(shown).toEqual([18, 15, 11]);
   });
 });
 
@@ -285,31 +321,45 @@ describe('installNumbers: life', () => {
     handle.dispose();
   });
 
-  it('the seat bar’s own life span ticks in 150ms steps, coloured for 1.5s, with nothing drawn beside it', () => {
+  it('the seat bar’s own life span lands the whole change at once with a punch, coloured for 1.5s, with nothing drawn beside it', async () => {
     vi.useFakeTimers();
     const { canvas } = board();
     const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
     const face1 = canvas.querySelector<HTMLElement>('[data-player-face][data-player-id="1"]')!;
     const lifeSpan = face1.querySelector<HTMLElement>('[data-testid="life"]')!;
+    const seen = new Set<string>();
+    new MutationObserver(() => seen.add(lifeSpan.textContent ?? '')).observe(lifeSpan, { childList: true, characterData: true, subtree: true });
 
     handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20)]));
     handle.notify(view([player(0, 20, { isViewer: true }), player(1, 17)]));
 
-    expect(lifeSpan.textContent, 'not yet stepped').toBe('20');
+    expect(lifeSpan.textContent, 'landed whole').toBe('17');
     expect(face1.textContent, 'no old value beside the counter').toBe(lifeSpan.textContent);
     expect(lifeSpan.dataset.numberLifeColour).toBe('danger');
+    expect(lifeSpan.dataset.lifeLanded, 'it punches').toBe('punch');
+    expect(canvas.style.getPropertyValue('--life-punch-ms')).toBe(`${LIFE_PUNCH_MS}ms`);
 
-    vi.advanceTimersByTime(TICK_STEP_MS);
-    expect(lifeSpan.textContent).toBe('19');
-    vi.advanceTimersByTime(TICK_STEP_MS);
-    expect(lifeSpan.textContent).toBe('18');
-    vi.advanceTimersByTime(TICK_STEP_MS);
+    vi.advanceTimersByTime(LIFE_COLOUR_MS - 1);
     expect(lifeSpan.textContent).toBe('17');
-
-    vi.advanceTimersByTime(LIFE_COLOUR_MS - 3 * TICK_STEP_MS - 1);
     expect(lifeSpan.dataset.numberLifeColour, 'still coloured, 1.5s not up yet').toBe('danger');
     vi.advanceTimersByTime(1);
     expect(lifeSpan.dataset.numberLifeColour).toBeUndefined();
+    expect(lifeSpan.dataset.lifeLanded).toBeUndefined();
+    await Promise.resolve();
+    expect([...seen].filter((v) => v !== '20' && v !== '17'), 'never a value in between').toEqual([]);
+    handle.dispose();
+  });
+
+  it('reduced motion: the counter fades its new total in, no punch', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const handle = installNumbers(canvas, { reducedMotion: () => true, fastMode: () => false });
+    const lifeSpan = canvas.querySelector<HTMLElement>('[data-player-face][data-player-id="1"] [data-testid="life"]')!;
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20)]));
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 23)]));
+    expect(lifeSpan.textContent).toBe('23');
+    expect(lifeSpan.dataset.lifeLanded).toBe('fade');
+    expect(lifeSpan.dataset.numberLifeColour).toBe('success');
     handle.dispose();
   });
 
@@ -465,8 +515,34 @@ describe('installNumbers: a resolution’s hits', () => {
     expect(face.hasAttribute('data-hit-flash'), 'no flash on an avatar: its ring drew as a box around it').toBe(false);
     expect(overlay.querySelector('.effect-impact'), 'and takes the impact').not.toBeNull();
     expect(overlay.querySelector('.board-number')?.textContent, 'a life total still shows its number').toBe('-2');
-    vi.advanceTimersByTime(2 * TICK_STEP_MS);
-    expect(life.textContent).toBe('18');
+    expect(life.textContent, 'the counter lands the hit whole').toBe('18');
+    handle.dispose();
+  });
+
+  it('a resolution that hit a player twice sends two bolts, BOLT_STAGGER_MS apart, each landing its own chunk and number', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay, life } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]));
+    life.textContent = '15';
+    handle.notify({
+      ...view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 15)]),
+      faceHits: [
+        { seq: 7, playerId: 1, sourceId: 8, amount: 2, combat: false },
+        { seq: 8, playerId: 1, sourceId: 8, amount: 3, combat: false },
+      ],
+    });
+    expect([...overlay.querySelectorAll<HTMLElement>('.effect-hit')].map((m) => m.dataset.hit)).toEqual(['player:1:40']);
+    expect(life.textContent).toBe('20');
+    vi.advanceTimersByTime(BOLT_STAGGER_MS);
+    expect([...overlay.querySelectorAll<HTMLElement>('.effect-hit')].map((m) => m.dataset.hit)).toEqual(['player:1:40', 'player:1:40:1']);
+    vi.advanceTimersByTime(HIT_MS - BOLT_STAGGER_MS);
+    expect(life.textContent, 'the first instance lands whole').toBe('18');
+    expect([...overlay.querySelectorAll('.board-number')].map((n) => n.textContent)).toEqual(['-2']);
+    vi.advanceTimersByTime(BOLT_STAGGER_MS);
+    expect(life.textContent, 'then the second').toBe('15');
+    vi.advanceTimersByTime(STACK_STAGGER_MS);
+    expect([...overlay.querySelectorAll('.board-number')].map((n) => n.textContent)).toEqual(['-2', '-3']);
     handle.dispose();
   });
 
@@ -1061,39 +1137,6 @@ describe('planRams', () => {
   });
 });
 
-describe('runningTotal', () => {
-  it('each impact adds its damage to the one number, in the order they land, ending on the life change', () => {
-    expect(runningTotal(-7, [{ at: 100, amount: 1 }, { at: 380, amount: 4 }, { at: 660, amount: 2 }])).toEqual([
-      { at: 100, total: -1 },
-      { at: 380, total: -5 },
-      { at: 660, total: -7 },
-    ]);
-  });
-
-  it('hits are taken in the order they land, not the order given, and two landing together are one step', () => {
-    expect(runningTotal(-6, [{ at: 380, amount: 4 }, { at: 100, amount: 1 }, { at: 100, amount: 1 }])).toEqual([
-      { at: 100, total: -2 },
-      { at: 380, total: -6 },
-    ]);
-  });
-
-  it('the last step is what the life total says, whatever the hits add up to: less is made up on the last blow, more never shows past it', () => {
-    expect(runningTotal(-9, [{ at: 100, amount: 1 }, { at: 380, amount: 4 }]), 'damage the hits do not account for lands with the last').toEqual([
-      { at: 100, total: -1 },
-      { at: 380, total: -9 },
-    ]);
-    expect(runningTotal(-4, [{ at: 100, amount: 3 }, { at: 380, amount: 3 }, { at: 660, amount: 1 }]), 'a gain in the same blow: never past the real total, and no step that changes nothing').toEqual([
-      { at: 100, total: -3 },
-      { at: 380, total: -4 },
-    ]);
-  });
-
-  it('a net gain, or no hits to time it by, is one number with the whole change at the first blow', () => {
-    expect(runningTotal(2, [{ at: 100, amount: 1 }, { at: 380, amount: 4 }])).toEqual([{ at: 100, total: 2 }]);
-    expect(runningTotal(-3, [])).toEqual([{ at: 0, total: -3 }]);
-  });
-});
-
 describe('ramEnd', () => {
   it('both die: they crumple into each other; only it: blasted away; only the other: it wins; neither: a bounce; a player: a charge', () => {
     expect(ramEnd('meet', true, true)).toBe('crumple');
@@ -1120,11 +1163,22 @@ describe('installNumbers: a ram', () => {
     });
     const life = canvas.querySelector('[data-player-face][data-player-id="0"] [data-testid="life"]')!;
     expect(life.textContent, 'still what it was while the attacker is on its way').toBe('20');
+    // The blow draws before its number, though both are due at the same moment.
+    const crashOnLanding: boolean[] = [];
+    const set = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent')!.set!;
+    Object.defineProperty(life, 'textContent', {
+      configurable: true,
+      get: () => Object.getOwnPropertyDescriptor(Node.prototype, 'textContent')!.get!.call(life),
+      set: (v: string) => {
+        crashOnLanding.push(canvas.querySelector('.effect-crash') !== null);
+        set.call(life, v);
+      },
+    });
     expect(lifeImpactAt(1), "the life sound waits for the blow").toBe(Date.now() + contactMs('charge'));
     vi.advanceTimersByTime(contactMs('charge'));
     expect(canvas.querySelector<HTMLElement>('.effect-crash')?.dataset.crash, 'the blow crashes on the avatar').toBe('crash:50');
-    vi.advanceTimersByTime(TICK_STEP_MS * 4);
-    expect(life.textContent).toBe('17');
+    expect(life.textContent, 'the blow lands the counter whole').toBe('17');
+    expect(crashOnLanding, 'the counter moved once, after the crash was drawn').toEqual([true]);
     handle.dispose();
   });
 
@@ -1151,7 +1205,7 @@ describe('installNumbers: a ram', () => {
     expect(overlay.querySelector('[data-projectile="heal"]'), 'a heal mote left the lifelinker as it struck').not.toBeNull();
     expect(life0.textContent, 'still rising, not before the blow').toBe('20');
 
-    vi.advanceTimersByTime(HIT_MS + TICK_STEP_MS * 4);
+    vi.advanceTimersByTime(HIT_MS);
     expect(life0.textContent, 'the controller’s life rose').toBe('23');
     expect(life1.textContent, 'the struck player’s life fell, same as any other hit').toBe('17');
     handle.dispose();
@@ -1246,24 +1300,21 @@ describe('installNumbers: a ram', () => {
     // The strongest last: the 2 before the 4.
     expect(first.textContent).toBe('-3');
     expect(first.dataset.numberBump, 'the change bumps').toBeDefined();
-    vi.advanceTimersByTime(TICK_STEP_MS);
-    expect(life.textContent, 'the counter steps on from the first blow’s total, not from the start').toBe('18');
+    expect(life.textContent, 'the counter lands the second blow whole: 19 less 2, never a point at a time').toBe('17');
 
-    vi.advanceTimersByTime(RAM_STAGGER_MS - TICK_STEP_MS);
+    vi.advanceTimersByTime(RAM_STAGGER_MS);
     expect(first.textContent).toBe('-7');
     expect(first.dataset.numberRunning, 'the last blow is in: it rises').toBeUndefined();
-    expect(life.textContent, 'the last blow takes over from where the counter got to').toBe('18');
-    vi.advanceTimersByTime(TICK_STEP_MS * 5);
-    expect(life.textContent).toBe('13');
+    expect(life.textContent, 'the last blow lands whole').toBe('13');
     expect(first.dataset.numberPop, 'it lets go reading 7: a pop, then the rise').toBeDefined();
-    vi.advanceTimersByTime(POP_MS + RISE_MS - TICK_STEP_MS * 5 - 1);
+    vi.advanceTimersByTime(POP_MS + RISE_MS - 1);
     expect(numbers(), 'still rising').toEqual([first]);
     vi.advanceTimersByTime(1);
     expect(numbers(), 'gone once it has risen').toHaveLength(0);
     handle.dispose();
   });
 
-  it('the running number ends on what the life total says even when the hits add up to less', () => {
+  it('the running number ends on what the life total says even when the hits add up to less: the rest lands as one more instance after the last blow', () => {
     vi.useFakeTimers();
     const { canvas } = board();
     canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.innerHTML = '<li class="board-card" data-board-card="50"></li><li class="board-card" data-board-card="51"></li>';
@@ -1278,8 +1329,13 @@ describe('installNumbers: a ram', () => {
         { seq: 2, playerId: 0, sourceId: 51, amount: 4, combat: true },
       ],
     });
+    const life = canvas.querySelector('[data-player-face][data-player-id="0"] [data-testid="life"]')!;
     vi.advanceTimersByTime(contactMs('charge') + RAM_STAGGER_MS);
+    expect([...overlay.querySelectorAll('.board-number')].map((n) => n.textContent)).toEqual(['-5']);
+    expect(life.textContent).toBe('15');
+    vi.advanceTimersByTime(RAM_STAGGER_MS);
     expect([...overlay.querySelectorAll('.board-number')].map((n) => n.textContent)).toEqual(['-8']);
+    expect(life.textContent).toBe('12');
     handle.dispose();
   });
 

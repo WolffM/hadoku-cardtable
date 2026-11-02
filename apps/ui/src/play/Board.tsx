@@ -435,11 +435,13 @@ import { CheckMark } from './marks.tsx';
 import { Relations } from './Relations.tsx';
 import { cardWidthIn } from './card-size.ts';
 import { useRailFit } from './tag-rail.ts';
+import { usePortraitLayout } from './portrait.ts';
 import { liftGhost, type Ghost } from './lift.ts';
 import { observeZoneBoxes, type ZoneBoxes } from './zone-box.ts';
 import { PLACEMENT_WAIT_MS, UNLOCK_BEAT_MS } from './motion.ts';
 import './board.css';
 import './card.css';
+import './portrait.css';
 import '../components/card-back.css';
 
 /** What Forge currently lets the viewer click, and where a click goes. */
@@ -4279,6 +4281,8 @@ export function Board({
 }) {
   // The render's cost, to its layout effects (`live/work-meter.ts`): read again in the last layout effect below.
   const renderBegan = performance.now();
+  // Installs the portrait switch (`data-layout="portrait"` on <html>) for as long as a board is mounted.
+  usePortraitLayout();
   /*
    * AF397: which `doomAsk` candidate the seat points at, local to this board — the wire has no
    * concept of a mouse, and a stale hover from a PREVIOUS ask (a different choice, different

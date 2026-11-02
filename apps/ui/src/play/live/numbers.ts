@@ -35,12 +35,14 @@
  *
  * `Board.tsx` renders `player.life` directly — this module does not own that
  * markup and does not change it structurally. What it does is reach into the
- * ALREADY-RENDERED `[data-testid="life"]` span: it takes the loss or gain
- * colour for `LIFE_COLOUR_MS` and is stepped through `tickSteps` at
- * `TICK_STEP_MS` apart (at once in Fast Mode) before settling back to whatever
- * the next React render put there (which is already the same number, so
- * nothing visibly snaps). A hit that lands after a newer change to the same
- * total was drawn writes nothing: its number is history by then. Nothing is drawn beside it: the operator, 2026-10-10,
+ * ALREADY-RENDERED `[data-testid="life"]` span: each instance of a change
+ * (`lifeChunks`: one of Forge's damage events, or what the total moved beyond
+ * them) lands on it whole — the new total at once, in the loss or gain colour
+ * for `LIFE_COLOUR_MS`, with a punch — never counted down a point at a time
+ * (the operator, 2026-11-01). React has already rendered the final total
+ * there; the span reads the old one until the first instance lands. A hit
+ * that lands after a newer change to the same total was drawn writes
+ * nothing: its number is history by then. Nothing is drawn beside it: the operator, 2026-10-10,
  * of a struck-through old value that sat above the counter, *"let's just remove
  * teh weird crossed out number so the UI doesn't shift"*.
  *
@@ -49,9 +51,9 @@
  * `prefers-reduced-motion`: no rise, no pop — `data-number-reduced` switches
  * `numbers.css` to a fade-only rule, read here too (not only in CSS) so the
  * cleanup timer waits the right amount either way, the same device
- * `gestures/cast.ts`'s `floatCastLiftHome` already uses. Fast Mode only
- * changes the counter: `tickSteps` is still computed, but applied in one
- * frame instead of stepped — the floating number itself still rises exactly
+ * `gestures/cast.ts`'s `floatCastLiftHome` already uses; the counter fades
+ * in its new total instead of punching. Fast Mode lands every instance of a
+ * change in the same frame — the floating number itself still rises exactly
  * the same.
  *
  * ## A resolution's effects, in beats
@@ -74,7 +76,7 @@
  *     where the item was drawn on the stack) to its target as a
  *     `[data-hit]` mark over `HIT_MS`, staggered `BEAT_STAGGER_MS`; a card it
  *     hits flashes (`data-hit-flash`) and only then does its number rise and a
- *     life counter tick;
+ *     life counter land;
  *  3. each permanent that entered from nowhere the viewer could see
  *     (`ViewDiff.arrivals`: a token, or a card out of a library) travels from
  *     the card that made it (`BoardCard.createdBy`, the bridge's
@@ -100,17 +102,23 @@
  *
  * A player struck by several attackers gets ONE number that counts up as each one strikes (the operator,
  * 2026-10-28: "the first creature does one damage it shows "-1" then the next creature does 4 damage and
- * it gets updated to show "-5""), and the counter steps with it. The amounts are Forge's own per-source
- * hits (`diff.faceHits`, `PlayBridge.java`'s `faceDamage`), each timed to its ram's blow (`combat.hitAt`);
- * the last step is always the life change itself (`runningTotal`). The number holds where it appeared
- * (`data-number-running`), bumps on each new total (`data-number-bump`), and rises once the last blow is in.
- * Reduced motion and Fast Mode draw no ram, so the whole change appears at once, as before.
+ * it gets updated to show "-5""), and the counter lands each blow whole with it. The amounts are Forge's
+ * own per-source hits (`diff.faceHits`, `PlayBridge.java`'s `faceDamage`), each timed to its ram's blow
+ * (`combat.hitAt`); what the life total moved beyond them is one more instance after the last blow
+ * (`lifeChunks`). The number holds where it appeared (`data-number-running`), bumps on each new total
+ * (`data-number-bump`), and rises once the last blow is in. Reduced motion and Fast Mode draw no ram:
+ * the instances land in turn without one (Fast Mode: together).
+ *
+ * A resolution that dealt a player damage more than once (`diff.faceHits` again) sends a bolt per
+ * instance, `BOLT_STAGGER_MS` apart, each with its own number. Forge reports damage per instance and
+ * nothing else: a gain, or a loss that is not damage, reaches the board only as the total moving, so
+ * two such in one frame are one instance here.
  *
  * ## A life gain in combat is a hit too
  *
  * The loss above holds a struck player's counter for the blow that caused it (`charged`, built from
  * `diff.faceHits`); a GAIN in the same combat view is the other side of the same fact and gets the same
- * treatment, not an immediate tick before anyone has swung. Its source is this view's hits and face hits
+ * treatment, not an immediate landing before anyone has swung. Its source is this view's hits and face hits
  * already in `combat.hitAt` whose own source the gaining player controls — looked up on `before`, where
  * a creature that traded away in the same blow still stands. A lifelink-tagged source wins over any other
  * of the player's own sources that struck, so a gain this seat cannot tie to the keyword (hidden from it,
@@ -135,6 +143,7 @@ import {
   writeDurations,
   noteCardImpact,
   noteExitBeat,
+  noteMillBeat,
   noteLifeImpact,
   noteResolutionEffects,
   prefersReducedMotion,
@@ -149,6 +158,7 @@ import { fly, impact } from './projectile.ts';
 import { cardColours, colourRow } from './sound-events.ts';
 import { CAST_LANDING_ATTR, landCastGhost, parkedGhost } from './gestures/cast.ts';
 import { entryHeft, entryMotionFor, entryWeight, entryDurationMs, landingWeight, playEntry, playLanding } from './entries.ts';
+import { installMill, millsOf, setAsideAfter, type Mill, type SetAside } from './mill.ts';
 import { quake } from './quake.ts';
 import { recoil } from './recoil.ts';
 import './numbers.css';
@@ -168,8 +178,9 @@ export const STACK_OFFSET_PX = 12;
 export const STRIKE_SLACK_MS = 2000;
 
 export const STACK_STAGGER_MS = 80;
-export const TICK_STEP_MS = 150;
 export const LIFE_COLOUR_MS = 1500;
+/** How long one instance's punch on the life counter lasts (`numbers.css`'s `life-punch`). */
+export const LIFE_PUNCH_MS = 320;
 /** How long what a hit reached flashes (`numbers.css`'s `effect-hit-flash`). */
 const HIT_FLASH_MS = 360;
 /** An arrival with nowhere to travel from fades in over this long. */
@@ -187,6 +198,7 @@ export function boltShakePx(amount: number): number {
 const DURATIONS = [
   ['--rise-ms', RISE_MS],
   ['--pop-ms', POP_MS],
+  ['--life-punch-ms', LIFE_PUNCH_MS],
   ['--hit-flash-ms', HIT_FLASH_MS],
   ['--arrive-fade-ms', ARRIVE_FADE_MS],
   ['--reveal-beat-ms', REVEAL_BEAT_MS],
@@ -444,47 +456,41 @@ export function stackLayout(index: number): SpawnLayout {
   return { offsetPx: index * STACK_OFFSET_PX, delayMs: index * STACK_STAGGER_MS };
 }
 
-/* ── pure: the life counter's steps ───────────────────────────────────── */
+/* ── pure: a life change, instance by instance ───────────────────────── */
 
-/** Every value the counter passes through on its way from `from` to `to`, one per `TICK_STEP_MS` — `to` last, `from` never repeated. Empty when nothing moved. */
-export function tickSteps(from: number, to: number): readonly number[] {
-  if (from === to) return [];
-  const direction = to > from ? 1 : -1;
-  const steps: number[] = [];
-  for (let v = from + direction; direction > 0 ? v <= to : v >= to; v += direction) steps.push(v);
-  return steps;
-}
-
-/* ── pure: a loss counted up blow by blow ─────────────────────────────── */
-
-/** One blow at a player, as `planRams` times it: when it lands (ms from now) and Forge's own amount (`FaceHit.amount`). */
+/** One instance of damage at a player, as it is timed: when it lands (ms from now, or just an order) and Forge's own amount (`FaceHit.amount`). */
 export interface TimedHit {
   readonly at: number;
   readonly amount: number;
 }
 
+/** One instance of a life change: when it lands and what it moves the total by. */
+export interface LifeChunk {
+  readonly at: number;
+  readonly delta: number;
+}
+
 /**
- * What a player's one number reads as each blow lands (the operator, 2026-10-28: the first creature does
- * one damage and it shows "-1", the next does 4 and it is updated to "-5"): each step is when blows land
- * and the loss so far, blows landing together counted as one step. The last step is `delta` itself, what
- * the life total says — the hits are Forge's per-source damage events, but the life total is the fact:
- * damage they leave out is made up on the last blow, and a gain in the same blow (a lifelinking blocker)
- * keeps any step from passing the real total. A net gain, or no hits, is one step with the whole change.
+ * A player's life change as the instances that made it, each landing whole (the operator, 2026-11-01:
+ * "individual instances of health gain or loss should land as a full instance rather than counting the
+ * life total down"). Each instance is one of Forge's per-source damage events (`diff.faceHits`), in the
+ * order they land; hits landing at the same moment are one instance, since they land together. The life
+ * total is the fact, and Forge says nothing else per instance: whatever it moved that the hits do not
+ * account for (a gain beside the damage — lifelink — or a loss that was not damage) is one more instance,
+ * `gapMs` after the last hit. The chunks always add up to `delta`; no hits is one chunk with all of it.
  */
-export function runningTotal(delta: number, hits: readonly TimedHit[]): { at: number; total: number }[] {
+export function lifeChunks(delta: number, hits: readonly TimedHit[], gapMs: number): LifeChunk[] {
   const landed = hits.filter((h) => h.amount > 0).sort((a, b) => a.at - b.at);
-  if (delta >= 0 || landed.length === 0) return [{ at: landed[0]?.at ?? 0, total: delta }];
-  const steps: { at: number; total: number }[] = [];
-  let lost = 0;
+  if (landed.length === 0) return delta === 0 ? [] : [{ at: 0, delta }];
+  const chunks: { at: number; delta: number }[] = [];
   for (const h of landed) {
-    lost += h.amount;
-    const total = Math.max(delta, -lost);
-    const last = steps[steps.length - 1];
-    if (last?.at === h.at) last.total = total;
-    else if (last?.total !== total) steps.push({ at: h.at, total });
+    const last = chunks[chunks.length - 1];
+    if (last?.at === h.at) last.delta -= h.amount;
+    else chunks.push({ at: h.at, delta: -h.amount });
   }
-  steps[steps.length - 1]!.total = delta;
-  return steps;
+  const rest = delta - chunks.reduce((sum, c) => sum + c.delta, 0);
+  if (rest !== 0) chunks.push({ at: chunks[chunks.length - 1]!.at + gapMs, delta: rest });
+  return chunks;
 }
 
 /* ── pure: a change's colour and text ─────────────────────────────────── */
@@ -575,6 +581,10 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   const attackingSince = new Map<number, number>();
   /** Each shake of the table, likewise. */
   const shakes = new Set<() => void>();
+  /** Cards milled, library to graveyard (`mill.ts`). */
+  const mill = installMill(canvas, reduced, (data) => host.report?.(data));
+  /** Cards out of a library and in no zone yet (`mill.ts`'s `setAsideAfter`). */
+  let setAside: ReadonlyMap<number, SetAside> = new Map();
 
   function overlay(): HTMLElement | null {
     return overlayOf(canvas);
@@ -696,36 +706,33 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   let lifeOrder = 0;
   const lifeLanded = new Map<number, number>();
 
-  /** The seat bar's own life span: coloured, and stepped through on its way to what React already rendered there — unless a newer change has landed first. */
-  function animateLifeCounter(playerId: number, from: number, to: number, order: number): void {
+  /**
+   * One instance lands on the seat bar's own life span: it reads the new total at once, in the loss or gain
+   * ink, with a punch (`data-life-landed`; a fade under reduced motion) — unless a newer change has landed first.
+   */
+  function landLife(playerId: number, to: number, delta: number, order: number): void {
     const face = faceBox(canvas, playerId);
     const lifeSpan = face?.querySelector<HTMLElement>('[data-testid="life"]') ?? null;
     if (lifeSpan === null || (lifeLanded.get(playerId) ?? 0) > order) return;
     lifeLanded.set(playerId, order);
-    const newest = (): boolean => lifeLanded.get(playerId) === order;
-    const colour = lifeColour(to - from);
-    lifeSpan.dataset.numberLifeColour = colour;
+    lifeSpan.textContent = String(to);
+    lifeSpan.dataset.numberLifeColour = lifeColour(delta);
+    // Restarted on every instance: off, a style flush, and on again, so each one punches.
+    delete lifeSpan.dataset.lifeLanded;
+    void lifeSpan.offsetWidth;
+    lifeSpan.dataset.lifeLanded = reduced() ? 'fade' : 'punch';
     schedule(() => {
-      if (newest()) delete lifeSpan.dataset.numberLifeColour;
+      if (lifeLanded.get(playerId) !== order) return;
+      delete lifeSpan.dataset.numberLifeColour;
+      delete lifeSpan.dataset.lifeLanded;
     }, LIFE_COLOUR_MS);
-
-    const steps = tickSteps(from, to);
-    if (fast() || steps.length === 0) {
-      lifeSpan.textContent = String(to);
-      return;
-    }
-    steps.forEach((value, i) => {
-      schedule(() => {
-        if (newest()) lifeSpan.textContent = String(value);
-      }, (i + 1) * TICK_STEP_MS);
-    });
   }
 
   /**
    * The flash a hit leaves on the card it reached, once. Never on a player's avatar: its ring drew as a box,
    * clipped to bars by the seat, around the avatar (the operator, 2026-10-17: "an awkward red box or red
    * bars above/below the avatar when i get hit. can we just get rid of those?") — the impact, the number and
-   * the ticking life total are the hit there.
+   * the life total landing are the hit there.
    */
   function flash(target: Element | null, colour: NumberColour): void {
     if (target === null || target.hasAttribute('data-player-face')) return;
@@ -961,12 +968,12 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     return battlefieldCard(canvas, cardId) ?? canvas.querySelector<HTMLElement>(`[${LEAVING_GAP_ATTR}="${cardId}"]`);
   }
 
-  function apply(diff: ViewDiff, before: BoardView | null, revealed: Revealed | undefined): void {
+  function apply(diff: ViewDiff, before: BoardView | null, revealed: Revealed | undefined, mills: readonly Mill[]): void {
     const item = diff.resolved[0];
     const reveal = revealOf(item, revealed);
     const origin = reveal?.at ?? sourceOf(item);
     const effects =
-      diff.life.length + diff.hits.length + diff.departures.length + diff.arrivals.length + diff.damage.filter((c) => c.to > c.from).length > 0;
+      diff.life.length + diff.hits.length + diff.departures.length + diff.arrivals.length + mills.length + diff.damage.filter((c) => c.to > c.from).length > 0;
     // What it does starts at once (a reveal's beat aside); the spell waits on the stack meanwhile and goes last (`placed.ts`).
     const startMs = reveal?.waitMs ?? 0;
     /**
@@ -1062,50 +1069,63 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       return lifelinkers.length > 0 ? lifelinkers : all;
     };
 
+    /** A combat blow's life landings, scheduled after the rams' blows so a timer due at the same moment fires second. */
+    const afterBlows: (() => void)[] = [];
     for (const change of diff.life) {
       const face = faceBox(canvas, change.playerId);
       if (face === null) continue;
-      const order = ++lifeOrder;
-      const land = (): void => {
-        animateLifeCounter(change.playerId, change.from, change.to, order);
-        spawn({ anchorKey: `face:${change.playerId}`, at: face, delta: change.to - change.from });
-      };
-      // Until the hit lands, the counter still reads what it read before the resolution (or the ram).
+      const delta = change.to - change.from;
+      /** This player's damage instances this view, by Forge's own seq (`diff.faceHits`). */
+      const faceHitsHere = diff.faceHits.filter((h) => h.playerId === change.playerId);
+      // Until its first instance lands, the counter still reads what it read before the resolution (or the ram).
       const span = face.querySelector<HTMLElement>('[data-testid="life"]');
+      if (span !== null) span.textContent = String(change.from);
+      /**
+       * Each instance lands whole, in order (`lifeChunks`): the counter moves by it at once, each its own
+       * order so a hit still in flight from an older change never writes over a newer total.
+       */
+      const landChunk = (before: number, chunk: LifeChunk): (() => void) => {
+        const order = ++lifeOrder;
+        return () => landLife(change.playerId, change.from + before + chunk.delta, chunk.delta, order);
+      };
       if (charged.has(change.playerId) && combat !== null) {
-        if (span !== null) span.textContent = String(change.from);
         /*
-         * One number counts the loss up blow by blow (`runningTotal`), from Forge's own per-source hits as
-         * each attacker strikes, and the counter steps with it: each step its own order, so a later blow's
-         * ticks take over from an earlier one's still running, from wherever those had got to.
+         * One number counts the loss up blow by blow, from Forge's own per-source hits as each attacker
+         * strikes, and the counter lands each blow whole with it.
          */
-        const blows = diff.faceHits.flatMap((h) => {
-          const at = h.playerId === change.playerId ? combat.hitAt.get(h.seq) : undefined;
+        const blows = faceHitsHere.flatMap((h) => {
+          const at = combat.hitAt.get(h.seq);
           return at === undefined ? [] : [{ at, amount: h.amount }];
         });
-        const steps = runningTotal(change.to - change.from, blows);
-        const firstAt = steps[0]!.at;
+        const chunks = lifeChunks(delta, blows, RAM_STAGGER_MS);
+        const firstAt = chunks[0]!.at;
         if (firstLifeLand === null || firstAt < firstLifeLand) firstLifeLand = firstAt;
+        endMs = Math.max(endMs, chunks[chunks.length - 1]!.at);
         let update: (delta: number) => void = () => undefined;
-        steps.forEach((step, i) => {
-          const stepOrder = i === 0 ? order : ++lifeOrder;
-          atBeat(() => {
-            const shown = Number(span?.textContent);
-            const from = i > 0 && Number.isInteger(shown) ? shown : change.from + (i === 0 ? 0 : steps[i - 1]!.total);
-            animateLifeCounter(change.playerId, from, change.from + step.total, stepOrder);
-            if (i === 0) update = spawn({ anchorKey: `face:${change.playerId}`, at: face, delta: step.total, holdMs: steps[steps.length - 1]!.at - firstAt });
-            else update(step.total);
-          }, step.at);
+        let running = 0;
+        chunks.forEach((chunk, i) => {
+          const before = running;
+          running += chunk.delta;
+          const total = running;
+          const landed = landChunk(before, chunk);
+          // Timed once the blows are (`afterBlows`): at the same moment, the blow draws first and its number after.
+          afterBlows.push(() =>
+            atBeat(() => {
+              landed();
+              if (i === 0) update = spawn({ anchorKey: `face:${change.playerId}`, at: face, delta: total, holdMs: chunks[chunks.length - 1]!.at - firstAt });
+              else update(total);
+            }, chunk.at),
+          );
         });
         continue;
       }
-      const gainSources = change.to > change.from ? gainSourcesAt(change.playerId) : [];
+      const gainSources = delta > 0 ? gainSourcesAt(change.playerId) : [];
       if (gainSources.length > 0) {
-        if (span !== null) span.textContent = String(change.from);
         const landAt = Math.max(...gainSources.map((s) => s.at));
         if (firstLifeLand === null || landAt < firstLifeLand) firstLifeLand = landAt;
         endMs = Math.max(endMs, landAt);
         let left = gainSources.length;
+        const landed = landChunk(0, { at: 0, delta });
         for (const source of gainSources) {
           const from = hitTarget(source.cardId) ?? face;
           hit(
@@ -1115,7 +1135,10 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
             'success',
             source.at,
             () => {
-              if (--left === 0) land();
+              // Forge reports a combat's lifelink as one gain: it lands once, at the last mote in.
+              if (--left > 0) return;
+              landed();
+              spawn({ anchorKey: `face:${change.playerId}`, at: face, delta });
             },
             null,
             source.amount,
@@ -1123,18 +1146,37 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         }
         continue;
       }
-      if (origin === null || item === undefined) {
-        land();
-        continue;
-      }
-      if (span !== null) span.textContent = String(change.from);
-      const delay = nextBolt();
-      endMs = Math.max(endMs, delay + HIT_MS);
-      if (firstLifeLand === null) firstLifeLand = delay + HIT_MS;
-      // AF420: seeded by the resolution too (the stack item's own id), so every cast flies its own
-      // arc — the same key on both screens, same as `item === undefined` was already excluded above.
-      hit(origin, face, `player:${change.playerId}:${item.id}`, lifeColour(change.to - change.from), delay, land, spellHue, Math.abs(change.to - change.from));
-      if (change.to < change.from) boltSound(delay + HIT_MS, change.from - change.to);
+      // In the order Forge dealt them: an ordinal is all the timing a resolution's instances need.
+      const chunks = lifeChunks(
+        delta,
+        faceHitsHere.map((h, i) => ({ at: i, amount: h.amount })),
+        1,
+      );
+      let running = 0;
+      chunks.forEach((chunk, i) => {
+        const before = running;
+        running += chunk.delta;
+        const landed = landChunk(before, chunk);
+        const land = (): void => {
+          landed();
+          spawn({ anchorKey: `face:${change.playerId}`, at: face, delta: chunk.delta });
+        };
+        if (origin === null || item === undefined) {
+          // Nothing travels (a payment, Fast Mode, reduced motion): each instance in turn, Fast Mode all at once.
+          const delay = fast() ? 0 : i * BOLT_STAGGER_MS;
+          endMs = Math.max(endMs, delay);
+          atBeat(land, delay);
+          return;
+        }
+        const delay = nextBolt();
+        endMs = Math.max(endMs, delay + HIT_MS);
+        if (firstLifeLand === null) firstLifeLand = delay + HIT_MS;
+        // AF420: seeded by the resolution too (the stack item's own id), so every cast flies its own
+        // arc — the same key on both screens; a later instance of the same resolution adds its index.
+        const key = i === 0 ? `player:${change.playerId}:${item.id}` : `player:${change.playerId}:${item.id}:${i}`;
+        hit(origin, face, key, lifeColour(chunk.delta), delay, land, spellHue, Math.abs(chunk.delta));
+        if (chunk.delta < 0) boltSound(delay + HIT_MS, -chunk.delta);
+      });
     }
     /*
      * Forge's own hits (`PlayBridge.java`'s `damage`): a creature that took lethal damage is already in
@@ -1186,6 +1228,14 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         arrival.fromPlayerId === undefined ? null : before?.players.find((p) => p.id === arrival.fromPlayerId)?.isViewer === true ? 'you' : 'them';
       arrive(arrival.cardId, arrival.source, maker ?? sourceOf(item), delay, arrival.origin, arrival.heft, pileOwner);
     }
+    /*
+     * Cards milled fly from their library to their graveyard as the effects start. The spell waits for them on the
+     * stack, but nothing else does: they are in the graveyard already, and Forge sends one mill in more than one
+     * frame (measured, Glimpse the Unthinkable: nine cards, then the tenth with the resolution), whose second frame
+     * a hold would keep from the other seat's screen until the first run had landed.
+     */
+    const millEnd = mills.length === 0 ? 0 : mill.fly(mills, startMs);
+    if (mills.length > 0 && prevView !== null) noteMillBeat(prevView.seq, Date.now() + startMs);
     /*
      * What left the battlefield goes at its beat: what a hit killed the moment that hit lands, everything
      * else (destroyed, sacrificed, exiled) as the effects start.
@@ -1306,10 +1356,11 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         keep(blast(root, target, from, to, `blast:${struck}`, contact, plan.power), contact + BLAST_MS);
       }
     }
+    for (const later of afterBlows) later();
     if (prevView !== null && firstCardImpact !== null) noteCardImpact(prevView.seq, Date.now() + firstCardImpact);
     if (prevView !== null) noteBoardSounds(prevView.seq, sounds.map((s) => ({ role: s.role, at: Date.now() + s.ms, intensity: s.intensity, mine: s.mine, colourCell: s.colourCell ?? null })));
     if (prevView !== null && firstExit !== null) noteExitBeat(prevView.seq, Date.now() + firstExit);
-    if (item !== undefined && effects) noteResolutionEffects(item.id, Date.now() + Math.max(endMs, startMs));
+    if (item !== undefined && effects) noteResolutionEffects(item.id, Date.now() + Math.max(endMs, startMs, millEnd));
     // The other seat's attack is seen before anything after it is drawn (`live/pace.ts` waits on this beat).
     if (diff.attacks.length > 0 && !fast()) {
       endMs = Math.max(endMs, ATTACK_BEAT_MS);
@@ -1359,7 +1410,9 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       const before = prevView;
       const diff = diffViews(before, view);
       prevView = view;
-      timed('effects', () => apply(diff, before, revealed));
+      const mills = millsOf(before, view, setAside);
+      setAside = setAsideAfter(before, view, setAside);
+      timed('effects', () => apply(diff, before, revealed, mills));
       markReveal(revealed);
       noteStack(view);
       const attacking = new Set(view.players.flatMap((p) => p.battlefield.filter((c) => c.attacking).map((c) => c.id)));
@@ -1373,6 +1426,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       live = false;
       for (const timer of timers) clearTimeout(timer);
       timers.clear();
+      mill.dispose();
       for (const settle of [...playing]) settle();
       for (const cancel of rams) cancel();
       rams.clear();
@@ -1383,8 +1437,9 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         .forEach((el) => el.remove());
       // The colour sits on the seat bar's own life span, outside the overlay —
       // the one piece of this module that reaches into markup it does not own.
-      canvas.querySelectorAll<HTMLElement>('[data-testid="life"][data-number-life-colour]').forEach((el) => {
+      canvas.querySelectorAll<HTMLElement>('[data-testid="life"][data-number-life-colour], [data-testid="life"][data-life-landed]').forEach((el) => {
         delete el.dataset.numberLifeColour;
+        delete el.dataset.lifeLanded;
       });
       overlay()
         ?.querySelectorAll('.effect-hit, .effect-trail, .effect-impact')

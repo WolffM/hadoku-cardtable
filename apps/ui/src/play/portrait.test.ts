@@ -1,0 +1,146 @@
+// @vitest-environment jsdom
+/**
+ * The portrait switch: a fake `matchMedia` stands in for jsdom's missing one
+ * (`chrome/matchMedia.ts`'s doc — jsdom has never implemented it), one that
+ * can actually fire a `change` event, which the real fallback's no-op
+ * listeners cannot.
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { renderHook, act, cleanup } from '@testing-library/react';
+import { clampZoom, dispatchZoomEvent, PORTRAIT_MEDIA_QUERY, usePortraitLayout, ZOOM_EVENT, ZOOM_MAX, ZOOM_MIN, ZOOM_RESET_EVENT } from './portrait.ts';
+
+/** A `MediaQueryList` whose `matches` this test can flip and whose `change` listeners it can fire. */
+function fakeMediaQueryList(initialMatches: boolean): MediaQueryList & { fire(matches: boolean): void } {
+  const listeners = new Set<(ev: MediaQueryListEvent) => void>();
+  let matches = initialMatches;
+  return {
+    get matches() {
+      return matches;
+    },
+    media: PORTRAIT_MEDIA_QUERY,
+    onchange: null,
+    addEventListener: (_type: string, listener: (ev: MediaQueryListEvent) => void) => {
+      listeners.add(listener);
+    },
+    removeEventListener: (_type: string, listener: (ev: MediaQueryListEvent) => void) => {
+      listeners.delete(listener);
+    },
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    dispatchEvent: () => false,
+    fire(next: boolean) {
+      matches = next;
+      for (const listener of listeners) listener({ matches: next } as MediaQueryListEvent);
+    },
+  } as MediaQueryList & { fire(matches: boolean): void };
+}
+
+describe('usePortraitLayout', () => {
+  let mql: ReturnType<typeof fakeMediaQueryList>;
+  let originalMatchMedia: typeof window.matchMedia | undefined;
+
+  beforeEach(() => {
+    delete document.documentElement.dataset.layout;
+    originalMatchMedia = window.matchMedia;
+    mql = fakeMediaQueryList(false);
+    window.matchMedia = vi.fn().mockReturnValue(mql);
+  });
+
+  afterEach(() => {
+    /*
+     * Every `renderHook` in this suite but the ones that call `unmount()` themselves — this codebase
+     * does not rely on `@testing-library/react`'s implicit global cleanup (`Board.test.ts` calls
+     * `cleanup()` itself for the same reason). Without it, `activeSubscribers` (`portrait.ts`) never
+     * comes back down between cases, and the two "unmounts clear the attribute" cases below would
+     * fail only because an EARLIER case's hook was still "mounted".
+     */
+    cleanup();
+    delete document.documentElement.dataset.layout;
+    if (originalMatchMedia === undefined) delete (window as { matchMedia?: typeof window.matchMedia }).matchMedia;
+    else window.matchMedia = originalMatchMedia;
+  });
+
+  it('queries exactly the Settled-1 condition: ≤600px wide and taller than wide', () => {
+    renderHook(() => usePortraitLayout());
+    expect(window.matchMedia).toHaveBeenCalledWith('(max-width: 600px) and (orientation: portrait)');
+  });
+
+  it('starts false and leaves <html> with no data-layout when the query does not match', () => {
+    const { result } = renderHook(() => usePortraitLayout());
+    expect(result.current).toBe(false);
+    expect(document.documentElement.dataset.layout).toBeUndefined();
+  });
+
+  it('sets data-layout="portrait" the moment it mounts matching', () => {
+    mql = fakeMediaQueryList(true);
+    window.matchMedia = vi.fn().mockReturnValue(mql);
+    const { result } = renderHook(() => usePortraitLayout());
+    expect(result.current).toBe(true);
+    expect(document.documentElement.dataset.layout).toBe('portrait');
+  });
+
+  it('flips the hook and the attribute together when the viewport crosses the breakpoint', () => {
+    const { result } = renderHook(() => usePortraitLayout());
+    expect(result.current).toBe(false);
+    act(() => mql.fire(true));
+    expect(result.current).toBe(true);
+    expect(document.documentElement.dataset.layout).toBe('portrait');
+    act(() => mql.fire(false));
+    expect(result.current).toBe(false);
+    expect(document.documentElement.dataset.layout).toBeUndefined();
+  });
+
+  it('reports not-portrait and touches nothing when the host has no matchMedia at all', () => {
+    delete (window as { matchMedia?: typeof window.matchMedia }).matchMedia;
+    const { result } = renderHook(() => usePortraitLayout());
+    expect(result.current).toBe(false);
+    expect(document.documentElement.dataset.layout).toBeUndefined();
+  });
+
+  it('clears data-layout when the last mounted consumer unmounts (Settled 10: never leaks into the room)', () => {
+    mql = fakeMediaQueryList(true);
+    window.matchMedia = vi.fn().mockReturnValue(mql);
+    const { unmount } = renderHook(() => usePortraitLayout());
+    expect(document.documentElement.dataset.layout).toBe('portrait');
+    unmount();
+    expect(document.documentElement.dataset.layout).toBeUndefined();
+  });
+
+  it('keeps data-layout while a second consumer is still mounted, clears it once both are gone', () => {
+    mql = fakeMediaQueryList(true);
+    window.matchMedia = vi.fn().mockReturnValue(mql);
+    const a = renderHook(() => usePortraitLayout());
+    const b = renderHook(() => usePortraitLayout());
+    expect(document.documentElement.dataset.layout).toBe('portrait');
+    a.unmount();
+    expect(document.documentElement.dataset.layout, 'b is still mounted').toBe('portrait');
+    b.unmount();
+    expect(document.documentElement.dataset.layout).toBeUndefined();
+  });
+});
+
+describe('zoom contract', () => {
+  it('clamps to [ZOOM_MIN, ZOOM_MAX]', () => {
+    expect(clampZoom(0)).toBe(ZOOM_MIN);
+    expect(clampZoom(1)).toBe(1);
+    expect(clampZoom(1.7)).toBe(1.7);
+    expect(clampZoom(99)).toBe(ZOOM_MAX);
+  });
+
+  it('names the reset event distinctly from the zoom event (B dispatches it with no detail)', () => {
+    expect(ZOOM_RESET_EVENT).toBe('cardtable:zoom-reset');
+    expect(ZOOM_RESET_EVENT).not.toBe(ZOOM_EVENT);
+  });
+
+  it('dispatches cardtable:zoom on window with the zoom in detail', () => {
+    const seen: number[] = [];
+    const onZoom = (ev: Event) => seen.push((ev as CustomEvent<{ zoom: number }>).detail.zoom);
+    window.addEventListener(ZOOM_EVENT, onZoom);
+    try {
+      dispatchZoomEvent(1.5);
+      expect(seen).toEqual([1.5]);
+    } finally {
+      window.removeEventListener(ZOOM_EVENT, onZoom);
+    }
+  });
+});

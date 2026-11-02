@@ -32,12 +32,9 @@
 import { artIdsWithBacks } from '@hadoku/carddata/art';
 import { ArtPreloadSchema, type DraftCard, type DraftView } from '@hadoku/shared';
 
-import { artReady, cardImageUrl } from '../../draft/cardImage.ts';
+import { cardImageUrl, warmArt } from '../../draft/cardImage.ts';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
 import { relatedCards } from '../../draft/related.ts';
-
-/** How many art loads run at once. */
-export const PRELOAD_AT_ONCE = 3;
 
 /** The distinct art URLs a `forge:art` message names for this match — empty for anything else. */
 export function preloadUrls(matchId: string, payload: unknown): string[] {
@@ -48,14 +45,9 @@ export function preloadUrls(matchId: string, payload: unknown): string[] {
   return [...new Set(urls.filter((url): url is string => url !== null))];
 }
 
-function whenIdle(fn: () => void): void {
-  if (typeof requestIdleCallback === 'function') requestIdleCallback(fn, { timeout: 2000 });
-  else setTimeout(fn, 200);
-}
-
 /** Start the preload; returns how many distinct images it will warm. */
 export function preloadMatchArt(matchId: string, payload: unknown): number {
-  return warm(preloadUrls(matchId, payload));
+  return warmArt(preloadUrls(matchId, payload));
 }
 
 /** One card's own art id, each other face's, and whatever rides with it (a token, a meld partner — `related.ts`). */
@@ -87,7 +79,7 @@ let warmed = new Set<string>();
 export function preloadCubeArt(cards: readonly DraftCard[]): number {
   const fresh = cubeArtUrls(cards).filter((url) => !warmed.has(url));
   for (const url of fresh) warmed.add(url);
-  return warm(fresh);
+  return warmArt(fresh);
 }
 
 /** For tests: the next `preloadCubeArt` warms everything again. */
@@ -99,18 +91,4 @@ export function resetCubeArtForTests(): void {
 export function viewerCards(view: DraftView): DraftCard[] {
   const v = view.viewer;
   return v.kind === 'spectator' ? [] : [...v.pack, ...v.pool];
-}
-
-/** Warm `urls` a few at a time, at low priority, once the page is idle. */
-function warm(urls: readonly string[]): number {
-  let next = 0;
-  const pump = (): void => {
-    while (next < urls.length) {
-      if (!artReady(urls[next++]!, pump, 'low')) return;
-    }
-  };
-  whenIdle(() => {
-    for (let i = 0; i < PRELOAD_AT_ONCE; i++) pump();
-  });
-  return urls.length;
 }

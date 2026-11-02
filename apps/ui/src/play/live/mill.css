@@ -1,0 +1,51 @@
+/*
+ * A milled card's flight (`mill.ts`): a copy of its pile card, laid over its place on the pile, set off
+ * at its library's count mark (`--from-x`/`--from-y`, shrunk to `--from-scale`) and flown in, face up,
+ * with a short lift on the way and a small turn of its own (`--mill-turn`). Its length is `--mill-ms`,
+ * written by `mill.ts`; the pile card it lands on is hidden until then (`[data-departure-landing]`).
+ */
+.board-mill {
+  animation: board-mill-fly var(--mill-ms, 560ms) forwards;
+}
+
+@keyframes board-mill-fly {
+  0% {
+    translate: var(--from-x, 0) var(--from-y, 0);
+    scale: var(--from-scale, 1);
+    rotate: 0deg;
+    opacity: 0;
+    filter: drop-shadow(0 0 0 var(--shadow));
+    animation-timing-function: cubic-bezier(0.3, 0, 0.5, 1);
+  }
+
+  15% {
+    opacity: 1;
+  }
+
+  45% {
+    translate: calc(var(--from-x, 0) * 0.55) calc(var(--from-y, 0) * 0.55 - 18px);
+    scale: 1.06;
+    rotate: var(--mill-turn, 0deg);
+    filter: drop-shadow(0 10px 10px var(--shadow));
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  100% {
+    translate: 0 0;
+    scale: 1;
+    rotate: 0deg;
+    opacity: 1;
+    filter: drop-shadow(0 0 0 var(--shadow));
+  }
+}
+
+/* Reduced motion: no flight, the pile card fades in at its turn. */
+[data-mill-fade] {
+  animation: board-mill-fade 240ms ease-out;
+}
+
+@keyframes board-mill-fade {
+  from {
+    opacity: 0;
+  }
+}

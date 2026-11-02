@@ -12,8 +12,8 @@
  *     its own, so the lobby's read budget (`e2e/aa-polling.spec.ts`) is unchanged.
  *   - **Cube spotlight** — a cube, three of its cards' art through the art manifest
  *     (`../draft/cardImage.ts`, never a stored URL), and Play now: a draft room on that cube. Its
- *     art starts loading the moment the ids are known, not when the card is drawn: the pick waits
- *     on the slowest source (the Discord read, up to `PICK_WAIT_MS`), and the art should not.
+ *     art is drawn all at once, only when every picture is decoded (`useArtLoaded`): a turn to it
+ *     never shows a picture landing.
  *   - **Last game** — the newest replay, `GET /api/replays?limit=1`; only while `REPLAYS_ON`.
  *   - **In the Discord** — #general's recent messages, scrollable and opened on the newest, and Join
  *     Discord (`/api/discord/recent`, ArchiveBot's, prod only).
@@ -23,8 +23,15 @@
  * A read that fails or answers nothing drops its kind quietly: a reachability problem is not shown
  * as an error on the front page.
  *
- * Until it has picked, the card stands as its skeleton — the gallery's head, a title and a line, the
- * dots and a button — and crossfades in with the rest of the page (`./gate.ts`).
+ * Until it has picked, and the page it opens on has its art, the card stands as its skeleton — the
+ * gallery's head, a title and a line, the dots and a button — and crossfades in with the rest of the
+ * page (`./gate.ts`).
+ *
+ * Once it has shown, the pictures of its other pages (the cube's art, the chat's avatars) are warmed
+ * in the background, a few at a time, at low priority, when the page is idle (`warmArt`), so turning to
+ * one draws it at once — the operator, 2026-11-01: "preload the images after the core sight as loaded
+ * with lazy load". Never before the page has shown (it must not compete with the first paint), at most
+ * `PRELOAD_MAX` of them, and not at all when the viewer asks to save data or is on a 2G connection.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -33,8 +40,9 @@ import { DiscordRecentSchema, type DiscordMessage } from '@hadoku/shared';
 import { apiUrl, bodyOf, getJson, isRecord } from '../http.ts';
 import { DISCORD_INVITE_URL } from '../chrome/HeaderLinks.tsx';
 import { coverCropStyle, ILLUSTRATION_BOX } from '../components/faceCrop.ts';
-import { Reveal } from '../components/Reveal.tsx';
-import { artReady, cardImageUrl } from '../draft/cardImage.ts';
+import { Reveal, REVEAL_MS } from '../components/Reveal.tsx';
+import { cardImageUrl, warmArt } from '../draft/cardImage.ts';
+import { useArtLoaded } from '../draft/useArtLoaded.ts';
 import { onRoomList, poolsClient, roomsClient } from '../rooms/api.ts';
 import { warmRoom } from '../rooms/warm.ts';
 import { REPLAYS_ON } from '../replay/transport.ts';
@@ -207,8 +215,6 @@ function useCubeSpotlight(): WildcardItem | null | typeof ASKING {
         }
         const sampled = sampleArt(cards ?? [], 3);
         const arts = sampled.length > 0 ? sampled : cube.artId === null ? [] : [cube.artId];
-        // Fetch now, in parallel with the other sources, so the art is in the cache when the card draws it.
-        for (const id of arts) artReady(cardImageUrl(id), () => undefined);
         setItem({
           key: 'cube',
           kind: 'Cube spotlight',
@@ -229,16 +235,33 @@ function useCubeSpotlight(): WildcardItem | null | typeof ASKING {
   return item;
 }
 
-function ArtSlot({ artId }: { artId: string }) {
+/** `drawn`: every picture of the set is decoded (`useArtLoaded`); until then the box stands empty, in its own size. */
+function ArtSlot({ artId, drawn }: { artId: string; drawn: boolean }) {
   const [failed, setFailed] = useState(false);
   const url = cardImageUrl(artId);
   return (
     <span className="front-card__wildcard-art">
-      {url !== null && !failed && (
+      {drawn && url !== null && !failed && (
         <img src={url} alt="" fetchPriority="high" decoding="async" draggable={false} style={coverCropStyle(ILLUSTRATION_BOX, ART_RATIO)} onError={() => setFailed(true)} />
       )}
     </span>
   );
+}
+
+/** The most pictures the card warms for its other pages: the cube's three, and a page of avatars. */
+const PRELOAD_MAX = 12;
+
+/** Every picture a page draws: its art, and the chat's avatars. */
+function picturesOf(item: WildcardItem): string[] {
+  const arts = (item.arts ?? []).map((id) => cardImageUrl(id));
+  const avatars = item.messages === undefined ? [] : groupMessages(item.messages).map((g) => g.avatar);
+  return [...new Set([...arts, ...avatars].filter((url): url is string => url !== null))];
+}
+
+/** The viewer asked to save data, or is on 2G: nothing is fetched before it is needed. */
+function savingData(): boolean {
+  const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+  return connection?.saveData === true || /2g$/.test(connection?.effectiveType ?? '');
 }
 
 /** How long the card waits on a slow source before picking without it. */
@@ -267,7 +290,16 @@ export function WildcardCard() {
   const [errors, setErrors] = useState<Partial<Record<WildcardKind, string>>>({});
   const setError = (key: WildcardKind, message: string | null): void => setErrors((e) => ({ ...e, [key]: message ?? undefined }));
 
-  const shown = usePartShown('wildcard', pages.length > 0);
+  // The page it opens on is drawn with its art, or not yet at all.
+  const openingArt = useArtLoaded(pages.length > 0 ? (pages[0]!.arts ?? []) : null);
+  const shown = usePartShown('wildcard', pages.length > 0 && openingArt);
+  const otherPictures = pages.slice(1).flatMap(picturesOf).slice(0, PRELOAD_MAX).join(' ');
+  useEffect(() => {
+    if (!shown || otherPictures === '' || savingData()) return undefined;
+    // After the crossfade: the page has settled before anything it does not show is fetched.
+    const settled = setTimeout(() => warmArt(otherPictures.split(' ')), REVEAL_MS);
+    return () => clearTimeout(settled);
+  }, [shown, otherPictures]);
 
   return (
     <section className="front-card front-card--wildcard" data-testid="front-wildcard">
@@ -361,12 +393,13 @@ function DiscordChat({ channel, messages }: { channel: string; messages: readonl
 }
 
 function WildcardBody({ item, error }: { item: WildcardItem; error: string | null }) {
+  const drawn = useArtLoaded(item.arts ?? []);
   return (
     <div className="front-card__wildcard-item" data-testid={`front-wildcard-${item.key}`}>
       {item.arts !== undefined && (
         <div className="front-card__wildcard-arts" aria-hidden="true">
           {item.arts.map((id) => (
-            <ArtSlot key={id} artId={id} />
+            <ArtSlot key={id} artId={id} drawn={drawn} />
           ))}
         </div>
       )}
