@@ -7,9 +7,13 @@
  * announcement (`../announce.ts`), so cardtable holds no bot token of its own. The signature is an
  * HMAC-SHA256 of the raw query string, without its `?`.
  *
- * One read a minute at most, whoever asks: the answer — a failure included — is kept for
- * `CACHE_MS`, and callers arriving while a read is out share it. Without the secret (PPE, local
- * dev) or on any answer but a 200 the route answers 204, and the card leaves the chat out.
+ * One read a minute at most, whoever asks, and nobody waits on it once there is a snapshot: a
+ * caller gets the kept one at once, and one older than `CACHE_MS` starts a read behind it for the
+ * next caller (stale-while-revalidate). Front-page loads come minutes apart, so a cache that made
+ * the caller wait on an expired read had every load wait on ArchiveBot (server p50 550 ms). A read
+ * that fails keeps the last good snapshot. The first one starts at boot. Without the secret (PPE,
+ * local dev), or with no snapshot yet but a refusal, the route answers 204 and the card leaves the
+ * chat out.
  *
  *   GET /api/discord/recent → 200 { messages: [{ author, avatar, color, text, at }] } (newest last) | 204
  */
@@ -21,7 +25,7 @@ import { DiscordRecentSchema, type DiscordRecent } from '@hadoku/shared';
 
 import type { JsonLog } from '../log.js';
 
-/** How long an answer is kept, a failure included. */
+/** How old a kept answer gets before the next caller starts a fresh read behind it. */
 export const CACHE_MS = 60_000;
 /** How much #general history the card can scroll back through: ArchiveBot's own cap (`MAX_LIMIT`). */
 export const RECENT_LIMIT = 50;
@@ -41,7 +45,7 @@ export function signedRecentQuery(secret: string, limit: number = RECENT_LIMIT):
 	return { query, signature: `sha256=${createHmac('sha256', secret).update(query).digest('hex')}` };
 }
 
-/** The snapshot, read from ArchiveBot at most once per `CACHE_MS`. `null`: there is none to show. */
+/** The snapshot, read from ArchiveBot at most once per `CACHE_MS`, never waited on twice. `null`: there is none to show. */
 export function discordSnapshot(deps: DiscordDeps): () => Promise<DiscordRecent | null> {
 	const now = deps.now ?? Date.now;
 	let kept: { at: number; value: DiscordRecent | null } | null = null;
@@ -70,20 +74,24 @@ export function discordSnapshot(deps: DiscordDeps): () => Promise<DiscordRecent 
 		}
 	};
 
+	const refresh = (): Promise<DiscordRecent | null> =>
+		(reading ??= read().then((value) => {
+			kept = { at: now(), value: value ?? kept?.value ?? null };
+			reading = null;
+			return kept.value;
+		}));
+
 	return async () => {
 		if (deps.secret === '') return null;
-		if (kept !== null && now() - kept.at < CACHE_MS) return kept.value;
-		reading ??= read().then((value) => {
-			kept = { at: now(), value };
-			reading = null;
-			return value;
-		});
-		return reading;
+		if (kept === null) return refresh();
+		if (now() - kept.at >= CACHE_MS) void refresh();
+		return kept.value;
 	};
 }
 
 export function attachDiscord(api: Router, deps: DiscordDeps): void {
 	const snapshot = discordSnapshot(deps);
+	void snapshot();
 	api.get('/discord/recent', async (_req: Request, res: Response) => {
 		const recent = await snapshot();
 		if (recent === null || recent.messages.length === 0) return res.status(204).end();

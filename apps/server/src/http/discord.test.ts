@@ -2,7 +2,8 @@
  * `/api/discord/recent` (`./discord.ts`) against a fake ArchiveBot that checks the signature the way
  * the real one does (WolffM/ArchiveBot `lib/webhookServer.js`'s `verifySignature`: `sha256=` + the
  * hex HMAC of the raw query string after `?`): a signed read relayed, one read a minute shared by
- * every caller, and every refusal answered as "no snapshot".
+ * every caller and never waited on once there is a snapshot, and every refusal answered as "no
+ * snapshot" unless there is a good one to keep.
  */
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
@@ -10,7 +11,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
 import express from 'express';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { attachDiscord, CACHE_MS } from './discord.ts';
 
@@ -95,17 +96,35 @@ describe('/api/discord/recent', () => {
 		});
 	});
 
-	it('reads ArchiveBot once a minute whoever asks, then again', async () => {
+	it('reads ArchiveBot once a minute whoever asks, and answers an expired snapshot at once while it reads behind', async () => {
 		const clock = { now: 1_000_000 };
-		const bot = await fakeArchiveBot({ status: 200, body: MESSAGES });
+		const answer = { status: 200, body: MESSAGES as unknown };
+		const bot = await fakeArchiveBot(answer);
 		const { get } = await openApp({ secret: SECRET, archivebotUrl: bot.url, now: () => clock.now });
 		await Promise.all([get(), get(), get()]);
 		clock.now += CACHE_MS - 1;
 		await get();
 		expect(bot.seen).toHaveLength(1);
+
+		const NEWER = { messages: [...MESSAGES.messages, { author: 'carol', avatar: null, color: null, text: 'me too', at: '2026-10-28T18:05:00Z' }] };
+		answer.body = NEWER;
 		clock.now += 2;
-		await get();
+		expect(await get()).toEqual({ status: 200, body: MESSAGES });
+		await vi.waitFor(async () => expect(await get()).toEqual({ status: 200, body: NEWER }));
 		expect(bot.seen).toHaveLength(2);
+	});
+
+	it('a read that fails keeps the last good snapshot', async () => {
+		const clock = { now: 0 };
+		const answer = { status: 200, body: MESSAGES as unknown };
+		const bot = await fakeArchiveBot(answer);
+		const { get, logged } = await openApp({ secret: SECRET, archivebotUrl: bot.url, now: () => clock.now });
+		expect(await get()).toEqual({ status: 200, body: MESSAGES });
+		answer.status = 503;
+		clock.now += CACHE_MS;
+		await get();
+		await vi.waitFor(() => expect(logged).toEqual([expect.objectContaining({ outcome: 'refused', status: 503 })]));
+		expect(await get()).toEqual({ status: 200, body: MESSAGES });
 	});
 
 	it('answers 204 for a refusal, an empty channel or an unreadable body, and keeps that a minute too', async () => {

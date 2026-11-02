@@ -292,15 +292,38 @@ describe('/api/events/forms', () => {
 		const ids = async () => FormListSchema.parse((await call(base, 'bob', 'GET', '/events/forms')).body).forms.map((f) => f.id);
 		expect(await ids()).toEqual(['b', 'a', 'c']);
 
+		// An expired answer is the poll's at once while Rally is read behind it; the next poll has Rally's word.
 		rally.a = rallyForm('a', { status: 'closed' });
 		rally.c = { status: 404 };
 		clock.now += 10 * 60_000;
-		expect(await ids()).toEqual(['b']);
+		expect(await ids()).toEqual(['b', 'a', 'c']);
+		await vi.waitFor(async () => expect(await ids()).toEqual(['b']));
 
 		expect((await call(base, 'bob', 'DELETE', '/events/forms/b')).status).toBe(403);
 		expect((await call(base, 'alice', 'DELETE', '/events/forms/zzz')).status).toBe(404);
 		expect((await call(base, 'alice', 'DELETE', '/events/forms/b')).status).toBe(200);
 		expect(await ids()).toEqual([]);
+	});
+
+	it('reads Rally once per form however many poll at once, and an outage costs one read per form every 30 s', async () => {
+		const clock = { now: Date.UTC(2026, 9, 28, 12) };
+		const rally: Record<string, RallyRow> = { a: rallyForm('a') };
+		const { base, rallyCalls } = await openApp(clock, rally);
+		expect((await call(base, 'alice', 'POST', '/events/forms', { formId: 'a' })).status).toBe(201);
+		const ids = async (user: string) => FormListSchema.parse((await call(base, user, 'GET', '/events/forms')).body).forms.map((f) => f.id);
+		rally.a = { status: 500 };
+		clock.now += 10 * 60_000;
+		const before = rallyCalls.length;
+		expect(await Promise.all(['bob', 'carol', 'dave'].map(ids))).toEqual([['a'], ['a'], ['a']]);
+		await vi.waitFor(() => expect(rallyCalls).toHaveLength(before + 1));
+		// Rally refused: the last answer it gave stands, and nobody reads again for 30 s.
+		expect(await ids('bob')).toEqual(['a']);
+		clock.now += 29_000;
+		expect(await ids('bob')).toEqual(['a']);
+		expect(rallyCalls).toHaveLength(before + 1);
+		clock.now += 2_000;
+		await ids('bob');
+		await vi.waitFor(() => expect(rallyCalls).toHaveLength(before + 2));
 	});
 });
 

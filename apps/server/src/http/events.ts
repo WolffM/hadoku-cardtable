@@ -82,45 +82,72 @@ export const EVENT_CREATE_RATE_LIMIT: RateLimitConfig = {
 /** A start this far in the past is still accepted: a form filled in a minute late. */
 const STARTS_AT_GRACE_MS = 5 * 60_000;
 
-/** How long Rally's answer about a form is trusted: the polls card re-reads every minute. */
+/** How long Rally's answer about a form is trusted before the next caller reads behind it: the polls card re-reads every minute. */
 const RALLY_SUMMARY_TTL_MS = 5 * 60_000;
+/** How long a read Rally did not answer is trusted: an outage costs one wait per form this often, not one per poll per player. */
+const RALLY_FAILURE_TTL_MS = 30_000;
 const RALLY_TIMEOUT_MS = 5_000;
 
 type Summary = { ok: true; summary: RallyFormSummary } | { ok: false; reason: 'not-found' | 'unreachable' };
 
-/** Rally's summary endpoint, each answer kept `RALLY_SUMMARY_TTL_MS`. A failure is not kept. */
+/**
+ * Rally's summary endpoint, one read per form at a time, each answer kept `RALLY_SUMMARY_TTL_MS`.
+ * A read Rally did not answer keeps the last answer it gave, or `unreachable`, for
+ * `RALLY_FAILURE_TTL_MS`. `stale`: answer an expired one at once and read behind it (the polls
+ * card, which would otherwise wait on Rally every fifth poll); without it the caller waits for the
+ * read (attaching a form).
+ */
 function rallySummaries(deps: RallyDeps, now: () => number, log: (entry: Record<string, unknown>) => void) {
 	const baseUrl = deps.baseUrl ?? 'https://hadoku.me/rally';
 	const fetchImpl: RallyFetch = deps.fetch ?? ((input, init) => fetch(input, init));
-	const kept = new Map<string, { at: number; answer: Summary }>();
-	return async (formId: string): Promise<Summary> => {
-		const hit = kept.get(formId);
-		if (hit !== undefined && now() - hit.at < RALLY_SUMMARY_TTL_MS) return hit.answer;
-		let answer: Summary;
+	const kept = new Map<string, { until: number; answer: Summary }>();
+	const reading = new Map<string, Promise<Summary>>();
+
+	const read = async (formId: string): Promise<Summary> => {
 		try {
 			const res = await fetchImpl(`${baseUrl}/api/forms/${encodeURIComponent(formId)}/summary`, {
 				headers: { accept: 'application/json', 'x-user-key': deps.serviceKey },
 				signal: AbortSignal.timeout(RALLY_TIMEOUT_MS),
 			});
-			if (res.status === 404) answer = { ok: false, reason: 'not-found' };
-			else if (!res.ok) {
+			if (res.status === 404) return { ok: false, reason: 'not-found' };
+			if (!res.ok) {
 				log({ event: 'rally-summary-refused', formId, status: res.status });
 				return { ok: false, reason: 'unreachable' };
-			} else {
-				const body = (await res.json()) as { data?: unknown };
-				const summary = RallyFormSummarySchema.safeParse(body.data);
-				if (!summary.success) {
-					log({ event: 'rally-summary-unreadable', formId });
-					return { ok: false, reason: 'unreachable' };
-				}
-				answer = { ok: true, summary: summary.data };
 			}
+			const body = (await res.json()) as { data?: unknown };
+			const summary = RallyFormSummarySchema.safeParse(body.data);
+			if (!summary.success) {
+				log({ event: 'rally-summary-unreadable', formId });
+				return { ok: false, reason: 'unreachable' };
+			}
+			return { ok: true, summary: summary.data };
 		} catch (err) {
 			log({ event: 'rally-summary-failed', formId, err: String(err) });
 			return { ok: false, reason: 'unreachable' };
 		}
-		kept.set(formId, { at: now(), answer });
-		return answer;
+	};
+
+	const refresh = (formId: string): Promise<Summary> => {
+		const out = reading.get(formId);
+		if (out !== undefined) return out;
+		const task = read(formId).then((answer) => {
+			reading.delete(formId);
+			const unanswered = !answer.ok && answer.reason === 'unreachable';
+			const keep = unanswered ? (kept.get(formId)?.answer ?? answer) : answer;
+			kept.set(formId, { until: now() + (unanswered ? RALLY_FAILURE_TTL_MS : RALLY_SUMMARY_TTL_MS), answer: keep });
+			return keep;
+		});
+		reading.set(formId, task);
+		return task;
+	};
+
+	return async (formId: string, stale = false): Promise<Summary> => {
+		const hit = kept.get(formId);
+		if (hit === undefined) return refresh(formId);
+		if (now() < hit.until) return hit.answer;
+		if (!stale) return refresh(formId);
+		void refresh(formId);
+		return hit.answer;
 	};
 }
 
@@ -174,7 +201,7 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 	api.get('/events/forms', async (req: Request, res: Response) => {
 		const me = httpCaller(req);
 		const attached = events.forms();
-		const answers = await Promise.all(attached.map((f) => summary(f.formId)));
+		const answers = await Promise.all(attached.map((f) => summary(f.formId, true)));
 		const gone: string[] = [];
 		const open: { form: AttachedForm; attachedAt: number }[] = [];
 		attached.forEach((f, i) => {
