@@ -157,6 +157,10 @@
  * grows, the step moves, or the stack empties; what of it is still queued then goes as it comes, so the seat's
  * input is never held by a gap (AF216), and frames still go out in order.
  *
+ * That gap was a fixed 300 ms until the operator, 2026-11-02, approving tempo's film of the same ten triggers: *"keep
+ * the tempo curve and shrinking gap"*. Each trigger is the same thing drawn again, so the gap before it shrinks with
+ * its tempo, 300 ms before the second down to 120 ms from the seventh ("The same thing again, sooner", below).
+ *
  * ## A die or a coin lands before anything goes on
  *
  * The operator, 2026-10-28: *"lets make sure the dice roll completes before any action is triggered."* A
@@ -243,7 +247,8 @@ const STEPS: ReadonlySet<PaceClass> = new Set<PaceClass>(['phase', 'turn']);
 
 /**
  * Between two resolutions of a chain nobody decides in ({@link Chain}): each stack item is drawn leaving on its own
- * beat, the bolts' own stagger apart, on every screen and whoever owns the chain.
+ * beat, the bolts' own stagger apart, on every screen and whoever owns the chain — at the tempo the next one is drawn
+ * at (module header, "The same thing again, sooner").
  */
 export const RESOLVE_CHAIN_GAP_MS = BOLT_STAGGER_MS;
 
