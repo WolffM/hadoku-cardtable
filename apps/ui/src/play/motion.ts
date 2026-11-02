@@ -391,6 +391,19 @@ export function exitBeatAt(seq: number): number | null {
   return exitBeat !== null && exitBeat.seq === seq ? exitBeat.at : null;
 }
 
+/** The mill sound waits the same way for the first card milled to leave its library (`live/mill.ts`). */
+let millBeat: { seq: number; at: number } | null = null;
+
+/** The view numbered `seq` drew cards milled, the first leaving its library at `at` (epoch ms). */
+export function noteMillBeat(seq: number, at: number): void {
+  millBeat = { seq, at };
+}
+
+/** When the view numbered `seq`'s first milled card leaves its library, or null when it milled none. */
+export function millBeatAt(seq: number): number | null {
+  return millBeat !== null && millBeat.seq === seq ? millBeat.at : null;
+}
+
 /**
  * A sound only the board's own drawing knows to play: a ram's charge and blow, a spell's ball slamming in,
  * a creature cracking. `at` is when (epoch ms), `intensity` how heavy (`damagePower`), `mine` whether the

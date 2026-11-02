@@ -300,7 +300,7 @@ import { NO_PRIORITY_CUE, nextPriorityCue, type PriorityCue } from './priority-c
 import { matchStartSounded, openNewMatch } from './matchStart.ts';
 import { hoverControl, isMuted, playRole, playSoundEvents, takeUiTally, type DelayedSoundEvent } from '../../sound/index.ts';
 import { useMatchMusic } from '../../sound/match-music.ts';
-import { boardDrawing, boardSoundsAt, cardImpactAt, exitBeatAt, lifeImpactAt, prefersReducedMotion, whenBoardStill } from '../motion.ts';
+import { boardDrawing, boardSoundsAt, cardImpactAt, exitBeatAt, lifeImpactAt, millBeatAt, prefersReducedMotion, whenBoardStill } from '../motion.ts';
 import {
   abortAsk,
   answerAsk,
@@ -2005,16 +2005,26 @@ const END_ROLES: ReadonlySet<string> = new Set(['g.win', 'g.lose']);
 /**
  * The sounds a hit is the cause of wait for the hit (`motion.ts`'s beat clock, written by `numbers.ts`
  * in the same commit): a life total's, until the first hit on a player lands; a creature's damage,
- * until the first hit on a card lands; a permanent leaving, until the first exit starts.
+ * until the first hit on a card lands; a permanent leaving, until the first exit starts; a mill, until
+ * its first card leaves the library.
  */
 function afterTheHits(events: readonly DelayedSoundEvent[], seq: number): DelayedSoundEvent[] {
   const now = Date.now();
   const life = lifeImpactAt(seq);
   const card = cardImpactAt(seq);
   const exit = exitBeatAt(seq);
+  const mill = millBeatAt(seq);
   return events.map((e) => {
     const until =
-      e.role === 'g.damage-player' || e.role === 'g.lifegain' ? life : e.role === 'g.damage' ? card : EXIT_ROLES.has(e.role) ? exit : null;
+      e.role === 'g.damage-player' || e.role === 'g.lifegain'
+        ? life
+        : e.role === 'g.damage'
+          ? card
+          : EXIT_ROLES.has(e.role)
+            ? exit
+            : e.role === 'g.mill'
+              ? mill
+              : null;
     return until === null || until <= now ? e : { ...e, delayMs: Math.max(e.delayMs ?? 0, until - now) };
   });
 }

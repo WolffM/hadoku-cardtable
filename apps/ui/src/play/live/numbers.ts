@@ -143,6 +143,7 @@ import {
   writeDurations,
   noteCardImpact,
   noteExitBeat,
+  noteMillBeat,
   noteLifeImpact,
   noteResolutionEffects,
   prefersReducedMotion,
@@ -157,6 +158,7 @@ import { fly, impact } from './projectile.ts';
 import { cardColours, colourRow } from './sound-events.ts';
 import { CAST_LANDING_ATTR, landCastGhost, parkedGhost } from './gestures/cast.ts';
 import { entryHeft, entryMotionFor, entryWeight, entryDurationMs, landingWeight, playEntry, playLanding } from './entries.ts';
+import { installMill, millsOf, setAsideAfter, type Mill, type SetAside } from './mill.ts';
 import { quake } from './quake.ts';
 import { recoil } from './recoil.ts';
 import './numbers.css';
@@ -579,6 +581,10 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   const attackingSince = new Map<number, number>();
   /** Each shake of the table, likewise. */
   const shakes = new Set<() => void>();
+  /** Cards milled, library to graveyard (`mill.ts`). */
+  const mill = installMill(canvas, reduced, (data) => host.report?.(data));
+  /** Cards out of a library and in no zone yet (`mill.ts`'s `setAsideAfter`). */
+  let setAside: ReadonlyMap<number, SetAside> = new Map();
 
   function overlay(): HTMLElement | null {
     return overlayOf(canvas);
@@ -962,12 +968,12 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     return battlefieldCard(canvas, cardId) ?? canvas.querySelector<HTMLElement>(`[${LEAVING_GAP_ATTR}="${cardId}"]`);
   }
 
-  function apply(diff: ViewDiff, before: BoardView | null, revealed: Revealed | undefined): void {
+  function apply(diff: ViewDiff, before: BoardView | null, revealed: Revealed | undefined, mills: readonly Mill[]): void {
     const item = diff.resolved[0];
     const reveal = revealOf(item, revealed);
     const origin = reveal?.at ?? sourceOf(item);
     const effects =
-      diff.life.length + diff.hits.length + diff.departures.length + diff.arrivals.length + diff.damage.filter((c) => c.to > c.from).length > 0;
+      diff.life.length + diff.hits.length + diff.departures.length + diff.arrivals.length + mills.length + diff.damage.filter((c) => c.to > c.from).length > 0;
     // What it does starts at once (a reveal's beat aside); the spell waits on the stack meanwhile and goes last (`placed.ts`).
     const startMs = reveal?.waitMs ?? 0;
     /**
@@ -1223,6 +1229,14 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       arrive(arrival.cardId, arrival.source, maker ?? sourceOf(item), delay, arrival.origin, arrival.heft, pileOwner);
     }
     /*
+     * Cards milled fly from their library to their graveyard as the effects start. The spell waits for them on the
+     * stack, but nothing else does: they are in the graveyard already, and Forge sends one mill in more than one
+     * frame (measured, Glimpse the Unthinkable: nine cards, then the tenth with the resolution), whose second frame
+     * a hold would keep from the other seat's screen until the first run had landed.
+     */
+    const millEnd = mills.length === 0 ? 0 : mill.fly(mills, startMs);
+    if (mills.length > 0 && prevView !== null) noteMillBeat(prevView.seq, Date.now() + startMs);
+    /*
      * What left the battlefield goes at its beat: what a hit killed the moment that hit lands, everything
      * else (destroyed, sacrificed, exiled) as the effects start.
      */
@@ -1346,7 +1360,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     if (prevView !== null && firstCardImpact !== null) noteCardImpact(prevView.seq, Date.now() + firstCardImpact);
     if (prevView !== null) noteBoardSounds(prevView.seq, sounds.map((s) => ({ role: s.role, at: Date.now() + s.ms, intensity: s.intensity, mine: s.mine, colourCell: s.colourCell ?? null })));
     if (prevView !== null && firstExit !== null) noteExitBeat(prevView.seq, Date.now() + firstExit);
-    if (item !== undefined && effects) noteResolutionEffects(item.id, Date.now() + Math.max(endMs, startMs));
+    if (item !== undefined && effects) noteResolutionEffects(item.id, Date.now() + Math.max(endMs, startMs, millEnd));
     // The other seat's attack is seen before anything after it is drawn (`live/pace.ts` waits on this beat).
     if (diff.attacks.length > 0 && !fast()) {
       endMs = Math.max(endMs, ATTACK_BEAT_MS);
@@ -1396,7 +1410,9 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       const before = prevView;
       const diff = diffViews(before, view);
       prevView = view;
-      timed('effects', () => apply(diff, before, revealed));
+      const mills = millsOf(before, view, setAside);
+      setAside = setAsideAfter(before, view, setAside);
+      timed('effects', () => apply(diff, before, revealed, mills));
       markReveal(revealed);
       noteStack(view);
       const attacking = new Set(view.players.flatMap((p) => p.battlefield.filter((c) => c.attacking).map((c) => c.id)));
@@ -1410,6 +1426,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       live = false;
       for (const timer of timers) clearTimeout(timer);
       timers.clear();
+      mill.dispose();
       for (const settle of [...playing]) settle();
       for (const cancel of rams) cancel();
       rams.clear();
