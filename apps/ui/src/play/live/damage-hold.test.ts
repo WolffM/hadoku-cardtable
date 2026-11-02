@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { damageHold } from './damage-hold.ts';
+import { heldValues } from './damage-hold.ts';
 
-describe('damageHold', () => {
+describe('heldValues', () => {
   it("draws a card's damage from before a hit until that hit lands", () => {
-    const holds = damageHold();
+    const holds = heldValues<number>();
     let changes = 0;
     holds.subscribe(() => (changes += 1));
     expect(holds.shown(7)).toBeUndefined();
@@ -16,7 +16,7 @@ describe('damageHold', () => {
   });
 
   it('a card hit twice keeps its damage from before the first until the last lands', () => {
-    const holds = damageHold();
+    const holds = heldValues<number>();
     holds.hold(7, 1);
     holds.hold(7, 4);
     expect(holds.shown(7)).toBe(1);
@@ -27,7 +27,7 @@ describe('damageHold', () => {
   });
 
   it('a release with nothing held, and a clear, change nothing they should not', () => {
-    const holds = damageHold();
+    const holds = heldValues<number>();
     let changes = 0;
     holds.subscribe(() => (changes += 1));
     holds.release(3);

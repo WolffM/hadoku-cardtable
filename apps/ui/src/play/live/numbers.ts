@@ -159,6 +159,7 @@ import { cardColours, colourRow } from './sound-events.ts';
 import { CAST_LANDING_ATTR, landCastGhost, parkedGhost } from './gestures/cast.ts';
 import { entryHeft, entryMotionFor, entryWeight, entryDurationMs, landingWeight, playEntry, playLanding } from './entries.ts';
 import { installMill, millsOf, setAsideAfter, type Mill, type SetAside } from './mill.ts';
+import { clearImpact, glintCard, impactBadge, ptBadge, ptChanges, PT_GLINT_CLASS, PT_IMPACT_ATTR, PT_IMPACT_MS, type PT, type PTChange } from './pt-impact.ts';
 import { quake } from './quake.ts';
 import { recoil } from './recoil.ts';
 import './numbers.css';
@@ -202,6 +203,7 @@ const DURATIONS = [
   ['--hit-flash-ms', HIT_FLASH_MS],
   ['--arrive-fade-ms', ARRIVE_FADE_MS],
   ['--reveal-beat-ms', REVEAL_BEAT_MS],
+  ['--pt-impact-ms', PT_IMPACT_MS],
 ] as const;
 /** On a permanent's row element while it arrives from what made it: that card's id, empty when unknown. */
 const ARRIVING_ATTR = 'data-arriving-from';
@@ -265,9 +267,11 @@ export interface ViewDiff {
   readonly departures: readonly Departure[];
   /** The creatures of a seat not the viewer's that are attacking in this view and were not in the last: an attack to be seen. */
   readonly attacks: readonly number[];
+  /** The creatures whose power or toughness moved (`./pt-impact.ts`). */
+  readonly pt: readonly PTChange[];
 }
 
-const NO_DIFF: ViewDiff = { life: [], damage: [], resolved: [], arrivals: [], hits: [], faceHits: [], departures: [], attacks: [] };
+const NO_DIFF: ViewDiff = { life: [], damage: [], resolved: [], arrivals: [], hits: [], faceHits: [], departures: [], attacks: [], pt: [] };
 
 /**
  * How a creature's ram ends, from who dies of the fight (`ram.ts`'s `RamEnd`): both, it crumples into
@@ -441,7 +445,7 @@ export function diffViews(prev: BoardView | null, next: BoardView): ViewDiff {
   const faceHits = (next.faceHits ?? []).filter((h) => h.seq > lastFaceHit);
   const attackingBefore = new Set(prev.players.flatMap((p) => p.battlefield.filter((c) => c.attacking).map((c) => c.id)));
   const attacks = next.players.filter((p) => !p.isViewer).flatMap((p) => p.battlefield.filter((c) => c.attacking && !attackingBefore.has(c.id)).map((c) => c.id));
-  return { life, damage, resolved, arrivals, hits, faceHits, departures: departuresOf(prev, next), attacks };
+  return { life, damage, resolved, arrivals, hits, faceHits, departures: departuresOf(prev, next), attacks, pt: ptChanges(prev, next) };
 }
 
 /* ── pure: stacking (simultaneous numbers at one anchor) ─────────────── */
@@ -524,6 +528,10 @@ export interface NumbersHost {
   readonly holdDamage?: (cardId: number, damage: number) => void;
   /** That hit has landed: draw the card's damage as Forge marks it. */
   readonly releaseDamage?: (cardId: number) => void;
+  /** A change to this creature's power or toughness is on its way: draw `pt`, its numbers before, until it lands. */
+  readonly holdPT?: (cardId: number, pt: PT) => void;
+  /** That change has landed: draw the creature's numbers as Forge has them. */
+  readonly releasePT?: (cardId: number) => void;
 }
 
 export interface NumbersHandle {
@@ -973,7 +981,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     const reveal = revealOf(item, revealed);
     const origin = reveal?.at ?? sourceOf(item);
     const effects =
-      diff.life.length + diff.hits.length + diff.departures.length + diff.arrivals.length + mills.length + diff.damage.filter((c) => c.to > c.from).length > 0;
+      diff.life.length + diff.hits.length + diff.departures.length + diff.arrivals.length + mills.length + diff.pt.length + diff.damage.filter((c) => c.to > c.from).length > 0;
     // What it does starts at once (a reveal's beat aside); the spell waits on the stack meanwhile and goes last (`placed.ts`).
     const startMs = reveal?.waitMs ?? 0;
     /**
@@ -1216,6 +1224,29 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         boltSound(landsAt, h.amount);
       }
     }
+    /*
+     * Power and toughness (`./pt-impact.ts`): the creature's card glints along its edge, up from the bottom for a
+     * gain and down from the top for a loss, and its badge rolls to the new numbers at that moment, holding the old
+     * ones until then. What a resolution changed glints one card after another, a beat apart (battle cry down the
+     * line of attackers); a change nothing resolved (a lord's static, the cleanup) glints on every card at once.
+     */
+    let ptStaggered = 0;
+    for (const change of diff.pt) {
+      if (ptBadge(canvas, change.cardId) === null) continue;
+      host.holdPT?.(change.cardId, change.from);
+      const land = (): void => {
+        host.releasePT?.(change.cardId);
+        const root = overlay();
+        const card = battlefieldCard(canvas, change.cardId);
+        if (root !== null && card !== null) glintCard(root, card.querySelector('.board-card__face') ?? card, change, reduced(), schedule);
+        const badge = ptBadge(canvas, change.cardId);
+        if (badge !== null) impactBadge(badge, change, reduced(), schedule);
+      };
+      const delay = item === undefined ? startMs : nextDelay();
+      if (item !== undefined) ptStaggered += 1;
+      endMs = Math.max(endMs, delay + PT_IMPACT_MS);
+      atBeat(land, delay);
+    }
     let fromMaker = 0;
     for (const arrival of diff.arrivals) {
       const maker = arrival.source === null ? null : battlefieldCard(canvas, arrival.source);
@@ -1369,6 +1400,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     // What waits on these beats goes at their 90% (`../motion.ts`'s `UNLOCK_AT`); the result screen waits for `beatsOver`.
     if (endMs > 0) noteBoardDrawing(beatsOver(endMs), { endsInMs: endMs, root: canvas });
     if (firstLifeLand !== null && prevView !== null) noteLifeImpact(prevView.seq, Date.now() + firstLifeLand);
+    if (diff.pt.length > 0) host.report?.({ what: 'pt', resolved: item?.id ?? -1, changes: diff.pt.length, staggered: ptStaggered, motion: !reduced() });
     if (beat > 0 || bolt > 0 || reveal !== null || diff.departures.length > 0 || (combat?.rams.length ?? 0) > 0) {
       host.report?.({
         what: 'beats',
@@ -1449,6 +1481,10 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         el.removeAttribute(ARRIVING_ATTR);
         el.removeAttribute(REVEAL_BEAT_ATTR);
       }
+      canvas.querySelectorAll(`[${PT_IMPACT_ATTR}]`).forEach(clearImpact);
+      overlay()
+        ?.querySelectorAll(`.${PT_GLINT_CLASS}`)
+        .forEach((el) => el.remove());
       marked.clear();
     },
   };

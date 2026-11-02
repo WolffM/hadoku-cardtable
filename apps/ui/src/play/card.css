@@ -302,6 +302,13 @@
  *
  * Out of flow, clipped to the card, and `pointer-events: none`: it may not
  * change a card's box and it may not eat a click Forge offered.
+ *
+ * Always drawn, and always reads as OURS: it sits on the printed P/T box, so a
+ * plain badge drawn as quietly as the print (dim ink, a hairline in the line
+ * colour) passed for the card's own numbers, and only a buffed or hurt one was
+ * seen at all (the operator, 2026-11-01: "the power/toughness indicator pill is
+ * ALWAYS displayed on top of the card"). Full ink, a rule drawn from the ink and
+ * a shadow lift it off the art.
  */
 .board-card__pt {
   position: absolute;
@@ -321,15 +328,20 @@
   max-width: calc(100% - 4px - var(--pile-fan));
   padding: 0 4px;
   background: var(--bg-raised);
-  border: 1px solid var(--line);
+  border: 1px solid color-mix(in srgb, var(--ink) 45%, var(--bg-raised));
   border-radius: 999px;
-  color: var(--ink-dim);
+  box-shadow: 0 1px 3px var(--shadow);
+  color: var(--ink);
   font-size: 10px;
+  font-weight: 600;
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
   overflow: hidden;
   white-space: nowrap;
   pointer-events: none;
+  transition:
+    background-color 300ms ease-out,
+    border-color 300ms ease-out;
 }
 
 /* A planeswalker's loyalty sits over the printed loyalty shield, a little further in than a
@@ -345,10 +357,13 @@
 }
 
 .board-card__pt-n {
+  /* The strip a P/T impact rolls: the old digit rides on it, one line away. */
+  position: relative;
   display: inline-flex;
   align-items: baseline;
   gap: 1px;
   color: var(--ink);
+  transition: color 300ms ease-out;
 }
 
 /* The operator's "3 (blue) / 1 (red)", since 2026-10-17 green for buffed ("it should have shown the number in green if the stats have been changed"): the theme's own success and danger inks. */
@@ -385,6 +400,86 @@
 .board-card__pt[data-damage] {
   border-color: color-mix(in srgb, var(--danger) 65%, var(--line));
   background: color-mix(in srgb, var(--danger) 18%, var(--bg-raised));
+}
+
+/*
+ * Buffed or shrunk wears the same rule and tint in its own state's colour. The inks are mixed toward the
+ * theme's ink for contrast (`styles.css`), pale enough that a full-ink plain badge and a buffed one read
+ * alike; the badge's own rule and fill say it at a glance in every theme.
+ */
+.board-card__pt[data-pt='']:has(> [data-pt-state='buffed']):not(:has(> [data-pt-state='hurt'])):not([data-damage]) {
+  border-color: color-mix(in srgb, var(--success) 65%, var(--line));
+  background: color-mix(in srgb, var(--success) 18%, var(--bg-raised));
+}
+
+.board-card__pt[data-pt='']:has(> [data-pt-state='hurt']):not([data-damage]) {
+  border-color: color-mix(in srgb, var(--danger) 65%, var(--line));
+  background: color-mix(in srgb, var(--danger) 18%, var(--bg-raised));
+}
+
+/*
+ * A change to the creature's power or toughness lands on the badge as the comet runs along its card's border
+ * (`live/pt-impact.ts`): each number that moved rolls in from below (up) or from above (down), easing to rest with
+ * no overshoot, clipped by the badge's own box, so no card in a row moves (table-fit). `CreaturePT` keys each number
+ * by its value, so the roll starts on the new number's first frame, and puts the number it replaces on it
+ * (`data-pt-was`): the old digit rides one line away on the same strip and leaves as the new one arrives, so the
+ * badge is never empty mid-roll. The moved ones are named on the badge (`data-pt-moved`), which React never replaces. Digits are tabular, so a number the same length keeps its width.
+ * The badge's own colours ease between states rather than snap. Reduced motion: the new numbers fade in.
+ */
+.board-card__pt[data-pt-impact][data-pt-moved~='power'] > [data-pt-of='power'],
+.board-card__pt[data-pt-impact][data-pt-moved~='toughness'] > [data-pt-of='toughness'] {
+  animation: pt-roll-up 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.board-card__pt[data-pt-impact='down'][data-pt-moved~='power'] > [data-pt-of='power'],
+.board-card__pt[data-pt-impact='down'][data-pt-moved~='toughness'] > [data-pt-of='toughness'] {
+  animation-name: pt-roll-down;
+}
+
+/* The old digit, one line from the new on the same strip: it leaves as the new one arrives. */
+.board-card__pt[data-pt-impact]:not([data-pt-impact-reduced])[data-pt-moved~='power'] > [data-pt-of='power'][data-pt-was]::before,
+.board-card__pt[data-pt-impact]:not([data-pt-impact-reduced])[data-pt-moved~='toughness'] > [data-pt-of='toughness'][data-pt-was]::before {
+  content: attr(data-pt-was);
+  position: absolute;
+  inset: -100% 0 auto;
+  text-align: center;
+}
+
+.board-card__pt[data-pt-impact='down']:not([data-pt-impact-reduced])[data-pt-moved~='power'] > [data-pt-of='power'][data-pt-was]::before,
+.board-card__pt[data-pt-impact='down']:not([data-pt-impact-reduced])[data-pt-moved~='toughness'] > [data-pt-of='toughness'][data-pt-was]::before {
+  inset: 100% 0 auto;
+}
+
+.board-card__pt[data-pt-impact][data-pt-impact-reduced][data-pt-moved~='power'] > [data-pt-of='power'],
+.board-card__pt[data-pt-impact][data-pt-impact-reduced][data-pt-moved~='toughness'] > [data-pt-of='toughness'] {
+  animation: pt-fade-in 300ms linear both;
+}
+
+@keyframes pt-roll-up {
+  0% {
+    transform: translateY(100%);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes pt-roll-down {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes pt-fade-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
 }
 
 /* ── the state layer: marks and counters ──────────────── */

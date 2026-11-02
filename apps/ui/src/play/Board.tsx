@@ -421,7 +421,8 @@ import { clickLatch, pastSlop } from './live/gestures/types.ts';
 import { installDice } from './live/dice.ts';
 import type { ShownRoll } from './live/shown.ts';
 import { installNumbers, type Revealed } from './live/numbers.ts';
-import { damageHold, type DamageHold } from './live/damage-hold.ts';
+import { heldValues, type Held } from './live/damage-hold.ts';
+import type { PT } from './live/pt-impact.ts';
 import { addWork } from './live/work-meter.ts';
 import { pinFlight } from './flight.ts';
 import { installPlaced } from './live/placed.ts';
@@ -2117,22 +2118,45 @@ function PowerToughness({ entry }: { entry: BoardCard }) {
   );
 }
 
-/** The board's {@link DamageHold}: a creature's damage while a hit is still on its way to it. */
-const DamageHoldContext = createContext<DamageHold | null>(null);
+/** A creature's damage, and its power and toughness, while a hit that changes them is still on its way to it (`./live/damage-hold.ts`). */
+interface BoardHolds {
+  readonly damage: Held<number>;
+  readonly pt: Held<PT>;
+}
+const HoldsContext = createContext<BoardHolds | null>(null);
 const NO_HOLD = (): (() => void) => () => undefined;
 
-/** The damage to draw on `entry`: what it had before a hit still in the air, else Forge's (`./live/damage-hold.ts`). */
-function useShownDamage(entry: BoardCard): number {
-  const holds = useContext(DamageHoldContext);
-  const shown = (): number | undefined => holds?.shown(entry.id);
-  const held = useSyncExternalStore(holds?.subscribe ?? NO_HOLD, shown, shown);
-  return held ?? entry.damage;
+/** What `entry` is drawn with: its damage and its numbers from before a hit still in the air, else Forge's (`./live/damage-hold.ts`). */
+function useShown(entry: BoardCard): BoardCard {
+  const holds = useContext(HoldsContext);
+  const damage = (): number | undefined => holds?.damage.shown(entry.id);
+  const pt = (): PT | undefined => holds?.pt.shown(entry.id);
+  const heldDamage = useSyncExternalStore(holds?.damage.subscribe ?? NO_HOLD, damage, damage);
+  const heldPT = useSyncExternalStore(holds?.pt.subscribe ?? NO_HOLD, pt, pt);
+  if (heldDamage === undefined && heldPT === undefined) return entry;
+  return {
+    ...entry,
+    damage: heldDamage ?? entry.damage,
+    card: heldPT === undefined ? entry.card : { ...entry.card, power: String(heldPT.power), toughness: String(heldPT.toughness) },
+  };
 }
 
 function CreaturePT({ entry: forge }: { entry: BoardCard }) {
-  const damage = useShownDamage(forge);
-  const entry = damage === forge.damage ? forge : { ...forge, damage };
+  const entry = useShown(forge);
   const pt = boardPT(entry);
+  /*
+   * What each number read before it last changed: a P/T impact rolls that digit out as the new one rolls in, one
+   * strip (`card.css`'s `data-pt-was`), so the badge is never empty mid-roll. Kept from the previous render (state
+   * set while rendering, React's own pattern for it), so it is the number that was on screen, held ones included.
+   */
+  const [seen, setSeen] = useState<{ power?: number; toughness?: number; was: { power?: number; toughness?: number } }>(() => ({
+    power: pt?.power,
+    toughness: pt?.toughness,
+    was: {},
+  }));
+  if (seen.power !== pt?.power || seen.toughness !== pt?.toughness) {
+    setSeen({ power: pt?.power, toughness: pt?.toughness, was: { power: seen.power, toughness: seen.toughness } });
+  }
   /*
    * No P/T and damage marked anyway — a planeswalker, a damaged non-creature,
    * or a creature whose printed numbers our data cannot read. Wave 28 §A.15:
@@ -2166,8 +2190,15 @@ function CreaturePT({ entry: forge }: { entry: BoardCard }) {
         : state === 'damaged'
           ? `${what} ${value + pt.damage}, ${pt.damage} damage marked`
           : `${what} ${value}`;
-  const number = (value: number, state: PTState, which: string) => (
-    <span className="board-card__pt-n" data-pt-state={state === 'plain' ? undefined : state} data-pt-of={which}>
+  // Keyed by its value: a new number is a new element, so a P/T impact's roll (`card.css`) starts on its first frame.
+  const number = (value: number, state: PTState, which: 'power' | 'toughness') => (
+    <span
+      key={`${which}:${value}`}
+      className="board-card__pt-n"
+      data-pt-state={state === 'plain' ? undefined : state}
+      data-pt-of={which}
+      data-pt-was={seen.was[which] !== undefined && seen.was[which] !== value ? seen.was[which] : undefined}
+    >
       {value}
     </span>
   );
@@ -4340,8 +4371,8 @@ export function Board({
    * delegation and draws into the overlay root. One mount, one dispose.
    */
   const root = useRef<HTMLElement>(null);
-  /** A creature's damage while a hit is on its way to it (`./live/damage-hold.ts`), drawn by its P/T badge. */
-  const [damageHolds] = useState(damageHold);
+  /** A creature's damage and its P/T while a hit is on its way to it (`./live/damage-hold.ts`), drawn by its P/T badge. */
+  const [holds] = useState<BoardHolds>(() => ({ damage: heldValues<number>(), pt: heldValues<PT>() }));
   useEffect(() => {
     const el = root.current;
     if (el === null) return undefined;
@@ -4445,16 +4476,19 @@ export function Board({
       fastMode: () => fastNow.current,
       leave: (batch) => departures.current?.leave(batch),
       strike: (cardId) => departures.current?.strike(cardId),
-      holdDamage: (cardId, damage) => damageHolds.hold(cardId, damage),
-      releaseDamage: (cardId) => damageHolds.release(cardId),
+      holdDamage: (cardId, damage) => holds.damage.hold(cardId, damage),
+      releaseDamage: (cardId) => holds.damage.release(cardId),
+      holdPT: (cardId, pt) => holds.pt.hold(cardId, pt),
+      releasePT: (cardId) => holds.pt.release(cardId),
     });
     numbers.current = handle;
     return () => {
       numbers.current = null;
       handle.dispose();
-      damageHolds.clear();
+      holds.damage.clear();
+      holds.pt.clear();
     };
-  }, [damageHolds]);
+  }, [holds]);
   /* A die roll (`live/dice.ts`), booted the same way: drawn once per roll, over the view drawn with it. */
   const dice = useRef<ReturnType<typeof installDice> | null>(null);
   const reportRoll = useRef(onRoll);
@@ -4634,7 +4668,7 @@ export function Board({
   const focus = interaction?.selectionOpen === true || (interaction?.combatReady?.size ?? 0) > 0;
 
   return (
-    <DamageHoldContext.Provider value={damageHolds}>
+    <HoldsContext.Provider value={holds}>
       <section className="board" aria-label="Game board" ref={root} data-focus={focus || undefined}>
         <div className="board__opponents">
           {others.map((p) => (
@@ -4728,6 +4762,6 @@ export function Board({
         </div>
         <TopLayer clip />
       </section>
-    </DamageHoldContext.Provider>
+    </HoldsContext.Provider>
   );
 }
