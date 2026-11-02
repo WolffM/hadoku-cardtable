@@ -126,14 +126,14 @@ MONTAGE = [
     # Cut 6 (the operator: "some clips are cut too short"): every shot two eighths longer.
     ("m-thoughtseize", "stack:0", -1.0, 6, *Z),
     ("m-griselbrand", "stack:0", -0.05, 6, *Z),
-    ("m-swords", "stack:0", 0.3, 6, *Z),
-    ("m-gary", "life:mine:9", -0.15, 6, *Z),
+    ("m-swords", "life:theirs:*", -0.35, 6, *Z),
+    ("m-gary", "life:mine:*", -0.15, 6, *Z),
     ("storm", "hit", -0.3, 6, *Z),
     ("m-pyroclasm", "stack:0", 0.1, 6, *Z),
     ("m-wrath", "stack:0", 0.05, 6, *Z),
-    ("craterhoof", "life:theirs:19", -0.4, 6, *Z),
+    ("craterhoof", "life:theirs:*", -0.4, 6, *Z),
     ("m-time-spiral", "stack:0", 0.0, 8, *Z),
-    ("m-tremors", "life:theirs:19", -0.4, 8, *Z),
+    ("m-tremors", "life:theirs:*", -0.4, 8, *Z),
     ("m-worldfire", "stack:0", 0.0, 8, *Z),
     ("emrakul", "landed", 0.1, 10, *Z),
 ]
@@ -157,13 +157,17 @@ def esc(text: str) -> str:
 
 def marks(clip: str) -> dict[str, float]:
     """A clip's marks by label. A label that recurs (the rig's `stack:1`, say) is its first occurrence, and
-    `label#2`, `label#3`… are the later ones."""
+    `label#2`, `label#3`… are the later ones. `life:mine:*` / `life:theirs:*` is that side's first life change,
+    whatever total it lands on: since AF489 a drain or a hit moves the total in one step, so the totals in
+    between are never marked."""
     data = json.loads((FOOTAGE / clip / f"{clip}.marks.json").read_text())
     out: dict[str, float] = {}
     seen: dict[str, int] = {}
     for m in data["marks"]:
         seen[m["label"]] = seen.get(m["label"], 0) + 1
         out[m["label"] if seen[m["label"]] == 1 else f"{m['label']}#{seen[m['label']]}"] = m["t"]
+        if m["label"].startswith("life:"):
+            out.setdefault(m["label"].rsplit(":", 1)[0] + ":*", m["t"])
     return out
 
 
