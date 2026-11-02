@@ -69,6 +69,18 @@ const HostDrawsSettings = createContext(false);
 export const HostDrawsSettingsProvider = HostDrawsSettings.Provider;
 
 /**
+ * Reads the same flag `SettingsGear` itself reads — exported for a screen that needs the FACT (not
+ * just a gear it can toggle), rather than sniffing the DOM for whatever visible proxy the host's own
+ * gear happens to be today. Wave 89 §B: `LiveBoard.tsx` hides the fleet header in portrait during a
+ * match, and reads this to know whether that header WOULD have drawn the gear, so it can put a second
+ * `SettingsGear` (under its own `HostDrawsSettingsProvider value={false}` override) in its menu only
+ * where the header held the only route to one.
+ */
+export function useHostDrawsSettings(): boolean {
+  return useContext(HostDrawsSettings);
+}
+
+/**
  * The UI scale, the slider the sound levels' own design is (`ct-settings__level`), with no number
  * beside it as they have none (the operator, 2026-10-21). Saved once the
  * thumb is let go, not on every step of a drag: the whole page re-scales on a save, and a slider

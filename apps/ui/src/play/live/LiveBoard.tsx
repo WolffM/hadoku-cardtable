@@ -360,7 +360,7 @@ import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from './prefs.ts';
 import { StopPhaseSchema, stopStep, type StopPhase } from './transport.ts';
 import { MistakeBubble } from './MistakeBubble.tsx';
 import { fetchOwnDeck, OwnDeckPeek, type OwnDeck } from './own-deck.tsx';
-import { SettingsGear } from '../../settings/Settings.tsx';
+import { HostDrawsSettingsProvider, SettingsGear, useHostDrawsSettings } from '../../settings/Settings.tsx';
 import { usePublishLiveMatchSettings } from '../../settings/liveMatch.ts';
 import { eventTarget } from '../../dom.ts';
 import { castForbiddenTip, costTip, flashTip } from '../tip/words.ts';
@@ -3362,6 +3362,23 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     window.dispatchEvent(new CustomEvent('cardtable:zoom-reset'));
   };
   /*
+   * Manager follow-up, wave 89: `live.css` hides the fleet header
+   * (`.app-header`) in portrait during a match, and that header is the
+   * STANDALONE app's only route to Settings (`SettingsGear` itself draws
+   * nothing there — `App.tsx` forces `HostDrawsSettingsProvider value`). The
+   * watchparty EMBED (`EmbedApp.tsx`) never renders that header at all and
+   * already shows its own gear (`SettingsGear`'s ambient context there
+   * defaults to false, "no host"), so a second one in the menu would be a
+   * genuine duplicate — same `settings-gear` testid, two identical buttons.
+   *
+   * `useHostDrawsSettings` (`../../settings/Settings.tsx`) is the actual FACT
+   * this needs — the same context `SettingsGear` itself reads — rather than a
+   * DOM sniff for whatever visible proxy the host's gear happens to be today:
+   * true exactly where a host (the fleet header, standalone) is already
+   * drawing the gear this file is about to hide.
+   */
+  const hostDrawsSettings = useHostDrawsSettings();
+  /*
    * The log closes the way a menu does (the operator, 2026-10-07: "clicking
    * outside of the log should close the log, also clicking ESC could close
    * the log"): a press anywhere outside the panel and its own toggle, or
@@ -3948,6 +3965,22 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
             <rect x="2.5" y="10.9" width="11" height="2.6" rx="0.6" />
           </svg>
         </button>
+        {/*
+         * Only where a host is already drawing the gear (`hostDrawsSettings`,
+         * above — the standalone app) — the embed already has its own and
+         * must not get a second. `value={false}` overrides `App.tsx`'s
+         * ambient `HostDrawsSettingsProvider value` back to "no host is
+         * drawing settings" for this one instance, so it renders
+         * `OwnSettingsGear` — the same gear-and-popover `SettingsGear`
+         * already draws everywhere a host does not — opening the identical
+         * `CardtableSettings` panel. Portrait-only in `live.css`
+         * (`.action-bar__settings`), same as the rest of this menu.
+         */}
+        {hostDrawsSettings && (
+          <HostDrawsSettingsProvider value={false}>
+            <SettingsGear className="action-bar__settings" />
+          </HostDrawsSettingsProvider>
+        )}
         {/*
          * The control cluster (§C.1). One container, every frame, the same
          * children and the same box — `e2e/table-fit.spec.ts` measures that box on

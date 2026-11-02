@@ -21,7 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 
 vi.setConfig({ testTimeout: 30_000 });
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { createElement, Fragment, type ComponentType } from 'react';
+import { createElement, Fragment, type ComponentType, type ReactNode } from 'react';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { parseServerFrame, type GameLogLine, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
 import { ClientEventSchema } from '@hadoku/shared';
@@ -338,13 +338,18 @@ afterEach(async () => {
  * does — a click on their own face.
  */
 /** `settings`: draw the settings panel beside the board, where a host's popout draws it, sharing the board's preferences. */
-async function liveBoard(playerId = 0, settings = false) {
+/**
+ * `wrap`: an ancestor this board renders under, for the rare test that needs one (wave 89 §B's own
+ * Settings-menu-entry cases — `HostDrawsSettingsProvider`, standing in for `App.tsx`'s ambient one,
+ * which nothing here otherwise provides). Identity by default, so every other call site is unchanged.
+ */
+async function liveBoard(playerId = 0, settings = false, wrap: (ui: ReactNode) => ReactNode = (ui) => ui) {
   const s = (server = await startReplayServer({ playerId }));
   const m = (match = startMatch({
     matchId: s.matchId,
     transport: socketIoMatchTransport({ url: s.url, path: '/socket.io/', transports: ['websocket'] }),
   }));
-  const utils = render(createElement(Fragment, null, createElement(LiveBoard, { match: m }), settings ? createElement(CardtableSettings) : null));
+  const utils = render(wrap(createElement(Fragment, null, createElement(LiveBoard, { match: m }), settings ? createElement(CardtableSettings) : null)));
   await untilMatch(m, () => expect(m.stats.snapshots).toBe(1));
   const frames = fixtureFrames();
   for (const f of frames) s.send(f);
@@ -1573,6 +1578,47 @@ describe('wave 89 §B — the action bar', () => {
     fireEvent.click(primary);
     await untilMatch(m, () => expect(m.stats.replies).toBe(before + 1));
     expect(s.clientFrames().some((f) => f.ok && f.value.kind === 'act' && f.value.method === 'selectButtonOk')).toBe(true);
+  });
+
+  /*
+   * Manager follow-up, wave 89: `live.css` hides the fleet header
+   * (`.app-header`) in portrait during a match — the standalone app's only
+   * route to Settings (`SettingsGear` draws nothing there; `App.tsx` forces
+   * `HostDrawsSettingsProvider value`). `LiveBoard` reads `useHostDrawsSettings()`
+   * (`../../settings/Settings.tsx`'s own reader on the same context
+   * `SettingsGear` reads) to decide whether to add a second `SettingsGear`,
+   * overridden back on, into the menu — and only there: the embed
+   * (`EmbedApp.tsx`) never wraps that provider at all, so the context
+   * defaults false and `SettingsGear`'s OWN instance (`live__settings`)
+   * already draws a gear there; a second one in the menu would be a genuine
+   * duplicate (same `settings-gear` testid, two buttons).
+   */
+  describe('the menu’s own Settings entry (manager follow-up)', () => {
+    /** `App.tsx`'s own wrapper — identity when `drawn` is false, since that is every other test's ambient (no wrapper at all). */
+    const underHost = (drawn: boolean) => (ui: ReactNode) => (drawn ? createElement(HostDrawsSettingsProvider, { value: true }, ui) : ui);
+
+    /*
+     * `drawn: false` is every OTHER test in this file's own ambient (no provider at all, same as the
+     * embed) — proven separately by them, which already find `live__settings`'s own gear up. This
+     * test is only about THIS lane's own addition: it must stay out of the DOM when the host is not
+     * already drawing one of its own.
+     */
+    it('adds no settings entry of its own where no host draws the gear (the embed’s own case)', async () => {
+      const { container } = await liveBoard(0, false, underHost(false));
+      expect(container.querySelector('[data-testid="action-menu"]')).not.toBeNull();
+      expect(document.querySelector('.action-bar__settings')).toBeNull();
+    });
+
+    it('adds its own Settings entry, opening the same CardtableSettings panel, where the standalone app’s host is drawing the gear', async () => {
+      const { getByTestId } = await liveBoard(0, false, underHost(true));
+      fireEvent.click(getByTestId('action-menu'));
+      const gear = document.querySelector('.action-bar__settings') as HTMLButtonElement | null;
+      expect(gear, 'the menu grew its own Settings button').not.toBeNull();
+      expect(gear!.dataset.testid).toBe('settings-gear');
+
+      fireEvent.click(gear!);
+      expect(getByTestId('settings-display')).toBeTruthy();
+    });
   });
 });
 
@@ -2809,18 +2855,30 @@ describe('the match settings (items 4-7, 2026-10-30)', () => {
     expect(queryByTestId('settings')).toBeNull();
   });
 
-  it('where the host draws the settings, the board draws no gear of its own', async () => {
+  /*
+   * Wave 89 §B (manager follow-up) narrowed this: the board's OWN head-row gear (`.live__settings`)
+   * stays gone wherever a host draws the settings, exactly as before — but the portrait action
+   * bar's menu now grows a SECOND one when the host is what `live.css` hides in portrait (the fleet
+   * header), so Settings stays reachable. That second one is `LiveBoard`'s own deliberate exception,
+   * not a hole in this gate: it reads the same `useHostDrawsSettings()` fact and overrides it back for
+   * itself alone (`HostDrawsSettingsProvider value={false}` around just that one instance).
+   */
+  it('where the host draws the settings, the board draws no gear of its own in its head row — only the portrait menu’s own exception', async () => {
     const s = (server = await startReplayServer({ playerId: 0 }));
     const m = (match = startMatch({
       matchId: s.matchId,
       transport: socketIoMatchTransport({ url: s.url, path: '/socket.io/', transports: ['websocket'] }),
     }));
-    const { queryByTestId, getByTestId } = render(
+    const { container, getByTestId } = render(
       createElement(HostDrawsSettingsProvider, { value: true }, createElement(LiveBoard, { match: m })),
     );
     await untilMatch(m, () => expect(m.stats.snapshots).toBe(1));
     expect(getByTestId('live-log-toggle')).toBeTruthy();
-    expect(queryByTestId('settings-gear')).toBeNull();
+    expect(container.querySelector('.live__settings')).toBeNull();
+    // The menu's own exception (wave 89 §B) is the one `settings-gear` left: never a second gear
+    // beside it anywhere else in the board.
+    expect(document.querySelectorAll('[data-testid="settings-gear"]')).toHaveLength(1);
+    expect(document.querySelector('.action-bar__settings')).not.toBeNull();
   });
 
   it('board layout: single is the default `Board` prop, and the radio flips it to type-separated and back', async () => {

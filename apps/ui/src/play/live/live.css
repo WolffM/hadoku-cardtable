@@ -1764,24 +1764,21 @@
  * `e2e/table-fit.spec.ts` still reads `live-buttons`'s box straight through
  * it, unchanged), and only the guarded rule further down gives it a real one.
  *
- * Three custom properties this section reads are NOT this lane's to define,
- * and two of them are not landed as of this writing — each has a fallback so
- * this file degrades sanely either way, and each is named in this lane's
- * closing report for the manager to reconcile once the other lane's file is
- * real:
- *   --portrait-phase-h  lane A's, Settled: 30px, the row A reserves in its
- *                        top band for `.live__segments` below. The fallback
- *                        here is the same 30px, so this works whether or not
- *                        A's declaration has landed yet.
- *   --portrait-hud-h    ASSUMED: lane A's top band height (so this lane's
- *                        phase bar starts right after it, not under A's
- *                        chips). Not in the wave's contract table; fallback
- *                        56px is a guess at a chip row's height, to be
- *                        corrected once A's HUD is real and measured.
- *   --portrait-hand-h   ASSUMED: lane A's hand row height, so the action bar
- *                        sits directly above it (Settled 7) rather than
- *                        guessing a page-relative offset. Not in the wave's
- *                        contract table either; fallback 110px.
+ * Four custom properties this section reads are lane A's own, declared on
+ * `:root[data-layout="portrait"]` in `apps/ui/src/play/portrait.css` — this
+ * file never redeclares them, and carries no px fallback for any of them:
+ * every rule that reads one is itself inside the `:root[data-layout="portrait"]`
+ * guard, so there is no desktop case where the variable is undefined to fall
+ * back FROM.
+ *   --portrait-phase-h  30px. The row A reserves in its top band for
+ *                        `.live__segments` below.
+ *   --portrait-hud-h    A's top band's own total height (its padding + chip
+ *                        row + `--portrait-phase-h`) — this lane's phase bar
+ *                        starts right at it, not under A's chips.
+ *   --portrait-hand-h   116px. The hand's own fixed row height.
+ *   --portrait-bar-h    52px. The room A's hand row leaves above itself for
+ *                        this lane's `action-bar` (Settled 7: "the action bar
+ *                        sits between board and hand").
  */
 
 .live__menu-items {
@@ -1792,17 +1789,28 @@
   display: none;
 }
 
+/*
+ * The second `SettingsGear` instance `LiveBoard.tsx` adds only when
+ * `headerHasOwnGear` (the standalone app, whose fleet header this section
+ * hides in portrait). `display: none` by default — `ct-round-button`'s own
+ * round-icon styling makes no sense inside a menu ROW, and outside
+ * `[data-open]` it must draw nothing at all, same as the rest of this menu.
+ */
+.action-bar__settings {
+  display: none;
+}
+
 /* ── The phase bar: 5 segments, Settled 2 ("Begin, Main, Combat, Main 2, End") ── */
 
 :root[data-layout='portrait'] .live__phases {
   position: absolute;
   z-index: var(--z-overlay, 20);
-  top: var(--portrait-hud-h, 56px);
+  top: var(--portrait-hud-h);
   left: 0;
   right: 0;
   width: auto;
-  height: var(--portrait-phase-h, 30px);
-  max-height: var(--portrait-phase-h, 30px);
+  height: var(--portrait-phase-h);
+  max-height: var(--portrait-phase-h);
 }
 
 /* The desktop 8-to-13-row column is still in the DOM (same `PhaseRail`, same
@@ -1898,7 +1906,7 @@
   position: fixed;
   z-index: var(--z-overlay, 30);
   right: 8px;
-  bottom: calc(var(--portrait-hand-h, 110px) + 56px);
+  bottom: calc(var(--portrait-hand-h) + var(--portrait-bar-h));
   width: 170px;
   padding: 8px;
   border: 1px solid var(--line);
@@ -1919,13 +1927,15 @@
 }
 
 :root[data-layout='portrait'] .live__menu-items[data-open] .live__buttons button,
-:root[data-layout='portrait'] .live__menu-items[data-open] .live__log-button {
+:root[data-layout='portrait'] .live__menu-items[data-open] .live__log-button,
+:root[data-layout='portrait'] .live__menu-items[data-open] .action-bar__settings {
   width: 100%;
   min-height: 44px;
   font-size: 13px;
 }
 
-:root[data-layout='portrait'] .live__menu-items[data-open] .live__log-button {
+:root[data-layout='portrait'] .live__menu-items[data-open] .live__log-button,
+:root[data-layout='portrait'] .live__menu-items[data-open] .action-bar__settings {
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -1935,6 +1945,10 @@
 
 :root[data-layout='portrait'] .live__menu-items[data-open] .live__log-button::after {
   content: 'Game log';
+}
+
+:root[data-layout='portrait'] .live__menu-items[data-open] .action-bar__settings::after {
+  content: 'Settings';
 }
 
 /* ── The action bar itself: chat, menu, zoom, primary (Settled 7) ─────── */
@@ -1948,8 +1962,8 @@
   z-index: var(--z-overlay, 20);
   left: 0;
   right: 0;
-  bottom: var(--portrait-hand-h, 110px);
-  height: 48px;
+  bottom: var(--portrait-hand-h);
+  height: var(--portrait-bar-h);
   padding: 4px 8px;
   background: color-mix(in srgb, var(--bg-raised) 92%, transparent);
   border-top: 1px solid var(--line);
@@ -1975,6 +1989,20 @@
 :root[data-layout='portrait'] .action-bar button:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+/*
+ * The zoom pill is read-only information at 1× (Settled 4: "a '%' button …
+ * shows the zoom"), not an inert control — the manager, wave 89 follow-up:
+ * *"the zoom pill '100%' renders faded, like a disabled control … it must
+ * still be readable."* `disabled` still stops the press (there is nothing to
+ * reset to at 1×) and drops the pointer, but the GENERIC dimmed-button look
+ * above is for a control that cannot currently be used at all — this one is
+ * always legible, pressable or not.
+ */
+:root[data-layout='portrait'] button.action-bar__zoom:disabled {
+  opacity: 1;
+  color: var(--ink-dim);
 }
 
 :root[data-layout='portrait'] .action-bar__chat {
@@ -2051,4 +2079,32 @@
   width: 100% !important;
   height: 70%;
   box-shadow: 0 -4px 16px var(--shadow);
+}
+
+/* ── The site header, during a match (manager follow-up, wave 89) ────── */
+
+/*
+ * The manager, from the integrated frame: the fleet's own header ("Card
+ * Table" plus the Discord/GitHub/theme/settings icons, `chrome/AppChrome.tsx`'s
+ * `<AppHeader>`) took ~95px above the player chips, and Settled 2 wants both
+ * chips inside the top 100px. `.cardtable-chrome[data-shell='match']` is
+ * `chrome/chrome.css`'s own existing selector for exactly "a match is the
+ * screen" — not a new seam this lane invented — so this is scoped to a
+ * running match in portrait and never touches the lobby, the draft or a
+ * match whose chrome (for whatever reason) is not yet `data-shell='match'`.
+ *
+ * The header is this lane's to hide, not `chrome/`'s, because hiding it is
+ * conditional on a wave-89-only state (`data-layout`) that file does not
+ * know about, and `AppChrome.tsx`/`chrome.css` are not this lane's files —
+ * see `RoomShell.tsx`'s own note on reaching into `@wolffm/watchparty-ui`'s
+ * DOM the same way: this is a CSS-only reach into a sibling's class name,
+ * never an edit of its file.
+ *
+ * Settings stays reachable: `LiveBoard.tsx` adds a `HostDrawsSettingsProvider
+ * value={false}` override around a second `SettingsGear` instance inside the
+ * menu, opening the exact same `CardtableSettings` panel the header's gear
+ * would have.
+ */
+:root[data-layout='portrait'] .cardtable-chrome[data-shell='match'] > .app-header {
+  display: none;
 }
