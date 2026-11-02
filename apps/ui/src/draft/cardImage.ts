@@ -196,3 +196,30 @@ export function artReady(url: string | null, onReady: () => void, priority: 'aut
  * is still true with the art on our own CDN — a byte we serve is as slow to
  * download as a byte Scryfall serves.
  */
+
+/** How many background art loads (`warmArt`) run at once. */
+export const PRELOAD_AT_ONCE = 3;
+
+function whenIdle(fn: () => void): void {
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(fn, { timeout: 2000 });
+  else setTimeout(fn, 200);
+}
+
+/**
+ * Warm `urls` in the background: `PRELOAD_AT_ONCE` at a time, at low priority, once the page is idle,
+ * each fetched and decoded through `artReady` (so a face drawn next finds it ready). A match's art
+ * (`../play/live/art-preload.ts`) and the front page's gallery (`../front/WildcardCard.tsx`). Returns
+ * how many it was given.
+ */
+export function warmArt(urls: readonly string[]): number {
+  let next = 0;
+  const pump = (): void => {
+    while (next < urls.length) {
+      if (!artReady(urls[next++]!, pump, 'low')) return;
+    }
+  };
+  whenIdle(() => {
+    for (let i = 0; i < PRELOAD_AT_ONCE; i++) pump();
+  });
+  return urls.length;
+}

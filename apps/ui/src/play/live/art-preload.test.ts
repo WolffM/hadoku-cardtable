@@ -8,7 +8,8 @@ import type { DraftCard, DraftView } from '@hadoku/shared';
 
 import { artReady, cardImageUrl } from '../../draft/cardImage.ts';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
-import { cubeArtUrls, PRELOAD_AT_ONCE, preloadCubeArt, preloadMatchArt, preloadUrls, resetCubeArtForTests, viewerCards } from './art-preload.ts';
+import { PRELOAD_AT_ONCE } from '../../draft/cardImage.ts';
+import { cubeArtUrls, preloadCubeArt, preloadMatchArt, preloadUrls, resetCubeArtForTests, viewerCards } from './art-preload.ts';
 
 const loads: { src: string; fetchPriority: string; settle: (ok: boolean) => void }[] = [];
 
