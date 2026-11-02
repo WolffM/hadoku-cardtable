@@ -106,11 +106,10 @@ export function GauntletBoard({
 
   return (
     <section className="gauntlet" data-testid="gauntlet" data-phase={view.phase} data-revealing={!reveal.done || undefined}>
-      <h2 className="gauntlet__title" data-testid="gauntlet-title" style={{ '--title-ms': `${TITLE_MS}ms`, '--title-delay': `${-reveal.joinedAt}ms` } as CSSProperties}>
-        {view.era?.title}
-      </h2>
-      <div className="gauntlet__board">
-        <PlayerName view={view} seat={p1} player="p1" unknown={reveal.dealt === 0} />
+      <div className="gauntlet__head">
+        <h2 className="gauntlet__title" data-testid="gauntlet-title" style={{ '--title-ms': `${TITLE_MS}ms`, '--title-delay': `${-reveal.joinedAt}ms` } as CSSProperties}>
+          {view.era?.title}
+        </h2>
         <p
           className="gauntlet__turn"
           data-testid={step === null || !reveal.done ? undefined : 'gauntlet-turn'}
@@ -127,6 +126,9 @@ export function GauntletBoard({
             </>
           )}
         </p>
+      </div>
+      <div className="gauntlet__board">
+        <PlayerName view={view} seat={p1} player="p1" unknown={reveal.dealt === 0} />
         <PlayerName view={view} seat={p2} player="p2" unknown={reveal.dealt === 0} />
         {column(p1, 'p1')}
         <div className="gauntlet__pool" data-testid="gauntlet-pool">

@@ -49,15 +49,42 @@
 }
 
 /*
- * P1's picks, the pool, P2's picks: seven equal tracks, the pool five of them. A pool tile is a
- * little wider than tall; a column's three picks share the pool's two rows of height.
+ * The era's title carries the turn pill beside it (`.gauntlet__head`), so the board below it is
+ * never more than three tracks: P1's picks, the pool, P2's. A side column is exactly one pick tile
+ * wide (`--gauntlet-tile-w`, the same 190px floor the room's own deck chooser uses —
+ * `screens.css`'s `.deckpick`) rather than a fraction of the row, so it shrinks to what three picks
+ * need and the pool keeps the rest. The pool's own columns are `auto-fill`: however much width that
+ * leaves, it is filled with tiles no narrower than the floor, never forced to a fixed count.
+ *
+ * Under 600px there is no row wide enough for three side-by-side tracks (the operator: both columns
+ * ran off the screen's edges, and the pool's five columns left a tile too narrow for its own name).
+ * The board becomes two tracks — a player's badge and name, then their three picks as one compact
+ * row beside it — stacked P1, the pool, P2, with the pool keeping two full-width columns instead of
+ * thinning to fit five.
  */
+.gauntlet__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+}
+
 .gauntlet__board {
+  --gauntlet-tile-w: 190px;
+
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 5fr) minmax(0, 1fr);
-  grid-template-rows: auto auto;
+  grid-template-columns: var(--gauntlet-tile-w) minmax(0, 1fr) var(--gauntlet-tile-w);
+  grid-template-areas: 'p1name . p2name' 'p1col pool p2col';
   gap: 8px 14px;
   align-items: center;
+}
+
+@media (max-width: 600px) {
+  .gauntlet__board {
+    grid-template-columns: minmax(0, 100px) minmax(0, 1fr);
+    grid-template-areas: 'p1name p1col' 'pool pool' 'p2name p2col';
+  }
 }
 
 .gauntlet__player {
@@ -75,8 +102,21 @@
   opacity: 0;
 }
 
+.gauntlet__board > .gauntlet__player[data-player='p1'] {
+  grid-area: p1name;
+}
+
 .gauntlet__board > .gauntlet__player[data-player='p2'] {
+  grid-area: p2name;
   justify-content: flex-end;
+}
+
+/* Under 600px both names sit at the left of their own row, beside their picks (`.gauntlet__board`'s
+   mobile areas), not at the right of a track their picks no longer share. */
+@media (max-width: 600px) {
+  .gauntlet__board > .gauntlet__player[data-player='p2'] {
+    justify-content: flex-start;
+  }
 }
 
 .gauntlet__name {
@@ -108,7 +148,7 @@
   color: var(--on-accent);
 }
 
-/* Whose turn, and what: the pool's own heading. Its line is kept while idle so nothing moves when it appears. */
+/* Whose turn, and what: beside the title (`.gauntlet__head`). Its line is kept while idle so nothing moves when it appears. */
 .gauntlet__turn {
   display: flex;
   justify-content: center;
@@ -116,7 +156,6 @@
   gap: 10px;
   margin: 0;
   padding: 4px 14px;
-  justify-self: center;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--bg-raised);
@@ -156,10 +195,17 @@
 }
 
 .gauntlet__pool {
+  grid-area: pool;
   position: relative;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--gauntlet-tile-w), 1fr));
   gap: 8px;
+}
+
+@media (max-width: 600px) {
+  .gauntlet__pool {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .gauntlet__pool > :not(.gauntlet__coin) {
@@ -175,6 +221,35 @@
   contain: size;
 }
 
+.gauntlet__column[data-player='p1'] {
+  grid-area: p1col;
+}
+
+.gauntlet__column[data-player='p2'] {
+  grid-area: p2col;
+}
+
+/* Under 600px a column is no longer beside the pool, so nothing sets its height for it (`contain:
+   size` with the stretch above gone): it lies down into one compact row of its own three picks,
+   each pick square by its own aspect ratio. */
+@media (max-width: 600px) {
+  .gauntlet__column {
+    grid-template-rows: none;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-self: center;
+    contain: none;
+  }
+
+  .gauntlet__column > * {
+    aspect-ratio: 1;
+  }
+
+  /* Too narrow for a name at three-across; the art, style mark and colours still say which deck. */
+  .gauntlet__column .deckpick__name {
+    display: none;
+  }
+}
+
 /* A column's pick is the same tile with its art band shorter and no pilot line; its row
    is taller by the space the pilot line's absence leaves under it. */
 .gauntlet__column .deckpick__option {
@@ -185,6 +260,27 @@
 
 .gauntlet__column .deckpick__pilot {
   display: none;
+}
+
+/*
+ * At the floor's narrower tiles a five-colour deck's pips alone can run a third of the tile's own
+ * width (measured: ~19px a pip, room's own size), leaving too little for even a short name. The
+ * mark and the pips pack smaller here — only here, never `screens.css`'s own rule — so the name
+ * keeps the width a deck's name and pilot need to stay unclipped (`w90d-gauntlet-board.spec.ts`).
+ */
+.gauntlet .deckpick__option .decktag--mark {
+  padding-left: 3px;
+}
+
+.gauntlet .deckpick__option .decktag--mark .decktag__mark {
+  width: 11px;
+  height: 11px;
+}
+
+.gauntlet .deckpick__option .deckcolors {
+  gap: 1px;
+  padding: 0 3px 0 2px;
+  font-size: 10px;
 }
 
 .gauntlet__slot {
