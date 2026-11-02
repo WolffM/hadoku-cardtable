@@ -1,0 +1,17 @@
+# e2e/wmill-mill.spec.ts — the operator, 2026-11-01: "we need a 'milling' animation. something for cards
+# put into the graveyard from the library." Alice holds her main phase with two Thought Scours (target player
+# mills two), Glimpse the Unthinkable (target player mills ten) and Notion Rain (surveil 2), seven lands to pay
+# for them all. Both libraries are distinct cards, so every card milled has its own art.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Thought Scour;Thought Scour;Glimpse the Unthinkable;Notion Rain
+humanbattlefield=Island;Island;Island;Island;Island;Swamp;Swamp
+humanlibrary=Serra Angel;Counterspell;Llanowar Elves;Lightning Bolt;Brainstorm;Shivan Dragon;Dark Ritual;Giant Growth;Ponder;Sol Ring;Birds of Paradise;Doom Blade
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Goblin Guide;Swords to Plowshares;Wrath of God;Tarmogoyf;Elvish Mystic;Shock;Opt;Duress;Llanowar Elves;Lightning Bolt;Serra Angel;Counterspell;Giant Growth;Dark Ritual;Brainstorm;Shivan Dragon;Ponder;Doom Blade;Sol Ring;Birds of Paradise
+aigraveyard=
