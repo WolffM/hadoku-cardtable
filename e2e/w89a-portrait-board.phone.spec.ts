@@ -172,12 +172,13 @@ test(titled('promo-valakut in portrait: chips, four lanes, card width, no sidewa
     expect.soft(before.left, 'nothing to the left of an unscrolled lane').toBeNull();
     const scrollWidthBefore = await myLands.evaluate((el) => el.scrollWidth);
     const firstLeftBefore = (await firstLand.boundingBox())!.x;
-    await myLands.evaluate((el) => {
-      el.scrollLeft = 1;
-    });
+    const nudge = 8;
+    await myLands.evaluate((el, by) => {
+      el.scrollLeft = by;
+    }, nudge);
     await page.waitForTimeout(150);
-    expect.soft((await laneCues(myLands)).left?.glyph, 'scrolled a pixel, a ‹ appears on the left').toBe('‹');
-    expect.soft((await firstLand.boundingBox())!.x, 'the left chevron appearing moves no card').toBeCloseTo(firstLeftBefore - 1, 0);
+    expect.soft((await laneCues(myLands)).left?.glyph, 'scrolled a little, a ‹ appears on the left').toBe('‹');
+    expect.soft((await firstLand.boundingBox())!.x, 'the left chevron appearing moves no card: only the scroll does').toBeCloseTo(firstLeftBefore - nudge, 0);
     expect.soft(await myLands.evaluate((el) => el.scrollWidth), 'the chevrons add no width to the lane').toBe(scrollWidthBefore);
     await myLands.evaluate((el) => {
       el.scrollLeft = el.scrollWidth;

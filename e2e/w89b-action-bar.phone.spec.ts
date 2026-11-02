@@ -92,9 +92,19 @@ test(titled('action-bar sits on the bottom edge, the hand directly above it, a d
       expect(box!.height, `${id} is ≥40px tall`).toBeGreaterThanOrEqual(40);
     }
 
-    // Manager follow-up: the bar's own height is A's real token, not a guess.
-    const barHeight = await alice.page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--portrait-bar-h').trim());
-    expect(Math.round(barBox!.height)).toBe(Number.parseInt(barHeight, 10));
+    // Manager follow-up: the bar's own height is A's real token, not a guess — its band, the row plus
+    // the bottom safe area. Resolved by laying it out: read as a string, the UI-scale build's
+    // `calc(N * var(--ui-px))` parses to NaN.
+    const band = await alice.page.evaluate(() => {
+      const probe = document.createElement('div');
+      probe.style.cssText = 'position: fixed; visibility: hidden; height: var(--portrait-bar-band)';
+      document.body.append(probe);
+      const height = probe.getBoundingClientRect().height;
+      probe.remove();
+      return height;
+    });
+    expect(band, 'the band resolves to a length').toBeGreaterThan(0);
+    expect(barBox!.height).toBeCloseTo(band, 0);
   } finally {
     await stack.stop();
   }
