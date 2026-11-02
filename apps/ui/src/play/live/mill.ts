@@ -56,6 +56,7 @@ import { prefersReducedMotion } from '../motion.ts';
 import { faceBox, overlayOf } from './board-dom.ts';
 import { copyOfCard, LANDING_ATTR } from './departures.ts';
 import './mill.css';
+import { markTempo } from './tempo.ts';
 
 /** One card milled: out of `fromPlayerId`'s library (`index` from its top) into `toPlayerId`'s graveyard. */
 export interface Mill {
@@ -168,8 +169,11 @@ export const MILL_ATTR = 'data-mill';
 const FADE_ATTR = 'data-mill-fade';
 
 export interface MillHandle {
-  /** Draw `mills` (one frame's), starting `delayMs` from now. Hides them on their piles at once. Returns when the last lands, from now. */
-  fly(mills: readonly Mill[], delayMs: number): number;
+  /**
+   * Draw `mills` (one frame's), starting `delayMs` from now, at `tempo` (`./tempo.ts`: `delayMs` and the return are on
+   * the run's own clock). Hides them on their piles at once. Returns when the last lands, from now.
+   */
+  fly(mills: readonly Mill[], delayMs: number, tempo?: number): number;
   dispose(): void;
 }
 
@@ -207,18 +211,19 @@ export function installMill(
   }
 
   /** Show a hidden card on its pile, as it is drawn now (React may have drawn the pile again meanwhile). */
-  function show(mill: Mill, fade = false): void {
+  function show(mill: Mill, tempo: number, fade = false): void {
     if (!hidden.delete(mill.cardId)) return;
     const el = pileCard(canvas, mill);
     if (el === null) return;
     el.removeAttribute(LANDING_ATTR);
     if (!fade) return;
+    markTempo(el, tempo);
     el.setAttribute(FADE_ATTR, '');
-    schedule(() => el.removeAttribute(FADE_ATTR), MILL_FADE_MS);
+    schedule(() => el.removeAttribute(FADE_ATTR), MILL_FADE_MS / tempo);
   }
 
   /** Fly one library's run: every box read, then every copy built. */
-  function run(mills: readonly Mill[], artWaitMs: number): void {
+  function run(mills: readonly Mill[], artWaitMs: number, tempo: number): void {
     const timing = millTiming(mills.length);
     const root = overlayOf(canvas);
     const still = reduced() || root === null;
@@ -227,7 +232,7 @@ export function installMill(
       report?.({ what: 'mill', library: mills[0]!.fromPlayerId, cards: mills.length, flying, unplaced, artWaitMs, totalMs: timing.totalMs, reduced: still });
     if (still) {
       telemetry(0, 0);
-      mills.forEach((m, i) => schedule(() => show(m, true), Math.round((i * (timing.totalMs - MILL_FADE_MS)) / Math.max(1, mills.length - 1))));
+      mills.forEach((m, i) => schedule(() => show(m, tempo, true), Math.round((i * (timing.totalMs - MILL_FADE_MS)) / Math.max(1, mills.length - 1)) / tempo));
       return;
     }
     const box = root.getBoundingClientRect();
@@ -249,6 +254,7 @@ export function installMill(
       wrap.style.width = `${at.width}px`;
       wrap.style.setProperty('--card-w', `${at.width}px`);
       wrap.style.setProperty('--mill-ms', `${timing.flightMs}ms`);
+      markTempo(wrap, tempo);
       wrap.style.setProperty('--from-x', `${from!.left + from!.width / 2 - (at.left + at.width / 2)}px`);
       wrap.style.setProperty('--from-y', `${from!.top + from!.height / 2 - (at.top + at.height / 2)}px`);
       wrap.style.setProperty('--from-scale', String(at.width > 0 ? Math.min(1, Math.max(0.2, from!.width / at.width)) : 1));
@@ -265,23 +271,23 @@ export function installMill(
         root.append(wrap);
         flyers.add(wrap);
         schedule(() => {
-          show(mill);
+          show(mill, tempo);
           wrap.remove();
           flyers.delete(wrap);
-        }, timing.flightMs);
+        }, timing.flightMs / tempo);
       };
       if (start === 0) launch();
-      else schedule(launch, start);
+      else schedule(launch, start / tempo);
     }
     // The cards that do not fly, and any whose pile card or library was not found, show as the run ends.
     const flown = new Set(plans.map((p) => p.mill.cardId));
     schedule(() => {
-      for (const m of mills) if (!flown.has(m.cardId)) show(m);
-    }, timing.totalMs);
+      for (const m of mills) if (!flown.has(m.cardId)) show(m, tempo);
+    }, timing.totalMs / tempo);
   }
 
   return {
-    fly(mills, delayMs) {
+    fly(mills, delayMs, tempo = 1) {
       if (!live || mills.length === 0) return 0;
       for (const mill of mills) {
         const el = pileCard(canvas, mill);
@@ -302,20 +308,20 @@ export function installMill(
           const go = (): void => {
             if (--waiting > 0 || started || !live) return;
             started = true;
-            run(batch, Date.now() - asked);
+            run(batch, Date.now() - asked, tempo);
           };
           for (const m of batch) if (!artReady(cardImageUrl(m.scryfallId), go)) waiting += 1;
           schedule(() => {
             if (started) return;
             started = true;
             report?.({ what: 'mill', library: batch[0]!.fromPlayerId, cards: batch.length, flying: 0, unplaced: 0, artWaitMs: ART_WAIT_MS, totalMs: 0, reduced: false });
-            for (const m of batch) show(m);
+            for (const m of batch) show(m, tempo);
           }, ART_WAIT_MS);
           go();
         };
         // No beat to wait for: started in this commit, so no frame shows the card neither on its pile nor flying.
         if (delayMs <= 0) start();
-        else schedule(start, delayMs);
+        else schedule(start, delayMs / tempo);
       }
       return delayMs + longest;
     },

@@ -52,6 +52,7 @@ import { seedOf } from './projectile.ts';
 import { prefersReducedMotion } from '../motion.ts';
 import { overlayOf } from './board-dom.ts';
 import { claimParticles, particleShare, shared } from './effect-budget.ts';
+import { markTempo } from './tempo.ts';
 
 /**
  * Why a permanent died. Forge's `GameEventCardDied` says it (`DeathCause`, folded here); before a Forge
@@ -344,8 +345,11 @@ export interface DeparturesHandle {
    * none reads nothing.
    */
   capture(): void;
-  /** The gaps where a commit's departures' cards were: start each one's exit `delayMs` from now. One call per commit, so every box is read before anything is drawn. */
-  leave(batch: readonly { departure: Departure; delayMs: number }[]): void;
+  /**
+   * The gaps where a commit's departures' cards were: start each one's exit `delayMs` from now, played at its `tempo`
+   * (`./tempo.ts`; 1 when not given). One call per commit, so every box is read before anything is drawn.
+   */
+  leave(batch: readonly { departure: Departure; delayMs: number; tempo?: number }[]): void;
   /**
    * The hit that killed `cardId` has landed: its exit starts now, if it has not yet. Its `delayMs` is when
    * that hit was due; the hit's own drawing runs on its own timers, which a busy page runs late, and a death
@@ -483,7 +487,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
 
   /** The stand-in, built and placed, with no box read: `box` is the overlay's, read with every other box of the batch. */
   /** `count`: its pieces and specks, as the batch's share of the beat's particles (`effect-budget.ts`) left them. */
-  function standIn(departure: Departure, from: HTMLElement, at: DOMRect, root: HTMLElement, box: DOMRect, motion: ExitMotion, count: { pieces: number; specks: number }): HTMLElement {
+  function standIn(departure: Departure, from: HTMLElement, at: DOMRect, root: HTMLElement, box: DOMRect, motion: ExitMotion, count: { pieces: number; specks: number }, tempo: number): HTMLElement {
     const wrap = document.createElement('div');
     wrap.className = 'board-departure';
     wrap.setAttribute('data-exit', motion);
@@ -495,6 +499,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
     wrap.style.setProperty('--card-w', `${at.width}px`);
     const pieces = count.pieces;
     wrap.style.setProperty('--exit-ms', `${EXIT_MOTIONS[motion].ms}ms`);
+    markTempo(wrap, tempo);
     if (departure.hue !== undefined) wrap.setAttribute('data-colour', departure.hue);
     const broken = shattered(motion) ? shards(departure.cardId, pieces) : null;
     for (let n = 1; n <= pieces; n++) {
@@ -603,8 +608,18 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
       // Every box first, then every write: one layout for the whole batch, never one per card.
       const box = still ? null : root.getBoundingClientRect();
       const taken = new Set<Element>();
-      const plans: { departure: Departure; delayMs: number; from: HTMLElement; at: DOMRect; step: number | undefined; motion: ExitMotion; landing: HTMLElement | null; to: DOMRect | null }[] = [];
-      for (const { departure, delayMs } of batch) {
+      const plans: {
+        departure: Departure;
+        delayMs: number;
+        tempo: number;
+        from: HTMLElement;
+        at: DOMRect;
+        step: number | undefined;
+        motion: ExitMotion;
+        landing: HTMLElement | null;
+        to: DOMRect | null;
+      }[] = [];
+      for (const { departure, delayMs, tempo = 1 } of batch) {
         const gap = canvas.querySelector<HTMLElement>(`[${LEAVING_GAP_ATTR}="${departure.cardId}"]`);
         const from = drawn.get(departure.cardId);
         held.add(departure.cardId);
@@ -633,7 +648,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
         // built, is the same number for the price of laying out the whole batch of copies a second time.
         const turn = turns.get(departure.cardId);
         const step = turn == null ? undefined : stepAt(turn, place.width);
-        plans.push({ departure, delayMs, from, at, step, motion, landing, to: landing?.getBoundingClientRect() ?? null });
+        plans.push({ departure, delayMs, tempo, from, at, step, motion, landing, to: landing?.getBoundingClientRect() ?? null });
       }
       if (root === null || box === null || plans.length === 0) return;
       // The batch's specks share one budget, and so do its shatters' shards — each shard a whole copy of
@@ -644,9 +659,9 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
       const built = plans.map((p) => {
         const full = EXIT_MOTIONS[p.motion].pieces;
         const start = Date.now() + p.delayMs;
-        const specks = claimParticles(root, shared(specksOf(p.motion), speckShare, 6), 6, start, start + EXIT_MOTIONS[p.motion].ms);
+        const specks = claimParticles(root, shared(specksOf(p.motion), speckShare, 6), 6, start, start + EXIT_MOTIONS[p.motion].ms / p.tempo);
         const count = { pieces: shattered(p.motion) ? shared(full, shardShare, MIN_SHARDS) : full, specks };
-        const wrap = standIn(p.departure, p.from, p.at, root, box, p.motion, count);
+        const wrap = standIn(p.departure, p.from, p.at, root, box, p.motion, count, p.tempo);
         wrap.setAttribute(DEPARTURE_ATTR, String(p.departure.cardId));
         standIns.add(wrap);
         if (p.to !== null) aim(wrap, p.at, p.to);
@@ -656,7 +671,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
       const fits = built.map((b) => b.step ?? turnedStep(b.copies[0]));
       built.forEach((b, i) => {
         fitTurned(b.wrap, b.copies, b.at.top - box.top, fits[i]!);
-        const { wrap, at, landing, departure, delayMs, motion } = b;
+        const { wrap, at, landing, departure, delayMs, motion, tempo } = b;
         // Only a card or a back is hidden while it is flown to — never a whole hand.
         const hides = landing !== null && landing.getAttribute('data-zone') === null;
         if (hides) landing.setAttribute(LANDING_ATTR, '');
@@ -671,7 +686,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
               wrap.remove();
               standIns.delete(wrap);
               done(departure.cardId);
-            }, EXIT_MOTIONS[motion].ms);
+            }, EXIT_MOTIONS[motion].ms / tempo);
           },
           delayMs,
         );

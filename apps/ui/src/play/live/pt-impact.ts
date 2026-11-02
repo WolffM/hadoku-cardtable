@@ -20,6 +20,7 @@
 
 import type { BoardCard, BoardView } from '../adapter.ts';
 import './pt-impact.css';
+import { markTempo } from './tempo.ts';
 
 /** A creature's two numbers, as Forge has them now (damage not taken off). */
 export interface PT {
@@ -99,25 +100,26 @@ export function ptBadge(root: ParentNode, cardId: number): HTMLElement | null {
 
 /**
  * The impact itself, on the badge as it is drawn now: restarted if one is already running, and cleared after
- * {@link PT_IMPACT_MS}.
+ * {@link PT_IMPACT_MS} at `tempo` (`./tempo.ts`). `after` runs on the wall's clock.
  */
 /** Each badge's newest impact: an older one's clear never ends a newer one early. */
 const latest = new WeakMap<HTMLElement, number>();
 let impacts = 0;
 
-export function impactBadge(badge: HTMLElement, change: PTChange, reduced: boolean, after: (fn: () => void, ms: number) => void): void {
+export function impactBadge(badge: HTMLElement, change: PTChange, reduced: boolean, after: (fn: () => void, ms: number) => void, tempo = 1): void {
   clearImpact(badge);
   const mine = ++impacts;
   latest.set(badge, mine);
   // A style flush between, so an impact already running starts over.
   void badge.offsetWidth;
+  markTempo(badge, tempo);
   badge.setAttribute(PT_IMPACT_ATTR, ptDirection(change));
   if (reduced) badge.setAttribute(PT_IMPACT_REDUCED_ATTR, '');
   const moved = [change.from.power !== change.to.power ? 'power' : '', change.from.toughness !== change.to.toughness ? 'toughness' : ''].filter(Boolean);
   badge.setAttribute(PT_MOVED_ATTR, moved.join(' '));
   after(() => {
     if (latest.get(badge) === mine) clearImpact(badge);
-  }, PT_IMPACT_MS);
+  }, PT_IMPACT_MS / tempo);
 }
 
 /** The badge as it was before any impact: what a board being torn down calls on every badge still marked. */
@@ -129,10 +131,10 @@ export function clearImpact(badge: Element): void {
 
 /**
  * The comet: a short head of light with a tail, running along the card's border from the bottom up or the top down,
- * drawn in the board's overlay over `face` (its box and its corner radius) and gone after {@link PT_IMPACT_MS}.
+ * drawn in the board's overlay over `face` (its box and its corner radius) and gone after {@link PT_IMPACT_MS}, at `tempo`.
  * Reduced motion: the border lights faintly and fades where it is, with nothing running along it.
  */
-export function glintCard(overlay: HTMLElement, face: Element, change: PTChange, reduced: boolean, after: (fn: () => void, ms: number) => void): void {
+export function glintCard(overlay: HTMLElement, face: Element, change: PTChange, reduced: boolean, after: (fn: () => void, ms: number) => void, tempo = 1): void {
   const box = overlay.getBoundingClientRect();
   const r = face.getBoundingClientRect();
   const el = overlay.ownerDocument.createElement('div');
@@ -146,6 +148,7 @@ export function glintCard(overlay: HTMLElement, face: Element, change: PTChange,
   el.style.height = `${r.height}px`;
   const card = face.querySelector('.card') ?? face;
   el.style.borderRadius = getComputedStyle(card).borderRadius;
+  markTempo(el, tempo);
   overlay.append(el);
-  after(() => el.remove(), PT_IMPACT_MS);
+  after(() => el.remove(), PT_IMPACT_MS / tempo);
 }

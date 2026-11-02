@@ -192,6 +192,22 @@ describe('pacedMatchTransport', () => {
     expect(received).toEqual([PHASE, DRAW]);
   });
 
+  it('the resolve gap is shortened by the tempo the next resolution is drawn at; every other gap keeps its length', () => {
+    const inner = fakeInner();
+    const { received } = paced(inner, { tempo: () => 2 });
+    inner.deliver(PHASE);
+    inner.deliver(RESOLVE);
+    vi.advanceTimersByTime(PACE_DELAYS_MS.resolve / 2 - 1);
+    expect(received).toEqual([PHASE]);
+    vi.advanceTimersByTime(1);
+    expect(received, 'at 2×, half the gap').toEqual([PHASE, RESOLVE]);
+    inner.deliver(DEFAULT_DELTA);
+    vi.advanceTimersByTime(PACE_DELAYS_MS.default - 1);
+    expect(received, 'a default frame keeps its own gap').toEqual([PHASE, RESOLVE]);
+    vi.advanceTimersByTime(1);
+    expect(received).toEqual([PHASE, RESOLVE, DEFAULT_DELTA]);
+  });
+
   it('a burst is spread by the table: each payload waits its OWN class delay after the previous delivery', () => {
     const inner = fakeInner();
     const { received } = paced(inner);
@@ -1132,6 +1148,24 @@ describe('a chain of resolutions nobody decides between', () => {
       expect(received.slice(triggers.length), 'in the order Forge sent them').toEqual(chain);
     });
   }
+
+  it('a chain of the same thing again quickens: each gap is the chain gap at the tempo the next resolution is drawn at', async () => {
+    const board = fakeBoard();
+    // The board's word on the next resolution's tempo (`tempo.ts`'s `nextResolveTempo`): one step faster per trigger drawn.
+    let drawn: readonly number[] = [];
+    const { inner, times, received } = watch(BOB, { boardStill: board.still, tempo: () => Math.min(2.5, 1 + 0.25 * drawn.length) });
+    drawn = times;
+    for (const t of triggers) inner.deliver(t);
+    await run(() => received.length === triggers.length);
+    await vi.advanceTimersByTimeAsync(5_000);
+    for (const f of chain) inner.deliver(f);
+    await run(() => times.length === N);
+    const expected = gaps(times).map((_, k) => RESOLVE_CHAIN_GAP_MS / Math.min(2.5, 1 + 0.25 * (k + 1)));
+    for (const [k, g] of gaps(times).entries()) {
+      expect(g, `gap ${k + 1} of ${gaps(times).join(',')}`).toBeGreaterThanOrEqual(Math.floor(expected[k]!));
+      expect(g, `gap ${k + 1} of ${gaps(times).join(',')}`).toBeLessThanOrEqual(Math.ceil(expected[k]!) + 2);
+    }
+  });
 
   it('a question for the seat mid-chain is not held by the gap: the rest catch up and it opens at once', async () => {
     const { inner, received } = watch(ALICE);

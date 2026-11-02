@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BoardCard, BoardPlayer, BoardView, StackEntry } from '../adapter.ts';
 import { ATTACK_BEAT_MS, boardSoundsAt, BOLT_STAGGER_MS, HIT_MS, damageSize, damagePower, GLIDE_MS, lifeImpactAt, REVEAL_BEAT_MS, takeResolutionEffects, whenBoardStill } from '../motion.ts';
 import { EXIT_MOTIONS, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
+import { tempoOf } from './tempo.ts';
 import { entryWeight } from './entries.ts';
 import { ALIGN_MS, contactMs, RAM_STAGGER_MS, windUpOf } from './ram.ts';
 import {
@@ -378,7 +379,7 @@ describe('installNumbers: life', () => {
     handle.dispose();
   });
 
-  it('stacking: a second number at the same anchor before the first ends offsets 12px sideways and starts 80ms later', () => {
+  it('stacking: a second number at the same anchor before the first ends offsets 12px sideways and starts 80ms later on its own clock', () => {
     vi.useFakeTimers();
     const { canvas } = board();
     const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
@@ -391,7 +392,8 @@ describe('installNumbers: life', () => {
     const first = overlay.querySelector<HTMLElement>('.board-number')!;
     const firstLeft = Number.parseFloat(first.style.left);
 
-    vi.advanceTimersByTime(STACK_STAGGER_MS - 1);
+    // The second life change this turn is the second instance of one, and plays at its tempo (`tempo.ts`).
+    vi.advanceTimersByTime(STACK_STAGGER_MS / tempoOf(2) - 1);
     expect(overlay.querySelectorAll('.board-number'), 'one ms short of the stagger: still one').toHaveLength(1);
     vi.advanceTimersByTime(1);
     const numbers = overlay.querySelectorAll<HTMLElement>('.board-number');

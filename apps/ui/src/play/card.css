@@ -428,7 +428,7 @@
  */
 .board-card__pt[data-pt-impact][data-pt-moved~='power'] > [data-pt-of='power'],
 .board-card__pt[data-pt-impact][data-pt-moved~='toughness'] > [data-pt-of='toughness'] {
-  animation: pt-roll-up 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: pt-roll-up calc(520ms / var(--tempo, 1)) cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .board-card__pt[data-pt-impact='down'][data-pt-moved~='power'] > [data-pt-of='power'],
@@ -452,7 +452,7 @@
 
 .board-card__pt[data-pt-impact][data-pt-impact-reduced][data-pt-moved~='power'] > [data-pt-of='power'],
 .board-card__pt[data-pt-impact][data-pt-impact-reduced][data-pt-moved~='toughness'] > [data-pt-of='toughness'] {
-  animation: pt-fade-in 300ms linear both;
+  animation: pt-fade-in calc(300ms / var(--tempo, 1)) linear both;
 }
 
 @keyframes pt-roll-up {

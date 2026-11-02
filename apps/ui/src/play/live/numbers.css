@@ -29,7 +29,7 @@
   -webkit-text-stroke-color: var(--bg);
   text-shadow: 0 0 2px var(--bg);
   paint-order: stroke fill;
-  animation: board-number-rise var(--rise-ms) cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+  animation: board-number-rise calc(var(--rise-ms) / var(--tempo, 1)) cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
 }
 
 .board-number[data-number-colour='danger'] {
@@ -43,8 +43,8 @@
 /* A change of 5 or more pops before it rises — two animations, the pop finishing before the rise's own delay elapses. */
 .board-number[data-number-pop] {
   animation:
-    board-number-pop var(--pop-ms) ease-out,
-    board-number-rise var(--rise-ms) cubic-bezier(0.2, 0.7, 0.2, 1) var(--pop-ms) forwards;
+    board-number-pop calc(var(--pop-ms) / var(--tempo, 1)) ease-out,
+    board-number-rise calc(var(--rise-ms) / var(--tempo, 1)) cubic-bezier(0.2, 0.7, 0.2, 1) calc(var(--pop-ms) / var(--tempo, 1)) forwards;
 }
 
 /*
@@ -53,11 +53,11 @@
  * attribute goes and the rise above starts.
  */
 .board-number[data-number-running] {
-  animation: board-number-appear var(--pop-ms) ease-out;
+  animation: board-number-appear calc(var(--pop-ms) / var(--tempo, 1)) ease-out;
 }
 
 .board-number[data-number-running][data-number-bump] {
-  animation: board-number-pop calc(var(--pop-ms) * 2) ease-out;
+  animation: board-number-pop calc(var(--pop-ms) * 2 / var(--tempo, 1)) ease-out;
 }
 
 @keyframes board-number-appear {
@@ -103,7 +103,7 @@
 @media (prefers-reduced-motion: reduce) {
   .board-number,
   .board-number[data-number-pop] {
-    animation: board-number-fade var(--rise-ms) linear forwards;
+    animation: board-number-fade calc(var(--rise-ms) / var(--tempo, 1)) linear forwards;
   }
 }
 
@@ -135,11 +135,11 @@
 }
 
 [data-testid='life'][data-life-landed='punch'] {
-  animation: life-punch var(--life-punch-ms) cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  animation: life-punch calc(var(--life-punch-ms) / var(--tempo, 1)) cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
 
 [data-testid='life'][data-life-landed='fade'] {
-  animation: life-fade var(--life-punch-ms) ease-out;
+  animation: life-fade calc(var(--life-punch-ms) / var(--tempo, 1)) ease-out;
 }
 
 @keyframes life-punch {
@@ -168,7 +168,7 @@
  * in a row, which would count toward its zone's scroll overflow (table-fit).
  */
 [data-hit-flash] {
-  animation: effect-hit-flash var(--hit-flash-ms) ease-out;
+  animation: effect-hit-flash calc(var(--hit-flash-ms) / var(--tempo, 1)) ease-out;
 }
 
 @keyframes effect-hit-flash {
@@ -187,7 +187,7 @@
  * it glows before what it causes is drawn. Ink overflow only, as the flash above.
  */
 .board-card[data-reveal-beat] {
-  animation: effect-reveal-beat var(--reveal-beat-ms) cubic-bezier(0.2, 0.8, 0.3, 1);
+  animation: effect-reveal-beat calc(var(--reveal-beat-ms) / var(--tempo, 1)) cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 
 @keyframes effect-reveal-beat {
@@ -206,7 +206,7 @@
 
 /* An arrival with nowhere to travel from (or under reduced motion): it fades in where it is. */
 [data-arriving-from]:not([data-cast-landing]) {
-  animation: effect-arrive var(--arrive-fade-ms) ease-out;
+  animation: effect-arrive calc(var(--arrive-fade-ms) / var(--tempo, 1)) ease-out;
 }
 
 @keyframes effect-arrive {
@@ -237,7 +237,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   [data-hit-flash] {
-    animation: effect-hit-flash-reduced var(--hit-flash-ms) linear;
+    animation: effect-hit-flash-reduced calc(var(--hit-flash-ms) / var(--tempo, 1)) linear;
   }
 }
 

@@ -21,6 +21,7 @@ import { copyOfCard, LEAVING_GAP_ATTR } from './departures.ts';
 import type { CrackLook, EntryWeight } from './entries.ts';
 import { seedOf } from './projectile.ts';
 import { RAMMING_ATTR } from './ram.ts';
+import { quicken } from './tempo.ts';
 import './quake.css';
 
 /** On everything a quake draws: the key of the blow it belongs to. */
@@ -43,14 +44,22 @@ export function anchorOf(el: Element): Anchor {
 /**
  * A blow at `at` as heavy as `weight`: the table shakes, cracks and knocks the cards around it away,
  * each only past its own threshold. `self`, the card that landed, is never knocked. `done` settles
- * once everything it drew is gone; `cancel` takes it all off the table at once.
+ * once everything it drew is gone; `cancel` takes it all off the table at once. At `tempo` (`./tempo.ts`).
  */
-export function quake(board: HTMLElement, overlay: HTMLElement, at: Anchor, weight: EntryWeight, key: string, self: Element | null = null): { done: Promise<unknown>; cancel: () => void } {
+export function quake(
+  board: HTMLElement,
+  overlay: HTMLElement,
+  at: Anchor,
+  weight: EntryWeight,
+  key: string,
+  self: Element | null = null,
+  tempo = 1,
+): { done: Promise<unknown>; cancel: () => void } {
   const anims: Animation[] = [];
   const done: Promise<unknown>[] = [];
-  const still = weight.shakePx > 0 ? shake(board, weight.shakePx, key) : () => undefined;
-  if (weight.cracks !== null) done.push(crackle(board, at, weight.cracks, key, anims));
-  if (weight.shove.rings > 0) done.push(shove(board, overlay, at, self, weight, key, anims));
+  const still = weight.shakePx > 0 ? shake(board, weight.shakePx, key, tempo) : () => undefined;
+  if (weight.cracks !== null) done.push(crackle(board, at, weight.cracks, key, anims, tempo));
+  if (weight.shove.rings > 0) done.push(shove(board, overlay, at, self, weight, key, anims, tempo));
   return {
     done: Promise.all(done),
     cancel: () => {
@@ -148,11 +157,11 @@ export function shadow(lift: number): string {
  * `el.animate(frames, options)`, resolved when it finishes — or at once where the environment has
  * no Web Animations (a jsdom test; `crash.ts`/`ram.ts`/`projectile.ts`'s own guard, one place here).
  * Never throws, and never rejects: a cancelled animation ends a run the same as a finished one.
- * `into` keeps the animation, for a caller that may cancel it.
+ * `into` keeps the animation, for a caller that may cancel it. It plays at `tempo` (`./tempo.ts`).
  */
-export function play(el: Element, frames: Keyframe[], options: KeyframeAnimationOptions, into?: Animation[]): Promise<void> {
+export function play(el: Element, frames: Keyframe[], options: KeyframeAnimationOptions, into: Animation[] | undefined, tempo: number): Promise<void> {
   if (typeof (el as HTMLElement).animate !== 'function') return Promise.resolve();
-  const anim = (el as HTMLElement).animate(frames, options);
+  const anim = quicken((el as HTMLElement).animate(frames, options), tempo);
   into?.push(anim);
   return anim.finished.then(
     () => undefined,
@@ -242,7 +251,7 @@ function outline(c: Crack, scale: number): string {
  * cracks in table coordinates, clipped to itself, below everything it holds — the two sides meet
  * (`board.css`'s `.zone--battlefield` seam), so a crack runs straight over onto the other side.
  */
-function crackle(board: HTMLElement, at: Anchor, look: CrackLook, key: string, into: Animation[]): Promise<void> {
+function crackle(board: HTMLElement, at: Anchor, look: CrackLook, key: string, into: Animation[], tempo: number): Promise<void> {
   const c = { width: at.w, height: at.h };
   const reach = Math.max(c.width, c.height) * look.reach;
 
@@ -297,8 +306,8 @@ function crackle(board: HTMLElement, at: Anchor, look: CrackLook, key: string, i
       run.style.stroke = 'rgb(255 255 255)';
       run.style.strokeWidth = String(crack.root * 4);
       const length = crack.pts.slice(1).reduce((sum, p, n) => sum + Math.hypot(p.x - crack.pts[n]!.x, p.y - crack.pts[n]!.y), 0);
-      run.style.animationDelay = `${Math.round(crack.at)}ms`;
-      run.style.animationDuration = `${Math.max(60, Math.round(length * CRACK_MS_PER_PX))}ms`;
+      run.style.animationDelay = `${Math.round(crack.at / tempo)}ms`;
+      run.style.animationDuration = `${Math.max(60, Math.round(length * CRACK_MS_PER_PX)) / tempo}ms`;
       mask.append(run);
       defs.append(mask);
       for (const kind of look.glow > 0 ? (['glow', 'line'] as const) : (['line'] as const)) {
@@ -320,7 +329,7 @@ function crackle(board: HTMLElement, at: Anchor, look: CrackLook, key: string, i
   });
   const total = 400 + look.holdMs + 450;
   return Promise.all(
-    layers.map((layer) => play(layer, [{ opacity: 1 }, { opacity: 1, offset: (400 + look.holdMs) / total }, { opacity: 0 }], { id: BEAT_ANIMATION_ID, duration: total, easing: 'ease-in' }, into)),
+    layers.map((layer) => play(layer, [{ opacity: 1 }, { opacity: 1, offset: (400 + look.holdMs) / total }, { opacity: 0 }], { id: BEAT_ANIMATION_ID, duration: total, easing: 'ease-in' }, into, tempo)),
   ).then(() => layers.forEach((l) => l.remove()));
 }
 
@@ -331,7 +340,7 @@ function crackle(board: HTMLElement, at: Anchor, look: CrackLook, key: string, i
  * either seat's — is thrown hardest; from 12 power the ring beyond is knocked too, more gently and a
  * beat later, as the blow travels out.
  */
-async function shove(board: HTMLElement, overlay: HTMLElement, at: Anchor, self: Element | null, weight: EntryWeight, key: string, into: Animation[]): Promise<void> {
+async function shove(board: HTMLElement, overlay: HTMLElement, at: Anchor, self: Element | null, weight: EntryWeight, key: string, into: Animation[], tempo: number): Promise<void> {
   const t = { width: at.w, height: at.h };
   const tx = at.x;
   const ty = at.y;
@@ -376,6 +385,7 @@ async function shove(board: HTMLElement, overlay: HTMLElement, at: Anchor, self:
         // The outer ring a beat after the inner: the blow travels out.
         { id: BEAT_ANIMATION_ID, duration: 860, delay: ring === 1 ? 0 : 70, easing: 'linear', fill: 'both' },
         into,
+        tempo,
       ).then(() => {
         s.stop();
         s.wrap.remove();

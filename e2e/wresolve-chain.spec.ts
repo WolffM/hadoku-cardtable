@@ -9,6 +9,11 @@
  * apart. On BOTH screens every trigger's fireball sets off on its own beat, `RESOLVE_CHAIN_GAP_MS` (300 ms)
  * after the last — not all at once (alice's, before: ~40 ms apart) and not one per two seconds (bob's, before).
  * No decision of alice's is held on the way (`input-held`, AF216).
+ *
+ * Each trigger is the same thing drawn again, so each plays faster than the last (`apps/ui/src/play/live/tempo.ts`,
+ * the operator, 2026-11-02: "the more time an animation plays in a single turn, i think the faster it should
+ * happen"): the gap before the `n`th is `RESOLVE_CHAIN_GAP_MS` at the `n`th's tempo, and the chain's later gaps are
+ * shorter than its first.
  */
 import { expect, test, type Page } from '@playwright/test';
 
@@ -24,12 +29,17 @@ const titled = makeTitled(forge);
 const TRAILER = { width: 1920, height: 1080 };
 /** `apps/ui/src/play/live/pace.ts`'s `RESOLVE_CHAIN_GAP_MS`. */
 const GAP_MS = 300;
+/** `apps/ui/src/play/live/tempo.ts`'s scale: the `n`th trigger's tempo. */
+const tempoOf = (n: number): number => Math.min(2.5, 1 + 0.25 * (n - 1));
+/** The gap before the `n`th trigger's fireball. */
+const gapBefore = (n: number): number => GAP_MS / tempoOf(n);
 /**
  * The pacer spaces the frames; a fireball is timed when it is drawn, and a busy claw draws at ~10 fps, so one late
- * paint shortens the gap after it. Together is under half the gap; the chain's own pace is its median.
+ * paint shortens the gap after it. Together is under half the gap; the chain's own pace is its median, against
+ * each gap's own length.
  */
-const TOGETHER_MS = GAP_MS / 2;
-const MEDIAN_MS = GAP_MS - 40;
+const TOGETHER = 0.5;
+const MEDIAN = (GAP_MS - 40) / GAP_MS;
 /** "without dragging": the slowest a chain's next fireball may be. */
 const SLOWEST_MS = 900;
 
@@ -141,10 +151,15 @@ test(titled('promo-valakut, bob on Auto Yield: the triggers resolve one at a tim
       const gaps = gapsOf(times);
       console.log(`[wresolve] ${who}: ${times.length} fireballs, gaps ${gaps.join(',')} ms`);
       expect.soft(times.length, `${who}: a fireball per trigger that resolved before bob died`).toBeGreaterThanOrEqual(6);
-      expect.soft(gaps.filter((g) => g < TOGETHER_MS), `${who}: no two triggers resolve together (each ≥ ${TOGETHER_MS} ms after the last)`).toEqual([]);
-      const median = [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)] ?? 0;
-      expect.soft(median, `${who}: the chain keeps its gap (median ≥ ${MEDIAN_MS} ms)`).toBeGreaterThanOrEqual(MEDIAN_MS);
+      // The gap after fireball k is the one before trigger k + 1.
+      const shares = gaps.map((g, k) => g / gapBefore(k + 2));
+      console.log(`[wresolve] ${who}: each gap against its tempo's ${gaps.map((_, k) => Math.round(gapBefore(k + 2))).join(',')} ms`);
+      expect.soft(gaps.filter((g, k) => g < TOGETHER * gapBefore(k + 2)), `${who}: no two triggers resolve together (each ≥ half its gap after the last)`).toEqual([]);
+      const median = [...shares].sort((a, b) => a - b)[Math.floor(shares.length / 2)] ?? 0;
+      expect.soft(median, `${who}: the chain keeps its gaps (median ≥ ${MEDIAN.toFixed(2)} of each)`).toBeGreaterThanOrEqual(MEDIAN);
       expect.soft(gaps.filter((g) => g > SLOWEST_MS), `${who}: the chain does not drag (each ≤ ${SLOWEST_MS} ms after the last)`).toEqual([]);
+      const mid = (xs: number[]): number => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] ?? 0;
+      expect.soft(mid(gaps.slice(-3)), `${who}: the chain quickens — its last gaps are shorter than its first`).toBeLessThan(mid(gaps.slice(0, 3)));
     }
     const held = serverLog(stack)
       .slice(fromAim)

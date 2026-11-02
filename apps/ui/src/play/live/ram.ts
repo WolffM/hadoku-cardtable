@@ -46,6 +46,7 @@
 import { BEAT_ANIMATION_ID, homeEase, powerEase } from '../motion.ts';
 import { copyOfCard } from './departures.ts';
 import { along, seedOf } from './projectile.ts';
+import { quicken } from './tempo.ts';
 import './ram.css';
 
 export interface Point {
@@ -501,9 +502,9 @@ function mover(root: HTMLElement, source: HTMLElement, from: Box): { el: HTMLEle
   return { el: wrap, standIn: false };
 }
 
-/** Run `parts` on `el` (each from its own delay), then `done` when the last is over; returns a cancel. */
-function play(el: HTMLElement, parts: readonly { frames: Keyframe[]; delay: number; duration: number; easing?: string }[], done: () => void): () => void {
-  const anims = parts.map((p) => el.animate(p.frames, { id: BEAT_ANIMATION_ID, delay: p.delay, duration: p.duration, easing: p.easing ?? 'linear', fill: 'forwards' }));
+/** Run `parts` on `el` (each from its own delay), at `tempo` (`./tempo.ts`), then `done` when the last is over; returns a cancel. */
+function play(el: HTMLElement, parts: readonly { frames: Keyframe[]; delay: number; duration: number; easing?: string }[], done: () => void, tempo: number): () => void {
+  const anims = parts.map((p) => quicken(el.animate(p.frames, { id: BEAT_ANIMATION_ID, delay: p.delay, duration: p.duration, easing: p.easing ?? 'linear', fill: 'forwards' }), tempo));
   const last = anims[anims.length - 1]!;
   last.finished.then(done, done);
   return () => {
@@ -516,7 +517,8 @@ function play(el: HTMLElement, parts: readonly { frames: Keyframe[]; delay: numb
  * `to` after `delayMs` plus its contact time, and ends as `end` says. `away` is the way a blasted
  * creature is knocked: from the one that struck it. A charge forms up from `formation.start` at
  * `formation.at`, winds up and punches by `formation.weight` (its damage on the landing's curve;
- * `power` when not given) and bends to `formation.side` (`bendOf`; a coin when not given). Returns a cancel that puts everything back.
+ * `power` when not given) and bends to `formation.side` (`bendOf`; a coin when not given). Every length is on the
+ * ram's own clock, which runs `formation.tempo` times the wall's (`./tempo.ts`). Returns a cancel that puts everything back.
  */
 export function ram(
   root: HTMLElement,
@@ -529,7 +531,7 @@ export function ram(
   delayMs: number,
   power: number,
   struckPower: number,
-  formation: { start: number; at: Point | null; weight?: number; side?: -1 | 1 } = { start: delayMs, at: null },
+  formation: { start: number; at: Point | null; weight?: number; side?: -1 | 1; tempo?: number } = { start: delayMs, at: null },
 ): () => void {
   if (typeof source.animate !== 'function') return () => undefined;
   const { el, standIn } = mover(root, source, from);
@@ -575,22 +577,28 @@ export function ram(
   } else if (end !== 'crumple') {
     parts.push({ frames: returnFrames(strike, tilt), delay: contact + HOLD_MS[end], duration: RETURN_MS, easing: home });
   }
-  const timer = standIn ? null : window.setTimeout(() => source.setAttribute(RAMMING_ATTR, ''), kind === 'charge' ? formation.start : delayMs);
-  return play(el, parts, () => {
-    if (timer !== null) window.clearTimeout(timer);
-    if (!standIn) {
-      source.removeAttribute(RAMMING_ATTR);
-      el.remove();
-    }
-  });
+  const tempo = formation.tempo ?? 1;
+  const timer = standIn ? null : window.setTimeout(() => source.setAttribute(RAMMING_ATTR, ''), (kind === 'charge' ? formation.start : delayMs) / tempo);
+  return play(
+    el,
+    parts,
+    () => {
+      if (timer !== null) window.clearTimeout(timer);
+      if (!standIn) {
+        source.removeAttribute(RAMMING_ATTR);
+        el.remove();
+      }
+    },
+    tempo,
+  );
 }
 
 /**
  * A creature that dies of a blow it did not ram back into: its departure's stand-in `target` stands
  * still until `atMs`, then is blasted away from `from` (the box of the one that struck it).
  */
-export function blast(root: HTMLElement, target: HTMLElement, from: Box, at: Box, key: string, atMs: number, power: number): () => void {
+export function blast(root: HTMLElement, target: HTMLElement, from: Box, at: Box, key: string, atMs: number, power: number, tempo = 1): () => void {
   if (typeof target.animate !== 'function' || !root.contains(target)) return () => undefined;
   const away = unit(from, at);
-  return play(target, [{ frames: blastFrames({ x: 0, y: 0 }, away, power), delay: atMs, duration: BLAST_MS, easing: 'cubic-bezier(0.15, 0.7, 0.3, 1)' }], () => undefined);
+  return play(target, [{ frames: blastFrames({ x: 0, y: 0 }, away, power), delay: atMs, duration: BLAST_MS, easing: 'cubic-bezier(0.15, 0.7, 0.3, 1)' }], () => undefined, tempo);
 }

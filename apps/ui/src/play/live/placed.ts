@@ -103,6 +103,7 @@ import { artReady, cardImageUrl } from '../../draft/cardImage.ts';
 import { battlefieldCardWidth, handCardWidth, onCardWidthsChanged, sizeAsCard } from '../card-size.ts';
 import { GLIDE_MS, HOUSE_DURATIONS, noteBoardDrawing, PLACEMENT_WAIT_MS, prefersReducedMotion, takeResolutionEffects, writeDurations } from '../motion.ts';
 import { AbilityChip } from './AbilityChip.tsx';
+import { resolvedTempo } from './tempo.ts';
 import { HiddenCard } from '../HiddenCard.tsx';
 import { viewerOf, type BoardView, type StackEntry } from '../adapter.ts';
 import { aimBetween, breathe, newArrow, positionArrow, removeArrow, retireCommitted } from './gestures/arrow.ts';
@@ -1135,12 +1136,12 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     // What it did is drawn first (`numbers.ts`'s beats: hits, a creature destroyed): it stays where it
     // is while that plays, and then goes the ordinary way — no blink (the operator, 2026-10-15: the
     // "double blink" was "a bit slow and weird").
-    // A chip nobody ever saw goes as it came; one that was seen stays its `CHIP_DWELL_MS` first.
+    // A chip nobody ever saw goes as it came; one that was seen stays its `CHIP_DWELL_MS` first, at the tempo it resolved at (`./tempo.ts`).
     if (d.isAbility && d.shownAt === null) {
       removeNow(id);
       return;
     }
-    const until = Math.max(takeResolutionEffects(id) ?? 0, d.isAbility ? d.shownAt! + CHIP_DWELL_MS : 0);
+    const until = Math.max(takeResolutionEffects(id) ?? 0, d.isAbility ? d.shownAt! + CHIP_DWELL_MS / resolvedTempo(id) : 0);
     if (until > Date.now()) {
       schedule(() => fadeInto(id, d, cardId), until - Date.now());
       return;

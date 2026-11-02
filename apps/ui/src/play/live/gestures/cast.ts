@@ -322,9 +322,10 @@ export function castLandingWeight(view: BoardView | null, cardId: number | null)
  * is hidden until it touches down. Weightless and already standing in place: a swap, no trip.
  *
  * Anywhere else — a back going home to the other seat's hand when their cast is cancelled — it floats
- * there, shrinking to its slot's size.
+ * there, shrinking to its slot's size. `tempo`: how fast the trip plays (`../tempo.ts`), for a card
+ * travelling from its maker.
  */
-export function landCastGhost(root: ParentNode, id: number | null, ghost: HTMLElement, from: Point, arrived: HTMLElement, weight: EntryWeight | null = null): Landing {
+export function landCastGhost(root: ParentNode, id: number | null, ghost: HTMLElement, from: Point, arrived: HTMLElement, weight: EntryWeight | null = null, tempo = 1): Landing {
   const box = arrived.getBoundingClientRect();
   const to = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
   const turned = arrived.hasAttribute('data-tapped');
@@ -354,7 +355,7 @@ export function landCastGhost(root: ParentNode, id: number | null, ghost: HTMLEl
     arrived.removeAttribute(CAST_LANDING_ATTR);
     const board = (root.querySelector('.board') ?? root) as HTMLElement;
     const key = `cast:${id ?? arrived.getAttribute('data-board-card') ?? `${to.x}:${to.y}`}`;
-    void playEntry({ board, overlay, card: arrived, from: ghost, motion: 'cast', weight, key, onLanded: (card) => card.removeAttribute(CAST_LANDING_ATTR) });
+    void playEntry({ board, overlay, card: arrived, from: ghost, motion: 'cast', weight, key, tempo, onLanded: (card) => card.removeAttribute(CAST_LANDING_ATTR) });
     arrived.setAttribute(CAST_LANDING_ATTR, '');
     ghost.remove();
     return { how, ...landing };

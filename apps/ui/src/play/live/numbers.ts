@@ -162,6 +162,7 @@ import { installMill, millsOf, setAsideAfter, type Mill, type SetAside } from '.
 import { clearImpact, glintCard, impactBadge, ptBadge, ptChanges, PT_GLINT_CLASS, PT_IMPACT_ATTR, PT_IMPACT_MS, type PT, type PTChange } from './pt-impact.ts';
 import { quake } from './quake.ts';
 import { recoil } from './recoil.ts';
+import { boardTempoCount, countInstance, instanceKey, itemKey, markTempo, nextTempo, noteResolvedTempo, noteTempoStack, tempoOf } from './tempo.ts';
 import './numbers.css';
 import { timed } from './work-meter.ts';
 
@@ -520,8 +521,8 @@ export interface NumbersHost {
   readonly fastMode?: () => boolean;
   /** Told what each view's beats were (the seat's `effect` client event): one call per view that drew any. */
   readonly report?: (data: Record<string, string | number | boolean>) => void;
-  /** Permanents left the battlefield: draw each leaving, from its `delayMs` on (`departures.ts`'s `leave`) — the view's whole batch in one call. */
-  readonly leave?: (batch: readonly { departure: Departure; delayMs: number }[]) => void;
+  /** Permanents left the battlefield: draw each leaving, from its `delayMs` on, at its `tempo` (`departures.ts`'s `leave`) — the view's whole batch in one call. */
+  readonly leave?: (batch: readonly { departure: Departure; delayMs: number; tempo: number }[]) => void;
   /** A hit landed on this card: a death waiting on it starts now (`departures.ts`'s `strike`). */
   readonly strike?: (cardId: number) => void;
   /** A hit is on its way to this card: draw `damage`, its damage before the hit, until it lands (`./damage-hold.ts`). */
@@ -572,6 +573,8 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   const stackBoxes = new Map<number, DOMRect>();
   /** The marks a beat put on a row card or a face, cleared on dispose. */
   const marked = new Set<Element>();
+  /** How many instances of each thing this turn has drawn (`./tempo.ts`): each view's tempo. */
+  const tempoCount = boardTempoCount();
 
   const reduced = (): boolean => host.reducedMotion?.() ?? prefersReducedMotion();
   const fast = (): boolean => host.fastMode?.() ?? false;
@@ -584,7 +587,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
    * as that hit lands, never before it (the operator, 2026-10-28: "6 opponent creatures all did their death
    * animation immediately before being hit by a fireball").
    */
-  const hitsDue = new Map<number, number>();
+  const hitsDue = new Map<number, { at: number; tempo: number }>();
   /** When each creature attacking now was first drawn attacking: how long its attack was seen before it rammed. */
   const attackingSince = new Map<number, number>();
   /** Each shake of the table, likewise. */
@@ -625,10 +628,13 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     timers.add(timer);
   }
 
-  /** `fn` now when its beat is now — so a beat with nothing before it starts in the frame that caused it — else at its beat. */
-  function atBeat(fn: () => void, delayMs: number): void {
+  /**
+   * `fn` now when its beat is now — so a beat with nothing before it starts in the frame that caused it — else at its
+   * beat: `delayMs` on its instance's clock, which runs `tempo` times the wall's (`./tempo.ts`).
+   */
+  function atBeat(fn: () => void, delayMs: number, tempo: number): void {
     if (delayMs <= 0) fn();
-    else schedule(fn, delayMs);
+    else schedule(fn, delayMs / tempo);
   }
 
   function bumpActive(key: string, by: 1 | -1): number {
@@ -654,18 +660,22 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
    * before it rises, for a total still counting up — the returned function sets what it reads now, and
    * bumps it so the change reads. Its rise (and pop) is decided by what it reads when it lets go.
    */
-  function spawn(options: { anchorKey: string; at: Boxed; delta: number; holdMs?: number }): (delta: number) => void {
+  function spawn(options: { anchorKey: string; at: Boxed; delta: number; holdMs?: number; tempo: number }): (delta: number) => void {
     const root = overlay();
     if (root === null || options.delta === 0) return () => undefined;
     const box = root.getBoundingClientRect();
     const index = bumpActive(options.anchorKey, 1);
+    const { tempo } = options;
+    // Every length below is on the instance's clock, as a wall's length.
     const layout = stackLayout(index);
+    const delayMs = layout.delayMs / tempo;
     const isReduced = reduced();
-    const holdMs = isReduced ? 0 : (options.holdMs ?? 0);
+    const holdMs = isReduced ? 0 : (options.holdMs ?? 0) / tempo;
 
     const el = document.createElement('div');
     el.className = 'board-number';
     el.setAttribute('aria-hidden', 'true');
+    markTempo(el, tempo);
     if (isReduced) el.dataset.numberReduced = '';
     if (holdMs > 0) el.dataset.numberRunning = '';
     dress(el, options.delta, isReduced);
@@ -678,12 +688,12 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       if (!live) return;
       root.append(el);
     };
-    if (layout.delayMs > 0) schedule(place, layout.delayMs);
+    if (delayMs > 0) schedule(place, delayMs);
     else place();
 
     /** It rises from `afterMs` on, and is gone when its rise is over. */
     const letGo = (afterMs: number): void => {
-      const riseMs = el.dataset.numberPop === undefined ? RISE_MS : POP_MS + RISE_MS;
+      const riseMs = (el.dataset.numberPop === undefined ? RISE_MS : POP_MS + RISE_MS) / tempo;
       schedule(() => {
         el.remove();
         bumpActive(options.anchorKey, -1);
@@ -693,8 +703,8 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       schedule(() => {
         delete el.dataset.numberRunning;
         letGo(0);
-      }, layout.delayMs + holdMs);
-    else letGo(layout.delayMs);
+      }, delayMs + holdMs);
+    else letGo(delayMs);
     return (delta: number) => {
       dress(el, delta, isReduced);
       // Restarted on every change: the attribute off, a style flush, and on again, so the bump replays.
@@ -718,13 +728,14 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
    * One instance lands on the seat bar's own life span: it reads the new total at once, in the loss or gain
    * ink, with a punch (`data-life-landed`; a fade under reduced motion) — unless a newer change has landed first.
    */
-  function landLife(playerId: number, to: number, delta: number, order: number): void {
+  function landLife(playerId: number, to: number, delta: number, order: number, tempo: number): void {
     const face = faceBox(canvas, playerId);
     const lifeSpan = face?.querySelector<HTMLElement>('[data-testid="life"]') ?? null;
     if (lifeSpan === null || (lifeLanded.get(playerId) ?? 0) > order) return;
     lifeLanded.set(playerId, order);
     lifeSpan.textContent = String(to);
     lifeSpan.dataset.numberLifeColour = lifeColour(delta);
+    markTempo(lifeSpan, tempo);
     // Restarted on every instance: off, a style flush, and on again, so each one punches.
     delete lifeSpan.dataset.lifeLanded;
     void lifeSpan.offsetWidth;
@@ -733,7 +744,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       if (lifeLanded.get(playerId) !== order) return;
       delete lifeSpan.dataset.numberLifeColour;
       delete lifeSpan.dataset.lifeLanded;
-    }, LIFE_COLOUR_MS);
+    }, LIFE_COLOUR_MS / tempo);
   }
 
   /**
@@ -742,7 +753,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
    * bars above/below the avatar when i get hit. can we just get rid of those?") — the impact, the number and
    * the life total landing are the hit there.
    */
-  function flash(target: Element | null, colour: NumberColour): void {
+  function flash(target: Element | null, colour: NumberColour, tempo: number): void {
     if (target === null || target.hasAttribute('data-player-face')) return;
     // A card leaving is drawn as its copy (`departures.ts`): the copy's piece flashes, not the empty gap
     // — the piece, so the flash never replaces the copy's own exit animation.
@@ -750,9 +761,10 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     const el = (leavingId === null ? null : canvas.querySelector(`[${DEPARTURE_ATTR}="${leavingId}"] .board-departure__piece`)) ?? target;
     el.removeAttribute('data-hit-flash');
     void (el as HTMLElement).offsetWidth;
+    markTempo(el, tempo);
     el.setAttribute('data-hit-flash', colour);
     marked.add(el);
-    schedule(() => el.removeAttribute('data-hit-flash'), HIT_FLASH_MS);
+    schedule(() => el.removeAttribute('data-hit-flash'), HIT_FLASH_MS / tempo);
   }
 
   /** Where a resolving item's effects come from: its source on the battlefield, else where it was drawn on the stack. */
@@ -785,15 +797,17 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
    * ANOTHER item sharing this one's source card, consumed once. A reflexive trigger (Calibrated Blast:
    * telemetry `m-bafaa3d3238f`) is new in the frame it resolves — `firstSeen` holds nothing for it, so
    * it never links its own reveal by timing — but it shares its source with the spell whose resolution
-   * caused the reveal; its own beat is long over by then, so it waits no further (`waitMs: 0`).
+   * caused the reveal; its own beat is long over by then, so it waits no further (`waitMs: 0`). `waitMs` is on
+   * the resolution's clock (`tempo`).
    */
-  function revealOf(item: StackEntry | undefined, revealed: Revealed | undefined): { at: Boxed | null; waitMs: number } | null {
+  function revealOf(item: StackEntry | undefined, revealed: Revealed | undefined, tempo: number): { at: Boxed | null; waitMs: number } | null {
     if (item === undefined) return null;
     if (revealed !== undefined) {
       const put = firstSeen.get(item.id);
       if (put !== undefined && revealed.at >= put - SAME_PAINT_MS) {
         if (item.sourceCardId !== null) revealedBySource.set(item.sourceCardId, revealed);
-        return revealLink(revealed, Math.max(0, revealed.at + REVEAL_BEAT_MS - Date.now()));
+        // What is left of its beat, on the resolution's clock.
+        return revealLink(revealed, Math.max(0, REVEAL_BEAT_MS - (Date.now() - revealed.at) * tempo));
       }
     }
     if (item.sourceCardId === null) return null;
@@ -806,15 +820,17 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   /**
    * A reveal's cards on the board wear {@link REVEAL_BEAT_ATTR} while its beat runs (`board.css`): the card
    * is seen before what it causes. Again on every view inside the beat, since a card that moves (Sorin's
-   * revealed top card, into its owner's hand) is a new element where it lands.
+   * revealed top card, into its owner's hand) is a new element where it lands. At the tempo of the resolution it
+   * belongs to.
    */
-  function markReveal(revealed: Revealed | undefined): void {
+  function markReveal(revealed: Revealed | undefined, tempo: number): void {
     if (revealed === undefined) return;
-    const left = revealed.at + REVEAL_BEAT_MS - Date.now();
+    const left = revealed.at + REVEAL_BEAT_MS / tempo - Date.now();
     if (left <= 0) return;
     for (const id of revealed.cardIds) {
       const el = canvas.querySelector(`[data-board-card="${id}"]`);
       if (el === null || el.hasAttribute(REVEAL_BEAT_ATTR)) continue;
+      markTempo(el, tempo);
       el.setAttribute(REVEAL_BEAT_ATTR, '');
       marked.add(el);
       schedule(() => el.removeAttribute(REVEAL_BEAT_ATTR), left);
@@ -823,6 +839,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
 
   /**
    * One hit: a mark from `from` to `to`, then `land` — at once under reduced motion, where only the flash is drawn.
+   * `delayMs` and the flight are on the instance's clock (`tempo`).
    * `retarget` finds where it lands again when `to` is no longer drawn by its beat: a card that left its row in a
    * view after this one is its kept gap, and its stand-in, by then.
    */
@@ -835,16 +852,21 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     land: () => void,
     hue: ManaColor | null,
     amount: number,
+    tempo: number,
     retarget?: () => Element | null,
   ): void {
     const power = damagePower(amount);
     const ms = HIT_MS;
     const root = overlay();
     if (root === null || reduced()) {
-      atBeat(() => {
-        flash(to, colour);
-        land();
-      }, delayMs);
+      atBeat(
+        () => {
+          flash(to, colour, tempo);
+          land();
+        },
+        delayMs,
+        tempo,
+      );
       return;
     }
     atBeat(() => {
@@ -855,16 +877,16 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       const leavingId = target.getAttribute(LEAVING_GAP_ATTR);
       const end = centreIn((leavingId === null ? null : root.querySelector(`[${DEPARTURE_ATTR}="${leavingId}"]`)) ?? target, box);
       const look = colour === 'danger' ? 'bolt' : 'heal';
-      const ball = fly(root, centreIn(from, box), end, key, look, ms, hue, power);
+      const ball = fly(root, centreIn(from, box), end, key, look, ms, hue, power, tempo);
       schedule(() => {
         ball.remove();
-        impact(root, end, look, key, hue, power);
+        impact(root, end, look, key, hue, power, tempo);
         // AF420: a spell's own blow shakes the table too (`boltShakePx`).
-        if (look === 'bolt') shakes.add(shake(canvas, boltShakePx(amount), key));
-        flash(target.isConnected ? target : (retarget?.() ?? target), colour);
+        if (look === 'bolt') shakes.add(shake(canvas, boltShakePx(amount), key, tempo));
+        flash(target.isConnected ? target : (retarget?.() ?? target), colour, tempo);
         land();
-      }, ms);
-    }, delayMs);
+      }, ms / tempo);
+    }, delayMs, tempo);
   }
 
   /**
@@ -878,18 +900,18 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
    * table cracks only under a landing (2026-11-01, of a crack out of the struck player's portrait: "the
    * crack looks ugly"); two creatures' blow only shakes it, the rammers being out on the table.
    */
-  function bang(to: Element, key: string, amount: number, at: Point | null = null, share = 1, charger: { w: number; h: number } | null = null): void {
+  function bang(to: Element, key: string, amount: number, tempo: number, at: Point | null = null, share = 1, charger: { w: number; h: number } | null = null): void {
     const root = overlay();
     if (root === null || reduced()) return;
     const point = at ?? centreIn(to, root.getBoundingClientRect());
-    crash(root, point, damagePower(amount), key, share);
+    crash(root, point, damagePower(amount), key, share, tempo);
     const weight = entryWeight(amount);
     if (charger === null) {
-      shakes.add(shake(canvas, weight.shakePx, key));
+      shakes.add(shake(canvas, weight.shakePx, key, tempo));
       return;
     }
     const box = root.getBoundingClientRect();
-    shakes.add(quake(canvas, root, { x: box.left + point.x, y: box.top + point.y, ...charger }, { ...weight, cracks: null }, key).cancel);
+    shakes.add(quake(canvas, root, { x: box.left + point.x, y: box.top + point.y, ...charger }, { ...weight, cracks: null }, key, null, tempo).cancel);
   }
 
   /**
@@ -903,9 +925,10 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     source: number | null,
     from: Boxed | null,
     delayMs: number,
-    origin: Arrival['origin'] = 'other',
-    heft = 0,
-    pileOwner: 'you' | 'them' | null = null,
+    origin: Arrival['origin'],
+    heft: number,
+    pileOwner: 'you' | 'them' | null,
+    tempo: number,
   ): void {
     const el = battlefieldCard(canvas, cardId);
     if (el === null) return;
@@ -913,6 +936,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     if ((origin === 'graveyard' || origin === 'exile' || origin === 'token') && root !== null && !reduced()) {
       const weight = entryWeight(heft);
       el.setAttribute(ARRIVING_ATTR, source === null ? '' : String(source));
+      markTempo(el, tempo);
       marked.add(el);
       atBeat(() => {
         // React may have drawn the row again meanwhile: the card as it is drawn now.
@@ -922,10 +946,11 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
           return;
         }
         now.setAttribute(ARRIVING_ATTR, source === null ? '' : String(source));
+        markTempo(now, tempo);
         marked.add(now);
         const key = `entry:${cardId}`;
         const run = fast()
-          ? playLanding(canvas, root, now, weight, key)
+          ? playLanding(canvas, root, now, weight, key, tempo)
           : playEntry({
               board: canvas,
               overlay: root,
@@ -934,12 +959,14 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
               motion: entryMotionFor(origin),
               weight,
               key,
+              tempo,
             });
         run.then(() => now.removeAttribute(ARRIVING_ATTR));
-      }, delayMs);
+      }, delayMs, tempo);
       return;
     }
     el.setAttribute(ARRIVING_ATTR, source === null ? '' : String(source));
+    markTempo(el, tempo);
     marked.add(el);
     const settle = (): void => {
       el.removeAttribute(ARRIVING_ATTR);
@@ -948,10 +975,14 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     if (from === null || reduced()) {
       // Fades in where it is (`numbers.css`), from the moment its beat comes.
       el.setAttribute(CAST_LANDING_ATTR, '');
-      atBeat(() => {
-        el.removeAttribute(CAST_LANDING_ATTR);
-        schedule(settle, ARRIVE_FADE_MS);
-      }, delayMs);
+      atBeat(
+        () => {
+          el.removeAttribute(CAST_LANDING_ATTR);
+          schedule(settle, ARRIVE_FADE_MS / tempo);
+        },
+        delayMs,
+        tempo,
+      );
       return;
     }
     el.setAttribute(CAST_LANDING_ATTR, '');
@@ -960,15 +991,16 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       const now = el.isConnected ? el : battlefieldCard(canvas, cardId);
       if (now === null) return settle();
       now.setAttribute(ARRIVING_ATTR, source === null ? '' : String(source));
+      markTempo(now, tempo);
       marked.add(now);
       now.removeAttribute(CAST_LANDING_ATTR);
       const ghost = parkedGhost(canvas, cardId);
       if (ghost === null) return settle();
       ghost.removeAttribute(ARRIVING_ATTR);
       const r = boxOf(from);
-      landCastGhost(canvas, null, ghost, { x: r.left + r.width / 2, y: r.top + r.height / 2 }, now, landingWeight(heft));
-      schedule(() => now.removeAttribute(ARRIVING_ATTR), GLIDE_MS);
-    }, delayMs);
+      landCastGhost(canvas, null, ghost, { x: r.left + r.width / 2, y: r.top + r.height / 2 }, now, landingWeight(heft), tempo);
+      schedule(() => now.removeAttribute(ARRIVING_ATTR), GLIDE_MS / tempo);
+    }, delayMs, tempo);
   }
 
   /** Where a card's hit lands: its row card, else the gap its row keeps while it leaves. */
@@ -976,9 +1008,14 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     return battlefieldCard(canvas, cardId) ?? canvas.querySelector<HTMLElement>(`[${LEAVING_GAP_ATTR}="${cardId}"]`);
   }
 
-  function apply(diff: ViewDiff, before: BoardView | null, revealed: Revealed | undefined, mills: readonly Mill[]): void {
+  /**
+   * Draws a view's beats. Every length here is on the instance's own clock (`./tempo.ts`), which runs `tempo` times
+   * the wall's: a beat's timer, a note of when something lands, and what each effect is handed are wall time.
+   * Returns how long its beats run on the wall.
+   */
+  function apply(diff: ViewDiff, before: BoardView | null, revealed: Revealed | undefined, mills: readonly Mill[], tempo: number): number {
     const item = diff.resolved[0];
-    const reveal = revealOf(item, revealed);
+    const reveal = revealOf(item, revealed, tempo);
     const origin = reveal?.at ?? sourceOf(item);
     const effects =
       diff.life.length + diff.hits.length + diff.departures.length + diff.arrivals.length + mills.length + diff.pt.length + diff.damage.filter((c) => c.to > c.from).length > 0;
@@ -1094,7 +1131,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
        */
       const landChunk = (before: number, chunk: LifeChunk): (() => void) => {
         const order = ++lifeOrder;
-        return () => landLife(change.playerId, change.from + before + chunk.delta, chunk.delta, order);
+        return () => landLife(change.playerId, change.from + before + chunk.delta, chunk.delta, order, tempo);
       };
       if (charged.has(change.playerId) && combat !== null) {
         /*
@@ -1118,11 +1155,15 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
           const landed = landChunk(before, chunk);
           // Timed once the blows are (`afterBlows`): at the same moment, the blow draws first and its number after.
           afterBlows.push(() =>
-            atBeat(() => {
-              landed();
-              if (i === 0) update = spawn({ anchorKey: `face:${change.playerId}`, at: face, delta: total, holdMs: chunks[chunks.length - 1]!.at - firstAt });
-              else update(total);
-            }, chunk.at),
+            atBeat(
+              () => {
+                landed();
+                if (i === 0) update = spawn({ anchorKey: `face:${change.playerId}`, at: face, delta: total, holdMs: chunks[chunks.length - 1]!.at - firstAt, tempo });
+                else update(total);
+              },
+              chunk.at,
+              tempo,
+            ),
           );
         });
         continue;
@@ -1146,10 +1187,11 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
               // Forge reports a combat's lifelink as one gain: it lands once, at the last mote in.
               if (--left > 0) return;
               landed();
-              spawn({ anchorKey: `face:${change.playerId}`, at: face, delta });
+              spawn({ anchorKey: `face:${change.playerId}`, at: face, delta, tempo });
             },
             null,
             source.amount,
+            tempo,
           );
         }
         continue;
@@ -1167,13 +1209,13 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         const landed = landChunk(before, chunk);
         const land = (): void => {
           landed();
-          spawn({ anchorKey: `face:${change.playerId}`, at: face, delta: chunk.delta });
+          spawn({ anchorKey: `face:${change.playerId}`, at: face, delta: chunk.delta, tempo });
         };
         if (origin === null || item === undefined) {
           // Nothing travels (a payment, Fast Mode, reduced motion): each instance in turn, Fast Mode all at once.
           const delay = fast() ? 0 : i * BOLT_STAGGER_MS;
           endMs = Math.max(endMs, delay);
-          atBeat(land, delay);
+          atBeat(land, delay, tempo);
           return;
         }
         const delay = nextBolt();
@@ -1182,7 +1224,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         // AF420: seeded by the resolution too (the stack item's own id), so every cast flies its own
         // arc — the same key on both screens; a later instance of the same resolution adds its index.
         const key = i === 0 ? `player:${change.playerId}:${item.id}` : `player:${change.playerId}:${item.id}:${i}`;
-        hit(origin, face, key, lifeColour(chunk.delta), delay, land, spellHue, Math.abs(chunk.delta));
+        hit(origin, face, key, lifeColour(chunk.delta), delay, land, spellHue, Math.abs(chunk.delta), tempo);
         if (chunk.delta < 0) boltSound(delay + HIT_MS, -chunk.delta);
       });
     }
@@ -1201,7 +1243,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       // No number: the slam is the hit (the operator, 2026-10-15) — what is left of its toughness is the badge's.
       const land = (): void => {
         if (wasDamage !== undefined) host.releaseDamage?.(h.cardId);
-        flash(hitTarget(h.cardId) ?? target, 'danger');
+        flash(hitTarget(h.cardId) ?? target, 'danger', tempo);
         hitsDue.delete(h.cardId);
         host.strike?.(h.cardId);
       };
@@ -1210,17 +1252,21 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       const delay = origin === null ? (combat?.hitAt.get(h.seq) ?? 0) : nextBolt();
       const landsAt = origin === null ? delay : delay + HIT_MS;
       if (departure !== undefined) fatalLand.set(h.cardId, Math.max(fatalLand.get(h.cardId) ?? 0, landsAt));
-      hitsDue.set(h.cardId, Math.max(hitsDue.get(h.cardId) ?? 0, Date.now() + landsAt));
+      hitsDue.set(h.cardId, { at: Math.max(hitsDue.get(h.cardId)?.at ?? 0, Date.now() + landsAt / tempo), tempo });
       if (firstCardImpact === null || landsAt < firstCardImpact) firstCardImpact = landsAt;
       endMs = Math.max(endMs, landsAt);
       if (origin === null) {
-        atBeat(() => {
-          // A rammed hit's crash is its ram's (below): one per blow, where the two cards meet.
-          if (!combat?.hitAt.has(h.seq)) bang(target, key, h.amount);
-          land();
-        }, delay);
+        atBeat(
+          () => {
+            // A rammed hit's crash is its ram's (below): one per blow, where the two cards meet.
+            if (!combat?.hitAt.has(h.seq)) bang(target, key, h.amount, tempo);
+            land();
+          },
+          delay,
+          tempo,
+        );
       } else {
-        hit(origin, target, key, 'danger', delay, land, spellHue, h.amount, () => hitTarget(h.cardId));
+        hit(origin, target, key, 'danger', delay, land, spellHue, h.amount, tempo, () => hitTarget(h.cardId));
         boltSound(landsAt, h.amount);
       }
     }
@@ -1238,14 +1284,14 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         host.releasePT?.(change.cardId);
         const root = overlay();
         const card = battlefieldCard(canvas, change.cardId);
-        if (root !== null && card !== null) glintCard(root, card.querySelector('.board-card__face') ?? card, change, reduced(), schedule);
+        if (root !== null && card !== null) glintCard(root, card.querySelector('.board-card__face') ?? card, change, reduced(), schedule, tempo);
         const badge = ptBadge(canvas, change.cardId);
-        if (badge !== null) impactBadge(badge, change, reduced(), schedule);
+        if (badge !== null) impactBadge(badge, change, reduced(), schedule, tempo);
       };
       const delay = item === undefined ? startMs : nextDelay();
       if (item !== undefined) ptStaggered += 1;
       endMs = Math.max(endMs, delay + PT_IMPACT_MS);
-      atBeat(land, delay);
+      atBeat(land, delay, tempo);
     }
     let fromMaker = 0;
     for (const arrival of diff.arrivals) {
@@ -1257,7 +1303,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       endMs = Math.max(endMs, delay + entryMs);
       const pileOwner: 'you' | 'them' | null =
         arrival.fromPlayerId === undefined ? null : before?.players.find((p) => p.id === arrival.fromPlayerId)?.isViewer === true ? 'you' : 'them';
-      arrive(arrival.cardId, arrival.source, maker ?? sourceOf(item), delay, arrival.origin, arrival.heft, pileOwner);
+      arrive(arrival.cardId, arrival.source, maker ?? sourceOf(item), delay, arrival.origin, arrival.heft, pileOwner, tempo);
     }
     /*
      * Cards milled fly from their library to their graveyard as the effects start. The spell waits for them on the
@@ -1265,27 +1311,29 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
      * frame (measured, Glimpse the Unthinkable: nine cards, then the tenth with the resolution), whose second frame
      * a hold would keep from the other seat's screen until the first run had landed.
      */
-    const millEnd = mills.length === 0 ? 0 : mill.fly(mills, startMs);
-    if (mills.length > 0 && prevView !== null) noteMillBeat(prevView.seq, Date.now() + startMs);
+    const millEnd = mills.length === 0 ? 0 : mill.fly(mills, startMs, tempo);
+    if (mills.length > 0 && prevView !== null) noteMillBeat(prevView.seq, Date.now() + startMs / tempo);
     /*
      * What left the battlefield goes at its beat: what a hit killed the moment that hit lands, everything
      * else (destroyed, sacrificed, exiled) as the effects start.
      */
-    const exits: { departure: Departure; delayMs: number }[] = [];
+    const exits: { departure: Departure; delayMs: number; tempo: number }[] = [];
     for (const dep of diff.departures) {
       // Why it died: Forge's word, else a hit drawn here killed it, else unknown (`departures.ts`'s `exitMotionFor`).
       const said = prevView?.deathCauses?.get(dep.cardId);
       // A hit an earlier view drew at it, still to land (`hitsDue`): due by now, perhaps, on a page running late.
       const due = hitsDue.get(dep.cardId);
-      const dueMs = due === undefined ? undefined : Math.max(0, due - Date.now());
+      const dueMs = due === undefined ? undefined : Math.max(0, due.at - Date.now()) * tempo;
       const cause = said !== undefined ? departureCause(said) : fatalLand.has(dep.cardId) || dueMs !== undefined ? 'damage' : undefined;
       const departure: Departure = { ...dep, ...(cause === undefined ? {} : { cause }), ...(spellHue === null ? {} : { hue: spellHue }) };
       const hitAt = fatalLand.get(departure.cardId) ?? dueMs;
+      // It leaves at the tempo of what killed it: a wipe's later deaths are its instance's, not a view of their own.
+      const exitTempo = fatalLand.has(departure.cardId) ? tempo : (due?.tempo ?? tempo);
       const delay = fast() ? 0 : (hitAt ?? startMs);
       if (firstExit === null || delay < firstExit) firstExit = delay;
-      endMs = Math.max(endMs, delay + exitMs(departure));
+      endMs = Math.max(endMs, delay + (exitMs(departure) * tempo) / exitTempo);
       // Killed by a hit drawn here: it goes as that hit lands (`strike`); its due time, a little late, only should it never.
-      exits.push({ departure, delayMs: hitAt === undefined || fast() ? delay : delay + STRIKE_SLACK_MS });
+      exits.push({ departure, delayMs: delay / tempo + (hitAt === undefined || fast() ? 0 : STRIKE_SLACK_MS), tempo: exitTempo });
       if (exitMotionFor(departure) === 'shatter') {
         const killedBy = Math.max(0, ...diff.hits.filter((h) => h.cardId === departure.cardId).map((h) => h.amount));
         sounds.push({ role: 'g.crumble', ms: delay, intensity: damagePower(killedBy), mine: viewers(departure.cardId) });
@@ -1323,7 +1371,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     }
     const keep = (cancel: () => void, untilMs: number): void => {
       rams.add(cancel);
-      schedule(() => rams.delete(cancel), untilMs);
+      schedule(() => rams.delete(cancel), untilMs / tempo);
       endMs = Math.max(endMs, untilMs);
     };
     /** The rams drawn, and the least time a rammer's attack had been on screen when its ram set off (-1 for none). */
@@ -1347,7 +1395,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       const struck = 'cardId' in plan.target ? plan.target.cardId : null;
       if (root === null) continue;
       ramsDrawn += 1;
-      const lead = Date.now() + plan.delayMs - (attackingSince.get(plan.sourceId) ?? Date.now());
+      const lead = Date.now() + plan.delayMs / tempo - (attackingSince.get(plan.sourceId) ?? Date.now());
       attackLeadMs = attackLeadMs === -1 ? lead : Math.min(attackLeadMs, lead);
       const end = ramEnd(plan.kind, leaving.has(plan.sourceId), struck !== null && leaving.has(struck));
       // The blow: one crash per ram (a pair that meets is one blow), where the cards meet, or on the avatar.
@@ -1356,12 +1404,12 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         const strike = strikeOffset(from, to, plan.kind);
         const hitPoint = plan.kind === 'charge' ? to : { x: (from.x + strike.x + to.x) / 2, y: (from.y + strike.y + to.y) / 2 };
         const at = plan.kind === 'meet' ? { x: from.x + strike.x, y: from.y + strike.y } : hitPoint;
-        atBeat(() => bang(target, `crash:${plan.sourceId}`, plan.amount, at, crashShare, plan.kind === 'charge' ? { w: from.w, h: from.h } : null), plan.delayMs + contactMs(plan.kind));
+        atBeat(() => bang(target, `crash:${plan.sourceId}`, plan.amount, tempo, at, crashShare, plan.kind === 'charge' ? { w: from.w, h: from.h } : null), plan.delayMs + contactMs(plan.kind), tempo);
         // The struck player's avatar recoils from the blow, away from where the charge set off (`recoil.ts`).
         if (plan.kind === 'charge' && 'playerId' in plan.target) {
           const spot = fanned.get(plan.sourceId) ?? { x: 0, y: 0 };
           const launch = { x: from.x + spot.x, y: from.y + spot.y };
-          atBeat(() => shakes.add(recoil(target, launch, to, plan.amount, `crash:${plan.sourceId}`)), plan.delayMs + contactMs(plan.kind));
+          atBeat(() => shakes.add(recoil(target, launch, to, plan.amount, `crash:${plan.sourceId}`, tempo)), plan.delayMs + contactMs(plan.kind), tempo);
         }
         const contact = plan.delayMs + contactMs(plan.kind);
         const mine = viewers(plan.sourceId);
@@ -1378,28 +1426,31 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       // Blasted as hard as what struck it hit: its partner's power when they met.
       const struckBy = (combat?.rams ?? []).find((r) => 'cardId' in r.target && r.target.cardId === plan.sourceId)?.power ?? plan.power;
       keep(
-        ram(root, source, from, to, plan.kind, end, `ram:${plan.sourceId}`, plan.delayMs, plan.power, struckBy, { start: plan.kind === 'charge' ? chargeStart : plan.delayMs, at: fanned.get(plan.sourceId) ?? null, weight, side: bent.get(plan.sourceId) }),
+        ram(root, source, from, to, plan.kind, end, `ram:${plan.sourceId}`, plan.delayMs, plan.power, struckBy, { start: plan.kind === 'charge' ? chargeStart : plan.delayMs, at: fanned.get(plan.sourceId) ?? null, weight, side: bent.get(plan.sourceId), tempo }),
         plan.delayMs + ramMs(plan.kind, end, weight),
       );
       // A creature killed by a blow it did not ram back into is blasted away from the one that struck it.
       if (struck !== null && !rammers.has(struck) && leaving.has(struck)) {
         const contact = plan.delayMs + contactMs(plan.kind);
-        keep(blast(root, target, from, to, `blast:${struck}`, contact, plan.power), contact + BLAST_MS);
+        keep(blast(root, target, from, to, `blast:${struck}`, contact, plan.power, tempo), contact + BLAST_MS);
       }
     }
     for (const later of afterBlows) later();
-    if (prevView !== null && firstCardImpact !== null) noteCardImpact(prevView.seq, Date.now() + firstCardImpact);
-    if (prevView !== null) noteBoardSounds(prevView.seq, sounds.map((s) => ({ role: s.role, at: Date.now() + s.ms, intensity: s.intensity, mine: s.mine, colourCell: s.colourCell ?? null })));
-    if (prevView !== null && firstExit !== null) noteExitBeat(prevView.seq, Date.now() + firstExit);
-    if (item !== undefined && effects) noteResolutionEffects(item.id, Date.now() + Math.max(endMs, startMs, millEnd));
+    /** When something on this instance's clock happens, on the wall's. */
+    const at = (ms: number): number => Date.now() + ms / tempo;
+    if (prevView !== null && firstCardImpact !== null) noteCardImpact(prevView.seq, at(firstCardImpact));
+    if (prevView !== null) noteBoardSounds(prevView.seq, sounds.map((s) => ({ role: s.role, at: at(s.ms), intensity: s.intensity, mine: s.mine, colourCell: s.colourCell ?? null })));
+    if (prevView !== null && firstExit !== null) noteExitBeat(prevView.seq, at(firstExit));
+    if (item !== undefined && effects) noteResolutionEffects(item.id, at(Math.max(endMs, startMs, millEnd)));
+    if (item !== undefined) noteResolvedTempo(item.id, tempo);
     // The other seat's attack is seen before anything after it is drawn (`live/pace.ts` waits on this beat).
     if (diff.attacks.length > 0 && !fast()) {
       endMs = Math.max(endMs, ATTACK_BEAT_MS);
-      host.report?.({ what: 'attack', attackers: diff.attacks.length, beatMs: ATTACK_BEAT_MS });
+      host.report?.({ what: 'attack', attackers: diff.attacks.length, beatMs: Math.round(ATTACK_BEAT_MS / tempo) });
     }
     // What waits on these beats goes at their 90% (`../motion.ts`'s `UNLOCK_AT`); the result screen waits for `beatsOver`.
-    if (endMs > 0) noteBoardDrawing(beatsOver(endMs), { endsInMs: endMs, root: canvas });
-    if (firstLifeLand !== null && prevView !== null) noteLifeImpact(prevView.seq, Date.now() + firstLifeLand);
+    if (endMs > 0) noteBoardDrawing(beatsOver(endMs / tempo), { endsInMs: endMs / tempo, root: canvas });
+    if (firstLifeLand !== null && prevView !== null) noteLifeImpact(prevView.seq, at(firstLifeLand));
     if (diff.pt.length > 0) host.report?.({ what: 'pt', resolved: item?.id ?? -1, changes: diff.pt.length, staggered: ptStaggered, motion: !reduced() });
     if (beat > 0 || bolt > 0 || reveal !== null || diff.departures.length > 0 || (combat?.rams.length ?? 0) > 0) {
       host.report?.({
@@ -1417,10 +1468,11 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         arrivals: diff.arrivals.length,
         fromMaker,
         departures: diff.departures.length,
-        totalMs: Math.round(endMs),
+        totalMs: Math.round(endMs / tempo),
         motion: !reduced(),
       });
     }
+    return endMs / tempo;
   }
 
   /** What the next view's diff reads of this one's stack: when each item was first drawn, and where. */
@@ -1444,9 +1496,19 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       prevView = view;
       const mills = millsOf(before, view, setAside);
       setAside = setAsideAfter(before, view, setAside);
-      timed('effects', () => apply(diff, before, revealed, mills));
-      markReveal(revealed);
+      // What a reveal belongs to resolves next: the top of the stack drawn before this view, at the tempo it will resolve at.
+      const top = before?.stack[0];
+      const revealTempo = top === undefined ? 1 : nextTempo(tempoCount, `resolve:${itemKey(top)}`, view.turn);
+      // The instance this view draws, and which of its kind this turn it is (`./tempo.ts`).
+      const key = before === null ? null : instanceKey(diff, mills, view);
+      const n = key === null ? 0 : countInstance(tempoCount, key, view.turn);
+      const tempo = tempoOf(n);
+      const totalMs = timed('effects', () => apply(diff, before, revealed, mills, tempo));
+      // A view drawn faster than 1×, for the match log: what it was, which repeat this turn, and how long its beats ran.
+      if (key !== null && tempo > 1 && totalMs > 0) host.report?.({ what: 'tempo', instance: key.slice(0, 80), n, tempo, totalMs: Math.round(totalMs), resolved: diff.resolved[0]?.id ?? -1 });
+      markReveal(revealed, revealTempo);
       noteStack(view);
+      noteTempoStack(view);
       const attacking = new Set(view.players.flatMap((p) => p.battlefield.filter((c) => c.attacking).map((c) => c.id)));
       for (const id of attackingSince.keys()) if (!attacking.has(id)) attackingSince.delete(id);
       for (const id of attacking) if (!attackingSince.has(id)) attackingSince.set(id, Date.now());

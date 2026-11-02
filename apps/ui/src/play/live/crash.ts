@@ -12,6 +12,7 @@
 import { BEAT_ANIMATION_ID, damageSize } from '../motion.ts';
 import { seedOf } from './projectile.ts';
 import { claimParticles, shared } from './effect-budget.ts';
+import { markTempo, quicken } from './tempo.ts';
 import './crash.css';
 
 export interface Point {
@@ -62,10 +63,10 @@ export function rocks(key: string, power: number, share = 1, most = Infinity): R
 }
 
 /** Draw a crash at `at` (overlay coordinates) inside `root`, at `share` of its particles and out of the board's pool; it removes itself. */
-export function crash(root: HTMLElement, at: Point, power: number, key: string, share = 1): HTMLElement {
+export function crash(root: HTMLElement, at: Point, power: number, key: string, share = 1, tempo = 1): HTMLElement {
   const now = Date.now();
-  const puffs = claimParticles(root, shared(puffCount(power), share, 2), 2, now, now + CRASH_MS);
-  const thrown = claimParticles(root, shared(rockCount(power), share, 4), 4, now, now + CRASH_MS);
+  const puffs = claimParticles(root, shared(puffCount(power), share, 2), 2, now, now + CRASH_MS / tempo);
+  const thrown = claimParticles(root, shared(rockCount(power), share, 4), 4, now, now + CRASH_MS / tempo);
   const el = document.createElement('div');
   el.className = 'effect-crash';
   el.setAttribute('aria-hidden', 'true');
@@ -74,6 +75,7 @@ export function crash(root: HTMLElement, at: Point, power: number, key: string, 
   el.style.top = `${at.y}px`;
   el.style.setProperty('--power-size', damageSize(power).toFixed(2));
   el.style.setProperty('--crash-ms', `${CRASH_MS}ms`);
+  markTempo(el, tempo);
   const ring = document.createElement('span');
   ring.className = 'effect-crash__ring';
   el.append(ring);
@@ -91,18 +93,21 @@ export function crash(root: HTMLElement, at: Point, power: number, key: string, 
     chip.style.width = chip.style.height = `${rock.size.toFixed(1)}px`;
     el.append(chip);
     if (typeof chip.animate === 'function') {
-      chip.animate(
-        [
-          { translate: '0px 0px', rotate: '0deg', opacity: 1 },
-          { offset: 0.4, translate: `${(rock.dx * 0.55).toFixed(1)}px ${(rock.dy * 0.4 - rock.lift).toFixed(1)}px`, opacity: 1 },
-          { translate: `${rock.dx.toFixed(1)}px ${rock.dy.toFixed(1)}px`, rotate: `${rock.spin.toFixed(0)}deg`, opacity: 0 },
-        ],
-        { id: BEAT_ANIMATION_ID, duration: CRASH_MS * (0.75 + 0.25 * seedOf(`${key}:t`)), easing: 'cubic-bezier(0.2, 0.6, 0.5, 1)', fill: 'forwards' },
+      quicken(
+        chip.animate(
+          [
+            { translate: '0px 0px', rotate: '0deg', opacity: 1 },
+            { offset: 0.4, translate: `${(rock.dx * 0.55).toFixed(1)}px ${(rock.dy * 0.4 - rock.lift).toFixed(1)}px`, opacity: 1 },
+            { translate: `${rock.dx.toFixed(1)}px ${rock.dy.toFixed(1)}px`, rotate: `${rock.spin.toFixed(0)}deg`, opacity: 0 },
+          ],
+          { id: BEAT_ANIMATION_ID, duration: CRASH_MS * (0.75 + 0.25 * seedOf(`${key}:t`)), easing: 'cubic-bezier(0.2, 0.6, 0.5, 1)', fill: 'forwards' },
+        ),
+        tempo,
       );
     }
   }
   root.append(el);
-  setTimeout(() => el.remove(), CRASH_MS + 50);
+  setTimeout(() => el.remove(), (CRASH_MS + 50) / tempo);
   return el;
 }
 
@@ -116,7 +121,7 @@ export function shakeMsOf(px: number): number {
  * landing's (`entries.ts`'s `entryWeight`, the one curve, drawn by `quake.ts`) or a spell's own
  * (`numbers.ts`'s `boltShakePx`). Its container clips while it does. Returns a cancel.
  */
-export function shake(board: HTMLElement, px: number, key: string): () => void {
+export function shake(board: HTMLElement, px: number, key: string, tempo = 1): () => void {
   const ms = shakeMsOf(px);
   if (typeof board.animate !== 'function' || px <= 0) return () => undefined;
   const frames: Keyframe[] = [{ translate: '0px 0px' }];
@@ -129,7 +134,7 @@ export function shake(board: HTMLElement, px: number, key: string): () => void {
   frames.push({ translate: '0px 0px' });
   const holder = board.parentElement;
   holder?.setAttribute(SHAKING_ATTR, '');
-  const anim = board.animate(frames, { id: BEAT_ANIMATION_ID, duration: ms, easing: 'linear', composite: 'add' });
+  const anim = quicken(board.animate(frames, { id: BEAT_ANIMATION_ID, duration: ms, easing: 'linear', composite: 'add' }), tempo);
   const done = (): void => holder?.removeAttribute(SHAKING_ATTR);
   anim.finished.then(done, done);
   return () => anim.cancel();

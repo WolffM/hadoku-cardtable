@@ -169,6 +169,14 @@
  * also waits for the board's beats — the die's landing is one (`./dice.ts`) — whoever's it is. Reduced
  * motion draws the die where it lands, so nothing waits for it.
  *
+ * ## The same thing again, sooner
+ *
+ * A resolution the board has drawn before this turn is drawn faster each time (`./tempo.ts`), and the gaps that
+ * stand before the other seat's resolutions keep in step: the resolve gap and a chain's gap shorten by the tempo the
+ * next resolution will be drawn at — the top of the stack as the board last drew it ({@link PaceOptions.tempo}). A
+ * Valakut's tenth trigger stands on the stack a fraction of the first one's time, as its fireball flies faster. Every
+ * other class's gap is a step of the game, not a drawing, and keeps its length.
+ *
  * ## What a resync needs from the pacer: nothing
  *
  * `forge:join` and `forge:resync` are not `forge:s2c` payloads — they travel
@@ -191,6 +199,7 @@ import { BOLT_STAGGER_MS, boardHold, prefersReducedMotion, unlockAfter, whenBoar
 import { FLIP_MS } from './CoinToss.tsx';
 import { rollMs } from './dice.ts';
 import type { MatchTransport } from './match.ts';
+import { nextResolveTempo } from './tempo.ts';
 import { MATCH_EVENTS } from './transport.ts';
 
 /* ── Classifying an event ────────────────────────────────────────────── */
@@ -214,7 +223,7 @@ export const PACE_DELAYS_MS: Readonly<Record<PaceClass, number>> = {
    * every mana ability and cast inside a cast's own burst, so a gap here would pull the cast apart again.
    */
   log: 0,
-  /** The stack shrinking or changing in place — something resolving or leaving. */
+  /** The stack shrinking or changing in place — something resolving or leaving. At the next resolution's tempo (module header). */
   resolve: 600,
   /** `GameView.Phase` changed. */
   phase: 250,
@@ -595,6 +604,8 @@ export interface PaceOptions {
   boardHold?: () => BoardHold;
   /** Test seam: whether the viewer asked for reduced motion, when nothing is thrown through the air. Defaults to `../motion.ts`'s `prefersReducedMotion`. */
   reducedMotion?: () => boolean;
+  /** How fast the next resolution is drawn (module header, "The same thing again, sooner"). Defaults to `./tempo.ts`'s `nextResolveTempo`. */
+  tempo?: () => number;
 }
 
 /** The match's client telemetry: the server writes it into the match's log (`@hadoku/shared`'s `telemetry.ts`). */
@@ -621,6 +632,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   const report = options.report ?? reportOn(inner);
   const holdNow = options.boardHold ?? boardHold;
   const reducedMotion = options.reducedMotion ?? prefersReducedMotion;
+  const tempo = options.tempo ?? nextResolveTempo;
 
   let fast = options.initialFast ?? false;
   let endingTurn = false;
@@ -698,7 +710,8 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
    */
   function delayFor(pace: PaceClass, superseded: boolean, own: boolean): number {
     if (fast || own) return 0;
-    return STEPS.has(pace) && (endingTurn || superseded) ? 0 : delays[pace];
+    if (STEPS.has(pace) && (endingTurn || superseded)) return 0;
+    return pace === 'resolve' ? delays.resolve / tempo() : delays[pace];
   }
 
   /*
@@ -827,7 +840,12 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
       }
       head.chain = null;
     }
-    const due = head.chain === null ? lastDeliveredAt + delayFor(head.pace, queue.length > 1, head.own) : head.chain === 'resolve' && !fast ? lastResolveAt + RESOLVE_CHAIN_GAP_MS : 0;
+    const due =
+      head.chain === null
+        ? lastDeliveredAt + delayFor(head.pace, queue.length > 1, head.own)
+        : head.chain === 'resolve' && !fast
+          ? lastResolveAt + RESOLVE_CHAIN_GAP_MS / tempo()
+          : 0;
     const waitMs = Math.max(0, due - now(), landsAt - now());
     if (waitMs > 0) {
       gapSince = now();

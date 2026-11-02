@@ -17,6 +17,7 @@
 
 import { entryPower } from './entries.ts';
 import { homeOf } from './ram.ts';
+import { quicken } from './tempo.ts';
 
 /** The art inside a face (`Board.tsx`'s `PlayerFace`) that recoils. */
 export const RECOIL_ART = '.face__avatar';
@@ -55,12 +56,12 @@ export function recoilFrames(dx: number, dy: number, r: ReturnType<typeof recoil
  * only the direction counts). `key` names the animation `recoil:<key>`. Returns a cancel; does
  * nothing without the art or the Web Animations API.
  */
-export function recoil(face: Element, from: { x: number; y: number }, to: { x: number; y: number }, damage: number, key: string): () => void {
+export function recoil(face: Element, from: { x: number; y: number }, to: { x: number; y: number }, damage: number, key: string, tempo = 1): () => void {
   const art = face.querySelector<HTMLElement>(RECOIL_ART);
   if (art === null || typeof art.animate !== 'function') return () => undefined;
   const d = Math.hypot(to.x - from.x, to.y - from.y);
   const [dx, dy] = d === 0 ? [0, -1] : [(to.x - from.x) / d, (to.y - from.y) / d];
   const r = recoilOf(damage);
-  const anim = art.animate(recoilFrames(dx, dy, r), { id: `recoil:${key}`, duration: r.ms, composite: 'add' });
+  const anim = quicken(art.animate(recoilFrames(dx, dy, r), { id: `recoil:${key}`, duration: r.ms, composite: 'add' }), tempo);
   return () => anim.cancel();
 }

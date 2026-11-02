@@ -42,8 +42,8 @@
     linear-gradient(currentColor 0 0);
   mask-composite: exclude;
   animation:
-    pt-glint-up var(--pt-impact-ms, 950ms) cubic-bezier(0.25, 0.75, 0.35, 1) both,
-    pt-glint-out var(--pt-impact-ms, 950ms) linear both;
+    pt-glint-up calc(var(--pt-impact-ms, 950ms) / var(--tempo, 1)) cubic-bezier(0.25, 0.75, 0.35, 1) both,
+    pt-glint-out calc(var(--pt-impact-ms, 950ms) / var(--tempo, 1)) linear both;
 }
 
 .pt-glint[data-pt-glint='down']::before {
@@ -93,7 +93,7 @@
 /* Reduced motion: the border lights faintly and fades, nothing runs along it. */
 .pt-glint[data-pt-glint-reduced]::before {
   background: color-mix(in srgb, var(--glint) 50%, transparent);
-  animation: pt-glint-fade var(--pt-impact-ms, 950ms) linear both;
+  animation: pt-glint-fade calc(var(--pt-impact-ms, 950ms) / var(--tempo, 1)) linear both;
 }
 
 @keyframes pt-glint-fade {

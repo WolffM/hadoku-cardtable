@@ -98,7 +98,7 @@
   border-radius: 50%;
   pointer-events: none;
   background: radial-gradient(circle, var(--bolt-core) 0 18%, var(--bolt) 45%, color-mix(in srgb, var(--bolt-rim) 60%, transparent) 70%, transparent 72%);
-  animation: effect-trail-cool 420ms linear forwards;
+  animation: effect-trail-cool calc(420ms / var(--tempo, 1)) linear forwards;
 }
 
 @keyframes effect-trail-cool {
@@ -136,7 +136,7 @@
   height: calc(2 * var(--r));
   border-radius: 50%;
   background: radial-gradient(circle, var(--c-white) 0 25%, var(--bolt-core) 45%, transparent 70%);
-  animation: effect-blast-flash 160ms ease-out forwards;
+  animation: effect-blast-flash calc(160ms / var(--tempo, 1)) ease-out forwards;
 }
 
 @keyframes effect-blast-flash {
@@ -156,7 +156,7 @@
   /* Soft all the way out: a glow, never a disc with an edge. */
   background: radial-gradient(circle, color-mix(in srgb, var(--bolt-core) 95%, transparent) 0, color-mix(in srgb, var(--bolt) 70%, transparent) 35%, color-mix(in srgb, var(--bolt-rim) 30%, transparent) 60%, transparent 70%);
   scale: 0.2;
-  animation: effect-blast-puff var(--blast-ms) cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+  animation: effect-blast-puff calc(var(--blast-ms) / var(--tempo, 1)) cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
 }
 
 /* The heart of it: white-hot first. */
@@ -191,7 +191,7 @@
   border-radius: 50%;
   background: radial-gradient(circle, color-mix(in srgb, var(--smoke) 45%, transparent) 0, transparent 70%);
   opacity: 0;
-  animation: effect-blast-smoke var(--blast-ms) ease-out forwards;
+  animation: effect-blast-smoke calc(var(--blast-ms) / var(--tempo, 1)) ease-out forwards;
 }
 
 @keyframes effect-blast-smoke {
@@ -218,7 +218,7 @@
   border-radius: 50%;
   border: 2px solid color-mix(in srgb, var(--bolt-core) 80%, transparent);
   scale: 0.15;
-  animation: effect-blast-ring 380ms cubic-bezier(0.15, 0.7, 0.3, 1) forwards;
+  animation: effect-blast-ring calc(380ms / var(--tempo, 1)) cubic-bezier(0.15, 0.7, 0.3, 1) forwards;
 }
 
 @keyframes effect-blast-ring {

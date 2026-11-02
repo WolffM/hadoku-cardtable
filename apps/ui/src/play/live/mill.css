@@ -5,7 +5,7 @@
  * written by `mill.ts`; the pile card it lands on is hidden until then (`[data-departure-landing]`).
  */
 .board-mill {
-  animation: board-mill-fly var(--mill-ms, 560ms) forwards;
+  animation: board-mill-fly calc(var(--mill-ms, 560ms) / var(--tempo, 1)) forwards;
 }
 
 @keyframes board-mill-fly {
@@ -41,7 +41,7 @@
 
 /* Reduced motion: no flight, the pile card fades in at its turn. */
 [data-mill-fade] {
-  animation: board-mill-fade 240ms ease-out;
+  animation: board-mill-fade calc(240ms / var(--tempo, 1)) ease-out;
 }
 
 @keyframes board-mill-fade {
