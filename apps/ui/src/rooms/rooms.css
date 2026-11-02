@@ -403,7 +403,7 @@
   font-weight: 600;
 }
 
-/* The room's own exact words — streamed, playing, drafting — kept verbatim at the end of row 4, beside the buttons, so they never add a row. */
+/* The room's own exact words — "streamed Forge" only; playing/drafting are the row-3 state pill — kept verbatim at the end of row 4, beside the buttons, so they never add a row. */
 .room-card__legacy {
   display: flex;
   flex-wrap: nowrap;
@@ -424,7 +424,6 @@
   white-space: nowrap;
 }
 
-.rooms__playing,
 .rooms__mode {
   border: 1px solid var(--line);
   border-radius: 999px;

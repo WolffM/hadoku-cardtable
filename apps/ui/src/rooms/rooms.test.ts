@@ -349,7 +349,7 @@ describe('the room’s readiness', () => {
     }
   });
 
-  it('says which rooms are already drafting, and says nothing about the ones that are not', async () => {
+  it('says drafting once, in the state pill, never as a second chip (the operator, 2026-11-01)', async () => {
     const dealing = room({
       id: 'r-cube',
       name: 'Cube night',
@@ -361,11 +361,10 @@ describe('the room’s readiness', () => {
     mount(client);
     await waitFor(() => expect(screen.getAllByTestId('room-row')).toHaveLength(3));
 
-    expect(within(rowFor('r-cube')).getByTestId('room-drafting').textContent).toBe('drafting');
     expect(within(rowFor('r-cube')).getByTestId('room-type').textContent).toBe('Draft');
-    // A draft room still in its lobby, and a constructed room, say nothing.
-    expect(within(rowFor('r-lobby')).queryByTestId('room-drafting')).toBeNull();
-    expect(within(rowFor('r-open')).queryByTestId('room-drafting')).toBeNull();
+    for (const id of ['r-cube', 'r-lobby', 'r-open']) {
+      expect(within(rowFor(id)).queryByText(/^(drafting|playing)$/)).toBeNull();
+    }
   });
 
   it('offers Constructed and Draft, by the names the operator gave them', () => {

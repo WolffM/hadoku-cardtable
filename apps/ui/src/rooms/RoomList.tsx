@@ -710,21 +710,6 @@ function RoomRow({
               {clientModeLabel(room.clientMode)}
             </span>
           )}
-          {room.matchId !== null && (
-            <span className="rooms__playing" data-testid="room-playing">
-              playing
-            </span>
-          )}
-          {/* A draft room whose pod has been dealt. Without this the row is
-              identical to one still sitting in its lobby, and Enter would take
-              you to a pack instead of a Ready button with nothing to explain
-              the difference. A late arrival is welcome — they evict a bot — so
-              this is a label, not a closed door. */}
-          {room.draftStartedAt !== null && (
-            <span className="rooms__playing" data-testid="room-drafting">
-              drafting
-            </span>
-          )}
         </div>
       </div>
 
