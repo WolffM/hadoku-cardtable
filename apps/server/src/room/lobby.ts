@@ -2621,14 +2621,17 @@ class FileLobby implements Lobby {
 	/**
 	 * A newcomer takes an open seat at a 1v1 room's table (the operator, 2026-11-02: "new people
 	 * who join automatically fill in seats as they join rooms"). Only on entering, never on a
-	 * member's return, so someone who chose to watch stays watching. Nothing moves once the
-	 * table is locked: a live match or a Gauntlet that holds it. A pod room seats through
-	 * `podSeats` and is left to its own Sit.
+	 * member's return, so someone who chose to watch stays watching, and never ahead of a member
+	 * already in the room without a seat: at a party the watcher who waited takes the loser's
+	 * seat, not the loser coming back in (`e2e/turnover.spec.ts`). Nothing moves once the table
+	 * is locked: a live match or a Gauntlet that holds it. A pod room seats through `podSeats`
+	 * and is left to its own Sit.
 	 */
 	#autoSeat(room: RoomRecord, memberId: string): void {
 		if (usesPod(room)) return;
 		const table = room.tables[0];
 		if (table === undefined || table.matchId !== null) return;
+		if (room.members.some((m) => m.id !== memberId && !room.tables.some((t) => t.seats.includes(m.id)))) return;
 		const gauntlet = room.gauntlets[table.id];
 		if (gauntlet !== undefined && gauntletHoldsTable(gauntlet)) return;
 		if (sitAt(room.tables, table, memberId)) this.#log({ event: 'seat-auto', roomId: room.id, tableId: table.id, memberId });

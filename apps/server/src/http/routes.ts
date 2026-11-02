@@ -1891,8 +1891,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// A board-state room is entered straight into its game (the operator,
 		// 2026-10-23: "i would have expected to see an active game here"): its
 		// caller is seated and, holding no deck, dealt a legal library one —
-		// the board replaces the hand and battlefield it would have dealt.
-		if (vsBot && room.scenario !== undefined && room.pod === null && players.length === 0) {
+		// the board replaces the hand and battlefield it would have dealt. Entering
+		// may already have seated them (`room/lobby.ts`'s `#autoSeat`), deckless.
+		if (vsBot && room.scenario !== undefined && room.pod === null && players.every((p) => p.member.id === me) && (players[0]?.state.deck ?? null) === null) {
 			const refusal = seatOnBoard(room, table.id, me);
 			if (refusal !== null) {
 				res.status(409).json({ error: refusal });

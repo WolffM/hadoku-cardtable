@@ -1936,6 +1936,21 @@ describe('Lobby.sit / stand / setSeatReady', () => {
 		expect(lobby.seats(id, tableId).map((s) => s.memberId), 'a member coming back keeps watching').toEqual([ALICE.id]);
 	});
 
+	it('never seats a newcomer ahead of a member already waiting for a seat', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Party', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		const tableId = made.room.tables[0]!.id;
+		lobby.join(id, BOB);
+		lobby.join(id, CAROL);
+		// Alice leaves (the loser's Main menu) and comes back in: Carol was waiting first.
+		lobby.leave(id, ALICE.id);
+		lobby.join(id, ALICE);
+		expect(lobby.seats(id, tableId).map((s) => s.memberId)).toEqual([BOB.id]);
+		expect(lobby.sit(id, tableId, CAROL.id)).toBe(true);
+	});
+
 	it('seats nobody at a table a match holds, nor in a pod room', async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
