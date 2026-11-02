@@ -14,6 +14,15 @@
 import { defineConfig } from '@playwright/test';
 
 import { EDGE_ORIGIN, PREFIX } from './identities.ts';
+import { PHONE } from './play/phone.ts';
+
+/**
+ * Wave 89: every phone spec (`*.phone.spec.ts`) runs ONLY under the `phone` project, in `PHONE`'s
+ * context (390×844, touch, dark). The desktop projects below both exclude this pattern explicitly —
+ * `chromium`'s `testIgnore` and `firefox`'s `testMatch` allowlist, which already can't match a name
+ * it doesn't list — so a phone spec is never picked up twice and never run against the desktop board.
+ */
+const PHONE_SPEC = /\.phone\.spec\.ts$/;
 
 /**
  * Firefox, because it is the browser a report came from: it sends pointer events Chromium does not
@@ -49,7 +58,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: FIREFOX_SPECS.filter((spec) => !ALSO_CHROMIUM.includes(spec)),
+      testIgnore: [...FIREFOX_SPECS.filter((spec) => !ALSO_CHROMIUM.includes(spec)), PHONE_SPEC],
       use: {
         browserName: 'chromium',
         // One renderer for the room edge and the play edge: Chromium's site isolation moves a
@@ -60,6 +69,15 @@ export default defineConfig({
       },
     },
     { name: 'firefox', testMatch: FIREFOX_SPECS, use: { browserName: 'firefox' } },
+    {
+      name: 'phone',
+      testMatch: PHONE_SPEC,
+      use: {
+        browserName: 'chromium',
+        ...PHONE,
+        launchOptions: { args: ['--disable-site-isolation-trials', '--disable-features=IsolateOrigins,site-per-process'] },
+      },
+    },
   ],
   use: {
     headless: true,
