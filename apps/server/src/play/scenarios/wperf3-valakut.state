@@ -1,0 +1,17 @@
+# Valakut's ten-trigger burst, for its frame cost (`e2e/wperf3-valakut-burst.spec.ts`): the promo clip's
+# 'targeted' phase. Alice holds her main phase with Splendid Reclamation and four Forests; ten Mountains
+# wait in her graveyard. The Reclamation returns all ten at once: each sees nine others, so Valakut
+# triggers ten times, all at once. Bob starts at 40 so all ten resolve: 10 × 3 leaves him at 10.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=40
+humanhand=Splendid Reclamation
+humanbattlefield=Valakut, the Molten Pinnacle;Forest;Forest;Forest;Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aihand=
+aibattlefield=
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=
