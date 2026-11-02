@@ -1,4 +1,8 @@
+/* Close, and Room settings beside it (`MatchRules.tsx`): one button family, never a chip. */
 .room-close {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   flex: none;
   align-self: flex-start;
   padding: 0.2rem 0.6rem;

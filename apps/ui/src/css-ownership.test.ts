@@ -40,7 +40,6 @@ const SHARED: Record<string, string> = {
   'ct-round-button': 'the chrome’s round icon button: the settings gear, and the stats and decks buttons beside it',
   'ct-panel': 'the trim hook: every panel that takes the decoration chosen in Settings → Trim (`chrome/trim.css`)',
   'cardtable-chrome': 'the chrome root: the app and the embed mount the same one, and the embed adds its modifier',
-  'ct-toggle': 'a toggle that is on, in the primary fill: tabs, switches and the sound tools’ pills',
   'sound-builder': 'the sound tools (builder, sandbox, music review, queue) are one sheet’s screens',
 };
 

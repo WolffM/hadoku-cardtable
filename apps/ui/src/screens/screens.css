@@ -65,10 +65,12 @@
   gap: 4px 12px;
 }
 
-/* A screen's round buttons, and a room's Close, in a row at the right: in the flow of the page
-   rather than fixed, so they never sit over a screen's controls or the room's chat. */
+/* A screen's round buttons, a room's Room settings and Close, in a row at the right: in the flow
+   of the page rather than fixed, so they never sit over a screen's controls or the room's chat.
+   They hold their size beside a long title; the title wraps instead. */
 .shell__tools {
   display: flex;
+  flex: none;
   justify-content: flex-end;
   align-items: center;
   gap: 8px;
@@ -79,6 +81,8 @@
 }
 
 .shell__title {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: 28px;
   letter-spacing: -0.01em;
 }
@@ -370,7 +374,7 @@
   cursor: pointer;
 }
 
-/* A room's first row (`rooms/RoomHeader.tsx`): its type, its event, and its Match rules at the far end. */
+/* A room's first row (`rooms/RoomHeader.tsx`): its type and its event. */
 .lobby__header {
   display: flex;
   flex-wrap: wrap;
@@ -378,32 +382,34 @@
   gap: 8px 12px;
 }
 
-/* The room's rules (`rooms/MatchRules.tsx`): one button at the first row's far end, naming
-   the rules that are on, and the switches and the tournament's deck policy in its popover. */
-.lobby__rules {
-  display: inline-flex;
+/*
+ * The popover's own rows (item 2), a label beside its switch rather than one button carrying
+ * both: `MatchRules.tsx`'s `RuleRow` puts a row's label and its switch in as TWO direct children,
+ * never a wrapper around the pair, which is what lets this grid — not each row for itself — decide
+ * where column 2 starts. `max-content` on column 1 sizes it to the widest label there is, so every
+ * switch's left edge sits at that one x, whatever its own row's label happens to be.
+ */
+.lobby__rules-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
   align-items: center;
-  gap: 8px;
-  margin-left: auto;
-  padding: 0.35rem 0.75rem;
-  background: var(--color-bg-alt);
-  color: var(--color-text);
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--hdk-radius);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
+  column-gap: 16px;
+  row-gap: 10px;
 }
 
-.lobby__rules-on {
+.lobby__rules-label {
   color: var(--color-text-secondary);
 }
 
-.lobby__rules-list {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
+.lobby__rules-switch {
+  justify-self: start;
+}
+
+/* The on/off switches (never the tournament deck policy's own `radio-cards` pair, which is
+   already two pills wide): one width, so "on" and "off" are not two different sized buttons. */
+.lobby__rules-switch.ct-toggle {
+  min-width: 3rem;
+  justify-content: center;
 }
 
 .lobby__format-tabs button:disabled,
@@ -921,8 +927,6 @@
 .lobby__modeline .radio-cards:not(.radio-cards--large) .radio-cards__card,
 .lobby__header .lobby__format-tabs button,
 .lobby__modeline .lobby__format-tabs button,
-.lobby__header .lobby__rules,
-.lobby__modeline .lobby__rules,
 .lobby__header select,
 .lobby__modeline select,
 .lobby__header .lobby__pool,

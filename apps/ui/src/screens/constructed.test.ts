@@ -2755,7 +2755,6 @@ describe('the room’s mode', () => {
     fireEvent.click(screen.getByTestId('random-lock'));
     await waitFor(() => expect(screen.getByTestId('random-lock').getAttribute('aria-pressed')).toBe('true'));
     expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([{ mode: 'random', modeOptions: { pool: 'modern', lock: true } }]);
-    expect(screen.getByTestId('match-rules').textContent).toContain('Decks locked');
     server.table.players = [opponent({ ready: true })];
     await waitFor(() => expect((screen.getByTestId('random-lock') as HTMLButtonElement).disabled).toBe(true));
   });

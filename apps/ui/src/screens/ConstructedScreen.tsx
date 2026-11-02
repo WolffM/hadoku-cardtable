@@ -2411,6 +2411,19 @@ function RoomTableScreen({
           <span className="skeleton skeleton--title" />
         )}
         <div className="shell__tools">
+          {/* Room settings (the room's Match rules), beside Close, once a mode is chosen. */}
+          {!streamed && resolved && !draftRoom && table !== null && mode !== null && (
+            <MatchRules
+              leader={iAmLeader}
+              disabled={underway}
+              handSmoothing={mode === 'classic' ? { on: handSmoothing, onToggle: toggleHandSmoothing } : undefined}
+              freePick={mode === 'classic' && loaded !== null ? { on: freePick, onToggle: () => toggleFreePick(loaded.formats) } : undefined}
+              lockDecks={mode === 'random' && randomOptions !== null ? { on: randomOptions.lock === true, locked: modeLocked, onToggle: toggleRandomLock } : undefined}
+              // A Gauntlet's decks are each table's own draw: it has none to lock (the server reads it per-round).
+              tournamentDecks={tournament && mode !== 'gauntlet' ? { value: tournamentDecks, locked: modeLocked, onChange: chooseTournamentDecks } : undefined}
+              clock={{ on: clock, onToggle: toggleClock }}
+            />
+          )}
           {!streamed && iAmLeader && <CloseRoom roomId={roomId} rooms={rooms} />}
           <SettingsGear />
         </div>
@@ -2516,29 +2529,15 @@ function RoomTableScreen({
             {/* The mode, and the chosen mode's options beside it. With no mode
                 chosen this row is the whole room (the operator, 2026-10-21). */}
             <section className="lobby__card">
-              {/* The room's type, its event and its Match rules above its mode (the
-                  operator, 2026-10-21 and 2026-10-22), so the mode and its options keep
-                  their one line. Tournament applies across every mode (ruling 2), and like
-                  the rules it is offered once a mode is chosen. */}
+              {/* The room's type and its event above its mode (the operator, 2026-10-21 and
+                  2026-10-22), so the mode and its options keep their one line. Tournament applies
+                  across every mode (ruling 2) and is offered once a mode is chosen. */}
               <RoomHeader
                 gameType={gameType}
                 typeDisabled={!iAmLeader || typeLocked}
                 onGameType={chooseGameType}
                 event={mode === null ? undefined : { tournament, disabled: !iAmLeader || modeLocked, onChange: toggleTournament }}
-              >
-                {mode !== null && (
-                  <MatchRules
-                    leader={iAmLeader}
-                    disabled={underway}
-                    handSmoothing={mode === 'classic' ? { on: handSmoothing, onToggle: toggleHandSmoothing } : undefined}
-                    freePick={mode === 'classic' && loaded !== null ? { on: freePick, onToggle: () => toggleFreePick(loaded.formats) } : undefined}
-                    lockDecks={mode === 'random' && randomOptions !== null ? { on: randomOptions.lock === true, locked: modeLocked, onToggle: toggleRandomLock } : undefined}
-                    // A Gauntlet's decks are each table's own draw: it has none to lock (the server reads it per-round).
-                    tournamentDecks={tournament && mode !== 'gauntlet' ? { value: tournamentDecks, locked: modeLocked, onChange: chooseTournamentDecks } : undefined}
-                    clock={{ on: clock, onToggle: toggleClock }}
-                  />
-                )}
-              </RoomHeader>
+              />
               <div className="lobby__modeline">
                 <ModeRow mode={mode} disabled={!iAmLeader || modeLocked} onChoose={chooseMode} />
                 {mode === 'classic' && loaded !== null && (

@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 /*
- * The room's Match rules: one button naming what is on, and a popover holding the switches and a
- * tournament's deck policy — the leader edits, everybody else reads them disabled.
+ * The room's Match rules: a Room settings button (it names no rule) and a
+ * popover holding the switches and a tournament's deck policy — the leader edits, everybody else
+ * reads them disabled.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
@@ -28,14 +29,25 @@ function props(over: Partial<Parameters<typeof MatchRules>[0]> = {}) {
 const open = () => fireEvent.click(screen.getByTestId('match-rules'));
 
 describe('MatchRules', () => {
-  it('names the rules that are on, and draws its switches only once opened', () => {
+  it('is a plain Room settings button carrying no summary of what is on, and draws its switches only once opened', () => {
     render(createElement(MatchRules, props({ tournamentDecks: { value: 'locked', locked: false, onChange: vi.fn() } })));
-    expect(screen.getByTestId('match-rules').textContent).toBe('Match rulesHand smoothing · Decks locked');
+    expect(screen.getByTestId('match-rules').textContent).toBe('Room settings');
     expect(screen.queryByTestId('hand-smoothing')).toBeNull();
     open();
     expect(screen.getByTestId('hand-smoothing').getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByTestId('free-pick').getAttribute('aria-pressed')).toBe('false');
     expect((screen.getByTestId('tournament-decks-locked') as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('a row is its label beside its switch — direct siblings, so the popover’s own grid can line every switch up (item 2)', () => {
+    render(createElement(MatchRules, props()));
+    open();
+    const list = screen.getByTestId('match-rules-popover').querySelector('.lobby__rules-list');
+    expect(list?.children.length, 'two cells per rule: a label, then its switch').toBe(4);
+    expect(list?.children[0]?.textContent).toBe('Hand smoothing');
+    expect(list?.children[1]).toBe(screen.getByTestId('hand-smoothing'));
+    expect(screen.getByTestId('hand-smoothing').textContent).toBe('On');
+    expect(screen.getByTestId('free-pick').textContent).toBe('Off');
   });
 
   it('a switch pressed is the caller’s to apply; a deck policy chosen likewise', () => {
@@ -58,7 +70,7 @@ describe('MatchRules', () => {
   it('All Random’s Lock decks is a rule like the others', () => {
     const lockDecks = { on: true, onToggle: vi.fn() };
     render(createElement(MatchRules, { leader: true, disabled: false, lockDecks }));
-    expect(screen.getByTestId('match-rules').textContent).toBe('Match rulesDecks locked');
+    expect(screen.getByTestId('match-rules').textContent).toBe('Room settings');
     open();
     expect(screen.queryByTestId('hand-smoothing')).toBeNull();
     fireEvent.click(screen.getByTestId('random-lock'));
