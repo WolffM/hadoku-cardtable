@@ -9,7 +9,9 @@
  * eight, with packs waiting), BUILT for production with the app's own Vite config — a dev server's
  * React is several times slower and would measure a frame no player draws — with Chromium's
  * long-animation-frame entries: every frame over 50 ms, its length and the script that ran in it.
- * More than 100 ms is red.
+ * More than 100 ms on the reference host is red; on a slower machine the limit scales with its measured
+ * CPU speed (`cpu-speed.ts`): claw-4 runs script ~2.5× slower than hokon, where the draft screen's own
+ * first render is ~150 ms on its own. Main's frame (the search in it) is red at any of those.
  *
  * Needs no server: it only reads the screen. No Forge, never skipped. `[wperf3]` lines are the evidence.
  */
@@ -20,9 +22,11 @@ import { pathToFileURL } from 'node:url';
 
 import { expect, test } from '@playwright/test';
 
+import { cpuFactor } from './cpu-speed.ts';
+
 const ROOT = resolve(import.meta.dirname, '..');
 const UI = resolve(ROOT, 'apps/ui');
-/** The longest frame allowed from the swap to the piles drawn. */
+/** The longest frame allowed from the swap to the piles drawn, on the reference host. */
 const LONGEST_MS = 100;
 
 interface Preview {
@@ -70,6 +74,8 @@ test('the draft opens with no long frame: the pod is drawn first, its piles sear
   await expect(page.locator('[data-testid="pod-waiting"]')).toBeVisible();
   // Let the skeleton settle as it would on a slow socket.
   await page.waitForTimeout(500);
+  const { factor, workloadMs } = await cpuFactor(page);
+  const limit = Math.round(LONGEST_MS * factor);
   await page.evaluate(() => {
     window.longFrames = [];
     new PerformanceObserver((list) => {
@@ -87,6 +93,6 @@ test('the draft opens with no long frame: the pod is drawn first, its piles sear
   await page.waitForTimeout(500);
   const frames = await page.evaluate(() => window.longFrames);
   const longest = Math.max(0, ...frames.map((f) => f.ms));
-  console.log(`[wperf3] draft open: piles drawn ${drawn} ms after the swap; frames over 50 ms: ${JSON.stringify(frames)}`);
-  expect(longest, `the longest frame from the swap to the piles drawn (${JSON.stringify(frames)})`).toBeLessThanOrEqual(LONGEST_MS);
+  console.log(`[wperf3] draft open: cpu workload ${workloadMs.toFixed(1)} ms (×${factor.toFixed(2)} the reference), limit ${limit} ms; piles drawn ${drawn} ms after the swap; frames over 50 ms: ${JSON.stringify(frames)}`);
+  expect(longest, `the longest frame from the swap to the piles drawn (${JSON.stringify(frames)})`).toBeLessThanOrEqual(limit);
 });
