@@ -9,7 +9,7 @@ import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { PlayPrefsSchema } from '../play/live/prefs.ts';
-import { applyUiScale, clampUiScale, scaleCssValue, scaleRootOf, UI_SCALE, uiScaleCss } from './ui-scale.ts';
+import { applyUiScale, clampUiScale, rememberedUiScale, rememberUiScale, scaleCssValue, scaleRootOf, UI_SCALE, uiScaleCss } from './ui-scale.ts';
 
 /** What a rewritten value draws at `scale`: each scaled length resolved to px, everything else as it was. */
 function at(value: string, scale: number): string {
@@ -101,6 +101,18 @@ describe('the scale itself', () => {
     expect(host.style.getPropertyValue('--ui-scale')).toBe('1.2');
     applyUiScale(host, 1);
     expect(host.style.getPropertyValue('--ui-scale')).toBe('');
+  });
+
+  it('is remembered per browser, so the next page is drawn at it before prefs answer', () => {
+    localStorage.clear();
+    expect(rememberedUiScale()).toBeNull();
+    rememberUiScale(1.1);
+    expect(rememberedUiScale()).toBe(1.1);
+    rememberUiScale(UI_SCALE.max + 1);
+    expect(rememberedUiScale()).toBe(UI_SCALE.max);
+    localStorage.setItem('cardtable:ui-scale', 'big');
+    expect(rememberedUiScale()).toBeNull();
+    localStorage.clear();
   });
 
   it('is a saved preference within its range', () => {

@@ -116,6 +116,33 @@ export function uiPx(px: number, node?: Node | null): number {
   return Number.isFinite(scale) && scale > 0 ? px * scale : px;
 }
 
+const REMEMBERED_KEY = 'cardtable:ui-scale';
+
+/*
+ * The scale last applied in this browser, so the first frame is drawn at it. The saved scale is only
+ * known once prefs have answered (an identity read, then the prefs read), and a page drawn at 100%
+ * until then grew a tenth for a player at 110% as its content landed — the operator's "zoom in" on the
+ * front page (2026-11-01, `e2e/front-skeleton.spec.ts`). `null` when nothing is remembered.
+ * Wrapped as `../front/shape.ts` is: a private window or a blocked store still draws the page.
+ */
+export function rememberedUiScale(): number | null {
+  try {
+    const raw = globalThis.localStorage?.getItem(REMEMBERED_KEY) ?? null;
+    const value = raw === null ? Number.NaN : Number(raw);
+    return Number.isFinite(value) ? clampUiScale(value) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function rememberUiScale(scale: number): void {
+  try {
+    globalThis.localStorage?.setItem(REMEMBERED_KEY, String(clampUiScale(scale)));
+  } catch {
+    // Not remembered: the next page is drawn at 100% until prefs answer, as it was before.
+  }
+}
+
 /** Write the scale on `root`; at 1 nothing is written, and the stylesheet's own default stands. */
 export function applyUiScale(root: HTMLElement, scale: number): void {
   const value = clampUiScale(scale);
