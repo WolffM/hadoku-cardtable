@@ -71,30 +71,53 @@ export function railRoom(rail: HTMLElement): number {
 }
 
 /**
+ * What the rail's fit depends on, read without laying anything out: its items (`sig`), the card's own
+ * attributes (a turned or piled card is drawn differently; its inline style is left out, since a
+ * transform moves no offset), and the markup of every badge that can stop the rail (a counter's new
+ * number is a new width). The card's size is the hook's `ResizeObserver`'s.
+ */
+function railInputs(rail: HTMLElement, sig: string): string {
+  const card = rail.parentElement;
+  if (card === null) return sig;
+  const own = [...card.attributes].filter((a) => a.name !== 'style').map((a) => `${a.name}=${a.value}`);
+  const obstacles = [...card.querySelectorAll<HTMLElement>(OBSTACLES)].map((el) => el.outerHTML);
+  return `${sig}\n${own.join(' ')}\n${obstacles.join('')}`;
+}
+
+/**
  * How many of the rail's items to draw (null: all of them; -1: none, nor the "+N" chip), for the
  * items named by `sig`.
  *
  * Every item is drawn once whenever the set changes, its width read, and the fit taken from those
- * widths from then on; the card's resize (turning, a narrower row) and every render (a mark or a
- * counter arriving) take it again. All in a layout effect, so a row that does not fit is never
- * painted. No `ResizeObserver` (a test DOM) means no layout: every item is drawn.
+ * widths from then on. The fit is taken again, in a layout effect so a row that does not fit is never
+ * painted, only when something it depends on changed (`railInputs`) or the card resized (turning, a
+ * narrower row): any box read forces the browser to lay out whatever the last commit changed, and a
+ * board re-renders every card on every message, so reading on every render cost the intense moments a
+ * second of forced layout (`e2e/perf/bench.spec.ts`). No `ResizeObserver` (a test DOM) means no
+ * layout: every item is drawn.
  */
 export function useRailFit(rail: RefObject<HTMLElement | null>, sig: string): number | null {
   const [fit, setFit] = useState<{ sig: string; shown: number | null }>({ sig, shown: null });
-  const [, resized] = useState(0);
+  const [size, resized] = useState(0);
   const widths = useRef<number[]>([]);
   const more = useRef(MORE_GUESS);
+  /** The inputs the last fit was taken from. */
+  const taken = useRef<string | null>(null);
   const shown = fit.sig === sig ? fit.shown : null;
 
   useLayoutEffect(() => {
     const el = rail.current;
     if (el === null || typeof ResizeObserver === 'undefined') return;
+    const inputs = `${size}\n${String(shown)}\n${railInputs(el, sig)}`;
+    if (inputs === taken.current && fit.sig === sig) return;
     const items = [...el.children].filter((c): c is HTMLElement => c instanceof HTMLElement && !c.hasAttribute('data-more'));
     if (shown === null) widths.current = items.map((c) => c.offsetWidth);
     const chip = el.querySelector<HTMLElement>(':scope > [data-more]');
     if (chip !== null) more.current = chip.offsetWidth;
     const next = railFit(widths.current, railRoom(el), more.current);
     if (next !== shown || fit.sig !== sig) setFit({ sig, shown: next });
+    // Taken against what is drawn after the fit: a changed fit redraws the rail, and that redraw is the same inputs.
+    taken.current = next === shown ? inputs : `${size}\n${String(next)}\n${railInputs(el, sig)}`;
   });
 
   useEffect(() => {

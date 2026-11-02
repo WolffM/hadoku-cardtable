@@ -79,6 +79,8 @@
  * delete this style object with it.**
  */
 
+import { memo } from 'react';
+
 import { COLOR_NAMES } from '@hadoku/shared';
 
 /** Mana's hybrid pairs, in the order the font names its classes. */
@@ -224,8 +226,11 @@ export function readManaToken(token: string): ManaSymbol {
  */
 const PIP_SHIM = { display: 'contents', fontSize: 'inherit' } as const;
 
-/** `titled: false` drops the hover text where something else on hover already names the colour (a deck tile's peek). */
-export function ManaPip({ token, titled = true }: { token: string; titled?: boolean }) {
+/**
+ * `titled: false` drops the hover text where something else on hover already names the colour (a deck tile's peek).
+ * Memoised: its props are two primitives, and a board re-renders every card's pips on every message.
+ */
+export const ManaPip = memo(function ManaPip({ token, titled = true }: { token: string; titled?: boolean }) {
   const symbol = readManaToken(token);
 
   if (symbol.mana === null) {
@@ -252,7 +257,7 @@ export function ManaPip({ token, titled = true }: { token: string; titled?: bool
       />
     </span>
   );
-}
+});
 
 /** A whole cost. Renders nothing at all for a land or a cost-free permanent. */
 export function ManaCost({ cost, label }: { cost: readonly string[]; label?: string }) {

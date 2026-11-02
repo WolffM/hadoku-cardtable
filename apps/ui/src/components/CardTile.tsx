@@ -84,7 +84,7 @@ const RARITY_LETTER: Record<string, string> = {
  * board's own text still writes TAP as a word (`play/Board.tsx`) — that is a
  * different renderer and a different lane.
  */
-function RulesLine({ line, conditionMet = false }: { line: string; conditionMet?: boolean }) {
+const RulesLine = memo(function RulesLine({ line, conditionMet = false }: { line: string; conditionMet?: boolean }) {
   const word = conditionMet ? ABILITY_WORD.exec(line) : null;
   const rest = word === null ? line : line.slice(word[0].length);
   const pieces = rest.split(/(\{[^}]{1,5}\})/g).filter((p) => p !== '');
@@ -104,8 +104,7 @@ function RulesLine({ line, conditionMet = false }: { line: string; conditionMet?
         return <ManaPip key={i} token={symbol[1]} titled={false} />;
       })}
     </span>
-  );
-}
+  );});
 
 /**
  * A rules line that opens with an ability word — "Metalcraft — ", "Spell mastery — ": the
@@ -331,7 +330,7 @@ function CardBody({ card, liveText, conditionMet = false }: { card: TileFace; li
  * The art over the tile. A face that shares its card's image is its own part of it, upright, in a
  * frame the tile's shape (`faceCrop.ts`); the frame goes with the image when the image fails.
  */
-function CardArt({ url, crop }: { url: string; crop: TileCard['faceCrop'] }) {
+const CardArt = memo(function CardArt({ url, crop }: { url: string; crop: TileCard['faceCrop'] }) {
   const img = (
     <img
       className="card__art"
@@ -355,8 +354,7 @@ function CardArt({ url, crop }: { url: string; crop: TileCard['faceCrop'] }) {
     <span className="card__crop" aria-hidden="true">
       {img}
     </span>
-  );
-}
+  );});
 
 /** A padlock, and a door standing open: drawn on the tile, so the board, the inspector and a prompt all show it. */
 const DOOR_ART: Readonly<Record<DoorState, string>> = {
@@ -365,18 +363,19 @@ const DOOR_ART: Readonly<Record<DoorState, string>> = {
 };
 
 /** A Room door's state, as a mark at the top of its tile; its word is the tooltip and the accessible name. */
-function DoorMark({ door }: { door: DoorState }) {
+const DoorMark = memo(function DoorMark({ door }: { door: DoorState }) {
   return (
     <span className="card__door" data-door-mark={door} data-tip={DOOR_TIP[door]} role="img" aria-label={DOOR_TIP[door]}>
       <svg className="card__door-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
         <path fillRule="evenodd" d={DOOR_ART[door]} />
       </svg>
     </span>
-  );
-}
+  );});
 
 /**
- * Memoised on purpose.
+ * Memoised on purpose, and so are its leaves (a rules line, the art, a door mark, every mana pip): on the
+ * board a tile is handed a new card object with every view, and the leaves' props, being strings, are what
+ * still compare equal.
  *
  * A card is immutable for the life of a draft — `cardId` is stable and nothing
  * about a printed card changes — so a tile only ever needs to re-render when it
