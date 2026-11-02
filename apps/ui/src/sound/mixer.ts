@@ -54,10 +54,11 @@ export interface Mixer {
   /** Audition one take at a level, bypassing roles. */
   playFile(file: string, gain?: number): void;
   /**
-   * Fetch and decode every cue take the planner holds, so a scenario's first beats are not late. Music is
-   * left to {@link loop}: a loop plays one take, and decoding every track up front held over a gigabyte.
+   * Decode every cue take the planner holds, so a scenario's first beats are not late: from `pack`'s bytes
+   * (`GET /api/sounds/pack`) where it has them, fetched one by one where it does not. Music is left to
+   * {@link loop}: a loop plays one take, and decoding every track up front held over a gigabyte.
    */
-  preload(): void;
+  preload(pack?: ReadonlyMap<string, ArrayBuffer>): void;
   /**
    * Loop a music role on the music bus, crossfading from whatever loops now;
    * `null` fades the music out. A list loops the first of its roles that has
@@ -285,8 +286,14 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
     playFile(file, gain = 1) {
       start(null, file, gain, false);
     },
-    preload() {
-      for (const f of planner.cueTakes()) void load(f);
+    preload(pack) {
+      const ac = context();
+      if (ac === null) return;
+      for (const f of planner.cueTakes()) {
+        const bytes = pack?.get(f);
+        if (bytes === undefined) void load(f);
+        else if (!buffers.has(f)) buffers.set(f, ac.decodeAudioData(bytes).catch(() => null));
+      }
     },
     loop(choice, pick) {
       const roles = choice === null ? [] : typeof choice === 'string' ? [choice] : choice;

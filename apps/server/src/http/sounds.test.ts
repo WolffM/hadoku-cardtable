@@ -17,7 +17,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import express from 'express';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { MUSIC_REVIEW_APP_ID } from '@hadoku/shared';
+import { decodeSoundPack, MUSIC_REVIEW_APP_ID } from '@hadoku/shared';
 import { TIER_ORDER } from '../edge-auth.ts';
 import { createMusicReviewStore } from './musicReviewStore.ts';
 import { createPrefsRowsStandIn, standInFetch, type PrefsRowsStandIn } from './prefsRowsStandIn.ts';
@@ -229,7 +229,7 @@ describe('GET /api/sounds/assignments', () => {
 		const h = await openApp(await tempDir());
 		const res = await call(h, 'GET', '/api/sounds/assignments', { tier: 'friend' });
 		expect(res.status).toBe(200);
-		expect(res.json()).toEqual({ cells: {}, gains: {}, names: {}, versions: {}, canEdit: false });
+		expect(res.json()).toEqual({ cells: {}, gains: {}, names: {}, versions: {}, pack: '', canEdit: false });
 	});
 
 	it('canEdit is true only for admin', async () => {
@@ -444,6 +444,34 @@ describe('GET /api/sounds/audio/:folder/:file', () => {
 		const res = await fetch(`${h.base}/api/sounds/audio/m-win/take-synth-1.ogg`, { headers: { ...headersFor('friend'), range: 'bytes=2-5' } });
 		expect(res.status).toBe(206);
 		expect(await res.text()).toBe('2345');
+	});
+
+	it('packs every cue take, no music, kept for good at the version /assignments gives, and a re-cut moves it', async () => {
+		const dir = await tempDir();
+		await writeTakeFile(dir, 'm-win/take-synth-1.ogg', 'win');
+		await writeTakeFile(dir, 'g-draw/take-1.ogg', 'draw');
+		await writeTakeFile(dir, 'music-web/take-1.ogg', 'a long loop');
+		const cells = { 'g.draw|play': ['g-draw/take-1.ogg'], 'ui.select|play': ['m-win/take-synth-1.ogg'], 'music.match|play': ['music-web/take-1.ogg'] };
+		await writeFile(join(dir, 'assignments.json'), JSON.stringify({ cells, gains: {} }), 'utf8');
+		const h = await openApp(dir);
+		const packNow = async () => ((await call(h, 'GET', '/api/sounds/assignments')).json() as { pack: string }).pack;
+		const first = await packNow();
+		const get = (v: string, extra: Record<string, string> = {}) => fetch(`${h.base}/api/sounds/pack?v=${encodeURIComponent(v)}`, { headers: { ...headersFor('friend'), ...extra } });
+
+		const res = await get(first);
+		expect(res.status).toBe(200);
+		expect(res.headers.get('cache-control')).toBe('private, max-age=31536000, immutable');
+		const takes = decodeSoundPack(await res.arrayBuffer())!;
+		expect(Object.fromEntries([...takes].map(([f, b]) => [f, new TextDecoder().decode(b)]))).toEqual({ 'g-draw/take-1.ogg': 'draw', 'm-win/take-synth-1.ogg': 'win' });
+		const etag = res.headers.get('etag')!;
+		expect((await get(first, { 'if-none-match': etag, 'cache-control': 'max-age=0' })).status).toBe(304);
+
+		await writeTakeFile(dir, 'g-draw/take-1.ogg', 'a new draw');
+		const second = await packNow();
+		expect(second).not.toBe(first);
+		const stale = await get(first);
+		expect(stale.headers.get('cache-control')).toBe('no-cache');
+		expect(new TextDecoder().decode(decodeSoundPack(await stale.arrayBuffer())!.get('g-draw/take-1.ogg'))).toBe('a new draw');
 	});
 
 	it('no longer answers the old immutable path', async () => {

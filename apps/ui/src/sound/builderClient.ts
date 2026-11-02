@@ -25,6 +25,7 @@
 
 import {
   AssignmentsSchema,
+  decodeSoundPack,
   CatalogueSchema,
   type CellId,
   MarksSchema,
@@ -47,6 +48,8 @@ export interface Assignments {
   names: Record<string, string>;
   /** An assigned take's version, by file: what `takeUrl` pins it to. */
   versions: Record<string, string>;
+  /** The cue pack's version (`pack`); empty when there are no cues. */
+  pack: string;
   canEdit: boolean;
   /** The server answered at all: the viewer is friend tier or above. */
   canView: boolean;
@@ -86,6 +89,11 @@ export interface SoundsClient {
    * browser keeps the answer for good; without one it revalidates each time, as the builder wants.
    */
   takeUrl(file: string, version?: string): string;
+  /**
+   * `GET /api/sounds/pack?v=`: every cue take's bytes by file, in one request. Empty on any failure
+   * or for an empty `version`: each take is then fetched on its own when it is wanted.
+   */
+  pack(version: string): Promise<ReadonlyMap<string, ArrayBuffer>>;
 }
 
 export function soundsClient(
@@ -108,7 +116,7 @@ export function soundsClient(
     },
 
     async assignments() {
-      const none = { cells: {}, gains: {}, names: {}, versions: {}, canEdit: false, canView: false };
+      const none = { cells: {}, gains: {}, names: {}, versions: {}, pack: '', canEdit: false, canView: false };
       let res: Response;
       try {
         res = await getJson(url('/assignments'), fetchImpl);
@@ -186,6 +194,17 @@ export function soundsClient(
       const name = i < 0 ? '' : file.slice(i + 1);
       const path = url(`/audio/${encodeURIComponent(folder)}/${encodeURIComponent(name)}`);
       return version === undefined ? path : `${path}?v=${encodeURIComponent(version)}`;
+    },
+
+    async pack(version) {
+      if (version === '') return new Map();
+      try {
+        const res = await fetchImpl(url(`/pack?v=${encodeURIComponent(version)}`));
+        if (!res.ok) return new Map();
+        return decodeSoundPack(await res.arrayBuffer()) ?? new Map();
+      } catch {
+        return new Map();
+      }
     },
   };
 }

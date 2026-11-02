@@ -109,12 +109,12 @@ function player(): RolePlayer {
     production = mixer;
     applyLevels();
     unsubscribeSound ??= subscribeSound(applyPrefs);
-    void client.assignments().then((a) => {
+    void client.assignments().then(async (a) => {
       versions = a.versions;
       mixer.planner.setAssignments(a.cells, a.gains);
       setTrackNames(a.names);
-      mixer.preload();
       applyMusic();
+      mixer.preload(await client.pack(a.pack));
     });
   }
   return production;

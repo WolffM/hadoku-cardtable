@@ -501,6 +501,19 @@ export function isCellId(raw: string): raw is CellId {
 	return parseCellId(raw) !== null;
 }
 
+/** Whether a cell's row is a role on the music bus. A colour row never is. */
+export function isMusicCell(cell: string): boolean {
+	return SOUND_ROLES.get(cell.slice(0, cell.indexOf('|')))?.bus === 'music';
+}
+
+/**
+ * Every take of every cell off the music bus, once each, sorted: what the game decodes ahead of
+ * time, and what `GET /api/sounds/pack` carries. Music is fetched when it loops.
+ */
+export function cueTakes(cells: Readonly<Record<string, readonly string[]>>): string[] {
+	return [...new Set(Object.entries(cells).flatMap(([cell, files]) => (isMusicCell(cell) ? [] : files)))].sort();
+}
+
 /* ── Takes and the catalogue ────────────────────────────────────────── */
 
 /**
@@ -555,6 +568,8 @@ const AssignmentsObjectSchema = z.object({
 	 * good. A take re-cut in place gets a new version, so a new URL.
 	 */
 	versions: z.record(z.string(), z.string()).default({}),
+	/** The cue pack's version (`GET /api/sounds/pack?v=`): every cue take in one answer. Empty when there are none. */
+	pack: z.string().default(''),
 	canEdit: z.boolean(),
 });
 

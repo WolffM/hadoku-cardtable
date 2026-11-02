@@ -99,6 +99,8 @@ export {
   RestoreBodySchema,
   GainSchema,
   isCellId,
+  isMusicCell,
+  cueTakes,
   matchMusicRole,
   colourPair,
   COLOUR_PAIRS,
@@ -124,6 +126,7 @@ export {
   type RetireReason,
   type SoundMark,
 } from './sounds.ts';
+export { encodeSoundPack, decodeSoundPack } from './sound-pack.ts';
 
 export {
   MUSIC_REVIEW_CODES,

@@ -10,7 +10,8 @@
  *
  *   GET /api/sounds/catalogue            → 200 { takes: SoundTake[] }
  *   GET /api/sounds/audio/:folder/:file   [?v=version] → 200 audio/ogg | 206 | 304 | 400 | 404
- *   GET /api/sounds/assignments           → 200 { cells, gains, names, versions, canEdit }
+ *   GET /api/sounds/assignments           → 200 { cells, gains, names, versions, pack, canEdit }
+ *   GET /api/sounds/pack                  [?v=pack] → 200 every cue take (`sound-pack.ts`) | 304
  *   PUT /api/sounds/assignments/:cell     { files: string[], gain?: number } → 200 { cell, files, gain } | 400 | 403
  *   POST /api/sounds/music-review         MusicReviewBody → 200 MusicReviewRecord | 400 | 403 | 502   (friend tier)
  *   GET /api/sounds/music-review/mine     → 200 { review: MusicReviewRecord | null } | 403 | 502      (friend tier)
@@ -52,7 +53,7 @@
  * was renamed/removed by a later import run).
  */
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { appendFile, mkdir, open, readFile, rename, stat } from 'node:fs/promises';
 import type { NextFunction, Request, Response } from 'express';
 import { Router } from 'express';
@@ -69,6 +70,8 @@ import {
 	RetireBodySchema,
 	SoundTakeSchema,
 	TAKE_FILE_RE,
+	cueTakes,
+	encodeSoundPack,
 	isCellId,
 	musicReviewProblems,
 	musicReviewSlots,
@@ -279,6 +282,34 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 		}
 	};
 
+	/** Every take's version, by file; a file the take dir does not hold is left out. */
+	const versionsOf = async (files: Iterable<string>): Promise<Record<string, string>> => {
+		const valid = [...new Set(files)].filter((f) => TAKE_FILE_RE.test(f));
+		const found = await Promise.all(valid.map(async (f) => [f, await versionOf(f)] as const));
+		return Object.fromEntries(found.filter((e): e is readonly [string, string] => e[1] !== null));
+	};
+
+	/** The cue pack's takes and version: a digest of every cue take and its version, so a re-cut, an addition or a removal moves it. */
+	const cuePack = (cells: Readonly<Record<string, readonly string[]>>, versions: Readonly<Record<string, string>>): { files: string[]; version: string } => {
+		const files = cueTakes(cells).filter((f) => versions[f] !== undefined);
+		const version = files.length === 0 ? '' : createHash('sha1').update(files.map((f) => `${f}@${versions[f]!}`).join('\n')).digest('base64url').slice(0, 16);
+		return { files, version };
+	};
+
+	/** The last pack built: its takes are read once per version, not once per visitor. */
+	let built: { version: string; body: Promise<Buffer> } | null = null;
+	const packBody = (version: string, files: readonly string[]): Promise<Buffer> => {
+		if (built?.version === version) return built.body;
+		const body = Promise.all(files.map(async (file) => ({ file, bytes: await readFile(join(takesDir, file)) }))).then((takes) => Buffer.from(encodeSoundPack(takes)));
+		const entry = { version, body };
+		built = entry;
+		// A take that went between its stat and its read: the next ask builds again.
+		body.catch(() => {
+			if (built === entry) built = null;
+		});
+		return body;
+	};
+
 	/**
 	 * Serializes `assignments.json`'s read-modify-write across every PUT this
 	 * instance handles. Without it, two overlapping PUTs (a drag sends one for
@@ -341,11 +372,19 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 		// A music take's name, for the track picker in sound settings; a cue's is never shown.
 		const music = new Set(Object.entries(cells).flatMap(([cell, files]) => (cell.startsWith('music.') ? files : [])));
 		const names = Object.fromEntries(catalogue.takes.filter((t) => music.has(t.file)).map((t) => [t.file, t.name]));
-		const files = [...new Set(Object.values(cells).flat())].filter((f) => TAKE_FILE_RE.test(f));
-		const versions = Object.fromEntries(
-			(await Promise.all(files.map(async (f) => [f, await versionOf(f)] as const))).filter((e): e is readonly [string, string] => e[1] !== null),
-		);
-		res.json({ cells, gains, names, versions, canEdit: isAdmin(req) });
+		const versions = await versionsOf(Object.values(cells).flat());
+		res.json({ cells, gains, names, versions, pack: cuePack(cells, versions).version, canEdit: isAdmin(req) });
+	});
+
+	/** Every cue take in one answer (`@hadoku/shared`'s `sound-pack.ts`), kept for good at the version `/assignments` gives. */
+	sounds.get('/pack', async (req: Request, res: Response) => {
+		const { cells } = await readAssignments(dir, log);
+		const { files, version } = cuePack(cells, await versionsOf(cueTakes(cells)));
+		const body = await packBody(version, files);
+		res.setHeader('Content-Type', 'application/octet-stream');
+		res.setHeader('Cache-Control', version !== '' && req.query.v === version ? 'private, max-age=31536000, immutable' : 'no-cache');
+		res.setHeader('ETag', `"pack-${version}"`);
+		res.send(body);
 	});
 
 	sounds.put('/assignments/:cell', async (req: Request, res: Response) => {

@@ -249,6 +249,21 @@ describe('the mixer', () => {
     expect(vi.mocked(fetch).mock.calls.map((c) => c[0]).sort()).toEqual(['/takes/a/take-1.ogg', '/takes/b/take-1.ogg', '/takes/w/take-1.ogg']);
   });
 
+  it('decodes a cue from the pack without fetching it, and fetches one the pack does not hold', async () => {
+    const planner = createMixPlanner(() => 0);
+    planner.setAssignments({ 'ui.select|play': ['a/take-1.ogg'], 'g.tap|play': ['b/take-1.ogg'], 'music.match|play': ['music-a/take-1.ogg'] }, {});
+    const m = createMixer((f) => `/takes/${f}`, planner);
+    m.preload(new Map([['a/take-1.ogg', new ArrayBuffer(8)]]));
+    await flush();
+    expect(vi.mocked(fetch).mock.calls.map((c) => c[0])).toEqual(['/takes/b/take-1.ogg']);
+    const ctx = contexts[0]!;
+    ctx.grant();
+    m.play({ role: 'ui.select' });
+    await flush();
+    expect(ctx.sources.filter((s) => s.started)).toHaveLength(1);
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(1);
+  });
+
   it('keeps one music take decoded: a take the loop moved off is fetched again when it returns, a cue never is', async () => {
     const m = mixer();
     m.loopFile('music-a/take-1.ogg');

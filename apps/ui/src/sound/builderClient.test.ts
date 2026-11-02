@@ -68,6 +68,7 @@ describe('soundsClient.assignments', () => {
       gains: {},
       names: {},
       versions: {},
+      pack: '',
       canEdit: true,
       canView: true,
     });
@@ -76,12 +77,12 @@ describe('soundsClient.assignments', () => {
   it('refuses a cell key that is not a valid CellId', async () => {
     const client = soundsClient(vi.fn(async () => okJson({ cells: { bogus: ['x'] }, canEdit: true })), '/api/');
     // The superRefine fails the whole parse; the client's fallback is the empty case.
-    expect(await client.assignments()).toEqual({ cells: {}, gains: {}, names: {}, versions: {}, canEdit: false, canView: false });
+    expect(await client.assignments()).toEqual({ cells: {}, gains: {}, names: {}, versions: {}, pack: '', canEdit: false, canView: false });
   });
 
   it('is the empty, read-only case on a 403 or an unreachable server', async () => {
     const refused = soundsClient(vi.fn(async () => failed(403)), '/api/');
-    expect(await refused.assignments()).toEqual({ cells: {}, gains: {}, names: {}, versions: {}, canEdit: false, canView: false });
+    expect(await refused.assignments()).toEqual({ cells: {}, gains: {}, names: {}, versions: {}, pack: '', canEdit: false, canView: false });
   });
 
   it('is not viewable below friend: the gate answers 404', async () => {
