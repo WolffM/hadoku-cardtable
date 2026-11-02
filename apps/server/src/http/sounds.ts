@@ -9,8 +9,8 @@
  * defines and nothing here re-implements.
  *
  *   GET /api/sounds/catalogue            → 200 { takes: SoundTake[] }
- *   GET /api/sounds/audio/:folder/:file   → 200 audio/ogg | 304 | 400 | 404
- *   GET /api/sounds/assignments           → 200 { cells, gains, names, canEdit }
+ *   GET /api/sounds/audio/:folder/:file   [?v=version] → 200 audio/ogg | 206 | 304 | 400 | 404
+ *   GET /api/sounds/assignments           → 200 { cells, gains, names, versions, canEdit }
  *   PUT /api/sounds/assignments/:cell     { files: string[], gain?: number } → 200 { cell, files, gain } | 400 | 403
  *   POST /api/sounds/music-review         MusicReviewBody → 200 MusicReviewRecord | 400 | 403 | 502   (friend tier)
  *   GET /api/sounds/music-review/mine     → 200 { review: MusicReviewRecord | null } | 403 | 502      (friend tier)
@@ -52,8 +52,8 @@
  * was renamed/removed by a later import run).
  */
 
-import { createHash, randomUUID } from 'node:crypto';
-import { appendFile, mkdir, open, readFile, rename } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { appendFile, mkdir, open, readFile, rename, stat } from 'node:fs/promises';
 import type { NextFunction, Request, Response } from 'express';
 import { Router } from 'express';
 import { join, resolve as resolvePath, sep } from 'node:path';
@@ -268,6 +268,17 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 	const sounds = Router();
 	const takesDir = resolvePath(join(dir, 'takes'));
 
+	/** A take's version: its size and modification time, as a static server's ETag. `null`: no such take. */
+	const versionOf = async (file: string): Promise<string | null> => {
+		try {
+			const s = await stat(join(takesDir, file));
+			return `${s.size.toString(36)}-${Math.trunc(s.mtimeMs).toString(36)}`;
+		} catch (err) {
+			if (isEnoent(err)) return null;
+			throw err;
+		}
+	};
+
 	/**
 	 * Serializes `assignments.json`'s read-modify-write across every PUT this
 	 * instance handles. Without it, two overlapping PUTs (a drag sends one for
@@ -293,13 +304,14 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 	});
 
 	/*
-	 * Revalidated, never cached blind: a take is re-cut in place (same name, new
-	 * bytes) when the finishing limits change, as they did on 2026-10-10. Until
-	 * then this was `immutable` for a year under `/takes/`, which would have kept
-	 * every browser on the old cut forever — hence the new path as well, so those
-	 * copies are never asked for again. An unchanged take answers 304.
+	 * A take is re-cut in place (same name, new bytes) when the finishing limits change, as they did
+	 * on 2026-10-10, so a bare take URL is revalidated, never cached blind. The game asks for
+	 * `?v=<version>` (`/assignments`' `versions`), and only while that is still the take's version is
+	 * the answer kept for good: a re-cut take has a new version, so a new URL, and a returning player
+	 * asks for none of the takes they already hold. `sendFile` answers a revalidation from the file's
+	 * stat, never reading the bytes, and a range when one is asked for.
 	 */
-	sounds.get('/audio/:folder/:file', async (req: Request, res: Response) => {
+	sounds.get('/audio/:folder/:file', async (req: Request, res: Response, next: NextFunction) => {
 		const folder = String(req.params.folder);
 		const file = String(req.params.file);
 		const rel = `${folder}/${file}`;
@@ -312,19 +324,16 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 		if (resolved !== takesDir && !resolved.startsWith(takesDir + sep)) {
 			return badRequest(res, 'not a valid take path');
 		}
-		let data: Buffer;
-		try {
-			data = await readFile(resolved);
-		} catch (err) {
-			if (isEnoent(err)) return res.status(404).json({ error: 'no such take' });
-			throw err;
-		}
-		const etag = `"${createHash('sha1').update(data).digest('base64url')}"`;
-		res.setHeader('Content-Type', 'audio/ogg');
-		res.setHeader('Cache-Control', 'no-cache');
-		res.setHeader('ETag', etag);
-		if (req.headers['if-none-match'] === etag) return res.status(304).end();
-		res.status(200).send(data);
+		const version = await versionOf(rel);
+		if (version === null) return res.status(404).json({ error: 'no such take' });
+		const pinned = req.query.v === version;
+		res.sendFile(
+			resolved,
+			{ cacheControl: false, headers: { 'Content-Type': 'audio/ogg', 'Cache-Control': pinned ? 'private, max-age=31536000, immutable' : 'no-cache' } },
+			(err?: Error) => {
+				if (err !== undefined && !res.headersSent) next(err);
+			},
+		);
 	});
 
 	sounds.get('/assignments', async (req: Request, res: Response) => {
@@ -332,7 +341,11 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 		// A music take's name, for the track picker in sound settings; a cue's is never shown.
 		const music = new Set(Object.entries(cells).flatMap(([cell, files]) => (cell.startsWith('music.') ? files : [])));
 		const names = Object.fromEntries(catalogue.takes.filter((t) => music.has(t.file)).map((t) => [t.file, t.name]));
-		res.json({ cells, gains, names, canEdit: isAdmin(req) });
+		const files = [...new Set(Object.values(cells).flat())].filter((f) => TAKE_FILE_RE.test(f));
+		const versions = Object.fromEntries(
+			(await Promise.all(files.map(async (f) => [f, await versionOf(f)] as const))).filter((e): e is readonly [string, string] => e[1] !== null),
+		);
+		res.json({ cells, gains, names, versions, canEdit: isAdmin(req) });
 	});
 
 	sounds.put('/assignments/:cell', async (req: Request, res: Response) => {

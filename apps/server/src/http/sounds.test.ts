@@ -229,7 +229,7 @@ describe('GET /api/sounds/assignments', () => {
 		const h = await openApp(await tempDir());
 		const res = await call(h, 'GET', '/api/sounds/assignments', { tier: 'friend' });
 		expect(res.status).toBe(200);
-		expect(res.json()).toEqual({ cells: {}, gains: {}, names: {}, canEdit: false });
+		expect(res.json()).toEqual({ cells: {}, gains: {}, names: {}, versions: {}, canEdit: false });
 	});
 
 	it('canEdit is true only for admin', async () => {
@@ -395,7 +395,7 @@ describe('GET /api/sounds/audio/:folder/:file', () => {
 		expect(res.status).toBe(200);
 		expect(res.headers.get('content-type')).toContain('audio/ogg');
 		expect(res.headers.get('cache-control')).toBe('no-cache');
-		expect(res.headers.get('etag')).toMatch(/^"[\w-]+"$/);
+		expect(res.headers.get('etag')).toMatch(/^W\/"[\w-]+"$/);
 		expect(res.text).toBe('fake-ogg-bytes');
 	});
 
@@ -405,13 +405,45 @@ describe('GET /api/sounds/audio/:folder/:file', () => {
 		const h = await openApp(dir);
 		const first = await call(h, 'GET', '/api/sounds/audio/m-win/take-synth-1.ogg');
 		const etag = first.headers.get('etag')!;
-		const again = await fetch(`${h.base}/api/sounds/audio/m-win/take-synth-1.ogg`, { headers: { ...headersFor('friend'), 'if-none-match': etag } });
+		// A browser revalidating from its cache. A bare conditional `fetch` would also send
+		// `cache-control: no-cache` (the Fetch spec's rule for hand-set conditionals), which asks for
+		// the bytes again, so the header is set the way a revalidation sends it.
+		const revalidate = { ...headersFor('friend'), 'if-none-match': etag, 'cache-control': 'max-age=0' };
+		const again = await fetch(`${h.base}/api/sounds/audio/m-win/take-synth-1.ogg`, { headers: revalidate });
 		expect(again.status).toBe(304);
 
 		await writeTakeFile(dir, 'm-win/take-synth-1.ogg', 'second, longer cut');
-		const recut = await fetch(`${h.base}/api/sounds/audio/m-win/take-synth-1.ogg`, { headers: { ...headersFor('friend'), 'if-none-match': etag } });
+		const recut = await fetch(`${h.base}/api/sounds/audio/m-win/take-synth-1.ogg`, { headers: revalidate });
 		expect(recut.status).toBe(200);
 		expect(await recut.text()).toBe('second, longer cut');
+	});
+
+	it('keeps a take for good only at the version /assignments gives, and a re-cut moves it to a new one', async () => {
+		const dir = await tempDir();
+		await writeTakeFile(dir, 'm-win/take-synth-1.ogg', 'first cut');
+		await writeFile(join(dir, 'assignments.json'), JSON.stringify({ cells: { 'g.draw|play': ['m-win/take-synth-1.ogg'] }, gains: {} }), 'utf8');
+		const h = await openApp(dir);
+		const versionNow = async () => ((await call(h, 'GET', '/api/sounds/assignments')).json() as { versions: Record<string, string> }).versions['m-win/take-synth-1.ogg']!;
+		const first = await versionNow();
+		const at = (v: string) => call(h, 'GET', `/api/sounds/audio/m-win/take-synth-1.ogg?v=${encodeURIComponent(v)}`);
+		expect((await at(first)).headers.get('cache-control')).toBe('private, max-age=31536000, immutable');
+
+		await writeTakeFile(dir, 'm-win/take-synth-1.ogg', 'second, longer cut');
+		const second = await versionNow();
+		expect(second).not.toBe(first);
+		const stale = await at(first);
+		expect(stale.headers.get('cache-control')).toBe('no-cache');
+		expect(stale.text).toBe('second, longer cut');
+		expect((await at(second)).headers.get('cache-control')).toBe('private, max-age=31536000, immutable');
+	});
+
+	it('answers a range with just those bytes', async () => {
+		const dir = await tempDir();
+		await writeTakeFile(dir, 'm-win/take-synth-1.ogg', '0123456789');
+		const h = await openApp(dir);
+		const res = await fetch(`${h.base}/api/sounds/audio/m-win/take-synth-1.ogg`, { headers: { ...headersFor('friend'), range: 'bytes=2-5' } });
+		expect(res.status).toBe(206);
+		expect(await res.text()).toBe('2345');
 	});
 
 	it('no longer answers the old immutable path', async () => {

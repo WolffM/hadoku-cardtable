@@ -104,11 +104,13 @@ function player(): RolePlayer {
   if (production === null) {
     if (!hasWebAudio()) return SILENT;
     const client = soundsClient();
-    const mixer = createMixer((f) => client.takeUrl(f));
+    let versions: Readonly<Record<string, string>> = {};
+    const mixer = createMixer((f) => client.takeUrl(f, versions[f]));
     production = mixer;
     applyLevels();
     unsubscribeSound ??= subscribeSound(applyPrefs);
     void client.assignments().then((a) => {
+      versions = a.versions;
       mixer.planner.setAssignments(a.cells, a.gains);
       setTrackNames(a.names);
       mixer.preload();

@@ -43,7 +43,7 @@ const WU = 'music.match.WU|play';
 function stubClient(canView = true): SoundsClient {
   return {
     catalogue: async () => TAKES,
-    assignments: async () => ({ cells: CELLS, gains: {}, names: {}, canEdit: false, canView }),
+    assignments: async () => ({ cells: CELLS, gains: {}, names: {}, versions: {}, canEdit: false, canView }),
     save: vi.fn(async () => null),
     retire: vi.fn(async () => null),
     restore: vi.fn(async () => false),

@@ -36,7 +36,7 @@ function stubClient(canEdit: boolean, cells: Record<string, string[]> = {}, canV
   const saves: { cell: string; files: string[]; gain?: number }[] = [];
   const client: SoundsClient = {
     catalogue: async () => [TAKE],
-    assignments: async () => ({ cells, gains: {}, names: {}, canEdit, canView }),
+    assignments: async () => ({ cells, gains: {}, names: {}, versions: {}, canEdit, canView }),
     save: async (cell, files, gain) => {
       saves.push({ cell, files: [...files], gain });
       return { files: [...files], gain: gain ?? 1 };

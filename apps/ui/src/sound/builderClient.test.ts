@@ -67,6 +67,7 @@ describe('soundsClient.assignments', () => {
       cells: { 'W|spell': ['lib-water/take-001.ogg'] },
       gains: {},
       names: {},
+      versions: {},
       canEdit: true,
       canView: true,
     });
@@ -75,12 +76,12 @@ describe('soundsClient.assignments', () => {
   it('refuses a cell key that is not a valid CellId', async () => {
     const client = soundsClient(vi.fn(async () => okJson({ cells: { bogus: ['x'] }, canEdit: true })), '/api/');
     // The superRefine fails the whole parse; the client's fallback is the empty case.
-    expect(await client.assignments()).toEqual({ cells: {}, gains: {}, names: {}, canEdit: false, canView: false });
+    expect(await client.assignments()).toEqual({ cells: {}, gains: {}, names: {}, versions: {}, canEdit: false, canView: false });
   });
 
   it('is the empty, read-only case on a 403 or an unreachable server', async () => {
     const refused = soundsClient(vi.fn(async () => failed(403)), '/api/');
-    expect(await refused.assignments()).toEqual({ cells: {}, gains: {}, names: {}, canEdit: false, canView: false });
+    expect(await refused.assignments()).toEqual({ cells: {}, gains: {}, names: {}, versions: {}, canEdit: false, canView: false });
   });
 
   it('is not viewable below friend: the gate answers 404', async () => {
@@ -134,6 +135,11 @@ describe('soundsClient.takeUrl', () => {
   it('splits the folder and the file into two encoded segments', () => {
     const client = soundsClient(vi.fn(), '/api/');
     expect(client.takeUrl('lib-water/take-001.ogg')).toBe('/api/sounds/audio/lib-water/take-001.ogg');
+  });
+
+  it('pins a take to its version when it has one', () => {
+    const client = soundsClient(vi.fn(), '/api/');
+    expect(client.takeUrl('lib-water/take-001.ogg', '1kz-m3abc')).toBe('/api/sounds/audio/lib-water/take-001.ogg?v=1kz-m3abc');
   });
 });
 

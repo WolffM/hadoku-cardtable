@@ -45,6 +45,8 @@ export interface Assignments {
   gains: Record<string, number>;
   /** A music take's catalogue name, by file. */
   names: Record<string, string>;
+  /** An assigned take's version, by file: what `takeUrl` pins it to. */
+  versions: Record<string, string>;
   canEdit: boolean;
   /** The server answered at all: the viewer is friend tier or above. */
   canView: boolean;
@@ -79,8 +81,11 @@ export interface SoundsClient {
   marks(): Promise<Record<string, SoundMark>>;
   /** `PUT /api/sounds/marks`: set or (`null`) clear one take's mark. Whether it was stored. */
   mark(file: string, mark: SoundMark | null): Promise<boolean>;
-  /** The same-origin URL a take's audio streams from. */
-  takeUrl(file: string): string;
+  /**
+   * The same-origin URL a take's audio streams from. With its `version` (`assignments().versions`) the
+   * browser keeps the answer for good; without one it revalidates each time, as the builder wants.
+   */
+  takeUrl(file: string, version?: string): string;
 }
 
 export function soundsClient(
@@ -103,7 +108,7 @@ export function soundsClient(
     },
 
     async assignments() {
-      const none = { cells: {}, gains: {}, names: {}, canEdit: false, canView: false };
+      const none = { cells: {}, gains: {}, names: {}, versions: {}, canEdit: false, canView: false };
       let res: Response;
       try {
         res = await getJson(url('/assignments'), fetchImpl);
@@ -172,14 +177,15 @@ export function soundsClient(
       }
     },
 
-    takeUrl(file) {
+    takeUrl(file, version) {
       // `file` is `<folder>/take-<suffix>.ogg` (TAKE_FILE_RE); the route takes
       // the folder and the file as two separate segments, each encoded on its
       // own so a literal `/` cannot be smuggled through either one.
       const i = file.indexOf('/');
       const folder = i < 0 ? file : file.slice(0, i);
       const name = i < 0 ? '' : file.slice(i + 1);
-      return url(`/audio/${encodeURIComponent(folder)}/${encodeURIComponent(name)}`);
+      const path = url(`/audio/${encodeURIComponent(folder)}/${encodeURIComponent(name)}`);
+      return version === undefined ? path : `${path}?v=${encodeURIComponent(version)}`;
     },
   };
 }

@@ -549,6 +549,12 @@ const AssignmentsObjectSchema = z.object({
 	gains: GainsSchema.default({}),
 	/** The catalogue name of every take a `music.*` cell holds, by file: what a player sees as the track. */
 	names: z.record(z.string(), z.string()).default({}),
+	/**
+	 * Every assigned take's version by file (its size and modification time, as a static server's
+	 * ETag): the game asks for a take as `?v=` its version, which the server lets a browser keep for
+	 * good. A take re-cut in place gets a new version, so a new URL.
+	 */
+	versions: z.record(z.string(), z.string()).default({}),
 	canEdit: z.boolean(),
 });
 
