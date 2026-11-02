@@ -1,0 +1,33 @@
+/*
+ * Portrait board (wave 89): every rule in this file is scoped under
+ * `:root[data-layout="portrait"]` (`portrait.ts`'s `usePortraitLayout`
+ * writes the attribute) or is a bare root token with a value that does
+ * nothing until a portrait-scoped rule reads it — so importing this file
+ * changes nothing visible on desktop or in landscape (Settled 1).
+ *
+ * These are the tokens the other lanes' CSS keys off: B's phase bar sizes
+ * itself into `--portrait-phase-h`, and the lane card-width formula is the
+ * prototype's own (`.slot`'s `--cw`).
+ */
+
+:root {
+  /* The HUD's second row, reserved for B's `.live__phases`; 0 outside portrait. */
+  --portrait-phase-h: 0px;
+}
+
+:root[data-layout='portrait'] {
+  --portrait-phase-h: 30px;
+
+  /* Lane geometry: each lane scroller's end padding, the gap between cards, and the sliver of the
+     next card that peeks past the edge to say there is more. */
+  --portrait-pad: 8px;
+  --portrait-gap: 6px;
+  --portrait-peek: 22px;
+
+  /* The board's zoom factor; `portrait.ts`'s ZOOM_MIN/ZOOM_MAX are its bounds. */
+  --portrait-zoom: 1;
+
+  /* A lane card's width: the lane's own content width (`100cqw` of the lane scroller's inline-size
+     container), less two end paddings, two gaps and the peek, split three ways, times the zoom. */
+  --portrait-card-w: calc((100cqw - 2 * var(--portrait-pad) - 2 * var(--portrait-gap) - var(--portrait-peek)) / 3 * var(--portrait-zoom));
+}
