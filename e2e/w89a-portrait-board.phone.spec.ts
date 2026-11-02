@@ -76,10 +76,10 @@ test(titled('promo-valakut in portrait: chips, four lanes, card width, no sidewa
     expect.soft(oppLife, 'opponent life reads 20 (the scenario\'s ailife)').toBe('20');
     expect.soft(meLife, 'viewer life reads 14 (the scenario\'s humanlife)').toBe('14');
 
-    // Exactly 4 lane scrollers, one per the contract's id.
+    // Exactly 4 BOARD lane scrollers (the hand is a fifth, separate carousel — asserted further down).
     for (const id of LANE_IDS) await expect.soft(page.getByTestId(id), `${id} exists exactly once`).toHaveCount(1);
-    const laneCount = await page.locator('[data-testid^="lane-"]:not([data-testid="lane-more"])').count();
-    expect.soft(laneCount, 'exactly 4 lane scrollers').toBe(4);
+    const laneCount = await page.locator('[data-testid^="lane-"]:not([data-testid="lane-more"]):not([data-testid="lane-my-hand"])').count();
+    expect.soft(laneCount, 'exactly 4 board lane scrollers').toBe(4);
 
     // Card width floor and "no more than 3 whole cards at 1x", on the lane the scenario fills:
     // the viewer's own lands (11 lands grouped into several piles — plenty to overflow).
@@ -108,6 +108,21 @@ test(titled('promo-valakut in portrait: chips, four lanes, card width, no sidewa
       console.log('[w89a] action-bar not present yet (pending B in this worktree) — skipping the lane/bar overlap assertion');
     }
 
+    // The board column starts at --portrait-hud-h (the chip row plus the phase row B's bar fills):
+    // their-lands' own top never sits under the phase bar. Gated on `action-bar` too (not just
+    // `.live__phases` — that class already matches something unrelated on the desktop chrome still
+    // showing in this worktree, a false positive this spec caught once): both are B's portrait
+    // land, so one gates the other reliably.
+    const theirLands = page.getByTestId('lane-their-lands');
+    const phases = page.locator('.live__phases');
+    if ((await actionBar.count()) > 0 && (await phases.count()) > 0) {
+      const phasesBox = await phases.boundingBox();
+      const theirLandsBox = await theirLands.boundingBox();
+      expect.soft(theirLandsBox!.y, 'their-lands starts at or below the phase bar\'s own bottom').toBeGreaterThanOrEqual((phasesBox!.y + phasesBox!.height) - 1);
+    } else {
+      console.log('[w89a] B\'s portrait phase bar not present yet in this worktree — skipping the phase-bar/lane overlap assertion');
+    }
+
     // No lane shows more than 3 whole cards at 1x, checked on every lane (not just my-lands).
     for (const id of LANE_IDS) {
       const lane = page.getByTestId(id);
@@ -119,6 +134,27 @@ test(titled('promo-valakut in portrait: chips, four lanes, card width, no sidewa
       const whole = boxes.filter((b) => b.left >= box.x - 1 && b.right <= box.x + box.width + 1).length;
       expect.soft(whole, `${id}: no more than 3 whole cards at 1x`).toBeLessThanOrEqual(3);
     }
+
+    // The hand is a carousel too (the operator, after the look artifact: "cards are too small in
+    // hand, use a similar scrolling carousel") — lane-card size at 1x, scrolls to its 4th card
+    // (promo-valakut's humanhand is exactly Scapeshift, Lightning Bolt, Search for Tomorrow,
+    // Summoner's Pact — four), same lane-more mechanic as the board lanes above. Hand cards are
+    // `CardOnBoard`'s own `li.board-card`, the same as every other card on the board.
+    const myHand = page.getByTestId('lane-my-hand');
+    await expect(myHand).toBeVisible();
+    const handCardBoxes = await myHand.locator(':scope > li.board-card').evaluateAll((els) =>
+      els.map((el) => (el as HTMLElement).getBoundingClientRect()),
+    );
+    expect.soft(handCardBoxes.length, 'promo-valakut deals a 4-card hand').toBe(4);
+    for (const box of handCardBoxes) expect.soft(box.width, 'every hand card is at least 100px wide').toBeGreaterThanOrEqual(100);
+    const handMoreBefore = await myHand.locator('[data-testid="lane-more"][data-side="right"]').textContent().catch(() => null);
+    expect.soft(handMoreBefore, 'the hand starts with a lane-more count on the right (its 4th card is off the edge)').not.toBeNull();
+    await myHand.evaluate((el) => {
+      el.scrollLeft = el.scrollWidth;
+    });
+    await page.waitForTimeout(150);
+    const handStillOffRight = (await myHand.locator('[data-testid="lane-more"][data-side="right"]').count()) > 0;
+    expect.soft(handStillOffRight, 'scrolled all the way, nothing more to the right of the hand').toBe(false);
 
     // The page body never scrolls sideways (Settled 3).
     await noSideways(page);
