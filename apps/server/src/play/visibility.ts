@@ -332,20 +332,24 @@ function foldInto(state: Map<string, WireObj>, packet: DeltaPacketJson): void {
 }
 
 /**
- * Fold a stream of state frames the way a client does: `setGameView` resets to
- * its table, `applyDelta` folds by the rules above, `openView` carries no state.
- * What a seat SHOULD hold after the frames it was sent.
+ * One frame of {@link foldFrames}, into `state` in place: `setGameView` resets
+ * to its table, `applyDelta` folds by the rules above, `openView` carries no
+ * state. A running fold (a seat's board, kept as its history grows) calls this
+ * for each new frame and visits no frame twice.
  */
+export function foldFrame(state: Map<string, WireObj>, frame: StateFrame): void {
+	if (frame.method === 'setGameView') {
+		state.clear();
+		foldInto(state, { seq: 0, checksum: 0, checksumProperties: [], newObjects: frame.payload.gameView, objectDeltas: {}, events: [] });
+	} else if (frame.method === 'applyDelta') {
+		foldInto(state, frame.payload.packet);
+	}
+}
+
+/** Fold a stream of state frames the way a client does ({@link foldFrame}): what a seat SHOULD hold after the frames it was sent. */
 export function foldFrames(frames: readonly StateFrame[]): Map<string, WireObj> {
 	const state = new Map<string, WireObj>();
-	for (const frame of frames) {
-		if (frame.method === 'setGameView') {
-			state.clear();
-			foldInto(state, { seq: 0, checksum: 0, checksumProperties: [], newObjects: frame.payload.gameView, objectDeltas: {}, events: [] });
-		} else if (frame.method === 'applyDelta') {
-			foldInto(state, frame.payload.packet);
-		}
-	}
+	for (const frame of frames) foldFrame(state, frame);
 	return state;
 }
 

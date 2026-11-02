@@ -199,7 +199,7 @@ export type MatchSpecWithIdentity = Omit<MatchSpec, 'seats'> & {
 import {
 	createProjector,
 	EVERY_PLAYER,
-	foldFrames,
+	foldFrame,
 	type ObjTable,
 	type SeatProjector,
 	type StateFrame,
@@ -1203,15 +1203,15 @@ export class Match {
 	/** See {@link SeatIdentity.coinToss}: set and cleared in {@link Match.send}. */
 	private coinToss: { winner: number; at: number } | null = null;
 	/**
-	 * `Match.waitingOnFor`'s own cache: `foldFrames` is linear in a seat's
-	 * WHOLE history,
-	 * and `waitingOnFor` can run on every ask,
-	 * selection and answer-bar open or close over a long game. Re-folding a
-	 * seat whose history has not grown since the last call wastes exactly the
-	 * work this cache skips; keyed by seat, invalidated the instant that
-	 * seat's `history` grows past the cached length.
+	 * Each seat's board, folded as its history grows — {@link Match.foldedStateOf}'s own. A seat's
+	 * board is read on nearly every frame (`waitingOnFor` on every ask, selection and answer-bar
+	 * open or close; a card's name for the log), and its history grows on nearly every frame too,
+	 * so a fold of the WHOLE history per read made a long game quadratic (11 ms a read at 1,110
+	 * frames). A history only ever grows (`push`), so the fold keeps how many frames it has taken
+	 * and takes only the new ones; it is keyed by the history array itself, so a seat given a new
+	 * array would start a fold of its own rather than continue a stale one.
 	 */
-	private readonly foldedCache = new Map<number, { len: number; state: ReadonlyMap<string, WireObj> }>();
+	private readonly foldedCache = new WeakMap<readonly ServerFrame[], { len: number; state: Map<string, WireObj> }>();
 
 	/** Every name either seat's deck (or a test scenario) plays — offered by a card-name ask whatever the format. */
 	private deckNames: ReadonlySet<string> | null = null;
@@ -1857,13 +1857,18 @@ export class Match {
 		return { method, hostCard: cardName(otherState, cardId) };
 	}
 
-	/** {@link Match.foldedCache}'s own reader — see that field's note. */
+	/**
+	 * The board this seat holds now: `visibility.ts`'s `foldFrames` over its whole history, kept
+	 * by {@link Match.foldedCache}. The map moves on with the seat's next frame, so read it at once.
+	 */
 	private foldedStateOf(s: SeatState): ReadonlyMap<string, WireObj> {
-		const cached = this.foldedCache.get(s.seat);
-		if (cached !== undefined && cached.len === s.history.length) return cached.state;
-		const state = foldFrames(s.history as unknown as StateFrame[]);
-		this.foldedCache.set(s.seat, { len: s.history.length, state });
-		return state;
+		let fold = this.foldedCache.get(s.history);
+		if (fold === undefined) {
+			fold = { len: 0, state: new Map() };
+			this.foldedCache.set(s.history, fold);
+		}
+		for (; fold.len < s.history.length; fold.len += 1) foldFrame(fold.state, s.history[fold.len] as unknown as StateFrame);
+		return fold.state;
 	}
 
 	/**
@@ -1940,8 +1945,7 @@ export class Match {
 	seatState(seat: number): { cursor: WireCursor | null; objects: ObjTable } | { error: string } {
 		const s = this.seats[seat];
 		if (s === undefined || s.ai) return { error: 'no-such-seat' };
-		const state = foldFrames(s.history as unknown as StateFrame[]);
-		return { cursor: s.seq === 0 ? null : { epoch: this.epoch, seq: s.seq }, objects: Object.fromEntries(state) };
+		return { cursor: s.seq === 0 ? null : { epoch: this.epoch, seq: s.seq }, objects: Object.fromEntries(this.foldedStateOf(s)) };
 	}
 
 	/**
