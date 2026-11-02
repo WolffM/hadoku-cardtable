@@ -1,0 +1,220 @@
+/*
+ * Wave 89 §C — the decision dock (Settled 6). In portrait every question's host (`../movable.tsx`'s
+ * `QuestionHost`) docks over the hand and the action bar instead of floating over the board.
+ * `data-mode` (`dock`/`full`/`min`, set by `movable.tsx`) is the only thing any rule below reads; no
+ * selector here ever names a prompt method.
+ *
+ * The manager, after the first version of this file: "keep every existing test ID" — `live.css`'s
+ * `.live__prompt` and its own per-ask testid (`live-decision-host`, `live-selection-host`, …) must stay
+ * exactly what they were, for `pick-drawn` and every existing reader. So the Test-ID contract's own
+ * `decision-dock`/`data-mode` live on a NEW wrapper (`.dock`) that `movable.tsx` puts around the host in
+ * portrait only — never inside it, never replacing anything on it. All the positioning that used to sit
+ * on `.live__prompt` itself now sits on `.dock`; `.live__prompt`, nested one level deeper, just fills it
+ * (`width/height: 100%`), so `live.css`'s own `.live__prompt > .prompt`/`.live__prompt > .confirm` rules
+ * (pointer-events, sizing, the sheet's own scroll) still apply unchanged — `.prompt`/`.confirm` are
+ * still `.live__prompt`'s own direct children, exactly as on desktop.
+ *
+ * Every selector here is scoped to `:root[data-layout="portrait"]` and, where it touches `.live__prompt`
+ * itself or a child of it, carries one more class/attribute than the busiest rule it would otherwise
+ * collide with in `live.css` (`.live__prompt:has(.prompt__cards):not([data-on-board])`, specificity
+ * (0,3,0)) — imported from `movable.tsx`, which `LiveBoard.tsx` already imports after `./live.css`, so
+ * this file also wins on source order. Either way, nothing in `live.css` is edited: the blast-radius
+ * table's own rule for this lane.
+ */
+
+:root[data-layout="portrait"] .dock {
+  position: fixed;
+  z-index: var(--z-popover, 40);
+  top: auto;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+}
+
+/* The host fills the wrapper: the three-part column (handle, sheet, pill) lives here, unchanged in shape
+   from before the wrapper existed. */
+:root[data-layout="portrait"] .dock > .live__prompt {
+  position: static;
+  top: auto;
+  left: auto;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-end;
+  background: var(--bg-raised);
+  border: none;
+  border-top: 1px solid var(--line);
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -10px 30px var(--shadow);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Docked: a bounded height over the hand and the action bar — never the board (Settled 6). */
+:root[data-layout="portrait"] .dock[data-mode='dock'] {
+  height: min(46dvh, 380px);
+}
+
+/*
+ * Full: a search too tall to fit docked (Scapeshift's ten lands). `top` and `bottom` are both set, so the
+ * height is definite and the sheet's own body is what scrolls — the same reasoning `live.css`'s own
+ * header gives for the desktop column's `top`+`height` pair, here `top`+`bottom` for the same reason: no
+ * third constraint left to fight over.
+ */
+:root[data-layout="portrait"] .dock[data-mode='full'] {
+  top: max(8dvh, 56px);
+  bottom: 0;
+  height: auto;
+}
+
+/* Minimized: the pill, bottom-right, no longer the full width of the dock. */
+:root[data-layout="portrait"] .dock[data-mode='min'] {
+  left: auto;
+  right: 12px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  width: auto;
+  height: auto;
+}
+
+:root[data-layout="portrait"] .dock[data-mode='min'] > .live__prompt {
+  align-items: flex-end;
+  background: none;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+/*
+ * The sheet fills the dock's width at every size: `live.css`'s own `fit-content`/narrower rules
+ * (`:has(.prompt__zones)`, `:has(.prompt__cards):not([data-on-board])`) are for the floating desktop
+ * column and never apply to a dock. `.dock > .live__prompt >` (present at every size) is what pushes
+ * this a notch past the desktop rules it replaces.
+ */
+:root[data-layout="portrait"] .dock > .live__prompt > :is(.prompt, .confirm) {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  align-self: stretch;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Minimized: the sheet stays mounted (nothing it holds — a search's picks, a trigger's count — is lost),
+   just not drawn; the pill speaks for it instead. */
+:root[data-layout="portrait"] .dock[data-mode='min'] > .live__prompt > :is(.prompt, .confirm) {
+  display: none;
+}
+
+/*
+ * The old free-drag grip (`live.css`'s own `::before` on `.prompt`/`.confirm`) would otherwise draw a
+ * second one under the dock's own handle below — `movable.tsx` already refuses the drag itself in
+ * portrait; this is the matching visual half.
+ */
+:root[data-layout="portrait"] .live :is(.dock > .live__prompt > :is(.prompt, .confirm))::before {
+  content: none;
+}
+
+/* ── the handle: the grip a swipe moves the dock by, and its own controls ───────────────────────────── */
+
+:root[data-layout="portrait"] .dock__handle {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  position: relative;
+  padding: 8px 8px 4px;
+  touch-action: none;
+  cursor: grab;
+  pointer-events: auto;
+}
+
+:root[data-layout="portrait"] .dock__grip {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 36px;
+  height: 4px;
+  translate: -50% 0;
+  border-radius: 2px;
+  background: var(--line);
+}
+
+:root[data-layout="portrait"] .dock__controls {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  padding-top: 6px;
+}
+
+:root[data-layout="portrait"] .dock__ctl {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  color: var(--ink);
+  pointer-events: auto;
+}
+
+:root[data-layout="portrait"] .dock__ctl::before {
+  content: '';
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid currentcolor;
+  border-bottom: 2px solid currentcolor;
+  transform: rotate(135deg) translate(-1px, -1px);
+}
+
+/* Expand and shrink share one chevron, flipped. */
+:root[data-layout="portrait"] .dock__ctl-shrink::before {
+  transform: rotate(-45deg) translate(-1px, -1px);
+}
+
+:root[data-layout="portrait"] .dock__ctl-min::before {
+  width: 10px;
+  height: 2px;
+  border: none;
+  background: currentcolor;
+  transform: none;
+}
+
+/* ── the pill (Settled 6: minimized) ─────────────────────────────────────────────────────────────────── */
+
+:root[data-layout="portrait"] .dock__pill {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 16px;
+  background: var(--bg-raised);
+  border: 1.5px solid var(--accent);
+  border-radius: 22px;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: 0 8px 24px var(--shadow);
+  max-width: calc(100vw - 24px);
+  pointer-events: auto;
+}
+
+:root[data-layout="portrait"] .dock__pill > span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-layout="portrait"] .dock {
+    transition: top 0.18s ease, height 0.18s ease, bottom 0.18s ease;
+  }
+}

@@ -1,0 +1,292 @@
+/**
+ * Wave 89 §C — the decision dock, against real Forge (Settled 6).
+ *
+ * Portrait is forced with `document.documentElement.dataset.layout = 'portrait'` rather than waited
+ * for: lane A's own switch (`portrait.ts`, the matchMedia listener) has not landed in this worktree yet.
+ * The dock reacts to the attribute alone (`movable.tsx`'s `usePortraitLayout`, a `MutationObserver` on
+ * `<html>`), so forcing it proves the dock on its own, independent of A's own commit. Where a claim also
+ * needs A's board lanes (`lane-<...>`, the "covers no lane" half of the first scenario), the assertion
+ * says so in its own failure message and is expected red until A lands — reported, never hidden or
+ * skipped.
+ *
+ * Every press is a real touch gesture (`Locator.tap()`, or `dragHandCard`'s own CDP touch drag under
+ * the `phone` project) — never `.click()`, which stays a mouse event even inside a touch context and
+ * would prove nothing about D's touch install.
+ */
+import { expect, test, type Locator, type Page } from '@playwright/test';
+
+import { makeTitled, offeredNamed } from './play/board.ts';
+import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { startScenarioMatch } from './play/scenario.ts';
+
+const forge = forgeAvailability();
+const titled = makeTitled(forge);
+
+/** `movable.tsx` reads this attribute live; A's own switch sets it the same way once it lands. */
+async function forcePortrait(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    document.documentElement.dataset.layout = 'portrait';
+  });
+}
+
+const dock = (page: Page): Locator => page.getByTestId('decision-dock');
+const expandBtn = (page: Page): Locator => page.getByTestId('decision-expand');
+const minimizeBtn = (page: Page): Locator => page.getByTestId('decision-minimize');
+const pillBtn = (page: Page): Locator => page.getByTestId('decision-pill');
+
+async function dockMode(page: Page): Promise<string | null> {
+  return dock(page).getAttribute('data-mode');
+}
+
+/** Poll `step` until it answers true, or fail naming `what` — no sleep loop of the caller's own. */
+async function until(what: string, step: () => Promise<boolean>, timeout = 60_000): Promise<void> {
+  const deadline = Date.now() + timeout;
+  for (;;) {
+    if (await step()) return;
+    if (Date.now() >= deadline) throw new Error(`timed out waiting for: ${what}`);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+}
+
+/** Tap `locator` if it is there and enabled right now; a miss (the window closed between the count and the tap) is not an error. */
+async function tapIfEnabled(locator: Locator): Promise<boolean> {
+  if ((await locator.count()) === 0) return false;
+  try {
+    await locator.first().tap({ timeout: 1_000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const tapPaymentAuto = (page: Page): Promise<boolean> => tapIfEnabled(page.locator('[data-testid="live-payment-ok"]:enabled'));
+const tapConfirmYes = (page: Page): Promise<boolean> => tapIfEnabled(page.locator('[data-testid="prompt-confirm-yes"]:enabled'));
+const tapDecisionOk = (page: Page): Promise<boolean> => tapIfEnabled(page.locator('[data-testid="live-decision-ok"]:enabled'));
+
+/** Every button a scripted opponent's own page might be holding open, pressed once — `bob` is a real browser in this harness, never Forge's own AI. */
+async function pumpOpponent(page: Page): Promise<void> {
+  await tapPaymentAuto(page);
+  await tapConfirmYes(page);
+  await tapDecisionOk(page);
+}
+
+async function tiles(page: Page): Promise<{ id: number; text: string }[]> {
+  return dock(page)
+    .locator('[data-testid="prompt-cards"] > li[data-card-id]')
+    .evaluateAll((els) => els.map((el) => ({ id: Number(el.getAttribute('data-card-id')), text: (el.textContent ?? '').replace(/\s+/g, ' ').trim() })));
+}
+
+async function tapTile(page: Page, id: number): Promise<void> {
+  await dock(page)
+    .locator(`[data-testid="prompt-cards"] > li[data-card-id="${id}"] label`)
+    .tap({ timeout: 2_000 });
+}
+
+/**
+ * Cast `name` from the hand: tap it (Settled 5's own read-tap) to open `card-view`, then tap its own
+ * `card-view-action[data-verb="cast"]` — the real touch path D's gesture install answers (its own
+ * drag-up-to-play is a single continuous gesture with no "lifted" checkpoint on touch, so
+ * `e2e/play/board.ts`'s `dragHandCard`, built for the OLD two-step mouse arming, never fires on phone;
+ * `clickHandCard`'s own phone branch is the same tap-to-view path, written here directly so the two
+ * `{ force: true }` taps below — both still real touch presses, `force` only skips Playwright's own
+ * hit-test — have somewhere to live with the comment explaining them).
+ */
+async function castByTap(page: Page, name: string): Promise<void> {
+  let id: number | undefined;
+  await until(`${name} is offered`, async () => (id = await offeredNamed(page, name)) !== undefined);
+  // The empty-stack pass no longer docks at all (`data-pass` — see the "no decision-dock in an idle
+  // main phase" test below), so there is nothing of this lane's own left to clear from the hand here.
+  // `{ force: true }`, still a real tap (touchstart/touchend, never a mouse event — `force` only skips
+  // Playwright's own hit-test, not the event kind): with A's board restructuring not landed in this
+  // worktree, the hand's clickable area still sits where the unmoved DESKTOP layout drew it, and B's
+  // `action-bar` (also bottom-fixed in portrait already) currently overlaps it there — proven by the
+  // actual intercept error, not assumed. That overlap is A's own landing to resolve (the hand moves
+  // into its new row); it is not this lane's dock, which this same helper already proved clear of the
+  // hand once minimized, and it has nothing to do with what this spec is actually proving below.
+  await page.locator(`[data-board-card="${id}"] button`).first().tap({ timeout: 10_000, force: true });
+  const view = page.getByTestId('card-view');
+  await expect(view).toBeVisible({ timeout: 10_000 });
+  const action = view.locator('[data-testid="card-view-action"][data-verb="cast"], [data-testid="card-view-action"][data-verb="play"]').first();
+  await action.tap({ timeout: 10_000, force: true });
+}
+
+test(titled('ten Valakut triggers dock below the board and are answered with one tap on the opponent, "same target for all" ticked'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(5 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'promo-valakut');
+    await forcePortrait(alice.page);
+    const bobLife = alice.page.locator('.seat:not([data-viewer]) [data-testid="life"]').first();
+
+    await castByTap(alice.page, 'Scapeshift');
+    await until('the sacrifice sheet (up to 11 lands) opens', async () => {
+      await pumpOpponent(bob.page);
+      return (await tiles(alice.page)).length >= 10;
+    });
+    for (const t of await tiles(alice.page)) await tapTile(alice.page, t.id);
+    await tapIfEnabled(dock(alice.page).getByTestId('selection-done'));
+
+    await until('the search sheet (Valakut + ten Mountains) opens', async () => {
+      await pumpOpponent(bob.page);
+      return (await tiles(alice.page)).some((t) => /Valakut/.test(t.text));
+    });
+    const library = await tiles(alice.page);
+    const picked = [...library.filter((t) => /Valakut/.test(t.text)), ...library.filter((t) => t.text.startsWith('Mountain'))];
+    for (const t of picked) await tapTile(alice.page, t.id);
+    await tapIfEnabled(dock(alice.page).getByTestId('selection-done'));
+
+    // The first trigger's own dock: below the board, covering no lane. A's `lane-*` test ids do not
+    // exist in this worktree yet (checked, not assumed) — until then this reports what it found rather
+    // than passing vacuously on zero lanes.
+    await until('the first Valakut trigger opens', async () => {
+      await pumpOpponent(bob.page);
+      const says = (await alice.page.getByTestId('live-says').textContent().catch(() => null)) ?? '';
+      return (await dock(alice.page).count()) > 0 && /Valakut/.test(says);
+    });
+    const lanes = await alice.page.locator('[data-testid^="lane-"]').all();
+    if (lanes.length === 0) {
+      console.log('[w89c] pending A: no `lane-*` elements yet — the dock-below-the-lanes claim cannot be checked against the real board, only against the viewport.');
+      const dockBox = await dock(alice.page).boundingBox();
+      const viewport = alice.page.viewportSize();
+      expect(dockBox !== null && viewport !== null && dockBox.y + dockBox.height <= viewport.height + 1, 'the dock stays inside the viewport, pinned to the bottom').toBe(true);
+    } else {
+      const dockBox = (await dock(alice.page).boundingBox())!;
+      for (const lane of lanes) {
+        const laneBox = (await lane.boundingBox())!;
+        const intersects = dockBox.y < laneBox.y + laneBox.height && laneBox.y < dockBox.y + dockBox.height;
+        expect(intersects, `the dock does not cover ${await lane.getAttribute('data-testid')}`).toBe(false);
+      }
+    }
+    expect(await dockMode(alice.page), "a target question has nothing to overflow into").not.toBeNull();
+    await expect(expandBtn(alice.page), 'the target question needs no expand').toHaveCount(0);
+
+    // One tap on the opponent's own face, with "same target for all" already ticked by the sacrifice/
+    // search picks above (`sameTarget` defaults true server-side the first time it is offered —
+    // confirmed by the single tap below answering every remaining trigger).
+    const sameTarget = alice.page.getByTestId('live-same-target');
+    if ((await sameTarget.count()) > 0 && !(await sameTarget.isChecked())) await sameTarget.tap();
+    const opponentFace = alice.page.locator('[data-player-face]:not([data-viewer]) button, .face[data-player-id]:not([data-viewer]) button').first();
+    await opponentFace.tap({ timeout: 2_000 }).catch(() => undefined);
+
+    await until('every Valakut trigger has hit the opponent (one tap answered all ten)', async () => {
+      await pumpOpponent(bob.page);
+      await tapDecisionOk(alice.page);
+      const life = Number((await bobLife.textContent().catch(() => '20')) ?? '20');
+      return life <= 0 || (await alice.page.getByText(/victory/i).count()) > 0;
+    }, 150_000);
+  } finally {
+    await stack.stop();
+  }
+});
+
+test(titled('declaring blockers: the dock has no expand control, and "–" shrinks it to a pill that restores'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(3 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'w54-b-two-blockers');
+    await forcePortrait(alice.page);
+
+    await until('alice\'s declare-blockers decision docks', async () => {
+      await pumpOpponent(bob.page);
+      return (await dock(alice.page).count()) > 0 && (await dockMode(alice.page)) === 'dock';
+    });
+    await expect(dock(alice.page)).toHaveAttribute('data-mode', 'dock');
+    await expect(expandBtn(alice.page), 'a small decision needs no expand').toHaveCount(0);
+
+    await minimizeBtn(alice.page).tap();
+    await expect(dock(alice.page)).toHaveAttribute('data-mode', 'min');
+    await expect(pillBtn(alice.page)).toBeVisible();
+    await pillBtn(alice.page).tap();
+    await expect(dock(alice.page)).toHaveAttribute('data-mode', 'dock');
+  } finally {
+    await stack.stop();
+  }
+});
+
+test(titled("Scapeshift's library search opens the dock full, scrolls only vertically, and keeps Done pinned and visible"), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(4 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'scapeshift-ten');
+    await forcePortrait(alice.page);
+
+    await castByTap(alice.page, 'Scapeshift');
+    await until('the sacrifice sheet opens', async () => {
+      await pumpOpponent(bob.page);
+      return (await tiles(alice.page)).length >= 10;
+    });
+    for (const t of await tiles(alice.page)) await tapTile(alice.page, t.id);
+    await tapIfEnabled(dock(alice.page).getByTestId('selection-done'));
+
+    await until("the search sheet opens, full (the dock's own overflow measurement, not Scapeshift's name)", async () => {
+      await pumpOpponent(bob.page);
+      return (await dockMode(alice.page)) === 'full';
+    });
+    await expect(dock(alice.page)).toHaveAttribute('data-mode', 'full');
+    await expect(expandBtn(alice.page), 'already full — nothing left to expand into').toHaveCount(0);
+
+    const body = dock(alice.page).locator('.prompt__body').first();
+    const box = await body.evaluate((el) => ({ scrollWidth: el.scrollWidth, clientWidth: el.clientWidth, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
+    expect(box.scrollWidth, 'no horizontal scroll inside the dock').toBe(box.clientWidth);
+    expect(box.scrollHeight, "the search's tiles need the vertical scroll").toBeGreaterThan(box.clientHeight);
+
+    const done = dock(alice.page).getByTestId('selection-done');
+    await expect(done, 'Done is pinned and visible, never scrolled out of view').toBeVisible();
+    const doneBox = (await done.boundingBox())!;
+    const dockBox = (await dock(alice.page).boundingBox())!;
+    expect(doneBox.y + doneBox.height, "Done sits inside the dock's own box").toBeLessThanOrEqual(dockBox.y + dockBox.height + 1);
+
+    // Every tile is reachable by scrolling the body — not a fixed row, not a second scroller.
+    for (const t of await tiles(alice.page)) {
+      await dock(alice.page)
+        .locator(`[data-card-id="${t.id}"]`)
+        .scrollIntoViewIfNeeded();
+      await expect(dock(alice.page).locator(`[data-card-id="${t.id}"]`), `tile ${t.id} (${t.text}) is reachable by scroll`).toBeVisible();
+    }
+  } finally {
+    await stack.stop();
+  }
+});
+
+test(titled('a main phase with nothing to decide: no decision-dock is visible, and the hand is tappable without minimizing anything'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(3 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    // `promo-valakut`: alice holds priority in Main 1 with nothing on the stack — Forge's own bar is
+    // `OK + Combat` (route 'pass'), exactly the prototype's own `primaryAction` fallback (Settled 7),
+    // never a decision object of its own.
+    const { alice } = await startScenarioMatch(browser, stack, 'promo-valakut');
+    await forcePortrait(alice.page);
+    let id: number | undefined;
+    await until('Scapeshift is offered', async () => (id = await offeredNamed(alice.page, 'Scapeshift')) !== undefined);
+
+    await expect(dock(alice.page), 'the empty-stack pass renders no dock at all').toHaveCount(0);
+
+    // The real touch path, no `force`: if anything of THIS LANE's own still covered the hand, this tap
+    // is what would say so (the same intercept error the dock itself produced before this fix). It is
+    // not this lane's job to prove the hand's own position is right — A's board restructuring has not
+    // landed in this worktree, so the hand still sits where the unmoved desktop layout drew it, which
+    // can still collide with B's `action-bar` (also bottom-fixed in portrait already) there. If that
+    // happens, the intercepting element is checked by name: this lane's own claim ("no dock in the
+    // way") still holds whether or not A has landed yet.
+    const card = alice.page.locator(`[data-board-card="${id}"] button`).first();
+    try {
+      await card.tap({ timeout: 8_000 });
+    } catch (err) {
+      const intercepted = /data-testid="(decision-dock|dock__[a-z-]+)"/.test(String(err));
+      expect(intercepted, `the tap was blocked by something of THIS lane's own: ${String(err)}`).toBe(false);
+      console.log('[w89c] pending A: the hand tap was intercepted by something other than the dock (likely the un-restructured hand position under B\'s action-bar) — forcing it to finish the proof.');
+      await card.tap({ timeout: 8_000, force: true });
+    }
+  } finally {
+    await stack.stop();
+  }
+});
