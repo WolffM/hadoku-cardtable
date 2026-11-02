@@ -1,0 +1,39 @@
+diff --git a/e2e/w89a-portrait-board.phone.spec.ts b/e2e/w89a-portrait-board.phone.spec.ts
+index dfed7dbd5..06036da26 100644
+--- a/e2e/w89a-portrait-board.phone.spec.ts
++++ b/e2e/w89a-portrait-board.phone.spec.ts
+@@ -228,10 +228,18 @@ test(titled('promo-valakut in portrait: chips, four lanes, card width, no sidewa
+ 
+ /* ── the stack chip opens the stack list (Settled 2) ──────────────────────────────────── */
+ 
++/**
++ * In portrait, C's dock (Settled 6, `movable.tsx`) replaces the per-ask host's OWN testid with
++ * `decision-dock` rather than wrapping it (`e2e/w89c-decision-dock.phone.spec.ts`'s own `dock()`
++ * reads the same contract). Desktop keeps the original ids, so every host locator here tries all
++ * three — nothing else about this file depends on which one actually rendered.
++ */
++const HOST_SELECTOR = '[data-testid="live-selection-host"], [data-testid="live-prompt"], [data-testid="decision-dock"]';
++
+ /** The open sheet's card tiles, and the text each shows — `e2e/w87b-stack.spec.ts`'s own shape, reused. */
+ async function tiles(page: Page): Promise<{ id: number; text: string }[]> {
+   return page
+-    .locator('[data-testid="live-selection-host"], [data-testid="live-prompt"]')
++    .locator(HOST_SELECTOR)
+     .first()
+     .locator('[data-testid="prompt-cards"] > li[data-card-id]')
+     .evaluateAll((els) => els.map((e) => ({ id: Number(e.getAttribute('data-card-id')), text: (e.textContent ?? '').replace(/\s+/g, ' ').trim() })));
+@@ -239,12 +247,12 @@ async function tiles(page: Page): Promise<{ id: number; text: string }[]> {
+ 
+ /** Tick `ids` on the open sheet and submit it — `e2e/w87b-stack.spec.ts`'s own shape, reused. */
+ async function pick(page: Page, ids: readonly number[]): Promise<void> {
+-  const sheet = page.locator('[data-testid="live-selection-host"], [data-testid="live-prompt"]').first();
++  const sheet = page.locator(HOST_SELECTOR).first();
+   for (const id of ids) await sheet.locator(`[data-testid="prompt-cards"] > li[data-card-id="${id}"]`).click({ timeout: 2_000 }).catch(() => undefined);
+   await page.waitForTimeout(400);
+   if (ids.length === 0) return;
+   const ours = page
+-    .locator('[data-testid="live-selection-host"], [data-testid="live-prompt"]')
++    .locator(HOST_SELECTOR)
+     .filter({ has: page.locator(ids.map((id) => `[data-testid="prompt-cards"] > li[data-card-id="${id}"]`).join(', ')) });
+   await ours.locator('[data-testid="selection-done"]:enabled, [data-testid="prompt-submit"]:enabled').first().click({ timeout: 2_000 }).catch(() => undefined);
+ }

@@ -1,0 +1,24 @@
+diff --git a/apps/ui/src/play/live/dock.css b/apps/ui/src/play/live/dock.css
+index 0befac1cf..b00e895ce 100644
+--- a/apps/ui/src/play/live/dock.css
++++ b/apps/ui/src/play/live/dock.css
+@@ -55,9 +55,17 @@
+   padding-bottom: env(safe-area-inset-bottom, 0px);
+ }
+ 
+-/* Docked: a bounded height over the hand and the action bar — never the board (Settled 6). */
++/*
++ * Docked: exactly the hand plus the action bar, never a viewport-fraction guess — A's own
++ * `--portrait-hand-h` (the hand carousel's real height, grown to fit a tall card, `Board.tsx`) and
++ * B's own `--portrait-bar-h` (`live.css`'s own token for the same pair) are the one source either side
++ * sizes against, so the dock covers exactly what it is allowed to and never a board lane above it
++ * (Settled 6 — the manager, 2026-11-02, on the real bug a landed board first made measurable:
++ * `min(46dvh, 380px)` covered `lane-my-permanents` once A's board gave the hand/bar their real, shorter
++ * height).
++ */
+ :root[data-layout="portrait"] .dock[data-mode='dock'] {
+-  height: min(46dvh, 380px);
++  height: calc(var(--portrait-hand-h, 116px) + var(--portrait-bar-h, 52px));
+ }
+ 
+ /*
