@@ -18,6 +18,7 @@ import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 import { LobbyScreen } from '../screens/LobbyScreen.tsx';
+import { clearJoined, isJoined } from './joined.ts';
 import { parseRoute } from '../screens/route.ts';
 import { resetRolePlayerForTests, setRolePlayer } from '../sound/index.ts';
 import { resetMutedForTests, setMuted } from '../sound/mute.ts';
@@ -1218,5 +1219,40 @@ describe('the room list on mount', () => {
     mount(client);
     await screen.findByTestId('rooms-empty');
     expect(screen.queryByTestId('room-create')).toBeNull();
+  });
+});
+
+describe('the client marks the rooms this tab is in (rooms/joined.ts)', () => {
+  const open = room({ id: 'r-open', name: 'Open' });
+  const locked = room({ id: 'r-locked', name: 'Locked', locked: true });
+  beforeEach(() => {
+    for (const id of ['r-new', 'r-open', 'r-locked', 'r-gone']) clearJoined(id);
+  });
+
+  it('a created room is marked before create answers, so the room route never opens unmarked', async () => {
+    const { client } = server([]);
+    const outcome = await client.create({ name: 'Mine', gameType: 'constructed-1v1' } as Parameters<typeof client.create>[0]);
+    expect(outcome.ok).toBe(true);
+    expect(isJoined('r-new')).toBe(true);
+  });
+
+  it('a join that went through is marked; a refused or missing one is not', async () => {
+    const { client } = server([open, locked], { password: 'pw' });
+    expect((await client.join('r-open')).ok).toBe(true);
+    expect(isJoined('r-open')).toBe(true);
+    expect((await client.join('r-locked', 'wrong')).ok).toBe(false);
+    expect(isJoined('r-locked')).toBe(false);
+    expect((await client.join('r-gone')).ok).toBe(false);
+    expect(isJoined('r-gone')).toBe(false);
+  });
+
+  it('leaving clears the mark', async () => {
+    const left = room({ id: 'r-open', name: 'Open' });
+    const fetchImpl: Fetch = async (url) => json(200, url.endsWith('/leave') || url.endsWith('/join') ? left : {});
+    const client = roomsClient(fetchImpl, '/cardtable/api/');
+    await client.join('r-open');
+    expect(isJoined('r-open')).toBe(true);
+    await client.leave('r-open');
+    expect(isJoined('r-open')).toBe(false);
   });
 });

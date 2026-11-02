@@ -54,6 +54,7 @@ import {
 } from '@hadoku/shared';
 
 import { apiBase, appBase, bodyOf, getJson, isRecord, sendJson, serverMessage, type Fetch } from '../http.ts';
+import { clearJoined, markJoined } from './joined.ts';
 
 export type { ClientMode, Fetch, GameType, RoomSettings };
 export type { RoomMember, RoomYou } from '@hadoku/shared';
@@ -437,8 +438,13 @@ export function roomsClient(
       return read(`/of-match/${encodeURIComponent(matchId)}`);
     },
 
-    create(req) {
-      return write('', { name: req.name, ...createRoomFields(req) }, 'Could not create the room');
+    // Every create, join and leave goes through here, so this is where `rooms/joined.ts` learns of
+    // them: a caller that navigates into the room afterwards finds it marked on the room route's
+    // first render, and the chat (App.tsx's gate) never wraps the lobby late and remounts it.
+    async create(req) {
+      const outcome = await write('', { name: req.name, ...createRoomFields(req) }, 'Could not create the room');
+      if (outcome.ok) markJoined(outcome.room.id);
+      return outcome;
     },
 
     async join(roomId, password) {
@@ -454,6 +460,7 @@ export function roomsClient(
       if (!res.ok) return { ok: false, reason: 'error', message: `Could not join: ${serverMessage(body, res.status)}.` };
       const room = parseRoomView(body);
       if (room === null) return { ok: false, reason: 'error', message: 'The server answered the join with something that is not a room.' };
+      markJoined(roomId);
       return { ok: true, room };
     },
 
@@ -461,8 +468,10 @@ export function roomsClient(
       return write(`/${encodeURIComponent(roomId)}/ready`, { ready }, 'Could not change your readiness');
     },
 
-    leave(roomId) {
-      return write(`/${encodeURIComponent(roomId)}/leave`, {}, 'Could not leave the room');
+    async leave(roomId) {
+      const outcome = await write(`/${encodeURIComponent(roomId)}/leave`, {}, 'Could not leave the room');
+      if (outcome.ok) clearJoined(roomId);
+      return outcome;
     },
 
     close(roomId) {

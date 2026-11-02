@@ -21,7 +21,6 @@ import type { EventView } from '@hadoku/shared';
 
 import { Reveal } from '../components/Reveal.tsx';
 import { roomsClient } from '../rooms/api.ts';
-import { markJoined } from '../rooms/joined.ts';
 import { navigate } from '../screens/route.ts';
 import { playRole } from '../sound/index.ts';
 import { countdown } from './countdown.ts';
@@ -176,10 +175,6 @@ function CalendarRow({ event, now }: { event: EventView; now: number }) {
     setBusy(true);
     const joined = await roomsClient().join(id);
     setBusy(false);
-    // Marked before the navigate below, same reason `RoomList.tsx`'s own `enter()` marks it there:
-    // a mark written only after the room route's first render remounts everything `RoomShell`
-    // wraps once it lands.
-    if (joined.ok) markJoined(id);
     // A locked room asks for its password in the room itself.
     if (joined.ok || joined.reason === 'refused') navigate({ kind: 'room', roomId: id });
     else failed(joined.reason === 'error' ? joined.message : 'Too many tries — wait a moment.');
