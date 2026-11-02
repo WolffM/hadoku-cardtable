@@ -39,6 +39,7 @@ import { sortCards } from '../deck/cardOrder.ts';
 import { uiPx } from '../settings/ui-scale.ts';
 import { DeckStyleTag } from './DeckStyleTag.tsx';
 import { TopLayer } from '../topLayer.tsx';
+import { OverPage } from '../components/OverPage.tsx';
 
 /** One line of a list, with what the peek sorts and draws it by. */
 export interface PeekLine {
@@ -310,6 +311,7 @@ export function DeckPeek({
   bounds,
   onPointerEnter,
   onPointerLeave,
+  inPlace = false,
 }: {
   id: string;
   label: string;
@@ -325,6 +327,12 @@ export function DeckPeek({
   bounds: DOMRect;
   onPointerEnter?: PointerEventHandler<HTMLDivElement>;
   onPointerLeave?: PointerEventHandler<HTMLDivElement>;
+  /**
+   * Drawn where it is rendered, not over the page (`../components/OverPage.tsx`): for a peek inside a
+   * layer that already is, the board's moved list or the stats popout's. Placed in the window's
+   * coordinates, a peek drawn inside a fit screen would be offset by it and widen its scroll extent.
+   */
+  inPlace?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const host = useRef<HTMLDivElement>(null);
@@ -370,7 +378,7 @@ export function DeckPeek({
     }
   }, [anchor, bounds]);
 
-  return (
+  const drawn = (
     <div ref={host} className="peek-host">
       <div
         ref={ref}
@@ -422,4 +430,5 @@ export function DeckPeek({
       <TopLayer fixed />
     </div>
   );
+  return inPlace ? drawn : <OverPage>{drawn}</OverPage>;
 }

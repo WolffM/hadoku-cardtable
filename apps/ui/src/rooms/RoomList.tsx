@@ -83,6 +83,7 @@ import { ConstructedIcon, DecksFacingScene, DieIcon, DraftIcon, LockIcon, Person
 import { loadRoomFilters, loadTestingFolded, matchesRoomFilters, orderByMatch, saveRoomFilters, saveTestingFolded, type RoomFilters } from '../front/roomFilters.ts';
 import { mountTips } from '../play/tip/index.ts';
 import { TopLayer } from '../topLayer.tsx';
+import { OverPage } from '../components/OverPage.tsx';
 import './rooms.css';
 import { uiLength } from '../settings/ui-scale.ts';
 
@@ -803,59 +804,61 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
   }, [onClose]);
 
   return (
-    <div
-      className="rooms__backdrop"
-      data-testid="room-create-backdrop"
-      onPointerDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <form
-        className="rooms__create ct-surface ct-panel"
-        data-testid="room-create"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="room-create-title"
-        // Firefox's form history obeys "off" only on the form (FormHistoryChild.sys.mjs), so past
-        // room names are never offered; the name's own token below keeps the password manager off.
-        autoComplete="off"
-        onSubmit={(e) => void submit(e)}
+    <OverPage>
+      <div
+        className="rooms__backdrop"
+        data-testid="room-create-backdrop"
+        onPointerDown={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
       >
-        <div className="rooms__create-head">
-          <h3 id="room-create-title">Create a room</h3>
-          <button type="button" className="rooms__create-close" aria-label="Close" data-testid="room-create-close" onClick={onClose}>
-            <Icon name="close" size={uiLength('1rem')} />
+        <form
+          className="rooms__create ct-surface ct-panel"
+          data-testid="room-create"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="room-create-title"
+          // Firefox's form history obeys "off" only on the form (FormHistoryChild.sys.mjs), so past
+          // room names are never offered; the name's own token below keeps the password manager off.
+          autoComplete="off"
+          onSubmit={(e) => void submit(e)}
+        >
+          <div className="rooms__create-head">
+            <h3 id="room-create-title">Create a room</h3>
+            <button type="button" className="rooms__create-close" aria-label="Close" data-testid="room-create-close" onClick={onClose}>
+              <Icon name="close" size={uiLength('1rem')} />
+            </button>
+          </div>
+
+          <label htmlFor="room-create-name">Name</label>
+          <input
+            id="room-create-name"
+            data-testid="room-create-name"
+            value={name}
+            maxLength={ROOM_NAME_MAX}
+            placeholder="Friday night"
+            // Firefox counts a text field before a password field as the username when its token is
+            // empty, on, off, username, email or tel (LoginManager.shared.sys.mjs); any other opts it out.
+            autoComplete="nickname"
+            autoFocus
+            onChange={(e) => {
+              setName(e.target.value);
+              setError(null);
+            }}
+          />
+
+          <RoomFields idPrefix="room-create" value={fields} onChange={setFields} />
+          <button type="submit" className="lobby__go" data-testid="room-create-submit" disabled={busy}>
+            Create room
           </button>
-        </div>
 
-        <label htmlFor="room-create-name">Name</label>
-        <input
-          id="room-create-name"
-          data-testid="room-create-name"
-          value={name}
-          maxLength={ROOM_NAME_MAX}
-          placeholder="Friday night"
-          // Firefox counts a text field before a password field as the username when its token is
-          // empty, on, off, username, email or tel (LoginManager.shared.sys.mjs); any other opts it out.
-          autoComplete="nickname"
-          autoFocus
-          onChange={(e) => {
-            setName(e.target.value);
-            setError(null);
-          }}
-        />
-
-        <RoomFields idPrefix="room-create" value={fields} onChange={setFields} />
-        <button type="submit" className="lobby__go" data-testid="room-create-submit" disabled={busy}>
-          Create room
-        </button>
-
-        {error !== null && (
-          <p className="ct-error rooms__error" role="alert" data-testid="room-create-error">
-            {error}
-          </p>
-        )}
-      </form>
-    </div>
+          {error !== null && (
+            <p className="ct-error rooms__error" role="alert" data-testid="room-create-error">
+              {error}
+            </p>
+          )}
+        </form>
+      </div>
+    </OverPage>
   );
 }

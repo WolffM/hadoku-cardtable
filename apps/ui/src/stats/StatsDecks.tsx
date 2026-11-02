@@ -218,6 +218,8 @@ export function DeckPeekHost({ lookup, ownDecks, children }: { lookup: DeckLooku
           bounds={open.bounds}
           onPointerEnter={hover.hold}
           onPointerLeave={hover.closeSoon}
+          // Inside the stats popout, itself drawn over the page: the peek stays in its layer, above it.
+          inPlace
         />
       )}
     </DeckHoverContext.Provider>

@@ -10,6 +10,7 @@ import { Icon } from '@wolffm/themes';
 
 import { useDismiss } from '../popover.ts';
 import { uiLength } from '../settings/ui-scale.ts';
+import { OverPage } from './OverPage.tsx';
 import './Popover.css';
 
 /** The gap between the popover and what opened it, and its distance from the viewport's edges. */
@@ -61,18 +62,21 @@ export function Popover({ trigger, onClose, title, testId, children }: PopoverPr
   useDismiss(onClose, useCallback((target: Node) => ref.current?.contains(target) !== false || trigger.contains(target), [trigger]));
   useEffect(() => ref.current?.focus(), []);
 
+  // Placed in the window's coordinates, so drawn over the page, not inside the screen with its trigger.
   return (
-    <div ref={ref} className="ct-popover ct-surface ct-panel" role="dialog" aria-labelledby={titleId} data-testid={testId} tabIndex={-1} style={placement}>
-      <div className="ct-popover__head">
-        <h2 id={titleId} className="ct-popover__title ct-panel__title">
-          {title}
-        </h2>
-        <button type="button" className="ct-popover__close" aria-label={`Close ${title.toLowerCase()}`} data-testid={`${testId}-close`} onClick={onClose}>
-          <Icon name="close" size={uiLength('1rem')} />
-        </button>
+    <OverPage>
+      <div ref={ref} className="ct-popover ct-surface ct-panel" role="dialog" aria-labelledby={titleId} data-testid={testId} tabIndex={-1} style={placement}>
+        <div className="ct-popover__head">
+          <h2 id={titleId} className="ct-popover__title ct-panel__title">
+            {title}
+          </h2>
+          <button type="button" className="ct-popover__close" aria-label={`Close ${title.toLowerCase()}`} data-testid={`${testId}-close`} onClick={onClose}>
+            <Icon name="close" size={uiLength('1rem')} />
+          </button>
+        </div>
+        {children}
       </div>
-      {children}
-    </div>
+    </OverPage>
   );
 }
 

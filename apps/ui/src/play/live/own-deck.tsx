@@ -45,5 +45,5 @@ export function OwnDeckPeek({ deck, from, onClose }: { deck: OwnDeck; from: Elem
   // The count's own press toggles, so a press on it is left to its click.
   useDismiss(onClose, useCallback((target: Node) => from.contains(target) || documentScope().getElementById('own-deck')?.contains(target) === true, [from]));
 
-  return <DeckPeek id="own-deck" label={deck.name} name={deck.name || undefined} colors={colors} list={list} anchor={anchor} bounds={bounds} />;
+  return <DeckPeek id="own-deck" label={deck.name} name={deck.name || undefined} colors={colors} list={list} anchor={anchor} bounds={bounds} inPlace />;
 }

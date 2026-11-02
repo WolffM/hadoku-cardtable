@@ -46,7 +46,8 @@ const nextMutation = (el: HTMLElement, done: () => boolean): Promise<void> =>
   });
 
 const tileOf = (value: string): HTMLElement | null => host!.querySelector<HTMLElement>(`[data-deck-id="${value}"]`);
-const peekTitle = (): string | null | undefined => host!.querySelector('[data-testid="deck-peek"] .peek__title')?.textContent;
+// Drawn over the page (`../components/OverPage.tsx`), not inside the grid's host.
+const peekTitle = (): string | null | undefined => document.querySelector('[data-testid="deck-peek"] .peek__title')?.textContent;
 const advance = async (ms: number): Promise<void> => {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(ms);

@@ -53,6 +53,7 @@ import { createGameStatsClient, GameStatsError, type GameStatsClient } from '@wo
 import { ManaPip } from '../components/ManaPip.tsx';
 import type { DeckRecords } from './deckOrder.ts';
 import { DeckPeekHost, DeckStatsFilterBar, deckLookup, decksSpec, NO_STATS_FILTER, StatsDeckName, type DeckLookup, type DeckStatsFilter } from './StatsDecks.tsx';
+import { OverPage } from '../components/OverPage.tsx';
 import { navigate, routeHash } from '../screens/route.ts';
 import { Tournaments } from './Tournaments.tsx';
 import './stats.css';
@@ -226,58 +227,60 @@ export function StatsPopout({ player, tournaments = false, source = sharedSource
   }, []);
 
   return (
-    // A press on the backdrop itself, not on the panel, closes it.
-    <div className="ct-stats-popout__backdrop" onPointerDown={(event) => event.target === event.currentTarget && close()}>
-      <div ref={ref} className="ct-stats-popout ct-surface ct-panel" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} data-testid="stats">
-        <header className="ct-stats-popout__head">
-          <h1 id={titleId} className="ct-stats-popout__title ct-panel__title">
-            {player ?? 'Stats'}
-          </h1>
-          {player !== undefined && (
-            <a className="shell__link" href={routeHash({ kind: 'stats' })} data-testid="stats-mine">
-              Mine
+    <OverPage>
+      // A press on the backdrop itself, not on the panel, closes it.
+      <div className="ct-stats-popout__backdrop" onPointerDown={(event) => event.target === event.currentTarget && close()}>
+        <div ref={ref} className="ct-stats-popout ct-surface ct-panel" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} data-testid="stats">
+          <header className="ct-stats-popout__head">
+            <h1 id={titleId} className="ct-stats-popout__title ct-panel__title">
+              {player ?? 'Stats'}
+            </h1>
+            {player !== undefined && (
+              <a className="shell__link" href={routeHash({ kind: 'stats' })} data-testid="stats-mine">
+                Mine
+              </a>
+            )}
+            {player === undefined && (
+              <nav className="ct-stats-popout__tabs">
+                <a className="ct-stats-popout__tab" href={routeHash({ kind: 'stats' })} aria-current={tournaments ? undefined : 'page'} data-testid="stats-tab-players">
+                  Players
+                </a>
+                <a
+                  className="ct-stats-popout__tab"
+                  href={routeHash({ kind: 'stats', tournaments: true })}
+                  aria-current={tournaments ? 'page' : undefined}
+                  data-testid="stats-tab-tournaments"
+                >
+                  Tournaments
+                </a>
+              </nav>
+            )}
+            <a className="ct-stats-popout__close" href={routeHash({ kind: 'lobby' })} aria-label="Close stats" data-testid="stats-close">
+              <Icon name="close" size={uiLength('1rem')} />
             </a>
+          </header>
+          {tournaments ? (
+            <Tournaments />
+          ) : (
+            <DeckPeekHost lookup={lookup} ownDecks={player === undefined}>
+              <GameStats
+                key={player ?? ''}
+                client={source.client}
+                cache={source.cache}
+                mode={STATS_MODE}
+                ratedOnly
+                player={player}
+                seatAttrs={['colors', 'deck']}
+                matchCounters={['turns']}
+                counterLabels={{ turns: 'Turns' }}
+                breakdowns={breakdowns}
+                renderAttr={renderAttr}
+                renderName={renderName}
+              />
+            </DeckPeekHost>
           )}
-          {player === undefined && (
-            <nav className="ct-stats-popout__tabs">
-              <a className="ct-stats-popout__tab" href={routeHash({ kind: 'stats' })} aria-current={tournaments ? undefined : 'page'} data-testid="stats-tab-players">
-                Players
-              </a>
-              <a
-                className="ct-stats-popout__tab"
-                href={routeHash({ kind: 'stats', tournaments: true })}
-                aria-current={tournaments ? 'page' : undefined}
-                data-testid="stats-tab-tournaments"
-              >
-                Tournaments
-              </a>
-            </nav>
-          )}
-          <a className="ct-stats-popout__close" href={routeHash({ kind: 'lobby' })} aria-label="Close stats" data-testid="stats-close">
-            <Icon name="close" size={uiLength('1rem')} />
-          </a>
-        </header>
-        {tournaments ? (
-          <Tournaments />
-        ) : (
-          <DeckPeekHost lookup={lookup} ownDecks={player === undefined}>
-            <GameStats
-              key={player ?? ''}
-              client={source.client}
-              cache={source.cache}
-              mode={STATS_MODE}
-              ratedOnly
-              player={player}
-              seatAttrs={['colors', 'deck']}
-              matchCounters={['turns']}
-              counterLabels={{ turns: 'Turns' }}
-              breakdowns={breakdowns}
-              renderAttr={renderAttr}
-              renderName={renderName}
-            />
-          </DeckPeekHost>
-        )}
+        </div>
       </div>
-    </div>
+    </OverPage>
   );
 }

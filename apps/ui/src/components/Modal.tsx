@@ -3,16 +3,14 @@
  * Escape, its close button and a press on the backdrop close it. Its `actions`, when it has any, sit
  * along its foot, the affirmative last (bottom right).
  *
- * It portals into the app's chrome root: `.shell` carries `contain: layout` (`../screens/screens.css`),
- * which makes it the containing block for `position: fixed`, so a modal drawn inside it covered only
- * the shell — under the header and past the window's foot. The chrome root still carries the theme.
+ * It is drawn over the page (`./OverPage.tsx`), never inside the screen that opened it.
  */
 
 import { useEffect, useId, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import { Icon } from '@wolffm/themes';
 
 import { uiLength } from '../settings/ui-scale.ts';
+import { OverPage } from './OverPage.tsx';
 import './Modal.css';
 
 export function Modal({
@@ -40,26 +38,26 @@ export function Modal({
     return () => globalThis.document?.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const drawn = (
-    <div
-      className="ct-modal"
-      data-testid={`${testId}-backdrop`}
-      onPointerDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="ct-modal__panel ct-surface ct-panel" data-wide={wide || undefined} data-testid={testId} role="dialog" aria-modal="true" aria-labelledby={titleId}>
-        <div className="ct-modal__head">
-          <h3 id={titleId}>{title}</h3>
-          <button type="button" className="ct-modal__close" aria-label="Close" data-testid={`${testId}-close`} onClick={onClose}>
-            <Icon name="close" size={uiLength('1rem')} />
-          </button>
+  return (
+    <OverPage>
+      <div
+        className="ct-modal"
+        data-testid={`${testId}-backdrop`}
+        onPointerDown={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
+      >
+        <div className="ct-modal__panel ct-surface ct-panel" data-wide={wide || undefined} data-testid={testId} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+          <div className="ct-modal__head">
+            <h3 id={titleId}>{title}</h3>
+            <button type="button" className="ct-modal__close" aria-label="Close" data-testid={`${testId}-close`} onClick={onClose}>
+              <Icon name="close" size={uiLength('1rem')} />
+            </button>
+          </div>
+          {children}
+          {actions !== undefined && <div className="ct-modal__actions">{actions}</div>}
         </div>
-        {children}
-        {actions !== undefined && <div className="ct-modal__actions">{actions}</div>}
       </div>
-    </div>
+    </OverPage>
   );
-  const host = globalThis.document?.querySelector('.cardtable-chrome') ?? globalThis.document?.body;
-  return host === undefined ? drawn : createPortal(drawn, host);
 }
