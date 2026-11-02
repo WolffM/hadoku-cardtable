@@ -1356,8 +1356,17 @@ describe('Leave is deleted (item 5); Concede is the cluster’s only own control
       'live__logbook',
       // Our own settings gear: no host draws the settings here, as inside a watchparty room.
       'ct-round-button live__settings',
-      'live__log-button',
-      'live__buttons',
+      // Wave 89 §B: `live__log-button` and `live__buttons` are the same two
+      // elements as before, one level deeper now — `live__menu-items` wraps
+      // them so portrait can re-lay them into `action-menu`'s popover. It is
+      // `display: contents` outside portrait, so this wrapper changes no
+      // desktop box (`e2e/table-fit.spec.ts` still reads `live-buttons`'s own
+      // box straight through it).
+      'live__menu-items',
+      // Portrait-only (`display: none` on desktop); drawn here too because it
+      // is a watcher-free sibling of the board like everything else in this
+      // list.
+      'action-bar',
       'live__prompt',
     ]);
     expect(bar.querySelectorAll('button')).toHaveLength(3);
@@ -1439,6 +1448,133 @@ function declarations(css: string, selector: string): string {
   }
   throw new Error(`live.css has no rule for ${selector}`);
 }
+
+/*
+ * Wave 89 §B — the portrait action bar (Settled 7) and its menu. jsdom lays
+ * nothing out (see the §C.1 comment just below), so this is the state
+ * machine only: which attribute each press sets, which element it opens or
+ * closes, and that `action-primary` sends exactly what the decision pop-up's
+ * own OK does — never a second sender. Geometry is `e2e/w89b-*.phone.spec.ts`'s.
+ */
+describe('wave 89 §B — the action bar', () => {
+  afterEach(() => {
+    delete document.documentElement.dataset.chatSheet;
+  });
+
+  /** Forge's bar, as a `showPromptMessage` + `updateButtons` pair — the same shape `buttonFrames` wherever it is locally defined builds, repeated here because it is a per-`describe` helper in this file, not a module-level one. */
+  function buttonFrames(message: string, label1: string, label2: string) {
+    return [
+      { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: null },
+      {
+        kind: 'notify',
+        method: 'updateButtons',
+        owner: { kind: 'player', id: 0 },
+        label1,
+        label2,
+        enable1: true,
+        enable2: true,
+        focus1: true,
+      },
+    ].map((r) => parseServerFrame(r));
+  }
+
+  it('action-chat toggles aria-expanded and document.documentElement’s data-chat-sheet', async () => {
+    const { getByTestId } = await liveBoard();
+    const chat = getByTestId('action-chat');
+    expect(chat.getAttribute('aria-expanded')).toBe('false');
+    expect(document.documentElement.dataset.chatSheet).toBeUndefined();
+
+    fireEvent.click(chat);
+    expect(chat.getAttribute('aria-expanded')).toBe('true');
+    expect(document.documentElement.dataset.chatSheet).toBe('open');
+
+    fireEvent.click(chat);
+    expect(chat.getAttribute('aria-expanded')).toBe('false');
+    expect(document.documentElement.dataset.chatSheet).toBeUndefined();
+  });
+
+  it('clears data-chat-sheet on unmount, so leaving a match never leaves the sheet open for the next screen', async () => {
+    const { getByTestId, unmount } = await liveBoard();
+    fireEvent.click(getByTestId('action-chat'));
+    expect(document.documentElement.dataset.chatSheet).toBe('open');
+    unmount();
+    expect(document.documentElement.dataset.chatSheet).toBeUndefined();
+  });
+
+  it('action-menu opens live__menu-items (the same log toggle and cluster, one wrapper deeper) and closes on Escape or an outside press', async () => {
+    const { container, getByTestId } = await liveBoard();
+    const menuToggle = getByTestId('action-menu');
+    const items = container.querySelector('.live__menu-items')!;
+    expect(items.getAttribute('data-open')).toBeNull();
+    // Re-laid, not copied: the exact same elements end up inside it.
+    expect(items.contains(getByTestId('live-log-toggle'))).toBe(true);
+    expect(items.contains(getByTestId('live-buttons'))).toBe(true);
+
+    fireEvent.click(menuToggle);
+    expect(menuToggle.getAttribute('aria-expanded')).toBe('true');
+    expect(items.getAttribute('data-open')).toBe('');
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(items.getAttribute('data-open')).toBeNull();
+
+    fireEvent.click(menuToggle);
+    expect(items.getAttribute('data-open')).toBe('');
+    fireEvent.pointerDown(document.body);
+    expect(items.getAttribute('data-open')).toBeNull();
+  });
+
+  it('zoom-pill reads lane A’s cardtable:zoom event and asks for a reset the same way, rather than importing a file that may not exist yet', async () => {
+    const { getByTestId } = await liveBoard();
+    const pill = getByTestId('zoom-pill') as HTMLButtonElement;
+    expect(pill.textContent).toBe('100%');
+    expect(pill.disabled, 'nothing to reset at 1×').toBe(true);
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent('cardtable:zoom', { detail: { zoom: 1.7 } }));
+    });
+    expect(pill.textContent).toBe('170%');
+    expect(pill.disabled).toBe(false);
+
+    const resets: Event[] = [];
+    const onReset = (e: Event) => resets.push(e);
+    window.addEventListener('cardtable:zoom-reset', onReset);
+    onTestFinished(() => window.removeEventListener('cardtable:zoom-reset', onReset));
+    fireEvent.click(pill);
+    expect(resets).toHaveLength(1);
+  });
+
+  it('a malformed cardtable:zoom event (no numeric detail.zoom) is ignored rather than throwing', async () => {
+    const { getByTestId } = await liveBoard();
+    const pill = getByTestId('zoom-pill');
+    expect(() =>
+      act(() => {
+        window.dispatchEvent(new CustomEvent('cardtable:zoom', { detail: {} }));
+      }),
+    ).not.toThrow();
+    expect(pill.textContent).toBe('100%');
+  });
+
+  it('action-primary mirrors the decision pop-up’s own OK — same label, same sender, never a second one', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    const primary = getByTestId('action-primary') as HTMLButtonElement;
+    // Nothing to decide yet: disabled, same as End Turn and the cluster are.
+    expect(primary.disabled).toBe(true);
+    expect(queryByTestId('live-decision')).toBeNull();
+
+    s.send(stackDelta(m));
+    await untilMatch(m, () => expect(m.view!.stack).toHaveLength(0));
+    for (const f of buttonFrames('Priority', 'OK', 'End Turn')) s.send(f);
+    const decisionOk = await waitFor(() => getByTestId('live-decision-ok'));
+
+    expect(primary.disabled).toBe(false);
+    expect(primary.textContent).toBe(decisionOk.textContent);
+
+    const before = m.stats.replies;
+    fireEvent.click(primary);
+    await untilMatch(m, () => expect(m.stats.replies).toBe(before + 1));
+    expect(s.clientFrames().some((f) => f.ok && f.value.kind === 'act' && f.value.method === 'selectButtonOk')).toBe(true);
+  });
+});
 
 /*
  * §C.1 — the control bar stops being a bar.
@@ -1797,6 +1933,48 @@ describe('the phase reads down the side', () => {
     expect(css(rail, 'overflow')).toBe('hidden');
   });
 
+  /*
+   * Wave 89 §B: the portrait phase bar's 5 segments (Settled 2), drawn beside
+   * the desktop column this describe block is otherwise about — same
+   * `.live__phases`, same data, `./phase-segments.ts`'s pure function
+   * (`phase-segments.test.ts` covers that function's own cases; this is only
+   * that `PhaseRail` wires it up and renders it).
+   */
+  it('also draws .live__segments — 5 of them, Begin through End — off the same view', async () => {
+    const { container } = await liveBoard();
+    const segments = [...container.querySelectorAll<HTMLElement>('.live__segment')];
+    expect(segments.map((el) => el.dataset.group)).toEqual(['begin', 'main1', 'combat', 'main2', 'end']);
+    // The fixture's view is on MAIN1 (asserted above): that segment alone is current, and shows the
+    // step's own name rather than the segment's generic one.
+    const current = segments.filter((el) => el.hasAttribute('data-current'));
+    expect(current).toHaveLength(1);
+    expect(current[0]!.dataset.group).toBe('main1');
+    expect(current[0]!.querySelector('.live__segment-name')!.textContent).toBe('Main 1');
+    // Main 1 has one step, so no tick row — ticks are only for a segment with more than one.
+    expect(current[0]!.querySelector('[data-testid="live-phase-ticks"]')).toBeNull();
+    // The uncurrent segments show their own generic label (Settled 2's words), not a step name.
+    expect(segments.filter((el) => !el.hasAttribute('data-current')).map((el) => el.querySelector('.live__segment-name')!.textContent)).toEqual([
+      'Begin',
+      'Combat',
+      'Main 2',
+      'End',
+    ]);
+  });
+
+  it('shows ticks for the current segment’s sub-steps once the game is in combat', async () => {
+    const { s, m, container } = await liveBoard();
+    const me = m.view!.players.find((p) => p.isViewer)!.id;
+    s.send(phaseDelta(m, 'COMBAT_DECLARE_ATTACKERS', me));
+    await untilMatch(m, () => expect(m.view!.phase).toBe('COMBAT_DECLARE_ATTACKERS'));
+    const combat = container.querySelector<HTMLElement>('.live__segment[data-group="combat"]')!;
+    expect(combat.hasAttribute('data-current')).toBe(true);
+    const ticks = [...combat.querySelectorAll('.live__segment-tick')];
+    expect(ticks).toHaveLength(6);
+    expect(ticks.filter((t) => t.hasAttribute('data-current'))).toHaveLength(1);
+    // The 2nd of combat's 6 steps (COMBAT_BEGIN, then COMBAT_DECLARE_ATTACKERS).
+    expect(ticks.findIndex((t) => t.hasAttribute('data-current'))).toBe(1);
+    expect(ticks.filter((t) => t.hasAttribute('data-done'))).toHaveLength(1);
+  });
 });
 
 /*
@@ -1831,8 +2009,10 @@ describe('a prompt belongs where the player is looking', () => {
       'live__logbook',
       // Our own settings gear: no host draws the settings here, as inside a watchparty room.
       'ct-round-button live__settings',
-      'live__log-button',
-      'live__buttons',
+      // Wave 89 §B: see the other `standingChildren` assertion's own note —
+      // same two elements, one wrapper deeper, plus the new portrait-only bar.
+      'live__menu-items',
+      'action-bar',
       'live__prompt',
     ]);
     expect(container.querySelector('.board')!.contains(getByTestId('live-prompt'))).toBe(false);

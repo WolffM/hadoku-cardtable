@@ -118,6 +118,27 @@ describe('the viewer\'s tier', () => {
   });
 });
 
+/*
+ * Wave 89 §B: the portrait chat-sheet CSS in `live.css` keys off `data-collapsible` on
+ * `.room-shell`, this component's own wrapper — not off the `collapsible` prop itself, which
+ * `RoomChrome` reads but a stylesheet in another file cannot see. Present only when `collapsible`
+ * is true (a match route), absent for the room lobby (`collapsible={false}`), so Settled 10 ("the
+ * room lobby is unchanged") holds without this file knowing what route it is.
+ */
+describe('the portrait chat-sheet attribute (wave 89 §B)', () => {
+  it('carries data-collapsible when collapsible (the default, a match route)', async () => {
+    render(createElement(RoomShell, { roomId: 'm-test', children: createElement('div', null, 'content') }));
+    await waitFor(() => screen.getByTestId('room-chrome'));
+    expect(screen.getByTestId('room-shell').dataset.collapsible).toBe('');
+  });
+
+  it('carries no data-collapsible when collapsible is false (the room lobby)', async () => {
+    render(createElement(RoomShell, { roomId: 'm-test', collapsible: false, children: createElement('div', null, 'content') }));
+    await waitFor(() => screen.getByTestId('room-chrome'));
+    expect(screen.getByTestId('room-shell').dataset.collapsible).toBeUndefined();
+  });
+});
+
 describe('the room key for a pod or match', () => {
   it('prefixes ids watchparty will accept without provisioning', () => {
     expect(roomKeyFor('m-090bf01ba811')).toBe('cardtable-m-090bf01ba811');

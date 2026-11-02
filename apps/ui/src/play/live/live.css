@@ -1750,3 +1750,305 @@
     animation-name: turn-cue-still;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+ * Wave 89 §B — portrait match chrome
+ * (Settled 1–9, `docs/planning/wave89-2026-11-01.md`)
+ *
+ * Everything below is scoped to `:root[data-layout="portrait"]` (lane A's
+ * `portrait.ts` switch, Settled 1: ≤600 CSS px wide and taller than wide) and
+ * changes nothing outside that guard — every rule above this line keeps
+ * governing the desktop board exactly as it did before this wave. The one
+ * unguarded rule is `.live__menu-items`'s own `display: contents` default,
+ * just below: it gives that wrapper no box of its own on desktop (so
+ * `e2e/table-fit.spec.ts` still reads `live-buttons`'s box straight through
+ * it, unchanged), and only the guarded rule further down gives it a real one.
+ *
+ * Three custom properties this section reads are NOT this lane's to define,
+ * and two of them are not landed as of this writing — each has a fallback so
+ * this file degrades sanely either way, and each is named in this lane's
+ * closing report for the manager to reconcile once the other lane's file is
+ * real:
+ *   --portrait-phase-h  lane A's, Settled: 30px, the row A reserves in its
+ *                        top band for `.live__segments` below. The fallback
+ *                        here is the same 30px, so this works whether or not
+ *                        A's declaration has landed yet.
+ *   --portrait-hud-h    ASSUMED: lane A's top band height (so this lane's
+ *                        phase bar starts right after it, not under A's
+ *                        chips). Not in the wave's contract table; fallback
+ *                        56px is a guess at a chip row's height, to be
+ *                        corrected once A's HUD is real and measured.
+ *   --portrait-hand-h   ASSUMED: lane A's hand row height, so the action bar
+ *                        sits directly above it (Settled 7) rather than
+ *                        guessing a page-relative offset. Not in the wave's
+ *                        contract table either; fallback 110px.
+ */
+
+.live__menu-items {
+  display: contents;
+}
+
+.action-bar {
+  display: none;
+}
+
+/* ── The phase bar: 5 segments, Settled 2 ("Begin, Main, Combat, Main 2, End") ── */
+
+:root[data-layout='portrait'] .live__phases {
+  position: absolute;
+  z-index: var(--z-overlay, 20);
+  top: var(--portrait-hud-h, 56px);
+  left: 0;
+  right: 0;
+  width: auto;
+  height: var(--portrait-phase-h, 30px);
+  max-height: var(--portrait-phase-h, 30px);
+}
+
+/* The desktop 8-to-13-row column is still in the DOM (same `PhaseRail`, same
+   data — Settled 9: no copied render path) but portrait never lays it out. */
+:root[data-layout='portrait'] .live__steps {
+  display: none;
+}
+
+:root[data-layout='portrait'] .live__segments {
+  display: flex;
+  align-items: stretch;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0 4px;
+  gap: 2px;
+  list-style: none;
+}
+
+:root[data-layout='portrait'] .live__segment {
+  box-sizing: border-box;
+  display: flex;
+  flex: 1 1 0;
+  min-width: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--bg-card);
+  color: var(--ink-dim);
+  font-size: 10px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+/* The current segment widens to show its own step name (Settled 2). */
+:root[data-layout='portrait'] .live__segment[data-current] {
+  flex: 1.6 1 0;
+  background: var(--bg-raised);
+  color: var(--accent-ink);
+  font-weight: 600;
+  border: 1px solid var(--accent);
+}
+
+:root[data-layout='portrait'] .live__segment-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Ticks for the current segment's sub-steps (Settled 2). */
+:root[data-layout='portrait'] .live__segment-ticks {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+
+:root[data-layout='portrait'] .live__segment-tick {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 35%, transparent);
+}
+
+:root[data-layout='portrait'] .live__segment-tick[data-done],
+:root[data-layout='portrait'] .live__segment-tick[data-current] {
+  background: currentColor;
+}
+
+/* ── The desktop cluster, re-laid into `action-menu`'s popover (Settled 7) ── */
+
+:root[data-layout='portrait'] .live__log-button,
+:root[data-layout='portrait'] .live__buttons {
+  position: static;
+  top: auto;
+  right: auto;
+  z-index: auto;
+}
+
+:root[data-layout='portrait'] .live__menu-items {
+  display: none;
+}
+
+/* `action-menu` (the action bar's own toggle) opens this, directly above
+   itself — Settled 7's "Game log, End turn, Full control, Concede" in that
+   order, which is the order these two elements are already written in
+   `LiveBoard.tsx`. */
+:root[data-layout='portrait'] .live__menu-items[data-open] {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: fixed;
+  z-index: var(--z-overlay, 30);
+  right: 8px;
+  bottom: calc(var(--portrait-hand-h, 110px) + 56px);
+  width: 170px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  box-shadow: 0 4px 16px var(--shadow);
+}
+
+:root[data-layout='portrait'] .live__menu-items[data-open] .live__buttons {
+  display: flex;
+  flex-direction: column;
+  width: auto;
+  height: auto;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+:root[data-layout='portrait'] .live__menu-items[data-open] .live__buttons button,
+:root[data-layout='portrait'] .live__menu-items[data-open] .live__log-button {
+  width: 100%;
+  min-height: 44px;
+  font-size: 13px;
+}
+
+:root[data-layout='portrait'] .live__menu-items[data-open] .live__log-button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 10px;
+}
+
+:root[data-layout='portrait'] .live__menu-items[data-open] .live__log-button::after {
+  content: 'Game log';
+}
+
+/* ── The action bar itself: chat, menu, zoom, primary (Settled 7) ─────── */
+
+:root[data-layout='portrait'] .action-bar {
+  display: flex;
+  align-items: stretch;
+  box-sizing: border-box;
+  gap: 6px;
+  position: fixed;
+  z-index: var(--z-overlay, 20);
+  left: 0;
+  right: 0;
+  bottom: var(--portrait-hand-h, 110px);
+  height: 48px;
+  padding: 4px 8px;
+  background: color-mix(in srgb, var(--bg-raised) 92%, transparent);
+  border-top: 1px solid var(--line);
+}
+
+:root[data-layout='portrait'] .action-bar button {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+:root[data-layout='portrait'] .action-bar button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+:root[data-layout='portrait'] .action-bar__chat {
+  position: relative;
+  flex: none;
+}
+
+:root[data-layout='portrait'] .action-bar__badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--danger, var(--warn));
+  color: var(--on-accent, white);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+
+:root[data-layout='portrait'] .action-bar__menu-toggle[aria-expanded='true'],
+:root[data-layout='portrait'] .action-bar__chat[aria-expanded='true'] {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+:root[data-layout='portrait'] .action-bar__zoom {
+  flex: none;
+  min-width: 48px;
+  font-size: 11px;
+}
+
+:root[data-layout='portrait'] .action-bar__primary {
+  flex: 1 1 0;
+  font-weight: 600;
+}
+
+/* ── The room's chat column, as a sheet (Settled 7 §B.3) ──────────────── */
+
+/*
+ * `.wp-room-chrome-frame > aside.wp-room-chrome` is `@wolffm/watchparty-ui`'s
+ * own structure (verified against the installed `room-chrome.js`, 0.45.13 —
+ * not a published API, so a future bump could rename it; `RoomShell.test.ts`
+ * has no equivalent check because the package is mocked there). Scoped to
+ * `.room-shell[data-collapsible]` — RoomShell.tsx's own wrapper, set only when
+ * `collapsible` is true, i.e. a match route, never the room lobby (Settled
+ * 10, "the room lobby is unchanged": the lobby's `RoomShell` carries no
+ * `data-collapsible` at all, so none of this ever applies there).
+ */
+:root[data-layout='portrait'] .room-shell[data-collapsible] .wp-room-chrome-frame > .wp-room-chrome {
+  display: none;
+}
+
+/*
+ * `data-chat-sheet` lives on `<html>` (`LiveBoard.tsx`'s effect sets it on
+ * `document.documentElement`, the same element `data-layout` is on), never on
+ * `.room-shell` — so the two attributes are two separate selector STEPS, not
+ * one element carrying both. Writing `.room-shell[data-collapsible][data-chat-sheet='open']`
+ * here instead (as this rule briefly did) matches no element at all, since no
+ * single element in the tree has both: a found-and-fixed-before-commit bug,
+ * caught by `e2e/w89b-action-bar.phone.spec.ts`'s own chat-sheet test against
+ * real Forge, not by reading the selector.
+ */
+:root[data-layout='portrait'][data-chat-sheet='open'] .room-shell[data-collapsible] .wp-room-chrome-frame > .wp-room-chrome {
+  display: flex;
+  position: fixed;
+  z-index: var(--z-popover, 40);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: 30%;
+  width: 100% !important;
+  height: 70%;
+  box-shadow: 0 -4px 16px var(--shadow);
+}
