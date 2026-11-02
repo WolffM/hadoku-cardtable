@@ -255,14 +255,52 @@ function avatarIdOf(v: unknown): string | undefined {
 }
 
 /**
- * The characters a room hands out to a member who has not picked one, in the
- * order it hands them out: watchparty's `CHARACTER_ORDER`
- * (`hadoku-watchparty` `packages/shared/src/protocol.ts`), which its server
- * draws from on join (`apps/server/src/ws/join.ts`). Copied because that
- * package is private to their repo; `docs/requests/ROOMS_AVATAR_POOL.md` asks
- * for it to be published. A picked avatar is never checked against this list.
+ * The characters a room hands out to a member who has not picked one, and its
+ * AI seats wear, in the order it hands them out: watchparty's whole
+ * `CHARACTER_ORDER` (`hadoku-watchparty` `packages/shared/src/characters.ts`,
+ * its four sets in order, as of watchparty a8f99f94), which its server draws
+ * from on join. Copied because that package is private to their repo;
+ * `docs/requests/ROOMS_AVATAR_POOL.md` asks for it to be published. Every id
+ * here has a `square_<id>.png` on watchparty's media (checked 2026-11-01). A
+ * picked avatar is never checked against this list.
  */
-export const AVATAR_POOL = ['sage', 'herald', 'cleric', 'knight', 'mage', 'brawler', 'wanderer', 'rogue'] as const;
+export const AVATAR_POOL = [
+	'sage', 'herald', 'cleric', 'knight', 'mage', 'brawler', 'wanderer', 'rogue',
+	'gunner', 'chief', 'walker', 'operative',
+	'idol', 'recluse', 'phantom', 'harlequin', 'doll', 'imp',
+	'apprentice', 'prodigy', 'dreamer', 'sunny', 'mentor',
+] as const;
+
+type Face = string | null | undefined;
+
+/** FNV-1a: a stable 32-bit number for a string, so a seeded pick is the same on every run. */
+function seedOf(text: string): number {
+	let h = 0x811c9dc5;
+	for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
+	return h >>> 0;
+}
+
+/**
+ * A character drawn at random — seeded by `seed`, so the same room and seat
+ * always draws the same face — from the pool's least-used ones. `tiers` are
+ * compared in turn: a character that appears fewer times in the first is
+ * preferred, a tie goes to the next tier, and what is still tied is drawn
+ * from. So nobody shares a face while one is free, and past all 23 the pool
+ * cycles rather than repeating one face (the operator, 2026-11-01).
+ */
+function drawAvatar(seed: string, ...tiers: readonly (readonly Face[])[]): string {
+	const counts = tiers.map((faces) => {
+		const n = new Map<string, number>();
+		for (const f of faces) if (f !== null && f !== undefined) n.set(f, (n.get(f) ?? 0) + 1);
+		return n;
+	});
+	let least: string[] = [...AVATAR_POOL];
+	for (const n of counts) {
+		const min = Math.min(...least.map((a) => n.get(a) ?? 0));
+		least = least.filter((a) => (n.get(a) ?? 0) === min);
+	}
+	return least[seedOf(seed) % least.length]!;
+}
 
 /**
  * The first character in the pool no current member wears — watchparty's
@@ -642,11 +680,29 @@ function personaOf(avatarId: string): AiPersona {
 	return { name: avatarId.charAt(0).toUpperCase() + avatarId.slice(1), avatarId };
 }
 
-/** A character for a new AI seat: one nobody in the room wears and no other AI seat has, else any the AI seats have not. */
-function freeAiAvatar(room: RoomRecord): string {
-	const ai = new Set(room.podAi.filter((a): a is string => a !== null));
-	const worn = new Set(room.members.flatMap((m) => (m.avatarId === undefined ? [] : [m.avatarId])));
-	return AVATAR_POOL.find((a) => !ai.has(a) && !worn.has(a)) ?? AVATAR_POOL.find((a) => !ai.has(a)) ?? AVATAR_POOL[0];
+/** The face at a pod seat: its AI's character or its member's. */
+function seatFace(room: RoomRecord, seat: number): Face {
+	const id = room.podSeats[seat];
+	if (id === POD_AI) return room.podAi[seat];
+	return room.members.find((m) => m.id === id)?.avatarId;
+}
+
+/**
+ * A character for a new AI seat at `seat`, drawn for this room and seat: one
+ * nobody in the room wears, else one fewest wear and neither neighbour does —
+ * so up to 23 faces nobody shares one, and past that the pool cycles. Stored in
+ * `podAi`, so a reload or restart keeps it.
+ */
+function freeAiAvatar(room: RoomRecord, seat: number): string {
+	const size = Math.max(room.podSeats.length, seat + 1);
+	const neighbours = size < 2 ? [] : [seatFace(room, (seat + size - 1) % size), seatFace(room, (seat + 1) % size)];
+	const ai = room.podAi.filter((_, i) => i !== seat);
+	return drawAvatar(`${room.id}:${seat}`, [...ai, ...room.members.map((m) => m.avatarId)], neighbours);
+}
+
+/** The character for a stored AI seat that has none: drawn for its room and seat, as a new one would be. */
+function seatAvatar(room: RoomRecord, seat: number): string {
+	return drawAvatar(`${room.id}:${seat}`);
 }
 
 /** One place at the pod's table: a member, or the AI (with no character for a seat nobody filled). */
@@ -734,13 +790,12 @@ export function roomAi(room: RoomRecord): AiPersona {
 		const opponent = aiOpponent(room);
 		if (opponent !== null) return opponent;
 	}
-	const worn = new Set(room.members.flatMap((m) => (m.avatarId === undefined ? [] : [m.avatarId])));
-	return personaOf(AVATAR_POOL.find((a) => !worn.has(a)) ?? AVATAR_POOL[0]);
+	return personaOf(drawAvatar(`${room.id}:ai`, room.members.map((m) => m.avatarId)));
 }
 
 /** An AI entrant's character: a tournament pod's own (its seat's, kept through the pod's life), or a draft pod's shared bot (`roomAi`). */
 function entrantPersona(room: RoomRecord, id: string): AiPersona {
-	return isAiEntrant(id) ? personaOf(room.podAi[aiEntrantSeat(id)] ?? AVATAR_POOL[0]) : roomAi(room);
+	return isAiEntrant(id) ? personaOf(room.podAi[aiEntrantSeat(id)] ?? seatAvatar(room, aiEntrantSeat(id))) : roomAi(room);
 }
 
 /** `PodView.personas`: every AI entrant the pod's players, pairings and results name. */
@@ -980,7 +1035,7 @@ function podSeatsView(room: RoomRecord): PodView['seats'] {
 	return room.podSeats.map((id, i) => {
 		if (id === null) return null;
 		if (id === POD_AI) {
-			const persona = personaOf(room.podAi[i] ?? AVATAR_POOL[0]);
+			const persona = personaOf(room.podAi[i] ?? seatAvatar(room, i));
 			return { memberId: POD_AI, name: persona.name, avatarId: persona.avatarId } as PodMember;
 		}
 		if (id === POD_CLOSED) return { memberId: POD_CLOSED, name: '' } as PodMember;
@@ -3704,10 +3759,11 @@ class FileLobby implements Lobby {
 			const member = room.members.find((m) => m.id === id);
 			return member === undefined ? [] : [{ participantId: id, displayName: member.name, seat, ...(member.avatarId === undefined ? {} : { avatarId: member.avatarId }) }];
 		});
-		const worn = new Set(room.members.filter((m) => drafters.includes(m.id)).flatMap((m) => (m.avatarId === undefined ? [] : [m.avatarId])));
-		const characters = [...AVATAR_POOL.filter((a) => !worn.has(a)), ...AVATAR_POOL.filter((a) => worn.has(a))];
-		const bots = Array.from({ length: POD_SEATS - drafters.length }, (_, i) => {
-			const persona = personaOf(characters[i % characters.length]!);
+		const worn = humans.map((h) => h.avatarId);
+		const faces: string[] = [];
+		for (let seat = drafters.length; seat < POD_SEATS; seat++) faces.push(drawAvatar(`${room.id}:${pod}:${seat}`, [...worn, ...faces], faces.slice(-1)));
+		const bots = faces.map((face) => {
+			const persona = personaOf(face);
 			return { name: persona.name, avatarId: persona.avatarId };
 		});
 		const podOf = Object.fromEntries(pods.flatMap((ids, k) => ids.map((id) => [id, podDraftId(room.id, k)])));
@@ -3793,7 +3849,7 @@ class FileLobby implements Lobby {
 		const now = room.podSeats[seat] ?? null;
 		if (on ? now === POD_AI : now === null) return { ok: true, room: this.#view(room) };
 		if (now !== (on ? null : POD_AI)) return { ok: false, reason: 'seat-taken' };
-		const avatar = on ? freeAiAvatar(room) : null;
+		const avatar = on ? freeAiAvatar(room, seat) : null;
 		grownSeats(room, seat);
 		const seats = [...room.podSeats];
 		seats[seat] = on ? POD_AI : null;

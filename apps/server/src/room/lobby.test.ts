@@ -1173,7 +1173,7 @@ describe('a member\'s avatar', () => {
 
 	it('is handed out only while a character is free, and a leaver frees theirs', async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
-		const callers = [ALICE, BOB, CAROL, ...Array.from({ length: AVATAR_POOL.length - 2 }, (_, i) => ({ id: `fk:${String(i + 4).repeat(16).slice(0, 16)}`, name: `user-${i + 4}`, userId: null }))];
+		const callers = [ALICE, BOB, CAROL, ...Array.from({ length: AVATAR_POOL.length - 2 }, (_, i) => ({ id: `fk:${String(i + 4).padStart(16, '0')}`, name: `user-${i + 4}`, userId: null }))];
 		const made = lobby.create(callers[0]!, { name: 'Crowd', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		expect(made.ok).toBe(true);
 		if (!made.ok) return;
@@ -2401,8 +2401,10 @@ describe('Lobby.startDraft — no open seat, and only the seated are waited on',
 		for (let seat = 1; seat < 7; seat++) expect(lobby.aiPod(id, BOB.id, seat, true).ok).toBe(true);
 		expect(lobby.startDraft(id, ALICE.id), 'one seat still open').toEqual({ ok: false, reason: 'not-ready' });
 		expect(lobby.aiPod(id, ALICE.id, 7, true).ok).toBe(true);
-		// Every character is taken by now (two members, six AI seats): the last AI seat shares one with a member.
-		expect(lobby.get(id)?.pod?.seats[7]).toEqual({ memberId: POD_AI, name: 'Sage', avatarId: 'sage' });
+		// Two members and seven AI seats: nine different characters, the last AI seat's among them.
+		const seated = lobby.get(id)!;
+		expect(seated.pod?.seats[7]).toMatchObject({ memberId: POD_AI });
+		expect(new Set([...seated.members.map((m) => m.avatarId), ...seated.pod!.seats.slice(1).map((s) => s!.avatarId)]).size).toBe(9);
 		approvePlan(lobby, id);
 		// BOB never sat: a spectator, not ready, and not waited on.
 		expect(lobby.startDraft(id, ALICE.id)).toMatchObject({ ok: true });
@@ -2873,6 +2875,49 @@ describe('the AI seats play as the room’s characters', () => {
 		const reopened = await openLobby({ dir });
 		expect(reopened.get(id)!.pod!.seats.slice(1).map((s) => s!.name), 'kept through a restart').toEqual(again);
 		expect(reopened.get(id)!.ai).toEqual(lobby.get(id)!.ai);
+	});
+
+	it('hands out watchparty’s whole character order, all 23, in its order', () => {
+		expect(AVATAR_POOL).toEqual([
+			'sage', 'herald', 'cleric', 'knight', 'mage', 'brawler', 'wanderer', 'rogue',
+			'gunner', 'chief', 'walker', 'operative',
+			'idol', 'recluse', 'phantom', 'harlequin', 'doll', 'imp',
+			'apprentice', 'prodigy', 'dreamer', 'sunny', 'mentor',
+		]);
+	});
+
+	it('a 16-seat pod with one human and 15 AI seats wears 16 different characters, drawn at random and kept through a restart', async () => {
+		const dir = await tempDir();
+		const lobby = await openLobby({ dir });
+		const made = lobby.create(ALICE, { name: 'Two pods', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+		for (let seat = 1; seat < 16; seat++) expect(lobby.aiPod(id, ALICE.id, seat, true).ok).toBe(true);
+		const room = lobby.get(id)!;
+		const faces = [room.members[0]!.avatarId, ...room.pod!.seats.slice(1).map((s) => s!.avatarId)];
+		expect(faces).toHaveLength(16);
+		expect(new Set(faces).size, 'sixteen different characters').toBe(16);
+		expect(faces.slice(1), 'not watchparty’s order').not.toEqual(AVATAR_POOL.filter((a) => a !== faces[0]).slice(0, 15));
+		const reopened = await openLobby({ dir });
+		expect(reopened.get(id)!.pod!.seats.slice(1).map((s) => s!.avatarId), 'a restart keeps every face').toEqual(faces.slice(1));
+	});
+
+	it('past all 23 the AI seats cycle the pool: no face more than twice, and no two neighbours alike', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Four pods', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+		for (let seat = 1; seat < 30; seat++) expect(lobby.aiPod(id, ALICE.id, seat, true).ok).toBe(true);
+		const room = lobby.get(id)!;
+		const faces = [room.members[0]!.avatarId!, ...room.pod!.seats.slice(1).map((s) => s!.avatarId!)];
+		expect(faces).toHaveLength(30);
+		const counts = new Map<string, number>();
+		for (const f of faces) counts.set(f, (counts.get(f) ?? 0) + 1);
+		expect(counts.size, 'every character in use').toBe(AVATAR_POOL.length);
+		expect(Math.max(...counts.values())).toBe(2);
+		faces.forEach((f, i) => expect(f, `seat ${i} vs seat ${(i + 1) % faces.length}`).not.toBe(faces[(i + 1) % faces.length]));
 	});
 
 	it('a 1v1 room’s AI is a character none of its members wears', async () => {
