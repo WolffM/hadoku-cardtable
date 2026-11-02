@@ -104,6 +104,34 @@ test(titled('action-bar sits directly above the hand, and every control in it is
       expect(box!.width, `${id} is ≥44px wide`).toBeGreaterThanOrEqual(44);
       expect(box!.height, `${id} is ≥40px tall`).toBeGreaterThanOrEqual(40);
     }
+
+    // Manager follow-up: the bar's own height is A's real token, not a guess.
+    const barHeight = await alice.page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--portrait-bar-h').trim());
+    expect(Math.round(barBox!.height)).toBe(Number.parseInt(barHeight, 10));
+  } finally {
+    await stack.stop();
+  }
+});
+
+test(titled('the fleet header is hidden during a match, so both chips are inside the top 100px (Settled 2); the zoom pill stays readable at 1×'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(3 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice } = await startScenarioVsAi(browser, stack, 'bolt-player');
+    await setPortrait(alice.page);
+
+    await expect(alice.page.locator('.cardtable-chrome[data-shell="match"] > .app-header'), 'the header is hidden, not removed').toBeHidden();
+    const chips = alice.page.locator('.portrait-hud [data-testid^="seat-chip-"]');
+    await expect(chips).toHaveCount(2);
+    const boxes = await chips.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().bottom));
+    for (const [i, bottom] of boxes.entries()) expect(bottom, `chip ${i} is inside the top 100px`).toBeLessThanOrEqual(100);
+
+    // The zoom pill reads as live text at 1×, not the same dimmed look every other disabled control gets.
+    const pill = alice.page.getByTestId('zoom-pill');
+    const opacity = await pill.evaluate((el) => getComputedStyle(el).opacity);
+    expect(Number.parseFloat(opacity), 'the zoom pill is not faded at 1×').toBeGreaterThan(0.9);
   } finally {
     await stack.stop();
   }
@@ -166,15 +194,26 @@ test(titled('the menu holds Game log, End turn, Full control and Concede, in tha
     await expect(alice.page.locator('[data-testid="live-buttons"]')).toHaveCount(1);
     await expect(alice.page.locator('[data-testid="live-log-toggle"]')).toHaveCount(1);
     // `live-buttons` is the cluster's own wrapper (one of the testids this query finds), still holding
-    // its own three buttons — re-laid, not flattened.
+    // its own three buttons — re-laid, not flattened. `settings-gear` is lane B's own follow-up addition
+    // (the fleet header's gear is hidden in portrait; this is the standalone app's real header, so it's
+    // expected here): one `SettingsGear` instance, not two.
     const order = await items.evaluate((el) => [...el.querySelectorAll('[data-testid]')].map((n) => n.getAttribute('data-testid')));
-    expect(order, 'Game log, then the cluster (End turn, Full control, Concede) — Settled 7’s own order').toEqual([
+    expect(order, 'Game log, Settings, then the cluster (End turn, Full control, Concede)').toEqual([
       'live-log-toggle',
+      'settings-gear',
       'live-buttons',
       'live-button-end-turn',
       'live-full-control',
       'live-concede',
     ]);
+    await expect(alice.page.locator('[data-testid="settings-gear"]')).toHaveCount(1);
+    await alice.page.getByTestId('settings-gear').tap({ force: true });
+    await expect(alice.page.getByTestId('settings-display'), 'opens the same settings panel the hidden header would have').toBeVisible();
+    // Escape closes everything open, including this menu (the same handler that closes the logbook) —
+    // so the menu needs a fresh tap before the rest of this test reaches back into it.
+    await alice.page.keyboard.press('Escape');
+    await menuToggle.tap();
+    await expect(items, 'reopened after Escape').toHaveAttribute('data-open', '');
 
     // Concede needs a second tap: the first opens the confirmation (the SAME dialog desktop's own
     // Concede opens — this lane adds no second mechanism) without ending anything; the game is still
