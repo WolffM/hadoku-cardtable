@@ -655,11 +655,23 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
           expect(overflow, 'no horizontal page scroll at 390px').toBeLessThanOrEqual(1);
           // Stacked at this width: the pack's last card ends above the pool,
           // never underneath it (the pool used to cover the pack's lower rows).
+          //
+          // At 390px the pack is its own scroll container (the fan's row, the grid's drag surface —
+          // w90c), so a card the container has scrolled past still has a real, off-screen
+          // `getBoundingClientRect()` — a raw max over every card would count THAT, not anything a
+          // viewer could see overlap the pool. Clipped to the pack's own visible box first: what can
+          // actually overlap the pool is the pack's own bottom edge, never a card scrolled behind it.
           const stacked = await alice.page.evaluate(() => {
+            const pack = document.querySelector('[data-testid="pack"]');
+            const packBottom = pack?.getBoundingClientRect().bottom;
             const cards = [...document.querySelectorAll('[data-testid="pack"] [data-testid="card"]')];
             const pool = document.querySelector('[data-testid="pool"]');
+            const bottoms = cards.map((c) => {
+              const r = c.getBoundingClientRect().bottom;
+              return packBottom === undefined ? r : Math.min(r, packBottom);
+            });
             return {
-              packBottom: Math.max(...cards.map((c) => c.getBoundingClientRect().bottom)),
+              packBottom: Math.max(...bottoms),
               poolTop: pool === null ? Infinity : pool.getBoundingClientRect().top,
             };
           });

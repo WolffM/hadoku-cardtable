@@ -255,7 +255,6 @@
 /* ── the pack ──────────────────────────────────────────────────────── */
 
 .pack {
-  min-height: calc(var(--card-h) + 40px);
   margin-bottom: 20px;
 }
 
@@ -354,6 +353,104 @@
 /* The grid is sized to fit (`PackView`'s `fitGrid`): nothing to scroll, and its cursor's outline is not clipped. */
 .draft__main > .pack--grid {
   overflow: visible;
+}
+
+/*
+ * A phone (the same `max-width: 700px` the body switches on, `PackView`'s `usePhoneLayout`): the
+ * pack's box height is the page layout's own now (`.draft__main > .pack`'s phone rule, above —
+ * `--pack-row`, about 358×412 at 390×844, the same for the fan and the grid), not something either
+ * layout measures its OWN content to fill — a box that grows with its content is the runaway, self-
+ * referential height this replaced (the grid used to re-measure its own last unstyled layout as its
+ * next budget; the fan's absolutely positioned slots measured a box with no content-derived height at
+ * all, zero). What goes inside that fixed box differs between the two:
+ *
+ * **Fan — a carousel.** One row, native horizontal scroll with snapping, not `fanGeometry`'s transform
+ * stack. The open card is measured from the real box — `PackView`'s `phoneFanGeometry`, through the
+ * SAME `useBox` the desktop fan reads, now that the box is page-layout-owned rather than self-
+ * referential — fitted to whichever of the box's own width or height is tighter, and set inline as
+ * `--fan-w`/`--fan-h`: the exact custom properties the unconditional `.pack--fan .pack__slot` rule
+ * above already reads for its width and its `--card-w`/`--card-h`, so this block only changes how the
+ * row SCROLLS (no absolute positioning, no transform), never how big a card is.
+ *
+ * The slack either side is a MARGIN on the first and last card, never padding on the row itself: the
+ * row is what `useBox` measures (`cardFit.ts`'s own header — "the content box: what a child laid out
+ * inside the border and padding gets"), so padding sized from `--fan-w` would feed the very box
+ * `--fan-w` is computed from back into itself — the row narrows, `phoneFanGeometry` reads the
+ * narrower box next paint and shrinks the card further, and so on; caught empirically building this
+ * (a 294px row read back as ~14px once the row had padding). A child's margin never changes its
+ * PARENT's own measured box, so the same slack — half of what the row's width leaves over, which
+ * centres the open card and lets its neighbour peek in from the edge (the operator, 2026-11-02, on the
+ * rework: *"the fan view should display properly one card in the middle and then two partial cards on
+ * the left and right side"*) — costs nothing to measure. `PackView` still tracks which card is "open"
+ * (`shown`) from the scroll position, so the pick gesture (tap the open card; tap another to bring it
+ * open first) is the one the desktop fan already uses.
+ *
+ * **Grid — two columns.** The operator, on the rework: *"it would be better to display two columns of
+ * cards instead of one."* The columns split the box's own width evenly (`1fr` each) — no drag surface
+ * wider than the box, since two columns already fill it — with gutters even on both sides (the outer
+ * `padding` is the same as the inter-card `gap`); the box scrolls vertically for the rest of the pack.
+ */
+@media (max-width: 700px) {
+  .draft__main > .pack--fan {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    overflow: auto hidden;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    isolation: auto;
+    margin: 0;
+  }
+
+  /* Only the row's own flow and scroll-snap: `width`, `--card-w` and `--card-h` stay the unconditional
+     rule's own, now fed the carousel's size instead of the absolute row's. */
+  .pack--fan .pack__slot {
+    position: relative;
+    flex: none;
+    top: auto;
+    left: auto;
+    margin-left: 0;
+    transform: none;
+    scroll-snap-align: center;
+  }
+
+  /* The peek room at either end — see the block comment above for why this is a CHILD'S margin, never
+     the row's own padding. A one-card pack is both at once: no peek on either side, and nothing scrolls. */
+  .pack--fan .pack__slot:first-child {
+    margin-left: calc((100% - var(--fan-w)) / 2);
+  }
+
+  .pack--fan .pack__slot:last-child {
+    margin-right: calc((100% - var(--fan-w)) / 2);
+  }
+
+  .pack--fan .pack__slot[data-focused] {
+    transform: none;
+    box-shadow: 0 14px 26px var(--shadow);
+  }
+
+  .draft__main > .pack--grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding: 0 10px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    align-content: start;
+  }
+
+  .pack--grid .pack__slot {
+    width: 100%;
+  }
+
+  /* `.draft__main >`, not a bare `.pack--grid .draft-ghost__card`: the generic (desktop) rule below,
+     same specificity otherwise, sits LATER in the file and would win this property regardless of which
+     media query is active — the one place in this block that needs the extra class to win on order alone. */
+  .draft__main > .pack--grid .draft-ghost__card {
+    --card-back-w: 100%;
+  }
 }
 
 .pack--empty {

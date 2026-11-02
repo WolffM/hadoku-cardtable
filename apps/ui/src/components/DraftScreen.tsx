@@ -57,7 +57,7 @@ import { ConnectionBanner } from './ConnectionBanner.tsx';
 import { DeckView } from './DeckView.tsx';
 import { CARD_RATIO, cssPx, fitGrid, smallestFitHeight, useBox, useFitScale } from './cardFit.ts';
 import { useNewPackSound } from '../draft/packSound.ts';
-import { FAN_MIN_WIDTH, fanGeometry, fanLayer, fanX, MAX_CARD_H, packRowHeight, PackView, PickRope, POOL_MIN_H, type PackLayout } from './PackView.tsx';
+import { FAN_MIN_WIDTH, fanGeometry, fanLayer, fanX, MAX_CARD_H, packRowHeight, PackView, phoneFanGeometry, PickRope, POOL_MIN_H, usePhoneLayout, type PackLayout } from './PackView.tsx';
 import { PoolView, POOL_ENTER_MS, type PoolEnterRect } from './PoolView.tsx';
 import type { GroupBy } from '../deck/cardOrder.ts';
 import { useDraftBuild, type DraftBuildStore } from '../deck/useDraftBuild.ts';
@@ -417,30 +417,39 @@ export function DraftSkeleton({ side, seats = 8 }: { side?: ReactNode; seats?: n
   );
 }
 
-/** The pack as `PackView` lays it out, dealt face down: the same slots, fan or grid, at the same sizes. */
+/**
+ * The pack as `PackView` lays it out, dealt face down: the same slots, fan or grid, at the same sizes
+ * — the phone grid included (`usePhoneLayout`), which is plain CSS and needs no box measured at all.
+ * The phone FAN is measured, the same as the desktop fan, just through `phoneFanGeometry` instead of
+ * `fanGeometry` (`PackView.tsx`'s header has the real card's own version of this split).
+ */
 function PackSkeleton({ layout }: { layout: PackLayout }) {
   const [measure, box, root] = useBox<HTMLDivElement>();
   const measured = box.width > 0 && box.height > 0;
   const maxH = uiPx(MAX_CARD_H, root);
-  const fan = layout === 'fan' && measured && box.width >= FAN_MIN_WIDTH ? fanGeometry(box.width, box.height, maxH) : null;
-  const grid = fan === null && measured ? fitGrid(GHOST_PACK, box, cssPx(root, 'column-gap', 10), maxH * CARD_RATIO) : null;
+  const phone = usePhoneLayout();
+  const desktopFan = !phone && layout === 'fan' && measured && box.width >= FAN_MIN_WIDTH ? fanGeometry(box.width, box.height, maxH) : null;
+  const desktopGrid = !phone && desktopFan === null && measured ? fitGrid(GHOST_PACK, box, cssPx(root, 'column-gap', 10), maxH * CARD_RATIO) : null;
+  const phoneFan = phone && layout === 'fan' && measured ? phoneFanGeometry(box.width, box.height, maxH) : null;
+  const fanGeo = desktopFan ?? phoneFan;
+  const mode: PackLayout = phone ? layout : !measured ? (layout === 'fan' ? 'fan' : 'grid') : desktopFan !== null ? 'fan' : 'grid';
   const style =
-    fan !== null
-      ? ({ '--fan-w': `${fan.cardW.toFixed(1)}px`, '--fan-h': `${fan.cardH.toFixed(1)}px` } as CSSProperties)
-      : grid !== null
-        ? ({ '--grid-w': `${grid.cardW.toFixed(1)}px`, gridTemplateColumns: `repeat(${grid.cols}, var(--grid-w))` } as CSSProperties)
+    fanGeo !== null
+      ? ({ '--fan-w': `${fanGeo.cardW.toFixed(1)}px`, '--fan-h': `${fanGeo.cardH.toFixed(1)}px` } as CSSProperties)
+      : desktopGrid !== null
+        ? ({ '--grid-w': `${desktopGrid.cardW.toFixed(1)}px`, gridTemplateColumns: `repeat(${desktopGrid.cols}, var(--grid-w))` } as CSSProperties)
         : undefined;
   return (
-    <div className={`pack pack--${fan === null ? 'grid' : 'fan'}`} data-skeleton="pack" ref={measure} style={style}>
+    <div className={`pack pack--${mode}`} data-skeleton="pack" ref={measure} style={style}>
       {measured &&
         Array.from({ length: GHOST_PACK }, (_, i) => {
-          const x = fan === null ? null : fanX(fan, i, 0, GHOST_PACK);
-          if (fan !== null && x === null) return null;
+          const x = desktopFan === null ? null : fanX(desktopFan, i, 0, GHOST_PACK);
+          if (desktopFan !== null && x === null) return null;
           return (
             <div
               key={i}
               className="pack__slot"
-              data-focused={fan !== null && i === 0 ? '' : undefined}
+              data-focused={mode === 'fan' && i === 0 ? '' : undefined}
               style={x === null ? undefined : ({ '--fan-x': `${x.toFixed(1)}px`, zIndex: fanLayer(i, 0, GHOST_PACK) } as CSSProperties)}
             >
               <span className="card-back draft-ghost__card" />

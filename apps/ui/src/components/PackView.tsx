@@ -41,7 +41,7 @@
  * screen around the pack (`PodScreen`, `RallyEmbed`) mounts the inspector.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 
 import type { DraftCard } from '../draft/types.ts';
 import { playRole } from '../sound/index.ts';
@@ -53,6 +53,40 @@ import { CardTile } from './CardTile.tsx';
 import { RelatedRow, type RelatedPlace } from './RelatedRow.tsx';
 
 export type PackLayout = 'fan' | 'grid';
+
+/** The same breakpoint `draft.css`'s own phone layout switches on — the one place both are spelled out. */
+export const PHONE_MAX_WIDTH = 700;
+const PHONE_QUERY = `(max-width: ${PHONE_MAX_WIDTH}px)`;
+/** A phone's grid is always two columns wide (the operator, 2026-11-02: "display two columns of cards instead of one") — kept here only for the Up/Down keyboard cursor's own column count; `draft.css`'s phone rules draw the columns themselves. */
+const PHONE_GRID_COLS = 2;
+
+function hasMatchMedia(): boolean {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function';
+}
+
+function subscribePhone(onStoreChange: () => void): () => void {
+  if (!hasMatchMedia()) return () => undefined;
+  const mql = window.matchMedia(PHONE_QUERY);
+  mql.addEventListener('change', onStoreChange);
+  return () => mql.removeEventListener('change', onStoreChange);
+}
+
+function phoneSnapshot(): boolean {
+  return hasMatchMedia() && window.matchMedia(PHONE_QUERY).matches;
+}
+
+/** No DOM, so no phone — the same fallback `play/portrait.ts`'s `usePortraitLayout` makes. */
+function phoneServerSnapshot(): boolean {
+  return false;
+}
+
+/**
+ * Below `PHONE_MAX_WIDTH` the pack is sized in plain CSS (`draft.css`'s phone rules), not measured: see
+ * that file's header for why. A host with no `matchMedia` (a bare test DOM) reports "not a phone".
+ */
+export function usePhoneLayout(): boolean {
+  return useSyncExternalStore(subscribePhone, phoneSnapshot, phoneServerSnapshot);
+}
 
 export interface PackViewProps {
   cards: readonly DraftCard[];
@@ -91,6 +125,16 @@ const GRID_GAP = 10;
 
 /** The pack row's base: the row is the geometric mean of this and the draft's height (`packRowHeight`). */
 const PACK_ROW_BASE = 210;
+/**
+ * The phone carousel's open card, as a share of the box's own width: solving `peek = (1 - f) / (2f)`
+ * for the operator's "~15-20% of a card each side" at the middle of that range (2026-11-02, on the
+ * rework: "the fan view should display properly one card in the middle and then two partial cards on
+ * the left and right side") gives `f ≈ 0.74`, which this is. Paired with `PHONE_FAN_PAD_V` in
+ * `phoneFanGeometry`'s "fits whichever is tighter" (box width vs. box height).
+ */
+const PHONE_FAN_WIDTH_FRAC = 0.74;
+/** Room the carousel keeps above and below the open card for its focus shadow — no lift on a phone (`draft.css`'s phone rules), so far less than the desktop fan's `LIFT`/`BOTTOM`. */
+const PHONE_FAN_PAD_V = 20;
 /** The least the row under the pack keeps, at 100%. More when the pod's column beside the picks needs more at its smallest fit (`fitToWindow`). */
 export const POOL_MIN_H = 250;
 
@@ -132,6 +176,27 @@ export function fanGeometry(width: number, height: number, maxH = MAX_CARD_H): F
     step = cardW * MIN_SHOW;
   }
   return { cardW, cardH, step };
+}
+
+export interface PhoneFanCardSize {
+  cardW: number;
+  cardH: number;
+}
+
+/**
+ * The phone carousel's open card, sized from the SAME real box the desktop fan measures (`useBox`) —
+ * no `vw`/`vh` guess at the room's chrome around the pack (the operator's rework brief: "don't
+ * hardcode for 390"). "Whichever is tighter": as tall as the box allows (`PHONE_FAN_PAD_V` the only
+ * margin a non-lifting carousel needs), or `PHONE_FAN_WIDTH_FRAC` of the box's own width, whichever
+ * comes out smaller — a short, wide box caps on height; a tall, narrow one caps on width, and the
+ * peek either side (`draft.css`'s padding, `(100% - var(--fan-w)) / 2`) stays in the same ~15-20%
+ * band either way.
+ */
+export function phoneFanGeometry(width: number, height: number, maxH = MAX_CARD_H): PhoneFanCardSize {
+  const byHeight = Math.max(0, Math.min(maxH, height - PHONE_FAN_PAD_V)) * CARD_RATIO;
+  const byWidth = width * PHONE_FAN_WIDTH_FRAC;
+  const cardW = Math.min(byHeight, byWidth);
+  return { cardW, cardH: cardW / CARD_RATIO };
 }
 
 /**
@@ -184,17 +249,38 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
   // layout drawn at a guessed size is the overflow this replaced.
   const measured = box.width > 0 && box.height > 0;
   const maxH = uiPx(MAX_CARD_H, root);
-  const fan = layout === 'fan' && measured && box.width >= FAN_MIN_WIDTH ? fanGeometry(box.width, box.height, maxH) : null;
-  const grid = fan === null && measured ? fitGrid(cards.length, box, cssPx(root, 'column-gap', GRID_GAP), maxH * CARD_RATIO) : null;
-  const shown = fan === null || cards.length === 0 ? null : Math.min(focus ?? 0, cards.length - 1);
-  const cursor = fan !== null || focus === null || cards.length === 0 ? null : Math.min(focus, cards.length - 1);
-  const cols = grid?.cols ?? 1;
+  // A phone's grid draws no fit-to-box math at all — `draft.css`'s phone rules fix it at two columns,
+  // the box's own width split evenly (the rework brief: a `fitGrid` box this narrow is the "fifteen
+  // tiny cards" bug the box-height contract below reintroduces if nothing replaces it). The phone
+  // fan's carousel IS measured, through the same `useBox` the desktop fan reads — `phoneFanGeometry`,
+  // not `fanGeometry` (a different shape: one open card and two peeking neighbours, not an absolute
+  // seven-wide row) — now that the box it measures is a real, page-layout-owned height (`--pack-row`),
+  // not the self-referential one a flex column gave it (see `draft.css`'s phone rules for that history).
+  // `desktopFan`/`desktopGrid` stay `null` on a phone (there is no desktop box-fit to feed them), which
+  // is also what an UNMEASURED desktop frame looks like — `fanned` is the interactive truth (does the
+  // fan's open/pick gesture apply right now), on a phone exactly `layout`, on a desktop only once real
+  // geometry says so (an unmeasured frame behaves as the grid regardless of `layout`, same as before a
+  // phone existed); `mode` is the className alone, which keeps the unmeasured frame's own skeleton class.
+  const phone = usePhoneLayout();
+  const desktopFan = !phone && layout === 'fan' && measured && box.width >= FAN_MIN_WIDTH ? fanGeometry(box.width, box.height, maxH) : null;
+  const desktopGrid = !phone && desktopFan === null && measured ? fitGrid(cards.length, box, cssPx(root, 'column-gap', GRID_GAP), maxH * CARD_RATIO) : null;
+  // The carousel's own geometry — measured the same way as the desktop fan's, just a different shape
+  // (`phoneFanGeometry`'s header). `fanGeo` is the two merged into whichever one is live, for the style
+  // below; `desktopFan` alone still gates the absolute-positioned row math further down, which only the
+  // desktop fan ever uses.
+  const phoneFan = phone && layout === 'fan' && measured ? phoneFanGeometry(box.width, box.height, maxH) : null;
+  const fanGeo = desktopFan ?? phoneFan;
+  const fanned = phone ? layout === 'fan' : desktopFan !== null;
+  const mode: PackLayout = phone ? layout : !measured ? (layout === 'fan' ? 'fan' : 'grid') : fanned ? 'fan' : 'grid';
+  const shown = !fanned || cards.length === 0 ? null : Math.min(focus ?? 0, cards.length - 1);
+  const cursor = fanned || focus === null || cards.length === 0 ? null : Math.min(focus, cards.length - 1);
+  const cols = phone ? PHONE_GRID_COLS : desktopGrid?.cols ?? 1;
 
   // The fan's first placement is drawn where it lands: its slots are laid out
   // once unmeasured, in the same frame, and would otherwise slide out from the
-  // middle as the draft replaces its skeleton. Moves after it transition.
+  // middle as the draft replaces its skeleton. Moves after it transition — a
+  // phone's carousel has no transform to place, but the flag costs it nothing.
   const [placed, setPlaced] = useState(false);
-  const fanned = fan !== null;
   useEffect(() => {
     if (!fanned) return setPlaced(false);
     const frame = requestAnimationFrame(() => setPlaced(true));
@@ -222,14 +308,16 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
 
   // The wheel steps through the row: one notch, one card. Not React's onWheel,
   // which is passive and cannot stop the page under the pack scrolling instead.
-  const fanOn = fan !== null;
+  // A phone's carousel is scrolled, not stepped — see the scroll listener below,
+  // which reads the position a wheel event would not otherwise move.
+  const wheelOn = desktopFan !== null;
   const count = cards.length;
   /** Nothing picks: the cards are read through the shared inspector, in either layout. */
   const browsing = onPick === undefined;
   const wheelLeft = useRef(0);
   useEffect(() => {
     const el = root;
-    if (!fanOn || el === null) return;
+    if (!wheelOn || el === null) return;
     const onWheel = (event: WheelEvent): void => {
       // A read-only fan's card with other faces: the inspector open on it turns its face instead.
       if (browsing && event.target instanceof Element && event.target.closest('[data-faces]') !== null) return;
@@ -252,7 +340,57 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [fanOn, count, browsing]);
+  }, [wheelOn, count, browsing]);
+
+  // The phone carousel's own open card: not stepped, read off the real scroll position — the slot
+  // nearest the row's own centre, wherever a swipe (or a momentum settle) left it. `requestAnimationFrame`
+  // coalesces the storm of `scroll` events one swipe fires into one read per paint.
+  //
+  // `root` is in the dependency list, not just `phoneFanOn`: unlike the desktop fan/grid (whose own
+  // "on" flags only ever turn true once `useBox` has already measured a box, which cannot happen before
+  // `root` itself is set), `phoneFanOn` is true from the very FIRST render — before the ref callback has
+  // run. An effect keyed on `phoneFanOn` alone mounted on that first render with `root` still `null`,
+  // bailed out, and never ran again once `root` arrived a render later, because its own value never
+  // changed again: the carousel scrolled but nothing ever read it. Caught by `w90c-pack-fan.phone.spec.ts`.
+  const phoneFanOn = phone && fanned;
+  useEffect(() => {
+    const el = root;
+    if (!phoneFanOn || el === null) return;
+    let frame = 0;
+    const onScroll = (): void => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const mid = el.getBoundingClientRect().left + el.clientWidth / 2;
+        let best = 0;
+        let bestDist = Infinity;
+        el.querySelectorAll<HTMLElement>('.pack__slot').forEach((slot, i) => {
+          const r = slot.getBoundingClientRect();
+          const dist = Math.abs((r.left + r.right) / 2 - mid);
+          if (dist < bestDist) {
+            bestDist = dist;
+            best = i;
+          }
+        });
+        setFocus(best);
+      });
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(frame);
+    };
+  }, [phoneFanOn, root]);
+
+  /**
+   * A cursor the keys moved, or a phone carousel card opened from off-centre, is brought into view —
+   * one the pointer moved (desktop) already is. Set before the `setFocus` that asks for it, read by the
+   * effect below once that render lands. The phone carousel has no cursor (`cursor` is always `null`
+   * there, fan or grid alike), but it has its own `shown` to bring into view the same way, centred
+   * rather than merely scrolled to — a tap on a peeking neighbour moves it exactly as a swipe would,
+   * through this app's OWN `scrollIntoView`, not whatever the tap's own auto-scroll left behind (which
+   * is what opening a card used to race against here).
+   */
+  const keyed = useRef(false);
 
   // A click on a card that is not the open one opens it rather than picking it:
   // after the wheel the card under a still pointer need not be the open one, and
@@ -262,12 +400,28 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
   shownRef.current = shown;
   const cardsRef = useRef(cards);
   cardsRef.current = cards;
+  const phoneFannedRef = useRef(phone && fanned);
+  phoneFannedRef.current = phone && fanned;
+  /**
+   * A click or a tap focuses the button it lands on — the platform's own doing, not this app's — and
+   * on this host that `focus` event reaches `onFocus` BEFORE the click's own `onPick`/`pick` does,
+   * which (through the unconditional `onFocus` below, there for Tab) opened whatever was tapped a step
+   * early: by the time `pick` ran, `shown` already matched the tapped card, so a tap that should have
+   * only OPENED a neighbour read as a second tap on an already-open one and picked it outright, after
+   * one tap, not two. Set on the pointer's own down (bubbles up from the tile's button), read and
+   * cleared by `onFocus`: a `focus` that follows a pointer down within the same gesture is that
+   * side-effect, not a Tab key, and is skipped; one with no pointer down before it IS Tab, and still
+   * moves `focus` the way it always did. Caught by `w90c-pack-fan.phone.spec.ts`.
+   */
+  const pointerFocusing = useRef(false);
   // The tile stays silent in the fan, so opening a card never sounds like taking it.
   const pick = useCallback(
     (cardId: string) => {
       const at = cardsRef.current.findIndex((c) => c.cardId === cardId);
-      if (shownRef.current !== null && at !== shownRef.current) setFocus(at);
-      else if (onPick !== undefined) {
+      if (shownRef.current !== null && at !== shownRef.current) {
+        if (phoneFannedRef.current) keyed.current = true;
+        setFocus(at);
+      } else if (onPick !== undefined) {
         playRole('ui.draft-pick');
         onPick(cardId);
       }
@@ -276,14 +430,13 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
   );
 
   // Enter picks the open card, or the grid's cursor; the arrows move it.
-  const highlighted = fan === null ? cursor : shown;
-  /** A cursor the keys moved is brought into view; one the pointer moved already is. */
-  const keyed = useRef(false);
+  const highlighted = fanned ? shown : cursor;
   useEffect(() => {
-    if (!keyed.current || cursor === null) return;
+    const at = cursor ?? (phone && fanned ? shown : null);
+    if (!keyed.current || at === null) return;
     keyed.current = false;
-    root?.querySelector('.pack__slot[data-focused]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
-  }, [cursor]);
+    root?.querySelector('.pack__slot[data-focused]')?.scrollIntoView?.({ block: 'nearest', inline: phone && fanned ? 'center' : 'nearest' });
+  }, [cursor, shown, phone, fanned]);
   const highlightedRef = useRef(highlighted);
   highlightedRef.current = highlighted;
   useEffect(() => {
@@ -300,8 +453,8 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
         event.preventDefault();
         keyed.current = true;
         const by = event.key === 'ArrowLeft' ? -1 : 1;
-        setFocus((was) => (was === null && !fanOn ? 0 : Math.max(0, Math.min(count - 1, (was ?? 0) + by))));
-      } else if (!fanOn && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+        setFocus((was) => (was === null && !fanned ? 0 : Math.max(0, Math.min(count - 1, (was ?? 0) + by))));
+      } else if (!fanned && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
         event.preventDefault();
         keyed.current = true;
         const by = event.key === 'ArrowUp' ? -cols : cols;
@@ -311,7 +464,7 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [disabled, count, fanOn, cols, onPick]);
+  }, [disabled, count, fanned, cols, onPick]);
 
   if (cards.length === 0) {
     return (
@@ -322,52 +475,78 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
   }
 
   const hoveredCard = hovered === null ? undefined : cards[hovered];
-  const related = fan === null || browsing || hovered === null || hoveredCard === undefined ? null : { at: hovered, cards: relatedCards(hoveredCard) };
+  // The related row is the desktop fan's hover feature: there is no hover on a phone, and no room
+  // under a carousel card for one either.
+  const related = desktopFan === null || browsing || hovered === null || hoveredCard === undefined ? null : { at: hovered, cards: relatedCards(hoveredCard) };
 
   const style =
-    fan !== null
-      ? ({ '--fan-w': `${fan.cardW.toFixed(1)}px`, '--fan-h': `${fan.cardH.toFixed(1)}px` } as CSSProperties)
-      : grid !== null
-        ? ({ '--grid-w': `${grid.cardW.toFixed(1)}px`, gridTemplateColumns: `repeat(${grid.cols}, var(--grid-w))` } as CSSProperties)
+    fanGeo !== null
+      ? ({ '--fan-w': `${fanGeo.cardW.toFixed(1)}px`, '--fan-h': `${fanGeo.cardH.toFixed(1)}px` } as CSSProperties)
+      : desktopGrid !== null
+        ? ({ '--grid-w': `${desktopGrid.cardW.toFixed(1)}px`, gridTemplateColumns: `repeat(${desktopGrid.cols}, var(--grid-w))` } as CSSProperties)
         : undefined;
 
   return (
     <div
-      // Unmeasured, it already wears the fan's box (no margin under it), so the first measure is the fan's own.
-      className={`pack pack--${fan !== null || (layout === 'fan' && !measured) ? 'fan' : 'grid'}`}
+      className={`pack pack--${mode}`}
       data-testid="pack"
       data-layout={layout}
       data-card-count={cards.length}
       data-art-pending={artLoaded ? undefined : ''}
-      data-placed={fan !== null && placed ? '' : undefined}
+      data-placed={fanned && placed ? '' : undefined}
       ref={measure}
       style={style}
       onPointerLeave={() => {
         setHovered(null);
         // The pointer's cursor goes with it: Enter never picks a card nobody is looking at.
-        if (fan === null) setFocus(null);
+        if (!fanned) setFocus(null);
       }}
     >
       {cards.map((card, i) => {
-        const x = fan === null || shown === null ? null : fanX(fan, i, shown, cards.length);
-        const off = fan !== null && x === null;
+        // Only the desktop fan's absolute-positioned row windows cards past `FAN_SIDE`; the phone
+        // carousel and both grids draw every card, in a row or a scroller.
+        const x = desktopFan === null || shown === null ? null : fanX(desktopFan, i, shown, cards.length);
+        const off = desktopFan !== null && x === null;
         return (
           <div
             key={card.cardId}
             className="pack__slot"
-            data-card-id={fan === null || (browsing && !off) ? `w${i}` : undefined}
+            // Inspectable (the shared hover/long-press preview) in the grid, always — desktop or
+            // phone — and in a BROWSING fan's on-screen cards; never a PICKING fan's, desktop or
+            // phone, where the open card is already full size and the gesture is reserved for the
+            // pick itself. `!fanned` (not `desktopFan === null`) is the "grid" test: `desktopFan` is
+            // null for every phone card, fan included, so that test alone tagged a phone fan's cards
+            // even while picking — the shared inspector's `document`-level `focusin`/long-press then
+            // fired OVER the carousel, the giant enlarged card the operator's rework shot caught
+            // (`w90c-pack-fan.phone.spec.ts`).
+            data-card-id={!fanned || (browsing && !off) ? `w${i}` : undefined}
             data-focused={highlighted === i ? '' : undefined}
             data-off={off ? '' : undefined}
-            onFocus={off ? undefined : () => setFocus(i)}
+            onPointerDown={off ? undefined : () => (pointerFocusing.current = true)}
+            onFocus={
+              off
+                ? undefined
+                : () => {
+                    // See `pointerFocusing`'s own comment: a pointer-down's own focus is the click's to
+                    // handle, through `pick`/`onPick`, not this Tab-key path's.
+                    if (pointerFocusing.current) {
+                      pointerFocusing.current = false;
+                      return;
+                    }
+                    setFocus(i);
+                  }
+            }
             onPointerEnter={
               off
                 ? undefined
                 : () => {
                     setHovered(i);
-                    if (fan === null) setFocus(i);
+                    // A phone's carousel moves `focus` from the scroll position, not the pointer: a
+                    // touch drag that passes over a neighbour must not steal the open card from under it.
+                    if (!fanned) setFocus(i);
                   }
             }
-            onPointerLeave={fan === null ? undefined : () => setHovered((was) => (was === i ? null : was))}
+            onPointerLeave={fanned ? () => setHovered((was) => (was === i ? null : was)) : undefined}
             style={
               x === null || shown === null
                 ? undefined
@@ -376,13 +555,13 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
                   ({ '--fan-x': `${x.toFixed(1)}px`, zIndex: fanLayer(i, shown, cards.length) } as CSSProperties)
             }
           >
-            <CardTile card={card} onPick={fan === null ? onPick : pick} disabled={disabled} pickRole={fan === null ? 'ui.draft-pick' : null} />
+            <CardTile card={card} onPick={fanned ? pick : onPick} disabled={disabled} pickRole={fanned ? null : 'ui.draft-pick'} />
           </div>
         );
       })}
       {/* The hovered card's back face, tokens and meld cards, in a row under it. */}
-      {fan !== null && shown !== null && related !== null && (
-        <RelatedRow cards={related.cards} anchor={root} place={relatedPlace(fan, related.at, shown, cards.length, box.width, related.cards.length)} />
+      {desktopFan !== null && shown !== null && related !== null && (
+        <RelatedRow cards={related.cards} anchor={root} place={relatedPlace(desktopFan, related.at, shown, cards.length, box.width, related.cards.length)} />
       )}
     </div>
   );
