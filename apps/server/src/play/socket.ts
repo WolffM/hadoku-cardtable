@@ -84,6 +84,10 @@ import {
 	CLIENT_EVENT_MAX_PER_SECOND,
 	ClientEventSchema,
 	DECK_COLORS_EVENT,
+	OFFERED_EVENT,
+	OFFERED_MAX_PER_SECOND,
+	type OfferedEcho,
+	OfferedSchema,
 	PLACED_EVENT,
 	type PlacedEcho,
 	PlacedSchema,
@@ -827,6 +831,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	const placements = new Map<string, PlacementEcho>();
 	/** The last move per placed SPELL (`@hadoku/shared`'s `placed.ts`), by stack item id, replayed to a joiner. Bounded the same way. */
 	const placed = new Map<string, PlacedEcho>();
+	/** Each seat's last `forge:offered`, by `seatKey`, for whoever joins next (`arrangements`' own shape). */
+	const offered = new Map<string, OfferedEcho>();
 	const seatKey = (matchId: string, seat: number): string => `${matchId}#${seat}`;
 	const isController = (matchId: string, seat: number, socketId: string): boolean =>
 		seat !== WATCHER_SEAT && connected.get(seatKey(matchId, seat))?.[0] === socketId;
@@ -913,6 +919,9 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				}
 				for (const [k, held] of placed) {
 					if (k.startsWith(`${match.id}#`)) socket.emit(PLACED_EVENT, held);
+				}
+				for (const [k, held] of offered) {
+					if (k.startsWith(`${match.id}#`) && k !== key) socket.emit(OFFERED_EVENT, held);
 				}
 				// A refresh: the old socket's close armed an abort of this seat's asks.
 				if (seat !== WATCHER_SEAT) match.seatConnected(seat);
@@ -1252,6 +1261,39 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			for (const [zone, piles] of Object.entries(echo.rows)) {
 				log({ evt: 'arrangement', matchId: match.id, seat, zone, ids: piles.flat(), pileSizes: piles.map((pile) => pile.length) });
 			}
+		});
+
+		/*
+		 * Offered (`@hadoku/shared`'s `offered.ts`): the battlefield cards a seat's board draws
+		 * clickable, relayed to the match's other sockets stamped with the seat, so their chips keep
+		 * clear of them too, and kept (last one per seat) for whoever joins next. Only the cards every
+		 * other seat sees face up on a battlefield cross (`Match.offeredToOthers`): a hand card or a
+		 * face-down permanent's being clickable would tell them something.
+		 */
+		let offeredWindow = 0;
+		let offeredSent = 0;
+		socket.on(OFFERED_EVENT, (raw: unknown) => {
+			const parsed = OfferedSchema.safeParse(raw);
+			if (!parsed.success) {
+				log({ evt: 'offered-malformed', participantId, errors: parsed.error.issues.slice(0, 3).map((i) => i.message) });
+				return;
+			}
+			const match = matches.get(parsed.data.matchId);
+			const seat = match === undefined ? undefined : joined.get(match.id);
+			if (match === undefined || seat === undefined || !isController(match.id, seat, socket.id)) return;
+			const now = Math.floor(Date.now() / 1000);
+			if (now !== offeredWindow) {
+				offeredWindow = now;
+				offeredSent = 0;
+			}
+			offeredSent += 1;
+			if (offeredSent > OFFERED_MAX_PER_SECOND) return;
+			const echo: OfferedEcho = { ...parsed.data, cards: match.offeredToOthers(seat, parsed.data.cards), seat };
+			const key = seatKey(match.id, seat);
+			offered.delete(key);
+			offered.set(key, echo);
+			if (offered.size > ARRANGEMENTS_KEPT) offered.delete(offered.keys().next().value as string);
+			socket.to(roomFor(match).roomId).emit(OFFERED_EVENT, echo);
 		});
 
 		/*

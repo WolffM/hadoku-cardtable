@@ -69,7 +69,8 @@
  * stripped of its ids.
  */
 
-import { PLACED_EVENT, PlacedEchoSchema,
+import { OFFERED_EVENT, OfferedEchoSchema,
+  PLACED_EVENT, PlacedEchoSchema,
   PLACEMENT_EVENT, PlacementEchoSchema,
   PRESENCE_EVENT,
   PRESENCE_SEND_MS,
@@ -85,7 +86,7 @@ import { endPlacement, expectPlacement, pendingPlacementFor, renewPlacement, typ
 import { CAST_LANDING_ATTR, expectedGapBox, landCastGhost } from './gestures/cast.ts';
 import type { EntryWeight } from './entries.ts';
 import { drawnCentreOf, PRESENCE_CARD_ATTR, reportHandover, type HandoverFacts, type Report } from './handover-report.ts';
-import { holdSpell, onSpellMoved, placeSpell, placeStackItem, releaseSpell, stackBoxOf } from './placed.ts';
+import { holdSpell, onOwnClickable, onSpellMoved, placeSpell, placeStackItem, releaseSpell, setPeerClickable, stackBoxOf } from './placed.ts';
 import { handCardWidth, sizeAsCard } from '../card-size.ts';
 import { afterGlide, GLIDE_MS, HOUSE_DURATIONS, PLACEMENT_WAIT_MS, prefersReducedMotion, writeDurations } from '../motion.ts';
 import { battlefieldCard, overlayOf, zoneOf } from './board-dom.ts';
@@ -1468,6 +1469,37 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     else placedTimer = setTimeout(sendPlaced, wait);
   });
 
+  /**
+   * The battlefield cards this board draws clickable go to the other screens, and theirs come to
+   * `placed.ts`, so the chips on every screen keep clear of what either player can click
+   * (`@hadoku/shared`'s `offered.ts`). The latest set wins, at most one every `PRESENCE_SEND_MS`,
+   * so a burst of prompts never meets the server's cap and loses the set that stands.
+   */
+  let offeredDue: readonly number[] | null = null;
+  let offeredTimer: ReturnType<typeof setTimeout> | null = null;
+  let offeredSent = 0;
+  function sendOffered(): void {
+    offeredTimer = null;
+    if (offeredDue === null) return;
+    offeredSent = Date.now();
+    host.transport.emit(OFFERED_EVENT, { matchId: host.matchId, type: 'offered', cards: [...offeredDue] });
+    offeredDue = null;
+  }
+  const unwatchOwnClickable = onOwnClickable((cards) => {
+    if (!live || host.seat === null) return;
+    offeredDue = cards;
+    if (offeredTimer !== null) return;
+    const wait = PRESENCE_SEND_MS - (Date.now() - offeredSent);
+    if (wait <= 0) sendOffered();
+    else offeredTimer = setTimeout(sendOffered, wait);
+  });
+  function onOffered(payload: unknown): void {
+    if (!live) return;
+    const parsed = OfferedEchoSchema.safeParse(payload);
+    if (!parsed.success || parsed.data.matchId !== host.matchId || parsed.data.seat === host.seat) return;
+    setPeerClickable(parsed.data.seat, parsed.data.cards);
+  }
+
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerleave', onPointerLeave);
   canvas.addEventListener('pointerup', onPointerRelease);
@@ -1477,6 +1509,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   host.transport.on(PRESENCE_EVENT, onEcho);
   host.transport.on(PLACEMENT_EVENT, onPlacement);
   host.transport.on(PLACED_EVENT, onPlaced);
+  host.transport.on(OFFERED_EVENT, onOffered);
   host.transport.on(REPLAY_HELD_EVENT, onReplayHeld);
   // A replay an EARLIER mount of this module received and could not yet place (the board had not
   // painted) — this mount gets its own fresh attempt, since the server only ever sends it once.
@@ -1491,6 +1524,9 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       live = false;
       unwatch?.();
       unwatchSpellMoved();
+      unwatchOwnClickable();
+      if (offeredTimer !== null) clearTimeout(offeredTimer);
+      offeredTimer = null;
       handMoveListeners.delete(sendHandMove);
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerleave', onPointerLeave);

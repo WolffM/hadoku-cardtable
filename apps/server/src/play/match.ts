@@ -199,6 +199,7 @@ export type MatchSpecWithIdentity = Omit<MatchSpec, 'seats'> & {
 import {
 	createProjector,
 	EVERY_PLAYER,
+	faceUpOnBattlefield,
 	foldFrame,
 	type ObjTable,
 	type SeatProjector,
@@ -1919,6 +1920,17 @@ export class Match {
 			tell();
 		}, WAITING_ON_GRACE_MS);
 		this.waitingOnTimer.unref();
+	}
+
+	/**
+	 * Of the cards `seat`'s board draws clickable, those its message may carry to the other screens
+	 * (`@hadoku/shared`'s `offered.ts`): every other seat sees them face up on a battlefield.
+	 */
+	offeredToOthers(seat: number, cardIds: readonly number[]): number[] {
+		return faceUpOnBattlefield(
+			this.seats.filter((s) => s.seat !== seat).map((s) => s.projector),
+			cardIds,
+		);
 	}
 
 	/**

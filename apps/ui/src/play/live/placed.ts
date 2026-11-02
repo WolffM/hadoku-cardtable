@@ -108,7 +108,7 @@ import { viewerOf, type BoardView, type StackEntry } from '../adapter.ts';
 import { aimBetween, breathe, newArrow, positionArrow, removeArrow, retireCommitted } from './gestures/arrow.ts';
 import { shards } from './departures.ts';
 import { centreOf } from '../lift.ts';
-import { cardBox, faceBox, overlayOf, zoneOf } from './board-dom.ts';
+import { battlefieldCard, cardBox, faceBox, overlayOf, zoneOf } from './board-dom.ts';
 import type { Point } from './gestures/types.ts';
 import './placed.css';
 
@@ -174,7 +174,7 @@ export const PLACED_PENDING_MS = 300;
  * was missing the art").
  */
 export const CHIP_DWELL_MS = 1500;
-/** The longest a chip waits, hidden, for its art and its credit before it is drawn without them. */
+/** The longest a chip waits, hidden, for its art, its credit and its own size before it is drawn without them. */
 export const CHIP_ART_WAIT_MS = 1000;
 
 /**
@@ -250,6 +250,24 @@ export function setChainHalted(halted: boolean | null): void {
   if (chainHalted === halted) return;
   chainHalted = halted;
   requestRepaint();
+}
+
+/**
+ * The other seats' clickable battlefield cards, by seat, as their boards last said (`forge:offered`,
+ * relayed by `presence.ts`): the chips here keep clear of those too. The operator, 2026-11-02: *"we
+ * should avoid blocking the opponents playable cards as well."*
+ */
+const peerClickable = new Map<number, readonly number[]>();
+export function setPeerClickable(seat: number, cards: readonly number[]): void {
+  peerClickable.set(seat, cards);
+  requestRepaint();
+}
+
+/** This board's own clickable battlefield cards, each time they change: `presence.ts` says them to the other screens. */
+const ownClickableListeners = new Set<(cards: readonly number[]) => void>();
+export function onOwnClickable(listener: (cards: readonly number[]) => void): () => void {
+  ownClickableListeners.add(listener);
+  return () => ownClickableListeners.delete(listener);
 }
 
 function register(records: Map<number, Placement>, id: number, at: Point, side: 'you' | 'them', glide = false): void {
@@ -350,6 +368,7 @@ export function forgetPlacements(): void {
   releases.clear();
   landedFrom.clear();
   chainHalted = null;
+  peerClickable.clear();
 }
 
 /* ── pure geometry, unit-tested directly ──────────────────────────────── */
@@ -455,6 +474,14 @@ export function squareWidth(area: number, fixed: number, padX: number, min: numb
  * cards under it are thinnest: no card is ever refused a place or shrunk. A `pinned` item (one being
  * dragged) is settled before all of them, exactly where it is. No card's whole box enters a
  * `keepOut` box (the match's control box). Deterministic: the same asks always settle the same way.
+ *
+ * The operator, 2026-11-02, on Cephalid Breakfast: *"the ability chips eventually start to cover the
+ * two cards, might be better if ability chips also respect "click-able" cards on the battlefield when
+ * evaluating collision."* An ask that `yields` (an ability's chip, which nobody put anywhere) keeps
+ * its whole box, and the reach of its hover (`HOVER_REACH`), off every `clickable` box: the cards the
+ * viewer can click. That outranks the stack's own crowding, so with no clear room left the chips pile
+ * on each other, as above, before one covers a card you can click; only a table with no clear room
+ * at all lets one, where it covers least. A card nobody can click is no obstacle.
  */
 export interface StackAsk {
   readonly want: Point;
@@ -462,6 +489,7 @@ export interface StackAsk {
   readonly height: number;
   readonly seed: number;
   readonly pinned?: boolean;
+  readonly yields?: boolean;
 }
 
 /** The share of a stack card's width and of its height that collides: the inner half of its area. */
@@ -471,8 +499,25 @@ export const STACK_JITTER = 0.35;
 /** The directions a bumped card tries, nearest the push first, and how far apart its tries are, as a share of its core. */
 const SPREAD_RAYS = 24;
 const SPREAD_STEP = 0.2;
+/**
+ * How far a hovering chip's drawn box reaches past its place (`placed.css`): the bob's 5px and the
+ * drift's 3px, the turn's corner swing on a chip three cards wide, and a hair. A yielding chip keeps
+ * this much further off a clickable card, so its hover never carries it over one.
+ */
+export const HOVER_REACH = 10;
 
 type Core = { x: number; y: number; hw: number; hh: number };
+
+/** How much of the boxes in `boxes` a `width` × `height` box centred on `p` covers, in px². */
+function covering(p: Point, width: number, height: number, boxes: readonly Rect[]): number {
+  let sum = 0;
+  for (const b of boxes) {
+    const w = Math.min(p.x + width / 2, b.right) - Math.max(p.x - width / 2, b.left);
+    const h = Math.min(p.y + height / 2, b.bottom) - Math.max(p.y - height / 2, b.top);
+    if (w > 0.01 && h > 0.01) sum += w * h;
+  }
+  return sum;
+}
 
 /** How much of `a`'s core the cores in `done` cover, in px². */
 function crowding(a: Core, done: readonly Core[]): number {
@@ -486,20 +531,64 @@ function crowding(a: Core, done: readonly Core[]): number {
 }
 
 /** `asks` is in stack order, top first — the order `view.stack` is in. */
-export function settleStack(asks: readonly StackAsk[], bounds: Rect, keepOut: readonly Rect[] = []): Point[] {
+export function settleStack(asks: readonly StackAsk[], bounds: Rect, keepOut: readonly Rect[] = [], clickable: readonly Rect[] = []): Point[] {
   const order = asks.map((_, i) => i).sort((i, j) => Number(asks[j]!.pinned === true) - Number(asks[i]!.pinned === true) || j - i);
   const at = new Array<Point>(asks.length);
   const done: Core[] = [];
   for (const i of order) {
     const ask = asks[i]!;
-    const p = ask.pinned === true ? ask.want : spread(ask, bounds, keepOut, done);
+    const p = ask.pinned === true ? ask.want : spread(ask, bounds, keepOut, done, clickable);
     at[i] = p;
     done.push({ x: p.x, y: p.y, hw: (ask.width * STACK_CORE) / 2, hh: (ask.height * STACK_CORE) / 2 });
   }
   return at;
 }
 
-function spread(ask: StackAsk, bounds: Rect, keepOut: readonly Rect[], done: readonly Core[]): Point {
+/**
+ * The nearest spot to an ask's own where it is drawn clear of every `clickable` box, ignoring the rest
+ * of the stack: a yielding chip is first shown here, so it never appears over a card you can click and
+ * slides from there only to make room for the other chips (`settleStack`). Any other ask keeps its own.
+ */
+export function clearOfClickable(ask: StackAsk, bounds: Rect, keepOut: readonly Rect[], clickable: readonly Rect[]): Point {
+  return ask.yields === true && clickable.length > 0 ? spread(ask, bounds, keepOut, [], clickable) : ask.want;
+}
+
+/** How far past its room a sliding card's easing carries it (`placed.css`'s `cubic-bezier(0.2, 0.8, 0.25, 1.1)` peaks at 1.018). */
+const SLIDE_OVERSHOOT = 0.02;
+
+/**
+ * Whether a `width` × `height` card sliding in a straight line from `from` to `to`, its easing's overshoot
+ * and its hover's reach included, passes over any of `boxes`: both ends may be clear of a card and the way
+ * between them not (a corner cut on the way to its room). Each box is grown by half the card and the reach,
+ * and the path's centre line is tested against it.
+ */
+export function slideCrosses(from: Point, to: Point, width: number, height: number, boxes: readonly Rect[]): boolean {
+  const dx = (to.x - from.x) * (1 + SLIDE_OVERSHOOT);
+  const dy = (to.y - from.y) * (1 + SLIDE_OVERSHOOT);
+  const hw = width / 2 + HOVER_REACH;
+  const hh = height / 2 + HOVER_REACH;
+  return boxes.some((b) => {
+    let enter = 0;
+    let exit = 1;
+    for (const [p, d, lo, hi] of [
+      [from.x, dx, b.left - hw, b.right + hw],
+      [from.y, dy, b.top - hh, b.bottom + hh],
+    ] as const) {
+      if (Math.abs(d) < 1e-9) {
+        if (p <= lo || p >= hi) return false;
+        continue;
+      }
+      const a = (lo - p) / d;
+      const z = (hi - p) / d;
+      enter = Math.max(enter, Math.min(a, z));
+      exit = Math.min(exit, Math.max(a, z));
+      if (enter >= exit) return false;
+    }
+    return true;
+  });
+}
+
+function spread(ask: StackAsk, bounds: Rect, keepOut: readonly Rect[], done: readonly Core[], clickable: readonly Rect[]): Point {
   const size = { width: ask.width, height: ask.height };
   const hw = (ask.width * STACK_CORE) / 2;
   const hh = (ask.height * STACK_CORE) / 2;
@@ -508,14 +597,23 @@ function spread(ask: StackAsk, bounds: Rect, keepOut: readonly Rect[], done: rea
     fits(p, size, bounds) &&
     keepOut.every((k) => p.x + size.width / 2 <= k.left || p.x - size.width / 2 >= k.right || p.y + size.height / 2 <= k.top || p.y - size.height / 2 >= k.bottom);
   const crowd = (p: Point): number => crowding({ x: p.x, y: p.y, hw, hh }, done);
-  if (allowed(start) && crowd(start) === 0) return start;
-  // The push: straight away from what is in the way (the cores it hits, else the box it must stay out of), turned by its seed.
+  const avoid = ask.yields === true ? clickable : [];
+  const reachW = ask.width + 2 * HOVER_REACH;
+  const reachH = ask.height + 2 * HOVER_REACH;
+  const covers = (p: Point): number => (avoid.length === 0 ? 0 : covering(p, reachW, reachH, avoid));
+  if (allowed(start) && covers(start) === 0 && crowd(start) === 0) return start;
+  // The push: straight away from what is in the way (the cores it hits and the cards it must not cover, else the box it must stay out of), turned by its seed.
   let ax = 0;
   let ay = 0;
   for (const o of done) {
     const c = crowding({ x: start.x, y: start.y, hw, hh }, [o]);
     ax += (start.x - o.x) * c;
     ay += (start.y - o.y) * c;
+  }
+  for (const k of avoid) {
+    const c = covering(start, reachW, reachH, [k]);
+    ax += (start.x - (k.left + k.right) / 2) * c;
+    ay += (start.y - (k.top + k.bottom) / 2) * c;
   }
   if (ax === 0 && ay === 0) {
     for (const k of keepOut) {
@@ -528,7 +626,8 @@ function spread(ask: StackAsk, bounds: Rect, keepOut: readonly Rect[], done: rea
   const push = (ax === 0 && ay === 0 ? next() * 2 * Math.PI : Math.atan2(ay, ax)) + turn;
   const step = Math.max(4, Math.min(hw, hh) * SPREAD_STEP);
   const reach = Math.hypot(bounds.right - bounds.left, bounds.bottom - bounds.top);
-  let pile: { p: Point; crowd: number } | null = allowed(start) ? { p: start, crowd: crowd(start) } : null;
+  // Where it piles with no free spot: covering the least of what can be clicked, then where the stack is thinnest.
+  let pile: { p: Point; covers: number; crowd: number } | null = allowed(start) ? { p: start, covers: covers(start), crowd: crowd(start) } : null;
   for (let r = step; r <= reach; r += step) {
     for (let k = 0; k < SPREAD_RAYS; k++) {
       // Nearest the push first: 0, +1, −1, +2, −2 … rays off it.
@@ -536,9 +635,11 @@ function spread(ask: StackAsk, bounds: Rect, keepOut: readonly Rect[], done: rea
       const a = push + (off * 2 * Math.PI) / SPREAD_RAYS;
       const p = { x: start.x + r * Math.cos(a), y: start.y + r * Math.sin(a) };
       if (!allowed(p)) continue;
+      const v = covers(p);
+      if (pile !== null && v > pile.covers + 0.01) continue;
       const c = crowd(p);
-      if (c === 0) return p;
-      if (pile === null || c < pile.crowd - 0.01) pile = { p, crowd: c };
+      if (v === 0 && c === 0) return p;
+      if (pile === null || v < pile.covers - 0.01 || c < pile.crowd - 0.01) pile = { p, covers: v, crowd: c };
     }
   }
   return pile?.p ?? start;
@@ -628,6 +729,8 @@ interface Drawn {
   shownAt: number | null;
   /** Shown at its asked-for spot once: from the next paint it slides to its room (`settleStack`); until then it is drawn in place. */
   placedOnce: boolean;
+  /** Where it was last drawn, in the page's coordinates: where a slide to its next place starts. */
+  point: Point | null;
 }
 
 /** An item this paint draws, with what its place is worked out from. */
@@ -689,6 +792,14 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   let live = true;
   let lastView: BoardView | null = null;
   let interaction: PlacedInteraction | undefined;
+  /**
+   * The battlefield cards either player could click at any point this turn — the viewer's, and the
+   * other seat's as its board said (`setPeerClickable`) — which the chips keep clear of
+   * (`StackAsk.yields`). Every prompt changes what can be clicked (a target, then priority with
+   * your lands): a chip moves off a card the moment it can be clicked, and stays off it until the turn
+   * ends rather than sliding back on between two prompts.
+   */
+  const clickable = { turn: Number.NaN, ids: new Set<number>(), own: '' };
   const drawn = new Map<number, Drawn>();
   /** AE27: items gone from the stack, still drawn while something on it targets them (`awaitCounter`). */
   const awaitingCounter = new Set<number>();
@@ -854,6 +965,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         drawnAt: Date.now(),
         shownAt: null,
         placedOnce: false,
+        point: null,
       };
       // A chip is placed beside its source by its own drawn width, which it only has once its text has rendered.
       if (item.isAbility) resized?.observe(el);
@@ -881,16 +993,23 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
    * the width it has, the width solved from it, then one correction for where the lines actually
    * wrapped. Every chip is read before any is written, so a pass is one layout for the whole stack.
    * Once per chip per card width and text — the redraw the resize itself causes finds it already
-   * squared. Not before its text has rendered (the chip's own resize redraws it then).
+   * squared. Not before its text has rendered (the chip's own resize redraws it then). Says whether a
+   * chip still waiting to be shown got its size, which it is shown at from the next paint.
    */
-  function squareChips(chips: readonly Drawn[], cardWidth: number | null, overlayBox: DOMRect): void {
-    if (cardWidth === null) return;
+  function squareChips(chips: readonly Drawn[], cardWidth: number | null, overlayBox: DOMRect): boolean {
+    if (cardWidth === null) return false;
+    const waiting = chips.filter((d) => d.squaredFor === null && d.el.hasAttribute('data-placed-pending'));
     const max = Math.min(cardWidth * 3, overlayBox.width / 3);
     const px = (v: string): number => Number.parseFloat(v) || 0;
     let open = chips.flatMap((d) => {
       const text = d.el.querySelector<HTMLElement>('.placed__chip-text');
       const key = `${cardWidth}:${text?.textContent?.length ?? 0}`;
-      if (text === null || !text.textContent || d.squaredFor === key) return [];
+      if (text === null || d.squaredFor === key) return [];
+      // No text to wrap: a card's width is already its size.
+      if (!text.textContent) {
+        d.squaredFor = key;
+        return [];
+      }
       const style = getComputedStyle(text);
       return [{ d, text, key, padX: px(style.paddingLeft) + px(style.paddingRight), padY: px(style.paddingTop) + px(style.paddingBottom) }];
     });
@@ -907,6 +1026,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         open.push(c);
       }
     }
+    return waiting.some((d) => d.squaredFor !== null);
   }
 
   /**
@@ -1312,6 +1432,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       for (const id of [...drawn.keys()]) removeNow(id);
       return;
     }
+    noteClickable(view);
     promote(view.stack);
     // The overlay's box, and a spell at a hand card's size and an ability's chip squared off a battlefield
     // card's (`card-size.ts`, the one source): read once per paint, and only once something is drawn at
@@ -1386,12 +1507,15 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         schedule(render, held - Date.now() + 1);
       }
       if (d.pendingUntil !== null && (record !== undefined || Date.now() >= d.pendingUntil)) d.pendingUntil = null;
-      const artWait = d.isAbility && d.shownAt === null && Date.now() < d.drawnAt + CHIP_ART_WAIT_MS && !chipReady(item);
-      if (artWait && d.holdCheckAt !== d.drawnAt + CHIP_ART_WAIT_MS) {
+      // A chip waits, hidden, for its art and for its own size (`squareChips`, measured while hidden): the spot it
+      // is first shown at is chosen for the size it keeps, so it never grows over a card once seen.
+      const chipWait =
+        d.isAbility && d.shownAt === null && Date.now() < d.drawnAt + CHIP_ART_WAIT_MS && (!chipReady(item) || (cardWidth !== null && d.squaredFor === null));
+      if (chipWait && d.holdCheckAt !== d.drawnAt + CHIP_ART_WAIT_MS) {
         d.holdCheckAt = d.drawnAt + CHIP_ART_WAIT_MS;
         schedule(render, CHIP_ART_WAIT_MS - (Date.now() - d.drawnAt) + 1);
       }
-      const pending = held !== null || d.pendingUntil !== null || artWait;
+      const pending = held !== null || d.pendingUntil !== null || chipWait;
       d.el.toggleAttribute('data-placed-pending', pending);
       if (!pending) d.shownAt ??= Date.now();
       if (d.leaving) return; // a resolved id Forge is reusing before the fade finished — rare, leave it be
@@ -1417,6 +1541,31 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     return [...scope.querySelectorAll(CONTROL_BOX)].map(rectOf).filter((r) => r.right > r.left && r.bottom > r.top);
   }
 
+  /** Note what either player can click now into this turn's set (`clickable`), and tell the viewer's own when it changes. */
+  function noteClickable(view: BoardView): void {
+    if (view.turn !== clickable.turn) {
+      clickable.turn = view.turn;
+      clickable.ids.clear();
+    }
+    const own = interaction === undefined ? [] : view.players.flatMap((p) => p.battlefield.filter((c) => interaction!.isSelectable(c.id)).map((c) => c.id));
+    for (const id of own) clickable.ids.add(id);
+    for (const cards of peerClickable.values()) for (const id of cards) clickable.ids.add(id);
+    const key = own.join(',');
+    if (key === clickable.own) return;
+    clickable.own = key;
+    for (const listener of ownClickableListeners) listener(own);
+  }
+
+  /** The boxes of this turn's clickable cards still on a battlefield. */
+  function clickableBoxes(): Rect[] {
+    return [...clickable.ids].flatMap((id) => {
+      const el = battlefieldCard(canvas, id);
+      if (el === null) return [];
+      const r = rectOf(el);
+      return r.right > r.left && r.bottom > r.top ? [r] : [];
+    });
+  }
+
   /** Where the stack may stand: across the board, from the top of their battlefield to the foot of this seat's. */
   function tableBounds(overlayBox: DOMRect): Rect {
     const them = zoneOf(canvas, 'them', 'battlefield')?.getBoundingClientRect();
@@ -1428,7 +1577,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
 
   /** Square the chips, read every box the places come from, settle the stack's room, then write each item's place. */
   function place(shown: readonly Shown[], { overlayBox, cardWidth }: { overlayBox: DOMRect; cardWidth: number | null }): void {
-    squareChips(
+    const sized = squareChips(
       shown.filter((s) => s.d.isAbility).map((s) => s.d),
       cardWidth,
       overlayBox,
@@ -1443,31 +1592,39 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       // A card's own size: hidden ones (pending) and ones not laid out yet take no room.
       const size = { width: d.el.offsetWidth, height: d.el.offsetHeight };
       const settles = at !== null && size.width > 0 && !d.el.hasAttribute('data-placed-pending');
-      return at === null ? null : { at, held, settles, size, seed: d.seed };
+      // A chip nobody put anywhere keeps clear of what the viewer can click; anything a player placed stays where they put it.
+      const yields = d.isAbility && !placements.has(item.id);
+      return at === null ? null : { at, held, settles, size, seed: d.seed, yields };
     });
+    const bounds = tableBounds(overlayBox);
+    const keepOut = wants.some((w) => w?.settles === true) ? controlBoxes() : [];
+    const avoid = wants.some((w) => w?.settles === true && w.yields) ? clickableBoxes() : [];
+    for (const w of wants) if (w !== null && w.settles) w.at = clearOfClickable({ want: w.at, ...w.size, seed: w.seed, yields: w.yields }, bounds, keepOut, avoid);
     // Top first, as `settleStack` reads it: a trigger still waiting to go on the stack is newer than anything on it.
     const settling = wants.flatMap((w, n) => (w !== null && w.settles ? [n] : [])).sort((a, b) => Number(shown[b]!.item.pending === true) - Number(shown[a]!.item.pending === true) || a - b);
-    const asks: StackAsk[] = settling.map((n) => ({ want: wants[n]!.at, ...wants[n]!.size, seed: wants[n]!.seed, pinned: wants[n]!.held }));
-    const bounds = tableBounds(overlayBox);
-    const keepOut = asks.length === 0 ? [] : controlBoxes();
-    const key = JSON.stringify([asks, bounds, keepOut]);
-    if (lastSettle?.key !== key) lastSettle = { key, result: settleStack(asks, bounds, keepOut) };
+    const asks: StackAsk[] = settling.map((n) => ({ want: wants[n]!.at, ...wants[n]!.size, seed: wants[n]!.seed, pinned: wants[n]!.held, yields: wants[n]!.yields }));
+    const key = JSON.stringify([asks, bounds, keepOut, avoid]);
+    if (lastSettle?.key !== key) lastSettle = { key, result: settleStack(asks, bounds, keepOut, avoid) };
     const settled = lastSettle.result;
     const settledAt = new Map(settling.map((n, k) => [n, settled[k]!]));
     settledBoxes.clear();
-    let again = false;
+    let again = sized;
     shown.forEach(({ item, index, d, record }, n) => {
       const want = wants[n];
       if (want === null || want === undefined) return;
       const room = settledAt.get(n) ?? want.at;
+      // A chip never travels over a card the viewer can click: where its slide to its room would, it is drawn there at once.
+      const from = d.placedOnce ? d.point : want.at;
+      const jumps = want.yields && avoid.length > 0 && from !== null && slideCrosses(from, room, want.size.width, want.size.height, avoid);
       // First shown where it was let go — the hand-over's own point — then it slides to its room.
-      const at = d.placedOnce ? room : want.at;
+      const at = d.placedOnce || jumps ? room : want.at;
       // Hidden, or shown for the first time: drawn in place, never slid in from where it waited unseen.
-      const inPlace = want.held || !d.placedOnce;
+      const inPlace = want.held || !d.placedOnce || jumps;
       if (!d.placedOnce && !d.el.hasAttribute('data-placed-pending')) {
         d.placedOnce = true;
-        if (room.x !== want.at.x || room.y !== want.at.y) again = true;
+        if (room.x !== at.x || room.y !== at.y) again = true;
       }
+      d.point = at;
       const p = overlayPoint(at, overlayBox);
       d.el.toggleAttribute('data-placed-gliding', record?.gliding === true);
       d.el.toggleAttribute('data-placed-held', inPlace);
@@ -1493,7 +1650,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       d.el.toggleAttribute('data-placed-waiting', item.pending === true);
       d.el.toggleAttribute('data-placed-current', d.current);
     });
-    // The slide starts from the drawn spot: the next frame, once this one has painted it.
+    // The slide starts from the drawn spot, and a chip just given its size is shown: the next frame, once this one has painted.
     if (again) requestAnimationFrame(() => live && render());
   }
 

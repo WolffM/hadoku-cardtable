@@ -495,6 +495,17 @@ function replacedCards(state: ReadonlyMap<string, WireObj>, packet: DeltaPacketJ
 	return out;
 }
 
+/**
+ * Of `ids`, the cards every one of `projectors` sees face up on a battlefield: what one seat's
+ * clickable cards may say to the other screens (`@hadoku/shared`'s `offered.ts`). A hand card is
+ * on no battlefield, and a face-down permanent is not `full` to anyone but those who may look, so
+ * neither crosses. With nobody to tell, nothing crosses.
+ */
+export function faceUpOnBattlefield(projectors: readonly Pick<SeatProjector, 'cardAt' | 'visibilityOf'>[], ids: Iterable<number>): number[] {
+	if (projectors.length === 0) return [];
+	return [...new Set(ids)].filter((id) => projectors.every((p) => p.cardAt(id).zone === 'Battlefield' && p.visibilityOf(id) === 'full'));
+}
+
 /* ── The projector ───────────────────────────────────────────────────── */
 
 /**

@@ -37,7 +37,7 @@
 import { expect } from 'vitest';
 
 import { isTierC, safeParseClientFrame, type ClientFrame, type ServerFrame } from '@hadoku/forge-wire';
-import { ARRANGEMENT_EVENT, CLIENT_EVENT, PLACED_EVENT, PRESENCE_EVENT } from '@hadoku/shared';
+import { ARRANGEMENT_EVENT, CLIENT_EVENT, OFFERED_EVENT, PLACED_EVENT, PRESENCE_EVENT } from '@hadoku/shared';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, matchStderrPath, type BridgeLine, type MatchSpec } from '../../../../server/src/play/host.ts';
 import { withEndStepStop } from '../../../../server/src/play/auto.ts';
@@ -425,9 +425,9 @@ export async function startLiveMatch(spec: MatchSpec): Promise<LiveHarness> {
          * real drag's `pointerup`/`pointercancel` (sent at once, outside the throttle) emitting
          * this mid-scenario is not "unexpected emit forge:presence".
          */
-        // Presence, the placement sync, a placed spell's own move, and client telemetry are the
-        // seat's own side-channels: none is a Forge act.
-        if (event === PRESENCE_EVENT || event === ARRANGEMENT_EVENT || event === CLIENT_EVENT || event === PLACED_EVENT) return;
+        // Presence, the placement sync, a placed spell's own move, the clickable cards it tells the
+        // other screen, and client telemetry are the seat's own side-channels: none is a Forge act.
+        if (event === PRESENCE_EVENT || event === ARRANGEMENT_EVENT || event === CLIENT_EVENT || event === PLACED_EVENT || event === OFFERED_EVENT) return;
         if (event !== MATCH_EVENTS.clientToServer) throw new Error(`unexpected emit ${event}`);
         later(() => fromClient(seat, payload));
       },
