@@ -1805,7 +1805,9 @@
 :root[data-layout='portrait'] .live__phases {
   position: absolute;
   z-index: var(--z-overlay, 20);
-  top: var(--portrait-hud-h);
+  /* `--portrait-hud-h` already INCLUDES the phase row's own height (A's chips, then this bar's
+     reserved 30px) — this bar's own row starts `--portrait-phase-h` short of the HUD's bottom, not at it. */
+  top: calc(var(--portrait-hud-h) - var(--portrait-phase-h));
   left: 0;
   right: 0;
   width: auto;
