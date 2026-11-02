@@ -1,0 +1,201 @@
+/**
+ * The operator, 2026-11-02: *"the more time an animation plays in a single turn, i think the faster it should
+ * happen (up to a speed cap). spells like blasphemous act should count as a single instance of an animation even
+ * if it plays multiple fireballs. each time thopter foundry animation plays, i would want the sword of the meek
+ * reanimate thing to happen faster and faster."*
+ *
+ * Tempo (`apps/ui/src/play/live/tempo.ts`): the `n`th instance of one thing in a turn plays at
+ * `min(TEMPO_CAP, 1 + TEMPO_STEP × (n − 1))`.
+ *
+ *   1. Scenario `tf-thopter-sword` against the Forge AI, paced (Fast Mode off, where the Sword rises; Fast Mode
+ *      draws its landing alone): alice loops Thopter Foundry and Sword of the Meek eight times in one turn. The
+ *      page records each of the Sword's rises out of the graveyard (`entries.ts`'s `rise` stand-in) from the
+ *      frame it is drawn to the frame it is gone, and the lengths its animations were given. Each rise is no
+ *      slower than the one before, and the seventh and eighth (at the cap) are at least `TEMPO_CAP × 0.8` times
+ *      as fast as the first.
+ *   2. Scenario `w80c-blasphemous`: alice's Blasphemous Act draws a fireball at each of the eleven creatures, every
+ *      one at 1× — one instance, however many fireballs — on both screens, and the match log has no faster view of it.
+ *
+ * `[tempo]` lines are the evidence. Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without one
+ * this SKIPS and the title says why.
+ */
+import { expect, test, type Page } from '@playwright/test';
+
+import { boardCard, castUntilOnStack, handCardNamed, makeTitled, ownNamed, passOverStack, pressOffered, serverLog, stackCount } from './play/board.ts';
+import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { setPlayFastModeDefault } from './prefsLocal.ts';
+import { startScenarioMatch, startScenarioVsAi } from './play/scenario.ts';
+
+const forge = forgeAvailability();
+const titled = makeTitled(forge);
+
+/** `tempo.ts`'s own: the e2e states them rather than importing the UI. */
+const TEMPO_CAP = 2.5;
+/** The scenario's eight Islands: a loop each. */
+const LOOPS = 8;
+/** A frame or two of a busy page: what a rise may run over the one before it and still be "no slower". */
+const FRAME_SLACK_MS = 50;
+
+const life = (page: Page) => page.locator('.seat[data-viewer] [data-testid="life"]');
+
+interface Rise {
+  /** From the frame the stand-in was drawn to the frame it was gone. */
+  shownMs: number;
+  /** What its animations were given on the wall: each one's length over its playback rate, summed. */
+  plannedMs: number;
+  tempo: string;
+}
+interface Ball {
+  tempo: string;
+  look: string;
+}
+interface Recorded {
+  rises: Rise[];
+  balls: Ball[];
+}
+
+/** Records every rise stand-in and every flying hit drawn on `page` from now on. */
+async function record(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const rec = { rises: [] as Rise[], balls: [] as Ball[] };
+    (window as unknown as { __tempo: Recorded }).__tempo = rec;
+    const open = new Map<Element, { at: number; planned: Map<Animation, number> }>();
+    const look = (): void => {
+      for (const [el, r] of open) {
+        for (const a of el.getAnimations()) {
+          const d = Number(a.effect?.getComputedTiming().duration ?? 0);
+          if (Number.isFinite(d)) r.planned.set(a, d / (a.playbackRate || 1));
+        }
+        if (!el.isConnected) {
+          rec.rises.push({
+            shownMs: Math.round(performance.now() - r.at),
+            plannedMs: Math.round([...r.planned.values()].reduce((s, x) => s + x, 0)),
+            tempo: (el as HTMLElement).style.getPropertyValue('--tempo'),
+          });
+          open.delete(el);
+        }
+      }
+      requestAnimationFrame(look);
+    };
+    requestAnimationFrame(look);
+    new MutationObserver((muts) => {
+      for (const m of muts)
+        for (const n of m.addedNodes) {
+          if (!(n instanceof HTMLElement)) continue;
+          if (n.matches('.board-entry[data-entry="rise"]')) open.set(n, { at: performance.now(), planned: new Map() });
+          if (n.matches('.effect-hit')) rec.balls.push({ tempo: n.style.getPropertyValue('--tempo'), look: n.dataset.projectile ?? '' });
+        }
+    }).observe(document.body, { childList: true, subtree: true });
+  });
+}
+const recorded = (page: Page): Promise<Recorded> => page.evaluate(() => (window as unknown as { __tempo: Recorded }).__tempo);
+
+const whenOffered = (page: Page, id: number, timeout: number) =>
+  page.waitForFunction((card) => document.querySelector(`[data-board-card="${card}"][data-selectable]`) !== null, id, { polling: 'raf', timeout });
+
+/** Loop `loop` is over: its Thopter made (the scenario's 11 permanents, a Thopter a loop), the Sword back, the Foundry offered again. */
+const whenLooped = (page: Page, foundry: number, loop: number, timeout: number) =>
+  page.waitForFunction(
+    ({ card, permanents }) => {
+      const own = [...(document.querySelector('.seat[data-viewer]')?.querySelectorAll('[data-zone="battlefield"] [data-board-card]') ?? [])];
+      const sword = own.some((e) => e.querySelector('.card__name')?.textContent?.trim() === 'Sword of the Meek');
+      return sword && own.length === permanents && document.querySelector(`[data-board-card="${card}"][data-selectable]`) !== null;
+    },
+    { card: foundry, permanents: 11 + loop + 1 },
+    { polling: 'raf', timeout },
+  );
+
+test(titled('Thopter Foundry + Sword of the Meek, eight loops in one turn: each return of the Sword plays faster, to the cap'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(5 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice } = await startScenarioVsAi(browser, stack, 'tf-thopter-sword', { fastMode: false });
+    const page = alice.page;
+    await expect.poll(() => ownNamed(page, 'Thopter Foundry'), { timeout: 60_000, message: 'alice has her Thopter Foundry' }).toHaveLength(1);
+    const [foundry] = await ownNamed(page, 'Thopter Foundry');
+    await expect(life(page)).toHaveText('20', { timeout: 30_000 });
+    await whenOffered(page, foundry!, 60_000);
+    await record(page);
+
+    for (let loop = 0; loop < LOOPS; loop++) {
+      const [sword] = await ownNamed(page, 'Sword of the Meek');
+      expect(sword, `loop ${loop + 1}: the Sword is on the battlefield`).not.toBeUndefined();
+      expect(await pressOffered(boardCard(page, foundry!)), `loop ${loop + 1}: the Foundry is pressed`).toBe(true);
+      const pick = page.locator(`[data-testid="live-selection-host"] li[data-card-id="${sword}"] label`);
+      await pick.waitFor({ timeout: 20_000 });
+      await pick.click();
+      if (loop === 0) {
+        // The Sword's "may", once: Always + Yes.
+        await expect(page.getByTestId('live-confirm'), 'the Sword asks its "may"').toHaveCount(1, { timeout: 20_000 });
+        await page.getByTestId('live-confirm-always').check();
+        await page.getByTestId('prompt-confirm-yes').click();
+      }
+      await whenLooped(page, foundry!, loop, 20_000);
+    }
+    await expect(life(page), 'every loop’s life is drawn once the beats are over').toHaveText(String(20 + LOOPS), { timeout: 10_000 });
+    await expect.poll(async () => (await recorded(page)).rises.length, { timeout: 10_000, message: 'every rise has played out' }).toBe(LOOPS);
+
+    const { rises, balls } = await recorded(page);
+    for (const [i, r] of rises.entries()) console.log(`[tempo] rise ${i + 1}: tempo ${r.tempo || '1'}, shown ${r.shownMs} ms, its animations ${r.plannedMs} ms`);
+    console.log(`[tempo] heal motes: ${balls.filter((b) => b.look === 'heal').map((b) => b.tempo || '1').join(' ')}`);
+    const reports = serverLog(stack).filter((r) => r.evt === 'client' && r.seat === 0 && r.what === 'tempo');
+    for (const r of reports) console.log(`[tempo] log: ${String(r.instance)} n=${String(r.n)} tempo=${String(r.tempo)} totalMs=${String(r.totalMs)}`);
+
+    expect(rises.map((r) => Number(r.tempo || '1')), 'the nth return plays at the nth tempo').toEqual([1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.5]);
+    for (let i = 1; i < rises.length; i++) {
+      expect(rises[i]!.plannedMs, `rise ${i + 1}'s animations are no longer than rise ${i}'s`).toBeLessThanOrEqual(rises[i - 1]!.plannedMs);
+      expect(rises[i]!.shownMs, `rise ${i + 1} is drawn no longer than rise ${i}`).toBeLessThanOrEqual(rises[i - 1]!.shownMs + FRAME_SLACK_MS);
+    }
+    const capped = Math.max(rises[6]!.shownMs, rises[7]!.shownMs);
+    expect(rises[0]!.shownMs / capped, 'at the cap a return is drawn at least CAP×0.8 times as fast as the first').toBeGreaterThanOrEqual(TEMPO_CAP * 0.8);
+    // The log says which repeat each faster view was: the Sword's return reached the cap.
+    const swordReturns = reports.filter((r) => String(r.instance).startsWith('resolve:Sword of the Meek|'));
+    expect(swordReturns.map((r) => Number(r.tempo)), 'the log: each faster return of the Sword').toEqual([1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.5]);
+  } finally {
+    await stack.stop();
+  }
+});
+
+test(titled('Blasphemous Act is one instance: every one of its fireballs flies at 1×, on both screens'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(4 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const slow = (page: Page): Promise<void> => setPlayFastModeDefault(page.context(), false);
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'w80c-blasphemous', { beforeAlice: slow, beforeBob: slow });
+    const a = alice.page;
+    const b = bob.page;
+    await expect.poll(() => handCardNamed(a, 'Blasphemous Act'), { timeout: 45_000, message: 'alice holds Blasphemous Act' }).toBeDefined();
+    await record(a);
+    await record(b);
+    const act = await handCardNamed(a, 'Blasphemous Act');
+    await castUntilOnStack(a, stack, act!, []);
+    await expect
+      .poll(
+        async () => {
+          if ((await stackCount(a)) === 0) return true;
+          await passOverStack(b);
+          return (await stackCount(a)) === 0;
+        },
+        { timeout: 20_000, intervals: [100], message: 'Blasphemous Act resolves' },
+      )
+      .toBe(true);
+    await a.waitForTimeout(3_000);
+    for (const [who, page] of [
+      ['alice', a],
+      ['bob', b],
+    ] as const) {
+      const bolts = (await recorded(page)).balls.filter((x) => x.look === 'bolt');
+      console.log(`[tempo] ${who}: ${bolts.length} fireballs, tempos ${bolts.map((x) => x.tempo || '1').join(' ')}`);
+      expect(bolts.length, `${who}: a fireball for each creature it hit`).toBeGreaterThanOrEqual(8);
+      expect(new Set(bolts.map((x) => x.tempo || '1')), `${who}: every one at 1×`).toEqual(new Set(['1']));
+    }
+    const faster = serverLog(stack).filter((r) => r.evt === 'client' && r.what === 'tempo' && String(r.instance).startsWith('resolve:Blasphemous Act'));
+    expect(faster, 'no view of the Act was drawn faster than 1×').toEqual([]);
+  } finally {
+    await stack.stop();
+  }
+});
