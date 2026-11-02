@@ -1,3 +1,4 @@
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { buildVersion } from '../../scripts/release/build-version.js';
@@ -15,6 +16,13 @@ import { APP_NAME } from './app-name.js';
  *
  * A define lands in the browser bundle, so what goes in must be PUBLIC data.
  */
+/**
+ * Resolved with node:path, never `new URL('../..', import.meta.url)`: the embed
+ * test loads vite.embed.config under jsdom, whose global `URL` resolves that
+ * against `http://localhost:3000/` and node's fileURLToPath then refuses it.
+ */
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+
 export const BUILD_DEFINES = {
   /** The catalogue's display name for this app (see app-name.ts). */
   __HADOKU_APP_NAME__: JSON.stringify(APP_NAME),
@@ -25,5 +33,5 @@ export const BUILD_DEFINES = {
    * that tells a stale tab from a regression when a player reports an
    * animation the deploy had replaced. Never a committed number.
    */
-  __HADOKU_UI_VERSION__: JSON.stringify(buildVersion(fileURLToPath(new URL('../..', import.meta.url)))),
+  __HADOKU_UI_VERSION__: JSON.stringify(buildVersion(REPO_ROOT)),
 };
