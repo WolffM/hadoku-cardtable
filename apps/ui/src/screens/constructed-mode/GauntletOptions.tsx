@@ -9,12 +9,10 @@
 import type { GauntletOptions as Options } from '@hadoku/shared';
 
 import { RadioCards, type RadioCard } from '../../components/RadioCards.tsx';
+import { formatEraYear } from '../../front/formatLabel.ts';
 import { FORMAT_TABS, type FormatFamily, type GauntletEraOption } from '../tables.ts';
 
 type FamilyCard = FormatFamily | 'random';
-
-/** An era id's year: a Standard id is its `YYYY-MM-DD`, a Modern or Legacy one `<family>-YYYY-MM-DD`. */
-const yearOf = (id: string): string => /(\d{4})-\d{2}-\d{2}$/.exec(id)?.[1] ?? id;
 
 export function GauntletOptions({
   eras,
@@ -59,7 +57,7 @@ export function GauntletOptions({
           <option value="">Random</option>
           {years.map((e) => (
             <option key={e.id} value={e.id} title={e.title}>
-              {yearOf(e.id)}
+              {formatEraYear(e.id)}
             </option>
           ))}
         </select>

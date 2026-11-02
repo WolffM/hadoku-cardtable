@@ -5,6 +5,8 @@
  *   "modern-2011-07-15"  -> "Modern 2011"
  *   "2018-07-13"         -> "Standard 2018"   (a bare date is always a Standard era)
  *
+ * and, where the family is already said (a year slider beside its format's tabs), the year alone.
+ *
  * The id shapes come from `apps/ui/src/screens/tables.ts`'s own comment on `erasOf`: "a Standard id
  * IS its bare `YYYY-MM-DD` date, and a Modern/Legacy id is `<family>-<date>`". Free pick (`FREE_PICK`,
  * `'free'`) is never passed here — callers keep saying "Free pick" themselves, exactly as before this
@@ -26,4 +28,9 @@ export function formatEraLabel(id: string): string {
   const bare = BARE_DATE.exec(id);
   if (bare !== null) return `Standard ${bare[1]!}`;
   return id;
+}
+
+/** A format era's id, read as its year alone ("modern-2011-07-15" -> "2011"); anything else unchanged. */
+export function formatEraYear(id: string): string {
+  return (FAMILY_DATE.exec(id)?.[2] ?? BARE_DATE.exec(id)?.[1]) ?? id;
 }

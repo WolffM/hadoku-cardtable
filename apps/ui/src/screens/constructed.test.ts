@@ -92,6 +92,7 @@ import { PEEK_DELAY_MS, PEEK_GRACE_MS } from './DeckPeek.tsx';
 import type { DeckRecords } from '../stats/deckOrder.ts';
 import { parseRoute } from './route.ts';
 import { TITLE_MS } from './gauntlet/reveal.ts';
+import { layOutYearSlider, pressYearSlider, yearSliderX } from '../components/YearSlider.testing.ts';
 import poolJson from '../draft/pool.json';
 import { dckTextOf, deckFromPool } from '../draft/deckFromPool.ts';
 import { cardIndex, suggestBasics } from '../deck/build.ts';
@@ -102,7 +103,6 @@ import type { RoomFeed } from '../rooms/feed.ts';
 import {
   RANDOM_DECK,
   erasOf,
-  poolIsOnTab,
   tablesClient,
   type DeckRef,
   type RoomPlayer,
@@ -812,10 +812,31 @@ async function pick(value: string): Promise<void> {
  * is on the room record coming back with the new pool.
  */
 async function pickPool(formatId: string): Promise<void> {
-  await act(async () => {
-    fireEvent.change(screen.getByTestId('format'), { target: { value: formatId } });
-  });
-  await waitFor(() => expect((screen.getByTestId('format') as HTMLSelectElement).value).toBe(formatId));
+  await act(async () => slide('format', formatId));
+  await waitFor(() => expect(poolChosen()).toBe(formatId));
+}
+
+/** A year slider's stops, by the id each one sends, left (oldest) to right. */
+function sliderStops(testId: string): string[] {
+  return [...screen.getByTestId(testId).querySelectorAll<HTMLElement>('[data-era]')].map((tick) => tick.dataset.era ?? '');
+}
+
+/** The stop a year slider has chosen ('' for none). */
+function sliderValue(testId: string): string {
+  return screen.getByTestId(testId).dataset.value ?? '';
+}
+
+/** The leader's slider, once the room has answered what it asked: the pool the room is on. */
+function poolChosen(): string | null {
+  const slider = screen.getByTestId('format');
+  return slider.getAttribute('aria-busy') === 'true' ? null : sliderValue('format');
+}
+
+/** Set a year slider as a key or a tap does; it chooses once it has settled (`SETTLE_MS`). */
+function slide(testId: string, id: string): void {
+  const tick = screen.getByTestId(testId).querySelector<HTMLElement>(`[data-era="${id}"]`);
+  if (tick === null) throw new Error(`${testId} has no stop ${id}: ${sliderStops(testId).join(' ')}`);
+  fireEvent.change(within(screen.getByTestId(testId)).getByRole('slider'), { target: { value: tick.dataset.at } });
 }
 
 /**
@@ -1805,12 +1826,11 @@ describe('the deck picker', () => {
  * screen that cannot set the table, and a control everybody has is the defect.
  */
 describe('the table’s pool', () => {
-  const POOL_NAME = '2010-07-16 — Standard (M11)';
+  const POOL_NAME = 'Standard 2010';
 
   it('gives the LEADER a control that moves it, and writes it to the room', async () => {
     const server = await mountRoom({ players: [opponent()], matchId: null });
-    const select = screen.getByTestId('format') as HTMLSelectElement;
-    expect(select.value).toBe('2010-07-16');
+    expect(sliderValue('format')).toBe('2010-07-16');
     expect(screen.queryByTestId('format-fixed')).toBeNull();
 
     await pickPool('2011-07-15');
@@ -1824,6 +1844,37 @@ describe('the table’s pool', () => {
     // And the deck list follows the room, not the press: the pool the room is
     // now on is the one the gate was asked about.
     await waitFor(() => expect(offered()).toEqual([SECOND_DECK]));
+  });
+
+  // The operator, 2026-11-02: "rather than showing the full date/format i feel like this should
+  // just be a year slider? … get rid of the dropdown".
+  it('gives the leader a year slider, not a dropdown: the year alone, and a drag asks the room once', async () => {
+    const server = await mountRoom({ players: [opponent()], matchId: null });
+    const row = screen.getByTestId('format').closest('.lobby__modeline') as HTMLElement;
+    expect(row.querySelector('select')).toBeNull();
+    const slider = within(screen.getByTestId('format')).getByRole('slider');
+    expect(slider.getAttribute('aria-valuetext')).toBe('2010');
+    expect(slider.getAttribute('aria-label')).toBe('Standard year');
+    expect(sliderStops('format')).toEqual(['2010-07-16', '2011-07-15']);
+    // No date and no set: the ruleset's name ("Standard (M11)") is nowhere on the row, and the
+    // ruler labels its tens (2010) and fives alone.
+    expect(row.textContent).not.toMatch(/\d{4}-\d{2}|\(M1\d\)|—/);
+    expect([...screen.getByTestId('format').querySelectorAll('.year-slider__label')].map((l) => l.textContent)).toEqual(['2010']);
+
+    // Laid out as a browser would: 2010 and 2011 at either end of the pill's travel.
+    const box = { left: 0, width: 252, pill: 52 };
+    layOutYearSlider(screen.getByTestId('format'), box);
+    const [y2010, y2011] = [yearSliderX(box, 0), yearSliderX(box, 1)];
+    await act(async () => {
+      pressYearSlider(screen.getByTestId('format'), y2010);
+      for (const clientX of [y2011, y2010, y2011]) fireEvent.pointerMove(window, { pointerId: 1, clientX });
+    });
+    expect(server.calls.filter((c) => c.method === 'PATCH'), 'nothing is asked while the year is held').toHaveLength(0);
+    await act(async () => {
+      fireEvent.pointerUp(window, { pointerId: 1 });
+    });
+    await waitFor(() => expect(poolChosen()).toBe('2011-07-15'));
+    expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body), 'one write, on release, of the year it let go on').toEqual([{ format: '2011-07-15' }]);
   });
 
   /*
@@ -1893,7 +1944,7 @@ describe('the table’s pool', () => {
     await waitFor(() => expect(toggle().getAttribute('aria-pressed')).toBe('false'));
     // Back on the browsed tab's newest era.
     expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([{ format: 'free' }, { format: '2011-07-15' }]);
-    expect((screen.getByTestId('format') as HTMLSelectElement).value).toBe('2011-07-15');
+    await waitFor(() => expect(poolChosen()).toBe('2011-07-15'));
   });
 
   // The operator, 2026-10-10: "when free-pick is enabled, instead of showing all decks in one
@@ -1907,9 +1958,12 @@ describe('the table’s pool', () => {
     await waitFor(() => expect(offered()).toEqual([]));
 
     fireEvent.click(screen.getByTestId('browse-tab-standard'));
-    fireEvent.change(screen.getByTestId('browse-era'), { target: { value: '2010-07-16' } });
+    // Every year at once is the stop left of the oldest, and where a tab opens.
+    expect(sliderStops('browse-era')).toEqual(['', '2010-07-16', '2011-07-15']);
+    expect(within(screen.getByTestId('browse-era')).getByRole('slider').getAttribute('aria-valuetext')).toBe('All');
+    slide('browse-era', '2010-07-16');
     await waitFor(() => expect(offered()).toEqual([UG_POLYMORPH, SECOND_DECK]));
-    fireEvent.change(screen.getByTestId('browse-era'), { target: { value: '2011-07-15' } });
+    slide('browse-era', '2011-07-15');
     await waitFor(() => expect(offered()).toEqual([]));
     expect(server.calls.filter((c) => c.method === 'PATCH')).toHaveLength(0);
   });
@@ -2003,8 +2057,7 @@ describe('the table’s pool', () => {
     expect(screen.queryByTestId('format-tab-draft')).toBeNull();
     expect(screen.queryByTestId('browse-tab-mine')).toBeNull();
     expect(screen.getByTestId('constructed').textContent).not.toMatch(/Drafted pool|My decks/);
-    const format = screen.getByTestId('format') as HTMLSelectElement;
-    expect([...format.options].map((o) => o.value).filter((v) => v.startsWith('draft:'))).toEqual([]);
+    expect(sliderStops('format').filter((v) => v.startsWith('draft:'))).toEqual([]);
     expect(server.calls.filter((c) => c.url.endsWith('/api/decks'))).toHaveLength(0);
 
     // On Free pick, the same build is one of My decks.
@@ -2131,7 +2184,7 @@ describe('the table’s pool', () => {
     // The held deck is re-sent — this seat's verdict was cleared by the change
     // too — and the pool that bans it marks it illegal and takes it off the list.
     await waitFor(() => expect(myReadyOpen()).toBe(false));
-    expect(screen.getByTestId('format-fixed').textContent).toBe('2011-07-15 — Standard (M12)');
+    expect(screen.getByTestId('format-fixed').textContent).toBe('Standard 2011');
     await waitFor(() => expect(offered()).not.toContain(UG_POLYMORPH));
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
     expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: UG_POLYMORPH } });
@@ -2169,7 +2222,7 @@ describe('the table’s pool', () => {
     // same default the server
     // applies at create (operator, 2026-09-27: newest).
     const server = await mountRoom({ players: [opponent()], matchId: null, format: '' });
-    await waitFor(() => expect((screen.getByTestId('format') as HTMLSelectElement).value).toBe('2011-07-15'));
+    await waitFor(() => expect(poolChosen()).toBe('2011-07-15'));
     await waitFor(() => expect(sweeps(server)).not.toHaveLength(0));
     expect(sweeps(server).every((f) => f === '2011-07-15')).toBe(true);
   });
@@ -2180,12 +2233,10 @@ describe('the table’s pool', () => {
       matchId: null,
       refusePatch: { status: 409, error: 'this room is drafting; the game type cannot change now' },
     });
-    await act(async () => {
-      fireEvent.change(screen.getByTestId('format'), { target: { value: '2011-07-15' } });
-    });
+    await act(async () => slide('format', '2011-07-15'));
     await waitFor(() => expect(screen.getByTestId('table-error').textContent).toContain('this room is drafting'));
-    // Nothing local moved: the select still reads what the ROOM is on.
-    expect((screen.getByTestId('format') as HTMLSelectElement).value).toBe('2010-07-16');
+    // The year it asked for gives way: the slider is back on what the ROOM is on.
+    await waitFor(() => expect(poolChosen()).toBe('2010-07-16'));
     expect(server.table.format).toBe('2010-07-16');
   });
 });
@@ -3125,19 +3176,18 @@ describe('a room read that overlapped the leader’s own write', () => {
     // picker showed nothing chosen for a beat. A read issued before a write resolved is dropped and read again.
     // A slow beat, so the stale answer is not papered over by the next read before this test looks.
     const server = await mountRoom({ players: [opponent()], matchId: null }, undefined, everyMs(400));
-    const select = screen.getByTestId('format') as HTMLSelectElement;
-    expect(select.value).toBe(FORMATS[0].id);
+    expect(sliderValue('format')).toBe(FORMATS[0].id);
     const reads = () => server.calls.filter((c) => c.method === 'GET' && c.url.endsWith(`/api/rooms/${ROOM}`)).length;
     const before = reads();
     const release = server.holdNextRoomRead();
     // The next read parks holding the OLD record.
     await waitFor(() => expect(reads()).toBeGreaterThan(before), { timeout: 2_000 });
-    fireEvent.change(select, { target: { value: '2011-07-15' } });
-    await waitFor(() => expect(select.value).toBe('2011-07-15'));
+    slide('format', '2011-07-15');
+    await waitFor(() => expect(poolChosen()).toBe('2011-07-15'));
     release();
     // The stale answer lands now — and changes nothing.
     for (let turn = 0; turn < 5; turn += 1) await act(async () => {});
-    expect(select.value, 'the stale read did not revert the pick').toBe('2011-07-15');
+    expect(poolChosen(), 'the stale read did not revert the pick').toBe('2011-07-15');
     expect(server.table.format).toBe('2011-07-15');
   });
 
@@ -3159,8 +3209,7 @@ describe('a room read that overlapped the leader’s own write', () => {
    */
   it('two of its own room reads landing out of order: the later one wins, even with no local write at all', async () => {
     const server = await mountRoom({ players: [opponent()], matchId: null }, undefined, everyMs(400));
-    const select = screen.getByTestId('format') as HTMLSelectElement;
-    expect(select.value).toBe(FORMATS[0].id);
+    expect(sliderValue('format')).toBe(FORMATS[0].id);
     const reads = () => server.calls.filter((c) => c.method === 'GET' && c.url.endsWith(`/api/rooms/${ROOM}`)).length;
     const before = reads();
     const release = server.holdNextRoomRead();
@@ -3171,11 +3220,11 @@ describe('a room read that overlapped the leader’s own write', () => {
     server.table.format = '2011-07-15';
     // The feed's own next tick (400ms) issues and resolves a SECOND, fresher
     // read before the held one is released.
-    await waitFor(() => expect(select.value).toBe('2011-07-15'), { timeout: 2_000 });
+    await waitFor(() => expect(sliderValue('format')).toBe('2011-07-15'), { timeout: 2_000 });
     release();
     // The held, earlier-issued read's stale answer lands now.
     for (let turn = 0; turn < 5; turn += 1) await act(async () => {});
-    expect(select.value, 'the stale, earlier-issued read did not win over the newer one').toBe('2011-07-15');
+    expect(sliderValue('format'), 'the stale, earlier-issued read did not win over the newer one').toBe('2011-07-15');
   });
 });
 
@@ -3222,7 +3271,7 @@ describe('the room answering before the catalogue', () => {
     // while the era could not yet be named, and the Modern room read as the Standard tab, nothing chosen.
     await mountRoom({ players: [], matchId: null, format: MODERN.id, catalogueAfterRoom: true });
     await waitFor(() => expect(screen.getByTestId('format-tab-modern').getAttribute('aria-selected')).toBe('true'));
-    expect((screen.getByTestId('format') as HTMLSelectElement).value).toBe(MODERN.id);
+    expect(sliderValue('format')).toBe(MODERN.id);
   });
 });
 
@@ -3232,7 +3281,7 @@ describe('the era’s set symbols', () => {
     await mountRoom({ players: [], matchId: null, format: MODERN.id });
     await screen.findByTestId('deck-mine');
     expect(screen.getByTestId('format-tab-modern').getAttribute('aria-selected'), 'the room IS on the Modern era').toBe('true');
-    expect((screen.getByTestId('format') as HTMLSelectElement).value).toBe(MODERN.id);
+    expect(sliderValue('format')).toBe(MODERN.id);
     expect(screen.queryByTestId('pool-sets')).toBeNull();
   });
 
@@ -3347,46 +3396,6 @@ describe('erasOf: a tab shows only its own family\'s eras, newest year first', (
     expect(erasOf(mixed, 'legacy').length).toBeGreaterThan(0);
     expect(erasOf([era('2012-07-13', 'standard')], 'legacy')).toEqual([]);
   });
-});
-
-/*
- * Found live (w48 §U, after T.landed): a leader browsing Legacy while the
- * room sits on a Standard era saw Legacy's NEWEST era drawn as already
- * selected by the browser's own `<select>` fallback (value matches no
- * option), and clicking that exact era sent nothing — the browser already
- * considered it chosen, so no `change` fired. `poolIsOnTab` is what the
- * `<select>` asks before deciding whether to show `poolId` or nothing.
- */
-describe('poolIsOnTab: the select never lets the DOM invent a selection', () => {
-  const era = (id: string, family: TableFormat['family']): TableFormat => ({
-    id,
-    name: id,
-    effective: id,
-    sets: [],
-    banned: [],
-    cardCount: 0,
-    source: 'x',
-    family,
-  });
-  const mixed: TableFormat[] = [
-    era('2014-07-18', 'standard'),
-    era('modern-2014-07-18', 'modern'),
-    era('legacy-2016-07-22', 'legacy'),
-    era('legacy-2012-07-13', 'legacy'),
-  ];
-
-  it('is true when the room’s own era is one of the tab’s options', () => {
-    expect(poolIsOnTab(mixed, 'standard', '2014-07-18')).toBe(true);
-    expect(poolIsOnTab(mixed, 'legacy', 'legacy-2016-07-22')).toBe(true);
-  });
-
-  it('is false while browsing a DIFFERENT family — even the tab’s own first (newest) era', () => {
-    // The room is on the Standard era; browsing Legacy must not claim its
-    // newest entry (the one a naive `<select>` would default-highlight).
-    expect(poolIsOnTab(mixed, 'legacy', '2014-07-18')).toBe(false);
-    expect(poolIsOnTab(mixed, 'modern', '2014-07-18')).toBe(false);
-  });
-
 });
 
 /**

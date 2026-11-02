@@ -104,23 +104,6 @@ export function erasOf(formats: readonly TableFormat[], tab: FormatFamily): Tabl
     .sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
 }
 
-/**
- * Whether `poolId` — the room's ACTUAL pool — is one of the options `tab`
- * itself offers.
- *
- * Found live (w48 §U): a native `<select>` whose `value` matches none of its
- * `<option>`s falls back to showing the FIRST option as already selected, so
- * a leader browsing a tab the room is not on would see an era highlighted
- * that was never chosen — and clicking that exact one fires no `change`
- * event (the browser already considered it selected), so the room could
- * never be moved to it. The caller uses this to render no selection at all
- * on a tab the room's own era is not part of, rather than let the DOM invent
- * one.
- */
-export function poolIsOnTab(formats: readonly TableFormat[], tab: FormatFamily, poolId: string): boolean {
-  return erasOf(formats, tab).some((f) => f.id === poolId);
-}
-
 export interface DeckLine {
   count: number;
   name: string;

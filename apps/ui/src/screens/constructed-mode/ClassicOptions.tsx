@@ -1,17 +1,23 @@
 /*
- * Classic's options: the room's format (the leader's tabs and era, or the
+ * Classic's options: the room's format (the leader's tabs and year, or the
  * pool as text for everyone else) and Free pick's browse — one line beside the
  * mode row. The switches that were at its far end, Free pick and Hand
  * smoothing, are in the room's Match rules (`MatchRules.tsx`).
  *
  * The format tab selector is wave 48 §U's; the row used to open the deck card
  * ("Your deck"), and moved here with the mode row (the operator, 2026-10-21).
+ * The year is a slider, not a dropdown of full dates and set names (the
+ * operator, 2026-11-02: "lets get rid of the dropdown and just make it a
+ * left-to-right slider"). The tabs stay: a year does not name its format, since
+ * Standard, Modern and Legacy each have an era in every year from 2011 on.
  */
 
 import { useEffect, useState } from 'react';
 
 import { FREE_PICK } from '@hadoku/shared';
-import { erasOf, FORMAT_TABS, newestFormat, poolIsOnTab, type FormatFamily, type TableFormat } from '../tables.ts';
+import { YearSlider, type YearStop } from '../../components/YearSlider.tsx';
+import { formatEraLabel, formatEraYear } from '../../front/formatLabel.ts';
+import { erasOf, FORMAT_TABS, newestFormat, type FormatFamily, type TableFormat } from '../tables.ts';
 
 /** Free pick's browse: a format's library, or the decks you drafted (`#/decks`). */
 export type BrowseTab = FormatFamily | 'mine';
@@ -34,10 +40,23 @@ export function toggledFreePick(formats: readonly TableFormat[], poolId: string,
   return { pool: era ?? newestFormat(formats) };
 }
 
+/** A tab's eras as the slider's stops: oldest on the left, each at its year. */
+export function yearStops(formats: readonly TableFormat[], tab: FormatFamily): YearStop[] {
+  return erasOf(formats, tab)
+    .reverse()
+    .flatMap((f) => {
+      const year = Number(formatEraYear(f.id));
+      return Number.isInteger(year) ? [{ id: f.id, label: String(year), year }] : [];
+    });
+}
+
+/** Free pick's browse stop that is not a year: every year of the tab at once. */
+const ALL_YEARS: YearStop = { id: '', label: 'All', year: null };
+
 function poolLabel(formats: readonly TableFormat[], id: string): string {
   const found = formats.find((f) => f.id === id);
   if (found === undefined) return id;
-  return found.source === 'free' ? found.name : `${found.id} — ${found.name}`;
+  return found.source === 'free' ? found.name : formatEraLabel(found.id);
 }
 
 export function ClassicOptions({
@@ -56,163 +75,117 @@ export function ClassicOptions({
   leader: boolean;
   /** A start is in flight or a match is live. */
   disabled: boolean;
-  onPool: (poolId: string) => void;
+  /** Ask the room to move to `poolId`; `settled` runs once it has answered, either way. */
+  onPool: (poolId: string, settled: () => void) => void;
   browse: Browse;
   onBrowse: (browse: Browse) => void;
 }) {
+  /**
+   * The year the leader last chose, from the moment it is chosen until the room answers: the slider
+   * holds it rather than spring back to the room's year for the round trip and then jump forward.
+   * A refusal clears it, and the slider is back on what the room is on, beside the room's own words.
+   */
+  const [asked, setAsked] = useState<string | null>(null);
+  const shownPool = asked ?? poolId;
+  const ask = (id: string): void => {
+    setAsked(id);
+    onPool(id, () => setAsked((now) => (now === id ? null : now)));
+  };
   /** Free pick: every library deck, whatever its era. No tab is the table's while it is on. */
   const freePick = poolId === FREE_PICK;
-  /** Which tab the table is actually on: its era's family. */
-  const tabOfPool = formats.find((f) => f.id === poolId)?.family ?? 'standard';
+  /** Which tab the table is on: its era's family. */
+  const tabOfPool = formats.find((f) => f.id === shownPool)?.family ?? 'standard';
   /**
    * The LEADER's format tab (operator, 2026-10-05: *"i'll need a tab selector
    * at the top for picking the format as well obviously"*).
    *
    * Opens on the table's own era's family and FOLLOWS it there — the effect
-   * below re-syncs whenever `poolId` moves (every write that moved the room's
+   * below re-syncs whenever the pool moves (every write that moved the room's
    * pool, mine or another browser's) and whenever `tabOfPool` does, which
    * without a pool move is only the catalogue arriving after the room and
-   * naming the era's family at last. Switching tabs by hand changes neither,
-   * so it only BROWSES which eras the `<select>` below offers; nothing is sent
-   * until an option in it is chosen, same as the control always worked.
+   * naming the era's family at last. A tab press moves the room onto that
+   * tab's newest year at once (the operator, 2026-10-07: "selecting modern
+   * should default the year selection to the first available").
    */
   const [formatTab, setFormatTab] = useState<FormatFamily>(tabOfPool);
-  useEffect(() => setFormatTab(tabOfPool), [poolId, tabOfPool]);
-  /**
-   * Whether the room's actual pool is one of THIS tab's own options.
-   *
-   * False while browsing a tab the room is not on (its own era is a different
-   * family). The `<select>` below reads this to decide whether to show
-   * `poolId` as chosen or nothing at all — see the comment on the select
-   * itself for why "nothing at all" is the one safe answer.
-   */
-  const poolOnTab = poolIsOnTab(formats, formatTab, poolId);
+  useEffect(() => setFormatTab(tabOfPool), [shownPool, tabOfPool]);
 
   return (
     <>
-          {/* The table's pool: "Format" — one pool, both seats, checked
-              against the same list, across Standard, Modern and Legacy
-              alike (wave 48 §U). The LEADER gets a control; everybody else reads
-              the same text and cannot move it, which is the whole of
-              *"people who join can only select from the deck
-              dropdown"*. */}
-          {leader ? (
-            <>
-              {/* The tabs name the row; the label is the select's name for assistive tech only, so
-                  Classic's mode row stays one line, the top bar's height in every mode. */}
-              {!freePick && (
-                <label className="lobby__field lobby__field--hidden" htmlFor="format">
-                  Format
-                </label>
-              )}
-              {/* The format tab selector (wave 48 §U), replacing the single
-                  "Matched Standard" optgroup: Standard, Modern, Legacy. The active tab opens
-                  on the table's own era and only browses which eras the
-                  select below offers; nothing moves the room until an option
-                  in it is chosen. No prose: the tabs are the explanation. */}
-              {!freePick && (
-                <div className="lobby__format-tabs" role="tablist" data-testid="format-tabs">
-                  {FORMAT_TABS.map((tab) => (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      className="ct-toggle"
-                      role="tab"
-                      aria-selected={formatTab === tab.id}
-                      data-testid={`format-tab-${tab.id}`}
-                      disabled={disabled}
-                      onClick={() => {
-                        setFormatTab(tab.id);
-                        // A tab whose eras do not include the room's pool chooses its first era
-                        // (newest, the list's order) at once, rather than showing nothing chosen
-                        // until the leader picks (the operator, 2026-10-07: "selecting modern
-                        // should default the year selection to the first available").
-                        if (!poolIsOnTab(formats, tab.id, poolId)) {
-                          const first = erasOf(formats, tab.id)[0];
-                          if (first !== undefined) onPool(first.id);
-                        }
-                      }}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {/* The era the room is ACTUALLY on is not always one this
-                  tab offers (you are browsing Modern while the room
-                  sits on a Standard era), and a native `<select>`
-                  whose `value` matches none of its `<option>`s falls
-                  back to showing the FIRST one as already selected —
-                  which then fires no `change` event if that is the
-                  very one you click, so the room could never be moved
-                  to it (found live, w48 §U: `selectOption` on that
-                  first option sent no PATCH). A disabled, hidden,
-                  EMPTY placeholder option — never any text — keeps
-                  the select correctly showing nothing chosen on this
-                  tab, so every real era here is a genuine change. */}
-              {!freePick && (
-                <select
-                  id="format"
-                  data-testid="format"
-                  value={poolOnTab ? poolId : ''}
-                  disabled={disabled}
-                  onChange={(e) => onPool(e.target.value)}
-                >
-                  {!poolOnTab && <option value="" disabled hidden />}
-                  {erasOf(formats, formatTab).map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.id} — {f.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </>
-          ) : (
-            <>
-              {/* The pool's own name says what it is: no label beside it, as for the leader. */}
-              <span className="lobby__pool" data-testid="format-fixed" data-format={poolId} aria-label={`Format: ${poolLabel(formats, poolId)}`}>
-                {poolLabel(formats, poolId)}
-              </span>
-            </>
+      {/* The table's pool: one pool, both seats, checked against the same
+          list, across Standard, Modern and Legacy alike (wave 48 §U). The
+          LEADER gets the tabs and the year; everybody else reads the same
+          pool as text and cannot move it. */}
+      {leader && !freePick && (
+        <>
+          <div className="lobby__format-tabs" role="tablist" data-testid="format-tabs">
+            {FORMAT_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className="ct-toggle"
+                role="tab"
+                aria-selected={formatTab === tab.id}
+                data-testid={`format-tab-${tab.id}`}
+                disabled={disabled}
+                onClick={() => {
+                  setFormatTab(tab.id);
+                  const first = erasOf(formats, tab.id)[0];
+                  if (first !== undefined && formats.find((f) => f.id === shownPool)?.family !== tab.id) ask(first.id);
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <YearSlider
+            testId="format"
+            label={`${FORMAT_TABS.find((t) => t.id === formatTab)!.label} year`}
+            stops={yearStops(formats, formatTab)}
+            value={shownPool}
+            disabled={disabled}
+            busy={asked !== null}
+            onChange={(id) => {
+              if (id !== shownPool) ask(id);
+            }}
+          />
+        </>
+      )}
+      {!leader && (
+        <span className="lobby__pool" data-testid="format-fixed" data-format={poolId} aria-label={`Format: ${poolLabel(formats, poolId)}`}>
+          {poolLabel(formats, poolId)}
+        </span>
+      )}
+      {/* On Free pick, everybody's own browse — see `shownOptions`. */}
+      {freePick && (
+        <>
+          <div className="lobby__format-tabs" role="tablist" data-testid="browse-tabs">
+            {BROWSE_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className="ct-toggle"
+                role="tab"
+                aria-selected={browse.family === tab.id}
+                data-testid={`browse-tab-${tab.id}`}
+                onClick={() => onBrowse({ family: tab.id, era: '' })}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          {/* My decks have no years. Every year at once sits left of the oldest. */}
+          {browse.family !== 'mine' && (
+            <YearSlider
+              testId="browse-era"
+              label={`${FORMAT_TABS.find((t) => t.id === browse.family)!.label} year`}
+              stops={[ALL_YEARS, ...yearStops(formats, browse.family)]}
+              value={browse.era}
+              onChange={(era) => onBrowse({ family: browse.family, era })}
+            />
           )}
-          {/* On Free pick, everybody's own browse — see `shownOptions`. */}
-          {freePick && (
-            <>
-              <div className="lobby__format-tabs" role="tablist" data-testid="browse-tabs">
-                {BROWSE_TABS.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    className="ct-toggle"
-                    role="tab"
-                    aria-selected={browse.family === tab.id}
-                    data-testid={`browse-tab-${tab.id}`}
-                    onClick={() => onBrowse({ family: tab.id, era: '' })}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-              {/* My decks have no years. */}
-              {browse.family !== 'mine' && (
-                <select
-                  data-testid="browse-era"
-                  aria-label={`${browse.family} year`}
-                  value={browse.era}
-                  onChange={(e) => onBrowse({ family: browse.family, era: e.target.value })}
-                >
-                  <option value="">All years</option>
-                  {/* A format has one era a year, so the year names it, and a
-                      short option keeps this row one line high. */}
-                  {erasOf(formats, browse.family).map((f) => (
-                    <option key={f.id} value={f.id} title={f.name}>
-                      {f.effective.slice(0, 4)}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </>
-          )}
+        </>
+      )}
     </>
   );
 }

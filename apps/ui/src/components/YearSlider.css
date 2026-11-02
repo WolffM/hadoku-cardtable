@@ -1,0 +1,219 @@
+/*
+ * `YearSlider`: a ruler of years. A hairline rail with a tick for every year, taller every five and
+ * tallest every ten, the fives and tens labelled under it; the chosen year in a pill above the rail
+ * with a notch pointing at its tick, and that tick in the accent too. The pill travels the line less
+ * its own width, as a range's thumb does, so the rail is inset by half a pill at each end. The native
+ * range under it is invisible and takes no pointer, as `RadioCards`' input is: the track takes the
+ * press, and the range its keys.
+ */
+.year-slider {
+  --ys-h: 48px;
+  --ys-thumb: 3.25rem;
+  --ys-thumb-h: 20px;
+  --ys-rail: 26px;
+  --ys-tick-year: 4px;
+  --ys-tick-half: 7px;
+  --ys-tick-decade: 10px;
+  --ys-nudge: 28px;
+
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 14rem;
+  min-inline-size: 11rem;
+  max-inline-size: 26rem;
+  block-size: var(--ys-h);
+}
+
+.year-slider__nudge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--ys-nudge);
+  block-size: var(--ys-nudge);
+  padding: 0;
+  background: var(--color-bg-alt);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.year-slider__nudge:hover:not(:disabled) {
+  color: var(--color-text);
+  border-color: var(--color-primary);
+}
+
+.year-slider__nudge:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.year-slider__nudge:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.year-slider__track {
+  position: relative;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  block-size: 100%;
+  touch-action: pan-y;
+  cursor: pointer;
+}
+
+.year-slider__track:active {
+  cursor: grabbing;
+}
+
+.year-slider__track:has(> .year-slider__input:disabled) {
+  cursor: default;
+}
+
+.year-slider__rail {
+  position: absolute;
+  inset-inline: calc(var(--ys-thumb) / 2);
+  inset-block-start: var(--ys-rail);
+  block-size: 1px;
+  background: var(--color-border);
+  pointer-events: none;
+}
+
+.year-slider__tick {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: calc(var(--i) * 100%);
+  inline-size: 1px;
+  block-size: var(--ys-tick-year);
+  translate: -50% 0;
+  background: var(--color-text-tertiary);
+}
+
+.year-slider__tick[data-rank='half'] {
+  block-size: var(--ys-tick-half);
+  background: var(--color-text-secondary);
+}
+
+.year-slider__tick[data-rank='decade'] {
+  inline-size: 2px;
+  block-size: var(--ys-tick-decade);
+  background: var(--color-text-secondary);
+}
+
+/* The stop that is not a year ("All"): a dot on the rail, left of the oldest year. */
+.year-slider__tick[data-rank='other'] {
+  inset-block-start: -2px;
+  inline-size: 5px;
+  block-size: 5px;
+  border-radius: 50%;
+}
+
+/* A year with no decks: still on the ruler, never chosen. */
+.year-slider__tick[data-muted] {
+  opacity: 0.35;
+}
+
+.year-slider__tick[data-on] {
+  background: var(--color-primary);
+}
+
+.year-slider__label {
+  position: absolute;
+  inset-block-start: calc(var(--ys-tick-decade) + 2px);
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  color: var(--color-text-tertiary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.year-slider__tick[data-rank='decade'] > .year-slider__label {
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.year-slider__tick[data-on] > .year-slider__label {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+/* The range lies over the ruler, unseen: the slider for keys and assistive tech, never for a pointer. */
+.year-slider__input {
+  appearance: none;
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.year-slider__input:focus-visible {
+  outline: none;
+}
+
+.year-slider__thumb {
+  position: absolute;
+  inset-block-start: calc(var(--ys-rail) - var(--ys-thumb-h) - 5px);
+  inset-inline-start: calc((100% - var(--ys-thumb)) * var(--at));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--ys-thumb);
+  block-size: var(--ys-thumb-h);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-radius: var(--hdk-radius);
+  box-shadow: var(--hdk-shadow-sm);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  pointer-events: none;
+  transition: inset-inline-start 120ms ease-out;
+}
+
+/* Held and moving, the pill is under the pointer, frame for frame; let go, it eases onto its year. */
+.year-slider[data-gliding] .year-slider__thumb {
+  transition: none;
+}
+
+/* The notch: the pill points at its year's tick. */
+.year-slider__thumb::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  border-inline: 4px solid transparent;
+  border-block-start: 5px solid var(--color-primary);
+}
+
+.year-slider__input:focus-visible ~ .year-slider__thumb {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.year-slider__input:disabled ~ .year-slider__thumb {
+  opacity: 0.6;
+}
+
+.year-slider[data-empty] .year-slider__thumb {
+  visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .year-slider__thumb {
+    transition: none;
+  }
+}

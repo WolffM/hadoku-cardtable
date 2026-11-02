@@ -6,7 +6,7 @@
  * year's art was cold, and the old grid stood while it loaded.
  *
  * The neighbours are the years beside the one shown on its own tab, then each other tab's opening
- * list: one press away in the year select or the tab row.
+ * list: one nudge away on the year slider, or one press in the tab row.
  */
 
 import type { Browse } from './constructed-mode/ClassicOptions.tsx';

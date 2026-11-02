@@ -2063,10 +2063,11 @@ function RoomTableScreen({
    */
   /**
    * One LEADER write to the room (its pool, its mode, a setting), answered
-   * with the room as it now is or the server's own refusal.
+   * with the room as it now is or the server's own refusal; `settled` runs
+   * after either.
    */
-  const writeRoom = (write: () => Promise<RoomOutcome>): void => {
-    if (queued(() => writeRoom(write))) return;
+  const writeRoom = (write: () => Promise<RoomOutcome>, settled?: () => void): void => {
+    if (queued(() => writeRoom(write, settled))) return;
     setBusy(true);
     setActionError(null);
     write()
@@ -2079,11 +2080,15 @@ function RoomTableScreen({
         setView(outcome.room);
       })
       .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setBusy(false));
+      .finally(() => {
+        setBusy(false);
+        settled?.();
+      });
   };
 
-  const choosePool = (value: string): void => {
-    if (value !== poolId) writeRoom(() => rooms.setFormat(roomId, value));
+  const choosePool = (value: string, settled?: () => void): void => {
+    if (value !== poolId) writeRoom(() => rooms.setFormat(roomId, value), settled);
+    else settled?.();
   };
 
   /** The LEADER flipped hand smoothing. */
