@@ -57,7 +57,7 @@
  * because the envelope carries no reservation field.
  */
 
-import { forwardRef, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
 
 import { seatStatus, SEAT_HELD_NOTE } from '../draft/seatStatus.ts';
 import type { DraftView } from '../draft/types.ts';
@@ -76,13 +76,14 @@ import {
   REACT_MS,
   SHOVE_MS,
   STAGGER_MS,
-  UNMEASURED,
   fixed,
   packSlot,
-  pileRoom,
+  pileSearch,
   rad,
   ring,
   type PackSlot,
+  type Pile,
+  type Room,
 } from './pack-queue.ts';
 import './card-back.css';
 import './spectate.css';
@@ -173,6 +174,39 @@ function useMeasures(ref: RefObject<HTMLDivElement | null>, key: string) {
   return measures;
 }
 
+/** How long one slice of the piles' search runs before the screen has the thread back. */
+const SLICE_MS = 8;
+
+/**
+ * The piles for `room`, searched a slice per task after the pod is drawn
+ * (`pileSearch`): a table's first search is far longer than a frame, and run in
+ * the render it froze the pod's first frame. Until a table's piles are found its
+ * packs are not drawn; a table searched again (another seat watched, the pass
+ * turned) keeps its last piles meanwhile.
+ */
+function usePiles(room: Room | null): Pile[] | null {
+  const [found, setFound] = useState<Pile[] | null>(null);
+  useEffect(() => {
+    if (room === null) return;
+    const search = pileSearch(room);
+    let timer: ReturnType<typeof setTimeout>;
+    const slice = () => {
+      const until = performance.now() + SLICE_MS;
+      do {
+        const step = search.next();
+        if (step.done) {
+          setFound(step.value);
+          return;
+        }
+      } while (performance.now() < until);
+      timer = setTimeout(slice, 0);
+    };
+    timer = setTimeout(slice, 0);
+    return () => clearTimeout(timer);
+  }, [room]);
+  return room !== null && found?.length === room.faces.length ? found : null;
+}
+
 export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftView; onWatch?: (seatId: number) => void; arrivedWhole?: boolean }) {
   const viewerSeatId = view.viewer.kind === 'seat' ? view.viewer.seatId : null;
   const watchedId = view.viewer.kind === 'watcher' ? view.viewer.seatId : null;
@@ -219,9 +253,9 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
   };
 
   // The piles need the names' and the counters' own boxes: measured, then the room is searched once per table.
-  const piles = useMemo(() => {
+  const room = useMemo((): Room | null => {
     if (measures === null || n < 2) return null;
-    return pileRoom({
+    return {
       faces: seats.map((_, at) => track.at(seatS(at))),
       sides: seats.map((_, at) => sideOf(at)),
       heads: seats.map((_, at) => track.at(onArrow(at, 0))),
@@ -233,19 +267,20 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
       inbound: seats.map((_, at) => (left ? (at - 1 + n) % n : at)),
       hub: track.centre,
       bounds: measures.bounds,
-    });
+    };
     // The room is the table's: seats, direction, the lit arrow and the measured boxes.
   }, [measures, n, bottom, left, inView]);
+  const piles = usePiles(room);
 
   /**
    * Where pack `i` of `depth` at seat `at` is drawn, as one centre and one turn in
    * the box, so moving from any pose to any other is one animation of left,
    * top and rotate.
    */
-  const poseOf = (at: number, i: number, depth: number): Pose => {
+  const poseOf = (piles: readonly Pile[], at: number, i: number, depth: number): Pose => {
     const face = track.at(seatS(at));
     const sx = sideOf(at);
-    const slot = packSlot(i, depth, piles?.[at] ?? UNMEASURED);
+    const slot = packSlot(i, depth, piles[at]!);
     return { x: face.x + slot.x * sx * PACK, y: face.y + slot.y * PACK, angle: slot.r * sx, pose: slot.pose, depth, s: onArrow(at, 0) };
   };
   const tailOf = (at: number): number => seatS(giverOf(at)) - giverSide * CLEAR;
@@ -317,11 +352,12 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
     ];
   };
 
+  // No pack is drawn before its table's piles are found: it would only slide in from the wrong place.
   const poses = new Map<string, Pose>();
   seats.forEach((seat, at) => {
-    for (let i = 0; i < depthOf(at); i++) {
+    for (let i = 0; piles !== null && i < depthOf(at); i++) {
       const key = `${seat.id}:${i}`;
-      const pose = poseOf(at, i, depthOf(at));
+      const pose = poseOf(piles, at, i, depthOf(at));
       pose.angle = closest(pose.angle, angles.current.get(key));
       poses.set(key, pose);
     }
@@ -340,7 +376,8 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
       const depth = depthOf(at);
       const before = was[at] ?? 0;
       let landed = 0;
-      for (let i = before; i < depth; i++) {
+      // A pile not yet found draws no pack, so nothing of it moves.
+      for (let i = before; i < depth && piles !== null; i++) {
         const key = `${seat.id}:${i}`;
         const delay = (i - before) * STAGGER_MS;
         const { frames, duration } = hop(at, poses.get(key)!);
@@ -355,8 +392,8 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
       for (let i = 0; i < Math.min(before, depth); i++) {
         const key = `${seat.id}:${i}`;
         const from = lastPoses.current.get(pickedUp ? `${seat.id}:${i + 1}` : key);
-        const to = poses.get(key)!;
-        if (from === undefined || (from.x === to.x && from.y === to.y && from.angle === to.angle)) continue;
+        const to = poses.get(key);
+        if (from === undefined || to === undefined || (from.x === to.x && from.y === to.y && from.angle === to.angle)) continue;
         animate(
           key,
           [

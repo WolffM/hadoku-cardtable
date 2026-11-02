@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { CLEAR, IN_VIEW, PACK, packSlot, pileRoom, ring, type Room } from './pack-queue.ts';
+import { CLEAR, IN_VIEW, PACK, packSlot, pileRoom, pileSearch, ring, type Room } from './pack-queue.ts';
 
 const PX = 264 / 100;
 
@@ -110,6 +110,22 @@ describe('a pile is a queue along the arrow into its seat', () => {
         const slot = packSlot(i, depth, pile);
         expect(Math.abs(slot.r - pile.places[i]!.turn), `depth ${depth} pack ${i}`).toBeLessThanOrEqual(depth <= 2 ? 2 : 8);
       }
+    }
+  });
+});
+
+describe('the search runs a piece at a time', () => {
+  it('pauses between pieces, and its piles are the whole search’s, for every pod size', () => {
+    for (let n = 2; n <= 8; n++) {
+      const search = pileSearch(pod(n));
+      let pauses = 0;
+      let step = search.next();
+      while (!step.done) {
+        pauses++;
+        step = search.next();
+      }
+      expect(pauses, `a pod of ${n} pauses after every seat at least`).toBeGreaterThanOrEqual(n);
+      expect(step.value, `a pod of ${n}`).toEqual(pileRoom(pod(n)));
     }
   });
 });

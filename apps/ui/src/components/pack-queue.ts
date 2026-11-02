@@ -151,19 +151,29 @@ type Poly = readonly Pt[];
 
 /** Whether two convex polygons overlap (separating axes). */
 function overlaps(a: Poly, b: Poly): boolean {
-  for (const poly of [a, b]) {
-    for (let k = 0; k < poly.length; k++) {
-      const [x1, y1] = poly[k]!;
-      const [x2, y2] = poly[(k + 1) % poly.length]!;
-      const nx = y2 - y1;
-      const ny = x1 - x2;
-      let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
-      for (const [x, y] of a) { const d = x * nx + y * ny; a0 = Math.min(a0, d); a1 = Math.max(a1, d); }
-      for (const [x, y] of b) { const d = x * nx + y * ny; b0 = Math.min(b0, d); b1 = Math.max(b1, d); }
-      if (a1 <= b0 || b1 <= a0) return false;
+  return !separates(a, a, b) && !separates(b, a, b);
+}
+
+/** Whether one of `poly`'s edges is an axis `a` and `b` lie apart along. */
+function separates(poly: Poly, a: Poly, b: Poly): boolean {
+  for (let k = 0; k < poly.length; k++) {
+    const p = poly[k]!, q = poly[(k + 1) % poly.length]!;
+    const nx = q[1] - p[1];
+    const ny = p[0] - q[0];
+    let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+    for (let m = 0; m < a.length; m++) {
+      const d = a[m]![0] * nx + a[m]![1] * ny;
+      a0 = Math.min(a0, d);
+      a1 = Math.max(a1, d);
     }
+    for (let m = 0; m < b.length; m++) {
+      const d = b[m]![0] * nx + b[m]![1] * ny;
+      b0 = Math.min(b0, d);
+      b1 = Math.max(b1, d);
+    }
+    if (a1 <= b0 || b1 <= a0) return true;
   }
-  return true;
+  return false;
 }
 
 interface Obstacle {
@@ -174,14 +184,47 @@ interface Obstacle {
   x1: number;
   y1: number;
 }
-const obstacle = (poly: Poly): Obstacle => ({
-  poly,
-  x0: Math.min(...poly.map((p) => p[0])),
-  y0: Math.min(...poly.map((p) => p[1])),
-  x1: Math.max(...poly.map((p) => p[0])),
-  y1: Math.max(...poly.map((p) => p[1])),
-});
+function obstacle(poly: Poly): Obstacle {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of poly) {
+    x0 = Math.min(x0, x);
+    y0 = Math.min(y0, y);
+    x1 = Math.max(x1, x);
+    y1 = Math.max(y1, y);
+  }
+  return { poly, x0, y0, x1, y1 };
+}
 const box = (x0: number, y0: number, x1: number, y1: number): Obstacle => obstacle([[x0, y0], [x1, y0], [x1, y1], [x0, y1]]);
+
+/** Obstacles bucketed by the cells their bounds cover, box units: a query looks only at the ones near it. */
+const CELL = 4;
+type Blockers = Map<number, Obstacle[]>;
+const cellOf = (v: number): number => Math.floor(v / CELL);
+const cellKey = (cx: number, cy: number): number => (cx + 4096) * 8192 + cy + 4096;
+function blockers(obstacles: readonly Obstacle[]): Blockers {
+  const cells: Blockers = new Map();
+  for (const o of obstacles) {
+    for (let cx = cellOf(o.x0); cx <= cellOf(o.x1); cx++) {
+      for (let cy = cellOf(o.y0); cy <= cellOf(o.y1); cy++) {
+        const key = cellKey(cx, cy);
+        const here = cells.get(key);
+        if (here === undefined) cells.set(key, [o]);
+        else here.push(o);
+      }
+    }
+  }
+  return cells;
+}
+/** Whether any of `cells`' obstacles meets `poly`, whose bounds grown by the clearance are x0…x1, y0…y1. */
+function blocks(cells: Blockers, poly: Poly, x0: number, y0: number, x1: number, y1: number): boolean {
+  for (let cx = cellOf(x0); cx <= cellOf(x1); cx++) {
+    for (let cy = cellOf(y0); cy <= cellOf(y1); cy++) {
+      const here = cells.get(cellKey(cx, cy));
+      if (here !== undefined && here.some((b) => b.x1 > x0 && b.x0 < x1 && b.y1 > y0 && b.y0 < y1 && overlaps(poly, b.poly))) return true;
+    }
+  }
+  return false;
+}
 
 /** A card back's height over its width (`aspect-ratio: 488 / 680`). */
 const CARD_H = 680 / 488;
@@ -293,6 +336,20 @@ const QUEUE_FILE = { from: 0.8, to: 2, step: 0.2 };
 const QUEUE_TRIES = 8;
 /** How far past the arrow's tail, along the ring, a file may run. */
 const QUEUE_PAST = 1;
+const inSteps = (v: number) => Math.round(v / QUEUE_STEP);
+/** Every first file a queue may take (its offset, first pack's distance back, and gap, in steps), the snuggest first. */
+const FILES: { off: number; first: number; gap: number }[] = [];
+for (let off = 0; off <= inSteps(QUEUE_OFF.to - QUEUE_OFF.from); off++) {
+  for (let first = inSteps(QUEUE_BACK.from); first <= inSteps(QUEUE_BACK.to); first++) {
+    for (let gap = inSteps(QUEUE_GAP.from); gap <= inSteps(QUEUE_GAP.to); gap++) FILES.push({ off, first, gap });
+  }
+}
+FILES.sort((a, b) => a.off + a.first + a.gap - (b.off + b.first + b.gap));
+/** A file of `n` packs `gap` apart, the first `first` back from the head, all `off` out. */
+const file = (off: number, first: number, gap: number, n: number): { off: number; back: number }[] =>
+  Array.from({ length: n }, (_, i) => ({ off, back: first + i * gap }));
+/** Each first file's four places, made once. */
+const FILE_SPOTS = FILES.map(({ off, first, gap }) => file(off, first, gap, IN_VIEW));
 
 /**
  * Each seat's pile, at every turn `packSlot` gives its packs clear of every
@@ -308,6 +365,25 @@ const QUEUE_PAST = 1;
  * every seat count, table shape and UI scale is the same rule.
  */
 export function pileRoom(room: Room): Pile[] {
+  const search = pileSearch(room);
+  for (;;) {
+    const step = search.next();
+    if (step.done) return step.value;
+  }
+}
+
+/** How many fallback candidates are judged between two of `pileSearch`'s pauses. */
+const JUDGED_PER_STEP = 256;
+
+/**
+ * `pileRoom`, a piece at a time: it pauses (yields) between pieces of a few
+ * milliseconds each — after each seat, after a seat's arrow, after its ranking
+ * and every `JUDGED_PER_STEP` candidates it judges — and returns the piles. A
+ * table's first search is a few hundred milliseconds of arithmetic, so a screen
+ * runs it a slice per task (`SeatBar`'s `usePiles`) rather than in the frame
+ * that first draws the pod.
+ */
+export function* pileSearch(room: Room): Generator<void, Pile[], void> {
   const pad = CLEARANCE * PACK;
   const fixed: Obstacle[] = [];
   for (const f of room.faces) fixed.push(box(f.x - room.faceHalf - pad, f.y - room.faceHalf - pad, f.x + room.faceHalf + pad, f.y + room.faceHalf + pad));
@@ -329,66 +405,78 @@ export function pileRoom(room: Room): Pile[] {
     const g = pad / u;
     fixed.push(obstacle([at(-g, -g), at(9 + g, 5), at(-g, 10 + g)]));
   }
-  const clearOf = (cards: Poly[], blockers: readonly Obstacle[], edges: boolean): boolean =>
-    cards.every((card) => {
-      const o = obstacle(card);
+  const table = blockers(fixed);
+  const clearOf = (cards: readonly Obstacle[], cells: Blockers, edges: boolean): boolean =>
+    cards.every((o) => {
       if (edges && (o.x0 < room.bounds.left + pad || o.y0 < room.bounds.top + pad || o.x1 > room.bounds.right - pad || o.y1 > room.bounds.bottom - pad)) return false;
-      const grown = { x0: o.x0 - pad, y0: o.y0 - pad, x1: o.x1 + pad, y1: o.y1 + pad };
-      return !blockers.some((b) => b.x1 > grown.x0 && b.x0 < grown.x1 && b.y1 > grown.y0 && b.y0 < grown.y1 && overlaps(card, b.poly));
+      return !blocks(cells, o.poly, o.x0 - pad, o.y0 - pad, o.x1 + pad, o.y1 + pad);
     });
 
-  // Each seat's candidates, ranked once; which ones fit depends on the piles placed before it.
+  // Each seat's candidates; which ones fit depends on the piles placed before it.
   const seats = room.faces.map((face, at) => {
     const sx = room.sides[at]!;
     const toBox = (p: Pt): Pt => [face.x + p[0] * sx * PACK, face.y + p[1] * PACK];
     const head: Pt = [((room.heads[at]!.x - face.x) * sx) / PACK, (room.heads[at]!.y - face.y) / PACK];
     const dist = (p: Pt) => Math.hypot(p[0] - head[0], p[1] - head[1]);
-    const others = room.faces.filter((_, j) => j !== at).map((f): Pt => [((f.x - face.x) * sx) / PACK, (f.y - face.y) / PACK]);
-    /** How far a place strays past its seat's own ground: 0 when it is clearly nearer its own face than any other. */
-    const stray = (p: Pt) => Math.max(0, Math.hypot(p[0], p[1]) + OWN - Math.min(...others.map((o) => Math.hypot(p[0] - o[0], p[1] - o[1]))));
-    // Every shape near the face, the ones hugging the arrowhead and the face first;
-    // the ones that stray toward another seat only when nothing else fits, and then the least.
     const steps = Math.round((2 * REACH) / GRID) + 1;
-    // Each grid point's distance to the arrowhead and whether it is this seat's own, once.
-    const span = Math.max(...SHAPES.flatMap((sh) => sh.places.flatMap(([px, py]) => [Math.abs(px), Math.abs(py)])));
-    const side = Math.round((2 * (REACH + span)) / GRID) + 1;
-    const lo = -(REACH + span);
-    const toHead = new Float64Array(side * side);
-    const strays = new Float64Array(side * side);
-    for (let gx = 0; gx < side; gx++) {
-      for (let gy = 0; gy < side; gy++) {
-        const p: Pt = [lo + gx * GRID, lo + gy * GRID];
-        toHead[gx * side + gy] = dist(p);
-        strays[gx * side + gy] = stray(p);
-      }
-    }
-    const count = SHAPES.length * steps * steps;
-    const costs = new Float64Array(count);
-    for (let k = 0; k < SHAPES.length; k++) {
-      const shape = SHAPES[k]!;
-      const offsets = shape.places.map(([px, py]) => Math.round(px / GRID) * side + Math.round(py / GRID));
-      const cx = shape.places.reduce((t, p) => t + p[0], 0) / 4;
-      const cy = shape.places.reduce((t, p) => t + p[1], 0) / 4;
-      for (let gx = 0; gx < steps; gx++) {
-        for (let gy = 0; gy < steps; gy++) {
-          const x = -REACH + gx * GRID, y = -REACH + gy * GRID;
-          const base = (gx + Math.round(span / GRID)) * side + gy + Math.round(span / GRID);
-          let first = Infinity;
-          let away = 0;
-          for (const o of offsets) {
-            first = Math.min(first, toHead[base + o]!);
-            away += strays[base + o]!;
-          }
-          const mx = x + cx, my = y + cy;
-          costs[(k * steps + gx) * steps + gy] = first + 0.5 * Math.hypot(mx - head[0], my - head[1]) + Math.hypot(mx, my) + shape.penalty + (away > 0 ? STRAY + 4 * away : 0);
+    /**
+     * Every shape near the face, ranked: the ones hugging the arrowhead and the
+     * face first; the ones that stray toward another seat only when nothing else
+     * fits, and then the least. Only a seat whose arrow holds no queue needs it,
+     * so it is ranked the first time one asks.
+     */
+    let ranked: { costs: Float64Array; order: number[] } | null = null;
+    const rank = () => {
+      if (ranked !== null) return ranked;
+      const others = room.faces.filter((_, j) => j !== at).map((f): Pt => [((f.x - face.x) * sx) / PACK, (f.y - face.y) / PACK]);
+      /** How far a place strays past its seat's own ground: 0 when it is clearly nearer its own face than any other. */
+      const stray = (p: Pt) => {
+        let near = Infinity;
+        for (const o of others) near = Math.min(near, Math.hypot(p[0] - o[0], p[1] - o[1]));
+        return Math.max(0, Math.hypot(p[0], p[1]) + OWN - near);
+      };
+      // Each grid point's distance to the arrowhead and whether it is this seat's own, once.
+      const span = Math.max(...SHAPES.flatMap((sh) => sh.places.flatMap(([px, py]) => [Math.abs(px), Math.abs(py)])));
+      const side = Math.round((2 * (REACH + span)) / GRID) + 1;
+      const lo = -(REACH + span);
+      const toHead = new Float64Array(side * side);
+      const strays = new Float64Array(side * side);
+      for (let gx = 0; gx < side; gx++) {
+        for (let gy = 0; gy < side; gy++) {
+          const p: Pt = [lo + gx * GRID, lo + gy * GRID];
+          toHead[gx * side + gy] = dist(p);
+          strays[gx * side + gy] = stray(p);
         }
       }
-    }
-    // Sorted natively: each cost to 1e-4, with its index in the low bits.
-    const keyed = new Float64Array(count);
-    for (let i = 0; i < count; i++) keyed[i] = Math.round(costs[i]! * 1e4) * 2 ** 18 + i;
-    keyed.sort();
-    const order = Array.from(keyed, (v) => v % 2 ** 18);
+      const count = SHAPES.length * steps * steps;
+      const costs = new Float64Array(count);
+      for (let k = 0; k < SHAPES.length; k++) {
+        const shape = SHAPES[k]!;
+        const offsets = shape.places.map(([px, py]) => Math.round(px / GRID) * side + Math.round(py / GRID));
+        const cx = shape.places.reduce((t, p) => t + p[0], 0) / 4;
+        const cy = shape.places.reduce((t, p) => t + p[1], 0) / 4;
+        for (let gx = 0; gx < steps; gx++) {
+          for (let gy = 0; gy < steps; gy++) {
+            const x = -REACH + gx * GRID, y = -REACH + gy * GRID;
+            const base = (gx + Math.round(span / GRID)) * side + gy + Math.round(span / GRID);
+            let first = Infinity;
+            let away = 0;
+            for (const o of offsets) {
+              first = Math.min(first, toHead[base + o]!);
+              away += strays[base + o]!;
+            }
+            const mx = x + cx, my = y + cy;
+            costs[(k * steps + gx) * steps + gy] = first + 0.5 * Math.hypot(mx - head[0], my - head[1]) + Math.hypot(mx, my) + shape.penalty + (away > 0 ? STRAY + 4 * away : 0);
+          }
+        }
+      }
+      // Sorted natively: each cost to 1e-4, with its index in the low bits.
+      const keyed = new Float64Array(count);
+      for (let i = 0; i < count; i++) keyed[i] = Math.round(costs[i]! * 1e4) * 2 ** 18 + i;
+      keyed.sort();
+      ranked = { costs, order: Array.from(keyed, (v) => v % 2 ** 18) };
+      return ranked;
+    };
     const candidate = (i: number) => {
       const k = Math.floor(i / (steps * steps)), gx = Math.floor(i / steps) % steps, gy = i % steps;
       const x = -REACH + gx * GRID, y = -REACH + gy * GRID;
@@ -396,13 +484,13 @@ export function pileRoom(room: Room): Pile[] {
     };
     const cell = (v: number) => Math.round(v / GRID);
     /** One pack's backs at a place and pose (a rattling one at its widest), and whether they are clear. */
-    const tried = new Map<number, { cards: Poly[]; clear: boolean }>();
+    const tried = new Map<number, { cards: Obstacle[]; clear: boolean }>();
     const lone = (p: Pt, pose: number) => {
       const key = ((cell(p[0]) + 512) * 1024 + cell(p[1]) + 512) * 16 + pose;
       let seen = tried.get(key);
       if (seen === undefined) {
-        const cards = backsAt(toBox(p), POSES[pose]!, sx);
-        seen = { cards, clear: clearOf(cards, fixed, true) };
+        const cards = backsAt(toBox(p), POSES[pose]!, sx).map(obstacle);
+        seen = { cards, clear: clearOf(cards, table, true) };
         tried.set(key, seen);
       }
       return seen;
@@ -451,61 +539,92 @@ export function pileRoom(room: Room): Pile[] {
       queued.set(key, found);
       return found;
     };
-    const queueCards = new Map<number, { cards: Poly[]; clear: boolean }>();
-    /** Whether packs 0… at `spots` (each `off` out and `back` from the head, in steps) fit at every depth they are drawn at. */
-    const queueFits = (side: 1 | -1, spots: readonly { off: number; back: number }[], taken: readonly Obstacle[]): Poly[] | null => {
-      const all: Poly[] = [];
-      for (let depth = 1; depth <= IN_VIEW; depth++) {
-        const here: Poly[][] = [];
-        for (let i = 0; i < Math.min(depth, spots.length); i++) {
-          const { off, back } = spots[i]!;
-          const spot = back < 0 ? null : queuedAt(side, off, back);
-          if (spot === null) return null;
-          const pose = (depth - 1) * IN_VIEW + i;
-          const key = ((side + 1) * 1e6 + off * 1e3 + back) * 16 + pose;
-          let seen = queueCards.get(key);
-          if (seen === undefined) {
-            const cards = backsAt(spot.box, POSES[pose]!, sx, spot.turn);
-            seen = { cards, clear: clearOf(cards, fixed, true) };
-            queueCards.set(key, seen);
-          }
-          if (!seen.clear || !clearOf(seen.cards, taken, false)) return null;
-          if (here.some((other) => other.some((c) => seen.cards.some((d) => overlaps(grow(c, pad), d))))) return null;
-          here.push(seen.cards);
-          all.push(...seen.cards);
+    type Spot = { off: number; back: number };
+    /** A queued pack's backs at a pose, grown by the clearance once asked, and whether they clear the table; null off the arrow. */
+    type Backs = { cards: Obstacle[]; grown: Obstacle[] | null; clear: boolean; apart: Map<Backs, boolean> };
+    const queueCards = new Map<number, Backs | null>();
+    const backsOf = (side: 1 | -1, { off, back }: Spot, pose: number): Backs | null => {
+      const key = ((side + 1) * 1e6 + off * 1e3 + back) * 16 + pose;
+      let seen = queueCards.get(key);
+      if (seen === undefined) {
+        const spot = back < 0 ? null : queuedAt(side, off, back);
+        if (spot === null) seen = null;
+        else {
+          const cards = backsAt(spot.box, POSES[pose]!, sx, spot.turn).map(obstacle);
+          seen = { cards, grown: null, clear: clearOf(cards, table, true), apart: new Map() };
         }
+        queueCards.set(key, seen);
+      }
+      return seen;
+    };
+    /** Whether pack `j`'s backs, grown by the clearance, keep off pack `i`'s. Disjoint bounds are disjoint shapes. */
+    const apart = (j: Backs, i: Backs): boolean => {
+      let clear = j.apart.get(i);
+      if (clear === undefined) {
+        const grown = (j.grown ??= j.cards.map((c) => obstacle(grow(c.poly, pad))));
+        clear = !grown.some((c) => i.cards.some((d) => c.x1 >= d.x0 && c.x0 <= d.x1 && c.y1 >= d.y0 && c.y0 <= d.y1 && overlaps(c.poly, d.poly)));
+        j.apart.set(i, clear);
+      }
+      return clear;
+    };
+    /**
+     * Whether pack `i` of a queue at `spots` fits at every depth it is drawn at: on
+     * the arrow, clear of the table and of `taken`, and apart from every pack before
+     * it at that depth. It depends on nothing after it, so a queue fits exactly
+     * when each of its packs does, and how many of a queue fit is counted pack by
+     * pack, never re-checked whole.
+     */
+    const packFits = (side: 1 | -1, spots: readonly Spot[], i: number, taken: Blockers): boolean => {
+      const { off, back } = spots[i]!;
+      // On the arrow and clear of the table and of `taken` at every depth: the same for every queue it is in.
+      const key = ((side + 1) * 1e6 + off * 1e3 + back) * IN_VIEW + i;
+      let alone = solo.get(key);
+      if (alone === undefined) {
+        alone = true;
+        for (let depth = i + 1; depth <= IN_VIEW && alone; depth++) {
+          const seen = backsOf(side, spots[i]!, (depth - 1) * IN_VIEW + i);
+          alone = seen !== null && seen.clear && clearOf(seen.cards, taken, false);
+        }
+        solo.set(key, alone);
+      }
+      if (!alone) return false;
+      for (let depth = i + 1; depth <= IN_VIEW; depth++) {
+        const seen = backsOf(side, spots[i]!, (depth - 1) * IN_VIEW + i)!;
+        for (let j = 0; j < i; j++) if (!apart(backsOf(side, spots[j]!, (depth - 1) * IN_VIEW + j)!, seen)) return false;
+      }
+      return true;
+    };
+    /** Each pack's own fit beside the current `taken` (`alongArrow` clears it). */
+    const solo = new Map<number, boolean>();
+    /** How many of `spots`, from `from` on, fit after the ones before `from` (which do). */
+    const fitting = (side: 1 | -1, spots: readonly Spot[], from: number, taken: Blockers): number => {
+      let i = from;
+      while (i < spots.length && packFits(side, spots, i, taken)) i++;
+      return i - from;
+    };
+    /** Every back a fitting queue draws, depth by depth. */
+    const queueBacks = (side: 1 | -1, spots: readonly Spot[]): Obstacle[] => {
+      const all: Obstacle[] = [];
+      for (let depth = 1; depth <= IN_VIEW; depth++) {
+        for (let i = 0; i < Math.min(depth, spots.length); i++) all.push(...backsOf(side, spots[i]!, (depth - 1) * IN_VIEW + i)!.cards);
       }
       return all;
     };
-    // The first files tried, the snuggest to the stroke, the head and each other first.
-    const inSteps = (v: number) => Math.round(v / QUEUE_STEP);
-    const files: { off: number; first: number; gap: number; cost: number }[] = [];
-    for (let off = 0; off <= inSteps(QUEUE_OFF.to - QUEUE_OFF.from); off++) {
-      for (let first = inSteps(QUEUE_BACK.from); first <= inSteps(QUEUE_BACK.to); first++) {
-        for (let gap = inSteps(QUEUE_GAP.from); gap <= inSteps(QUEUE_GAP.to); gap++) files.push({ off, first, gap, cost: off + first + gap });
-      }
-    }
-    files.sort((a, b) => a.cost - b.cost);
-    type Spot = { off: number; back: number };
     /**
-     * The rest of a queue after `spots`, file after file: each next file just
-     * further out than the last, parallel to the arrow and staggered between its
-     * packs, the one that holds the most (the nearest of those). Null when no
-     * further file takes one.
+     * The rest of a queue after `spots` (which fit), file after file: each next
+     * file just further out than the last, parallel to the arrow and staggered
+     * between its packs, the one that holds the most (the nearest of those). Null
+     * when no further file takes one.
      */
-    const continued = (side: 1 | -1, spots: Spot[], file: { off: number; first: number }, gap: number, taken: readonly Obstacle[]): Spot[] | null => {
+    const continued = (side: 1 | -1, spots: Spot[], from: { off: number; first: number }, gap: number, taken: Blockers): Spot[] | null => {
       if (spots.length === IN_VIEW) return spots;
       const half = Math.round(gap / 2);
       let best: { spots: Spot[]; file: { off: number; first: number } } | null = null;
-      for (let out = file.off + inSteps(QUEUE_FILE.from); out <= file.off + inSteps(QUEUE_FILE.to); out += inSteps(QUEUE_FILE.step)) {
-        for (const first of [file.first + half, file.first - half]) {
-          for (let n = IN_VIEW - spots.length; n > (best === null ? 0 : best.spots.length - spots.length); n--) {
-            const next = [...spots, ...Array.from({ length: n }, (_, j) => ({ off: out, back: first + j * gap }))];
-            if (queueFits(side, next, taken) !== null) {
-              best = { spots: next, file: { off: out, first } };
-              break;
-            }
-          }
+      for (let out = from.off + inSteps(QUEUE_FILE.from); out <= from.off + inSteps(QUEUE_FILE.to); out += inSteps(QUEUE_FILE.step)) {
+        for (const first of [from.first + half, from.first - half]) {
+          const next = [...spots, ...file(out, first, gap, IN_VIEW - spots.length)];
+          const n = fitting(side, next, spots.length, taken);
+          if (n > (best === null ? 0 : best.spots.length - spots.length)) best = { spots: next.slice(0, spots.length + n), file: { off: out, first } };
         }
       }
       return best === null ? null : continued(side, best.spots, best.file, gap, taken);
@@ -516,14 +635,18 @@ export function pileRoom(room: Room): Pile[] {
      * file against the stroke, the rest in files further out; then the snuggest
      * (the first few first files that fit at each count are tried).
      */
-    const alongArrow = (taken: readonly Obstacle[]) => {
+    const alongArrow = (taken: Blockers) => {
+      solo.clear();
       for (const side of [1, -1] as const) {
+        // How many of each first file's four fit, counted the first time a count asks.
+        const holds = new Int8Array(FILES.length).fill(-1);
         for (let held = IN_VIEW; held >= 1; held--) {
           let tries = 0;
-          for (const { off, first, gap } of files) {
-            const lead = Array.from({ length: held }, (_, i) => ({ off, back: first + i * gap }));
-            if (queueFits(side, lead, taken) === null) continue;
-            const spots = continued(side, lead, { off, first }, gap, taken);
+          for (let f = 0; f < FILES.length; f++) {
+            if (holds[f]! < 0) holds[f] = fitting(side, FILE_SPOTS[f]!, 0, taken);
+            if (holds[f]! < held) continue;
+            const { off, first, gap } = FILES[f]!;
+            const spots = continued(side, FILE_SPOTS[f]!.slice(0, held), { off, first }, gap, taken);
             if (spots === null) {
               if (++tries === QUEUE_TRIES) break;
               continue;
@@ -532,40 +655,68 @@ export function pileRoom(room: Room): Pile[] {
               const { box: [bx, by], turn } = queuedAt(side, o, back)!;
               return { x: ((bx - face.x) * sx) / PACK, y: (by - face.y) / PACK, turn };
             });
-            return { pile: { places, along: 'arrow' as const }, cards: queueFits(side, spots, taken)!.map(obstacle), own: true };
+            return { pile: { places, along: 'arrow' as const }, cards: queueBacks(side, spots), own: true };
           }
         }
       }
       return null;
     };
 
-    // Every pose the four will take, depth by depth, with the packs beside them at that depth.
-    const fits = (places: Pt[], taken: readonly Obstacle[]): Poly[] | null => {
-      const all: Poly[] = [];
+    /**
+     * Whether a candidate's every pose, depth by depth, clears the table and keeps
+     * its packs apart: the table never changes, so each is judged once (0 unjudged,
+     * 1 fits, 2 does not), and only those that fit are tried beside other piles.
+     */
+    const standing = new Uint8Array(SHAPES.length * steps * steps);
+    const places = new Map<number, Pt[]>();
+    const stands = (i: number): Pt[] | null => {
+      if (standing[i] === 0) {
+        const at = candidate(i);
+        let ok = true;
+        for (let depth = 1; depth <= IN_VIEW && ok; depth++) {
+          for (let k = 0; k < depth && ok; k++) {
+            const pose = (depth - 1) * IN_VIEW + k;
+            ok = lone(at[k]!, pose).clear;
+            for (let j = 0; j < k && ok; j++) ok = !touching(at[j]!, (depth - 1) * IN_VIEW + j, at[k]!, pose);
+          }
+        }
+        standing[i] = ok ? 1 : 2;
+        if (ok) places.set(i, at);
+      }
+      return standing[i] === 1 ? places.get(i)! : null;
+    };
+    // Every pose the four will take, depth by depth, clear of the piles before this one.
+    const fits = (at: Pt[], taken: Blockers): Obstacle[] | null => {
+      const all: Obstacle[] = [];
       for (let depth = 1; depth <= IN_VIEW; depth++) {
         for (let i = 0; i < depth; i++) {
-          const pose = (depth - 1) * IN_VIEW + i;
-          const seen = lone(places[i]!, pose);
-          if (!seen.clear || !clearOf(seen.cards, taken, false)) return null;
-          for (let j = 0; j < i; j++) if (touching(places[j]!, (depth - 1) * IN_VIEW + j, places[i]!, pose)) return null;
+          const seen = lone(at[i]!, (depth - 1) * IN_VIEW + i);
+          if (!clearOf(seen.cards, taken, false)) return null;
           all.push(...seen.cards);
         }
       }
       return all;
     };
     /** The best pile that fits beside `taken`, and whether it is wholly this seat's own. */
-    const place = (taken: readonly Obstacle[]): { pile: Pile; cards: Obstacle[]; own: boolean } => {
+    function* place(before: readonly Obstacle[]): Generator<void, { pile: Pile; cards: Obstacle[]; own: boolean }, void> {
+      const taken = blockers(before);
       const queue = alongArrow(taken);
       if (queue !== null) return queue;
+      yield;
       const anywhere = (places: Pt[]): Pile => ({ places: places.map(([x, y]) => ({ x, y, turn: 0 })), along: 'room' });
+      const fresh = ranked === null;
+      const { costs, order } = rank();
+      if (fresh) yield;
+      let judged = 0;
       for (const i of order) {
-        const places = candidate(i);
-        const cards = fits(places, taken);
-        if (cards !== null) return { pile: anywhere(places), cards: cards.map(obstacle), own: costs[i]! < STRAY };
+        if (standing[i] === 0 && ++judged % JUDGED_PER_STEP === 0) yield;
+        const at = stands(i);
+        const cards = at === null ? null : fits(at, taken);
+        if (cards !== null) return { pile: anywhere(at!), cards, own: costs[i]! < STRAY };
       }
       // Nowhere fits (a pod too small for its seats): the pile stands off the arrowhead in a row.
       return { pile: anywhere(SHAPES[1]!.places.map(([x, y]) => [head[0] + x, head[1] + y])), cards: [], own: false };
-    };
+    }
     return place;
   });
 
@@ -580,7 +731,8 @@ export function pileRoom(room: Room): Pile[] {
     const missed: number[] = [];
     let score = 0;
     for (const at of order) {
-      const { pile, cards, own } = seats[at]!(taken);
+      const { pile, cards, own } = yield* seats[at]!(taken);
+      yield;
       piles[at] = pile;
       taken.push(...cards);
       if (pile.along === 'room' || !own) missed.push(at);
@@ -605,7 +757,7 @@ function grow(rect: Poly, d: number): Poly {
   return rect.map(([x, y], k) => [x + signs[k]![0] * ex[0] + signs[k]![1] * ey[0], y + signs[k]![0] * ex[1] + signs[k]![1] * ey[1]] as Pt);
 }
 
-/** Until the seats are measured, a pile has no places of its own (and no pack is drawn). */
-export const UNMEASURED: Pile = { places: Array.from({ length: IN_VIEW }, () => ({ x: 0, y: 0, turn: 0 })), along: 'room' };
+/** A pile with no places of its own, for the poses' turns (`POSES`). */
+const UNMEASURED: Pile = { places: Array.from({ length: IN_VIEW }, () => ({ x: 0, y: 0, turn: 0 })), along: 'room' };
 for (let depth = 1; depth <= IN_VIEW; depth++) for (let i = 0; i < IN_VIEW; i++) POSES.push(i < depth ? packSlot(i, depth, UNMEASURED) : { r: 0, pose: 'tidy' });
 
