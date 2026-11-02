@@ -236,6 +236,11 @@ test(titled('declaring blockers: the dock is as tall as its question, covers no 
     // As tall as "Select creatures to block." and Done Blocking, no taller, and clear of the lanes
     // it is asking about.
     expect(await dockSlack(alice.page), 'no empty room in the docked dock').toBeLessThanOrEqual(2);
+    const sheetGrip = await dock(alice.page)
+      .locator(':scope > .live__prompt > :is(.prompt, .confirm)')
+      .first()
+      .evaluate((sheet) => getComputedStyle(sheet, '::before').content);
+    expect.soft(sheetGrip, 'one grip, the dock handle’s: the sheet draws no second one').toBe('none');
     expect(await boardLanes(alice.page).count(), 'the four board lanes are drawn').toBe(4);
     await expectBoardLanesClear(alice.page);
     // It stands on the action bar, which stays on the bottom edge, uncovered.
