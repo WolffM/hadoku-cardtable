@@ -2,7 +2,7 @@
  * One Rally pick option, drawn for Rally's frame (cardtable#24; hadoku-rally
  * `docs/requests/CARDTABLE_PICK_CATALOGUES.md`).
  *
- *   `#/embed/<catalogue>/<id>/cards`  every card the option drafts from, by colour
+ *   `#/embed/<catalogue>/<id>/cards`  every card a source drafts from, a stacked column per colour
  *   `#/embed/<catalogue>/<id>/pack`   a pack opened fresh on every load, fan or grid
  *
  * `App.tsx` draws this with no header, no room and no music: Rally frames it under its ranking
@@ -11,21 +11,25 @@
  * the frame unless Rally's 900 px cap makes it.
  *
  * The pack is the draft screen's own `PackView` and layout control, read-only: no `onPick`, so a
- * card opens in the fan and is never taken. Each layout is given a box sized from the frame's
+ * card opens in the fan and is never taken, and in either layout hovering a card opens the shared
+ * inspector, whose wheel turns a double-faced card (`PackView.tsx`'s header). Both pages hold the
+ * screen's `TopLayer`, where the inspector draws. Each layout is given a box sized from the frame's
  * width (`packBox`), since `PackView` fits its cards to the box it is drawn in.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 
 import type { RallyCardGroup, RallyCatalogue, RallyView } from '@hadoku/shared';
 
 import { groupCards } from '../deck/cardOrder.ts';
+import { CardPile } from '../components/CardPile.tsx';
 import { CardTile } from '../components/CardTile.tsx';
 import { PackLayoutControl, usePackLayout } from '../components/DraftScreen.tsx';
 import { FAN_MIN_WIDTH, MAX_CARD_H, PackView, type PackLayout } from '../components/PackView.tsx';
 import { GroupHead } from '../components/PoolView.tsx';
 import { CARD_RATIO, useBox } from '../components/cardFit.ts';
 import { mountInspector } from '../play/inspect/index.ts';
+import { TopLayer } from '../topLayer.tsx';
 import { fetchRallyView, type RallyViewData } from './api.ts';
 import './RallyEmbed.css';
 
@@ -108,31 +112,64 @@ function PackPage({ packs, onRedraw }: { packs: readonly RallyCardGroup[]; onRed
   );
 }
 
+/** The widest and narrowest a card is drawn in the colour columns, and the gap between columns. */
+const COLUMN_MAX_W = 140;
+const COLUMN_MIN_W = 92;
+const COLUMN_GAP = 8;
+
+/**
+ * How many colour columns stand side by side at `width`, and each card's width: every colour in one
+ * row when they fit at `COLUMN_MIN_W`, as wide as the row allows up to `COLUMN_MAX_W`; otherwise the
+ * columns wrap onto as many rows as they need.
+ */
+export function colourColumns(width: number, columns: number): { perRow: number; cardW: number } {
+  const fits = Math.max(1, Math.floor((width + COLUMN_GAP) / (COLUMN_MIN_W + COLUMN_GAP)));
+  const perRow = Math.max(1, Math.min(columns, fits));
+  return { perRow, cardW: Math.min(COLUMN_MAX_W, Math.floor((width - COLUMN_GAP * (perRow - 1)) / perRow)) };
+}
+
+/**
+ * Every card a source drafts from, laid out as Cube Cobra lays out a cube (the operator, 2026-11-01:
+ * "vertical columns for the colors sorted by CMC and stacked cards that can be hovered and inspected"):
+ * a column per colour, then multicolour, colourless and lands, each the picks' own `CardPile`, sorted
+ * by mana value, every card's name strip showing and the shared inspector on hover.
+ */
 function CardsPage({ groups }: { groups: readonly RallyCardGroup[] }) {
+  const [measure, box] = useBox<HTMLDivElement>();
   // One numbering across the page: the inspector reads a tile by its `w<n>` wrapper (`PoolView.tsx`'s header).
   let n = 0;
   return (
-    <>
-      {groups.map((group, g) => (
-        <section key={g} className="rally-embed__group">
-          {group.label !== null && <h3 className="rally-embed__label">{group.label}</h3>}
-          {groupCards(group.cards, 'color', (card) => card).map(([id, cards]) => (
-            <div key={id} className="rally-embed__colour">
-              <h4 className="rally-embed__colour-head">
-                <GroupHead id={id} /> <span className="rally-embed__count">{cards.length}</span>
-              </h4>
-              <div className="rally-embed__grid">
-                {cards.map((card) => (
-                  <div key={card.cardId} className="rally-embed__tile" data-card-id={`w${n++}`}>
-                    <CardTile card={card} />
-                  </div>
-                ))}
-              </div>
+    <div ref={measure}>
+      {groups.map((group, g) => {
+        const columns = groupCards(group.cards, 'color', (card) => card);
+        const fit = box.width > 0 ? colourColumns(box.width, columns.length) : null;
+        return (
+          <section key={g} className="rally-embed__group">
+            {group.label !== null && <h3 className="rally-embed__label">{group.label}</h3>}
+            <div
+              className="rally-embed__columns"
+              data-testid="rally-columns"
+              style={fit === null ? undefined : ({ '--cw': `${fit.cardW}px`, '--pile-gap': `${COLUMN_GAP}px` } as CSSProperties)}
+            >
+              {columns.map(([id, cards]) => (
+                <CardPile
+                  key={id}
+                  testid={`rally-column-${id}`}
+                  head={<GroupHead id={id} />}
+                  items={cards}
+                  cols={1}
+                  render={(card) => (
+                    <div key={card.cardId} className="rally-embed__tile" data-card-id={`w${n++}`}>
+                      <CardTile card={card} />
+                    </div>
+                  )}
+                />
+              ))}
             </div>
-          ))}
-        </section>
-      ))}
-    </>
+          </section>
+        );
+      })}
+    </div>
   );
 }
 
@@ -165,6 +202,8 @@ export function RallyEmbed({ catalogue, id, view }: RallyEmbedProps) {
       {load.state === 'error' && <p className="ct-error">{load.message}</p>}
       {load.state === 'ready' &&
         (load.result.view === 'cards' ? <CardsPage groups={load.result.data.groups} /> : <PackPage packs={load.result.data.packs} onRedraw={() => setDraw((d) => d + 1)} />)}
+      {/* Where the inspector draws, over everything on the page (`../topLayer.tsx`). */}
+      <TopLayer fixed />
     </div>
   );
 }

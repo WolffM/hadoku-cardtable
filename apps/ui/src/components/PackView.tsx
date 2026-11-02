@@ -19,18 +19,26 @@
  * `FAN_MIN_WIDTH` the fan draws the grid. "fan"/"grid" is still a control, the
  * grid is what the tests read, and both render the same `CardTile`s in order.
  *
- * ## The shared inspector, in the grid only
+ * ## The shared inspector: the grid, and a fan nothing picks from
  *
  * The fan's open card is already full size, so an enlarged copy beside it is a
- * duplicate (the operator, 2026-10-19: *"i dont need the hover expand anymore"*):
- * only the grid's fitted tiles open the inspector. In the grid each slot carries
- * a synthetic `data-card-id="w<n>"` of its own, matching
- * `play/inspect/index.ts`'s `TILE_ID` so hovering opens the same enlarged view
- * the board uses — that module may not be edited to recognise a drafted card's
- * real id (`c0`, `c1`, …), so the wrapper carries the convention and the
- * `CardTile` inside keeps its real one, which `onPick` and every test still
- * read. See `PoolView.tsx`'s header for the fuller version of this; `PodScreen`
- * is what mounts the inspector.
+ * duplicate while picking (the operator, 2026-10-19: *"i dont need the hover
+ * expand anymore"*): a picking fan shows the hovered card's back face and
+ * tokens in its related row instead. A fan nothing picks from (Rally's sample
+ * pack, a watcher's view of a drafter) is read, not picked, and its cards open
+ * the shared inspector like the grid's (the operator, 2026-11-01, on the sample
+ * pack: *"for fan view it's missing the hover to expand and mousewheel to show
+ * transform cards"*). The inspector is then the one expanded view, so the
+ * related row is not drawn, and the wheel over a card with other faces turns
+ * the inspector's face rather than stepping the row.
+ *
+ * Each inspectable slot carries a synthetic `data-card-id="w<n>"` of its own,
+ * matching `play/inspect/index.ts`'s `TILE_ID` so hovering opens the same
+ * enlarged view the board uses — that module may not be edited to recognise a
+ * drafted card's real id (`c0`, `c1`, …), so the wrapper carries the convention
+ * and the `CardTile` inside keeps its real one, which `onPick` and every test
+ * still read. See `PoolView.tsx`'s header for the fuller version of this; the
+ * screen around the pack (`PodScreen`, `RallyEmbed`) mounts the inspector.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
@@ -195,11 +203,15 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
   // which is passive and cannot stop the page under the pack scrolling instead.
   const fanOn = fan !== null;
   const count = cards.length;
+  /** Nothing picks: the cards are read through the shared inspector, in either layout. */
+  const browsing = onPick === undefined;
   const wheelLeft = useRef(0);
   useEffect(() => {
     const el = root;
     if (!fanOn || el === null) return;
     const onWheel = (event: WheelEvent): void => {
+      // A read-only fan's card with other faces: the inspector open on it turns its face instead.
+      if (browsing && event.target instanceof Element && event.target.closest('[data-faces]') !== null) return;
       event.preventDefault();
       const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
       let steps: number;
@@ -219,7 +231,7 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [fanOn, count]);
+  }, [fanOn, count, browsing]);
 
   // A click on a card that is not the open one opens it rather than picking it:
   // after the wheel the card under a still pointer need not be the open one, and
@@ -289,7 +301,7 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
   }
 
   const hoveredCard = hovered === null ? undefined : cards[hovered];
-  const related = fan === null || hovered === null || hoveredCard === undefined ? null : { at: hovered, cards: relatedCards(hoveredCard) };
+  const related = fan === null || browsing || hovered === null || hoveredCard === undefined ? null : { at: hovered, cards: relatedCards(hoveredCard) };
 
   const style =
     fan !== null
@@ -322,7 +334,7 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
           <div
             key={card.cardId}
             className="pack__slot"
-            data-card-id={fan === null ? `w${i}` : undefined}
+            data-card-id={fan === null || (browsing && !off) ? `w${i}` : undefined}
             data-focused={highlighted === i ? '' : undefined}
             data-off={off ? '' : undefined}
             onFocus={off ? undefined : () => setFocus(i)}

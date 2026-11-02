@@ -12,10 +12,10 @@ import type { DraftCard, RallyCardsView, RallyPackView } from '@hadoku/shared';
 
 import { CARD_RATIO, fitGrid } from '../components/cardFit.ts';
 import { MAX_CARD_H, fanGeometry } from '../components/PackView.tsx';
-import { RallyEmbed, packBox } from './RallyEmbed.tsx';
+import { RallyEmbed, colourColumns, packBox } from './RallyEmbed.tsx';
 
-function card(name: string, colors: DraftCard['colors'] = []): DraftCard {
-  return { cardId: name, name, manaCost: [], manaValue: 1, colors, typeLine: 'Creature', oracleText: '', setCode: 'TST', collectorNumber: '1', rarity: 'common' };
+function card(name: string, colors: DraftCard['colors'] = [], manaValue = 1): DraftCard {
+  return { cardId: name, name, manaCost: [], manaValue, colors, typeLine: 'Creature', oracleText: '', setCode: 'TST', collectorNumber: '1', rarity: 'common' };
 }
 const pack = (tag: string): DraftCard[] => Array.from({ length: 15 }, (_, i) => card(`${tag} ${i}`));
 
@@ -72,6 +72,16 @@ describe('packBox', () => {
   });
 });
 
+describe('colourColumns', () => {
+  it('stands every colour in one row in Rally\'s 960 px modal, and wraps on a phone', () => {
+    expect(colourColumns(928, 8)).toEqual({ perRow: 8, cardW: 109 });
+    expect(colourColumns(928, 3)).toEqual({ perRow: 3, cardW: 140 });
+    const phone = colourColumns(330, 8);
+    expect(phone.perRow).toBe(3);
+    expect(phone.cardW * 3 + 8 * 2).toBeLessThanOrEqual(330);
+  });
+});
+
 describe('RallyEmbed', () => {
   it("tells the framing page its height, at this page's origin", async () => {
     const parent = { postMessage: vi.fn() };
@@ -116,6 +126,41 @@ describe('RallyEmbed', () => {
     expect(screen.getAllByTestId('card')).toHaveLength(3);
     // Every tile carries its own inspector id, numbered across the whole page.
     expect([...document.querySelectorAll('.rally-embed__tile')].map((el) => el.getAttribute('data-card-id'))).toEqual(['w0', 'w1', 'w2']);
+  });
+
+  it('lays a source\'s cards out as colour columns, each a stacked pile sorted by mana value, read through the inspector', async () => {
+    const view: RallyCardsView = {
+      name: 'Shards of Alara',
+      groups: [
+        {
+          label: null,
+          cards: [card('Big White', ['W'], 5), card('Small White', ['W'], 1), card('Blue', ['U'], 2), card('Gold', ['W', 'U'], 3), card('Mid White', ['W'], 3)],
+        },
+      ],
+    };
+    answers.push({ success: true, data: view });
+    render(createElement(RallyEmbed, { catalogue: 'set', id: 'ALA', view: 'cards' }));
+    await settle();
+    const columns = [...document.querySelectorAll('[data-testid^="rally-column-"]')].map((el) => el.getAttribute('data-testid'));
+    expect(columns).toEqual(['rally-column-W', 'rally-column-U', 'rally-column-M']);
+    const white = [...screen.getByTestId('rally-column-W').querySelectorAll('[data-testid="card"]')].map((el) => el.querySelector('.card__name')?.textContent ?? el.textContent);
+    expect(white.map((t) => t?.match(/Small White|Mid White|Big White/)?.[0])).toEqual(['Small White', 'Mid White', 'Big White']);
+    expect(screen.getByTestId('rally-column-W').classList.contains('pile')).toBe(true);
+    // The inspector has a layer to draw in.
+    expect(document.querySelector('.rally-embed [data-board-zoom]')).not.toBeNull();
+  });
+
+  it('a read-only fan reads its cards through the inspector: every drawn slot carries an inspector id', async () => {
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ width: 720, height: 640, left: 0, top: 0, right: 720, bottom: 640, x: 0, y: 0, toJSON: () => ({}) });
+    answers.push({ success: true, data: { name: 'Cube', packs: [{ label: null, cards: pack('A') }] } satisfies RallyPackView });
+    render(createElement(RallyEmbed, { catalogue: 'cube', id: 'c', view: 'pack' }));
+    await settle();
+    const fan = screen.getByTestId('pack');
+    expect(fan.className).toContain('pack--fan');
+    const drawn = [...fan.querySelectorAll('.pack__slot:not([data-off])')];
+    expect(drawn.length).toBeGreaterThan(0);
+    for (const slot of drawn) expect(slot.getAttribute('data-card-id')).toMatch(/^w\d+$/);
+    expect(document.querySelector('.rally-embed [data-board-zoom]')).not.toBeNull();
   });
 
   it("says the server's sentence when the option is gone", async () => {

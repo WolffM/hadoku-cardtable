@@ -44,33 +44,15 @@
   margin: 0;
 }
 
-.rally-embed__colour + .rally-embed__colour {
-  margin-top: 12px;
-}
-
-.rally-embed__colour-head {
+/* The colour columns: `CardPile`s side by side at the `--cw` `colourColumns` fits, wrapping when narrow. */
+.rally-embed__columns {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0 0 6px;
-  font-size: 13px;
-  font-weight: 600;
+  flex-wrap: wrap;
+  gap: 16px var(--pile-gap, 8px);
+  align-items: flex-start;
 }
 
-.rally-embed__count {
-  color: var(--ink-dim);
-  font-weight: 400;
-}
-
-.rally-embed__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
-  gap: 6px;
-  align-items: start;
-}
-
-/* A card as wide as its column, as tall as a card that wide. */
 .rally-embed__tile {
-  aspect-ratio: var(--card-ratio);
-  --card-h: 100%;
+  display: block;
+  width: var(--cw);
 }
