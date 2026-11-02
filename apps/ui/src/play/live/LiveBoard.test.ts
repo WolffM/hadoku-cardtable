@@ -4638,6 +4638,13 @@ describe('T2 — a calm "waiting for the other player"', () => {
       }),
     );
     s.send(updateButtons(true, 'Play', 'Draw'));
+    // The toss is stamped on a stopped clock. The coin reads `Date.now()` against its stamp once, as it
+    // mounts (`useCoinFlipping`), so it is in the air then however long the frame took to arrive, and
+    // its own timer lands it `FLIP_MS` later.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     s.sendSeats([
       { seat: 0, claimed: true, playerId: m.playerId, coinToss: { winner: 0, at: Date.now() } },
       { seat: 1, claimed: true, playerId: null, coinToss: { winner: 0, at: Date.now() } },

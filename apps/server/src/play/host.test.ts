@@ -80,6 +80,9 @@ writeFileSync(RES_MARKER, 'Forge res — never deleted through a run dir');
 
 const SPEC: MatchSpec = { seats: [{ name: 'Seat 1', ai: false, deck: null }, { name: 'Seat 2', ai: false, deck: null }] };
 
+/** `host.ts`'s liveness check period (not exported): the pool looks at a JVM's silence this often. */
+const LIVENESS_CHECK_MS = 1000;
+
 async function waitUntil(predicate: () => boolean, label: string, timeoutMs = 10_000): Promise<void> {
 	const deadline = Date.now() + timeoutMs;
 	while (!predicate()) {
@@ -336,17 +339,22 @@ describe('liveness: a JVM that stops saying anything is killed, and every match 
 		expect(poolLog.filter((l) => l.evt === 'bridge-noise' || l.evt === 'bridge-wrong-match' || l.evt === 'bridge-host-line')).toEqual([]);
 
 		const { pid, run } = spawned(poolLog, hostId);
-		const stoppedAt = Date.now();
 		process.kill(pid, 'SIGSTOP');
-		await waitUntil(() => a.exits.length > 0 && b.exits.length > 0, 'the stopped JVM to be failed', 5000);
-		expect(Date.now() - stoppedAt).toBeLessThan(1500 + 2000);
+		await waitUntil(() => a.exits.length > 0 && b.exits.length > 0, 'the stopped JVM to be failed');
 		for (const r of [a, b]) expect(r.exits[0]).toMatch(/^the JVM stopped answering \(nothing from it for \d+ s\), so it was killed$/);
-		expect(poolLog.find((l) => l.evt === 'jvm-unresponsive')).toMatchObject({ id: hostId, matches: ['m-0000000000f1', 'm-0000000000f2'] });
+		const unresponsive = poolLog.find((l) => l.evt === 'jvm-unresponsive');
+		expect(unresponsive).toMatchObject({ id: hostId, matches: ['m-0000000000f1', 'm-0000000000f2'] });
+		// The window is the pool's, on its own clock: killed once the silence reaches `unresponsiveMs`, at
+		// a check, and a check more than three periods late restarts the silence instead (`host.ts`'s
+		// `watchLiveness`: this process stalled, not the JVM). Timed from here, a runner stalled past
+		// that guard read the kill as late though every bound was met.
+		expect(unresponsive?.silentMs).toBeGreaterThanOrEqual(1500);
+		expect(unresponsive?.silentMs).toBeLessThan(1500 + 3 * LIVENESS_CHECK_MS);
 		expect(liveJvmCount()).toBe(0);
 		// Killed without being asked to go: a crash, so its record is kept like any other.
 		expect(existsSync(join(run, 'crash.json'))).toBe(true);
-		// Its own windows add to 6 s past the boot (2.5 s alive, then up to 1.5 s + 2 s to be failed),
-		// past vitest's 5 s default: a loaded host timed it out with every bound still met.
+		// Its own windows add to 7 s past the boot (2.5 s alive, then up to 1.5 s + 3 checks to be
+		// failed), past vitest's 5 s default: a loaded host timed it out with every bound still met.
 	}, 20_000);
 });
 

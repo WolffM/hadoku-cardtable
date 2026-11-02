@@ -286,13 +286,20 @@ describe('createReplayPlayer', () => {
     vi.useRealTimers();
   });
 
+  /*
+   * A seek's cost is the CPU this thread spent on it (`process.threadCpuUsage`), not the wall time
+   * around it: a contended runner deschedules the test mid-seek, and that time is no fold's. Timed on
+   * the wall this read 2 ms a seek alone and 21 ms on a host at load 71–77, so the budget measured the
+   * host. The budget is the product's own claim, the one `./player.ts` stands on.
+   */
   it('a seek folds a long game from its start in milliseconds: no checkpoints needed', () => {
     const data = longReplay(1200);
     const { match, clock } = createReplayPlayer(data);
-    const started = performance.now();
+    const before = process.threadCpuUsage();
     for (let i = 0; i < 20; i += 1) clock.seek(clock.durationMs * ((i % 10) + 1) / 10);
-    const perSeek = (performance.now() - started) / 20;
-    console.log(`[w81] a seek in a ${data.envs.length}-frame game folds in ${perSeek.toFixed(2)} ms`);
+    const spent = process.threadCpuUsage(before);
+    const perSeek = (spent.user + spent.system) / 1000 / 20;
+    console.log(`[w81] a seek in a ${data.envs.length}-frame game folds in ${perSeek.toFixed(2)} ms of CPU`);
     expect(match.view?.players.map((p) => p.life)).toEqual(livesAt(clock.durationMs));
     expect(perSeek, 'one seek fits well inside a frame').toBeLessThan(16);
     closeMatch(match);

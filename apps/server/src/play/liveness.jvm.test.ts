@@ -31,6 +31,8 @@ import { createMatchRegistry, type Match } from './match.js';
 import { nightly } from './scenario.js';
 
 const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_JVM: '0' });
+/** `host.ts`'s liveness check period (not exported): the pool looks at a JVM's silence this often. */
+const LIVENESS_CHECK_MS = 1000;
 const title = available.ok
 	? 'a match whose Forge cannot move any more ends, against a real bridge'
 	: `a match whose Forge cannot move any more ends, against a real bridge — SKIPPED: ${available.reason}`;
@@ -138,12 +140,16 @@ describe.skipIf(!available.ok)(title, () => {
 		// Alive: a running bridge says so well inside the window.
 		await new Promise((done) => setTimeout(done, 8000));
 		expect(r.match.status).toBe('running');
-		const stoppedAt = Date.now();
 		process.kill(r.pid(), 'SIGSTOP');
 		await waitUntil(() => r.match.status === 'failed', 'the stopped match to fail', 20_000, status(r));
-		const ms = Date.now() - stoppedAt;
-		console.log(`[jvm] H2: SIGSTOP → failed in ${ms} ms: ${r.match.failure}`);
-		expect(ms).toBeLessThan(6000 + 3000);
+		const silentMs = (r.logs.find((l) => l.evt === 'jvm-unresponsive') as { silentMs?: number } | undefined)?.silentMs;
+		console.log(`[jvm] H2: SIGSTOP → failed after ${String(silentMs)} ms of silence: ${r.match.failure}`);
+		// The window is the pool's, on its own clock: killed once the silence reaches `unresponsiveMs`, at
+		// a check, and a check more than three periods late restarts the silence instead (`host.ts`'s
+		// `watchLiveness`: this process stalled, not the JVM). Timed from here, a runner stalled past
+		// that guard read the kill as late though every bound was met.
+		expect(silentMs).toBeGreaterThanOrEqual(6000);
+		expect(silentMs).toBeLessThan(6000 + 3 * LIVENESS_CHECK_MS);
 		expect(r.match.failure).toMatch(/^the JVM stopped answering \(nothing from it for \d+ s\), so it was killed$/);
 		expect(r.told()).toBe(true);
 		await waitUntil(() => liveJvmCount() === 0, 'the JVM to be gone', 10_000);

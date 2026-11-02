@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { createElement } from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
 
 import { CoinToss, FLIP_MS, SideFace, TossCoin } from './CoinToss.tsx';
@@ -28,7 +28,15 @@ function gripSelector(): string {
   return rule![1]!.replace(/\/\*[\s\S]*?\*\//g, '').trim();
 }
 
-afterEach(cleanup);
+// Every coin here is stamped (`at`) and drawn on one stopped clock: a toss told 800 ms late is read
+// 800 ms late, and one stamped now is still in the air, however long the runner took in between.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+});
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe('the coin toss’s pace', () => {
   it('flips for at least two seconds, three turns at most', () => {

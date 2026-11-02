@@ -37,8 +37,18 @@ function aim(): SVGSVGElement {
   return overlay.querySelector<SVGSVGElement>('[data-testid="targeter"]')!;
 }
 
-/** Run every queued animation frame at `at` ms. */
-function runFrames(at: number): void {
+/**
+ * Stop the page's clock, for a frame that must land partway through the close: the close takes its
+ * start from `performance.now()` inside `commitArrowAt`, and on a running clock a runner stalled
+ * between the commit and {@link runFramesAfter} ran that frame further in than the test said.
+ */
+function stopPageClock(): void {
+  vi.useFakeTimers({ toFake: ['performance'] });
+}
+
+/** Run every queued animation frame `ms` from now on the page's clock. */
+function runFramesAfter(ms: number): void {
+  const at = performance.now() + ms;
   const queued = frames;
   frames = [];
   for (const f of queued) f(at);
@@ -75,15 +85,16 @@ describe('the targeter while aiming', () => {
 
 describe('committing the aim', () => {
   it('a press inside the snapped target commits it: it leaves the targeter testid and closes solid', () => {
+    stopPageClock();
     const svg = aim();
     commitArrowAt(overlay, inner);
     expect(svg.getAttribute('data-testid')).toBe('targeter-committed');
     expect(overlay.querySelector('[data-testid="targeter"]'), 'no live arrow any more').toBeNull();
     expect(svg.hasAttribute('data-ghost'), 'still a ghost while the gaps close').toBe(true);
-    runFrames(performance.now() + CLOSE_MS / 2);
+    runFramesAfter(CLOSE_MS / 2);
     const mid = svg.querySelector<SVGPathElement>('.arrow__core > .arrow__stem')!.style.strokeDasharray;
     expect(mid, 'halfway: the chunks have grown into their gaps').not.toBe('');
-    runFrames(performance.now() + CLOSE_MS + 1);
+    runFramesAfter(CLOSE_MS + 1);
     expect(svg.hasAttribute('data-ghost')).toBe(false);
     expect(svg.querySelector('.arrow__stem'), 'the ribbon has taken over from the dashes').toBeNull();
     expect(svg.hasAttribute('data-settle'), 'the rim bumps once').toBe(true);
@@ -172,7 +183,7 @@ describe('the target brackets: only while a target is being chosen', () => {
     expect(svg.querySelector('.arrow__mark')).not.toBeNull();
     commitArrowAt(overlay, inner);
     expect(svg.querySelector('.arrow__mark')).toBeNull();
-    runFrames(performance.now() + CLOSE_MS + 1);
+    runFramesAfter(CLOSE_MS + 1);
     expect(svg.querySelector('.arrow__mark'), 'nor once it has closed solid').toBeNull();
   });
 });
