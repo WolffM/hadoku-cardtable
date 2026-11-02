@@ -1944,9 +1944,10 @@ describe('the table’s pool', () => {
     });
     await waitFor(() => expect(offered()).toEqual([UG_POLYMORPH, SECOND_DECK]));
     fireEvent.click(screen.getByTestId('browse-tab-mine'));
-    // The tiles' outlines while the list is on its way, never an empty tab that then fills: as many as
-    // the grid had boxes, so it holds its height (`deckSwap.ts`).
-    await waitFor(() => expect(screen.getByTestId('deck-mine').querySelectorAll('.skeleton--tile')).toHaveLength(2));
+    // The last tab's tiles stand, whole, while the list is on its way: never outlines, never an empty
+    // tab that then fills (`deckSwap.ts`).
+    await waitFor(() => expect(screen.getByTestId('deck-mine').querySelectorAll('.deckpick__option--leaving')).toHaveLength(2));
+    expect(screen.getByTestId('deck-mine').querySelector('.skeleton')).toBeNull();
     expect(screen.queryAllByTestId('deck-option')).toEqual([]);
     expect(screen.queryByTestId('browse-era')).toBeNull();
     await act(async () => answer([mine('pod-a', built), mine('pod-short', dckTextOf(deckFromPool('pod-short', pool))), mine('pod-none', null)]));

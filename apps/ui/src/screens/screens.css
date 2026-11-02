@@ -809,6 +809,7 @@
  * repointable from `art-manifest.json` alone.
  */
 .deckpick {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   grid-auto-rows: 190px;
@@ -983,12 +984,13 @@
 }
 
 /*
- * A change of list (`deckSwap.ts`): the boxes stay where they stand and only
- * their content changes. The old content fades out of its box; outlines drawn as
- * the same boxes wait out a slow list; the new content cascades in, in reading
- * order, as one stagger. A box past the last grid's count fades in with its
- * content. Opacity and a lift from above only: a tile keeps its size
- * throughout, and nothing is pushed past the grid's last row.
+ * A change of list (`deckSwap.ts`): the old tiles stand, whole, until the new
+ * list's art has decoded; then the new tiles take the grid and the old are lifted
+ * over the boxes they stood in (`.deckpick__ghost`, placed by `DeckChooser`) and
+ * fade out over them, so every box shows art in every frame. A box past the old
+ * grid's count fades in. A first list, with no grid before it, cascades in over
+ * its outlines in reading order. Opacity, and a lift from above on the cascade
+ * only: a tile keeps its size throughout.
  */
 .deckpick__option--in > *,
 .deckpick__option--grow {
@@ -1004,11 +1006,14 @@
   pointer-events: none;
 }
 
-.deckpick__option--leaving > * {
+.deckpick__ghost {
+  position: absolute;
+  z-index: 1;
   animation: deckpick-out 180ms ease-in forwards;
+  pointer-events: none;
 }
 
-/* The same box as a tile's, so outlines take over from an emptied grid without a seam. */
+/* The same box as a tile's, so a first list's tiles land on its outlines without a seam. */
 .deckpick > .skeleton--tile {
   border: 1px solid var(--color-border-light);
 }
@@ -1035,8 +1040,7 @@
 @media (prefers-reduced-motion: reduce) {
   .deckpick__option--in > *,
   .deckpick__option--grow,
-  .deckpick__option--leaving > *,
-  .deckpick__art img {
+  .deckpick__art--late img {
     animation: none;
   }
 }
@@ -1065,7 +1069,10 @@
   height: 100%;
   object-fit: cover;
   object-position: center 22%;
-  /* Decoded before it is placed (`DeckArt`): a face arriving after its tile eases in rather than snapping. */
+}
+
+/* Decoded before it is placed (`DeckArt`): a face arriving after its tile eases in rather than snapping. */
+.deckpick__art--late img {
   animation: deckpick-fade-in 160ms ease-out both;
 }
 

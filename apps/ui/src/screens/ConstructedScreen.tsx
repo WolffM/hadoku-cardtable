@@ -634,6 +634,8 @@ export function DeckArt({ artId }: { artId: string | undefined }) {
   const url = artId === undefined ? null : cardImageUrl(artId);
   // A face already decoded draws on the tile's first render: no second pass over a grid of new tiles.
   const [decoded, setDecoded] = useState<string | null>(() => (url !== null && artReady(url, () => undefined) ? url : null));
+  // A face that arrives after its tile eases in; one there from the tile's first frame is simply drawn.
+  const [late] = useState(decoded === null);
   useLayoutEffect(() => {
     if (url === null) return;
     let live = true;
@@ -646,7 +648,7 @@ export function DeckArt({ artId }: { artId: string | undefined }) {
     return <span className="deckpick__art deckpick__art--none" aria-hidden="true" />;
   }
   return (
-    <span className="deckpick__art" aria-hidden="true">
+    <span className={late ? 'deckpick__art deckpick__art--late' : 'deckpick__art'} aria-hidden="true">
       <img src={url} alt="" onError={() => setBroken(true)} />
       <span className="deckpick__credit">{artCredit(artist)}</span>
     </span>
@@ -777,7 +779,7 @@ export function DeckChooser({
   pending?: boolean;
   /** How many outlines `pending` draws. */
   pendingTiles?: number;
-  /** Which list this is (an era, a tab): a change fades the old tiles out and brings the new in (`deckSwap.ts`). */
+  /** Which list this is (an era, a tab): a change crossfades the old tiles into the new (`deckSwap.ts`). */
   swapKey?: string;
   /** Drawn in place of the tiles when there are none, if given. */
   empty?: string | undefined;
@@ -786,6 +788,22 @@ export function DeckChooser({
 }) {
   const swap = useDeckSwap(given, swapKey, pending, pendingTiles);
   const options = swap.shown;
+  /**
+   * Where each held old tile stands, by key, read while it still holds its box: once the new tiles
+   * take the grid's flow, it is lifted over that same box to fade out (`swap.crossing`).
+   */
+  const leavingEls = useRef(new Map<string, HTMLElement>());
+  const leavingAt = useRef(new Map<string, CSSProperties>());
+  useLayoutEffect(() => {
+    if (swap.crossing) return;
+    leavingAt.current = new Map(
+      [...leavingEls.current].map(([key, el]) => [key, { left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth, height: el.offsetHeight }]),
+    );
+  });
+  const holdLeaving = (key: string) => (el: HTMLElement | null) => {
+    if (el === null) leavingEls.current.delete(key);
+    else leavingEls.current.set(key, el);
+  };
   /** Where Tab lands. Null until the reader moves it, so it follows the choice. */
   const [focus, setFocus] = useState<number | null>(null);
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -906,19 +924,31 @@ export function DeckChooser({
       }}
     >
       {[...options.map((option, index) => ({ option, index })), ...swap.leaving.map((option) => ({ option, index: -1 }))].map(({ option, index }) => {
-        // One array, keyed by list: an old tile keeps its element while it fades, and a new one always cascades in.
+        // One array, keyed by list: an old tile keeps its element from the switch until it has faded out.
         const key = `${index < 0 ? swap.leavingKey : swapKey}:${option.value}`;
+        // A held old tile, lifted over the box it held once the new list draws, and fading there.
+        const ghost = index < 0 && swap.crossing ? { className: 'deckpick__ghost', style: leavingAt.current.get(key) } : undefined;
         const tile =
           index < 0 ? (
             // The last list going: no deck id, no focus, no press — a picture of the grid as it was.
-            <DeckTile key={key} option={option} className="deckpick__option--leaving" data-deck-id={undefined} tabIndex={-1} aria-hidden="true" inert />
+            <DeckTile
+              key={key}
+              ref={tileAction === undefined ? holdLeaving(key) : undefined}
+              option={option}
+              className={tileAction === undefined && ghost !== undefined ? `deckpick__option--leaving ${ghost.className}` : 'deckpick__option--leaving'}
+              style={tileAction === undefined ? ghost?.style : undefined}
+              data-deck-id={undefined}
+              tabIndex={-1}
+              aria-hidden="true"
+              inert
+            />
           ) : (
             <DeckTile
               key={key}
               option={option}
               checked={option.value === value}
               role="radio"
-              className={index < swap.boxes ? 'deckpick__option--in' : 'deckpick__option--in deckpick__option--grow'}
+              className={swap.cascade ? 'deckpick__option--in' : index < swap.boxes ? undefined : 'deckpick__option--grow'}
               data-testid="deck-option"
               style={{ '--deckpick-i': Math.min(index, ENTER_STAGGERED) } as CSSProperties}
               tabIndex={stop === index ? 0 : -1}
@@ -940,7 +970,12 @@ export function DeckChooser({
         return tileAction === undefined ? (
           tile
         ) : (
-          <div key={key} className="deckpick__cell">
+          <div
+            key={key}
+            ref={index < 0 ? holdLeaving(key) : undefined}
+            className={ghost === undefined ? 'deckpick__cell' : `deckpick__cell ${ghost.className}`}
+            style={ghost?.style}
+          >
             {tile}
             {index >= 0 && tileAction(option)}
           </div>
