@@ -1163,10 +1163,22 @@ describe('installNumbers: a ram', () => {
     });
     const life = canvas.querySelector('[data-player-face][data-player-id="0"] [data-testid="life"]')!;
     expect(life.textContent, 'still what it was while the attacker is on its way').toBe('20');
+    // The blow draws before its number, though both are due at the same moment.
+    const crashOnLanding: boolean[] = [];
+    const set = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent')!.set!;
+    Object.defineProperty(life, 'textContent', {
+      configurable: true,
+      get: () => Object.getOwnPropertyDescriptor(Node.prototype, 'textContent')!.get!.call(life),
+      set: (v: string) => {
+        crashOnLanding.push(canvas.querySelector('.effect-crash') !== null);
+        set.call(life, v);
+      },
+    });
     expect(lifeImpactAt(1), "the life sound waits for the blow").toBe(Date.now() + contactMs('charge'));
     vi.advanceTimersByTime(contactMs('charge'));
     expect(canvas.querySelector<HTMLElement>('.effect-crash')?.dataset.crash, 'the blow crashes on the avatar').toBe('crash:50');
     expect(life.textContent, 'the blow lands the counter whole').toBe('17');
+    expect(crashOnLanding, 'the counter moved once, after the crash was drawn').toEqual([true]);
     handle.dispose();
   });
 

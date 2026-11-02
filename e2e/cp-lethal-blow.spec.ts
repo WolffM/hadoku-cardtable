@@ -42,7 +42,7 @@ interface Marks {
   crash?: number;
   bolt?: number;
   impact?: number;
-  /** When the life first moved off where it started — its counter then steps down to what it reads now. */
+  /** When the life first moved off where it started — its counter then lands on what it reads now, one instance at a time. */
   life?: number;
   lifeNow?: string;
   result?: number;
