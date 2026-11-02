@@ -29,13 +29,14 @@
  * `RoomShell.tsx`/`live.css`, B's and C's files) still draws at its desktop height, which the
  * integrated post-land run should re-check against the viewport once every lane is in.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import { SESSION_COOKIE } from './identities.ts';
 import { keepPrefsLocal, setPlayFastModeDefault } from './prefsLocal.ts';
-import { makeTitled, resizeWindow } from './play/board.ts';
+import { clickHandCard, makeTitled, offeredNamed, pressPaymentAuto, resizeWindow, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { noSideways, pinch, PHONE } from './play/phone.ts';
+import { answerPrompt } from './play/prompts.ts';
 import { matchUrl, startScenarioVsAi } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -94,6 +95,18 @@ test(titled('promo-valakut in portrait: chips, four lanes, card width, no sidewa
     const laneBox = await myLands.boundingBox();
     const wholeCardsVisible = cardBoxes.filter((b) => b.left >= laneBox!.x - 1 && b.right <= laneBox!.x + laneBox!.width + 1).length;
     expect.soft(wholeCardsVisible, 'no more than 3 whole cards visible at 1x zoom').toBeLessThanOrEqual(3);
+
+    // my-lands' own bottom never sits under B's action bar (manager's note: the bar's 52px gap is
+    // `--portrait-bar-h`, reserved as padding-bottom on the viewer's own battlefield, not eaten out
+    // of the hand). `action-bar` is B's own testid — asserted only when present, since this worktree
+    // may not have B's land yet; the integrated post-land run is where this must hold.
+    const actionBar = page.getByTestId('action-bar');
+    if ((await actionBar.count()) > 0) {
+      const barBox = await actionBar.boundingBox();
+      expect.soft(laneBox!.y + laneBox!.height, 'my-lands bottom sits at or above the action bar top').toBeLessThanOrEqual(barBox!.y + 1);
+    } else {
+      console.log('[w89a] action-bar not present yet (pending B in this worktree) — skipping the lane/bar overlap assertion');
+    }
 
     // No lane shows more than 3 whole cards at 1x, checked on every lane (not just my-lands).
     for (const id of LANE_IDS) {
@@ -172,6 +185,102 @@ test(titled('promo-valakut in portrait: chips, four lanes, card width, no sidewa
     } finally {
       await phoneContext.close();
     }
+  } finally {
+    await stack.stop();
+  }
+});
+
+/* ── the stack chip opens the stack list (Settled 2) ──────────────────────────────────── */
+
+/** The open sheet's card tiles, and the text each shows — `e2e/w87b-stack.spec.ts`'s own shape, reused. */
+async function tiles(page: Page): Promise<{ id: number; text: string }[]> {
+  return page
+    .locator('[data-testid="live-selection-host"], [data-testid="live-prompt"]')
+    .first()
+    .locator('[data-testid="prompt-cards"] > li[data-card-id]')
+    .evaluateAll((els) => els.map((e) => ({ id: Number(e.getAttribute('data-card-id')), text: (e.textContent ?? '').replace(/\s+/g, ' ').trim() })));
+}
+
+/** Tick `ids` on the open sheet and submit it — `e2e/w87b-stack.spec.ts`'s own shape, reused. */
+async function pick(page: Page, ids: readonly number[]): Promise<void> {
+  const sheet = page.locator('[data-testid="live-selection-host"], [data-testid="live-prompt"]').first();
+  for (const id of ids) await sheet.locator(`[data-testid="prompt-cards"] > li[data-card-id="${id}"]`).click({ timeout: 2_000 }).catch(() => undefined);
+  await page.waitForTimeout(400);
+  if (ids.length === 0) return;
+  const ours = page
+    .locator('[data-testid="live-selection-host"], [data-testid="live-prompt"]')
+    .filter({ has: page.locator(ids.map((id) => `[data-testid="prompt-cards"] > li[data-card-id="${id}"]`).join(', ')) });
+  await ours.locator('[data-testid="selection-done"]:enabled, [data-testid="prompt-submit"]:enabled').first().click({ timeout: 2_000 }).catch(() => undefined);
+}
+
+async function pressIfThere(page: Page, selector: string): Promise<void> {
+  const target = page.locator(selector);
+  if ((await target.count()) > 0) await target.first().click({ timeout: 1_000 }).catch(() => undefined);
+}
+
+test(titled('promo-valakut in portrait: the stack chip opens the stack list, ten Valakut triggers grouped ×10'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(3 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice } = await startScenarioVsAi(browser, stack, 'promo-valakut');
+    const page = alice.page;
+    await resizeWindow(page, PHONE.viewport);
+    await expect(page.locator('html')).toHaveAttribute('data-layout', 'portrait', { timeout: 10_000 });
+
+    // Cast Scapeshift, pay by sacrificing all eleven lands, fetch Valakut and every Mountain — the
+    // same sequence `e2e/w87b-stack.spec.ts` proves at 1920×1080, run here at 390×844 up to the
+    // moment all ten Valakut triggers sit on the stack, none targeted yet.
+    let scapeshift: number | undefined;
+    await expect.poll(async () => (scapeshift = await offeredNamed(page, 'Scapeshift')), { timeout: 60_000, message: 'alice is offered Scapeshift' }).not.toBeUndefined();
+    await clickHandCard(page, scapeshift!);
+
+    let searched = false;
+    await expect
+      .poll(
+        async () => {
+          const text = await says(page);
+          if (/Valakut, the Molten Pinnacle/.test(text) && !/^Priority|^Do you want to deal/.test(text)) return true;
+          const sheet = await tiles(page);
+          if (sheet.some((t) => /Valakut/.test(t.text))) {
+            await pick(page, [...sheet.filter((t) => /Valakut/.test(t.text)), ...sheet.filter((t) => t.text.startsWith('Mountain'))].map((t) => t.id));
+            searched = true;
+          } else if (sheet.length >= 11 && !searched) {
+            await pick(page, sheet.map((t) => t.id));
+          } else if (!(await pressPaymentAuto(page))) {
+            await pressIfThere(page, '[data-testid="prompt-confirm-yes"]:enabled');
+            if (searched) await answerPrompt(page).catch(() => null);
+          }
+          return false;
+        },
+        { timeout: 120_000, intervals: [300], message: "alice's first Valakut target question is up, ten triggers on the stack" },
+      )
+      .toBe(true);
+    await page.waitForTimeout(500); // every glide and bump settled
+
+    const stackChip = page.getByTestId('stack-chip');
+    await expect(stackChip).toBeVisible();
+    expect.soft(await stackChip.textContent(), 'the chip counts all ten').toBe('10');
+
+    // Tapping it opens the list.
+    expect.soft(await page.getByTestId('stack-sheet').count(), 'closed before the tap').toBe(0);
+    await stackChip.tap();
+    const sheet = page.getByTestId('stack-sheet');
+    await expect(sheet).toBeVisible();
+    expect.soft(await stackChip.getAttribute('aria-expanded'), 'the chip says it is open').toBe('true');
+
+    // Identical items group into one row with ×N: ten untargeted Valakut triggers are ONE row, ×10.
+    const rows = sheet.getByTestId('stack-sheet-row');
+    await expect.soft(rows).toHaveCount(1);
+    const rowText = (await rows.first().textContent()) ?? '';
+    expect.soft(rowText, 'names Valakut').toContain('Valakut');
+    expect.soft(rowText, 'ten of them, grouped').toContain('10');
+
+    // Tapping the chip again closes it.
+    await stackChip.tap();
+    await expect(sheet).toHaveCount(0);
+    expect.soft(await stackChip.getAttribute('aria-expanded')).toBe('false');
   } finally {
     await stack.stop();
   }

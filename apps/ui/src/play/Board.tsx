@@ -410,6 +410,7 @@ import {
   type BoardView,
   type PoolColor,
   type PTState,
+  type StackEntry,
   viewerOf,
 } from './adapter.ts';
 import { LONG_PRESS_MS, mountInspector } from './inspect/index.ts';
@@ -4075,6 +4076,11 @@ function PlayerArea({
  * the contract table's shape.
  */
 function measurePortraitLane(lane: HTMLUListElement): void {
+  // `portrait.css`'s own `--card-w` reads this directly: the lane's own visible content width,
+  // measured here rather than through a CSS size container (see that file's doc for the two
+  // container-query attempts this replaced, and why both resolved to the wrong number).
+  const laneW = `${lane.clientWidth}px`;
+  if (lane.style.getPropertyValue('--portrait-lane-w') !== laneW) lane.style.setProperty('--portrait-lane-w', laneW);
   const laneLeft = lane.scrollLeft;
   const laneRight = laneLeft + lane.clientWidth;
   let left = 0;
@@ -4362,8 +4368,22 @@ function useArrangeDrag(
       const li = target.closest<HTMLElement>('li.board-card');
       const slot = li?.getAttribute('data-arrange-card');
       if (li === null || li === undefined || slot === null || slot === undefined) return;
-      // Ours now: the press selects no text.
-      if (event.cancelable) event.preventDefault();
+      /*
+       * Mouse: claimed here, the instant the press lands — unchanged (Settled 5: "a mouse keeps
+       * today's behaviour exactly"), so a real browser never starts a text selection under a drag
+       * that is about to begin.
+       *
+       * Touch: NOT claimed here. Settled 5: "a touch tap on any card… opens the one expanded card
+       * view… it never plays" — a tap on the viewer's OWN arrangeable permanent is no exception, and
+       * D's gesture layer (`gestures/install.ts`) is what recognises an unmoved touch press as a
+       * read. Calling `preventDefault` on every touch pointerdown here, as this used to, marked the
+       * event `defaultPrevented` before D's own branch ever looked at it, so a tap on an arrangeable
+       * permanent fell through to the board's plain click-to-activate instead of D's card view. The
+       * claim moves to `onMove`, below, once a touch press is confirmed to have actually moved past
+       * the drag slop — at that point it is not a tap by definition, and this is the only code that
+       * rearranges a battlefield permanent by a drag, touch included.
+       */
+      if (event.pointerType !== 'touch' && event.cancelable) event.preventDefault();
       const p: Press = {
         pointerId: event.pointerId,
         li,
@@ -4401,6 +4421,10 @@ function useArrangeDrag(
         if (!pastSlop(p, { x: event.clientX, y: event.clientY })) return;
         if (p.hold !== null) clearTimeout(p.hold);
         p.hold = null;
+        // Touch's own claim (`onDown`'s doc): past the slop is the moment a touch press stops being
+        // a tap, so this is where it is claimed — too late for D's own layer to still treat it as a
+        // read, which is correct, because by now it is a drag, not a tap.
+        if (event.pointerType === 'touch' && event.cancelable) event.preventDefault();
         begin(p, event.clientX, event.clientY);
         return;
       }
@@ -4565,22 +4589,23 @@ function SeatChip({
  * row this band reserves (`--portrait-phase-h`, `portrait.css`) — nothing here renders it; B's own
  * file positions it against that token.
  *
- * Out of this wave's scope (closing note): the stack chip does not yet open a stack list on tap —
- * `StackView` draws nothing on desktop either (every stack item is `live/placed.ts`'s own floating
- * chip, not a list), so there is no existing list to surface here, and building one is new overlay
- * UI past §A's lane-geometry brief.
+ * The chip is a button: tapping it opens `StackSheet` (below), `Board`'s own overlay panel.
  */
 function PortraitHud({
   opponent,
   viewer,
   interaction,
   stackCount,
+  stackOpen,
+  onToggleStack,
   onOpenPile,
 }: {
   opponent: BoardPlayer;
   viewer: BoardPlayer;
   interaction: BoardInteraction | undefined;
   stackCount: number;
+  stackOpen: boolean;
+  onToggleStack: () => void;
   onOpenPile: (playerId: number, zone: PileZone) => void;
 }) {
   return (
@@ -4588,13 +4613,89 @@ function PortraitHud({
       <div className="portrait-hud__row">
         <SeatChip player={opponent} side="opp" interaction={interaction} onOpenPile={onOpenPile} />
         {stackCount > 0 && (
-          <span className="portrait-hud__stack" data-testid="stack-chip" role="img" aria-label={`Stack, ${stackCount}`}>
+          <button
+            type="button"
+            className="portrait-hud__stack"
+            data-testid="stack-chip"
+            aria-haspopup="true"
+            aria-expanded={stackOpen}
+            aria-label={`Stack, ${stackCount}`}
+            onClick={onToggleStack}
+          >
             {stackCount}
-          </span>
+          </button>
         )}
         <SeatChip player={viewer} side="me" interaction={interaction} onOpenPile={onOpenPile} />
       </div>
     </header>
+  );
+}
+
+/** One row of {@link StackSheet}: its own display name, and how many stack items share it. */
+/** Exported for `Board.test.ts` only. */
+export interface StackGroup {
+  key: string;
+  label: string;
+  count: number;
+}
+
+/**
+ * Settled 2: "Identical items group into one row with ×N." The same grouping concept
+ * `copiesIn`/`sameCard` use for a battlefield pile's own ×N (above), adapted to the stack: two items
+ * are the same row when they are both abilities or both spells, share a source card (or neither has
+ * one), and share Forge's own stack text. That text is identical for every one of ten untargeted
+ * Valakut triggers — the scenario Settled 2 was written against — and starts to differ the moment
+ * any one of them is given a target, which is correct: they are no longer identical once that
+ * happens. Order preserved: `items` is already top-of-stack-first (`placed.ts`'s own `drawArrows`
+ * reads it the same way), so is this.
+ */
+export function groupedStack(items: readonly StackEntry[]): readonly StackGroup[] {
+  const order: string[] = [];
+  const byKey = new Map<string, StackGroup>();
+  for (const item of items) {
+    const key = `${item.isAbility}:${item.sourceCardId ?? `id:${item.id}`}:${item.description}`;
+    const existing = byKey.get(key);
+    if (existing !== undefined) {
+      existing.count += 1;
+      continue;
+    }
+    byKey.set(key, { key, label: item.sourceName ?? item.description, count: 1 });
+    order.push(key);
+  }
+  return order.map((key) => byKey.get(key)!);
+}
+
+/**
+ * Portrait's stack list (Settled 2: "Tapping it opens the stack list"), anchored under the stack
+ * chip that opens it. Read-only — there is nothing here to answer, only what is on the stack right
+ * now; `view.stack` is this screen's own live copy, so the list redraws itself on every change
+ * without this component doing anything about it.
+ */
+function StackSheet({ items, onClose }: { items: readonly StackEntry[]; onClose: () => void }) {
+  const groups = groupedStack(items);
+  return (
+    <div className="stack-sheet" data-testid="stack-sheet" role="dialog" aria-label="Stack">
+      <div className="stack-sheet__head">
+        <h3 className="stack-sheet__title">Stack</h3>
+        <button type="button" className="stack-sheet__close" aria-label="Close" onClick={onClose}>
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path d="M3.5 3.5 12.5 12.5M12.5 3.5 3.5 12.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+      <ul className="stack-sheet__rows">
+        {groups.map((g) => (
+          <li key={g.key} className="stack-sheet__row" data-testid="stack-sheet-row">
+            <span className="stack-sheet__name">{g.label}</span>
+            {g.count > 1 && (
+              <span className="stack-sheet__count" aria-label={`${g.count} copies`}>
+                ×{g.count}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -4641,6 +4742,8 @@ export function Board({
    * portrait-only restructuring below.
    */
   const portrait = usePortraitLayout();
+  /** Portrait's stack sheet (Settled 2): open/closed, toggled by `PortraitHud`'s own stack chip. */
+  const [stackSheetOpen, setStackSheetOpen] = useState(false);
   /*
    * AF397: which `doomAsk` candidate the seat points at, local to this board — the wire has no
    * concept of a mouse, and a stale hover from a PREVIOUS ask (a different choice, different
@@ -5013,9 +5116,12 @@ export function Board({
             viewer={viewer}
             interaction={interaction}
             stackCount={view.stack.length}
+            stackOpen={stackSheetOpen && view.stack.length > 0}
+            onToggleStack={() => setStackSheetOpen((open) => !open)}
             onOpenPile={(playerId, zone) => openPileOf(playerId)(zone)}
           />
         )}
+        {portrait && stackSheetOpen && view.stack.length > 0 && <StackSheet items={view.stack} onClose={() => setStackSheetOpen(false)} />}
         <div className="board__opponents">
           {others.map((p) => (
             <PlayerArea

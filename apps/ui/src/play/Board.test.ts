@@ -47,6 +47,7 @@ import { expectPlacement, pendingPlacementFor, applyTheirArrangement, onOwnArran
   forgetArrangements,
   forgetPendingPlacements,
   group,
+  groupedStack,
   handOrder,
   notePlayedTo,
   placementAt,
@@ -643,6 +644,45 @@ describe('the stack with one thing on it (the stack redesign)', () => {
     expect(stack.dataset.count).toBe('1');
     expect(stack.children).toHaveLength(0);
     expect(container.querySelector('[data-stack-source]')).toBeNull();
+  });
+});
+
+describe('groupedStack (Settled 2: "identical items group into one row with ×N")', () => {
+  const base = boardFromFixture(fixture);
+  const ability = base.stack.find((item) => item.isAbility)!;
+  const spell = base.stack.find((item) => !item.isAbility)!;
+
+  it('ten untargeted triggers off the same source, with the same stack text, are one row ×10', () => {
+    const triggers = Array.from({ length: 10 }, (_, i) => ({ ...ability, id: ability.id + i }));
+    const groups = groupedStack(triggers);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]!.count).toBe(10);
+    expect(groups[0]!.label).toBe(ability.sourceName);
+  });
+
+  it('different sources, or a different stack description, are different rows — never merged', () => {
+    const differentSource = { ...ability, id: ability.id + 100, sourceCardId: (ability.sourceCardId ?? 0) + 1 };
+    const differentText = { ...ability, id: ability.id + 200, description: `${ability.description} (Targeting: something)` };
+    const groups = groupedStack([ability, differentSource, differentText]);
+    expect(groups.map((g) => g.count)).toEqual([1, 1, 1]);
+  });
+
+  it('a spell and an ability never merge even sharing a source id, since they are different kinds of item', () => {
+    const groups = groupedStack([ability, { ...spell, sourceCardId: ability.sourceCardId, description: ability.description }]);
+    expect(groups).toHaveLength(2);
+  });
+
+  it('keeps top-of-stack-first order: the FIRST occurrence of a group decides its row position', () => {
+    const a = { ...ability, id: 1, description: 'first' };
+    const b = { ...spell, id: 2, description: 'second' };
+    const aAgain = { ...ability, id: 3, description: 'first' };
+    const groups = groupedStack([a, b, aAgain]);
+    expect(groups.map((g) => g.label)).toEqual([a.sourceName, b.sourceName]);
+    expect(groups[0]!.count).toBe(2);
+  });
+
+  it('an empty stack groups to nothing', () => {
+    expect(groupedStack([])).toEqual([]);
   });
 });
 
@@ -5157,6 +5197,35 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     fireEvent.pointerUp(window, { ...touch, clientX: first.left + 5, clientY: first.top + 40 });
     expect([...container.querySelectorAll('.seat[data-viewer] [data-tier="back"] > li:not([data-virtual])')].map((c) => (c as HTMLElement).dataset.cardId)).toEqual(['25', '8', '24', '6']);
     expect(styled()(from, 'touch-action'), 'or the browser claims it to scroll').toBe('none');
+  });
+
+  /**
+   * w89 §A/§D: a touch tap on the viewer's OWN arrangeable permanent (a mana dork, say) must read it,
+   * never act on it (Settled 5) — D's gesture layer is what recognises an unmoved touch press as a
+   * read, and it can only do that if THIS layer leaves the press unclaimed until it is actually a
+   * drag. A mouse keeps claiming the press the instant it lands, unchanged.
+   */
+  it('a touch press on an arrangeable permanent is left unclaimed until it moves — D’s own layer reads an unmoved tap; a mouse still claims it at once', () => {
+    const { container } = renderBoard(view, undefined, 'single');
+    layOut(container);
+    const li = container.querySelector<HTMLElement>('.seat[data-viewer] [data-card-id="8"]')!;
+    const touchDown = fireEvent.pointerDown(li, { pointerId: 9, isPrimary: true, pointerType: 'touch', button: 0, clientX: 20, clientY: 20 });
+    expect(touchDown, 'a touch pointerdown on an arrangeable card is NOT defaultPrevented — unclaimed for D').toBe(true);
+    fireEvent.pointerUp(window, { pointerId: 9, isPrimary: true, pointerType: 'touch', clientX: 20, clientY: 20 });
+    expect(container.querySelector('[data-arrange-ghost]'), 'an unmoved touch press never became a drag').toBeNull();
+
+    const mouseDown = fireEvent.pointerDown(li, { ...POINTER, button: 0, clientX: 20, clientY: 20 });
+    expect(mouseDown, 'a mouse pointerdown on an arrangeable card IS defaultPrevented at once, unchanged').toBe(false);
+    fireEvent.pointerUp(window, { ...POINTER, clientX: 20, clientY: 20 });
+
+    // A touch press that DOES move past the slop is still claimed — just later, once it is a real drag.
+    const b = li.getBoundingClientRect();
+    const touch2 = { pointerId: 10, isPrimary: true, pointerType: 'touch' } as const;
+    fireEvent.pointerDown(li, { ...touch2, button: 0, clientX: b.left + 5, clientY: b.top + 5 });
+    const touchMoved = fireEvent.pointerMove(window, { ...touch2, clientX: b.left + 30, clientY: b.top + 30 });
+    expect(touchMoved, 'past the slop, the move itself is claimed — this is a drag now').toBe(false);
+    expect(container.querySelector('[data-arrange-ghost]'), 'the drag began').not.toBeNull();
+    fireEvent.pointerUp(window, { ...touch2, clientX: b.left + 30, clientY: b.top + 30 });
   });
 
   it('a press that never moves is a plain click, and the click after a real drag is swallowed', () => {
