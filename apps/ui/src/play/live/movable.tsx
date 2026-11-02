@@ -266,14 +266,17 @@ export type DockMode = 'dock' | 'full' | 'min';
 const SWIPE_SLOP_PX = 30;
 
 /**
- * Whether anything inside `root` is clipped right now. A generic probe, not a prompt-shape special case:
+ * Whether the docked sheet holds more than it shows: the host itself, or any scroller inside it
+ * (`overflow-y: auto | scroll`) with more to scroll to. A generic probe, not a prompt-shape special case:
  * it walks every descendant rather than knowing `.prompt__body` from `.confirm`'s own flat body apart, so
- * the rule that decides "does this one need the expand button" never learns a prompt's method.
+ * the rule that decides "does this one need the expand button" never learns a prompt's method. An
+ * element that clips on purpose (`overflow: hidden` — a card tile's own face and caption) is not
+ * something more room would reveal, so it never asks for the expand.
  */
 function hasOverflow(root: HTMLElement): boolean {
   if (root.scrollHeight > root.clientHeight + 1) return true;
   for (const el of root.querySelectorAll('*')) {
-    if (el.scrollHeight > el.clientHeight + 1) return true;
+    if (el.scrollHeight > el.clientHeight + 1 && /^(auto|scroll)$/.test(getComputedStyle(el).overflowY)) return true;
   }
   return false;
 }

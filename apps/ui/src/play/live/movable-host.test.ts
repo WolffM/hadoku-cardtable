@@ -123,6 +123,14 @@ describe('QuestionHost in portrait', () => {
 
   const wrapper = () => document.querySelector('.dock')!;
 
+  /** The sheet holds more than it shows, and scrolls it: `live.css`'s own `overflow-y: auto` on it, which jsdom does not load. */
+  function overflowSheet(): void {
+    const sheet = document.querySelector<HTMLElement>('.confirm')!;
+    sheet.style.overflowY = 'auto';
+    Object.defineProperty(sheet, 'scrollHeight', { value: 900, configurable: true });
+    Object.defineProperty(sheet, 'clientHeight', { value: 300, configurable: true });
+  }
+
   it('docks inside a NEW wrapper carrying the Test-ID contract — the host keeps its own testid, unchanged', () => {
     vi.stubGlobal('ResizeObserver', Resizes);
     render(drawPortrait());
@@ -140,6 +148,26 @@ describe('QuestionHost in portrait', () => {
     expect(document.querySelector('[data-testid="decision-expand"]')).toBeNull();
   });
 
+  /*
+   * The operator's reshoot would show it on the Bolt's target question: a card tile in the sheet clips
+   * its own caption (`overflow: hidden`), and that is not something more room would reveal.
+   */
+  it('has no expand control for a sheet that fits, however much a tile inside it clips on purpose', () => {
+    vi.stubGlobal('ResizeObserver', Resizes);
+    render(drawPortrait());
+    const tile = document.createElement('article');
+    tile.className = 'card';
+    tile.style.overflow = 'hidden';
+    Object.defineProperty(tile, 'scrollHeight', { value: 70, configurable: true });
+    Object.defineProperty(tile, 'clientHeight', { value: 65, configurable: true });
+    act(() => {
+      document.querySelector('.confirm')!.append(tile);
+      grown!();
+    });
+    expect(document.querySelector('[data-testid="decision-expand"]')).toBeNull();
+    expect(wrapper().getAttribute('data-mode')).toBe('dock');
+  });
+
   it('opens straight to full, with no expand control, when the sheet already overflows the moment it mounts (Scapeshift\'s library search)', () => {
     vi.stubGlobal('ResizeObserver', Resizes);
     vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(900);
@@ -152,9 +180,7 @@ describe('QuestionHost in portrait', () => {
   it('shows the expand control once the sheet overflows the docked height, and it opens the full sheet — then removes it, nothing is left to expand into', () => {
     vi.stubGlobal('ResizeObserver', Resizes);
     render(drawPortrait());
-    const sheet = document.querySelector('.confirm')!;
-    Object.defineProperty(sheet, 'scrollHeight', { value: 900, configurable: true });
-    Object.defineProperty(sheet, 'clientHeight', { value: 300, configurable: true });
+    overflowSheet();
     act(() => grown!());
     const expand = document.querySelector<HTMLButtonElement>('[data-testid="decision-expand"]');
     expect(expand).not.toBeNull();
@@ -182,9 +208,7 @@ describe('QuestionHost in portrait', () => {
     fireEvent.pointerUp(window, { clientY: 460, pointerId: 1 });
     expect(wrapper().getAttribute('data-mode'), 'nothing overflows yet').toBe('dock');
 
-    const sheet = document.querySelector('.confirm')!;
-    Object.defineProperty(sheet, 'scrollHeight', { value: 900, configurable: true });
-    Object.defineProperty(sheet, 'clientHeight', { value: 300, configurable: true });
+    overflowSheet();
     act(() => grown!());
     fireEvent.pointerDown(handle, { clientY: 500, pointerId: 2 });
     fireEvent.pointerUp(window, { clientY: 460, pointerId: 2 });
@@ -194,9 +218,7 @@ describe('QuestionHost in portrait', () => {
   it('a swipe down steps the dock down one size at a time: full → dock → min', () => {
     vi.stubGlobal('ResizeObserver', Resizes);
     render(drawPortrait());
-    const sheet = document.querySelector('.confirm')!;
-    Object.defineProperty(sheet, 'scrollHeight', { value: 900, configurable: true });
-    Object.defineProperty(sheet, 'clientHeight', { value: 300, configurable: true });
+    overflowSheet();
     act(() => grown!());
     fireEvent.click(document.querySelector('[data-testid="decision-expand"]')!);
     expect(wrapper().getAttribute('data-mode')).toBe('full');
