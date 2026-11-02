@@ -73,7 +73,7 @@ import { fileURLToPath } from 'node:url';
 import { Server as SocketIOServer } from 'socket.io';
 import { podPickNumber } from '@hadoku/draft';
 import { CONFIG, INDEX_HTML } from './config.js';
-import { edgeProvenance, requireMinTier, tierOf, userIdOf } from './edge-auth.js';
+import { callerIdOf, edgeProvenance, requireMinTier, tierOf, userIdOf } from './edge-auth.js';
 import { checkBundle, diagnosticPage, isEmbedEntry, sendIndex } from './base-path.js';
 import { announceRelease } from './announce.js';
 import { bootClock, restoreRooms, sweepRooms } from './boot.js';
@@ -231,7 +231,7 @@ app.get(
 // say why in a comment — this line moving down is the shape of a privilege bug.
 app.use(requireMinTier);
 // Who got in: one `caller-first-seen` per account, ever (`telemetry.ts`).
-app.use(firstSeen({ file: CONFIG.callersSeenFile, userIdOf, tierOf, log: jsonLogger('cardtable-telemetry') }));
+app.use(firstSeen({ file: CONFIG.callersSeenFile, userIdOf: callerIdOf, tierOf, log: jsonLogger('cardtable-telemetry') }));
 
 // ── API ──────────────────────────────────────────────────────────────────────
 // Mount the app's own routes here. They arrive prefix-stripped, so a browser

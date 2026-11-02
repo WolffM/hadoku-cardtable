@@ -131,12 +131,12 @@ export function userAgentOf(headers: Headers): string | null {
 
 /**
  * Who a request or handshake says it is, from the edge's headers AFTER
- * `sanitizeHeaders` — so a spoofed caller reports as public/anon, exactly what
- * the handlers saw.
+ * `sanitizeHeaders` — so a spoofed caller reports as public with a null userId,
+ * exactly what the handlers saw.
  */
 export function callerContext(headers: Headers): TelemetryContext {
 	return {
-		userId: header(headers, 'x-user-id') ?? 'anon',
+		userId: header(headers, 'x-user-id'),
 		tier: header(headers, 'x-hadoku-tier') ?? 'public',
 		ua: userAgentOf(headers),
 	};
@@ -158,7 +158,7 @@ export function reportSealRefused(
 export interface FirstSeenOptions {
 	/** The JSON list of every user id this server has admitted, kept across restarts. */
 	file: string;
-	userIdOf: (req: Request) => string;
+	userIdOf: (req: Request) => string | null;
 	tierOf: (req: Request) => string;
 	log: JsonLog;
 }
@@ -167,13 +167,13 @@ export interface FirstSeenOptions {
  * Middleware, mounted below the tier floor: the first request this server ever
  * admits from a user id reports `caller-first-seen` with its tier and user
  * agent — the "who is getting in" signal, once per account, not per visit.
- * Callers the edge named nobody (`anon`) are not accounts and are skipped.
+ * Callers the edge named nobody (a null userId) are not accounts and are skipped.
  */
 export function firstSeen(opts: FirstSeenOptions): (req: Request, res: Response, next: NextFunction) => void {
 	const seen = new Set<string>(readSeen(opts.file, opts.log));
 	return (req, _res, next) => {
 		const userId = opts.userIdOf(req);
-		if (userId !== 'anon' && !seen.has(userId)) {
+		if (userId !== null && !seen.has(userId)) {
 			seen.add(userId);
 			writeSeen(opts.file, seen, opts.log);
 			report('caller-first-seen', {

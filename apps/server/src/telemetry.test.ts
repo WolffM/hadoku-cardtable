@@ -49,17 +49,17 @@ describe('monitoringSink', () => {
 			fetch,
 			now: () => t,
 		});
-		sink('rate-limited', { userId: 'u1', act: 'room-create' });
-		sink('rate-limited', { userId: 'u1', act: 'room-create' });
-		sink('rate-limited', { userId: 'u1', act: 'room-create' });
-		sink('rate-limited', { userId: 'u2', act: 'room-create' });
+		sink('rate-limited', { userId: '3f2b8c1e-5d4a-4e7b-9a10-6c2d8e4f1a01', act: 'room-create' });
+		sink('rate-limited', { userId: '3f2b8c1e-5d4a-4e7b-9a10-6c2d8e4f1a01', act: 'room-create' });
+		sink('rate-limited', { userId: '3f2b8c1e-5d4a-4e7b-9a10-6c2d8e4f1a01', act: 'room-create' });
+		sink('rate-limited', { userId: '8d0e4a7c-2b19-4f63-b8d5-1e9a6c3b7f02', act: 'room-create' });
 		t = 60_000;
-		sink('rate-limited', { userId: 'u1', act: 'room-create' });
+		sink('rate-limited', { userId: '3f2b8c1e-5d4a-4e7b-9a10-6c2d8e4f1a01', act: 'room-create' });
 
 		expect(posts.map((p) => [p.body.context.userId, p.body.context.suppressed])).toEqual([
-			['u1', undefined],
-			['u2', undefined],
-			['u1', 2],
+			['3f2b8c1e-5d4a-4e7b-9a10-6c2d8e4f1a01', undefined],
+			['8d0e4a7c-2b19-4f63-b8d5-1e9a6c3b7f02', undefined],
+			['3f2b8c1e-5d4a-4e7b-9a10-6c2d8e4f1a01', 2],
 		]);
 		expect(posts[0].url).toBe('https://hadoku.me/health/api/telemetry');
 		expect(posts[0].headers['X-User-Key']).toBe('k');
@@ -79,7 +79,7 @@ describe('monitoringSink', () => {
 			log: (e) => logged.push(e),
 			fetch,
 		});
-		sink('caller-first-seen', { userId: 'u1' });
+		sink('caller-first-seen', { userId: '3f2b8c1e-5d4a-4e7b-9a10-6c2d8e4f1a01' });
 		expect(posts).toEqual([]);
 		expect(logged).toEqual([{ evt: 'telemetry-disabled', reason: 'CARDTABLE_SERVICE_KEY is not set' }]);
 	});
@@ -92,7 +92,7 @@ describe('monitoringSink', () => {
 			serviceKey: 'k',
 			log: (e) => logged.push(e),
 			fetch,
-		})('costly-act', { userId: 'u1' });
+		})('costly-act', { userId: '3f2b8c1e-5d4a-4e7b-9a10-6c2d8e4f1a01' });
 		await vi.waitFor(() =>
 			expect(logged).toEqual([{ evt: 'telemetry-post-failed', event: 'costly-act', status: 403 }]),
 		);
@@ -100,7 +100,7 @@ describe('monitoringSink', () => {
 });
 
 describe('firstSeen', () => {
-	const ids = (r: Request) => (r.headers['x-user-id'] as string | undefined) ?? 'anon';
+	const ids = (r: Request) => (r.headers['x-user-id'] as string | undefined) ?? null;
 	const tiers = (r: Request) => (r.headers['x-hadoku-tier'] as string | undefined) ?? 'public';
 
 	it('reports an account once, across restarts, and never an unnamed caller', () => {
@@ -117,12 +117,12 @@ describe('firstSeen', () => {
 		run(
 			first,
 			req({
-				'x-user-id': 'm1',
+				'x-user-id': 'c41f9e2a-7b3d-4a8e-9c56-2f0d1b8e6a03',
 				'x-hadoku-tier': 'member',
 				'user-agent': 'Firefox',
 			}),
 		);
-		run(first, req({ 'x-user-id': 'm1', 'x-hadoku-tier': 'member' }));
+		run(first, req({ 'x-user-id': 'c41f9e2a-7b3d-4a8e-9c56-2f0d1b8e6a03', 'x-hadoku-tier': 'member' }));
 		run(first, req({}));
 		const restarted = firstSeen({
 			file,
@@ -130,14 +130,23 @@ describe('firstSeen', () => {
 			tierOf: tiers,
 			log: () => {},
 		});
-		run(restarted, req({ 'x-user-id': 'm1', 'x-hadoku-tier': 'member' }));
-		run(restarted, req({ 'x-user-id': 'm2', 'x-hadoku-tier': 'friend' }));
+		run(restarted, req({ 'x-user-id': 'c41f9e2a-7b3d-4a8e-9c56-2f0d1b8e6a03', 'x-hadoku-tier': 'member' }));
+		run(restarted, req({ 'x-user-id': '5a7d3c9e-1f2b-4e48-a6c0-9b8e7d2f4c04', 'x-hadoku-tier': 'friend' }));
 
 		expect(events).toEqual([
-			['caller-first-seen', { userId: 'm1', tier: 'member', ua: 'Firefox', path: '/api/rooms' }],
-			['caller-first-seen', { userId: 'm2', tier: 'friend', ua: null, path: '/api/rooms' }],
+			[
+				'caller-first-seen',
+				{ userId: 'c41f9e2a-7b3d-4a8e-9c56-2f0d1b8e6a03', tier: 'member', ua: 'Firefox', path: '/api/rooms' },
+			],
+			[
+				'caller-first-seen',
+				{ userId: '5a7d3c9e-1f2b-4e48-a6c0-9b8e7d2f4c04', tier: 'friend', ua: null, path: '/api/rooms' },
+			],
 		]);
-		expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(['m1', 'm2']);
+		expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual([
+			'c41f9e2a-7b3d-4a8e-9c56-2f0d1b8e6a03',
+			'5a7d3c9e-1f2b-4e48-a6c0-9b8e7d2f4c04',
+		]);
 	});
 
 	it('starts empty from an unreadable file, and says why', () => {
@@ -193,7 +202,7 @@ describe('what the seals and limiters report', () => {
 				{
 					surface: 'play-socket',
 					path: null,
-					userId: 'anon',
+					userId: null,
 					tier: 'public',
 					ua: 'python-requests/2',
 				},

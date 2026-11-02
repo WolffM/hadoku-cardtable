@@ -104,9 +104,14 @@ export function tierOf(req: Request): string {
 	return typeof t === 'string' && t !== '' ? t : 'public';
 }
 
-export function userIdOf(req: Request): string {
+/** The caller's userId as the edge stamped it; null when the edge named nobody. */
+export function callerIdOf(req: Request): string | null {
 	const u = req.headers['x-user-id'];
-	return typeof u === 'string' && u !== '' ? u : 'anon';
+	return typeof u === 'string' && u !== '' ? u : null;
+}
+
+export function userIdOf(req: Request): string {
+	return callerIdOf(req) ?? 'anon';
 }
 
 /**

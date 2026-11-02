@@ -29,7 +29,7 @@ async function usageApp(clock: { t: number }) {
 	servers.push(server);
 	await new Promise((r) => server.once('listening', r));
 	const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/usage`;
-	const post = (body: unknown, user = 'u1', tier = 'member') =>
+	const post = (body: unknown, user = '3f2b8c1e-5d4a-4e7b-9a10-6c2d8e4f1a01', tier = 'member') =>
 		fetch(base, {
 			method: 'POST',
 			headers: {
@@ -62,7 +62,7 @@ describe('POST /api/usage', () => {
 					{
 						entries: [{ kind: 'click', screen: 'lobby', target: 'room-card' }],
 					},
-					'u2',
+					'8d0e4a7c-2b19-4f63-b8d5-1e9a6c3b7f02',
 					'friend',
 				)
 			).status,
