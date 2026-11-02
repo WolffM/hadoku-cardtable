@@ -232,6 +232,46 @@ describe('the mixer', () => {
     ]);
   });
 
+  it('preloads every cue take once and no music take', async () => {
+    const planner = createMixPlanner(() => 0);
+    planner.setAssignments(
+      {
+        'ui.select|play': ['a/take-1.ogg'],
+        'g.tap|play': ['a/take-1.ogg', 'b/take-1.ogg'],
+        'W|creature': ['w/take-1.ogg'],
+        'music.match|play': ['music-a/take-1.ogg'],
+        'music.lobby|play': ['music-b/take-1.ogg'],
+      },
+      {},
+    );
+    createMixer((f) => `/takes/${f}`, planner).preload();
+    await flush();
+    expect(vi.mocked(fetch).mock.calls.map((c) => c[0]).sort()).toEqual(['/takes/a/take-1.ogg', '/takes/b/take-1.ogg', '/takes/w/take-1.ogg']);
+  });
+
+  it('keeps one music take decoded: a take the loop moved off is fetched again when it returns, a cue never is', async () => {
+    const m = mixer();
+    m.loopFile('music-a/take-1.ogg');
+    const ctx = contexts[0]!;
+    ctx.grant();
+    await flush();
+    m.loopFile('music-b/take-1.ogg');
+    await flush();
+    m.loopFile('music-a/take-1.ogg');
+    await flush();
+    m.play({ role: 'ui.select' });
+    await flush();
+    m.play({ role: 'ui.select' }, performance.now() + 1000);
+    await flush();
+    expect(ctx.sources.filter((s) => s.started)).toHaveLength(5);
+    expect(vi.mocked(fetch).mock.calls.map((c) => c[0])).toEqual([
+      '/takes/music-a/take-1.ogg',
+      '/takes/music-b/take-1.ogg',
+      '/takes/music-a/take-1.ogg',
+      '/takes/a/take-1.ogg',
+    ]);
+  });
+
   it('a music list with nothing assigned builds nothing', () => {
     const m = mixer();
     m.loop(['music.match.R', 'music.match']);

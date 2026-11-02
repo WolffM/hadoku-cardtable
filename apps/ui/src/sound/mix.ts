@@ -95,6 +95,13 @@ export interface MixPlanner {
   has(cell: string): boolean;
   /** A cell's takes, as assigned. */
   takes(cell: string): readonly string[];
+  /** Every take of every cell off the music bus, once each: what the mixer decodes ahead of time. */
+  cueTakes(): string[];
+}
+
+/** Whether a cell's row is a role on the music bus. A colour row is never one. */
+function isMusicCell(cell: string): boolean {
+  return SOUND_ROLES.get(cell.slice(0, cell.indexOf('|')))?.bus === 'music';
 }
 
 export function createMixPlanner(rng: () => number = Math.random): MixPlanner {
@@ -113,6 +120,7 @@ export function createMixPlanner(rng: () => number = Math.random): MixPlanner {
     gainOf,
     has: (cell) => (cells[cell]?.length ?? 0) > 0,
     takes: (cell) => cells[cell] ?? [],
+    cueTakes: () => [...new Set(Object.entries(cells).flatMap(([cell, files]) => (isMusicCell(cell) ? [] : files)))],
     plan(event, nowMs, settings) {
       const seat = event.seat ?? 'me';
       const reversedFrom = REVERSED_ROLES[event.role];

@@ -112,7 +112,7 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
 
   const play = (): void => {
     stop();
-    mixer.preload(Object.values(cells).flat());
+    mixer.preload();
     setFired(new Map());
     setPlaying(true);
     if (music) mixer.loop('music.match');

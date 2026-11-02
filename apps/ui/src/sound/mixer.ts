@@ -53,8 +53,11 @@ export interface Mixer {
   play(event: SoundEvent, nowMs?: number): PlanResult;
   /** Audition one take at a level, bypassing roles. */
   playFile(file: string, gain?: number): void;
-  /** Fetch and decode ahead of time, so a scenario's first beats are not late. */
-  preload(files: Iterable<string>): void;
+  /**
+   * Fetch and decode every cue take the planner holds, so a scenario's first beats are not late. Music is
+   * left to {@link loop}: a loop plays one take, and decoding every track up front held over a gigabyte.
+   */
+  preload(): void;
   /**
    * Loop a music role on the music bus, crossfading from whatever loops now;
    * `null` fades the music out. A list loops the first of its roles that has
@@ -115,6 +118,12 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
   let loopTake: string | null = null;
   let loopVoice: { src: AudioBufferSourceNode; env: GainNode } | null = null;
   const buffers = new Map<string, Promise<AudioBuffer | null>>();
+  /**
+   * The one music take kept decoded: the loop's. Decoded audio is float32 PCM, about 70 MB for three minutes
+   * of 48 kHz stereo, so a take the loop has moved off is let go rather than kept beside the cues; a voice
+   * still fading out holds its own buffer until it stops.
+   */
+  let loopBuffer: { file: string; task: Promise<AudioBuffer | null> } | null = null;
 
   const context = (): AudioContext | null => {
     if (ctx !== null) return ctx;
@@ -136,22 +145,34 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
     return ctx;
   };
 
+  const decode = async (ac: AudioContext, file: string): Promise<AudioBuffer | null> => {
+    try {
+      const res = await fetch(takeUrl(file));
+      if (!res.ok) return null;
+      return await ac.decodeAudioData(await res.arrayBuffer());
+    } catch {
+      return null;
+    }
+  };
+
+  /** A cue's buffer, decoded once and kept for the page's life. */
   const load = (file: string): Promise<AudioBuffer | null> => {
     const known = buffers.get(file);
     if (known !== undefined) return known;
     const ac = context();
     if (ac === null) return Promise.resolve(null);
-    const task = (async () => {
-      try {
-        const res = await fetch(takeUrl(file));
-        if (!res.ok) return null;
-        return await ac.decodeAudioData(await res.arrayBuffer());
-      } catch {
-        return null;
-      }
-    })();
+    const task = decode(ac, file);
     buffers.set(file, task);
     return task;
+  };
+
+  /** A music take's buffer, held only while it is the loop's (`loopBuffer`). */
+  const loadLoop = (file: string): Promise<AudioBuffer | null> => {
+    if (loopBuffer?.file === file) return loopBuffer.task;
+    const ac = context();
+    if (ac === null) return Promise.resolve(null);
+    loopBuffer = { file, task: buffers.get(file) ?? decode(ac, file) };
+    return loopBuffer.task;
   };
 
   /** A take backwards, decoded once: a copy, so the forward buffer still plays forward. */
@@ -218,6 +239,7 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
   };
 
   const fadeOutLoop = (ac: AudioContext): void => {
+    loopBuffer = null;
     if (loopVoice === null) return;
     const { src, env } = loopVoice;
     loopVoice = null;
@@ -237,7 +259,7 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
     const ac = context();
     if (ac === null) return;
     const ready = ac.state === 'suspended' ? ac.resume().catch(() => undefined) : Promise.resolve();
-    void Promise.all([load(file), ready]).then(([buf]) => {
+    void Promise.all([loadLoop(file), ready]).then(([buf]) => {
       if (buf === null || musicNode === null || loopRole !== key || loopTake !== file || loopVoice !== null) return;
       const src = ac.createBufferSource();
       src.buffer = buf;
@@ -263,8 +285,8 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
     playFile(file, gain = 1) {
       start(null, file, gain, false);
     },
-    preload(files) {
-      for (const f of files) void load(f);
+    preload() {
+      for (const f of planner.cueTakes()) void load(f);
     },
     loop(choice, pick) {
       const roles = choice === null ? [] : typeof choice === 'string' ? [choice] : choice;

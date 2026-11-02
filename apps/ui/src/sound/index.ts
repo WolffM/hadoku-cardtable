@@ -111,7 +111,7 @@ function player(): RolePlayer {
     void client.assignments().then((a) => {
       mixer.planner.setAssignments(a.cells, a.gains);
       setTrackNames(a.names);
-      mixer.preload(Object.values(a.cells).flat());
+      mixer.preload();
       applyMusic();
     });
   }
