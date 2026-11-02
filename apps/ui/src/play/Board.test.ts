@@ -5200,17 +5200,17 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
   });
 
   /**
-   * w89 §A/§D: a touch tap on the viewer's OWN arrangeable permanent (a mana dork, say) must read it,
-   * never act on it (Settled 5) — D's gesture layer is what recognises an unmoved touch press as a
-   * read, and it can only do that if THIS layer leaves the press unclaimed until it is actually a
-   * drag. A mouse keeps claiming the press the instant it lands, unchanged.
+   * w89: a touch press on the viewer's OWN arrangeable permanent is a tap (its click) or a long press
+   * (the inspector's read) until it moves, and neither is this layer's to claim — so it is left
+   * unclaimed until it is actually a drag. A mouse keeps claiming the press the instant it lands,
+   * unchanged.
    */
-  it('a touch press on an arrangeable permanent is left unclaimed until it moves — D’s own layer reads an unmoved tap; a mouse still claims it at once', () => {
+  it('a touch press on an arrangeable permanent is left unclaimed until it moves; a mouse still claims it at once', () => {
     const { container } = renderBoard(view, undefined, 'single');
     layOut(container);
     const li = container.querySelector<HTMLElement>('.seat[data-viewer] [data-card-id="8"]')!;
     const touchDown = fireEvent.pointerDown(li, { pointerId: 9, isPrimary: true, pointerType: 'touch', button: 0, clientX: 20, clientY: 20 });
-    expect(touchDown, 'a touch pointerdown on an arrangeable card is NOT defaultPrevented — unclaimed for D').toBe(true);
+    expect(touchDown, 'a touch pointerdown on an arrangeable card is NOT defaultPrevented — a tap or a long press, not yet a drag').toBe(true);
     fireEvent.pointerUp(window, { pointerId: 9, isPrimary: true, pointerType: 'touch', clientX: 20, clientY: 20 });
     expect(container.querySelector('[data-arrange-ghost]'), 'an unmoved touch press never became a drag').toBeNull();
 

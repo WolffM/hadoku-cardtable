@@ -44,6 +44,29 @@ export async function tapCard(page: Page, cardId: number): Promise<void> {
   await page.locator(`[data-board-card="${cardId}"] button`).first().tap();
 }
 
+/**
+ * A touch long-press: held at the card's own centre, past `LONG_PRESS_MS` (450 ms,
+ * `apps/ui/src/play/inspect/index.ts`) with no movement, released in place — `tapCard`/`touchDrag`
+ * cover a plain tap and a drag; this is the one gesture neither makes. It is how a touch reads a
+ * permanent, whose tap is its click.
+ */
+export async function longPressCard(page: Page, cardId: number, holdMs = 650): Promise<void> {
+  const box = await page.locator(`[data-board-card="${cardId}"] button`).first().boundingBox();
+  if (box === null) throw new Error(`card ${cardId} has no box to long-press`);
+  const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const client = await page.context().newCDPSession(page);
+  try {
+    await client.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ x: point.x, y: point.y, radiusX: 11, radiusY: 11, force: 1, id: 1 }],
+    });
+    await page.waitForTimeout(holdMs);
+    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } finally {
+    await client.detach().catch(() => undefined);
+  }
+}
+
 export interface PinchOptions {
   /** Centre of the gesture, in CSS px. Defaults to the viewport's own centre. */
   at?: { x: number; y: number };

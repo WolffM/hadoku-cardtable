@@ -4230,7 +4230,7 @@ describe('a cast tells Board where it landed, through the seam Board provides', 
  * `Board.tsx` and `LiveBoard.tsx` wire them together in production — `card-view`/`card-view-action`
  * are its own markup, and `install.ts` only ever reaches them through `openCardView`.
  */
-describe('wave 89 §D — a touch tap opens the card view instead of acting; a mouse click is unchanged', () => {
+describe('wave 89 §D — a touch tap reads a hand card and acts on a permanent; a mouse click is unchanged', () => {
   /**
    * Press and release at the same point with no movement — a tap, never a drag — plus the native
    * `click` a real touch tap's `pointerup` always fires right after, on the same element: jsdom
@@ -4272,7 +4272,12 @@ describe('wave 89 §D — a touch tap opens the card view instead of acting; a m
     expect(await sent(s, m)).toEqual([['selectCard', hand[0]!]]);
   });
 
-  it('a tap on a card Forge offers nothing for opens the card view with no action, and sends nothing — the review’s exact sequence', async () => {
+  /*
+   * A permanent is the exception to the read-tap (the operator, 2026-11-02, on a tapped Swamp opening
+   * full screen: "i would expect tapping it to be just seeing it tap not it becoming full screen"): on
+   * the battlefield a tap does what a mouse click does, and a long press reads.
+   */
+  it('a tap on a permanent Forge offers nothing for does nothing visible: no card view, nothing sent', async () => {
     const { s, m, canvas } = await gestureBoard();
     const board = mountedBoard(canvas);
     const hand = mineOf(m).hand!.map((c) => c.id);
@@ -4280,16 +4285,57 @@ describe('wave 89 §D — a touch tap opens the card view instead of acting; a m
     for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
     await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
 
-    // Tap the hand card first — the review's own first half.
-    tap(cardEl(canvas, hand[0]!).querySelector<HTMLButtonElement>('button')!);
-    expect(await s.framesFrom(m)).toHaveLength(0);
-
-    // Then tap the opponent's creature — Forge offers nothing for it at all.
     tap(cardEl(canvas, theirs[0]!).querySelector<HTMLButtonElement>('button')!);
 
-    expect(await s.framesFrom(m), 'no cast reached Forge from either tap').toHaveLength(0);
-    expect(board.querySelector('[data-testid="card-view"]'), 'opened to read the opponent’s creature').not.toBeNull();
-    expect(board.querySelectorAll('[data-testid="card-view-action"]'), 'nothing offered — no action').toHaveLength(0);
+    expect(await s.framesFrom(m), 'nothing reached Forge').toHaveLength(0);
+    expect(board.querySelector('[data-testid="card-view"]'), 'no card view for a tap on a permanent').toBeNull();
+  });
+
+  it('a tap on a permanent Forge offers at priority does what a click does: it sends selectCard and opens no card view', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const board = mountedBoard(canvas);
+    const mine = mineOf(m).battlefield.map((c) => c.id);
+    const theirs = theirsOf(m).battlefield.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([mine[0]!, theirs[0]!])])) s.send(f);
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
+
+    // The viewer's own permanent (arrangeable, so `Board`'s own press) and one this layer claims
+    // because it is offered and not arrangeable (the other seat's): both are clicks.
+    tap(cardEl(canvas, mine[0]!).querySelector<HTMLButtonElement>('button')!);
+    await s.untilClientFrames(1);
+    tap(cardEl(canvas, theirs[0]!).querySelector<HTMLButtonElement>('button')!);
+    await s.untilClientFrames(2);
+
+    expect(await sent(s, m), 'each tap is the click').toEqual([
+      ['selectCard', mine[0]!],
+      ['selectCard', theirs[0]!],
+    ]);
+    expect(board.querySelector('[data-testid="card-view"]'), 'no card view for a tap on a permanent').toBeNull();
+  });
+
+  it('a long press on a permanent at priority reads it: the card view opens with its Activate action and nothing is sent until that is pressed', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const board = mountedBoard(canvas);
+    const mine = mineOf(m).battlefield.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
+    const face = cardEl(canvas, mine[0]!).querySelector<HTMLButtonElement>('button')!;
+
+    fireEvent.pointerDown(face, { button: 0, pointerType: 'touch', clientX: 10, clientY: 10 });
+    await new Promise((resolve) => setTimeout(resolve, LONG_PRESS_MS + 60));
+    fireEvent.pointerUp(face, { pointerType: 'touch', clientX: 10, clientY: 10 });
+    const click = fireEvent.click(face);
+
+    expect(click, 'the long press’s own click is swallowed — it must not also activate').toBe(false);
+    expect(await s.framesFrom(m), 'read, not activated').toHaveLength(0);
+    const view = board.querySelector('[data-testid="card-view"]');
+    expect(view, 'the long press opened the view').not.toBeNull();
+    const action = view!.querySelector<HTMLButtonElement>('[data-testid="card-view-action"]')!;
+    expect(action.dataset.verb).toBe('activate');
+
+    fireEvent.click(action);
+    await s.untilClientFrames(1);
+    expect(await sent(s, m)).toEqual([['selectCard', mine[0]!]]);
   });
 
   it('dragging a hand card past the hand’s edge still plays it, on touch exactly as on mouse', async () => {

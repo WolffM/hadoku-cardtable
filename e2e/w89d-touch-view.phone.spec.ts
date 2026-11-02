@@ -1,7 +1,9 @@
 /**
  * Wave 89 §D — the touch read-tap, against real Forge (Settled 5/6). The review's own bug
  * (`~/.cache/cardtable-manager/wmobile-closing.md`): "a tap meant to read an opponent's Tarmogoyf
- * cast the lifted Scapeshift." All four scenarios run on `promo-valakut` — the review's own board —
+ * cast the lifted Scapeshift." A tap on a hand card reads it; on a permanent a tap is the card's own
+ * click and a long press reads (the operator, 2026-11-02: "i would expect tapping it to be just
+ * seeing it tap not it becoming full screen"). Every scenario runs on `promo-valakut` — the review's own board —
  * because its human hand already holds the cards each one needs (Scapeshift, Lightning Bolt) and its
  * `ai` battlefield already holds the opponent's creatures (Tarmogoyf, Scavenging Ooze, Dark Confidant)
  * to read without acting on them.
@@ -13,14 +15,14 @@
  * the next card is tapped, exactly as a finger must.
  *
  * Every press is a real touch gesture: `tapCard`/`Locator.tap()`, `touchDrag` (CDP), or this file's
- * own `longPressCard` (CDP, held past the inspector's `LONG_PRESS_MS` of 450 ms) — never `.click()`,
+ * `longPressCard` (CDP, held past the inspector's `LONG_PRESS_MS` of 450 ms) — never `.click()`,
  * which stays a mouse event even inside a touch context and would prove nothing about D's install.
  */
 import { expect, test, type Page } from '@playwright/test';
 
 import { makeTitled, offeredCard } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { noSideways, PHONE, tapCard, touchDrag } from './play/phone.ts';
+import { longPressCard, noSideways, PHONE, tapCard, touchDrag } from './play/phone.ts';
 import { startScenarioVsAi } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -38,28 +40,6 @@ async function battlefieldCardNamed(page: Page, name: string): Promise<number> {
   return id;
 }
 
-/**
- * A touch long-press: held at the card's own centre, past `LONG_PRESS_MS` (450 ms,
- * `apps/ui/src/play/inspect/index.ts`) with no movement, released in place — `tapCard`/`touchDrag`
- * (`play/phone.ts`) cover a plain tap and a drag; this is the one gesture neither makes.
- */
-async function longPressCard(page: Page, cardId: number, holdMs = 650): Promise<void> {
-  const box = await page.locator(`[data-board-card="${cardId}"] button`).first().boundingBox();
-  if (box === null) throw new Error(`card ${cardId} has no box to long-press`);
-  const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-  const client = await page.context().newCDPSession(page);
-  try {
-    await client.send('Input.dispatchTouchEvent', {
-      type: 'touchStart',
-      touchPoints: [{ x: point.x, y: point.y, radiusX: 11, radiusY: 11, force: 1, id: 1 }],
-    });
-    await page.waitForTimeout(holdMs);
-    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  } finally {
-    await client.detach().catch(() => undefined);
-  }
-}
-
 const cardView = (page: Page) => page.getByTestId('card-view');
 const cardViewActions = (page: Page) => page.getByTestId('card-view-action');
 
@@ -71,7 +51,7 @@ async function closeCardView(page: Page): Promise<void> {
 
 test(
   titled(
-    'tap reads, never casts: tapping Scapeshift in hand then the opponent’s Tarmogoyf opens the card view twice and casts nothing',
+    'a tap reads a hand card and acts on a permanent: Scapeshift opens the card view, the opponent’s Tarmogoyf shows nothing until a long press reads it, nothing is cast',
   ),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
@@ -97,13 +77,19 @@ test(
 
       // The review's own second half: a tap on the opponent's creature — the exact sequence that
       // used to cast Scapeshift at the Tarmogoyf's point. The sheet covers the board, so the scrim
-      // tap that closes it comes first.
+      // tap that closes it comes first. On a permanent a tap is the click (the operator,
+      // 2026-11-02), and a click on the opponent's creature at priority does nothing: no view.
       await closeCardView(page);
       await tapCard(page, tarmogoyf);
-      await expect(cardView(page), 'the card view re-opened on Tarmogoyf').toBeVisible();
+      await page.waitForTimeout(600);
+      await expect(cardView(page), 'a tap on a permanent with nothing to do opens no card view').toHaveCount(0);
+
+      // A long press is how a permanent is read.
+      await longPressCard(page, tarmogoyf);
+      await expect(cardView(page), 'the long press opened the card view on Tarmogoyf').toBeVisible();
       await expect(cardViewActions(page), 'nothing is offered on an opponent’s creature at priority').toHaveCount(0);
 
-      // Nothing reached Forge from either tap: Scapeshift is still the exact card drawn in hand,
+      // Nothing reached Forge from any of it: Scapeshift is still the exact card drawn in hand,
       // never cast, and Tarmogoyf is still exactly where it was.
       await expect(page.locator(`[data-board-card="${scapeshift}"] .card__name`)).toHaveText('Scapeshift');
       await expect(page.locator(`[data-board-card="${tarmogoyf}"] .card__name`)).toHaveText('Tarmogoyf');
@@ -113,6 +99,32 @@ test(
     }
   },
 );
+
+test(titled('a tap on my own land taps it for mana, as a click does, and opens no card view'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(3 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice } = await startScenarioVsAi(browser, stack, 'promo-valakut');
+    const page = alice.page;
+    // Settle, as above.
+    await page.waitForTimeout(800);
+
+    const tapped = page.locator('[data-zone="battlefield"][data-owner="you"] li.board-card[data-tapped]');
+    expect(await tapped.count(), 'promo-valakut starts with every one of my lands untapped').toBe(0);
+    // Offered (`data-selectable`) means mine: the AI's own Forest is never offered to this seat.
+    const forest = await offeredCard(page, 'Forest');
+
+    await tapCard(page, forest);
+
+    await expect.poll(() => tapped.count(), { timeout: 15_000, message: 'the Forest tapped for mana' }).toBeGreaterThan(0);
+    await expect(cardView(page), 'a tap on a permanent never opens the card view').toHaveCount(0);
+    await noSideways(page);
+  } finally {
+    await stack.stop();
+  }
+});
 
 test(titled('cast from the view: pressing the card view’s Cast action on a hand card casts it'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);

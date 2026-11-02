@@ -4433,15 +4433,11 @@ function useArrangeDrag(
        * today's behaviour exactly"), so a real browser never starts a text selection under a drag
        * that is about to begin.
        *
-       * Touch: NOT claimed here. Settled 5: "a touch tap on any card… opens the one expanded card
-       * view… it never plays" — a tap on the viewer's OWN arrangeable permanent is no exception, and
-       * D's gesture layer (`gestures/install.ts`) is what recognises an unmoved touch press as a
-       * read. Calling `preventDefault` on every touch pointerdown here, as this used to, marked the
-       * event `defaultPrevented` before D's own branch ever looked at it, so a tap on an arrangeable
-       * permanent fell through to the board's plain click-to-activate instead of D's card view. The
-       * claim moves to `onMove`, below, once a touch press is confirmed to have actually moved past
-       * the drag slop — at that point it is not a tap by definition, and this is the only code that
-       * rearranges a battlefield permanent by a drag, touch included.
+       * Touch: NOT claimed here. A touch press on a permanent is a tap (the card's own click, as a
+       * mouse's is) or a long press (the inspector's read, `inspect/index.ts`) until it moves, and
+       * neither is this gesture's. The claim moves to `onMove`, below, once a touch press has
+       * actually moved past the drag slop — at that point it is not a tap by definition, and this is
+       * the only code that rearranges a battlefield permanent by a drag, touch included.
        */
       if (event.pointerType !== 'touch' && event.cancelable) event.preventDefault();
       const p: Press = {
@@ -4482,8 +4478,7 @@ function useArrangeDrag(
         if (p.hold !== null) clearTimeout(p.hold);
         p.hold = null;
         // Touch's own claim (`onDown`'s doc): past the slop is the moment a touch press stops being
-        // a tap, so this is where it is claimed — too late for D's own layer to still treat it as a
-        // read, which is correct, because by now it is a drag, not a tap.
+        // a tap or a long press, so this is where it is claimed.
         if (event.pointerType === 'touch' && event.cancelable) event.preventDefault();
         begin(p, event.clientX, event.clientY);
         return;

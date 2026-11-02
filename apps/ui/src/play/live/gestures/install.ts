@@ -289,7 +289,7 @@ import { commitStackTarget, stackAsk, stackItemBox, stackItemUnder } from './sta
 import { playRole } from '../../../sound/index.ts';
 import { centreOf } from '../../lift.ts';
 import { viewerOf } from '../../adapter.ts';
-import { cardBox, faceBox, overlayOf } from '../board-dom.ts';
+import { battlefieldCard, cardBox, faceBox, overlayOf } from '../board-dom.ts';
 import { boxOf, cardIdUnder, targetUnder } from './targets.ts';
 import { CARD_LONG_PRESS, openCardView, type CardViewAction } from '../../inspect/index.ts';
 import {
@@ -1129,6 +1129,18 @@ export function installGestures(options: GestureOptions): GestureHandle {
     return [];
   }
 
+  /**
+   * Whether a touch TAP on card `id` reads it rather than doing what a mouse click does. Every card
+   * but a permanent reads (Settled 5: a hand card, whose drag up plays it; a graveyard, exile or
+   * stack card). A permanent never does (the operator, 2026-11-02, on a Swamp opening full screen:
+   * "i would expect tapping it to be just seeing it tap not it becoming full screen"): there a tap is
+   * the click — mana, an activation, an attacker, a blocker, a target — a tap on one with nothing to
+   * do shows nothing, and a long press reads it (`onCardLongPress`).
+   */
+  function tapReads(id: number): boolean {
+    return battlefieldCard(canvas, id) === null;
+  }
+
   /** Open the card view for `id` with whatever `viewActionsFor` says it may do — the touch read-tap's one exit. */
   function openTouchView(id: number): void {
     openCardView(canvas.querySelector('.board') ?? canvas, id, viewActionsFor(id));
@@ -1716,17 +1728,17 @@ export function installGestures(options: GestureOptions): GestureHandle {
       return;
     }
     /*
-     * Wave 89 §D, Settled 5: a touch tap on a card Forge offers NOTHING for right now (the opponent's
-     * Tarmogoyf, with no selection open — the review's own sequence) still has a face to read. Every
-     * branch above already claims anything Forge DOES offer; this is the one left — a card under the
-     * pointer that `targetUnder` would not return a target for at all. Routed through the SAME `drag`
-     * (`lifted: null`, a `source` and no `held` two-step) the "offered, not a cast zone" branch above
-     * already produces, so one release-side check (`onPointerUp`) answers both: open the card view,
-     * with whatever `viewActionsFor` says — nothing, here, since nothing is offered.
+     * Wave 89 §D, Settled 5: a touch tap on a card Forge offers NOTHING for right now still has a face
+     * to read, unless it is a permanent (`tapReads`). Every branch above already claims anything
+     * Forge DOES offer; this is the one left — a card under the pointer that `targetUnder` would not
+     * return a target for at all. Routed through the SAME `drag` (`lifted: null`, a `source` and no
+     * `held` two-step) the "offered, not a cast zone" branch above already produces, so one
+     * release-side check (`onPointerUp`) answers both: open the card view, with whatever
+     * `viewActionsFor` says — nothing, here, since nothing is offered.
      */
     if (event.pointerType === 'touch' && !touchChoosesNow(match)) {
       const id = cardIdUnder(eventTarget(event));
-      if (id !== null) {
+      if (id !== null && tapReads(id)) {
         claim(event);
         drag = { source: id, press: at, from: at, at, target: null, moved: false, lifted: null, held: true };
         hover = null;
@@ -1875,14 +1887,23 @@ export function installGestures(options: GestureOptions): GestureHandle {
     hover = null;
     paint();
     /*
-     * The ambient-offer sibling of the branch above: a card Forge offers at priority (a mana ability,
-     * an activatable permanent) but never lifted — `heldDrag.lifted` is null for every battlefield
-     * card, cast zone or not — so there is no "arm" to redirect; the native click this press would
-     * otherwise leave for `Board`'s own `onClick` is what must be swallowed instead. Only outside an
-     * actual decision (`touchChoosesNow`): Settled 6 keeps a plain tap choosing while Forge is asking,
-     * and `heldDrag.source === null` is the click-targeting/stack-aim drags, already Forge asking too.
+     * The ambient-offer sibling of the branch above: a card Forge offers at priority but never
+     * lifted, so there is no "arm" to redirect; the native click this press would otherwise leave for
+     * `Board`'s own `onClick` is what must be swallowed instead. Never for a permanent (`tapReads`):
+     * its click goes through, as a mouse's does. Only outside an actual decision (`touchChoosesNow`):
+     * Settled 6 keeps a plain tap choosing while Forge is asking, and `heldDrag.source === null` is
+     * the click-targeting/stack-aim drags, already Forge asking too.
      */
-    if (event.pointerType === 'touch' && heldDrag !== null && heldDrag.lifted === null && !heldDrag.moved && heldDrag.source !== null && stackAsk(match) === null && !touchChoosesNow(match)) {
+    if (
+      event.pointerType === 'touch' &&
+      heldDrag !== null &&
+      heldDrag.lifted === null &&
+      !heldDrag.moved &&
+      heldDrag.source !== null &&
+      tapReads(heldDrag.source) &&
+      stackAsk(match) === null &&
+      !touchChoosesNow(match)
+    ) {
       clicks.arm();
       openTouchView(heldDrag.source);
       return;
@@ -1984,10 +2005,10 @@ export function installGestures(options: GestureOptions): GestureHandle {
 
   /**
    * The inspector's own long-press (`inspect/index.ts`) already opened the card view by the time this
-   * fires — it is touch-only, and never raised for a press this layer did not also see. Settled 6: a
-   * long-press during a decision opens the view to READ, but the view is still the one place to ACT
-   * from, so this re-opens it with `viewActionsFor`'s answer — empty outside a decision, since the
-   * ambient read-tap above already owns that case and never gets here (its own tap resolves first).
+   * fires — it is touch-only, and never raised for a press this layer did not also see. A long press
+   * is how a touch READS whatever a tap acts on: any card during a decision (Settled 6), and a
+   * permanent at any time (`tapReads`). The view is still the one place to act from, so this
+   * re-opens it with `viewActionsFor`'s answer.
    */
   function onCardLongPress(event: Event): void {
     const id = cardIdUnder(event.target);
