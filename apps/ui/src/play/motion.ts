@@ -308,45 +308,124 @@ export function boardWaitingOn(): string {
   return [...counts].map(([name, n]) => `${name}×${n}`).join(' ');
 }
 
-/** How long (ms) until a running beat is `through` of the way through (1: over), at its own playback rate: 0 once it is. */
-function untilThrough(a: Animation, through: number): number {
-  const end = Number(a.effect?.getComputedTiming().endTime ?? 0);
-  const at = Number(a.currentTime ?? 0);
-  return Math.max(0, (through * end - at) / (Math.abs(a.playbackRate) || 1));
+/** A running beat as one look read it: its end, where it is, and how fast it plays. */
+interface BeatAt {
+  anim: Animation;
+  end: number;
+  at: number;
+  rate: number;
+}
+
+/** How long (ms) until a beat is `through` of the way through (1: over), at its own playback rate: 0 once it is. */
+function untilThrough(b: BeatAt, through: number): number {
+  return Math.max(0, (through * b.end - b.at) / b.rate);
+}
+
+/** One wait on a board's beats: it settles once every beat there is `through` of the way through. */
+interface BeatWait {
+  through: number;
+  settle: () => void;
+}
+
+/**
+ * Each board's waits on its beats, and its one look at them. Every view waits twice (its unlock, its end),
+ * and a burst of views waits at once: one look serves them all — a list of the board's animations brings
+ * the page's style up to date first, so a look per wait per round was most of a trigger burst's frame
+ * (Valakut's ten: ~750 ms of 3.3 s busy on a claw) — and it reads each beat's timing once.
+ */
+interface BoardBeats {
+  waits: Set<BeatWait>;
+  queued: boolean;
+  timer: ReturnType<typeof setTimeout> | null;
+  /** The beats whose end already brings a look. */
+  watched: WeakSet<Animation>;
+}
+const boards = new Map<Element, BoardBeats>();
+
+/** How long a look waits for a frame before it runs without one: a hidden tab draws none. */
+const FRAME_FALLBACK_MS = 100;
+
+/**
+ * Looks at `root`'s beats in the next frame, before it is drawn, unless a look is already coming. Listing a
+ * board's animations brings the page's style up to date first: there the frame's own style pass does that
+ * work once, where a look in each socket message's or timer's own task made the page do it again, task after
+ * task (a trigger burst: ~240 looks). A frame that never comes (a hidden tab) is waited for {@link FRAME_FALLBACK_MS}.
+ */
+function lookSoon(root: Element, board: BoardBeats): void {
+  if (board.queued) return;
+  board.queued = true;
+  let frame: number | null = null;
+  const run = (): void => {
+    clearTimeout(fallback);
+    if (frame !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame);
+    if (board.queued) look(root, board);
+  };
+  const fallback = setTimeout(run, FRAME_FALLBACK_MS);
+  if (typeof requestAnimationFrame === 'function') frame = requestAnimationFrame(run);
+}
+
+function look(root: Element, board: BoardBeats): void {
+  board.queued = false;
+  if (board.timer !== null) clearTimeout(board.timer);
+  board.timer = null;
+  const beats: BeatAt[] = [];
+  for (const anim of root.getAnimations({ subtree: true })) {
+    // The name first: the board runs endless animations (a pulse, a shimmer) that are no beat, and reading a timing is not free.
+    if (!isBeat(anim) || anim.playState === 'finished' || anim.playState === 'idle') continue;
+    const end = Number(anim.effect?.getComputedTiming().endTime ?? 0);
+    if (end === Infinity) continue;
+    beats.push({ anim, end, at: Number(anim.currentTime ?? 0), rate: Math.abs(anim.playbackRate) || 1 });
+  }
+  const holding = new Set<BeatAt>();
+  let soonest = Infinity;
+  for (const wait of [...board.waits]) {
+    const left = beats.filter((b) => untilThrough(b, wait.through) > 0);
+    if (left.length === 0) {
+      board.waits.delete(wait);
+      wait.settle();
+      continue;
+    }
+    for (const b of left) {
+      holding.add(b);
+      soonest = Math.min(soonest, untilThrough(b, wait.through));
+    }
+  }
+  waitingOn = [...holding].map((b) => b.anim);
+  if (board.waits.size === 0) {
+    boards.delete(root);
+    return;
+  }
+  // Looked at again as soon as one is far enough through, or one ends early (cancelled, its card gone).
+  board.timer = setTimeout(() => lookSoon(root, board), soonest);
+  for (const b of holding) {
+    if (board.watched.has(b.anim)) continue;
+    board.watched.add(b.anim);
+    void b.anim.finished.then(
+      () => lookSoon(root, board),
+      () => lookSoon(root, board),
+    );
+  }
 }
 
 /**
  * Settles once every finite BEAT running on `root` and inside it is `through` of the way through — over, or
- * {@link UNLOCK_AT} for the pacer — a ram, a crash, a crumble, a floating number — looking again after each
- * round, since one may start another. The beat plays on to its end either way. Anything else the board is
+ * {@link UNLOCK_AT} for the pacer — a ram, a crash, a crumble, a floating number — looking again as each
+ * comes due, since one may start another. The beat plays on to its end either way. Anything else the board is
  * animating is not a beat and is not waited for: an endless one (a pulse, a shimmer), and a finite one that is
  * no beat (the turn's banner, the stack settling, a glide). Waiting on those held the next frame, and the decision behind it, until the pacer's
  * cap with nothing left to draw (the operator, 2026-10-23, of the holds that idled past their last beat: "fix
- * stray holds").
+ * stray holds"). Every wait on one board shares its looks ({@link BoardBeats}).
  */
 export function animationsSettled(root: Element, through = 1): Promise<void> {
   return new Promise((resolve) => {
-    let round = 0;
-    const done = (): void => {
-      round = -1;
-      resolve();
-    };
-    const look = (): void => {
-      if (typeof root.getAnimations !== 'function') return done();
-      const running = root
-        .getAnimations({ subtree: true })
-        .filter((a) => a.playState !== 'finished' && a.playState !== 'idle' && a.effect?.getComputedTiming().endTime !== Infinity && isBeat(a) && untilThrough(a, through) > 0);
-      waitingOn = running;
-      if (running.length === 0) return done();
-      // Looked at again as soon as one is far enough through or ends early (cancelled, its card gone) — once per round.
-      const mine = ++round;
-      const again = (): void => {
-        if (mine === round) look();
-      };
-      const soonest = new Promise<void>((at) => setTimeout(at, Math.min(...running.map((a) => untilThrough(a, through)))));
-      void Promise.race([soonest, ...running.map((a) => a.finished.then(() => undefined, () => undefined))]).then(again);
-    };
-    look();
+    if (typeof root.getAnimations !== 'function') return resolve();
+    let board = boards.get(root);
+    if (board === undefined) {
+      board = { waits: new Set(), queued: false, timer: null, watched: new WeakSet() };
+      boards.set(root, board);
+    }
+    board.waits.add({ through, settle: resolve });
+    lookSoon(root, board);
   });
 }
 
