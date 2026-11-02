@@ -13,6 +13,7 @@ import type { Friend } from '../play/browser.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from '../play/harness.ts';
 import { openCreateRoom, submitCreateRoom } from '../play/rooms.ts';
 import { fillWithAi, readyPod, sitPodAt } from '../podSeats.ts';
+import { longPressCard } from '../play/phone.ts';
 import { attempt, expect, openPhone, shot, shotSizes } from './phone.ts';
 import { choosePool, poolValue } from '../play/pool.ts';
 
@@ -379,18 +380,18 @@ async function pick(page: Page, ids: number[]): Promise<void> {
 async function castByTap(page: Page, name: string): Promise<void> {
   let id: number | undefined;
   await until(`${name} is offered`, async () => (id = await offeredNamed(page, name)) !== undefined, 60_000);
-  // On touch a tap lifts the hand card and the next tap on the board casts it (the tour's first run).
-  await page.locator(`[data-board-card="${id}"]`).tap();
-  await page.waitForTimeout(500);
-  if (!lifted.has(name)) {
-    lifted.add(name);
-    await shot(page, `scn-lifted-${name.toLowerCase().replace(/[^a-z]+/g, '-')}`, { area: 'match', route: '#/match/<id>', state: `a hand card tapped: ${name} lifted, waiting for a second tap` });
+  // On touch a tap on a hand card opens its card view, and the view's own Cast action casts it.
+  await page.locator(`[data-board-card="${id}"] button`).first().tap();
+  const view = page.getByTestId('card-view');
+  await view.waitFor({ timeout: 10_000 });
+  await page.waitForTimeout(400);
+  if (!viewed.has(name)) {
+    viewed.add(name);
+    await shot(page, `scn-cardview-${name.toLowerCase().replace(/[^a-z]+/g, '-')}`, { area: 'match', route: '#/match/<id>', state: `a hand card tapped: ${name}'s card view, with its Cast action` });
   }
-  const field = await page.locator('.seat[data-viewer] [data-zone="battlefield"]').first().boundingBox();
-  if (field === null) throw new Error('no battlefield');
-  await page.touchscreen.tap(field.x + field.width / 2, field.y + field.height * 0.35);
+  await view.locator('[data-testid="card-view-action"][data-verb="cast"]').tap();
 }
-const lifted = new Set<string>();
+const viewed = new Set<string>();
 const face = (page: Page) => page.locator('[data-player-face]:not([data-viewer])').first();
 /** The opponent's face as a target: a DOM click, since at phone width the trigger tiles can cover it (the tour's finding). */
 async function faceTap(page: Page): Promise<void> {
@@ -408,14 +409,35 @@ test('scenario: board, card inspector, target question, stack with arrows, sheet
     await shotSizes(page, 'scn-board', M('a full board, own turn, main phase (scenario: 11 lands vs a Jund board)'), { small: true, landscape: true });
     await shotSizes(bob.page, 'scn-board-opp', M('the same board from the waiting seat'), { landscape: true });
 
-    await attempt('card inspector on tap', async () => {
-      // A tap on a hand card casts it (seen in the first run), so only the board is tapped here.
-      const goyf = page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] [data-board-card]').first();
-      await goyf.tap();
+    await attempt('a lane with hidden cards both ways', async () => {
+      const lands = page.getByTestId('lane-my-lands');
+      await lands.evaluate((el) => {
+        el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2;
+      });
+      await page.waitForTimeout(400);
+      await shot(page, 'scn-lane-chevrons', M('my lands scrolled to the middle: a ‹ and a › on the lane’s edges'));
+      await lands.evaluate((el) => {
+        el.scrollLeft = 0;
+      });
+    }, page);
+
+    await attempt('a tap on a permanent, a long press reads it', async () => {
+      // On a permanent a tap is the card's own click: my Forest taps for mana, no card view.
+      let forest: number | undefined;
+      await until('a Forest is offered', async () => (forest = await offeredNamed(page, 'Forest')) !== undefined, 20_000);
+      await page.locator(`[data-board-card="${forest}"] button`).first().tap();
       await page.waitForTimeout(900);
-      await shot(page, 'scn-perm-tap', M('an opponent’s permanent tapped'));
-      await page.mouse.click(5, 300);
-      await page.keyboard.press('Escape');
+      await shot(page, 'scn-perm-tap', M('a tap on my own Forest: it taps for mana, no card view'));
+      // A long press is how a permanent is read.
+      const goyf = await page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] [data-board-card]').evaluateAll(
+        (els) => els.find((e) => e.querySelector('.card__name')?.textContent?.trim() === 'Tarmogoyf')?.getAttribute('data-board-card') ?? null,
+      );
+      if (goyf === null) throw new Error('no Tarmogoyf on the opponent’s side');
+      await longPressCard(page, Number(goyf));
+      await page.getByTestId('card-view').waitFor({ timeout: 5_000 });
+      await page.waitForTimeout(400);
+      await shot(page, 'scn-perm-read', M('a long press on the opponent’s Tarmogoyf: the card view'));
+      await page.getByTestId('card-view').tap({ position: { x: 8, y: 8 } });
       await page.waitForTimeout(500);
     }, page);
 
@@ -545,7 +567,7 @@ test('scenario2: combat blocks, mistake bubble', async ({ browser }) => {
       await shotSizes(bob.page, 'scn-combat-attacker', M('combat from the attacking seat'), { landscape: true });
       const blocker = alice.page.locator('.seat[data-viewer] [data-zone="battlefield"] [data-board-card][data-selectable]').first();
       if ((await blocker.count()) > 0) {
-        await blocker.click({ timeout: 3_000 }).catch(() => undefined);
+        await blocker.tap({ timeout: 3_000 }).catch(() => undefined);
         await alice.page.waitForTimeout(800);
         await shot(alice.page, 'scn-combat-blocker-picked', M('combat: a blocker picked (pick its attacker)'));
       }
