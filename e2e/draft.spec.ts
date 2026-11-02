@@ -510,7 +510,7 @@ test('the friend gate still bites: no session, no page and no socket', async ({ 
   await alice.addCookies([{ name: SESSION_COOKIE, value: 'alice', domain: '127.0.0.1', path: '/' }]);
   const who = await alice.request.get(`${EDGE_ORIGIN}${PREFIX}/api/whoami`);
   expect(who.status()).toBe(200);
-  expect(await who.json()).toEqual({ userId: FRIENDS.alice.userId, tier: 'friend' });
+  expect(await who.json()).toEqual({ userId: FRIENDS.alice.userId, tier: 'member' });
 
   await stranger.close();
   await alice.close();

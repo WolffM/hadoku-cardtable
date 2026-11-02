@@ -109,7 +109,7 @@ test(titled('the picks sort by colour or mana value, a pick dragged to the sideb
     // "Which seat is mine" reads `/session/whoami`, which this edge does not serve (`w72-pod.spec.ts`'s note).
     const room = (await page.evaluate((id) => fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()), roomId)) as { members: { id: string; name: string }[] };
     const me = room.members.find((m) => m.name === 'e2e-alice')!;
-    await alice.context.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: me.id, userType: 'friend', name: 'e2e-alice' } }));
+    await alice.context.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: me.id, userType: 'member', name: 'e2e-alice' } }));
     await page.reload();
     await resizeWindow(page, SIZES[0]);
     await expect(page.getByTestId('pod-seats')).toBeVisible({ timeout: UI_TIMEOUT });

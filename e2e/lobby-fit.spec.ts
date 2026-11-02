@@ -66,7 +66,7 @@ interface Fit {
 /** The chat aside renders for a signed-in viewer: answer whoami the way the edge does for a friend. */
 async function signIn(f: Friend): Promise<void> {
   await f.page.route('**/session/whoami', (route) =>
-    route.fulfill({ json: { valid: true, userId: `e2e-${f.name}`, userType: 'friend', name: f.name } }),
+    route.fulfill({ json: { valid: true, userId: `e2e-${f.name}`, userType: 'member', name: f.name } }),
   );
 }
 

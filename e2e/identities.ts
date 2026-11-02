@@ -18,11 +18,9 @@ export interface Friend {
   /** `X-User-Name` — the registry display name. Not equal to the id. */
   name: string;
   /**
-   * `X-Hadoku-Tier`. Optional, and absent for every identity that predates
-   * this field — `edge.ts` stamps `identity.tier ?? 'friend'`, so leaving it
-   * off is exactly today's behaviour. Added for wave 50 §U (the sound
-   * builder's admin half): the real edge resolves a tier from the caller's
-   * account, and this is the test-only stand-in for that resolution.
+   * `X-Hadoku-Tier`. Absent for a player: `edge.ts` stamps `identity.tier ?? 'member'`,
+   * the tier anyone who signs up on hadoku.me has (D24). The real edge resolves a tier
+   * from the caller's account, and this is the test-only stand-in for that resolution.
    */
   tier?: string;
 }
@@ -35,6 +33,8 @@ export const FRIENDS: Readonly<Record<string, Friend>> = {
   bob: { key: 'e2e-friend-key-bob-91c2', userId: 'e2e-bob-id', name: 'e2e-bob' },
   // A third person in a two-seat room: the one the seats and watcher specs leave standing.
   carol: { key: 'e2e-friend-key-carol-3e5d', userId: 'e2e-carol-id', name: 'e2e-carol' },
+  // The music review only: it is friend tier, above the member floor every player is at.
+  dana: { key: 'e2e-friend-key-dana-5b8e', userId: 'e2e-dana-id', name: 'e2e-dana', tier: 'friend' },
   // wave 50 §U only: the sound builder's write half needs an admin identity.
   admin: {
     key: 'e2e-friend-key-admin-a4d1',

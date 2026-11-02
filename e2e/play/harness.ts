@@ -638,6 +638,8 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
         CARDTABLE_FORGE_RES: forge.res,
         CARDTABLE_PLAY_PROBE: '1',
         // One test identity makes every room and starts every match of a run (`config.ts`).
+        // Production's floor (D24): every player is a member, and the server's own seal says so too.
+        CARDTABLE_MIN_TIER: 'member',
         CARDTABLE_E2E_NO_RATE_LIMITS: '1',
         /*
          * ONE game, every run — and this is the server that plays it.

@@ -35,15 +35,17 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
  * `vi.hoisted`, because `vi.mock` factories are hoisted above every import and
  * a plain `const` would be out of scope inside one.
  */
-const { UNKNOWN_THEME, feedPings } = vi.hoisted(() => ({
+const { UNKNOWN_THEME, feedPings, viewer } = vi.hoisted(() => ({
   UNKNOWN_THEME: 'aurora-dusk',
+  /** The tier whoami answers with; a spec sets it before rendering. */
+  viewer: { tier: 'friend' as 'friend' | 'member' },
   /** The page feed's followers, by room, so a spec can play the server's ack after a reconnect. */
   feedPings: new Map<string, (why: 'changed' | 'heard') => void>(),
 }));
 
 vi.mock('@wolffm/prefs-client', () => ({
   whoami: () =>
-    Promise.resolve({ userId: 'u-test', userType: 'friend' as const, name: 'Test Friend' }),
+    Promise.resolve({ userId: 'u-test', userType: viewer.tier, name: 'Test Friend' }),
 }));
 
 vi.mock('@wolffm/watchparty-ui/room-chrome.css', () => ({}));
@@ -58,8 +60,8 @@ vi.mock('@wolffm/watchparty-ui/room-chrome', () => ({
    * branch exactly; `theme ?? 'dark'` would not be, because it would let `''`
    * through as a theme the real chrome would reject.
    */
-  RoomChrome: ({ theme, children }: { theme?: string; children: ReactNode }) =>
-    createElement('div', { 'data-testid': 'room-chrome', 'data-theme': theme || 'dark' }, children),
+  RoomChrome: ({ theme, userType, children }: { theme?: string; userType?: string; children: ReactNode }) =>
+    createElement('div', { 'data-testid': 'room-chrome', 'data-theme': theme || 'dark', 'data-user-type': userType }, children),
 }));
 
 /*
@@ -100,6 +102,20 @@ import { parseRoute } from '../screens/route.ts';
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  viewer.tier = 'friend';
+});
+
+describe('the viewer\'s tier', () => {
+  /*
+   * The chrome reads `public` as signed out: no display name for chat (`Md()` in
+   * `dist/chunks/index-*.js`, 0.45.13) and a sign-in redirect on hadoku.me. A
+   * member is signed in, so the chrome must hear `member`, which it ranks itself.
+   */
+  it('reaches the chrome as the tier whoami answered, a member included', async () => {
+    viewer.tier = 'member';
+    render(createElement(RoomShell, { roomId: 'm-test', children: createElement('div', null, 'content') }));
+    await waitFor(() => expect(screen.getByTestId('room-chrome').dataset.userType).toBe('member'));
+  });
 });
 
 describe('the room key for a pod or match', () => {

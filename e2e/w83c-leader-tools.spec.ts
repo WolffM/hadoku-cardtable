@@ -57,7 +57,7 @@ async function tournament(origin: string, leader: Friend, members: Friend[], ent
   const { body } = await call<RoomBody>(leader, origin, 'GET', `/rooms/${roomId}`);
   for (const m of members) {
     const me = body.members.find((x) => x.name === `e2e-${m.name}`)!;
-    await m.context.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: me.id, userType: 'friend', name: me.name } }));
+    await m.context.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: me.id, userType: 'member', name: me.name } }));
   }
   for (const e of entrants) expect((await call(e, origin, 'POST', `/rooms/${roomId}/ready`, { ready: true })).status).toBe(200);
   return roomId;

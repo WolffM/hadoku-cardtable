@@ -219,7 +219,7 @@ test(titled('two result screens left open read nothing; one reloaded still remat
 async function statsUnder(browser: Browser, who: 'signed-out' | 'signed-in'): Promise<{ asked: string[]; page: Page; context: BrowserContext }> {
   const context = await friendContext(browser, 'alice');
   await context.route('**/session/whoami', (route) =>
-    route.fulfill({ json: who === 'signed-in' ? { valid: true, userId: 'e2e-alice-id', userType: 'friend', name: 'e2e-alice' } : { valid: false } }),
+    route.fulfill({ json: who === 'signed-in' ? { valid: true, userId: 'e2e-alice-id', userType: 'member', name: 'e2e-alice' } : { valid: false } }),
   );
   const asked: string[] = [];
   await context.route('**/prefs/api/v1/_games/**', (route) => {

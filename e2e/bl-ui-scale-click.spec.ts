@@ -50,7 +50,7 @@ test(titled('the UI scale by a mouse click: the value clicked is the value kept,
   test.setTimeout(3 * 60_000);
   const stack = await startPlayStack(forge);
   try {
-    const signIn = async (page: Page): Promise<void> => void (await page.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: 'e2e-alice', userType: 'friend', name: 'alice' } })));
+    const signIn = async (page: Page): Promise<void> => void (await page.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: 'e2e-alice', userType: 'member', name: 'alice' } })));
     const front = await openFriend(browser, 'alice');
     await signIn(front.page);
     await front.page.goto(`${stack.origin}/cardtable/`);

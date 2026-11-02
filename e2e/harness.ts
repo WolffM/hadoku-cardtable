@@ -140,6 +140,8 @@ const server = spawn(process.execPath, [SERVER_JS], {
     CARDTABLE_RECORDINGS_DIR: RECORDINGS_DIR,
     EDGE_AUTH_SECRET: secret,
     // One test identity makes every room and starts every match of a run (`config.ts`).
+    // Production's floor (D24): every player is a member, and the server's own seal says so too.
+    CARDTABLE_MIN_TIER: 'member',
     CARDTABLE_E2E_NO_RATE_LIMITS: '1',
     // ── This server may only ever touch ITS OWN containers ──────────────────
     // Every cardtable boot runs `sweepOrphans()`, which removes every container

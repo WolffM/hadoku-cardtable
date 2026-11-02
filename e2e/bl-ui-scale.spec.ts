@@ -105,7 +105,7 @@ test(titled('a UI scale slider in the settings: at either end the table fits the
   const stack = await startPlayStack(forge);
   try {
     // Signed in, as the edge answers a friend: a preference is kept for a viewer the client can name.
-    const signIn = async (page: Page): Promise<void> => void (await page.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: 'e2e-alice', userType: 'friend', name: 'alice' } })));
+    const signIn = async (page: Page): Promise<void> => void (await page.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: 'e2e-alice', userType: 'member', name: 'alice' } })));
     const { alice } = await startScenarioMatch(browser, stack, 'bl-ui-scale', { beforeAlice: signIn });
     const page = alice.page;
     await expect.poll(() => offeredNamed(page, 'Divination'), { timeout: 60_000, message: 'alice has priority at her main phase' }).not.toBeUndefined();
@@ -161,7 +161,7 @@ test(titled('the UI scale from the header’s settings on the front page: at eit
   const stack = await startPlayStack(forge);
   try {
     const alice = await openFriend(browser, 'alice');
-    await alice.page.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: 'e2e-alice', userType: 'friend', name: 'alice' } }));
+    await alice.page.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: 'e2e-alice', userType: 'member', name: 'alice' } }));
     for (let i = 1; i <= 12; i++) {
       const made = await alice.context.request.post(`${stack.origin}/cardtable/api/rooms`, { data: { name: `open table ${i}`, gameType: 'constructed-1v1' } });
       expect(made.status()).toBe(201);

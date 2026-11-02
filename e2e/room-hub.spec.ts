@@ -50,7 +50,7 @@ async function routeRealIdentity(p: Player, roomId: string): Promise<void> {
   )) as { members: { id: string; name: string }[] };
   const me = roomBody.members.find((m) => m.name === `e2e-${p.name}`);
   if (me === undefined) throw new Error(`${p.name}: not found among the room’s own members`);
-  await p.context.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: me.id, userType: 'friend', name: `e2e-${p.name}` } }));
+  await p.context.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: me.id, userType: 'member', name: `e2e-${p.name}` } }));
   await p.page.reload();
   await resizeWindow(p.page, { width: 1280, height: 800 });
 }

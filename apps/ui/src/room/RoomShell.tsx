@@ -192,8 +192,7 @@ export function RoomShell({
     <RoomChrome
       roomKey={key}
       serverOrigin={watchpartyOrigin()}
-      // The chrome's tier list predates the fleet's `member`; it reads a member as the public tier until it learns it.
-      userType={who.tier === 'member' ? 'public' : who.tier}
+      userType={who.tier}
       userId={who.userId}
       theme={watchpartyTheme(theme)}
       collapsible={collapsible}

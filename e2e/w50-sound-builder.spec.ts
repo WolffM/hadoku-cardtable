@@ -1,8 +1,9 @@
 /**
  * The sound builder, end to end, against the REAL built server — admin can
- * place a take and have it survive a reload; a friend gets the screens to
+ * place a take and have it survive a reload; a member gets the screens to
  * listen to and no editor. Then the match-music review (`#/sounds/music`): a
- * friend picks, submits, and finds the submission restored and on disk.
+ * member is refused, and a friend picks, submits, and finds the submission
+ * restored and on disk.
  *
  * Operator, 2026-10-05: *"somewhat concerned about this being an artifact
  * rather than a real thing on my site… let's do the server-hosted sounds for
@@ -39,11 +40,9 @@
  *
  * ## The admin identity
  *
- * The stand-in edge hardcoded tier `friend` for everyone in `FRIENDS` — true
- * before this wave, because nothing needed more. `identities.ts` now carries
- * an optional `tier` per identity (`edge.ts` stamps `identity.tier ?? 'friend'`,
- * so every identity that does not set one is exactly as before) and one new
- * `admin` entry. That is the full extent of the change outside this file.
+ * `identities.ts` carries an optional `tier` per identity (`edge.ts` stamps
+ * `identity.tier ?? 'member'`): `admin` for the editor, `dana` at friend tier for
+ * the music review, and every other identity a member.
  *
  * ## What is NOT proven here
  *
@@ -161,9 +160,9 @@ async function open(browser: Browser, name: string): Promise<Friend> {
   return { context, page };
 }
 
-test('admin can place a take and reload to find it saved; a friend listens and edits nothing', async ({ browser }) => {
+test('admin can place a take and reload to find it saved; a member listens and edits nothing', async ({ browser }) => {
   const admin = await open(browser, 'admin');
-  const friend = await open(browser, 'bob');
+  const member = await open(browser, 'bob');
 
   // Nothing on this page should ever throw as an uncaught page-level error —
   // in particular, clicking a pill whose bytes are not real audio must stay
@@ -174,20 +173,20 @@ test('admin can place a take and reload to find it saved; a friend listens and e
   admin.page.on('pageerror', (err) => pageErrors.push(err));
 
   try {
-    // ── the friend first: the screens are friend tier, writes are not ────
-    await friend.page.goto(`${PREFIX}/#/sounds`);
-    await expect(friend.page.getByRole('heading', { name: 'Sound Builder' })).toBeVisible();
+    // ── the member first: the screens are open to members, writes are not ────
+    await member.page.goto(`${PREFIX}/#/sounds`);
+    await expect(member.page.getByRole('heading', { name: 'Sound Builder' })).toBeVisible();
     // A pill to hear, and nothing that picks up, removes, levels or queues.
-    await expect(friend.page.getByRole('button', { name: 'w50 test · a: play' })).toBeVisible();
-    await expect(friend.page.getByRole('button', { name: /play and pick up/ })).toHaveCount(0);
-    await expect(friend.page.getByRole('button', { name: 'Queue' })).toHaveCount(0);
-    await expect(friend.page.locator('.sound-builder__pill-remove')).toHaveCount(0);
-    await expect(friend.page.locator('input[type="range"]')).toHaveCount(0);
+    await expect(member.page.getByRole('button', { name: 'w50 test · a: play' })).toBeVisible();
+    await expect(member.page.getByRole('button', { name: /play and pick up/ })).toHaveCount(0);
+    await expect(member.page.getByRole('button', { name: 'Queue' })).toHaveCount(0);
+    await expect(member.page.locator('.sound-builder__pill-remove')).toHaveCount(0);
+    await expect(member.page.locator('input[type="range"]')).toHaveCount(0);
     // And the gate is the SERVER's, not just the screen's own choice not to
-    // render: the friend's own request for the assignments says so too.
-    const friendAssignments = await friend.page.request.get(`${PREFIX}/api/sounds/assignments`);
-    expect(friendAssignments.ok()).toBe(true);
-    expect((await friendAssignments.json()).canEdit).toBe(false);
+    // render: the member's own request for the assignments says so too.
+    const memberAssignments = await member.page.request.get(`${PREFIX}/api/sounds/assignments`);
+    expect(memberAssignments.ok()).toBe(true);
+    expect((await memberAssignments.json()).canEdit).toBe(false);
 
     // ── the admin: the real editor, with the real synthetic catalogue ────
     await admin.page.goto(`${PREFIX}/#/sounds`);
@@ -226,9 +225,9 @@ test('admin can place a take and reload to find it saved; a friend listens and e
     await reloadedPlaced.click();
 
     // ── the sandbox: the same assignments, played as a scenario ──────────
-    await friend.page.goto(`${PREFIX}/#/sounds/sandbox`);
-    await expect(friend.page.getByRole('heading', { name: 'Sound Sandbox' })).toBeVisible();
-    await expect(friend.page.getByRole('columnheader', { name: 'Gain' })).toHaveCount(0);
+    await member.page.goto(`${PREFIX}/#/sounds/sandbox`);
+    await expect(member.page.getByRole('heading', { name: 'Sound Sandbox' })).toBeVisible();
+    await expect(member.page.getByRole('columnheader', { name: 'Gain' })).toHaveCount(0);
 
     await admin.page.getByRole('link', { name: 'Sandbox' }).click();
     await expect(admin.page.getByRole('heading', { name: 'Sound Sandbox' })).toBeVisible();
@@ -244,15 +243,20 @@ test('admin can place a take and reload to find it saved; a friend listens and e
     expect(pageErrors).toEqual([]);
   } finally {
     await admin.context.close();
-    await friend.context.close();
+    await member.context.close();
   }
 });
 
 test('a friend reviews the match music: picks both lanes, submits, finds it restored and in their prefs row, then resets to a blank round', async ({ browser }) => {
-  const friend = await open(browser, 'bob');
+  const friend = await open(browser, 'dana');
+  const member = await open(browser, 'bob');
   const pageErrors: Error[] = [];
   friend.page.on('pageerror', (err) => pageErrors.push(err));
   try {
+    // The review is friend tier, above the member floor: a member's submission is refused by the server.
+    const refused = await member.page.request.post(`${PREFIX}/api/sounds/music-review`, { data: {} });
+    expect(refused.status(), 'a member may not submit a music review').toBe(403);
+
     await friend.page.goto(`${PREFIX}/#/sounds`);
     await friend.page.getByRole('link', { name: 'Music' }).click();
     await expect(friend.page.getByRole('heading', { name: 'Match Music' })).toBeVisible();
@@ -282,7 +286,7 @@ test('a friend reviews the match music: picks both lanes, submits, finds it rest
     await expect(submit).toHaveAttribute('data-state', 'saved');
 
     // bob's own prefs row holds it, with no name in it.
-    const row = await reviewRow('e2e-bob-id');
+    const row = await reviewRow('e2e-dana-id');
     expect(Object.keys(row!.blob).sort()).toEqual(['at', 'slots']);
     expect(row!.blob.slots).toEqual({
       [MUSIC_CELL]: { picks: [MUSIC_GEN, MUSIC_WEB], ratings: { [MUSIC_WEB]: 'no' }, note: 'the jig' },
@@ -300,9 +304,10 @@ test('a friend reviews the match music: picks both lanes, submits, finds it rest
     await expect(friend.page.getByRole('heading', { name: 'Match Music' })).toBeVisible();
     await expect(friend.page.locator(said)).toHaveCount(0);
     await expect(submit).toBeDisabled();
-    expect(await reviewRow('e2e-bob-id'), 'reset wrote nothing').toEqual(row);
+    expect(await reviewRow('e2e-dana-id'), 'reset wrote nothing').toEqual(row);
     expect(pageErrors).toEqual([]);
   } finally {
     await friend.context.close();
+    await member.context.close();
   }
 });
