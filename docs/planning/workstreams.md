@@ -232,7 +232,7 @@ it. PR-5 is new and exists to serve it.
 | follow-up: a board kept following its room on the result screen (w83 C's reset follow) → aa-polling red in scheduled full Forge runs from ca723d9c6 | — | fix `755d933ca` proving (41168790346) | — |
 | 84 brackets at any size (multi-pod, field Swiss, rounds, tiebreak robustness for >16) | — | queued after 83 | — |
 | 85 events + front page (Create event: Tournament w/ full settings or Form via Rally; calendar = scrolling event list, room is source of truth; Upcoming → Calendar/Polls gallery; wildcard manual gallery w/ priority+random default) | — | queued after 83; Rally lane in hadoku-rally | — |
-| 86 Majors flag + leaderboard podium + avatar medals | — | queued; hadoku_site game-stats + cardtable tournament reporting | — |
+| 86 Majors flag + leaderboard podium + avatar medals | — | request written 2026-11-01: `docs/requests/HADOKU_SITE_MAJORS_PODIUM_MEDALS.md` (hadoku_site issue linked there); cardtable's half (tournament reports, medal on avatars) waits on its shapes | — |
 | linked accounts (Discord/Steam) + uploaded avatars | — | hadoku_site prefs layer, then watchparty; cardtable hands-off | — |
 
 ## Wave 82 (idle rooms, 8 h forced draw) dispatched as one single session (2026-10-29)
