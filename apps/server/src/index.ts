@@ -106,6 +106,8 @@ import { attachTournaments } from './http/tournaments.js';
 import { attachSounds } from './http/sounds.js';
 import { createMusicReviewStore } from './http/musicReviewStore.js';
 import { attachClientEvents } from './http/client-events.js';
+import { attachUsage } from './http/usage.js';
+import { capacitySampler } from './capacity.js';
 import { attachTrim } from './http/trim.js';
 import { attachCubeRoutes, createCubeStore } from './pools/cubes.js';
 import { attachSetRoutes, createSetsStore, warmSetsStore } from './pools/sets.js';
@@ -151,8 +153,23 @@ bootPhase('bundle');
 // Installed before any route, so the seals below report from the first request.
 installTelemetry(monitoringSink({ baseUrl: CONFIG.monitoringBaseUrl, serviceKey: CONFIG.serviceKey, log: jsonLogger('cardtable-telemetry') }));
 
+// ── Capacity ─────────────────────────────────────────────────────────────────
+// Load and headroom, one `capacity` event per window (`capacity.ts`). The gauges read bindings
+// made further down, so it starts only once the server listens.
+const capacity = capacitySampler({
+	gauges: {
+		sockets: () => io.engine.clientsCount,
+		rooms: () => lobby.list().length,
+		drafts: () => draftRooms?.all().length ?? 0,
+		matches: () => play?.matches.active().filter((m) => m.status === 'starting' || m.status === 'running').length ?? 0,
+		jvms: () => clawHosts?.hosts().hosts.reduce((n, h) => n + h.jvms.length, 0) ?? 0,
+		forgeFree: () => clawHosts?.hosts().hosts.filter((h) => h.eligible).reduce((n, h) => n + h.free, 0) ?? 0,
+	},
+});
+
 // ── Provenance + access log ──────────────────────────────────────────────────
 app.use(edgeProvenance);
+app.use(capacity.requests);
 app.use((req, res, next) => {
 	const start = process.hrtime.bigint();
 	res.on('finish', () => {
@@ -644,6 +661,7 @@ attachSounds(api, {
 attachTrim(api, { file: resolve(CONFIG.dataDir, 'trim.json') });
 // Client telemetry from a screen with no match: the front page's scroll smoothness (`http/client-events.ts`).
 attachClientEvents(api);
+attachUsage(api);
 bootPhase('routes');
 
 const httpServer = createServer(app);
@@ -1032,6 +1050,7 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 
 // ── Listen ───────────────────────────────────────────────────────────────────
 httpServer.listen(CONFIG.port, CONFIG.host, () => {
+	capacity.start();
 	console.log(`[cardtable] listening on ${CONFIG.host}:${CONFIG.port}`);
 	bootPhase('listen');
 	const warmedFrom = performance.now();

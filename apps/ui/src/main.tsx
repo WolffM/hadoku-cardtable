@@ -1,9 +1,9 @@
 /*
  * The mount, the stylesheet order, and nothing else.
  *
- * No app logic lives here on purpose (the two exceptions are putting a stray
- * path back into the hash before the first render reads the route, and taking
- * Rally's return trip off the query, `rooms/event-forms.ts`): `App.tsx` routes and
+ * No app logic lives here on purpose (the three exceptions are putting a stray
+ * path back into the hash before the first render reads the route, taking
+ * Rally's return trip off the query, `rooms/event-forms.ts`, and starting the usage counter, `usage.ts`): `App.tsx` routes and
  * `chrome/AppChrome.tsx` frames, and that file's header states the boundary a
  * replacement wrapper lands on. The one app-specific value on this path is the
  * catalogue token, and it is not read here — vite's `define` substitutes
@@ -59,9 +59,12 @@ import './styles.css';
 import { App } from './App.tsx';
 import { finishRallyReturn } from './rooms/event-forms.ts';
 import { canonicalizeAddress } from './screens/route.ts';
+import { startUsage } from './usage.ts';
 
 canonicalizeAddress();
 void finishRallyReturn();
+// Which screens are shown and which controls are pressed, counted by the server (`usage.ts`).
+startUsage();
 
 const root = document.getElementById('root');
 if (!root) throw new Error('index.html is missing #root');

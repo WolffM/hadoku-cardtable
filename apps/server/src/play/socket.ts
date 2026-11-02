@@ -128,7 +128,7 @@ import type { SpellCopy } from './spell-copiers.js';
 import { malformedFacts } from '../http/client-events.js';
 import { httpCaller, perCallerLimit, readBody } from '../http/request.js';
 import { jsonLogger } from '../log.js';
-import { reportSealRefused } from '../telemetry.js';
+import { callerContext, report, reportSealRefused } from '../telemetry.js';
 
 export type PlayLog = (entry: Record<string, unknown>) => void;
 
@@ -621,6 +621,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		// `overGraceMs`, and counting it meant a conceded game blocked the next (2026-10-11).
 		const max = deps.maxMatches ?? MAX_CONCURRENT_MATCHES;
 		if (matches.active().filter((m) => m.status === 'starting' || m.status === 'running').length >= max) {
+			report('capacity-refused', { act: 'match-start', max, ...callerContext(req.headers) });
 			res.status(503).json({ error: `the server is already running ${max} matches` });
 			return;
 		}

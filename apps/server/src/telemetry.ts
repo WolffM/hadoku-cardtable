@@ -14,12 +14,13 @@
  * monitoring one row a minute, not one per request.
  */
 
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import type { NextFunction, Request, Response } from "express";
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import type { NextFunction, Request, Response } from 'express';
 
-import type { JsonLog } from "./log.js";
+import type { JsonLog } from './log.js';
 
-export type TelemetryContext = Record<string, string | number | boolean | null>;
+export type TelemetryValue = string | number | boolean | null | TelemetryValue[] | { [key: string]: TelemetryValue };
+export type TelemetryContext = Record<string, TelemetryValue>;
 export type Report = (event: string, context: TelemetryContext) => void;
 
 /** What `report` does before boot installs a sink, and in every test that installs none. */
@@ -28,23 +29,23 @@ let installed: Report = NOOP;
 
 /** The process's reporter. `index.ts` installs the monitoring sink once at boot. */
 export function installTelemetry(sink: Report): void {
-  installed = sink;
+	installed = sink;
 }
 
 /** Report one security event. A no-op until a sink is installed. */
 export function report(event: string, context: TelemetryContext): void {
-  installed(event, context);
+	installed(event, context);
 }
 
 export interface SinkOptions {
-  /** `https://hadoku.me` — the telemetry route is `/health/api/telemetry` under it. */
-  baseUrl: string;
-  serviceKey: string;
-  log: JsonLog;
-  /** One post per (event, caller) per this many ms. */
-  windowMs?: number;
-  now?: () => number;
-  fetch?: typeof fetch;
+	/** `https://hadoku.me` — the telemetry route is `/health/api/telemetry` under it. */
+	baseUrl: string;
+	serviceKey: string;
+	log: JsonLog;
+	/** One post per (event, caller) per this many ms. */
+	windowMs?: number;
+	now?: () => number;
+	fetch?: typeof fetch;
 }
 
 /** The throttle forgets keys past this many, oldest first, so it cannot grow without bound. */
@@ -55,79 +56,77 @@ const MAX_KEYS = 5000;
  * nothing and says so once, the way the stats reporter does.
  */
 export function monitoringSink(opts: SinkOptions): Report {
-  const { log } = opts;
-  if (opts.serviceKey === "") {
-    log({
-      evt: "telemetry-disabled",
-      reason: "CARDTABLE_SERVICE_KEY is not set",
-    });
-    return NOOP;
-  }
-  const windowMs = opts.windowMs ?? 60_000;
-  const now = opts.now ?? Date.now;
-  const doFetch = opts.fetch ?? fetch;
-  const url = `${opts.baseUrl}/health/api/telemetry`;
-  const last = new Map<string, { at: number; suppressed: number }>();
+	const { log } = opts;
+	if (opts.serviceKey === '') {
+		log({
+			evt: 'telemetry-disabled',
+			reason: 'CARDTABLE_SERVICE_KEY is not set',
+		});
+		return NOOP;
+	}
+	const windowMs = opts.windowMs ?? 60_000;
+	const now = opts.now ?? Date.now;
+	const doFetch = opts.fetch ?? fetch;
+	const url = `${opts.baseUrl}/health/api/telemetry`;
+	const last = new Map<string, { at: number; suppressed: number }>();
 
-  return (event, context) => {
-    const key = `${event}\u0000${String(context.userId ?? "")}`;
-    const t = now();
-    const seen = last.get(key);
-    if (seen !== undefined && t - seen.at < windowMs) {
-      seen.suppressed += 1;
-      return;
-    }
-    const suppressed = seen?.suppressed ?? 0;
-    last.delete(key);
-    last.set(key, { at: t, suppressed: 0 });
-    if (last.size > MAX_KEYS) last.delete(last.keys().next().value as string);
+	return (event, context) => {
+		const key = `${event}\u0000${String(context.userId ?? '')}`;
+		const t = now();
+		const seen = last.get(key);
+		if (seen !== undefined && t - seen.at < windowMs) {
+			seen.suppressed += 1;
+			return;
+		}
+		const suppressed = seen?.suppressed ?? 0;
+		last.delete(key);
+		last.set(key, { at: t, suppressed: 0 });
+		if (last.size > MAX_KEYS) last.delete(last.keys().next().value as string);
 
-    const level =
-      event.endsWith("-refused") || event === "rate-limited" ? "warn" : "info";
-    const body = {
-      source: "service",
-      level,
-      type: "log",
-      message: `event=${event}`,
-      context: {
-        service: "cardtable",
-        ...context,
-        ...(suppressed > 0 ? { suppressed } : {}),
-      },
-    };
-    doFetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 hadoku-cardtable",
-        "X-User-Key": opts.serviceKey,
-      },
-      body: JSON.stringify(body),
-    })
-      .then((res) => {
-        if (!res.ok)
-          log({ evt: "telemetry-post-failed", event, status: res.status });
-      })
-      .catch((err: unknown) =>
-        log({
-          evt: "telemetry-post-failed",
-          event,
-          error: err instanceof Error ? err.message : String(err),
-        }),
-      );
-  };
+		const level = event.endsWith('-refused') || event === 'rate-limited' ? 'warn' : 'info';
+		const body = {
+			source: 'service',
+			level,
+			type: 'log',
+			message: `event=${event}`,
+			context: {
+				service: 'cardtable',
+				...context,
+				...(suppressed > 0 ? { suppressed } : {}),
+			},
+		};
+		doFetch(url, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'User-Agent': 'Mozilla/5.0 hadoku-cardtable',
+				'X-User-Key': opts.serviceKey,
+			},
+			body: JSON.stringify(body),
+		})
+			.then((res) => {
+				if (!res.ok) log({ evt: 'telemetry-post-failed', event, status: res.status });
+			})
+			.catch((err: unknown) =>
+				log({
+					evt: 'telemetry-post-failed',
+					event,
+					error: err instanceof Error ? err.message : String(err),
+				}),
+			);
+	};
 }
 
-type Headers = Request["headers"];
+type Headers = Request['headers'];
 
 function header(headers: Headers, name: string): string | null {
-  const v = headers[name];
-  return typeof v === "string" && v !== "" ? v : null;
+	const v = headers[name];
+	return typeof v === 'string' && v !== '' ? v : null;
 }
 
 /** The caller's user agent, cut short: enough to tell a browser from a script. */
 export function userAgentOf(headers: Headers): string | null {
-  return header(headers, "user-agent")?.slice(0, 160) ?? null;
+	return header(headers, 'user-agent')?.slice(0, 160) ?? null;
 }
 
 /**
@@ -136,11 +135,11 @@ export function userAgentOf(headers: Headers): string | null {
  * the handlers saw.
  */
 export function callerContext(headers: Headers): TelemetryContext {
-  return {
-    userId: header(headers, "x-user-id") ?? "anon",
-    tier: header(headers, "x-hadoku-tier") ?? "public",
-    ua: userAgentOf(headers),
-  };
+	return {
+		userId: header(headers, 'x-user-id') ?? 'anon',
+		tier: header(headers, 'x-hadoku-tier') ?? 'public',
+		ua: userAgentOf(headers),
+	};
 }
 
 /**
@@ -149,19 +148,19 @@ export function callerContext(headers: Headers): TelemetryContext {
  * than this server's floor — both worth a look.
  */
 export function reportSealRefused(
-  surface: "http" | "draft-socket" | "play-socket" | "browser" | "stream",
-  headers: Headers,
-  path: string | null,
+	surface: 'http' | 'draft-socket' | 'play-socket' | 'browser' | 'stream',
+	headers: Headers,
+	path: string | null,
 ): void {
-  report("seal-refused", { surface, path, ...callerContext(headers) });
+	report('seal-refused', { surface, path, ...callerContext(headers) });
 }
 
 export interface FirstSeenOptions {
-  /** The JSON list of every user id this server has admitted, kept across restarts. */
-  file: string;
-  userIdOf: (req: Request) => string;
-  tierOf: (req: Request) => string;
-  log: JsonLog;
+	/** The JSON list of every user id this server has admitted, kept across restarts. */
+	file: string;
+	userIdOf: (req: Request) => string;
+	tierOf: (req: Request) => string;
+	log: JsonLog;
 }
 
 /**
@@ -170,52 +169,49 @@ export interface FirstSeenOptions {
  * agent — the "who is getting in" signal, once per account, not per visit.
  * Callers the edge named nobody (`anon`) are not accounts and are skipped.
  */
-export function firstSeen(
-  opts: FirstSeenOptions,
-): (req: Request, res: Response, next: NextFunction) => void {
-  const seen = new Set<string>(readSeen(opts.file, opts.log));
-  return (req, _res, next) => {
-    const userId = opts.userIdOf(req);
-    if (userId !== "anon" && !seen.has(userId)) {
-      seen.add(userId);
-      writeSeen(opts.file, seen, opts.log);
-      report("caller-first-seen", {
-        userId,
-        tier: opts.tierOf(req),
-        ua: userAgentOf(req.headers),
-        path: req.path,
-      });
-    }
-    next();
-  };
+export function firstSeen(opts: FirstSeenOptions): (req: Request, res: Response, next: NextFunction) => void {
+	const seen = new Set<string>(readSeen(opts.file, opts.log));
+	return (req, _res, next) => {
+		const userId = opts.userIdOf(req);
+		if (userId !== 'anon' && !seen.has(userId)) {
+			seen.add(userId);
+			writeSeen(opts.file, seen, opts.log);
+			report('caller-first-seen', {
+				userId,
+				tier: opts.tierOf(req),
+				ua: userAgentOf(req.headers),
+				path: req.path,
+			});
+		}
+		next();
+	};
 }
 
 function readSeen(file: string, log: JsonLog): string[] {
-  if (!existsSync(file)) return [];
-  try {
-    const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
-    if (Array.isArray(parsed) && parsed.every((x) => typeof x === "string"))
-      return parsed;
-    log({ evt: "first-seen-unreadable", file, reason: "not a list of ids" });
-  } catch (err) {
-    log({
-      evt: "first-seen-unreadable",
-      file,
-      reason: err instanceof Error ? err.message : String(err),
-    });
-  }
-  return [];
+	if (!existsSync(file)) return [];
+	try {
+		const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'));
+		if (Array.isArray(parsed) && parsed.every((x) => typeof x === 'string')) return parsed;
+		log({ evt: 'first-seen-unreadable', file, reason: 'not a list of ids' });
+	} catch (err) {
+		log({
+			evt: 'first-seen-unreadable',
+			file,
+			reason: err instanceof Error ? err.message : String(err),
+		});
+	}
+	return [];
 }
 
 function writeSeen(file: string, seen: Set<string>, log: JsonLog): void {
-  try {
-    writeFileSync(`${file}.tmp`, JSON.stringify([...seen]));
-    renameSync(`${file}.tmp`, file);
-  } catch (err) {
-    log({
-      evt: "first-seen-write-failed",
-      file,
-      reason: err instanceof Error ? err.message : String(err),
-    });
-  }
+	try {
+		writeFileSync(`${file}.tmp`, JSON.stringify([...seen]));
+		renameSync(`${file}.tmp`, file);
+	} catch (err) {
+		log({
+			evt: 'first-seen-write-failed',
+			file,
+			reason: err instanceof Error ? err.message : String(err),
+		});
+	}
 }

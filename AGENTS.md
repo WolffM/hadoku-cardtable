@@ -218,6 +218,12 @@ curl -s -A "Mozilla/5.0 hadoku-agent" -H "X-User-Key: $K" \
   own floor refused what the edge passed, on HTTP or any socket),
   `costly-act` / `rate-limited` (every `perCallerLimit`, named by `act`).
   A new expensive step goes through `perCallerLimit` and is covered.
+  Every 5 min: `usage` (screens shown and controls pressed, counted by
+  `data-testid` with ids stripped — `apps/ui/src/usage.ts`, so a control needs
+  a testid to be counted) and `capacity` (peak sockets, rooms, drafts, matches,
+  JVMs, free Forge slots, request rate and p95, event-loop stall —
+  `apps/server/src/capacity.ts`); `capacity-refused` when a start meets the
+  server's match ceiling.
 - Events your code posts go to `service_events`: `POST /health/api/telemetry`
   with `context.service: "cardtable"`, read back with
   `GET /health/api/service-events?service=cardtable`. Not `console.log`.

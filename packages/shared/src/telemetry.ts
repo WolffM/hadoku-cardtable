@@ -84,3 +84,44 @@ export type PageEvent = z.output<typeof PageEventSchema>;
 
 /** A socket sending more than this in one second is a client bug; the rest of that second is dropped. */
 export const CLIENT_EVENT_MAX_PER_SECOND = 20;
+
+/** Where the browser's usage batches go, under `/api/`. */
+export const USAGE_PATH = 'usage';
+
+/** The most entries one usage batch may carry; a page flushes well before it. */
+export const USAGE_BATCH_MAX = 200;
+
+/**
+ * A name a usage entry carries: a screen (a route's `kind`) or a target (an element's
+ * `data-testid`, ids stripped). Lowercase words, digits and `-`, `_`, `.`, `:` and `/` — never a
+ * label, a card name or anything a player typed.
+ */
+const UsageNameSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9][a-z0-9_.:/-]*$/);
+
+/**
+ * What the browser reports about how the app is used (`apps/ui/src/usage.ts`): each screen it
+ * shows and each named control pressed, batched. The server only counts them
+ * (`apps/server/src/http/usage.ts`); nothing per click is stored.
+ */
+export const UsageBatchSchema = z
+  .object({
+    entries: z
+      .array(
+        z
+          .object({
+            kind: z.enum(['view', 'click']),
+            screen: UsageNameSchema,
+            target: UsageNameSchema.optional(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(USAGE_BATCH_MAX),
+  })
+  .strict();
+
+export type UsageBatch = z.output<typeof UsageBatchSchema>;
