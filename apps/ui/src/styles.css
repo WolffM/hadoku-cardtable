@@ -41,6 +41,12 @@
   overflow: hidden;
 }
 
+/* The scale does the fitting: a flex child that shrank instead would be measured short, and the
+   scale and the shrink would take turns (a ResizeObserver loop). */
+.fit-scale > * {
+  flex-shrink: 0;
+}
+
 /*
  * Draft table styling.
  *

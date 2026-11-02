@@ -152,6 +152,8 @@ export function columnsOf<T>(items: readonly T[], cols: number): T[][] {
 /** A fit column never draws its lengths smaller than this share of the UI scale; under it, it clips. */
 export const MIN_FIT = 0.6;
 const FIT_STEP = 0.01;
+/** How many measures a column takes to settle on its scale, at most. */
+const FIT_SETTLE = 4;
 
 /**
  * The scale a column draws at so its content fits `available`: `content` is
@@ -189,20 +191,29 @@ export function useFitScale(): (el: HTMLElement | null) => void {
     if (el === null || typeof ResizeObserver === 'undefined') return;
     const watched = new Set<Element>();
     const measure = (): void => {
-      const fit = parseFloat(el.style.getPropertyValue('--fit')) || 1;
       const style = getComputedStyle(el);
       const available = el.clientHeight - (parseFloat(style.paddingTop) || 0) - (parseFloat(style.paddingBottom) || 0);
-      const next = fitScale(contentHeight(el), fit, available);
-      if (next !== fit) el.style.setProperty('--fit', String(next));
+      // Settled here, not over the observer's next reports: a part that does not scale (an image's
+      // own size, a border) leaves the first guess off, and a column whose children resize again
+      // in the same frame is a ResizeObserver loop.
+      let fit = parseFloat(el.style.getPropertyValue('--fit')) || 1;
+      for (let i = 0; i < FIT_SETTLE; i++) {
+        const next = fitScale(contentHeight(el), fit, available);
+        if (next === fit) break;
+        el.style.setProperty('--fit', String(next));
+        fit = next;
+      }
       for (const child of el.children) {
         if (watched.has(child)) continue;
         watched.add(child);
         observer.current?.observe(child);
       }
     };
+    // Measured first by the observer's own first report, once the page is laid out: the ref is
+    // attached before its parents' (the draft body is sized by its own ref, after this one), and a
+    // column measured in a box not yet sized keeps the scale it got there (`fitScale`'s one step).
     observer.current = new ResizeObserver(measure);
     observer.current.observe(el);
-    measure();
   }, []);
 }
 

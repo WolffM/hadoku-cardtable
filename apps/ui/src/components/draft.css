@@ -62,8 +62,9 @@
 /* ── layout ────────────────────────────────────────────────────────── */
 
 /*
- * The pack across the top three quarters of the window with the seats beside
- * it, the picks across the bottom quarter (the operator, 2026-10-19). The body is
+ * The pack across the top half of the window with the seats beside it, the
+ * picks across the bottom half (the operator, 2026-10-19); the fan's own rows
+ * are below. The body is
  * exactly as tall as the window below it (`--draft-h`, measured by
  * `DraftScreen`), each half scrolls inside itself, and the page does not
  * scroll at all — sideways or down.
@@ -87,6 +88,18 @@
      grid) stays inside it: overflow here would make `fitToWindow` shrink the whole draft for a
      frame as it mounts, and the fan then grows back into place — the jump after the skeleton. */
   overflow: clip;
+}
+
+/*
+ * The fan: across the whole width, with the pod beside the picks under it (the operator,
+ * 2026-11-01). Its row is sized in CSS px from the body's height (`PackView`'s `fanRowHeight`,
+ * set by `fitToWindow`), so browser zoom grows and shrinks it, and the picks' row takes the rest.
+ */
+.draft__body--fan {
+  grid-template-rows: var(--fan-row, minmax(0, 1fr)) minmax(0, 1fr);
+  grid-template-areas:
+    'pack pack'
+    'pool seats';
 }
 
 .draft__main {
@@ -176,14 +189,24 @@
   overflow: hidden;
 }
 
-/* The whole height beside the pack and the picks, and what it holds draws at the scale that fits it
-   (`.fit-scale`): with eight seats, the room's bar and the draft's, it is taller than a 768px window. */
+/* Beside the pack and the picks (beside the picks alone under the fan), and what it holds draws at the
+   scale that fits it (`.fit-scale`): with eight seats, the room's bar and the draft's, it is taller than
+   a 768px window. */
 .draft__aside {
   grid-area: seats;
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-height: 0;
+}
+
+/* The pod's ring is a square as wide as its box (`.podcircle`), which no fit scale shrinks: here it is
+   at most the column's width less the box's padding and border (280 - 2 x 9), in the units the column
+   fits in, so a column shorter than its content (beside the picks, under the fan) shrinks the ring
+   with everything else instead of clipping it. */
+.draft__aside .podcircle {
+  width: min(100%, 262px);
+  margin-inline: auto;
 }
 
 /* In the side column the bars stack: one thing to a row. */
