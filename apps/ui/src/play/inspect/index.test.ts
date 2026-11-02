@@ -13,7 +13,7 @@
  * test here.
  */
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { createElement } from 'react';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 
@@ -650,6 +650,46 @@ describe('touch: the parked mouse pointer never closes a touch-opened view', () 
     expect(panel()).not.toBeNull();
     fireEvent.pointerOver(board.querySelector('.seat__counts')!, { pointerType: 'mouse' });
     expect(panel()).toBeNull();
+  });
+});
+
+describe('portrait: the mouse never opens the card view', () => {
+  /*
+   * Portrait's card view is a full-screen sheet, so a hover-opened one covers the very pointer that
+   * opened it: Chromium's parked mouse pointer then gets a `pointerover` on the sheet, which closed it,
+   * and another on the card under it, which opened it again — every ~35ms, measured in real portrait
+   * (wave 89 polish, after a tap on a permanent stopped opening a touch view that had masked it). A
+   * long press that landed on one of those sheets closed it instead of reading the card. In portrait
+   * reading is touch's: a tap on a hand card, a long press anywhere.
+   */
+  function portrait(): void {
+    document.documentElement.dataset.layout = 'portrait';
+    onTestFinished(() => {
+      delete document.documentElement.dataset.layout;
+    });
+  }
+
+  it('a mouse pointerover on a card opens nothing in portrait', () => {
+    portrait();
+    const { panel, theirCard } = mountBoard();
+    hover(theirCard().querySelector('.card')!);
+    expect(panel()).toBeNull();
+  });
+
+  it('a long press still reads a card in portrait, and the parked pointer’s pointerovers leave it up', () => {
+    portrait();
+    const { panel, board, theirCard } = mountBoard();
+    longPress(theirCard().querySelector('.card')!);
+    expect(panel()).not.toBeNull();
+    hover(panel()!);
+    hover(board.querySelector('.seat__counts')!);
+    expect(panel()).not.toBeNull();
+  });
+
+  it('outside portrait a hover still opens the view, unchanged', () => {
+    const { panel, theirCard } = mountBoard();
+    hover(theirCard().querySelector('.card')!);
+    expect(panel()).not.toBeNull();
   });
 });
 

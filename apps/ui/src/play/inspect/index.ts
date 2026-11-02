@@ -520,6 +520,18 @@ function enlarged(tile: Element): HTMLElement {
 const activeMounts = new WeakMap<ParentNode, () => void>();
 
 /**
+ * Whether a hover may open the card view right now: never in portrait (`../portrait.ts`'s switch,
+ * `data-layout` on the document's root). There the view is a full-screen sheet (`inspect.css`), so a
+ * hover-opened one covers the very pointer that opened it; Chromium's parked mouse pointer then got a
+ * `pointerover` on the sheet, which closed it, and one on the card beneath, which opened it again,
+ * every ~35ms (measured in real portrait). A long press that landed on one of those sheets closed it
+ * instead of reading the card. In portrait, reading is touch's: a tap on a hand card, a long press.
+ */
+function hoverOff(): boolean {
+  return document.documentElement.dataset.layout === 'portrait';
+}
+
+/**
  * The mounted instance's own `openOn`, keyed exactly as `activeMounts` is — one external API per
  * root, torn down and replaced on the same terms. `../live/gestures/install.ts` is the one caller:
  * a touch tap that must read instead of act looks the card up, builds its actions off `LiveMatch`,
@@ -730,7 +742,7 @@ export function mountInspector(root: ParentNode): () => void {
   }
 
   function onPointerOver(event: PointerEvent): void {
-    if (event.pointerType === 'touch' || byTouch) return;
+    if (event.pointerType === 'touch' || byTouch || hoverOff()) return;
     // A held button is lane B's drag (or a selection): the pointer is spoken
     // for, and the arrow does not share the canvas with a preview.
     if (event.buttons !== 0) {
