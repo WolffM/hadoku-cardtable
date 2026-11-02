@@ -42,6 +42,81 @@ const FIREFOX_SPECS = ['bl-ui-scale-click.spec.ts', 'deck-tile-row.spec.ts', 'fl
  */
 const ALSO_CHROMIUM = ['fly-jump.spec.ts', 'front-scroll-perf.spec.ts'];
 
+/**
+ * Wave 89 triage: the existing suite's own proof that the phone driver path (tap-to-read/choose, a
+ * card-view cast, a CDP touch drag) works on real specs, not just the lanes' own purpose-written
+ * red-first ones. Curated by category — cast, target, combat, prompts, search, stack, mulligan,
+ * concede — from a real claw triage (run 41391671524, `verify/w89-e-triage1`, dispatched before A's
+ * portrait switch and D's card-view cast path had landed): most of these are RED until both do. That
+ * is tracked here, not hidden — `docs/lanes/RULES.md`'s "investigate every red" rather than excluding
+ * what is merely not finished yet. These are ordinary desktop specs; they keep running under
+ * `chromium` exactly as before, and ALSO run here, under touch.
+ */
+const PHONE_CORE = [
+  // cast
+  'af69-searing-blaze.spec.ts',
+  'cl-class-level.spec.ts',
+  'ch-pool-choice.spec.ts',
+  'nf-offer-gap.spec.ts',
+  'xw-kessig-x.spec.ts',
+  // combat
+  'w54-blockers.spec.ts',
+  'menace-block.spec.ts',
+  'af66-combat-priority.spec.ts',
+  // prompts
+  'qt-prompt-question.spec.ts',
+  'confirm-pairing.spec.ts',
+  'dredge-confirm.spec.ts',
+  // search (a multi-pick/selection sheet, never a hardcoded desktop size)
+  'tk-tinker.spec.ts',
+  'dv-delve.spec.ts',
+  'cascade-discover.spec.ts',
+  // stack
+  'af67-yield-stack.spec.ts',
+  'af68-unpayable-offer.spec.ts',
+  'cp-lethal-blow.spec.ts',
+  'w34.spec.ts',
+  'arrows.spec.ts',
+  // mulligan
+  'w62-cointoss.spec.ts',
+  'af64-mulligan-order.spec.ts',
+  // concede
+  'early-end.spec.ts',
+  'h1-match-ended.spec.ts',
+  'un-unfinished-game.spec.ts',
+  // cast-adjacent
+  'af61-phyrexian.spec.ts',
+  'af57-exact-count.spec.ts',
+];
+
+/**
+ * Desktop-geometry (or mouse-only, no Settled touch equivalent) specs the same triage showed cannot
+ * pass under `phone-core` no matter what lands — kept OUT of `PHONE_CORE` above, and named here too
+ * (`phone-core`'s own `testIgnore`) so a future addition to `PHONE_CORE` can't reintroduce one by
+ * accident. Each with the reason the triage found. `prompt-bar.spec.ts`, `w87b-stack.spec.ts`,
+ * `wresolve-chain.spec.ts` and `af72-stack-hand-size.spec.ts` were in the first draft of `PHONE_CORE`
+ * and were pulled back out here once a closer read showed each resizes to a hardcoded desktop size
+ * (1280×800 or the trailer's 1920×1080) as the thing it tests — `w34.spec.ts` keeps ONE sub-case doing
+ * the same (poison/energy/experience counters "at 1280×800 and 1366×768"); its other cases are real
+ * cast/stack coverage, and config-level `testMatch`/`testIgnore` cannot split one file by test title,
+ * so that sub-case is a known, accepted false red under `phone-core` rather than a reason to drop the
+ * whole file.
+ */
+const PHONE_CORE_EXCLUDE: readonly (readonly [file: string, reason: string])[] = [
+  ['af50-combat-damage.spec.ts', 'own title: "fits 1280×800" — a hardcoded desktop viewport check'],
+  ['table-fit.spec.ts', 'measures the desktop table never scrolling, at the default viewport'],
+  ['pod-fit.spec.ts', 'draft screen at 1280×800 — draft is Settled 10, out of scope'],
+  ['glyph-rail.spec.ts', 'own header: "At 1280×720 and 1920×1080"'],
+  ['lobby-fit.spec.ts', 'own header: "At 1280×800, 1366×768 and 1024×700" — lobby/front page, Settled 10 and wzoom\'s own claim'],
+  ['masticore-fit.spec.ts', 'own header: "At the default 1280×720"'],
+  ['draft-fan-fit.spec.ts', 'draft screen, browser-zoom emulation (deviceScaleFactor) — Settled 10, out of scope'],
+  ['drag.spec.ts', 'tests mouse-only nuances (right-click cancel, in-hand drag-reorder) with no Settled touch equivalent'],
+  ['prompt-bar.spec.ts', 'own header: "At 1280×800 and at a short window" — resizes to a hardcoded desktop size'],
+  ['w87b-stack.spec.ts', "both cases: \"at the trailer's 1920×1080\" (TRAILER constant)"],
+  ['wresolve-chain.spec.ts', "\"at the trailer's 1920×1080\" (TRAILER constant)"],
+  ['af72-stack-hand-size.spec.ts', 'resizes to a hardcoded 1280×800'],
+];
+
 export default defineConfig({
   testDir: '.',
   testMatch: '*.spec.ts',
@@ -72,6 +147,25 @@ export default defineConfig({
     {
       name: 'phone',
       testMatch: PHONE_SPEC,
+      use: {
+        browserName: 'chromium',
+        ...PHONE,
+        launchOptions: { args: ['--disable-site-isolation-trials', '--disable-features=IsolateOrigins,site-per-process'] },
+      },
+    },
+    /**
+     * A separate project, not folded into `phone`: `phone` is every LANE's own purpose-written moment
+     * (`*.phone.spec.ts`), which must stay exactly that — a desktop spec accidentally matching its
+     * glob would be silent and easy to miss. `phone-core` is the opposite case on purpose, an
+     * EXPLICIT, named, reviewed list of existing desktop specs ported onto the same `PHONE` context —
+     * so a reader of either project's `testMatch` sees what it is at a glance, and `PHONE_CORE`'s own
+     * reds (tracked above) read as "this list, on this context" rather than "the phone project turned
+     * red" in a scheduled run's summary.
+     */
+    {
+      name: 'phone-core',
+      testMatch: PHONE_CORE,
+      testIgnore: PHONE_CORE_EXCLUDE.map(([file]) => file),
       use: {
         browserName: 'chromium',
         ...PHONE,

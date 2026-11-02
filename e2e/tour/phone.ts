@@ -19,7 +19,13 @@ import { PLAY_EDGE_ORIGIN } from '../play/harness.ts';
 import { registerFriendContext } from '../play/open-friends.ts';
 import { keepPrefsLocal, setPlayFastModeDefault } from '../prefsLocal.ts';
 
-export const OUT = resolve(homedir(), '.cache/cardtable-manager/mobile-tour');
+/**
+ * Where screenshots and the manifest land — `CARDTABLE_TOUR_OUT` if set, else today's default. The
+ * override exists so a caller that wants a SEPARATE run (the manager's "after" shots, beside an
+ * already-written "before") never has to redirect `HOME` to move this path, the way landing this file
+ * once did.
+ */
+export const OUT = resolve(process.env.CARDTABLE_TOUR_OUT ?? resolve(homedir(), '.cache/cardtable-manager/mobile-tour'));
 const SHOTS = resolve(OUT, 'shots');
 const MANIFEST = resolve(OUT, 'manifest.jsonl');
 mkdirSync(SHOTS, { recursive: true });

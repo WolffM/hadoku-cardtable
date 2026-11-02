@@ -7,10 +7,18 @@
  * sideways").
  *
  * Every OTHER phone driver lives beside the desktop one it replaces (`board.ts`, `combat.ts`,
- * `confirm.ts`, `prompts.ts`, `hands.ts`), branching on `testInfo.project.name === 'phone'` — this
- * file holds only what doesn't belong to any one of them.
+ * `confirm.ts`, `prompts.ts`, `hands.ts`), branching on `isPhone()` — this file holds only what
+ * doesn't belong to any one of them.
  */
-import { expect, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+/**
+ * True while the running test is in the `phone` project (`playwright.config.ts`'s own
+ * `*.phone.spec.ts` project). Every sibling driver's phone branch reads this one function, so a
+ * desktop spec never sees any of them flip (RULES: no duplicate code paths — one helper, not one
+ * copy of the check per file).
+ */
+export const isPhone = (): boolean => test.info().project.name === 'phone';
 
 /**
  * Context options for every `*.phone.spec.ts` file: `test.use(PHONE)`. This is the exact shape the
@@ -79,24 +87,32 @@ export async function pinch(page: Page, opts: PinchOptions): Promise<void> {
 }
 
 /**
- * A single-finger touch drag from `from` to `to` in `steps` moves, dispatched over CDP: real
- * `touchStart`/`touchMove`/`touchEnd`, the same shape `pinch` proves works in this harness.
+ * A single-finger touch drag: press at `from`, move through each of `points` with a real CDP
+ * `Input.dispatchTouchEvent` `touchMove` (never `page.mouse.*`, which sends mouse events even inside
+ * a touch context — D's gesture install branches on the real thing), release at the last point. The
+ * one primitive `board.ts`'s hand-card drag and `combat.ts`'s block drag both build on for the phone
+ * project (and `swipe` below), rather than each dispatching its own CDP touch sequence.
  */
-export async function swipe(page: Page, from: { x: number; y: number }, to: { x: number; y: number }, steps = 12): Promise<void> {
+export async function touchDrag(page: Page, from: { x: number; y: number }, points: readonly { x: number; y: number }[]): Promise<void> {
   const client = await page.context().newCDPSession(page);
-  const point = (x: number, y: number) => ({ x, y, radiusX: 11, radiusY: 11, force: 1, id: 1 });
+  const point = (p: { x: number; y: number }) => ({ x: p.x, y: p.y, radiusX: 11, radiusY: 11, force: 1, id: 1 });
   try {
-    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point(from.x, from.y)] });
-    for (let i = 1; i <= steps; i++) {
-      const x = from.x + ((to.x - from.x) * i) / steps;
-      const y = from.y + ((to.y - from.y) * i) / steps;
-      await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [point(x, y)] });
+    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point(from)] });
+    for (const p of points) {
       await page.waitForTimeout(16);
+      await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [point(p)] });
     }
+    await page.waitForTimeout(16);
     await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   } finally {
     await client.detach().catch(() => undefined);
   }
+}
+
+/** A single-finger touch drag from `from` to `to` in `steps` even moves: `touchDrag` along a straight line. */
+export async function swipe(page: Page, from: { x: number; y: number }, to: { x: number; y: number }, steps = 12): Promise<void> {
+  const points = Array.from({ length: steps }, (_, i) => ({ x: from.x + ((to.x - from.x) * (i + 1)) / steps, y: from.y + ((to.y - from.y) * (i + 1)) / steps }));
+  await touchDrag(page, from, points);
 }
 
 /**

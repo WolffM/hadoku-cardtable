@@ -12,6 +12,7 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
 import { clickOnce, enabledOk, says } from './board.ts';
+import { isPhone, touchDrag } from './phone.ts';
 
 /**
  * Where the game is on one screen: the rail's phase, whose turn and turn number, and whether the
@@ -114,14 +115,29 @@ export function ownBattlefieldCards(page: Page): Locator {
  * Click a card's own clickable face — the same element `Board.tsx` renders
  * `onClick`/`onSelectCard` on for every offered card, never a raw `click()`
  * on the `<li>` itself (which carries no handler).
+ *
+ * Under the `phone` project this is a real touch tap, not a click: declaring blockers is a decision
+ * (Settled 6 — "a tap chooses"), and `undoBlock` below (take a blocker out of combat) is exactly that
+ * choice, made the same single-tap way `board.ts`'s `pressOffered` chooses a target.
  */
 export async function clickCard(page: Page, cardId: number): Promise<void> {
-  await page.locator(`[data-board-card="${cardId}"] button`).first().click();
+  const button = page.locator(`[data-board-card="${cardId}"] button`).first();
+  if (isPhone()) await button.tap();
+  else await button.click();
 }
 
-/** Press on `fromId`, carry it to `to` with real pointer moves, let go. */
+/**
+ * Press on `fromId`, carry it to `to` with real pointer moves, let go. Under the `phone` project this
+ * is `phone.ts`'s `touchDrag` (a real CDP touch drag) instead of `page.mouse.*`, which sends mouse
+ * events even inside a touch context — a block assignment is a drag either way, but only a real touch
+ * drag is one D's gesture install can tell from a tap on a touch-capable context.
+ */
 async function dragFrom(page: Page, fromId: number, to: { x: number; y: number }): Promise<void> {
   const from = await centreOf(page, fromId);
+  if (isPhone()) {
+    await touchDrag(page, from, [to]);
+    return;
+  }
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
   await page.mouse.move(to.x, to.y, { steps: 12 });
@@ -150,6 +166,10 @@ export async function assignBlock(page: Page, blockerId: number, attackerId: num
  */
 export async function dragBlockHome(page: Page, blockerId: number): Promise<void> {
   const home = await centreOf(page, blockerId);
+  if (isPhone()) {
+    await touchDrag(page, home, [{ x: home.x, y: home.y - 120 }, home]);
+    return;
+  }
   await page.mouse.move(home.x, home.y);
   await page.mouse.down();
   await page.mouse.move(home.x, home.y - 120, { steps: 6 });
