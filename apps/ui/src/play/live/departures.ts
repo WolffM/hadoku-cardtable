@@ -218,6 +218,46 @@ export function specks(cardId: number, count: number, motion: ExitMotion = 'diss
   });
 }
 
+/** How far behind the card's first corner a dissolve's edge starts, and how far past its last it ends: shares of the card's diagonal. */
+const DISSOLVE_LEAD = 0.12;
+
+/** The room a dissolving card's glow has beyond its top and right edges, px. */
+const DISSOLVE_PAD = 10;
+
+/**
+ * Where a dissolving card's edge is, and how its window moves, for a card `width`×`height` px: everything
+ * that moves in a dissolve moves on the compositor. Each copy of the card sits in a window
+ * (`.board-departure__piece`) whose mask is drawn once: clear behind a line across the card's diagonal,
+ * whole ahead of it, with the grain of a crumbling border just behind it. The window slides along the
+ * diagonal (`translate`, `sweepX`/`sweepY`) while the card inside slides back by as much, so the card holds
+ * still and the edge crosses it, from its bottom left corner to its top right, without the page restyling or
+ * re-rasterising anything on any frame. The window reaches `margin` px past the card's left and bottom edges
+ * (and `pad` past its top and right, for the glow), enough that it still covers every part of the card
+ * the edge has not reached; `edge` is where the line starts in the window's own box, `DISSOLVE_LEAD` of the
+ * diagonal before the card's first corner, and `travel` how far it goes, to as far past the last.
+ */
+export function dissolveSweep(width: number, height: number): { angle: number; edge: number; diag: number; margin: number; pad: number; travel: number; sweepX: number; sweepY: number } {
+  const w = Math.max(1, width);
+  const h = Math.max(1, height);
+  const diag = Math.hypot(w, h);
+  const share = (a: number, b: number): number => (a * a) / (a * a + b * b);
+  // The last points the edge reaches on the card's left side (its top left corner) and bottom (its bottom
+  // right) are the ones the window's near edges must still hold: from the start, the window moves
+  // `(share + lead)` of the card's width left and of its height down before the edge gets there.
+  const margin = Math.ceil(Math.max(w * (share(h, w) + DISSOLVE_LEAD), h * (share(w, h) + DISSOLVE_LEAD))) + 1;
+  const travel = diag * (1 + 2 * DISSOLVE_LEAD);
+  return {
+    angle: (Math.atan2(w, h) * 180) / Math.PI,
+    edge: (margin * (w + h)) / diag - DISSOLVE_LEAD * diag,
+    diag,
+    margin,
+    pad: DISSOLVE_PAD,
+    travel,
+    sweepX: (travel * w) / diag,
+    sweepY: (-travel * h) / diag,
+  };
+}
+
 export type ExitMotion = keyof typeof EXIT_MOTIONS;
 
 /**
@@ -502,6 +542,16 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
     markTempo(wrap, tempo);
     if (departure.hue !== undefined) wrap.setAttribute('data-colour', departure.hue);
     const broken = shattered(motion) ? shards(departure.cardId, pieces) : null;
+    if (motion === 'dissolve') {
+      const g = dissolveSweep(at.width, at.height);
+      wrap.style.setProperty('--dz-angle', `${g.angle.toFixed(2)}deg`);
+      wrap.style.setProperty('--dz-edge', `${g.edge.toFixed(1)}px`);
+      wrap.style.setProperty('--dz-diag', `${g.diag.toFixed(1)}px`);
+      wrap.style.setProperty('--dz-margin', `${g.margin}px`);
+      wrap.style.setProperty('--dz-pad', `${g.pad}px`);
+      wrap.style.setProperty('--dz-sweep-x', `${g.sweepX.toFixed(1)}px`);
+      wrap.style.setProperty('--dz-sweep-y', `${g.sweepY.toFixed(1)}px`);
+    }
     for (let n = 1; n <= pieces; n++) {
       const copy = copyOfCard(from);
       const piece = document.createElement('div');
@@ -515,7 +565,15 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
         piece.style.setProperty('--rot', `${part.rot.toFixed(0)}deg`);
         piece.style.setProperty('--lag', `${part.lag}ms`);
       }
-      piece.append(copy);
+      if (motion === 'dissolve' && n === 1) {
+        // Under the card, its glow; over it, its tint and the burning edge (`departures.css`).
+        const glow = document.createElement('span');
+        glow.className = 'board-departure__glow';
+        const tint = document.createElement('span');
+        tint.className = 'board-departure__tint';
+        tint.append(document.createElement('i'));
+        piece.append(glow, copy, tint);
+      } else piece.append(copy);
       wrap.append(piece);
     }
     if (broken !== null) {

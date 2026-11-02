@@ -89,35 +89,38 @@
 }
 
 /*
- * Exiled: it dissolves. `--dissolve` is where the edge is along the card's diagonal, from its bottom
- * left corner (0%) to its top right (100%); the card is kept only ahead of it, with a band of fine grain
- * just behind it for a crumbling border (`mask-composite`: the grain cut to the band, added to what is
- * whole), and its second copy adds a coarser grain over a wider band. The colour of what exiled it (`--bolt`, set by `data-colour` in `projectile.css`; grey without
- * one) burns along the edge, tints the card and glows around what is left of it; each mote
+ * Exiled: it dissolves. An edge crosses the card along its diagonal, from its bottom left corner to its top
+ * right: the card is kept only ahead of it, with a band of fine grain just behind it for a crumbling border
+ * (`mask-composite`: the grain cut to the band, added to what is whole), and its second copy adds a coarser
+ * grain over a wider band. The colour of what exiled it (`--bolt`, set by `data-colour` in `projectile.css`;
+ * grey without one) burns along the edge, tints the card and glows around what is left of it; each mote
  * (`.board-departure__speck`) leaves as the edge passes it and drifts up and away.
+ *
+ * Everything that moves here moves on the compositor (`departures.ts`'s `dissolveSweep` has the geometry):
+ * each copy sits in a window (`.board-departure__piece`, reaching `--dz-margin` past the card's left and
+ * bottom, `--dz-pad` past its top and right) whose mask is drawn once, with the edge at `--dz-edge`. The
+ * window slides along the diagonal by `translate` and the card inside slides back by as much, so the card
+ * holds still and the edge crosses it; the tint rides with the edge inside a card-shaped clip, and the glow
+ * and the tint come and go by opacity. The grain travels with the edge rather than standing on the card.
  */
-@property --dissolve {
-  syntax: '<percentage>';
-  inherits: true;
-  initial-value: -12%;
-}
-
 .board-departure[data-exit='dissolve'] {
   --ash: var(--bolt, var(--c-generic));
 }
 
-.board-departure[data-exit='dissolve'][data-exit-go] {
-  animation: board-exit-dissolve-aura calc(1600ms / var(--tempo, 1)) forwards;
-}
-
 .board-departure[data-exit='dissolve'] > .board-departure__piece {
-  --dissolve: -12%;
-
   position: relative;
+  margin: calc(-1 * var(--dz-pad)) calc(-1 * var(--dz-pad)) calc(-1 * var(--dz-margin)) calc(-1 * var(--dz-margin));
+  padding: var(--dz-pad) var(--dz-pad) var(--dz-margin) var(--dz-margin);
   mask-image:
-    linear-gradient(to top right, transparent var(--dissolve), var(--ink) calc(var(--dissolve) + 0.5%)),
+    linear-gradient(var(--dz-angle), transparent var(--dz-edge), var(--ink) calc(var(--dz-edge) + var(--dz-diag) * 0.005)),
     radial-gradient(circle, var(--ink) 0 0.8px, transparent 1.2px),
-    linear-gradient(to top right, transparent calc(var(--dissolve) - 7%), var(--ink) calc(var(--dissolve) - 6%), var(--ink) var(--dissolve), transparent calc(var(--dissolve) + 0.5%));
+    linear-gradient(
+      var(--dz-angle),
+      transparent calc(var(--dz-edge) - var(--dz-diag) * 0.07),
+      var(--ink) calc(var(--dz-edge) - var(--dz-diag) * 0.06),
+      var(--ink) var(--dz-edge),
+      transparent calc(var(--dz-edge) + var(--dz-diag) * 0.005)
+    );
   mask-size:
     100% 100%,
     3px 3px,
@@ -128,51 +131,101 @@
 /* The second copy is only crumbs: a coarser grain, offset from the first, over a wider band trailing the edge. */
 .board-departure[data-exit='dissolve'] > .board-departure__piece[data-piece='2'] {
   position: absolute;
+  inset: calc(-1 * var(--dz-pad)) calc(-1 * var(--dz-pad)) calc(-1 * var(--dz-margin)) calc(-1 * var(--dz-margin));
+  margin: 0;
   mask-image:
     radial-gradient(circle at 30% 70%, var(--ink) 0 1px, transparent 1.4px),
-    linear-gradient(to top right, transparent calc(var(--dissolve) - 14%), var(--ink) calc(var(--dissolve) - 9%), var(--ink) var(--dissolve), transparent calc(var(--dissolve) + 0.5%));
+    linear-gradient(
+      var(--dz-angle),
+      transparent calc(var(--dz-edge) - var(--dz-diag) * 0.14),
+      var(--ink) calc(var(--dz-edge) - var(--dz-diag) * 0.09),
+      var(--ink) var(--dz-edge),
+      transparent calc(var(--dz-edge) + var(--dz-diag) * 0.005)
+    );
   mask-size:
     4.6px 4.6px,
     100% 100%;
   mask-composite: intersect;
 }
 
-/* The edge burning in the colour, and the card going over to it ahead of the edge. */
-.board-departure[data-exit='dissolve'] > .board-departure__piece::after {
-  content: '';
+/* The card's own box inside its window: the glow under it, and the clip its tint is drawn in. */
+.board-departure__glow,
+.board-departure__tint {
   position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(
-    to top right,
-    color-mix(in oklab, var(--ash) 55%, var(--c-white)) calc(var(--dissolve) + 1%),
-    var(--ash) calc(var(--dissolve) + 4%),
-    color-mix(in srgb, var(--ash) 45%, transparent) calc(var(--dissolve) + 12%),
-    color-mix(in srgb, var(--ash) 20%, transparent) calc(var(--dissolve) + 40%)
-  );
-  opacity: 0;
+  inset: var(--dz-pad) var(--dz-pad) var(--dz-margin) var(--dz-margin);
+  border-radius: var(--radius);
   pointer-events: none;
 }
 
+.board-departure__glow {
+  box-shadow: 0 0 7px var(--ash);
+  opacity: 0;
+}
+
+.board-departure__tint {
+  overflow: hidden;
+}
+
+/* The edge burning in the colour, and the card going over to it ahead of the edge: the window's own box, back where the window is. */
+.board-departure__tint > i {
+  position: absolute;
+  inset: calc(-1 * var(--dz-pad)) calc(-1 * var(--dz-pad)) calc(-1 * var(--dz-margin)) calc(-1 * var(--dz-margin));
+  background: linear-gradient(
+    var(--dz-angle),
+    color-mix(in oklab, var(--ash) 55%, var(--c-white)) calc(var(--dz-edge) + var(--dz-diag) * 0.01),
+    var(--ash) calc(var(--dz-edge) + var(--dz-diag) * 0.04),
+    color-mix(in srgb, var(--ash) 45%, transparent) calc(var(--dz-edge) + var(--dz-diag) * 0.12),
+    color-mix(in srgb, var(--ash) 20%, transparent) calc(var(--dz-edge) + var(--dz-diag) * 0.4)
+  );
+  opacity: 0;
+}
+
 .board-departure[data-exit='dissolve'][data-exit-go] > .board-departure__piece {
-  animation: board-exit-dissolve calc(1600ms / var(--tempo, 1)) forwards;
+  animation: board-exit-dissolve-sweep calc(1600ms / var(--tempo, 1)) forwards;
 }
 
-.board-departure[data-exit='dissolve'][data-exit-go] > .board-departure__piece::after {
-  animation: board-exit-dissolve-tint calc(1600ms / var(--tempo, 1)) forwards;
+.board-departure[data-exit='dissolve'][data-exit-go] .board-departure__tint > i {
+  animation:
+    board-exit-dissolve-sweep calc(1600ms / var(--tempo, 1)) forwards,
+    board-exit-dissolve-tint calc(1600ms / var(--tempo, 1)) forwards;
 }
 
-@keyframes board-exit-dissolve {
+.board-departure[data-exit='dissolve'][data-exit-go] > .board-departure__piece > .board-card,
+.board-departure[data-exit='dissolve'][data-exit-go] .board-departure__tint {
+  animation: board-exit-dissolve-hold calc(1600ms / var(--tempo, 1)) forwards;
+}
+
+.board-departure[data-exit='dissolve'][data-exit-go] .board-departure__glow {
+  animation:
+    board-exit-dissolve-hold calc(1600ms / var(--tempo, 1)) forwards,
+    board-exit-dissolve-aura calc(1600ms / var(--tempo, 1)) forwards;
+}
+
+/* The window, along the card's diagonal; the edge crosses in the first two thirds (`DISSOLVE_SWEEP`), so the last motes have time to drift. */
+@keyframes board-exit-dissolve-sweep {
   0%,
   6% {
-    --dissolve: -12%;
-
+    translate: 0 0;
     animation-timing-function: cubic-bezier(0.35, 0, 0.75, 1);
   }
 
   70%,
   100% {
-    --dissolve: 112%;
+    translate: var(--dz-sweep-x) var(--dz-sweep-y);
+  }
+}
+
+/* What holds still on the card while its window moves: back by exactly as much, in step. */
+@keyframes board-exit-dissolve-hold {
+  0%,
+  6% {
+    translate: 0 0;
+    animation-timing-function: cubic-bezier(0.35, 0, 0.75, 1);
+  }
+
+  70%,
+  100% {
+    translate: calc(-1 * var(--dz-sweep-x)) calc(-1 * var(--dz-sweep-y));
   }
 }
 
@@ -187,19 +240,19 @@
   }
 }
 
-/* A glow in the colour around what is left of the card, the crumbling edge included. */
+/* A glow in the colour around what is left of the card. */
 @keyframes board-exit-dissolve-aura {
   0% {
-    filter: drop-shadow(0 0 0 var(--ash));
+    opacity: 0;
   }
 
   10%,
   60% {
-    filter: drop-shadow(0 0 7px var(--ash));
+    opacity: 1;
   }
 
   100% {
-    filter: drop-shadow(0 0 0 var(--ash));
+    opacity: 0;
   }
 }
 
