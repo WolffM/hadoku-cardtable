@@ -32,7 +32,7 @@
 import { io } from 'socket.io-client';
 import { ROOM_FEED_CHANNEL, ROOM_WATCH_MAX, RoomChangedSchema, type RoomWatch } from '@hadoku/shared';
 
-import { defaultSocketPath } from '../draft/socket.ts';
+import { socketOptions } from '../draft/socket.ts';
 import { documentVisibility, rereadWhileVisible, type PageVisibility } from '../visible.ts';
 
 /** How often a visible screen reads anyway. A lost ping costs at most this much staleness. */
@@ -98,7 +98,7 @@ export function createRoomFeed(deps: FeedDeps): RoomFeed {
  * the socket was down — so the ack that makes it heard is also one more read.
  * A reconnect makes every follower unheard again.
  */
-export function socketPings(connect: () => FeedSocket = () => io({ path: defaultSocketPath() }) as unknown as FeedSocket): PingSource {
+export function socketPings(connect: () => FeedSocket = () => io(socketOptions()) as unknown as FeedSocket): PingSource {
   const followers = new Map<number, { target: FeedTarget; onPing: (why: PingReason) => void; heard: boolean }>();
   let next = 0;
   let socket: FeedSocket | null = null;

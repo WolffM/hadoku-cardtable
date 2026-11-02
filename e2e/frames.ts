@@ -1,9 +1,9 @@
 /**
  * Turning what a browser received into draft envelopes.
  *
- * socket.io starts on HTTP long-polling and upgrades to a websocket
- * (`apps/ui/src/draft/socket.ts` keeps the default transports on purpose), so
- * the first envelopes a context gets — often its `state` snapshot — can arrive
+ * socket.io connects websocket-first and falls back to HTTP long-polling when
+ * the websocket will not open (`socketOptions` in `apps/ui/src/draft/socket.ts`),
+ * so on such a network every envelope — its `state` snapshot first — arrives
  * in a polling RESPONSE body rather than a websocket frame. A capture that only
  * listened to the websocket would miss exactly the payload that matters most.
  * The spec records both, as raw text, and this file parses either.

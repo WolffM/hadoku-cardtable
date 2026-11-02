@@ -182,6 +182,17 @@ export function defaultSocketPath(): string {
 }
 
 /**
+ * How every socket on the page connects: a websocket first, and long-polling only if the websocket
+ * fails to open (`tryAllTransports`), so a network that refuses websockets still connects. socket.io's
+ * default starts on long-polling and upgrades, which cost each connection three or four extra round
+ * trips through the edge before its first frame, each a run of the edge worker. Watchparty connects
+ * websocket-first through the same edge.
+ */
+export function socketOptions(path: string = defaultSocketPath()): { path: string; transports: ('websocket' | 'polling')[]; tryAllTransports: true } {
+  return { path, transports: ['websocket', 'polling'], tryAllTransports: true };
+}
+
+/**
  * A real socket.io connection, same origin.
  *
  * Same origin on purpose: the app is served by the very server it talks to,
@@ -189,10 +200,7 @@ export function defaultSocketPath(): string {
  * headers carried by hand.
  */
 function socketIoTransport(path: string = defaultSocketPath()): DraftTransport {
-  // Default transports (long-polling, upgrading to websocket) rather than
-  // websocket-only: the edge in front of this app is not ours to assume about,
-  // and a failed upgrade degrades instead of failing to connect at all.
-  const socket = io({ path });
+  const socket = io(socketOptions(path));
 
   // socket.io's event map is typed for apps that declare their events to it.
   // Ours are declared in `@hadoku/shared` and validated with Zod on arrival, so

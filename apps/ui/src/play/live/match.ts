@@ -258,7 +258,7 @@ import {
 import { classifySeq, needsResync, type SeqVerdict } from '@wolffm/rooms-protocol';
 import { io } from 'socket.io-client';
 
-import { defaultSocketPath } from '../../draft/socket.ts';
+import { defaultSocketPath, socketOptions } from '../../draft/socket.ts';
 import { normalizeAvatarId } from '../../room/avatar.ts';
 import { attackLockedIn, drawsFaceUp, manaCostTokens, opponentOf, toBoardView, viewerOf, type BoardCard, type BoardView, type DamageHit, type DeathCause, type FaceHit, type PlayerClock, type PoolColor } from '../adapter.ts';
 import type { Revealed } from './numbers.ts';
@@ -383,7 +383,7 @@ export interface Say {
 
 export function socketIoMatchTransport(options: SocketIoMatchOptions = {}): MatchTransport {
   const path = options.path ?? defaultSocketPath();
-  const settings = options.transports === undefined ? { path } : { path, transports: options.transports };
+  const settings = options.transports === undefined ? socketOptions(path) : { path, transports: options.transports };
   const socket = options.url === undefined ? io(settings) : io(options.url, settings);
   const timeoutMs = options.ackTimeoutMs ?? DEFAULT_ACK_TIMEOUT_MS;
 
