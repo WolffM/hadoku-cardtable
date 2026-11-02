@@ -1230,6 +1230,29 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   }
 
   /**
+   * Portrait (Settled 4: "unplaced spells land at the end of their lane"): a non-ability item with
+   * no chip (`positionOf`'s own `chip === null` branch) used to fall straight to the shared default
+   * `spot` (the stack chip, now — `defaultSpot`'s own doc) whatever it is. In portrait that spot is
+   * one point shared by EVERY unplaced spell at once; this instead reads the lane the item's own
+   * card would settle into — its controller's (`viewerName`) and its type's (`sourceCard.typeLine`,
+   * the same land/other split `Board.tsx`'s `laneTestId` draws the lane from) — and aims at that
+   * lane's own leading edge, where an arriving permanent actually lands. `null` wherever no such
+   * lane exists (every desktop board: `Board.tsx` only sets `data-testid="lane-…"` in portrait), so
+   * `positionOf` falls back to the shared `spot` there exactly as before.
+   */
+  function laneEndSpot(item: StackEntry): Point | null {
+    if (item.isAbility || item.sourceCard === null) return null;
+    const mine = item.controllerName !== null && item.controllerName === viewerName();
+    const isLand = /\bLand\b/i.test(item.sourceCard.typeLine);
+    const lane = canvas.querySelector(`[data-testid="lane-${mine ? 'my' : 'their'}-${isLand ? 'lands' : 'permanents'}"]`);
+    if (lane === null) return null;
+    const box = lane.getBoundingClientRect();
+    if (box.width <= 0 || box.height <= 0) return null;
+    const EDGE_PAD = 14;
+    return { x: box.right - EDGE_PAD, y: box.top + box.height / 2 };
+  }
+
+  /**
    * The point an item asks for (`settleStack` makes the room).
    * Worked out from boxes read before any item moved (`chipBoxesOf`, the default `spot`). A chip goes beside its source, nudged by its own `scatter`, and stays at that offset from the source once it has its size.
    */
@@ -1254,7 +1277,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       }
       return at;
     }
-    return spot;
+    return laneEndSpot(item) ?? spot;
   }
 
   /** The spells drawn here — arriving, waiting or on their way out — by item id: their card ids, for `PlacedHost.onHolding`. */
