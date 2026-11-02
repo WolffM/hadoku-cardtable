@@ -3,7 +3,9 @@
  * Illusionist four times while holding priority — four mill triggers stack up, resolve, and mill the whole
  * library (three Narcomoebas come along) — then Dread Return's flashback sacrifices the Narcomoebas for
  * Sutured Ghoul, Dragon Breath gives it haste, and it swings for the game. The rival is on Auto Yield.
- * `promo-breakfast.state` has it.
+ * `promo-breakfast.state` has it. The operator (cut 5): "you are clicking too slow, this can be executed
+ * faster by clicking the triggers faster", so the hand is brisk throughout: short glides and rests, and every
+ * trigger, yes and OK pressed on the next poll.
  */
 import { test, type Page } from '@playwright/test';
 
@@ -47,18 +49,18 @@ async function castFromYard(page: Page, id: number): Promise<void> {
     [YARD, id] as const,
   );
   const field = (await page.locator('.seat[data-viewer] [data-zone="battlefield"]').first().boundingBox())!;
-  await humanMove(page, at);
-  await humanRest(page, 900);
+  await humanMove(page, at, 0.7);
+  await humanRest(page, 450);
   await page.mouse.down();
-  await humanMove(page, { x: field.x + field.width / 2, y: field.y + field.height * 0.35 });
-  await humanRest(page, 200);
+  await humanMove(page, { x: field.x + field.width / 2, y: field.y + field.height * 0.35 }, 0.7);
+  await humanRest(page, 120);
   await page.mouse.up();
   await restCursor(page);
 }
 
 async function glide(page: Page, id: number, rest: number): Promise<void> {
   const box = await page.locator(`[data-board-card="${id}"]`).first().boundingBox();
-  if (box !== null) await humanMove(page, { x: box.x + box.width / 2, y: box.y + box.height * 0.7 });
+  if (box !== null) await humanMove(page, { x: box.x + box.width / 2, y: box.y + box.height * 0.7 }, 0.6);
   await humanRest(page, rest);
 }
 
@@ -81,12 +83,12 @@ test('breakfast: Nomads at the Illusionist, four deep, into Sutured Ghoul', asyn
     film.mark('loop');
     for (let n = 1; n <= LOOPS; n++) {
       // A glide for the camera, then the board's own press: the mill chips land over the two creatures.
-      await glide(page, nomads, n === 1 ? 700 : 120);
+      await glide(page, nomads, n === 1 ? 450 : 50);
       // The Illusionist's own mill chip is drawn over Nomads from the second round on, so the press goes to
       // the card's button itself (the cursor is not in the footage).
-      await until(`Nomads is offered (${n})`, async () => isOffered(page, nomads), 30_000, 150, page);
+      await until(`Nomads is offered (${n})`, async () => isOffered(page, nomads), 30_000, 60, page);
       await page.locator(`[data-board-card="${nomads}"] button`).first().evaluate((b) => (b as HTMLButtonElement).click());
-      await glide(page, illusionist, n === 1 ? 500 : 100);
+      await glide(page, illusionist, n === 1 ? 300 : 40);
       await until(`the Illusionist is targeted (${n})`, async () => {
         const list = page.locator('section[data-prompt="getChoices"] li', { hasText: 'Cephalid Illusionist' }).first();
         if ((await list.count()) > 0) {
@@ -95,13 +97,13 @@ test('breakfast: Nomads at the Illusionist, four deep, into Sutured Ghoul', asyn
           return true;
         }
         return clickPermanent(page, illusionist, 500);
-      }, 20_000, 150, page);
-      await until(`activation ${n} is on the stack`, async () => (await stackCount(page)) >= n, 20_000, 100, page);
+      }, 20_000, 60, page);
+      await until(`activation ${n} is on the stack`, async () => (await stackCount(page)) >= n, 20_000, 60, page);
       console.log(`[promo:breakfast] activation ${n}: stack ${await stackCount(page)}, says "${(await says(page)).slice(0, 80)}"`);
     }
     await restCursor(page);
     film.mark('stacked');
-    await film.beat(1_800);
+    await film.beat(1_000);
 
     // Let it all resolve: pass, let the rival pass, say yes to each Narcomoeba.
     film.mark('mill');
@@ -111,10 +113,10 @@ test('breakfast: Nomads at the Illusionist, four deep, into Sutured Ghoul', asyn
       await answerPrompt(page).catch(() => null);
       if ((await stackCount(page)) > 0) await pressIfThere(okEnabled(page));
       return false;
-    }, 90_000, 300, page);
+    }, 90_000, 80, page);
     film.mark('milled');
     console.log(`[promo:breakfast] library ${await libraryOf(page)}; Narcomoebas out: ${(await ownNamed(page, 'Narcomoeba')).length}`);
-    await film.beat(1_500);
+    await film.beat(900);
 
     // Dread Return's flashback, picked up from the graveyard like a hand card: three Narcomoebas for Sutured Ghoul.
     await setFullControl(page, false);
@@ -129,19 +131,19 @@ test('breakfast: Nomads at the Illusionist, four deep, into Sutured Ghoul', asyn
       if ((await ownNamed(page, 'Sutured Ghoul')).length > 0 && (await stackCount(page)) === 0 && !/exile|imprint/i.test(text)) return true;
       const tiles = await selectionTiles(page);
       if (/sacrifice/i.test(text) && tiles.length > 0) {
-        await pickTiles(page, tiles.filter((t) => t.text.startsWith('Narcomoeba')).map((t) => t.id), 300);
+        await pickTiles(page, tiles.filter((t) => t.text.startsWith('Narcomoeba')).map((t) => t.id), 110, 200);
         return false;
       }
       // Imprint: every creature card in the graveyard moved across to "Chosen", at a readable pace.
       const notChosen = page.locator('[data-testid="zone-source"] li[data-key]');
       if ((await notChosen.count()) > 0) {
         film.mark('imprint');
-        await page.waitForTimeout(900);
+        await page.waitForTimeout(450);
         while ((await notChosen.count()) > 0) {
           await notChosen.first().evaluate((el) => (el as HTMLElement).click());
-          await page.waitForTimeout(260);
+          await page.waitForTimeout(130);
         }
-        await page.waitForTimeout(700);
+        await page.waitForTimeout(350);
         await pressIfThere(page.locator('[data-testid="live-prompt"] [data-testid="prompt-submit"]:enabled'));
         return false;
       }
@@ -152,25 +154,25 @@ test('breakfast: Nomads at the Illusionist, four deep, into Sutured Ghoul', asyn
         return false;
       }
       if (/target/i.test(text) && tiles.some((t) => t.text.startsWith('Sutured Ghoul'))) {
-        await pickTiles(page, [tiles.find((t) => t.text.startsWith('Sutured Ghoul'))!.id], 300);
+        await pickTiles(page, [tiles.find((t) => t.text.startsWith('Sutured Ghoul'))!.id], 110, 200);
         return false;
       }
       await pressIfThere(page.locator('[data-testid="prompt-confirm-yes"]:enabled'));
       await pressPaymentAuto(page);
       if ((await stackCount(page)) > 0) await pressIfThere(okEnabled(page));
       return false;
-    }, 90_000, 300, page);
+    }, 90_000, 100, page);
     const ghoul = (await ownNamed(page, 'Sutured Ghoul'))[0]!;
     film.mark('ghoul');
-    await glide(page, ghoul, 1_800);
+    await glide(page, ghoul, 900);
     await restCursor(page);
-    await film.beat(800);
+    await film.beat(400);
 
     // Hasty from Dragon Breath: into combat, and swing.
     film.mark('attack');
     await passToDeclareAttackers(page);
-    await deliberateClick(page, page.locator(`[data-board-card="${ghoul}"] button`).first(), { hover: 500 });
-    await film.beat(600);
+    await deliberateClick(page, page.locator(`[data-board-card="${ghoul}"] button`).first(), { hover: 300, pace: 0.7 });
+    await film.beat(300);
     await untilWon(film, page);
     await film.beat(4_000);
     film.mark('end');

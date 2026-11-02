@@ -85,9 +85,12 @@ ANCHORS = {
 SEGMENTS = [
     # Cut 5's structure, the operator's (2026-11-01). Every clip whole and continuous: they cut it later.
     # 1. Gauntlet: two people ban and pick. (The caption is a draft: their sentence ended at "from".)
-    ("gauntlet", ("room", 0.0), ("end", 0.0), Caption("Play the decks that made history.", "GAUNTLET · AGAINST YOUR FRIENDS", "gauntlet-reveal", "rise")),
-    # 2. The deck picker, flipping through the years and formats.
-    ("constructed", ("legacy", -1.0), ("pick", 1.5), Caption("Any format. Any year.", "HISTORICAL CONSTRUCTED", "lobby-title", "wipe")),
+    # Cut 6 (the operator: "cut off a bit of the beginning and the end so it's tighter"): from the Ready press to
+    # just after game 1's board is up.
+    ("gauntlet", ("ready", -0.3), ("board", 1.5), Caption("Play the decks that made history.", "GAUNTLET · AGAINST YOUR FRIENDS", "gauntlet-reveal", "rise")),
+    # 2. The deck picker, flipping through the years and formats. Cut 6: "we don't need that much of it", so the
+    # Legacy tab and the first year changes only.
+    ("constructed", ("legacy", -0.5), ("decks", 3.0), Caption("Any format. Any year.", "HISTORICAL CONSTRUCTED", "lobby-title", "wipe")),
     # 3. Combos, each one take, every click shown.
     ("valakut", ("board", 0.0), ("end", 0.0), Caption("Execute fun combos with no fuss.", "COMBOS", "board-right", "slide")),
     ("breakfast", ("board", 0.0), ("end", 0.0), None),
@@ -120,18 +123,19 @@ Z = (1.3, 760, 560)
 MONTAGE = [
     # (clip, mark, offset, length in eighths of the bed's beat grid (~0.23 s each), *zoom). Each board looks
     # different: early and late game, empty and crowded, every colour; the strong spells last.
-    ("m-thoughtseize", "stack:0", -1.0, 4, *Z),
-    ("m-griselbrand", "stack:0", -0.05, 4, *Z),
-    ("m-swords", "stack:0", 0.3, 4, *Z),
-    ("m-gary", "life:mine:9", -0.15, 4, *Z),
-    ("storm", "hit", -0.3, 4, *Z),
-    ("m-pyroclasm", "stack:0", 0.1, 4, *Z),
-    ("m-wrath", "stack:0", 0.05, 4, *Z),
-    ("craterhoof", "life:theirs:19", -0.4, 4, *Z),
-    ("m-time-spiral", "stack:0", 0.0, 6, *Z),
-    ("m-tremors", "life:theirs:19", -0.4, 6, *Z),
-    ("m-worldfire", "stack:0", 0.0, 6, *Z),
-    ("emrakul", "landed", 0.1, 8, *Z),
+    # Cut 6 (the operator: "some clips are cut too short"): every shot two eighths longer.
+    ("m-thoughtseize", "stack:0", -1.0, 6, *Z),
+    ("m-griselbrand", "stack:0", -0.05, 6, *Z),
+    ("m-swords", "stack:0", 0.3, 6, *Z),
+    ("m-gary", "life:mine:9", -0.15, 6, *Z),
+    ("storm", "hit", -0.3, 6, *Z),
+    ("m-pyroclasm", "stack:0", 0.1, 6, *Z),
+    ("m-wrath", "stack:0", 0.05, 6, *Z),
+    ("craterhoof", "life:theirs:19", -0.4, 6, *Z),
+    ("m-time-spiral", "stack:0", 0.0, 8, *Z),
+    ("m-tremors", "life:theirs:19", -0.4, 8, *Z),
+    ("m-worldfire", "stack:0", 0.0, 8, *Z),
+    ("emrakul", "landed", 0.1, 10, *Z),
 ]
 
 # The end card follows D24: free forever, members only, and anyone can be a member.
