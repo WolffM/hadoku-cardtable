@@ -62,12 +62,15 @@
 /* ── layout ────────────────────────────────────────────────────────── */
 
 /*
- * The pack across the top half of the window with the seats beside it, the
- * picks across the bottom half (the operator, 2026-10-19); the fan's own rows
- * are below. The body is
- * exactly as tall as the window below it (`--draft-h`, measured by
- * `DraftScreen`), each half scrolls inside itself, and the page does not
- * scroll at all — sideways or down.
+ * One page for both of the pack's layouts (the operator, 2026-11-02: *"it should be the same page
+ * layout, just that how cards in the pack are displayed is different"*): the pack across the whole
+ * width, and under it the picks with the pod's column beside them (2026-11-01: *"move the right side
+ * column with the draft circle and the page info down, so it's in the row with the
+ * deckbuilder+sideboard"*). The body is exactly as tall as the window below it (`--draft-h`,
+ * measured by `DraftScreen`), and the page does not scroll at all — sideways or down. The pack's row
+ * is sized in CSS px from the body's height (`PackView`'s `packRowHeight`, set by `fitToWindow` as
+ * `--pack-row`), so browser zoom grows and shrinks it, and the picks' row takes the rest. Fan or
+ * grid, the pack draws inside that row and nothing else moves.
  *
  * `.draft__main` is `display: contents`, so the pack and the pool are grid
  * items of the body beside the seats.
@@ -75,31 +78,17 @@
 .draft__body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;
-  /* Half for the pack, half for the picks (the operator, 2026-10-19: the fan no longer needs
-     three quarters); the side column the whole height. */
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: var(--pack-row, minmax(0, 1fr)) minmax(0, 1fr);
   grid-template-areas:
-    'pack seats'
+    'pack pack'
     'pool seats';
   gap: 12px 16px;
   padding: 12px 16px;
   height: var(--draft-h, auto);
-  /* What its halves draw before they have measured themselves (the pack's first, unmeasured
+  /* What its rows draw before they have measured themselves (the pack's first, unmeasured
      grid) stays inside it: overflow here would make `fitToWindow` shrink the whole draft for a
      frame as it mounts, and the fan then grows back into place — the jump after the skeleton. */
   overflow: clip;
-}
-
-/*
- * The fan: across the whole width, with the pod beside the picks under it (the operator,
- * 2026-11-01). Its row is sized in CSS px from the body's height (`PackView`'s `fanRowHeight`,
- * set by `fitToWindow`), so browser zoom grows and shrinks it, and the picks' row takes the rest.
- */
-.draft__body--fan {
-  grid-template-rows: var(--fan-row, minmax(0, 1fr)) minmax(0, 1fr);
-  grid-template-areas:
-    'pack pack'
-    'pool seats';
 }
 
 .draft__main {
@@ -166,10 +155,12 @@
   }
 }
 
+/* The pack's box is its row, fan or grid: what it draws inside is the only thing a layout changes. */
 .draft__main > .pack {
   grid-area: pack;
   min-width: 0;
   min-height: 0;
+  margin: 0;
   overflow: hidden auto;
 }
 
@@ -189,9 +180,8 @@
   overflow: hidden;
 }
 
-/* Beside the pack and the picks (beside the picks alone under the fan), and what it holds draws at the
-   scale that fits it (`.fit-scale`): with eight seats, the room's bar and the draft's, it is taller than
-   a 768px window. */
+/* Beside the picks, under the pack, and what it holds draws at the scale that fits it (`.fit-scale`):
+   with eight seats, the room's bar and the draft's, it is taller than the picks' row. */
 .draft__aside {
   grid-area: seats;
   display: flex;
@@ -202,7 +192,7 @@
 
 /* The pod's ring is a square as wide as its box (`.podcircle`), which no fit scale shrinks: here it is
    at most the column's width less the box's padding and border (280 - 2 x 9), in the units the column
-   fits in, so a column shorter than its content (beside the picks, under the fan) shrinks the ring
+   fits in, so a column shorter than its content (beside the picks) shrinks the ring
    with everything else instead of clipping it. */
 .draft__aside .podcircle {
   width: min(100%, 262px);
@@ -229,7 +219,9 @@
   overflow: visible;
 }
 
-/* A phone has no room for halves: pack, then picks, then seats, as tall as they are. */
+/* A phone has no room for the picks beside the pod: pack, then picks, then seats, and the page
+   scrolls. The pack and the picks keep their rows' heights (`fitToWindow` takes them from the window
+   there, not the page), so each fits its cards to a box that is there before them, fan or grid. */
 @media (max-width: 700px) {
   .draft__body {
     display: flex;
@@ -242,6 +234,16 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+  }
+
+  .draft__main > .pack {
+    flex: none;
+    height: var(--pack-row);
+  }
+
+  .draft__main > .pool {
+    flex: none;
+    height: var(--picks-row);
   }
 
   .draft__main > .pack,

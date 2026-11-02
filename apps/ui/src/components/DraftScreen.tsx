@@ -55,9 +55,9 @@ import {
 } from '../draft/table.ts';
 import { ConnectionBanner } from './ConnectionBanner.tsx';
 import { DeckView } from './DeckView.tsx';
-import { CARD_RATIO, cssPx, fitGrid, useBox, useFitScale } from './cardFit.ts';
+import { CARD_RATIO, cssPx, fitGrid, smallestFitHeight, useBox, useFitScale } from './cardFit.ts';
 import { useNewPackSound } from '../draft/packSound.ts';
-import { FAN_MIN_WIDTH, fanGeometry, fanLayer, fanRowHeight, fanX, MAX_CARD_H, PackView, PickRope, type PackLayout } from './PackView.tsx';
+import { FAN_MIN_WIDTH, fanGeometry, fanLayer, fanX, MAX_CARD_H, packRowHeight, PackView, PickRope, POOL_MIN_H, type PackLayout } from './PackView.tsx';
 import { PoolView, POOL_ENTER_MS, type PoolEnterRect } from './PoolView.tsx';
 import type { GroupBy } from '../deck/cardOrder.ts';
 import { useDraftBuild, type DraftBuildStore } from '../deck/useDraftBuild.ts';
@@ -114,11 +114,14 @@ export interface DraftScreenProps {
 /**
  * The draft body's ref: exactly as tall as the window below it, so the two
  * rows fill the screen and the page itself never scrolls (`draft.css`,
- * layout), and the fan's row out of that height (`fanRowHeight`). The pod's
- * skeleton (`PodScreen.tsx`) wears it too, so the draft lands on the same lines.
+ * layout), and the pack's row out of that height (`packRowHeight`), fan or
+ * grid, leaving the picks' row at least what the pod's column beside them
+ * needs at its smallest fit. The pod's skeleton (`PodScreen.tsx`) wears it
+ * too, so the draft lands on the same lines.
  */
 export function fitToWindow(el: HTMLDivElement | null): (() => void) | undefined {
   if (el === null || typeof window === 'undefined') return undefined;
+  const aside = el.querySelector<HTMLElement>(':scope > .draft__aside');
   const fit = (): void => {
     // Everything from the body's top to the window's bottom, less whatever
     // that pushes off the page (the shell's padding, anything after the
@@ -126,20 +129,37 @@ export function fitToWindow(el: HTMLDivElement | null): (() => void) | undefined
     // height, so a window that grows gets the room back.
     const full = Math.floor(window.innerHeight - (el.getBoundingClientRect().top + window.scrollY));
     el.style.setProperty('--draft-h', `${Math.max(300, full)}px`);
-    const over = document.documentElement.scrollHeight - window.innerHeight;
+    const style = getComputedStyle(el);
+    // A phone's column (`draft.css`) scrolls with the page on purpose: there the row is the window's, not what is left of it.
+    const rows = style.display === 'grid';
+    const over = rows ? document.documentElement.scrollHeight - window.innerHeight : 0;
     const height = over > 0 ? Math.max(300, full - over) : Math.max(300, full);
     if (over > 0) el.style.setProperty('--draft-h', `${height}px`);
-    const style = getComputedStyle(el);
     const inner = height - (parseFloat(style.paddingTop) || 0) - (parseFloat(style.paddingBottom) || 0) - (parseFloat(style.rowGap) || 0);
-    el.style.setProperty('--fan-row', `${fanRowHeight(inner, uiPx(1, el)).toFixed(1)}px`);
+    const unit = uiPx(1, el);
+    // Beside the picks, the pod's column must still be whole at its smallest fit: the room's bar is as tall as its room makes it.
+    const keep = Math.max(POOL_MIN_H * unit, rows && aside !== null ? smallestFitHeight(aside) : 0);
+    const packRow = packRowHeight(inner, unit, keep);
+    el.style.setProperty('--pack-row', `${packRow.toFixed(1)}px`);
+    el.style.setProperty('--picks-row', `${(inner - packRow).toFixed(1)}px`);
   };
   fit();
   window.addEventListener('resize', fit);
   const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit);
   observer?.observe(document.body);
+  // The column's own parts (a watcher joins the room's bar): measured again on the next frame, not inside
+  // this delivery, where a row that changed would resize the column already reported this frame.
+  let frame = 0;
+  const parts = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => {
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(fit);
+  });
+  for (const part of aside?.children ?? []) parts?.observe(part);
   return () => {
     window.removeEventListener('resize', fit);
     observer?.disconnect();
+    parts?.disconnect();
+    cancelAnimationFrame(frame);
   };
 }
 
@@ -147,16 +167,6 @@ export function fitToWindow(el: HTMLDivElement | null): (() => void) | undefined
 export function usePackLayout(): [PackLayout, (layout: PackLayout) => void] {
   const { prefs, save } = usePrefs(getPlayPrefsClient());
   return [prefs?.packLayout ?? PLAY_PREFS_DEFAULTS.packLayout, (packLayout) => void save({ packLayout })];
-}
-
-/**
- * The body's layout. The fan takes the whole width and the pod drops into the picks' row (the
- * operator, 2026-11-01: *"move the right side column with the draft circle and the page info down,
- * so it's in the row with the deckbuilder+sideboard. then we allow the fan to take the entire
- * horizontal space"*); the grid keeps the pod's column beside the pack, which it fills to the height.
- */
-function bodyClass(layout: PackLayout): string {
-  return layout === 'fan' ? 'draft__body draft__body--fan' : 'draft__body';
 }
 
 export function PackLayoutControl({ layout, onLayout }: { layout: PackLayout; onLayout: (layout: PackLayout) => void }) {
@@ -285,7 +295,7 @@ export function DraftScreen({
         </p>
       )}
 
-      <div className={complete ? 'draft__body draft__body--complete' : bodyClass(layout)} ref={fitToWindow}>
+      <div className={complete ? 'draft__body draft__body--complete' : 'draft__body'} ref={fitToWindow}>
         <main className="draft__main" ref={mainRef}>
           {complete ? (
             <DeckView
@@ -318,8 +328,8 @@ export function DraftScreen({
         </main>
         {/* One column: the room's bar, the pod as a circle with the pack and pick at its
             centre, and the pack's layout (the operator, 2026-10-19: "we could reclaim a lot of
-            vertical space in that way"; 2026-10-21: the pod as a circle). Beside the grid the
-            whole height; under the fan, beside the picks (`bodyClass`). */}
+            vertical space in that way"; 2026-10-21: the pod as a circle). Under the pack, beside
+            the picks, in either layout (`draft.css`). */}
         <aside className="draft__aside fit-scale" ref={fitAside}>
           {side}
           {/* The room's bar names the room already. */}
@@ -371,7 +381,7 @@ export function DraftSkeleton({ side, seats = 8 }: { side?: ReactNode; seats?: n
   const fitAside = useFitScale();
   return (
     <div className="draft draft--skeleton" data-testid="pod-waiting" aria-busy="true">
-      <div className={bodyClass(layout)} ref={fitToWindow}>
+      <div className="draft__body" ref={fitToWindow}>
         <main className="draft__main" aria-hidden="true">
           <PackSkeleton layout={layout} />
           <section className="pool" data-skeleton="pool">

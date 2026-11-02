@@ -192,7 +192,11 @@ export function useFitScale(): (el: HTMLElement | null) => void {
     const watched = new Set<Element>();
     const measure = (): void => {
       const style = getComputedStyle(el);
-      const available = el.clientHeight - (parseFloat(style.paddingTop) || 0) - (parseFloat(style.paddingBottom) || 0);
+      // In the same fractional px as `contentHeight`: `clientHeight` is rounded, and a column as tall as
+      // its content (a phone's, `draft.css`) read a fraction short of it would shrink a step every pass.
+      const available =
+        el.getBoundingClientRect().height -
+        ['borderTopWidth', 'borderBottomWidth', 'paddingTop', 'paddingBottom'].reduce((n, side) => n + (parseFloat(style[side as 'paddingTop']) || 0), 0);
       // Settled here, not over the observer's next reports: a part that does not scale (an image's
       // own size, a border) leaves the first guess off, and a column whose children resize again
       // in the same frame is a ResizeObserver loop.
@@ -215,6 +219,23 @@ export function useFitScale(): (el: HTMLElement | null) => void {
     observer.current = new ResizeObserver(measure);
     observer.current.observe(el);
   }, []);
+}
+
+/**
+ * How tall a fit column is at its smallest fit (`MIN_FIT`): what its box must keep for it to draw
+ * whole. Measured rather than scaled from its height now, because not everything in a column scales
+ * (a theme's own font sizes, a button's). The scale is set and put back in the same task, so nothing
+ * is ever drawn at it.
+ */
+export function smallestFitHeight(el: HTMLElement): number {
+  const was = el.style.getPropertyValue('--fit');
+  el.style.setProperty('--fit', String(MIN_FIT));
+  const style = getComputedStyle(el);
+  const height =
+    contentHeight(el) + ['borderTopWidth', 'borderBottomWidth', 'paddingTop', 'paddingBottom'].reduce((n, side) => n + (parseFloat(style[side as 'paddingTop']) || 0), 0);
+  if (was === '') el.style.removeProperty('--fit');
+  else el.style.setProperty('--fit', was);
+  return height;
 }
 
 /**

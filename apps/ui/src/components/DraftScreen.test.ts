@@ -55,7 +55,7 @@ import { applyPayload, initialState, type TableState } from '../draft/table.ts';
 import { TopLayer } from '../topLayer.tsx';
 import { DraftScreen } from './DraftScreen.tsx';
 import { POOL_ENTER_MS } from './PoolView.tsx';
-import { fanRowHeight } from './PackView.tsx';
+import { packRowHeight } from './PackView.tsx';
 
 afterEach(() => {
   cleanup();
@@ -379,20 +379,24 @@ describe('the draft screen, on committed fixtures', () => {
     expect(screen.getByTestId('pack').dataset.layout).toBe('grid');
   });
 
-  it('in the fan, the pod and its controls drop into the picks\' row and the fan has the whole width; the grid keeps its column', () => {
+  it('fan or grid, the body is the same: one row for the pack, sized from the window, and the pod beside the picks (the operator, 2026-11-02)', () => {
     const { container } = mount();
-    const body = container.querySelector('.draft__body')!;
-    expect(body.classList.contains('draft__body--fan')).toBe(true);
-    // The fan row is sized from the window, in CSS px, so it follows the browser's zoom (`fanRowHeight`).
-    expect(parseFloat((body as HTMLElement).style.getPropertyValue('--fan-row'))).toBeCloseTo(fanRowHeight(parseFloat((body as HTMLElement).style.getPropertyValue('--draft-h'))));
+    const body = () => container.querySelector<HTMLElement>('.draft__body')!;
+    const drawn = () => ({ className: body().className, packRow: body().style.getPropertyValue('--pack-row') });
+    const fan = drawn();
+    expect(fan.className).toBe('draft__body');
+    // The pack's row is sized from the window, in CSS px, so it follows the browser's zoom (`packRowHeight`).
+    expect(parseFloat(fan.packRow)).toBeCloseTo(packRowHeight(parseFloat(body().style.getPropertyValue('--draft-h'))));
     fireEvent.click(screen.getByRole('button', { name: 'grid' }));
-    expect(container.querySelector('.draft__body')!.classList.contains('draft__body--fan')).toBe(false);
+    expect(screen.getByTestId('pack').dataset.layout).toBe('grid');
+    expect(drawn(), 'the grid draws in the fan\'s page').toEqual(fan);
   });
 
-  it('the stylesheet puts the fan across the top and the pod beside the picks', () => {
+  it('the stylesheet puts the pack across the top and the pod beside the picks, with no second layout', () => {
     const sheet = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/components', 'draft.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-    const fan = /\.draft__body--fan \{([^}]*)\}/.exec(sheet)?.[1] ?? '';
-    expect(fan.replace(/\s+/g, ' ')).toContain("grid-template-areas: 'pack pack' 'pool seats'");
-    expect(fan).toMatch(/grid-template-rows:\s*var\(--fan-row/);
+    const body = /\.draft__body \{([^}]*)\}/.exec(sheet)?.[1] ?? '';
+    expect(body.replace(/\s+/g, ' ')).toContain("grid-template-areas: 'pack pack' 'pool seats'");
+    expect(body).toMatch(/grid-template-rows:\s*var\(--pack-row/);
+    expect(sheet, 'no layout of the body per pack layout').not.toMatch(/\.draft__body--(fan|grid)/);
   });
 });

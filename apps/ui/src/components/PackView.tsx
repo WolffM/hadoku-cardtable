@@ -89,13 +89,14 @@ const FAN_SLOTS = 2 * FAN_SIDE + 1;
 /** The grid's gap until the stylesheet's own (`.pack--grid`, at the UI scale) can be read. */
 const GRID_GAP = 10;
 
-/** The fan row's base: the row is the geometric mean of this and the draft's height (`fanRowHeight`). */
-const FAN_ROW_BASE = 210;
-/** What the row under the fan always keeps, at 100%: the pod's column at its smallest fit (`MIN_FIT`), with its controls whole. */
+/** The pack row's base: the row is the geometric mean of this and the draft's height (`packRowHeight`). */
+const PACK_ROW_BASE = 210;
+/** The least the row under the pack keeps, at 100%. More when the pod's column beside the picks needs more at its smallest fit (`fitToWindow`). */
 export const POOL_MIN_H = 250;
 
 /**
- * The fan row's height in a draft body `height` CSS px tall, `unit` the UI scale.
+ * The pack row's height in a draft body `height` CSS px tall, `unit` the UI scale: the fan's and the
+ * grid's alike, so switching between them moves nothing else on the page.
  *
  * Browser zoom changes how many CSS px the window is, not what a CSS px asks for: a row sized as a
  * share of the window comes out the same on screen at any zoom (the operator, 2026-11-01: *"if
@@ -103,10 +104,10 @@ export const POOL_MIN_H = 250;
  * cards get bigger/smaller"*). A row fixed in CSS px follows zoom fully, but is the same row on a
  * laptop and on a wide screen. The geometric mean of the two follows both: zoom in and the row
  * grows on screen by √zoom, and a taller window still gets a taller fan. Never taller than the
- * largest card needs, and never so tall the picks lose their row.
+ * largest card needs, and never so tall the picks' row has less than `keep`.
  */
-export function fanRowHeight(height: number, unit = 1): number {
-  return Math.max(0, Math.min(Math.sqrt(FAN_ROW_BASE * unit * height), (MAX_CARD_H + LIFT + BOTTOM) * unit, height - POOL_MIN_H * unit));
+export function packRowHeight(height: number, unit = 1, keep = POOL_MIN_H * unit): number {
+  return Math.max(0, Math.min(Math.sqrt(PACK_ROW_BASE * unit * height), (MAX_CARD_H + LIFT + BOTTOM) * unit, height - keep));
 }
 
 export interface FanGeometry {

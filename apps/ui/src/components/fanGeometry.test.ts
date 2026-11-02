@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { FAN_MIN_WIDTH, fanGeometry, fanLayer, fanRowHeight, fanX, POOL_MIN_H, type FanGeometry } from './PackView.tsx';
+import { FAN_MIN_WIDTH, fanGeometry, fanLayer, fanX, packRowHeight, POOL_MIN_H, type FanGeometry } from './PackView.tsx';
 
 // The operator's window, a laptop, a wide screen, and the narrowest a fan is drawn at.
 const BOXES = [
@@ -86,14 +86,14 @@ describe('the open card', () => {
 
 /*
  * Browser zoom, modelled the way Chrome does it: at zoom z a W×H window lays out W/z × H/z CSS px and
- * draws each at z screen pixels. The draft's body is the window less its padding (`draft.css`), the fan
- * row is `fanRowHeight` of it across the whole width, and what the player sees is CSS px × z.
+ * draws each at z screen pixels. The draft's body is the window less its padding (`draft.css`), the pack
+ * row is `packRowHeight` of it across the whole width, and what the player sees is CSS px × z.
  */
 describe('the fan row follows the browser zoom', () => {
   const PAD = 24;
   const seen = (width: number, height: number, zoom: number) => {
     const body = height / zoom - PAD;
-    const row = fanRowHeight(body);
+    const row = packRowHeight(body);
     const fan = fanGeometry(width / zoom - 32, row);
     return { cardPx: fan.cardW * zoom, rowPx: row * zoom, poolCss: body - row };
   };
@@ -118,11 +118,17 @@ describe('the fan row follows the browser zoom', () => {
 
   it('is never taller than the largest card needs, so a tall window gives the rest to the picks', () => {
     const tallest = fanGeometry(4000, 10_000);
-    expect(fanRowHeight(3000)).toBeLessThanOrEqual(tallest.cardH + 30 + 0.5);
-    expect(fanGeometry(4000, fanRowHeight(3000)).cardH).toBeCloseTo(tallest.cardH);
+    expect(packRowHeight(3000)).toBeLessThanOrEqual(tallest.cardH + 30 + 0.5);
+    expect(fanGeometry(4000, packRowHeight(3000)).cardH).toBeCloseTo(tallest.cardH);
+  });
+
+  it("gives way to whatever the picks' row is told to keep: the pod's column at its smallest fit, when that is more than the floor", () => {
+    expect(packRowHeight(600, 1, 300)).toBe(300);
+    expect(packRowHeight(600)).toBe(600 - POOL_MIN_H);
+    expect(packRowHeight(3000, 1, 300)).toBe(packRowHeight(3000));
   });
 
   it('follows the UI scale as it follows zoom: the same row, in the scale\'s units', () => {
-    expect(fanRowHeight(800 * 1.25, 1.25)).toBeCloseTo(fanRowHeight(800) * 1.25);
+    expect(packRowHeight(800 * 1.25, 1.25)).toBeCloseTo(packRowHeight(800) * 1.25);
   });
 });
