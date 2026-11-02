@@ -228,7 +228,7 @@ export function StatsPopout({ player, tournaments = false, source = sharedSource
 
   return (
     <OverPage>
-      // A press on the backdrop itself, not on the panel, closes it.
+      {/* A press on the backdrop itself, not on the panel, closes it. */}
       <div className="ct-stats-popout__backdrop" onPointerDown={(event) => event.target === event.currentTarget && close()}>
         <div ref={ref} className="ct-stats-popout ct-surface ct-panel" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} data-testid="stats">
           <header className="ct-stats-popout__head">

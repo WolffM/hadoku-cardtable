@@ -15,6 +15,12 @@ import prettierConfig from 'eslint-config-prettier';
  * first source file lands. Turn typed rules on per-package as each one gets a
  * tsconfig — that is a real change, not a formatting one.
  */
+/** A line of JSX text that starts with `//` or `/*`: a comment written between tags, which renders as text. */
+const JSX_COMMENT_TEXT = {
+  selector: 'JSXText[value=/(^|\\n)\\s*(\\/\\/|\\/\\*)/]',
+  message: 'This renders as text on the page. Write a comment between tags as {/* ... */}.',
+};
+
 export default [
   {
     ignores: [
@@ -177,6 +183,12 @@ export default [
     },
   },
   {
+    // A `//` line between JSX tags is not a comment: it renders, as text, on the page. 7fdeea9d9
+    // wrapped the stats popout's root in <OverPage> and its comment line became the popout's first line.
+    files: ['apps/ui/src/**/*.tsx'],
+    rules: { 'no-restricted-syntax': ['error', JSX_COMMENT_TEXT] },
+  },
+  {
     files: ['apps/ui/src/play/live/LiveBoard.tsx'],
     rules: {
       'no-restricted-imports': ['error', { paths: [{ name: 'react-dom', importNames: ['createPortal'] }] }],
@@ -191,6 +203,8 @@ export default [
           selector: "Property[key.name='motion'] Identifier[name='fastMode']",
           message: 'Motion is the reduced-motion setting, never Fast Mode.',
         },
+        // Flat config replaces this rule's list per file rather than merging it, so the UI-wide one is repeated here.
+        JSX_COMMENT_TEXT,
       ],
     },
   },
