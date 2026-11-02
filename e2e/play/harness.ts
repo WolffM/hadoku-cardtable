@@ -131,6 +131,8 @@ export const PLAY_DRAFTS_DIR = resolve(RUN_DIR, 'play-drafts');
  * was whichever match an earlier spec, or an earlier run, happened to record.
  */
 export const PLAY_RECORDINGS_DIR = resolve(RUN_DIR, 'play-recordings');
+/** This stack's parked games (`play/parked.ts`), wiped per stack for the same reason: the default is production's own `data/parked`. */
+export const PLAY_PARKED_DIR = resolve(RUN_DIR, 'play-parked');
 /**
  * This stack's imported-cube store (`apps/server/src/pools/cubes.ts`'s
  * `importDir` — the shortlist itself is `apps/server/pools/cubes/`, a
@@ -572,7 +574,11 @@ async function waitForHealth(server: ChildProcess): Promise<void> {
   throw new Error(`the play server never became healthy: ${last}`);
 }
 
-export async function startPlayStack(forge: { jar: string; res: string }): Promise<PlayStack> {
+/**
+ * `env`: server variables a spec needs on top of the stack's own — `CARDTABLE_PLAY_REJOIN_GRACE_MS`,
+ * say, for a spec that waits for a game nobody is at to be parked. Kept across `restart`.
+ */
+export async function startPlayStack(forge: { jar: string; res: string }, opts: { env?: Record<string, string> } = {}): Promise<PlayStack> {
   const begun = Date.now();
   // The previous test's pages, if it left them open — see `open-friends.ts`.
   const closed = await closeStaleFriends();
@@ -597,6 +603,7 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
   mkdirSync(PLAY_DRAFTS_DIR, { recursive: true });
   rmSync(PLAY_RECORDINGS_DIR, { recursive: true, force: true });
   mkdirSync(PLAY_RECORDINGS_DIR, { recursive: true });
+  rmSync(PLAY_PARKED_DIR, { recursive: true, force: true });
   // This stack's OWN work dir, so no other stack's server can sweep it or adopt
   // out of it. Not wiped, and not reused: a crashed match's diagnostics are the
   // reason these directories are kept, and `pruneWorkRoot` is the bound.
@@ -631,6 +638,7 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
         CARDTABLE_DRAFTS_DIR: PLAY_DRAFTS_DIR,
         CARDTABLE_CUBES_DIR: PLAY_CUBES_DIR,
         CARDTABLE_RECORDINGS_DIR: PLAY_RECORDINGS_DIR,
+        CARDTABLE_PARKED_DIR: PLAY_PARKED_DIR,
         CARDTABLE_CATALOG: PLAY_CATALOG,
         CARDTABLE_PLAY_WORK_DIR: workDir,
         EDGE_AUTH_SECRET: secret,
@@ -668,6 +676,7 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
         // 45 picks a drafter, and at production's pace the bots, not the product,
         // would be what it waits on. Still a clock, so packs queue as they do live.
         CARDTABLE_DRAFT_BOT_PICK_MS: '100',
+        ...opts.env,
       },
     });
   /** Whoever is waiting on a line the server has not written yet — see {@link jvmWarm}. */
