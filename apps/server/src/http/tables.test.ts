@@ -2232,8 +2232,9 @@ describe('a room table', () => {
 		])('is not reported and not counted when the match was %s before its gameover line', async (_, end) => {
 			const h = await boot();
 			const id = await started(h);
+			const winner = h.matches.get(id)!.spec.seats[0].name;
 			end(h, id);
-			(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: h.matches.get(id)!.spec.seats[0].name });
+			(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner });
 			await view(h, 'alice');
 			await new Promise((r) => setTimeout(r, 50));
 			expect(h.reports).toEqual([]);

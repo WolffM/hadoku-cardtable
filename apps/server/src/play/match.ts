@@ -1400,7 +1400,7 @@ export class Match {
 				return;
 			}
 			this.deps.log({ evt: 'match-not-rejoined', matchId: this.id, status: this.status, afterMs: grace });
-			this.deps.abandoned?.();
+			if (this.status === 'running') this.deps.abandoned?.();
 			this.stop();
 		}, grace);
 		this.rejoinTimer.unref();

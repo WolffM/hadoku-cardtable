@@ -91,7 +91,7 @@ export function attachParked(api: Router, deps: ParkedRoutesDeps): void {
 		res.json({ games });
 	});
 
-	async function resume(req: Request, res: Response, matchId: string): Promise<ResumeOutcome> {
+	async function resume(req: Request, matchId: string): Promise<ResumeOutcome> {
 		const record = store.get(matchId);
 		if (record === null) return { ok: false, status: 404, error: 'no such parked game' };
 		const play = deps.play();
@@ -101,7 +101,6 @@ export function attachParked(api: Router, deps: ParkedRoutesDeps): void {
 		const playing = play.matches.active().filter((m) => m.status === 'starting' || m.status === 'running');
 		const full = record.seats.find((s) => s.owner !== null && playing.filter((m) => m.seatOf(s.owner!) !== null).length >= MAX_MATCHES_PER_PERSON);
 		if (full !== undefined) return { ok: false, status: 409, error: `${full.name} is already playing ${MAX_MATCHES_PER_PERSON} matches` };
-		if (!resumeLimit(req, res)) return { ok: false, status: 429, error: '' };
 
 		const started = await play.start(req, record.spec, humans, {
 			owners: record.seats.map((s) => s.owner),
@@ -153,11 +152,12 @@ export function attachParked(api: Router, deps: ParkedRoutesDeps): void {
 		}
 		let pending = resuming.get(matchId);
 		if (pending === undefined) {
-			pending = resume(req, res, matchId).finally(() => resuming.delete(matchId));
+			// Only the ask that starts the game spends a token: one that joins it waits for its room.
+			if (!resumeLimit(req, res)) return;
+			pending = resume(req, matchId).finally(() => resuming.delete(matchId));
 			resuming.set(matchId, pending);
 		}
 		const outcome = await pending;
-		if (res.headersSent) return;
 		if (outcome.ok) res.status(outcome.status).json(outcome.body);
 		else res.status(outcome.status).json({ error: outcome.error });
 	});
