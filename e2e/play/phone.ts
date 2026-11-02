@@ -7,10 +7,18 @@
  * sideways").
  *
  * Every OTHER phone driver lives beside the desktop one it replaces (`board.ts`, `combat.ts`,
- * `confirm.ts`, `prompts.ts`, `hands.ts`), branching on `testInfo.project.name === 'phone'` — this
- * file holds only what doesn't belong to any one of them.
+ * `confirm.ts`, `prompts.ts`, `hands.ts`), branching on `isPhone()` — this file holds only what
+ * doesn't belong to any one of them.
  */
-import { expect, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+/**
+ * True while the running test is in the `phone` project (`playwright.config.ts`'s own
+ * `*.phone.spec.ts` project). Every sibling driver's phone branch reads this one function, so a
+ * desktop spec never sees any of them flip (RULES: no duplicate code paths — one helper, not one
+ * copy of the check per file).
+ */
+export const isPhone = (): boolean => test.info().project.name === 'phone';
 
 /**
  * Context options for every `*.phone.spec.ts` file: `test.use(PHONE)`. This is the exact shape the
@@ -72,6 +80,29 @@ export async function pinch(page: Page, opts: PinchOptions): Promise<void> {
       });
       await page.waitForTimeout(16);
     }
+    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } finally {
+    await client.detach().catch(() => undefined);
+  }
+}
+
+/**
+ * A single-finger touch drag: press at `from`, move through each of `points` with a real CDP
+ * `Input.dispatchTouchEvent` `touchMove` (never `page.mouse.*`, which sends mouse events even inside
+ * a touch context — D's gesture install branches on the real thing), release at the last point. The
+ * one primitive `board.ts`'s hand-card drag and `combat.ts`'s block drag both build on for the phone
+ * project, rather than each dispatching its own CDP touch sequence.
+ */
+export async function touchDrag(page: Page, from: { x: number; y: number }, points: readonly { x: number; y: number }[]): Promise<void> {
+  const client = await page.context().newCDPSession(page);
+  const point = (p: { x: number; y: number }) => ({ x: p.x, y: p.y, radiusX: 11, radiusY: 11, force: 1, id: 1 });
+  try {
+    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point(from)] });
+    for (const p of points) {
+      await page.waitForTimeout(16);
+      await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [point(p)] });
+    }
+    await page.waitForTimeout(16);
     await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   } finally {
     await client.detach().catch(() => undefined);

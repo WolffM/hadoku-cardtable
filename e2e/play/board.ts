@@ -15,9 +15,27 @@ import { expect, type Locator, type Page } from '@playwright/test';
 
 import { ZONE_BOXES } from '../../apps/ui/src/play/zone-box.ts';
 import { E2E_ERA, enterMatch, twoLegalDecks } from './enter.ts';
+import { isPhone } from './phone.ts';
 import { createStreamedRoomByApi, submitCreateRoom } from './rooms.ts';
 import type { ForgeAvailability } from './harness.ts';
 import { answerPrompt } from './prompts.ts';
+
+/**
+ * Tap `cardId` to open the card view (Settled 5; D's `card-view`/`card-view-action`), then tap
+ * whichever of `verbs` the view offers. The phone twin of a desktop click/lift: Settled 5 — "a tap
+ * reads; it never plays" — so every phone-side act goes through the view's own buttons, never a tap
+ * straight on the card. `false` when the view never opens (D's gesture install hasn't landed, or this
+ * card offers none of `verbs`), so a caller fails with its own message rather than hanging.
+ */
+async function tapCardView(page: Page, cardId: number, verbs: readonly string[]): Promise<boolean> {
+  await page.locator(`[data-board-card="${cardId}"] button`).first().tap();
+  const view = page.getByTestId('card-view');
+  if ((await view.count()) === 0) return false;
+  const action = view.locator(verbs.map((v) => `[data-testid="card-view-action"][data-verb="${v}"]`).join(', ')).first();
+  if ((await action.count()) === 0) return false;
+  await action.tap();
+  return true;
+}
 
 export { E2E_ERA, enterMatch, twoLegalDecks };
 
@@ -351,12 +369,19 @@ async function liftHandCard(page: Page, cardId: number, timeout?: number): Promi
  * action), for a caller (a long-running bot, not a single assertion) that
  * needs a shorter one than Playwright's default action timeout; the second
  * press is a bare `page.mouse.click`, which takes no timeout of its own.
+ *
+ * Under the `phone` project this is `tapCardView`, not the click/lift pair above: Settled 5 — "a tap
+ * reads; it never plays" — so every caller of the ONE cast helper (the bot in `hands.ts` included) casts
+ * or plays through the card view's own buttons on a phone, with no second call to make. `row`/`to` are
+ * the desktop release point and have no phone equivalent (the view decides where a no-target card
+ * lands); a phone spec that needs the drag gesture itself names `dragHandCard` directly.
  */
 export async function clickHandCard(
   page: Page,
   cardId: number,
   opts: { row?: 'back' | 'front'; to?: { x: number; y: number }; timeout?: number } = {},
 ): Promise<boolean> {
+  if (isPhone()) return tapCardView(page, cardId, ['cast', 'play']);
   if (!(await liftHandCard(page, cardId, opts.timeout))) return false;
   const point = opts.to ?? centreOfBox(await ownBattlefieldBox(page, opts.row));
   if (point === null) return false;
@@ -376,11 +401,18 @@ export async function clickHandCard(
  * Returns `false` without moving the pointer if the press never armed the
  * gesture (not a hand card); the caller is then holding a button down on
  * nothing, so it also releases immediately.
+ *
+ * Under the `phone` project the press-move-release is REAL touch (CDP `Input.dispatchTouchEvent`,
+ * `touchDragHandCard` below) — `page.mouse.*` dispatches mouse events even inside a touch context,
+ * which D's gesture install does not read as a drag (Settled 5's "dragging a hand card up… plays it"
+ * only fires for a real touch drag). This is the one gesture a phone spec names directly when it wants
+ * to prove the drag itself, rather than the tap-then-view path `clickHandCard` takes by default.
  */
 export async function dragHandCard(page: Page, cardId: number, to: { x: number; y: number }, via: { x: number; y: number }[] = []): Promise<boolean> {
   const box = await page.locator(`[data-board-card="${cardId}"]`).boundingBox();
   if (box === null) throw new Error(`no box for hand card ${cardId}`);
   const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  if (isPhone()) return touchDragHandCard(page, cardId, from, [...via, to]);
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
   const armed = await page
@@ -393,6 +425,38 @@ export async function dragHandCard(page: Page, cardId: number, to: { x: number; 
   }
   for (const p of [...via, to]) await page.mouse.move(p.x, p.y, { steps: 8 });
   await page.mouse.up();
+  return true;
+}
+
+/**
+ * `dragHandCard`'s touch twin: press at `from` (a real CDP `touchStart`), check the SAME
+ * `data-cast-lift === 'lifted'` arming `dragHandCard` checks after its mouse-down, then carry the
+ * gesture through `points` with real `touchMove`s and release. Not `phone.ts`'s `touchDrag`: that
+ * primitive has no checkpoint between press and release, and the arming check has to land there, mid
+ * gesture, exactly where the mouse branch above puts it.
+ */
+async function touchDragHandCard(page: Page, cardId: number, from: { x: number; y: number }, points: readonly { x: number; y: number }[]): Promise<boolean> {
+  const client = await page.context().newCDPSession(page);
+  const point = (p: { x: number; y: number }) => ({ x: p.x, y: p.y, radiusX: 11, radiusY: 11, force: 1, id: 1 });
+  try {
+    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point(from)] });
+    const armed = await page
+      .locator(`[data-board-card="${cardId}"]`)
+      .getAttribute('data-cast-lift')
+      .catch(() => null);
+    if (armed !== 'lifted') {
+      await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      return false;
+    }
+    for (const p of points) {
+      await page.waitForTimeout(16);
+      await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [point(p)] });
+    }
+    await page.waitForTimeout(16);
+    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } finally {
+    await client.detach().catch(() => undefined);
+  }
   return true;
 }
 
@@ -530,10 +594,16 @@ export async function castCard(page: Page, cardId: number, opts: { x?: number } 
 /**
  * `castCard` for a permanent's own activated ability: a click on the offered permanent
  * (`clickPermanent`), then the same drain until the ability is on the stack.
+ *
+ * Under the `phone` project this activates through the card view instead (`tapCardView`, verb
+ * `activate`) — Settled 5: with nothing yet asking (no decision open), a tap on your own permanent
+ * reads it first. `clickPermanent`'s OWN tap (via `pressOffered`) stays the direct-choose one, for the
+ * targeting and mana-tap calls that follow an activation while a decision IS already open (Settled 6).
  */
 export async function activateCard(page: Page, cardId: number, opts: { x?: number } = {}): Promise<void> {
   const watch = await castWatch(page, cardId);
-  if (!(await clickPermanent(page, cardId))) throw new Error(`activateCard(${cardId}): never offered with a live window — says "${await says(page)}"`);
+  const clicked = isPhone() ? await tapCardView(page, cardId, ['activate']) : await clickPermanent(page, cardId);
+  if (!clicked) throw new Error(`activateCard(${cardId}): never offered with a live window — says "${await says(page)}"`);
   await drainCast(page, cardId, watch, opts);
 }
 
@@ -620,6 +690,11 @@ export async function castByDrag(
  * target Forge has since closed, and a press on nothing an open selection names cancels a parked cast
  * (`gestures/install.ts`'s own stray-press rule; af69, run 39032975298: bob's face read as offered,
  * pressed once the creature step was open). `false`, nothing pressed, when it is not offered.
+ *
+ * Under the `phone` project this presses with a REAL touch tap, not a click — Settled 6: "While a
+ * decision is open, a tap chooses", so every target this function presses (a cast's own target, a
+ * decision's offered card or face) is chosen by the SAME single tap a desktop click stands in for; it
+ * never opens the card view (that is only for a tap OUTSIDE a live selection — `tapCardView`, above).
  */
 export async function pressOffered(target: Locator): Promise<boolean> {
   const press = target
@@ -628,7 +703,8 @@ export async function pressOffered(target: Locator): Promise<boolean> {
     .first();
   if ((await press.count()) === 0) return false;
   // A press the offer withdrew under is no failure, but a press something else took is: say which.
-  await press.click({ timeout: 1_000 }).catch((e: unknown) => {
+  const act = isPhone() ? press.tap({ timeout: 1_000 }) : press.click({ timeout: 1_000 });
+  await act.catch((e: unknown) => {
     const lines = String(e instanceof Error ? e.message : e).split('\n');
     console.log(`[press] not pressed: ${[lines[0], ...lines.filter((l) => /intercepts|not stable|not visible|outside of the viewport/.test(l)).slice(-2)].join(' | ')}`);
   });
