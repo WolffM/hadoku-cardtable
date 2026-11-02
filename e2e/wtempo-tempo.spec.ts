@@ -16,7 +16,7 @@
  *   2. Scenario `w80c-blasphemous`: alice's Blasphemous Act draws a fireball at each of the eleven creatures, every
  *      one at 1× — one instance, however many fireballs — on both screens, and the match log has no faster view of it.
  *
- * `[tempo]` lines are the evidence. Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without one
+ * `[tempo]` lines are the evidence, with the match log's `beats` (each view's `tempo`). Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without one
  * this SKIPS and the title says why.
  */
 import { expect, test, type Page } from '@playwright/test';
@@ -93,15 +93,18 @@ const recorded = (page: Page): Promise<Recorded> => page.evaluate(() => (window 
 const whenOffered = (page: Page, id: number, timeout: number) =>
   page.waitForFunction((card) => document.querySelector(`[data-board-card="${card}"][data-selectable]`) !== null, id, { polling: 'raf', timeout });
 
-/** Loop `loop` is over: its Thopter made (the scenario's 11 permanents, a Thopter a loop), the Sword back, the Foundry offered again. */
+/**
+ * Loop `loop` is over: its Thopter made (the scenario's 11 permanents, a Thopter a loop), the Sword back, and — while an
+ * Island is left to pay for the next — the Foundry offered again.
+ */
 const whenLooped = (page: Page, foundry: number, loop: number, timeout: number) =>
   page.waitForFunction(
-    ({ card, permanents }) => {
+    ({ card, permanents, last }) => {
       const own = [...(document.querySelector('.seat[data-viewer]')?.querySelectorAll('[data-zone="battlefield"] [data-board-card]') ?? [])];
       const sword = own.some((e) => e.querySelector('.card__name')?.textContent?.trim() === 'Sword of the Meek');
-      return sword && own.length === permanents && document.querySelector(`[data-board-card="${card}"][data-selectable]`) !== null;
+      return sword && own.length === permanents && (last || document.querySelector(`[data-board-card="${card}"][data-selectable]`) !== null);
     },
-    { card: foundry, permanents: 11 + loop + 1 },
+    { card: foundry, permanents: 11 + loop + 1, last: loop === LOOPS - 1 },
     { polling: 'raf', timeout },
   );
 
@@ -140,8 +143,10 @@ test(titled('Thopter Foundry + Sword of the Meek, eight loops in one turn: each 
     const { rises, balls } = await recorded(page);
     for (const [i, r] of rises.entries()) console.log(`[tempo] rise ${i + 1}: tempo ${r.tempo || '1'}, shown ${r.shownMs} ms, its animations ${r.plannedMs} ms`);
     console.log(`[tempo] heal motes: ${balls.filter((b) => b.look === 'heal').map((b) => b.tempo || '1').join(' ')}`);
-    const reports = serverLog(stack).filter((r) => r.evt === 'client' && r.seat === 0 && r.what === 'tempo');
-    for (const r of reports) console.log(`[tempo] log: ${String(r.instance)} n=${String(r.n)} tempo=${String(r.tempo)} totalMs=${String(r.totalMs)}`);
+    // The match log's word on each view's beats, the Sword's returns among them (`numbers.ts`'s `beats`, its `tempo`); a
+    // busy second's events beyond the server's cap are dropped, so the log is evidence, not the measure.
+    const beats = serverLog(stack).filter((r) => r.evt === 'client' && r.seat === 0 && r.what === 'beats' && Number(r.arrivals) > 0);
+    console.log(`[tempo] log: arrivals' beats ${beats.map((r) => `${String(r.tempo)}×/${String(r.totalMs)}ms`).join(' ')}`);
 
     expect(rises.map((r) => Number(r.tempo || '1')), 'the nth return plays at the nth tempo').toEqual([1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.5]);
     for (let i = 1; i < rises.length; i++) {
@@ -150,9 +155,6 @@ test(titled('Thopter Foundry + Sword of the Meek, eight loops in one turn: each 
     }
     const capped = Math.max(rises[6]!.shownMs, rises[7]!.shownMs);
     expect(rises[0]!.shownMs / capped, 'at the cap a return is drawn at least CAP×0.8 times as fast as the first').toBeGreaterThanOrEqual(TEMPO_CAP * 0.8);
-    // The log says which repeat each faster view was: the Sword's return reached the cap.
-    const swordReturns = reports.filter((r) => String(r.instance).startsWith('resolve:Sword of the Meek|'));
-    expect(swordReturns.map((r) => Number(r.tempo)), 'the log: each faster return of the Sword').toEqual([1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.5]);
   } finally {
     await stack.stop();
   }
@@ -193,8 +195,9 @@ test(titled('Blasphemous Act is one instance: every one of its fireballs flies a
       expect(bolts.length, `${who}: a fireball for each creature it hit`).toBeGreaterThanOrEqual(8);
       expect(new Set(bolts.map((x) => x.tempo || '1')), `${who}: every one at 1×`).toEqual(new Set(['1']));
     }
-    const faster = serverLog(stack).filter((r) => r.evt === 'client' && r.what === 'tempo' && String(r.instance).startsWith('resolve:Blasphemous Act'));
-    expect(faster, 'no view of the Act was drawn faster than 1×').toEqual([]);
+    const wipe = serverLog(stack).filter((r) => r.evt === 'client' && r.what === 'beats' && Number(r.hits) >= 8);
+    console.log(`[tempo] log: the wipe's beats ${wipe.map((r) => `seat ${String(r.seat)} ${String(r.hits)} hits at ${String(r.tempo)}×`).join(', ')}`);
+    expect(wipe.filter((r) => r.tempo !== 1), 'the log: the wipe drawn at 1× wherever its beats were told').toEqual([]);
   } finally {
     await stack.stop();
   }

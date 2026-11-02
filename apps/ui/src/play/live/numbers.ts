@@ -1011,9 +1011,8 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   /**
    * Draws a view's beats. Every length here is on the instance's own clock (`./tempo.ts`), which runs `tempo` times
    * the wall's: a beat's timer, a note of when something lands, and what each effect is handed are wall time.
-   * Returns how long its beats run on the wall.
    */
-  function apply(diff: ViewDiff, before: BoardView | null, revealed: Revealed | undefined, mills: readonly Mill[], tempo: number): number {
+  function apply(diff: ViewDiff, before: BoardView | null, revealed: Revealed | undefined, mills: readonly Mill[], tempo: number): void {
     const item = diff.resolved[0];
     const reveal = revealOf(item, revealed, tempo);
     const origin = reveal?.at ?? sourceOf(item);
@@ -1457,7 +1456,8 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         what: 'beats',
         resolved: item?.id ?? -1,
         source: item?.sourceCardId ?? -1,
-        reveal: reveal !== null,
+        // How fast this instance was drawn (`./tempo.ts`); `from` says whether a reveal went first.
+        tempo,
         revealWaitMs: Math.round(startMs),
         from: reveal !== null ? 'reveal' : origin === null ? 'none' : 'source',
         hits: bolt,
@@ -1472,7 +1472,6 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         motion: !reduced(),
       });
     }
-    return endMs / tempo;
   }
 
   /** What the next view's diff reads of this one's stack: when each item was first drawn, and where. */
@@ -1501,11 +1500,8 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       const revealTempo = top === undefined ? 1 : nextTempo(tempoCount, `resolve:${itemKey(top)}`, view.turn);
       // The instance this view draws, and which of its kind this turn it is (`./tempo.ts`).
       const key = before === null ? null : instanceKey(diff, mills, view);
-      const n = key === null ? 0 : countInstance(tempoCount, key, view.turn);
-      const tempo = tempoOf(n);
-      const totalMs = timed('effects', () => apply(diff, before, revealed, mills, tempo));
-      // A view drawn faster than 1×, for the match log: what it was, which repeat this turn, and how long its beats ran.
-      if (key !== null && tempo > 1 && totalMs > 0) host.report?.({ what: 'tempo', instance: key.slice(0, 80), n, tempo, totalMs: Math.round(totalMs), resolved: diff.resolved[0]?.id ?? -1 });
+      const tempo = tempoOf(key === null ? 0 : countInstance(tempoCount, key, view.turn));
+      timed('effects', () => apply(diff, before, revealed, mills, tempo));
       markReveal(revealed, revealTempo);
       noteStack(view);
       noteTempoStack(view);

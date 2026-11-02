@@ -236,7 +236,7 @@ describe('installNumbers: the same resolution again plays faster', () => {
     handle.notify(view([player(0, life, { isViewer: true, battlefield: [foundry] }), player(1, 20)], [], turn));
   }
 
-  it('each loop’s hit lands sooner, to the cap; the report says which repeat and how fast', () => {
+  it('each loop’s hit lands sooner, to the cap; the match log’s beats say how fast', () => {
     vi.useFakeTimers();
     const { canvas, overlay } = boardDom();
     const reports: Record<string, string | number | boolean>[] = [];
@@ -259,11 +259,9 @@ describe('installNumbers: the same resolution again plays faster', () => {
     expect(lands[0]).toBe(HIT_MS);
     expect(lands[6], 'the seventh is at the cap').toBe(Math.round(HIT_MS / TEMPO_CAP));
     expect(lands[7], 'and stays there').toBe(lands[6]);
-    const tempos = reports.filter((r) => r.what === 'tempo');
-    expect(tempos.map((r) => [r.n, r.tempo]), 'a view at 1× is told as it always was, a faster one with its tempo').toEqual([2, 3, 4, 5, 6, 7, 8].map((n) => [n, tempoOf(n)]));
-    expect(tempos[0]!.instance).toBe('resolve:Thopter Foundry|Make a Thopter. You gain 1 life.');
-    const first = Number(reports.find((r) => r.what === 'beats')!.totalMs);
-    expect(Number(tempos.at(-1)!.totalMs), 'the capped loop’s beats are the first’s over the cap').toBe(Math.round(first / TEMPO_CAP));
+    const beats = reports.filter((r) => r.what === 'beats');
+    expect(beats.map((r) => r.tempo)).toEqual([1, 2, 3, 4, 5, 6, 7, 8].map(tempoOf));
+    expect(Number(beats.at(-1)!.totalMs), 'the capped loop’s beats are the first’s over the cap').toBe(Math.round(Number(beats[0]!.totalMs) / TEMPO_CAP));
     handle.dispose();
   });
 
@@ -277,8 +275,9 @@ describe('installNumbers: the same resolution again plays faster', () => {
       vi.advanceTimersByTime(5_000);
     }
     loop(handle, 200, 24, 2);
-    expect(reports.filter((r) => r.what === 'tempo').map((r) => r.tempo), 'turn 1’s repeats; turn 2’s first is 1× again').toEqual([1.25, 1.5]);
-    expect(reports.filter((r) => r.what === 'beats').map((r) => r.totalMs)).toEqual([HIT_MS, Math.round(HIT_MS / 1.25), Math.round(HIT_MS / 1.5), HIT_MS]);
+    const beats = reports.filter((r) => r.what === 'beats');
+    expect(beats.map((r) => r.tempo), 'turn 2’s first is 1× again').toEqual([1, 1.25, 1.5, 1]);
+    expect(beats.map((r) => r.totalMs)).toEqual([HIT_MS, Math.round(HIT_MS / 1.25), Math.round(HIT_MS / 1.5), HIT_MS]);
     handle.dispose();
   });
 
@@ -329,7 +328,10 @@ describe('installNumbers: Blasphemous Act is one instance', () => {
     vi.advanceTimersByTime((2 * BOLT_STAGGER_MS) / 1.25);
     expect(tempos(), 'the second cast’s three, all at its own tempo').toEqual(['1.25', '1.25', '1.25']);
     vi.advanceTimersByTime(3_000);
-    expect(reports.filter((r) => r.what === 'tempo').map((r) => [r.instance, r.n]), 'three fireballs are one instance; the second cast the second').toEqual([['resolve:Blasphemous Act|spell', 2]]);
+    expect(reports.filter((r) => r.what === 'beats').map((r) => [r.hits, r.tempo]), 'three fireballs are one instance; the second cast the second').toEqual([
+      [3, 1],
+      [3, 1.25],
+    ]);
     handle.dispose();
   });
 });
