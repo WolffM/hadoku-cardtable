@@ -20,9 +20,12 @@
  *     `ActivatingPlayer`, split on `Ability`. Triggers are abilities here, and
  *     an item put on the stack and resolved between two flushes is never seen.
  *
- * The end-of-game state is the fold of the whole history, read once.
+ * The counts are kept as the frames arrive ({@link createPlayTally}, fed by
+ * `Match` beside the seat's history), because the history itself is compacted
+ * each turn (`play/history.ts`): it keeps the board, not the changes that
+ * built it. The end-of-game state is the seat's board, as its history folds.
  *
- * Any human seat's history will do for all of this: players, the stack, the
+ * Any human seat's frames will do for all of this: players, the stack, the
  * battlefield, graveyards and exile are public, and the projector hides only
  * cards' faces, never a player's counters or the size of a zone.
  */
@@ -30,7 +33,7 @@
 import { boolOf, coreTypes, DELTA_TYPE, deltaKey, idsOf, intOf, tagOf, type PropertyBag } from '@hadoku/forge-wire';
 
 import type { Match } from '../play/match.js';
-import { foldFrames, type StateFrame, type WireObj } from '../play/visibility.js';
+import type { StateFrame, WireObj } from '../play/visibility.js';
 
 /** How a game ended, from the loser's side. Same partition `LiveBoard.tsx`'s `reasonLost` draws. */
 export type EndReason = 'life' | 'poison' | 'decking' | 'concede' | 'other';
@@ -114,19 +117,23 @@ function endOf(state: ReadonlyMap<string, WireObj>, playerId: number): SeatEnd {
 	};
 }
 
-interface PlayFold {
-	play: Map<number, SeatPlay>;
-	firstPlayer: number | null;
+/** One seat's per-player counts, kept as its state frames arrive. See the module header for what each count is. */
+export interface PlayTally {
+	/** Fold one state frame the seat was sent (only the game, the players and the stack) and count what it changed. */
+	push(frame: StateFrame): void;
+	/** Each player's counts so far, by Forge player id; a player who has done nothing yet is absent. */
+	readonly play: ReadonlyMap<number, SeatPlay>;
+	/** The player whose turn turn 1 was, once a frame has said. */
+	readonly firstPlayer: number | null;
 }
 
 const emptyPlay = (): SeatPlay => ({ cardsDrawn: 0, landsPlayed: 0, lifeLost: 0, lifeGained: 0, spellsCast: 0, abilitiesActivated: 0 });
 
 /**
- * One pass over the history, folding only the game, the players and the stack
- * (Forge's apply rules, as `visibility.ts`'s `foldInto`), and counting each
- * tracked property's changes as it goes. See the module header for what each count is.
+ * A running {@link PlayTally}: Forge's apply rules (as `visibility.ts`'s `foldInto`) over the game,
+ * the players and the stack, and each tracked property's changes counted after every frame.
  */
-function foldPlay(frames: readonly StateFrame[]): PlayFold {
+export function createPlayTally(): PlayTally {
 	const state = new Map<string, WireObj>();
 	const play = new Map<number, SeatPlay>();
 	const last = new Map<number, { drawn: number; lands: number; life: number }>();
@@ -134,53 +141,58 @@ function foldPlay(frames: readonly StateFrame[]): PlayFold {
 	let firstPlayer: number | null = null;
 	const tracked = (o: WireObj): boolean => o._type === DELTA_TYPE.player || o._type === DELTA_TYPE.game || o._type === DELTA_TYPE.stackItem;
 
-	for (const frame of frames) {
-		if (frame.method === 'setGameView') {
-			state.clear();
-			for (const [k, o] of Object.entries(frame.payload.gameView)) if (tracked(o)) state.set(k, strip(o));
-		} else if (frame.method === 'applyDelta') {
-			for (const [k, o] of Object.entries(frame.payload.packet.newObjects)) if (tracked(o)) state.set(k, strip(o));
-			for (const [k, d] of Object.entries(frame.payload.packet.objectDeltas)) {
-				const existing = state.get(k);
-				if (existing === undefined) continue;
-				const next: WireObj = { ...existing };
-				for (const [prop, value] of Object.entries(d)) {
-					if (prop === '_type' || prop === '_id') continue;
-					if (value === null) delete next[prop];
-					else next[prop] = value;
+	return {
+		play,
+		get firstPlayer() {
+			return firstPlayer;
+		},
+		push(frame) {
+			if (frame.method === 'setGameView') {
+				state.clear();
+				for (const [k, o] of Object.entries(frame.payload.gameView)) if (tracked(o)) state.set(k, strip(o));
+			} else if (frame.method === 'applyDelta') {
+				for (const [k, o] of Object.entries(frame.payload.packet.newObjects)) if (tracked(o)) state.set(k, strip(o));
+				for (const [k, d] of Object.entries(frame.payload.packet.objectDeltas)) {
+					const existing = state.get(k);
+					if (existing === undefined) continue;
+					const next: WireObj = { ...existing };
+					for (const [prop, value] of Object.entries(d)) {
+						if (prop === '_type' || prop === '_id') continue;
+						if (value === null) delete next[prop];
+						else next[prop] = value;
+					}
+					state.set(k, next);
 				}
-				state.set(k, next);
-			}
-		} else continue;
+			} else return;
 
-		const game = state.get(GAME_KEY);
-		const turn = int(game, 'Turn');
-		if (turn < 1) continue;
-		if (firstPlayer === null && tagOf(game, 'PlayerTurn')?.t === 'int') firstPlayer = int(game, 'PlayerTurn');
+			const game = state.get(GAME_KEY);
+			const turn = int(game, 'Turn');
+			if (turn < 1) return;
+			if (firstPlayer === null && tagOf(game, 'PlayerTurn')?.t === 'int') firstPlayer = int(game, 'PlayerTurn');
 
-		for (const o of state.values()) {
-			if (o._type === DELTA_TYPE.player) {
-				const now = { drawn: int(o, 'NumDrawnThisTurn'), lands: int(o, 'NumLandThisTurn'), life: int(o, 'Life') };
-				const seen = last.get(o._id);
-				last.set(o._id, now);
-				if (seen === undefined) continue;
-				const p = play.get(o._id) ?? emptyPlay();
-				play.set(o._id, p);
-				p.cardsDrawn += rise(seen.drawn, now.drawn);
-				p.landsPlayed += rise(seen.lands, now.lands);
-				if (now.life < seen.life) p.lifeLost += seen.life - now.life;
-				if (now.life > seen.life) p.lifeGained += now.life - seen.life;
-			} else if (o._type === DELTA_TYPE.stackItem && !stackSeen.has(o._id) && tagOf(o, 'ActivatingPlayer')?.t === 'int') {
-				stackSeen.add(o._id);
-				const activator = int(o, 'ActivatingPlayer');
-				const p = play.get(activator) ?? emptyPlay();
-				play.set(activator, p);
-				if (boolOf(o, 'Ability')) p.abilitiesActivated += 1;
-				else p.spellsCast += 1;
+			for (const o of state.values()) {
+				if (o._type === DELTA_TYPE.player) {
+					const now = { drawn: int(o, 'NumDrawnThisTurn'), lands: int(o, 'NumLandThisTurn'), life: int(o, 'Life') };
+					const seen = last.get(o._id);
+					last.set(o._id, now);
+					if (seen === undefined) continue;
+					const p = play.get(o._id) ?? emptyPlay();
+					play.set(o._id, p);
+					p.cardsDrawn += rise(seen.drawn, now.drawn);
+					p.landsPlayed += rise(seen.lands, now.lands);
+					if (now.life < seen.life) p.lifeLost += seen.life - now.life;
+					if (now.life > seen.life) p.lifeGained += now.life - seen.life;
+				} else if (o._type === DELTA_TYPE.stackItem && !stackSeen.has(o._id) && tagOf(o, 'ActivatingPlayer')?.t === 'int') {
+					stackSeen.add(o._id);
+					const activator = int(o, 'ActivatingPlayer');
+					const p = play.get(activator) ?? emptyPlay();
+					play.set(activator, p);
+					if (boolOf(o, 'Ability')) p.abilitiesActivated += 1;
+					else p.spellsCast += 1;
+				}
 			}
-		}
-	}
-	return { play, firstPlayer };
+		},
+	};
 }
 
 /** A per-turn counter's growth: a fall is a reset to 0 and then the new value's worth of growth. */
@@ -210,8 +222,7 @@ export function matchFacts(match: Match): MatchFacts | null {
 	const outcome = match.outcome();
 	if (outcome === null || outcome.kind === 'unplaced' || match.endedAt === null) return null;
 	const reader = match.seats.find((s) => !s.ai && s.history.length > 0);
-	const frames = (reader?.history ?? []) as unknown as StateFrame[];
-	const state = foldFrames(frames);
+	const state = reader?.history.board ?? new Map<string, WireObj>();
 	const players = idsOf(state.get(GAME_KEY), 'Players');
 	const known = new Set(match.seats.map((s) => s.playerId).filter((id): id is number => id !== null));
 	const playerOf = (seat: number): number | null => {
@@ -220,7 +231,8 @@ export function matchFacts(match: Match): MatchFacts | null {
 		const left = players.filter((id) => !known.has(id));
 		return left.length === 1 ? left[0]! : null;
 	};
-	const { play, firstPlayer } = foldPlay(frames);
+	const play = reader?.tally.play ?? new Map<number, SeatPlay>();
+	const firstPlayer = reader?.tally.firstPlayer ?? null;
 
 	const ends = match.seats.map((s) => {
 		const pid = playerOf(s.seat);

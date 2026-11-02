@@ -395,9 +395,11 @@ export interface ServerEnvelope {
 
 /**
  * The answer to `forge:join` and `forge:resync`. `frames` is this seat's
- * whole state-channel history (`setGameView` / `openView` / `applyDelta`,
- * already projected for the seat); a pending ask is re-sent after it as an
- * ordinary `forge:s2c` frame.
+ * state-channel history (`setGameView` / `openView` / `applyDelta`, already
+ * projected for the seat), compacted at the start of each turn into one
+ * `setGameView` of the board it folds to (`apps/server/src/play/history.ts`):
+ * folded, it is the board the whole history gives. A pending ask is re-sent
+ * after it as an ordinary `forge:s2c` frame.
  *
  * `MatchSnapshot.cursor` is that seat's LATEST cursor, of any kind — not the
  * cursor of the last STATE frame in `frames`: with the literal reading, a

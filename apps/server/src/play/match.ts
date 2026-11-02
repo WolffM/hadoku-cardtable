@@ -196,11 +196,12 @@ export type MatchSpecWithIdentity = Omit<MatchSpec, 'seats'> & {
 	seats: [SeatSpecWithIdentity & { ai: false }, SeatSpecWithIdentity];
 };
 
+import { createPlayTally, type PlayTally } from '../stats/facts.js';
+import { createStateHistory, type StateHistory } from './history.js';
 import {
 	createProjector,
 	EVERY_PLAYER,
 	faceUpOnBattlefield,
-	foldFrame,
 	type ObjTable,
 	type SeatProjector,
 	type StateFrame,
@@ -333,8 +334,10 @@ export interface SeatState {
 	readonly projector: SeatProjector;
 	/** The last `forge:s2c` seq this seat was sent. 0 = none yet. */
 	seq: number;
-	/** Every state frame this seat was sent, projected — the snapshot. */
-	history: ServerFrame[];
+	/** The state frames this seat was sent, projected, compacted each turn (`history.ts`) — the snapshot — and the board they fold to. */
+	readonly history: StateHistory;
+	/** The game's per-player counts over every state frame this seat was sent (`stats/facts.ts`), kept through the history's compactions. */
+	readonly tally: PlayTally;
 	/** State frames that arrived before `openView` named the viewer. */
 	early: StateFrame[];
 	/** Open asks by callId, in the order they were sent. */
@@ -1131,14 +1134,14 @@ export class Match {
 	private readonly watcher: {
 		readonly projector: SeatProjector;
 		seq: number;
-		history: ServerFrame[];
+		readonly history: StateHistory;
 		/** Log lines, oldest first, each waiting for the watchers' board to show the cards it names ({@link Match.releaseWatcherLog}). */
 		heldLog: { text: string; log: GameLogLine }[];
 		heldLogTimer: NodeJS.Timeout | null;
 	} = {
 		projector: createProjector(EVERY_PLAYER),
 		seq: 0,
-		history: [],
+		history: createStateHistory(),
 		heldLog: [],
 		heldLogTimer: null,
 	};
@@ -1203,17 +1206,6 @@ export class Match {
 	private pendingWaitingOnKey: string | null = null;
 	/** See {@link SeatIdentity.coinToss}: set and cleared in {@link Match.send}. */
 	private coinToss: { winner: number; at: number } | null = null;
-	/**
-	 * Each seat's board, folded as its history grows — {@link Match.foldedStateOf}'s own. A seat's
-	 * board is read on nearly every frame (`waitingOnFor` on every ask, selection and answer-bar
-	 * open or close; a card's name for the log), and its history grows on nearly every frame too,
-	 * so a fold of the WHOLE history per read made a long game quadratic (11 ms a read at 1,110
-	 * frames). A history only ever grows (`push`), so the fold keeps how many frames it has taken
-	 * and takes only the new ones; it is keyed by the history array itself, so a seat given a new
-	 * array would start a fold of its own rather than continue a stale one.
-	 */
-	private readonly foldedCache = new WeakMap<readonly ServerFrame[], { len: number; state: Map<string, WireObj> }>();
-
 	/** Every name either seat's deck (or a test scenario) plays — offered by a card-name ask whatever the format. */
 	private deckNames: ReadonlySet<string> | null = null;
 
@@ -1257,7 +1249,8 @@ export class Match {
 			displayName: (s as SeatSpecWithIdentity).displayName,
 			projector: createProjector(),
 			seq: 0,
-			history: [],
+			history: createStateHistory(),
+			tally: createPlayTally(),
 			early: [],
 			asks: new Map(),
 			prompt: null,
@@ -1693,7 +1686,7 @@ export class Match {
 			seat,
 			playerId: s.playerId,
 			cursor: s.seq === 0 ? null : { epoch: this.epoch, seq: s.seq },
-			frames: [...s.history],
+			frames: s.history.frames(),
 		};
 	}
 
@@ -1847,7 +1840,7 @@ export class Match {
 		if (method === null) return null;
 		if (method === 'priority') return { method, hostCard: null };
 		const other = this.seats.find((o) => o.seat !== s.seat);
-		const otherState = other === undefined ? null : this.foldedStateOf(other);
+		const otherState = other === undefined ? null : other.history.board;
 		const prompt = s.prompt;
 		const promptCardId = prompt !== null && prompt.method === 'showPromptMessage' ? prompt.card?.id ?? null : null;
 		// Then the spell or ability the seat is in the middle of casting: Forge asks its targets and costs
@@ -1856,20 +1849,6 @@ export class Match {
 		const cardId = promptCardId ?? s.chosenAbility?.hostCard ?? (otherState === null ? null : stackTopHostCardId(otherState));
 		if (cardId === null || otherState === null) return { method, hostCard: null };
 		return { method, hostCard: cardName(otherState, cardId) };
-	}
-
-	/**
-	 * The board this seat holds now: `visibility.ts`'s `foldFrames` over its whole history, kept
-	 * by {@link Match.foldedCache}. The map moves on with the seat's next frame, so read it at once.
-	 */
-	private foldedStateOf(s: SeatState): ReadonlyMap<string, WireObj> {
-		let fold = this.foldedCache.get(s.history);
-		if (fold === undefined) {
-			fold = { len: 0, state: new Map() };
-			this.foldedCache.set(s.history, fold);
-		}
-		for (; fold.len < s.history.length; fold.len += 1) foldFrame(fold.state, s.history[fold.len] as unknown as StateFrame);
-		return fold.state;
 	}
 
 	/**
@@ -1957,7 +1936,7 @@ export class Match {
 	seatState(seat: number): { cursor: WireCursor | null; objects: ObjTable } | { error: string } {
 		const s = this.seats[seat];
 		if (s === undefined || s.ai) return { error: 'no-such-seat' };
-		return { cursor: s.seq === 0 ? null : { epoch: this.epoch, seq: s.seq }, objects: Object.fromEntries(this.foldedStateOf(s)) };
+		return { cursor: s.seq === 0 ? null : { epoch: this.epoch, seq: s.seq }, objects: Object.fromEntries(s.history.board) };
 	}
 
 	/**
@@ -2425,9 +2404,15 @@ export class Match {
 		this.deps.seatsChanged?.(this.seatIdentities());
 	}
 
+	/** A state frame seat `s` is being sent: into its snapshot's history and its game's tally. */
+	private keep(s: SeatState, frame: ServerFrame): void {
+		s.history.push(frame);
+		s.tally.push(frame as unknown as StateFrame);
+	}
+
 	private sendState(s: SeatState, raw: StateFrame): void {
 		const projected = s.projector.project(raw) as unknown as ServerFrame;
-		s.history.push(projected);
+		this.keep(s, projected);
 		this.send(s, projected);
 		this.releaseLog(s, false);
 		if (s === this.watcherSource()) {
@@ -2454,7 +2439,7 @@ export class Match {
 			if (x !== s && (x.playerId === null || learner === null)) continue;
 			const frame = (x === s || learner === null ? x.projector.learn(cardIds) : x.projector.learn(cardIds, learner)) as unknown as ServerFrame | null;
 			if (frame === null) continue;
-			x.history.push(frame);
+			this.keep(x, frame);
 			this.send(x, frame);
 			this.releaseLog(x, false);
 		}
@@ -2535,7 +2520,7 @@ export class Match {
 			seat: source.seat,
 			playerId: source.playerId,
 			cursor: this.watcher.seq === 0 ? null : { epoch: this.epoch, seq: this.watcher.seq },
-			frames: [...this.watcher.history],
+			frames: this.watcher.history.frames(),
 		};
 	}
 
@@ -2653,7 +2638,7 @@ export class Match {
 			}
 			// Never dropped, never aborted: shown as a pick of its whole answers, or
 			// left open (`unparsed.ts`).
-			const fallback = fallbackFor(raw, askId, (ref) => (ref.kind === 'card' ? cardName(this.foldedStateOf(s), ref.id) : null) ?? `${ref.kind} #${ref.id}`);
+			const fallback = fallbackFor(raw, askId, (ref) => (ref.kind === 'card' ? cardName(s.history.board, ref.id) : null) ?? `${ref.kind} #${ref.id}`);
 			this.deps.log({ evt: 'ask-unparsed', matchId: this.id, seat, callId: askId, method: head?.method, errors, fallback: fallback !== null });
 			if (fallback === null) {
 				this.logUnclassified(s, String(head?.method), null, askId);
@@ -2713,7 +2698,7 @@ export class Match {
 			// what follows" is not an option the way it is for an ordinary ask.
 			// Its `choices` are kept a moment longer, in case the very next ask
 			// is the real discard choice they belong to.
-			const reveal = asReveal(frame, (ref) => (ref.kind === 'card' ? cardName(this.foldedStateOf(s), ref.id) : null) ?? `${ref.kind} #${ref.id}`);
+			const reveal = asReveal(frame, (ref) => (ref.kind === 'card' ? cardName(s.history.board, ref.id) : null) ?? `${ref.kind} #${ref.id}`);
 			// What Forge shows this seat it keeps knowing (`visibility.ts`, "What a seat was shown").
 			const shown = reveal !== null ? choiceCardIds(reveal.choices) : 'delayedReveal' in frame ? (frame.delayedReveal?.cards ?? []).map((c) => c.id) : [];
 			if (shown.length > 0) this.learnShown(s, shown);
@@ -2998,7 +2983,7 @@ export class Match {
 		const kept =
 			answered || s.lastStop === null
 				? {}
-				: { rule: s.lastStop.rule, ...(plays === undefined ? {} : { plays: plays.map((id) => ({ id, name: cardName(this.foldedStateOf(s), id) })) }) };
+				: { rule: s.lastStop.rule, ...(plays === undefined ? {} : { plays: plays.map((id) => ({ id, name: cardName(s.history.board, id) })) }) };
 		this.deps.log({ evt: answered ? 'prompt-withheld' : 'prompt-forwarded', matchId: this.id, seat: s.seat, kind, why, ...kept });
 		if (!answered) this.logOffered(s, kind);
 		this.recordWindow(s, answered ? 'withheld' : 'forwarded', kind, why, prompt, buttons);
@@ -3666,7 +3651,7 @@ export class Match {
 		s.pickedSacrifice = true;
 		// A held half from the input before this one is not this pick's.
 		this.flushPendingWindow(s);
-		const cards = [act.card, ...act.otherCardViewsToSelect].map((c) => ({ id: c.id, name: cardName(this.foldedStateOf(s), c.id) }));
+		const cards = [act.card, ...act.otherCardViewsToSelect].map((c) => ({ id: c.id, name: cardName(s.history.board, c.id) }));
 		this.deps.log({ evt: 'auto-picked', matchId: this.id, seat: s.seat, why: ONLY_SACRIFICE, cards });
 		this.recordWindow(s, 'withheld', 'other', 'only-sacrifice', prompt, null);
 		this.command({ t: 'act', seat: s.seat, frame: act });
@@ -3876,7 +3861,7 @@ export class Match {
 		}
 		s.playerId = playerId;
 		s.projector.setViewer(playerId);
-		s.history.push(frame as unknown as ServerFrame);
+		this.keep(s, frame as unknown as ServerFrame);
 		this.send(s, frame as unknown as ServerFrame);
 		this.tellWatchers(s, frame as unknown as ServerFrame);
 		for (const early of s.early.splice(0)) this.sendState(s, early);

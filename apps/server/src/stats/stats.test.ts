@@ -120,6 +120,33 @@ describe('what a finished match is read as', () => {
 		expect(alice!.end!.library + alice!.end!.hand).toBeGreaterThan(0);
 	});
 
+	it('counts every frame of a game whose histories were compacted at each new turn, the frames that carried the counts long gone', () => {
+		const h = harness();
+		const game = (props: Record<string, unknown>) => ({ [deltaKey(DELTA_TYPE.game, 1)]: { _type: DELTA_TYPE.game, _id: 1, ...props } });
+		h.host.push(
+			...delta(player(0, { NumDrawnThisTurn: int(1), NumLandThisTurn: int(1) })),
+			...delta({ ...game({ Turn: int(2), PlayerTurn: int(0) }), ...player(0, { NumDrawnThisTurn: null, NumLandThisTurn: null }) }),
+			...delta(player(0, { NumDrawnThisTurn: int(1) })),
+			...delta({}, {
+				[deltaKey(DELTA_TYPE.stackItem, 7002)]: { _type: DELTA_TYPE.stackItem, _id: 7002, ActivatingPlayer: int(1), Ability: { t: 'bool', v: true } },
+			}),
+			...delta({ ...game({ Turn: int(3), PlayerTurn: int(1) }), ...player(1, { Life: int(15) }) }),
+			...delta(player(1, { Life: int(0), HasLost: { t: 'bool', v: true } })),
+		);
+		h.host.push({ t: 'gameover', winner: 'Seat 1' });
+		// Turn 3's base and the one frame since: the draws, the land, the ability and the first life loss are not in it.
+		for (const s of h.match.seats) expect(s.history.frames().map((f) => f.method)).toEqual(['openView', 'setGameView', 'applyDelta']);
+
+		const facts = matchFacts(h.match)!;
+		expect(facts.turns).toBe(3);
+		expect(facts.seats.map((s) => s.onPlay)).toEqual([false, true]);
+		const [alice, bob] = facts.seats;
+		expect(alice!.play).toEqual({ cardsDrawn: 2, landsPlayed: 1, lifeLost: 0, lifeGained: 0, spellsCast: 0, abilitiesActivated: 0 });
+		expect(bob!.play).toEqual({ cardsDrawn: 0, landsPlayed: 0, lifeLost: 20, lifeGained: 0, spellsCast: 0, abilitiesActivated: 1 });
+		expect(bob!.end).toMatchObject({ life: 0, hasLost: true });
+		expect(facts.endReason).toBe('life');
+	});
+
 	it('a concede is the end reason, whatever the board says', () => {
 		const h = harness();
 		expect(h.match.fromClient(1, { kind: 'act', method: 'concede' } as ClientFrame)).toEqual({ ok: true });

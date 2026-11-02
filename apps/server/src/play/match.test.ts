@@ -25,7 +25,7 @@ import {
 
 import { STRICT_PAYMENT_POLICY } from './auto.js';
 import type { BridgeCommand, BridgeLine, HostEvents, MatchRecord, MatchHost, MatchHostFactory, MatchSpec, TurnSnapshot } from './host.js';
-import { ACTIVITY_WINDOW_MS, ACT_SILENCE_MS, ANSWER_SILENCE_MS, MATCH_ENDED_TITLE, WATCHER_SEAT, createMatchRegistry, frameGist, restoredSpec, type Match, type MatchSpecWithIdentity, type Restored, type SeatState } from './match.js';
+import { ACTIVITY_WINDOW_MS, ACT_SILENCE_MS, ANSWER_SILENCE_MS, MATCH_ENDED_TITLE, WATCHER_SEAT, createMatchRegistry, frameGist, restoredSpec, type Match, type MatchSpecWithIdentity, type Restored } from './match.js';
 import type { SeatIdentity } from '@hadoku/shared';
 import {
 	FLYING_FILE,
@@ -1024,21 +1024,18 @@ describe('the cursor', () => {
 		expect(leaked(secrets, JSON.stringify(state))).toEqual([]);
 	});
 
-	it("keeps each seat's board folded as its history grows: after every line, exactly the whole history's fold", () => {
+	it("keeps each seat's board folded as its frames arrive: after every line, exactly the fold of every state frame it was sent", () => {
 		const h = harness();
-		const foldedStateOf = (h.match as unknown as { foldedStateOf(s: SeatState): ReadonlyMap<string, WireObj> }).foldedStateOf.bind(h.match);
-		const fromScratch = (s: SeatState): string => JSON.stringify([...foldFrames(s.history as unknown as StateFrame[])]);
+		const fromScratch = (seat: number): string =>
+			JSON.stringify([...foldFrames(envelopesFor(h, seat).map((e) => e.frame as unknown as StateFrame))]);
 		// The transcript resets each seat's board with a `setGameView` three times, between deltas.
 		expect(TRANSCRIPT.filter((l) => l.t === 'frame' && l.seat === 1 && (l.frame as { method: string }).method === 'setGameView')).toHaveLength(3);
 		for (const [i, line] of TRANSCRIPT.entries()) {
 			h.host.push(line);
-			for (const s of h.match.seats) {
-				// Seat 1 is read every third line only, so its fold also takes several new frames at once.
-				if (s.seat === 1 && i % 3 !== 0) continue;
-				expect(JSON.stringify([...foldedStateOf(s)]), `seat ${s.seat}, line ${i}`).toBe(fromScratch(s));
-			}
+			for (const s of h.match.seats) expect(JSON.stringify([...s.history.board]), `seat ${s.seat}, line ${i}`).toBe(fromScratch(s.seat));
 		}
-		expect(h.match.seats.every((s) => s.history.length > 4)).toBe(true);
+		// Turn 1 began: each seat's history is its base and the turn so far, not every frame it was sent.
+		for (const s of h.match.seats) expect(s.history.frames().map((f) => f.method)).toEqual(['openView', 'setGameView']);
 	});
 
 	it('answers "match-starting", not an empty snapshot, before the seat has a player', () => {
@@ -4347,7 +4344,10 @@ describe('the watcher channel: one projection as every player, on WATCHER_SEAT',
 		expect(MatchSnapshotSchema.safeParse(snapshot).success).toBe(true);
 		expect(snapshot.seat).toBe(0);
 		expect(snapshot.playerId).toBe(h.match.seats[0]?.playerId);
-		expect(snapshot.frames.map((f) => f.method)).toEqual(watched.map((e) => e.frame.method));
+		expect(snapshot.frames[0]?.method).toBe('openView');
+		// The same board, whichever order its objects came in (`apps/ui/src/play/live/compacted-snapshot.test.ts` reads it with the page's own fold).
+		const fold = (frames: readonly unknown[]): string => JSON.stringify([...foldFrames(frames as StateFrame[])].sort(([a], [b]) => Number(a) - Number(b)));
+		expect(fold(snapshot.frames)).toBe(fold(watched.map((e) => e.frame)));
 		expect(snapshot.cursor).toEqual({ epoch: h.match.epoch, seq: watched.length });
 	});
 

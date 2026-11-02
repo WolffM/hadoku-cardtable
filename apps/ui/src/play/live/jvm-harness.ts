@@ -173,29 +173,25 @@ export interface DesyncSource {
 }
 
 /**
- * The snapshot the server would have answered `seat` with when that seat's
- * cursor was `cursor`: its history cut to the frames it had sent by then.
- * Throws when the server never sent that seat that cursor.
+ * What `seat` should hold at `cursor`, two ways. `whole`: every state frame the server sent the seat
+ * by then, in order — the snapshot as it was before the server compacted it. `served`: the snapshot
+ * the server answers a join with now (its history's base and the turn since, `apps/server/src/play/
+ * history.ts`), when the server is still at that cursor, and null once it has moved on: a frame sent
+ * after `cursor` is the seat's next fold, not a desync. Throws when the server never sent that seat
+ * that cursor.
  *
- * `Match` pushes a history frame and sends that same object in one step
- * (`sendState`, `learnShown`, `openView`), so the history frames sent by
- * `cursor` are exactly the history's prefix whose objects are among the
- * envelopes `emitted` holds for the seat at or below it.
+ * `whole` is rebuilt from `emitted` because the server no longer keeps it: `Match` sends every
+ * frame its history takes (`sendState`, `learnShown`, `openView`) as it takes it.
  */
-function snapshotAt(h: DesyncSource, seat: number, cursor: WireCursor): MatchSnapshot {
+function snapshotAt(h: DesyncSource, seat: number, cursor: WireCursor): { whole: MatchSnapshot; served: MatchSnapshot | null } {
   const now = h.match.snapshot(seat);
   if (!('frames' in now)) throw new Error(`no snapshot for seat ${seat}: ${now.error}`);
   const sent = h.emitted.filter((e) => e.seat === seat && e.envelope.cursor.epoch === cursor.epoch && e.envelope.cursor.seq <= cursor.seq);
   if (!sent.some((e) => e.envelope.cursor.seq === cursor.seq)) {
     throw new Error(`seat ${seat} is at ${JSON.stringify(cursor)}, a cursor the server never sent it`);
   }
-  const sentFrames = new Set<unknown>(sent.map((e) => e.envelope.frame));
-  const cut = now.frames.findIndex((f) => !sentFrames.has(f));
-  const frames = cut === -1 ? now.frames : now.frames.slice(0, cut);
-  if (now.frames.slice(frames.length).some((f) => sentFrames.has(f))) {
-    throw new Error(`seat ${seat}'s history is not in the order it was sent`);
-  }
-  return { ...now, cursor, frames };
+  const frames = sent.map((e) => e.envelope.frame).filter((f) => isTierC(f.method));
+  return { whole: { ...now, cursor, frames }, served: sameCursor(now.cursor, cursor) ? now : null };
 }
 
 /** A late joiner: a fresh client whose whole board comes from `snapshot`. */
@@ -217,8 +213,9 @@ function sameCursor(a: WireCursor | null, b: WireCursor | null): boolean {
 
 /**
  * Each seat caught up with the server, and its board — folded incrementally
- * through everything it was sent — equals a fresh fold of the server's own
- * history for that seat AT THE SEAT'S CURSOR.
+ * through everything it was sent — equals a fresh fold of every state frame
+ * the server sent that seat, AT THE SEAT'S CURSOR, and a fresh fold of the
+ * snapshot the server would answer a join with, when it is still there.
  *
  * The server keeps talking after a driver's plan is done (every auto-pass is
  * a frame), so the seat and the server's latest are never compared: a frame
@@ -241,16 +238,21 @@ export async function expectNoDesync(h: DesyncSource): Promise<void> {
     const { cursor, state, view, lastError } = s.live;
     const stats = { ...s.live.stats };
     if (cursor === null) throw new Error(`seat ${s.seat} holds no cursor`);
-    const server = snapshotAt(h, s.seat, cursor);
+    const { whole, served } = snapshotAt(h, s.seat, cursor);
     expect(stats).toMatchObject({ gaps: 0, epochChanges: 0, resyncsRequested: 0, invalid: 0 });
     expect(lastError).toBeNull();
-    const fresh = await freshFold(server);
-    expect(Object.fromEntries(state)).toEqual(Object.fromEntries(fresh.state));
     const { hits = [], faceHits = [], ...board } = view ?? {};
-    const { hits: freshHits = [], faceHits: freshFaceHits = [], ...freshBoard } = fresh.view ?? {};
-    expect(view === null ? null : board).toEqual(fresh.view === null ? null : freshBoard);
-    expect({ hits: freshHits, faceHits: freshFaceHits }, `seat ${s.seat}: a fresh fold owes no hit, its history's damage is not news`).toEqual({ hits: [], faceHits: [] });
-    expectHitsDealt(s.seat, { hits, faceHits }, server.frames);
+    for (const snapshot of served === null ? [whole] : [whole, served]) {
+      const fresh = await freshFold(snapshot);
+      const which = `seat ${s.seat}, ${snapshot === whole ? 'every state frame sent' : 'the snapshot served'}`;
+      expect(fresh.lastError, which).toBeNull();
+      expect(Object.fromEntries(state), which).toEqual(Object.fromEntries(fresh.state));
+      const { hits: freshHits = [], faceHits: freshFaceHits = [], ...freshBoard } = fresh.view ?? {};
+      expect(view === null ? null : board, which).toEqual(fresh.view === null ? null : freshBoard);
+      expect({ hits: freshHits, faceHits: freshFaceHits }, `${which}: a fresh fold owes no hit, its history's damage is not news`).toEqual({ hits: [], faceHits: [] });
+      closeMatch(fresh);
+    }
+    expectHitsDealt(s.seat, { hits, faceHits }, whole.frames);
   }
 }
 
