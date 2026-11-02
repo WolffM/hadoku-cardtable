@@ -1,0 +1,52 @@
+/* The stats popout's Unfinished games (`UnfinishedGames.tsx`): one row a game, its action at the end. */
+
+.ct-unfinished__title {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.ct-unfinished__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ct-unfinished__game {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 0;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.ct-unfinished__what {
+  display: flex;
+  flex: 1 1 16rem;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.ct-unfinished__who {
+  font-weight: 600;
+}
+
+.ct-unfinished__detail,
+.ct-unfinished__when {
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+}
+
+.ct-unfinished__game .lobby__go {
+  align-self: center;
+  padding: 6px 14px;
+}
+
+.ct-unfinished__error {
+  flex-basis: 100%;
+  margin: 0;
+}
