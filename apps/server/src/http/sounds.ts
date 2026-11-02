@@ -108,10 +108,10 @@ function badRequest(res: Response, error: string): void {
  * tell why" are different bugs and only the file being readable at all tells
  * them apart.
  */
-async function readCatalogue(dir: string, log: JsonLog): Promise<Catalogue> {
+async function readCatalogue(file: string, log: JsonLog): Promise<Catalogue> {
 	let raw: string;
 	try {
-		raw = await readFile(join(dir, 'catalogue.json'), 'utf8');
+		raw = await readFile(file, 'utf8');
 	} catch (err) {
 		if (isEnoent(err)) return { takes: [] };
 		throw err;
@@ -129,6 +129,36 @@ async function readCatalogue(dir: string, log: JsonLog): Promise<Catalogue> {
 		return { takes: [] };
 	}
 	return parsed.data;
+}
+
+/**
+ * `readCatalogue`, read again only when the file changed (its inode, size or mtime: the import
+ * tool's write, or a retire's atomic rename). Every page load asks `/assignments`, which used to
+ * read, parse and validate the whole catalogue (~280 KB) to name a dozen music takes. Each caller
+ * gets its own `takes` array, so one that pushes onto it before writing changes nothing kept.
+ */
+function keptCatalogue(dir: string, log: JsonLog): () => Promise<Catalogue> {
+	const file = join(dir, 'catalogue.json');
+	let kept: { stamp: string; catalogue: Promise<Catalogue> } | null = null;
+	return async () => {
+		let stamp: string;
+		try {
+			const s = await stat(file);
+			stamp = `${String(s.ino)}-${String(s.size)}-${String(s.mtimeMs)}`;
+		} catch (err) {
+			if (!isEnoent(err)) throw err;
+			kept = null;
+			return { takes: [] };
+		}
+		if (kept?.stamp !== stamp) {
+			const entry = { stamp, catalogue: readCatalogue(file, log) };
+			kept = entry;
+			entry.catalogue.catch(() => {
+				if (kept === entry) kept = null;
+			});
+		}
+		return { takes: [...(await kept.catalogue).takes] };
+	};
 }
 
 interface StoredAssignments {
@@ -270,6 +300,7 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 
 	const sounds = Router();
 	const takesDir = resolvePath(join(dir, 'takes'));
+	const catalogueNow = keptCatalogue(dir, log);
 
 	/** A take's version: its size and modification time, as a static server's ETag. `null`: no such take. */
 	const versionOf = async (file: string): Promise<string | null> => {
@@ -331,7 +362,7 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 	}
 
 	sounds.get('/catalogue', async (_req: Request, res: Response) => {
-		res.json(await readCatalogue(dir, log));
+		res.json(await catalogueNow());
 	});
 
 	/*
@@ -368,7 +399,7 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 	});
 
 	sounds.get('/assignments', async (req: Request, res: Response) => {
-		const [{ cells, gains }, catalogue] = await Promise.all([readAssignments(dir, log), readCatalogue(dir, log)]);
+		const [{ cells, gains }, catalogue] = await Promise.all([readAssignments(dir, log), catalogueNow()]);
 		// A music take's name, for the track picker in sound settings; a cue's is never shown.
 		const music = new Set(Object.entries(cells).flatMap(([cell, files]) => (cell.startsWith('music.') ? files : [])));
 		const names = Object.fromEntries(catalogue.takes.filter((t) => music.has(t.file)).map((t) => [t.file, t.name]));
@@ -397,7 +428,7 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 		}
 		const { files, gain } = parsed.data;
 		// Read-only; does not need the write lock below.
-		const catalogue = await readCatalogue(dir, log);
+		const catalogue = await catalogueNow();
 		const known = new Set(catalogue.takes.map((t) => t.file));
 		const unknown = files.filter((f) => !known.has(f));
 		if (unknown.length > 0) return badRequest(res, `unknown file(s): ${unknown.join(', ')}`);
@@ -426,7 +457,7 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 		if (!parsed.success) return badRequest(res, parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '));
 		const { file, reason } = parsed.data;
 		const outcome = await withWriteLock(async () => {
-			const catalogue = await readCatalogue(dir, log);
+			const catalogue = await catalogueNow();
 			const take = catalogue.takes.find((t) => t.file === file);
 			if (take === undefined) return null;
 			const stored = await readAssignments(dir, log);
@@ -465,7 +496,7 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 			} catch (err) {
 				if (!isEnoent(err)) throw err;
 			}
-			const catalogue = await readCatalogue(dir, log);
+			const catalogue = await catalogueNow();
 			if (!catalogue.takes.some((t) => t.file === file)) catalogue.takes.push(take.data);
 			const stored = await readAssignments(dir, log);
 			const cells = (line.cells ?? []).filter(isCellId);
@@ -513,7 +544,7 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 		const parsed = PutMarkBodySchema.safeParse(req.body);
 		if (!parsed.success) return badRequest(res, parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '));
 		const { file, mark } = parsed.data;
-		const catalogue = await readCatalogue(dir, log);
+		const catalogue = await catalogueNow();
 		if (!catalogue.takes.some((t) => t.file === file)) return res.status(404).json({ error: 'no such take' });
 		await withWriteLock(async () => {
 			const marks = await readMarks();
@@ -546,7 +577,7 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 	sounds.post('/music-review', async (req: Request, res: Response) => {
 		const parsed = MusicReviewBodySchema.safeParse(req.body);
 		if (!parsed.success) return badRequest(res, parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '));
-		const [catalogue, { cells }] = await Promise.all([readCatalogue(dir, log), readAssignments(dir, log)]);
+		const [catalogue, { cells }] = await Promise.all([catalogueNow(), readAssignments(dir, log)]);
 		const problems = musicReviewProblems(parsed.data, musicReviewSlots(catalogue.takes, cells));
 		if (problems.length > 0) return badRequest(res, problems.join('; '));
 		// The row is named by the submitter's own key; the edge stamps it on every vouched request.

@@ -190,6 +190,17 @@ describe('GET /api/sounds/catalogue', () => {
 		expect(res.json()).toEqual({ takes: [TAKE] });
 	});
 
+	it('reads the catalogue again once the import tool rewrites it, and not before', async () => {
+		const dir = await tempDir();
+		await writeCatalogue(dir, [TAKE]);
+		const h = await openApp(dir);
+		const files = async () => ((await call(h, 'GET', '/api/sounds/catalogue')).json() as { takes: { file: string }[] }).takes.map((t) => t.file);
+		expect(await files()).toEqual([TAKE.file]);
+		expect(await files()).toEqual([TAKE.file]);
+		await writeCatalogue(dir, [TAKE, { ...TAKE, file: 'm-win/take-synth-2.ogg' }]);
+		expect(await files()).toEqual([TAKE.file, 'm-win/take-synth-2.ogg']);
+	});
+
 	it('a friend can read the catalogue', async () => {
 		const dir = await tempDir();
 		await writeCatalogue(dir, [TAKE]);

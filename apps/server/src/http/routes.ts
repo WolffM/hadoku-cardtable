@@ -735,8 +735,13 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		});
 	});
 
-	tables.get('/decks', (_req: Request, res: Response) => {
-		res.json({
+	// The deck library is read once at boot and never changes, so its answer is serialized once too:
+	// 1,459 decks with every main and sideboard line cost 12-15 ms of the event loop live matches
+	// share, on every request, and Express hashed the whole body again for its ETag.
+	let decksAnswer: { body: string; etag: string } | null = null;
+	const decksBody = (): { body: string; etag: string } => {
+		if (decksAnswer !== null) return decksAnswer;
+		const body = JSON.stringify({
 			decks: library.decks.map((d) => ({
 				id: d.id,
 				collection: d.collection,
@@ -753,6 +758,13 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				...deckLines(d),
 			})),
 		});
+		decksAnswer = { body, etag: `"decks-${createHash('sha1').update(body).digest('base64url').slice(0, 16)}"` };
+		return decksAnswer;
+	};
+	tables.get('/decks', (_req: Request, res: Response) => {
+		const { body, etag } = decksBody();
+		res.setHeader('ETag', etag);
+		res.type('json').send(body);
 	});
 
 	// The library and the frozen pools are fixed for the life of the process,
