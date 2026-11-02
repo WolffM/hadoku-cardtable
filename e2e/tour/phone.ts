@@ -10,7 +10,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 
-import { expect, type Browser, type Page } from '@playwright/test';
+import { expect, type Browser, type Locator, type Page } from '@playwright/test';
 
 import { FRIENDS, SESSION_COOKIE } from '../identities.ts';
 import type { Friend } from '../play/browser.ts';
@@ -23,9 +23,11 @@ import { keepPrefsLocal, setPlayFastModeDefault } from '../prefsLocal.ts';
  * Where screenshots and the manifest land — `CARDTABLE_TOUR_OUT` if set, else today's default. The
  * override exists so a caller that wants a SEPARATE run (the manager's "after" shots, beside an
  * already-written "before") never has to redirect `HOME` to move this path, the way landing this file
- * once did.
+ * once did. `TOUR_DEVICE=desktop` runs the same tour in a 1440×900 mouse browser, into its own
+ * `desktop/` directory, for side-by-side review.
  */
-export const OUT = resolve(process.env.CARDTABLE_TOUR_OUT ?? resolve(homedir(), '.cache/cardtable-manager/mobile-tour'));
+export const DESKTOP = process.env.TOUR_DEVICE === 'desktop';
+export const OUT = resolve(process.env.CARDTABLE_TOUR_OUT ?? resolve(homedir(), '.cache/cardtable-manager/mobile-tour'), DESKTOP ? 'desktop' : '');
 const SHOTS = resolve(OUT, 'shots');
 const MANIFEST = resolve(OUT, 'manifest.jsonl');
 mkdirSync(SHOTS, { recursive: true });
@@ -33,6 +35,7 @@ mkdirSync(SHOTS, { recursive: true });
 export const PORTRAIT = { width: 390, height: 844 };
 export const SMALL = { width: 360, height: 800 };
 export const LANDSCAPE = { width: 844, height: 390 };
+export const DESK = { width: 1440, height: 900 };
 
 const IPHONE_UA =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
@@ -40,14 +43,11 @@ const IPHONE_UA =
 export async function openPhone(browser: Browser, name: string): Promise<Friend> {
   const id = FRIENDS[name];
   if (id === undefined) throw new Error(`tour: no identity ${name}`);
-  const context = await browser.newContext({
-    viewport: PORTRAIT,
-    isMobile: true,
-    hasTouch: true,
-    deviceScaleFactor: 3,
-    colorScheme: 'dark',
-    userAgent: IPHONE_UA,
-  });
+  const context = await browser.newContext(
+    DESKTOP
+      ? { viewport: DESK, deviceScaleFactor: 1, colorScheme: 'dark' }
+      : { viewport: PORTRAIT, isMobile: true, hasTouch: true, deviceScaleFactor: 3, colorScheme: 'dark', userAgent: IPHONE_UA },
+  );
   await context.addCookies([{ name: SESSION_COOKIE, value: name, domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' }]);
   await keepPrefsLocal(context, PLAY_EDGE_ORIGIN);
   await setPlayFastModeDefault(context, true);
@@ -67,6 +67,11 @@ export async function openPhone(browser: Browser, name: string): Promise<Friend>
     route.fulfill({ json: { valid: true, userId: id.userId, userType: id.tier ?? 'friend', name: id.name } }),
   );
   return friend;
+}
+
+/** A tap on a phone, a click on the desktop run. */
+export async function tapOn(target: Locator, opts?: { timeout?: number; position?: { x: number; y: number } }): Promise<void> {
+  await (DESKTOP ? target.click(opts) : target.tap(opts));
 }
 
 /**
@@ -280,6 +285,7 @@ export async function shot(page: Page, id: string, meta: ShotMeta, opts: { full?
 /** The same state at the three sizes: portrait, then the small Android, then (optionally) landscape; back to portrait after. */
 export async function shotSizes(page: Page, id: string, meta: ShotMeta, sizes: { small?: boolean; landscape?: boolean; full?: boolean } = {}): Promise<void> {
   await shot(page, id, meta, { full: sizes.full });
+  if (DESKTOP) return;
   if (sizes.small === true) {
     await setSize(page, SMALL);
     await shot(page, id, meta, { full: sizes.full });

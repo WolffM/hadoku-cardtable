@@ -14,7 +14,7 @@ import { forgeAvailability, startPlayStack, type PlayStack } from '../play/harne
 import { openCreateRoom, submitCreateRoom } from '../play/rooms.ts';
 import { fillWithAi, readyPod, sitPodAt } from '../podSeats.ts';
 import { inMore, longPressCard } from '../play/phone.ts';
-import { attempt, expect, openPhone, shot, shotSizes } from './phone.ts';
+import { attempt, expect, openPhone, shot, shotSizes, tapOn } from './phone.ts';
 import { choosePool, poolValue } from '../play/pool.ts';
 
 const forge = forgeAvailability();
@@ -37,7 +37,7 @@ async function openActionMenuIfPresent(page: Page): Promise<void> {
   const menu = page.getByTestId('action-menu');
   if ((await menu.count()) === 0) return;
   // A toggle: tapping a menu an earlier step left open would close it. It sits in the bar's ⋯ sheet.
-  if ((await menu.getAttribute('aria-expanded')) !== 'true') await (await inMore(page, 'action-menu')).tap();
+  if ((await menu.getAttribute('aria-expanded')) !== 'true') await tapOn(await inMore(page, 'action-menu'));
 }
 
 /**
@@ -172,7 +172,7 @@ async function throughMulligan(f: Friend, label: string, seen: Set<string>): Pro
   // The card put back is picked once: past the return, a tap on a hand card reads it.
   if (kind === 'bottom' && !seen.has(`${label}:picked`)) {
     seen.add(`${label}:picked`);
-    await f.page.locator('[data-zone="hand"][data-owner="you"] [data-board-card] button').first().tap({ timeout: 2_000 }).catch(() => undefined);
+    await tapOn(f.page.locator('[data-zone="hand"][data-owner="you"] [data-board-card] button').first(), { timeout: 2_000 }).catch(() => undefined);
     await f.page.waitForTimeout(400);
   }
   const button =
@@ -232,7 +232,7 @@ test('room: constructed room, a live match through the room, spectator, result, 
       await tile.hover();
       await alice.page.waitForTimeout(1_200);
       await shot(alice.page, 'room-deck-hover', { area: 'rooms', route: '#/room/<id>', state: `deck hover (peek ${(await alice.page.getByTestId('deck-peek').count()) > 0 ? 'open' : 'not shown'})` });
-      await tile.tap();
+      await tapOn(tile);
       await alice.page.waitForTimeout(1_200);
       await shot(alice.page, 'room-deck-tapped', { area: 'rooms', route: '#/room/<id>', state: `deck tapped (peek ${(await alice.page.getByTestId('deck-peek').count()) > 0 ? 'open' : 'not shown'})` });
     });
@@ -309,10 +309,10 @@ test('room: constructed room, a live match through the room, spectator, result, 
     });
     await attempt('chat sheet', async () => {
       if ((await alice.page.getByTestId('action-chat').count()) === 0) return;
-      await (await inMore(alice.page, 'action-chat')).tap();
+      await tapOn(await inMore(alice.page, 'action-chat'));
       await alice.page.waitForTimeout(700);
       await shot(alice.page, 'match-chat', { area: 'match', route: '#/match/<id>', state: 'the chat sheet open: the bar stays on the bottom edge' });
-      await (await inMore(alice.page, 'action-chat')).tap();
+      await tapOn(await inMore(alice.page, 'action-chat'));
       await alice.page.waitForTimeout(300);
     });
     await attempt('settings in a match', async () => {
@@ -418,7 +418,7 @@ async function castByTap(page: Page, name: string): Promise<void> {
   let id: number | undefined;
   await until(`${name} is offered`, async () => (id = await offeredNamed(page, name)) !== undefined, 60_000);
   // On touch a tap on a hand card opens its card view, and the view's own Cast action casts it.
-  await page.locator(`[data-board-card="${id}"] button`).first().tap();
+  await tapOn(page.locator(`[data-board-card="${id}"] button`).first());
   const view = page.getByTestId('card-view');
   await view.waitFor({ timeout: 10_000 });
   await page.waitForTimeout(400);
@@ -426,7 +426,7 @@ async function castByTap(page: Page, name: string): Promise<void> {
     viewed.add(name);
     await shot(page, `scn-cardview-${name.toLowerCase().replace(/[^a-z]+/g, '-')}`, { area: 'match', route: '#/match/<id>', state: `a hand card tapped: ${name}'s card view, with its Cast action` });
   }
-  await view.locator('[data-testid="card-view-action"][data-verb="cast"]').tap();
+  await tapOn(view.locator('[data-testid="card-view-action"][data-verb="cast"]'));
 }
 const viewed = new Set<string>();
 const face = (page: Page) => page.locator('[data-player-face]:not([data-viewer])').first();
@@ -447,7 +447,7 @@ test('scenario: board, card inspector, target question, stack with arrows, sheet
     await shotSizes(bob.page, 'scn-board-opp', M('the same board from the waiting seat'), { landscape: true });
 
     await attempt('the action menu open', async () => {
-      await (await inMore(page, 'action-menu')).tap();
+      await tapOn(await inMore(page, 'action-menu'));
       await page.waitForTimeout(500);
       await shot(page, 'scn-bar-menu', M('the action menu open: the bar stays on the bottom edge'));
       await page.keyboard.press('Escape');
@@ -470,7 +470,7 @@ test('scenario: board, card inspector, target question, stack with arrows, sheet
       // On a permanent a tap is the card's own click: my Forest taps for mana, no card view.
       let forest: number | undefined;
       await until('a Forest is offered', async () => (forest = await offeredNamed(page, 'Forest')) !== undefined, 20_000);
-      await page.locator(`[data-board-card="${forest}"] button`).first().tap();
+      await tapOn(page.locator(`[data-board-card="${forest}"] button`).first());
       await page.waitForTimeout(900);
       await shot(page, 'scn-perm-tap', M('a tap on my own Forest: it taps for mana, no card view'));
       // A long press is how a permanent is read.
@@ -482,7 +482,7 @@ test('scenario: board, card inspector, target question, stack with arrows, sheet
       await page.getByTestId('card-view').waitFor({ timeout: 5_000 });
       await page.waitForTimeout(400);
       await shot(page, 'scn-perm-read', M('a long press on the opponent’s Tarmogoyf: the card view'));
-      await page.getByTestId('card-view').tap({ position: { x: 8, y: 8 } });
+      await tapOn(page.getByTestId('card-view'), { position: { x: 8, y: 8 } });
       await page.waitForTimeout(500);
     }, page);
 
@@ -573,7 +573,7 @@ test('scenario: board, card inspector, target question, stack with arrows, sheet
       await attempt('stack expanded', async () => {
         // Portrait's stack is its chip in the top band; a wider screen's is the stack zone.
         const zone = page.locator('[data-testid="stack-chip"], [data-zone="stack"]').first();
-        await zone.tap();
+        await tapOn(zone);
         await page.waitForTimeout(800);
         await shot(page, 'scn-stack-tapped', M('the stack tapped'));
       });
@@ -634,16 +634,16 @@ test('scenario2: combat blocks, mistake bubble', async ({ browser }) => {
       await shotSizes(bob.page, 'scn-combat-attacker', M('combat from the attacking seat'), { landscape: true });
       const blocker = alice.page.locator('.seat[data-viewer] [data-zone="battlefield"] [data-board-card][data-selectable]').first();
       if ((await blocker.count()) > 0) {
-        await blocker.tap({ timeout: 3_000 }).catch(() => undefined);
+        await tapOn(blocker, { timeout: 3_000 }).catch(() => undefined);
         await alice.page.waitForTimeout(800);
         await shot(alice.page, 'scn-combat-blocker-picked', M('combat: a blocker picked (pick its attacker)'));
       }
       const minimize = alice.page.getByTestId('decision-minimize');
       if ((await minimize.count()) > 0) {
-        await minimize.tap({ timeout: 3_000 });
+        await tapOn(minimize, { timeout: 3_000 });
         await alice.page.waitForTimeout(600);
         await shot(alice.page, 'scn-combat-pill', M('combat: the decision shrunk to a pill'));
-        await alice.page.getByTestId('decision-pill').tap({ timeout: 3_000 });
+        await tapOn(alice.page.getByTestId('decision-pill'), { timeout: 3_000 });
       }
     });
   } finally {
@@ -686,7 +686,7 @@ test('gauntlet: reveal, ban and pick on a phone, result', async ({ browser }) =>
           const open = page.getByTestId('gauntlet-pool').locator('[data-testid="gauntlet-deck"][data-status="open"]:enabled').first();
           if ((await open.count()) === 0) break;
           const verb = ((await banner.textContent()) ?? '').trim();
-          await open.tap();
+          await tapOn(open);
           acts += 1;
           await page.waitForTimeout(900);
           if (acts <= 2) await shot(page, `gauntlet-act-${acts}`, G(`after a ${/ban/i.test(verb) ? 'ban' : 'pick'} (tapped): ${verb.slice(0, 40)}`), { full: true });
@@ -718,13 +718,13 @@ test('tournament: lobby, face-off, hub and bracket, standings', async ({ browser
     await go(alice.page, at(stack, `#/room/${roomId}`), 2_500);
     await shotSizes(alice.page, 'tourney-lobby', T('#/room/<id>', 'tournament lobby: four seats, two AI'), { small: true, landscape: true, full: true });
     await attempt('match rules popover', async () => {
-      await alice.page.getByTestId('match-rules').tap();
+      await tapOn(alice.page.getByTestId('match-rules'));
       await alice.page.waitForTimeout(600);
       await shot(alice.page, 'tourney-rules', T('#/room/<id>', 'the leader’s Match rules popover'), { full: true });
-      await alice.page.getByTestId('match-rules-popover-close').tap();
+      await tapOn(alice.page.getByTestId('match-rules-popover-close'));
     }, alice.page);
     await api(stack, bob, 'POST', `/rooms/${roomId}/ready`, { ready: true });
-    await alice.page.getByTestId('ready-toggle').tap();
+    await tapOn(alice.page.getByTestId('ready-toggle'));
     await attempt('face-off', async () => {
       await alice.page.getByTestId('table-seats').waitFor({ timeout: 30_000 });
       await shot(alice.page, 'tourney-faceoff-reveal', T('#/room/<id>/table/<t>', 'face-off, mid reveal'), { settle: 200 });
@@ -732,19 +732,19 @@ test('tournament: lobby, face-off, hub and bracket, standings', async ({ browser
       await shotSizes(alice.page, 'tourney-faceoff', T('#/room/<id>/table/<t>', 'the table page: face-off at rest'), { small: true, landscape: true, full: true });
     }, alice.page);
     await attempt('table ready → gauntlet box', async () => {
-      await alice.page.getByTestId('ready-toggle').tap();
+      await tapOn(alice.page.getByTestId('ready-toggle'));
       await alice.page.getByTestId('tournament-gauntlet').waitFor({ timeout: 30_000 });
       await alice.page.waitForTimeout(1_500);
       await shotSizes(alice.page, 'tourney-table-gauntlet', T('#/room/<id>/table/<t>', 'the table page after Ready: its Gauntlet box'), { small: true, full: true });
     }, alice.page);
     await attempt('hub', async () => {
-      await alice.page.getByTestId('table-hub').tap();
+      await tapOn(alice.page.getByTestId('table-hub'));
       await alice.page.getByTestId('pod-tables-row').first().waitFor({ timeout: 30_000 });
       await alice.page.waitForTimeout(1_500);
       await shotSizes(alice.page, 'tourney-hub', T('#/room/<id>', 'the hub: table strips and bracket'), { small: true, landscape: true, full: true });
       const more = alice.page.locator('[data-testid="pod-tables"] button', { hasText: '⋯' }).first();
       if ((await more.count()) > 0) {
-        await more.tap();
+        await tapOn(more);
         await alice.page.waitForTimeout(600);
         await shot(alice.page, 'tourney-hub-more', T('#/room/<id>', 'a table strip’s ⋯ menu'));
         await alice.page.keyboard.press('Escape');
@@ -765,25 +765,25 @@ test('tournament: lobby, face-off, hub and bracket, standings', async ({ browser
         await go(f.page, url, 2_000);
         await sitPodAt(f.page, seat);
         await f.page.getByTestId('seat-stand').waitFor({ timeout: 30_000 });
-        await f.page.getByTestId('deck-mine').getByTestId('deck-option').first().tap();
+        await tapOn(f.page.getByTestId('deck-mine').getByTestId('deck-option').first());
         await f.page.locator('[data-testid="ready-toggle"]:enabled').waitFor({ timeout: 30_000 });
       }
       await shot(alice.page, 'tourney2-lobby-deck', T('#/room/<id>', 'Classic tournament lobby, deck chosen'), { full: true });
-      for (const f of [alice, bob]) await f.page.getByTestId('ready-toggle').tap();
+      for (const f of [alice, bob]) await tapOn(f.page.getByTestId('ready-toggle'));
       const matchRe = /#\/match\/m-[0-9a-f]{12}$/;
       for (const f of [alice, bob]) await f.page.waitForURL(matchRe, { timeout: 60_000 });
       for (let game = 0; game < 2; game++) {
         await openActionMenuIfPresent(bob.page);
-        await bob.page.getByTestId('live-concede').tap();
-        await bob.page.getByTestId('live-concede-yes').tap();
+        await tapOn(bob.page.getByTestId('live-concede'));
+        await tapOn(bob.page.getByTestId('live-concede-yes'));
         await alice.page.getByTestId('game-result').waitFor({ timeout: 30_000 });
         if (game === 1) break;
         for (const f of [alice, bob]) {
-          await f.page.getByTestId('game-result-next').tap({ timeout: 30_000 });
+          await tapOn(f.page.getByTestId('game-result-next'), { timeout: 30_000 });
           await f.page.getByTestId('sideboard-ready').waitFor({ timeout: 30_000 });
         }
         await shot(alice.page, 'tourney2-sideboard', T('#/match/<id>', 'tournament Bo3: the sideboard step between games'), { full: true });
-        for (const f of [alice, bob]) await f.page.getByTestId('sideboard-ready').tap();
+        for (const f of [alice, bob]) await tapOn(f.page.getByTestId('sideboard-ready'));
         for (const f of [alice, bob]) await f.page.waitForURL(matchRe, { timeout: 60_000 });
         await alice.page.locator('[aria-label="Game board"]').waitFor({ timeout: 60_000 });
       }
@@ -814,7 +814,7 @@ test('draft: nine-seat lobby, split, the draft, deck building, decks', async ({ 
     await shotSizes(alice.page, 'draft-lobby', D('#/room/<id>', 'draft pod lobby, leader, empty seats'), { small: true, landscape: true, full: true });
     await attempt('pick timer', async () => {
       const rule = alice.page.getByTestId('pick-timer');
-      await rule.tap();
+      await tapOn(rule);
       await alice.page.getByTestId('pick-timer-speed').locator('input[value="4"]').evaluate((el) => (el as HTMLElement).click());
       await alice.page.waitForTimeout(800);
       await shot(alice.page, 'draft-timer-on', D('#/room/<id>', 'pick timer on, fastest speed'), { full: true });
@@ -840,12 +840,12 @@ test('draft: nine-seat lobby, split, the draft, deck building, decks', async ({ 
     await attempt('split', async () => {
       await alice.page.getByTestId('pod-split').waitFor({ timeout: 30_000 });
       await shot(alice.page, 'draft-split-ready', D('#/room/<id>', 'everyone ready: Split & randomize'), { full: true });
-      await alice.page.getByTestId('pod-split').tap();
+      await tapOn(alice.page.getByTestId('pod-split'));
       await alice.page.getByTestId('pod-split-pods').waitFor({ timeout: 30_000 });
       await alice.page.waitForTimeout(1_000);
       await shotSizes(alice.page, 'draft-split', D('#/room/<id>', 'split into pods: Start draft'), { small: true, full: true });
       await shot(bob.page, 'draft-split-bob', D('#/room/<id>', 'split into pods, a non-leader'), { full: true });
-      await alice.page.getByTestId('pod-split-start').tap();
+      await tapOn(alice.page.getByTestId('pod-split-start'));
     }, alice.page);
     await attempt('the draft', async () => {
       await alice.page.getByTestId('pod').waitFor({ timeout: 30_000 });
@@ -854,7 +854,7 @@ test('draft: nine-seat lobby, split, the draft, deck building, decks', async ({ 
       await shotSizes(alice.page, 'draft-pack', D('#/room/<id>', 'the draft: first pack (default layout)'), { small: true, landscape: true, full: true });
       const grid = alice.page.getByRole('group', { name: 'Pack layout' }).getByRole('button', { name: 'grid' });
       if ((await grid.count()) > 0) {
-        await grid.tap();
+        await tapOn(grid);
         await alice.page.waitForTimeout(800);
         await shotSizes(alice.page, 'draft-pack-grid', D('#/room/<id>', 'the draft: pack as a grid'), { landscape: true, full: true });
       }
@@ -863,7 +863,7 @@ test('draft: nine-seat lobby, split, the draft, deck building, decks', async ({ 
       for (let n = 0; n < 3; n++) {
         const card = alice.page.locator('[data-testid="pack"] button[data-testid="card"]:not([disabled])').first();
         await card.waitFor({ timeout: 30_000 });
-        await card.tap();
+        await tapOn(card);
         await alice.page.waitForTimeout(700);
       }
       await shotSizes(alice.page, 'draft-pool', D('#/room/<id>', 'the draft a few picks in (pool growing)'), { full: true });
@@ -931,7 +931,7 @@ test('rope: the draft pick timer on a phone', async ({ browser }) => {
       for (let n = 0; n < 4; n++) {
         const card = p.locator('[data-testid="pack"] button[data-testid="card"]:not([disabled])').first();
         await card.waitFor({ timeout: 30_000 });
-        await card.tap();
+        await tapOn(card);
         await p.waitForTimeout(900);
       }
       await shot(p, 'draft-pool', D('the draft a few picks in (pool growing)'), { full: true });
