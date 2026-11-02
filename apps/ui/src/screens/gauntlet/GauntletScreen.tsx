@@ -3,15 +3,22 @@
  * (`docs/planning/constructed-modes-plan.md`): the reveal and the ban/pick board, the secret
  * choice before each game (which stays up while the game is played), and the result. Presentational: the room passes the
  * server's view and the three acts, and this fetches nothing.
+ *
+ * The step from the board into the choice is drawn as a transition (`arrive.ts`): for its length the
+ * board as it was left lies under the choose screen, and the snake's last pick sounds as it flies,
+ * as every other pick sounded on the board.
  */
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import type { GauntletView } from '@hadoku/shared';
 
+import { playRole } from '../../sound/index.ts';
+import { boardToLeave } from './arrive.ts';
 import { GauntletBoard } from './GauntletBoard.tsx';
 import { GauntletChoose } from './GauntletChoose.tsx';
 import { GauntletResult } from './GauntletResult.tsx';
 import { gauntletDeckOptions } from './decks.ts';
+import { poolChangeRoles } from './sounds.ts';
 import './gauntlet.css';
 
 export interface GauntletScreenProps {
@@ -23,10 +30,32 @@ export interface GauntletScreenProps {
   avatars?: readonly [string | undefined, string | undefined];
 }
 
+/** The board being left for the choice, and what its last act sounds. */
+interface Leaving {
+  board: GauntletView;
+  sounds: readonly string[];
+}
+
+const noop = (): void => undefined;
+
 export function GauntletScreen({ view, onBan, onPick, onChoose, avatars }: GauntletScreenProps) {
   // The tiles depend only on which ten decks were drawn, not on where each stands.
   const drawn = view.decks.map((d) => d.id).join();
   const options = useMemo(() => gauntletDeckOptions(view.decks), [drawn]);
+
+  // The view this screen last drew, so the step out of ban/pick is seen as a step, here and on the other seat's screen alike.
+  const [shown, setShown] = useState(view);
+  const [leaving, setLeaving] = useState<Leaving | null>(null);
+  if (shown !== view) {
+    setShown(view);
+    const board = boardToLeave(shown, view);
+    if (board !== null) setLeaving({ board, sounds: poolChangeRoles(board.decks, view.decks) });
+    else if (view.phase !== 'choose' && view.phase !== 'playing') setLeaving(null);
+  }
+  useEffect(() => {
+    for (const role of leaving?.sounds ?? []) playRole(role);
+  }, [leaving]);
+
   switch (view.phase) {
     case 'options':
       return null;
@@ -36,7 +65,15 @@ export function GauntletScreen({ view, onBan, onPick, onChoose, avatars }: Gaunt
     // From the choice to the board, and while the game is played, the choose screen as both left it.
     case 'choose':
     case 'playing':
-      return <GauntletChoose view={view} options={options} onChoose={onChoose} />;
+      return (
+        <GauntletChoose
+          view={view}
+          options={options}
+          onChoose={onChoose}
+          leaving={leaving === null ? null : <GauntletBoard view={leaving.board} options={options} onBan={noop} onPick={noop} leaving />}
+          onArrived={() => setLeaving(null)}
+        />
+      );
     case 'done':
       return <GauntletResult view={view} options={options} />;
   }

@@ -362,6 +362,197 @@ describe('choosing a deck for the next game', () => {
   });
 });
 
+/*
+ * The operator, 2026-11-02, on trailer cut 7: "need a transition between the pick/ban phase and the
+ * 'choosing a deck phase', it looks a bit cheap at the moment that it hard cuts to the next step
+ * there". `arrive.test.ts` has the choreography as data; this is the screen around it.
+ */
+describe('from ban/pick into the choice', () => {
+  /** The snake's last step: P2 (table seat 0, the viewer) picks the one deck left. */
+  const lastStep = (): GauntletView =>
+    view({
+      phase: 'banpick',
+      step: { index: 7, seat: 0, act: 'pick', count: 1, taken: 0 },
+      decks: IDS.map((id, i) => (i < 4 ? deck(id, { status: 'banned', by: (i % 2) as 0 | 1 }) : i === 8 ? deck(id) : deck(id, { status: 'picked', by: (i % 2) as 0 | 1 }))),
+    });
+  const choosing = (before: GauntletView): GauntletView => ({
+    ...before,
+    phase: 'choose',
+    step: null,
+    decks: before.decks.map((d) => (d.status === 'open' ? { ...d, status: 'picked' as const, by: 0 as const } : d)),
+    choice: { mine: null, chosen: [false, false] },
+  });
+  const screen = (v: GauntletView, onChoose: (id: string) => void = noop) => createElement(GauntletScreen, { view: v, onBan: noop, onPick: noop, onChoose });
+  const leavingBoard = (root: HTMLElement): HTMLElement | null => root.querySelector<HTMLElement>('.gauntlet--leaving');
+
+  /** Every animation started, held until the test lets it finish. */
+  interface Running {
+    el: Element;
+    keyframes: Keyframe[];
+    playState: AnimationPlayState;
+    finish: () => void;
+  }
+  let running: Running[] = [];
+  beforeEach(() => {
+    running = [];
+    Object.defineProperty(Element.prototype, 'animate', {
+      configurable: true,
+      writable: true,
+      value(this: Element, keyframes: Keyframe[]) {
+        let finish = noop;
+        const finished = new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+        const a = {
+          el: this,
+          keyframes,
+          playState: 'running' as AnimationPlayState,
+          finished,
+          finish: () => {
+            a.playState = 'finished';
+            finish();
+          },
+          pause: () => {
+            a.playState = 'paused';
+          },
+          play: () => {
+            a.playState = 'running';
+          },
+          cancel: noop,
+        };
+        running.push(a);
+        return a;
+      },
+    });
+  });
+  afterEach(() => {
+    delete (Element.prototype as { animate?: unknown }).animate;
+  });
+
+  it('arrives over the board it leaves: the choose screen is drawn and live at once, the board under it found by nothing', () => {
+    const before = lastStep();
+    const { container, getByTestId, getAllByTestId, rerender } = draw(before);
+    rerender(screen(choosing(before)));
+    const choose = getByTestId('gauntlet-choose');
+    expect(choose.dataset.arriving, 'the arrival is under way').toBe('true');
+    const board = leavingBoard(container)!;
+    expect(board, 'the board as it was left lies under the choose screen').not.toBeNull();
+    expect(choose.contains(board)).toBe(true);
+    expect(board.dataset.leaving).toBe('move');
+    expect(board.hasAttribute('inert')).toBe(true);
+    expect(board.getAttribute('aria-hidden')).toBe('true');
+    expect(board.querySelectorAll('[data-testid^="gauntlet"]'), 'nothing on it carries a Gauntlet test id').toHaveLength(0);
+    expect(getAllByTestId('gauntlet-title'), 'one title').toHaveLength(1);
+    expect(board.querySelector(`[data-deck-id="${IDS[8]}"]`)?.getAttribute('data-status'), 'the last pick still lies where it was pressed').toBe('open');
+    const mine = [...getByTestId('gauntlet-choose-mine').querySelectorAll<HTMLButtonElement>('[data-testid="gauntlet-deck"]')];
+    expect(mine.map((t) => t.dataset.deckId)).toEqual([IDS[4], IDS[6], IDS[8]]);
+    for (const t of mine) expect(t.disabled, 'pressable from the first frame').toBe(false);
+  });
+
+  it('every surviving deck, name and the title are the choose screen’s own elements, travelling; the bans fall off the board', () => {
+    const before = lastStep();
+    const { container, getByTestId, rerender } = draw(before);
+    rerender(screen(choosing(before)));
+    const moved = new Set(running.map((a) => a.el));
+    for (const t of getByTestId('gauntlet-choose').querySelectorAll('.gauntlet__picks > [data-testid="gauntlet-deck"]')) expect(moved.has(t), (t as HTMLElement).dataset.deckId).toBe(true);
+    for (const n of getByTestId('gauntlet-choose').querySelectorAll(':scope > .gauntlet__seats .gauntlet__player')) expect(moved.has(n)).toBe(true);
+    expect(moved.has(getByTestId('gauntlet-title').querySelector('.gauntlet__era')!)).toBe(true);
+    const banned = [...leavingBoard(container)!.querySelectorAll('.gauntlet-tile[data-status="banned"]')];
+    expect(banned).toHaveLength(4);
+    for (const b of banned) expect(moved.has(b)).toBe(true);
+  });
+
+  it('a press while it arrives is a choice made: the motion holds still under the pointer and the choice goes through', () => {
+    const before = lastStep();
+    const onChoose = vi.fn();
+    const { getByTestId, rerender } = draw(before, { onChoose });
+    rerender(screen(choosing(before), onChoose));
+    const tile = getByTestId('gauntlet-choose-mine').querySelector<HTMLButtonElement>(`[data-deck-id="${IDS[6]}"]`)!;
+    fireEvent.pointerDown(tile, { pointerType: 'mouse' });
+    expect(running.every((a) => a.playState === 'paused'), 'held still while pressed').toBe(true);
+    fireEvent.pointerUp(tile, { pointerType: 'mouse' });
+    fireEvent.click(tile);
+    expect(onChoose).toHaveBeenCalledWith(IDS[6]);
+    expect(running.every((a) => a.playState === 'running'), 'and on its way again once let go').toBe(true);
+  });
+
+  it('a deck flying under a resting pointer opens no list; once it has landed, a hover does', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const before = lastStep();
+    const { getByTestId, queryByTestId, rerender } = draw(before);
+    rerender(screen(choosing(before)));
+    const tile = getByTestId('gauntlet-choose-mine').querySelector<HTMLButtonElement>('[data-testid="gauntlet-deck"]')!;
+    fireEvent.pointerEnter(tile, { pointerType: 'mouse' });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PEEK_DELAY_MS * 2);
+    });
+    expect(queryByTestId('deck-peek'), 'no list while it arrives').toBeNull();
+    await act(async () => {
+      for (const a of running) a.finish();
+    });
+    fireEvent.pointerLeave(tile);
+    fireEvent.pointerEnter(tile, { pointerType: 'mouse' });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PEEK_DELAY_MS);
+    });
+    expect(queryByTestId('deck-peek'), 'the list on a hover after').not.toBeNull();
+  });
+
+  it('once every part has come to rest the board is gone and the choose screen is as it always was', async () => {
+    const before = lastStep();
+    const { container, getByTestId, rerender } = draw(before);
+    rerender(screen(choosing(before)));
+    expect(leavingBoard(container)).not.toBeNull();
+    await act(async () => {
+      for (const a of running) a.finish();
+    });
+    expect(leavingBoard(container)).toBeNull();
+    expect(getByTestId('gauntlet-choose').dataset.arriving).toBeUndefined();
+  });
+
+  it('a later view while it arrives (the other seat has chosen) keeps it arriving', () => {
+    const before = lastStep();
+    const { container, getByTestId, rerender } = draw(before);
+    const next = choosing(before);
+    rerender(screen(next));
+    rerender(screen({ ...next, choice: { mine: null, chosen: [false, true] } }));
+    expect(leavingBoard(container)).not.toBeNull();
+    expect(getByTestId('gauntlet-choose-theirs').dataset.chosen).toBe('true');
+  });
+
+  it('under prefers-reduced-motion the board stays whole for a crossfade', () => {
+    reduced = true;
+    const before = lastStep();
+    const { container, rerender } = draw(before);
+    rerender(screen(choosing(before)));
+    expect(leavingBoard(container)!.dataset.leaving).toBe('fade');
+    expect(running.every((a) => a.keyframes.every((k) => Object.keys(k).every((p) => p === 'opacity' || p === 'offset'))), 'opacity alone').toBe(true);
+  });
+
+  it('a screen that opens on the choice, or comes back to it after a game, has no board to leave', () => {
+    const before = lastStep();
+    const { container, getByTestId } = draw(choosing(before));
+    expect(leavingBoard(container)).toBeNull();
+    expect(getByTestId('gauntlet-choose').dataset.arriving).toBeUndefined();
+    cleanup();
+    const game2 = { ...choosing(before), games: [{ decks: [IDS[4], IDS[5]] as [string, string], winner: 0 as const }] };
+    const again = draw({ ...game2, phase: 'playing', choice: null });
+    again.rerender(screen(game2));
+    expect(leavingBoard(again.container)).toBeNull();
+    expect(running).toHaveLength(0);
+  });
+
+  it('a browser that cannot animate goes straight to the choose screen', async () => {
+    delete (Element.prototype as { animate?: unknown }).animate;
+    const before = lastStep();
+    const { container, rerender } = draw(before);
+    await act(async () => {
+      rerender(screen(choosing(before)));
+    });
+    expect(leavingBoard(container)).toBeNull();
+  });
+});
+
 describe('the result', () => {
   it('names the winner and every game’s decks', () => {
     const decks = IDS.map((id) => deck(id, { status: 'picked', by: 0, played: true }));

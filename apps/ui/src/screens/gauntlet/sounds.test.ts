@@ -90,6 +90,18 @@ describe('the Gauntlet’s sounds', () => {
     expect(played).toEqual(['ui.gauntlet-ban', 'ui.gauntlet-pick']);
   });
 
+  it('the snake’s last pick sounds too, as it flies from the board into the choice — once, whoever made it', () => {
+    const before = view({
+      step: { index: 7, seat: 1, act: 'pick', count: 1, taken: 0 },
+      decks: IDS.map((id, i) => (i < 4 ? deck(id, { status: 'banned', by: (i % 2) as 0 | 1 }) : i === 9 ? deck(id) : deck(id, { status: 'picked', by: (i % 2) as 0 | 1 }))),
+    });
+    const { rerender } = render(screenOf(before));
+    const after = { ...before, phase: 'choose' as const, step: null, decks: before.decks.map((d) => (d.status === 'open' ? { ...d, status: 'picked' as const, by: 1 as const } : d)), choice: { mine: null, chosen: [false, false] as [boolean, boolean] } };
+    rerender(screenOf(after));
+    rerender(screenOf({ ...after, choice: { mine: null, chosen: [false, true] } }));
+    expect(played).toEqual(['ui.gauntlet-pick']);
+  });
+
   it('choosing your deck for the next game sounds on the press', () => {
     const onChoose = vi.fn();
     const decks = IDS.map((id, i) => (i < 4 ? deck(id, { status: 'banned', by: (i % 2) as 0 | 1 }) : deck(id, { status: 'picked', by: (i % 2) as 0 | 1 })));

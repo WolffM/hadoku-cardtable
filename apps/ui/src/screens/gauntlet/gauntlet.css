@@ -387,6 +387,46 @@
   }
 }
 
+/*
+ * From the board into the choice (`arrive.ts`): the board as it was left lies under the choose screen,
+ * clipped to its box, and is found by nothing. The choose screen's box starts as tall as the board and
+ * shortens to its own, so the page under a scrolled board slides rather than jumps; the clip, once
+ * that height holds the page (`data-held`), keeps the board from holding it open below. What the choose screen carries on from the
+ * board steps aside on it at once, the choose screen's own copy travelling from there. Under reduced
+ * motion it all stays, unclipped, for the crossfade. Its entrances have played: drawn as they ended.
+ */
+.gauntlet--choose {
+  position: relative;
+}
+
+.gauntlet--leaving {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.gauntlet--leaving[data-held] {
+  overflow: clip;
+}
+
+.gauntlet--leaving[data-leaving='move'] .gauntlet__title,
+.gauntlet--leaving[data-leaving='move'] .gauntlet__player,
+.gauntlet--leaving[data-leaving='move'] .gauntlet-tile:not([data-status='banned']) {
+  visibility: hidden;
+}
+
+.gauntlet--leaving .gauntlet__turn,
+.gauntlet--leaving .gauntlet-tile::after,
+.gauntlet--leaving .gauntlet-tile__cross path {
+  animation: none;
+}
+
+/* The era's name and the game's number each travel or ease in on their own. */
+.gauntlet__era,
+.gauntlet__game {
+  display: inline-block;
+}
+
 /* Choose: each seat's three picks, P1's beside P2's. */
 .gauntlet__seats {
   display: grid;

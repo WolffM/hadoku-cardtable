@@ -36,7 +36,7 @@ export interface At {
 }
 
 /** The house curve — `live/gestures/gestures.css`'s lift and return use the same one. */
-const HOUSE_CURVE = 'cubic-bezier(0.3, 0.7, 0.3, 1)';
+export const HOUSE_CURVE = 'cubic-bezier(0.3, 0.7, 0.3, 1)';
 
 /** Marks the copy under the pointer; `board.css` gives it its lift (shadow, scale). */
 export const GHOST_ATTR = 'data-arrange-ghost';

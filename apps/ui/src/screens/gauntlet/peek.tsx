@@ -28,7 +28,11 @@ export interface TileBinding {
   'aria-describedby': string | undefined;
 }
 
-export function useTilePeek(options: ReadonlyMap<string, DeckOption>): {
+/** `quiet`: tiles are travelling (`arrive.ts`), and one passing under a resting pointer is not a hover. */
+export function useTilePeek(
+  options: ReadonlyMap<string, DeckOption>,
+  quiet = false,
+): {
   bind: (id: string) => TileBinding;
   tiles: ReadonlyMap<string, HTMLButtonElement>;
   peek: ReactNode;
@@ -53,7 +57,7 @@ export function useTilePeek(options: ReadonlyMap<string, DeckOption>): {
         else tiles.current.set(id, el);
       },
       onPointerEnter: (event) => {
-        if (event.pointerType === 'touch' || !peekable) return;
+        if (event.pointerType === 'touch' || !peekable || quiet) return;
         hover.openSoon(id, locate(id));
       },
       onPointerLeave: hover.closeSoon,

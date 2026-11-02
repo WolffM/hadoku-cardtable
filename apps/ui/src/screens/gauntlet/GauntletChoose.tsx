@@ -6,13 +6,19 @@
  * sides, once its game is over. From the choice to the board, and while the game is played, this
  * screen stays as it was when both had chosen: no screen of the game's own comes between (the
  * operator, 2026-10-21).
+ *
+ * Out of ban/pick it arrives over the board it replaces (`leaving`, drawn under it): its decks, names
+ * and title travel from where the board drew them (`arrive.ts`), and it is live throughout.
  */
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
+
 import type { GauntletChoice, GauntletSeatIndex, GauntletView } from '@hadoku/shared';
 
 import { StatusPill } from '../../components/StatusPill.tsx';
 import type { DeckOption } from '../ConstructedScreen.tsx';
 import { DeckTile } from '../DeckTile.tsx';
 import { playRole } from '../../sound/index.ts';
+import { arrive } from './arrive.ts';
 import { useTilePeek, type TileBinding } from './peek.tsx';
 import { PlayerName, seatOrder } from './seats.tsx';
 
@@ -89,14 +95,42 @@ function ChoosingSeat({
   );
 }
 
-export function GauntletChoose({ view, options, onChoose }: { view: GauntletView; options: ReadonlyMap<string, DeckOption>; onChoose: (deckId: string) => void }) {
+export function GauntletChoose({
+  view,
+  options,
+  onChoose,
+  leaving = null,
+  onArrived,
+}: {
+  view: GauntletView;
+  options: ReadonlyMap<string, DeckOption>;
+  onChoose: (deckId: string) => void;
+  /** The board this screen is arriving over, drawn under it until `onArrived`. */
+  leaving?: ReactNode;
+  onArrived?: () => void;
+}) {
   const [p1, p2] = seatOrder(view);
-  const { bind, peek } = useTilePeek(options);
+  const arriving = leaving !== null;
+  const { bind, peek } = useTilePeek(options, arriving);
   const choice = choiceOf(view);
+  const section = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    if (!arriving) return;
+    const root = section.current;
+    const board = root?.querySelector<HTMLElement>(':scope > .gauntlet--leaving') ?? null;
+    if (root === null || board === null) {
+      onArrived?.();
+      return;
+    }
+    const run = arrive(root, board);
+    void run.done.then(() => onArrived?.());
+    return run.cancel;
+  }, [arriving]);
   return (
-    <section className="gauntlet gauntlet--choose" data-testid="gauntlet-choose" data-phase={view.phase}>
+    <section ref={section} className="gauntlet gauntlet--choose" data-testid="gauntlet-choose" data-phase={view.phase} data-arriving={arriving || undefined}>
+      {leaving}
       <h2 className="gauntlet__title" data-testid="gauntlet-title">
-        {view.era?.title}
+        <span className="gauntlet__era">{view.era?.title}</span>
         <span className="gauntlet__game">Game {view.games.length + (view.phase === 'playing' ? 0 : 1)}</span>
       </h2>
       <div className="gauntlet__seats">
