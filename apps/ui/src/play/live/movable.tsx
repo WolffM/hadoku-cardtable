@@ -23,7 +23,20 @@
  *     match's. An opened pile and the deck list are moved the same way, but they open beside what they show (a
  *     pile's view is sized to the room beside the pile), so they neither read the spot nor write it.
  */
-import { useLayoutEffect, useRef, type HTMLAttributes, type ReactNode } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type HTMLAttributes,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react';
+
+import { usePortraitLayout } from '../portrait.ts';
+
+import './dock.css';
 
 /** The one place a question was last put: the top-left of its drawn box, as fractions of the board's width and height. */
 export interface DialogSpot {
@@ -227,11 +240,185 @@ export function restingTop(el: Element): number {
   return el.getBoundingClientRect().top - (frame === null ? 0 : offsetOf(frame).y);
 }
 
+/*
+ * ── wave 89 §C: the decision dock (Settled 6) ───────────────────────────────────────────────────────
+ *
+ * In portrait every question's host — `QuestionHost` below, the one mechanism for all fourteen asks, the
+ * selection pop-up, the payment window, the bar decision and the waits — stops floating over the board and
+ * docks over the hand and the action bar instead: `dock.css` repositions `.live__prompt` under
+ * `:root[data-layout="portrait"]`, each rule written specific enough to outrank every one of `live.css`'s
+ * own `.live__prompt` variants, so nothing here is edited there (the blast-radius table's own rule).
+ *
+ * `data-mode` (`dock`/`full`/`min`) is the only thing a rule in `dock.css` reads — never which prompt is
+ * open (RULES "no hardcoded fixes", Settled 6's own wording). The expand control exists only while the
+ * docked sheet is actually clipping something: `hasOverflow` walks the host's own descendants with no
+ * prompt-shape knowledge in it at all, so a sheet nobody has imagined yet needs nothing taught to it either.
+ *
+ * `usePortraitLayout` is lane A's own (`../portrait.ts`) — this file used to carry a second,
+ * `MutationObserver`-based copy of the same idea and was told to drop it once A's landed, so this is
+ * the one place in the tree that reads the switch besides `Board.tsx` itself.
+ */
+
+/** A decision's three sizes (Settled 6): docked over the hand, full for a search that cannot fit docked, or shrunk to a pill. */
+export type DockMode = 'dock' | 'full' | 'min';
+
+/** How far a swipe on the dock's handle travels before it changes the mode, in px (the approved prototype's own threshold). */
+const SWIPE_SLOP_PX = 30;
+
 /**
- * A question's host, in the question column: `live.css`'s `.live__prompt`. It opens at the remembered spot,
- * and holds itself on the board as its sheet grows. `spot="staged"` (the pop-up under a card staged for its
- * target) opens at its default whatever is remembered, since it belongs under that card; the host opens
- * afresh whenever `spot` changes.
+ * Whether anything inside `root` is clipped right now. A generic probe, not a prompt-shape special case:
+ * it walks every descendant rather than knowing `.prompt__body` from `.confirm`'s own flat body apart, so
+ * the rule that decides "does this one need the expand button" never learns a prompt's method.
+ */
+function hasOverflow(root: HTMLElement): boolean {
+  if (root.scrollHeight > root.clientHeight + 1) return true;
+  for (const el of root.querySelectorAll('*')) {
+    if (el.scrollHeight > el.clientHeight + 1) return true;
+  }
+  return false;
+}
+
+/**
+ * The pill's own label: whatever the sheet inside is already saying (its title or its message), read
+ * rather than invented — the lane adds no words of its own (RULES "no explanatory UI text").
+ */
+function dockLabel(root: HTMLElement): string {
+  const said = root.querySelector('.prompt__title, .confirm__message');
+  const text = said?.textContent?.trim().replace(/\s+/g, ' ');
+  return text === undefined || text === '' ? 'Decision' : text;
+}
+
+/**
+ * The dock's own state: which of the three sizes it is drawn at, and whether its sheet currently overflows
+ * the docked height — measured, per Settled 6, with a `ResizeObserver` on the host itself, re-run only
+ * while docked (a sheet already grown to `full` or shrunk to `min` is not what the measurement asks about).
+ * A fresh host (almost always a fresh mount for a new question — see `QuestionHost`'s own header) starts docked.
+ */
+function useDock(frameRef: RefObject<HTMLDivElement | null>, active: boolean): { mode: DockMode; overflow: boolean; label: string; setMode: (mode: DockMode) => void } {
+  const [mode, setMode] = useState<DockMode>('dock');
+  const [overflow, setOverflow] = useState(false);
+  const [label, setLabel] = useState('Decision');
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  // Whether this host's first measurement has happened yet: a sheet that already overflows the
+  // moment it opens (Scapeshift's library search) opens `full` outright, with no visible flash of the
+  // docked size first — see `measure` below. A sheet that only grows PAST the docked height later
+  // (after the player has already started with it docked) gets the expand control instead: snapping it
+  // to full under a finger already mid-pick would be the surprise, not the help.
+  const settled = useRef(false);
+  useLayoutEffect(() => {
+    settled.current = false;
+  }, [active]);
+  useLayoutEffect(() => {
+    // Read fresh here, never from a value captured at render time: the ref is only attached once this
+    // render commits, after the function component itself already ran with the previous (or no) node.
+    const frame = frameRef.current;
+    if (active && mode === 'min' && frame !== null) setLabel(dockLabel(frame));
+  }, [active, mode, frameRef]);
+  useLayoutEffect(() => {
+    const frame = frameRef.current;
+    if (!active || frame === null) return undefined;
+    const measure = (): void => {
+      if (modeRef.current !== 'dock') return;
+      const over = hasOverflow(frame);
+      if (over && !settled.current) {
+        settled.current = true;
+        setMode('full');
+        return;
+      }
+      settled.current = true;
+      setOverflow(over);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const grown = new ResizeObserver(measure);
+    const watch = (): void => {
+      grown.disconnect();
+      grown.observe(frame);
+      for (const child of frame.children) grown.observe(child);
+    };
+    watch();
+    // A sheet that mounts after the host (a prompt behind its own boundary) is watched once it is there.
+    const added =
+      typeof MutationObserver === 'undefined'
+        ? null
+        : new MutationObserver(() => {
+            watch();
+            measure();
+          });
+    added?.observe(frame, { childList: true, subtree: true });
+    return () => {
+      grown.disconnect();
+      added?.disconnect();
+    };
+  }, [active, frameRef]);
+  return { mode, overflow, label, setMode };
+}
+
+/**
+ * The dock's handle: the grip a swipe moves it by, and its own controls — expand (only while `overflow`
+ * says the docked sheet is clipping something), shrink back from full, and minimize to a pill. The swipe
+ * mirrors the approved prototype exactly: up grows to full (only when that is allowed), down steps the
+ * dock down one size at a time (full → dock → min), and the "–" button jumps straight to the pill.
+ */
+function DockHandle({ mode, overflow, onFull, onDock, onMin }: { mode: DockMode; overflow: boolean; onFull: () => void; onDock: () => void; onMin: () => void }) {
+  const from = useRef<{ y: number; id: number } | null>(null);
+  // Window-level, like `installDialogMover`'s own drag: a swipe that drifts past the handle's own 40px
+  // strip (easy, on a phone) must still end the gesture.
+  useEffect(() => {
+    const onUp = (event: PointerEvent): void => {
+      if (from.current === null || event.pointerId !== from.current.id) return;
+      const dy = event.clientY - from.current.y;
+      from.current = null;
+      if (dy < -SWIPE_SLOP_PX) {
+        if (mode === 'full' || overflow) onFull();
+      } else if (dy > SWIPE_SLOP_PX) {
+        if (mode === 'full') onDock();
+        else onMin();
+      }
+    };
+    const onCancel = (): void => {
+      from.current = null;
+    };
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+    return () => {
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+    };
+  }, [mode, overflow, onFull, onDock, onMin]);
+  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    if (event.target instanceof Element && event.target.closest('button') !== null) return;
+    from.current = { y: event.clientY, id: event.pointerId };
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // jsdom (unit tests) and a pointer the browser no longer tracks both lack this — the window
+      // listener above still gets the `pointerup` either way.
+    }
+  };
+  return (
+    <div className="dock__handle" data-testid="decision-dock-handle" onPointerDown={onPointerDown}>
+      <span className="dock__grip" aria-hidden="true" />
+      <span className="dock__controls">
+        {mode === 'dock' && overflow && (
+          <button type="button" className="dock__ctl" data-testid="decision-expand" aria-label="Expand" onClick={onFull} />
+        )}
+        {mode === 'full' && <button type="button" className="dock__ctl dock__ctl-shrink" aria-label="Shrink" onClick={onDock} />}
+        <button type="button" className="dock__ctl dock__ctl-min" data-testid="decision-minimize" aria-label="Minimize" onClick={onMin} />
+      </span>
+    </div>
+  );
+}
+
+/**
+ * A question's host, in the question column: `live.css`'s `.live__prompt`. On a desktop or landscape table
+ * it opens at the remembered spot, and holds itself on the board as its sheet grows. `spot="staged"` (the
+ * pop-up under a card staged for its target) opens at its default whatever is remembered, since it belongs
+ * under that card; the host opens afresh whenever `spot` changes.
+ *
+ * In portrait (Settled 6) it docks instead — see the module section above — and the remembered-spot
+ * mechanism does not apply at all: a dock has one place, not a habit to remember.
  */
 export function QuestionHost({
   spot,
@@ -241,9 +428,10 @@ export function QuestionHost({
 }: HTMLAttributes<HTMLDivElement> & { spot?: string; keepClearOf?: readonly number[]; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const clearKey = keepClearOf === undefined ? '' : [...keepClearOf].sort((a, b) => a - b).join(',');
+  const portrait = usePortraitLayout();
   useLayoutEffect(() => {
     const frame = ref.current;
-    if (frame === null) return undefined;
+    if (frame === null || portrait) return undefined;
     if (spot === 'staged') {
       setOffset(frame, null);
       return undefined;
@@ -266,10 +454,38 @@ export function QuestionHost({
       grown.disconnect();
       added.disconnect();
     };
-  }, [spot, clearKey]);
+  }, [spot, clearKey, portrait]);
+  const { mode, overflow, label, setMode } = useDock(ref, portrait);
+  if (!portrait) {
+    return (
+      <div ref={ref} className="live__prompt" {...rest}>
+        {children}
+      </div>
+    );
+  }
+  // The empty-stack pass / an unforced resolve (`data-pass` — `LiveBoard.tsx`'s own `route === 'pass'`,
+  // already read the same way by `../inspect/index.ts`'s placement rule): the prototype's own
+  // `primaryAction` never makes a decision object for it either, and B's `action-primary` already
+  // mirrors this exact OK with the same press. Nothing here would say anything the action bar does
+  // not already say, so nothing here docks.
+  if ((rest as Record<string, unknown>)['data-pass'] === true) return null;
   return (
-    <div ref={ref} className="live__prompt" {...rest}>
-      {children}
+    // The wrapper carries the Test-ID contract's own identity (`decision-dock`, `data-mode`); the host
+    // inside keeps the testid its OWN caller gave it, unchanged — `pick-drawn` (`LiveBoard.tsx`) and
+    // every existing reader of `live-decision-host`/`live-selection-host`/… still finds it. Only this
+    // wrapper is portrait-only: the desktop return above never grows one.
+    <div className="dock" data-testid="decision-dock" data-mode={mode}>
+      <div ref={ref} className="live__prompt" {...rest}>
+        {mode !== 'min' && (
+          <DockHandle mode={mode} overflow={overflow} onFull={() => setMode('full')} onDock={() => setMode('dock')} onMin={() => setMode('min')} />
+        )}
+        {children}
+        {mode === 'min' && (
+          <button type="button" className="dock__pill" data-testid="decision-pill" onClick={() => setMode('dock')}>
+            <span>{label}</span>
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -284,6 +500,10 @@ export function installDialogMover(root: HTMLElement): () => void {
     if (event.button !== 0 || event.defaultPrevented || !(event.target instanceof Element)) return;
     const frame = event.target.closest<HTMLElement>(MOVABLE_DIALOG);
     if (frame === null || !root.contains(frame)) return;
+    // In portrait a question's host docks (Settled 6); its own handle swipes it between sizes, and a
+    // free drag would only fight that. A pile's view and the deck list still drag — portrait has no
+    // other place for either of them yet.
+    if (frame.matches(QUESTION) && document.documentElement.dataset.layout === 'portrait') return;
     const own = event.target.closest(OWN_PRESS);
     if (own !== null && frame.contains(own)) return;
     // A press on a scrollbar scrolls.
