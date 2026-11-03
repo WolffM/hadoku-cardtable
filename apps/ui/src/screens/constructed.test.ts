@@ -62,6 +62,7 @@ vi.mock('./pod/client.ts', async (importOriginal) => ({
 }));
 
 import type { DraftCard, GauntletView, RoomMode } from '@hadoku/shared';
+import { OPEN_ROOM_LOCKS } from '@hadoku/shared';
 import { parseDck } from '@hadoku/carddata/dck';
 import { BASIC_LAND_NAMES, deckColorsByName, mainDeckSize, manaValueOf } from '@hadoku/deck';
 import {
@@ -370,6 +371,20 @@ function stubServer(table: Table) {
    */
   /** The room's members. `p-alice` is the caller, and the leader by default. */
   const membersOf = () => table.members ?? [{ id: 'p-alice', name: 'user-alice' }];
+  /**
+   * `RoomView.locks`, as `room/lobby.ts`'s `roomLocks` answers it: a dealt pod freezes everything; a
+   * Ready (the table's, or a Gauntlet seat's, which is the same seat) or a game freezes what the room
+   * plays and its event, a game its pool and rules.
+   */
+  const locksOf = () => {
+    const g = gauntletOf(table);
+    const started = (table.draftStartedAt ?? null) !== null || ((table.pod as { phase?: string } | null | undefined)?.phase ?? 'lobby') !== 'lobby' ? 'draft-started' : null;
+    const inPlay = table.matchId !== null || (g.phase !== 'options' && g.phase !== 'done');
+    const ready = table.players.some((p) => p.ready) || g.ready.some(Boolean);
+    const plays = started ?? (ready || inPlay ? 'mode-locked' : null);
+    const playing = started ?? (inPlay ? 'mode-locked' : null);
+    return { gameType: plays, mode: plays, event: plays, format: playing, rules: playing };
+  };
   const roomRecord = (): Record<string, unknown> => ({
     id: ROOM,
     name: 'Friday night',
@@ -380,6 +395,7 @@ function stubServer(table: Table) {
     gameType: gameType(),
     format: table.format,
     settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, ...table.settings },
+    locks: locksOf(),
     ...(table.mode === undefined ? { mode: 'classic', modeOptions: {} } : table.mode === null ? { mode: null, modeOptions: null } : table.mode),
     // Caller-scoped, as `http/rooms.ts` serialises it: whether the leader is
     // this caller, and whether this caller is ready. `p-alice` is us.
@@ -1264,6 +1280,7 @@ describe('a room’s table', () => {
                   gameType: 'constructed-1v1' as const,
                   format: '2010-07-16',
                   settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked' as const, clock: 'auto' as const, pickTimer: { on: false, speed: 1 } },
+                  locks: { ...OPEN_ROOM_LOCKS },
                   mode: null,
                   modeOptions: null,
                   you: { id: 'p-alice', leader: true, ready: false },

@@ -13,6 +13,7 @@
  * `screens/lobby.test.ts` gives.
  */
 
+import { OPEN_ROOM_LOCKS } from '@hadoku/shared';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -53,6 +54,7 @@ const room = (over: Partial<RoomView> & { id: string; name: string }): RoomView 
   // are asserted in "the pool and the caller" below.
   format: '2011-02-13',
   settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 } },
+  locks: { ...OPEN_ROOM_LOCKS },
   mode: null,
   modeOptions: null,
   you: { id: 'http-a', leader: true, ready: false },

@@ -6,6 +6,7 @@
  * styles, the fonts, the leak counts, a match — is `e2e/embed.spec.ts`.
  */
 
+import { OPEN_ROOM_LOCKS } from '@hadoku/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
@@ -37,6 +38,7 @@ const ROOM: RoomView = {
   gameType: 'constructed-1v1',
   format: 'unavailable',
   settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 } },
+  locks: { ...OPEN_ROOM_LOCKS },
   mode: null,
   modeOptions: null,
   you: { id: 'http-a', leader: true, ready: false },

@@ -11,7 +11,17 @@
       "tournament": false,
       "tournamentDecks": "locked",
       "clock": "auto",
-      "pickTimer": { "on": false, "speed": 1 }
+      "pickTimer": {
+        "on": false,
+        "speed": 1
+      }
+    },
+    "locks": {
+      "gameType": null,
+      "mode": null,
+      "event": null,
+      "format": null,
+      "rules": null
     },
     "mode": "classic",
     "modeOptions": {},
@@ -77,7 +87,17 @@
       "tournament": false,
       "tournamentDecks": "locked",
       "clock": "auto",
-      "pickTimer": { "on": false, "speed": 1 }
+      "pickTimer": {
+        "on": false,
+        "speed": 1
+      }
+    },
+    "locks": {
+      "gameType": null,
+      "mode": null,
+      "event": null,
+      "format": null,
+      "rules": null
     },
     "mode": null,
     "modeOptions": null,
@@ -147,7 +167,11 @@
           }
         ]
       },
-      "roundNames": ["mtgo-vintage-cube-2025-12", "mtgo-vintage-cube-2025-12", "mtgo-vintage-cube-2025-12"],
+      "roundNames": [
+        "mtgo-vintage-cube-2025-12",
+        "mtgo-vintage-cube-2025-12",
+        "mtgo-vintage-cube-2025-12"
+      ],
       "verdict": null
     },
     "ai": {

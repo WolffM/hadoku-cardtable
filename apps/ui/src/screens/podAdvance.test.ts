@@ -264,12 +264,20 @@ describe('the pod names its spectators', () => {
   const spectated = (phase: PodView['phase']) => ({ ...ctxOf(pod({ phase, round: 1, drafters: ['u-alice', 'u-bob'] })), members, leaderId: 'u-carol' });
   const named = () => screen.getAllByTestId('pod-spectator').map((r) => r.dataset['member']);
 
-  it.each(['drafting', 'rounds'] as const)('while %s: each member who is not a drafter, the owner with the crown', (phase) => {
+  it('while drafting: each member who is not a drafter, the owner with the crown', () => {
     const { draft, room } = mountPod();
-    room.read(spectated(phase));
-    if (phase === 'drafting') draft.send(MID);
+    room.read(spectated('drafting'));
+    draft.send(MID);
     expect(named()).toEqual(['u-carol']);
     expect(screen.getByTestId('pod-spectator').querySelector('.tables__crown'), 'the room owner wears the crown').not.toBeNull();
+  });
+
+  // The operator, 2026-11-02: "why is my name with a crown showing below the matches?" The chat says who is in the room.
+  it('names nobody under the bracket once the rounds are on', () => {
+    const { room } = mountPod();
+    room.read(spectated('rounds'));
+    expect(screen.getAllByTestId('pod-bracket-round').length).toBeGreaterThan(0);
+    expect(screen.queryByTestId('pod-spectators')).toBeNull();
   });
 
   it('draws nothing while nobody is watching', () => {

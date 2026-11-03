@@ -270,7 +270,6 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
           myMemberId={myMemberId}
           nameOf={nameOf}
           avatarOf={avatarOf}
-          members={ctx!.members}
           leaderId={ctx!.leaderId}
         >
           {ctx!.pod!.phase === 'building' && (

@@ -1,0 +1,284 @@
+/*
+ * The podium (`PodPodium.tsx`). Colour from `@wolffm/themes` and our own tokens only: the medals
+ * (`--medal-*`), the confetti in the colour pie (`--c-*`). Reduced motion: still.
+ */
+
+.podium {
+  position: relative;
+  height: 460px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius);
+  background: var(--color-bg-card);
+}
+
+.podium__stands {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  gap: 14px;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 12px;
+}
+
+.podium__stand {
+  --medal: var(--medal-silver);
+  --block: 150px;
+  --face: 92px;
+
+  display: flex;
+  flex: 0 1 220px;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+
+.podium__stand[data-place='1'] {
+  --medal: var(--medal-gold);
+  --block: 196px;
+  --face: 116px;
+}
+
+.podium__stand[data-place='3'] {
+  --medal: var(--medal-bronze);
+  --block: 108px;
+  --face: 84px;
+}
+
+.podium__figure {
+  animation: podium-drop 0.7s var(--drop-at, 1.15s) both;
+}
+
+.podium__stand[data-place='1'] .podium__figure {
+  --drop-at: 0.9s;
+
+  animation:
+    podium-drop 0.7s 0.9s both,
+    podium-bob 2.6s ease-in-out 1.8s infinite;
+}
+
+.podium__stand[data-place='3'] .podium__figure {
+  --drop-at: 1.35s;
+}
+
+.podium__crown {
+  display: block;
+  width: 44px;
+  height: 30px;
+  margin: 0 auto 4px;
+  fill: var(--medal-gold);
+  stroke: color-mix(in srgb, var(--medal-gold) 60%, var(--color-text));
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.podium__face {
+  display: grid;
+  box-sizing: border-box;
+  width: var(--face);
+  height: var(--face);
+  place-items: center;
+  border: 3px solid var(--medal);
+  border-radius: 8px;
+  background: var(--color-bg-alt);
+  image-rendering: pixelated;
+}
+
+.podium__face--none {
+  color: var(--color-text-secondary);
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+/* The winner's glow: a still shadow on a halo whose opacity breathes, so only the compositor works. */
+.podium__frame {
+  position: relative;
+  display: block;
+}
+
+.podium__stand[data-place='1'] .podium__frame::after {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  box-shadow: 0 0 36px 6px color-mix(in srgb, var(--medal-gold) 35%, transparent);
+  opacity: 0;
+  animation: podium-glow 2.6s ease-in-out 1.8s infinite;
+  content: '';
+  pointer-events: none;
+}
+
+.podium__name {
+  max-width: 100%;
+  margin-top: 10px;
+  overflow: hidden;
+  font-size: 1.15rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.podium__stand[data-place='1'] .podium__name {
+  font-size: 1.4rem;
+}
+
+.podium__stand[data-mine] .podium__name {
+  color: var(--accent-ink);
+}
+
+.podium__line {
+  margin: 2px 0 10px;
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.podium__block {
+  position: relative;
+  display: grid;
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--block);
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--color-border-light);
+  border-top: 8px solid var(--medal);
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  background: var(--color-bg-alt);
+  transform-origin: bottom;
+  animation: podium-rise 0.6s cubic-bezier(0.3, 0.7, 0.3, 1) var(--rise-at, 0s) both;
+}
+
+.podium__stand[data-place='2'] .podium__block {
+  --rise-at: 0.25s;
+}
+
+.podium__stand[data-place='3'] .podium__block {
+  --rise-at: 0.45s;
+}
+
+.podium__number {
+  color: var(--medal);
+  font-size: 4rem;
+  font-weight: 800;
+  opacity: 0.9;
+}
+
+.podium__stand[data-place='1'] .podium__number {
+  font-size: 5.2rem;
+}
+
+.podium__confetti > span {
+  position: absolute;
+  top: 0;
+  border-radius: 1px;
+  opacity: 0;
+  animation-name: podium-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.podium__confetti > [data-mana='w'] { background: var(--c-white); }
+.podium__confetti > [data-mana='u'] { background: var(--c-blue); }
+.podium__confetti > [data-mana='b'] { background: var(--c-black); }
+.podium__confetti > [data-mana='r'] { background: var(--c-red); }
+.podium__confetti > [data-mana='g'] { background: var(--c-green); }
+
+.podium__sparkle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: var(--medal-gold);
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  opacity: 0;
+  animation-name: podium-twinkle;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes podium-rise {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
+@keyframes podium-drop {
+  0% { opacity: 0; transform: translateY(-40px); }
+  70% { opacity: 1; transform: translateY(4px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes podium-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes podium-glow {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
+@keyframes podium-fall {
+  0% { opacity: 0; transform: translateY(-30px) rotate(0deg); }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(420px) rotate(540deg); }
+}
+
+@keyframes podium-twinkle {
+  0%, 100% { opacity: 0; transform: scale(0.4); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@media (max-width: 560px) {
+  .podium {
+    height: 360px;
+  }
+
+  .podium__stand {
+    --block: 120px;
+    --face: 64px;
+  }
+
+  .podium__stand[data-place='1'] {
+    --block: 160px;
+    --face: 84px;
+  }
+
+  .podium__stand[data-place='3'] {
+    --block: 84px;
+    --face: 56px;
+  }
+
+  .podium__name {
+    font-size: 0.95rem;
+  }
+
+  .podium__stand[data-place='1'] .podium__name {
+    font-size: 1.1rem;
+  }
+
+  .podium__number {
+    font-size: 2.6rem;
+  }
+
+  .podium__stand[data-place='1'] .podium__number {
+    font-size: 3.4rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .podium__figure,
+  .podium__stand[data-place='1'] .podium__figure,
+  .podium__block,
+  .podium__stand[data-place='1'] .podium__frame::after {
+    animation: none;
+  }
+
+  .podium__confetti,
+  .podium__sparkle {
+    display: none;
+  }
+}

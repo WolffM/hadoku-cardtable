@@ -32,7 +32,7 @@ import { loadTablesLibrary } from '../http/library.ts';
 import { createDraftRooms, DEFAULT_PLAN, singlePoolResolver, stateOf } from './draftRooms.ts';
 import { loadPool } from './pool.ts';
 import { roundNamesOf } from './plan.ts';
-import { AVATAR_ID_MAX, CLIENT_MODES, DEFAULT_CLIENT_MODE, POD_SEATS, type ClientMode, type GauntletPlayer, type PoolVerdict, type Tournament } from '@hadoku/shared';
+import { AVATAR_ID_MAX, CLIENT_MODES, DEFAULT_CLIENT_MODE, POD_SEATS, ROOM_CONTROLS, type ClientMode, type RoomLocks, type GauntletPlayer, type PoolVerdict, type Tournament } from '@hadoku/shared';
 import {
 	AVATAR_POOL,
 	UNNAMED,
@@ -4246,5 +4246,70 @@ describe('Leader tools: DQ a player, reset a game', () => {
 		expect(lobby.setTableMatch(id, alices, 'm-a1')).toBe(true);
 		expect(lobby.resetGame(id, ALICE.id, alices)).toEqual({ ok: true, matchId: 'm-a1' });
 		expect(lobby.resetGame(id, ALICE.id, 't-00000000')).toEqual({ ok: false, reason: 'no-such-table' });
+	});
+});
+
+/**
+ * The operator, 2026-11-02: *"why is the format selector and year selector clickable for an inprogress
+ * tournametn? … clicking it produces this error, why was it even possible to click?"* One answer for a
+ * room's controls, `roomLocks`: the room view carries it (what the screen offers) and every setter
+ * refuses with it (what the server takes). Here they are held to each other in every state.
+ */
+describe('roomLocks: what the view says is locked is exactly what the setters refuse', () => {
+	const tries = (lobby: Lobby, id: string) => ({
+		gameType: () => lobby.setGameType(id, ALICE.id, 'draft'),
+		mode: () => lobby.setMode(id, ALICE.id, { mode: 'gauntlet', modeOptions: {} }),
+		event: () => lobby.setSettings(id, ALICE.id, { tournament: !lobby.get(id)!.settings.tournament }),
+		format: () => lobby.setFormat(id, ALICE.id, lobby.get(id)!.format === 'not-this-one' ? 'nor-this' : 'not-this-one'),
+		rules: () => lobby.setSettings(id, ALICE.id, { handSmoothing: !lobby.get(id)!.settings.handSmoothing }),
+	});
+
+	async function each(state: (lobby: Lobby) => Promise<string>, expected: RoomLocks): Promise<void> {
+		for (const control of ROOM_CONTROLS) {
+			const lobby = await openLobby({ dir: await tempDir() });
+			const id = await state(lobby);
+			expect(lobby.get(id)!.locks[control], `${control}: the view`).toBe(expected[control]);
+			const result = tries(lobby, id)[control]();
+			expect(result.ok ? null : result.reason, `${control}: the setter`).toBe(expected[control]);
+		}
+	}
+
+	async function classic(lobby: Lobby): Promise<string> {
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin', mode: { mode: 'classic', modeOptions: {} } });
+		if (!made.ok) throw new Error(made.reason);
+		expect(lobby.join(made.room.id, BOB).ok).toBe(true);
+		return made.room.id;
+	}
+
+	it('a fresh room: everything open', async () => {
+		await each(classic, { gameType: null, mode: null, event: null, format: null, rules: null });
+	});
+
+	it('a game in play: what the room plays, its event, pool and rules all wait for it', async () => {
+		await each(
+			async (lobby) => {
+				const id = await classic(lobby);
+				expect(lobby.setTableMatch(id, lobby.get(id)!.tables[0]!.id, 'm-locks')).toBe(true);
+				return id;
+			},
+			{ gameType: 'mode-locked', mode: 'mode-locked', event: 'mode-locked', format: 'mode-locked', rules: 'mode-locked' },
+		);
+	});
+
+	it('a tournament in its rounds with no game running: nothing changes, the mode included', async () => {
+		await each(
+			async (lobby) => {
+				const id = await classic(lobby);
+				expect(lobby.setSettings(id, ALICE.id, { tournament: true }).ok).toBe(true);
+				standAll(lobby, id);
+				expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+				expect(lobby.aiPod(id, ALICE.id, 1, true).ok).toBe(true);
+				lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
+				expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
+				expect(lobby.get(id)!.tables.every((t) => t.matchId === null), 'no game running').toBe(true);
+				return id;
+			},
+			{ gameType: 'draft-started', mode: 'draft-started', event: 'draft-started', format: 'draft-started', rules: 'draft-started' },
+		);
 	});
 });

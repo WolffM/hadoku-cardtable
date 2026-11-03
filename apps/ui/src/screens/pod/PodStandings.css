@@ -1,53 +1,77 @@
 /*
- * The pod's standings — wave 72 §R.2. Colour from `@wolffm/themes` only,
- * one discipline across the pod screens.
+ * The pod's standings (`PodStandings.tsx`): rank, face and name, record, points, and behind
+ * Tie-breakers their columns. Colour from `@wolffm/themes` only, one discipline across the pod screens.
  *
- * Seven columns (#, Player, Points, four spelled-out tiebreak headers) never fit the standings
- * card's own width (`PodScreen.css`'s `.pod__board`, `minmax(280px, 420px)`) — the operator found
- * the last header cut at 1440 and every column running off the card at phone width. `__wrap` owns
- * the horizontal scroll so it stays inside this card (never the page); `white-space: nowrap` on
- * every cell keeps a header from wrapping into something that can read as cut off; the rank and
- * player columns are pinned (`position: sticky`) so a scrolled row is still legible as whose it
- * is, with an opaque background each so a pinned cell never shows another column's text through it.
+ * `__wrap` owns any sideways scroll so it stays inside this box, never the page.
  */
 
 .pod-standings__wrap {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
   min-width: 0;
   max-width: 100%;
   overflow-x: auto;
 }
 
 .pod-standings {
-  width: max-content;
+  min-width: min(100%, 520px);
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
 }
 
 .pod-standings th,
 .pod-standings td {
-  padding: 4px 8px;
+  padding: 6px 10px;
   text-align: left;
   white-space: nowrap;
   border-bottom: 1px solid var(--color-border-light);
 }
 
-/* The rank and player columns, pinned while the tiebreak columns scroll underneath them. */
-.pod-standings th:first-child,
-.pod-standings td:first-child {
-  position: sticky;
-  left: 0;
-  z-index: 2;
-  box-sizing: border-box;
-  width: 32px;
-  background: var(--color-bg-card);
+.pod-standings th {
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.pod-standings th:nth-child(2),
-.pod-standings td:nth-child(2) {
-  position: sticky;
-  left: 32px;
-  z-index: 1;
-  background: var(--color-bg-card);
+.pod-standings__rank,
+.pod-standings__num {
+  font-variant-numeric: tabular-nums;
+}
+
+.pod-standings__rank {
+  width: 32px;
+  color: var(--color-text-secondary);
+}
+
+.pod-standings__who {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: center;
+}
+
+.pod-standings__face {
+  display: grid;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 4px;
+  background: var(--color-bg-alt);
+  image-rendering: pixelated;
+}
+
+.pod-standings__face--none {
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.pod-standings__name {
+  font-weight: 500;
 }
 
 .pod-standings tr[data-mine] td {
@@ -63,15 +87,42 @@
   text-underline-offset: 3px;
 }
 
+.pod-standings__more {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.pod-standings__more[aria-expanded='true'] {
+  background: var(--color-bg-hover);
+}
+
 /* An entrant out of the rounds: still ranked on their record, dimmed and marked. */
 .pod-standings tr[data-dropped] td {
   color: var(--color-text-secondary);
 }
 
 .pod-standings__dropped {
-  margin-left: 8px;
   font-size: 0.75rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--danger);
+}
+
+@media (max-width: 560px) {
+  .pod-standings {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .pod-standings th,
+  .pod-standings td {
+    padding: 6px 5px;
+  }
 }

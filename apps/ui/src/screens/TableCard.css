@@ -1,7 +1,6 @@
 /*
- * A table's game (`TableCard.tsx`). Full: a header with the game and its phase, two halves with the
- * score between them, and the way in at the foot. Compact: one strip, each player either side of the
- * score. Colour from `@wolffm/themes` only, as the pod screens.
+ * A table's game (`TableCard.tsx`): a header with the game and its phase, two halves with the score
+ * between them, and the way in at the foot. Colour from `@wolffm/themes` only, as the pod screens.
  */
 
 .table-card {
@@ -22,10 +21,6 @@
 
 .table-card--full {
   max-width: 640px;
-}
-
-.table-card--compact {
-  width: 340px;
 }
 
 .table-card__head {
@@ -297,7 +292,7 @@
   padding: 0 12px 8px;
 }
 
-/* A compact card's ways to resolve, behind one button at the strip's end; the menu opens under it. */
+/* The ways to resolve behind one button (a bracket's live match, `tableResolve.tsx`); the menu opens under it. */
 .table-card__more {
   position: relative;
   z-index: 1;
@@ -319,11 +314,6 @@
   color: var(--color-text);
 }
 
-.table-card__strip .table-card__more {
-  min-width: 32px;
-  min-height: 32px;
-}
-
 .table-card__menu {
   position: relative;
   z-index: 1;
@@ -337,122 +327,4 @@
 .table-card__menu .table-card__resolve {
   margin-left: 0;
   text-align: left;
-}
-
-/* ── compact: the match strip ── */
-
-.table-card__strip {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) 32px;
-  gap: 8px;
-  align-items: center;
-  padding: 6px 4px 6px 10px;
-}
-
-/* A decided table steps back: flat, its loser dimmed. */
-.table-card--compact[data-phase='done'] {
-  background: transparent;
-}
-
-.table-card__player {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  min-width: 0;
-}
-
-.table-card__player[data-side='right'] {
-  flex-direction: row-reverse;
-  text-align: right;
-}
-
-.table-card__player .table-card__who {
-  display: grid;
-  gap: 2px;
-  padding: 0;
-}
-
-.table-card__player[data-side='right'] .table-card__who {
-  justify-items: end;
-}
-
-.table-card--compact .table-card__face {
-  width: 28px;
-  height: 28px;
-}
-
-.table-card__player[data-lost] {
-  opacity: 0.55;
-}
-
-.table-card--compact .table-card__score {
-  min-width: 52px;
-  padding: 0;
-  border: 0;
-}
-
-.table-card--compact .table-card__wins {
-  font-size: 1.15rem;
-  font-weight: 800;
-  line-height: 1.1;
-}
-
-.table-card__state {
-  display: inline-flex;
-  gap: 5px;
-  align-items: center;
-  color: var(--color-text-secondary);
-  font-size: 0.7rem;
-  white-space: nowrap;
-}
-
-.table-card__state[data-live]::before {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-primary);
-  box-shadow: 0 0 0 3px var(--color-primary-bg);
-  content: '';
-}
-
-/* My own table's way in: a chip where the state goes. */
-.table-card__state .table-card__go {
-  min-height: 20px;
-  padding: 0 10px;
-  border-radius: 999px;
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-.table-card__state:has(.table-card__go)::before {
-  content: none;
-}
-
-/*
- * Anybody else's table: the whole card is the way in. A SIBLING of `.table-card__strip`
- * (`TableCard.tsx`), never its child: the strip is a 4-column grid, and this used to be a fifth
- * child in it — explicitly placed at `grid-row: 1; grid-column: 1` — which the operator found
- * pushed the other four aside ("another table's strip draws its left side empty and the score on
- * top of the opponent's name").
- *
- * `position: absolute; inset: 0` covers the card directly (no `::after` indirection needed here):
- * it is a sibling of the strip, so it is never a grid item in the first place, and being
- * out-of-flow it adds no height of its own — an ordinary 1px flow sibling here was ANOTHER way to
- * grow the card: `room-hub.spec.ts` clicks a fixed point (20, 60) on the strength of "the link
- * covers it edge to edge", which a taller card quietly moved out from under. `font-size: 0` hides
- * the label text (still read by a screen reader; this is a purely visual change), since the box is
- * now the whole card rather than a 1×1 corner `overflow: hidden` used to crop it to.
- */
-.table-card--compact > .table-card__go {
-  position: absolute;
-  inset: 0;
-  min-height: 0;
-  padding: 0;
-  overflow: hidden;
-  background: none;
-  font-size: 0;
-}
-
-.table-card__more-slot {
-  width: 32px;
 }

@@ -1,112 +1,339 @@
 /*
- * The pod's rounds, one column each (`PodBracket.tsx`). Colour from
+ * The Swiss bracket (`PodBracket.tsx`), placed by `swiss.ts`: every card, chip and line absolutely
+ * positioned inside one field that scrolls sideways in its own box, never the page. Colour from
  * `@wolffm/themes` only, one discipline across the pod screens.
  */
 
-.pod-bracket {
-  display: flex;
-  gap: 20px;
-  align-items: flex-start;
+.swiss {
+  max-width: 100%;
   overflow-x: auto;
-  padding-bottom: 4px;
+  padding-bottom: 6px;
 }
 
-.pod-bracket__round {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  gap: 8px;
+.swiss__field {
+  position: relative;
 }
 
-.pod-bracket__head {
-  margin: 0;
+.swiss__column {
+  position: absolute;
+}
+
+.swiss__head {
   color: var(--color-text-secondary);
   font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-weight: 700;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
-.pod-bracket__round--now .pod-bracket__head {
+.swiss__column[data-state='now'] .swiss__head {
   color: var(--color-text);
   text-decoration: underline 2px var(--color-primary);
-  text-underline-offset: 3px;
+  text-underline-offset: 4px;
 }
 
-.pod-bracket__list {
+.swiss__column[data-state='next'] .swiss__head {
+  opacity: 0.6;
+}
+
+/* A round not paired yet. */
+.swiss__pending {
+  position: absolute;
+  inset: 34px 0 0;
+  border: 1px dashed var(--color-border-light);
+  border-radius: var(--radius);
+  opacity: 0.6;
+}
+
+.swiss__lines {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.swiss__edge {
+  fill: none;
+  stroke: var(--color-text-secondary);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  opacity: 0.4;
+  transition: opacity 0.2s, stroke 0.2s;
+}
+
+.swiss__edge[data-step='loss'] {
+  opacity: 0.22;
+}
+
+.swiss__edge[data-on] {
+  stroke: var(--color-primary);
+  stroke-width: 3;
+  opacity: 1;
+}
+
+.swiss__chip {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  height: 24px;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+}
+
+/* ── a match ── */
+
+.swiss__card {
+  position: absolute;
+  z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius);
+  background: var(--color-bg-card);
+  transition: opacity 0.2s, border-color 0.2s;
 }
 
-.pod-bracket__face {
+.swiss__card[data-focus],
+.swiss__final[data-focus] {
+  border-color: var(--color-primary);
+}
+
+.swiss__card[data-dim],
+.swiss__final[data-dim] {
+  opacity: 0.35;
+}
+
+.swiss__card[data-live] {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary-bg);
+}
+
+.swiss__row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+}
+
+button.swiss__row {
+  cursor: pointer;
+}
+
+.swiss__row + .swiss__row {
+  border-top: 1px solid var(--color-border-light);
+}
+
+.swiss__card:not(.swiss__card--bye) > .swiss__row:first-child {
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.swiss__row[data-focus] {
+  background: var(--color-primary-bg);
+}
+
+.swiss__row[data-focus] .swiss__name {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.swiss__row[data-lost] .swiss__name {
+  color: var(--color-text-secondary);
+}
+
+.swiss__row:focus-visible,
+.swiss__final:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.swiss__face {
   display: grid;
-  width: 32px;
-  height: 32px;
+  flex: none;
+  width: 24px;
+  height: 24px;
   place-items: center;
-  border-radius: 6px;
+  border-radius: 4px;
   background: var(--color-bg-alt);
   image-rendering: pixelated;
 }
 
-.pod-bracket__face--none {
+.swiss__face--none {
   color: var(--color-text-secondary);
+  font-size: 0.75rem;
   font-weight: 600;
 }
 
-.pod-bracket__name {
+.swiss__name {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
-  font-weight: 500;
+  font-size: 0.95rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.pod-bracket__bye {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  width: 240px;
-  padding: 7px 10px;
-  border: 1px dashed var(--color-border-light);
-  border-radius: var(--radius);
+.swiss__score {
   color: var(--color-text-secondary);
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
 }
 
-.pod-bracket__tag {
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
+.swiss__row[data-won] .swiss__score {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.swiss__tag {
+  color: var(--color-text-secondary);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-/* Finished rounds: smaller and dimmed. A card holds card art, which no filter may reach. */
-.pod-bracket__round--past .table-card {
-  width: 220px;
-  opacity: 0.55;
+.swiss__card--bye {
+  border-style: dashed;
+  background: transparent;
 }
 
-.pod-bracket__round--past .pod-bracket__bye {
-  width: 220px;
-  opacity: 0.55;
-  filter: grayscale(0.85);
-}
-
-.pod-bracket__round--past .pod-bracket__bye {
+/* A live match's foot: the way in (its hit area the whole card), the game, the ⋯. */
+.swiss__foot {
+  display: flex;
   gap: 8px;
-  padding: 4px 8px;
+  align-items: center;
+  height: 28px;
+  padding: 0 4px 0 10px;
+  border-top: 1px solid var(--color-border-light);
 }
 
-.pod-bracket__round--past .pod-bracket__face {
-  width: 22px;
-  height: 22px;
-  border-radius: 4px;
+.swiss__go {
+  color: var(--accent-ink);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none;
 }
 
-/* Not paired until the round before it ends. */
-.pod-bracket__pending {
-  width: 200px;
-  height: 86px;
-  border: 1px dashed var(--color-border-light);
+.swiss__go::after {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  content: '';
+}
+
+/* Lit only while pressed or keyboard-focused, never on hover (the operator, 2026-10-23: "can we have that only happen on click?"). */
+.swiss__card:has(.swiss__go:active),
+.swiss__card:has(.swiss__go:focus-visible) {
+  background: var(--color-bg-hover);
+}
+
+.swiss__go:focus-visible {
+  outline: none;
+}
+
+.swiss__game {
+  margin-left: auto;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+}
+
+.swiss__foot .table-card__more {
+  min-width: 28px;
+  min-height: 24px;
+  margin-left: 0;
+}
+
+/* A card whose menu or confirm is open sits over its neighbours: the next card down is drawn later at
+   the same level, and its way in would take the press meant for the menu. */
+.swiss__card:has(.swiss__pop:not(:empty)) {
+  z-index: 4;
+}
+
+/* The menu and the confirm open over what is under the card, not inside its fixed place. */
+.swiss__pop {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  z-index: 3;
+}
+
+.swiss__pop:not(:empty) {
+  border: 1px solid var(--color-border-light);
   border-radius: var(--radius);
+  background: var(--color-bg-card);
+  box-shadow: var(--shadow);
+}
+
+/* ── the final column ── */
+
+.swiss__final {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border: 1px solid var(--color-border-light);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  background: var(--color-bg-card);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: opacity 0.2s, border-color 0.2s;
+}
+
+.swiss__final[data-place='1'] {
+  border-left-color: var(--medal-gold);
+}
+
+.swiss__final[data-place='2'] {
+  border-left-color: var(--medal-silver);
+}
+
+.swiss__final[data-place='3'] {
+  border-left-color: var(--medal-bronze);
+}
+
+.swiss__final[data-focus] {
+  background: var(--color-primary-bg);
+}
+
+.swiss__place,
+.swiss__pts {
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.swiss__place {
+  width: 24px;
+}
+
+.swiss__final .swiss__face {
+  width: 26px;
+  height: 26px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .swiss__card,
+  .swiss__final,
+  .swiss__edge {
+    transition: none;
+  }
 }

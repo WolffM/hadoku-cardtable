@@ -166,7 +166,7 @@ import { LIBRARY_CARD_COSTS, LIBRARY_DECK_STYLES, type DeckStyle } from '@hadoku
  * `RoomTable` (a seat's whole state at one table), and the two would clash by
  * name if both were imported bare into this file.
  */
-import { DEFAULT_ROOM_SETTINGS } from '@hadoku/shared';
+import { DEFAULT_ROOM_SETTINGS, OPEN_ROOM_LOCKS } from '@hadoku/shared';
 import { clockOn, FREE_PICK, type ConstructedMode, type GauntletOptions as GauntletModeOptions, type GauntletView, type PodView, type RandomOptions, type RoomTable as SharedRoomTable, type TournamentDecks } from '@hadoku/shared';
 
 import { navigate, routeHash } from './route.ts';
@@ -1531,25 +1531,26 @@ function RoomTableScreen({
   const [gauntlet, setGauntlet] = useState<GauntletView | null>(null);
   /** The Gauntlet's reads and this screen's own moves, latest-wins (`../rooms/latest.ts`). */
   const [gauntletReads] = useState(latestReads);
-  /** The Gauntlet's seats have stopped being the table's to arrange: readied, or drawn and not yet done. */
-  const gauntletUnderway = gauntlet !== null && gauntlet.phase !== 'done' && (gauntlet.phase !== 'options' || gauntlet.ready.some(Boolean));
   /** Whether a seat is ready: the Gauntlet keeps its own readiness, every other mode the table's. */
   const readyAt = (seat: number): boolean => (mode === 'gauntlet' ? gauntlet?.ready[seat] === true : players[seat]?.ready === true);
   /**
-   * The mode is the leader's to change until somebody readies or the game is
-   * under way (ruling 8); the server's `mode-locked` is the same rule, and the
-   * refusal it answers a late press with is shown like any other. Tournament
-   * and Decks lock the same moment: "both are locked once the seats lock"
-   * (the plan's Design section) — once the pod has left `lobby`.
+   * What the leader may change now, as the server answers it (`RoomView.locks`: the same rule its
+   * setters refuse with), so nothing on this screen is offered and then refused (the operator,
+   * 2026-11-02: *"why was it even possible to click?"*). My own start on its way holds them too, a
+   * moment before the server's answer says so.
    */
-  const modeLocked = underway || players.some((p) => p.ready) || gauntletUnderway || (pod !== null && pod.phase !== 'lobby');
+  const locks = view?.locks ?? OPEN_ROOM_LOCKS;
+  /** The mode and its options, with what the room plays: frozen by a Ready, a game, or a dealt pod. */
+  const modeLocked = locks.mode !== null || underway;
+  /** Tournament and its decks. */
+  const eventLocked = locks.event !== null || underway;
+  /** The pool, and the match rules: frozen by a game or a dealt pod. */
+  const formatLocked = locks.format !== null || underway;
+  const rulesLocked = locks.rules !== null || underway;
   /** What the room plays: Constructed or Draft, as the create form named it. */
   const gameType: GameType = draftRoom ? 'draft' : 'constructed-1v1';
-  /**
-   * The type is the leader's when the mode is (the server's `mode-locked` again);
-   * a draft room's until its deal is asked for, after which it is the pod's.
-   */
-  const typeLocked = draftRoom ? dealing : modeLocked;
+  /** A draft room's type is the pod's once its deal is asked for. */
+  const typeLocked = locks.gameType !== null || (draftRoom ? dealing : underway);
   /**
    * Tournament: am I seated in the POD (`pod.seats`), never the 1v1 table —
    * a real run, 2026-10-22 (room r-228e5e39987e), is what finding Random
@@ -2430,12 +2431,12 @@ function RoomTableScreen({
           {!streamed && resolved && !draftRoom && table !== null && mode !== null && (
             <MatchRules
               leader={iAmLeader}
-              disabled={underway}
+              disabled={rulesLocked}
               handSmoothing={mode === 'classic' ? { on: handSmoothing, onToggle: toggleHandSmoothing } : undefined}
               freePick={mode === 'classic' && loaded !== null ? { on: freePick, onToggle: () => toggleFreePick(loaded.formats) } : undefined}
               lockDecks={mode === 'random' && randomOptions !== null ? { on: randomOptions.lock === true, locked: modeLocked, onToggle: toggleRandomLock } : undefined}
               // A Gauntlet's decks are each table's own draw: it has none to lock (the server reads it per-round).
-              tournamentDecks={tournament && mode !== 'gauntlet' ? { value: tournamentDecks, locked: modeLocked, onChange: chooseTournamentDecks } : undefined}
+              tournamentDecks={tournament && mode !== 'gauntlet' ? { value: tournamentDecks, locked: eventLocked, onChange: chooseTournamentDecks } : undefined}
               clock={{ on: clock, onToggle: toggleClock }}
             />
           )}
@@ -2551,7 +2552,7 @@ function RoomTableScreen({
                 gameType={gameType}
                 typeDisabled={!iAmLeader || typeLocked}
                 onGameType={chooseGameType}
-                event={mode === null ? undefined : { tournament, disabled: !iAmLeader || modeLocked, onChange: toggleTournament }}
+                event={mode === null ? undefined : { tournament, disabled: !iAmLeader || eventLocked, onChange: toggleTournament }}
               />
               <div className="lobby__modeline">
                 <ModeRow mode={mode} disabled={!iAmLeader || modeLocked} onChoose={chooseMode} />
@@ -2560,7 +2561,7 @@ function RoomTableScreen({
                     formats={loaded.formats}
                     poolId={poolId}
                     leader={iAmLeader}
-                    disabled={underway}
+                    disabled={formatLocked}
                     onPool={choosePool}
                     browse={browse}
                     onBrowse={setBrowse}
@@ -2655,7 +2656,6 @@ function RoomTableScreen({
                   myMemberId={view?.you.id ?? null}
                   nameOf={tNameOf}
                   avatarOf={tAvatarOf}
-                  members={members}
                   leaderId={view?.leader ?? ''}
                 />
               )
@@ -2792,7 +2792,6 @@ function RoomTableScreen({
             ) : spectating ? null : mySideboarding && players.some((p) => p.you) ? (
               // Between games, the room's table is its card (`TableCard.tsx`), the way back to the table page's sideboard.
               <TableCard
-                size="full"
                 testId="room-table-card"
                 tableId={myTable.id}
                 players={[myTable.players[0]?.memberId ?? '', myTable.players[1]?.memberId ?? POD_AI]}

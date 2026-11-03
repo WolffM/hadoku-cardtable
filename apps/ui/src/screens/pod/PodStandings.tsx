@@ -1,21 +1,23 @@
 /*
- * The pod's standings — wave 72 §R.2. Drawn beside the bracket
+ * The pod's standings: rank, face, name, record, points (the operator, 2026-11-02: *"why does the score
+ * standings view have all this useless tiebreaker info in it?"*). Drawn under the bracket
  * (`PodBracket.tsx`) throughout `rounds` and once the pod reaches `done`.
  *
- * `rows` is already ranked (`PodStandingsRow.rank`, 1-based and shared by a
- * tie on every key — the wire contract's own ordering, `@hadoku/draft`'s
- * tiebreak order), so this never re-sorts; it only resolves each row's `id`
- * (a member id) to a display name through `nameOf`, the same indirection
- * `PodSeats`/`PodBracket` use rather than carrying a name on the row itself.
+ * `rows` is already ranked (`PodStandingsRow.rank`, 1-based and shared by a tie on every key — the
+ * server's own ordering, `@hadoku/draft`'s tiebreak order), so this never re-sorts; it resolves each
+ * row's `id` through `nameOf`/`avatarOf`, the same indirection the bracket uses.
  *
- * Its columns are the ranking's keys, in order (the operator, 2026-10-23: *"how many tie-breakers do we
- * have? also that does need to be visible somewhere"*, then a fifth, the fastest median game), spelled
- * out (2026-10-19: *"i hate the 3 letter acroynms in the table"*). Where two rows are level on points,
- * the cell of the key that separated them is marked on both (`decidedBy`, the server's).
+ * The tie-breakers stay one press away (2026-10-23: *"that does need to be visible somewhere"*; the
+ * operator chose this over notes on the tied rows, 2026-11-02): Tie-breakers opens their columns, and on
+ * rows level on points the cell of the key that separated them is marked on both (`decidedBy`, the
+ * server's).
  */
 
-import type { PodTiebreak } from '@hadoku/shared';
+import { useState } from 'react';
+import type { PodMatchResult, PodTiebreak } from '@hadoku/shared';
 
+import { Avatar } from '../../components/Avatar.tsx';
+import { records, recordText } from './swiss.ts';
 import './PodStandings.css';
 
 export interface PodStandingsRowLike {
@@ -31,7 +33,10 @@ export interface PodStandingsRowLike {
 
 export interface PodStandingsProps {
   rows: PodStandingsRowLike[];
+  /** Every result so far (`PodView.results`): each row's record. */
+  results: readonly PodMatchResult[];
   nameOf: (memberId: string) => string;
+  avatarOf: (memberId: string) => string | null;
   myMemberId: string | null;
   /** Entrants out of the rounds (`PodView.dropped`): ranked on their record, marked. */
   dropped?: readonly string[] | undefined;
@@ -49,31 +54,35 @@ function minutes(ms: number | null): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-/** The tiebreak columns, in ranking order after Points. */
-const TIEBREAK_COLUMNS: readonly { key: Exclude<PodTiebreak, 'matchPoints'>; head: string; show: (row: PodStandingsRowLike) => string }[] = [
-  { key: 'opponentMatchWinPct', head: 'Opponent Match Winrate%', show: (r) => pct(r.opponentMatchWinPct) },
-  { key: 'gameWinPct', head: 'Game Winrate%', show: (r) => pct(r.gameWinPct) },
-  { key: 'opponentGameWinPct', head: 'Opponent Game Winrate%', show: (r) => pct(r.opponentGameWinPct) },
-  { key: 'medianGameMs', head: 'Median Game', show: (r) => minutes(r.medianGameMs) },
+/** The tie-breaker columns, in ranking order after Points, spelled out (2026-10-19: *"i hate the 3 letter acroynms"*). */
+const TIEBREAK_COLUMNS: readonly { key: Exclude<PodTiebreak, 'matchPoints'>; head: string; show: (r: PodStandingsRowLike) => string }[] = [
+  { key: 'opponentMatchWinPct', head: 'Opponents’ match wins', show: (r) => pct(r.opponentMatchWinPct) },
+  { key: 'gameWinPct', head: 'Game wins', show: (r) => pct(r.gameWinPct) },
+  { key: 'opponentGameWinPct', head: 'Opponents’ game wins', show: (r) => pct(r.opponentGameWinPct) },
+  { key: 'medianGameMs', head: 'Median game', show: (r) => minutes(r.medianGameMs) },
 ];
 
-export function PodStandings({ rows, nameOf, myMemberId, dropped = [] }: PodStandingsProps) {
+export function PodStandings({ rows, results, nameOf, avatarOf, myMemberId, dropped = [] }: PodStandingsProps) {
+  const [open, setOpen] = useState(false);
   if (rows.length === 0) return null;
-  // Each row's own `decidedBy` (against the row above), and the row above's (against this one).
-  const decided = (i: number): ReadonlySet<PodTiebreak> =>
-    new Set([rows[i]?.decidedBy, rows[i + 1]?.decidedBy].filter((k): k is PodTiebreak => k !== null && k !== undefined && k !== 'matchPoints'));
-
+  const rec = records({ results: [...results] });
+  // The keys that separated a row from its neighbours on equal points: its own `decidedBy` (against the row above), and the next row's (against this one).
+  const decided = (i: number): ReadonlySet<PodTiebreak> => new Set([rows[i]?.decidedBy, rows[i + 1]?.decidedBy].filter((k): k is PodTiebreak => k !== null && k !== undefined && k !== 'matchPoints'));
+  const columns = open ? TIEBREAK_COLUMNS : [];
   return (
-    // The table scrolls sideways inside its own box (never the page); the rank and player columns
-    // stay pinned, so a row is still whose while its tiebreak columns scroll underneath them.
+    // Opened, the table scrolls sideways inside its own box, never the page.
     <div className="pod-standings__wrap" data-testid="pod-standings-wrap">
+      <button type="button" className="pod-standings__more" aria-expanded={open} data-testid="pod-standings-tiebreaks" onClick={() => setOpen(!open)}>
+        Tie-breakers
+      </button>
       <table className="pod-standings" data-testid="pod-standings">
         <thead>
           <tr>
             <th scope="col">#</th>
             <th scope="col">Player</th>
+            <th scope="col">Record</th>
             <th scope="col">Points</th>
-            {TIEBREAK_COLUMNS.map((c) => (
+            {columns.map((c) => (
               <th key={c.key} scope="col">
                 {c.head}
               </th>
@@ -85,14 +94,18 @@ export function PodStandings({ rows, nameOf, myMemberId, dropped = [] }: PodStan
             const marks = decided(i);
             return (
               <tr key={row.id} data-testid={`pod-standings-row-${row.rank}`} data-mine={row.id === myMemberId ? '' : undefined} data-dropped={dropped.includes(row.id) ? '' : undefined}>
-                <td>{row.rank}</td>
+                <td className="pod-standings__rank">{row.rank}</td>
                 <td>
-                  {nameOf(row.id)}
-                  {dropped.includes(row.id) && <span className="pod-standings__dropped">Dropped</span>}
+                  <span className="pod-standings__who">
+                    <Avatar id={avatarOf(row.id)} fallback="initial" name={nameOf(row.id)} className="pod-standings__face" fallbackClassName="pod-standings__face pod-standings__face--none" width={28} height={28} />
+                    <span className="pod-standings__name">{nameOf(row.id)}</span>
+                    {dropped.includes(row.id) && <span className="pod-standings__dropped">Dropped</span>}
+                  </span>
                 </td>
-                <td>{row.matchPoints}</td>
-                {TIEBREAK_COLUMNS.map((c) => (
-                  <td key={c.key} data-key={c.key} data-decided={marks.has(c.key) ? '' : undefined}>
+                <td className="pod-standings__num">{recordText(rec.get(row.id) ?? { w: 0, l: 0, d: 0 })}</td>
+                <td className="pod-standings__num">{row.matchPoints}</td>
+                {columns.map((c) => (
+                  <td key={c.key} className="pod-standings__num" data-key={c.key} data-decided={marks.has(c.key) ? '' : undefined}>
                     {c.show(row)}
                   </td>
                 ))}

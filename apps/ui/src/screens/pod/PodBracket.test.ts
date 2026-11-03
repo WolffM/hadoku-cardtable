@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 import type { RoomTable } from '@hadoku/shared';
 
-import { bracketRounds, PodBracket } from './PodBracket.tsx';
+import { PodBracket } from './PodBracket.tsx';
 import { POD_SEATS, type PodView } from './wire.ts';
 
 afterEach(cleanup);
@@ -65,66 +65,19 @@ const midPod = pod({
     { tableId: 't-4', players: ['u-bob', 'u-dave'] },
   ],
   bye: 'u-eve',
+  standings: ['u-alice', 'u-bob', 'u-carol', 'u-dave', 'u-eve'].map((id, i) => ({ id, matchPoints: 0, opponentMatchWinPct: 0, gameWinPct: 0, opponentGameWinPct: 0, medianGameMs: null, rank: i + 1, decidedBy: null })),
 });
 const midTables = [table('t-0', []), t1, t2, t3, t4];
 
-describe('bracketRounds', () => {
-  it('lays out every round: finished ones from the results, the one in play from its pairings, the rest unpaired', () => {
-    const rounds = bracketRounds(midPod, midTables);
-    expect(rounds.map((r) => r.state)).toEqual(['past', 'now', 'next']);
-    const [r1, r2] = rounds;
-    if (r1?.state === 'next' || r2?.state === 'next') throw new Error('unpaired');
-    expect(r1!.matches.map((m) => [m.table?.id, m.wins, m.phase])).toEqual([
-      ['t-1', [2, 1], 'done'],
-      ['t-2', [2, 0], 'done'],
-    ]);
-    expect(r1!.bye).toBe('u-carol');
-    expect(r2!.matches.map((m) => [m.table?.id, m.wins, m.phase])).toEqual([
-      ['t-3', [1, 0], 'playing'],
-      ['t-4', [0, 2], 'done'],
-    ]);
-    expect(r2!.bye).toBe('u-eve');
-  });
-
-  it('matches a game against the AI to the table its one player sat at', () => {
-    const solo = pod({ phase: 'done', round: 2, rounds: 1, results: [{ round: 1, playerA: 'u-alice', playerB: 'ai', gamesA: 0, gamesB: 2 }] });
-    const [r1] = bracketRounds(solo, [table('t-0', []), table('t-1', ['u-alice'], { series: { length: 3, wins: [0, 2], games: [], phase: 'done' } })]);
-    expect(r1).toMatchObject({ state: 'past', matches: [{ players: ['u-alice', 'ai'], wins: [0, 2], phase: 'done' }] });
-    if (r1?.state !== 'next') expect(r1!.matches[0]!.table?.id).toBe('t-1');
-  });
-
-  it('matches a FINISHED game against a TOURNAMENT AI entrant (`ai:<seat>`, never a real seat) to the table its one human sat at', () => {
-    // A past round has no `pairings` (the live round's own field) — its table
-    // is found by matching the RESULT's player set against every table's real
-    // seats (`sameTable`), the same reconstruction the draft-pod-vs-AI test
-    // above exercises for the literal `ai`.
-    const vsTournamentAi = pod({ phase: 'done', round: 2, rounds: 1, results: [{ round: 1, playerA: 'u-alice', playerB: 'ai:3', gamesA: 2, gamesB: 0 }] });
-    const [r1] = bracketRounds(vsTournamentAi, [table('t-0', []), table('t-1', ['u-alice'], { series: { length: 3, wins: [2, 0], games: [], phase: 'done' } })]);
-    expect(r1).toMatchObject({ state: 'past', matches: [{ players: ['u-alice', 'ai:3'], wins: [2, 0], phase: 'done' }] });
-    if (r1?.state !== 'next') expect(r1!.matches[0]!.table?.id).toBe('t-1');
-  });
-
-  it('gives a repeated pairing each of its tables in turn, oldest first', () => {
-    const again = pod({
-      phase: 'done',
-      round: 3,
-      rounds: 2,
-      results: [
-        { round: 1, playerA: 'u-alice', playerB: 'u-bob', gamesA: 2, gamesB: 0 },
-        { round: 2, playerA: 'u-alice', playerB: 'u-bob', gamesA: 0, gamesB: 2 },
-      ],
-    });
-    const rounds = bracketRounds(again, [table('t-1', ['u-alice', 'u-bob']), table('t-2', ['u-alice', 'u-bob'])]);
-    expect(rounds.map((r) => (r.state === 'next' ? null : r.matches[0]!.table?.id))).toEqual(['t-1', 't-2']);
-  });
-});
+const bracket = (over: Partial<Parameters<typeof PodBracket>[0]> = {}) =>
+  render(createElement(PodBracket, { roomId: 'r-1', pod: midPod, tables: midTables, myMemberId: 'u-alice', nameOf, avatarOf, ...over }));
 
 describe('PodBracket', () => {
-  it('draws past rounds greyed, the round in play live, and an unpaired one empty', () => {
-    render(createElement(PodBracket, { roomId: 'r-1', pod: midPod, tables: midTables, myMemberId: 'u-alice', nameOf, avatarOf }));
+  it('draws a column per round, past, in play and not yet paired, and a card per match', () => {
+    bracket();
     expect(screen.getAllByTestId('pod-bracket-round').map((r) => r.dataset.state)).toEqual(['past', 'now', 'next']);
     expect(screen.queryAllByRole('heading'), 'the room keeps its one heading').toHaveLength(0);
-    expect(screen.getAllByTestId('pod-tables-row').map((r) => [r.dataset.tableId, r.dataset.phase])).toEqual([
+    expect(screen.getAllByTestId('pod-tables-row').map((r) => [r.dataset.tableId, r.dataset.phase]).sort()).toEqual([
       ['t-1', 'done'],
       ['t-2', 'done'],
       ['t-3', 'playing'],
@@ -133,7 +86,7 @@ describe('PodBracket', () => {
   });
 
   it('makes every live table the way in: mine back into its running game, somebody else’s Watch through its table page; a finished one goes nowhere', () => {
-    const { rerender } = render(createElement(PodBracket, { roomId: 'r-1', pod: midPod, tables: midTables, myMemberId: 'u-alice', nameOf, avatarOf }));
+    const { rerender } = bracket();
     expect(screen.getByTestId('pod-tables-play').textContent).toBe('Return to game');
     expect(screen.getByTestId('pod-tables-play').getAttribute('href')).toBe(`#/match/${midTables.find((t) => t.id === 't-3')!.matchId}`);
     expect(screen.queryByTestId('pod-tables-watch')).toBeNull();
@@ -147,29 +100,81 @@ describe('PodBracket', () => {
 
   it('links a table with no game yet too: its page is where the game starts', () => {
     const waiting = pod({ pairings: [{ tableId: 't-1', players: ['u-alice', 'u-bob'] }] });
-    render(createElement(PodBracket, { roomId: 'r-1', pod: waiting, tables: [table('t-1', ['u-alice', 'u-bob'])], myMemberId: 'u-alice', nameOf, avatarOf }));
+    bracket({ pod: waiting, tables: [table('t-1', ['u-alice', 'u-bob'])] });
     expect(screen.getByTestId('pod-tables-play').getAttribute('href')).toBe('#/room/r-1/table/t-1');
   });
 
   it('draws each player’s character, or their initial without one', () => {
-    render(createElement(PodBracket, { roomId: 'r-1', pod: midPod, tables: midTables, myMemberId: 'u-alice', nameOf, avatarOf }));
+    bracket();
     const live = screen.getAllByTestId('pod-tables-row').find((r) => r.dataset.tableId === 't-3')!;
     expect(live.querySelector('img')?.getAttribute('src')).toMatch(/square_sage\.png$/);
-    expect(live.querySelector('.table-card__face--none')?.textContent).toBe('C');
+    expect(live.querySelector('.swiss__face--none')?.textContent).toBe('C');
   });
 
-  it('names each round’s bye, with no "(you)" beside my name', () => {
-    render(createElement(PodBracket, { roomId: 'r-1', pod: midPod, tables: midTables, myMemberId: 'u-eve', nameOf, avatarOf }));
-    expect(screen.getAllByTestId('pod-tables-bye').map((b) => b.querySelector('.pod-bracket__name')?.textContent)).toEqual(['Carol', 'u-eve']);
+  it('names each round’s bye', () => {
+    bracket({ myMemberId: 'u-eve' });
+    expect(screen.getAllByTestId('pod-tables-bye').map((b) => b.querySelector('.swiss__name')?.textContent)).toEqual(['Carol', 'u-eve']);
+  });
+
+  it('a press on a player lights their path and dims the rest; a second press lets it go', () => {
+    bracket({ myMemberId: null });
+    const daveRow = screen.getAllByRole('button', { pressed: false }).find((b) => b.querySelector('.swiss__name')?.textContent === 'Dave')!;
+    // A pointer press focuses the row before its click: the focus alone must not pick, or the click would let go again.
+    fireEvent.focus(daveRow);
+    fireEvent.click(daveRow);
+    expect(daveRow.getAttribute('aria-pressed')).toBe('true');
+    const cards = screen.getAllByTestId('pod-tables-row');
+    expect(cards.filter((c) => c.dataset.dim === undefined).map((c) => c.dataset.tableId).sort(), 'only Dave’s matches stay lit').toEqual(['t-1', 't-4']);
+    expect(document.querySelectorAll('.swiss__edge[data-on]').length).toBeGreaterThan(0);
+    fireEvent.click(daveRow);
+    expect(screen.getAllByTestId('pod-tables-row').filter((c) => c.dataset.dim !== undefined)).toHaveLength(0);
+  });
+
+  it('keeps a live match’s ways to resolve behind one ⋯: mine Drop and Concede, the leader’s Reset and DQ', async () => {
+    const posted: string[] = [];
+    vi.stubGlobal('fetch', (url: string) => {
+      posted.push(String(url));
+      return Promise.resolve(new Response('{}', { status: 200 }));
+    });
+    bracket({ leader: true });
+    expect(screen.queryByTestId('pod-tables-row-drop'), 'none drawn until asked for').toBeNull();
+    const more = screen.getByTestId('pod-tables-row-more');
+    expect(more.closest('a'), 'never inside the way in').toBeNull();
+    fireEvent.click(more);
+    expect(screen.getAllByRole('menuitem').map((b) => b.textContent)).toEqual(['Concede game', 'Drop match', 'Reset game', 'DQ Alice', 'DQ Carol']);
+    fireEvent.click(screen.getByTestId('pod-tables-row-drop'));
+    expect(screen.queryByRole('menu'), 'choosing one closes the menu').toBeNull();
+    expect(screen.getByTestId('pod-tables-row-drop-confirm').querySelector('.table-card__change')?.textContent).toBe('1–0→1–2');
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('pod-tables-row-drop-yes'));
+    });
+    expect(posted.some((u) => u.endsWith('rooms/r-1/tables/t-3/drop'))).toBe(true);
+    vi.unstubAllGlobals();
+  });
+
+  it('the final column has everyone by place', () => {
+    const finished = pod({
+      phase: 'done',
+      round: 2,
+      rounds: 1,
+      results: [{ round: 1, playerA: 'u-alice', playerB: 'u-bob', gamesA: 2, gamesB: 1 }, { round: 1, playerA: 'u-carol', playerB: 'u-dave', gamesA: 2, gamesB: 0 }],
+      standings: ['u-alice', 'u-carol', 'u-bob', 'u-dave'].map((id, i) => ({ id, matchPoints: 0, opponentMatchWinPct: 0, gameWinPct: 0, opponentGameWinPct: 0, medianGameMs: null, rank: i + 1, decidedBy: null })),
+    });
+    bracket({ pod: finished, tables: [] });
+    expect(screen.getAllByTestId('pod-final-row').map((r) => [r.dataset.place, r.textContent])).toEqual([
+      ['1', '#1Alice0 pts'],
+      ['2', '#2CCarol0 pts'],
+      ['3', '#3BBob0 pts'],
+      ['4', '#4DDave0 pts'],
+    ]);
   });
 });
 
 describe('PodBracket.css', () => {
   it('lights a live card only while it is pressed or keyboard-focused, never under a passing pointer', () => {
-    // A live card is its table's card (`TableCard.tsx`), whose own sheet lights it.
-    const css = readFileSync('apps/ui/src/screens/TableCard.css', 'utf8');
+    const css = readFileSync('apps/ui/src/screens/pod/PodBracket.css', 'utf8');
     expect(css).not.toMatch(/:hover/);
-    expect(css).toMatch(/table-card__go:active/);
-    expect(css).toMatch(/table-card__go:focus-visible\)/);
+    expect(css).toMatch(/swiss__go:active/);
+    expect(css).toMatch(/swiss__go:focus-visible\)/);
   });
 });

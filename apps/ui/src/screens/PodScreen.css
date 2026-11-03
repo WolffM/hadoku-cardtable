@@ -122,7 +122,7 @@
   overflow-y: auto;
 }
 
-/* The round's heading, then the bracket with the standings beside it (`PodRoom`). */
+/* The round's heading (or the podium), then the bracket, then the standings (`RoomHub`). */
 .pod__room {
   display: flex;
   flex: 1;
@@ -130,17 +130,5 @@
   min-height: 0;
 }
 
-.pod__board {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
-  gap: 24px;
-  align-items: start;
-}
-
-@media (max-width: 900px) {
-  .pod__board {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
 
 

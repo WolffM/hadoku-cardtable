@@ -96,6 +96,7 @@ import {
 	type ModeOptions,
 	type PoolSource,
 	type PoolVerdict,
+	type RoomLocks,
 	type RoomMode,
 	type RoomSettings,
 	type RoomView as PublicRoomView,
@@ -406,7 +407,7 @@ type SetGameTypeResult =
 /** `setFormat`'s refusals, plus a draft room (which has no mode). */
 type SetModeResult =
 	| { ok: true; room: RoomView }
-	| { ok: false; reason: 'no-room' | 'not-leader' | 'not-constructed' | 'mode-locked' };
+	| { ok: false; reason: 'no-room' | 'not-leader' | 'not-constructed' | 'draft-started' | 'mode-locked' };
 
 /** Deliberately the same refusals as `SetGameTypeResult`: one leader, one shape. */
 type SetFormatResult =
@@ -2153,6 +2154,7 @@ function viewOf(room: RoomRecord, locked: boolean, checks: PodChecks): RoomView 
 		gameType: room.gameType,
 		format: room.format,
 		settings: { ...room.settings, tournamentDecks: tournamentDecksOf(room) },
+		locks: roomLocks(room),
 		mode: room.mode,
 		modeOptions: room.modeOptions === null ? null : { ...room.modeOptions },
 		clientMode: room.clientMode,
@@ -2271,6 +2273,23 @@ function modeLocked(room: RoomRecord): boolean {
 function inPlay(room: RoomRecord): boolean {
 	return room.tables.some((t) => t.matchId !== null) || gauntletUnderWay(room.gauntlets);
 }
+
+/**
+ * Why each of the room's controls cannot change now, or null where it can (`RoomLocks`, `@hadoku/shared`).
+ * ONE answer for both sides: every setter below refuses with it, and the room view carries it, so the
+ * screen never offers a control the server would refuse (the operator, 2026-11-02: *"why was it even
+ * possible to click?"*). Once the pod is dealt nothing about the room changes; before that, what the
+ * room plays and its event freeze with a Ready or a game (`modeLocked`), its pool and rules with a game.
+ */
+export function roomLocks(room: RoomRecord): RoomLocks {
+	const started = room.draftStartedAt !== null ? 'draft-started' : null;
+	const plays = started ?? (modeLocked(room) ? 'mode-locked' : null);
+	const playing = started ?? (inPlay(room) ? 'mode-locked' : null);
+	return { gameType: plays, mode: plays, event: plays, format: playing, rules: playing };
+}
+
+/** The settings that make the room's event, locked with what it plays (`roomLocks`'s `event`); the rest are its match rules. */
+const EVENT_SETTING_KEYS: readonly (keyof RoomSettings)[] = ['tournament', 'tournamentDecks'];
 
 /** A Gauntlet whose reveal has started, and that is not yet done — true if ANY of the room's tables is one. */
 /**
@@ -3573,21 +3592,19 @@ class FileLobby implements Lobby {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
-		// The draft is dealt against this room's id and is already being played.
-		// Switching the game under it would leave a live pod in a room that says
-		// it is playing constructed, and nothing would ever close the pod.
-		if (room.draftStartedAt !== null) return { ok: false, reason: 'draft-started' };
-		// The type is the room's shape, the mode a part of it: what freezes the mode freezes the type.
-		if (room.gameType !== gameType && modeLocked(room)) return { ok: false, reason: 'mode-locked' };
-		if (room.gameType !== gameType) {
-			const players = playersOf(room);
-			room.gameType = gameType;
-			room.mode = null;
-			room.modeOptions = null;
-			room.gauntlets = {};
-			this.#interruptSeries(room, true);
-			this.#carryPlayers(room, players);
-		}
+		if (room.gameType === gameType) return { ok: true, room: this.#view(room) };
+		// The type is the room's shape, the mode a part of it: what freezes the mode freezes the type
+		// (`roomLocks`). Once the draft is dealt, switching the game under it would leave a live pod in
+		// a room that says it is playing constructed, and nothing would ever close the pod.
+		const locked = roomLocks(room).gameType;
+		if (locked !== null) return { ok: false, reason: locked };
+		const players = playersOf(room);
+		room.gameType = gameType;
+		room.mode = null;
+		room.modeOptions = null;
+		room.gauntlets = {};
+		this.#interruptSeries(room, true);
+		this.#carryPlayers(room, players);
 		// Readiness is readiness for a particular game: a member who readied for
 		// a draft has not agreed to a constructed match. Cleared for everyone,
 		// including the leader making the change.
@@ -3601,12 +3618,12 @@ class FileLobby implements Lobby {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
-		if (room.draftStartedAt !== null) return { ok: false, reason: 'draft-started' };
 		// Setting the pool a room is already on changes nothing and clears nothing:
 		// a leader clicking the option that is already selected must not un-ready
 		// the table under everybody.
 		if (room.format === format) return { ok: true, room: this.#view(room) };
-		if (inPlay(room)) return { ok: false, reason: 'mode-locked' };
+		const locked = roomLocks(room).format;
+		if (locked !== null) return { ok: false, reason: locked };
 		room.format = format;
 		this.#interruptSeries(room, false);
 		this.#persist(room);
@@ -3622,7 +3639,8 @@ class FileLobby implements Lobby {
 		if (room.mode === mode.mode && room.modeOptions !== null && sameOptions(room.modeOptions, mode.modeOptions)) {
 			return { ok: true, room: this.#view(room) };
 		}
-		if (modeLocked(room)) return { ok: false, reason: 'mode-locked' };
+		const locked = roomLocks(room).mode;
+		if (locked !== null) return { ok: false, reason: locked };
 		room.mode = mode.mode;
 		room.modeOptions = { ...mode.modeOptions };
 		room.gauntlets = {};
@@ -3638,9 +3656,13 @@ class FileLobby implements Lobby {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
-		if (room.draftStartedAt !== null) return { ok: false, reason: 'draft-started' };
 		const next = { ...room.settings, ...settings };
-		if (SETTING_KEYS.every((k) => next[k] === room.settings[k])) return { ok: true, room: this.#view(room) };
+		const changed = SETTING_KEYS.filter((k) => next[k] !== room.settings[k]);
+		if (changed.length === 0) return { ok: true, room: this.#view(room) };
+		const locks = roomLocks(room);
+		// The event's lock holds whenever the rules' does (a game in play froze both), so it answers for a change to either.
+		const locked = changed.some((k) => EVENT_SETTING_KEYS.includes(k)) ? locks.event : locks.rules;
+		if (locked !== null) return { ok: false, reason: locked };
 		const players = playersOf(room);
 		const podBefore = usesPod(room);
 		room.settings = next;

@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { CubeSummary, PodView, RoomTable } from '@hadoku/shared';
+import { OPEN_ROOM_LOCKS } from '@hadoku/shared';
 
 import type { RoomView } from '../rooms/api.ts';
 import { openSeats, pickWildcard, spotlightCube, wildcardPages, WILDCARD_PRIORITY } from './wildcardItems.ts';
@@ -40,6 +41,7 @@ const room = (over: Partial<RoomView> = {}): RoomView => ({
   gameType: 'constructed-1v1',
   format: '2026-01-01',
   settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 } },
+  locks: { ...OPEN_ROOM_LOCKS },
   mode: 'classic',
   modeOptions: {},
   clientMode: 'builtin',

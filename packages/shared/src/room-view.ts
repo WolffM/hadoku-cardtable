@@ -69,6 +69,26 @@ const membersSchema = z
   .array(RoomMemberSchema.nullable().catch(null))
   .transform((members) => members.filter((m): m is RoomMember => m !== null));
 
+/**
+ * Why each of a room's controls cannot change now, or `null` where it can — the server's own answer
+ * (`room/lobby.ts`'s `roomLocks`), the same one its setters refuse with. A screen offers a control
+ * only where this says `null` (and the caller leads), so nothing it offers is refused.
+ *
+ * - `gameType`, `mode`: what the room plays (a constructed room's mode and its options);
+ * - `event`: Tournament and its decks;
+ * - `format`: the pool;
+ * - `rules`: the match rules (hand smoothing, the clock, the pick timer).
+ */
+export const ROOM_LOCK_REASONS = ['draft-started', 'mode-locked'] as const;
+export const RoomLockSchema = z.enum(ROOM_LOCK_REASONS).nullable();
+export const ROOM_CONTROLS = ['gameType', 'mode', 'event', 'format', 'rules'] as const;
+export type RoomControl = (typeof ROOM_CONTROLS)[number];
+export type RoomLocks = Record<RoomControl, z.infer<typeof RoomLockSchema>>;
+export const OPEN_ROOM_LOCKS: Readonly<RoomLocks> = Object.freeze({ gameType: null, mode: null, event: null, format: null, rules: null });
+const RoomLocksSchema = z
+  .object({ gameType: RoomLockSchema.catch(null), mode: RoomLockSchema.catch(null), event: RoomLockSchema.catch(null), format: RoomLockSchema.catch(null), rules: RoomLockSchema.catch(null) })
+  .catch(() => ({ ...OPEN_ROOM_LOCKS }));
+
 const roomFields = {
   id: z.string().regex(ROOM_ID_RE),
   name: z.string(),
@@ -82,6 +102,8 @@ const roomFields = {
    */
   format: z.string().catch(''),
   settings: RoomSettingsViewSchema,
+  /** What cannot change now, and why (`RoomLocks`). A server that sends none: everything open, and its refusals still answer. */
+  locks: RoomLocksSchema,
   /** Read as a pair with `modeOptions`, below. */
   mode: z.unknown().optional(),
   modeOptions: z.unknown().optional(),

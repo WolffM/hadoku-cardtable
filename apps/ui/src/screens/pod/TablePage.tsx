@@ -120,7 +120,6 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
         {/* A game under way: its card (`TableCard.tsx`), with the face-off — where it stands, and the way in. */}
         {!revealing && matchId !== null && (
           <TableCard
-            size="full"
             testId="table-game-card"
             tableId={table.id}
             players={[seats[0] ?? '', seats[1] ?? '']}

@@ -343,6 +343,8 @@ describe('POST /api/rooms', () => {
 		expect(room.draftStartedAt).toBeNull();
 		expect(room.members.map((m) => m.ready)).toEqual([false]);
 		expect(room.leader).toBe(room.creator);
+		// Nothing is locked in a new room: every control is the leader's.
+		expect(room.locks).toEqual({ gameType: null, mode: null, event: null, format: null, rules: null });
 		// A drawn era (`room/lobby.ts`'s `randomFormat`): the top of [0, 1) is the
 		// newest era of the catalog's last family, never the oldest pool.
 		const lastFamily = [...new Set(LIBRARY_FORMATS.map((f) => f.family))].at(-1);
@@ -368,6 +370,7 @@ describe('POST /api/rooms', () => {
 			'id',
 			'leader',
 			'locked',
+			'locks',
 			'matchId',
 			'members',
 			'mode',

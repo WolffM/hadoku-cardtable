@@ -151,7 +151,7 @@ test(titled('a watching leader resets a game (the score stands, a fresh game fol
     expect(afterReset.matchId).not.toBe(game2);
     expect(afterReset.series).toMatchObject({ wins: [0, 1], phase: 'playing' });
     expect(afterReset.series.games, 'the reset game is not counted').toHaveLength(1);
-    await expect(card(alice.page, carols.id).locator('.table-card__wins')).toHaveText('0–1');
+    await expect(card(alice.page, carols.id).locator('.swiss__score')).toHaveText(['0', '1']);
 
     // The leader DQs Bob mid-game: his board ends on the result, his match a 0–2 loss.
     await confirmOnCard(alice.page, bobs.id, /^DQ e2e-bob$/);

@@ -74,7 +74,7 @@ async function serveSprites(f: Friend): Promise<Set<string>> {
   return asked;
 }
 
-const FACES = '.pod-seats__avatar-img, .pod-seats__avatar-fallback, .face-off__avatar, .table-card__face, .pod-bracket__face';
+const FACES = '.pod-seats__avatar-img, .pod-seats__avatar-fallback, .face-off__avatar, .table-card__face, .swiss__face';
 
 /** Every portrait under `scope`: the sprite it draws, or what it fell back to. */
 async function faces(page: Page, scope: string): Promise<string[]> {
@@ -145,9 +145,11 @@ test(titled('a tournament draws every entrant’s character, its face-off spans 
     console.log(`[w79d-tournament] bracket: ${JSON.stringify(bracket)}`);
     if (bracket.length < 4 || notImages(bracket).length > 0) failures.push(`bracket: ${JSON.stringify(bracket)}`);
     const dead = await page.evaluate(() => {
-      const go = document.querySelector('[data-testid="pod-tables"] .table-card__go');
+      const go = document.querySelector('[data-testid="pod-tables"] .swiss__go');
       if (go === null) return ['no way in on any card'];
       const fill = getComputedStyle(go).backgroundColor;
+      // A way in drawn as a link, with no fill of its own, has nothing to be mistaken for.
+      if (fill === 'rgba(0, 0, 0, 0)' || fill === 'transparent') return [];
       return Array.from(document.querySelectorAll('[data-testid="pod-tables-row"] *'))
         .filter((el) => el.closest('a, button') === null && getComputedStyle(el).backgroundColor === fill)
         .map((el) => `${el.tagName.toLowerCase()}.${el.className}:"${(el.textContent ?? '').trim()}" (${fill})`);

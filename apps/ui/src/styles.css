@@ -189,6 +189,12 @@
   --z-modal: 50; /* a panel over a dimmed page: the settings, the stats, the create form */
   --z-zoom: 60; /* the hover zoom: above everything, the control bar and prompts included */
 
+  /* A tournament's places (`pod/PodPodium.tsx`, the bracket's final column): gold the theme's warning,
+     silver its ink stepped back, bronze the warning pulled toward its danger. */
+  --medal-gold: var(--color-warning);
+  --medal-silver: color-mix(in srgb, var(--color-text) 72%, var(--color-bg));
+  --medal-bronze: color-mix(in srgb, var(--color-warning) 55%, var(--color-danger));
+
   /* Our colour-pie hues. Deliberately not the printed ones. */
   --c-white: #d8cfae;
   --c-blue: #5f9ede;
