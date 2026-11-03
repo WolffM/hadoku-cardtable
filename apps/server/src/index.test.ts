@@ -125,6 +125,37 @@ syncBuiltinESMExports();
 }
 
 /**
+ * A preload that makes every fsync before the server says it is listening take `ms` longer: a slow
+ * disk on the boot path, the way a loaded claw's was, with nothing in the server itself knowing about
+ * the test. Each room write is one (`room-store`'s `saveSync`).
+ */
+function slowBootWrites(ms: number): NodeJS.ProcessEnv {
+	const file = join(root, 'slow-boot-writes.mjs');
+	writeFileSync(
+		file,
+		`import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
+let listening = false;
+const write = process.stdout.write.bind(process.stdout);
+process.stdout.write = (chunk, ...rest) => {
+	if (String(chunk).includes('listening on ')) listening = true;
+	return write(chunk, ...rest);
+};
+const fsync = fs.fsyncSync;
+fs.fsyncSync = function (fd) {
+	if (!listening) {
+		const until = Date.now() + ${ms};
+		while (Date.now() < until);
+	}
+	return fsync.call(this, fd);
+};
+syncBuiltinESMExports();
+`,
+	);
+	return { NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import ${pathToFileURL(file).href}`.trim() };
+}
+
+/**
  * Boot the server against `webDir`, ask it both questions, then stop it once `until` (if given) is
  * printed. `forgeEnv` replaces the default of no Forge at all, and is merged over it;
  * `listenWithinMs` is how long it may take to listen; `first` is asked the moment it listens, before
@@ -149,7 +180,9 @@ async function boot(
 		CARDTABLE_PORT: String(port),
 		CARDTABLE_HOST: '127.0.0.1',
 		CARDTABLE_WEB_DIR: webDir,
-		CARDTABLE_LOG_DIR: join(root, 'logs'),
+		// Each boot its own store (the data dir is the log dir's sibling, `config.ts`): a shared one
+		// let a boot find the rooms an earlier test's boot had made, and pass only by running second.
+		CARDTABLE_LOG_DIR: join(mkdtempSync(join(root, 'store-')), 'logs'),
 		// Local-dev identity, so `GET /` reaches the SPA fallback rather than
 		// stopping at the tier floor. The probe itself needs none.
 		EDGE_AUTH_SECRET: '',
@@ -255,6 +288,14 @@ describe('a server started from a path', () => {
 		const firstPoolRead = output.indexOf('slow-pool-read ');
 		expect(listened).toBeGreaterThanOrEqual(0);
 		if (firstPoolRead >= 0) expect(firstPoolRead).toBeGreaterThan(listened);
+	}, 60_000);
+
+	it('listens, healthy, while every write to disk is slow — the testing rooms are never on the boot path', async () => {
+		// A first boot seeds the testing rooms, 85 room writes: at 400 ms each, a boot that makes them before it listens never listens in 15.
+		const { health, page } = await boot(join(root, 'slow-disk', 'apps', 'ui', 'dist'), slowBootWrites(400), 15_000);
+		expect(health.status).toBe(200);
+		expect(health.body).toMatchObject({ status: 'healthy', bundle: 'ok' });
+		expect(page.status).toBe(200);
 	}, 60_000);
 
 	it('answers a request on an era nobody has read yet in full, the moment it listens', async () => {

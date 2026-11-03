@@ -2900,8 +2900,11 @@ describe('testing rooms (admin only, seeded)', () => {
 			newestSetCode: () => new Promise((resolve) => (answerCatalog = resolve)),
 			checkPlan: () => Promise.reject(new Error('never asked')),
 		});
-		await new Promise((resolve) => setImmediate(resolve));
-		const names = h.lobby.list().filter((r) => r.testing).map((r) => r.name);
+		// The seed gives way for a turn before each room (`seedTestingRooms`'s doc): wait those turns
+		// out, a bounded number, with the catalog still unanswered throughout.
+		const listed = (): string[] => h.lobby.list().filter((r) => r.testing).map((r) => r.name);
+		for (let turn = 0; turn < 64 && !listed().includes(TESTING_GAUNTLET_ROUND2_NAME); turn += 1) await new Promise((resolve) => setImmediate(resolve));
+		const names = listed();
 		expect(names).toContain(TESTING_CLASSIC_ROUND2_NAME);
 		expect(names).toContain(TESTING_GAUNTLET_ROUND2_NAME);
 		expect(names).not.toContain('Testing: Set draft');

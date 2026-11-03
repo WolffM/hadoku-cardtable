@@ -570,20 +570,20 @@ bootPhase('rooms');
 // `attachSetRoutes`; without a jar `setsStore.list()` answers `[]` and the
 // set-draft room is skipped and logged, never created with no pool.
 //
-// Never awaited on the boot path, same discipline as `warmSetsStore` right
-// above: the set-draft room's own check can be a slow pool-JVM round trip,
-// and nothing optional may keep `httpServer.listen` waiting on it
-// (`index.test.ts`'s own boot test: the server must listen with the pool JVM
-// unresponsive). The four rooms that need no catalog are created within a
-// tick either way — `Lobby.create` is synchronous — so the gap a request
-// could race is only ever the fifth room.
+// Started once the server listens (below), never on the boot path: nothing
+// optional may keep `httpServer.listen` waiting (`index.test.ts`'s boot
+// tests). Unawaited was not enough, since an async function runs up to its first
+// `await` at once: the set-draft room's check is a pool-JVM round trip, but
+// every other room was made then and there, about fifty fsynced room writes
+// and an era's pool read, so a first boot on a slow disk listened only once
+// they were done (no listen in 30 s on a loaded claw, CI 41534195729). A
+// request in the moment before a room appears finds the lobby without it.
 //
 // `library` (below) is what the two "round 2" tournament rooms need to seat
-// a legal Classic deck before their lock — the call itself moves to AFTER
-// `attachTables`, which is where `rooms.setPodChecks` actually wires the
-// REAL `PodChecks.hasLegalSeatDeck` onto this same `lobby`; calling it here,
-// at this line, would lock against `NO_POD_CHECKS`'s own always-`false`
-// stub and never seat anyone.
+// a legal Classic deck before their lock, and `attachTables` is where
+// `rooms.setPodChecks` wires the REAL `PodChecks.hasLegalSeatDeck` onto this
+// same `lobby`; seeded before that, they would lock against
+// `NO_POD_CHECKS`'s own always-`false` stub and never seat anyone.
 const runTestingRoomSeed = (): Promise<void> =>
 	seedTestingRooms({
 		lobby,
@@ -703,13 +703,6 @@ const tables = attachTables(api, {
 	rooms: lobby,
 	matches: () => play?.matches ?? null,
 });
-// Now that `rooms.setPodChecks` above has wired the REAL `PodChecks` onto
-// `lobby`, the seeded testing rooms can run: two of them (`testing-rooms.ts`'s
-// `TESTING_CLASSIC_ROUND2_NAME`/`TESTING_GAUNTLET_ROUND2_NAME`) lock a
-// tournament, which needs that wiring in place first (`runTestingRoomSeed`'s
-// own doc, above). Never awaited, same discipline as `warmSetsStore`.
-void runTestingRoomSeed();
-
 // GET/PUT /api/drafts/:podId/{mine,deck} — a drafter's own pool and the
 // build saved against it. Friend-gated like every other `/api` route, by
 // the same `requireMinTier` above `api`.
@@ -1057,6 +1050,7 @@ httpServer.listen(CONFIG.port, CONFIG.host, () => {
 	void library.warm().then((faults) => {
 		jsonLogger('cardtable')({ evt: 'library-warmed', formats: library.formats.length, ms: Math.round(performance.now() - warmedFrom), faults });
 	});
+	void runTestingRoomSeed();
 	console.log(`[cardtable] tier floor: ${CONFIG.minTier}`);
 	console.log(`[cardtable] browser bridge on ${browserBridge.path} (same floor, re-applied at the upgrade)`);
 	if (cubeStore.list().length > 0) {

@@ -430,6 +430,9 @@ function seedGauntletTournament(
 	log({ event: 'testing-room-seeded', name, roomId });
 }
 
+/** One turn of the event loop: what {@link seedTestingRooms} gives way for before each room. */
+const nextTurn = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+
 /**
  * Create every testing room this store does not already hold one of, by
  * name. Safe to call on every boot (idempotent — two boots on the same store
@@ -442,9 +445,15 @@ function seedGauntletTournament(
  * unhandled and ends the server. A room whose seeding throws (the set draft's
  * catalog is a pool-JVM round trip that can time out) is logged and skipped.
  *
- * The async seeds all start at once, so none waits on another: the set
- * draft's catalog lookup can take half a minute on a loaded host, and the
- * round-2 rooms need no JVM at all.
+ * It gives way for a turn before each room: a room is several writes to the
+ * store, each one fsynced (`room-store`'s `saveSync`), dozens on a first boot,
+ * so on a slow disk a request waits behind one room at most, never the whole
+ * set. Whether a room is missing is read again after each turn, so a reseed
+ * that interleaves with this one never makes it twice.
+ *
+ * The async seeds each start on their own turn and none waits for another to
+ * finish: the set draft's catalog lookup can take half a minute on a loaded
+ * host, and the round-2 rooms need no JVM at all.
  */
 export async function seedTestingRooms(deps: TestingRoomsDeps): Promise<void> {
 	const { lobby } = deps;
@@ -452,10 +461,10 @@ export async function seedTestingRooms(deps: TestingRoomsDeps): Promise<void> {
 	// A saved room keeps no names (R12), and the seed never sends the request that names a member
 	// again: a room it stays in would call it `UNNAMED` after every restart.
 	lobby.rename(TESTING_SEED_CALLER);
-	const existing = new Set(lobby.list().filter((r) => r.testing).map((r) => r.name));
+	const missing = (name: string): boolean => !lobby.list().some((r) => r.testing && r.name === name);
 	for (const spec of SPECS) {
-		if (existing.has(spec.name)) continue;
-		seedOne(lobby, spec, log);
+		await nextTurn();
+		if (missing(spec.name)) seedOne(lobby, spec, log);
 	}
 	const seeds: [string, (deps: TestingRoomsDeps, log: (entry: Record<string, unknown>) => void) => Promise<void>][] = [
 		[TESTING_SET_DRAFT_NAME, seedSetDraft],
@@ -464,15 +473,15 @@ export async function seedTestingRooms(deps: TestingRoomsDeps): Promise<void> {
 		[TESTING_TOURNAMENT_DONE_NAME, seedTournamentDone],
 		[TESTING_TOURNAMENT_MID_NAME, seedTournamentMid],
 	];
-	await Promise.all(
-		seeds
-			.filter(([name]) => !existing.has(name))
-			.map(async ([name, seed]) => {
-				try {
-					await seed(deps, log);
-				} catch (err) {
-					log({ event: 'testing-room-seed-failed', name, detail: err instanceof Error ? err.message : String(err) });
-				}
+	const started: Promise<void>[] = [];
+	for (const [name, seed] of seeds) {
+		await nextTurn();
+		if (!missing(name)) continue;
+		started.push(
+			seed(deps, log).catch((err: unknown) => {
+				log({ event: 'testing-room-seed-failed', name, detail: err instanceof Error ? err.message : String(err) });
 			}),
-	);
+		);
+	}
+	await Promise.all(started);
 }
