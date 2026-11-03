@@ -7,7 +7,38 @@
 /** `fetch`, narrowed to what the clients call, so a test can pass a stub. */
 export type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
-const defaultFetch: Fetch = (input, init) => fetch(input, init);
+/** The page's own transport: every client's default, and what a page-long read is kept for (`readOnce`). */
+export const pageFetch: Fetch = (input, init) => fetch(input, init);
+
+const pageReads = new WeakMap<Fetch, Map<string, Promise<unknown>>>();
+
+/**
+ * `read()`'s answer for `url`, read once for the page and shared by every caller, in flight or
+ * landed: for what changes only with a deploy, or with a write this page makes (`forgetRead`). A
+ * read that fails, or answers `null`, is not kept, so the next caller asks again. Kept per transport,
+ * so a test's own stub keeps its own answers.
+ */
+export function readOnce<T>(fetchImpl: Fetch, url: string, read: () => Promise<T>): Promise<T> {
+  const reads = pageReads.get(fetchImpl) ?? new Map<string, Promise<unknown>>();
+  pageReads.set(fetchImpl, reads);
+  const kept = reads.get(url);
+  if (kept !== undefined) return kept as Promise<T>;
+  const reading = read();
+  reads.set(url, reading);
+  const forget = (): void => {
+    if (reads.get(url) === reading) reads.delete(url);
+  };
+  // The caller hears the failure; this only stops keeping it.
+  reading.then((answer) => {
+    if (answer === null) forget();
+  }, forget);
+  return reading;
+}
+
+/** What `url` reads has changed: the next `readOnce` of it asks the server. */
+export function forgetRead(fetchImpl: Fetch, url: string): void {
+  pageReads.get(fetchImpl)?.delete(url);
+}
 
 /** Where this build is served from: `/cardtable/` in production, `/` in a test. */
 export function appBase(): string {
@@ -46,12 +77,12 @@ export function serverMessage(body: unknown, status: number): string {
 }
 
 /** A GET of an `/api` URL that wants JSON back. */
-export function getJson(url: string, fetchImpl: Fetch = defaultFetch): Promise<Response> {
+export function getJson(url: string, fetchImpl: Fetch = pageFetch): Promise<Response> {
   return fetchImpl(url, { credentials: 'same-origin', headers: { accept: 'application/json' } });
 }
 
 /** A JSON body to an `/api` URL. `init` adds to the request, never replaces the cookie or the content type. */
-export function sendJson(url: string, method: string, body: unknown, fetchImpl: Fetch = defaultFetch, init: RequestInit = {}): Promise<Response> {
+export function sendJson(url: string, method: string, body: unknown, fetchImpl: Fetch = pageFetch, init: RequestInit = {}): Promise<Response> {
   return fetchImpl(url, {
     ...init,
     method,

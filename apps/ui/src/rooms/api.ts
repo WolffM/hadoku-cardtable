@@ -54,7 +54,7 @@ import {
   type SetSummary,
 } from '@hadoku/shared';
 
-import { apiBase, appBase, bodyOf, getJson, isRecord, sendJson, serverMessage, type Fetch } from '../http.ts';
+import { apiBase, appBase, bodyOf, forgetRead, getJson, isRecord, pageFetch, readOnce, sendJson, serverMessage, type Fetch } from '../http.ts';
 import { clearJoined, markJoined } from './joined.ts';
 
 export type { ClientMode, Fetch, GameType, RoomSettings };
@@ -549,6 +549,8 @@ export interface PoolsClient {
    * (`GET /api/pools/cubes/:id/cards`, lane C's follow-up). `null` for an id
    * the server does not know (404) — never thrown: a cube that disappeared
    * between the room's plan and this call costs a warm-up, not a screen.
+   * Read once for the page (`readOnce`), and again after this page refreshes,
+   * re-imports or deletes the cube.
    */
   cubeCards(id: string): Promise<DraftCard[] | null>;
   /** `GET /api/pools/cubes/:id/arts?n=`: `n` of its cards' art ids, drawn by the server; `null` on any failure. */
@@ -567,8 +569,9 @@ export interface PoolsClient {
   deletePreset(id: string): Promise<{ ok: true } | { ok: false; message: string }>;
 }
 
-export function poolsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base: string = apiBase()): PoolsClient {
+export function poolsClient(fetchImpl: Fetch = pageFetch, base: string = apiBase()): PoolsClient {
   const url = (path: string): string => `${base}pools/cubes${path}`;
+  const cardsUrl = (id: string): string => url(`/${encodeURIComponent(id)}/cards`);
   /** Sets and presets sit beside `pools/cubes`, not under it — the pools root, same base. */
   const poolsUrl = (path: string): string => `${base}pools${path}`;
 
@@ -598,6 +601,8 @@ export function poolsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base
       if (!res.ok) return { ok: false, message: `Could not import that cube: ${serverMessage(body, res.status)}.` };
       const parsed = CubeSummarySchema.safeParse(body);
       if (!parsed.success) return { ok: false, message: 'The server imported something that is not a cube.' };
+      // A link imported again is the same cube, its cards read anew.
+      forgetRead(fetchImpl, cardsUrl(parsed.data.id));
       return { ok: true, cube: parsed.data };
     },
 
@@ -612,6 +617,7 @@ export function poolsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base
       if (!res.ok) return { ok: false, message: `Could not refresh that cube: ${serverMessage(body, res.status)}.` };
       const parsed = CubeSummarySchema.safeParse(body);
       if (!parsed.success) return { ok: false, message: 'The server refreshed something that is not a cube.' };
+      forgetRead(fetchImpl, cardsUrl(id));
       return { ok: true, cube: parsed.data };
     },
 
@@ -622,7 +628,10 @@ export function poolsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base
       } catch {
         return { ok: false, message: 'Could not reach the server.' };
       }
-      if (res.ok) return { ok: true };
+      if (res.ok) {
+        forgetRead(fetchImpl, cardsUrl(id));
+        return { ok: true };
+      }
       const body = await bodyOf(res);
       return { ok: false, message: `Could not delete that cube: ${serverMessage(body, res.status)}.` };
     },
@@ -638,17 +647,19 @@ export function poolsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base
       }
     },
 
-    async cubeCards(id) {
-      let res: Response;
-      try {
-        res = await getJson(url(`/${encodeURIComponent(id)}/cards`), fetchImpl);
-      } catch {
-        return null;
-      }
-      if (!res.ok) return null;
-      const body = await bodyOf(res);
-      const parsed = DraftCardSchema.array().safeParse(body);
-      return parsed.success ? parsed.data : null;
+    cubeCards(id) {
+      return readOnce(fetchImpl, cardsUrl(id), async () => {
+        let res: Response;
+        try {
+          res = await getJson(cardsUrl(id), fetchImpl);
+        } catch {
+          return null;
+        }
+        if (!res.ok) return null;
+        const body = await bodyOf(res);
+        const parsed = DraftCardSchema.array().safeParse(body);
+        return parsed.success ? parsed.data : null;
+      });
     },
 
     async listSets() {

@@ -41,7 +41,7 @@
 
 import { GauntletViewSchema, newestStandardEra, type GauntletAct, type GauntletView } from '@hadoku/shared';
 
-import { apiBase, getJson, sendJson, type Fetch } from '../http.ts';
+import { apiBase, getJson, pageFetch, readOnce, sendJson, type Fetch } from '../http.ts';
 
 /**
  * Which ruleset family an era belongs to (wave 48). Mirrors the server's own
@@ -312,13 +312,15 @@ function withTable<T extends Record<string, unknown>>(payload: T, tableId: strin
   return tableId === undefined ? payload : { ...payload, table: tableId };
 }
 
-export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, init), base = apiBase()): TablesClient {
+export function tablesClient(fetchImpl: Fetch = pageFetch, base = apiBase()): TablesClient {
   const get = async (path: string): Promise<Record<string, unknown>> => {
     const res = await getJson(`${base}${path}`, fetchImpl);
     const body = await readJson(res);
     if (!res.ok) throw new Error(errorOf(body, res.status));
     return body;
   };
+  /** The catalogue changes only with a deploy: read once for the page, however many rooms it visits (`readOnce`). */
+  const catalogue = (path: string): Promise<Record<string, unknown>> => readOnce(fetchImpl, `${base}${path}`, () => get(path));
   const send = async (
     method: 'POST' | 'PUT',
     path: string,
@@ -343,8 +345,8 @@ export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, in
   };
 
   return {
-    formats: async () => ((await get('tables/formats')).formats ?? []) as TableFormat[],
-    decks: async () => ((await get('tables/decks')).decks ?? []) as TableDeck[],
+    formats: async () => ((await catalogue('tables/formats')).formats ?? []) as TableFormat[],
+    decks: async () => ((await catalogue('tables/decks')).decks ?? []) as TableDeck[],
     check: async (seat) => {
       const { status, body } = await post('tables/check', seat);
       if (status !== 200) throw new Error(errorOf(body, status));
