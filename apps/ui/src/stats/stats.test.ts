@@ -121,6 +121,9 @@ const lobby = (source: StatsSource, open?: { player?: string }) =>
 // The popout is a chunk of its own, which the lobby's trophy loads before it is opened (`./StatsButton.tsx`).
 beforeAll(() => StatsPopout.preload());
 
+/** How long the popout may take to say a signed-out viewer must sign in: it draws every section first. */
+const SIGN_IN_WAIT_MS = 5_000;
+
 describe('the stats popout', () => {
   it('draws colours as pips, decks on each seat, turns, and names as links to their page, all in the constructed pool', async () => {
     const { source, asked } = stub();
@@ -231,7 +234,8 @@ describe('a viewer the store will refuse', () => {
     const { rerender } = render(lobby(source));
     fireEvent.pointerEnter(screen.getByTestId('lobby-stats'));
     rerender(lobby(source, {}));
-    await waitFor(() => expect(screen.getByTestId('stats').textContent).toContain('Sign in to see stats.'));
+    // The whole popout draws before it says so: 1.7 s on a host at load 50, past waitFor's 1 s default.
+    await waitFor(() => expect(screen.getByTestId('stats').textContent).toContain('Sign in to see stats.'), { timeout: SIGN_IN_WAIT_MS });
     fireEvent.pointerEnter(screen.getByTestId('lobby-stats'));
     await act(async () => {
       await Promise.resolve();
@@ -247,7 +251,8 @@ describe('a viewer the store will refuse', () => {
 
     fireEvent.pointerEnter(screen.getByTestId('lobby-stats'));
     rerender(lobby(source, {}));
-    await waitFor(() => expect(screen.getByTestId('stats').textContent).toContain('Sign in to see stats.'));
+    // The whole popout draws before it says so: 1.7 s on a host at load 50, past waitFor's 1 s default.
+    await waitFor(() => expect(screen.getByTestId('stats').textContent).toContain('Sign in to see stats.'), { timeout: SIGN_IN_WAIT_MS });
     fireEvent.pointerEnter(screen.getByTestId('lobby-stats'));
     await act(async () => {
       await Promise.resolve();
