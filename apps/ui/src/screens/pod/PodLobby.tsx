@@ -122,6 +122,7 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, i
           )}
           {!splitStands && (
             <RoomSpectators
+              under
               spectators={members.filter((m) => !podPlayers(pod).has(m.id))}
               myId={myMemberId}
               leaderId={leaderId}

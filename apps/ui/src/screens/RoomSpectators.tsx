@@ -21,12 +21,14 @@ export interface RoomSpectatorsProps {
   onWatch?: () => void;
   /** The seat cannot be given back now: the table is locked or a match is under way. */
   watchDisabled?: boolean;
+  /** Drawn under the seats rather than beside them (a pod's strip). */
+  under?: boolean;
 }
 
-export function RoomSpectators({ spectators, myId, leaderId, onWatch, watchDisabled = false }: RoomSpectatorsProps) {
+export function RoomSpectators({ spectators, myId, leaderId, onWatch, watchDisabled = false, under = false }: RoomSpectatorsProps) {
   if (spectators.length === 0 && onWatch === undefined) return null;
   return (
-    <div className="table-side" data-testid="room-spectators">
+    <div className={under ? 'table-side table-side--under' : 'table-side'} data-testid="room-spectators">
       <h3 className="table-side__heading">Spectators</h3>
       <ul className="pod-seats">
         {spectators.map((member) => (
