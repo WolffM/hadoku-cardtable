@@ -158,8 +158,12 @@ test(titled('promo-valakut, bob on Auto Yield: the triggers resolve one at a tim
       const median = [...shares].sort((a, b) => a - b)[Math.floor(shares.length / 2)] ?? 0;
       expect.soft(median, `${who}: the chain keeps its gaps (median ≥ ${MEDIAN.toFixed(2)} of each)`).toBeGreaterThanOrEqual(MEDIAN);
       expect.soft(gaps.filter((g) => g > SLOWEST_MS), `${who}: the chain does not drag (each ≤ ${SLOWEST_MS} ms after the last)`).toEqual([]);
-      const mid = (xs: number[]): number => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] ?? 0;
-      expect.soft(mid(gaps.slice(-3)), `${who}: the chain quickens — its last gaps are shorter than its first`).toBeLessThan(mid(gaps.slice(0, 3)));
+      // The last fireball is the one that kills. When Forge's word that the game is over comes ahead of its frame, the
+      // chain ends there and that frame keeps a resolution's own gap (measured 226–278 ms). So the first two of the chain's
+      // gaps are weighed against the two before the last.
+      const mean = (xs: number[]): number => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
+      const chainGaps = gaps.slice(0, -1);
+      expect.soft(mean(chainGaps.slice(-2)), `${who}: the chain quickens — its later gaps are shorter than its first`).toBeLessThan(mean(chainGaps.slice(0, 2)));
     }
     const held = serverLog(stack)
       .slice(fromAim)

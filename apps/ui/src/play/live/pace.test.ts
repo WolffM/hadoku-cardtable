@@ -1149,6 +1149,17 @@ describe('a chain of resolutions nobody decides between', () => {
     });
   }
 
+  it('each resolution going out names the items it takes off the stack, for the board’s tempo to count before it is drawn', async () => {
+    const sent: (readonly number[])[] = [];
+    const { inner, received } = watch(BOB, { boardStill: fakeBoard().still, resolving: (ids) => sent.push(ids) });
+    for (const t of triggers) inner.deliver(t);
+    await run(() => received.length === triggers.length);
+    expect(sent, 'putting triggers on resolves nothing').toEqual([]);
+    for (const f of chain) inner.deliver(f);
+    await run(() => received.length === triggers.length + chain.length);
+    expect(sent, 'the top first, one a resolution').toEqual(Array.from({ length: N }, (_, k) => [100 + k]));
+  });
+
   it('a chain of the same thing again quickens: each gap is the chain gap at the tempo the next resolution is drawn at', async () => {
     const board = fakeBoard();
     // The board's word on the next resolution's tempo (`tempo.ts`'s `nextResolveTempo`): one step faster per trigger drawn.

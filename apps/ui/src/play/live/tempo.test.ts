@@ -20,6 +20,7 @@ import {
   markTempo,
   nextResolveTempo,
   nextTempo,
+  noteResolutionsSent,
   noteResolvedTempo,
   noteTempoStack,
   quicken,
@@ -167,6 +168,24 @@ describe('the board’s tempo, for the pacer and the stack layer', () => {
     expect(nextResolveTempo(), 'its third this turn').toBe(tempoOf(3));
     noteTempoStack(view([], [foundry], 2));
     expect(nextResolveTempo(), 'next turn').toBe(1);
+  });
+
+  it('what the pacer has sent resolving counts before the board draws it, so a chain’s next gap is at the next one’s tempo', () => {
+    const count = boardTempoCount();
+    const triggers = [3, 2, 1].map((n) => ability(100 + n, 9, 'Valakut, the Molten Pinnacle', 'Whenever a Mountain enters, deal 3 damage.'));
+    const key = `resolve:${itemKey(triggers[0]!)}`;
+    noteTempoStack(view([], triggers));
+    expect(nextResolveTempo(), 'the first').toBe(1);
+    noteResolutionsSent([103]);
+    expect(nextResolveTempo(), 'the first is on its way: the next is the second').toBe(1.25);
+    noteResolutionsSent([102]);
+    expect(nextResolveTempo(), 'and the third').toBe(1.5);
+    // The board draws the first leaving: counted once, never twice.
+    countInstance(count, key, 1);
+    noteTempoStack(view([], triggers.slice(1)));
+    expect(nextResolveTempo()).toBe(1.5);
+    noteResolutionsSent([999]);
+    expect(nextResolveTempo(), 'an item the board never drew is no instance of anything').toBe(1.5);
   });
 
   it('a resolved item keeps the tempo it resolved at; one never drawn resolving is 1', () => {

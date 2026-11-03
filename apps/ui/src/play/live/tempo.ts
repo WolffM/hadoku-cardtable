@@ -98,9 +98,9 @@ export function countInstance(count: TempoCount, key: string, turn: number): num
   return n;
 }
 
-/** The tempo the next instance of `key` in `turn` will play at. */
-export function nextTempo(count: TempoCount, key: string, turn: number): number {
-  return tempoOf((count.turn === turn ? (count.seen.get(key) ?? 0) : 0) + 1);
+/** The tempo the next instance of `key` in `turn` will play at, `ahead` more of it before it. */
+export function nextTempo(count: TempoCount, key: string, turn: number, ahead = 0): number {
+  return tempoOf((count.turn === turn ? (count.seen.get(key) ?? 0) : 0) + ahead + 1);
 }
 
 /* ── the browser's side of an instance's clock ─────────────────────── */
@@ -126,23 +126,36 @@ const RESOLVED_KEPT = 64;
 
 interface BoardTempo {
   count: TempoCount;
-  /** What the top of the stack as last drawn is, and in which turn: the next to resolve. */
-  top: { key: string; turn: number } | null;
+  /** The stack as last drawn, top first, each item with its key; and the turn it was drawn in. */
+  stack: readonly { readonly id: number; readonly key: string }[];
+  turn: number | null;
+  /** The items the pacer has let go resolving that the board has not yet drawn leaving (`noteResolutionsSent`). */
+  readonly sent: Set<number>;
   readonly resolved: Map<number, number>;
 }
 
-let board: BoardTempo = { count: tempoCount(), top: null, resolved: new Map() };
+const freshBoard = (): BoardTempo => ({ count: tempoCount(), stack: [], turn: null, sent: new Set(), resolved: new Map() });
+let board: BoardTempo = freshBoard();
 
 /** A board's count starts here: a board mounted for a match has drawn nothing of it yet. */
 export function boardTempoCount(): TempoCount {
-  board = { count: tempoCount(), top: null, resolved: new Map() };
+  board = freshBoard();
   return board.count;
 }
 
-/** The board drew `view`'s stack: its top item is the next to resolve. */
+/** The board drew `view`'s stack: what is on it, and that what left it has been drawn leaving. */
 export function noteTempoStack(view: BoardView): void {
-  const top = view.stack[0];
-  board.top = top === undefined ? null : { key: `resolve:${itemKey(top)}`, turn: view.turn };
+  board.stack = view.stack.map((item) => ({ id: item.id, key: `resolve:${itemKey(item)}` }));
+  board.turn = view.turn;
+  for (const id of board.sent) if (!board.stack.some((item) => item.id === id)) board.sent.delete(id);
+}
+
+/**
+ * The pacer has let these stack items go resolving (`pace.ts`). The board draws them a render later, and a chain's
+ * next gap is worked out before that render: each counts already, so the next gap is at the next instance's tempo.
+ */
+export function noteResolutionsSent(itemIds: readonly number[]): void {
+  for (const id of itemIds) if (board.stack.some((item) => item.id === id)) board.sent.add(id);
 }
 
 /** Stack item `itemId` resolved at `tempo`. */
@@ -156,7 +169,13 @@ export function resolvedTempo(itemId: number): number {
   return board.resolved.get(itemId) ?? 1;
 }
 
-/** The tempo the next resolution will be drawn at: the top of the stack as the board last drew it. 1 for an empty stack. */
+/**
+ * The tempo the next resolution will be drawn at: the top of the stack as the board last drew it, past what the pacer
+ * has already sent resolving, counting those of the same key. 1 for an empty stack.
+ */
 export function nextResolveTempo(): number {
-  return board.top === null ? 1 : nextTempo(board.count, board.top.key, board.top.turn);
+  const next = board.stack.find((item) => !board.sent.has(item.id));
+  if (next === undefined || board.turn === null) return 1;
+  const ahead = board.stack.filter((item) => board.sent.has(item.id) && item.key === next.key).length;
+  return nextTempo(board.count, next.key, board.turn, ahead);
 }

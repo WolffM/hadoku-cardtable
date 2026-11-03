@@ -203,7 +203,7 @@ import { BOLT_STAGGER_MS, boardHold, prefersReducedMotion, unlockAfter, whenBoar
 import { FLIP_MS } from './CoinToss.tsx';
 import { rollMs } from './dice.ts';
 import type { MatchTransport } from './match.ts';
-import { nextResolveTempo } from './tempo.ts';
+import { nextResolveTempo, noteResolutionsSent } from './tempo.ts';
 import { MATCH_EVENTS } from './transport.ts';
 
 /* ── Classifying an event ────────────────────────────────────────────── */
@@ -561,6 +561,8 @@ interface Entry {
   pace: PaceClass;
   /** Part of the seat's own act ({@link ownAct}), or input following it: no gap, no wait on the board. */
   own: boolean;
+  /** The stack items this frame takes off the stack. */
+  resolves: readonly number[];
   chain: Chain;
   arrivedAt: number;
   boardAt: number;
@@ -611,6 +613,8 @@ export interface PaceOptions {
   reducedMotion?: () => boolean;
   /** How fast the next resolution is drawn (module header, "The same thing again, sooner"). Defaults to `./tempo.ts`'s `nextResolveTempo`. */
   tempo?: () => number;
+  /** Told the stack items a frame going out resolves, before the board draws it. Defaults to `./tempo.ts`'s `noteResolutionsSent`. */
+  resolving?: (itemIds: readonly number[]) => void;
 }
 
 /** The match's client telemetry: the server writes it into the match's log (`@hadoku/shared`'s `telemetry.ts`). */
@@ -638,6 +642,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   const holdNow = options.boardHold ?? boardHold;
   const reducedMotion = options.reducedMotion ?? prefersReducedMotion;
   const tempo = options.tempo ?? nextResolveTempo;
+  const resolving = options.resolving ?? noteResolutionsSent;
 
   let fast = options.initialFast ?? false;
   let endingTurn = false;
@@ -735,9 +740,9 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
     board: boardMs + (boardSince === null ? 0 : now() - boardSince),
     gap: gapMs + (gapSince === null ? 0 : now() - gapSince),
   });
-  function entryOf(payload: unknown, pace: PaceClass, own: boolean, chain: Chain): Entry {
+  function entryOf(payload: unknown, pace: PaceClass, own: boolean, chain: Chain, resolves: readonly number[]): Entry {
     const at = spent();
-    return { payload, pace, own, chain, arrivedAt: now(), boardAt: at.board, gapAt: at.gap, deliveredAt: delivered };
+    return { payload, pace, own, resolves, chain, arrivedAt: now(), boardAt: at.board, gapAt: at.gap, deliveredAt: delivered };
   }
 
   function deliverNext(): void {
@@ -745,6 +750,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
     if (next === undefined) return;
     lastDeliveredAt = now();
     if (next.pace === 'resolve') lastResolveAt = lastDeliveredAt;
+    if (next.resolves.length > 0) resolving(next.resolves);
     const held = lastDeliveredAt - next.arrivedAt;
     if (next.pace === 'input' && held >= INPUT_HELD_REPORT_MS && opensDecision(next.payload)) {
       const at = spent();
@@ -929,11 +935,13 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
       inner.on(event, (payload) => {
         // A question starts the seat's act, but input waits as the act it follows does: after the seat's own at once, after anyone else's on its beats.
         const follows = acts.actor;
+        const stackBefore = acts.stack;
         const own = ownAct(payload, acts, seatPlayer());
+        const resolves = stackBefore.filter((id) => !acts.stack.includes(id));
         const depth = memory.stackDepth;
         const pace = classify(payload, memory);
         const chain = chainOf(payload, pace, depth);
-        queue.push(entryOf(payload, pace, pace === 'input' ? seatPlayer() !== null && follows === 'own' : own, chain));
+        queue.push(entryOf(payload, pace, pace === 'input' ? seatPlayer() !== null && follows === 'own' : own, chain, resolves));
         // A step waiting on its gap has just been superseded: let it go now.
         if (timer !== null && queue.length === 2 && STEPS.has(queue[0]!.pace) && !fast) stopTimer();
         pump();
