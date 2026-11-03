@@ -1,19 +1,21 @@
 /*
- * `YearSlider`: a ruler of years. A hairline rail with a tick for every year, taller every five and
- * tallest every ten, the fives and tens labelled under it; the chosen year in a pill above the rail
- * with a notch pointing at its tick, and that tick in the accent too. The pill travels the line less
- * its own width, as a range's thumb does, so the rail is inset by half a pill at each end. The native
- * range under it is invisible and takes no pointer, as `RadioCards`' input is: the track takes the
- * press, and the range its keys.
+ * `YearSlider`: a ruler of years. A hairline rail with a tick hanging from it for every year, longer
+ * every five and longest every ten, the fives and tens labelled under them; the chosen year in a pill
+ * riding the rail, as a range's thumb does. The pill travels the line less its own width, so the rail
+ * is inset by half a pill at each end. The native range under it is invisible and takes no pointer, as
+ * `RadioCards`' input is: the track takes the press, and the range its keys.
+ *
+ * It is one height with every other control in a room's top bar (`--lobby-control-h`, screens.css: the
+ * operator, 2026-10-23, the bar is one height in every mode), and 30px wherever there is no bar.
  */
 .year-slider {
-  --ys-h: 48px;
+  --ys-h: var(--lobby-control-h, 30px);
   --ys-thumb: 3.25rem;
-  --ys-thumb-h: 20px;
-  --ys-rail: 26px;
-  --ys-tick-year: 4px;
-  --ys-tick-half: 7px;
-  --ys-tick-decade: 10px;
+  --ys-thumb-h: 18px;
+  --ys-rail: 9px;
+  --ys-tick-year: 3px;
+  --ys-tick-half: 5px;
+  --ys-tick-decade: 8px;
   --ys-nudge: 28px;
 
   display: flex;
@@ -118,13 +120,9 @@
   opacity: 0.35;
 }
 
-.year-slider__tick[data-on] {
-  background: var(--color-primary);
-}
-
 .year-slider__label {
   position: absolute;
-  inset-block-start: calc(var(--ys-tick-decade) + 2px);
+  inset-block-start: calc(var(--ys-tick-decade) + 3px);
   inset-inline-start: 50%;
   translate: -50% 0;
   color: var(--color-text-tertiary);
@@ -164,7 +162,7 @@
 
 .year-slider__thumb {
   position: absolute;
-  inset-block-start: calc(var(--ys-rail) - var(--ys-thumb-h) - 5px);
+  inset-block-start: calc(var(--ys-rail) - var(--ys-thumb-h) / 2);
   inset-inline-start: calc((100% - var(--ys-thumb)) * var(--at));
   display: flex;
   align-items: center;
@@ -186,17 +184,6 @@
 /* Held and moving, the pill is under the pointer, frame for frame; let go, it eases onto its year. */
 .year-slider[data-gliding] .year-slider__thumb {
   transition: none;
-}
-
-/* The notch: the pill points at its year's tick. */
-.year-slider__thumb::after {
-  content: '';
-  position: absolute;
-  inset-block-start: 100%;
-  inset-inline-start: 50%;
-  translate: -50% 0;
-  border-inline: 4px solid transparent;
-  border-block-start: 5px solid var(--color-primary);
 }
 
 .year-slider__input:focus-visible ~ .year-slider__thumb {
