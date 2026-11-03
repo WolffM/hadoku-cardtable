@@ -38,13 +38,21 @@ async function openActionMenuIfPresent(page: Page): Promise<void> {
   if ((await menu.count()) > 0 && (await menu.isVisible().catch(() => false))) await menu.tap();
 }
 
-/** The header's settings popout: the fleet header's user button, then each of its tabs. */
+/**
+ * The settings popout, then each of its tabs: the fleet header's user button, or, in a portrait match
+ * where the header is hidden, the action menu's own Settings gear.
+ */
 async function settingsTabs(page: Page, area: string, route: string, prefix: string): Promise<void> {
   await page.evaluate(() => {
     for (const el of [document.scrollingElement!, ...Array.from(document.querySelectorAll('*'))]) if (el.scrollTop > 0) el.scrollTop = 0;
   });
-  const button = page.getByRole('button', { name: /^User settings/ });
-  await button.first().click();
+  const button = page.getByRole('button', { name: /^User settings/ }).first();
+  if (await button.isVisible().catch(() => false)) {
+    await button.click();
+  } else {
+    await openActionMenuIfPresent(page);
+    await page.getByTestId('settings-gear').click();
+  }
   const panel = page.locator('.settings-popout__panel, [data-testid="settings"]').first();
   await panel.waitFor({ timeout: 10_000 });
   const tabs = panel.getByRole('tab');
@@ -456,7 +464,8 @@ test('scenario: board, card inspector, target question, stack with arrows, sheet
       await page.waitForTimeout(800);
       await shotSizes(page, 'scn-stack-one', M('one spell on the stack with its arrow (caster)'), { landscape: true });
       await shotSizes(bob.page, 'scn-decision', M('the decision card: opponent holds priority over the Bolt'), { small: true, landscape: true });
-      const life = page.locator('.seat:not([data-viewer]) [data-testid="life"]').first();
+      // The opponent's life: on its seat chip in portrait, in its seat on a wider screen.
+      const life = page.locator('[data-testid="seat-chip-opp"] [data-testid="life"], .seat:not([data-viewer]) [data-testid="life"]').first();
       await until('the Bolt resolves', async () => {
         await pressIfThere(okOn(bob.page));
         if ((await stackCount(page)) > 0) await pressIfThere(okOn(page));
@@ -513,7 +522,8 @@ test('scenario: board, card inspector, target question, stack with arrows, sheet
       await shotSizes(page, 'scn-stack-many', M('a deep stack of triggers, each with an arrow'), { small: true, landscape: true });
       await shot(bob.page, 'scn-stack-many-opp', M('the deep stack from the target’s seat'));
       await attempt('stack expanded', async () => {
-        const zone = page.locator('[data-zone="stack"]').first();
+        // Portrait's stack is its chip in the top band; a wider screen's is the stack zone.
+        const zone = page.locator('[data-testid="stack-chip"], [data-zone="stack"]').first();
         await zone.tap();
         await page.waitForTimeout(800);
         await shot(page, 'scn-stack-tapped', M('the stack tapped'));
