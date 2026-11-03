@@ -21,19 +21,23 @@ export interface Shoot {
   stack: PlayStack;
   hero: Friend;
   rival: Friend;
+  /** The rival's own screen, filmed too when PROMO_BOTH_SEATS=1 (`<clip>-rival`). */
+  rivalFilm?: Film;
 }
 
 /** Boot Forge, seat the filmed hero and a headless rival on `scenario`, and start rolling once both keep. */
 export async function shootScenario(browser: Browser, clip: string, scenario: string): Promise<Shoot> {
   const forge = forgeAvailability();
   if (!forge.ok) throw new Error(`promo: ${forge.reason}`);
+  // The rival's camera starts first: `startFilm` seeds the mouse per clip, and the hero's paths stay the clip's.
+  const rivalFilm = process.env.PROMO_BOTH_SEATS === '1' ? await startFilm(`${clip}-rival`) : undefined;
   const film = await startFilm(clip);
   let stack: PlayStack | undefined;
   try {
     stack = await startPlayStack(forge);
     const { alice, bob } = await startScenarioMatch(browser, stack, scenario, {
       seats: {
-        open: [() => openPromoFriend(film.hero, HERO), () => openPromoFriend(browser, RIVAL)],
+        open: [() => openPromoFriend(film.hero, HERO), () => openPromoFriend(rivalFilm?.hero ?? browser, RIVAL)],
         names: [TAGS[HERO]!, TAGS[RIVAL]!],
         // A roomless match has no room to read a face from: the probe-only `avatars` field carries them.
         avatars: [AVATARS[HERO]!, AVATARS[RIVAL]!],
@@ -42,11 +46,12 @@ export async function shootScenario(browser: Browser, clip: string, scenario: st
     // Art decodes before the first frame is filmed.
     await alice.page.waitForLoadState('networkidle').catch(() => undefined);
     await film.beat(2_000);
-    await film.roll();
+    await Promise.all([film.roll(), rivalFilm?.roll()]);
     watchEvents(film, alice.page);
-    return { film, stack, hero: alice, rival: bob };
+    if (rivalFilm !== undefined) watchEvents(rivalFilm, bob.page);
+    return { film, stack, hero: alice, rival: bob, rivalFilm };
   } catch (err) {
-    await wrap({ film, stack });
+    await wrap({ film, stack, rivalFilm });
     throw err;
   }
 }
@@ -80,8 +85,8 @@ function watchEvents(film: Film, page: Page): void {
 const watching = new WeakMap<Film, ReturnType<typeof setInterval>>();
 
 export async function wrap(shoot: Partial<Shoot> & { film?: Film }): Promise<void> {
-  if (shoot.film !== undefined) clearInterval(watching.get(shoot.film));
-  await shoot.film?.stop();
+  for (const f of [shoot.film, shoot.rivalFilm]) if (f !== undefined) clearInterval(watching.get(f));
+  await Promise.all([shoot.film?.stop(), shoot.rivalFilm?.stop()]);
   await shoot.stack?.stop();
 }
 
