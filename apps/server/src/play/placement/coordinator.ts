@@ -26,8 +26,10 @@
  *   no JVM taken back from the earlier server takes a new match.
  * - **Planned moves.** A hosting end or reboot notice stops placement on the claw at once
  *   (`NOTICE_HORIZON_MS`); from `MOVE_AHEAD_MS` before the event each remaining match moves at its
- *   next turn start (the snapshot line). A JVM whose heap wants recycling takes no new match and
- *   retires once empty.
+ *   next turn start (the snapshot line). A reboot under way keeps it stopped until fleet-manager
+ *   lifts the drain; the link it drops is quarantined and canaried, not paged, and the claw is no
+ *   outage for the backstop unless it stays down past `REBOOT_DOWN_MS`. A JVM whose heap wants
+ *   recycling takes no new match and retires once empty.
  * - **AI degraded.** Each `cutoff` a host's bridges report (`host.ts`, "AI cutoffs") fails its `ai`
  *   bar for `AI_CUTOFF_WINDOW_MS` and opens `ai:<host>` with one alert; the health tick resolves it
  *   once the window is clean. Nothing moves: the host only stops taking new matches.
@@ -65,6 +67,7 @@ import {
 	BACKSTOP_IDLE,
 	DEMAND_IDLE,
 	MOVE_AHEAD_MS,
+	REBOOT_DOWN_MS,
 	SERVING,
 	aiBar,
 	backstopStep,
@@ -75,6 +78,7 @@ import {
 	nextEvent,
 	rankClaws,
 	readForce,
+	rebootOf,
 	type Bar,
 	type BackstopState,
 	type DemandState,
@@ -169,6 +173,11 @@ interface Host {
 	 * the agent's link can drop after those reads: this is what still knows it was a release.
 	 */
 	releaseAt: number | null;
+	/**
+	 * When its agent link was last lost, and whether its announced reboot was under way then; null
+	 * while linked. A claw starts down, until its first link.
+	 */
+	down: { at: number; forReboot: boolean } | null;
 }
 
 /**
@@ -343,6 +352,9 @@ export function placement(opts: PlacementOptions): Placement {
 			cutoffs: [],
 			unusableSince: null,
 			releaseAt: null,
+			// Down until its first link: a coordinator started mid-reboot never saw the drop, so it
+			// excuses nothing it cannot time.
+			down: kind === 'claw' ? { at: now(), forReboot: false } : null,
 		};
 		hosts.set(name, host);
 		return host;
@@ -774,6 +786,7 @@ export function placement(opts: PlacementOptions): Placement {
 				return;
 			}
 			host.link = conn;
+			if (conn.client.lost === null) host.down = null;
 			host.agentError = null;
 			conn.client.onLost((reason) => agentLost(host, conn, reason));
 			host.pool = makePool(host, conn.launcher, join(clawsDir, host.name), true);
@@ -792,6 +805,9 @@ export function placement(opts: PlacementOptions): Placement {
 		if (host.link !== conn) return;
 		host.link = null;
 		if (closing) return;
+		const reboot = rebootOf(host.fleet, now());
+		const forReboot = reboot?.underway === true;
+		host.down = { at: now(), forReboot };
 		// Every JVM's exit came first (`AgentClient.lose`): a claw with matches has failed over already.
 		const live = [...placed.values()].some((p) => p.host === host && !p.moved);
 		if (live) {
@@ -812,7 +828,10 @@ export function placement(opts: PlacementOptions): Placement {
 		const hadPool = host.pool !== null;
 		quarantine(host, reason);
 		detach(host, reason);
-		if (hadPool) alerts.fire(`hb:${host.name}`, `⚠️ Claw heartbeat lost: ${host.name} — ${reason}. No match was on it. Quarantined until a healthy status and a canary.`);
+		// fleet-manager's announced reboot, under way: the lost link is the reboot. It still earns its
+		// way back by a canary, but paging it as a fault (claw-8 21:49Z on 2026-11-03) cried wolf.
+		if (forReboot) log({ evt: 'claw-rebooting', host: host.name, reason, windowEnds: reboot?.until == null ? null : new Date(reboot.until).toISOString() });
+		else if (hadPool) alerts.fire(`hb:${host.name}`, `⚠️ Claw heartbeat lost: ${host.name} — ${reason}. No match was on it. Quarantined until a healthy status and a canary.`);
 		stepBackstop(true, true);
 		notifyRoom();
 	}
@@ -843,13 +862,24 @@ export function placement(opts: PlacementOptions): Placement {
 	}
 
 	/**
+	 * Down for planned work, not a fault: inside fleet-manager's announced reboot, and either still
+	 * linked or lost only once the reboot was under way, less than `REBOOT_DOWN_MS` ago.
+	 */
+	function rebooting(host: Host): boolean {
+		if (rebootOf(host.fleet, now()) === null) return false;
+		return host.down === null || (host.down.forReboot && now() - host.down.at < REBOOT_DOWN_MS);
+	}
+
+	/**
 	 * One backstop step. `between` is an event between polls: it may promote, never count a poll.
 	 * `waiting` is a start that found no host since the last poll, or a failed claw's matches.
 	 */
 	function stepBackstop(fresh: boolean, between = false, waiting = short): void {
+		const serving = claws().filter((h) => SERVING.includes(h.name) && h.fleet?.hosting != null);
 		const step = backstopStep(backstop, {
 			fresh: fresh && fleetReadAt !== null,
-			serving: claws().filter((h) => SERVING.includes(h.name) && h.fleet?.hosting != null && usable(h)).length,
+			serving: serving.filter((h) => usable(h)).length,
+			rebooting: serving.filter((h) => !usable(h) && rebooting(h)).length,
 			eligible: claws().filter((h) => eligible(barsOf(h))).length,
 			forced: opts.forceFile === undefined ? false : readForce(opts.forceFile, now()) !== null,
 			waiting,

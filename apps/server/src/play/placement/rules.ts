@@ -8,7 +8,7 @@
  *
  *   fleet       fleet-manager says it is reachable and its slice is `guaranteed`
  *   agent       our agent link is up and its heartbeat is fresh
- *   notice      no hosting end or reboot within `NOTICE_HORIZON_MS`
+ *   notice      no hosting end or reboot within `NOTICE_HORIZON_MS`, and no reboot under way
  *   quarantine  it has not failed a match since it last passed a canary
  *   room        a JVM with room, or room in the slice for another (the agent's own fit rule)
  *   ai          Forge cut no AI decision short on it within `AI_CUTOFF_WINDOW_MS`
@@ -28,6 +28,9 @@
  * fleet-manager's CI backstop: promoted when no claw is eligible, or when fewer than `MIN_SLICES` of
  * the serving claws (`SERVING`) are usable, for `OUTAGE_POLLS` polls in a row — at once when a start
  * is waiting or a failed claw's matches need a host; demoted after `CALM_POLLS` calm polls in a row;
+ * a serving claw inside fleet-manager's announced reboot is no outage (operator, 2026-11-03: a kernel
+ * reboot of claw-8 promoted hokon for 19 min with no match anywhere) until it has been down for
+ * `REBOOT_DOWN_MS`;
  * a poll that could not read fleet status holds whatever is current; an operator force, time-boxed
  * (`FORCE_DEFAULT_MS`, at most `FORCE_MAX_MS`), promotes regardless. Demotion takes no new matches
  * on hokon and moves none: a healthy match is never restored for nothing.
@@ -49,6 +52,13 @@ import { coreRank, type FleetNode } from './fleet.js';
 export const NOTICE_HORIZON_MS = 30 * 60_000;
 /** This close to that event, its remaining matches move at their next turn start. */
 export const MOVE_AHEAD_MS = 5 * 60_000;
+/**
+ * How long a serving claw may be down inside its announced reboot before hokon counts it as an
+ * outage: fleet-manager's own bound from the reboot command to a reachable node on a new boot
+ * (`BOOT_TIMEOUT_MS`, hadoku-fleet-manager `scripts/lib/reboot-cycle.mjs`). claw-8's took 56 s on
+ * 2026-11-03.
+ */
+export const REBOOT_DOWN_MS = 12 * 60_000;
 /**
  * Outage polls in a row before hokon steps in unasked. One was a hair trigger: on 2026-10-30 a
  * one-poll blip on the only claw promoted hokon, the prod box, again and again.
@@ -94,10 +104,30 @@ export function nextEvent(fleet: FleetNode | null): { at: number; what: string }
 	return valid[0] ?? null;
 }
 
+/**
+ * fleet-manager's announced reboot of this node, or null. Its reboot cycle announces one as a
+ * planned drain of kind `reboot`: a `starts` notice at the reboot, and an `ends` notice at the
+ * drain's lapse. Once the start passes only the `ends` is listed, until the cycle has verified the
+ * node and lifted the drain: the reboot is `underway` all that time.
+ */
+export function rebootOf(fleet: FleetNode | null, now: number): { underway: boolean; until: number | null } | null {
+	const notices = fleet?.notices.filter((n) => n.kind === 'reboot') ?? [];
+	if (notices.length === 0) return null;
+	const first = (event: string): number | null =>
+		notices
+			.filter((n) => n.event === event)
+			.map((n) => Date.parse(n.at))
+			.filter((t) => Number.isFinite(t))
+			.sort((a, b) => a - b)[0] ?? null;
+	const starts = first('starts');
+	return { underway: starts === null || starts <= now, until: first('ends') };
+}
+
 export function bars(claw: ClawState, now: number, freshMs: number): Bar[] {
 	const bar = (name: BarName, why: string | null): Bar => ({ bar: name, ok: why === null, why: why ?? '' });
 	const f = claw.fleet;
 	const event = nextEvent(f);
+	const reboot = rebootOf(f, now);
 	return [
 		bar(
 			'fleet',
@@ -119,7 +149,14 @@ export function bars(claw: ClawState, now: number, freshMs: number): Bar[] {
 					? `no heartbeat for ${Math.round(claw.agent.silentMs / 1000)} s`
 					: null,
 		),
-		bar('notice', event !== null && event.at - now < NOTICE_HORIZON_MS ? `${event.what} at ${new Date(event.at).toISOString()}` : null),
+		bar(
+			'notice',
+			reboot?.underway === true
+				? `a reboot is under way${reboot.until === null ? '' : ` (its window ends at ${new Date(reboot.until).toISOString()})`}`
+				: event !== null && event.at - now < NOTICE_HORIZON_MS
+					? `${event.what} at ${new Date(event.at).toISOString()}`
+					: null,
+		),
 		bar('quarantine', claw.quarantine),
 		bar('room', claw.room.free > 0 ? null : (claw.room.why ?? 'full')),
 		aiBar(claw.aiCutoffs),
@@ -165,6 +202,11 @@ export interface BackstopInput {
 	fresh: boolean;
 	/** `SERVING` claws with a slice declared for us that are usable (`DemandClaw.usable`). */
 	serving: number;
+	/**
+	 * The other `SERVING` claws with a slice declared for us that are inside an announced reboot,
+	 * and not down past `REBOOT_DOWN_MS`: planned work, so they count as up.
+	 */
+	rebooting: number;
 	eligible: number;
 	/** The operator's force is in effect. */
 	forced: boolean;
@@ -187,7 +229,7 @@ export function backstopStep(state: BackstopState, input: BackstopInput): { stat
 	const outage =
 		input.eligible === 0
 			? 'no claw is eligible'
-			: input.serving < MIN_SLICES
+			: input.serving + input.rebooting < MIN_SLICES
 				? `only ${input.serving} of the ${MIN_SLICES} serving claws (${SERVING.join(', ')}) ${input.serving === 1 ? 'is' : 'are'} up`
 				: null;
 	if (outage !== null && (state.promoted || input.waiting)) return next({ promoted: true, calm: 0, outages: 0, why: outage });

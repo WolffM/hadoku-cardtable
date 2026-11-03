@@ -313,8 +313,27 @@ describe('eligibility', () => {
 		expect(failed({ ...ok, fleet: fleetNode('claw-9', { notices: [{ event: 'ends', at: at(29 * 60_000), kind: 'maintenance' }] }) })).toEqual([
 			`notice: ends (maintenance) at ${at(29 * 60_000)}`,
 		]);
-		expect(failed({ ...ok, fleet: fleetNode('claw-9', { notices: [{ event: 'reboot', at: at(31 * 60_000), kind: 'drain' }] }) })).toEqual([]);
+		expect(failed({ ...ok, fleet: fleetNode('claw-9', { notices: [{ event: 'starts', at: at(31 * 60_000), kind: 'reboot' }] }) })).toEqual([]);
 		expect(failed({ ...ok, fleet: fleetNode('claw-9', { hosting: { ...fleetNode('x').hosting!, until: at(10 * 60_000) } }) })).toEqual([`notice: the slice ends at ${at(10 * 60_000)}`]);
+	});
+
+	it('a reboot under way fails the notice bar until fleet-manager lifts its drain, though the drain lapses hours out', () => {
+		const at = (ms: number) => new Date(T0 + ms).toISOString();
+		// Past its start fleet-manager lists only the drain's lapse, 2 h out: that alone passed the bar on
+		// 2026-11-03, so claw-8 was placeable again from 21:47:38Z until it went down at 21:49:14Z.
+		expect(failed({ ...ok, fleet: fleetNode('claw-9', { notices: [{ event: 'ends', at: at(2 * 3600_000), kind: 'reboot' }] }) })).toEqual([
+			`notice: a reboot is under way (its window ends at ${at(2 * 3600_000)})`,
+		]);
+		// A cached read can still list a start that has passed.
+		expect(
+			failed({ ...ok, fleet: fleetNode('claw-9', { notices: [{ event: 'starts', at: at(-1000), kind: 'reboot' }, { event: 'ends', at: at(2 * 3600_000), kind: 'reboot' }] }) }),
+		).toEqual([`notice: a reboot is under way (its window ends at ${at(2 * 3600_000)})`]);
+		// Before its start it is a notice like any other.
+		expect(
+			failed({ ...ok, fleet: fleetNode('claw-9', { notices: [{ event: 'starts', at: at(15 * 60_000), kind: 'reboot' }, { event: 'ends', at: at(2 * 3600_000 + 15 * 60_000), kind: 'reboot' }] }) }),
+		).toEqual([`notice: starts (reboot) at ${at(15 * 60_000)}`]);
+		// Any other drain's lapse, hours out, is not one.
+		expect(failed({ ...ok, fleet: fleetNode('claw-9', { notices: [{ event: 'ends', at: at(2 * 3600_000), kind: 'maintenance' }] }) })).toEqual([]);
 	});
 
 	it('spreads: the most free room first, and between equals the faster core (claw-8 > claw-9 > claw-5/6)', () => {
@@ -445,7 +464,7 @@ process.exit(1);`,
 });
 
 describe('the backstop', () => {
-	const calm = { fresh: true, serving: 2, eligible: 2, forced: false, waiting: false, between: false };
+	const calm = { fresh: true, serving: 2, rebooting: 0, eligible: 2, forced: false, waiting: false, between: false };
 	const out = { ...calm, eligible: 0 };
 	const run = (inputs: (typeof calm)[], from: BackstopState = BACKSTOP_IDLE) => {
 		let s = from;
@@ -467,6 +486,14 @@ describe('the backstop', () => {
 		expect(run([{ ...calm, serving: 1 }, { ...calm, serving: 1 }, calm, calm, calm])).toEqual(['down', 'promote', 'up', 'up', 'demote']);
 		// A storm in the calm resets the count.
 		expect(run([out, out, calm, calm, out, calm, calm, calm])).toEqual(['down', 'promote', 'up', 'up', 'up', 'up', 'up', 'demote']);
+	});
+
+	it('a serving claw inside its announced reboot counts as up; with no claw eligible hokon still comes up', () => {
+		const rebooting = { ...calm, serving: 1, rebooting: 1, eligible: 1 };
+		expect(run([rebooting, rebooting, rebooting, rebooting])).toEqual(['down', 'down', 'down', 'down']);
+		expect(run([{ ...rebooting, eligible: 0 }, { ...rebooting, eligible: 0 }])).toEqual(['down', 'promote']);
+		// Down past the bound, the coordinator counts it out: an outage like any other.
+		expect(run([rebooting, { ...rebooting, rebooting: 0 }, { ...rebooting, rebooting: 0 }])).toEqual(['down', 'down', 'promote']);
 	});
 
 	it('a single outage poll promotes nothing: a calm poll between two starts the count again', () => {
@@ -1142,7 +1169,7 @@ describe('planned moves', () => {
 		ready(r, 'm-1');
 		const from = jvmOf(r, 'm-1');
 		const idx = r.nodes.findIndex((n) => n.node === from.claw);
-		r.nodes[idx] = fleetNode(from.claw, { notices: [{ event: 'reboot', at: new Date(T0 + 4 * 60_000).toISOString(), kind: 'drain' }] });
+		r.nodes[idx] = fleetNode(from.claw, { notices: [{ event: 'starts', at: new Date(T0 + 4 * 60_000).toISOString(), kind: 'reboot' }] });
 		await r.p.poll();
 		expect(r.order).toEqual([]);
 		from.jvm.say({ t: 'snapshot', turn: 4, state: '…', match: 'm-1' });
@@ -1150,6 +1177,100 @@ describe('planned moves', () => {
 		expect(jvmOf(r, 'm-1').claw).not.toBe(from.claw);
 		expect(hostOf(r, from.claw).quarantine).toBeNull();
 		expect(r.posted.filter((t) => t.startsWith('🚨'))).toEqual([]);
+	});
+});
+
+describe('planned reboots', () => {
+	const LEASE_MS = 2 * 3600_000;
+	const iso = (t: number) => new Date(t).toISOString();
+	/** fleet-manager's reboot cycle on `node`, as node-status lists it before the reboot starts at `at`. */
+	const announced = (node: string, at: number): FleetNode =>
+		fleetNode(node, { notices: [{ event: 'starts', at: iso(at), kind: 'reboot' }, { event: 'ends', at: iso(at + LEASE_MS), kind: 'reboot' }] });
+	/** The same, once its start has passed: only the drain's lapse is listed, until the cycle lifts it. */
+	const underway = (node: string, at: number, extra: Partial<FleetNode> = {}): FleetNode =>
+		fleetNode(node, { notices: [{ event: 'ends', at: iso(at + LEASE_MS), kind: 'reboot' }], ...extra });
+
+	it("claw-8's kernel reboot (2026-11-03 21:32–21:50Z): no promotion, no page, and no match on it in its window", async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
+		// 21:32:38Z: the cycle announces the reboot with our 15 min notice.
+		const at = r.clock.t + 15 * 60_000;
+		r.nodes[1] = announced('claw-8', at);
+		for (let i = 0; i < 15; i++) {
+			await r.p.poll();
+			r.clock.t += 60_000;
+		}
+		expect(hostOf(r, 'claw-8').eligible).toBe(false);
+		// 21:47:38Z: the drain starts; the cycle waits for the box to go idle before it reboots.
+		r.nodes[1] = underway('claw-8', at);
+		r.clock.t += 1000;
+		await r.p.poll();
+		expect(hostOf(r, 'claw-8').bars.filter((b) => !b.ok).map((b) => b.why)).toEqual([`a reboot is under way (its window ends at ${iso(at + LEASE_MS)})`]);
+		start(r, 'm-1');
+		expect(jvmOf(r, 'm-1').claw).toBe('claw-9');
+		// 21:49:14Z: the box goes down, and the agent's heartbeat is lost 10 s later.
+		r.clock.t += 95_000;
+		r.claws.get('claw-8')!.link.lose('agent heartbeat lost for 10 s (window 10 s)');
+		expect(hostOf(r, 'claw-8').quarantine?.cause).toBe('agent heartbeat lost for 10 s (window 10 s)');
+		expect(r.logs.some((l) => l.evt === 'claw-rebooting' && l.host === 'claw-8' && l.windowEnds === iso(at + LEASE_MS))).toBe(true);
+		r.nodes[1] = underway('claw-8', at, { reachable: false });
+		r.clock.t += 30_000;
+		await r.p.poll();
+		// 21:50:10Z: up on its new kernel. The canary passes; the drain still holds it out.
+		r.claws.set('claw-8', fakeClaw('claw-8'));
+		r.nodes[1] = underway('claw-8', at);
+		r.clock.t += 30_000;
+		await r.p.poll();
+		expect(r.canary.runs).toEqual(['claw-8']);
+		expect(hostOf(r, 'claw-8').quarantine).toBeNull();
+		expect(hostOf(r, 'claw-8').eligible).toBe(false);
+		// 21:50:29Z: verified, and the drain is lifted.
+		r.nodes[1] = fleetNode('claw-8');
+		r.clock.t += 20_000;
+		await r.p.poll();
+		expect(hostOf(r, 'claw-8').eligible).toBe(true);
+		expect(r.logs.filter((l) => l.evt === 'backstop-promoted')).toEqual([]);
+		expect(r.posted).toEqual([]);
+	});
+
+	it('down past 12 min inside its reboot, a serving claw is an outage again: hokon comes up', async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
+		const at = r.clock.t - 60_000;
+		r.nodes[1] = underway('claw-8', at);
+		await r.p.poll();
+		r.claws.get('claw-8')!.link.lose('agent heartbeat lost for 10 s (window 10 s)');
+		r.nodes[1] = underway('claw-8', at, { reachable: false });
+		for (let i = 0; i < 11; i++) {
+			r.clock.t += 60_000;
+			await r.p.poll();
+		}
+		expect(r.p.hosts().backstop.promoted).toBe(false);
+		r.clock.t += 60_000;
+		await r.p.poll();
+		r.clock.t += 60_000;
+		await r.p.poll();
+		expect(r.posted).toEqual([expect.stringMatching(/^🔺 hokon promoted to the Forge backstop: only 1 of the 2 serving claws \(claw-8, claw-9\) is up\. claw-9: eligible; claw-8: fleet/)]);
+	});
+
+	it('a link lost before its reboot is under way is a fault: paged, and an outage', async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
+		r.nodes[1] = announced('claw-8', r.clock.t + 10 * 60_000);
+		await r.p.poll();
+		r.claws.get('claw-8')!.link.lose('agent heartbeat lost for 11 s (window 10 s)');
+		expect(r.posted).toEqual([
+			'⚠️ Claw heartbeat lost: claw-8 — agent heartbeat lost for 11 s (window 10 s). No match was on it. Quarantined until a healthy status and a canary.',
+		]);
+		r.clock.t += 60_000;
+		await r.p.poll();
+		r.clock.t += 60_000;
+		await r.p.poll();
+		expect(r.p.hosts().backstop.promoted).toBe(true);
+	});
+
+	it('a coordinator started mid-reboot excuses nothing it cannot time: the claw it never linked is an outage', async () => {
+		const at = T0 - 60_000;
+		const r = await rig([fleetNode('claw-9'), underway('claw-8', at, { reachable: false })]);
+		await r.p.poll();
+		expect(r.p.hosts().backstop.promoted).toBe(true);
 	});
 });
 

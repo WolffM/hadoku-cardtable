@@ -214,6 +214,18 @@ What is ours on top:
   emergencies"), and it is the first slice to end. `rules.ts` `HOST_ORDER` =
   `hosting.json` `placement.order` (hokon is not listed: it is our step, not a
   slice), which fleet-manager's converger ranks nodes by.
+- **A planned reboot is not "down" (operator, 2026-11-03).** fleet-manager's
+  hourly `reboot-claws` cycle took claw-8 onto a security kernel at 21:32–21:50Z:
+  15 min notice, 56 s down, no match anywhere. That promoted hokon for 19 min
+  and paged "heartbeat lost" for a reboot announced a quarter of an hour
+  earlier. A serving claw inside its announced reboot (a `reboot` drain, from
+  its notice until the cycle lifts the drain) now counts as up for the outage
+  test, until it has been down `REBOOT_DOWN_MS` (12 min, the cycle's own boot
+  bound). Its lost link is quarantined and canaried as before, but not paged.
+  A start with nowhere to go, or a failed claw's matches, still promote hokon at
+  the next poll. A third serving claw, if one is ever added, is not claw-5 ("we
+  dont want a slow box like claw-5"); claw-4 is the candidate, refused today on
+  `not-beside-unbounded`.
 - **Promoted hokon still obeys quality first.** Its per-tier cap is half its own
   measured knee, lowered by what prod is using at the moment.
 - **Demotion takes no new matches.** Live matches finish on hokon; moving a
@@ -324,7 +336,7 @@ needs no action.
 | 🚨 | **Coordinator down** | prod `/health` fails from outside. The server cannot report its own death, so this check runs elsewhere (a hadoku_site cron is the likely home) |
 | 🚨 | **Crash loop** | the cardtable pm2 process restarted more than twice in 10 min |
 | ⚠️ | **Capacity** | a match was refused for lack of a host, or free slots fall below 20% fleet-wide or 0 in the vs-AI tier |
-| ⚠️ | **Claw heartbeat lost** | a host claw goes silent with no match on it |
+| ⚠️ | **Claw heartbeat lost** | a host claw goes silent with no match on it, outside an announced reboot that is under way |
 | ⚠️ | **AI degraded** | any AI cutoff on a host (Forge cut a decision short) within the last 5 min; the host takes no new match until 5 min pass without one (`placement/rules.ts` `AI_CUTOFF_WINDOW_MS`) |
 | ⚠️ | **Pin not servable** | a host claw lacks the jar or `res` for prod's pin |
 | ✅ | **Recovered** | the incident above has cleared |

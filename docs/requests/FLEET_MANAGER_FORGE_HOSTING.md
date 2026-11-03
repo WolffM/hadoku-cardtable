@@ -280,6 +280,31 @@ hosting role without changing how CI runs there):
 - Test A10 then runs **with** the CI user's full rights, sudo included, and
   every read, signal and write must be refused.
 
+### 11. A reboot is not a missing slice (added 2026-11-03)
+
+On 2026-11-03 your `reboot-claws` pass took claw-8 onto 6.12.115 (drain announced
+21:32:38Z for 21:47:38Z, down 21:49:14–21:50:10Z, verified 21:50:29Z). Your
+converger declared claw-5 at 21:38 ("1 serving of 2 wanted") and ended it at
+21:52 ("3 serving, 2 wanted"); it was removed at 22:12 without a match. Our
+demand stayed at 2 throughout: cardtable never replaces a serving claw for a
+reboot, and since 2026-11-03 does not even promote hokon for one.
+
+The cause, read in `scripts/lib/hosting-converge.mjs`: `faultOf` counts any
+`starts` notice whose kind is not `hosting` or `lease` inside the horizon, so a
+`reboot` drain makes the node unplaceable 30 min ahead, and once it is under way
+`!offer.reachable` does the same while the box is down.
+
+What we ask:
+
+- **A node under the reboot cycle's own reboot keeps its slice in `serving`**,
+  from the notice until the cycle lifts the drain or holds it as failed
+  (`HELD_PREFIX`), so a 15 min notice and a minute of downtime declare nothing.
+  A reboot that fails verification is a fault as today.
+- If you would rather bound it, bound it with the cycle's own `BOOT_TIMEOUT_MS`;
+  cardtable uses the same 12 min (`rules.ts` `REBOOT_DOWN_MS`).
+- **Pass line:** the next `reboot-claws` pass on claw-8 or claw-9 produces no
+  `declare` in `fleet hosting-demand cardtable --json`'s `lastPass.actions`.
+
 ## What we do NOT ask
 
 - Choosing hosts, balancing load, failover, retries, or alerts. Ours.
