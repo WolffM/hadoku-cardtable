@@ -1205,7 +1205,10 @@ test(
       const row = alice.page.getByTestId('pod-standings-row-2');
       await expect(row, 'her standing counts the series she lost').toHaveAttribute('data-mine', '');
       const standing = await row.textContent();
-      expect(standing, 'game win % from two lost games').toMatch(/0%/);
+      expect(standing, 'one series lost').toContain('0–1');
+      // The plain standings keep the tiebreaks one press away (486b18212).
+      await alice.page.getByTestId('pod-standings-tiebreaks').click();
+      await expect(row.locator('td[data-key="gameWinPct"]'), 'game win % from two lost games').toHaveText('0%');
 
       /* ── she owns the room and closes it: back to the lobby, the room gone, its standings kept ── */
       await alice.page.getByTestId('room-close').click();
