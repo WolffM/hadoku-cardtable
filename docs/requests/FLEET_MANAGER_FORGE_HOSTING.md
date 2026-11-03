@@ -305,6 +305,16 @@ What we ask:
 - **Pass line:** the next `reboot-claws` pass on claw-8 or claw-9 produces no
   `declare` in `fleet hosting-demand cardtable --json`'s `lastPass.actions`.
 
+**Answered 2026-11-03: fleet-manager ffc06cd** (on its ppe; live once mgmt-api
+resolves the published package). A `reboot` notice from the cycle (reason
+`automated reboot…`) is no fault, and neither is "cannot be reached" while
+`claw-reboot.json` has the node `rebooting`, the drain is still the cycle's,
+and less than `BOOT_TIMEOUT_MS + SERVICES_TIMEOUT_MS` (18 min) has passed since
+the reboot. That is the cycle's own point of holding the node. Cardtable keeps
+12 min (`REBOOT_DOWN_MS`): its clock starts at the lost link and stops at the
+agent's reconnect, which the services phase does not gate. Check the pass line
+against mgmt-api's resolved version, not fleet-manager's ppe.
+
 ## What we do NOT ask
 
 - Choosing hosts, balancing load, failover, retries, or alerts. Ours.
