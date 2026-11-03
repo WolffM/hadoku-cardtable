@@ -1027,7 +1027,14 @@ describe('forge:seats: item 4’s server half', () => {
 		const carol = await connect(h.port, edgeHeaders('carol'));
 		expect(await carol.request('forge:join', { matchId })).toMatchObject({ matchId, seat: 0 });
 		await waitUntil(() => carol.seatsEvents.length > 0, 'the watcher’s roster');
-		expect(carol.seatsEvents).toHaveLength(1);
+		// Told, not told once: a wait the roster carries is told after a 150 ms grace
+		// (`checkWaitingOn`), so a join inside that window hears the roster again when it is.
+		const told = carol.seatsEvents.at(-1) as { matchId: string; seats: { seat: number; claimed: boolean }[] };
+		expect(told.matchId).toBe(matchId);
+		expect(told.seats.map((s) => [s.seat, s.claimed])).toEqual([
+			[0, true],
+			[1, true],
+		]);
 	});
 });
 
