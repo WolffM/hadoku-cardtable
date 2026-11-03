@@ -180,6 +180,7 @@ import type { DraftRooms, PodDeal } from '../room/draftRooms.js';
 import { botPoolAcross, builtDeckOf, stateOf, viewForParticipant } from '../room/draftRooms.js';
 import { botDeckText } from '../room/botDeck.js';
 import { httpCaller } from './request.js';
+import { prepareJson, sendPrepared, type PreparedJson } from './prepared.js';
 import { isAdmin } from '../edge-auth.js';
 import { draftIdOfPool, draftPoolId, isAiEntrant, type Lobby, type PodChecks } from '../room/lobby.js';
 import { roundNamesOf } from '../room/plan.js';
@@ -738,33 +739,29 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	// The deck library is read once at boot and never changes, so its answer is serialized once too:
 	// 1,459 decks with every main and sideboard line cost 12-15 ms of the event loop live matches
 	// share, on every request, and Express hashed the whole body again for its ETag.
-	let decksAnswer: { body: string; etag: string } | null = null;
-	const decksBody = (): { body: string; etag: string } => {
-		if (decksAnswer !== null) return decksAnswer;
-		const body = JSON.stringify({
-			decks: library.decks.map((d) => ({
-				id: d.id,
-				collection: d.collection,
-				era: d.era,
-				name: d.deck.name,
-				// The name's two halves as the library records them, so a screen
-				// never splits a label to find who played the deck.
-				archetype: d.deck.archetype,
-				pilot: d.deck.pilot,
-				format: d.deck.format,
-				date: d.deck.date,
-				provenance: d.deck.provenance,
-				citation: d.deck.citation,
-				...deckLines(d),
-			})),
-		});
-		decksAnswer = { body, etag: `"decks-${createHash('sha1').update(body).digest('base64url').slice(0, 16)}"` };
-		return decksAnswer;
-	};
+	let decksAnswer: PreparedJson | null = null;
 	tables.get('/decks', (_req: Request, res: Response) => {
-		const { body, etag } = decksBody();
-		res.setHeader('ETag', etag);
-		res.type('json').send(body);
+		decksAnswer ??= prepareJson(
+			{
+				decks: library.decks.map((d) => ({
+					id: d.id,
+					collection: d.collection,
+					era: d.era,
+					name: d.deck.name,
+					// The name's two halves as the library records them, so a screen
+					// never splits a label to find who played the deck.
+					archetype: d.deck.archetype,
+					pilot: d.deck.pilot,
+					format: d.deck.format,
+					date: d.deck.date,
+					provenance: d.deck.provenance,
+					citation: d.deck.citation,
+					...deckLines(d),
+				})),
+			},
+			'decks',
+		);
+		sendPrepared(res, decksAnswer);
 	});
 
 	// The library and the frozen pools are fixed for the life of the process,

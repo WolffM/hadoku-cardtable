@@ -47,6 +47,7 @@ import { dirname, join } from 'node:path';
 import express, { type Request, type Response, type Router } from 'express';
 
 import { CUBE_ARTS_MAX, DraftCardSchema, ImportCubeBodySchema, sampleArt, type CubeSummary, type DraftCard, type PoolVerdict } from '@hadoku/shared';
+import { prepareJson, sendPrepared, type PreparedJson } from '../http/prepared.js';
 import { bodyErrors, httpCaller } from '../http/request.js';
 import type { CardCatalog } from './catalog.ts';
 import { fetchCubeCobraCube, parseCubeCobraLink, type CubeCobraCard, type CubeCobraCube, type FetchJson } from './cubecobra.ts';
@@ -74,8 +75,8 @@ export class CubeStoreRefusal extends Error {
 
 interface Entry {
 	summary: CubeSummary;
-	/** The shortlist's own resolved cards, or the imported cube's derived ones. Never persisted for imports. */
-	cards: DraftCard[];
+	/** The shortlist's own resolved cards, or the imported cube's derived ones. Never persisted for imports; replaced, never edited. */
+	cards: readonly DraftCard[];
 	/** Only for `origin: 'cubecobra'` — what a refresh re-derives `cards` from. */
 	raw: readonly CubeCobraCard[] | null;
 }
@@ -518,6 +519,10 @@ export function attachCubeRoutes(api: Router, deps: AttachCubeRoutesDeps): void 
 		res.json(store.list());
 	});
 
+	// A cube's card list (the vintage cube's is 244 KB) is serialized once per version of it. Keyed by
+	// the store's own array, which an import or a refresh replaces and nothing edits: a changed cube is
+	// a new key, and a deleted one is never asked for again.
+	const cardsAnswers = new WeakMap<readonly DraftCard[], PreparedJson>();
 	cubes.get('/:id/cards', (req: Request, res: Response) => {
 		const id = String(req.params.id);
 		const cards = store.cards(id);
@@ -525,7 +530,9 @@ export function attachCubeRoutes(api: Router, deps: AttachCubeRoutesDeps): void 
 			res.status(404).json({ error: `no cube ${JSON.stringify(id)}` });
 			return;
 		}
-		res.json(cards);
+		let answer = cardsAnswers.get(cards);
+		if (answer === undefined) cardsAnswers.set(cards, (answer = prepareJson(cards, 'cube')));
+		sendPrepared(res, answer);
 	});
 
 	// The lobby's cube spotlight shows three of a cube's cards. It used to fetch the whole card list
