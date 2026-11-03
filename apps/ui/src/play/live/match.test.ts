@@ -2526,7 +2526,7 @@ describe('a window is applied whole: a prompt never stands under another inputâ€
     await sendAndApply(s, m, [prompt('Search your hand?')]);
     expect(m.prompt).toBe('Search your hand?');
     expect(liveBar(m)).toMatchObject({ label1: 'Yes', label2: 'No', enable1: true, enable2: true });
-    expect(m.windowHalf).toBeNull();
+    expect(m.windowHalf).toEqual([]);
   });
 
   it("a priority line, sent before its bar, is not drawn over the last window's Yes/No", async () => {
@@ -2542,17 +2542,34 @@ describe('a window is applied whole: a prompt never stands under another inputâ€
     expect(liveBar(m)).toMatchObject({ label1: 'OK', label2: 'Cancel' });
   });
 
+  it('a chain is applied whole: nothing marked pairsWithNext is drawn before the frame that ends it', async () => {
+    const { s, m } = await fullGame();
+    await sendAndApply(s, m, [prompt('Priority: Alice'), bar(true)]);
+
+    // The server's look hold: a delta, a bar, then the question that shows the card, each marked but the last.
+    await firstHalf(s, m, yesNo);
+    await firstHalf(s, m, prompt('Search your hand?'));
+    expect(m.prompt).toBe('Priority: Alice');
+    expect(liveBar(m)).toMatchObject({ label1: 'OK', label2: 'Cancel' });
+    expect(m.windowHalf).toHaveLength(2);
+
+    await sendAndApply(s, m, [bar(true)]);
+    expect(m.prompt).toBe('Search your hand?');
+    expect(liveBar(m)).toMatchObject({ label1: 'OK', label2: 'Cancel' });
+    expect(m.windowHalf).toEqual([]);
+  });
+
   it('a resync drops a held half: the server re-sends the window whole after the snapshot', async () => {
     const { s, m } = await fullGame();
     await sendAndApply(s, m, [prompt('Priority: Alice'), bar(true)]);
     await firstHalf(s, m, yesNo);
-    expect(m.windowHalf).not.toBeNull();
+    expect(m.windowHalf).toHaveLength(1);
 
     // A frame lost on the way: the gap asks for a snapshot, and nothing held from before it survives.
     s.lose(prompt('Search your hand?'));
     s.send(sentinel());
     await until('the resync snapshot', () => m.stats.snapshots === 2);
-    expect(m.windowHalf).toBeNull();
+    expect(m.windowHalf).toEqual([]);
   });
 });
 

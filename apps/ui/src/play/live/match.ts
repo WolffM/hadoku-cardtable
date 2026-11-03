@@ -627,9 +627,11 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    * applied together and {@link prompt} and {@link buttons} always belong to the same input.
    * Forge sends the halves in each input's own order (a confirm's Yes/No before its question,
    * a selection's question before its bar), so applying each as it came drew one input's line
-   * under another's buttons for a frame.
+   * under another's buttons for a frame. A chain is held whole: the server also marks a state
+   * delta that lets the seat look at a library card, and what follows it, up to the decision that
+   * shows the card (`apps/server/src/play/match.ts`'s `lookHold`).
    */
-  windowHalf: ServerFrame | null;
+  windowHalf: HeldFrame[];
   /** Forge's current selection, from `setSelectables`. Null: none is open. */
   selectables: LiveSelectables | null;
   /**
@@ -1123,7 +1125,7 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     deckColors: undefined,
     buttons: null,
     barHold: null,
-    windowHalf: null,
+    windowHalf: [],
     selectables: null,
     weaklySelectable: null,
     weaklySelectableManaOnly: null,
@@ -1305,6 +1307,13 @@ function cardRefs(value: unknown, out: Set<number>): Set<number> {
     for (const v of Object.values(value)) cardRefs(v, out);
   }
   return out;
+}
+
+/** A frame {@link LiveMatch.windowHalf} holds until the end of its chain, with what its envelope said to do with it. */
+interface HeldFrame {
+  frame: ServerFrame;
+  displayOnly: boolean;
+  forceNotice: boolean;
 }
 
 /** The cards the seat's open decision shows: Forge's prompt card and every card an open ask names (`AdaptOptions.promptCards`). */
@@ -3055,7 +3064,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   match.inputLive = false;
   match.barHold = null;
   // The server re-sends the window after the snapshot, both halves.
-  match.windowHalf = null;
+  match.windowHalf = [];
   match.over = false;
   match.finished = false;
   match.ended = null;
@@ -3315,12 +3324,16 @@ function ingestNow(match: LiveMatch, raw: unknown): void {
   match.cursor = cursor;
   match.stats.applied += 1;
   match.resyncsWithoutProgress = 0;
-  const half = match.windowHalf;
-  match.windowHalf = null;
-  if (half !== null) applyFrame(match, half);
-  if (envelope.value.pairsWithNext === true) match.windowHalf = parsed.value;
-  else if (envelope.value.displayOnly === true) showReveal(match, parsed.value, envelope.value.forceNotice === true);
-  else applyFrame(match, parsed.value);
+  const held: HeldFrame = { frame: parsed.value, displayOnly: envelope.value.displayOnly === true, forceNotice: envelope.value.forceNotice === true };
+  if (envelope.value.pairsWithNext === true) match.windowHalf.push(held);
+  else {
+    const chain = [...match.windowHalf, held];
+    match.windowHalf = [];
+    for (const h of chain) {
+      if (h.displayOnly) showReveal(match, h.frame, h.forceNotice);
+      else applyFrame(match, h.frame);
+    }
+  }
   if (match.offerHold !== null) dropMarked(match.offerHold, { cards: match.highlighted, players: match.highlightedPlayers });
   sendDeferredSelect(match);
   notify(match);
@@ -3647,7 +3660,7 @@ function dropOpenInput(match: LiveMatch): void {
   match.promptPoolChoice = false;
   match.buttons = null;
   match.barHold = null;
-  match.windowHalf = null;
+  match.windowHalf = [];
   match.selectables = null;
   match.weaklySelectable = null;
   match.weaklySelectableManaOnly = null;

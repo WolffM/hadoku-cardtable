@@ -641,6 +641,15 @@ export interface SeatState {
 	pendingButtons: ButtonsFrame | null;
 	pendingTimer: NodeJS.Timeout | null;
 	/**
+	 * What this seat is sent from a state delta that newly lets it look at a library card until the
+	 * decision that shows that card: Forge grants the look (`tempShowCard`, as in
+	 * `PlayerControllerHuman.willPutCardOnTop`) a packet before it asks, and the browser draws a
+	 * known library top on the table until an open decision names the card (`adapter.ts`'s
+	 * `knownTop`). Sent as it arrived, the scried card sat on the board for the render between the
+	 * two. See {@link Match.send}.
+	 */
+	lookHold: { frames: WireSend[]; timer: NodeJS.Timeout } | null;
+	/**
 	 * Whether the LAST `updateButtons` actually sent to this seat's wire left
 	 * either button enabled — see {@link Match.send}. Read by
 	 * {@link Match.decideWindow}: a withheld window whose predecessor
@@ -982,6 +991,20 @@ type ButtonsFrame = Extract<ServerFrame, { method: 'updateButtons' }>;
 const PROMPT_HOLD_FLUSH_MS = 2000;
 
 /**
+ * How long a seat's {@link SeatState.lookHold} waits for the decision behind it before its frames go
+ * out anyway. Forge asks within a few milliseconds of the look (6 ms on run 41604622647's scry); a
+ * look nothing asks about (a static's `MayLookAt`) is late by this much, once.
+ */
+const LOOK_HOLD_FLUSH_MS = 500;
+
+/** One {@link Match.send}, as it will go on the wire. */
+interface WireSend {
+	frame: ServerFrame;
+	mark: 'displayOnly' | 'pairsWithNext' | null;
+	extra?: { forceNotice: true };
+}
+
+/**
  * Which decider-readable window a frame belongs to, and so which way it pairs.
  * Forge's inputs send the two halves in a fixed order per input:
  * `InputPassPriority.showNormalPrompt` the prompt and then its OK bar;
@@ -1312,6 +1335,7 @@ export class Match {
 			pendingPrompt: null,
 			pendingButtons: null,
 			pendingTimer: null,
+			lookHold: null,
 			wireButtonsLive: false,
 			answeredWindow: null,
 			unparsed: new Map(),
@@ -1692,6 +1716,8 @@ export class Match {
 		const s = this.seats[seat];
 		if (s === undefined || s.ai) return { error: 'no-such-seat' };
 		if (s.playerId === null) return { error: this.status === 'failed' ? (this.failure ?? 'failed') : 'match-starting' };
+		// The snapshot's cursor counts only what went on the wire, and its history already holds what is held.
+		this.releaseLookHold(s);
 		return {
 			matchId: this.id,
 			seat,
@@ -1947,6 +1973,7 @@ export class Match {
 	seatState(seat: number): { cursor: WireCursor | null; objects: ObjTable } | { error: string } {
 		const s = this.seats[seat];
 		if (s === undefined || s.ai) return { error: 'no-such-seat' };
+		this.releaseLookHold(s);
 		return { cursor: s.seq === 0 ? null : { epoch: this.epoch, seq: s.seq }, objects: Object.fromEntries(s.history.board) };
 	}
 
@@ -2379,11 +2406,60 @@ export class Match {
 			s.wireButtonsLive = frame.enable1 === true || frame.enable2 === true;
 			this.noteCoinToss(s, frame);
 		}
+		const hold = s.lookHold;
+		if (hold === null) {
+			this.emit(s, { frame, mark, ...(extra === undefined ? {} : { extra }) });
+			return;
+		}
+		hold.frames.push({ frame, mark, ...(extra === undefined ? {} : { extra }) });
+		if (frame.kind === 'ask' || frame.method === 'showPromptMessage') this.releaseLookHold(s);
+	}
+
+	private emit(s: SeatState, { frame, mark, extra }: WireSend, chained = false): void {
 		s.seq += 1;
 		if (TRACE_FRAMES) this.deps.log({ evt: 'wire-frame', matchId: this.id, seat: s.seat, seq: s.seq, ...frameGist(frame) });
 		const cursor: WireCursor = { epoch: this.epoch, seq: s.seq };
-		this.deps.emit(s.seat, { matchId: this.id, cursor, frame, ...(mark === null ? {} : { [mark]: true }), ...(extra ?? {}) });
+		this.deps.emit(s.seat, {
+			matchId: this.id,
+			cursor,
+			frame,
+			...(mark === null ? {} : { [mark]: true }),
+			...(chained ? { pairsWithNext: true } : {}),
+			...(extra ?? {}),
+		});
 		if (frame.method === 'updateButtons') this.syncClock();
+	}
+
+	/**
+	 * Hold what seat `s` is sent from `frame` on ({@link SeatState.lookHold}) when `frame` newly lets
+	 * the seat look at a card in a library: by its decision, or by {@link LOOK_HOLD_FLUSH_MS}. Read
+	 * before `frame` joins the seat's history, which still says what the seat could look at before.
+	 */
+	private holdForLook(s: SeatState, frame: ServerFrame): void {
+		if (s.lookHold !== null || s.playerId === null || frame.method !== 'applyDelta') return;
+		const { newObjects, objectDeltas } = (frame as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet;
+		const seat = s.playerId;
+		const mayLook = (obj: WireObj | undefined): boolean => idsOf(obj, 'PlayerMayLook').includes(seat);
+		const looks = [...Object.values(newObjects), ...Object.values(objectDeltas)].some(
+			(obj) =>
+				obj._type === DELTA_TYPE.card &&
+				mayLook(obj) &&
+				!mayLook(s.history.board.get(deltaKey(DELTA_TYPE.card, obj._id))) &&
+				s.projector.cardAt(obj._id).zone === 'Library',
+		);
+		if (!looks) return;
+		const timer = setTimeout(() => this.releaseLookHold(s), LOOK_HOLD_FLUSH_MS);
+		timer.unref();
+		s.lookHold = { frames: [], timer };
+	}
+
+	/** Everything {@link SeatState.lookHold} kept, in order, chained so the browser applies it as one. */
+	private releaseLookHold(s: SeatState): void {
+		const hold = s.lookHold;
+		if (hold === null) return;
+		s.lookHold = null;
+		clearTimeout(hold.timer);
+		hold.frames.forEach((send, i) => this.emit(s, send, i < hold.frames.length - 1));
 	}
 
 	/**
@@ -2430,6 +2506,7 @@ export class Match {
 
 	private sendState(s: SeatState, raw: StateFrame): void {
 		const projected = s.projector.project(raw) as unknown as ServerFrame;
+		this.holdForLook(s, projected);
 		this.keep(s, projected);
 		this.send(s, projected);
 		this.releaseLog(s, false);

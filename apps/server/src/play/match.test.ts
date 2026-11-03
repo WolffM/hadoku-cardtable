@@ -2814,6 +2814,89 @@ describe('hold-decide-forward', () => {
 		]);
 	});
 
+	/**
+	 * A scry 1 (`PlayerControllerHuman.willPutCardOnTop`): Forge lets the seat look at its top card
+	 * (`tempShowCard`) one packet before it asks Top or Bottom. Sent as each came, the browser drew that
+	 * card on its own library for the render between the two (w70-scry-one, run 41604622647).
+	 */
+	describe('a look at a library card goes out with the question that shows it', () => {
+		const lookAt = (cardId: number, players: number[]) => ({
+			kind: 'notify' as const,
+			method: 'applyDelta' as const,
+			payload: {
+				packet: {
+					seq: 1,
+					checksum: 0,
+					checksumProperties: [],
+					newObjects: {},
+					objectDeltas: {
+						[deltaKey(DELTA_TYPE.card, cardId)]: {
+							_type: DELTA_TYPE.card,
+							_id: cardId,
+							PlayerMayLook: players.length === 0 ? null : { t: 'list', v: players.map((v) => ({ t: 'int', v })) },
+						},
+					},
+					events: [],
+				},
+			},
+		});
+		const marks = (h: Harness, from: number) => envelopesFor(h, SEAT1_ID).slice(from).map((e) => [e.frame.method, e.pairsWithNext ?? null]);
+		const libraryTop = (): number => {
+			const last = rawStatesOf(OPENING, SEAT1_ID).at(-1)!;
+			const top = (last.get(deltaKey(DELTA_TYPE.player, SEAT1_ID))?.Library as { v: { v: number }[] }).v[0]?.v;
+			if (top === undefined) throw new Error('seat 1 holds no library in OPENING');
+			return top;
+		};
+
+		it('holds the look and the bar until the question, then sends all three chained', () => {
+			vi.useFakeTimers();
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			const top = libraryTop();
+			const before = envelopesFor(h, SEAT1_ID).length;
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: lookAt(top, [SEAT1_ID]) },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Top', label2: 'Bottom', enable2: true }) },
+			);
+			expect(marks(h, before)).toEqual([]);
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Put it on the top or bottom of your library?', top) });
+			expect(marks(h, before)).toEqual([
+				['applyDelta', true],
+				['updateButtons', true],
+				['showPromptMessage', null],
+			]);
+			expect(envelopesFor(h, SEAT1_ID).slice(before).map((e) => e.cursor.seq)).toEqual([1, 2, 3].map((i) => envelopesFor(h, SEAT1_ID)[before - 1]!.cursor.seq + i));
+		});
+
+		it('a look nothing asks about goes out on its own after the hold, and a delta with no look is never held', () => {
+			vi.useFakeTimers();
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			const top = libraryTop();
+			let before = envelopesFor(h, SEAT1_ID).length;
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: lookAt(top, [SEAT1_ID]) });
+			vi.advanceTimersByTime(499);
+			expect(marks(h, before)).toEqual([]);
+			vi.advanceTimersByTime(1);
+			expect(marks(h, before)).toEqual([['applyDelta', null]]);
+			before = envelopesFor(h, SEAT1_ID).length;
+			// Forge ends its grant, and the seat still knows the card: a look it already had holds nothing.
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: lookAt(top, []) });
+			expect(marks(h, before)).toEqual([['applyDelta', null]]);
+		});
+
+		it('a snapshot sends what is held first, so its cursor covers its history', () => {
+			vi.useFakeTimers();
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			const before = envelopesFor(h, SEAT1_ID).length;
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: lookAt(libraryTop(), [SEAT1_ID]) });
+			const snap = MatchSnapshotSchema.parse(h.match.snapshot(SEAT1_ID));
+			expect(marks(h, before)).toEqual([['applyDelta', null]]);
+			expect(snap.cursor?.seq).toBe(envelopesFor(h, SEAT1_ID).at(-1)!.cursor.seq);
+		});
+	});
+
 	it('the safety flush: a half with no partner is forwarded, undecided, after the hold window', () => {
 		vi.useFakeTimers();
 		const h = openedHarness();
