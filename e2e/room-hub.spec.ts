@@ -16,6 +16,7 @@
  * through in a moment on the way to the match.
  */
 import { expect, test, type Page } from '@playwright/test';
+import { sitPodAt } from './podSeats.ts';
 
 import { PREFIX } from './identities.ts';
 import { makeTitled, resizeWindow, roomIdFromHash } from './play/board.ts';
@@ -56,8 +57,8 @@ async function routeRealIdentity(p: Player, roomId: string): Promise<void> {
 }
 
 async function sitPickReady(p: Player, seat: number): Promise<void> {
-  await p.page.locator(`[data-testid="pod-seat-sit"][data-seat="${seat}"]`).click();
-  await expect(p.page.getByTestId('pod-seat-stand'), `${p.name}: holds a pod seat`).toBeVisible({ timeout: UI_TIMEOUT });
+  await sitPodAt(p.page, seat);
+  await expect(p.page.getByTestId('seat-stand'), `${p.name}: holds a pod seat`).toBeVisible({ timeout: UI_TIMEOUT });
   await p.page.getByTestId('deck-mine').getByTestId('deck-option').first().click();
   await expect(p.page.getByTestId('ready-toggle'), `${p.name}: a legal deck enables Ready`).toBeEnabled({ timeout: UI_TIMEOUT });
   await p.page.getByTestId('ready-toggle').click();

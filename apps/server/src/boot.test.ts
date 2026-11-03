@@ -11,6 +11,7 @@
  * here is that the room still points at it.
  */
 import { readdirSync, readFileSync } from 'node:fs';
+import { standAll } from './room/testing-seats.ts';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -158,6 +159,7 @@ function tournament(lobby: Lobby, name: string, mode: 'classic' | 'gauntlet' | '
 			tournamentDecks: mode === 'gauntlet' ? 'per-round' : 'locked',
 		}),
 	).toMatchObject({ ok: true });
+	standAll(lobby, id);
 	expect(lobby.sitPod(id, ALICE.id, 0)).toMatchObject({ ok: true });
 	if (seated === 'humans') expect(lobby.sitPod(id, BOB.id, 1)).toMatchObject({ ok: true });
 	else expect(lobby.aiPod(id, ALICE.id, 1, true)).toMatchObject({ ok: true });

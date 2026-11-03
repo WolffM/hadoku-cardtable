@@ -11,6 +11,7 @@
  * `[resolve]` lines are the evidence: the server's own events for each.
  */
 import { readFileSync } from 'node:fs';
+import { sitPodAt } from './podSeats.ts';
 
 import { expect, test, type Page } from '@playwright/test';
 
@@ -48,8 +49,8 @@ async function routeRealIdentity(p: Friend, roomId: string): Promise<void> {
 }
 
 async function sitPickReady(page: Page, name: string, seat: number): Promise<void> {
-  await page.locator(`[data-testid="pod-seat-sit"][data-seat="${seat}"]`).click();
-  await expect(page.getByTestId('pod-seat-stand'), `${name}: holds a pod seat`).toBeVisible({ timeout: UI_TIMEOUT });
+  await sitPodAt(page, seat);
+  await expect(page.getByTestId('seat-stand'), `${name}: holds a pod seat`).toBeVisible({ timeout: UI_TIMEOUT });
   await page.getByTestId('deck-mine').getByTestId('deck-option').first().click();
   await expect(page.getByTestId('ready-toggle'), `${name}: a legal deck enables Ready`).toBeEnabled({ timeout: UI_TIMEOUT });
   await page.getByTestId('ready-toggle').click();

@@ -60,7 +60,7 @@ import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { trimMainDeck } from './deckBuilder.ts';
-import { fillWithAi, readyPod } from './podSeats.ts';
+import { arrangePod, fillWithAi, readyPod, spectate } from './podSeats.ts';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
 import { envelopesOf, type RawCapture } from './frames.ts';
@@ -858,7 +858,7 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
 
 /* ── watching a draft ────────────────────────────────────────────────── */
 
-test("a member who never sat watches the draft: a drafter's pack and picks, read-only, and any seat they press", async ({ browser }) => {
+test("a member who spectates watches the draft: a drafter's pack and picks, read-only, and any seat they press", async ({ browser }) => {
   const alice = await join(browser, 'alice');
   const bob = await join(browser, 'bob');
   try {
@@ -870,7 +870,9 @@ test("a member who never sat watches the draft: a drafter's pack and picks, read
       .poll(async () => (await roomState(alice, roomId)).members.length, { message: 'bob is a member', timeout: UI_TIMEOUT })
       .toBe(2);
 
-    // Alice sits and readies; the AI takes every other seat. Bob never sits.
+    // Entering sat Bob too (`room/lobby.ts`'s `#autoSeat`): he moves to the spectators. Alice
+    // readies; the AI takes every other seat.
+    await spectate(bob.page, UI_TIMEOUT);
     await readyPod(alice.page);
     await fillWithAi(alice.page, UI_TIMEOUT);
     await expect(alice.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
@@ -928,11 +930,8 @@ test('a player drafts from the seat they sat in: pack 1 passes along the table, 
       .toBe(2);
 
     // Seats 2 and 4 of eight: not neighbours, the AI in seat 3 between them.
-    for (const [p, seat] of [[alice, 1], [bob, 3]] as const) {
-      await expect(p.page.getByTestId('pod-seats')).toBeVisible({ timeout: UI_TIMEOUT });
-      await p.page.locator(`[data-testid="pod-seat-sit"][data-seat="${seat}"]`).click();
-      await expect(p.page.getByTestId('pod-seat-stand'), `${p.name}: holds the seat they chose`).toBeVisible({ timeout: UI_TIMEOUT });
-    }
+    // Entering sat them at seats 1 and 2: each moves, and neither waits on a seat the other holds.
+    await arrangePod([[alice.page, 1], [bob.page, 3]], UI_TIMEOUT);
     for (const p of [alice, bob]) await readyPod(p.page);
     await fillWithAi(alice.page, UI_TIMEOUT);
     for (const p of [alice, bob]) await expect(p.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });

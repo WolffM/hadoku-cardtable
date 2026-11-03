@@ -45,7 +45,7 @@ import { resolve } from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { fillWithAi, readyPod } from './podSeats.ts';
+import { fillWithAi, readyPod, sitPodAt } from './podSeats.ts';
 import { PREFIX } from './identities.ts';
 import { makeTitled, resizeWindow, roomIdFromHash } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
@@ -211,9 +211,9 @@ test(
       await expect(alice.page.getByTestId('pool-picker-verdict'), 'ready again').toHaveAttribute('data-state', 'ready', { timeout: UI_TIMEOUT });
 
       /* ── both sit, ready, and the rest of the pod fills with AI ────────── */
-      await alice.page.locator('[data-testid="pod-seat-sit"][data-seat="0"]').click();
-      await bob.page.locator('[data-testid="pod-seat-sit"][data-seat="1"]').click();
-      for (const p of players) await expect(p.page.getByTestId('pod-seat-stand'), `${p.name}: holds their own seat`).toBeVisible({ timeout: UI_TIMEOUT });
+      await sitPodAt(alice.page, 0);
+      await sitPodAt(bob.page, 1);
+      for (const p of players) await expect(p.page.getByTestId('seat-stand'), `${p.name}: holds their own seat`).toBeVisible({ timeout: UI_TIMEOUT });
       for (const p of players) await readyPod(p.page);
       await fillWithAi(alice.page, UI_TIMEOUT);
       for (const p of players) await expect(p.page.getByTestId('pod'), `${p.name}: the pod is dealt`).toBeVisible({ timeout: UI_TIMEOUT });

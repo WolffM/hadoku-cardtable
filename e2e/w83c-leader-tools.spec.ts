@@ -51,6 +51,8 @@ async function tournament(origin: string, leader: Friend, members: Friend[], ent
   const roomId = made.body.id;
   expect((await call(leader, origin, 'PATCH', `/rooms/${roomId}`, { settings: { tournament: true, tournamentDecks: 'per-round' } })).status).toBe(200);
   for (const m of members) if (m !== leader) expect((await call(m, origin, 'POST', `/rooms/${roomId}/join`)).status).toBe(200);
+  // Entering seats people (`room/lobby.ts`'s `#autoSeat`); the seats below are the spec's own choice.
+  for (const m of members) expect((await call(m, origin, 'POST', `/rooms/${roomId}/pod/stand`)).status).toBe(200);
   for (const [seat, e] of entrants.entries()) expect((await call(e, origin, 'POST', `/rooms/${roomId}/pod/sit`, { seat })).status).toBe(200);
   for (let seat = entrants.length; seat < entrants.length + ai; seat++) expect((await call(leader, origin, 'POST', `/rooms/${roomId}/pod/ai`, { seat, on: true })).status).toBe(200);
   // The e2e edge serves no `/session/whoami`: each browser is told its own member id, so its screens know whose seat and whose room it is.

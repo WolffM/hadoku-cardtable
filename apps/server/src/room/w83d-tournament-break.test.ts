@@ -13,6 +13,7 @@
  */
 
 import { mkdtemp, rm } from 'node:fs/promises';
+import { standAll } from './testing-seats.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -80,6 +81,7 @@ async function tournament(n: number, opts: { watchingLeader?: boolean; dir?: str
 	for (const p of players) if (p.id !== leader.id) expect(lobby.join(id, p).ok).toBe(true);
 	expect(lobby.setSettings(id, leader.id, { tournament: true, tournamentDecks: 'locked' }).ok).toBe(true);
 	// Seated before anyone counts as ready, or the lock would fire on the second seat.
+	standAll(lobby, id);
 	players.forEach((p, seat) => expect(lobby.sitPod(id, p.id, seat).ok, `seat ${seat}`).toBe(true));
 	lobby.setPodChecks(checks(new Set(players.map((p) => p.id))));
 	const started = lobby.startDraft(id, leader.id);

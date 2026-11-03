@@ -30,6 +30,7 @@
  * `#maybeLockTournament`, called from the SAME `setReady`/`sitPod`/`aiPod`
  * writes these tests already make — ruling 7's own doc.
  */
+import { spectate } from './podSeats.ts';
 import { expect, test } from '@playwright/test';
 
 import { makeTitled } from './play/board.ts';
@@ -201,11 +202,12 @@ test(
       const { roomUrl } = opened;
 
       await enableTournament(alice, bob, 'per-round');
-      // Bob never sits: one human, three AI — entrants enough for two rounds
+      // Bob spectates (entering seated him): one human, three AI — entrants enough for two rounds
       // (`roundsFor(4) === 2`), none of Bob's own doing. Alice sits with NO
       // deck yet (Classic's own readiness for the lock, `pickDeck`'s own
       // doc) — otherwise the very first AI seated would already complete a
       // 2-entrant field and lock before the loop seats the other two.
+      await spectate(bob.page, UI_TIMEOUT);
       await sit(alice, 0);
       // One AI at a time: a second click before the feed redraws lands on the same seat.
       for (let seat = 1; seat <= 3; seat++) {

@@ -3,6 +3,7 @@
  * sit, pick a deck and ready, and a loser concedes a game. Shared by every tournament spec.
  */
 import { expect, type Browser } from '@playwright/test';
+import { sitPodAt } from '../podSeats.ts';
 
 import { PREFIX } from '../identities.ts';
 import { resizeWindow, roomIdFromHash } from './board.ts';
@@ -61,8 +62,8 @@ export async function enableTournament(alice: Friend, bob: Friend, decks: 'locke
  * only a human's OWN readiness (Classic: a deck; Random/Gauntlet: Ready) can.
  */
 export async function sit(p: Friend, seat: number): Promise<void> {
-  await p.page.locator(`[data-testid="pod-seat-sit"][data-seat="${seat}"]`).click();
-  await expect(p.page.getByTestId('pod-seat-stand'), `${p.name}: holds a pod seat`).toBeVisible({ timeout: UI_TIMEOUT });
+  await sitPodAt(p.page, seat);
+  await expect(p.page.getByTestId('seat-stand'), `${p.name}: holds a pod seat`).toBeVisible({ timeout: UI_TIMEOUT });
 }
 
 /**

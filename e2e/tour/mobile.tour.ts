@@ -12,7 +12,7 @@ import { keepBothHands, matchUrl, readScenario } from '../play/scenario.ts';
 import type { Friend } from '../play/browser.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from '../play/harness.ts';
 import { openCreateRoom, submitCreateRoom } from '../play/rooms.ts';
-import { fillWithAi, readyPod } from '../podSeats.ts';
+import { fillWithAi, readyPod, sitPodAt } from '../podSeats.ts';
 import { attempt, expect, openPhone, shot, shotSizes } from './phone.ts';
 import { choosePool, poolValue } from '../play/pool.ts';
 
@@ -650,8 +650,8 @@ test('tournament: lobby, face-off, hub and bracket, standings', async ({ browser
       const url = at(stack, `#/room/${r2}`);
       for (const [f, seat] of [[alice, 0], [bob, 1]] as const) {
         await go(f.page, url, 2_000);
-        await f.page.locator(`[data-testid="pod-seat-sit"][data-seat="${seat}"]`).tap();
-        await f.page.getByTestId('pod-seat-stand').waitFor({ timeout: 30_000 });
+        await sitPodAt(f.page, seat);
+        await f.page.getByTestId('seat-stand').waitFor({ timeout: 30_000 });
         await f.page.getByTestId('deck-mine').getByTestId('deck-option').first().tap();
         await f.page.locator('[data-testid="ready-toggle"]:enabled').waitFor({ timeout: 30_000 });
       }
@@ -706,8 +706,8 @@ test('draft: nine-seat lobby, split, the draft, deck building, decks', async ({ 
       await shot(alice.page, 'draft-timer-on', D('#/room/<id>', 'pick timer on, fastest speed'), { full: true });
     }, alice.page);
     await go(bob.page, at(stack, `#/room/${roomId}`), 2_000);
-    await alice.page.locator('[data-testid="pod-seat-sit"][data-seat="0"]').tap();
-    await bob.page.locator('[data-testid="pod-seat-sit"][data-seat="1"]').tap();
+    await sitPodAt(alice.page, 0);
+    await sitPodAt(bob.page, 1);
     for (let i = 3; i <= 9; i++) {
       const name = `drafter${i}`;
       const ctx = await browser.newContext();
@@ -764,7 +764,7 @@ test('draft: nine-seat lobby, split, the draft, deck building, decks', async ({ 
       await go(p, at(stack, ''));
       await submitCreateRoom(p, { name: `Solo cube ${Date.now() % 1000}`, gameType: 'draft' });
       await p.getByTestId('draft-lobby').waitFor({ timeout: 30_000 });
-      await p.locator('[data-testid="pod-seat-sit"][data-seat="0"]').tap();
+      await sitPodAt(p, 0);
       await readyPod(p);
       await fillWithAi(p, 30_000);
       const deadline = Date.now() + 8 * 60_000;
@@ -807,7 +807,7 @@ test('rope: the draft pick timer on a phone', async ({ browser }) => {
     await speed.click({ force: true });
     await expect(speed).toBeChecked({ timeout: 15_000 });
     await shot(p, 'draft-timer-on', D('pick timer on, fastest speed'), { full: true });
-    await p.locator('[data-testid="pod-seat-sit"][data-seat="0"]').click();
+    await sitPodAt(p, 0);
     await readyPod(p);
     await fillWithAi(p, 30_000);
     await attempt('rope', async () => {

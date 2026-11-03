@@ -237,3 +237,8 @@
   font-weight: 600;
   color: var(--color-text-tertiary);
 }
+
+/* A pod lobby's spectators, under its seat strip (`PodLobby.tsx`): apart from the strip above and the pool below. */
+.lobby__card > .table-side {
+  margin: 0.75rem 0 1rem;
+}

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /*
- * The pod's 8-seat grid: empty seats offer Sit, my own seat offers Stand,
- * every occupied seat shows a ready pill, and sitting is refused once I
- * already hold one. `.test.ts`, not `.test.tsx` — the root vitest config
+ * The pod's 8-seat grid: empty seats offer Sit (to move, once I hold one),
+ * my own seat says it is mine and carries no Stand, and every occupied seat
+ * shows a ready pill. `.test.ts`, not `.test.tsx` — the root vitest config
  * globs `apps/*\/src/**\/*.test.ts`.
  */
 import { describe, expect, it, vi } from 'vitest';
@@ -28,7 +28,6 @@ describe('the pod seat grid', () => {
       readyOf: () => false,
       avatarIdOf: () => undefined,
       onSit: () => undefined,
-      onStand: () => undefined,
       onAi: () => undefined,
       onClose,
     };
@@ -55,7 +54,6 @@ describe('the pod seat grid', () => {
         readyOf: () => false,
         avatarIdOf: () => undefined,
         onSit: () => undefined,
-        onStand: () => undefined,
         onAi: () => undefined,
         onClose: () => undefined,
       }),
@@ -75,7 +73,6 @@ describe('the pod seat grid', () => {
         readyOf: (id) => id === 'u-alice',
         avatarIdOf: () => undefined,
         onSit: () => undefined,
-        onStand: () => undefined,
         onAi: () => undefined,
         onClose: () => undefined,
       }),
@@ -87,7 +84,8 @@ describe('the pod seat grid', () => {
   });
 
   // The operator, 2026-10-22: "'Hadoku (you)' i dont need you written next to my name".
-  it('gives my own seat a Stand button and nobody else’s, with no "(you)" beside my name', () => {
+  // The operator, 2026-11-02: "we dont need a stand button at all" — the spectators' open slot gives a seat back.
+  it('marks my own seat as mine, with no Stand on it and no "(you)" beside my name', () => {
     const seats = emptySeats();
     seats[0] = { memberId: 'u-me', name: 'Me' };
     seats[1] = { memberId: 'u-other', name: 'Other' };
@@ -99,14 +97,15 @@ describe('the pod seat grid', () => {
         readyOf: () => false,
         avatarIdOf: () => undefined,
         onSit: () => undefined,
-        onStand: () => undefined,
         onAi: () => undefined,
         onClose: () => undefined,
       }),
     );
     expect(screen.getByTestId('pod-seat-0').querySelector('.pod-seats__label')?.textContent).toBe('Me');
-    expect(screen.getByTestId('pod-seat-0').contains(screen.getByTestId('pod-seat-stand'))).toBe(true);
-    expect(screen.getAllByTestId('pod-seat-stand')).toHaveLength(1);
+    expect(screen.getByTestId('pod-seat-0').hasAttribute('data-mine')).toBe(true);
+    expect(screen.getByTestId('pod-seat-1').hasAttribute('data-mine')).toBe(false);
+    expect(screen.queryByTestId('pod-seat-stand')).toBeNull();
+    expect(screen.getByTestId('pod-seat-0').textContent).not.toMatch(/Stand/);
   });
 
   // The operator, 2026-10-22: "adding AI to sit at the table isn't loading their avatar picutres".
@@ -121,7 +120,6 @@ describe('the pod seat grid', () => {
         readyOf: () => false,
         avatarIdOf: () => undefined,
         onSit: () => undefined,
-        onStand: () => undefined,
         onAi: () => undefined,
         onClose: () => undefined,
       }),
@@ -145,7 +143,6 @@ describe('the pod seat grid', () => {
         readyOf: () => false,
         avatarIdOf: () => undefined,
         onSit: () => undefined,
-        onStand: () => undefined,
         onAi,
         onClose: () => undefined,
       }),
@@ -168,7 +165,6 @@ describe('the pod seat grid', () => {
         readyOf: () => false,
         avatarIdOf: () => undefined,
         onSit: () => undefined,
-        onStand: () => undefined,
         onAi: () => undefined,
         onClose: () => undefined,
       }),
@@ -176,7 +172,8 @@ describe('the pod seat grid', () => {
     expect(screen.getByTestId('pod-seat-5-leader')).toBeTruthy();
   });
 
-  it('refuses Sit while I already hold a seat — one seat per person', () => {
+  it('lets a seated player move to another open seat', () => {
+    const onSit = vi.fn();
     const seats = emptySeats();
     seats[0] = { memberId: 'u-me', name: 'Me' };
     render(
@@ -186,15 +183,14 @@ describe('the pod seat grid', () => {
         leaderId: '',
         readyOf: () => false,
         avatarIdOf: () => undefined,
-        onSit: () => undefined,
-        onStand: () => undefined,
+        onSit,
         onAi: () => undefined,
         onClose: () => undefined,
       }),
     );
-    for (const btn of screen.getAllByTestId('pod-seat-sit')) {
-      expect((btn as HTMLButtonElement).disabled).toBe(true);
-    }
+    for (const btn of screen.getAllByTestId('pod-seat-sit')) expect((btn as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(screen.getByTestId('pod-seat-4').querySelector('[data-testid="pod-seat-sit"]') as HTMLElement);
+    expect(onSit).toHaveBeenCalledWith(4);
   });
 
   it('calls onSit with the seat index while nobody holds a seat yet', () => {
@@ -207,34 +203,12 @@ describe('the pod seat grid', () => {
         readyOf: () => false,
         avatarIdOf: () => undefined,
         onSit,
-        onStand: () => undefined,
         onAi: () => undefined,
         onClose: () => undefined,
       }),
     );
     screen.getByTestId('pod-seat-3').querySelector('button')?.click();
     expect(onSit).toHaveBeenCalledWith(3);
-  });
-
-  it('calls onStand with no arguments from my own seat', () => {
-    const onStand = vi.fn();
-    const seats = emptySeats();
-    seats[0] = { memberId: 'u-me', name: 'Me' };
-    render(
-      createElement(PodSeats, {
-        seats,
-        myMemberId: 'u-me',
-        leaderId: '',
-        readyOf: () => false,
-        avatarIdOf: () => undefined,
-        onSit: () => undefined,
-        onStand,
-        onAi: () => undefined,
-        onClose: () => undefined,
-      }),
-    );
-    screen.getByTestId('pod-seat-stand').click();
-    expect(onStand).toHaveBeenCalledWith();
   });
 
   // AF305 §B: the pod is a strip of avatars, not the 1v1 table's rows — every
@@ -255,7 +229,6 @@ describe('the pod seat grid', () => {
         readyOf: () => true,
         avatarIdOf: () => undefined,
         onSit: () => undefined,
-        onStand: () => undefined,
         onAi: () => undefined,
         onClose: () => undefined,
       }),
@@ -283,7 +256,6 @@ describe('the pod seat grid', () => {
         readyOf: () => true,
         avatarIdOf: () => undefined,
         onSit: () => undefined,
-        onStand: () => undefined,
         onAi: () => undefined,
         onClose: () => undefined,
       }),
@@ -310,7 +282,6 @@ describe('the pod seat grid', () => {
         readyOf: () => false,
         avatarIdOf: (id) => (id === 'u-has-avatar' ? 'some-avatar-id' : undefined),
         onSit: () => undefined,
-        onStand: () => undefined,
         onAi: () => undefined,
         onClose: () => undefined,
       }),
@@ -341,7 +312,6 @@ describe('the pod seat grid', () => {
       readyOf: () => false,
       avatarIdOf: () => undefined,
       onSit: () => undefined,
-      onStand: () => undefined,
       onAi,
       onClose: () => undefined,
     });
@@ -380,7 +350,6 @@ describe('a room past 8: one list of seats, pods decided only at the split', () 
     leaderId: 'u-alice',
     readyOf: () => false,
     avatarIdOf: () => undefined,
-    onStand: () => undefined,
     onAi: () => undefined,
     onClose: () => undefined,
   };

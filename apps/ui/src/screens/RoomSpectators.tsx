@@ -1,16 +1,18 @@
 /*
- * The 1v1 table's spectators: every room member who holds no seat, drawn the way the seats are
- * (`pod-seats`), beside them. Everyone in the room is on one side or the other, and moving is a
- * click on the side you want: an open seat sits you, the open slot here gives your seat back
- * (the operator, 2026-11-02: "show a separate section for spectators and you can just click back
- * and forth between player and spectator … we dont need a stand button at all").
+ * A room's spectators: every member who holds no seat, drawn the way the seats are (`pod-seats`),
+ * beside or under them — the 1v1 table's two seats (`ConstructedScreen.tsx`) and a pod's
+ * (`pod/PodLobby.tsx`) alike. Everyone in the room is on one side or the other, whatever the room
+ * plays, and moving is a click on the side you want: an open seat sits you, the open slot here
+ * gives your seat back (the operator, 2026-11-02: "show a separate section for spectators and you
+ * can just click back and forth between player and spectator … we dont need a stand button at
+ * all", and "please unify all rooms. it's irrelevant what type of room it is").
  */
 
 import { ActionButton } from '../components/ActionButton.tsx';
 import { Avatar } from '../components/Avatar.tsx';
 import { CROWN } from './ConstructedScreen.tsx';
 
-export interface TableSpectatorsProps {
+export interface RoomSpectatorsProps {
   /** The room's members who hold no seat, in the room's order. */
   spectators: readonly { id: string; name: string; avatarId?: string }[];
   myId: string | null;
@@ -18,10 +20,10 @@ export interface TableSpectatorsProps {
   /** Given while I hold a seat: the open slot that gives it back. */
   onWatch?: () => void;
   /** The seat cannot be given back now: the table is locked or a match is under way. */
-  watchDisabled: boolean;
+  watchDisabled?: boolean;
 }
 
-export function TableSpectators({ spectators, myId, leaderId, onWatch, watchDisabled }: TableSpectatorsProps) {
+export function RoomSpectators({ spectators, myId, leaderId, onWatch, watchDisabled = false }: RoomSpectatorsProps) {
   if (spectators.length === 0 && onWatch === undefined) return null;
   return (
     <div className="table-side" data-testid="room-spectators">

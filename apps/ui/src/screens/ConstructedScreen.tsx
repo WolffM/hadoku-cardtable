@@ -207,7 +207,7 @@ import { GauntletOptions } from './constructed-mode/GauntletOptions.tsx';
 import { AllRandomOptions } from './random/AllRandomOptions.tsx';
 import { GauntletScreen } from './gauntlet/GauntletScreen.tsx';
 import { seatAvatars } from './gauntlet/seats.tsx';
-import { TableSpectators } from './TableSpectators.tsx';
+import { RoomSpectators } from './RoomSpectators.tsx';
 import './pod/PodSeats.css';
 import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
 import { StatusPill, TICK } from '../components/StatusPill.tsx';
@@ -2241,7 +2241,7 @@ function RoomTableScreen({
   /**
    * Taking a seat, and giving it back. Joining the room seats you while a seat
    * is open (`room/lobby.ts`'s `#autoSeat`, 2026-11-02); after that an open
-   * seat sits you and the spectators' open slot (`TableSpectators.tsx`) gives
+   * seat sits you and the spectators' open slot (`RoomSpectators.tsx`) gives
    * it back. Choosing a deck while unseated still seats you when a seat is
    * free (the server's `PUT …/deck` auto-sits), so the one-click Random → Ready
    * path every spec and the watchparty production run drive is unchanged; the
@@ -2763,7 +2763,7 @@ function RoomTableScreen({
                     })}
                   </ul>
                 </div>
-                <TableSpectators
+                <RoomSpectators
                   spectators={members.filter((m) => !players.some((p) => p.name === m.name))}
                   myId={view?.you.id ?? null}
                   leaderId={view?.leader ?? ''}
@@ -2999,7 +2999,7 @@ export const CROWN = 'M2 9V3.5l2.2 2L6 2.6l1.8 2.9L10 3.5V9Z';
  * we also show seats the same way we show seats then in draft?"): the member's avatar, ringed once
  * ready and crowned for the room's owner, their name under it, then the ready state as a
  * `StatusPill` (a button on my own seat). Giving the seat back is the spectators' open slot beside
- * the seats (`TableSpectators.tsx`), not a button on it (the operator, 2026-11-02).
+ * the seats (`RoomSpectators.tsx`), not a button on it (the operator, 2026-11-02).
  *
  * My own seat says so by `data-mine`, never in words beside my name (the operator, 2026-10-22:
  * "remove the (you) from the constructed table too").

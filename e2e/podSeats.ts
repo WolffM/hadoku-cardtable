@@ -43,8 +43,42 @@ export async function readyPod(page: Page, timeout = 60_000): Promise<void> {
   await page.getByTestId('ready-toggle').click();
 }
 
+/**
+ * `page`'s player holds pod seat `seat`. Entering a room seats a newcomer at the first open seat
+ * (`room/lobby.ts`'s `#autoSeat`), so they may be there already, or move to it from another
+ * (an open seat sits a seated player there). Retried by state, not counted: the page can still be
+ * drawing the seat it was given on entering when this is called.
+ */
+export async function sitPodAt(page: Page, seat: number, timeout = 30_000): Promise<void> {
+  const mine = page.locator(`[data-testid="pod-seat-${seat}"][data-mine]`);
+  await expect(async () => {
+    if ((await mine.count()) === 0) await page.locator(`[data-testid="pod-seat-sit"][data-seat="${seat}"]`).click({ timeout: 2_000 });
+    await expect(mine).toBeVisible({ timeout: 3_000 });
+  }, `holds pod seat ${seat}`).toPass({ timeout });
+}
+
+/** The player gives their seat back by the spectators' open slot, and is drawn among the spectators. */
+export async function spectate(page: Page, timeout = 30_000): Promise<void> {
+  await page.getByTestId('seat-stand').click({ timeout });
+  await expect(page.locator('[data-testid="room-spectator"][data-mine]'), 'a spectator now').toBeVisible({ timeout });
+}
+
+/**
+ * Several players at chosen seats, whatever entering gave them: whoever is not at their own seat
+ * gives theirs back first, so no one waits on a seat another is about to leave.
+ */
+export async function arrangePod(at: readonly (readonly [Page, number])[], timeout = 30_000): Promise<void> {
+  for (const [page, seat] of at) {
+    await expect(page.getByTestId('pod-seats')).toBeVisible({ timeout });
+    // Settled first: seated somewhere, or among the spectators, as the room drew this page.
+    await expect(page.locator('[data-testid^="pod-seat-"][data-mine], [data-testid="room-spectator"][data-mine]')).toHaveCount(1, { timeout });
+    if ((await page.locator(`[data-testid="pod-seat-${seat}"][data-mine]`).count()) === 0 && (await page.getByTestId('seat-stand').count()) > 0) await spectate(page, timeout);
+  }
+  for (const [page, seat] of at) await sitPodAt(page, seat, timeout);
+}
+
 export async function fillWithAi(page: Page, timeout = 15_000): Promise<void> {
-  await expect(page.getByTestId('pod-seat-stand'), 'the presser holds a seat first').toBeVisible({ timeout });
+  await expect(page.getByTestId('seat-stand'), 'the presser holds a seat first').toBeVisible({ timeout });
   const ai = page.getByTestId('pod-seat-ai');
   const dealt = page.getByTestId('pod');
   const deadline = Date.now() + timeout * 4;

@@ -1,7 +1,8 @@
 /*
  * A pod's lobby, for a draft room and a Constructed tournament alike: the
- * seat strip (`PodSeats`, with its Sit, Stand, AI and Close), my Ready, a
- * refused seat change, and who is watching. `children` is the one per-type
+ * seat strip (`PodSeats`, with its Sit, AI and Close), my Ready, a refused
+ * seat change, and the spectators (`../RoomSpectators.tsx`), whose open slot
+ * gives my seat back. `children` is the one per-type
  * input under the strip: a draft's pool picker, Classic's deck chooser.
  *
  * A draft room of more than 8 splits into pods before its draft (`PodSplit`):
@@ -20,10 +21,10 @@ import { useRef, useState, type ReactNode } from 'react';
 import type { RoomMember } from '../../rooms/api.ts';
 import { aiPod, closePod, sitPod, splitPod, standPod, startSplitDraft, type PodActionOutcome } from './client.ts';
 import { PodSeats } from './PodSeats.tsx';
-import { PodSpectators } from './PodSpectators.tsx';
+import { RoomSpectators } from '../RoomSpectators.tsx';
 import { PodSplit, PodSplitAction, standingPods } from './PodSplit.tsx';
 import { ReadyToggle } from './ReadyToggle.tsx';
-import type { PodView } from './wire.ts';
+import { podPlayers, type PodView } from './wire.ts';
 
 export interface PodLobbyProps {
   testId: string;
@@ -98,17 +99,19 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, i
             {splitStands ? (
               <PodSplit pod={pod} members={members} myMemberId={myMemberId} />
             ) : (
-              <PodSeats
-                seats={pod.seats}
-                myMemberId={myMemberId}
-                leaderId={leaderId}
-                readyOf={(id) => members.find((m) => m.id === id)?.ready === true}
-                avatarIdOf={(id) => members.find((m) => m.id === id)?.avatarId}
-                onSit={(seat) => act(() => sitPod(roomId, seat))}
-                onStand={() => act(() => standPod(roomId))}
-                onAi={(seat, on) => act(() => aiPod(roomId, seat, on))}
-                onClose={(seat, closed) => act(() => closePod(roomId, seat, closed))}
-              />
+              <div className="table-side">
+                <h3 className="table-side__heading">Players</h3>
+                <PodSeats
+                  seats={pod.seats}
+                  myMemberId={myMemberId}
+                  leaderId={leaderId}
+                  readyOf={(id) => members.find((m) => m.id === id)?.ready === true}
+                  avatarIdOf={(id) => members.find((m) => m.id === id)?.avatarId}
+                  onSit={(seat) => act(() => sitPod(roomId, seat))}
+                  onAi={(seat, on) => act(() => aiPod(roomId, seat, on))}
+                  onClose={(seat, closed) => act(() => closePod(roomId, seat, closed))}
+                />
+              </div>
             )}
             {side}
           </div>
@@ -117,7 +120,14 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, i
               {seatError}
             </p>
           )}
-          <PodSpectators pod={pod} members={members} myId={myMemberId} leaderId={leaderId} />
+          {!splitStands && (
+            <RoomSpectators
+              spectators={members.filter((m) => !podPlayers(pod).has(m.id))}
+              myId={myMemberId}
+              leaderId={leaderId}
+              {...(myMemberId !== null && podPlayers(pod).has(myMemberId) ? { onWatch: () => act(() => standPod(roomId)) } : {})}
+            />
+          )}
         </>
       )}
       {children}

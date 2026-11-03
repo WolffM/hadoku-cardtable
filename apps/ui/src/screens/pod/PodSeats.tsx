@@ -3,7 +3,7 @@
  * draft room look ugly at the moment", picking "B - Cube Gallery"). Was the
  * 1v1 table's seat ROWS, ported verbatim (wave 72 §R.1); a strip of 8 rows
  * read as a long list, so this redesign keeps every seat ACTION (Sit, AI,
- * Close/Open, Remove AI, Stand) but draws each seat as a round avatar with
+ * Close/Open, Remove AI) but draws each seat as a round avatar with
  * its name underneath and its actions beside it, rather than a line in a
  * table. None of that is hover-only: a phone has no hover, so every action
  * is its own always-visible, labelled button — an `ActionButton`, because a
@@ -30,8 +30,13 @@
  * which grows the room by that seat (`apps/server/src/room/lobby.ts`'s
  * `sitPod`/`aiPod`).
  *
- * Purely presentational: a parent (`DraftLobby.tsx`) owns the fetch and the
- * sit/stand calls, which is what makes this unit-testable with fixtures
+ * No Stand: giving a seat back is the spectators' open slot under the strip
+ * (`../RoomSpectators.tsx`), and an open seat here moves a seated player to it
+ * (the operator, 2026-11-02: "click back and forth between player and
+ * spectator … we dont need a stand button at all").
+ *
+ * Purely presentational: a parent (`PodLobby.tsx`) owns the fetch and the
+ * sit calls, which is what makes this unit-testable with fixtures
  * (`PodSeats.test.ts`) instead of a mocked server.
  */
 
@@ -53,14 +58,13 @@ export interface PodSeatsProps {
   /** Looks up a seated member's own watchparty avatar id (`undefined` for none) — the same id `Avatar` draws everywhere else. */
   avatarIdOf: (memberId: string) => string | undefined;
   onSit: (seat: number) => void;
-  onStand: () => void;
   /** The AI button on an open seat (`on`), or the AI's own seat given back. */
   onAi: (seat: number, on: boolean) => void;
   /** The owner's: close an open seat (`closed`), or open a closed one. */
   onClose: (seat: number, closed: boolean) => void;
 }
 
-export function PodSeats({ seats, myMemberId, leaderId, readyOf, avatarIdOf, onSit, onStand, onAi, onClose }: PodSeatsProps) {
+export function PodSeats({ seats, myMemberId, leaderId, readyOf, avatarIdOf, onSit, onAi, onClose }: PodSeatsProps) {
   const iLead = myMemberId !== null && myMemberId === leaderId;
   const mySeat = myMemberId === null ? null : seats.findIndex((s) => s?.memberId === myMemberId);
   const iAmSeated = mySeat !== null && mySeat >= 0;
@@ -81,7 +85,7 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, avatarIdOf, onS
                 data-testid="pod-seat-sit"
                 data-seat={seat}
                 aria-label={`Sit in seat ${seat + 1}`}
-                disabled={iAmSeated}
+                disabled={iAmSeated && seat >= seats.length}
                 onPress={() => onSit(seat)}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
@@ -139,7 +143,7 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, avatarIdOf, onS
         const leads = occupant.memberId === leaderId && leaderId !== '';
         const ready = readyOf(occupant.memberId);
         return (
-          <li key={seat} className="pod-seats__seat" data-testid={`pod-seat-${seat}`}>
+          <li key={seat} className="pod-seats__seat" data-testid={`pod-seat-${seat}`} data-mine={mine ? '' : undefined}>
             <span className="pod-seats__avatar-wrap">
               <span className="pod-seats__avatar" data-ready={ready ? 'true' : 'false'}>
                 <Avatar
@@ -159,13 +163,6 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, avatarIdOf, onS
             </span>
             <span className="pod-seats__label">{occupant.name}</span>
             <StatusPill testId={`pod-seat-${seat}-ready`} state={ready ? 'yes' : 'no'} mark={ready ? 'tick' : 'ring'} label={ready ? 'ready' : 'not ready'} />
-            {mine && (
-              <span className="pod-seats__actions">
-                <ActionButton action="stand" className="pod-seats__action" data-testid="pod-seat-stand" aria-label="Stand up" onPress={onStand}>
-                  Stand
-                </ActionButton>
-              </span>
-            )}
           </li>
         );
       })}

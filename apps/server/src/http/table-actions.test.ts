@@ -1,4 +1,5 @@
 import { createServer, type Server } from 'node:http';
+import { standAll } from '../room/testing-seats.ts';
 import type { AddressInfo } from 'node:net';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -46,6 +47,7 @@ async function open(opts: { refuse?: string; pod?: boolean } = {}): Promise<Harn
 	let tableId = lobby.get(roomId)!.tables[0]!.id;
 	if (opts.pod === true) {
 		expect(lobby.setSettings(roomId, ALICE, { tournament: true }).ok).toBe(true);
+		standAll(lobby, roomId);
 		players.forEach((id, seat) => expect(lobby.sitPod(roomId, id, seat).ok).toBe(true));
 		lobby.setPodChecks({
 			draftComplete: () => true,

@@ -7,6 +7,7 @@
  */
 
 import { mkdtemp, rm } from 'node:fs/promises';
+import { standAll } from './testing-seats.ts';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -277,6 +278,7 @@ describe('the room grows and shrinks a seat at a time, as one list', () => {
 		const made = lobby.create(owner, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
 		const id = made.room.id;
+		standAll(lobby, id);
 		expect(lobby.aiPod(id, owner.id, 9, true)).toMatchObject({ ok: false, reason: 'bad-seat' });
 		for (let seat = 0; seat < 8; seat++) expect(lobby.aiPod(id, owner.id, seat, true).ok).toBe(true);
 		expect(lobby.aiPod(id, owner.id, 8, true).ok).toBe(true);
@@ -290,6 +292,7 @@ describe('the room grows and shrinks a seat at a time, as one list', () => {
 		const made = lobby.create(owner, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
 		const id = made.room.id;
+		standAll(lobby, id);
 		for (let seat = 0; seat < POD_MAX_SEATS; seat++) expect(lobby.aiPod(id, owner.id, seat, true).ok, `seat ${seat}`).toBe(true);
 		expect(lobby.aiPod(id, owner.id, POD_MAX_SEATS, true)).toMatchObject({ ok: false, reason: 'bad-seat' });
 		expect(lobby.sitPod(id, owner.id)).toEqual({ ok: false, reason: 'pod-full' });

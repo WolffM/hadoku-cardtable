@@ -2445,6 +2445,8 @@ describe('a tournament locks over HTTP, with the real PodChecks (regression: the
 		const id = created.id;
 		expect((await call(h, 'POST', `/api/rooms/${id}/join`, { as: 'bob' })).status).toBe(200);
 		expect((await call(h, 'PATCH', `/api/rooms/${id}`, { as: 'alice', body: { settings: { tournament: true } } })).status).toBe(200);
+		// Both carried into the pod's seats from the table; they sit again below, after their decks, as the regression needs.
+		for (const who of ['alice', 'bob']) expect((await call(h, 'POST', `/api/rooms/${id}/pod/stand`, { as: who })).status).toBe(200);
 
 		const [aliceDeck, bobDeck] = legalDeckPair();
 		expect((await call(h, 'PUT', `/api/tables/rooms/${id}/deck`, { as: 'alice', body: { deck: { library: aliceDeck } } })).status).toBe(200);

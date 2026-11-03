@@ -192,24 +192,27 @@ describe('the draft lobby', () => {
     expect((screen.getByTestId('pick-timer-speed-2') as HTMLInputElement).disabled).toBe(true);
   });
 
-  // The operator, 2026-10-21: spectators take no seat, and "i like showing that there are spectators in the draft process".
-  it('draws the seat grid in its first frame, and names who holds no seat as a spectator, with no button', () => {
+  // The operator, 2026-10-21: "i like showing that there are spectators in the draft process"; 2026-11-02: every room
+  // draws its players and its spectators alike, and the spectators' open slot is how a player gives their seat back.
+  it('draws the seat grid in its first frame, every member who holds no seat as a spectator, and my way to join them', () => {
     const pod = podFixture({ seats: Array.from({ length: POD_SEATS }, (_, i) => (i === 0 ? { memberId: 'u-alice', name: 'Alice' } : null)) });
 
     render(createElement(DraftLobby, { ...baseProps, pod, members: [member('u-alice', 'Alice', true), member('u-bob', 'Bob')] }));
 
     expect(screen.getByTestId('pod-seat-0').querySelector('.pod-seats__label')?.textContent).toBe('Alice');
     expect(screen.getByTestId('pod-seat-0-ready').getAttribute('data-state')).toBe('yes');
-    expect(screen.getAllByTestId('pod-spectator').map((r) => r.dataset['member'])).toEqual(['u-bob']);
-    expect(screen.getByTestId('pod-spectators').querySelector('button')).toBeNull();
+    expect(screen.getAllByTestId('room-spectator').map((r) => r.dataset['member'])).toEqual(['u-bob']);
+    expect(screen.getByTestId('room-spectators').contains(screen.getByTestId('seat-stand')), 'I sit: the open slot gives my seat back').toBe(true);
+    expect(screen.queryByTestId('pod-seat-stand')).toBeNull();
   });
 
-  it('draws no spectator list while everyone is seated', () => {
+  it('draws no spectators while everyone is seated, only my way to join them', () => {
     const pod = podFixture({ seats: Array.from({ length: POD_SEATS }, (_, i) => (i === 0 ? { memberId: 'u-alice', name: 'Alice' } : i === 1 ? { memberId: 'u-bob', name: 'Bob' } : null)) });
 
     render(createElement(DraftLobby, { ...baseProps, pod, members: [member('u-alice', 'Alice'), member('u-bob', 'Bob')] }));
 
-    expect(screen.queryByTestId('pod-spectators')).toBeNull();
+    expect(screen.queryAllByTestId('room-spectator')).toEqual([]);
+    expect(screen.getByTestId('seat-stand')).toBeTruthy();
   });
 
   it('the ready-toggle keeps its own meaning regardless of seating', () => {

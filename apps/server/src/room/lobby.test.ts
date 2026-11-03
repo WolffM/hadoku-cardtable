@@ -17,6 +17,7 @@
  */
 
 import { newGauntlet } from './gauntlet.ts';
+import { standAll } from './testing-seats.ts';
 import { FileRoomStore, STORE_VERSION, type RoomSnapshot } from '@hadoku/room-store';
 import { createSeatTable, humanSeats, seatOf } from '@wolffm/rooms-protocol';
 import { packOf, pick, pickNumberOf, type DraftState } from '@hadoku/draft';
@@ -1951,7 +1952,7 @@ describe('Lobby.sit / stand / setSeatReady', () => {
 		expect(lobby.sit(id, tableId, CAROL.id)).toBe(true);
 	});
 
-	it('seats nobody at a table a match holds, nor in a pod room', async () => {
+	it('seats nobody at a table a match holds', async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
@@ -1960,11 +1961,42 @@ describe('Lobby.sit / stand / setSeatReady', () => {
 		expect(lobby.setTableMatch(id, tableId, 'm-vs-ai')).toBe(true);
 		lobby.join(id, BOB);
 		expect(lobby.seats(id, tableId).map((s) => s.memberId)).toEqual([ALICE.id]);
-		const draft = lobby.create(ALICE, { name: 'Pod', gameType: 'draft', clientMode: 'builtin' });
-		if (!draft.ok) throw new Error('create failed');
-		lobby.join(draft.room.id, BOB);
-		expect(draft.room.tables[0]?.players ?? []).toEqual([]);
-		expect(lobby.seats(draft.room.id, draft.room.tables[0]!.id)).toEqual([]);
+	});
+
+	// The operator, 2026-11-02: "please unify all rooms. it's irrelevant what type of room it is".
+	it('seats a draft room’s newcomers in its pod, in the order they come, and never ahead of a member waiting', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Pod', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		lobby.join(id, BOB);
+		const pod = () => lobby.get(id)!.pod!.seats.map((s) => s?.memberId ?? null);
+		expect(pod().slice(0, 3)).toEqual([ALICE.id, BOB.id, null]);
+		expect(lobby.get(id)!.tables[0]!.players, 'the 1v1 table is not a pod room’s').toEqual([]);
+		expect(lobby.standPod(id, BOB.id).ok).toBe(true);
+		lobby.join(id, CAROL);
+		expect(pod().slice(0, 3), 'Bob watching: Carol does not sit ahead of him').toEqual([ALICE.id, null, null]);
+	});
+
+	it('carries the players into the other seats when the room changes between the table and the pod, and leaves its spectators watching', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Switch', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		lobby.join(id, BOB);
+		lobby.join(id, CAROL);
+		const pod = () => lobby.get(id)!.pod!.seats.filter((s) => s !== null).map((s) => s.memberId);
+		const table = () => lobby.get(id)!.tables[0]!.players.map((p) => p.memberId);
+		expect(table()).toEqual([ALICE.id, BOB.id]);
+		expect(lobby.setGameType(id, ALICE.id, 'draft').ok).toBe(true);
+		expect(pod(), 'into the pod; Carol still watches').toEqual([ALICE.id, BOB.id]);
+		expect(lobby.sitPod(id, CAROL.id).ok).toBe(true);
+		expect(lobby.setGameType(id, ALICE.id, 'constructed-1v1').ok).toBe(true);
+		expect(table(), 'two seats: the first two who sat').toEqual([ALICE.id, BOB.id]);
+		expect(lobby.setSettings(id, ALICE.id, { tournament: true }).ok).toBe(true);
+		expect(pod(), 'Tournament on: the pod').toEqual([ALICE.id, BOB.id]);
+		expect(lobby.setSettings(id, ALICE.id, { tournament: false }).ok).toBe(true);
+		expect(table(), 'and back').toEqual([ALICE.id, BOB.id]);
 	});
 
 	it('seats members in the order they sat, two at most, and a stand moves the other up with their Ready', async () => {
@@ -2439,6 +2471,7 @@ describe('Lobby.startDraft — no open seat, and only the seated are waited on',
 		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
 		expect(lobby.join(made.room.id, BOB).ok).toBe(true);
+		standAll(lobby, made.room.id);
 		return { lobby, id: made.room.id };
 	}
 
@@ -2491,6 +2524,8 @@ describe("a draft room's pod — phase, wave 72 §P", () => {
 		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
 		const id = made.room.id;
+		expect(lobby.get(id)?.pod?.seats[0], 'the creator sits as they make it').toEqual({ memberId: ALICE.id, name: ALICE.name });
+		standAll(lobby, id);
 		expect(lobby.get(id)?.pod?.phase).toBe('lobby');
 		expect(lobby.get(id)?.pod?.seats[0]).toBeNull();
 		expect(lobby.get(id)?.pod?.drafters).toEqual([]);
@@ -2985,6 +3020,7 @@ describe('closed pod seats', () => {
 		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
 		expect(lobby.join(made.room.id, BOB).ok).toBe(true);
+		standAll(lobby, made.room.id);
 		return { lobby, id: made.room.id };
 	}
 
@@ -3298,6 +3334,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 		expect(lobby.join(made.room.id, BOB).ok).toBe(true);
 		expect(lobby.join(made.room.id, CAROL).ok).toBe(true);
 		expect(lobby.setSettings(made.room.id, leader.id, { tournament: true }).ok).toBe(true);
+		standAll(lobby, made.room.id);
 		return made.room.id;
 	}
 
@@ -4101,6 +4138,7 @@ describe('Leader tools: DQ a player, reset a game', () => {
 		const id = made.room.id;
 		for (const m of [BOB, CAROL]) expect(lobby.join(id, m).ok).toBe(true);
 		expect(lobby.setSettings(id, ALICE.id, { tournament: true }).ok).toBe(true);
+		standAll(lobby, id);
 		expect(lobby.sitPod(id, BOB.id, 0).ok).toBe(true);
 		expect(lobby.sitPod(id, CAROL.id, 1).ok).toBe(true);
 		expect(lobby.aiPod(id, ALICE.id, 2, true).ok).toBe(true);

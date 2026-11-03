@@ -24,7 +24,7 @@ import { draftEnvelopes } from './isolation.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
 import { roomIdFromHash, serverLog } from './play/board.ts';
 import { openCreateRoom, submitCreateRoom } from './play/rooms.ts';
-import { fillWithAi, readyPod } from './podSeats.ts';
+import { fillWithAi, readyPod, sitPodAt } from './podSeats.ts';
 
 const UI_TIMEOUT = 30_000;
 const RUN_DIR = resolve(import.meta.dirname, '.run');
@@ -127,8 +127,8 @@ test('the draft rope: an idle drafter gets the bot’s pick on timeout, and ever
 
     for (const [p, seat] of [[alice, 0], [bob, 1]] as const) {
       await expect(p.page.getByTestId('pod-seats')).toBeVisible({ timeout: UI_TIMEOUT });
-      await p.page.locator(`[data-testid="pod-seat-sit"][data-seat="${seat}"]`).click();
-      await expect(p.page.getByTestId('pod-seat-stand')).toBeVisible({ timeout: UI_TIMEOUT });
+      await sitPodAt(p.page, seat);
+      await expect(p.page.getByTestId('seat-stand')).toBeVisible({ timeout: UI_TIMEOUT });
     }
     for (const p of [alice, bob]) await readyPod(p.page);
     await fillWithAi(alice.page, UI_TIMEOUT);

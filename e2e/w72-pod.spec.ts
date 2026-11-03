@@ -19,7 +19,7 @@
  * acceptance text only needs a round to RESOLVE, not a full game.
  */
 import { trimMainDeck } from './deckBuilder.ts';
-import { fillWithAi, readyPod } from './podSeats.ts';
+import { fillWithAi, readyPod, sitPodAt } from './podSeats.ts';
 import { expect, test } from '@playwright/test';
 
 import { PREFIX } from './identities.ts';
@@ -127,10 +127,10 @@ test(
 
       /* ── all three sit — the new 8-seat lobby, not the old auto-join ── */
       for (const p of players) await expect(p.page.getByTestId('pod-seats'), `${p.name}: the pod's 8 seats are up`).toBeVisible({ timeout: UI_TIMEOUT });
-      await alice.page.locator('[data-testid="pod-seat-sit"][data-seat="0"]').click();
-      await bob.page.locator('[data-testid="pod-seat-sit"][data-seat="1"]').click();
-      await carol.page.locator('[data-testid="pod-seat-sit"][data-seat="2"]').click();
-      for (const p of players) await expect(p.page.getByTestId('pod-seat-stand'), `${p.name}: holds their own seat`).toBeVisible({ timeout: UI_TIMEOUT });
+      await sitPodAt(alice.page, 0);
+      await sitPodAt(bob.page, 1);
+      await sitPodAt(carol.page, 2);
+      for (const p of players) await expect(p.page.getByTestId('seat-stand'), `${p.name}: holds their own seat`).toBeVisible({ timeout: UI_TIMEOUT });
 
       /* ── ready, deal, draft, build ──────────────────────────────────── */
       for (const p of players) await readyPod(p.page);

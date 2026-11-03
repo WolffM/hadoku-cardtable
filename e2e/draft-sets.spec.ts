@@ -52,7 +52,7 @@
 import { expect, test, type Browser, type Page, type WebSocket } from '@playwright/test';
 
 import { collationCounts, type WireCard } from './draft-sets.collation.ts';
-import { readyPod, selectCustomRound } from './podSeats.ts';
+import { readyPod, selectCustomRound, sitPodAt } from './podSeats.ts';
 import { PREFIX } from './identities.ts';
 import { makeTitled, resizeWindow, roomIdFromHash } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
@@ -270,9 +270,9 @@ async function enterTwoPlayerDraftRoom(browser: Browser, origin: string, roomNam
 }
 
 async function sitAndReady(alice: Player, bob: Player): Promise<void> {
-  await alice.page.locator('[data-testid="pod-seat-sit"][data-seat="0"]').click();
-  await bob.page.locator('[data-testid="pod-seat-sit"][data-seat="1"]').click();
-  for (const p of [alice, bob]) await expect(p.page.getByTestId('pod-seat-stand'), `${p.name}: holds their own seat`).toBeVisible({ timeout: UI_TIMEOUT });
+  await sitPodAt(alice.page, 0);
+  await sitPodAt(bob.page, 1);
+  for (const p of [alice, bob]) await expect(p.page.getByTestId('seat-stand'), `${p.name}: holds their own seat`).toBeVisible({ timeout: UI_TIMEOUT });
   for (const p of [alice, bob]) await readyPod(p.page);
 }
 

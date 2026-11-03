@@ -547,6 +547,15 @@ function usesPod(room: Pick<RoomRecord, 'gameType' | 'settings'>): boolean {
 	return room.gameType === 'draft' || isTournamentRoom(room);
 }
 
+/** A 1v1 table's seats. */
+const TABLE_SEAT_COUNT = 2;
+
+/** The members who hold a seat: the pod's humans in a pod room, else the tables'. In seat order. */
+function playersOf(room: RoomRecord): string[] {
+	if (usesPod(room)) return room.podSeats.filter((s): s is string => s !== null && s !== POD_AI && s !== POD_CLOSED && room.members.some((m) => m.id === s));
+	return room.tables.flatMap((t) => t.seats.filter((s): s is string => s !== null));
+}
+
 /**
  * `room` as `series.ts`'s `seriesFormatOf`/`newSeries` read it. `RoomRecord`
  * has no top-level `tournament` field (it rides under `settings`), so a
@@ -2619,22 +2628,53 @@ class FileLobby implements Lobby {
 	}
 
 	/**
-	 * A newcomer takes an open seat at a 1v1 room's table (the operator, 2026-11-02: "new people
-	 * who join automatically fill in seats as they join rooms"). Only on entering, never on a
-	 * member's return, so someone who chose to watch stays watching, and never ahead of a member
-	 * already in the room without a seat: at a party the watcher who waited takes the loser's
-	 * seat, not the loser coming back in (`e2e/turnover.spec.ts`). Nothing moves once the table
-	 * is locked: a live match or a Gauntlet that holds it. A pod room seats through `podSeats`
-	 * and is left to its own Sit.
+	 * Everyone in a room is a player or a spectator, whatever the room plays (the operator,
+	 * 2026-11-02: "it's irrelevant what type of room it is"). A newcomer takes the first open
+	 * seat: the 1v1 table's, or the pod's before its draft is dealt ("new people who join
+	 * automatically fill in seats as they join rooms"). Only on entering, never on a member's
+	 * return, so someone who chose to watch stays watching, and never ahead of a member already
+	 * in the room without a seat: at a party the watcher who waited takes the loser's seat, not
+	 * the loser coming back in (`e2e/turnover.spec.ts`). Nothing moves once the table is locked:
+	 * a live match or a Gauntlet that holds it.
 	 */
 	#autoSeat(room: RoomRecord, memberId: string): void {
-		if (usesPod(room)) return;
+		const players = playersOf(room);
+		if (room.members.some((m) => m.id !== memberId && !players.includes(m.id))) return;
+		if (usesPod(room)) {
+			if (room.draftStartedAt !== null) return;
+			const open = room.podSeats.indexOf(null);
+			if (open === -1) return;
+			room.podSeats = room.podSeats.map((s, i) => (i === open ? memberId : s));
+			this.#log({ event: 'seat-auto', roomId: room.id, seat: open, memberId });
+			return;
+		}
 		const table = room.tables[0];
 		if (table === undefined || table.matchId !== null) return;
-		if (room.members.some((m) => m.id !== memberId && !room.tables.some((t) => t.seats.includes(m.id)))) return;
 		const gauntlet = room.gauntlets[table.id];
 		if (gauntlet !== undefined && gauntletHoldsTable(gauntlet)) return;
 		if (sitAt(room.tables, table, memberId)) this.#log({ event: 'seat-auto', roomId: room.id, tableId: table.id, memberId });
+	}
+
+	/**
+	 * A change between the 1v1 table and the pod (a game type, or Tournament on or off) changes
+	 * which seats the room has; its players keep playing in the new ones, in the order they sat,
+	 * and its spectators keep watching. A 1v1 table takes the first two; the rest watch.
+	 */
+	#carryPlayers(room: RoomRecord, players: readonly string[]): void {
+		if (usesPod(room)) {
+			const seats: (string | null)[] = room.podSeats.map((s) => (s === null || s === POD_AI || s === POD_CLOSED ? s : null));
+			for (const id of players) {
+				const open = seats.indexOf(null);
+				if (open === -1) break;
+				seats[open] = id;
+			}
+			room.podSeats = seats;
+			return;
+		}
+		const table = room.tables[0];
+		if (table === undefined) return;
+		for (const id of seatList(table).map((s) => s.memberId)) leaveSeat(table, id);
+		for (const id of players.slice(0, TABLE_SEAT_COUNT)) sitAt(room.tables, table, id);
 	}
 
 	#recordMatch(room: RoomRecord, matchId: string): void {
@@ -3540,11 +3580,13 @@ class FileLobby implements Lobby {
 		// The type is the room's shape, the mode a part of it: what freezes the mode freezes the type.
 		if (room.gameType !== gameType && modeLocked(room)) return { ok: false, reason: 'mode-locked' };
 		if (room.gameType !== gameType) {
+			const players = playersOf(room);
 			room.gameType = gameType;
 			room.mode = null;
 			room.modeOptions = null;
 			room.gauntlets = {};
 			this.#interruptSeries(room, true);
+			this.#carryPlayers(room, players);
 		}
 		// Readiness is readiness for a particular game: a member who readied for
 		// a draft has not agreed to a constructed match. Cleared for everyone,
@@ -3599,7 +3641,10 @@ class FileLobby implements Lobby {
 		if (room.draftStartedAt !== null) return { ok: false, reason: 'draft-started' };
 		const next = { ...room.settings, ...settings };
 		if (SETTING_KEYS.every((k) => next[k] === room.settings[k])) return { ok: true, room: this.#view(room) };
+		const players = playersOf(room);
+		const podBefore = usesPod(room);
 		room.settings = next;
+		if (usesPod(room) !== podBefore) this.#carryPlayers(room, players);
 		this.#persist(room);
 		this.#log({ event: 'room-settings', roomId, settings: next });
 		return { ok: true, room: this.#view(room) };
