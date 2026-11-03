@@ -23,6 +23,15 @@
  * drafted land's `manaCost` is empty. The callers drop those before they get here.
  */
 
+import { manaValueOf } from '@hadoku/deck';
+import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
+
+import deckArtTraits from '../draft/deck-art-traits.json' with { type: 'json' };
+import type { PeekList } from './DeckPeek.tsx';
+
+/** Rarity and card type of each library card, for the art rule (`scripts/art/build-deck-art-traits.ts`). */
+const LIBRARY_ART_TRAITS: Readonly<Record<string, string>> = deckArtTraits.traits;
+
 /** A maindeck card the art rule may choose between. */
 export interface ArtCandidate {
   name: string;
@@ -65,6 +74,22 @@ export function rankDeckArt(candidates: readonly ArtCandidate[]): DeckArtChoice[
         (a.c.name < b.c.name ? -1 : a.c.name > b.c.name ? 1 : 0),
     )
     .map(({ c }) => ({ name: c.name, artId: c.scryfallId }));
+}
+
+/**
+ * A library deck's art, ranked by the room's rule (`rankDeckArt`). The wire
+ * sends a library deck by NAME, so both halves of the rule are lookups against
+ * committed data: the cost from the slice the colours come from, the id from
+ * the play board's own table (each line's face, `libraryPeek.ts`).
+ */
+export function libraryDeckArt(list: PeekList): DeckArtChoice[] {
+  return rankDeckArt(
+    list.main.flatMap((line) => {
+      const cost = LIBRARY_CARD_COSTS[line.name];
+      if (cost === undefined) return [];
+      return [{ name: line.name, count: line.count, manaValue: manaValueOf(cost), traits: LIBRARY_ART_TRAITS[line.name] ?? 'c', scryfallId: line.face.scryfallId }];
+    }),
+  );
 }
 
 /** `DraftCard`'s rarity and type line, as the same trait string the library table holds. */

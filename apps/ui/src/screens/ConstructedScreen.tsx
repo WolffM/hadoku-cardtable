@@ -144,18 +144,9 @@ import {
 } from 'react';
 
 import {
-  artIdIndexFromTable,
-  backFaceNames,
-  scryfallIdFor,
-  type ArtIdIndex,
-  type ArtIdTableFile,
-} from '@hadoku/carddata/art';
-import {
   deckColorsByName,
   LIMITED_MIN_MAIN_DECK_SIZE,
   mainDeckSize,
-  manaTokensOf,
-  manaValueOf,
   moveToMain,
   type Deck,
   type DeckColor,
@@ -177,9 +168,7 @@ import { DraftLobby, podDealable } from './DraftLobby.tsx';
 import { ActionButton } from '../components/ActionButton.tsx';
 import { Avatar } from '../components/Avatar.tsx';
 import { mainDeckColors } from '../components/DeckView.tsx';
-import artIdsData from '../draft/art-ids.json' with { type: 'json' };
-import deckArtTraits from '../draft/deck-art-traits.json' with { type: 'json' };
-import { assignDeckArt, rankDeckArt, traitsOfDraftCard, type DeckArtChoice } from './deckArt.ts';
+import { assignDeckArt, libraryDeckArt, rankDeckArt, traitsOfDraftCard, type DeckArtChoice } from './deckArt.ts';
 import { artCredit, useArtist } from '../draft/artists.ts';
 import { artReady, cardImageUrl, prefetchCardImages } from '../draft/cardImage.ts';
 import { browseNeighbours, poolNeighbours } from './deckNeighbours.ts';
@@ -230,7 +219,6 @@ import {
   type LegalSweep,
   type RoomPlayer,
   type RoomTable,
-  type DeckLine,
   type TableDeck,
   type GauntletEraOption,
   type GauntletOutcome,
@@ -238,7 +226,8 @@ import {
   type TablesClient,
 } from './tables.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
-import { DeckPeek, namedFace, usePeekHover, useTouchPeek, type PeekLine, type PeekList } from './DeckPeek.tsx';
+import { DeckPeek, usePeekHover, useTouchPeek, type PeekLine, type PeekList } from './DeckPeek.tsx';
+import { libraryPeekList, namedPeekLine } from './libraryPeek.ts';
 import { DeckTile } from './DeckTile.tsx';
 import { DeckFilterBar } from './DeckFilterBar.tsx';
 import { NO_DECK_FILTER, deckPasses, type DeckFilter } from './deckFilter.ts';
@@ -324,39 +313,6 @@ export interface DeckOption {
   deckStyle?: DeckStyle;
 }
 
-/**
- * A line known by its name: costed from the same committed slice the colours
- * fold, its face's art from the play board's own table (`LIBRARY_ART_IDS`).
- */
-function namedPeekLine({ name, count }: DeckLine): PeekLine {
-  const printed = LIBRARY_CARD_COSTS[name] ?? '';
-  const cost = manaTokensOf(printed);
-  const manaValue = manaValueOf(printed);
-  const id = scryfallIdFor(LIBRARY_ART_IDS, name, '');
-  return { name, count, cost, manaValue, face: namedFace(name, cost, manaValue, id, backFaceNames(LIBRARY_ART_IDS, id)) };
-}
-
-/** A library deck's lines: the wire sends names. */
-export function libraryPeekList(main: readonly DeckLine[], sideboard: readonly DeckLine[]): PeekList {
-  return { main: main.map(namedPeekLine), sideboard: sideboard.map(namedPeekLine) };
-}
-
-/**
- * A library deck's art, ranked by the room's rule (`rankDeckArt`). The wire
- * sends a library deck by NAME, so both halves of the rule are lookups against
- * committed data: the cost from the slice the colours come from, the id from
- * the play board's own table (each line's face, `namedPeekLine`).
- */
-export function libraryDeckArt(list: PeekList): DeckArtChoice[] {
-  return rankDeckArt(
-    list.main.flatMap((line) => {
-      const cost = LIBRARY_CARD_COSTS[line.name];
-      if (cost === undefined) return [];
-      return [{ name: line.name, count: line.count, manaValue: manaValueOf(cost), traits: LIBRARY_ART_TRAITS[line.name] ?? 'c', scryfallId: line.face.scryfallId }];
-    }),
-  );
-}
-
 /** What a deck's peek draws. */
 export type PeekedDeck = Pick<DeckOption, 'label' | 'name' | 'pilot' | 'colors' | 'deckStyle'> & { list: PeekList };
 
@@ -374,31 +330,6 @@ export function libraryDeckPeek(d: TableDeck): PeekedDeck {
     ),
   };
 }
-
-/**
- * `Name|SET` and bare `Name` → Scryfall id, for every card the committed
- * constructed lists play.
- *
- * The same committed table the play board resolves art through
- * (`scripts/art/build-art-ids.ts` generates it; `apps/ui/src/play/adapter.ts`
- * loads it for the same reason), read here through `@hadoku/carddata/art` rather
- * than through that file, so this screen does not depend on the play surface's
- * module layout. It is already in this bundle — the app is not code-split — so
- * importing it here costs no bytes.
- *
- * **A lookup, not a URL** (D15): nothing here names a host. The id goes to
- * `cardImageUrl`, which is the only place in the UI that builds one, and
- * repointing a card stays a one-line edit in `art-manifest.json`.
- */
-const LIBRARY_ART_IDS: ArtIdIndex = artIdIndexFromTable(artIdsData as ArtIdTableFile);
-
-/** A card's art id, by name, through the same table — what a table card's deck art is (`TableCard.tsx`). */
-export function deckCardArtId(name: string): string | undefined {
-  return scryfallIdFor(LIBRARY_ART_IDS, name, '');
-}
-
-/** Rarity and card type of each library card, for the art rule (`scripts/art/build-deck-art-traits.ts`). */
-const LIBRARY_ART_TRAITS: Readonly<Record<string, string>> = deckArtTraits.traits;
 
 /** A "My decks" option's value: the pod it was drafted in, never a library id. */
 const MY_DECK = 'mine:';

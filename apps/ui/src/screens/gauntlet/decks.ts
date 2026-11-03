@@ -6,8 +6,9 @@
 import type { GauntletDeck } from '@hadoku/shared';
 import { LIBRARY_DECK_STYLES } from '@hadoku/deck/library';
 
-import { libraryDeckArt, libraryPeekList, type DeckOption } from '../ConstructedScreen.tsx';
-import { assignDeckArt } from '../deckArt.ts';
+import type { DeckOption } from '../ConstructedScreen.tsx';
+import { assignDeckArt, libraryDeckArt } from '../deckArt.ts';
+import { libraryPeekList } from '../libraryPeek.ts';
 
 function gauntletDeckOption(d: GauntletDeck): DeckOption {
   const list = libraryPeekList(d.main, d.sideboard);

@@ -15,16 +15,13 @@
  * checks the text against the CALLER's pool, with the text from `dckTextOf`.
  */
 
-import { basicLand, BASIC_LAND_OF, cardKey, cardRequestOf, DECK_COLORS, isBasicLand, manaTokensOf, manaValueOf, setBasicLand, type Deck, type DeckColor } from '@hadoku/deck';
-import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
+import { basicLand, BASIC_LAND_OF, cardKey, cardRequestOf, DECK_COLORS, isBasicLand, setBasicLand, type Deck, type DeckColor } from '@hadoku/deck';
 import { parseCardRequest, type DeckEntry } from '@hadoku/carddata/dck';
-import { artIdIndexFromTable, backFaceNames, scryfallIdFor, type ArtIdTableFile } from '@hadoku/carddata/art';
 
 import { dckTextOf } from '../draft/deckFromPool.ts';
 import type { DraftCard } from '../draft/types.ts';
 import type { SeatChoice, DeckLine } from '../screens/tables.ts';
-import { namedFace } from '../screens/DeckPeek.tsx';
-import artIdsData from '../draft/art-ids.json' with { type: 'json' };
+import { libraryFace } from '../screens/libraryPeek.ts';
 
 /** The drafted seat, in the gate's shape: this deck's text, checked against your own pool. */
 export function draftedSeat(draftId: string, deck: Deck): SeatChoice {
@@ -34,28 +31,16 @@ export function draftedSeat(draftId: string, deck: Deck): SeatChoice {
 
 
 /**
- * A library deck's two halves (`screens/tables.ts`'s `TableDeck.main`/
- * `.sideboard`, or the server's `GET /api/tables/decks` answer for one), as a
- * `sideboard`-mode `DeckEditor` pool — wave 72 §Q.4's "first commit measures
- * what card data the browser has": the wire sends names, and the browser
- * holds a cost per name (`LIBRARY_CARD_COSTS`) and this app's committed art
- * ids (`LIBRARY_ART_IDS`), nothing else — no type line, no oracle text. That
- * is the SAME path `ConstructedScreen.tsx`'s own deck peek already draws a
- * library card through (`namedPeekLine` → `namedFace`), reused here rather
- * than built a second time. One `DraftCard` per distinct name; `DeckEditor`'s
- * own tile-building multiplies it by each entry's count.
+ * Names as a `sideboard`-mode `DeckEditor` pool — wave 72 §Q.4's "first commit
+ * measures what card data the browser has": the wire sends names, and the
+ * browser holds a cost per name and this app's committed art ids, nothing else
+ * — no type line, no oracle text. Each card is drawn the way the room's own
+ * deck peek draws it (`libraryFace`). One `DraftCard` per distinct name, from
+ * anywhere (a drafted sideboard's parsed text, not only a `TableDeck`'s own
+ * lines); `DeckEditor`'s own tile-building multiplies it by each entry's count.
  */
-const LIBRARY_ART_IDS = artIdIndexFromTable(artIdsData as ArtIdTableFile);
-
-function namedLibraryFace(name: string): DraftCard {
-  const cost = LIBRARY_CARD_COSTS[name] ?? '';
-  const id = scryfallIdFor(LIBRARY_ART_IDS, name, '');
-  return namedFace(name, manaTokensOf(cost), manaValueOf(cost), id, backFaceNames(LIBRARY_ART_IDS, id));
-}
-
-/** One `DraftCard` per distinct name — the same degrade `libraryDeckPool` uses, for names from anywhere (a drafted sideboard's parsed text, not only a `TableDeck`'s own lines). */
 export function namedCardPool(names: Iterable<string>): DraftCard[] {
-  return [...new Set(names)].map(namedLibraryFace);
+  return [...new Set(names)].map(libraryFace);
 }
 
 export function libraryDeckPool(main: readonly DeckLine[], sideboard: readonly DeckLine[]): DraftCard[] {

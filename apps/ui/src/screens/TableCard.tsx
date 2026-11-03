@@ -24,7 +24,8 @@ import type { SeriesPhase, TableGame, TableSeatDeck } from '@hadoku/shared';
 
 import { Avatar } from '../components/Avatar.tsx';
 import { DeckColors } from '../components/DeckView.tsx';
-import { DeckArt, deckCardArtId } from './ConstructedScreen.tsx';
+import { DeckArt } from './ConstructedScreen.tsx';
+import { deckCardArtId } from './libraryPeek.ts';
 import { useTableResolve, type TableResolveHandlers } from './tableResolve.tsx';
 import './TableCard.css';
 

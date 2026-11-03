@@ -12,7 +12,7 @@ import { useDismiss } from '../../popover.ts';
 import { deckColorsByName } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 
-import { libraryPeekList } from '../../screens/ConstructedScreen.tsx';
+import { libraryPeekList } from '../../screens/libraryPeek.ts';
 import { DeckPeek } from '../../screens/DeckPeek.tsx';
 import { apiBase, getJson, type Fetch } from '../../http.ts';
 import type { DeckLine } from '../../screens/tables.ts';
