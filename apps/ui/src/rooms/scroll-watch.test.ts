@@ -1,7 +1,7 @@
 import { PageEventSchema } from '@hadoku/shared';
 import { describe, expect, it } from 'vitest';
 
-import { browserOf, IDLE_MS, MAX_REPORTS, MIN_FRAMES, watchScroll, type ScrollWatchHost } from './scroll-watch.ts';
+import { browserOf, IDLE_MS, MAX_REPORTS, MIN_SCROLL_MS, watchScroll, type ScrollWatchHost } from './scroll-watch.ts';
 
 const LIST = { id: 'shell' } as unknown as EventTarget;
 const OTHER = { id: 'chat' } as unknown as EventTarget;
@@ -9,6 +9,8 @@ const OTHER = { id: 'chat' } as unknown as EventTarget;
 /** A host with a hand-driven clock, frame queue and scroll listener. */
 function fakeHost(rooms = 40) {
   let now = 0;
+  /** When the current frame began: its `requestAnimationFrame` time. */
+  let frameStart = 0;
   let nextId = 1;
   const frames = new Map<number, (t: number) => void>();
   let listener: ((e: Event) => void) | null = null;
@@ -42,13 +44,19 @@ function fakeHost(rooms = 40) {
     send: (data) => sent.push(data),
   };
   const scroll = (target = LIST): void => listener?.({ target } as unknown as Event);
-  /** Advance by `gap` ms and run the pending frame, scrolling the list first when `moving`. */
-  const frame = (gap: number, moving = true): void => {
-    now += gap;
+  /**
+   * Begin a frame `gap` ms after the last one began and run its callbacks, scrolling the list first
+   * when `moving`. `work` is how long the page has already been busy in it when they run: a frame
+   * callback is handed the frame's start, while the clock has moved on.
+   */
+  const frame = (gap: number, moving = true, work = 0): void => {
+    frameStart += gap;
+    now = frameStart;
     if (moving) scroll();
+    now += work;
     const pending = [...frames.entries()];
     frames.clear();
-    for (const [, cb] of pending) cb(now);
+    for (const [, cb] of pending) cb(frameStart);
   };
   return { host, sent, scroll, frame, listening: () => listener !== null, pending: () => frames.size };
 }
@@ -85,13 +93,28 @@ describe('watchScroll', () => {
     expect(t.listening()).toBe(false);
   });
 
+  it('a scroll drawn a few frames a second, each frame busy for longer than IDLE_MS, is one burst with every slow frame', () => {
+    // A loaded Firefox drew the 40-room list at about 300 ms a frame: the clock read inside each frame
+    // said the list had been still that long, so every frame ended its burst, and eight frames in 2.5 s
+    // were too few to count. Nothing was ever sent.
+    const t = fakeHost();
+    watchScroll(t.host);
+    t.scroll();
+    t.frame(16);
+    for (let i = 0; i < 8; i += 1) t.frame(IDLE_MS + 50, true, IDLE_MS + 40);
+    expect(t.sent).toEqual([]);
+    while (t.pending() > 0) t.frame(16, false);
+    expect(t.sent).toHaveLength(1);
+    expect(t.sent[0]).toMatchObject({ frames: 8, over50: 8, max: IDLE_MS + 50 });
+  });
+
   it('ignores a scroll of anything but the list, and a nudge too short to judge', () => {
     const t = fakeHost();
     watchScroll(t.host);
     t.scroll(OTHER);
     expect(t.pending()).toBe(0);
     t.scroll();
-    for (let i = 0; i < MIN_FRAMES - 1; i += 1) t.frame(16);
+    for (let ms = 0; ms < MIN_SCROLL_MS; ms += 16) t.frame(16);
     t.frame(IDLE_MS + 1, false);
     expect(t.sent).toEqual([]);
   });
@@ -101,7 +124,7 @@ describe('watchScroll', () => {
     const stop = watchScroll(t.host);
     for (let b = 0; b < MAX_REPORTS + 3; b += 1) {
       t.scroll();
-      for (let i = 0; i < MIN_FRAMES + 1; i += 1) t.frame(16);
+      for (let ms = 0; ms <= MIN_SCROLL_MS; ms += 16) t.frame(16);
       while (t.pending() > 0) t.frame(16, false);
     }
     expect(t.sent).toHaveLength(MAX_REPORTS);
@@ -109,7 +132,7 @@ describe('watchScroll', () => {
     const u = fakeHost();
     const stopU = watchScroll(u.host);
     u.scroll();
-    for (let i = 0; i < MIN_FRAMES + 1; i += 1) u.frame(16);
+    for (let ms = 0; ms <= MIN_SCROLL_MS; ms += 16) u.frame(16);
     stopU();
     expect(u.sent).toHaveLength(1);
     expect(u.pending()).toBe(0);

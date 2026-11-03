@@ -16,12 +16,21 @@ import { BUCKETS, bucketOf, percentile } from '../play/live/frame-watch.ts';
 
 type Data = PageEvent['data'];
 
-/** A burst is over once the list has not scrolled for this long. */
+/**
+ * A burst is over once frames have gone by for this long without the list moving, timed by the
+ * frames' own start times. Not by the clock read inside a frame: that includes the frame's own work,
+ * so a scroll drawn at 300 ms a frame (a loaded Firefox, 40 rooms) read as still at every frame, each
+ * burst ended a frame long, and the slowest scrolls, the ones this exists for, sent nothing.
+ */
 export const IDLE_MS = 250;
 /** A burst still scrolling after this long is reported and the next scroll opens a new one. */
 export const MAX_BURST_MS = 10_000;
-/** A burst shorter than this many frames is a nudge, not a scroll: nothing is sent. */
-export const MIN_FRAMES = 10;
+/**
+ * A burst whose moving frames span less than this is a nudge, not a scroll: nothing is sent. Ten
+ * frames at 60 Hz, as time and not a count of frames, so a scroll drawn at a few frames a second
+ * still counts.
+ */
+export const MIN_SCROLL_MS = 160;
 /** A gap over this is a dropped frame at 60 Hz: one and a half frames. */
 export const DROP_MS = 25;
 /** A gap over this is two frames missed in a row. */
@@ -67,8 +76,10 @@ export function watchScroll(host: ScrollWatchHost): () => void {
   let over50 = 0;
   let max = 0;
   let startedAt = 0;
-  let lastScrollAt = 0;
   let prevFrame: number | null = null;
+  /** The start of the burst's first frame, and of the last frame the list moved in. */
+  let firstAt = 0;
+  let movedAt = 0;
   /** Whether the list scrolled since the last frame: the still frames that end a burst are not counted. */
   let moved = false;
   let raf: number | null = null;
@@ -77,7 +88,7 @@ export function watchScroll(host: ScrollWatchHost): () => void {
   const end = (): void => {
     if (raf !== null) host.win.cancelAnimationFrame(raf);
     raf = null;
-    if (frames >= MIN_FRAMES && reports < MAX_REPORTS) {
+    if (frames > 0 && movedAt - firstAt >= MIN_SCROLL_MS && reports < MAX_REPORTS) {
       reports += 1;
       host.send({
         what: 'scroll',
@@ -115,20 +126,19 @@ export function watchScroll(host: ScrollWatchHost): () => void {
       if (gap > SLOW_MS) over50 += 1;
       if (gap > max) max = gap;
     }
+    if (prevFrame === null) firstAt = t;
+    if (moved || prevFrame === null) movedAt = t;
     prevFrame = t;
     moved = false;
-    const now = host.now();
-    if (now - lastScrollAt > IDLE_MS || now - startedAt > MAX_BURST_MS) end();
+    if (t - movedAt > IDLE_MS || host.now() - startedAt > MAX_BURST_MS) end();
     else raf = host.win.requestAnimationFrame(tick);
   };
 
   const onScroll = (e: Event): void => {
     if (!host.scrolls(e.target)) return;
-    const now = host.now();
-    lastScrollAt = now;
     moved = true;
     if (raf !== null) return;
-    startedAt = now;
+    startedAt = host.now();
     raf = host.win.requestAnimationFrame(tick);
   };
 
