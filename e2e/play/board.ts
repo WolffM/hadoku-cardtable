@@ -629,8 +629,9 @@ export async function pressOffered(target: Locator): Promise<boolean> {
   if ((await press.count()) === 0) return false;
   // Pressed where a player would: a point of the face that takes the pointer, not whatever is drawn over
   // its centre (a pick's pop-up, a chip). Wholly covered, nothing is pressed, and the log says by what.
-  const seen = await press
-    .evaluate((el) => {
+  // Read once the face has settled (a land tapping, a row re-laying out): up to 1.5 s for a point to take the pointer.
+  const point = () =>
+    press.evaluate((el) => {
       const b = el.getBoundingClientRect();
       const points: { x: number; y: number }[] = [];
       for (const fx of [0.5, 0.3, 0.7, 0.15, 0.85]) for (const fy of [0.5, 0.3, 0.7, 0.15, 0.85]) points.push({ x: b.left + b.width * fx, y: b.top + b.height * fy });
@@ -641,8 +642,15 @@ export async function pressOffered(target: Locator): Promise<boolean> {
       const at = hit === undefined ? undefined : { x: hit.x - b.left, y: hit.y - b.top };
       const top = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
       return { at: at ?? null, cover: top === null ? 'nothing (off screen)' : `${top.tagName.toLowerCase()}.${Array.from(top.classList).join('.')}` };
-    })
-    .catch(() => null);
+    });
+  // In view first, as a player scrolls to it (and as Playwright's own click does before its hit test).
+  await press.scrollIntoViewIfNeeded({ timeout: 1_000 }).catch(() => undefined);
+  let seen: Awaited<ReturnType<typeof point>> | null = null;
+  for (const until = Date.now() + 1_500; ; ) {
+    seen = await point().catch(() => null);
+    if (seen === null || seen.at !== null || Date.now() > until) break;
+    await target.page().waitForTimeout(50);
+  }
   // The offer withdrew under the press (the card re-drawn or gone): no failure, and nothing pressed.
   if (seen === null) return true;
   if (seen.at === null) {
