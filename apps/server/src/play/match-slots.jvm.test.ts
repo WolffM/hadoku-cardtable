@@ -151,7 +151,9 @@ describe.skipIf(!available.ok)(title, () => {
 
 			const left = Date.now();
 			for (const p of peers) p.socket.disconnect();
-			await waitUntil(() => s.handle.matches.get(matchId)?.status === 'stopped', 'the match nobody is at to stop', 30_000);
+			// The registry lets go of a stopped match at once and keeps its EndedMatch (9c306ac0b), so the
+			// stop is read through `find`, which answers both.
+			await waitUntil(() => s.handle.matches.find(matchId)?.status === 'stopped', 'the match nobody is at to stop', 30_000);
 			await waitUntil(() => liveJvmCount() === 0, 'its JVM to exit', 30_000);
 			console.log(`[bb-slots] abandoned: stopped ${Date.now() - left} ms after both seats left; ${JSON.stringify(s.logs.find((l) => l.evt === 'match-not-rejoined'))}`);
 
