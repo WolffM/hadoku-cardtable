@@ -248,53 +248,70 @@ function legalClassicDeckState(library: TablesLibrary, format: string): unknown 
 	return { v: 1, deck: { choice: { deck: { library: deckId }, rules }, verdict: publicVerdict(verdict), text: verdict.text }, seriesDeck: null };
 }
 
+/** One of the seed's own series: each game's winner by table seat, the seed's always 0 (`#newPodTable` seats the human there). */
+type SeedSeries = readonly (0 | 1)[];
+
 /**
- * Seat `TESTING_SEED_CALLER` at pod seat 0 plus two AI entrants at seats 1
- * and 2 (`roundsFor(3) === 2` — this field plays exactly two Swiss rounds,
- * enough for "round 2" to exist and no more), THEN `makeEntrantReady` (never
- * before: `sitPod`/`aiPod` each retry the lock — `#maybeLockTournament`'s own
- * doc — and locking at 2 entrants, the instant the seed is ready and one AI
- * is seated, is exactly the bug this order avoids: `roundsFor(2) === 1`, one
- * round and done, never a round 2), and record round 1's one live pairing
- * (seat order puts the seed against the LOWER AI seat; the higher one draws
- * round 1's bye — `@hadoku/draft`'s `round1`) as a 2-0 win for the seed.
- * `#finishPodTable` advances the pod to round 2 by itself, in the same
- * `recordGameResult` call, exactly as a real table's last game would.
+ * Seat `TESTING_SEED_CALLER` at pod seat 0 plus `aiEntrants` AI entrants at
+ * the seats after it, THEN `makeEntrantReady` (never before: `sitPod`/`aiPod`
+ * each retry the lock — `#maybeLockTournament`'s own doc — and locking the
+ * instant the seed is ready and one AI is seated is exactly the bug this
+ * order avoids: `roundsFor(2) === 1`, one round and done), then play the
+ * seed's own series round by round through `recordGameResult`, the call a
+ * real table's match end makes. Every other pairing is AI against AI, which
+ * the lobby settles by itself at the pairing (`#pairRound`), so the seed's
+ * table is each round's only live one, and `#finishPodTable` advances the
+ * pod to the next round (or to `done`) by itself.
  *
  * `makeEntrantReady` must itself retrigger the lock (`setReady` does;
  * `setPlayerState` does not, so a Classic caller's own one has to follow it
  * with a redundant re-`sitPod`, which does).
  *
- * Answers round 2's own table id, or `null` with the room (and its match
- * stats, since this is always `room.testing`) untouched beyond what already
- * logged the refusal: the tournament never locked, round 1's result was
- * refused, or round 2 never opened.
+ * Answers the next live table's id (`''` once the pod is done), or `null`
+ * with the refusal logged: the tournament never locked, a result was
+ * refused, or the next round never opened.
  */
-function playRound1VsTwoAi(lobby: Lobby, roomId: string, name: string, makeEntrantReady: () => void, log: (entry: Record<string, unknown>) => void): string | null {
+function playSeedSeries(
+	lobby: Lobby,
+	roomId: string,
+	name: string,
+	field: { aiEntrants: number; series: readonly SeedSeries[] },
+	makeEntrantReady: () => void,
+	log: (entry: Record<string, unknown>) => void,
+): string | null {
 	lobby.sitPod(roomId, TESTING_SEED_CALLER.id, 0);
-	lobby.aiPod(roomId, TESTING_SEED_CALLER.id, 1, true);
-	lobby.aiPod(roomId, TESTING_SEED_CALLER.id, 2, true);
+	for (let seat = 1; seat <= field.aiEntrants; seat++) lobby.aiPod(roomId, TESTING_SEED_CALLER.id, seat, true);
 	makeEntrantReady();
-	const locked = lobby.get(roomId);
-	if (locked === undefined || locked.pod === null || locked.pod.pairings.length === 0) {
+	if (lobby.get(roomId)?.pod?.pairings.length !== 1) {
 		log({ event: 'testing-room-seed-failed', name, reason: 'tournament-did-not-lock' });
 		return null;
 	}
-	const round1TableId = locked.pod.pairings[0]!.tableId;
-	for (const matchId of [`${roomId}-r1-g1`, `${roomId}-r1-g2`]) {
-		const recorded = lobby.recordGameResult(roomId, round1TableId, { matchId, winner: 0 });
-		if (!recorded.ok) {
-			log({ event: 'testing-room-seed-failed', name, reason: 'record-game-result-refused' });
+	for (const [r, games] of field.series.entries()) {
+		const pod = lobby.get(roomId)?.pod;
+		const tableId = pod?.round === r + 1 ? pod.pairings[0]?.tableId : undefined;
+		if (tableId === undefined) {
+			log({ event: 'testing-room-seed-failed', name, reason: `round-${r + 1}-did-not-open` });
 			return null;
 		}
+		for (const [g, winner] of games.entries()) {
+			if (!lobby.recordGameResult(roomId, tableId, { matchId: `${roomId}-r${r + 1}-g${g + 1}`, winner }).ok) {
+				log({ event: 'testing-room-seed-failed', name, reason: 'record-game-result-refused' });
+				return null;
+			}
+		}
 	}
-	const afterRound1 = lobby.get(roomId);
-	if (afterRound1 === undefined || afterRound1.pod === null || afterRound1.pod.round !== 2 || afterRound1.pod.pairings.length === 0) {
-		log({ event: 'testing-room-seed-failed', name, reason: 'round-2-did-not-open' });
+	const after = lobby.get(roomId)?.pod;
+	if (after?.phase === 'done') return '';
+	const next = after?.round === field.series.length + 1 ? after.pairings[0]?.tableId : undefined;
+	if (next === undefined) {
+		log({ event: 'testing-room-seed-failed', name, reason: `round-${field.series.length + 1}-did-not-open` });
 		return null;
 	}
-	return afterRound1.pod.pairings[0]!.tableId;
+	return next;
 }
+
+/** The three-entrant "round 2" rooms' field: `roundsFor(3) === 2`, round 1 a 2-0 win over the lower AI seat (the higher draws the bye). */
+const ROUND2_FIELD = { aiEntrants: 2, series: [[0, 0]] } as const;
 
 /**
  * "Testing: Constructed tournament — round 2": Classic, `per-round` decks
@@ -337,11 +354,11 @@ async function seedTournamentRound2Classic(deps: TestingRoomsDeps, log: (entry: 
 	}
 	const makeEntrantReady = (): void => {
 		lobby.setPlayerState(roomId, TESTING_SEED_CALLER.id, deckState);
-		// `setPlayerState` does not itself retrigger the lock (`playRound1VsTwoAi`'s
+		// `setPlayerState` does not itself retrigger the lock (`playSeedSeries`'s
 		// own doc) — a redundant re-`sitPod` at the same seat does.
 		lobby.sitPod(roomId, TESTING_SEED_CALLER.id, 0);
 	};
-	if (playRound1VsTwoAi(lobby, roomId, TESTING_CLASSIC_ROUND2_NAME, makeEntrantReady, log) === null) return;
+	if (playSeedSeries(lobby, roomId, TESTING_CLASSIC_ROUND2_NAME, ROUND2_FIELD, makeEntrantReady, log) === null) return;
 	lobby.leave(roomId, TESTING_SEED_CALLER.id);
 	log({ event: 'testing-room-seeded', name: TESTING_CLASSIC_ROUND2_NAME, roomId });
 }
@@ -358,30 +375,59 @@ async function seedTournamentRound2Classic(deps: TestingRoomsDeps, log: (entry: 
  * guessed at.
  */
 async function seedTournamentRound2Gauntlet(deps: TestingRoomsDeps, log: (entry: Record<string, unknown>) => void): Promise<void> {
-	const { lobby } = deps;
+	seedGauntletTournament(deps.lobby, TESTING_GAUNTLET_ROUND2_NAME, ROUND2_FIELD, 'leaves', log);
+}
+
+/**
+ * The eight-entrant rooms (the operator, 2026-11-02, reviewing the bracket,
+ * standings and podium): the seed and seven AI entrants, `roundsFor(8) === 3`.
+ * The seed STAYS a member, so every entrant has a name and a face to draw — a
+ * room the admin watches, never one it plays in. Mixed scores, so the bracket
+ * and standings carry 2-1s, a loss and a tie on record.
+ */
+export const TESTING_TOURNAMENT_DONE_NAME = 'Testing: Tournament — finished (8 players)';
+export const TESTING_TOURNAMENT_MID_NAME = 'Testing: Tournament — round 2 of 3 (8 players)';
+const EIGHT_FIELD_DONE = { aiEntrants: 7, series: [[0, 1, 0], [1, 0, 1], [0, 0]] } as const;
+const EIGHT_FIELD_MID = { aiEntrants: 7, series: [[0, 1, 0]] } as const;
+
+async function seedTournamentDone(deps: TestingRoomsDeps, log: (entry: Record<string, unknown>) => void): Promise<void> {
+	seedGauntletTournament(deps.lobby, TESTING_TOURNAMENT_DONE_NAME, EIGHT_FIELD_DONE, 'stays', log);
+}
+
+async function seedTournamentMid(deps: TestingRoomsDeps, log: (entry: Record<string, unknown>) => void): Promise<void> {
+	seedGauntletTournament(deps.lobby, TESTING_TOURNAMENT_MID_NAME, EIGHT_FIELD_MID, 'stays', log);
+}
+
+function seedGauntletTournament(
+	lobby: Lobby,
+	name: string,
+	field: { aiEntrants: number; series: readonly SeedSeries[] },
+	seed: 'leaves' | 'stays',
+	log: (entry: Record<string, unknown>) => void,
+): void {
 	const created = lobby.create(TESTING_SEED_CALLER, {
-		name: TESTING_GAUNTLET_ROUND2_NAME,
+		name,
 		gameType: 'constructed-1v1',
 		clientMode: 'builtin',
 		mode: { mode: 'gauntlet', modeOptions: {} },
 		testing: true,
 	});
 	if (!created.ok) {
-		log({ event: 'testing-room-seed-failed', name: TESTING_GAUNTLET_ROUND2_NAME, reason: created.reason });
+		log({ event: 'testing-room-seed-failed', name, reason: created.reason });
 		return;
 	}
 	const roomId = created.room.id;
 	const settled = lobby.setSettings(roomId, TESTING_SEED_CALLER.id, { tournament: true });
 	if (!settled.ok) {
-		log({ event: 'testing-room-settings-failed', name: TESTING_GAUNTLET_ROUND2_NAME, reason: settled.reason });
+		log({ event: 'testing-room-settings-failed', name, reason: settled.reason });
 		return;
 	}
 	const makeEntrantReady = (): void => {
 		lobby.setReady(roomId, TESTING_SEED_CALLER.id, true);
 	};
-	if (playRound1VsTwoAi(lobby, roomId, TESTING_GAUNTLET_ROUND2_NAME, makeEntrantReady, log) === null) return;
-	lobby.leave(roomId, TESTING_SEED_CALLER.id);
-	log({ event: 'testing-room-seeded', name: TESTING_GAUNTLET_ROUND2_NAME, roomId });
+	if (playSeedSeries(lobby, roomId, name, field, makeEntrantReady, log) === null) return;
+	if (seed === 'leaves') lobby.leave(roomId, TESTING_SEED_CALLER.id);
+	log({ event: 'testing-room-seeded', name, roomId });
 }
 
 /**
@@ -412,6 +458,8 @@ export async function seedTestingRooms(deps: TestingRoomsDeps): Promise<void> {
 		[TESTING_SET_DRAFT_NAME, seedSetDraft],
 		[TESTING_CLASSIC_ROUND2_NAME, seedTournamentRound2Classic],
 		[TESTING_GAUNTLET_ROUND2_NAME, seedTournamentRound2Gauntlet],
+		[TESTING_TOURNAMENT_DONE_NAME, seedTournamentDone],
+		[TESTING_TOURNAMENT_MID_NAME, seedTournamentMid],
 	];
 	await Promise.all(
 		seeds

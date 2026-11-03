@@ -31,7 +31,8 @@ import { isPodAi, planDisplayName, RoomBodySchema, type DraftCard, type DraftPla
 import { loadTablesLibrary } from './library.ts';
 import { createDraftRooms, DEFAULT_PLAN, stateOf, type PoolSourceResolver } from '../room/draftRooms.ts';
 import { checkPlan as realCheckPlan, type CubeLookup, type ForgeChecker, type SetLookup } from '../room/plan.ts';
-import { seedTestingRooms, TESTING_CLASSIC_ROUND2_NAME, TESTING_GAUNTLET_ROUND2_NAME } from '../room/testing-rooms.ts';
+import { openLobby } from '../room/lobby.ts';
+import { seedTestingRooms, TESTING_CLASSIC_ROUND2_NAME, TESTING_GAUNTLET_ROUND2_NAME, TESTING_TOURNAMENT_DONE_NAME, TESTING_TOURNAMENT_MID_NAME, TESTING_SEED_CALLER } from '../room/testing-rooms.ts';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 /**
@@ -2752,6 +2753,8 @@ describe('testing rooms (admin only, seeded)', () => {
 				'Testing: Board — Gifts Ungiven',
 				'Testing: Constructed tournament — round 2',
 				'Testing: Gauntlet tournament — round 2',
+				'Testing: Tournament — finished (8 players)',
+				'Testing: Tournament — round 2 of 3 (8 players)',
 			].sort(),
 		);
 		expect(logged).toContainEqual(expect.objectContaining({ event: 'testing-room-seed-skipped', name: 'Testing: Set draft' }));
@@ -3024,5 +3027,50 @@ describe('the "round 2" tournament rooms (admin only, seeded in progress)', () =
 		expect(after.pod.round).toBe(2);
 		expect(after.pod.results).toHaveLength(3);
 		expect(after.pod.standings).toHaveLength(3);
+	});
+});
+
+describe('the eight-player tournament rooms (admin only, seeded finished and mid-rounds)', () => {
+	const admin = { headers: { 'x-hadoku-tier': 'admin' } };
+	type Pod = { phase: string; round: number; rounds: number; results: { round: number; playerB: string | null; gamesA: number; gamesB: number }[]; standings: { id: string }[]; pairings: unknown[] };
+
+	async function podOf(h: Harness, name: string): Promise<{ pod: Pod; members: { id: string; name: string }[] }> {
+		const listed = (await call(h, 'GET', '/api/rooms', admin)).json() as { rooms: { id: string; name: string }[] };
+		const room = listed.rooms.find((r) => r.name === name);
+		expect(room, `${name} is seeded`).toBeDefined();
+		const got = (await call(h, 'GET', `/api/rooms/${room!.id}`, admin)).json() as { pod: Pod; members: { id: string; name: string }[] };
+		return { pod: got.pod, members: got.members };
+	}
+
+	it('the finished room has played all three rounds of an eight-player field to done, the seed still in it', async () => {
+		const h = await openFullApp(await tempDir());
+		await seedTestingRooms({ lobby: h.lobby, log: () => {} });
+		const { pod, members } = await podOf(h, TESTING_TOURNAMENT_DONE_NAME);
+		expect(pod.phase).toBe('done');
+		expect(pod.rounds).toBe(3);
+		expect(pod.standings).toHaveLength(8);
+		expect(pod.results.filter((r) => r.playerB !== null)).toHaveLength(12);
+		expect(pod.results.some((r) => r.gamesA + r.gamesB === 3), 'a 2-1 series among the results').toBe(true);
+		expect(members.map((m) => m.id)).toEqual([TESTING_SEED_CALLER.id]);
+	});
+
+	it('a finished testing tournament never reaches the real Tournaments archive', async () => {
+		const archived: unknown[] = [];
+		const lobby = await openLobby({ dir: await tempDir(), onTournament: (t) => void archived.push(t) });
+		await seedTestingRooms({ lobby, log: () => {} });
+		expect(lobby.list().find((r) => r.name === TESTING_TOURNAMENT_DONE_NAME)?.pod?.phase).toBe('done');
+		expect(archived).toEqual([]);
+	});
+
+	it('the mid-rounds room is in round 2 of 3, round 1 decided and round 2 paired', async () => {
+		const h = await openFullApp(await tempDir());
+		await seedTestingRooms({ lobby: h.lobby, log: () => {} });
+		const { pod } = await podOf(h, TESTING_TOURNAMENT_MID_NAME);
+		expect(pod.phase).toBe('rounds');
+		expect([pod.round, pod.rounds]).toEqual([2, 3]);
+		expect(pod.results.filter((r) => r.round === 1)).toHaveLength(4);
+		// Round 2: the seed's one live table; the three AI-vs-AI pairings settled at the pairing.
+		expect(pod.pairings).toHaveLength(1);
+		expect(pod.results.filter((r) => r.round === 2)).toHaveLength(3);
 	});
 });

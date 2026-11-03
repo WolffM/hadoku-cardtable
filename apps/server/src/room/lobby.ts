@@ -3666,10 +3666,11 @@ class FileLobby implements Lobby {
 		this.#changed(id);
 	}
 
-	/** A pod that finished a match goes to the tournaments: finished, or ended early by a close or the sweep. */
+	/** A pod that finished a match goes to the tournaments: finished, or ended early by a close or the sweep. Never a testing room's. */
 	#archive(room: RoomRecord): void {
 		const pod = room.pod;
-		if (pod === null || room.draftStartedAt === null || !pod.results.some((r) => r.playerB !== null)) return;
+		// A seeded testing room's "tournament" was never played (`#settleSeries` keeps its games out of the stats the same way).
+		if (pod === null || room.testing || room.draftStartedAt === null || !pod.results.some((r) => r.playerB !== null)) return;
 		// A draft pod's shared bot (`POD_AI`) is named once; a tournament
 		// pod's own AI entrants (one per AI seat, `aiEntrantId`) are each
 		// named from the character its seat was given (`room.podAi`, kept
