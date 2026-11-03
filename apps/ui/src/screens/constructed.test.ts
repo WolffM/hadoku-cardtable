@@ -61,6 +61,16 @@ vi.mock('./pod/client.ts', async (importOriginal) => ({
   startMyTable,
 }));
 
+/**
+ * The page's own feed (`roomFeed()`): a test that counts every read on the page puts every
+ * follower on its own stepped feed, a pod's included. Absent, the real one.
+ */
+const pageFeed = vi.hoisted(() => ({ current: null as import('../rooms/feed.ts').RoomFeed | null }));
+vi.mock('../rooms/feed.ts', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../rooms/feed.ts')>();
+  return { ...real, roomFeed: () => pageFeed.current ?? real.roomFeed() };
+});
+
 import type { DraftCard, GauntletView, RoomMode } from '@hadoku/shared';
 import { OPEN_ROOM_LOCKS } from '@hadoku/shared';
 import { parseDck } from '@hadoku/carddata/dck';
@@ -260,6 +270,8 @@ function mySeat(deck: Partial<SeatDeck> = {}): RoomPlayer {
 }
 
 interface Table {
+  /** The room's name. Absent ⇒ "Friday night". */
+  name?: string;
   players: RoomPlayer[];
   matchId: string | null;
   /** `room.locked`: both ready or a match live — the server refuses a stand-up (2026-10-12). */
@@ -387,7 +399,7 @@ function stubServer(table: Table) {
   };
   const roomRecord = (): Record<string, unknown> => ({
     id: ROOM,
-    name: 'Friday night',
+    name: table.name ?? 'Friday night',
     creator: 'p-alice',
     // The leader is a member ID, which is what the screen matches on — the
     // display name is not unique, and no browser can derive its own id.
@@ -657,6 +669,8 @@ function stubServer(table: Table) {
     table,
     holdNextRoomRead: () => holdNext('room'),
     holdNextGauntletRead: () => holdNext('gauntlet'),
+    /** The stub itself, for a read the screen makes on the page's own `fetch`. */
+    fetch: fetchImpl,
     client: tablesClient(fetchImpl, '/cardtable/api/'),
     rooms: roomsClient(fetchImpl, '/cardtable/api/'),
     /** Everyone's record per deck; empty unless a test sets one. Never the real stats service. */
@@ -2459,6 +2473,28 @@ describe('a draft room', () => {
     // The lobby phase is gone, and the constructed table never appeared.
     expect(screen.queryByTestId('draft-lobby')).toBeNull();
     expect(screen.queryByTestId('deck-mine')).toBeNull();
+  });
+
+  it('reads the room once per ping for the room and its pod together, and the pod draws every read', async () => {
+    const stepped = steppedFeed();
+    // Every follower on the page on this one feed, and every read on the page to this one stub.
+    pageFeed.current = stepped.feed;
+    const server = stubServer({ players: [], matchId: null, gameType: 'draft', members: members(true), draftStartedAt: '2026-09-26T10:00:00.000Z', pod: seatedPod('p-alice') });
+    const pageFetch = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => server.fetch(String(input), init));
+    onTestFinished(() => {
+      pageFeed.current = null;
+      pageFetch.mockRestore();
+    });
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, rooms: server.rooms, roomId: ROOM, feed: stepped.feed, makeTransport: stubTransport }));
+    expect((await screen.findByTestId('pod-name')).textContent).toBe('Friday night');
+    expect(roomReads(server), 'opening the pod').toBe(1);
+
+    await stepped.reread(3);
+    expect(roomReads(server), 'one read per ping').toBe(4);
+
+    server.table.name = 'Saturday night';
+    await stepped.reread(1);
+    expect(screen.getByTestId('pod-name').textContent).toBe('Saturday night');
   });
 
   it('says what the server refused, and asks again only when told to', async () => {
