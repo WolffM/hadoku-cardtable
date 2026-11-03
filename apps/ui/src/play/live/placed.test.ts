@@ -157,8 +157,8 @@ describe('the seam', () => {
     handle.notify(view([stackItem(9, { sourceCardId: 301 })]));
     const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
     expect(el, 'promoted from the card id onto the stack item’s own id').not.toBeNull();
-    expect(el.style.left).toBe('400px');
-    expect(el.style.top).toBe('300px');
+    expect(el.style.getPropertyValue('--placed-x')).toBe('400px');
+    expect(el.style.getPropertyValue('--placed-y')).toBe('300px');
     expect(el.hasAttribute('data-mine'), 'side: "you"').toBe(true);
     expect(el.getAttribute('data-stack-id'), 'the one element every existing reader keys off').toBe('9');
     handle.dispose();
@@ -189,11 +189,11 @@ describe('the seam', () => {
     handle.notify(view([stackItem(37, { sourceCardId: 90 })]));
     const el = canvas.querySelector<HTMLElement>('[data-placed-spell="37"]')!;
     expect(el.hasAttribute('data-mine'), 'their spell is not mine to pick up').toBe(false);
-    expect(el.style.top, 'nor drawn over my land').not.toBe('600px');
+    expect(el.style.getPropertyValue('--placed-y'), 'nor drawn over my land').not.toBe('600px');
     // Their release, when it arrives, is what places it.
     placeSpell(90, { x: 400, y: 200 }, 'them');
-    expect(el.style.left).toBe('400px');
-    expect(el.style.top).toBe('200px');
+    expect(el.style.getPropertyValue('--placed-x')).toBe('400px');
+    expect(el.style.getPropertyValue('--placed-y')).toBe('200px');
     handle.dispose();
   });
 
@@ -217,7 +217,7 @@ describe('the seam', () => {
   describe('two hands on one stack item (the operator, 2026-11-02: "a funny interaction i dont want to kill")', () => {
     const drawnAt = (canvas: HTMLElement, id: number) => {
       const el = canvas.querySelector<HTMLElement>(`[data-placed-spell="${id}"]`)!;
-      return { x: Number.parseFloat(el.style.left), y: Number.parseFloat(el.style.top) };
+      return { x: Number.parseFloat(el.style.getPropertyValue('--placed-x')), y: Number.parseFloat(el.style.getPropertyValue('--placed-y')) };
     };
 
     it('tug: it stands between the hands holding it, follows the one left when the other lets go, and the last to let go places it', () => {
@@ -420,7 +420,7 @@ describe('the seam', () => {
     handle.notify(view([])); // the card left the hand; its spell is not on the stack yet
     handle.notify(view([stackItem(9, { sourceCardId: 301 })]));
     const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
-    expect([el.style.left, el.style.top], 'drawn where it was put this time').toEqual(['530px', '322px']);
+    expect([el.style.getPropertyValue('--placed-x'), el.style.getPropertyValue('--placed-y')], 'drawn where it was put this time').toEqual(['530px', '322px']);
     expect(el.hasAttribute('data-placed-pending'), 'its registration arrived with it').toBe(false);
     handle.dispose();
   });
@@ -435,8 +435,8 @@ describe('installPlaced: drawing', () => {
     handle.notify(view([stackItem(9)]));
     const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
     const spot = defaultSpot(canvas)!;
-    expect(el.style.left).toBe(`${spot.x}px`);
-    expect(el.style.top).toBe(`${spot.y}px`);
+    expect(el.style.getPropertyValue('--placed-x')).toBe(`${spot.x}px`);
+    expect(el.style.getPropertyValue('--placed-y')).toBe(`${spot.y}px`);
     expect(el.hasAttribute('data-mine'), 'nobody ever claimed it').toBe(false);
     handle.dispose();
   });
@@ -451,8 +451,8 @@ describe('installPlaced: drawing', () => {
     placeSpell(48, { x: 400, y: 320 }, 'them');
     expect(el!.hasAttribute('data-placed-pending'), 'the registration shows it').toBe(false);
     expect(el!.querySelector('.placed__back'), 'as its face, at the point').toBeNull();
-    expect(el!.style.left).toBe('400px');
-    expect(el!.style.top).toBe('320px');
+    expect(el!.style.getPropertyValue('--placed-x')).toBe('400px');
+    expect(el!.style.getPropertyValue('--placed-y')).toBe('320px');
     handle.dispose();
   });
 
@@ -480,7 +480,7 @@ describe('installPlaced: drawing', () => {
     expect(letGo.hasAttribute('data-placed-pending')).toBe(true);
     placeSpell(50, { x: 400, y: 320 }, 'them');
     expect(held.hasAttribute('data-placed-pending'), 'shown at its point').toBe(false);
-    expect(held.style.left).toBe('400px');
+    expect(held.style.getPropertyValue('--placed-x')).toBe('400px');
     releaseSpell(51);
     expect(letGo.hasAttribute('data-placed-pending'), 'let go: drawn like any other').toBe(false);
     handle.dispose();
@@ -494,7 +494,7 @@ describe('installPlaced: drawing', () => {
     handle.notify(view([stackItem(9, { sourceCardId: 52 })]));
     const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
     expect(el.hasAttribute('data-placed-pending'), 'its stand-in is still what is drawn').toBe(true);
-    expect(el.style.left, 'already where the stand-in comes to rest').toBe('410px');
+    expect(el.style.getPropertyValue('--placed-x'), 'already where the stand-in comes to rest').toBe('410px');
     releaseSpell(52);
     expect(el.hasAttribute('data-placed-pending'), 'shown in the same task the stand-in goes').toBe(false);
     handle.dispose();
@@ -560,9 +560,9 @@ describe('installPlaced: drawing', () => {
     handle.notify(view([stackItem(9, { isAbility: true, sourceCardId: 201 })]));
     const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
     // The source's own box is left:100 top:500 width:80 height:110 — beside it is to its right.
-    expect(Number.parseFloat(el.style.left)).toBeGreaterThan(180);
+    expect(Number.parseFloat(el.style.getPropertyValue('--placed-x'))).toBeGreaterThan(180);
     // Nudged by its own `scatter`, never by more than a quarter of its height.
-    expect(Math.abs(Number.parseFloat(el.style.top) - 555)).toBeLessThanOrEqual(110 / 4);
+    expect(Math.abs(Number.parseFloat(el.style.getPropertyValue('--placed-y')) - 555)).toBeLessThanOrEqual(110 / 4);
     handle.dispose();
   });
 
@@ -582,8 +582,8 @@ describe('installPlaced: drawing', () => {
       });
       const chipBox = (id: number): Rect => {
         const el = canvas.querySelector<HTMLElement>(`[data-placed-spell="${id}"]`)!;
-        const x = Number.parseFloat(el.style.left);
-        const y = Number.parseFloat(el.style.top);
+        const x = Number.parseFloat(el.style.getPropertyValue('--placed-x'));
+        const y = Number.parseFloat(el.style.getPropertyValue('--placed-y'));
         return { left: x - 50, top: y - 50, right: x + 50, bottom: y + 50 };
       };
       return { canvas, chipBox, cardBox: { left: box.left, top: box.top, right: box.left + box.width, bottom: box.top + box.height } };
@@ -704,7 +704,7 @@ describe('installPlaced: drawing', () => {
     gripStackItem(8, 'seat:1', { x: 330, y: 400 }, 'move', 'them');
     await new Promise((r) => setTimeout(r, 0));
     expect(el.querySelector('[data-ability-chip]'), 'the same chip element, never rebuilt').toBe(chip);
-    expect(el.style.left).toBe('330px');
+    expect(el.style.getPropertyValue('--placed-x')).toBe('330px');
     handle.dispose();
   });
 
@@ -792,13 +792,13 @@ describe('installPlaced: drawing', () => {
     expect(canvas.querySelectorAll('[data-placed-current]')).toHaveLength(1);
     expect(canvas.querySelector('[data-placed-current]')!.getAttribute('data-placed-spell')).toBe('-11');
     expect(canvas.querySelector('[data-placed-next]'), 'nothing waiting is next to resolve').toBeNull();
-    const at = { left: chips[0]!.style.left, top: chips[0]!.style.top };
-    expect(new Set(chips.map((c) => `${c.style.left},${c.style.top}`)).size, 'three spots').toBe(3);
+    const at = { left: chips[0]!.style.getPropertyValue('--placed-x'), top: chips[0]!.style.getPropertyValue('--placed-y') };
+    expect(new Set(chips.map((c) => `${c.style.getPropertyValue('--placed-x')},${c.style.getPropertyValue('--placed-y')}`)).size, 'three spots').toBe(3);
 
     handle.notify({ ...view([stackItem(40, { isAbility: true, sourceCardId: 201 })]), pendingTriggers: [waiting(-12, true), waiting(-13)] });
     const onStack = canvas.querySelector<HTMLElement>('[data-placed-spell="40"]')!;
     expect(onStack, 'the very element the asked-about trigger was drawn as').toBe(chips[0]);
-    expect({ left: onStack.style.left, top: onStack.style.top }, 'where it stood').toEqual(at);
+    expect({ left: onStack.style.getPropertyValue('--placed-x'), top: onStack.style.getPropertyValue('--placed-y') }, 'where it stood').toEqual(at);
     expect(onStack.hasAttribute('data-placed-waiting')).toBe(false);
     expect(onStack.hasAttribute('data-placed-next')).toBe(true);
     expect(canvas.querySelector('[data-placed-spell="-11"]')).toBeNull();
@@ -956,7 +956,7 @@ describe('installPlaced: arrows (item 2, item 8’s other mutation point)', () =
     // production element behaves once `placed.ts` repositions it.
     const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
     el.getBoundingClientRect = () =>
-      rect({ left: Number.parseFloat(el.style.left) - 40, top: Number.parseFloat(el.style.top) - 55, width: 80, height: 110 });
+      rect({ left: Number.parseFloat(el.style.getPropertyValue('--placed-x')) - 40, top: Number.parseFloat(el.style.getPropertyValue('--placed-y')) - 55, width: 80, height: 110 });
     const before = overlay.querySelector('.placed__arrow[data-for="9"] path')!.getAttribute('d');
 
     gripStackItem(9, 'you', { x: 150, y: 150 }, 'grab', 'you');
@@ -1093,7 +1093,7 @@ describe('installPlaced: resolution (item 4, decision c)', () => {
     handle.notify(resolved);
     const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
     expect(el.hasAttribute('data-placed-leaving')).toBe(true);
-    expect([el.style.left, el.style.top], 'the graveyard’s centre').toEqual(['40px', '660px']);
+    expect([el.style.getPropertyValue('--placed-x'), el.style.getPropertyValue('--placed-y')], 'the graveyard’s centre').toEqual(['40px', '660px']);
     handle.dispose();
   });
 
@@ -1104,9 +1104,9 @@ describe('installPlaced: resolution (item 4, decision c)', () => {
     const handle = installPlaced(canvas, { reducedMotion: () => true });
     handle.notify(view([stackItem(10, { sourceCardId: 302 }), stackItem(9, { sourceCardId: 301 })]));
     const staying = canvas.querySelector<HTMLElement>('[data-placed-spell="10"]')!;
-    const stayingLeft = staying.style.left;
+    const stayingLeft = staying.style.getPropertyValue('--placed-x');
     handle.notify(view([stackItem(10, { sourceCardId: 302 })])); // 9 resolved away
-    expect(staying.style.left, 'untouched by the other item leaving').toBe(stayingLeft);
+    expect(staying.style.getPropertyValue('--placed-x'), 'untouched by the other item leaving').toBe(stayingLeft);
     handle.dispose();
   });
 });
@@ -1175,8 +1175,8 @@ describe('installPlaced: a cast trigger (the operator’s Emrakul, 2026-10-28)',
     const handle = installPlaced(canvas);
     handle.notify(view([stackItem(12, { sourceCardId: 301, isAbility: true }), stackItem(9, { sourceCardId: 301 })]));
     const spell = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
-    expect(spell.style.left, 'the spell stands at the release').toBe('400px');
-    expect(spell.style.top).toBe('300px');
+    expect(spell.style.getPropertyValue('--placed-x'), 'the spell stands at the release').toBe('400px');
+    expect(spell.style.getPropertyValue('--placed-y')).toBe('300px');
     handle.dispose();
   });
 
@@ -1196,8 +1196,8 @@ describe('installPlaced: a cast trigger (the operator’s Emrakul, 2026-10-28)',
     }
     handle.notify({ ...view([stackItem(9, { sourceCardId: 301 })]), pendingTriggers: [waiting] });
     const spell = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
-    expect(spell.style.left, 'the spell keeps its release').toBe('400px');
-    expect(spell.style.top).toBe('300px');
+    expect(spell.style.getPropertyValue('--placed-x'), 'the spell keeps its release').toBe('400px');
+    expect(spell.style.getPropertyValue('--placed-y')).toBe('300px');
     handle.dispose();
   });
 

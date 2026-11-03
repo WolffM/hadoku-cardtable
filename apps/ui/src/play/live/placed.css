@@ -6,17 +6,20 @@
  * header states for the pointer layer, so this file and that one never
  * collide.
  *
- * `placed.ts` sets `left`/`top` to the element's own CENTRE in the overlay's
- * coordinates (`numbers.css`'s own convention for the same overlay); this file
- * recentres it with `translate(-50%, -50%)`. A transform here is never a
- * scroll-overflow concern (`card.css`'s own note on a tapped card) — the
- * overlay is not a scrollable zone.
+ * `placed.ts` sets `--placed-x`/`--placed-y` to the element's own CENTRE in the
+ * overlay's coordinates (`placeAt`), and this file draws it there by `translate`,
+ * less half its own size. A move is a `translate` transition, which the
+ * compositor runs; a `left`/`top` one was restyled, laid out and repainted every
+ * frame. A transform here is never a scroll-overflow concern (`card.css`'s own
+ * note on a tapped card) — the overlay is not a scrollable zone.
  */
 
 .placed {
   position: absolute;
+  top: 0;
+  left: 0;
   z-index: var(--z-overlay, 20);
-  translate: -50% -50%;
+  translate: calc(var(--placed-x, 0px) - 50%) calc(var(--placed-y, 0px) - 50%);
   /* `placed.ts` sets `--card-w` (`card-size.ts`): a spell is a hand card's size, an ability's chip is squared off a battlefield card's (`squareChip`); the fallback is `card.css`'s. */
   width: var(--card-w, 5.5rem);
   /*
@@ -33,8 +36,7 @@
   /* The stack's room (`placed.ts`'s `settleStack`): a card let go on another slides to where it bumps off. */
   transition:
     opacity var(--fade-ms) ease,
-    left var(--stack-move-ms) cubic-bezier(0.2, 0.8, 0.25, 1.1),
-    top var(--stack-move-ms) cubic-bezier(0.2, 0.8, 0.25, 1.1);
+    translate var(--stack-move-ms) cubic-bezier(0.2, 0.8, 0.25, 1.1);
 }
 
 /* Being dragged, or not yet shown: exactly where it is put, never slid there. */
@@ -247,8 +249,7 @@
   opacity: 0;
   scale: 0.5;
   transition:
-    left var(--leave-fade-ms) cubic-bezier(0.3, 0.7, 0.3, 1),
-    top var(--leave-fade-ms) cubic-bezier(0.3, 0.7, 0.3, 1),
+    translate var(--leave-fade-ms) cubic-bezier(0.3, 0.7, 0.3, 1),
     scale var(--leave-fade-ms) ease-in,
     opacity var(--leave-fade-ms) ease-in;
 }

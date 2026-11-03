@@ -3610,7 +3610,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
       s.send(stackIs([9101]));
       await untilMatch(m, () => expect(m.view!.stack).toHaveLength(1));
       const placed = await waitFor(() => canvas.querySelector<HTMLElement>('[data-placed-spell="9101"]')!);
-      expect(placed.style.left, 'drawn where the stand-in comes to rest').toBe('530px');
+      expect(placed.style.getPropertyValue('--placed-x'), 'drawn where the stand-in comes to rest').toBe('530px');
       expect(placed.hasAttribute('data-placed-pending'), 'but hidden while the stand-in is still on its way').toBe(true);
       expect(ghost.isConnected, 'the stand-in is what is drawn meanwhile').toBe(true);
       glides.release();
@@ -3635,7 +3635,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     // for pixel — and `live/placed.ts` draws the SAME point from here.
     await waitFor(() => expect(canvas.querySelector(`[data-cast-ghost="${card}"]`)).toBeNull());
     const placed = await waitFor(() => canvas.querySelector<HTMLElement>('[data-placed-spell="9101"]')!);
-    expect(placed.style.left, 'the card is still where it was let go').toBe('400px');
+    expect(placed.style.getPropertyValue('--placed-x'), 'the card is still where it was let go').toBe('400px');
     expect(placed.hasAttribute('data-mine')).toBe(true);
 
     s.send(stackIs([]));
@@ -3659,7 +3659,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     const placed = canvas.querySelector<HTMLElement>('[data-placed-spell="9101"]')!;
     expect(placed, 'still drawn, still at the park point').not.toBeNull();
-    expect(placed.style.left).toBe('400px');
+    expect(placed.style.getPropertyValue('--placed-x')).toBe('400px');
     expect(stackEl(canvas).getAttribute('data-carried')).toBe('1');
     expect(canvas.querySelector(`[data-cast-ghost="${card}"]`), 'the ghost stays retired').toBeNull();
   });
@@ -3721,8 +3721,8 @@ describe('a played card waits where it was let go until Forge has it on the batt
       [900, 700],
     ]) {
       fireEvent.pointerMove(canvas, { clientX: x, clientY: y });
-      expect(placed.style.left, 'the card never follows the pointer').toBe('400px');
-      expect(placed.style.top).toBe('300px');
+      expect(placed.style.getPropertyValue('--placed-x'), 'the card never follows the pointer').toBe('400px');
+      expect(placed.style.getPropertyValue('--placed-y')).toBe('300px');
       const arrow = await waitFor(() => overlayOf(canvas).querySelector<SVGElement>('[data-testid="targeter"]')!);
       expect(arrow.querySelector('path')!.getAttribute('d'), 'the arrow tip is the one thing that follows').toMatch(new RegExp(`${x} ${y}$`));
     }
@@ -3743,11 +3743,11 @@ describe('a played card waits where it was let go until Forge has it on the batt
     try {
       fireEvent.pointerDown(placed, { button: 0, clientX: 400, clientY: 300 });
       fireEvent.pointerMove(window, { clientX: 500, clientY: 350 }); // past DRAG_SLOP_PX
-      expect(placed.style.left, 'moved live, mid-drag').toBe('500px');
-      expect(placed.style.top).toBe('350px');
+      expect(placed.style.getPropertyValue('--placed-x'), 'moved live, mid-drag').toBe('500px');
+      expect(placed.style.getPropertyValue('--placed-y')).toBe('350px');
       fireEvent.pointerUp(window, { clientX: 520, clientY: 360 });
-      expect(placed.style.left, 'settles at the release point').toBe('520px');
-      expect(placed.style.top).toBe('360px');
+      expect(placed.style.getPropertyValue('--placed-x'), 'settles at the release point').toBe('520px');
+      expect(placed.style.getPropertyValue('--placed-y')).toBe('360px');
       expect((await sent(s, m)).length, 'no cast, no target — nothing new reaches Forge').toBe(before);
       expect(moved.filter(([id]) => id === 9101).map(([, , grip]) => grip), 'lane W hears this hand take hold past the slop and let go, by the stack item’s own id').toEqual(['grab', 'drop']);
       // Theirs is picked up the same way (the operator, 2026-11-02: "lets also make it so the opponent can drag and move things on the stack around").
@@ -3759,7 +3759,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
       expect(theirItem.hasAttribute('data-mine'), 'theirs').toBe(false);
       fireEvent.pointerDown(theirItem, { button: 0, clientX: 600, clientY: 200 });
       fireEvent.pointerMove(window, { clientX: 660, clientY: 260 });
-      expect(theirItem.style.left, 'theirs moves live too').toBe('660px');
+      expect(theirItem.style.getPropertyValue('--placed-x'), 'theirs moves live too').toBe('660px');
       fireEvent.pointerUp(window, { clientX: 670, clientY: 270 });
       expect(moved.filter(([id]) => id === 48).map(([, , grip]) => grip)).toEqual(['grab', 'drop']);
       expect(theirItem.hasAttribute('data-mine'), 'still theirs: dragging it makes it nobody else’s').toBe(false);

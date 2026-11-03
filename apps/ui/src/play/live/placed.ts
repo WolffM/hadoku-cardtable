@@ -880,6 +880,16 @@ function itemLabel(item: StackEntry): string {
   return targetLabel === null ? who : `${who} → ${targetLabel}`;
 }
 
+/**
+ * Draws a placed card centred on `p`, in the overlay's coordinates. The point is two custom properties that
+ * `placed.css` turns into the card's `translate`, so a slide to a new point (the stack making room, a resolved
+ * card leaving) runs on the compositor. Sliding `left`/`top` restyled, laid out and repainted it every frame.
+ */
+export function placeAt(el: HTMLElement, p: { x: number; y: number }): void {
+  el.style.setProperty('--placed-x', `${p.x}px`);
+  el.style.setProperty('--placed-y', `${p.y}px`);
+}
+
 export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): PlacedHandle {
   writeDurations(canvas, DURATIONS);
   // A chip's credit is the artist table, a lazy chunk: asked for now, so the first chip never waits on it.
@@ -1266,8 +1276,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       const root = overlay();
       const p = root === null ? null : overlayPoint(centreOf(to), root.getBoundingClientRect());
       if (p !== null) {
-        d.el.style.left = `${p.x}px`;
-        d.el.style.top = `${p.y}px`;
+        placeAt(d.el, p);
       }
     }
     d.el.setAttribute('data-placed-leaving', '');
@@ -1750,8 +1759,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       d.point = at;
       const p = overlayPoint(at, overlayBox);
       d.el.toggleAttribute('data-placed-held', inPlace);
-      d.el.style.left = `${p.x}px`;
-      d.el.style.top = `${p.y}px`;
+      placeAt(d.el, p);
       const w = want.size.width / 2;
       const h = want.size.height / 2;
       if (want.size.width > 0) settledBoxes.set(item.id, { left: at.x - w, right: at.x + w, top: at.y - h, bottom: at.y + h });
