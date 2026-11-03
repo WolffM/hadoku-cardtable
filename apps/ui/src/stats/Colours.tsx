@@ -30,7 +30,14 @@ export function Colours({ read, cache, detailed = false, testId }: { read: Stats
                   </span>
                   <span className="ct-colours__pct">{formatWinRate(t)}</span>
                   {detailed && <WinBar totals={t} />}
-                  <span className="ct-colours__games">{detailed ? `${formatRecord(t)} · ${t.games} games` : `${t.games} games`}</span>
+                  {detailed ? (
+                    <span className="ct-colours__counts">
+                      <span className="ct-colours__record">{formatRecord(t)}</span>
+                      <span className="ct-colours__games">{`${t.games} games`}</span>
+                    </span>
+                  ) : (
+                    <span className="ct-colours__games">{`${t.games} games`}</span>
+                  )}
                 </li>
               );
             })}

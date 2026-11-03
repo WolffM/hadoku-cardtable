@@ -257,7 +257,7 @@ describe('a profile', () => {
     expect(decks.map((r) => r.querySelector('.ct-stats-deck__name')?.textContent), 'most played first').toEqual(['Azorius Fliers', 'Mono Red', 'Cube draft r-0123456789ab']);
     expect(decks[0]!.textContent).toContain('5–2');
     const colour = within(screen.getByTestId('stats-colours')).getAllByTestId('stats-colour')[0]!;
-    expect(colour.textContent).toContain('5–2 · 7 games');
+    expect([colour.querySelector('.ct-colours__record')?.textContent, colour.querySelector('.ct-colours__games')?.textContent]).toEqual(['5–2', '7 games']);
     expect(colour.querySelector('.gs-bar__fill')?.getAttribute('style')).toContain('width: 71%');
 
     await waitFor(() =>

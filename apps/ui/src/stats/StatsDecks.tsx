@@ -326,10 +326,10 @@ export function DecksTable({ client, cache, player }: { client: GameStatsClient;
             <thead>
               <tr>
                 <th scope="col">Deck</th>
-                <th scope="col" className="ct-stats__num">
+                <th scope="col" className="ct-stats__num ct-stats__games">
                   Games
                 </th>
-                <th scope="col" className="ct-stats__num">
+                <th scope="col" className="ct-stats__num ct-stats__record">
                   W–L
                 </th>
                 <th scope="col" className="ct-stats__rate">
@@ -343,8 +343,8 @@ export function DecksTable({ client, cache, player }: { client: GameStatsClient;
                   <td>
                     <StatsDeckName name={row.value} carried={row.attrs} />
                   </td>
-                  <td className="ct-stats__num">{row.games}</td>
-                  <td className="ct-stats__num">{formatRecord(row)}</td>
+                  <td className="ct-stats__num ct-stats__games">{row.games}</td>
+                  <td className="ct-stats__num ct-stats__record">{formatRecord(row)}</td>
                   <td className="ct-stats__rate">
                     <span className="ct-winrate">
                       <WinBar totals={row} />

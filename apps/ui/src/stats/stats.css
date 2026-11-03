@@ -253,6 +253,7 @@
 }
 
 .ct-stats-deck__name {
+  min-width: 0;
   overflow: hidden;
   font-weight: 600;
   text-overflow: ellipsis;
@@ -355,7 +356,7 @@
   text-align: right;
 }
 
-.ct-colours--detailed :is(.gs-bar, .ct-colours__games) {
+.ct-colours--detailed :is(.gs-bar, .ct-colours__counts) {
   grid-column: 1 / -1;
 }
 
@@ -363,9 +364,22 @@
   background: var(--color-bg-card);
 }
 
-.ct-colours--detailed .ct-colours__games {
+/* `49–39 · 88 games` on a wide tile; the two stack on a phone's (below). */
+.ct-colours__counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  color: var(--ink-faint);
   font-size: 12px;
-  text-align: left;
+}
+
+.ct-colours__record + .ct-colours__games::before {
+  margin-right: 6px;
+  content: '·';
+}
+
+.ct-colours--detailed .ct-colours__games {
+  font-size: inherit;
 }
 
 /* ── Your profile's Unfinished games (`UnfinishedGames.tsx`): one row a game, its action at the end ── */
@@ -462,11 +476,76 @@
     padding: 16px;
   }
 
-  .ct-colours {
+  /*
+   * The Decks table keeps its name, W–L and win rate in the width, and drops Games: the columns
+   * hold their widths and a long deck name wraps under its pips instead of pushing the win rate
+   * off the edge.
+   */
+  .ct-stats__table {
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  .ct-stats__table .ct-stats__games {
+    display: none;
+  }
+
+  /* A fixed table's widths take in the cells' padding. */
+  .ct-stats__table .ct-stats__record {
+    width: 72px;
+    white-space: nowrap;
+  }
+
+  .ct-stats__table .ct-stats__rate {
+    width: 120px;
+  }
+
+  /* A deck's pips over its name, so the name has the column's width before it wraps. */
+  .ct-stats__table .ct-stats-deck {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .ct-stats__table .ct-stats-deck__name {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  /* All five colours in one row, a profile's as compact as the Leaderboard's: its counts stacked. */
+  .ct-colours,
+  .ct-colours--detailed {
     gap: 6px;
   }
 
-  .ct-colours--detailed {
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  .ct-colours--detailed .ct-colours__colour {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 4px;
+  }
+
+  .ct-colours--detailed .ct-colours__pct {
+    font-size: 15px;
+    text-align: center;
+  }
+
+  .ct-colours--detailed .gs-bar {
+    flex: none;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .ct-colours__counts {
+    flex-direction: column;
+    align-items: center;
+    font-size: 11px;
+  }
+
+  .ct-colours__record + .ct-colours__games::before {
+    display: none;
   }
 }
