@@ -824,6 +824,22 @@ describe('installNumbers: a sweeper (the operator’s Slagstorm, 2026-10-15)', (
     ],
   };
 
+  it('a commit that resolves nothing reads no spell box: every read of one forces the browser to lay out the commit', () => {
+    const { canvas, overlay } = sweeperBoard();
+    let reads = 0;
+    overlay.querySelector<HTMLElement>('[data-placed-spell="40"]')!.getBoundingClientRect = () => {
+      reads += 1;
+      return rect({ left: 450, top: 350, width: 96, height: 134 });
+    };
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(before);
+    for (let i = 0; i < 3; i += 1) handle.noteStack(before);
+    expect(reads, 'Slagstorm waits on the stack through four commits').toBe(0);
+    handle.notify(after);
+    expect(reads, 'it resolves: its box is where its fireballs leave from').toBe(1);
+    handle.dispose();
+  });
+
   it('a red fireball flies at once to each creature and slams into it (no number); each is destroyed the moment its own hit lands — and the spell fades only after', () => {
     vi.useFakeTimers();
     const { canvas, overlay } = sweeperBoard();
