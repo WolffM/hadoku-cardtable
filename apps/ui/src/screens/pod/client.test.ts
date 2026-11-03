@@ -6,7 +6,8 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchPodContext, nextGameStarts, playPod, sitPod, standPod, startTableMatch } from './client.ts';
+import { parseRoomView, type RoomView } from '../../rooms/api.ts';
+import { fetchPodContext, nextGameStarts, playPod, relayedPodSource, sitPod, standPod, startTableMatch } from './client.ts';
 import { POD_SEATS, type PodView } from './wire.ts';
 
 afterEach(() => {
@@ -32,17 +33,22 @@ const podFixture = (): PodView => ({
   verdict: null,
 });
 
+/** A room body as `GET /api/rooms/:id` sends one: the fields a body must carry to be a room, and these. */
+const roomBody = (fields: Record<string, unknown>): Record<string, unknown> => ({ id: 'r-cube', name: 'Cube night', gameType: 'draft', locked: false, members: [], ...fields });
+const answer = (fields: Record<string, unknown>): Response => new Response(JSON.stringify(roomBody(fields)), { status: 200 });
+const room = (fields: Record<string, unknown>): RoomView => parseRoomView(roomBody(fields))!;
+
 describe('fetchPodContext', () => {
   it('reads pod, tables and a name map in one call — every AI entrant by its own character', async () => {
     const pod = { ...podFixture(), personas: { ai: { name: 'Knight', avatarId: 'knight' }, 'ai:3': { name: 'Rogue', avatarId: 'rogue' } } };
-    const body = {
-      id: 'r-cube',
-      pod,
-      tables: [{ id: 't-aaaaaaaa', players: [], matchId: null, series: { length: 3, wins: [0, 0], games: [], phase: 'seating' } }],
-      members: [{ id: 'u-alice', name: 'Alice', avatarId: 'sage' }, { id: 'u-bob', name: 'Bob' }],
-      leader: 'u-bob',
-    };
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }));
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      answer({
+        pod,
+        tables: [{ id: 't-aaaaaaaa', players: [], matchId: null, series: { length: 3, wins: [0, 0], games: [], phase: 'seating' } }],
+        members: [{ id: 'u-alice', name: 'Alice', avatarId: 'sage' }, { id: 'u-bob', name: 'Bob' }],
+        leader: 'u-bob',
+      }),
+    );
 
     const ctx = await fetchPodContext('r-cube');
     expect(ctx.pod).toEqual(pod);
@@ -67,14 +73,28 @@ describe('fetchPodContext', () => {
   });
 
   it('says whether I own the room', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ id: 'r-cube', pod: null, members: [], you: { id: 'u-alice', leader: true } }), { status: 200 }));
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(answer({ pod: null, you: { id: 'u-alice', leader: true } }));
     expect(await fetchPodContext('r-cube')).toMatchObject({ me: 'u-alice', leader: true, gone: false });
   });
 
   it('drops a malformed tables array rather than guessing', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ id: 'r-cube', pod: null, tables: 'nonsense', members: [] }), { status: 200 }));
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(answer({ pod: null, tables: 'nonsense' }));
     const ctx = await fetchPodContext('r-cube');
     expect(ctx.tables).toEqual([]);
+  });
+});
+
+describe('relayedPodSource', () => {
+  it("hands the pod each of the room screen's reads, the newest at once to a new follower, and nothing of another room's", () => {
+    const source = relayedPodSource('r-cube');
+    source.land(room({ name: 'First' }));
+    const seen: string[] = [];
+    const stop = source.follow('r-cube', (ctx) => seen.push(ctx.name));
+    source.land(room({ name: 'Second' }));
+    source.land(room({ id: 'r-other', name: 'Another room' }));
+    stop();
+    source.land(room({ name: 'After the pod left' }));
+    expect(seen).toEqual(['First', 'Second']);
   });
 });
 

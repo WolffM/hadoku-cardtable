@@ -200,7 +200,7 @@ import { RoomSpectators } from './RoomSpectators.tsx';
 import './pod/PodSeats.css';
 import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
 import { StatusPill, TICK } from '../components/StatusPill.tsx';
-import { entrantLookup, myCurrentTable, useFollowMyTable } from './pod/client.ts';
+import { entrantLookup, myCurrentTable, relayedPodSource, useFollowMyTable } from './pod/client.ts';
 import { TablePage, type TableReady } from './pod/TablePage.tsx';
 import { PodLobby } from './pod/PodLobby.tsx';
 import { RoomHub } from './pod/RoomHub.tsx';
@@ -1190,6 +1190,11 @@ function RoomTableScreen({
   /** The room record's reads and this screen's own writes of it, latest-wins (`../rooms/latest.ts`). */
   const [roomReads] = useState(latestReads);
   const [resolved, setResolved] = useState(warm !== undefined);
+  /** The pod's reads of the room are this screen's own (`relayedPodSource`): one read per ping, not one for each. */
+  const podSource = useMemo(() => relayedPodSource(roomId), [roomId]);
+  useEffect(() => {
+    if (view !== null) podSource.land(view);
+  }, [podSource, view]);
   /** Latched on the first read. A room does not change mode under its players. */
   const modeRef = useRef<ClientMode | null>(warm?.view.clientMode ?? null);
   /** A refusal from `ready` or `start`, in the server's own words. */
@@ -2340,7 +2345,7 @@ function RoomTableScreen({
    * first: the form for that is in the body below.
    */
   if (!streamed && draftRoom && draftStartedAt !== null && locked === null) {
-    return <PodScreen draftId={roomId} tableId={tableId} makeTransport={makeTransport} />;
+    return <PodScreen draftId={roomId} tableId={tableId} makeTransport={makeTransport} podSource={podSource} />;
   }
 
   return (

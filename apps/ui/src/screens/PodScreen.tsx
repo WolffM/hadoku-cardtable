@@ -94,7 +94,7 @@ export interface PodScreenProps {
   tableId?: string;
   /** Tests pass a stub. Production leaves it undefined and gets socket.io. */
   makeTransport?: () => DraftTransport;
-  /** Tests pass a stub. Production leaves it undefined and reads the room over the feed. */
+  /** The room screen passes its own reads of the room (`relayedPodSource`); without one the pod follows the room itself. */
   podSource?: PodSource;
 }
 

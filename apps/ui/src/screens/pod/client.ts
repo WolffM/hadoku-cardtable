@@ -1,16 +1,13 @@
 /*
  * The pod's own HTTP calls — wave 72 §R.
  *
- * `rooms/api.ts` (Q's) carries `RoomView.pod: unknown` in some read paths
- * and has no client method for the pod routes below
- * (`packages/shared/src/pod.ts` landed, `98f45240`, but the sit/stand/
- * rounds routes have no typed client anywhere yet). Rather than widen a
- * parser this lane does not own, this reads the room's own endpoint a
- * second time, raw, the same move `MatchScreen.tsx`'s `fetchRoomTables`
- * already makes for `tables` past wave 71's own parser gap.
+ * The pod's screens read the room's record (`GET /api/rooms/:id`, `RoomView`):
+ * `podContextOf` is everything they draw from it. Inside the room screen the pod
+ * takes that screen's own reads (`relayedPodSource`); on a screen of its own
+ * (`DeckScreen`) it follows the room itself (`livePodSource`).
  *
- * The sit/stand/rounds calls are raw fetches for that reason — no client
- * exists for them. Starting a pod table's game is NOT: `tables.ts`'s
+ * The sit/stand/rounds calls are raw fetches — no client exists for them.
+ * Starting a pod table's game is NOT: `tables.ts`'s
  * `TablesClient` already has `ready`/`startRoom`, both already taking an
  * optional `tableId`, and a pod table is gated through the exact same two
  * calls a constructed table's is (confirmed against the real server — see
@@ -19,27 +16,16 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { RoomTablesSchema, TableGamesSchema, type RoomTable, type SeriesPhase, type TableGame } from '@hadoku/shared';
+import type { RoomTable, SeriesPhase, TableGame } from '@hadoku/shared';
 
 import { followTableOnce } from '../../play/live/matchStart.ts';
 import { roomFeed } from '../../rooms/feed.ts';
 import { latestReads } from '../../rooms/latest.ts';
-import { apiUrl, bodyOf, getJson, isRecord, sendJson } from '../../http.ts';
+import { roomsClient, type RoomsClient, type RoomView } from '../../rooms/api.ts';
+import { apiUrl, bodyOf, isRecord, sendJson } from '../../http.ts';
 import { tablesClient } from '../tables.ts';
 import { useQueuePlace } from '../queue-place.ts';
-import { parsePodView, type PodView } from './wire.ts';
-
-/** The room's raw body — `fetchRoomTables`'s sibling for `pod`. `'gone'` on the server's 404, `null` on any other failure. */
-async function fetchRoomRaw(roomId: string): Promise<Record<string, unknown> | 'gone' | null> {
-  try {
-    const res = await getJson(apiUrl(`rooms/${encodeURIComponent(roomId)}`));
-    if (res.status === 404) return 'gone';
-    if (!res.ok) return null;
-    return (await res.json()) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
+import type { PodView } from './wire.ts';
 
 /**
  * Every entrant's display name and avatar, by entrant id: the room's members, and each AI entrant's own
@@ -54,10 +40,6 @@ export function entrantLookup(pod: PodView | null, members: readonly { id: strin
       ...Object.fromEntries(members.flatMap((m) => (typeof m.avatarId === 'string' ? [[m.id, m.avatarId]] : []))),
     },
   };
-}
-
-function isNamed(v: unknown): v is { id: string; name: string; avatarId?: unknown } {
-  return typeof v === 'object' && v !== null && typeof (v as { id?: unknown }).id === 'string' && typeof (v as { name?: unknown }).name === 'string';
 }
 
 export interface PodContext {
@@ -89,31 +71,39 @@ export interface PodContext {
 }
 
 /**
- * Everything the pod's screens need for `building`/`rounds`/`done`, in one
- * read of the room's raw body — `pod`, `tables` (already landed, imported
- * directly) and a plain id→name map built from `members`, since neither
- * `PodView` nor `RoomTable.players` names everyone (a built-but-unpaired
- * drafter, a bye) the way the room's own member list does.
+ * Everything the pod's screens need for `building`/`rounds`/`done`, from one
+ * read of the room's record: `pod`, `tables`, and every entrant's name and
+ * face (`entrantLookup`), since neither `PodView` nor `RoomTable.players` names
+ * everyone (a built-but-unpaired drafter, a bye) the way the room's own member
+ * list does.
  */
-export async function fetchPodContext(roomId: string): Promise<PodContext> {
-  const body = await fetchRoomRaw(roomId);
-  if (body === null || body === 'gone') return { pod: null, tables: [], games: {}, names: {}, members: [], leaderId: '', avatars: {}, me: null, name: '', leader: false, gone: body === 'gone' };
-  const tables = RoomTablesSchema.safeParse(body.tables);
-  const games = TableGamesSchema.safeParse(body.tableGames);
-  const members = Array.isArray(body.members) ? body.members.filter(isNamed) : [];
-  const pod = parsePodView(body.pod);
+export function podContextOf(room: RoomView): PodContext {
   return {
-    pod,
-    tables: tables.success ? tables.data : [],
-    games: games.success ? games.data : {},
-    ...entrantLookup(pod, members),
-    members: members.map((m) => ({ id: m.id, name: m.name })),
-    leaderId: typeof body.leader === 'string' ? body.leader : '',
-    name: typeof body.name === 'string' ? body.name : '',
-    me: typeof body.you === 'object' && body.you !== null && typeof (body.you as { id?: unknown }).id === 'string' ? (body.you as { id: string }).id : null,
-    leader: typeof body.you === 'object' && body.you !== null && (body.you as { leader?: unknown }).leader === true,
+    pod: room.pod,
+    tables: room.tables,
+    games: room.tableGames ?? {},
+    ...entrantLookup(room.pod, room.members),
+    members: room.members.map((m) => ({ id: m.id, name: m.name })),
+    leaderId: room.leader,
+    name: room.name,
+    me: room.you.id === '' ? null : room.you.id,
+    leader: room.you.leader,
     gone: false,
   };
+}
+
+const NO_CONTEXT: PodContext = { pod: null, tables: [], games: {}, names: {}, members: [], leaderId: '', avatars: {}, me: null, name: '', leader: false, gone: false };
+
+/** One read of the room (`podContextOf`): `gone` on the server's 404, and an empty context on any other failure. */
+export async function fetchPodContext(roomId: string, rooms: Pick<RoomsClient, 'get'> = roomsClient()): Promise<PodContext> {
+  let room: RoomView | null;
+  try {
+    room = await rooms.get(roomId);
+  } catch (err) {
+    console.warn('[pod] could not read the room', roomId, err);
+    return NO_CONTEXT;
+  }
+  return room === null ? { ...NO_CONTEXT, gone: true } : podContextOf(room);
 }
 
 /** Where a screen's `PodContext` comes from. Tests pass a stub; production gets `livePodSource`. */
@@ -122,7 +112,10 @@ export interface PodSource {
   follow(roomId: string, onRead: (ctx: PodContext) => void): () => void;
 }
 
-/** The room feed's pings, each answered with one `fetchPodContext`; an answer a newer read overtook is dropped (`../../rooms/latest.ts`). */
+/**
+ * The pod on a screen of its own: the room feed's pings, each answered with one `fetchPodContext`; an
+ * answer a newer read overtook is dropped (`../../rooms/latest.ts`).
+ */
 export const livePodSource: PodSource = {
   follow: (roomId, onRead) => {
     const reads = latestReads();
@@ -134,6 +127,31 @@ export const livePodSource: PodSource = {
     });
   },
 };
+
+/**
+ * The pod inside a screen that already follows its room (`ConstructedScreen`): it takes that
+ * screen's reads of the room rather than following the room and reading it a second time on every
+ * ping. `land` hands it each record the screen keeps, for this room only; the newest is a new
+ * follower's first read.
+ */
+export function relayedPodSource(roomId: string): PodSource & { land(room: RoomView): void } {
+  let last: PodContext | null = null;
+  const followers = new Set<(ctx: PodContext) => void>();
+  return {
+    land(room) {
+      if (room.id !== roomId) return;
+      last = podContextOf(room);
+      for (const onRead of followers) onRead(last);
+    },
+    follow(_roomId, onRead) {
+      followers.add(onRead);
+      if (last !== null) onRead(last);
+      return () => {
+        followers.delete(onRead);
+      };
+    },
+  };
+}
 
 /** The room's pod context, kept current. `null` until the first read has answered. */
 export function usePodContext(roomId: string, source: PodSource = livePodSource): PodContext | null {
