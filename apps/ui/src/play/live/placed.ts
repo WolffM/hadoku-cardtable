@@ -1630,6 +1630,26 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   let easing = false;
   let frameDue = false;
 
+  /**
+   * Look again once a dragged item's `DRAG_HOLD_MS` is up, so it comes to rest: ONE timer for the
+   * board, never one per paint. A drag paints every pointer event (and, eased, every frame), and a
+   * timer per paint each painting again while the item was still held piled up into dozens of paints
+   * a frame on the other screen (w69-perf on main 8131301b5: 34 forced layouts a frame, 70 % of the
+   * page dirtied). The one timer, when it fires, paints, and that paint arms it again if anything is
+   * still held.
+   */
+  let holdCheckAt: number | null = null;
+  function checkHoldsBy(ms: number): void {
+    const due = Date.now() + ms;
+    // One already due by then covers it; only an earlier hold's end arms another.
+    if (holdCheckAt !== null && holdCheckAt <= due) return;
+    holdCheckAt = due;
+    schedule(() => {
+      if (holdCheckAt === due) holdCheckAt = null;
+      render();
+    }, ms);
+  }
+
   /** The last `settleStack` this board ran, by what it was asked: a repaint with the same asks reuses it. */
   let lastSettle: { key: string; result: ReturnType<typeof settleStack> } | null = null;
   /** Each drawn item's box as this paint settles it, for its arrows: never a box read mid-slide. */
@@ -1691,7 +1711,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     const wants = shown.map(({ item, d, record }, n) => {
       const at = positionOf(item, d, chips[n]!, spot, overlayBox);
       const held = record?.movedAt != null && now - record.movedAt < DRAG_HOLD_MS;
-      if (held) schedule(render, record!.movedAt! + DRAG_HOLD_MS - now + 1);
+      if (held) checkHoldsBy(record!.movedAt! + DRAG_HOLD_MS - now + 1);
       // A card's own size: hidden ones (pending) and ones not laid out yet take no room.
       const size = { width: d.el.offsetWidth, height: d.el.offsetHeight };
       const settles = at !== null && size.width > 0 && !d.el.hasAttribute('data-placed-pending');

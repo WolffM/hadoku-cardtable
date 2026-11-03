@@ -337,6 +337,24 @@ describe('the seam', () => {
       vi.useRealTimers();
     });
 
+    it('a drag arms one timer to bring the item to rest, never one per paint (w69-perf on 8131301b5: 34 layouts a frame on the other screen)', () => {
+      vi.useFakeTimers();
+      const { canvas } = board();
+      const handle = installPlaced(canvas, { reducedMotion: () => false });
+      handle.notify(view([stackItem(9)]));
+      const idle = vi.getTimerCount();
+      gripStackItem(9, 'seat:1', { x: 300, y: 300 }, 'grab', 'you');
+      // A second of their drag: a relay every 60 ms, a paint every frame in between.
+      for (let ms = 16; ms <= 1000; ms += 16) {
+        if (ms % 64 === 0) gripStackItem(9, 'seat:1', { x: 300 + ms / 4, y: 300 }, 'move', 'you');
+        vi.advanceTimersByTime(16);
+        handle.notify(view([stackItem(9)]));
+      }
+      expect(vi.getTimerCount() - idle, 'timers pending after a second of dragging').toBeLessThanOrEqual(3);
+      handle.dispose();
+      vi.useRealTimers();
+    });
+
     it('tug, eased: when one hand lets go it moves on to the other over a moment, and both screens end where the last let go', () => {
       vi.useFakeTimers();
       const { canvas } = board();
