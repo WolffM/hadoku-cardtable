@@ -254,7 +254,7 @@
  * new wire shape changes.
  */
 
-import { Component, memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { Component, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 import { CLIENT_EVENT, selfAnswer, type ClientEvent, type DraftCard } from '@hadoku/shared';
 import type { RoomTable as SharedRoomTable } from '@hadoku/shared';
@@ -3150,6 +3150,19 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   // What is DRAWN offered: Forge's offer, held through the silence after a click (`./offer-hold.ts`).
   // The callbacks below send through `boardInteraction`, Forge's real state, whatever is drawn.
   const offered = spectator ? INERT_CLICKABLES : drawnOffer(match);
+  // Stable across commits, so a card that changed nothing does not draw again (`Board.tsx`'s `sameCardProps`).
+  const onSelectCard = useCallback(
+    (cardId: number) => {
+      if (!spectator) clickCard(match, cardId);
+    },
+    [match, spectator],
+  );
+  const onRefusedCard = useCallback(
+    (cardId: number) => {
+      if (!spectator) reportRefusedClick(match, cardId);
+    },
+    [match, spectator],
+  );
   const interaction: BoardInteraction = {
     /*
      * `selectionOpen` rides in with the spread: `LiveClickables` already
@@ -3226,12 +3239,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
      * staged card (`data-staged` on its host).
      */
     stagedCardId: stagedHandCardId(match, offered, askOpen || paying || playOrDraw || confirmPrompt || selectionPopup || pregameWait),
-    onSelectCard: (cardId) => {
-      if (!spectator) clickCard(match, cardId);
-    },
-    onRefusedCard: (cardId) => {
-      if (!spectator) reportRefusedClick(match, cardId);
-    },
+    onSelectCard,
+    onRefusedCard,
     onSelectPlayer: (playerId) => {
       if (!spectator) selectPlayer(match, playerId);
     },

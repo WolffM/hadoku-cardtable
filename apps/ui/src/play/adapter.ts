@@ -1918,6 +1918,48 @@ function knownTop(
   return out.length === libraryIds.length && out.length > 1 ? [] : out;
 }
 
+
+/** Two plain values (what the adapter builds: primitives, arrays and plain objects) say the same thing. */
+function sameValue(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a)) return Array.isArray(b) && a.length === b.length && a.every((x, i) => sameValue(x, b[i]));
+  if (Array.isArray(b)) return false;
+  const ka = Object.keys(a);
+  const rb = b as Record<string, unknown>;
+  return ka.length === Object.keys(b).length && ka.every((k) => k in rb && sameValue((a as Record<string, unknown>)[k], rb[k]));
+}
+
+/**
+ * `next` with every card that says what it said in `before` drawn from `before`'s own object. The adapter builds
+ * every card afresh on every view, so without this a memoised card (`Board.tsx`'s `CardOnBoard`) would see a new
+ * `entry` on every message and draw again; with it, a message that changes one life total redraws no card. Values
+ * are unchanged, so nothing that diffs two views (`live/numbers.ts`, `live/departures.ts`) can tell the difference.
+ */
+export function keepUnchangedCards(before: BoardView | null, next: BoardView): BoardView {
+  if (before === null) return next;
+  const was = new Map<number, BoardCard>();
+  for (const p of before.players)
+    for (const zone of [p.hand, p.handShown, p.libraryTop, p.battlefield, p.graveyard, p.exile, p.command])
+      for (const c of zone ?? []) if (c !== null) was.set(c.id, c);
+  const keep = (c: BoardCard): BoardCard => {
+    const old = was.get(c.id);
+    return old !== undefined && sameValue(old, c) ? old : c;
+  };
+  return {
+    ...next,
+    players: next.players.map((p) => ({
+      ...p,
+      hand: p.hand === null ? null : p.hand.map(keep),
+      ...(p.handShown !== undefined && { handShown: p.handShown.map((c) => (c === null ? null : keep(c))) }),
+      ...(p.libraryTop !== undefined && { libraryTop: p.libraryTop.map(keep) }),
+      battlefield: p.battlefield.map(keep),
+      graveyard: p.graveyard.map(keep),
+      exile: p.exile.map(keep),
+      ...(p.command !== undefined && { command: p.command.map(keep) }),
+    })),
+  };
+}
 /** The PlayerView lists a card can be drawn in; a spell whose card one of them holds has left the stack (header). */
 const ZONE_LISTS = ['Hand', 'Library', 'Battlefield', 'Graveyard', 'Exile'] as const;
 

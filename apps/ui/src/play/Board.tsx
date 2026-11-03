@@ -376,6 +376,7 @@
 import {
   createContext,
   Fragment,
+  memo,
   useCallback,
   useContext,
   useEffect,
@@ -2635,24 +2636,7 @@ function TypePill({ entry }: { entry: BoardCard }) {
  * the cascade entirely — inline always wins over a class rule for the same
  * element — so `card.css` needs no change for this.
  */
-/** `card.css`'s `--stack-step` on `.board-card[data-pile-size]`. Keep the two in sync. */
-const STACK_STEP = 8;
-/** Forge's `UI_MAX_STACK_DEPTH` (4 cards total), less the base card itself. */
-const MAX_FAN_DEPTH = 3;
-
-
-function CardOnBoard({
-  entry,
-  interaction,
-  arranging,
-  slot,
-  pile,
-  /** How many cards the WHOLE pile holds, base included. Absent for a lone card. */
-  pileSize,
-  depth = 0,
-  inExile = false,
-  libraryTop = false,
-}: {
+interface CardOnBoardProps {
   entry: BoardCard;
   interaction: BoardInteraction | undefined;
   arranging?: Arranging;
@@ -2680,7 +2664,78 @@ function CardOnBoard({
   inExile?: boolean;
   /** The library's top card, drawn under its owner's avatar while the seat may see it — not a permanent. */
   libraryTop?: boolean;
-}) {
+}
+
+/**
+ * Everything `CardOnBoard` draws of the interaction for one card: its own facts, and the callbacks it hands on.
+ * A board-wide interaction object is new on every commit, and most of what it says is about other cards, so a
+ * card compares only this. Anything `CardOnBoard` reads off `interaction` must be in this list, or the card
+ * would keep drawing what it said before.
+ */
+function cardFacts(interaction: BoardInteraction | undefined, id: number): readonly unknown[] {
+  if (interaction === undefined) return [];
+  return [
+    interaction.selectable.has(id),
+    interaction.highlighted?.has(id) ?? false,
+    interaction.doomAsk?.candidates.has(id) ?? false,
+    doomedMark(id, interaction.doomAsk, interaction.doomHover ?? null),
+    interaction.damagePreview?.get(id) ?? 0,
+    interaction.selectionOpen === true,
+    interaction.declaringAttackers === true,
+    interaction.castForbidden?.get(id),
+    interaction.blockFocus === id,
+    interaction.combatReady?.has(id) ?? false,
+    interaction.actionable?.has(id) ?? false,
+    interaction.refused?.card === id ? interaction.refused.seq % 2 : -1,
+    JSON.stringify(interaction.held?.get(id) ?? null),
+    interaction.onSelectCard,
+    interaction.onRefusedCard,
+    interaction.onDoomHover,
+  ];
+}
+
+const sameFacts = (a: readonly unknown[], b: readonly unknown[]): boolean => a.length === b.length && a.every((x, i) => Object.is(x, b[i]));
+
+/**
+ * `CardOnBoard`'s memo: a card draws again only when something it draws changed. Its card objects are kept across
+ * views when unchanged (`adapter.ts`'s `keepUnchangedCards`), so the cards compare by identity; a pile is a new array
+ * every render, so it compares card by card.
+ */
+function sameCardProps(a: CardOnBoardProps, b: CardOnBoardProps): boolean {
+  const pa = a.pile ?? [a.entry];
+  const pb = b.pile ?? [b.entry];
+  return (
+    a.entry === b.entry &&
+    a.arranging === b.arranging &&
+    a.slot === b.slot &&
+    a.pileSize === b.pileSize &&
+    a.depth === b.depth &&
+    a.inExile === b.inExile &&
+    a.libraryTop === b.libraryTop &&
+    (a.pile === undefined) === (b.pile === undefined) &&
+    pa.length === pb.length &&
+    pa.every((c, i) => c === pb[i] && sameFacts(cardFacts(a.interaction, c.id), cardFacts(b.interaction, c.id)))
+  );
+}
+
+/** `card.css`'s `--stack-step` on `.board-card[data-pile-size]`. Keep the two in sync. */
+const STACK_STEP = 8;
+/** Forge's `UI_MAX_STACK_DEPTH` (4 cards total), less the base card itself. */
+const MAX_FAN_DEPTH = 3;
+
+
+const CardOnBoard = memo(function CardOnBoard({
+  entry,
+  interaction,
+  arranging,
+  slot,
+  pile,
+  /** How many cards the WHOLE pile holds, base included. Absent for a lone card. */
+  pileSize,
+  depth = 0,
+  inExile = false,
+  libraryTop = false,
+}: CardOnBoardProps) {
   const selectable = interaction !== undefined && interaction.selectable.has(entry.id);
   /** This card is one Forge already marked picked, not merely offered — see `BoardInteraction.highlighted`. */
   const picked = interaction !== undefined && (interaction.highlighted?.has(entry.id) ?? false);
@@ -2934,7 +2989,7 @@ function CardOnBoard({
       )}
     </li>
   );
-}
+}, sameCardProps);
 
 /** Where in a loop a card's own motion starts (0–1): from its id, so two never move in step, and the same on both screens. */
 function loopPhase(id: number): number {
@@ -4355,16 +4410,16 @@ export function Board({
   const [openPile, setOpenPile] = useState<{ playerId: number; zone: PileZone } | null>(null);
   const closePile = useCallback(() => setOpenPile(null), []);
   /** A selection made in the view closes it, then answers exactly as the board's own click does. */
-  const pileInteraction: BoardInteraction | undefined =
-    interaction === undefined
-      ? undefined
-      : {
-          ...interaction,
-          onSelectCard: (id) => {
-            setOpenPile(null);
-            interaction.onSelectCard(id);
-          },
-        };
+  // Stable while the board's own is, so a memoised card in the pile does not draw again for it (`sameCardProps`).
+  const selectCard = interaction?.onSelectCard;
+  const selectFromPile = useCallback(
+    (id: number) => {
+      setOpenPile(null);
+      selectCard?.(id);
+    },
+    [selectCard],
+  );
+  const pileInteraction: BoardInteraction | undefined = interaction === undefined ? undefined : { ...interaction, onSelectCard: selectFromPile };
 
   /*
    * The inspector, booted and nothing more: it attaches its own listeners by

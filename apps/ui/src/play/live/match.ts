@@ -260,7 +260,7 @@ import { io } from 'socket.io-client';
 
 import { defaultSocketPath, socketOptions } from '../../draft/socket.ts';
 import { normalizeAvatarId } from '../../room/avatar.ts';
-import { attackLockedIn, drawsFaceUp, manaCostTokens, opponentOf, toBoardView, viewerOf, type BoardCard, type BoardView, type DamageHit, type DeathCause, type FaceHit, type PlayerClock, type PoolColor } from '../adapter.ts';
+import { attackLockedIn, drawsFaceUp, keepUnchangedCards, manaCostTokens, opponentOf, toBoardView, viewerOf, type BoardCard, type BoardView, type DamageHit, type DeathCause, type FaceHit, type PlayerClock, type PoolColor } from '../adapter.ts';
 import type { Revealed } from './numbers.ts';
 import { shownFlip, shownRoll, type ShownFlip, type ShownRoll } from './shown.ts';
 import { preloadMatchArt } from './art-preload.ts';
@@ -3198,7 +3198,7 @@ function redraw(match: LiveMatch): void {
   match.view =
     viewerPlayerId === null || match.state.size === 0
       ? null
-      : toBoardView(match.state, match.forgeSeq, {
+      : keepUnchangedCards(before, toBoardView(match.state, match.forgeSeq, {
           viewerPlayerId,
           // `null` (seats never arrived) and an empty `Map` (they arrived, and
           // named no avatars) both mean "pass nothing" to the adapter — see the
@@ -3225,7 +3225,7 @@ function redraw(match: LiveMatch): void {
           promptCards: promptCardsOf(match),
           watcher: match.watcher,
           attackLocked: match.attackLocked,
-        });
+        }));
   match.attackLocked = match.view?.phase === 'COMBAT_DECLARE_ATTACKERS' && (match.attackLocked || attackLockedIn(match.view.players));
   if (match.view?.gameOver === true) match.over = true;
   // Another seat's spell resolved: nothing held is drawn over what it does (`./offer-hold.ts`).
