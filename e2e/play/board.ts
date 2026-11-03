@@ -645,11 +645,11 @@ export async function pressOffered(target: Locator): Promise<boolean> {
     });
   // In view first, as a player scrolls to it (and as Playwright's own click does before its hit test).
   await press.scrollIntoViewIfNeeded({ timeout: 1_000 }).catch(() => undefined);
-  let seen: Awaited<ReturnType<typeof point>> | null = null;
-  for (const until = Date.now() + 1_500; ; ) {
-    seen = await point().catch(() => null);
-    if (seen === null || seen.at !== null || Date.now() > until) break;
+  const until = Date.now() + 1_500;
+  let seen = await point().catch(() => null);
+  while (seen !== null && seen.at === null && Date.now() <= until) {
     await target.page().waitForTimeout(50);
+    seen = await point().catch(() => null);
   }
   // The offer withdrew under the press (the card re-drawn or gone): no failure, and nothing pressed.
   if (seen === null) return true;
