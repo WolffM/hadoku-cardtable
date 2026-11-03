@@ -68,25 +68,29 @@ export function pastSlop(press: Point, at: Point): boolean {
  * delegated handler — and the card's `onClick` — ever sees the click.
  */
 export interface ClickLatch {
-  arm(): void;
+  /** `by`: the branch that claimed the press, said again when its click is swallowed. */
+  arm(by: string): void;
   reset(): void;
-  swallow(event: Pick<Event, 'preventDefault' | 'stopPropagation'>): void;
+  /** The branch whose click this swallowed, or null when it let the click through. */
+  swallow(event: Pick<Event, 'preventDefault' | 'stopPropagation'>): string | null;
 }
 
 export function clickLatch(): ClickLatch {
-  let armed = false;
+  let armed: string | null = null;
   return {
-    arm: () => {
-      armed = true;
+    arm: (by) => {
+      armed = by;
     },
     reset: () => {
-      armed = false;
+      armed = null;
     },
     swallow: (event) => {
-      if (!armed) return;
-      armed = false;
+      const by = armed;
+      if (by === null) return null;
+      armed = null;
       event.preventDefault();
       event.stopPropagation();
+      return by;
     },
   };
 }

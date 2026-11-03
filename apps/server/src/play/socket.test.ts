@@ -1012,7 +1012,7 @@ describe('forge:seats: item 4’s server half', () => {
 		const coinToss = { winner: 1, at: expect.any(Number) as number };
 		expect(event.seats).toEqual([
 			{ seat: 0, claimed: true, playerId: 0, avatarId: 'wanderer', coinToss },
-			{ seat: 1, claimed: true, playerId: 1, waitingOn: { method: 'confirm', hostCard: null }, coinToss },
+			{ seat: 1, claimed: true, playerId: 1, waitingOn: { method: 'confirm', hostCard: null }, holds: true, coinToss },
 		]);
 		// ABSENT, not `avatarId: undefined` and not `avatarId: null` — the same
 		// bug `D-avatar-field.md` §3 names: an empty/null value survives a

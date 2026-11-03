@@ -3004,6 +3004,9 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    */
   const selectionKind: SelectionKind = !spectator && !askOpen ? classifySelection(match.selectables, battlefieldCardIds(match.view)) : 'none';
   const selectionPopup = selectionKind === 'off-board' || selectionKind === 'on-board';
+  /** The board cards an on-board pick offers: its pop-up is never drawn over them (`QuestionHost`'s `keepClearOf`). */
+  const onBoardCardIds = battlefieldCardIds(match.view);
+  const onBoardChoices = match.selectables === null ? [] : [...match.selectables.cards].filter((id) => onBoardCardIds.has(id));
   /** T2: gone the instant it is the viewer's move — see `isWaitingForOpponent`'s own note. */
   const waitingForOpponent = isWaitingForOpponent(match);
   /** The fact the T2 banner's sentence is built from — present whenever `waitingForOpponent` is. */
@@ -4048,7 +4051,11 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * with the bar's OK gone this Done is the only place it can be pressed.
        */}
       {selectionPopup && match.selectables !== null && (
-        <QuestionHost data-testid="live-selection-host" data-on-board={selectionKind === 'on-board' || undefined}>
+        <QuestionHost
+          data-testid="live-selection-host"
+          data-on-board={selectionKind === 'on-board' || undefined}
+          keepClearOf={selectionKind === 'on-board' ? onBoardChoices : undefined}
+        >
           <SelectionPrompt
             message={promptText(question)}
             context={lines.context}

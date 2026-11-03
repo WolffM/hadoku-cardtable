@@ -114,6 +114,31 @@ export function offsetToSpot(spot: DialogSpot, drawn: Box, board: Box, edge = ED
   return fits ? { x: left - drawn.left, y: top - drawn.top } : null;
 }
 
+/**
+ * The offset nearest `want` that keeps `drawn` (a box at offset zero) on `board` and off every box in `clear`,
+ * or `want` itself when it covers none — a pick that offers cards on the board must never be drawn over them,
+ * or the player presses the dialog where they meant the card. Tried beside each box to clear, on all four
+ * sides, nearest first; when none fits, `want` (the player can still pick in the dialog, and move it).
+ */
+export function clearOffset(want: { x: number; y: number }, drawn: Box, board: Box, clear: readonly Box[], edge = EDGE_PX): { x: number; y: number } {
+  const at = (o: { x: number; y: number }): Box => ({ left: drawn.left + o.x, top: drawn.top + o.y, right: drawn.right + o.x, bottom: drawn.bottom + o.y });
+  const covers = (b: Box): boolean => clear.some((c) => b.left < c.right && c.left < b.right && b.top < c.bottom && c.top < b.bottom);
+  const onBoard = (b: Box): boolean => b.left >= board.left + edge - 0.5 && b.right <= board.right - edge + 0.5 && b.top >= board.top + edge - 0.5 && b.bottom <= board.bottom - edge + 0.5;
+  if (!covers(at(want))) return want;
+  const w = drawn.right - drawn.left;
+  const h = drawn.bottom - drawn.top;
+  const candidates: { x: number; y: number }[] = [];
+  for (const c of clear) {
+    const x = { left: c.left - edge - w - drawn.left, right: c.right + edge - drawn.left };
+    const y = { above: c.top - edge - h - drawn.top, below: c.bottom + edge - drawn.top };
+    candidates.push({ x: x.left, y: want.y }, { x: x.right, y: want.y }, { x: want.x, y: y.above }, { x: want.x, y: y.below });
+  }
+  const fits = candidates.map((o) => clampOffset(o, drawn, board, edge)).filter((o) => onBoard(at(o)) && !covers(at(o)));
+  if (fits.length === 0) return want;
+  const far = (o: { x: number; y: number }): number => Math.hypot(o.x - want.x, o.y - want.y);
+  return fits.reduce((best, o) => (far(o) < far(best) ? o : best));
+}
+
 /** The spot a box drawn at `drawn` stands at on `board`. */
 export function spotOf(drawn: Box, board: Box): DialogSpot {
   const frac = (n: number) => Math.min(1, Math.max(0, n));
@@ -176,13 +201,23 @@ function keepOnBoard(frame: HTMLElement): void {
  * sheet has no size yet (a prompt that lays itself out after its first commit), so the caller tries again once
  * it has one: measured empty, every question would fit anywhere.
  */
-function openAtSpot(frame: HTMLElement): boolean {
+function openAtSpot(frame: HTMLElement, keepClearOf: readonly number[] = []): boolean {
   // Its default box read where it is drawn now, less its offset: every read before the one write.
   const seen = drawnBox(frame);
   const drawn = seen === null ? null : atRest(seen, offsetOf(frame));
   const spot = drawn === null ? null : readSpot();
-  const board = spot === null ? null : boardOf(frame);
-  setOffset(frame, drawn === null || spot === null || board === null ? null : offsetToSpot(spot, drawn, board.getBoundingClientRect()));
+  const boardEl = drawn === null ? null : boardOf(frame);
+  const board = boardEl?.getBoundingClientRect() ?? null;
+  const want = drawn === null || spot === null || board === null ? null : offsetToSpot(spot, drawn, board);
+  const clear =
+    boardEl === null
+      ? []
+      : keepClearOf.flatMap((id) => {
+          const el = boardEl.querySelector(`[data-board-card="${id}"]`);
+          const r = el?.getBoundingClientRect();
+          return r === undefined || r.width === 0 ? [] : [{ left: r.left, top: r.top, right: r.right, bottom: r.bottom }];
+        });
+  setOffset(frame, drawn === null || board === null || clear.length === 0 ? want : clearOffset(want ?? { x: 0, y: 0 }, drawn, board, clear));
   return drawn !== null;
 }
 
@@ -198,8 +233,14 @@ export function restingTop(el: Element): number {
  * target) opens at its default whatever is remembered, since it belongs under that card; the host opens
  * afresh whenever `spot` changes.
  */
-export function QuestionHost({ spot, children, ...rest }: HTMLAttributes<HTMLDivElement> & { spot?: string; children: ReactNode }) {
+export function QuestionHost({
+  spot,
+  keepClearOf,
+  children,
+  ...rest
+}: HTMLAttributes<HTMLDivElement> & { spot?: string; keepClearOf?: readonly number[]; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
+  const clearKey = keepClearOf === undefined ? '' : [...keepClearOf].sort((a, b) => a - b).join(',');
   useLayoutEffect(() => {
     const frame = ref.current;
     if (frame === null) return undefined;
@@ -207,11 +248,12 @@ export function QuestionHost({ spot, children, ...rest }: HTMLAttributes<HTMLDiv
       setOffset(frame, null);
       return undefined;
     }
-    let opened = openAtSpot(frame);
+    const clear = clearKey === '' ? [] : clearKey.split(',').map(Number);
+    let opened = openAtSpot(frame, clear);
     if (typeof ResizeObserver === 'undefined') return undefined;
     const grown = new ResizeObserver(() => {
       if (opened) keepOnBoard(frame);
-      else opened = openAtSpot(frame);
+      else opened = openAtSpot(frame, clear);
     });
     const watch = (): void => {
       for (const child of frame.children) grown.observe(child);
@@ -224,7 +266,7 @@ export function QuestionHost({ spot, children, ...rest }: HTMLAttributes<HTMLDiv
       grown.disconnect();
       added.disconnect();
     };
-  }, [spot]);
+  }, [spot, clearKey]);
   return (
     <div ref={ref} className="live__prompt" {...rest}>
       {children}

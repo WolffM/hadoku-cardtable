@@ -370,7 +370,7 @@ export function useRowDrag(opts: RowDragOptions): RowDrag {
     }
     track(p, { x: event.clientX, y: event.clientY }, event);
     // The click this release leaves behind arrives in the same task; one that never comes must not eat a later one.
-    clicks.arm();
+    clicks.arm('row-drag');
     setTimeout(clicks.reset, 0);
     const before = new Map<number, At>();
     for (const li of p.root.querySelectorAll<HTMLElement>('li[data-card-id]')) before.set(idOf(li), centreOf(li));

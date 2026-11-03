@@ -229,6 +229,7 @@ import {
   payingMana,
   pickedOf,
   pressButton,
+  reportSwallowedClick,
   selectCard,
   subscribe,
   type LiveAsk,
@@ -889,6 +890,19 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * was — the property `e2e/play.spec.ts` leans on for every card it plays by
    * clicking.
    */
+  /**
+   * The latch's capture-phase click listener. A click it swallows on a card Forge offers is told to the
+   * match log (`click-swallowed`): a press a player made on an offered card that never reached Forge
+   * otherwise left no trace (stack-drag-shared, run 41622796452: the Illusionist pressed, nothing sent).
+   */
+  function swallowClick(event: MouseEvent): void {
+    const by = clicks.swallow(event);
+    if (by === null || !(event.target instanceof Element)) return;
+    const offered = event.target.closest('[data-board-card][data-selectable]');
+    const id = offered === null ? null : Number(offered.getAttribute('data-board-card'));
+    if (id !== null && Number.isFinite(id)) reportSwallowedClick(match, id, by);
+  }
+
   function claim(event: PointerEvent): void {
     if (event.cancelable) event.preventDefault();
   }
@@ -1363,7 +1377,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       aim = null;
       if (event.button === 2) cancelledByRightClick = true;
       if (event.button === 0) {
-        clicks.arm();
+        clicks.arm('attack-group');
         const target = aimedTarget(match, group.ids[0]!, eventTarget(event));
         if (target !== null && target.kind !== 'stack') {
           playRole('ui.target');
@@ -1410,7 +1424,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // land, so the next one lands on it) must not also select that pile's
       // land — a second select while Forge is mid-getAbilityToPlay for the
       // first, and the play never happened (table-fit 2026-10-07).
-      clicks.arm();
+      clicks.arm('lift-release');
       const held = drag;
       drag = null;
       resolveLift(held, { x: event.clientX, y: event.clientY }, eventTarget(event));
@@ -1457,7 +1471,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
         // The native click this press leaves behind must not also reach the
         // card's own `onClick` — same reason the old cast-from-hand branch
         // armed this, see the latch's own doc comment.
-        clicks.arm();
+        clicks.arm('hand-press');
         const pressAt = { x: event.clientX, y: event.clientY };
         const box = cardBox(canvas, press.id);
         const from = box === null ? pressAt : centreOf(box);
@@ -1570,7 +1584,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
        */
       const castZone =
         match.selectables === null && match.asks.length === 0 && (match.weaklySelectable?.has(under.id) ?? false) ? castZoneOf(match, under.id) : null;
-      if (castZone !== null) clicks.arm();
+      if (castZone !== null) clicks.arm('cast-lift');
       const from = box === null ? at : centreOf(box);
       drag = {
         source: under.id,
@@ -1795,7 +1809,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
 
   const unguardText = guardTextSelection(canvas);
   canvas.addEventListener('pointerdown', onPointerDown);
-  canvas.addEventListener('click', clicks.swallow, true);
+  canvas.addEventListener('click', swallowClick, true);
   canvas.addEventListener('contextmenu', onContextMenu);
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);
@@ -1869,7 +1883,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       aim = null;
       unguardText();
       canvas.removeEventListener('pointerdown', onPointerDown);
-      canvas.removeEventListener('click', clicks.swallow, true);
+      canvas.removeEventListener('click', swallowClick, true);
       canvas.removeEventListener('contextmenu', onContextMenu);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);

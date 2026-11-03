@@ -4252,7 +4252,7 @@ function useArrangeDrag(
       end();
       if (!dragged) return;
       // The release of a real drag is not a click on what it ended over.
-      clicks.arm();
+      clicks.arm('arrange-drag');
       if (snap !== null) latest.current(p.pile ?? [p.cardId], snap.slot, snap.target);
     };
 

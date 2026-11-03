@@ -627,8 +627,30 @@ export async function pressOffered(target: Locator): Promise<boolean> {
     .locator(':scope > button.face__hit, :scope > button.board-card__face')
     .first();
   if ((await press.count()) === 0) return false;
-  // A press the offer withdrew under is no failure, but a press something else took is: say which.
-  await press.click({ timeout: 1_000 }).catch((e: unknown) => {
+  // Pressed where a player would: a point of the face that takes the pointer, not whatever is drawn over
+  // its centre (a pick's pop-up, a chip). Wholly covered, nothing is pressed, and the log says by what.
+  const seen = await press
+    .evaluate((el) => {
+      const b = el.getBoundingClientRect();
+      const points: { x: number; y: number }[] = [];
+      for (const fx of [0.5, 0.3, 0.7, 0.15, 0.85]) for (const fy of [0.5, 0.3, 0.7, 0.15, 0.85]) points.push({ x: b.left + b.width * fx, y: b.top + b.height * fy });
+      const hit = points.find((p) => {
+        const top = document.elementFromPoint(p.x, p.y);
+        return top !== null && el.contains(top);
+      });
+      const at = hit === undefined ? undefined : { x: hit.x - b.left, y: hit.y - b.top };
+      const top = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+      return { at: at ?? null, cover: top === null ? 'nothing (off screen)' : `${top.tagName.toLowerCase()}.${Array.from(top.classList).join('.')}` };
+    })
+    .catch(() => null);
+  // The offer withdrew under the press (the card re-drawn or gone): no failure, and nothing pressed.
+  if (seen === null) return true;
+  if (seen.at === null) {
+    console.log(`[press] not pressed: ${String(target)} is covered by ${seen.cover}`);
+    return false;
+  }
+  // Still through the marked locator, at that point: an offer withdrawn since is not pressed.
+  await press.click({ position: seen.at, timeout: 1_000 }).catch((e: unknown) => {
     const lines = String(e instanceof Error ? e.message : e).split('\n');
     console.log(`[press] not pressed: ${[lines[0], ...lines.filter((l) => /intercepts|not stable|not visible|outside of the viewport/.test(l)).slice(-2)].join(' | ')}`);
   });

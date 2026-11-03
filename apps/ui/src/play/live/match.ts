@@ -2134,6 +2134,28 @@ export function reportRefusedClick(match: LiveMatch, cardId: number): void {
 }
 
 /**
+ * A click on a card Forge offers that the gestures layer swallowed (`gestures/install.ts`'s `swallowClick`):
+ * the press went to a lift, a cast or an attack instead of the card. Logged, because it sends nothing
+ * else and the match log could not say the card was ever pressed. `by`: the branch that claimed it.
+ */
+export function reportSwallowedClick(match: LiveMatch, cardId: number, by: string): void {
+  if (match.watcher) return;
+  match.transport.emit(CLIENT_EVENT, {
+    matchId: match.matchId,
+    kind: 'info',
+    data: {
+      what: 'click-swallowed',
+      card: cardId,
+      by,
+      selection: match.selectables !== null,
+      inSelection: match.selectables?.cards.has(cardId) ?? false,
+      asks: match.asks.length,
+      prompt: (match.prompt ?? '').split('\n')[0]!.slice(0, 80),
+    },
+  } satisfies ClientEvent);
+}
+
+/**
  * A click on a board card's own face. `selectCard`, except on the seat's own
  * creature while it blocks: blocking is by drag only, so that click never
  * assigns a block — it takes the creature out of any block it is in

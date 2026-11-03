@@ -55,6 +55,7 @@ import {
   pressButton,
   REFUSED_MS,
   liveBar,
+  reportSwallowedClick,
   selectCard,
   viewerPlayerIdOf,
   flipPerspective,
@@ -3188,6 +3189,18 @@ describe('a tapped permanent is clicked to untap exactly when Forge offers it', 
     expect(selectCard(m, a)).toBe(true);
     await until('the click at the server', () => s.clientFrames().length === 1);
     expect(s.clientFrames()[0]).toMatchObject({ ok: true, value: { kind: 'act', method: 'selectCard', card: { kind: 'card', id: a } } });
+  });
+
+  it('a click on an offered card that a gesture swallowed is logged: the card and the branch that took the press', async () => {
+    const { s, m, a } = await twoTapped();
+    reportSwallowedClick(m, a, 'lift-release');
+    await until('the report at the server', () => s.received.some((r) => r.event === 'forge:client'));
+    expect(s.received.find((r) => r.event === 'forge:client')?.payload).toMatchObject({
+      kind: 'info',
+      data: { what: 'click-swallowed', card: a, by: 'lift-release', selection: false, inSelection: false, asks: 0 },
+    });
+    expect(ClientEventSchema.safeParse(s.received.find((r) => r.event === 'forge:client')?.payload).success, 'the match log keeps it').toBe(true);
+    expect(s.clientFrames(), 'nothing sent to Forge').toEqual([]);
   });
 
   it('a click the board turns away is logged as a client event: the card, why, and what was open', async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { clampOffset, offsetToSpot, readSpot, SPOT_KEY, spotOf, writeSpot } from './movable.tsx';
+import { clampOffset, clearOffset, offsetToSpot, readSpot, SPOT_KEY, spotOf, writeSpot } from './movable.tsx';
 
 const board = { left: 0, top: 0, right: 1000, bottom: 800 };
 const sheet = { left: 600, top: 300, right: 760, bottom: 400 };
@@ -14,6 +14,39 @@ describe('clampOffset', () => {
 
   it('keeps the top-left corner of a dialog bigger than the board on the board', () => {
     expect(clampOffset({ x: 300, y: 300 }, { left: 0, top: 0, right: 1200, bottom: 900 }, board)).toEqual({ x: 4, y: 4 });
+  });
+});
+
+describe('clearOffset: a pick is never drawn over the board cards it offers', () => {
+  const board = { left: 0, top: 0, right: 1600, bottom: 1000 };
+  // stack-drag-shared's red: the target pick's pop-up (331×438 at 743,304) stood over the Illusionist it offered.
+  const sheet = { left: 743, top: 304, right: 1074, bottom: 742 };
+  const illusionist = { left: 820, top: 560, right: 936, bottom: 721 };
+
+  it('leaves a pop-up that covers none of them where it is', () => {
+    expect(clearOffset({ x: 0, y: 0 }, sheet, board, [{ left: 100, top: 100, right: 200, bottom: 250 }])).toEqual({ x: 0, y: 0 });
+  });
+
+  it('moves one that covers a card to the nearest place beside it, on the board, covering none', () => {
+    const o = clearOffset({ x: 0, y: 0 }, sheet, board, [illusionist]);
+    const moved = { left: sheet.left + o.x, top: sheet.top + o.y, right: sheet.right + o.x, bottom: sheet.bottom + o.y };
+    const overlaps = moved.left < illusionist.right && illusionist.left < moved.right && moved.top < illusionist.bottom && illusionist.top < moved.bottom;
+    expect(overlaps, 'clear of the card').toBe(false);
+    expect(moved.left >= 0 && moved.right <= 1600 && moved.top >= 0 && moved.bottom <= 1000, 'on the board').toBe(true);
+    // Nearest: above the card is 260 px up; the other sides are further.
+    expect(o).toEqual({ x: 0, y: illusionist.top - 4 - 438 - sheet.top });
+  });
+
+  it('clears every card it offers, not just the first', () => {
+    const nomads = { left: 700, top: 150, right: 816, bottom: 311 };
+    const o = clearOffset({ x: 0, y: 0 }, sheet, board, [illusionist, nomads]);
+    const moved = { left: sheet.left + o.x, top: sheet.top + o.y, right: sheet.right + o.x, bottom: sheet.bottom + o.y };
+    for (const c of [illusionist, nomads]) expect(moved.left < c.right && c.left < moved.right && moved.top < c.bottom && c.top < moved.bottom).toBe(false);
+  });
+
+  it('stays where it is when no place on the board clears them all', () => {
+    const wall = { left: 0, top: 0, right: 1600, bottom: 1000 };
+    expect(clearOffset({ x: 5, y: 6 }, sheet, board, [wall])).toEqual({ x: 5, y: 6 });
   });
 });
 
