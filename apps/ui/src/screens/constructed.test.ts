@@ -4298,3 +4298,23 @@ describe('which card’s art stands for a deck', () => {
     expect(assignDeckArt([a, b, c, []])).toEqual(['n', 'g', 'n', undefined]);
   });
 });
+
+/*
+ * The formats and the decks change only with a deploy, so a page reads them once: each visit to a
+ * room makes a client of its own (`tablesClient()`), and the second visit reads neither again.
+ */
+describe('the catalogue', () => {
+  it('is read once for the page: a second room visit reads no formats and no decks', async () => {
+    const server = stubServer({ players: [], matchId: null });
+    const visit = async (): Promise<void> => {
+      render(createElement(ConstructedScreen, { client: tablesClient(server.fetch, '/cardtable/api/'), deckRecords: server.deckRecords, rooms: server.rooms, roomId: ROOM, feed: everyMs(10_000) }));
+      await deckPicker();
+      expect(deckRow(UG_POLYMORPH)).toBeTruthy();
+      cleanup();
+    };
+    await visit();
+    await visit();
+    const reads = (path: string): number => server.calls.filter((c) => c.method === 'GET' && c.url.endsWith(path)).length;
+    expect({ formats: reads('/tables/formats'), decks: reads('/tables/decks') }).toEqual({ formats: 1, decks: 1 });
+  });
+});
