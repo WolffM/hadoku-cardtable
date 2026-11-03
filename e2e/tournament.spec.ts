@@ -141,9 +141,10 @@ test(
       await expect(alice.page.getByTestId('pod-seat-ai-remove'), 'the seat now offers Remove, not AI').toHaveCount(1, { timeout: UI_TIMEOUT });
       await expect(alice.page.getByTestId('pod-tables'), 'the AI entrant alone never locks the field — Alice has no deck yet').toHaveCount(0);
 
-      // Bob sits and both humans pick their decks — Classic's own readiness,
-      // still short of anything instrumented re-checking the lock.
-      await sit(bob, 2);
+      // Bob holds the seat Tournament carried him into (seat 1, so the AI took 2), and both
+      // humans pick their decks — Classic's own readiness, still short of anything
+      // instrumented re-checking the lock.
+      await sit(bob, 1);
       await pickDeck(alice);
       await pickDeck(bob);
       await expect(alice.page.getByTestId('pod-tables'), 'both decks held, but nothing has re-checked the lock yet').toHaveCount(0);
