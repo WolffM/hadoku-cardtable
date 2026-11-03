@@ -7,7 +7,7 @@
 import { expect, type Browser, type Page } from '@playwright/test';
 
 import { PREFIX } from './identities.ts';
-import { readyPod, fillWithAi } from './podSeats.ts';
+import { fillWithAi, readyPod, sitPodAt } from './podSeats.ts';
 import { openFriend } from './play/browser.ts';
 import { submitCreateRoom } from './play/rooms.ts';
 
@@ -35,7 +35,8 @@ export async function soloDraftPack(page: Page): Promise<void> {
   await submitCreateRoom(page, { name: `w90c pack ${Date.now()}`, gameType: 'draft' });
   await page.waitForURL(/#\/room\//, { timeout: 30_000 });
   await page.getByTestId('draft-lobby').waitFor({ timeout: 30_000 });
-  await page.locator('[data-testid="pod-seat-sit"][data-seat="0"]').tap();
+  // Making the room seated alice already (`room/lobby.ts`'s `#autoSeat`).
+  await sitPodAt(page, 0);
   await readyPod(page);
   await fillWithAi(page, 30_000);
   const pack = page.getByTestId('pack');
