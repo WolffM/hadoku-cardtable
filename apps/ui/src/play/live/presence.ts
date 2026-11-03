@@ -60,9 +60,9 @@
  * now on the stack, `theirCards`): `./placed.ts`'s `placeSpell`
  * takes the stand-in over from there, drawn as a card at the same point. This
  * module never draws the placed-card layer itself, only the plain back while
- * the id is still unknown, and calls `placeStackItem` when
- * `forge:placed` says the owner moved it (a live drag, or the server's own
- * replay to a joiner, who has no earlier registration to `moveSpell`).
+ * the id is still unknown, and calls `gripStackItem` when
+ * `forge:placed` says the other seat's hand moved a stack item (a live drag,
+ * or the server's own replay to a joiner, which registers it fresh).
  *
  * Nothing drawn here is a card the DOM can address: the back carries no
  * `data-card-id`, the cursor no name but theirs, and the travelling copy is
@@ -86,7 +86,7 @@ import { endPlacement, expectPlacement, pendingPlacementFor, renewPlacement, typ
 import { CAST_LANDING_ATTR, expectedGapBox, landCastGhost } from './gestures/cast.ts';
 import type { EntryWeight } from './entries.ts';
 import { drawnCentreOf, PRESENCE_CARD_ATTR, reportHandover, type HandoverFacts, type Report } from './handover-report.ts';
-import { holdSpell, onOwnClickable, onSpellMoved, placeSpell, placeStackItem, releaseSpell, setPeerClickable, stackBoxOf } from './placed.ts';
+import { gripStackItem, holdSpell, onOwnClickable, onSpellMoved, placeSpell, releaseSpell, setPeerClickable, stackBoxOf, type Grip } from './placed.ts';
 import { handCardWidth, sizeAsCard } from '../card-size.ts';
 import { afterGlide, GLIDE_MS, HOUSE_DURATIONS, PLACEMENT_WAIT_MS, prefersReducedMotion, writeDurations } from '../motion.ts';
 import { battlefieldCard, overlayOf, zoneOf } from './board-dom.ts';
@@ -1402,11 +1402,11 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   }
 
   /**
-   * AD4 rule 3: the owner of a placed spell dragged it — move the OTHER
-   * seat's copy to match. `placeStackItem`, not `moveSpell`: the server replays
-   * this to a JOINER too (a reload), who has no earlier registration for the
-   * id at all — `moveSpell` is a no-op without one. `placeStackItem` registers it
-   * fresh when needed and just updates the point otherwise.
+   * AD4 rule 3: another seat's hand took hold of a stack item, moved it or let
+   * go — any item, theirs or this seat's own — so this screen's copy follows,
+   * with the server's word on who holds it (`holders`). `gripStackItem`
+   * registers the item fresh when this screen has no point for it (a JOINER's
+   * replay, after a reload) and just moves it otherwise.
    *
    * A replay can reach this BEFORE the board itself has ever rendered (the
    * match is still "Connecting…" when `forge:join`'s ack carries it) —
@@ -1430,39 +1430,46 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       return;
     }
     if (pendingPlaced === payload) pendingPlaced = null;
+    // Whose the item is, for one this screen has no record of yet: the sender's, as before either seat could drag.
     const owner = ownerOf(parsed.data.seat);
     const side = owner !== null && owner === (host.viewerPlayerId?.() ?? null) ? 'you' : 'them';
-    placeStackItem(parsed.data.spell, at, side, true);
+    const handOf = (seat: number): string => (seat === host.seat ? 'you' : `seat:${seat}`);
+    gripStackItem(parsed.data.spell, handOf(parsed.data.seat), at, parsed.data.grip ?? 'move', side, parsed.data.holders?.map(handOf));
   }
 
   /**
-   * This seat dragged a placed spell of its own (`placed.ts`'s own gesture,
-   * `gestures/install.ts` — the only caller of `moveSpell` left, since
-   * `onPlaced` above uses `placeStackItem` instead): tell the other
-   * screen. `theirCards` is a defensive check should anything else ever call
-   * `moveSpell` for the opponent's own spell — that must never bounce back
-   * out as if it were this seat's own move. Throttled to `PRESENCE_SEND_MS`
-   * like the pointer, the latest point of each id winning: every message is a
-   * full repaint of the stack layer on the other screen, which glides between
-   * them (`placed.css`'s `[data-placed-gliding]`), and one per pointer event
-   * outran that screen's frames (the operator, 2026-10-10, of an ability chip:
-   * "weirdly visually laggy … only see from the opponents view").
+   * This seat's hand on a stack item (`placed.ts`'s `gripStackItem`, `gestures/install.ts`'s drag —
+   * any item, either seat's): tell the other screens where it took hold, moved and let go. Only this
+   * screen's own hand is ever told on, so a move relayed from the other seat never bounces back out.
+   * Throttled to `PRESENCE_SEND_MS` like the pointer, the latest point of each id winning, and its
+   * grip kept: a pick-up or a let-go is never lost behind a move, since the server keeps who holds
+   * what by them. Every message is a full repaint of the stack layer on the other screen, which
+   * eases between them (`placed.ts`'s `drawnPoint`), and one per pointer event outran
+   * that screen's frames (the operator, 2026-10-10, of an ability chip: "weirdly visually laggy …
+   * only see from the opponents view").
    */
-  const placedDue = new Map<number, PresenceSpot>();
+  const placedDue = new Map<number, { at: PresenceSpot; grip: Grip }>();
   let placedTimer: ReturnType<typeof setTimeout> | null = null;
   let placedSent = 0;
   function sendPlaced(): void {
     placedTimer = null;
     placedSent = Date.now();
-    for (const [spell, at] of placedDue) host.transport.emit(PLACED_EVENT, { matchId: host.matchId, type: 'placed', spell, at });
+    for (const [spell, { at, grip }] of placedDue) host.transport.emit(PLACED_EVENT, { matchId: host.matchId, type: 'placed', spell, at, grip });
     placedDue.clear();
   }
-  const unwatchSpellMoved = onSpellMoved((id, at) => {
+  const unwatchSpellMoved = onSpellMoved((id, at, grip) => {
     if (!live || host.seat === null) return;
-    if ((host.theirCards?.() ?? []).includes(id)) return;
     const spot = spotOf(canvas, at);
     if (spot === null) return;
-    placedDue.set(id, spot);
+    // A let-go wins over anything before it in the window; a pick-up over the moves after it.
+    const pending = placedDue.get(id)?.grip;
+    placedDue.set(id, { at: spot, grip: grip === 'drop' || pending === undefined ? grip : pending === 'grab' ? 'grab' : grip });
+    // A let-go goes at once: the other screen's hand is off it the moment this one is.
+    if (grip === 'drop') {
+      if (placedTimer !== null) clearTimeout(placedTimer);
+      sendPlaced();
+      return;
+    }
     if (placedTimer !== null) return;
     const wait = PRESENCE_SEND_MS - (Date.now() - placedSent);
     if (wait <= 0) sendPlaced();

@@ -680,7 +680,7 @@ describe('two seats over the socket', () => {
 		const message = { matchId, type: 'placed', spell: 48, at: { zone: 'stack' as const, x: 0.3, y: 0.4 } };
 		alice.socket.emit('forge:placed', message);
 		await vi.waitFor(() => expect(bob.placeds).toHaveLength(1), { timeout: 5_000 });
-		expect(bob.placeds[0]).toEqual({ ...message, seat: 0 });
+		expect(bob.placeds[0]).toEqual({ ...message, seat: 0, holders: [] });
 		await new Promise((r) => setTimeout(r, 60));
 		expect(alice.placeds, 'nothing comes back to the sender').toHaveLength(0);
 		// Malformed (an id that is not a stack item's, a missing `at`): refused, logged, never relayed.
@@ -695,7 +695,32 @@ describe('two seats over the socket', () => {
 		const again = await connect(h.port, edgeHeaders('bob'));
 		await again.request('forge:join', { matchId });
 		await vi.waitFor(() => expect(again.placeds).toHaveLength(2), { timeout: 5_000 });
-		expect(again.placeds).toEqual(expect.arrayContaining([{ ...message, seat: 0 }, { matchId, type: 'placed', spell: 49, at: { zone: null, x: 0.6, y: 0.1 }, seat: 0 }]));
+		expect(again.placeds).toEqual(expect.arrayContaining([{ ...message, seat: 0, holders: [] }, { matchId, type: 'placed', spell: 49, at: { zone: null, x: 0.6, y: 0.1 }, seat: 0, holders: [] }]));
+	});
+
+	/*
+	 * Shared drags (the operator, 2026-11-02): either seat may hold any stack item, both at once. The
+	 * server is the one record of who holds it: a grab joins the holders as the newest, a move keeps its
+	 * place in line, a drop leaves, and a seat whose socket goes lets go where it last put the item.
+	 */
+	it('keeps who holds a stack item, newest grab last, and lets a seat go when its socket does', async () => {
+		const { matchId, alice, bob } = await twoSeats();
+		await alice.request('forge:join', { matchId });
+		await bob.request('forge:join', { matchId });
+		const at = (x: number) => ({ zone: 'stack' as const, x, y: 0.4 });
+		const holdersSeen = (peer: Peer) => peer.placeds.map((p) => (p as { holders: number[] }).holders);
+		alice.socket.emit('forge:placed', { matchId, type: 'placed', spell: 48, at: at(0.3), grip: 'grab' });
+		await vi.waitFor(() => expect(bob.placeds).toHaveLength(1), { timeout: 5_000 });
+		bob.socket.emit('forge:placed', { matchId, type: 'placed', spell: 48, at: at(0.6), grip: 'grab' });
+		await vi.waitFor(() => expect(alice.placeds).toHaveLength(1), { timeout: 5_000 });
+		alice.socket.emit('forge:placed', { matchId, type: 'placed', spell: 48, at: at(0.25), grip: 'move' });
+		await vi.waitFor(() => expect(bob.placeds).toHaveLength(2), { timeout: 5_000 });
+		expect(holdersSeen(bob), 'alice took hold; a move of hers keeps her first in line').toEqual([[0], [0, 1]]);
+		expect(holdersSeen(alice), 'bob grabbed it second').toEqual([[0, 1]]);
+		// Alice's tab goes: she lets go where she last put it, and bob is told.
+		alice.socket.disconnect();
+		await vi.waitFor(() => expect(bob.placeds).toHaveLength(3), { timeout: 5_000 });
+		expect(bob.placeds[2]).toEqual({ matchId, type: 'placed', spell: 48, at: at(0.25), grip: 'drop', seat: 0, holders: [1] });
 	});
 
 	it('writes a seat’s client telemetry into the log, stamped with the seat, and relays none of it', async () => {

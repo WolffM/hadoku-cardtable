@@ -11,7 +11,7 @@ import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardView, StackEntry } from '../adapter.ts';
-import { noteResolutionEffects, PLACEMENT_WAIT_MS, unlockAfter, whenBoardStill, whenBoardUnlocked } from '../motion.ts';
+import { GLIDE_MS, noteResolutionEffects, PLACEMENT_WAIT_MS, unlockAfter, whenBoardStill, whenBoardUnlocked } from '../motion.ts';
 import {
   besideSource,
   defaultSpot,
@@ -19,11 +19,10 @@ import {
   holdSpell,
   installPlaced,
   LEAVE_FADE_MS,
-  moveSpell,
   onSpellMoved,
   placeSpell,
   releaseSpell,
-  placeStackItem,
+  gripStackItem,
   type Rect,
   COUNTERED_MS,
   COUNTER_HOLD_MS,
@@ -37,6 +36,7 @@ import {
   settleStack,
   stackBoxOf,
   CHIP_DWELL_MS,
+  DRAG_HOLD_MS,
   squareWidth,
   STACK_CORE,
   HOVER_REACH,
@@ -147,7 +147,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-/* ── placeSpell / moveSpell / onSpellMoved ──────────────── */
+/* ── placeSpell / gripStackItem / onSpellMoved ──────────── */
 
 describe('the seam', () => {
   it('placeSpell then installPlaced draws a card at that point, centred', () => {
@@ -197,16 +197,194 @@ describe('the seam', () => {
     handle.dispose();
   });
 
-  it('onSpellMoved hears every moveSpell, by whichever id is current', () => {
-    placeStackItem(5, { x: 0, y: 0 }, 'you');
-    const heard: Array<[number, { x: number; y: number }]> = [];
-    const unsub = onSpellMoved((id, at) => heard.push([id, at]));
-    moveSpell(5, { x: 10, y: 20 });
-    moveSpell(999, { x: 1, y: 1 }); // nothing placed under 999 — no-op, never heard
-    expect(heard).toEqual([[5, { x: 10, y: 20 }]]);
+  it('onSpellMoved hears every move of this screen’s own hand, with its grip — never another seat’s, which came over the wire', () => {
+    const heard: Array<[number, { x: number; y: number }, string]> = [];
+    const unsub = onSpellMoved((id, at, grip) => heard.push([id, at, grip]));
+    gripStackItem(5, 'you', { x: 0, y: 0 }, 'grab', 'you');
+    gripStackItem(5, 'you', { x: 10, y: 20 }, 'move', 'you');
+    gripStackItem(5, 'seat:1', { x: 1, y: 1 }, 'grab', 'you');
+    gripStackItem(5, 'you', { x: 12, y: 22 }, 'drop', 'you');
+    expect(heard).toEqual([
+      [5, { x: 0, y: 0 }, 'grab'],
+      [5, { x: 10, y: 20 }, 'move'],
+      [5, { x: 12, y: 22 }, 'drop'],
+    ]);
     unsub();
-    moveSpell(5, { x: 30, y: 40 });
-    expect(heard, 'unsubscribed').toHaveLength(1);
+    gripStackItem(5, 'you', { x: 30, y: 40 }, 'grab', 'you');
+    expect(heard, 'unsubscribed').toHaveLength(3);
+  });
+
+  describe('two hands on one stack item (the operator, 2026-11-02: "a funny interaction i dont want to kill")', () => {
+    const drawnAt = (canvas: HTMLElement, id: number) => {
+      const el = canvas.querySelector<HTMLElement>(`[data-placed-spell="${id}"]`)!;
+      return { x: Number.parseFloat(el.style.left), y: Number.parseFloat(el.style.top) };
+    };
+
+    it('tug: it stands between the hands holding it, follows the one left when the other lets go, and the last to let go places it', () => {
+      const { canvas } = board();
+      const handle = installPlaced(canvas, { reducedMotion: () => true });
+      handle.notify(view([stackItem(9)]));
+      gripStackItem(9, 'you', { x: 200, y: 200 }, 'grab', 'you');
+      gripStackItem(9, 'seat:1', { x: 400, y: 300 }, 'grab', 'you');
+      expect(drawnAt(canvas, 9), 'between the two hands').toMatchObject({ x: 300, y: 250 });
+      gripStackItem(9, 'you', { x: 100, y: 200 }, 'move', 'you');
+      expect(drawnAt(canvas, 9).x, 'this hand pulls it its way').toBe(250);
+      gripStackItem(9, 'you', { x: 100, y: 200 }, 'drop', 'you');
+      expect(drawnAt(canvas, 9), 'the hand left has it').toMatchObject({ x: 400, y: 300 });
+      gripStackItem(9, 'seat:1', { x: 420, y: 310 }, 'drop', 'you');
+      expect(drawnAt(canvas, 9), 'placed where the last hand let go').toMatchObject({ x: 420, y: 310 });
+      handle.dispose();
+    });
+
+    it('tug, eased: their hand eases from one relay to the next, so both pulling opposite ways never makes it jump back and forth', () => {
+      vi.useFakeTimers();
+      const { canvas } = board();
+      const handle = installPlaced(canvas, { reducedMotion: () => false });
+      handle.notify(view([stackItem(9)]));
+      gripStackItem(9, 'you', { x: 300, y: 200 }, 'grab', 'you');
+      gripStackItem(9, 'seat:1', { x: 300, y: 200 }, 'grab', 'you');
+      // This hand moves left every pointer event (16 ms); theirs right as the relay sends it (every 60 ms), as fast.
+      const xs: number[] = [];
+      let mine = 300;
+      let theirs = 300;
+      for (let ms = 16; ms <= 960; ms += 16) {
+        vi.advanceTimersByTime(16);
+        mine -= 5;
+        gripStackItem(9, 'you', { x: mine, y: 200 }, 'move', 'you');
+        if (ms % 64 === 0) {
+          theirs += 21;
+          gripStackItem(9, 'seat:1', { x: theirs, y: 200 }, 'move', 'you');
+        }
+        xs.push(drawnAt(canvas, 9).x);
+      }
+      const steps = xs.slice(1).map((x, n) => x - xs[n]!);
+      expect(Math.max(...steps.map(Math.abs)), 'never a step of more than a few pixels').toBeLessThan(4);
+      // Back and forth by more than a pixel: the saw-tooth a stepping hand made.
+      let turns = 0;
+      for (let n = 1; n < steps.length; n++) if (Math.abs(steps[n]!) > 1 && Math.abs(steps[n - 1]!) > 1 && Math.sign(steps[n]!) !== Math.sign(steps[n - 1]!)) turns += 1;
+      expect(turns, 'it never turns back while both pull').toBe(0);
+      handle.dispose();
+      vi.useRealTimers();
+    });
+
+    it('tug, eased: coarse steps from this hand and late relays from theirs still never turn it back by 6 px (claw run 41571386507: 7 turns)', () => {
+      vi.useFakeTimers();
+      const { canvas } = board();
+      const handle = installPlaced(canvas, { reducedMotion: () => false });
+      handle.notify(view([stackItem(9)]));
+      gripStackItem(9, 'you', { x: 600, y: 200 }, 'grab', 'you');
+      gripStackItem(9, 'seat:1', { x: 600, y: 200 }, 'grab', 'you');
+      // This hand: 10 px every 35 ms (the spec's pull). Theirs steps the same way, its latest point relayed every 50–75 ms.
+      const gaps = [60, 52, 75, 58, 66, 50, 71, 61];
+      let mine = 600;
+      let nextMine = 35;
+      let nextTheirs = 60;
+      let gap = 0;
+      const xs: number[] = [];
+      for (let ms = 0; ms <= 1400; ms += 1) {
+        vi.advanceTimersByTime(1);
+        if (ms === nextMine) {
+          mine -= 10;
+          nextMine += 35;
+          gripStackItem(9, 'you', { x: mine, y: 200 }, 'move', 'you');
+        }
+        if (ms === nextTheirs) {
+          // The server heard their grab first, so its order is theirs, then this hand's.
+          gripStackItem(9, 'seat:1', { x: 600 + 10 * Math.floor(ms / 35), y: 200 }, 'move', 'you', ['seat:1', 'you']);
+          nextTheirs += gaps[gap++ % gaps.length]!;
+        }
+        if (ms % 16 === 0) {
+          handle.notify(view([stackItem(9)]));
+          xs.push(drawnAt(canvas, 9).x);
+        }
+      }
+      // The spec's own measure: a turn is a move of 6 px or more against the last one.
+      let turns = 0;
+      let dir = 0;
+      let anchorX = xs[0]!;
+      for (const x of xs) {
+        if (Math.abs(x - anchorX) < 6) continue;
+        const now = Math.sign(x - anchorX);
+        if (dir !== 0 && now !== dir) turns += 1;
+        dir = now;
+        anchorX = x;
+      }
+      expect(turns, `it never turns back while both pull: ${xs.map(Math.round).join(' ')}`).toBe(0);
+      handle.dispose();
+      vi.useRealTimers();
+    });
+
+    it('their last let-go holds its point until it has glided there and stood DRAG_HOLD_MS: both screens show the same spot before it comes to rest', () => {
+      vi.useFakeTimers();
+      const { canvas } = board();
+      const handle = installPlaced(canvas, { reducedMotion: () => false });
+      handle.notify(view([stackItem(9)]));
+      gripStackItem(9, 'you', { x: 200, y: 200 }, 'grab', 'you');
+      gripStackItem(9, 'seat:1', { x: 400, y: 200 }, 'grab', 'you');
+      vi.advanceTimersByTime(500);
+      gripStackItem(9, 'you', { x: 200, y: 200 }, 'drop', 'you');
+      vi.advanceTimersByTime(100);
+      gripStackItem(9, 'seat:1', { x: 420, y: 210 }, 'drop', 'you');
+      const el = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+      vi.advanceTimersByTime(GLIDE_MS + DRAG_HOLD_MS - 50);
+      handle.notify(view([stackItem(9)]));
+      expect(el.hasAttribute('data-placed-held'), 'still standing where it was let go').toBe(true);
+      expect(drawnAt(canvas, 9)).toMatchObject({ x: 420, y: 210 });
+      vi.advanceTimersByTime(100);
+      handle.notify(view([stackItem(9)]));
+      expect(el.hasAttribute('data-placed-held'), 'then it comes to rest like any card').toBe(false);
+      handle.dispose();
+      vi.useRealTimers();
+    });
+
+    it('tug, eased: when one hand lets go it moves on to the other over a moment, and both screens end where the last let go', () => {
+      vi.useFakeTimers();
+      const { canvas } = board();
+      const handle = installPlaced(canvas, { reducedMotion: () => false });
+      handle.notify(view([stackItem(9)]));
+      gripStackItem(9, 'you', { x: 200, y: 200 }, 'grab', 'you');
+      gripStackItem(9, 'seat:1', { x: 400, y: 200 }, 'grab', 'you');
+      vi.advanceTimersByTime(400);
+      gripStackItem(9, 'you', { x: 200, y: 200 }, 'move', 'you');
+      expect(drawnAt(canvas, 9).x, 'between the hands').toBe(300);
+      gripStackItem(9, 'you', { x: 200, y: 200 }, 'drop', 'you');
+      expect(drawnAt(canvas, 9).x, 'not a step to their hand').toBe(300);
+      vi.advanceTimersByTime(100);
+      gripStackItem(9, 'seat:1', { x: 400, y: 200 }, 'move', 'you');
+      const mid = drawnAt(canvas, 9).x;
+      expect(mid, 'on its way').toBeGreaterThan(300);
+      expect(mid).toBeLessThan(400);
+      vi.advanceTimersByTime(400);
+      gripStackItem(9, 'seat:1', { x: 420, y: 210 }, 'drop', 'you');
+      vi.advanceTimersByTime(400);
+      handle.notify(view([stackItem(9)]));
+      expect(drawnAt(canvas, 9), 'where the last hand let go').toMatchObject({ x: 420, y: 210 });
+      handle.dispose();
+      vi.useRealTimers();
+    });
+
+    it('a hand the server no longer names is off the item (a seat whose socket went), and one it names that this screen never heard take hold is on it', () => {
+      const { canvas } = board();
+      const handle = installPlaced(canvas, { reducedMotion: () => true });
+      handle.notify(view([stackItem(9)]));
+      gripStackItem(9, 'you', { x: 200, y: 200 }, 'grab', 'you');
+      // Their grab was lost behind a move: the server's word puts their hand on it all the same.
+      gripStackItem(9, 'seat:1', { x: 400, y: 300 }, 'move', 'you', ['you', 'seat:1']);
+      expect(drawnAt(canvas, 9), 'between the two hands').toMatchObject({ x: 300, y: 250 });
+      // Their socket went: the server lets their hand go where it last was.
+      gripStackItem(9, 'seat:1', { x: 400, y: 300 }, 'drop', 'you', ['you']);
+      expect(drawnAt(canvas, 9), 'their hand is off it: this one has it').toMatchObject({ x: 200, y: 200 });
+      handle.dispose();
+    });
+
+    it('a move from a hand that holds nothing (a joiner’s replay) is a point of its own, drawn in place', () => {
+      const { canvas } = board();
+      const handle = installPlaced(canvas, { reducedMotion: () => true });
+      handle.notify(view([stackItem(9)]));
+      gripStackItem(9, 'seat:1', { x: 330, y: 400 }, 'move', 'them');
+      expect(drawnAt(canvas, 9)).toEqual({ x: 330, y: 400 });
+      handle.dispose();
+    });
   });
 
   it('a card released again waits its own PLACEMENT_WAIT_MS for its stack item, not what is left of an earlier release that never matched', () => {
@@ -490,7 +668,7 @@ describe('installPlaced: drawing', () => {
   it('their ability, dragged by them, moves without ever turning over or being rebuilt — it hides no card', async () => {
     // The operator, 2026-10-10: "moving around ability chips is weirdly visually laggy … only see from
     // the opponents view." Their first move registers the chip here (`presence.ts`'s `onPlaced`:
-    // `placeStackItem(…, 'them', true)`), which used to flip it to a back and back again.
+    // `gripStackItem(…, 'seat:1', …)`), which used to flip it to a back and back again.
     const { canvas } = board();
     setChainHalted(true);
     const handle = installPlaced(canvas);
@@ -500,13 +678,12 @@ describe('installPlaced: drawing', () => {
     const chip = el.querySelector('[data-ability-chip]');
     expect(chip).not.toBeNull();
     for (const x of [300, 310, 320]) {
-      placeStackItem(8, { x, y: 400 }, 'them', true);
+      gripStackItem(8, 'seat:1', { x, y: 400 }, x === 300 ? 'grab' : 'move', 'them');
       expect(el.querySelector('.placed__back'), 'never a back').toBeNull();
-      expect(el.hasAttribute('data-placed-gliding'), 'every move of their drag glides, the first one included').toBe(true);
     }
-    // A point that is not their drag (a release point, a hand-over) is drawn in place.
-    placeStackItem(8, { x: 330, y: 400 }, 'them');
-    expect(el.hasAttribute('data-placed-gliding')).toBe(false);
+    // A point that is not a drag (a joiner's replay: a move from a hand that holds nothing) is drawn in place.
+    gripStackItem(8, 'seat:1', { x: 315, y: 400 }, 'drop', 'them');
+    gripStackItem(8, 'seat:1', { x: 330, y: 400 }, 'move', 'them');
     await new Promise((r) => setTimeout(r, 0));
     expect(el.querySelector('[data-ability-chip]'), 'the same chip element, never rebuilt').toBe(chip);
     expect(el.style.left).toBe('330px');
@@ -764,7 +941,7 @@ describe('installPlaced: arrows (item 2, item 8’s other mutation point)', () =
       rect({ left: Number.parseFloat(el.style.left) - 40, top: Number.parseFloat(el.style.top) - 55, width: 80, height: 110 });
     const before = overlay.querySelector('.placed__arrow[data-for="9"] path')!.getAttribute('d');
 
-    moveSpell(9, { x: 150, y: 150 });
+    gripStackItem(9, 'you', { x: 150, y: 150 }, 'grab', 'you');
     const after = overlay.querySelector('.placed__arrow[data-for="9"] path')!.getAttribute('d');
     expect(after, 'the arrow followed the move without a fresh notify(view)').not.toBe(before);
     handle.dispose();
@@ -1282,7 +1459,7 @@ describe('dispose', () => {
     handle.notify(view([stackItem(9)]));
     handle.dispose();
     expect(canvas.querySelector('[data-placed-spell]')).toBeNull();
-    expect(() => moveSpell(9, { x: 1, y: 1 })).not.toThrow();
+    expect(() => gripStackItem(9, 'you', { x: 1, y: 1 }, 'grab', 'you')).not.toThrow();
   });
 });
 

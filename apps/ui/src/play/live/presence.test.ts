@@ -13,13 +13,13 @@ import { GLIDE_MS, PLACEMENT_WAIT_MS } from '../motion.ts';
 
 /*
  * `placed.ts` (lane S) is the seam this module calls into for the stack
- * layer's own drawing (`placeSpell`/`placeStackItem`/`moveSpell`/`onSpellMoved`)
+ * layer's own drawing (`placeSpell`/`gripStackItem`/`onSpellMoved`)
  * — this module "calls them and never draws" (wave 59's Settled seam). Mocked
  * here so this file's own receive/send logic proves itself without needing
  * that drawing layer at all.
  */
 const { placedMod, spellMovedBox, ownClickableBox } = vi.hoisted(() => {
-  const spellMovedBox: { current: ((id: number, at: { x: number; y: number }) => void) | null } = { current: null };
+  const spellMovedBox: { current: ((id: number, at: { x: number; y: number }, grip: 'grab' | 'move' | 'drop') => void) | null } = { current: null };
   const ownClickableBox: { current: ((cards: readonly number[]) => void) | null } = { current: null };
   const placedMod = {
     setPeerClickable: vi.fn(),
@@ -30,12 +30,11 @@ const { placedMod, spellMovedBox, ownClickableBox } = vi.hoisted(() => {
       };
     }),
     placeSpell: vi.fn(),
-    placeStackItem: vi.fn(),
-    moveSpell: vi.fn(),
+    gripStackItem: vi.fn(),
     holdSpell: vi.fn(),
     releaseSpell: vi.fn(),
     stackBoxOf: vi.fn(() => null),
-    onSpellMoved: vi.fn((listener: (id: number, at: { x: number; y: number }) => void) => {
+    onSpellMoved: vi.fn((listener: (id: number, at: { x: number; y: number }, grip: 'grab' | 'move' | 'drop') => void) => {
       spellMovedBox.current = listener;
       return () => {
         spellMovedBox.current = null;
@@ -146,8 +145,7 @@ afterEach(() => {
   document.body.innerHTML = '';
   vi.useRealTimers();
   placedMod.placeSpell.mockClear();
-  placedMod.placeStackItem.mockClear();
-  placedMod.moveSpell.mockClear();
+  placedMod.gripStackItem.mockClear();
   placedMod.holdSpell.mockClear();
   placedMod.releaseSpell.mockClear();
   placedMod.onSpellMoved.mockClear();
@@ -1311,16 +1309,20 @@ describe('receiving', () => {
     forgetPendingPlacements();
   });
 
-  it('`forge:placed` moves the other seat’s copy of a placed spell they dragged — `placeStackItem`, not `moveSpell`: a JOINER replaying this has no earlier registration for `moveSpell` to find', () => {
+  it('`forge:placed` is the other seat’s hand on a stack item: its grip, and the server’s holders as this screen’s hands (its own seat is `you`)', () => {
     const { canvas } = board();
     const t = fakeTransport();
     const handle = installPresence({ canvas, host: host(t) });
+    t.receivePlaced({ matchId: 'm-1', type: 'placed', seat: 1, spell: 48, at: { zone: 'stack', x: 0.4, y: 0.6 }, grip: 'grab', holders: [0, 1] });
+    expect(placedMod.gripStackItem).toHaveBeenCalledWith(48, 'seat:1', { x: 400, y: 320 }, 'grab', 'them', ['you', 'seat:1']);
+    // A JOINER's replay, or a move from before shared drags: a move with no holders.
     t.receivePlaced({ matchId: 'm-1', type: 'placed', seat: 1, spell: 48, at: { zone: 'stack', x: 0.4, y: 0.6 } });
-    expect(placedMod.placeStackItem).toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them', true);
-    // This seat's own echo (a resync) and another match's are both ignored.
+    expect(placedMod.gripStackItem).toHaveBeenLastCalledWith(48, 'seat:1', { x: 400, y: 320 }, 'move', 'them', undefined);
+    // This seat's own echo (a resync) and another match's are both ignored, and nothing received is sent back out.
     t.receivePlaced({ matchId: 'm-1', type: 'placed', seat: 0, spell: 49, at: { zone: 'stack', x: 0.1, y: 0.1 } });
     t.receivePlaced({ matchId: 'm-2', type: 'placed', seat: 1, spell: 50, at: { zone: 'stack', x: 0.1, y: 0.1 } });
-    expect(placedMod.placeStackItem).toHaveBeenCalledTimes(1);
+    expect(placedMod.gripStackItem).toHaveBeenCalledTimes(2);
+    expect(t.sent.filter((m) => m.event === PLACED_EVENT)).toEqual([]);
     handle.dispose();
   });
 
@@ -1333,10 +1335,10 @@ describe('receiving', () => {
     const t = fakeTransport();
     const handle = installPresence({ canvas, host: host(t) });
     t.receivePlaced({ matchId: 'm-1', type: 'placed', seat: 1, spell: 48, at: { zone: 'stack', x: 0.4, y: 0.6 } });
-    expect(placedMod.placeStackItem, 'nothing to place it on yet').not.toHaveBeenCalled();
+    expect(placedMod.gripStackItem, 'nothing to place it on yet').not.toHaveBeenCalled();
     canvas.querySelector('.board')!.append(overlay);
     vi.advanceTimersByTime(60);
-    expect(placedMod.placeStackItem, 'retried once the board painted').toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them', true);
+    expect(placedMod.gripStackItem, 'retried once the board painted').toHaveBeenCalledWith(48, 'seat:1', { x: 400, y: 320 }, 'move', 'them', undefined);
     handle.dispose();
   });
 
@@ -1349,28 +1351,36 @@ describe('receiving', () => {
     // one-time replay with no board to place it on, and is torn down before one ever paints.
     const first = installPresence({ canvas, host: host(t, null) });
     t.receivePlaced({ matchId: 'm-1', type: 'placed', seat: 1, spell: 48, at: { zone: 'stack', x: 0.4, y: 0.6 } });
-    expect(placedMod.placeStackItem).not.toHaveBeenCalled();
+    expect(placedMod.gripStackItem).not.toHaveBeenCalled();
     first.dispose();
     // The board paints, THEN the next mount (promoted to seat 0) starts — no second replay ever
     // comes; it has to find this one for itself.
     canvas.querySelector('.board')!.append(overlay);
     const second = installPresence({ canvas, host: host(t, 0) });
-    expect(placedMod.placeStackItem, 'the next mount retried it at its own start').toHaveBeenCalledWith(48, { x: 400, y: 320 }, 'them', true);
+    expect(placedMod.gripStackItem, 'the next mount retried it at its own start').toHaveBeenCalledWith(48, 'seat:1', { x: 400, y: 320 }, 'move', 'them', undefined);
     second.dispose();
   });
 
-  it('this seat dragging its own placed spell (`onSpellMoved`) sends `forge:placed`; the wire’s own echo for THEIR spell never bounces back out', () => {
+  it('this seat’s hand on any stack item (`onSpellMoved`) goes out as `forge:placed` with its grip; a let-go goes at once, and is never lost behind a move', () => {
+    vi.useFakeTimers();
     const { canvas } = board();
     const t = fakeTransport();
-    const handle = installPresence({ canvas, host: { ...host(t), theirCards: () => [48] } });
+    const handle = installPresence({ canvas, host: host(t) });
     expect(spellMovedBox.current, 'subscribed at install').not.toBeNull();
-    // This seat's own spell (not in `theirCards`): sent.
-    spellMovedBox.current!(31, { x: 300, y: 200 });
-    expect(t.sent).toHaveLength(1);
-    expect(t.sent[0]).toEqual({ event: PLACED_EVENT, payload: { matchId: 'm-1', type: 'placed', spell: 31, at: { zone: 'battlefield', x: 0.3, y: 0.25 } } });
-    // Their spell (in `theirCards` — this is `moveSpell`'s own notification from `onPlaced`, above): not resent.
-    spellMovedBox.current!(48, { x: 300, y: 200 });
-    expect(t.sent, 'the wire’s own echo never bounces back out').toHaveLength(1);
+    const placed = () => t.sent.filter((m) => m.event === PLACED_EVENT).map((m) => m.payload as { spell: number; grip: string });
+    spellMovedBox.current!(31, { x: 300, y: 200 }, 'grab');
+    expect(t.sent[0]).toEqual({ event: PLACED_EVENT, payload: { matchId: 'm-1', type: 'placed', spell: 31, at: { zone: 'battlefield', x: 0.3, y: 0.25 }, grip: 'grab' } });
+    // A grab and moves inside one window go as a grab; a let-go inside the next goes at once, as a let-go.
+    spellMovedBox.current!(48, { x: 300, y: 200 }, 'grab');
+    spellMovedBox.current!(48, { x: 310, y: 200 }, 'move');
+    vi.advanceTimersByTime(PRESENCE_SEND_MS);
+    expect(placed().map((p) => [p.spell, p.grip])).toEqual([
+      [31, 'grab'],
+      [48, 'grab'],
+    ]);
+    spellMovedBox.current!(48, { x: 320, y: 200 }, 'move');
+    spellMovedBox.current!(48, { x: 330, y: 200 }, 'drop');
+    expect(placed().at(-1), 'the let-go, at once').toMatchObject({ spell: 48, grip: 'drop' });
     handle.dispose();
   });
 
@@ -1405,7 +1415,7 @@ describe('receiving', () => {
     const { canvas } = board();
     const t = fakeTransport();
     const handle = installPresence({ canvas, host: host(t) });
-    for (let x = 300; x <= 360; x += 10) spellMovedBox.current!(31, { x, y: 200 });
+    for (let x = 300; x <= 360; x += 10) spellMovedBox.current!(31, { x, y: 200 }, 'move');
     expect(t.sent, 'the first move goes at once').toHaveLength(1);
     vi.advanceTimersByTime(PRESENCE_SEND_MS);
     expect(t.sent, 'the rest wait for the next window, as one message').toHaveLength(2);

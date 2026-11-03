@@ -3728,16 +3728,17 @@ describe('a played card waits where it was let go until Forge has it on the batt
     }
   });
 
-  it('item 5: a press on the viewer’s own placed spell moves it, and tells lane W (moveSpell/onSpellMoved)', async () => {
+  it('item 5: a press on a stack item moves it, the viewer’s own or the opponent’s, and tells lane W where this hand took hold and let go', async () => {
     const { s, m, canvas, card, rest, battlefield } = await play();
     s.send(zones({ Hand: rest, Battlefield: battlefield }));
     s.send(stackItem(9101, card));
-    s.send(stackIs([9101]));
-    await untilMatch(m, () => expect(m.view!.stack).toHaveLength(1));
+    // The fixture's own spell of Bob's (48) stays on the stack under it.
+    s.send(stackIs([9101, 48]));
+    await untilMatch(m, () => expect(m.view!.stack.map((i) => i.id)).toEqual([9101, 48]));
     const placed = await waitFor(() => canvas.querySelector<HTMLElement>('[data-placed-spell="9101"]')!);
-    expect(placed.hasAttribute('data-mine'), 'the viewer’s own spell — only these are draggable').toBe(true);
-    const moved: Array<[number, { x: number; y: number }]> = [];
-    const unsub = onSpellMoved((id, at) => moved.push([id, at]));
+    expect(placed.hasAttribute('data-mine'), 'the viewer’s own spell').toBe(true);
+    const moved: Array<[number, { x: number; y: number }, string]> = [];
+    const unsub = onSpellMoved((id, at, grip) => moved.push([id, at, grip]));
     const before = (await sent(s, m)).length; // the park itself already sent its own selectCard — the drag must send nothing MORE
     try {
       fireEvent.pointerDown(placed, { button: 0, clientX: 400, clientY: 300 });
@@ -3748,7 +3749,34 @@ describe('a played card waits where it was let go until Forge has it on the batt
       expect(placed.style.left, 'settles at the release point').toBe('520px');
       expect(placed.style.top).toBe('360px');
       expect((await sent(s, m)).length, 'no cast, no target — nothing new reaches Forge').toBe(before);
-      expect(moved.some(([id]) => id === 9101), 'lane W hears every move, by the stack item’s own id').toBe(true);
+      expect(moved.filter(([id]) => id === 9101).map(([, , grip]) => grip), 'lane W hears this hand take hold past the slop and let go, by the stack item’s own id').toEqual(['grab', 'drop']);
+      // Theirs is picked up the same way (the operator, 2026-11-02: "lets also make it so the opponent can drag and move things on the stack around").
+      const theirItem = await waitFor(() => {
+        const el = canvas.querySelector<HTMLElement>('[data-placed-spell="48"]');
+        expect(el, 'their spell is drawn').not.toBeNull();
+        return el!;
+      });
+      expect(theirItem.hasAttribute('data-mine'), 'theirs').toBe(false);
+      fireEvent.pointerDown(theirItem, { button: 0, clientX: 600, clientY: 200 });
+      fireEvent.pointerMove(window, { clientX: 660, clientY: 260 });
+      expect(theirItem.style.left, 'theirs moves live too').toBe('660px');
+      fireEvent.pointerUp(window, { clientX: 670, clientY: 270 });
+      expect(moved.filter(([id]) => id === 48).map(([, , grip]) => grip)).toEqual(['grab', 'drop']);
+      expect(theirItem.hasAttribute('data-mine'), 'still theirs: dragging it makes it nobody else’s').toBe(false);
+      // Held while it resolves: the hand lets go of it where it last put it, and the drag is over.
+      fireEvent.pointerDown(placed, { button: 0, clientX: 520, clientY: 360 });
+      fireEvent.pointerMove(window, { clientX: 560, clientY: 380 });
+      s.send(stackIs([48]));
+      await waitFor(() => expect(canvas.querySelector('[data-placed-spell="9101"]:not([data-placed-leaving])')).toBeNull());
+      fireEvent.pointerMove(window, { clientX: 600, clientY: 400 });
+      expect(moved.filter(([id]) => id === 9101).map(([, at, grip]) => [grip, at.x])).toEqual([
+        ['grab', 500],
+        ['drop', 520],
+        ['grab', 560],
+        ['drop', 560],
+      ]);
+      fireEvent.pointerUp(window, { clientX: 610, clientY: 400 });
+      expect(moved, 'nothing more once it has gone').toHaveLength(6);
     } finally {
       unsub();
     }

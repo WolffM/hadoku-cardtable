@@ -238,10 +238,10 @@ import {
 // read across the lane boundary.
 import { carryCastOffStack, endPlacement, notePlayedTo, placementAt, previewPlayedTo, type PlayEnd } from '../../Board.tsx';
 // §S's seam: the park registers the point every stack item draws at
-// (`placeSpell`); a drag of the viewer's own placed spell moves it
-// (`moveSpell`), which is also what tells lane W to relay it; `onSpellDrawn`
-// is the ghost's own handoff signal — see `syncParkedGhost`'s own note.
-import { holdSpell, isPlaced, moveSpell, onSpellDrawn, placeSpell, placeStackItem, releaseSpell, stackBoxOf } from '../placed.ts';
+// (`placeSpell`); a drag of any stack item moves it (`gripStackItem`), which
+// is also what tells lane W to relay it; `onSpellDrawn` is the ghost's own
+// handoff signal — see `syncParkedGhost`'s own note.
+import { gripStackItem, holdSpell, isPlaced, onSpellDrawn, placeSpell, releaseSpell, stackBoxOf } from '../placed.ts';
 import { spotOf } from '../presence.ts';
 import { afterGlide, HOUSE_DURATIONS, prefersReducedMotion, writeDurations } from '../../motion.ts';
 import { drawnCentreOf, reportHandover, type HandoverFacts } from '../handover-report.ts';
@@ -552,7 +552,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * commits anything at all — a press that never moved is a click (reserved
    * for the inspector's hover/long-press, not this gesture).
    */
-  let placedDrag: { id: number; press: Point; moved: boolean } | null = null;
+  /** A stack item being dragged — either seat's (`side`: whose it is) — and the last point this pointer put it at. */
+  let placedDrag: { id: number; press: Point; moved: boolean; side: 'you' | 'them'; at: Point } | null = null;
   /**
    * The hand-reorder gesture's one piece of state this module keeps for it
    * (`./hand.ts`'s own is all pure functions over the DOM): the card's
@@ -1475,18 +1476,19 @@ export function installGestures(options: GestureOptions): GestureHandle {
       }
     }
     /*
-     * Item 5: a press on the viewer's own placed spell picks it up — UNLESS
-     * Forge is asking the stack-target question that element ALSO answers
-     * (`stackAsk`), which keeps the press below. Checked before the
-     * arrangement guard: a placed element is never arrangeable.
+     * Item 5: a press on a stack item picks it up — either seat's (the operator, 2026-11-02: "lets
+     * also make it so the opponent can drag and move things on the stack around") — UNLESS Forge is
+     * asking the stack-target question that element ALSO answers (`stackAsk`), which keeps the press
+     * below. Checked before the arrangement guard: a placed element is never arrangeable.
      */
     if (stackAsk(match) === null) {
       const under = eventTarget(event);
-      const placedEl = under instanceof Element ? under.closest<HTMLElement>('[data-placed-spell][data-mine]') : null;
+      const placedEl = under instanceof Element ? under.closest<HTMLElement>('[data-placed-spell]') : null;
       if (placedEl !== null) {
         claim(event);
         const id = Number(placedEl.getAttribute('data-placed-spell'));
-        placedDrag = { id, press: { x: event.clientX, y: event.clientY }, moved: false };
+        const press = { x: event.clientX, y: event.clientY };
+        placedDrag = { id, press, moved: false, side: placedEl.hasAttribute('data-mine') ? 'you' : 'them', at: press };
         hover = null;
         paint();
         return;
@@ -1648,17 +1650,22 @@ export function installGestures(options: GestureOptions): GestureHandle {
       aim = { ...aim, at, node: eventTarget(event) };
     } else if (placedDrag !== null) {
       // AD3 (item 6): this is the ONLY thing that moves a placed card — never
-      // a bare hover, which is what the OLD stand-in's bug was. `moveSpell`
+      // a bare hover, which is what the OLD stand-in's bug was. `gripStackItem`
       // repositions the element itself (`live/placed.ts`'s own `notify`) and
       // tells lane W to relay it; `hover` stays untouched, so the free
       // click-targeting arrow (if any OTHER cast is being aimed right now)
       // keeps reading the real pointer, not this drag.
-      placedDrag = { ...placedDrag, moved: placedDrag.moved || pastSlop(placedDrag.press, at) };
-      if (placedDrag.moved) {
-        // AE28: an own trigger/ability has no point until it is first moved; this registers it there.
-        placeStackItem(placedDrag.id, at, 'you');
-        moveSpell(placedDrag.id, at);
+      // The item resolved (or left the stack) under this hand: the hand lets go, where it last put it.
+      if (canvas.querySelector(`[data-placed-spell="${placedDrag.id}"]:not([data-placed-leaving])`) === null) {
+        if (placedDrag.moved) gripStackItem(placedDrag.id, 'you', placedDrag.at, 'drop', placedDrag.side);
+        placedDrag = null;
+        paint();
+        return;
       }
+      const took = !placedDrag.moved && pastSlop(placedDrag.press, at);
+      placedDrag = { ...placedDrag, moved: placedDrag.moved || took, at };
+      // Past the slop this hand takes hold (AE28: an item nobody placed gets its first point here), then moves it.
+      if (placedDrag.moved) gripStackItem(placedDrag.id, 'you', at, took ? 'grab' : 'move', placedDrag.side);
     } else {
       const under = eventTarget(event);
       hover = canvas.contains(under instanceof Node ? under : null) ? { at, node: under } : null;
@@ -1674,7 +1681,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       placedDrag = null;
       // A press that never moved was a click (the inspector's own hover/
       // long-press owns that gesture already) — nothing to commit.
-      if (p.moved) moveSpell(p.id, { x: event.clientX, y: event.clientY });
+      if (p.moved) gripStackItem(p.id, 'you', { x: event.clientX, y: event.clientY }, 'drop', p.side);
       paint();
       return;
     }
@@ -1734,9 +1741,11 @@ export function installGestures(options: GestureOptions): GestureHandle {
 
   function onPointerCancel(): void {
     if (placedDrag !== null) {
-      // Wherever it last moved to (via `moveSpell`) is where it stays — no
-      // cast went out, so there is nothing Forge needs telling either way.
+      // This hand lets go where it last put it — no cast went out, so there
+      // is nothing Forge needs telling either way.
+      const p = placedDrag;
       placedDrag = null;
+      if (p.moved) gripStackItem(p.id, 'you', p.at, 'drop', p.side);
       paint();
       return;
     }

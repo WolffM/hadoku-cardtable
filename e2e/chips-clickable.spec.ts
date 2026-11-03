@@ -76,7 +76,7 @@ async function startSampler(page: Page): Promise<void> {
           const cardId = Number(card.getAttribute('data-board-card'));
           pairs.push([id, cardId]);
           if (!card.hasAttribute('data-selectable')) continue;
-          const marks = ['data-placed-held', 'data-placed-gliding', 'data-placed-waiting'].filter((m) => placed?.hasAttribute(m) === true).map((m) => m.slice(12));
+          const marks = ['data-placed-held', 'data-placed-waiting'].filter((m) => placed?.hasAttribute(m) === true).map((m) => m.slice(12));
           w.__chips.covers.push({
             at: Math.round(at),
             chip: id,

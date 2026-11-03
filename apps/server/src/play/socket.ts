@@ -870,6 +870,12 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	const placements = new Map<string, PlacementEcho>();
 	/** The last move per placed SPELL (`@hadoku/shared`'s `placed.ts`), by stack item id, replayed to a joiner. Bounded the same way. */
 	const placed = new Map<string, PlacedEcho>();
+	/**
+	 * Who holds each stack item now, by `${matchId}#${spell}`, oldest grab first, with where each last
+	 * put it: the server is the one record of a shared drag (`@hadoku/shared`'s `placed.ts`), so both
+	 * screens settle on what it says, and a seat whose socket goes lets go here (`disconnect`, below).
+	 */
+	const grips = new Map<string, { seat: number; at: PlacedEcho['at'] }[]>();
 	/** Each seat's last `forge:offered`, by `seatKey`, for whoever joins next (`arrangements`' own shape). */
 	const offered = new Map<string, OfferedEcho>();
 	const seatKey = (matchId: string, seat: number): string => `${matchId}#${seat}`;
@@ -1252,8 +1258,19 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			const match = matches.get(parsed.data.matchId);
 			const seat = match === undefined ? undefined : joined.get(match.id);
 			if (match === undefined || seat === undefined || !isController(match.id, seat, socket.id)) return;
-			const echo: PlacedEcho = { ...parsed.data, seat };
 			const key = `${match.id}#${parsed.data.spell}`;
+			// A grab joins the holders as the newest, a drop leaves them, a move keeps its place in line.
+			const prior = grips.get(key) ?? [];
+			const grip = { seat, at: parsed.data.at };
+			const held =
+				parsed.data.grip === 'grab'
+					? [...prior.filter((g) => g.seat !== seat), grip]
+					: parsed.data.grip === 'drop'
+						? prior.filter((g) => g.seat !== seat)
+						: prior.map((g) => (g.seat === seat ? grip : g));
+			if (held.length > 0) grips.set(key, held);
+			else grips.delete(key);
+			const echo: PlacedEcho = { ...parsed.data, seat, holders: held.map((g) => g.seat) };
 			placed.delete(key);
 			placed.set(key, echo);
 			if (placed.size > ARRANGEMENTS_KEPT) placed.delete(placed.keys().next().value as string);
@@ -1298,6 +1315,21 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				log({ evt: 'arrangement', matchId: match.id, seat, zone, ids: piles.flat(), pileSizes: piles.map((pile) => pile.length) });
 			}
 		});
+
+		/** `seat` lets go of every stack item it holds, each where it last put it, and the match's other sockets are told. */
+		function letGo(match: Match, seat: number): void {
+			for (const [key, held] of grips) {
+				const mine = held.find((g) => g.seat === seat);
+				if (!key.startsWith(`${match.id}#`) || mine === undefined) continue;
+				const rest = held.filter((g) => g !== mine);
+				if (rest.length > 0) grips.set(key, rest);
+				else grips.delete(key);
+				const echo: PlacedEcho = { matchId: match.id, type: 'placed', spell: Number(key.slice(match.id.length + 1)), at: mine.at, grip: 'drop', seat, holders: rest.map((g) => g.seat) };
+				placed.delete(key);
+				placed.set(key, echo);
+				io.to(roomFor(match).roomId).emit(PLACED_EVENT, echo);
+			}
+		}
 
 		/*
 		 * Offered (`@hadoku/shared`'s `offered.ts`): the battlefield cards a seat's board draws
@@ -1381,6 +1413,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				const room = roomFor(match);
 				leaveRoom<PlayApp, PlayClient>(room, socket.id);
 				const stillHere = [...room.clients.values()].some((c) => c.app.seat === seat);
+				// The seat's hand on a stack item goes with the socket that held it: let go where it last put it.
+				if (wasController) letGo(match, seat);
 				log({ evt: 'left', matchId, seat, participantId, reason, stillHere });
 				// A watcher holds nothing: no seat to mark gone, nobody to promote.
 				if (seat === WATCHER_SEAT) continue;

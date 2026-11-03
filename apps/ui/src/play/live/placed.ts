@@ -20,7 +20,7 @@
  *
  * ## The seam with lane W (Settled)
  *
- * Five exports — W calls them and never
+ * Three exports — W calls them and never
  * draws:
  *
  *   - `placeSpell(cardId, at, side)` — a release (the park, `gestures/install.ts`)
@@ -31,21 +31,19 @@
  *     promotes that registration onto the stack item's own `id` the moment
  *     a matching SPELL entry appears in `view.stack` (never an ability of the
  *     same card — a cast trigger's source is the spell itself), so every call
- *     after that — a drag's `moveSpell` — addresses the same record by the
+ *     after that — a drag's `gripStackItem` — addresses the same record by the
  *     stack id. The two namespaces are kept apart: Forge numbers cards
  *     and stack items separately, so a land just played as card 37 and the
  *     opponent's spell that is stack item 37 are different things, and the
  *     land's release must never place that spell.
- *   - `placeStackItem(id, at, side)` — a point for a stack item by its own
- *     id: a drag of one with no release behind it (an own trigger), or the
- *     other seat's `forge:placed` echo.
- *   - `moveSpell(id, at)` — the point changes (a drag of the viewer's own, or
- *     lane W's `forge:placed` echo) and every `onSpellMoved` listener hears
- *     it, which is what redraws this id's arrows and what lane W relays over
- *     the wire.
- *   - `onSpellMoved(listener)` — every `moveSpell` call, including this
- *     module's own drag handling in `gestures/install.ts`. Returns the
- *     unsubscribe.
+ *   - `gripStackItem(id, hand, at, grip, side, order?)` — a hand on a stack
+ *     item, by its own id, takes hold, moves it or lets go: this screen's own
+ *     drag (`gestures/install.ts`, any item, either seat's) or another seat's,
+ *     relayed (`forge:placed`, `presence.ts`), with the server's word on who
+ *     holds it. It registers the item's point if it had none (an own trigger
+ *     nobody placed), and redraws this id's arrows.
+ *   - `onSpellMoved(listener)` — every move of this screen's own hand, with its
+ *     grip, which is what lane W relays over the wire. Returns the unsubscribe.
  *
  * ## The DOM contract (pinned by `placed.test.ts`)
  *
@@ -87,13 +85,14 @@
  *     instead (`data-shimmer` on the board card, `card.css`).
  *   - `.placed__arrow[data-for="<item.id>"]` — one per target the item has
  *     (`aimAt`, `gestures/arrow.ts`, reused exactly as Settled requires — no
- *     second geometry), redrawn on every `notify` and on every `moveSpell`
+ *     second geometry), redrawn on every `notify` and on every `gripStackItem`
  *     (item 8's other mutation point — see `registerRepaint`/`afterChange`
  *     below, the one place that call happens, so it is the one place a
  *     mutant can drop it).
  *   - `.placed__hover` — the element's one child, the part that hovers while it
  *     is on the stack (`placed.css`); its face, back or chip is drawn inside it.
  */
+import { PRESENCE_SEND_MS } from '@hadoku/shared';
 import { createElement, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
@@ -198,9 +197,7 @@ interface Placement {
    * that never reached the stack.
    */
   readonly registeredAt: number;
-  /** The other seat is dragging it: their moves arrive a message at a time, and it glides between them. */
-  gliding: boolean;
-  /** `Date.now()` of the last move of a drag (either seat's): until `DRAG_HOLD_MS` after it, it stands where it was put. */
+  /** `Date.now()` of the last move of a drag (either seat's), or when its glide there ends: until `DRAG_HOLD_MS` after it, it stands where it was put. */
   movedAt: number | null;
 }
 
@@ -216,7 +213,9 @@ const placements = new Map<number, Placement>();
 const holds = new Map<number, number>();
 /** Releases not yet on the stack, by CARD id — promoted into `placements` once their stack item appears. */
 const releases = new Map<number, Placement>();
-const moveListeners = new Set<(id: number, at: Point) => void>();
+/** Where a drag of this screen's is: picked up, moving, let go (`@hadoku/shared`'s `placed.ts`, `grip`). */
+export type Grip = 'grab' | 'move' | 'drop';
+const moveListeners = new Set<(id: number, at: Point, grip: Grip) => void>();
 /**
  * Fired SYNCHRONOUSLY, inside `render()`, the instant a NEW element is
  * created for a stack item — never on a later paint. `gestures/install.ts`'s
@@ -271,14 +270,8 @@ export function onOwnClickable(listener: (cards: readonly number[]) => void): ()
   return () => ownClickableListeners.delete(listener);
 }
 
-function register(records: Map<number, Placement>, id: number, at: Point, side: 'you' | 'them', glide = false): void {
-  records.set(id, {
-    at,
-    side,
-    registeredAt: Date.now(),
-    gliding: glide,
-    movedAt: glide ? Date.now() : null,
-  });
+function register(records: Map<number, Placement>, id: number, at: Point, side: 'you' | 'them', movedAt: number | null = null): void {
+  records.set(id, { at, side, registeredAt: Date.now(), movedAt });
   requestRepaint();
 }
 
@@ -290,17 +283,6 @@ function register(records: Map<number, Placement>, id: number, at: Point, side: 
 export function placeSpell(cardId: number, at: Point, side: 'you' | 'them'): void {
   holds.delete(cardId);
   register(releases, cardId, at, side);
-}
-
-/**
- * Register (or move) a stack item's point by its own stack id — see the module header.
- * `glide`: the point is a move of the other seat's drag (`presence.ts`'s `onPlaced`), so the
- * element glides to it from wherever it is drawn (`[data-placed-gliding]`, `placed.css`) instead of
- * stepping a message at a time — from their FIRST move on, an ability's first move included. A
- * release point or a hand-over is drawn in place.
- */
-export function placeStackItem(id: number, at: Point, side: 'you' | 'them', glide = false): void {
-  register(placements, id, at, side, glide);
 }
 
 /** Keep the spell `cardId` hidden until its stand-in hands it over — see `holds`. */
@@ -327,13 +309,123 @@ export function isPlaced(cardId: number): boolean {
   return releases.has(cardId);
 }
 
-/** Move an already-placed spell. No-op for an id nothing ever placed. */
-export function moveSpell(id: number, at: Point): void {
-  const p = placements.get(id);
-  if (p === undefined) return;
-  p.at = at;
-  p.movedAt = Date.now();
-  for (const listener of moveListeners) listener(id, at);
+/**
+ * Two hands on one stack item: it stands between them, and the last to let go places it. The
+ * operator, 2026-11-02: *"lets also make it so the opponent can drag and move things on the stack
+ * around … make sure we handle the case where both players try to drag and move the same thing. this
+ * is a funny interaction i dont want to kill."* A tug of war, chosen over the newest hand taking it.
+ */
+
+/**
+ * A hand on a stack item: where it is drawn from (`from`, at `since`), its latest point (`to`), and
+ * how long it takes to get there (`ms`). Alone on an item, this screen's own hand is always at its
+ * latest: a drag follows the pointer. With two hands on it, every hand eases, or the point between
+ * them saw-tooths: another seat's arrives a relay apart (`PRESENCE_SEND_MS`, later when the wire is
+ * slow) and eases over two relays, so it never stops between them; this screen's own moves a
+ * pointer event at a time and eases over one. Claw runs 41545233269 (3 turns in 46 frames, the
+ * other hand stepping) and 41571386507 (7 turns at 60 fps, this hand stepping 10 px a move).
+ */
+type Hand = { from: Point; to: Point; since: number; ms: number };
+const OWN_EASE_MS = PRESENCE_SEND_MS;
+const RELAYED_EASE_MS = 2 * PRESENCE_SEND_MS;
+/** When the hands on an item change (one takes hold or lets go), it moves to its new point over this, never in a step. */
+const HANDS_CHANGE_MS = GLIDE_MS;
+
+/**
+ * The hands on each stack item, by item id, in the order they took hold — `you` (this screen's
+ * pointer) and `seat:N` (another seat's, as the server relays it).
+ */
+const hands = new Map<number, Map<string, Hand>>();
+/** Items whose hands just changed: the point it was drawn at then, and when. */
+const handsChanged = new Map<number, { from: Point; since: number }>();
+
+const lerp = (a: Point, b: Point, t: number): Point => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+const progress = (now: number, since: number, ms: number): number => (ms <= 0 ? 1 : Math.min(1, Math.max(0, (now - since) / ms)));
+
+/** Where a hand is drawn at `now`: its latest, or (`ease`) on its way there from where it was. */
+function handAt(hand: Hand, now: number, ease: boolean): Point {
+  return ease ? lerp(hand.from, hand.to, progress(now, hand.since, hand.ms)) : hand.to;
+}
+
+/** Where the hands on an item put it: between them. */
+function handsPoint(held: ReadonlyMap<string, Hand>, now: number, ease: boolean): Point | null {
+  const points = [...held.values()].map((h) => handAt(h, now, ease));
+  if (points.length === 0) return null;
+  return { x: points.reduce((sum, p) => sum + p.x, 0) / points.length, y: points.reduce((sum, p) => sum + p.y, 0) / points.length };
+}
+
+/**
+ * Where stack item `id` is drawn at `now`, and whether it is still on its way there (another frame is
+ * due). `at`: its placement's own point, which is the hands' latest. `ease`: false under reduced
+ * motion, where it steps to each point.
+ */
+function drawnPoint(id: number, at: Point, now: number, ease: boolean): { at: Point; moving: boolean } {
+  if (!ease) return { at, moving: false };
+  const held = hands.get(id);
+  const target = held === undefined ? at : (handsPoint(held, now, true) ?? at);
+  let moving = held !== undefined && [...held.values()].some((h) => now - h.since < h.ms);
+  const changed = handsChanged.get(id);
+  if (changed === undefined) return { at: target, moving };
+  const t = progress(now, changed.since, HANDS_CHANGE_MS);
+  if (t >= 1) {
+    handsChanged.delete(id);
+    return { at: target, moving };
+  }
+  moving = true;
+  // Ease out: quick to leave, settling into the new point.
+  return { at: lerp(changed.from, target, 1 - (1 - t) ** 3), moving };
+}
+
+/**
+ * A hand on stack item `id` takes hold, moves or lets go (`grip`). `you` is this screen's own pointer
+ * (`gestures/install.ts`), and is told on to the other screens (`onSpellMoved`); any other hand is
+ * another seat's, relayed by the server (`presence.ts`), with `order`, the hands the server says hold
+ * it now, oldest first: the one record both screens settle on, so a hand it let go (its socket went)
+ * goes here too. A move from a hand that holds nothing is a plain point, as every move was before
+ * shared drags. `side` is whose the item is, for one this screen has no record of yet.
+ */
+export function gripStackItem(id: number, hand: string, at: Point, grip: Grip, side: 'you' | 'them', order?: readonly string[]): void {
+  const now = Date.now();
+  const record = placements.get(id);
+  const held = hands.get(id) ?? new Map<string, Hand>();
+  const was = record === undefined ? null : drawnPoint(id, record.at, now, true).at;
+  const before = [...held.keys()].join();
+  const fresh = (p: Point): Hand => ({ from: p, to: p, since: now, ms: 0 });
+  if (grip === 'grab' || grip === 'drop') held.delete(hand);
+  if (grip === 'grab') held.set(hand, fresh(at));
+  else if (grip === 'move' && held.has(hand)) {
+    // A hand eases on from where it is drawn now (see `Hand`); this screen's own, alone on it, is where the pointer is.
+    const shared = held.size > 1;
+    const ms = hand !== 'you' ? RELAYED_EASE_MS : shared ? OWN_EASE_MS : 0;
+    held.set(hand, ms === 0 ? fresh(at) : { from: handAt(held.get(hand)!, now, true), to: at, since: now, ms });
+  }
+  if (order !== undefined) {
+    const mine = held.get('you');
+    const kept = new Map(order.filter((h) => held.has(h) || h === hand).map((h) => [h, held.get(h) ?? fresh(at)] as const));
+    // This screen's own hand stays while it drags, though the server has not heard it take hold yet.
+    if (mine !== undefined && !kept.has('you')) kept.set('you', mine);
+    held.clear();
+    for (const [h, p] of kept) held.set(h, p);
+  }
+  const after = [...held.keys()].join();
+  if (held.size > 0) hands.set(id, held);
+  else hands.delete(id);
+  // A change of hands moves it from where it was drawn: but this screen's own hand alone, picking it up or putting it down, is the pointer's.
+  if (was !== null && after !== before && (hand !== 'you' || before.includes(',') || after.includes(','))) handsChanged.set(id, { from: was, since: now });
+  // A point from no hand at all (a joiner's replay) is drawn where it says, at once.
+  if (held.size === 0 && grip === 'move') handsChanged.delete(id);
+  // The last hand to let go places it where it let go; a move from no hand is a point of its own.
+  const point = held.size > 0 ? handsPoint(held, now, false)! : at;
+  // A drag's point stands where it was put for a moment (`DRAG_HOLD_MS`), counted from when it gets
+  // there: after a change of hands' glide, so the last let-go places it at the same spot on every
+  // screen before it comes to rest. A joiner's replay is just a point.
+  const movedAt = handsChanged.has(id) ? now + HANDS_CHANGE_MS : now;
+  if (record === undefined) register(placements, id, point, side, held.size > 0 || grip === 'drop' ? movedAt : null);
+  else {
+    record.at = point;
+    record.movedAt = movedAt;
+  }
+  if (hand === 'you') for (const listener of moveListeners) listener(id, at, grip);
   requestRepaint();
 }
 
@@ -350,8 +442,8 @@ export function stackBoxOf(cardId: number): DOMRect | null {
   return seen === undefined || Date.now() - seen.at > PLACEMENT_WAIT_MS ? null : seen.box;
 }
 
-/** Every `moveSpell` call, this module's own drag included. Returns the unsubscribe. */
-export function onSpellMoved(listener: (id: number, at: Point) => void): () => void {
+/** Every move of this screen's own hand on a stack item (`gripStackItem`), with its grip. Returns the unsubscribe. */
+export function onSpellMoved(listener: (id: number, at: Point, grip: Grip) => void): () => void {
   moveListeners.add(listener);
   return () => moveListeners.delete(listener);
 }
@@ -370,6 +462,8 @@ export function forgetPlacements(): void {
   landedFrom.clear();
   chainHalted = null;
   peerClickable.clear();
+  hands.clear();
+  handsChanged.clear();
 }
 
 /* ── pure geometry, unit-tested directly ──────────────────────────────── */
@@ -1077,7 +1171,11 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
    */
   function positionOf(item: StackEntry, d: Drawn, chip: ReturnType<typeof chipBoxesOf>, spot: Point | null, bounds: Rect): Point | null {
     const promoted = placements.get(item.id);
-    if (promoted !== undefined) return promoted.at;
+    if (promoted !== undefined) {
+      const drawn = drawnPoint(item.id, promoted.at, Date.now(), !reduced());
+      if (drawn.moving) easing = true;
+      return drawn.at;
+    }
     if (chip !== null) {
       const { source: sourceBox, tile } = chip;
       const centre = { x: (sourceBox.left + sourceBox.right) / 2, y: (sourceBox.top + sourceBox.bottom) / 2 };
@@ -1528,6 +1626,10 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     pruneStale(view.stack);
   }
 
+  /** Set while this paint draws an item still on its way to its point (`drawnPoint`); a frame is then due (`frameDue`). */
+  let easing = false;
+  let frameDue = false;
+
   /** The last `settleStack` this board ran, by what it was asked: a repaint with the same asks reuses it. */
   let lastSettle: { key: string; result: ReturnType<typeof settleStack> } | null = null;
   /** Each drawn item's box as this paint settles it, for its arrows: never a box read mid-slide. */
@@ -1627,7 +1729,6 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       }
       d.point = at;
       const p = overlayPoint(at, overlayBox);
-      d.el.toggleAttribute('data-placed-gliding', record?.gliding === true);
       d.el.toggleAttribute('data-placed-held', inPlace);
       d.el.style.left = `${p.x}px`;
       d.el.style.top = `${p.y}px`;
@@ -1652,7 +1753,15 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       d.el.toggleAttribute('data-placed-current', d.current);
     });
     // The slide starts from the drawn spot, and a chip just given its size is shown: the next frame, once this one has painted.
-    if (again) requestAnimationFrame(() => live && render());
+    // Hands on an item still easing draw again too, one frame at a time.
+    if ((again || easing) && !frameDue) {
+      frameDue = true;
+      requestAnimationFrame(() => {
+        frameDue = false;
+        if (live) render();
+      });
+    }
+    easing = false;
   }
 
   const hook = (): void => render();
