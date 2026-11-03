@@ -33,6 +33,35 @@ const search = (page: Page) => page.locator(SEARCH_METHODS.map((m) => `[data-tes
 const libraryOnBoard = (page: Page): Promise<string[]> =>
   page.locator('.seat [data-library-top] .card__name').allTextContents().then((t) => t.map((s) => s.trim()));
 
+/**
+ * Every library card the screen commits to the table from now on, by name, even for one render: a
+ * MutationObserver reads the board after each DOM change, so a card drawn between two socket messages
+ * and gone by the next one is still caught (a sampled read missed it in 2 of 3 runs). Read with
+ * {@link libraryEverDrawn}.
+ */
+const recordLibraryDraws = (page: Page): Promise<void> =>
+  page.evaluate(() => {
+    const w = window as unknown as { __libraryDrawn?: string[] };
+    w.__libraryDrawn = [];
+    const read = () => {
+      for (const el of document.querySelectorAll('.seat [data-library-top] .card__name')) {
+        const name = el.textContent?.trim() ?? '';
+        if (name !== '' && !w.__libraryDrawn!.includes(name)) w.__libraryDrawn!.push(name);
+      }
+    };
+    new MutationObserver(read).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true });
+    read();
+  });
+
+/** The library cards {@link recordLibraryDraws} saw drawn since the last read, which it forgets. */
+const libraryEverDrawn = (page: Page): Promise<string[]> =>
+  page.evaluate(() => {
+    const w = window as unknown as { __libraryDrawn?: string[] };
+    const drawn = w.__libraryDrawn ?? [];
+    w.__libraryDrawn = [];
+    return drawn;
+  });
+
 const handNames = (page: Page): Promise<string[]> =>
   page.locator('[data-zone="hand"][data-owner="you"] .card__name').allTextContents().then((t) => t.map((s) => s.trim()));
 
@@ -152,10 +181,11 @@ test(titled('a scry 1 shows its card in the decision window, never on the board,
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w70-scry-one');
     const pages = [alice.page, bob.page];
+    for (const p of pages) await recordLibraryDraws(p);
     const seen: string[] = [];
     const watchBoards = async (when: string) => {
       for (const [who, page] of [['alice', alice.page], ['bob', bob.page]] as const) {
-        const names = await libraryOnBoard(page);
+        const names = [...new Set([...(await libraryEverDrawn(page)), ...(await libraryOnBoard(page))])];
         const line = `${when}: ${who}'s board draws library card(s) [${names.join(', ')}]`;
         if (names.length > 0 && !seen.includes(line)) {
           seen.push(line);
