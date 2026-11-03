@@ -449,6 +449,9 @@ function seedGauntletTournament(
 export async function seedTestingRooms(deps: TestingRoomsDeps): Promise<void> {
 	const { lobby } = deps;
 	const log = deps.log ?? noopLog;
+	// A saved room keeps no names (R12), and the seed never sends the request that names a member
+	// again: a room it stays in would call it `UNNAMED` after every restart.
+	lobby.rename(TESTING_SEED_CALLER);
 	const existing = new Set(lobby.list().filter((r) => r.testing).map((r) => r.name));
 	for (const spec of SPECS) {
 		if (existing.has(spec.name)) continue;
