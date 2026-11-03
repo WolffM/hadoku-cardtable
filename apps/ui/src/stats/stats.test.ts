@@ -137,6 +137,13 @@ const readsOf = (asked: readonly URL[]): string[] =>
 // The page is a chunk of its own, which the lobby's trophy loads before it is opened (`./StatsButton.tsx`).
 beforeAll(() => LazyStatsPage.preload());
 
+/**
+ * How long a wait on the lobby's prefetch, or on a page saying a refused viewer must sign in, may
+ * take: the prefetch waits for an idle page and a chunk, and the page draws every section first —
+ * past waitFor's 1 s default on a host at load 50.
+ */
+const LOADED_HOST_MS = 5_000;
+
 describe('the Leaderboard', () => {
   it('ranks everyone, lists the winning decks and every colour, and everyone’s matches with pips, decks, turns and links', async () => {
     const { source, asked } = stub();
@@ -308,7 +315,7 @@ describe('the way in', () => {
   it('the lobby has already read everything the Leaderboard shows: it opens with nothing busy and nothing more asked', async () => {
     const { source, asked } = stub();
     render(lobby(source));
-    await waitFor(() => expect(asked).toHaveLength(4));
+    await waitFor(() => expect(asked).toHaveLength(4), { timeout: LOADED_HOST_MS });
     await act(async () => {
       await Promise.resolve();
     });
@@ -342,7 +349,7 @@ describe('a viewer the store will refuse', () => {
     fireEvent.pointerEnter(screen.getByTestId('lobby-stats'));
     cleanup();
     render(page(source));
-    await waitFor(() => expect(screen.getByTestId('stats-rankings').textContent).toContain('Sign in to see stats.'));
+    await waitFor(() => expect(screen.getByTestId('stats-rankings').textContent).toContain('Sign in to see stats.'), { timeout: LOADED_HOST_MS });
     fireEvent.pointerEnter(screen.getByTestId('stats-tab-profile'));
     await act(async () => {
       await Promise.resolve();
@@ -353,13 +360,13 @@ describe('a viewer the store will refuse', () => {
   it('a 401 is final: each read is asked once, and neither hovering nor opening asks again', async () => {
     const { source, asked } = refusing(401, true);
     render(lobby(source));
-    await waitFor(() => expect(asked).toHaveLength(4));
+    await waitFor(() => expect(asked).toHaveLength(4), { timeout: LOADED_HOST_MS });
     expect(new Set(asked.map((u) => `${u.pathname}${u.search}`)).size, 'four different reads, each once').toBe(4);
 
     fireEvent.pointerEnter(screen.getByTestId('lobby-stats'));
     cleanup();
     render(page(source, { tab: 'profile' }));
-    await waitFor(() => expect(screen.getByTestId('stats-profile').textContent).toContain('Sign in to see stats.'));
+    await waitFor(() => expect(screen.getByTestId('stats-profile').textContent).toContain('Sign in to see stats.'), { timeout: LOADED_HOST_MS });
     await act(async () => {
       await Promise.resolve();
     });
