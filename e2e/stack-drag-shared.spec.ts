@@ -35,21 +35,51 @@ async function itemAt(page: Page, id: string): Promise<Box | null> {
 
 /**
  * A press on stack item `id` where it is drawn on `page`, and the pointer held down: at a point of its
- * box where it is the topmost thing (chips overlap at their edges, so its centre can be another's).
+ * box where it is the topmost thing (chips overlap at their edges, so its centre can be another's),
+ * once it stands still there, and once the pointer resting on that point still finds it there — a
+ * hovered chip lifts, and a point near its edge can then be another chip's (run 41593357571: bob's
+ * press for chip 2 took chip 4). A press goes where a player would press: on what they see under
+ * the pointer. Waited for, never pressed blind.
  */
 async function grab(page: Page, id: string): Promise<Box> {
-  const at = await pickable(page, id);
-  expect(at, `stack item ${id} has a point no other card covers`).not.toBeNull();
-  await page.mouse.move(at!.x, at!.y);
+  let at: Box | null = null;
+  await expect
+    .poll(
+      async () => {
+        at = await pickable(page, id);
+        if (at === null) return false;
+        await page.mouse.move(at.x, at.y);
+        return underPointer(page, at, id);
+      },
+      { timeout: 10_000, intervals: [50], message: `stack item ${id} stands still under the pointer, at a point no other card covers` },
+    )
+    .toBe(true);
   await page.mouse.down();
   return at!;
 }
 
-/** A point of stack item `id`'s box where it is the topmost thing on `page`, or null when others cover all of it. */
+/** Whether stack item `id` is the topmost thing at `at` on `page` after two frames: the hover's lift has been drawn. */
+function underPointer(page: Page, at: Box, id: string): Promise<boolean> {
+  return page.evaluate(async ([p, item]) => {
+    await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+    return document.elementFromPoint(p.x, p.y)?.closest('[data-placed-spell]')?.getAttribute('data-placed-spell') === item;
+  }, [at, id] as const);
+}
+
+/**
+ * A point of stack item `id`'s box where it is the topmost thing on `page`, or null: it is not drawn
+ * (or is leaving), others cover all of it, or it moved over the last two frames (a press there could
+ * land on whatever slides in under it).
+ */
 function pickable(page: Page, id: string): Promise<Box | null> {
-  return page.evaluate((item) => {
-    const el = document.querySelector(`[data-placed-spell="${item}"]:not([data-placed-leaving])`)!;
-    const r = el.getBoundingClientRect();
+  return page.evaluate(async (item) => {
+    const find = (): Element | null => document.querySelector(`[data-placed-spell="${item}"]:not([data-placed-leaving])`);
+    const before = find()?.getBoundingClientRect();
+    if (before === undefined) return null;
+    await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+    const el = find();
+    const r = el?.getBoundingClientRect();
+    if (el == null || r === undefined || Math.abs(r.left - before.left) > 1 || Math.abs(r.top - before.top) > 1) return null;
     for (const fy of [0.5, 0.3, 0.7, 0.15, 0.85])
       for (const fx of [0.5, 0.3, 0.7, 0.15, 0.85]) {
         const p = { x: r.left + r.width * fx, y: r.top + r.height * fy };
