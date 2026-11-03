@@ -35,7 +35,9 @@ async function go(page: Page, url: string, settle = 1_500): Promise<void> {
  */
 async function openActionMenuIfPresent(page: Page): Promise<void> {
   const menu = page.getByTestId('action-menu');
-  if ((await menu.count()) > 0 && (await menu.isVisible().catch(() => false))) await menu.tap();
+  if ((await menu.count()) === 0 || !(await menu.isVisible().catch(() => false))) return;
+  // A toggle: tapping a menu an earlier step left open would close it.
+  if ((await menu.getAttribute('aria-expanded')) !== 'true') await menu.tap();
 }
 
 /**
