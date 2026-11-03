@@ -24,7 +24,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Icon } from '@wolffm/themes';
-import { formatAttr, formatRecord, formatWinRate, type RenderAttr, type StatsCache } from '@wolffm/game-stats-ui';
+import { formatAttr, formatRecord, formatWinRate, StatsCard, WinBar, type RenderAttr, type StatsCache } from '@wolffm/game-stats-ui';
 import { winRate, type BreakdownRow, type GameStatsClient, type StatAttrs } from '@wolffm/prefs-client/games';
 
 import { myDecksClient, type MyDecksClient } from '../deck/myDecks.ts';
@@ -34,9 +34,8 @@ import { DeckPeek, usePeekHover } from '../screens/DeckPeek.tsx';
 import { FREE_PICK } from '@hadoku/shared';
 import { FORMAT_TABS, tablesClient, type FormatFamily, type TablesClient } from '../screens/tables.ts';
 import { uiLength } from '../settings/ui-scale.ts';
-import { StatsCard, WinBar, WinRate } from './card.tsx';
-import { Pips } from './magic.tsx';
-import { everyone, onePlayer } from './source.ts';
+import { matchAttr, Pips } from './magic.tsx';
+import { everyone, loaded, onePlayer } from './source.ts';
 
 export type StatsFormat = FormatFamily | typeof FREE_PICK;
 export type StatsRoom = 'constructed' | 'draft';
@@ -225,7 +224,7 @@ const colorsOf = (carried: StatAttrs | undefined): string[] => {
 };
 
 /** A deck's name, which opens its list on hover, after its colours. */
-export function StatsDeckName({ name, carried }: { name: string; carried?: StatAttrs | undefined }) {
+function StatsDeckName({ name, carried }: { name: string; carried?: StatAttrs | undefined }) {
   const hover = useContext(DeckHoverContext);
   const deckId = typeof carried?.deckId === 'string' ? carried.deckId : undefined;
   const peekable = hover !== null && deckId !== undefined && hover.canPeek(deckId);
@@ -250,15 +249,20 @@ export function StatsDeckName({ name, carried }: { name: string; carried?: StatA
   );
 }
 
-/** A seat's `colors` is a set and a colour breakdown row is one colour; both draw as pips. A deck row draws as its name and its pips. */
+/**
+ * Every attr the page draws. A seat's `colors` is a set and a colour breakdown row is one colour;
+ * both draw as pips. A deck row draws as its name and its pips; a seat's deck, its name. A match's
+ * own attrs draw as its feed's meta line says them (`matchAttr`).
+ */
 export const renderAttr: RenderAttr = (key, value, carried) => {
   if (key === 'deck' && carried !== undefined) return <StatsDeckName name={String(value)} carried={carried} />;
-  if (key !== 'colors') return formatAttr(value);
-  return <Pips colors={Array.isArray(value) ? value : [String(value)]} />;
+  if (key === 'colors') return <Pips colors={Array.isArray(value) ? value : [String(value)]} />;
+  if (key === 'deck') return formatAttr(value);
+  return matchAttr(key, value);
 };
 
 /** How many rated games a deck needs before it can be called a winner. */
-export const WINNING_DECK_GAMES = 5;
+const WINNING_DECK_GAMES = 5;
 /** How many winning decks the Leaderboard lists. */
 const WINNING_DECKS = 6;
 
@@ -275,8 +279,8 @@ export function WinningDecks({ client, cache }: { client: GameStatsClient; cache
   return (
     <StatsCard
       title="Winning decks"
-      sub={`${WINNING_DECK_GAMES}+ games`}
-      read={everyone.decks(client)}
+      subtitle={`${WINNING_DECK_GAMES}+ games`}
+      {...loaded(everyone.decks(client))}
       cache={cache}
       isEmpty={(b) => winningDecks(b.rows).length === 0}
       testId="stats-winning-decks"
@@ -306,14 +310,14 @@ export function DecksTable({ client, cache, player }: { client: GameStatsClient;
   const [filter, setFilter] = useState<DeckStatsFilter>(NO_STATS_FILTER);
   const shown = (rows: readonly BreakdownRow[]): BreakdownRow[] => [...filterDeckRows(rows, filter.text)].sort((a, b) => b.games - a.games || winRate(b) - winRate(a));
   return (
+    <div className="ct-decks">
     <StatsCard
       title="Decks"
-      tools={<DeckStatsFilterBar filter={filter} onChange={setFilter} />}
-      read={onePlayer.decks(client, player, matchFormats(filter))}
+      actions={<DeckStatsFilterBar filter={filter} onChange={setFilter} />}
+      {...loaded(onePlayer.decks(client, player, matchFormats(filter)))}
       cache={cache}
       isEmpty={(b) => shown(b.rows).length === 0}
       flush
-      className="ct-decks"
       testId="stats-decks"
     >
       {(b) => (
@@ -342,7 +346,10 @@ export function DecksTable({ client, cache, player }: { client: GameStatsClient;
                   <td className="ct-stats__num">{row.games}</td>
                   <td className="ct-stats__num">{formatRecord(row)}</td>
                   <td className="ct-stats__rate">
-                    <WinRate totals={row} />
+                    <span className="ct-winrate">
+                      <WinBar totals={row} />
+                      <span className="ct-winrate__pct">{formatWinRate(row)}</span>
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -351,5 +358,6 @@ export function DecksTable({ client, cache, player }: { client: GameStatsClient;
         </div>
       )}
     </StatsCard>
+    </div>
   );
 }

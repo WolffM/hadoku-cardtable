@@ -10,22 +10,15 @@
  * order count none of them. The boards rank nothing else to begin with. The store keeps them (the
  * operator, 2026-10-16: *"we should keep the logs"*).
  *
- * Every read the page makes is named here, with the key it is kept under, so the page and its
- * prefetch can never ask for two different things under one name.
+ * The rankings, match feeds, header, rating line and head to head are `@wolffm/game-stats-ui`'s
+ * blocks, which read for themselves into this cache. Every read the Magic sections make is named
+ * here, with the key it is kept under, so a section and its prefetch never ask for two different
+ * things under one name.
  */
 
-import { createStatsCache, type StatsCache } from '@wolffm/game-stats-ui';
+import { BOARD_LIMIT, createStatsCache, prefetchMatchFeed, prefetchPlayer, prefetchRankings, RANKING_SORTS, type StatsCache } from '@wolffm/game-stats-ui';
 import { whoami } from '@wolffm/prefs-client';
-import {
-  createGameStatsClient,
-  GameStatsError,
-  type BreakdownRow,
-  type GameStatsClient,
-  type LeaderboardBy,
-  type LeaderboardRow,
-  type MatchPage,
-  type ProfileView,
-} from '@wolffm/prefs-client/games';
+import { createGameStatsClient, GameStatsError, type BreakdownRow, type GameStatsClient, type LeaderboardBy, type LeaderboardRow, type ProfileView } from '@wolffm/prefs-client/games';
 
 import type { DeckRecords } from './deckOrder.ts';
 
@@ -48,32 +41,27 @@ export interface Breakdown {
   rows: BreakdownRow[];
 }
 
-export interface Board {
-  by: LeaderboardBy;
-  rows: LeaderboardRow[];
-}
-
 /** The seat attrs a deck row carries off its latest seat: its pips, and what its list is found by. */
-export const DECK_ROW_ATTRS = ['colors', 'deckId'] as const;
+const DECK_ROW_ATTRS = ['colors', 'deckId'] as const;
 
-/** How many of everyone's matches the leaderboard's history shows at a time. */
+/** How many matches a match feed shows before Older matches: everyone's on the Leaderboard, one player's on a profile. */
 export const FEED_PAGE = 10;
-/** How many of a player's matches their profile reads: its rating chart, its recent matches and its head to head. */
-export const PROFILE_MATCHES = 30;
 
 const RATED = { mode: STATS_MODE, rated: true } as const;
 
 /** A player's part of a key: a registry name, or the viewer. */
 const whose = (player: string | undefined): string => player ?? '';
+const named = (player: string | undefined) => (player === undefined ? {} : { player });
 /** A match-attr filter's part of a key. */
 const narrowed = (formats: readonly string[] | undefined): string => (formats === undefined ? '' : `|${formats.join(',')}`);
 const byFormat = (formats: readonly string[] | undefined) => (formats === undefined ? {} : { match: { format: formats } });
 
-/** Everyone's rows: the leaderboard's boards, its winning decks and colours, and its match history. */
+/** Everyone's rows: the Leaderboard's winning decks and colours, and the rating board its player search offers. */
 export const everyone = {
-  board: (client: GameStatsClient, by: LeaderboardBy): StatsRead<Board> => ({
-    key: `board|${by}`,
-    load: () => client.leaderboard({ by, mode: STATS_MODE }),
+  /** Kept under the key `@wolffm/game-stats-ui`'s rankings read it by, so the two are one request. */
+  board: (client: GameStatsClient, by: LeaderboardBy): StatsRead<{ by: LeaderboardBy; rows: LeaderboardRow[] }> => ({
+    key: `board|${by}|${STATS_MODE}|${BOARD_LIMIT}`,
+    load: () => client.leaderboard({ by, mode: STATS_MODE, limit: BOARD_LIMIT }),
   }),
   decks: (client: GameStatsClient): StatsRead<Breakdown> => ({
     key: 'breakdown|deck|*',
@@ -83,53 +71,50 @@ export const everyone = {
     key: 'breakdown|colors|*',
     load: () => client.breakdown('colors', { ...RATED, player: '*' }),
   }),
-  /** A page of them: the newest, or those that ended before `before` (the page above's `nextBefore`). */
-  matches: (client: GameStatsClient, formats?: readonly string[], before?: number): StatsRead<MatchPage> => ({
-    key: `matches|*${narrowed(formats)}${before === undefined ? '' : `|<${before}`}`,
-    load: () => client.matches({ ...RATED, player: '*', limit: FEED_PAGE, ...byFormat(formats), ...(before === undefined ? {} : { before }) }),
-  }),
 };
 
-/** One player's rows (absent, the viewer's): their profile, their matches, their colours and decks. */
+/** One player's Magic rows (absent, the viewer's): their colours and decks, and the profile a page checks for the viewer's own. */
 export const onePlayer = {
+  /** Kept under the key `@wolffm/game-stats-ui`'s header reads it by (its pool, then the player), so the two are one request. */
   profile: (client: GameStatsClient, player?: string): StatsRead<ProfileView> => ({
-    key: `profile|${whose(player)}`,
-    load: () => client.profile({ ...RATED, ...(player === undefined ? {} : { player }) }),
-  }),
-  matches: (client: GameStatsClient, player?: string): StatsRead<MatchPage> => ({
-    key: `matches|${whose(player)}`,
-    load: () => client.matches({ ...RATED, limit: PROFILE_MATCHES, ...(player === undefined ? {} : { player }) }),
+    key: `profile|${STATS_MODE}|rated|${whose(player)}`,
+    load: () => client.profile({ ...RATED, ...named(player) }),
   }),
   colours: (client: GameStatsClient, player?: string): StatsRead<Breakdown> => ({
     key: `breakdown|colors|${whose(player)}`,
-    load: () => client.breakdown('colors', { ...RATED, ...(player === undefined ? {} : { player }) }),
+    load: () => client.breakdown('colors', { ...RATED, ...named(player) }),
   }),
   /** The Decks table's read for a filter's formats; the bare one is what the profile opens with. */
   decks: (client: GameStatsClient, player?: string, formats?: readonly string[]): StatsRead<Breakdown> => ({
     key: `breakdown|deck|${whose(player)}${narrowed(formats)}`,
-    load: () => client.breakdown('deck', { ...RATED, ...(player === undefined ? {} : { player }), with: DECK_ROW_ATTRS, ...byFormat(formats) }),
+    load: () => client.breakdown('deck', { ...RATED, ...named(player), with: DECK_ROW_ATTRS, ...byFormat(formats) }),
   }),
 };
+
+/** A read as `@wolffm/game-stats-ui`'s `StatsCard` takes it. */
+export const loaded = <T,>({ key, load }: StatsRead<T>): { load: () => Promise<T>; loadKey: string } => ({ load, loadKey: key });
 
 /** Starts `reads` into the cache. A failure is left for the section that draws it to report. */
 function warm(cache: StatsCache, reads: readonly StatsRead<unknown>[]): void {
   for (const read of reads) cache.get(read.key, read.load).catch(() => undefined);
 }
 
-/** The reads `#/stats` opens with: the trophy's (`./StatsButton.tsx`), so the page opens drawn. */
+/**
+ * The reads `#/stats` opens with, so the page opens drawn: the trophy's (`./StatsButton.tsx`), on an
+ * idle lobby and on hover. Only the Rating board of the rankings: each other chip reads its board
+ * when pressed, rather than every lobby visit reading four.
+ */
 export function prefetchLeaderboard({ client, cache }: StatsSource = sharedSource()): void {
-  warm(cache, [everyone.board(client, 'rating'), everyone.decks(client), everyone.colours(client), everyone.matches(client)]);
+  prefetchRankings({ client, cache, mode: STATS_MODE, sorts: RANKING_SORTS.filter((s) => s.value === 'rating') });
+  prefetchMatchFeed({ client, cache, mode: STATS_MODE, ratedOnly: true, player: '*', pageSize: FEED_PAGE });
+  warm(cache, [everyone.decks(client), everyone.colours(client)]);
 }
 
-/** The reads a profile opens with; the viewer's when `player` is absent. Its header's rank is the rating board's. */
+/** The reads a profile opens with; the viewer's when `player` is absent. The Your profile tab warms them on hover. */
 export function prefetchProfile({ client, cache }: StatsSource = sharedSource(), player?: string): void {
-  warm(cache, [
-    onePlayer.profile(client, player),
-    onePlayer.matches(client, player),
-    onePlayer.decks(client, player),
-    onePlayer.colours(client, player),
-    everyone.board(client, 'rating'),
-  ]);
+  prefetchPlayer({ client, cache, mode: STATS_MODE, ratedOnly: true, ...named(player) });
+  prefetchMatchFeed({ client, cache, mode: STATS_MODE, ratedOnly: true, ...named(player), pageSize: FEED_PAGE });
+  warm(cache, [onePlayer.decks(client, player), onePlayer.colours(client, player)]);
 }
 
 /**

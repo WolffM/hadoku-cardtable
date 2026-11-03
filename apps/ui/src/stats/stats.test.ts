@@ -2,9 +2,11 @@
 /*
  * The stats page over the REAL game-stats client (`@wolffm/prefs-client/games`)
  * and a stubbed fetch answering in the store's own read shapes: what cardtable
- * draws from each read (pips, decks, colours, turns, links, the pool), that the
- * lobby prefetches the Leaderboard so it opens drawn, which reads each tab makes,
- * and how the page treats a viewer the store refuses.
+ * hands `@wolffm/game-stats-ui`'s blocks (pips, decks, a match's format and turns,
+ * links, the pool, rated only) and draws itself (winning decks, colours, the
+ * Decks table), that the lobby prefetches the Leaderboard so it opens drawn,
+ * which reads each tab makes, and how the page treats a viewer the store refuses.
+ * The package tests its blocks themselves.
  */
 
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -26,7 +28,7 @@ import type { RoomFeed } from '../rooms/feed.ts';
 import { StatsPage, type StatsPageProps } from './StatsPage.tsx';
 import { StatsPage as LazyStatsPage } from './StatsButton.tsx';
 import { prefsBaseUrl, signedInStatsClient, type StatsSource } from './source.ts';
-import { formatLabel, matchFacts } from './magic.tsx';
+import { matchAttr } from './magic.tsx';
 import { winningDecks } from './StatsDecks.tsx';
 
 afterEach(() => {
@@ -130,9 +132,18 @@ const QUIET: RoomFeed = {
 const lobby = (source: StatsSource) => createElement(LobbyScreen, { rooms: NO_ROOMS, feed: QUIET, statsSource: source });
 const page = (source: StatsSource, props: Omit<StatsPageProps, 'source'> = {}) => createElement(StatsPage, { source, parked: async () => [], ...props });
 
-/** Each read's endpoint, its player and its attr, sorted: what a tab asked for. */
+/** Each read as `endpoint player attr-or-board limit`, sorted: what a tab asked for. */
 const readsOf = (asked: readonly URL[]): string[] =>
-  asked.map((u) => [u.pathname.split('/').pop(), u.searchParams.get('player'), u.searchParams.get('attr') ?? u.searchParams.get('by')].filter((p) => p !== null).join(' ')).sort();
+  asked
+    .map((u) =>
+      [u.pathname.split('/').pop(), u.searchParams.get('player'), u.searchParams.get('attr') ?? u.searchParams.get('by'), u.searchParams.get('limit'), u.searchParams.has('before') ? 'older' : null]
+        .filter((p) => p !== null)
+        .join(' '),
+    )
+    .sort();
+
+/** What `#/stats` reads: the rating board, everyone's rating moves, everyone's first page, the winning decks and the colours. */
+const LEADERBOARD_READS = ['breakdown * colors', 'breakdown * deck', 'leaderboard rating 100', 'matches * 10', 'matches * 50'];
 
 // The page is a chunk of its own, which the lobby's trophy loads before it is opened (`./StatsButton.tsx`).
 beforeAll(() => LazyStatsPage.preload());
@@ -145,13 +156,13 @@ beforeAll(() => LazyStatsPage.preload());
 const LOADED_HOST_MS = 5_000;
 
 describe('the Leaderboard', () => {
-  it('ranks everyone, lists the winning decks and every colour, and everyone’s matches with pips, decks, turns and links', async () => {
+  it('ranks everyone, lists the winning decks and every colour, and everyone’s matches with pips, decks, format, turns and links', async () => {
     const { source, asked } = stub();
     render(page(source));
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Stats');
     expect(screen.getByTestId('stats-tab-leaderboard').getAttribute('aria-current')).toBe('page');
 
-    const board = await screen.findByTestId('gs-leaderboard-rating');
+    const board = await within(screen.getByTestId('stats-rankings')).findByTestId('gs-rankings');
     expect(within(board).getByRole('link', { name: 'Ash' }).getAttribute('href')).toBe('#/stats/Ash');
 
     const winners = await screen.findAllByTestId('stats-winning-deck');
@@ -165,47 +176,47 @@ describe('the Leaderboard', () => {
     expect(colours[0]!.textContent).toContain('7 games');
     expect(colours[2]!.textContent).toContain('—');
 
-    const history = await screen.findByTestId('gs-matches');
-    const row = within(history).getAllByRole('listitem')[0]!;
+    const feed = await within(screen.getByTestId('stats-history')).findByTestId('gs-feed');
+    const row = feed.querySelector<HTMLElement>(`[data-match="${MATCHES[0]!.matchId}"]`)!;
     expect(row.textContent).toContain('Azorius Fliers');
-    expect(row.textContent).toContain('Modern 2016 · 9 turns · Life');
     expect(row.querySelector('[data-attr="colors"] [data-colors="WU"]')).not.toBeNull();
     expect(within(row).getByRole('link', { name: 'Ash' }).getAttribute('href')).toBe('#/stats/Ash');
+    expect([...row.querySelectorAll('[data-meta]')].map((m) => m.textContent)).toEqual(['Modern', '2016', '9 turns', 'Life']);
 
-    await waitFor(() => expect(asked).toHaveLength(4));
-    expect(readsOf(asked)).toEqual(['breakdown * colors', 'breakdown * deck', 'leaderboard rating', 'matches *']);
+    await waitFor(() => expect(readsOf(asked)).toEqual(LEADERBOARD_READS));
     for (const url of asked) expect(url.searchParams.get('mode')).toBe('constructed');
   });
 
   it('reads rated matches only, so no bot, guest or test-account match reaches the page', async () => {
     const { source, asked } = stub();
     render(page(source));
-    await waitFor(() => expect(asked).toHaveLength(4));
+    await waitFor(() => expect(asked).toHaveLength(LEADERBOARD_READS.length));
     const reads = asked.filter((u) => !u.pathname.endsWith('/leaderboard'));
-    expect(reads).toHaveLength(3);
+    expect(reads).toHaveLength(4);
     for (const url of reads) expect(url.searchParams.get('rated'), url.pathname).toBe('1');
   });
 
   it('ranks by what its chips say, and its history shows a room’s matches, then older ones', async () => {
     const { source, asked } = stub();
     render(page(source));
-    await screen.findByTestId('gs-leaderboard-rating');
-    fireEvent.click(screen.getByTestId('stats-rank-by-winrate'));
-    expect(await screen.findByTestId('gs-leaderboard-winrate')).toBeTruthy();
-    expect(screen.getByTestId('stats-rank-by-winrate').getAttribute('aria-pressed')).toBe('true');
-    expect(asked.some((u) => u.pathname.endsWith('/leaderboard') && u.searchParams.get('by') === 'winrate')).toBe(true);
+    const rankings = screen.getByTestId('stats-rankings');
+    await within(rankings).findByTestId('gs-rankings');
+    fireEvent.click(rankings.querySelector('[data-value="winrate"]')!);
+    await waitFor(() => expect(asked.some((u) => u.pathname.endsWith('/leaderboard') && u.searchParams.get('by') === 'winrate')).toBe(true));
+    expect(rankings.querySelector('[data-value="winrate"]')!.getAttribute('aria-pressed')).toBe('true');
 
-    fireEvent.click(screen.getByTestId('stats-history-show-draft'));
+    const history = screen.getByTestId('stats-history');
+    fireEvent.click(history.querySelector('[data-value="draft"]')!);
     await waitFor(() => expect(asked.at(-1)!.searchParams.getAll('match.format')).toEqual(['draft']));
-    await within(screen.getByTestId('stats-history')).findByTestId('gs-matches');
+    await within(history).findByTestId('gs-feed');
 
-    fireEvent.click(screen.getByTestId('stats-history-older'));
-    await waitFor(() => expect(within(screen.getByTestId('gs-matches')).getAllByRole('listitem')).toHaveLength(3));
+    fireEvent.click(within(history).getByTestId('gs-feed-older'));
+    await waitFor(() => expect(within(history).getByTestId('gs-feed').querySelectorAll('[data-match]')).toHaveLength(3));
     const older = asked.at(-1)!;
     expect(older.searchParams.get('before')).toBe(String(MATCHES.at(-1)!.endedAt));
     expect(older.searchParams.getAll('match.format'), 'an older page keeps the room').toEqual(['draft']);
     expect(older.searchParams.get('rated')).toBe('1');
-    expect(screen.queryByTestId('stats-history-older'), 'the last page offers no more').toBeNull();
+    expect(within(history).queryByTestId('gs-feed-older'), 'the last page offers no more').toBeNull();
   });
 
   it('finds a player by name, offering the ranked ones', async () => {
@@ -226,28 +237,32 @@ describe('the Leaderboard', () => {
 });
 
 describe('a profile', () => {
-  it('yours: its header, rating, recent matches, head to head, decks, colours and unfinished games, every read rated', async () => {
+  it('yours: its header, rating, recent matches, head to head, decks and colours, every read rated', async () => {
     const { source, asked } = stub();
     render(page(source, { tab: 'profile' }));
     expect(screen.getByTestId('stats-tab-profile').getAttribute('aria-current')).toBe('page');
-    expect((await screen.findByTestId('gs-profile-name')).textContent).toBe('Bella');
-    expect(screen.getByTestId('stats-profile').textContent, 'first of the two on the rating board').toContain('#1 of 2');
-    expect(screen.getByTestId('gs-record').textContent).toContain('1562');
+    // The header is drawn anew once its reads land, so it is found after they have.
+    await waitFor(() => expect(screen.getByTestId('stats-profile').querySelector('h2')?.textContent).toBe('Bella'));
+    const header = screen.getByTestId('stats-profile');
+    expect(header.textContent, 'first of the two on the rating board').toContain('#1 of 2');
+    expect(header.textContent).toContain('1562');
 
-    expect(await screen.findByTestId('gs-rating-chart')).toBeTruthy();
-    const recent = within(screen.getByTestId('stats-recent')).getAllByRole('listitem');
-    expect(recent).toHaveLength(2);
-    expect(within(screen.getByTestId('gs-head-to-head')).getByRole('link', { name: 'Ash' }).parentElement?.textContent).toContain('1–1');
+    expect(await within(screen.getByTestId('stats-rating')).findByTestId('gs-rating-chart')).toBeTruthy();
+    const recent = await within(screen.getByTestId('stats-recent')).findByTestId('gs-feed');
+    expect(recent.querySelectorAll('[data-match]')).toHaveLength(2);
+    const rivals = await within(screen.getByTestId('stats-head-to-head')).findByTestId('gs-h2h');
+    expect(rivals.querySelector('[data-opponent="Ash"]')?.textContent, 'every match the history holds').toContain('2–1');
 
     const decks = within(await screen.findByTestId('stats-decks-table')).getAllByRole('row').slice(1);
     expect(decks.map((r) => r.querySelector('.ct-stats-deck__name')?.textContent), 'most played first').toEqual(['Azorius Fliers', 'Mono Red', 'Cube draft r-0123456789ab']);
     expect(decks[0]!.textContent).toContain('5–2');
     const colour = within(screen.getByTestId('stats-colours')).getAllByTestId('stats-colour')[0]!;
     expect(colour.textContent).toContain('5–2 · 7 games');
-    expect(colour.querySelector('.ct-winbar__fill')?.getAttribute('style')).toContain('width: 71%');
+    expect(colour.querySelector('.gs-bar__fill')?.getAttribute('style')).toContain('width: 71%');
 
-    await waitFor(() => expect(asked).toHaveLength(5));
-    expect(readsOf(asked)).toEqual(['breakdown colors', 'breakdown deck', 'leaderboard rating', 'matches', 'profile']);
+    await waitFor(() =>
+      expect(readsOf(asked)).toEqual(['breakdown colors', 'breakdown deck', 'leaderboard rating 100', 'matches 10', 'matches 50', 'matches 50 older', 'profile']),
+    );
     for (const url of asked.filter((u) => !u.pathname.endsWith('/leaderboard'))) expect(url.searchParams.get('rated'), url.pathname).toBe('1');
   });
 
@@ -268,18 +283,21 @@ describe('a profile', () => {
     expect((await screen.findByTestId('unfinished-game')).textContent).toContain('vs Ash');
     cleanup();
     render(page(stub().source, { player: 'Ash', parked }));
-    await screen.findByTestId('gs-profile-name');
+    await waitFor(() => expect(screen.getByTestId('stats-profile').querySelector('h2')?.textContent).toBe('Ash'));
     expect(screen.queryByTestId('unfinished'), 'another player’s page lists none').toBeNull();
   });
 
   it('another player’s: headed by their name and read by it, under no tab', async () => {
     const { source, asked } = stub();
     render(page(source, { player: 'Ash' }));
-    expect((await screen.findByTestId('gs-profile-name')).textContent).toBe('Ash');
-    expect(screen.getByTestId('stats-profile').textContent).toContain('#2 of 2');
+    // The header is drawn anew once its reads land, so it is found after they have.
+    await waitFor(() => expect(screen.getByTestId('stats-profile').querySelector('h2')?.textContent).toBe('Ash'));
+    const header = screen.getByTestId('stats-profile');
+    expect(header.textContent).toContain('#2 of 2');
     for (const tab of ['leaderboard', 'profile', 'tournaments']) expect(screen.getByTestId(`stats-tab-${tab}`).getAttribute('aria-current')).toBeNull();
-    await waitFor(() => expect(asked.filter((u) => !u.pathname.endsWith('/leaderboard'))).toHaveLength(4));
+    await waitFor(() => expect(readsOf(asked.filter((u) => !u.pathname.endsWith('/leaderboard')))).toHaveLength(6));
     for (const url of asked.filter((u) => !u.pathname.endsWith('/leaderboard'))) expect(url.searchParams.get('player'), url.pathname).toBe('Ash');
+    expect(asked.filter((u) => u.pathname.endsWith('/profile')), 'the header and the own-name check are one read').toHaveLength(1);
     expect(globalThis.location.hash).toBe('');
   });
 
@@ -297,9 +315,11 @@ describe('a profile', () => {
   it('the Your profile tab warms the profile’s reads on hover', async () => {
     const { source, asked } = stub();
     render(page(source));
-    await waitFor(() => expect(asked).toHaveLength(4));
+    await waitFor(() => expect(asked).toHaveLength(LEADERBOARD_READS.length));
     fireEvent.pointerEnter(screen.getByTestId('stats-tab-profile'));
-    await waitFor(() => expect(readsOf(asked.slice(4))).toEqual(['breakdown colors', 'breakdown deck', 'matches', 'profile']));
+    await waitFor(() =>
+      expect(readsOf(asked.slice(LEADERBOARD_READS.length))).toEqual(['breakdown colors', 'breakdown deck', 'matches 10', 'matches 50', 'matches 50 older', 'profile']),
+    );
   });
 });
 
@@ -315,7 +335,7 @@ describe('the way in', () => {
   it('the lobby has already read everything the Leaderboard shows: it opens with nothing busy and nothing more asked', async () => {
     const { source, asked } = stub();
     render(lobby(source));
-    await waitFor(() => expect(asked).toHaveLength(4), { timeout: LOADED_HOST_MS });
+    await waitFor(() => expect(readsOf(asked)).toEqual(LEADERBOARD_READS), { timeout: LOADED_HOST_MS });
     await act(async () => {
       await Promise.resolve();
     });
@@ -323,8 +343,8 @@ describe('the way in', () => {
 
     render(page(source));
     expect(document.querySelectorAll('[aria-busy="true"]'), 'drawn on its first render').toHaveLength(0);
-    expect(screen.getByTestId('gs-leaderboard-rating').textContent).toContain('1562');
-    expect(asked).toHaveLength(4);
+    expect(screen.getByTestId('gs-rankings').textContent).toContain('1562');
+    expect(asked).toHaveLength(LEADERBOARD_READS.length);
   });
 });
 
@@ -360,8 +380,8 @@ describe('a viewer the store will refuse', () => {
   it('a 401 is final: each read is asked once, and neither hovering nor opening asks again', async () => {
     const { source, asked } = refusing(401, true);
     render(lobby(source));
-    await waitFor(() => expect(asked).toHaveLength(4), { timeout: LOADED_HOST_MS });
-    expect(new Set(asked.map((u) => `${u.pathname}${u.search}`)).size, 'four different reads, each once').toBe(4);
+    await waitFor(() => expect(asked).toHaveLength(LEADERBOARD_READS.length), { timeout: LOADED_HOST_MS });
+    expect(new Set(asked.map((u) => `${u.pathname}${u.search}`)).size, 'different reads, each once').toBe(LEADERBOARD_READS.length);
 
     fireEvent.pointerEnter(screen.getByTestId('lobby-stats'));
     cleanup();
@@ -370,7 +390,7 @@ describe('a viewer the store will refuse', () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(asked, 'nothing asked after the refusal').toHaveLength(4);
+    expect(asked, 'nothing asked after the refusal').toHaveLength(LEADERBOARD_READS.length);
   });
 
   it('a refusal of another kind is not final: the next read asks again', async () => {
@@ -382,14 +402,15 @@ describe('a viewer the store will refuse', () => {
 });
 
 describe('a match’s facts', () => {
-  it('name its format as a room does, its turns and how it ended', () => {
-    expect(formatLabel({ format: 'modern', pool: '2016-07-22' })).toBe('Modern 2016');
-    expect(formatLabel({ format: 'legacy', pool: 'legacy' })).toBe('Legacy');
-    expect(formatLabel({ format: 'free', pool: 'free' })).toBe('Free pick');
-    expect(formatLabel({ format: 'draft', pool: 'draft:r-1' })).toBe('Draft pod');
-    expect(formatLabel({ format: 'unknown' })).toBeNull();
-    expect(matchFacts({ ...MATCHES[0]!, attrs: { format: 'draft', endReason: 'concede' }, counters: {} })).toEqual(['Draft pod', 'Concede']);
-    expect(matchFacts({ ...MATCHES[0]!, attrs: { endReason: 'other' } })).toEqual(['9 turns']);
+  it('name its format as a room does, its era, and how it ended', () => {
+    expect(matchAttr('format', 'modern')).toBe('Modern');
+    expect(matchAttr('format', 'free')).toBe('Free pick');
+    expect(matchAttr('format', 'draft')).toBe('Draft pod');
+    expect(matchAttr('format', 'unknown')).toBeNull();
+    expect(matchAttr('pool', '2016-07-22')).toBe('2016');
+    expect(matchAttr('pool', 'draft:r-1'), 'a pod’s pool has no era').toBeNull();
+    expect(matchAttr('endReason', 'concede')).toBe('Concede');
+    expect(matchAttr('endReason', 'other')).toBeNull();
   });
 
   it('a winning deck has five games or more behind it', () => {

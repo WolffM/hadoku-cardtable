@@ -5,20 +5,18 @@
  * Leaderboard draws everyone's, the profile one player's with its record and a bar.
  */
 
-import type { StatsCache } from '@wolffm/game-stats-ui';
-import { formatRecord, formatWinRate } from '@wolffm/game-stats-ui';
+import { formatRecord, formatWinRate, StatsCard, WinBar, type StatsCache } from '@wolffm/game-stats-ui';
 import type { OutcomeTotals } from '@wolffm/prefs-client/games';
 
 import { ManaPip } from '../components/ManaPip.tsx';
-import { StatsCard, WinBar } from './card.tsx';
-import type { Breakdown, StatsRead } from './source.ts';
+import { loaded, type Breakdown, type StatsRead } from './source.ts';
 
 const PIE = ['W', 'U', 'B', 'R', 'G'] as const;
 const NO_GAMES: OutcomeTotals = { games: 0, wins: 0, losses: 0, draws: 0 };
 
 export function Colours({ read, cache, detailed = false, testId }: { read: StatsRead<Breakdown>; cache: StatsCache; detailed?: boolean; testId: string }) {
   return (
-    <StatsCard title="Colours" read={read} cache={cache} isEmpty={(b) => b.rows.length === 0} testId={testId}>
+    <StatsCard title="Colours" {...loaded(read)} cache={cache} isEmpty={(b) => b.rows.length === 0} testId={testId}>
       {(b) => {
         const byColour = new Map(b.rows.map((row) => [row.value, row]));
         return (

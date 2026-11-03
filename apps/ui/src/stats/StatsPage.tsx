@@ -9,10 +9,10 @@
  * (`./source.ts`), so a tab opens drawn and refreshes behind what it shows — for a signed-in
  * viewer only, and never again after a refusal (`signedInStatsClient`).
  *
- * The rankings, match histories, profile header, rating chart and head to head are
- * `@wolffm/game-stats-ui`'s, shared by every hadoku game (`./slots.tsx` until they ship). The
- * Magic is here: pips, decks and their lists on hover (`./StatsDecks.tsx`), colours
- * (`./Colours.tsx`), and a match's format and turns (`./magic.tsx`).
+ * The rankings, match feeds, profile header, rating line and head to head are
+ * `@wolffm/game-stats-ui`'s, shared by every hadoku game, and so is the card every section is
+ * drawn in. The Magic is here: pips, decks and their lists on hover (`./StatsDecks.tsx`), colours
+ * (`./Colours.tsx`), and a match's format, era, turns and ending (`./magic.tsx`).
  */
 
 import { useId, useMemo, useState, type FormEvent } from 'react';
@@ -80,7 +80,7 @@ export function StatsPage({ tab, player, source = sharedSource(), decks, parked 
       </HomeHead>
       <main className="ct-stats__body">
         {current === 'tournaments' ? (
-          <section className="ct-stats__card" aria-label="Tournaments">
+          <section className="gs-card ct-stats__tournaments" aria-label="Tournaments">
             {/* TODO: the tournament bracket view. The operator, 2026-11-02: "i'd prefer a nice bracket view … there is
                 another session working on rebuilding that so hold off on the tournament view for now". Until that
                 rebuild lands, this tab keeps the standings list it always had, so players still see past results. */}

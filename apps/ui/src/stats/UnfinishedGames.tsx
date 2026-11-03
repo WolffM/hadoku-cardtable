@@ -112,15 +112,20 @@ export function UnfinishedGames({
   }
   if (games === null || games.length === 0) return null;
   return (
-    <section className="ct-stats__card ct-unfinished" data-testid="unfinished" aria-labelledby="ct-unfinished-title">
-      <h2 id="ct-unfinished-title" className="ct-stats__card-title">
-        Unfinished games
-      </h2>
-      <ul className="ct-unfinished__list">
-        {games.map((game) => (
-          <UnfinishedGame key={game.matchId} game={game} resume={resume} />
-        ))}
-      </ul>
+    <section className="gs-card ct-unfinished" data-testid="unfinished" aria-labelledby="ct-unfinished-title">
+      {/* The page's other cards are `@wolffm/game-stats-ui`'s; this one wears their classes, and is gone when there is nothing in it. */}
+      <div className="gs-card__head">
+        <h2 id="ct-unfinished-title" className="gs-card__title">
+          Unfinished games
+        </h2>
+      </div>
+      <div className="gs-card__body">
+        <ul className="ct-unfinished__list">
+          {games.map((game) => (
+            <UnfinishedGame key={game.matchId} game={game} resume={resume} />
+          ))}
+        </ul>
+      </div>
     </section>
   );
 }
