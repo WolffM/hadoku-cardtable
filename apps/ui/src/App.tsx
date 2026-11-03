@@ -122,7 +122,7 @@ function placeOfMatch(room: RoomView | null, matchId: string): RoomPlace | null 
   return room === null ? null : { roomId: room.id, chatId: tableChatId(room, matchId) };
 }
 
-function useMatchRoomId(matchId: string | null): { room: RoomPlace | null; pending: boolean } {
+export function useMatchRoomId(matchId: string | null): { room: RoomPlace | null; pending: boolean } {
   const [state, setState] = useState<{ room: RoomPlace | null; everAnswered: boolean }>({ room: null, everAnswered: false });
   // A match entered from its room had its room asked before the route changed (`matchStart.ts`):
   // the board then draws in the route's first frame, with no empty one while this asks again.
