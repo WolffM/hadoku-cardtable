@@ -840,7 +840,7 @@ describe('DeckScreen', () => {
 
     it('to the room while somebody else is still building', async () => {
       const { store } = stubStore({ pool: POOL, deck: savedWith(POOL, 23, { Plains: 17 }) });
-      vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response('{}', { status: 200 }));
       const rooms = { get: async () => roomAt('building') } as unknown as RoomsClient;
       render(createElement(DeckScreen, { draftId: DRAFT_ID, store, rooms, client: stubApi({ check: () => legal }).client, checkDelayMs: 0 }));
       await screen.findByTestId('deck-editor');
@@ -852,7 +852,8 @@ describe('DeckScreen', () => {
 
   it('Play stays on the build and says why when the pod refuses it', async () => {
     const { store } = stubStore({ pool: POOL, deck: savedWith(POOL, 23, { Plains: 17 }) });
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: 'your deck is not saved and legal yet' }), { status: 409 }));
+    // A Response per request, as a server sends: a body is read once, and the pod's own read of the room comes first.
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ error: 'your deck is not saved and legal yet' }), { status: 409 }));
     render(createElement(DeckScreen, { draftId: DRAFT_ID, store, client: stubApi({ check: () => legal }).client, checkDelayMs: 0 }));
     await screen.findByTestId('deck-editor');
     await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
