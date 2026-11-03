@@ -148,6 +148,13 @@ export function glintCard(overlay: HTMLElement, face: Element, change: PTChange,
   el.style.height = `${r.height}px`;
   const card = face.querySelector('.card') ?? face;
   el.style.borderRadius = getComputedStyle(card).borderRadius;
+  // The rim is a still window; only the comet inside it moves (`pt-impact.css`), so the browser composites it.
+  const rim = overlay.ownerDocument.createElement('span');
+  rim.className = 'pt-glint__rim';
+  const comet = overlay.ownerDocument.createElement('span');
+  comet.className = 'pt-glint__comet';
+  rim.append(comet);
+  el.append(rim);
   markTempo(el, tempo);
   overlay.append(el);
   after(() => el.remove(), PT_IMPACT_MS / tempo);

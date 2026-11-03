@@ -89,6 +89,11 @@
  * travelled, cooling from the hot core through the flame to smoke. Centred on the path: `translate`
  * is always `-50% -50%` plus the drift, never the drift alone (v3's bug — the drift replaced the
  * centring, so every ember sat half its own size down-right of the path it was meant to follow).
+ *
+ * The cooling is three fixed looks faded into one another, never a gradient that changes: the ember
+ * itself is the smoke, `::after` the flame over it, `::before` the hot core over both, and only their
+ * opacity moves. An animated `background` is restyled, repainted and re-rastered every frame on the
+ * main thread for every ember in flight; opacity runs on the compositor.
  */
 .effect-trail {
   position: absolute;
@@ -97,17 +102,43 @@
   translate: -50% -50%;
   border-radius: 50%;
   pointer-events: none;
-  background: radial-gradient(circle, var(--bolt-core) 0 18%, var(--bolt) 45%, color-mix(in srgb, var(--bolt-rim) 60%, transparent) 70%, transparent 72%);
-  animation: effect-trail-cool calc(420ms / var(--tempo, 1)) linear forwards;
+  background: radial-gradient(circle, color-mix(in srgb, var(--smoke) 60%, transparent) 0 30%, transparent 72%);
 }
 
-@keyframes effect-trail-cool {
+.effect-trail::before,
+.effect-trail::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.effect-trail::before {
+  z-index: 1;
+  background: radial-gradient(circle, var(--bolt-core) 0 18%, var(--bolt) 45%, color-mix(in srgb, var(--bolt-rim) 60%, transparent) 70%, transparent 72%);
+  animation: effect-trail-hot calc(420ms / var(--tempo, 1)) linear forwards;
+}
+
+.effect-trail::after {
+  background: radial-gradient(circle, var(--bolt) 0 20%, color-mix(in srgb, var(--bolt-rim) 70%, transparent) 55%, transparent 72%);
+  opacity: 0;
+  animation: effect-trail-flame calc(420ms / var(--tempo, 1)) linear forwards;
+}
+
+@keyframes effect-trail-hot {
+  60%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes effect-trail-flame {
   60% {
-    background: radial-gradient(circle, var(--bolt) 0 20%, color-mix(in srgb, var(--bolt-rim) 70%, transparent) 55%, transparent 72%);
+    opacity: 1;
   }
 
   100% {
-    background: radial-gradient(circle, color-mix(in srgb, var(--smoke) 60%, transparent) 0 30%, transparent 72%);
+    opacity: 0;
   }
 }
 

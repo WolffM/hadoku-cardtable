@@ -20,12 +20,30 @@
   --glint: var(--danger);
 }
 
-.pt-glint::before {
-    content: '';
+/*
+ * The rim: a still window onto the border, the element's box masked to a thin ring. The comet runs inside it
+ * by `translate` (a strip twice the card's height, its middle on one edge at the start and on the other at the
+ * end) and fades by `opacity`, both on the compositor. Sliding the strip's `background-position` instead
+ * repainted and re-rastered the rim on every frame.
+ */
+.pt-glint__rim {
   position: absolute;
   inset: 0;
   padding: 1.5px;
   border-radius: inherit;
+  overflow: hidden;
+  mask:
+    linear-gradient(currentColor 0 0) content-box,
+    linear-gradient(currentColor 0 0);
+  mask-composite: exclude;
+}
+
+.pt-glint__comet {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 200%;
   background: linear-gradient(
     to bottom,
     transparent 0 40%,
@@ -35,18 +53,12 @@
     color-mix(in srgb, var(--glint) 20%, transparent) 53%,
     transparent 60% 100%
   );
-  /* A strip twice the card's height: its middle sits on one edge at the start and the other at the end. */
-  background-size: 100% 200%;
-  mask:
-    linear-gradient(currentColor 0 0) content-box,
-    linear-gradient(currentColor 0 0);
-  mask-composite: exclude;
   animation:
     pt-glint-up calc(var(--pt-impact-ms, 950ms) / var(--tempo, 1)) cubic-bezier(0.25, 0.75, 0.35, 1) both,
     pt-glint-out calc(var(--pt-impact-ms, 950ms) / var(--tempo, 1)) linear both;
 }
 
-.pt-glint[data-pt-glint='down']::before {
+.pt-glint[data-pt-glint='down'] .pt-glint__comet {
   background: linear-gradient(
     to top,
     transparent 0 40%,
@@ -56,26 +68,25 @@
     color-mix(in srgb, var(--glint) 20%, transparent) 53%,
     transparent 60% 100%
   );
-  background-size: 100% 200%;
   animation-name: pt-glint-down, pt-glint-out;
 }
 
-/* Position 0% shows the strip's top half, its middle on the card's bottom edge; 100% its bottom half, the middle on the top edge. */
+/* At the start the box shows the strip's top half, its middle on the card's bottom edge; at the end its bottom half, the middle on the top edge. */
 @keyframes pt-glint-up {
   0% {
-    background-position: 0 0%;
+    translate: 0 0;
   }
   100% {
-    background-position: 0 100%;
+    translate: 0 -50%;
   }
 }
 
 @keyframes pt-glint-down {
   0% {
-    background-position: 0 100%;
+    translate: 0 -50%;
   }
   100% {
-    background-position: 0 0%;
+    translate: 0 0;
   }
 }
 
@@ -91,7 +102,8 @@
 }
 
 /* Reduced motion: the border lights faintly and fades, nothing runs along it. */
-.pt-glint[data-pt-glint-reduced]::before {
+.pt-glint[data-pt-glint-reduced] .pt-glint__comet {
+  height: 100%;
   background: color-mix(in srgb, var(--glint) 50%, transparent);
   animation: pt-glint-fade calc(var(--pt-impact-ms, 950ms) / var(--tempo, 1)) linear both;
 }
