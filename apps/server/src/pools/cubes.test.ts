@@ -21,7 +21,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
-import { afterAll, afterEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { CubeSummary, DraftCard, PoolVerdict } from '@hadoku/shared';
 import { attachCubeRoutes, createCubeStore, CubeStoreRefusal, type CubeStore } from './cubes.ts';
@@ -54,6 +54,7 @@ const OK_CHECK = async (cards: readonly DraftCard[]): Promise<PoolVerdict> => ({
 const dirs: string[] = [];
 
 afterEach(async () => {
+	vi.restoreAllMocks();
 	for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true });
 });
 
@@ -425,6 +426,43 @@ describe('attachCubeRoutes', () => {
 		expect(arts.length).toBe(Math.min(3, own.size));
 		for (const id of arts) expect(own.has(id)).toBe(true);
 		expect((await call(base, 'GET', '/api/pools/cubes/nope/arts', 'alice')).status).toBe(404);
+	});
+
+	it("GET :id/cards serializes a cube's cards once per version: the same bytes and ETag again, 304 on a match, new ones after a refresh", async () => {
+		const { shortlistDir, importDir } = await makeDirs();
+		const fixture = (await readFixture()) as { name: string; cards: { mainboard: unknown[] } };
+		let current: unknown = fixture;
+		const store = createCubeStore({ shortlistDir, importDir, catalog: EMPTY_CATALOG, fetchJson: async () => current });
+		const base = await openApp(store);
+		const { id } = (await call(base, 'POST', '/api/pools/cubes/import', 'alice', { link: 'lsv-cube-fixture' })).json as CubeSummary;
+		const url = `${base}/api/pools/cubes/${id}/cards`;
+		const headers = { 'x-user-id': 'dev-alice', 'x-user-key': 'fk:alice' };
+		const stringify = vi.spyOn(JSON, 'stringify');
+		/** How many times this cube's current card list has been serialized. */
+		const serialized = (): number => stringify.mock.calls.filter(([value]) => value === store.cards(id)).length;
+
+		const first = await fetch(url, { headers });
+		const body = await first.text();
+		const etag = first.headers.get('etag');
+		expect([first.status, (JSON.parse(body) as DraftCard[]).length, etag]).toEqual([200, 36, expect.any(String)]);
+		const second = await fetch(url, { headers });
+		expect([second.status, await second.text(), second.headers.get('etag')]).toEqual([200, body, etag]);
+		// A browser's revalidation: undici's fetch adds `cache-control: no-cache` to a conditional request otherwise.
+		const revalidate = { ...headers, 'if-none-match': etag!, 'cache-control': 'max-age=0' };
+		const unchanged = await fetch(url, { headers: revalidate });
+		expect(unchanged.status).toBe(304);
+		expect(serialized()).toBe(1);
+
+		current = { name: 'Refreshed', cards: { mainboard: fixture.cards.mainboard.slice(0, 4) } };
+		expect((await call(base, 'POST', `/api/pools/cubes/${id}/refresh`, 'bob')).status).toBe(200);
+		const refreshed = await fetch(url, { headers: revalidate });
+		expect(refreshed.status).toBe(200);
+		expect(refreshed.headers.get('etag')).not.toBe(etag);
+		expect(((await refreshed.json()) as DraftCard[]).length).toBe(4);
+		expect(serialized()).toBe(1);
+
+		expect((await call(base, 'DELETE', `/api/pools/cubes/${id}`, 'alice')).status).toBe(204);
+		expect((await fetch(url, { headers })).status).toBe(404);
 	});
 
 	it('GET :id/cards is 404 for an unknown id', async () => {
