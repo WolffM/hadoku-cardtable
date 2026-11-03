@@ -569,8 +569,12 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   const timers = new Set<ReturnType<typeof setTimeout>>();
   /** When each stack item was first drawn here — a reveal shown after it was put there is its reveal. */
   const firstSeen = new Map<number, number>();
-  /** Where each stack item was drawn as of the last view (`placed.ts`'s cards): a resolved one is gone from there by the next. */
-  const stackBoxes = new Map<number, DOMRect>();
+  /**
+   * Each stack item's card as of the last commit (`placed.ts`'s cards): a resolved one is gone from there by the next.
+   * Its box is read only when its effects need a source: `notify` runs before `placed.ts` draws the new view, so the
+   * card is still where it was, and a commit that resolves nothing forces no layout.
+   */
+  const stackCards = new Map<number, Element>();
   /** The marks a beat put on a row card or a face, cleared on dispose. */
   const marked = new Set<Element>();
   /** How many instances of each thing this turn has drawn (`./tempo.ts`): each view's tempo. */
@@ -771,7 +775,9 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   function sourceOf(item: StackEntry | undefined): Boxed | null {
     if (item === undefined) return null;
     const onField = item.sourceCardId === null ? null : battlefieldCard(canvas, item.sourceCardId);
-    return onField ?? stackBoxes.get(item.id) ?? null;
+    if (onField !== null) return onField;
+    const drawn = stackCards.get(item.id);
+    return drawn?.isConnected === true ? drawn.getBoundingClientRect() : null;
   }
 
   /** Where a revealed card is drawn now: in the reveal notice when it has one, else in its own zone on the board. */
@@ -1480,10 +1486,10 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     const ids = new Set(view.stack.map((item) => item.id));
     for (const id of ids) if (!firstSeen.has(id)) firstSeen.set(id, now);
     for (const id of [...firstSeen.keys()]) if (!ids.has(id)) firstSeen.delete(id);
-    stackBoxes.clear();
-    for (const el of canvas.querySelectorAll<HTMLElement>('[data-placed-spell]:not([data-placed-leaving])')) {
+    stackCards.clear();
+    for (const el of canvas.querySelectorAll('[data-placed-spell]:not([data-placed-leaving])')) {
       const id = Number(el.getAttribute('data-placed-spell'));
-      if (Number.isFinite(id)) stackBoxes.set(id, el.getBoundingClientRect());
+      if (Number.isFinite(id)) stackCards.set(id, el);
     }
   }
 
