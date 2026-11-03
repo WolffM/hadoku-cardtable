@@ -260,6 +260,23 @@ test(titled('declaring blockers: the dock is as tall as its question, covers no 
     expect.soft(sheetGrip, 'one grip, the dock handle’s: the sheet draws no second one').toBe('none');
     expect(await boardLanes(alice.page).count(), 'the four board lanes are drawn').toBe(4);
     await expectBoardLanesClear(alice.page);
+    // The attackers it asks about are whole inside their own lane: a turned card is drawn on the
+    // middle of the footprint an upright card takes there (cards hang from the lane's top), never
+    // pushed past the lane's edge.
+    const attackers = await alice.page.locator('[data-testid^="lane-"] > li.board-card[data-attacking]').evaluateAll((els) =>
+      els.map((el) => {
+        const face = el.querySelector('.board-card__face')!.getBoundingClientRect();
+        const lane = el.parentElement!.getBoundingClientRect();
+        return { faceTop: face.top, faceBottom: face.bottom, faceWidth: face.width, laneTop: lane.top, laneBottom: lane.bottom };
+      }),
+    );
+    expect(attackers.length, 'w54-b attacks with two creatures').toBe(2);
+    for (const a of attackers) {
+      expect.soft(a.faceTop, 'an attacker is inside its lane, top').toBeGreaterThanOrEqual(a.laneTop - 0.5);
+      expect.soft(a.faceBottom, 'an attacker is inside its lane, bottom').toBeLessThanOrEqual(a.laneBottom + 0.5);
+      const uprightMiddle = a.laneTop + (a.faceWidth * 680) / 488 / 2;
+      expect.soft(Math.abs((a.faceTop + a.faceBottom) / 2 - uprightMiddle), 'on the middle of an upright card’s footprint').toBeLessThanOrEqual(2);
+    }
     // It stands on the action bar, which stays on the bottom edge, uncovered.
     const dockBox = (await dock(alice.page).boundingBox())!;
     const barBox = (await alice.page.getByTestId('action-bar').boundingBox())!;

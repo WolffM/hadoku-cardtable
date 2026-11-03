@@ -321,6 +321,18 @@
 :root[data-layout='portrait'] [data-testid$='-lands'] > .board-card:is([data-tapped]:not([data-untapped-pending]), [data-tapped-pending]) {
   margin-block: 0;
 }
+
+/*
+ * A creature's quarter-turn (tapped, or attacking without vigilance) keeps `card.css`'s centring
+ * step, sized from the card. `card.css` writes the step as a percentage, which resolves against the
+ * containing block's width: on desktop the card's own grid column, in a portrait lane the whole lane
+ * (~356px against a ~110px card). Each step came out ~120px, the turned card's margin box (~317px)
+ * overflowed its lane, the lane aligned it from its top instead, and the card sat low: at declare
+ * blockers the attackers ran 8px past their lane's bottom edge, clipped (measured in real portrait).
+ */
+:root[data-layout='portrait'] [data-testid$='-permanents'] > .board-card:is([data-tapped]:not([data-untapped-pending]), [data-tapped-pending], [data-attacking]:not([data-vigilant])) {
+  margin-block: calc((680 / 488 - 488 / 680) / 2 * (var(--card-w) - var(--pile-fan)));
+}
 :root[data-layout='portrait'] [data-testid$='-lands'] > .board-card:is([data-tapped]:not([data-untapped-pending]), [data-tapped-pending]) > .board-card__pile {
   margin-top: 0;
 }
