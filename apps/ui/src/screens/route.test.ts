@@ -31,7 +31,8 @@ describe('parseRoute', () => {
     expect(parseRoute('#/ui')).toEqual({ kind: 'ui' });
     expect(parseRoute('#/stats')).toEqual({ kind: 'stats' });
     expect(parseRoute('#/stats/Bella')).toEqual({ kind: 'stats', player: 'Bella' });
-    expect(parseRoute('#/tournaments')).toEqual({ kind: 'stats', tournaments: true });
+    expect(parseRoute('#/profile')).toEqual({ kind: 'stats', tab: 'profile' });
+    expect(parseRoute('#/tournaments')).toEqual({ kind: 'stats', tab: 'tournaments' });
     expect(parseRoute('#/room/r-1a2b3c4d5e6f')).toEqual({ kind: 'room', roomId: 'r-1a2b3c4d5e6f' });
     expect(parseRoute('#/deck/friday-cube')).toEqual({ kind: 'deck', draftId: 'friday-cube' });
     expect(parseRoute('#/decks')).toEqual({ kind: 'decks' });
@@ -83,7 +84,8 @@ describe('parseRoute', () => {
       { kind: 'room', roomId: 'r-friday-k7q4', tableId: 't-13a1e8f3' },
       { kind: 'stats' },
       { kind: 'stats', player: 'Bella Two' },
-      { kind: 'stats', tournaments: true },
+      { kind: 'stats', tab: 'profile' },
+      { kind: 'stats', tab: 'tournaments' },
       { kind: 'decks' },
       { kind: 'decks', draftId: 'r-friday' },
       { kind: 'inventory' },

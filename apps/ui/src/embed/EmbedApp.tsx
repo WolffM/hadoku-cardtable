@@ -37,7 +37,7 @@
  * ## Routes
  *
  * In memory (`routeInMemory`, set up by `./index.tsx`), never the page's hash.
- * The routes that are not a table — the room list, the stats popout over it,
+ * The routes that are not a table — the room list, the stats page,
  * the format picker, the sound tools — go to the bound room
  * instead: in a watchparty room there is exactly one table, and "back to the
  * lobby" means it.

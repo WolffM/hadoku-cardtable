@@ -1,5 +1,5 @@
 /*
- * The viewer's unfinished games, in the stats popout: every game they walked away from that the
+ * The viewer's unfinished games, on Your profile: every game they walked away from that the
  * server parked (`apps/server/src/play/parked.ts`), newest first, each one picked up again from
  * here. The operator, 2026-11-02: *"resuming parked games, i would expect that to happen from a
  * player's match history. resuming then means creating a new room and reconstructing the game from
@@ -13,7 +13,6 @@ import { z } from 'zod';
 
 import { apiUrl, bodyOf, getJson, sendJson, serverMessage, type Fetch } from '../http.ts';
 import { navigate } from '../screens/route.ts';
-import './UnfinishedGames.css';
 
 const ParkedGameSchema = z.object({
   matchId: z.string(),
@@ -53,7 +52,6 @@ function UnfinishedGame({ game, resume }: { game: ParkedGame; resume: (matchId: 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const others = game.seats.filter((s) => !s.you);
-  const decks = game.seats.map((s) => s.deck).filter((d): d is string => d !== null);
   const go = (): void => {
     setBusy(true);
     setError(null);
@@ -68,15 +66,13 @@ function UnfinishedGame({ game, resume }: { game: ParkedGame; resume: (matchId: 
   return (
     <li className="ct-unfinished__game" data-testid="unfinished-game">
       <div className="ct-unfinished__what">
-        <span className="ct-unfinished__who">{others.map((s) => s.name).join(', ')}</span>
+        <span className="ct-unfinished__who">{`vs ${others.map((s) => s.name).join(', ')}`}</span>
         <span className="ct-unfinished__detail">
-          {[decks.join(' vs '), game.format, `Turn ${game.turn}`].filter((part) => part !== '').join(' · ')}
+          {`${game.format} · Turn ${game.turn} · `}
+          <time dateTime={game.parkedAt}>{WHEN.format(new Date(game.parkedAt))}</time>
         </span>
-        <time className="ct-unfinished__when" dateTime={game.parkedAt}>
-          {WHEN.format(new Date(game.parkedAt))}
-        </time>
       </div>
-      <button type="button" className="lobby__go" data-testid="unfinished-resume" disabled={busy} onClick={go}>
+      <button type="button" className="lobby__go ct-unfinished__go" data-action={game.resumed === null ? 'resume' : 'join'} data-testid="unfinished-resume" disabled={busy} onClick={go}>
         {game.resumed === null ? 'Resume' : 'Join'}
       </button>
       {error !== null && (
@@ -88,7 +84,13 @@ function UnfinishedGame({ game, resume }: { game: ParkedGame; resume: (matchId: 
   );
 }
 
-export function UnfinishedGames({ load = fetchParked, resume = resumeParked }: { load?: () => Promise<ParkedGame[]>; resume?: (matchId: string) => Promise<ResumedAt> }) {
+export function UnfinishedGames({
+  load = fetchParked,
+  resume = resumeParked,
+}: {
+  load?: (() => Promise<ParkedGame[]>) | undefined;
+  resume?: (matchId: string) => Promise<ResumedAt>;
+}) {
   const [games, setGames] = useState<ParkedGame[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -110,8 +112,8 @@ export function UnfinishedGames({ load = fetchParked, resume = resumeParked }: {
   }
   if (games === null || games.length === 0) return null;
   return (
-    <section className="ct-unfinished" data-testid="unfinished" aria-labelledby="ct-unfinished-title">
-      <h2 id="ct-unfinished-title" className="ct-unfinished__title">
+    <section className="ct-stats__card ct-unfinished" data-testid="unfinished" aria-labelledby="ct-unfinished-title">
+      <h2 id="ct-unfinished-title" className="ct-stats__card-title">
         Unfinished games
       </h2>
       <ul className="ct-unfinished__list">

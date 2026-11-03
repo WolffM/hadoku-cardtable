@@ -44,7 +44,7 @@
  * then): started early, it fetched a replay and then threw it away for the live match.
  */
 
-import { Suspense, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Banner } from '../front/Banner.tsx';
 import { FrontGateContext, useFrontGateState } from '../front/gate.ts';
@@ -53,8 +53,8 @@ import type { FeaturedPick, RoomsClient } from '../rooms/api.ts';
 import type { RoomFeed } from '../rooms/feed.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import { useSiteTrim } from '../settings/siteTrim.ts';
-import { StatsButton, StatsPopout } from '../stats/StatsButton.tsx';
-import type { StatsSource } from '../stats/StatsPopout.tsx';
+import { StatsButton } from '../stats/StatsButton.tsx';
+import type { StatsSource } from '../stats/source.ts';
 import { DecksButton } from './DecksButton.tsx';
 import { InventoryButton } from './InventoryButton.tsx';
 import { useChromeShell } from '../chrome/shell.ts';
@@ -64,13 +64,11 @@ export interface LobbyScreenProps {
   rooms?: RoomsClient;
   /** Tests pass their own room feed. Production passes nothing. */
   feed?: RoomFeed;
-  /** `#/stats[/<name>]`: the stats popout is open over the lobby, for this player (absent, the viewer). */
-  stats?: { player?: string; tournaments?: boolean };
   /** Tests pass a stats client over a stubbed fetch. Production passes nothing. */
   statsSource?: StatsSource;
 }
 
-export function LobbyScreen({ rooms, feed, stats, statsSource }: LobbyScreenProps) {
+export function LobbyScreen({ rooms, feed, statsSource }: LobbyScreenProps) {
   const shellRef = useChromeShell('fit');
   /** The server's pick for the live slot; `undefined` until the first room list has answered. */
   const [featured, setFeatured] = useState<FeaturedPick | null | undefined>(undefined);
@@ -105,10 +103,6 @@ export function LobbyScreen({ rooms, feed, stats, statsSource }: LobbyScreenProp
         Unofficial fan project, not affiliated with or endorsed by Wizards of the Coast. Card names, text and images
         are ™ &amp; © Wizards of the Coast.
       </p>
-      {/* Its own boundary: the popout's chunk loading must not take the lobby under it away. */}
-      <Suspense fallback={null}>
-        {stats !== undefined && <StatsPopout player={stats.player} tournaments={stats.tournaments === true} source={statsSource} />}
-      </Suspense>
     </div>
   );
 }

@@ -33,7 +33,7 @@ import { DeleteConfirm } from './DeckManage.tsx';
 import { NO_DECK_FILTER, deckPasses, type DeckFilter } from './deckFilter.ts';
 import { navigate } from './route.ts';
 import type { DeckRecords } from '../stats/deckOrder.ts';
-import { fetchDeckRecords } from '../stats/StatsPopout.tsx';
+import { fetchDeckRecords } from '../stats/source.ts';
 import { HomeHead } from './HomeHead.tsx';
 import { useChromeShell } from '../chrome/shell.ts';
 import './DecksScreen.css';

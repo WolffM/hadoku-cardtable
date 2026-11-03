@@ -1,77 +1,562 @@
 /*
- * The stats popout (`StatsPopout.tsx`): a wide fixed panel over a dimmed
- * lobby. Its width is its own, so `@wolffm/game-stats-ui`'s auto-fit grid has
- * room for two or three columns instead of shrinking to one.
+ * The stats page (`StatsPage.tsx`): its head's tabs and player search, then cards in rows that
+ * wrap — a wide main card beside a narrow side column — down to one column on a phone.
+ *
+ * This sheet sits ahead of `screens/screens.css` in the one stylesheet (`../../stylesheet.ts`),
+ * so a rule here that restyles a shared block (the deck filter's chips) is written under
+ * `.ct-stats`, which out-ranks the block's own.
  */
 
-.ct-stats-popout__backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-modal, 50);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  background: color-mix(in srgb, var(--color-bg) 70%, transparent);
+.ct-stats.shell {
+  max-width: 1248px;
 }
 
-.ct-stats-popout {
+.ct-stats__body {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  width: min(1280px, 100%);
-  max-height: 100%;
-  overflow-y: auto;
-  padding: 20px 24px 24px;
-  background: var(--color-bg);
+  gap: 24px;
 }
 
-.ct-stats-popout:focus {
-  outline: none;
-}
+/* ── the head ─────────────────────────────────────────────────────── */
 
-.ct-stats-popout__head {
+.ct-stats__tabs {
   display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.ct-stats-popout__title {
-  margin: 0;
-  font-size: 24px;
-  letter-spacing: -0.01em;
-}
-
-.ct-stats-popout__close {
-  display: inline-flex;
-  margin-left: auto;
-  padding: 6px;
-  border-radius: var(--hdk-radius-sm);
-  color: var(--color-text-secondary);
-}
-
-.ct-stats-popout__close:hover,
-.ct-stats-popout__close:focus-visible {
-  color: var(--color-text);
-}
-
-/* The popout's two tabs: the players' boards and the past tournaments. */
-.ct-stats-popout__tabs {
-  display: flex;
+  flex-wrap: wrap;
   gap: 4px;
+  padding: 4px;
+  border-radius: var(--hdk-radius);
+  background: var(--color-bg-alt);
 }
 
-.ct-stats-popout__tab {
-  padding: 4px 10px;
+.ct-stats__tab,
+.ct-stats__tab:visited {
+  padding: 7px 14px;
   border-radius: var(--hdk-radius-sm);
-  color: var(--color-text-secondary);
+  color: var(--ink-dim);
   text-decoration: none;
 }
 
-.ct-stats-popout__tab[aria-current='page'] {
-  background: var(--color-bg-card);
-  color: var(--color-text);
+.ct-stats__tab:hover {
+  color: var(--ink);
 }
+
+.ct-stats__tab[aria-current='page'] {
+  background: var(--bg-raised);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px var(--shadow);
+}
+
+.ct-stats__tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.ct-stats__find {
+  display: flex;
+  margin: 0;
+}
+
+/* A search box with its magnifier inside: the head's player search, and the Decks filter's. */
+.ct-stats__search,
+.ct-stats .deckfilter__find {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--hdk-radius);
+  background: var(--bg);
+  color: var(--ink-faint);
+}
+
+.ct-stats__search {
+  min-width: min(220px, 100%);
+}
+
+.ct-stats__search:focus-within,
+.ct-stats .deckfilter__find:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.ct-stats__search input,
+.ct-stats .deckfilter__find .deckfilter__search {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+/* ── the rows and their cards ─────────────────────────────────────── */
+
+.ct-stats__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.ct-stats__main {
+  flex: 999 1 560px;
+  min-width: 0;
+}
+
+.ct-stats__side {
+  display: flex;
+  flex: 1 1 320px;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+.ct-stats__card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 18px 20px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  background: var(--bg-raised);
+  color: var(--ink);
+}
+
+/* Rows edge to edge: the head keeps the inset, the rows draw their own. */
+.ct-stats__card--flush {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.ct-stats__card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.ct-stats__card--flush > .ct-stats__card-head {
+  padding: 18px 20px 14px;
+}
+
+.ct-stats__card-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.ct-stats__card-sub {
+  color: var(--ink-faint);
+  font-size: 13px;
+}
+
+.ct-stats__note {
+  margin: 0;
+  color: var(--ink-dim);
+}
+
+.ct-stats__pending {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ct-stats__card--flush > :is(.ct-stats__note, .ct-stats__pending) {
+  padding: 0 20px 18px;
+}
+
+.ct-stats__profile {
+  padding: 22px 24px;
+}
+
+/* ── pill chips: what a board ranks by, which matches a feed shows ── */
+
+.ct-stats__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.ct-stats__chip,
+.ct-stats .deckfilter__chip {
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  opacity: 1;
+}
+
+.ct-stats__chip:hover,
+.ct-stats .deckfilter__chip:hover {
+  color: var(--ink);
+}
+
+.ct-stats__chip[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.ct-stats__chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* The Decks filter: its chips toggle, so a pressed one is tinted rather than filled. */
+.ct-stats .deckfilter {
+  gap: 8px 12px;
+}
+
+.ct-stats .deckfilter__set {
+  gap: 6px;
+}
+
+.ct-stats .deckfilter__set + .deckfilter__set {
+  padding-left: 12px;
+  border-left: 1px solid var(--color-border-light);
+}
+
+.ct-stats .deckfilter__chip[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--color-primary-bg);
+  color: var(--color-on-primary-bg);
+  font-weight: 600;
+}
+
+.ct-stats .deckfilter__chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ct-stats .deckfilter__find {
+  flex: 0 1 220px;
+  height: 34px;
+  margin-left: auto;
+}
+
+.ct-decks .ct-stats__card-head > .deckfilter {
+  flex: 1 1 auto;
+}
+
+/* ── tables ───────────────────────────────────────────────────────── */
+
+.ct-stats__scroll {
+  overflow-x: auto;
+}
+
+.ct-stats__table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.ct-stats__table th {
+  padding: 8px 12px;
+  color: var(--ink-faint);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.ct-stats__table td {
+  padding: 11px 12px;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.ct-stats__table :is(th, td):first-child {
+  padding-left: 20px;
+}
+
+.ct-stats__table :is(th, td):last-child {
+  padding-right: 20px;
+}
+
+.ct-stats__table .ct-stats__num {
+  color: var(--ink-dim);
+  text-align: right;
+}
+
+.ct-stats__table .ct-stats__rate {
+  width: 200px;
+}
+
+.ct-stats__more {
+  display: flex;
+  justify-content: center;
+  padding: 12px 20px;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.ct-stats__more-button {
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--hdk-radius);
+  background: var(--bg-raised);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ct-stats__more-button:disabled {
+  opacity: 0.5;
+}
+
+/* ── win rates ────────────────────────────────────────────────────── */
+
+.ct-winbar {
+  display: block;
+  flex: 1;
+  min-width: 40px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--color-bg-alt);
+}
+
+.ct-winbar__fill {
+  display: block;
+  height: 100%;
+  background: var(--success);
+}
+
+.ct-winrate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ct-winrate__pct {
+  width: 40px;
+  font-weight: 600;
+  text-align: right;
+}
+
+/* ── decks: a row's name, the Leaderboard's winners ──────────────── */
+
+.ct-stats-deck {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ct-stats-deck__name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ct-windecks {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.ct-windecks__deck {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ct-windecks__line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ct-windecks__line > .ct-stats-deck {
+  flex: 1;
+}
+
+.ct-windecks__pct {
+  font-weight: 700;
+}
+
+.ct-windecks__games {
+  width: 70px;
+  color: var(--ink-faint);
+  font-size: 12px;
+  text-align: right;
+}
+
+/* ── colours ──────────────────────────────────────────────────────── */
+
+.ct-colours {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.ct-colours__colour {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 4px;
+  border-radius: var(--hdk-radius);
+  background: var(--color-bg-alt);
+}
+
+.ct-colours__pip {
+  font-size: 22px;
+}
+
+.ct-colours__pct {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.ct-colours__games {
+  color: var(--ink-faint);
+  font-size: 11px;
+  text-align: center;
+}
+
+/* A profile's: the pip and its rate on one line, its bar, then its record. */
+.ct-colours--detailed {
+  gap: 12px;
+}
+
+.ct-colours--detailed .ct-colours__colour {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+}
+
+.ct-colours--detailed .ct-colours__pip {
+  font-size: 18px;
+}
+
+.ct-colours--detailed .ct-colours__pct {
+  font-size: 16px;
+  text-align: right;
+}
+
+.ct-colours--detailed :is(.ct-winbar, .ct-colours__games) {
+  grid-column: 1 / -1;
+}
+
+.ct-colours--detailed .ct-winbar {
+  background: var(--bg-raised);
+}
+
+.ct-colours--detailed .ct-colours__games {
+  font-size: 12px;
+  text-align: left;
+}
+
+/* ── the blocks `@wolffm/game-stats-ui` draws (`slots.tsx` until it ships them) ── */
+
+.ct-stats__card--flush > :is(.gs-table, .gs-seats) {
+  width: calc(100% - 40px);
+  margin: 0 20px 18px;
+}
+
+.ct-stats .gs-seats__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 12px;
+}
+
+.ct-stats__chart {
+  width: 100%;
+  height: 200px;
+  color: var(--accent);
+}
+
+/* ── Your profile's Unfinished games (`UnfinishedGames.tsx`): one row a game, its action at the end ── */
+
+.ct-stats__row > .ct-unfinished {
+  flex: 1 1 340px;
+  gap: 4px;
+}
+
+.ct-unfinished__list {
+  display: flex;
+  flex-direction: column;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ct-unfinished__game {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.ct-unfinished__what {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ct-unfinished__who {
+  font-weight: 600;
+}
+
+.ct-unfinished__detail {
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+
+.ct-unfinished__game .ct-unfinished__go {
+  align-self: center;
+  min-width: 84px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--accent);
+  border-radius: var(--hdk-radius);
+  font-size: 13px;
+}
+
+/* Joining the game the other player already picked up: the same press, drawn as an outline. */
+.ct-unfinished__game .ct-unfinished__go[data-action='join'] {
+  background: transparent;
+  color: var(--accent-ink);
+}
+
+.ct-unfinished__error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+/* ── the Tournaments tab (`Tournaments.tsx`) ─────────────────────── */
 
 .ct-tournaments {
   display: flex;
@@ -94,14 +579,16 @@
   font-weight: normal;
 }
 
-/* The Decks section (`StatsDecks.tsx`): its filter bar under the heading, and a row's pips after its name. */
-.gs-section > .deckfilter {
-  flex: none;
-  margin-bottom: 8px;
-}
+@media (max-width: 600px) {
+  .ct-stats.shell {
+    padding: 16px;
+  }
 
-.ct-stats-deck {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  .ct-colours {
+    gap: 6px;
+  }
+
+  .ct-colours--detailed {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  }
 }

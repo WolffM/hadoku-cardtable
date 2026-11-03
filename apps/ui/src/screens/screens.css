@@ -52,11 +52,6 @@
   margin: 0 auto;
 }
 
-/* The stats grid outgrows the viewport; it scrolls inside the chrome's content region. */
-.stats {
-  overflow-y: auto;
-}
-
 /* A screen's head: its name or its way back, with its tools at the right end; a line under the name wraps below. */
 .shell__head {
   display: flex;
@@ -808,6 +803,14 @@
   color: var(--ink);
   font: inherit;
   font-size: 13px;
+}
+
+/* A search box with its magnifier inside it (`ChipFilterBar`'s `search.icon`). */
+.deckfilter__find {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-dim);
 }
 
 /* Nothing passes the filters: one line where the tiles would be. */

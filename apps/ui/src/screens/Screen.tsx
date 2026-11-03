@@ -26,6 +26,8 @@ const DeckScreen = lazyComponent(() => import('./DeckScreen.tsx').then((m) => m.
 const DecksScreen = lazyComponent(() => import('./DecksScreen.tsx').then((m) => m.DecksScreen));
 const InventoryScreen = lazyComponent(() => import('./InventoryScreen.tsx').then((m) => m.InventoryScreen));
 import { LobbyScreen } from './LobbyScreen.tsx';
+// The trophy beside the lobby's gear warms the stats page's chunk, so the page drawn here is the trophy's own.
+import { StatsPage } from '../stats/StatsButton.tsx';
 const matchScreen = () => import('./MatchScreen.tsx');
 const MatchScreen = lazyComponent(() => matchScreen().then((m) => m.MatchScreen));
 const MusicReview = lazyComponent(() => import('./MusicReview.tsx').then((m) => m.MusicReview));
@@ -106,8 +108,7 @@ function RouteScreen({ transport }: ScreenProps) {
     case 'lobby':
       return <LobbyScreen />;
     case 'stats':
-      // The same element as the lobby's, so opening the popout keeps the lobby mounted.
-      return <LobbyScreen stats={{ player: route.player, tournaments: route.tournaments === true }} />;
+      return <StatsPage tab={route.tab} player={route.player} />;
     case 'decks':
       return route.draftId === undefined ? <DecksScreen /> : <DeckScreen key={route.draftId} draftId={route.draftId} standalone />;
     case 'inventory':

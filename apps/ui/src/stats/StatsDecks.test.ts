@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /*
- * The stats page's Decks section (`StatsDecks.tsx`) over the REAL game-stats
+ * A profile's Decks table (`StatsDecks.tsx`) over the REAL game-stats
  * client and a stubbed fetch: what its filter bar asks the store for, what the
  * name search narrows without asking, and the list a deck row opens on hover.
  */
@@ -14,7 +14,8 @@ import type { MyDeck } from '@hadoku/shared';
 
 import { PEEK_DELAY_MS, PEEK_GRACE_MS } from '../screens/DeckPeek.tsx';
 import type { TableDeck } from '../screens/tables.ts';
-import { StatsPopout, type StatsSource } from './StatsPopout.tsx';
+import type { StatsSource } from './source.ts';
+import { StatsPage } from './StatsPage.tsx';
 import { deckLookup, filterDeckRows, matchFormats, NO_STATS_FILTER, type DeckLookup } from './StatsDecks.tsx';
 
 afterEach(() => {
@@ -66,7 +67,8 @@ function stub() {
     asked.push(url);
     const path = url.pathname.replace('/prefs/api/v1/_games/cardtable', '');
     const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
-    if (path === '/profile') return json({ name: 'Bella', isMe: true, totals: totals(0, 0), ratings: [], counters: {}, lastPlayedAt: null });
+    const player = url.searchParams.get('player');
+    if (path === '/profile') return json({ name: player ?? 'Bella', isMe: player === null, totals: totals(0, 0), ratings: [], counters: {}, lastPlayedAt: null });
     if (path === '/matches') return json({ matches: [], nextBefore: null });
     if (path === '/leaderboard') return json({ by: 'rating', rows: [] });
     return json({ attr: url.searchParams.get('attr'), rows: url.searchParams.get('attr') === 'deck' ? DECKS : [] });
@@ -85,8 +87,9 @@ const lookupOf = () => {
   return { lookup: deckLookup(tables, mine), tables, mine };
 };
 
-const popout = (source: StatsSource, decks: DeckLookup, player?: string) =>
-  createElement(StatsPopout, { source, decks, ...(player === undefined ? {} : { player }) });
+/** A profile: the viewer's own, or `player`'s. */
+const profile = (source: StatsSource, decks: DeckLookup, player?: string) =>
+  createElement(StatsPage, { source, decks, parked: async () => [], ...(player === undefined ? { tab: 'profile' as const } : { player }) });
 
 describe('the Decks filter', () => {
   // A match whose pool is no library format, draft or Free pick reports `unknown` (`routes.ts`'s matchStart): a constructed room's.
@@ -105,9 +108,9 @@ describe('the Decks filter', () => {
 
   it('asks the store for the chosen formats and rooms, and searches names without asking', async () => {
     const { source, deckReads } = stub();
-    render(popout(source, lookupOf().lookup));
-    const section = await screen.findByTestId('gs-breakdown-section-deck');
-    await within(section).findByTestId('gs-breakdown-deck');
+    render(profile(source, lookupOf().lookup));
+    const section = await screen.findByTestId('stats-decks');
+    await within(section).findByTestId('stats-decks-table');
     expect(deckReads()[0]!.searchParams.has('match.format')).toBe(false);
     expect(deckReads()[0]!.searchParams.get('with')).toBe('colors,deckId');
 
@@ -121,10 +124,10 @@ describe('the Decks filter', () => {
     expect((screen.getByTestId('stats-deck-format-standard') as HTMLButtonElement).disabled).toBe(true);
 
     fireEvent.click(screen.getByTestId('stats-deck-room-draft'));
-    await within(section).findByTestId('gs-breakdown-deck');
+    await within(section).findByTestId('stats-decks-table');
     const before = deckReads().length;
     fireEvent.change(screen.getByTestId('stats-deck-text'), { target: { value: 'cube' } });
-    const rows = within(screen.getByTestId('gs-breakdown-deck')).getAllByRole('row').slice(1);
+    const rows = within(screen.getByTestId('stats-decks-table')).getAllByRole('row').slice(1);
     expect(rows.map((r) => r.textContent)).toEqual([expect.stringContaining(`Cube draft ${POD}`)]);
     expect(deckReads(), 'a name search asks nothing').toHaveLength(before);
 
@@ -155,8 +158,8 @@ describe('a deck row', () => {
   it('draws its pips, and opens a library deck’s list on hover, closing once the pointer leaves', async () => {
     const { source } = stub();
     const { lookup, tables } = lookupOf();
-    render(popout(source, lookup));
-    await screen.findByTestId('gs-breakdown-deck');
+    render(profile(source, lookup));
+    await screen.findByTestId('stats-decks-table');
     const row = rowOf(LIBRARY_ID);
     expect(row.querySelector('[data-colors="WU"]')).not.toBeNull();
 
@@ -182,8 +185,8 @@ describe('a deck row', () => {
   it('opens the viewer’s own drafted deck, and nobody else’s', async () => {
     const { source } = stub();
     const own = lookupOf();
-    render(popout(source, own.lookup));
-    await screen.findByTestId('gs-breakdown-deck');
+    render(profile(source, own.lookup));
+    await screen.findByTestId('stats-decks-table');
     useTimers();
     fireEvent.pointerEnter(rowOf(`draft:${POD}`), { pointerType: 'mouse' });
     await advance(PEEK_DELAY_MS);
@@ -192,8 +195,8 @@ describe('a deck row', () => {
     cleanup();
 
     const theirs = lookupOf();
-    render(popout(stub().source, theirs.lookup, 'Ash'));
-    await screen.findByTestId('gs-breakdown-deck');
+    render(profile(stub().source, theirs.lookup, 'Ash'));
+    await screen.findByTestId('stats-decks-table');
     useTimers();
     fireEvent.pointerEnter(rowOf(`draft:${POD}`), { pointerType: 'mouse' });
     await advance(PEEK_DELAY_MS);

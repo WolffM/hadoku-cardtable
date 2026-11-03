@@ -243,7 +243,7 @@ import { DeckTile } from './DeckTile.tsx';
 import { DeckFilterBar } from './DeckFilterBar.tsx';
 import { NO_DECK_FILTER, deckPasses, type DeckFilter } from './deckFilter.ts';
 import { byWinRate, type DeckRecords } from '../stats/deckOrder.ts';
-import { fetchDeckRecords } from '../stats/StatsPopout.tsx';
+import { fetchDeckRecords } from '../stats/source.ts';
 import { takeWarmRoom } from '../rooms/warm.ts';
 import { CloseRoom } from '../rooms/CloseRoom.tsx';
 import { roomFeed, type RoomFeed } from '../rooms/feed.ts';

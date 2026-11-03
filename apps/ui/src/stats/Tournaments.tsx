@@ -1,5 +1,5 @@
 /*
- * The stats popout's Tournaments tab (`#/tournaments`): every pod that played a
+ * The stats page's Tournaments tab (`#/tournaments`): every pod that played a
  * round, newest first, each with its final standings — kept by the server past
  * its room (`apps/server/src/room/tournaments.ts`), so a closed room's results
  * are still here (the operator, 2026-10-19: *"room results should be viewable

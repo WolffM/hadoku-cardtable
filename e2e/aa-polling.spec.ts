@@ -229,14 +229,14 @@ async function statsUnder(browser: Browser, who: 'signed-out' | 'signed-in'): Pr
   const page = await context.newPage();
   await page.goto(`${EDGE_ORIGIN}${PREFIX}/`);
   await expect(page.getByTestId('lobby')).toBeVisible({ timeout: 30_000 });
-  // Open it from the trophy, close it, three times over: each hover of the trophy warms every read
-  // again, and each open draws the popout's reads.
+  // Open it from the trophy, go back to the lobby, three times over: each hover of the trophy warms
+  // every read again, and each open draws the page's reads.
   for (let i = 0; i < 3; i += 1) {
     await page.getByTestId('lobby-stats').click();
     await expect(page.getByTestId('stats')).toBeVisible();
     await expect(page.getByTestId('stats')).toContainText('Sign in to see stats.', { timeout: 10_000 });
     await page.waitForTimeout(1_000);
-    await page.keyboard.press('Escape');
+    await page.getByTestId('back-to-lobby').click();
     await expect(page.getByTestId('stats')).toHaveCount(0);
     await page.mouse.move(0, 0);
   }

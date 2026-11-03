@@ -230,9 +230,9 @@ test('the embed binds one watchparty room to one table and leaves the host page 
     expect(bobWears).not.toBe(ALICE_SPRITE);
 
     // An in-table hash link routes the TABLE, never the host page — and a
-    // route that is not a table (here the stats popout, which the standalone
-    // app draws over the lobby) shows the bound room and nothing else: no room
-    // list, no create-room, no popout, at any moment.
+    // route that is not a table (here the stats page, which the standalone
+    // app opens from the lobby) shows the bound room and nothing else: no room
+    // list, no create-room, no stats page, at any moment.
     await a.evaluate(() => {
       const shadow = document.getElementById('slot')!.shadowRoot!;
       const seen = new Set<string>();
@@ -254,7 +254,7 @@ test('the embed binds one watchparty room to one table and leaves the host page 
     await a.waitForTimeout(1_000);
     const lobbySeen = await a.evaluate(() => (window as unknown as { lobbySeen: () => string[] }).lobbySeen());
     console.log(`[embed] #/stats in the embed: room=${await embed.getAttribute('data-bound-room')} lobby-seen=${lobbySeen.join(',') || 'none'}`);
-    expect(lobbySeen, 'following #/stats never draws the lobby, its room list, create-room or the stats popout').toEqual([]);
+    expect(lobbySeen, 'following #/stats never draws the lobby, its room list, create-room or the stats page').toEqual([]);
     await expect(a.getByTestId('constructed'), 'following #/stats shows the bound room').toBeVisible();
     await expect(embed).toHaveAttribute('data-bound-room', roomId!);
     expect((await residue(a)).hash).toBe('#/host-route');

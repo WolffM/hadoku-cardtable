@@ -42,8 +42,29 @@ export interface FilterChip {
   color?: boolean;
 }
 
+export interface FilterSearch {
+  testId: string;
+  placeholder: string;
+  ariaLabel: string;
+  value: string;
+  onChange: (text: string) => void;
+  /** Drawn inside the box, before the text: a magnifier. */
+  icon?: ReactNode;
+}
+
 /** Sets of toggle chips (an empty set draws nothing), then a search box. */
-export function ChipFilterBar({ testId, sets, search }: { testId: string; sets: readonly (readonly FilterChip[])[]; search: { testId: string; placeholder: string; ariaLabel: string; value: string; onChange: (text: string) => void } }) {
+export function ChipFilterBar({ testId, sets, search }: { testId: string; sets: readonly (readonly FilterChip[])[]; search: FilterSearch }) {
+  const input = (
+    <input
+      type="search"
+      className="deckfilter__search"
+      placeholder={search.placeholder}
+      aria-label={search.ariaLabel}
+      data-testid={search.testId}
+      value={search.value}
+      onChange={(e) => search.onChange(e.target.value)}
+    />
+  );
   return (
     <div className="deckfilter" role="group" aria-label="Filter decks" data-testid={testId}>
       {sets.map(
@@ -67,15 +88,14 @@ export function ChipFilterBar({ testId, sets, search }: { testId: string; sets: 
             </span>
           ),
       )}
-      <input
-        type="search"
-        className="deckfilter__search"
-        placeholder={search.placeholder}
-        aria-label={search.ariaLabel}
-        data-testid={search.testId}
-        value={search.value}
-        onChange={(e) => search.onChange(e.target.value)}
-      />
+      {search.icon === undefined ? (
+        input
+      ) : (
+        <label className="deckfilter__find">
+          {search.icon}
+          {input}
+        </label>
+      )}
     </div>
   );
 }

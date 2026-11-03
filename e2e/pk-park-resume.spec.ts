@@ -7,7 +7,7 @@
  *
  * Alice plays the AI in an All Random room, and closes the page once the game has a turn-start
  * snapshot. The server parks it (the 30 s departure grace, then a rejoin grace this stack shortens
- * to 20 s) and lets go of the match. From the stats popout's Unfinished games she resumes it: a new
+ * to 20 s) and lets go of the match. From Your profile's Unfinished games she resumes it: a new
  * room, the board back at the start of the snapshot's turn. She concedes; Forge calls it, a report
  * is built (`stats-disabled` is the reporter's word for "handed a report" on a stack with no stats
  * key), and the game leaves her list.
@@ -105,7 +105,7 @@ test(titled('a game both players left is parked, resumed from Unfinished games a
     expect(evts(rowsOf(stack, first)), 'Forge declared no winner').not.toContain('game-over');
 
     // ── Resumed from her Unfinished games ──
-    await alice.page.goto(`${stack.origin}${PREFIX}/#/stats`);
+    await alice.page.goto(`${stack.origin}${PREFIX}/#/profile`);
     const game = alice.page.getByTestId('unfinished-game');
     await expect(game).toHaveCount(1, { timeout: 30_000 });
     await expect(game).toContainText(`Turn ${parked.turn}`);

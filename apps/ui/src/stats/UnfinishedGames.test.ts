@@ -33,15 +33,18 @@ describe('the Unfinished games list', () => {
     await waitFor(() => expect(container.innerHTML).toBe(''));
   });
 
-  it('names the other player, the decks, the pool and the turn; Resume, or Join once the other player has picked it up', async () => {
+  it('names the other player, the pool and the turn; Resume, or Join once the other player has picked it up', async () => {
     const joined: ParkedGame = { ...parked, matchId: 'm-ba9876543210', resumed: { roomId: 'r-00000002', tableId: 't-00000002' } };
     render(createElement(UnfinishedGames, { load: async () => [parked, joined] }));
     await waitFor(() => expect(screen.getAllByTestId('unfinished-game')).toHaveLength(2));
     const [first, second] = screen.getAllByTestId('unfinished-game');
-    expect(first?.textContent).toContain('Bob');
+    expect(first?.textContent).toContain('vs Bob');
     expect(first?.textContent).not.toContain('Alice');
-    expect(first?.textContent).toContain('Burn vs Ramp · Free pick · Turn 7');
-    expect(screen.getAllByTestId('unfinished-resume').map((b) => b.textContent)).toEqual(['Resume', 'Join']);
+    expect(first?.textContent).toContain('Free pick · Turn 7 · ');
+    expect(screen.getAllByTestId('unfinished-resume').map((b) => [b.textContent, b.dataset.action])).toEqual([
+      ['Resume', 'resume'],
+      ['Join', 'join'],
+    ]);
     expect(second?.querySelector('time')?.getAttribute('datetime')).toBe(parked.parkedAt);
   });
 

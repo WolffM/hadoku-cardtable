@@ -1,12 +1,14 @@
 /*
- * The stats page's Decks section — the operator, 2026-10-20: *"'Decks that
- * win' seems like the same thing as 'Decks'. lets just keep decks and also add
- * a filter bar to that one for format, room type, and text filter. also in the
- * rows keep the color icons and make it so the decks can be hovered and their
- * data can be seen as it can be in other places where decks are shown"*.
+ * The stats page's decks: the Leaderboard's Winning decks, the profile's Decks table, and the
+ * filter bar, peek and pips they share. The operator, 2026-10-20: *"'Decks that win' seems like
+ * the same thing as 'Decks'. lets just keep decks and also add a filter bar to that one for format,
+ * room type, and text filter. also in the rows keep the color icons and make it so the decks can be
+ * hovered and their data can be seen as it can be in other places where decks are shown"*. The
+ * redesign (2026-11-02) put everyone's best decks back on the Leaderboard and kept the filtered
+ * table on each player's profile.
  *
  *   - **The filter bar** is the deck grid's own (`ChipFilterBar`'s chips and
- *     search box). Format and room are match attrs the store narrows by
+ *     search box), drawn as the page's pills. Format and room are match attrs the store narrows by
  *     (`match.format`); the name search narrows the rows it answered.
  *   - **Room type is the format's other half.** A draft room's tables always
  *     play its pod's pool, reported as format `draft`, and a constructed room
@@ -21,16 +23,20 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { BreakdownSpec } from '@wolffm/game-stats-ui';
-import type { BreakdownRow, StatAttrs } from '@wolffm/prefs-client/games';
+import { Icon } from '@wolffm/themes';
+import { formatAttr, formatRecord, formatWinRate, type RenderAttr, type StatsCache } from '@wolffm/game-stats-ui';
+import { winRate, type BreakdownRow, type GameStatsClient, type StatAttrs } from '@wolffm/prefs-client/games';
 
-import { ManaPip } from '../components/ManaPip.tsx';
 import { myDecksClient, type MyDecksClient } from '../deck/myDecks.ts';
 import type { PeekedDeck } from '../screens/ConstructedScreen.tsx';
 import { ChipFilterBar, toggled } from '../screens/DeckFilterBar.tsx';
 import { DeckPeek, usePeekHover } from '../screens/DeckPeek.tsx';
 import { FREE_PICK } from '@hadoku/shared';
 import { FORMAT_TABS, tablesClient, type FormatFamily, type TablesClient } from '../screens/tables.ts';
+import { uiLength } from '../settings/ui-scale.ts';
+import { StatsCard, WinBar, WinRate } from './card.tsx';
+import { Pips } from './magic.tsx';
+import { everyone, onePlayer } from './source.ts';
 
 export type StatsFormat = FormatFamily | typeof FREE_PICK;
 export type StatsRoom = 'constructed' | 'draft';
@@ -66,27 +72,6 @@ export function filterDeckRows(rows: readonly BreakdownRow[], text: string): rea
   return needle === '' ? rows : rows.filter((row) => row.value.toLowerCase().includes(needle));
 }
 
-/** The seat attrs a deck row carries off its latest seat: its pips, and what its list is found by. */
-const DECK_ROW_ATTRS = ['colors', 'deckId'] as const;
-
-/**
- * The Decks section for a filter. The bare one (no filter) is what the lobby
- * prefetches, so the section opens drawn.
- */
-export function decksSpec(filter: DeckStatsFilter = NO_STATS_FILTER, toolbar?: ReactNode): BreakdownSpec {
-  const formats = matchFormats(filter);
-  return {
-    attr: 'deck',
-    title: 'Decks',
-    label: 'Deck',
-    wide: true,
-    with: DECK_ROW_ATTRS,
-    ...(formats === undefined ? {} : { match: { format: formats } }),
-    ...(filter.text.trim() === '' ? {} : { filterRows: (rows: readonly BreakdownRow[]) => filterDeckRows(rows, filter.text) }),
-    ...(toolbar === undefined ? {} : { toolbar }),
-  };
-}
-
 /**
  * Format chips, room chips and a deck-name search, on the deck grid's own
  * filter row. A format is a constructed one, so the format chips stand down
@@ -103,17 +88,24 @@ export function DeckStatsFilterBar({ filter, onChange }: { filter: DeckStatsFilt
           pressed: filter.formats.has(id),
           disabled: draftOnly,
           onToggle: () => onChange({ ...filter, formats: toggled(filter.formats, id) }),
-          label: <span className="decktag">{label}</span>,
+          label,
         })),
         ROOMS.map(({ id, label }) => ({
           testId: `stats-deck-room-${id}`,
           pressed: filter.rooms.has(id),
           disabled: id === 'draft' && filter.formats.size > 0,
           onToggle: () => onChange({ ...filter, rooms: toggled(filter.rooms, id) }),
-          label: <span className="decktag">{label}</span>,
+          label,
         })),
       ]}
-      search={{ testId: 'stats-deck-text', placeholder: 'Deck', ariaLabel: 'Deck name', value: filter.text, onChange: (text) => onChange({ ...filter, text }) }}
+      search={{
+        testId: 'stats-deck-text',
+        placeholder: 'Deck',
+        ariaLabel: 'Deck name',
+        value: filter.text,
+        onChange: (text) => onChange({ ...filter, text }),
+        icon: <Icon name="magnifier" size={uiLength('0.95rem')} />,
+      }}
     />
   );
 }
@@ -221,8 +213,6 @@ export function DeckPeekHost({ lookup, ownDecks, children }: { lookup: DeckLooku
           bounds={open.bounds}
           onPointerEnter={hover.hold}
           onPointerLeave={hover.closeSoon}
-          // Inside the stats popout, itself drawn over the page: the peek stays in its layer, above it.
-          inPlace
         />
       )}
     </DeckHoverContext.Provider>
@@ -234,12 +224,11 @@ const colorsOf = (carried: StatAttrs | undefined): string[] => {
   return Array.isArray(colors) ? colors : [];
 };
 
-/** A deck row's cell: its name, which opens its list on hover, then its colours — the picker tile's order. */
+/** A deck's name, which opens its list on hover, after its colours. */
 export function StatsDeckName({ name, carried }: { name: string; carried?: StatAttrs | undefined }) {
   const hover = useContext(DeckHoverContext);
   const deckId = typeof carried?.deckId === 'string' ? carried.deckId : undefined;
   const peekable = hover !== null && deckId !== undefined && hover.canPeek(deckId);
-  const colors = colorsOf(carried);
   return (
     <span
       className="ct-stats-deck"
@@ -255,12 +244,112 @@ export function StatsDeckName({ name, carried }: { name: string; carried?: StatA
       }
       onPointerLeave={peekable ? hover.leave : undefined}
     >
+      <Pips colors={colorsOf(carried)} />
       <span className="ct-stats-deck__name">{name}</span>
-      <span className="cost" data-colors={colors.join('')}>
-        {colors.map((c) => (
-          <ManaPip key={c} token={c} />
-        ))}
-      </span>
     </span>
+  );
+}
+
+/** A seat's `colors` is a set and a colour breakdown row is one colour; both draw as pips. A deck row draws as its name and its pips. */
+export const renderAttr: RenderAttr = (key, value, carried) => {
+  if (key === 'deck' && carried !== undefined) return <StatsDeckName name={String(value)} carried={carried} />;
+  if (key !== 'colors') return formatAttr(value);
+  return <Pips colors={Array.isArray(value) ? value : [String(value)]} />;
+};
+
+/** How many rated games a deck needs before it can be called a winner. */
+export const WINNING_DECK_GAMES = 5;
+/** How many winning decks the Leaderboard lists. */
+const WINNING_DECKS = 6;
+
+/** Everyone's decks with enough games behind them, best win rate first, the more played first on a tie. */
+export function winningDecks(rows: readonly BreakdownRow[]): BreakdownRow[] {
+  return rows
+    .filter((r) => r.games >= WINNING_DECK_GAMES)
+    .sort((a, b) => winRate(b) - winRate(a) || b.games - a.games)
+    .slice(0, WINNING_DECKS);
+}
+
+/** The Leaderboard's Winning decks: everyone's rated games, a deck to a line, its win rate as a bar. */
+export function WinningDecks({ client, cache }: { client: GameStatsClient; cache: StatsCache }) {
+  return (
+    <StatsCard
+      title="Winning decks"
+      sub={`${WINNING_DECK_GAMES}+ games`}
+      read={everyone.decks(client)}
+      cache={cache}
+      isEmpty={(b) => winningDecks(b.rows).length === 0}
+      testId="stats-winning-decks"
+    >
+      {(b) => (
+        <ol className="ct-windecks">
+          {winningDecks(b.rows).map((row) => (
+            <li key={row.value} className="ct-windecks__deck" data-testid="stats-winning-deck">
+              <span className="ct-windecks__line">
+                <StatsDeckName name={row.value} carried={row.attrs} />
+                <span className="ct-windecks__pct">{formatWinRate(row)}</span>
+              </span>
+              <span className="ct-windecks__line">
+                <WinBar totals={row} />
+                <span className="ct-windecks__games">{`${row.games} games`}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </StatsCard>
+  );
+}
+
+/** A profile's Decks table: the player's rated games per deck, narrowed by the filter bar above it, most played first. */
+export function DecksTable({ client, cache, player }: { client: GameStatsClient; cache: StatsCache; player?: string | undefined }) {
+  const [filter, setFilter] = useState<DeckStatsFilter>(NO_STATS_FILTER);
+  const shown = (rows: readonly BreakdownRow[]): BreakdownRow[] => [...filterDeckRows(rows, filter.text)].sort((a, b) => b.games - a.games || winRate(b) - winRate(a));
+  return (
+    <StatsCard
+      title="Decks"
+      tools={<DeckStatsFilterBar filter={filter} onChange={setFilter} />}
+      read={onePlayer.decks(client, player, matchFormats(filter))}
+      cache={cache}
+      isEmpty={(b) => shown(b.rows).length === 0}
+      flush
+      className="ct-decks"
+      testId="stats-decks"
+    >
+      {(b) => (
+        <div className="ct-stats__scroll">
+          <table className="ct-stats__table" data-testid="stats-decks-table">
+            <thead>
+              <tr>
+                <th scope="col">Deck</th>
+                <th scope="col" className="ct-stats__num">
+                  Games
+                </th>
+                <th scope="col" className="ct-stats__num">
+                  W–L
+                </th>
+                <th scope="col" className="ct-stats__rate">
+                  Win rate
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown(b.rows).map((row) => (
+                <tr key={row.value}>
+                  <td>
+                    <StatsDeckName name={row.value} carried={row.attrs} />
+                  </td>
+                  <td className="ct-stats__num">{row.games}</td>
+                  <td className="ct-stats__num">{formatRecord(row)}</td>
+                  <td className="ct-stats__rate">
+                    <WinRate totals={row} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </StatsCard>
   );
 }

@@ -85,8 +85,9 @@ test('shell: front page, lists, settings, errors, admin and embed screens', asyn
       await shot(p, 'room-not-found', { area: 'rooms', route: '#/room/<missing>', state: 'room not found' });
     });
     for (const [hash, id, area, state] of [
-      ['#/stats', 'stats', 'stats', 'your stats popout (no games yet)'],
-      ['#/stats/e2e-bob', 'stats-other', 'stats', 'another player’s stats'],
+      ['#/stats', 'stats', 'stats', 'the stats Leaderboard (no games yet)'],
+      ['#/profile', 'stats-profile', 'stats', 'your stats profile (no games yet)'],
+      ['#/stats/e2e-bob', 'stats-other', 'stats', 'another player’s stats profile'],
       ['#/tournaments', 'tournaments', 'stats', 'past tournaments tab (empty)'],
       ['#/decks', 'decks-empty', 'decks', 'your decks, none yet'],
       ['#/inventory', 'inventory-friend', 'admin', 'imported cubes (as a friend)'],

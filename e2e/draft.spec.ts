@@ -1217,7 +1217,7 @@ test(
       const kept = alice.page.getByTestId('tournament').filter({ hasText: roomName });
       await expect(kept, 'the closed room is a past tournament').toHaveCount(1, { timeout: UI_TIMEOUT });
       await expect(kept.getByTestId('pod-standings-row-1')).toContainText(ai.name);
-      await alice.page.getByTestId('stats-close').click();
+      await alice.page.getByTestId('back-to-lobby').click();
 
       /* ── the pool is her deck now, on the Decks page beside the trophy ── */
       await alice.page.getByTestId('lobby-decks').click();
