@@ -1523,7 +1523,8 @@ function RoomTableScreen({
   /**
    * The room's Constructed mode, or null until the leader picks one. A room
    * record that could not be read leaves the mode unknown, and the table then
-   * draws as Classic — the table it has always drawn without that record.
+   * draws as Classic — the table it has always drawn without that record. It
+   * starts nothing until the record lands (`startAs`, below).
    */
   const mode = view === null ? 'classic' : view.mode;
   /** A Gauntlet room's state as I may see it; null in any other mode. */
@@ -1900,8 +1901,17 @@ function RoomTableScreen({
   // A Gauntlet game starts the same way once both of its decks are chosen and
   // dealt ('playing'); against the AI through the AI's start. Each game of the
   // series asks once: the ask is cleared when a match ends.
-  const startAs: 'room' | 'ai' | null =
-    mode === 'gauntlet'
+  //
+  // Which of those rules holds is the room's mode, so nothing is asked before
+  // this page has read the room record itself: an unread room draws as Classic
+  // without being one, and the list's warm copy (`../rooms/warm.ts`) may predate
+  // the leader's last change. A Gauntlet's seats read ready at the table from
+  // its ban/pick on, and a start asked then is refused
+  // (`e2e/wyear-gauntlet-start.spec.ts`).
+  const roomRead = view !== null && view !== warm?.view;
+  const startAs: 'room' | 'ai' | null = !roomRead
+    ? null
+    : mode === 'gauntlet'
       ? gauntlet?.phase === 'playing'
         ? gauntlet.players?.some((p) => p.memberId === null) === true
           ? 'ai'
