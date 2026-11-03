@@ -3726,6 +3726,26 @@ describe('waitingOn', () => {
   });
 });
 
+describe('holds: the other seat halts the chain, told at once', () => {
+  it('counts each hold the other seat begins, never this seat’s own, and clears with the roster', async () => {
+    const { s, m } = await fullGame();
+    const other = m.seat === 0 ? 1 : 0;
+    const seats = (holding: number | null) =>
+      [0, 1].map((seat) => ({ seat, claimed: true, playerId: seat, ...(seat === holding ? { holds: true as const } : {}) }));
+    s.sendSeats(seats(other));
+    await until('the hold adopted', () => m.othersHold);
+    expect(m.othersHalted).toBe(1);
+    s.sendSeats(seats(other));
+    s.sendSeats(seats(null));
+    await until('the pass adopted', () => !m.othersHold);
+    expect(m.othersHalted, 'the same hold re-told is one hold').toBe(1);
+    s.sendSeats(seats(m.seat));
+    s.sendSeats(seats(other));
+    await until('the next hold adopted', () => m.othersHold);
+    expect(m.othersHalted, 'this seat’s own hold is not the other’s').toBe(2);
+  });
+});
+
 /*
  * Wave 31 §S: `forge:role`, `forge:seats`' `name`, and `over`.
  */

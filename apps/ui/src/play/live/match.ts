@@ -901,6 +901,13 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
   /** The seats whose player left, past the server's grace — `forge:seats`' `away`. */
   awaySeats: ReadonlySet<number>;
   /**
+   * Another seat holds a window Forge forwarded it — `forge:seats`' `holds`, told at once, never
+   * after `waitingOn`'s grace — and how many times one has begun to ({@link othersHalted}), so a hold
+   * opened and closed between two renders still halts the chain on this screen (`./placed.ts`).
+   */
+  othersHold: boolean;
+  othersHalted: number;
+  /**
    * Each player's chess clock, keyed by Forge PLAYER id, from `forge:seats`' `clock` — the
    * server's reading and when this screen got it (`at`, its own `Date.now()`), so a running one
    * is counted down from there (`Clock.tsx`). `null` in a game without a clock.
@@ -1159,6 +1166,8 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     playerIdBySeat: null,
     waitingOn: null,
     awaySeats: new Set(),
+    othersHold: false,
+    othersHalted: 0,
     clockByPlayerId: null,
     coinToss: null,
     spectator: false,
@@ -1593,6 +1602,9 @@ function adoptSeats(match: LiveMatch, payload: unknown): void {
     if (seat.waitingOn !== undefined) waitingOn.set(seat.seat, seat.waitingOn);
   }
   match.waitingOn = waitingOn;
+  const othersHold = parsed.value.seats.some((seat) => seat.seat !== match.seat && seat.holds === true);
+  if (othersHold && !match.othersHold) match.othersHalted += 1;
+  match.othersHold = othersHold;
   // The decision has left this seat: whatever it held is not drawn again (`./offer-hold.ts`).
   if (waitingOnAnother(match)) match.offerHold = null;
   match.awaySeats = new Set(parsed.value.seats.filter((seat) => seat.away === true).map((seat) => seat.seat));
@@ -3679,6 +3691,7 @@ function dropOpenInput(match: LiveMatch): void {
   match.promptSelection = null;
   match.sameTarget = false;
   match.waitingOn = null;
+  match.othersHold = false;
   match.coinToss = null;
 }
 

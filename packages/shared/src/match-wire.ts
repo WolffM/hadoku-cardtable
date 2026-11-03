@@ -489,6 +489,12 @@ export const SeatIdentitySchema = z
      */
     waitingOn: z.object({ method: z.string().min(1), hostCard: z.string().min(1).nullable() }).strict().optional(),
     /**
+     * This seat holds a window Forge forwarded it right now: the chain has halted on it. Told the
+     * moment it changes, never after `waitingOn`'s grace, so the other screen draws an ability chip
+     * for a pass however quick (`apps/ui/src/play/live/placed.ts`'s `setChainHalted`). Absent: it holds none.
+     */
+    holds: z.literal(true).optional(),
+    /**
      * The coin toss: the same row on every seat's entry while the winner's
      * Play/Draw bar is live, so BOTH screens draw the flip landing on the
      * winner. Forge tells the losing seat nothing for this moment.

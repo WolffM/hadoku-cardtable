@@ -246,11 +246,20 @@ let chainHalted: boolean | null = null;
  * nobody stopping never reaches a screen as a chip, and its source shimmers instead. A withheld
  * window never reaches the wire, so it never halts anything here.
  */
-export function setChainHalted(halted: boolean | null): void {
-  if (chainHalted === halted) return;
+export function setChainHalted(halted: boolean | null, halts = haltsTold): void {
+  if (chainHalted === halted && halts === haltsTold) return;
   chainHalted = halted;
+  haltsTold = halts;
   requestRepaint();
 }
+
+/**
+ * How many times the other seat has held the chain (`LiveMatch.othersHalted`), as last told and as
+ * last drawn. A hold that opened and closed between two paints still halted the chain: the next
+ * paint draws what is on the stack as if it were halted, so a pass however quick shows its chip.
+ */
+let haltsTold = 0;
+let haltsDrawn = 0;
 
 /**
  * The other seats' clickable battlefield cards, by seat, as their boards last said (`forge:offered`,
@@ -461,6 +470,8 @@ export function forgetPlacements(): void {
   releases.clear();
   landedFrom.clear();
   chainHalted = null;
+  haltsTold = 0;
+  haltsDrawn = 0;
   peerClickable.clear();
   hands.clear();
   handsChanged.clear();
@@ -1594,10 +1605,12 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
 
     // Every item's element and size first, then every box read, then every place written: a layout per pass, never one per chip.
     const shown: Shown[] = [];
+    const flowing = chainHalted === false && haltsDrawn === haltsTold;
+    haltsDrawn = haltsTold;
     items.forEach((item, index) => {
       // An ability aimed at a spell on the stack is drawn all the same: its counter is the beat to see (ward's trigger).
       const aimed = aimOf(item);
-      if (item.isAbility && !drawn.has(item.id) && chainHalted === false && !(aimed !== null && drawn.has(aimed))) {
+      if (item.isAbility && !drawn.has(item.id) && flowing && !(aimed !== null && drawn.has(aimed))) {
         // A waiting trigger nobody stopped for shimmers once, as the stack item it becomes.
         if (item.pending !== true) undrawn.set(item.id, item.sourceCardId);
         return;

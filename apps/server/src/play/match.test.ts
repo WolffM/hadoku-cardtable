@@ -267,7 +267,7 @@ describe("item 4: a seat's identity", () => {
 		const coinToss = { winner: 1, at: expect.any(Number) as number };
 		expect(match.seatIdentities()).toEqual([
 			{ seat: 0, claimed: true, playerId: 0, avatarId: 'wanderer', coinToss },
-			{ seat: 1, claimed: false, playerId: 1, waitingOn: { method: 'confirm', hostCard: null }, coinToss },
+			{ seat: 1, claimed: false, playerId: 1, waitingOn: { method: 'confirm', hostCard: null }, holds: true, coinToss },
 		]);
 	});
 
@@ -335,7 +335,10 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 		h.host.push(PROBE_ASK);
 		expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'showConfirmDialog', hostCard: null } });
 		expect(h.match.seatIdentities()[1]).not.toHaveProperty('waitingOn');
-		expect(h.told.length, 'not told yet: the grace').toBe(before);
+		// The halt is told at once; the sentence waits out its grace.
+		expect(h.told.length, 'the halt is told at once').toBe(before + 1);
+		expect(h.told.at(-1)![0]).toMatchObject({ holds: true });
+		expect(h.told.at(-1)![0], 'not the sentence yet: the grace').not.toHaveProperty('waitingOn');
 		vi.advanceTimersByTime(150);
 		expect(h.told.length, 'told once the ask outlived the grace').toBeGreaterThan(before);
 		expect(h.told.at(-1)![0]).toMatchObject({ waitingOn: { method: 'showConfirmDialog', hostCard: null } });
@@ -360,7 +363,9 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 		vi.advanceTimersByTime(20);
 		h.match.fromClient(0, reply((PROBE_ASK.frame as { callId: string }).callId, true));
 		vi.advanceTimersByTime(500);
-		expect(h.told.length, 'nothing told: the wait never outlived the grace').toBe(before);
+		// The chain halted and went on — told, both ways, at once — but no sentence ever reached the other seat.
+		expect(h.told.slice(before).map((seats) => seats[0]!.holds === true), 'the halt, then its end').toEqual([true, false]);
+		expect(h.told.slice(before).filter((seats) => seats[0]!.waitingOn !== undefined), 'nothing said: the wait never outlived the grace').toEqual([]);
 		expect(h.match.seatIdentities()[0]).not.toHaveProperty('waitingOn');
 	});
 

@@ -1158,6 +1158,23 @@ describe('installPlaced: an ability is drawn only when the chain halts over it',
     handle.dispose();
   });
 
+  it('a hold opened and closed between two paints still halted the chain: the chip is drawn', () => {
+    // w79b-chip: bob passed 101 ms after his window opened, and alice's screen only ever heard "nobody stopped".
+    setChainHalted(false, 0);
+    const { canvas } = board();
+    const handle = installPlaced(canvas, { reducedMotion: () => true });
+    const trigger = stackItem(9, { isAbility: true, sourceCardId: 201 });
+    handle.notify(view([trigger], [{ id: 201 }]));
+    expect(canvas.querySelector('[data-placed-spell="9"]')).toBeNull();
+    // The other seat held, and passed, before this screen painted again: told as one more halt, still flowing.
+    setChainHalted(false, 1);
+    expect(canvas.querySelector('[data-placed-spell="9"]'), 'drawn: the chain halted over it').not.toBeNull();
+    // A later item that nobody stops for is not drawn on that old halt.
+    handle.notify(view([trigger, stackItem(10, { isAbility: true, sourceCardId: 201 })], [{ id: 201 }]));
+    expect(canvas.querySelector('[data-placed-spell="10"]'), 'a new halt is needed for a new item').toBeNull();
+    handle.dispose();
+  });
+
   it('a spell is drawn whether or not the chain halts', () => {
     const { canvas } = board();
     const handle = installPlaced(canvas);

@@ -1230,6 +1230,8 @@ export class Match {
 	 * `setAvatar` already follows for {@link Match.seatAvatarChanged}.
 	 */
 	private lastWaitingOnKey = '';
+	/** Which seats {@link SeatIdentity.holds} as last told, seat by seat — told at once, never graced. */
+	private lastHoldsKey = '';
 	/**
 	 * A wait that APPEARS is told after {@link WAITING_ON_GRACE_MS}; one that clears
 	 * is told at once — see {@link Match.checkWaitingOn}. The pending tell, if any.
@@ -1497,7 +1499,7 @@ export class Match {
 			}, next.inMs);
 			this.flagTimer.unref();
 		}
-		this.deps.seatsChanged?.(this.seatIdentities());
+		this.tellRoster();
 	}
 
 	/** Nobody's time runs any more: the match is letting go of its game. */
@@ -1523,7 +1525,7 @@ export class Match {
 		this.concededBy = seat;
 		this.clock?.stop(this.now());
 		this.deps.log({ evt: 'clock-flag', matchId: this.id, seat, left: this.clockLeft() });
-		this.deps.seatsChanged?.(this.seatIdentities());
+		this.tellRoster();
 		this.command({ t: 'act', seat, frame: { kind: 'act', method: 'concede' } });
 	}
 
@@ -1746,7 +1748,8 @@ export class Match {
 	 * seat with none has the key ABSENT rather than `avatarId: undefined`, so
 	 * an in-process reader and a JSON reader agree (`D-avatar-field.md` §3).
 	 */
-	seatIdentities(): SeatIdentity[] {
+	seatIdentities(waitingOnTold = false): SeatIdentity[] {
+		const told = waitingOnTold && this.lastWaitingOnKey !== '' ? (JSON.parse(this.lastWaitingOnKey) as ({ method: string; hostCard: string | null } | null)[]) : null;
 		return this.seats.map((s) => ({
 			seat: s.seat,
 			claimed: s.owner !== null,
@@ -1758,9 +1761,10 @@ export class Match {
 			})(),
 			...(s.displayName === undefined ? {} : { name: s.displayName }),
 			...(() => {
-				const waitingOn = this.waitingOnFor(s);
+				const waitingOn = told === null ? (waitingOnTold ? null : this.waitingOnFor(s)) : (told[s.seat] ?? null);
 				return waitingOn === null ? {} : { waitingOn };
 			})(),
+			...(this.holdsFor(s) ? { holds: true as const } : {}),
 			...(this.coinToss === null ? {} : { coinToss: this.coinToss }),
 			...(s.away ? { away: true } : {}),
 			...(() => {
@@ -1898,27 +1902,72 @@ export class Match {
 	 * `trackPayment` call it directly, same as before.
 	 * Cheap to over-call: the key comparison is the guard, not the call site.
 	 */
+	/** The roster for any other change (a clock, a face, a coin toss, an absence): it carries the halt as it stands, so that is told too. */
+	private tellRoster(): void {
+		const seats = this.seatIdentities();
+		this.lastHoldsKey = JSON.stringify(seats.map((x) => x.holds === true));
+		this.deps.seatsChanged?.(seats);
+	}
+
+	/** A seat holds a window Forge forwarded it — {@link SeatIdentity.holds}. A computer seat halts nothing on screen. */
+	private holdsFor(s: SeatState): boolean {
+		return !s.ai && this.waitingOnFor(s) !== null;
+	}
+
+	/**
+	 * The roster, with what each seat was told of the waits logged (`seats-told`), so a screen that
+	 * drew a chain halt or a wait sentence, or did not, can be read against when it was told.
+	 * `waitingOnTold`: the halt's own tell carries the wait sentence as last told, not one still in its grace.
+	 */
+	private tellSeats(why: 'halt' | 'waiting', waitingOnTold: boolean): void {
+		const seats = this.seatIdentities(waitingOnTold);
+		this.lastHoldsKey = JSON.stringify(seats.map((x) => x.holds === true));
+		this.deps.log({
+			evt: 'seats-told',
+			matchId: this.id,
+			why,
+			waitingOn: seats.map((x) => x.waitingOn?.method ?? null),
+			holds: seats.map((x) => x.holds === true),
+		});
+		this.deps.seatsChanged?.(seats);
+	}
+
 	private checkWaitingOn(): void {
 		this.syncClock();
 		const facts = this.seats.map((s) => this.waitingOnFor(s));
 		const key = JSON.stringify(facts);
+		const tell = (): void => {
+			this.waitingOnTimer = null;
+			this.lastWaitingOnKey = JSON.stringify(this.seats.map((s) => this.waitingOnFor(s)));
+			this.tellSeats('waiting', false);
+		};
+		// The halt is told at once, whatever the grace below does with the sentence: a pass inside the
+		// grace still halted the chain, and the other screen draws its chip. Every path below that does
+		// not tell the roster at once tells the halt instead, when it moved.
+		const tellHalt = (): void => {
+			const holdsKey = JSON.stringify(this.seats.map((s) => this.holdsFor(s)));
+			if (holdsKey === this.lastHoldsKey) return;
+			this.lastHoldsKey = holdsKey;
+			this.tellSeats('halt', true);
+		};
 		// The same not-yet-told fact as the timer already pending: let that timer run. Resetting it
 		// on every call turned the 150 ms grace into a debounce — an End Turn crawl re-checks on
 		// almost every frame, so a wait that appeared mid-crawl was told only when the crawl stopped,
 		// ~5 s late (AE16: lags 451, 5045, 837 ms on the CI runners).
-		if (this.waitingOnTimer !== null && key === this.pendingWaitingOnKey) return;
+		if (this.waitingOnTimer !== null && key === this.pendingWaitingOnKey) {
+			tellHalt();
+			return;
+		}
 		if (this.waitingOnTimer !== null) {
 			clearTimeout(this.waitingOnTimer);
 			this.waitingOnTimer = null;
 		}
 		this.pendingWaitingOnKey = null;
-		// Back to what was last told — an ask that opened and closed inside the grace: nothing to say.
-		if (key === this.lastWaitingOnKey) return;
-		const tell = (): void => {
-			this.waitingOnTimer = null;
-			this.lastWaitingOnKey = JSON.stringify(this.seats.map((s) => this.waitingOnFor(s)));
-			this.deps.seatsChanged?.(this.seatIdentities());
-		};
+		// Back to what was last told — an ask that opened and closed inside the grace: no sentence to say.
+		if (key === this.lastWaitingOnKey) {
+			tellHalt();
+			return;
+		}
 		// A wait that CLEARS is told at once (the other seat must not sit on a stale sentence — AD5).
 		// A wait that APPEARS is told after a short grace, so a fact that is gone again a few frames
 		// later never flashes on the other screen. Nobody reads a 150 ms delay on a real wait. An ask
@@ -1930,6 +1979,7 @@ export class Match {
 			tell();
 			return;
 		}
+		tellHalt();
 		this.pendingWaitingOnKey = key;
 		this.waitingOnTimer = setTimeout(() => {
 			this.pendingWaitingOnKey = null;
@@ -1937,6 +1987,7 @@ export class Match {
 		}, WAITING_ON_GRACE_MS);
 		this.waitingOnTimer.unref();
 	}
+
 
 	/**
 	 * Of the cards `seat`'s board draws clickable, those its message may carry to the other screens
@@ -1962,7 +2013,7 @@ export class Match {
 		const identity = this.seatIdentities()[seat];
 		if (identity === undefined) return;
 		this.deps.log({ evt: 'seat-avatar', matchId: this.id, seat, avatarId: identity.avatarId ?? null });
-		this.deps.seatsChanged?.(this.seatIdentities());
+		this.tellRoster();
 	}
 
 	/**
@@ -2201,7 +2252,7 @@ export class Match {
 		const gone = (): void => {
 			s.here = false;
 			s.away = true;
-			this.deps.seatsChanged?.(this.seatIdentities());
+			this.tellRoster();
 			this.armRejoinGrace();
 		};
 		if (grace <= 0) {
@@ -2231,7 +2282,7 @@ export class Match {
 		s.here = true;
 		if (s.away) {
 			s.away = false;
-			this.deps.seatsChanged?.(this.seatIdentities());
+			this.tellRoster();
 		}
 		// Before the departure check, and not inside it: a seat that was never here at all (a new or
 		// re-attached match) disarms it too.
@@ -2490,12 +2541,12 @@ export class Match {
 			if (this.coinToss !== null || this.spec.chooser !== undefined) return;
 			this.coinToss = { winner: s.seat, at: Date.now() };
 			this.deps.log({ evt: 'coin-toss', matchId: this.id, winner: s.seat });
-			this.deps.seatsChanged?.(this.seatIdentities());
+			this.tellRoster();
 			return;
 		}
 		if (this.coinToss === null || this.coinToss.winner !== s.seat) return;
 		this.coinToss = null;
-		this.deps.seatsChanged?.(this.seatIdentities());
+		this.tellRoster();
 	}
 
 	/** A state frame seat `s` is being sent: into its snapshot's history and its game's tally. */
