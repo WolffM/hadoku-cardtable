@@ -50,10 +50,9 @@
 import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from 'react';
 
 import { LiveBoard } from '../play/live/LiveBoard.tsx';
-import { holdOnScreen, knownRoomOfMatch, takeWarmMatch, type MatchOpener } from '../play/live/matchStart.ts';
+import { holdOnScreen, knownRoomOfMatch, roomOfMatch, takeWarmMatch, type MatchOpener } from '../play/live/matchStart.ts';
 import { pacedMatchTransport } from '../play/live/pace.ts';
 import { PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
-import { roomsClient } from '../rooms/api.ts';
 import {
   closeMatch,
   socketIoMatchTransport,
@@ -111,25 +110,19 @@ export function MatchScreen({ matchId, makeTransport }: MatchScreenProps) {
   // id, so the server is asked which room started it — and it remembers that
   // after the match is over and across a restart, which the room list never did
   // (a reload on the result screen used to find no room and grey Rematch out).
-  // Unknown is a legitimate answer (a match link from elsewhere, a server that
-  // would not answer): the board then says "Back to the lobby", which is where
-  // that viewer belongs.
+  // The page asks once (`roomOfMatch`): the walk in from a room and the page's
+  // chat have usually asked already. Unknown is a legitimate answer (a match
+  // link from elsewhere, a server that would not answer): the board then says
+  // "Back to the lobby", which is where that viewer belongs.
   const [roomId, setRoomId] = useState<string | null>(() => knownRoomOfMatch(matchId)?.id ?? null);
   useEffect(() => {
-    const known = knownRoomOfMatch(matchId);
-    if (known !== undefined) {
-      setRoomId(known?.id ?? null);
-      return;
-    }
     let live = true;
-    roomsClient()
-      .roomOfMatch(matchId)
-      .then(
-        (room) => {
-          if (live) setRoomId(room?.id ?? null);
-        },
-        () => undefined,
-      );
+    roomOfMatch(matchId).then(
+      (room) => {
+        if (live) setRoomId(room?.id ?? null);
+      },
+      () => undefined,
+    );
     return () => {
       live = false;
     };

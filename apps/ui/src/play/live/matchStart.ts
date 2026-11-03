@@ -68,7 +68,7 @@ export function openNewMatch(matchId: string): void {
  * the board has something to draw: its first state, or the refusal it will say instead. The match
  * screen adopts that same handle ({@link takeWarmMatch}), so nothing connects twice. The page also
  * holds a match's board back until it knows the match's room (`App.tsx`, `useMatchRoomId`), so that
- * is asked here too and the route changes with both answers in hand ({@link knownRoomOfMatch}).
+ * is asked here too and the route changes with both answers in hand ({@link roomOfMatch}).
  * Every way into
  * a new match — both Ready, a table's pairing, Rematch, a bot game, the room list — comes through
  * {@link enter}, so they all walk the same way. A page opened on a match URL (a reload, a link)
@@ -95,8 +95,10 @@ let opener: MatchOpener | null = null;
 let loadOpener: (() => Promise<MatchOpener>) | null = null;
 /** Matches opened before their screen, waiting to be adopted by it, each with the opener that closes it. */
 const warm = new Map<string, { match: LiveMatch; opener: MatchOpener }>();
-/** Each entered match's room, as the server answered it (`null`: none). */
+/** Each match's room, as the server answered it (`null`: none). */
 const roomsKnown = new Map<string, RoomView | null>();
+/** Each match's room while the server is being asked, so a second asker waits on the same answer. */
+const roomsAsked = new Map<string, Promise<RoomView | null>>();
 /**
  * Matches a match screen holds its own handle for. Entering one opens nothing: a second socket for
  * the same seat replaces the screen's, and the board then draws a handle the server dropped. The
@@ -105,9 +107,32 @@ const roomsKnown = new Map<string, RoomView | null>();
  */
 const onScreen = new Set<string>();
 
-/** The room of a match this page entered, once the server has answered; `undefined` until then. */
+/** The room of a match this page has asked about, once the server has answered; `undefined` until then. */
 export function knownRoomOfMatch(matchId: string): RoomView | null | undefined {
   return roomsKnown.get(matchId);
+}
+
+/**
+ * Which room started `matchId`, asked once for the page: the walk in from a room ({@link enter}),
+ * the page's chat (`App.tsx`) and the board's way back (`MatchScreen.tsx`) all take this one
+ * answer. A failed ask is not "no room", so it is not kept: the next asker asks again.
+ */
+export function roomOfMatch(matchId: string): Promise<RoomView | null> {
+  const known = roomsKnown.get(matchId);
+  if (known !== undefined) return Promise.resolve(known);
+  const asked = roomsAsked.get(matchId);
+  if (asked !== undefined) return asked;
+  const asking = roomsClient().roomOfMatch(matchId);
+  roomsAsked.set(matchId, asking);
+  // Kept before any asker hears the answer: the asker's own handler runs after this one.
+  asking.then(
+    (room) => {
+      roomsKnown.set(matchId, room);
+      roomsAsked.delete(matchId);
+    },
+    () => roomsAsked.delete(matchId),
+  );
+  return asking;
 }
 
 export function warmMatchesWith(open: MatchOpener | null): void {
@@ -173,15 +198,12 @@ function enter(matchId: string): void {
   };
   const stop = by.subscribe(match, settled);
   const timer = setTimeout(go, BOARD_WAIT_MS);
-  const answered = (room: RoomView | null | undefined): void => {
-    if (room !== undefined) roomsKnown.set(matchId, room);
+  const answered = (): void => {
     roomAnswered = true;
     settled();
   };
   // A failed ask is not "no room": the page asks again for itself.
-  roomsClient()
-    .roomOfMatch(matchId)
-    .then(answered, () => answered(undefined));
+  roomOfMatch(matchId).then(answered, answered);
 }
 
 /** A fresh page's memory — what each test stands for. */
@@ -191,6 +213,7 @@ export function forgetMatchesFollowed(): void {
   for (const { match, opener: by } of warm.values()) by.close(match);
   warm.clear();
   roomsKnown.clear();
+  roomsAsked.clear();
 }
 
 /** Whether this page sounded the match's start, for the match's own sound telemetry. */

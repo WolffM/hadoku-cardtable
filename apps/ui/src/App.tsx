@@ -41,8 +41,8 @@ import { AppChrome } from './chrome/AppChrome.tsx';
 import { HeaderLinks } from './chrome/HeaderLinks.tsx';
 import { RoomShell } from './room/RoomShell.tsx';
 import { useWhoami } from './room/whoami.ts';
-import { knownRoomOfMatch } from './play/live/matchStart.ts';
-import { roomsClient, type RoomView } from './rooms/api.ts';
+import { knownRoomOfMatch, roomOfMatch } from './play/live/matchStart.ts';
+import type { RoomView } from './rooms/api.ts';
 import { useJoined } from './rooms/joined.ts';
 import { CARDTABLE_SETTINGS_TABS, HostDrawsSettingsProvider, useUiScale } from './settings/Settings.tsx';
 import { useTrim } from './settings/siteTrim.ts';
@@ -71,10 +71,10 @@ export interface RoomPlace {
 }
 
 /**
- * The room a live match belongs to, resolved once per match id — the same
- * call `MatchScreen.tsx` already makes for its own "back to the room" link
- * (`roomOfMatch`), asked again here because the chat has to know it BEFORE
- * `MatchScreen` ever mounts.
+ * The room a live match belongs to, resolved once per match id — the page's
+ * one ask (`matchStart.ts`'s `roomOfMatch`), whose answer `MatchScreen.tsx`
+ * takes for its own "back to the room" link; asked here first because the
+ * chat has to know it BEFORE `MatchScreen` ever mounts.
  *
  * Returns `pending: true` until the FIRST fetch this hook instance has ever
  * made (for any match id) has answered, and `pending: false` forever after —
@@ -134,16 +134,14 @@ export function useMatchRoomId(matchId: string | null): { room: RoomPlace | null
       return;
     }
     let live = true;
-    roomsClient()
-      .roomOfMatch(matchId)
-      .then(
-        (room) => {
-          if (live) setState({ room: placeOfMatch(room, matchId), everAnswered: true });
-        },
-        () => {
-          if (live) setState({ room: null, everAnswered: true });
-        },
-      );
+    roomOfMatch(matchId).then(
+      (room) => {
+        if (live) setState({ room: placeOfMatch(room, matchId), everAnswered: true });
+      },
+      () => {
+        if (live) setState({ room: null, everAnswered: true });
+      },
+    );
     return () => {
       live = false;
     };
