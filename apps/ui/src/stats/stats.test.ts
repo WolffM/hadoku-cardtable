@@ -83,7 +83,7 @@ const COLORS: BreakdownRow[] = [
   { value: 'W', ...totals(5, 2) },
 ];
 const DECKS: BreakdownRow[] = [
-  { value: 'Azorius Fliers', ...totals(5, 2), attrs: { colors: ['W', 'U'], deckId: 'power-2016-1-azorius' } },
+  { value: 'Azorius Fliers', ...totals(5, 2), attrs: { colors: ['W', 'U'], deckId: 'power-2016-1-azorius' }, lastPlayedAt: Date.now() - 2.5 * 3_600_000 },
   { value: 'Cube draft r-0123456789ab', ...totals(1, 1), attrs: { colors: ['B'], deckId: 'draft:r-0123456789ab' } },
   { value: 'Mono Red', ...totals(0, 6), attrs: { colors: ['R'] } },
 ];
@@ -256,6 +256,7 @@ describe('a profile', () => {
     const decks = within(await screen.findByTestId('stats-decks-table')).getAllByRole('row').slice(1);
     expect(decks.map((r) => r.querySelector('.ct-stats-deck__name')?.textContent), 'most played first').toEqual(['Azorius Fliers', 'Mono Red', 'Cube draft r-0123456789ab']);
     expect(decks[0]!.textContent).toContain('5–2');
+    expect(decks.map((r) => r.querySelector('.ct-stats__last')?.textContent), 'last played, and nothing for a row the store gave no date').toEqual(['2 h ago', '', '']);
     const colour = within(screen.getByTestId('stats-colours')).getAllByTestId('stats-colour')[0]!;
     expect([colour.querySelector('.ct-colours__record')?.textContent, colour.querySelector('.ct-colours__games')?.textContent]).toEqual(['5–2', '7 games']);
     expect(colour.querySelector('.gs-bar__fill')?.getAttribute('style')).toContain('width: 71%');

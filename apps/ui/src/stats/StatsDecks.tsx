@@ -24,7 +24,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Icon } from '@wolffm/themes';
-import { formatAttr, formatRecord, formatWinRate, StatsCard, WinBar, type RenderAttr, type StatsCache } from '@wolffm/game-stats-ui';
+import { formatAgo, formatAttr, formatRecord, formatWinRate, StatsCard, WinBar, type RenderAttr, type StatsCache } from '@wolffm/game-stats-ui';
 import { winRate, type BreakdownRow, type GameStatsClient, type StatAttrs } from '@wolffm/prefs-client/games';
 
 import { myDecksClient, type MyDecksClient } from '../deck/myDecks.ts';
@@ -309,6 +309,7 @@ export function WinningDecks({ client, cache }: { client: GameStatsClient; cache
 export function DecksTable({ client, cache, player }: { client: GameStatsClient; cache: StatsCache; player?: string | undefined }) {
   const [filter, setFilter] = useState<DeckStatsFilter>(NO_STATS_FILTER);
   const shown = (rows: readonly BreakdownRow[]): BreakdownRow[] => [...filterDeckRows(rows, filter.text)].sort((a, b) => b.games - a.games || winRate(b) - winRate(a));
+  const now = Date.now();
   return (
     <div className="ct-decks">
     <StatsCard
@@ -335,6 +336,9 @@ export function DecksTable({ client, cache, player }: { client: GameStatsClient;
                 <th scope="col" className="ct-stats__rate">
                   Win rate
                 </th>
+                <th scope="col" className="ct-stats__num ct-stats__last">
+                  Last played
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -351,6 +355,7 @@ export function DecksTable({ client, cache, player }: { client: GameStatsClient;
                       <span className="ct-winrate__pct">{formatWinRate(row)}</span>
                     </span>
                   </td>
+                  <td className="ct-stats__num ct-stats__last">{row.lastPlayedAt === undefined ? '' : formatAgo(row.lastPlayedAt, now)}</td>
                 </tr>
               ))}
             </tbody>

@@ -223,6 +223,10 @@
   width: 200px;
 }
 
+.ct-stats__table .ct-stats__last {
+  white-space: nowrap;
+}
+
 /* ── win rates ────────────────────────────────────────────────────── */
 
 .ct-winrate {
@@ -477,7 +481,7 @@
   }
 
   /*
-   * The Decks table keeps its name, W–L and win rate in the width, and drops Games: the columns
+   * The Decks table keeps its name, W–L and win rate in the width, and drops Games and Last played: the columns
    * hold their widths and a long deck name wraps under its pips instead of pushing the win rate
    * off the edge.
    */
@@ -486,7 +490,7 @@
     table-layout: fixed;
   }
 
-  .ct-stats__table .ct-stats__games {
+  .ct-stats__table :is(.ct-stats__games, .ct-stats__last) {
     display: none;
   }
 
