@@ -4,10 +4,10 @@
  * Portrait is forced with `document.documentElement.dataset.layout = 'portrait'` rather than waited
  * for: lane A's own switch (`portrait.ts`, the matchMedia listener) has not landed in this worktree yet.
  * The dock reacts to the attribute alone (`movable.tsx`'s `usePortraitLayout`, a `MutationObserver` on
- * `<html>`), so forcing it proves the dock on its own, independent of A's own commit. Where a claim also
- * needs A's board lanes (`lane-<...>`, the "covers no lane" half of the first scenario), the assertion
- * says so in its own failure message and is expected red until A lands — reported, never hidden or
- * skipped.
+ * `<html>`), so forcing it proves the dock on its own, independent of A's own commit. The lane claims
+ * read A's board lanes (`lane-*`): a docked question is as tall as it needs, up to its cap, so a short
+ * one (declare blockers) covers no lane at all, and a tall one (a Valakut target, with its tiles) may
+ * reach over this seat's own lanes but never over the lanes holding what it asks about.
  *
  * Every press is a real touch gesture (`Locator.tap()`, or `dragHandCard`'s own CDP touch drag under
  * the `phone` project) — never `.click()`, which stays a mouse event even inside a touch context and
@@ -37,6 +37,15 @@ const pillBtn = (page: Page): Locator => page.getByTestId('decision-pill');
 // than the selectables-driven `SelectionPrompt` (`selection-done`) — whichever one Forge's own ask
 // shape used, this is the one "Done"/submit the dock is showing.
 const doneBtn = (page: Page): Locator => dock(page).locator('[data-testid="selection-done"], [data-testid="prompt-submit"]');
+/**
+ * The Done of the sheet still showing `ids`, and no other: a pick that reaches its maximum answers
+ * itself, and the sheet that opens next (Scapeshift's search, right after its sacrifice) is another
+ * question, whose Done answered it empty when the follow-up tap landed there instead.
+ */
+const doneFor = (page: Page, ids: readonly number[]): Locator =>
+  dock(page)
+    .filter({ has: page.locator(ids.map((id) => `[data-testid="prompt-cards"] > li[data-card-id="${id}"]`).join(', ')) })
+    .locator('[data-testid="selection-done"], [data-testid="prompt-submit"]');
 
 async function dockMode(page: Page): Promise<string | null> {
   return dock(page).getAttribute('data-mode');
@@ -48,10 +57,12 @@ async function dockMode(page: Page): Promise<string | null> {
  */
 const boardLanes = (page: Page): Locator => page.locator('[data-testid^="lane-"]:not([data-testid="lane-my-hand"])');
 
-/** The dock covers none of the board's lanes. */
-async function expectBoardLanesClear(page: Page): Promise<void> {
+/** The dock covers none of the board's lanes — or, with `asked`, none that holds a card the question offers. */
+async function expectBoardLanesClear(page: Page, asked = false): Promise<void> {
   const dockBox = (await dock(page).boundingBox())!;
-  for (const lane of await boardLanes(page).all()) {
+  const lanes = asked ? boardLanes(page).filter({ has: page.locator('[data-board-card][data-selectable]') }) : boardLanes(page);
+  if (asked) expect(await lanes.count(), 'the question offers cards on the board').toBeGreaterThan(0);
+  for (const lane of await lanes.all()) {
     const laneBox = (await lane.boundingBox())!;
     const intersects = dockBox.y < laneBox.y + laneBox.height && laneBox.y < dockBox.y + dockBox.height;
     expect.soft(intersects, `the dock does not cover ${await lane.getAttribute('data-testid')}`).toBe(false);
@@ -154,7 +165,7 @@ async function castByTap(page: Page, name: string): Promise<void> {
   }
 }
 
-test(titled('ten Valakut triggers dock below the board and are answered with one tap on the opponent, "same target for all" ticked'), async ({ browser }) => {
+test(titled('ten Valakut triggers: the dock is as tall as its question and clear of its targets, and one tap on the opponent answers all ten, "same target for all" ticked'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(5 * 60_000);
@@ -172,8 +183,9 @@ test(titled('ten Valakut triggers dock below the board and are answered with one
       await pumpOpponent(bob.page);
       return (await tiles(alice.page)).length >= 10;
     });
-    for (const t of await tiles(alice.page)) await tapTile(alice.page, t.id);
-    await tapIfEnabled(doneBtn(alice.page));
+    const lands = await tiles(alice.page);
+    for (const t of lands) await tapTile(alice.page, t.id);
+    await tapIfEnabled(doneFor(alice.page, lands.map((t) => t.id)));
 
     await until('the search sheet (Valakut + ten Mountains) opens', async () => {
       await tapConfirmYes(alice.page);
@@ -183,19 +195,24 @@ test(titled('ten Valakut triggers dock below the board and are answered with one
     const library = await tiles(alice.page);
     const picked = [...library.filter((t) => /Valakut/.test(t.text)), ...library.filter((t) => t.text.startsWith('Mountain'))];
     for (const t of picked) await tapTile(alice.page, t.id);
-    await tapIfEnabled(doneBtn(alice.page));
+    await tapIfEnabled(doneFor(alice.page, picked.map((t) => t.id)));
 
-    // The first trigger's own dock: below the board, covering no lane. A's `lane-*` test ids do not
-    // exist in this worktree yet (checked, not assumed) — until then this reports what it found rather
-    // than passing vacuously on zero lanes.
+    // The first trigger's own dock.
     await until('the first Valakut trigger opens', async () => {
       await tapConfirmYes(alice.page);
       await pumpOpponent(bob.page);
       const says = (await alice.page.getByTestId('live-says').textContent().catch(() => null)) ?? '';
       return (await dock(alice.page).count()) > 0 && /Valakut/.test(says);
     });
+    // As tall as the question (its source, ~140px of target tiles, "same target for all"), capped at
+    // the docked maximum; so it may reach over this seat's own lanes, but never over the lanes holding
+    // the targets it asks about, and never over the bar.
     expect(await boardLanes(alice.page).count(), 'the four board lanes are drawn').toBe(4);
-    await expectBoardLanesClear(alice.page);
+    expect(await dockSlack(alice.page), 'no empty room in the docked dock').toBeLessThanOrEqual(2);
+    await expectBoardLanesClear(alice.page, true);
+    const dockBox = (await dock(alice.page).boundingBox())!;
+    const barBox = (await alice.page.getByTestId('action-bar').boundingBox())!;
+    expect.soft(dockBox.y + dockBox.height, 'the dock stands on the action bar').toBeLessThanOrEqual(barBox.y + 0.5);
     expect(await dockMode(alice.page), "a target question has nothing to overflow into").not.toBeNull();
     await expect(expandBtn(alice.page), 'the target question needs no expand').toHaveCount(0);
 
@@ -275,8 +292,9 @@ test(titled("Scapeshift's library search opens the dock full, scrolls only verti
       await pumpOpponent(bob.page);
       return (await tiles(alice.page)).length >= 10;
     });
-    for (const t of await tiles(alice.page)) await tapTile(alice.page, t.id);
-    await tapIfEnabled(doneBtn(alice.page));
+    const lands = await tiles(alice.page);
+    for (const t of lands) await tapTile(alice.page, t.id);
+    await tapIfEnabled(doneFor(alice.page, lands.map((t) => t.id)));
 
     await until("the search sheet opens, full (the dock's own overflow measurement, not Scapeshift's name)", async () => {
       await tapConfirmYes(alice.page);
