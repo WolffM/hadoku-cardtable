@@ -272,6 +272,17 @@ describe("item 4: a seat's identity", () => {
 		]);
 	});
 
+	it("falls back to the spec's probe-only avatarId for a match no room started, and the room's face wins over it", () => {
+		const { factory } = replayFactory();
+		const faces = new Map([[BOB, 'knight']]);
+		const registry = createMatchRegistry({ host: factory, log: () => undefined, overGraceMs: 60_000, emit: () => undefined, seatAvatar: (_m, owner) => faces.get(owner) });
+		const match = registry.create({ seats: [{ ...TWO_HUMANS.seats[0], avatarId: 'mage' }, { ...TWO_HUMANS.seats[1], avatarId: 'herald' }] } as MatchSpecWithIdentity);
+		expect(match.seatIdentities().map((s) => s.avatarId)).toEqual([undefined, undefined]);
+		match.claim(ALICE);
+		match.claim(BOB);
+		expect(match.seatIdentities().map((s) => s.avatarId)).toEqual(['mage', 'knight']);
+	});
+
 	/* Q6 (wave 32): an avatar changed mid-match. */
 
 	it("re-reads the holder's face and tells everyone the whole roster when a seat's avatar changes", () => {

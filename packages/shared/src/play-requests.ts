@@ -19,11 +19,17 @@ const FORMAT_ERROR = 'format is a format id';
 const CLOCK_ERROR = `clockMs is each seat's time left, two whole numbers of ms 0..${MATCH_CLOCK_MS}`;
 const clockLeft = z.int({ error: CLOCK_ERROR }).min(0, { error: CLOCK_ERROR }).max(MATCH_CLOCK_MS, { error: CLOCK_ERROR });
 
+const AVATARS_ERROR = 'avatars is a two-element array of sprite ids or null';
+/** A watchparty sprite id (`mage`, `herald`): the seat's portrait for a match no room started. */
+const avatar = z.string({ error: AVATARS_ERROR }).regex(/^[a-z0-9-]{1,40}$/, { error: AVATARS_ERROR }).nullable();
+
 const deck = z.string({ error: DECK_ERROR }).min(1, { error: DECK_ERROR }).max(MAX_DCK_BYTES, { error: DECK_ERROR }).nullable();
 
 /**
- * `{ opponent?, decks?, names?, scenario?, format?, handSmoothing?, chooser?, clockMs? }`.
+ * `{ opponent?, decks?, names?, scenario?, format?, handSmoothing?, chooser?, clockMs?, avatars? }`.
  * `clockMs` runs the chess clock from each seat's time left; absent, there is none.
+ * `avatars` is each seat's portrait for a match no room started: a probe-only test hatch
+ * (the server refuses it without `CARDTABLE_PLAY_PROBE`), so trailer footage of a scenario shows faces.
  * No body, a `null` opponent and `null` decks read as a human opponent and two
  * precon seats. `names` are taken as sent; the server cleans them.
  */
@@ -45,6 +51,7 @@ export const StartMatchBodySchema = z.preprocess(
       handSmoothing: z.boolean({ error: 'handSmoothing is a boolean' }).optional(),
       chooser: z.union([z.literal(0), z.literal(1)], { error: 'chooser is 0 or 1' }).optional(),
       clockMs: z.tuple([clockLeft, clockLeft], { error: CLOCK_ERROR }).optional(),
+      avatars: z.tuple([avatar, avatar], { error: AVATARS_ERROR }).optional(),
     },
     { error: (iss) => (iss.code === 'unrecognized_keys' ? `unknown field ${iss.keys[0]}` : 'body must be an object') },
   ),

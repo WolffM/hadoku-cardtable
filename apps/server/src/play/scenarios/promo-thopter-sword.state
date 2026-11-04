@@ -1,0 +1,16 @@
+# Promo footage (`e2e/promo/thopter.promo.ts`): the Thopter Foundry engine. Thopter Foundry sacrifices Sword
+# of the Meek for a 1/1 Thopter and a life; the Thopter entering brings the Sword back from the graveyard onto
+# it; and again, once per mana: a row of Thopters, each with the Sword passing along.
+turn=5
+activeplayer=human
+activephase=MAIN1
+humanlife=9
+ailife=17
+humanhand=Brainstorm;Force of Will
+humanbattlefield=Thopter Foundry;Sword of the Meek;Island;Island;Underground Sea;Underground Sea;Swamp;Polluted Delta;Island
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Forest;Forest;Savannah;Tarmogoyf
+aigraveyard=Swords to Plowshares
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest

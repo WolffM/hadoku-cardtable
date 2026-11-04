@@ -1,0 +1,12 @@
+# Promo montage (`e2e/promo/montage.promo.ts`): Thoughtseize: the rival's hand revealed, one card taken.
+turn=6
+activeplayer=human
+activephase=MAIN1
+humanlife=18
+ailife=18
+humanhand=Thoughtseize
+humanbattlefield=Swamp;Swamp;Bayou
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+aihand=Force of Will;Brainstorm;Jace, the Mind Sculptor;Show and Tell;Emrakul, the Aeons Torn
+aibattlefield=Island;Island;Volcanic Island
+ailibrary=Island;Island;Island;Island;Island;Island

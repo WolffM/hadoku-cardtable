@@ -1,0 +1,12 @@
+# Promo montage (`e2e/promo/montage.promo.ts`): Gray Merchant of Asphodel drains for its devotion.
+turn=6
+activeplayer=human
+activephase=MAIN1
+humanlife=8
+ailife=12
+humanhand=Gray Merchant of Asphodel
+humanbattlefield=Phyrexian Obliterator;Geralf's Messenger;Swamp;Swamp;Swamp;Swamp;Swamp
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+aihand=
+aibattlefield=Wild Nacatl;Forest;Mountain;Taiga
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest

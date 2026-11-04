@@ -1,0 +1,12 @@
+# Promo montage (`e2e/promo/montage.promo.ts`): Lava Axe to the face of a rival at 5, and Victory.
+turn=6
+activeplayer=human
+activephase=MAIN1
+humanlife=6
+ailife=5
+humanhand=Lava Axe
+humanbattlefield=Monastery Swiftspear;Mountain;Mountain;Mountain;Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aihand=
+aibattlefield=Plains;Plains;Savannah;Mother of Runes
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains

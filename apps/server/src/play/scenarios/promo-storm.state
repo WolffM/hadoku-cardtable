@@ -1,0 +1,15 @@
+# Promo footage (`e2e/promo/storm.promo.ts`): seat 0 chains Lotus Petal, Rite of Flame, Desperate Ritual and
+# Pyretic Ritual, then Grapeshot with storm four: five Grapeshots stack up and go at the rival's face.
+turn=4
+activeplayer=human
+activephase=MAIN1
+humanlife=18
+ailife=5
+humanhand=Lotus Petal;Rite of Flame;Desperate Ritual;Pyretic Ritual;Grapeshot
+humanbattlefield=Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Plains;Plains;Savannah
+aigraveyard=
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains

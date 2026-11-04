@@ -1,0 +1,16 @@
+# Promo footage (`e2e/promo/walkers.promo.ts`): three planeswalker moments in one main phase. Oko turns the
+# rival's Tarmogoyf into an Elk, Jace, the Mind Sculptor Brainstorms, and Elspeth, Knight-Errant ultimates
+# for her emblem. Counters are explicit (`w46-b-planeswalker.state`'s header).
+turn=6
+activeplayer=human
+activephase=MAIN1
+humanlife=17
+ailife=14
+humanhand=Force of Will;Swords to Plowshares;Island
+humanbattlefield=Oko, Thief of Crowns|Counters:LOYALTY=4;Jace, the Mind Sculptor|Counters:LOYALTY=3;Elspeth, Knight-Errant|Counters:LOYALTY=8;Tropical Island;Tundra;Island;Forest;Plains
+humanlibrary=Brainstorm;Ponder;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Tarmogoyf;Swamp;Bayou;Forest
+aigraveyard=Thoughtseize;Abrupt Decay
+ailibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp

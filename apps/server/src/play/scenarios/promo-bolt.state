@@ -1,0 +1,14 @@
+# Promo footage (`e2e/promo/bolt.promo.ts`): Lightning Bolt to the face of a rival at 3, and the game is won.
+turn=5
+activeplayer=human
+activephase=MAIN1
+humanlife=12
+ailife=3
+humanhand=Lightning Bolt;Fireblast
+humanbattlefield=Goblin Guide;Monastery Swiftspear;Mountain;Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=Chain Lightning;Lava Spike
+aihand=
+aibattlefield=Plains;Forest;Savannah;Knight of the Reliquary
+aigraveyard=
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains

@@ -1,0 +1,16 @@
+# Promo footage (`e2e/promo/progenitus.promo.ts`): the trailer's last shot. Seat 0's Progenitus, untapped
+# and not summoning sick, swings into a rival at 10: ten power lands at the top of the hit-weight curve and
+# the game is won. Protection from everything means nothing can block it; the rival has no creatures anyway.
+turn=7
+activeplayer=human
+activephase=MAIN1
+humanlife=14
+ailife=10
+humanhand=Natural Order;Brainstorm
+humanbattlefield=Progenitus;Forest;Forest;Plains;Island;Swamp;Mountain;Savannah
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=Natural Order;Ponder
+aihand=
+aibattlefield=Island;Island;Volcanic Island;Polluted Delta;Sensei's Divining Top
+aigraveyard=Force of Will;Counterspell;Brainstorm;Lightning Bolt
+ailibrary=Island;Island;Island;Island;Island;Island

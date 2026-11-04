@@ -53,6 +53,11 @@ export const FRIENDS: Readonly<Record<string, Friend>> = {
   ...Object.fromEntries(
     Array.from({ length: 7 }, (_, i) => [`drafter${i + 3}`, { key: `e2e-friend-key-drafter-${i + 3}`, userId: `e2e-drafter${i + 3}-id`, name: `e2e-drafter${i + 3}` }]),
   ),
+  // `promo/` only: gamer tags for trailer footage, so no real friend's name is ever on screen.
+  ashgrove: { key: 'e2e-friend-key-ashgrove-5b1e', userId: 'e2e-ashgrove-id', name: 'Ashgrove' },
+  nightjar: { key: 'e2e-friend-key-nightjar-0c7d', userId: 'e2e-nightjar-id', name: 'Nightjar' },
+  vexmoor: { key: 'e2e-friend-key-vexmoor-8a42', userId: 'e2e-vexmoor-id', name: 'Vexmoor' },
+  lumen: { key: 'e2e-friend-key-lumen-3f96', userId: 'e2e-lumen-id', name: 'Lumen' },
 };
 
 /** Ports. Overridable so a runner with something on these can move them. */

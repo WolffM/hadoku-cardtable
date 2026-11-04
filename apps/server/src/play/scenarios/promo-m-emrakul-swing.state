@@ -1,0 +1,12 @@
+# Promo montage (`e2e/promo/montage.promo.ts`): Emrakul, the Aeons Torn attacks a rival at 15; annihilator 6 first.
+turn=6
+activeplayer=human
+activephase=MAIN1
+humanlife=7
+ailife=15
+humanhand=
+humanbattlefield=Emrakul, the Aeons Torn;Island;Island;Ancient Tomb
+humanlibrary=Island;Island;Island;Island;Island;Island
+aihand=
+aibattlefield=Plains;Plains;Plains;Island;Island;Tundra;Flooded Strand;Swords to Plowshares
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains

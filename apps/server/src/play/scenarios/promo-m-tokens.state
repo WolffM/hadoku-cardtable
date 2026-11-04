@@ -1,0 +1,12 @@
+# Promo montage (`e2e/promo/montage.promo.ts`): Hordeling Outburst, three Goblin tokens at once.
+turn=6
+activeplayer=human
+activephase=MAIN1
+humanlife=15
+ailife=15
+humanhand=Hordeling Outburst
+humanbattlefield=Young Pyromancer;Mountain;Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aihand=
+aibattlefield=Island;Island;Volcanic Island
+ailibrary=Island;Island;Island;Island;Island;Island

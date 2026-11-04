@@ -508,6 +508,31 @@ describe('POST /api/play/matches: scenario needs the probe flag', () => {
 	});
 });
 
+describe('POST /api/play/matches: avatars needs the probe flag', () => {
+	it('refuses avatars without the probe flag, before any JVM is spent', async () => {
+		const h = await boot();
+		const res = await fetch(`http://127.0.0.1:${h.port}/api/play/matches`, {
+			method: 'POST',
+			headers: { ...edgeHeaders('alice'), 'content-type': 'application/json' },
+			body: JSON.stringify({ avatars: ['mage', 'herald'] }),
+		});
+		expect(res.status).toBe(400);
+		expect(await res.json()).toEqual({ error: 'avatars-needs-probe' });
+		expect(h.hosts).toHaveLength(0);
+	});
+
+	it('carries each seat’s avatar onto the spec with the flag on, and leaves a null seat without one', async () => {
+		const h = await boot({ probe: true });
+		const { status } = await startMatch(h, 'alice', { avatars: ['mage', null] });
+		expect(status).toBe(201);
+		expect(h.hosts[0]?.spec.seats.map((s) => (s as { avatarId?: string }).avatarId)).toEqual(['mage', undefined]);
+	});
+
+	it('refuses an avatar that is not a sprite id', () => {
+		expect(parseStartBody({ avatars: ['../x', null] }).ok).toBe(false);
+	});
+});
+
 describe('a burst of starts', () => {
 	// Hosting test C7: ten starts at once each booted a cold JVM in ~50 s, against ~10 s for one, the
 	// slowest 8 s inside the start timeout. Here each "JVM" hosts one match and boots in BOOT_MS once

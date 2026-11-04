@@ -1,0 +1,12 @@
+# Promo montage (`e2e/promo/montage.promo.ts`): Swords to Plowshares exiles the rival's Griselbrand.
+turn=6
+activeplayer=human
+activephase=MAIN1
+humanlife=12
+ailife=20
+humanhand=Swords to Plowshares
+humanbattlefield=Stoneforge Mystic;Plains;Plains;Tundra
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aihand=
+aibattlefield=Griselbrand;Swamp;Swamp;Underground Sea;Bloodstained Mire
+ailibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
