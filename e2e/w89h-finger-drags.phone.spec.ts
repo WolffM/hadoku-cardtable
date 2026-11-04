@@ -17,7 +17,7 @@
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castByDrag, castCard, enabledOk, handCardNamed, makeTitled, offeredCard, ownNamed, promptMethod, serverLog } from './play/board.ts';
+import { castCard, dragHandCard, enabledOk, handCardNamed, makeTitled, offeredCard, ownNamed, promptMethod, serverLog } from './play/board.ts';
 import { assignBlock, passToDeclareAttackers, undoBlock } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { PHONE, touchDrag } from './play/phone.ts';
@@ -92,10 +92,14 @@ test(titled('a finger scrolls a lane and the hand sideways and starts nothing; a
     expect.soft(views, 'no card view opened during a slow drag').toBe(0);
     expect.soft(await handCardNamed(page, 'Lightning Bolt'), 'let go over the hand, the card is still in it').toBe(bolt);
 
-    // Bolt dragged onto Tarmogoyf: cast, aimed at it.
+    // Bolt dragged up onto the table parks it, and Forge asks for its target; a drag from the parked
+    // card onto Tarmogoyf aims it there (the arrow drag).
     const [goyf] = await theirNamed(page, 'Tarmogoyf');
     const sent = serverLog(stack).length;
-    await castByDrag(page, stack, bolt, await centre(card(page, goyf!)));
+    const park = await centre(page.getByTestId('lane-my-permanents'));
+    expect(await dragHandCard(page, bolt, park), 'the finger lifted Bolt').toBe(true);
+    await expect(card(page, goyf!), 'Forge asks for Bolt’s target').toHaveAttribute('data-selectable', 'true', { timeout: 20_000 });
+    await touchDrag(page, park, line(park, await centre(card(page, goyf!)), 14));
     await expect
       .poll(() => commands(stack, 0, sent), { timeout: 20_000, message: 'Bolt was cast, and Tarmogoyf chosen as its target' })
       .toEqual(expect.arrayContaining([`selectCard:${bolt}`, `selectCard:${goyf}`]));
@@ -128,6 +132,8 @@ test(titled('attackers dragged by a finger onto a player and onto a planeswalker
     const [elves] = await ownNamed(page, 'Llanowar Elves');
     const [elspeth] = await theirNamed(page, "Elspeth, Sun's Champion");
     const face = page.locator('[data-testid="seat-chip-opp"] [data-player-face]');
+    // Elspeth is the last of bob's permanents, past the lane's right edge: a player scrolls to her first.
+    await card(page, elspeth!).scrollIntoViewIfNeeded();
     for (const [who, target, what] of [
       [bears!, face, 'bob'],
       [elves!, card(page, elspeth!), 'Elspeth'],
