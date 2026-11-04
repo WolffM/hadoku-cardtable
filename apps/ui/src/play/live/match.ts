@@ -1972,6 +1972,19 @@ function union(...sets: ReadonlyArray<ReadonlySet<number> | null>): ReadonlySet<
 }
 
 /**
+ * Whether the open question asks for cards in the viewer's own hand: a pick that names one, or the London
+ * mulligan's return (which publishes no pick, `mulliganHand`). A phone's docked question then stands on the
+ * hand instead of over it (`movable.tsx`'s `OffersHandContext`).
+ */
+export function asksForHandCards(match: LiveMatch): boolean {
+  const view = match.view;
+  if (view === null) return false;
+  if (mulliganHand(match.state, view) !== null) return true;
+  const picked = match.selectables?.cards;
+  return picked !== undefined && view.players.some((p) => (p.hand ?? []).some((c) => picked.has(c.id)));
+}
+
+/**
  * The seat's OWN hand while Forge is waiting for a London mulligan return, and
  * null at every other moment.
  *

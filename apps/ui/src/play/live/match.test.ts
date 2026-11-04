@@ -23,6 +23,7 @@ import {
   answerConfirm,
   attackAssignment,
   attackIntents,
+  asksForHandCards,
   boardInteraction,
   closeMatch,
   concede,
@@ -1891,6 +1892,15 @@ describe('the London mulligan: Forge’s own flag makes the seat’s own hand cl
     expect(m.highlighted).toEqual(new Set([hand[0]]));
     expect(boardInteraction(m).selectable).toEqual(new Set(hand));
     expect(selectCard(m, hand[0]!)).toBe(true);
+  });
+
+  it('a London return asks for hand cards (a phone docks it on the hand); with the flag down nothing does', async () => {
+    const { s, m } = await fullGame();
+    expect(asksForHandCards(m), 'no question').toBe(false);
+    await sendAndApply(s, m, [mulligan(m, true), prompt('Return 1 card(s) to the bottom of your library'), bar(false)]);
+    expect(asksForHandCards(m), 'the return publishes no pick, and still asks for hand cards').toBe(true);
+    await sendAndApply(s, m, [mulligan(m, false)]);
+    expect(asksForHandCards(m)).toBe(false);
   });
 
   it('ONLY the viewer’s own hand: the opponent’s hand ids are held and never offered', async () => {

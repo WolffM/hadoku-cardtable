@@ -302,6 +302,7 @@ import { hoverControl, isMuted, playRole, playSoundEvents, takeUiTally, type Del
 import { useMatchMusic } from '../../sound/match-music.ts';
 import { boardDrawing, boardSoundsAt, cardImpactAt, exitBeatAt, lifeImpactAt, millBeatAt, prefersReducedMotion, whenBoardStill } from '../motion.ts';
 import {
+  asksForHandCards,
   abortAsk,
   answerAsk,
   answerConfirm,
@@ -3030,8 +3031,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   /** The board cards an on-board pick offers: its pop-up is never drawn over them (`QuestionHost`'s `keepClearOf`). */
   const onBoardCardIds = battlefieldCardIds(match.view);
   const onBoardChoices = match.selectables === null ? [] : [...match.selectables.cards].filter((id) => onBoardCardIds.has(id));
-  /** Whether the open pick offers a card in the viewer's own hand: a docked question then stands on the hand, never over it. */
-  const offersHand = match.selectables !== null && (match.view?.players ?? []).some((p) => (p.hand ?? []).some((c) => match.selectables!.cards.has(c.id)));
+  /** Whether the open question asks for cards in the viewer's own hand: a docked question then stands on the hand, never over it. */
+  const offersHand = asksForHandCards(match);
   /** T2: gone the instant it is the viewer's move — see `isWaitingForOpponent`'s own note. */
   const waitingForOpponent = isWaitingForOpponent(match);
   /** The fact the T2 banner's sentence is built from — present whenever `waitingForOpponent` is. */
