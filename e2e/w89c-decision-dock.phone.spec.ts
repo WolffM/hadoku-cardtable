@@ -312,14 +312,16 @@ test(titled('declaring blockers: the dock is as tall as its question, covers no 
       els.map((el) => {
         const face = el.querySelector('.board-card__face')!.getBoundingClientRect();
         const lane = el.parentElement!.getBoundingClientRect();
-        return { faceTop: face.top, faceBottom: face.bottom, faceWidth: face.width, laneTop: lane.top, laneBottom: lane.bottom };
+        // Cards hang from the lane's content top: its padding is the room a raised card rises into.
+        const rest = lane.top + Number.parseFloat(getComputedStyle(el.parentElement!).paddingTop);
+        return { faceTop: face.top, faceBottom: face.bottom, faceWidth: face.width, laneTop: lane.top, laneBottom: lane.bottom, rest };
       }),
     );
     expect(attackers.length, 'w54-b attacks with two creatures').toBe(2);
     for (const a of attackers) {
       expect.soft(a.faceTop, 'an attacker is inside its lane, top').toBeGreaterThanOrEqual(a.laneTop - 0.5);
       expect.soft(a.faceBottom, 'an attacker is inside its lane, bottom').toBeLessThanOrEqual(a.laneBottom + 0.5);
-      const uprightMiddle = a.laneTop + (a.faceWidth * 680) / 488 / 2;
+      const uprightMiddle = a.rest + (a.faceWidth * 680) / 488 / 2;
       expect.soft(Math.abs((a.faceTop + a.faceBottom) / 2 - uprightMiddle), 'on the middle of an upright card’s footprint').toBeLessThanOrEqual(2);
     }
     // It stands on the action bar, which stays on the bottom edge, uncovered.
