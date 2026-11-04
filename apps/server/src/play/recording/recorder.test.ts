@@ -327,6 +327,24 @@ describe('createRecorder', () => {
 		});
 	});
 
+	it('names the room in both headers when the room links its match only after the host started', async () => {
+		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
+		const inner = fakeFactory();
+		let linked: string | null = null;
+		const recorder = createRecorder({ dir, identity: { pin: null, bridge: 'b', server: 's' }, roomOf: () => linked, deckCosts: NO_COSTS });
+		recorder.host(inner)('m-1', spec(1), { line: () => undefined, exit: () => undefined, log: () => undefined });
+		// The lobby sets `table.matchId` once `matches.create` has returned: after the host asked.
+		linked = 'r-1';
+		recorder.onEnvelope('m-1', -1, { matchId: 'm-1', cursor: { epoch: 'e', seq: 1 }, frame: { kind: 'notify' } } as never);
+		// A room that lets go of its match before the end keeps the answer it gave.
+		linked = null;
+		(inner.calls[0]!.events.exit as (r: string) => void)('stopped');
+
+		await vi.waitFor(() => expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true));
+		expect(linesOf(join(dir, 'm-1.public.jsonl.gz'))[0]).toMatchObject({ t: 'header', roomId: 'r-1' });
+		expect(linesOf(join(dir, 'm-1.actions.jsonl.gz'))[0]).toMatchObject({ t: 'header', roomId: 'r-1' });
+	});
+
 	it('a late onEnvelope/onGameOver after exit is a quiet no-op, and never recreates the files', async () => {
 		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
 		const inner = fakeFactory();

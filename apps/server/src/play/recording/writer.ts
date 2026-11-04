@@ -171,6 +171,8 @@ export interface MatchRecordingWriter {
 	publicEnv(line: Omit<PublicEnvLine, 't'>): void;
 	/** Append one `presence` line. Buffered. */
 	publicPresence(line: Omit<PublicPresenceLine, 't'>): void;
+	/** Both headers' `roomId`: a room links its match only after the match's host has started. */
+	room(roomId: string): void;
 	/**
 	 * Write the `end` line onto both buffers, gzip each, and write both files.
 	 * Never throws; a failed write is one `log` line, not a rejection. Resolves
@@ -206,8 +208,10 @@ export function createMatchRecordingWriter(deps: MatchRecordingWriterDeps): Matc
 	} catch (err) {
 		log({ evt: 'recording-dir-failed', dir: deps.dir, error: (err as Error).message });
 	}
-	const actionLines: unknown[] = [{ t: 'header', v: 2, ...deps.actionsHeader }];
-	const publicLines: unknown[] = [{ t: 'header', v: PUBLIC_VERSION, ...deps.publicHeader }];
+	const actionsHeader = { t: 'header', v: 2, ...deps.actionsHeader };
+	const publicHeader = { t: 'header', v: PUBLIC_VERSION, ...deps.publicHeader };
+	const actionLines: unknown[] = [actionsHeader];
+	const publicLines: unknown[] = [publicHeader];
 
 	return {
 		actionCmd(line) {
@@ -218,6 +222,10 @@ export function createMatchRecordingWriter(deps: MatchRecordingWriterDeps): Matc
 		},
 		publicPresence(line) {
 			publicLines.push({ t: 'presence', ...line });
+		},
+		room(roomId) {
+			actionsHeader.roomId = roomId;
+			publicHeader.roomId = roomId;
 		},
 		async finish(actionsEnd, publicEnd) {
 			actionLines.push({ t: 'end', ...actionsEnd });

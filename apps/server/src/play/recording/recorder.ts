@@ -145,6 +145,8 @@ interface Session {
 	/** The roster as last read, for the `end` line, and when (match time) it was read. */
 	seats: RecordedSeat[] | null;
 	seatsAt: number;
+	/** Whether the headers carry the match's room yet. */
+	roomKnown: boolean;
 	/** Each seat's board, folded as it goes, for the end line's `boards`. */
 	positions: [SeatPosition, SeatPosition];
 }
@@ -171,9 +173,21 @@ function guarded(log: JsonLog, matchId: string, what: string, run: () => void): 
 export function createRecorder(deps: RecorderDeps): Recorder {
 	const log = deps.log ?? (() => undefined);
 	const now = deps.now ?? Date.now;
-	/** Re-read the roster into `session`. A match already gone leaves the last one read. */
-	const noteSeats = (matchId: string, session: Session): void => {
+	/**
+	 * Re-read the roster and the room into `session`. A match already gone leaves the last roster
+	 * read; a room is asked for until it answers, since it links its match only after the host has
+	 * started, so the first ask (in `host`) is nearly always too early.
+	 */
+	const noteMatch = (matchId: string, session: Session): void => {
 		session.seatsAt = now() - session.startedAtMs;
+		if (!session.roomKnown) {
+			guarded(log, matchId, 'room', () => {
+				const roomId = deps.roomOf(matchId);
+				if (roomId === null) return;
+				session.writer.room(roomId);
+				session.roomKnown = true;
+			});
+		}
 		guarded(log, matchId, 'seats', () => {
 			const seats = deps.seatsOf?.(matchId);
 			if (seats === undefined) return;
@@ -181,7 +195,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 		});
 	};
 	const endSeats = (matchId: string, session: Session): { seats?: RecordedSeat[] } => {
-		noteSeats(matchId, session);
+		noteMatch(matchId, session);
 		return session.seats === null ? {} : { seats: session.seats };
 	};
 	const randomSeed = deps.randomSeed ?? randomSeed32;
@@ -208,7 +222,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 					},
 					log,
 				});
-				const session: Session = { writer, startedAtMs: now(), lastPresence: null, seats: null, seatsAt: 0, positions: [createSeatPosition(0), createSeatPosition(1)] };
+				const session: Session = { writer, startedAtMs: now(), lastPresence: null, seats: null, seatsAt: 0, roomKnown: roomId !== null, positions: [createSeatPosition(0), createSeatPosition(1)] };
 				// Every ask's callId per seat, in the order Forge sent them: a reply's `ask` number.
 				const asks = new Map<number, string[]>();
 				sessions.set(matchId, session);
@@ -279,7 +293,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 			if (session === undefined) return;
 			const at = now() - session.startedAtMs;
 			guarded(log, matchId, 'envelope', () => session.writer.publicEnv({ at, env: envelope }));
-			if (session.seats === null || at - session.seatsAt >= SEATS_RECORD_MS) noteSeats(matchId, session);
+			if (session.seats === null || at - session.seatsAt >= SEATS_RECORD_MS) noteMatch(matchId, session);
 		},
 
 		onPresence(matchId, seat, playerId, presence) {
