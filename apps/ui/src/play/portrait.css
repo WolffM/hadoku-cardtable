@@ -231,6 +231,17 @@
   display: none;
 }
 
+/*
+ * A finger swiping sideways over a lane scrolls it, as it does the hand (`hand.css`), whatever card it
+ * starts on: the browser keeps the sideways pan, and `gestures/install.ts` takes a press only once it
+ * clearly goes up (`pansSideways`, `pastSlopUpward`) — an attacker, a blocker, a card carried to a
+ * target. Desktop's `touch-action: none` on an arrangeable card (`board.css`) left a portrait lane
+ * unscrollable wherever a card was under the finger (w89h).
+ */
+:root[data-layout='portrait'] [data-testid^='lane-'] > li.board-card {
+  touch-action: pan-x;
+}
+
 /* Every card and gap in a lane is one flex item, `--card-w` wide, never shrinking past it. */
 :root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid] > li,
 :root[data-layout='portrait'] .zone--hand > .zone__cards[data-testid] > li {
