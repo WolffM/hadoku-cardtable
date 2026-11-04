@@ -39,6 +39,25 @@ async function ownCreatures(page: Page): Promise<number[]> {
   return ids;
 }
 
+/** Start recording how many attackers `page` draws, once per change, into `window.attackersSeen`. */
+async function recordAttackers(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const seen: number[] = [];
+    (window as unknown as { attackersSeen: number[] }).attackersSeen = seen;
+    const look = (): void => {
+      const n = document.querySelectorAll('li.board-card[data-attacking]').length;
+      if (seen.at(-1) !== n) seen.push(n);
+    };
+    look();
+    new MutationObserver(look).observe(document.body, { subtree: true, childList: true, attributes: true });
+  });
+}
+
+/** Every attacker count `recordAttackers` saw on `page`, in order. */
+function attackersSeen(page: Page): Promise<number[]> {
+  return page.evaluate(() => (window as unknown as { attackersSeen: number[] }).attackersSeen);
+}
+
 /** The "All" button in the declare-attackers decision pop-up. */
 const allButton = (page: Page): ReturnType<Page['getByTestId']> => page.getByTestId('live-attack-all');
 
@@ -75,9 +94,12 @@ test(titled('"All" declares every legal attacker, stays editable, and Done commi
     await expect.poll(() => attackingCards(alice.page).count(), { timeout: 10_000, message: 'one was removed by hand' }).toBe(2);
 
     // 3. Done. The declaration is committed; the opponent's screen sees N−1, alice's own still does too.
+    // Both counts are recorded on every change from here on, not sampled: with nobody to block, Forge
+    // runs the combat out within a tenth of a second of Done, and a poll can land after it.
+    for (const page of [alice.page, bob.page]) await recordAttackers(page);
     await decisionOk(alice.page).click();
-    await expect.poll(() => attackingCards(bob.page).count(), { timeout: 10_000, message: 'bob sees N−1 once Done commits it' }).toBe(2);
-    expect(await attackingCards(alice.page).count(), 'alice still shows N−1 too').toBe(2);
+    await expect.poll(async () => (await attackersSeen(bob.page)).includes(2), { timeout: 10_000, message: 'bob sees N−1 once Done commits it' }).toBe(true);
+    expect(await attackersSeen(alice.page), 'alice still shows N−1 too').toContain(2);
   } finally {
     await seated?.alice.context.close();
     await seated?.bob.context.close();
