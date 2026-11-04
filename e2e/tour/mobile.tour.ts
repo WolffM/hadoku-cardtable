@@ -288,6 +288,15 @@ test('room: constructed room, a live match through the room, spectator, result, 
       await shotSizes(alice.page, 'match-log', { area: 'match', route: '#/match/<id>', state: 'the game log open' }, { landscape: true });
       await alice.page.getByTestId('live-log-toggle').click().catch(() => alice.page.keyboard.press('Escape'));
     });
+    await attempt('chat sheet', async () => {
+      const chat = alice.page.getByTestId('action-chat');
+      if ((await chat.count()) === 0) return;
+      await chat.tap();
+      await alice.page.waitForTimeout(700);
+      await shot(alice.page, 'match-chat', { area: 'match', route: '#/match/<id>', state: 'the chat sheet open: the bar stays on the bottom edge' });
+      await chat.tap();
+      await alice.page.waitForTimeout(300);
+    });
     await attempt('settings in a match', async () => {
       await settingsTabs(alice.page, 'match', '#/match/<id>', 'match');
     });
@@ -419,6 +428,14 @@ test('scenario: board, card inspector, target question, stack with arrows, sheet
     await shotSizes(page, 'scn-board', M('a full board, own turn, main phase (scenario: 11 lands vs a Jund board)'), { small: true, landscape: true });
     await shotSizes(bob.page, 'scn-board-opp', M('the same board from the waiting seat'), { landscape: true });
 
+    await attempt('the action menu open', async () => {
+      await page.getByTestId('action-menu').tap();
+      await page.waitForTimeout(500);
+      await shot(page, 'scn-bar-menu', M('the action menu open: the bar stays on the bottom edge'));
+      await page.getByTestId('action-menu').tap();
+      await page.waitForTimeout(300);
+    }, page);
+
     await attempt('a lane with hidden cards both ways', async () => {
       const lands = page.getByTestId('lane-my-lands');
       await lands.evaluate((el) => {
@@ -454,7 +471,13 @@ test('scenario: board, card inspector, target question, stack with arrows, sheet
     await attempt('target question + stack arrow', async () => {
       await castByTap(page, 'Lightning Bolt');
       let shotTarget = false;
+      let shotPay = false;
       await until('Bolt is on the stack', async () => {
+        if (!shotPay && (await page.getByTestId('live-payment-ok').count()) > 0) {
+          shotPay = true;
+          await page.waitForTimeout(500);
+          await shot(page, 'scn-pay', M('a mana payment, docked over the hand (Lightning Bolt)'));
+        }
         await pressPaymentAuto(page);
         if (/target/i.test(await says(page)) && !shotTarget) {
           shotTarget = true;
@@ -477,9 +500,15 @@ test('scenario: board, card inspector, target question, stack with arrows, sheet
 
     await attempt('Scapeshift sheets', async () => {
       await castByTap(page, 'Scapeshift');
+      let shotConfirm = false;
       await until('the sacrifice sheet', async () => {
         if ((await tiles(page)).length >= 11) return true;
         await pressPaymentAuto(page);
+        if (!shotConfirm && (await page.locator('[data-testid="prompt-confirm-yes"]:enabled').count()) > 0) {
+          shotConfirm = true;
+          await page.waitForTimeout(500);
+          await shot(page, 'scn-confirm', M('a yes/no question, docked over the hand (Scapeshift: sacrifice?)'));
+        }
         await pressIfThere(page.locator('[data-testid="prompt-confirm-yes"]:enabled'));
         await pressIfThere(okOn(bob.page));
         return false;
@@ -582,6 +611,13 @@ test('scenario2: combat blocks, mistake bubble', async ({ browser }) => {
         await blocker.tap({ timeout: 3_000 }).catch(() => undefined);
         await alice.page.waitForTimeout(800);
         await shot(alice.page, 'scn-combat-blocker-picked', M('combat: a blocker picked (pick its attacker)'));
+      }
+      const minimize = alice.page.getByTestId('decision-minimize');
+      if ((await minimize.count()) > 0) {
+        await minimize.tap({ timeout: 3_000 });
+        await alice.page.waitForTimeout(600);
+        await shot(alice.page, 'scn-combat-pill', M('combat: the decision shrunk to a pill'));
+        await alice.page.getByTestId('decision-pill').tap({ timeout: 3_000 });
       }
     });
   } finally {
