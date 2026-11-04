@@ -4,7 +4,7 @@
  */
 import { test, type Page } from '@playwright/test';
 
-import { fillWithAi, readyPod } from '../podSeats.ts';
+import { fillWithAi, readyPod, sitPodAt } from '../podSeats.ts';
 import { submitCreateRoom } from '../play/rooms.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from '../play/harness.ts';
 import { humanMove, humanRest, until } from './drive.ts';
@@ -46,7 +46,8 @@ test('draft: the pod, fan and grid, a card turned over', async () => {
     await film.roll();
     film.mark('lobby');
     await film.beat(1_500);
-    await page.locator('[data-testid="pod-seat-sit"][data-seat="0"]').click();
+    // Entering seats a newcomer (`room/lobby.ts`'s autoSeat); this holds seat 0 whether or not it already does.
+    await sitPodAt(page, 0);
     await film.beat(800);
     await readyPod(page);
     await fillWithAi(page, 30_000);
