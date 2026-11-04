@@ -152,6 +152,8 @@ test(titled('attackers dragged by a finger onto a player and onto a planeswalker
     // Bob blocks the Bears by dragging his Serra Angel onto it, then takes it back with a second tap.
     await expect.poll(() => bob.page.getByTestId('live-says').textContent(), { timeout: 30_000 }).toMatch(/block/i);
     const [angel] = await ownNamed(bob.page, 'Serra Angel');
+    await card(bob.page, angel!).scrollIntoViewIfNeeded();
+    await card(bob.page, bears!).scrollIntoViewIfNeeded();
     await assignBlock(bob.page, angel!, bears!);
     await expect(card(bob.page, angel!), 'dragged onto the Bears, the Angel blocks').toHaveAttribute('data-blocking', 'true', { timeout: 10_000 });
     const sent = serverLog(stack).length;
