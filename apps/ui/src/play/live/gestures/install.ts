@@ -1839,8 +1839,13 @@ export function installGestures(options: GestureOptions): GestureHandle {
       const p = placedDrag;
       placedDrag = null;
       // A press that never moved was a click (the inspector's own hover/
-      // long-press owns that gesture already) — nothing to commit.
+      // long-press owns that gesture already) — nothing to commit. On touch
+      // there is no hover: the tap reads the item's card, as a tap on a hand card does.
       if (p.moved) gripStackItem(p.id, 'you', { x: event.clientX, y: event.clientY }, 'drop', p.side);
+      else if (event.pointerType === 'touch') {
+        const item = canvas.querySelector(`[data-placed-spell="${p.id}"]`);
+        if (item !== null && openCardView(canvas.querySelector('.board') ?? canvas, item)) clicks.arm('touch-stack-read');
+      }
       paint();
       return;
     }

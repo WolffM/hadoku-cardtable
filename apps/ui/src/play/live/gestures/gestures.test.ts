@@ -3787,6 +3787,29 @@ describe('a played card waits where it was let go until Forge has it on the batt
     }
   });
 
+  it('on touch, a tap on a stack item that never moves reads its card in the card view; a mouse click on it opens nothing', async () => {
+    const { s, m, canvas, card, rest, battlefield } = await play();
+    inspectorDispose = mountInspector(canvas.querySelector<HTMLElement>('.board')!);
+    s.send(zones({ Hand: rest, Battlefield: battlefield }));
+    s.send(stackItem(9101, card));
+    s.send(stackIs([9101, 48]));
+    await untilMatch(m, () => expect(m.view!.stack.map((i) => i.id)).toEqual([9101, 48]));
+    const theirItem = await waitFor(() => canvas.querySelector<HTMLElement>('[data-placed-spell="48"]')!);
+    const before = (await sent(s, m)).length;
+    const view = () => canvas.querySelector<HTMLElement>('[data-testid="card-view"]');
+
+    fireEvent.pointerDown(theirItem, { button: 0, clientX: 600, clientY: 200 });
+    fireEvent.pointerUp(window, { clientX: 600, clientY: 200 });
+    fireEvent.click(theirItem, { clientX: 600, clientY: 200 });
+    expect(view(), 'a mouse click opens no card view: the hover already reads it').toBeNull();
+
+    fireEvent.pointerDown(theirItem, { button: 0, pointerType: 'touch', clientX: 600, clientY: 200 });
+    fireEvent.pointerUp(window, { pointerType: 'touch', clientX: 600, clientY: 200 });
+    fireEvent.click(theirItem, { clientX: 600, clientY: 200 });
+    expect(view(), 'the tap opened the card view').not.toBeNull();
+    expect((await sent(s, m)).length, 'nothing reaches Forge').toBe(before);
+  });
+
   it('a creature that is countered just lets go: no landing, nothing left over the board', async () => {
     const { s, m, canvas, card, rest, battlefield } = await play(() => false);
     s.send(zones({ Hand: rest, Battlefield: battlefield }));

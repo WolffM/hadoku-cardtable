@@ -537,7 +537,7 @@ function hoverOff(): boolean {
  * a touch tap that must read instead of act looks the card up, builds its actions off `LiveMatch`,
  * and hands both here, outside the pointer gesture `show`/`dismiss` otherwise run on alone.
  */
-const activeApis = new WeakMap<ParentNode, (cardId: number, actions: readonly CardViewAction[]) => boolean>();
+const activeApis = new WeakMap<ParentNode, (card: number | Element, actions: readonly CardViewAction[]) => boolean>();
 
 /**
  * Open the card view on a card already drawn under `root`, from OUTSIDE this module's own pointer
@@ -545,10 +545,11 @@ const activeApis = new WeakMap<ParentNode, (cardId: number, actions: readonly Ca
  * both decided in `../live/gestures/install.ts`, which holds the `LiveMatch` this module never does).
  * A no-op, returning false, when nothing is mounted on `root` or the card has no tile drawn — hidden
  * information, or it already left — the same "nothing to show" this module already treats as final
- * everywhere else.
+ * everywhere else. `card` is a board card's id, or an element drawn on the board (a stack item, which
+ * has no board card of its own): that one is read as a hover over its face reads it.
  */
-export function openCardView(root: ParentNode, cardId: number, actions: readonly CardViewAction[] = []): boolean {
-  return activeApis.get(root)?.(cardId, actions) ?? false;
+export function openCardView(root: ParentNode, card: number | Element, actions: readonly CardViewAction[] = []): boolean {
+  return activeApis.get(root)?.(card, actions) ?? false;
 }
 
 /**
@@ -868,14 +869,20 @@ export function mountInspector(root: ParentNode): () => void {
    * applies to a re-hover of the same card — because the caller may be handing back the SAME card with
    * a DIFFERENT action (Forge's offer moved on since the last tap).
    */
-  function openOn(cardId: number, actions: readonly CardViewAction[]): boolean {
-    const owner = scope.querySelector(`[data-card-id="${cardId}"]`);
-    const tile = owner?.querySelector('.card') ?? null;
-    if (owner === null || tile === null) return false;
+  function openOn(card: number | Element, actions: readonly CardViewAction[]): boolean {
+    let target: InspectTarget | null;
+    if (typeof card === 'number') {
+      const owner = scope.querySelector(`[data-card-id="${card}"]`);
+      const tile = owner?.querySelector('.card') ?? null;
+      target = owner === null || tile === null ? null : { card: owner, tile };
+    } else {
+      target = inspectedCardFrom(card.querySelector(`.card, [${ABILITY_CHIP}]`) ?? card, scope);
+    }
+    if (target === null) return false;
     cancelPress();
     dismiss();
     quiet = null;
-    show({ card: owner, tile, actions });
+    show({ ...target, actions });
     byTouch = true;
     return true;
   }
