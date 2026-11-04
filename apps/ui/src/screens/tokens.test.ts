@@ -302,6 +302,55 @@ describe('no hardcoded colours', () => {
 });
 
 /*
+ * A filled control's ink (the operator, 2026-11-04, on the phone card view's Cast: "white text inside a
+ * light color button. classic theme layering mistake ... buttons are intentionally light colored so need
+ * black text"). Every theme pairs each fill with its own ink (`--color-on-primary` with
+ * `--color-primary`, and so on); the page's text, or the accent mixed toward it, is not that ink.
+ */
+describe('a filled control’s ink', () => {
+  const FILLS: Record<string, readonly string[]> = {
+    'accent': ['on-accent', 'color-on-primary'],
+    'color-primary': ['on-accent', 'color-on-primary'],
+    'success': ['on-success'],
+    'danger': ['on-danger'],
+  };
+
+  it('a rule that fills with a theme colour draws its text and glyphs in that fill’s own ink, nothing else', () => {
+    const found: string[] = [];
+    for (const rel of sheets) {
+      const css = readFileSync(new URL(rel, root), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+      for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        const fill = /(?:^|;|\s)background(?:-color)?:\s*var\(--([a-z-]+)\)\s*;/.exec(m[2]!)?.[1];
+        const inks = fill === undefined ? undefined : FILLS[fill];
+        if (inks === undefined) continue;
+        for (const ink of m[2]!.matchAll(/(?:^|;|\s)(?:color|fill):\s*([^;]+);/g)) {
+          const token = /^var\(--([a-z-]+)\)$/.exec(ink[1]!.trim())?.[1];
+          if (token === undefined || !inks.includes(token)) found.push(`${rel}: ${m[1]!.trim().slice(0, 70)} fills --${fill} and inks ${ink[1]!.trim()}`);
+        }
+      }
+    }
+    expect(found).toEqual([]);
+  });
+
+  it('each fill and its own ink clear 4.5:1 in every theme', () => {
+    const low: string[] = [];
+    for (const t of themes)
+      for (const [fill, ink] of [
+        ['primary', 'on-primary'],
+        ['success', 'on-success'],
+        ['danger', 'on-danger'],
+      ] as const) {
+        const f = paint(t.vars[fill], t.bg);
+        const i = f === null ? null : paint(t.vars[ink], f);
+        if (f === null || i === null) low.push(`${t.name}: --color-${fill}/--color-${ink} unreadable`);
+        else if (contrast(f, i) < 4.5) low.push(`${t.name}: --color-${ink} on --color-${fill} is ${contrast(f, i).toFixed(2)}:1`);
+      }
+    expect(themes.length).toBeGreaterThan(10);
+    expect(low).toEqual([]);
+  });
+});
+
+/*
  * The board's arrows (`play/live/gestures/arrow.css`). The theme's colours alone fall under 3:1 on
  * the board in most light themes (izakaya-light's success is 1.06:1), so every arrow is its own
  * colour inside a rim: that colour mixed toward the theme's ink. The rim must clear 3:1 on the
