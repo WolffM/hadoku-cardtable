@@ -169,7 +169,8 @@
 
 :root[data-layout="portrait"] .dock__controls {
   position: absolute;
-  z-index: 1;
+  /* Above the sheet, which stands at the popover layer itself (`prompts.css`'s `.prompt`). */
+  z-index: calc(var(--z-popover, 40) + 1);
   top: 10px;
   right: 10px;
   display: flex;
