@@ -90,10 +90,14 @@ Our side of the interface. A change to any of these fields is a contract change,
 
 ## What cardtable does on its side
 
-- **Uses only the slices it asked for.** Matches go to the first N usable claws ahead of hokon,
-  in order (claw-8, claw-9, claw-10), spread by free room. Another claw ahead of hokon takes
-  matches once those are full; then hokon, while it is promoted; claw-5 only after hokon
-  (`rules.ts` `inUse`, `AFTER_BACKSTOP`).
+- **Uses only the slices it asked for.** Matches go to the first N usable claws in
+  `placement.order`, spread by free room (`rules.ts` `inUse`). Any other claw takes matches,
+  in order, once those are full.
+- **hokon is emergency-only, by fleet-manager's rule** (the operator, 2026-11-04: "fleet-manager
+  decides how that works"). hokon takes a match only when no claw can: it is promoted at once
+  then, and stands down as soon as one claw can again. Fewer claws than `slices.min` is the
+  converger's shortfall to replace, not a trigger. cardtable computes this from its own bars until
+  fleet-manager reports the decision itself in `hosting-demand`'s `backstop` object.
 - **Keeps using a slice that §3 says breaks a rule.** The newcomer is fleet-manager's to remove.
   Moving players to a slower box would make them pay for it.
 - **Asks with `hosting-demand` only.** It never declares or ends a slice itself.

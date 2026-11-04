@@ -23,22 +23,19 @@
  *
  * ## hokon as the backstop (§4.3)
  *
- * The operator's host priority: **claw-8 → claw-9 → claw-10 → hokon → claw-5** (2026-10-31, with
- * claw-10 the tertiary host since 2026-11-03): `HOST_ORDER`, `hosting.json`'s `placement.order`, with
- * hokon as the step before the emergency claws (`AFTER_BACKSTOP`). The same shape as fleet-manager's
- * CI backstop: promoted when no claw is eligible, or when fewer than `MIN_SLICES` of the claws
- * ahead of hokon (`SERVING`) are usable, for `OUTAGE_POLLS` polls in a row — at once when a start
- * is waiting or a failed claw's matches need a host; demoted after `CALM_POLLS` calm polls in a row;
- * a serving claw inside fleet-manager's announced reboot is no outage (operator, 2026-11-03: a kernel
- * reboot of claw-8 promoted hokon for 19 min with no match anywhere) until it has been down for
- * `REBOOT_DOWN_MS`;
- * a poll that could not read fleet status holds whatever is current; an operator force, time-boxed
- * (`FORCE_DEFAULT_MS`, at most `FORCE_MAX_MS`), promotes regardless. Demotion takes no new matches
- * on hokon and moves none: a healthy match is never restored for nothing.
+ * fleet-manager decides how a hosted tenant's backstop works (operator, 2026-11-04: "this is not up
+ * for you to determine. fleet-manager decides how that works"). Its rule, until it reports the
+ * decision itself (an additive `backstop` object in `hosting-demand`): **hokon is emergency-only**.
+ * It is promoted, at once, when no claw can take a match (`eligible` is 0: a start found no host);
+ * fewer claws than `slices.min` is the converger's shortfall to replace, not a trigger. It stands
+ * down as soon as one claw can take a match again. A poll that could not read fleet status holds
+ * whatever is current; an operator force, time-boxed (`FORCE_DEFAULT_MS`, at most
+ * `FORCE_MAX_MS`), promotes regardless. Demotion takes no new matches on hokon and moves none: a
+ * healthy match is never restored for nothing.
  *
  * ## Slices on demand (§6)
  *
- * `demandStep` decides, every poll, how many slices to ask fleet-manager for: `MIN_SLICES` (the
+ * `demandStep` decides, every poll, how many slices to ask fleet-manager for: `slices.min` (the
  * serving claws), one more only while hokon is promoted and still short (the emergency claw), fewer
  * only after a calm spell, and the order they may be ended in, the emergency claw first.
  * fleet-manager's converger declares and ends them, ranking nodes by `hosting.json`'s
@@ -48,8 +45,8 @@
  *
  * fleet-manager may hold more of our slices than we ask for (on 2026-11-04 it held four for a
  * demand of two, after placing other tenants' services beside claw-8 and claw-9). A match goes to
- * the first `demand` usable claws ahead of hokon, in `HOST_ORDER`; another claw ahead of hokon only
- * once those are full; hokon next; an emergency claw last.
+ * the first `demand` usable claws, in `HOST_ORDER`; any other claw, in order, once those are full;
+ * hokon only when no claw can take it.
  */
 
 import { readFileSync, statSync } from 'node:fs';
@@ -61,20 +58,6 @@ import { coreRank, type FleetNode } from './fleet.js';
 export const NOTICE_HORIZON_MS = 30 * 60_000;
 /** This close to that event, its remaining matches move at their next turn start. */
 export const MOVE_AHEAD_MS = 5 * 60_000;
-/**
- * How long a serving claw may be down inside its announced reboot before hokon counts it as an
- * outage: fleet-manager's own bound from the reboot command to a reachable node on a new boot
- * (`BOOT_TIMEOUT_MS`, hadoku-fleet-manager `scripts/lib/reboot-cycle.mjs`). claw-8's took 56 s on
- * 2026-11-03.
- */
-export const REBOOT_DOWN_MS = 12 * 60_000;
-/**
- * Outage polls in a row before hokon steps in unasked. One was a hair trigger: on 2026-10-30 a
- * one-poll blip on the only claw promoted hokon, the prod box, again and again.
- */
-export const OUTAGE_POLLS = 2;
-/** Calm polls in a row before hokon stands down. */
-export const CALM_POLLS = 3;
 /** The operator's force on hokon: the default, and the ceiling from when it was written. */
 export const FORCE_DEFAULT_MS = 60 * 60_000;
 export const FORCE_MAX_MS = 6 * 60 * 60_000;
@@ -199,59 +182,31 @@ export function jvmsThatFit(memoryMb: number, xmxMb: number, need: (xmxs: number
 
 export interface BackstopState {
 	promoted: boolean;
-	/** Calm polls in a row while promoted. */
-	calm: number;
-	/** Outage polls in a row while not promoted. */
-	outages: number;
 	why: string;
 }
 
 export interface BackstopInput {
 	/** This poll read fleet status. False: hold. */
 	fresh: boolean;
-	/** `SERVING` claws (ahead of hokon) with a slice declared for us that are usable (`DemandClaw.usable`). */
-	serving: number;
-	/**
-	 * The other `SERVING` claws with a slice declared for us that are inside an announced reboot,
-	 * and not down past `REBOOT_DOWN_MS`: planned work, so they count as up.
-	 */
-	rebooting: number;
+	/** Claws that can take a new match now (every bar holds). */
 	eligible: number;
 	/** The operator's force is in effect. */
 	forced: boolean;
-	/** A start found no host since the last poll, or a failed claw's matches need one now. */
-	waiting: boolean;
-	/** An event between polls: it counts no poll, so it promotes only for a waiting start. */
-	between: boolean;
 }
 
-export const BACKSTOP_IDLE: BackstopState = { promoted: false, calm: 0, outages: 0, why: 'the claws are serving' };
+export const BACKSTOP_IDLE: BackstopState = { promoted: false, why: 'the claws are serving' };
 
-/** One poll of the backstop. `change` is set on the poll that promotes or demotes. */
+/** One step of the backstop, fleet-manager's rule. `change` is set on the step that promotes or demotes. */
 export function backstopStep(state: BackstopState, input: BackstopInput): { state: BackstopState; change: 'promote' | 'demote' | null } {
 	const next = (s: BackstopState): { state: BackstopState; change: 'promote' | 'demote' | null } => ({
 		state: s,
 		change: s.promoted === state.promoted ? null : s.promoted ? 'promote' : 'demote',
 	});
-	if (input.forced) return next({ promoted: true, calm: 0, outages: 0, why: 'forced by the operator' });
+	if (input.forced) return next({ promoted: true, why: 'forced by the operator' });
 	if (!input.fresh) return { state, change: null };
-	const outage =
-		input.eligible === 0
-			? 'no claw is eligible'
-			: input.serving + input.rebooting < MIN_SLICES
-				? `only ${input.serving} of the ${MIN_SLICES} serving slices ${input.serving === 1 ? 'is' : 'are'} up (on ${SERVING.join(', ')})`
-				: null;
-	if (outage !== null && (state.promoted || input.waiting)) return next({ promoted: true, calm: 0, outages: 0, why: outage });
-	if (input.between) return { state, change: null };
-	if (outage !== null) {
-		const outages = state.outages + 1;
-		if (outages >= OUTAGE_POLLS) return next({ promoted: true, calm: 0, outages: 0, why: outage });
-		return { state: { ...state, outages }, change: null };
-	}
-	if (!state.promoted) return { state: state.outages === 0 ? state : { ...state, outages: 0 }, change: null };
-	const calm = state.calm + 1;
-	if (calm >= CALM_POLLS) return next({ ...BACKSTOP_IDLE, why: `calm for ${calm} polls` });
-	return { state: { ...state, calm }, change: null };
+	if (input.eligible === 0) return next({ promoted: true, why: 'no claw can take a match' });
+	if (!state.promoted) return { state, change: null };
+	return next({ promoted: false, why: `${input.eligible} ${input.eligible === 1 ? 'claw' : 'claws'} can take matches again` });
 }
 
 /**
@@ -287,12 +242,6 @@ export function readForce(file: string, now: number): { until: number } | null {
  * evening pays notice cycles for nothing.
  */
 export const DEMAND_CALM_MS = 2 * 60 * 60_000;
-/**
- * `hosting.json`'s `slices.min..max`. The floor is 2: one slice left a calm evening on one claw, so
- * any blip on it promoted hokon, and a failover had nowhere else to go (operator, 2026-10-31).
- */
-export const MIN_SLICES = CONTRACT.min;
-export const MAX_SLICES = CONTRACT.max;
 
 /**
  * The operator's Forge host priority, hokon aside: `hosting.json`'s `placement.order`, which
@@ -300,20 +249,12 @@ export const MAX_SLICES = CONTRACT.max;
  */
 export const HOST_ORDER: readonly string[] = CONTRACT.order;
 /**
- * The claws that come after hokon: for "truly horrific emergencies" only, and the first to end
- * (operator, 2026-10-31). claw-10 is ahead of hokon, as the tertiary host (operator, 2026-11-03).
- */
-export const AFTER_BACKSTOP: readonly string[] = ['claw-5'];
-/** The claws ahead of hokon, in order: fewer than `MIN_SLICES` of them usable promotes it. */
-export const SERVING: readonly string[] = HOST_ORDER.filter((n) => !AFTER_BACKSTOP.includes(n));
-
-/**
- * Which claws take new matches first: the first `want` usable claws ahead of hokon, in
- * `HOST_ORDER`. `want` is the count we ask fleet-manager for; a slice it holds past that, or on an
- * emergency or unlisted node, waits behind them.
+ * Which claws take new matches first: the first `want` usable claws in `HOST_ORDER` (an unlisted
+ * one after every listed one). `want` is the count we ask fleet-manager for; a slice it holds past
+ * that waits behind them.
  */
 export function inUse(usable: readonly string[], want: number): string[] {
-	return SERVING.filter((n) => usable.includes(n)).slice(0, Math.max(0, want));
+	return [...usable].sort((a, b) => hostRank(a) - hostRank(b) || a.localeCompare(b)).slice(0, Math.max(0, want));
 }
 
 /** Where a node stands in `HOST_ORDER`; an unlisted one after them all. */
@@ -333,6 +274,8 @@ export interface DemandClaw {
 }
 
 export interface DemandInput {
+	/** The contract's `slices.min..max` (`contract.ts`). */
+	limits: { min: number; max: number };
 	/** Claws with a slice declared for us. */
 	claws: readonly DemandClaw[];
 	/** Matches one slice holds. */
@@ -358,7 +301,7 @@ export const DEMAND_IDLE: DemandState = { slices: null, lowSince: null };
 /**
  * How many slices to ask fleet-manager for, and which to end first when that drops.
  *
- * `MIN_SLICES`, the serving claws, however busy: the next unit of demand is hokon, not a slice. A
+ * `slices.min`, the serving claws, however busy: the next unit of demand is hokon, not a slice. A
  * dead serving claw is not replaced, since that is what pulled claw-5 in; it stays declared for its
  * canary, and hokon covers it. One more than is declared only when hokon is promoted AND a start
  * still found no host, never past the ceiling's need. More is asked for at once; fewer only after
@@ -371,8 +314,9 @@ export const DEMAND_IDLE: DemandState = { slices: null, lowSince: null };
  */
 export function demandStep(state: DemandState, input: DemandInput): { state: DemandState; slices: number; releaseOrder: string[] } {
 	const per = Math.max(1, input.perSlice);
-	const cap = Math.min(MAX_SLICES, Math.max(MIN_SLICES, Math.ceil(input.ceiling / per)));
-	const want = input.backstop && input.short ? Math.min(cap, Math.max(MIN_SLICES, input.claws.length + 1)) : MIN_SLICES;
+	const { min, max } = input.limits;
+	const cap = Math.min(max, Math.max(min, Math.ceil(input.ceiling / per)));
+	const want = input.backstop && input.short ? Math.min(cap, Math.max(min, input.claws.length + 1)) : min;
 	const current = state.slices ?? Math.max(want, input.claws.filter((c) => c.live > 0).length);
 	const lowSince = want >= current ? null : (state.lowSince ?? input.now);
 	const slices = lowSince === null || input.now - lowSince >= DEMAND_CALM_MS ? want : current;

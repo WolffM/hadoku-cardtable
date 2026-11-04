@@ -216,11 +216,15 @@ What is ours on top:
   slice), which fleet-manager's converger ranks nodes by.
 - **claw-10 ahead of hokon; only the slices we asked for (2026-11-04).** The operator made
   claw-10 the tertiary host (840e5b631: "ready to serve cardtable as the tertiary backup", ahead of
-  claw-5). The priority is now **claw-8 → claw-9 → claw-10 → hokon → claw-5**. hokon comes up when
-  fewer than 2 of claw-8, claw-9 and claw-10 are usable (`rules.ts` `SERVING`). Placement uses only
-  the first `demand` usable ones (`inUse`), so a slice fleet-manager holds beyond our ask waits
-  behind them, and claw-5 never takes a match before hokon. The contract the two sides keep is
+  claw-5). Placement uses only the first `demand` usable claws in order (`inUse`), so a slice
+  fleet-manager holds beyond our ask waits behind them. The contract the two sides keep is
   [docs/HOSTING_CONTRACT.md](../HOSTING_CONTRACT.md).
+- **fleet-manager decides the backstop (operator, 2026-11-04).** Asked when hokon should step in
+  with three claws minimum (81bb83743), the operator: "this is not up for you to determine.
+  fleet-manager decides how that works." Its rule (hadoku-fleet-manager -d1, 2026-11-04): hokon is
+  emergency-only. It is promoted at once when no claw can take a match, and stands down as soon as
+  one can. It replaces every outage, calm and reboot-excuse rule above it in this section; the host
+  priority is now simply `placement.order`, then hokon.
 - **A planned reboot is not "down" (operator, 2026-11-03).** fleet-manager's
   hourly `reboot-claws` cycle took claw-8 onto a security kernel at 21:32–21:50Z:
   15 min notice, 56 s down, no match anywhere. That promoted hokon for 19 min

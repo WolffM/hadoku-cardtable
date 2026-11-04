@@ -19,14 +19,10 @@ import { CONTRACT_HOLD_MS, placement, type AgentLink, type Placement, type Resto
 import type { FleetDemand, FleetNode, FleetSource, FleetStatus } from './fleet.js';
 import { CHECKOUT_FLEET_CLI, MGMT_API_FLEET_CLI, fleetCli, fleetCliPath, parseDemand, parseNodeStatus } from './fleet.js';
 import {
-	AFTER_BACKSTOP,
 	BACKSTOP_IDLE,
 	DEMAND_CALM_MS,
 	DEMAND_IDLE,
 	HOST_ORDER,
-	MAX_SLICES,
-	MIN_SLICES,
-	SERVING,
 	backstopStep,
 	bars,
 	demandStep,
@@ -221,6 +217,8 @@ async function rig(nodes: FleetNode[], opts: { forceFile?: string; takenBack?: R
 	const restored = new Map<string, Rec>();
 	const p = placement({
 		config: cfg,
+		// The coordinator on its own: two slices, whatever hosting.json says today.
+		contract: { ...CONTRACT, min: 2 },
 		fleet,
 		connect: (node) => {
 			const claw = claws.get(node);
@@ -499,7 +497,7 @@ process.exit(1);`,
 });
 
 describe('the backstop', () => {
-	const calm = { fresh: true, serving: 2, rebooting: 0, eligible: 2, forced: false, waiting: false, between: false };
+	const calm = { fresh: true, eligible: 2, forced: false };
 	const out = { ...calm, eligible: 0 };
 	const run = (inputs: (typeof calm)[], from: BackstopState = BACKSTOP_IDLE) => {
 		let s = from;
@@ -510,52 +508,21 @@ describe('the backstop', () => {
 		});
 	};
 
-	it('promotes after 2 outage polls in a row (no claw eligible, or fewer than 2 serving claws up); stands down after 3 calm polls', () => {
-		expect(run([calm, out, out, calm, calm, calm, calm])).toEqual(['down', 'down', 'promote', 'up', 'up', 'demote', 'down']);
-		// The claws ahead of hokon: claw-8, claw-9, and claw-10 as the tertiary host (operator,
-		// 2026-11-03). One of the two serving slices down: hokon comes up, after the same two polls.
-		expect(SERVING).toEqual(['claw-8', 'claw-9', 'claw-10']);
-		expect(run([{ ...calm, serving: 1, eligible: 1 }, { ...calm, serving: 1, eligible: 1 }])).toEqual(['down', 'promote']);
-		expect(run([{ ...calm, serving: 1, eligible: 1 }])).toEqual(['down']);
-		expect(backstopStep(BACKSTOP_IDLE, { ...calm, serving: 1, eligible: 1, waiting: true }).state.why).toBe('only 1 of the 2 serving slices is up (on claw-8, claw-9, claw-10)');
-		// claw-8 or claw-9 healthy again: hokon stands down as before.
-		expect(run([{ ...calm, serving: 1 }, { ...calm, serving: 1 }, calm, calm, calm])).toEqual(['down', 'promote', 'up', 'up', 'demote']);
-		// A storm in the calm resets the count.
-		expect(run([out, out, calm, calm, out, calm, calm, calm])).toEqual(['down', 'promote', 'up', 'up', 'up', 'up', 'up', 'demote']);
+	it("fleet-manager's rule: hokon comes up at once when no claw can take a match, and stands down as soon as one can", () => {
+		expect(run([calm, out, out, calm, calm])).toEqual(['down', 'promote', 'up', 'demote', 'down']);
+		expect(backstopStep(BACKSTOP_IDLE, out).state.why).toBe('no claw can take a match');
+		expect(backstopStep({ promoted: true, why: '' }, { ...calm, eligible: 1 }).state.why).toBe('1 claw can take matches again');
+		// Fewer claws than slices.min is the converger's shortfall to replace, not a trigger.
+		expect(run([{ ...calm, eligible: 1 }, { ...calm, eligible: 1 }])).toEqual(['down', 'down']);
 	});
 
-	it('a serving claw inside its announced reboot counts as up; with no claw eligible hokon still comes up', () => {
-		const rebooting = { ...calm, serving: 1, rebooting: 1, eligible: 1 };
-		expect(run([rebooting, rebooting, rebooting, rebooting])).toEqual(['down', 'down', 'down', 'down']);
-		expect(run([{ ...rebooting, eligible: 0 }, { ...rebooting, eligible: 0 }])).toEqual(['down', 'promote']);
-		// Down past the bound, the coordinator counts it out: an outage like any other.
-		expect(run([rebooting, { ...rebooting, rebooting: 0 }, { ...rebooting, rebooting: 0 }])).toEqual(['down', 'down', 'promote']);
-	});
-
-	it('a single outage poll promotes nothing: a calm poll between two starts the count again', () => {
-		expect(run([out])).toEqual(['down']);
-		expect(run([out, calm, out, calm, out])).toEqual(['down', 'down', 'down', 'down', 'down']);
-	});
-
-	it('a waiting start promotes on the first outage poll; with a claw eligible it promotes nothing', () => {
-		expect(run([{ ...out, waiting: true }])).toEqual(['promote']);
-		expect(run([{ ...calm, waiting: true }])).toEqual(['down']);
-	});
-
-	it('an event between polls counts no poll: it promotes only for a waiting start', () => {
-		expect(run([out, { ...out, between: true }])).toEqual(['down', 'down']);
-		expect(run([{ ...out, between: true }, { ...out, between: true }, out])).toEqual(['down', 'down', 'down']);
-		expect(run([{ ...out, between: true, waiting: true }])).toEqual(['promote']);
-	});
-
-	it('an unreadable fleet status holds: it neither promotes nor demotes, nor breaks an outage count', () => {
+	it('an unreadable fleet status holds: it neither promotes nor demotes', () => {
 		expect(run([{ ...out, fresh: false }, { ...out, fresh: false }])).toEqual(['down', 'down']);
-		expect(run([out, { ...calm, fresh: false }, out])).toEqual(['down', 'down', 'promote']);
-		expect(run([out, out, { ...calm, fresh: false }, { ...calm, fresh: false }, { ...calm, fresh: false }, calm])).toEqual(['down', 'promote', 'up', 'up', 'up', 'up']);
+		expect(run([out, { ...calm, fresh: false }, calm])).toEqual(['promote', 'up', 'demote']);
 	});
 
 	it("the operator's force promotes, is time-boxed, and is capped at 6 h from when it was written", () => {
-		expect(run([{ ...calm, forced: true }, calm, calm, calm])).toEqual(['promote', 'up', 'up', 'demote']);
+		expect(run([{ ...calm, forced: true }, { ...calm, forced: true }, calm])).toEqual(['promote', 'up', 'demote']);
 		const file = join(scratch, 'force.json');
 		writeFileSync(file, JSON.stringify({ until: new Date(Date.now() + 2 * 3600_000).toISOString() }));
 		expect(readForce(file, Date.now())?.until).toBeGreaterThan(Date.now() + 3600_000);
@@ -571,8 +538,10 @@ describe('the backstop', () => {
 
 describe('slice demand', () => {
 	const claw = (node: string, live = 0, unusableSince: number | null = null): DemandClaw => ({ node, usable: unusableSince === null, unusableSince, live });
+	// The demand rule on its own: a floor of 2 and a ceiling of 4, whatever hosting.json says today.
 	const input = (claws: DemandClaw[], over: Partial<Parameters<typeof demandStep>[1]> = {}) => ({
 		claws,
+		limits: { min: 2, max: 4 },
 		perSlice: 25,
 		ceiling: 100,
 		backstop: false,
@@ -581,16 +550,8 @@ describe('slice demand', () => {
 		...over,
 	});
 
-	it("the floor is 2 slices, and the order and limits are hosting.json's own, not a copy", () => {
-		const hosting = JSON.parse(readFileSync(new URL('../../../../../hosting.json', import.meta.url), 'utf8')) as {
-			slices: { min: number; max: number };
-			placement: { order?: string[] };
-		};
-		expect({ min: MIN_SLICES, max: MAX_SLICES }).toEqual({ min: 2, max: 4 });
-		expect({ min: hosting.slices.min, max: hosting.slices.max }).toEqual({ min: MIN_SLICES, max: MAX_SLICES });
+	it("the floor is the contract's: a quiet evening still asks for it, not one slice", () => {
 		expect(HOST_ORDER).toBe(CONTRACT.order);
-		expect(HOST_ORDER).toEqual(['claw-8', 'claw-9', 'claw-10', 'claw-5']);
-		expect(AFTER_BACKSTOP).toEqual(['claw-5']);
 		// A quiet evening on one claw still asks for a second, so a blip has somewhere to go but hokon.
 		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 0)])).slices).toBe(2);
 		expect(demandStep(DEMAND_IDLE, input([])).slices).toBe(2);
@@ -680,23 +641,23 @@ describe('slice demand', () => {
 		r.converger.auto = false;
 		await r.p.poll();
 		for (const id of ['m-1', 'm-2', 'm-3', 'm-4', 'm-5', 'm-6', 'm-7', 'm-8']) start(r, id);
-		expect(() => start(r, 'm-9')).toThrow(/no Forge host/);
+		// The claws are full: the next start promotes hokon at once and goes there, until it is full too.
+		for (const id of ['m-9', 'm-10']) start(r, id);
+		expect(['m-9', 'm-10'].map((id) => jvmOf(r, id).claw)).toEqual(['hokon', 'hokon']);
+		expect(() => start(r, 'm-11')).toThrow(/no Forge host/);
 		expect(r.posted.at(-1)).toMatch(/its converger only plans \(no placement\.auto\), so declaring another is the operator's call\.$/);
-		// The next poll promotes hokon, and asks for no third slice: hokon was not short.
+		// hokon was short: the next poll asks for one more, which only the operator can declare here.
 		await r.p.poll();
-		expect(r.p.hosts().backstop.promoted).toBe(true);
-		expect(r.demands.at(-1)?.slices).toBe(2);
+		expect(r.demands.at(-1)?.slices).toBe(3);
 	});
 
-	it('claw-5 is asked for only once hokon is up and a start still finds no host; it is released first', async () => {
+	it('a third slice is asked for only once hokon is up and a start still finds no host; claw-5 is released first', async () => {
 		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
 		r.nodes[0] = fleetNode('claw-9', { reachable: false });
 		await r.p.poll();
-		expect(r.demands.at(-1)?.slices).toBe(2);
 		await r.p.poll();
-		expect(r.p.hosts().backstop.promoted).toBe(true);
-		expect(r.logs.find((l) => l.evt === 'backstop-promoted')?.why).toBe('only 1 of the 2 serving slices is up (on claw-8, claw-9, claw-10)');
-		// Past the old 10 min replace window: still no replacement for claw-9 while hokon covers it.
+		// claw-8 still takes matches: hokon stays down, and no replacement for claw-9 is asked for.
+		expect(r.p.hosts().backstop.promoted).toBe(false);
 		r.clock.t += 30 * 60_000;
 		await r.p.poll();
 		expect(r.demands.at(-1)?.slices).toBe(2);
@@ -749,16 +710,9 @@ describe('alerts', () => {
 describe('the hosting contract', () => {
 	const hosting = (): Record<string, unknown> => JSON.parse(readFileSync(new URL('../../../../../hosting.json', import.meta.url), 'utf8')) as Record<string, unknown>;
 
-	it("is hosting.json's: the slice, the count, the rules, the order and the notice", () => {
-		expect(CONTRACT).toEqual({
-			unit: { memoryMb: 4096, cores: 4 },
-			min: 2,
-			max: 4,
-			ports: [7621],
-			require: ['wired', 'not-beside-unbounded'],
-			order: ['claw-8', 'claw-9', 'claw-10', 'claw-5'],
-			noticeMin: 15,
-		});
+	it("is hosting.json's, read whole, so an edit to the file is the only edit there is", () => {
+		expect(CONTRACT).toEqual(contractOf(hosting()));
+		expect(Object.keys(CONTRACT).sort()).toEqual(['max', 'min', 'noticeMin', 'order', 'ports', 'require', 'unit']);
 	});
 
 	it('a hosting.json that lacks a field, or names a node twice, refuses to load', () => {
@@ -850,11 +804,11 @@ describe('the hosting contract', () => {
 		expect(keys([{ ...slice('claw-8', { state: 'unknown' }), reachable: false }, slice('claw-9')], answer())).toEqual([]);
 	});
 
-	it('inUse: the first `want` usable claws ahead of hokon, in the order; claw-5 never', () => {
+	it('inUse: the first `want` usable claws in the order, an unlisted one last', () => {
 		expect(inUse(['claw-5', 'claw-10', 'claw-9', 'claw-8'], 2)).toEqual(['claw-8', 'claw-9']);
 		expect(inUse(['claw-5', 'claw-10', 'claw-9'], 2)).toEqual(['claw-9', 'claw-10']);
-		expect(inUse(['claw-5', 'claw-10'], 2)).toEqual(['claw-10']);
-		expect(inUse(['claw-8', 'claw-9', 'claw-10', 'claw-4'], 3)).toEqual(['claw-8', 'claw-9', 'claw-10']);
+		expect(inUse(['claw-5', 'claw-10'], 3)).toEqual(['claw-10', 'claw-5']);
+		expect(inUse(['claw-4', 'claw-5', 'claw-9', 'claw-10'], 3)).toEqual(['claw-9', 'claw-10', 'claw-5']);
 	});
 });
 
@@ -869,54 +823,46 @@ describe('placement', () => {
 		expect(hostOf(r, 'hokon').eligible).toBe(false);
 	});
 
-	it('admission control: with no eligible host a start waits (`full`), one Capacity alert names the next slice, and it resolves once a match is placed', async () => {
+	it('admission control: a full claw promotes hokon for the next start at once; with hokon full too a start waits, and one Capacity alert names the next slice', async () => {
 		const r = await rig([fleetNode('claw-9')]);
 		for (const id of ['m-1', 'm-2', 'm-3', 'm-4']) start(r, id);
-		// claw-9 is full, and hokon is promoted only by a poll.
+		// claw-9 is full: fleet-manager's rule promotes hokon for this start, at once.
+		start(r, 'm-5');
+		expect(jvmOf(r, 'm-5').claw).toBe('hokon');
+		expect(r.posted[0]).toMatch(/^🔺 hokon promoted to the Forge backstop: no claw can take a match\. claw-9: room \(full\)/);
+		start(r, 'm-6');
 		expect(r.p.room()).toBe('full');
-		expect(() => start(r, 'm-5')).toThrow(/no Forge host can take a match now \(claw-9: room \(full\); hokon: not promoted/);
+		expect(() => start(r, 'm-7')).toThrow(/no Forge host can take a match now \(claw-9: room \(full\); hokon: promoted but full/);
 		await vi.waitFor(() => expect(r.posted.filter((t) => t.startsWith('⚠️ Capacity'))).toHaveLength(1));
-		expect(r.posted[0]).toMatch(/fleet-manager has 1 declared for us; hokon steps in before another slice is asked for\.$/);
+		expect(r.posted.at(-1)).toMatch(/fleet-manager has 1 declared for us; the next poll asks for one more\.$/);
 		// The incident is open: asking again posts nothing.
 		r.p.room();
 		expect(r.logs.filter((l) => l.evt === 'alert' && l.key === 'capacity')).toHaveLength(1);
-		// A start is waiting: the first poll that sees no eligible claw promotes hokon, which takes the next start.
+		// A second slice arrives: the next start is placed, and the alert resolves.
+		r.claws.set('claw-8', fakeClaw('claw-8'));
+		r.nodes.push(fleetNode('claw-8'));
 		await r.p.poll();
-		expect(r.posted.some((t) => t.startsWith('🔺 hokon promoted to the Forge backstop: no claw is eligible'))).toBe(true);
-		expect(r.p.room()).not.toBe('full');
-		start(r, 'm-5');
-		expect(jvmOf(r, 'm-5').claw).toBe('hokon');
+		r.warmAll();
+		start(r, 'm-7');
+		expect(jvmOf(r, 'm-7').claw).toBe('claw-8');
 		expect(r.posted.at(-1)).toMatch(/^✅ Capacity: Forge matches are being placed again/);
 	});
 
-	it('one outage poll promotes nothing; the second in a row does, and its log and alert say which bar emptied the eligible set', async () => {
+	it('no claw reachable: hokon comes up on that poll, and its log and alert say which bar emptied the eligible set', async () => {
 		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
 		r.nodes[0] = fleetNode('claw-9', { reachable: false });
 		r.nodes[1] = fleetNode('claw-8', { reachable: false });
-		await r.p.poll();
-		expect(r.p.hosts().backstop.promoted).toBe(false);
-		expect(r.posted.filter((t) => t.startsWith('🔺'))).toEqual([]);
-		// A blip: back on the next poll, and nothing was promoted.
-		r.nodes[0] = fleetNode('claw-9');
-		r.nodes[1] = fleetNode('claw-8');
-		await r.p.poll();
-		r.nodes[0] = fleetNode('claw-9', { reachable: false });
-		r.nodes[1] = fleetNode('claw-8', { reachable: false });
-		await r.p.poll();
-		expect(r.p.hosts().backstop.promoted).toBe(false);
-		expect(r.logs.filter((l) => l.evt === 'backstop-promoted')).toEqual([]);
 		await r.p.poll();
 		expect(r.p.hosts().backstop.promoted).toBe(true);
 		const whyNone = 'claw-9: fleet (fleet-manager cannot reach it); claw-8: fleet (fleet-manager cannot reach it); hokon: promoted';
-		expect(r.logs.filter((l) => l.evt === 'backstop-promoted')).toEqual([{ evt: 'backstop-promoted', why: 'no claw is eligible', whyNone }]);
-		expect(r.posted.filter((t) => t.startsWith('🔺'))).toEqual([`🔺 hokon promoted to the Forge backstop: no claw is eligible. ${whyNone}.`]);
+		expect(r.logs.filter((l) => l.evt === 'backstop-promoted')).toEqual([{ evt: 'backstop-promoted', why: 'no claw can take a match', whyNone }]);
+		expect(r.posted.filter((t) => t.startsWith('🔺'))).toEqual([`🔺 hokon promoted to the Forge backstop: no claw can take a match. ${whyNone}.`]);
 	});
 
-	it('hokon stands down after 3 calm polls and keeps its live matches', async () => {
+	it('hokon stands down on the first poll a claw can take a match again, holds while fleet status is unreadable, and keeps its live matches', async () => {
 		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
 		r.nodes[0] = fleetNode('claw-9', { reachable: false });
 		r.nodes[1] = fleetNode('claw-8', { reachable: false });
-		await r.p.poll();
 		await r.p.poll();
 		start(r, 'm-1');
 		expect(jvmOf(r, 'm-1').claw).toBe('hokon');
@@ -928,27 +874,21 @@ describe('placement', () => {
 		expect(r.p.hosts().backstop.promoted).toBe(true);
 		r.fleetDown.on = false;
 		await r.p.poll();
-		await r.p.poll();
-		expect(r.p.hosts().backstop.promoted).toBe(true);
-		await r.p.poll();
 		expect(r.p.hosts().backstop.promoted).toBe(false);
-		expect(r.posted.at(-1)).toMatch(/^🔻 hokon stood down as the Forge backstop: calm for 3 polls/);
+		expect(r.posted.at(-1)).toMatch(/^🔻 hokon stood down as the Forge backstop: 2 claws can take matches again/);
 		expect(hostOf(r, 'hokon').matches).toEqual(['m-1']);
 		start(r, 'm-2');
 		expect(jvmOf(r, 'm-2').claw).toBe('claw-8');
 	});
 
-	it('one of the two serving claws down promotes hokon on the second poll, and it stands down once the claw is back', async () => {
+	it('one of the two serving claws down is no backstop trigger: the other takes the matches and hokon stays down', async () => {
 		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
 		r.nodes[1] = fleetNode('claw-8', { reachable: false });
-		await r.p.poll();
+		for (let i = 0; i < 4; i += 1) await r.p.poll();
 		expect(r.p.hosts().backstop.promoted).toBe(false);
-		await r.p.poll();
-		expect(r.p.hosts().backstop.promoted).toBe(true);
-		expect(r.posted.filter((t) => t.startsWith('🔺'))).toHaveLength(1);
-		r.nodes[1] = fleetNode('claw-8');
-		for (let i = 0; i < 3; i += 1) await r.p.poll();
-		expect(r.p.hosts().backstop.promoted).toBe(false);
+		expect(r.posted.filter((t) => t.startsWith('🔺'))).toEqual([]);
+		start(r, 'm-1');
+		expect(jvmOf(r, 'm-1').claw).toBe('claw-9');
 	});
 
 	it('a heap that wants recycling takes no new match, and its JVM retires once empty', async () => {
@@ -1041,28 +981,13 @@ describe('AI degraded', () => {
 		expect(jvmOf(r, 'm-2').claw).toBe('hokon');
 	});
 
-	it('the last eligible claw degrading promotes nothing by itself; a start that then waits promotes hokon on the next poll', async () => {
+	it('the last eligible claw degrading leaves no claw to take a match: hokon comes up at once, and the next start goes there', async () => {
 		const r = await rig([fleetNode('claw-9')]);
 		start(r, 'm-1');
 		jvmOf(r, 'm-1').jvm.say({ t: 'cutoff', match: 'm-1' });
-		expect(r.p.hosts().backstop.promoted).toBe(false);
-		expect(() => start(r, 'm-2')).toThrow(/claw-9: ai \(1 AI decision cut short in the last 5 min\); hokon: not promoted/);
-		await r.p.poll();
-		expect(r.p.hosts().backstop).toMatchObject({ promoted: true, why: 'no claw is eligible' });
+		expect(r.p.hosts().backstop).toMatchObject({ promoted: true, why: 'no claw can take a match' });
 		start(r, 'm-2');
 		expect(jvmOf(r, 'm-2').claw).toBe('hokon');
-	});
-
-	it('a degrading claw promotes hokon at once when a start is already waiting', async () => {
-		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
-		r.nodes[1] = fleetNode('claw-8', { reachable: false });
-		await r.p.poll();
-		for (const id of ['m-1', 'm-2', 'm-3', 'm-4']) start(r, id);
-		// claw-9 is full and claw-8 unreachable: the start that found no host is waiting.
-		expect(() => start(r, 'm-5')).toThrow(/no Forge host/);
-		expect(r.p.hosts().backstop.promoted).toBe(false);
-		jvmOf(r, 'm-1').jvm.say({ t: 'cutoff', match: 'm-1' });
-		expect(r.p.hosts().backstop).toMatchObject({ promoted: true, why: 'no claw is eligible' });
 	});
 });
 
@@ -1100,7 +1025,7 @@ describe('failover', () => {
 		expect(r.order).toEqual(['restore m-1', 'exit m-1', 'restore m-2', 'exit m-2', 'exit m-3']);
 		expect(jvmOf(r, 'm-1').claw).toBe('hokon');
 		expect(jvmOf(r, 'm-2').claw).toBe('hokon');
-		expect(r.posted[0]).toMatch(/^🔺 hokon promoted to the Forge backstop: no claw is eligible/);
+		expect(r.posted[0]).toMatch(/^🔺 hokon promoted to the Forge backstop: no claw can take a match/);
 		expect(r.posted[1]).toMatch(/^🚨 Failover: claw-9 — gone\. Moved 2: m-1 → hokon .*; m-2 → hokon/);
 		expect(r.posted[2]).toBe(
 			'🚨 Match lost: 1 on claw-9 — gone: m-3 (no host can take it). claw-9 is quarantined until fleet-manager reports it healthy and a canary match passes on it.',
@@ -1304,8 +1229,8 @@ describe('failover', () => {
 		for (const id of ['m-1', 'm-2', 'm-3']) ready(r, id);
 		r.claws.get('claw-8')!.link.lose('agent heartbeat lost for 11 s (window 10 s)');
 		expect(r.posted.filter((t) => t.startsWith('🚨'))).toHaveLength(1);
-		// claw-8 is a serving claw and its matches are waiting: hokon steps up at once, and claw-9 still takes them.
-		expect(r.p.hosts().backstop.promoted).toBe(true);
+		// claw-9 can still take claw-8's matches: hokon stays down, and claw-9 takes them.
+		expect(r.p.hosts().backstop.promoted).toBe(false);
 		expect(r.posted.find((t) => t.startsWith('🚨'))).toMatch(/^🚨 Failover: claw-8 — agent heartbeat lost .* Moved 2: m-1 → claw-9 .*; m-3 → claw-9/);
 		expect(r.posted.some((t) => t.startsWith('⚠️ Claw heartbeat lost'))).toBe(false);
 	});
@@ -1381,26 +1306,7 @@ describe('planned reboots', () => {
 		expect(r.posted).toEqual([]);
 	});
 
-	it('down past 12 min inside its reboot, a serving claw is an outage again: hokon comes up', async () => {
-		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
-		const at = r.clock.t - 60_000;
-		r.nodes[1] = underway('claw-8', at);
-		await r.p.poll();
-		r.claws.get('claw-8')!.link.lose('agent heartbeat lost for 10 s (window 10 s)');
-		r.nodes[1] = underway('claw-8', at, { reachable: false });
-		for (let i = 0; i < 11; i++) {
-			r.clock.t += 60_000;
-			await r.p.poll();
-		}
-		expect(r.p.hosts().backstop.promoted).toBe(false);
-		r.clock.t += 60_000;
-		await r.p.poll();
-		r.clock.t += 60_000;
-		await r.p.poll();
-		expect(r.posted).toEqual([expect.stringMatching(/^🔺 hokon promoted to the Forge backstop: only 1 of the 2 serving slices is up \(on claw-8, claw-9, claw-10\)\. claw-9: eligible; claw-8: fleet/)]);
-	});
-
-	it('a link lost before its reboot is under way is a fault: paged, and an outage', async () => {
+	it('a link lost before its reboot is under way is a fault: paged', async () => {
 		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
 		r.nodes[1] = announced('claw-8', r.clock.t + 15 * 60_000);
 		await r.p.poll();
@@ -1408,18 +1314,7 @@ describe('planned reboots', () => {
 		expect(r.posted).toEqual([
 			'⚠️ Claw heartbeat lost: claw-8 — agent heartbeat lost for 11 s (window 10 s). No match was on it. Quarantined until a healthy status and a canary.',
 		]);
-		r.clock.t += 60_000;
-		await r.p.poll();
-		r.clock.t += 60_000;
-		await r.p.poll();
-		expect(r.p.hosts().backstop.promoted).toBe(true);
-	});
-
-	it('a coordinator started mid-reboot excuses nothing it cannot time: the claw it never linked is an outage', async () => {
-		const at = T0 - 60_000;
-		const r = await rig([fleetNode('claw-9'), underway('claw-8', at, { reachable: false })]);
-		await r.p.poll();
-		expect(r.p.hosts().backstop.promoted).toBe(true);
+		expect(hostOf(r, 'claw-8').quarantine).not.toBeNull();
 	});
 });
 
@@ -1476,13 +1371,13 @@ describe('the hosting contract, on the coordinator', () => {
 		// Our 15 min, read up to a poll and a status copy late, is kept.
 		r.nodes[0] = fleetNode('claw-9', { notices: [{ event: 'starts', at: at(14 * 60_000), kind: 'reboot' }] });
 		await r.p.poll();
-		expect(r.posted).toHaveLength(1);
+		expect(r.posted.filter((t) => t.startsWith('⚠️ Hosting contract'))).toHaveLength(1);
 		const late = await rig([fleetNode('claw-9'), fleetNode('claw-8', { notices: [{ event: 'starts', at: at(5 * 60_000), kind: 'reboot' }] })]);
 		await late.p.poll();
 		expect(late.posted).toEqual([]);
 	});
 
-	it('four slices for a demand of two: matches go to claw-8 and claw-9, claw-10 only once both are full, claw-5 never while hokon is down', async () => {
+	it('four slices for a demand of two: matches go to claw-8 and claw-9, then claw-10 and claw-5 in that order, and hokon only once every claw is full', async () => {
 		const r = await rig(nodes());
 		// A slice here holds two JVMs of two matches: four each.
 		const ids = Array.from({ length: 12 }, (_, i) => `m-${i + 1}`);
@@ -1491,9 +1386,11 @@ describe('the hosting contract, on the coordinator', () => {
 		expect(on(ids.slice(0, 8))).toEqual(['claw-8', 'claw-8', 'claw-8', 'claw-8', 'claw-9', 'claw-9', 'claw-9', 'claw-9']);
 		for (const id of ids.slice(8)) start(r, id);
 		expect(on(ids.slice(8))).toEqual(['claw-10', 'claw-10', 'claw-10', 'claw-10']);
-		// claw-5 is free, but it comes after hokon, and hokon is not up: the next start waits.
-		expect(r.p.room()).toBe('full');
-		expect(hostOf(r, 'claw-5').matches).toEqual([]);
+		for (const id of ['m-13', 'm-14', 'm-15', 'm-16']) start(r, id);
+		expect(on(['m-13', 'm-14', 'm-15', 'm-16'])).toEqual(['claw-5', 'claw-5', 'claw-5', 'claw-5']);
+		expect(r.p.hosts().backstop.promoted).toBe(false);
+		start(r, 'm-17');
+		expect(jvmOf(r, 'm-17').claw).toBe('hokon');
 	});
 
 	it('claw-8 down with claw-10 declared: claw-9 and claw-10 serve, and hokon stays down', async () => {
@@ -1507,12 +1404,6 @@ describe('the hosting contract, on the coordinator', () => {
 		start(r, 'm-1');
 		start(r, 'm-2');
 		expect(['m-1', 'm-2'].map((id) => jvmOf(r, id).claw).sort()).toEqual(['claw-10', 'claw-9']);
-		// Without claw-10, the same loss brings hokon up, as before.
-		const two = await rig([fleetNode('claw-9'), fleetNode('claw-8'), fleetNode('claw-5')]);
-		two.nodes[1] = fleetNode('claw-8', { reachable: false });
-		await two.p.poll();
-		await two.p.poll();
-		expect(two.p.hosts().backstop.promoted).toBe(true);
 	});
 });
 

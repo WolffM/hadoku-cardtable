@@ -10,10 +10,10 @@
  *   reads them. One local pool on hokon, the backstop, with no warm JVM. The claws are the nodes
  *   fleet-manager reports with a hosting slice (`fleet.ts`), read every `FLEET_POLL_MS`.
  * - **Placement** is `rules.ts`: the six bars, then the slices we asked for (`inUse`: the first
- *   `demand` usable claws ahead of hokon, in `HOST_ORDER`), spread by free room with the faster
- *   core breaking ties; any other claw ahead of hokon once those are full; hokon only while the
- *   backstop is promoted; an emergency claw only after hokon. With nowhere to go `room()` answers
- *   `full` and the start waits in `start-queue.ts`, and the Capacity alert fires.
+ *   `demand` usable claws, in `HOST_ORDER`), spread by free room with the faster core breaking
+ *   ties; any other claw once those are full; hokon only when no claw can take the match
+ *   (fleet-manager's backstop rule). With nowhere to go `room()` answers `full` and the start
+ *   waits in `start-queue.ts`, and the Capacity alert fires.
  * - **The hosting contract** (`docs/HOSTING_CONTRACT.md`, `audit.ts`): every poll checks
  *   fleet-manager's reports against `hosting.json`. A violation that holds `CONTRACT_HOLD_MS` opens
  *   `contract:<key>` with one ⚠️, resolved once it is kept again; a short notice is posted once.
@@ -32,8 +32,7 @@
  * - **Planned moves.** A hosting end or reboot notice stops placement on the claw at once
  *   (`NOTICE_HORIZON_MS`); from `MOVE_AHEAD_MS` before the event each remaining match moves at its
  *   next turn start (the snapshot line). A reboot under way keeps it stopped until fleet-manager
- *   lifts the drain; the link it drops is quarantined and canaried, not paged, and the claw is no
- *   outage for the backstop unless it stays down past `REBOOT_DOWN_MS`. A JVM whose heap wants
+ *   lifts the drain; the link it drops is quarantined and canaried, not paged. A JVM whose heap wants
  *   recycling takes no new match and retires once empty.
  * - **AI degraded.** Each `cutoff` a host's bridges report (`host.ts`, "AI cutoffs") fails its `ai`
  *   bar for `AI_CUTOFF_WINDOW_MS` and opens `ai:<host>` with one alert; the health tick resolves it
@@ -67,16 +66,13 @@ import type { AgentClient } from '../remote/client.js';
 import { FENCE_MS, HEARTBEAT_MS, sliceNeedMb } from '../remote/wire.js';
 import type { Alerts } from './alerts.js';
 import { SECTION, contractViolations, type Violation } from './audit.js';
-import { CONTRACT } from './contract.js';
+import { CONTRACT, type HostingContract } from './contract.js';
 import { STATUS_MAX_AGE_S, type FleetDemand, type FleetNode, type FleetSource, type FleetStatus } from './fleet.js';
 import {
 	AI_CUTOFF_WINDOW_MS,
 	BACKSTOP_IDLE,
 	DEMAND_IDLE,
-	MIN_SLICES,
 	MOVE_AHEAD_MS,
-	REBOOT_DOWN_MS,
-	SERVING,
 	aiBar,
 	hostRank,
 	inUse,
@@ -156,6 +152,8 @@ export interface PlacementOptions {
 	backstopLauncher?: JvmLauncher;
 	backstopJvms?: number;
 	canary?: Canary;
+	/** The hosting contract. Default `hosting.json`'s (`contract.ts`). */
+	contract?: HostingContract;
 	/** The operator's backstop force file (`rules.ts` `readForce`). */
 	forceFile?: string;
 	restartGraceMs?: number;
@@ -190,11 +188,6 @@ interface Host {
 	 * the agent's link can drop after those reads: this is what still knows it was a release.
 	 */
 	releaseAt: number | null;
-	/**
-	 * When its agent link was last lost, and whether its announced reboot was under way then; null
-	 * while linked. A claw starts down, until its first link.
-	 */
-	down: { at: number; forReboot: boolean } | null;
 }
 
 /**
@@ -326,6 +319,7 @@ export function placement(opts: PlacementOptions): Placement {
 	const graceMs = opts.restartGraceMs ?? RESTART_GRACE_MS;
 	const canary = opts.canary ?? frameCanary();
 	const alerts = opts.alerts;
+	const contract = opts.contract ?? CONTRACT;
 	const clawsDir = `${config.workDir}-claws`;
 
 	const hosts = new Map<string, Host>();
@@ -342,8 +336,6 @@ export function placement(opts: PlacementOptions): Placement {
 	let demand: DemandState = DEMAND_IDLE;
 	let releaseOrder: string[] = [];
 	let converger: FleetDemand | null = null;
-	/** A start found no host since the last poll. */
-	let short = false;
 	/** A start found no host since the last poll while hokon was promoted: the emergency claw's cue. */
 	let hokonShort = false;
 	/** The contract violations seen, by key: since when, and whether they have paged. */
@@ -379,9 +371,6 @@ export function placement(opts: PlacementOptions): Placement {
 			cutoffs: [],
 			unusableSince: null,
 			releaseAt: null,
-			// Down until its first link: a coordinator started mid-reboot never saw the drop, so it
-			// excuses nothing it cannot time.
-			down: kind === 'claw' ? { at: now(), forReboot: false } : null,
 		};
 		hosts.set(name, host);
 		return host;
@@ -445,26 +434,25 @@ export function placement(opts: PlacementOptions): Placement {
 		const usableClaws = claws()
 			.filter((h) => h.fleet?.hosting != null && usable(h))
 			.map((h) => h.name);
-		return new Set(inUse(usableClaws, demand.slices ?? MIN_SLICES));
+		return new Set(inUse(usableClaws, demand.slices ?? contract.min));
 	}
 
 	/**
 	 * The best host for a new match now, never `except`: the slices we asked for, spread; then any
-	 * other claw ahead of hokon, in `HOST_ORDER`; then hokon, while promoted; then, only once hokon
-	 * is promoted and cannot take it, an emergency or unlisted claw.
+	 * other claw, in `HOST_ORDER`; then hokon, which no claw being able to take it promotes.
 	 */
 	function pick(except: Host | null = null): Host | null {
 		const open = claws().filter((h) => h !== except && eligible(barsOf(h)));
 		const first = inUseNow();
 		const spread = rankClaws(open.filter((h) => first.has(h.name)).map((h) => ({ node: h.name, free: free(h), host: h })))[0];
 		if (spread !== undefined) return spread.host;
-		const byOrder = (hs: Host[]): Host | undefined => [...hs].sort((a, b) => hostRank(a.name) - hostRank(b.name) || free(b) - free(a))[0];
-		const spare = byOrder(open.filter((h) => !first.has(h.name) && SERVING.includes(h.name)));
+		const spare = [...open].sort((a, b) => hostRank(a.name) - hostRank(b.name) || free(b) - free(a))[0];
 		if (spare !== undefined) return spare;
-		if (hokon !== except && eligible(barsOf(hokon))) return hokon;
-		if (!backstop.promoted) return null;
-		return byOrder(open.filter((h) => !SERVING.includes(h.name))) ?? null;
+		// No claw can take it: fleet-manager's rule promotes hokon now, for this start.
+		if (!backstop.promoted) stepBackstop();
+		return hokon !== except && eligible(barsOf(hokon)) ? hokon : null;
 	}
+
 
 	function whyNone(): string {
 		const parts = claws().map((h) => `${h.name}: ${barsOf(h).filter((b) => !b.ok).map((b) => `${b.bar} (${b.why})`).join(', ') || 'eligible'}`);
@@ -492,7 +480,7 @@ export function placement(opts: PlacementOptions): Placement {
 				`⚠️ AI degraded: ${host.name} — Forge cut an AI decision short (${what}), so its AI is playing its best guess, not its best move. It takes no new match until ${AI_CUTOFF_WINDOW_MS / 60_000} min pass without one.`,
 			);
 		}
-		if (host.kind === 'claw') stepBackstop(true, true);
+		if (host.kind === 'claw') stepBackstop();
 		notifyRoom();
 	}
 
@@ -508,7 +496,6 @@ export function placement(opts: PlacementOptions): Placement {
 	}
 
 	function capacityShort(): void {
-		short = true;
 		if (backstop.promoted) hokonShort = true;
 		if (alerts.isOpen('capacity') || closing) return;
 		const next = backstop.promoted ? 'the next poll asks for one more' : 'hokon steps in before another slice is asked for';
@@ -547,11 +534,11 @@ export function placement(opts: PlacementOptions): Placement {
 			claws: declared.map((h) => ({ node: h.name, usable: h.unusableSince === null, unusableSince: h.unusableSince, live: matchesOn(h) })),
 			perSlice: capacities.length === 0 ? perJvm : Math.max(...capacities),
 			ceiling: MAX_CONCURRENT_MATCHES,
+			limits: { min: contract.min, max: contract.max },
 			backstop: backstop.promoted,
 			short: hokonShort,
 			now: now(),
 		});
-		short = false;
 		hokonShort = false;
 		if (step.slices !== demand.slices || step.releaseOrder.join() !== releaseOrder.join()) {
 			log({ evt: 'slice-demand', slices: step.slices, was: demand.slices, releaseOrder: step.releaseOrder, live: placed.size });
@@ -572,7 +559,7 @@ export function placement(opts: PlacementOptions): Placement {
 	 */
 	function auditContract(status: FleetStatus, answer: FleetDemand): void {
 		const seen = new Set<string>();
-		for (const v of contractViolations(CONTRACT, status, answer, now())) {
+		for (const v of contractViolations(contract, status, answer, now())) {
 			seen.add(v.key);
 			const held = violations.get(v.key) ?? { v, since: now(), paged: false };
 			held.v = v;
@@ -597,7 +584,7 @@ export function placement(opts: PlacementOptions): Placement {
 	 * (`NOTICE_SLACK_MS`); a notice already there at the first read is never judged.
 	 */
 	function auditNotices(status: FleetStatus): void {
-		const minMs = CONTRACT.noticeMin * 60_000;
+		const minMs = contract.noticeMin * 60_000;
 		for (const n of status.nodes) {
 			if (n.hosting === null) continue;
 			for (const x of n.notices) {
@@ -610,7 +597,7 @@ export function placement(opts: PlacementOptions): Placement {
 				noticesSeen.set(key, first);
 				if (first === null || at - first >= minMs - NOTICE_SLACK_MS) continue;
 				const lead = Math.max(0, Math.round((at - first) / 60_000));
-				const what = `${n.node}'s ${x.event} (${x.kind}) at ${x.at} was announced ${lead} min ahead, under our ${CONTRACT.noticeMin} min`;
+				const what = `${n.node}'s ${x.event} (${x.kind}) at ${x.at} was announced ${lead} min ahead, under our ${contract.noticeMin} min`;
 				log({ evt: 'contract-violation', key: `notice:${key}`, clause: 'notice', node: n.node, what });
 				alerts.note(`contract:notice:${key}`, `⚠️ Hosting contract: ${what}. docs/HOSTING_CONTRACT.md §${SECTION.notice}.`);
 			}
@@ -791,7 +778,7 @@ export function placement(opts: PlacementOptions): Placement {
 		const t0 = now();
 		quarantine(host, cause);
 		// Losing the last claw promotes hokon before anything is moved, so the moves can use it.
-		stepBackstop(true, true, true);
+		stepBackstop();
 		const victims = [...placed.values()].filter((p) => p.host === host && !p.moved);
 		const results = victims.map((p) => move(p, cause, host));
 		detach(host, cause);
@@ -885,7 +872,6 @@ export function placement(opts: PlacementOptions): Placement {
 				return;
 			}
 			host.link = conn;
-			if (conn.client.lost === null) host.down = null;
 			host.agentError = null;
 			conn.client.onLost((reason) => agentLost(host, conn, reason));
 			host.pool = makePool(host, conn.launcher, join(clawsDir, host.name), true);
@@ -906,7 +892,6 @@ export function placement(opts: PlacementOptions): Placement {
 		if (closing) return;
 		const reboot = rebootOf(host.fleet, now());
 		const forReboot = reboot?.underway === true;
-		host.down = { at: now(), forReboot };
 		// Every JVM's exit came first (`AgentClient.lose`): a claw with matches has failed over already.
 		const live = [...placed.values()].some((p) => p.host === host && !p.moved);
 		if (live) {
@@ -931,7 +916,7 @@ export function placement(opts: PlacementOptions): Placement {
 		// way back by a canary, but paging it as a fault (claw-8 21:49Z on 2026-11-03) cried wolf.
 		if (forReboot) log({ evt: 'claw-rebooting', host: host.name, reason, windowEnds: reboot?.until == null ? null : new Date(reboot.until).toISOString() });
 		else if (hadPool) alerts.fire(`hb:${host.name}`, `⚠️ Claw heartbeat lost: ${host.name} — ${reason}. No match was on it. Quarantined until a healthy status and a canary.`);
-		stepBackstop(true, true);
+		stepBackstop();
 		notifyRoom();
 	}
 
@@ -961,30 +946,15 @@ export function placement(opts: PlacementOptions): Placement {
 	}
 
 	/**
-	 * Down for planned work, not a fault: inside fleet-manager's announced reboot, and either still
-	 * linked or lost only once the reboot was under way, less than `REBOOT_DOWN_MS` ago.
+	 * One backstop step, fleet-manager's rule (`rules.ts` `backstopStep`): at every poll, and at
+	 * once whenever a claw stops taking matches or a start finds no host.
 	 */
-	function rebooting(host: Host): boolean {
-		if (rebootOf(host.fleet, now()) === null) return false;
-		return host.down === null || (host.down.forReboot && now() - host.down.at < REBOOT_DOWN_MS);
-	}
-
-	/**
-	 * One backstop step. `between` is an event between polls: it may promote, never count a poll.
-	 * `waiting` is a start that found no host since the last poll, or a failed claw's matches.
-	 */
-	function stepBackstop(fresh: boolean, between = false, waiting = short): void {
-		const serving = claws().filter((h) => SERVING.includes(h.name) && h.fleet?.hosting != null);
+	function stepBackstop(fresh = true): void {
 		const step = backstopStep(backstop, {
 			fresh: fresh && fleetReadAt !== null,
-			serving: serving.filter((h) => usable(h)).length,
-			rebooting: serving.filter((h) => !usable(h) && rebooting(h)).length,
 			eligible: claws().filter((h) => eligible(barsOf(h))).length,
 			forced: opts.forceFile === undefined ? false : readForce(opts.forceFile, now()) !== null,
-			waiting,
-			between,
 		});
-		if (between && step.change !== 'promote') return;
 		backstop = step.state;
 		if (step.change === 'promote') {
 			const none = whyNone();
