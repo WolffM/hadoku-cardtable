@@ -23,12 +23,12 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { enabledOk, makeTitled, says } from './play/board.ts';
+import { enabledOk, lifeOf, makeTitled, says } from './play/board.ts';
 import { assignBlock, attackingCards, decisionOk, decisionOkTip, ownBattlefieldCards, passDeclareAttackers, phaseOf, undoBlock } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
-import { inMenu } from './play/phone.ts';
+import { pressInMenu } from './play/phone.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -44,11 +44,7 @@ async function blocks(page: Page): Promise<string[]> {
 }
 
 /** Alice's own life total, as her screen draws it. */
-const ownLife = (page: Page): Promise<string | null> =>
-  page.evaluate(() => {
-    const seat = Array.from(document.querySelectorAll('[data-testid="player"]')).find((s) => s.hasAttribute('data-viewer'));
-    return seat?.querySelector('[data-testid="life"]')?.textContent?.trim() ?? null;
-  });
+const ownLife = async (page: Page): Promise<string | null> => (await lifeOf(page, 'me').textContent())?.trim() ?? null;
 
 /** The match up to alice's open block window: the Brute's id and her two walls. */
 async function openBlockWindow(alice: Page, bob: Page): Promise<{ brute: number; x: number; y: number }> {
@@ -85,7 +81,7 @@ async function oneBlockerRefused(alice: Page, brute: number, x: number): Promise
  * on one attacker ask bob to divide its damage (`assignCombatDamage`); he takes Forge's default.
  */
 async function declare(alice: Page, bob: Page): Promise<void> {
-  await (await inMenu(alice, 'live-full-control')).click();
+  await pressInMenu(alice, 'live-full-control');
   await expect(alice.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
   await decisionOk(alice).click();
   await expect.poll(() => enabledOk(alice).count(), { timeout: 10_000, message: 'alice’s own priority opens, held by full control' }).toBeGreaterThan(0);

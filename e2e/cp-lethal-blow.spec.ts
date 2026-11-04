@@ -31,7 +31,7 @@ import { passDeclareAttackers, passToDeclareAttackers } from './play/combat.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { turnFastModeOff } from './play/prefs.ts';
 import { startScenarioMatch } from './play/scenario.ts';
-import { inMenu } from './play/phone.ts';
+import { pressInMenu } from './play/phone.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -343,7 +343,7 @@ test(
       await turnFastModeOff(alice.page, stack, 0);
       await turnFastModeOff(bob.page, stack, 1);
       // Full control: alice's priority is held for this spec's own clicks (`w56-numbers.spec.ts`'s route through the same cast).
-      await (await inMenu(alice.page, 'live-full-control')).click();
+      await pressInMenu(alice.page, 'live-full-control');
       await expect(alice.page.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
       await recordMarks(alice.page, 'opponent', '3');
       await recordMarks(bob.page, 'viewer', '3');

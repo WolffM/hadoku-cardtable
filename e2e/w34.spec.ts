@@ -46,7 +46,7 @@ import { answerConfirm, confirmYes } from './play/confirm.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { matchUrl, readScenario, startScenarioMatch } from './play/scenario.ts';
-import { inMenu } from './play/phone.ts';
+import { pressInMenu } from './play/phone.ts';
 
 const PREFIX = '/cardtable';
 
@@ -119,7 +119,7 @@ test(titled('§E1 — with Full Control on, clicking an instant in response to t
     // Precondition: alice's Full Control switch is ON — the exact condition
     // `e-findings.md` §E1 reports as broken (seat holding priority with
     // something already on the stack the OTHER seat put there).
-    await (await inMenu(alice.page, 'live-full-control')).click();
+    await pressInMenu(alice.page, 'live-full-control');
     await expect(alice.page.getByTestId('live-full-control'), 'Full Control is on for alice — the precondition this spec needs').toHaveAttribute('aria-pressed', 'true');
 
     const manaLeak = await offeredCard(alice.page, 'Mana Leak', { zone: 'hand', timeout: 15_000, message: 'alice is offered her counterspell' });
@@ -331,7 +331,7 @@ async function startWithFullControlRace(
   await expect(alice.page.locator('[aria-label="Game board"]'), 'alice\'s board is up and her connection has settled').toBeVisible({ timeout: 30_000 });
   const toggle = alice.page.getByTestId('live-full-control');
   for (let i = 0; i < 20 && (await toggle.getAttribute('aria-pressed')) !== 'true'; i++) {
-    await toggle.click({ timeout: 5_000 });
+    await pressInMenu(alice.page, 'live-full-control');
     await alice.page.waitForTimeout(50);
   }
   await expect(toggle, 'Full Control is on for alice, before bob ever joins or any mulligan is answered').toHaveAttribute('aria-pressed', 'true', { timeout: 5_000 });
@@ -503,7 +503,7 @@ test(titled('the Choose X slider renders (not a checkbox fallback), defaults to 
       await answerPrompt(alice.page);
       const text = await says(alice.page);
       if (/Pay Mana Cost/i.test(text)) { await pressPaymentAuto(alice.page); continue; }
-      const targetPlayer = alice.page.locator('[data-testid="player"]:not([data-viewer])[data-selectable]');
+      const targetPlayer = alice.page.locator('[data-player-face]:not([data-viewer])[data-selectable]').filter({ visible: true });
       // Targeted ONCE, tracked locally rather than re-parsed from Forge's own
       // message text each tick — a flaky text match here (wording drift,
       // timing) either re-clicks a target that is no longer offered or never

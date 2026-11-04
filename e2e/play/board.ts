@@ -15,7 +15,7 @@ import { expect, type Locator, type Page } from '@playwright/test';
 
 import { ZONE_BOXES } from '../../apps/ui/src/play/zone-box.ts';
 import { E2E_ERA, enterMatch, twoLegalDecks } from './enter.ts';
-import { inMenu, isPhone } from './phone.ts';
+import { isPhone, pressInMenu } from './phone.ts';
 import { createStreamedRoomByApi, submitCreateRoom } from './rooms.ts';
 import type { ForgeAvailability } from './harness.ts';
 import { answerPrompt } from './prompts.ts';
@@ -573,7 +573,7 @@ async function awaitHandOffer(page: Page, cardId: number): Promise<void> {
  * target is a real choice. Returns once `alice` sees both.
  */
 export async function stackTwoSpells(alice: Page, bob: Page): Promise<void> {
-  await (await inMenu(bob, 'live-full-control')).click();
+  await pressInMenu(bob, 'live-full-control');
   await expect(bob.getByTestId('live-full-control'), 'full control is on for bob').toHaveAttribute('aria-pressed', 'true');
   for (const [name, count] of [['Memnite', 1], ['Dark Ritual', 2]] as const) {
     await expect.poll(() => handCardNamed(bob, name), { timeout: 15_000, message: `${name} is in bob’s hand` }).not.toBeUndefined();
@@ -582,7 +582,7 @@ export async function stackTwoSpells(alice: Page, bob: Page): Promise<void> {
     await castCard(bob, id);
     await expect.poll(() => stackCount(alice), { timeout: 15_000, message: `bob’s ${name} reached the stack` }).toBe(count);
   }
-  await (await inMenu(bob, 'live-full-control')).click();
+  await pressInMenu(bob, 'live-full-control');
   await expect(bob.getByTestId('live-full-control'), 'full control is off for bob').toHaveAttribute('aria-pressed', 'false');
   await expect
     .poll(
@@ -969,8 +969,11 @@ export function ownNamed(page: Page, name: string): Promise<number[]> {
 }
 
 /** The viewer's own mana pool: its total and the count of each colour it shows. */
-export function manaPool(page: Page): Promise<Record<'total' | 'W' | 'U' | 'B' | 'R' | 'G' | 'C', number>> {
-  return page.locator('.seat[data-viewer] [data-mana-pool]').evaluate((el) => {
+export async function manaPool(page: Page): Promise<Record<'total' | 'W' | 'U' | 'B' | 'R' | 'G' | 'C', number>> {
+  // The desktop seat's pool, or the portrait chip's, which is drawn only while something floats.
+  const pool = page.locator('.seat[data-viewer] [data-mana-pool], [data-testid="seat-chip-me"] [data-mana-pool]').filter({ visible: true }).first();
+  if ((await pool.count()) === 0) return { total: 0, W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+  return pool.evaluate((el) => {
     const count = (c: string) => Number(el.querySelector(`[data-mana="${c}"]`)?.getAttribute('data-mana-count') ?? '0');
     return { total: Number(el.getAttribute('data-mana-total') ?? '0'), W: count('W'), U: count('U'), B: count('B'), R: count('R'), G: count('G'), C: count('C') };
   });

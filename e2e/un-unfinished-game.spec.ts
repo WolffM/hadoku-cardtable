@@ -19,7 +19,7 @@ import { livePrompt, makeTitled, serverLog } from './play/board.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
 import { openFriend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
-import { inMenu } from './play/phone.ts';
+import { pressInMenu } from './play/phone.ts';
 
 const PREFIX = '/cardtable';
 const forge = forgeAvailability();
@@ -114,7 +114,7 @@ test(titled('a game the player walked away from is not finished: no report, no s
 
     // ── She concedes ──
     const conceded = await againstTheAi(alice.page, stack, 'e2e conceded');
-    await (await inMenu(alice.page, 'live-concede')).click();
+    await pressInMenu(alice.page, 'live-concede');
     await alice.page.getByTestId('live-concede-yes').click();
     await expect(alice.page.getByTestId('game-result')).toBeVisible({ timeout: 45_000 });
     await expect.poll(() => evts(rowsOf(stack, conceded.matchId)), { timeout: 15_000 }).toContain('table-game-over');

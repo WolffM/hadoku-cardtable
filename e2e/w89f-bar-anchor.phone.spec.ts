@@ -15,7 +15,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { makeTitled, resizeWindow } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { expectBarAnchored, inMenu, PHONE } from './play/phone.ts';
+import { expectBarAnchored, PHONE, pressInMenu } from './play/phone.ts';
 import { startScenarioVsAi } from './play/scenario.ts';
 
 test.use(PHONE);
@@ -85,11 +85,11 @@ for (const size of [
 
       // The opponent's turn: End Turn is the yield toggle then (`data-yield`, `LiveBoard.tsx`'s `yieldMode`).
       const theirTurn = page.locator('[data-testid="live-button-end-turn"][data-yield]');
-      if ((await theirTurn.count()) === 0) await (await inMenu(page, 'live-button-end-turn')).tap();
+      if ((await theirTurn.count()) === 0) await pressInMenu(page, 'live-button-end-turn');
       await expect(theirTurn, 'the opponent’s turn comes').toHaveCount(1, { timeout: 60_000 });
       await expectBarAnchored(page, 'the opponent’s turn');
 
-      await (await inMenu(page, 'live-concede')).tap();
+      await pressInMenu(page, 'live-concede');
       await page.getByTestId('live-concede-yes').tap();
       await page.getByTestId('game-result').waitFor({ timeout: 30_000 });
       await expectBarAnchored(page, 'the game result');

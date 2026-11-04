@@ -19,7 +19,7 @@ import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
-const pool = (page: Page) => page.locator('.seat[data-viewer] [data-mana-pool]');
+const pool = (page: Page) => page.locator('.seat[data-viewer] [data-mana-pool], [data-testid="seat-chip-me"] [data-mana-pool]').filter({ visible: true }).first();
 
 test(titled('a pool that pays a cost two ways is spent by a press on its symbol, highlighted; one way is paid for her'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);

@@ -33,6 +33,15 @@ export async function inMenu(page: Page, testId: string): Promise<Locator> {
   return page.getByTestId(testId).filter({ visible: true });
 }
 
+/** Press a control `inMenu` reaches, then close the menu again where it is still open, as a player does. */
+export async function pressInMenu(page: Page, testId: string): Promise<void> {
+  const control = await inMenu(page, testId);
+  if (isPhone()) await control.tap();
+  else await control.click();
+  const menu = page.getByTestId('action-menu');
+  if (isPhone() && (await menu.count()) > 0 && (await menu.getAttribute('aria-expanded')) === 'true') await menu.tap();
+}
+
 /**
  * Context options for every `*.phone.spec.ts` file: `test.use(PHONE)`. This is the exact shape the
  * wave 89 brief fixed so every lane's red-first spec could be written before this file landed — don't

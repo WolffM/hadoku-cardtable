@@ -39,7 +39,7 @@ import { assignBlock, attackingCards, blockArrow, blockArrowKey, clickCard, drag
 import { playMessagesOf } from './play/frames.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
-import { inMenu } from './play/phone.ts';
+import { pressInMenu } from './play/phone.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -317,7 +317,7 @@ test(titled('blocking: a click blocks nothing, a drag blocks, a second drag move
      * respond with, Declare Blockers → Combat Damage → End of Combat → Main 2 auto-paces in well under
      * 100 ms (CI run 37584358566), past where Forge's `CombatView` goes null.
      */
-    await (await inMenu(alice.page, 'live-full-control')).click();
+    await pressInMenu(alice.page, 'live-full-control');
     await expect(alice.page.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
     await enabledOk(alice.page).click(); // "Done blocking" — ends `InputBlock`.
     await expect.poll(() => enabledOk(alice.page).count(), { timeout: 10_000, message: 'alice’s own priority opens, held by full control' }).toBeGreaterThan(0);
