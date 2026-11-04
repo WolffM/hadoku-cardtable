@@ -52,6 +52,8 @@ for (const size of [
     const stack = await startPlayStack(forge);
     try {
       const { alice } = await startScenarioVsAi(browser, stack, 'bolt-player', {
+        // Paced, so the AI's turn lasts long enough to be looked at.
+        fastMode: false,
         beforeKeep: async (f) => {
           await resizeWindow(f.page, size);
           await expectBarAnchored(f.page, 'the mulligan');
@@ -89,7 +91,8 @@ for (const size of [
       await withBottomSafeArea(page, 0);
 
       await pressInMenu(page, 'live-button-end-turn');
-      await expect.poll(async () => (await page.getByTestId('live-says').textContent()) ?? '', { timeout: 60_000, message: 'the opponent’s turn comes' }).toMatch(/waiting/i);
+      // Read every frame: the AI's turn can pass between two slower polls.
+      await page.waitForFunction(() => /waiting/i.test(document.querySelector('[data-testid="live-says"]')?.textContent ?? ''), null, { polling: 'raf', timeout: 60_000 });
       await expectBarAnchored(page, 'the opponent’s turn');
 
       await pressInMenu(page, 'live-concede');
