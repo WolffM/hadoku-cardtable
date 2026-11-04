@@ -16,7 +16,7 @@
  */
 import { expect, test } from '@playwright/test';
 
-import { castUntilOnStack, handCardNamed, makeTitled, offered, serverLog, stackCount } from './play/board.ts';
+import { castUntilOnStack, handCardNamed, lifeOf, makeTitled, offered, serverLog, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
 import { recordSurface, spans } from './play/surface.ts';
@@ -39,7 +39,7 @@ for (const { scenario, board } of [
     seated = await startScenarioMatch(browser, stack, scenario);
     const { alice, bob } = seated;
     const bobPayment = await recordSurface(bob.page, '[data-testid="live-payment"]');
-    const bobLife = bob.page.locator('.seat[data-viewer] [data-testid="life"]');
+    const bobLife = lifeOf(bob.page, 'me');
 
     await expect.poll(() => handCardNamed(alice.page, 'Chain Lightning'), { timeout: 30_000, message: 'alice holds Chain Lightning' }).not.toBeUndefined();
     const bolt = (await handCardNamed(alice.page, 'Chain Lightning'))!;

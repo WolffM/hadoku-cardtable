@@ -15,7 +15,7 @@ import { expect, type Locator, type Page } from '@playwright/test';
 
 import { ZONE_BOXES } from '../../apps/ui/src/play/zone-box.ts';
 import { E2E_ERA, enterMatch, twoLegalDecks } from './enter.ts';
-import { isPhone } from './phone.ts';
+import { inMenu, isPhone } from './phone.ts';
 import { createStreamedRoomByApi, submitCreateRoom } from './rooms.ts';
 import type { ForgeAvailability } from './harness.ts';
 import { answerPrompt } from './prompts.ts';
@@ -117,6 +117,13 @@ export const BUTTON_TWO =
   '[data-testid="live-button-end-turn"]:enabled, [data-testid="live-decision-cancel"]:enabled, [data-testid="live-payment-cancel"]:enabled, [data-testid="selection-cancel"]:enabled';
 
 export const enabledOk = (page: Page): Locator => page.locator(BUTTON_ONE);
+
+/** A seat's life as the screen shows it: its chip in the portrait band, or its seat on a wider table. */
+export const lifeOf = (page: Page, who: 'me' | 'opp'): Locator =>
+  page
+    .locator(who === 'me' ? '[data-testid="seat-chip-me"] [data-testid="life"], .seat[data-viewer] [data-testid="life"]' : '[data-testid="seat-chip-opp"] [data-testid="life"], .seat:not([data-viewer]) [data-testid="life"]')
+    .filter({ visible: true })
+    .first();
 export const enabledCancel = (page: Page): Locator => page.locator(BUTTON_TWO);
 
 /**
@@ -545,7 +552,7 @@ async function awaitHandOffer(page: Page, cardId: number): Promise<void> {
  * target is a real choice. Returns once `alice` sees both.
  */
 export async function stackTwoSpells(alice: Page, bob: Page): Promise<void> {
-  await bob.getByTestId('live-full-control').click();
+  await (await inMenu(bob, 'live-full-control')).click();
   await expect(bob.getByTestId('live-full-control'), 'full control is on for bob').toHaveAttribute('aria-pressed', 'true');
   for (const [name, count] of [['Memnite', 1], ['Dark Ritual', 2]] as const) {
     await expect.poll(() => handCardNamed(bob, name), { timeout: 15_000, message: `${name} is in bob’s hand` }).not.toBeUndefined();
@@ -554,7 +561,7 @@ export async function stackTwoSpells(alice: Page, bob: Page): Promise<void> {
     await castCard(bob, id);
     await expect.poll(() => stackCount(alice), { timeout: 15_000, message: `bob’s ${name} reached the stack` }).toBe(count);
   }
-  await bob.getByTestId('live-full-control').click();
+  await (await inMenu(bob, 'live-full-control')).click();
   await expect(bob.getByTestId('live-full-control'), 'full control is off for bob').toHaveAttribute('aria-pressed', 'false');
   await expect
     .poll(

@@ -7,6 +7,7 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
 import type { Friend } from './browser.ts';
+import { inMenu } from './phone.ts';
 
 /* ── cardtable's settings ────────────────────────────────────────────── */
 
@@ -27,7 +28,7 @@ export type SettingsTab = keyof typeof TAB_SECTION;
  */
 export async function openSettings(page: Page, tab: SettingsTab = 'Game'): Promise<Locator> {
   if ((await settingsPopover(page).count()) === 0) {
-    const own = page.getByTestId('settings-gear');
+    const own = await inMenu(page, 'settings-gear');
     if ((await own.count()) > 0) await own.click();
     else await page.getByRole('button', { name: /^User settings/ }).click();
   }

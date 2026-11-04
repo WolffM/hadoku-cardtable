@@ -12,7 +12,7 @@
  */
 import { expect, test } from '@playwright/test';
 
-import { clickHandCard, handCardNamed, makeTitled, offered, pressOffered, says, stackCount } from './play/board.ts';
+import { clickHandCard, handCardNamed, lifeOf, makeTitled, offered, pressOffered, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
@@ -29,7 +29,7 @@ test(titled('the payment window’s life button pays a Phyrexian cost with 2 lif
   try {
     seated = await startScenarioMatch(browser, stack, 'af61-phyrexian');
     const page = seated.alice.page;
-    const ownLife = page.locator('.seat[data-viewer] [data-testid="life"]');
+    const ownLife = lifeOf(page, 'me');
     const graveyard = page.locator('[data-zone="graveyard"][data-owner="you"]');
 
     await expect.poll(() => handCardNamed(page, 'Gitaxian Probe'), { timeout: 30_000, message: 'alice holds Gitaxian Probe' }).not.toBeUndefined();

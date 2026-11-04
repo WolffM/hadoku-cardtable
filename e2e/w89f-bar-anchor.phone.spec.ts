@@ -15,20 +15,13 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { makeTitled, resizeWindow } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { expectBarAnchored, PHONE } from './play/phone.ts';
+import { expectBarAnchored, inMenu, PHONE } from './play/phone.ts';
 import { startScenarioVsAi } from './play/scenario.ts';
 
 test.use(PHONE);
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
-
-/** A control that lives in the action menu: the menu opened first when it is closed. */
-async function pressInMenu(page: Page, testId: string): Promise<void> {
-  const menu = page.getByTestId('action-menu');
-  if ((await menu.getAttribute('aria-expanded')) !== 'true') await menu.tap();
-  await page.getByTestId(testId).tap();
-}
 
 /** The screen's own safe area, as a phone with a home indicator reports it to a page drawn edge to edge. */
 async function withBottomSafeArea(page: Page, px: number): Promise<void> {
@@ -92,11 +85,11 @@ for (const size of [
 
       // The opponent's turn: End Turn is the yield toggle then (`data-yield`, `LiveBoard.tsx`'s `yieldMode`).
       const theirTurn = page.locator('[data-testid="live-button-end-turn"][data-yield]');
-      if ((await theirTurn.count()) === 0) await pressInMenu(page, 'live-button-end-turn');
+      if ((await theirTurn.count()) === 0) await (await inMenu(page, 'live-button-end-turn')).tap();
       await expect(theirTurn, 'the opponent’s turn comes').toHaveCount(1, { timeout: 60_000 });
       await expectBarAnchored(page, 'the opponent’s turn');
 
-      await pressInMenu(page, 'live-concede');
+      await (await inMenu(page, 'live-concede')).tap();
       await page.getByTestId('live-concede-yes').tap();
       await page.getByTestId('game-result').waitFor({ timeout: 30_000 });
       await expectBarAnchored(page, 'the game result');

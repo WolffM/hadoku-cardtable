@@ -40,12 +40,13 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { castCard, clickHandCard, clickOnce, enabledOk, livePrompt, makeTitled, offeredCard, pressPaymentAuto, promptMethod, resizeWindow, says, serverLog, stackCount } from './play/board.ts';
+import { castCard, clickHandCard, clickOnce, enabledOk, lifeOf, livePrompt, makeTitled, offeredCard, pressPaymentAuto, promptMethod, resizeWindow, says, serverLog, stackCount } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { matchUrl, readScenario, startScenarioMatch } from './play/scenario.ts';
+import { inMenu } from './play/phone.ts';
 
 const PREFIX = '/cardtable';
 
@@ -118,7 +119,7 @@ test(titled('§E1 — with Full Control on, clicking an instant in response to t
     // Precondition: alice's Full Control switch is ON — the exact condition
     // `e-findings.md` §E1 reports as broken (seat holding priority with
     // something already on the stack the OTHER seat put there).
-    await alice.page.getByTestId('live-full-control').click();
+    await (await inMenu(alice.page, 'live-full-control')).click();
     await expect(alice.page.getByTestId('live-full-control'), 'Full Control is on for alice — the precondition this spec needs').toHaveAttribute('aria-pressed', 'true');
 
     const manaLeak = await offeredCard(alice.page, 'Mana Leak', { zone: 'hand', timeout: 15_000, message: 'alice is offered her counterspell' });
@@ -482,7 +483,7 @@ test(titled('the Choose X slider renders (not a checkbox fallback), defaults to 
     }, payableX);
     await expect(value, 'the slider reads the payable value once dragged there').toHaveText(String(payableX));
 
-    const bobLife = alice.page.locator('.seat:not([data-viewer]) [data-testid="life"]');
+    const bobLife = lifeOf(alice.page, 'opp');
     const lifeBefore = Number((await bobLife.textContent()) ?? 'NaN');
     expect(lifeBefore, 'bob\'s life is readable before the cast').not.toBeNaN();
 

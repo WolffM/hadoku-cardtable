@@ -12,13 +12,26 @@
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
+/** The lanes' own `phone` specs and `phone-core`, the desktop suite run on the same context: both drive by touch. */
+const PHONE_PROJECTS = new Set(['phone', 'phone-core']);
+
 /**
- * True while the running test is in the `phone` project (`playwright.config.ts`'s own
- * `*.phone.spec.ts` project). Every sibling driver's phone branch reads this one function, so a
+ * True while the running test is in a phone project (`playwright.config.ts`'s `phone`, its own
+ * `*.phone.spec.ts`, or `phone-core`). Every sibling driver's phone branch reads this one function, so a
  * desktop spec never sees any of them flip (RULES: no duplicate code paths — one helper, not one
  * copy of the check per file).
  */
-export const isPhone = (): boolean => test.info().project.name === 'phone';
+export const isPhone = (): boolean => PHONE_PROJECTS.has(test.info().project.name);
+
+/**
+ * A match control the portrait action menu holds (Full Control, Concede, End Turn, the settings gear): on a
+ * phone the menu is opened first when it is closed, as a player would. A no-op on a wider table.
+ */
+export async function inMenu(page: Page, testId: string): Promise<Locator> {
+  const menu = page.getByTestId('action-menu');
+  if (isPhone() && (await menu.count()) > 0 && (await menu.getAttribute('aria-expanded')) !== 'true') await menu.tap();
+  return page.getByTestId(testId).filter({ visible: true });
+}
 
 /**
  * Context options for every `*.phone.spec.ts` file: `test.use(PHONE)`. This is the exact shape the

@@ -28,6 +28,7 @@ import { assignBlock, attackingCards, decisionOk, decisionOkTip, ownBattlefieldC
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
+import { inMenu } from './play/phone.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -84,7 +85,7 @@ async function oneBlockerRefused(alice: Page, brute: number, x: number): Promise
  * on one attacker ask bob to divide its damage (`assignCombatDamage`); he takes Forge's default.
  */
 async function declare(alice: Page, bob: Page): Promise<void> {
-  await alice.getByTestId('live-full-control').click();
+  await (await inMenu(alice, 'live-full-control')).click();
   await expect(alice.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
   await decisionOk(alice).click();
   await expect.poll(() => enabledOk(alice).count(), { timeout: 10_000, message: 'alice’s own priority opens, held by full control' }).toBeGreaterThan(0);

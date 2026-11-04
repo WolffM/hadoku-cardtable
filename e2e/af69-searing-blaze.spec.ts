@@ -11,7 +11,7 @@
  */
 import { expect, test } from '@playwright/test';
 
-import { castUntilOnStack, clickHandCard, handCardNamed, makeTitled, offered, says } from './play/board.ts';
+import { castUntilOnStack, clickHandCard, handCardNamed, lifeOf, makeTitled, offered, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
 
@@ -27,7 +27,7 @@ test(titled('Searing Blaze is offered with a creature to hit, and hits bob and h
   try {
     seated = await startScenarioMatch(browser, stack, 'af69-searing-blaze');
     const page = seated.alice.page;
-    const bobLife = page.locator('.seat:not([data-viewer]) [data-testid="life"]');
+    const bobLife = lifeOf(page, 'opp');
     const bobGraveyard = page.locator('[data-zone="graveyard"][data-owner="them"]');
 
     await expect.poll(() => handCardNamed(page, 'Searing Blaze'), { timeout: 30_000, message: 'alice holds Searing Blaze' }).not.toBeUndefined();

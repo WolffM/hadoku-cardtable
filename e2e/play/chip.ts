@@ -10,6 +10,7 @@ import { expect, type Locator, type Page } from '@playwright/test';
 
 import { clickHandCard, offeredNamed, pressPaymentAuto } from './board.ts';
 import { answerPrompt } from './prompts.ts';
+import { inMenu } from './phone.ts';
 
 /**
  * The placed element of the (one) ability chip on `page`. Point at THIS, never at a part of the chip
@@ -20,7 +21,7 @@ export const chipOf = (page: Page): Locator => page.locator('[data-placed-spell]
 
 /** Bob takes Full Control, alice casts `creature`, and both screens draw its trigger as the chip. */
 export async function triggerOnStack(alice: Page, bob: Page, creature = 'Eternal Witness'): Promise<void> {
-  await bob.getByTestId('live-full-control').click();
+  await (await inMenu(bob, 'live-full-control')).click();
   await expect(bob.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
   let offered: number | undefined;
   await expect.poll(async () => (offered = await offeredNamed(alice, creature)), { timeout: 60_000, message: `alice is offered ${creature}` }).not.toBeUndefined();

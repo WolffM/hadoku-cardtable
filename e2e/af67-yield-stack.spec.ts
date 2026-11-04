@@ -18,6 +18,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { castUntilOnStack, makeTitled, offeredNamed, serverLog, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
+import { inMenu } from './play/phone.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -42,7 +43,7 @@ test(titled("under Full Control, Auto Yield pressed over bob's Bolt passes that 
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w63-yield');
     const a = alice.page;
-    await a.getByTestId('live-full-control').click();
+    await (await inMenu(a, 'live-full-control')).click();
     await expect(a.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
     await expect(endTurnSlot(a), "it is bob's turn: the slot reads Auto Yield").toHaveText('Auto Yield');
 

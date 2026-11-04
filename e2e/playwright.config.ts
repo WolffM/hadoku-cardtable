@@ -115,6 +115,7 @@ const PHONE_CORE_EXCLUDE: readonly (readonly [file: string, reason: string])[] =
   ['w87b-stack.spec.ts', "both cases: \"at the trailer's 1920×1080\" (TRAILER constant)"],
   ['wresolve-chain.spec.ts', "\"at the trailer's 1920×1080\" (TRAILER constant)"],
   ['af72-stack-hand-size.spec.ts', 'resizes to a hardcoded 1280×800'],
+  ['dv-delve.spec.ts', 'counts the graveyard and exile zones the desktop seat draws; portrait shows those as chip counts and draws no exile'],
 ];
 
 export default defineConfig({

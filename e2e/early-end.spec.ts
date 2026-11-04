@@ -27,6 +27,7 @@ import { messages, openFriend, type Friend } from './play/browser.ts';
 import { seatBoth } from './play/enter.ts';
 import { isSnapshot, type ServerEnvelope } from './play/frames.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
+import { inMenu } from './play/phone.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -115,7 +116,8 @@ async function report(f: Friend, when: string, raw: boolean): Promise<void> {
 
 /** Bob gives up through the product, as soon as his own board offers it. */
 async function bobConcedes(bob: Friend): Promise<void> {
-  await bob.page.getByTestId('live-concede').click({ timeout: 60_000 });
+  await expect(bob.page.getByTestId('live-concede')).toBeEnabled({ timeout: 60_000 });
+  await (await inMenu(bob.page, 'live-concede')).click();
   await bob.page.getByTestId('live-concede-yes').click();
 }
 
