@@ -17,6 +17,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { makeTitled, offeredNamed } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { expectBarAnchored } from './play/phone.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -249,6 +250,7 @@ test(titled('declaring blockers: the dock is as tall as its question, covers no 
       return (await dock(alice.page).count()) > 0 && (await dockMode(alice.page)) === 'dock';
     });
     await expect(dock(alice.page)).toHaveAttribute('data-mode', 'dock');
+    await expectBarAnchored(alice.page, 'declare blockers, docked');
     await expect(expandBtn(alice.page), 'a small decision needs no expand').toHaveCount(0);
     // As tall as "Select creatures to block." and Done Blocking, no taller, and clear of the lanes
     // it is asking about.
@@ -285,6 +287,7 @@ test(titled('declaring blockers: the dock is as tall as its question, covers no 
     await minimizeBtn(alice.page).tap();
     await expect(dock(alice.page)).toHaveAttribute('data-mode', 'min');
     await expect(pillBtn(alice.page)).toBeVisible();
+    await expectBarAnchored(alice.page, 'declare blockers, a pill');
     await pillBtn(alice.page).tap();
     await expect(dock(alice.page)).toHaveAttribute('data-mode', 'dock');
   } finally {
@@ -320,6 +323,7 @@ test(titled("Scapeshift's library search opens the dock full, scrolls only verti
     });
     await expect(dock(alice.page)).toHaveAttribute('data-mode', 'full');
     await expect(expandBtn(alice.page), 'already full — nothing left to expand into').toHaveCount(0);
+    await expectBarAnchored(alice.page, 'a library search, full');
 
     const body = dock(alice.page).locator('.prompt__body').first();
     const box = await body.evaluate((el) => ({ scrollWidth: el.scrollWidth, clientWidth: el.clientWidth, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));

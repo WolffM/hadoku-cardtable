@@ -174,3 +174,26 @@ export async function laneCues(lane: Locator): Promise<{ left: LaneCue | null; r
     return { left: read('::before'), right: read('::after') };
   });
 }
+
+/**
+ * The action bar is on the screen's bottom edge (the operator, 2026-11-03: "in some cases the bottom bar
+ * wasn't anchored to the bottom of the page"): its bottom is the layout viewport's bottom, its own row sits
+ * above the bottom safe area, and nothing is drawn over its middle. `state` names the moment in the message.
+ */
+export async function expectBarAnchored(page: Page, state: string): Promise<void> {
+  const read = await page.getByTestId('action-bar').evaluate((bar) => {
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position: fixed; visibility: hidden; height: env(safe-area-inset-bottom, 0px)';
+    document.body.append(probe);
+    const safe = probe.getBoundingClientRect().height;
+    probe.remove();
+    const box = bar.getBoundingClientRect();
+    const buttons = [...bar.querySelectorAll('button')].filter((b) => b.getBoundingClientRect().height > 0).map((b) => b.getBoundingClientRect().bottom);
+    const top = document.elementFromPoint(box.left + box.width / 2, box.top + 6);
+    return { bottom: box.bottom, height: box.height, edge: window.innerHeight, safe, lowest: Math.max(...buttons), covered: top === null || !bar.contains(top) ? (top?.className.toString() ?? 'nothing') : null };
+  });
+  console.log(`[bar] ${state}: bottom ${read.bottom} of ${read.edge}, safe ${read.safe}, lowest button ${read.lowest}, covered by ${read.covered ?? 'nothing'}`);
+  expect.soft(read.bottom, `${state}: the bar’s bottom is the screen’s bottom`).toBeCloseTo(read.edge, 0);
+  expect.soft(read.lowest, `${state}: the bar’s buttons sit above the bottom safe area`).toBeLessThanOrEqual(read.edge - read.safe + 0.5);
+  expect.soft(read.covered, `${state}: nothing is drawn over the bar`).toBeNull();
+}
