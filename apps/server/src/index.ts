@@ -124,7 +124,7 @@ import { newestFormat } from './room/lobby.js';
 import { openEvents } from './room/events.js';
 import { openTournaments } from './room/tournaments.js';
 import { jsonLogger } from './log.js';
-import { firstSeen, installTelemetry, monitoringSink } from './telemetry.js';
+import { firstSeen, installTelemetry, monitoringSink, reportingAlerts, siteOf } from './telemetry.js';
 import { createKeyBook, createMatchStats, createStatsReporter } from './stats/index.js';
 import { recordMatch } from '@wolffm/prefs-client/games';
 
@@ -153,20 +153,23 @@ const basePath = await checkBundle(INDEX_HTML, CONFIG.basePrefix);
 bootPhase('bundle');
 
 // ── Security telemetry ───────────────────────────────────────────────────────
-// Installed before any route, so the seals below report from the first request.
-installTelemetry(monitoringSink({ baseUrl: CONFIG.monitoringBaseUrl, serviceKey: CONFIG.serviceKey, log: jsonLogger('cardtable-telemetry') }));
+// Installed before any route, so the seals below report from the first request. Prod and PPE
+// both post as `cardtable`; the base path says which one this is.
+installTelemetry(monitoringSink({ baseUrl: CONFIG.monitoringBaseUrl, serviceKey: CONFIG.serviceKey, site: siteOf(CONFIG.basePrefix), log: jsonLogger('cardtable-telemetry') }));
 
 // ── Capacity ─────────────────────────────────────────────────────────────────
 // Load and headroom, one `capacity` event per window (`capacity.ts`). The gauges read bindings
-// made further down, so it starts only once the server listens.
+// made further down, so it starts only once the server listens. Forge headroom is the free match
+// slots on eligible claws, so only a server placing on claws has it; a local pool (PPE) has none
+// to report, and a 0 from it read as a full fleet.
 const capacity = capacitySampler({
 	gauges: {
 		sockets: () => io.engine.clientsCount,
 		rooms: () => lobby.list().length,
 		drafts: () => draftRooms?.all().length ?? 0,
 		matches: () => play?.matches.active().filter((m) => m.status === 'starting' || m.status === 'running').length ?? 0,
-		jvms: () => clawHosts?.hosts().hosts.reduce((n, h) => n + h.jvms.length, 0) ?? 0,
-		forgeFree: () => clawHosts?.hosts().hosts.filter((h) => h.eligible).reduce((n, h) => n + h.free, 0) ?? 0,
+		jvms: () => clawHosts?.hosts().hosts.reduce((n, h) => n + h.jvms.length, 0) ?? localHost?.jvms().length ?? 0,
+		...(CONFIG.playHosts === 'claws' ? { forgeFree: () => clawHosts?.hosts().hosts.filter((h) => h.eligible).reduce((n, h) => n + h.free, 0) ?? 0 } : {}),
 	},
 });
 
@@ -836,7 +839,8 @@ attachParked(api, { store: parked, lobby, play: () => play, log: parkedLog, ...(
 // Where matches run (`CARDTABLE_PLAY_HOSTS`): this machine's pool, or placement across the claws
 // with this machine as the backstop (`play/placement/`).
 const placementLog = jsonLogger('cardtable-placement');
-const clawHosts = forge.ok && CONFIG.playHosts === 'claws' ? clawPlacement(forge.config, { webhook: CONFIG.alertWebhook, forceFile: CONFIG.backstopForceFile, restartGraceMs: CONFIG.restartGraceMs, log: placementLog }) : null;
+// Every alert placement posts is also a service event at its level (`reportingAlerts`).
+const clawHosts = forge.ok && CONFIG.playHosts === 'claws' ? clawPlacement(forge.config, { webhook: CONFIG.alertWebhook, forceFile: CONFIG.backstopForceFile, restartGraceMs: CONFIG.restartGraceMs, log: reportingAlerts(placementLog) }) : null;
 const localHost = forge.ok && clawHosts === null ? jvmHostFactory(forge.config) : null;
 placementLog({ evt: 'play-hosts', mode: forge.ok ? CONFIG.playHosts : 'none', alerts: CONFIG.alertWebhook === '' ? 'logged only' : 'discord' });
 

@@ -4,7 +4,8 @@
 #   ~/.local/state/cardtable/telemetry/<YYYY-MM-DD>.txt   the report
 #   ~/.local/state/cardtable/telemetry/latest.txt         -> today's
 #   ~/.local/state/cardtable/telemetry/ALERTS             one line per day watch.ts exited 2
-#                                                         (a gate breach or a seal-refused),
+#                                                         (a gate breach, a seal-refused or a
+#                                                         critical event: its `ALERT:` line),
 #                                                         or failed (3 = the Discord post)
 #
 # Each run also posts a digest, with the report attached, to the Discord channel
@@ -32,7 +33,7 @@ ln -sfn "$day.txt" "$OUT/latest.txt"
 
 case $code in
 	0) ;;
-	2) echo "$day ALERT: $(grep -c . "$report") report lines; see $report" >> "$OUT/ALERTS" ;;
+	2) echo "$day $(grep -m1 '^ALERT:' "$report" || echo 'ALERT:'); see $report" >> "$OUT/ALERTS" ;;
 	*) echo "$day FAILED (exit $code): $(grep -m1 -E "^[A-Za-z]*Error:" "$report" || tail -1 "$report")" >> "$OUT/ALERTS" ;;
 esac
 

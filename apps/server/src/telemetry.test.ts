@@ -5,7 +5,17 @@ import type { Request, Response } from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { perCallerLimit } from './http/request.js';
-import { firstSeen, installTelemetry, monitoringSink, reportSealRefused, type TelemetryContext } from './telemetry.js';
+import { Alerts } from './play/placement/alerts.js';
+import {
+	firstSeen,
+	installTelemetry,
+	monitoringSink,
+	reportingAlerts,
+	reportSealRefused,
+	siteOf,
+	type Level,
+	type TelemetryContext,
+} from './telemetry.js';
 
 type Posted = {
 	url: string;
@@ -45,6 +55,7 @@ describe('monitoringSink', () => {
 		const sink = monitoringSink({
 			baseUrl: 'https://hadoku.me',
 			serviceKey: 'k',
+			site: 'prod',
 			log: () => {},
 			fetch,
 			now: () => t,
@@ -66,8 +77,37 @@ describe('monitoringSink', () => {
 		expect(posts[0].body).toMatchObject({
 			level: 'warn',
 			message: 'event=rate-limited',
-			context: { service: 'cardtable', act: 'room-create' },
+			context: { service: 'cardtable', site: 'prod', act: 'room-create' },
 		});
+	});
+
+	it('tags every event with its site, and takes an explicit level over the name rule', () => {
+		const { fetch, posts } = fakeFetch();
+		const sink = monitoringSink({ baseUrl: 'https://hadoku.me', serviceKey: 'k', site: 'ppe', log: () => {}, fetch });
+		sink('capacity', { perMin: 3 });
+		sink('seal-refused', { surface: 'http' });
+		sink('capacity', { perMin: 4, userId: 'x' }, 'warn');
+		sink('alert', { key: 'failover:claw-9', text: '🚨 Failover' }, 'critical');
+		sink('alert', { key: 'capacity', text: '⚠️ Capacity' }, 'warn');
+
+		expect(posts.map((p) => [p.body.level, p.body.context.site, p.body.context.severity])).toEqual([
+			['info', 'ppe', undefined],
+			['warn', 'ppe', undefined],
+			['warn', 'ppe', undefined],
+			// monitoring-api refuses `critical`: it goes out as `error`, the context says critical.
+			['error', 'ppe', 'critical'],
+			['warn', 'ppe', undefined],
+		]);
+	});
+
+	it('throttles per incident key, so two alerts in one minute both go out', () => {
+		const { fetch, posts } = fakeFetch();
+		const sink = monitoringSink({ baseUrl: 'https://hadoku.me', serviceKey: 'k', site: 'prod', log: () => {}, fetch, now: () => 0 });
+		sink('alert', { key: 'failover:claw-9', text: '🚨 Failover' }, 'critical');
+		sink('alert', { key: 'lost:claw-9', text: '🚨 Match lost' }, 'critical');
+		sink('alert', { key: 'lost:claw-9', text: '🚨 Match lost' }, 'critical');
+
+		expect(posts.map((p) => p.body.context.key)).toEqual(['failover:claw-9', 'lost:claw-9']);
 	});
 
 	it('posts nothing without a service key, and says so once', () => {
@@ -76,6 +116,7 @@ describe('monitoringSink', () => {
 		const sink = monitoringSink({
 			baseUrl: 'https://hadoku.me',
 			serviceKey: '',
+			site: 'prod',
 			log: (e) => logged.push(e),
 			fetch,
 		});
@@ -90,12 +131,58 @@ describe('monitoringSink', () => {
 		monitoringSink({
 			baseUrl: 'https://hadoku.me',
 			serviceKey: 'k',
+			site: 'prod',
 			log: (e) => logged.push(e),
 			fetch,
 		})('costly-act', { userId: '3f2b8c1e-5d4a-4e7b-9a10-6c2d8e4f1a01' });
 		await vi.waitFor(() =>
 			expect(logged).toEqual([{ evt: 'telemetry-post-failed', event: 'costly-act', status: 403 }]),
 		);
+	});
+});
+
+describe('siteOf', () => {
+	it('reads the deployment from the base path the wrapper sets', () => {
+		expect(siteOf('/cardtable')).toBe('prod');
+		expect(siteOf('/cardtable/')).toBe('prod');
+		expect(siteOf('/cardtable-ppe')).toBe('ppe');
+		expect(siteOf('/elsewhere')).toBe('/elsewhere');
+	});
+});
+
+describe('reportingAlerts', () => {
+	it('reports every alert the hosting alerts post, at the level its mark says, and still logs it', () => {
+		const reported: [string, TelemetryContext, Level | undefined][] = [];
+		const logged: Record<string, unknown>[] = [];
+		let t = 0;
+		const alerts = new Alerts({
+			sink: null,
+			now: () => t,
+			log: reportingAlerts((e) => logged.push(e), (event, context, level) => reported.push([event, context, level])),
+		});
+		alerts.fire('failover:claw-9', '🚨 Failover: claw-9 — heartbeat lost. Moved 1: m-1 → claw-2.');
+		alerts.fire('capacity', '⚠️ Capacity: a Forge match is waiting for a host.');
+		alerts.fire('capacity', '⚠️ Capacity: still waiting');
+		alerts.fire('backstop', '🔺 hokon promoted to the Forge backstop: claws full.');
+		alerts.note('fenced:claw-3', '🔁 Fenced: claw-3 — this server was silent.');
+		t = 30_000;
+		alerts.resolve('capacity', 'Capacity: Forge matches are being placed again');
+		alerts.resolve('backstop', '🔻 hokon stood down as the Forge backstop: claws free.', '');
+		alerts.fire('a-kind-added-later:claw-1', 'Something new');
+
+		expect(reported.map(([event, c, level]) => [event, c.key, level])).toEqual([
+			['alert', 'failover:claw-9', 'critical'],
+			['alert', 'capacity', 'warn'],
+			['alert', 'backstop', 'warn'],
+			['alert', 'fenced:claw-3', 'warn'],
+			['alert', 'capacity:resolved', 'info'],
+			['alert', 'backstop:resolved', 'info'],
+			['alert', 'a-kind-added-later:claw-1', 'warn'],
+		]);
+		expect(reported[4][1].text).toBe('✅ Capacity: Forge matches are being placed again (open 30 s)');
+		// The held repeat is logged, not reported: Discord never saw it either.
+		expect(logged.filter((e) => e.evt === 'alert-held').map((e) => e.key)).toEqual(['capacity']);
+		expect(logged.filter((e) => e.evt === 'alert')).toHaveLength(7);
 	});
 });
 

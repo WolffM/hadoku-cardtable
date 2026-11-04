@@ -9,9 +9,13 @@
  *
  * Everything here is fire-and-forget. A post that fails is logged on stdout
  * (pm2 keeps it), never retried, and never delays the request that caused it.
- * One event per (name, caller) per window goes out; the rest are counted and
- * ride on the next one as `suppressed`, so a scanner hammering the seal costs
- * monitoring one row a minute, not one per request.
+ * One event per (name, caller, incident key) per window goes out; the rest are
+ * counted and ride on the next one as `suppressed`, so a scanner hammering the
+ * seal costs monitoring one row a minute, not one per request.
+ *
+ * Every event carries `site` (prod, ppe), because both deployments post as
+ * `service: cardtable` and the daily report (`scripts/telemetry/watch.ts`)
+ * reads them apart.
  */
 
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
@@ -21,7 +25,14 @@ import type { JsonLog } from './log.js';
 
 export type TelemetryValue = string | number | boolean | null | TelemetryValue[] | { [key: string]: TelemetryValue };
 export type TelemetryContext = Record<string, TelemetryValue>;
-export type Report = (event: string, context: TelemetryContext) => void;
+/**
+ * How much an event needs a person. monitoring-api stores `debug | info | warn | error` and
+ * answers 400 to anything else, so `critical` goes out as `error` with `severity: 'critical'`
+ * in its context; a reader takes `severity` over the level column.
+ */
+export type Level = 'info' | 'warn' | 'error' | 'critical';
+/** `level` overrides the name rule (`levelOf`). */
+export type Report = (event: string, context: TelemetryContext, level?: Level) => void;
 
 /** What `report` does before boot installs a sink, and in every test that installs none. */
 const NOOP: Report = () => {};
@@ -32,9 +43,50 @@ export function installTelemetry(sink: Report): void {
 	installed = sink;
 }
 
-/** Report one security event. A no-op until a sink is installed. */
-export function report(event: string, context: TelemetryContext): void {
-	installed(event, context);
+/** Report one event. A no-op until a sink is installed. */
+export function report(event: string, context: TelemetryContext, level?: Level): void {
+	installed(event, context, level);
+}
+
+/** An event's level when its reporter names none: a refusal or a rate limit is a warning, the rest is traffic. */
+function levelOf(event: string): Level {
+	return event.endsWith('-refused') || event === 'rate-limited' ? 'warn' : 'info';
+}
+
+/**
+ * Which deployment a base path is: `/cardtable` is prod, `/cardtable-<site>` that site
+ * (`/cardtable-ppe` is ppe, as the PPE wrapper sets `CARDTABLE_BASE_PREFIX`). Any other
+ * prefix names itself.
+ */
+export function siteOf(basePrefix: string): string {
+	const m = /^\/cardtable(?:-([^/]+))?\/?$/.exec(basePrefix);
+	return m === null ? basePrefix : (m[1] ?? 'prod');
+}
+
+/**
+ * A hosting alert's level, from what it says: 🚨 is critical; a resolution (the alerts post one
+ * under `<key>:resolved`) or a ✅ is info; every other alert is a warning.
+ */
+function alertLevel(key: string, text: string): Level {
+	if (text.startsWith('🚨')) return 'critical';
+	if (key.endsWith(':resolved') || text.startsWith('✅')) return 'info';
+	return 'warn';
+}
+
+/**
+ * The hosting alerts (`play/placement/alerts.ts`) as service events, so the daily report lists
+ * each one beside the seal refusals. Wraps the log the alerts are given: every entry still goes
+ * to it, and each `alert` entry — one per message the alerts post to Discord — is also reported
+ * as `alert` with its key and text, at `alertLevel`. Every key is reported, so an alert kind
+ * added later needs nothing here.
+ */
+export function reportingAlerts(log: JsonLog, sink: Report = report): JsonLog {
+	return (entry) => {
+		log(entry);
+		if (entry.evt === 'alert' && typeof entry.key === 'string' && typeof entry.text === 'string') {
+			sink('alert', { key: entry.key, text: entry.text }, alertLevel(entry.key, entry.text));
+		}
+	};
 }
 
 export interface SinkOptions {
@@ -42,7 +94,9 @@ export interface SinkOptions {
 	baseUrl: string;
 	serviceKey: string;
 	log: JsonLog;
-	/** One post per (event, caller) per this many ms. */
+	/** This deployment (`siteOf`), on every event. */
+	site: string;
+	/** One post per (event, caller, incident key) per this many ms. */
 	windowMs?: number;
 	now?: () => number;
 	fetch?: typeof fetch;
@@ -70,8 +124,8 @@ export function monitoringSink(opts: SinkOptions): Report {
 	const url = `${opts.baseUrl}/health/api/telemetry`;
 	const last = new Map<string, { at: number; suppressed: number }>();
 
-	return (event, context) => {
-		const key = `${event}\u0000${String(context.userId ?? '')}`;
+	return (event, context, explicit) => {
+		const key = `${event}\u0000${String(context.userId ?? '')}\u0000${String(context.key ?? '')}`;
 		const t = now();
 		const seen = last.get(key);
 		if (seen !== undefined && t - seen.at < windowMs) {
@@ -83,15 +137,17 @@ export function monitoringSink(opts: SinkOptions): Report {
 		last.set(key, { at: t, suppressed: 0 });
 		if (last.size > MAX_KEYS) last.delete(last.keys().next().value as string);
 
-		const level = event.endsWith('-refused') || event === 'rate-limited' ? 'warn' : 'info';
+		const level = explicit ?? levelOf(event);
 		const body = {
 			source: 'service',
-			level,
+			level: level === 'critical' ? 'error' : level,
 			type: 'log',
 			message: `event=${event}`,
 			context: {
 				service: 'cardtable',
+				site: opts.site,
 				...context,
+				...(level === 'critical' ? { severity: level } : {}),
 				...(suppressed > 0 ? { suppressed } : {}),
 			},
 		};
