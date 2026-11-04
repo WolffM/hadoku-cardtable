@@ -1,5 +1,5 @@
 import { gunzipSync } from 'node:zlib';
-import type { PresenceMessage } from '@hadoku/shared';
+import type { PresenceMessage, SeatIdentity } from '@hadoku/shared';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { DeckCosts } from '../deck-colors.js';
 import type { BridgeLine, HostEvents, MatchHost, MatchHostFactory, MatchSpec } from '../host.js';
-import { bridgeDigest, createRecorder, forgePin, serverVersion } from './recorder.js';
+import { bridgeDigest, createRecorder, forgePin, SEATS_RECORD_MS, serverVersion } from './recorder.js';
 
 let dir: string;
 
@@ -291,6 +291,40 @@ describe('createRecorder', () => {
 			[60, 0, 1, 0.3, true],
 			[160, 0, 1, 0.4, true],
 		]);
+	});
+
+	it("writes the roster's faces on the end line, keeping the last one read when the match is already gone", async () => {
+		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
+		const inner = fakeFactory();
+		let clock = 0;
+		let roster: SeatIdentity[] | undefined = [
+			{ seat: 0, claimed: true, playerId: 0, avatarId: 'old-face' },
+			{ seat: 1, claimed: false, playerId: null, avatarId: 'ai-face' },
+		];
+		const recorder = createRecorder({ dir, identity: { pin: null, bridge: 'b', server: 's' }, roomOf: () => null, deckCosts: NO_COSTS, now: () => clock, seatsOf: () => roster });
+		recorder.host(inner)('m-1', spec(1), { line: () => undefined, exit: () => undefined, log: () => undefined });
+		const envelope = { matchId: 'm-1', cursor: { epoch: 'e', seq: 1 }, frame: { kind: 'notify' } } as never;
+
+		recorder.onEnvelope('m-1', -1, envelope);
+		// A face changed mid-game is read again once SEATS_RECORD_MS has passed.
+		roster = [{ seat: 0, claimed: true, playerId: 0, avatarId: 'new-face' }, { seat: 1, claimed: false, playerId: null, avatarId: 'ai-face', waitingOn: { method: 'm', hostCard: null } }];
+		clock = SEATS_RECORD_MS;
+		recorder.onEnvelope('m-1', -1, envelope);
+		// Then the match is let go of before its JVM exits.
+		roster = undefined;
+		(inner.calls[0]!.events.exit as (r: string) => void)('stopped');
+
+		await vi.waitFor(() => expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true));
+		const pub = linesOf(join(dir, 'm-1.public.jsonl.gz'));
+		expect(pub[pub.length - 1]).toEqual({
+			t: 'end',
+			endedAt: new Date(SEATS_RECORD_MS).toISOString(),
+			winner: null,
+			seats: [
+				{ seat: 0, claimed: true, playerId: 0, avatarId: 'new-face' },
+				{ seat: 1, claimed: false, playerId: null, avatarId: 'ai-face' },
+			],
+		});
 	});
 
 	it('a late onEnvelope/onGameOver after exit is a quiet no-op, and never recreates the files', async () => {

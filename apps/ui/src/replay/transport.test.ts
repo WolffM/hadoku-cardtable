@@ -42,7 +42,7 @@ describe('parseReplayData', () => {
     expect(data).not.toBeNull();
     expect(data?.header.players).toEqual(['Alice', 'Bob']);
     expect(data?.envs).toHaveLength(1);
-    expect(data?.end).toEqual({ endedAt: '2026-10-27T00:10:00.000Z', winner: 0 });
+    expect(data?.end).toEqual({ endedAt: '2026-10-27T00:10:00.000Z', winner: 0, seats: [] });
   });
 
   it('drops an env whose frame does not parse, rather than failing the whole replay', () => {
@@ -61,6 +61,19 @@ describe('parseReplayData', () => {
 
   it('null on a header missing a required field', () => {
     expect(parseReplayData({ header: { matchId: 'm-1' }, envs: [], end: null })).toBeNull();
+  });
+
+  it("reads the end line's roster, dropping a malformed seat rather than the replay", () => {
+    const seats = [
+      { seat: 0, claimed: true, playerId: 0, avatarId: 'alice-face' },
+      { seat: 1, claimed: false, playerId: null },
+      { seat: 'two', claimed: true, playerId: 1 },
+    ];
+    const data = parseReplayData({ ...GOOD_REPLAY_BODY, end: { ...GOOD_REPLAY_BODY.end, seats } });
+    expect(data?.end?.seats).toEqual([
+      { seat: 0, claimed: true, playerId: 0, avatarId: 'alice-face' },
+      { seat: 1, claimed: false, playerId: null },
+    ]);
   });
 
   it('end may be null — a replay of a match still in progress', () => {

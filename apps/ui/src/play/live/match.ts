@@ -3754,6 +3754,16 @@ export interface ReplayFrame {
   forceNotice?: boolean;
 }
 
+/**
+ * The faces a recording's roster names (its `end` line's `seats`), in the shape `adoptSeats` leaves
+ * them on a live board: a replay hears no `forge:seats`, so it is told them once instead.
+ */
+export interface ReplayFaces {
+  byPlayerId: ReadonlyMap<number, string>;
+  /** The seat nobody holds (Forge's AI): drawn on the player no seat names. */
+  unclaimed: string | null;
+}
+
 /** What {@link replayMatch} hands a replay's player: the board, and the one way frames reach it. */
 export interface ReplayFold {
   match: LiveMatch;
@@ -3786,25 +3796,31 @@ const endsTheGame = (frame: ServerFrame): boolean =>
  * recorded pointer messages to the board's own presence layer (its `on`; nothing is ever sent), and
  * `seats`, each seat's Forge player, so that layer knows whose pointer is drawn at the bottom.
  */
-export function replayMatch(matchId: string, playerId: number, options: { pointers?: Pick<MatchTransport, 'on'>; seats?: ReadonlyMap<number, number>; followTurn?: boolean } = {}): ReplayFold {
+export function replayMatch(matchId: string, playerId: number, options: { pointers?: Pick<MatchTransport, 'on'>; seats?: ReadonlyMap<number, number>; faces?: ReplayFaces; followTurn?: boolean } = {}): ReplayFold {
   const match = newMatch({ matchId, followTurn: options.followTurn, transport: options.pointers === undefined ? NO_SERVER : { ...NO_SERVER, on: options.pointers.on } });
   const seats = options.seats ?? null;
+  // A seek's `discardLocal` forgets the roster as an epoch change would; the recording's never changes.
+  const restoreSeats = (): void => {
+    match.playerIdBySeat = seats;
+    match.avatarByPlayerId = options.faces?.byPlayerId ?? null;
+    match.unclaimedAvatar = options.faces?.unclaimed ?? null;
+  };
   match.seat = 0;
   match.playerId = playerId;
   match.connected = true;
   match.everConnected = true;
   match.spectator = true;
   match.watcher = true;
-  match.playerIdBySeat = seats;
+  restoreSeats();
   return {
     match,
     fold(frames, from) {
       if (from === 'start') {
         discardLocal(match);
+        restoreSeats();
         match.reveal = null;
         match.revealed = null;
         foldFrames(match, frames.map((f) => f.frame), 'history');
-        match.playerIdBySeat = seats;
         for (const { frame } of frames) if (endsTheGame(frame)) applyFrame(match, frame);
       } else {
         for (const { frame, displayOnly, forceNotice } of frames) {

@@ -35,7 +35,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import type { PresenceMessage, ServerEnvelope } from '@hadoku/shared';
+import type { PresenceMessage, SeatIdentity, ServerEnvelope } from '@hadoku/shared';
 
 import type { JsonLog } from '../../log.js';
 import { artOf } from '../art.js';
@@ -45,7 +45,7 @@ import type { BridgeCommand, MatchHost, MatchHostFactory, MatchSpec } from '../h
 import type { OutcomeFacts } from '../match.js';
 import { gameOutcome, WATCHER_SEAT } from '../match.js';
 import { createSeatPosition, type SeatPosition } from './position.js';
-import { createMatchRecordingWriter, type MatchRecordingWriter } from './writer.js';
+import { createMatchRecordingWriter, type MatchRecordingWriter, type RecordedSeat } from './writer.js';
 
 const FORGE_PIN_RE = /^[0-9a-f]{40}$/;
 
@@ -103,6 +103,8 @@ export interface RecorderDeps {
 	roomOf(matchId: string): string | null;
 	/** Folds a seat's deck into its colours for the public header's `decks` (`deck-colors.ts`). */
 	deckCosts: DeckCosts;
+	/** The match's roster, as `forge:seats` sends it (`Match.seatIdentities`); undefined once the match is gone. */
+	seatsOf?(matchId: string): readonly SeatIdentity[] | undefined;
 	log?: JsonLog;
 	/** Overridable for a test. Default `Date.now`. */
 	now?(): number;
@@ -128,6 +130,9 @@ export interface Recorder {
 /** The recorded pointer's rate: 10 a second, a sixth of what the seats send each other (`PRESENCE_SEND_MS`). */
 export const PRESENCE_RECORD_MS = 100;
 
+/** How often the roster is re-read while the match runs: an avatar changed mid-game is kept, and so is the last one if the match is gone by the end. */
+export const SEATS_RECORD_MS = 5_000;
+
 /** What a presence message says the hands are doing — the part a throttle must never drop. */
 const handsState = (p: PresenceMessage): string =>
 	[p.pointer === null, p.held, p.from === null, p.placing === null, p.arranging === null, p.handMove === null].join();
@@ -137,6 +142,9 @@ interface Session {
 	startedAtMs: number;
 	/** The last presence line kept: when, and what the hands were doing. */
 	lastPresence: { at: number; seat: number; hands: string } | null;
+	/** The roster as last read, for the `end` line, and when (match time) it was read. */
+	seats: RecordedSeat[] | null;
+	seatsAt: number;
 	/** Each seat's board, folded as it goes, for the end line's `boards`. */
 	positions: [SeatPosition, SeatPosition];
 }
@@ -163,6 +171,19 @@ function guarded(log: JsonLog, matchId: string, what: string, run: () => void): 
 export function createRecorder(deps: RecorderDeps): Recorder {
 	const log = deps.log ?? (() => undefined);
 	const now = deps.now ?? Date.now;
+	/** Re-read the roster into `session`. A match already gone leaves the last one read. */
+	const noteSeats = (matchId: string, session: Session): void => {
+		session.seatsAt = now() - session.startedAtMs;
+		guarded(log, matchId, 'seats', () => {
+			const seats = deps.seatsOf?.(matchId);
+			if (seats === undefined) return;
+			session.seats = seats.map((s) => ({ seat: s.seat, claimed: s.claimed, playerId: s.playerId, ...(typeof s.avatarId === 'string' ? { avatarId: s.avatarId } : {}) }));
+		});
+	};
+	const endSeats = (matchId: string, session: Session): { seats?: RecordedSeat[] } => {
+		noteSeats(matchId, session);
+		return session.seats === null ? {} : { seats: session.seats };
+	};
 	const randomSeed = deps.randomSeed ?? randomSeed32;
 	const sessions = new Map<string, Session>();
 
@@ -187,7 +208,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 					},
 					log,
 				});
-				const session: Session = { writer, startedAtMs: now(), lastPresence: null, positions: [createSeatPosition(0), createSeatPosition(1)] };
+				const session: Session = { writer, startedAtMs: now(), lastPresence: null, seats: null, seatsAt: 0, positions: [createSeatPosition(0), createSeatPosition(1)] };
 				// Every ask's callId per seat, in the order Forge sent them: a reply's `ask` number.
 				const asks = new Map<number, string[]>();
 				sessions.set(matchId, session);
@@ -219,7 +240,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 							sessions.delete(matchId);
 							const endedAt = new Date(now()).toISOString();
 							const boards = finalBoards(session);
-							void writer.finish({ endedAt, reason, ...(boards === undefined ? {} : { boards }) }, { endedAt, winner: null });
+							void writer.finish({ endedAt, reason, ...(boards === undefined ? {} : { boards }) }, { endedAt, winner: null, ...endSeats(matchId, session) });
 						}
 						events.exit(reason);
 					},
@@ -256,7 +277,9 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 			if (seat !== WATCHER_SEAT) return;
 			const session = sessions.get(matchId);
 			if (session === undefined) return;
-			guarded(log, matchId, 'envelope', () => session.writer.publicEnv({ at: now() - session.startedAtMs, env: envelope }));
+			const at = now() - session.startedAtMs;
+			guarded(log, matchId, 'envelope', () => session.writer.publicEnv({ at, env: envelope }));
+			if (session.seats === null || at - session.seatsAt >= SEATS_RECORD_MS) noteSeats(matchId, session);
 		},
 
 		onPresence(matchId, seat, playerId, presence) {
@@ -279,7 +302,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 			sessions.delete(match.id);
 			const endedAt = new Date(now()).toISOString();
 			const boards = finalBoards(session);
-			void session.writer.finish({ endedAt, reason: 'game-over', ...(boards === undefined ? {} : { boards }) }, { endedAt, winner: outcome?.kind === 'won' ? outcome.winner : null });
+			void session.writer.finish({ endedAt, reason: 'game-over', ...(boards === undefined ? {} : { boards }) }, { endedAt, winner: outcome?.kind === 'won' ? outcome.winner : null, ...endSeats(match.id, session) });
 		},
 	};
 }

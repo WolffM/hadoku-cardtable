@@ -28,9 +28,10 @@
 
 import { PRESENCE_EVENT, type PresenceEcho } from '@hadoku/shared';
 
-import { replayMatch, viewerPlayerIdOf, type LiveMatch, type ReplayFrame } from '../play/live/match.ts';
+import { replayMatch, viewerPlayerIdOf, type LiveMatch, type ReplayFaces, type ReplayFrame } from '../play/live/match.ts';
+import { normalizeAvatarId } from '../room/avatar.ts';
 import { PRESENCE_STALE_MS, REPLAY_HELD_EVENT } from '../play/live/presence.ts';
-import type { RecordedEnv, RecordedPresence, ReplayData } from './transport.ts';
+import type { RecordedEnv, RecordedPresence, RecordedSeat, ReplayData } from './transport.ts';
 
 export type ReplaySpeed = 1 | 2 | 4;
 
@@ -168,6 +169,17 @@ function now(): number {
   return typeof performance !== 'undefined' ? performance.now() : Date.now();
 }
 
+/** The roster's faces, by the rules `adoptSeats` (`../play/live/match.ts`) applies to `forge:seats`. */
+function replayFaces(roster: readonly RecordedSeat[]): ReplayFaces {
+  const byPlayerId = new Map<number, string>();
+  for (const seat of roster) {
+    const id = seat.playerId === null ? null : normalizeAvatarId(seat.avatarId);
+    if (seat.playerId !== null && id !== null) byPlayerId.set(seat.playerId, id);
+  }
+  const unclaimed = roster.find((seat) => !seat.claimed && seat.playerId === null);
+  return { byPlayerId, unclaimed: unclaimed === undefined ? null : normalizeAvatarId(unclaimed.avatarId) };
+}
+
 /**
  * The board, drawn at the recording's first board (`startMs`), and a paused clock over the rest. `loop`: past the end, play again from the start — the front page's card. `#/replay/<id>`
  * leaves it off, and the end just stops with the scrubber there. `followTurn`: whoever's turn it is is
@@ -193,7 +205,8 @@ export function createReplayPlayer(data: ReplayData, options: { loop?: boolean; 
   const startMs = start >= 0 ? ats[start]! : 0;
   const loop = options.loop === true;
   const pointers = data.presence;
-  const seats = new Map(pointers.map((p) => [p.seat, p.playerId] as const));
+  const roster = data.end?.seats ?? [];
+  const seats = new Map([...pointers.map((p) => [p.seat, p.playerId] as const), ...roster.flatMap((s) => (s.playerId === null ? [] : [[s.seat, s.playerId] as const]))]);
   /** The board's presence layer: one at a time (a seek draws the board afresh, and its layer anew). */
   let hearPointer: ((payload: unknown) => void) | null = null;
   /** The same layer's ear for which card a held pointer holds. */
@@ -216,6 +229,7 @@ export function createReplayPlayer(data: ReplayData, options: { loop?: boolean; 
       },
     },
     seats,
+    faces: replayFaces(roster),
     followTurn: options.followTurn,
   });
 

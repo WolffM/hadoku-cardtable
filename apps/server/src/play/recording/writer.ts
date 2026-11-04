@@ -136,10 +136,25 @@ export interface PublicPresenceLine {
 	presence: unknown;
 }
 
+/**
+ * A seat as the `end` line keeps it: the part of `forge:seats` (`SeatIdentity`) a replay draws faces
+ * from. A live board hears it on its own socket event, never through the watcher channel's envelopes,
+ * so without this a replay drew every player without an avatar.
+ */
+export interface RecordedSeat {
+	seat: number;
+	claimed: boolean;
+	playerId: number | null;
+	/** Absent when the seat had none, as on the wire. */
+	avatarId?: string;
+}
+
 export interface PublicEndLine {
 	t: 'end';
 	endedAt: string;
 	winner: 0 | 1 | null;
+	/** The roster as the match ended. Absent from a recording made before it was kept, or when the match was already gone. */
+	seats?: RecordedSeat[];
 }
 
 /** Write `bytes` to `path` whole or not at all: a temp file beside it, renamed over it. */

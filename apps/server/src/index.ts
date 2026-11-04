@@ -791,6 +791,8 @@ const recorder = createRecorder({
 	},
 	roomOf: (matchId) => lobby.roomOfMatch(matchId)?.id ?? null,
 	deckCosts,
+	// `play` is assigned below; the recorder only asks once a match is running.
+	seatsOf: (matchId) => play?.matches.get(matchId)?.seatIdentities(),
 	log: recordingsLog,
 });
 const RECORDINGS_SWEEP_MS = 60 * 60_000;

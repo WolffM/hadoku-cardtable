@@ -41,7 +41,7 @@ function threeFrameReplay(deltaAt: number): ReplayData {
       { at: deltaAt, env: { matchId: HEADER.matchId, cursor: { epoch: 'e1', seq: 3 }, frame: applyDelta } },
     ],
     presence: [],
-    end: { endedAt: '2026-10-27T00:10:00.000Z', winner: 0 },
+    end: { endedAt: '2026-10-27T00:10:00.000Z', winner: 0, seats: [] },
   };
 }
 
@@ -56,7 +56,7 @@ function longReplay(frames: number): ReplayData {
     const delta = { [268435456 + player]: { _type: 1, _id: player, Life: { t: 'int', v: lifeAfter(i) } } };
     envs.push({ at: (i + 1) * 1000, env: { matchId: HEADER.matchId, cursor: { epoch: 'e1', seq: i + 3 }, frame: frame('applyDelta', { packet: { seq: i, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: delta, events: [] } }) } });
   }
-  return { header: HEADER, envs, presence: [], end: { endedAt: '2026-10-27T00:10:00.000Z', winner: 0 } };
+  return { header: HEADER, envs, presence: [], end: { endedAt: '2026-10-27T00:10:00.000Z', winner: 0, seats: [] } };
 }
 
 /** The life `longReplay`'s `i`-th delta sets. */
@@ -165,6 +165,40 @@ describe('createReplayPlayer', () => {
     closeMatch(match);
     clock.dispose();
     vi.useRealTimers();
+  });
+
+  it("draws the recorded roster's faces — the seated player's and the unheld AI's — on its first board and after a seek", () => {
+    vi.useFakeTimers();
+    const data: ReplayData = {
+      ...threeFrameReplay(1000),
+      end: {
+        endedAt: '2026-10-27T00:10:00.000Z',
+        winner: 0,
+        seats: [
+          { seat: 0, claimed: true, playerId: 0, avatarId: 'alice-face' },
+          { seat: 1, claimed: false, playerId: null, avatarId: 'ai-face' },
+        ],
+      },
+    };
+    const { match, clock } = createReplayPlayer(data);
+    const faces = (): (string | undefined)[] => match.view?.players.map((p) => p.avatarId) ?? [];
+    expect(faces()).toEqual(['alice-face', 'ai-face']);
+
+    clock.play();
+    vi.advanceTimersByTime(1050);
+    clock.seek(0);
+    expect(faces()).toEqual(['alice-face', 'ai-face']);
+
+    closeMatch(match);
+    clock.dispose();
+    vi.useRealTimers();
+  });
+
+  it('a recording made before the roster was kept draws its players without avatars, and still plays', () => {
+    const { match, clock } = createReplayPlayer(threeFrameReplay(1000));
+    expect(match.view?.players.map((p) => p.avatarId)).toEqual([undefined, undefined]);
+    closeMatch(match);
+    clock.dispose();
   });
 
   it('seek forward skips straight to the folded state at that point, with nothing beyond it applied twice', () => {

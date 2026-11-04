@@ -27,7 +27,7 @@ import { Router as makeRouter } from 'express';
 import { isAdmin } from '../edge-auth.js';
 import type { JsonLog } from '../log.js';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '../play/recording/retention.js';
-import { PUBLIC_VERSION, type PublicEnvLine, type PublicPresenceLine } from '../play/recording/writer.js';
+import { PUBLIC_VERSION, type PublicEndLine, type PublicEnvLine, type PublicPresenceLine } from '../play/recording/writer.js';
 
 interface PublicHeaderLine {
 	t: 'header';
@@ -39,12 +39,6 @@ interface PublicHeaderLine {
 	decks: unknown[];
 	art?: unknown[];
 	startedAt: string;
-}
-
-interface PublicEndLine {
-	t: 'end';
-	endedAt: string;
-	winner: 0 | 1 | null;
 }
 
 interface ActionsHeaderLine {

@@ -46,10 +46,20 @@ export interface ReplayHeader {
   startedAt: string;
 }
 
+/** One seat of the end line's roster: what `forge:seats` tells a live board about faces. */
+export interface RecordedSeat {
+  seat: number;
+  claimed: boolean;
+  playerId: number | null;
+  avatarId?: string;
+}
+
 /** The recorded public stream's end line, or `null` for a replay of a match still in progress. */
 export interface ReplayEnd {
   endedAt: string;
   winner: 0 | 1 | null;
+  /** Empty for a recording made before the roster was kept: its players are drawn without avatars. */
+  seats: readonly RecordedSeat[];
 }
 
 /** One line of the recording's `env` kind, timestamped from the match's own start. */
@@ -111,12 +121,24 @@ function parseHeader(v: unknown): ReplayHeader | null {
   return { matchId, roomId: isString(roomId) ? roomId : null, players, ai, decks, art: cards, startedAt };
 }
 
+const isSeatNumber = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0;
+
+/** `null` drops the seat: a roster entry is a face, never worth refusing the whole replay over. */
+function parseSeat(v: unknown): RecordedSeat | null {
+  if (!isRecord(v)) return null;
+  const { seat, claimed, playerId, avatarId } = v;
+  if (!isSeatNumber(seat) || !isBoolean(claimed)) return null;
+  if (playerId !== null && !isSeatNumber(playerId)) return null;
+  return { seat, claimed, playerId, ...(isString(avatarId) ? { avatarId } : {}) };
+}
+
 function parseEnd(v: unknown): ReplayEnd | null {
   if (!isRecord(v)) return null;
-  const { endedAt, winner } = v;
+  const { endedAt, winner, seats } = v;
   if (!isString(endedAt)) return null;
   if (winner !== 0 && winner !== 1 && winner !== null) return null;
-  return { endedAt, winner };
+  const roster = Array.isArray(seats) ? seats.flatMap((s) => parseSeat(s) ?? []) : [];
+  return { endedAt, winner, seats: roster };
 }
 
 /**
