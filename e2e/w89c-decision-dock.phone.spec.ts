@@ -97,7 +97,10 @@ async function expectControlsOnTheFirstRow(page: Page, what: string): Promise<vo
     const onTop = minEl.contains(document.elementFromPoint(min.left + min.width / 2, min.top + min.height / 2));
     const sheet = d.querySelector('.live__prompt > :is(.prompt, .confirm)')!;
     const first = sheet.firstElementChild!.getBoundingClientRect();
-    const text = sheet.querySelector('.prompt__title, .confirm__title, .confirm__message')!.getBoundingClientRect();
+    // The words themselves, not the row's box: the row reserves the controls' room as its own padding.
+    const range = document.createRange();
+    range.selectNodeContents(sheet.querySelector('.prompt__title, .confirm__title, .confirm__message')!);
+    const text = range.getBoundingClientRect();
     return { onTop, min: [min.top, min.bottom, min.left], first: [first.top, first.bottom, first.right], text: [text.top, text.bottom, text.right] };
   });
   expect.soft(rows.onTop, `${what}: minimize is drawn over the sheet, not under it`).toBe(true);
