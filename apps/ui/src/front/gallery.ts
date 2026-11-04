@@ -18,6 +18,14 @@ export function swipeStep(dx: number, dy: number): -1 | 0 | 1 {
   return dx < 0 ? 1 : -1;
 }
 
+/**
+ * The Upcoming card's page as the front page opens: Polls when it has something and Calendar has
+ * nothing (the operator, 2026-11-04), else Calendar.
+ */
+export function upcomingOpensOn(calendar: number, polls: number): 'calendar' | 'polls' {
+  return calendar === 0 && polls > 0 ? 'polls' : 'calendar';
+}
+
 /** Where the reader is once the pages change: the page they were on (`key`), else `fallback`. */
 export function keepPage(keys: readonly string[], key: string | null, fallback: number): number {
   const at = key === null ? -1 : keys.indexOf(key);

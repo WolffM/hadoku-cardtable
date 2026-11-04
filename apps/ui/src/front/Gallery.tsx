@@ -31,11 +31,12 @@ export interface GalleryPage {
   action?: ReactNode;
 }
 
-export function Gallery({ testId, pages }: { testId: string; pages: readonly GalleryPage[] }) {
-  const [key, setKey] = useState<string | null>(pages[0]?.key ?? null);
+/** `opening` is the page shown until the reader turns one; the first page without it. */
+export function Gallery({ testId, pages, opening }: { testId: string; pages: readonly GalleryPage[]; opening?: string }) {
+  const [key, setKey] = useState<string | null>(null);
   const at = keepPage(
     pages.map((p) => p.key),
-    key,
+    key ?? opening ?? null,
     0,
   );
   const page = pages[at];

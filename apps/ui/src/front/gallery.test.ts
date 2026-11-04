@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { keepPage, stepPage, swipeStep, SWIPE_PX } from './gallery.ts';
+import { keepPage, stepPage, swipeStep, SWIPE_PX, upcomingOpensOn } from './gallery.ts';
 
 describe('stepPage', () => {
   it('moves one page either way and wraps at both ends', () => {
@@ -38,5 +38,14 @@ describe('keepPage', () => {
   it('falls back to the default page when that page has gone', () => {
     expect(keepPage(['a', 'c'], 'b', 0)).toBe(0);
     expect(keepPage([], 'b', 0)).toBe(0);
+  });
+});
+
+describe('upcomingOpensOn', () => {
+  it('opens on Polls only when Polls has something and Calendar has nothing', () => {
+    expect(upcomingOpensOn(0, 2)).toBe('polls');
+    expect(upcomingOpensOn(0, 0)).toBe('calendar');
+    expect(upcomingOpensOn(3, 2)).toBe('calendar');
+    expect(upcomingOpensOn(1, 0)).toBe('calendar');
   });
 });

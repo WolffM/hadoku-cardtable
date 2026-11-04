@@ -1,6 +1,6 @@
 /*
  * The banner's "Upcoming" card: a manual gallery (`./Gallery.tsx`) of two pages, opening on
- * Calendar (the operator, 2026-10-30: "the calendar is a scrolling list of upcoming events, each
+ * Calendar, or on Polls when only Polls has something (2026-11-04, `upcomingOpensOn`). (The operator, 2026-10-30: "the calendar is a scrolling list of upcoming events, each
  * with View and Sign up buttons … the front page's middle card becomes a Calendar | Polls gallery").
  *
  *   - **Calendar** — every scheduled event, soonest first, in one scrolling list (`./events.ts`):
@@ -11,12 +11,12 @@
  *
  * Events are made from the room list's Create event (`../rooms/CreateEventDialog.tsx`).
  *
- * Until the first events read answers, the card stands as its skeleton — the gallery's head, as many
+ * Until the first events and polls reads answer, the card stands as its skeleton — the gallery's head, as many
  * Calendar rows as it drew last visit (`./shape.ts`), the dots — and crossfades in with the rest of
  * the page (`./gate.ts`).
  */
 
-import { useContext, useEffect, useState, type FormEvent } from 'react';
+import { useContext, useEffect, useRef, useState, type FormEvent } from 'react';
 import type { EventView } from '@hadoku/shared';
 
 import { Reveal } from '../components/Reveal.tsx';
@@ -27,6 +27,7 @@ import { countdown } from './countdown.ts';
 import { EVENT_KIND_LABELS, eventsApi, fromLocalInput, refreshEvents, toLocalInput, upcoming, useEvents, whenLabel } from './events.ts';
 import { formatEraLabel } from './formatLabel.ts';
 import { ArrowGlyph, Gallery } from './Gallery.tsx';
+import { upcomingOpensOn } from './gallery.ts';
 import { FrontGateContext, usePartShown } from './gate.ts';
 import { usePolls, type Poll } from './polls.ts';
 
@@ -113,7 +114,11 @@ export function UpcomingCard() {
   const polls = usePolls();
   const shown = upcoming(events ?? []);
   const { shape, remember } = useContext(FrontGateContext);
-  const ready = usePartShown('upcoming', events !== null);
+  // Both lists, so the page it opens on is known before it shows and never flips under the reader.
+  const loaded = events !== null && polls !== null;
+  const ready = usePartShown('upcoming', loaded);
+  const opening = useRef<'calendar' | 'polls' | null>(null);
+  if (loaded && opening.current === null) opening.current = upcomingOpensOn(shown.length, polls.length);
   const drawnEvents = events === null ? null : shown.length;
   useEffect(() => {
     if (drawnEvents !== null) remember({ events: drawnEvents });
@@ -124,6 +129,7 @@ export function UpcomingCard() {
       <Reveal name="upcoming" shown={ready} skeleton={<UpcomingSkeleton count={shape.events} />} className="front-card__body" layerClassName="front-card__layer">
         <Gallery
           testId="front-upcoming"
+          opening={opening.current ?? undefined}
           pages={[
             {
               key: 'calendar',
