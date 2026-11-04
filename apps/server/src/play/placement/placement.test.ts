@@ -13,10 +13,13 @@ import type { BridgeLine, HostEvents, JvmHostConfig, MatchSpec } from '../host.j
 import type { JvmLauncher, JvmTransport } from '../jvm-transport.js';
 import type { JvmHealth } from '../remote/wire.js';
 import { Alerts, type AlertSink } from './alerts.js';
-import { placement, type AgentLink, type Placement, type Restorer } from './coordinator.js';
+import { contractViolations } from './audit.js';
+import { CONTRACT, contractOf } from './contract.js';
+import { CONTRACT_HOLD_MS, placement, type AgentLink, type Placement, type Restorer } from './coordinator.js';
 import type { FleetDemand, FleetNode, FleetSource, FleetStatus } from './fleet.js';
 import { CHECKOUT_FLEET_CLI, MGMT_API_FLEET_CLI, fleetCli, fleetCliPath, parseDemand, parseNodeStatus } from './fleet.js';
 import {
+	AFTER_BACKSTOP,
 	BACKSTOP_IDLE,
 	DEMAND_CALM_MS,
 	DEMAND_IDLE,
@@ -27,6 +30,7 @@ import {
 	backstopStep,
 	bars,
 	demandStep,
+	inUse,
 	rankClaws,
 	readForce,
 	type BackstopState,
@@ -163,7 +167,8 @@ interface Rig {
 	fleetDown: { on: boolean };
 	/** Every `hosting-demand` asked, and whether the converger answers as `placement.auto`. */
 	demands: { slices: number; releaseOrder: readonly string[] }[];
-	converger: { auto: boolean; ending: string[] };
+	/** The converger's answer: `unplaceable` is its verdict on our slices, which it counts out of `serving`. */
+	converger: { auto: boolean; ending: string[]; unplaceable: FleetDemand['unplaceable']; blocked: string[] };
 	posted: string[];
 	logs: Record<string, unknown>[];
 	backstopJvms: ScriptedJvm[];
@@ -190,12 +195,23 @@ async function rig(nodes: FleetNode[], opts: { forceFile?: string; takenBack?: R
 	const logs: Record<string, unknown>[] = [];
 	const sink: AlertSink = { post: (text) => (posted.push(text), Promise.resolve()) };
 	const demands: Rig['demands'] = [];
-	const converger = { auto: true, ending: [] as string[] };
+	const converger: Rig['converger'] = { auto: true, ending: [], unplaceable: [], blocked: [] };
 	const fleet: FleetSource = {
 		status: () => Promise.resolve(fleetDown.on ? null : ({ at: clock.t, nodes } satisfies FleetStatus)),
 		demand: (slices, releaseOrder) => {
 			demands.push({ slices, releaseOrder });
-			const answer: FleetDemand = { auto: converger.auto, live: converger.auto, declared: nodes.filter((n) => n.hosting !== null).map((n) => n.node), ending: [...converger.ending], actions: [], blocked: [] };
+			const declared = nodes.filter((n) => n.hosting !== null).map((n) => n.node);
+			const answer: FleetDemand = {
+				auto: converger.auto,
+				live: converger.auto,
+				declared,
+				ending: [...converger.ending],
+				actions: [],
+				blocked: [...converger.blocked],
+				demanded: slices,
+				serving: declared.filter((n) => !converger.ending.includes(n) && !converger.unplaceable.some((u) => u.node === n)),
+				unplaceable: [...converger.unplaceable],
+			};
 			return Promise.resolve(answer);
 		},
 	};
@@ -396,24 +412,43 @@ describe('eligibility', () => {
 		expect(read(slice({ tenant: 'cardtable', role: 'primary' }))?.state).toBe('guaranteed');
 	});
 
-	it("reads hosting-demand's answer: auto, live, declared, ending and the last pass", () => {
+	it("reads hosting-demand's answer: auto, live, declared, ending, the count we asked for and the last pass's serving and unplaceable", () => {
 		const demand = parseDemand(
 			JSON.stringify({
 				contract: 1,
 				ok: true,
 				app: 'cardtable',
-				demand: 2,
-				limits: { min: 1, max: 4 },
+				demand: { slices: 2, releaseOrder: ['claw-10', 'claw-5', 'claw-9', 'claw-8'], since: '2026-11-04T18:15:02.767Z', askedAt: '2026-11-04T18:50:10.154Z', by: 'hadoku' },
+				limits: { min: 2, max: 4 },
 				auto: false,
 				declared: [
+					{ node: 'claw-5', mode: 'shared', memoryMb: 4096, cores: 4 },
 					{ node: 'claw-8', mode: 'shared', memoryMb: 4096, cores: 4 },
-					{ node: 'claw-9', mode: 'shared', memoryMb: 4096, cores: 4 },
 				],
 				ending: [],
-				lastPass: { dryRun: true, auto: false, live: false, desired: 1, actions: [], blocked: [{ node: '*', why: 'the release order names 0 serving one(s)', soft: true }] },
+				lastPass: {
+					dryRun: true,
+					auto: false,
+					live: false,
+					desired: 2,
+					serving: ['claw-5'],
+					unplaceable: [{ node: 'claw-8', why: 'fails "not-beside-unbounded"', reachable: true }],
+					actions: [],
+					blocked: [{ node: '*', why: 'the release order names 0 serving one(s)', soft: true }],
+				},
 			}),
 		);
-		expect(demand).toEqual({ auto: false, live: false, declared: ['claw-8', 'claw-9'], ending: [], actions: [], blocked: ['the release order names 0 serving one(s)'] });
+		expect(demand).toEqual({
+			auto: false,
+			live: false,
+			declared: ['claw-5', 'claw-8'],
+			ending: [],
+			actions: [],
+			blocked: ['the release order names 0 serving one(s)'],
+			demanded: 2,
+			serving: ['claw-5'],
+			unplaceable: [{ node: 'claw-8', why: 'fails "not-beside-unbounded"', reachable: true }],
+		});
 		expect(parseDemand('{"contract":2,"auto":true}')).toBeNull();
 		expect(parseDemand('not json')).toBeNull();
 	});
@@ -477,11 +512,12 @@ describe('the backstop', () => {
 
 	it('promotes after 2 outage polls in a row (no claw eligible, or fewer than 2 serving claws up); stands down after 3 calm polls', () => {
 		expect(run([calm, out, out, calm, calm, calm, calm])).toEqual(['down', 'down', 'promote', 'up', 'up', 'demote', 'down']);
-		// One of claw-8 and claw-9 down: hokon comes up, after the same two polls.
-		expect(SERVING).toEqual(['claw-8', 'claw-9']);
+		// The claws ahead of hokon: claw-8, claw-9, and claw-10 as the tertiary host (operator,
+		// 2026-11-03). One of the two serving slices down: hokon comes up, after the same two polls.
+		expect(SERVING).toEqual(['claw-8', 'claw-9', 'claw-10']);
 		expect(run([{ ...calm, serving: 1, eligible: 1 }, { ...calm, serving: 1, eligible: 1 }])).toEqual(['down', 'promote']);
 		expect(run([{ ...calm, serving: 1, eligible: 1 }])).toEqual(['down']);
-		expect(backstopStep(BACKSTOP_IDLE, { ...calm, serving: 1, eligible: 1, waiting: true }).state.why).toBe('only 1 of the 2 serving claws (claw-8, claw-9) is up');
+		expect(backstopStep(BACKSTOP_IDLE, { ...calm, serving: 1, eligible: 1, waiting: true }).state.why).toBe('only 1 of the 2 serving slices is up (on claw-8, claw-9, claw-10)');
 		// claw-8 or claw-9 healthy again: hokon stands down as before.
 		expect(run([{ ...calm, serving: 1 }, { ...calm, serving: 1 }, calm, calm, calm])).toEqual(['down', 'promote', 'up', 'up', 'demote']);
 		// A storm in the calm resets the count.
@@ -545,15 +581,16 @@ describe('slice demand', () => {
 		...over,
 	});
 
-	it('the floor is 2 slices, and hosting.json declares the same min..max and the same host order', () => {
-		expect(MIN_SLICES).toBe(2);
+	it("the floor is 2 slices, and the order and limits are hosting.json's own, not a copy", () => {
 		const hosting = JSON.parse(readFileSync(new URL('../../../../../hosting.json', import.meta.url), 'utf8')) as {
 			slices: { min: number; max: number };
 			placement: { order?: string[] };
 		};
+		expect({ min: MIN_SLICES, max: MAX_SLICES }).toEqual({ min: 2, max: 4 });
 		expect({ min: hosting.slices.min, max: hosting.slices.max }).toEqual({ min: MIN_SLICES, max: MAX_SLICES });
+		expect(HOST_ORDER).toBe(CONTRACT.order);
 		expect(HOST_ORDER).toEqual(['claw-8', 'claw-9', 'claw-10', 'claw-5']);
-		expect(hosting.placement.order).toEqual(HOST_ORDER);
+		expect(AFTER_BACKSTOP).toEqual(['claw-5']);
 		// A quiet evening on one claw still asks for a second, so a blip has somewhere to go but hokon.
 		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 0)])).slices).toBe(2);
 		expect(demandStep(DEMAND_IDLE, input([])).slices).toBe(2);
@@ -658,7 +695,7 @@ describe('slice demand', () => {
 		expect(r.demands.at(-1)?.slices).toBe(2);
 		await r.p.poll();
 		expect(r.p.hosts().backstop.promoted).toBe(true);
-		expect(r.logs.find((l) => l.evt === 'backstop-promoted')?.why).toBe('only 1 of the 2 serving claws (claw-8, claw-9) is up');
+		expect(r.logs.find((l) => l.evt === 'backstop-promoted')?.why).toBe('only 1 of the 2 serving slices is up (on claw-8, claw-9, claw-10)');
 		// Past the old 10 min replace window: still no replacement for claw-9 while hokon covers it.
 		r.clock.t += 30 * 60_000;
 		await r.p.poll();
@@ -706,6 +743,118 @@ describe('alerts', () => {
 		alerts.fire('b', 'y');
 		expect(logs.filter((l) => l.evt === 'alerts-off')).toHaveLength(1);
 		expect(logs.filter((l) => l.evt === 'alert').map((l) => l.key)).toEqual(['a', 'b']);
+	});
+});
+
+describe('the hosting contract', () => {
+	const hosting = (): Record<string, unknown> => JSON.parse(readFileSync(new URL('../../../../../hosting.json', import.meta.url), 'utf8')) as Record<string, unknown>;
+
+	it("is hosting.json's: the slice, the count, the rules, the order and the notice", () => {
+		expect(CONTRACT).toEqual({
+			unit: { memoryMb: 4096, cores: 4 },
+			min: 2,
+			max: 4,
+			ports: [7621],
+			require: ['wired', 'not-beside-unbounded'],
+			order: ['claw-8', 'claw-9', 'claw-10', 'claw-5'],
+			noticeMin: 15,
+		});
+	});
+
+	it('a hosting.json that lacks a field, or names a node twice, refuses to load', () => {
+		const without = (path: string[]): unknown => {
+			const doc = hosting();
+			let at = doc;
+			for (const k of path.slice(0, -1)) at = at[k] as Record<string, unknown>;
+			delete at[path.at(-1)!];
+			return doc;
+		};
+		expect(() => contractOf(without(['slices', 'unit', 'memoryMb']))).toThrow('hosting.json: slices.unit.memoryMb is not a number');
+		expect(() => contractOf(without(['placement', 'require']))).toThrow('hosting.json: placement.require is not a list of names');
+		expect(() => contractOf(without(['availability']))).toThrow('hosting.json: no availability');
+		const twice = hosting();
+		(twice.placement as { order: string[] }).order = ['claw-8', 'claw-8'];
+		expect(() => contractOf(twice)).toThrow('placement.order names a node twice');
+		const upside = hosting();
+		(upside.slices as { min: number }).min = 5;
+		expect(() => contractOf(upside)).toThrow('slices.min..max is 5..4');
+	});
+
+	const slice = (node: string, extra: Partial<NonNullable<FleetNode['hosting']>> = {}): FleetNode =>
+		fleetNode(node, { hosting: { state: 'guaranteed', declared: { memoryMb: 4096, cores: 4, port: 7621 }, observed: { agent: 'listening', memoryMinMb: 4096, cores: 4 }, until: null, ...extra } });
+	const answer = (extra: Partial<FleetDemand> = {}): FleetDemand => ({
+		auto: true,
+		live: true,
+		declared: ['claw-8', 'claw-9'],
+		ending: [],
+		actions: [],
+		blocked: [],
+		demanded: 2,
+		serving: ['claw-8', 'claw-9'],
+		unplaceable: [],
+		...extra,
+	});
+	const keys = (status: FleetNode[], demand: FleetDemand): string[] => contractViolations(CONTRACT, { at: T0, nodes: status }, demand, T0).map((v) => v.key);
+
+	it('kept: nothing to say about two slices served as declared', () => {
+		expect(keys([slice('claw-8'), slice('claw-9')], answer())).toEqual([]);
+	});
+
+	it("2026-11-04 18:50Z: watchparty's and archivebot's standbys beside claw-8 and claw-9 broke §3, and the replacements broke §1", () => {
+		const nodes = [slice('claw-5'), slice('claw-8'), slice('claw-9'), slice('claw-10')];
+		const now = answer({
+			declared: ['claw-5', 'claw-8', 'claw-9', 'claw-10'],
+			serving: ['claw-5', 'claw-10'],
+			unplaceable: [
+				{ node: 'claw-8', why: 'fails "not-beside-unbounded"', reachable: true },
+				{ node: 'claw-9', why: 'fails "not-beside-unbounded"', reachable: true },
+			],
+		});
+		const found = contractViolations(CONTRACT, { at: T0, nodes }, now, T0);
+		expect(found.map((v) => [v.key, v.clause])).toEqual([
+			['kept:claw-8:not-beside-unbounded', 'kept'],
+			['kept:claw-9:not-beside-unbounded', 'kept'],
+			['count:over', 'count'],
+		]);
+		expect(found[0]?.what).toBe('claw-8 holds one of our slices but fails "not-beside-unbounded"');
+		expect(found[2]?.what).toBe('fleet-manager holds 4 slices for our demand of 2 (claw-5, claw-8, claw-9, claw-10; it counts claw-5, claw-10 as serving)');
+	});
+
+	it('a box that cannot be reached may be replaced; a slice it is ending is not counted; a drain is not §3', () => {
+		const down = answer({ declared: ['claw-8', 'claw-9', 'claw-10'], serving: ['claw-9', 'claw-10'], unplaceable: [{ node: 'claw-8', why: 'cannot be reached', reachable: false }] });
+		expect(keys([fleetNode('claw-8', { reachable: false }), slice('claw-9'), slice('claw-10')], down)).toEqual([]);
+		expect(keys([slice('claw-8'), slice('claw-9'), slice('claw-10')], answer({ declared: ['claw-8', 'claw-9', 'claw-10'], ending: ['claw-10'] }))).toEqual([]);
+		const drained = answer({ unplaceable: [{ node: 'claw-8', why: 'has a maintenance drain starting 2026-10-27T20:10:00Z', reachable: true }], serving: ['claw-9'] });
+		expect(keys([slice('claw-8'), slice('claw-9')], drained)).toEqual(['count:short']);
+	});
+
+	it('short: fewer served than asked for, with the reasons fleet-manager gives', () => {
+		const found = contractViolations(CONTRACT, { at: T0, nodes: [slice('claw-8')] }, answer({ declared: ['claw-8'], serving: ['claw-8'], blocked: ['no node can take it'] }), T0);
+		expect(found.map((v) => v.what)).toEqual(['fleet-manager serves 1 of the 2 slices we asked for: no node can take it']);
+	});
+
+	it('§4: each slice is declared and served at our unit, on our port, guaranteed', () => {
+		const bad = slice('claw-8', { state: 'pending', declared: { memoryMb: 2048, cores: 2, port: 7622 }, observed: { agent: 'listening', memoryMinMb: 1024, cores: 3 } });
+		expect(contractViolations(CONTRACT, { at: T0, nodes: [bad, slice('claw-9')] }, answer(), T0).map((v) => v.what)).toEqual([
+			'claw-8: its slice is declared at 2048 MB, under our 4096 MB',
+			'claw-8: its slice is declared with 2 cores, under our 4',
+			'claw-8: its slice is declared on port 7622, not ours (7621)',
+			'claw-8: its slice is pending, not guaranteed',
+			'claw-8: it guarantees 1024 MB of our 4096 MB (memory.min)',
+			'claw-8: it gives our slice 3 cores of 4',
+		]);
+		// Down, or inside its announced reboot, a slice is the count's business, not its own.
+		const rebooting = slice('claw-8', { state: 'unknown' });
+		rebooting.notices = [{ event: 'ends', at: new Date(T0 + 3600_000).toISOString(), kind: 'reboot' }];
+		expect(keys([rebooting, slice('claw-9')], answer())).toEqual([]);
+		expect(keys([{ ...slice('claw-8', { state: 'unknown' }), reachable: false }, slice('claw-9')], answer())).toEqual([]);
+	});
+
+	it('inUse: the first `want` usable claws ahead of hokon, in the order; claw-5 never', () => {
+		expect(inUse(['claw-5', 'claw-10', 'claw-9', 'claw-8'], 2)).toEqual(['claw-8', 'claw-9']);
+		expect(inUse(['claw-5', 'claw-10', 'claw-9'], 2)).toEqual(['claw-9', 'claw-10']);
+		expect(inUse(['claw-5', 'claw-10'], 2)).toEqual(['claw-10']);
+		expect(inUse(['claw-8', 'claw-9', 'claw-10', 'claw-4'], 3)).toEqual(['claw-8', 'claw-9', 'claw-10']);
 	});
 });
 
@@ -1248,12 +1397,12 @@ describe('planned reboots', () => {
 		await r.p.poll();
 		r.clock.t += 60_000;
 		await r.p.poll();
-		expect(r.posted).toEqual([expect.stringMatching(/^🔺 hokon promoted to the Forge backstop: only 1 of the 2 serving claws \(claw-8, claw-9\) is up\. claw-9: eligible; claw-8: fleet/)]);
+		expect(r.posted).toEqual([expect.stringMatching(/^🔺 hokon promoted to the Forge backstop: only 1 of the 2 serving slices is up \(on claw-8, claw-9, claw-10\)\. claw-9: eligible; claw-8: fleet/)]);
 	});
 
 	it('a link lost before its reboot is under way is a fault: paged, and an outage', async () => {
 		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
-		r.nodes[1] = announced('claw-8', r.clock.t + 10 * 60_000);
+		r.nodes[1] = announced('claw-8', r.clock.t + 15 * 60_000);
 		await r.p.poll();
 		r.claws.get('claw-8')!.link.lose('agent heartbeat lost for 11 s (window 10 s)');
 		expect(r.posted).toEqual([
@@ -1271,6 +1420,99 @@ describe('planned reboots', () => {
 		const r = await rig([fleetNode('claw-9'), underway('claw-8', at, { reachable: false })]);
 		await r.p.poll();
 		expect(r.p.hosts().backstop.promoted).toBe(true);
+	});
+});
+
+describe('the hosting contract, on the coordinator', () => {
+	const at = (ms: number) => new Date(T0 + ms).toISOString();
+	const nodes = (): FleetNode[] => [fleetNode('claw-9'), fleetNode('claw-8'), fleetNode('claw-10'), fleetNode('claw-5')];
+
+	it('a violation pages once it has held one converger pass, says which section it breaks, and resolves when kept again', async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
+		r.converger.unplaceable = [{ node: 'claw-8', why: 'fails "not-beside-unbounded"', reachable: true }];
+		await r.p.poll();
+		expect(r.posted).toEqual([]);
+		expect(r.p.hosts().contract.map((v) => [v.key, v.paged])).toEqual([
+			['kept:claw-8:not-beside-unbounded', false],
+			['count:short', false],
+		]);
+		r.clock.t += CONTRACT_HOLD_MS;
+		await r.p.poll();
+		expect(r.posted).toEqual([
+			'⚠️ Hosting contract: claw-8 holds one of our slices but fails "not-beside-unbounded". docs/HOSTING_CONTRACT.md §3.',
+			'⚠️ Hosting contract: fleet-manager serves 1 of the 2 slices we asked for. docs/HOSTING_CONTRACT.md §1.',
+		]);
+		r.clock.t += 60_000;
+		await r.p.poll();
+		expect(r.posted).toHaveLength(2);
+		r.converger.unplaceable = [];
+		r.clock.t += 60_000;
+		await r.p.poll();
+		expect(r.posted.slice(2)).toEqual([
+			'✅ Hosting contract kept again: claw-8 holds one of our slices but fails "not-beside-unbounded" (open 120 s)',
+			'✅ Hosting contract kept again: fleet-manager serves 1 of the 2 slices we asked for (open 120 s)',
+		]);
+		expect(r.p.hosts().contract).toEqual([]);
+	});
+
+	it('one that clears inside the hold never pages', async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
+		r.converger.unplaceable = [{ node: 'claw-8', why: 'fails "not-beside-unbounded"', reachable: true }];
+		await r.p.poll();
+		r.clock.t += CONTRACT_HOLD_MS - 1000;
+		r.converger.unplaceable = [];
+		await r.p.poll();
+		r.clock.t += CONTRACT_HOLD_MS;
+		await r.p.poll();
+		expect(r.posted).toEqual([]);
+	});
+
+	it('§5: a reboot announced under our 15 min is posted once; one already there when we start is not judged', async () => {
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')]);
+		r.nodes[1] = fleetNode('claw-8', { notices: [{ event: 'starts', at: at(10 * 60_000), kind: 'reboot' }] });
+		await r.p.poll();
+		await r.p.poll();
+		expect(r.posted).toEqual([`⚠️ Hosting contract: claw-8's starts (reboot) at ${at(10 * 60_000)} was announced 10 min ahead, under our 15 min. docs/HOSTING_CONTRACT.md §5.`]);
+		// Our 15 min, read up to a poll and a status copy late, is kept.
+		r.nodes[0] = fleetNode('claw-9', { notices: [{ event: 'starts', at: at(14 * 60_000), kind: 'reboot' }] });
+		await r.p.poll();
+		expect(r.posted).toHaveLength(1);
+		const late = await rig([fleetNode('claw-9'), fleetNode('claw-8', { notices: [{ event: 'starts', at: at(5 * 60_000), kind: 'reboot' }] })]);
+		await late.p.poll();
+		expect(late.posted).toEqual([]);
+	});
+
+	it('four slices for a demand of two: matches go to claw-8 and claw-9, claw-10 only once both are full, claw-5 never while hokon is down', async () => {
+		const r = await rig(nodes());
+		// A slice here holds two JVMs of two matches: four each.
+		const ids = Array.from({ length: 12 }, (_, i) => `m-${i + 1}`);
+		const on = (some: string[]): string[] => some.map((id) => jvmOf(r, id).claw).sort();
+		for (const id of ids.slice(0, 8)) start(r, id);
+		expect(on(ids.slice(0, 8))).toEqual(['claw-8', 'claw-8', 'claw-8', 'claw-8', 'claw-9', 'claw-9', 'claw-9', 'claw-9']);
+		for (const id of ids.slice(8)) start(r, id);
+		expect(on(ids.slice(8))).toEqual(['claw-10', 'claw-10', 'claw-10', 'claw-10']);
+		// claw-5 is free, but it comes after hokon, and hokon is not up: the next start waits.
+		expect(r.p.room()).toBe('full');
+		expect(hostOf(r, 'claw-5').matches).toEqual([]);
+	});
+
+	it('claw-8 down with claw-10 declared: claw-9 and claw-10 serve, and hokon stays down', async () => {
+		const r = await rig(nodes());
+		r.nodes[1] = fleetNode('claw-8', { reachable: false });
+		for (let i = 0; i < 4; i++) {
+			r.clock.t += 60_000;
+			await r.p.poll();
+		}
+		expect(r.p.hosts().backstop.promoted).toBe(false);
+		start(r, 'm-1');
+		start(r, 'm-2');
+		expect(['m-1', 'm-2'].map((id) => jvmOf(r, id).claw).sort()).toEqual(['claw-10', 'claw-9']);
+		// Without claw-10, the same loss brings hokon up, as before.
+		const two = await rig([fleetNode('claw-9'), fleetNode('claw-8'), fleetNode('claw-5')]);
+		two.nodes[1] = fleetNode('claw-8', { reachable: false });
+		await two.p.poll();
+		await two.p.poll();
+		expect(two.p.hosts().backstop.promoted).toBe(true);
 	});
 });
 

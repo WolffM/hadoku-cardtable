@@ -5,6 +5,9 @@ From: hadoku-cardtable, 2026-10-24. Status: **OPEN** — §1–§6 answered in
 is new and open.
 Plan this serves: `docs/planning/forge-hosting-plan.md` (cardtable repo).
 
+**The contract itself is [docs/HOSTING_CONTRACT.md](../HOSTING_CONTRACT.md)**: what every slice must
+be, checked every poll. This file is the history of how each part of it was asked for.
+
 ## Context
 
 Cardtable will host its Forge matches on the claws instead of hokon, aiming at
@@ -314,6 +317,35 @@ the reboot. That is the cycle's own point of holding the node. Cardtable keeps
 12 min (`REBOOT_DOWN_MS`): its clock starts at the lost link and stops at the
 agent's reconnect, which the services phase does not gate. Check the pass line
 against mgmt-api's resolved version, not fleet-manager's ppe.
+
+### 12. Keep the contract (added 2026-11-04)
+
+Everything a cardtable slice must be is now in one place, **[docs/HOSTING_CONTRACT.md](../HOSTING_CONTRACT.md)**
+(§1 how many, §2 where, §3 kept where it is, §4 what each slice gives, §5 notice, §6 the fields we
+read). Cardtable checks your reports against it every poll and pages ⚠️ Hosting contract on a
+violation that holds 5 min.
+
+On 2026-11-04 at 19:31Z it finds three violations:
+
+- **§3, twice.** Your converger placed watchparty's standby on claw-8 (14:19Z) and archivebot's on
+  claw-9 (18:10Z). Both are pm2 services with `MemoryMax=infinity`, on nodes holding our slices,
+  and our `require` has `not-beside-unbounded`. Your converger then judged our own slices
+  unplaceable (`fails "not-beside-unbounded"`).
+- **§1.** Your converger answered by declaring claw-10 (12:11Z, before either standby; we could not
+  tell from the logs what it was reacting to then) and claw-5 (18:14Z). That leaves 4 slices held
+  for our demand of 2: 8 cores and 8 GB away from CI. claw-5 is the slow box the operator does not
+  want serving.
+
+What we ask:
+
+- **When you place any tenant, standby or service on a node, check the rules of every tenant
+  already on it**, not only the newcomer's. Placing a standby there is a declare like any other.
+- Either bound those two services (`MemoryMax`) or move them off claw-8 and claw-9. Then end
+  claw-5 and claw-10 in our release order (claw-5 first), as the extras they are.
+- **Pass lines:** `apps/server/node_modules/.bin/tsx scripts/hosting/contract-check.ts` exits 0;
+  `fleet hosting-demand cardtable --json` shows `declared` equal to `lastPass.serving` with
+  `demand.slices` entries; and no placement of another tenant ever makes one of our slices
+  unplaceable.
 
 ## What we do NOT ask
 

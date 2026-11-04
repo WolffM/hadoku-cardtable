@@ -23,10 +23,11 @@
  *
  * ## hokon as the backstop (§4.3)
  *
- * The operator's host priority (2026-10-31): **claw-8 → claw-9 → hokon → claw-5** (`HOST_ORDER`,
- * with hokon as the step between the serving claws and the emergency one). The same shape as
- * fleet-manager's CI backstop: promoted when no claw is eligible, or when fewer than `MIN_SLICES` of
- * the serving claws (`SERVING`) are usable, for `OUTAGE_POLLS` polls in a row — at once when a start
+ * The operator's host priority: **claw-8 → claw-9 → claw-10 → hokon → claw-5** (2026-10-31, with
+ * claw-10 the tertiary host since 2026-11-03): `HOST_ORDER`, `hosting.json`'s `placement.order`, with
+ * hokon as the step before the emergency claws (`AFTER_BACKSTOP`). The same shape as fleet-manager's
+ * CI backstop: promoted when no claw is eligible, or when fewer than `MIN_SLICES` of the claws
+ * ahead of hokon (`SERVING`) are usable, for `OUTAGE_POLLS` polls in a row — at once when a start
  * is waiting or a failed claw's matches need a host; demoted after `CALM_POLLS` calm polls in a row;
  * a serving claw inside fleet-manager's announced reboot is no outage (operator, 2026-11-03: a kernel
  * reboot of claw-8 promoted hokon for 19 min with no match anywhere) until it has been down for
@@ -42,10 +43,18 @@
  * only after a calm spell, and the order they may be ended in, the emergency claw first.
  * fleet-manager's converger declares and ends them, ranking nodes by `hosting.json`'s
  * `placement.order`; which match runs where stays here.
+ *
+ * ## Only the slices we asked for (`inUse`)
+ *
+ * fleet-manager may hold more of our slices than we ask for (on 2026-11-04 it held four for a
+ * demand of two, after placing other tenants' services beside claw-8 and claw-9). A match goes to
+ * the first `demand` usable claws ahead of hokon, in `HOST_ORDER`; another claw ahead of hokon only
+ * once those are full; hokon next; an emergency claw last.
  */
 
 import { readFileSync, statSync } from 'node:fs';
 
+import { CONTRACT } from './contract.js';
 import { coreRank, type FleetNode } from './fleet.js';
 
 /** A claw with a hosting end or reboot this close takes no new match. */
@@ -200,7 +209,7 @@ export interface BackstopState {
 export interface BackstopInput {
 	/** This poll read fleet status. False: hold. */
 	fresh: boolean;
-	/** `SERVING` claws with a slice declared for us that are usable (`DemandClaw.usable`). */
+	/** `SERVING` claws (ahead of hokon) with a slice declared for us that are usable (`DemandClaw.usable`). */
 	serving: number;
 	/**
 	 * The other `SERVING` claws with a slice declared for us that are inside an announced reboot,
@@ -230,7 +239,7 @@ export function backstopStep(state: BackstopState, input: BackstopInput): { stat
 		input.eligible === 0
 			? 'no claw is eligible'
 			: input.serving + input.rebooting < MIN_SLICES
-				? `only ${input.serving} of the ${MIN_SLICES} serving claws (${SERVING.join(', ')}) ${input.serving === 1 ? 'is' : 'are'} up`
+				? `only ${input.serving} of the ${MIN_SLICES} serving slices ${input.serving === 1 ? 'is' : 'are'} up (on ${SERVING.join(', ')})`
 				: null;
 	if (outage !== null && (state.promoted || input.waiting)) return next({ promoted: true, calm: 0, outages: 0, why: outage });
 	if (input.between) return { state, change: null };
@@ -279,23 +288,33 @@ export function readForce(file: string, now: number): { until: number } | null {
  */
 export const DEMAND_CALM_MS = 2 * 60 * 60_000;
 /**
- * `hosting.json`'s `slices.min..max` (a unit test pins them equal). The floor is 2: one slice left
- * a calm evening on one claw, so any blip on it promoted hokon, and a failover had nowhere else to
- * go (operator, 2026-10-31).
+ * `hosting.json`'s `slices.min..max`. The floor is 2: one slice left a calm evening on one claw, so
+ * any blip on it promoted hokon, and a failover had nowhere else to go (operator, 2026-10-31).
  */
-export const MIN_SLICES = 2;
-export const MAX_SLICES = 4;
+export const MIN_SLICES = CONTRACT.min;
+export const MAX_SLICES = CONTRACT.max;
 
 /**
- * The operator's Forge host priority (2026-10-31), hokon aside: `hosting.json`'s `placement.order`
- * (a unit test pins them equal), which fleet-manager's converger ranks nodes by. The first
- * `MIN_SLICES` are the serving claws; the rest are for "truly horrific emergencies" only, after
- * hokon, and end first. claw-10 is the tertiary host, ahead of claw-5 (operator, 2026-11-03). A
- * node not listed ranks after every listed one.
+ * The operator's Forge host priority, hokon aside: `hosting.json`'s `placement.order`, which
+ * fleet-manager's converger ranks nodes by. A node not listed ranks after every listed one.
  */
-export const HOST_ORDER: readonly string[] = ['claw-8', 'claw-9', 'claw-10', 'claw-5'];
-/** The claws whose being down promotes hokon. */
-export const SERVING: readonly string[] = HOST_ORDER.slice(0, MIN_SLICES);
+export const HOST_ORDER: readonly string[] = CONTRACT.order;
+/**
+ * The claws that come after hokon: for "truly horrific emergencies" only, and the first to end
+ * (operator, 2026-10-31). claw-10 is ahead of hokon, as the tertiary host (operator, 2026-11-03).
+ */
+export const AFTER_BACKSTOP: readonly string[] = ['claw-5'];
+/** The claws ahead of hokon, in order: fewer than `MIN_SLICES` of them usable promotes it. */
+export const SERVING: readonly string[] = HOST_ORDER.filter((n) => !AFTER_BACKSTOP.includes(n));
+
+/**
+ * Which claws take new matches first: the first `want` usable claws ahead of hokon, in
+ * `HOST_ORDER`. `want` is the count we ask fleet-manager for; a slice it holds past that, or on an
+ * emergency or unlisted node, waits behind them.
+ */
+export function inUse(usable: readonly string[], want: number): string[] {
+	return SERVING.filter((n) => usable.includes(n)).slice(0, Math.max(0, want));
+}
 
 /** Where a node stands in `HOST_ORDER`; an unlisted one after them all. */
 export function hostRank(node: string): number {

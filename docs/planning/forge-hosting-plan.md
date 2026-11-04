@@ -214,6 +214,13 @@ What is ours on top:
   emergencies"), and it is the first slice to end. `rules.ts` `HOST_ORDER` =
   `hosting.json` `placement.order` (hokon is not listed: it is our step, not a
   slice), which fleet-manager's converger ranks nodes by.
+- **claw-10 ahead of hokon; only the slices we asked for (2026-11-04).** The operator made
+  claw-10 the tertiary host (840e5b631: "ready to serve cardtable as the tertiary backup", ahead of
+  claw-5). The priority is now **claw-8 → claw-9 → claw-10 → hokon → claw-5**. hokon comes up when
+  fewer than 2 of claw-8, claw-9 and claw-10 are usable (`rules.ts` `SERVING`). Placement uses only
+  the first `demand` usable ones (`inUse`), so a slice fleet-manager holds beyond our ask waits
+  behind them, and claw-5 never takes a match before hokon. The contract the two sides keep is
+  [docs/HOSTING_CONTRACT.md](../HOSTING_CONTRACT.md).
 - **A planned reboot is not "down" (operator, 2026-11-03).** fleet-manager's
   hourly `reboot-claws` cycle took claw-8 onto a security kernel at 21:32–21:50Z:
   15 min notice, 56 s down, no match anywhere. That promoted hokon for 19 min

@@ -9,9 +9,14 @@
  *   records and streams under `<workDir>-claws/<node>`, so the local boot sweep of `workDir` never
  *   reads them. One local pool on hokon, the backstop, with no warm JVM. The claws are the nodes
  *   fleet-manager reports with a hosting slice (`fleet.ts`), read every `FLEET_POLL_MS`.
- * - **Placement** is `rules.ts`: the six bars, spread by free room with the faster core breaking
- *   ties, and hokon only while the backstop is promoted. With nowhere to go `room()` answers `full`
- *   and the start waits in `start-queue.ts`, and the Capacity alert fires.
+ * - **Placement** is `rules.ts`: the six bars, then the slices we asked for (`inUse`: the first
+ *   `demand` usable claws ahead of hokon, in `HOST_ORDER`), spread by free room with the faster
+ *   core breaking ties; any other claw ahead of hokon once those are full; hokon only while the
+ *   backstop is promoted; an emergency claw only after hokon. With nowhere to go `room()` answers
+ *   `full` and the start waits in `start-queue.ts`, and the Capacity alert fires.
+ * - **The hosting contract** (`docs/HOSTING_CONTRACT.md`, `audit.ts`): every poll checks
+ *   fleet-manager's reports against `hosting.json`. A violation that holds `CONTRACT_HOLD_MS` opens
+ *   `contract:<key>` with one ⚠️, resolved once it is kept again; a short notice is posted once.
  * - **Slices.** Every poll that read fleet status asks fleet-manager for `demandStep`'s count of
  *   slices, with the order to end them in (`fleet.ts` `demand`); its converger declares and ends
  *   them while our registered `hosting.json` says `placement.auto`, and only plans otherwise.
@@ -61,15 +66,20 @@ import type { JvmLauncher } from '../jvm-transport.js';
 import type { AgentClient } from '../remote/client.js';
 import { FENCE_MS, HEARTBEAT_MS, sliceNeedMb } from '../remote/wire.js';
 import type { Alerts } from './alerts.js';
-import type { FleetDemand, FleetNode, FleetSource } from './fleet.js';
+import { SECTION, contractViolations, type Violation } from './audit.js';
+import { CONTRACT } from './contract.js';
+import { STATUS_MAX_AGE_S, type FleetDemand, type FleetNode, type FleetSource, type FleetStatus } from './fleet.js';
 import {
 	AI_CUTOFF_WINDOW_MS,
 	BACKSTOP_IDLE,
 	DEMAND_IDLE,
+	MIN_SLICES,
 	MOVE_AHEAD_MS,
 	REBOOT_DOWN_MS,
 	SERVING,
 	aiBar,
+	hostRank,
+	inUse,
 	backstopStep,
 	bars,
 	demandStep,
@@ -93,6 +103,13 @@ export const HEARTBEAT_FRESH_MS = 3 * HEARTBEAT_MS;
 export const RESTART_GRACE_MS = 90_000;
 /** How early a slice's removal may come before the end time fleet-manager showed us. */
 export const RELEASE_SLACK_MS = 60_000;
+/**
+ * A contract violation pages only once it has held this long: one converger pass (5 min), so a
+ * declare or an end in flight is never one.
+ */
+export const CONTRACT_HOLD_MS = 5 * 60_000;
+/** How late our reads can see a notice: a poll, plus the status copy's age. */
+export const NOTICE_SLACK_MS = FLEET_POLL_MS + STATUS_MAX_AGE_S * 1000;
 /** A canary that failed is tried again after this. */
 export const CANARY_RETRY_MS = 5 * 60_000;
 export const CANARY_TIMEOUT_MS = 120_000;
@@ -249,6 +266,8 @@ export interface HostsView {
 	/** What we last asked fleet-manager for, and its converger's answer. */
 	slices: { asked: number | null; releaseOrder: string[]; converger: FleetDemand | null };
 	backstop: BackstopState & { forcedUntil: string | null };
+	/** Where fleet-manager is not keeping our hosting contract now, and since when. */
+	contract: (Violation & { since: string; paged: boolean })[];
 	hosts: HostView[];
 	alerts: { key: string; at: string; text: string }[];
 }
@@ -327,6 +346,14 @@ export function placement(opts: PlacementOptions): Placement {
 	let short = false;
 	/** A start found no host since the last poll while hokon was promoted: the emergency claw's cue. */
 	let hokonShort = false;
+	/** The contract violations seen, by key: since when, and whether they have paged. */
+	const violations = new Map<string, { v: Violation; since: number; paged: boolean }>();
+	/**
+	 * When each notice that takes a slice of ours away was first read; null for one already there at
+	 * the first read, whose lead cannot be known.
+	 */
+	const noticesSeen = new Map<string, number | null>();
+	let firstRead = true;
 	/** Set while a restore runs: the factory never places onto the host being failed. */
 	let exceptHost: Host | null = null;
 	const fencedBatches = new Map<Host, Moved[]>();
@@ -413,15 +440,30 @@ export function placement(opts: PlacementOptions): Placement {
 		);
 	}
 
-	/** The best host for a new match now, never `except`. */
+	/** The claws placement fills first: the first `demand` usable claws ahead of hokon (`inUse`). */
+	function inUseNow(): Set<string> {
+		const usableClaws = claws()
+			.filter((h) => h.fleet?.hosting != null && usable(h))
+			.map((h) => h.name);
+		return new Set(inUse(usableClaws, demand.slices ?? MIN_SLICES));
+	}
+
+	/**
+	 * The best host for a new match now, never `except`: the slices we asked for, spread; then any
+	 * other claw ahead of hokon, in `HOST_ORDER`; then hokon, while promoted; then, only once hokon
+	 * is promoted and cannot take it, an emergency or unlisted claw.
+	 */
 	function pick(except: Host | null = null): Host | null {
-		const open = claws()
-			.filter((h) => h !== except && eligible(barsOf(h)))
-			.map((h) => ({ node: h.name, free: free(h), host: h }));
-		const best = rankClaws(open)[0];
-		if (best !== undefined) return best.host;
+		const open = claws().filter((h) => h !== except && eligible(barsOf(h)));
+		const first = inUseNow();
+		const spread = rankClaws(open.filter((h) => first.has(h.name)).map((h) => ({ node: h.name, free: free(h), host: h })))[0];
+		if (spread !== undefined) return spread.host;
+		const byOrder = (hs: Host[]): Host | undefined => [...hs].sort((a, b) => hostRank(a.name) - hostRank(b.name) || free(b) - free(a))[0];
+		const spare = byOrder(open.filter((h) => !first.has(h.name) && SERVING.includes(h.name)));
+		if (spare !== undefined) return spare;
 		if (hokon !== except && eligible(barsOf(hokon))) return hokon;
-		return null;
+		if (!backstop.promoted) return null;
+		return byOrder(open.filter((h) => !SERVING.includes(h.name))) ?? null;
 	}
 
 	function whyNone(): string {
@@ -488,8 +530,8 @@ export function placement(opts: PlacementOptions): Placement {
 		return barsOf(host).every((b) => b.ok || b.bar === 'room' || b.bar === 'ai');
 	}
 
-	/** Ask fleet-manager for this poll's count of slices. */
-	async function askSlices(): Promise<void> {
+	/** Ask fleet-manager for this poll's count of slices: its converger's answer, or null. */
+	async function askSlices(): Promise<FleetDemand | null> {
 		// A slice the converger is already ending is on its way out at our own asking: it is neither
 		// serving nor broken, so it never counts as usable nor gets a replacement. Counting its end
 		// notice as "unusable" asked for a replacement 10 min after asking to release it (2026-10-28
@@ -517,10 +559,67 @@ export function placement(opts: PlacementOptions): Placement {
 		demand = step.state;
 		releaseOrder = step.releaseOrder;
 		const answer = await opts.fleet.demand(step.slices, step.releaseOrder).catch(() => null);
-		if (answer === null) return;
+		if (answer === null) return null;
 		if (answer.actions.length > 0) log({ evt: 'slice-converger', auto: answer.auto, live: answer.live, actions: answer.actions, blocked: answer.blocked });
 		converger = answer;
 		noteReleases();
+		return answer;
+	}
+
+	/**
+	 * Check fleet-manager's reports against the contract (`audit.ts`). A violation pages once it has
+	 * held `CONTRACT_HOLD_MS`, and resolves when it is kept again.
+	 */
+	function auditContract(status: FleetStatus, answer: FleetDemand): void {
+		const seen = new Set<string>();
+		for (const v of contractViolations(CONTRACT, status, answer, now())) {
+			seen.add(v.key);
+			const held = violations.get(v.key) ?? { v, since: now(), paged: false };
+			held.v = v;
+			violations.set(v.key, held);
+			if (held.paged || now() - held.since < CONTRACT_HOLD_MS) continue;
+			held.paged = true;
+			log({ evt: 'contract-violation', key: v.key, clause: v.clause, node: v.node, what: v.what, since: new Date(held.since).toISOString() });
+			alerts.fire(`contract:${v.key}`, `⚠️ Hosting contract: ${v.what}. docs/HOSTING_CONTRACT.md §${SECTION[v.clause]}.`);
+		}
+		for (const [key, held] of violations) {
+			if (seen.has(key)) continue;
+			violations.delete(key);
+			if (!held.paged) continue;
+			log({ evt: 'contract-kept', key });
+			alerts.resolve(`contract:${key}`, `Hosting contract kept again: ${held.v.what}`);
+		}
+	}
+
+	/**
+	 * §5: a slice end, or a reboot of a node holding one of ours, announced less than our notice
+	 * ahead. Judged from when a notice first reached our reads, less what our reads can lag
+	 * (`NOTICE_SLACK_MS`); a notice already there at the first read is never judged.
+	 */
+	function auditNotices(status: FleetStatus): void {
+		const minMs = CONTRACT.noticeMin * 60_000;
+		for (const n of status.nodes) {
+			if (n.hosting === null) continue;
+			for (const x of n.notices) {
+				const takesSlice = (x.kind === 'reboot' && x.event === 'starts') || (x.kind === 'hosting' && x.event === 'ends');
+				const at = Date.parse(x.at);
+				if (!takesSlice || !Number.isFinite(at)) continue;
+				const key = `${n.node}|${x.kind}|${x.event}|${x.at}`;
+				if (noticesSeen.has(key)) continue;
+				const first = firstRead ? null : now();
+				noticesSeen.set(key, first);
+				if (first === null || at - first >= minMs - NOTICE_SLACK_MS) continue;
+				const lead = Math.max(0, Math.round((at - first) / 60_000));
+				const what = `${n.node}'s ${x.event} (${x.kind}) at ${x.at} was announced ${lead} min ahead, under our ${CONTRACT.noticeMin} min`;
+				log({ evt: 'contract-violation', key: `notice:${key}`, clause: 'notice', node: n.node, what });
+				alerts.note(`contract:notice:${key}`, `⚠️ Hosting contract: ${what}. docs/HOSTING_CONTRACT.md §${SECTION.notice}.`);
+			}
+		}
+		firstRead = false;
+		for (const [key] of noticesSeen) {
+			const at = Date.parse(key.slice(key.lastIndexOf('|') + 1));
+			if (at < now() - 3600_000) noticesSeen.delete(key);
+		}
 	}
 
 	/**
@@ -924,7 +1023,11 @@ export function placement(opts: PlacementOptions): Placement {
 			}
 		}
 		stepBackstop(fleetFresh);
-		if (fleetFresh) await askSlices();
+		if (status !== null) {
+			auditNotices(status);
+			const answer = await askSlices();
+			if (answer !== null) auditContract(status, answer);
+		}
 		await Promise.all(claws().map((h) => recover(h)));
 		notifyRoom();
 	}
@@ -1038,6 +1141,7 @@ export function placement(opts: PlacementOptions): Placement {
 			fleet: { readAt: fleetReadAt === null ? null : new Date(fleetReadAt).toISOString(), fresh: fleetFresh },
 			slices: { asked: demand.slices, releaseOrder, converger },
 			backstop: { ...backstop, forcedUntil: force === null ? null : new Date(force.until).toISOString() },
+			contract: [...violations.values()].map((v) => ({ ...v.v, since: new Date(v.since).toISOString(), paged: v.paged })),
 			hosts: [...hosts.values()].map((h) => {
 				const b = barsOf(h);
 				const event = nextEvent(h.fleet);

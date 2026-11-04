@@ -6,7 +6,7 @@
  * (number `FLEET_CONTRACT`) are read: `contract`, `generatedAt`, `nodes[].node`, `reachable`, `ok`,
  * `findings[]`, `notices[]{event,at,kind}`, and of each slice in `tenants[]` (or `hosting`, the
  * node's oldest slice, from a fleet-manager before `tenants`) `state`,
- * `declared.{tenant,memoryMb,cores,port,role}`, `observed.{agent,portReach,memoryInUseMb}` and
+ * `declared.{tenant,memoryMb,cores,port,role}`, `observed.{agent,portReach,memoryInUseMb,memoryMinMb,cores}` and
  * `until`. Every non-guest node is a row, so a slice that ended reads `hosting: null`. Only our
  * tenant's primary slice counts: another tenant's slice, or a standby (`declared.role: "standby"`,
  * for a tenant with `availability.standby`; absent is primary), reads as no slice of ours.
@@ -42,7 +42,8 @@ export interface FleetHosting {
 	/** `guaranteed` when the slice is served as declared. */
 	state: string;
 	declared: { memoryMb: number; cores: number; port: number } | null;
-	observed: { agent?: string; portReach?: unknown; memoryInUseMb?: number } | null;
+	/** What fleet-manager measured: `memoryMinMb` is the memory guarantee in force (`memory.min`). */
+	observed: { agent?: string; portReach?: unknown; memoryInUseMb?: number; memoryMinMb?: number; cores?: number } | null;
 	/** When the slice ends, if it is scheduled to. */
 	until: string | null;
 }
@@ -75,6 +76,12 @@ export interface FleetDemand {
 	actions: unknown[];
 	/** Why its last pass held back, as it says it. */
 	blocked: string[];
+	/** The count we last asked for (`demand.slices`); null before we ever asked. */
+	demanded: number | null;
+	/** Its last pass's slices of ours that serve: declared, not ending, and placeable. */
+	serving: string[];
+	/** Its last pass's slices of ours it does not count as serving, each with its reason in its words. */
+	unplaceable: { node: string; why: string; reachable: boolean }[];
 }
 
 /** Where the coordinator reads fleet-manager from. Both answer null when they could not look. */
@@ -178,6 +185,8 @@ export function parseNodeStatus(text: string): FleetStatus | null {
 											...(typeof observed.agent === 'string' ? { agent: observed.agent } : {}),
 											...(observed.portReach === undefined ? {} : { portReach: observed.portReach }),
 											...(typeof observed.memoryInUseMb === 'number' ? { memoryInUseMb: observed.memoryInUseMb } : {}),
+											...(typeof observed.memoryMinMb === 'number' ? { memoryMinMb: observed.memoryMinMb } : {}),
+											...(typeof observed.cores === 'number' ? { cores: observed.cores } : {}),
 										},
 							until: typeof h.until === 'string' ? h.until : null,
 						},
@@ -201,6 +210,11 @@ export function parseDemand(text: string): FleetDemand | null {
 		ending: names(raw.ending),
 		actions: Array.isArray(pass.actions) ? pass.actions : [],
 		blocked: Array.isArray(pass.blocked) ? pass.blocked.filter(isObject).map((b) => String(b.why ?? '')) : [],
+		demanded: isObject(raw.demand) && typeof raw.demand.slices === 'number' ? raw.demand.slices : null,
+		serving: names(pass.serving),
+		unplaceable: Array.isArray(pass.unplaceable)
+			? pass.unplaceable.filter(isObject).filter((u) => typeof u.node === 'string').map((u) => ({ node: String(u.node), why: String(u.why ?? ''), reachable: u.reachable === true }))
+			: [],
 	};
 }
 
@@ -227,8 +241,12 @@ export interface FleetCliOptions {
 	log?: (entry: Record<string, unknown>) => void;
 }
 
-/** fleet-manager's CLI, run as an operator runs it: `node <cli> node-status --json`. */
-export function fleetCli(opts: FleetCliOptions = {}): FleetSource {
+/**
+ * fleet-manager's CLI, run as an operator runs it: `node <cli> node-status --json`. `standing`
+ * reads the converger's view without restating a count (`hosting-demand` writes only with
+ * `--slices`), for a reader that is not the coordinator.
+ */
+export function fleetCli(opts: FleetCliOptions = {}): FleetSource & { standing(): Promise<FleetDemand | null> } {
 	const env = opts.env ?? process.env;
 	const log = opts.log ?? (() => {});
 	const path = opts.cli === undefined ? fleetCliPath(env) : { cli: opts.cli, fallback: null };
@@ -250,6 +268,12 @@ export function fleetCli(opts: FleetCliOptions = {}): FleetSource {
 				resolve(stdout);
 			});
 		});
+	const readDemand = async (args: string[]): Promise<FleetDemand | null> => {
+		const text = await run(args);
+		const demand = text === null ? null : parseDemand(text);
+		if (text !== null && demand === null) log({ evt: 'fleet-unreadable', args: 'hosting-demand', error: unreadableWhy(text) });
+		return demand;
+	};
 	return {
 		async status() {
 			const text = await run(['node-status', '--json', '--max-age', String(STATUS_MAX_AGE_S)]);
@@ -260,10 +284,10 @@ export function fleetCli(opts: FleetCliOptions = {}): FleetSource {
 		async demand(slices, releaseOrder) {
 			const args = ['hosting-demand', TENANT, '--slices', String(slices), '--json'];
 			if (releaseOrder.length > 0) args.push('--release-order', releaseOrder.join(','));
-			const text = await run(args);
-			const demand = text === null ? null : parseDemand(text);
-			if (text !== null && demand === null) log({ evt: 'fleet-unreadable', args: 'hosting-demand', error: unreadableWhy(text) });
-			return demand;
+			return readDemand(args);
+		},
+		standing() {
+			return readDemand(['hosting-demand', TENANT, '--json']);
 		},
 	};
 }
