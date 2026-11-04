@@ -1643,6 +1643,16 @@ describe('a block already assigned stays clickable, and draws its own arrow', ()
     expect(await sent(s, m)).toEqual([['selectCard', blocker]]);
   });
 
+  it('on touch, a tap on it is its click: Forge’s own undo, as a second mouse click is', async () => {
+    const { s, m, canvas, blocker } = await alreadyBlocking();
+    const face = cardEl(canvas, blocker).querySelector<HTMLButtonElement>('button')!;
+    fireEvent.pointerDown(face, { button: 0, pointerType: 'touch', clientX: 10, clientY: 10 });
+    fireEvent.pointerUp(face, { pointerType: 'touch', clientX: 10, clientY: 10 });
+    fireEvent.click(face, { clientX: 10, clientY: 10 });
+    await s.untilClientFrames(1);
+    expect(await sent(s, m)).toEqual([['selectCard', blocker]]);
+  });
+
   it('dragged onto a different attacker it MOVES: the undo, then the new attacker, then the blocker', async () => {
     const { s, m, canvas, blocker, attacker, other, combat } = await alreadyBlocking();
     holdBoardClock();
