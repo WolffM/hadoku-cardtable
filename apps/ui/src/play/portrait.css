@@ -413,6 +413,14 @@
   border: 1px solid var(--line-soft);
 }
 
+:root[data-layout='portrait'] .seat-chip .seat__mana {
+  flex: none;
+  height: auto;
+  flex-wrap: nowrap;
+  padding: 2px;
+  border-radius: calc(var(--radius) / 2);
+}
+
 :root[data-layout='portrait'] .seat-chip[data-active] {
   border-color: var(--success);
 }

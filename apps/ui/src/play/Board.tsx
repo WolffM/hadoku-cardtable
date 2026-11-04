@@ -4642,6 +4642,8 @@ function SeatChip({
           <span aria-hidden="true">{player.graveyard.length}</span>
         </button>
       </span>
+      {/* The floating mana, pressable to pay as on the desktop seat, while there is any: portrait draws no `.seat__side`. */}
+      {(player.manaPool ?? []).length > 0 && <ManaPool player={player} interaction={interaction} />}
     </div>
   );
 }

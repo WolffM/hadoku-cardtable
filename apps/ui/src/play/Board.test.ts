@@ -1507,6 +1507,21 @@ describe('the table as the operator blocked it (§A)', () => {
     return toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId });
   };
 
+  it('in portrait, the floating mana is on that seat’s chip while there is any, and absent while there is none', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true, addEventListener: () => undefined, removeEventListener: () => undefined }));
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+    const viewerId = fixture.viewerPlayerId;
+    const { container, unmount } = renderBoard(withMana(viewerId, [[8, 2]]), undefined, 'single');
+    const pool = container.querySelector<HTMLElement>('[data-testid="seat-chip-me"] [data-mana-pool]');
+    expect(pool, 'the pool rides the viewer’s chip').not.toBeNull();
+    expect(pool!.dataset.manaTotal).toBe('2');
+    unmount();
+    const empty = renderBoard(withMana(viewerId, []), undefined, 'single');
+    expect(empty.container.querySelector('[data-testid="seat-chip-me"] [data-mana-pool]'), 'nothing floats, nothing drawn').toBeNull();
+  });
+
   it('draws the floating mana a wire state carries, beside that seat’s own portrait', () => {
     // Two red, one white and one colourless, in ManaAtom's bytes and out of order.
     const { seat } = renderBoard(withMana(0, [[8, 2], [32, 1], [1, 1], [2, 0]]));
