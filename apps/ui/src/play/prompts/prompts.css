@@ -1369,3 +1369,12 @@
   font-size: 0.8rem;
   box-shadow: 0 1px 3px var(--shadow);
 }
+
+/*
+ * An order prompt's cards are dragged within and between its two zones (`MovePrompt.tsx`): under a finger
+ * the browser would claim that drag as a scroll of the sheet and cancel it, so a row is the drag's own
+ * from its first touch (the operator, 2026-11-04: "make sure that finger dragging … works", w89h).
+ */
+:is([data-testid='zone-dest'], [data-testid='zone-source']) > li {
+  touch-action: none;
+}
