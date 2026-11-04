@@ -402,6 +402,7 @@
 }
 
 :root[data-layout='portrait'] .seat-chip {
+  position: relative;
   flex: 1 1 0;
   min-width: 0;
   display: flex;
@@ -413,12 +414,19 @@
   border: 1px solid var(--line-soft);
 }
 
+/* Over the chip's lower edge, under its counts: floating mana appearing moves nothing else in the band. */
 :root[data-layout='portrait'] .seat-chip .seat__mana {
-  flex: none;
+  position: absolute;
+  z-index: 1;
+  bottom: -8px;
+  left: 50%;
+  translate: -50% 0;
   height: auto;
   flex-wrap: nowrap;
-  padding: 2px;
+  padding: 1px 2px;
   border-radius: calc(var(--radius) / 2);
+  background: var(--bg-raised);
+  box-shadow: 0 1px 4px var(--shadow);
 }
 
 :root[data-layout='portrait'] .seat-chip[data-active] {
