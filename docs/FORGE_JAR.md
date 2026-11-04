@@ -175,7 +175,7 @@ a pin travels with the commits that carry it:
    an older engine against the new `res/`.
 2. **Land the pin.** main's green `check` redeploys **PPE**, whose wrapper now
    resolves `jars/<pin>.jar`. Confirm `curl -s localhost:9011/health` says
-   `"status":"healthy"` and PPE's error log has no fallback warning.
+   `"status":"ok"` and PPE's error log has no fallback warning.
 3. **Prod takes it at the release** that includes the pin (`docs/RELEASE.md`). The
    same check runs against 9008.
 

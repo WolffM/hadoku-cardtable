@@ -7,7 +7,7 @@
  * `CARDTABLE_WEB_DIR` at a temp tree, once outside any dot-directory and once
  * under one, and then asks both questions: what does `/health` say, and what
  * does `GET /` answer. The assertion is the invariant, not a pair of
- * expected strings: `/health` is `healthy` exactly when the page is a 200.
+ * expected strings: `/health` is `ok` exactly when the page is a 200.
  *
  * ## It is also the proof that the wiring ORDER holds
  *
@@ -21,7 +21,7 @@
  * Never the live service: every port is ephemeral and every path is a temp dir.
  */
 
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
@@ -56,7 +56,7 @@ interface Served {
 interface Booted {
 	/** Everything the process printed until it was stopped. */
 	output: string;
-	health: { status: number; body: { status: string; bundle: string } };
+	health: { status: number; body: { status: string; service: string; commit: string | null; bundle: string; reason?: string } };
 	page: { status: number; body: string };
 	/** The embed bundle watchparty imports (D21): its entry, a hashed chunk, a name that is not there. */
 	embed: { entry: Served; chunk: Served; missing: Served };
@@ -265,7 +265,10 @@ describe('a server started from a path', () => {
 	it('outside any dot-directory is healthy and serves the page, then reads every era\'s pool', async () => {
 		const { health, page, output } = await boot(join(root, 'plain', 'apps', 'ui', 'dist'), {}, 30_000, '"evt":"library-warmed"');
 		expect(health.status).toBe(200);
-		expect(health.body).toMatchObject({ status: 'healthy', bundle: 'ok' });
+		expect(health.body).toMatchObject({ status: 'ok', bundle: 'ok' });
+		// hadoku health v1: which instance, and the HEAD of the checkout it runs from.
+		expect(health.body.service).toBe('cardtable');
+		expect(health.body.commit).toBe(execFileSync('git', ['-C', PKG_ROOT, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim());
 		expect(page.status).toBe(200);
 		expect(page.body).toContain('fixture');
 		const lines = bootLines(output);
@@ -282,7 +285,7 @@ describe('a server started from a path', () => {
 		// 67 eras at 400 ms each is 27 s of pool reads: a boot that waits for them never listens in 15.
 		const { health, page, output } = await boot(join(root, 'slow-pools', 'apps', 'ui', 'dist'), slowPoolReads(400), 15_000);
 		expect(health.status).toBe(200);
-		expect(health.body).toMatchObject({ status: 'healthy', bundle: 'ok' });
+		expect(health.body).toMatchObject({ status: 'ok', bundle: 'ok' });
 		expect(page.status).toBe(200);
 		const listened = output.indexOf('listening on 127.0.0.1:');
 		const firstPoolRead = output.indexOf('slow-pool-read ');
@@ -294,7 +297,7 @@ describe('a server started from a path', () => {
 		// A first boot seeds the testing rooms, 85 room writes: at 400 ms each, a boot that makes them before it listens never listens in 15.
 		const { health, page } = await boot(join(root, 'slow-disk', 'apps', 'ui', 'dist'), slowBootWrites(400), 15_000);
 		expect(health.status).toBe(200);
-		expect(health.body).toMatchObject({ status: 'healthy', bundle: 'ok' });
+		expect(health.body).toMatchObject({ status: 'ok', bundle: 'ok' });
 		expect(page.status).toBe(200);
 	}, 60_000);
 
@@ -333,17 +336,18 @@ describe('a server started from a path', () => {
 	it('listens, healthy, while the pool JVM has not answered a single call — warming the sets is never on the boot path', async () => {
 		const { health, page } = await boot(join(root, 'silent', 'apps', 'ui', 'dist'), silentForge(), 10_000);
 		expect(health.status).toBe(200);
-		expect(health.body).toMatchObject({ status: 'healthy', bundle: 'ok' });
+		expect(health.body).toMatchObject({ status: 'ok', bundle: 'ok' });
 		expect(page.status).toBe(200);
 	}, 60_000);
 
 	it('under a dot-directory reports degraded, and says why on the page instead of a 404', async () => {
 		const { health, page } = await boot(join(root, 'repo', '.claude', 'worktrees', 'w', 'apps', 'ui', 'dist'));
 		// The invariant first: green /health and a failing page may never coexist.
-		expect(health.body.status === 'healthy').toBe(page.status === 200);
+		expect(health.body.status === 'ok').toBe(page.status === 200);
 
 		expect(health.status).toBe(503);
-		expect(health.body).toMatchObject({ status: 'degraded', bundle: 'unservable' });
+		expect(health.body).toMatchObject({ status: 'degraded', service: 'cardtable', bundle: 'unservable' });
+		expect(health.body.reason).toContain('unservable');
 		expect(page.status).toBe(503);
 		expect(page.body).toContain('.claude');
 	}, 60_000);

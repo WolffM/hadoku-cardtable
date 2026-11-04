@@ -82,6 +82,7 @@ import { draftIdOfPool } from './room/lobby.js';
 import { checkCards, checkPlan } from './room/plan.js';
 import { FREE_PICK, type DraftPlan, type PoolVerdict, type TableGame } from '@hadoku/shared';
 import { busyHandler } from './busy.js';
+import { healthResponse, readCommit, serviceIdOf } from './health.js';
 import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { attachDraftSocket } from './room/socket.js';
 import { attachRoomFeed } from './room/feed.js';
@@ -152,6 +153,19 @@ app.disable('x-powered-by');
 const basePath = await checkBundle(INDEX_HTML, CONFIG.basePrefix);
 bootPhase('bundle');
 
+// `PKG_ROOT` is computed the way `config.ts` computes it, and it has to be:
+// `dist/index.js` and `src/index.ts` are both exactly one directory below the
+// package root, which is what makes one expression right for both the bundle
+// and `tsx`. A module one level deeper could not do this. REPO_ROOT is this
+// instance's own checkout: prod and PPE each have one.
+const PKG_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const REPO_ROOT = resolve(PKG_ROOT, '../..');
+
+// This instance's child-apps id and its checkout's HEAD, for /health. Read once:
+// a deploy restarts the process, so neither can change under it.
+const SERVICE_ID = serviceIdOf(CONFIG.basePrefix);
+const COMMIT = readCommit(REPO_ROOT);
+
 // ── Security telemetry ───────────────────────────────────────────────────────
 // Installed before any route, so the seals below report from the first request. Prod and PPE
 // both post as `cardtable`; the base path says which one this is.
@@ -203,13 +217,11 @@ app.use((req, res, next) => {
 // of requireMinTier. It reports the base-path verdict: a server that is up but
 // serving a bundle nobody can load is degraded, not healthy, and saying so here
 // is what keeps "green probe, blank page" from being a state this app can be in.
+// The body is hadoku health v1 (`health.ts`): `service` and `commit` say WHICH
+// instance answered and what code it runs — prod and PPE share this file.
 app.get('/health', (_req: Request, res: Response) => {
-	res.status(basePath.ok ? 200 : 503).json({
-		status: basePath.ok ? 'healthy' : 'degraded',
-		service: 'cardtable-tunnel',
-		bundle: basePath.reason,
-		timestamp: new Date().toISOString(),
-	});
+	const { code, body } = healthResponse({ service: SERVICE_ID, commit: COMMIT, bundle: basePath });
+	res.status(code).json(body);
 });
 
 // ── Busy (LOCAL ONLY: not a public route, and not a tier) ────────────────────
@@ -386,13 +398,6 @@ app.get(/.*/, (_req: Request, res: Response, next: NextFunction) => {
 // Both readers share this one copy — the lobby draws a new room's era from its
 // `formats` (live: a pool fixture that fails to parse lands in `faults` and
 // leaves `formats` when it is read), and `attachTables` serves it.
-//
-// `PKG_ROOT` is computed the way `config.ts` computes it, and it has to be:
-// `dist/index.js` and `src/index.ts` are both exactly one directory below the
-// package root, which is what makes one expression right for both the bundle
-// and `tsx`. A module one level deeper could not do this.
-const PKG_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
-const REPO_ROOT = resolve(PKG_ROOT, '../..');
 const library = loadTablesLibrary(REPO_ROOT, undefined, { pools: 'later' });
 bootPhase('library');
 
