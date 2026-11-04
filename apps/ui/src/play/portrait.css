@@ -204,8 +204,17 @@
  * collapsing to nothing or keeping the old half-the-battlefield share.
  */
 :root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid$='-permanents'] {
+  /*
+   * The room a card rises into above its resting top: a creature offered to attack or block grows 6%
+   * from its bottom edge and lifts 4px (`card.css`'s `[data-combat-ready]`), a flyer rests 7px up and
+   * lifts on hover. A lane scrolls sideways, so it clips up and down: without this the raise was cut
+   * off at the lane's top, under the other half (the operator, 2026-11-04: "the tops of my creatures
+   * are cut off by the enemy board").
+   */
+  --portrait-rise: calc(var(--card-w) * 88 / 63 * 0.06 + 10px);
   flex: 1 1 0;
-  min-height: calc(var(--card-w) * 88 / 63 + 10px);
+  min-height: calc(var(--card-w) * 88 / 63 + 10px + var(--portrait-rise));
+  padding-top: var(--portrait-rise);
 }
 
 /*
