@@ -15,6 +15,7 @@
  */
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
 
+import { usePortraitLayout } from '../portrait.ts';
 import { flipPerspective, type LiveMatch } from './match.ts';
 
 export interface Box {
@@ -65,7 +66,10 @@ function useWatchSpot(lineRef: RefObject<HTMLElement | null>, drawn: boolean): {
 
 export function WatcherStatus({ match }: { match: LiveMatch }) {
   const lineRef = useRef<HTMLParagraphElement>(null);
-  const spot = useWatchSpot(lineRef, match.view !== null);
+  // A phone held upright draws no seat column to stand between, and a watcher has no action bar
+  // there: the line takes the bar's place on the bottom edge (`live.css`), and is placed by it.
+  const portrait = usePortraitLayout();
+  const spot = useWatchSpot(lineRef, match.view !== null && !portrait);
   return (
     <p
       ref={lineRef}
@@ -73,8 +77,8 @@ export function WatcherStatus({ match }: { match: LiveMatch }) {
       role="status"
       data-testid="watcher-status"
       data-role="watcher"
-      data-placed={spot === null ? undefined : ''}
-      style={spot === null ? undefined : { left: `${spot.x}px`, top: `${spot.y}px` }}
+      data-placed={portrait || spot !== null ? '' : undefined}
+      style={portrait || spot === null ? undefined : { left: `${spot.x}px`, top: `${spot.y}px` }}
     >
       <span>Watching</span>
       <button type="button" className="live__flip" data-testid="perspective-flip" aria-label="Switch sides" disabled={match.view === null} onClick={() => flipPerspective(match)}>

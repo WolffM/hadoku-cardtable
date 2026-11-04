@@ -328,6 +328,23 @@
   visibility: visible;
 }
 
+/* On a phone held upright: the bottom edge, where a seat's action bar would be (`WatcherStatus.tsx`). */
+:root[data-layout='portrait'] .live__watching {
+  position: fixed;
+  top: auto;
+  left: 50%;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  translate: -50% 0;
+  height: 36px;
+  padding: 0 4px 0 14px;
+  font-size: 14px;
+}
+
+:root[data-layout='portrait'] .live__flip {
+  width: 28px;
+  height: 28px;
+}
+
 .live__flip {
   display: inline-flex;
   align-items: center;
