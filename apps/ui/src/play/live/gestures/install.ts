@@ -1596,14 +1596,18 @@ export function installGestures(options: GestureOptions): GestureHandle {
         const box = cardBox(canvas, press.id);
         const from = box === null ? pressAt : centreOf(box);
         handPressIndex = handOrderIds(canvas).indexOf(press.id);
-        holdLiftedSlot(press.li, press.id);
         drag = { source: press.id, press: pressAt, from, at: pressAt, target: null, moved: false, lifted: 'hand', held: true };
-        // Board-sized from this call itself (`drawCastLift`'s own `'lifted'` rule) — nothing
-        // of this module's reads or writes that property.
-        drawCastLift(canvas, press.id, pressAt, 'lifted');
-        // Deferred to the first frame, same as every later move — a layout forced here
-        // would run before the browser has even painted the lift at the press point.
-        scheduleHandIndicator({ cardId: press.id, point: pressAt });
+        // A touch lifts the card, holds its slot and shows the reorder only once it moves
+        // (`onPointerMove`): a tap reads it, and nothing in the hand moves under the finger.
+        if (event.pointerType !== 'touch') {
+          holdLiftedSlot(press.li, press.id);
+          // Board-sized from this call itself (`drawCastLift`'s own `'lifted'` rule) — nothing
+          // of this module's reads or writes that property.
+          drawCastLift(canvas, press.id, pressAt, 'lifted');
+          // Deferred to the first frame, same as every later move — a layout forced here
+          // would run before the browser has even painted the lift at the press point.
+          scheduleHandIndicator({ cardId: press.id, point: pressAt });
+        }
         hover = null;
         paint();
         return;
@@ -1717,13 +1721,16 @@ export function installGestures(options: GestureOptions): GestureHandle {
         held: true,
       };
       hover = null;
-      if (castZone !== null) {
+      // A touch lifts the card only once it moves (`onPointerMove`): a tap reads it, and a lift drawn at
+      // the press would float home again under the reader's finger (the operator, 2026-11-04: "a bit of
+      // shuffling around when the lightning bolt is first cast").
+      if (castZone !== null && event.pointerType !== 'touch') {
         const spell = needsTarget(castCardTypeLine(match, under.id));
         drawCastLift(canvas, under.id, at, 'lifted');
         updateDropCues(canvas, spell, castZone, overHome(eventTarget(event), castZone));
-        // Picked up out of an opened pile: the card is in hand now, and the view gives way to it.
-        if (castZone !== 'hand') closePileView();
       }
+      // Picked up out of an opened pile: the card is in hand now, and the view gives way to it.
+      if (castZone !== null && castZone !== 'hand') closePileView();
       paint();
       return;
     }
@@ -1780,8 +1787,13 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // The card is in hand from the moment the press clears the slop, not at the press itself.
       if (drag.lifted && moved && !drag.moved) playRole('ui.lift');
       const next: DragState = { ...drag, at, moved, target: targetAt(liveTarget(event), drag.source) };
+      // A touch's hand card takes hold of its slot as it first moves, where a mouse's did at the press.
+      if (event.pointerType === 'touch' && moved && !drag.moved && next.lifted === 'hand' && next.source !== null) {
+        const li = cardBox(canvas, next.source)?.closest('li');
+        if (li instanceof HTMLElement) holdLiftedSlot(li, next.source);
+      }
       drag = next;
-      if (next.lifted !== null && next.source !== null) {
+      if (next.lifted !== null && next.source !== null && (moved || event.pointerType !== 'touch')) {
         const overZone = overHome(liveTarget(event), next.lifted);
         // Board-sized on every call, not only the first — `drawCastLift`'s own `'lifted'`
         // rule re-reads the battlefield's current `--card-w` each time; this module never
@@ -1875,7 +1887,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
         clearDropCues(canvas);
         previewAt(null);
         hover = null;
-        if (d.source !== null) floatCastLiftHome(canvas, d.source, d.from, () => {});
+        // Never lifted (a touch lifts on the move, not the press): nothing to float home.
+        if (d.source !== null) clearCastLift(canvas, d.source);
         clicks.arm('touch-lift-read');
         paint();
         if (d.source !== null) openTouchView(d.source);
