@@ -86,6 +86,23 @@ async function dockSlack(page: Page): Promise<number> {
     });
 }
 
+/**
+ * The dock's own controls stand on the sheet's first row, beside its title or message, never on a row of
+ * their own (the operator, 2026-11-04: "it should be on the same row as the 'Select any target' title row").
+ */
+async function expectControlsOnTheFirstRow(page: Page, what: string): Promise<void> {
+  const rows = await dock(page).evaluate((d) => {
+    const min = d.querySelector('[data-testid="decision-minimize"]')!.getBoundingClientRect();
+    const sheet = d.querySelector('.live__prompt > :is(.prompt, .confirm)')!;
+    const first = sheet.firstElementChild!.getBoundingClientRect();
+    const text = sheet.querySelector('.prompt__title, .confirm__title, .confirm__message')!.getBoundingClientRect();
+    return { min: [min.top, min.bottom, min.left], first: [first.top, first.bottom, first.right], text: [text.top, text.bottom, text.right] };
+  });
+  console.log(`[dock] ${what}: controls ${JSON.stringify(rows)}`);
+  expect.soft(rows.min[0]! < rows.text[1]! && rows.min[1]! > rows.text[0]!, `${what}: minimize is on the title's row`).toBe(true);
+  expect.soft(rows.text[2]!, `${what}: the title stops short of the controls`).toBeLessThanOrEqual(rows.min[2]! + 0.5);
+}
+
 /** Poll `step` until it answers true, or fail naming `what` — no sleep loop of the caller's own. */
 async function until(what: string, step: () => Promise<boolean>, timeout = 60_000): Promise<void> {
   const deadline = Date.now() + timeout;
@@ -210,6 +227,7 @@ test(titled('ten Valakut triggers: the dock is as tall as its question and clear
     // the targets it asks about, and never over the bar.
     expect(await boardLanes(alice.page).count(), 'the four board lanes are drawn').toBe(4);
     expect(await dockSlack(alice.page), 'no empty room in the docked dock').toBeLessThanOrEqual(2);
+    await expectControlsOnTheFirstRow(alice.page, 'a target question');
     await expectBoardLanesClear(alice.page, true);
     const dockBox = (await dock(alice.page).boundingBox())!;
     const barBox = (await alice.page.getByTestId('action-bar').boundingBox())!;
@@ -251,6 +269,7 @@ test(titled('declaring blockers: the dock is as tall as its question, covers no 
     });
     await expect(dock(alice.page)).toHaveAttribute('data-mode', 'dock');
     await expectBarAnchored(alice.page, 'declare blockers, docked');
+    await expectControlsOnTheFirstRow(alice.page, 'declare blockers');
     await expect(expandBtn(alice.page), 'a small decision needs no expand').toHaveCount(0);
     // As tall as "Select creatures to block." and Done Blocking, no taller, and clear of the lanes
     // it is asking about.

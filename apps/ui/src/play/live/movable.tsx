@@ -30,6 +30,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type HTMLAttributes,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
@@ -486,7 +487,14 @@ export function QuestionHost({
     // inside keeps the testid its OWN caller gave it, unchanged — `pick-drawn` (`LiveBoard.tsx`) and
     // every existing reader of `live-decision-host`/`live-selection-host`/… still finds it. Only this
     // wrapper is portrait-only: the desktop return above never grows one.
-    <div className="dock" data-testid="decision-dock" data-mode={mode} data-clear={offersHand ? 'hand' : undefined}>
+    <div
+      className="dock"
+      data-testid="decision-dock"
+      data-mode={mode}
+      data-clear={offersHand ? 'hand' : undefined}
+      // How many controls stand on the sheet's first row (`dock.css` keeps that row clear of them).
+      style={{ '--dock-ctl-n': 1 + (mode === 'full' || (mode === 'dock' && overflow) ? 1 : 0) } as CSSProperties}
+    >
       <div ref={ref} className="live__prompt" {...rest}>
         {mode !== 'min' && (
           <DockHandle mode={mode} overflow={overflow} onFull={() => setMode('full')} onDock={() => setMode('dock')} onMin={() => setMode('min')} />

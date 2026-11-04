@@ -148,7 +148,9 @@
   justify-content: flex-end;
   gap: 6px;
   position: relative;
-  padding: 8px 8px 4px;
+  /* The grip's own strip only: the controls stand on the sheet's first row (the operator, 2026-11-04:
+     "it should be on the same row as the 'Select any target' title row"). */
+  padding: 14px 8px 0;
   touch-action: none;
   cursor: grab;
   pointer-events: auto;
@@ -166,10 +168,17 @@
 }
 
 :root[data-layout="portrait"] .dock__controls {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  right: 10px;
   display: flex;
   gap: 6px;
-  margin-left: auto;
-  padding-top: 6px;
+}
+
+/* The sheet's first row leaves the controls their room, whichever row it is (a title, a message, a head). */
+:root[data-layout="portrait"] .dock.dock .live__prompt > :is(.prompt, .confirm) > :first-child {
+  padding-right: calc(var(--dock-ctl-n, 1) * 42px);
 }
 
 :root[data-layout="portrait"] .dock__ctl {
