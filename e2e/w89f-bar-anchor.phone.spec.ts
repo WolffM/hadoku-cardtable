@@ -95,7 +95,7 @@ for (const size of [
       await pressInMenu(page, 'live-concede');
       await page.getByTestId('live-concede-yes').tap();
       await page.getByTestId('game-result').waitFor({ timeout: 30_000 });
-      if ((await page.getByTestId('action-bar').count()) > 0) await expectBarAnchored(page, 'the game result');
+      await expectBarAnchored(page, 'the game result');
     } finally {
       await stack.stop();
     }
