@@ -323,6 +323,10 @@
 :root[data-layout='portrait'] [data-testid$='-permanents'] > .board-card:is([data-tapped]:not([data-untapped-pending]), [data-tapped-pending], [data-attacking]:not([data-vigilant])) {
   margin-block: calc((680 / 488 - 488 / 680) / 2 * (var(--card-w) - var(--pile-fan)));
 }
+/* The strip keeps its own shape tapped: only the turn and the scrim say so, and nothing in the lane moves. */
+:root[data-layout='portrait'] [data-testid$='-lands'] > .board-card:is([data-tapped]:not([data-untapped-pending]), [data-tapped-pending]) > .board-card__face {
+  aspect-ratio: auto;
+}
 :root[data-layout='portrait'] [data-testid$='-lands'] > .board-card:is([data-tapped]:not([data-untapped-pending]), [data-tapped-pending]) > .board-card__pile {
   margin-top: 0;
 }
