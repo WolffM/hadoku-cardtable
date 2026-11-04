@@ -50,7 +50,7 @@ import { navigate, routeHash } from '../screens/route.ts';
 import { playRole } from '../sound/index.ts';
 import { avatarColour, avatarInitial, discordTime, groupMessages } from './discordChat.ts';
 import { usePartShown } from './gate.ts';
-import { Gallery } from './Gallery.tsx';
+import { ArrowGlyph, Gallery } from './Gallery.tsx';
 import { openSeats, pickWildcard, spotlightCube, wildcardPages, type WildcardKind } from './wildcardItems.ts';
 
 interface WildcardItem {
@@ -318,8 +318,12 @@ function WildcardSkeleton() {
           <span className="ghost ghost--text">Looking for a game</span>
         </h3>
         <span className="gallery__arrows">
-          <span className="gallery__arrow ghost">‹</span>
-          <span className="gallery__arrow ghost">›</span>
+          <span className="gallery__arrow ghost">
+            <ArrowGlyph dir="prev" />
+          </span>
+          <span className="gallery__arrow ghost">
+            <ArrowGlyph dir="next" />
+          </span>
         </span>
       </header>
       <div className="gallery__page">

@@ -26,7 +26,7 @@ import { playRole } from '../sound/index.ts';
 import { countdown } from './countdown.ts';
 import { EVENT_KIND_LABELS, eventsApi, fromLocalInput, refreshEvents, toLocalInput, upcoming, useEvents, whenLabel } from './events.ts';
 import { formatEraLabel } from './formatLabel.ts';
-import { Gallery } from './Gallery.tsx';
+import { ArrowGlyph, Gallery } from './Gallery.tsx';
 import { FrontGateContext, usePartShown } from './gate.ts';
 import { usePolls, type Poll } from './polls.ts';
 
@@ -57,8 +57,12 @@ function UpcomingSkeleton({ count }: { count: number }) {
       <header className="front-card__head">
         <h3 className="front-card__title">Calendar</h3>
         <span className="gallery__arrows">
-          <span className="gallery__arrow ghost">‹</span>
-          <span className="gallery__arrow ghost">›</span>
+          <span className="gallery__arrow ghost">
+            <ArrowGlyph dir="prev" />
+          </span>
+          <span className="gallery__arrow ghost">
+            <ArrowGlyph dir="next" />
+          </span>
         </span>
       </header>
       <div className="gallery__page">

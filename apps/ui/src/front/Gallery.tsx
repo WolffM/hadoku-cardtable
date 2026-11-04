@@ -10,6 +10,19 @@ import { useRef, useState, type ReactNode } from 'react';
 import { playRole } from '../sound/index.ts';
 import { keepPage, stepPage, swipeStep } from './gallery.ts';
 
+/**
+ * The arrow inside a gallery's round button, drawn, not typed: a text ‹ › sits wherever its font
+ * puts the glyph in its line box (1.25 px low and 0.4 px aside, measured on Linux; it moves with the
+ * system font), so it never centred in the circle. The chevron's box is the viewBox's centre.
+ */
+export function ArrowGlyph({ dir }: { dir: 'prev' | 'next' }) {
+  return (
+    <svg className="gallery__chevron" viewBox="0 0 24 24" aria-hidden="true">
+      <path d={dir === 'prev' ? 'M15.5 5l-7 7 7 7' : 'M8.5 5l7 7-7 7'} />
+    </svg>
+  );
+}
+
 export interface GalleryPage {
   key: string;
   title: string;
@@ -46,10 +59,10 @@ export function Gallery({ testId, pages }: { testId: string; pages: readonly Gal
         {many && (
           <span className="gallery__arrows">
             <button type="button" className="gallery__arrow" aria-label="Previous" data-testid={`${testId}-prev`} onClick={() => turn(stepPage(at, -1, pages.length))}>
-              ‹
+              <ArrowGlyph dir="prev" />
             </button>
             <button type="button" className="gallery__arrow" aria-label="Next" data-testid={`${testId}-next`} onClick={() => turn(stepPage(at, 1, pages.length))}>
-              ›
+              <ArrowGlyph dir="next" />
             </button>
           </span>
         )}
