@@ -109,7 +109,7 @@
 .inspect__action:hover,
 .inspect__action:focus-visible {
   outline: none;
-  filter: brightness(1.08);
+  background: color-mix(in srgb, var(--accent) 88%, var(--ink));
 }
 
 /*

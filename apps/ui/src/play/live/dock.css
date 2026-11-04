@@ -123,9 +123,10 @@
  * second one under the dock's own handle below — `movable.tsx` already refuses the drag itself in
  * portrait; this is the matching visual half. The same `:is()` list as `live.css`'s grip, `#own-deck`
  * included, because that one id is what weighs that rule: without it this rule lost, and the second
- * grip showed in every docked decision. Inside `.dock` the list matches only a docked sheet.
+ * grip showed in every docked decision. `.dock.dock` stands in for `live.css`'s `.live` (the same weight,
+ * from this sheet's own block). Inside `.dock` the list matches only a docked sheet.
  */
-:root[data-layout="portrait"] .live .dock :is(.live__prompt > :is(.prompt, .confirm), #own-deck)::before {
+:root[data-layout="portrait"] .dock.dock :is(.live__prompt > :is(.prompt, .confirm), #own-deck)::before {
   content: none;
 }
 

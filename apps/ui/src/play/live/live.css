@@ -2014,7 +2014,7 @@
   padding: 0 3px;
   border-radius: 999px;
   background: var(--danger, var(--warn));
-  color: var(--on-accent, white);
+  color: var(--on-accent);
   font-size: 10px;
   line-height: 16px;
   text-align: center;

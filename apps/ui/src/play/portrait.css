@@ -73,16 +73,6 @@
  * true on desktop) — exactly "their lands, their permanents, my permanents,
  * my lands" once both seats' battlefields are flattened into one column.
  */
-/*
- * The match fills the screen top to bottom in portrait. `.shell--match`'s own `4px 0 2px`
- * (`screens.css`: the desktop table's room under the header) left the board 6px short of the
- * viewport — measured at 4–842 on an 844px screen — so the hand, on the board's own bottom, missed
- * the action bar, on the viewport's: B's carried 1–2px between the bar and the hand.
- */
-:root[data-layout='portrait'] .shell--match {
-  padding-block: 0;
-}
-
 :root[data-layout='portrait'] .board {
   display: flex;
   flex-direction: column;
@@ -342,7 +332,17 @@
   left: auto;
   width: 100%;
   transform: rotate(6deg) scale(0.94);
-  filter: brightness(0.6) saturate(0.7);
+}
+
+/* The tapped strip dims under a scrim, a layer over the image, never a filter on it (`cardImageRules.test.ts`); the turn makes the card its containing block. */
+:root[data-layout='portrait'] [data-testid$='-lands'] > .board-card:is([data-tapped]:not([data-untapped-pending]), [data-tapped-pending]) > .board-card__face > .card::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--scrim) 40%, transparent);
+  pointer-events: none;
 }
 
 /*
@@ -549,7 +549,7 @@
   background: var(--bg-raised);
   border: 1px solid var(--line);
   border-radius: 0 0 12px 12px;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 28px var(--shadow);
   overflow: hidden;
 }
 
