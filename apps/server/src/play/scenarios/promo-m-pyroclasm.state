@@ -1,0 +1,12 @@
+# Promo montage (`e2e/promo/montage.promo.ts`): Pyroclasm into a board of small creatures.
+turn=6
+activeplayer=human
+activephase=MAIN1
+humanlife=11
+ailife=16
+humanhand=Pyroclasm
+humanbattlefield=Mountain;Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aihand=
+aibattlefield=Noble Hierarch;Birds of Paradise;Elvish Mystic;Llanowar Elves;Delver of Secrets;Young Pyromancer;Forest;Forest;Tropical Island
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest

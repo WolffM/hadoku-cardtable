@@ -1,0 +1,15 @@
+# Promo footage (`e2e/promo/craterhoof.promo.ts`): seat 0 casts Craterhoof Behemoth into six elves; seven
+# creatures give each +7/+7 and trample, and the six that are not summoning sick swing at once.
+turn=6
+activeplayer=human
+activephase=MAIN1
+humanlife=16
+ailife=20
+humanhand=Craterhoof Behemoth
+humanbattlefield=Llanowar Elves;Elvish Mystic;Fyndhorn Elves;Heritage Druid;Elvish Visionary;Nettle Sentinel;Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=Glimpse of Nature
+aihand=
+aibattlefield=Plains;Plains;Island;Tundra;Flooded Strand
+aigraveyard=Swords to Plowshares
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
