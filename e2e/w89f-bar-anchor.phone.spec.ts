@@ -2,10 +2,11 @@
  * Wave 89 polish 4 — the action bar stays on the screen's bottom edge in every state of a match (the
  * operator, 2026-11-03: "in some cases the bottom bar wasn't anchored to the bottom of the page"). One
  * real match against the AI, walked through each moment the bar has to hold: the mulligan, a quiet main
- * phase, the menu, the chat sheet with its input focused, the stack list, the opponent's turn, a phone
+ * phase, the menu, the chat sheet with its input focused, the opponent's turn, a phone
  * with a bottom safe area, a shorter window (a mobile browser's URL bar showing), a narrower phone, and
  * the game result. Every docked decision's own modes (dock, full, pill) are checked in
- * `w89c-decision-dock.phone.spec.ts`, with the same `expectBarAnchored`.
+ * `w89c-decision-dock.phone.spec.ts`, and the stack list open (a stack is needed for its chip) in
+ * `w89a-portrait-board.phone.spec.ts`, with the same `expectBarAnchored`.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without one each test SKIPS and
  * its title says why. Serves the prebuilt `apps/ui/dist` — rebuild before running.
@@ -75,10 +76,6 @@ for (const size of [
       }
       await chat.tap();
       await expect(chat).toHaveAttribute('aria-expanded', 'false');
-
-      await page.getByTestId('stack-chip').tap();
-      await expectBarAnchored(page, 'the stack list open');
-      await page.getByTestId('stack-chip').tap();
 
       await resizeWindow(page, { width: size.width, height: size.height - 84 });
       await expectBarAnchored(page, 'a shorter window (the URL bar showing)');

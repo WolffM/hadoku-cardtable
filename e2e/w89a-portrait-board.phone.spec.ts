@@ -35,7 +35,7 @@ import { SESSION_COOKIE } from './identities.ts';
 import { keepPrefsLocal, setPlayFastModeDefault } from './prefsLocal.ts';
 import { clickHandCard, makeTitled, offeredNamed, pressPaymentAuto, resizeWindow, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { laneCues, noSideways, pinch, PHONE } from './play/phone.ts';
+import { expectBarAnchored, laneCues, noSideways, pinch, PHONE } from './play/phone.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { matchUrl, startScenarioVsAi } from './play/scenario.ts';
 
@@ -322,6 +322,7 @@ test(titled('promo-valakut in portrait: the stack chip opens the stack list, ten
     const sheet = page.getByTestId('stack-sheet');
     await expect(sheet).toBeVisible();
     expect.soft(await stackChip.getAttribute('aria-expanded'), 'the chip says it is open').toBe('true');
+    await expectBarAnchored(page, 'the stack list open');
 
     // Identical items group into one row with ×N: ten untargeted Valakut triggers are ONE row, ×10.
     const rows = sheet.getByTestId('stack-sheet-row');
