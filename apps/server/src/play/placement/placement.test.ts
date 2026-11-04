@@ -552,7 +552,7 @@ describe('slice demand', () => {
 			placement: { order?: string[] };
 		};
 		expect({ min: hosting.slices.min, max: hosting.slices.max }).toEqual({ min: MIN_SLICES, max: MAX_SLICES });
-		expect(HOST_ORDER).toEqual(['claw-8', 'claw-9', 'claw-5']);
+		expect(HOST_ORDER).toEqual(['claw-8', 'claw-9', 'claw-10', 'claw-5']);
 		expect(hosting.placement.order).toEqual(HOST_ORDER);
 		// A quiet evening on one claw still asks for a second, so a blip has somewhere to go but hokon.
 		expect(demandStep(DEMAND_IDLE, input([claw('claw-8', 0)])).slices).toBe(2);

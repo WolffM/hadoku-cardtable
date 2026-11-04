@@ -290,9 +290,10 @@ export const MAX_SLICES = 4;
  * The operator's Forge host priority (2026-10-31), hokon aside: `hosting.json`'s `placement.order`
  * (a unit test pins them equal), which fleet-manager's converger ranks nodes by. The first
  * `MIN_SLICES` are the serving claws; the rest are for "truly horrific emergencies" only, after
- * hokon, and end first. A node not listed ranks after every listed one.
+ * hokon, and end first. claw-10 is the tertiary host, ahead of claw-5 (operator, 2026-11-03). A
+ * node not listed ranks after every listed one.
  */
-export const HOST_ORDER: readonly string[] = ['claw-8', 'claw-9', 'claw-5'];
+export const HOST_ORDER: readonly string[] = ['claw-8', 'claw-9', 'claw-10', 'claw-5'];
 /** The claws whose being down promotes hokon. */
 export const SERVING: readonly string[] = HOST_ORDER.slice(0, MIN_SLICES);
 
