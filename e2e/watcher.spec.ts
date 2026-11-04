@@ -337,8 +337,14 @@ test('a watcher sees each side as its owner arranged it; the table stays put whe
     await expect(carol.page.locator('.seat[data-viewer][data-active]'), 'the bottom side is now the active one').toHaveCount(1);
     await expect.poll(() => fieldOrder(carol.page, 'you'), { timeout: 10_000, message: 'turned: the bottom side (bob) is as bob arranged it' }).toEqual(after.bob);
     await expectWatchingBetweenAvatars(carol.page, '1280×800, switched');
+    // A phone held upright has no seat column to stand between: the line is on the bottom edge, where a
+    // seat's action bar would be, and its switch is a finger's size.
     await resizeWindow(carol.page, { width: 390, height: 844 });
-    await expectWatchingBetweenAvatars(carol.page, 'phone width, switched');
+    const line = carol.page.locator('[data-testid="watcher-status"][data-placed]');
+    await expect(line, 'phone width, switched: placed').toBeVisible();
+    const lineBox = (await line.boundingBox())!;
+    expect(844 - (lineBox.y + lineBox.height), 'phone width: the line sits on the bottom edge').toBeLessThanOrEqual(16);
+    expect((await carol.page.getByTestId('perspective-flip').boundingBox())!.height, 'phone width: the switch is tappable').toBeGreaterThanOrEqual(28);
     await resizeWindow(carol.page, { width: 1280, height: 800 });
     await expect.poll(() => fieldOrder(carol.page, 'them'), { timeout: 10_000, message: 'turned: the top side (alice) is as alice arranged it' }).toEqual(after.alice);
 

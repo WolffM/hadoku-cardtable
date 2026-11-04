@@ -81,8 +81,8 @@ test(titled('the board keeps every box and card size whether either seat’s poi
     seated = await startScenarioMatch(browser, stack, 'ai-seven-card-hand');
     const { alice, bob } = seated;
     await resizeWindow(alice.page, { width: 1280, height: 800 });
-    // A very vertical window: bob's own hand draws two rows.
-    await resizeWindow(bob.page, { width: 420, height: 1400 });
+    // A very vertical window, just wider than a phone held upright (`portrait.ts`): bob's own hand draws two rows.
+    await resizeWindow(bob.page, { width: 610, height: 1400 });
     const bobOwnRows = () =>
       bob.page.locator('.seat[data-viewer] [data-zone="hand"] .zone__cards > li.board-card').evaluateAll((els) => new Set(els.map((el) => Math.round(el.getBoundingClientRect().top))).size);
     await expect.poll(bobOwnRows, { timeout: 10_000, message: 'bob’s own hand drew two rows on his narrow screen' }).toBe(2);
@@ -139,7 +139,7 @@ test(titled('the board keeps every box and card size whether either seat’s poi
     await expect(cursor, 'bob’s cursor is gone again').toHaveCount(0, { timeout: 10_000 });
     for (const [size, rows] of [
       [{ width: 1600, height: 800 }, 1],
-      [{ width: 420, height: 1400 }, 2],
+      [{ width: 610, height: 1400 }, 2],
     ] as const) {
       await resizeWindow(bob.page, size);
       await expect.poll(bobOwnRows, { timeout: 10_000, message: `bob’s own hand drew ${rows} row(s) at ${size.width}x${size.height}` }).toBe(rows);

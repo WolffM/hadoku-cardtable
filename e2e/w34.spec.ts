@@ -158,7 +158,9 @@ test(titled('§E1 — with Full Control on, clicking an instant in response to t
     await expect.poll(() => stackCount(alice.page), { timeout: 15_000, message: 'everything on the stack finished resolving' }).toBe(0);
 
     // Memnite was countered: it never reached bob's battlefield.
-    expect(await graveyardCount(alice.page, 'opp'), 'Memnite was countered: it is in bob\'s graveyard, never having resolved onto his battlefield').toBe('1');
+    await expect
+      .poll(() => graveyardCount(alice.page, 'opp'), { message: 'Memnite was countered: it is in bob\'s graveyard, never having resolved onto his battlefield' })
+      .toBe('1');
     expect(await bob.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card').count(), 'and so never reached bob\'s own battlefield either').toBe(0);
   } finally {
     await stack.stop();

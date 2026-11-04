@@ -452,10 +452,11 @@ test(titled('each screen lays the other seat’s hidden hand out by its OWN spac
     const bobField = async () => (await bob.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
 
     for (const { aliceSize, bobSize, bobRows, rows } of [
-      // The operator's case: alice wide, bob's own window narrow enough that his own hand wraps.
-      { aliceSize: { width: 2000, height: 1140 }, bobSize: { width: 420, height: 1400 }, bobRows: 2, rows: 1 },
+      // The operator's case: alice wide, bob's own window narrow enough that his own hand wraps (and wider than a
+      // phone held upright, which lays the hand out as a carousel of its own, `portrait.ts`).
+      { aliceSize: { width: 2000, height: 1140 }, bobSize: { width: 610, height: 1400 }, bobRows: 2, rows: 1 },
       // And the other way about: alice's own strip is narrow, so seven wrap on HER screen.
-      { aliceSize: { width: 420, height: 1400 }, bobSize: { width: 1600, height: 800 }, bobRows: 1, rows: 2 },
+      { aliceSize: { width: 610, height: 1400 }, bobSize: { width: 1600, height: 800 }, bobRows: 1, rows: 2 },
     ] as const) {
       await resizeWindow(alice.page, aliceSize);
       await resizeWindow(bob.page, bobSize);
