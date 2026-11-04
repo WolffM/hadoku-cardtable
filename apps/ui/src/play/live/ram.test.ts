@@ -159,6 +159,28 @@ describe('fanOf', () => {
       });
 });
 
+describe('fanOf on a phone held upright', () => {
+  /*
+   * As phone-core measured it (`cp-lethal-blow`, 390×844): the other seat's avatar in the top band's right
+   * corner, and a pack of sixteen standing in a lane that scrolls sideways, most of it past the table's right
+   * edge. Their own way from the avatar never reaches the table, and every one of them formed up at one
+   * point off it (451, 137).
+   */
+  const table = { x: 187, y: 422, w: 374, h: 844 };
+  const to = { x: 326.8, y: 28, w: 40, h: 40 };
+  const froms = Array.from({ length: 16 }, (_, i) => ({ x: 66 + i * 114, y: 470, w: 104, h: 145 }));
+  it('sixteen chargers whose own way misses the table still form up on it, on the board’s side of the avatar', () => {
+    const at = fanOf(froms, to, 'k', table);
+    const spots = froms.map((b, i) => ({ x: b.x + at[i]!.x, y: b.y + at[i]!.y }));
+    spots.forEach((p, i) => {
+      expect(p.x, `${i} not off the table's left`).toBeGreaterThanOrEqual(table.x - table.w / 2);
+      expect(p.x, `${i} not off its right`).toBeLessThanOrEqual(table.x + table.w / 2);
+      expect(p.y, `${i} below the avatar, on the board`).toBeGreaterThan(to.y);
+      expect(p.y, `${i} not off its bottom`).toBeLessThanOrEqual(table.y + table.h / 2);
+    });
+  });
+});
+
 describe('punchAt', () => {
   const speed = (t: number, power: number): number => (punchAt(Math.min(1, t + 0.001), power) - punchAt(Math.max(0, t - 0.001), power)) / (Math.min(1, t + 0.001) - Math.max(0, t - 0.001));
   it('runs from rest at the start to the blow at the end', () => {

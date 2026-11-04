@@ -283,11 +283,19 @@ export function fanOf(froms: readonly Box[], to: Box, key: string, table: Box): 
     }
 
   // Ranks: arcs round the player, each the run on the board's side around the pack's middle that is on the table.
-  const centre = clamp(mean(stood), sideLo, sideHi);
   const depth = longest * FAN_GAP;
   const nearest = Math.max(to.w, to.h) / 2 + depth;
-  let r0 = mean(spots.map((sp) => sp.r));
-  while (r0 > nearest && !onTable(at(centre, r0))) r0 -= 1;
+  /** The first radius in from the pack's own distance at which the way `a` is on the table. */
+  const reach = (a: number): number => {
+    let r = mean(spots.map((sp) => sp.r));
+    while (r > nearest && !onTable(at(a, r))) r -= 1;
+    return r;
+  };
+  // The pack's own middle way, unless it never reaches the table (a lane scrolled past the table's edge,
+  // on a phone): then the way to the board, which does by construction.
+  const own = clamp(mean(stood), sideLo, sideHi);
+  const centre = onTable(at(own, reach(own))) ? own : clamp(0, sideLo, sideHi);
+  const r0 = reach(centre);
   const arc = (r: number): { r: number; lo: number; hi: number; room: number } | null => {
     if (r < nearest || !onTable(at(centre, r))) return null;
     let lo = centre;
