@@ -85,7 +85,8 @@ test('tug: both players drag the same stack chip', async ({ browser }) => {
         }
         return clickPermanent(page, illusionist, 500);
       }, 20_000, 60, page);
-      await until(`activation ${n} is on the stack`, async () => (await stackCount(page)) >= n, 20_000, 60, page);
+      // Each activation brings the Illusionist's mill trigger with it: two items a round.
+      await until(`activation ${n} is on the stack`, async () => (await stackCount(page)) >= 2 * n, 20_000, 60, page);
     }
     await restCursor(page);
     await film.beat(1_500);
@@ -95,10 +96,10 @@ test('tug: both players drag the same stack chip', async ({ browser }) => {
     const chip = ids.at(-1)!;
     console.log(`[promo:tug] stack items ${ids.join(' ')}; tugging ${chip}`);
 
-    // The rival takes it and carries it across.
+    // The rival takes it and carries it out into the open table.
     film.mark('rival-grab');
     let r = await grab(rival.page, chip, (p) => rival.page.mouse.move(p.x, p.y));
-    r = await pull(rival.page, r, -260, 40, 900);
+    r = await pull(rival.page, r, 460, -120, 1_300);
     await film.beat(500);
 
     // The hero takes hold of the same chip, and they pull opposite ways.
