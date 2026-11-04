@@ -371,7 +371,7 @@ import { CoinFlips } from './coin-flip.tsx';
 import type { ShownFlip, ShownRoll } from './shown.ts';
 import { WatcherStatus } from './WatcherStatus.tsx';
 import { TurnCue, useYourTurnCue } from './TurnCue.tsx';
-import { installDialogMover, QuestionHost, restingTop } from './movable.tsx';
+import { installDialogMover, OffersHandContext, QuestionHost, restingTop } from './movable.tsx';
 import { phaseSegmentsOf, PHASE_ORDER } from './phase-segments.ts';
 
 /* ── Where the match is: seven states, one line ───────────────────────── */
@@ -3030,6 +3030,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   /** The board cards an on-board pick offers: its pop-up is never drawn over them (`QuestionHost`'s `keepClearOf`). */
   const onBoardCardIds = battlefieldCardIds(match.view);
   const onBoardChoices = match.selectables === null ? [] : [...match.selectables.cards].filter((id) => onBoardCardIds.has(id));
+  /** Whether the open pick offers a card in the viewer's own hand: a docked question then stands on the hand, never over it. */
+  const offersHand = match.selectables !== null && (match.view?.players ?? []).some((p) => (p.hand ?? []).some((c) => match.selectables!.cards.has(c.id)));
   /** T2: gone the instant it is the viewer's move — see `isWaitingForOpponent`'s own note. */
   const waitingForOpponent = isWaitingForOpponent(match);
   /** The fact the T2 banner's sentence is built from — present whenever `waitingForOpponent` is. */
@@ -3791,6 +3793,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   }
 
   return (
+    <OffersHandContext.Provider value={offersHand}>
     <div
       className="live"
       ref={rootRef}
@@ -4321,5 +4324,6 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       {match.ended !== null && gameOutcome(match) === null && <MatchEndedNotice ended={match.ended} roomId={roomId} />}
       {ownDeck !== null && <OwnDeckPeek deck={ownDeck.deck} from={ownDeck.from} onClose={closeOwnDeck} />}
     </div>
+    </OffersHandContext.Provider>
   );
 }

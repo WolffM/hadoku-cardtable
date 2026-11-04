@@ -70,6 +70,15 @@
 }
 
 /*
+ * A question that offers cards in the viewer's own hand (a London mulligan's bottom pick, a discard) stands
+ * on the hand instead of over it: a decision never covers the cards it asks about, as `QuestionHost`'s
+ * `keepClearOf` keeps a desktop pop-up off the board cards it offers. The pill moves up with it.
+ */
+:root[data-layout="portrait"] .dock[data-clear='hand']:is([data-mode='dock'], [data-mode='min']) {
+  bottom: calc(var(--portrait-bar-band) + var(--portrait-hand-h));
+}
+
+/*
  * Full: a search too tall to fit docked (Scapeshift's ten lands). `top` and `bottom` are both set, so the
  * height is definite and the sheet's own body is what scrolls — the same reasoning `live.css`'s own
  * header gives for the desktop column's `top`+`height` pair, here `top`+`bottom` for the same reason: no

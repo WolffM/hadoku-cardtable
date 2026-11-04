@@ -24,6 +24,8 @@
  *     pile's view is sized to the room beside the pile), so they neither read the spot nor write it.
  */
 import {
+  createContext,
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -37,6 +39,12 @@ import {
 import { usePortraitLayout } from '../portrait.ts';
 
 import './dock.css';
+
+/**
+ * Whether the open question offers cards in the viewer's own hand (`LiveBoard.tsx` provides it from
+ * Forge's selectables). In portrait the dock then stands on the hand instead of over it (`dock.css`).
+ */
+export const OffersHandContext = createContext(false);
 
 /** The one place a question was last put: the top-left of its drawn box, as fractions of the board's width and height. */
 export interface DialogSpot {
@@ -459,6 +467,7 @@ export function QuestionHost({
     };
   }, [spot, clearKey, portrait]);
   const { mode, overflow, label, setMode } = useDock(ref, portrait);
+  const offersHand = useContext(OffersHandContext);
   if (!portrait) {
     return (
       <div ref={ref} className="live__prompt" {...rest}>
@@ -477,7 +486,7 @@ export function QuestionHost({
     // inside keeps the testid its OWN caller gave it, unchanged — `pick-drawn` (`LiveBoard.tsx`) and
     // every existing reader of `live-decision-host`/`live-selection-host`/… still finds it. Only this
     // wrapper is portrait-only: the desktop return above never grows one.
-    <div className="dock" data-testid="decision-dock" data-mode={mode}>
+    <div className="dock" data-testid="decision-dock" data-mode={mode} data-clear={offersHand ? 'hand' : undefined}>
       <div ref={ref} className="live__prompt" {...rest}>
         {mode !== 'min' && (
           <DockHandle mode={mode} overflow={overflow} onFull={() => setMode('full')} onDock={() => setMode('dock')} onMin={() => setMode('min')} />

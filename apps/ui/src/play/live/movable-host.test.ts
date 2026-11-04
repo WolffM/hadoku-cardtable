@@ -7,7 +7,7 @@ import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { createElement, type ComponentProps } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { QuestionHost, SPOT_KEY } from './movable.tsx';
+import { OffersHandContext, QuestionHost, SPOT_KEY } from './movable.tsx';
 
 /** `createElement` (unlike JSX) has no special-cased allowance for `data-*` on an intrinsic-shaped component's props. */
 const hostProps = (testId: string): ComponentProps<typeof QuestionHost> => ({ 'data-testid': testId }) as unknown as ComponentProps<typeof QuestionHost>;
@@ -262,6 +262,15 @@ describe('QuestionHost in portrait', () => {
     expect(container.querySelector('.live__prompt')).toBeNull();
     expect(container.querySelector('.dock')).toBeNull();
     expect(container.textContent).toBe('');
+  });
+
+  it('a question that offers hand cards stands on the hand (`data-clear="hand"`); any other docks over it', () => {
+    vi.stubGlobal('ResizeObserver', Resizes);
+    const { unmount } = render(createElement(OffersHandContext.Provider, { value: true }, drawPortrait()));
+    expect(wrapper().getAttribute('data-clear'), 'a London mulligan’s bottom pick').toBe('hand');
+    unmount();
+    render(drawPortrait());
+    expect(wrapper().hasAttribute('data-clear'), 'declare attackers offers nothing in the hand').toBe(false);
   });
 
   it('a real decision with no `data-pass` still docks normally (declare blockers, no expand, same as before)', () => {
