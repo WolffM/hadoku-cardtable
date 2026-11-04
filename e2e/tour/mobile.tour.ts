@@ -166,8 +166,20 @@ async function throughMulligan(f: Friend, label: string, seen: Set<string>): Pro
     seen.add(`${label}:${kind}`);
     await shotSizes(f.page, `match-mulligan-${kind}-${label}`, { area: 'match', route: '#/match/<id>', state: `mulligan: ${kind.replace(/-/g, ' ')} (${label})` }, { small: label === 'alice' && kind === 'keep', landscape: label === 'alice' && kind === 'keep' });
   }
+  // Alice sends her first hand back once, so the London return (a card from the hand, the dock standing on it) is seen.
+  const mulligan = kind === 'keep' && label === 'alice' && !seen.has('alice:mulliganed');
+  if (mulligan) seen.add('alice:mulliganed');
+  if (kind === 'bottom') {
+    const first = f.page.locator('[data-zone="hand"][data-owner="you"] [data-board-card] button').first();
+    if ((await f.page.locator('[data-zone="hand"][data-owner="you"] [data-board-card][data-picked]').count()) === 0) await first.tap({ timeout: 2_000 }).catch(() => undefined);
+    await f.page.waitForTimeout(400);
+  }
   const button =
-    kind === 'play-or-draw' ? f.page.getByTestId('live-play-or-draw-play') : kind === 'keep' ? f.page.locator('[data-testid="prompt-confirm-yes"]:enabled') : enabledOk(f.page);
+    kind === 'play-or-draw'
+      ? f.page.getByTestId('live-play-or-draw-play')
+      : kind === 'keep'
+        ? f.page.locator(`[data-testid="prompt-confirm-${mulligan ? 'no' : 'yes'}"]:enabled`)
+        : enabledOk(f.page);
   await button.first().click({ timeout: 2_000 }).catch(() => undefined);
   return true;
 }
