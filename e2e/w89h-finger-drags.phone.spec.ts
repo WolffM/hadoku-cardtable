@@ -140,6 +140,9 @@ test(titled('attackers dragged by a finger onto a player and onto a planeswalker
       [bears!, face, 'bob'],
       [elves!, card(page, elspeth!), 'Elspeth'],
     ] as const) {
+      // A player scrolls each lane to the card it wants first: on this board both run past the screen.
+      await card(page, who).scrollIntoViewIfNeeded();
+      await target.scrollIntoViewIfNeeded();
       const from = await centre(card(page, who));
       await touchDrag(page, from, line(from, await centre(target), 14));
       await expect(card(page, who), `dragged onto ${what}, it attacks`).toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
