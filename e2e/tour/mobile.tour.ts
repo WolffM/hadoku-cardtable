@@ -169,9 +169,10 @@ async function throughMulligan(f: Friend, label: string, seen: Set<string>): Pro
   // Alice sends her first hand back once, so the London return (a card from the hand, the dock standing on it) is seen.
   const mulligan = kind === 'keep' && label === 'alice' && !seen.has('alice:mulliganed');
   if (mulligan) seen.add('alice:mulliganed');
-  if (kind === 'bottom') {
-    const first = f.page.locator('[data-zone="hand"][data-owner="you"] [data-board-card] button').first();
-    if ((await f.page.locator('[data-zone="hand"][data-owner="you"] [data-board-card][data-picked]').count()) === 0) await first.tap({ timeout: 2_000 }).catch(() => undefined);
+  // The card put back is picked once: past the return, a tap on a hand card reads it.
+  if (kind === 'bottom' && !seen.has(`${label}:picked`)) {
+    seen.add(`${label}:picked`);
+    await f.page.locator('[data-zone="hand"][data-owner="you"] [data-board-card] button').first().tap({ timeout: 2_000 }).catch(() => undefined);
     await f.page.waitForTimeout(400);
   }
   const button =
