@@ -1871,7 +1871,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
         previewAt(null);
         hover = null;
         if (d.source !== null) floatCastLiftHome(canvas, d.source, d.from, () => {});
-        clicks.arm();
+        clicks.arm('touch-lift-read');
         paint();
         if (d.source !== null) openTouchView(d.source);
         return;
@@ -1904,7 +1904,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       stackAsk(match) === null &&
       !touchChoosesNow(match)
     ) {
-      clicks.arm();
+      clicks.arm('touch-read');
       openTouchView(heldDrag.source);
       return;
     }
