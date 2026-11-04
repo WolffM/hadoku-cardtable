@@ -306,12 +306,20 @@ test(titled("Scapeshift's library search opens the dock full, scrolls only verti
 
     await castByTap(alice.page, 'Scapeshift');
     // Forge asks "Do you want to sacrifice?" (a real yes/no, `prompt-confirm-yes`) in alice's OWN
-    // docked dialog before the sacrifice-selection sheet ever shows a tile.
+    // docked dialog before the sacrifice-selection sheet ever shows a tile. A yes/no is as tall as its
+    // question too, and stands on the bar.
+    let yesNoSlack: number | null = null;
     await until('the sacrifice sheet opens', async () => {
+      if (yesNoSlack === null && (await alice.page.locator('[data-testid="prompt-confirm-yes"]:enabled').count()) > 0 && (await dockMode(alice.page)) === 'dock') {
+        yesNoSlack = await dockSlack(alice.page);
+        await expectBarAnchored(alice.page, 'a yes/no, docked');
+      }
       await tapConfirmYes(alice.page);
       await pumpOpponent(bob.page);
       return (await tiles(alice.page)).length >= 10;
     });
+    expect(yesNoSlack, 'the yes/no docked').not.toBeNull();
+    expect(yesNoSlack!, 'no empty room in a docked yes/no').toBeLessThanOrEqual(2);
     const lands = await tiles(alice.page);
     for (const t of lands) await tapTile(alice.page, t.id);
     await tapIfEnabled(doneFor(alice.page, lands.map((t) => t.id)));
