@@ -48,6 +48,7 @@ import { expectPlacement, pendingPlacementFor, applyTheirArrangement, onOwnArran
   forgetPendingPlacements,
   group,
   groupedStack,
+  portraitGroup,
   handOrder,
   notePlayedTo,
   placementAt,
@@ -4850,6 +4851,30 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     expect(snapTo([slot], 50, 40, 1, true)?.target).toEqual({ kind: 'before', id: 1 });
     // One card out of that pile (its base, pressed briefly) may stack back onto it, as before.
     expect(snapTo([slot], 50, 40, 1)?.target).toEqual({ kind: 'stack', id: 1, onTop: true });
+  });
+
+  it('portraitGroup: nonlands front and lands back whatever was arranged; tokens stack by name, a pile per state', () => {
+    const card = (id: number, typeLine: string, more: Partial<BoardCard> = {}) =>
+      ({ id, card: { name: more.token === true ? 'Soldier' : `c${id}`, typeLine }, tapped: false, attacking: false, blocking: false, summoningSick: false, damage: 0, counters: [], token: false, ...more }) as BoardCard;
+    const ids = (g: Grouped, row: 'front' | 'back') => g[row].map((pile) => pile.map((c) => c.id));
+    const soldier = (id: number, more: Partial<BoardCard> = {}) => card(id, 'Token Creature — Soldier', { token: true, ...more });
+    const board = [
+      card(1, 'Creature — Bear'),
+      card(2, 'Land — Forest'),
+      card(3, 'Artifact'),
+      card(4, 'Legendary Planeswalker — Jace'),
+      card(5, 'Enchantment'),
+      soldier(10),
+      soldier(11),
+      soldier(12, { tapped: true }),
+      soldier(13, { attacking: true }),
+      soldier(14),
+      soldier(15, { summoningSick: true }),
+      soldier(16, { counters: [{ name: 'P1P1', count: 1 }] }),
+    ];
+    const g = portraitGroup(board);
+    expect(ids(g, 'back'), 'the lands, behind').toEqual([[2]]);
+    expect(ids(g, 'front'), 'every other permanent in front; the Soldiers one pile per state').toEqual([[1], [3], [4], [5], [10, 11, 14], [12], [13], [15], [16]]);
   });
 
   it('group: a card nobody placed takes the first free column of its row from the left, else the row’s end', () => {

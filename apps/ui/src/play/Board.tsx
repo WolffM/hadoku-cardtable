@@ -1112,6 +1112,41 @@ export function group(
 }
 
 /**
+ * A phone held upright places every permanent by its type, never by an arrangement (the operator,
+ * 2026-11-04: "force creatures/planeswalkers/artifacts/enchantments in front, lands in back"): nonlands in
+ * the front lane, lands in the back one, in the order they came. Tokens always stack by name, a pile per
+ * state — tapped, attacking, blocking, summoning sick, damaged or countered apart — drawn as any pile is,
+ * with its count. A token something is attached to stands alone, as its attachments go in its pile.
+ */
+export function portraitGroup(cards: readonly BoardCard[], foreign: readonly BoardCard[] = []): Grouped {
+  const byId = new Set(cards.map((c) => c.id));
+  const attached = new Set([...cards, ...foreign].flatMap((c) => (c.attachedCardIds ?? []).filter((id) => id !== c.id && byId.has(id))));
+  const rows: Record<BoardRow, BoardCard[][]> = emptyRows();
+  const tokenPiles = new Map<string, BoardCard[]>();
+  for (const card of cards) {
+    if (attached.has(card.id)) continue;
+    const row = visualRow(card, 'single');
+    const stacks = card.token && (card.attachedCardIds ?? []).length === 0;
+    const key = stacks ? tokenKey(card, row) : null;
+    const pile = key === null ? undefined : tokenPiles.get(key);
+    if (pile !== undefined) {
+      pile.push(card);
+      continue;
+    }
+    const fresh = [card];
+    rows[row].push(fresh);
+    if (key !== null) tokenPiles.set(key, fresh);
+  }
+  return withAttachments(rows, cards, 'single', foreign);
+}
+
+/** What makes two tokens one pile on a phone: the same token, doing the same thing. */
+function tokenKey(card: BoardCard, row: BoardRow): string {
+  const counters = card.counters.map((c) => `${c.name}${c.count}`).join(',');
+  return [row, card.card.name, card.tapped, card.attacking, card.blocking, card.summoningSick, card.damage, counters].join('|');
+}
+
+/**
  * Forge's attachments, drawn as one stack with what they are attached to — and
  * drawn that way whatever the player arranged, because this is the engine's
  * truth about the board rather than the player's opinion about it (#11).
@@ -3300,7 +3335,8 @@ function Battlefield({
   portrait?: boolean;
 }) {
   const leavingIds = new Set(leaving.map((d) => d.cardId));
-  const grouped = drawnRows(group(withLeaving(player.battlefield, leaving), player.id, arranged, layout, foreign), layout);
+  const present = withLeaving(player.battlefield, leaving);
+  const grouped = drawnRows(portrait === true ? portraitGroup(present, foreign) : group(present, player.id, arranged, layout, foreign), layout);
   const expected = PENDING_PLACEMENTS.get(player.id);
   const reserved =
     expected === undefined || expected.expiresAt < Date.now() || !rowsForLayout(layout).includes(expected.slot)
