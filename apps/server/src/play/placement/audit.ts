@@ -38,25 +38,31 @@ export function contractViolations(contract: HostingContract, status: FleetStatu
 		out.push({ key: `kept:${u.node}:${rule}`, clause: 'kept', node: u.node, what: `${u.node} holds one of our slices but ${u.why}` });
 	}
 
-	// §1: the count we asked for. A slice on a box that cannot be reached may be replaced; one that
-	// fleet-manager made unplaceable is §3's, and its replacement is still one too many.
+	// §1: units and claws. A claw holds one slice of k units; the fleet holds max(demand, minNodes)
+	// units on at least minNodes claws. A slice on a box that cannot be reached may be replaced; one
+	// fleet-manager made unplaceable is §3's, and its replacement is still too many.
 	if (demand.demanded !== null) {
-		const down = demand.unplaceable.filter((u) => live.includes(u.node) && !u.reachable).length;
-		if (live.length > demand.demanded + down) {
+		const unitsOn = (node: string): number => Math.max(1, Math.round((demand.declaredMb[node] ?? contract.unit.memoryMb) / contract.unit.memoryMb));
+		const sum = (nodes: string[]): number => nodes.reduce((n, node) => n + unitsOn(node), 0);
+		const minNodes = demand.minNodes ?? 0;
+		const wantUnits = Math.min(Math.max(demand.demanded, minNodes), contract.max);
+		const down = demand.unplaceable.filter((u) => live.includes(u.node) && !u.reachable).map((u) => u.node);
+		const held = sum(live);
+		if (held > wantUnits + sum(down)) {
 			out.push({
 				key: 'count:over',
 				clause: 'count',
 				node: null,
-				what: `fleet-manager holds ${live.length} slices for our demand of ${demand.demanded} (${live.join(', ')}; it counts ${demand.serving.join(', ') || 'none'} as serving)`,
+				what: `fleet-manager holds ${held} units on ${live.length} claws for our ${wantUnits} (${live.map((n) => `${n} ×${unitsOn(n)}`).join(', ')}; it counts ${demand.serving.join(', ') || 'none'} as serving)`,
 			});
 		}
-		const want = Math.min(demand.demanded, contract.max);
-		if (demand.serving.length < want) {
+		const serving = demand.servingUnits ?? sum(demand.serving);
+		if (serving < wantUnits || demand.serving.length < minNodes) {
 			out.push({
 				key: 'count:short',
 				clause: 'count',
 				node: null,
-				what: `fleet-manager serves ${demand.serving.length} of the ${want} slices we asked for${demand.blocked.length === 0 ? '' : `: ${demand.blocked.join('; ')}`}`,
+				what: `fleet-manager serves ${serving} of the ${wantUnits} units we asked for${minNodes > 0 ? `, on ${demand.serving.length} of at least ${minNodes} claws` : ''}${demand.blocked.length === 0 ? '' : `: ${demand.blocked.join('; ')}`}`,
 			});
 		}
 	}

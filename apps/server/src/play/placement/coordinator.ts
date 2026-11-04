@@ -588,7 +588,7 @@ export function placement(opts: PlacementOptions): Placement {
 		for (const n of status.nodes) {
 			if (n.hosting === null) continue;
 			for (const x of n.notices) {
-				const takesSlice = (x.kind === 'reboot' && x.event === 'starts') || (x.kind === 'hosting' && x.event === 'ends');
+				const takesSlice = (x.kind === 'reboot' && x.event === 'starts') || (x.kind === 'hosting' && x.event === 'ends' && x.shrinkTo === undefined);
 				const at = Date.parse(x.at);
 				if (!takesSlice || !Number.isFinite(at)) continue;
 				const key = `${n.node}|${x.kind}|${x.event}|${x.at}`;

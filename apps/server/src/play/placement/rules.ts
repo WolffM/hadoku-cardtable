@@ -90,7 +90,8 @@ export interface ClawState {
 /** The earliest announced end of this node's hosting: a notice, or the slice's `until`. */
 export function nextEvent(fleet: FleetNode | null): { at: number; what: string } | null {
 	if (fleet === null) return null;
-	const events = fleet.notices.map((n) => ({ at: Date.parse(n.at), what: `${n.event} (${n.kind})` }));
+	// A shrink (`shrinkTo`) is fewer units on a claw that goes on serving, not an end.
+	const events = fleet.notices.filter((n) => n.shrinkTo === undefined).map((n) => ({ at: Date.parse(n.at), what: `${n.event} (${n.kind})` }));
 	if (fleet.hosting?.until) events.push({ at: Date.parse(fleet.hosting.until), what: 'the slice ends' });
 	const valid = events.filter((e) => Number.isFinite(e.at)).sort((a, b) => a.at - b.at);
 	return valid[0] ?? null;

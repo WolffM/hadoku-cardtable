@@ -36,6 +36,8 @@ export interface FleetNotice {
 	event: string;
 	at: string;
 	kind: string;
+	/** On a hosting `ends`: the slice is not ending, it shrinks to this many MB and cores at `at`. */
+	shrinkTo?: { memoryMb: number; cores: number };
 }
 
 export interface FleetHosting {
@@ -82,6 +84,12 @@ export interface FleetDemand {
 	serving: string[];
 	/** Its last pass's slices of ours it does not count as serving, each with its reason in its words. */
 	unplaceable: { node: string; why: string; reachable: boolean }[];
+	/** Each declared slice's memory: a claw holds one slice of k units (k × `slices.unit.memoryMb`). */
+	declaredMb: Record<string, number>;
+	/** The fewest claws the fleet holds us on (`limits.minNodes`); null from a fleet-manager before it. */
+	minNodes: number | null;
+	/** Its last pass's serving units; null from a fleet-manager before units. */
+	servingUnits: number | null;
 }
 
 /** Where the coordinator reads fleet-manager from. Both answer null when they could not look. */
@@ -169,7 +177,12 @@ export function parseNodeStatus(text: string): FleetStatus | null {
 			ok: n.ok === true,
 			findings: Array.isArray(n.findings) ? n.findings.filter(isObject).map((f) => ({ class: String(f.class ?? ''), category: String(f.category ?? ''), why: String(f.why ?? '') })) : [],
 			notices: Array.isArray(n.notices)
-				? n.notices.filter(isObject).map((x) => ({ event: String(x.event ?? ''), at: String(x.at ?? ''), kind: String(x.kind ?? '') }))
+				? n.notices.filter(isObject).map((x) => ({
+						event: String(x.event ?? ''),
+						at: String(x.at ?? ''),
+						kind: String(x.kind ?? ''),
+						...(isObject(x.shrinkTo) ? { shrinkTo: { memoryMb: Number(x.shrinkTo.memoryMb) || 0, cores: Number(x.shrinkTo.cores) || 0 } } : {}),
+					}))
 				: [],
 			hosting:
 				h === null
@@ -212,6 +225,11 @@ export function parseDemand(text: string): FleetDemand | null {
 		blocked: Array.isArray(pass.blocked) ? pass.blocked.filter(isObject).map((b) => String(b.why ?? '')) : [],
 		demanded: isObject(raw.demand) && typeof raw.demand.slices === 'number' ? raw.demand.slices : null,
 		serving: names(pass.serving),
+		declaredMb: Object.fromEntries(
+			(Array.isArray(raw.declared) ? raw.declared : []).filter(isObject).filter((x) => typeof x.node === 'string' && typeof x.memoryMb === 'number').map((x) => [String(x.node), Number(x.memoryMb)]),
+		),
+		minNodes: isObject(raw.limits) && typeof raw.limits.minNodes === 'number' ? raw.limits.minNodes : null,
+		servingUnits: typeof pass.servingUnits === 'number' ? pass.servingUnits : null,
 		unplaceable: Array.isArray(pass.unplaceable)
 			? pass.unplaceable.filter(isObject).filter((u) => typeof u.node === 'string').map((u) => ({ node: String(u.node), why: String(u.why ?? ''), reachable: u.reachable === true }))
 			: [],

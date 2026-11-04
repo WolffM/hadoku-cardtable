@@ -207,6 +207,9 @@ async function rig(nodes: FleetNode[], opts: { forceFile?: string; takenBack?: R
 				demanded: slices,
 				serving: declared.filter((n) => !converger.ending.includes(n) && !converger.unplaceable.some((u) => u.node === n)),
 				unplaceable: [...converger.unplaceable],
+				declaredMb: Object.fromEntries(declared.map((n) => [n, 4096])),
+				minNodes: null,
+				servingUnits: null,
 			};
 			return Promise.resolve(answer);
 		},
@@ -446,6 +449,9 @@ describe('eligibility', () => {
 			demanded: 2,
 			serving: ['claw-5'],
 			unplaceable: [{ node: 'claw-8', why: 'fails "not-beside-unbounded"', reachable: true }],
+			declaredMb: { 'claw-5': 4096, 'claw-8': 4096 },
+			minNodes: null,
+			servingUnits: null,
 		});
 		expect(parseDemand('{"contract":2,"auto":true}')).toBeNull();
 		expect(parseDemand('not json')).toBeNull();
@@ -746,6 +752,9 @@ describe('the hosting contract', () => {
 		demanded: 2,
 		serving: ['claw-8', 'claw-9'],
 		unplaceable: [],
+		declaredMb: {},
+		minNodes: null,
+		servingUnits: null,
 		...extra,
 	});
 	const keys = (status: FleetNode[], demand: FleetDemand): string[] => contractViolations(CONTRACT, { at: T0, nodes: status }, demand, T0).map((v) => v.key);
@@ -771,7 +780,7 @@ describe('the hosting contract', () => {
 			['count:over', 'count'],
 		]);
 		expect(found[0]?.what).toBe('claw-8 holds one of our slices but fails "not-beside-unbounded"');
-		expect(found[2]?.what).toBe('fleet-manager holds 4 slices for our demand of 2 (claw-5, claw-8, claw-9, claw-10; it counts claw-5, claw-10 as serving)');
+		expect(found[2]?.what).toBe('fleet-manager holds 4 units on 4 claws for our 2 (claw-5 ×1, claw-8 ×1, claw-9 ×1, claw-10 ×1; it counts claw-5, claw-10 as serving)');
 	});
 
 	it('a box that cannot be reached may be replaced; a slice it is ending is not counted; a drain is not §3', () => {
@@ -784,7 +793,31 @@ describe('the hosting contract', () => {
 
 	it('short: fewer served than asked for, with the reasons fleet-manager gives', () => {
 		const found = contractViolations(CONTRACT, { at: T0, nodes: [slice('claw-8')] }, answer({ declared: ['claw-8'], serving: ['claw-8'], blocked: ['no node can take it'] }), T0);
-		expect(found.map((v) => v.what)).toEqual(['fleet-manager serves 1 of the 2 slices we asked for: no node can take it']);
+		expect(found.map((v) => v.what)).toEqual(['fleet-manager serves 1 of the 2 units we asked for: no node can take it']);
+	});
+
+	it('§1 in units and claws (fleet-manager e481a94): 3 units on 3 claws is kept; a claw of 2 units counts twice; fewer claws than minNodes is short', () => {
+		const three = answer({ declared: ['claw-8', 'claw-9', 'claw-10'], serving: ['claw-8', 'claw-9', 'claw-10'], demanded: 3, minNodes: 3, servingUnits: 3, declaredMb: { 'claw-8': 4096, 'claw-9': 4096, 'claw-10': 4096 } });
+		expect(keys([slice('claw-8'), slice('claw-9'), slice('claw-10')], three)).toEqual([]);
+		// Demand 2 under a floor of 3 claws: the third is the fleet's floor, not one too many.
+		expect(keys([slice('claw-8'), slice('claw-9'), slice('claw-10')], { ...three, demanded: 2 })).toEqual([]);
+		// One claw grown to 2 units: 4 units for a demand of 3 is one too many.
+		const grown = { ...three, servingUnits: 4, declaredMb: { ...three.declaredMb, 'claw-8': 8192 } };
+		expect(keys([slice('claw-8'), slice('claw-9'), slice('claw-10')], grown)).toEqual(['count:over']);
+		// 3 units on 2 claws: enough units, too few claws.
+		const packed = answer({ declared: ['claw-8', 'claw-9'], serving: ['claw-8', 'claw-9'], demanded: 3, minNodes: 3, servingUnits: 3, declaredMb: { 'claw-8': 8192, 'claw-9': 4096 } });
+		expect(contractViolations(CONTRACT, { at: T0, nodes: [slice('claw-8'), slice('claw-9')] }, packed, T0).map((v) => v.what)).toEqual([
+			'fleet-manager serves 3 of the 3 units we asked for, on 2 of at least 3 claws',
+		]);
+	});
+
+	it('a shrink notice is fewer units on a claw that goes on serving: no notice bar, no move', () => {
+		const at = new Date(T0 + 10 * 60_000).toISOString();
+		const ok: ClawState = { node: 'claw-9', fleet: fleetNode('claw-9', { notices: [{ event: 'ends', at, kind: 'hosting', shrinkTo: { memoryMb: 4096, cores: 4 } }] }), agent: { connected: true, silentMs: 0, error: null }, quarantine: null, room: { free: 4, why: null }, aiCutoffs: 0 };
+		expect(bars(ok, T0, 6000).filter((b) => !b.ok)).toEqual([]);
+		expect(parseNodeStatus(JSON.stringify({ contract: 1, generatedAt: new Date(T0).toISOString(), nodes: [{ node: 'claw-9', reachable: true, ok: true, notices: [{ event: 'ends', at, kind: 'hosting', shrinkTo: { memoryMb: 4096, cores: 4 } }] }] }))?.nodes[0]?.notices).toEqual([
+			{ event: 'ends', at, kind: 'hosting', shrinkTo: { memoryMb: 4096, cores: 4 } },
+		]);
 	});
 
 	it('§4: each slice is declared and served at our unit, on our port, guaranteed', () => {
@@ -1335,7 +1368,7 @@ describe('the hosting contract, on the coordinator', () => {
 		await r.p.poll();
 		expect(r.posted).toEqual([
 			'⚠️ Hosting contract: claw-8 holds one of our slices but fails "not-beside-unbounded". docs/HOSTING_CONTRACT.md §3.',
-			'⚠️ Hosting contract: fleet-manager serves 1 of the 2 slices we asked for. docs/HOSTING_CONTRACT.md §1.',
+			'⚠️ Hosting contract: fleet-manager serves 1 of the 2 units we asked for. docs/HOSTING_CONTRACT.md §1.',
 		]);
 		r.clock.t += 60_000;
 		await r.p.poll();
@@ -1345,7 +1378,7 @@ describe('the hosting contract, on the coordinator', () => {
 		await r.p.poll();
 		expect(r.posted.slice(2)).toEqual([
 			'✅ Hosting contract kept again: claw-8 holds one of our slices but fails "not-beside-unbounded" (open 120 s)',
-			'✅ Hosting contract kept again: fleet-manager serves 1 of the 2 slices we asked for (open 120 s)',
+			'✅ Hosting contract kept again: fleet-manager serves 1 of the 2 units we asked for (open 120 s)',
 		]);
 		expect(r.p.hosts().contract).toEqual([]);
 	});

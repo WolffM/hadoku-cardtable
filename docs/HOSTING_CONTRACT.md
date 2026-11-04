@@ -21,15 +21,22 @@ apps/server/node_modules/.bin/tsx scripts/hosting/contract-check.ts   # exit 1: 
 
 ## §1 How many
 
-- fleet-manager serves **exactly the count we restate every poll** with `fleet hosting-demand
-  cardtable --slices N`: 2 today, within `slices.min..max` (2..4).
-- *Serving* means declared for us, not ending, on a node that keeps §2–§4. That is the converger's
-  own `lastPass.serving`.
+- **Units and claws are two numbers** (fleet-manager e481a94, 2026-11-04). The count we restate
+  every poll with `fleet hosting-demand cardtable --slices N`, and `slices.min..max` (3..4 today),
+  count **units** of `slices.unit`. A claw holds one slice of k units (`declared[].memoryMb` =
+  k × 4096). Claws have a floor of their own, `spread.minNodes` (the fleet default, 3, while
+  `hosting.json` names none).
+- fleet-manager serves **max(demand, minNodes) units on at least minNodes claws**. An extra unit
+  goes to the best claw with room in `placement.order`, resized in place; too many shrinks a claw
+  (an `ends` notice of kind `hosting` with `shrinkTo`) and ends a whole claw only while more than
+  minNodes would remain.
+- *Serving* means declared for us, not ending, on a node that keeps §2–§4: the converger's own
+  `lastPass.serving` and `lastPass.servingUnits`.
 - It may hold more only to replace a slice on a box that **cannot be reached**. It ends any other
-  extra slice from the head of our `--release-order`, with our notice.
+  extra from the head of our `--release-order`, with our notice.
 - A slice under the reboot cycle's own announced reboot still serves (request §11).
-- Checked: `count:over` (more declared than demanded, beyond unreachable ones), `count:short`
-  (fewer serving than asked for).
+- Checked: `count:over` (more units held than max(demand, minNodes), beyond unreachable claws),
+  `count:short` (fewer units serving than that, or fewer claws than minNodes).
 
 ## §2 Where
 
@@ -55,10 +62,12 @@ apps/server/node_modules/.bin/tsx scripts/hosting/contract-check.ts   # exit 1: 
 
 ## §4 What each slice gives
 
+Per unit; a claw's slice of k units gives k times the memory and cores.
+
 | | promise | `hosting.json` |
 | --- | --- | --- |
-| memory | 4096 MB, **guaranteed** (`memory.min` in force), never reclaimed for CI or another tenant | `slices.unit.memoryMb` |
-| cores | 4 | `slices.unit.cores` |
+| memory | 4096 MB a unit, **guaranteed** (`memory.min` in force), never reclaimed for CI or another tenant | `slices.unit.memoryMb` |
+| cores | 4 a unit | `slices.unit.cores` |
 | port | 7621, reachable from the controller (hokon) | `network.ports`, `network.ingress: controller` |
 | disk | 2 GB of state | `disk.stateGb` |
 | agent | installed from our kept artifact and supervised; its JVMs outlive our restarts | `runtime` |
@@ -82,11 +91,13 @@ announced reboot, is §1's business.
 Our side of the interface. A change to any of these fields is a contract change, so tell us first.
 
 - `node-status --json`, contract 1: `generatedAt`; per node `node`, `reachable`, `ok`,
-  `findings[]` and `notices[]{event,at,kind}`; for our primary slice in `tenants[]`: `state`,
+  `findings[]` and `notices[]{event,at,kind,shrinkTo?}`; for our primary slice in `tenants[]`: `state`,
   `declared.{tenant,memoryMb,cores,port,role}`,
   `observed.{agent,portReach,memoryInUseMb,memoryMinMb,cores}` and `until`.
-- `hosting-demand --json`, contract 1: `auto`, `demand.slices`, `declared[]`, `ending[]`, and
-  `lastPass.{live,actions,blocked,serving,unplaceable}`.
+- `hosting-demand --json`, contract 1: `auto`, `demand.slices`, `limits.minNodes`,
+  `declared[]{node,memoryMb}`, `ending[]`, and
+  `lastPass.{live,actions,blocked,serving,servingUnits,unplaceable}`. The unit fields are read as
+  optional, so an older fleet-manager reads as one unit per claw.
 
 ## What cardtable does on its side
 
