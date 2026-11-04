@@ -31,6 +31,8 @@ export interface AutoTargetArrow {
    * theme colour; or `aim`, what an ability is already aimed at while its cost is still being picked.
    */
   role: 'attack' | 'block' | 'aim';
+  /** A point the arrow ends at instead of `to`'s own box, in client coordinates (a phone's attack on a player). */
+  toward?: Point;
 }
 
 /**
@@ -47,6 +49,23 @@ export interface AutoTargetArrow {
  * An attacker in `rammed` has already set off at what it hit, and its ram is
  * the attack now: it draws no arrow.
  */
+/**
+ * On a phone held upright an attack on a player points at the middle of the edge that player sits beyond,
+ * not at their chip in the top band (the operator, 2026-11-04): ours toward the top edge's middle, the
+ * opponent's toward the bottom edge's. An attack on a planeswalker keeps its arrow to the card, and a wider
+ * table keeps the arrow to the avatar.
+ */
+function towardPlayer(canvas: ParentNode, match: LiveMatch, playerId: number): Point | undefined {
+  if (document.documentElement.dataset.layout !== 'portrait') return undefined;
+  const board = (canvas instanceof Element && canvas.matches('.board') ? canvas : canvas.querySelector('.board'))?.getBoundingClientRect();
+  if (board === undefined) return undefined;
+  const atViewer = match.view?.players.find((p) => p.id === playerId)?.isViewer === true;
+  return { x: board.left + board.width / 2, y: atViewer ? board.bottom - EDGE_INSET_PX : board.top + EDGE_INSET_PX };
+}
+
+/** How far inside the board's edge such an arrow stops, so its head is drawn whole. */
+const EDGE_INSET_PX = 12;
+
 export function combatArrows(canvas: ParentNode, match: LiveMatch, rammed: ReadonlySet<number>): AutoTargetArrow[] {
   const out: AutoTargetArrow[] = [];
   for (const band of match.view?.combat ?? []) {
@@ -56,7 +75,8 @@ export function combatArrows(canvas: ParentNode, match: LiveMatch, rammed: Reado
       if (source === null) continue;
       const to = band.defender.kind === 'card' ? cardBox(canvas, band.defender.id) : faceBox(canvas, band.defender.id);
       if (to === null) continue;
-      out.push({ key: `combat:${attackerId}`, from: centreOf(source), to, kind: band.defender.kind, role: 'attack' });
+      const toward = band.defender.kind === 'player' ? towardPlayer(canvas, match, band.defender.id) : undefined;
+      out.push({ key: `combat:${attackerId}`, from: centreOf(source), to, kind: band.defender.kind, role: 'attack', ...(toward === undefined ? {} : { toward }) });
     }
   }
   return out;

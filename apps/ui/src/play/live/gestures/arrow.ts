@@ -625,7 +625,11 @@ const AUTO_TESTID = 'stack-target-arrow';
  */
 export function drawAutoTargetArrows(overlay: HTMLElement, specs: readonly AutoTargetArrow[]): void {
   // Every end read before any arrow is written: one layout for the lot, and none with nothing to draw.
-  const aims = specs.map((spec) => ({ spec, aimed: aimOn(spec.to, spec.from, spec.kind === 'player' ? 'player' : 'card'), to: spec.to.getBoundingClientRect() }));
+  const aims = specs.map((spec) =>
+    spec.toward === undefined
+      ? { spec, aimed: aimOn(spec.to, spec.from, spec.kind === 'player' ? 'player' : 'card'), to: spec.to.getBoundingClientRect() }
+      : { spec, aimed: { from: spec.from, tip: spec.toward }, to: new DOMRect(spec.toward.x, spec.toward.y, 0, 0) },
+  );
   const box = aims.length === 0 ? null : overlay.getBoundingClientRect();
   const seen = new Set<string>();
   for (const { spec, aimed, to } of aims) {

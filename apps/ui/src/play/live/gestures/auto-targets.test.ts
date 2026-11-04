@@ -138,6 +138,39 @@ describe('combatArrows', () => {
     expect(combatArrows(document.body, match, new Set())).toEqual([]);
   });
 
+  it('on a phone held upright an attack on a player points at the middle of that player’s edge; one on a card keeps its card', () => {
+    document.documentElement.dataset.layout = 'portrait';
+    try {
+      const board = el({ class: 'board' });
+      board.getBoundingClientRect = () => new DOMRect(0, 0, 390, 844);
+      el({ 'data-board-card': '10' });
+      el({ 'data-board-card': '20' });
+      el({ 'data-player-face': '', 'data-player-id': '1' });
+      el({ 'data-player-face': '', 'data-player-id': '2' });
+      const pw = el({ 'data-board-card': '55' });
+      const view = {
+        players: [
+          { id: 1, isViewer: false },
+          { id: 2, isViewer: true },
+        ],
+        combat: [
+          { attackers: [10], defender: { kind: 'player', id: 1 } },
+          { attackers: [20], defender: { kind: 'player', id: 2 } },
+          { attackers: [30], defender: { kind: 'card', id: 55 } },
+        ],
+      } as unknown as BoardView;
+      el({ 'data-board-card': '30' });
+      const arrows = combatArrows(document.body, { view } as unknown as LiveMatch, new Set());
+      const byKey = Object.fromEntries(arrows.map((a) => [a.key, a]));
+      expect(byKey['combat:10']!.toward, 'ours: the top edge’s middle').toEqual({ x: 195, y: 12 });
+      expect(byKey['combat:20']!.toward, 'theirs: the bottom edge’s middle').toEqual({ x: 195, y: 832 });
+      expect(byKey['combat:30']!.toward, 'a planeswalker keeps its card').toBeUndefined();
+      expect(byKey['combat:30']!.to).toBe(pw);
+    } finally {
+      delete document.documentElement.dataset.layout;
+    }
+  });
+
   it('draws nothing outside combat — an absent or empty `view.combat`', () => {
     expect(combatArrows(document.body, matchWithCombat([]), new Set())).toEqual([]);
     expect(combatArrows(document.body, { view: {} } as unknown as LiveMatch, new Set())).toEqual([]);
