@@ -980,7 +980,7 @@ export async function manaPool(page: Page): Promise<Record<'total' | 'W' | 'U' |
 }
 
 /** The seat holds a live window of Forge's: one of its two buttons is pressable. */
-export const holdsLiveWindow = async (page: Page): Promise<boolean> => (await page.locator(`${BUTTON_ONE}, ${BUTTON_TWO}`).count()) > 0;
+export const holdsLiveWindow = async (page: Page): Promise<boolean> => (await page.locator(isPhone() ? `${BUTTON_ONE}, ${BUTTON_TWO}, ${PRIMARY}` : `${BUTTON_ONE}, ${BUTTON_TWO}`).count()) > 0;
 
 /**
  * Click a permanent once, and only once the click can be taken: the card is offered AND the

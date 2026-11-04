@@ -13,6 +13,7 @@ import { handCardNamed, makeTitled, passOverStack, says } from './play/board.ts'
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
+import { pressInMenu } from './play/phone.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -32,8 +33,7 @@ test(titled('a dredge’s yes/no says what it is and draws the card it would ret
         async () => {
           if (await confirmOpen(page)) return true;
           // Bob ends his turn; alice's upkeep passes on to her draw.
-          const endTurn = bob.locator('[data-testid="live-button-end-turn"]:enabled');
-          if ((await endTurn.count()) > 0) await endTurn.click({ timeout: 1_000 }).catch(() => undefined);
+          if ((await bob.locator('[data-testid="live-button-end-turn"]:enabled').count()) > 0) await pressInMenu(bob, 'live-button-end-turn').catch(() => undefined);
           for (const p of [bob, page]) await passOverStack(p);
           return false;
         },

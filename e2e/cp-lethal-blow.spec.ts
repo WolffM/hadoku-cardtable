@@ -31,7 +31,7 @@ import { passDeclareAttackers, passToDeclareAttackers } from './play/combat.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { turnFastModeOff } from './play/prefs.ts';
 import { startScenarioMatch } from './play/scenario.ts';
-import { pressInMenu } from './play/phone.ts';
+import { isPhone, pressInMenu } from './play/phone.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -207,6 +207,8 @@ function formation(who: string, marks: Marks, pack: number): void {
     expect.soft(p.y - longest / 2, `${who}: charger ${i} not off its top`).toBeGreaterThanOrEqual(-1);
     expect.soft(p.y + longest / 2, `${who}: charger ${i} not off its bottom`).toBeLessThanOrEqual(table.h + 1);
   });
+  // A card apart each needs more table than a phone has for a big pack: there `fanOf` squeezes it on the table, by design.
+  if (isPhone() && pack > 8) return;
   for (let i = 0; i < fan.length; i++)
     for (let j = i + 1; j < fan.length; j++)
       expect.soft(Math.hypot(fan[i]!.x - fan[j]!.x, fan[i]!.y - fan[j]!.y), `${who}: chargers ${i} and ${j} apart`).toBeGreaterThan(longest);

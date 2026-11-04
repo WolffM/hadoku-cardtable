@@ -54,7 +54,7 @@ test(titled("under Full Control, Auto Yield pressed over bob's Bolt passes that 
       .toBe(true);
 
     const logFrom = serverLog(stack).length;
-    await endTurnSlot(a).click();
+    await pressInMenu(a, 'live-button-end-turn');
     await expect(endTurnSlot(a), 'Cancel Yield').toHaveText('Cancel Yield');
     // Nobody presses alice's OK from here.
     await expect(ownLife(a), 'the Bolt already on the stack resolved with no OK from alice').toHaveText('17', { timeout: 20_000 });
