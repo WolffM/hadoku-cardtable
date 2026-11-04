@@ -3027,7 +3027,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * is no `'confirm'` selection shape to mount here.
    */
   const selectionKind: SelectionKind = !spectator && !askOpen ? classifySelection(match.selectables, battlefieldCardIds(match.view)) : 'none';
-  const selectionPopup = selectionKind === 'off-board' || selectionKind === 'on-board';
+  // Drawn once its own buttons have come (`LiveMatch.selectionAwaitsBar`), never in two steps.
+  const selectionPopup = (selectionKind === 'off-board' || selectionKind === 'on-board') && match.selectionAwaitsBar === null;
   /** The board cards an on-board pick offers: its pop-up is never drawn over them (`QuestionHost`'s `keepClearOf`). */
   const onBoardCardIds = battlefieldCardIds(match.view);
   const onBoardChoices = match.selectables === null ? [] : [...match.selectables.cards].filter((id) => onBoardCardIds.has(id));

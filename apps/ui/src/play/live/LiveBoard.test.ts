@@ -5753,8 +5753,11 @@ describe('the control box is fixed furniture; every answer to Forge, passing pri
  */
 describe('W18/W16 — a selection that is an off-board target or a silent on-board choice', () => {
   const notify = (raw: unknown) => parseServerFrame(raw);
-  const selectables = (ids: number[], min: number, max: number) =>
-    notify({ kind: 'notify', method: 'setSelectables', cards: ids.map((id) => ({ kind: 'card', id })), min, max });
+  /** A selection as Forge sends it: the pick as the input starts, then that input's own buttons as it shows. */
+  const selectables = (ids: number[], min: number, max: number) => [
+    notify({ kind: 'notify', method: 'setSelectables', cards: ids.map((id) => ({ kind: 'card', id })), min, max }),
+    notify({ kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 0 }, label1: 'OK', label2: 'Cancel', enable1: false, enable2: true, focus1: false }),
+  ];
   const promptNaming = (message: string, cardId: number | null) =>
     notify({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: cardId === null ? null : { kind: 'card', id: cardId } });
 
@@ -5765,10 +5768,22 @@ describe('W18/W16 — a selection that is an off-board target or a silent on-boa
    * offer — this is the one case `fixtureFrames()`'s own board has no
    * clickable tile for at all.
    */
+  it('the picker draws once, whole: never before the input’s own buttons, so its Cancel is there on its first frame', async () => {
+    const { s, queryByTestId, getByTestId } = await liveBoard();
+    const GRAVEYARD_CARD = 555002;
+    const [pick, buttons] = selectables([GRAVEYARD_CARD], 1, 1);
+    for (const f of [promptNaming('Return a Zombie from your graveyard?', null), pick!]) s.send(f);
+    await new Promise((r) => setTimeout(r, 150));
+    expect(queryByTestId('live-selection-host'), 'not drawn while its buttons have not come').toBeNull();
+    s.send(buttons!);
+    await waitFor(() => getByTestId('live-selection-host'));
+    expect(getByTestId('live-selection-host').querySelector('[data-testid="selection-cancel"]'), 'and Cancel with it').not.toBeNull();
+  });
+
   it('a selection naming a card off any battlefield is the picker, not a silent lock', async () => {
     const { s, getByTestId, queryByTestId, container } = await liveBoard();
     const GRAVEYARD_CARD = 555001;
-    for (const f of [promptNaming('Return a Zombie from your graveyard?', null), selectables([GRAVEYARD_CARD], 1, 1)]) s.send(f);
+    for (const f of [promptNaming('Return a Zombie from your graveyard?', null), ...selectables([GRAVEYARD_CARD], 1, 1)]) s.send(f);
 
     await waitFor(() => getByTestId('live-selection-host'));
     expect(getByTestId('live-selection-host').textContent).toContain('Return a Zombie from your graveyard?');
@@ -5788,7 +5803,7 @@ describe('W18/W16 — a selection that is an off-board target or a silent on-boa
     const { s, m, getByTestId, container } = await liveBoard();
     const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
     expect(mine.length).toBeGreaterThan(0);
-    for (const f of [promptNaming('Choose a mode', null), selectables([mine[0]!], 1, 1)]) s.send(f);
+    for (const f of [promptNaming('Choose a mode', null), ...selectables([mine[0]!], 1, 1)]) s.send(f);
 
     await waitFor(() => getByTestId('live-selection-host'));
     expect(getByTestId('live-selection-host').textContent).toContain('Choose a mode');
@@ -5817,7 +5832,7 @@ describe('W18/W16 — a selection that is an off-board target or a silent on-boa
     const creature = mine.battlefield[0]!.id;
     for (const f of [
       splitPrompt(`Bone Shards (${shards})\n - ${BONE_SHARDS}\nSelect creature to sacrifice (1 left)`, shards, { question: 'Select creature to sacrifice (1 left)', context: BONE_SHARDS, input: 'select' }),
-      selectables([creature], 1, 1),
+      ...selectables([creature], 1, 1),
     ])
       s.send(f);
     await waitFor(() => getByTestId('live-selection-host'));
@@ -5835,7 +5850,7 @@ describe('W18/W16 — a selection that is an off-board target or a silent on-boa
     const creature = mine.battlefield[0]!.id;
     for (const f of [
       splitPrompt(`Bone Shards (${shards}) - ${BONE_SHARDS}\n\nSelect target creature or planeswalker`, shards, { question: 'Select target creature or planeswalker', context: BONE_SHARDS, input: 'target' }),
-      selectables([creature], 1, 1),
+      ...selectables([creature], 1, 1),
     ])
       s.send(f);
     await waitFor(() => getByTestId('live-selection-host'));
@@ -5848,7 +5863,7 @@ describe('W18/W16 — a selection that is an off-board target or a silent on-boa
     // draws as a pile, never a per-card clickable tile — the same "off-board"
     // shape as a graveyard target, and one `selectCard` will actually accept.
     const HAND_CARD = m.view!.players.find((p) => p.isViewer)!.hand![0]!.id;
-    for (const f of [promptNaming('Discard a card?', null), selectables([HAND_CARD], 1, 1)]) s.send(f);
+    for (const f of [promptNaming('Discard a card?', null), ...selectables([HAND_CARD], 1, 1)]) s.send(f);
     await waitFor(() => getByTestId(`live-selection-host`));
 
     fireEvent.click(getByTestId('prompt-choice'));

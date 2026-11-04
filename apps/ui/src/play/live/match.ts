@@ -266,7 +266,7 @@ import { shownFlip, shownRoll, type ShownFlip, type ShownRoll } from './shown.ts
 import { preloadMatchArt } from './art-preload.ts';
 import { pressableBar, type BarHold } from './bar-hold.ts';
 import { drawnOfferOf, dropMarked, resolvedByAnother, type OfferHold, type Pressed } from './offer-hold.ts';
-import { holdNow, holdStands, lapseHold } from './timed-hold.ts';
+import { holdNow, holdStands, lapseHold, type TimedHold } from './timed-hold.ts';
 import { mistakeOfClick, type MistakeKey } from './mistakes.ts';
 import { SELF_ANSWERING } from '../prompts/answer-table.ts';
 import type { PromptParts } from '../prompts/lookup.ts';
@@ -621,6 +621,14 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    * editing `buttons`.
    */
   barHold: BarHold | null;
+  /**
+   * A selection Forge has published whose own buttons have not come yet: Forge sends `setSelectables`
+   * as the input starts and that input's `updateButtons` as it shows (`InputSelectTargets.java:68`,
+   * then `:133-147`). Its pop-up waits for them, so it draws once, whole — Cancel and Done with it
+   * (the operator, 2026-11-04: "the cancel button doesn't appear immediately"). Cleared by the
+   * `updateButtons`, and never standing longer than `HOLD_MAX_MS`.
+   */
+  selectionAwaitsBar: TimedHold | null;
   /**
    * The first half of a Forge window — a `showPromptMessage` or an `updateButtons` the server
    * marked `pairsWithNext` — held until its partner, the next frame, arrives, so the two are
@@ -1132,6 +1140,7 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     deckColors: undefined,
     buttons: null,
     barHold: null,
+    selectionAwaitsBar: null,
     windowHalf: [],
     selectables: null,
     weaklySelectable: null,
@@ -3097,6 +3106,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   // seat), as normal frames. What this client held from before is replaced by
   // those, so it is dropped here rather than trusted.
   match.selectables = null;
+  match.selectionAwaitsBar = null;
   match.weaklySelectable = null;
   match.weaklySelectableManaOnly = null;
   match.castForbidden = null;
@@ -3533,8 +3543,15 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
       ...(frame.refusal1 === undefined ? {} : { refusal1: frame.refusal1 }),
     };
     match.barHold = null;
+    match.selectionAwaitsBar = null;
     match.inputLive = true;
   } else if (frame.kind === 'notify' && frame.method === 'setSelectables') {
+    const awaiting: TimedHold = { since: holdNow() };
+    match.selectionAwaitsBar = awaiting;
+    lapseHold(awaiting, () => match.selectionAwaitsBar, () => {
+      match.selectionAwaitsBar = null;
+      notify(match);
+    });
     match.selectables = {
       cards: new Set(frame.cards.map((c) => c.id)),
       min: frame.min,
@@ -3548,6 +3565,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     match.offerHold = null;
   } else if (frame.kind === 'notify' && frame.method === 'clearSelectables') {
     match.selectables = null;
+    match.selectionAwaitsBar = null;
     // The marks belonged to the input that has just stopped. Forge unmarks them
     // itself (`InputSelectManyBase.resetUsedToPay`, `InputLondonMulligan.done`),
     // but the order of the two frames is that input's business, not ours, and a
@@ -3709,6 +3727,7 @@ function dropOpenInput(match: LiveMatch): void {
   match.barHold = null;
   match.windowHalf = [];
   match.selectables = null;
+  match.selectionAwaitsBar = null;
   match.weaklySelectable = null;
   match.weaklySelectableManaOnly = null;
   match.castForbidden = null;
