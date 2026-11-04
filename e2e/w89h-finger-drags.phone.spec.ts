@@ -99,7 +99,9 @@ test(titled('a finger scrolls a lane and the hand sideways and starts nothing; a
     const park = await centre(page.getByTestId('lane-my-permanents'));
     expect(await dragHandCard(page, bolt, park), 'the finger lifted Bolt').toBe(true);
     await expect(card(page, goyf!), 'Forge asks for Bolt’s target').toHaveAttribute('data-selectable', 'true', { timeout: 20_000 });
-    await touchDrag(page, park, line(park, await centre(card(page, goyf!)), 14));
+    // A finger has no hover to aim with: it carries the arrow from the parked card itself.
+    const parked = await centre(page.locator(`[data-cast-ghost="${bolt}"], [data-board-card="${bolt}"]`).first());
+    await touchDrag(page, parked, line(parked, await centre(card(page, goyf!)), 14));
     await expect
       .poll(() => commands(stack, 0, sent), { timeout: 20_000, message: 'Bolt was cast, and Tarmogoyf chosen as its target' })
       .toEqual(expect.arrayContaining([`selectCard:${bolt}`, `selectCard:${goyf}`]));
@@ -174,7 +176,8 @@ test(titled('a card dragged by a finger within Ponder’s library order moves th
     const [a, , c] = (await ids()) as [number, number, number];
     const from = await centre(dest.locator(`li[data-card-id="${c}"]`));
     const top = (await dest.locator(`li[data-card-id="${a}"]`).boundingBox())!;
-    await touchDrag(page, from, line(from, { x: top.x + top.width / 2, y: top.y + 4 }, 14));
+    // The row runs across: the first card's left edge is before it.
+    await touchDrag(page, from, line(from, { x: top.x + 6, y: top.y + top.height / 2 }, 14));
     await expect.poll(ids, { timeout: 5_000, message: 'the third card is first now' }).toEqual(expect.arrayContaining([c]));
     expect((await ids())[0], 'dragged to the top, it is the top').toBe(c);
   } finally {
