@@ -92,12 +92,15 @@ async function dockSlack(page: Page): Promise<number> {
  */
 async function expectControlsOnTheFirstRow(page: Page, what: string): Promise<void> {
   const rows = await dock(page).evaluate((d) => {
-    const min = d.querySelector('[data-testid="decision-minimize"]')!.getBoundingClientRect();
+    const minEl = d.querySelector('[data-testid="decision-minimize"]')!;
+    const min = minEl.getBoundingClientRect();
+    const onTop = minEl.contains(document.elementFromPoint(min.left + min.width / 2, min.top + min.height / 2));
     const sheet = d.querySelector('.live__prompt > :is(.prompt, .confirm)')!;
     const first = sheet.firstElementChild!.getBoundingClientRect();
     const text = sheet.querySelector('.prompt__title, .confirm__title, .confirm__message')!.getBoundingClientRect();
-    return { min: [min.top, min.bottom, min.left], first: [first.top, first.bottom, first.right], text: [text.top, text.bottom, text.right] };
+    return { onTop, min: [min.top, min.bottom, min.left], first: [first.top, first.bottom, first.right], text: [text.top, text.bottom, text.right] };
   });
+  expect.soft(rows.onTop, `${what}: minimize is drawn over the sheet, not under it`).toBe(true);
   console.log(`[dock] ${what}: controls ${JSON.stringify(rows)}`);
   expect.soft(rows.min[0]! < rows.text[1]! && rows.min[1]! > rows.text[0]!, `${what}: minimize is on the title's row`).toBe(true);
   expect.soft(rows.text[2]!, `${what}: the title stops short of the controls`).toBeLessThanOrEqual(rows.min[2]! + 0.5);
