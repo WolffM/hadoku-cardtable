@@ -457,8 +457,8 @@ export async function dragHandCard(page: Page, cardId: number, to: { x: number; 
 }
 
 /**
- * `dragHandCard`'s touch twin: press at `from` (a real CDP `touchStart`), check the SAME
- * `data-cast-lift === 'lifted'` arming `dragHandCard` checks after its mouse-down, then carry the
+ * `dragHandCard`'s touch twin: press at `from` (a real CDP `touchStart`), move up past the slop, check the
+ * SAME `data-cast-lift === 'lifted'` arming `dragHandCard` checks after its mouse-down, then carry the
  * gesture through `points` with real `touchMove`s and release. Not `phone.ts`'s `touchDrag`: that
  * primitive has no checkpoint between press and release, and the arming check has to land there, mid
  * gesture, exactly where the mouse branch above puts it.
@@ -468,6 +468,10 @@ async function touchDragHandCard(page: Page, cardId: number, from: { x: number; 
   const point = (p: { x: number; y: number }) => ({ x: p.x, y: p.y, radiusX: 11, radiusY: 11, force: 1, id: 1 });
   try {
     await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point(from)] });
+    // A touch lifts the card on its first move past the slop, never at the press (a tap reads it):
+    // that first move goes straight up, as a finger playing a card does, before the check.
+    await page.waitForTimeout(16);
+    await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [point({ x: from.x, y: from.y - 16 })] });
     const armed = await page
       .locator(`[data-board-card="${cardId}"]`)
       .getAttribute('data-cast-lift')
