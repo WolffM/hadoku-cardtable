@@ -265,6 +265,12 @@ test('room: constructed room, a live match through the room, spectator, result, 
       }
       await alice.page.waitForTimeout(800);
     }
+    // The board itself, not the menu the end-turn presses left open.
+    for (const f of [alice, bob]) {
+      const menu = f.page.getByTestId('action-menu');
+      if ((await menu.count()) > 0 && (await menu.getAttribute('aria-expanded')) === 'true') await menu.tap();
+    }
+    await alice.page.waitForTimeout(400);
     await shotSizes(alice.page, 'match-board', { area: 'match', route: '#/match/<id>', state: 'a mid-game board (seat view)' }, { small: true, landscape: true });
     await shot(bob.page, 'match-board-bob', { area: 'match', route: '#/match/<id>', state: 'the other seat’s board' });
 
