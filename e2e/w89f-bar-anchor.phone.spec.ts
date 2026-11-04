@@ -90,9 +90,10 @@ for (const size of [
       expect.soft(barH, 'the bar’s band grows by the safe area').toBeGreaterThan(52 + 33);
       await withBottomSafeArea(page, 0);
 
-      await pressInMenu(page, 'live-button-end-turn');
-      // Read every frame: the AI's turn can pass between two slower polls.
-      await page.waitForFunction(() => /waiting/i.test(document.querySelector('[data-testid="live-says"]')?.textContent ?? ''), null, { polling: 'raf', timeout: 60_000 });
+      // The opponent's turn: End Turn is the yield toggle then (`data-yield`, `LiveBoard.tsx`'s `yieldMode`).
+      const theirTurn = page.locator('[data-testid="live-button-end-turn"][data-yield]');
+      if ((await theirTurn.count()) === 0) await pressInMenu(page, 'live-button-end-turn');
+      await expect(theirTurn, 'the opponent’s turn comes').toHaveCount(1, { timeout: 60_000 });
       await expectBarAnchored(page, 'the opponent’s turn');
 
       await pressInMenu(page, 'live-concede');
