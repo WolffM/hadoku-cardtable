@@ -270,6 +270,24 @@ test(titled('declaring blockers: the dock is as tall as its question, covers no 
     await expect(dock(alice.page)).toHaveAttribute('data-mode', 'dock');
     await expectBarAnchored(alice.page, 'declare blockers, docked');
     await expectControlsOnTheFirstRow(alice.page, 'declare blockers');
+    // An attack on a player points at the middle of that player's edge: bob's attackers at the bottom
+    // edge's middle on alice's screen, at the top edge's middle on his own (the operator, 2026-11-04).
+    for (const [page, edge] of [[alice.page, 'bottom'], [bob.page, 'top']] as const) {
+      const tips = await page.evaluate(() =>
+        [...document.querySelectorAll('[data-testid="stack-target-arrow"][data-role="attack"]')].map((arrow) => {
+          const box = arrow.getBoundingClientRect();
+          const nums = (arrow.querySelector('path')?.getAttribute('d') ?? '').replace(/[MQ]/g, ' ').trim().split(/\s+/).map(Number);
+          const board = document.querySelector('.board')!.getBoundingClientRect();
+          return { x: nums[4]! + box.left, y: nums[5]! + box.top, mid: board.left + board.width / 2, top: board.top, bottom: board.bottom };
+        }),
+      );
+      console.log(`[dock] attack arrow tips (${edge}): ${JSON.stringify(tips)}`);
+      expect.soft(tips.length, `${edge}: the two attacks draw their arrows`).toBe(2);
+      for (const t of tips) {
+        expect.soft(Math.abs(t.x - t.mid), `${edge}: an attack on a player points at the middle`).toBeLessThanOrEqual(24);
+        expect.soft(edge === 'bottom' ? t.bottom - t.y : t.y - t.top, `${edge}: at that edge`).toBeLessThanOrEqual(48);
+      }
+    }
     await expect(expandBtn(alice.page), 'a small decision needs no expand').toHaveCount(0);
     // As tall as "Select creatures to block." and Done Blocking, no taller, and clear of the lanes
     // it is asking about.
