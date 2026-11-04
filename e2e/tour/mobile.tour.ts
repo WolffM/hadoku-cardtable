@@ -613,6 +613,14 @@ test('scenario2: combat blocks, mistake bubble', async ({ browser }) => {
       await alice.context.close();
       await bob.context.close();
     });
+    await attempt('a big board', async () => {
+      // Five lands, seven creatures and tokens a side (two Soldiers alike): lands behind, the rest in front, the tokens stacked.
+      const { alice, bob } = await phoneScenario(browser, stack, 'tr-bigboard');
+      await alice.page.waitForTimeout(800);
+      await shot(alice.page, 'scn-bigboard', M('a big board: nonlands in front, lands behind, the two Soldier tokens one pile'));
+      await alice.context.close();
+      await bob.context.close();
+    });
     await attempt('combat', async () => {
       const { alice, bob } = await phoneScenario(browser, stack, 'w54-b-two-blockers');
       await until('the block window', async () => {
