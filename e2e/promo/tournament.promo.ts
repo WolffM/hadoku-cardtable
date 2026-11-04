@@ -23,6 +23,9 @@ const AI_SEATS = [2, 3, 6, 7];
 
 /** A hand on the wheel: small notches down until `target` is wholly in view (a jump cut reads as a glitch). */
 async function wheelTo(page: Page, target: Locator): Promise<void> {
+  // Over the room's own column: the wheel scrolls whatever is under the pointer, and the chat is on the right.
+  const column = await page.getByTestId('pod-podium').boundingBox();
+  if (column !== null) await humanMove(page, { x: column.x + column.width * 0.8, y: 640 });
   for (let n = 0; n < 40; n++) {
     const box = await target.boundingBox();
     if (box === null || box.y + Math.min(box.height, 700) <= 1040) return;
@@ -121,7 +124,8 @@ test('tournament: the podium', async ({ browser }) => {
     await deliberateClick(page, row.getByTestId('room-enter'), { hover: 500 });
     await page.getByTestId('pod-podium').waitFor({ timeout: 30_000 });
     film.mark('podium');
-    await humanMove(page, { x: 1700, y: 300 });
+    const stand = (await page.getByTestId('pod-podium').boundingBox())!;
+    await humanMove(page, { x: stand.x + stand.width * 0.85, y: stand.y + stand.height * 0.2 });
     await film.beat(4_500);
 
     film.mark('bracket');
