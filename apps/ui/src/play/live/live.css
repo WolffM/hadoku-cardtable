@@ -1945,6 +1945,15 @@
   content: 'Settings';
 }
 
+/*
+ * A layer over the whole match box (the result screen, the sideboard step, Concede's ask) stops at the
+ * bar's band in portrait, as a docked decision does: the bar stays on the bottom edge, uncovered, in
+ * every state of a match (`e2e/w89f-bar-anchor.phone.spec.ts`).
+ */
+:root[data-layout='portrait'] :is(.board__over, .live__ask) {
+  bottom: var(--portrait-bar-band);
+}
+
 /* ── The action bar itself: chat, menu, zoom, primary (Settled 7) ─────── */
 
 :root[data-layout='portrait'] .action-bar {
