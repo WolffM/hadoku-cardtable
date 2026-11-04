@@ -42,7 +42,10 @@ export function railAt(page: Page): Promise<RailAt | null> {
   return page.evaluate(() => {
     const rail = document.querySelector('[data-testid="live-phases"]');
     if (rail === null) return null;
-    const ok = document.querySelector<HTMLButtonElement>('[data-testid="live-decision-ok"]');
+    // A phone's empty-stack pass is the action bar's primary (portrait docks no pop-up for it); on a
+    // wider table that button is never drawn.
+    const primary = document.querySelector<HTMLButtonElement>('[data-testid="action-primary"]');
+    const ok = document.querySelector<HTMLButtonElement>('[data-testid="live-decision-ok"]') ?? (primary !== null && primary.getClientRects().length > 0 ? primary : null);
     return {
       phase: rail.getAttribute('data-phase') ?? '',
       whose: rail.getAttribute('data-whose') ?? '',
