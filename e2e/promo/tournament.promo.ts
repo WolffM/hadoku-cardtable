@@ -13,8 +13,12 @@ import { deliberateClick, humanMove, until } from './drive.ts';
 import { HERO, openPromoFriend, RIVAL, startFilm } from './rig.ts';
 
 const PREFIX = '/cardtable';
-/** Round 1 pairs seat i with seat i + 4: the hero (0) with Nightjar (4), Vexmoor (1) with Lumen (5). */
-const SEATS: Record<string, number> = { [HERO]: 0, vexmoor: 1, [RIVAL]: 4, lumen: 5 };
+/**
+ * Round 1 pairs seat i with seat i + 4. Entering seats a newcomer at the first open seat (`room/lobby.ts`'s
+ * autoSeat), so the leader holds 0 and the hero, Nightjar and Lumen join into 1, 2 and 3; Nightjar and Lumen
+ * then move to 5 and 4, pairing the hero (1) with Nightjar (5) and Vexmoor (0) with Lumen (4).
+ */
+const MOVES: Record<string, number> = { [RIVAL]: 5, lumen: 4 };
 const AI_SEATS = [2, 3, 6, 7];
 
 /** A hand on the wheel: small notches down until `target` is wholly in view (a jump cut reads as a glitch). */
@@ -55,11 +59,12 @@ test('tournament: eight entrants, the field pairs', async ({ browser }) => {
     film.mark('lobby');
     await film.beat(1_200);
 
-    // The field fills in on camera: the friends sit, then the leader seats the AI.
+    // The field fills in on camera: two friends move to the seats that pair them, then the leader seats the AI.
     film.mark('seats');
     for (const f of friends) {
-      await call(f, 'POST', `/rooms/${roomId}/pod/sit`, { seat: SEATS[f.name]! });
-      await film.beat(450);
+      if (MOVES[f.name] === undefined) continue;
+      await call(f, 'POST', `/rooms/${roomId}/pod/sit`, { seat: MOVES[f.name]! });
+      await film.beat(600);
     }
     for (const seat of AI_SEATS) {
       await call(leader, 'POST', `/rooms/${roomId}/pod/ai`, { seat, on: true });
@@ -106,7 +111,7 @@ test('tournament: the podium', async ({ browser }) => {
     const row = page.getByTestId('room-row').filter({ has: page.getByTestId('room-name').getByText('Testing: Tournament — finished (8 players)', { exact: true }) });
     await until('the finished tournament is listed', async () => {
       await page.goto(`${stack!.origin}${PREFIX}/`);
-      return row.isVisible({ timeout: 5_000 }).catch(() => false);
+      return row.waitFor({ timeout: 10_000 }).then(() => true, () => false);
     }, 90_000, 1_000);
     await page.waitForLoadState('networkidle').catch(() => undefined);
     await film.beat(1_000);
