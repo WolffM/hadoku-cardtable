@@ -73,7 +73,13 @@ So **patch notes and tournament events need no new Discord code.** What is missi
 2. **Embeds** for patch notes. 2000 chars of plain text is tight for a release.
 3. **Guild bootstrap:** ensure-channel, ensure-role and a permanent invite. Without it, track 2 is
    done by hand.
-4. **Later:** Discord ↔ hadoku identity linking (`/link <code>`), for tournament sign-ups and pings.
+4. ~~**Later:** Discord ↔ hadoku identity linking (`/link <code>`)~~ **Live 2026-11-04**, by another
+   route: hadoku's own Discord link (settings gear → avatar, hadoku_site prefs-api) now also gives
+   the **Linked** role and sets the server nickname to the hadoku name. prefs-api sends
+   ArchiveBot's `POST /api/discord/members/sync` on link, unlink, account erase and in each daily
+   avatar refresh, which is how renames get there. ArchiveBot `lib/cardtableMembers.js`. Discord bots
+   can't write user notes, so the nickname stands in for one. The owner, and anyone above the
+   bot's role, keeps their own nickname.
 
 On cardtable's side:
 
