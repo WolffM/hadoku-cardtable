@@ -70,6 +70,15 @@ export function pastSlopUpward(press: Point, at: Point): boolean {
   return pastSlop(press, at) && up > 0 && up > Math.abs(at.x - press.x);
 }
 
+/**
+ * The same for a card in a portrait lane (`../../portrait.css`): past the slop and more vertical than
+ * horizontal, up or down — what the browser itself leaves a `pan-x` element, so an attacker or a blocker
+ * carried toward a target off to its side is still this layer's. Only a hand card must go up (it plays).
+ */
+export function pastSlopAcross(press: Point, at: Point): boolean {
+  return pastSlop(press, at) && Math.abs(press.y - at.y) >= Math.abs(at.x - press.x);
+}
+
 /** Whether the browser may pan a touch press on `node` sideways — its card's `touch-action` names `pan-x`. */
 export function pansSideways(node: EventTarget | null): boolean {
   const card = node instanceof Element ? node.closest('li.board-card') : null;

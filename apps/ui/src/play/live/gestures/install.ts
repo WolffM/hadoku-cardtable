@@ -296,6 +296,7 @@ import {
   clickLatch,
   pansSideways,
   pastSlop,
+  pastSlopAcross,
   pastSlopUpward,
   type DragState,
   type DropTarget,
@@ -1519,6 +1520,24 @@ export function installGestures(options: GestureOptions): GestureHandle {
       return;
     }
     /*
+     * A finger aims a parked cast from the card itself (the operator, 2026-11-04: "make sure that finger
+     * dragging to select stuff works"): a mouse aims by hovering, a finger has no hover, so a press on the
+     * parked card or its stand-in starts the same pointing drag a press on the table starts inside a
+     * selection, and its release over a target commits there (`commitArrowAt`, `onPointerUp`).
+     */
+    if (parked !== null && event.pointerType === 'touch' && match.selectables !== null) {
+      const standIn = parked.ghost ?? cardBox(canvas, parked.source);
+      const box = standIn?.getBoundingClientRect();
+      if (box !== undefined && event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom) {
+        claim(event);
+        const at = { x: event.clientX, y: event.clientY };
+        drag = { source: null, press: at, from: { x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2 }, at, target: null, moved: false, lifted: null, held: true };
+        hover = null;
+        paint();
+        return;
+      }
+    }
+    /*
      * A click that lands on nothing, while a cast is parked, is a cancel too.
      * A press that lands on something Forge's open selection NAMES is left
      * alone — the ordinary click Board's own markup already answers with,
@@ -1782,7 +1801,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // A sideways-pannable touch press (portrait's hand carousel) is the browser's until it clearly
       // goes up: until then this layer leaves it alone — no lift following the finger — and a
       // sideways pan ends it with a `pointercancel` (`onPointerCancel`).
-      if (sidewaysPan && !drag.moved && !pastSlopUpward(drag.press, at)) return;
+      if (sidewaysPan && !drag.moved && !(drag.lifted === 'hand' ? pastSlopUpward(drag.press, at) : pastSlopAcross(drag.press, at))) return;
       const moved = drag.moved || pastSlop(drag.press, at);
       // The card is in hand from the moment the press clears the slop, not at the press itself.
       if (drag.lifted && moved && !drag.moved) playRole('ui.lift');
