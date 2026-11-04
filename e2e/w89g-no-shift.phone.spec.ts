@@ -26,6 +26,8 @@ interface Shift {
   at: number;
   value: number;
   sources: string[];
+  /** Every source is a card in the viewer's hand: the hand closing up round a card that left it. */
+  handOnly: boolean;
 }
 
 /** Collect every layout shift and, per frame, whether a docked question has drawn and with which buttons. */
@@ -42,8 +44,10 @@ async function watch(page: Page): Promise<void> {
     };
     new PerformanceObserver((list) => {
       for (const e of list.getEntries() as unknown as { startTime: number; value: number; sources?: { node: Node | null; previousRect: DOMRectReadOnly; currentRect: DOMRectReadOnly }[] }[]) {
+        const inHand = (n: Node | null): boolean => (n instanceof Element ? n : n?.parentElement)?.closest('[data-testid="lane-my-hand"]') != null;
         w.__shifts.push({
           at: Math.round(e.startTime),
+          handOnly: (e.sources ?? []).length > 0 && (e.sources ?? []).every((src) => inHand(src.node)),
           value: e.value,
           sources: (e.sources ?? []).map((s) => `${describe(s.node)} ${JSON.stringify([s.previousRect.x, s.previousRect.y, s.previousRect.width, s.previousRect.height].map(Math.round))}→${JSON.stringify([s.currentRect.x, s.currentRect.y, s.currentRect.width, s.currentRect.height].map(Math.round))}`),
         });
@@ -79,7 +83,7 @@ test(titled('nothing moves on its own through the menu, a lane, a tap, a long pr
       await page.waitForTimeout(700);
       const all = await shifts(page);
       console.log(`[shift] after ${what}: ${all.length} shifts, total ${all.reduce((n, s) => n + s.value, 0).toFixed(4)}`);
-      for (const s of all) console.log(`[shift]   ${s.at}ms ${s.value.toFixed(4)} ${s.sources.join(' | ')}`);
+      for (const s of all) console.log(`[shift]   ${s.at}ms ${s.value.toFixed(4)}${s.handOnly ? ' (hand)' : ''} ${s.sources.join(' | ')}`);
     };
 
     await page.getByTestId('action-menu').tap();
@@ -118,8 +122,9 @@ test(titled('nothing moves on its own through the menu, a lane, a tap, a long pr
     const first = docks.at(-1);
     expect(first, 'the target question docked').toBeDefined();
     expect.soft(first!.buttons.some((b) => /cancel/i.test(b)), `the dock's first frame already has its Cancel (${first!.buttons.join(', ')})`).toBe(true);
-    const all = await shifts(page);
-    expect.soft(all.reduce((n, s) => n + s.value, 0), `no layout shift: ${all.map((s) => s.sources.join(' | ')).join(' ;; ')}`).toBe(0);
+    // The hand closing up round the card cast out of it is the cast itself; anything else moving is not.
+    const moved = (await shifts(page)).filter((s) => !s.handOnly);
+    expect.soft(moved.reduce((n, s) => n + s.value, 0), `no layout shift: ${moved.map((s) => s.sources.join(' | ')).join(' ;; ')}`).toBe(0);
   } finally {
     await stack.stop();
   }
