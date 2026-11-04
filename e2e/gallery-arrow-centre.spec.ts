@@ -24,8 +24,11 @@ test('every gallery arrow is centred in its circle, both ways', async ({ browser
   const page = await context.newPage();
   try {
     await page.goto(`${EDGE_ORIGIN}${PREFIX}/`);
-    const arrows = page.locator('.gallery__arrow');
-    await expect(arrows.first()).toBeVisible({ timeout: 30_000 });
+    // Both cards revealed and their skeletons dropped: only the real buttons are left to measure.
+    for (const part of ['upcoming', 'wildcard']) await expect(page.locator(`[data-reveal="${part}"]`)).toHaveAttribute('data-phase', 'shown', { timeout: 30_000 });
+    const arrows = page.locator('button.gallery__arrow');
+    await expect(arrows.first()).toBeVisible();
+    await expect(page.locator('.gallery__arrow.ghost')).toHaveCount(0);
     const n = await arrows.count();
     expect(n, 'the front page draws gallery arrows').toBeGreaterThan(0);
     for (let i = 0; i < n; i += 1) {
