@@ -15,7 +15,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { boardCard, castUntilOnStack, clickOnce, enabledOk, handCardNamed, makeTitled, ownNamed, pressOffered, says, serverLog } from './play/board.ts';
+import { boardCard, castUntilOnStack, clickOnce, enabledOk, handCardNamed, lifeOf, makeTitled, ownNamed, pressOffered, says, serverLog } from './play/board.ts';
 import { passToDeclareAttackers, railAt, type RailAt } from './play/combat.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
@@ -35,7 +35,7 @@ const aliceRows = (stack: PlayStack, from: number): string[] =>
     .filter((r) => r.seat === 0 && /auto-passed|prompt-(withheld|forwarded)/.test(String(r.evt)))
     .map((r) => [r.evt, r.kind ?? r.phase, r.why, r.rule, r.plays === undefined ? undefined : JSON.stringify(r.plays)].filter((x) => x !== undefined).join(' '));
 
-const ownLife = (page: Page) => page.locator('.seat[data-viewer] [data-testid="life"]');
+const ownLife = (page: Page) => lifeOf(page, 'me');
 
 /**
  * Bob passes his Main 1 and, with `attack`, declares the Giant attacking — pressing only bob, until

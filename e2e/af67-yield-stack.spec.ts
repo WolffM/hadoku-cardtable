@@ -15,7 +15,7 @@
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castUntilOnStack, makeTitled, offeredNamed, serverLog, stackCount } from './play/board.ts';
+import { castUntilOnStack, lifeOf, makeTitled, offeredNamed, serverLog, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 import { inMenu } from './play/phone.ts';
@@ -25,7 +25,7 @@ const titled = makeTitled(forge);
 
 const endTurnSlot = (page: Page): Locator => page.getByTestId('live-button-end-turn');
 const opponentFace = (page: Page): Locator => page.locator('[data-player-face]:not([data-viewer])');
-const ownLife = (page: Page): Locator => page.locator('.seat[data-viewer] [data-testid="life"]');
+const ownLife = (page: Page): Locator => lifeOf(page, 'me');
 const decisionOk = (page: Page): Locator => page.locator('[data-testid="live-decision-ok"]:enabled');
 
 /** Bob bolts alice: the offered Bolt, then her face, until it is cast. */

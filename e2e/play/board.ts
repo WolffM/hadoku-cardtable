@@ -116,7 +116,20 @@ export const BUTTON_ONE =
 export const BUTTON_TWO =
   '[data-testid="live-button-end-turn"]:enabled, [data-testid="live-decision-cancel"]:enabled, [data-testid="live-payment-cancel"]:enabled, [data-testid="selection-cancel"]:enabled';
 
-export const enabledOk = (page: Page): Locator => page.locator(BUTTON_ONE);
+/**
+ * On a phone the action bar's primary button is Forge's button one too (`LiveBoard.tsx`'s `action-primary`),
+ * and the only one the empty-stack pass draws: portrait docks no pop-up for it. `.first()`: the bar
+ * mirrors a docked OK, and either press is the same answer.
+ */
+const PRIMARY = '[data-testid="action-primary"]:enabled';
+export const enabledOk = (page: Page): Locator => (isPhone() ? page.locator(`${BUTTON_ONE}, ${PRIMARY}`).first() : page.locator(BUTTON_ONE));
+
+/** How many cards are in a seat's graveyard, as the screen says: its chip's count in portrait, its zone's on a wider table. */
+export async function graveyardCount(page: Page, who: 'me' | 'opp'): Promise<string | null> {
+  const chip = page.getByTestId(who === 'me' ? 'seat-chip-me' : 'seat-chip-opp').locator('[data-count="graveyard"]');
+  if (await chip.isVisible().catch(() => false)) return /\d+/.exec((await chip.getAttribute('aria-label')) ?? '')?.[0] ?? null;
+  return page.locator(`[data-zone="graveyard"][data-owner="${who === 'me' ? 'you' : 'them'}"]`).getAttribute('data-count');
+}
 
 /** A seat's life as the screen shows it: its chip in the portrait band, or its seat on a wider table. */
 export const lifeOf = (page: Page, who: 'me' | 'opp'): Locator =>
@@ -134,7 +147,8 @@ export const enabledCancel = (page: Page): Locator => page.locator(BUTTON_TWO);
  * ONLY for the pass route (`passLabel` in `LiveBoard.tsx`), so the label is read rather than
  * guessed from the phase or the stack.
  */
-export const nextPhaseLive = (page: Page): Locator => page.locator('[data-testid="live-decision-ok"]:enabled', { hasText: /^Next Phase$/ });
+export const nextPhaseLive = (page: Page): Locator =>
+  page.locator(isPhone() ? `[data-testid="live-decision-ok"]:enabled, ${PRIMARY}` : '[data-testid="live-decision-ok"]:enabled', { hasText: /^Next Phase$/ }).first();
 
 /** `[data-zone="stack"]`'s own `data-count` (`Board.tsx`) — never counted from children. */
 export const stackCount = (page: Page): Promise<number> =>

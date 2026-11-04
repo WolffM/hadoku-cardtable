@@ -40,7 +40,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { castCard, clickHandCard, clickOnce, enabledOk, lifeOf, livePrompt, makeTitled, offeredCard, pressPaymentAuto, promptMethod, resizeWindow, says, serverLog, stackCount } from './play/board.ts';
+import { castCard, clickHandCard, clickOnce, enabledOk, graveyardCount, lifeOf, livePrompt, makeTitled, offeredCard, pressPaymentAuto, promptMethod, resizeWindow, says, serverLog, stackCount } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
 import { answerPrompt } from './play/prompts.ts';
@@ -158,10 +158,7 @@ test(titled('§E1 — with Full Control on, clicking an instant in response to t
     await expect.poll(() => stackCount(alice.page), { timeout: 15_000, message: 'everything on the stack finished resolving' }).toBe(0);
 
     // Memnite was countered: it never reached bob's battlefield.
-    await expect(
-      alice.page.locator('[data-zone="graveyard"][data-owner="them"]'),
-      'Memnite was countered: it is in bob\'s graveyard, never having resolved onto his battlefield',
-    ).toHaveAttribute('data-count', '1');
+    expect(await graveyardCount(alice.page, 'opp'), 'Memnite was countered: it is in bob\'s graveyard, never having resolved onto his battlefield').toBe('1');
     expect(await bob.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card').count(), 'and so never reached bob\'s own battlefield either').toBe(0);
   } finally {
     await stack.stop();

@@ -12,7 +12,7 @@
  */
 import { expect, test } from '@playwright/test';
 
-import { clickHandCard, handCardNamed, lifeOf, makeTitled, offered, pressOffered, says, stackCount } from './play/board.ts';
+import { clickHandCard, graveyardCount, handCardNamed, lifeOf, makeTitled, offered, pressOffered, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
@@ -30,7 +30,6 @@ test(titled('the payment window’s life button pays a Phyrexian cost with 2 lif
     seated = await startScenarioMatch(browser, stack, 'af61-phyrexian');
     const page = seated.alice.page;
     const ownLife = lifeOf(page, 'me');
-    const graveyard = page.locator('[data-zone="graveyard"][data-owner="you"]');
 
     await expect.poll(() => handCardNamed(page, 'Gitaxian Probe'), { timeout: 30_000, message: 'alice holds Gitaxian Probe' }).not.toBeUndefined();
     const probe = (await handCardNamed(page, 'Gitaxian Probe'))!;
@@ -69,8 +68,8 @@ test(titled('the payment window’s life button pays a Phyrexian cost with 2 lif
       .poll(() => ownLife.textContent(), { timeout: 15_000, message: `alice paid 2 life — payment window ${(await payment.count()) > 0 ? 'still open' : 'gone'}, settings ${(await page.getByRole('dialog', { name: /settings/i }).count()) > 0 ? 'opened' : 'closed'}` })
       .toBe('18');
     await expect.poll(() => stackCount(page), { timeout: 15_000, message: 'Probe resolved' }).toBe(0);
-    await expect.poll(() => graveyard.getAttribute('data-count'), { timeout: 15_000, message: 'Probe is in alice’s graveyard' }).toBe('1');
-    console.log(`[af61] paid: life=${await ownLife.textContent()} graveyard=${await graveyard.getAttribute('data-count')}`);
+    await expect.poll(() => graveyardCount(page, 'me'), { timeout: 15_000, message: 'Probe is in alice’s graveyard' }).toBe('1');
+    console.log(`[af61] paid: life=${await ownLife.textContent()} graveyard=${await graveyardCount(page, 'me')}`);
   } finally {
     await seated?.alice.context.close();
     await seated?.bob.context.close();

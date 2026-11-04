@@ -11,7 +11,7 @@
  */
 import { expect, test } from '@playwright/test';
 
-import { castUntilOnStack, clickHandCard, handCardNamed, lifeOf, makeTitled, offered, says } from './play/board.ts';
+import { castUntilOnStack, clickHandCard, graveyardCount, handCardNamed, lifeOf, makeTitled, offered, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
 
@@ -28,7 +28,6 @@ test(titled('Searing Blaze is offered with a creature to hit, and hits bob and h
     seated = await startScenarioMatch(browser, stack, 'af69-searing-blaze');
     const page = seated.alice.page;
     const bobLife = lifeOf(page, 'opp');
-    const bobGraveyard = page.locator('[data-zone="graveyard"][data-owner="them"]');
 
     await expect.poll(() => handCardNamed(page, 'Searing Blaze'), { timeout: 30_000, message: 'alice holds Searing Blaze' }).not.toBeUndefined();
     const blaze = (await handCardNamed(page, 'Searing Blaze'))!;
@@ -46,8 +45,8 @@ test(titled('Searing Blaze is offered with a creature to hit, and hits bob and h
     const bears = page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] [data-board-card]');
     await castUntilOnStack(page, stack, blaze, [bobFace, bears]);
     await expect.poll(() => bobLife.textContent(), { timeout: 20_000, message: 'Searing Blaze resolved: bob took 3' }).toBe('17');
-    await expect.poll(() => bobGraveyard.getAttribute('data-count'), { timeout: 15_000, message: 'the Grizzly Bears took 3 and died' }).toBe('1');
-    console.log(`[af69] resolved: bob life=${await bobLife.textContent()} bob graveyard=${await bobGraveyard.getAttribute('data-count')}`);
+    await expect.poll(() => graveyardCount(page, 'opp'), { timeout: 15_000, message: 'the Grizzly Bears took 3 and died' }).toBe('1');
+    console.log(`[af69] resolved: bob life=${await bobLife.textContent()} bob graveyard=${await graveyardCount(page, 'opp')}`);
   } finally {
     await seated?.alice.context.close();
     await seated?.bob.context.close();
