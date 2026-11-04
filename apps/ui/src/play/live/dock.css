@@ -139,7 +139,7 @@
   content: none;
 }
 
-/* ── the handle: the grip a swipe moves the dock by, and its own controls ───────────────────────────── */
+/* ── the handle: the strip a swipe moves the dock by, drawn as nothing, and its own controls ───────────────────────────── */
 
 :root[data-layout="portrait"] .dock__handle {
   flex: none;
@@ -148,23 +148,12 @@
   justify-content: flex-end;
   gap: 6px;
   position: relative;
-  /* The grip's own strip only: the controls stand on the sheet's first row (the operator, 2026-11-04:
-     "it should be on the same row as the 'Select any target' title row"). */
-  padding: 14px 8px 0;
+  /* A strip the swipe starts on, drawn as nothing (the operator, 2026-11-04: no "swipe down" indicator);
+     the controls stand on the sheet's first row ("on the same row as the 'Select any target' title row"). */
+  padding: 8px 8px 0;
   touch-action: none;
   cursor: grab;
   pointer-events: auto;
-}
-
-:root[data-layout="portrait"] .dock__grip {
-  position: absolute;
-  top: 6px;
-  left: 50%;
-  width: 36px;
-  height: 4px;
-  translate: -50% 0;
-  border-radius: 2px;
-  background: var(--line);
 }
 
 :root[data-layout="portrait"] .dock__controls {
@@ -189,11 +178,22 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-card);
-  border: 1px solid var(--line-soft);
+  /* No chrome at rest (the operator, 2026-11-04: "minimize button doesn't need a border outline at all"). */
+  padding: 0;
+  background: none;
+  border: none;
   border-radius: 10px;
   color: var(--ink);
   pointer-events: auto;
+}
+
+:root[data-layout="portrait"] .dock__ctl:focus {
+  outline: none;
+}
+
+:root[data-layout="portrait"] .dock__ctl:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 :root[data-layout="portrait"] .dock__ctl::before {

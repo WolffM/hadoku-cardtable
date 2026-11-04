@@ -368,7 +368,7 @@ function useDock(frameRef: RefObject<HTMLDivElement | null>, active: boolean): {
 }
 
 /**
- * The dock's handle: the grip a swipe moves it by, and its own controls — expand (only while `overflow`
+ * The dock's handle: the strip a swipe moves it by (drawn as nothing), and its own controls — expand (only while `overflow`
  * says the docked sheet is clipping something), shrink back from full, and minimize to a pill. The swipe
  * mirrors the approved prototype exactly: up grows to full (only when that is allowed), down steps the
  * dock down one size at a time (full → dock → min), and the "–" button jumps straight to the pill.
@@ -411,7 +411,6 @@ function DockHandle({ mode, overflow, onFull, onDock, onMin }: { mode: DockMode;
   };
   return (
     <div className="dock__handle" data-testid="decision-dock-handle" onPointerDown={onPointerDown}>
-      <span className="dock__grip" aria-hidden="true" />
       <span className="dock__controls">
         {mode === 'dock' && overflow && (
           <button type="button" className="dock__ctl" data-testid="decision-expand" aria-label="Expand" onClick={onFull} />
