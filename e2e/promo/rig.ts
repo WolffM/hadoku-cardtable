@@ -54,6 +54,12 @@ export const TAGS: Record<string, string> = { ashgrove: 'Ashgrove', nightjar: 'N
 /** Each tag's watchparty sprite: the hero is Fern (`mage`) and the rival Himmel (`herald`), as the operator asked. */
 export const AVATARS: Record<string, string> = { ashgrove: 'mage', nightjar: 'herald', vexmoor: 'sage', lumen: 'knight' };
 
+/** The commit this tree was on when the take was filmed (the manifest's build), `+dirty` if anything outside `.run/` differed. */
+const BUILD = ((): string => {
+  const sha = execFileSync('git', ['rev-parse', '--short=12', 'HEAD'], { encoding: 'utf8' }).trim();
+  return execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { encoding: 'utf8' }).trim() === '' ? sha : `${sha}+dirty`;
+})();
+
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export interface Film {
@@ -151,7 +157,7 @@ export async function startFilm(clip: string): Promise<Film & { roll(): Promise<
         writeFileSync(resolve(dir, `${clip}.raf.json`), JSON.stringify(raf));
         await hero.close().catch((err: unknown) => console.warn(`[promo:${clip}] hero browser close: ${String(err)}`));
         execFileSync('pactl', ['unload-module', sinkModule]);
-        writeFileSync(resolve(dir, `${clip}.marks.json`), JSON.stringify({ clip, fps: FPS, marks }, null, 2));
+        writeFileSync(resolve(dir, `${clip}.marks.json`), JSON.stringify({ clip, fps: FPS, build: BUILD, marks }, null, 2));
         if (arrivals.length === 0) return out;
         const gaps = arrivals.slice(1).map((t, i) => t - arrivals[i]!);
         const late = gaps.filter((g) => g > (1000 / FPS) * 1.5).length;

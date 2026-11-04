@@ -8,6 +8,7 @@ import { test } from '@playwright/test';
 import { submitCreateRoom } from '../play/rooms.ts';
 import { twoLegalDecks } from '../play/enter.ts';
 import { forgeAvailability, startPlayStack } from '../play/harness.ts';
+import { choosePool, poolEras } from '../play/pool.ts';
 import { HERO, openPromoFriend, PROMO_DIR, RIVAL } from './rig.ts';
 
 test('recon: lobby stills', async ({ browser }) => {
@@ -28,13 +29,13 @@ test('recon: lobby stills', async ({ browser }) => {
     await shot('02-room');
     await rival.page.goto(roomUrl);
     const choice = await twoLegalDecks(hero.context.request, stack.origin);
-    console.log(`[recon] formats: ${(await hero.page.getByTestId('format').locator('option').allTextContents()).slice(0, 80).join(' | ')}`);
-    await hero.page.getByTestId('format').selectOption(choice.format);
+    console.log(`[recon] eras: ${(await poolEras(hero.page)).join(' | ')}`);
+    await choosePool(hero.page, choice.format);
     await hero.page.waitForTimeout(2_500);
     await shot('03-format');
     await hero.page.getByRole('tab', { name: 'Legacy', exact: true }).click();
     await hero.page.waitForTimeout(1_500);
-    console.log(`[recon] legacy options: ${JSON.stringify(await hero.page.getByTestId('format').locator('option').evaluateAll((os) => os.map((o) => [(o as HTMLOptionElement).value, o.textContent])))}`);
+    console.log(`[recon] legacy eras: ${(await poolEras(hero.page)).join(' | ')}`);
     console.log(`[recon] tiles: ${JSON.stringify(await hero.page.getByTestId('deck-mine').locator('[data-deck-id]').evaluateAll((ts) => ts.slice(0, 40).map((t) => [t.getAttribute('data-deck-id'), (t.textContent ?? '').slice(0, 40)])))}`);
     await shot('05-legacy');
     await hero.page.getByTestId('deck-mine').locator(`[data-deck-id="${choice.decks[0]}"]`).hover();

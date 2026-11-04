@@ -8,20 +8,12 @@ import { test, type Page } from '@playwright/test';
 import { forgeAvailability, startPlayStack, type PlayStack } from '../play/harness.ts';
 import { confirmYes } from '../play/confirm.ts';
 import { says } from '../play/board.ts';
-import { deliberateClick, humanMove, humanRest, pressIfThere, until } from './drive.ts';
+import { deliberateClick, dragYear, humanMove, humanRest, pressIfThere, until } from './drive.ts';
 import { HERO, openPromoFriend, RIVAL, startFilm } from './rig.ts';
 
 const PREFIX = '/cardtable';
 
 const deckTile = (page: Page, name: RegExp) => page.getByTestId('deck-mine').locator('[data-deck-id]', { hasText: name }).first();
-
-async function pickEra(page: Page, value: string): Promise<void> {
-  const select = page.getByTestId('format');
-  await deliberateClick(page, select, { hover: 300 });
-  await page.keyboard.press('Escape');
-  await select.selectOption(value);
-  await page.waitForTimeout(1_400);
-}
 
 test('constructed: historical decks with a friend', async ({ browser }) => {
   const forge = forgeAvailability();
@@ -53,7 +45,10 @@ test('constructed: historical decks with a friend', async ({ browser }) => {
     await deliberateClick(page, page.getByRole('tab', { name: 'Legacy', exact: true }), { hover: 400 });
     await film.beat(1_000);
     film.mark('eras');
-    for (const era of ['legacy-2008-07-25', 'legacy-2014-07-18', 'legacy-2025-06-30']) await pickEra(page, era);
+    for (const era of ['legacy-2008-07-25', 'legacy-2014-07-18', 'legacy-2025-06-30']) {
+      await dragYear(page, era);
+      await film.beat(1_400);
+    }
 
     film.mark('decks');
     for (const name of [/Cephalid/, /Reanimator/, /Omnitell/]) {

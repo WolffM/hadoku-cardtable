@@ -12,6 +12,7 @@ import { passToDeclareAttackers } from '../play/combat.ts';
 import { answerPrompt } from '../play/prompts.ts';
 import type { Friend } from '../play/browser.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from '../play/harness.ts';
+import { expectPoolOn, poolSlider } from '../play/pool.ts';
 import { startScenarioMatch } from '../play/scenario.ts';
 import { humanMove, humanRest } from './mouse.ts';
 import { AVATARS, HERO, openPromoFriend, PROMO_DIR, RIVAL, startFilm, TAGS, type Film } from './rig.ts';
@@ -97,6 +98,25 @@ export async function deliberateClick(page: Page, target: Locator, opts: { hover
   await humanRest(page, opts.hover ?? 450);
   // The locator's own click: a bare mouse.click on a player's face never reached the board's pick handler.
   await target.click();
+}
+
+/**
+ * The leader drags the Classic year slider's pill to `eraId`'s tick (`play/pool.ts`), as a person would:
+ * onto the pill, press, carry it along the ruler, let go. Resolves once the room has answered.
+ */
+export async function dragYear(page: Page, eraId: string): Promise<void> {
+  const slider = poolSlider(page);
+  const thumb = (await slider.locator('.year-slider__thumb').boundingBox())!;
+  const rail = (await slider.getByRole('slider').boundingBox())!;
+  const tick = (await slider.locator(`[data-era="${eraId}"]`).boundingBox())!;
+  const y = rail.y + rail.height / 2;
+  await humanMove(page, { x: thumb.x + thumb.width / 2, y });
+  await humanRest(page, 260);
+  await page.mouse.down();
+  await humanMove(page, { x: tick.x + tick.width / 2, y }, 1.6);
+  await humanRest(page, 180);
+  await page.mouse.up();
+  await expectPoolOn(page, eraId);
 }
 
 export const handCard = (page: Page, name: string): Locator =>
