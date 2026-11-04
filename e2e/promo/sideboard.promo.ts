@@ -9,6 +9,7 @@ import { test, type Page } from '@playwright/test';
 import { says } from '../play/board.ts';
 import { confirmYes } from '../play/confirm.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from '../play/harness.ts';
+import { choosePool } from '../play/pool.ts';
 import { submitCreateRoom } from '../play/rooms.ts';
 import { deliberateClick, humanRest, pressIfThere, until } from './drive.ts';
 import { HERO, openPromoFriend, RIVAL, startFilm } from './rig.ts';
@@ -49,8 +50,7 @@ test('sideboard: between games, two cards in, two out', async ({ browser }) => {
     const roomUrl = hero.page.url();
     await rival.page.goto(roomUrl);
     await hero.page.getByTestId('constructed').waitFor({ timeout: 30_000 });
-    await hero.page.getByRole('tab', { name: 'Legacy', exact: true }).click();
-    await hero.page.getByTestId('format').selectOption(ERA);
+    await choosePool(hero.page, ERA);
     await until('both can pick a deck', async () => {
       for (const p of [hero.page, rival.page]) if ((await p.getByTestId('deck-mine').locator('[data-deck-id]').count()) === 0) return false;
       return true;
