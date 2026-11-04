@@ -53,6 +53,12 @@ def take_build(clip: str) -> str:
     return sha[:12]
 
 
+def app_build(sha: str) -> str:
+    """The main commit under a take's build: every app file the take shows comes from it (the promo branch adds
+    only `e2e/promo/` and a probe-only start option on top)."""
+    return subprocess.run(["git", "merge-base", sha.removesuffix("+dirty"), "origin/main"], capture_output=True, text=True, check=True).stdout.strip()[:12]
+
+
 def export(src: Path, start: float, end: float, dst: Path) -> None:
     if dst.exists() and dst.stat().st_mtime >= src.stat().st_mtime:
         return
@@ -69,7 +75,7 @@ def row(n: int, clip: str, scene: str, shows: str, start: float, end: float, a: 
     name = f"{n:02d}-{clip}.mp4"
     export(src, start, end, OUT / name)
     file_marks = {k: round(t - start, 3) for k, t in m.items() if start <= t <= end and not k.endswith(":*")}
-    return {"file": name, "kind": kind, "scene": scene, "shows": shows, "source": clip, "build": take_build(clip),
+    return {"file": name, "kind": kind, "scene": scene, "shows": shows, "source": clip, "build": take_build(clip), "main": app_build(take_build(clip)),
             "duration": round(duration(OUT / name), 3), "key_in": round(a - start, 3), "key_out": round(b - start, 3),
             "peak": round(hit - start, 3), "peak_by": by, "marks": file_marks}
 
@@ -104,14 +110,17 @@ def main() -> None:
         rows[-1]["card"] = card
         print(f"clips: {rows[-1]['file']}  {rows[-1]['duration']:6.2f}s  {card}")
     builds = sorted({r["build"] for r in rows})
-    (OUT / "manifest.json").write_text(json.dumps({"fps": 60, "size": [1920, 1080], "audio": "game sound, AAC 192k", "builds": builds, "clips": rows}, indent=2) + "\n")
+    mains = sorted({r["main"] for r in rows})
+    (OUT / "manifest.json").write_text(json.dumps({"fps": 60, "size": [1920, 1080], "audio": "game sound, AAC 192k", "main": mains, "builds": builds, "clips": rows}, indent=2) + "\n")
     lines = ["# Cardtable trailer clips", "",
              "Uncut takes, 1080p60 with the game's own sound (no music bed), no zoom, no captions. Each scene runs from a",
              "second before its first beat to the driver's tail; each finale clip from about a second before the play to",
              "its settled tail. Timecodes are m:ss.sss into each file. `key in`→`key out` is the moment to use; `peak` is",
              "where a life total first changes (`life`) or else the frame where the screen changes most (`frame`).",
              "`manifest.json` also lists every driver mark as a timecode into the file.", "",
-             f"Filmed on build(s): {', '.join(builds)} (hadoku-cardtable main + the promo rig).", "",
+             f"Filmed on hadoku-cardtable main {', '.join(mains)} (the app, plus the promo branch's probe-only seat-avatar option for scenario matches). `build` is the promo-branch commit each take",
+             f"was driven from ({', '.join(builds)}); they differ only in `e2e/promo/` drivers, never in the app.",
+             "The podium is the seeded admin testing room \"Tournament — finished (8 players)\": its entrants are the seed and seven AI.", "",
              "| # | File | Kind | Scene / card | Duration | Key in | Key out | Peak | Build | What it shows |",
              "|---|---|---|---|---|---|---|---|---|---|"]
     for i, r in enumerate(rows, 1):
