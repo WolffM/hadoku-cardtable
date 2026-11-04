@@ -28,7 +28,14 @@ import { answerPrompt } from './prompts.ts';
  * card offers none of `verbs`), so a caller fails with its own message rather than hanging.
  */
 async function tapCardView(page: Page, cardId: number, verbs: readonly string[]): Promise<boolean> {
-  await page.locator(`[data-board-card="${cardId}"] button`).first().tap();
+  const face = page.locator(`[data-board-card="${cardId}"] button`).first();
+  // A docked decision stands over the hand (Settled 6): to answer it with a hand card a player shrinks it first.
+  const docked = await face.evaluate((el) => {
+    const b = el.getBoundingClientRect();
+    return document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)?.closest('[data-testid="decision-dock"][data-mode="dock"]') != null;
+  });
+  if (docked) await page.getByTestId('decision-minimize').tap();
+  await face.tap();
   const view = page.getByTestId('card-view');
   if ((await view.count()) === 0) return false;
   const action = view.locator(verbs.map((v) => `[data-testid="card-view-action"][data-verb="${v}"]`).join(', ')).first();
