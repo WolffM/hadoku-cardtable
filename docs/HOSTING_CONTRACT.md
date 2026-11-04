@@ -35,7 +35,10 @@ apps/server/node_modules/.bin/tsx scripts/hosting/contract-check.ts   # exit 1: 
 
 - Only on a node that meets every `placement.require` rule:
   - `wired`: on a cable, not Wi-Fi.
-  - `not-beside-unbounded`: nothing else on the node holds memory without a ceiling.
+  - `not-beside-unbounded`: nothing else on the node holds memory without a ceiling. A ceiling is
+    the smallest `memory.max` from a unit's cgroup up to the root, so a unit that reads
+    `MemoryMax=infinity` inside a bounded slice is bounded. Misreading that is what broke this
+    on 2026-11-04 (below).
 - Ranked by `placement.order`: **claw-8, claw-9, claw-10, claw-5** (operator, 2026-10-31 and
   2026-11-03), ahead of CI cost.
 - fleet-manager checks this when it declares (`hosting-plan`). §3 is what keeps it true afterwards.
@@ -97,12 +100,17 @@ Our side of the interface. A change to any of these fields is a contract change,
 
 ## Where it stands
 
-On 2026-11-04 at 19:31Z, `contract-check.ts` found three violations:
+**Kept** since 2026-11-04 19:37Z: `contract-check.ts` exits 0, and claw-8 and claw-9 are serving.
 
-- **§3:** claw-8 holds our slice beside watchparty's standby (`pm2-watchparty-svc`, there since
-  14:19Z), and claw-9 beside archivebot's (`pm2-archivebot-svc`, since 18:10Z). Both run with
-  `MemoryMax=infinity`.
-- **§1:** fleet-manager holds 4 slices for our demand of 2, counting claw-5 and claw-10 as
-  serving.
+**What happened that day.** watchparty's standby went onto claw-8 at 14:19Z, and archivebot's onto
+claw-9 at 18:10Z. Each service unit reads `MemoryMax=infinity`, but runs inside a bounded slice:
+`hosting-watchparty.slice` at 1536 MiB, `hosting-archivebot.slice` at 1024 MiB. fleet-manager read
+the unit, judged our slices on claw-8 and claw-9 unplaceable under §3, and declared claw-10
+(12:11Z) and claw-5 (18:14Z) to make up the count. That left 4 slices for our demand of 2, a §1
+breach. cardtable's first diagnosis read the unit the same way and called the services unbounded;
+they never were.
 
-Asked of fleet-manager in [request §12](requests/FLEET_MANAGER_FORGE_HOSTING.md#12-keep-the-contract-added-2026-11-04).
+fleet-manager 3ebf625 (0.34.340, live about 19:20Z) reads the effective ceiling instead. Its
+converger then ended claw-10 and claw-5, with our 15 min notice, at 19:47:41Z. Placement that also
+checks the rules of the tenants already on a node is fleet-manager's to land
+([request §12](requests/FLEET_MANAGER_FORGE_HOSTING.md#12-keep-the-contract-added-2026-11-04)).

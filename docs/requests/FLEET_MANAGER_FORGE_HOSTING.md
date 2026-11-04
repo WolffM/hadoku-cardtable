@@ -328,9 +328,9 @@ violation that holds 5 min.
 On 2026-11-04 at 19:31Z it finds three violations:
 
 - **§3, twice.** Your converger placed watchparty's standby on claw-8 (14:19Z) and archivebot's on
-  claw-9 (18:10Z). Both are pm2 services with `MemoryMax=infinity`, on nodes holding our slices,
-  and our `require` has `not-beside-unbounded`. Your converger then judged our own slices
-  unplaceable (`fails "not-beside-unbounded"`).
+  claw-9 (18:10Z), then judged our own slices there unplaceable (`fails "not-beside-unbounded"`).
+  (Corrected the same day: both services were bounded all along, by their slices at 1536 and 1024
+  MiB. The unit's `MemoryMax=infinity` misled both your measurement and our first read.)
 - **§1.** Your converger answered by declaring claw-10 (12:11Z, before either standby; we could not
   tell from the logs what it was reacting to then) and claw-5 (18:14Z). That leaves 4 slices held
   for our demand of 2: 8 cores and 8 GB away from CI. claw-5 is the slow box the operator does not
@@ -342,6 +342,12 @@ What we ask:
   already on it**, not only the newcomer's. Placing a standby there is a declare like any other.
 - Either bound those two services (`MemoryMax`) or move them off claw-8 and claw-9. Then end
   claw-5 and claw-10 in our release order (claw-5 first), as the extras they are.
+
+**Answered 2026-11-04.** fleet-manager 3ebf625 (0.34.340, live about 19:20Z) measures a
+neighbour's ceiling as the smallest `memory.max` from its unit up to the root. The converger then
+ended claw-10 and claw-5 at 19:47:41Z with our notice; `contract-check.ts` exits 0 from 19:37Z.
+Checking the rules of the tenants already on a node, not only the newcomer's, is agreed and in
+progress on fleet-manager's side.
 - **Pass lines:** `apps/server/node_modules/.bin/tsx scripts/hosting/contract-check.ts` exits 0;
   `fleet hosting-demand cardtable --json` shows `declared` equal to `lastPass.serving` with
   `demand.slices` entries; and no placement of another tenant ever makes one of our slices
