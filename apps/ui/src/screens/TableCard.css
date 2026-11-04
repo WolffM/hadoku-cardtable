@@ -210,7 +210,7 @@
   padding: 0 16px;
   border-radius: var(--radius);
   background: var(--color-primary);
-  color: var(--color-bg);
+  color: var(--color-on-primary);
   font-weight: 600;
   text-decoration: none;
 }

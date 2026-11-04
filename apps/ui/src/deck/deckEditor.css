@@ -526,7 +526,7 @@
   font: inherit;
   font-weight: 700;
   gap: 8px;
-  color: var(--bg);
+  color: var(--on-success);
   background: var(--success);
   border: 1px solid var(--success);
   cursor: pointer;

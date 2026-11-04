@@ -100,7 +100,7 @@
   border: 0;
   border-radius: var(--hdk-radius-sm);
   background: var(--accent);
-  color: var(--accent-ink);
+  color: var(--on-accent);
   font: inherit;
   font-weight: 600;
   cursor: pointer;

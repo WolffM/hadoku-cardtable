@@ -1382,7 +1382,7 @@
 .live__result-tick {
   width: 14px;
   height: 14px;
-  fill: var(--bg-card);
+  fill: var(--on-success);
 }
 
 .live__result-avatar {

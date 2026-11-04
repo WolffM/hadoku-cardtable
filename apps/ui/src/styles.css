@@ -166,6 +166,8 @@
   --success: var(--color-success);
   /* The theme's pairings for a state drawn as a tinted chip: ink on its own pale fill. */
   --on-success: var(--color-on-success);
+  /* A danger fill's own ink, as `--on-accent` is the accent's and `--on-success` the success's. */
+  --on-danger: var(--color-on-danger);
   --success-bg: var(--color-success-bg);
   --success-dark: var(--color-success-dark);
   --danger-bg: var(--color-danger-bg);

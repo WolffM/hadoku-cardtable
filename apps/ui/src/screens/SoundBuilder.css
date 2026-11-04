@@ -871,6 +871,7 @@ a.sound-builder__btn {
 .music-review__submit[data-state='failed'] {
   background: var(--danger);
   border-color: var(--danger);
+  color: var(--on-danger);
 }
 
 .music-review__reset[data-armed] {
