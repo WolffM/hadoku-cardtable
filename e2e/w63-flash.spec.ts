@@ -158,11 +158,13 @@ async function passOnce(page: Page, button: 'next-phase' | 'end-turn' = 'next-ph
 async function advanceToTurn(alice: Page, bob: Page, targetTurn: number, timeoutIterations = 600): Promise<void> {
   for (let i = 0; i < timeoutIterations; i++) {
     for (const p of [alice, bob]) await answerPrompt(p);
-    const turnText = await alice.getByTestId('live-phases').getAttribute('data-turn');
-    const turn = Number(turnText ?? '0');
-    if (turn >= targetTurn && (await nextPhaseOffered(alice))) return;
+    const reached = async (): Promise<boolean> => Number((await alice.getByTestId('live-phases').getAttribute('data-turn')) ?? '0') >= targetTurn;
+    if ((await reached()) && (await nextPhaseOffered(alice))) return;
     let clicked = false;
     for (const p of [alice, bob]) {
+      // Read again before alice's press: the turn can tick over after the read above, and her pass then
+      // would carry her straight through the very stop this is driving to.
+      if (p === alice && (await reached())) continue;
       if (await nextPhaseOffered(p)) {
         // Bob holds his window the way a person does before passing: a window answered inside the
         // server's 150 ms grace is never told to the other seat (no flash, by design), so a driver
