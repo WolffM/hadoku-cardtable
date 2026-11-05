@@ -20,6 +20,7 @@ const EMPTY: ReplayData = {
   header: { matchId: 'm-1', roomId: null, players: ['Alice', 'Bob'], ai: [false, false], decks: [], art: [], startedAt: '2026-10-27T00:00:00.000Z' },
   envs: [],
   presence: [],
+  relays: [],
   end: null,
 };
 

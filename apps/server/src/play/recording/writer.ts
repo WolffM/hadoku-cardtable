@@ -143,6 +143,18 @@ export interface PublicPresenceLine {
 }
 
 /**
+ * A table message one seat relayed to the others (`@hadoku/shared`'s `relayed.ts`: a placement, a row
+ * order, a stack card's place), as its echo, so a replay lays the table out as the players saw it.
+ * Absent from a recording made before they were kept.
+ */
+export interface PublicRelayLine {
+	t: 'relay';
+	at: number;
+	event: string;
+	echo: unknown;
+}
+
+/**
  * A seat as the `end` line keeps it: the part of `forge:seats` (`SeatIdentity`) a replay draws faces
  * from. A live board hears it on its own socket event, never through the watcher channel's envelopes,
  * so without this a replay drew every player without an avatar.
@@ -183,6 +195,8 @@ export interface MatchRecordingWriter {
 	publicEnv(line: Omit<PublicEnvLine, 't'>): void;
 	/** Append one `presence` line. Buffered. */
 	publicPresence(line: Omit<PublicPresenceLine, 't'>): void;
+	/** Append one `relay` line. Buffered. */
+	publicRelay(line: Omit<PublicRelayLine, 't'>): void;
 	/** Both headers' `roomId`: a room links its match only after the match's host has started. */
 	room(roomId: string): void;
 	/**
@@ -234,6 +248,9 @@ export function createMatchRecordingWriter(deps: MatchRecordingWriterDeps): Matc
 		},
 		publicPresence(line) {
 			publicLines.push({ t: 'presence', ...line });
+		},
+		publicRelay(line) {
+			publicLines.push({ t: 'relay', ...line });
 		},
 		room(roomId) {
 			actionsHeader.roomId = roomId;

@@ -55,6 +55,8 @@ interface Harness {
 	hosts: ReplayHost[];
 	handle: import('./socket.ts').PlayHandle;
 	logs: Record<string, unknown>[];
+	/** Every table message relayed, as `PlayDeps.onRelay` heard it — what a recording keeps. */
+	relays: { matchId: string; event: string; echo: unknown }[];
 	close: () => Promise<void>;
 }
 
@@ -86,6 +88,7 @@ async function boot(
 ): Promise<Harness> {
 	const { factory, hosts } = options.host ?? replayFactory();
 	const logs: Record<string, unknown>[] = [];
+	const relays: Harness['relays'] = [];
 	const app = express();
 	// The same order index.ts uses: provenance, the floor, then /api.
 	app.use(edgeMod.edgeProvenance);
@@ -98,6 +101,7 @@ async function boot(
 		minTier: 'friend',
 		host: factory,
 		log: (e) => logs.push(e),
+		onRelay: (matchId, event, echo) => relays.push({ matchId, event, echo }),
 		startTimeoutMs: options.startTimeoutMs ?? 5000,
 		joinWaitMs: 1000,
 		...(options.coldStarts === undefined ? {} : { coldStarts: options.coldStarts }),
@@ -118,6 +122,7 @@ async function boot(
 		hosts,
 		handle,
 		logs,
+		relays,
 		close: async () => {
 			handle.close();
 			io.close();
@@ -631,6 +636,7 @@ describe('two seats over the socket', () => {
 		expect(bob.arrangements[0]).toEqual({ ...message, seat: 0 });
 		await new Promise((r) => setTimeout(r, 60));
 		expect(alice.arrangements, 'nothing comes back to the sender').toHaveLength(0);
+		expect(h.relays, 'what was relayed is what a recording keeps').toEqual([{ matchId, event: 'forge:arrangement', echo: { ...message, seat: 0 } }]);
 		// AE19 (match m-55c8f741c53f left no row order behind, and could not be
 		// reproduced): a relay is logged with the board it carried, one row per zone.
 		expect(h.logs.filter((l) => l.evt === 'arrangement')).toEqual([

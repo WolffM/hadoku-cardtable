@@ -50,6 +50,7 @@ function replayData(matchId: string, names: readonly [string, string], playerTur
       { at: 0, env: { matchId, cursor: { epoch: 'e1', seq: 2 }, frame: openView } },
     ],
     presence: [],
+    relays: [],
     end: null,
   };
 }

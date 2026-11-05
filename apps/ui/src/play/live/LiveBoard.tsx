@@ -289,7 +289,7 @@ import { installGestures } from './gestures/index.ts';
 import { attackWith } from './gestures/commit.ts';
 import { stackAsk } from './gestures/stack.ts';
 import { castLandingWeight } from './gestures/cast.ts';
-import { installPresence } from './presence.ts';
+import { installPresence, type Side } from './presence.ts';
 import { setChainHalted } from './placed.ts';
 import { installArrangementSync } from './arrangement-sync.ts';
 import { isPacedTransport } from './pace.ts';
@@ -444,6 +444,12 @@ export function questionTopOf(root: HTMLElement): number | null {
  * into the match's log beside its own events. Settings on join and on each
  * change; a played card's landing from the gesture layer. A watcher sends none.
  */
+/** The spells on the stack of the side drawn at the bottom (`'you'`) or the top (`'them'`), by their cards' ids: what `presence.ts` hands a stand-in over to. */
+function stackCardsOf(view: BoardView, side: Side): number[] {
+  const bottom = viewerOf(view)?.name ?? null;
+  return view.stack.filter((item) => !item.isAbility && item.sourceCardId !== null && (item.controllerName === bottom) === (side === 'you')).map((item) => item.sourceCardId!);
+}
+
 function reportClient(transport: Pick<MatchTransport, 'emit'>, matchId: string, kind: ClientEvent['kind'], data: ClientEvent['data']): void {
   transport.emit(CLIENT_EVENT, { matchId, kind, data } satisfies ClientEvent);
 }
@@ -3801,22 +3807,12 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
         // same condition `paint()` (`gestures/install.ts`) already uses for its own arrow.
         aiming: () => match.selectables !== null || stackAsk(match) !== null,
         watch: (onChange) => subscribe(match, onChange),
-        theirCards: () => {
+        cardsOf: (side) => {
           const view = match.view;
           if (view === null) return [];
-          const them = view.players.filter((p) => !p.isViewer);
-          const mine = viewerOf(view)?.name ?? null;
-          return [
-            ...them.flatMap((p) => p.battlefield.map((c) => c.id)),
-            ...view.stack.filter((item) => !item.isAbility && item.sourceCardId !== null && item.controllerName !== mine).map((item) => item.sourceCardId!),
-          ];
+          return [...view.players.filter((p) => p.isViewer === (side === 'you')).flatMap((p) => p.battlefield.map((c) => c.id)), ...stackCardsOf(view, side)];
         },
-        theirStackCards: () => {
-          const view = match.view;
-          if (view === null) return [];
-          const mine = viewerOf(view)?.name ?? null;
-          return view.stack.filter((item) => !item.isAbility && item.sourceCardId !== null && item.controllerName !== mine).map((item) => item.sourceCardId!);
-        },
+        stackCardsOf: (side) => (match.view === null ? [] : stackCardsOf(match.view, side)),
         landingWeightOf: (cardId) => castLandingWeight(match.view, cardId),
         // A watcher sends none (`reportClient`'s own rule).
         report: spectator ? undefined : (kind, data) => reportClient(match.transport, match.matchId, kind, data),

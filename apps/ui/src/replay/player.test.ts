@@ -5,12 +5,12 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { parseServerFrame, type ServerFrame } from '@hadoku/forge-wire';
-import { PRESENCE_EVENT, type PresenceMessage } from '@hadoku/shared';
+import { ARRANGEMENT_EVENT, PLACED_EVENT, PLACEMENT_EVENT, PRESENCE_EVENT, type PresenceMessage } from '@hadoku/shared';
 
 import { liveStatus } from '../play/live/LiveBoard.tsx';
 import { closeMatch } from '../play/live/match.ts';
-import type { RecordedPresence, ReplayData, ReplayHeader } from './transport.ts';
-import { createReplayPlayer, heldCards, HELD_GRACE_MS, IDLE_CUT_MS, idleSpans, POINTER_RESTATE_MS } from './player.ts';
+import type { RecordedPresence, RecordedRelay, ReplayData, ReplayHeader } from './transport.ts';
+import { createReplayPlayer, heldCards, HELD_GRACE_MS, IDLE_CUT_MS, idleSpans, POINTER_RESTATE_MS, tableAt } from './player.ts';
 import { PRESENCE_STALE_MS } from '../play/live/presence.ts';
 
 /** The minimal two-player baseline `bridge-flying-seat1.ndjson` already commits — reused here rather than re-invented. */
@@ -41,6 +41,7 @@ function threeFrameReplay(deltaAt: number): ReplayData {
       { at: deltaAt, env: { matchId: HEADER.matchId, cursor: { epoch: 'e1', seq: 3 }, frame: applyDelta } },
     ],
     presence: [],
+    relays: [],
     end: { endedAt: '2026-10-27T00:10:00.000Z', winner: 0, seats: [] },
   };
 }
@@ -56,7 +57,7 @@ function longReplay(frames: number): ReplayData {
     const delta = { [268435456 + player]: { _type: 1, _id: player, Life: { t: 'int', v: lifeAfter(i) } } };
     envs.push({ at: (i + 1) * 1000, env: { matchId: HEADER.matchId, cursor: { epoch: 'e1', seq: i + 3 }, frame: frame('applyDelta', { packet: { seq: i, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: delta, events: [] } }) } });
   }
-  return { header: HEADER, envs, presence: [], end: { endedAt: '2026-10-27T00:10:00.000Z', winner: 0, seats: [] } };
+  return { header: HEADER, envs, presence: [], relays: [], end: { endedAt: '2026-10-27T00:10:00.000Z', winner: 0, seats: [] } };
 }
 
 /** The life `longReplay`'s `i`-th delta sets. */
@@ -305,7 +306,7 @@ describe('createReplayPlayer', () => {
 
   it('an empty recording ends at once, without throwing', () => {
     vi.useFakeTimers();
-    const data: ReplayData = { header: HEADER, envs: [], presence: [], end: null };
+    const data: ReplayData = { header: HEADER, envs: [], presence: [], relays: [], end: null };
     const { match, clock } = createReplayPlayer(data);
     clock.play();
 
@@ -451,6 +452,56 @@ describe('createReplayPlayer', () => {
     clock.dispose();
     closeMatch(match);
     vi.useRealTimers();
+  });
+
+  it('hands the board every relayed table message as it comes due — a placement before the frame about its card — and a board drawn afresh the table as it stood', async () => {
+    vi.useFakeTimers();
+    const at = { zone: 'battlefield' as const, x: 0.3, y: 0.6 };
+    const relays: RecordedRelay[] = [
+      { at: 900, event: PLACEMENT_EVENT, echo: { matchId: HEADER.matchId, seat: 0, card: 21, slot: 'lands', target: { kind: 'at', column: 1 }, at } },
+      { at: 1100, event: ARRANGEMENT_EVENT, echo: { matchId: HEADER.matchId, seat: 0, layout: 'tiers', rows: { lands: [[20], [21]] } } },
+      { at: 1500, event: PLACED_EVENT, echo: { matchId: HEADER.matchId, type: 'placed', seat: 0, spell: 40, at } },
+      { at: 2500, event: ARRANGEMENT_EVENT, echo: { matchId: HEADER.matchId, seat: 1, layout: 'tiers', rows: { lands: [[30]] } } },
+    ];
+    // The life delta is due at 900 ms with the placement; a later frame keeps the clock running past the rest.
+    const base = threeFrameReplay(900);
+    const later = { at: 3000, env: { ...base.envs[2]!.env, cursor: { epoch: 'e1', seq: 4 } } };
+    const { match, clock } = createReplayPlayer({ ...base, envs: [...base.envs, later], relays });
+    const heard: string[] = [];
+    let framesWhenPlaced = -1;
+    for (const event of [PLACEMENT_EVENT, ARRANGEMENT_EVENT, PLACED_EVENT]) {
+      match.transport.on(event, (echo) => {
+        if (event === PLACEMENT_EVENT) framesWhenPlaced = (match.view?.players[0]?.life ?? -1);
+        heard.push(`${event}:${(echo as { seat: number }).seat}`);
+      });
+    }
+    await vi.advanceTimersByTimeAsync(0);
+    expect(heard, 'nothing has come due at the start').toEqual([`${ARRANGEMENT_EVENT}:0`, `${ARRANGEMENT_EVENT}:1`]);
+    heard.length = 0;
+    clock.play();
+    vi.advanceTimersByTime(1700);
+    expect(heard, 'each as it came due, in order').toEqual([`${PLACEMENT_EVENT}:0`, `${ARRANGEMENT_EVENT}:0`, `${PLACED_EVENT}:0`]);
+    expect(framesWhenPlaced, 'the placement reached the board before the frame due with it').toBe(20);
+
+    clock.pause();
+    clock.seek(2000);
+    const again: string[] = [];
+    for (const event of [PLACEMENT_EVENT, ARRANGEMENT_EVENT, PLACED_EVENT]) match.transport.on(event, (echo) => again.push(`${event}:${JSON.stringify((echo as { rows?: unknown }).rows ?? (echo as { spell?: number }).spell)}`));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(again.sort(), 'the rows and the stack card as they stood at 2 s; seat 1 has no rows yet; no placement is played again').toEqual(
+      [`${ARRANGEMENT_EVENT}:{"lands":[[20],[21]]}`, `${ARRANGEMENT_EVENT}:{}`, `${PLACED_EVENT}:40`].sort(),
+    );
+    clock.dispose();
+    closeMatch(match);
+    vi.useRealTimers();
+  });
+
+  it('tableAt keeps the last row order per seat and the last place per stack card', () => {
+    const r = (at: number, event: RecordedRelay['event'], echo: Record<string, unknown>): RecordedRelay => ({ at, event, echo: { matchId: 'm', ...echo } });
+    const relays = [r(1, ARRANGEMENT_EVENT, { seat: 0, rows: { a: [[1]] } }), r(2, ARRANGEMENT_EVENT, { seat: 0, rows: { a: [[1], [2]] } }), r(3, PLACED_EVENT, { seat: 1, spell: 9, at: 'x' }), r(4, PLACED_EVENT, { seat: 1, spell: 9, at: 'y' })];
+    expect(tableAt(relays, 4).map((x) => x.at)).toEqual([2, 4]);
+    expect(tableAt(relays, 1).map((x) => [x.at, (x.echo as { rows: unknown }).rows])).toEqual([[1, { a: [[1]] }]]);
+    expect(tableAt(relays, 0).map((x) => (x.echo as { rows: unknown }).rows), 'a seat whose rows are still to come: empty').toEqual([{}]);
   });
 
   it('a pointer standing still is handed to the board again before it would go stale, and one that left the board is not', () => {

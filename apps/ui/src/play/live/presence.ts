@@ -57,7 +57,7 @@
  * A SPELL is different (AD4 rule 2, wave 59): nothing travels. A release
  * carrying `placing.at` parks the back AT that exact point and waits — not a
  * battlefield gap, a spell has none — until the id shows up (their spell is
- * now on the stack, `theirCards`): `./placed.ts`'s `placeSpell`
+ * now on the stack, `cardsOf`): `./placed.ts`'s `placeSpell`
  * takes the stand-in over from there, drawn as a card at the same point. This
  * module never draws the placed-card layer itself, only the plain back while
  * the id is still unknown, and calls `gripStackItem` when
@@ -162,10 +162,14 @@ export interface PresenceHost {
   readonly activePlayerId?: () => number | null;
   /** Wake on every change of the match (`subscribe`), for the handoff; absent, no handoff is drawn. */
   readonly watch?: (onChange: () => void) => () => void;
-  /** The ids of the other seat's cards the board draws as cards: their battlefield, and their spells on the stack. */
-  readonly theirCards?: () => readonly number[];
-  /** AE26: the subset of `theirCards` that is on the STACK (by card id) — a spell held there, never a permanent still being drawn. */
-  readonly theirStackCards?: () => readonly number[];
+  /**
+   * The ids of one side's cards the board draws as cards: that side's battlefield, and its spells on
+   * the stack. `'them'` is the seat drawn at the top, `'you'` the one at the bottom (a watcher's and a
+   * replay's acting player).
+   */
+  readonly cardsOf?: (side: Side) => readonly number[];
+  /** AE26: the subset of `cardsOf` that is on the STACK (by card id) — a spell held there, never a permanent still being drawn. */
+  readonly stackCardsOf?: (side: Side) => readonly number[];
   /** Defaults to the real `prefers-reduced-motion` media query; the handoff travels only without it. */
   readonly reducedMotion?: () => boolean;
   /**
@@ -192,6 +196,8 @@ export interface PresenceHandle {
 }
 
 type Point = { x: number; y: number };
+/** A side of the board: `'you'` drawn at the bottom, `'them'` at the top (`./board-dom.ts`'s `zoneOf`). */
+export type Side = 'you' | 'them';
 
 /** A wait's telemetry context, reported only if a clock ends it (`expire`). */
 interface WaitDiag {
@@ -702,7 +708,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    * (`flyHome`). `cleared`: the sender has said the card is no longer parked,
    * and the short grace is running.
    */
-  let waiting: { timer: ReturnType<typeof setTimeout>; forBattlefield: boolean; card: number | null; owner: number | null; hand: number; cleared: boolean; since: number; diag: WaitDiag } | null = null;
+  let waiting: { timer: ReturnType<typeof setTimeout>; forBattlefield: boolean; card: number | null; owner: number | null; hand: number; inHand: ReadonlySet<number>; cleared: boolean; since: number; diag: WaitDiag } | null = null;
   /** Telemetry: how the previous wait ended and when, and when their card was last held — a timed-out wait's context. */
   let lastEnd: { at: number; how: string } | null = null;
   let heldAt: number | null = null;
@@ -711,7 +717,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     return { hand0: theirHandBacks().length, grave0: theirGraveCount(), echoes: 0, lastEcho: '-', seen: '-', prevEnd: lastEnd === null ? -1 : Date.now() - lastEnd.at, prevHow: lastEnd?.how ?? '-', liftAgo: heldAt === null ? -1 : Date.now() - heldAt, freshAgo: lastFresh === null ? -1 : Date.now() - lastFresh.at, fresh: lastFresh?.ids ?? '-' };
   }
   function theirGraveCount(): number {
-    return Number(zoneOf(canvas, 'them', 'graveyard')?.getAttribute('data-count') ?? -1);
+    return Number(zoneOf(canvas, side, 'graveyard')?.getAttribute('data-count') ?? -1);
   }
   /** Where the back stands, or — on its glide into a placement's gap — where it is heading. */
   let backAt: Point | null = null;
@@ -731,8 +737,22 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   let afterGlideEnds: (() => void) | null = null;
   /** The spell (card id) that hand-over is for, kept hidden on the stack layer meanwhile (`holdSpell`). */
   let heldSpell: number | null = null;
+  /**
+   * The side the play in hand belongs to: where its sender is drawn. The top for a seat (the other
+   * seat is always across); the bottom for a watcher's or a replay's acting player, whose hand, cards
+   * and spells are drawn there (`drawnAtBottom`). Every wait, hand-over and landing below reads it,
+   * so a play drawn at the bottom ends when its card arrives at the bottom — it used to wait at its
+   * release point for the whole of `PLACEMENT_WAIT_MS`, its card already in its column.
+   */
+  let side: Side = 'them';
   /** Their cards already on the board; a new one right after the back went is the handoff. */
-  let known = new Set<number>(host.theirCards?.() ?? []);
+  let known = new Set<number>(host.cardsOf?.(side) ?? []);
+  /** A new play is of the sender drawn on `next`: what is already there on that side is not its card. */
+  function followSide(next: Side): void {
+    if (next === side) return;
+    side = next;
+    known = new Set(host.cardsOf?.(side) ?? []);
+  }
   /** AE26: a spell of theirs that arrived with no wait to hand it to — see `UNHANDED_MS`. */
   let unhanded: { id: number; at: number } | null = null;
   /**
@@ -777,7 +797,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       const d = waiting.diag;
       const data: Record<string, string | number | boolean> = {
         how, ms: Date.now() - waiting.since, forBattlefield: waiting.forBattlefield,
-        hand: theirHandBacks().length - d.hand0, grave: theirGraveCount() - d.grave0, stack: (host.theirStackCards?.() ?? []).length,
+        hand: theirHandBacks().length - d.hand0, grave: theirGraveCount() - d.grave0, stack: (host.stackCardsOf?.(side) ?? []).length,
         echoes: d.echoes, lastEcho: d.lastEcho, seen: d.seen, prevEnd: d.prevEnd, prevHow: d.prevHow, liftAgo: d.liftAgo, freshAgo: d.freshAgo, fresh: d.fresh,
       };
       if (waiting.card !== null) data.card = waiting.card;
@@ -985,6 +1005,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (root === null) return;
     const box = root.getBoundingClientRect();
     const mirrored = !drawnAtBottom(echo.seat);
+    // A play is followed on its sender's side from its start to its end, never switched mid-wait.
+    if (waiting === null) followSide(mirrored ? 'them' : 'you');
     drawArranging(root, box, echo.arranging, mirrored);
     // A reorder glides one of their hidden hand's backs; a hand drawn at the bottom is face up, and its frames reorder it.
     if (mirrored) glideHandMove(root, box, echo.handMove);
@@ -1030,7 +1052,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
         standBack(root, box, placingAt);
         back!.setAttribute('data-waiting', '');
         play = { releasedAt: Date.now(), glideStartedAt: null, stackFrameAt: null };
-        waiting = { timer: setTimeout(() => expire('timeout'), PLACEMENT_WAIT_MS), forBattlefield: false, card: null, owner: null, hand: theirHandBacks().length, cleared: false, since: Date.now(), diag: newDiag() };
+        waiting = { timer: setTimeout(() => expire('timeout'), PLACEMENT_WAIT_MS), forBattlefield: false, card: null, owner: null, hand: theirHandBacks().length, inHand: handCardIds(), cleared: false, since: Date.now(), diag: newDiag() };
         // AE26: their spell beat this message here (Forge's frame won the race against presence):
         // it is already a placed card, drawn pending at nobody's point. Hand the point over NOW —
         // the one object, in place — never a back beside a face until a timer ends it.
@@ -1106,7 +1128,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   }
 
   function onTheirBattlefield(id: number): boolean {
-    return battlefieldCard(canvas, id, 'them') !== null;
+    return battlefieldCard(canvas, id, side) !== null;
   }
 
   /**
@@ -1116,7 +1138,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    * release case, 3/3 red on the first AE26 cut).
    */
   function onTheirStack(id: number): boolean {
-    const stack = host.theirStackCards?.();
+    const stack = host.stackCardsOf?.(side);
     return stack === undefined ? !onTheirBattlefield(id) : stack.includes(id);
   }
 
@@ -1133,13 +1155,19 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     play.stackFrameAt ??= Date.now();
     back?.setAttribute(PRESENCE_CARD_ATTR, String(id));
     reportHandover(host.report, 'handover', canvas, receiverFacts(id, 'stack', back === null ? null : drawnCentre(back), at));
-    if (at !== null) placeSpell(id, at, 'them');
+    if (at !== null) placeSpell(id, at, side);
     stopWaiting('spell');
     return at;
   }
 
+  /** The ids of their hand's cards where this board draws them face up (the bottom); none for backs. */
+  function handCardIds(): ReadonlySet<number> {
+    return new Set([...canvas.querySelectorAll<HTMLElement>(`[data-zone="hand"][data-owner="${side}"] [data-board-card]`)].map((el) => Number(el.getAttribute('data-board-card'))));
+  }
+
+  /** Their hand's cards, as this board draws them: backs at the top, faces at the bottom. */
   function theirHandBacks(): NodeListOf<HTMLElement> {
-    return canvas.querySelectorAll<HTMLElement>('[data-zone="hand"][data-owner="them"] li.card-back');
+    return canvas.querySelectorAll<HTMLElement>(`[data-zone="hand"][data-owner="${side}"] li.card-back, [data-zone="hand"][data-owner="${side}"] li.board-card`);
   }
 
   /**
@@ -1186,9 +1214,27 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     stackBound = watch;
   }
 
+  /** `card` is in its column: the waiting back flies on into it from where it stands, and the wait ends. */
+  function landFromBack(card: number): void {
+    const standIn = back;
+    const wait = waiting;
+    const land = (): Point | null => {
+      if (waiting !== wait || back !== standIn) return null;
+      const at = (standIn === null ? null : drawnCentre(standIn)) ?? backAt;
+      stopWaiting('drawn');
+      return at;
+    };
+    if (!onTheirBattlefield(card)) {
+      flyWhenDrawn(card, land);
+      return;
+    }
+    const at = land();
+    if (at !== null) flyTile(card, at);
+  }
+
   /** The card they were holding has appeared: its copy travels from the back's last place to its own. */
   function handoff(): void {
-    const cards = host.theirCards?.() ?? [];
+    const cards = host.cardsOf?.(side) ?? [];
     const fresh = cards.filter((id) => !known.has(id));
     known = new Set(cards);
     if (fresh.length > 0) {
@@ -1268,8 +1314,13 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
         return;
       }
       const id = fresh[0]!;
-      // A permanent's own arrival is handled above, by the reservation going null — never here.
-      if (onTheirBattlefield(id)) return;
+      if (onTheirBattlefield(id)) {
+        // A permanent's own arrival is `onPlacement`'s at the top. At the bottom its placement only
+        // reserves the column (the sender's own board drew that glide), so the back waiting at the
+        // release point is what flies on into it, the moment the board draws it.
+        if (side === 'you' && waiting.inHand.has(id)) landFromBack(id);
+        return;
+      }
       handToSpell(id);
       return;
     }
@@ -1297,7 +1348,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    * the tile.
    */
   function flyTile(card: number, from: Point): void {
-    const settled = battlefieldCard(canvas, card, 'them');
+    const settled = battlefieldCard(canvas, card, side);
     const tile = settled?.querySelector('.card');
     if (!(settled instanceof HTMLElement) || !tile || reduced()) {
       reportHandover(host.report, 'landing', canvas, receiverFacts(card, !(settled instanceof HTMLElement) || !tile ? 'no-tile' : 'motion-off', from, drawnCentreOf(settled)));
@@ -1330,6 +1381,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     // reserved, which is what puts the card where its owner let it go, and the stand-in — a back
     // from the TOP hand into the top battlefield — is not drawn for it.
     if (owner === (host.viewerPlayerId?.() ?? null)) return;
+    followSide('them');
     play = { releasedAt: Date.now(), glideStartedAt: null, stackFrameAt: null };
     const already = battlefieldCard(canvas, card, 'them');
     if (already !== null) {
@@ -1352,7 +1404,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const standIn = back!;
     standIn.setAttribute('data-waiting', '');
     standIn.setAttribute(PRESENCE_CARD_ATTR, String(card));
-    const wait = { timer: setTimeout(() => expire('timeout'), PLACEMENT_WAIT_MS), forBattlefield: true, card, owner, hand: theirHandBacks().length, cleared: false, since: Date.now(), diag: newDiag() };
+    const wait = { timer: setTimeout(() => expire('timeout'), PLACEMENT_WAIT_MS), forBattlefield: true, card, owner, hand: theirHandBacks().length, inHand: handCardIds(), cleared: false, since: Date.now(), diag: newDiag() };
     waiting = wait;
     // The card reaching its column while the stand-in still waits — straight from the hand, or a
     // spell resolving before the glide let it hand over to the stack — finishes the stand-in's
@@ -1430,7 +1482,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (!live) return;
     const parsed = PlacedEchoSchema.safeParse(payload);
     if (!parsed.success || parsed.data.matchId !== host.matchId || parsed.data.seat === host.seat) return;
-    const at = placeSpot(canvas, parsed.data.at);
+    // The sender's own side drawn at the bottom (a watcher's, a replay's acting player) is not mirrored.
+    const at = placeSpot(canvas, parsed.data.at, !drawnAtBottom(parsed.data.seat));
     if (at === null) {
       // The board has not painted yet (this can be a joiner's one-time replay, on `forge:join`'s
       // own ack). Retried within this mount for up to a second; `pendingPlaced` carries it past
@@ -1443,9 +1496,9 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (pendingPlaced === payload) pendingPlaced = null;
     // Whose the item is, for one this screen has no record of yet: the sender's, as before either seat could drag.
     const owner = ownerOf(parsed.data.seat);
-    const side = owner !== null && owner === (host.viewerPlayerId?.() ?? null) ? 'you' : 'them';
+    const itemSide = owner !== null && owner === (host.viewerPlayerId?.() ?? null) ? 'you' : 'them';
     const handOf = (seat: number): string => (seat === host.seat ? 'you' : `seat:${seat}`);
-    gripStackItem(parsed.data.spell, handOf(parsed.data.seat), at, parsed.data.grip ?? 'move', side, parsed.data.holders?.map(handOf));
+    gripStackItem(parsed.data.spell, handOf(parsed.data.seat), at, parsed.data.grip ?? 'move', itemSide, parsed.data.holders?.map(handOf));
   }
 
   /**

@@ -233,6 +233,7 @@ export {
   type ArrangementEcho,
   type ArrangementMessage,
 } from './arrangement.ts';
+export { isRelayedEvent, RELAYED_ECHO_SCHEMAS, type RelayedEvent } from './relayed.ts';
 
 export {
   MATCH_EVENTS,

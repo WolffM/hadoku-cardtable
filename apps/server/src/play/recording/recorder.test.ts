@@ -293,6 +293,34 @@ describe('createRecorder', () => {
 		]);
 	});
 
+	it('onRelay keeps every relayed table message, each one, timed from the match start', async () => {
+		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
+		const inner = fakeFactory();
+		let clock = 1_000;
+		const recorder = createRecorder({ dir, identity: { pin: null, bridge: 'b', server: 's' }, roomOf: () => null, deckCosts: NO_COSTS, now: () => clock });
+		const hosted = recorder.host(inner);
+		hosted('m-1', spec(1), { line: () => undefined, exit: () => undefined, log: () => undefined });
+		const events = inner.calls[0]!.events;
+		const placement = { matchId: 'm-1', seat: 0, card: 21, slot: 'lands', target: { kind: 'end' }, at: { zone: 'battlefield', x: 0.3, y: 0.6 } };
+		const rows = { matchId: 'm-1', seat: 0, type: 'arrangement', layout: 'tiers', rows: { back: [[21]] } };
+
+		clock += 250;
+		recorder.onRelay('m-1', 'forge:placement', placement);
+		clock += 10;
+		recorder.onRelay('m-1', 'forge:arrangement', rows);
+		recorder.onRelay('m-1', 'forge:arrangement', rows); // never thinned: each is the table as it stood
+		recorder.onRelay('m-unknown', 'forge:placement', placement); // no session: nothing
+
+		(events.exit as (r: string) => void)('stopped');
+		await vi.waitFor(() => expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true));
+		const kept = linesOf(join(dir, 'm-1.public.jsonl.gz')).filter((l) => l.t === 'relay');
+		expect(kept).toEqual([
+			{ t: 'relay', at: 250, event: 'forge:placement', echo: placement },
+			{ t: 'relay', at: 260, event: 'forge:arrangement', echo: rows },
+			{ t: 'relay', at: 260, event: 'forge:arrangement', echo: rows },
+		]);
+	});
+
 	it("keeps each seat holder's userId beside their seat, so the replay can draw them as they are when watched", async () => {
 		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
 		const inner = fakeFactory();

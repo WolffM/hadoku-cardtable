@@ -21,6 +21,12 @@
  * player's hand while it is held is the one it was ({@link heldCards}), named to the board on the
  * replay's own channel (`REPLAY_HELD_EVENT`) so the back is drawn as that face — hands are face up here.
  *
+ * The table as the players laid it out is the recording's too: every placement, row order and stack
+ * card's place a seat relayed (`data.relays`, `@hadoku/shared`'s `relayed.ts`) goes to the board's own
+ * listeners as it comes due, as a live board hears them, so a card lands in the column its player put
+ * it in. A board drawn afresh is handed the table as it stood: each seat's last row order and each
+ * stack card's last place ({@link tableAt}).
+ *
  * The front page's card plays a match's dead air short (`skipIdle`): where neither a frame nor a
  * recorded pointer comes for longer than {@link IDLE_CUT_MS}, playback jumps the rest of the silence
  * ({@link idleSpans}). `#/replay/<id>` plays every second as it was.
@@ -30,12 +36,12 @@
  * well inside a scrub's frame budget.
  */
 
-import { lookOrNone, PRESENCE_EVENT, type Look, type PresenceEcho } from '@hadoku/shared';
+import { ARRANGEMENT_EVENT, isRelayedEvent, lookOrNone, PLACED_EVENT, PRESENCE_EVENT, type Look, type PresenceEcho, type RelayedEvent } from '@hadoku/shared';
 
 import { replayMatch, viewerPlayerIdOf, type LiveMatch, type ReplayFaces, type ReplayFrame } from '../play/live/match.ts';
 import { normalizeAvatarId } from '../room/avatar.ts';
 import { PRESENCE_STALE_MS, REPLAY_HELD_EVENT } from '../play/live/presence.ts';
-import type { RecordedEnv, RecordedPresence, RecordedSeat, ReplayData } from './transport.ts';
+import type { RecordedEnv, RecordedPresence, RecordedRelay, RecordedSeat, ReplayData } from './transport.ts';
 
 export type ReplaySpeed = 1 | 2 | 4;
 
@@ -201,6 +207,25 @@ export function heldCards(pointers: readonly RecordedPresence[], departures: rea
   return out;
 }
 
+/**
+ * The relayed table state as it stood once `due` of `relays` had come: each seat's last row order and
+ * each stack card's last place. A seat whose first row order is still to come is handed an empty one,
+ * so rows a later moment set (a board drawn afresh after a seek back) go back to the view's order.
+ */
+export function tableAt(relays: readonly RecordedRelay[], due: number): RecordedRelay[] {
+  const rows = new Map<number, RecordedRelay>();
+  const places = new Map<number, RecordedRelay>();
+  relays.forEach((r, i) => {
+    const echo = r.echo as { seat: number; spell?: number };
+    if (r.event === ARRANGEMENT_EVENT) {
+      if (i < due) rows.set(echo.seat, r);
+      else if (!rows.has(echo.seat)) rows.set(echo.seat, { ...r, echo: { ...(r.echo as object), rows: {} } });
+    }
+    if (r.event === PLACED_EVENT && i < due && echo.spell !== undefined) places.set(echo.spell, r);
+  });
+  return [...rows.values(), ...places.values()];
+}
+
 function now(): number {
   return typeof performance !== 'undefined' ? performance.now() : Date.now();
 }
@@ -259,6 +284,11 @@ export function createReplayPlayer(data: ReplayData, options: ReplayOptions = {}
   let hearPointer: ((payload: unknown) => void) | null = null;
   /** The same layer's ear for which card a held pointer holds. */
   let hearHeld: ((payload: unknown) => void) | null = null;
+  /** The board's ears for the relayed table messages, by event: the latest mount's. */
+  const hearRelay = new Map<RelayedEvent, (payload: unknown) => void>();
+  const relays = data.relays;
+  /** How many of `relays` have come due. */
+  let relaysDue = 0;
   const held = heldCards(pointers, departures);
   /** How many of `pointers` have come due, and the last one that did. */
   let pointersDue = 0;
@@ -269,6 +299,14 @@ export function createReplayPlayer(data: ReplayData, options: ReplayOptions = {}
     pointers: {
       on(event, handler) {
         if (event === REPLAY_HELD_EVENT) hearHeld = handler;
+        if (isRelayedEvent(event)) {
+          hearRelay.set(event, handler);
+          // A board drawn afresh: the table as it stood, for this listener's own messages.
+          queueMicrotask(() => {
+            for (const r of tableAt(relays, relaysDue)) if (r.event === event) handler(r.echo);
+          });
+          return;
+        }
         if (event !== PRESENCE_EVENT) return;
         hearPointer = handler;
         // A board drawn afresh: the cursor where it last was, unless it had left the board.
@@ -300,6 +338,15 @@ export function createReplayPlayer(data: ReplayData, options: ReplayOptions = {}
     if (hand && lastPointer !== null && lastPointer.presence.pointer !== null && ms - handedAt >= POINTER_RESTATE_MS) {
       handedAt = ms;
       deliver(lastPointer);
+    }
+  }
+
+  /** Every relayed message sent at or before `ms` has come due; with `hand`, the new ones go to the board. */
+  function relaysThrough(ms: number, hand: boolean): void {
+    while (relaysDue < relays.length && relays[relaysDue]!.at <= ms) {
+      const r = relays[relaysDue]!;
+      relaysDue += 1;
+      if (hand) hearRelay.get(r.event)?.(r.echo);
     }
   }
 
@@ -357,6 +404,8 @@ export function createReplayPlayer(data: ReplayData, options: ReplayOptions = {}
       anchorWallClock = now();
       span = skipped.find((sp) => position >= sp.from && position < sp.to);
     }
+    // A placement is relayed before Forge's frame about its card, so it reaches the board first, as live.
+    relaysThrough(position, true);
     const due = indexThrough(position);
     if (due > delivered) {
       fold(frames.slice(delivered, due), 'here');
@@ -408,6 +457,8 @@ export function createReplayPlayer(data: ReplayData, options: ReplayOptions = {}
     pointersDue = 0;
     lastPointer = null;
     pointersThrough(target, false);
+    relaysDue = 0;
+    relaysThrough(target, false);
     seekCount += 1;
     basePositionMs = target;
     anchorWallClock = now();

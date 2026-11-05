@@ -35,7 +35,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import type { PresenceMessage, SeatIdentity, ServerEnvelope } from '@hadoku/shared';
+import type { PresenceMessage, RelayedEvent, SeatIdentity, ServerEnvelope } from '@hadoku/shared';
 
 import type { JsonLog } from '../../log.js';
 import { artOf } from '../art.js';
@@ -125,6 +125,8 @@ export interface Recorder {
 	 * let go, parked, an arrow started or ended, the pointer leaving) is always kept.
 	 */
 	onPresence(matchId: string, seat: number, playerId: number, presence: PresenceMessage): void;
+	/** Wire to `PlayDeps.onRelay`: every placement, row order and stack card's place a seat relayed, each kept. */
+	onRelay(matchId: string, event: RelayedEvent, echo: unknown): void;
 	/** Wire to `PlayDeps.onGameOver`: remembers the seat that won, for the public stream's `end` line. */
 	onGameOver(match: OutcomeFacts & { id: string }): void;
 }
@@ -329,6 +331,13 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 			if (last !== null && last.seat === seat && last.hands === hands && at - last.at < PRESENCE_RECORD_MS) return;
 			session.lastPresence = { at, seat, hands };
 			guarded(log, matchId, 'presence', () => session.writer.publicPresence({ at, seat, playerId, presence }));
+		},
+
+		onRelay(matchId, event, echo) {
+			const session = sessions.get(matchId);
+			if (session === undefined) return;
+			const at = now() - session.startedAtMs;
+			guarded(log, matchId, 'relay', () => session.writer.publicRelay({ at, event, echo }));
 		},
 
 		// The recording is finished when the game is, not when its JVM goes: a finished match keeps

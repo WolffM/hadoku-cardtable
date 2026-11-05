@@ -19,9 +19,10 @@
  * The card plays the replay's dead air short (`skipIdle`, `../replay/player.ts`'s `IDLE_CUT_MS`): a
  * stretch with no frame and no pointer move plays three seconds, then the next thing happens.
  *
- * `LiveBoard` is rendered whole, at the size its own table-fit expects
- * (`e2e/table-fit.spec.ts`'s own reference, 1280×800) — never re-laid-out, and
- * never a line changed in `LiveBoard.tsx` itself — and the card is a square
+ * `LiveBoard` is rendered whole, the table its own table-fit lays out at
+ * 1280×800 (`e2e/table-fit.spec.ts`'s own reference), scaled to the card by its
+ * units as the UI-scale slider scales it, never by a transform — and never a line
+ * changed in `LiveBoard.tsx` itself — and the card is a square
  * window onto it at the board's own proportions: its default capture region, the
  * bottom-left square, or a temporary one following the active player's cursor
  * (`./camera.ts`). The operator, 2026-10-29: *"i don't want to show the whole
@@ -39,7 +40,7 @@
  * is never touched.
  */
 
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 
 import { LiveBoard } from '../play/live/LiveBoard.tsx';
 import {
@@ -77,7 +78,17 @@ export interface FeaturedMatchProps {
 
 type Source = { kind: 'live'; match: LiveMatch } | { kind: 'replay'; match: LiveMatch; clock: ReplayClock };
 
-const placed = (at: Point, scale: number): string => `translate(${-at.x * scale}px, ${-at.y * scale}px) scale(${scale})`;
+/**
+ * The frame moved so `at` (board pixels) is the viewport's top-left. A translate only: the board is
+ * scaled by its units (`--board-fit`, `FeaturedMatch.css`), never by a transform — every layer over
+ * the board writes `left: …px` from `getBoundingClientRect()`, and under a `scale()` that px is scaled
+ * twice (`../settings/ui-scale.ts`'s header), which drew the replay's cursor and held card toward the
+ * top-left, by the portraits, while the hand they came from stood at the bottom.
+ */
+const placed = (at: Point, scale: number): string => `translate(${-at.x * scale}px, ${-at.y * scale}px)`;
+
+/** The frame's own size and scale: the board's 1280×800 laid out at `scale` through its units. */
+const frameStyle = (scale: number): CSSProperties => ({ width: BOARD_WIDTH * scale, height: BOARD_HEIGHT * scale, transform: placed(DEFAULT_REGION, scale), ['--board-fit' as string]: scale });
 
 /**
  * The camera, every animation frame: the active player's cursor as the board draws it (`.presence`,
@@ -227,7 +238,7 @@ export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback =
     <div className="featured-match" data-testid="featured-match">
       <TitleBar source={source} watchHref={watchHref} />
       <div className="featured-match__viewport" ref={viewportRef}>
-        <div className="featured-match__frame" ref={frameRef} style={{ width: BOARD_WIDTH, height: BOARD_HEIGHT, transform: placed(DEFAULT_REGION, scale) }}>
+        <div className="featured-match__frame" ref={frameRef} style={frameStyle(scale)}>
           {source.kind === 'replay' ? <ReplayBoard match={source.match} clock={source.clock} /> : <LiveBoard match={source.match} roomId={null} />}
         </div>
       </div>

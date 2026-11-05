@@ -1,8 +1,8 @@
 /*
  * The front page's hero (`FeaturedMatch.tsx`). One card-width of lane A's
  * banner grid: a title bar over a square window onto `LiveBoard`'s own
- * 1280×800, its bottom-left corner scaled to the square rather than asking the
- * board to re-lay itself out.
+ * 1280×800, its bottom-left corner scaled to the square by the board's own
+ * units (below).
  *
  * Theme tokens only.
  */
@@ -68,11 +68,25 @@
   background: var(--color-bg-alt);
 }
 
+.featured-match__viewport {
+  /* The page's own UI scale, read here so the frame below can multiply it without naming itself. */
+  --board-root-scale: var(--ui-scale);
+}
+
+/*
+ * The board at `--board-fit` (the viewport's side over 540, written by `FeaturedMatch.tsx`) through
+ * its own units, as the UI-scale slider sizes it (`styles.css`, `settings/ui-scale.ts`): every length
+ * the board's stylesheets author is a multiple of `--ui-px`/`--ui-rem`, so it lays out the same table
+ * as at 1280×800, smaller, with a px still a px for the layers that draw over it.
+ */
 .featured-match__frame {
+  --ui-scale: calc(var(--board-root-scale) * var(--board-fit, 1));
+  --ui-px: calc(1px * var(--ui-scale));
+  --ui-rem: calc(1rem * var(--ui-scale));
+
   position: absolute;
   top: 0;
   left: 0;
-  transform-origin: top left;
   /* Pointer events stay off: this is a preview, never the board the viewer
      plays on — `LiveBoard`'s own watcher role already refuses every input,
      this just keeps a stray click from doing something a scaled-down card
@@ -81,7 +95,7 @@
 }
 
 /*
- * The board fills the frame's own 1280×800, which is what the camera's regions are measured in
+ * The board fills the frame: 1280×800 board pixels, which is what the camera's regions are measured in
  * (`camera.ts`). `.live` is `100dvh` tall on its own, so on a 1080-tall screen it laid out ~1070px
  * tall in here and the bottom-left square framed the middle of the table, the near hand below it.
  */

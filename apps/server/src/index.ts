@@ -925,6 +925,7 @@ play = attachPlay(io, api, {
 	// keeps only `WATCHER_SEAT`'s (`play/recording/recorder.ts`'s own doc).
 	onEnvelope: (matchId, seat, envelope) => recorder.onEnvelope(matchId, seat, envelope),
 	onPresence: (matchId, seat, playerId, presence) => recorder.onPresence(matchId, seat, playerId, presence),
+	onRelay: (matchId, event, echo) => recorder.onRelay(matchId, event, echo),
 	keys: statsKeys,
 	// A card-name ask offers the names of the room's pool (`play/names.ts`).
 	// Not per-room (unlike a pod's own packs): these two are a static reference

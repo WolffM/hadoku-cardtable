@@ -2,7 +2,7 @@
  * `/api/replays` — contract 2 of `docs/planning/wave77-2026-10-27.md` §C.
  *
  *   GET /api/replays?limit=20   → 200 { replays: ReplaySummary[] }   newest first, each with its `pace`
- *   GET /api/replays/:matchId   → 200 { header, envs, presence, end } | 404
+ *   GET /api/replays/:matchId   → 200 { header, envs, presence, relays, end } | 404
  *
  * Reads `CARDTABLE_RECORDINGS_DIR` directly — never the live recorder's
  * in-memory state, so this answers the same way across a restart. The list
@@ -30,7 +30,7 @@ import { isAdmin } from '../edge-auth.js';
 import { httpCaller } from './request.js';
 import type { JsonLog } from '../log.js';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '../play/recording/retention.js';
-import { PUBLIC_VERSION, type ActionsEndLine, type PublicEndLine, type PublicEnvLine, type PublicPresenceLine } from '../play/recording/writer.js';
+import { PUBLIC_VERSION, type ActionsEndLine, type PublicEndLine, type PublicEnvLine, type PublicPresenceLine, type PublicRelayLine } from '../play/recording/writer.js';
 import type { PersonFace } from '@hadoku/shared';
 import { faceOfPerson, type People, type Person } from '../people.js';
 
@@ -357,13 +357,14 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 					res.status(404).json({ error: 'no such replay' });
 					return;
 				}
-				const body = lines.slice(1, -1).map((l) => parseJson<PublicEnvLine | PublicPresenceLine>(l));
+				const body = lines.slice(1, -1).map((l) => parseJson<PublicEnvLine | PublicPresenceLine | PublicRelayLine>(l));
 				const envs = body.filter((l): l is PublicEnvLine => l !== null && l.t === 'env').map((l) => ({ at: l.at, env: l.env }));
 				const presence = body
 					.filter((l): l is PublicPresenceLine => l !== null && l.t === 'presence')
 					.map((l) => ({ at: l.at, seat: l.seat, playerId: l.playerId, presence: l.presence }));
+				const relays = body.filter((l): l is PublicRelayLine => l !== null && l.t === 'relay').map((l) => ({ at: l.at, event: l.event, echo: l.echo }));
 				res.set('Cache-Control', REPLAY_CACHE);
-				res.json({ header, envs, presence, end: withoutUsers(end) });
+				res.json({ header, envs, presence, relays, end: withoutUsers(end) });
 				return;
 			}
 			if (!row.hasActions) {

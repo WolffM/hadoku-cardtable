@@ -97,6 +97,7 @@ import {
 	PRESENCE_MAX_PER_SECOND,
 	PresenceSchema,
 	type PresenceMessage,
+	type RelayedEvent,
 	fullControlFrame,
 	MATCH_EVENTS,
 	StartMatchBodySchema,
@@ -243,6 +244,13 @@ export interface PlayDeps {
 	 * card (`@hadoku/shared`'s `presence.ts`), so there is nothing to redact. Additive only.
 	 */
 	onPresence?(matchId: string, seat: number, playerId: number, presence: PresenceMessage): void;
+	/**
+	 * Every table message relayed seat to seat rather than through Forge — where a played card goes
+	 * (`forge:placement`), a seat's row order (`forge:arrangement`), a stack card's place
+	 * (`forge:placed`) — as its echo, the moment it is relayed: the recorder keeps them so a replay
+	 * lays the table out as it was. Each schema refuses a hidden card. Additive only.
+	 */
+	onRelay?(matchId: string, event: RelayedEvent, echo: unknown): void;
 	/** `GET /play/hosts`: where matches run, each host's eligibility and health (`placement/`). Absent: this machine only. */
 	hosts?(): unknown;
 }
@@ -1106,6 +1114,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				placements.set(key, echo);
 				if (placements.size > ARRANGEMENTS_KEPT) placements.delete(placements.keys().next().value as string);
 				io.to(roomFor(match).roomId).emit(PLACEMENT_EVENT, echo);
+				deps.onRelay?.(match.id, PLACEMENT_EVENT, echo);
 				log({ evt: 'placement', matchId: match.id, seat, card: frame.card.id, slot: placement.slot, target: placement.target.kind });
 			}
 		});
@@ -1327,6 +1336,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			placed.set(key, echo);
 			if (placed.size > ARRANGEMENTS_KEPT) placed.delete(placed.keys().next().value as string);
 			socket.to(roomFor(match).roomId).emit(PLACED_EVENT, echo);
+			deps.onRelay?.(match.id, PLACED_EVENT, echo);
 		});
 
 		/*
@@ -1359,6 +1369,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			arrangements.set(key, echo);
 			if (arrangements.size > ARRANGEMENTS_KEPT) arrangements.delete(arrangements.keys().next().value as string);
 			socket.to(roomFor(match).roomId).emit(ARRANGEMENT_EVENT, echo);
+			deps.onRelay?.(match.id, ARRANGEMENT_EVENT, echo);
 			// The reason `placement` is logged: the next board-order report (AE19:
 			// match m-55c8f741c53f left no row order behind, and could not be
 			// reproduced) needs this reconstructable from the log. One row per
@@ -1380,6 +1391,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				placed.delete(key);
 				placed.set(key, echo);
 				io.to(roomFor(match).roomId).emit(PLACED_EVENT, echo);
+				deps.onRelay?.(match.id, PLACED_EVENT, echo);
 			}
 		}
 

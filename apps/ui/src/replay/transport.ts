@@ -5,7 +5,7 @@
  *
  *   GET /api/replays?limit=N       → { replays: [{ matchId, roomId, players,
  *                                      decks, startedAt, endedAt, winner, source }] }
- *   GET /api/replays/:matchId      → { header, envs: [{ at, env }], presence: [{ at, seat, playerId, presence }], end }
+ *   GET /api/replays/:matchId      → { header, envs: [{ at, env }], presence: [{ at, seat, playerId, presence }], relays: [{ at, event, echo }], end }
  *
  * `header`/`envs`/`end` mirror the recording's own three line kinds
  * (contract 1): a header, one `env` per frame the watcher channel emitted
@@ -16,6 +16,8 @@
  * later — a recording this client did not write is not assumed trustworthy.
  * A `presence` entry is the active seat's pointer (wave 81 part 2), checked by the same
  * `PresenceSchema` a live board's own messages are.
+ * A `relays` entry is a table message a seat relayed (`@hadoku/shared`'s `relayed.ts`), checked by
+ * its own echo schema.
  *
  * This file does not know how the frames get INTO a board: that is
  * `./player.ts`, which folds `ReplayData` into a read-only board, paced.
@@ -23,7 +25,7 @@
 
 import { safeParseServerFrame } from '@hadoku/forge-wire';
 import { z } from 'zod';
-import { ArtCardSchema, PersonFaceSchema, PresenceSchema, type ArtCard, type PersonFace, type PresenceMessage } from '@hadoku/shared';
+import { ArtCardSchema, isRelayedEvent, PersonFaceSchema, PresenceSchema, RELAYED_ECHO_SCHEMAS, type ArtCard, type PersonFace, type PresenceMessage, type RelayedEvent } from '@hadoku/shared';
 
 import { apiUrl, bodyOf, getJson, isRecord, sendJson, serverMessage, type Fetch } from '../http.ts';
 import { parseServerEnvelope, type ServerEnvelope } from '../play/live/transport.ts';
@@ -79,6 +81,16 @@ export interface RecordedPresence {
   presence: PresenceMessage;
 }
 
+/**
+ * One table message a seat relayed to the others (`@hadoku/shared`'s `relayed.ts`): where a played
+ * card went, a seat's row order, a stack card's place — the echo as a live board heard it.
+ */
+export interface RecordedRelay {
+  at: number;
+  event: RelayedEvent;
+  echo: unknown;
+}
+
 /** `GET /api/replays/:matchId`'s body, parsed and ready to drive a `MatchTransport`. */
 export interface ReplayData {
   header: ReplayHeader;
@@ -86,6 +98,8 @@ export interface ReplayData {
   envs: readonly RecordedEnv[];
   /** Oldest first. Empty for a recording made before pointers were kept. */
   presence: readonly RecordedPresence[];
+  /** Oldest first. Empty for a recording made before they were kept: its cards take their rows' default places. */
+  relays: readonly RecordedRelay[];
   end: ReplayEnd | null;
   /**
    * Who played, by seat, as they are now (`GET /api/replays/:id/people`): their name, character and
@@ -199,6 +213,13 @@ function parseRecordedPresence(v: unknown): RecordedPresence | null {
   return parsed.success ? { at, seat: seat as number, playerId: playerId as number, presence: parsed.data } : null;
 }
 
+function parseRecordedRelay(v: unknown): RecordedRelay | null {
+  if (!isRecord(v)) return null;
+  const { at, event, echo } = v;
+  if (typeof at !== 'number' || !Number.isFinite(at) || !isRelayedEvent(event)) return null;
+  return RELAYED_ECHO_SCHEMAS[event].safeParse(echo).success ? { at, event, echo } : null;
+}
+
 /** `null` on anything this client cannot use as a replay — a 404, a malformed body, a network error. */
 export function parseReplayData(body: unknown): ReplayData | null {
   if (!isRecord(body)) return null;
@@ -211,9 +232,13 @@ export function parseReplayData(body: unknown): ReplayData | null {
     .map(parseRecordedPresence)
     .filter((p): p is RecordedPresence => p !== null)
     .sort((a, b) => a.at - b.at);
+  const relays = (Array.isArray(body.relays) ? body.relays : [])
+    .map(parseRecordedRelay)
+    .filter((r): r is RecordedRelay => r !== null)
+    .sort((a, b) => a.at - b.at);
   const end = body.end === null || body.end === undefined ? null : parseEnd(body.end);
   // Nobody is looked up from the body itself: `fetchReplay` asks for the people beside it.
-  return { header, envs: sorted, presence, end };
+  return { header, envs: sorted, presence, relays, end };
 }
 
 function parseSource(v: unknown): ReplayListing['source'] {
