@@ -89,6 +89,9 @@ test(titled('a stop set on the rail holds priority at the next occurrence of tha
     t0 = Date.now();
 
     await expect(nextPhase(page), "alice's own Main 1 bar").toHaveCount(1, { timeout: 60_000 });
+    // Desktop draws the thirteen-row column and never the portrait bar's five segments over it.
+    await expect(rail(page).locator('.live__steps'), 'the desktop rail shows its rows').toBeVisible();
+    await expect(rail(page).locator('.live__segments'), 'the portrait segments stay hidden on desktop').toBeHidden();
     console.log(`[phase-stop] start ${JSON.stringify(await at(page))}`);
 
     await clickRow(page, 'END_OF_TURN');

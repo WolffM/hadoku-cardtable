@@ -56,6 +56,9 @@ test(titled('promo-valakut in portrait: chips, four lanes, card width, no sidewa
     const page = alice.page;
     await resizeWindow(page, PHONE.viewport);
     await expect(page.locator('html')).toHaveAttribute('data-layout', 'portrait', { timeout: 10_000 });
+    // Exactly one of the rail's two lists shows: portrait's five segments, never the desktop rows.
+    await expect(page.getByTestId('live-phases').locator('.live__segments'), 'the portrait phase bar shows').toBeVisible();
+    await expect(page.getByTestId('live-phases').locator('.live__steps'), 'the desktop rows stay hidden in portrait').toBeHidden();
 
     // Both player chips, inside the top 100 px OF THE BOARD (see the file doc: this worktree's
     // room chrome above `.board` is unowned here and still desktop-height), life readable.
