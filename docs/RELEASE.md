@@ -117,6 +117,15 @@ enough"*). A name it cannot match is posted as typed, and the boot log's `releas
 lists it under `unresolved`. Nothing else in the notes
 may start with `@`.
 
+### Correcting a posted release
+
+A released notes file may be corrected (a credit added to a bullet, a typo) for about a week after
+its post: edit `docs/releases/vX.Y.Z.md` on main, the operator's call only. At every boot prod
+re-sends its newest three releases to ArchiveBot's `/api/messages/edit`, which edits a post only
+when its text differs and never posts; a post older than ArchiveBot's 7-day record is left alone.
+The change reaches Discord at prod's next boot, so with the next release. The boot log has a
+`release-edit` line for each post it changed.
+
 ## Fixing prod
 
 A fix for prod takes the same path: land it on main, let PPE take it, and release a patch version.

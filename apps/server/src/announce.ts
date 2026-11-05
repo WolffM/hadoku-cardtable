@@ -19,7 +19,7 @@
 import { createHmac } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { newestReleaseFile } from '../../../scripts/release/build-version.js';
+import { newestReleaseFile, releaseFilesNewestFirst } from '../../../scripts/release/build-version.js';
 import type { JsonLog } from './log.js';
 
 /** ArchiveBot's per-embed description cap. */
@@ -43,6 +43,18 @@ export async function latestRelease(dir: string): Promise<ReleaseNotes | null> {
 	const newest = newestReleaseFile(await readdir(dir));
 	if (newest === null) return null;
 	return parseNotes(newest.slice(0, -'.md'.length), await readFile(join(dir, newest), 'utf8'));
+}
+
+/**
+ * How many releases, newest first, a boot re-sends as edits. ArchiveBot keeps a post's record for 7
+ * days and refuses an edit it has no record of, so older notes cannot be changed this way anyway.
+ */
+export const EDITABLE_RELEASES = 3;
+
+/** The newest `count` release notes in `dir`, newest first. */
+export async function recentReleases(dir: string, count = EDITABLE_RELEASES): Promise<ReleaseNotes[]> {
+	const names = releaseFilesNewestFirst(await readdir(dir)).slice(0, count);
+	return Promise.all(names.map(async (name) => parseNotes(name.slice(0, -'.md'.length), await readFile(join(dir, name), 'utf8'))));
 }
 
 /** The `# ` heading is the title; everything after it is the body. */
@@ -149,35 +161,48 @@ export interface AnnounceOptions {
 	now?: () => Date;
 }
 
-/** Post the current release's notes. Resolves on every outcome; the outcome is logged, never thrown. */
+/** The signed ArchiveBot request for one release's notes: its idempotency key is the release's own. */
+function notesPayload(notes: ReleaseNotes, appUrl: string, now: Date): string {
+	const mentions = mentionsIn(notes.body);
+	return JSON.stringify({
+		idempotencyKey: `cardtable-release-${notes.version}`,
+		timestamp: now.getTime(),
+		source: 'cardtable',
+		...(mentions.length === 0 ? {} : { mentions }),
+		embeds: releaseEmbeds(notes, appUrl),
+	});
+}
+
+async function postSigned(options: AnnounceOptions, path: string, body: string): Promise<Response> {
+	const signature = createHmac('sha256', options.secret).update(body).digest('hex');
+	return (options.fetch ?? fetch)(`${options.archivebotUrl}${path}`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json', 'X-Hadoku-Signature': `sha256=${signature}` },
+		body,
+		signal: AbortSignal.timeout(10_000),
+	});
+}
+
+/**
+ * Post the current release's notes, then re-send the newest few as edits, so a corrected notes file
+ * (a credit added to a bullet, a typo) changes its post at the next boot. ArchiveBot edits only a post
+ * whose shown text differs and never posts from an edit. Resolves on every outcome; the outcome is
+ * logged, never thrown.
+ */
 export async function announceRelease(options: AnnounceOptions): Promise<void> {
 	const { log } = options;
 	if (options.secret === '') {
 		log({ event: 'release-announce', outcome: 'skipped', reason: 'no ARCHIVEBOT_CARDTABLE_WEBHOOK_SECRET' });
 		return;
 	}
+	const now = () => (options.now ?? (() => new Date()))();
 	try {
 		const notes = await latestRelease(options.releasesDir);
 		if (notes === null) {
 			log({ event: 'release-announce', outcome: 'skipped', reason: `no release notes in ${options.releasesDir}` });
 			return;
 		}
-		const now = (options.now ?? (() => new Date()))();
-		const mentions = mentionsIn(notes.body);
-		const body = JSON.stringify({
-			idempotencyKey: `cardtable-release-${notes.version}`,
-			timestamp: now.getTime(),
-			source: 'cardtable',
-			...(mentions.length === 0 ? {} : { mentions }),
-			embeds: releaseEmbeds(notes, options.appUrl),
-		});
-		const signature = createHmac('sha256', options.secret).update(body).digest('hex');
-		const res = await (options.fetch ?? fetch)(`${options.archivebotUrl}/api/messages/send`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json', 'X-Hadoku-Signature': `sha256=${signature}` },
-			body,
-			signal: AbortSignal.timeout(10_000),
-		});
+		const res = await postSigned(options, '/api/messages/send', notesPayload(notes, options.appUrl, now()));
 		const reply = await res.text();
 		if (!res.ok) {
 			log({ event: 'release-announce', outcome: 'failed', version: notes.version, status: res.status, reply: reply.slice(0, 500) });
@@ -188,10 +213,40 @@ export async function announceRelease(options: AnnounceOptions): Promise<void> {
 			event: 'release-announce',
 			outcome: answer.deduped === true ? 'already-posted' : 'posted',
 			version: notes.version,
-			// A name no linked Discord account carries is posted as plain text: say so, so it can be fixed.
+			// A name ArchiveBot could not match to anyone is posted as plain text: say so, so it can be fixed.
 			...(answer.unresolved !== undefined && answer.unresolved.length > 0 ? { unresolved: answer.unresolved } : {}),
 		});
 	} catch (err) {
 		log({ event: 'release-announce', outcome: 'failed', error: err instanceof Error ? err.message : String(err) });
+		return;
+	}
+	let recent: ReleaseNotes[];
+	try {
+		recent = await recentReleases(options.releasesDir);
+	} catch (err) {
+		log({ event: 'release-edit', outcome: 'failed', error: err instanceof Error ? err.message : String(err) });
+		return;
+	}
+	for (const notes of recent) {
+		try {
+			const res = await postSigned(options, '/api/messages/edit', notesPayload(notes, options.appUrl, now()));
+			const reply = await res.text();
+			// 404: ArchiveBot holds no post for it (older than its 7-day record): nothing to change.
+			if (res.status === 404) continue;
+			if (!res.ok) {
+				log({ event: 'release-edit', outcome: 'failed', version: notes.version, status: res.status, reply: reply.slice(0, 500) });
+				continue;
+			}
+			const answer = JSON.parse(reply) as { edited?: boolean; unresolved?: string[] };
+			if (answer.edited !== true) continue;
+			log({
+				event: 'release-edit',
+				outcome: 'edited',
+				version: notes.version,
+				...(answer.unresolved !== undefined && answer.unresolved.length > 0 ? { unresolved: answer.unresolved } : {}),
+			});
+		} catch (err) {
+			log({ event: 'release-edit', outcome: 'failed', version: notes.version, error: err instanceof Error ? err.message : String(err) });
+		}
 	}
 }

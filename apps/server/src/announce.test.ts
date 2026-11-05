@@ -17,6 +17,7 @@ const RELEASES = resolve(dirname(fileURLToPath(import.meta.url)), '../../../docs
 const SECRET = 'test-secret';
 
 interface Received {
+	url: string | undefined;
 	signature: string | undefined;
 	raw: string;
 }
@@ -28,18 +29,24 @@ afterEach(async () => {
 	server = null;
 });
 
-/** A stand-in ArchiveBot: verifies the signature, answers like `/api/messages/send`. */
-async function archivebot(reply: () => [number, unknown]): Promise<{ url: string; received: Received[] }> {
+/** A stand-in ArchiveBot: verifies the signature, answers like `/api/messages/send`, and `/api/messages/edit` with `editReply` (default: no post on record). */
+async function archivebot(reply: () => [number, unknown], editReply: (version: string) => [number, unknown] = () => [404, { error: 'message_not_found' }]): Promise<{ url: string; received: Received[] }> {
 	const received: Received[] = [];
 	server = createServer((req, res) => {
 		let raw = '';
 		req.on('data', (chunk: Buffer) => (raw += chunk.toString()));
 		req.on('end', () => {
 			const signature = req.headers['x-hadoku-signature'] as string | undefined;
-			received.push({ signature, raw });
+			received.push({ url: req.url, signature, raw });
 			const expected = `sha256=${createHmac('sha256', SECRET).update(raw).digest('hex')}`;
 			const [status, body] =
-				req.url !== '/api/messages/send' ? [404, { error: 'not_found' }] : signature !== expected ? [401, { error: 'invalid_signature' }] : reply();
+				signature !== expected
+					? [401, { error: 'invalid_signature' }]
+					: req.url === '/api/messages/send'
+						? reply()
+						: req.url === '/api/messages/edit'
+							? editReply(String(JSON.parse(raw).idempotencyKey).replace('cardtable-release-', ''))
+							: [404, { error: 'not_found' }];
 			res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(body));
 		});
 	});
@@ -209,12 +216,43 @@ describe('announceRelease', () => {
 		const { entries, log } = logs();
 		await announceRelease({ releasesDir: RELEASES, secret: SECRET, archivebotUrl: bot.url, appUrl: 'https://hadoku.me/cardtable/', log });
 		const notes = (await latestRelease(RELEASES))!;
-		expect(bot.received).toHaveLength(1);
+		expect(bot.received.filter((r) => r.url === '/api/messages/send')).toHaveLength(1);
 		const sent = JSON.parse(bot.received[0].raw);
 		expect(sent).toMatchObject({ idempotencyKey: `cardtable-release-${notes.version}`, source: 'cardtable' });
 		expect(sent).not.toHaveProperty('channel_id');
 		expect(Math.abs(sent.timestamp - Date.now())).toBeLessThan(60_000);
 		expect(entries).toEqual([{ event: 'release-announce', outcome: 'posted', version: notes.version }]);
+	});
+
+	it('then re-sends the newest releases as edits, and logs only the posts it changed', async () => {
+		const dir = await mkdtemp(resolve(tmpdir(), 'announce-'));
+		try {
+			for (const v of ['v1.0.0', 'v1.1.0', 'v1.2.0', 'v1.3.0']) await writeFile(resolve(dir, `${v}.md`), `# ${v} — t\n\n## Fixed\n- A fix.\n`);
+			await writeFile(resolve(dir, 'v1.2.0.md'), '# v1.2.0 — t\n\n## New\n- Mana floating asks first. (@the.scrubdaddy)\n');
+			const bot = await archivebot(
+				() => [200, { success: true, messageId: '1' }],
+				(version) => (version === 'v1.2.0' ? [200, { success: true, messageId: '2', edited: true }] : [200, { success: true, messageId: '3', unchanged: true }]),
+			);
+			const { entries, log } = logs();
+			await announceRelease({ releasesDir: dir, secret: SECRET, archivebotUrl: bot.url, appUrl: 'https://hadoku.me/cardtable/', log });
+			const edits = bot.received.filter((r) => r.url === '/api/messages/edit').map((r) => JSON.parse(r.raw));
+			expect(edits.map((e) => e.idempotencyKey)).toEqual(['cardtable-release-v1.3.0', 'cardtable-release-v1.2.0', 'cardtable-release-v1.1.0']);
+			expect(edits[1].mentions).toEqual(['the.scrubdaddy']);
+			expect(edits[1].embeds[0].description).toContain('(@the.scrubdaddy)');
+			expect(entries).toEqual([
+				{ event: 'release-announce', outcome: 'posted', version: 'v1.3.0' },
+				{ event: 'release-edit', outcome: 'edited', version: 'v1.2.0' },
+			]);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it('a failed send makes no edits', async () => {
+		const bot = await archivebot(() => [500, { error: 'boom' }], () => [200, { edited: true }]);
+		const { log } = logs();
+		await announceRelease({ releasesDir: RELEASES, secret: SECRET, archivebotUrl: bot.url, appUrl: 'https://hadoku.me/cardtable/', log });
+		expect(bot.received.map((r) => r.url)).toEqual(['/api/messages/send']);
 	});
 
 	it('logs a deduped reply as already posted', async () => {

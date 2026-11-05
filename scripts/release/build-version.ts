@@ -21,14 +21,19 @@ import { join } from 'node:path';
 
 const RELEASE_FILE = /^v(\d+)\.(\d+)\.(\d+)\.md$/;
 
-/** The newest `vX.Y.Z.md` among file names, by semver (the name itself); null when there is none. */
-export function newestReleaseFile(names: readonly string[]): string | null {
+/** The `vX.Y.Z.md` file names, newest first by semver (the name itself). */
+export function releaseFilesNewestFirst(names: readonly string[]): string[] {
 	const parsed = names.flatMap((name) => {
 		const m = RELEASE_FILE.exec(name);
 		return m === null ? [] : [{ name, parts: [Number(m[1]), Number(m[2]), Number(m[3])] }];
 	});
 	parsed.sort((a, b) => b.parts[0] - a.parts[0] || b.parts[1] - a.parts[1] || b.parts[2] - a.parts[2]);
-	return parsed[0]?.name ?? null;
+	return parsed.map((p) => p.name);
+}
+
+/** The newest `vX.Y.Z.md` among file names, by semver (the name itself); null when there is none. */
+export function newestReleaseFile(names: readonly string[]): string | null {
+	return releaseFilesNewestFirst(names)[0] ?? null;
 }
 
 export function buildVersion(repoRoot: string, env: NodeJS.ProcessEnv = process.env): string {
