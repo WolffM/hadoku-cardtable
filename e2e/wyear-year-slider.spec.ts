@@ -40,6 +40,19 @@ async function tickAt(page: Page, eraId: string): Promise<{ x: number; y: number
 
 const yearOf = (eraId: string): string => /(\d{4})-\d{2}-\d{2}$/.exec(eraId)![1]!;
 
+/**
+ * Runs `burst` with the page's clock held, then lets it go. The slider writes once it has rested
+ * for `SETTLE_MS` of the page's own time; holding that clock is what makes "quick presses" quick on
+ * a loaded runner, where Playwright's own actionability checks can put more than 250 ms of wall time
+ * between two clicks.
+ */
+async function inOneMoment(page: Page, burst: () => Promise<void>): Promise<void> {
+  // A second ahead: the page clock runs on while this call travels, and nothing is waiting to settle.
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1_000);
+  await burst();
+  await page.clock.resume();
+}
+
 test('a drag across ten years asks the room once, on release, and fetches none of the years it passed', async ({ browser }) => {
   const alice = await openFriend(browser, 'alice');
   const page = alice.page;
@@ -89,6 +102,7 @@ test('‹ and › nudge one year, a press on the line jumps to it, and the arrow
   const alice = await openFriend(browser, 'alice');
   const page = alice.page;
   try {
+    await page.clock.install();
     await page.goto(`${PREFIX}/`);
     await createRoom(alice, `wyear nudge ${Date.now()}`);
     const eras = await poolEras(page);
@@ -104,7 +118,9 @@ test('‹ and › nudge one year, a press on the line jumps to it, and the arrow
     const seen = watchRequests(page);
 
     // Three quick presses of ‹: one write, three years back.
-    for (let i = 0; i < 3; i += 1) await page.getByTestId('format-earlier').click();
+    await inOneMoment(page, async () => {
+      for (let i = 0; i < 3; i += 1) await page.getByTestId('format-earlier').click();
+    });
     await expectPoolOn(page, eras[at - 3]!);
     expect(seen.patches).toEqual([eras[at - 3]]);
 
@@ -122,8 +138,10 @@ test('‹ and › nudge one year, a press on the line jumps to it, and the arrow
 
     // The keys: focused, two presses of → are one write, two years on.
     await slider.focus();
-    await page.keyboard.press('ArrowRight');
-    await page.keyboard.press('ArrowRight');
+    await inOneMoment(page, async () => {
+      await page.keyboard.press('ArrowRight');
+      await page.keyboard.press('ArrowRight');
+    });
     await expectPoolOn(page, eras[7]!);
     await expect(slider).toHaveAttribute('aria-valuetext', yearOf(eras[7]!));
     expect(seen.patches).toEqual([eras[at - 3], eras[at - 2], target, eras[7]]);
