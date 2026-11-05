@@ -7,7 +7,7 @@
  */
 
 import { OPEN_ROOM_LOCKS } from '@hadoku/shared';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 
@@ -83,6 +83,13 @@ function binder(outcome: RoomOutcome = { ok: true, room: ROOM }): RoomBindClient
 }
 
 let releaseRoute: () => void = () => undefined;
+
+// The bound table is a lazy screen, and its first import is vitest transforming that whole module
+// graph (~1.7 s, more on a loaded host), which a `waitFor`'s 1 s would otherwise be timing. Paid
+// once here, so the waits below time the render alone.
+beforeAll(async () => {
+  await import('../screens/ConstructedScreen.tsx');
+}, 60_000);
 
 beforeEach(() => {
   globalThis.location.hash = '#/host-route';
