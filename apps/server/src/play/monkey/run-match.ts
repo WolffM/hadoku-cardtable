@@ -8,7 +8,7 @@
 import { readFileSync } from 'node:fs';
 
 import { socketPath } from '../../../../ui/src/draft/socket.ts';
-import { startMatch, type LiveMatch, type MatchTrouble } from '../../../../ui/src/play/live/match.ts';
+import { concede, startMatch, type LiveMatch, type MatchTrouble } from '../../../../ui/src/play/live/match.ts';
 
 import type { Flag, MatchResult } from './report.ts';
 import type { Rng } from './rng.ts';
@@ -75,6 +75,23 @@ async function startAiMatch(opts: RunMatchOptions): Promise<{ matchId: string } 
     return { error: body.error ?? `HTTP ${res.status}`, status: res.status };
   }
   return { matchId: body.matchId };
+}
+
+/** How long a conceded match gets to end before the run moves on without it. */
+const GIVE_UP_MS = 15_000;
+
+/**
+ * Concede a match the run is giving up on, as a player quitting does, and wait for it to end. Walking
+ * away is not the same: every run is one player, always online in the next match, and a match its
+ * holder is still about is kept for them (`armRejoinGrace`) — so each abandoned match held one of the
+ * server's `MAX_CONCURRENT_MATCHES` for the rest of the run, the next ones queued behind them and
+ * timed out unstarted, and from the 50th every start was refused (every nightly to 2026-11-05).
+ */
+async function giveUp(match: LiveMatch): Promise<boolean> {
+  concede(match);
+  const deadline = Date.now() + GIVE_UP_MS;
+  while (!match.over && match.ended === null && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100));
+  return match.over || match.ended !== null;
 }
 
 export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
@@ -182,7 +199,13 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
   const extra: Flag[] = [];
   const timedOut = crashed === null && !match.over && match.ended === null;
   if (timedOut) {
-    extra.push(noFinishFlag(`the match did not finish within its cap (turn ${match.view?.turn ?? '?'}, ${opts.turnCap} turns / ${opts.matchTimeoutMs} ms)`));
+    const ended = await giveUp(match);
+    extra.push(
+      noFinishFlag(
+        `the match did not finish within its cap (turn ${match.view?.turn ?? '?'}, ${opts.turnCap} turns / ${opts.matchTimeoutMs} ms)` +
+          (ended ? '' : `; its concede was not seen to end it within ${GIVE_UP_MS} ms`),
+      ),
+    );
   }
   if (crashed !== null) extra.push(noFinishFlag(troubleDetail(crashed)));
 
