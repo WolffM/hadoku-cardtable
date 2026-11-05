@@ -1467,7 +1467,7 @@ describe('a start in flight', () => {
 /* ── the picker: two selects, one button (wave 22 §B) ────────────────── */
 
 describe('the deck picker', () => {
-  it('says Ready, not “I’m ready”, on my seat, which I take by choosing a deck', async () => {
+  it('says not ready, not “I’m ready”, on my seat, which I take by choosing a deck', async () => {
     await mountRoom({ players: [opponent()], matchId: null });
     // Nothing is chosen for you, so you hold no seat and there is no Ready to press.
     await deckPicker();
@@ -1477,7 +1477,8 @@ describe('the deck picker', () => {
     await pick(SECOND_DECK);
     const ready = (await screen.findByTestId('ready-toggle')) as HTMLButtonElement;
     expect(ready.closest('[data-testid="room-seat-1"]')).not.toBeNull();
-    expect(ready.textContent).toBe('Ready');
+    // My own pill reads as everyone else's does: the state it is in (the operator, 2026-11-05).
+    expect(ready.textContent).toBe('not ready');
     await waitFor(() => expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false));
   });
 

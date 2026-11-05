@@ -141,8 +141,11 @@ test('the constructed table’s two seats share the same ring CSS: not clipped a
     await submitCreateRoom(alice.page, { name: `e2e w90b ready ring table 1440 ${Date.now()}`, mode: 'classic' });
     await alice.page.getByTestId('deck-random').click();
     await expect(alice.page.getByTestId('ready-toggle'), 'a random deck enables Ready').toBeEnabled({ timeout: UI_TIMEOUT });
+    // My own pill says the state it is in, as everyone else's does (the operator, 2026-11-05).
+    await expect(alice.page.getByTestId('ready-toggle'), 'my pill before the press').toHaveText('not ready');
     await alice.page.getByTestId('ready-toggle').click();
     await expect(alice.page.getByTestId('ready-toggle'), 'ready').toHaveAttribute('data-state', 'yes', { timeout: UI_TIMEOUT });
+    await expect(alice.page.getByTestId('ready-toggle'), 'my pill after the press').toHaveText('ready');
     await expect(alice.page.locator('.pod-seats--table .pod-seats__avatar[data-ready="true"]'), 'one ready ring at the table').toHaveCount(1);
 
     const report = await ringFits(alice.page);

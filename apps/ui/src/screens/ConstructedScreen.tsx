@@ -2927,6 +2927,9 @@ function startStateText(starting: boolean, matchId: string | null, place: number
   return null;
 }
 
+/** A seat's ready state in words: the same on my own pill, which sets it, as on everyone else's. */
+const readyLabel = (ready: boolean): string => (ready ? 'ready' : 'not ready');
+
 /** The leader's mark, our own five-point outline, on a 12-unit square. */
 export const CROWN = 'M2 9V3.5l2.2 2L6 2.6l1.8 2.9L10 3.5V9Z';
 /**
@@ -2981,7 +2984,7 @@ function PlayerRow({
           testId={`room-seat-${seat}-ready`}
           state={player.ready ? 'yes' : 'no'}
           mark={player.ready ? 'tick' : 'ring'}
-          label={player.ready ? 'ready' : 'not ready'}
+          label={readyLabel(player.ready)}
         />
       ) : (
         <ActionButton
@@ -2997,7 +3000,7 @@ function PlayerRow({
           <svg className="pill__mark" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
             {player.ready ? <path d={TICK} /> : <circle cx="6" cy="6" r="3.4" />}
           </svg>
-          Ready
+          {readyLabel(player.ready)}
         </ActionButton>
       )}
     </li>
