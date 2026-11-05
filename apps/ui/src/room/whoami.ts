@@ -22,6 +22,15 @@ export interface Who {
   name: string | null;
 }
 
+/**
+ * The viewer's tier as cardtable treats it: a member the operator has verified IS a friend here (the
+ * operator, 2026-11-05: *"for cardtable they will be equivalent"*). The server's `tierOf` makes the
+ * same call for every gate; this is the tier the fleet chrome is handed to show.
+ */
+export function tierOfWhoami(r: Pick<Awaited<ReturnType<typeof hadokuWhoami>>, 'userType' | 'verified'>): Who['tier'] {
+  return r.userType === 'member' && r.verified === true ? 'friend' : r.userType;
+}
+
 export function useWhoami(): Who | null | 'pending' {
   const [who, setWho] = useState<Who | null | 'pending'>('pending');
   useEffect(() => {
@@ -35,7 +44,7 @@ export function useWhoami(): Who | null | 'pending' {
     hadokuWhoami({ whoamiUrl: `${globalThis.location.origin}/session/whoami` })
       .then((r) => {
         if (!live) return;
-        setWho({ userId: r.userId, tier: r.userType, name: r.name ?? null });
+        setWho({ userId: r.userId, tier: tierOfWhoami(r), name: r.name ?? null });
       })
       .catch(() => {
         if (live) setWho(null);
