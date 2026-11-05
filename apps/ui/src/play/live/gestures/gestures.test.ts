@@ -1200,6 +1200,78 @@ describe('§B.2 — a box-draw declares several attackers, and only ones Forge o
 });
 
 /*
+ * The operator, 2026-11-05: "can't scroll the board when in combat, it always draws a box. let's just
+ * drop the draw a box trigger and make sure mobile users can always pan through the board". A finger
+ * on empty board is the browser's pan, in every state; only a mouse draws a box.
+ */
+describe('a finger on empty board never draws a box: it stays the browser’s pan', () => {
+  /** A cancelable `touchmove` as the browser raises it after the same input's `pointermove`: whether the layer cancelled it. */
+  function touchMoveCancelled(at: Element): boolean {
+    const event = new Event('touchmove', { bubbles: true, cancelable: true });
+    at.dispatchEvent(event);
+    return event.defaultPrevented;
+  }
+
+  async function attackersOffered() {
+    const board = await declaringAttackersBoard();
+    const mine = mineOf(board.m).battlefield.map((c) => c.id);
+    for (const f of notify([prompt('Declare attackers'), actionable([mine[0]!, mine[1]!])])) board.s.send(f);
+    await untilMatch(board.m, () => expect(boardInteraction(board.m).selectable.size).toBe(2));
+    boxAt(overlayOf(board.canvas), 0, 0, 800, 600);
+    boxAt(cardEl(board.canvas, mine[0]!), 120, 120);
+    boxAt(cardEl(board.canvas, mine[1]!), 180, 120);
+    return { ...board, zone: board.canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')! };
+  }
+
+  for (const pointerType of ['touch', 'pen'] as const) {
+    it(`while declaring attackers, a ${pointerType} swipe over empty board is left alone: no box, the press and its touchmove uncancelled, nothing sent`, async () => {
+      const { s, m, canvas, zone } = await attackersOffered();
+
+      expect(fireEvent.pointerDown(zone, { button: 0, pointerType, clientX: 100, clientY: 100 }), 'the press is not claimed').toBe(true);
+      fireEvent.pointerMove(zone, { pointerType, clientX: 300, clientY: 300 });
+      expect(touchMoveCancelled(zone), 'the pan goes on').toBe(false);
+      expect(overlayOf(canvas).querySelector('[data-testid="marquee"]'), 'no box drawn').toBeNull();
+      expect(canvas.hasAttribute('data-marquee')).toBe(false);
+      fireEvent.pointerUp(zone, { pointerType, clientX: 300, clientY: 300 });
+
+      expect(await s.framesFrom(m), 'no attacker chosen').toHaveLength(0);
+    });
+  }
+
+  it('a mouse draws the same box over the same board, and declares what it touched', async () => {
+    const { s, m, canvas, zone } = await attackersOffered();
+    const mine = mineOf(m).battlefield.map((c) => c.id);
+
+    expect(fireEvent.pointerDown(zone, { button: 0, pointerType: 'mouse', clientX: 100, clientY: 100 }), 'the mouse press is claimed').toBe(false);
+    fireEvent.pointerMove(zone, { pointerType: 'mouse', clientX: 300, clientY: 300 });
+    expect(overlayOf(canvas).querySelector('[data-testid="marquee"]')).not.toBeNull();
+    fireEvent.pointerUp(zone, { pointerType: 'mouse', clientX: 300, clientY: 300 });
+
+    await s.untilClientFrames(2);
+    expect(await sent(s, m)).toEqual([
+      ['selectCard', mine[0]!],
+      ['selectCard', mine[1]!],
+    ]);
+  });
+
+  it('inside a selection, a finger’s sideways swipe over a sideways-scrolling lane is the lane’s scroll, not the pointing drag', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const mine = mineOf(m).battlefield.map((c) => c.id);
+    for (const f of notify([prompt('Choose a target'), selectables([mine[0]!], 1, 1)])) s.send(f);
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
+    const lane = canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
+    lane.style.touchAction = 'pan-x';
+
+    fireEvent.pointerDown(lane, { button: 0, pointerType: 'touch', clientX: 300, clientY: 100 });
+    fireEvent.pointerMove(lane, { pointerType: 'touch', clientX: 120, clientY: 104 });
+    expect(touchMoveCancelled(lane), 'the lane scrolls').toBe(false);
+    expect(canvas.hasAttribute('data-dragging'), 'no arrow drag').toBe(false);
+    fireEvent.pointerCancel(lane, { pointerType: 'touch' });
+    expect(await s.framesFrom(m)).toHaveLength(0);
+  });
+});
+
+/*
  * Ledger Z3 (the operator, 2026-10-06, choosing cards to put on the bottom):
  * "it's also strange that i can drag an arrow from them."
  */
@@ -1284,6 +1356,17 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
     expect(cardEl(canvas, card).getAttribute('data-cast-lift'), 'picked up by the click').toBe('lifted');
     fireEvent.pointerMove(canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"]')!, { clientX: 40, clientY: 20 });
     expect(overlayOf(canvas).querySelector('[data-testid="marquee"]'), 'no tap box').toBeNull();
+    expect(await s.framesFrom(m)).toHaveLength(0);
+  });
+
+  it('a finger swiping over the lands draws no tap box and taps nothing: the swipe is the browser’s pan', async () => {
+    const { s, m, canvas } = await landsOffered();
+    const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    expect(fireEvent.pointerDown(zone, { button: 0, pointerType: 'touch', clientX: 100, clientY: 100 }), 'the press is not claimed').toBe(true);
+    fireEvent.pointerMove(zone, { pointerType: 'touch', clientX: 400, clientY: 300 });
+    expect(overlayOf(canvas).querySelector('[data-testid="marquee"]'), 'no tap box').toBeNull();
+    fireEvent.pointerUp(zone, { pointerType: 'touch', clientX: 400, clientY: 300 });
+    expect(canvas.querySelector('[data-tapped-pending]'), 'nothing drawn tapped').toBeNull();
     expect(await s.framesFrom(m)).toHaveLength(0);
   });
 
