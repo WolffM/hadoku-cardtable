@@ -118,6 +118,12 @@ const PHONE_CORE_EXCLUDE: readonly (readonly [file: string, reason: string])[] =
   ['dv-delve.spec.ts', 'counts the graveyard and exile zones the desktop seat draws; portrait shows those as chip counts and draws no exile'],
 ];
 
+/**
+ * Single tests inside a `PHONE_CORE` file that need a mouse, tagged `@mouse` in their own spec. A
+ * project skip would read as a skipped test, which CI's gate refuses, so `phone-core` never runs them.
+ */
+const MOUSE_ONLY = /@mouse/;
+
 export default defineConfig({
   testDir: '.',
   testMatch: '*.spec.ts',
@@ -167,6 +173,7 @@ export default defineConfig({
       name: 'phone-core',
       testMatch: PHONE_CORE,
       testIgnore: PHONE_CORE_EXCLUDE.map(([file]) => file),
+      grepInvert: MOUSE_ONLY,
       use: {
         browserName: 'chromium',
         ...PHONE,

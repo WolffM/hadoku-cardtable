@@ -39,7 +39,6 @@ import { expect, test, type Page } from '@playwright/test';
 import { makeTitled, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
-import { isPhone } from './play/phone.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -84,10 +83,11 @@ test(
   titled(
     'W17 — "i would expect it to show from the played card on the stack": casting World Breaker, the arrow leaves from the played card itself, never a fallback point',
   ),
+  // The arrow this follows is the click-targeting one that tracks a hovering mouse; a touch screen has
+  // no hover, so `phone-core` never runs it (`MOUSE_ONLY`, playwright.config.ts).
+  { tag: '@mouse' },
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
-    // The arrow this follows is the click-targeting one that tracks a hovering mouse; a touch screen has no hover.
-    test.skip(isPhone(), 'the pointer-tracking targeting arrow is a mouse’s: no hover on touch');
     if (!forge.ok) return;
     test.setTimeout(3 * 60_000);
 
