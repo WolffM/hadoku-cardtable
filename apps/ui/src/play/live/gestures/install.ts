@@ -1981,6 +1981,19 @@ export function installGestures(options: GestureOptions): GestureHandle {
     }
   }
 
+  /**
+   * A touch this layer has taken — a drag, a box or a placed card past its slop — is never also the
+   * browser's pan. Left alone, Chrome reads the finger's travel as a scroll gesture, and a lift at
+   * speed as a fling it then stops with the next touch, swallowing that tap's click: a blocker
+   * flicked onto its attacker could not be tapped off again (AF548, run 41952662717: down and up on
+   * the card, no click). `pointermove` runs before the `touchmove` of the same input, so `moved` is
+   * current here; before the slop nothing is cancelled, and a lane's sideways swipe stays a scroll.
+   */
+  function onTouchMove(event: TouchEvent): void {
+    if (!event.cancelable) return;
+    if (drag?.moved === true || marquee?.moved === true || placedDrag?.moved === true) event.preventDefault();
+  }
+
   function onPointerCancel(event: PointerEvent): void {
     if (otherPointer(event)) return;
     if (placedDrag !== null) {
@@ -2060,6 +2073,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);
   window.addEventListener('pointercancel', onPointerCancel);
+  window.addEventListener('touchmove', onTouchMove, { passive: false });
   window.addEventListener('keydown', onKeyDown);
 
   /*
@@ -2135,6 +2149,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerCancel);
+      window.removeEventListener('touchmove', onTouchMove);
       window.removeEventListener('keydown', onKeyDown);
       observer.disconnect();
       unsubscribe();

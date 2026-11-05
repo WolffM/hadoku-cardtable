@@ -4488,6 +4488,31 @@ describe('portrait hand carousel — a sideways swipe scrolls, an upward drag pl
     expect(await sent(s, m)).toEqual([['selectCard', id]]);
   });
 
+  /** A cancelable `touchmove` as the browser raises it after the same input's `pointermove`: whether the layer cancelled it. */
+  function touchMoveCancelled(at: Element): boolean {
+    const event = new Event('touchmove', { bubbles: true, cancelable: true });
+    at.dispatchEvent(event);
+    return event.defaultPrevented;
+  }
+
+  it('a drag this layer has taken cancels the browser’s touchmove, so no pan or fling outlives it; a sideways swipe and a press under the slop do not', async () => {
+    const { canvas, face } = await carouselBoard();
+    const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+
+    fireEvent.pointerDown(face, { button: 0, pointerType: 'touch', clientX: 100, clientY: 300 });
+    fireEvent.pointerMove(face, { pointerType: 'touch', clientX: 102, clientY: 298 });
+    expect(touchMoveCancelled(face), 'under the slop: still the browser’s').toBe(false);
+    fireEvent.pointerMove(face, { pointerType: 'touch', clientX: 160, clientY: 290 });
+    expect(touchMoveCancelled(face), 'sideways: the lane’s scroll').toBe(false);
+    fireEvent.pointerCancel(face, { pointerType: 'touch' });
+
+    fireEvent.pointerDown(face, { button: 0, pointerType: 'touch', clientX: 100, clientY: 300 });
+    fireEvent.pointerMove(myBattlefield, { pointerType: 'touch', clientX: 110, clientY: 120 });
+    expect(touchMoveCancelled(myBattlefield), 'upward past the slop: this layer’s drag').toBe(true);
+    fireEvent.pointerUp(myBattlefield, { pointerType: 'touch', clientX: 110, clientY: 120 });
+    expect(touchMoveCancelled(myBattlefield), 'after the lift: nothing held').toBe(false);
+  });
+
   it('a mouse pointer moving on its own mid-tap is not the touch’s move: the tap still reads, nothing cast', async () => {
     const { s, m, canvas, face } = await carouselBoard();
     const board = canvas.querySelector<HTMLElement>('.board')!;
