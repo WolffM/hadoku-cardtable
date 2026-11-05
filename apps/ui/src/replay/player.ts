@@ -21,6 +21,10 @@
  * player's hand while it is held is the one it was ({@link heldCards}), named to the board on the
  * replay's own channel (`REPLAY_HELD_EVENT`) so the back is drawn as that face — hands are face up here.
  *
+ * The front page's card plays a match's dead air short (`skipIdle`): where neither a frame nor a
+ * recorded pointer comes for longer than {@link IDLE_CUT_MS}, playback jumps the rest of the silence
+ * ({@link idleSpans}). `#/replay/<id>` plays every second as it was.
+ *
  * A seek re-folds from frame 0, not from a checkpoint: the longest recording on record (564 frames,
  * a 12-minute game) folds whole in about 7 ms, and `player.test.ts` prints a 1202-frame one's cost,
  * well inside a scrub's frame budget.
@@ -62,6 +66,12 @@ export interface ReplayClock {
   dispose(): void;
 }
 
+export interface ReplayOptions {
+  loop?: boolean;
+  followTurn?: boolean;
+  skipIdle?: boolean;
+}
+
 export interface ReplayPlayer {
   match: LiveMatch;
   clock: ReplayClock;
@@ -72,6 +82,32 @@ const TICK_MS = 50;
 
 /** How often a pointer standing still is handed to the board again: well inside `PRESENCE_STALE_MS`. */
 export const POINTER_RESTATE_MS = PRESENCE_STALE_MS / 2;
+
+/**
+ * How long a silence the front page's card plays before it skips the rest. Measured on the
+ * recordings of 2026-11-04 (m-2e8af8c82619, m-813b43546388, m-fa9528afa1d4): of 412 silences of
+ * half a second or more between one frame or pointer and the next, 367 are under 3 s — a board's
+ * own motion and a player's ordinary pause — and the other 45, up to 26.6 s, are someone thinking
+ * with the pointer still or off the board. A recording made before pointers were kept
+ * (m-07e77e92db5c) has silences up to 68 s, 927 s of its 1584 past this.
+ */
+export const IDLE_CUT_MS = 3000;
+
+/**
+ * The stretches of `[startMs, …]` a card skips: wherever the next of `ats` (every frame's and
+ * pointer's time, any order) is more than `cutMs` after the last, the silence from `cutMs` in to
+ * that next one.
+ */
+export function idleSpans(ats: readonly number[], startMs: number, cutMs: number = IDLE_CUT_MS): { from: number; to: number }[] {
+  const times = ats.filter((at) => at >= startMs).sort((a, b) => a - b);
+  const spans: { from: number; to: number }[] = [];
+  let last = startMs;
+  for (const at of times) {
+    if (at - last > cutMs) spans.push({ from: last + cutMs, to: at });
+    last = at;
+  }
+  return spans;
+}
 
 /** The Forge player id the recording's `openView` names: the watcher channel's own perspective. */
 function firstViewerPlayerId(envs: readonly RecordedEnv[]): number {
@@ -184,9 +220,10 @@ function replayFaces(roster: readonly RecordedSeat[]): ReplayFaces {
  * The board, drawn at the recording's first board (`startMs`), and a paused clock over the rest. `loop`: past the end, play again from the start — the front page's card. `#/replay/<id>`
  * leaves it off, and the end just stops with the scrubber there. `followTurn`: whoever's turn it is is
  * drawn at the bottom — the front page's card again; `#/replay/<id>` is watched like a live match, from
- * seat 0's side until the viewer switches (`match.ts`'s `flipPerspective`).
+ * seat 0's side until the viewer switches (`match.ts`'s `flipPerspective`). `skipIdle`: a silence
+ * longer than {@link IDLE_CUT_MS} plays only that long — the front page's card again.
  */
-export function createReplayPlayer(data: ReplayData, options: { loop?: boolean; followTurn?: boolean } = {}): ReplayPlayer {
+export function createReplayPlayer(data: ReplayData, options: ReplayOptions = {}): ReplayPlayer {
   const frames = data.envs.map(replayFrame);
   const ats = data.envs.map((e) => e.at);
   const duration = ats.length === 0 ? 0 : ats[ats.length - 1]!;
@@ -205,6 +242,7 @@ export function createReplayPlayer(data: ReplayData, options: { loop?: boolean; 
   const startMs = start >= 0 ? ats[start]! : 0;
   const loop = options.loop === true;
   const pointers = data.presence;
+  const skipped = options.skipIdle === true ? idleSpans([...ats, ...pointers.map((p) => p.at)], startMs) : [];
   const roster = data.end?.seats ?? [];
   const seats = new Map([...pointers.map((p) => [p.seat, p.playerId] as const), ...roster.flatMap((s) => (s.playerId === null ? [] : [[s.seat, s.playerId] as const]))]);
   /** The board's presence layer: one at a time (a seek draws the board afresh, and its layer anew). */
@@ -300,7 +338,15 @@ export function createReplayPlayer(data: ReplayData, options: { loop?: boolean; 
       }
       return;
     }
-    const position = rawPosition();
+    let position = rawPosition();
+    // Inside a silence the card skips: on to where the next thing happens, as far past it as the tick was into the silence.
+    let span = skipped.find((sp) => position >= sp.from && position < sp.to);
+    while (span !== undefined) {
+      position = Math.min(duration, position + span.to - span.from);
+      basePositionMs = position;
+      anchorWallClock = now();
+      span = skipped.find((sp) => position >= sp.from && position < sp.to);
+    }
     const due = indexThrough(position);
     if (due > delivered) {
       fold(frames.slice(delivered, due), 'here');

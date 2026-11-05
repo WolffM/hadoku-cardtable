@@ -16,6 +16,9 @@
  * card holds its place, drawn invisibly, until its first board and that board's art are ready
  * (`../replay/load.ts`). It never reads "Connecting…".
  *
+ * The card plays the replay's dead air short (`skipIdle`, `../replay/player.ts`'s `IDLE_CUT_MS`): a
+ * stretch with no frame and no pointer move plays three seconds, then the next thing happens.
+ *
  * `LiveBoard` is rendered whole, at the size its own table-fit expects
  * (`e2e/table-fit.spec.ts`'s own reference, 1280×800) — never re-laid-out, and
  * never a line changed in `LiveBoard.tsx` itself — and the card is a square
@@ -188,7 +191,7 @@ export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback =
           settle(false);
           return;
         }
-        const player = await readyPlayer(data, { loop: true, followTurn: true });
+        const player = await readyPlayer(data, { loop: true, followTurn: true, skipIdle: true });
         built = player.match;
         clock = player.clock;
         if (!live) {

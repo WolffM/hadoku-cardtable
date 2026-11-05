@@ -10,7 +10,7 @@ import { PRESENCE_EVENT, type PresenceMessage } from '@hadoku/shared';
 import { liveStatus } from '../play/live/LiveBoard.tsx';
 import { closeMatch } from '../play/live/match.ts';
 import type { RecordedPresence, ReplayData, ReplayHeader } from './transport.ts';
-import { createReplayPlayer, heldCards, HELD_GRACE_MS, POINTER_RESTATE_MS } from './player.ts';
+import { createReplayPlayer, heldCards, HELD_GRACE_MS, IDLE_CUT_MS, idleSpans, POINTER_RESTATE_MS } from './player.ts';
 import { PRESENCE_STALE_MS } from '../play/live/presence.ts';
 
 /** The minimal two-player baseline `bridge-flying-seat1.ndjson` already commits — reused here rather than re-invented. */
@@ -451,6 +451,73 @@ describe('createReplayPlayer', () => {
     const before = heard.length;
     vi.advanceTimersByTime(9_000);
     expect(heard.length, 'the pointer left the board at 10 s (null): handed once, never restated').toBe(before + 1);
+    clock.dispose();
+    closeMatch(match);
+    vi.useRealTimers();
+  });
+});
+
+describe('skipIdle: the front page plays dead air short', () => {
+  const still = (at: number, x: number): RecordedPresence => ({
+    at,
+    seat: 0,
+    playerId: 0,
+    presence: { matchId: HEADER.matchId, type: 'presence', pointer: { zone: 'battlefield', x, y: 0.1 }, anchor: null, held: false, from: null, arranging: null, placing: null, handMove: null } as PresenceMessage,
+  });
+
+  it('idleSpans: only a silence longer than the cut, from the cut in to the next thing, counted from the start', () => {
+    expect(idleSpans([0, 1000, 2500, 12_000, 13_000], 0, 3000)).toEqual([{ from: 5500, to: 12_000 }]);
+    expect(idleSpans([0, 3000, 6000], 0, 3000), 'exactly the cut is not dead air').toEqual([]);
+    expect(idleSpans([9000, 0, 1000], 1000, 3000), 'any order; nothing before the start').toEqual([{ from: 4000, to: 9000 }]);
+    expect(idleSpans([], 0, 3000)).toEqual([]);
+  });
+
+  it('a silence with no frame and no pointer plays IDLE_CUT_MS, then the next frame lands; without skipIdle it plays whole', () => {
+    vi.useFakeTimers();
+    const cut = createReplayPlayer(threeFrameReplay(20_000), { skipIdle: true });
+    const whole = createReplayPlayer(threeFrameReplay(20_000));
+    cut.clock.play();
+    whole.clock.play();
+    vi.advanceTimersByTime(IDLE_CUT_MS - 100);
+    expect(cut.match.view?.players.map((p) => p.life), 'the silence plays up to the cut').toEqual([20, 20]);
+    vi.advanceTimersByTime(200);
+    expect(cut.match.view?.players.map((p) => p.life), 'then the frame at 20 s lands').toEqual([15, 20]);
+    expect(cut.clock.positionMs()).toBeGreaterThanOrEqual(20_000);
+    expect(whole.match.view?.players.map((p) => p.life), '#/replay plays every second').toEqual([20, 20]);
+    vi.advanceTimersByTime(20_000);
+    expect(whole.match.view?.players.map((p) => p.life)).toEqual([15, 20]);
+    for (const { match, clock } of [cut, whole]) {
+      clock.dispose();
+      closeMatch(match);
+    }
+    vi.useRealTimers();
+  });
+
+  it('a moving pointer is action: a silent board with the cursor moving plays at its own pace', () => {
+    vi.useFakeTimers();
+    const data: ReplayData = { ...threeFrameReplay(10_000), presence: [2000, 4000, 6000, 8000].map((at, i) => still(at, i / 10)) };
+    const { match, clock } = createReplayPlayer(data, { skipIdle: true });
+    clock.play();
+    vi.advanceTimersByTime(9_500);
+    expect(match.view?.players.map((p) => p.life), 'no silence over the cut: nothing skipped').toEqual([20, 20]);
+    vi.advanceTimersByTime(600);
+    expect(match.view?.players.map((p) => p.life)).toEqual([15, 20]);
+    clock.dispose();
+    closeMatch(match);
+    vi.useRealTimers();
+  });
+
+  it('a loop comes back to the start and skips the same silence again', () => {
+    vi.useFakeTimers();
+    const { match, clock } = createReplayPlayer(threeFrameReplay(20_000), { skipIdle: true, loop: true });
+    clock.play();
+    vi.advanceTimersByTime(IDLE_CUT_MS);
+    expect(match.view?.players.map((p) => p.life), 'the tick that reaches the cut skips to the last frame').toEqual([15, 20]);
+    vi.advanceTimersByTime(50);
+    expect(clock.seeks(), 'looped on the next tick').toBe(2);
+    expect(match.view?.players.map((p) => p.life)).toEqual([20, 20]);
+    vi.advanceTimersByTime(IDLE_CUT_MS);
+    expect(match.view?.players.map((p) => p.life)).toEqual([15, 20]);
     clock.dispose();
     closeMatch(match);
     vi.useRealTimers();

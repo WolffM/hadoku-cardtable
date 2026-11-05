@@ -13,7 +13,7 @@ import type { BoardCard, BoardView } from '../play/adapter.ts';
 import { preloadMatchArt } from '../play/live/art-preload.ts';
 import { subscribe } from '../play/live/match.ts';
 import { artReady, cardImageUrl } from '../draft/cardImage.ts';
-import { createReplayPlayer, type ReplayPlayer } from './player.ts';
+import { createReplayPlayer, type ReplayOptions, type ReplayPlayer } from './player.ts';
 import type { Fetch } from '../http.ts';
 import { fetchLatestReplay, fetchReplay, reportReplayTrouble, type ReplayData } from './transport.ts';
 
@@ -32,7 +32,7 @@ function decoded(urls: readonly string[]): Promise<void> {
  * A player over `data`, its first moment drawn with every face decoded. The rest of the match's art
  * (`header.art`, both decks) starts warming once that is done.
  */
-export async function readyPlayer(data: ReplayData, options: { loop?: boolean; followTurn?: boolean } = {}): Promise<ReplayPlayer> {
+export async function readyPlayer(data: ReplayData, options: ReplayOptions = {}): Promise<ReplayPlayer> {
   const player = createReplayPlayer(data, options);
   // A board that says it is in trouble on a replay is a bug in the recording or the player: the server hears it once.
   let reported = false;
