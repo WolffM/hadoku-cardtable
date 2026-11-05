@@ -370,7 +370,7 @@ test(
       // Played back, the active player's cursor is drawn on their own side. The replay screen is watched
       // like a live match (the operator, 2026-11-01): seat 0 stays at the bottom, so that side is the
       // bottom on their turns and the top on the other player's.
-      const cursorSeen: { y: number; boardTop: number; boardBottom: number; name: string; activeAtBottom: boolean }[] = [];
+      const cursorSeen: { y: number; boardTop: number; boardBottom: number; name: string; activeName: string; activeAtBottom: boolean }[] = [];
       for (const speed of [1, 2, 4] as const) {
         await seek(carol.page, 0);
         await carol.page.getByTestId(`replay-bar-speed-${speed}`).click();
@@ -387,7 +387,8 @@ test(
                   const c = cursor.getBoundingClientRect();
                   const o = overlay.getBoundingClientRect();
                   const activeAtBottom = document.querySelector('.seat[data-viewer][data-active]') !== null;
-                  return { y: c.top, boardTop: o.top, boardBottom: o.bottom, name: cursor.querySelector('.presence__name')?.textContent ?? '', activeAtBottom };
+                  const activeName = document.querySelector('.seat[data-active] .seat__name')?.textContent ?? '';
+                  return { y: c.top, boardTop: o.top, boardBottom: o.bottom, name: cursor.querySelector('.presence__name')?.textContent ?? '', activeName, activeAtBottom };
                 });
                 // Distinct places only: a cursor standing still is one sample, however long it stands.
                 if (seen !== null && cursorSeen.at(-1)?.y !== seen.y) cursorSeen.push(seen);
@@ -401,7 +402,8 @@ test(
           const ownSide = cursorSeen.filter((c) => c.y > (c.boardTop + c.boardBottom) / 2 === c.activeAtBottom).length;
           console.log(`[w81] cursor on the replay: ${ownSide}/${cursorSeen.length} samples on the active player's side; first ${JSON.stringify(cursorSeen[0])}`);
           expect(ownSide / cursorSeen.length, 'the active player’s cursor is on their own side').toBeGreaterThanOrEqual(0.8);
-          expect([...new Set(cursorSeen.filter((c) => c.activeAtBottom).map((c) => c.name))], 'no name tag on the bottom player’s own pointer').toEqual(['']);
+          expect(cursorSeen.filter((c) => c.activeAtBottom).length, 'the bottom player’s own pointer is sampled').toBeGreaterThan(0);
+          expect(cursorSeen.filter((c) => c.name === '' || c.name !== c.activeName), 'the cursor is tagged with the acting player’s name, at the bottom and the top').toEqual([]);
         }
         await expect(carol.page.getByTestId('replay-bar-play'), `${speed}× plays to the end`).toHaveText('↺', { timeout: durationMs / speed + 30_000 });
         console.log(`[w81] ${speed}×: played ${durationMs} ms of game in ${Date.now() - started} ms`);

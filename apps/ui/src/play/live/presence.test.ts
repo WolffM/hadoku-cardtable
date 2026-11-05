@@ -137,7 +137,7 @@ const host = (t: ReturnType<typeof fakeTransport>, seat: number | null = 0): Pre
   matchId: 'm-1',
   seat,
   transport: t.transport,
-  opponentName: () => 'Bella',
+  nameOfSeat: (seat) => ['Ada', 'Bella'][seat] ?? null,
   aiming: () => true,
 });
 
@@ -622,7 +622,7 @@ describe('receiving: anchored', () => {
     handle.dispose();
   });
 
-  it('a watcher draws the player at the BOTTOM as itself: their own card here, nothing mirrored, no name tag; the other seat’s pointer is not drawn', () => {
+  it('a watcher draws the player at the BOTTOM as itself: their own card here, nothing mirrored, named; the other seat’s pointer is not drawn', () => {
     // A watcher's board (and a replay's) is drawn from the active player's side: seat 1 is player 1, at the bottom.
     const { canvas } = board();
     const mine = document.createElement('li');
@@ -644,7 +644,7 @@ describe('receiving: anchored', () => {
     const cursor = canvas.querySelector<HTMLElement>('.presence')!;
     expect(cursor.style.left).toBe(`${300 + 0.3 * 60}px`);
     expect(Number.parseFloat(cursor.style.top), '0.8 down their card is 0.8 down it here').toBeCloseTo(420 + 0.8 * 84, 6);
-    expect(cursor.querySelector('.presence__name')!.textContent).toBe('');
+    expect(cursor.querySelector('.presence__name')!.textContent, "the bottom player's cursor carries their name, as the top one's does").toBe('Bella');
     expect(placeSpot(canvas, { zone: null, x: 0.1, y: 0.25 }, false), 'the board fraction, unmirrored').toEqual({ x: 100, y: 200 });
     handle.dispose();
   });
@@ -666,6 +666,7 @@ describe('receiving: anchored', () => {
     // On their card at the top, mirrored as a seat's opponent's pointer is: 0.8 down their card is 0.2 down it here.
     expect(cursor.style.left).toBe('636px');
     expect(Number.parseFloat(cursor.style.top)).toBeCloseTo(160 + 0.2 * 168, 6);
+    expect(cursor.querySelector('.presence__name')!.textContent, "named by the seat that sent it, not by who is across the table").toBe('Ada');
     handle.dispose();
   });
 

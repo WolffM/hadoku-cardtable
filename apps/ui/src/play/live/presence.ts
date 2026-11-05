@@ -143,8 +143,8 @@ export interface PresenceHost {
   /** This seat's number; null while unseated (a spectator): then nothing is sent, and everything is shown. */
   readonly seat: number | null;
   readonly transport: Pick<MatchTransport, 'on' | 'emit'>;
-  /** The other seat's display name, for the cursor's tag. */
-  readonly opponentName: () => string | null;
+  /** The display name of the player a seat holds, for the tag on that seat's cursor. */
+  readonly nameOfSeat: (seat: number) => string | null;
   /** The other seat's player id, for the column their release reserves (`Board`'s `expectPlacement`). Absent: nothing is reserved. */
   readonly theirPlayerId?: () => number | null;
   /**
@@ -1002,8 +1002,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
         '<svg class="presence__pointer" viewBox="0 0 16 16"><path d="M1 1 L1 13 L4.5 9.8 L7 15 L9.3 14 L6.8 9 L11.5 9 Z"/></svg><span class="presence__name"></span>';
       root.append(cursor);
     }
-    // The tag names the other seat; a sender at the bottom is the player whose board this is, named beside it already.
-    cursor.querySelector('.presence__name')!.textContent = mirrored ? (host.opponentName() ?? '') : '';
+    // The tag names the seat that sent it, wherever it is drawn: a watcher's (and a replay's) cursor is the bottom player's.
+    cursor.querySelector('.presence__name')!.textContent = host.nameOfSeat(echo.seat) ?? '';
     cursor.style.left = `${at.x - box.left}px`;
     cursor.style.top = `${at.y - box.top}px`;
 

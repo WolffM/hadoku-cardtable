@@ -3702,7 +3702,11 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
           return spectator ? null : match.seat;
         },
         transport: match.transport,
-        opponentName: () => opponentOf(match.view)?.name ?? null,
+        nameOfSeat: (seat) => {
+          const id = playerIdOfSeat(match, seat);
+          // Before `forge:seats` names the seat, a seated board hears only the other seat.
+          return (id === null ? opponentOf(match.view) : match.view?.players.find((p) => p.id === id))?.name ?? null;
+        },
         theirPlayerId: () => opponentOf(match.view)?.id ?? null,
         playerOfSeat: (seat) => playerIdOfSeat(match, seat),
         viewerPlayerId: () => viewerPlayerIdOf(match),
