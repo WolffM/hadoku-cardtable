@@ -377,6 +377,20 @@ public final class PlayBridge {
         protocol.flush();
     }
 
+    /**
+     * {@code {"t":"dropped","seat":n,"method":"selectCard","card":id,"why":"…"}}: a click this bridge
+     * kept from Forge, because the selection it was sent to answer had closed
+     * ({@link MatchContext#selectionClicks}). Never applied, so never echoed as {@code applied}.
+     */
+    static void dropped(final MatchContext match, final int seat, final String method, final int card, final String why) {
+        final JsonObject o = line("dropped");
+        o.addProperty("seat", seat);
+        o.addProperty("method", method);
+        o.addProperty("card", card);
+        o.addProperty("why", why);
+        emit(match.matchId, o);
+    }
+
     static JsonObject line(final String type) {
         final JsonObject o = new JsonObject();
         o.addProperty("t", type);
@@ -511,6 +525,22 @@ public final class PlayBridge {
          * trust without re-deriving it. See {@link SeatController#applied}.
          */
         final AtomicLong appliedSeq = new AtomicLong();
+
+        /**
+         * Each seat's clicks sent to answer a selection, oldest first: the card and the selection's own
+         * input, recorded as the click leaves this seat's client ({@link SeatGui#act}) and taken by the
+         * click itself where Forge applies it ({@link SeatController#selectCard}). Forge's {@link ActGate}
+         * holds a click until the game waits on an input and then gives it to WHATEVER input that is
+         * — what lets a creature clicked right after a land play cast. A click that answered a
+         * selection (Brainstorm's "up to 2 cards") is never meant for the next input, though: a burst
+         * of them, past the last one the selection took, reached the priority window after it, where a
+         * castable card would have been cast. So such a click is applied only to its own selection.
+         */
+        final Map<Integer, java.util.Deque<Object[]>> selectionClicks = new ConcurrentHashMap<>();
+
+        java.util.Deque<Object[]> selectionClicks(final int seat) {
+            return selectionClicks.computeIfAbsent(seat, s -> new java.util.concurrent.ConcurrentLinkedDeque<>());
+        }
 
         /**
          * Wave 33 §S item 4 — the concede race, ORDERED shut rather than merely
@@ -3097,6 +3127,7 @@ public final class PlayBridge {
             // A selection cleared before its input opened was never the seat's to see.
             heldSelectables = null;
             convokeOffered = null;
+            shownSelection = null;
             frame(notify("clearSelectables"));
         }
 
@@ -3744,7 +3775,15 @@ public final class PlayBridge {
             final JsonArray players = legalPlayers();
             if (players != null) { f.add("players", players); }
             frame(f);
+            shownSelection = myInput();
         }
+
+        /**
+         * The input whose selection this seat was last shown ({@code setSelectables}), until it is cleared:
+         * what a click sent to answer a selection is for ({@link MatchContext#selectionClicks}). Read off
+         * the input as the selection goes out, so a click is never aimed at whatever opened after it.
+         */
+        private volatile Object shownSelection;
 
         private JsonObject selectablesFrame(final Iterable<CardView> cards, final int min, final int max) {
             final JsonObject f = notify("setSelectables");
@@ -3792,6 +3831,7 @@ public final class PlayBridge {
                 f.add("players", new JsonArray());
                 frame(f);
                 convokeOffered = input;
+                shownSelection = input;
             } catch (final ReflectiveOperationException | RuntimeException e) {
                 System.err.println("[bridge] syncConvokeSelectables: could not read the open pick (" + e + "); nothing offered");
             }
@@ -5453,9 +5493,19 @@ public final class PlayBridge {
                 case "nextGameDecision" -> c.nextGameDecision(NextGameDecision.valueOf(frame.get("decision").getAsString()));
                 case "selectPlayer" -> c.selectPlayer(player(frame.get("player")), trigger(frame.get("triggerEvent")));
                 case "selectCard" -> {
+                    final CardView picked = card(frame.get("card"));
+                    // A click sent to answer a selection: for that selection only (MatchContext#selectionClicks).
+                    if (frame.has("forSelection") && frame.get("forSelection").getAsBoolean()) {
+                        final Object selection = shownSelection;
+                        if (selection == null) {
+                            dropped(match, seat, "selectCard", picked.getId(), "its selection had already closed");
+                            return;
+                        }
+                        match.selectionClicks(seat).add(new Object[] { picked.getId(), selection });
+                    }
                     final List<CardView> others = new ArrayList<>();
                     for (final JsonElement e : frame.getAsJsonArray("otherCardViewsToSelect")) { others.add(card(e)); }
-                    c.selectCard(card(frame.get("card")), others, trigger(frame.get("triggerEvent")));
+                    c.selectCard(picked, others, trigger(frame.get("triggerEvent")));
                 }
                 case "selectAbility" -> {
                     final int id = frame.getAsJsonObject("ability").get("id").getAsInt();
@@ -5889,6 +5939,19 @@ public final class PlayBridge {
             return in instanceof InputLockUI ? null : in;
         }
 
+        /** The selection this seat's click on {@code cardId} was sent to answer, taken off its record; null for any other click. */
+        private Object takeSelectionClick(final int cardId) {
+            final var pending = match.selectionClicks(seat);
+            for (final var it = pending.iterator(); it.hasNext();) {
+                final Object[] entry = it.next();
+                if ((int) entry[0] == cardId) {
+                    it.remove();
+                    return entry[1];
+                }
+            }
+            return null;
+        }
+
         /**
          * The hand cards held back by their cost alone, and the input they were read for — for
          * {@code unaffordable} on that input's {@code setWeaklySelectable} ({@link SeatGui#unaffordable}).
@@ -6041,6 +6104,11 @@ public final class PlayBridge {
         @Override
         public boolean selectCard(final CardView cardView, final List<CardView> otherCardViewsToSelect, final ITriggerEvent triggerEvent) {
             final Object before = liveInput();
+            final Object selection = takeSelectionClick(cardView.getId());
+            if (selection != null && selection != before) {
+                dropped(match, seat, "selectCard", cardView.getId(), "its selection had closed before Forge reached it");
+                return false;
+            }
             final JsonObject a = act("selectCard");
             a.add("card", ref("card", cardView.getId()));
             final JsonArray others = new JsonArray();

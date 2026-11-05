@@ -312,6 +312,12 @@ export type BridgeLine =
 	 */
 	| { t: 'input'; seat: number; open: boolean; input?: string }
 	/**
+	 * A click the bridge kept from Forge (`PlayBridge.java`'s `MatchContext.selectionClicks`): it was
+	 * sent to answer a selection that closed before Forge reached it, and would have landed in
+	 * whatever input came next. Never applied, so never an `applied` line.
+	 */
+	| { t: 'dropped'; seat: number; method: string; card: number; why: string }
+	/**
 	 * The game as its turn's upkeep begins (`PlayBridge.TurnSnapshot`): Forge's `GameState` text, a
 	 * scenario that restores the match to the start of that turn (`match.ts`'s `restoredSpec`).
 	 * `ms` is how long the bridge took to write it. `lossy` names what the game held that the text
@@ -471,7 +477,7 @@ function brokenStreamFile(dir: string, matchId: string): string {
 	return join(dir, `${matchId}.broken.jsonl`);
 }
 
-const LINE_TYPES = new Set(['ready', 'frame', 'probe', 'gameover', 'log', 'fatal', 'rejected', 'stale', 'unsupported', 'pace', 'resent', 'applied', 'input', 'snapshot']);
+const LINE_TYPES = new Set(['ready', 'frame', 'probe', 'gameover', 'log', 'fatal', 'rejected', 'stale', 'unsupported', 'pace', 'resent', 'applied', 'input', 'dropped', 'snapshot']);
 
 /**
  * The `bridge.stderr.txt` of the local JVM that hosts `matchId`, found by the `match-placed`

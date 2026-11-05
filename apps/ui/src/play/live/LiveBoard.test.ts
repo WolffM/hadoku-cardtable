@@ -781,7 +781,8 @@ describe('clicking a card on the live board', () => {
     await s.untilClientFrames(1);
     expect(s.clientFrames()[0]).toEqual({
       ok: true,
-      value: { kind: 'act', method: 'selectCard', card: { kind: 'card', id: target }, otherCardViewsToSelect: [], triggerEvent: null },
+      // Clicked while Forge's selection is open: an answer to it, marked so (`selectCard`'s `forSelection`).
+      value: { kind: 'act', method: 'selectCard', card: { kind: 'card', id: target }, otherCardViewsToSelect: [], triggerEvent: null, forSelection: true },
     });
     // Spent: not selectable again until Forge speaks — asserted by the wire
     // above (exactly one frame sent) and by the marker going away here.

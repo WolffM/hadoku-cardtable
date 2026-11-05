@@ -2779,6 +2779,7 @@ export class Match {
 			case 'rejected':
 			case 'stale':
 			case 'pace':
+			case 'dropped':
 			case 'unsupported': {
 				const { t, ...detail } = line;
 				this.deps.log({ evt: `bridge-${t}`, matchId: this.id, ...detail });

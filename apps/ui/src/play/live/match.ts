@@ -2146,6 +2146,8 @@ export function selectCard(match: LiveMatch, cardId: number, placement?: Placeme
       otherCardViewsToSelect: [],
       triggerEvent: null,
       ...sameTargetOf(match),
+      // An answer to the open selection is for that selection alone, never the next input.
+      ...(match.selectables === null ? {} : { forSelection: true as const }),
     },
     placement,
   );

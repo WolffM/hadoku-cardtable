@@ -728,6 +728,8 @@ const cardAct = (id: number) => ({
   ok: true,
   value: { kind: 'act', method: 'selectCard', card: { kind: 'card', id }, otherCardViewsToSelect: [], triggerEvent: null },
 });
+/** A click answering an open selection: marked so the bridge keeps it off the next input. */
+const selectionAct = (id: number) => ({ ok: true, value: { ...cardAct(id).value, forSelection: true } });
 
 /** The Game object's wire key, and one synthetic delta. */
 const GAME_KEY = String((DELTA_TYPE.game << 28) | 1);
@@ -753,9 +755,11 @@ const phase = (name: string, playerTurn: number) =>
 /** Send a known-good act and require it to be the first thing the server got. */
 async function barrier(s: ReplayServer, m: LiveMatch, id: number): Promise<void> {
   await sendAndApply(s, m, [prompt('barrier'), actionable([id])]);
+  // A click while a selection is still open answers it, and is marked so (`selectCard`'s `forSelection`).
+  const expected = m.selectables === null ? cardAct(id) : selectionAct(id);
   expect(selectCard(m, id)).toBe(true);
   await until('the barrier act', () => s.clientFrames().length >= 1);
-  expect(s.clientFrames()).toEqual([cardAct(id)]);
+  expect(s.clientFrames()).toEqual([expected]);
 }
 
 describe('clicking the board: only what Forge offered', () => {
@@ -872,6 +876,22 @@ describe('clicking the board: only what Forge offered', () => {
     await barrier(s, m, theirs[0]!);
   });
 
+  it('a click that answers a selection says so, for the bridge to keep it off the next input; a play says nothing', async () => {
+    const { s, m } = await fullGame();
+    const mine = myUntapped(m);
+    await sendAndApply(s, m, [prompt('Select cards'), selectables([mine[0]!], 1, 1)]);
+    expect(selectCard(m, mine[0]!)).toBe(true);
+    await until('the answer at the server', () => s.clientFrames().length === 1);
+    expect(s.clientFrames()[0]).toMatchObject({ ok: true, value: { method: 'selectCard', card: { id: mine[0] }, forSelection: true } });
+
+    await sendAndApply(s, m, [clear(), prompt('Priority'), actionable([mine[1]!])]);
+    expect(selectCard(m, mine[1]!)).toBe(true);
+    await until('the play at the server', () => s.clientFrames().length === 2);
+    const play = s.clientFrames()[1];
+    expect(play).toMatchObject({ ok: true, value: { method: 'selectCard', card: { id: mine[1] } } });
+    expect(play && play.ok ? 'forSelection' in play.value : true, 'a play carries no selection mark').toBe(false);
+  });
+
   it('a click on a selectable Forge has CLEARED sends nothing', async () => {
     const { s, m } = await fullGame();
     const { mine } = ids(m);
@@ -887,7 +907,7 @@ describe('clicking the board: only what Forge offered', () => {
     expect(selectCard(m, mine[0]!)).toBe(false);
     expect(selectCard(m, theirs[0]!)).toBe(true);
     await until('the act', () => s.clientFrames().length === 1);
-    expect(s.clientFrames()).toEqual([cardAct(theirs[0]!)]);
+    expect(s.clientFrames()).toEqual([selectionAct(theirs[0]!)]);
   });
 
   it('a card clicked is spent until Forge speaks again: a double click sends once', async () => {
@@ -1745,7 +1765,7 @@ describe('setHighlighted: Forge’s mark is offered, and never widens an offer',
     expect(selectCard(m, mine[0]!)).toBe(false);
     expect(selectCard(m, theirs[0]!)).toBe(true);
     await until('the act', () => s.clientFrames().length === 1);
-    expect(s.clientFrames()).toEqual([cardAct(theirs[0]!)]);
+    expect(s.clientFrames()).toEqual([selectionAct(theirs[0]!)]);
   });
 
   it('outside a selection a mark joins the actionable set rather than replacing it', async () => {
@@ -1968,7 +1988,7 @@ describe('the London mulligan: Forge’s own flag makes the seat’s own hand cl
     for (const id of hand) expect(selectCard(m, id)).toBe(false);
     expect(selectCard(m, theirs[0]!)).toBe(true);
     await until('the act', () => s.clientFrames().length === 1);
-    expect(s.clientFrames()).toEqual([cardAct(theirs[0]!)]);
+    expect(s.clientFrames()).toEqual([selectionAct(theirs[0]!)]);
   });
 
   it('the offer SURVIVES a resync — the flag is state, and the server re-sends the mark (wave 31 §S)', async () => {

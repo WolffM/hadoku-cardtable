@@ -1069,6 +1069,12 @@ export const SelectCardSchema = z.strictObject({
   triggerEvent: TriggerEventSchema.nullable(),
   /** Ours: as `selectPlayer`'s. */
   sameTarget: z.literal(true).optional(),
+  /**
+   * Ours: the click answers a selection (Brainstorm's "up to 2 cards"), so the bridge applies it to
+   * that selection or not at all — never to whatever input Forge opens next (`PlayBridge.java`'s
+   * `MatchContext.selectionClicks`). Forge never sees it.
+   */
+  forSelection: z.literal(true).optional(),
 });
 
 /** `void selectAbility(SpellAbilityView sa)` — IGameController.java:38. */
