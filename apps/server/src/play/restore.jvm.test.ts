@@ -62,6 +62,14 @@ function normalized(state: string): Record<string, string[]> {
 					.replace(ID_REF, (_m, k: string, ids: string) => `${k}:${ids.split(',').map(name).join(',')}`)
 					.replace(UNTIL_REF, (_m, k: string, id: string) => `${k}@${name(id)}`),
 			);
+		// A delayed trigger names its host and remembered cards by id: `<host>|<activator>|<kind>|<intrinsic>|<c<id>,…>|<params>`.
+		if (key === 'delayedtrigger') {
+			const fields = (line.slice(at + 1)).split('|');
+			fields[0] = name(fields[0]!);
+			fields[4] = (fields[4] ?? '').replace(/c(\d+)/g, (_m, id: string) => `c${name(id)}`);
+			out[key] = [...(out[key] ?? []), fields.join('|')];
+			continue;
+		}
 		out[key] = UNORDERED.test(key) ? entries.sort() : entries;
 	}
 	return out;
@@ -562,6 +570,52 @@ describe.skipIf(!available.ok)(`${title}: restart turn`, () => {
 				expect(again.lossy, 'one of each effect card, each its holder\'s own').toBeUndefined();
 				expect(normalized(again.state)).toEqual(normalized(from.state));
 				expect(s.lines.slice(lines).filter((l) => l.t === 'log' && /monarch|initiative/i.test(JSON.stringify(l)) && /becomes|takes/i.test(JSON.stringify(l))), 'no "becomes the monarch" or "takes the initiative" ran again').toEqual([]);
+			} finally {
+				await s.stop();
+			}
+		},
+		300_000,
+	);
+
+	it(
+		'a delayed trigger waiting for the upkeep comes through a restart and fires once more: Casey Jones\'s random discard',
+		async () => {
+			if (!available.ok) return;
+			// Casey Jones's own delayed trigger, run as the board applies on seat 1's turn 3: at the beginning of
+			// seat 0's next upkeep, discard three cards at random. Turn 4's snapshot is taken as that upkeep begins,
+			// before the trigger fires, so it must carry the trigger; the restart then plays the upkeep again.
+			const scenario = [
+				'turn=3',
+				'activeplayer=ai',
+				'activephase=MAIN1',
+				'humanlife=20',
+				'ailife=20',
+				'humanhand=Grizzly Bears;Hill Giant;Llanowar Elves',
+				'humanbattlefield=Forest;Casey Jones, Vigilante|ExecuteScript:DelTrig',
+				'humanlibrary=' + Array.from({ length: 20 }, () => 'Forest').join(';'),
+				'aibattlefield=Mountain',
+				'ailibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
+			].join('\n');
+			const s = await startScenario(available.config, { seed: 3, decks: decks(), scenario, skipOpening: true });
+			try {
+				await passUntil(s, noAttacks(s, () => snapshots(s).some((l) => l.turn === 4) && inOwnMain(s, 0, 4)), 'turn 4, its first main', 120_000);
+				const from = snapshots(s).find((l) => l.turn === 4)!;
+				expect(from.lossy, 'the delayed trigger is written').toBeUndefined();
+				expect(normalized(from.state).delayedtrigger).toEqual([expect.stringMatching(/^Casey Jones, Vigilante\|P0\|delayed\|/)]);
+				// It fired as the upkeep went on: three cards discarded, then the draw.
+				expect(s.zone(0, 'Hand')).toHaveLength(1);
+				expect(s.zone(0, 'Graveyard')).toHaveLength(3);
+
+				const lines = s.lines.length;
+				expect(s.match.restartAct(0, 'ask')).toEqual({ ok: true });
+				expect(s.match.restartAct(1, 'allow')).toEqual({ ok: true });
+				await waitUntil(() => s.lines.slice(lines).some((l) => l.t === 'snapshot'), "the restarted turn's own snapshot", 120_000, s);
+				const again = s.lines.slice(lines).find((l): l is Snapshot & { hostT: number } => l.t === 'snapshot')!;
+				expect(again.lossy).toBeUndefined();
+				expect(normalized(again.state)).toEqual(normalized(from.state));
+				// The restored upkeep fires it again: the three cards the snapshot holds in hand go, then the draw.
+				await passUntil(s, noAttacks(s, () => inOwnMain(s, 0, 4)), 'the restarted turn 4, its first main', 120_000);
+				await waitUntil(() => s.zone(0, 'Hand').length === 1 && s.zone(0, 'Graveyard').length === 3, 'the discard again, then the draw', 30_000, s);
 			} finally {
 				await s.stop();
 			}

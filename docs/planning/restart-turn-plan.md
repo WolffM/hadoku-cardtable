@@ -74,7 +74,7 @@ it, read off `GameState.initFromGame`/`applyToGame`):
 | emblems, effect cards in the command zone | command zone `Card`s with no printed card | medium |
 | static effects not a card's own (`DetachedCardEffect`) | `Game.getStaticEffects` | medium: `GameCopier` copies them |
 | control | `Card`'s base controller and timestamped temporary controllers | **carried in layers** (slice 2), with conditions on the source card (slice 3); `control-condition` names only UntilTheEndOfYourNextTurn, UntilSourceUnattached, StaticCommandCheck |
-| delayed triggers | `TriggerHandler` delayed triggers | hard: they hold abilities and remembered objects |
+| delayed triggers | `TriggerHandler` delayed triggers | **carried** (slice 4) when the host is in a written zone with its SVar and what it remembers is cards, players or numbers |
 | a player's turn history (spells cast, life lost, creatures died) | `Player` counters | medium; the snapshot is taken at the turn's start, so only "last turn" history matters |
 
 Steps:
@@ -159,3 +159,19 @@ on the restored Sower; a `CustomScript` precast of UntilTheEndOfYourNextTurn is 
 
 Nothing is replaced: restart is new. `perCallerLimit`'s bucket becomes a shared
 `costlyActLimit` so the socket act and the HTTP routes count the same way, with no second copy.
+
+### Slice 4 (fork d3601870): delayed triggers, and the restore race
+
+- `delayedtrigger=<host>|<activator>|<delayed, thisturn or P<n>>|<intrinsic>|<remembered>|<params, Base64>`,
+  one per waiting trigger; the apply rebuilds it from its parameters with its `Execute` SVar from the
+  host. Pacts, Casey Jones and the other "at the beginning of your next upkeep" cards come back.
+  What stays `delayed-trigger`: a host outside the written zones (a copy, a token), without its SVar,
+  or a trigger remembering anything but cards, players and numbers.
+- **The restore race, found by this slice's proof.** The restore advanced to its upkeep inside
+  `GameState.applyToGame`, before the bridge resynced the seats. An upkeep trigger was then put to
+  the stack and a seat was asked about it while its client still held the old view: the card did not
+  resolve, the answer came back null and Forge dropped the trigger. It lost Casey Jones's discard in
+  about half the local runs, and every failover since snapshots began was exposed to it for any
+  upkeep trigger. `GameState.setDeferAdvance`/`advanceDeferred` leave the advance to the bridge,
+  which runs it after `resyncSeats`. 4 of 4 runs after, the whole suite 11 of 11.
+

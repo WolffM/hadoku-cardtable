@@ -6326,6 +6326,8 @@ public final class PlayBridge {
                 state = new GameState();
                 state.parse(Arrays.asList(text.split("\\r?\\n")));
                 state.setRestore(m.restore);
+                // A restore's text advances to its upkeep: done after every seat holds the restored game.
+                state.setDeferAdvance(m.restore);
             } else {
                 state = null;
             }
@@ -6356,6 +6358,8 @@ public final class PlayBridge {
                 log.listen();
                 resyncSeats(hm.getGame());
                 refreshActionable(hm.getGame());
+                // The upkeep's triggers ask the seats about cards the resync above has just shown them.
+                state.advanceDeferred(hm.getGame());
             });
             return hm;
         }
