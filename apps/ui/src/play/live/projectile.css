@@ -64,7 +64,7 @@
 .effect-hit[data-projectile='bolt'] {
   width: 22px;
   height: 22px;
-  background: radial-gradient(circle at 40% 40%, var(--bolt-core) 0 22%, var(--bolt) 50%, var(--bolt-rim) 100%);
+  background: radial-gradient(in srgb circle at 40% 40%, var(--bolt-core) 0 22%, var(--bolt) 50%, var(--bolt-rim) 100%);
   box-shadow:
     0 0 14px 6px color-mix(in srgb, var(--bolt) 90%, transparent),
     0 0 36px 14px color-mix(in srgb, var(--bolt) 50%, transparent);
@@ -74,7 +74,7 @@
 .effect-hit[data-projectile='heal'] {
   width: 14px;
   height: 14px;
-  background: radial-gradient(circle at 40% 40%, color-mix(in srgb, var(--success) 25%, var(--c-white)) 0 20%, var(--success) 75%);
+  background: radial-gradient(in srgb circle at 40% 40%, color-mix(in srgb, var(--success) 25%, var(--c-white)) 0 20%, var(--success) 75%);
   box-shadow: 0 0 14px 5px color-mix(in srgb, var(--success) 60%, transparent);
 }
 
@@ -102,7 +102,7 @@
   translate: -50% -50%;
   border-radius: 50%;
   pointer-events: none;
-  background: radial-gradient(circle, color-mix(in srgb, var(--smoke) 60%, transparent) 0 30%, transparent 72%);
+  background: radial-gradient(in srgb circle, color-mix(in srgb, var(--smoke) 60%, transparent) 0 30%, transparent 72%);
 }
 
 .effect-trail::before,
@@ -115,12 +115,12 @@
 
 .effect-trail::before {
   z-index: 1;
-  background: radial-gradient(circle, var(--bolt-core) 0 18%, var(--bolt) 45%, color-mix(in srgb, var(--bolt-rim) 60%, transparent) 70%, transparent 72%);
+  background: radial-gradient(in srgb circle, var(--bolt-core) 0 18%, var(--bolt) 45%, color-mix(in srgb, var(--bolt-rim) 60%, transparent) 70%, transparent 72%);
   animation: effect-trail-hot calc(420ms / var(--tempo, 1)) linear forwards;
 }
 
 .effect-trail::after {
-  background: radial-gradient(circle, var(--bolt) 0 20%, color-mix(in srgb, var(--bolt-rim) 70%, transparent) 55%, transparent 72%);
+  background: radial-gradient(in srgb circle, var(--bolt) 0 20%, color-mix(in srgb, var(--bolt-rim) 70%, transparent) 55%, transparent 72%);
   opacity: 0;
   animation: effect-trail-flame calc(420ms / var(--tempo, 1)) linear forwards;
 }
@@ -166,7 +166,7 @@
   width: calc(2 * var(--r));
   height: calc(2 * var(--r));
   border-radius: 50%;
-  background: radial-gradient(circle, var(--c-white) 0 25%, var(--bolt-core) 45%, transparent 70%);
+  background: radial-gradient(in srgb circle, var(--c-white) 0 25%, var(--bolt-core) 45%, transparent 70%);
   animation: effect-blast-flash calc(160ms / var(--tempo, 1)) ease-out forwards;
 }
 
@@ -185,14 +185,14 @@
 .effect-blast__puff {
   border-radius: 50%;
   /* Soft all the way out: a glow, never a disc with an edge. */
-  background: radial-gradient(circle, color-mix(in srgb, var(--bolt-core) 95%, transparent) 0, color-mix(in srgb, var(--bolt) 70%, transparent) 35%, color-mix(in srgb, var(--bolt-rim) 30%, transparent) 60%, transparent 70%);
+  background: radial-gradient(in srgb circle, color-mix(in srgb, var(--bolt-core) 95%, transparent) 0, color-mix(in srgb, var(--bolt) 70%, transparent) 35%, color-mix(in srgb, var(--bolt-rim) 30%, transparent) 60%, transparent 70%);
   scale: 0.2;
   animation: effect-blast-puff calc(var(--blast-ms) / var(--tempo, 1)) cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
 }
 
 /* The heart of it: white-hot first. */
 .effect-blast__puff[data-core] {
-  background: radial-gradient(circle, var(--c-white) 0 12%, var(--bolt-core) 28%, color-mix(in srgb, var(--bolt) 70%, transparent) 50%, transparent 70%);
+  background: radial-gradient(in srgb circle, var(--c-white) 0 12%, var(--bolt-core) 28%, color-mix(in srgb, var(--bolt) 70%, transparent) 50%, transparent 70%);
 }
 
 @keyframes effect-blast-puff {
@@ -220,7 +220,7 @@
   position: absolute;
   inset: 10%;
   border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--smoke) 45%, transparent) 0, transparent 70%);
+  background: radial-gradient(in srgb circle, color-mix(in srgb, var(--smoke) 45%, transparent) 0, transparent 70%);
   opacity: 0;
   animation: effect-blast-smoke calc(var(--blast-ms) / var(--tempo, 1)) ease-out forwards;
 }

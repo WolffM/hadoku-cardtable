@@ -113,7 +113,7 @@
   padding: var(--dz-pad) var(--dz-pad) var(--dz-margin) var(--dz-margin);
   mask-image:
     linear-gradient(var(--dz-angle), transparent var(--dz-edge), var(--ink) calc(var(--dz-edge) + var(--dz-diag) * 0.005)),
-    radial-gradient(circle, var(--ink) 0 0.8px, transparent 1.2px),
+    radial-gradient(in srgb circle, var(--ink) 0 0.8px, transparent 1.2px),
     linear-gradient(
       var(--dz-angle),
       transparent calc(var(--dz-edge) - var(--dz-diag) * 0.07),
@@ -134,7 +134,7 @@
   inset: calc(-1 * var(--dz-pad)) calc(-1 * var(--dz-pad)) calc(-1 * var(--dz-margin)) calc(-1 * var(--dz-margin));
   margin: 0;
   mask-image:
-    radial-gradient(circle at 30% 70%, var(--ink) 0 1px, transparent 1.4px),
+    radial-gradient(in srgb circle at 30% 70%, var(--ink) 0 1px, transparent 1.4px),
     linear-gradient(
       var(--dz-angle),
       transparent calc(var(--dz-edge) - var(--dz-diag) * 0.14),

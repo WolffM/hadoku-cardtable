@@ -135,7 +135,7 @@
   height: 12px;
   border-radius: 50%;
   translate: 0 -50%;
-  background: radial-gradient(circle, var(--warn) 0 30%, var(--danger) 60%, transparent 72%);
+  background: radial-gradient(in srgb circle, var(--warn) 0 30%, var(--danger) 60%, transparent 72%);
   animation: pick-rope-ember 420ms ease-in-out infinite alternate;
 }
 

@@ -18,7 +18,7 @@
   height: calc(26px * var(--s, 1));
   margin: calc(-13px * var(--s, 1)) 0 0 calc(-13px * var(--s, 1));
   border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--c-black) 80%, transparent) 0, color-mix(in srgb, var(--c-black) 35%, transparent) 45%, transparent 72%);
+  background: radial-gradient(in srgb circle, color-mix(in srgb, var(--c-black) 80%, transparent) 0, color-mix(in srgb, var(--c-black) 35%, transparent) 45%, transparent 72%);
   pointer-events: none;
 }
 

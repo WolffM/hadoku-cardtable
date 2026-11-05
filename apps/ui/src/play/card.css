@@ -878,7 +878,7 @@
   left: 14%;
   height: 5px;
   border-radius: 50%;
-  background: radial-gradient(closest-side, var(--shadow), transparent);
+  background: radial-gradient(in srgb closest-side, var(--shadow), transparent);
   pointer-events: none;
   animation: fly-shadow var(--fly-iteration) linear var(--fly-start) infinite;
 }
@@ -944,8 +944,8 @@
   right: auto;
   width: 160%;
   background:
-    radial-gradient(40% 30% at 30% 45%, var(--shroud), transparent),
-    radial-gradient(35% 28% at 70% 65%, var(--shroud), transparent);
+    radial-gradient(in srgb 40% 30% at 30% 45%, var(--shroud), transparent),
+    radial-gradient(in srgb 35% 28% at 70% 65%, var(--shroud), transparent);
   opacity: 0.55;
   animation: protection-mist 9s ease-in-out var(--protection-start) infinite alternate;
 }
