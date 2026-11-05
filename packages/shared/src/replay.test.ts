@@ -13,6 +13,7 @@ const SUMMARY = {
   endedAt: '2026-01-01T00:10:00.000Z',
   winner: 0 as const,
   source: 'stream' as const,
+  pace: { envs: 400, durationMs: 360_000, waitMs: 200_000 },
 };
 
 describe('ReplaySummarySchema', () => {
@@ -28,6 +29,11 @@ describe('ReplaySummarySchema', () => {
     expect(ReplaySummarySchema.safeParse({ ...SUMMARY, winner: 2 }).success).toBe(false);
     expect(ReplaySummarySchema.safeParse({ ...SUMMARY, source: 'cached' }).success).toBe(false);
     expect(ReplaySummarySchema.safeParse({ ...SUMMARY, extra: true }).success).toBe(false);
+  });
+
+  it('accepts a null pace (no stream to read it from) and refuses a negative one', () => {
+    expect(ReplaySummarySchema.safeParse({ ...SUMMARY, source: 'rebuild', pace: null }).success).toBe(true);
+    expect(ReplaySummarySchema.safeParse({ ...SUMMARY, pace: { envs: -1, durationMs: 0, waitMs: 0 } }).success).toBe(false);
   });
 
   it('refuses a players tuple that is not exactly two', () => {

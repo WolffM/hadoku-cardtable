@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { parseServerFrame } from '@hadoku/forge-wire';
 
 import type { Fetch } from '../http.ts';
-import { fetchRandomReplay, fetchReplay, fetchReplays, parseReplayData } from './transport.ts';
+import { fetchRandomReplay, fetchReplay, replayWeight, fetchReplays, parseReplayData, type ReplayListing } from './transport.ts';
 
 const json = (status: number, body: unknown): Response =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -107,7 +107,7 @@ describe('fetchReplay', () => {
 });
 
 describe('fetchReplays / fetchRandomReplay', () => {
-  const LISTING = { matchId: 'm-2', roomId: 'r-2', players: ['Carol', 'Dave'], decks: [], startedAt: '2026-10-27T00:00:00.000Z', endedAt: '2026-10-27T00:05:00.000Z', winner: 1, source: 'stream' };
+  const LISTING: ReplayListing = { matchId: 'm-2', roomId: 'r-2', players: ['Carol', 'Dave'], decks: [], startedAt: '2026-10-27T00:00:00.000Z', endedAt: '2026-10-27T00:05:00.000Z', winner: 1, source: 'stream', pace: null };
 
   it('GETs with the limit and returns the list', async () => {
     const { fetchImpl, calls } = stub(() => json(200, { replays: [LISTING] }));
@@ -117,8 +117,14 @@ describe('fetchReplays / fetchRandomReplay', () => {
     expect(calls[0]!.url).toContain('limit=5');
   });
 
-  it('fetchRandomReplay asks for the whole list and picks one at random, null on an empty list', async () => {
-    const rows = ['m-1', 'm-2', 'm-3'].map((matchId) => ({ ...LISTING, matchId }));
+  const paced = (matchId: string, envs: number, minutes: number, waitMinutes: number): ReplayListing => ({
+    ...LISTING,
+    matchId,
+    pace: { envs, durationMs: minutes * 60_000, waitMs: waitMinutes * 60_000 },
+  });
+
+  it('fetchRandomReplay asks for the whole list and picks among equally busy games at random, null on an empty list', async () => {
+    const rows = ['m-1', 'm-2', 'm-3'].map((id) => paced(id, 600, 10, 5));
     const { fetchImpl, calls } = stub(() => json(200, { replays: rows }));
     expect((await fetchRandomReplay(fetchImpl, () => 0))?.matchId).toBe('m-1');
     expect((await fetchRandomReplay(fetchImpl, () => 0.5))?.matchId).toBe('m-2');
@@ -129,11 +135,30 @@ describe('fetchReplays / fetchRandomReplay', () => {
     expect(await fetchRandomReplay(empty)).toBeNull();
   });
 
+  it('weights busy games over slow ones: more happening per minute, less waiting', async () => {
+    // Same frames per minute, but the slow game spent 8 of its 10 minutes waiting: weight (60·0.2)² vs (60·0.8)².
+    const busy = paced('m-busy', 600, 10, 2);
+    const slow = paced('m-slow', 600, 10, 8);
+    expect(replayWeight(busy) / replayWeight(slow)).toBeCloseTo(16);
+    const { fetchImpl } = stub(() => json(200, { replays: [slow, busy] }));
+    const picks = await Promise.all([0, 0.1, 0.5, 0.9].map((r) => fetchRandomReplay(fetchImpl, () => r)));
+    expect(picks.map((p) => p?.matchId)).toEqual(['m-slow', 'm-busy', 'm-busy', 'm-busy']);
+  });
+
+  it('skips a game abandoned at the start while there is a whole one, and takes it when it is all there is', async () => {
+    const abandoned = paced('m-abandoned', 8, 0.01, 0);
+    const { fetchImpl } = stub(() => json(200, { replays: [abandoned, paced('m-game', 400, 6, 4)] }));
+    expect((await fetchRandomReplay(fetchImpl, () => 0))?.matchId).toBe('m-game');
+
+    const { fetchImpl: only } = stub(() => json(200, { replays: [abandoned] }));
+    expect((await fetchRandomReplay(only, () => 0))?.matchId).toBe('m-abandoned');
+  });
+
   it('fetchRandomReplay prefers a recorded stream to one the server must rebuild, and takes a rebuild when that is all there is', async () => {
-    const { fetchImpl } = stub(() => json(200, { replays: [{ ...LISTING, matchId: 'm-rebuild', source: 'rebuild' }, { ...LISTING, matchId: 'm-stream' }] }));
+    const { fetchImpl } = stub(() => json(200, { replays: [{ ...LISTING, matchId: 'm-rebuild', source: 'rebuild', pace: null }, paced('m-stream', 400, 6, 4)] }));
     expect((await fetchRandomReplay(fetchImpl, () => 0))?.matchId).toBe('m-stream');
 
-    const { fetchImpl: rebuilds } = stub(() => json(200, { replays: [{ ...LISTING, matchId: 'm-rebuild', source: 'rebuild' }] }));
+    const { fetchImpl: rebuilds } = stub(() => json(200, { replays: [{ ...LISTING, matchId: 'm-rebuild', source: 'rebuild', pace: null }] }));
     expect((await fetchRandomReplay(rebuilds, () => 0))?.matchId).toBe('m-rebuild');
   });
 

@@ -1,7 +1,7 @@
 /**
  * `/api/replays` — contract 2 of `docs/planning/wave77-2026-10-27.md` §C.
  *
- *   GET /api/replays?limit=20   → 200 { replays: ReplaySummary[] }   newest first
+ *   GET /api/replays?limit=20   → 200 { replays: ReplaySummary[] }   newest first, each with its `pace`
  *   GET /api/replays/:matchId   → 200 { header, envs, presence, end } | 404
  *
  * Reads `CARDTABLE_RECORDINGS_DIR` directly — never the live recorder's
@@ -89,8 +89,23 @@ const MAX_LIST_LIMIT = 100;
 /** `newMatchId` (`match.ts`) mints `m-<12 hex>`; this is generous around that so a param that is not one never becomes a path segment. */
 const MATCH_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
-/** Read a gzip JSONL file a line at a time, keeping only the first line and the running last one — never the whole body. */
-async function firstAndLastLine(path: string): Promise<{ first: string; last: string } | null> {
+/** A gap between two frames longer than this is someone thinking, not something happening. */
+export const WAIT_GAP_MS = 5_000;
+/** The writer puts `t` then `at` first (`writer.ts`), so a frame's time is read without parsing its envelope. */
+const ENV_AT = /^\{"t":"env","at":(\d+)/;
+
+/** How busy a recording is: its frames, how long they span, and how much of that was gaps over {@link WAIT_GAP_MS}. */
+export interface ReplayPace {
+	envs: number;
+	durationMs: number;
+	waitMs: number;
+}
+
+/**
+ * Read a gzip JSONL file a line at a time, keeping only the first line and the running last one — never the
+ * whole body — and the recording's {@link ReplayPace} on the way past.
+ */
+async function firstAndLastLine(path: string): Promise<{ first: string; last: string; pace: ReplayPace } | null> {
 	return new Promise((resolve, reject) => {
 		const input = createReadStream(path);
 		const gunzip = createGunzip();
@@ -99,12 +114,23 @@ async function firstAndLastLine(path: string): Promise<{ first: string; last: st
 		const rl = createInterface({ input: input.pipe(gunzip), crlfDelay: Infinity });
 		let first: string | null = null;
 		let last: string | null = null;
+		const pace: ReplayPace = { envs: 0, durationMs: 0, waitMs: 0 };
+		let startAt: number | null = null;
+		let prevAt = 0;
 		rl.on('line', (line) => {
 			if (line === '') return;
 			if (first === null) first = line;
 			last = line;
+			const at = ENV_AT.exec(line);
+			if (at === null) return;
+			const ms = Number(at[1]);
+			startAt ??= ms;
+			if (ms - prevAt > WAIT_GAP_MS && pace.envs > 0) pace.waitMs += ms - prevAt;
+			prevAt = ms;
+			pace.envs += 1;
+			pace.durationMs = ms - startAt;
 		});
-		rl.on('close', () => resolve(first === null || last === null ? null : { first, last }));
+		rl.on('close', () => resolve(first === null || last === null ? null : { first, last, pace }));
 	});
 }
 
@@ -171,7 +197,7 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 		const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(Math.floor(limitParam), MAX_LIST_LIMIT) : DEFAULT_LIST_LIMIT;
 
 		const rows = rowsOf(deps.dir);
-		const summaries: { header: PublicHeaderLine; endedAt: string | null; winner: 0 | 1 | null; source: 'stream' | 'rebuild' | 'none' }[] = [];
+		const summaries: { header: PublicHeaderLine; endedAt: string | null; winner: 0 | 1 | null; source: 'stream' | 'rebuild' | 'none'; pace: ReplayPace | null }[] = [];
 		for (const row of rows) {
 			try {
 				if (row.hasPublic) {
@@ -180,7 +206,7 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 					// An older stream draws no hand: it is no replay, but its action log may still rebuild one.
 					if (header !== null && header.v === PUBLIC_VERSION) {
 						const end = read === null ? null : parseJson<PublicEndLine>(read.last);
-						summaries.push({ header, endedAt: end?.t === 'end' ? end.endedAt : null, winner: end?.t === 'end' ? end.winner : null, source: 'stream' });
+						summaries.push({ header, endedAt: end?.t === 'end' ? end.endedAt : null, winner: end?.t === 'end' ? end.winner : null, source: 'stream', pace: read === null ? null : read.pace });
 						continue;
 					}
 				}
@@ -205,7 +231,7 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 				};
 				const end = read === null ? null : parseJson<{ t: 'end'; endedAt: string; reason: string }>(read.last);
 				const canRebuild = deps.canRebuild?.(actionsHeader) ?? false;
-				summaries.push({ header, endedAt: end?.t === 'end' ? end.endedAt : null, winner: null, source: canRebuild ? 'rebuild' : 'none' });
+				summaries.push({ header, endedAt: end?.t === 'end' ? end.endedAt : null, winner: null, source: canRebuild ? 'rebuild' : 'none', pace: null });
 			} catch (err) {
 				log({ evt: 'replay-list-read-failed', matchId: row.matchId, error: (err as Error).message });
 			}
@@ -225,6 +251,7 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 				endedAt: s.endedAt,
 				winner: s.winner,
 				source: s.source,
+				pace: s.pace,
 			})),
 		});
 	});

@@ -109,7 +109,17 @@ describe('GET /api/replays', () => {
 		const base = await openApp(dir);
 		const { status, json } = await call(base, '/api/replays');
 		expect(status).toBe(200);
-		expect(json.replays).toEqual([{ matchId: 'm-1', roomId: 'r-1', players: ['A', 'B'], decks: [null, null], startedAt: '2026-01-01T00:00:00.000Z', endedAt: '2026-01-01T00:10:00.000Z', winner: 1, source: 'stream' }]);
+		expect(json.replays).toEqual([{ matchId: 'm-1', roomId: 'r-1', players: ['A', 'B'], decks: [null, null], startedAt: '2026-01-01T00:00:00.000Z', endedAt: '2026-01-01T00:10:00.000Z', winner: 1, source: 'stream', pace: { envs: 1, durationMs: 0, waitMs: 0 } }]);
+	});
+
+	it("measures each stream's pace: its frames, their span, and the gaps over five seconds", async () => {
+		const dir = await recordingsDir();
+		const env = (at: number): unknown => ({ t: 'env', at, env: { matchId: 'm-1', cursor: { epoch: 'e', seq: at }, frame: { kind: 'notify' } } });
+		const presence = { t: 'presence', at: 3_000, seat: 0, playerId: 1, presence: {} };
+		writePublic(dir, 'm-1', { envs: [env(1_000), env(2_000), presence, env(9_000), env(10_000), env(40_000)] });
+		const base = await openApp(dir);
+		const { json } = await call(base, '/api/replays');
+		expect((json.replays as { pace: unknown }[])[0]!.pace).toEqual({ envs: 5, durationMs: 39_000, waitMs: 37_000 });
 	});
 
 	it('answers "rebuild" when only the action log remains and canRebuild says yes, and does not offer one it says no to', async () => {

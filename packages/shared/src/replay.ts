@@ -22,6 +22,17 @@ const WinnerSchema = z.union([z.literal(0), z.literal(1), z.null()]);
 const DecksSchema = z.tuple([z.array(ManaColorSchema).nullable(), z.array(ManaColorSchema).nullable()]);
 const PlayersSchema = z.tuple([z.string(), z.string()]);
 
+/**
+ * How busy a streamed recording is: its frames, how long they span, and how much of that was gaps
+ * over five seconds (someone thinking). Null on a row with no public stream to read it from.
+ */
+export const ReplayPaceSchema = z.strictObject({
+  envs: z.number().int().nonnegative(),
+  durationMs: z.number().nonnegative(),
+  waitMs: z.number().nonnegative(),
+});
+export type ReplayPace = z.infer<typeof ReplayPaceSchema>;
+
 /** One row of `GET /api/replays`. */
 export const ReplaySummarySchema = z.strictObject({
   matchId: z.string().min(1),
@@ -32,6 +43,7 @@ export const ReplaySummarySchema = z.strictObject({
   endedAt: z.string().nullable(),
   winner: WinnerSchema,
   source: ReplaySourceSchema,
+  pace: ReplayPaceSchema.nullable(),
 });
 export type ReplaySummary = z.infer<typeof ReplaySummarySchema>;
 

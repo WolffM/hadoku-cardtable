@@ -99,6 +99,8 @@ export interface ReplayListing {
   winner: 0 | 1 | null;
   /** `'stream'`: the public stream is still on disk. `'rebuild'`: gone, but D's rebuild can make it again. `'none'`: neither. */
   source: 'stream' | 'rebuild' | 'none';
+  /** How busy the recording is (`@hadoku/shared`'s `ReplayPace`); null when the server did not measure it. */
+  pace: { envs: number; durationMs: number; waitMs: number } | null;
 }
 
 function isPair<T>(v: unknown, isT: (x: unknown) => x is T): v is readonly [T, T] {
@@ -188,9 +190,16 @@ function parseSource(v: unknown): ReplayListing['source'] {
   return v === 'stream' || v === 'rebuild' ? v : 'none';
 }
 
+function parsePace(v: unknown): ReplayListing['pace'] {
+  if (!isRecord(v)) return null;
+  const { envs, durationMs, waitMs } = v;
+  const ok = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n >= 0;
+  return ok(envs) && ok(durationMs) && ok(waitMs) ? { envs, durationMs, waitMs } : null;
+}
+
 function parseListing(v: unknown): ReplayListing | null {
   if (!isRecord(v)) return null;
-  const { matchId, roomId, players, decks, startedAt, endedAt, winner, source } = v;
+  const { matchId, roomId, players, decks, startedAt, endedAt, winner, source, pace } = v;
   if (!isString(matchId) || matchId === '') return null;
   if (!isPair(players, isString)) return null;
   if (!Array.isArray(decks)) return null;
@@ -205,6 +214,7 @@ function parseListing(v: unknown): ReplayListing | null {
     endedAt: isString(endedAt) ? endedAt : null,
     winner,
     source: parseSource(source),
+    pace: parsePace(pace),
   };
 }
 
@@ -229,15 +239,50 @@ export async function fetchReplays(limit: number, fetchImpl: Fetch = defaultFetc
 /** The most the server lists (`MAX_LIST_LIMIT` in the server's `http/replays.ts`). */
 const RANDOM_POOL = 100;
 
+/** Fewer frames, or a shorter span, than this is a game abandoned at the start, not one to watch. */
+const MIN_GAME_ENVS = 100;
+const MIN_GAME_MS = 60_000;
+
+/** A whole game, with its pace measured. */
+function isGame(r: ReplayListing): boolean {
+  return r.pace !== null && r.pace.envs >= MIN_GAME_ENVS && r.pace.durationMs >= MIN_GAME_MS;
+}
+
 /**
- * One of the newest replays, at random, or `null` when there is none yet. A recorded stream is preferred
- * to one the server would have to rebuild, which costs it a game's worth of work.
+ * How strongly a game is preferred: things happening per minute, times the share of the game nobody
+ * was waiting, squared so the busiest games are clearly likelier than the slowest ones.
+ */
+export function replayWeight(r: ReplayListing): number {
+  if (r.pace === null || r.pace.durationMs <= 0) return 1;
+  const minutes = r.pace.durationMs / 60_000;
+  const active = 1 - Math.min(r.pace.waitMs, r.pace.durationMs) / r.pace.durationMs;
+  return ((r.pace.envs / minutes) * active) ** 2;
+}
+
+/** One of `pool`, each as likely as its weight. */
+function weightedPick(pool: readonly ReplayListing[], random: () => number): ReplayListing | null {
+  const weights = pool.map(replayWeight);
+  const total = weights.reduce((a, b) => a + b, 0);
+  if (!(total > 0)) return pool[Math.floor(random() * pool.length)] ?? null;
+  let left = random() * total;
+  for (let i = 0; i < pool.length; i++) {
+    left -= weights[i]!;
+    if (left < 0) return pool[i]!;
+  }
+  return pool[pool.length - 1] ?? null;
+}
+
+/**
+ * One of the newest replays, at random, or `null` when there is none yet. Busy games — many things
+ * happening, little waiting — are likelier ({@link replayWeight}); a game abandoned at the start is
+ * taken only when there is nothing else, as is one the server would have to rebuild, which costs it a
+ * game's worth of work.
  */
 export async function fetchRandomReplay(fetchImpl: Fetch = defaultFetch, random: () => number = Math.random): Promise<ReplayListing | null> {
   const listed = await fetchReplays(RANDOM_POOL, fetchImpl);
   const streams = listed.filter((r) => r.source === 'stream');
-  const pool = streams.length > 0 ? streams : listed;
-  return pool[Math.floor(random() * pool.length)] ?? null;
+  const games = streams.filter(isGame);
+  return weightedPick(games.length > 0 ? games : streams.length > 0 ? streams : listed, random);
 }
 
 /** `GET /api/replays/:matchId`. `null` on the server's 404 (no stream, and `rebuild` could not make one); throws on anything else. */
