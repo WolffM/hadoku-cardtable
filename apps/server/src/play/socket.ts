@@ -586,7 +586,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		...(deps.seatAvatar === undefined ? {} : { seatAvatar: deps.seatAvatar }),
 		seatsChanged: (match, seats) => {
 			// Wave 32, Q6: a seat's avatar changed mid-match. Every socket in the match
-			// — both seats, and spectators — gets the new roster on the event a join
+			// — both seats, and watchers — gets the new roster on the event a join
 			// already carries (`forge:seats`), so the board and the chat agree again.
 			io.to(roomFor(match).roomId).emit(MATCH_EVENTS.seats, { matchId: match.id, seats });
 		},
@@ -833,27 +833,22 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	}
 
 	/*
-	 * Wave 31 §S — ONE controlling socket per seat.
+	 * ONE controlling socket per seat, and it is the newest.
 	 *
-	 * Two browsers on an account that holds a seat are two roster entries, and
-	 * only one of them may act: *"it would be really messy if two clients were
-	 * capable of performing game actions"*. The first connection to claim a seat
-	 * controls it; a later one for the same seat joins as a spectator (it still
-	 * sees the seat's own hand — it is the same person's — but the server refuses
-	 * its three inputs). `connected` is the seat's sockets in connect order, so
-	 * the longest-connected spectator is the one promoted when the controller
-	 * leaves.
+	 * Two browsers on an account that holds a seat may not both act: *"it would be
+	 * really messy if two clients were capable of performing game actions"* (the
+	 * operator, 2026-09-30). Wave 31 kept the FIRST window and made a later one a
+	 * spectator of its own seat; the operator, 2026-11-05: *"the active players should
+	 * not be able to reach spectator mode for the game they are assigned to"*. So the
+	 * window a player opens now is the one they play in: its join takes the seat, and
+	 * the window it took it from is told `elsewhere` and let go of. That page offers
+	 * Play here, which is the same join the other way round.
 	 *
-	 * The same TAB is not a second browser. A socket cut without a close reaching
-	 * this server stays in the line until its ping times out (match m-ca7bad04b715,
-	 * 2026-10-28: 21 s of "being played in another window" after the operator's own
-	 * tab reconnected). So a join names its tab (`MatchRequest.tabId`), and a join
-	 * whose tab matches a socket already in the seat's line — the same participant's,
-	 * the seat being theirs anyway — takes that socket's place in the line and the
-	 * old socket is disconnected: a controller's reconnect is the controller at once.
-	 * A different tab, or none (a bundle from before tab ids), keeps the rule above.
+	 * The same TAB coming back (a socket cut without a close reaching this server,
+	 * match m-ca7bad04b715) takes the place of its own dead socket the same way, and
+	 * is told nothing: that socket has no page left to tell.
 	 */
-	const connected = new Map<string, string[]>();
+	const connected = new Map<string, string>();
 	/** Each joined socket's tab, as `participant + tab id`: only the same participant's same tab ever matches. */
 	const tabOf = new Map<string, string>();
 	/** Each participant's open sockets on this server (a match, any role; the room feed): who {@link MatchDeps.ownerOnline} counts as about. */
@@ -880,19 +875,17 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	const offered = new Map<string, OfferedEcho>();
 	const seatKey = (matchId: string, seat: number): string => `${matchId}#${seat}`;
 	const isController = (matchId: string, seat: number, socketId: string): boolean =>
-		seat !== WATCHER_SEAT && connected.get(seatKey(matchId, seat))?.[0] === socketId;
+		seat !== WATCHER_SEAT && connected.get(seatKey(matchId, seat)) === socketId;
 	/**
-	 * `'spectator'` is wave 31's: a second socket on a seat this account holds.
+	 * `'elsewhere'` is a seat's socket a newer window of the same player took the seat from.
 	 * `'watcher'` (2026-10-12) is a socket with NO seat — the room's crowd —
 	 * on the shared public channel (`Match.watcherSnapshot`), refused every input.
 	 */
 	const tellRole = (target: { emit: (event: string, payload: unknown) => unknown }, matchId: string, role: MatchRole['role']): void => {
 		target.emit(MATCH_EVENTS.role, { matchId, role } satisfies MatchRole);
 	};
-	const roleOf = (matchId: string, seat: number, socketId: string): MatchRole['role'] =>
-		seat === WATCHER_SEAT ? 'watcher' : isController(matchId, seat, socketId) ? 'player' : 'spectator';
-	/** The log line a refused input gets: a watcher's and a spectator's are told apart. */
-	const refusedInput = (seat: number): 'c2s-watcher' | 'c2s-spectator' => (seat === WATCHER_SEAT ? 'c2s-watcher' : 'c2s-spectator');
+	/** The log line a refused input gets: a watcher's, or a seat socket's that no longer holds the seat. */
+	const refusedInput = (seat: number): 'c2s-watcher' | 'c2s-elsewhere' => (seat === WATCHER_SEAT ? 'c2s-watcher' : 'c2s-elsewhere');
 
 	io.on('connection', (socket) => {
 		const participantId = identityOf(socket);
@@ -935,24 +928,25 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				// is read before this function resumes, and would be dropped as `c2s-not-joined`.
 				joined.set(match.id, seat);
 				const key = seatKey(match.id, seat);
-				const sockets = connected.get(key) ?? [];
 				const tab = request.value.tabId === undefined || seat === WATCHER_SEAT ? null : `${participantId}\n${request.value.tabId}`;
 				if (tab !== null) tabOf.set(socket.id, tab);
-				const at = tab === null ? -1 : sockets.findIndex((id) => tabOf.get(id) === tab);
-				const replaced = at < 0 ? null : (sockets[at] as string);
-				if (at < 0) sockets.push(socket.id);
-				else sockets[at] = socket.id;
-				connected.set(key, sockets);
+				const replaced = seat === WATCHER_SEAT ? null : (connected.get(key) ?? null);
+				if (seat !== WATCHER_SEAT) connected.set(key, socket.id);
 				const room = roomFor(match);
 				joinRoom<PlayApp, PlayClient>(room, socket.id, socket.id, participantId, () => ({ seat: seat as number }));
 				if (replaced !== null) {
-					// Out of the line already, so its own `disconnect` promotes nobody and, with this
-					// socket in the room, marks no seat gone.
-					log({ evt: 'tab-rejoined', matchId: match.id, seat, participantId, socketId: socket.id, replaced, role: roleOf(match.id, seat, socket.id) });
-					io.sockets.sockets.get(replaced)?.disconnect(true);
+					// Out of the line already, so its own `disconnect` marks no seat gone: this socket is in the room.
+					const sameTab = tab !== null && tabOf.get(replaced) === tab;
+					log({ evt: sameTab ? 'tab-rejoined' : 'seat-taken-over', matchId: match.id, seat, participantId, socketId: socket.id, replaced, role: 'player' });
+					const old = io.sockets.sockets.get(replaced);
+					if (old !== undefined && !sameTab) {
+						letGo(match, seat);
+						tellRole(old, match.id, 'elsewhere');
+					}
+					old?.disconnect(true);
 				}
 				await socket.join(room.roomId);
-				log({ evt: 'joined', matchId: match.id, seat, participantId, fresh: claim.ok ? claim.fresh : false, role: roleOf(match.id, seat, socket.id) });
+				log({ evt: 'joined', matchId: match.id, seat, participantId, fresh: claim.ok ? claim.fresh : false, role: seat === WATCHER_SEAT ? 'watcher' : 'player' });
 				for (const [k, held] of arrangements) {
 					if (k.startsWith(`${match.id}#`) && k !== key) socket.emit(ARRANGEMENT_EVENT, held);
 				}
@@ -1043,8 +1037,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 						socket.emit(ART_EVENT, { matchId: result.matchId, cards: artOf(match.spec) });
 						// This seat's deck colours, before its role, for the match's music (`@hadoku/shared`'s `deck-colors.ts`).
 						socket.emit(DECK_COLORS_EVENT, { matchId: result.matchId, colors: seatDeckColors(match.spec, result.seat, deckCosts) });
-						// Wave 31 §S: and whether THIS socket controls the seat, every time.
-						tellRole(socket, result.matchId, isController(result.matchId, result.seat, socket.id) ? 'player' : 'spectator');
+						// And whether THIS socket holds the seat, every time: a newer window may have taken it since.
+						tellRole(socket, result.matchId, isController(result.matchId, result.seat, socket.id) ? 'player' : 'elsewhere');
 					}
 				});
 			};
@@ -1214,7 +1208,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		 * relayed to the match's other sockets as they are — Forge never sees
 		 * it and nothing is kept. The schema (`@hadoku/shared`'s `presence.ts`)
 		 * carries no card, so there is nothing to redact. Only a joined
-		 * controller's is relayed (a spectator's pointer belongs to nobody), and
+		 * controller's is relayed (a watcher's pointer belongs to nobody), and
 		 * a socket sending past `PRESENCE_MAX_PER_SECOND` is dropped for that
 		 * second: a client bug, not a game event, owed nothing.
 		 */
@@ -1399,15 +1393,12 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			if (left <= 0) online.delete(participantId);
 			else online.set(participantId, left);
 			for (const [matchId, seat] of joined) {
-				// Before the match lookup: a socket must leave the seat's line even
+				// Before the match lookup: a socket must let go of the seat even
 				// when its match is gone, or a stale id would hold the control.
 				const key = seatKey(matchId, seat);
-				const line = connected.get(key) ?? [];
-				const wasController = line[0] === socket.id;
+				const wasController = connected.get(key) === socket.id;
 				tabOf.delete(socket.id);
-				const remaining = line.filter((id) => id !== socket.id);
-				if (remaining.length === 0) connected.delete(key);
-				else connected.set(key, remaining);
+				if (wasController) connected.delete(key);
 				const match = matches.get(matchId);
 				if (match === undefined) continue;
 				const room = roomFor(match);
@@ -1416,18 +1407,9 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				// The seat's hand on a stack item goes with the socket that held it: let go where it last put it.
 				if (wasController) letGo(match, seat);
 				log({ evt: 'left', matchId, seat, participantId, reason, stillHere });
-				// A watcher holds nothing: no seat to mark gone, nobody to promote.
+				// A watcher holds nothing: no seat to mark gone.
 				if (seat === WATCHER_SEAT) continue;
 				if (!stillHere) match.seatDisconnected(seat);
-				const next = remaining[0];
-				if (wasController && next !== undefined) {
-					// The longest-connected spectator takes the seat, is told, and is
-					// re-sent what a controller needs (the asks, the open selection).
-					log({ evt: 'spectator-promoted', matchId, seat, socketId: next });
-					const promoted = io.sockets.sockets.get(next);
-					if (promoted !== undefined) tellRole(promoted, matchId, 'player');
-					match.resendAfterSnapshot(seat);
-				}
 			}
 		});
 	});

@@ -762,7 +762,7 @@ describe('two seats over the socket', () => {
 		expect(c).toEqual({ evt: 'client', matchId, seat: 0, participantId: expect.any(String), kind: 'perf', ...loaf });
 	});
 
-	it('relays a seat’s presence to the other seat, stamped with the seat, never back to the sender, and never from a spectator', async () => {
+	it('relays a seat’s presence to the other seat, stamped with the seat, never back to the sender, and never from a watcher', async () => {
 		const { h, matchId, alice, bob } = await twoSeats();
 		await alice.request('forge:join', { matchId });
 		await bob.request('forge:join', { matchId });
@@ -826,12 +826,12 @@ describe('two seats over the socket', () => {
 		expect(Object.keys(bob.presences[4] as object), 'the old row count never crosses').not.toContain('handRows');
 		expect(h.logs.filter((l) => l.evt === 'presence-malformed'), 'still 5: the old shape was never malformed').toHaveLength(5);
 
-		// A spectator on alice's seat (a second browser) sends, and nobody hears it.
-		const watcher = await connect(h.port, edgeHeaders('alice'));
+		// A watcher (both seats held) sends, and nobody hears it.
+		const watcher = await connect(h.port, edgeHeaders('carol'));
 		await watcher.request('forge:join', { matchId });
 		watcher.socket.emit('forge:presence', message);
 		await new Promise((r) => setTimeout(r, 80));
-		expect(bob.presences, 'a spectator’s pointer belongs to nobody').toHaveLength(5);
+		expect(bob.presences, 'a watcher’s pointer belongs to nobody').toHaveLength(5);
 	});
 	it('seats a third person as a watcher (2026-10-12), and refuses a join for a match that does not exist', async () => {
 		const { h, matchId, alice, bob } = await twoSeats();
@@ -1746,13 +1746,14 @@ describe('shutdown', () => {
 });
 
 /*
- * Wave 31 §S: one controlling socket per seat. A second browser on an account
- * that holds a seat is a SPECTATOR — *"it would be really messy if two clients
- * were capable of performing game actions"*. The server enforces; the client
- * is only told (`forge:role`).
+ * One controlling socket per seat, and it is the newest (the operator, 2026-11-05: *"the active
+ * players should not be able to reach spectator mode for the game they are assigned to"*). A second
+ * window on a held seat takes it; the window it took it from is told `elsewhere` and let go of.
+ * Two windows never both act: *"it would be really messy if two clients were capable of performing
+ * game actions"*.
  */
-describe('a second connection for a seat spectates', () => {
-	async function aliceTwice(options: { disconnectGraceMs?: number } = {}): Promise<{
+describe('a newer connection for a seat takes it', () => {
+	async function aliceTwice(tabs: { first?: string; second?: string } = {}): Promise<{
 		h: Harness;
 		matchId: string;
 		first: Peer;
@@ -1760,107 +1761,64 @@ describe('a second connection for a seat spectates', () => {
 		host: ReplayHost;
 		callId: string;
 	}> {
-		const h = await boot(options);
+		const h = await boot({ disconnectGraceMs: 1000 });
 		const { body } = await startMatch(h);
 		const matchId = body.matchId as string;
 		const first = await connect(h.port, edgeHeaders('alice'));
 		const bob = await connect(h.port, edgeHeaders('bob'));
-		await first.request('forge:join', { matchId });
+		await first.request('forge:join', { matchId, ...(tabs.first === undefined ? {} : { tabId: tabs.first }) });
 		await bob.request('forge:join', { matchId });
-		const second = await connect(h.port, edgeHeaders('alice'));
-		const joined = (await second.request('forge:join', { matchId })) as { seat: number };
-		expect(joined.seat).toBe(0);
+		await waitUntil(() => first.roles.length > 0, 'the first socket’s role');
+		expect(first.roles).toEqual([{ matchId, role: 'player' }]);
 		const host = h.hosts[0] as ReplayHost;
 		host.push(PROBE_ASK);
-		await waitUntil(() => second.frames.some((f) => (f as { frame: { kind: string } }).frame.kind === 'ask'), 'the ask on both sockets');
+		await waitUntil(() => first.frames.some((f) => (f as { frame: { kind: string } }).frame.kind === 'ask'), 'the ask');
+		const second = await connect(h.port, edgeHeaders('alice'));
+		const joined = (await second.request('forge:join', { matchId, ...(tabs.second === undefined ? {} : { tabId: tabs.second }) })) as { seat: number };
+		expect(joined.seat).toBe(0);
 		return { h, matchId, first, second, host, callId: (PROBE_ASK.frame as { callId: string }).callId };
 	}
 
-	it('tells each socket its role, on every join and resync', async () => {
+	it('the new window plays: it is told player, re-sent the open ask, and its answer reaches Forge', async () => {
+		const { h, matchId, second, host, callId } = await aliceTwice({ first: 'tab-aaaaaaaa', second: 'tab-bbbbbbbb' });
+		await waitUntil(() => second.roles.length > 0, 'the new window’s role');
+		expect(second.roles).toEqual([{ matchId, role: 'player' }]);
+		await waitUntil(() => second.frames.some((f) => (f as { frame: { callId?: string } }).frame.callId === callId), 'the open ask');
+		second.send({ matchId, frame: { kind: 'reply', callId, method: 'showConfirmDialog', result: true } });
+		await waitUntil(() => host.commands.length > 0, 'the new window’s reply');
+		expect(host.commands).toEqual([{ t: 'reply', seat: 0, callId, result: true }]);
+		expect(h.logs.filter((l) => l.evt === 'seat-taken-over')).toEqual([expect.objectContaining({ matchId, seat: 0, socketId: second.socket.id, replaced: expect.any(String) })]);
+	});
+
+	it('the old window is told elsewhere and let go of; the seat is never marked gone', async () => {
+		const { h, matchId, first } = await aliceTwice({ first: 'tab-aaaaaaaa', second: 'tab-bbbbbbbb' });
+		await waitUntil(() => !first.socket.connected, 'the old window to be let go');
+		expect(first.roles).toEqual([{ matchId, role: 'player' }, { matchId, role: 'elsewhere' }]);
+		const left = h.logs.filter((l) => l.evt === 'left' && l.seat === 0);
+		expect(left).toEqual([expect.objectContaining({ reason: 'server namespace disconnect', stillHere: true })]);
+	});
+
+	it('a join with no tab id (a bundle from before them) takes the seat the same way', async () => {
 		const { matchId, first, second } = await aliceTwice();
-		await waitUntil(() => first.roles.length > 0 && second.roles.length > 0, 'both roles');
-		expect(first.roles).toEqual([{ matchId, role: 'player' }]);
-		expect(second.roles).toEqual([{ matchId, role: 'spectator' }]);
-		await second.request('forge:resync', { matchId });
-		await waitUntil(() => second.roles.length > 1, 'the resync to be told');
-		expect(second.roles[1]).toEqual({ matchId, role: 'spectator' });
+		await waitUntil(() => second.roles.length > 0 && !first.socket.connected, 'the takeover');
+		expect(second.roles).toEqual([{ matchId, role: 'player' }]);
+		expect(first.roles.at(-1)).toEqual({ matchId, role: 'elsewhere' });
 	});
 
-	it('refuses a spectator’s answers, full control and stop preference — and logs c2s-spectator', async () => {
-		const { h, matchId, first, second, host, callId } = await aliceTwice();
-		const answer = { kind: 'reply', callId, method: 'showConfirmDialog', result: true };
-		second.send({ matchId, frame: answer });
-		second.setFullControl({ matchId, on: true });
-		second.setStopPreference({ matchId, type: 'stopPreference', stopAtEndStep: true });
-		await waitUntil(() => h.logs.filter((l) => l.evt === 'c2s-spectator').length === 3, 'three refusals');
-		expect(h.logs.filter((l) => l.evt === 'c2s-spectator').map((l) => l.input)).toEqual(['c2s', 'full-control', 'stop-preference']);
-		expect(host.commands).toEqual([]);
-		expect(h.handle.matches.get(matchId)?.fullControl(0)).toBe(false);
-		expect(h.handle.matches.get(matchId)?.stopPolicy(0)).toEqual(DEFAULT_STOP_POLICY);
-
-		// The controller still can.
-		first.send({ matchId, frame: answer });
-		await waitUntil(() => host.commands.length > 0, 'the controller’s reply');
-		expect(host.commands).toEqual([{ t: 'reply', seat: 0, callId, result: true }]);
-	});
-
-	it('a spectator whose controller never leaves stays refused', async () => {
-		const { h, matchId, second, host, callId } = await aliceTwice();
-		await new Promise((r) => setTimeout(r, 300));
-		second.send({ matchId, frame: { kind: 'reply', callId, method: 'showConfirmDialog', result: true } });
-		await waitUntil(() => h.logs.some((l) => l.evt === 'c2s-spectator'), 'the refusal');
-		expect(host.commands).toEqual([]);
-		expect(second.roles.every((r) => (r as { role: string }).role === 'spectator')).toBe(true);
-	});
-
-	it('promotes the spectator when the controller leaves: told, re-sent its asks, and able to act', async () => {
-		const { h, matchId, first, second, host, callId } = await aliceTwice({ disconnectGraceMs: 1000 });
-		const framesBefore = second.frames.length;
-		first.socket.disconnect();
-		await waitUntil(() => h.logs.some((l) => l.evt === 'spectator-promoted'), 'the promotion');
-		await waitUntil(() => second.roles.some((r) => (r as { role: string }).role === 'player'), 'the role event');
-		expect(second.roles.at(-1)).toEqual({ matchId, role: 'player' });
-		await waitUntil(
-			() => second.frames.slice(framesBefore).some((f) => (f as { frame: { callId?: string } }).frame.callId === callId),
-			'the ask to be re-sent',
-		);
-		second.send({ matchId, frame: { kind: 'reply', callId, method: 'showConfirmDialog', result: true } });
-		await waitUntil(() => host.commands.length > 0, 'the promoted socket’s reply');
-		expect(host.commands).toEqual([{ t: 'reply', seat: 0, callId, result: true }]);
-	});
-
-	it('a second socket with no tab id never locks the player out: it spectates, the old one leaves, it is promoted', async () => {
-		const h = await boot({ disconnectGraceMs: 1000 });
-		const { body } = await startMatch(h);
-		const matchId = body.matchId as string;
-		const host = h.hosts[0] as ReplayHost;
-		const oldTab = await connect(h.port, edgeHeaders('alice'));
-		const bob = await connect(h.port, edgeHeaders('bob'));
-		await oldTab.request('forge:join', { matchId });
-		await bob.request('forge:join', { matchId });
-
-		// The new socket opens BEFORE the old one's disconnect lands.
-		const newTab = await connect(h.port, edgeHeaders('alice'));
-		await newTab.request('forge:join', { matchId });
-		await waitUntil(() => newTab.roles.length > 0, 'the new tab’s role');
-		expect(newTab.roles[0]).toEqual({ matchId, role: 'spectator' });
-
-		oldTab.socket.disconnect();
-		await waitUntil(() => newTab.roles.some((r) => (r as { role: string }).role === 'player'), 'the new tab to be promoted');
-
-		host.push(PROBE_ASK);
-		const callId = (PROBE_ASK.frame as { callId: string }).callId;
-		await waitUntil(() => newTab.frames.some((f) => (f as { frame: { kind: string } }).frame.kind === 'ask'), 'the ask');
-		newTab.send({ matchId, frame: { kind: 'reply', callId, method: 'showConfirmDialog', result: true } });
-		await waitUntil(() => host.commands.length > 0, 'the refreshed tab’s reply');
-		expect(host.commands).toEqual([{ t: 'reply', seat: 0, callId, result: true }]);
+	it('Play here in the old window takes the seat back: the one it lost to is told elsewhere in turn', async () => {
+		const { h, matchId, first, second } = await aliceTwice({ first: 'tab-aaaaaaaa', second: 'tab-bbbbbbbb' });
+		await waitUntil(() => !first.socket.connected, 'the first takeover');
+		const again = await connect(h.port, edgeHeaders('alice'));
+		await again.request('forge:join', { matchId, tabId: 'tab-aaaaaaaa' });
+		await waitUntil(() => again.roles.length > 0 && !second.socket.connected, 'the second takeover');
+		expect(again.roles).toEqual([{ matchId, role: 'player' }]);
+		expect(second.roles).toEqual([{ matchId, role: 'player' }, { matchId, role: 'elsewhere' }]);
 	});
 
 	/*
 	 * Match m-ca7bad04b715, 2026-10-28: the operator's tab lost its socket without a close
-	 * reaching the server, reconnected 8 s later, and was told "this seat is being played in
-	 * another window" for 21 s, until the dead socket's ping timed out. The dead socket is
-	 * `stale` here: still open as far as the server can tell, which is exactly what it was.
+	 * reaching the server and reconnected 8 s later. The dead socket is `stale` here: still open
+	 * as far as the server can tell, which is exactly what it was.
 	 */
 	describe('the same tab coming back', () => {
 		const TAB = 'tab-aaaaaaaa';
@@ -1878,18 +1836,16 @@ describe('a second connection for a seat spectates', () => {
 			return { h, matchId, stale, host: h.hosts[0] as ReplayHost };
 		}
 
-		it('takes the seat at once: the new socket controls it and the old one is disconnected', async () => {
+		it('takes the seat at once and tells the dead socket nothing', async () => {
 			const { h, matchId, stale, host } = await staleSeat();
 			const back = await connect(h.port, edgeHeaders('alice'));
 			await back.request('forge:join', { matchId, tabId: TAB });
 			await waitUntil(() => back.roles.length > 0, 'the reconnect’s role');
 			expect(back.roles).toEqual([{ matchId, role: 'player' }]);
 			await waitUntil(() => !stale.socket.connected, 'the old socket to be retired');
-			const rejoined = h.logs.filter((l) => l.evt === 'tab-rejoined');
-			expect(rejoined).toEqual([expect.objectContaining({ matchId, seat: 0, socketId: back.socket.id, replaced: expect.any(String), role: 'player' })]);
-			const left = h.logs.filter((l) => l.evt === 'left' && l.seat === 0);
-			expect(left).toEqual([expect.objectContaining({ reason: 'server namespace disconnect', stillHere: true })]);
-			expect(h.logs.filter((l) => l.evt === 'spectator-promoted')).toEqual([]);
+			expect(stale.roles).toEqual([{ matchId, role: 'player' }]);
+			expect(h.logs.filter((l) => l.evt === 'tab-rejoined')).toEqual([expect.objectContaining({ matchId, seat: 0, socketId: back.socket.id, replaced: expect.any(String) })]);
+			expect(h.logs.filter((l) => l.evt === 'seat-taken-over')).toEqual([]);
 
 			host.push(PROBE_ASK);
 			const callId = (PROBE_ASK.frame as { callId: string }).callId;
@@ -1897,27 +1853,6 @@ describe('a second connection for a seat spectates', () => {
 			back.send({ matchId, frame: { kind: 'reply', callId, method: 'showConfirmDialog', result: true } });
 			await waitUntil(() => host.commands.length > 0, 'the reconnected tab’s reply');
 			expect(host.commands).toEqual([{ t: 'reply', seat: 0, callId, result: true }]);
-			expect(h.logs.filter((l) => l.evt === 'c2s-spectator')).toEqual([]);
-		});
-
-		it('a different tab is still a second window: it spectates, and the first keeps the seat', async () => {
-			const { h, matchId, stale } = await staleSeat();
-			const other = await connect(h.port, edgeHeaders('alice'));
-			await other.request('forge:join', { matchId, tabId: 'tab-bbbbbbbb' });
-			await waitUntil(() => other.roles.length > 0, 'the second tab’s role');
-			expect(other.roles).toEqual([{ matchId, role: 'spectator' }]);
-			expect(stale.socket.connected).toBe(true);
-			expect(h.logs.filter((l) => l.evt === 'tab-rejoined')).toEqual([]);
-		});
-
-		it('a join with no tab id (a bundle from before them) keeps the old rule', async () => {
-			const { h, matchId, stale } = await staleSeat();
-			const old = await connect(h.port, edgeHeaders('alice'));
-			await old.request('forge:join', { matchId });
-			await waitUntil(() => old.roles.length > 0, 'its role');
-			expect(old.roles).toEqual([{ matchId, role: 'spectator' }]);
-			expect(stale.socket.connected).toBe(true);
-			expect(h.logs.filter((l) => l.evt === 'tab-rejoined')).toEqual([]);
 		});
 
 		it('never crosses participants: another account sending the same tab id takes nothing', async () => {
@@ -1927,40 +1862,16 @@ describe('a second connection for a seat spectates', () => {
 			await carol.request('forge:join', { matchId, tabId: TAB });
 			await waitUntil(() => carol.roles.length > 0, 'carol’s role');
 			expect(carol.roles).toEqual([{ matchId, role: 'watcher' }]);
-			// And bob, who holds the other seat, sending it from a second socket only spectates his own.
+			// And bob, who holds the other seat, sending it from a second socket takes only his own.
 			const bobAgain = await connect(h.port, edgeHeaders('bob'));
 			const joined = (await bobAgain.request('forge:join', { matchId, tabId: TAB })) as { seat: number };
 			expect(joined.seat).toBe(1);
 			await waitUntil(() => bobAgain.roles.length > 0, 'bob’s role');
-			expect(bobAgain.roles).toEqual([{ matchId, role: 'spectator' }]);
+			expect(bobAgain.roles).toEqual([{ matchId, role: 'player' }]);
 			await new Promise((r) => setTimeout(r, 100));
 			expect(stale.socket.connected).toBe(true);
 			expect(h.logs.filter((l) => l.evt === 'tab-rejoined')).toEqual([]);
 		});
-
-		it('a spectating tab coming back keeps its place behind the controller', async () => {
-			const { h, matchId, stale } = await staleSeat();
-			const watching = await connect(h.port, edgeHeaders('alice'));
-			await watching.request('forge:join', { matchId, tabId: 'tab-bbbbbbbb' });
-			const back = await connect(h.port, edgeHeaders('alice'));
-			await back.request('forge:join', { matchId, tabId: 'tab-bbbbbbbb' });
-			await waitUntil(() => back.roles.length > 0 && !watching.socket.connected, 'the spectating tab’s rejoin');
-			expect(back.roles).toEqual([{ matchId, role: 'spectator' }]);
-			expect(stale.socket.connected).toBe(true);
-			// The controller leaves: the rejoined tab is the one promoted.
-			stale.socket.disconnect();
-			await waitUntil(() => back.roles.some((r) => (r as { role: string }).role === 'player'), 'the promotion');
-			expect(h.logs.filter((l) => l.evt === 'spectator-promoted')).toEqual([expect.objectContaining({ matchId, seat: 0, socketId: back.socket.id })]);
-		});
-	});
-
-	it('logs a spectator’s connection report, and still none of its other telemetry', async () => {
-		const { h, matchId, second } = await aliceTwice();
-		second.socket.emit('forge:client', { matchId, kind: 'info', data: { fastMode: true } });
-		second.socket.emit('forge:client', { matchId, kind: 'connection', data: { what: 'rejoined', reason: 'transport close', downMs: 1234, joins: 2 } });
-		await waitUntil(() => h.logs.some((l) => l.evt === 'client' && l.kind === 'connection'), 'the connection report');
-		const client = h.logs.filter((l) => l.evt === 'client');
-		expect(client).toEqual([expect.objectContaining({ matchId, seat: 0, kind: 'connection', what: 'rejoined', reason: 'transport close', downMs: 1234 })]);
 	});
 });
 
@@ -2172,16 +2083,15 @@ describe('a third account watches a full match', () => {
 		carol.setStopPreference({ matchId, type: 'stopPreference', stopAtEndStep: true });
 		await waitUntil(() => h.logs.filter((l) => l.evt === 'c2s-watcher').length === 3, 'three refusals');
 		expect(h.logs.filter((l) => l.evt === 'c2s-watcher').map((l) => l.input)).toEqual(['c2s', 'full-control', 'stop-preference']);
-		expect(h.logs.filter((l) => l.evt === 'c2s-spectator')).toEqual([]);
+		expect(h.logs.filter((l) => l.evt === 'c2s-elsewhere')).toEqual([]);
 		expect(host.commands).toEqual([]);
 		alice.send({ matchId, frame: answer });
 		await waitUntil(() => host.commands.length > 0, 'alice’s reply');
 		expect(host.commands).toEqual([{ t: 'reply', seat: 0, callId, result: true }]);
 		expect(bob.roles).toEqual([{ matchId, role: 'player' }]);
-		// Leaving marks no seat gone and promotes nobody.
+		// Leaving marks no seat gone and takes nothing from the seats.
 		carol.socket.disconnect();
 		await waitUntil(() => h.logs.some((l) => l.evt === 'left' && l.seat === WATCHER_SEAT), 'the watcher leaving');
-		expect(h.logs.filter((l) => l.evt === 'spectator-promoted')).toEqual([]);
 		expect(alice.roles).toEqual([{ matchId, role: 'player' }]);
 	});
 });

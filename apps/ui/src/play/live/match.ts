@@ -932,20 +932,25 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    */
   coinToss: { winner: number; playerId: number | null; at: number } | null;
   /**
-   * This connection is a SPECTATOR of its seat: another connection for the
-   * same account controls it, and the server refuses this one's inputs
-   * (`forge:role`, wave 31 §S). The server enforces; this only lets the UI say
-   * why nothing happens. False until told otherwise. The same tab coming back
-   * (a reconnect, a reload) is not another connection: its join carries
-   * {@link tabId} and the server hands it the seat at once.
+   * Nothing this connection does reaches Forge: a {@link watcher}, a seat a newer
+   * window took ({@link elsewhere}), or a replay. Every gate that keeps hands off
+   * the table reads this one flag. False until the server says otherwise.
    */
   spectator: boolean;
+  /**
+   * A newer window of this player took the seat (`forge:role` `elsewhere`), and
+   * the server let this connection go. The board is not drawn: the page says the
+   * game is open in another window and offers Play here, a fresh join that takes
+   * the seat back (the operator, 2026-11-05: players never spectate their own game).
+   * The same tab coming back (a reconnect, a reload) is not another window: its
+   * join carries {@link tabId}.
+   */
+  elsewhere: boolean;
   /**
    * This connection holds NO seat: it was sent the watchers' projection
    * (`forge:role` `watcher`, 2026-10-12), which sees every hand (2026-10-28).
    * No prompt ever arrives, and nothing it does is sent. A watcher is also a
-   * `spectator` (every gate that keeps a spectator's hands off the table holds
-   * for it); this flag is what the board reads for the differences — the
+   * `spectator` (every gate that keeps hands off the table holds for it); this flag is what the board reads for the differences — the
    * controls are not drawn at all, both hands are face up, and the table can
    * be turned around ({@link flipPerspective}).
    */
@@ -1182,6 +1187,7 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     clockByPlayerId: null,
     coinToss: null,
     spectator: false,
+    elsewhere: false,
     watcher: false,
     perspective: options.followTurn === true ? null : rememberedPerspective(options.matchId),
     followsTurn: options.followTurn === true,
@@ -1641,8 +1647,8 @@ function adoptSeats(match: LiveMatch, payload: unknown): void {
 }
 
 /**
- * `forge:role` arriving FROM the server (wave 31 §S): whether THIS socket
- * controls the seat or only watches it. Malformed or for another match is
+ * `forge:role` arriving FROM the server: whether THIS socket plays its seat, lost it
+ * to a newer window, or watches with no seat. Malformed or for another match is
  * recorded and changes nothing, like `adoptSeats`.
  */
 function adoptRole(match: LiveMatch, payload: unknown): void {
@@ -1660,12 +1666,14 @@ function adoptRole(match: LiveMatch, payload: unknown): void {
     return;
   }
   const spectator = parsed.value.role !== 'player';
+  const elsewhere = parsed.value.role === 'elsewhere';
   const watcher = parsed.value.role === 'watcher';
-  if (match.spectator === spectator && match.watcher === watcher) return;
+  if (match.spectator === spectator && match.elsewhere === elsewhere && match.watcher === watcher) return;
   match.spectator = spectator;
+  match.elsewhere = elsewhere;
   match.watcher = watcher;
   // The role lands AFTER the snapshot's frames drew a view: a watcher's is
-  // re-drawn now, from the side it chose, and a promoted seat's from its own.
+  // re-drawn now, from the side it chose.
   redraw(match);
   notify(match);
 }

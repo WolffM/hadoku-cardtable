@@ -42,7 +42,7 @@
  *                    Yield / Cancel Yield toggle. Client → server only, no ack.
  *   server → client  `forge:s2c`     `{ matchId, cursor, frame: ServerFrame }`
  *   server → client  `forge:seats`   one entry per seat — see the shared `SeatIdentitySchema`.
- *   server → client  `forge:role`    `{ matchId, role: 'player' | 'spectator' | 'watcher' }`.
+ *   server → client  `forge:role`    `{ matchId, role: 'player' | 'elsewhere' | 'watcher' }`.
  *                    `watcher` (2026-10-12): a socket with NO seat, sent the
  *                    public projection — every hand and library a count.
  *

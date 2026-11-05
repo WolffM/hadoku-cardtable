@@ -3772,33 +3772,21 @@ describe('holds: the other seat halts the chain, told at once', () => {
 /*
  * Wave 31 §S: `forge:role`, `forge:seats`' `name`, and `over`.
  */
-describe('spectator, names and the end of the game (wave 31 §S)', () => {
+describe('role, names and the end of the game', () => {
   it('a joining page is told player, and holds spectator = false', async () => {
     const { m } = await fullGame();
     await until('forge:role to land', () => m.stats.snapshots >= 1);
     expect(m.spectator).toBe(false);
   });
 
-  it('forge:role spectator sets the flag, and promotion clears it', async () => {
+  it('forge:role elsewhere: a newer window took the seat, so this page can act on nothing and says so', async () => {
     const { s, m } = await fullGame();
     const before = m.revision;
-    s.sendRole('spectator');
-    await until('the flag', () => m.spectator);
+    s.sendRole('elsewhere');
+    await until('the flag', () => m.elsewhere);
+    expect(m.spectator, 'every gate that keeps hands off the table holds').toBe(true);
+    expect(m.watcher).toBe(false);
     expect(m.revision, 'subscribers are told').toBeGreaterThan(before);
-    s.sendRole('player');
-    await until('the promotion', () => !m.spectator);
-  });
-
-  it('a refreshed tab that joins as a spectator is promoted without a new snapshot', async () => {
-    const s = (server = await startReplayServer());
-    s.role = 'spectator';
-    const m = await connect(s);
-    await sendAndApply(s, m, FRAMES);
-    await until('spectator', () => m.spectator);
-    const snapshots = m.stats.snapshots;
-    s.sendRole('player');
-    await until('player', () => !m.spectator);
-    expect(m.stats.snapshots).toBe(snapshots);
   });
 
   /** The other player's turn begins: `GameView.PlayerTurn` moves to `to`. */

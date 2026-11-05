@@ -3051,7 +3051,7 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     rerender(createElement(LiveBoard, { match: m }));
   };
 
-  it('spectator: a banner, no prompt, every button inert, nothing reaches the server — and it lifts on promotion', async () => {
+  it('a window that cannot act: no prompt, every button inert, nothing reaches the server — and it lifts when the flag does', async () => {
     const { s, m, getByTestId, queryByTestId, rerender } = await liveBoard();
     s.send(confirmAsk('c-spec', true));
     await waitFor(() => getByTestId('confirm-dialog'));
@@ -3062,11 +3062,9 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     s.send(buttons());
     await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     await untilMatch(m, () => expect(m.buttons?.enable1).toBe(true));
-    expect(queryByTestId('live-spectator')).toBeNull();
     const frames = (await s.framesFrom(m)).length;
 
     flag(m, { spectator: true }, rerender);
-    expect(getByTestId('live-spectator').textContent).toBe('Watching: this seat is being played in another window');
     expect(queryByTestId('confirm-dialog'), 'a watcher is asked nothing').toBeNull();
     expect(queryByTestId('live-prompt')).toBeNull();
     for (const id of ['live-button-end-turn', 'live-full-control', 'live-concede']) {
@@ -3090,13 +3088,29 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     expect(getByTestId('live-logbook').hidden).toBe(false);
     expect(await s.framesFrom(m)).toHaveLength(frames);
 
-    // Promotion: no reload, the prompt comes back and the controls live.
+    // The flag lifts: no reload, the prompt comes back and the controls live.
     flag(m, { spectator: false }, rerender);
-    expect(queryByTestId('live-spectator')).toBeNull();
     await waitFor(() => getByTestId('confirm-dialog'));
     expect((getByTestId('live-concede') as HTMLButtonElement).disabled).toBe(false);
     expect((getByTestId('live-full-control') as HTMLButtonElement).disabled).toBe(false);
     expect(fireEvent.dragStart(card)).toBe(true);
+  });
+
+  it('elsewhere (2026-11-05): a seat a newer window took draws no table, only where the game is and Play here', async () => {
+    const { m, getByTestId, queryByTestId, rerender } = await liveBoard();
+    const playHere = vi.fn();
+    Object.assign(m, { spectator: true, elsewhere: true, connected: false });
+    rerender(createElement(LiveBoard, { match: m, onPlayHere: playHere }));
+    expect(getByTestId('live-elsewhere')).toBeTruthy();
+    expect(getByTestId('live-status').textContent).toBe('Open in another window.');
+    expect(document.querySelector('.board'), 'no table: players never spectate their own game').toBeNull();
+    expect(queryByTestId('live-buttons')).toBeNull();
+    fireEvent.click(getByTestId('live-play-here'));
+    expect(playHere).toHaveBeenCalledTimes(1);
+    expect(getByTestId('live-gone-back').textContent).toBe('Back to the lobby');
+    // The front page's card passes no Play here: nothing to press.
+    rerender(createElement(LiveBoard, { match: m }));
+    expect(queryByTestId('live-play-here')).toBeNull();
   });
 
   it('watcher (2026-10-12): no control box at all, and a Watching line with the one control it has — switching sides (2026-11-01)', async () => {
@@ -3107,7 +3121,6 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
 
     flag(m, { spectator: true, watcher: true }, rerender);
     expect(queryByTestId('live-buttons'), 'nothing to grey: the box is not drawn').toBeNull();
-    expect(queryByTestId('live-spectator'), 'the wave-31 banner is a seat’s').toBeNull();
     expect(getByTestId('watcher-status').getAttribute('data-role')).toBe('watcher');
     expect(getByTestId('watcher-status').textContent).toContain('Watching');
     expect(document.querySelector('.live')?.getAttribute('data-role')).toBe('watcher');

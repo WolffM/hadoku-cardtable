@@ -10,12 +10,12 @@
  *     else, and the client nulled `selectables` on the premise that it would not
  *     be re-sent), so the page came back with a prompt it could not answer and
  *     Forge waiting. The spec opens one, reloads the page, and then ANSWERS it.
- *  2. **A second browser on a held seat is a spectator.** Operator, 2026-09-30:
+ *  2. **A second browser on a held seat takes it.** Operator, 2026-09-30:
  *     *"it would be really messy if two clients were capable of performing game
- *     actions."* The second context is told so, cannot act (by the page, and by the
- *     wire: a raw socket that sends an OK anyway is refused and the controller's
- *     question stays open), and is promoted when the first context closes. A
- *     REFRESH is the same tab and must never lock a player out of their own seat.
+ *     actions"*, and 2026-11-05: players never reach spectator mode of their own
+ *     game. The new window plays; the old one draws no table, says where the game
+ *     is, and its Play here takes the seat back. A REFRESH is the same tab and is
+ *     never moved out of its own seat.
  *  3. **A match that is gone** shows the server's sentence and a way back, with no
  *     board chrome and nothing shaped like a Join.
  *  4. **The rail and the log (P1, P12).** Combat is one step outside combat and
@@ -224,7 +224,7 @@ test(titled('reload with a selection open: the London bottom pick survives a ref
 
 /* ── 2. a second browser spectates ───────────────────────────────────── */
 
-test(titled('a second browser on a held seat is a spectator: inert, refused by the server, promoted when the first leaves'), async ({ browser }) => {
+test(titled('a second browser on a held seat takes it: the first says where the game is, and Play here takes it back'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(5 * 60_000);
@@ -236,54 +236,36 @@ test(titled('a second browser on a held seat is a spectator: inert, refused by t
     await expect(alice.page.getByTestId('live-says')).toContainText(/play or draw/i, { timeout: 30_000 });
     await expect(playOrDrawPlay(alice.page), 'the first window holds the question').toBeEnabled();
 
-    // The second window: same account, same seat.
+    // The second window: same account, same seat. It is the one played in now, never a spectator of it.
     const second = await openFriend(browser, 'alice');
     await second.page.goto(matchUrl(stack.origin, matchId));
     await boardUp(second.page);
-    const banner = (f: Friend) => f.page.getByText(/watching/i);
-    await expect(banner(second), 'the second window is told it is watching').toBeVisible({ timeout: 30_000 });
-    expect(await banner(alice).count(), 'the controlling window is not').toBe(0);
-    // It can SEE the same question, and cannot answer it.
-    await expect(second.page.getByTestId('live-says')).toContainText(/play or draw/i);
-    await expect(playOrDrawPlay(second.page), 'no play-or-draw control in the spectator window').toHaveCount(0);
-    await expect(second.page.getByTestId('live-concede')).not.toBeEnabled();
+    await expect(playOrDrawPlay(second.page), 'the new window is handed the question').toBeEnabled({ timeout: 30_000 });
+    const elsewhere = (f: Friend) => f.page.getByTestId('live-elsewhere');
+    await expect(elsewhere(alice), 'the first window says the game is open elsewhere').toBeVisible({ timeout: 30_000 });
+    await expect(alice.page.getByTestId('live-status')).toHaveText('Open in another window.');
+    await expect(alice.page.locator('.board'), 'and draws no table').toHaveCount(0);
+    await expect(elsewhere(second)).toHaveCount(0);
+    await expect
+      .poll(() => serverLog(stack).filter((l) => l.evt === 'seat-taken-over' && l.matchId === matchId).length, { timeout: 10_000, message: 'the takeover is logged' })
+      .toBe(1);
 
-    // The page is not the enforcement: a raw socket for the same seat sends the
-    // OK anyway. The server refuses it, says so in its log, and the controller's
-    // question is still open.
-    const raw = await connectSio(stack.origin, 'alice');
-    try {
-      const roles: unknown[] = [];
-      raw.on('forge:role', (p) => roles.push(p));
-      await raw.request('forge:join', { matchId });
-      await expect.poll(() => roles, { timeout: 10_000 }).toContainEqual({ matchId, role: 'spectator' });
-      raw.emit('forge:c2s', { matchId, frame: { kind: 'act', method: 'selectButtonOk' } });
-      await expect
-        .poll(() => serverLog(stack).filter((l) => l.evt === 'c2s-spectator' && l.matchId === matchId).length, { timeout: 10_000, message: 'the refusal is logged' })
-        .toBeGreaterThan(0);
-    } finally {
-      await raw.close();
-    }
-    await alice.page.waitForTimeout(1500);
-    await expect(alice.page.getByTestId('live-says'), 'the refused OK did not answer the toss').toContainText(/play or draw/i);
-    await expect(playOrDrawPlay(alice.page)).toBeEnabled();
+    // Play here, in the first window: it takes the seat back, and the second window is the one told.
+    await alice.page.getByTestId('live-play-here').click();
+    await boardUp(alice.page);
+    await expect(playOrDrawPlay(alice.page), 'Play here hands the question back').toBeEnabled({ timeout: 30_000 });
+    await expect(elsewhere(second), 'the window it took the seat from is told').toBeVisible({ timeout: 30_000 });
+    await playOrDrawPlay(alice.page).click();
+    await expect(alice.page.getByTestId('live-says')).toContainText(/keep your hand/i, { timeout: 30_000 });
 
-    // The first window closes: the second is promoted, without a reload, and can act.
-    await alice.context.close();
-    await expect(banner(second), 'promotion lifts the banner').toHaveCount(0, { timeout: 30_000 });
-    await expect(playOrDrawPlay(second.page), 'and hands it the question').toBeEnabled({ timeout: 30_000 });
-    await playOrDrawPlay(second.page).click();
-    await expect(second.page.getByTestId('live-says')).toContainText(/keep your hand/i, { timeout: 30_000 });
-
-    // A REFRESH keeps the tab's id (`tab-id.ts`): whether the new socket opens before the old
-    // one's disconnect lands or after, it is the seat's controller, never locked out.
-    await second.page.reload();
-    await boardUp(second.page);
-    await expect(banner(second), 'a refresh never leaves the player locked out of their own seat').toHaveCount(0, { timeout: 30_000 });
+    // A REFRESH keeps the tab's id (`tab-id.ts`): the same window, still the seat's, never told elsewhere.
+    await alice.page.reload();
+    await boardUp(alice.page);
     // Wave 36 T4: "keep your hand?" is a `ConfirmPrompt` pop-up now, not the bar.
-    await expect(confirmYes(second.page)).toHaveCount(1, { timeout: 30_000 });
-    await answerConfirm(second.page, 'yes');
-    await expect(second.page.getByTestId('live-says'), 'and the keep went through').not.toContainText(/keep your hand/i, { timeout: 30_000 });
+    await expect(confirmYes(alice.page)).toHaveCount(1, { timeout: 30_000 });
+    await expect(elsewhere(alice), 'a refresh never moves the player out of their own seat').toHaveCount(0);
+    await answerConfirm(alice.page, 'yes');
+    await expect(alice.page.getByTestId('live-says'), 'and the keep went through').not.toContainText(/keep your hand/i, { timeout: 30_000 });
   } finally {
     await stack.stop();
   }

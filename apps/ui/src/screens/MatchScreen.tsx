@@ -93,6 +93,8 @@ export interface MatchScreenProps {
 export function MatchScreen({ matchId, makeTransport }: MatchScreenProps) {
   const shellRef = useChromeShell('match');
   const [match, setMatch] = useState<LiveMatch | null>(null);
+  // Play here, after a newer window took the seat: a fresh connection, whose join takes it back.
+  const [opening, setOpening] = useState(0);
 
   // Before paint, so a match the room already opened is drawn in the first frame, not after an empty one.
   useLayoutEffect(() => {
@@ -103,7 +105,7 @@ export function MatchScreen({ matchId, makeTransport }: MatchScreenProps) {
       release();
       closeMatch(handle);
     };
-  }, [matchId, makeTransport]);
+  }, [matchId, makeTransport, opening]);
 
   // The room that started this match: the board's way back, and the table its
   // result screen readies at for a Rematch. The route carries only the match
@@ -137,7 +139,7 @@ export function MatchScreen({ matchId, makeTransport }: MatchScreenProps) {
 
   return (
     <div ref={shellRef} className="shell shell--match" data-testid="match" style={{ position: 'relative' }}>
-      {match !== null && <LiveBoard match={match} roomId={roomId} />}
+      {match !== null && <LiveBoard match={match} roomId={roomId} onPlayHere={() => setOpening((n) => n + 1)} />}
     </div>
   );
 }

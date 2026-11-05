@@ -393,7 +393,8 @@ export type LiveStatus =
   | 'seated-waiting-for-state'
   | 'live'
   | 'refused'
-  | 'match-gone';
+  | 'match-gone'
+  | 'elsewhere';
 
 /** The refusal that means the match itself is gone, rather than this join. */
 const MATCH_GONE_REFUSAL = 'unknown-match';
@@ -841,6 +842,8 @@ export function isMatchGone(match: LiveMatch): boolean {
  */
 export function liveStatus(match: LiveMatch): LiveStatus {
   if (isMatchGone(match)) return 'match-gone';
+  // Before `connected`: the server let this socket go when the newer window took the seat.
+  if (match.elsewhere) return 'elsewhere';
   if (refusalOf(match) !== null) return 'refused';
   if (!match.connected) return match.everConnected ? 'reconnecting' : 'connecting';
   if (match.seat === null) return match.awaitingSnapshot ? 'connecting' : 'connected-not-seated';
@@ -879,6 +882,8 @@ export function statusText(match: LiveMatch): string | null {
       return `Refused: ${refusalOf(match) ?? ''}`;
     case 'match-gone':
       return MATCH_GONE_SENTENCE;
+    case 'elsewhere':
+      return 'Open in another window.';
   }
 }
 
@@ -2718,6 +2723,8 @@ export interface LiveBoardProps {
    * no room, so `MatchScreen` passes one only when it has one.)
    */
   roomId?: string | null;
+  /** Takes the seat back after a newer window took it: the route opens the match again. Absent (the front page's card): no button. */
+  onPlayHere?: () => void;
 }
 
 /**
@@ -2792,18 +2799,15 @@ function drawnWhole(view: BoardView, cardId: number): boolean {
   return battlefieldCardIds(view).has(cardId) || view.stack.some((e) => e.sourceCardId === cardId);
 }
 
-export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
+export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) {
   useSyncExternalStore(
     (listener) => subscribe(match, listener),
     () => match.revision,
   );
   /*
-   * A WATCHING socket (shape 3): the account holds this seat in another window,
-   * and two windows acting on one seat is exactly what the operator ruled out.
-   * So this window draws the table and answers nothing — no ask is drawn or
-   * auto-answered, no button presses, no click or drag reaches Forge, Concede is
-   * inert — and hover, the inspector and the log stay. `spectator` is read every
-   * render, so a promotion lifts all of it without a reload.
+   * A window that cannot act — a watcher, or a replay — draws the table and answers
+   * nothing: no ask is drawn or auto-answered, no button presses, no click or drag
+   * reaches Forge, Concede is inert; hover, the inspector and the log stay.
    */
   const spectator = match.spectator;
   const watcher = match.watcher;
@@ -3842,7 +3846,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     }
   });
 
-  if (status === 'match-gone') {
+  if (status === 'match-gone' || status === 'elsewhere') {
     /*
      * A match that is gone has no table, and so none of the table's chrome: the
      * operator, 2026-09-30, *"why can I still join this if the match is gone?"*.
@@ -3851,9 +3855,13 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
      * a live-looking page with nothing behind it. Now: the server's own
      * sentence, and ONE way back, an anchor to the room or else the lobby. No
      * button, nothing Join-shaped.
+     *
+     * A seat a newer window took (`elsewhere`) is the same page: the operator, 2026-11-05,
+     * *"the active players should not be able to reach spectator mode for the game they are
+     * assigned to"*. So this window draws no table, only where the game is and Play here.
      */
     return (
-      <div className="live live--gone" ref={rootRef} data-testid="live-gone">
+      <div className="live live--gone" ref={rootRef} data-testid={status === 'elsewhere' ? 'live-elsewhere' : 'live-gone'}>
         <p
           className="live__status"
           role="status"
@@ -3865,6 +3873,11 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         >
           {statusLine}
         </p>
+        {status === 'elsewhere' && onPlayHere !== undefined && (
+          <ActionButton action="play-here" className="button" data-testid="live-play-here" data-highlight="true" onPress={onPlayHere}>
+            Play here
+          </ActionButton>
+        )}
         <a
           className="live__gone-back"
           data-testid="live-gone-back"
@@ -3888,11 +3901,6 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       // window refuses it here, at the root, rather than teaching the board.
       onDragStartCapture={spectator ? (event) => event.preventDefault() : undefined}
     >
-      {spectator && !watcher && (
-        <p className="live__spectator" role="status" data-testid="live-spectator">
-          Watching: this seat is being played in another window
-        </p>
-      )}
       {/* No seat (2026-10-12): the one word and the switch, between the two avatars (`WatcherStatus.tsx`). Not on the front page's card. */}
       {watcher && !match.followsTurn && <WatcherStatus match={match} />}
       {/*

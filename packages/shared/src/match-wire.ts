@@ -122,11 +122,11 @@ export const MATCH_EVENTS = {
    */
   seats: 'forge:seats',
   /**
-   * Wave 31 §S: which kind of connection THIS socket is for its seat — the
-   * one that controls it, or a spectator of it. Server → client only, to the
-   * one socket, after every join and resync and again on promotion. The
-   * server enforces (it refuses a spectator's inputs); the client only
-   * explains. See {@link MatchRoleSchema}.
+   * Which kind of connection THIS socket is for its seat — the one that plays
+   * it, one a newer window of the same player took it from (`elsewhere`, sent
+   * just before the server lets that socket go), or a watcher with no seat.
+   * Server → client only, to the one socket, after every join and resync. The
+   * server enforces; the client only explains. See {@link MatchRoleSchema}.
    */
   role: 'forge:role',
   /**
@@ -519,9 +519,9 @@ export const MatchSeatsSchema = z.object({ matchId: z.string().min(1), seats: Se
 export type MatchSeats = z.infer<typeof MatchSeatsSchema>;
 
 /** Which kind of connection a socket is for its seat (`forge:role`). */
-export const MATCH_ROLES = ['player', 'spectator', 'watcher'] as const;
+export const MATCH_ROLES = ['player', 'elsewhere', 'watcher'] as const;
 export const MatchRoleSchema = z
-  .object({ matchId: z.string().min(1), role: z.enum(MATCH_ROLES, { error: 'role is player, spectator or watcher' }) })
+  .object({ matchId: z.string().min(1), role: z.enum(MATCH_ROLES, { error: 'role is player, elsewhere or watcher' }) })
   .strict();
 export type MatchRole = z.infer<typeof MatchRoleSchema>;
 

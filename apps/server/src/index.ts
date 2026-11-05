@@ -614,8 +614,12 @@ attachRooms(api, {
 	lobby,
 	checkPlan: checkDraftPlan,
 	...(CONFIG.testNoRateLimits ? { createRateLimit: null } : {}),
-	// Read per request; `featured` is built further down, beside play.
-	featured: () => featured.current(),
+	// Read per request; `featured` is built further down, beside play. Never the caller's own game: the front page
+	// joins the match it features, and a seat holder's join takes their seat from the board they play on.
+	featured: (caller) => {
+		const pick = featured.current();
+		return pick !== null && (play?.matches.get(pick.matchId)?.seatOf(caller) ?? null) !== null ? null : pick;
+	},
 	closed: roomClosed,
 	forfeited: (roomId, tableId, loser, matches) => {
 		for (const id of matches) endForfeitedGame(play?.matches.get(id), loser);

@@ -178,8 +178,8 @@ export interface RoomsDeps {
 	 * carries it as `tableGames`. Absent (a unit suite) is none.
 	 */
 	tableGames?(room: RoomView): Record<string, TableGame>;
-	/** The front page's featured match (`play/featured.ts`), sent with the list. Absent (a unit suite) is none. */
-	featured?(): { matchId: string; roomId: string } | null;
+	/** The front page's featured match for this caller (`play/featured.ts`), sent with the list: never one they hold a seat in. Absent (a unit suite) is none. */
+	featured?(caller: string): { matchId: string; roomId: string } | null;
 	/** Overrides `JOIN_RATE_LIMIT`. */
 	joinRateLimit?: RateLimitConfig;
 	/** Overrides `ROOM_CREATE_RATE_LIMIT`; `null` is none (`perCallerLimit`). */
@@ -338,7 +338,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		// the UI, never on the wire for them to begin with.
 		const offered = lobby.offered().filter((room) => admin || !room.testing);
 		// Only a room this caller was just sent: the pick is a pointer into the list, never a room of its own.
-		const pick = deps.featured?.() ?? null;
+		const pick = deps.featured?.(me) ?? null;
 		const featured = pick !== null && offered.some((room) => room.id === pick.roomId) ? pick : null;
 		res.json({ rooms: offered.map((room) => roomBody(room, me)), featured });
 	});

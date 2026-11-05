@@ -65,7 +65,7 @@ async function watchForSpectator(page: Page): Promise<() => Promise<boolean>> {
     const w = window as unknown as { __sawSpectator?: boolean };
     w.__sawSpectator = false;
     const look = () => {
-      if (document.querySelector('[data-testid="live-spectator"], .live[data-spectator]') !== null) w.__sawSpectator = true;
+      if (document.querySelector('[data-testid="live-elsewhere"], .live[data-spectator]') !== null) w.__sawSpectator = true;
     };
     new MutationObserver(look).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-spectator'] });
     look();
