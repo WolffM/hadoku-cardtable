@@ -10,8 +10,10 @@
  * One read a minute at most, whoever asks, and nobody waits on it once there is a snapshot: a
  * caller gets the kept one at once, and one older than `CACHE_MS` starts a read behind it for the
  * next caller (stale-while-revalidate). Front-page loads come minutes apart, so a cache that made
- * the caller wait on an expired read had every load wait on ArchiveBot (server p50 550 ms). A read
- * that fails keeps the last good snapshot. The first one starts at boot. Without the secret (PPE,
+ * the caller wait on an expired read had every load wait on ArchiveBot (server p50 550 ms). Because
+ * that only reads when someone asks, the first caller after a quiet stretch would get a snapshot of
+ * any age, so the server also reads on its own every `REFRESH_MS`. A read that fails keeps the last
+ * good snapshot. The first one starts at boot. Without the secret (PPE,
  * local dev), or with no snapshot yet but a refusal, the route answers 204 and the card leaves the
  * chat out.
  *
@@ -27,6 +29,8 @@ import type { JsonLog } from '../log.js';
 
 /** How old a kept answer gets before the next caller starts a fresh read behind it. */
 export const CACHE_MS = 60_000;
+/** How often the server reads on its own, with nobody asking: the oldest snapshot a caller can get. */
+export const REFRESH_MS = 60 * 60_000;
 /** How much #general history the card can scroll back through: ArchiveBot's own cap (`MAX_LIMIT`). */
 export const RECENT_LIMIT = 50;
 
@@ -37,6 +41,8 @@ export interface DiscordDeps {
 	log: JsonLog;
 	fetch?: typeof fetch;
 	now?: () => number;
+	/** Runs `read` every `ms`; defaults to an unref'd `setInterval`. */
+	every?: (read: () => void, ms: number) => void;
 }
 
 /** The query ArchiveBot is asked, and the signature over exactly it. */
@@ -45,8 +51,11 @@ export function signedRecentQuery(secret: string, limit: number = RECENT_LIMIT):
 	return { query, signature: `sha256=${createHmac('sha256', secret).update(query).digest('hex')}` };
 }
 
-/** The snapshot, read from ArchiveBot at most once per `CACHE_MS`, never waited on twice. `null`: there is none to show. */
-export function discordSnapshot(deps: DiscordDeps): () => Promise<DiscordRecent | null> {
+/**
+ * The snapshot, read from ArchiveBot at most once per `CACHE_MS`, never waited on twice. `get`'s `null`:
+ * there is none to show. `refresh` reads now, whatever the snapshot's age.
+ */
+export function discordSnapshot(deps: DiscordDeps): { get: () => Promise<DiscordRecent | null>; refresh: () => Promise<DiscordRecent | null> } {
 	const now = deps.now ?? Date.now;
 	let kept: { at: number; value: DiscordRecent | null } | null = null;
 	let reading: Promise<DiscordRecent | null> | null = null;
@@ -81,19 +90,25 @@ export function discordSnapshot(deps: DiscordDeps): () => Promise<DiscordRecent 
 			return kept.value;
 		}));
 
-	return async () => {
+	const get = async (): Promise<DiscordRecent | null> => {
 		if (deps.secret === '') return null;
 		if (kept === null) return refresh();
 		if (now() - kept.at >= CACHE_MS) void refresh();
 		return kept.value;
 	};
+	return { get, refresh };
 }
+
+const unrefInterval = (read: () => void, ms: number): void => {
+	setInterval(read, ms).unref();
+};
 
 export function attachDiscord(api: Router, deps: DiscordDeps): void {
 	const snapshot = discordSnapshot(deps);
-	void snapshot();
+	void snapshot.get();
+	if (deps.secret !== '') (deps.every ?? unrefInterval)(() => void snapshot.refresh(), REFRESH_MS);
 	api.get('/discord/recent', async (_req: Request, res: Response) => {
-		const recent = await snapshot();
+		const recent = await snapshot.get();
 		if (recent === null || recent.messages.length === 0) return res.status(204).end();
 		res.json(recent);
 	});

@@ -13,7 +13,7 @@ import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { attachDiscord, CACHE_MS } from './discord.ts';
+import { attachDiscord, CACHE_MS, REFRESH_MS } from './discord.ts';
 
 const SECRET = 'test-archivebot-secret';
 const servers: Server[] = [];
@@ -44,7 +44,7 @@ async function fakeArchiveBot(answer: { status: number; body: unknown }) {
 	return { url, seen };
 }
 
-async function openApp(deps: { secret: string; archivebotUrl: string; now?: () => number }) {
+async function openApp(deps: { secret: string; archivebotUrl: string; now?: () => number; every?: (read: () => void, ms: number) => void }) {
 	const logged: Record<string, unknown>[] = [];
 	const app = express();
 	const api = express.Router();
@@ -114,6 +114,21 @@ describe('/api/discord/recent', () => {
 		expect(bot.seen).toHaveLength(2);
 	});
 
+	it('reads on its own every hour, so the first caller after a quiet stretch gets an hour-old snapshot at worst', async () => {
+		const answer = { status: 200, body: MESSAGES as unknown };
+		const bot = await fakeArchiveBot(answer);
+		const timers: { read: () => void; ms: number }[] = [];
+		const { get } = await openApp({ secret: SECRET, archivebotUrl: bot.url, now: () => 0, every: (read, ms) => timers.push({ read, ms }) });
+		expect(await get()).toEqual({ status: 200, body: MESSAGES });
+		expect(timers.map((t) => t.ms)).toEqual([REFRESH_MS]);
+
+		const NEWER = { messages: [...MESSAGES.messages, { author: 'carol', avatar: null, color: null, text: 'me too', at: '2026-10-28T18:05:00Z' }] };
+		answer.body = NEWER;
+		timers[0]!.read();
+		await vi.waitFor(() => expect(bot.seen).toHaveLength(2));
+		expect(await get()).toEqual({ status: 200, body: NEWER });
+	});
+
 	it('a read that fails keeps the last good snapshot', async () => {
 		const clock = { now: 0 };
 		const answer = { status: 200, body: MESSAGES as unknown };
@@ -152,9 +167,11 @@ describe('/api/discord/recent', () => {
 
 	it('without the secret it never calls ArchiveBot at all (PPE, local dev)', async () => {
 		const bot = await fakeArchiveBot({ status: 200, body: MESSAGES });
-		const { get } = await openApp({ secret: '', archivebotUrl: bot.url });
+		const timers: number[] = [];
+		const { get } = await openApp({ secret: '', archivebotUrl: bot.url, every: (_read, ms) => timers.push(ms) });
 		expect((await get()).status).toBe(204);
 		expect(bot.seen).toEqual([]);
+		expect(timers).toEqual([]);
 	});
 
 	it('an unreachable ArchiveBot is no snapshot, never an error', async () => {

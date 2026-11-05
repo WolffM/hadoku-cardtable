@@ -15,7 +15,7 @@
  *     art is drawn all at once, only when every picture is decoded (`useArtLoaded`): a turn to it
  *     never shows a picture landing.
  *   - **In the Discord** — #general's recent messages, scrollable and opened on the newest, and Join
- *     Discord (`/api/discord/recent`, ArchiveBot's, prod only).
+ *     Discord (`/api/discord/recent`, ArchiveBot's, prod only), asked for again hourly.
  *   - **Looking for a game** — the bare Discord invite (`../chrome/HeaderLinks.tsx`): there whenever
  *     the chat is not, so the card always has something.
  *
@@ -102,34 +102,47 @@ function useOpenSeats(): WildcardItem | null | typeof ASKING {
   return item;
 }
 
-/** The Discord's recent #general messages (`/api/discord/recent`, prod only): `null` when there are none to show. */
+/** How often an open front page asks for the chat again: the server refreshes its own copy hourly too. */
+const CHAT_REFRESH_MS = 60 * 60_000;
+
+/** The chat as the wildcard shows it, or `null` when there are no messages. */
+function chatItem(messages: readonly DiscordMessage[]): WildcardItem | null {
+  return messages.length === 0
+    ? null
+    : {
+        key: 'chat',
+        kind: 'In the Discord',
+        title: '#general',
+        body: '',
+        messages,
+        action: { href: DISCORD_INVITE_URL, label: 'Join Discord', external: true },
+      };
+}
+
+/**
+ * The Discord's recent #general messages (`/api/discord/recent`, prod only), asked for again every
+ * `CHAT_REFRESH_MS` while the page is open: `null` when there are none to show. A later ask that
+ * fails keeps the chat already shown.
+ */
 function useDiscordChat(): WildcardItem | null | typeof ASKING {
   const [item, setItem] = useState<WildcardItem | null | typeof ASKING>(ASKING);
   useEffect(() => {
     let live = true;
-    getJson(apiUrl('discord/recent'))
-      .then(async (res) => (res.status === 200 ? DiscordRecentSchema.safeParse(await bodyOf(res)).data ?? null : null))
-      .then((recent) => {
-        if (!live) return;
-        setItem(
-          recent === null || recent.messages.length === 0
-            ? null
-            : {
-                key: 'chat',
-                kind: 'In the Discord',
-                title: '#general',
-                body: '',
-                messages: recent.messages,
-                action: { href: DISCORD_INVITE_URL, label: 'Join Discord', external: true },
-              },
-        );
-      })
-      .catch(() => {
-        // Not reachable: the invite stands in for it.
-        if (live) setItem(null);
-      });
+    const ask = () =>
+      getJson(apiUrl('discord/recent'))
+        .then(async (res) => (res.status === 200 ? DiscordRecentSchema.safeParse(await bodyOf(res)).data ?? null : null))
+        .then((recent) => {
+          if (live) setItem(recent === null ? null : chatItem(recent.messages));
+        })
+        .catch(() => {
+          // Not reachable: the invite stands in for it, unless a chat is already up.
+          if (live) setItem((shown) => (shown === ASKING ? null : shown));
+        });
+    void ask();
+    const timer = setInterval(() => void ask(), CHAT_REFRESH_MS);
     return () => {
       live = false;
+      clearInterval(timer);
     };
   }, []);
   return item;
