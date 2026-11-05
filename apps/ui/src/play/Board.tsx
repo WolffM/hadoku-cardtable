@@ -3930,7 +3930,7 @@ function PlayerArea({
    * canvas, `data-viewer` and the brighter ink — and the SECTION's accessible
    * name below still says `(you)`, because a screen reader has none of those.
    */
-  const name = player.name;
+  const name = <PlayerName name={player.name} face={{ id: player.avatarId, look: player.look }} />;
   return (
     <section
       className="seat"

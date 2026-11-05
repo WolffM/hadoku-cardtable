@@ -109,9 +109,13 @@ export function FaceOff({ left, right, scored, revealing }: FaceOffProps) {
   return (
     <div className="face-off" data-testid="table-seats" data-revealing={revealing || undefined} style={beats}>
       <h2 className="face-off__title" data-testid="face-off-title">
-        <span>{left.name}</span>
+        <span>
+          <PlayerName name={left.name} face={left.face} />
+        </span>
         <span className="face-off__vs">vs</span>
-        <span>{right.name}</span>
+        <span>
+          <PlayerName name={right.name} face={right.face} />
+        </span>
       </h2>
       <ul className="face-off__arena">
         {fighter(left, 'left')}

@@ -2899,7 +2899,7 @@ function StreamSeat({
   return (
     <li className="streams__seat" data-testid="stream-seat" data-seat={seat}>
       <span className="streams__who" data-testid="stream-seat-who">
-        {member.name}
+        <PlayerName name={member.name} face={faceOf(member)} />
       </span>
       {up ? (
         <iframe

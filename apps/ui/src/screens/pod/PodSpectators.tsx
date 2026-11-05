@@ -9,13 +9,16 @@
  * draft all draw this one list, against `podPlayers`.
  */
 
+import type { Look } from '@hadoku/shared';
+import { faceOf } from '../../components/Avatar.tsx';
+import { PlayerName } from '../../room/look.tsx';
 import { CROWN } from '../ConstructedScreen.tsx';
 import { podPlayers, type PodView } from './wire.ts';
 
 export interface PodSpectatorsProps {
   pod: PodView;
   /** The room's members, in the room's order. */
-  members: readonly { id: string; name: string }[];
+  members: readonly { id: string; name: string; avatarId?: string; look?: Look }[];
   /** My member id here, or `null` before the room has said. */
   myId: string | null;
   leaderId: string;
@@ -29,7 +32,7 @@ export function PodSpectators({ pod, members, myId, leaderId }: PodSpectatorsPro
     <p className="pod-spectators" data-testid="pod-spectators">
       {spectators.map((member) => (
         <span key={member.id} className="pod-spectators__name" data-testid="pod-spectator" data-member={member.id} data-mine={member.id === myId ? '' : undefined}>
-          {member.name}
+          <PlayerName name={member.name} face={faceOf(member)} />
           {member.id === leaderId && leaderId !== '' && (
             <svg className="tables__crown" viewBox="0 0 12 12" role="img" aria-label="Room owner">
               <title>Room owner</title>

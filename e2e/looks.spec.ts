@@ -66,6 +66,10 @@ test(titled('a picture, an overlay and a name effect show on the room seat, on t
     await expect(theirs.getByTestId('seat-avatar'), 'bob’s board draws alice’s picture').toHaveAttribute('src', PICTURE, { timeout: 30_000 });
     await expectDecorOver(bob.page, theirs.getByTestId('seat-avatar'), 'bob, alice’s board face');
     await expect(theirs.locator('.face__name[data-dressed] .hc-name'), 'alice’s name on the board wears its effect').toHaveCount(1);
+    // And the name the seat rail shows beside her face, the one a player reads.
+    const rail = bob.page.locator('.seat:not([data-viewer]) .seat__name');
+    await expect(rail.locator('[data-dressed] .hc-name'), 'alice’s name in the seat rail wears its effect').toBeVisible();
+    await expect(bob.page.locator('.seat[data-viewer] .seat__name [data-dressed]'), 'bob’s plain name stays plain').toHaveCount(0);
     // And on her own board, the same.
     await alice.page.waitForURL(/#\/match\/m-[0-9a-f]{12}$/, { timeout: 120_000 });
     const mine = alice.page.locator('[data-player-face][data-viewer]');

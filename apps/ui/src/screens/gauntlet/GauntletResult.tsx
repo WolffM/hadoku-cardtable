@@ -1,10 +1,12 @@
 /* The Gauntlet's end: the winner, crowned, and each game's two decks, one game to a row under the players' names. */
+import { useContext } from 'react';
 import type { GauntletGame, GauntletView } from '@hadoku/shared';
 
 import { CROWN, type DeckOption } from '../ConstructedScreen.tsx';
 import { DeckTile } from '../DeckTile.tsx';
 import { useTilePeek, type TileBinding } from './peek.tsx';
-import { PlayerName, seatOrder } from './seats.tsx';
+import { PlayerName as Name } from '../../room/look.tsx';
+import { PlayerName, SeatFaces, seatOrder } from './seats.tsx';
 
 /** One game's row: its two decks face to face, P1's first, the winner's ringed. Both are on record once it is over. */
 function GameRow({ view, game, options, bind, index }: { view: GauntletView; game: GauntletGame; options: ReadonlyMap<string, DeckOption>; bind: (id: string) => TileBinding; index: number }) {
@@ -26,6 +28,7 @@ function GameRow({ view, game, options, bind, index }: { view: GauntletView; gam
 
 export function GauntletResult({ view, options }: { view: GauntletView; options: ReadonlyMap<string, DeckOption> }) {
   const { bind, peek } = useTilePeek(options);
+  const faces = useContext(SeatFaces);
   const wins = (seat: number): number => view.games.filter((g) => g.winner === seat).length;
   return (
     <section className="gauntlet gauntlet--result" data-testid="gauntlet-result" data-phase={view.phase}>
@@ -38,7 +41,7 @@ export function GauntletResult({ view, options }: { view: GauntletView; options:
           <svg className="gauntlet__crown" viewBox="0 0 12 12" aria-hidden="true">
             <path d={CROWN} />
           </svg>
-          {view.players?.[view.winner].name}
+          <Name name={view.players?.[view.winner].name ?? ''} face={faces[view.winner]} />
           <span className="gauntlet__score" data-testid="gauntlet-score">
             {wins(view.winner)}–{wins(view.winner === 0 ? 1 : 0)}
           </span>
