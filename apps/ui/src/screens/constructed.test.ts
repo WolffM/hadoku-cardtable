@@ -1156,7 +1156,7 @@ describe('a room’s table', () => {
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
     // The pool that bans it no longer offers it, and nothing is chosen.
     await waitFor(() => expect(offered()).not.toContain(UG_POLYMORPH));
-    expect(chosen()).toBe('');
+    await waitFor(() => expect(chosen()).toBe(''));
     // The other player was stood down BY THE POOL MOVING, which is the server's
     // rule and not this deck's fault: what they readied with is not what the
     // table is on any more.
@@ -1746,7 +1746,7 @@ describe('the deck picker', () => {
     await waitFor(() => expect(myReadyOpen()).toBe(false));
     // The deck is off the list, nothing is chosen, and Ready stays dead.
     await waitFor(() => expect(offered()).not.toContain(UG_POLYMORPH));
-    expect(chosen()).toBe('');
+    await waitFor(() => expect(chosen()).toBe(''));
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
   });
 
