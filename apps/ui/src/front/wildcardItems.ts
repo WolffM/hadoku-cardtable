@@ -15,7 +15,7 @@ import { roomCardView } from './roomCard.ts';
  * randomness system beyond that"). A room asking for players outranks everything; the Discord
  * invite is the fallback.
  */
-export const WILDCARD_PRIORITY = { 'open-seats': 6, cube: 3, chat: 3, 'last-game': 2, lfg: 1 } as const;
+export const WILDCARD_PRIORITY = { 'open-seats': 6, cube: 3, chat: 3, lfg: 1 } as const;
 export type WildcardKind = keyof typeof WILDCARD_PRIORITY;
 
 /** One of `available`, drawn with `WILDCARD_PRIORITY`'s weights; `null` for none. */

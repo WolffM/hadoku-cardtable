@@ -103,7 +103,7 @@ describe('spotlightCube', () => {
 
 describe('wildcardPages', () => {
   it('opens on the weighted pick, then every other kind there is, highest priority first', () => {
-    expect(wildcardPages(['lfg', 'last-game', 'cube', 'open-seats'], 'cube')).toEqual(['cube', 'open-seats', 'last-game', 'lfg']);
+    expect(wildcardPages(['lfg', 'cube', 'open-seats'], 'cube')).toEqual(['cube', 'open-seats', 'lfg']);
     expect(wildcardPages(['chat', 'cube'], 'chat')).toEqual(['chat', 'cube']);
   });
   it('is every kind by priority before anything is picked, and nothing when there is nothing', () => {
@@ -114,7 +114,7 @@ describe('wildcardPages', () => {
 
 describe('pickWildcard', () => {
   it('draws each kind in proportion to its weight, from whatever is there', () => {
-    const all = ['open-seats', 'cube', 'chat', 'last-game', 'lfg'] as const;
+    const all = ['open-seats', 'cube', 'chat', 'lfg'] as const;
     const total = all.reduce((n, k) => n + WILDCARD_PRIORITY[k], 0);
     // A roll just inside each kind's own share of the total lands on that kind.
     let edge = 0;

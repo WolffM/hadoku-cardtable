@@ -14,7 +14,6 @@
  *     (`../draft/cardImage.ts`, never a stored URL), and Play now: a draft room on that cube. Its
  *     art is drawn all at once, only when every picture is decoded (`useArtLoaded`): a turn to it
  *     never shows a picture landing.
- *   - **Last game** — the newest replay, `GET /api/replays?limit=1`; only while `REPLAYS_ON`.
  *   - **In the Discord** — #general's recent messages, scrollable and opened on the newest, and Join
  *     Discord (`/api/discord/recent`, ArchiveBot's, prod only).
  *   - **Looking for a game** — the bare Discord invite (`../chrome/HeaderLinks.tsx`): there whenever
@@ -37,7 +36,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DiscordRecentSchema, type DiscordMessage } from '@hadoku/shared';
 
-import { apiUrl, bodyOf, getJson, isRecord } from '../http.ts';
+import { apiUrl, bodyOf, getJson } from '../http.ts';
 import { DISCORD_INVITE_URL } from '../chrome/HeaderLinks.tsx';
 import { coverCropStyle, ILLUSTRATION_BOX } from '../components/faceCrop.ts';
 import { Reveal, REVEAL_MS } from '../components/Reveal.tsx';
@@ -45,7 +44,6 @@ import { cardImageUrl, warmArt } from '../draft/cardImage.ts';
 import { useArtLoaded } from '../draft/useArtLoaded.ts';
 import { onRoomList, poolsClient, roomsClient } from '../rooms/api.ts';
 import { warmRoom } from '../rooms/warm.ts';
-import { REPLAYS_ON } from '../replay/transport.ts';
 import { navigate, routeHash } from '../screens/route.ts';
 import { playRole } from '../sound/index.ts';
 import { avatarColour, avatarInitial, discordTime, groupMessages } from './discordChat.ts';
@@ -79,53 +77,6 @@ const LOOKING_FOR_GAME: WildcardItem = {
   body: 'Ask in the Discord — someone is usually around.',
   action: { href: DISCORD_INVITE_URL, label: 'Open Discord', external: true },
 };
-
-interface ReplaySummary {
-  matchId: string;
-  players: readonly string[];
-}
-
-/** The newest replay's own summary, or `null` for anything that is not one — never thrown. */
-function parseReplaySummary(body: unknown): ReplaySummary | null {
-  if (!isRecord(body) || !Array.isArray(body.replays)) return null;
-  const first = body.replays[0];
-  if (!isRecord(first) || typeof first.matchId !== 'string') return null;
-  const players = Array.isArray(first.players) ? first.players.filter((p): p is string => typeof p === 'string') : [];
-  return { matchId: first.matchId, players };
-}
-
-/** The newest replay, as a wildcard item: `ASKING` until the read answers, `null` when there is none. */
-function useLastGame(): WildcardItem | null | typeof ASKING {
-  const [item, setItem] = useState<WildcardItem | null | typeof ASKING>(REPLAYS_ON ? ASKING : null);
-  useEffect(() => {
-    if (!REPLAYS_ON) return undefined;
-    let live = true;
-    getJson(apiUrl('replays?limit=1'))
-      .then(async (res) => (res.ok ? parseReplaySummary(await bodyOf(res)) : null))
-      .then((summary) => {
-        if (!live) return;
-        setItem(
-          summary === null
-            ? null
-            : {
-                key: 'last-game',
-                kind: 'Last game',
-                title: summary.players.length > 0 ? summary.players.join(' vs ') : 'A recent match',
-                body: 'Watch how it played out.',
-                action: { href: `#/replay/${summary.matchId}`, label: 'Watch', external: false },
-              },
-        );
-      })
-      .catch(() => {
-        // Not reachable: the card just has one less thing to pick from.
-        if (live) setItem(null);
-      });
-    return () => {
-      live = false;
-    };
-  }, []);
-  return item;
-}
 
 /** The room asking for players, from every room list the page reads (`../rooms/api.ts`'s `onRoomList`) — never a read of its own. */
 function useOpenSeats(): WildcardItem | null | typeof ASKING {
@@ -268,7 +219,7 @@ const PICK_WAIT_MS = 2_000;
 
 export function WildcardCard() {
   const chat = useDiscordChat();
-  const sources = [useOpenSeats(), useCubeSpotlight(), useLastGame(), chat];
+  const sources = [useOpenSeats(), useCubeSpotlight(), chat];
   const [waited, setWaited] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => setWaited(true), PICK_WAIT_MS);
