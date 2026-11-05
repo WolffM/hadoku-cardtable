@@ -1829,6 +1829,12 @@
   display: none;
 }
 
+/* The portrait bar is in the same rail on every layout (Settled 9), so desktop
+   hides it here; only the portrait rule below lays it out. */
+.live__segments {
+  display: none;
+}
+
 :root[data-layout='portrait'] .live__segments {
   display: flex;
   align-items: stretch;
