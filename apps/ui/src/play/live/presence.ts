@@ -685,6 +685,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   /* ── receiving ───────────────────────────────────────────────────── */
 
   let cursor: HTMLElement | null = null;
+  /** The seat whose pointer `cursor` is drawing. */
+  let cursorSeat: number | null = null;
   let back: HTMLElement | null = null;
   let arrow: SVGSVGElement | null = null;
   let hinted: Element | null = null;
@@ -883,6 +885,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     cursor?.remove();
     arrow?.remove();
     cursor = null;
+    cursorSeat = null;
     arrow = null;
     if (liftedCard !== null) {
       liftedCard.el.removeAttribute('data-arrange-dragging');
@@ -996,12 +999,12 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (cursor === null) {
       cursor = document.createElement('div');
       cursor.className = 'presence';
-      cursor.dataset.presence = String(echo.seat);
       cursor.setAttribute('aria-hidden', 'true');
       cursor.innerHTML =
         '<svg class="presence__pointer" viewBox="0 0 16 16"><path d="M1 1 L1 13 L4.5 9.8 L7 15 L9.3 14 L6.8 9 L11.5 9 Z"/></svg><span class="presence__name"></span>';
       root.append(cursor);
     }
+    cursorSeat = echo.seat;
     // The tag names the seat that sent it, wherever it is drawn: a watcher's (and a replay's) cursor is the bottom player's.
     cursor.querySelector('.presence__name')!.textContent = host.nameOfSeat(echo.seat) ?? '';
     cursor.style.left = `${at.x - box.left}px`;
@@ -1086,6 +1089,14 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   function watchedPointer(seat: number): boolean {
     const player = host.playerOfSeat?.(seat) ?? null;
     return player !== null && player === (host.activePlayerId?.() ?? host.viewerPlayerId?.() ?? null);
+  }
+
+  /**
+   * A watcher's one pointer is the acting player's (`onEcho`), so when the turn passes the one
+   * drawn goes with it — never left standing, under the last player's name, until it goes stale.
+   */
+  function dropIdlePointer(): void {
+    if (host.seat === null && cursorSeat !== null && !watchedPointer(cursorSeat)) takeDown();
   }
 
   /** Whether `seat`'s player is the one THIS board draws at the bottom: only ever true for a watcher. */
@@ -1521,7 +1532,11 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   // A replay an EARLIER mount of this module received and could not yet place (the board had not
   // painted) — this mount gets its own fresh attempt, since the server only ever sends it once.
   if (pendingPlaced !== null) onPlaced(pendingPlaced);
-  const unwatch = host.watch?.(handoff) ?? null;
+  const unwatch =
+    host.watch?.(() => {
+      dropIdlePointer();
+      handoff();
+    }) ?? null;
   handMoveListeners.add(sendHandMove);
 
   return {

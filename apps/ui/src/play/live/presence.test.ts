@@ -670,6 +670,37 @@ describe('receiving: anchored', () => {
     handle.dispose();
   });
 
+  it('a watcher takes the acting player’s pointer down when the turn passes, never leaving it up under their name', () => {
+    const { canvas } = board();
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    let active = 0;
+    let changed = (): void => {};
+    const handle = installPresence({
+      canvas,
+      host: {
+        ...host(t, null),
+        playerOfSeat: (seat) => seat,
+        viewerPlayerId: () => 1,
+        activePlayerId: () => active,
+        watch: (onChange) => {
+          changed = onChange;
+          return () => {};
+        },
+      },
+    });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 0, pointer: { zone: 'battlefield', x: 0.5, y: 0.5 }, anchor: null, held: false, from: null, arranging: null });
+    expect(canvas.querySelector('.presence__name')?.textContent, 'the acting player’s pointer, named').toBe('Ada');
+
+    changed();
+    expect(canvas.querySelector('.presence'), 'a change that keeps the turn keeps the pointer').not.toBeNull();
+
+    active = 1;
+    changed();
+    expect(canvas.querySelector('.presence'), 'the turn passed: the last player’s pointer is gone at once').toBeNull();
+    handle.dispose();
+  });
+
   it('is continuous across a card’s edge on differently sized boards — the cursor never jumps onto the card', () => {
     // Sender: the card is (120,200)-(180,284). Receiver: the twin is twice the size, elsewhere.
     const sender = board().canvas;
