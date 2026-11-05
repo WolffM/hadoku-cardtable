@@ -7,10 +7,11 @@
  * header's `links` slot (docs/requests/HADOKU_SITE_HEADER_LINKS.md, with hadoku-task), and these move
  * there when it ships. `.app-header__icon-btn` is the fleet's round button and is made for an <a>.
  *
- * The invite is ArchiveBot's (`/setup cardtable`), permanent, and joins as Player.
+ * The invite is permanent. ArchiveBot's original (`/setup cardtable`) stopped accepting joins once the
+ * server became a Community server (2026-11-05); this one is the operator's.
  * Both glyphs are Simple Icons' marks (CC0-1.0).
  */
-export const DISCORD_INVITE_URL = 'https://discord.gg/VvntUGQVwm';
+export const DISCORD_INVITE_URL = 'https://discord.gg/tfRddmWkDv';
 export const GITHUB_REPO_URL = 'https://github.com/WolffM/hadoku-cardtable';
 
 const DISCORD_PATH =
