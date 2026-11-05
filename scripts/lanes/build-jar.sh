@@ -27,8 +27,9 @@ done
 REPO=WolffM/hadoku-cardtable
 CLONE=$HOME/.cache/w7b-forge
 JARS=$HOME/.local/share/cardtable/jars
-export JAVA_HOME=$HOME/.local/opt/jdk-21.0.12.1+1
-MVN_BIN=$HOME/.local/opt/apache-maven-3.9.16/bin
+# The fleet's JDK 21 and Maven, on PATH on every node (AGENTS.md "Build prerequisites", D14). A java
+# with no javac beside it is a JRE, and Forge's build then fails as "release version 17 not supported".
+command -v javac >/dev/null && command -v mvn >/dev/null || { echo "build-jar: no javac/mvn on PATH (fleet converge-toolchain)" >&2; exit 2; }
 
 run() { echo "+ $*"; [ $DRY = 1 ] || "$@"; }
 
@@ -55,7 +56,7 @@ run git -C "$CLONE" fetch -q fork
 run git -C "$CLONE" checkout -q --detach "$PIN"
 [ $DRY = 1 ] || [ -z "$(git -C "$CLONE" status --porcelain)" ] || { echo "build-jar: $CLONE is dirty" >&2; exit 1; }
 # `clean` is not optional across a pin move: an incremental build can re-package stale classes.
-run env -C "$CLONE" PATH="$JAVA_HOME/bin:$MVN_BIN:$PATH" \
+run env -C "$CLONE" \
   mvn -q -pl forge-gui-desktop -am clean package -DskipTests -Dmaven.test.skip=true
 
 # The two fork commits are invisible to the build: verify the compiled class carries `forge
