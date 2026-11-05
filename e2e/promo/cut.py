@@ -305,9 +305,10 @@ def encode(out: Path, inputs: list[str], graph: str, length: float, maps: list[s
          "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", str(out)])
 
 
-def render_clip(n: int, clip: str, start: float, end: float, cap: Caption | None, label: str, zoom: tuple[float, float, float] | None = None) -> Path:
+def render_clip(n: int, clip: str, start: float, end: float, cap: Caption | None, label: str, zoom: tuple[float, float, float] | None = None, source: Path | None = None) -> Path:
     """One shot at real speed. `zoom` is (factor, cx, cy): a crop of the 1080p frame centred on (cx, cy),
-    scaled back to 1080p, for a montage shot whose moment is small on the full board."""
+    scaled back to 1080p, for a montage shot whose moment is small on the full board. `source` overrides the
+    take (`<clip>/<clip>.mkv` under FOOTAGE), for an edit cut from exported clips (`cut9.py`)."""
     length = end - start
     out = OUT / f"{n:02d}-{clip}-{label}.mp4"
     crop = ""
@@ -323,7 +324,7 @@ def render_clip(n: int, clip: str, start: float, end: float, cap: Caption | None
         draws, (src, place) = caption_graph(cap, length)
         graph = f"{base}[b];{src}[bar];[b][bar]overlay={place}:shortest=1[r];[r]{','.join(draws)}[v]"
     graph += f";[0:a]atrim=start={start:.3f}:end={end:.3f},asetpts=PTS-STARTPTS,afade=t=in:d=0.01,afade=t=out:st={max(0, length - 0.01):.3f}:d=0.01[a]"
-    encode(out, ["-i", str(FOOTAGE / clip / f"{clip}.mkv")], graph, length, ["-map", "[v]", "-map", "[a]"])
+    encode(out, ["-i", str(source or FOOTAGE / clip / f"{clip}.mkv")], graph, length, ["-map", "[v]", "-map", "[a]"])
     print(f"cut: {out.name}  {length:5.2f}s  ({clip} {start:.2f}→{end:.2f}{'' if cap is None else ', ' + cap.entrance + '@' + cap.anchor})")
     return out
 
