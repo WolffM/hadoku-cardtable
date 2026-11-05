@@ -1,4 +1,5 @@
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { gunzipSync, gzipSync } from 'node:zlib';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -6,6 +7,8 @@ import { openEvents } from '../room/events.ts';
 import { placeholderId, replaceIds } from './anonymise.ts';
 import { personOf } from './index.ts';
 import { legacyIdsStep } from './legacy-ids.ts';
+import { recordingsStep } from './recordings.ts';
+import { UNNAMED } from '../room/lobby.ts';
 
 const IDS = new Set(['fk:alice', 'uid-alice']);
 const TO = 'erased:0a1b2c3d';
@@ -92,6 +95,38 @@ describe('account erase in the R12 remap record', () => {
 		writeFileSync(file, JSON.stringify({ 'fk:old1': 'uid-alice', 'fk:old2': 'uid-bob', 'fk:old3': 'uid-alice' }));
 		expect(await step.erase(person)).toBe(2);
 		expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ 'fk:old2': 'uid-bob' });
+		expect(await step.erase(person)).toBe(0);
+	});
+});
+
+describe('account erase in the match recordings', () => {
+	const gz = (lines: unknown[]): Buffer => gzipSync(Buffer.from(lines.map((l) => JSON.stringify(l)).join('\n') + '\n'));
+	const read = (path: string): string => gunzipSync(readFileSync(path)).toString('utf8');
+
+	it("drops the seat's userId and plays it under the unnamed word in both files, keeping each file's age", async () => {
+		const dir = temp();
+		const pub = join(dir, 'm-000000000001.public.jsonl.gz');
+		const act = join(dir, 'm-000000000001.actions.jsonl.gz');
+		writeFileSync(pub, gz([{ t: 'header', players: ['Alice', 'Bob'] }, { t: 'env', env: { players: [{ name: 'Alice' }, { name: 'Bob' }] } }, { t: 'end', seats: [{ seat: 0, userId: 'uid-alice' }, { seat: 1, userId: 'uid-bob' }] }]));
+		writeFileSync(act, gz([{ t: 'header', spec: { seats: [{ name: 'Alice' }, { name: 'Bob' }] } }]));
+		// One from before seats kept a userId: nothing in it can be matched.
+		const old = join(dir, 'm-000000000002.public.jsonl.gz');
+		writeFileSync(old, gz([{ t: 'header', players: ['Alice', 'Bob'] }, { t: 'end' }]));
+		const aged = new Date('2026-11-01T00:00:00Z');
+		for (const f of [pub, act, old]) utimesSync(f, aged, aged);
+
+		const step = recordingsStep(dir);
+		const person = personOf('uid-alice');
+		expect(await step.erase(person)).toBe(1);
+		for (const f of [pub, act]) {
+			expect(read(f)).not.toContain('Alice');
+			expect(read(f)).toContain(`"${UNNAMED}"`);
+			expect(read(f)).toContain('Bob');
+			expect(statSync(f).mtime).toEqual(aged);
+		}
+		expect(read(pub)).not.toContain('uid-alice');
+		expect(read(pub)).toContain('uid-bob');
+		expect(read(old)).toContain('Alice');
 		expect(await step.erase(person)).toBe(0);
 	});
 });

@@ -34,7 +34,11 @@ export interface People {
 	resolve(userIds: readonly string[], opts?: { fresh?: boolean }): Promise<Map<string, Person>>;
 	/** The cached answer for one id, or undefined when there is none fresh. */
 	peek(userId: string): Person | undefined;
-	/** Drop the cached answer for one id (account erase); 1 when one was held, else 0. */
+}
+
+/** What account erase asks of the lookup, beside what everyone else does. */
+export interface ForgetfulPeople extends People {
+	/** Drop the cached answer for one id; 1 when one was held, else 0. */
 	forget(userId: string): number;
 }
 
@@ -64,7 +68,7 @@ export function personOf(r: ResolvedPerson | undefined): Person {
 }
 
 /** No key, no lookups: every answer is empty and nothing is called. */
-export function createPeople(opts: PeopleOptions): People {
+export function createPeople(opts: PeopleOptions): ForgetfulPeople {
 	const now = opts.now ?? Date.now;
 	const cache = new Map<string, { person: Person; expiresAt: number }>();
 	const baseUrl = opts.baseUrl.replace(/\/+$/, '');

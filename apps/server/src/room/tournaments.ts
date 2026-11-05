@@ -20,14 +20,18 @@ export interface Tournaments {
 	record(t: Tournament): void;
 	/** Newest first. */
 	list(): Tournament[];
-	/** Account erase: every tournament naming one of `ids` names `to` instead, with no name. Answers how many changed, once saved. */
+}
+
+/** What account erase asks of the store, beside what everyone else does. */
+export interface AnonymisableTournaments extends Tournaments {
+	/** Every tournament naming one of `ids` names `to` instead, with no name. Answers how many changed, once saved. */
 	anonymise(ids: ReadonlySet<string>, to: string): Promise<number>;
 }
 
 /** The most kept; the oldest go first. */
 const TOURNAMENTS_KEPT = 500;
 
-export async function openTournaments(file: string, log: (entry: Record<string, unknown>) => void): Promise<Tournaments> {
+export async function openTournaments(file: string, log: (entry: Record<string, unknown>) => void): Promise<AnonymisableTournaments> {
 	let all: Tournament[] = [];
 	try {
 		const parsed: unknown = JSON.parse(await readFile(file, 'utf8'));

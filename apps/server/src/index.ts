@@ -129,6 +129,7 @@ import { openTournaments } from './room/tournaments.js';
 import { jsonLogger } from './log.js';
 import { createAccountErase, ERASE_PATH } from './erase/index.js';
 import { legacyIdsStep } from './erase/legacy-ids.js';
+import { recordingsStep } from './erase/recordings.js';
 import { roomsEraseSteps } from './erase/rooms.js';
 import type { Match } from './play/match.js';
 import { firstSeen, installTelemetry, monitoringSink, reportingAlerts, siteOf } from './telemetry.js';
@@ -1124,6 +1125,7 @@ for (const step of roomsEraseSteps<Match>({
 accountErase.register({ what: 'pods', erase: (p) => draftRooms?.erase(p.participantId, p.ids, p.placeholder) ?? { decks: 0, pods: 0 } });
 accountErase.register({ what: 'tournaments', erase: (p) => tournaments.anonymise(p.ids, p.placeholder) });
 accountErase.register({ what: 'events', erase: (p) => events.anonymise(p.ids, p.placeholder) });
+accountErase.register(recordingsStep(RECORDINGS_DIR));
 accountErase.register({ what: 'parked', erase: (p) => parked.forget(p.participantId) });
 accountErase.register({ what: 'presets', erase: (p) => presetStore.anonymise(p.ids, p.placeholder) });
 accountErase.register({ what: 'cubes', erase: (p) => cubeStore.anonymise(p.ids, p.placeholder) });

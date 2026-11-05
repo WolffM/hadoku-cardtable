@@ -369,6 +369,7 @@ describe('a server started from a path', () => {
 					tournaments: 0,
 					events: 0,
 					forms: 0,
+					recordings: 0,
 					parked: 0,
 					presets: 0,
 					cubes: 0,
