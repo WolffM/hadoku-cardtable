@@ -8,9 +8,10 @@ import {
   BOARD_HEIGHT,
   DEFAULT_AFTER_MS,
   DEFAULT_REGION,
-  GLIDE_TAU_MS,
   inDefaultRegion,
   initialCamera,
+  PAN_SETTLE_MS,
+  panStep,
   stepCamera,
   TEMPORARY_AFTER_MS,
   temporaryRegion,
@@ -25,7 +26,7 @@ function run(state: CameraState, ms: number, cursor: Point | null, bottom: numbe
   return s;
 }
 
-const near = (a: Point, b: Point): boolean => Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) < 1;
+const near_ = (a: Point, b: Point): boolean => Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) < 1;
 
 const OUT: Point = { x: 1100, y: 120 }; // the far top-right: the other player's side
 const HOME_CURSOR: Point = { x: 200, y: 700 }; // the active player's own hand
@@ -53,7 +54,7 @@ describe('the camera', () => {
     expect(halfway.at.x).toBeLessThan(temporaryRegion(OUT).x - 50);
     s = run(halfway, 3000, OUT);
     expect(temporaryRegion(OUT)).toEqual({ x: 740, y: 0 });
-    expect(near(s.at, { x: 740, y: 0 }), 'centred on the cursor, clamped to the board').toBe(true);
+    expect(near_(s.at, { x: 740, y: 0 }), 'centred on the cursor, clamped to the board').toBe(true);
   });
 
   it('the temporary region follows the cursor while it stays out', () => {
@@ -61,7 +62,7 @@ describe('the camera', () => {
     const elsewhere = { x: 640, y: 300 };
     s = run(s, 3000, elsewhere);
     expect(s.region).toBe('temporary');
-    expect(near(s.at, temporaryRegion(elsewhere))).toBe(true);
+    expect(near_(s.at, temporaryRegion(elsewhere))).toBe(true);
   });
 
   it('retires to the default region once the cursor has been back inside long enough — not on a pass through', () => {
@@ -71,7 +72,7 @@ describe('the camera', () => {
     expect(s.region, 'a pass through the default region is not a return').toBe('temporary');
     s = run(s, DEFAULT_AFTER_MS + 2000, HOME_CURSOR);
     expect(s.region).toBe('default');
-    expect(near(s.at, DEFAULT_REGION)).toBe(true);
+    expect(near_(s.at, DEFAULT_REGION)).toBe(true);
   });
 
   it('a cursor that is gone (the pointer left, or went stale) counts as back: the temporary region retires', () => {
@@ -88,10 +89,10 @@ describe('the camera', () => {
     expect(s.at).toEqual(DEFAULT_REGION);
   });
 
-  it('opens a temporary region 900 ms after the cursor leaves — 40% sooner than the 1500 it was', () => {
-    expect(TEMPORARY_AFTER_MS).toBe(900);
-    expect(run(initialCamera(0, 0), 880, OUT).region).toBe('default');
-    expect(run(initialCamera(0, 0), 940, OUT).region).toBe('temporary');
+  it('opens a temporary region 500 ms after the cursor leaves', () => {
+    expect(TEMPORARY_AFTER_MS).toBe(500);
+    expect(run(initialCamera(0, 0), 496, OUT).region).toBe('default');
+    expect(run(initialCamera(0, 0), 540, OUT).region).toBe('temporary');
   });
 
   it('the outer 20% of the default region counts as outside: home is the 432 px square nearest the corner', () => {
@@ -111,17 +112,69 @@ describe('the camera', () => {
     expect(s.region).toBe('temporary');
     s = run(s, DEFAULT_AFTER_MS + 2000, band);
     expect(s.region).toBe('temporary');
-    expect(near(s.at, temporaryRegion(band))).toBe(true);
+    expect(near_(s.at, temporaryRegion(band))).toBe(true);
   });
 
-  it('glides 30% slower than before: 357 ms to cover 63% of the way (1 − 1/e), the view still shown whole', () => {
-    expect(GLIDE_TAU_MS).toBe(357);
-    expect(GLIDE_TAU_MS / 250, 'the old pan at 0.7× its speed').toBeCloseTo(1 / 0.7, 2);
-    let s = run(initialCamera(0, 0), TEMPORARY_AFTER_MS + 48, OUT);
+  /** Every frame of a pan of `ms` toward a cursor at `cursor`, from the moment the temporary region opens. */
+  function pan(cursor: Point, ms: number): CameraState[] {
+    let s = run(initialCamera(0, 0), TEMPORARY_AFTER_MS + 32, cursor);
     expect(s.region).toBe('temporary');
-    const from = s.at;
+    const frames = [s];
+    for (let t = 16; t <= ms; t += 16) frames.push((s = stepCamera(s, s.now + 16, cursor, 0)));
+    return frames;
+  }
+  const peakAccel = (frames: CameraState[]): number =>
+    Math.max(...frames.slice(1).map((f, i) => Math.hypot(f.vel.x - frames[i]!.vel.x, f.vel.y - frames[i]!.vel.y) / 16));
+
+  it('a pan starts from rest: its first frame covers next to nothing, where the old glide took 6% of the way at once', () => {
+    const [first, second] = pan(OUT, 16);
     const to = temporaryRegion(OUT);
-    s = stepCamera(s, s.now + GLIDE_TAU_MS, OUT, 0);
-    expect((s.at.x - from.x) / (to.x - from.x)).toBeCloseTo(1 - Math.exp(-1), 5);
+    expect(Math.abs(first!.at.x - DEFAULT_REGION.x) / (to.x - DEFAULT_REGION.x), 'the frame the region opened').toBeLessThan(0.005);
+    expect((second!.at.x - first!.at.x) / (to.x - DEFAULT_REGION.x)).toBeLessThan(0.01);
+  });
+
+  it('a far target pulls harder than a near one, and neither is passed', () => {
+    const far: Point = { x: 1180, y: 100 }; // the other player's far corner
+    const near: Point = { x: 500, y: 560 }; // just out of the inner square
+    const farPan = pan(far, 3000);
+    const nearPan = pan(near, 3000);
+    expect(peakAccel(farPan), 'a long move accelerates harder').toBeGreaterThan(peakAccel(nearPan) * 2);
+    for (const [cursor, frames] of [[far, farPan], [near, nearPan]] as const) {
+      const to = temporaryRegion(cursor);
+      for (const axis of ['x', 'y'] as const) {
+        const from = DEFAULT_REGION[axis];
+        const past = frames.filter((f) => (to[axis] - f.at[axis]) * Math.sign(to[axis] - from) < -1e-6);
+        expect(past, `never past the region on ${axis}`).toEqual([]);
+      }
+      expect(near_(frames.at(-1)!.at, to), 'and it gets there').toBe(true);
+    }
+  });
+
+  it('a corner-to-centre move covers 95% in PAN_SETTLE_MS, 1.3× the old glide’s 750 ms', () => {
+    expect(PAN_SETTLE_MS).toBe(975);
+    const centre: Point = { x: 640, y: 400 };
+    const to = temporaryRegion(centre);
+    const frames = pan(centre, 1500);
+    const covered = (f: CameraState): number => Math.hypot(f.at.x - DEFAULT_REGION.x, f.at.y - DEFAULT_REGION.y) / Math.hypot(to.x - DEFAULT_REGION.x, to.y - DEFAULT_REGION.y);
+    const at95 = frames.findIndex((f) => covered(f) >= 0.95) * 16;
+    expect(at95).toBeGreaterThan(PAN_SETTLE_MS - 40);
+    expect(at95).toBeLessThan(PAN_SETTLE_MS + 40);
+  });
+
+  it('a cursor that keeps going is followed smoothly: the pan keeps its speed when the target moves', () => {
+    const frames = pan(OUT, 300);
+    const moving = frames.at(-1)!;
+    const next = stepCamera(moving, moving.now + 16, { x: 900, y: 300 }, 0);
+    const before = Math.hypot(moving.vel.x, moving.vel.y);
+    expect(before, 'mid-pan').toBeGreaterThan(0.1);
+    expect(Math.abs(Math.hypot(next.vel.x, next.vel.y) - before) / before, 'no restart from rest').toBeLessThan(0.2);
+  });
+
+  it('panStep is exact: one long step lands where many short ones do', () => {
+    let a = { pos: 0, vel: 0 };
+    for (let t = 0; t < 400; t += 4) a = panStep(a.pos, a.vel, 500, 4);
+    const b = panStep(0, 0, 500, 400);
+    expect(b.pos).toBeCloseTo(a.pos, 6);
+    expect(b.vel).toBeCloseTo(a.vel, 9);
   });
 });

@@ -15,8 +15,9 @@
  *   cursor while it stays out. A stroke or a drag that comes back sooner opens none.
  * - The cursor back inside that inner square (or gone) for {@link DEFAULT_AFTER_MS} straight: the
  *   temporary region retires, and the camera returns to the default one.
- * - Every move is a glide ({@link GLIDE_TAU_MS}), never a jump — except a turn change: the board flips
- *   to the new active player, and the camera starts on their default region.
+ * - Every move is a pan ({@link panStep}): from rest, pulled toward its region harder the further it
+ *   is, never past it — never a jump, except a turn change: the board flips to the new active player,
+ *   and the camera starts on their default region.
  *
  * Board coordinates throughout: pixels of `LiveBoard`'s own 1280×800, origin top-left.
  */
@@ -28,18 +29,22 @@ export const CORNER = 540;
 
 /**
  * How long the cursor must stay outside the default region before a temporary region opens. The
- * operator, 2026-11-05: *"have the camera movement react faster to when the cursor exits the camera
- * space. shorten the time for it to be outside of the 'default space' by 40%"* — 1500 ms before.
+ * operator, 2026-11-05: *"let's try it with the camera moving immediately … however immediate is
+ * probably too aggressive. maybe 0.5s timer for now"* — 1500 ms before.
  */
-export const TEMPORARY_AFTER_MS = 900;
+export const TEMPORARY_AFTER_MS = 500;
 /** How long the cursor must be back in the default region (or gone) before the temporary region retires: a pass through it is not a return. */
 export const DEFAULT_AFTER_MS = 1000;
 /**
- * The glide's time constant: 95% of the way in three of these (~1.07 s). The operator, 2026-11-05:
- * *"slow down the camera pan by 30%, so it doesn't move around so quickly when the mouse is moving
- * fast"* — 250 ms before, so 250 / 0.7.
+ * How long a pan takes to cover 95% of the way to a region it set off for from rest. The operator,
+ * 2026-11-05: *"camera pan speed should be relative to how far it has to travel. it should
+ * accelerate faster if the target is further away"*, after *"slow down the camera pan by 30%"*: the
+ * exponential glide it replaces (time constant 250 ms) covered 95% in 750 ms at full speed from its
+ * first frame; this one starts from rest and takes 1.3× as long.
  */
-export const GLIDE_TAU_MS = 357;
+export const PAN_SETTLE_MS = 975;
+/** The spring's natural frequency, per ms: a critically damped spring from rest covers 95% when ωt ≈ 4.744. */
+const OMEGA = 4.744 / PAN_SETTLE_MS;
 
 /**
  * The default region's outer band, as a share of its side, that counts as outside: the operator,
@@ -59,8 +64,10 @@ export interface Point {
 export const DEFAULT_REGION: Point = { x: 0, y: BOARD_HEIGHT - CORNER };
 
 export interface CameraState {
-  /** Where the camera is now (its square's top-left): gliding toward the region it captures. */
+  /** Where the camera is now (its square's top-left): panning toward the region it captures. */
   at: Point;
+  /** How fast it is moving, in board pixels per ms. */
+  vel: Point;
   /** Which capture region it is on. */
   region: 'default' | 'temporary';
   /** Since when the cursor has been calling for the other region; null while it is not. */
@@ -72,7 +79,7 @@ export interface CameraState {
 }
 
 export function initialCamera(now: number, bottom: number | null): CameraState {
-  return { at: DEFAULT_REGION, region: 'default', since: null, bottom, now };
+  return { at: DEFAULT_REGION, vel: { x: 0, y: 0 }, region: 'default', since: null, bottom, now };
 }
 
 /**
@@ -89,6 +96,20 @@ export function temporaryRegion(p: Point): Point {
   return { x: clamp(p.x - CORNER / 2, 0, BOARD_WIDTH - CORNER), y: clamp(p.y - CORNER / 2, 0, BOARD_HEIGHT - CORNER) };
 }
 
+/**
+ * One axis of a pan, `dt` ms on: a critically damped spring toward `target` (acceleration
+ * ω²·(target − pos) − 2ω·vel), so it starts from rest, pulls harder the further it has to go, and
+ * comes to rest on the target without passing it. Its exact solution over the step, not an
+ * integration, so no frame rate can make it overshoot; a target that moves between steps keeps the
+ * velocity it had, so a pan following a moving cursor never restarts.
+ */
+export function panStep(pos: number, vel: number, target: number, dt: number): { pos: number; vel: number } {
+  const e = pos - target;
+  const b = vel + OMEGA * e;
+  const decay = Math.exp(-OMEGA * dt);
+  return { pos: target + (e + b * dt) * decay, vel: (vel - OMEGA * b * dt) * decay };
+}
+
 /** One step: `cursor` is the active player's cursor as the board draws it now (null when none is drawn). */
 export function stepCamera(state: CameraState, now: number, cursor: Point | null, bottom: number | null): CameraState {
   if (bottom !== state.bottom) return initialCamera(now, bottom);
@@ -99,7 +120,8 @@ export function stepCamera(state: CameraState, now: number, cursor: Point | null
   if (since !== null && now - since >= (region === 'default' ? TEMPORARY_AFTER_MS : DEFAULT_AFTER_MS)) region = region === 'default' ? 'temporary' : 'default';
   // A temporary region follows the cursor; with the cursor gone it holds where it is until it retires.
   const target = region === 'default' ? DEFAULT_REGION : cursor !== null ? temporaryRegion(cursor) : state.at;
-  const k = 1 - Math.exp(-Math.max(0, now - state.now) / GLIDE_TAU_MS);
-  const at = { x: state.at.x + (target.x - state.at.x) * k, y: state.at.y + (target.y - state.at.y) * k };
-  return { at, region, since: region === state.region ? since : null, bottom, now };
+  const dt = Math.max(0, now - state.now);
+  const x = panStep(state.at.x, state.vel.x, target.x, dt);
+  const y = panStep(state.at.y, state.vel.y, target.y, dt);
+  return { at: { x: x.pos, y: y.pos }, vel: { x: x.vel, y: y.vel }, region, since: region === state.region ? since : null, bottom, now };
 }

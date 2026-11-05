@@ -6,4 +6,4 @@
 
 ## Changed
 
-- The front page's replay camera follows a cursor that leaves its corner sooner, starts following nearer the corner's edge, and pans more gently.
+- The front page's replay camera follows a cursor that leaves its corner after half a second, starts following nearer the corner's edge, and eases into each move, faster for a longer one.
