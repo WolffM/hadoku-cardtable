@@ -7,7 +7,7 @@
  */
 
 import express from 'express';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -58,9 +58,15 @@ function rallyForm(id: string, over: Record<string, unknown> = {}): RallyRow {
 	};
 }
 
-async function openApp(clock: { now: number }, rally: Record<string, RallyRow> = {}) {
+async function openApp(clock: { now: number }, rally: Record<string, RallyRow> = {}, opts: { people?: Record<string, string>; events?: unknown } = {}) {
 	const dir = await mkdtemp(join(tmpdir(), 'cardtable-events-test-'));
 	dirs.push(dir);
+	if (opts.events !== undefined) await writeFile(join(dir, 'events.json'), JSON.stringify(opts.events));
+	const names = opts.people ?? {};
+	const people = {
+		resolve: async (ids: readonly string[]) => new Map(ids.flatMap((id) => (names[id] === undefined ? [] : [[id, { name: names[id]!, sprite: null, look: undefined }] as const]))),
+		peek: () => undefined,
+	};
 	const now = (): number => clock.now;
 	const log = (): void => {};
 	const lobby = await lobbyMod.openLobby({ dir: join(dir, 'rooms'), log, now, defaultFormat: 'unavailable' });
@@ -86,6 +92,7 @@ async function openApp(clock: { now: number }, rally: Record<string, RallyRow> =
 		closed: (roomId) => closed.push(roomId),
 		checkPlan: async (plan) => (plan.rounds.some((r) => r.kind === 'cube' && r.cubeId === 'refuse') ? { ok: false, unplayable: ['Black Lotus'], missingText: [] } : { ok: true, cards: 540 }),
 		rally: { serviceKey: 'svc-key', fetch: fetchRally },
+		people,
 		log,
 	});
 	app.use('/api', api);
@@ -93,7 +100,7 @@ async function openApp(clock: { now: number }, rally: Record<string, RallyRow> =
 	await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
 	servers.push(server);
 	const { port } = server.address() as AddressInfo;
-	return { base: `http://127.0.0.1:${port}/api`, lobby, closed, rallyCalls };
+	return { base: `http://127.0.0.1:${port}/api`, lobby, closed, rallyCalls, file: join(dir, 'events.json') };
 }
 
 function headersFor(user: string): Record<string, string> {
@@ -347,6 +354,29 @@ describe('Rally links', () => {
 	});
 });
 
+describe('who organized an event, and who attached a form (R12)', () => {
+	it('is kept by userId and never by name, and named as they are now when shown', async () => {
+		const clock = { now: Date.UTC(2026, 9, 28, 12) };
+		const { base, file } = await openApp(clock, { abc123: rallyForm('abc123') }, { people: { 'user-alice': 'Alice Now' } });
+		const startsAt = new Date(clock.now + DAY).toISOString();
+		expect((await call(base, 'alice', 'POST', '/events', tournament('Cube', startsAt))).status).toBe(201);
+		expect((await call(base, 'alice', 'POST', '/events/forms', { formId: 'abc123' })).status).toBe(201);
+		await vi.waitFor(async () => expect(JSON.parse(await readFile(file, 'utf8')).forms).toHaveLength(1));
+		const disk = await readFile(file, 'utf8');
+		expect(JSON.parse(disk)).toMatchObject({ events: [{ organizerUserId: 'user-alice' }], forms: [{ attachedByUserId: 'user-alice' }] });
+		expect(disk, 'no name on disk').not.toMatch(/organizerName|attachedByName|Alice/);
+		expect(EventListSchema.parse((await call(base, 'bob', 'GET', '/events')).body).events.map((e) => e.organizer)).toEqual(['Alice Now']);
+		expect(FormListSchema.parse((await call(base, 'bob', 'GET', '/events/forms')).body).forms.map((f) => f.attachedBy)).toEqual(['Alice Now']);
+	});
+
+	it('a record from before userIds were kept still shows the name it stored', async () => {
+		const clock = { now: Date.UTC(2026, 9, 28, 12) };
+		const legacy = { events: [], forms: [{ formId: 'abc123', attachedById: 'fk:1111111111111111', attachedByName: 'Old Alice', attachedAt: clock.now }] };
+		const { base } = await openApp(clock, { abc123: rallyForm('abc123') }, { events: legacy });
+		expect(FormListSchema.parse((await call(base, 'bob', 'GET', '/events/forms')).body).forms.map((f) => f.attachedBy)).toEqual(['Old Alice']);
+	});
+});
+
 describe('openEvents', () => {
 	it('reads back what it wrote, and forgets an event a week after it started', async () => {
 		const dir = await mkdtemp(join(tmpdir(), 'cardtable-events-store-'));
@@ -354,9 +384,9 @@ describe('openEvents', () => {
 		const file = join(dir, 'events.json');
 		const clock = { now: Date.UTC(2026, 9, 28, 12) };
 		const first = await eventsStore.openEvents(file, () => {}, () => clock.now);
-		first.create({ startsAt: clock.now + HOUR, organizerId: 'a', organizerName: 'Alice', roomId: 'r-000000000001' }, clock.now);
-		first.create({ startsAt: clock.now - 8 * DAY, organizerId: 'a', organizerName: 'Alice', roomId: 'r-000000000002' }, clock.now);
-		first.attachForm({ formId: 'abc123', attachedById: 'a', attachedByName: 'Alice' }, clock.now);
+		first.create({ startsAt: clock.now + HOUR, organizerId: 'a', organizerUserId: 'uid-a', roomId: 'r-000000000001' }, clock.now);
+		first.create({ startsAt: clock.now - 8 * DAY, organizerId: 'a', organizerUserId: 'uid-a', roomId: 'r-000000000002' }, clock.now);
+		first.attachForm({ formId: 'abc123', attachedById: 'a', attachedByUserId: 'uid-a' }, clock.now);
 		// The write is the store's own; wait for the file to hold the one event it keeps.
 		await vi.waitFor(async () => expect(JSON.parse(await readFile(file, 'utf8'))).toMatchObject({ events: [{ roomId: 'r-000000000001' }], forms: [{ formId: 'abc123' }] }));
 		const second = await eventsStore.openEvents(file, () => {}, () => clock.now);

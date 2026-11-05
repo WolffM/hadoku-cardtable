@@ -40,9 +40,10 @@ import {
 	type RoomView,
 } from '@hadoku/shared';
 
-import type { Lobby } from '../room/lobby.js';
 import type { EventRecord, Events, FormRecord } from '../room/events.js';
 import { callerOf, httpCaller, parseBody, perCallerLimit } from './request.js';
+import type { People, Person } from '../people.js';
+import { UNNAMED, type Lobby } from '../room/lobby.js';
 
 type RallyFetch = (input: string, init?: RequestInit) => Promise<globalThis.Response>;
 
@@ -66,6 +67,8 @@ export interface EventsDeps {
 	log: (entry: Record<string, unknown>) => void;
 	/** Overrides `EVENT_CREATE_RATE_LIMIT`; `null` is none (`perCallerLimit`). */
 	createRateLimit?: RateLimitConfig | null;
+	/** Organizers' and attachers' names, looked up when shown (`people.ts`). Absent: a record shows the name it kept, if any. */
+	people?: People;
 	now?: () => number;
 }
 
@@ -178,18 +181,32 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 	const now = deps.now ?? Date.now;
 	const summary = rallySummaries(deps.rally, now, deps.log);
 
-	const view = (e: EventRecord, room: RoomView, callerId: string): EventView => ({
+	/**
+	 * Each person's name now, by userId (R4: a name is looked up, never kept). A record from before
+	 * userIds were kept shows the name it stored; one with neither, the word an unnamed caller gets.
+	 */
+	const namesOf = async (userIds: readonly (string | null | undefined)[]): Promise<(userId: string | null | undefined, kept: string | undefined) => string> => {
+		const ids = userIds.filter((id): id is string => typeof id === 'string');
+		const found = deps.people === undefined || ids.length === 0 ? new Map<string, Person>() : await deps.people.resolve(ids);
+		return (userId, kept) => (userId == null ? undefined : found.get(userId)?.name) ?? kept ?? UNNAMED;
+	};
+
+	const view = (e: EventRecord, room: RoomView, callerId: string, nameOf: (userId: string | null | undefined, kept: string | undefined) => string): EventView => ({
 		id: e.id,
 		kind: kindOf(room),
 		title: room.name,
 		startsAt: new Date(e.startsAt).toISOString(),
-		organizer: e.organizerName,
+		organizer: nameOf(e.organizerUserId, e.organizerName),
 		mine: e.organizerId === callerId,
 		roomId: room.id,
 		room: roomState(room),
 	});
 
-	const formView = (f: FormRecord, s: RallyFormSummary, callerId: string): AttachedForm => ({ ...s, attachedBy: f.attachedByName, mine: f.attachedById === callerId });
+	const formView = (f: FormRecord, s: RallyFormSummary, callerId: string, nameOf: (userId: string | null | undefined, kept: string | undefined) => string): AttachedForm => ({
+		...s,
+		attachedBy: nameOf(f.attachedByUserId, f.attachedByName),
+		mine: f.attachedById === callerId,
+	});
 
 	const refuse = (res: Response, reason: 'no-event' | 'not-organizer'): void => {
 		if (reason === 'no-event') res.status(404).json({ error: 'no such event' });
@@ -201,7 +218,7 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 	api.get('/events/forms', async (req: Request, res: Response) => {
 		const me = httpCaller(req);
 		const attached = events.forms();
-		const answers = await Promise.all(attached.map((f) => summary(f.formId, true)));
+		const [answers, nameOf] = await Promise.all([Promise.all(attached.map((f) => summary(f.formId, true))), namesOf(attached.map((f) => f.attachedByUserId))]);
 		const gone: string[] = [];
 		const open: { form: AttachedForm; attachedAt: number }[] = [];
 		attached.forEach((f, i) => {
@@ -209,7 +226,7 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 			if (!a.ok) {
 				if (a.reason === 'not-found') gone.push(f.formId);
 			} else if (a.summary.status === 'closed') gone.push(f.formId);
-			else open.push({ form: formView(f, a.summary, me), attachedAt: f.attachedAt });
+			else open.push({ form: formView(f, a.summary, me, nameOf), attachedAt: f.attachedAt });
 		});
 		events.forgetForms(gone);
 		const closes = (f: AttachedForm): number => (f.closesAt === null ? Infinity : Date.parse(f.closesAt));
@@ -230,11 +247,11 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 			return res.status(502).json({ error: 'Rally did not answer; try again in a moment' });
 		}
 		const existing = events.forms().find((f) => f.formId === body.formId);
-		if (existing !== undefined) return res.status(200).json(formView(existing, found.summary, caller.id));
+		if (existing !== undefined) return res.status(200).json(formView(existing, found.summary, caller.id, await namesOf([existing.attachedByUserId])));
 		if (!createLimit(req, res)) return;
-		events.attachForm({ formId: body.formId, attachedById: caller.id, attachedByName: caller.name }, now());
+		events.attachForm({ formId: body.formId, attachedById: caller.id, attachedByUserId: caller.userId }, now());
 		const attached = events.forms().find((f) => f.formId === body.formId)!;
-		res.status(201).json(formView(attached, found.summary, caller.id));
+		res.status(201).json(formView(attached, found.summary, caller.id, () => caller.name));
 	});
 
 	api.delete('/events/forms/:id', (req: Request, res: Response) => {
@@ -246,12 +263,14 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		res.json({ ok: true });
 	});
 
-	api.get('/events', (req: Request, res: Response) => {
+	api.get('/events', async (req: Request, res: Response) => {
 		const me = httpCaller(req);
+		const upcoming = events.upcoming(now());
+		const nameOf = await namesOf(upcoming.map((e) => e.organizerUserId));
 		res.json({
-			events: events.upcoming(now()).flatMap((e) => {
+			events: upcoming.flatMap((e) => {
 				const room = lobby.get(e.roomId);
-				return room === undefined ? [] : [view(e, room, me)];
+				return room === undefined ? [] : [view(e, room, me, nameOf)];
 			}),
 		});
 	});
@@ -278,11 +297,11 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		if (Object.keys(settings).length > 0) lobby.setSettings(roomId, caller.id, settings);
 		if (body.plan !== undefined && verdict !== null) lobby.setPodPlan(roomId, caller.id, body.plan, verdict);
 
-		const event = events.create({ roomId, startsAt, organizerId: caller.id, organizerName: caller.name }, now());
-		res.status(201).json(view(event, lobby.get(roomId)!, caller.id));
+		const event = events.create({ roomId, startsAt, organizerId: caller.id, organizerUserId: caller.userId }, now());
+		res.status(201).json(view(event, lobby.get(roomId)!, caller.id, () => caller.name));
 	});
 
-	api.patch('/events/:id', (req: Request, res: Response) => {
+	api.patch('/events/:id', async (req: Request, res: Response) => {
 		const body = parseBody(UpdateEventBodySchema, req, res);
 		if (body === null) return;
 		const me = httpCaller(req);
@@ -297,7 +316,7 @@ export function attachEvents(api: Router, deps: EventsDeps): void {
 		const result = events.reschedule(existing.id, me, startsAt);
 		if (!result.ok) return refuse(res, result.reason);
 		lobby.reschedule(room.id, startsAt);
-		res.json(view(result.event, lobby.get(room.id) ?? room, me));
+		res.json(view(result.event, lobby.get(room.id) ?? room, me, await namesOf([result.event.organizerUserId])));
 	});
 
 	api.delete('/events/:id', (req: Request, res: Response) => {

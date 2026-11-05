@@ -21,7 +21,10 @@ const EventRecordSchema = z.object({
 	roomId: z.string(),
 	startsAt: z.number(),
 	organizerId: z.string(),
-	organizerName: z.string(),
+	/** Who organized it, by registry userId (R12): their name is looked up when the event is shown. null when the edge named nobody. */
+	organizerUserId: z.string().nullable().optional(),
+	/** Read only, from a record written before `organizerUserId`: never written again. */
+	organizerName: z.string().optional(),
 	createdAt: z.number(),
 });
 export type EventRecord = z.infer<typeof EventRecordSchema>;
@@ -29,7 +32,10 @@ export type EventRecord = z.infer<typeof EventRecordSchema>;
 const FormRecordSchema = z.object({
 	formId: z.string(),
 	attachedById: z.string(),
-	attachedByName: z.string(),
+	/** Who attached it, by registry userId (R12), as `EventRecord.organizerUserId`. */
+	attachedByUserId: z.string().nullable().optional(),
+	/** Read only, from a record written before `attachedByUserId`: never written again. */
+	attachedByName: z.string().optional(),
 	attachedAt: z.number(),
 });
 export type FormRecord = z.infer<typeof FormRecordSchema>;
