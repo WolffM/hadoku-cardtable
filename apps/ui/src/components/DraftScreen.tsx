@@ -364,7 +364,7 @@ export function DraftScreen({
 /* ── until the draft's table arrives ──────────────────────────────────── */
 
 /** How many backs the skeleton's pack is dealt: a pack's worth, as many as the fan draws. */
-const GHOST_PACK = 15;
+export const GHOST_PACK = 15;
 
 /**
  * The draft's own layout with nothing in it yet (`PodScreen`, until the
@@ -423,7 +423,7 @@ export function DraftSkeleton({ side, seats = 8 }: { side?: ReactNode; seats?: n
  * The phone FAN is measured, the same as the desktop fan, just through `phoneFanGeometry` instead of
  * `fanGeometry` (`PackView.tsx`'s header has the real card's own version of this split).
  */
-function PackSkeleton({ layout }: { layout: PackLayout }) {
+export function PackSkeleton({ layout }: { layout: PackLayout }) {
   const [measure, box, root] = useBox<HTMLDivElement>();
   const measured = box.width > 0 && box.height > 0;
   const maxH = uiPx(MAX_CARD_H, root);

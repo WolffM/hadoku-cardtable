@@ -26,6 +26,19 @@
   margin-bottom: 10px;
 }
 
+.rally-embed__hint {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+/* No arrow keys to speak of on a touch screen. */
+@media (hover: none) {
+  .rally-embed__hint {
+    display: none;
+  }
+}
+
 .rally-embed__group + .rally-embed__group {
   margin-top: 16px;
 }

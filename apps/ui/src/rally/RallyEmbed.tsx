@@ -8,7 +8,11 @@
  * `App.tsx` draws this with no header, no room and no music: Rally frames it under its ranking
  * row, 330–720 px wide. The frame's height is ours to say: every change of this page's height is
  * posted to the parent as `hadoku-embed:size` (`useFrameHeight`), so nothing here scrolls inside
- * the frame unless Rally's cap (`FRAME_MAX`) makes it.
+ * the frame unless Rally's cap (`FRAME_MAX`) makes it. The page's name is Rally's to show, in its
+ * modal's title bar: posted as `hadoku-embed:title` once it is known, and not drawn here when framed.
+ * Rally's modal holds the keyboard's focus outside the frame, so it forwards the arrow keys as
+ * `hadoku-embed:key`, and they move the pack's cursor as a key pressed in the frame does. Until the
+ * first answer the pack page is its own skeleton: the bar, and the pack dealt face down.
  *
  * The pack is the draft screen's own `PackView` and layout control, read-only: no `onPick`, so a
  * card opens in the fan and is never taken, and in either layout hovering a card opens the shared
@@ -24,7 +28,7 @@ import type { RallyCardGroup, RallyCatalogue, RallyView } from '@hadoku/shared';
 import { groupCards } from '../deck/cardOrder.ts';
 import { CardPile } from '../components/CardPile.tsx';
 import { CardTile } from '../components/CardTile.tsx';
-import { PackLayoutControl, usePackLayout } from '../components/DraftScreen.tsx';
+import { GHOST_PACK, PackLayoutControl, PackSkeleton, usePackLayout } from '../components/DraftScreen.tsx';
 import { FAN_MIN_WIDTH, MAX_CARD_H, PackView, type PackLayout } from '../components/PackView.tsx';
 import { GroupHead } from '../components/PoolView.tsx';
 import { CARD_RATIO, useBox } from '../components/cardFit.ts';
@@ -39,8 +43,37 @@ export interface RallyEmbedProps {
   view: RallyView;
 }
 
-/** Rally's own message name. */
+/** Rally's own message names: the frame's height and title, posted up; a key pressed in its modal, posted down. */
 const SIZE_MESSAGE = 'hadoku-embed:size';
+const TITLE_MESSAGE = 'hadoku-embed:title';
+const KEY_MESSAGE = 'hadoku-embed:key';
+/** The keys Rally forwards: the pack's cursor. */
+const FORWARDED_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
+
+const framed = (): boolean => window.parent !== window;
+
+/** Tell the framing page this page's name, once it is known. */
+function useFrameTitle(name: string | null): void {
+  useEffect(() => {
+    if (name === null || !framed()) return;
+    window.parent.postMessage({ type: TITLE_MESSAGE, title: name }, location.origin);
+  }, [name]);
+}
+
+/** Press here the keys the framing page forwards: only from the parent, only from this origin. */
+function useForwardedKeys(): void {
+  useEffect(() => {
+    if (!framed()) return;
+    const onMessage = (event: MessageEvent): void => {
+      if (event.source !== window.parent || event.origin !== location.origin) return;
+      const data = event.data as { type?: unknown; key?: unknown } | null;
+      if (data?.type !== KEY_MESSAGE || typeof data.key !== 'string' || !FORWARDED_KEYS.has(data.key)) return;
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: data.key, cancelable: true }));
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+}
 /** The tallest Rally draws the frame (hadoku-rally `EMBED_HEIGHT.max`); past it, this page scrolls in its frame. */
 export const FRAME_MAX = 8000;
 
@@ -57,7 +90,7 @@ export const FRAME_MAX = 8000;
  */
 function useFrameHeight(el: HTMLElement | null): void {
   useEffect(() => {
-    if (el === null || window.parent === window || typeof ResizeObserver === 'undefined') return;
+    if (el === null || !framed() || typeof ResizeObserver === 'undefined') return;
     const page = document.documentElement.style;
     page.setProperty('scrollbar-gutter', 'stable');
     let last = -1;
@@ -114,19 +147,34 @@ function PackGroup({ group, layout }: { group: RallyCardGroup; layout: PackLayou
   );
 }
 
-function PackPage({ packs, onRedraw }: { packs: readonly RallyCardGroup[]; onRedraw: () => void }) {
+/** The pack dealt face down, in the box its pack will take. */
+function PackGroupSkeleton({ layout }: { layout: PackLayout }) {
+  const [measure, box] = useBox<HTMLDivElement>();
+  const height = box.width > 0 ? packBox(layout, box.width, GHOST_PACK) : undefined;
+  return (
+    <section className="rally-embed__group" aria-hidden="true">
+      <div className="rally-embed__pack" ref={measure} style={height === undefined ? undefined : { height }}>
+        <PackSkeleton layout={layout} />
+      </div>
+    </section>
+  );
+}
+
+/** The pack page; `packs` is null until the first answer, and the page is its skeleton. */
+function PackPage({ packs, onRedraw }: { packs: readonly RallyCardGroup[] | null; onRedraw: () => void }) {
   const [layout, setLayout] = usePackLayout();
   return (
     <>
       <div className="rally-embed__bar">
         <PackLayoutControl layout={layout} onLayout={setLayout} />
-        <button type="button" className="button" data-testid="rally-redraw" onClick={onRedraw}>
+        <button type="button" className="button" data-testid="rally-redraw" disabled={packs === null} onClick={onRedraw}>
           New pack
         </button>
+        <span className="rally-embed__hint" data-testid="rally-keys-hint">
+          Use the arrow keys to move through the pack
+        </span>
       </div>
-      {packs.map((group, i) => (
-        <PackGroup key={i} group={group} layout={layout} />
-      ))}
+      {packs === null ? <PackGroupSkeleton layout={layout} /> : packs.map((group, i) => <PackGroup key={i} group={group} layout={layout} />)}
     </>
   );
 }
@@ -200,6 +248,7 @@ export function RallyEmbed({ catalogue, id, view }: RallyEmbedProps) {
   /** Bumped by "New pack": the same read again, which the server deals fresh. */
   const [draw, setDraw] = useState(0);
   useFrameHeight(root);
+  useForwardedKeys();
   useEffect(() => (root === null ? undefined : mountInspector(root)), [root]);
 
   useEffect(() => {
@@ -215,12 +264,15 @@ export function RallyEmbed({ catalogue, id, view }: RallyEmbedProps) {
   }, [catalogue, id, view, draw]);
 
   const name = load.state === 'ready' ? load.result.data.name : null;
+  useFrameTitle(name);
   return (
-    <div className="rally-embed" data-testid="rally-embed" data-view={view} data-state={load.state} ref={setRoot}>
-      {name !== null && <h2 className="rally-embed__name">{name}</h2>}
+    <div className="rally-embed" data-testid="rally-embed" data-view={view} data-state={load.state} ref={setRoot} aria-busy={load.state === 'loading'}>
+      {name !== null && !framed() && <h2 className="rally-embed__name">{name}</h2>}
       {load.state === 'error' && <p className="ct-error">{load.message}</p>}
-      {load.state === 'ready' &&
-        (load.result.view === 'cards' ? <CardsPage groups={load.result.data.groups} /> : <PackPage packs={load.result.data.packs} onRedraw={() => setDraw((d) => d + 1)} />)}
+      {load.state === 'ready' && load.result.view === 'cards' && <CardsPage groups={load.result.data.groups} />}
+      {view === 'pack' && load.state !== 'error' && (
+        <PackPage packs={load.state === 'ready' && load.result.view === 'pack' ? load.result.data.packs : null} onRedraw={() => setDraw((d) => d + 1)} />
+      )}
       {/* Where the inspector draws, over everything on the page (`../topLayer.tsx`). */}
       <TopLayer fixed />
     </div>
