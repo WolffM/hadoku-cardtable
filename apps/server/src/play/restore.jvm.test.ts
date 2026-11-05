@@ -275,12 +275,13 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(replaced).toEqual([]);
 				expect(normalized(again.state)).toEqual(normalized(from.state));
 				expect(normalized(from.state).p0battlefield).toEqual(expect.arrayContaining([expect.stringMatching(/^t:.*Image:g_5_5_wurm_trample\/RTR\//)]));
-				// The snapshot line is printed while the board applies, before the seats' resync: wait for the view.
+				// The snapshot line is printed while the board applies, before the seats' resync: wait for the view —
+				// the turn AND the restored cards, which only the resync carries (the apply's own deltas drop them).
 				const viewTurn = (): number | undefined => ([...s.state(0).values()].find((o) => o._type === 3)?.Turn as { v?: number } | undefined)?.v;
-				await waitUntil(() => viewTurn() === 5, 'the restored view to show turn 5', 20_000, s);
 				// The image key is on the card's state view, not the card.
-				const wurm = [...s.state(0).values()].find((o) => o._type === 4 && (o.Name as { v?: string } | undefined)?.v === 'Wurm Token');
-				expect((wurm?.ImageKey as { v?: string } | undefined)?.v).toMatch(/^t:g_5_5_wurm_trample\|RTR\|/);
+				const wurm = () => [...s.state(0).values()].find((o) => o._type === 4 && (o.Name as { v?: string } | undefined)?.v === 'Wurm Token');
+				await waitUntil(() => viewTurn() === 5 && wurm() !== undefined, 'the restored view to show turn 5 and its Wurm token', 20_000, s);
+				expect((wurm()?.ImageKey as { v?: string } | undefined)?.v).toMatch(/^t:g_5_5_wurm_trample\|RTR\|/);
 				const p = normalized(from.state);
 				const want = [Number(p.p0life?.[0]), Number(p.p1life?.[0])];
 				await waitUntil(() => life(s, 0) === want[0] && life(s, 1) === want[1], `life ${want.join('/')} on the wire`, 20_000, s);

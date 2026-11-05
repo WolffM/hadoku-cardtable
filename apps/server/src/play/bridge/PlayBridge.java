@@ -7083,6 +7083,13 @@ public final class PlayBridge {
          * {@code refreshTrackerCardViews}). One channel, one netty thread, frames in
          * order: every frame after it resolves the scenario's cards. Scenario-only — the
          * hook is set only when {@link MatchContext#scenario} is non-null.
+         *
+         * <p><b>Sent now, to every seat.</b> Left pending, the full state went with the seat's
+         * own next {@code updateGameView}, which only the seat given the first window has
+         * soon: the other seat kept the apply's deltas — the scenario's cards dropped from
+         * them — until play reached it, so a restored game drew its waiting player's board
+         * without the cards it had just restored (a Wurm token, restore.jvm). This runs on
+         * the game thread right after {@code applyToGame}, where {@code updateGameView} may run.
          */
         private static void resyncSeats(final Game game) {
             if (game == null) { return; }
@@ -7090,6 +7097,7 @@ public final class PlayBridge {
                 if (player.getController() instanceof PlayerControllerHuman human
                         && human.getGui() instanceof RemoteClientGuiGame remote) {
                     remote.setResyncPending();
+                    remote.updateGameView();
                 }
             }
         }
