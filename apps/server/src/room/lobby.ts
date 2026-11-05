@@ -355,6 +355,11 @@ export interface Caller {
 	id: string;
 	name: string;
 	userId: string | null;
+	/**
+	 * The edge's `X-Hadoku-Vouched`: the operator vouches for this person (`vouchedOf`). Absent is
+	 * not vouched, as the header's own absence is: a restored or synthetic caller vouches for nobody.
+	 */
+	vouched?: boolean;
 }
 
 interface CreateRoomInput {

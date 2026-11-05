@@ -111,7 +111,12 @@ export function tierOf(req: Request): string {
  * and a member the operator made or vouched for. Absent means not vouched.
  */
 export function vouchedOf(req: Request): boolean {
-	return req.headers['x-hadoku-vouched'] === '1';
+	return vouchedFromHeaders(req.headers);
+}
+
+/** `vouchedOf` for a socket's handshake, whose headers went through the same sanitizing. */
+export function vouchedFromHeaders(headers: IncomingHttpHeaders): boolean {
+	return headers['x-hadoku-vouched'] === '1';
 }
 
 /** The caller's userId as the edge stamped it; null when the edge named nobody. */

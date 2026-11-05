@@ -73,7 +73,7 @@ import { fileURLToPath } from 'node:url';
 import { Server as SocketIOServer } from 'socket.io';
 import { podPickNumber } from '@hadoku/draft';
 import { CONFIG, INDEX_HTML } from './config.js';
-import { callerIdOf, edgeProvenance, requireMinTier, tierOf, userIdOf } from './edge-auth.js';
+import { callerIdOf, edgeProvenance, requireMinTier, tierOf, userIdOf, vouchedOf } from './edge-auth.js';
 import { checkBundle, diagnosticPage, isEmbedEntry, sendIndex } from './base-path.js';
 import { announceRelease } from './announce.js';
 import { bootClock, restoreRooms, sweepRooms } from './boot.js';
@@ -271,7 +271,7 @@ api.use(statsKeys.remember);
 api.get('/whoami', (req: Request, res: Response) => {
 	// Handed straight through from the edge, post-sanitize. Useful as the first
 	// thing to curl when wiring the tunnel up: it proves provenance end to end.
-	res.json({ userId: userIdOf(req), tier: tierOf(req) });
+	res.json({ userId: userIdOf(req), tier: tierOf(req), vouched: vouchedOf(req) });
 });
 
 app.use('/api', api);
