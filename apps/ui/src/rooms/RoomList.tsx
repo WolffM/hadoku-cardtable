@@ -86,6 +86,8 @@ import { TopLayer } from '../topLayer.tsx';
 import { OverPage } from '../components/OverPage.tsx';
 import './rooms.css';
 import { uiLength } from '../settings/ui-scale.ts';
+import { useWhoami } from '../room/whoami.ts';
+import { defaultRoomName } from './roomName.ts';
 
 type ListState =
   | { kind: 'loading' }
@@ -762,10 +764,15 @@ function RoomRow({
 
 /**
  * The create form, as a modal over the list. Escape, the close button and a
- * press on the backdrop close it; the name field has the focus when it opens.
+ * press on the backdrop close it; the name field has the focus when it opens,
+ * prefilled with the creator's name and a random word (`roomName.ts`).
  */
 function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: () => void }) {
-  const [name, setName] = useState('');
+  // The name starts as "<their name>'s <word>", the word drawn once per opening; what they type replaces it.
+  const who = useWhoami();
+  const [draw] = useState(Math.random);
+  const [typed, setTyped] = useState<string | null>(null);
+  const name = typed ?? (who === 'pending' ? '' : defaultRoomName(who?.name, () => draw));
   const [fields, setFields] = useState<RoomFieldValues>(NEW_ROOM_FIELDS);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -842,7 +849,7 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
             autoComplete="nickname"
             autoFocus
             onChange={(e) => {
-              setName(e.target.value);
+              setTyped(e.target.value);
               setError(null);
             }}
           />

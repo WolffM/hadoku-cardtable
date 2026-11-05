@@ -22,6 +22,7 @@ import { FeaturedMatch } from '../front/LiveSlot.tsx';
 import { LobbyScreen } from '../screens/LobbyScreen.tsx';
 import { clearJoined, isJoined } from './joined.ts';
 import { parseRoute } from '../screens/route.ts';
+import { ROOM_WORDS } from './roomName.ts';
 import { resetRolePlayerForTests, setRolePlayer } from '../sound/index.ts';
 import { resetMutedForTests, setMuted } from '../sound/mute.ts';
 import type { SoundEvent } from '../sound/mix.ts';
@@ -127,6 +128,13 @@ function server(rooms: RoomView[], opts: { password?: string; listStatus?: numbe
   };
   return { calls, client: roomsClient(fetchImpl, '/cardtable/api/') };
 }
+
+/** Who the fleet says the viewer is; a spec sets `name` before opening Create room. */
+const whoamiAnswer = vi.hoisted(() => ({ name: 'Alice' as string | null }));
+vi.mock('@wolffm/prefs-client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@wolffm/prefs-client')>()),
+  whoami: () => Promise.resolve({ userId: 'u-alice', userType: 'friend' as const, name: whoamiAnswer.name }),
+}));
 
 /*
  * No socket in a unit test: the page's own feed reads once and never pings.
@@ -834,6 +842,49 @@ describe('creating a room', () => {
       fireEvent.click(screen.getByTestId('room-create-submit'));
     });
     expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ name: 'Ours', gameType: 'constructed-1v1', clientMode: 'builtin' });
+  });
+
+  it("opens with the name prefilled as the viewer's name and a word from the list, drawn again each opening", async () => {
+    // The operator, 2026-11-05: "when creating a new room prefill a placeholder name '{player name}'s room'".
+    const { client, calls } = server([]);
+    mount(client);
+    await screen.findByTestId('rooms-empty');
+    const random = vi.spyOn(Math, 'random');
+    try {
+      random.mockReturnValue(0);
+      openCreate();
+      await waitFor(() => expect((screen.getByTestId('room-create-name') as HTMLInputElement).value).toBe(`Alice's ${ROOM_WORDS[0]}`));
+      fireEvent.click(screen.getByTestId('room-create-close'));
+
+      random.mockReturnValue(0.999);
+      openCreate();
+      await waitFor(() => expect((screen.getByTestId('room-create-name') as HTMLInputElement).value).toBe(`Alice's ${ROOM_WORDS.at(-1)}`));
+    } finally {
+      random.mockRestore();
+    }
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('room-create-submit'));
+    });
+    expect(calls.find((c) => c.method === 'POST')?.body).toMatchObject({ name: `Alice's ${ROOM_WORDS.at(-1)}` });
+  });
+
+  it('prefills just the word when the fleet knows no name, and a cleared name is refused, not refilled', async () => {
+    whoamiAnswer.name = null;
+    try {
+      const { client, calls } = server([]);
+      mount(client);
+      await screen.findByTestId('rooms-empty');
+      openCreate();
+      await waitFor(() => expect(ROOM_WORDS).toContain((screen.getByTestId('room-create-name') as HTMLInputElement).value));
+
+      fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: '' } });
+      expect((screen.getByTestId('room-create-name') as HTMLInputElement).value).toBe('');
+      fireEvent.click(screen.getByTestId('room-create-submit'));
+      expect((await screen.findByTestId('room-create-error')).textContent).toBe('Name required.');
+      expect(calls.some((c) => c.method === 'POST')).toBe(false);
+    } finally {
+      whoamiAnswer.name = 'Alice';
+    }
   });
 
   it('closes on Escape, on its close button and on a press of the backdrop, and not on a press inside it', async () => {
