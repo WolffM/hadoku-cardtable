@@ -2,16 +2,21 @@
  * The draft opens without a frozen frame. Filmed on main (trailer clip "draft"), the pod's first frame
  * took 1,006 ms: `SeatBar` searched every seat's pile room (`pack-queue.ts`'s `pileRoom`, ~600 ms of
  * arithmetic for a pod of eight) inside the render that first draws the pod. The search now runs a
- * slice per task after that frame (`pileSearch`, `SeatBar`'s `usePiles`), and no frame from the swap
+ * slice per task after that frame (`pileSearch`, `SeatBar`'s `usePiles`), and no task from the swap
  * to the piles drawn may be long.
  *
  * Measured on the REAL screen (`apps/ui/src/fit/draft-load.html` mounts `DraftScreen` for a pod of
  * eight, with packs waiting), BUILT for production with the app's own Vite config — a dev server's
- * React is several times slower and would measure a frame no player draws — with Chromium's
- * long-animation-frame entries: every frame over 50 ms, its length and the script that ran in it.
- * More than 100 ms on the reference host is red; on a slower machine the limit scales with its measured
- * CPU speed (`cpu-speed.ts`): claw-4 runs script ~2.5× slower than hokon, where the draft screen's own
- * first render is ~150 ms on its own. Main's frame (the search in it) is red at any of those.
+ * React is several times slower and would measure a frame no player draws — by the main thread's own
+ * tasks timed on its CPU clock (`mainThreadTasks`), with Chromium's long-animation-frame entries (every
+ * frame over 50 ms, its length and the script that ran in it) as evidence. A task over 100 ms of CPU on
+ * the reference host is red; on a slower machine the limit scales with its measured CPU speed
+ * (`cpu-speed.ts`), on the same clock. The draft screen's own first render
+ * is one task of ~30 ms on hokon; main's (the search in it) was 550 ms and more.
+ *
+ * Not the wall: a CI runner shares its cores, and that one task read 168–348 ms on the wall across five
+ * claw runs whatever the runner's measured speed (the frame and the speed sample do not see the same
+ * load). Its CPU time is what the product spent.
  *
  * Needs no server: it only reads the screen. No Forge, never skipped. `[wperf3]` lines are the evidence.
  */
@@ -22,11 +27,11 @@ import { pathToFileURL } from 'node:url';
 
 import { expect, test } from '@playwright/test';
 
-import { cpuFactor } from './cpu-speed.ts';
+import { cpuFactor, mainThreadTasks } from './cpu-speed.ts';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const UI = resolve(ROOT, 'apps/ui');
-/** The longest frame allowed from the swap to the piles drawn, on the reference host. */
+/** The longest main-thread task allowed from the swap to the piles drawn, in CPU ms on the reference host. */
 const LONGEST_MS = 100;
 
 interface Preview {
@@ -84,6 +89,7 @@ test('the draft opens with no long frame: the pod is drawn first, its piles sear
       }
     }).observe({ type: 'long-animation-frame', buffered: false });
   });
+  const stop = await mainThreadTasks(page);
   const swapped = Date.now();
   await page.evaluate(() => window.load());
   await expect(page.getByTestId('draft-screen')).toBeVisible();
@@ -91,8 +97,13 @@ test('the draft opens with no long frame: the pod is drawn first, its piles sear
   const drawn = Date.now() - swapped;
   // The frame the last pile lands in is reported once it ends.
   await page.waitForTimeout(500);
+  const tasks = await stop();
   const frames = await page.evaluate(() => window.longFrames);
-  const longest = Math.max(0, ...frames.map((f) => f.ms));
-  console.log(`[wperf3] draft open: cpu workload ${workloadMs.toFixed(1)} ms (×${factor.toFixed(2)} the reference), limit ${limit} ms; piles drawn ${drawn} ms after the swap; frames over 50 ms: ${JSON.stringify(frames)}`);
-  expect(longest, `the longest frame from the swap to the piles drawn (${JSON.stringify(frames)})`).toBeLessThanOrEqual(limit);
+  const longest = tasks.reduce((a, t) => (t.cpuMs > a.cpuMs ? t : a), { cpuMs: 0, wallMs: 0 });
+  const tasksOver = tasks.filter((t) => t.wallMs > 50).map((t) => ({ cpu: Math.round(t.cpuMs), wall: Math.round(t.wallMs) }));
+  console.log(
+    `[wperf3] draft open: cpu workload ${workloadMs.toFixed(1)} ms (×${factor.toFixed(2)} the reference), limit ${limit} ms; longest task ${longest.cpuMs.toFixed(1)} ms cpu (${longest.wallMs.toFixed(1)} ms wall); piles drawn ${drawn} ms after the swap; ` +
+      `tasks over 50 ms wall: ${JSON.stringify(tasksOver)}; frames over 50 ms: ${JSON.stringify(frames)}`,
+  );
+  expect(longest.cpuMs, `the longest main-thread task from the swap to the piles drawn, in CPU ms (${JSON.stringify(tasksOver)})`).toBeLessThanOrEqual(limit);
 });
