@@ -67,6 +67,8 @@ export function edgeHeaders(
     out['x-user-id'] = friend.userId;
     out['x-user-name'] = friend.name;
     out['x-user-key'] = friend.key;
+    // The real edge's `isVouched`: every tier above member, and a member with the registry's flag.
+    if (out['x-hadoku-tier'] !== 'member' || friend.vouched === true) out['x-hadoku-vouched'] = '1';
   }
   return out;
 }

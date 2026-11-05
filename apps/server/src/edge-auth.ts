@@ -100,9 +100,19 @@ export function sanitizeHeaders(headers: Record<string, unknown>): void {
 	delete headers['x-hadoku-vouched'];
 }
 
+/**
+ * The caller's tier as cardtable treats it: the edge's `X-Hadoku-Tier`, except
+ * that a member the operator vouches for IS a friend here. The operator,
+ * 2026-11-05: *"the only difference between vouched members and friends is the
+ * auth gate on other websites. for cardtable they will be equivalent."* Every
+ * gate reads this (the floor, the friend and admin checks, each socket's
+ * handshake), so the equivalence lives in this one line. Never above friend:
+ * admin stays admin's. Only after `sanitizeHeaders`, which strips a forged vouch.
+ */
 export function tierOf(req: Request): string {
 	const t = req.headers['x-hadoku-tier'];
-	return typeof t === 'string' && t !== '' ? t : 'public';
+	const tier = typeof t === 'string' && t !== '' ? t : 'public';
+	return tier === 'member' && vouchedOf(req) ? 'friend' : tier;
 }
 
 /**

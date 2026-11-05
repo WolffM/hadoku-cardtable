@@ -42,7 +42,8 @@
  *
  * `identities.ts` carries an optional `tier` per identity (`edge.ts` stamps
  * `identity.tier ?? 'member'`): `admin` for the editor, `dana` at friend tier for
- * the music review, and every other identity a member.
+ * the music review, `erin` a member the operator vouches for (a friend here), and every other
+ * identity a member.
  *
  * ## What is NOT proven here
  *
@@ -309,5 +310,18 @@ test('a friend reviews the match music: picks both lanes, submits, finds it rest
   } finally {
     await friend.context.close();
     await member.context.close();
+  }
+});
+
+test('a member the operator vouches for opens the match-music review exactly as a friend does', async ({ browser }) => {
+  const vouched = await open(browser, 'erin');
+  try {
+    expect((await vouched.page.request.get(`${PREFIX}/api/sounds/music-review/mine`)).status(), 'the server lets her review').toBe(200);
+    await vouched.page.goto(`${PREFIX}/#/sounds`);
+    await vouched.page.getByRole('link', { name: 'Music' }).click();
+    await expect(vouched.page.getByRole('heading', { name: 'Match Music' })).toBeVisible();
+    await expect(vouched.page.getByTestId('music-review-slot')).toHaveCount(15);
+  } finally {
+    await vouched.context.close();
   }
 });
