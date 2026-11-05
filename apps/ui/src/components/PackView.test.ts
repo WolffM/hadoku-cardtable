@@ -48,10 +48,14 @@ afterEach(() => {
 
 const open = (): number => [...document.querySelectorAll('.pack__slot')].findIndex((s) => s.hasAttribute('data-focused'));
 const tile = (i: number) => screen.getAllByTestId('card')[i]!;
-const wheel = (deltaY: number) =>
+const step = (by: 1 | -1) => fireEvent.keyDown(window, { key: by > 0 ? 'ArrowRight' : 'ArrowLeft' });
+const wheelOn = (el: Element): WheelEvent => {
+  const e = new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true });
   act(() => {
-    screen.getByTestId('pack').dispatchEvent(new WheelEvent('wheel', { deltaY, bubbles: true, cancelable: true }));
+    el.dispatchEvent(e);
   });
+  return e;
+};
 
 function mount(onPick = vi.fn()) {
   const utils = render(createElement(PackView, { cards: PACK, layout: 'fan', onPick, disabled: false, emptyNote: '' }));
@@ -73,80 +77,39 @@ describe('the fan', () => {
   });
 
   // The operator, 2026-11-01, on Rally's sample pack: a fan nothing picks from is read, so hover opens the inspector.
-  it('a fan nothing picks from opens the inspector on its drawn cards, and leaves a notch the inspector spent to it', () => {
+  it('a fan nothing picks from opens the inspector on its drawn cards', () => {
     const dfc = { ...card(0), name: 'Front', faces: [{ ...card(99), name: 'Back' }] } as DraftCard;
     render(createElement(PackView, { cards: [dfc, ...PACK.slice(1)], layout: 'fan', disabled: false, emptyNote: '' }));
     const drawn = [...screen.getByTestId('pack').querySelectorAll('.pack__slot:not([data-off])')];
     expect(drawn.length).toBeGreaterThan(0);
     for (const slot of drawn) expect(slot.getAttribute('data-card-id')).toMatch(/^w\d+$/);
-    // The inspector, open on the double-faced card, spends the notch turning it: the row stays put.
-    const turnsFace = (event: Event): void => event.preventDefault();
-    document.addEventListener('wheel', turnsFace, { passive: false });
-    act(() => {
-      tile(0).dispatchEvent(new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true }));
-    });
-    document.removeEventListener('wheel', turnsFace);
-    expect(open()).toBe(0);
-    // Anywhere else it still steps the row.
-    wheel(100);
-    expect(open()).toBe(1);
   });
 
-  // ohmusama, 2026-11-05: over a card with a token but no panel open on it, the wheel scrolled Rally's dialog.
-  it('steps the row over a card with other faces when no inspector takes the notch, and scrolls nothing else', () => {
+  // The operator, 2026-11-05: "mouse wheel was never supposed to move the fan, only left and right
+  // arrow do that. mouse wheel is reserved for seeing transforms".
+  it('never moves on the wheel, over a card or not, and leaves the wheel to the inspector and the page', () => {
     const dfc = { ...card(0), name: 'Front', faces: [{ ...card(99), name: 'Back' }] } as DraftCard;
     render(createElement(PackView, { cards: [dfc, ...PACK.slice(1)], layout: 'fan', disabled: false, emptyNote: '' }));
-    const e = new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true });
-    act(() => {
-      tile(0).dispatchEvent(e);
-    });
-    expect(e.defaultPrevented).toBe(true);
-    expect(open()).toBe(1);
+    for (const el of [tile(0), tile(1), screen.getByTestId('pack')]) {
+      expect(wheelOn(el).defaultPrevented).toBe(false);
+      expect(open()).toBe(0);
+    }
   });
 
-  it('leaves a wheel outside the pack alone', () => {
+  it('steps one card per arrow key, either way, and stops at the ends', () => {
     mount();
-    const e = new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true });
-    act(() => {
-      document.body.dispatchEvent(e);
-    });
-    expect(e.defaultPrevented).toBe(false);
-    expect(open()).toBe(0);
-  });
-
-  it('steps one card per wheel notch, either way, and stops at the ends', () => {
-    mount();
-    wheel(100);
+    step(1);
     expect(open()).toBe(1);
-    // Whatever size a browser makes its notch: one notch, one card.
-    wheel(120);
-    wheel(100);
+    step(1);
+    step(1);
     expect(open()).toBe(3);
-    wheel(-120);
-    wheel(-100);
+    step(-1);
+    step(-1);
     expect(open()).toBe(1);
-    for (let i = 0; i < 20; i++) wheel(-100);
+    for (let i = 0; i < 20; i++) step(-1);
     expect(open()).toBe(0);
-    for (let i = 0; i < 30; i++) wheel(100);
+    for (let i = 0; i < 30; i++) step(1);
     expect(open()).toBe(14);
-  });
-
-  it('adds up a trackpad’s small steps into whole cards', () => {
-    mount();
-    wheel(25);
-    wheel(25);
-    expect(open()).toBe(0);
-    wheel(25);
-    expect(open()).toBe(1);
-  });
-
-  it('stops the wheel from scrolling anything else', () => {
-    mount();
-    const e = new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true });
-    act(() => {
-      screen.getByTestId('pack').dispatchEvent(e);
-    });
-    expect(e.defaultPrevented).toBe(true);
   });
 
   it('opens a card that is not open on the first click, and picks it on the next', () => {
@@ -164,13 +127,13 @@ describe('the fan', () => {
     expect(onPick).toHaveBeenCalledWith('c0');
   });
 
-  it('draws seven cards from the first, and the rest once the row is scrolled to them', () => {
+  it('draws seven cards from the first, and the rest once the row is stepped to them', () => {
     mount();
     const drawn = () => [...document.querySelectorAll('.pack__slot')].flatMap((el, i) => (el.hasAttribute('data-off') ? [] : [i]));
     expect(drawn()).toEqual([0, 1, 2, 3, 4, 5, 6]);
-    for (let i = 0; i < 10; i++) wheel(100);
+    for (let i = 0; i < 10; i++) step(1);
     expect(drawn()).toEqual([7, 8, 9, 10, 11, 12, 13]);
-    for (let i = 0; i < 10; i++) wheel(100);
+    for (let i = 0; i < 10; i++) step(1);
     expect(drawn()).toEqual([8, 9, 10, 11, 12, 13, 14]);
   });
 
@@ -248,8 +211,8 @@ describe('the fan', () => {
     setRolePlayer({ play: (e: SoundEvent) => void roles.push(e.role) });
     const { rerender, onPick } = mount();
     expect(roles).toEqual([]);
-    wheel(100);
-    wheel(100);
+    step(1);
+    step(1);
     fireEvent.keyDown(window, { key: 'ArrowLeft' });
     // Opening a card by clicking it is a step, not a pick: no pick sound.
     fireEvent.click(tile(3));
@@ -259,7 +222,7 @@ describe('the fan', () => {
     expect(onPick).toHaveBeenCalledWith(PACK[3]!.cardId);
     expect(roles.at(-1)).toBe('ui.draft-pick');
     roles.pop();
-    for (let i = 0; i < 10; i++) wheel(-100);
+    for (let i = 0; i < 10; i++) step(-1);
     expect(roles).toHaveLength(7);
     rerender(createElement(PackView, { cards: PACK.slice(1), layout: 'fan', onPick, disabled: false, emptyNote: '' }));
     expect(roles).toHaveLength(7);
@@ -267,9 +230,9 @@ describe('the fan', () => {
 
   it('opens a new pack on its first card', () => {
     const { rerender, onPick } = mount();
-    wheel(100);
-    wheel(100);
-    wheel(100);
+    step(1);
+    step(1);
+    step(1);
     expect(open()).toBe(3);
     rerender(createElement(PackView, { cards: PACK.slice(1), layout: 'fan', onPick, disabled: false, emptyNote: '' }));
     expect(open()).toBe(0);

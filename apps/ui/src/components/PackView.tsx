@@ -6,8 +6,12 @@
  * card sits in the middle of the row once it can, and the row stops at the
  * pack's ends (`fanStart`); the rest are not drawn until the row is scrolled to them (the operator,
  * 2026-10-19: *"let's not display the entire stack all at once and instead hide
- * cards until they are scrolled to"*). The wheel and the arrow keys move the
- * open card one along, and the row slides with it. The pointer opens nothing by
+ * cards until they are scrolled to"*). The arrow keys move the open card one
+ * along, and the row slides with it. The wheel never moves the row (the
+ * operator, 2026-11-05: *"mouse wheel was never supposed to move the fan, only
+ * left and right arrow do that. mouse wheel is reserved for seeing
+ * transforms"*): over a card the inspector is open on, it turns that card's
+ * other faces (`play/inspect`), and anywhere else it scrolls the page. The pointer opens nothing by
  * passing over a card — that was too easy to misclick: a card that is not open
  * opens on a click, and is picked on the next. Enter picks the open card. The
  * grid has a cursor of its own: the arrow keys move it a card along or a row up
@@ -29,8 +33,7 @@
  * the shared inspector like the grid's (the operator, 2026-11-01, on the sample
  * pack: *"for fan view it's missing the hover to expand and mousewheel to show
  * transform cards"*). The inspector is then the one expanded view, so the
- * related row is not drawn, and a wheel notch the inspector spends turning an
- * open card's face does not also step the row.
+ * related row is not drawn.
  *
  * Each inspectable slot carries a synthetic `data-card-id="w<n>"` of its own,
  * matching `play/inspect/index.ts`'s `TILE_ID` so hovering opens the same
@@ -230,9 +233,6 @@ export function relatedPlace(fan: FanGeometry, at: number, open: number, count: 
   return { left, top, width: w };
 }
 
-/** Trackpad travel per card; any single wheel event this big is one mouse notch, one card. */
-const WHEEL_STEP = 60;
-
 /** A key pressed while typing somewhere is the field's, not the pack's. */
 function typing(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
@@ -306,46 +306,9 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
   const [hovered, setHovered] = useState<number | null>(null);
   useEffect(() => setHovered(null), [packKey]);
 
-  // The wheel steps through the row: one notch, one card. Not React's onWheel,
-  // which is passive and cannot stop the page under the pack scrolling instead.
-  // A phone's carousel is scrolled, not stepped — see the scroll listener below,
-  // which reads the position a wheel event would not otherwise move.
-  //
-  // Heard on the window, after the shared inspector (mounted on the document or the embed's shadow
-  // root) has had the event: a notch the inspector spent turning an open card's face is spent, and
-  // every other notch over the pack steps the row and scrolls nothing else. Deciding by the tile
-  // under the pointer instead left notches nobody took — a tile with faces but no panel open on it —
-  // and those scrolled Rally's dialog behind the fan (ohmusama, 2026-11-05).
-  const wheelOn = desktopFan !== null;
   const count = cards.length;
   /** Nothing picks: the cards are read through the shared inspector, in either layout. */
   const browsing = onPick === undefined;
-  const wheelLeft = useRef(0);
-  useEffect(() => {
-    const el = root;
-    if (!wheelOn || el === null) return;
-    const onWheel = (event: WheelEvent): void => {
-      if (event.defaultPrevented || !event.composedPath().includes(el)) return;
-      event.preventDefault();
-      const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
-      let steps: number;
-      if (Math.abs(delta) >= WHEEL_STEP || event.deltaMode !== WheelEvent.DOM_DELTA_PIXEL) {
-        // A mouse wheel's notch arrives as one big event (100 px in one browser,
-        // 120 or 3 lines in another): one notch is one card, whatever its size.
-        steps = Math.sign(delta);
-        wheelLeft.current = 0;
-      } else {
-        // A trackpad sends a stream of small ones: they add up.
-        wheelLeft.current += delta;
-        steps = Math.trunc(wheelLeft.current / WHEEL_STEP);
-        wheelLeft.current -= steps * WHEEL_STEP;
-      }
-      if (steps === 0) return;
-      setFocus((was) => Math.max(0, Math.min(count - 1, (was ?? 0) + steps)));
-    };
-    window.addEventListener('wheel', onWheel, { passive: false });
-    return () => window.removeEventListener('wheel', onWheel);
-  }, [wheelOn, count]);
 
   // The phone carousel's own open card: not stepped, read off the real scroll position — the slot
   // nearest the row's own centre, wherever a swipe (or a momentum settle) left it. `requestAnimationFrame`
@@ -398,7 +361,7 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
   const keyed = useRef(false);
 
   // A click on a card that is not the open one opens it rather than picking it:
-  // after the wheel the card under a still pointer need not be the open one, and
+  // after the arrow keys the card under a still pointer need not be the open one, and
   // a pick is not undoable. Hover-then-click is still one click. Stable, because
   // `CardTile` is memoised on this prop.
   const shownRef = useRef(shown);
