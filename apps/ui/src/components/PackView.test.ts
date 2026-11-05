@@ -73,22 +73,45 @@ describe('the fan', () => {
   });
 
   // The operator, 2026-11-01, on Rally's sample pack: a fan nothing picks from is read, so hover opens the inspector.
-  it('a fan nothing picks from opens the inspector on its drawn cards, and leaves the wheel over a double-faced card to it', () => {
+  it('a fan nothing picks from opens the inspector on its drawn cards, and leaves a notch the inspector spent to it', () => {
     const dfc = { ...card(0), name: 'Front', faces: [{ ...card(99), name: 'Back' }] } as DraftCard;
     render(createElement(PackView, { cards: [dfc, ...PACK.slice(1)], layout: 'fan', disabled: false, emptyNote: '' }));
     const drawn = [...screen.getByTestId('pack').querySelectorAll('.pack__slot:not([data-off])')];
     expect(drawn.length).toBeGreaterThan(0);
     for (const slot of drawn) expect(slot.getAttribute('data-card-id')).toMatch(/^w\d+$/);
-    // Over the double-faced card the wheel is the inspector's: the row stays put.
-    const front = tile(0);
-    expect(front.hasAttribute('data-faces')).toBe(true);
+    // The inspector, open on the double-faced card, spends the notch turning it: the row stays put.
+    const turnsFace = (event: Event): void => event.preventDefault();
+    document.addEventListener('wheel', turnsFace, { passive: false });
     act(() => {
-      front.dispatchEvent(new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true }));
+      tile(0).dispatchEvent(new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true }));
     });
+    document.removeEventListener('wheel', turnsFace);
     expect(open()).toBe(0);
     // Anywhere else it still steps the row.
     wheel(100);
     expect(open()).toBe(1);
+  });
+
+  // ohmusama, 2026-11-05: over a card with a token but no panel open on it, the wheel scrolled Rally's dialog.
+  it('steps the row over a card with other faces when no inspector takes the notch, and scrolls nothing else', () => {
+    const dfc = { ...card(0), name: 'Front', faces: [{ ...card(99), name: 'Back' }] } as DraftCard;
+    render(createElement(PackView, { cards: [dfc, ...PACK.slice(1)], layout: 'fan', disabled: false, emptyNote: '' }));
+    const e = new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true });
+    act(() => {
+      tile(0).dispatchEvent(e);
+    });
+    expect(e.defaultPrevented).toBe(true);
+    expect(open()).toBe(1);
+  });
+
+  it('leaves a wheel outside the pack alone', () => {
+    mount();
+    const e = new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true });
+    act(() => {
+      document.body.dispatchEvent(e);
+    });
+    expect(e.defaultPrevented).toBe(false);
+    expect(open()).toBe(0);
   });
 
   it('steps one card per wheel notch, either way, and stops at the ends', () => {

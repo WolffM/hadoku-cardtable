@@ -8,7 +8,7 @@
  * `App.tsx` draws this with no header, no room and no music: Rally frames it under its ranking
  * row, 330–720 px wide. The frame's height is ours to say: every change of this page's height is
  * posted to the parent as `hadoku-embed:size` (`useFrameHeight`), so nothing here scrolls inside
- * the frame unless Rally's 900 px cap makes it.
+ * the frame unless Rally's cap (`FRAME_MAX`) makes it.
  *
  * The pack is the draft screen's own `PackView` and layout control, read-only: no `onPick`, so a
  * card opens in the fan and is never taken, and in either layout hovering a card opens the shared
@@ -39,24 +39,43 @@ export interface RallyEmbedProps {
   view: RallyView;
 }
 
-/** Rally's own message name and clamp: it draws the frame between these heights. */
+/** Rally's own message name. */
 const SIZE_MESSAGE = 'hadoku-embed:size';
+/** The tallest Rally draws the frame (hadoku-rally `EMBED_HEIGHT.max`); past it, this page scrolls in its frame. */
+export const FRAME_MAX = 8000;
 
-/** Tell the framing page this element's height, now and whenever it changes. Nothing when the page is not framed. */
+/**
+ * Tell the framing page this element's height, now and whenever it changes, and keep the page's
+ * own scrollbar off while the frame grows to fit it. Nothing when the page is not framed.
+ *
+ * The scrollbar is off because a frame fitted to its page has nothing to scroll, but the page
+ * overflows for the moment between posting a new height and the frame taking it, and a scrollbar
+ * drawn in that moment narrows the page. A narrower page fits its cards differently (the colour
+ * columns wrap), so its height changes, and on the cards page the two heights chased each other
+ * for good: 2295 px one row, 4085 px two, a second scrollbar flickering beside Rally's (ohmusama,
+ * 2026-11-05). Only past Rally's cap does the page scroll, in a gutter kept from the start.
+ */
 function useFrameHeight(el: HTMLElement | null): void {
   useEffect(() => {
     if (el === null || window.parent === window || typeof ResizeObserver === 'undefined') return;
+    const page = document.documentElement.style;
+    page.setProperty('scrollbar-gutter', 'stable');
     let last = -1;
     const post = (): void => {
       const height = Math.ceil(el.getBoundingClientRect().height);
       if (height === last) return;
       last = height;
+      page.setProperty('overflow-y', height > FRAME_MAX ? 'auto' : 'hidden');
       window.parent.postMessage({ type: SIZE_MESSAGE, height }, location.origin);
     };
     const observer = new ResizeObserver(post);
     observer.observe(el);
     post();
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      page.removeProperty('scrollbar-gutter');
+      page.removeProperty('overflow-y');
+    };
   }, [el]);
 }
 

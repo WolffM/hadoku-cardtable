@@ -29,8 +29,8 @@
  * the shared inspector like the grid's (the operator, 2026-11-01, on the sample
  * pack: *"for fan view it's missing the hover to expand and mousewheel to show
  * transform cards"*). The inspector is then the one expanded view, so the
- * related row is not drawn, and the wheel over a card with other faces turns
- * the inspector's face rather than stepping the row.
+ * related row is not drawn, and a wheel notch the inspector spends turning an
+ * open card's face does not also step the row.
  *
  * Each inspectable slot carries a synthetic `data-card-id="w<n>"` of its own,
  * matching `play/inspect/index.ts`'s `TILE_ID` so hovering opens the same
@@ -310,6 +310,12 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
   // which is passive and cannot stop the page under the pack scrolling instead.
   // A phone's carousel is scrolled, not stepped — see the scroll listener below,
   // which reads the position a wheel event would not otherwise move.
+  //
+  // Heard on the window, after the shared inspector (mounted on the document or the embed's shadow
+  // root) has had the event: a notch the inspector spent turning an open card's face is spent, and
+  // every other notch over the pack steps the row and scrolls nothing else. Deciding by the tile
+  // under the pointer instead left notches nobody took — a tile with faces but no panel open on it —
+  // and those scrolled Rally's dialog behind the fan (ohmusama, 2026-11-05).
   const wheelOn = desktopFan !== null;
   const count = cards.length;
   /** Nothing picks: the cards are read through the shared inspector, in either layout. */
@@ -319,8 +325,7 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
     const el = root;
     if (!wheelOn || el === null) return;
     const onWheel = (event: WheelEvent): void => {
-      // A read-only fan's card with other faces: the inspector open on it turns its face instead.
-      if (browsing && event.target instanceof Element && event.target.closest('[data-faces]') !== null) return;
+      if (event.defaultPrevented || !event.composedPath().includes(el)) return;
       event.preventDefault();
       const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
       let steps: number;
@@ -338,9 +343,9 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
       if (steps === 0) return;
       setFocus((was) => Math.max(0, Math.min(count - 1, (was ?? 0) + steps)));
     };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [wheelOn, count, browsing]);
+    window.addEventListener('wheel', onWheel, { passive: false });
+    return () => window.removeEventListener('wheel', onWheel);
+  }, [wheelOn, count]);
 
   // The phone carousel's own open card: not stepped, read off the real scroll position — the slot
   // nearest the row's own centre, wherever a swipe (or a momentum settle) left it. `requestAnimationFrame`
