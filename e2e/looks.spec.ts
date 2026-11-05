@@ -78,10 +78,11 @@ test(titled('a picture, an overlay and a name effect show on the room seat, on t
     await bob.page.getByTestId('live-concede').click();
     await bob.page.getByTestId('live-concede-yes').click();
     await expect(alice.page.getByTestId('game-result'), 'the game is over').toBeVisible({ timeout: 30_000 });
-    await expect
-      .poll(async () => (await alice.context.request.get(`${stack.origin}/cardtable/api/replays/${matchId}`)).status(), { timeout: 30_000, message: 'the recording is served' })
-      .toBe(200);
+    // Asked as carol: a series that may go on withholds its games' replays from their own players.
     const carol = await openFriend(browser, 'carol');
+    await expect
+      .poll(async () => (await carol.context.request.get(`${stack.origin}/cardtable/api/replays/${matchId}`)).status(), { timeout: 30_000, message: 'the recording is served' })
+      .toBe(200);
     await servePictures(carol.context, PICTURES);
     await servePictures(carol.context, `${stack.origin}/watchparty/media/sprites`);
     await carol.page.goto(`${stack.origin}/cardtable/#/replay/${matchId}`);
