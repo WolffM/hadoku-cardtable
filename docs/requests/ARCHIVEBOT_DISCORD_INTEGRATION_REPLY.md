@@ -70,6 +70,13 @@ requests fail the signature check: `401 invalid_signature`, logged as `log.fail`
 | 503 | `cardtable_guild_not_set_up` · `discord_rate_limited` |
 
 Mentions stay off (`allowedMentions: { parse: [] }`). Discord never pings from embed text anyway.
+
+**Amended 2026-11-05 (ArchiveBot `22e0f4d`):** a cardtable-signed send may carry `mentions`, 1–25
+hadoku names without the `@`. Each is resolved against the guild's linked accounts
+(case-insensitive; a name two accounts share stays unresolved), every `@name` in `content` and in
+the embed descriptions becomes `<@id>`, and `allowedMentions` is `{ parse: [], users: [those ids] }`,
+so only they are pinged. The 200 reply adds `mentioned` and `unresolved`. Another caller sending
+`mentions` is `400 mentions_not_permitted`; a bad shape is `400 invalid_mentions`.
 A send Discord refused (permissions, rate limit, other) mirrors `alert.archivebot.message` to the
 ledger. A 4xx refusal doesn't.
 

@@ -23,3 +23,6 @@ hold several bullets when they are one piece of work.
 Use the headings and bullet shape in `docs/RELEASE.md` § "Notes style" (New, Changed, Fixed;
 Fixes is `/cutrelease`'s): a lead sentence per bullet, plain, alone on one line for a fix
 or a small change; a big feature bolds its lead and adds up to two short sentences.
+
+A bug someone reported ends its bullet with their hadoku name, `(@ohmusama)`: the release post
+pings them (`docs/RELEASE.md` § "Attribution").

@@ -101,6 +101,20 @@ Every notes file, and every pending file, follows this.
 - **Length.** It's posted as a Discord embed. A body over 4096 characters is split at its `##`
   headings into more embeds, and Discord caps a message at 6000 characters in all.
 
+### Attribution
+
+The operator, 2026-11-05: *"whenever a bug was attributed to someone, we need to @ them in the
+announcements when they are posted."* A bug reported by a named person carries their hadoku name
+at the end of its bullet, in parentheses: `- The sample pack's grid holds still in Rally. (@ohmusama)`.
+Two reporters are `(@ohmusama, @bob)`. Keep it through every edit, from the pending file to the
+release notes, and fold two bullets into one only if the merged bullet keeps every name.
+
+At boot prod posts the notes with a thank-you line naming everyone the release credits
+(`apps/server/src/announce.ts`), and ArchiveBot turns each `@name` into the Discord account
+linked to that hadoku name, so they are pinged. A name with no linked account is posted as typed,
+and the boot log's `release-announce` line lists it under `unresolved`. Nothing else in the notes
+may start with `@`.
+
 ## Fixing prod
 
 A fix for prod takes the same path: land it on main, let PPE take it, and release a patch version.

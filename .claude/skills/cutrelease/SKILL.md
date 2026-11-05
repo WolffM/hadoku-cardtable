@@ -46,6 +46,8 @@ words; a fix is one short plain line.
 - **Every pending bullet**, under its own heading, in the order the files sort (they are dated).
   Fold two bullets about the same thing into one, and cut a pending bullet down to the style's
   length when it is a small fix written long.
+- **Every `(@name)` stays.** A pending bullet's reporters ride into the notes unchanged, and a
+  folded bullet keeps every name from both (`docs/RELEASE.md` § "Attribution"): the post pings them.
 - **Fixes** groups the commits no player sees by kind ("Faster checks before an update
   ships.", "Dependency updates."), one plain sentence each.
 

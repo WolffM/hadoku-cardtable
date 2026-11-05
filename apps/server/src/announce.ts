@@ -6,6 +6,10 @@
  * without that file, and prod only ever runs a released sha. Every boot sends; the idempotency key
  * `cardtable-release-<version>` is deduped by ArchiveBot for 7 days, so a restart posts nothing new.
  *
+ * A bug's reporter is named in its bullet as `@name` (their hadoku name; docs/RELEASE.md § "Attribution").
+ * Those names ride as `mentions` with a thank-you line as `content`, and ArchiveBot turns each one into
+ * the Discord account linked to it, so the people who reported what the release fixed are pinged.
+ *
  * Prod only, by the secret: PPE's wrapper deliberately does not hold it, and an unset secret is a
  * skip, not an error. A failed post never blocks boot; the next boot retries it.
  *
@@ -110,6 +114,25 @@ export function forDiscord(body: string): string {
 	return out.filter((line, i) => line.trim() !== '' || !(heading(out[i - 1]) || heading(out[i + 1]))).join('\n');
 }
 
+/**
+ * Who a release thanks: every `@name` in its notes, the hadoku name of whoever reported a bug the
+ * release fixes (docs/RELEASE.md § "Attribution"), each once, in the order the notes first name them.
+ * A sentence's closing full stop is not part of a name.
+ */
+export function mentionsIn(body: string): string[] {
+	const names = new Map<string, string>();
+	for (const match of body.matchAll(/(?<![\w@/])@([A-Za-z0-9_.-]+)/g)) {
+		const name = match[1]!.replace(/[.-]+$/, '');
+		if (name !== '' && !names.has(name.toLowerCase())) names.set(name.toLowerCase(), name);
+	}
+	return [...names.values()];
+}
+
+/** The line above the embeds that pings them: Discord never pings from an embed. ArchiveBot turns each `@name` into the person. */
+export function thanksLine(mentions: readonly string[]): string {
+	return `Thanks for the reports: ${mentions.map((name) => `@${name}`).join(' ')}`;
+}
+
 export function releaseEmbeds(notes: ReleaseNotes, appUrl: string): Embed[] {
 	return splitBody(forDiscord(notes.body)).map((description, i) => ({
 		...(i === 0 ? { title: notes.title } : {}),
@@ -144,10 +167,12 @@ export async function announceRelease(options: AnnounceOptions): Promise<void> {
 			return;
 		}
 		const now = (options.now ?? (() => new Date()))();
+		const mentions = mentionsIn(notes.body);
 		const body = JSON.stringify({
 			idempotencyKey: `cardtable-release-${notes.version}`,
 			timestamp: now.getTime(),
 			source: 'cardtable',
+			...(mentions.length === 0 ? {} : { content: thanksLine(mentions), mentions }),
 			embeds: releaseEmbeds(notes, options.appUrl),
 		});
 		const signature = createHmac('sha256', options.secret).update(body).digest('hex');
@@ -162,8 +187,14 @@ export async function announceRelease(options: AnnounceOptions): Promise<void> {
 			log({ event: 'release-announce', outcome: 'failed', version: notes.version, status: res.status, reply: reply.slice(0, 500) });
 			return;
 		}
-		const deduped = (JSON.parse(reply) as { deduped?: boolean }).deduped === true;
-		log({ event: 'release-announce', outcome: deduped ? 'already-posted' : 'posted', version: notes.version });
+		const answer = JSON.parse(reply) as { deduped?: boolean; unresolved?: string[] };
+		log({
+			event: 'release-announce',
+			outcome: answer.deduped === true ? 'already-posted' : 'posted',
+			version: notes.version,
+			// A name no linked Discord account carries is posted as plain text: say so, so it can be fixed.
+			...(answer.unresolved !== undefined && answer.unresolved.length > 0 ? { unresolved: answer.unresolved } : {}),
+		});
 	} catch (err) {
 		log({ event: 'release-announce', outcome: 'failed', error: err instanceof Error ? err.message : String(err) });
 	}
