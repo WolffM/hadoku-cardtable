@@ -9,10 +9,11 @@
  *
  * - The default capture region is the board's bottom-left {@link CORNER} square: the active player's
  *   avatar, life, graveyard and the near half of their hand and battlefield.
- * - The cursor outside the default region for {@link TEMPORARY_AFTER_MS} straight: a temporary
+ * - The cursor outside the default region's inner square ({@link inDefaultRegion}: its outer
+ *   {@link EDGE_BAND} counts as outside) for {@link TEMPORARY_AFTER_MS} straight: a temporary
  *   capture region opens, the same square centred on the cursor (kept on the board), and follows the
  *   cursor while it stays out. A stroke or a drag that comes back sooner opens none.
- * - The cursor back inside the default region (or gone) for {@link DEFAULT_AFTER_MS} straight: the
+ * - The cursor back inside that inner square (or gone) for {@link DEFAULT_AFTER_MS} straight: the
  *   temporary region retires, and the camera returns to the default one.
  * - Every move is a glide ({@link GLIDE_TAU_MS}), never a jump — except a turn change: the board flips
  *   to the new active player, and the camera starts on their default region.
@@ -26,15 +27,28 @@ export const BOARD_HEIGHT = 800;
 export const CORNER = 540;
 
 /**
- * How long the cursor must stay outside the default region before a temporary region opens. Longer
- * than a drag from the hand to anywhere on the board takes, so a play never swings the camera;
- * short enough that a player reading a card is followed.
+ * How long the cursor must stay outside the default region before a temporary region opens. The
+ * operator, 2026-11-05: *"have the camera movement react faster to when the cursor exits the camera
+ * space. shorten the time for it to be outside of the 'default space' by 40%"* — 1500 ms before.
  */
-export const TEMPORARY_AFTER_MS = 1500;
+export const TEMPORARY_AFTER_MS = 900;
 /** How long the cursor must be back in the default region (or gone) before the temporary region retires: a pass through it is not a return. */
 export const DEFAULT_AFTER_MS = 1000;
-/** The glide's time constant: 95% of the way in three of these (~0.75 s). */
-export const GLIDE_TAU_MS = 250;
+/**
+ * The glide's time constant: 95% of the way in three of these (~1.07 s). The operator, 2026-11-05:
+ * *"slow down the camera pan by 30%, so it doesn't move around so quickly when the mouse is moving
+ * fast"* — 250 ms before, so 250 / 0.7.
+ */
+export const GLIDE_TAU_MS = 357;
+
+/**
+ * The default region's outer band, as a share of its side, that counts as outside: the operator,
+ * 2026-11-05, *"make it so the camera starts moving once it reaches the outer 20% of the default
+ * camera area"*. The view the region shows is still the whole {@link CORNER} square.
+ */
+export const EDGE_BAND = 0.2;
+/** The inner square's side: the part of the default region nearest the board's bottom-left corner. */
+const INNER = CORNER * (1 - EDGE_BAND);
 
 export interface Point {
   x: number;
@@ -61,8 +75,12 @@ export function initialCamera(now: number, bottom: number | null): CameraState {
   return { at: DEFAULT_REGION, region: 'default', since: null, bottom, now };
 }
 
-/** Whether `p` is inside the default capture region. */
-export const inDefaultRegion = (p: Point): boolean => p.x < CORNER && p.y > BOARD_HEIGHT - CORNER;
+/**
+ * Whether `p` is home: inside the default capture region's inner square, the {@link EDGE_BAND} at its
+ * open edges counting as outside. The same test both ways, so a cursor resting in the band never
+ * swings the camera out and back.
+ */
+export const inDefaultRegion = (p: Point): boolean => p.x < INNER && p.y > BOARD_HEIGHT - INNER;
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
 
