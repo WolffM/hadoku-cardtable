@@ -25,9 +25,11 @@
  *     an attacker is declared by dragging it forward, which
  *     `../combat-drag.jvm.test.ts` proves against a real Forge, so it stays
  *     first.
- *  2. **elsewhere on the table while this seat is declaring attackers** → a
- *     box-draw. Nothing else claims that press: a selection is not open
- *     during `InputAttack`, so the pointing gesture below cannot fire.
+ *  2. **elsewhere on the table while this seat is declaring attackers, by
+ *     mouse** → a box-draw. Nothing else claims that press: a selection is
+ *     not open during `InputAttack`, so the pointing gesture below cannot
+ *     fire. A finger or a pen never draws a box: on a touch screen a press
+ *     on empty board is the browser's pan, in every state.
  *     **Or while Forge takes a click on this seat's lands** (`landsOffered`:
  *     at priority or under a payment, no question open) → the same box, and
  *     the lands it touches are tapped or untapped — see "A box taps lands".
@@ -293,6 +295,7 @@ import { battlefieldCard, cardBox, faceBox, overlayOf } from '../board-dom.ts';
 import { boxOf, cardIdUnder, targetUnder } from './targets.ts';
 import { CARD_LONG_PRESS, openCardView, type CardViewAction } from '../../inspect/index.ts';
 import {
+  byFinger,
   clickLatch,
   pansSideways,
   pastSlop,
@@ -1482,7 +1485,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
 
   function onPointerDown(event: PointerEvent): void {
     cancelledByRightClick = false;
-    sidewaysPan = event.pointerType === 'touch' && pansSideways(eventTarget(event));
+    sidewaysPan = byFinger(event) && pansSideways(eventTarget(event));
     gesturePointer = event.pointerId;
     // A press on the target the arrow is snapped to commits it, whichever branch below (or the card's own click) sends it.
     if (event.button === 0) commitArrowAt(overlayOf(canvas), eventTarget(event));
@@ -1773,7 +1776,9 @@ export function installGestures(options: GestureOptions): GestureHandle {
       }
     }
     if (!inside(eventTarget(event))) return;
-    if (declaringAttackers(match) || landsOffered(match).length > 0) {
+    // Only a mouse draws a box: a finger on empty board is the browser's pan, in every state (the
+    // operator, 2026-11-05: "make sure mobile users can always pan through the board").
+    if (!byFinger(event) && (declaringAttackers(match) || landsOffered(match).length > 0)) {
       claim(event);
       marquee = { press: at, at, moved: false };
       hover = null;
@@ -1982,7 +1987,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
   }
 
   /**
-   * A touch this layer has taken — a drag, a box or a placed card past its slop — is never also the
+   * A touch this layer has taken — a drag or a placed card past its slop — is never also the
    * browser's pan. Left alone, Chrome reads the finger's travel as a scroll gesture, and a lift at
    * speed as a fling it then stops with the next touch, swallowing that tap's click: a blocker
    * flicked onto its attacker could not be tapped off again (AF548, run 41952662717: down and up on
@@ -1991,7 +1996,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
    */
   function onTouchMove(event: TouchEvent): void {
     if (!event.cancelable) return;
-    if (drag?.moved === true || marquee?.moved === true || placedDrag?.moved === true) event.preventDefault();
+    if (drag?.moved === true || placedDrag?.moved === true) event.preventDefault();
   }
 
   function onPointerCancel(event: PointerEvent): void {

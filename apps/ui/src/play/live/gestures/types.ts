@@ -79,10 +79,21 @@ export function pastSlopAcross(press: Point, at: Point): boolean {
   return pastSlop(press, at) && Math.abs(press.y - at.y) >= Math.abs(at.x - press.x);
 }
 
-/** Whether the browser may pan a touch press on `node` sideways — its card's `touch-action` names `pan-x`. */
+/** A press by a finger or a pen: the browser may pan it, and no box is ever drawn by one. */
+export function byFinger(event: PointerEvent): boolean {
+  return event.pointerType === 'touch' || event.pointerType === 'pen';
+}
+
+/**
+ * Whether the browser may pan a touch press on `node` sideways: the nearest element at or above it that
+ * sets a `touch-action` names `pan-x` — a portrait lane's card, or the lane itself between its cards.
+ */
 export function pansSideways(node: EventTarget | null): boolean {
-  const card = node instanceof Element ? node.closest('li.board-card') : null;
-  return card !== null && getComputedStyle(card).touchAction.includes('pan-x');
+  for (let el = node instanceof Element ? node : null; el !== null; el = el.parentElement) {
+    const action = getComputedStyle(el).touchAction;
+    if (action !== '' && action !== 'auto') return action.includes('pan-x');
+  }
+  return false;
 }
 
 /**
