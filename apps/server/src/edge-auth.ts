@@ -3,7 +3,7 @@
  *
  * edge-router resolves the caller's tier once and stamps every request it
  * proxies with X-Edge-Auth: <EDGE_AUTH_SECRET> plus X-Hadoku-Tier / X-User-Id /
- * X-User-Key. The tunnel hostname is reachable DIRECTLY,
+ * X-User-Key / X-User-Name / X-Hadoku-Vouched. The tunnel hostname is reachable DIRECTLY,
  * bypassing the edge — so a direct hit could forge those headers. We believe
  * them only when the shared secret checks out; otherwise we overwrite them with
  * the most restrictive identity.
@@ -58,7 +58,7 @@ function ctEqual(a: string, b: string): boolean {
 	return diff === 0;
 }
 
-function edgeVouched(headers: Record<string, unknown>): boolean {
+function edgeProvenanceOk(headers: Record<string, unknown>): boolean {
 	const got = headers['x-edge-auth'];
 	return (
 		CONFIG.edgeAuthSecret !== '' && typeof got === 'string' && ctEqual(got, CONFIG.edgeAuthSecret)
@@ -86,7 +86,7 @@ export function sanitizeHeaders(headers: Record<string, unknown>): void {
 			return;
 		}
 		// else fall through: nothing can prove provenance → degrade every request
-	} else if (edgeVouched(headers)) {
+	} else if (edgeProvenanceOk(headers)) {
 		return;
 	}
 	headers['x-hadoku-tier'] = 'public';
@@ -97,11 +97,21 @@ export function sanitizeHeaders(headers: Record<string, unknown>): void {
 	delete headers['x-user-id'];
 	delete headers['x-user-name'];
 	delete headers['x-user-key'];
+	delete headers['x-hadoku-vouched'];
 }
 
 export function tierOf(req: Request): string {
 	const t = req.headers['x-hadoku-tier'];
 	return typeof t === 'string' && t !== '' ? t : 'public';
+}
+
+/**
+ * The operator vouches for this caller (`X-Hadoku-Vouched: 1`, stamped by the
+ * edge from the same registry row as `X-User-Id`): every tier above member,
+ * and a member the operator made or vouched for. Absent means not vouched.
+ */
+export function vouchedOf(req: Request): boolean {
+	return req.headers['x-hadoku-vouched'] === '1';
 }
 
 /** The caller's userId as the edge stamped it; null when the edge named nobody. */
