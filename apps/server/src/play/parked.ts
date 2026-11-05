@@ -101,6 +101,8 @@ export interface ParkedStore {
 	resumed(matchId: string, as: Omit<ResumedAs, 'at'>): boolean;
 	/** The game `matchId` was played to the end: the record it was resumed from, if any, is finished with. */
 	finished(matchId: string): void;
+	/** Account erase: every parked game `participantId` held a seat in is deleted. Answers how many. */
+	forget(participantId: string): number;
 }
 
 export interface ParkedStoreDeps {
@@ -231,6 +233,12 @@ export function openParkedStore(deps: ParkedStoreDeps): ParkedStore {
 			write(next);
 			index.set(matchId, summaryOf(next));
 			return true;
+		},
+		forget(participantId) {
+			const theirs = [...index.values()].filter((s) => s.seats.some((seat) => seat.owner === participantId));
+			for (const s of theirs) remove(s.matchId);
+			if (theirs.length > 0) deps.log({ evt: 'parked-erased', matchIds: theirs.map((s) => s.matchId) });
+			return theirs.length;
 		},
 		finished(matchId) {
 			const from = resumedFrom(matchId);

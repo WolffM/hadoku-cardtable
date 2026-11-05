@@ -35,6 +35,7 @@ import { edgeSealed } from '../edge-auth.js';
 import type { JsonLog } from '../log.js';
 import { deriveParticipantId } from '../room/identity.js';
 import { reportSealRefused } from '../telemetry.js';
+import { placeholderId } from './anonymise.js';
 
 export const ERASE_PATH = '/api/_account/erase';
 
@@ -44,12 +45,21 @@ export interface ErasedPerson {
 	userId: string;
 	/** The `fk:` id this server knows them by, derived from the userId. */
 	participantId: ParticipantId;
+	/** Both of the above: what a shared record names them by (`anonymise.ts`'s `replaceIds`). */
+	ids: ReadonlySet<string>;
+	/** What they become in a shared record, one per erase (`placeholderId`). */
+	placeholder: string;
 }
 
-/** One store's part of an erase: how many of the person's records it removed. Zero when none are left. */
+/**
+ * One store's part of an erase: how many of the person's records it erased or anonymised,
+ * zero when none are left. A store with several kinds of record answers a count for each,
+ * by name, and `what` only names the step.
+ */
+export type EraseCounts = number | Record<string, number>;
 export interface EraseStep {
 	what: string;
-	erase(person: ErasedPerson): number | Promise<number>;
+	erase(person: ErasedPerson): EraseCounts | Promise<EraseCounts>;
 }
 
 export interface AccountErase {
@@ -62,7 +72,8 @@ export interface AccountErase {
 }
 
 export function personOf(userId: string): ErasedPerson {
-	return { userId, participantId: deriveParticipantId({ accountId: userId, socketId: '' }) };
+	const participantId = deriveParticipantId({ accountId: userId, socketId: '' });
+	return { userId, participantId, ids: new Set([userId, participantId]), placeholder: placeholderId() };
 }
 
 export function createAccountErase(opts: { log: JsonLog }): AccountErase {
@@ -71,7 +82,11 @@ export function createAccountErase(opts: { log: JsonLog }): AccountErase {
 	const erase = async (userId: string): Promise<Record<string, number>> => {
 		const person = personOf(userId);
 		const erased: Record<string, number> = {};
-		for (const step of steps) erased[step.what] = await step.erase(person);
+		for (const step of steps) {
+			const counts = await step.erase(person);
+			if (typeof counts === 'number') erased[step.what] = counts;
+			else Object.assign(erased, counts);
+		}
 		return erased;
 	};
 

@@ -198,6 +198,19 @@ describe('the parked store', () => {
 		return { s, logs };
 	}
 
+	it("deletes every parked game a person held a seat in, from disk too, on their account's erase", () => {
+		const dir = tempDir();
+		const { s } = store(dir);
+		const record = s.park(running());
+		expect(record).not.toBeNull();
+		expect(s.forget('fk:cccccccccccccccc')).toBe(0);
+		expect(s.forget('fk:aaaaaaaaaaaaaaaa')).toBe(1);
+		expect(s.listFor('fk:bbbbbbbbbbbbbbbb')).toEqual([]);
+		expect(readdirSync(dir)).toEqual([]);
+		expect(store(dir).s.listFor('fk:bbbbbbbbbbbbbbbb')).toEqual([]);
+		expect(s.forget('fk:aaaaaaaaaaaaaaaa')).toBe(0);
+	});
+
 	it('parks a running game: its room, seats, decks, snapshot, clock and pin, written atomically and listed for each player', () => {
 		const dir = tempDir();
 		const { s } = store(dir);

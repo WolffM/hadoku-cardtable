@@ -509,3 +509,18 @@ describe('the real committed shortlist, against the real committed cube-art.json
 		expect(broken, 'every cube-art.json id names a real cube, and its card is still in that cube').toEqual([]);
 	});
 });
+
+describe('account erase in the imported cubes', () => {
+	it('credits a cube its importer imported to the placeholder, on disk too, and finds none the second time', async () => {
+		const { shortlistDir, importDir } = await makeDirs();
+		const fixture = await readFixture();
+		const store = createCubeStore({ shortlistDir, importDir, catalog: EMPTY_CATALOG, fetchJson: async () => fixture });
+		const summary = await store.importLink('https://cubecobra.com/cube/overview/lsv-cube-fixture', 'fk:alice');
+
+		expect(await store.anonymise(new Set(['fk:alice', 'uid-alice']), 'erased:0a1b2c3d')).toBe(1);
+		expect(store.list().find((c) => c.id === summary.id)?.importedBy).toBe('erased:0a1b2c3d');
+		const onDisk = JSON.parse(await readFile(join(importDir, `${summary.id}.json`), 'utf8')) as { importedBy: string };
+		expect(onDisk.importedBy).toBe('erased:0a1b2c3d');
+		expect(await store.anonymise(new Set(['fk:alice', 'uid-alice']), 'erased:ffffffff')).toBe(0);
+	});
+});

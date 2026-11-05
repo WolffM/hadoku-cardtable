@@ -340,6 +340,44 @@ describe('a server started from a path', () => {
 		expect(page.status).toBe(200);
 	}, 60_000);
 
+	it("answers the edge's account erase with every store's count, and refuses it without the seal", async () => {
+		const SEAL = 'edge-seal-for-the-boot-test';
+		const answers: { status: number; body: unknown }[] = [];
+		const post = async (base: string, headers: Record<string, string>) => {
+			const res = await fetch(`${base}/api/_account/erase`, { method: 'POST', headers });
+			answers.push({ status: res.status, body: await res.json() });
+		};
+		await boot(join(root, 'erase', 'apps', 'ui', 'dist'), { EDGE_AUTH_SECRET: SEAL, CARDTABLE_INSECURE_NO_EDGE_AUTH: '0' }, 30_000, undefined, async (base) => {
+			const who = { 'x-hadoku-tier': 'member', 'x-user-id': 'c41f9e2a-7b3d-4a8e-9c56-2f0d1b8e6a03' };
+			await post(base, who);
+			await post(base, { ...who, 'x-edge-auth': SEAL });
+		});
+		expect(answers[0]?.status).toBe(401);
+		expect(answers[1]).toEqual({
+			status: 200,
+			body: {
+				erased: {
+					callersSeen: 0,
+					statsKeys: 0,
+					people: 0,
+					matchesForfeited: 0,
+					roomsClosed: 0,
+					roomsLeft: 0,
+					roomsAnonymised: 0,
+					decks: 0,
+					pods: 0,
+					tournaments: 0,
+					events: 0,
+					forms: 0,
+					parked: 0,
+					presets: 0,
+					cubes: 0,
+					legacyIds: 0,
+				},
+			},
+		});
+	}, 60_000);
+
 	it('under a dot-directory reports degraded, and says why on the page instead of a 404', async () => {
 		const { health, page } = await boot(join(root, 'repo', '.claude', 'worktrees', 'w', 'apps', 'ui', 'dist'));
 		// The invariant first: green /health and a failing page may never coexist.

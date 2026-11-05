@@ -29,7 +29,7 @@
  * whole second server configured this way for the same reason.)
  */
 
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -46,13 +46,17 @@ import {
 import { pick as enginePick } from '@hadoku/draft';
 import { safeParseServerMessage, stateMessage, type DraftCard, type DraftPlan, type PoolSource } from '@hadoku/shared';
 
+import { participantHandle } from './identity.js';
 import {
+	builtDeckOf,
 	createDraftRooms,
 	DEFAULT_PARAMS,
 	DEFAULT_PLAN,
 	joinDraftRoom,
 	leaveDraftRoom,
 	releaseSeat,
+	saveBuiltDeck,
+	setDeckMeta,
 	singlePoolResolver,
 	stateOf,
 	viewForClient,
@@ -1113,5 +1117,36 @@ describe('the wire: cubeMetaOf never emits a CubeMeta the real ServerMessage sch
 		const plan: DraftPlan = { rounds: [{ kind: 'set', code: 'ISD', style: 'realistic' }, { kind: 'set', code: 'ARB', style: 'set-cube' }, { kind: 'cube', cubeId: 'vintage' }] };
 		const packs = Array.from({ length: 8 }, (_, seat) => makeCards(`isd-seat${seat}`, 15));
 		expectValidWireMessage(stateMessageFor(r, 'pod-wire-mixed', plan, [{ round: 0, packs }]));
+	});
+});
+
+describe('account erase in the draft pods', () => {
+	it("erases the drafter's own build and deck page edits, anonymises their seat, and saves the pod", async () => {
+		const dir = await mkdtemp(join(tmpdir(), 'cardtable-draftrooms-erase-'));
+		try {
+			const r = createDraftRooms({ ...singlePoolResolver(pool), now: () => 1_700_000_000_000, storeDir: dir });
+			r.setPodLookup(() => podDeal([{ participantId: ALICE, displayName: 'Alice', seat: 5 }, { participantId: BOB, displayName: 'Bob', seat: 2 }]));
+			const room = r.open('pod-erase');
+			saveBuiltDeck(room, ALICE, '[Main]\n1 Island');
+			setDeckMeta(room, ALICE, { name: 'Mine' });
+			saveBuiltDeck(room, BOB, '[Main]\n1 Mountain');
+			const to = 'erased:0a1b2c3d';
+
+			expect(r.erase(ALICE, new Set([ALICE, 'uid-alice']), to)).toEqual({ decks: 1, pods: 1 });
+			expect(builtDeckOf(room, ALICE)).toBeNull();
+			expect(room.app.deckMeta[ALICE]).toBeUndefined();
+			expect(builtDeckOf(room, BOB)).toBe('[Main]\n1 Mountain');
+			const state = stateOf(room);
+			expect(JSON.stringify(state)).not.toContain(ALICE);
+			expect(state.displayNames[5]).toBe(participantHandle(to as never));
+			expect(state.displayNames[2]).toBe('Bob');
+			const saved = await Promise.all((await readdir(dir)).filter((f) => f.endsWith('.json')).map((f) => readFile(join(dir, f), 'utf8')));
+			expect(saved.join('')).not.toContain(ALICE);
+			expect(saved.join('')).toContain(to);
+
+			expect(r.erase(ALICE, new Set([ALICE, 'uid-alice']), 'erased:ffffffff')).toEqual({ decks: 0, pods: 0 });
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
 	});
 });

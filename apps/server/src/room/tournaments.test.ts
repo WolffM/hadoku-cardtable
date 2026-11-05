@@ -65,3 +65,29 @@ describe('the tournaments store', () => {
 		expect(logged).toContainEqual({ event: 'tournaments-dropped', dropped: 1 });
 	});
 });
+
+describe('account erase in the tournaments', () => {
+	it('names the placeholder, with no name, wherever a tournament named the person, and saves before answering', async () => {
+		const file = await fileIn();
+		const store = await openTournaments(file, () => {});
+		store.record(
+			t('pod', 1, {
+				names: { 'fk:alice': 'Alice', 'fk:bob': 'Bob' },
+				standings: [
+					{ id: 'fk:alice', matchPoints: 3, opponentMatchWinPct: 0, gameWinPct: 1, opponentGameWinPct: 0, medianGameMs: null, rank: 1, decidedBy: null },
+					{ id: 'fk:bob', matchPoints: 0, opponentMatchWinPct: 1, gameWinPct: 0, opponentGameWinPct: 1, medianGameMs: null, rank: 2, decidedBy: null },
+				],
+			}),
+		);
+		store.record(t('other', 2, { names: { 'fk:bob': 'Bob' } }));
+
+		expect(await store.anonymise(new Set(['fk:alice', 'uid-alice']), 'erased:0a1b2c3d')).toBe(1);
+		const saved = await readFile(file, 'utf8');
+		expect(saved).not.toContain('fk:alice');
+		expect(saved).not.toContain('Alice');
+		const pod = (JSON.parse(saved) as Tournament[]).find((x) => x.id === 'pod')!;
+		expect(pod.names).toEqual({ 'fk:bob': 'Bob', 'erased:0a1b2c3d': '' });
+		expect(pod.standings.map((s) => s.id)).toEqual(['erased:0a1b2c3d', 'fk:bob']);
+		expect(await store.anonymise(new Set(['fk:alice', 'uid-alice']), 'erased:ffffffff')).toBe(0);
+	});
+});

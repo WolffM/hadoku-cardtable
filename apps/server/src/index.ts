@@ -128,6 +128,9 @@ import { openEvents } from './room/events.js';
 import { openTournaments } from './room/tournaments.js';
 import { jsonLogger } from './log.js';
 import { createAccountErase, ERASE_PATH } from './erase/index.js';
+import { legacyIdsStep } from './erase/legacy-ids.js';
+import { roomsEraseSteps } from './erase/rooms.js';
+import type { Match } from './play/match.js';
 import { firstSeen, installTelemetry, monitoringSink, reportingAlerts, siteOf } from './telemetry.js';
 import { createKeyBook, createMatchStats, createStatsReporter } from './stats/index.js';
 import { recordMatch } from '@wolffm/prefs-client/games';
@@ -616,6 +619,11 @@ const runTestingRoomSeed = (): Promise<void> =>
 		library,
 	});
 
+/** A tournament entrant's leave dropped them from a match: its games end as their forfeit, and its seats' decks are restored. */
+const roomForfeited = (roomId: string, tableId: string, loser: string, matches: readonly string[]): void => {
+	for (const id of matches) endForfeitedGame(play?.matches.get(id), loser);
+	tables.seriesEnded(roomId, tableId);
+};
 const roomClosed = (roomId: string, matches: readonly string[]): void => {
 	for (const id of matches) play?.matches.get(id)?.stop();
 	// An unfinished draft has no deck to keep; a finished one stays on its drafters' Decks page.
@@ -638,10 +646,7 @@ attachRooms(api, {
 		return pick !== null && (play?.matches.get(pick.matchId)?.seatOf(caller) ?? null) !== null ? null : pick;
 	},
 	closed: roomClosed,
-	forfeited: (roomId, tableId, loser, matches) => {
-		for (const id of matches) endForfeitedGame(play?.matches.get(id), loser);
-		tables.seriesEnded(roomId, tableId);
-	},
+	forfeited: roomForfeited,
 	// "Reset = Close": the testing room `/:id/close` just forgot is recreated
 	// fresh under the same name, the moment the close answers — not a
 	// separate reset feature.
@@ -1105,6 +1110,24 @@ function shutdown(signal: string): void {
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
+
+// ── Account erase: the stores built above ────────────────────────────────────
+// In this order: the person's live games and rooms first, so a room closed here is archived
+// before the tournaments are anonymised. `erase/` has the operator's rulings.
+for (const step of roomsEraseSteps<Match>({
+	lobby,
+	liveMatches: () => play?.matches.active() ?? [],
+	forfeit: endForfeitedGame,
+	closed: roomClosed,
+	forfeited: roomForfeited,
+})) accountErase.register(step);
+accountErase.register({ what: 'pods', erase: (p) => draftRooms?.erase(p.participantId, p.ids, p.placeholder) ?? { decks: 0, pods: 0 } });
+accountErase.register({ what: 'tournaments', erase: (p) => tournaments.anonymise(p.ids, p.placeholder) });
+accountErase.register({ what: 'events', erase: (p) => events.anonymise(p.ids, p.placeholder) });
+accountErase.register({ what: 'parked', erase: (p) => parked.forget(p.participantId) });
+accountErase.register({ what: 'presets', erase: (p) => presetStore.anonymise(p.ids, p.placeholder) });
+accountErase.register({ what: 'cubes', erase: (p) => cubeStore.anonymise(p.ids, p.placeholder) });
+accountErase.register(legacyIdsStep(join(CONFIG.dataDir, 'legacy-ids.done.json')));
 
 // ── Listen ───────────────────────────────────────────────────────────────────
 httpServer.listen(CONFIG.port, CONFIG.host, () => {

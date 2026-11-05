@@ -40,6 +40,8 @@ export interface PresetStore {
 	create(name: string, plan: DraftPlan, by: string): Promise<DraftPreset>;
 	/** Throws a {@link PresetStoreRefusal}; never a silent no-op. */
 	remove(id: string, by: string): Promise<void>;
+	/** Account erase: presets created by one of `ids` are credited to `to`. Answers how many, once saved. */
+	anonymise(ids: ReadonlySet<string>, to: string): Promise<number>;
 }
 
 /** A typed refusal `remove` throws — the HTTP status is already decided. */
@@ -148,6 +150,13 @@ export function createPresetStore(opts: CreatePresetStoreOpts): PresetStore {
 			}
 			presets.splice(index, 1);
 			await persist();
+		},
+
+		async anonymise(ids: ReadonlySet<string>, to: string): Promise<number> {
+			const theirs = presets.filter((p) => ids.has(p.createdBy));
+			for (const p of theirs) p.createdBy = to;
+			if (theirs.length > 0) await persist();
+			return theirs.length;
 		},
 	};
 }

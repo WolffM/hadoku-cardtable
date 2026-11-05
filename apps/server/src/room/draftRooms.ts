@@ -156,6 +156,7 @@ import {
 
 import { participantHandle } from './identity.js';
 import { jsonLogger } from '../log.js';
+import { replaceIds } from '../erase/anonymise.js';
 
 /** The hosting app's room state: one draft. */
 export interface DraftApp {
@@ -408,6 +409,12 @@ export interface DraftRooms {
 	 * here, so nothing is retained past the one deal it was fetched for.
 	 */
 	cacheRealisticRound(draftId: string, round: number, packs: readonly (readonly DraftCard[])[]): void;
+	/**
+	 * Account erase: the drafter's own build and deck page edits go (`decks`); their seat in each
+	 * pod, which the other drafters' pairings and pools hang on, names `to` instead, under that
+	 * id's handle (`pods`). Each pod changed is saved.
+	 */
+	erase(participantId: ParticipantId, ids: ReadonlySet<string>, to: string): { decks: number; pods: number };
 }
 
 /**
@@ -798,6 +805,32 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 		},
 		nameOf(src) {
 			return options.resolver.name(src);
+		},
+		erase(participantId, ids, to) {
+			let decks = 0;
+			let pods = 0;
+			for (const room of registry.all()) {
+				const app = room.app;
+				const hadDeck = participantId in app.builtDecks || participantId in app.deckMeta;
+				delete app.builtDecks[participantId];
+				delete app.deckMeta[participantId];
+				const vacate = app.vacating.get(participantId);
+				if (vacate !== undefined) clearTimeout(vacate);
+				app.vacating.delete(participantId);
+				const named = room.clientNames.delete(participantId);
+				const seats = app.state === null ? [] : humanSeatsOf(app.state).filter((s) => ids.has(s.participantId));
+				const replaced = replaceIds(room.seats, ids, to) + (app.state === null ? 0 : replaceIds(app.state, ids, to));
+				if (app.state !== null && seats.length > 0) {
+					const displayNames = { ...app.state.displayNames };
+					for (const { seat } of seats) displayNames[seat] = participantHandle(to as ParticipantId);
+					app.state = { ...app.state, displayNames };
+				}
+				if (hadDeck) decks++;
+				if (!hadDeck && !named && replaced === 0) continue;
+				pods++;
+				app.persist(room);
+			}
+			return { decks, pods };
 		},
 		cacheRealisticRound(draftId, round, packs) {
 			let byRound = realisticByDraft.get(draftId);

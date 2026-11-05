@@ -61,6 +61,8 @@ export interface CubeStore {
 	/** Throws a {@link CubeStoreRefusal}; never a silent no-op. */
 	remove(id: string, by: string): void;
 	setVerdict(id: string, verdict: PoolVerdict): void;
+	/** Account erase: cubes imported by one of `ids` are credited to `to`. Answers how many, once saved. */
+	anonymise(ids: ReadonlySet<string>, to: string): Promise<number>;
 }
 
 /** A typed refusal `remove`/`refresh`/`importLink` throw — the HTTP status is already decided. */
@@ -458,6 +460,15 @@ export function createCubeStore(opts: CreateCubeStoreOpts): CubeStore {
 			} catch (err) {
 				log({ evt: 'import-delete-failed', id, detail: (err as Error).message });
 			}
+		},
+
+		async anonymise(ids: ReadonlySet<string>, to: string): Promise<number> {
+			const theirs = [...imported.values()].filter((e) => e.summary.importedBy !== null && ids.has(e.summary.importedBy));
+			for (const entry of theirs) {
+				entry.summary = { ...entry.summary, importedBy: to };
+				await persistImport(entry);
+			}
+			return theirs.length;
 		},
 
 		setVerdict(id: string, verdict: PoolVerdict): void {

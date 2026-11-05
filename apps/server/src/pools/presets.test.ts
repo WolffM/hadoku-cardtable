@@ -218,3 +218,17 @@ describe('attachPresetRoutes over HTTP', () => {
 		expect(onDisk.presets[0]?.name).toBe('ISD x3');
 	});
 });
+
+describe('account erase in the presets', () => {
+	it("credits the person's presets to the placeholder, on disk too, and leaves everyone else's", async () => {
+		const path = await presetsPath();
+		const store = createPresetStore({ path });
+		await store.create('Hers', PLAN, 'fk:alice');
+		await store.create('His', PLAN, 'fk:bob');
+
+		expect(await store.anonymise(new Set(['fk:alice', 'uid-alice']), 'erased:0a1b2c3d')).toBe(1);
+		const onDisk = JSON.parse(await readFile(path, 'utf8')) as { presets: { name: string; createdBy: string }[] };
+		expect(Object.fromEntries(onDisk.presets.map((p) => [p.name, p.createdBy]))).toEqual({ Hers: 'erased:0a1b2c3d', His: 'fk:bob' });
+		expect(await store.anonymise(new Set(['fk:alice', 'uid-alice']), 'erased:ffffffff')).toBe(0);
+	});
+});

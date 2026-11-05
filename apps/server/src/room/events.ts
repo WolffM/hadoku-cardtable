@@ -14,6 +14,8 @@ import { randomBytes } from 'node:crypto';
 
 import { z } from 'zod';
 
+import { replaceIds } from '../erase/anonymise.js';
+
 const EventRecordSchema = z.object({
 	id: z.string(),
 	roomId: z.string(),
@@ -57,6 +59,8 @@ export interface Events {
 	detachForm(formId: string, callerId: string): FormChange;
 	/** Forget forms Rally says are closed or gone: nobody lists them again. */
 	forgetForms(formIds: readonly string[]): void;
+	/** Account erase: an event they organised and a form they attached keep going under `to`, with no name. Answers how many changed, once saved. */
+	anonymise(ids: ReadonlySet<string>, to: string): Promise<{ events: number; forms: number }>;
 }
 
 const mintEventId = (): string => `e-${randomBytes(6).toString('hex')}`;
@@ -74,19 +78,24 @@ export async function openEvents(file: string, log: (entry: Record<string, unkno
 		if ((err as NodeJS.ErrnoException).code !== 'ENOENT') log({ event: 'events-unreadable', err: String(err) });
 	}
 
-	// One write at a time, each of the whole store as it then is.
-	let writing: Promise<void> = Promise.resolve();
-	const save = (): void => {
+	// One write at a time, each of the whole store as it then is. Resolves false, logged, when it failed.
+	let writing: Promise<boolean> = Promise.resolve(true);
+	const save = (): Promise<boolean> => {
 		const cutoff = now() - EVENT_KEPT_AFTER_START_MS;
 		events = events.filter((e) => e.startsAt > cutoff);
 		const body = JSON.stringify({ events, forms });
-		writing = writing
-			.then(async () => {
+		writing = writing.then(async () => {
+			try {
 				await mkdir(dirname(file), { recursive: true });
 				await writeFile(`${file}.tmp`, body);
 				await rename(`${file}.tmp`, file);
-			})
-			.catch((err: unknown) => log({ event: 'events-write-failed', err: String(err) }));
+				return true;
+			} catch (err) {
+				log({ event: 'events-write-failed', err: String(err) });
+				return false;
+			}
+		});
+		return writing;
 	};
 
 	const owned = (id: string, callerId: string): EventChange => {
@@ -110,7 +119,7 @@ export async function openEvents(file: string, log: (entry: Record<string, unkno
 			const event: EventRecord = { id, ...input, createdAt: at };
 			events = [...events, event];
 			log({ event: 'event-created', id, roomId: event.roomId });
-			save();
+			void save();
 			return event;
 		},
 		reschedule(id, callerId, startsAt) {
@@ -119,7 +128,7 @@ export async function openEvents(file: string, log: (entry: Record<string, unkno
 			const event: EventRecord = { ...found.event, startsAt };
 			events = events.map((e) => (e.id === id ? event : e));
 			log({ event: 'event-updated', id });
-			save();
+			void save();
 			return { ok: true, event };
 		},
 		cancel(id, callerId) {
@@ -127,7 +136,7 @@ export async function openEvents(file: string, log: (entry: Record<string, unkno
 			if (!found.ok) return found;
 			events = events.filter((e) => e.id !== id);
 			log({ event: 'event-cancelled', id });
-			save();
+			void save();
 			return found;
 		},
 		forms() {
@@ -137,7 +146,7 @@ export async function openEvents(file: string, log: (entry: Record<string, unkno
 			if (forms.some((f) => f.formId === input.formId)) return false;
 			forms = [...forms, { ...input, attachedAt: at }];
 			log({ event: 'event-form-attached', formId: input.formId });
-			save();
+			void save();
 			return true;
 		},
 		detachForm(formId, callerId) {
@@ -146,7 +155,7 @@ export async function openEvents(file: string, log: (entry: Record<string, unkno
 			if (form.attachedById !== callerId) return { ok: false, reason: 'not-attacher' };
 			forms = forms.filter((f) => f !== form);
 			log({ event: 'event-form-detached', formId });
-			save();
+			void save();
 			return { ok: true };
 		},
 		forgetForms(formIds) {
@@ -154,7 +163,23 @@ export async function openEvents(file: string, log: (entry: Record<string, unkno
 			if (!forms.some((f) => gone.has(f.formId))) return;
 			forms = forms.filter((f) => !gone.has(f.formId));
 			log({ event: 'event-forms-forgotten', formIds });
-			save();
+			void save();
+		},
+		async anonymise(ids, to) {
+			let changedEvents = 0;
+			for (const e of events) {
+				if (replaceIds(e, ids, to) === 0) continue;
+				if (e.organizerId === to) e.organizerName = '';
+				changedEvents++;
+			}
+			let changedForms = 0;
+			for (const f of forms) {
+				if (replaceIds(f, ids, to) === 0) continue;
+				if (f.attachedById === to) f.attachedByName = '';
+				changedForms++;
+			}
+			if (changedEvents + changedForms > 0 && !(await save())) throw new Error('events: the anonymised store was not saved');
+			return { events: changedEvents, forms: changedForms };
 		},
 	};
 }

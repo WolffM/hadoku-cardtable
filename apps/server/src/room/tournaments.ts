@@ -13,12 +13,15 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import { TournamentSchema, type Tournament } from '@hadoku/shared';
+import { replaceIds } from '../erase/anonymise.js';
 
 export interface Tournaments {
 	/** Keeps the first record for an id: a pod archived when it finished is not overwritten by its room's close. */
 	record(t: Tournament): void;
 	/** Newest first. */
 	list(): Tournament[];
+	/** Account erase: every tournament naming one of `ids` names `to` instead, with no name. Answers how many changed, once saved. */
+	anonymise(ids: ReadonlySet<string>, to: string): Promise<number>;
 }
 
 /** The most kept; the oldest go first. */
@@ -35,17 +38,22 @@ export async function openTournaments(file: string, log: (entry: Record<string, 
 		if ((err as NodeJS.ErrnoException).code !== 'ENOENT') log({ event: 'tournaments-unreadable', err: String(err) });
 	}
 
-	// One write at a time, each of the whole list as it then is.
-	let writing: Promise<void> = Promise.resolve();
-	const save = (): void => {
+	// One write at a time, each of the whole list as it then is. Resolves false, logged, when it failed.
+	let writing: Promise<boolean> = Promise.resolve(true);
+	const save = (): Promise<boolean> => {
 		const body = JSON.stringify(all);
-		writing = writing
-			.then(async () => {
+		writing = writing.then(async () => {
+			try {
 				await mkdir(dirname(file), { recursive: true });
 				await writeFile(`${file}.tmp`, body);
 				await rename(`${file}.tmp`, file);
-			})
-			.catch((err: unknown) => log({ event: 'tournaments-write-failed', err: String(err) }));
+				return true;
+			} catch (err) {
+				log({ event: 'tournaments-write-failed', err: String(err) });
+				return false;
+			}
+		});
+		return writing;
 	};
 
 	return {
@@ -53,10 +61,20 @@ export async function openTournaments(file: string, log: (entry: Record<string, 
 			if (all.some((x) => x.id === t.id)) return;
 			all = [...all, t].slice(-TOURNAMENTS_KEPT);
 			log({ event: 'tournament-recorded', id: t.id, closed: t.closed });
-			save();
+			void save();
 		},
 		list() {
 			return [...all].sort((a, b) => b.endedAt - a.endedAt);
+		},
+		async anonymise(ids, to) {
+			let changed = 0;
+			for (const t of all) {
+				if (replaceIds(t, ids, to) === 0) continue;
+				if (to in t.names) t.names[to] = '';
+				changed++;
+			}
+			if (changed > 0 && !(await save())) throw new Error('tournaments: the anonymised list was not saved');
+			return changed;
 		},
 	};
 }

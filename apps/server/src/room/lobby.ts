@@ -122,6 +122,7 @@ import { convertToBo3, newSeries, recordGame, seriesFormatOf, seriesWinner, stat
 // A type only: the catalog itself is loaded once, at boot, by `index.ts`
 // (`http/library.ts`'s `loadTablesLibrary`) and handed in as `formats`.
 import type { TableFormat } from '../http/library.js';
+import { replaceIds } from '../erase/anonymise.js';
 
 /* ── the room's format ───────────────────────────────────────────────────── */
 
@@ -1468,6 +1469,14 @@ export interface Lobby {
 	 * the matches its tables were playing, for the caller to stop.
 	 */
 	close(roomId: string, callerId: string): CloseRoomResult;
+	/**
+	 * Account erase: every room that still names one of `ids` (a member who has left, in
+	 * results, series, pod pairings, locked decks) names `to` instead, and is saved. Answers
+	 * how many rooms changed. The person leaves first (`leave`), so leadership has passed on.
+	 */
+	anonymise(ids: ReadonlySet<string>, to: string): number;
+	/** Resolves once every room forgotten so far is gone from disk too (a failed delete is logged as `room-forget-failed`). */
+	removed(): Promise<void>;
 	/** Move the start of the event a room was made for (`CreateRoomInput.scheduledFor`). False when there is no such room. */
 	reschedule(roomId: string, at: number): boolean;
 	create(caller: Caller, input: CreateRoomInput): CreateResult;
@@ -2396,6 +2405,8 @@ class FileLobby implements Lobby {
 	readonly #avatarListeners = new Set<AvatarChangeListener>();
 	readonly #changeListeners = new Set<RoomChangeListener>();
 	#rooms = new Map<string, RoomRecord>();
+	/** Room files still being deleted (`#forget`): `removed` waits for them. */
+	readonly #removing = new Set<Promise<void>>();
 	/**
 	 * The newest `createdAt` minted or restored so far.
 	 *
@@ -3779,6 +3790,24 @@ class FileLobby implements Lobby {
 		return dropped;
 	}
 
+	async removed(): Promise<void> {
+		await Promise.all([...this.#removing]);
+	}
+
+	anonymise(ids: ReadonlySet<string>, to: string): number {
+		let changed = 0;
+		for (const room of this.#rooms.values()) {
+			// A Gauntlet keeps a leaver's name in memory (`gauntletNamed`); a saved one never has it.
+			for (const [tableId, g] of Object.entries(room.gauntlets)) {
+				if (g.players?.some((p) => p.memberId !== null && ids.has(p.memberId)) === true) room.gauntlets[tableId] = gauntletWithoutNames(g);
+			}
+			if (replaceIds(room, ids, to) === 0) continue;
+			changed++;
+			this.#persist(room);
+		}
+		return changed;
+	}
+
 	reschedule(roomId: string, at: number): boolean {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return false;
@@ -3809,9 +3838,11 @@ class FileLobby implements Lobby {
 		this.#secrets.delete(id);
 		this.#touchedAt.delete(id);
 		// Logged, because a store that cannot delete must not resurrect the room on the next boot silently.
-		void this.#store.remove(id).catch((err: unknown) => {
+		const removing = this.#store.remove(id).catch((err: unknown) => {
 			this.#log({ event: 'room-forget-failed', roomId: id, err: String(err) });
 		});
+		this.#removing.add(removing);
+		void removing.finally(() => this.#removing.delete(removing));
 		this.#changed(id);
 	}
 
