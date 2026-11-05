@@ -129,4 +129,15 @@ describe('account erase in the match recordings', () => {
 		expect(read(old)).toContain('Alice');
 		expect(await step.erase(person)).toBe(0);
 	});
+
+	it('matches an action log whose public stream has aged out, by its end line\'s by-seat users', async () => {
+		const dir = temp();
+		const act = join(dir, 'm-000000000003.actions.jsonl.gz');
+		writeFileSync(act, gz([{ t: 'header', spec: { seats: [{ name: 'Bob' }, { name: 'Alice' }] } }, { t: 'end', users: ['uid-bob', 'uid-alice'] }]));
+		const step = recordingsStep(dir);
+		expect(await step.erase(personOf('uid-alice'))).toBe(1);
+		const lines = read(act).trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
+		expect(lines).toEqual([{ t: 'header', spec: { seats: [{ name: 'Bob' }, { name: UNNAMED }] } }, { t: 'end', users: ['uid-bob', null] }]);
+		expect(await step.erase(personOf('uid-alice'))).toBe(0);
+	});
 });
