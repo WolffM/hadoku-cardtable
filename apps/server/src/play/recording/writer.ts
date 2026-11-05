@@ -147,6 +147,12 @@ export interface RecordedSeat {
 	playerId: number | null;
 	/** Absent when the seat had none, as on the wire. */
 	avatarId?: string;
+	/**
+	 * The holder's registry userId, so the replay draws them as they are when it is watched (R12):
+	 * kept on disk, and replaced by their face and name before a replay leaves the server
+	 * (`http/replays.ts`). Absent for the AI, and in a recording from before it was kept.
+	 */
+	userId?: string;
 }
 
 export interface PublicEndLine {

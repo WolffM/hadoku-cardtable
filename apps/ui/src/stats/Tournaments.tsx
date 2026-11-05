@@ -12,7 +12,7 @@ import { TournamentSchema, type Tournament } from '@hadoku/shared';
 
 import { apiUrl, getJson, type Fetch } from '../http.ts';
 import { PodStandings } from '../screens/pod/PodStandings.tsx';
-import { NO_FACE } from '../components/Avatar.tsx';
+import { faceOf } from '../components/Avatar.tsx';
 
 export async function fetchTournaments(fetchImpl?: Fetch): Promise<Tournament[]> {
   const res = await getJson(apiUrl('tournaments'), fetchImpl);
@@ -64,7 +64,7 @@ export function Tournaments({ load = fetchTournaments }: { load?: () => Promise<
             </time>
             {t.closed && <span className="ct-tournament__closed">Closed early</span>}
           </h2>
-          <PodStandings rows={t.standings} results={t.results} nameOf={(id) => t.names[id] ?? id} avatarOf={() => NO_FACE} myMemberId={null} />
+          <PodStandings rows={t.standings} results={t.results} nameOf={(id) => t.names[id] ?? id} avatarOf={(id) => faceOf(t.faces?.[id])} myMemberId={null} />
         </section>
       ))}
     </div>

@@ -18,12 +18,14 @@
 
 import { resolveAvatars, type ResolvedPerson } from '@wolffm/prefs-client/avatar';
 import { cleanWorn } from '@wolffm/prefs-client/cosmetics';
-import { LOOK_PICTURE_MAX, lookOrNone, type Look } from '@hadoku/shared';
+import { AVATAR_ID_MAX, LOOK_PICTURE_MAX, lookOrNone, type Look, type PersonFace } from '@hadoku/shared';
 
 /** One person, as a screen shows them. */
 export interface Person {
 	/** Their display name now; null for an unknown or closed account. */
 	name: string | null;
+	/** Their watchparty character; null when they never picked one. A room hands its own out; a record of the past has only this. */
+	sprite: string | null;
 	look: Look | undefined;
 }
 
@@ -54,6 +56,7 @@ export function personOf(r: ResolvedPerson | undefined): Person {
 	const cosmetics = cleanWorn(r?.cosmetics);
 	return {
 		name: typeof r?.name === 'string' && r.name.trim() !== '' ? r.name : null,
+		sprite: typeof r?.sprite === 'string' && r.sprite.trim() !== '' && r.sprite.length <= AVATAR_ID_MAX ? r.sprite : null,
 		look: lookOrNone({ ...(picture === undefined ? {} : { picture }), ...(cosmetics === undefined ? {} : { cosmetics }) }),
 	};
 }
@@ -179,4 +182,10 @@ export function attachLooks(rooms: LookRooms, people: People, unnamed: string, o
 			stopChanges();
 		},
 	};
+}
+
+/** How a person is drawn in a record of the past: their character and their look, as they are now. */
+export function faceOfPerson(person: Person | undefined): PersonFace {
+	if (person === undefined) return {};
+	return { ...(person.sprite === null ? {} : { avatarId: person.sprite }), ...(person.look === undefined ? {} : { look: person.look }) };
 }

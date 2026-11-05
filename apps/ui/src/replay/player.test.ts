@@ -194,6 +194,27 @@ describe('createReplayPlayer', () => {
     vi.useRealTimers();
   });
 
+  it('draws each player as they are now where the replay\'s people say so: their character, look and name over what was recorded', () => {
+    const look = { picture: 'https://cdn.discordapp.com/avatars/1/a.png', cosmetics: { overlay: 'overlay.crown' } };
+    const base = threeFrameReplay(100);
+    const data: ReplayData = {
+      ...base,
+      end: {
+        ...base.end!,
+        seats: [
+          { seat: 0, claimed: true, playerId: 0, avatarId: 'alice-face' },
+          { seat: 1, claimed: false, playerId: null, avatarId: 'ai-face' },
+        ],
+      },
+      people: { 0: { name: 'Alice Now', avatarId: 'mage', look } },
+    };
+    const { match } = createReplayPlayer(data);
+    const alice = match.view?.players.find((p) => p.id === 0);
+    expect([alice?.avatarId, alice?.look, alice?.name]).toEqual(['mage', look, 'Alice Now']);
+    // The AI's seat nobody looked up keeps what was recorded.
+    expect(match.view?.players.find((p) => p.id === 1)?.avatarId).toBe('ai-face');
+  });
+
   it('a recording made before the roster was kept draws its players without avatars, and still plays', () => {
     const { match, clock } = createReplayPlayer(threeFrameReplay(1000));
     expect(match.view?.players.map((p) => p.avatarId)).toEqual([undefined, undefined]);

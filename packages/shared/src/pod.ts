@@ -28,6 +28,7 @@
  */
 
 import { z } from 'zod';
+import { PersonFaceSchema } from './look.ts';
 import { DraftPlanSchema, PoolVerdictSchema } from './pool.ts';
 
 /** A draft room's phases, lobby to done — `draft-pods-plan.md`'s "Pods". */
@@ -139,8 +140,16 @@ export const TournamentSchema = z.object({
   /** Closed by its owner before its last round finished. */
   closed: z.boolean(),
   rounds: z.number(),
-  /** Display names by id, the AI included — the room that knew them is gone. */
+  /**
+   * Display names by id, the AI included, as they were when the pod ended. What a person is
+   * called NOW comes from their userId when the record is shown (`GET /api/tournaments`
+   * overwrites it); this stays for the AI and for a record from before `users` was kept.
+   */
   names: z.record(z.string(), z.string()),
+  /** Stored only, never served: each human entrant's registry userId, so they can be looked up when shown (R12). */
+  users: z.record(z.string(), z.string()).optional(),
+  /** Every entrant's face: stored for the AI entrants, and resolved from `users` for the humans when served. */
+  faces: z.record(z.string(), PersonFaceSchema).optional(),
   standings: z.array(PodStandingsRowSchema),
   results: z.array(PodMatchResultSchema),
 });

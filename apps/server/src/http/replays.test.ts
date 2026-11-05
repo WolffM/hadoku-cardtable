@@ -64,11 +64,11 @@ function writeGz(path: string, lines: unknown[]): void {
 	writeFileSync(path, gzipSync(Buffer.from(lines.map((l) => JSON.stringify(l)).join('\n') + '\n', 'utf8')));
 }
 
-function writePublic(dir: string, matchId: string, opts: { roomId?: string | null; winner?: 0 | 1 | null; startedAt?: string; envs?: unknown[]; v?: number } = {}): void {
+function writePublic(dir: string, matchId: string, opts: { roomId?: string | null; winner?: 0 | 1 | null; startedAt?: string; envs?: unknown[]; v?: number; seats?: unknown[] } = {}): void {
 	writeGz(join(dir, `${matchId}.public.jsonl.gz`), [
 		{ t: 'header', v: opts.v ?? 2, matchId, roomId: opts.roomId ?? null, players: ['A', 'B'], ai: [false, false], decks: [null, null], startedAt: opts.startedAt ?? '2026-01-01T00:00:00.000Z' },
 		...(opts.envs ?? [{ t: 'env', at: 0, env: { matchId, cursor: { epoch: 'e', seq: 1 }, frame: { kind: 'notify', method: 'openView', payload: { myPlayers: [0] } } } }]),
-		{ t: 'end', endedAt: '2026-01-01T00:10:00.000Z', winner: opts.winner ?? null },
+		{ t: 'end', endedAt: '2026-01-01T00:10:00.000Z', winner: opts.winner ?? null, ...(opts.seats === undefined ? {} : { seats: opts.seats }) },
 	]);
 }
 
@@ -247,6 +247,49 @@ describe('GET /api/replays/:matchId', () => {
 		const { status, json } = await call(wired, '/api/replays/m-reb');
 		expect(status).toBe(200);
 		expect(json).toEqual(rebuilt);
+	});
+});
+
+describe('a replay\'s people', () => {
+	const SEATS = [
+		{ seat: 0, claimed: true, playerId: 0, avatarId: 'sage', userId: 'uid-ari' },
+		{ seat: 1, claimed: true, playerId: 1, avatarId: 'herald' },
+	];
+	const people = {
+		resolve: async (ids: readonly string[]) =>
+			new Map(ids.filter((id) => id === 'uid-ari').map((id) => [id, { name: 'Ari', sprite: 'mage', look: { picture: 'https://cdn.discordapp.com/avatars/1/a.png', cosmetics: { overlay: 'overlay.crown' } } }] as const)),
+		peek: () => undefined,
+	};
+
+	it('never serves a seat\'s userId with the replay itself', async () => {
+		const dir = await recordingsDir();
+		writePublic(dir, 'm-1', { seats: SEATS });
+		const { json } = await call(await openApp(dir, { people }), '/api/replays/m-1');
+		expect((json.end as { seats: unknown[] }).seats).toEqual([
+			{ seat: 0, claimed: true, playerId: 0, avatarId: 'sage' },
+			{ seat: 1, claimed: true, playerId: 1, avatarId: 'herald' },
+		]);
+		expect(JSON.stringify(json)).not.toContain('uid-ari');
+	});
+
+	it('answers each seat holder as they are now, briefly cached, and nothing for a seat it cannot look up', async () => {
+		const dir = await recordingsDir();
+		writePublic(dir, 'm-1', { seats: SEATS });
+		const { status, json, cache } = await call(await openApp(dir, { people }), '/api/replays/m-1/people');
+		expect(status).toBe(200);
+		expect(cache).toBe('private, max-age=60');
+		expect(json).toEqual({ people: { 0: { name: 'Ari', avatarId: 'mage', look: { picture: 'https://cdn.discordapp.com/avatars/1/a.png', cosmetics: { overlay: 'overlay.crown' } } } } });
+	});
+
+	it('is withheld exactly as the replay is, and a recording from before userIds were kept has nobody', async () => {
+		const dir = await recordingsDir();
+		writePublic(dir, 'm-1', { roomId: 'r-test', seats: SEATS });
+		writePublic(dir, 'm-2');
+		testingRooms.add('r-test');
+		const base = await openApp(dir, { people });
+		expect((await call(base, '/api/replays/m-1/people')).status).toBe(404);
+		expect((await call(base, '/api/replays/m-2/people')).json).toEqual({ people: {} });
+		expect((await call(base, '/api/replays/m-9/people')).status).toBe(404);
 	});
 });
 

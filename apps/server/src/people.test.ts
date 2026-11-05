@@ -30,6 +30,7 @@ describe('personOf', () => {
 	it('carries a picture, what is worn and the name', () => {
 		expect(personOf({ source: 'discord', url: DISCORD, sprite: 'sage', name: 'Ari', cosmetics: { effect: 'effect.glint', overlay: 'overlay.halo' } })).toEqual({
 			name: 'Ari',
+			sprite: 'sage',
 			look: { picture: DISCORD, cosmetics: { effect: 'effect.glint', overlay: 'overlay.halo' } },
 		});
 	});
@@ -40,8 +41,8 @@ describe('personOf', () => {
 	});
 
 	it('drops an item the catalogue does not know, and an unknown person has no name', () => {
-		expect(personOf({ source: 'sprite', name: null, cosmetics: { overlay: 'overlay.not-a-thing' } })).toEqual({ name: null, look: undefined });
-		expect(personOf(undefined)).toEqual({ name: null, look: undefined });
+		expect(personOf({ source: 'sprite', name: null, cosmetics: { overlay: 'overlay.not-a-thing' } })).toEqual({ name: null, sprite: null, look: undefined });
+		expect(personOf(undefined)).toEqual({ name: null, sprite: null, look: undefined });
 	});
 });
 
@@ -51,7 +52,7 @@ describe('createPeople', () => {
 		const people = createPeople({ baseUrl: 'https://prefs.test/', serviceKey: 'k', log: () => undefined, fetch: api.fetch });
 		const [a, b] = await Promise.all([people.resolve(['u1', 'u2']), people.resolve(['u1'])]);
 		expect(a.get('u1')?.look).toEqual({ picture: DISCORD });
-		expect(a.get('u2')).toEqual({ name: null, look: undefined });
+		expect(a.get('u2')).toEqual({ name: null, sprite: null, look: undefined });
 		expect(b.get('u1')?.name).toBe('Ari');
 		expect(api.asked).toEqual([['u1', 'u2']]);
 		await people.resolve(['u1'], { fresh: true });

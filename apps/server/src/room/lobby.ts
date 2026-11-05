@@ -3824,7 +3824,8 @@ class FileLobby implements Lobby {
 		// pod's own AI entrants (one per AI seat, `aiEntrantId`) are each
 		// named from the character its seat was given (`room.podAi`, kept
 		// through the pod's life — see the field's own doc).
-		const aiNames = Object.fromEntries(pod.humans.filter(isAiEntrant).map((id) => [id, entrantPersona(room, id).name]));
+		const ais = pod.humans.filter(isAiEntrant).map((id) => [id, entrantPersona(room, id)] as const);
+		const aiNames = Object.fromEntries(ais.map(([id, p]) => [id, p.name]));
 		this.#onTournament({
 			id: tournamentId(room),
 			name: room.name,
@@ -3833,6 +3834,9 @@ class FileLobby implements Lobby {
 			closed: pod.round <= pod.rounds,
 			rounds: pod.rounds,
 			names: { ...Object.fromEntries(room.members.map((m) => [m.id, m.name])), [POD_AI]: roomAi(room).name, ...aiNames },
+			// The people by userId, looked up when shown; the AI's characters are the room's own, and kept.
+			users: Object.fromEntries(room.members.flatMap((m) => (m.userId === null ? [] : [[m.id, m.userId]]))),
+			faces: { [POD_AI]: { avatarId: roomAi(room).avatarId }, ...Object.fromEntries(ais.map(([id, p]) => [id, { avatarId: p.avatarId }])) },
 			standings: podStandings(room, pod.humans, pod.results),
 			results: pod.results,
 		});

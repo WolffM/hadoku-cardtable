@@ -90,6 +90,15 @@ describe('fetchReplay', () => {
     expect(calls[0]!.url).toContain('replays/m-1');
   });
 
+  it('asks for the replay\'s people beside it, and a people route that fails costs only the people', async () => {
+    const look = { picture: 'https://cdn.discordapp.com/avatars/1/a.png' };
+    const found = stub((url) => (url.includes('/people') ? json(200, { people: { 0: { name: 'Ari', avatarId: 'mage', look }, x: { name: 'bad seat' } } }) : json(200, GOOD_REPLAY_BODY)));
+    expect((await fetchReplay('m-1', found.fetchImpl))?.people).toEqual({ 0: { name: 'Ari', avatarId: 'mage', look } });
+    const broken = stub((url) => (url.includes('/people') ? json(500, { error: 'down' }) : json(200, GOOD_REPLAY_BODY)));
+    const data = await fetchReplay('m-1', broken.fetchImpl);
+    expect([data?.header.matchId, data?.people]).toEqual(['m-1', {}]);
+  });
+
   it('a 404 answers null — no stream, and nothing to rebuild', async () => {
     const { fetchImpl } = stub(() => json(404, { error: 'unknown-match' }));
     expect(await fetchReplay('gone', fetchImpl)).toBeNull();

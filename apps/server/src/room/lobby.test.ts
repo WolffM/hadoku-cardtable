@@ -2964,6 +2964,9 @@ describe('Lobby.close, and the tournaments a pod leaves behind', () => {
 			closed: false,
 			rounds: 1,
 			names: { [ALICE.id]: ALICE.name, [BOB.id]: BOB.name, ai: expect.any(String) },
+			// Its people by userId, looked up when shown; the AI's character is the room's own, kept.
+			users: { [ALICE.id]: ALICE.userId, [BOB.id]: BOB.userId },
+			faces: { ai: { avatarId: expect.any(String) } },
 			standings: [expect.objectContaining({ id: ALICE.id, matchPoints: 3, rank: 1 }), expect.objectContaining({ id: BOB.id, matchPoints: 0, rank: 2 })],
 		});
 		expect(lobby.close(id, ALICE.id).ok).toBe(true);
@@ -3705,6 +3708,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			expect(archived).toHaveLength(1);
 			expect(archived[0]!.names[ALICE.id]).toBe(ALICE.name);
 			expect(Object.keys(archived[0]!.names)).toContain('ai:1');
+			expect(archived[0]!.faces?.['ai:1']?.avatarId, 'an AI entrant keeps the character its seat was given').toEqual(expect.any(String));
 			expect(archived[0]!.standings[0]).toMatchObject({ id: ALICE.id, rank: 1 });
 		});
 	});

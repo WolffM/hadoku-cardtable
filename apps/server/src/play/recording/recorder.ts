@@ -105,6 +105,8 @@ export interface RecorderDeps {
 	deckCosts: DeckCosts;
 	/** The match's roster, as `forge:seats` sends it (`Match.seatIdentities`); undefined once the match is gone. */
 	seatsOf?(matchId: string): readonly SeatIdentity[] | undefined;
+	/** Each seat holder's registry userId, by seat (null for the AI and the unheld); undefined once the match is gone. */
+	usersOf?(matchId: string): readonly (string | null)[] | undefined;
 	log?: JsonLog;
 	/** Overridable for a test. Default `Date.now`. */
 	now?(): number;
@@ -191,7 +193,11 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 		guarded(log, matchId, 'seats', () => {
 			const seats = deps.seatsOf?.(matchId);
 			if (seats === undefined) return;
-			session.seats = seats.map((s) => ({ seat: s.seat, claimed: s.claimed, playerId: s.playerId, ...(typeof s.avatarId === 'string' ? { avatarId: s.avatarId } : {}) }));
+			const users = deps.usersOf?.(matchId);
+			session.seats = seats.map((s) => {
+				const userId = users?.[s.seat] ?? null;
+				return { seat: s.seat, claimed: s.claimed, playerId: s.playerId, ...(typeof s.avatarId === 'string' ? { avatarId: s.avatarId } : {}), ...(userId === null ? {} : { userId }) };
+			});
 		});
 	};
 	const endSeats = (matchId: string, session: Session): { seats?: RecordedSeat[] } => {

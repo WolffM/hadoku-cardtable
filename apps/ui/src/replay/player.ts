@@ -30,7 +30,7 @@
  * well inside a scrub's frame budget.
  */
 
-import { PRESENCE_EVENT, type PresenceEcho } from '@hadoku/shared';
+import { lookOrNone, PRESENCE_EVENT, type Look, type PresenceEcho } from '@hadoku/shared';
 
 import { replayMatch, viewerPlayerIdOf, type LiveMatch, type ReplayFaces, type ReplayFrame } from '../play/live/match.ts';
 import { normalizeAvatarId } from '../room/avatar.ts';
@@ -205,15 +205,25 @@ function now(): number {
   return typeof performance !== 'undefined' ? performance.now() : Date.now();
 }
 
-/** The roster's faces, by the rules `adoptSeats` (`../play/live/match.ts`) applies to `forge:seats`. */
-function replayFaces(roster: readonly RecordedSeat[]): ReplayFaces {
+/**
+ * The roster's faces, by the rules `adoptSeats` (`../play/live/match.ts`) applies to `forge:seats`:
+ * each holder as they are now (`people`) where they could be looked up, else as recorded.
+ */
+function replayFaces(roster: readonly RecordedSeat[], people: ReplayData['people'] = {}): ReplayFaces {
   const byPlayerId = new Map<number, string>();
+  const lookByPlayerId = new Map<number, Look>();
+  const nameByPlayerId = new Map<number, string>();
   for (const seat of roster) {
-    const id = seat.playerId === null ? null : normalizeAvatarId(seat.avatarId);
-    if (seat.playerId !== null && id !== null) byPlayerId.set(seat.playerId, id);
+    if (seat.playerId === null) continue;
+    const person = people[seat.seat];
+    const id = normalizeAvatarId(person?.avatarId) ?? normalizeAvatarId(seat.avatarId);
+    if (id !== null) byPlayerId.set(seat.playerId, id);
+    const look = lookOrNone(person?.look);
+    if (look !== undefined) lookByPlayerId.set(seat.playerId, look);
+    if (person?.name !== undefined) nameByPlayerId.set(seat.playerId, person.name);
   }
   const unclaimed = roster.find((seat) => !seat.claimed && seat.playerId === null);
-  return { byPlayerId, unclaimed: unclaimed === undefined ? null : normalizeAvatarId(unclaimed.avatarId) };
+  return { byPlayerId, lookByPlayerId, nameByPlayerId, unclaimed: unclaimed === undefined ? null : normalizeAvatarId(unclaimed.avatarId) };
 }
 
 /**
@@ -267,7 +277,7 @@ export function createReplayPlayer(data: ReplayData, options: ReplayOptions = {}
       },
     },
     seats,
-    faces: replayFaces(roster),
+    faces: replayFaces(roster, data.people),
     followTurn: options.followTurn,
   });
 

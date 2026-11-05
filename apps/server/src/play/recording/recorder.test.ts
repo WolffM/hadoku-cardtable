@@ -293,6 +293,24 @@ describe('createRecorder', () => {
 		]);
 	});
 
+	it("keeps each seat holder's userId beside their seat, so the replay can draw them as they are when watched", async () => {
+		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
+		const inner = fakeFactory();
+		const roster: SeatIdentity[] = [
+			{ seat: 0, claimed: true, playerId: 0, avatarId: 'sage' },
+			{ seat: 1, claimed: false, playerId: null, avatarId: 'ai-face' },
+		];
+		const recorder = createRecorder({ dir, identity: { pin: null, bridge: 'b', server: 's' }, roomOf: () => null, deckCosts: NO_COSTS, seatsOf: () => roster, usersOf: () => ['uid-ari', null] });
+		recorder.host(inner)('m-1', spec(1), { line: () => undefined, exit: () => undefined, log: () => undefined });
+		(inner.calls[0]!.events.exit as (r: string) => void)('stopped');
+		await vi.waitFor(() => expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true));
+		const pub = linesOf(join(dir, 'm-1.public.jsonl.gz'));
+		expect(pub[pub.length - 1]?.seats).toEqual([
+			{ seat: 0, claimed: true, playerId: 0, avatarId: 'sage', userId: 'uid-ari' },
+			{ seat: 1, claimed: false, playerId: null, avatarId: 'ai-face' },
+		]);
+	});
+
 	it("writes the roster's faces on the end line, keeping the last one read when the match is already gone", async () => {
 		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
 		const inner = fakeFactory();

@@ -67,12 +67,17 @@ import { envelopesOf, type RawCapture } from './frames.ts';
 import { EDGE_ORIGIN, FRIENDS, PREFIX, SERVER_PORT, SESSION_COOKIE } from './identities.ts';
 import { checkIsolation, draftEnvelopes, type SeatLog } from './isolation.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
+import { dress, servePictures } from './looks.ts';
 import { makeTitled, resizeWindow, roomIdFromHash, serverLog as readServerLog } from './play/board.ts';
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { specVideoSlug } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { openCreateRoom, submitCreateRoom } from './play/rooms.ts';
 import { turnNumber } from './play/turn.ts';
+
+/** A picture host the solo pod's test serves (`looks.ts`). */
+const LOOK_PICTURES = 'https://cdn.e2e-looks.test';
+const LOOK_PICTURE = `${LOOK_PICTURES}/alice.svg`;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -1105,6 +1110,9 @@ test(
     let alice: Player | undefined;
     try {
       alice = await join(browser, 'alice');
+      // She wears a picture and a name effect: her past tournament draws them (her look is read when shown).
+      await servePictures(alice.context, LOOK_PICTURES);
+      await dress(alice.context.request, stack.origin, FRIENDS.alice.key, { source: 'upload', url: LOOK_PICTURE, sprite: 'sage', name: FRIENDS.alice.name, cosmetics: { effect: 'effect.glint' } });
       const roomName = `e2e solo ${Date.now()}`;
       const roomId = await createDraftRoom(alice, roomName, stack.origin);
       await expectLobbyNotPod(alice);
@@ -1220,6 +1228,9 @@ test(
       const kept = alice.page.getByTestId('tournament').filter({ hasText: roomName });
       await expect(kept, 'the closed room is a past tournament').toHaveCount(1, { timeout: UI_TIMEOUT });
       await expect(kept.getByTestId('pod-standings-row-1')).toContainText(ai.name);
+      const herRow = kept.getByTestId('pod-standings-row-2');
+      await expect(herRow.locator('img'), 'her row draws the picture she wears now').toHaveAttribute('src', LOOK_PICTURE);
+      await expect(herRow.locator('[data-dressed] .hc-name'), 'and her name wears its effect').toHaveCount(1);
       await alice.page.getByTestId('back-to-lobby').click();
 
       /* ── the pool is her deck now, on the Decks page beside the trophy ── */

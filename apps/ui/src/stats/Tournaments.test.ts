@@ -43,6 +43,16 @@ describe('the Tournaments tab', () => {
     expect(screen.getByTestId('pod-standings-row-2').textContent).toContain('AI');
   });
 
+  it('draws each player\'s face and look beside their name, as the server looked them up', async () => {
+    const picture = 'https://cdn.discordapp.com/avatars/1/a.png';
+    render(createElement(Tournaments, { load: async () => [{ ...cubeNight, faces: { 'u-alice': { avatarId: 'mage', look: { picture, cosmetics: { effect: 'effect.glint' } } }, ai: { avatarId: 'knight' } } }] }));
+    await waitFor(() => expect(screen.getAllByTestId('tournament')).toHaveLength(1));
+    const alice = screen.getByTestId('pod-standings-row-1');
+    expect(alice.querySelector('img')?.getAttribute('src')).toBe(picture);
+    expect(alice.querySelector('[data-dressed] .hc-name')?.textContent).toContain('Alice');
+    expect(screen.getByTestId('pod-standings-row-2').querySelector('img')?.getAttribute('src')).toMatch(/square_knight\.png$/);
+  });
+
   it('says when there are none', async () => {
     render(createElement(Tournaments, { load: async () => [] }));
     await waitFor(() => expect(screen.getByTestId('tournaments-none')).toBeTruthy());

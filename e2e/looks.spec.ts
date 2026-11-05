@@ -4,7 +4,8 @@
  * all customizations everywhere."*
  *
  * Alice wears an uploaded picture, an overlay and a name effect. Bob sees all
- * three on her seat in the room, and again on her face on the board.
+ * three on her seat in the room, and again on her face on the board; carol, who
+ * was not there, sees them again in the game's replay.
  */
 
 import { expect, test, type Locator } from '@playwright/test';
@@ -25,7 +26,7 @@ const titled = makeTitled(forge);
 const PICTURES = 'https://cdn.e2e-looks.test';
 const PICTURE = `${PICTURES}/alice.svg`;
 
-test(titled('a picture, an overlay and a name effect show on the room seat and on the board face, to the other player'), async ({ browser }) => {
+test(titled('a picture, an overlay and a name effect show on the room seat, on the board face, and in the replay, to everyone else'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(4 * 60_000);
@@ -70,6 +71,25 @@ test(titled('a picture, an overlay and a name effect show on the room seat and o
     const mine = alice.page.locator('[data-player-face][data-viewer]');
     await expect(mine.getByTestId('seat-avatar'), 'alice’s own board draws her picture').toHaveAttribute('src', PICTURE, { timeout: 30_000 });
     await expectDecorOver(alice.page, mine.getByTestId('seat-avatar'), 'alice, her own board face');
+
+    // The replay: bob concedes, and carol, who was not there, watches it with alice as she is now.
+    const matchId = /#\/match\/(m-[0-9a-f]{12})$/.exec(bob.page.url())?.[1];
+    if (matchId === undefined) throw new Error(`no match id in ${bob.page.url()}`);
+    await bob.page.getByTestId('live-concede').click();
+    await bob.page.getByTestId('live-concede-yes').click();
+    await expect(alice.page.getByTestId('game-result'), 'the game is over').toBeVisible({ timeout: 30_000 });
+    await expect
+      .poll(async () => (await alice.context.request.get(`${stack.origin}/cardtable/api/replays/${matchId}`)).status(), { timeout: 30_000, message: 'the recording is served' })
+      .toBe(200);
+    const carol = await openFriend(browser, 'carol');
+    await servePictures(carol.context, PICTURES);
+    await servePictures(carol.context, `${stack.origin}/watchparty/media/sprites`);
+    await carol.page.goto(`${stack.origin}/cardtable/#/replay/${matchId}`);
+    await expect(carol.page.getByTestId('replay-bar'), 'the replay opens').toBeVisible({ timeout: 30_000 });
+    const replayed = carol.page.locator('[data-player-face]').filter({ has: carol.page.locator(`img[src="${PICTURE}"]`) });
+    await expect(replayed, 'the replay draws alice’s picture').toHaveCount(1, { timeout: 30_000 });
+    await expectDecorOver(carol.page, replayed.getByTestId('seat-avatar'), 'carol, alice’s face in the replay');
+    await expect(replayed.locator('.face__name[data-dressed] .hc-name'), 'alice’s name in the replay wears its effect').toHaveCount(1);
   } finally {
     await stack.stop();
   }

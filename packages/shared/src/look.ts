@@ -47,6 +47,16 @@ export const LookSchema = z.object({
   cosmetics: WornSchema.optional().catch(undefined),
 });
 export type Look = z.infer<typeof LookSchema>;
+
+/**
+ * A person in a record of the past (a tournament, a replay), as the server draws them when the
+ * record is shown: their character and their look, looked up then (R12), never kept with the record.
+ */
+export const PersonFaceSchema = z.object({
+  avatarId: z.string().trim().min(1).max(32).optional().catch(undefined),
+  look: LookSchema.optional().catch(undefined),
+});
+export type PersonFace = z.infer<typeof PersonFaceSchema>;
 export type Worn = z.infer<typeof WornSchema>;
 
 const WORN_KEYS = ['effect', 'gradient', 'font', 'overlay', 'message', 'placement'] as const;

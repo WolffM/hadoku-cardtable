@@ -3838,6 +3838,9 @@ export interface ReplayFrame {
  */
 export interface ReplayFaces {
   byPlayerId: ReadonlyMap<number, string>;
+  /** Each player's look and name as they are now (the replay's people), where they could be looked up. */
+  lookByPlayerId?: ReadonlyMap<number, Look>;
+  nameByPlayerId?: ReadonlyMap<number, string>;
   /** The seat nobody holds (Forge's AI): drawn on the player no seat names. */
   unclaimed: string | null;
 }
@@ -3881,7 +3884,9 @@ export function replayMatch(matchId: string, playerId: number, options: { pointe
   const restoreSeats = (): void => {
     match.playerIdBySeat = seats;
     match.avatarByPlayerId = options.faces?.byPlayerId ?? null;
+    match.lookByPlayerId = options.faces?.lookByPlayerId ?? null;
     match.unclaimedAvatar = options.faces?.unclaimed ?? null;
+    if (options.faces?.nameByPlayerId !== undefined && options.faces.nameByPlayerId.size > 0) match.nameByPlayerId = options.faces.nameByPlayerId;
   };
   match.seat = 0;
   match.playerId = playerId;

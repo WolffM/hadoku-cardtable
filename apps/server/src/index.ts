@@ -659,7 +659,7 @@ attachRooms(api, {
 		},
 	},
 });
-attachTournaments(api, { tournaments });
+attachTournaments(api, { tournaments, people });
 attachEvents(api, { events, lobby, checkPlan: checkDraftPlan, rally: { serviceKey: CONFIG.serviceKey }, log: roomsLog, closed: roomClosed, ...(CONFIG.testNoRateLimits ? { createRateLimit: null } : {}) });
 // The Discord's last few #general messages, through ArchiveBot (prod only: it holds the secret).
 attachDiscord(api, { secret: CONFIG.archivebotSecret, archivebotUrl: CONFIG.archivebotUrl, log: jsonLogger('cardtable-discord') });
@@ -812,6 +812,13 @@ const recorder = createRecorder({
 	deckCosts,
 	// `play` is assigned below; the recorder only asks once a match is running.
 	seatsOf: (matchId) => play?.matches.get(matchId)?.seatIdentities(),
+	usersOf: (matchId) => {
+		const match = play?.matches.get(matchId);
+		const room = lobby.roomOfMatch(matchId);
+		if (match === undefined || room === undefined) return undefined;
+		const users = new Map(lobby.usersOf(room.id).map((u) => [u.memberId, u.userId]));
+		return match.seats.map((s) => (s.owner === null ? null : (users.get(s.owner) ?? null)));
+	},
 	log: recordingsLog,
 });
 const RECORDINGS_SWEEP_MS = 60 * 60_000;
@@ -834,6 +841,7 @@ attachReplays(api, {
 	dir: RECORDINGS_DIR,
 	isTesting: (roomId) => (roomId === null ? false : lobby.get(roomId)?.testing === true),
 	stillPlaying: (matchId, caller) => lobby.stillPlaying(matchId, caller),
+	people,
 	log: recordingsLog,
 	canRebuild: canRebuildBoolean,
 	...(rebuildHost === null ? {} : { rebuild: (matchId: string) => rebuildForReplays(matchId, { recordingsDir: RECORDINGS_DIR, host: rebuildHost, log: recordingsLog, deckCosts }) }),

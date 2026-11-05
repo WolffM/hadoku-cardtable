@@ -22,7 +22,8 @@
  */
 
 import { safeParseServerFrame } from '@hadoku/forge-wire';
-import { ArtCardSchema, PresenceSchema, type ArtCard, type PresenceMessage } from '@hadoku/shared';
+import { z } from 'zod';
+import { ArtCardSchema, PersonFaceSchema, PresenceSchema, type ArtCard, type PersonFace, type PresenceMessage } from '@hadoku/shared';
 
 import { apiUrl, bodyOf, getJson, isRecord, sendJson, serverMessage, type Fetch } from '../http.ts';
 import { parseServerEnvelope, type ServerEnvelope } from '../play/live/transport.ts';
@@ -86,6 +87,34 @@ export interface ReplayData {
   /** Oldest first. Empty for a recording made before pointers were kept. */
   presence: readonly RecordedPresence[];
   end: ReplayEnd | null;
+  /**
+   * Who played, by seat, as they are now (`GET /api/replays/:id/people`): their name, character and
+   * look. Empty when nobody could be looked up; the replay then draws what it recorded.
+   */
+  people?: Readonly<Record<number, ReplayPerson>>;
+}
+
+/** One seat's holder as the people route answers: absent fields are what the recording kept. */
+export type ReplayPerson = PersonFace & { name?: string };
+
+const ReplayPeopleSchema = z.object({ people: z.record(z.string(), PersonFaceSchema.extend({ name: z.string().min(1).optional().catch(undefined) }).nullable().catch(null)) });
+
+/**
+ * A replay's people. Asked beside the replay, not inside it: the replay's body is cached for good,
+ * and who someone is now is not. Any failure is no people, never a replay that will not load.
+ */
+export async function fetchReplayPeople(matchId: string, fetchImpl: Fetch = defaultFetch): Promise<Record<number, ReplayPerson>> {
+  try {
+    const res = await getJson(apiUrl(`replays/${encodeURIComponent(matchId)}/people`), fetchImpl);
+    if (!res.ok) return {};
+    const parsed = ReplayPeopleSchema.safeParse(await bodyOf(res));
+    if (!parsed.success) return {};
+    const out: Record<number, ReplayPerson> = {};
+    for (const [seat, person] of Object.entries(parsed.data.people)) if (person !== null && /^\d+$/.test(seat)) out[Number(seat)] = person;
+    return out;
+  } catch {
+    return {};
+  }
 }
 
 /** One row of `GET /api/replays`'s list — enough to link a replay, never its frames. */
@@ -183,6 +212,7 @@ export function parseReplayData(body: unknown): ReplayData | null {
     .filter((p): p is RecordedPresence => p !== null)
     .sort((a, b) => a.at - b.at);
   const end = body.end === null || body.end === undefined ? null : parseEnd(body.end);
+  // Nobody is looked up from the body itself: `fetchReplay` asks for the people beside it.
   return { header, envs: sorted, presence, end };
 }
 
@@ -294,11 +324,12 @@ export async function fetchReplay(matchId: string, fetchImpl: Fetch = defaultFet
     throw new Error('Could not reach the server.');
   }
   if (res.status === 404) return null;
+  const people = fetchReplayPeople(matchId, fetchImpl);
   const body = await bodyOf(res);
   if (!res.ok) throw new Error(`Could not load the replay: ${serverMessage(body, res.status)}.`);
   const data = parseReplayData(body);
   if (data === null) throw new Error('The server sent something that is not a replay.');
-  return data;
+  return { ...data, people: await people };
 }
 
 export type ReplayTrouble = 'load-failed' | 'player-error';

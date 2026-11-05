@@ -31,6 +31,8 @@ import { httpCaller } from './request.js';
 import type { JsonLog } from '../log.js';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '../play/recording/retention.js';
 import { PUBLIC_VERSION, type PublicEndLine, type PublicEnvLine, type PublicPresenceLine } from '../play/recording/writer.js';
+import type { PersonFace } from '@hadoku/shared';
+import { faceOfPerson, type People, type Person } from '../people.js';
 
 interface PublicHeaderLine {
 	t: 'header';
@@ -68,7 +70,17 @@ export interface ReplaysDeps {
 	canRebuild?(header: ActionsHeaderLine): boolean;
 	/** Lane D's own rebuild, injected. */
 	rebuild?(matchId: string): Promise<RebuildResult>;
+	/** Who played, looked up when a replay is watched (`GET /:matchId/people`). Absent: nobody is. */
+	people?: People;
 	log?: JsonLog;
+}
+
+/** A replay's people: who they are now can change, so this is not cached like the replay itself. */
+const PEOPLE_CACHE = 'private, max-age=60';
+
+/** The end line as it leaves the server: its seats' userIds stay on disk. */
+function withoutUsers(end: PublicEndLine): PublicEndLine {
+	return end.seats === undefined ? end : { ...end, seats: end.seats.map(({ userId: _userId, ...seat }) => seat) };
 }
 
 /**
@@ -274,6 +286,42 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 		res.status(204).end();
 	});
 
+	/**
+	 * `GET /:matchId/people` → `{ people: { [seat]: { name?, avatarId?, look? } } }`: each seat holder
+	 * as they are now (R12), from the userId the recording kept beside their seat. A seat with no
+	 * userId (the AI, a recording from before it was kept) is absent, and the replay draws it from
+	 * what it recorded.
+	 */
+	replays.get('/:matchId/people', async (req: Request, res: Response) => {
+		const matchId = String(req.params.matchId);
+		const row = MATCH_ID_RE.test(matchId) ? rowsOf(deps.dir).find((r) => r.matchId === matchId) : undefined;
+		if (row === undefined || !row.hasPublic) {
+			res.status(404).json({ error: 'no such replay' });
+			return;
+		}
+		try {
+			const read = await firstAndLastLine(join(deps.dir, `${matchId}${PUBLIC_SUFFIX}`));
+			const header = parseJson<PublicHeaderLine>(read?.first ?? '');
+			const end = parseJson<PublicEndLine>(read?.last ?? '');
+			if (header === null || header.t !== 'header' || hiddenFrom(req, header)) {
+				res.status(404).json({ error: 'no such replay' });
+				return;
+			}
+			const seats = (end?.t === 'end' ? (end.seats ?? []) : []).flatMap((s) => (s.userId === undefined ? [] : [{ seat: s.seat, userId: s.userId }]));
+			const found = deps.people === undefined ? new Map<string, Person>() : await deps.people.resolve(seats.map((s) => s.userId));
+			const people: Record<string, { name?: string } & PersonFace> = {};
+			for (const { seat, userId } of seats) {
+				const person = found.get(userId);
+				if (person !== undefined) people[String(seat)] = { ...(person.name === null ? {} : { name: person.name }), ...faceOfPerson(person) };
+			}
+			res.set('Cache-Control', PEOPLE_CACHE);
+			res.json({ people });
+		} catch (err) {
+			log({ evt: 'replay-people-read-failed', matchId, error: (err as Error).message });
+			res.status(404).json({ error: 'no such replay' });
+		}
+	});
+
 	replays.get('/:matchId', async (req: Request, res: Response) => {
 		const matchId = String(req.params.matchId);
 		if (!MATCH_ID_RE.test(matchId)) {
@@ -305,7 +353,7 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 					.filter((l): l is PublicPresenceLine => l !== null && l.t === 'presence')
 					.map((l) => ({ at: l.at, seat: l.seat, playerId: l.playerId, presence: l.presence }));
 				res.set('Cache-Control', REPLAY_CACHE);
-				res.json({ header, envs, presence, end });
+				res.json({ header, envs, presence, end: withoutUsers(end) });
 				return;
 			}
 			if (!row.hasActions) {

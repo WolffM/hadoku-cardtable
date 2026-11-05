@@ -1,14 +1,35 @@
 /*
  * GET /api/tournaments — every past pod, newest first (`room/tournaments.ts`).
- * Friend-gated like every other `/api` route.
+ * Member-gated like every other `/api` route.
+ *
+ * A record keeps its people by userId (R12); each is looked up here, when shown
+ * (`people.ts`): their name as it is now, their character and their look. The
+ * userIds themselves never leave the server. A record from before they were
+ * kept draws its people by the names it kept, with no faces.
  */
 
 import type { Request, Response, Router } from 'express';
+import type { Tournament } from '@hadoku/shared';
 
-import type { Tournaments } from '../room/tournaments.ts';
+import { faceOfPerson, type People } from '../people.js';
+import type { Tournaments } from '../room/tournaments.js';
 
-export function attachTournaments(api: Router, deps: { tournaments: Tournaments }): void {
-	api.get('/tournaments', (_req: Request, res: Response) => {
-		res.json({ tournaments: deps.tournaments.list() });
+export function attachTournaments(api: Router, deps: { tournaments: Tournaments; people: People }): void {
+	api.get('/tournaments', async (_req: Request, res: Response) => {
+		const list = deps.tournaments.list();
+		const found = await deps.people.resolve(list.flatMap((t) => Object.values(t.users ?? {})));
+		res.json({
+			tournaments: list.map(({ users = {}, ...t }): Tournament => {
+				const names = { ...t.names };
+				const faces = { ...t.faces };
+				for (const [id, userId] of Object.entries(users)) {
+					const person = found.get(userId);
+					if (person === undefined) continue;
+					if (person.name !== null) names[id] = person.name;
+					faces[id] = faceOfPerson(person);
+				}
+				return { ...t, names, faces };
+			}),
+		});
 	});
 }
