@@ -16,7 +16,7 @@ import { test, type Browser, type BrowserContext, type Page } from '@playwright/
 
 import type { RawCapture } from '../frames.ts';
 import { SESSION_COOKIE } from '../identities.ts';
-import { keepPrefsLocal, setPlayFastModeDefault } from '../prefsLocal.ts';
+import { keepPrefsLocal, passWithManaUnasked, setPlayFastModeDefault } from '../prefsLocal.ts';
 import { PLAY_EDGE_ORIGIN, RUN_DIR } from './harness.ts';
 import { registerFriendContext } from './open-friends.ts';
 import { playMessagesOf, type PlayMessage } from './frames.ts';
@@ -100,6 +100,7 @@ export async function openFriend(browser: Browser, name: string): Promise<Friend
   // artificial delay `pace.ts` would otherwise add; that one spec turns it
   // back off for the seat it measures, through the real settings checkbox.
   await setPlayFastModeDefault(context, true);
+  await passWithManaUnasked(context);
   const page = await context.newPage();
   registerFriendContext(context, videoDir === null ? undefined : { page, dir: videoDir, name });
   const friend: Friend = { name, context, page, captures: [], pending: [], captureErrors: [], blocked: [], trace: { since: Date.now(), inFlight: new Map(), events: [] } };

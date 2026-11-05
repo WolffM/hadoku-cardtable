@@ -281,7 +281,7 @@ import { lookupFromState, plainRulesText, promptLines, promptText, selectionText
 import { RulesText } from '../prompts/RulesText.tsx';
 import { ManaPip } from '../../components/ManaPip.tsx';
 import { RevealNotice } from '../prompts/RevealNotice.tsx';
-import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, isPlayOrDrawPrompt, offersEndTurn, type BarRoute } from '../prompts/ConfirmPrompt.tsx';
+import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, isPlayOrDrawPrompt, offersEndTurn, offersUndo, type BarRoute } from '../prompts/ConfirmPrompt.tsx';
 import { AnswerRow, promptTileFor } from '../prompts/PromptShell.tsx';
 import { classifySelection, isPromptMethod, PromptFor, SelectionPrompt, type AskOf, type PromptMethod, type SelectionKind } from '../prompts/index.ts';
 import { installGestures } from './gestures/index.ts';
@@ -1598,6 +1598,53 @@ function PhaseRail({ view, stop, onStop }: { view: BoardView; stop: StopPhase | 
           </li>
         ))}
       </ol>
+    </div>
+  );
+}
+
+/* ── Mana floating, before it empties (2026-11-05) ───────────────────── */
+
+/**
+ * e2e's own seam, read at the press: the harness's generic "press OK" drivers pass with mana
+ * floating (a ritual's leftovers, a land a driver tapped) and were written before this ask, so every
+ * e2e context sets it (`e2e/prefsLocal.ts`) and `e2e/mana-floating.spec.ts` clears it on its page.
+ */
+export const PASS_WITH_MANA_GLOBAL = '__CARDTABLE_PASS_WITH_MANA__';
+
+/** How much mana the viewer has floating. */
+export function floatingMana(view: BoardView | null | undefined): number {
+  return (viewerOf(view)?.manaPool ?? []).reduce((sum, mana) => sum + mana.count, 0);
+}
+
+/**
+ * A pass with mana floating, held for a word first (the operator, 2026-11-05, after a seat tapped an
+ * Island in its draw step and passed: *"if they tapped a land to make mana and try to go next phase,
+ * let's warn them with a prompt and give them a chance to untap"*). The pool empties when the step
+ * ends. `Untap` is offered only while Forge can still take the tap back (its own `Undo (N)`); without
+ * it the choice is to pass anyway or stay. Forge's own warning (`InputPassPriority.passPriority`,
+ * `UI_MANA_LOST_PROMPT`) only ever asks Forge's local GUI player, which a seat here never is.
+ */
+function ManaFloatingAsk({ canUntap, onUntap, onPass, onStay }: { canUntap: boolean; onUntap: () => void; onPass: () => void; onStay: () => void }) {
+  return (
+    <div
+      className="live__ask"
+      data-testid="live-mana-ask"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') onStay();
+      }}
+    >
+      <ConfirmPrompt
+        testId="live-mana-sheet"
+        role="alertdialog"
+        title="Mana floating"
+        message="It empties when this step ends."
+        button1={{ label: 'Pass anyway', enabled: true, testId: 'live-mana-pass', onClick: onPass }}
+        button2={
+          canUntap
+            ? { label: 'Untap', enabled: true, testId: 'live-mana-untap', isDefault: true, onClick: onUntap }
+            : { label: 'Cancel', enabled: true, testId: 'live-mana-stay', isDefault: true, onClick: onStay }
+        }
+      />
     </div>
   );
 }
@@ -3111,6 +3158,40 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   const primaryEnabled = decisionOk && !mulliganPick;
   const primaryLabel = combatDone ?? passLabel(route) ?? bar?.label1 ?? 'Pass';
   /*
+   * A pass on an empty stack ends the step, and the step's end empties the pool: with mana floating
+   * the pass asks first (`ManaFloatingAsk`). `Untap` presses Forge's own Undo, once per bar Forge
+   * sends, until the pool is empty or Forge has nothing left to take back.
+   */
+  const floating = floatingMana(match.view);
+  const [manaAsk, setManaAsk] = useState(false);
+  const untapping = useRef(false);
+  const passOrAsk = (): void => {
+    if (route === 'pass' && floating > 0 && (globalThis as Record<string, unknown>)[PASS_WITH_MANA_GLOBAL] !== true) {
+      setManaAsk(true);
+      reportClient(match.transport, match.matchId, 'info', { what: 'mana-floating', phase: match.view?.phase ?? '', mana: floating, undo: offersUndo(bar) });
+      return;
+    }
+    pressWithSound(match, 'ok');
+  };
+  const passWithMana = (choice: 'pass' | 'untap' | 'stay'): void => {
+    setManaAsk(false);
+    reportClient(match.transport, match.matchId, 'info', { what: 'mana-floating-answer', choice, mana: floating });
+    if (choice === 'pass') pressWithSound(match, 'ok');
+    // The first Undo now; the effect below presses the next on each bar Forge sends after it.
+    if (choice === 'untap') untapping.current = pressButton(match, 'cancel');
+  };
+  useEffect(() => {
+    if (manaAsk && route !== 'pass') setManaAsk(false);
+  }, [manaAsk, route]);
+  useEffect(() => {
+    if (!untapping.current) return;
+    if (floating === 0 || route !== 'pass' || !offersUndo(bar)) {
+      untapping.current = false;
+      return;
+    }
+    pressButton(match, 'cancel');
+  }, [match, bar, floating, route]);
+  /*
    * The operator, 2026-10-20 (m-b752a3424b43): Tinker's sacrifice "never popped up on my screen" until a
    * reload, and no repro failed to draw it (`e2e/tk-tinker.spec.ts`). What the board draws for a pick, and
    * every condition that decides it, as the pick opens and again 3 s later.
@@ -4120,7 +4201,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
             className="action-bar__primary"
             data-testid="action-primary"
             disabled={!primaryEnabled}
-            onPress={() => pressWithSound(match, 'ok')}
+            onPress={passOrAsk}
           >
             {primaryLabel}
           </ActionButton>
@@ -4228,7 +4309,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
                     enabled: (!mulliganPick || bar.enable1) && bar.refusal1 === undefined,
                     ...(bar.refusal1 === undefined ? {} : { tip: promptText(bar.refusal1) }),
                     testId: 'live-decision-ok',
-                    onClick: () => pressWithSound(match, 'ok'),
+                    onClick: passOrAsk,
                   }
                 : undefined
             }
@@ -4312,6 +4393,9 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
                 : waitingSentence(theirName ?? 'the other player', theirAsk)
           }
         />
+      )}
+      {manaAsk && !spectator && !over && (
+        <ManaFloatingAsk canUntap={offersUndo(bar)} onUntap={() => passWithMana('untap')} onPass={() => passWithMana('pass')} onStay={() => passWithMana('stay')} />
       )}
       {conceding && !spectator && !over && (
         <ConcedeAsk

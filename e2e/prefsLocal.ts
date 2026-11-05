@@ -50,6 +50,19 @@ export async function keepPrefsLocal(context: BrowserContext, origin: string): P
  * Fast Mode back OFF for the seat it measures, through the real settings
  * checkbox, which is a stronger proof than skipping this call for it.
  */
+/**
+ * `apps/ui/src/play/live/LiveBoard.tsx`'s `PASS_WITH_MANA_GLOBAL`, copied for the same reason as
+ * {@link FAST_MODE_DEFAULT_GLOBAL}: every play e2e seat passes with mana floating without the ask,
+ * as every driver written before it expects. `e2e/mana-floating.spec.ts` clears it on its own page.
+ */
+export const PASS_WITH_MANA_GLOBAL = '__CARDTABLE_PASS_WITH_MANA__';
+
+export async function passWithManaUnasked(context: BrowserContext): Promise<void> {
+  await context.addInitScript((key: string) => {
+    (globalThis as Record<string, unknown>)[key] = true;
+  }, PASS_WITH_MANA_GLOBAL);
+}
+
 export async function setPlayFastModeDefault(context: BrowserContext, fast: boolean): Promise<void> {
   await context.addInitScript(
     ({ key, value }: { key: string; value: boolean }) => {

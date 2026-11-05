@@ -12,7 +12,7 @@ import { createElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 
-import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, offersEndTurn } from './ConfirmPrompt.tsx';
+import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, offersEndTurn, offersUndo } from './ConfirmPrompt.tsx';
 import type { LiveButtons } from '../live/match.ts';
 import { promptCardTile } from './PromptShell.tsx';
 
@@ -80,6 +80,15 @@ describe('isConfirmPrompt', () => {
  * Phase`, the decision pop-up, or nowhere new (a pop-up of its own owns it).
  * One case per input shape the wave names, with the Forge input it comes from.
  */
+describe('offersUndo', () => {
+  it("is Forge's live Undo (N) after a mana tap, and nothing else", () => {
+    expect(offersUndo(buttons({ label1: 'OK', label2: 'Undo (2)' }))).toBe(true);
+    expect(offersUndo(buttons({ label1: 'OK', label2: 'Undo (1)', enable2: false }))).toBe(false);
+    expect(offersUndo(buttons({ label1: 'OK', label2: 'End Turn' }))).toBe(false);
+    expect(offersUndo(null)).toBe(false);
+  });
+});
+
 describe('barRoute', () => {
   const EMPTY = true;
   const STACKED = false;

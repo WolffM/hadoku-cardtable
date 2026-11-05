@@ -222,6 +222,11 @@ export function barRoute(bar: LiveButtons | null, stackEmpty: boolean, owned = f
   return bar.enable1 || (bar.enable2 && !endTurn) ? 'decision' : 'none';
 }
 
+/** Forge's second button is enabled and is `Undo (N)`: a manual mana tap it can still take back. */
+export function offersUndo(bar: LiveButtons | null): boolean {
+  return bar !== null && bar.enable2 && UNDO_LABEL.test(bar.label2);
+}
+
 /** Forge's second button is enabled and is `End Turn` — the control box's own `End Turn` button. */
 export function offersEndTurn(bar: LiveButtons | null): boolean {
   return bar !== null && bar.enable2 && bar.label2 === END_TURN_LABEL;
