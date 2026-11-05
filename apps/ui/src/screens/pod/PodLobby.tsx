@@ -25,6 +25,7 @@ import { RoomSpectators } from '../RoomSpectators.tsx';
 import { PodSplit, PodSplitAction, standingPods } from './PodSplit.tsx';
 import { ReadyToggle } from './ReadyToggle.tsx';
 import { podPlayers, type PodView } from './wire.ts';
+import { faceOf } from '../../components/Avatar.tsx';
 
 export interface PodLobbyProps {
   testId: string;
@@ -106,7 +107,7 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, i
                   myMemberId={myMemberId}
                   leaderId={leaderId}
                   readyOf={(id) => members.find((m) => m.id === id)?.ready === true}
-                  avatarIdOf={(id) => members.find((m) => m.id === id)?.avatarId}
+                  faceOf={(id) => faceOf(members.find((m) => m.id === id))}
                   onSit={(seat) => act(() => sitPod(roomId, seat))}
                   onAi={(seat, on) => act(() => aiPod(roomId, seat, on))}
                   onClose={(seat, closed) => act(() => closePod(roomId, seat, closed))}

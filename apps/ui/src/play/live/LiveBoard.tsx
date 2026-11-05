@@ -273,7 +273,8 @@ import { deckStoreClient } from '../../deck/deckStore.ts';
 import { dckTextOf } from '../../draft/deckFromPool.ts';
 import { libraryDeckText, namedCardPool } from '../../deck/build.ts';
 import { ActionButton } from '../../components/ActionButton.tsx';
-import { Avatar } from '../../components/Avatar.tsx';
+import { Avatar, NO_FACE, type Face } from '../../components/Avatar.tsx';
+import { PlayerName } from '../../room/look.tsx';
 import { drawnCards, opponentOf, PHASE_LABEL, viewerOf, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
 import { Board, POISON_TO_LOSE, poisonOf, type BoardInteraction, type BoardLayout, type HeldTags } from '../Board.tsx';
 import { CheckMark } from '../marks.tsx';
@@ -1960,14 +1961,14 @@ function ResultFace({ player, rematch }: { player: BoardPlayer; rematch: boolean
   return (
     <div className="live__result-face" data-testid="game-result-face" data-you={player.isViewer} data-lost={player.hasLost || undefined}>
       <span className="live__result-portrait">
-        <Avatar id={player.avatarId} fallback="mark" className="live__result-avatar" fallbackClassName="live__result-avatar" />
+        <Avatar id={player.avatarId} look={player.look} fallback="mark" className="live__result-avatar" fallbackClassName="live__result-avatar" />
         {rematch && (
           <span className="live__result-check" data-testid="game-result-check" role="img" aria-label="Rematch">
             <CheckMark className="live__result-tick" />
           </span>
         )}
       </span>
-      <span className="live__result-name">{player.name}</span>
+      <PlayerName name={player.name} face={{ id: player.avatarId, look: player.look }} className="live__result-name" />
     </div>
   );
 }
@@ -2928,17 +2929,18 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
    * message carried. Drawn beside the winner's own Play/Draw question, and on
    * the loser's screen INSTEAD of "Waiting for {name}…" for this one moment.
    */
-  const coinToss = ((): { winner: number; name: string; avatarId: string | undefined; loserAvatarId: string | undefined; at: number } | null => {
+  const coinToss = ((): { winner: number; name: string; face: Face; loserFace: Face; at: number } | null => {
     const toss = match.coinToss;
     if (toss === null) return null;
     const pid = toss.playerId;
     const player = pid === null ? undefined : match.view?.players.find((p) => p.id === pid);
     const name = (pid === null ? undefined : match.nameByPlayerId?.get(pid)) ?? player?.name ?? `Seat ${toss.winner + 1}`;
     const avatarId = (pid === null ? undefined : match.avatarByPlayerId?.get(pid)) ?? player?.avatarId;
+    const look = (pid === null ? undefined : match.lookByPlayerId?.get(pid)) ?? player?.look;
     // The coin's other face: the seat that lost, so a flip shows both players.
     const loser = pid === null ? undefined : match.view?.players.find((p) => p.id !== pid);
-    const loserAvatarId = loser === undefined ? undefined : (match.avatarByPlayerId?.get(loser.id) ?? loser.avatarId);
-    return { winner: toss.winner, name, avatarId, loserAvatarId, at: toss.at };
+    const loserFace: Face = loser === undefined ? NO_FACE : { id: match.avatarByPlayerId?.get(loser.id) ?? loser.avatarId, look: match.lookByPlayerId?.get(loser.id) ?? loser.look };
+    return { winner: toss.winner, name, face: { id: avatarId, look }, loserFace, at: toss.at };
   })();
   /*
    * The coin toss sounds `g.game-start` on both screens as the coin appears (the

@@ -130,3 +130,21 @@ describe('CONFIG.testNoRateLimits', () => {
     }
   });
 });
+
+describe('CONFIG.testPeopleStandIn', () => {
+  it('is false from a bare environment and true only from the exact flag', async () => {
+    const saved = process.env.CARDTABLE_E2E_PEOPLE_STAND_IN;
+    try {
+      for (const [value, expected] of [[undefined, false], ['true', false], ['1', true]] as const) {
+        vi.resetModules();
+        if (value === undefined) delete process.env.CARDTABLE_E2E_PEOPLE_STAND_IN;
+        else process.env.CARDTABLE_E2E_PEOPLE_STAND_IN = value;
+        const { CONFIG } = await import('./config.ts');
+        expect(CONFIG.testPeopleStandIn, String(value)).toBe(expected);
+      }
+    } finally {
+      if (saved === undefined) delete process.env.CARDTABLE_E2E_PEOPLE_STAND_IN;
+      else process.env.CARDTABLE_E2E_PEOPLE_STAND_IN = saved;
+    }
+  });
+});

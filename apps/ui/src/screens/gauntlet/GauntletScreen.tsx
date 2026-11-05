@@ -19,6 +19,8 @@ import { GauntletChoose } from './GauntletChoose.tsx';
 import { GauntletResult } from './GauntletResult.tsx';
 import { gauntletDeckOptions } from './decks.ts';
 import { poolChangeRoles } from './sounds.ts';
+import { SeatFaces } from './seats.tsx';
+import { NO_FACE, type Face } from '../../components/Avatar.tsx';
 import './gauntlet.css';
 
 export interface GauntletScreenProps {
@@ -26,8 +28,8 @@ export interface GauntletScreenProps {
   onBan: (deckId: string) => void;
   onPick: (deckId: string) => void;
   onChoose: (deckId: string) => void;
-  /** Each table seat's avatar, for the coin's faces. */
-  avatars?: readonly [string | undefined, string | undefined];
+  /** Each table seat's face (`seatFaces`), for the coin and the names. */
+  faces?: readonly [Face, Face];
 }
 
 /** The board being left for the choice, and what its last act sounds. */
@@ -38,7 +40,17 @@ interface Leaving {
 
 const noop = (): void => undefined;
 
-export function GauntletScreen({ view, onBan, onPick, onChoose, avatars }: GauntletScreenProps) {
+const NO_FACES: readonly [Face, Face] = [NO_FACE, NO_FACE];
+
+export function GauntletScreen({ view, onBan, onPick, onChoose, faces = NO_FACES }: GauntletScreenProps) {
+  return (
+    <SeatFaces.Provider value={faces}>
+      <GauntletPhase view={view} onBan={onBan} onPick={onPick} onChoose={onChoose} />
+    </SeatFaces.Provider>
+  );
+}
+
+function GauntletPhase({ view, onBan, onPick, onChoose }: Omit<GauntletScreenProps, 'faces'>) {
   // The tiles depend only on which ten decks were drawn, not on where each stands.
   const drawn = view.decks.map((d) => d.id).join();
   const options = useMemo(() => gauntletDeckOptions(view.decks), [drawn]);
@@ -61,7 +73,7 @@ export function GauntletScreen({ view, onBan, onPick, onChoose, avatars }: Gaunt
       return null;
     case 'reveal':
     case 'banpick':
-      return <GauntletBoard view={view} options={options} avatars={avatars} onBan={onBan} onPick={onPick} />;
+      return <GauntletBoard view={view} options={options} onBan={onBan} onPick={onPick} />;
     // From the choice to the board, and while the game is played, the choose screen as both left it.
     case 'choose':
     case 'playing':

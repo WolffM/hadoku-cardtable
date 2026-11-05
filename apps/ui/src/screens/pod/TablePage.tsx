@@ -33,6 +33,7 @@ import { startingText } from '../queue-place.ts';
 import { ReadyToggle } from './ReadyToggle.tsx';
 import { FaceOff, useOpponentReveal, type FaceOffSeat } from './FaceOff.tsx';
 import { isPodAi, type PodView } from './wire.ts';
+import type { Face } from '../../components/Avatar.tsx';
 import './PodSeats.css';
 
 /** A table's start that waits on its seats' Ready, by table seat. */
@@ -50,7 +51,7 @@ export interface TablePageProps {
   table: RoomTable | undefined;
   myMemberId: string | null;
   nameOf: (memberId: string) => string;
-  avatarOf: (memberId: string) => string | null;
+  avatarOf: (memberId: string) => Face;
   /** The mode's own gate on starting the next game (a re-picked deck, Gauntlet's banpick). */
   canStart?: boolean;
   /** The room screen's last read of the room: `TableSideboard` reads the table again on each. */
@@ -93,7 +94,7 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
   const left = mySeat === 1 ? 1 : 0;
   const faceOff = (seat: number): FaceOffSeat => {
     const id = seats[seat] ?? '';
-    return { seat, name: nameOf(id), avatarId: avatarOf(id), wins: table.series.wins[seat] ?? 0, ready: ready === undefined ? undefined : ready.seats[seat] === true, mine: id === myMemberId };
+    return { seat, name: nameOf(id), face: avatarOf(id), wins: table.series.wins[seat] ?? 0, ready: ready === undefined ? undefined : ready.seats[seat] === true, mine: id === myMemberId };
   };
   const heading = pod === null ? null : pod.phase === 'done' ? 'Standings' : `Round ${pod.round} of ${pod.rounds}`;
   return (

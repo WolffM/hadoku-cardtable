@@ -45,7 +45,11 @@ describe('fetchPodContext', () => {
       answer({
         pod,
         tables: [{ id: 't-aaaaaaaa', players: [], matchId: null, series: { length: 3, wins: [0, 0], games: [], phase: 'seating' } }],
-        members: [{ id: 'u-alice', name: 'Alice', avatarId: 'sage' }, { id: 'u-bob', name: 'Bob' }],
+        members: [
+          { id: 'u-alice', name: 'Alice', avatarId: 'sage' },
+          { id: 'u-bob', name: 'Bob' },
+          { id: 'u-cat', name: 'Cat', look: { picture: 'https://cdn.discordapp.com/avatars/1/a.png', cosmetics: { overlay: 'overlay.crown' } } },
+        ],
         leader: 'u-bob',
       }),
     );
@@ -53,11 +57,17 @@ describe('fetchPodContext', () => {
     const ctx = await fetchPodContext('r-cube');
     expect(ctx.pod).toEqual(pod);
     expect(ctx.tables).toHaveLength(1);
-    expect(ctx.names).toEqual({ 'u-alice': 'Alice', 'u-bob': 'Bob', ai: 'Knight', 'ai:3': 'Rogue' });
-    // Bob has no character: no entry, and the face falls back to his initial.
-    expect(ctx.avatars).toEqual({ 'u-alice': 'sage', ai: 'knight', 'ai:3': 'rogue' });
+    expect(ctx.names).toEqual({ 'u-alice': 'Alice', 'u-bob': 'Bob', 'u-cat': 'Cat', ai: 'Knight', 'ai:3': 'Rogue' });
+    // Bob has no character and no look: no entry, and the face falls back to his initial. Cat has
+    // no character, but her picture and what she wears are her face.
+    expect(ctx.avatars).toEqual({
+      'u-alice': { id: 'sage' },
+      'u-cat': { id: null, look: { picture: 'https://cdn.discordapp.com/avatars/1/a.png', cosmetics: { overlay: 'overlay.crown' } } },
+      ai: { id: 'knight' },
+      'ai:3': { id: 'rogue' },
+    });
     // The member list and its owner, for the pod's spectators.
-    expect([ctx.members, ctx.leaderId]).toEqual([[{ id: 'u-alice', name: 'Alice' }, { id: 'u-bob', name: 'Bob' }], 'u-bob']);
+    expect([ctx.members, ctx.leaderId]).toEqual([[{ id: 'u-alice', name: 'Alice' }, { id: 'u-bob', name: 'Bob' }, { id: 'u-cat', name: 'Cat' }], 'u-bob']);
   });
 
   it('answers empty rather than throwing on a failed read', async () => {

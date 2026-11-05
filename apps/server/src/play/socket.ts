@@ -113,6 +113,7 @@ import {
 	type MatchSeats,
 	type MatchSnapshot,
 	type ServerEnvelope,
+	type Look,
 } from '@hadoku/shared';
 import { createSeatTable, type ParticipantId } from '@wolffm/rooms-protocol';
 import { parseDck } from '@hadoku/carddata/dck';
@@ -211,6 +212,8 @@ export interface PlayDeps {
 	spellCopiers?(name: string): readonly SpellCopy[] | undefined;
 	/** See {@link MatchDeps.seatAvatar}. */
 	seatAvatar?(matchId: string, owner: string): string | undefined;
+	/** See {@link MatchDeps.seatLook}. */
+	seatLook?(matchId: string, owner: string): Look | undefined;
 	/** What a seat's deck colours fold against (`./deck-colors.ts`). Absent: the library's costs alone. */
 	deckCosts?: DeckCosts;
 	/**
@@ -584,6 +587,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		...(deps.formatNames === undefined ? {} : { formatNames: deps.formatNames }),
 		...(deps.spellCopiers === undefined ? {} : { spellCopiers: deps.spellCopiers }),
 		...(deps.seatAvatar === undefined ? {} : { seatAvatar: deps.seatAvatar }),
+		...(deps.seatLook === undefined ? {} : { seatLook: deps.seatLook }),
 		seatsChanged: (match, seats) => {
 			// Wave 32, Q6: a seat's avatar changed mid-match. Every socket in the match
 			// — both seats, and watchers — gets the new roster on the event a join

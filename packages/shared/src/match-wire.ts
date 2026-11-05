@@ -84,6 +84,7 @@ import {
 
 import { SeqCursorSchema, type WireCursor } from './wire.ts';
 import { PlacementSchema, type Placement } from './placement.ts';
+import { LookSchema } from './look.ts';
 import { formatPath } from './semantics.ts';
 
 /* ── Event names ─────────────────────────────────────────────────────── */
@@ -481,6 +482,8 @@ export const SeatIdentitySchema = z
     /** Null until that seat's `openView` has landed — see `MatchSnapshot.playerId`'s own note. */
     playerId: z.number().int().nullable(),
     avatarId: z.unknown().optional(),
+    /** The holder's picture and cosmetics (`look.ts`); one that does not read costs only itself. */
+    look: LookSchema.optional().catch(undefined),
     /** The name Forge shows for this seat. Absent when the server was not told one. */
     name: z.string().min(1).optional(),
     /**

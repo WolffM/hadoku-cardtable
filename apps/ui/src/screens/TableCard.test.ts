@@ -22,7 +22,7 @@ function card(over: Partial<TableCardProps> = {}) {
     createElement(TableCard, {
       players: ['u-alice', 'u-bob'],
       nameOf: (id) => names[id] ?? id,
-      avatarOf: () => null,
+      avatarOf: () => ({ id: null }),
       myMemberId: 'u-alice',
       series: { length: 3, wins: [1, 0], played: 1, phase: 'playing' },
       matchId: 'm-000000000002',

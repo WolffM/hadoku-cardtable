@@ -124,6 +124,7 @@ import {
 	type StopPhase,
 	type MatchSnapshot,
 	type SeatIdentity,
+	type Look,
 	type ServerEnvelope,
 	type TableGameLive,
 	type WireCursor,
@@ -758,6 +759,8 @@ export interface MatchDeps {
 	 * the room's AI plays as one of its characters.
 	 */
 	seatAvatar?(matchId: string, owner: ParticipantId): string | undefined;
+	/** The holder's picture and cosmetics, asked like {@link seatAvatar}: never copied into the match. */
+	seatLook?(matchId: string, owner: ParticipantId): Look | undefined;
 	/**
 	 * Every seat's identity changed — `Match.seatAvatarChanged` (wave 32, Q6). The
 	 * socket layer re-sends `forge:seats` to every socket in the match; a deps
@@ -1758,6 +1761,10 @@ export class Match {
 				const owner = s.ai ? AI_SEAT_OWNER : s.owner;
 				const avatarId = owner === null ? undefined : this.deps.seatAvatar?.(this.id, owner);
 				return avatarId === undefined ? {} : { avatarId };
+			})(),
+			...(() => {
+				const look = s.owner === null || s.ai ? undefined : this.deps.seatLook?.(this.id, s.owner);
+				return look === undefined ? {} : { look };
 			})(),
 			...(s.displayName === undefined ? {} : { name: s.displayName }),
 			...(() => {

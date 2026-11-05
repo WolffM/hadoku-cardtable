@@ -174,7 +174,7 @@ import { deckFromDeckFile, isBasicLand, poolOf } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 import { parseDck } from '@hadoku/carddata/dck';
 import type { DeckEntry } from '@hadoku/carddata/dck';
-import { clockOn, FREE_PICK, MATCH_CLOCK_MS, RandomOptionsSchema, secureRandom, type ClockSetting, type PoolSource, type RandomPool, type RoomModeState, type RoomTable } from '@hadoku/shared';
+import { clockOn, FREE_PICK, MATCH_CLOCK_MS, RandomOptionsSchema, secureRandom, type ClockSetting, type PoolSource, type RandomPool, type RoomModeState, type RoomTable, type Look } from '@hadoku/shared';
 
 import type { DraftRooms, PodDeal } from '../room/draftRooms.js';
 import { botPoolAcross, builtDeckOf, stateOf, viewForParticipant } from '../room/draftRooms.js';
@@ -239,7 +239,7 @@ export interface RoomViewLike {
 	 * (`room/lobby.ts`'s `avatarIdOf`), so this layer has two states to carry and
 	 * not four. Structural here like the rest of this interface.
 	 */
-	members: { id: string; name: string; avatarId?: string }[];
+	members: { id: string; name: string; avatarId?: string; look?: Look }[];
 	/** Who the room's AI plays as (`room/lobby.ts`'s `roomAi`). Absent, Forge's own name and no face. */
 	ai?: { name: string; avatarId: string };
 	/**
@@ -387,6 +387,8 @@ export interface TablesHandle {
 	 * a holder who is not in that room, and a match no room started.
 	 */
 	seatAvatar(matchId: string, memberId: string): string | undefined;
+	/** The holder's picture and cosmetics, read the same way as {@link seatAvatar}. Undefined for none and for the AI. */
+	seatLook(matchId: string, memberId: string): Look | undefined;
 	/**
 	 * A room's match as the match stats report it, read when they ask (at game
 	 * over) from where each fact lives: the room that started it (`roomOfMatch`)
@@ -2262,6 +2264,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				return room === undefined ? undefined : tableAi(rooms, room, table?.id)?.avatarId;
 			}
 			return room?.members.find((m) => m.id === memberId)?.avatarId;
+		},
+		seatLook(matchId, memberId) {
+			return rooms?.roomOfMatch(matchId)?.members.find((m) => m.id === memberId)?.look;
 		},
 		matchStart(match) {
 			const room = rooms?.roomOfMatch(match.id);

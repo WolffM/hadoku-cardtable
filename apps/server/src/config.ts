@@ -235,6 +235,14 @@ export const CONFIG = {
 	testNoRateLimits: process.env.CARDTABLE_E2E_NO_RATE_LIMITS === '1',
 
 	/**
+	 * `CARDTABLE_E2E_PEOPLE_STAND_IN=1`: look people up (`people.ts`) without a
+	 * service key, from the e2e edge's prefs-api stand-in at `prefsBaseUrl`. The
+	 * e2e stacks hold no key, which is what keeps match stats off there, and
+	 * without this no spec could see a look. Never set by the deploy path.
+	 */
+	testPeopleStandIn: process.env.CARDTABLE_E2E_PEOPLE_STAND_IN === '1',
+
+	/**
 	 * `CARDTABLE_CATALOG_REFRESH`: on by default, so production needs no
 	 * cross-repo change to keep its catalog current with Scryfall's daily
 	 * bulk file (`pools/refresh.ts`, wave 74 §G). `index.ts` starts the job

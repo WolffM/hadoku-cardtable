@@ -106,6 +106,8 @@ import {
 	type PodView,
 	type RoomTable,
 	type SeriesPhase,
+	sameLook,
+	type Look,
 } from '@hadoku/shared';
 // `@hadoku/draft` depends on `@hadoku/shared`, never the reverse, so `pod.ts`
 // (which `@hadoku/shared` holds) cannot import these — this file is the one
@@ -1260,6 +1262,20 @@ export interface Lobby {
 	 */
 	onAvatarChange(listener: AvatarChangeListener): () => void;
 	/**
+	 * Each member's registry userId, for looking up how they look (`people.ts`).
+	 * A member the edge named nobody has none and is left out. Never part of a
+	 * view: a userId is not something one member is shown about another.
+	 */
+	usersOf(roomId: string): { memberId: string; userId: string }[];
+	/**
+	 * A member's avatar picture and cosmetics, as prefs-api answered for them.
+	 * In memory only: it is the person's, looked up again after a restart, never
+	 * a copy the room keeps. A real change is announced as an avatar change, so
+	 * a running match re-sends its seats, and to `onChange` with nothing written.
+	 * `false` only when there is no such room or member.
+	 */
+	setLook(roomId: string, memberId: string, look: Look | undefined): boolean;
+	/**
 	 * Be told every time a room is written, created or forgotten. Every mutation
 	 * goes through one persist, so this is every change a read could see and
 	 * nothing else: a read (`touch`, `get`, `list`) never fires it. The room feed
@@ -1702,6 +1718,8 @@ interface MemberRecord {
 	 * shared face until somebody picks again.
 	 */
 	avatarGiven?: true;
+	/** In memory only (`Lobby.setLook`): their picture and cosmetics. */
+	look?: Look;
 }
 
 interface RoomRecord {
@@ -2183,6 +2201,7 @@ function viewOf(room: RoomRecord, locked: boolean, checks: PodChecks): RoomView 
 			// `JSON.stringify` drops an undefined value and would otherwise be
 			// the only thing making them agree.
 			...(m.avatarId === undefined ? {} : { avatarId: m.avatarId }),
+			...(m.look === undefined ? {} : { look: m.look }),
 		})),
 		tables: room.tables.map((t) => tableView(t, room.members, room)),
 		// The FIRST table's live match — unchanged, so every existing reader
@@ -3471,6 +3490,25 @@ class FileLobby implements Lobby {
 		}
 		this.#persist(room);
 		for (const m of [member, ...moved]) this.#announceAvatar(roomId, m.id, m.avatarId ?? null);
+		return true;
+	}
+
+	usersOf(roomId: string): { memberId: string; userId: string }[] {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return [];
+		return room.members.flatMap((m) => (m.userId === null ? [] : [{ memberId: m.id, userId: m.userId }]));
+	}
+
+	setLook(roomId: string, memberId: string, look: Look | undefined): boolean {
+		const room = this.#rooms.get(roomId);
+		const member = room?.members.find((m) => m.id === memberId);
+		if (room === undefined || member === undefined) return false;
+		if (sameLook(member.look, look)) return true;
+		if (look === undefined) delete member.look;
+		else member.look = look;
+		this.#log({ event: 'room-look', roomId, picture: look?.picture !== undefined, worn: Object.keys(look?.cosmetics ?? {}).length });
+		this.#announceAvatar(roomId, memberId, member.avatarId ?? null);
+		this.#changed(roomId);
 		return true;
 	}
 

@@ -19,6 +19,7 @@ import { PodBracket } from './PodBracket.tsx';
 import { PodPodium } from './PodPodium.tsx';
 import { PodStandings } from './PodStandings.tsx';
 import type { PodView } from './wire.ts';
+import type { Face } from '../../components/Avatar.tsx';
 
 export interface RoomHubProps {
   roomId: string;
@@ -26,7 +27,7 @@ export interface RoomHubProps {
   tables: readonly RoomTable[];
   myMemberId: string | null;
   nameOf: (memberId: string) => string;
-  avatarOf: (memberId: string) => string | null;
+  avatarOf: (memberId: string) => Face;
   leaderId: string;
   /** Each table's game (the room body's `tableGames`), for its card. */
   games?: Readonly<Record<string, TableGame>> | undefined;

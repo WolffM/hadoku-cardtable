@@ -14,7 +14,7 @@ afterEach(cleanup);
 const NAMES: Record<string, string> = { 'u-alice': 'Alice', 'u-bob': 'Bob', 'u-carol': 'Carol', 'u-dave': 'Dave', ai: 'Knight' };
 const nameOf = (id: string) => NAMES[id] ?? id;
 const AVATARS: Record<string, string> = { 'u-alice': 'sage', ai: 'knight' };
-const avatarOf = (id: string) => AVATARS[id] ?? null;
+const avatarOf = (id: string) => ({ id: AVATARS[id] ?? null });
 
 const player = (memberId: string) => ({ memberId, name: nameOf(memberId) });
 const table = (id: string, ids: string[], over: Partial<RoomTable> = {}): RoomTable => ({

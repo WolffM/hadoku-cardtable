@@ -13,7 +13,7 @@
  * What the choose screen carries on from it (each surviving deck, the names, the title) steps aside
  * here at once, and under `prefers-reduced-motion` all of it stays for the crossfade instead.
  */
-import { useLayoutEffect, useRef, type CSSProperties } from 'react';
+import { useContext, useLayoutEffect, useRef, type CSSProperties } from 'react';
 
 import type { GauntletDeck, GauntletSeatIndex, GauntletView } from '@hadoku/shared';
 
@@ -24,7 +24,7 @@ import type { DeckOption } from '../ConstructedScreen.tsx';
 import { DeckTile } from '../DeckTile.tsx';
 import { useTilePeek } from './peek.tsx';
 import { DEAL_MS, TITLE_MS, dealtAt, useReveal } from './reveal.ts';
-import { PlayerName, seatOrder } from './seats.tsx';
+import { PlayerName, SeatFaces, seatOrder } from './seats.tsx';
 import { useGauntletSounds } from './sounds.ts';
 
 /** Each player's picks: three. */
@@ -33,18 +33,17 @@ const PICKS = 3;
 export function GauntletBoard({
   view,
   options,
-  avatars,
   onBan,
   onPick,
   leaving = false,
 }: {
   view: GauntletView;
   options: ReadonlyMap<string, DeckOption>;
-  avatars?: readonly [string | undefined, string | undefined] | undefined;
   onBan: (deckId: string) => void;
   onPick: (deckId: string) => void;
   leaving?: boolean;
 }) {
+  const faces = useContext(SeatFaces);
   const reveal = useReveal(view.revealAt);
   useGauntletSounds(view.decks, reveal);
   const [p1, p2] = seatOrder(view);
@@ -164,8 +163,8 @@ export function GauntletBoard({
                 toss={{
                   winner: view.first,
                   name: view.players?.[view.first].name ?? '',
-                  avatarId: avatars?.[view.first],
-                  loserAvatarId: avatars?.[view.first === 0 ? 1 : 0],
+                  face: faces[view.first],
+                  loserFace: faces[view.first === 0 ? 1 : 0],
                   at: view.revealAt + TITLE_MS,
                 }}
               />

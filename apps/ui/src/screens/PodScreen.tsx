@@ -85,7 +85,10 @@ import { CloseRoom } from '../rooms/CloseRoom.tsx';
 import { cubeIdsOf } from './DraftLobby.tsx';
 import { poolsClient, roomsClient } from '../rooms/api.ts';
 import { deckStoreClient } from '../deck/deckStore.ts';
+import { MemberFaces, NO_FACE, type Face } from '../components/Avatar.tsx';
 import './PodScreen.css';
+
+const NO_FACES: Readonly<Record<string, Face>> = {};
 
 export interface PodScreenProps {
   /** The ROOM's id. The draft runs against it. */
@@ -191,7 +194,7 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
 
   const myMemberId = ctx?.me ?? null;
   const nameOf = (id: string): string => ctx?.names[id] ?? id;
-  const avatarOf = (id: string): string | null => ctx?.avatars[id] ?? null;
+  const avatarOf = (id: string): Face => ctx?.avatars[id] ?? NO_FACE;
 
   /** Pressed Play, and the rest of the pod is still building. */
   const ready = phase === 'building' && myMemberId !== null && ctx?.pod?.built.includes(myMemberId) === true;
@@ -292,20 +295,22 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
       ) : done || inRounds ? null : table === null ? (
         <DraftSkeleton side={side} seats={ctx?.pod?.drafters.length || undefined} />
       ) : (
-        <DraftScreen
-          state={table}
-          onChange={setTable}
-          onPick={(cardId) => {
-            if (draft !== null) socketPick(draft, cardId);
-          }}
-          nextPayload={null}
-          buildStore={buildStore}
-          arrivedWhole={draft?.arrivedWhole ?? false}
-          side={side}
-          onWatch={(seatId) => {
-            if (draft !== null) watchSeat(draft, seatId);
-          }}
-        />
+        <MemberFaces.Provider value={ctx?.avatars ?? NO_FACES}>
+          <DraftScreen
+            state={table}
+            onChange={setTable}
+            onPick={(cardId) => {
+              if (draft !== null) socketPick(draft, cardId);
+            }}
+            nextPayload={null}
+            buildStore={buildStore}
+            arrivedWhole={draft?.arrivedWhole ?? false}
+            side={side}
+            onWatch={(seatId) => {
+              if (draft !== null) watchSeat(draft, seatId);
+            }}
+          />
+        </MemberFaces.Provider>
       )}
       <TopLayer fixed />
     </div>

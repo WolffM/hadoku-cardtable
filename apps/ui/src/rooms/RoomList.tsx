@@ -71,7 +71,7 @@ import {
   type RoomView,
   type RoomsClient,
 } from './api.ts';
-import { Avatar } from '../components/Avatar.tsx';
+import { Avatar, faceOf } from '../components/Avatar.tsx';
 import { Reveal } from '../components/Reveal.tsx';
 import { FrontGateContext, usePartShown } from '../front/gate.ts';
 import { MAX_ROOM_GHOSTS } from '../front/shape.ts';
@@ -658,7 +658,7 @@ function RoomRow({
               does not — never a placeholder square, because a row of identical
               squares says less than the names already beside them. */}
           {room.members.map((m) => (
-            <Avatar key={m.id} id={m.avatarId} fallback="none" className="rooms__face" data-testid="room-face" data-avatar-id={m.avatarId} title={m.name} width={18} height={18} loading="lazy" />
+            <Avatar key={m.id} {...faceOf(m)} fallback="none" className="rooms__face" data-testid="room-face" data-avatar-id={m.avatarId} title={m.name} width={18} height={18} loading="lazy" />
           ))}
           {names.join(', ')}
         </span>

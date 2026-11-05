@@ -173,6 +173,8 @@ export interface RoomsDeps {
 	 * missing and nothing else. No separate reset path.
 	 */
 	reseedTesting?: () => void;
+	/** Read the caller's look again, skipping the cache (`people.ts`'s `attachLooks`): they assert their identity when they change it. */
+	lookChanged?: (roomId: string, memberId: string) => void;
 	/**
 	 * Each table's game as the table card draws it (`play/table-game.ts`), by table id: the room body
 	 * carries it as `tableGames`. Absent (a unit suite) is none.
@@ -550,6 +552,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		const named = String(req.params.id);
 		const id = lobby.roomOfMatch(named)?.id ?? named;
 		if (!ROOM_ID_RE.test(id) || !lobby.setAvatar(id, caller.id, body.avatarId)) return noMatch(res);
+		deps.lookChanged?.(id, caller.id);
 		const room = lobby.get(id);
 		if (room === undefined) return noMatch(res);
 		res.json(roomBody(room, caller.id));

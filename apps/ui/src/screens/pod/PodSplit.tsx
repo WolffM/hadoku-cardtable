@@ -21,11 +21,13 @@
 import type { CSSProperties } from 'react';
 
 import { ActionButton } from '../../components/ActionButton.tsx';
-import { Avatar } from '../../components/Avatar.tsx';
+import { Avatar, faceOf } from '../../components/Avatar.tsx';
+import { PlayerName } from '../../room/look.tsx';
+import type { Look } from '@hadoku/shared';
 import { podReady, POD_SEATS, seatedDrafters, type PodView } from './wire.ts';
 import './PodSplit.css';
 
-type Member = { id: string; name: string; ready: boolean; avatarId?: unknown };
+type Member = { id: string; name: string; ready: boolean; avatarId?: unknown; look?: Look };
 
 /** The leader's split's pods while it stands, or null: never for a tournament pod, which drafts no pool. */
 export function standingPods(pod: PodView): string[][] | null {
@@ -78,11 +80,10 @@ export function PodSplit({ pod, members, myMemberId }: PodSplitProps) {
           <ol className="pod-split__drafters">
             {drafters.map((id, row) => {
               const m = member(id);
-              const avatarId = typeof m?.avatarId === 'string' ? m.avatarId : undefined;
               return (
                 <li key={id} className="pod-split__drafter" style={{ '--reveal-row': row } as CSSProperties}>
-                  <Avatar id={avatarId} fallback="initial" name={m?.name ?? ''} className="pod-split__face" fallbackClassName="pod-split__face" />
-                  <span className="pod-split__drafter-name">{m?.name ?? id}</span>
+                  <Avatar {...faceOf(m)} fallback="initial" name={m?.name ?? ''} className="pod-split__face" fallbackClassName="pod-split__face" />
+                  <PlayerName name={m?.name ?? id} face={faceOf(m)} className="pod-split__drafter-name" />
                 </li>
               );
             })}

@@ -49,12 +49,12 @@ describe('the coin toss’s pace', () => {
 
   it('the stylesheet takes its length from FLIP_MS, never a second number', () => {
     expect(CSS).toMatch(/animation:\s*coin-toss-flip\s+var\(--flip-ms\)/);
-    const { getByTestId } = render(createElement(TossCoin, { toss: { winner: 0, name: 'Alice', avatarId: undefined, loserAvatarId: undefined, at: Date.now() } }));
+    const { getByTestId } = render(createElement(TossCoin, { toss: { winner: 0, name: 'Alice', face: { id: undefined }, loserFace: { id: undefined }, at: Date.now() } }));
     expect(getByTestId('coin-toss').style.getPropertyValue('--flip-ms')).toBe(`${FLIP_MS}ms`);
   });
 
   it('a screen that learns of the toss late joins the same flip part-way, so both land together', () => {
-    const { getByTestId } = render(createElement(TossCoin, { toss: { winner: 0, name: 'Alice', avatarId: undefined, loserAvatarId: undefined, at: Date.now() - 800 } }));
+    const { getByTestId } = render(createElement(TossCoin, { toss: { winner: 0, name: 'Alice', face: { id: undefined }, loserFace: { id: undefined }, at: Date.now() - 800 } }));
     const delay = Number.parseFloat(getByTestId('coin-toss').style.getPropertyValue('--flip-delay'));
     expect(delay).toBeLessThanOrEqual(-800);
     expect(delay).toBeGreaterThan(-900);
@@ -63,15 +63,15 @@ describe('the coin toss’s pace', () => {
 
 describe('the loser’s wait (the operator, 2026-10-09: "after coinflip is complete, it should show a waiting text for the person who lost")', () => {
   it('once the coin lands, the seat that lost reads that the winner is choosing — never during the flip', () => {
-    const flipping = render(createElement(TossCoin, { toss: { winner: 0, name: 'Alice', avatarId: undefined, loserAvatarId: undefined, at: Date.now() }, waiting: true }));
+    const flipping = render(createElement(TossCoin, { toss: { winner: 0, name: 'Alice', face: { id: undefined }, loserFace: { id: undefined }, at: Date.now() }, waiting: true }));
     expect(flipping.queryByTestId('coin-toss-wait'), 'not while it flips').toBeNull();
     cleanup();
-    const landed = render(createElement(TossCoin, { toss: { winner: 0, name: 'Alice', avatarId: undefined, loserAvatarId: undefined, at: Date.now() - FLIP_MS - 50 }, waiting: true }));
+    const landed = render(createElement(TossCoin, { toss: { winner: 0, name: 'Alice', face: { id: undefined }, loserFace: { id: undefined }, at: Date.now() - FLIP_MS - 50 }, waiting: true }));
     expect(landed.getByTestId('coin-toss-wait').textContent).toBe('Alice is choosing to play or draw…');
   });
 
   it('the winner, who is the one choosing, never reads it', () => {
-    const { queryByTestId } = render(createElement(TossCoin, { toss: { winner: 0, name: 'Alice', avatarId: undefined, loserAvatarId: undefined, at: Date.now() - FLIP_MS - 50 } }));
+    const { queryByTestId } = render(createElement(TossCoin, { toss: { winner: 0, name: 'Alice', face: { id: undefined }, loserFace: { id: undefined }, at: Date.now() - FLIP_MS - 50 } }));
     expect(queryByTestId('coin-toss-wait')).toBeNull();
   });
 });
@@ -124,7 +124,7 @@ describe('a coin flipped in the game is the same coin (the operator, 2026-10-27:
 
 describe('the coin is no dialog sheet (the operator, 2026-10-28: "shouldn\'t be on the coin itself")', () => {
   it('the movable grip marks the Play/Draw question beside the coin, never the coin', () => {
-    const toss = { winner: 0, name: 'Bella', avatarId: undefined, loserAvatarId: undefined, at: Date.now() };
+    const toss = { winner: 0, name: 'Bella', face: { id: undefined }, loserFace: { id: undefined }, at: Date.now() };
     const view = render(
       createElement(
         'div',

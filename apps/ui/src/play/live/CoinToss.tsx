@@ -18,7 +18,8 @@
  */
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 
-import { Avatar } from '../../components/Avatar.tsx';
+import { Avatar, type Face } from '../../components/Avatar.tsx';
+import { PlayerName } from '../../room/look.tsx';
 
 import './coin-toss.css';
 
@@ -50,8 +51,8 @@ export function useCoinFlipping(at: number | null): boolean {
 }
 
 /** A side of the coin that is a player: their avatar, or the silhouette when they have none. */
-export function PlayerFace({ avatarId }: { avatarId: string | undefined }) {
-  return <Avatar id={avatarId} fallback="mark" className="coin-toss__avatar" fallbackClassName="coin-toss__mark" />;
+export function PlayerFace({ face }: { face: Face }) {
+  return <Avatar {...face} fallback="mark" className="coin-toss__avatar" fallbackClassName="coin-toss__mark" />;
 }
 
 /** A side of the coin that is heads or tails: its letter, as a coin is marked. */
@@ -73,7 +74,7 @@ export function CoinToss({
   front: ReactNode;
   back: ReactNode;
   /** Under the coin: the toss winner's name, a flip's own words. */
-  caption: string;
+  caption: ReactNode;
   at: number;
   /** A called flip: whether the call was won. Absent when nobody called it. */
   won?: boolean | null;
@@ -112,15 +113,15 @@ export function TossCoin({
   toss,
   waiting = false,
 }: {
-  toss: { winner: number; name: string; avatarId: string | undefined; loserAvatarId: string | undefined; at: number };
+  toss: { winner: number; name: string; face: Face; loserFace: Face; at: number };
   /** This screen waits on the winner's play-or-draw choice (the seat that lost, or a spectator). */
   waiting?: boolean;
 }) {
   return (
     <CoinToss
-      front={<PlayerFace avatarId={toss.avatarId} />}
-      back={<PlayerFace avatarId={toss.loserAvatarId} />}
-      caption={toss.name}
+      front={<PlayerFace face={toss.face} />}
+      back={<PlayerFace face={toss.loserFace} />}
+      caption={<PlayerName name={toss.name} face={toss.face} />}
       at={toss.at}
       data={{ 'data-winner': toss.winner }}
       after={

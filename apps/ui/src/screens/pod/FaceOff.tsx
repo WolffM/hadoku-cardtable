@@ -16,7 +16,8 @@
  */
 import { useEffect, useState, type CSSProperties } from 'react';
 
-import { Avatar } from '../../components/Avatar.tsx';
+import { Avatar, type Face } from '../../components/Avatar.tsx';
+import { PlayerName } from '../../room/look.tsx';
 import { StatusPill } from '../../components/StatusPill.tsx';
 import { prefersReducedMotion } from '../../play/motion.ts';
 import { playRole } from '../../sound/index.ts';
@@ -70,7 +71,7 @@ export interface FaceOffSeat {
   /** The table seat, which the series' wins and the seats' Ready are counted by. */
   seat: number;
   name: string;
-  avatarId: string | null;
+  face: Face;
   wins: number;
   /** Its Ready, while the table's start waits on it. */
   ready?: boolean;
@@ -96,8 +97,8 @@ export function FaceOff({ left, right, scored, revealing }: FaceOffProps) {
   } as CSSProperties;
   const fighter = (p: FaceOffSeat, side: 'left' | 'right') => (
     <li className="face-off__fighter" data-side={side} data-mine={p.mine ? '' : undefined} data-testid={`table-seat-${p.seat}`}>
-      <Avatar id={p.avatarId} fallback="initial" name={p.name} className="face-off__avatar" fallbackClassName="face-off__avatar face-off__avatar--none" />
-      <span className="face-off__name">{p.name}</span>
+      <Avatar {...p.face} fallback="initial" name={p.name} className="face-off__avatar" fallbackClassName="face-off__avatar face-off__avatar--none" />
+      <PlayerName name={p.name} face={p.face} className="face-off__name" />
       {p.ready !== undefined && (
         <span className="face-off__ready">
           <StatusPill testId={`table-seat-${p.seat}-ready`} state={p.ready ? 'yes' : 'no'} mark={p.ready ? 'tick' : 'ring'} label={p.ready ? 'ready' : 'not ready'} />

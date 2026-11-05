@@ -9,12 +9,14 @@
  */
 
 import { ActionButton } from '../components/ActionButton.tsx';
-import { Avatar } from '../components/Avatar.tsx';
+import { Avatar, faceOf } from '../components/Avatar.tsx';
+import { PlayerName } from '../room/look.tsx';
+import type { Look } from '@hadoku/shared';
 import { CROWN } from './ConstructedScreen.tsx';
 
 export interface RoomSpectatorsProps {
   /** The room's members who hold no seat, in the room's order. */
-  spectators: readonly { id: string; name: string; avatarId?: string }[];
+  spectators: readonly { id: string; name: string; avatarId?: string; look?: Look }[];
   myId: string | null;
   leaderId: string;
   /** Given while I hold a seat: the open slot that gives it back. */
@@ -35,7 +37,7 @@ export function RoomSpectators({ spectators, myId, leaderId, onWatch, watchDisab
           <li key={member.id} className="pod-seats__seat" data-testid="room-spectator" data-member={member.id} data-mine={member.id === myId ? '' : undefined}>
             <span className="pod-seats__avatar-wrap">
               <span className="pod-seats__avatar">
-                <Avatar id={member.avatarId} fallback="initial" name={member.name} className="pod-seats__avatar-img" fallbackClassName="pod-seats__avatar-fallback" />
+                <Avatar {...faceOf(member)} fallback="initial" name={member.name} className="pod-seats__avatar-img" fallbackClassName="pod-seats__avatar-fallback" />
               </span>
               {member.id === leaderId && leaderId !== '' && (
                 <svg className="pod-seats__crown" viewBox="0 0 12 12" role="img" aria-label="Room owner">
@@ -44,7 +46,7 @@ export function RoomSpectators({ spectators, myId, leaderId, onWatch, watchDisab
                 </svg>
               )}
             </span>
-            <span className="pod-seats__label">{member.name}</span>
+            <PlayerName name={member.name} face={faceOf(member)} className="pod-seats__label" />
           </li>
         ))}
         {onWatch !== undefined && (

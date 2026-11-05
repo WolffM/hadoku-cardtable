@@ -1,0 +1,13 @@
+/*
+ * The overlay a person wears, laid over their face (`look.tsx`'s `FaceDecor`).
+ * The fleet's `.hc-av` box is `position: relative` in the flow; this one is
+ * taken out of it and placed on the face it follows, so the face's own layout
+ * is untouched. Its `left`, `top` and `--hc-sz` are set from that face.
+ * Two classes, because the fleet's sheet is injected after ours and its own
+ * `.hc-av { position: relative }` would otherwise win and leave it in the flow.
+ */
+.hc-av.face-decor {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+}

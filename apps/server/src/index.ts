@@ -122,7 +122,8 @@ import { createCatalogRefresh } from './pools/refresh.js';
 import { loadCardCatalog } from './pools/catalog.js';
 import { createForgePools, type ForgePools } from './pools/forge.js';
 import { serveCover } from './cover.js';
-import { newestFormat } from './room/lobby.js';
+import { newestFormat, UNNAMED } from './room/lobby.js';
+import { attachLooks, createPeople } from './people.js';
 import { openEvents } from './room/events.js';
 import { openTournaments } from './room/tournaments.js';
 import { jsonLogger } from './log.js';
@@ -611,9 +612,13 @@ const roomClosed = (roomId: string, matches: readonly string[]): void => {
 	const draft = draftRooms?.find(roomId);
 	if (draft !== undefined && stateOf(draft).status !== 'complete') draftRooms?.delete(roomId);
 };
+// Every member's avatar picture and cosmetics, from prefs-api (`people.ts`).
+const people = createPeople({ baseUrl: CONFIG.prefsBaseUrl, serviceKey: CONFIG.serviceKey, keyless: CONFIG.testPeopleStandIn, log: roomsLog });
+const looks = attachLooks(lobby, people, UNNAMED);
 attachRooms(api, {
 	lobby,
 	checkPlan: checkDraftPlan,
+	lookChanged: (roomId, memberId) => void looks.refresh(roomId, memberId),
 	...(CONFIG.testNoRateLimits ? { createRateLimit: null } : {}),
 	// Read per request; `featured` is built further down, beside play. Never the caller's own game: the front page
 	// joins the match it features, and a seat holder's join takes their seat from the board they play on.
@@ -897,6 +902,7 @@ play = attachPlay(io, api, {
 	...(forge.ok ? { spellCopiers: spellCopierLookup(forge.config.res, jsonLogger('cardtable-play')) } : {}),
 	// A seat's face is its holder's avatar in the room that started the match.
 	seatAvatar: tables.seatAvatar,
+	seatLook: tables.seatLook,
 	// A seat's deck colours pick the match's music (`play/deck-colors.ts`).
 	deckCosts,
 	// A table's game moved on: its room's screens read the room again for the table card.
@@ -1110,6 +1116,9 @@ httpServer.listen(CONFIG.port, CONFIG.host, () => {
 	}
 	if (CONFIG.testNoRateLimits) {
 		console.warn('[cardtable] CARDTABLE_E2E_NO_RATE_LIMITS=1 — no per-caller limit on rooms, events or match starts. e2e stacks only, never production.');
+	}
+	if (CONFIG.testPeopleStandIn) {
+		console.warn('[cardtable] CARDTABLE_E2E_PEOPLE_STAND_IN=1 — people are looked up with no service key, from the e2e stand-in. e2e stacks only, never production.');
 	}
 	if (CONFIG.testUncheckedPools) {
 		console.warn('[cardtable] CARDTABLE_E2E_UNCHECKED_POOLS=1 — a plan with no jar passes unchecked (missingText still refuses). e2e/harness.ts only, never production.');

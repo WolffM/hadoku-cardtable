@@ -25,7 +25,7 @@ afterEach(() => {
 
 const ROOM = 'r-hub';
 const nameOf = (id: string) => ({ 'u-alice': 'Alice', 'u-bob': 'Bob', 'ai:3': 'Rogue' })[id] ?? id;
-const avatarOf = () => null;
+const avatarOf = () => ({ id: null });
 const route = () => parseRoute(globalThis.location.hash);
 
 function pod(over: Partial<PodView> = {}): PodView {

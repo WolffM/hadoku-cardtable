@@ -18,7 +18,8 @@
 import { useState, type CSSProperties, type FocusEvent } from 'react';
 import type { RoomTable, TableGame } from '@hadoku/shared';
 
-import { Avatar } from '../../components/Avatar.tsx';
+import { Avatar, type Face as AvatarFace } from '../../components/Avatar.tsx';
+import { PlayerName } from '../../room/look.tsx';
 import { routeHash } from '../route.ts';
 import { dqPlayer, resolveTable } from '../tableActions.ts';
 import { tablePhase } from '../TableCard.tsx';
@@ -36,19 +37,19 @@ export interface PodBracketProps {
   leader?: boolean | undefined;
   nameOf: (memberId: string) => string;
   /** A player's watchparty character, or `null` for none. */
-  avatarOf: (memberId: string) => string | null;
+  avatarOf: (memberId: string) => AvatarFace;
   /** Each table's game (the room body's `tableGames`), by table id. */
   games?: Readonly<Record<string, TableGame>> | undefined;
 }
 
 interface Faces {
   nameOf: (id: string) => string;
-  avatarOf: (id: string) => string | null;
+  avatarOf: (id: string) => AvatarFace;
 }
 
 /** The player's watchparty character, or their initial without one — or when it will not load. */
 function Face({ id, nameOf, avatarOf, size }: Faces & { id: string; size: number }) {
-  return <Avatar id={avatarOf(id)} fallback="initial" name={nameOf(id)} className="swiss__face" fallbackClassName="swiss__face swiss__face--none" width={size} height={size} />;
+  return <Avatar {...avatarOf(id)} fallback="initial" name={nameOf(id)} className="swiss__face" fallbackClassName="swiss__face swiss__face--none" width={size} height={size} />;
 }
 
 const at = (x: number, y: number, extra: CSSProperties = {}): CSSProperties => ({ left: x, top: y, ...extra });
@@ -100,7 +101,7 @@ export function PodBracket({ roomId, pod, tables, myMemberId, leader = false, na
             <div key={`bye:${i}`} className="swiss__card swiss__card--bye" data-testid="pod-tables-bye" data-focus={c.player === focus ? '' : undefined} style={at(c.x, c.y, { width: SWISS.cardW, height: c.h })}>
               <button type="button" className="swiss__row" {...pick(c.player)}>
                 <Face id={c.player} {...faces} size={24} />
-                <span className="swiss__name">{nameOf(c.player)}</span>
+                <PlayerName name={nameOf(c.player)} face={avatarOf(c.player)} className="swiss__name" />
                 <span className="swiss__tag">Bye</span>
               </button>
             </div>
@@ -139,7 +140,7 @@ export function PodBracket({ roomId, pod, tables, myMemberId, leader = false, na
             >
               <span className="swiss__place">#{f.place}</span>
               <Face id={f.player} {...faces} size={26} />
-              <span className="swiss__name">{nameOf(f.player)}</span>
+              <PlayerName name={nameOf(f.player)} face={avatarOf(f.player)} className="swiss__name" />
               <span className="swiss__pts">{pts} pts</span>
             </button>
           );
@@ -211,7 +212,7 @@ function MatchCard({ roomId, match, x, y, h, focus, dim, myMemberId, leader, dro
         const row = (
           <>
             <Face id={id} nameOf={nameOf} avatarOf={avatarOf} size={24} />
-            <span className="swiss__name">{nameOf(id)}</span>
+            <PlayerName name={nameOf(id)} face={avatarOf(id)} className="swiss__name" />
             <span className="swiss__score">{wins[k]}</span>
           </>
         );

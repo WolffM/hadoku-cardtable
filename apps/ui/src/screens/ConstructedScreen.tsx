@@ -166,7 +166,8 @@ import { followMatchOnce, openNewMatch } from '../play/live/matchStart.ts';
 import { PodScreen } from './PodScreen.tsx';
 import { DraftLobby, podDealable } from './DraftLobby.tsx';
 import { ActionButton } from '../components/ActionButton.tsx';
-import { Avatar } from '../components/Avatar.tsx';
+import { Avatar, faceOf, NO_FACE, type Face } from '../components/Avatar.tsx';
+import { PlayerName } from '../room/look.tsx';
 import { mainDeckColors } from '../components/DeckView.tsx';
 import { assignDeckArt, libraryDeckArt, rankDeckArt, traitsOfDraftCard, type DeckArtChoice } from './deckArt.ts';
 import { artCredit, useArtist } from '../draft/artists.ts';
@@ -195,7 +196,7 @@ import { ClassicOptions, toggledFreePick, type Browse } from './constructed-mode
 import { GauntletOptions } from './constructed-mode/GauntletOptions.tsx';
 import { AllRandomOptions } from './random/AllRandomOptions.tsx';
 import { GauntletScreen } from './gauntlet/GauntletScreen.tsx';
-import { seatAvatars } from './gauntlet/seats.tsx';
+import { seatFaces } from './gauntlet/seats.tsx';
 import { RoomSpectators } from './RoomSpectators.tsx';
 import './pod/PodSeats.css';
 import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
@@ -2239,7 +2240,7 @@ function RoomTableScreen({
 
   const entrants = entrantLookup(pod, members);
   const tNameOf = (id: string): string => entrants.names[id] ?? id;
-  const tAvatarOf = (id: string): string | null => entrants.avatars[id] ?? null;
+  const tAvatarOf = (id: string): Face => entrants.avatars[id] ?? NO_FACE;
 
   useFollowMyTable(roomId, tournament ? pod : null, view?.tables ?? [], view?.you.id ?? null, tableId);
 
@@ -2327,7 +2328,7 @@ function RoomTableScreen({
       <section className="lobby__card" data-testid="tournament-gauntlet">
         <GauntletScreen
           view={gauntlet}
-          avatars={seatAvatars(gauntlet, members)}
+          faces={seatFaces(gauntlet, members)}
           onBan={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'ban', deck, gauntletTableId))}
           onPick={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'pick', deck, gauntletTableId))}
           onChoose={(deck) => gauntletMove(() => client.gauntletChoose(roomId, deck, gauntletTableId))}
@@ -2685,7 +2686,7 @@ function RoomTableScreen({
                           key={seat}
                           seat={seat}
                           player={{ ...player, ready: readyAt(seat) }}
-                          avatarId={members.find((m) => m.name === player.name)?.avatarId}
+                          face={faceOf(members.find((m) => m.name === player.name))}
                           leader={player.you ? iAmLeader : !iAmLeader && player.name === leaderMember?.name}
                           {...(player.you
                             ? {
@@ -2719,7 +2720,7 @@ function RoomTableScreen({
               gauntlet !== null && (
                 <GauntletScreen
                   view={gauntlet}
-                  avatars={seatAvatars(gauntlet, members)}
+                  faces={seatFaces(gauntlet, members)}
                   onBan={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'ban', deck))}
                   onPick={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'pick', deck))}
                   onChoose={(deck) => gauntletMove(() => client.gauntletChoose(roomId, deck))}
@@ -2732,7 +2733,7 @@ function RoomTableScreen({
                 tableId={myTable.id}
                 players={[myTable.players[0]?.memberId ?? '', myTable.players[1]?.memberId ?? POD_AI]}
                 nameOf={(id) => (id === POD_AI ? (view?.ai?.name ?? tNameOf(id)) : tNameOf(id))}
-                avatarOf={(id) => (id === POD_AI ? (view?.ai?.avatarId ?? null) : tAvatarOf(id))}
+                avatarOf={(id) => (id === POD_AI ? { id: view?.ai?.avatarId ?? null } : tAvatarOf(id))}
                 myMemberId={view?.you.id ?? null}
                 series={{ length: myTable.series.length, wins: myTable.series.wins, played: myTable.series.games.length, phase: myTable.series.phase }}
                 matchId={myTable.matchId}
@@ -2950,15 +2951,15 @@ export const CROWN = 'M2 9V3.5l2.2 2L6 2.6l1.8 2.9L10 3.5V9Z';
 function PlayerRow({
   seat,
   player,
-  avatarId,
+  face,
   leader = false,
   onReady,
   readyDisabled = false,
 }: {
   seat: number;
   player: RoomPlayer;
-  /** The seated member's watchparty avatar, the one `Avatar` draws everywhere else; `undefined` for none. */
-  avatarId?: string;
+  /** The seated member's face, the one `Avatar` draws everywhere else. */
+  face: Face;
   /** My own row only: the ready state is a button that sets it. */
   onReady?: () => void;
   readyDisabled?: boolean;
@@ -2969,7 +2970,7 @@ function PlayerRow({
     <li className="pod-seats__seat" data-testid={`room-seat-${seat}`} data-mine={player.you ? '' : undefined}>
       <span className="pod-seats__avatar-wrap">
         <span className="pod-seats__avatar" data-ready={player.ready ? 'true' : 'false'}>
-          <Avatar id={avatarId} fallback="initial" name={player.name} className="pod-seats__avatar-img" fallbackClassName="pod-seats__avatar-fallback" />
+          <Avatar {...face} fallback="initial" name={player.name} className="pod-seats__avatar-img" fallbackClassName="pod-seats__avatar-fallback" />
         </span>
         {leader && (
           <svg className="pod-seats__crown" data-testid="room-leader" viewBox="0 0 12 12" role="img" aria-label="Room owner">
@@ -2978,7 +2979,7 @@ function PlayerRow({
           </svg>
         )}
       </span>
-      <span className="pod-seats__label">{player.name}</span>
+      <PlayerName name={player.name} face={face} className="pod-seats__label" />
       {onReady === undefined ? (
         <StatusPill
           testId={`room-seat-${seat}-ready`}

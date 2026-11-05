@@ -169,7 +169,7 @@ import {
   type ArtIdTableFile,
 } from '@hadoku/carddata/art';
 import { DECK_COLORS, POOL_COLORS } from '@hadoku/deck';
-import type { DraftCard, ManaColor, Rarity } from '@hadoku/shared';
+import type { DraftCard, Look, ManaColor, Rarity } from '@hadoku/shared';
 import type { FacePart, TileCard } from '../components/faceCrop.ts';
 
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
@@ -603,6 +603,8 @@ export interface BoardPlayer {
    * so one null check is the whole fallback.
    */
   avatarId?: string;
+  /** Their picture and cosmetics (`AdaptOptions.lookByPlayerId`); absent for none. */
+  look?: Look;
   /** This player's chess clock (`AdaptOptions.clockByPlayerId`); absent in a game without one. */
   clock?: PlayerClock;
 }
@@ -893,6 +895,8 @@ export interface AdaptOptions {
    * avatar — not an error.
    */
   avatarByPlayerId?: ReadonlyMap<number, string>;
+  /** Every seat holder's picture and cosmetics, keyed like {@link avatarByPlayerId} (`LiveMatch.lookByPlayerId`). */
+  lookByPlayerId?: ReadonlyMap<number, Look>;
   /** The face of the seat nobody holds (`LiveMatch.unclaimedAvatar`), for the one player no seat in `seated` names. */
   unclaimed?: { avatarId: string; seated: ReadonlySet<number> };
   /**
@@ -1971,6 +1975,7 @@ export function toBoardView(
     artIds = KNOWN_ART_IDS,
     printedPT = POOL_PRINTED_PT,
     avatarByPlayerId,
+    lookByPlayerId,
     unclaimed,
     nameByPlayerId,
     clockByPlayerId,
@@ -2041,6 +2046,7 @@ export function toBoardView(
     // The viewer holds a seat whether or not the roster has named its player yet.
     const unheld = unclaimed !== undefined && !isViewer && !unclaimed.seated.has(pid);
     const avatarId = avatarByPlayerId?.get(pid) ?? (unheld ? unclaimed.avatarId : undefined);
+    const look = lookByPlayerId?.get(pid);
     const clock = clockByPlayerId?.get(pid);
     const emblems = readEmblems(state, p, artIds, printedPT);
     const command = cardsIn(idsOf(p, 'Command').filter((id) => drawnInCommand(state, id)));
@@ -2078,6 +2084,7 @@ export function toBoardView(
       // undefined` — so an in-process `'avatarId' in player` reader and a JSON
       // reader agree (`D-avatar-field.md` §3).
       ...(avatarId === undefined ? {} : { avatarId }),
+      ...(look === undefined ? {} : { look }),
       ...(clock === undefined ? {} : { clock }),
     };
   });

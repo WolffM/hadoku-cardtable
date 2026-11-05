@@ -57,13 +57,14 @@
  * because the envelope carries no reservation field.
  */
 
-import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { forwardRef, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
 
 import { seatStatus, SEAT_HELD_NOTE } from '../draft/seatStatus.ts';
 import type { DraftView } from '../draft/types.ts';
 import { isWaiting } from '../draft/types.ts';
 import { prefersReducedMotion } from '../play/motion.ts';
-import { Avatar } from './Avatar.tsx';
+import { Avatar, MemberFaces } from './Avatar.tsx';
+import { PlayerName } from '../room/look.tsx';
 import { DraftCounters } from './DraftCounters.tsx';
 import {
   CLEAR,
@@ -208,6 +209,7 @@ function usePiles(room: Room | null): Pile[] | null {
 }
 
 export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftView; onWatch?: (seatId: number) => void; arrivedWhole?: boolean }) {
+  const faces = useContext(MemberFaces);
   const viewerSeatId = view.viewer.kind === 'seat' ? view.viewer.seatId : null;
   const watchedId = view.viewer.kind === 'watcher' ? view.viewer.seatId : null;
   const watchable = watchedId !== null && onWatch !== undefined;
@@ -505,6 +507,7 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
             const status = seatStatus(seat);
             const held = status === 'held';
             const depth = depthOf(at);
+            const look = seat.occupant?.kind === 'human' ? faces[seat.occupant.participantId]?.look : undefined;
             return (
               <li
                 key={seat.id}
@@ -536,12 +539,12 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
                   />
                 )}
                 <span className="seatbar__face">
-                  <Avatar id={seat.avatarId} fallback="mark" />
+                  <Avatar id={seat.avatarId} look={look} fallback="mark" />
                 </span>
                 <span className="seatbar__label">
                   {/* Your own seat is named like every other; the lit ring at the bottom marks it as yours. */}
                   <span className="seatbar__name" title={seat.displayName}>
-                    {status === 'empty' ? <em>empty</em> : seat.displayName}
+                    {status === 'empty' ? <em>empty</em> : <PlayerName name={seat.displayName} face={{ id: seat.avatarId, look }} />}
                   </span>
                   {held && (
                     <span className="seatbar__held" data-testid={`seat-${seat.id}-held`} title={SEAT_HELD_NOTE}>

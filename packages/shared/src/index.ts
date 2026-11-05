@@ -401,6 +401,7 @@ export {
   type RoomView,
   type RoomBody,
 } from './room-view.ts';
+export { LOOK_PICTURE_MAX, LookSchema, WornSchema, lookOrNone, sameLook, type Look, type Worn } from './look.ts';
 export {
   AI_ENTRANT_PREFIX,
   isPodAi,

@@ -9,6 +9,12 @@
  *        → { blob, version, updatedAt } | 403 (a key that signs nobody in) | 409 { current }
  * An appId outside `app` / `app-*` is 403, and so is a caller without the service key, which is what
  * the edge's `prefs-<app>` allow list does in front of the real one. Patches merge shallowly.
+ *
+ * And people, as `workers/prefs-api/src/routes/avatar.ts` resolves them for a server:
+ *   POST /api/v1/_avatar/resolve  { userIds } → { avatars: { [userId]: ResolvedPerson } }
+ * every id answered, an unknown one `{ source: 'sprite', name: null }`. What a person looks like is
+ * set by a spec through a route the real one does not have, by their key, as their own popout would:
+ *   PUT  /api/v1/_stand-in/avatar { userKey, avatar } → { ok: true }
  */
 
 export interface PrefsRowsStandIn {
@@ -17,6 +23,9 @@ export interface PrefsRowsStandIn {
 	/** The rows of one app, by userId. */
 	rows(appId: string): Map<string, { blob: Record<string, unknown>; version: number; updatedAt: number }>;
 }
+
+const AVATAR_RESOLVE = '/api/v1/_avatar/resolve';
+const AVATAR_SET = '/api/v1/_stand-in/avatar';
 
 export function createPrefsRowsStandIn(opts: {
 	app: string;
@@ -31,9 +40,22 @@ export function createPrefsRowsStandIn(opts: {
 		return rows;
 	};
 	const route = new RegExp(`^/api/v1/_service/${opts.app}/rows/([a-z0-9-]+)(/read)?$`);
+	const people = new Map<string, unknown>();
 	return {
 		rows: rowsOf,
 		handle(method, path, headers, body) {
+			const b0 = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
+			if (path === AVATAR_RESOLVE && method === 'POST') {
+				if (headers.key !== opts.serviceKey) return { status: 403, json: { error: 'forbidden', required: 'service' } };
+				const ids = Array.isArray(b0.userIds) ? b0.userIds.filter((id): id is string => typeof id === 'string') : [];
+				return { status: 200, json: { avatars: Object.fromEntries(ids.map((id) => [id, people.get(id) ?? { source: 'sprite', name: null }])) } };
+			}
+			if (path === AVATAR_SET && method === 'PUT') {
+				const userId = typeof b0.userKey === 'string' ? opts.userOfKey(b0.userKey) : null;
+				if (userId === null) return { status: 403, json: { error: 'Forbidden', message: 'That key does not sign anyone in' } };
+				people.set(userId, b0.avatar);
+				return { status: 200, json: { ok: true } };
+			}
 			const m = route.exec(path);
 			if (m === null) return null;
 			if (headers.key !== opts.serviceKey) return { status: 403, json: { error: 'forbidden', required: 'service' } };

@@ -293,6 +293,26 @@ describe("item 4: a seat's identity", () => {
 		match.seatAvatarChanged(7);
 		expect(told).toHaveLength(2);
 	});
+
+	it("carries the holder's picture and cosmetics as `look`, asked each roster, never for a seat nobody holds", () => {
+		const { factory } = replayFactory();
+		const looks = new Map([[ALICE, { picture: 'https://cdn.discordapp.com/avatars/1/a.png', cosmetics: { overlay: 'overlay.halo' } }]]);
+		const registry = createMatchRegistry({
+			host: factory,
+			log: () => undefined,
+			overGraceMs: 60_000,
+			emit: () => undefined,
+			seatLook: (_matchId, owner) => looks.get(owner),
+		});
+		const match = registry.create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }] });
+		expect(match.seatIdentities()[0]).not.toHaveProperty('look');
+		match.claim(ALICE);
+		match.claim(BOB);
+		expect(match.seatIdentities()[0]?.look).toEqual(looks.get(ALICE));
+		expect(match.seatIdentities()[1]).not.toHaveProperty('look');
+		looks.delete(ALICE);
+		expect(match.seatIdentities()[0]).not.toHaveProperty('look');
+	});
 });
 
 /**

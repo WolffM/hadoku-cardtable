@@ -396,6 +396,7 @@ import type { TileCard } from '../components/faceCrop.ts';
 import { colorWordToken, ManaPip } from '../components/ManaPip.tsx';
 import { cardImageUrl } from '../draft/cardImage.ts';
 import { Avatar } from '../components/Avatar.tsx';
+import { PlayerName } from '../room/look.tsx';
 import {
   boardPT,
   hasKeyword,
@@ -3542,7 +3543,7 @@ function PlayerFace({ player, interaction }: { player: BoardPlayer; interaction:
   const mark = (
     <>
       {/* The watchparty character, or our mark: a seat with no face is worse than a generic face. */}
-      <Avatar id={player.avatarId} fallback="mark" className="face__art face__avatar" data-testid="seat-avatar" />
+      <Avatar id={player.avatarId} look={player.look} fallback="mark" className="face__art face__avatar" data-testid="seat-avatar" />
       {/*
        * The ring itself: always in the markup, over the avatar's own box, drawn
        * only while `card.css` sees a `data-priority` ancestor. Decorative —
@@ -3582,7 +3583,7 @@ function PlayerFace({ player, interaction }: { player: BoardPlayer; interaction:
         <div className="face__hit">{mark}</div>
       )}
       {emblems.length === 0 ? null : <SeatEmblems emblems={emblems} />}
-      <span className="face__name">{player.name}</span>
+      <PlayerName name={player.name} face={{ id: player.avatarId, look: player.look }} className="face__name" />
     </div>
   );
 }

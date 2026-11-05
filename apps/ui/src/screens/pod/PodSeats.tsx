@@ -41,7 +41,8 @@
  */
 
 import { ActionButton } from '../../components/ActionButton.tsx';
-import { Avatar } from '../../components/Avatar.tsx';
+import { Avatar, type Face } from '../../components/Avatar.tsx';
+import { PlayerName } from '../../room/look.tsx';
 import { StatusPill } from '../../components/StatusPill.tsx';
 import { CROWN } from '../ConstructedScreen.tsx';
 import { isPodAi, POD_CLOSED, POD_MAX_SEATS, type PodSeats as PodSeatsValue } from './wire.ts';
@@ -56,7 +57,7 @@ export interface PodSeatsProps {
   /** Looks up a seated member's readiness — the room's own `ready` flag, unaffected by seating. */
   readyOf: (memberId: string) => boolean;
   /** Looks up a seated member's own watchparty avatar id (`undefined` for none) — the same id `Avatar` draws everywhere else. */
-  avatarIdOf: (memberId: string) => string | undefined;
+  faceOf: (memberId: string) => Face;
   onSit: (seat: number) => void;
   /** The AI button on an open seat (`on`), or the AI's own seat given back. */
   onAi: (seat: number, on: boolean) => void;
@@ -64,7 +65,7 @@ export interface PodSeatsProps {
   onClose: (seat: number, closed: boolean) => void;
 }
 
-export function PodSeats({ seats, myMemberId, leaderId, readyOf, avatarIdOf, onSit, onAi, onClose }: PodSeatsProps) {
+export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, onSit, onAi, onClose }: PodSeatsProps) {
   const iLead = myMemberId !== null && myMemberId === leaderId;
   const mySeat = myMemberId === null ? null : seats.findIndex((s) => s?.memberId === myMemberId);
   const iAmSeated = mySeat !== null && mySeat >= 0;
@@ -147,7 +148,7 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, avatarIdOf, onS
             <span className="pod-seats__avatar-wrap">
               <span className="pod-seats__avatar" data-ready={ready ? 'true' : 'false'}>
                 <Avatar
-                  id={avatarIdOf(occupant.memberId)}
+                  {...faceOf(occupant.memberId)}
                   fallback="initial"
                   name={occupant.name}
                   className="pod-seats__avatar-img"
@@ -161,7 +162,7 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, avatarIdOf, onS
                 </svg>
               )}
             </span>
-            <span className="pod-seats__label">{occupant.name}</span>
+            <PlayerName name={occupant.name} face={faceOf(occupant.memberId)} className="pod-seats__label" />
             <StatusPill testId={`pod-seat-${seat}-ready`} state={ready ? 'yes' : 'no'} mark={ready ? 'tick' : 'ring'} label={ready ? 'ready' : 'not ready'} />
           </li>
         );

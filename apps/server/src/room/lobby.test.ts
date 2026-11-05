@@ -1313,6 +1313,54 @@ describe('a member\'s avatar', () => {
 	});
 });
 
+describe('a member\'s look', () => {
+	const LOOK = { picture: 'https://cdn.discordapp.com/avatars/1/a.png', cosmetics: { overlay: 'overlay.halo' } };
+
+	it('is on every view of the room, is nobody else\'s, and a change is told to the room and its matches', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Dressed', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) return;
+		const id = made.room.id;
+		expect(lobby.join(id, BOB).ok).toBe(true);
+		expect(lobby.usersOf(id)).toEqual([
+			{ memberId: ALICE.id, userId: ALICE.userId },
+			{ memberId: BOB.id, userId: BOB.userId },
+		]);
+		const changed: string[] = [];
+		const told: unknown[] = [];
+		lobby.onChange((roomId) => changed.push(roomId));
+		lobby.onAvatarChange((c) => told.push(c));
+
+		expect(lobby.setLook(id, ALICE.id, LOOK)).toBe(true);
+		expect(lobby.get(id)?.members.find((m) => m.id === ALICE.id)?.look).toEqual(LOOK);
+		expect(lobby.list()[0]?.members.find((m) => m.id === ALICE.id)?.look).toEqual(LOOK);
+		expect(lobby.get(id)?.members.find((m) => m.id === BOB.id)).not.toHaveProperty('look');
+		expect([changed, told]).toEqual([[id], [{ roomId: id, memberId: ALICE.id, avatarId: 'sage' }]]);
+
+		// The same look again changes nothing and tells nobody.
+		lobby.setLook(id, ALICE.id, { cosmetics: { overlay: 'overlay.halo' }, picture: LOOK.picture });
+		expect(changed).toHaveLength(1);
+
+		lobby.setLook(id, ALICE.id, undefined);
+		expect(lobby.get(id)?.members.find((m) => m.id === ALICE.id)).not.toHaveProperty('look');
+		expect(changed).toHaveLength(2);
+		expect(lobby.setLook(id, 'fk:nobody', LOOK)).toBe(false);
+	});
+
+	it('is the person\'s, not the room\'s: a reopened room has none until it is looked up again', async () => {
+		const dir = await tempDir();
+		const lobby = await openLobby({ dir });
+		const made = lobby.create(ALICE, { name: 'Kept', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) return;
+		lobby.setLook(made.room.id, ALICE.id, LOOK);
+		lobby.setReady(made.room.id, ALICE.id, true);
+		const reopened = await openLobby({ dir });
+		expect(reopened.get(made.room.id)?.members[0]).not.toHaveProperty('look');
+	});
+});
+
 /* ── R16: a table lets go of a finished match, and a member can leave ───── */
 
 describe('Lobby.releaseTableMatch', () => {

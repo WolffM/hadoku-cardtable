@@ -236,8 +236,8 @@
  */
 
 import { POOL_COLORS } from '@hadoku/deck';
-import type { ClientEvent, ManaColor, Placement, RememberedTrigger } from '@hadoku/shared';
-import { ART_EVENT, asSeqCursor, CLIENT_EVENT, DECK_COLORS_EVENT, DeckColorsSchema, LIFE_PAYMENT, LIFE_PER_CLICK, selfAnswer } from '@hadoku/shared';
+import type { ClientEvent, Look, ManaColor, Placement, RememberedTrigger } from '@hadoku/shared';
+import { ART_EVENT, asSeqCursor, CLIENT_EVENT, DECK_COLORS_EVENT, DeckColorsSchema, LIFE_PAYMENT, LIFE_PER_CLICK, lookOrNone, selfAnswer } from '@hadoku/shared';
 import {
   REPLY_SCHEMAS,
   safeParseServerFrame,
@@ -871,6 +871,8 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    * and the resync that follows re-sends `forge:seats` for the new epoch.
    */
   avatarByPlayerId: ReadonlyMap<number, string> | null;
+  /** Every seat holder's picture and cosmetics (`forge:seats`' `look`), keyed and reset like {@link avatarByPlayerId}. */
+  lookByPlayerId: ReadonlyMap<number, Look> | null;
   /**
    * The face of the seat nobody holds — Forge's AI, playing as one of the room's
    * characters (2026-10-19). It never opens a view, so `forge:seats` never names
@@ -1177,6 +1179,7 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     promptSelection: null,
     sameTarget: false,
     avatarByPlayerId: null,
+    lookByPlayerId: null,
     unclaimedAvatar: null,
     nameByPlayerId: null,
     playerIdBySeat: null,
@@ -1601,6 +1604,12 @@ function adoptSeats(match: LiveMatch, payload: unknown): void {
   // A real Map even when it holds nothing: "arrived, nobody has one" is still
   // arrived — see the field's own note on the three states.
   match.avatarByPlayerId = byPlayerId;
+  const looks = new Map<number, Look>();
+  for (const seat of parsed.value.seats) {
+    const look = lookOrNone(seat.look);
+    if (seat.playerId !== null && look !== undefined) looks.set(seat.playerId, look);
+  }
+  match.lookByPlayerId = looks;
   const unclaimed = parsed.value.seats.find((seat) => !seat.claimed && seat.playerId === null);
   match.unclaimedAvatar = unclaimed === undefined ? null : normalizeAvatarId(unclaimed.avatarId);
   const names = new Map<number, string>();
@@ -3282,6 +3291,7 @@ function redraw(match: LiveMatch): void {
           // named no avatars) both mean "pass nothing" to the adapter — see the
           // field's own note on why the two are still kept apart in STATE.
           avatarByPlayerId: match.avatarByPlayerId ?? undefined,
+          lookByPlayerId: match.lookByPlayerId ?? undefined,
           ...(match.unclaimedAvatar === null || match.playerIdBySeat === null
             ? {}
             : { unclaimed: { avatarId: match.unclaimedAvatar, seated: new Set(match.playerIdBySeat.values()) } }),
@@ -3777,6 +3787,7 @@ function discardLocal(match: LiveMatch): void {
   match.deathCauses = new Map();
   match.counteredStackItems = new Set();
   match.avatarByPlayerId = null;
+  match.lookByPlayerId = null;
   match.unclaimedAvatar = null;
   match.nameByPlayerId = null;
   match.playerIdBySeat = null;

@@ -105,7 +105,9 @@ import { Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve, sep } from 'node:path';
 
-import { startEdge } from '../edge.ts';
+import { PREFS_MOUNT, startEdge } from '../edge.ts';
+import { FRIENDS } from '../identities.ts';
+import { createPrefsRowsStandIn } from '../../apps/server/src/http/prefsRowsStandIn.ts';
 import { PLAY_SEED } from '../playSeed.ts';
 import { closeStaleFriends } from './open-friends.ts';
 
@@ -649,6 +651,9 @@ export async function startPlayStack(forge: { jar: string; res: string }, opts: 
         // Production's floor (D24): every player is a member, and the server's own seal says so too.
         CARDTABLE_MIN_TIER: 'member',
         CARDTABLE_E2E_NO_RATE_LIMITS: '1',
+        // People's prefs rows and looks from this stack's own edge (its prefs stand-in), never hadoku.me.
+        CARDTABLE_PREFS_BASE_URL: `${PLAY_EDGE_ORIGIN}${PREFS_MOUNT}`,
+        CARDTABLE_E2E_PEOPLE_STAND_IN: '1',
         /*
          * ONE game, every run — and this is the server that plays it.
          *
@@ -817,7 +822,12 @@ export async function startPlayStack(forge: { jar: string; res: string }, opts: 
     const spawned = Date.now();
     await waitForHealth(server);
     const healthy = Date.now();
-    edge = await startEdge({ port: PLAY_EDGE_PORT, upstreamPort: PLAY_SERVER_PORT, secret });
+    edge = await startEdge({
+      port: PLAY_EDGE_PORT,
+      upstreamPort: PLAY_SERVER_PORT,
+      secret,
+      prefs: createPrefsRowsStandIn({ app: 'cardtable', serviceKey: '', userOfKey: (key) => Object.values(FRIENDS).find((f) => f.key === key)?.userId ?? null }),
+    });
     await warm;
     // What a test pays before its match exists, split where it goes: the evidence for (or
     // against) sharing one server across a worker's tests.

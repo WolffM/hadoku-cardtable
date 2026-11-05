@@ -16,7 +16,8 @@
 import { useState } from 'react';
 import type { PodMatchResult, PodTiebreak } from '@hadoku/shared';
 
-import { Avatar } from '../../components/Avatar.tsx';
+import { Avatar, type Face } from '../../components/Avatar.tsx';
+import { PlayerName } from '../../room/look.tsx';
 import { records, recordText } from './swiss.ts';
 import './PodStandings.css';
 
@@ -36,7 +37,7 @@ export interface PodStandingsProps {
   /** Every result so far (`PodView.results`): each row's record. */
   results: readonly PodMatchResult[];
   nameOf: (memberId: string) => string;
-  avatarOf: (memberId: string) => string | null;
+  avatarOf: (memberId: string) => Face;
   myMemberId: string | null;
   /** Entrants out of the rounds (`PodView.dropped`): ranked on their record, marked. */
   dropped?: readonly string[] | undefined;
@@ -97,8 +98,8 @@ export function PodStandings({ rows, results, nameOf, avatarOf, myMemberId, drop
                 <td className="pod-standings__rank">{row.rank}</td>
                 <td>
                   <span className="pod-standings__who">
-                    <Avatar id={avatarOf(row.id)} fallback="initial" name={nameOf(row.id)} className="pod-standings__face" fallbackClassName="pod-standings__face pod-standings__face--none" width={28} height={28} />
-                    <span className="pod-standings__name">{nameOf(row.id)}</span>
+                    <Avatar {...avatarOf(row.id)} fallback="initial" name={nameOf(row.id)} className="pod-standings__face" fallbackClassName="pod-standings__face pod-standings__face--none" width={28} height={28} />
+                    <PlayerName name={nameOf(row.id)} face={avatarOf(row.id)} className="pod-standings__name" />
                     {dropped.includes(row.id) && <span className="pod-standings__dropped">Dropped</span>}
                   </span>
                 </td>

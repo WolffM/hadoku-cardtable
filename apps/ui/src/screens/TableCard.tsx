@@ -22,7 +22,8 @@
  */
 import type { SeriesPhase, TableGame, TableSeatDeck } from '@hadoku/shared';
 
-import { Avatar } from '../components/Avatar.tsx';
+import { Avatar, type Face } from '../components/Avatar.tsx';
+import { PlayerName } from '../room/look.tsx';
 import { DeckColors } from '../components/DeckView.tsx';
 import { DeckArt } from './ConstructedScreen.tsx';
 import { deckCardArtId } from './libraryPeek.ts';
@@ -66,7 +67,7 @@ export interface TableCardProps extends TableResolveHandlers {
   /** By table seat. */
   players: readonly [string, string];
   nameOf: (memberId: string) => string;
-  avatarOf: (memberId: string) => string | null;
+  avatarOf: (memberId: string) => Face;
   myMemberId: string | null;
   series: TableCardSeries;
   matchId: string | null;
@@ -93,8 +94,8 @@ export function TableCard({ players, nameOf, avatarOf, myMemberId, series, match
       <div className="table-card__side" data-side={seat === 0 ? 'left' : 'right'} data-won={won ? '' : undefined} data-lost={finished && !won ? '' : undefined}>
         <SeatArt deck={deck} />
         <div className="table-card__who">
-          <Avatar id={avatarOf(id)} fallback="initial" name={nameOf(id)} className="table-card__face" fallbackClassName="table-card__face table-card__face--none" width={32} height={32} />
-          <span className="table-card__name">{nameOf(id)}</span>
+          <Avatar {...avatarOf(id)} fallback="initial" name={nameOf(id)} className="table-card__face" fallbackClassName="table-card__face table-card__face--none" width={32} height={32} />
+          <PlayerName name={nameOf(id)} face={avatarOf(id)} className="table-card__name" />
         </div>
         {deck !== null && (
           <div className="table-card__deck">

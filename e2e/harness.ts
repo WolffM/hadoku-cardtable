@@ -135,6 +135,8 @@ const server = spawn(process.execPath, [SERVER_JS], {
     CARDTABLE_WEB_DIR: WEB_DIR,
     // People's prefs rows go to the edge's stand-in (below), never to hadoku.me.
     CARDTABLE_PREFS_BASE_URL: `http://127.0.0.1:${EDGE_PORT}${PREFS_MOUNT}`,
+    // People's looks (`people.ts`) from the same stand-in, which a spec dresses through `e2e/looks.ts`.
+    CARDTABLE_E2E_PEOPLE_STAND_IN: '1',
     CARDTABLE_LOG_DIR: resolve(RUN_DIR, 'logs'),
     CARDTABLE_DRAFTS_DIR: DRAFTS_DIR,
     CARDTABLE_RECORDINGS_DIR: RECORDINGS_DIR,

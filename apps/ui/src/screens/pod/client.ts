@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import type { RoomTable, SeriesPhase, TableGame } from '@hadoku/shared';
+import type { Look, RoomTable, SeriesPhase, TableGame } from '@hadoku/shared';
 
 import { followTableOnce } from '../../play/live/matchStart.ts';
 import { roomFeed } from '../../rooms/feed.ts';
@@ -26,18 +26,24 @@ import { apiUrl, bodyOf, isRecord, sendJson } from '../../http.ts';
 import { tablesClient } from '../tables.ts';
 import { useQueuePlace } from '../queue-place.ts';
 import type { PodView } from './wire.ts';
+import { faceOf, type Face } from '../../components/Avatar.tsx';
 
 /**
  * Every entrant's display name and avatar, by entrant id: the room's members, and each AI entrant's own
  * character (`PodView.personas`). The one lookup every pod and tournament screen draws a player with.
  */
-export function entrantLookup(pod: PodView | null, members: readonly { id: string; name: string; avatarId?: unknown }[]): Pick<PodContext, 'names' | 'avatars'> {
+export function entrantLookup(pod: PodView | null, members: readonly { id: string; name: string; avatarId?: unknown; look?: Look }[]): Pick<PodContext, 'names' | 'avatars'> {
   const personas = Object.entries(pod?.personas ?? {});
   return {
     names: { ...Object.fromEntries(personas.map(([id, p]) => [id, p.name])), ...Object.fromEntries(members.map((m) => [m.id, m.name])) },
     avatars: {
-      ...Object.fromEntries(personas.map(([id, p]) => [id, p.avatarId])),
-      ...Object.fromEntries(members.flatMap((m) => (typeof m.avatarId === 'string' ? [[m.id, m.avatarId]] : []))),
+      ...Object.fromEntries(personas.map(([id, p]): [string, Face] => [id, { id: p.avatarId }])),
+      ...Object.fromEntries(
+        members.flatMap((m): [string, Face][] => {
+          const face = faceOf(m);
+          return face.id === null && face.look === undefined ? [] : [[m.id, face]];
+        }),
+      ),
     },
   };
 }
@@ -54,8 +60,8 @@ export interface PodContext {
   members: { id: string; name: string }[];
   /** The room owner's member id (`RoomView.leader`); `''` while unknown. */
   leaderId: string;
-  /** Every entrant's watchparty character, by id, each AI entrant's its own (`entrantLookup`). Absent for one without. */
-  avatars: Record<string, string>;
+  /** Every entrant's face, by id: a member's avatar and look, each AI entrant's own character (`entrantLookup`). Absent for an id that is neither. */
+  avatars: Record<string, Face>;
   /**
    * My member id in this room, from the server's own `you` — what the tables
    * and the pod name me by. Not whoami's id: for an admin session the two

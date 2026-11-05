@@ -18,6 +18,7 @@
 
 import { z } from 'zod';
 
+import { LookSchema } from './look.ts';
 import { RoomPodSchema } from './pod.ts';
 import { ROOM_ID_RE } from './room-feed.ts';
 import { GameTypeSchema, RoomModeSchema, type ConstructedMode, type ModeOptions } from './room-modes.ts';
@@ -41,11 +42,17 @@ const memberFields = z.object({
    * against watchparty's list, so a character they add still reaches the UI.
    */
   avatarId: z.string().trim().min(1).max(AVATAR_ID_MAX).optional().catch(undefined),
+  /** Their avatar picture and cosmetics (`look.ts`). Absent when they have neither. */
+  look: LookSchema.optional().catch(undefined),
 });
 export type RoomMember = z.infer<typeof memberFields>;
 
 /** A member with no character has no `avatarId` key at all, so a reader's fallback is one `=== undefined`. */
-export const RoomMemberSchema = memberFields.transform(({ avatarId, ...member }): RoomMember => (avatarId === undefined ? member : { ...member, avatarId }));
+export const RoomMemberSchema = memberFields.transform(({ avatarId, look, ...member }): RoomMember => ({
+  ...member,
+  ...(avatarId === undefined ? {} : { avatarId }),
+  ...(look === undefined ? {} : { look }),
+}));
 
 /**
  * What the caller is in this room. `leader` is the only way a browser learns it

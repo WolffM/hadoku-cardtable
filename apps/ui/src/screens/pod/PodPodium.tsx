@@ -12,7 +12,8 @@
 import type { CSSProperties } from 'react';
 import type { PodMatchResult } from '@hadoku/shared';
 
-import { Avatar } from '../../components/Avatar.tsx';
+import { Avatar, type Face } from '../../components/Avatar.tsx';
+import { PlayerName } from '../../room/look.tsx';
 import { records, recordText } from './swiss.ts';
 import type { PodStandingsRowLike } from './PodStandings.tsx';
 import './PodPodium.css';
@@ -21,7 +22,7 @@ export interface PodPodiumProps {
   rows: readonly PodStandingsRowLike[];
   results: readonly PodMatchResult[];
   nameOf: (memberId: string) => string;
-  avatarOf: (memberId: string) => string | null;
+  avatarOf: (memberId: string) => Face;
   myMemberId: string | null;
 }
 
@@ -64,10 +65,10 @@ export function PodPodium({ rows, results, nameOf, avatarOf, myMemberId }: PodPo
                   </svg>
                 )}
                 <span className="podium__frame">
-                  <Avatar id={avatarOf(row.id)} fallback="initial" name={nameOf(row.id)} className="podium__face" fallbackClassName="podium__face podium__face--none" width={128} height={128} />
+                  <Avatar {...avatarOf(row.id)} fallback="initial" name={nameOf(row.id)} className="podium__face" fallbackClassName="podium__face podium__face--none" width={128} height={128} />
                 </span>
               </div>
-              <div className="podium__name">{nameOf(row.id)}</div>
+              <PlayerName name={nameOf(row.id)} face={avatarOf(row.id)} className="podium__name" />
               <div className="podium__line">
                 {recordText(r)} · {row.matchPoints} pts
               </div>

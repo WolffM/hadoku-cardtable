@@ -12,7 +12,7 @@ afterEach(cleanup);
 
 const names: Record<string, string> = { 'u-alice': 'Alice', 'u-bob': 'Bob', 'u-carol': 'Carol', ai: 'AI' };
 const nameOf = (id: string) => names[id] ?? id;
-const avatarOf = () => null;
+const avatarOf = () => ({ id: null });
 const base = { nameOf, avatarOf, results: [] as PodMatchResult[], myMemberId: null };
 
 const row = (over: Partial<PodStandingsRowLike>): PodStandingsRowLike => ({
