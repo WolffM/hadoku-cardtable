@@ -183,6 +183,13 @@ test('the embed binds one watchparty room to one table and leaves the host page 
     // Glyph fonts are lent to the document; everything else stays in the shadow root.
     const fonts = await a.evaluate(() => document.adoptedStyleSheets.flatMap((s) => Array.from(s.cssRules, (r) => r.cssText)).filter((t) => t.startsWith('@font-face')).length);
     expect(fonts, 'Mana and Keyrune are registered on the document').toBeGreaterThanOrEqual(2);
+    // The fleet's cosmetics sheet (`@wolffm/prefs-client/cosmetics`) is ours too: in the shadow
+    // root, where our faces can wear it, never a `<style>` (and its listener) in the host's head.
+    const cosmetics = await a.evaluate(() => ({
+      head: document.getElementById('hadoku-cosmetics') !== null,
+      shadow: document.getElementById('slot')!.shadowRoot!.adoptedStyleSheets.some((s) => Array.from(s.cssRules).some((r) => r.cssText.includes('.hc-name'))),
+    }));
+    expect(cosmetics, 'the cosmetics sheet is in the shadow root, not the host page').toEqual({ head: false, shadow: true });
 
     // The context's theme, on the embed's own root, and `update()` moves it.
     await expect(embed).toHaveAttribute('data-theme', 'ocean-dark');

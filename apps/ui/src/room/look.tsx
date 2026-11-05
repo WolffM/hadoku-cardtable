@@ -24,6 +24,7 @@ import { createPortal } from 'react-dom';
 import { cleanWorn, decorHtml, ensureCosmeticsStyles, nameHtml, onPictureColour, pictureColour, readPictureColour, type AvatarCosmetics } from '@wolffm/prefs-client/cosmetics';
 import type { Look } from '@hadoku/shared';
 
+import { documentScope } from '../dom.ts';
 import { watchpartyOrigin } from './avatar.ts';
 import './look.css';
 
@@ -32,10 +33,16 @@ export function wornOf(look: Look | undefined): AvatarCosmetics | undefined {
   return cleanWorn(look?.cosmetics);
 }
 
+/**
+ * The renderer's stylesheet, on our own document, once. Embedded, the page is
+ * not ours: the mount adopts the same sheet into its shadow root and takes it
+ * away again (`../embed/index.tsx`), where a `<style>` in the host's head could
+ * neither reach our faces nor be removed on unmount.
+ */
 let styled = false;
 function useCosmeticsStyles(): void {
   useEffect(() => {
-    if (styled || typeof document === 'undefined') return;
+    if (styled || typeof document === 'undefined' || documentScope() !== document) return;
     styled = true;
     ensureCosmeticsStyles();
   }, []);

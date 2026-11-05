@@ -5,8 +5,9 @@
  * `{ update, unmount }`. Everything the standalone page gets from owning the
  * document is set up here instead, and taken down again by `unmount`:
  *
- * - **Styles** — fetched once and adopted by the shadow root (`./styles.ts`,
- *   which also says what has to live on the document and why).
+ * - **Styles** — fetched once and adopted by the shadow root, with the fleet's
+ *   cosmetics sheet beside them (`./styles.ts`, which also says what has to
+ *   live on the document and why).
  * - **The theme on `el` itself** (`data-theme`), before the styles land, so the
  *   host is painted in the host's theme rather than the light default
  *   (`withHostTheme` in `../../vite.embed.config.ts`). Restored on unmount.
@@ -31,6 +32,7 @@
 import 'virtual:cardtable-stylesheet';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { cosmeticsCss } from '@wolffm/prefs-client/cosmetics';
 
 import { setDocumentScope } from '../dom.ts';
 import { navigate, parseRoute, routeInMemory } from '../screens/route.ts';
@@ -93,7 +95,9 @@ async function mountCardtable(el: HTMLElement, ctx: GameBundleContext): Promise<
     const shadow = el.shadowRoot ?? el.attachShadow({ mode: 'open' });
     // A table is what the embed is mounted to show: its screens load beside the stylesheet.
     preloadLikelyScreens();
-    undo.push(adoptStyles(shadow, await fetchStyles(STYLESHEET)));
+    // The fleet's cosmetics sheet (faces' overlays, names' effects) rides in the
+    // shadow sheet: `room/look.tsx` writes it to the document only standalone.
+    undo.push(adoptStyles(shadow, `${await fetchStyles(STYLESHEET)}\n${cosmeticsCss()}`));
 
     const container = document.createElement('div');
     // `hdk-controls` here, not on the host's <html>: a shadow root's selectors cannot see past it.
