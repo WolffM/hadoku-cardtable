@@ -1448,6 +1448,22 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 		expect(ended[0]).toMatchObject({ winner: 1 });
 	});
 
+	it("a game's own players are still playing it until the series is settled: the live game, game 1 between games, and nobody else", async () => {
+		const { lobby, id, tableId } = await playingTable();
+		expect(lobby.join(id, CAROL).ok).toBe(true);
+		expect(lobby.stillPlaying('m-game-1', ALICE.id), 'the live game').toBe(true);
+		lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 1 });
+		for (const who of [ALICE, BOB]) expect(lobby.stillPlaying('m-game-1', who.id), `${who.name}: a Bo1 a Rematch may still continue`).toBe(true);
+		expect(lobby.beginSideboarding(id, tableId)).toBe(true);
+		expect(lobby.setTableMatch(id, tableId, 'm-game-2')).toBe(true);
+		for (const who of [ALICE, BOB]) expect(lobby.stillPlaying('m-game-1', who.id), `${who.name}: game 1 of a Bo3 still under way`).toBe(true);
+		expect(lobby.stillPlaying('m-game-1', CAROL.id), 'a member who did not play it').toBe(false);
+		expect(lobby.stillPlaying('m-other', ALICE.id), 'a game of no series of hers').toBe(false);
+		lobby.recordGameResult(id, tableId, { matchId: 'm-game-2', winner: 1 });
+		expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ phase: 'done' });
+		for (const game of ['m-game-1', 'm-game-2']) expect(lobby.stillPlaying(game, ALICE.id), `${game}: the series is settled`).toBe(false);
+	});
+
 	it('Rematch converts it in place: Bo3, game 1 kept, 1-0, sideboarding — and game 2 continues the same series', async () => {
 		const { lobby, id, tableId, ended } = await playingTable();
 		lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 1 });

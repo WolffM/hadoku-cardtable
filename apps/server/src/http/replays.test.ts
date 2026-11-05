@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { writeFileSync } from 'node:fs';
 import express from 'express';
+import { identityFromHeaders } from '../room/identity.ts';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
@@ -89,8 +90,8 @@ function writeActionsOnly(dir: string, matchId: string, opts: { roomId?: string 
 	]);
 }
 
-async function call(base: string, path: string, tier = 'friend', body?: unknown): Promise<{ status: number; json: Record<string, unknown>; cache: string | null }> {
-	const headers: Record<string, string> = { 'x-edge-auth': EDGE_SECRET, 'x-hadoku-tier': tier, 'x-user-id': 'u-1', 'x-user-name': 'u-1', 'x-user-key': 'k' };
+async function call(base: string, path: string, tier = 'friend', body?: unknown, user = 'u-1'): Promise<{ status: number; json: Record<string, unknown>; cache: string | null }> {
+	const headers: Record<string, string> = { 'x-edge-auth': EDGE_SECRET, 'x-hadoku-tier': tier, 'x-user-id': user, 'x-user-name': 'u-1', 'x-user-key': 'k' };
 	const res = await fetch(`${base}${path}`, body === undefined ? { headers } : { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(body) });
 	const text = await res.text();
 	return { status: res.status, json: (text === '' ? {} : JSON.parse(text)) as Record<string, unknown>, cache: res.headers.get('cache-control') };
@@ -151,6 +152,31 @@ describe('GET /api/replays', () => {
 		expect((await call(base, '/api/replays')).json.replays).toEqual([]);
 		const asAdmin = await call(base, '/api/replays', 'admin');
 		expect((asAdmin.json.replays as { matchId: string }[]).map((r) => r.matchId)).toEqual(['m-t']);
+	});
+});
+
+describe("a game's replay is withheld from its own players while their series goes on", () => {
+	it('drops it from their list and 404s it to them, rebuildable or streamed, and serves it to anyone else', async () => {
+		const dir = await recordingsDir();
+		writePublic(dir, 'm-mine');
+		writeActionsOnly(dir, 'm-mine-old');
+		writePublic(dir, 'm-theirs');
+		// Two accounts: the player, and a member who did not play it. A lobby member's id is
+		// `callerOf(req).id`, derived from the same header `call` sends.
+		const [player, other] = ['account-player-0001', 'account-other-00002'];
+		const playerId = identityFromHeaders({ 'x-user-id': player }, 'unused');
+		const stillPlaying = (matchId: string, caller: string): boolean => caller === playerId && matchId.startsWith('m-mine');
+		const rebuilt = { header: { t: 'header', v: 2, matchId: 'm-mine-old', roomId: null, players: ['A', 'B'], ai: [false, false], decks: [], startedAt: '2026-01-01T00:00:00.000Z' }, envs: [], end: { t: 'end', endedAt: '2026-01-01T00:05:00.000Z', winner: null } };
+		const base = await openApp(dir, { stillPlaying, canRebuild: () => true, rebuild: async () => rebuilt as never });
+		const listed = async (user: string) => ((await call(base, '/api/replays', 'friend', undefined, user)).json.replays as { matchId: string }[]).map((r) => r.matchId).sort();
+		expect(await listed(player)).toEqual(['m-theirs']);
+		expect(await listed(other)).toEqual(['m-mine', 'm-mine-old', 'm-theirs']);
+		for (const game of ['m-mine', 'm-mine-old']) {
+			expect((await call(base, `/api/replays/${game}`, 'friend', undefined, player)).status, `${game} to its player`).toBe(404);
+			expect((await call(base, `/api/replays/${game}`, 'admin', undefined, player)).status, `${game}: an admin who played it is a player too`).toBe(404);
+			expect((await call(base, `/api/replays/${game}`, 'friend', undefined, other)).status, `${game} to anyone else`).toBe(200);
+		}
+		expect((await call(base, '/api/replays/m-theirs', 'friend', undefined, player)).status).toBe(200);
 	});
 });
 
