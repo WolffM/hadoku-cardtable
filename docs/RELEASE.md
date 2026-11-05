@@ -109,10 +109,12 @@ at the end of its bullet, in parentheses: `- The sample pack's grid holds still 
 Two reporters are `(@ohmusama, @bob)`. Keep it through every edit, from the pending file to the
 release notes, and fold two bullets into one only if the merged bullet keeps every name.
 
-At boot prod posts the notes with a thank-you line naming everyone the release credits
-(`apps/server/src/announce.ts`), and ArchiveBot turns each `@name` into the Discord account
-linked to that hadoku name, so they are pinged. A name with no linked account is posted as typed,
-and the boot log's `release-announce` line lists it under `unresolved`. Nothing else in the notes
+At boot prod posts the notes (`apps/server/src/announce.ts`) and names everyone they credit as
+`mentions`; ArchiveBot turns each `@name` in the bullets into that person's Discord mention, inline,
+from the account linked to that hadoku name or else the one member with that exact Discord name.
+There is no separate thank-you line (the operator, 2026-11-05: *"just the inline mentions are good
+enough"*). A name it cannot match is posted as typed, and the boot log's `release-announce` line
+lists it under `unresolved`. Nothing else in the notes
 may start with `@`.
 
 ## Fixing prod

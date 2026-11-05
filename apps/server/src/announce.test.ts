@@ -11,7 +11,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { announceRelease, latestRelease, mentionsIn, parseNotes, releaseEmbeds, splitBody, forDiscord, thanksLine } from './announce.ts';
+import { announceRelease, latestRelease, mentionsIn, parseNotes, releaseEmbeds, splitBody, forDiscord } from './announce.ts';
 
 const RELEASES = resolve(dirname(fileURLToPath(import.meta.url)), '../../../docs/releases');
 const SECRET = 'test-secret';
@@ -173,7 +173,7 @@ describe('who a release thanks', () => {
 });
 
 describe('announceRelease', () => {
-	it('sends the reporters a release names, with a line that pings them, and logs any no account carries', async () => {
+	it('sends the reporters a release names as mentions, with no thank-you line, and logs any no account carries', async () => {
 		const dir = await mkdtemp(resolve(tmpdir(), 'announce-'));
 		try {
 			await writeFile(resolve(dir, 'v9.9.0.md'), '# v9.9.0 — thanks\n\n## Fixed\n- The grid holds still in Rally. (@ohmusama)\n- The wheel scrolls one thing. (@ohmusama, @ghost)\n');
@@ -182,7 +182,7 @@ describe('announceRelease', () => {
 			await announceRelease({ releasesDir: dir, secret: SECRET, archivebotUrl: bot.url, appUrl: 'https://hadoku.me/cardtable/', log });
 			const sent = JSON.parse(bot.received[0]!.raw);
 			expect(sent.mentions).toEqual(['ohmusama', 'ghost']);
-			expect(sent.content).toBe(thanksLine(['ohmusama', 'ghost']));
+			expect(sent).not.toHaveProperty('content');
 			expect(sent.embeds[0].description).toContain('(@ohmusama)');
 			expect(entries).toEqual([{ event: 'release-announce', outcome: 'posted', version: 'v9.9.0', unresolved: ['ghost'] }]);
 		} finally {

@@ -7,8 +7,9 @@
  * `cardtable-release-<version>` is deduped by ArchiveBot for 7 days, so a restart posts nothing new.
  *
  * A bug's reporter is named in its bullet as `@name` (their hadoku name; docs/RELEASE.md § "Attribution").
- * Those names ride as `mentions` with a thank-you line as `content`, and ArchiveBot turns each one into
- * the Discord account linked to it, so the people who reported what the release fixed are pinged.
+ * Those names ride as `mentions`, and ArchiveBot turns each `@name` in the notes into the person's
+ * Discord mention, inline where the bullet credits them. No separate thank-you line: the operator,
+ * 2026-11-05, "just the inline mentions are good enough".
  *
  * Prod only, by the secret: PPE's wrapper deliberately does not hold it, and an unset secret is a
  * skip, not an error. A failed post never blocks boot; the next boot retries it.
@@ -128,11 +129,6 @@ export function mentionsIn(body: string): string[] {
 	return [...names.values()];
 }
 
-/** The line above the embeds that pings them: Discord never pings from an embed. ArchiveBot turns each `@name` into the person. */
-export function thanksLine(mentions: readonly string[]): string {
-	return `Thanks for the reports: ${mentions.map((name) => `@${name}`).join(' ')}`;
-}
-
 export function releaseEmbeds(notes: ReleaseNotes, appUrl: string): Embed[] {
 	return splitBody(forDiscord(notes.body)).map((description, i) => ({
 		...(i === 0 ? { title: notes.title } : {}),
@@ -172,7 +168,7 @@ export async function announceRelease(options: AnnounceOptions): Promise<void> {
 			idempotencyKey: `cardtable-release-${notes.version}`,
 			timestamp: now.getTime(),
 			source: 'cardtable',
-			...(mentions.length === 0 ? {} : { content: thanksLine(mentions), mentions }),
+			...(mentions.length === 0 ? {} : { mentions }),
 			embeds: releaseEmbeds(notes, options.appUrl),
 		});
 		const signature = createHmac('sha256', options.secret).update(body).digest('hex');
