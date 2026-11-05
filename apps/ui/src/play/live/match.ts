@@ -687,6 +687,12 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    */
   castForbidden: ReadonlyMap<number, CastForbidden> | null;
   /**
+   * The hand cards held back by their cost alone, by id, from the bridge's `unaffordable` on the
+   * last `setWeaklySelectable` — read for that window only, so every set replaces it. Null when
+   * the bridge has not said. What `mistakes.ts` reads to say "I don't have enough mana for that."
+   */
+  unaffordable: ReadonlySet<number> | null;
+  /**
    * What continuous effects change about the cards this seat holds, by id, from
    * the bridge's `heldChanges` on the last `setWeaklySelectable` that carried
    * it — kept, and replaced, exactly as `castForbidden` is. Null when the
@@ -1161,6 +1167,7 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     weaklySelectable: null,
     weaklySelectableManaOnly: null,
     castForbidden: null,
+    unaffordable: null,
     heldChanges: null,
     highlighted: null,
     highlightedPlayers: null,
@@ -2169,7 +2176,7 @@ function refusal(match: LiveMatch, cardId: number): string {
 export function reportRefusedClick(match: LiveMatch, cardId: number): void {
   if (match.watcher) return;
   const reason = refusal(match, cardId);
-  const said = mistakeOfClick(match.view, reason, cardId);
+  const said = mistakeOfClick(match.view, reason, cardId, match.unaffordable);
   setMistake(match, said);
   match.transport.emit(CLIENT_EVENT, {
     matchId: match.matchId,
@@ -3154,6 +3161,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   match.weaklySelectable = null;
   match.weaklySelectableManaOnly = null;
   match.castForbidden = null;
+  match.unaffordable = null;
   match.heldChanges = null;
   match.highlighted = null;
   match.highlightedPlayers = null;
@@ -3649,6 +3657,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     // `undefined` (the bridge could not classify) stays `null`, never an
     // empty set — see the field's own note on `LiveMatch`.
     match.weaklySelectableManaOnly = frame.manaOnly === undefined ? null : new Set(frame.manaOnly.map((c) => c.id));
+    match.unaffordable = frame.unaffordable === undefined ? null : new Set(frame.unaffordable.map((c) => c.id));
     if (frame.castForbidden !== undefined) {
       match.castForbidden = new Map(
         frame.castForbidden.map((f) => [f.card.id, { source: f.source, duration: f.duration, durationPlayer: f.durationPlayer?.id }]),
@@ -3776,6 +3785,7 @@ function dropOpenInput(match: LiveMatch): void {
   match.weaklySelectable = null;
   match.weaklySelectableManaOnly = null;
   match.castForbidden = null;
+  match.unaffordable = null;
   match.heldChanges = null;
   match.highlighted = null;
   match.highlightedPlayers = null;

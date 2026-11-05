@@ -3906,8 +3906,25 @@ public final class PlayBridge {
             f.add("cards", refs(cards));
             offerFacts(f, cards);
             castForbidden(f);
+            unaffordable(f);
             heldChanges(f);
             frame(f);
+        }
+
+        /**
+         * {@code unaffordable}: this seat's hand cards held back by their cost alone
+         * ({@link SeatController#unaffordable}), read for the input this set is shown for — never
+         * another's, so a stale reading is omitted rather than sent. Omitted, the browser says nothing
+         * about mana, as it did before.
+         */
+        private void unaffordable(final JsonObject f) {
+            final forge.game.player.Player mine = liveSelf(liveGame());
+            if (mine == null || !(mine.getController() instanceof SeatController controller)) { return; }
+            final Object[] read = controller.unaffordable();
+            if (read[0] == null || read[0] != myInput()) { return; }
+            final JsonArray out = new JsonArray();
+            for (final Object id : (java.util.Set<?>) read[1]) { out.add(ref("card", (Integer) id)); }
+            f.add("unaffordable", out);
         }
 
         /**
@@ -5870,6 +5887,70 @@ public final class PlayBridge {
         private Object liveInput() {
             final Object in = getInputProxy().getInput();
             return in instanceof InputLockUI ? null : in;
+        }
+
+        /**
+         * The hand cards held back by their cost alone, and the input they were read for — for
+         * {@code unaffordable} on that input's {@code setWeaklySelectable} ({@link SeatGui#unaffordable}).
+         * A card is one when the fork's scan of this window offers nothing on it and one of its
+         * playable spells fails the fork's {@code AvailableActions.canAfford}: "I don't have enough mana for that" is then
+         * true of it, whatever else may also stand in its way. A spell its timing forbids is not
+         * playable ({@code getAllPossibleAbilities(…, true)}), so a sorcery out of turn is never one.
+         */
+        private volatile Object[] unaffordable = { null, java.util.Set.of() };
+
+        Object[] unaffordable() { return unaffordable; }
+
+        /**
+         * Read here because this is where the fork reads the offer itself: on the input's own showing,
+         * the game parked on it, so the AI payer it asks under a swapped controller cannot act for the
+         * seat (asked from the channel thread, it once did — see {@code offerFacts}).
+         */
+        @Override
+        public void pushActionableCards(final boolean paymentMode, final Iterable<CardView> emphasized) {
+            if (!paymentMode) { unaffordable = new Object[] { liveInput(), heldBackByCost() }; }
+            super.pushActionableCards(paymentMode, emphasized);
+        }
+
+        private java.util.Set<Integer> heldBackByCost() {
+            final forge.game.player.Player me = getPlayer();
+            final java.util.Set<Integer> out = new java.util.HashSet<>();
+            // What this window offers is the fork's own scan of it; a card it marks has something to take.
+            // No scan (none run for this window) names nothing.
+            final forge.ai.AvailableActions.Scan scan = getActionableScan();
+            if (scan == null) { return out; }
+            final java.util.Set<Integer> offered = new java.util.HashSet<>();
+            for (final CardView cv : scan.actionable()) { offered.add(cv.getId()); }
+            try {
+                final java.lang.reflect.Method canAfford = forge.ai.AvailableActions.class.getDeclaredMethod("canAfford", SpellAbility.class, forge.game.player.Player.class);
+                canAfford.setAccessible(true);
+                final java.util.Map<forge.game.card.Card, List<SpellAbility>> spells = new java.util.LinkedHashMap<>();
+                for (final forge.game.card.Card c : me.getCardsIn(ZoneType.Hand).threadSafeIterable()) {
+                    final List<SpellAbility> playable = new ArrayList<>();
+                    for (final SpellAbility sa : c.getAllPossibleAbilities(me, true)) {
+                        if (!sa.isManaAbility() && !sa.isLandAbility()) { playable.add(sa); }
+                    }
+                    if (!playable.isEmpty() && !offered.contains(c.getId())) { spells.put(c, playable); }
+                }
+                if (spells.isEmpty()) { return out; }
+                final RuntimeException[] failed = { null };
+                me.runWithController(() -> {
+                    try {
+                        for (final var e : spells.entrySet()) {
+                            for (final SpellAbility sa : e.getValue()) {
+                                if (!(boolean) canAfford.invoke(null, sa, me)) { out.add(e.getKey().getId()); break; }
+                            }
+                        }
+                    } catch (final ReflectiveOperationException ex) {
+                        failed[0] = new IllegalStateException(ex);
+                    }
+                }, new forge.ai.PlayerControllerAi(me.getGame(), me, me.getOriginalLobbyPlayer()));
+                if (failed[0] != null) { throw failed[0]; }
+            } catch (final ReflectiveOperationException | RuntimeException e) {
+                System.err.println("[bridge] unaffordable: could not read the hand's costs (" + e + "); none named");
+                return java.util.Set.of();
+            }
+            return out;
         }
 
         /**

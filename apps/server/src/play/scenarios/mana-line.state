@@ -1,0 +1,16 @@
+# mana-line.jvm: alice (seat 0) on her own turn 1, no land yet. Grizzly Bears, Lightning Bolt
+# and Llanowar Elves are held back by their cost; Ornithopter (free) and the Forest are offered.
+# After the Forest, the Elves can be cast; Bolt (red) and the Bears (two mana) still cannot.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Grizzly Bears;Lightning Bolt;Llanowar Elves;Ornithopter;Forest
+humanbattlefield=
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

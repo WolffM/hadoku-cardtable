@@ -23,12 +23,13 @@
  *    nothing left to offer, and `InputAttack.java:173`, an illegal attack
  *    target) carry no cause and say nothing.
  *
- * `not-offered` on a plain spell (not a land, not a sick creature) is
- * deliberately NOT a "mana" mistake here: Forge's own actionable set also
- * drops a card for timing (sorcery speed on the opponent's turn), for
- * `CantBeCast` (sent separately as `castForbidden`), or for having no legal
- * target, and none of those is mana. Only the auto-cancel path is exact for
- * "I don't have enough mana for that." (`notes.md`'s own table).
+ * `not-offered` on a plain spell (not a land, not a sick creature) is a
+ * "mana" mistake only when the bridge names the card `unaffordable` for this
+ * window: nothing on it can be taken and one of its playable spells fails only
+ * Forge's affordability test. Forge's own actionable set also drops a card for
+ * timing (sorcery speed on the opponent's turn), for `CantBeCast` (sent
+ * separately as `castForbidden`), or for having no legal target, and none of
+ * those is mana: a card the bridge does not name still says nothing.
  */
 
 import type { BoardPlayer, BoardView } from '../adapter.ts';
@@ -56,7 +57,7 @@ function ownCard(me: BoardPlayer, cardId: number): BoardPlayer['battlefield'][nu
  * this function reads it, never recomputes it, so the two stay one rule. Null for everything this
  * classifier cannot say for certain.
  */
-export function mistakeOfClick(view: BoardView | null, reason: string, cardId: number): MistakeKey | null {
+export function mistakeOfClick(view: BoardView | null, reason: string, cardId: number, unaffordable: ReadonlySet<number> | null = null): MistakeKey | null {
   if (view === null) return null;
   const me = view.players.find((p) => p.isViewer);
   if (me === undefined) return null;
@@ -78,5 +79,7 @@ export function mistakeOfClick(view: BoardView | null, reason: string, cardId: n
   // On the other seat's turn Forge keeps this seat on a live "Waiting for …" input with its own
   // offered set, so a press there reads `not-offered`, not `no-input` (claw run 41170793426).
   if (!me.isActive && !me.hasPriority) return 'priority';
+  // The bridge's own reading, for this window: the card's cost is what holds it back (`unaffordable`).
+  if (unaffordable?.has(cardId) === true) return 'mana';
   return null;
 }

@@ -67,3 +67,26 @@ test(titled('a second land press is said on the seat’s own screen only, and th
     await stack.stop();
   }
 });
+
+const MANA_MISTAKE_LINE = "I don't have enough mana for that.";
+
+test(titled('turn 1, no land: a spell clicked says it has not enough mana, on the seat’s own screen only (the operator, 2026-11-05)'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(3 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    // `mana-line`: Grizzly Bears, Lightning Bolt and Llanowar Elves in hand, no land in play.
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'mana-line');
+    const bears = await handCardNamed(alice.page, 'Grizzly Bears');
+    expect(bears, 'alice holds Grizzly Bears').toBeDefined();
+
+    await clickHandCard(alice.page, bears!);
+    await expect(alice.page.locator(MISTAKE_BUBBLE), 'the exact line, on alice’s own screen').toHaveText(MANA_MISTAKE_LINE, { timeout: 10_000 });
+    expect(await alice.page.locator(MISTAKE_BUBBLE).getAttribute('data-mistake')).toBe('mana');
+    await expect(bob.page.locator(MISTAKE_BUBBLE), 'never on the opponent’s screen').toHaveCount(0);
+    expect(await handCardNamed(alice.page, 'Grizzly Bears'), 'the Bears are still in hand — never cast').toBeDefined();
+  } finally {
+    await stack.stop();
+  }
+});

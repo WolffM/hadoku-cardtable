@@ -109,6 +109,14 @@ describe('mistakeOfClick: only the shapes Forge’s own state answers for certai
     const spell = card(4, 'Instant');
     const me = player({ hand: [spell] });
     expect(mistakeOfClick(view(me), 'not-offered', 4)).toBeNull();
+    expect(mistakeOfClick(view(me), 'not-offered', 4, new Set([9])), 'another card named, not this one').toBeNull();
+  });
+
+  it('a spell the bridge names as held back by its cost says it: turn 1, no land, a card clicked (the operator, 2026-11-05)', () => {
+    const me = player({ hand: [card(4, 'Creature — Bear')] });
+    expect(mistakeOfClick(view(me), 'not-offered', 4, new Set([4]))).toBe('mana');
+    const waiting = player({ hand: [card(4, 'Instant')], isActive: false, hasPriority: false });
+    expect(mistakeOfClick(view(waiting), 'not-offered', 4, new Set([4])), 'with no priority, waiting is the mistake').toBe('priority');
   });
 
   it('a "not-offered" press on the other seat’s turn, without priority, is "priority" — Forge holds a waiting input there', () => {

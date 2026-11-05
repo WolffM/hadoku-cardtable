@@ -485,6 +485,13 @@ export const SetWeaklySelectableSchema = z.strictObject({
    * `durationPlayer`, when the static is a temporary effect. Absent when the
    * bridge could not read them.
    */
+  /**
+   * Ours: this seat's hand cards held back by their cost alone — nothing on them can be taken now,
+   * and a spell on them fails only the fork's `AvailableActions.canAfford` (the bridge's
+   * `SeatController.heldBackByCost`). What makes "I don't have enough mana for that" true of a
+   * click on one. Absent when the bridge could not read it for this window.
+   */
+  unaffordable: z.array(CardRefSchema).optional(),
   castForbidden: z
     .array(
       z.strictObject({
