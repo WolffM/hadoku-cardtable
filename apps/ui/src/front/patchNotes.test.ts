@@ -6,23 +6,36 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { newestFirst, parseReleaseNotes, versionOfPath } from './patchNotes.ts';
+import { fittingBullets, newestFirst, parseReleaseNotes, versionOfPath } from './patchNotes.ts';
 
 const RELEASE_PATH = fileURLToPath(new URL('../../../../docs/releases/v0.36.0.md', import.meta.url));
 
 describe('parseReleaseNotes', () => {
-  it('reads the title and the first three New/Changed bullets of a real release file', () => {
+  it('reads the title and every New, Changed and Fixed bullet of a real release file, in that order', () => {
     const markdown = readFileSync(RELEASE_PATH, 'utf8');
     const parsed = parseReleaseNotes(markdown, 'v0.36.0');
     expect(parsed).not.toBeNull();
     expect(parsed?.version).toBe('v0.36.0');
     expect(parsed?.title).toBe('Clearer turns and choices');
-    expect(parsed?.bullets).toHaveLength(3);
+    const counts = Object.fromEntries((parsed?.sections ?? []).map((sec) => [sec.heading, sec.bullets.length]));
+    expect(parsed?.bullets).toHaveLength(counts.New! + counts.Changed! + counts.Fixed!);
+    expect(counts['Under the hood']).toBeGreaterThan(0);
     // New's own bullet first, with its bold marker stripped.
     expect(parsed?.bullets[0]).toBe('The table dims while you pick. While you choose a target, attackers or blockers, the rest of the table goes dark so the cards you can pick stand out.');
     // Then Changed's, in its own order.
     expect(parsed?.bullets[1]).toBe('Next Phase has moved into the question box. When the game waits on you it asks "Proceed to Combat?" (or whichever step is next) with a Next Phase button. With a spell on the stack it asks "Resolve <spell>?" with a Resolve button, and Done Attacking and Done Blocking sit at its bottom left.');
     expect(parsed?.bullets[2]).toBe('Whose turn it is is easier to see: a brighter edge light, in your colour on your turn.');
+    // Then Fixed's; Under the hood never reaches the card.
+    const fixed = parsed!.sections.find((sec) => sec.heading === 'Fixed')!.bullets;
+    expect(parsed?.bullets.at(-1)).toBe(fixed.at(-1)!.replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1').trim());
+  });
+
+  it('fittingBullets counts the bullets whose bottom edge is inside the list', () => {
+    expect(fittingBullets([20, 50, 90, 130], 100)).toBe(3);
+    expect(fittingBullets([20, 50], 100)).toBe(2);
+    expect(fittingBullets([120], 100)).toBe(0);
+    // A later bullet never comes back after one that did not fit.
+    expect(fittingBullets([20, 130, 90], 100)).toBe(1);
   });
 
   it('reads no bullets rather than throwing when a section is empty, and null with no heading at all', () => {

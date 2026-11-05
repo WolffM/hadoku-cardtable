@@ -4,10 +4,10 @@
  * in this repo. "Read all" opens every bundled release, newest first, in a modal on the site.
  */
 
-import { Fragment, useState, type ReactNode } from 'react';
+import { Fragment, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 
 import { Modal } from '../components/Modal.tsx';
-import { newestFirst, parseReleaseNotes, versionOfPath, type ParsedRelease } from './patchNotes.ts';
+import { fittingBullets, newestFirst, parseReleaseNotes, versionOfPath, type ParsedRelease } from './patchNotes.ts';
 
 // Vite bundles every match eagerly, as raw text, at build time (no server round trip for the notes).
 const RELEASE_FILES = import.meta.glob('../../../../docs/releases/v*.md', { query: '?raw', eager: true, import: 'default' }) as Record<string, string>;
@@ -29,9 +29,35 @@ function inline(text: string): ReactNode {
   return text.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 === 1 ? <strong key={i}>{part}</strong> : <Fragment key={i}>{part.replace(/\*(.+?)\*/g, '$1')}</Fragment>));
 }
 
+/**
+ * As many of the list's bullets as the card has room for, the rest hidden whole, never cut in half.
+ * Hidden by `visibility`, so hiding one moves nothing and the measure never chases itself.
+ */
+function useFittingBullets(): RefObject<HTMLUListElement | null> {
+  const ref = useRef<HTMLUListElement>(null);
+  useLayoutEffect(() => {
+    const list = ref.current;
+    if (list === null) return;
+    const fit = (): void => {
+      const items = [...list.children] as HTMLElement[];
+      const shown = fittingBullets(
+        items.map((li) => li.getBoundingClientRect().bottom),
+        list.getBoundingClientRect().bottom,
+      );
+      items.forEach((li, i) => (li.style.visibility = i < shown ? '' : 'hidden'));
+    };
+    fit();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit);
+    observer?.observe(list);
+    return () => observer?.disconnect();
+  }, []);
+  return ref;
+}
+
 export function PatchNotesCard() {
   const [open, setOpen] = useState(false);
   const release = RELEASES[0] ?? null;
+  const bulletsRef = useFittingBullets();
 
   return (
     <section className="front-card front-card--patch-notes" data-testid="front-patch-notes">
@@ -44,7 +70,7 @@ export function PatchNotesCard() {
       ) : (
         <>
           <p className="front-card__release-title">{release.title}</p>
-          <ul className="front-card__bullets">
+          <ul className="front-card__bullets" ref={bulletsRef} data-testid="front-patch-notes-bullets">
             {release.bullets.map((b, i) => (
               <li key={i}>{b}</li>
             ))}

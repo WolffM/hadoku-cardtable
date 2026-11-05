@@ -3,7 +3,7 @@
  * fixture, because `docs/releases/*.md`'s own shape (`# vX.Y.Z — Title`, then `## New` / `## Changed`
  * / `## Fixed` / `## Under the hood`, each a flat bullet list) is the contract this reads, not one
  * this file gets to invent (`docs/planning/wave77-2026-10-27.md` §A: "the newest release's title and
- * its first bullets").
+ * its first bullets"). The player's own sections only: `## Under the hood` / `## Fixes` stay in the full notes.
  */
 
 export interface ParsedRelease {
@@ -11,7 +11,7 @@ export interface ParsedRelease {
   version: string;
   /** The text after the em dash on the `#` heading; the bare version when there is none. */
   title: string;
-  /** The first bullets under `## New` then `## Changed`, in that order, markdown emphasis stripped. */
+  /** Every bullet under `## New`, `## Changed` then `## Fixed`, in that order, markdown emphasis stripped: the card draws as many as fit. */
   bullets: string[];
   /** The paragraph between the heading and the first section; empty when there is none. */
   summary: string;
@@ -45,11 +45,11 @@ export function parseReleaseNotes(markdown: string, version: string): ParsedRele
   const title = dash === -1 ? heading : heading.slice(dash + 1).trim();
 
   const { summary, sections } = sectionsOf(lines.slice(lines.indexOf(headingLine) + 1));
-  // New's bullets before Changed's, each read in the file's own order — the card shows what shipped
-  // before what merely changed, and tops up from Changed only once New runs out.
+  // New's bullets, then Changed's, then Fixed's, each in the file's own order — the card shows what
+  // shipped before what merely changed or was mended, and draws down the list as far as it has room.
   const named = (target: string): string[] => sections.find((s) => s.heading.toLowerCase() === target)?.bullets ?? [];
-  const ordered = [...named('new'), ...named('changed')].map(plainBullet);
-  return { version, title, bullets: ordered.slice(0, 3), summary, sections };
+  const bullets = [...named('new'), ...named('changed'), ...named('fixed')].map(plainBullet);
+  return { version, title, bullets, summary, sections };
 }
 
 /**
@@ -78,6 +78,15 @@ function sectionsOf(lines: readonly string[]): { summary: string; sections: Rele
     }
   }
   return { summary: summary.join(' '), sections: sections.filter((s) => s.bullets.length > 0) };
+}
+
+/**
+ * How many bullets, from the first, sit wholly inside a list whose bottom edge is `limit`; `bottoms` are
+ * each bullet's bottom edge in the same coordinates. The card hides the rest rather than cut one in half.
+ */
+export function fittingBullets(bottoms: readonly number[], limit: number): number {
+  const over = bottoms.findIndex((b) => b > limit + 0.5);
+  return over === -1 ? bottoms.length : over;
 }
 
 /** `v0.36.0.md` → `v0.36.0`. `null` for a name this does not recognise as a release's. */
