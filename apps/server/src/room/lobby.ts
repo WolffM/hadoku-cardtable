@@ -357,10 +357,10 @@ export interface Caller {
 	name: string;
 	userId: string | null;
 	/**
-	 * The edge's `X-Hadoku-Vouched`: the operator vouches for this person (`vouchedOf`). Absent is
-	 * not vouched, as the header's own absence is: a restored or synthetic caller vouches for nobody.
+	 * The edge's `X-Hadoku-Verified`: the operator verifies this person (`verifiedOf`). Absent is
+	 * not verified, as the header's own absence is: a restored or synthetic caller verifies nobody.
 	 */
-	vouched?: boolean;
+	verified?: boolean;
 }
 
 interface CreateRoomInput {

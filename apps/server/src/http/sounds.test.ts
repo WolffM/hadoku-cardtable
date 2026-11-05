@@ -678,21 +678,21 @@ describe('the music review is friend tier and above even when the app lets membe
 		expect((await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'friend' })).status).toBe(200);
 	});
 
-	it('a member the operator vouches for passes the friend gate exactly as a friend; a forged vouch past the edge does not', async () => {
+	it('a member the operator verifies passes the friend gate exactly as a friend; a forged verification past the edge does not', async () => {
 		const dir = await tempDir();
 		await writeCatalogue(dir, [TAKE]);
 		const h = await openApp(dir, mods);
-		const vouched = { 'x-hadoku-vouched': '1' };
-		expect((await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'member', headers: vouched })).status).toBe(200);
-		expect((await call(h, 'POST', '/api/sounds/music-review', { tier: 'member', headers: vouched, body: { slots: {} } })).status).not.toBe(403);
+		const verified = { 'x-hadoku-verified': '1' };
+		expect((await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'member', headers: verified })).status).toBe(200);
+		expect((await call(h, 'POST', '/api/sounds/music-review', { tier: 'member', headers: verified, body: { slots: {} } })).status).not.toBe(403);
 		// A plain member is refused as before.
 		expect((await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'member' })).status).toBe(403);
-		// No X-Edge-Auth: the vouch is stripped with the rest, and the floor answers first.
-		expect((await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'member', headers: { ...vouched, 'x-edge-auth': '' } })).status).toBe(404);
-		expect((await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'member', headers: { ...vouched, 'x-edge-auth': 'forged' } })).status).toBe(404);
-		// Admin stays admin's: a vouch is not a promotion past friend (everyone's reviews, a mark).
-		expect((await call(h, 'GET', '/api/sounds/music-review', { tier: 'member', headers: vouched })).status).toBe(403);
-		expect((await call(h, 'PUT', '/api/sounds/marks', { tier: 'member', headers: vouched, body: {} })).status).toBe(403);
+		// No X-Edge-Auth: the verification is stripped with the rest, and the floor answers first.
+		expect((await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'member', headers: { ...verified, 'x-edge-auth': '' } })).status).toBe(404);
+		expect((await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'member', headers: { ...verified, 'x-edge-auth': 'forged' } })).status).toBe(404);
+		// Admin stays admin's: a verification is not a promotion past friend (everyone's reviews, a mark).
+		expect((await call(h, 'GET', '/api/sounds/music-review', { tier: 'member', headers: verified })).status).toBe(403);
+		expect((await call(h, 'PUT', '/api/sounds/marks', { tier: 'member', headers: verified, body: {} })).status).toBe(403);
 	});
 });
 

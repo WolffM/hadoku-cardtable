@@ -515,11 +515,11 @@ test('the friend gate still bites: no session, no page and no socket', async ({ 
   await alice.addCookies([{ name: SESSION_COOKIE, value: 'alice', domain: '127.0.0.1', path: '/' }]);
   const who = await alice.request.get(`${EDGE_ORIGIN}${PREFIX}/api/whoami`);
   expect(who.status()).toBe(200);
-  // A plain member: the operator vouches for nobody the edge did not say so of.
-  expect(await who.json()).toEqual({ userId: FRIENDS.alice.userId, tier: 'member', vouched: false });
-  // A vouch the browser sends itself is the edge's to strip, like every identity header.
-  const forgedVouch = await alice.request.get(`${EDGE_ORIGIN}${PREFIX}/api/whoami`, { headers: { 'x-hadoku-vouched': '1' } });
-  expect(await forgedVouch.json()).toEqual({ userId: FRIENDS.alice.userId, tier: 'member', vouched: false });
+  // A plain member: the operator verifies nobody the edge did not say so of.
+  expect(await who.json()).toEqual({ userId: FRIENDS.alice.userId, tier: 'member', verified: false });
+  // A verification the browser sends itself is the edge's to strip, like every identity header.
+  const forgedVerified = await alice.request.get(`${EDGE_ORIGIN}${PREFIX}/api/whoami`, { headers: { 'x-hadoku-verified': '1' } });
+  expect(await forgedVerified.json()).toEqual({ userId: FRIENDS.alice.userId, tier: 'member', verified: false });
 
   await stranger.close();
   await alice.close();

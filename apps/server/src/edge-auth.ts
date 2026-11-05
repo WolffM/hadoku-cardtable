@@ -3,7 +3,7 @@
  *
  * edge-router resolves the caller's tier once and stamps every request it
  * proxies with X-Edge-Auth: <EDGE_AUTH_SECRET> plus X-Hadoku-Tier / X-User-Id /
- * X-User-Key / X-User-Name / X-Hadoku-Vouched. The tunnel hostname is reachable DIRECTLY,
+ * X-User-Key / X-User-Name / X-Hadoku-Verified. The tunnel hostname is reachable DIRECTLY,
  * bypassing the edge — so a direct hit could forge those headers. We believe
  * them only when the shared secret checks out; otherwise we overwrite them with
  * the most restrictive identity.
@@ -97,7 +97,7 @@ export function sanitizeHeaders(headers: Record<string, unknown>): void {
 	delete headers['x-user-id'];
 	delete headers['x-user-name'];
 	delete headers['x-user-key'];
-	delete headers['x-hadoku-vouched'];
+	delete headers['x-hadoku-verified'];
 }
 
 /**
@@ -111,31 +111,31 @@ export function edgeSealed(req: Request): boolean {
 
 /**
  * The caller's tier as cardtable treats it: the edge's `X-Hadoku-Tier`, except
- * that a member the operator vouches for IS a friend here. The operator,
+ * that a member the operator verifies IS a friend here. The operator,
  * 2026-11-05: *"the only difference between vouched members and friends is the
  * auth gate on other websites. for cardtable they will be equivalent."* Every
  * gate reads this (the floor, the friend and admin checks, each socket's
  * handshake), so the equivalence lives in this one line. Never above friend:
- * admin stays admin's. Only after `sanitizeHeaders`, which strips a forged vouch.
+ * admin stays admin's. Only after `sanitizeHeaders`, which strips a forged verification.
  */
 export function tierOf(req: Request): string {
 	const t = req.headers['x-hadoku-tier'];
 	const tier = typeof t === 'string' && t !== '' ? t : 'public';
-	return tier === 'member' && vouchedOf(req) ? 'friend' : tier;
+	return tier === 'member' && verifiedOf(req) ? 'friend' : tier;
 }
 
 /**
- * The operator vouches for this caller (`X-Hadoku-Vouched: 1`, stamped by the
+ * The operator verifies this caller (`X-Hadoku-Verified: 1`, stamped by the
  * edge from the same registry row as `X-User-Id`): every tier above member,
- * and a member the operator made or vouched for. Absent means not vouched.
+ * and a member the operator made or verified. Absent means not verified.
  */
-export function vouchedOf(req: Request): boolean {
-	return vouchedFromHeaders(req.headers);
+export function verifiedOf(req: Request): boolean {
+	return verifiedFromHeaders(req.headers);
 }
 
-/** `vouchedOf` for a socket's handshake, whose headers went through the same sanitizing. */
-export function vouchedFromHeaders(headers: IncomingHttpHeaders): boolean {
-	return headers['x-hadoku-vouched'] === '1';
+/** `verifiedOf` for a socket's handshake, whose headers went through the same sanitizing. */
+export function verifiedFromHeaders(headers: IncomingHttpHeaders): boolean {
+	return headers['x-hadoku-verified'] === '1';
 }
 
 /** The caller's userId as the edge stamped it; null when the edge named nobody. */

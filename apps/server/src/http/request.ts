@@ -5,7 +5,7 @@ import type { ParticipantId } from '@wolffm/rooms-protocol';
 import { MultiRateLimiter, type RateLimitConfig } from '@wolffm/rooms-server';
 import type { ErrorRequestHandler, Request, Response } from 'express';
 
-import { accountIdOf, userNameOf, vouchedOf } from '../edge-auth.js';
+import { accountIdOf, userNameOf, verifiedOf } from '../edge-auth.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { callerContext, report } from '../telemetry.js';
 import { UNNAMED, type Caller } from '../room/lobby.js';
@@ -22,10 +22,10 @@ export function httpCaller(req: Request): ParticipantId {
 /**
  * Who is asking, for a lobby call: the id, the DISPLAY NAME (`X-User-Name`, never the opaque
  * userId — a roster is for humans; a key the edge sent no name for gets `UNNAMED`), and the userId
- * a saved room keeps instead of the name (R12), and whether the operator vouches for them.
+ * a saved room keeps instead of the name (R12), and whether the operator verifies them.
  */
 export function callerOf(req: Request): Caller {
-	return { id: httpCaller(req), name: userNameOf(req) ?? UNNAMED, userId: accountIdOf(req), vouched: vouchedOf(req) };
+	return { id: httpCaller(req), name: userNameOf(req) ?? UNNAMED, userId: accountIdOf(req), verified: verifiedOf(req) };
 }
 
 /**

@@ -24,10 +24,10 @@ export interface Friend {
    */
   tier?: string;
   /**
-   * A member the operator vouches for (the registry's flag). Every tier above member is vouched
-   * anyway; `edge.ts` stamps `X-Hadoku-Vouched: 1` by the same rule as the real edge's `isVouched`.
+   * A member the operator verifies (the registry's flag). Every tier above member is verified
+   * anyway; `edge.ts` stamps `X-Hadoku-Verified: 1` by the same rule as the real edge's `isVerified`.
    */
-  vouched?: true;
+  verified?: true;
 }
 
 export const FRIENDS: Readonly<Record<string, Friend>> = {
@@ -38,8 +38,8 @@ export const FRIENDS: Readonly<Record<string, Friend>> = {
   bob: { key: 'e2e-friend-key-bob-91c2', userId: 'e2e-bob-id', name: 'e2e-bob' },
   // A third person in a two-seat room: the one the seats and watcher specs leave standing.
   carol: { key: 'e2e-friend-key-carol-3e5d', userId: 'e2e-carol-id', name: 'e2e-carol' },
-  // A member the operator vouches for: a friend in everything cardtable lets a friend do.
-  erin: { key: 'e2e-friend-key-erin-6c1f', userId: 'e2e-erin-id', name: 'e2e-erin', vouched: true },
+  // A member the operator verifies: a friend in everything cardtable lets a friend do.
+  erin: { key: 'e2e-friend-key-erin-6c1f', userId: 'e2e-erin-id', name: 'e2e-erin', verified: true },
   // The music review only: it is friend tier, above the member floor every player is at.
   dana: { key: 'e2e-friend-key-dana-5b8e', userId: 'e2e-dana-id', name: 'e2e-dana', tier: 'friend' },
   // wave 50 §U only: the sound builder's write half needs an admin identity.
