@@ -19,7 +19,7 @@ The operator's words are quoted verbatim. **Design** is ours and may change.
 | # | Track | Owner | State |
 | --- | --- | --- | --- |
 | 1 | Discord icon in the top bar, between theme picker and gear | hadoku-task (lib), hadoku_site (contract, templates), then cardtable | **Live** in `status` (left of the picker), `apps/ui/src/chrome/HeaderLinks.tsx`; moves between picker and gear when the `links` slot ships (`docs/requests/HADOKU_SITE_HEADER_LINKS.md`) |
-| 2 | The Discord server itself | operator (create), ArchiveBot (channels/roles/invite) | **Live** 2026-10-23: guild `1563307288406786078`, set up by ArchiveBot's `/setup cardtable`; invite `https://discord.gg/VvntUGQVwm` (permanent, joins as Player) |
+| 2 | The Discord server itself | operator (create), ArchiveBot (channels/roles/invite) | **Live** 2026-10-23: guild `1563307288406786078`, set up by ArchiveBot's `/setup cardtable`; invite `https://discord.gg/VvntUGQVwm` (permanent; joining earns no role) |
 | 3 | Automation: patch notes, tournament events, later linking + room announcements | ArchiveBot | Patch notes **live** (`apps/server/src/announce.ts`, prod boot). Tournament events: ArchiveBot's routes are ready (`/api/events/create`, key `cardtable-tournament-<id>`; keep `eventId` for update/cancel) and wait on tournaments having a scheduled start. Contract: `docs/requests/ARCHIVEBOT_DISCORD_INTEGRATION_REPLY.md` |
 
 ## 1. Top bar
@@ -49,7 +49,7 @@ Proposed layout. This is a design proposal; the operator rules on it.
 | Table | `#bugs-and-feedback` | Playtest reports. These still go into `docs/planning/playtest-ledger.md` |
 | Voice | `Table 1`, `Table 2` | Voice during matches |
 
-Roles: `Player` (everyone), `Admin` (the operator). This is a friend group, so there's no tiering beyond that.
+Roles: `Admin` (the operator) and `Linked` (a Discord account linked to a hadoku account; see §3). `Player` was dropped on 2026-11-04 by the operator: it gated nothing.
 
 **Friend gate.** The invite only appears on a friend-tier page, so the gate holds at the edge. It's
 still a permanent link that can be forwarded. ArchiveBot already binds invites to roles on join
