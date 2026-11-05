@@ -822,6 +822,7 @@ const rebuildHost = forge.ok
 attachReplays(api, {
 	dir: RECORDINGS_DIR,
 	isTesting: (roomId) => (roomId === null ? false : lobby.get(roomId)?.testing === true),
+	stillPlaying: (matchId, caller) => lobby.stillPlaying(matchId, caller),
 	log: recordingsLog,
 	canRebuild: canRebuildBoolean,
 	...(rebuildHost === null ? {} : { rebuild: (matchId: string) => rebuildForReplays(matchId, { recordingsDir: RECORDINGS_DIR, host: rebuildHost, log: recordingsLog, deckCosts }) }),

@@ -18,6 +18,11 @@
  * `[w71-bo3]` lines are the evidence: the series after each step, and the
  * seat asked play-or-draw.
  *
+ * Along the way, game 1's replay (the watcher channel's stream, every hand face
+ * up): carol, who did not play, can watch it at once; alice and bob cannot
+ * until the series is over (the operator, 2026-11-05: players never reach the
+ * watcher view of their own match).
+ *
  * The second test is ruling 14: the leader changes the mode during
  * sideboarding, which interrupts the Bo3 — it ends as a Bo1 of game 1, and
  * both screens leave the sideboard step for the room's own view.
@@ -64,6 +69,13 @@ async function get<T>(request: APIRequestContext, origin: string, path: string):
 
 const matchUrl = (origin: string, matchId: string): string => `${origin}${PREFIX}/#/match/${matchId}`;
 
+/** What `GET /replays/:matchId` answers this friend, and whether `GET /replays` lists it to them. */
+async function replayFor(f: Friend, origin: string, matchId: string): Promise<{ status: number; listed: boolean }> {
+  const one = await f.context.request.get(`${origin}${PREFIX}/api/replays/${matchId}`);
+  const list = (await (await f.context.request.get(`${origin}${PREFIX}/api/replays?limit=100`)).json()) as { replays: { matchId: string }[] };
+  return { status: one.status(), listed: list.replays.some((r) => r.matchId === matchId) };
+}
+
 /**
  * Two decks legal in `format` — whatever a new room's own RANDOM era turned
  * out to be (`room/lobby.ts`'s `randomFormat`; a room created with no
@@ -100,12 +112,14 @@ test(titled('Classic Bo1 → Rematch: game 1 stays, the series is Bo3 at 1-0 in 
   try {
     const alice = await openFriend(browser, 'alice');
     const bob = await openFriend(browser, 'bob');
+    const carol = await openFriend(browser, 'carol');
     // Both contexts need one authenticated request against the app before
     // `twoLegalDecks`'s bare API calls resolve under the edge's own origin —
     // same as every other API-only spec (`play/enter.ts`'s own `twoLegalDecks`
     // caller does this by navigating first).
     await alice.page.goto(`${stack.origin}${PREFIX}/`);
     await bob.page.goto(`${stack.origin}${PREFIX}/`);
+    await carol.page.goto(`${stack.origin}${PREFIX}/`);
 
     // 1. A Classic room. A new room's own format is RANDOM (`room/lobby.ts`'s
     // `randomFormat`), so the decks are picked for whatever era it got.
@@ -143,6 +157,11 @@ test(titled('Classic Bo1 → Rematch: game 1 stays, the series is Bo3 at 1-0 in 
     expect(afterGame1.matchId, 'no live match between games').toBeNull();
     expect(afterGame1.series).toEqual({ length: 1, wins: [1, 0], games: [{ matchId: game1.matchId, winner: 0 }], phase: 'done' });
 
+    // Game 1's replay is on disk (carol watches it), and a Rematch may still continue the series: its players get none.
+    await expect.poll(async () => replayFor(carol, stack.origin, game1.matchId), { timeout: 30_000, message: 'carol, who did not play it, watches game 1' }).toEqual({ status: 200, listed: true });
+    for (const f of [alice, bob]) expect(await replayFor(f, stack.origin, game1.matchId), `${f.name}: not while the series may go on`).toEqual({ status: 404, listed: false });
+    console.log('[w71-bo3] game 1 replay: carol 200, alice and bob 404 while the series may go on');
+
     // 2. Both press Rematch: converted in place, and the sideboard step opens.
     for (const f of [alice, bob]) await f.page.getByTestId('game-result-rematch').click();
     for (const f of [alice, bob]) await expect(f.page.getByTestId('game-result-next'), 'the sideboard step is next').toBeVisible({ timeout: 30_000 });
@@ -176,6 +195,7 @@ test(titled('Classic Bo1 → Rematch: game 1 stays, the series is Bo3 at 1-0 in 
     const during = (await get<RoomViewLike>(alice.context.request, stack.origin, `/rooms/${roomId}`)).tables[0]!;
     console.log(`[w71-bo3] during game 2: ${JSON.stringify(during.series)}`);
     expect(during.series, 'game 2 of the same series, at 1-0').toMatchObject({ length: 3, wins: [1, 0], phase: 'playing' });
+    for (const f of [alice, bob]) expect(await replayFor(f, stack.origin, game1.matchId), `${f.name}: game 1's hands, in game 2`).toEqual({ status: 404, listed: false });
 
     // 5. Bob concedes AGAIN: the series ends 2-0, phase `done`.
     await concede(bob);
@@ -189,6 +209,10 @@ test(titled('Classic Bo1 → Rematch: game 1 stays, the series is Bo3 at 1-0 in 
     expect(finalTable.series.phase, 'the series is over, 2-0').toBe('done');
     expect(finalTable.series.wins).toEqual([2, 0]);
     expect(finalTable.series.games.map((g) => g.winner)).toEqual([0, 0]);
+
+    // The series is over: its players may watch it now.
+    for (const f of [alice, bob]) expect(await replayFor(f, stack.origin, game1.matchId), `${f.name}: after the series`).toEqual({ status: 200, listed: true });
+    console.log('[w71-bo3] game 1 replay: alice and bob 200 once the series is over');
   } finally {
     await stack.stop();
   }

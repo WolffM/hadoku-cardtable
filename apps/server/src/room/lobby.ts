@@ -1220,6 +1220,12 @@ export interface Lobby {
 	 * `ROOM_MATCHES_KEPT` matches, on disk.
 	 */
 	roomOfMatch(matchId: string): RoomView | undefined;
+	/**
+	 * Whether `memberId` played `matchId` in a series that is not settled yet: one that may still go
+	 * on, so that game's hands are still hidden from them. Its replay is the watcher channel's
+	 * stream, every hand face up, and a player is never shown the watcher view of their own match.
+	 */
+	stillPlaying(matchId: string, memberId: string): boolean;
 	get(roomId: string): RoomView | undefined;
 	/** Whether `memberId` is a member of `roomId`. False when there is no such room. */
 	isMember(roomId: string, memberId: string): boolean;
@@ -2615,6 +2621,16 @@ class FileLobby implements Lobby {
 			if (room.tables.some((t) => t.matchId === matchId) || room.matches.includes(matchId)) return this.#view(room);
 		}
 		return undefined;
+	}
+
+	stillPlaying(matchId: string, memberId: string): boolean {
+		for (const room of this.#rooms.values()) {
+			for (const { matchId: live, series } of room.tables) {
+				if (series.settled || !series.played.includes(memberId)) continue;
+				if (live === matchId || series.games.some((g) => g.matchId === matchId)) return true;
+			}
+		}
+		return false;
 	}
 
 	get(roomId: string): RoomView | undefined {

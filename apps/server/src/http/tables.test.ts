@@ -2089,6 +2089,14 @@ describe('a room table', () => {
 			return { h, matchId, startedAt, jvm: () => hosts.at(-1)! };
 		}
 
+		it('keeps who sits where: each player is handed their own seat back, and nobody else gets one', async () => {
+			const { h, matchId } = await restarted();
+			const match = h.matches.get(matchId)!;
+			expect(match.claim(identityFromHeaders(edgeHeaders('alice'), 'sock'))).toEqual({ ok: true, seat: 0, fresh: false });
+			expect(match.claim(identityFromHeaders(edgeHeaders('bob'), 'sock'))).toEqual({ ok: true, seat: 1, fresh: false });
+			expect(match.claim(identityFromHeaders(edgeHeaders('carol'), 'sock')), 'a third member watches').toEqual({ ok: false, error: 'match-full' });
+		});
+
 		it('is recorded when it ends, with who sat where, their decks and the room it was played in', async () => {
 			const { h, matchId, startedAt, jvm } = await restarted();
 			// Each player's page reads the room again once its socket is back.

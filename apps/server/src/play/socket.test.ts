@@ -2186,6 +2186,83 @@ describe('a third account watches a full match', () => {
 	});
 });
 
+/*
+ * The operator, 2026-11-05: *"PLAYERS shouldn't be able to reach spectator mode for that room"* —
+ * the watcher channel shows every hand, and a seat holder never receives their own match's. Checked
+ * on the payload, not only the role: whatever socket a seat holder joins from, nothing hidden from
+ * their seat reaches it. Watching a match they hold no seat in stays as it is (the operator: "just
+ * matches that they are assigned to as players").
+ */
+describe("a seat holder never gets their own match's watcher view", () => {
+	const hiddenFromSeat0 = (): Set<string> => {
+		const [of0, of1] = [0, 1].map((seat) => secretsFor(rawStatesOf(TRANSCRIPT, seat), seat).secrets) as [Set<string>, Set<string>];
+		return new Set([...of0].filter((x) => !of1.has(x)));
+	};
+
+	async function seated(options: { disconnectGraceMs?: number } = {}): Promise<{ h: Harness; matchId: string; alice: Peer; host: ReplayHost }> {
+		const h = await boot(options);
+		const { body } = await startMatch(h);
+		const matchId = body.matchId as string;
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		await alice.request('forge:join', { matchId, tabId: 'tab-aaaaaaaa' });
+		await bob.request('forge:join', { matchId });
+		return { h, matchId, alice, host: h.hosts[0] as ReplayHost };
+	}
+
+	/** Joins `matchId` from a fresh socket of `user`'s, plays the later frames, and answers what it was given. */
+	async function joinAgain(h: Harness, host: ReplayHost, matchId: string, user: string, tabId?: string): Promise<{ peer: Peer; seat: number }> {
+		const peer = await connect(h.port, edgeHeaders(user));
+		const joined = (await peer.request('forge:join', { matchId, ...(tabId === undefined ? {} : { tabId }) })) as { seat: number; error?: string };
+		expect(joined.error).toBeUndefined();
+		await waitUntil(() => peer.roles.length > 0, 'its role');
+		const before = peer.frames.length;
+		host.push(PROBE_ASK, ...AFTER_PROBE);
+		await waitUntil(() => peer.frames.length > before, 'the later frames');
+		await new Promise((r) => setTimeout(r, 100));
+		return { peer, seat: joined.seat };
+	}
+
+	it('a second window, with or without a tab id, is on its own seat and never shown the other hand', async () => {
+		for (const tabId of ['tab-bbbbbbbb', undefined]) {
+			const { h, matchId, host } = await seated();
+			const { peer, seat } = await joinAgain(h, host, matchId, 'alice', tabId);
+			expect(seat, `tab ${String(tabId)}: her own seat`).toBe(0);
+			expect(peer.roles.map((r) => (r as { role: string }).role)).not.toContain('watcher');
+			expect(leaked(hiddenFromSeat0(), peer.transcript()), "bob's hand").toEqual([]);
+			expect(h.logs.filter((l) => l.evt === 'joined' && (l as { role?: string }).role === 'watcher')).toEqual([]);
+			await h.close();
+		}
+	});
+
+	it('coming back after her seat was marked gone, she takes her seat again and is never a watcher', async () => {
+		const { h, matchId, alice, host } = await seated({ disconnectGraceMs: 50 });
+		alice.socket.disconnect();
+		await waitUntil(() => h.logs.some((l) => l.evt === 'left' && l.seat === 0), 'her leaving');
+		await new Promise((r) => setTimeout(r, 200));
+		const { peer, seat } = await joinAgain(h, host, matchId, 'alice', 'tab-cccccccc');
+		expect(seat).toBe(0);
+		expect(peer.roles).toEqual([{ matchId, role: 'player' }]);
+		expect(leaked(hiddenFromSeat0(), peer.transcript()), "bob's hand").toEqual([]);
+	});
+
+	it('a player of one match still watches another, every hand face up', async () => {
+		const { h, host } = await seated();
+		// Bob and carol's match: alice holds a seat in another one, and none in this.
+		const { body } = await startMatch(h, 'bob');
+		const theirs = body.matchId as string;
+		const theirHost = h.hosts.at(-1) as ReplayHost;
+		expect(theirHost).not.toBe(host);
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		const carol = await connect(h.port, edgeHeaders('carol'));
+		await bob.request('forge:join', { matchId: theirs });
+		await carol.request('forge:join', { matchId: theirs });
+		const { peer } = await joinAgain(h, theirHost, theirs, 'alice');
+		expect(peer.roles).toEqual([{ matchId: theirs, role: 'watcher' }]);
+		expect(leaked(hiddenFromSeat0(), peer.transcript()).length, "seat 1's hand, as every watcher sees it").toBeGreaterThan(0);
+	});
+});
+
 /**
  * The bridge refuses a match with no human seat (`MatchContext.refusal`): Forge watches an
  * AI-against-AI game through a desktop window, which a headless JVM cannot open. The create

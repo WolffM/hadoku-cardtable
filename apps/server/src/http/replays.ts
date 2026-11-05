@@ -14,7 +14,9 @@
  * Mounted on `api`, which is already behind `requireMinTier` (member tier) —
  * same gate as every other `/api` route; `isAdmin` only decides whether a
  * testing room's rows are in the list at all, the same rule `http/rooms.ts`
- * applies to the room list itself.
+ * applies to the room list itself. A game's replay is the watcher channel's stream, every hand face
+ * up, so it is also withheld from the game's own players while their series may still go on
+ * (`Lobby.stillPlaying`): a Bo3's game 1 is a hidden hand in games 2 and 3.
  */
 
 import { createReadStream, readdirSync } from 'node:fs';
@@ -25,6 +27,7 @@ import type { Request, Response, Router } from 'express';
 import { Router as makeRouter } from 'express';
 
 import { isAdmin } from '../edge-auth.js';
+import { httpCaller } from './request.js';
 import type { JsonLog } from '../log.js';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '../play/recording/retention.js';
 import { PUBLIC_VERSION, type PublicEndLine, type PublicEnvLine, type PublicPresenceLine } from '../play/recording/writer.js';
@@ -59,6 +62,8 @@ export interface ReplaysDeps {
 	dir: string;
 	/** Is this room's recording hidden from a non-admin, same rule as `http/rooms.ts`'s own testing-room guard? */
 	isTesting(roomId: string | null): boolean;
+	/** See `Lobby.stillPlaying`. Absent: no game is withheld from its players. */
+	stillPlaying?(matchId: string, caller: string): boolean;
 	/** Lane D's own check, injected. Absent: a match with no public stream always answers `source: 'none'`/404. */
 	canRebuild?(header: ActionsHeaderLine): boolean;
 	/** Lane D's own rebuild, injected. */
@@ -157,9 +162,11 @@ function rowsOf(dir: string): Row[] {
 export function attachReplays(api: Router, deps: ReplaysDeps): void {
 	const log = deps.log ?? (() => undefined);
 	const replays = makeRouter();
+	/** Whether this caller may not see this game's replay: a testing room's, to a non-admin, or their own series' while it goes on. */
+	const hiddenFrom = (req: Request, header: { matchId: string; roomId: string | null }): boolean =>
+		(!isAdmin(req) && deps.isTesting(header.roomId)) || (deps.stillPlaying?.(header.matchId, httpCaller(req)) ?? false);
 
 	replays.get('/', async (req: Request, res: Response) => {
-		const admin = isAdmin(req);
 		const limitParam = Number(req.query.limit ?? DEFAULT_LIST_LIMIT);
 		const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(Math.floor(limitParam), MAX_LIST_LIMIT) : DEFAULT_LIST_LIMIT;
 
@@ -205,7 +212,7 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 		}
 
 		// A recording that cannot be played is not offered (wave 81): the worst case is no replay.
-		const visible = summaries.filter((s) => s.source !== 'none' && (admin || !deps.isTesting(s.header.roomId)));
+		const visible = summaries.filter((s) => s.source !== 'none' && !hiddenFrom(req, s.header));
 		visible.sort((a, b) => (a.header.startedAt < b.header.startedAt ? 1 : a.header.startedAt > b.header.startedAt ? -1 : 0));
 		res.set('Cache-Control', LIST_CACHE);
 		res.json({
@@ -261,7 +268,7 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 					res.status(404).json({ error: 'replay file is corrupt' });
 					return;
 				}
-				if (!isAdmin(req) && deps.isTesting(header.roomId)) {
+				if (hiddenFrom(req, header)) {
 					res.status(404).json({ error: 'no such replay' });
 					return;
 				}
@@ -280,8 +287,7 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 			}
 			const actionsLines = await allLines(join(deps.dir, `${matchId}${ACTIONS_SUFFIX}`));
 			const actionsHeader = parseJson<ActionsHeaderLine>(actionsLines[0] ?? '');
-			const hiddenFromCaller = actionsHeader !== null && !isAdmin(req) && deps.isTesting(actionsHeader.roomId);
-			if (actionsHeader === null || hiddenFromCaller) {
+			if (actionsHeader === null || hiddenFrom(req, actionsHeader)) {
 				res.status(404).json({ error: 'no such replay' });
 				return;
 			}
