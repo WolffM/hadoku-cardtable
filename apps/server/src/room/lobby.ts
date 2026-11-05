@@ -3864,7 +3864,8 @@ class FileLobby implements Lobby {
 			endedAt: this.#now(),
 			closed: pod.round <= pod.rounds,
 			rounds: pod.rounds,
-			names: { ...Object.fromEntries(room.members.map((m) => [m.id, m.name])), [POD_AI]: roomAi(room).name, ...aiNames },
+			// The AI entrants' names only: a person is kept by userId and named when shown (R12; #27).
+			names: { [POD_AI]: roomAi(room).name, ...aiNames },
 			// The people by userId, looked up when shown; the AI's characters are the room's own, and kept.
 			users: Object.fromEntries(room.members.flatMap((m) => (m.userId === null ? [] : [[m.id, m.userId]]))),
 			faces: { [POD_AI]: { avatarId: roomAi(room).avatarId }, ...Object.fromEntries(ais.map(([id, p]) => [id, { avatarId: p.avatarId }])) },

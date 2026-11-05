@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { DeckCosts } from '../deck-colors.js';
 import type { BridgeLine, HostEvents, MatchHost, MatchHostFactory, MatchSpec } from '../host.js';
-import { bridgeDigest, createRecorder, forgePin, SEATS_RECORD_MS, serverVersion } from './recorder.js';
+import { anonymousSpec, bridgeDigest, createRecorder, forgePin, SEATS_RECORD_MS, serverVersion } from './recorder.js';
 
 let dir: string;
 
@@ -309,6 +309,31 @@ describe('createRecorder', () => {
 			{ seat: 0, claimed: true, playerId: 0, avatarId: 'sage', userId: 'uid-ari' },
 			{ seat: 1, claimed: false, playerId: null, avatarId: 'ai-face' },
 		]);
+	});
+
+	it('keeps no person\'s name in the 90-day action log: its seats are Player 1 and 2, and its end line names them by userId (#27)', async () => {
+		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
+		const inner = fakeFactory();
+		const roster: SeatIdentity[] = [
+			{ seat: 0, claimed: true, playerId: 0 },
+			{ seat: 1, claimed: true, playerId: 1 },
+		];
+		const recorder = createRecorder({ dir, identity: { pin: null, bridge: 'b', server: 's' }, roomOf: () => null, deckCosts: NO_COSTS, seatsOf: () => roster, usersOf: () => ['uid-ari', 'uid-bo'] });
+		const played: MatchSpec = { seed: 1, seats: [{ name: 'Ari Realname', ai: false, deck: null }, { name: 'Bo Realname', ai: false, deck: null }] };
+		recorder.host(inner)('m-1', played, { line: () => undefined, exit: () => undefined, log: () => undefined });
+		expect(inner.calls[0]!.spec.seats.map((s) => s.name), 'Forge still plays the people by name').toEqual(['Ari Realname', 'Bo Realname']);
+		(inner.calls[0]!.events.exit as (r: string) => void)('stopped');
+		const file = join(dir, 'm-1.actions.jsonl.gz');
+		await vi.waitFor(() => expect(existsSync(file)).toBe(true));
+		const lines = linesOf(file);
+		expect(JSON.stringify(lines)).not.toContain('Realname');
+		expect((lines[0]!.spec as MatchSpec).seats.map((s) => s.name)).toEqual(['Player 1', 'Player 2']);
+		expect(lines.at(-1)?.users).toEqual(['uid-ari', 'uid-bo']);
+	});
+
+	it('the AI keeps the name Forge plays it by', () => {
+		const vsAi: MatchSpec = { seats: [{ name: 'Ari', ai: false, deck: null }, { name: 'Forge AI', ai: true, deck: null }] };
+		expect(anonymousSpec(vsAi).seats.map((s) => s.name)).toEqual(['Player 1', 'Forge AI']);
 	});
 
 	it("writes the roster's faces on the end line, keeping the last one read when the match is already gone", async () => {

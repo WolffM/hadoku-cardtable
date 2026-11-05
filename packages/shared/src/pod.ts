@@ -141,9 +141,9 @@ export const TournamentSchema = z.object({
   closed: z.boolean(),
   rounds: z.number(),
   /**
-   * Display names by id, the AI included, as they were when the pod ended. What a person is
-   * called NOW comes from their userId when the record is shown (`GET /api/tournaments`
-   * overwrites it); this stays for the AI and for a record from before `users` was kept.
+   * Display names by id. Stored for the AI entrants only; a person is kept by userId (`users`)
+   * and named when the record is shown (`GET /api/tournaments` fills every human in). A record
+   * from before #27 also kept its people's names, which serve as the fallback.
    */
   names: z.record(z.string(), z.string()),
   /** Stored only, never served: each human entrant's registry userId, so they can be looked up when shown (R12). */

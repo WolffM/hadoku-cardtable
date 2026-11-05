@@ -13,6 +13,7 @@ import type { Tournament } from '@hadoku/shared';
 
 import { faceOfPerson, type People } from '../people.js';
 import type { Tournaments } from '../room/tournaments.js';
+import { UNNAMED } from '../room/lobby.js';
 
 export function attachTournaments(api: Router, deps: { tournaments: Tournaments; people: People }): void {
 	api.get('/tournaments', async (_req: Request, res: Response) => {
@@ -24,9 +25,9 @@ export function attachTournaments(api: Router, deps: { tournaments: Tournaments;
 				const faces = { ...t.faces };
 				for (const [id, userId] of Object.entries(users)) {
 					const person = found.get(userId);
-					if (person === undefined) continue;
-					if (person.name !== null) names[id] = person.name;
-					faces[id] = faceOfPerson(person);
+					// Unreachable, or an account that is gone: the word an unnamed caller gets.
+					names[id] = person?.name ?? names[id] ?? UNNAMED;
+					if (person !== undefined) faces[id] = faceOfPerson(person);
 				}
 				return { ...t, names, faces };
 			}),

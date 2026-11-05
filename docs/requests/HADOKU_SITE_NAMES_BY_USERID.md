@@ -4,7 +4,7 @@
 **To:** hadoku_site
 **Date:** 2026-11-01
 **Re:** IDENTITY_MODEL R4 / R12, cardtable#25
-**Status:** open as hadoku_site#504 (filed 2026-11-01). Not a blocker: meanwhile cardtable names only people connected now.
+**Status:** done. hadoku_site#504 added `name` to `_avatar/resolve` (`ResolvedPerson`, `@wolffm/prefs-client` 1.1.20); cardtable uses it in `apps/server/src/people.ts` (2026-11-05, #27).
 
 ## The gap
 

@@ -93,6 +93,12 @@ export interface ActionsEndLine {
 	 * "Wave 78 results"), so this is what keeps a wrong replay off the page.
 	 */
 	boards?: [string, string];
+	/**
+	 * Each seat holder's registry userId, by seat (null for the AI and an unheld seat), so a replay
+	 * rebuilt from this log names its people as they are when watched (R12). The log keeps no name:
+	 * its spec's human seats are `Player N` (`recorder.ts`'s `anonymousSpec`). Absent before #27.
+	 */
+	users?: (string | null)[];
 }
 
 /**

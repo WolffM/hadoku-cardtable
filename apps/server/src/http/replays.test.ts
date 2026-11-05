@@ -281,6 +281,16 @@ describe('a replay\'s people', () => {
 		expect(json).toEqual({ people: { 0: { name: 'Ari', avatarId: 'mage', look: { picture: 'https://cdn.discordapp.com/avatars/1/a.png', cosmetics: { overlay: 'overlay.crown' } } } } });
 	});
 
+	it('names a replay that only its action log can rebuild from the log\'s users, by seat', async () => {
+		const dir = await recordingsDir();
+		writeGz(join(dir, 'm-3.actions.jsonl.gz'), [
+			{ t: 'header', v: 2, matchId: 'm-3', roomId: null, pin: 'abc', bridge: 'def', server: '0', startedAt: '2026-01-01T00:00:00.000Z', spec: { seats: [{ name: 'Player 1', ai: false }, { name: 'Forge AI', ai: true }] } },
+			{ t: 'end', endedAt: '2026-01-01T00:05:00.000Z', reason: 'game-over', users: ['uid-ari', null] },
+		]);
+		const { json } = await call(await openApp(dir, { people }), '/api/replays/m-3/people');
+		expect(json).toEqual({ people: { 0: { name: 'Ari', avatarId: 'mage', look: { picture: 'https://cdn.discordapp.com/avatars/1/a.png', cosmetics: { overlay: 'overlay.crown' } } } } });
+	});
+
 	it('is withheld exactly as the replay is, and a recording from before userIds were kept has nobody', async () => {
 		const dir = await recordingsDir();
 		writePublic(dir, 'm-1', { roomId: 'r-test', seats: SEATS });

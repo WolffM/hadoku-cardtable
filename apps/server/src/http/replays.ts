@@ -30,7 +30,7 @@ import { isAdmin } from '../edge-auth.js';
 import { httpCaller } from './request.js';
 import type { JsonLog } from '../log.js';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '../play/recording/retention.js';
-import { PUBLIC_VERSION, type PublicEndLine, type PublicEnvLine, type PublicPresenceLine } from '../play/recording/writer.js';
+import { PUBLIC_VERSION, type ActionsEndLine, type PublicEndLine, type PublicEnvLine, type PublicPresenceLine } from '../play/recording/writer.js';
 import type { PersonFace } from '@hadoku/shared';
 import { faceOfPerson, type People, type Person } from '../people.js';
 
@@ -77,6 +77,16 @@ export interface ReplaysDeps {
 
 /** A replay's people: who they are now can change, so this is not cached like the replay itself. */
 const PEOPLE_CACHE = 'private, max-age=60';
+
+/** Each seat holder's userId from a public stream's end line. */
+function publicUsers(end: PublicEndLine | null): { seat: number; userId: string }[] {
+	return (end?.t === 'end' ? (end.seats ?? []) : []).flatMap((s) => (s.userId === undefined ? [] : [{ seat: s.seat, userId: s.userId }]));
+}
+
+/** Each seat holder's userId from an action log's end line (`users`, by seat). */
+function actionUsers(end: ActionsEndLine | null): { seat: number; userId: string }[] {
+	return (end?.t === 'end' ? (end.users ?? []) : []).flatMap((userId, seat) => (userId === null ? [] : [{ seat, userId }]));
+}
 
 /** The end line as it leaves the server: its seats' userIds stay on disk. */
 function withoutUsers(end: PublicEndLine): PublicEndLine {
@@ -295,20 +305,20 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 	replays.get('/:matchId/people', async (req: Request, res: Response) => {
 		const matchId = String(req.params.matchId);
 		const row = MATCH_ID_RE.test(matchId) ? rowsOf(deps.dir).find((r) => r.matchId === matchId) : undefined;
-		if (row === undefined || !row.hasPublic) {
+		if (row === undefined) {
 			res.status(404).json({ error: 'no such replay' });
 			return;
 		}
 		try {
-			const read = await firstAndLastLine(join(deps.dir, `${matchId}${PUBLIC_SUFFIX}`));
-			const header = parseJson<PublicHeaderLine>(read?.first ?? '');
-			const end = parseJson<PublicEndLine>(read?.last ?? '');
+			// The stream's own roster while it is kept; after, the action log's `users` (a rebuilt replay).
+			const read = await firstAndLastLine(join(deps.dir, `${matchId}${row.hasPublic ? PUBLIC_SUFFIX : ACTIONS_SUFFIX}`));
+			const header = parseJson<{ t?: string; matchId: string; roomId: string | null }>(read?.first ?? '');
 			if (header === null || header.t !== 'header' || hiddenFrom(req, header)) {
 				res.status(404).json({ error: 'no such replay' });
 				return;
 			}
-			const seats = (end?.t === 'end' ? (end.seats ?? []) : []).flatMap((s) => (s.userId === undefined ? [] : [{ seat: s.seat, userId: s.userId }]));
-			const found = deps.people === undefined ? new Map<string, Person>() : await deps.people.resolve(seats.map((s) => s.userId));
+			const seats = row.hasPublic ? publicUsers(parseJson<PublicEndLine>(read?.last ?? '')) : actionUsers(parseJson<ActionsEndLine>(read?.last ?? ''));
+			const found = deps.people === undefined || seats.length === 0 ? new Map<string, Person>() : await deps.people.resolve(seats.map((s) => s.userId));
 			const people: Record<string, { name?: string } & PersonFace> = {};
 			for (const { seat, userId } of seats) {
 				const person = found.get(userId);

@@ -51,6 +51,12 @@ describe('GET /api/tournaments', () => {
 		expect(t?.faces).toEqual({ 'fk:a': { avatarId: 'mage', look }, ai: { avatarId: 'knight' } });
 	});
 
+	it('names a person it cannot look up, in a record that kept no name, as an unnamed caller is', async () => {
+		const url = await serve([{ ...RECORD, names: { ai: 'Knight' } }], {});
+		const [t] = ((await (await fetch(url)).json()) as { tournaments: Tournament[] }).tournaments;
+		expect(t?.names).toEqual({ 'fk:a': 'friend', 'fk:b': 'friend', ai: 'Knight' });
+	});
+
 	it('a record from before userIds were kept is drawn by the names it kept, with no faces', async () => {
 		const { users: _users, faces: _faces, ...old } = RECORD;
 		const url = await serve([old], {});

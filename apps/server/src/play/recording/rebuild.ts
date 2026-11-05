@@ -421,7 +421,8 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 		art: artOf(header.spec),
 		startedAt: header.startedAt,
 	};
-	const publicEnd: PublicEndLine = { t: 'end', endedAt, winner: winnerSeat };
+	// Its roster, so a replay knows which Forge player each seat is and names them (`GET /replays/:id/people`).
+	const publicEnd: PublicEndLine = { t: 'end', endedAt, winner: winnerSeat, seats: allSeats.map(({ seat, playerId }) => ({ seat, claimed: !header.spec.seats[seat]!.ai, playerId })) };
 	const outLines: PublicStreamLine[] = [publicHeader, ...envs, publicEnd];
 	// Once, over the finished rebuild's own raw lines — never per command polled, unlike `v:1`'s
 	// gating use of the same fold (see `position.ts`'s own doc on why that distinction matters).

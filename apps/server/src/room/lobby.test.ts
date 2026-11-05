@@ -2963,12 +2963,13 @@ describe('Lobby.close, and the tournaments a pod leaves behind', () => {
 			name: 'Cube night',
 			closed: false,
 			rounds: 1,
-			names: { [ALICE.id]: ALICE.name, [BOB.id]: BOB.name, ai: expect.any(String) },
-			// Its people by userId, looked up when shown; the AI's character is the room's own, kept.
+			// No person's name (R12; #27): the AI's alone, and its people by userId, looked up when shown.
+			names: { ai: expect.any(String) },
 			users: { [ALICE.id]: ALICE.userId, [BOB.id]: BOB.userId },
 			faces: { ai: { avatarId: expect.any(String) } },
 			standings: [expect.objectContaining({ id: ALICE.id, matchPoints: 3, rank: 1 }), expect.objectContaining({ id: BOB.id, matchPoints: 0, rank: 2 })],
 		});
+		expect(Object.keys(kept[0]!.names), 'the AI is the only name kept').toEqual(['ai']);
 		expect(lobby.close(id, ALICE.id).ok).toBe(true);
 		expect(kept).toHaveLength(2);
 		expect(kept[1]!.id).toBe(kept[0]!.id);
@@ -3706,7 +3707,8 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			expect(finished.ok).toBe(true);
 			expect(lobby.get(id)?.pod?.phase).toBe('done');
 			expect(archived).toHaveLength(1);
-			expect(archived[0]!.names[ALICE.id]).toBe(ALICE.name);
+			expect(archived[0]!.names, 'no person is kept by name').not.toHaveProperty(ALICE.id);
+			expect(archived[0]!.users?.[ALICE.id]).toBe(ALICE.userId);
 			expect(Object.keys(archived[0]!.names)).toContain('ai:1');
 			expect(archived[0]!.faces?.['ai:1']?.avatarId, 'an AI entrant keeps the character its seat was given').toEqual(expect.any(String));
 			expect(archived[0]!.standings[0]).toMatchObject({ id: ALICE.id, rank: 1 });

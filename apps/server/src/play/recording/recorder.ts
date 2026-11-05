@@ -172,6 +172,23 @@ function guarded(log: JsonLog, matchId: string, what: string, run: () => void): 
 	}
 }
 
+/**
+ * The spec as the 90-day action log keeps it: each human seat's name is `Player N`, never the
+ * person's (R12; #27). Forge's own text in a replay rebuilt from it says `Player N`, and the replay
+ * names its people from the log's `users` as they are when watched. The AI keeps Forge's name for it.
+ */
+export function anonymousSpec(spec: MatchSpec): MatchSpec {
+	return { ...spec, seats: [{ ...spec.seats[0], name: 'Player 1' }, spec.seats[1].ai ? spec.seats[1] : { ...spec.seats[1], name: 'Player 2' }] };
+}
+
+/** The action log's `users`, by seat, from the end line's roster; nothing when no roster was read. */
+function usersOfSeats(seats: readonly RecordedSeat[] | undefined): { users?: (string | null)[] } {
+	if (seats === undefined) return {};
+	const users: (string | null)[] = [null, null];
+	for (const s of seats) if (s.seat === 0 || s.seat === 1) users[s.seat] = s.userId ?? null;
+	return { users };
+}
+
 export function createRecorder(deps: RecorderDeps): Recorder {
 	const log = deps.log ?? (() => undefined);
 	const now = deps.now ?? Date.now;
@@ -216,7 +233,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 				const writer = createMatchRecordingWriter({
 					dir: deps.dir,
 					matchId,
-					actionsHeader: { matchId, roomId, pin: deps.identity.pin, bridge: deps.identity.bridge, server: deps.identity.server, startedAt, spec: seeded },
+					actionsHeader: { matchId, roomId, pin: deps.identity.pin, bridge: deps.identity.bridge, server: deps.identity.server, startedAt, spec: anonymousSpec(seeded) },
 					publicHeader: {
 						matchId,
 						roomId,
@@ -260,7 +277,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 							sessions.delete(matchId);
 							const endedAt = new Date(now()).toISOString();
 							const boards = finalBoards(session);
-							void writer.finish({ endedAt, reason, ...(boards === undefined ? {} : { boards }) }, { endedAt, winner: null, ...endSeats(matchId, session) });
+							const ended = endSeats(matchId, session);
+							void writer.finish({ endedAt, reason, ...(boards === undefined ? {} : { boards }), ...usersOfSeats(ended.seats) }, { endedAt, winner: null, ...ended });
 						}
 						events.exit(reason);
 					},
@@ -322,7 +340,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 			sessions.delete(match.id);
 			const endedAt = new Date(now()).toISOString();
 			const boards = finalBoards(session);
-			void session.writer.finish({ endedAt, reason: 'game-over', ...(boards === undefined ? {} : { boards }) }, { endedAt, winner: outcome?.kind === 'won' ? outcome.winner : null, ...endSeats(match.id, session) });
+			const ended = endSeats(match.id, session);
+			void session.writer.finish({ endedAt, reason: 'game-over', ...(boards === undefined ? {} : { boards }), ...usersOfSeats(ended.seats) }, { endedAt, winner: outcome?.kind === 'won' ? outcome.winner : null, ...ended });
 		},
 	};
 }
