@@ -869,7 +869,7 @@ play = attachPlay(io, api, {
 	coldStarts: coldStartsFrom(),
 	// Diagnostics for a live check only. Never set in production (see play/socket.ts).
 	probe: CONFIG.playProbe,
-	...(CONFIG.testNoRateLimits ? { startRateLimit: null } : {}),
+	...(CONFIG.testNoRateLimits ? { startRateLimit: null, restartRateLimit: null } : {}),
 	devIdentity: CONFIG.allowUnverifiedEdge && CONFIG.edgeAuthSecret === '',
 	// Four listeners on one event: the stats report (`matchStats.gameOver`), the
 	// room's own series ledger, recorded AT ONCE rather than waiting for a
@@ -1115,7 +1115,7 @@ httpServer.listen(CONFIG.port, CONFIG.host, () => {
 		);
 	}
 	if (CONFIG.testNoRateLimits) {
-		console.warn('[cardtable] CARDTABLE_E2E_NO_RATE_LIMITS=1 — no per-caller limit on rooms, events or match starts. e2e stacks only, never production.');
+		console.warn('[cardtable] CARDTABLE_E2E_NO_RATE_LIMITS=1 — no per-caller limit on rooms, events, match starts or restarts. e2e stacks only, never production.');
 	}
 	if (CONFIG.testPeopleStandIn) {
 		console.warn('[cardtable] CARDTABLE_E2E_PEOPLE_STAND_IN=1 — people are looked up with no service key, from the e2e stand-in. e2e stacks only, never production.');

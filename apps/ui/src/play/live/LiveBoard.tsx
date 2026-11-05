@@ -256,7 +256,7 @@
 
 import { Component, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
-import { CLIENT_EVENT, selfAnswer, type ClientEvent, type DraftCard } from '@hadoku/shared';
+import { CLIENT_EVENT, selfAnswer, type ClientEvent, type DraftCard, type RestartState } from '@hadoku/shared';
 import type { RoomTable as SharedRoomTable } from '@hadoku/shared';
 import { YIELDING, type EndedBy, type GameLogLine } from '@hadoku/forge-wire';
 import { usePrefs } from '@wolffm/prefs-client/react';
@@ -313,6 +313,7 @@ import {
   previewDamage,
   combatCandidates,
   concede,
+  restartTurn,
   currentAsk,
   declaringAttackers,
   drawnOffer,
@@ -1684,6 +1685,46 @@ function ConcedeAsk({ onConcede, onCancel }: { onConcede: () => void; onCancel: 
       />
     </div>
   );
+}
+
+/* ── Restart turn, the other seat's answer ──────────────────────────── */
+
+/**
+ * The other seat's answer to a restart ask (`docs/planning/restart-turn-plan.md`).
+ * Decline is the default, as Concede's Cancel is: Enter on a sheet nobody read
+ * must not undo a turn. Escape declines. Answerable with a Forge decision open:
+ * it is not an answer to Forge.
+ */
+function RestartAsk({ who, turn, onAllow, onDecline }: { who: string; turn: number; onAllow: () => void; onDecline: () => void }) {
+  return (
+    <div
+      className="live__ask"
+      data-testid="live-restart-ask"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') onDecline();
+      }}
+    >
+      <ConfirmPrompt
+        testId="live-restart-sheet"
+        role="alertdialog"
+        title="Restart turn"
+        message={`${who} asks to restart turn ${turn}.`}
+        button1={{ label: 'Allow', enabled: true, testId: 'live-restart-allow', onClick: onAllow }}
+        button2={{ label: 'Decline', enabled: true, testId: 'live-restart-decline', isDefault: true, onClick: onDecline }}
+      />
+    </div>
+  );
+}
+
+/**
+ * What the Restart turn button does now, off the server's word for this turn:
+ * `ask` when this seat may ask, `cancel` while its own ask is open, null when
+ * it may do neither (not its turn, an ask declined, no whole snapshot).
+ */
+export function restartPress(restart: RestartState | null, seat: number | null, turn: number | null, myTurn: boolean): 'ask' | 'cancel' | null {
+  if (restart === null || seat === null || turn === null || restart.turn !== turn || !myTurn) return null;
+  if (restart.ask !== null) return restart.ask.from === seat ? 'cancel' : null;
+  return restart.restorable && !restart.declined ? 'ask' : null;
 }
 
 /* ── A payment is a question (wave 25 §C.2) ──────────────────────────── */
@@ -3569,6 +3610,9 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
    * — gated on `whoseTurnNow` alone, never on `bar` or `askOpen`.
    */
   const yieldMode = whoseTurnNow === 'theirs';
+  const restartAction = restartPress(match.restart, match.seat, match.view?.turn ?? null, whoseTurnNow === 'yours');
+  const restartAsked =
+    !spectator && !over && match.restart !== null && match.restart.ask !== null && match.restart.ask.from !== match.seat && match.restart.turn === (match.view?.turn ?? null);
   const autoYieldOn = isAutoYieldOn(match);
   const endTurnHighlighted = !yieldMode && highlightEndTurn;
   /*
@@ -4141,6 +4185,23 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
             Full control
           </ActionButton>
           {/*
+           * Restart turn, just above Concede (`docs/planning/restart-turn-plan.md`):
+           * on my own turn it asks the other seat; while my ask is open it is
+           * pressed, and pressing it again takes the ask back.
+           */}
+          <ActionButton
+            action={restartAction === 'cancel' ? 'restart-cancel' : 'restart-ask'}
+            className="live__toggle"
+            data-testid="live-restart-turn"
+            aria-pressed={restartAction === 'cancel'}
+            disabled={spectator || over || restartAction === null}
+            onPress={() => {
+              if (restartAction !== null) restartTurn(match, restartAction);
+            }}
+          >
+            Restart turn
+          </ActionButton>
+          {/*
            * Concede (§C.4), last. It sends NOTHING: it opens the confirmation,
            * and only that dialog's own yes reaches `concede`. Pressable with a
            * question open — giving up is not an answer to what Forge asked.
@@ -4410,6 +4471,14 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
       )}
       {manaAsk && !spectator && !over && (
         <ManaFloatingAsk canUntap={offersUndo(bar)} onUntap={() => passWithMana('untap')} onPass={() => passWithMana('pass')} onStay={() => passWithMana('stay')} />
+      )}
+      {restartAsked && (
+        <RestartAsk
+          who={theirName ?? 'The other player'}
+          turn={match.restart?.turn ?? 0}
+          onAllow={() => restartTurn(match, 'allow')}
+          onDecline={() => restartTurn(match, 'decline')}
+        />
       )}
       {conceding && !spectator && !over && (
         <ConcedeAsk

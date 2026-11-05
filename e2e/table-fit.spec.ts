@@ -28,8 +28,8 @@
  *     watchparty's room frame scrolls on its own and would otherwise hide a
  *     scrollbar from the page-level check;
  *   - once the board is drawn, `live-buttons` has a nonzero box that lies
- *     inside the viewport, with exactly its three buttons in it, in order and
- *     in their own words (wave 75: End Turn, Full control, Concede — never
+ *     inside the viewport, with exactly its four buttons in it, in order and
+ *     in their own words (End Turn, Full control, Restart turn, Concede — never
  *     one of Forge's, and never a Next Phase, which moved into the decision
  *     pop-up), and NO text row (wave 25 §C took Forge's line and the log out of the
  *     corner), and that box is at the SAME place and size in every frame at a
@@ -353,18 +353,18 @@ function installSampler(): void {
         else {
           barBox = bar.getBoundingClientRect();
           if (!inside(barBox)) breach('button bar not wholly inside the window');
-          // Wave 75 dropped Next Phase: the same three buttons every frame, in their own words.
+          // Wave 75 dropped Next Phase: the same four buttons every frame, in their own words.
           // The first slot reads End Turn on the viewer's own turn and Auto
           // Yield/Cancel Yield on the other seat's — same testid, same place,
           // so this sampler (installed on BOTH pages, across a whole real
           // match) must accept all three, never pin one.
-          const three = Array.from(bar.querySelectorAll('button'), (b) => `${b.dataset.testid}=${b.textContent}`).join(' ');
+          const four = Array.from(bar.querySelectorAll('button'), (b) => `${b.dataset.testid}=${b.textContent}`).join(' ');
           const endTurnLabels = ['End Turn', 'Auto Yield', 'Cancel Yield'];
-          const threeOk = endTurnLabels.some(
-            (label) => three === `live-button-end-turn=${label} live-full-control=Full control live-concede=Concede`,
+          const fourOk = endTurnLabels.some(
+            (label) => four === `live-button-end-turn=${label} live-full-control=Full control live-restart-turn=Restart turn live-concede=Concede`,
           );
-          if (!threeOk) {
-            breach(`the control box is not its three buttons: ${three}`);
+          if (!fourOk) {
+            breach(`the control box is not its four buttons: ${four}`);
           }
           /*
            * Wave 25 §C: *"i mostly hate all the text in the bottom right it's

@@ -121,6 +121,8 @@ import {
 	stopAt,
 	stopCovers,
 	type RememberedTrigger,
+	type RestartAct,
+	type RestartState,
 	type StopPhase,
 	type MatchSnapshot,
 	type SeatIdentity,
@@ -769,6 +771,14 @@ export interface MatchDeps {
 	seatsChanged?(seats: SeatIdentity[]): void;
 	/** A seat's stop ({@link Match.setPhaseStop}) was set, cleared or spent: the socket layer tells that seat's sockets. */
 	phaseStopChanged?(seat: number, phase: StopPhase | null): void;
+	/** Where a restart stands ({@link Match.restartState}) changed: the socket layer tells every socket of the match. */
+	restartChanged?(state: RestartState): void;
+	/**
+	 * A restart of the current turn was allowed ({@link Match.restartAct}): start this match again from
+	 * its latest turn-start snapshot. The registry's {@link MatchRegistry.restore} of this match. Absent
+	 * (a unit suite with no registry): no restart can be made.
+	 */
+	restartTurn?(): void;
 	/**
 	 * Where the game stands, as the table card draws it ({@link Match.live}), moved on: a new turn, the
 	 * other seat's turn, a life total. The room's screens read the room again; a hand's size alone,
@@ -920,6 +930,9 @@ function stackTopHostCardId(state: ReadonlyMap<string, WireObj>): number | null 
 
 export type ClaimOutcome = { ok: true; seat: number; fresh: boolean } | { ok: false; error: string };
 export type ClientOutcome = { ok: true } | { ok: false; error: string };
+
+/** How long a restart ask waits for the other seat before it counts as declined. */
+export const RESTART_ASK_MS = 30_000;
 export interface ProbeResult {
 	answer?: boolean;
 	ms?: number;
@@ -1253,6 +1266,13 @@ export class Match {
 	 * record on disk (`remember`), never only on the JVM's host.
 	 */
 	latestSnapshot: TurnSnapshot | null;
+
+	/** The open restart ask: the asking seat, the turn it is about, and its {@link RESTART_ASK_MS} expiry. */
+	private restartAsk: { from: number; turn: number; timer: ReturnType<typeof setTimeout> } | null = null;
+	/** The turn a restart ask was declined in: no second ask until the next. */
+	private restartDeclined: number | null = null;
+	/** What {@link Match.restartState} last told, so a turn or snapshot that changes nothing tells no one. */
+	private restartKey = '';
 
 	constructor(
 		id: string,
@@ -2382,6 +2402,7 @@ export class Match {
 		if (this.status !== 'starting' && this.status !== 'running' && this.status !== 'over') return;
 		this.status = 'stopped';
 		this.stopClock();
+		this.closeRestartAsk();
 		this.logFrames();
 		for (const done of this.runningWaiters.splice(0)) done({ ok: false, error: 'stopped' });
 		this.closeAllAsks();
@@ -2452,6 +2473,7 @@ export class Match {
 	private noteLive(): void {
 		const live = this.live();
 		const key = live === null ? '' : `${live.turn}|${live.active}|${live.life.join(',')}`;
+		this.tellRestart();
 		if (key === this.liveKey) return;
 		this.liveKey = key;
 		this.deps.liveChanged?.();
@@ -2747,8 +2769,11 @@ export class Match {
 				this.onGameLog(line);
 				return;
 			case 'snapshot':
-				this.latestSnapshot = { turn: line.turn, state: line.state };
+				this.latestSnapshot = { turn: line.turn, state: line.state, ...(line.lossy === undefined || line.lossy.length === 0 ? {} : { lossy: line.lossy }) };
 				this.deps.log({ evt: 'turn-snapshot', matchId: this.id, turn: line.turn, bytes: Buffer.byteLength(line.state), ms: line.ms });
+				if (line.lossy !== undefined && line.lossy.length > 0) this.deps.log({ evt: 'snapshot-lossy', matchId: this.id, turn: line.turn, kinds: line.lossy });
+				if (this.restartAsk !== null && this.restartAsk.turn !== line.turn) this.closeRestartAsk();
+				this.tellRestart();
 				this.remember();
 				return;
 			case 'rejected':
@@ -3317,6 +3342,103 @@ export class Match {
 
 	phaseStop(seat: number): StopPhase | null {
 		return this.seats[seat]?.phaseStop?.phase ?? null;
+	}
+
+	/** Where a restart of the current turn stands, the same for every socket of the match. */
+	restartState(): RestartState {
+		const turn = this.watcher.projector.turnNumber() ?? 0;
+		const ask = this.restartAsk;
+		return {
+			matchId: this.id,
+			turn,
+			ask: ask !== null && ask.turn === turn ? { from: ask.from } : null,
+			declined: this.restartDeclined === turn,
+			restorable: this.restorable(turn),
+		};
+	}
+
+	/** Whether `turn` can be played again from its start: the match holds that turn's snapshot, and it holds the whole game. */
+	private restorable(turn: number): boolean {
+		const snap = this.latestSnapshot;
+		return this.status === 'running' && snap !== null && snap.turn === turn && (snap.lossy?.length ?? 0) === 0;
+	}
+
+	/**
+	 * A seat's restart act (`docs/planning/restart-turn-plan.md`). `ask`: the seat whose turn it is
+	 * wants the turn played again from its start; an AI opponent allows at once, a human one is asked,
+	 * and no answer in {@link RESTART_ASK_MS} is a decline. `allow` / `decline`: the other seat's
+	 * answer. `cancel`: the asker takes the ask back. The game is not paused while an ask is open:
+	 * an allow undoes everything since the turn began anyway.
+	 */
+	restartAct(seat: number, act: RestartAct): ClientOutcome {
+		const s = this.seats[seat];
+		if (s === undefined || s.ai) return { ok: false, error: 'no-such-seat' };
+		const turn = this.watcher.projector.turnNumber();
+		const open = this.restartAsk !== null && this.restartAsk.turn === turn ? this.restartAsk : null;
+		if (act === 'cancel') {
+			if (open === null || open.from !== seat) return { ok: false, error: 'no-ask' };
+			this.deps.log({ evt: 'restart-cancelled', matchId: this.id, seat, turn });
+			this.closeRestartAsk();
+			this.tellRestart(true);
+			return { ok: true };
+		}
+		if (act === 'allow' || act === 'decline') {
+			if (open === null || open.from === seat) return { ok: false, error: 'no-ask' };
+			return this.answerRestart(seat, act === 'allow', 'player');
+		}
+		if (this.status !== 'running' || turn === null) return { ok: false, error: 'not-running' };
+		if (this.activeSeat()?.seat !== seat) return { ok: false, error: 'not-your-turn' };
+		if (!this.restorable(turn)) return { ok: false, error: 'not-restorable' };
+		if (open !== null) return { ok: false, error: 'already-asked' };
+		if (this.restartDeclined === turn) return { ok: false, error: 'declined-this-turn' };
+		const other = this.seats.find((x) => x.seat !== seat);
+		if (other === undefined) return { ok: false, error: 'no-opponent' };
+		this.deps.log({ evt: 'restart-asked', matchId: this.id, seat, turn, ai: other.ai });
+		if (other.ai) return this.restartNow(seat, turn, 'ai');
+		this.closeRestartAsk();
+		const timer = setTimeout(() => this.answerRestart(other.seat, false, 'timeout'), RESTART_ASK_MS);
+		timer.unref();
+		this.restartAsk = { from: seat, turn, timer };
+		this.tellRestart(true);
+		return { ok: true };
+	}
+
+	private answerRestart(seat: number, allow: boolean, why: 'player' | 'timeout'): ClientOutcome {
+		const ask = this.restartAsk;
+		if (ask === null) return { ok: false, error: 'no-ask' };
+		this.closeRestartAsk();
+		this.deps.log({ evt: 'restart-answered', matchId: this.id, seat, turn: ask.turn, allow, why });
+		if (!allow) {
+			this.restartDeclined = ask.turn;
+			this.tellRestart(true);
+			return { ok: true };
+		}
+		if (this.watcher.projector.turnNumber() !== ask.turn || !this.restorable(ask.turn)) {
+			this.tellRestart(true);
+			return { ok: false, error: 'turn-moved-on' };
+		}
+		return this.restartNow(ask.from, ask.turn, 'opponent');
+	}
+
+	private restartNow(seat: number, turn: number, allowedBy: 'ai' | 'opponent'): ClientOutcome {
+		if (this.deps.restartTurn === undefined) return { ok: false, error: 'cannot-restart' };
+		this.deps.log({ evt: 'restart-turn', matchId: this.id, seat, turn, allowedBy });
+		this.deps.restartTurn();
+		return { ok: true };
+	}
+
+	private closeRestartAsk(): void {
+		if (this.restartAsk !== null) clearTimeout(this.restartAsk.timer);
+		this.restartAsk = null;
+	}
+
+	/** Tell every socket where a restart stands, when it changed (or always, `force`: an act's own answer). */
+	private tellRestart(force = false): void {
+		const state = this.restartState();
+		const key = JSON.stringify(state);
+		if (!force && key === this.restartKey) return;
+		this.restartKey = key;
+		this.deps.restartChanged?.(state);
 	}
 
 	/**
@@ -4487,12 +4609,14 @@ export class EndedMatch {
 /** What {@link MatchRegistry.restore} did: back to the start of turn `turn`, or a fresh game from the match's spec. */
 export type Restored = { match: Match; from: 'snapshot'; turn: number } | { match: Match; from: 'spec' };
 
-export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged' | 'phaseStopChanged' | 'onGameOver' | 'liveChanged' | 'abandoned' | 'ended'> & {
+export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged' | 'phaseStopChanged' | 'restartChanged' | 'restartTurn' | 'onGameOver' | 'liveChanged' | 'abandoned' | 'ended'> & {
 	emit(match: Match, seat: number, envelope: ServerEnvelope): void;
 	/** See {@link MatchDeps.seatsChanged}. */
 	seatsChanged?(match: Match, seats: SeatIdentity[]): void;
 	/** See {@link MatchDeps.phaseStopChanged}. */
 	phaseStopChanged?(match: Match, seat: number, phase: StopPhase | null): void;
+	/** See {@link MatchDeps.restartChanged}. */
+	restartChanged?(match: Match, state: RestartState): void;
 	/** See {@link MatchDeps.onGameOver}. */
 	onGameOver?(match: Match): void;
 	liveChanged?(match: Match): void;
@@ -4539,6 +4663,10 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 			emit: when((m, seat: number, envelope: ServerEnvelope) => deps.emit(m, seat, envelope)),
 			seatsChanged: when((m, seats: SeatIdentity[]) => deps.seatsChanged?.(m, seats)),
 			phaseStopChanged: when((m, seat: number, phase: StopPhase | null) => deps.phaseStopChanged?.(m, seat, phase)),
+			restartChanged: when((m, state: RestartState) => deps.restartChanged?.(m, state)),
+			restartTurn: when(() => {
+				registry.restore(id);
+			}),
 			onGameOver: when((m) => deps.onGameOver?.(m)),
 			liveChanged: when((m) => deps.liveChanged?.(m)),
 			abandoned: when((m) => deps.abandoned?.(m)),
@@ -4552,7 +4680,7 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 			}),
 		};
 	};
-	return {
+	const registry: MatchRegistry = {
 		create(spec, from) {
 			const id = newMatchId();
 			const match: Match = new Match(
@@ -4641,4 +4769,5 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 			return { handed, ending };
 		},
 	};
+	return registry;
 }

@@ -236,8 +236,8 @@
  */
 
 import { POOL_COLORS } from '@hadoku/deck';
-import type { ClientEvent, Look, ManaColor, Placement, RememberedTrigger } from '@hadoku/shared';
-import { ART_EVENT, asSeqCursor, CLIENT_EVENT, DECK_COLORS_EVENT, DeckColorsSchema, LIFE_PAYMENT, LIFE_PER_CLICK, lookOrNone, selfAnswer } from '@hadoku/shared';
+import type { ClientEvent, Look, ManaColor, Placement, RememberedTrigger, RestartAct, RestartState } from '@hadoku/shared';
+import { ART_EVENT, asSeqCursor, CLIENT_EVENT, DECK_COLORS_EVENT, DeckColorsSchema, LIFE_PAYMENT, LIFE_PER_CLICK, lookOrNone, RestartStateSchema, restartTurnFrame, selfAnswer } from '@hadoku/shared';
 import {
   REPLY_SCHEMAS,
   safeParseServerFrame,
@@ -854,6 +854,12 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    */
   phaseStop: StopPhase | null;
   /**
+   * Where a restart of the current turn stands, the server's word
+   * (`forge:restart-state`): after every join and resync and on every change.
+   * Null until the server has said.
+   */
+  restart: RestartState | null;
+  /**
    * Every seat's identity, keyed by Forge PLAYER id — item 4 (wave 29 §A.6-8),
    * the render half. `seats[].playerId` is the join key `D-avatar-field.md` §2
    * traced (the same id `BoardPlayer.id` already is), and this map carries only
@@ -1206,6 +1212,7 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     alwaysAtEndStep: false,
     autoYield: null,
     phaseStop: null,
+    restart: null,
     lastError: null,
     lastInvalid: null,
     lastVerdict: null,
@@ -1245,6 +1252,13 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     const parsed = PhaseStopSchema.safeParse(payload);
     if (!parsed.success || parsed.data.matchId !== match.matchId || parsed.data.phase === match.phaseStop) return;
     match.phaseStop = parsed.data.phase;
+    notify(match);
+  });
+
+  match.transport.on(MATCH_EVENTS.restartState, (payload) => {
+    const parsed = RestartStateSchema.safeParse(payload);
+    if (!parsed.success || parsed.data.matchId !== match.matchId) return;
+    match.restart = parsed.data;
     notify(match);
   });
 
@@ -2254,6 +2268,15 @@ function sendAct(match: LiveMatch, frame: Extract<ClientEnvelope['frame'], { kin
  */
 export function concede(match: LiveMatch): boolean {
   return sendAct(match, { kind: 'act', method: 'concede' });
+}
+
+/**
+ * A restart act (`docs/planning/restart-turn-plan.md`): the active seat's ask
+ * and take-back, the other seat's allow or decline. Not optimistic: the server
+ * decides who may send which and tells the whole table on `forge:restart-state`.
+ */
+export function restartTurn(match: LiveMatch, act: RestartAct): void {
+  match.transport.emit(MATCH_EVENTS.restartTurn, restartTurnFrame(match.matchId, act));
 }
 
 /* ── Combat, read off Forge's own state ──────────────────────────────── */

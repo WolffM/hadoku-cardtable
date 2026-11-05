@@ -162,7 +162,7 @@ test(titled('in a match, the room’s chat column is not rendered in portrait, a
   }
 });
 
-test(titled('the menu holds Game log, End turn, Full control and Concede, in that order, and Concede needs a second tap'), async ({ browser }) => {
+test(titled('the menu holds Game log, End turn, Full control, Restart turn and Concede, in that order, and Concede needs a second tap'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -182,16 +182,17 @@ test(titled('the menu holds Game log, End turn, Full control and Concede, in tha
     await expect(alice.page.locator('[data-testid="live-buttons"]')).toHaveCount(1);
     await expect(alice.page.locator('[data-testid="live-log-toggle"]')).toHaveCount(1);
     // `live-buttons` is the cluster's own wrapper (one of the testids this query finds), still holding
-    // its own three buttons — re-laid, not flattened. `settings-gear` is lane B's own follow-up addition
+    // its own four buttons — re-laid, not flattened. `settings-gear` is lane B's own follow-up addition
     // (the fleet header's gear is hidden in portrait; this is the standalone app's real header, so it's
     // expected here): one `SettingsGear` instance, not two.
     const order = await items.evaluate((el) => [...el.querySelectorAll('[data-testid]')].map((n) => n.getAttribute('data-testid')));
-    expect(order, 'Game log, Settings, then the cluster (End turn, Full control, Concede)').toEqual([
+    expect(order, 'Game log, Settings, then the cluster (End turn, Full control, Restart turn, Concede)').toEqual([
       'live-log-toggle',
       'settings-gear',
       'live-buttons',
       'live-button-end-turn',
       'live-full-control',
+      'live-restart-turn',
       'live-concede',
     ]);
     await expect(alice.page.locator('[data-testid="settings-gear"]')).toHaveCount(1);

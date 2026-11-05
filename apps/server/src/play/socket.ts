@@ -105,6 +105,7 @@ import {
 	parseFullControl,
 	parseMatchRequest,
 	parsePhaseStop,
+	parseRestartTurn,
 	parseStopPreference,
 	phaseStopFrame,
 	parseTriggerDecision,
@@ -131,7 +132,7 @@ import { COLD_STARTS, queueColdStarts } from './start-queue.js';
 import { WATCHER_SEAT, createMatchRegistry, type EndedMatch, type Match, type MatchRegistry, type MatchSpecWithIdentity, type ResumeFrom } from './match.js';
 import type { SpellCopy } from './spell-copiers.js';
 import { malformedFacts } from '../http/client-events.js';
-import { httpCaller, perCallerLimit, readBody } from '../http/request.js';
+import { costlyActLimit, httpCaller, perCallerLimit, readBody } from '../http/request.js';
 import { jsonLogger } from '../log.js';
 import { callerContext, report, reportSealRefused } from '../telemetry.js';
 
@@ -146,6 +147,16 @@ export const MATCH_START_RATE_LIMIT: RateLimitConfig = {
 	capacity: 20,
 	refillAmount: 1,
 	refillIntervalMs: 30_000,
+};
+
+/**
+ * Restart asks per caller: a burst of 6, then one a minute. Against the AI an ask is a restart on
+ * the press, and every restart starts the match again on a JVM.
+ */
+export const RESTART_RATE_LIMIT: RateLimitConfig = {
+	capacity: 6,
+	refillAmount: 1,
+	refillIntervalMs: 60_000,
 };
 
 export interface PlayDeps {
@@ -174,6 +185,8 @@ export interface PlayDeps {
 	maxMatches?: number;
 	/** Overrides `MATCH_START_RATE_LIMIT`; `null` is none (`perCallerLimit`). */
 	startRateLimit?: RateLimitConfig | null;
+	/** Overrides `RESTART_RATE_LIMIT`; `null` is none. */
+	restartRateLimit?: RateLimitConfig | null;
 	/**
 	 * How long a seat with no connection keeps its open asks before they are
 	 * aborted as `disconnected`. Default 30 s: a browser refresh closes the old
@@ -599,6 +612,10 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			const frame = phaseStopFrame(match.id, phase);
 			emitPerRecipient<PlayApp, PlayClient, typeof frame>(io, roomFor(match), MATCH_EVENTS.phaseStop, (client) => (client.app.seat === seat ? frame : SKIP), policy);
 		},
+		// Where a restart stands is the table's: both seats and every watcher hear it.
+		restartChanged: (match, state) => {
+			io.to(roomFor(match).roomId).emit(MATCH_EVENTS.restartState, state);
+		},
 		emit: (match, seat, envelope) => {
 			deps.onEnvelope?.(match.id, seat, envelope);
 			emitPerRecipient<PlayApp, PlayClient, typeof envelope>(
@@ -619,6 +636,10 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	/** Starts still in flight, and who is waiting on each. */
 	const waitingOn = new Map<Match, Set<ParticipantId>>();
 
+	const restartLimit = costlyActLimit(deps.restartRateLimit === undefined ? RESTART_RATE_LIMIT : deps.restartRateLimit, {
+		act: 'restart-turn',
+		onRefused: () => log({ evt: 'restart-refused', reason: 'rate-limited' }),
+	});
 	const startLimit = perCallerLimit(deps.startRateLimit === undefined ? MATCH_START_RATE_LIMIT : deps.startRateLimit, 'too many match starts; wait a little and try again', {
 		act: 'match-start',
 		onRefused: () => log({ evt: 'match-start-refused', reason: 'rate-limited' }),
@@ -1021,6 +1042,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 						socket.emit(MATCH_EVENTS.fullControl, fullControlFrame(result.matchId, match.fullControl(result.seat)));
 						// And its stop, for the same reason: the server holds it, so a reload still draws it.
 						socket.emit(MATCH_EVENTS.phaseStop, phaseStopFrame(result.matchId, match.phaseStop(result.seat)));
+						// Where a restart stands, for the same reason: an open ask outlives a refresh.
+						socket.emit(MATCH_EVENTS.restartState, match.restartState());
 						// The seat's remembered trigger answers, for the same reason: Forge still holds them after a refresh.
 						socket.emit(MATCH_EVENTS.triggerDecisions, { matchId: result.matchId, decisions: match.triggerDecisions(result.seat) });
 						/*
@@ -1130,6 +1153,37 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			}
 			const outcome = match.setAutoYield(seat, parsed.value.on);
 			if (!outcome.ok) log({ evt: 'auto-yield-refused', participantId, matchId: match.id, seat, error: outcome.error });
+		});
+
+		// Restart turn (`docs/planning/restart-turn-plan.md`), same shape again: the seat is the claimed
+		// one, and `Match.restartAct` decides who may send which act. An ask is the costly one.
+		socket.on(MATCH_EVENTS.restartTurn, (raw: unknown) => {
+			const parsed = parseRestartTurn(raw);
+			if (!parsed.ok) {
+				log({ evt: 'restart-malformed', participantId, errors: parsed.errors.slice(0, 3) });
+				return;
+			}
+			const match = matches.get(parsed.value.matchId);
+			const seat = match === undefined ? undefined : joined.get(match.id);
+			if (match === undefined || seat === undefined) {
+				log({ evt: 'restart-not-joined', participantId, matchId: parsed.value.matchId });
+				return;
+			}
+			if (!isController(match.id, seat, socket.id)) {
+				log({ evt: refusedInput(seat), participantId, matchId: match.id, seat, input: 'restart-turn' });
+				return;
+			}
+			const act = parsed.value.act;
+			if (act === 'ask' && !restartLimit(participantId, socket.handshake.headers)) {
+				socket.emit(MATCH_EVENTS.restartState, match.restartState());
+				return;
+			}
+			const outcome = match.restartAct(seat, act);
+			if (!outcome.ok) {
+				log({ evt: 'restart-refused', participantId, matchId: match.id, seat, act, error: outcome.error });
+				// Whatever this socket drew on its own, the server's answer stands.
+				socket.emit(MATCH_EVENTS.restartState, match.restartState());
+			}
 		});
 
 		// The seat's one-shot stop at a phase, same shape again: the seat is the claimed one.

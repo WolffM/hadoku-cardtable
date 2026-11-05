@@ -1340,12 +1340,12 @@ describe('Leave is deleted (item 5); Concede is the cluster’s only own control
     const bar = getByTestId('live-buttons');
     expect(concede.tagName).toBe('BUTTON');
     expect(bar.contains(concede)).toBe(true);
-    // Not adjacent to End Turn: Full control stands between, so a reach for
-    // Concede is never a misclick on Forge's button.
+    // Not adjacent to End Turn: Full control and Restart turn stand between, so a
+    // reach for Concede is never a misclick on Forge's button. Restart turn is
+    // directly above Concede, where the operator asked for it.
     const order = [...bar.children].map((el) => (el as HTMLElement).dataset.testid);
-    expect(order.indexOf('live-full-control'), 'Full control stands between Forge’s answers and Concede').toBe(
-      order.indexOf('live-concede') - 1,
-    );
+    expect(order.indexOf('live-restart-turn'), 'Restart turn sits directly above Concede').toBe(order.indexOf('live-concede') - 1);
+    expect(order.indexOf('live-full-control'), 'Full control stands between Forge’s answers and Concede').toBe(order.indexOf('live-concede') - 2);
     expect(container.querySelector('.board')!.contains(concede)).toBe(false);
     // The cluster still holds five children — item 7 put `Settings` in the
     // slot item 5's deletion of `Leave` vacated — and is still a sibling of
@@ -1374,7 +1374,7 @@ describe('Leave is deleted (item 5); Concede is the cluster’s only own control
       'action-bar',
       'live__prompt',
     ]);
-    expect(bar.querySelectorAll('button')).toHaveLength(3);
+    expect(bar.querySelectorAll('button')).toHaveLength(4);
   });
 
   /*
@@ -1649,7 +1649,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     // The spec queries `live-buttons` and then looks INSIDE it, so a second
     // container, or one of these drawn as a sibling, is a red e2e.
     expect(container.querySelectorAll('[data-testid="live-buttons"]')).toHaveLength(1);
-    for (const id of ['live-button-end-turn', 'live-full-control', 'live-concede']) {
+    for (const id of ['live-button-end-turn', 'live-full-control', 'live-restart-turn', 'live-concede']) {
       expect(cluster.querySelector(`[data-testid="${id}"]`), `the cluster still holds ${id}`).not.toBeNull();
     }
     // Passing priority is the decision pop-up's: the cluster has no Next Phase.
@@ -1666,6 +1666,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     expect([...cluster.querySelectorAll('button')].map((b) => b.dataset.testid)).toEqual([
       'live-button-end-turn',
       'live-full-control',
+      'live-restart-turn',
       'live-concede',
     ]);
     /*
@@ -1698,7 +1699,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     // Every child of the cluster is a button now: nothing in it can be text that
     // grows, which is the other half of "one box at one window size". Still
     // five: item 7 put `Settings` where item 5's deletion of `Leave` left a gap.
-    expect([...cluster.children].map((el) => el.tagName)).toEqual(['BUTTON', 'BUTTON', 'BUTTON']);
+    expect([...cluster.children].map((el) => el.tagName)).toEqual(['BUTTON', 'BUTTON', 'BUTTON', 'BUTTON']);
     // And both moved into the logbook, which is not inside the cluster.
     const logbook = getByTestId('live-logbook');
     expect(cluster.contains(logbook)).toBe(false);
@@ -1893,7 +1894,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     const tracks = Array.from({ length: Number(/repeat\((\d+), (\d+)px\)/.exec(rows!)?.[1]) }, () =>
       Number(/repeat\((\d+), (\d+)px\)/.exec(rows!)?.[2]),
     );
-    expect(tracks).toEqual([22, 22, 22]);
+    expect(tracks).toEqual([22, 22, 22, 22]);
     const padY = Number(/padding: (\d+)px/.exec(cluster)?.[1]);
     const gap = Number(/gap: (\d+)px/.exec(cluster)?.[1]);
     const token = Number(/--live-controls-h: (\d+)px/.exec(declarations(css, '.live'))?.[1]);
@@ -2580,9 +2581,9 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
    * Wave 32 Q15b — *"what is the point of the cancel button in the control
    * pane?"* — and wave 51: Forge's second button is the decision pop-up's,
    * drawn only while Forge enables it and in Forge's own word; the cluster
-   * keeps its three buttons whatever Forge sends.
+   * keeps its four buttons whatever Forge sends.
    */
-  it('Q15b: the second button is drawn only while Forge enables it, in Forge’s word, and the cluster keeps its three buttons', async () => {
+  it('Q15b: the second button is drawn only while Forge enables it, in Forge’s word, and the cluster keeps its four buttons', async () => {
     const { s, getByTestId, queryByTestId } = await liveBoard();
     expect(queryByTestId('live-decision-cancel'), 'no bar yet').toBeNull();
 
@@ -2596,6 +2597,7 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
     expect([...getByTestId('live-buttons').querySelectorAll('button')].map((b) => b.textContent)).toEqual([
       'End Turn',
       'Full control',
+      'Restart turn',
       'Concede',
     ]);
   });
@@ -5511,7 +5513,7 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
     for (const f of buttonFrames('Keep this hand of seven?', 'Keep', 'Mulligan')) s.send(f);
 
     await waitFor(() => getByTestId('live-confirm-host'));
-    expect(getByTestId('live-buttons').textContent).toBe('End TurnFull controlConcede');
+    expect(getByTestId('live-buttons').textContent).toBe('End TurnFull controlRestart turnConcede');
   });
 
   it('T4, finished: the box never says "Play" while the coin-toss pop-up is up', async () => {
@@ -5519,7 +5521,7 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
     for (const f of buttonFrames('You have won the coin toss.\n\nPlay or draw?', 'Play', 'Draw')) s.send(f);
 
     await waitFor(() => getByTestId('live-play-or-draw-host'));
-    expect(getByTestId('live-buttons').textContent).toBe('End TurnFull controlConcede');
+    expect(getByTestId('live-buttons').textContent).toBe('End TurnFull controlRestart turnConcede');
   });
 
   /*
@@ -5563,12 +5565,12 @@ describe('the control box is fixed furniture; every answer to Forge, passing pri
     labels: [...getByTestId('live-buttons').querySelectorAll('button')].map((el) => el.textContent),
     endTurn: !(getByTestId('live-button-end-turn') as HTMLButtonElement).disabled,
   });
-  const THREE = ['End Turn', 'Full control', 'Concede'];
+  const FOUR = ['End Turn', 'Full control', 'Restart turn', 'Concede'];
   const acts = (s: ReplayServer) =>
     s.clientFrames().flatMap((f) => (f.ok && f.value.kind === 'act' ? [f.value.method] : []));
   const ok = (queryByTestId: (id: string) => HTMLElement | null) => queryByTestId('live-decision-ok')?.textContent ?? null;
 
-  it('draws the same three buttons in every state; the pop-up answers the pass, with words for what it does', async () => {
+  it('draws the same four buttons in every state; the pop-up answers the pass, with words for what it does', async () => {
     const { s, m, getByTestId, queryByTestId } = await liveBoard();
     const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
     const states: [string, () => unknown[], { endTurn: boolean; ok: string | null }][] = [
@@ -5583,7 +5585,7 @@ describe('the control box is fixed furniture; every answer to Forge, passing pri
     ];
     for (const [what, frames, expected] of states) {
       for (const f of frames()) s.send(f as never);
-      await waitFor(() => expect({ ...box(getByTestId), ok: ok(queryByTestId) }, what).toEqual({ labels: THREE, ...expected }));
+      await waitFor(() => expect({ ...box(getByTestId), ok: ok(queryByTestId) }, what).toEqual({ labels: FOUR, ...expected }));
       expect(queryByTestId('live-button-next-phase'), `${what}: no Next Phase in the box`).toBeNull();
       // One pop-up at a time, whichever it is.
       const popups = ['live-decision', 'live-confirm', 'live-play-or-draw', 'live-payment'].filter((id) => queryByTestId(id) !== null);
@@ -5602,7 +5604,7 @@ describe('the control box is fixed furniture; every answer to Forge, passing pri
     expect(getByTestId('live-decision-ok').textContent).toBe('Resolve');
     expect(getByTestId('live-decision-host').hasAttribute('data-pass'), 'a stack to resolve is a question the zoom stands beside').toBe(false);
     expect(queryByTestId('live-decision-cancel'), 'End Turn is the box’s, never drawn twice').toBeNull();
-    expect(box(getByTestId)).toEqual({ labels: THREE, endTurn: true });
+    expect(box(getByTestId)).toEqual({ labels: FOUR, endTurn: true });
     expect(getByTestId('board-mid').hasAttribute('data-question'), 'the stack knows a question is up').toBe(true);
 
     fireEvent.click(getByTestId('live-decision-ok'));
@@ -5655,7 +5657,7 @@ describe('the control box is fixed furniture; every answer to Forge, passing pri
     s.send(bar('OK', 'Undo (1)'));
     await waitFor(() => expect(getByTestId('live-decision-ok').textContent).toBe('Next Phase'));
     expect(queryByTestId('live-decision-cancel')).toBeNull();
-    expect(box(getByTestId)).toEqual({ labels: THREE, endTurn: false });
+    expect(box(getByTestId)).toEqual({ labels: FOUR, endTurn: false });
   });
 
   it('the payment window and a selection pop-up keep their inputs: no decision pop-up beside them', async () => {
@@ -6315,5 +6317,75 @@ describe('the waiting pop steps clear of the stack', () => {
   it('steps sideways when a column of cards fills the board top to bottom', () => {
     const column = [box(1000, 0, 120, 450), box(1000, 450, 120, 450)];
     expect(clearOfStack(pop, column, board)).toEqual({ x: 1120 + 8 - 900, y: 0 });
+  });
+});
+
+describe('Restart turn (docs/planning/restart-turn-plan.md)', () => {
+  const restartSent = (s: ReplayServer) => s.received.filter((r) => r.event === 'forge:restart-turn').map((r) => (r.payload as { act: string }).act);
+  const button = (getByTestId: (id: string) => HTMLElement) => getByTestId('live-restart-turn') as HTMLButtonElement;
+  const open = { ask: null, declined: false, restorable: true };
+
+  it('waits for the server’s word, then on my own turn asks, and pressed again takes the ask back', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    expect(button(getByTestId).disabled, 'no word from the server yet').toBe(true);
+    s.sendRestartState({ turn: m.view!.turn, ...open });
+    await waitFor(() => expect(button(getByTestId).disabled).toBe(false));
+    fireEvent.click(button(getByTestId));
+    await waitFor(() => expect(restartSent(s)).toEqual(['ask']));
+    s.sendRestartState({ turn: m.view!.turn, ...open, ask: { from: 0 } });
+    await waitFor(() => expect(button(getByTestId).getAttribute('aria-pressed')).toBe('true'));
+    expect(button(getByTestId).textContent).toBe('Restart turn');
+    fireEvent.click(button(getByTestId));
+    await waitFor(() => expect(restartSent(s)).toEqual(['ask', 'cancel']));
+    expect(await s.framesFrom(m), 'nothing of it is an answer to Forge').toEqual([]);
+  });
+
+  it('is greyed when the ask was declined, when the turn cannot be restored, and when the word is about another turn', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    const turn = m.view!.turn;
+    for (const [what, state] of [
+      ['declined', { turn, ...open, declined: true }],
+      ['not restorable', { turn, ...open, restorable: false }],
+      ['another turn', { turn: turn - 1, ...open }],
+    ] as const) {
+      s.sendRestartState({ turn, ...open });
+      await waitFor(() => expect(button(getByTestId).disabled, `${what}: enabled first`).toBe(false));
+      s.sendRestartState(state);
+      await waitFor(() => expect(button(getByTestId).disabled, what).toBe(true));
+    }
+  });
+
+  it('is greyed on the other seat’s turn', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    const them = m.view!.players.find((p) => !p.isViewer)!;
+    s.send(turnDelta(m, them.id, m.view!.turn + 1));
+    await untilMatch(m, () => expect(m.view!.activePlayerId).toBe(them.id));
+    s.sendRestartState({ turn: m.view!.turn, ...open });
+    await untilMatch(m, () => expect(m.restart?.turn).toBe(m.view!.turn));
+    expect(button(getByTestId).disabled).toBe(true);
+  });
+
+  it('the other seat’s ask is a sheet: Decline is the default, Allow and Decline answer, Escape declines', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    const them = m.view!.players.find((p) => !p.isViewer)!;
+    s.send(turnDelta(m, them.id, m.view!.turn + 1));
+    await untilMatch(m, () => expect(m.view!.activePlayerId).toBe(them.id));
+    expect(queryByTestId('live-restart-ask')).toBeNull();
+    s.sendRestartState({ turn: m.view!.turn, ...open, ask: { from: 1 } });
+    await waitFor(() => expect(getByTestId('live-restart-sheet').textContent).toContain(`${them.name} asks to restart turn ${m.view!.turn}.`));
+    expect(document.activeElement).toBe(getByTestId('live-restart-decline'));
+    fireEvent.click(getByTestId('live-restart-allow'));
+    fireEvent.click(getByTestId('live-restart-decline'));
+    fireEvent.keyDown(getByTestId('live-restart-sheet'), { key: 'Escape' });
+    await waitFor(() => expect(restartSent(s)).toEqual(['allow', 'decline', 'decline']));
+    s.sendRestartState({ turn: m.view!.turn, ...open, declined: true });
+    await waitFor(() => expect(queryByTestId('live-restart-ask')).toBeNull());
+  });
+
+  it('my own ask draws no sheet for me', async () => {
+    const { s, m, queryByTestId } = await liveBoard();
+    s.sendRestartState({ turn: m.view!.turn, ...open, ask: { from: 0 } });
+    await untilMatch(m, () => expect(m.restart?.ask).toEqual({ from: 0 }));
+    expect(queryByTestId('live-restart-ask')).toBeNull();
   });
 });

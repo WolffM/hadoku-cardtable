@@ -314,14 +314,17 @@ export type BridgeLine =
 	/**
 	 * The game as its turn's upkeep begins (`PlayBridge.TurnSnapshot`): Forge's `GameState` text, a
 	 * scenario that restores the match to the start of that turn (`match.ts`'s `restoredSpec`).
-	 * `ms` is how long the bridge took to write it.
+	 * `ms` is how long the bridge took to write it. `lossy` names what the game held that the text
+	 * cannot (`docs/planning/restart-turn-plan.md` part 2); absent or empty is the whole game.
 	 */
-	| { t: 'snapshot'; turn: number; state: string; ms: number };
+	| { t: 'snapshot'; turn: number; state: string; ms: number; lossy?: string[] };
 
 /** The latest `snapshot` line a match has had: what a restore starts it from. */
 export interface TurnSnapshot {
 	turn: number;
 	state: string;
+	/** What the game held that {@link state} does not; absent or empty is the whole game. */
+	lossy?: readonly string[];
 }
 
 export interface HostEvents {

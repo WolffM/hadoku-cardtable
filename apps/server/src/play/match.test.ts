@@ -20,12 +20,13 @@ import {
 	MatchSnapshotSchema,
 	ServerEnvelopeSchema,
 	type MatchSnapshot,
+	type RestartState,
 	type ServerEnvelope,
 } from '@hadoku/shared';
 
 import { STRICT_PAYMENT_POLICY } from './auto.js';
 import type { BridgeCommand, BridgeLine, HostEvents, MatchRecord, MatchHost, MatchHostFactory, MatchSpec, TurnSnapshot } from './host.js';
-import { ACTIVITY_WINDOW_MS, ACT_SILENCE_MS, ANSWER_SILENCE_MS, MATCH_ENDED_TITLE, WATCHER_SEAT, createMatchRegistry, frameGist, restoredSpec, type Match, type MatchSpecWithIdentity, type Restored } from './match.js';
+import { ACTIVITY_WINDOW_MS, ACT_SILENCE_MS, ANSWER_SILENCE_MS, MATCH_ENDED_TITLE, RESTART_ASK_MS, WATCHER_SEAT, createMatchRegistry, frameGist, restoredSpec, type Match, type MatchSpecWithIdentity, type Restored } from './match.js';
 import type { SeatIdentity } from '@hadoku/shared';
 import {
 	FLYING_FILE,
@@ -4645,5 +4646,132 @@ describe('the chess clock (MatchSpec.clockMs)', () => {
 		h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'concede' }));
 		h.host.push({ t: 'gameover', winner: 'Seat 2', losers: [0], lost: [{ player: 0, reason: 'Conceded' }] } as BridgeLine);
 		expect(h.match.outcome()).toEqual({ kind: 'won', winner: 1, conceded: true });
+	});
+});
+
+describe('restart turn', () => {
+	/** Both seats claimed and opened, this turn's snapshot taken; every `restartChanged` kept. */
+	function table(opts: { ai?: boolean; lossy?: string[]; snapshotTurn?: (turn: number) => number } = {}) {
+		const { factory, hosts } = replayFactory();
+		const logs: Record<string, unknown>[] = [];
+		const told: RestartState[] = [];
+		const registry = createMatchRegistry({
+			host: factory,
+			log: (e) => logs.push(e),
+			overGraceMs: 60_000,
+			emit: () => undefined,
+			restartChanged: (_m, state) => told.push(state),
+		});
+		const match = registry.create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1], ai: opts.ai ?? false }] });
+		match.claim(ALICE);
+		if (opts.ai !== true) match.claim(BOB);
+		const host = hosts[0] as ReplayHost;
+		host.push(...TRANSCRIPT);
+		// The transcript's turn is seat 1's; against the AI (always seat 1) it is made seat 0's.
+		if (opts.ai === true) {
+			const game = String(((DELTA_TYPE.game << 28) | 1) >>> 0);
+			const player = match.seats[0]!.playerId;
+			host.push({
+				t: 'frame',
+				seat: 0,
+				frame: { kind: 'notify', method: 'applyDelta', payload: { packet: { seq: 990, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: { [game]: { _type: DELTA_TYPE.game, _id: 1, PlayerTurn: { t: 'int', v: player } } }, events: [] } } },
+			} as BridgeLine);
+		}
+		const turn = match.restartState().turn;
+		const active = match.activeSeat()?.seat;
+		if (active === undefined) throw new Error('the opening names no active human seat');
+		host.push({
+			t: 'snapshot',
+			turn: opts.snapshotTurn?.(turn) ?? turn,
+			state: `turn=${turn}\nactivephase=UNTAP\nactivephaseadvance=UPKEEP\n`,
+			ms: 1,
+			...(opts.lossy === undefined ? {} : { lossy: opts.lossy }),
+		});
+		return { match, registry, hosts, logs, told, turn, active, other: active === 0 ? 1 : 0 };
+	}
+
+	it('the turn\'s snapshot makes it restorable, and the table is told', () => {
+		const t = table();
+		expect(t.match.status).toBe('running');
+		expect(t.turn).toBeGreaterThan(0);
+		const state = { matchId: t.match.id, turn: t.turn, ask: null, declined: false, restorable: true };
+		expect(t.match.restartState()).toEqual(state);
+		expect(t.told.at(-1)).toEqual(state);
+	});
+
+	it('only the seat whose turn it is may ask', () => {
+		const t = table();
+		const told = t.told.length;
+		expect(t.match.restartAct(t.other, 'ask')).toEqual({ ok: false, error: 'not-your-turn' });
+		expect(t.told).toHaveLength(told);
+	});
+
+	it('an ask is told to the table; a second ask and the asker\'s own answer are refused', () => {
+		const t = table();
+		expect(t.match.restartAct(t.active, 'ask')).toEqual({ ok: true });
+		expect(t.told.at(-1)).toMatchObject({ turn: t.turn, ask: { from: t.active }, declined: false });
+		expect(t.match.restartAct(t.active, 'ask')).toEqual({ ok: false, error: 'already-asked' });
+		expect(t.match.restartAct(t.active, 'allow')).toEqual({ ok: false, error: 'no-ask' });
+		expect(t.registry.get(t.match.id)).toBe(t.match);
+	});
+
+	it('allowed, the match starts again from this turn\'s snapshot, under the same id', () => {
+		const t = table();
+		t.match.restartAct(t.active, 'ask');
+		expect(t.match.restartAct(t.other, 'allow')).toEqual({ ok: true });
+		const r = t.registry.get(t.match.id);
+		expect(r).not.toBe(t.match);
+		expect(r?.owners()).toEqual(t.match.owners());
+		expect((t.hosts[1] as ReplayHost).spec).toMatchObject({ scenario: t.match.latestSnapshot?.state, skipOpening: true, restore: true });
+		expect(t.logs.find((l) => l.evt === 'restart-turn')).toMatchObject({ seat: t.active, turn: t.turn, allowedBy: 'opponent' });
+		expect(t.logs.find((l) => l.evt === 'match-restored')).toMatchObject({ from: 'snapshot', turn: t.turn });
+	});
+
+	it('declined, nothing restarts and no second ask is taken this turn', () => {
+		const t = table();
+		t.match.restartAct(t.active, 'ask');
+		expect(t.match.restartAct(t.other, 'decline')).toEqual({ ok: true });
+		expect(t.told.at(-1)).toMatchObject({ ask: null, declined: true });
+		expect(t.match.restartAct(t.active, 'ask')).toEqual({ ok: false, error: 'declined-this-turn' });
+		expect(t.registry.get(t.match.id)).toBe(t.match);
+	});
+
+	it('unanswered, the ask counts as declined', () => {
+		vi.useFakeTimers();
+		onTestFinished(() => void vi.useRealTimers());
+		const t = table();
+		t.match.restartAct(t.active, 'ask');
+		vi.advanceTimersByTime(RESTART_ASK_MS);
+		expect(t.match.restartState()).toMatchObject({ ask: null, declined: true });
+		expect(t.logs.find((l) => l.evt === 'restart-answered')).toMatchObject({ allow: false, why: 'timeout' });
+	});
+
+	it('the asker may take it back, and ask again', () => {
+		const t = table();
+		t.match.restartAct(t.active, 'ask');
+		expect(t.match.restartAct(t.other, 'cancel')).toEqual({ ok: false, error: 'no-ask' });
+		expect(t.match.restartAct(t.active, 'cancel')).toEqual({ ok: true });
+		expect(t.match.restartState()).toMatchObject({ ask: null, declined: false });
+		expect(t.match.restartAct(t.active, 'ask')).toEqual({ ok: true });
+	});
+
+	it('a turn whose snapshot cannot hold the whole game cannot be restarted', () => {
+		const t = table({ lossy: ['emblem'] });
+		expect(t.match.restartState().restorable).toBe(false);
+		expect(t.match.restartAct(t.active, 'ask')).toEqual({ ok: false, error: 'not-restorable' });
+		expect(t.logs.find((l) => l.evt === 'snapshot-lossy')).toMatchObject({ turn: t.turn, kinds: ['emblem'] });
+	});
+
+	it('nor a turn the match holds no snapshot of', () => {
+		const t = table({ snapshotTurn: (turn) => turn - 1 });
+		expect(t.match.restartState().restorable).toBe(false);
+		expect(t.match.restartAct(t.active, 'ask')).toEqual({ ok: false, error: 'not-restorable' });
+	});
+
+	it('against the AI, the ask is the restart', () => {
+		const t = table({ ai: true });
+		expect(t.match.restartAct(t.active, 'ask')).toEqual({ ok: true });
+		expect(t.registry.get(t.match.id)).not.toBe(t.match);
+		expect(t.logs.find((l) => l.evt === 'restart-turn')).toMatchObject({ allowedBy: 'ai' });
 	});
 });

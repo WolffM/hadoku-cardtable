@@ -150,6 +150,8 @@ export interface ReplayServer {
   sendTriggerDecisions(decisions: unknown): void;
   /** Deliver `{ matchId, phase }` on `forge:phase-stop`, as the real server does after a join and a change. */
   sendPhaseStop(phase: unknown): void;
+  /** `forge:restart-state` with this match's id and everything else as given. */
+  sendRestartState(state: Record<string, unknown>): void;
   /** The role every join and resync is answered with. `'player'` unless a test says otherwise. */
   role: 'player' | 'elsewhere' | 'watcher';
   /** The envelope `send` produced for a given seq, for replaying it. */
@@ -275,6 +277,9 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
     sendPhaseStop: (phase) => {
       for (const socket of joined) socket.emit(MATCH_EVENTS.phaseStop, { matchId, phase });
     },
+    sendRestartState: (state) => {
+      for (const socket of joined) socket.emit(MATCH_EVENTS.restartState, { matchId, ...state });
+    },
     sendRole: (role) => {
       for (const socket of joined) socket.emit(MATCH_EVENTS.role, { matchId, role });
     },
@@ -390,6 +395,10 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
     // Recorded only; the real handler (`Match.setPhaseStop`) echoes the seat's stop, which a test sends itself.
     socket.on(MATCH_EVENTS.phaseStop, (payload) => {
       server.received.push({ event: MATCH_EVENTS.phaseStop, payload });
+    });
+    // Recorded only; the real handler (`Match.restartAct`) tells the table, which a test sends itself.
+    socket.on(MATCH_EVENTS.restartTurn, (payload) => {
+      server.received.push({ event: MATCH_EVENTS.restartTurn, payload });
     });
     // Recorded only; the real handler (`Match.setTriggerDecision`) answers with the list, which a test sends itself.
     socket.on(MATCH_EVENTS.triggerDecision, (payload) => {

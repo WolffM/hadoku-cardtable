@@ -52,7 +52,7 @@
  * | --- | --- | --- |
  * | question / payment | 59.4% across, 24% down, 24.1% × 48% | `--live-col-x` / `--live-col-w`, `.live__prompt` |
  * | phase rail | 8.4% wide, 31% down, 35% tall, right | `--live-rail-w`, `.live__phases` |
- * | controls | 112 × 84 → 112 × 110 → 112 × 84, 67% down, under the rail | `--live-controls-*`, `.live__buttons` |
+ * | controls | 112 × 84 → 112 × 110 → 112 × 84 → 112 × 110, 67% down, under the rail | `--live-controls-*`, `.live__buttons` |
  * | log button | 36 × 32, above the rail | `.live__log-button` |
  * | settings gear | 32 round, above the log button; inside a watchparty room only | `.live__settings` |
  *
@@ -131,6 +131,9 @@
  * stays four rows tall either way, because the rows are fixed tracks and the
  * height is the token, so a Cancel that comes and goes moves nothing.
  *
+ * Today's four are End Turn, Full control, Restart turn and Concede
+ * (`docs/planning/restart-turn-plan.md`): 110 again.
+ *
  * That arithmetic is asserted in `LiveBoard.test.ts`, off this file's own text.
  *
  * The other tokens are the operator's percentages and stay percentages, so the
@@ -149,7 +152,7 @@
  * it at, and the rail is never narrower than the thing it exists to be read at.
  */
 .live {
-  --live-controls-h: 84px;
+  --live-controls-h: 110px;
   --live-controls-w: 112px;
   --live-rail-w: max(8.4%, 6.75rem);
   /* In `.live`'s own width (`--live-w`, below), not a percentage: a question that grows past the column
@@ -417,7 +420,7 @@
   height: var(--live-controls-h);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: repeat(3, 22px);
+  grid-template-rows: repeat(4, 22px);
   grid-auto-rows: 22px;
   align-content: start;
   gap: 4px;

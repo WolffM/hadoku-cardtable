@@ -330,3 +330,111 @@ describe.skipIf(!available.ok)(title, () => {
 		300_000,
 	);
 });
+
+/*
+ * Restart turn (`docs/planning/restart-turn-plan.md`): the same restore, asked for by the seat whose
+ * turn it is and allowed by the other, with the old JVM still playing. The turn starts again from its
+ * own snapshot: what the active seat did this turn is undone, and it draws the same card again.
+ */
+describe.skipIf(!available.ok)(`${title}: restart turn`, () => {
+	const decks = (): [string, string] => [deck('Restart A', ['16 Forest', '12 Mountain', '12 Grizzly Bears']), deck('Restart B', ['16 Forest', '12 Mountain', '12 Hill Giant'])];
+
+	it(
+		'allowed: the land played this turn is back in hand, the board is the snapshot’s, the same card is drawn, and both seats play on',
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, { seed: 31, decks: decks() });
+			try {
+				await playALand(s, 1);
+				await playALand(s, 2);
+				const active = inOwnMain(s, 0, 2) ? 0 : 1;
+				const from = snapshots(s).findLast((l) => l.turn === 2)!;
+				const landsNow = s.zone(active, 'Battlefield').filter((c) => c.land).length;
+				expect(landsNow, 'a land was played this turn').toBeGreaterThan(zoneNames(from.state, `p${active}battlefield`).length);
+				expect(s.match.restartState()).toMatchObject({ turn: 2, ask: null, declined: false, restorable: true });
+
+				const before = s.match;
+				const lines = s.lines.length;
+				expect(before.restartAct(1 - active, 'ask'), 'only the active seat asks').toEqual({ ok: false, error: 'not-your-turn' });
+				expect(before.restartAct(active, 'ask')).toEqual({ ok: true });
+				expect(before.restartAct(1 - active, 'allow')).toEqual({ ok: true });
+				expect(s.match).not.toBe(before);
+				expect(s.match.id).toBe(before.id);
+				expect(s.match.epoch).not.toBe(before.epoch);
+
+				await waitUntil(() => s.lines.slice(lines).some((l) => l.t === 'snapshot'), "the restarted turn's own snapshot", 120_000, s);
+				const again = s.lines.slice(lines).find((l): l is Snapshot & { hostT: number } => l.t === 'snapshot')!;
+				expect(again.turn).toBe(2);
+				expect(normalized(again.state)).toEqual(normalized(from.state));
+
+				await passUntil(s, noAttacks(s, () => inOwnMain(s, active, 2)), 'the restarted turn 2, its first main', 120_000);
+				expect(s.zone(active, 'Battlefield').map((c) => c.name).sort()).toEqual(zoneNames(from.state, `p${active}battlefield`).sort());
+				expect(s.zone(1 - active, 'Battlefield').map((c) => c.name).sort()).toEqual(zoneNames(from.state, `p${1 - active}battlefield`).sort());
+				expect(s.zone(active, 'Hand').map((c) => c.name)).toEqual([...zoneNames(from.state, `p${active}hand`), zoneNames(from.state, `p${active}library`)[0]]);
+				expect(s.logs.find((l) => l.evt === 'restart-turn')).toMatchObject({ seat: active, turn: 2, allowedBy: 'opponent' });
+
+				await playALand(s, 2);
+				await playALand(s, 3);
+				expect(snapshots(s).at(-1)?.turn).toBe(3);
+			} finally {
+				await s.stop();
+			}
+		},
+		420_000,
+	);
+
+	it(
+		'a turn whose snapshot cannot hold the whole game names what it lacks, and is not restarted',
+		async () => {
+			if (!available.ok) return;
+			// Seat 0 controls seat 1's Grizzly Bears: a control change GameState's text cannot carry as Forge holds it.
+			const scenario = [
+				'turn=3',
+				'activeplayer=human',
+				'activephase=MAIN1',
+				'humanlife=20',
+				'ailife=20',
+				'humanbattlefield=Forest;Grizzly Bears|Owner:P1',
+				'humanlibrary=' + Array.from({ length: 20 }, () => 'Forest').join(';'),
+				'aibattlefield=Mountain',
+				'ailibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
+			].join('\n');
+			const s = await startScenario(available.config, { seed: 3, decks: decks(), scenario, skipOpening: true });
+			try {
+				await passUntil(s, noAttacks(s, () => snapshots(s).some((l) => l.turn === 4) && inOwnMain(s, 1, 4)), 'turn 4, its first main', 120_000);
+				expect(snapshots(s).find((l) => l.turn === 4)?.lossy).toEqual(['control']);
+				expect(s.match.restartState()).toMatchObject({ turn: 4, restorable: false });
+				expect(s.match.restartAct(1, 'ask')).toEqual({ ok: false, error: 'not-restorable' });
+				expect(s.logs.find((l) => l.evt === 'snapshot-lossy')).toMatchObject({ turn: 4, kinds: ['control'] });
+			} finally {
+				await s.stop();
+			}
+		},
+		300_000,
+	);
+
+	it(
+		'declined: the game goes on untouched, on the same match, and the active seat cannot ask again this turn',
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, { seed: 31, decks: decks() });
+			try {
+				await playALand(s, 1);
+				const active = inOwnMain(s, 0, 1) ? 0 : 1;
+				const before = s.match;
+				const battlefield = s.zone(active, 'Battlefield').map((c) => c.id);
+				expect(before.restartAct(active, 'ask')).toEqual({ ok: true });
+				expect(before.restartAct(1 - active, 'decline')).toEqual({ ok: true });
+				expect(s.match).toBe(before);
+				expect(before.restartAct(active, 'ask')).toEqual({ ok: false, error: 'declined-this-turn' });
+				expect(s.zone(active, 'Battlefield').map((c) => c.id)).toEqual(battlefield);
+				await playALand(s, 2);
+				expect(s.match).toBe(before);
+				expect(s.match.restartState()).toMatchObject({ turn: 2, declined: false, restorable: true });
+			} finally {
+				await s.stop();
+			}
+		},
+		300_000,
+	);
+});

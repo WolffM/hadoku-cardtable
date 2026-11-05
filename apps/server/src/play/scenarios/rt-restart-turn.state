@@ -1,0 +1,17 @@
+# Restart turn (docs/planning/restart-turn-plan.md). An uncontested turn-1 Main Phase 1, both
+# seats holding a Forest and a Mountain and drawing Forests: a scenario opens past its first
+# upkeep, so turn 1 has no snapshot and the spec restarts turns 2 and 3, a land played in each.
+# Used by `e2e/rt-restart-turn.spec.ts`.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Forest;Mountain
+humanbattlefield=
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=Forest;Mountain
+aibattlefield=
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=

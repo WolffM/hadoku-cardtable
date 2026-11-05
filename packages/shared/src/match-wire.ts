@@ -141,6 +141,16 @@ export const MATCH_EVENTS = {
    * {@link TriggerDecisionsSchema}.
    */
   triggerDecisions: 'forge:trigger-decisions',
+  /**
+   * Restart turn: the active seat asks, the other seat allows or declines, the
+   * asker may take it back. Client → server. See {@link RestartTurnRequestSchema}.
+   */
+  restartTurn: 'forge:restart-turn',
+  /**
+   * Where a restart stands this turn. Server → every socket of the match, on
+   * every change and every join and resync. See {@link RestartStateSchema}.
+   */
+  restartState: 'forge:restart-state',
 } as const;
 
 /* ── Cursor ──────────────────────────────────────────────────────────── */
@@ -214,6 +224,40 @@ export type AutoYieldRequest = z.infer<typeof AutoYieldSchema>;
 export function autoYieldFrame(matchId: string, on: boolean): AutoYieldRequest {
   return AutoYieldSchema.parse({ matchId, on });
 }
+
+/**
+ * `forge:restart-turn` — the active seat asks to play its turn again from its
+ * start (`ask`), the other seat answers (`allow` / `decline`), the asker takes
+ * the ask back (`cancel`). The seat is the one the socket claimed, never a
+ * payload's; the server decides who may send which (`Match.restartAct`).
+ */
+export const RESTART_ACTS = ['ask', 'allow', 'decline', 'cancel'] as const;
+export type RestartAct = (typeof RESTART_ACTS)[number];
+export const RestartTurnRequestSchema = z.object({ matchId: z.string().min(1), act: z.enum(RESTART_ACTS) }).strict();
+export type RestartTurnRequest = z.infer<typeof RestartTurnRequestSchema>;
+
+/** The payload of a `forge:restart-turn` emit, parsed through its own schema. */
+export function restartTurnFrame(matchId: string, act: RestartAct): RestartTurnRequest {
+  return RestartTurnRequestSchema.parse({ matchId, act });
+}
+
+/**
+ * `forge:restart-state` — the same for every socket of the match: the turn it
+ * is about, the open ask (`from`: the asking seat) or null, whether an ask was
+ * declined this turn (no second ask until the next), and whether this turn's
+ * start can be restored at all (`restorable`: the server holds its snapshot,
+ * and the snapshot holds the whole game).
+ */
+export const RestartStateSchema = z
+  .object({
+    matchId: z.string().min(1),
+    turn: z.number().int().nonnegative(),
+    ask: z.object({ from: z.number().int().nonnegative() }).strict().nullable(),
+    declined: z.boolean(),
+    restorable: z.boolean(),
+  })
+  .strict();
+export type RestartState = z.infer<typeof RestartStateSchema>;
 
 /**
  * What a stop can be put on: every phase Forge opens a priority window in, and
@@ -562,6 +606,10 @@ export function parseFullControl(raw: unknown): MatchWireParse<FullControlReques
 
 export function parseAutoYield(raw: unknown): MatchWireParse<AutoYieldRequest> {
   return parseWith(AutoYieldSchema, raw);
+}
+
+export function parseRestartTurn(raw: unknown): MatchWireParse<RestartTurnRequest> {
+  return parseWith(RestartTurnRequestSchema, raw);
 }
 
 export function parsePhaseStop(raw: unknown): MatchWireParse<PhaseStopRequest> {

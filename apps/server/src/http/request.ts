@@ -29,13 +29,33 @@ export function callerOf(req: Request): Caller {
 }
 
 /**
- * A per-caller token bucket for a route's costly step: false once the 429 (with
- * `Retry-After`) is sent. Each pass reports `costly-act` and each refusal
- * `rate-limited`, both named by `act`, so telemetry shows who is spending the
- * expensive steps and who hit the ceiling (`telemetry.ts` throttles the posts). A route asks AFTER reading its body, so only a
- * request that would do the work spends a token. `null` is no limit — the e2e
- * stacks' `CARDTABLE_E2E_NO_RATE_LIMITS`, where one test identity makes every
- * room and starts every match of a run.
+ * A per-caller token bucket for a costly step: each pass reports `costly-act` and each refusal
+ * `rate-limited`, both named by `act`, so telemetry shows who is spending the expensive steps and
+ * who hit the ceiling (`telemetry.ts` throttles the posts). `headers` are the caller's own, for
+ * the report. `null` is no limit — the e2e stacks' `CARDTABLE_E2E_NO_RATE_LIMITS`, where one test
+ * identity makes every room and starts every match of a run.
+ */
+export function costlyActLimit(
+	cfg: RateLimitConfig | null,
+	opts: { act: string; now?: () => number; onRefused?: () => void },
+): (caller: ParticipantId, headers: Parameters<typeof callerContext>[0]) => boolean {
+	if (cfg === null) return () => true;
+	const limiter = new MultiRateLimiter<ParticipantId>(cfg);
+	const now = opts.now ?? Date.now;
+	return (caller, headers) => {
+		if (limiter.allow(caller, 1, now())) {
+			report('costly-act', { act: opts.act, ...callerContext(headers) });
+			return true;
+		}
+		report('rate-limited', { act: opts.act, ...callerContext(headers) });
+		opts.onRefused?.();
+		return false;
+	};
+}
+
+/**
+ * {@link costlyActLimit} for a route: false once the 429 (with `Retry-After`) is sent. A route
+ * asks AFTER reading its body, so only a request that would do the work spends a token.
  */
 export function perCallerLimit(
 	cfg: RateLimitConfig | null,
@@ -43,16 +63,10 @@ export function perCallerLimit(
 	opts: { act: string; now?: () => number; onRefused?: () => void },
 ): (req: Request, res: Response) => boolean {
 	if (cfg === null) return () => true;
-	const limiter = new MultiRateLimiter<ParticipantId>(cfg);
-	const now = opts.now ?? Date.now;
+	const allow = costlyActLimit(cfg, opts);
 	const retryAfter = String(Math.ceil(cfg.refillIntervalMs / 1000));
 	return (req, res) => {
-		if (limiter.allow(httpCaller(req), 1, now())) {
-			report('costly-act', { act: opts.act, ...callerContext(req.headers) });
-			return true;
-		}
-		report('rate-limited', { act: opts.act, ...callerContext(req.headers) });
-		opts.onRefused?.();
+		if (allow(httpCaller(req), req.headers)) return true;
 		res.setHeader('Retry-After', retryAfter);
 		res.status(429).json({ error: refusal });
 		return false;
