@@ -22,7 +22,7 @@ import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 import { deltaKey, DELTA_TYPE } from '@hadoku/forge-wire';
 
 import { jvmHostConfig, jvmHostFactory } from './host.js';
-import { scenarioText } from './scenario.js';
+import { deck, scenarioText } from './scenario.js';
 import { foldFrames } from './visibility.js';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
@@ -195,7 +195,7 @@ describe.skipIf(!available.ok)(title, () => {
 			const res = await fetch(`http://127.0.0.1:${h.port}/api/play/matches`, {
 				method: 'POST',
 				headers: { ...edgeHeaders('alice'), 'content-type': 'application/json' },
-				body: JSON.stringify({ opponent: 'human', scenario: scenarioText('two-mana-pass') }),
+				body: JSON.stringify({ opponent: 'human', scenario: scenarioText('two-mana-pass'), decks: [deck('Swamps', ['40 Swamp']), deck('Mountains', ['40 Mountain'])] }),
 			});
 			// The server's own words when it refuses (a 503 names its reason: draining, no Forge, or the cap).
 			expect(res.status, res.status === 201 ? '' : await res.clone().text()).toBe(201);

@@ -27,7 +27,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
 import { jvmHostConfig, jvmHostFactory } from './host.js';
-import { scenarioText } from './scenario.js';
+import { deck, scenarioText } from './scenario.js';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
 const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_JVM: '0' });
@@ -237,10 +237,13 @@ describe.skipIf(!available.ok)(title, () => {
 			const alice = await connect(h.port, edgeHeaders('alice'));
 			const bob = await connect(h.port, edgeHeaders('bob'));
 
+			// Basic lands for the opening the scenario then replaces: a random precon's opening hand can
+			// hold a card revealed to the other seat (Chancellor of the Dross), a `getChoices` the caster
+			// is rightly shown before Thoughtseize is ever cast.
 			const res = await fetch(`http://127.0.0.1:${h.port}/api/play/matches`, {
 				method: 'POST',
 				headers: { ...edgeHeaders('alice'), 'content-type': 'application/json' },
-				body: JSON.stringify({ opponent: 'human', scenario: scenarioText('thoughtseize') }),
+				body: JSON.stringify({ opponent: 'human', scenario: scenarioText('thoughtseize'), decks: [deck('Swamps', ['40 Swamp']), deck('Mountains', ['40 Mountain'])] }),
 			});
 			// The server's own words when it refuses (a 503 names its reason: draining, no Forge, or the cap).
 			expect(res.status, res.status === 201 ? '' : await res.clone().text()).toBe(201);
@@ -406,7 +409,7 @@ describe.skipIf(!available.ok)(title, () => {
 				.map((f) => (f as { frame?: Record<string, unknown> }).frame)
 				.filter((f): f is Record<string, unknown> => f?.kind === 'ask')
 				.map((f) => f.method);
-			expect(casterAskMethods).not.toContain('getChoices');
+			expect(casterAskMethods, dump(caster).filter((line) => line.startsWith('ASK ')).join('\n')).not.toContain('getChoices');
 
 			// The discarder sees NO ask at all — the fold drops the trailing reveal
 			// unconditionally, same as the operator's ruling.
