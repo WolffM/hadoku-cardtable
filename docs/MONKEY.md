@@ -48,9 +48,9 @@ here is testing one card's specific behaviour.
 | --- | --- | --- |
 | `no-legal-answer` | an ask demanded more answers than it offered (the client-side mirror of the server's own `ask-unanswerable`/`auto.ts`'s `answerability`) | the ask's own `min`/`max`/`optionList` |
 | `stuck` | no progress for `--stuck-ms` (default 20 s) while this seat held priority or an ask was open | the ask's `callId`, or the button bar + selection size, unchanged |
-| `click-refused` | the server (Forge's `flashIncorrectAction`) or this client's own guard refused an answer | the wire tap on `forge:s2c`, and `selectCard`/`selectPlayer`/`pressButton`/`answerAsk`'s own return value |
-| `loop` | a DECLINED optional ask came back with the same method and the same offered shape three times running, AT THE SAME turn and phase (a `tempShowZones` that recurs every cleanup step by design is excluded outright) | `declineStreak` in `seat-driver.ts` |
-| `server-unclassified` | the server logged `ask-unanswerable` or `ask-unclassified` for this match | the running stack's own JSON log file, tailed per match |
+| `click-refused` | the server (Forge's `flashIncorrectAction`) or this client's own guard refused an answer — not the server's `cause: 'unpayable'` flash, which is it cancelling a cost nothing can pay (e2d49c260), a handled case (`isRefusal`) | the wire tap on `forge:s2c`, and `selectCard`/`selectPlayer`/`pressButton`/`answerAsk`'s own return value |
+| `loop` | a DECLINED optional ask came back with the same method and the same offered shape three times running, AT THE SAME turn and phase, with no act of this seat's own in between (a click on the same card again opens a new question, not the old one coming back; a `tempShowZones` that recurs every cleanup step by design is excluded outright) | `declineStreak` in `seat-driver.ts` |
+| `server-unclassified` | the server logged `ask-unclassified` for this match — a question `answerability` has no rule for. Not `ask-unanswerable`: that is the server answering, by its own rule (7f343ec90), a question no seat could (`serverFlagsOf`) | the running stack's own JSON log file, tailed per match |
 | `no-finish` | the match never started (`POST /api/play/matches` refused), the connection broke (`report`'s `connect-error`/`disconnected`/…), or it did not finish within `--turn-cap` (default 60) or `--match-timeout-ms` (default 180000) | `run-match.ts` |
 
 ### Reading a report
@@ -118,11 +118,11 @@ Mutation evidence, each reverted before landing:
   its own test suite; not separately re-proved here.
 - **`no-legal-answer`**, **`loop`**, **`server-unclassified`** — proved by a
   direct unit test of the pure function each flag is built on
-  (`seat-driver.test.ts`, 11 cases, `CI=1 vitest run
+  (`seat-driver.test.ts`, 13 cases, `CI=1 vitest run
   apps/server/src/play/monkey/seat-driver.test.ts`): the exact shape each
   flag is designed to catch (an ask demanding more than it offered; the same
   declined ask shape recurring three times at the same turn/phase; a fresh
-  `ask-unanswerable` log line for this match's id), and the exact shape
+  `ask-unclassified` log line for this match's id), and the exact shape
   beside it that must NOT flag (asking for what was offered; the same shape
   recurring across DIFFERENT turns, which is ordinary play; `tempShowZones`/
   `openZones` recurring by design; another match's log line).

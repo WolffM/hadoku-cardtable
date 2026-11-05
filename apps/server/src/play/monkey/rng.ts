@@ -43,6 +43,15 @@ export function seedFrom(input: number | string): number {
   return h >>> 0;
 }
 
+/**
+ * `--seed` as `seedFrom` must see it: the seed a run prints is a number, and read back as text its
+ * digits would be hashed into another seed, so the run it names is never the one reproduced
+ * (`docs/MONKEY.md`, "Reproducing a seed"). Anything not all digits stays a text seed.
+ */
+export function seedArg(raw: string | undefined): number | string | undefined {
+  return raw !== undefined && /^\d+$/.test(raw) ? Number(raw) : raw;
+}
+
 export function makeRng(seed: number | string): Rng {
   const next = mulberry32(seedFrom(seed));
   const self: Rng = {

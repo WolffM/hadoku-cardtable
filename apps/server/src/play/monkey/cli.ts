@@ -19,7 +19,7 @@ import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { fetchDeckLibrary } from './deck-pool.ts';
-import { makeRng, seedFrom } from './rng.ts';
+import { makeRng, seedArg, seedFrom } from './rng.ts';
 import { runMatch } from './run-match.ts';
 import { buildReport, summaryText, type MatchResult } from './report.ts';
 
@@ -57,7 +57,7 @@ function parseArgs(argv: readonly string[]): Args {
   };
   const sample = get('sample');
   return {
-    seed: get('seed') ?? Date.now(),
+    seed: seedArg(get('seed')) ?? Date.now(),
     matchesPerDeck: Number(get('matches-per-deck') ?? '1'),
     deck: get('deck') ?? null,
     sample: sample === undefined ? null : Number(sample),

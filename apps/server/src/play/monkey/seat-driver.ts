@@ -172,6 +172,9 @@ export async function driveSeat(
     } else {
       const action = takeRandomBoardAction(rng, match);
       if (action !== null) {
+        // What the seat's own act opens next is a new question, not the last one coming back: a loop is
+        // Forge asking again with nothing done in between, never the monkey clicking the same card again.
+        declined.clear();
         push(`seat ${opts.seat} t${match.view?.turn ?? '-'} ${match.view?.phase ?? '-'}: ${action.kind} ${action.detail} ok=${action.ok}`);
         if (!action.ok) flag('click-refused', `board action ${action.kind} ${action.detail} was refused`);
         decisions += 1;

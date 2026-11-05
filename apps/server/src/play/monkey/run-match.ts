@@ -77,6 +77,25 @@ async function startAiMatch(opts: RunMatchOptions): Promise<{ matchId: string } 
   return { matchId: body.matchId };
 }
 
+/**
+ * Whether a frame the seat received refuses something it sent: Forge's own turned-away click. Not the
+ * server's `unpayable` flash — that is the server cancelling a cost nothing can pay (e2d49c260), a
+ * handled case any player meets by clicking a spell they cannot afford.
+ */
+export function isRefusal(payload: unknown): boolean {
+  const frame = (payload as { frame?: { kind?: string; method?: string; cause?: string } }).frame;
+  return frame?.kind === 'notify' && frame.method === 'flashIncorrectAction' && frame.cause !== 'unpayable';
+}
+
+/**
+ * This match's server log lines worth a flag: `ask-unclassified`, a question `answerability` has no
+ * rule for. Not `ask-unanswerable`: that is the server answering a question no seat could, by its own
+ * rule (7f343ec90) — an unpayable cost cancelled, an empty ability offer declined.
+ */
+export function serverFlagsOf(rows: readonly Record<string, unknown>[], matchId: string): { evt: string; detail: string }[] {
+  return rows.filter((row) => row.matchId === matchId && row.evt === 'ask-unclassified').map((row) => ({ evt: String(row.evt), detail: JSON.stringify(row) }));
+}
+
 /** How long a conceded match gets to end before the run moves on without it. */
 const GIVE_UP_MS = 15_000;
 
@@ -133,8 +152,7 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
     cookie: opts.cookie,
     tap: {
       onServerFrame: (payload) => {
-        const envelope = payload as { frame?: { kind?: string; method?: string } };
-        if (envelope.frame?.kind === 'notify' && envelope.frame.method === 'flashIncorrectAction') refusals += 1;
+        if (isRefusal(payload)) refusals += 1;
       },
     },
   });
@@ -147,16 +165,7 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
   });
 
   const drainLog = makeLogTail(opts.serverLogFile);
-  const drainServerFlags = (): { evt: string; detail: string }[] => {
-    const out: { evt: string; detail: string }[] = [];
-    for (const row of drainLog()) {
-      if (row.matchId !== matchId) continue;
-      if (row.evt === 'ask-unanswerable' || row.evt === 'ask-unclassified') {
-        out.push({ evt: String(row.evt), detail: JSON.stringify(row) });
-      }
-    }
-    return out;
-  };
+  const drainServerFlags = (): { evt: string; detail: string }[] => serverFlagsOf(drainLog(), matchId);
 
   const deadline = Date.now() + opts.matchTimeoutMs;
   const isOver = (): boolean => {

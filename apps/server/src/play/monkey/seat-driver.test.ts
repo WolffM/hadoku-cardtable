@@ -17,7 +17,8 @@ import { SERVER_FRAME_EXAMPLES } from '../../../../../packages/forge-wire/src/ex
 
 import { clearDeclineStreak, declineStreak, hasNoLegalAnswer, type DeclinedStreaks } from './seat-driver.ts';
 import type { LiveAsk } from './random-answer.ts';
-import { makeLogTail } from './run-match.ts';
+import { isRefusal, makeLogTail, serverFlagsOf } from './run-match.ts';
+import { seedArg, seedFrom } from './rng.ts';
 
 import { mkdtempSync, writeFileSync, appendFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -120,5 +121,30 @@ describe('makeLogTail — flag (e), server-unclassified', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('what counts as a finding — the server handling a case by its own rule never does', () => {
+  it('a turned-away click is a refusal; the server cancelling a cost nothing can pay is not', () => {
+    expect(isRefusal({ frame: { kind: 'notify', method: 'flashIncorrectAction' } })).toBe(true);
+    expect(isRefusal({ frame: { kind: 'notify', method: 'flashIncorrectAction', cause: 'unpayable' } })).toBe(false);
+    expect(isRefusal({ frame: { kind: 'notify', method: 'showPromptMessage' } })).toBe(false);
+  });
+
+  it('flags this match’s ask-unclassified lines, not ask-unanswerable ones the server answered itself', () => {
+    const rows = [
+      { evt: 'ask-unanswerable', matchId: 'm-1', method: 'payment', why: 'nothing can pay {5}{B}' },
+      { evt: 'ask-unclassified', matchId: 'm-1', method: 'payment' },
+      { evt: 'ask-unclassified', matchId: 'm-OTHER', method: 'confirm' },
+    ];
+    expect(serverFlagsOf(rows, 'm-1').map((f) => f.evt)).toEqual(['ask-unclassified']);
+  });
+});
+
+describe('seedArg — a printed seed reproduces its run', () => {
+  it('reads the digits a run printed as that number, and anything else as a text seed', () => {
+    expect(seedFrom(seedArg('2899421584')!)).toBe(2899421584);
+    expect(seedArg('nightly-1')).toBe('nightly-1');
+    expect(seedArg(undefined)).toBeUndefined();
   });
 });
