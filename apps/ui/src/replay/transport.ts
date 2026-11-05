@@ -226,10 +226,18 @@ export async function fetchReplays(limit: number, fetchImpl: Fetch = defaultFetc
   return body.replays.map(parseListing).filter((r): r is ReplayListing => r !== null);
 }
 
-/** The single newest replay, or `null` when there is none yet. */
-export async function fetchLatestReplay(fetchImpl: Fetch = defaultFetch): Promise<ReplayListing | null> {
-  const [latest] = await fetchReplays(1, fetchImpl);
-  return latest ?? null;
+/** The most the server lists (`MAX_LIST_LIMIT` in the server's `http/replays.ts`). */
+const RANDOM_POOL = 100;
+
+/**
+ * One of the newest replays, at random, or `null` when there is none yet. A recorded stream is preferred
+ * to one the server would have to rebuild, which costs it a game's worth of work.
+ */
+export async function fetchRandomReplay(fetchImpl: Fetch = defaultFetch, random: () => number = Math.random): Promise<ReplayListing | null> {
+  const listed = await fetchReplays(RANDOM_POOL, fetchImpl);
+  const streams = listed.filter((r) => r.source === 'stream');
+  const pool = streams.length > 0 ? streams : listed;
+  return pool[Math.floor(random() * pool.length)] ?? null;
 }
 
 /** `GET /api/replays/:matchId`. `null` on the server's 404 (no stream, and `rebuild` could not make one); throws on anything else. */

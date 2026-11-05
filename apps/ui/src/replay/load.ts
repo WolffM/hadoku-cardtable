@@ -4,7 +4,7 @@
  * every face on that board decoded before the board is shown (the operator, 2026-10-28: *"ideally the
  * user doesn't have to sit through the loading"*). The rest of the match's art warms behind it.
  *
- * The front page asks for the newest replay when it boots ({@link latestReplay}), once per page; a
+ * The front page asks for a random replay when it boots ({@link featuredReplay}), once per page; a
  * replay's body is immutable and the server says so, so a second visit reads it from the browser's
  * cache.
  */
@@ -15,7 +15,7 @@ import { subscribe } from '../play/live/match.ts';
 import { artReady, cardImageUrl } from '../draft/cardImage.ts';
 import { createReplayPlayer, type ReplayOptions, type ReplayPlayer } from './player.ts';
 import type { Fetch } from '../http.ts';
-import { fetchLatestReplay, fetchReplay, reportReplayTrouble, type ReplayData } from './transport.ts';
+import { fetchRandomReplay, fetchReplay, reportReplayTrouble, type ReplayData } from './transport.ts';
 
 /** Every face `view` draws: both hands, every zone, the stack's sources. */
 function facesOf(view: BoardView): (string | undefined)[] {
@@ -54,21 +54,21 @@ export async function readyPlayer(data: ReplayData, options: ReplayOptions = {})
   return player;
 }
 
-let latest: Promise<ReplayData | null> | null = null;
+let featured: Promise<ReplayData | null> | null = null;
 
 /**
- * The newest replay's recording, fetched once per page (a test's own `fetchImpl` fetches afresh).
+ * A random recent replay's recording, chosen and fetched once per page (a test's own `fetchImpl` fetches afresh).
  * `null`: there is none to show, or it could not be loaded, which is reported, never drawn.
  */
-export function latestReplay(fetchImpl?: Fetch): Promise<ReplayData | null> {
+export function featuredReplay(fetchImpl?: Fetch): Promise<ReplayData | null> {
   const load = (): Promise<ReplayData | null> =>
-    fetchLatestReplay(fetchImpl)
+    fetchRandomReplay(fetchImpl)
       .then((listing) => (listing === null ? null : fetchReplay(listing.matchId, fetchImpl)))
       .catch((err: unknown) => {
         reportReplayTrouble('load-failed', null, { error: err instanceof Error ? err.message : String(err) }, fetchImpl);
         return null;
       });
   if (fetchImpl !== undefined) return load();
-  latest ??= load();
-  return latest;
+  featured ??= load();
+  return featured;
 }

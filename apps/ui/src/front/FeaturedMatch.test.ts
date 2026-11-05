@@ -86,11 +86,11 @@ describe('FeaturedMatch', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('with no pick, falls back to the newest replay, tagged REPLAY, linking to #/replay/<id>', async () => {
+  it('with no pick, falls back to a recent replay, tagged REPLAY, linking to #/replay/<id>', async () => {
     const data = replayData('m-replay', ['Alice', 'Bob']);
     const fetchImpl: Fetch = (input) => {
       const url = String(input);
-      if (url.includes('limit=1')) return Promise.resolve(json(200, { replays: [{ matchId: 'm-replay', roomId: null, players: ['Alice', 'Bob'], decks: [], startedAt: data.header.startedAt, endedAt: null, winner: null, source: 'stream' }] }));
+      if (url.includes('limit=')) return Promise.resolve(json(200, { replays: [{ matchId: 'm-replay', roomId: null, players: ['Alice', 'Bob'], decks: [], startedAt: data.header.startedAt, endedAt: null, winner: null, source: 'stream' }] }));
       return Promise.resolve(json(200, data));
     };
     const { getByTestId, queryByTestId } = render(createElement(FeaturedMatch, { pick: null, fetchImpl, replayFallback: true }));
@@ -152,7 +152,7 @@ describe('FeaturedMatch', () => {
     const data = replayData('m-replay', ['Alice', 'Bob'], 1);
     const fetchImpl: Fetch = (input) => {
       const url = String(input);
-      if (url.includes('limit=1')) return Promise.resolve(json(200, { replays: [{ matchId: 'm-replay', roomId: null, players: ['Alice', 'Bob'], decks: [], startedAt: data.header.startedAt, endedAt: null, winner: null, source: 'stream' }] }));
+      if (url.includes('limit=')) return Promise.resolve(json(200, { replays: [{ matchId: 'm-replay', roomId: null, players: ['Alice', 'Bob'], decks: [], startedAt: data.header.startedAt, endedAt: null, winner: null, source: 'stream' }] }));
       return Promise.resolve(json(200, data));
     };
     const { getByTestId, queryByTestId } = render(createElement(FeaturedMatch, { pick: null, fetchImpl, replayFallback: true }));

@@ -9,7 +9,7 @@
  * transport, the same `LiveMatch` — and a socket with no seat lands on
  * `WATCHER_SEAT` by construction (`apps/server/src/play/socket.ts`), so there
  * is nothing here that claims one. With no pick, and only while `REPLAYS_ON`,
- * it falls back to the newest replay, looping, with a REPLAY tag in place of
+ * it falls back to a random recent replay, looping, with a REPLAY tag in place of
  * LIVE. With neither, it renders nothing and lane A's grid closes the gap.
  *
  * A replay is a file, not a connection (wave 81): it is fetched when the front page mounts, and the
@@ -53,7 +53,7 @@ import {
 } from '../play/live/match.ts';
 import type { Fetch } from '../http.ts';
 import { holdMatchQuiet } from '../sound/index.ts';
-import { latestReplay, readyPlayer } from '../replay/load.ts';
+import { featuredReplay, readyPlayer } from '../replay/load.ts';
 import type { ReplayClock } from '../replay/player.ts';
 import { ReplayBoard } from '../replay/ReplayBoard.tsx';
 import { REPLAYS_ON } from '../replay/transport.ts';
@@ -66,7 +66,7 @@ export interface FeaturedMatchProps {
   makeTransport?: () => MatchTransport;
   /** Tests pass a stub `fetch` for the no-pick replay fallback. Production leaves it unset. */
   fetchImpl?: Fetch;
-  /** Fall back to the newest replay when there is no pick. Defaults to `REPLAYS_ON`. */
+  /** Fall back to a random recent replay when there is no pick. Defaults to `REPLAYS_ON`. */
   replayFallback?: boolean;
   /**
    * Told once per pick what came of it: `true` when a board is drawn (the live match's first view, or
@@ -184,7 +184,7 @@ export function FeaturedMatch({ pick, makeTransport, fetchImpl, replayFallback =
       });
     } else if (replayFallback) {
       setSource('loading');
-      void latestReplay(fetchImpl).then(async (data) => {
+      void featuredReplay(fetchImpl).then(async (data) => {
         if (!live) return;
         if (data === null) {
           setSource(null);

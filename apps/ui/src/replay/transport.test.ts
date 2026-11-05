@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { parseServerFrame } from '@hadoku/forge-wire';
 
 import type { Fetch } from '../http.ts';
-import { fetchLatestReplay, fetchReplay, fetchReplays, parseReplayData } from './transport.ts';
+import { fetchRandomReplay, fetchReplay, fetchReplays, parseReplayData } from './transport.ts';
 
 const json = (status: number, body: unknown): Response =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -106,7 +106,7 @@ describe('fetchReplay', () => {
   });
 });
 
-describe('fetchReplays / fetchLatestReplay', () => {
+describe('fetchReplays / fetchRandomReplay', () => {
   const LISTING = { matchId: 'm-2', roomId: 'r-2', players: ['Carol', 'Dave'], decks: [], startedAt: '2026-10-27T00:00:00.000Z', endedAt: '2026-10-27T00:05:00.000Z', winner: 1, source: 'stream' };
 
   it('GETs with the limit and returns the list', async () => {
@@ -117,12 +117,24 @@ describe('fetchReplays / fetchLatestReplay', () => {
     expect(calls[0]!.url).toContain('limit=5');
   });
 
-  it('fetchLatestReplay takes the first row, null on an empty list', async () => {
-    const { fetchImpl } = stub(() => json(200, { replays: [LISTING] }));
-    expect((await fetchLatestReplay(fetchImpl))?.matchId).toBe('m-2');
+  it('fetchRandomReplay asks for the whole list and picks one at random, null on an empty list', async () => {
+    const rows = ['m-1', 'm-2', 'm-3'].map((matchId) => ({ ...LISTING, matchId }));
+    const { fetchImpl, calls } = stub(() => json(200, { replays: rows }));
+    expect((await fetchRandomReplay(fetchImpl, () => 0))?.matchId).toBe('m-1');
+    expect((await fetchRandomReplay(fetchImpl, () => 0.5))?.matchId).toBe('m-2');
+    expect((await fetchRandomReplay(fetchImpl, () => 0.999))?.matchId).toBe('m-3');
+    expect(calls[0]!.url).toContain('limit=100');
 
     const { fetchImpl: empty } = stub(() => json(200, { replays: [] }));
-    expect(await fetchLatestReplay(empty)).toBeNull();
+    expect(await fetchRandomReplay(empty)).toBeNull();
+  });
+
+  it('fetchRandomReplay prefers a recorded stream to one the server must rebuild, and takes a rebuild when that is all there is', async () => {
+    const { fetchImpl } = stub(() => json(200, { replays: [{ ...LISTING, matchId: 'm-rebuild', source: 'rebuild' }, { ...LISTING, matchId: 'm-stream' }] }));
+    expect((await fetchRandomReplay(fetchImpl, () => 0))?.matchId).toBe('m-stream');
+
+    const { fetchImpl: rebuilds } = stub(() => json(200, { replays: [{ ...LISTING, matchId: 'm-rebuild', source: 'rebuild' }] }));
+    expect((await fetchRandomReplay(rebuilds, () => 0))?.matchId).toBe('m-rebuild');
   });
 
   it('an unknown `source` is treated as `none`, never thrown away', async () => {
