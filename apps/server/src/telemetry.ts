@@ -219,15 +219,21 @@ export interface FirstSeenOptions {
 	log: JsonLog;
 }
 
+export interface FirstSeen {
+	(req: Request, res: Response, next: NextFunction): void;
+	/** Drop one account from the list (account erase); 1 when it was there, else 0. */
+	forget(userId: string): number;
+}
+
 /**
  * Middleware, mounted below the tier floor: the first request this server ever
  * admits from a user id reports `caller-first-seen` with its tier and user
  * agent — the "who is getting in" signal, once per account, not per visit.
  * Callers the edge named nobody (a null userId) are not accounts and are skipped.
  */
-export function firstSeen(opts: FirstSeenOptions): (req: Request, res: Response, next: NextFunction) => void {
+export function firstSeen(opts: FirstSeenOptions): FirstSeen {
 	const seen = new Set<string>(readSeen(opts.file, opts.log));
-	return (req, _res, next) => {
+	const middleware = (req: Request, _res: Response, next: NextFunction): void => {
 		const userId = opts.userIdOf(req);
 		if (userId !== null && !seen.has(userId)) {
 			seen.add(userId);
@@ -241,6 +247,13 @@ export function firstSeen(opts: FirstSeenOptions): (req: Request, res: Response,
 		}
 		next();
 	};
+	return Object.assign(middleware, {
+		forget(userId: string): number {
+			if (!seen.delete(userId)) return 0;
+			writeSeen(opts.file, seen, opts.log);
+			return 1;
+		},
+	});
 }
 
 function readSeen(file: string, log: JsonLog): string[] {

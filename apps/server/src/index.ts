@@ -127,6 +127,7 @@ import { attachLooks, createPeople } from './people.js';
 import { openEvents } from './room/events.js';
 import { openTournaments } from './room/tournaments.js';
 import { jsonLogger } from './log.js';
+import { createAccountErase, ERASE_PATH } from './erase/index.js';
 import { firstSeen, installTelemetry, monitoringSink, reportingAlerts, siteOf } from './telemetry.js';
 import { createKeyBook, createMatchStats, createStatsReporter } from './stats/index.js';
 import { recordMatch } from '@wolffm/prefs-client/games';
@@ -246,12 +247,20 @@ app.get(
 	})
 );
 
+// ── Account erase (the edge's seal only, never a tier) ───────────────────────
+// Above the floor and `firstSeen`, and refused without the seal: `erase/index.ts`
+// has why. Each store registers its own step where it is built, below.
+const accountErase = createAccountErase({ log: jsonLogger('cardtable') });
+app.post(ERASE_PATH, (req: Request, res: Response) => void accountErase.handle(req, res));
+
 // ── The tier floor ───────────────────────────────────────────────────────────
 // Everything below this line is gated. Register new public routes ABOVE it and
 // say why in a comment — this line moving down is the shape of a privilege bug.
 app.use(requireMinTier);
 // Who got in: one `caller-first-seen` per account, ever (`telemetry.ts`).
-app.use(firstSeen({ file: CONFIG.callersSeenFile, userIdOf: callerIdOf, tierOf, log: jsonLogger('cardtable-telemetry') }));
+const callersSeen = firstSeen({ file: CONFIG.callersSeenFile, userIdOf: callerIdOf, tierOf, log: jsonLogger('cardtable-telemetry') });
+app.use(callersSeen);
+accountErase.register({ what: 'callersSeen', erase: (p) => callersSeen.forget(p.userId) });
 
 // ── API ──────────────────────────────────────────────────────────────────────
 // Mount the app's own routes here. They arrive prefix-stripped, so a browser
@@ -267,6 +276,7 @@ api.use(express.json({ limit: '1mb' }));
 // the table routes exist, below. See src/stats/.
 const statsKeys = createKeyBook();
 api.use(statsKeys.remember);
+accountErase.register({ what: 'statsKeys', erase: (p) => statsKeys.forget(p.participantId) });
 
 api.get('/whoami', (req: Request, res: Response) => {
 	// Handed straight through from the edge, post-sanitize. Useful as the first
@@ -614,6 +624,7 @@ const roomClosed = (roomId: string, matches: readonly string[]): void => {
 };
 // Every member's avatar picture and cosmetics, from prefs-api (`people.ts`).
 const people = createPeople({ baseUrl: CONFIG.prefsBaseUrl, serviceKey: CONFIG.serviceKey, keyless: CONFIG.testPeopleStandIn, log: roomsLog });
+accountErase.register({ what: 'people', erase: (p) => people.forget(p.userId) });
 const looks = attachLooks(lobby, people, UNNAMED);
 attachRooms(api, {
 	lobby,

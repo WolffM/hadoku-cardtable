@@ -35,6 +35,8 @@ export interface KeyBook {
 	remember(req: Request, res: Response, next: NextFunction): void;
 	/** The key a participant last made a request with, or null. */
 	keyOf(participantId: string): string | null;
+	/** Drop a participant's key (account erase); 1 when one was held, else 0. */
+	forget(participantId: string): number;
 }
 
 /** Comfortably more than the friend group; a bound, not a budget. */
@@ -60,5 +62,6 @@ export function createKeyBook(capacity = DEFAULT_CAPACITY): KeyBook {
 			next();
 		},
 		keyOf: (participantId) => keys.get(participantId) ?? null,
+		forget: (participantId) => (keys.delete(participantId) ? 1 : 0),
 	};
 }

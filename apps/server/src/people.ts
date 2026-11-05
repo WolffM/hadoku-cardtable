@@ -34,6 +34,8 @@ export interface People {
 	resolve(userIds: readonly string[], opts?: { fresh?: boolean }): Promise<Map<string, Person>>;
 	/** The cached answer for one id, or undefined when there is none fresh. */
 	peek(userId: string): Person | undefined;
+	/** Drop the cached answer for one id (account erase); 1 when one was held, else 0. */
+	forget(userId: string): number;
 }
 
 export interface PeopleOptions {
@@ -83,6 +85,7 @@ export function createPeople(opts: PeopleOptions): People {
 
 	return {
 		peek,
+		forget: (userId) => (cache.delete(userId) ? 1 : 0),
 		async resolve(userIds, { fresh = false } = {}) {
 			const out = new Map<string, Person>();
 			const missing: string[] = [];

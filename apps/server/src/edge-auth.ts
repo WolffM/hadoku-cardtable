@@ -101,6 +101,15 @@ export function sanitizeHeaders(headers: Record<string, unknown>): void {
 }
 
 /**
+ * Did this request carry the edge's own seal? Not the bare-local hatch, which
+ * believes any header: a route only the edge may call (the account-erase hook)
+ * asks this rather than a tier.
+ */
+export function edgeSealed(req: Request): boolean {
+	return edgeProvenanceOk(req.headers as Record<string, unknown>);
+}
+
+/**
  * The caller's tier as cardtable treats it: the edge's `X-Hadoku-Tier`, except
  * that a member the operator vouches for IS a friend here. The operator,
  * 2026-11-05: *"the only difference between vouched members and friends is the
