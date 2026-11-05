@@ -6607,40 +6607,12 @@ public final class PlayBridge {
 
             /**
              * What the game holds that the text above cannot ({@code docs/planning/restart-turn-plan.md}
-             * part 2), read off the live game on its own thread as the text is written. A restart refuses
+             * part 2): {@code GameState.unwritten}, which the fork keeps beside the text it describes, so a
+             * kind leaves the list in the same commit that teaches the text to carry it. A restart refuses
              * a turn whose snapshot names any of it, rather than restore a board that is not the game's.
-             *
-             * <p>The card kinds are {@code GameState}'s own two skips, so nothing it drops goes unnamed:
-             * {@code initFromGame} passes over a {@code DetachedCardEffect}, and {@code addCard} writes
-             * nothing for a card that is not a token and has no paper card (an emblem, an effect).
-             * The rest is game state its text has no line for. Delayed triggers are private to
-             * {@code TriggerHandler} and read as the rest of this bridge reads Forge's internals; a
-             * read that fails names itself, so an unknown is a refusal, never a pass.
              */
             private List<String> lossy() {
-                final java.util.Set<String> kinds = new java.util.TreeSet<>();
-                if (game.getMonarch() != null) { kinds.add("monarch"); }
-                if (game.getHasInitiative() != null) { kinds.add("initiative"); }
-                if (game.getDayTime() != null) { kinds.add("day-night"); }
-                for (final ZoneType zone : List.of(ZoneType.Battlefield, ZoneType.Hand, ZoneType.Graveyard, ZoneType.Library, ZoneType.Exile, ZoneType.Command)) {
-                    for (final forge.game.card.Card c : game.getCardsIncludePhasingIn(zone)) {
-                        if (c instanceof forge.game.ability.effects.DetachedCardEffect) { kinds.add("detached-effect"); }
-                        else if (!c.isToken() && c.getPaperCard() == null) { kinds.add(c.isEmblem() ? "emblem" : "effect"); }
-                        if (zone == ZoneType.Battlefield && c.getOwner() != c.getController()) { kinds.add("control"); }
-                    }
-                }
-                try {
-                    final var handler = game.getTriggerHandler();
-                    final Class<?> declaring = forge.game.trigger.TriggerHandler.class;
-                    for (final String name : List.of("delayedTriggers", "thisTurnDelayedTriggers")) {
-                        if (!((Collection<?>) SeatGui.field(handler, declaring, name)).isEmpty()) { kinds.add("delayed-trigger"); }
-                    }
-                    if (!((com.google.common.collect.Multimap<?, ?>) SeatGui.field(handler, declaring, "playerDefinedDelayedTriggers")).isEmpty()) { kinds.add("delayed-trigger"); }
-                } catch (final ReflectiveOperationException | RuntimeException e) {
-                    System.err.println("[bridge] turn " + game.getPhaseHandler().getTurn() + ": could not read the delayed triggers (" + e + ")");
-                    kinds.add("delayed-trigger-unread");
-                }
-                return new ArrayList<>(kinds);
+                return GameState.unwritten(game);
             }
         }
 

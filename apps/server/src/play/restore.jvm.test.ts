@@ -31,6 +31,8 @@ function snapshots(s: Scenario): Snapshot[] {
 
 /** Keys whose value names other cards by id: `Id:` marks the card the others point at. */
 const ID_REF = /\b(AttachedTo|ExiledWith|RememberedCards|Imprinting|ChosenCards|Attacking):([\d,]+)/g;
+/** A control condition's source, `ControlUntil:<kinds>@<id>`. */
+const UNTIL_REF = /\b(ControlUntil:[A-Za-z+]+)@(\d+)/g;
 /** Zones whose order is the game's: the battlefield is rebuilt tokens first, so it is compared as a set. */
 const UNORDERED = /^p\dbattlefield$/;
 
@@ -54,7 +56,12 @@ function normalized(state: string): Record<string, string[]> {
 			.slice(at + 1)
 			.split(';')
 			.filter((e) => e !== '')
-			.map((e) => e.replace(/\|Id:(\d+)/, (_m, id: string) => `|Id:${name(id)}`).replace(ID_REF, (_m, k: string, ids: string) => `${k}:${ids.split(',').map(name).join(',')}`));
+			.map((e) =>
+				e
+					.replace(/\|Id:(\d+)/, (_m, id: string) => `|Id:${name(id)}`)
+					.replace(ID_REF, (_m, k: string, ids: string) => `${k}:${ids.split(',').map(name).join(',')}`)
+					.replace(UNTIL_REF, (_m, k: string, id: string) => `${k}@${name(id)}`),
+			);
 		out[key] = UNORDERED.test(key) ? entries.sort() : entries;
 	}
 	return out;
@@ -394,14 +401,90 @@ describe.skipIf(!available.ok)(`${title}: restart turn`, () => {
 		'a turn whose snapshot cannot hold the whole game names what it lacks, and is not restarted',
 		async () => {
 			if (!available.ok) return;
-			// Seat 0 controls seat 1's Grizzly Bears: a control change GameState's text cannot carry as Forge holds it.
+			// Seat 0 takes seat 1's Grizzly Bears "until the end of your next turn" as the board applies: a
+			// condition kept by the end-of-turn handler, not by a card, which no text carries yet
+			// (control-condition). The host is seat 0's Forest.
 			const scenario = [
 				'turn=3',
 				'activeplayer=human',
 				'activephase=MAIN1',
 				'humanlife=20',
 				'ailife=20',
-				'humanbattlefield=Forest;Grizzly Bears|Owner:P1',
+				'humanbattlefield=Forest|Id:501',
+				'humanprecast=501:CustomScript:DB$ GainControl | ValidTgts$ Creature | LoseControl$ UntilTheEndOfYourNextTurn->601',
+				'humanlibrary=' + Array.from({ length: 20 }, () => 'Forest').join(';'),
+				'aibattlefield=Mountain;Grizzly Bears|Id:601',
+				'ailibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
+			].join('\n');
+			const s = await startScenario(available.config, { seed: 3, decks: decks(), scenario, skipOpening: true });
+			try {
+				await passUntil(s, noAttacks(s, () => snapshots(s).some((l) => l.turn === 4) && inOwnMain(s, 1, 4)), 'turn 4, its first main', 120_000);
+				expect(s.zone(0, 'Battlefield').map((c) => c.name), 'seat 0 took the Bears').toContain('Grizzly Bears');
+				expect(snapshots(s).find((l) => l.turn === 4)?.lossy).toEqual(['control-condition']);
+				expect(s.match.restartState()).toMatchObject({ turn: 4, restorable: false });
+				expect(s.match.restartAct(1, 'ask')).toEqual({ ok: false, error: 'not-restorable' });
+				expect(s.logs.find((l) => l.evt === 'snapshot-lossy')).toMatchObject({ turn: 4, kinds: ['control-condition'] });
+			} finally {
+				await s.stop();
+			}
+		},
+		300_000,
+	);
+
+	it(
+		'a control that ends when its source leaves comes through a restart with its condition: Sower of Temptation',
+		async () => {
+			if (!available.ok) return;
+			const scenario = [
+				'turn=3',
+				'activeplayer=human',
+				'activephase=MAIN1',
+				'humanlife=20',
+				'ailife=20',
+				'humanbattlefield=Forest;Sower of Temptation|Id:501|ExecuteScript:TrigChange->601',
+				'humanlibrary=' + Array.from({ length: 20 }, () => 'Forest').join(';'),
+				'aibattlefield=Mountain;Grizzly Bears|Id:601',
+				'ailibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
+			].join('\n');
+			const s = await startScenario(available.config, { seed: 3, decks: decks(), scenario, skipOpening: true });
+			try {
+				await passUntil(s, noAttacks(s, () => snapshots(s).some((l) => l.turn === 4) && inOwnMain(s, 1, 4)), 'turn 4, its first main', 120_000);
+				const from = snapshots(s).find((l) => l.turn === 4)!;
+				expect(from.lossy, 'Sower\'s condition is written').toBeUndefined();
+				expect(normalized(from.state).p0battlefield).toEqual(
+					expect.arrayContaining([expect.stringMatching(/^Grizzly Bears\|.*\|Owner:P1\|BaseController:P1\|GainedControl:P0\|ControlUntil:LeavesPlay@Sower of Temptation(\||$)/)]),
+				);
+
+				const lines = s.lines.length;
+				expect(s.match.restartAct(1, 'ask')).toEqual({ ok: true });
+				expect(s.match.restartAct(0, 'allow')).toEqual({ ok: true });
+				await waitUntil(() => s.lines.slice(lines).some((l) => l.t === 'snapshot'), "the restarted turn's own snapshot", 120_000, s);
+				const again = s.lines.slice(lines).find((l): l is Snapshot & { hostT: number } => l.t === 'snapshot')!;
+				expect(again.lossy).toBeUndefined();
+				// The restored control writes its condition again: it was put back on the restored Sower.
+				expect(normalized(again.state)).toEqual(normalized(from.state));
+			} finally {
+				await s.stop();
+			}
+		},
+		300_000,
+	);
+
+	it(
+		'stolen permanents come through a restart in their layers: an Aura\'s control, an effect\'s, and a reanimated creature\'s',
+		async () => {
+			if (!available.ok) return;
+			// Seat 0 controls three of seat 1's creatures three ways. Control Magic's Bears: base controller
+			// its owner, control from the Aura's static, so the Aura leaving would give them back. The Hill
+			// Giant: control a resolved effect gave for good. The Elves: put onto the battlefield under seat
+			// 0, so seat 0 is their base controller.
+			const scenario = [
+				'turn=3',
+				'activeplayer=human',
+				'activephase=MAIN1',
+				'humanlife=20',
+				'ailife=20',
+				'humanbattlefield=Forest;Control Magic|AttachedTo:601;Grizzly Bears|Id:601|Owner:P1|BaseController:P1;Hill Giant|Owner:P1|BaseController:P1|GainedControl:P0;Llanowar Elves|Owner:P1',
 				'humanlibrary=' + Array.from({ length: 20 }, () => 'Forest').join(';'),
 				'aibattlefield=Mountain',
 				'ailibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
@@ -409,10 +492,76 @@ describe.skipIf(!available.ok)(`${title}: restart turn`, () => {
 			const s = await startScenario(available.config, { seed: 3, decks: decks(), scenario, skipOpening: true });
 			try {
 				await passUntil(s, noAttacks(s, () => snapshots(s).some((l) => l.turn === 4) && inOwnMain(s, 1, 4)), 'turn 4, its first main', 120_000);
-				expect(snapshots(s).find((l) => l.turn === 4)?.lossy).toEqual(['control']);
-				expect(s.match.restartState()).toMatchObject({ turn: 4, restorable: false });
-				expect(s.match.restartAct(1, 'ask')).toEqual({ ok: false, error: 'not-restorable' });
-				expect(s.logs.find((l) => l.evt === 'snapshot-lossy')).toMatchObject({ turn: 4, kinds: ['control'] });
+				const from = snapshots(s).find((l) => l.turn === 4)!;
+				expect(from.lossy, 'every layer of control is written').toBeUndefined();
+				const field = normalized(from.state).p0battlefield ?? [];
+				expect(field).toEqual(
+					expect.arrayContaining([
+						expect.stringMatching(/^Grizzly Bears\|.*\|Owner:P1\|BaseController:P1(\||$)/),
+						expect.stringMatching(/^Hill Giant\|.*\|Owner:P1\|BaseController:P1\|GainedControl:P0(\||$)/),
+						expect.stringMatching(/^Llanowar Elves\|.*\|Owner:P1(\||$)/),
+					]),
+				);
+				expect(field.find((e) => e.startsWith('Grizzly Bears')), "the Aura's control is the static's, never written").not.toMatch(/GainedControl/);
+				expect(field.find((e) => e.startsWith('Llanowar Elves')), 'a base controller needs no layer').not.toMatch(/BaseController/);
+
+				const lines = s.lines.length;
+				expect(s.match.restartAct(1, 'ask')).toEqual({ ok: true });
+				expect(s.match.restartAct(0, 'allow')).toEqual({ ok: true });
+				await waitUntil(() => s.lines.slice(lines).some((l) => l.t === 'snapshot'), "the restarted turn's own snapshot", 120_000, s);
+				const again = s.lines.slice(lines).find((l): l is Snapshot & { hostT: number } => l.t === 'snapshot')!;
+				expect(again.lossy).toBeUndefined();
+				expect(normalized(again.state)).toEqual(normalized(from.state));
+				await passUntil(s, noAttacks(s, () => inOwnMain(s, 1, 4)), 'the restarted turn 4, its first main', 120_000);
+				expect(s.zone(0, 'Battlefield').map((c) => c.name)).toEqual(expect.arrayContaining(['Grizzly Bears', 'Hill Giant', 'Llanowar Elves']));
+			} finally {
+				await s.stop();
+			}
+		},
+		300_000,
+	);
+
+	it(
+		'the monarch, the initiative, night, speed and radiation come through a restart as they were, with nothing left unwritten',
+		async () => {
+			if (!available.ok) return;
+			// Seat 1 is the monarch, seat 0 has the initiative, and it is night: turn 4 is seat 1's, so
+			// no upkeep venture runs, and no spell is cast, so night stays night. Seat 0 has speed 2 and
+			// seat 1 three rad counters: both effect cards come back from those lines alone. Seat 1's
+			// library is lands, so its radiation mill in main costs no life.
+			const scenario = [
+				'turn=3',
+				'activeplayer=human',
+				'activephase=MAIN1',
+				'humanlife=20',
+				'ailife=20',
+				'monarch=P1|CN2',
+				'initiative=P0|CLB',
+				'daytime=night',
+				'humanspeed=2',
+				'aicounters=RAD=3',
+				'humanbattlefield=Forest',
+				'humanlibrary=' + Array.from({ length: 20 }, () => 'Forest').join(';'),
+				'aibattlefield=Mountain',
+				'ailibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
+			].join('\n');
+			const s = await startScenario(available.config, { seed: 3, decks: decks(), scenario, skipOpening: true });
+			try {
+				await passUntil(s, noAttacks(s, () => snapshots(s).some((l) => l.turn === 4) && inOwnMain(s, 1, 4)), 'turn 4, its first main', 120_000);
+				const from = snapshots(s).find((l) => l.turn === 4)!;
+				expect(from.lossy, 'nothing the text cannot hold').toBeUndefined();
+				expect(normalized(from.state)).toMatchObject({ monarch: ['P1|CN2'], monarchbeginturn: ['P1'], initiative: ['P0|CLB'], daytime: ['night'], p0speed: ['2'], p1counters: ['RAD=3'] });
+				expect(s.match.restartState()).toMatchObject({ turn: 4, restorable: true });
+
+				const lines = s.lines.length;
+				expect(s.match.restartAct(1, 'ask')).toEqual({ ok: true });
+				expect(s.match.restartAct(0, 'allow')).toEqual({ ok: true });
+				await waitUntil(() => s.lines.slice(lines).some((l) => l.t === 'snapshot'), "the restarted turn's own snapshot", 120_000, s);
+				const again = s.lines.slice(lines).find((l): l is Snapshot & { hostT: number } => l.t === 'snapshot')!;
+				expect(again.turn).toBe(4);
+				expect(again.lossy, 'one of each effect card, each its holder\'s own').toBeUndefined();
+				expect(normalized(again.state)).toEqual(normalized(from.state));
+				expect(s.lines.slice(lines).filter((l) => l.t === 'log' && /monarch|initiative/i.test(JSON.stringify(l)) && /becomes|takes/i.test(JSON.stringify(l))), 'no "becomes the monarch" or "takes the initiative" ran again').toEqual([]);
 			} finally {
 				await s.stop();
 			}

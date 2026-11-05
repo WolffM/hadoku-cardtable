@@ -67,11 +67,13 @@ it, read off `GameState.initFromGame`/`applyToGame`):
 
 | kind | where Forge keeps it | difficulty |
 | --- | --- | --- |
-| monarch, initiative | `Game.getMonarch`, `getHasInitiative` | small: `GameCopier` copies both |
-| day/night | `Game.getDayTime` | small: `GameCopier` copies it |
+| monarch, initiative | `Game.getMonarch`, `getHasInitiative` | **carried** (slice 1) |
+| day/night | `Game.getDayTime` | **carried** (slice 1) |
+| speed, radiation effect cards | `speed=`, a player's RAD counters | **carried** (slice 1: they already came back from those lines; the round trip proves it) |
+| the other managed effect cards (`effect:keyword`, `blessing`, `enduring-story`, `contraption-sprocket`) | `Player`'s effect-card fields | small to medium each |
 | emblems, effect cards in the command zone | command zone `Card`s with no printed card | medium |
 | static effects not a card's own (`DetachedCardEffect`) | `Game.getStaticEffects` | medium: `GameCopier` copies them |
-| control changes and their timestamps | `Card` controller list | hard: `GameCopier` has a TODO for it |
+| control | `Card`'s base controller and timestamped temporary controllers | **carried in layers** (slice 2), with conditions on the source card (slice 3); `control-condition` names only UntilTheEndOfYourNextTurn, UntilSourceUnattached, StaticCommandCheck |
 | delayed triggers | `TriggerHandler` delayed triggers | hard: they hold abilities and remembered objects |
 | a player's turn history (spells cast, life lost, creatures died) | `Player` counters | medium; the snapshot is taken at the turn's start, so only "last turn" history matters |
 
@@ -89,9 +91,69 @@ Steps:
    snapshot again, the two texts equal. Each kind closed comes off the `lossy` list.
 3. Failover restores get every fix for free: they lose exactly the same things today.
 
-`control` is flagged on suspicion: `GameState` writes `Owner:` and re-applies the controller, but
-whether that survives Forge's layer system is unproven, so it refuses until its round-trip spec
-says otherwise. The same goes for any kind: it comes off the list only with a spec behind it.
+Not a shortcut: Forge's own `GameSnapshot` (`EXPERIMENTAL_RESTORE_SNAPSHOT`, the in-memory copy that
+rolls back a cancelled spell) was read as a possible base and rejected. It skips delayed triggers,
+has its static-effect copy commented out, carries a list of TODOs, and lives only in memory, so it
+cannot serve failover.
+
+### Slices 1 to 3 (fork `cardtable/snapshot-whole` @ 6889146e, one pin)
+
+The real-Forge proofs found four bugs before anything landed: day/night written backwards (Forge's
+`getDayTime()` is true for night), `Player.addCounterInternal` crashing on a player's RAD counters
+(an upstream bug that killed any restored game with them), and the two control bugs in slice 2.
+
+### Slice 1
+
+- `GameState` writes and applies `monarch=`, `monarchbeginturn=`, `initiative=` (`P<n>|<set>`) and
+  `daytime=`; the holder's effect card is recreated, so no "becomes the monarch" trigger runs.
+  Under `setRestore` an absent line is nobody.
+- `GameState.unwritten(game)` replaces the bridge's own scan, so what the text cannot carry is
+  listed beside the text: the card kinds it skips, every managed effect card it does not recreate by
+  name (`effect:speed`), control, and delayed triggers (`TriggerHandler.hasDelayedTriggers`, no
+  reflection).
+- Speed and radiation count as carried: `speed=` and RAD counters already recreate their cards.
+- Upstream fix on the way: `Player.getMonarchSet` dereferenced the effect card when it was null.
+- Forge's `getDayTime()` is true for NIGHT (`Game.isNight`). The first cut had it backwards, and its
+  own round trip agreed; only the real-Forge spec's "night stays night" caught it.
+- Proof: `restore.jvm.test.ts`, "the monarch, the initiative, night, speed and radiation come through
+  a restart".
+
+A kind comes off the list only with a spec behind it.
+
+### Slice 2: control in its layers
+
+Forge holds control as a base controller (who the permanent was put onto the battlefield under)
+plus timestamped temporary controllers, from a static ability (an Aura) or a resolved effect; the
+newest temporary one wins only if it is newer than the base. `Owner:` alone wrote the effective
+controller back as the base with the newest timestamp, so a creature under Control Magic stayed
+stolen after the Aura left a restored game.
+
+- Written now: `BaseController:` and one `GainedControl:` per control a resolved effect gave, in
+  timestamp order. A static's control is not written (statics give it again); the base goes back
+  below every timestamp (a static's is its host's layer timestamp, 0 on a card the text made), so
+  the static outranks it as it did. The layers go on once every player's zones are set: put on as
+  each card was read, a card whose base is the other player was moved to that player's battlefield
+  and then cleared from the game by that player's setup.
+- Not carried: control with `LoseControl$` (Sower of Temptation's "for as long as", "until it
+  untaps"), whose condition is an anonymous command. `ControlGainEffect` marks it
+  (`Card.markConditionalControl`) and `unwritten` names it `control-condition`, where part 1 refused
+  every stolen permanent as `control`. Carrying it means naming each condition kind
+  (`LeavesPlay` of a source card is the common one) and re-registering its command: slice 3.
+- Proof: `restore.jvm.test.ts`, "stolen permanents come through a restart in their layers".
+
+### Slice 3: control that ends on its source
+
+Counted in the card scripts at the pin: of the `LoseControl$` uses that outlast a turn (EOT's 127 and
+EndOfCombat's 1 end before the next upkeep), 39 of 42 watch only the effect's source card —
+`LeavesPlay`, `Untap`, `LoseControl` (Sower of Temptation, Old Man of the Sea, Merieke). Those are
+carried: `ControlGainEffect` records each control's kinds and source (`Card.ControlCondition`),
+`GameState` writes `ControlUntil:<kinds>@<source id>` after its `GainedControl:`, and the apply puts
+the same command back on the same source (`ControlGainEffect.restoreConditionalControl`).
+`control-condition` now names only the other three: UntilTheEndOfYourNextTurn (5 scripts), which
+the end-of-turn handler keeps; UntilSourceUnattached (1); StaticCommandCheck (2).
+
+Proof: Sower of Temptation's own ability comes through a restart with its condition written again
+on the restored Sower; a `CustomScript` precast of UntilTheEndOfYourNextTurn is refused.
 
 ## Deleted / made dead
 
