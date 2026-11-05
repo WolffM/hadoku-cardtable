@@ -411,10 +411,10 @@ export async function startLiveMatch(spec: MatchSpec): Promise<LiveHarness> {
          * forge:stop-preference" the way it was before this lane added it.
          */
         if (event === MATCH_EVENTS.stopPreference) {
-          const stopAtEndStep = (payload as { stopAtEndStep?: unknown }).stopAtEndStep === true;
+          const { stopAtEndStep, alwaysAtEndStep } = payload as { stopAtEndStep?: unknown; alwaysAtEndStep?: unknown };
           later(() => {
             const current = match.stopPolicy(seat);
-            const next = withEndStepStop(current, stopAtEndStep);
+            const next = withEndStepStop(current, stopAtEndStep === true, alwaysAtEndStep === true);
             if (next === current) return;
             const outcome = match.setStopPolicy(seat, next);
             if (!outcome.ok) throw new Error(`seat ${seat} could not set stop preference: ${outcome.error}`);

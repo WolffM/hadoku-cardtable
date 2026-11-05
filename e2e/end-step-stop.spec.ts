@@ -123,3 +123,30 @@ test(titled("with the End step setting turned off, the opponent's End step passe
     await stack.stop();
   }
 });
+
+test(titled('with "Always stop at their end step" on, the opponent\'s End step holds a seat with nothing to play'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(3 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const m = await startScenarioMatch(browser, stack, 'es-end-step-idle');
+    const settings = await openSettings(m.alice.page);
+    const always = settings.getByTestId('live-settings-stop-end-step-always');
+    await expect(always, 'Always is off by default').not.toBeChecked();
+    await always.check();
+    await expect(settings.getByTestId('live-settings-stop-end-step'), 'Always covers the play checkbox').toBeDisabled();
+    await closeSettings(m.alice.page);
+    const logFrom = serverLog(stack).length;
+    const { held, last } = await bobEndsHisTurn(m);
+    const rows = aliceRows(stack, logFrom);
+    console.log(`[end-step] always: held ${held} at ${JSON.stringify(last)}; rows [${rows.join(' | ')}]`);
+    expect(held, "alice is held in bob's End step, holding only a sorcery").toBe(true);
+    expect(rows, 'the End step was kept as a stop phase').toContain('prompt-forwarded priority kept stop-phase');
+
+    await clickOnce(m.alice.page, await says(m.alice.page), 'ok');
+    await expect.poll(async () => atOwnMain(await at(m.alice.page)), { timeout: 30_000, message: 'one OK takes alice on to her own Main 1' }).toBe(true);
+  } finally {
+    await stack.stop();
+  }
+});

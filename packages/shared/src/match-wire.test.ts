@@ -132,9 +132,14 @@ describe('trigger decisions', () => {
 describe('StopPreferenceSchema / stopPreferenceFrame', () => {
   it('pins type to the literal "stopPreference"', () => {
     const payload = stopPreferenceFrame('m1', true);
-    expect(payload).toEqual({ matchId: 'm1', type: 'stopPreference', stopAtEndStep: true });
+    expect(payload).toEqual({ matchId: 'm1', type: 'stopPreference', stopAtEndStep: true, alwaysAtEndStep: false });
     expect(StopPreferenceSchema.safeParse(payload).success).toBe(true);
     expect(parseStopPreference({ matchId: 'm1', type: 'somethingElse', stopAtEndStep: true }).ok).toBe(false);
+  });
+
+  it('carries "always stop at their end step", and still parses a page that never sends it', () => {
+    expect(stopPreferenceFrame('m1', false, true)).toEqual({ matchId: 'm1', type: 'stopPreference', stopAtEndStep: false, alwaysAtEndStep: true });
+    expect(parseStopPreference({ matchId: 'm1', type: 'stopPreference', stopAtEndStep: true }).ok).toBe(true);
   });
 });
 

@@ -32,6 +32,11 @@ describe('PlayPrefsSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('holds "Always stop at their end step", a plain boolean', () => {
+    expect(PlayPrefsSchema.safeParse({ endStepAlways: true }).success).toBe(true);
+    expect(PlayPrefsSchema.safeParse({ endStepAlways: 'on' }).success).toBe(false);
+  });
+
   it('rejects a non-boolean endStepStop', () => {
     expect(PlayPrefsSchema.safeParse({ endStepStop: 'on' }).success).toBe(false);
   });
@@ -43,6 +48,7 @@ describe('PlayPrefsSchema', () => {
     expect(migrated.success && migrated.data).toEqual({
       boardLayout: 'type-separated',
       endStepStop: true,
+      endStepAlways: false,
       fastMode: true,
       mistakeBubbles: true,
       uiScale: 1,
@@ -78,7 +84,7 @@ describe('PlayPrefsSchema', () => {
 
 describe('PLAY_PREFS_DEFAULTS', () => {
   it('matches Board’s own default (item 11: single), the End step stop’s (on), Fast Mode’s (off — paced), "Say my mistakes" (on), and a draft pack fanned', () => {
-    expect(PLAY_PREFS_DEFAULTS).toEqual({ boardLayout: 'single', endStepStop: true, fastMode: false, mistakeBubbles: true, uiScale: 1, packLayout: 'fan' });
+    expect(PLAY_PREFS_DEFAULTS).toEqual({ boardLayout: 'single', endStepStop: true, endStepAlways: false, fastMode: false, mistakeBubbles: true, uiScale: 1, packLayout: 'fan' });
   });
 
   it('parses through its own schema — the defaults are themselves valid prefs', () => {

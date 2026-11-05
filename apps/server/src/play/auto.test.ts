@@ -2238,6 +2238,23 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 		expect(decideStop(theirEnd({ sources: [] }), FULL_CONTROL_POLICY)).toBeNull();
 		expect(decideStop(theirEnd({ sources: [] }), withEndStepStop(FULL_CONTROL_POLICY, false))).toBeNull();
 	});
+
+	it('"Always stop at their end step" holds it with nothing to play, and only on their turn', () => {
+		const theirEnd = (over: Partial<ReturnType<typeof readPromptFacts>> = {}) =>
+			facts({ phase: 'END_OF_TURN', phaseLabel: 'End step', myTurn: false, ...over });
+		const always = withEndStepStop(DEFAULT_STOP_POLICY, true, true);
+		expect(always.stopOnTheirTurn).toContain('END_OF_TURN');
+		// Nothing to play, only a land for its mana: held all the same.
+		expect(judgeStop(theirEnd({ sources: [70], nonManaSources: [] }), always)).toEqual({ pass: null, rule: 'stop-phase' });
+		expect(judgeStop(theirEnd({ sources: [], nonManaSources: [] }), always).pass).toBeNull();
+		// Always covers the play checkbox being off.
+		expect(judgeStop(theirEnd({ sources: [70], nonManaSources: [] }), withEndStepStop(DEFAULT_STOP_POLICY, false, true)).pass).toBeNull();
+		// The seat's own End step is still skipped.
+		expect(judgeStop(theirEnd({ myTurn: true, sources: [], nonManaSources: [] }), always).rule).toBe('skip-phase');
+		// Off again: back to the default, and already agreeing is the same object.
+		expect(withEndStepStop(always, true, false)).toEqual(DEFAULT_STOP_POLICY);
+		expect(withEndStepStop(always, true, true)).toBe(always);
+	});
 });
 
 /*

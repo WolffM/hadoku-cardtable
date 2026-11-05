@@ -76,6 +76,8 @@ export const PlayPrefsSchema = borrowed.emptyObject
     boardLayout: BoardLayoutPrefSchema.optional(),
     /** The opponent's End step held for a real play. On by default. */
     endStepStop: borrowed.boolean.optional(),
+    /** The opponent's End step held whatever the seat holds (2026-11-05). Off by default. */
+    endStepAlways: borrowed.boolean.optional(),
     /** Wave 47: "Fast Mode" in the settings panel. Off (paced) by default. */
     fastMode: borrowed.boolean.optional(),
     /**
@@ -96,6 +98,7 @@ export interface PlayPrefs {
   [key: string]: unknown;
   boardLayout?: BoardLayout;
   endStepStop?: boolean;
+  endStepAlways?: boolean;
   fastMode?: boolean;
   mistakeBubbles?: boolean;
   uiScale?: number;
@@ -123,6 +126,7 @@ function fastModeDefaultOverride(): boolean {
 export const PLAY_PREFS_DEFAULTS: {
   boardLayout: BoardLayout;
   endStepStop: boolean;
+  endStepAlways: boolean;
   fastMode: boolean;
   mistakeBubbles: boolean;
   uiScale: number;
@@ -130,6 +134,7 @@ export const PLAY_PREFS_DEFAULTS: {
 } = {
   boardLayout: 'single',
   endStepStop: true,
+  endStepAlways: false,
   fastMode: fastModeDefaultOverride(),
   mistakeBubbles: true,
   uiScale: 1,

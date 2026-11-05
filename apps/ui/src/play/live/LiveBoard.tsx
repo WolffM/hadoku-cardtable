@@ -3524,6 +3524,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   const mistakeBubbles = prefs?.mistakeBubbles ?? PLAY_PREFS_DEFAULTS.mistakeBubbles;
   const prefsRead = prefs !== null;
   const endStepStop = prefs?.endStepStop ?? PLAY_PREFS_DEFAULTS.endStepStop;
+  const endStepAlways = prefs?.endStepAlways ?? PLAY_PREFS_DEFAULTS.endStepAlways;
   /*
    * Fast Mode is client-only: nothing about pacing crosses to the server. `match.transport` is
    * `./match.ts`'s own field (read, not written) — `isPacedTransport` narrows it without
@@ -3560,8 +3561,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     // then fire AGAIN the moment the real join lands (`stats.snapshots`
     // 0 → 1), which is a real double-send and not merely a wasted one.
     if (spectator || !prefsRead || match.stats.snapshots === 0) return;
-    sendStopPreference(match, endStepStop, true);
-  }, [match, prefsRead, endStepStop, spectator, match.stats.snapshots]);
+    sendStopPreference(match, endStepStop, true, endStepAlways);
+  }, [match, prefsRead, endStepStop, endStepAlways, spectator, match.stats.snapshots]);
 
   /*
    * The pointer layer is lane B's (`./gestures/`), and the element is the whole

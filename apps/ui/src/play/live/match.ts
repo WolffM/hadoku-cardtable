@@ -838,6 +838,8 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    * (`DEFAULT_STOP_POLICY.stopWithPlayOnTheirTurn`).
    */
   stopAtEndStep: boolean;
+  /** "Always stop at their end step": the same no-echo last word as {@link stopAtEndStep}. Off by default, as the server's is. */
+  alwaysAtEndStep: boolean;
   /**
    * The opponent's-turn yield toggle — this client's own last word, no
    * server echo, same reasoning as `stopAtEndStep`. `null` is "never pressed
@@ -1192,6 +1194,7 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     endedBy: null,
     fullControl: false,
     stopAtEndStep: true,
+    alwaysAtEndStep: false,
     autoYield: null,
     phaseStop: null,
     lastError: null,
@@ -1507,10 +1510,11 @@ export function setTriggerDecision(match: LiveMatch, key: string, decision: 'ACC
  * a persisted OFF would no-op against the client's own initial value, and
  * the server would keep its default (on).
  */
-export function sendStopPreference(match: LiveMatch, stopAtEndStep: boolean, force = false): boolean {
-  if (!force && match.stopAtEndStep === stopAtEndStep) return false;
-  match.transport.emit(MATCH_EVENTS.stopPreference, stopPreferenceFrame(match.matchId, stopAtEndStep));
+export function sendStopPreference(match: LiveMatch, stopAtEndStep: boolean, force = false, alwaysAtEndStep = false): boolean {
+  if (!force && match.stopAtEndStep === stopAtEndStep && match.alwaysAtEndStep === alwaysAtEndStep) return false;
+  match.transport.emit(MATCH_EVENTS.stopPreference, stopPreferenceFrame(match.matchId, stopAtEndStep, alwaysAtEndStep));
   match.stopAtEndStep = stopAtEndStep;
+  match.alwaysAtEndStep = alwaysAtEndStep;
   notify(match);
   return true;
 }

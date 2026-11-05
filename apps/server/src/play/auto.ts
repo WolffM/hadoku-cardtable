@@ -620,14 +620,24 @@ export const FULL_CONTROL_POLICY: StopPolicy = {
 };
 
 /**
- * `policy` with the End step stop for a play ({@link StopPolicy.stopWithPlayOnTheirTurn})
- * on or off, every other field untouched — the settings checkbox, `forge:stop-preference`.
+ * `policy` with the settings' two End step checkboxes applied, every other field untouched —
+ * `forge:stop-preference`. `on` is the stop for a play ({@link StopPolicy.stopWithPlayOnTheirTurn});
+ * `always` (the operator, 2026-11-05: *"we need a setting for 'always stop at endstep'"*) puts the
+ * opponent's End step in {@link StopPolicy.stopOnTheirTurn}, held whatever the seat has to play.
  * The same object back when it already agrees, so a caller can skip a no-op.
  */
-export function withEndStepStop(policy: StopPolicy, on: boolean): StopPolicy {
-	if (policy.stopWithPlayOnTheirTurn.includes('END_OF_TURN') === on) return policy;
-	const rest = policy.stopWithPlayOnTheirTurn.filter((p) => p !== 'END_OF_TURN');
-	return { ...policy, stopWithPlayOnTheirTurn: on ? [...rest, 'END_OF_TURN'] : rest };
+export function withEndStepStop(policy: StopPolicy, on: boolean, always = false): StopPolicy {
+	const withPlay = toggled(policy.stopWithPlayOnTheirTurn, 'END_OF_TURN', on);
+	const held = toggled(policy.stopOnTheirTurn, 'END_OF_TURN', always);
+	if (withPlay === policy.stopWithPlayOnTheirTurn && held === policy.stopOnTheirTurn) return policy;
+	return { ...policy, stopWithPlayOnTheirTurn: withPlay, stopOnTheirTurn: held };
+}
+
+/** `phases` with `phase` in or out, or the same array when it already agrees. */
+function toggled(phases: readonly PhaseType[], phase: PhaseType, on: boolean): readonly PhaseType[] {
+	if (phases.includes(phase) === on) return phases;
+	const rest = phases.filter((p) => p !== phase);
+	return on ? [...rest, phase] : rest;
 }
 
 /**

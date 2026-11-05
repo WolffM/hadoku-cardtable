@@ -5,8 +5,9 @@
  *   - **Board layout** — single (default) or type-separated. Mine only: the opponent's board keeps
  *     its own (*"my board preference should not change the opponent's board"*).
  *   - **End step** — default on: the opponent's End step holds this seat's priority when it has a
- *     real play there. The one setting the server hears of; the board sends it
- *     (`sendStopPreference`, `../play/live/match.ts`).
+ *     real play there. **Always** (default off, 2026-11-05) holds it whatever the seat has; it
+ *     covers the first, which then reads checked and cannot be unchecked. The only settings the
+ *     server hears of; the board sends them (`sendStopPreference`, `../play/live/match.ts`).
  *   - **Fast Mode** (wave 47) — default off (paced). Client-only: the board flips its own paced
  *     transport (`../play/live/pace.ts`).
  *   - **"Say my mistakes"** (approved 2026-10-26) — default on. Client-only: the board draws the
@@ -31,10 +32,10 @@ const BOARD_LAYOUT_OPTIONS: readonly { value: BoardLayout; label: string }[] = [
   { value: 'type-separated', label: 'Type-separated (lands, artifacts, creatures, other)' },
 ];
 
-function Toggle({ testId, checked, label, onChange }: { testId: string; checked: boolean; label: string; onChange: (on: boolean) => void }) {
+function Toggle({ testId, checked, label, onChange, disabled = false }: { testId: string; checked: boolean; label: string; onChange: (on: boolean) => void; disabled?: boolean }) {
   return (
     <label className="ct-settings__option">
-      <input type="checkbox" data-testid={testId} checked={checked} onChange={(event) => onChange(event.currentTarget.checked)} />
+      <input type="checkbox" data-testid={testId} checked={checked} disabled={disabled} onChange={(event) => onChange(event.currentTarget.checked)} />
       {label}
     </label>
   );
@@ -44,6 +45,7 @@ export function GameSettings() {
   const { prefs, save } = usePrefs(getPlayPrefsClient());
   const persist = (patch: Partial<PlayPrefs>): void => void save(patch);
   const boardLayout = prefs?.boardLayout ?? PLAY_PREFS_DEFAULTS.boardLayout;
+  const endStepAlways = prefs?.endStepAlways ?? PLAY_PREFS_DEFAULTS.endStepAlways;
   return (
     <fieldset className="ct-settings__section" data-testid="settings-game">
       <legend>Game</legend>
@@ -62,8 +64,15 @@ export function GameSettings() {
         ))}
       </div>
       <Toggle
+        testId="live-settings-stop-end-step-always"
+        checked={endStepAlways}
+        label="Always stop at their end step"
+        onChange={(on) => persist({ endStepAlways: on })}
+      />
+      <Toggle
         testId="live-settings-stop-end-step"
-        checked={prefs?.endStepStop ?? PLAY_PREFS_DEFAULTS.endStepStop}
+        checked={endStepAlways || (prefs?.endStepStop ?? PLAY_PREFS_DEFAULTS.endStepStop)}
+        disabled={endStepAlways}
         label="Stop at their end step when I can act"
         onChange={(on) => persist({ endStepStop: on })}
       />

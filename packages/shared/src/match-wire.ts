@@ -293,6 +293,8 @@ export const StopPreferenceSchema = z
     matchId: z.string().min(1),
     type: z.string().min(1).refine((v) => v === 'stopPreference', { message: "must be 'stopPreference'" }),
     stopAtEndStep: z.boolean(),
+    /** "Always stop at their end step": held with nothing to play. Optional, so a page loaded before it existed still parses. */
+    alwaysAtEndStep: z.boolean().optional(),
   })
   .strict();
 
@@ -300,11 +302,12 @@ export interface StopPreferenceRequest {
   matchId: string;
   type: 'stopPreference';
   stopAtEndStep: boolean;
+  alwaysAtEndStep?: boolean;
 }
 
 /** The payload of a `forge:stop-preference` emit, parsed through its own schema. */
-export function stopPreferenceFrame(matchId: string, stopAtEndStep: boolean): StopPreferenceRequest {
-  return StopPreferenceSchema.parse({ matchId, type: 'stopPreference', stopAtEndStep }) as StopPreferenceRequest;
+export function stopPreferenceFrame(matchId: string, stopAtEndStep: boolean, alwaysAtEndStep = false): StopPreferenceRequest {
+  return StopPreferenceSchema.parse({ matchId, type: 'stopPreference', stopAtEndStep, alwaysAtEndStep }) as StopPreferenceRequest;
 }
 
 /**

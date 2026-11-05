@@ -2911,7 +2911,7 @@ describe('the match settings (items 4-7, 2026-10-30)', () => {
     await s.caughtUp(m);
     const sent = s.received.filter((r) => r.event === 'forge:stop-preference');
     expect(sent).toHaveLength(1);
-    expect(sent[0]!.payload).toEqual({ matchId: s.matchId, type: 'stopPreference', stopAtEndStep: false });
+    expect(sent[0]!.payload).toEqual({ matchId: s.matchId, type: 'stopPreference', stopAtEndStep: false, alwaysAtEndStep: false });
     expect(prefsState.saved).toContainEqual({ endStepStop: false });
     expect(checkbox.checked).toBe(false);
 
@@ -2923,6 +2923,27 @@ describe('the match settings (items 4-7, 2026-10-30)', () => {
     expect(s.clientFrames()).toEqual([]);
   });
 
+  it('"Always stop at their end step": off by default; on, it is sent and the play checkbox reads checked and fixed', async () => {
+    const { s, m, getByTestId } = await liveBoard(0, true);
+    expect(m.alwaysAtEndStep).toBe(false);
+    const always = getByTestId('live-settings-stop-end-step-always') as HTMLInputElement;
+    const withPlay = getByTestId('live-settings-stop-end-step') as HTMLInputElement;
+    expect(always.checked).toBe(false);
+    expect(withPlay.disabled).toBe(false);
+
+    fireEvent.click(withPlay);
+    await untilMatch(m, () => expect(m.stopAtEndStep).toBe(false));
+    fireEvent.click(always);
+    await untilMatch(m, () => expect(m.alwaysAtEndStep).toBe(true));
+    await s.caughtUp(m);
+    const sent = s.received.filter((r) => r.event === 'forge:stop-preference');
+    expect(sent.at(-1)!.payload).toEqual({ matchId: s.matchId, type: 'stopPreference', stopAtEndStep: false, alwaysAtEndStep: true });
+    expect(prefsState.saved).toContainEqual({ endStepAlways: true });
+    expect(always.checked).toBe(true);
+    expect(withPlay.checked).toBe(true);
+    expect(withPlay.disabled).toBe(true);
+  });
+
   it('a persisted preference is sent to the server on join, without the panel ever opening — the manager’s own instruction', async () => {
     prefsState.prefs = { boardLayout: 'type-separated', endStepStop: false };
     const { s, m } = await liveBoard();
@@ -2931,7 +2952,7 @@ describe('the match settings (items 4-7, 2026-10-30)', () => {
     expect(captured.boardLayout).toBe('type-separated');
     const sent = s.received.filter((r) => r.event === 'forge:stop-preference');
     expect(sent).toHaveLength(1);
-    expect(sent[0]!.payload).toEqual({ matchId: s.matchId, type: 'stopPreference', stopAtEndStep: false });
+    expect(sent[0]!.payload).toEqual({ matchId: s.matchId, type: 'stopPreference', stopAtEndStep: false, alwaysAtEndStep: false });
     // The settings were never opened in this test.
   });
 

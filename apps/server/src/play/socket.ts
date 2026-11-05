@@ -1203,7 +1203,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				return;
 			}
 			const current = match.stopPolicy(seat);
-			const next = withEndStepStop(current, parsed.value.stopAtEndStep);
+			const next = withEndStepStop(current, parsed.value.stopAtEndStep, parsed.value.alwaysAtEndStep === true);
 			if (next === current) return;
 			const outcome = match.setStopPolicy(seat, next);
 			if (!outcome.ok) log({ evt: 'stop-preference-refused', participantId, matchId: match.id, seat, error: outcome.error });
