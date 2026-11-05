@@ -1319,7 +1319,14 @@ export interface Lobby {
 	 * calling this at all, not anything checked here. Returns each
 	 * room/table it released, to log.
 	 */
-	releaseAbandonedSeats(memberId: string): { roomId: string; tableId: string }[];
+	releaseAbandonedSeats(memberId: string, mark?: number): { roomId: string; tableId: string }[];
+	/**
+	 * Where the count of seats taken stands now: what a disconnect notes, so the release it schedules
+	 * passes it as `mark` and leaves alone every seat taken since — a seat taken in the window is held
+	 * by someone acting now, over HTTP before their page's socket is up (the e2e run that sat in a
+	 * room it had just made, 4 ms before an earlier window's release fired, 2026-11-05).
+	 */
+	seatMark(): number;
 	/** A seated player's Ready. False when `memberId` holds no seat at `tableId`. */
 	setSeatReady(roomId: string, tableId: string, memberId: string, ready: boolean): boolean;
 	/**
@@ -2358,6 +2365,9 @@ function unboxReady(app: unknown): boolean {
 class FileLobby implements Lobby {
 	#store: FileRoomStore;
 	#now: () => number;
+	/** Seats taken in this process, each by its number in the order they were taken (`seatMark`). Not kept: after a restart every seat counts as taken before any disconnect. */
+	#seatTaken = new Map<string, number>();
+	#seatsTaken = 0;
 	#log: LobbyLog;
 	readonly #avatarListeners = new Set<AvatarChangeListener>();
 	readonly #changeListeners = new Set<RoomChangeListener>();
@@ -2687,7 +2697,17 @@ class FileLobby implements Lobby {
 		if (table === undefined || table.matchId !== null) return;
 		const gauntlet = room.gauntlets[table.id];
 		if (gauntlet !== undefined && gauntletHoldsTable(gauntlet)) return;
-		if (sitAt(room.tables, table, memberId)) this.#log({ event: 'seat-auto', roomId: room.id, tableId: table.id, memberId });
+		if (!sitAt(room.tables, table, memberId)) return;
+		this.#tookSeat(room.id, table.id, memberId);
+		this.#log({ event: 'seat-auto', roomId: room.id, tableId: table.id, memberId });
+	}
+
+	#tookSeat(roomId: string, tableId: string, memberId: string): void {
+		this.#seatTaken.set(`${roomId}\u0000${tableId}\u0000${memberId}`, ++this.#seatsTaken);
+	}
+
+	seatMark(): number {
+		return this.#seatsTaken;
 	}
 
 	/**
@@ -2709,7 +2729,7 @@ class FileLobby implements Lobby {
 		const table = room.tables[0];
 		if (table === undefined) return;
 		for (const id of seatList(table).map((s) => s.memberId)) leaveSeat(table, id);
-		for (const id of players.slice(0, TABLE_SEAT_COUNT)) sitAt(room.tables, table, id);
+		for (const id of players.slice(0, TABLE_SEAT_COUNT)) if (sitAt(room.tables, table, id)) this.#tookSeat(room.id, table.id, id);
 	}
 
 	#recordMatch(room: RoomRecord, matchId: string): void {
@@ -2727,6 +2747,7 @@ class FileLobby implements Lobby {
 		const { room, table } = found;
 		if (table.seats.includes(memberId)) return true;
 		if (!sitAt(room.tables, table, memberId)) return false;
+		this.#tookSeat(room.id, table.id, memberId);
 		this.#persist(room);
 		return true;
 	}
@@ -2738,11 +2759,12 @@ class FileLobby implements Lobby {
 		return true;
 	}
 
-	releaseAbandonedSeats(memberId: string): { roomId: string; tableId: string }[] {
+	releaseAbandonedSeats(memberId: string, mark = Infinity): { roomId: string; tableId: string }[] {
 		const released: { roomId: string; tableId: string }[] = [];
 		for (const room of this.#rooms.values()) {
 			for (const table of room.tables) {
 				if (!table.seats.includes(memberId)) continue;
+				if ((this.#seatTaken.get(`${room.id}\u0000${table.id}\u0000${memberId}`) ?? 0) > mark) continue;
 				if (table.matchId !== null) continue;
 				const gauntlet = room.gauntlets[table.id];
 				if (gauntlet !== undefined && gauntletHoldsTable(gauntlet)) continue;
@@ -3740,6 +3762,7 @@ class FileLobby implements Lobby {
 		const room = this.#rooms.get(id);
 		if (room !== undefined) for (const table of room.tables) this.#settleSeries(room, table, true);
 		this.#rooms.delete(id);
+		for (const key of this.#seatTaken.keys()) if (key.startsWith(`${id}\u0000`)) this.#seatTaken.delete(key);
 		this.#secrets.delete(id);
 		this.#touchedAt.delete(id);
 		// Logged, because a store that cannot delete must not resurrect the room on the next boot silently.

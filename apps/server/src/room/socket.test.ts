@@ -1129,6 +1129,23 @@ describe('a seat with nobody connected to it, for the window', () => {
 		reloaded.socket.disconnect();
 	});
 
+	// The e2e run of 2026-11-05: an earlier page's window ran out 4 ms after a room was made and sat
+	// in over HTTP, before the new page's socket was up, and took that seat with it.
+	it('keeps a seat taken inside the window, before any new connection — only what was held as the last one went is released', async () => {
+		await harness?.close();
+		const timers: Array<() => void> = [];
+		harness = await boot({ schedule: (fn) => timers.push(fn) });
+
+		const alice = await connectCounted('alice');
+		alice.socket.disconnect();
+		await waitUntil(() => timers.length > 0, 'the release timer to be scheduled');
+		const { tableId, memberId } = await seatedAt('alice');
+
+		timers.shift()!();
+		expect(live().lobby.seats(constructedRoomId, tableId).map((s) => s.memberId)).toContain(memberId);
+		expect(live().lines.filter((l) => l.evt === 'seat-released-disconnected')).toEqual([]);
+	});
+
 	it('never releases a seat while its table has a live match', async () => {
 		await harness?.close();
 		const timers: Array<() => void> = [];

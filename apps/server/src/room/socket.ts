@@ -476,9 +476,11 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 			if (left <= 0) liveConnections.delete(participantId);
 			else liveConnections.set(participantId, left);
 			if (left <= 0) {
+				// Only what was held as the last connection went: a seat taken inside the window is someone acting now.
+				const mark = deps.lobby.seatMark();
 				schedule(() => {
 					if ((liveConnections.get(participantId) ?? 0) > 0) return;
-					const released = deps.lobby.releaseAbandonedSeats(participantId);
+					const released = deps.lobby.releaseAbandonedSeats(participantId, mark);
 					for (const r of released) log({ evt: 'seat-released-disconnected', participantId, ...r });
 				}, seatReleaseMs);
 			}

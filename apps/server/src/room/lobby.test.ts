@@ -2089,6 +2089,18 @@ describe('Lobby.sit / stand / setSeatReady', () => {
 			expect(lobby.playerState(id, ALICE.id)).toBeUndefined();
 		});
 
+		// The e2e run of 2026-11-05: a room made (and auto-sat) 4 ms before an earlier window's release fired.
+		it('leaves a seat taken after the mark it is given, and releases one held before it', async () => {
+			const { lobby, id, tableId } = await seatedTable();
+			const mark = lobby.seatMark();
+			const made = lobby.create(ALICE, { name: 'Made in the window', gameType: 'constructed-1v1', clientMode: 'builtin' });
+			if (!made.ok) throw new Error('create failed');
+			const fresh = made.room.tables[0]!.id;
+			expect(lobby.seats(made.room.id, fresh).map((s) => s.memberId)).toEqual([ALICE.id]);
+			expect(lobby.releaseAbandonedSeats(ALICE.id, mark)).toEqual([{ roomId: id, tableId }]);
+			expect(lobby.seats(made.room.id, fresh).map((s) => s.memberId)).toEqual([ALICE.id]);
+		});
+
 		it('is a no-op for a member who holds no seat anywhere', async () => {
 			const { lobby } = await seatedTable();
 			expect(lobby.releaseAbandonedSeats('fk:not-a-member')).toEqual([]);
