@@ -30,9 +30,11 @@ import type { BoosterCard, SetSummary as ForgeSetSummary } from '../pools/forge.
 import { createPresetStore } from '../pools/presets.ts';
 import type { CardCatalog } from '../pools/catalog.ts';
 import { createSetsStore } from '../pools/sets.ts';
-import { attachRally, type RallyDeps } from './rally.ts';
+import { attachRally, SYMBOLS_PATH, type RallyDeps } from './rally.ts';
+import { rallySymbols, setGlyphs } from './rally-symbols.ts';
 
 const SHORTLIST_DIR = resolve(import.meta.dirname, '../../pools/cubes');
+const SYMBOLS_DIR = resolve(import.meta.dirname, '../../../ui/src/symbols');
 const PAUPER = 'the-pauper-cube-2026-02';
 const VINTAGE = 'mtgo-vintage-cube-2025-04';
 
@@ -56,7 +58,7 @@ afterEach(async () => {
 	for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true });
 });
 
-async function setup(opts: { jar?: boolean; packRateLimit?: RallyDeps['packRateLimit'] } = {}) {
+async function setup(opts: { jar?: boolean; packRateLimit?: RallyDeps['packRateLimit']; symbolsDir?: string } = {}) {
 	const dir = await mkdtemp(join(tmpdir(), 'rally-test-'));
 	dirs.push(dir);
 	const boosters = vi.fn(async (code: string, count: number, seed: string) => Array.from({ length: count }, () => booster(code, seed)));
@@ -72,6 +74,7 @@ async function setup(opts: { jar?: boolean; packRateLimit?: RallyDeps['packRateL
 	const app = express();
 	const api = express.Router();
 	attachRally(api, {
+		symbols: rallySymbols(opts.symbolsDir ?? SYMBOLS_DIR),
 		cubes,
 		sets,
 		presets,
@@ -90,10 +93,14 @@ async function setup(opts: { jar?: boolean; packRateLimit?: RallyDeps['packRateL
 		const res = await fetch(`${base}${path}`, { headers: { 'x-user-id': `dev-${as}`, 'x-user-key': `fk:${as}` } });
 		return { status: res.status, headers: res.headers, json: await res.json() };
 	}
-	return { get, presets, boosters };
+	async function raw(path: string): Promise<{ status: number; type: string | null; body: Buffer }> {
+		const res = await fetch(`${base}${path}`, { headers: { 'x-user-id': 'dev-alice', 'x-user-key': 'fk:alice' } });
+		return { status: res.status, type: res.headers.get('content-type'), body: Buffer.from(await res.arrayBuffer()) };
+	}
+	return { get, raw, presets, boosters };
 }
 
-const SourcesBody = rallyEnvelope(z.strictObject({ sources: z.array(RallySourceSchema) }));
+const SourcesBody = rallyEnvelope(z.strictObject({ sources: z.array(RallySourceSchema), symbols: z.literal(SYMBOLS_PATH) }));
 const OptionsBody = rallyEnvelope(z.strictObject({ suggestions: z.array(RallySuggestionSchema).max(8) }));
 const CardsBody = rallyEnvelope(RallyCardsViewSchema);
 const PackBody = rallyEnvelope(RallyPackViewSchema);
@@ -120,8 +127,39 @@ const THREE: DraftPlan = {
 	],
 };
 
+describe('the set symbols Rally draws beside each line', () => {
+	it('reads every set glyph out of Keyrune\'s stylesheet', () => {
+		expect(setGlyphs('.ss-tmt:before {\n  content: "\\ea06";\n}\n.ss-duo.ss-tmt::after {\n  content: "\\ea07";\n}\n.ss-blb:before {\n  content: "\\e9f4";\n}')).toEqual([
+			['tmt', '\\ea06'],
+			['blb', '\\e9f4'],
+		]);
+	});
+
+	it('serves a stylesheet with a rule per set, naming the font by a path beside it, and the font', async () => {
+		const { raw } = await setup();
+		const css = await raw(`/${SYMBOLS_PATH}`);
+		expect(css.status).toBe(200);
+		expect(css.type).toMatch(/^text\/css/);
+		const text = css.body.toString('utf8');
+		expect(text).toContain('src:url("keyrune.woff2")');
+		expect(text).toContain('.rally-line-symbol[data-line="set/tmt" i]::before{content:"\\ea06"}');
+		expect(text.match(/data-line="set\//g)?.length).toBeGreaterThan(300);
+		const font = await raw('/api/rally/keyrune.woff2');
+		expect(font.status).toBe(200);
+		expect(font.type).toBe('font/woff2');
+		expect(font.body.subarray(0, 4).toString('latin1')).toBe('wOF2');
+	});
+
+	it('answers 404 when the symbols cannot be read, and reads them again on the next ask', async () => {
+		const { raw } = await setup({ symbolsDir: join(tmpdir(), 'no-such-symbols') });
+		expect((await raw(`/${SYMBOLS_PATH}`)).status).toBe(404);
+		expect((await raw('/api/rally/keyrune.woff2')).status).toBe(404);
+	});
+});
+
 describe('GET /api/rally/sources', () => {
-	it('lists the three catalogues, each with only the Sample pack: the cards pages open from an option\'s lines', async () => {
+	// The operator, 2026-11-05: the row reads "Pack", with the set symbol beside it.
+	it('lists the three catalogues, each with only the Pack, and where the set symbols are: the cards pages open from an option\'s lines', async () => {
 		const { get } = await setup();
 		const { sources } = data(SourcesBody, (await get('/api/rally/sources')).json);
 		expect(sources.map((s) => [s.kind, s.label])).toEqual([
@@ -129,7 +167,7 @@ describe('GET /api/rally/sources', () => {
 			['set', 'Sets'],
 			['cube', 'Cubes'],
 		]);
-		for (const s of sources) expect(s.views).toEqual([{ id: 'pack', label: 'Sample pack' }]);
+		for (const s of sources) expect(s.views).toEqual([{ id: 'pack', label: 'Pack' }]);
 	});
 });
 

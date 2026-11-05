@@ -2,7 +2,8 @@
  * `/api/rally` — Cardtable's drafts as a Rally pick catalogue (cardtable#24; the brief is
  * hadoku-rally `docs/requests/CARDTABLE_PICK_CATALOGUES.md`).
  *
- *   GET /api/rally/sources                    → the three catalogues, each listing its Sample pack view
+ *   GET /api/rally/sources                    → the three catalogues, each listing its Pack view, and the symbols stylesheet
+ *   GET /api/rally/symbols.css, keyrune.woff2 → set symbols for Rally's option rows (`rally-symbols.ts`)
  *   GET /api/rally/options/:kind?q=           → up to 8 matches, best first, each with its kind and a line per source
  *   GET /api/rally/views/:kind/:id/cards      → every card a source drafts from (what an option's line opens)
  *   GET /api/rally/views/:kind/:id/pack       → a freshly opened pack (one per round for a mixed preset)
@@ -62,6 +63,7 @@ import { DEFAULT_PARAMS } from '../room/draftRooms.js';
 import { perCallerLimit } from './request.js';
 import { resolveBoosterCard, type RealisticBoosterSource, type RealisticCatalog } from './rooms.js';
 import { jsonLogger } from '../log.js';
+import type { RallySymbols } from './rally-symbols.js';
 
 export interface RallyDeps {
 	cubes: Pick<CubeStore, 'list' | 'cards'>;
@@ -72,8 +74,13 @@ export interface RallyDeps {
 	catalog: RealisticCatalog;
 	/** Sample packs per caller: each is a pool-JVM round trip. `null` is no limit (the e2e stacks). */
 	packRateLimit?: RateLimitConfig | null;
+	/** Keyrune, for the set symbols Rally draws beside each line (`rally-symbols.ts`). */
+	symbols: RallySymbols;
 	log?: (entry: Record<string, unknown>) => void;
 }
+
+/** Where `/sources` points Rally for the set symbols, relative to Cardtable's base. */
+export const SYMBOLS_PATH = 'api/rally/symbols.css';
 
 /** A burst of 20 packs, then one every three seconds: a respondent reloading every pack in a form, not a script. */
 export const PACK_RATE_LIMIT: RateLimitConfig = { capacity: 20, refillAmount: 1, refillIntervalMs: 3_000 };
@@ -82,7 +89,7 @@ export const PACK_RATE_LIMIT: RateLimitConfig = { capacity: 20, refillAmount: 1,
 const MAX_SUGGESTIONS = 8;
 
 /** The pack is the one view a source lists; an option's cards open from its lines. */
-const VIEWS: RallySource['views'] = [{ id: 'pack', label: 'Sample pack' }];
+const VIEWS: RallySource['views'] = [{ id: 'pack', label: 'Pack' }];
 
 /** Rally's cap on a line's text. */
 const LINE_MAX = 80;
@@ -348,7 +355,27 @@ export function attachRally(api: Router, deps: RallyDeps): void {
 	};
 
 	rally.get('/sources', (_req: Request, res: Response) => {
-		res.json({ success: true, data: { sources: SOURCES } });
+		res.json({ success: true, data: { sources: SOURCES, symbols: SYMBOLS_PATH } });
+	});
+
+	rally.get('/symbols.css', (_req: Request, res: Response) => {
+		deps.symbols.css().then(
+			(css) => res.type('text/css').set('Cache-Control', 'public, max-age=86400').send(css),
+			(err: unknown) => {
+				log({ evt: 'rally-symbols-failed', detail: (err as Error).message });
+				res.status(404).end();
+			},
+		);
+	});
+
+	rally.get('/keyrune.woff2', (_req: Request, res: Response) => {
+		deps.symbols.font().then(
+			(font) => res.type('font/woff2').set('Cache-Control', 'public, max-age=86400').send(font),
+			(err: unknown) => {
+				log({ evt: 'rally-symbols-failed', detail: (err as Error).message });
+				res.status(404).end();
+			},
+		);
 	});
 
 	rally.get('/options/:kind', (req: Request, res: Response) => {

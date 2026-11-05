@@ -117,6 +117,7 @@ import { attachCubeRoutes, createCubeStore } from './pools/cubes.js';
 import { attachSetRoutes, createSetsStore, warmSetsStore } from './pools/sets.js';
 import { attachPresetRoutes, createPresetStore } from './pools/presets.js';
 import { attachRally } from './http/rally.js';
+import { rallySymbols } from './http/rally-symbols.js';
 import { createCatalogRefresh } from './pools/refresh.js';
 import { loadCardCatalog } from './pools/catalog.js';
 import { createForgePools, type ForgePools } from './pools/forge.js';
@@ -744,6 +745,7 @@ attachPresetRoutes(api, { store: presetStore });
 // GET /api/rally/* — the presets, sets and cubes above as Rally's pick catalogues, and each
 // option's two view pages' data (cardtable#24, `http/rally.ts`).
 attachRally(api, {
+	symbols: rallySymbols(resolve(REPO_ROOT, 'apps/ui/src/symbols')),
 	cubes: cubeStore,
 	sets: setsStore,
 	presets: presetStore,
