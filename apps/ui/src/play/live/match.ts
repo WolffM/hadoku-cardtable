@@ -2925,10 +2925,12 @@ const MANA_CHOICE_TITLE = 'Select Mana to Produce';
 export function undoableManaSource(match: LiveMatch, ask: LiveAsk): number | null {
   if (ask.method !== 'getChoices' || ask.message !== MANA_CHOICE_TITLE || ask.colors === undefined) return null;
   if (match.buttons?.label1 === AUTO_PAY_LABEL) return null;
-  const card = ask.source?.card.id;
-  if (card === undefined) return null;
-  const own = match.view?.players.some((p) => p.isViewer && p.battlefield.some((c) => c.id === card)) === true;
-  return own ? card : null;
+  // A mana ability never uses the stack, so the bridge names no source for its question; the
+  // seat's own click that began this act at priority does ({@link LiveMatch.actCard}).
+  const card = ask.source?.card.id ?? match.actCard;
+  if (card === null) return null;
+  const tapped = match.view?.players.some((p) => p.isViewer && p.battlefield.some((c) => c.id === card && c.tapped)) === true;
+  return tapped ? card : null;
 }
 
 /**

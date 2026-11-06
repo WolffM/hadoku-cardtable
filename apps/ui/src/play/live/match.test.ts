@@ -3218,11 +3218,11 @@ describe('a tapped permanent is clicked to untap exactly when Forge offers it', 
    * the source before it asks its colour and takes no cancel, so giving the question up answers it and
    * clicks the source back: Forge's undo while the mana floats.
    */
-  const colourAsk = (source: number, callId = 'cc-1', message = 'Select Mana to Produce') =>
+  const colourAsk = (source: number | null, callId = 'cc-1', message = 'Select Mana to Produce') =>
     parseServerFrame({
       kind: 'ask',
       callId,
-      source: { card: { kind: 'card', id: source }, text: 'Add one mana of any color.' },
+      ...(source === null ? {} : { source: { card: { kind: 'card', id: source }, text: 'Add one mana of any color.' } }),
       method: 'getChoices',
       message,
       min: 1,
@@ -3247,6 +3247,15 @@ describe('a tapped permanent is clicked to untap exactly when Forge offers it', 
     await sendAndApply(s, m, [actionable([a])]);
     await until('the undo click', () => s.clientFrames().length === 2);
     expect(s.clientFrames()[1]).toMatchObject({ ok: true, value: { kind: 'act', method: 'selectCard', card: { kind: 'card', id: a } } });
+  });
+
+  it("a mana ability's question names no source (it never uses the stack): the click that began the act does", async () => {
+    const { s, m } = await fullGame();
+    const [a] = me(m).battlefield.filter((c) => !c.tapped).map((c) => c.id) as [number];
+    await sendAndApply(s, m, [prompt('Priority'), bar('End Turn'), actionable([a])]);
+    expect(selectCard(m, a)).toBe(true);
+    await sendAndApply(s, m, [tap(a, true), colourAsk(null, 'cc-5')]);
+    expect(undoableManaSource(m, m.asks[0]!)).toBe(a);
   });
 
   it('no undo under a payment, for another seat\'s card, or for a colour question that is not a mana ability\'s', async () => {
