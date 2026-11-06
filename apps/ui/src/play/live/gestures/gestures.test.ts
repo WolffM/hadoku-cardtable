@@ -36,7 +36,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement, useSyncExternalStore } from 'react';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
-import { parseServerFrame, type ServerFrame } from '@hadoku/forge-wire';
+import { parseServerFrame, type OfferedAbility, type ServerFrame } from '@hadoku/forge-wire';
 
 import { Board } from '../../Board.tsx';
 // The namespace, alongside the named `Board` import above, purely so R9's
@@ -70,6 +70,7 @@ import { TIP_INSET } from './arrow.ts';
 import { installGestures } from './index.ts';
 import { PARK_UNANSWERED_MS } from './install.ts';
 import { RAMMING_ATTR } from '../ram.ts';
+import { manaPressOf } from '../mana-press.ts';
 import type { GestureHandle } from './types.ts';
 import { LONG_PRESS_MS, mountInspector } from '../../inspect/index.ts';
 
@@ -4568,6 +4569,79 @@ describe('wave 89 §D — a touch tap reads a hand card and acts on a permanent;
  * sideways swipe is the browser's scroll, a clear upward drag is still this layer's play. The card's
  * own inline `touch-action` stands in for the stylesheet, which jsdom does not load.
  */
+/*
+ * A land with a mana ring in a portrait lane (`touch-action: pan-x`): a press opens its ring under the
+ * finger, but a sideways swipe is still the lane's scroll — the operator's rule that a finger can
+ * always pan the board (run 42226619510: w89h's swipe across a lane of duals scrolled 0 px).
+ */
+describe('a mana source’s press ring in a sideways-scrolling lane — a sideways swipe still scrolls', () => {
+  async function ringBoard() {
+    const board = await gestureBoard();
+    const land = mineOf(board.m).battlefield[0]!.id;
+    for (const f of notify([prompt('Priority'), actionable([land])])) board.s.send(f);
+    await untilMatch(board.m, () => expect(boardInteraction(board.m).selectable.has(land)).toBe(true));
+    const ask = parseServerFrame({
+      kind: 'ask',
+      callId: 'c-1',
+      method: 'getAbilityToPlay',
+      hostCard: { kind: 'card', id: land },
+      abilities: [
+        { kind: 'spellAbility', id: 11, label: '{T}: Add {W}.', mana: { makes: 'W', amount: 1 } },
+        { kind: 'spellAbility', id: 12, label: '{T}: Add {U}.', mana: { makes: 'U', amount: 1 } },
+      ],
+      triggerEvent: null,
+    }) as { abilities: readonly OfferedAbility[] };
+    board.m.manaRings = new Map([[land, ask.abilities]]);
+    const li = cardEl(board.canvas, land);
+    li.style.touchAction = 'pan-x';
+    return { ...board, land, li };
+  }
+
+  function touchMoveCancelled(at: Element): boolean {
+    const event = new Event('touchmove', { bubbles: true, cancelable: true });
+    at.dispatchEvent(event);
+    return event.defaultPrevented;
+  }
+
+  it('a sideways swipe is the lane’s scroll: the browser’s touchmove is left alone, and its pointercancel closes the ring, sending nothing', async () => {
+    const { s, m, li } = await ringBoard();
+    fireEvent.pointerDown(li, { button: 0, pointerType: 'touch', clientX: 300, clientY: 400 });
+    expect(manaPressOf(m), 'the press opens the ring').not.toBeNull();
+    fireEvent.pointerMove(li, { pointerType: 'touch', clientX: 220, clientY: 404 });
+    expect(touchMoveCancelled(li), 'sideways: the lane scrolls').toBe(false);
+    fireEvent.pointerCancel(li, { pointerType: 'touch' });
+    expect(manaPressOf(m), 'the pan closed the ring').toBeNull();
+    expect(await s.framesFrom(m)).toHaveLength(0);
+  });
+
+  it('a slide toward a disc off to the side is the ring’s, though it moves more sideways than up', async () => {
+    const { m, li, canvas } = await ringBoard();
+    fireEvent.pointerDown(li, { button: 0, pointerType: 'touch', clientX: 300, clientY: 400 });
+    // The press ring's disc, drawn up and to the left of the finger at a shallow angle (the ring blooms above it).
+    const ring = document.createElement('div');
+    ring.setAttribute('data-press', '');
+    const disc = document.createElement('button');
+    disc.setAttribute('data-testid', 'mana-ring-option');
+    disc.getBoundingClientRect = () => DOMRect.fromRect({ x: 194, y: 334, width: 52, height: 52 });
+    ring.append(disc);
+    canvas.append(ring);
+    fireEvent.pointerMove(li, { pointerType: 'touch', clientX: 250, clientY: 370 });
+    expect(touchMoveCancelled(li), 'toward the disc: the ring holds the finger').toBe(true);
+    fireEvent.pointerUp(li, { pointerType: 'touch', clientX: 250, clientY: 370 });
+    expect(manaPressOf(m)).toBeNull();
+    ring.remove();
+  });
+
+  it('a slide up or down past the slop is the ring’s: the browser’s touchmove is cancelled', async () => {
+    const { m, li } = await ringBoard();
+    fireEvent.pointerDown(li, { button: 0, pointerType: 'touch', clientX: 300, clientY: 400 });
+    fireEvent.pointerMove(li, { pointerType: 'touch', clientX: 306, clientY: 340 });
+    expect(touchMoveCancelled(li), 'up: the ring holds the finger').toBe(true);
+    fireEvent.pointerUp(li, { pointerType: 'touch', clientX: 306, clientY: 340 });
+    expect(manaPressOf(m)).toBeNull();
+  });
+});
+
 describe('portrait hand carousel — a sideways swipe scrolls, an upward drag plays', () => {
   async function carouselBoard() {
     const board = await gestureBoard();

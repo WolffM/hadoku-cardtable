@@ -316,6 +316,9 @@ import './gestures.css';
 /** Set on the canvas while this layer is installed, so `./gestures.css` can dress it. */
 const CANVAS_ATTR = 'data-gesture-canvas';
 
+/** How close to a disc's direction a finger's slide must head to be the ring's, not a lane's pan: within 35°. */
+const DISC_HEADING_COS = Math.cos((35 * Math.PI) / 180);
+
 /**
  * How long a parked card may sit with Forge showing no sign of the play — the
  * card still in the hand, no question, no payment — before it floats back. An
@@ -1831,6 +1834,27 @@ export function installGestures(options: GestureOptions): GestureHandle {
   }
 
   /**
+   * Whether a move from `press` to `at` heads for one of the press ring's discs: within
+   * {@link DISC_HEADING_COS} of the direction from the press to the disc's centre.
+   */
+  function headsForDisc(press: Point, at: Point): boolean {
+    const ring = scopeOf(canvas).querySelector('[data-press]');
+    if (ring === null) return false;
+    const mx = at.x - press.x;
+    const my = at.y - press.y;
+    const m = Math.hypot(mx, my);
+    if (m === 0) return false;
+    for (const el of ring.querySelectorAll<HTMLElement>('[data-testid="mana-ring-option"], [data-testid="mana-ring-chip"]')) {
+      const b = el.getBoundingClientRect();
+      const dx = b.left + b.width / 2 - press.x;
+      const dy = b.top + b.height / 2 - press.y;
+      const d = Math.hypot(dx, dy);
+      if (d > 0 && (mx * dx + my * dy) / (m * d) >= DISC_HEADING_COS) return true;
+    }
+    return false;
+  }
+
+  /**
    * The disc or chip of the press's ring under `at`, armed; every other one disarmed. Read off the
    * discs' own boxes, not the page's hit test: while the press is held its ring is the only thing it
    * can pick, whatever else is drawn there (the card view a hover left open, say).
@@ -1853,7 +1877,14 @@ export function installGestures(options: GestureOptions): GestureHandle {
     if (otherPointer(event)) return;
     if (manaPress !== null && event.pointerId === manaPress.pointerId) {
       const at = { x: event.clientX, y: event.clientY };
-      if (!manaPress.moved && pastSlop(manaPress.press, at)) manaPress.moved = true;
+      // A finger on a sideways-pannable lane card: a slide toward one of the ring's discs, or up or
+      // down (`pastSlopAcross`), is the ring's; a mostly-sideways move toward none is the lane's pan,
+      // whose `pointercancel` closes the ring with nothing sent. A swipe across a lane of duals
+      // scrolls it (run 42226619510, w89h), and a slide to a disc off to the side still picks it
+      // (run 42228610500, mana-ring.phone: the discs bloom above the finger, at an angle).
+      if (!manaPress.moved && pastSlop(manaPress.press, at) && (!sidewaysPan || pastSlopAcross(manaPress.press, at) || headsForDisc(manaPress.press, at))) {
+        manaPress.moved = true;
+      }
       if (manaPress.moved) armManaDisc(at);
       return;
     }
