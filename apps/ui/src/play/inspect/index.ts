@@ -827,6 +827,8 @@ export function mountInspector(root: ParentNode): () => void {
     pressTimer = setTimeout(() => {
       pressTimer = null;
       if (pressing === null || pressAnchor === null) return;
+      // A finger held on a mana source is choosing from the ring it opened, not reading the card.
+      if (scope.querySelector('[data-press]') !== null) return;
       const opened = pressing;
       const detail: CardLongPress = pressAnchor;
       pressing = null;

@@ -1918,9 +1918,12 @@ export function installGestures(options: GestureOptions): GestureHandle {
     if (manaPress !== null && event.pointerId === manaPress.pointerId) {
       const press = manaPress;
       manaPress = null;
+      // Logged: what the release was read as, so a report of a pick that did not happen is read, not guessed.
+      const disc = press.moved ? armManaDisc({ x: event.clientX, y: event.clientY }) : null;
+      options.report?.('info', { what: 'mana-press', card: press.source, moved: press.moved, picked: disc?.getAttribute('data-mana') ?? (disc === null ? '-' : 'chip'), touch: event.pointerType === 'touch' });
       if (press.moved) {
         // A disc's own click is its pick (`ManaRing`); let go on nothing, nothing is sent.
-        armManaDisc({ x: event.clientX, y: event.clientY })?.click();
+        disc?.click();
         closeManaPress(match);
       } else tapManaPress(match, press.source);
       // The click this release leaves is the press's, answered above: never also the card's or a disc's.

@@ -196,6 +196,7 @@ test(titled('a press on a mana source opens its ring under the press: a drag to 
     await expect(ringOptions(page)).toHaveCount(5);
     await expect(ring(page).getByTestId('mana-ring-life'), 'its 1 damage on every colour').toHaveCount(5);
     await drag(onBrass, await centreOf(ringOption(page, 'R')));
+    await expect(ringOption(page, 'R'), 'the disc under the pointer is lit').toHaveAttribute('data-armed');
     await page.mouse.up();
     await expect.poll(async () => (await pool(page)).R, { timeout: 10_000, message: 'City of Brass added {R}' }).toBe(1);
     await expect.poll(() => lifeNow(page, life), { timeout: 10_000, message: 'City of Brass dealt 1' }).toBe(19);
