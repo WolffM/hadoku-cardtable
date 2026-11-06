@@ -2279,9 +2279,9 @@ export function reportSwallowedClick(match: LiveMatch, cardId: number, by: strin
 
 /**
  * A click on a board card's own face. `selectCard`, except on the seat's own
- * creature while it blocks: blocking is by drag only, so that click never
- * assigns a block — it takes the creature out of any block it is in
- * (`removeBlock`).
+ * creature while it blocks: a block is aimed (a drag, or a click and a click on
+ * the attacker), so that click never assigns one — it takes the creature out of
+ * any block it is in (`removeBlock`).
  */
 export function clickCard(match: LiveMatch, cardId: number): void {
   if (ownBlocker(match, cardId)) removeBlock(match, cardId);
@@ -2389,6 +2389,17 @@ export function blockFocusOf(match: LiveMatch): number | null {
 export function combatCandidates(match: LiveMatch): ReadonlySet<number> {
   const live = attackInputLive(match) || blockInputLive(match);
   return live && match.weaklySelectable !== null ? match.weaklySelectable : NO_PICKS;
+}
+
+/**
+ * `card` is a creature of this seat's that `InputAttack` or `InputBlock` would take a click on
+ * right now: a candidate ({@link combatCandidates}), or one already declared that a click calls
+ * back or unblocks. A click on it AIMS rather than sends (`gestures/install.ts`'s `aim`).
+ */
+export function combatAimer(match: LiveMatch, card: number): boolean {
+  const view = match.view;
+  if (view === null || !boardInteraction(match).selectable.has(card)) return false;
+  return combatCandidates(match).has(card) || declaredAttackers(match, view)?.has(card) === true || declaredBlockers(match, view)?.has(card) === true;
 }
 
 /** Forge's highlighted cards drawn as PICKED: every one, except the block step's current attacker (`blockFocusOf`). */

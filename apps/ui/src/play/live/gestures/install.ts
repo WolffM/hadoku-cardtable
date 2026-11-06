@@ -38,7 +38,10 @@
  *     Forge's choices, so there is often no offered card to drag FROM.
  *
  * A press that never passes `DRAG_SLOP_PX` is a plain click and this layer
- * stays out of it — no click is suppressed. What a claimed press DOES refuse,
+ * stays out of it — no click is suppressed — except a mouse's or a pen's on
+ * this seat's own attacker or blocker while it declares them: that click
+ * takes it up (`aim`), the arrow follows the pointer, and the next press is
+ * where a drag would have let go (`commitAim`). What a claimed press DOES refuse,
  * from the press itself, is the browser's default: a drag on the table may
  * not highlight the words it crosses (`claim`).
  *
@@ -226,9 +229,11 @@ import {
   boardInteraction,
   choosingMulligan,
   clickCard,
+  combatAimer,
   declaringAttackers,
   declaringCombat,
   landsOffered,
+  ownBlocker,
   payingMana,
   pickedOf,
   pressButton,
@@ -273,7 +278,7 @@ import { CAST_LANDING_ATTR, expectedGapBox,
   type CastZone,
 } from './cast.ts';
 import { closePileView } from '../../PileView.tsx';
-import { aimedTarget, attackWith, clearTapPending, commitDrag, commitMarquee, landsInBox, markTapPending, rectOf, type Rect } from './commit.ts';
+import { aimedTarget, clearTapPending, commitAim, commitDrag, commitMarquee, landsInBox, markTapPending, rectOf, type Rect } from './commit.ts';
 import {
   clearHandIndicator,
   commitHandReorder,
@@ -476,13 +481,16 @@ export function installGestures(options: GestureOptions): GestureHandle {
   let drag: DragState | null = null;
   let marquee: MarqueeState | null = null;
   /**
-   * A box's attackers held for the defender click — `./commit.ts`'s
-   * `commitMarquee` returned them instead of sending, because Forge offers more
-   * than one defender. An arrow leaves the group and follows the pointer
-   * (`at`, over `node`); the next press on a defender sends the group against it
-   * (`attackWith`), and any other press, a right-click or Escape drops it with
-   * nothing sent. It also drops the moment Forge's declare window is gone
-   * (`dropStaleAim`), so it never outlives the input it was for.
+   * Creatures held for the click that says where they go: a box's attackers
+   * (`./commit.ts`'s `commitMarquee` returned them instead of sending, because
+   * Forge offers more than one defender), or the one attacker or blocker a
+   * plain click took up (`onPointerUp`; the operator, 2026-10-17: "can we make
+   * attacker/blocker asigning be click to 'enter drag state' and click to
+   * 'assign attacker/blocker'"). An arrow leaves them and follows the pointer
+   * (`at`, over `node`); the next press lets go there exactly as a drag would
+   * (`commitAim`), and a right-click or Escape drops them with nothing sent.
+   * They also drop the moment Forge's attack or block input is gone
+   * (`dropStaleAim`), so they never outlive the input they were for.
    */
   let aim: { ids: number[]; at: Point; node: EventTarget | null } | null = null;
   /** The right-click in progress cancelled a live gesture: its `contextmenu` is the gesture's. */
@@ -839,10 +847,12 @@ export function installGestures(options: GestureOptions): GestureHandle {
       drawMarquee(overlay, rectOf(marquee.press, marquee.at));
       next = 'marquee';
     } else if (aim !== null) {
-      // The same arrow a single attacker's drag draws, from the middle of the group.
+      // The same arrow a single creature's drag draws: from that creature, or from the middle of a group.
       const target = aimedTarget(match, aim.ids[0]!, aim.node);
       const snap = target === null ? null : boxOf(canvas, target);
-      drawArrow(overlay, { from: groupCentre(aim.ids, aim.at), to: aim.at, source: null, target, snap, tail: null, mode: 'drag' });
+      const source = aim.ids.length === 1 ? aim.ids[0]! : null;
+      const tail = source === null ? null : cardBox(canvas, source);
+      drawArrow(overlay, { from: groupCentre(aim.ids, aim.at), to: aim.at, source, target, snap, tail, mode: 'drag' });
       clearMarquee(overlay);
       next = `aim:${aim.ids.join(',')}:${target === null ? '' : `${target.kind}:${target.id}`}`;
     } else {
@@ -883,9 +893,9 @@ export function installGestures(options: GestureOptions): GestureHandle {
     options.onChange?.();
   }
 
-  /** Forge's attack intents, and the held group's own mark — on every paint, and again whenever React redraws a card. */
+  /** Forge's attack intents, and the held attackers' own mark — on every paint, and again whenever React redraws a card. */
   function applyMarks(): void {
-    marks.apply(match, aim?.ids ?? []);
+    marks.apply(match, aim?.ids.filter((id) => !ownBlocker(match, id)) ?? []);
   }
 
   /** The centre of the group's own cards, or `fallback` when none of them is drawn. */
@@ -899,15 +909,14 @@ export function installGestures(options: GestureOptions): GestureHandle {
   }
 
   /**
-   * A held group whose window is gone is dropped: Forge left declare-attackers
-   * (it moved on, the turn changed), or the offer emptied (a reconnect, a
-   * question). Only the group's creatures Forge still offers stay in it.
+   * A held aim whose input is gone is dropped: Forge left the attack or block
+   * input (it moved on, the turn changed), or the offer emptied (a reconnect, a
+   * question). Only the creatures that input still takes a click on stay held.
    */
   function dropStaleAim(): void {
     if (aim === null) return;
-    const offered = boardInteraction(match).selectable;
-    const ids = aim.ids.filter((id) => offered.has(id));
-    aim = declaringAttackers(match) && ids.length > 0 ? { ...aim, ids } : null;
+    const ids = aim.ids.filter((id) => combatAimer(match, id));
+    aim = ids.length > 0 ? { ...aim, ids } : null;
   }
 
   /** Only a change is written: an attribute set to the value it has still invalidates the board's style. */
@@ -1502,23 +1511,19 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // A press on the target the arrow is snapped to commits it, whichever branch below (or the card's own click) sends it.
     if (event.button === 0) commitArrowAt(overlayOf(canvas), eventTarget(event));
     /*
-     * A held box group takes the next press, whatever it lands on: on a
-     * defender it attacks it, anywhere else (a right-click included) it is
-     * dropped. Either way the press is spent here — the click it leaves must
-     * not also reach the face or card under it.
+     * A held aim takes the next press, whatever it lands on: a left press lets
+     * go there (`commitAim`), any other button drops it. Either way the press is
+     * spent here — the click it leaves must not also reach the face or card
+     * under it.
      */
     if (aim !== null) {
       claim(event);
-      const group = aim;
+      const held = aim;
       aim = null;
       if (event.button === 2) cancelledByRightClick = true;
       if (event.button === 0) {
-        clicks.arm('attack-group');
-        const target = aimedTarget(match, group.ids[0]!, eventTarget(event));
-        if (target !== null && target.kind !== 'stack') {
-          playRole('ui.target');
-          attackWith(match, group.ids, target);
-        }
+        clicks.arm('combat-aim');
+        commitAim(match, held.ids, eventTarget(event));
       }
       paint();
       return;
@@ -2027,6 +2032,19 @@ export function installGestures(options: GestureOptions): GestureHandle {
         return;
       }
       drag = { ...drag, held: false };
+      paint();
+      return;
+    }
+    /*
+     * A mouse's or a pen's plain click on this seat's own attacker or blocker takes it up instead of
+     * sending (`aim`): its own click is swallowed, and the next press lets go of it. A finger's tap is
+     * still the card's click — a phone has no pointer for the arrow to follow.
+     */
+    if (drag !== null && drag.lifted === null && !drag.moved && drag.source !== null && event.pointerType !== 'touch' && combatAimer(match, drag.source)) {
+      clicks.arm('combat-aim');
+      aim = { ids: [drag.source], at: { x: event.clientX, y: event.clientY }, node: liveTarget(event) };
+      drag = null;
+      hover = null;
       paint();
       return;
     }

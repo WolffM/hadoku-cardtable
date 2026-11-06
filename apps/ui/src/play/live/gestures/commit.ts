@@ -11,6 +11,7 @@ import {
   assignBlock,
   attackAssignment,
   boardInteraction,
+  clickCard,
   isBlockAssignment,
   isMarked,
   landsOffered,
@@ -22,7 +23,7 @@ import {
 } from '../match.ts';
 import { viewerOf } from '../../adapter.ts';
 import { cardBox } from '../board-dom.ts';
-import { cardElements, targetUnder } from './targets.ts';
+import { cardElements, cardIdUnder, targetUnder } from './targets.ts';
 import type { DragState, DropTarget } from './types.ts';
 import { playRole } from '../../../sound/index.ts';
 
@@ -63,7 +64,7 @@ export function commitDrag(match: LiveMatch, drag: DragState, node: EventTarget 
   const target = aimedTarget(match, source, node);
 
   /*
-   * Blocking is a drag and only a drag. Dropped on an attacker, the creature
+   * Blocking is an aim: a drag, or a click and a click (`commitAim`). Dropped on an attacker, the creature
    * blocks it — moved off whatever it blocked before (`assignBlock`). Dropped
    * anywhere else, its own spot included, it is out of combat (`removeBlock`).
    */
@@ -107,6 +108,26 @@ export function commitDrag(match: LiveMatch, drag: DragState, node: EventTarget 
   if (source !== null && !single && !selectCard(match, source)) return;
   if (target.kind === 'card') selectCard(match, target.id);
   else if (target.kind === 'player') selectPlayer(match, target.id);
+}
+
+/**
+ * The press that lets go of a held aim (`./install.ts`'s `aim`: a box's attackers, or the one
+ * attacker or blocker a click took up) on `node` — the defender or attacker under it is where a
+ * drag let go there would assign it (`aimedTarget`). A press on the one held creature itself is
+ * that creature's own click (`clickCard`): an attacker declared against the current defender or
+ * called back, a blocker taken out of combat. A press anywhere else sends nothing.
+ */
+export function commitAim(match: LiveMatch, ids: readonly number[], node: EventTarget | null): void {
+  const [first] = ids;
+  if (first === undefined) return;
+  const target = aimedTarget(match, first, node);
+  if (target !== null && target.kind !== 'stack') {
+    playRole('ui.target');
+    if (target.kind === 'card' && ownBlocker(match, first)) assignBlock(match, first, target.id);
+    else attackWith(match, ids, target);
+    return;
+  }
+  if (ids.length === 1 && cardIdUnder(node) === first) clickCard(match, first);
 }
 
 /**
