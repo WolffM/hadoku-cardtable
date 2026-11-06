@@ -1032,6 +1032,25 @@ describe('clicking the board: only what Forge offered', () => {
     expect(liveBar(m)?.enable1).toBe(true);
   });
 
+  /*
+   * ee-thicket (proof run 42160571843): a pick of {R}{G} on Fire-Lit Thicket's ring, then Forge's payment of
+   * the filter's own {R/G} — a prompt about the Thicket — then its colour question. The payment dropped the
+   * pick, and the ring asked for the combination it had already been given.
+   */
+  it('a mana pick outlives the prompt that pays its own ability, and no other prompt', async () => {
+    const { s, m } = await fullGame();
+    const about = (card: number | null) =>
+      parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Pay Mana Cost: {R/G}', card: card === null ? null : { kind: 'card', id: card } });
+    m.manaIntent = { colors: ['R', 'G'], source: 40 };
+    await sendAndApply(s, m, [about(40), bar(true)]);
+    expect(m.manaIntent, 'paying the Thicket’s own cost keeps the pick').toEqual({ colors: ['R', 'G'], source: 40 });
+    await sendAndApply(s, m, [about(41), bar(true)]);
+    expect(m.manaIntent, 'a prompt about another card drops it').toBeNull();
+    m.manaIntent = { colors: ['R', 'G'], source: 40 };
+    await sendAndApply(s, m, [prompt('Priority'), bar(true)]);
+    expect(m.manaIntent, 'so does a prompt about no card').toBeNull();
+  });
+
   it('"same target for all" rides on the pick while identical triggers wait, and is gone with the next question', async () => {
     const { s, m } = await fullGame();
     const { theirs } = ids(m);

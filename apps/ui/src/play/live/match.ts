@@ -615,10 +615,12 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
   promptManaMarks: Extract<ServerFrame, { method: 'showPromptMessage' }>['manaMarks'] | null;
   /**
    * The colours a pick on the mana ring showed for an ability that asks its colour next (`./mana-ring.ts`'s
-   * `RingAnswer.then`): that question is answered with them, so one pick is the whole conversation. Dropped
-   * by the next question or prompt that is not that colour question.
+   * `RingAnswer.then`), and the card the ability is on: that question is answered with them, so one pick is
+   * the whole conversation. Dropped by the next question that is not that colour question, and by the next
+   * prompt that is neither it nor about that card — the payment of the ability's own cost (a filter land's
+   * {R/G}) is a prompt about it, and Forge asks the colours after it.
    */
-  manaIntent: readonly PoolColor[] | null;
+  manaIntent: { readonly colors: readonly PoolColor[]; readonly source: number } | null;
   /** The optional triggers Forge answers for this seat, from the server's `forge:trigger-decisions`. */
   triggerDecisions: readonly RememberedTrigger[];
   /**
@@ -3610,7 +3612,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     match.promptPoolChoice = frame.poolChoice !== undefined;
     match.promptManaColors = frame.manaColors ?? null;
     match.promptManaMarks = frame.manaMarks ?? null;
-    if (frame.manaColors === undefined) match.manaIntent = null;
+    if (frame.manaColors === undefined && promptCard !== match.manaIntent?.source) match.manaIntent = null;
     match.promptTargetMore = frame.targetAbility?.more ?? 0;
     match.promptSelection =
       frame.selection === undefined

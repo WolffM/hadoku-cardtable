@@ -262,7 +262,7 @@ export function ManaAsk({ match, ask }: { match: LiveMatch; ask: LiveAsk }) {
   }
   const onPick = (pick: RingPick): void => {
     if (pick.to === 'ability' && ask.method === 'getAbilityToPlay') {
-      match.manaIntent = pick.then;
+      match.manaIntent = pick.then === null ? null : { colors: pick.then, source: ask.hostCard.id };
       answerAsk(match, ask.callId, 'getAbilityToPlay', pick.ability);
     } else if (pick.to === 'choice' && ask.method === 'getChoices') {
       answerAsk(match, ask.callId, 'getChoices', [pick.key]);

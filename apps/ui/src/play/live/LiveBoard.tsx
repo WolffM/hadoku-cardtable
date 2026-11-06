@@ -3021,7 +3021,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
    * would have asked is never drawn, in full control too: one answer is no choice in any mode.
    */
   // So is the colour inside a mana ability the seat already picked on the mana ring (`./mana-ring.ts`).
-  const auto = pending === null || spectator ? null : (selfAnswer(pending) ?? intentReply(pending, match.manaIntent));
+  const auto = pending === null || spectator ? null : (selfAnswer(pending) ?? intentReply(pending, match.manaIntent?.colors ?? null));
   const autoCallId = auto === null || pending === null ? null : pending.callId;
   useEffect(() => {
     if (autoCallId === null || auto === null || pending === null) return;
@@ -3161,7 +3161,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
    * true for the same bar.
    */
   const confirmPrompt = !spectator && !askOpen && !playOrDraw && isConfirmPrompt(bar);
-  const carriedColour = confirmPrompt && match.promptManaColors !== null && match.manaIntent !== null ? answerFromIntent({ manaColors: match.promptManaColors }, match.manaIntent) : null;
+  const carriedColour = confirmPrompt && match.promptManaColors !== null && match.manaIntent !== null ? answerFromIntent({ manaColors: match.promptManaColors }, match.manaIntent.colors) : null;
   useEffect(() => {
     if (carriedColour === null || carriedColour.kind !== 'button') return;
     match.manaIntent = null;
