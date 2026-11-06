@@ -150,7 +150,10 @@ jobs:
     name: unit (${{ matrix.shard }}/2)
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
-    timeout-minutes: 15
+    # 25, not 15: a shard placed on hokon when every claw is full takes 12-14 min
+    # quiet (p50 709 s vs 308 s on a claw), and under load both shards of run
+    # 42164074468 crossed 15 and were cancelled mid-run. 25 still fails a hang.
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
