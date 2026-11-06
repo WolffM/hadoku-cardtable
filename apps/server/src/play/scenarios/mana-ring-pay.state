@@ -1,0 +1,16 @@
+# The mana ring inside a payment (full control: cardtable's default lets Forge pay by itself):
+# alice casts Azorius Guildmage, {W}{U}, from City of Brass and Tundra. City of Brass's colour is
+# Forge's two-button yes/no of the two owed colours; Tundra's is its two abilities.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Azorius Guildmage
+humanbattlefield=City of Brass;Tundra
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=

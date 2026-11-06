@@ -1,0 +1,19 @@
+# The mana ring (`apps/ui/src/play/live/ManaRing.tsx`): alice's own Main 1 with a mana source of
+# each kind the ring answers differently (probed in real Forge on a claw, runs 42132000056 and 42137472274):
+#   Tundra          two abilities (getAbilityToPlay)
+#   City of Brass   one ability; the colour is getChoices of five; 1 damage
+#   Adarkar Wastes  {C} | W-or-U; W-or-U is Forge's two-button yes/no; 1 damage
+# Nothing in hand: every tap only adds to the pool.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Tundra;City of Brass;Adarkar Wastes
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
