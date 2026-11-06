@@ -182,14 +182,30 @@ export function defaultSocketPath(): string {
 }
 
 /**
+ * A dropped socket tries again after a quarter second, and never waits more than a second between
+ * tries. socket.io's default (1 s doubling to 5 s) let a socket sit out up to five seconds after a
+ * deploy's restart had already finished. The edge holds each try's handshake through the restart
+ * (hadoku_site's `proxy.ts`, `holdThroughRestart`), so a short delay costs a few held requests, not
+ * a storm of failed ones, and the socket lands the moment the new server listens.
+ */
+export const RECONNECT_DELAY_MS = 250;
+export const RECONNECT_DELAY_MAX_MS = 1000;
+
+/**
  * How every socket on the page connects: a websocket first, and long-polling only if the websocket
  * fails to open (`tryAllTransports`), so a network that refuses websockets still connects. socket.io's
  * default starts on long-polling and upgrades, which cost each connection three or four extra round
  * trips through the edge before its first frame, each a run of the edge worker. Watchparty connects
  * websocket-first through the same edge.
  */
-export function socketOptions(path: string = defaultSocketPath()): { path: string; transports: ('websocket' | 'polling')[]; tryAllTransports: true } {
-  return { path, transports: ['websocket', 'polling'], tryAllTransports: true };
+export function socketOptions(path: string = defaultSocketPath()): {
+  path: string;
+  transports: ('websocket' | 'polling')[];
+  tryAllTransports: true;
+  reconnectionDelay: number;
+  reconnectionDelayMax: number;
+} {
+  return { path, transports: ['websocket', 'polling'], tryAllTransports: true, reconnectionDelay: RECONNECT_DELAY_MS, reconnectionDelayMax: RECONNECT_DELAY_MAX_MS };
 }
 
 /**

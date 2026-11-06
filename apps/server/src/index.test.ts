@@ -28,6 +28,7 @@ import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { LIBRARY, formatIdOf } from '@hadoku/deck/library';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ORIGIN_HEADER, ORIGIN_VALUE } from './http/origin.ts';
 import { testPort } from './testPort.ts';
 
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -60,6 +61,8 @@ interface Booted {
 	page: { status: number; body: string };
 	/** The embed bundle watchparty imports (D21): its entry, a hashed chunk, a name that is not there. */
 	embed: { entry: Served; chunk: Served; missing: Served };
+	/** The origin header (`http/origin.ts`) on a probe, the page, a socket.io poll and a 404. */
+	origin: { health: string | null; page: string | null; socket: string | null; missing: string | null };
 }
 
 async function served(url: string): Promise<Served> {
@@ -220,6 +223,12 @@ async function boot(
 		await first?.(base, () => output);
 		const h = await fetch(`${base}/health`);
 		const p = await fetch(`${base}/`);
+		const origin = {
+			health: h.headers.get(ORIGIN_HEADER),
+			page: p.headers.get(ORIGIN_HEADER),
+			socket: (await fetch(`${base}/socket.io/?EIO=4&transport=polling`)).headers.get(ORIGIN_HEADER),
+			missing: (await fetch(`${base}/api/no-such-route`)).headers.get(ORIGIN_HEADER),
+		};
 		const embed = {
 			entry: await served(`${base}/embed/cardtable-embed.js`),
 			chunk: await served(`${base}/embed/assets/chunk-a1b2c3.js`),
@@ -231,6 +240,7 @@ async function boot(
 			health: { status: h.status, body: (await h.json()) as Booted['health']['body'] },
 			page: { status: p.status, body: await p.text() },
 			embed,
+			origin,
 		};
 	} finally {
 		child.kill('SIGTERM');
@@ -263,7 +273,7 @@ function bootLines(output: string): Record<string, unknown>[] {
 
 describe('a server started from a path', () => {
 	it('outside any dot-directory is healthy and serves the page, then reads every era\'s pool', async () => {
-		const { health, page, output } = await boot(join(root, 'plain', 'apps', 'ui', 'dist'), {}, 30_000, '"evt":"library-warmed"');
+		const { health, page, output, origin } = await boot(join(root, 'plain', 'apps', 'ui', 'dist'), {}, 30_000, '"evt":"library-warmed"');
 		expect(health.status).toBe(200);
 		expect(health.body).toMatchObject({ status: 'ok', bundle: 'ok' });
 		// hadoku health v1: which instance, and the HEAD of the checkout it runs from.
@@ -271,6 +281,8 @@ describe('a server started from a path', () => {
 		expect(health.body.commit).toBe(execFileSync('git', ['-C', PKG_ROOT, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim());
 		expect(page.status).toBe(200);
 		expect(page.body).toContain('fixture');
+		// The edge holds a 502 without it through a restart; every answer of ours carries it.
+		expect(origin).toEqual({ health: ORIGIN_VALUE, page: ORIGIN_VALUE, socket: ORIGIN_VALUE, missing: ORIGIN_VALUE });
 		const lines = bootLines(output);
 		// Every step between process start and listen is timed, in order, ending at listen.
 		const phases = lines.filter((l) => l.evt === 'boot-phase').map((l) => l.phase);

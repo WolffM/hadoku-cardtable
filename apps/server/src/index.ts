@@ -83,11 +83,12 @@ import { draftIdOfPool } from './room/lobby.js';
 import { checkCards, checkPlan } from './room/plan.js';
 import { FREE_PICK, type DraftPlan, type PoolVerdict, type TableGame } from '@hadoku/shared';
 import { busyHandler } from './busy.js';
+import { stampOrigin } from './http/origin.js';
 import { healthResponse, readCommit, serviceIdOf } from './health.js';
 import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { attachDraftSocket } from './room/socket.js';
 import { attachRoomFeed } from './room/feed.js';
-import { clawPlacement, registryRestorer } from './play/placement/index.js';
+import { clawPlacement, fleetCli, primeFleet, registryRestorer } from './play/placement/index.js';
 import { attachPlay, coldStartsFrom, createFeatured, featuredCandidates, jvmHostConfig, jvmHostFactory, roomDeckCosts, roomFormatNames, spellCopierLookup, tableGame, type PlayHandle } from './play/index.js';
 import { bridgeDigest, createRecorder, forgePin, serverVersion } from './play/recording/recorder.js';
 import { sweepRecordings } from './play/recording/retention.js';
@@ -162,6 +163,11 @@ app.disable('x-powered-by');
 // over a 404 on every page. See base-path.ts.
 const basePath = await checkBundle(INDEX_HTML, CONFIG.basePrefix);
 bootPhase('bundle');
+
+// The claws' fleet read, started now so it runs beside the rest of the boot: a restart listens
+// only once its matches are adopted, and adopting waits on this read (`primeFleet`).
+const placementLog = jsonLogger('cardtable-placement');
+const primedFleet = CONFIG.playHosts === 'claws' ? primeFleet(fleetCli({ log: reportingAlerts(placementLog) })) : undefined;
 
 // `PKG_ROOT` is computed the way `config.ts` computes it, and it has to be:
 // `dist/index.js` and `src/index.ts` are both exactly one directory below the
@@ -883,9 +889,8 @@ attachParked(api, { store: parked, lobby, play: () => play, log: parkedLog, ...(
 
 // Where matches run (`CARDTABLE_PLAY_HOSTS`): this machine's pool, or placement across the claws
 // with this machine as the backstop (`play/placement/`).
-const placementLog = jsonLogger('cardtable-placement');
 // Every alert placement posts is also a service event at its level (`reportingAlerts`).
-const clawHosts = forge.ok && CONFIG.playHosts === 'claws' ? clawPlacement(forge.config, { webhook: CONFIG.alertWebhook, forceFile: CONFIG.backstopForceFile, restartGraceMs: CONFIG.restartGraceMs, log: reportingAlerts(placementLog) }) : null;
+const clawHosts = forge.ok && CONFIG.playHosts === 'claws' ? clawPlacement(forge.config, { webhook: CONFIG.alertWebhook, forceFile: CONFIG.backstopForceFile, restartGraceMs: CONFIG.restartGraceMs, log: reportingAlerts(placementLog), fleet: primedFleet }) : null;
 const localHost = forge.ok && clawHosts === null ? jvmHostFactory(forge.config) : null;
 placementLog({ evt: 'play-hosts', mode: forge.ok ? CONFIG.playHosts : 'none', alerts: CONFIG.alertWebhook === '' ? 'logged only' : 'discord' });
 
@@ -1135,6 +1140,8 @@ accountErase.register({ what: 'cubes', erase: (p) => cubeStore.anonymise(p.ids, 
 accountErase.register(legacyIdsStep(join(CONFIG.dataDir, 'legacy-ids.done.json')));
 
 // ── Listen ───────────────────────────────────────────────────────────────────
+// Last, after every socket.io attach: engine.io moves itself to the front of the request listeners.
+stampOrigin(httpServer);
 httpServer.listen(CONFIG.port, CONFIG.host, () => {
 	capacity.start();
 	console.log(`[cardtable] listening on ${CONFIG.host}:${CONFIG.port}`);

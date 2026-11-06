@@ -13,7 +13,9 @@ import type { JvmHostConfig } from '../host.js';
 import { connectRemoteHost } from '../remote/index.js';
 import { Alerts, discordSink } from './alerts.js';
 import { placement, type Placement } from './coordinator.js';
-import { fleetCli } from './fleet.js';
+import { fleetCli, type FleetSource } from './fleet.js';
+
+export { fleetCli, primeFleet } from './fleet.js';
 
 export { registryRestorer } from './restore.js';
 export type { HostsView, Placement } from './coordinator.js';
@@ -23,13 +25,15 @@ export interface ClawPlacementOptions {
 	forceFile: string;
 	restartGraceMs: number;
 	log: (entry: Record<string, unknown>) => void;
+	/** The fleet to read; default fleet-manager's CLI. `index.ts` passes one primed at boot (`primeFleet`). */
+	fleet?: FleetSource;
 }
 
 /** The production wiring: fleet-manager's CLI, the agents on the claws, Discord. */
 export function clawPlacement(config: JvmHostConfig, opts: ClawPlacementOptions): Placement {
 	return placement({
 		config,
-		fleet: fleetCli({ log: opts.log }),
+		fleet: opts.fleet ?? fleetCli({ log: opts.log }),
 		connect: (node) => connectRemoteHost(node, config),
 		alerts: new Alerts({ sink: opts.webhook === '' ? null : discordSink(opts.webhook), log: opts.log }),
 		forceFile: opts.forceFile,

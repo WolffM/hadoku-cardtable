@@ -309,3 +309,28 @@ export function fleetCli(opts: FleetCliOptions = {}): FleetSource & { standing()
 		},
 	};
 }
+
+/** The longest a read taken during boot stands in for the coordinator's first poll. */
+export const PRIMED_MAX_AGE_MS = 15_000;
+
+/**
+ * `source`, with its first `status()` read already under way.
+ *
+ * A restart is down until the new server listens, and it listens only once every match the last
+ * one handed over is adopted (`index.ts`, `play.adopted`). Adopting starts with this read: a CLI
+ * run of a second or more on a busy host, which used to begin only when placement was built, late
+ * in the boot. Started first, it runs beside the catalog load instead of after it.
+ */
+export function primeFleet<S extends FleetSource>(source: S, now: () => number = Date.now): S {
+	const startedAt = now();
+	let first: Promise<FleetStatus | null> | null = source.status();
+	return {
+		...source,
+		status() {
+			const primed = first;
+			first = null;
+			if (primed !== null && now() - startedAt <= PRIMED_MAX_AGE_MS) return primed;
+			return source.status();
+		},
+	};
+}

@@ -17,7 +17,7 @@ import { contractViolations } from './audit.js';
 import { CONTRACT, contractOf } from './contract.js';
 import { CONTRACT_HOLD_MS, placement, type AgentLink, type Placement, type Restorer } from './coordinator.js';
 import type { FleetDemand, FleetNode, FleetSource, FleetStatus } from './fleet.js';
-import { CHECKOUT_FLEET_CLI, MGMT_API_FLEET_CLI, fleetCli, fleetCliPath, parseDemand, parseNodeStatus } from './fleet.js';
+import { CHECKOUT_FLEET_CLI, MGMT_API_FLEET_CLI, PRIMED_MAX_AGE_MS, fleetCli, fleetCliPath, parseDemand, parseNodeStatus, primeFleet } from './fleet.js';
 import {
 	BACKSTOP_IDLE,
 	DEMAND_CALM_MS,
@@ -1454,3 +1454,33 @@ describe('restart grace', () => {
 });
 
 mkdirSync(join(scratch, 'res'), { recursive: true });
+
+describe('primeFleet: the first fleet read starts at boot', () => {
+	const status = (at: number): FleetStatus => ({ at, nodes: [] }) as unknown as FleetStatus;
+	const counting = () => {
+		let reads = 0;
+		const source: FleetSource = {
+			status: () => Promise.resolve(status(++reads)),
+			demand: () => Promise.resolve(null),
+		};
+		return { source, reads: () => reads };
+	};
+
+	it('asks at once, and the first status() is that answer, not a second read', async () => {
+		const { source, reads } = counting();
+		const primed = primeFleet(source, () => 0);
+		expect(reads()).toBe(1);
+		expect((await primed.status())?.at).toBe(1);
+		expect(reads()).toBe(1);
+		expect((await primed.status())?.at).toBe(2);
+	});
+
+	it('a primed answer older than its limit is not used: the poll reads live', async () => {
+		const { source, reads } = counting();
+		let t = 0;
+		const primed = primeFleet(source, () => t);
+		t = PRIMED_MAX_AGE_MS + 1;
+		expect((await primed.status())?.at).toBe(2);
+		expect(reads()).toBe(2);
+	});
+});
