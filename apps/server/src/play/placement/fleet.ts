@@ -94,7 +94,8 @@ export interface FleetDemand {
 
 /** Where the coordinator reads fleet-manager from. Both answer null when they could not look. */
 export interface FleetSource {
-	status(): Promise<FleetStatus | null>;
+	/** `maxAgeS`: the oldest copy taken instead of a live read; `STATUS_MAX_AGE_S` when left out. */
+	status(maxAgeS?: number): Promise<FleetStatus | null>;
 	/** Ask for `slices` slices; when there are more, the converger ends them from `releaseOrder`'s head. */
 	demand(slices: number, releaseOrder: readonly string[]): Promise<FleetDemand | null>;
 }
@@ -103,6 +104,13 @@ export interface FleetSource {
 export const FLEET_CONTRACT = 1;
 /** The oldest node-status copy a poll takes instead of a live read: under one poll. */
 export const STATUS_MAX_AGE_S = 55;
+/**
+ * The oldest copy boot's read takes. The last server's polls keep the copy under one poll plus one
+ * live read old (~70 s), so a restart finds one and does not wait out an ~11 s live read before it
+ * listens (prod 2026-11-06 08:00Z: adopted at 10.7 s, all of it that read). The poll after boot reads
+ * as usual, and this stays inside the lag the notice audit allows for (`NOTICE_SLACK_MS`).
+ */
+export const BOOT_STATUS_MAX_AGE_S = 2 * STATUS_MAX_AGE_S;
 
 /**
  * The claws' single-core speed, fastest first (`docs/spikes/forge-scale.md`): the tie-break between
@@ -293,8 +301,8 @@ export function fleetCli(opts: FleetCliOptions = {}): FleetSource & { standing()
 		return demand;
 	};
 	return {
-		async status() {
-			const text = await run(['node-status', '--json', '--max-age', String(STATUS_MAX_AGE_S)]);
+		async status(maxAgeS = STATUS_MAX_AGE_S) {
+			const text = await run(['node-status', '--json', '--max-age', String(maxAgeS)]);
 			const status = text === null ? null : parseNodeStatus(text);
 			if (text !== null && status === null) log({ evt: 'fleet-unreadable', args: 'node-status', error: unreadableWhy(text) });
 			return status;
@@ -319,11 +327,12 @@ export const PRIMED_MAX_AGE_MS = 15_000;
  * A restart is down until the new server listens, and it listens only once every match the last
  * one handed over is adopted (`index.ts`, `play.adopted`). Adopting starts with this read: a CLI
  * run of a second or more on a busy host, which used to begin only when placement was built, late
- * in the boot. Started first, it runs beside the catalog load instead of after it.
+ * in the boot. Started first, it runs beside the catalog load instead of after it, and it takes a
+ * copy up to `BOOT_STATUS_MAX_AGE_S` old rather than ssh to every node.
  */
 export function primeFleet<S extends FleetSource>(source: S, now: () => number = Date.now): S {
 	const startedAt = now();
-	let first: Promise<FleetStatus | null> | null = source.status();
+	let first: Promise<FleetStatus | null> | null = source.status(BOOT_STATUS_MAX_AGE_S);
 	return {
 		...source,
 		status() {

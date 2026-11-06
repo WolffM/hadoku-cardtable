@@ -15,9 +15,9 @@ import type { JvmHealth } from '../remote/wire.js';
 import { Alerts, type AlertSink } from './alerts.js';
 import { contractViolations } from './audit.js';
 import { CONTRACT, contractOf } from './contract.js';
-import { CONTRACT_HOLD_MS, placement, type AgentLink, type Placement, type Restorer } from './coordinator.js';
+import { CONTRACT_HOLD_MS, NOTICE_SLACK_MS, placement, type AgentLink, type Placement, type Restorer } from './coordinator.js';
 import type { FleetDemand, FleetNode, FleetSource, FleetStatus } from './fleet.js';
-import { CHECKOUT_FLEET_CLI, MGMT_API_FLEET_CLI, PRIMED_MAX_AGE_MS, fleetCli, fleetCliPath, parseDemand, parseNodeStatus, primeFleet } from './fleet.js';
+import { BOOT_STATUS_MAX_AGE_S, CHECKOUT_FLEET_CLI, MGMT_API_FLEET_CLI, PRIMED_MAX_AGE_MS, STATUS_MAX_AGE_S, fleetCli, fleetCliPath, parseDemand, parseNodeStatus, primeFleet } from './fleet.js';
 import {
 	BACKSTOP_IDLE,
 	DEMAND_CALM_MS,
@@ -1459,12 +1459,40 @@ describe('primeFleet: the first fleet read starts at boot', () => {
 	const status = (at: number): FleetStatus => ({ at, nodes: [] }) as unknown as FleetStatus;
 	const counting = () => {
 		let reads = 0;
+		const ages: (number | undefined)[] = [];
 		const source: FleetSource = {
-			status: () => Promise.resolve(status(++reads)),
+			status: (maxAgeS) => {
+				ages.push(maxAgeS);
+				return Promise.resolve(status(++reads));
+			},
 			demand: () => Promise.resolve(null),
 		};
-		return { source, reads: () => reads };
+		return { source, reads: () => reads, ages };
 	};
+
+	it("boot's read takes a copy the last server's polls left; the polls after it read as usual", async () => {
+		const { source, ages } = counting();
+		const primed = primeFleet(source, () => 0);
+		await primed.status();
+		await primed.status();
+		expect(ages).toEqual([BOOT_STATUS_MAX_AGE_S, undefined]);
+		expect(BOOT_STATUS_MAX_AGE_S).toBeGreaterThan(STATUS_MAX_AGE_S);
+		// A copy that old still lets the notice audit judge a late notice fairly.
+		expect(BOOT_STATUS_MAX_AGE_S * 1000).toBeLessThanOrEqual(NOTICE_SLACK_MS);
+	});
+
+	it('the CLI is asked for that age', async () => {
+		const cli = join(scratch, 'args-fleet-cli.mjs');
+		const argsFile = join(scratch, 'args-fleet-cli.txt');
+		writeFileSync(cli, `import { appendFileSync } from 'node:fs';\nappendFileSync(${JSON.stringify(argsFile)}, process.argv.slice(2).join(' ') + '\\n');\nprocess.stdout.write('{}');`);
+		const fleet = fleetCli({ env: { CARDTABLE_FLEET_CLI: cli }, log: () => {} });
+		await primeFleet(fleet).status();
+		await fleet.status();
+		expect(readFileSync(argsFile, 'utf8').trim().split('\n')).toEqual([
+			`node-status --json --max-age ${BOOT_STATUS_MAX_AGE_S}`,
+			`node-status --json --max-age ${STATUS_MAX_AGE_S}`,
+		]);
+	});
 
 	it('asks at once, and the first status() is that answer, not a second read', async () => {
 		const { source, reads } = counting();
