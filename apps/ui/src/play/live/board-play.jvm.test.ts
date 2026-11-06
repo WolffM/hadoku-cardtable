@@ -266,10 +266,18 @@ describe.skipIf(!available.ok)(title, () => {
       /** Clicks the product declined because the affordance had gone stale. */
       const declined: string[] = [];
       /**
+       * `under` for a press `selectCard` kept: there is no set it was sent under yet. Forge's next
+       * word is what sends it, and that word still names the card in hand — it has not been played
+       * yet — so it is the baseline, not a sign the press was lost (run 42191831219: the driver
+       * re-clicked a kept Shock 221 ms in, on exactly that word, and chased the second Shock while
+       * Forge cast the first).
+       */
+      const KEPT = Symbol('kept');
+      /**
        * When each latched click was sent, and the actionable set Forge had named when it was, so
        * the latch can tell Forge answering it from Forge not having got to it yet.
        */
-      const sentAt = new Map<string, { at: number; under: ReadonlySet<number> | null }>();
+      const sentAt = new Map<string, { at: number; under: ReadonlySet<number> | null | typeof KEPT }>();
       /** Acts Forge did not act on, which this driver made again. */
       const redone: string[] = [];
 
@@ -320,11 +328,12 @@ describe.skipIf(!available.ok)(title, () => {
       }
 
       /** Latch `id` under `key`, remembering when its click was sent and what Forge offered then. */
-      const latch = (s: SeatClient, key: string): void => {
-        sentAt.set(key, { at: Date.now(), under: s.live.weaklySelectable });
+      const latch = (s: SeatClient, key: string, id: number | null = null): void => {
+        const kept = id !== null && s.live.deferredSelect?.cardId === id;
+        sentAt.set(key, { at: Date.now(), under: kept ? KEPT : s.live.weaklySelectable });
       };
       const mark = (s: SeatClient, key: string, id: number | null): number | null => {
-        if (id !== null) latch(s, key);
+        if (id !== null) latch(s, key, id);
         return id;
       };
       /**
@@ -342,6 +351,12 @@ describe.skipIf(!available.ok)(title, () => {
         if (sent === undefined) return false;
         const waited = Date.now() - sent.at;
         const offered = s.live.weaklySelectable;
+        if (sent.under === KEPT) {
+          // Once sent (or dropped), the word now drawn is the set it went out under. Until then
+          // nothing has left the client, and only the grace can call it lost.
+          if (s.live.deferredSelect?.cardId !== id) sent.under = offered;
+          if (waited < EFFECT_GRACE_MS) return false;
+        }
         const renamed = id !== null && inHand(s, id) && offered !== null && offered !== sent.under && offered.has(id);
         if (!renamed && waited < EFFECT_GRACE_MS) return false;
         sentAt.delete(key);
