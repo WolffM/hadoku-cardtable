@@ -88,6 +88,7 @@ import { stampOrigin } from './http/origin.js';
 import { healthResponse, readCommit, serviceIdOf } from './health.js';
 import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { attachDraftSocket } from './room/socket.js';
+import { httpDraftbot } from './room/draftbot.js';
 import { attachRoomFeed } from './room/feed.js';
 import { clawPlacement, fleetCli, primeFleet, registryRestorer } from './play/placement/index.js';
 import { attachPlay, coldStartsFrom, createFeatured, featuredCandidates, jvmHostConfig, jvmHostFactory, roomDeckCosts, roomFormatNames, spellCopierLookup, tableGame, type PlayHandle } from './play/index.js';
@@ -202,6 +203,7 @@ const capacity = capacitySampler({
 		jvms: () => clawHosts?.hosts().hosts.reduce((n, h) => n + h.jvms.length, 0) ?? localHost?.jvms().length ?? 0,
 		...(CONFIG.playHosts === 'claws' ? { forgeFree: () => clawHosts?.hosts().hosts.filter((h) => h.eligible).reduce((n, h) => n + h.free, 0) ?? 0 } : {}),
 	},
+	counts: () => ({ draftbotPicks: draftSocket.draftbotPicks() }),
 });
 
 // ── Provenance + access log ──────────────────────────────────────────────────
@@ -720,7 +722,13 @@ const io = new SocketIOServer(httpServer, {
 	serveClient: false,
 });
 
-attachDraftSocket(io, { rooms: draftRooms, lobby, minTier: CONFIG.minTier, botPickMs: CONFIG.draftBotPickMs });
+const draftSocket = attachDraftSocket(io, {
+	rooms: draftRooms,
+	lobby,
+	minTier: CONFIG.minTier,
+	botPickMs: CONFIG.draftBotPickMs,
+	draftbot: CONFIG.draftbotUrl ? httpDraftbot(CONFIG.draftbotUrl, CONFIG.draftbotToken || undefined) : undefined,
+});
 // Every room write, pushed to the screens that have the room (or the list) open,
 // so none of them reads it on a timer. Behind the gate attachDraftSocket installed.
 const roomFeed = attachRoomFeed(io, { lobby });

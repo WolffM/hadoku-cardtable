@@ -163,6 +163,7 @@ import {
 	sendTo,
 	type EmitLog,
 } from './emit.js';
+import { askDraftbot, chooseByRatings, draftbotTally, type Draftbot, type DraftbotAnswer, type DraftbotOutcome } from './draftbot.js';
 import { identityFromHeaders } from './identity.js';
 import type { Lobby } from './lobby.js';
 import { jsonLogger } from '../log.js';
@@ -212,6 +213,8 @@ interface DraftSocketDeps {
 	rateLimit?: RateLimitConfig;
 	/** How long a bot turn takes. `CONFIG.draftBotPickMs` in production; 0 (the default) picks at once. */
 	botPickMs?: number;
+	/** Picks for the bots on the clock (`draftbot.ts`). Absent: every bot pick is the heuristic's. */
+	draftbot?: Draftbot;
 	/** The seat-release window, ruled 2026-10-26: 30 s. See the module header. */
 	seatReleaseMs?: number;
 	/** Real `setTimeout` (unref'd) unless a test runs its own clock. */
@@ -221,6 +224,8 @@ interface DraftSocketDeps {
 interface DraftSocketHandle {
 	/** Release the rate limiter from the package's sweep registry. */
 	close(): void;
+	/** Bot picks by where they came from since the last call (`capacity`'s window). */
+	draftbotPicks(): Record<DraftbotOutcome, number>;
 }
 
 const defaultLog = jsonLogger('cardtable-draft');
@@ -278,6 +283,9 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 	const limiter = new MultiRateLimiter<ParticipantId>(deps.rateLimit ?? PICK_RATE_LIMIT);
 	const botPickMs = deps.botPickMs ?? 0;
 	const botTimers = new Map<string, ReturnType<typeof setTimeout>>();
+	/** The draftbot request of each room's pending bot turn, aborted when the turn fires or the socket closes. */
+	const botAsks = new Map<string, AbortController>();
+	const tally = draftbotTally(log);
 	const ropeTimers = new Map<string, ReturnType<typeof setTimeout>>();
 	const seatReleaseMs = deps.seatReleaseMs ?? SEAT_RELEASE_MS;
 	const schedule =
@@ -293,6 +301,10 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 	 * Every bot holding a pack picks. At `botPickMs: 0`, at once and in place —
 	 * the caller's own envelope carries it. Otherwise one card each per turn on
 	 * the clock, each turn its own envelope, until no bot holds a pack.
+	 *
+	 * On the clock the draftbot is asked as the turn's wait begins, and whatever
+	 * it has answered when the wait ends is used: its time is the turn's own
+	 * `botPickMs`, so it never slows the pod, and a late answer is a timeout.
 	 */
 	const advanceBots = (room: DraftRoom): void => {
 		const draftId = room.roomId;
@@ -303,12 +315,23 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 			log({ evt: 'bot-picks', draftId, picks: advanced.picks, seq: advanced.state.seq });
 			return;
 		}
+		const ask = new AbortController();
+		let answer: DraftbotAnswer = { failed: deps.draftbot === undefined ? 'unset' : 'timeout' };
+		if (deps.draftbot !== undefined) {
+			void askDraftbot(deps.draftbot, stateOf(room), ask.signal).then((a) => {
+				if (!ask.signal.aborted) answer = a;
+			});
+		}
 		const timer = setTimeout(() => {
 			botTimers.delete(draftId);
+			botAsks.delete(draftId);
+			ask.abort();
 			// Found again: the room may have been forgotten while the turn waited.
 			const current = deps.rooms?.find(draftId);
 			if (current === undefined) return;
-			const turn = botTurn(stateOf(current), (entry) => log(entry));
+			const { chosen, outcomes } = chooseByRatings(stateOf(current), answer);
+			tally.record(answer, outcomes);
+			const turn = botTurn(stateOf(current), (entry) => log(entry), chosen);
 			if (turn.picks > 0) {
 				current.app.state = turn.state;
 				log({ evt: 'bot-picks', draftId, picks: turn.picks, seq: turn.state.seq });
@@ -319,6 +342,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 		}, botPickMs);
 		timer.unref();
 		botTimers.set(draftId, timer);
+		botAsks.set(draftId, ask);
 	};
 
 	/** The room's pick-timer speed, or null when its draft has no rope. */
@@ -666,8 +690,11 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 		close(): void {
 			limiter.deregister();
 			for (const timer of [...botTimers.values(), ...ropeTimers.values()]) clearTimeout(timer);
+			for (const ask of botAsks.values()) ask.abort();
 			botTimers.clear();
+			botAsks.clear();
 			ropeTimers.clear();
 		},
+		draftbotPicks: () => tally.drain(),
 	};
 }

@@ -24,6 +24,8 @@ export interface CapacityDeps {
 	now?: () => number;
 	windowMs?: number;
 	sampleMs?: number;
+	/** Counts for the window, read once as each post goes out; the reader resets its own. */
+	counts?: () => Record<string, unknown>;
 	/** Process memory; `process.memoryUsage` in production. */
 	memory?: () => { rss: number; heapUsed: number };
 }
@@ -87,6 +89,7 @@ export function capacitySampler(deps: CapacityDeps): CapacitySampler {
 			errors5xx: errors,
 			loopP99Ms: Math.round(loop.percentile(99) / 1e6),
 			loopMaxMs: Math.round(loop.max / 1e6),
+			...deps.counts?.(),
 		});
 		peaks = {};
 		samples = 0;

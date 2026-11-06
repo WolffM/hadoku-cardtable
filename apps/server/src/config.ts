@@ -165,6 +165,13 @@ export const CONFIG = {
 	 */
 	draftBotPickMs: parseInt(process.env.CARDTABLE_DRAFT_BOT_PICK_MS || '1200', 10),
 
+	/**
+	 * A CubeCobra draftbot service for the bots' picks (`room/draftbot.ts`), and its
+	 * `X-Internal-Token`. Unset: no draftbot, every bot pick is the heuristic's.
+	 */
+	draftbotUrl: process.env.CARDTABLE_DRAFTBOT_URL || '',
+	draftbotToken: process.env.CARDTABLE_DRAFTBOT_TOKEN || '',
+
 	/** Each draft's state, so a pod survives a restart (`CARDTABLE_DRAFTS_DIR`). */
 	draftsDir: process.env.CARDTABLE_DRAFTS_DIR ?? join(DATA_DIR, 'drafts'),
 

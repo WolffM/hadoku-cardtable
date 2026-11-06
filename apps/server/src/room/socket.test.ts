@@ -61,6 +61,7 @@ import {
 } from '@hadoku/shared';
 import { pickTimeMs } from '@hadoku/draft';
 
+import type { Draftbot, DraftbotInput } from './draftbot.js';
 import type { DraftRoom, DraftRooms } from './draftRooms.js';
 import { identityFromHeaders } from './identity.js';
 import type { Lobby } from './lobby.js';
@@ -124,6 +125,7 @@ interface Harness {
 	 * real server's stdout; this makes the claim checkable without a browser.
 	 */
 	lines: Array<Record<string, unknown>>;
+	draftbotPicks: () => Record<string, number>;
 	close: () => Promise<void>;
 }
 
@@ -173,6 +175,7 @@ async function boot(
 		schedule?: (fn: () => void, ms: number) => void;
 		/** The started room's settings, set before its draft is dealt. */
 		settings?: Partial<RoomSettings>;
+		draftbot?: Draftbot;
 	} = {},
 ): Promise<Harness> {
 	const rooms = roomsMod.createDraftRooms({ ...roomsMod.singlePoolResolver(pool) });
@@ -193,6 +196,7 @@ async function boot(
 		botPickMs: deps.botPickMs,
 		seatReleaseMs: deps.seatReleaseMs,
 		schedule: deps.schedule,
+		draftbot: deps.draftbot,
 	});
 	await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
 	const port = (http.address() as AddressInfo).port;
@@ -203,6 +207,7 @@ async function boot(
 		io,
 		http,
 		lines,
+		draftbotPicks: () => handle.draftbotPicks(),
 		close: async () => {
 			handle.close();
 			io.close();
@@ -785,6 +790,83 @@ describe('bots on the clock', () => {
 		if (piled?.viewer.kind !== 'seat') throw new Error('alice should be seated');
 		expect(piled.viewer.pack.map((c) => c.cardId)).toEqual(opening.viewer.pack.map((c) => c.cardId));
 		expect(piled.pickNumber).toBe(1);
+	});
+});
+
+/* ── The draftbot ────────────────────────────────────────────────────── */
+
+describe('bots on the clock with a draftbot', () => {
+	/** Rates each pack's cards in reverse, so the top-rated is the pack's last card. */
+	const reverseRatings = (inputs: DraftbotInput[]) => inputs.map((i) => i.pack.map((oracle, k) => ({ oracle, rating: k })));
+	const botSeats = (): number[] => roomsMod.stateOf(room()).table.seats.flatMap((s, i) => (s?.occupant?.kind === 'bot' ? [i] : []));
+
+	it('asks once per room per turn and each bot takes its top-rated card', async () => {
+		const calls: DraftbotInput[][] = [];
+		await harness?.close();
+		harness = await boot({
+			botPickMs: 40,
+			draftbot: {
+				batchDraft: async (inputs) => {
+					calls.push(inputs);
+					return reverseRatings(inputs);
+				},
+			},
+		});
+		const alice = await connect(live().port, edgeHeaders('alice'));
+		await joinAndSettle(alice);
+		await waitUntil(() => lines().some((l) => l.evt === 'bot-picks'), 'the first bot turn');
+		expect(lines().find((l) => l.evt === 'bot-picks')?.picks).toBe(7);
+		const first = calls[0]!;
+		expect(first).toHaveLength(7);
+		expect(first.every((i) => i.pack.length === 15 && i.pool.length === 0)).toBe(true);
+		const state = roomsMod.stateOf(room());
+		expect(botSeats().map((seat) => state.pools[seat]![0]!.oracleId).sort()).toEqual(first.map((i) => i.pack.at(-1)).sort());
+		// One call per turn: the turns that followed asked once each, never per seat.
+		const turns = lines().filter((l) => l.evt === 'bot-picks').length;
+		expect(calls.length).toBeGreaterThanOrEqual(turns);
+		expect(calls.length).toBeLessThanOrEqual(turns + 1);
+		expect(live().draftbotPicks().served).toBeGreaterThanOrEqual(7);
+	});
+
+	it('a draftbot that never answers in time leaves every bot on the heuristic, and the turn keeps its pace', async () => {
+		await harness?.close();
+		harness = await boot({
+			botPickMs: 40,
+			draftbot: {
+				batchDraft: (_inputs, signal) => new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('aborted')))),
+			},
+		});
+		const alice = await connect(live().port, edgeHeaders('alice'));
+		await joinAndSettle(alice);
+		await waitUntil(() => lines().some((l) => l.evt === 'bot-picks'), 'the first bot turn');
+		expect(lines().find((l) => l.evt === 'bot-picks')?.picks).toBe(7);
+		const picks = live().draftbotPicks();
+		expect(picks.served).toBe(0);
+		expect(picks.timeout).toBeGreaterThanOrEqual(7);
+		// The streak is logged once, however many turns it lasts.
+		await waitUntil(() => lines().filter((l) => l.evt === 'bot-picks').length >= 3, 'more bot turns', 10_000);
+		expect(lines().filter((l) => l.evt === 'draftbot-failing')).toHaveLength(1);
+	});
+
+	it('a room forgotten while the draftbot answers is left alone', async () => {
+		await harness?.close();
+		let answered = false;
+		harness = await boot({
+			botPickMs: 40,
+			draftbot: {
+				batchDraft: async (inputs) => {
+					live().rooms.delete(startedRoomId);
+					answered = true;
+					return reverseRatings(inputs);
+				},
+			},
+		});
+		const alice = await connect(live().port, edgeHeaders('alice'));
+		await joinAndSettle(alice);
+		await waitUntil(() => answered, 'the draftbot to be asked');
+		await new Promise((done) => setTimeout(done, 200));
+		expect(lines().some((l) => l.evt === 'bot-picks')).toBe(false);
+		expect(live().draftbotPicks().served).toBe(0);
 	});
 });
 
