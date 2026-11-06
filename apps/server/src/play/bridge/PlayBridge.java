@@ -3986,6 +3986,7 @@ public final class PlayBridge {
             final JsonObject f = notify("setWeaklySelectable");
             f.add("cards", refs(cards));
             offerFacts(f, cards);
+            manaRings(f, cards);
             castForbidden(f);
             unaffordable(f);
             heldChanges(f);
@@ -4172,6 +4173,54 @@ public final class PlayBridge {
             } catch (final ReflectiveOperationException | RuntimeException e) {
                 System.err.println("[bridge] heldChanges: could not read the held cards' costs (" + e + "); the hand keeps its last tags");
             }
+        }
+
+        /**
+         * {@code manaRings}: each offered permanent of this seat's whose mana abilities give a choice,
+         * with those abilities as a click's {@code getAbilityToPlay} would carry them (refs, labels and
+         * {@link #manaFacts}). The seat draws a source's ring on the PRESS from it, before anything is
+         * sent (the operator, 2026-11-06: press, drag to a disc, release), and sends the click only for
+         * the pick, which then answers Forge's questions by the ability's id and its colour. Mana
+         * abilities only: a non-mana ability Forge may still leave off its offer, and a ring that named
+         * one would pick what the click is never asked. Omitted when nothing has a choice or on failure.
+         */
+        private void manaRings(final JsonObject f, final Iterable<CardView> cards) {
+            final Game game = liveGame();
+            final forge.game.player.Player mine = liveSelf(game);
+            if (mine == null || cards == null) { return; }
+            try {
+                final JsonArray rings = new JsonArray();
+                final java.util.Set<Integer> seen = new java.util.HashSet<>();
+                for (final CardView cv : cards) {
+                    if (cv == null || !seen.add(cv.getId())) { continue; }
+                    final forge.game.card.Card c = game.findById(cv.getId());
+                    if (c == null || !c.isInPlay() || c.getController() != mine) { continue; }
+                    final List<SpellAbility> sas = new ArrayList<>();
+                    for (final SpellAbility sa : c.getAllPossibleAbilities(mine, true)) {
+                        if (sa.isManaAbility() && sa.getManaPart() != null) { sas.add(sa); }
+                    }
+                    if (sas.isEmpty()) { continue; }
+                    final List<SpellAbilityView> views = new ArrayList<>();
+                    for (final SpellAbility sa : sas) { views.add(sa.getView()); }
+                    final JsonArray offered = labelledAbilities(views);
+                    manaFactsOf(sas, offered);
+                    if (sas.size() == 1 && !choosesColour(offered.get(0).getAsJsonObject())) { continue; }
+                    final JsonObject ring = new JsonObject();
+                    ring.add("card", ref("card", cv.getId()));
+                    ring.add("abilities", offered);
+                    rings.add(ring);
+                }
+                if (!rings.isEmpty()) { f.add("manaRings", rings); }
+            } catch (final RuntimeException e) {
+                System.err.println("[bridge] manaRings: could not read the offered sources (" + e + ")");
+            }
+        }
+
+        /** One mana ability whose result is still a choice: a colour, a combination, or another land's colours. */
+        private static boolean choosesColour(final JsonObject offered) {
+            if (!offered.has("mana")) { return false; }
+            final JsonObject m = offered.getAsJsonObject("mana");
+            return (m.has("choose") && m.get("choose").getAsString().length() > 1) || m.has("reflects") || m.has("combination");
         }
 
         /**
@@ -5450,11 +5499,18 @@ public final class PlayBridge {
                 return;
             }
             if (cache == null) { return; }
+            final List<SpellAbility> sas = new ArrayList<>();
+            for (final SpellAbilityView v : abilities) { sas.add(cache.get(v)); }
+            manaFactsOf(sas, offered);
+        }
+
+        /** {@link #manaFacts} for abilities already in hand: {@code offered.get(i)} is {@code sas.get(i)}'s ref. */
+        private void manaFactsOf(final List<SpellAbility> sas, final JsonArray offered) {
             final String owed = owedInPayment();
             final forge.game.mana.ManaCostBeingPaid paying = paymentCost();
             final forge.game.player.Player payer = paying == null ? null : paymentPayer();
-            for (int i = 0; i < abilities.size(); i++) {
-                final SpellAbility sa = cache.get(abilities.get(i));
+            for (int i = 0; i < sas.size(); i++) {
+                final SpellAbility sa = sas.get(i);
                 if (sa == null || !sa.isManaAbility() || sa.getManaPart() == null) { continue; }
                 try {
                     final JsonObject mana = manaOf(sa, owed);

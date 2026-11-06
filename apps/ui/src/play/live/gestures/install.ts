@@ -286,6 +286,7 @@ import {
 import { installMarks, markScanWanted } from './intent.ts';
 import { clearMarquee, drawMarquee } from './marquee.ts';
 import { MOVABLE_DIALOG } from '../movable.tsx';
+import { closeManaPress, openManaPress, pressRingFor, tapManaPress } from '../mana-press.ts';
 import { guardTextSelection } from './text-press.ts';
 import { commitStackTarget, stackAsk, stackItemBox, stackItemUnder } from './stack.ts';
 import { playRole } from '../../../sound/index.ts';
@@ -485,6 +486,11 @@ export function installGestures(options: GestureOptions): GestureHandle {
   let cancelledByRightClick = false;
   /** A finger pressed on nothing while a cast is parked: a cancel if it lifts as a tap, nothing if it pans. */
   let strayTouch: { id: number; at: Point; node: EventTarget | null } | null = null;
+  /**
+   * A press on a mana source whose ring is open under it (`../mana-press.ts`): a release that never
+   * left the press is the source's click; a drag picks the disc it is let go on, or nothing.
+   */
+  let manaPress: { source: number; pointerId: number; press: Point; moved: boolean } | null = null;
   /** The press in progress is a touch the browser may pan sideways (`pansSideways`) — see `onPointerMove`. */
   let sidewaysPan = false;
   /**
@@ -934,7 +940,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
    */
   function swallowClick(event: MouseEvent): void {
     const by = clicks.swallow(event);
-    if (by === null || !(event.target instanceof Element)) return;
+    // A mana source's press answered its own click (`onPointerUp`): nothing was lost to report.
+    if (by === null || by === 'mana-press' || !(event.target instanceof Element)) return;
     const offered = event.target.closest('[data-board-card][data-selectable]');
     const id = offered === null ? null : Number(offered.getAttribute('data-board-card'));
     if (id !== null && Number.isFinite(id)) reportSwallowedClick(match, id, by);
@@ -1586,6 +1593,23 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // Reset at the top of every FRESH press — see the latch's own doc comment.
     clicks.reset();
     /*
+     * A press on a mana source with a choice opens its ring under the press, before anything is sent
+     * (the operator, 2026-11-06): the release decides (`onPointerUp`). Ahead of the arrangement guard:
+     * such a land is picked from, not moved.
+     */
+    if (manaPress === null && match.asks.length === 0 && match.selectables === null && !declaringAttackers(match)) {
+      const source = cardIdUnder(eventTarget(event));
+      const ring = source === null || !boardInteraction(match).selectable.has(source) ? null : pressRingFor(match, source);
+      if (source !== null && ring !== null) {
+        claim(event);
+        manaPress = { source, pointerId: event.pointerId, press: { x: event.clientX, y: event.clientY }, moved: false };
+        hover = null;
+        openManaPress(match, { source, ring });
+        paint();
+        return;
+      }
+    }
+    /*
      * A press on the viewer's own hand card, Forge-offered or not, is a
      * REORDER unless it leaves the hand — ahead of every other branch below.
      * `CardOnBoard` never makes a hand card arrangeable, so this is not
@@ -1806,8 +1830,23 @@ export function installGestures(options: GestureOptions): GestureHandle {
     paint();
   }
 
+  /** The disc or chip of the press's ring under `at`, armed; every other one disarmed. */
+  function armManaDisc(at: Point): HTMLElement | null {
+    const hit = hitAt(scopeOf(canvas), at.x, at.y);
+    const disc = hit?.closest<HTMLElement>('[data-press] [data-testid="mana-ring-option"]:not(:disabled), [data-press] [data-testid="mana-ring-chip"]') ?? null;
+    for (const el of document.querySelectorAll<HTMLElement>('[data-press] [data-armed]')) if (el !== disc) el.removeAttribute('data-armed');
+    disc?.setAttribute('data-armed', '');
+    return disc;
+  }
+
   function onPointerMove(event: PointerEvent): void {
     if (otherPointer(event)) return;
+    if (manaPress !== null && event.pointerId === manaPress.pointerId) {
+      const at = { x: event.clientX, y: event.clientY };
+      if (!manaPress.moved && pastSlop(manaPress.press, at)) manaPress.moved = true;
+      if (manaPress.moved) armManaDisc(at);
+      return;
+    }
     const at = { x: event.clientX, y: event.clientY };
     if (drag !== null) {
       // A sideways-pannable touch press (portrait's hand carousel) is the browser's until it clearly
@@ -1876,6 +1915,18 @@ export function installGestures(options: GestureOptions): GestureHandle {
 
   function onPointerUp(event: PointerEvent): void {
     if (otherPointer(event)) return;
+    if (manaPress !== null && event.pointerId === manaPress.pointerId) {
+      const press = manaPress;
+      manaPress = null;
+      if (press.moved) {
+        // A disc's own click is its pick (`ManaRing`); let go on nothing, nothing is sent.
+        armManaDisc({ x: event.clientX, y: event.clientY })?.click();
+        closeManaPress(match);
+      } else tapManaPress(match, press.source);
+      // The click this release leaves is the press's, answered above: never also the card's or a disc's.
+      clicks.arm('mana-press');
+      return;
+    }
     if (strayTouch !== null && strayTouch.id === event.pointerId) {
       const stray = strayTouch;
       strayTouch = null;
@@ -2009,11 +2060,16 @@ export function installGestures(options: GestureOptions): GestureHandle {
    */
   function onTouchMove(event: TouchEvent): void {
     if (!event.cancelable) return;
-    if (drag?.moved === true || placedDrag?.moved === true) event.preventDefault();
+    if (drag?.moved === true || placedDrag?.moved === true || manaPress?.moved === true) event.preventDefault();
   }
 
   function onPointerCancel(event: PointerEvent): void {
     if (otherPointer(event)) return;
+    if (manaPress !== null && event.pointerId === manaPress.pointerId) {
+      manaPress = null;
+      closeManaPress(match);
+      return;
+    }
     if (placedDrag !== null) {
       // This hand lets go where it last put it — no cast went out, so there
       // is nothing Forge needs telling either way.

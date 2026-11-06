@@ -13,7 +13,10 @@ import {
   answerFromIntent,
   chipLayout,
   colorRing,
+  intentOf,
+  intentReply,
   optionForKeys,
+  pressRing,
   promptRing,
   ringLayout,
   tallyDone,
@@ -226,5 +229,31 @@ describe('keys and layout', () => {
 
   it('outer chips sit below the ring, outside it', () => {
     for (const c of chipLayout(2, 50, 42)) expect(c.dy).toBeGreaterThan(50);
+  });
+});
+
+describe('the ring on a press, before Forge asks', () => {
+  const tundra = offer([
+    { id: 11, label: '{T}: Add {W}.', mana: { makes: 'W', amount: 1 } },
+    { id: 12, label: '{T}: Add {U}.', mana: { makes: 'U', amount: 1 } },
+  ]);
+  const brass = offer([{ id: 21, label: '{T}: Add one mana of any color.', mana: { choose: 'WUBRG', amount: 1, damage: 1 } }]);
+
+  it('is drawn for a choice and never for one result', () => {
+    expect(shown(pressRing(tundra.abilities))).toEqual(['W', 'U']);
+    expect(shown(pressRing(brass.abilities))).toEqual(['W', 'U', 'B', 'R', 'G']);
+    expect(pressRing(offer([{ id: 31, label: '{T}: Add {G}.', mana: { makes: 'G', amount: 1 } }]).abilities)).toBeNull();
+  });
+
+  it("a pick answers Forge's ability question by its id, then its colour question by the disc's colour", () => {
+    const u = pressRing(tundra.abilities)!.options[1]!.answer;
+    const intent = intentOf(u, 87)!;
+    expect(intent).toEqual({ colors: [], source: 87, ability: 12 });
+    expect(intentReply(tundra, intent)).toEqual({ method: 'getAbilityToPlay', reply: tundra.abilities[1] });
+    expect(intentReply(tundra, { ...intent, source: 5 }), 'another source asked').toBeNull();
+
+    const r = intentOf(pressRing(brass.abilities)!.options[3]!.answer, 87)!;
+    expect(r).toEqual({ colors: ['R'], source: 87, ability: 21 });
+    expect(intentReply(colorList(['W', 'U', 'B', 'R', 'G']), r)).toEqual({ method: 'getChoices', reply: ['c3'] });
   });
 });

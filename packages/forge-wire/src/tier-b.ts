@@ -486,6 +486,12 @@ export const SetWeaklySelectableSchema = z.strictObject({
    */
   attackers: z.number().int().nonnegative().optional(),
   /**
+   * Ours: each offered permanent of this seat's whose mana abilities give a choice, with those
+   * abilities as a click's `getAbilityToPlay` carries them (`PlayBridge.java`'s `manaRings`). The
+   * seat draws the source's ring on the press, before anything is sent.
+   */
+  manaRings: z.array(z.strictObject({ card: CardRefSchema, abilities: z.array(z.lazy(() => OfferedAbilitySchema)) })).optional(),
+  /**
    * Ours: the cards this seat holds that an effect forbids it to cast (a
    * `CantBeCast` static — Reflector Mage's effect, Silence's), read by the
    * bridge the way Forge refuses the cast. `source` is the card that made the

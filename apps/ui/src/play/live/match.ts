@@ -248,6 +248,7 @@ import {
   type GameEntityRef,
   type GameLogLine,
   type Loss,
+  type OfferedAbility,
   type ServerFrame,
   YIELDING,
   DELTA_TYPE,
@@ -618,9 +619,16 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    * `RingAnswer.then`), and the card the ability is on: that question is answered with them, so one pick is
    * the whole conversation. Dropped by the next question that is not that colour question, and by the next
    * prompt that is neither it nor about that card — the payment of the ability's own cost (a filter land's
-   * {R/G}) is a prompt about it, and Forge asks the colours after it.
+   * {R/G}) is a prompt about it, and Forge asks the colours after it. `ability`: the ring was drawn on
+   * the press, before Forge asked which ability (`manaRings`), so that question is answered with it too.
    */
-  manaIntent: { readonly colors: readonly PoolColor[]; readonly source: number } | null;
+  manaIntent: { readonly colors: readonly PoolColor[]; readonly source: number; readonly ability?: number } | null;
+  /**
+   * The offered mana sources whose abilities give a choice, by card, with those abilities as a click's
+   * `getAbilityToPlay` would carry them (the offer's `manaRings`): the ring a press draws before
+   * anything is sent. `null` when the offer did not say.
+   */
+  manaRings: ReadonlyMap<number, readonly OfferedAbility[]> | null;
   /** The optional triggers Forge answers for this seat, from the server's `forge:trigger-decisions`. */
   triggerDecisions: readonly RememberedTrigger[];
   /**
@@ -1178,6 +1186,7 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     promptManaColors: null,
     promptManaMarks: null,
     manaIntent: null,
+    manaRings: null,
     triggerDecisions: [],
     deckColors: undefined,
     buttons: null,
@@ -3189,6 +3198,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   match.selectionAwaitsBar = null;
   match.weaklySelectable = null;
   match.weaklySelectableManaOnly = null;
+  match.manaRings = null;
   match.castForbidden = null;
   match.unaffordable = null;
   match.heldChanges = null;
@@ -3573,6 +3583,11 @@ function asksManaColor(frame: LiveAsk): boolean {
   return frame.method === 'assignGenericAmount' && frame.target.length > 0 && frame.target.every((e) => e.key.target === 'manaColor');
 }
 
+/** Forge asking which ability of the source a pick on the press's ring already named. */
+function asksIntendedAbility(match: LiveMatch, frame: LiveAsk): boolean {
+  return frame.method === 'getAbilityToPlay' && match.manaIntent?.ability !== undefined && frame.hostCard.id === match.manaIntent.source;
+}
+
 function applyFrame(match: LiveMatch, frame: ServerFrame): void {
   if (frame.kind === 'ask') {
     if (match.settled.has(frame.callId)) {
@@ -3586,7 +3601,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     if (i < 0) {
       match.asks.push(frame);
       if (CARDLESS_ASKS.has(frame.method)) match.lastSelectedCard = null;
-      if (!asksManaColor(frame)) match.manaIntent = null;
+      if (!asksManaColor(frame) && !asksIntendedAbility(match, frame)) match.manaIntent = null;
     } else match.asks[i] = frame;
     if (askedKey(match) !== asked) redraw(match);
     // The seat's next real decision takes the place of a reveal still showing.
@@ -3696,6 +3711,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     // `undefined` (the bridge could not classify) stays `null`, never an
     // empty set — see the field's own note on `LiveMatch`.
     match.weaklySelectableManaOnly = frame.manaOnly === undefined ? null : new Set(frame.manaOnly.map((c) => c.id));
+    match.manaRings = frame.manaRings === undefined ? null : new Map(frame.manaRings.map((r) => [r.card.id, r.abilities]));
     match.unaffordable = frame.unaffordable === undefined ? null : new Set(frame.unaffordable.map((c) => c.id));
     if (frame.castForbidden !== undefined) {
       match.castForbidden = new Map(
@@ -3749,6 +3765,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     if (!holdStandsNow(match) && !drawn.selectionOpen && ownTurn(match)) holdOffer(match, drawn);
     match.weaklySelectable = null;
     match.weaklySelectableManaOnly = null;
+    match.manaRings = null;
   }
   foldFrames(match, [frame], 'live');
 }
@@ -3826,6 +3843,7 @@ function dropOpenInput(match: LiveMatch): void {
   match.selectionAwaitsBar = null;
   match.weaklySelectable = null;
   match.weaklySelectableManaOnly = null;
+  match.manaRings = null;
   match.castForbidden = null;
   match.unaffordable = null;
   match.heldChanges = null;

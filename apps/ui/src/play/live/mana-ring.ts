@@ -146,7 +146,7 @@ function optionsOfFacts(ability: OfferedAbility, f: ManaFacts): RingOption[] {
 }
 
 /** The ring for a source's abilities, or null when none of them makes mana (the generic picker asks). */
-export function abilityRing(ask: AskOf<'getAbilityToPlay'>): Ring | null {
+export function abilityRing(ask: Pick<AskOf<'getAbilityToPlay'>, 'abilities'>): Ring | null {
   if (!ask.abilities.some((a) => a.mana !== undefined)) return null;
   const options: RingOption[] = [];
   const chips: RingChip[] = [];
@@ -155,6 +155,31 @@ export function abilityRing(ask: AskOf<'getAbilityToPlay'>): Ring | null {
     else chips.push({ key: `a${ability.id}`, label: ability.label ?? `Ability ${ability.id}`, answer: { to: 'ability', ability, then: null } });
   }
   return { options, chips, cancellable: true };
+}
+
+/**
+ * The ring a press on a mana source draws before anything is sent (the offer's `manaRings`), or null
+ * when it gives no choice. A pick then sends the click, and {@link intentReply} answers Forge's questions.
+ */
+export function pressRing(abilities: readonly OfferedAbility[]): Ring | null {
+  const ring = abilityRing({ abilities: [...abilities] });
+  return ring === null || ring.options.length + ring.chips.length < 2 ? null : ring;
+}
+
+/**
+ * A pick on the mana ring carried into the questions Forge asks after it: the ability, when the ring
+ * was drawn on the press before Forge asked for it, and the colours the disc showed.
+ */
+export interface ManaIntent {
+  readonly colors: readonly Mana[];
+  readonly source: number;
+  readonly ability?: number;
+}
+
+/** The intent a pick on a press's ring sends its click with. */
+export function intentOf(answer: RingAnswer, source: number): ManaIntent | null {
+  if (answer.to !== 'ability' || answer.ability === null) return null;
+  return { colors: answer.then ?? [], source, ability: answer.ability.id };
 }
 
 /** The ring for a list of colours (`getChoices` the bridge marked with `colors`), or null for any other list. */
@@ -313,8 +338,18 @@ export function ringFor(ask: AnyAsk): { readonly ring: Ring; readonly kind: 'abi
 }
 
 /** The reply a pick's carried colours make to an open colour ask, or null (`answerFromIntent` for an ask). */
-export function intentReply(ask: AnyAsk, intent: readonly Mana[] | null): { readonly method: 'getChoices' | 'assignGenericAmount'; readonly reply: unknown } | null {
-  if (intent === null || (ask.method !== 'getChoices' && ask.method !== 'assignGenericAmount')) return null;
-  const answer = answerFromIntent(ask as AskOf<'getChoices'> | AskOf<'assignGenericAmount'>, intent);
+export function intentReply(
+  ask: AnyAsk,
+  intent: ManaIntent | null,
+): { readonly method: 'getAbilityToPlay' | 'getChoices' | 'assignGenericAmount'; readonly reply: unknown } | null {
+  if (intent === null) return null;
+  if (ask.method === 'getAbilityToPlay') {
+    const offer = ask as AskOf<'getAbilityToPlay'>;
+    if (intent.ability === undefined || offer.hostCard.id !== intent.source) return null;
+    const ability = offer.abilities.find((a) => a.id === intent.ability);
+    return ability === undefined ? null : { method: 'getAbilityToPlay', reply: ability };
+  }
+  if (ask.method !== 'getChoices' && ask.method !== 'assignGenericAmount') return null;
+  const answer = answerFromIntent(ask as AskOf<'getChoices'> | AskOf<'assignGenericAmount'>, intent.colors);
   return answer === null || answer.kind !== 'reply' ? null : { method: ask.method, reply: answer.reply };
 }

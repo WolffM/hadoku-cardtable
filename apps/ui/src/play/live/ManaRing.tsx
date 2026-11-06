@@ -6,14 +6,16 @@
  *
  * A pick is a click (a tap) on a disc, or a key (a colour letter, a pair's two letters, a digit).
  * Escape or a press away answers "none" where Forge allows it. On a finger the ring opens above the
- * press, never under it, its discs at least 44 px. The board takes a land's press on its release
- * (`gestures/install.ts`'s `onPointerUp`), so the ring never opens under a press still held.
+ * press, never under it, its discs at least 44 px. A press on a source whose offer gives a choice
+ * opens its ring before anything is sent (`./mana-press.ts`): a drag to a disc and a release on it
+ * picks it there.
  */
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 
 import { ManaCost, ManaPip } from '../../components/ManaPip.tsx';
 import { answerAsk, pressButton, type LiveAsk, type LiveMatch } from './match.ts';
+import { closeManaPress, echoesManaPress, MANA_PRESS_EVENT, manaPressOf, pickManaPress } from './mana-press.ts';
 import { clampOffset, pointerAt } from './movable.tsx';
 import { chipLayout, costTokens, markGlyphs, optionForKeys, promptRing, ringFor, ringLayout, tallyDone, type Mana, type Ring, type RingAnswer, type RingOption } from './mana-ring.ts';
 import './mana-ring.css';
@@ -43,6 +45,10 @@ export interface ManaRingProps {
   readonly titles?: ReadonlyMap<string, string>;
   readonly onPick: (pick: RingPick) => void;
   readonly onCancel: () => void;
+  /** Drawn on a press, before Forge asked (`data-press`): the gestures layer resolves its release. */
+  readonly press?: boolean;
+  /** Opens where the press's ring just stood, without blooming again. */
+  readonly still?: boolean;
 }
 
 function Marks({ option }: { option: RingOption }) {
@@ -94,7 +100,7 @@ function extentOf(discs: readonly { dx: number; dy: number }[], chips: readonly 
   return { left: `${left}px`, top: `${top}px`, width: `${right - left}px`, height: `${bottom - top}px` };
 }
 
-export function ManaRing({ ring, kind, ask, titles, onPick, onCancel }: ManaRingProps) {
+export function ManaRing({ ring, kind, ask, titles, onPick, onCancel, press = false, still = false }: ManaRingProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const ringRef = useRef<HTMLDivElement>(null);
   const [finger, setFinger] = useState(coarsePointer);
@@ -207,9 +213,10 @@ export function ManaRing({ ring, kind, ask, titles, onPick, onCancel }: ManaRing
     <div ref={hostRef} className="mana-ring" data-testid="mana-ring-host">
       <div
         ref={ringRef}
-        className={finger ? 'mana-ring__ring mana-ring__ring--finger' : 'mana-ring__ring'}
+        className={['mana-ring__ring', finger ? 'mana-ring__ring--finger' : '', still ? 'mana-ring__ring--still' : ''].filter(Boolean).join(' ')}
         data-testid="mana-ring"
         data-ring={kind}
+        data-press={press ? '' : undefined}
         data-method={ask?.method}
         data-call-id={ask?.callId}
         role="dialog"
@@ -271,12 +278,7 @@ export function ManaRing({ ring, kind, ask, titles, onPick, onCancel }: ManaRing
 export function ManaAsk({ match, ask }: { match: LiveMatch; ask: LiveAsk }) {
   const shaped = ringFor(ask);
   if (shaped === null) return null;
-  const titles = new Map<string, string>();
-  if (ask.method === 'getAbilityToPlay') {
-    for (const option of shaped.ring.options) {
-      if (option.answer.to === 'ability' && option.answer.ability?.label !== undefined) titles.set(option.key, option.answer.ability.label);
-    }
-  }
+  const titles = ask.method === 'getAbilityToPlay' ? titlesOf(shaped.ring) : new Map<string, string>();
   const onPick = (pick: RingPick): void => {
     if (pick.to === 'ability' && ask.method === 'getAbilityToPlay') {
       match.manaIntent = pick.then === null ? null : { colors: pick.then, source: ask.hostCard.id };
@@ -290,7 +292,32 @@ export function ManaAsk({ match, ask }: { match: LiveMatch; ask: LiveAsk }) {
   const onCancel = (): void => {
     if (ask.method === 'getAbilityToPlay') answerAsk(match, ask.callId, 'getAbilityToPlay', null);
   };
-  return <ManaRing key={ask.callId} ring={shaped.ring} kind={shaped.kind} ask={ask} titles={titles} onPick={onPick} onCancel={onCancel} />;
+  return <ManaRing key={ask.callId} ring={shaped.ring} kind={shaped.kind} ask={ask} titles={titles} onPick={onPick} onCancel={onCancel} still={echoesManaPress(match)} />;
+}
+
+/** Ability labels by option key, shown on hover. */
+function titlesOf(ring: Ring): Map<string, string> {
+  const titles = new Map<string, string>();
+  for (const option of ring.options) {
+    if (option.answer.to === 'ability' && option.answer.ability?.label !== undefined) titles.set(option.key, option.answer.ability.label);
+  }
+  return titles;
+}
+
+/** The ring a press on a mana source opened (`./mana-press.ts`), while it is open. */
+export function ManaPressRing({ match }: { match: LiveMatch }) {
+  const [, redraw] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    window.addEventListener(MANA_PRESS_EVENT, redraw);
+    return () => window.removeEventListener(MANA_PRESS_EVENT, redraw);
+  }, []);
+  const press = manaPressOf(match);
+  if (press === null) return null;
+  const onPick = (pick: RingPick): void => {
+    if (pick.to === 'tally-done') return;
+    pickManaPress(match, press.source, pick);
+  };
+  return <ManaRing key={press.source} ring={press.ring} kind="abilities" titles={titlesOf(press.ring)} onPick={onPick} onCancel={() => closeManaPress(match)} press />;
 }
 
 /** Forge's two-colour yes/no as a ring: OK is the first colour, Cancel the second. */
@@ -299,5 +326,5 @@ export function ManaPrompt({ match, colors }: { match: LiveMatch; colors: readon
   const onPick = (pick: RingPick): void => {
     if (pick.to === 'button') pressButton(match, pick.which);
   };
-  return <ManaRing ring={promptRing(colors, marks ?? {})} kind="prompt" onPick={onPick} onCancel={() => undefined} />;
+  return <ManaRing ring={promptRing(colors, marks ?? {})} kind="prompt" onPick={onPick} onCancel={() => undefined} still={echoesManaPress(match)} />;
 }

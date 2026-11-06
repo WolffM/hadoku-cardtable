@@ -103,8 +103,10 @@
 
 .mana-ring__disc:hover,
 .mana-ring__disc:focus-visible,
+.mana-ring__disc[data-armed],
 .mana-ring__chip:hover,
-.mana-ring__chip:focus-visible {
+.mana-ring__chip:focus-visible,
+.mana-ring__chip[data-armed] {
   outline: none;
   box-shadow: 0 0 0 3px var(--accent), 0 4px 12px var(--shadow);
   transform: translate(-50%, -50%) scale(1.14);
@@ -190,6 +192,13 @@
   from {
     opacity: 0;
   }
+}
+
+/* The ring Forge asked for, where the press's own ring already stood: it is the same ring, so it does not bloom again. */
+.mana-ring__ring--still .mana-ring__disc,
+.mana-ring__ring--still .mana-ring__chip,
+.mana-ring__ring--still .mana-ring__hub {
+  animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

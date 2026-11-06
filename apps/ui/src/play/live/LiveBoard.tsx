@@ -376,7 +376,7 @@ import { WatcherStatus } from './WatcherStatus.tsx';
 import { TurnCue, useYourTurnCue } from './TurnCue.tsx';
 import { installDialogMover, OffersHandContext, offsetToPoint, pointerAt, QuestionHost, restingTop } from './movable.tsx';
 import { answerFromIntent, intentReply, ringFor } from './mana-ring.ts';
-import { ManaAsk, ManaPrompt } from './ManaRing.tsx';
+import { ManaAsk, ManaPressRing, ManaPrompt } from './ManaRing.tsx';
 import { phaseSegmentsOf, PHASE_ORDER } from './phase-segments.ts';
 
 /* ── Where the match is: seven states, one line ───────────────────────── */
@@ -3021,11 +3021,14 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
    * would have asked is never drawn, in full control too: one answer is no choice in any mode.
    */
   // So is the colour inside a mana ability the seat already picked on the mana ring (`./mana-ring.ts`).
-  const auto = pending === null || spectator ? null : (selfAnswer(pending) ?? intentReply(pending, match.manaIntent?.colors ?? null));
+  // And the ability, when the ring was drawn on the press before Forge asked for it.
+  const auto = pending === null || spectator ? null : (selfAnswer(pending) ?? intentReply(pending, match.manaIntent));
   const autoCallId = auto === null || pending === null ? null : pending.callId;
   useEffect(() => {
     if (autoCallId === null || auto === null || pending === null) return;
-    match.manaIntent = null;
+    // The ability answered, its colours are still to come.
+    const intent = match.manaIntent;
+    match.manaIntent = auto.method === 'getAbilityToPlay' && intent !== null && intent.colors.length > 0 ? { colors: intent.colors, source: intent.source } : null;
     // `answerAsk` refuses a callId that is no longer open, so a re-render
     // between the reply and the frame that closes it cannot answer twice.
     answerAsk(match, autoCallId, auto.method, auto.reply);
@@ -4474,6 +4477,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
           </div>
         </div>
       )}
+      {!spectator && <ManaPressRing match={match} />}
       {ask !== null && ringFor(ask) !== null && <ManaAsk match={match} ask={ask} />}
       {ask !== null && ringFor(ask) === null && (
         <QuestionHost data-testid="live-prompt" data-call-id={ask.callId} data-method={ask.method}>
