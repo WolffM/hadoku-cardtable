@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { clampOffset, clearOffset, offsetToSpot, readSpot, SPOT_KEY, spotOf, writeSpot } from './movable.tsx';
+import { clampOffset, clearOffset, offsetToPoint, offsetToSpot, readSpot, SPOT_KEY, spotOf, writeSpot } from './movable.tsx';
 
 const board = { left: 0, top: 0, right: 1000, bottom: 800 };
 const sheet = { left: 600, top: 300, right: 760, bottom: 400 };
@@ -14,6 +14,22 @@ describe('clampOffset', () => {
 
   it('keeps the top-left corner of a dialog bigger than the board on the board', () => {
     expect(clampOffset({ x: 300, y: 300 }, { left: 0, top: 0, right: 1200, bottom: 900 }, board)).toEqual({ x: 4, y: 4 });
+  });
+});
+
+describe('offsetToPoint: an ask opens at the press that opened it', () => {
+  // sheet: 160 × 100, centred at (680, 350).
+  it('centres the box on the press', () => {
+    expect(offsetToPoint({ x: 300, y: 200 }, sheet, board)).toEqual({ x: 300 - 680, y: 200 - 350 });
+  });
+
+  it('stands it whole on the board for a press by an edge', () => {
+    expect(offsetToPoint({ x: 2, y: 798 }, sheet, board)).toEqual({ x: 4 - 600, y: 800 - 4 - 400 });
+    expect(offsetToPoint({ x: 999, y: 1 }, sheet, board)).toEqual({ x: 1000 - 4 - 760, y: 4 - 300 });
+  });
+
+  it('for a finger, centres it across the press and stands it just above, never under it', () => {
+    expect(offsetToPoint({ x: 300, y: 700 }, sheet, board, 16)).toEqual({ x: 300 - 680, y: 700 - 16 - 400 });
   });
 });
 

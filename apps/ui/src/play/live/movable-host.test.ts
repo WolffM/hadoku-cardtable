@@ -7,7 +7,7 @@ import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { createElement, type ComponentProps } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { OffersHandContext, QuestionHost, SPOT_KEY } from './movable.tsx';
+import { installDialogMover, OffersHandContext, pointerAt, QuestionHost, SPOT_KEY } from './movable.tsx';
 
 /** `createElement` (unlike JSX) has no special-cased allowance for `data-*` on an intrinsic-shaped component's props. */
 const hostProps = (testId: string): ComponentProps<typeof QuestionHost> => ({ 'data-testid': testId }) as unknown as ComponentProps<typeof QuestionHost>;
@@ -278,5 +278,28 @@ describe('QuestionHost in portrait', () => {
     render(drawPortrait());
     expect(wrapper().getAttribute('data-testid')).toBe('decision-dock');
     expect(document.querySelector('[data-testid="decision-expand"]')).toBeNull();
+  });
+});
+
+describe('pointerAt: a dialog opens at the press', () => {
+  it('reads the last press or move over the board, a finger as a finger, and forgets it when the mover goes', () => {
+    const board = document.createElement('div');
+    board.className = 'live';
+    const button = document.createElement('button');
+    board.append(button);
+    document.body.append(board);
+    const uninstall = installDialogMover(board);
+    try {
+      expect(pointerAt(button)).toBeNull();
+      button.dispatchEvent(new PointerEvent('pointermove', { clientX: 40, clientY: 50, pointerType: 'mouse', bubbles: true }));
+      expect(pointerAt(button)).toEqual({ x: 40, y: 50, finger: false });
+      button.dispatchEvent(new PointerEvent('pointerdown', { clientX: 120, clientY: 300, pointerType: 'touch', bubbles: true }));
+      expect(pointerAt(button)).toEqual({ x: 120, y: 300, finger: true });
+      expect(pointerAt(document.body), 'off the board there is no board pointer').toBeNull();
+    } finally {
+      uninstall();
+    }
+    expect(pointerAt(button)).toBeNull();
+    board.remove();
   });
 });

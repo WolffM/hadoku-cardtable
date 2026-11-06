@@ -374,7 +374,7 @@ import { CoinFlips } from './coin-flip.tsx';
 import type { ShownFlip, ShownRoll } from './shown.ts';
 import { WatcherStatus } from './WatcherStatus.tsx';
 import { TurnCue, useYourTurnCue } from './TurnCue.tsx';
-import { installDialogMover, OffersHandContext, QuestionHost, restingTop } from './movable.tsx';
+import { installDialogMover, OffersHandContext, offsetToPoint, pointerAt, QuestionHost, restingTop } from './movable.tsx';
 import { phaseSegmentsOf, PHASE_ORDER } from './phase-segments.ts';
 
 /* ── Where the match is: seven states, one line ───────────────────────── */
@@ -1623,6 +1623,9 @@ export function floatingMana(view: BoardView | null | undefined): number {
   return (viewerOf(view)?.manaPool ?? []).reduce((sum, mana) => sum + mana.count, 0);
 }
 
+/** How far over a finger's press the mana-floating ask's bottom edge stands, in px. */
+const OVER_FINGER_PX = 16;
+
 /**
  * A pass with mana floating, held for a word first (the operator, 2026-11-05, after a seat tapped an
  * Island in its draw step and passed: *"if they tapped a land to make mana and try to go next phase,
@@ -1630,10 +1633,32 @@ export function floatingMana(view: BoardView | null | undefined): number {
  * ends. `Untap` is offered only while Forge can still take the tap back (its own `Undo (N)`); without
  * it the choice is to pass anyway or stay. Forge's own warning (`InputPassPriority.passPriority`,
  * `UI_MANA_LOST_PROMPT`) only ever asks Forge's local GUI player, which a seat here never is.
+ *
+ * It opens at the press that opened it (the operator, 2026-11-05: *"the position should be centered on
+ * where the players cursor is"*): centred on the pointer, or just above a finger, held whole inside its host
+ * (the match box; above the bar on a phone). The press is the pointer's spot on the board as the ask opens
+ * (`pointerAt`): a click's own, or where the pointer rests for a press from a key. With no pointer yet it
+ * stays where `.live__ask` centres it.
  */
 function ManaFloatingAsk({ canUntap, onUntap, onPass, onStay }: { canUntap: boolean; onUntap: () => void; onPass: () => void; onStay: () => void }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    const sheet = host?.firstElementChild;
+    const at = host === null ? null : pointerAt(host);
+    if (host === null || !(sheet instanceof HTMLElement) || at === null) return undefined;
+    const place = (): void => {
+      sheet.style.removeProperty('translate');
+      const by = offsetToPoint(at, sheet.getBoundingClientRect(), host.getBoundingClientRect(), at.finger ? OVER_FINGER_PX : null);
+      sheet.style.translate = `${Math.round(by.x)}px ${Math.round(by.y)}px`;
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, []);
   return (
     <div
+      ref={hostRef}
       className="live__ask"
       data-testid="live-mana-ask"
       onKeyDown={(event) => {

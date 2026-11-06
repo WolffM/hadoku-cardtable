@@ -22,6 +22,9 @@
  *     own default spot if it does not. A fresh match starts from it too: the spot is the player's habit, not the
  *     match's. An opened pile and the deck list are moved the same way, but they open beside what they show (a
  *     pile's view is sized to the room beside the pile), so they neither read the spot nor write it.
+ *   - **A dialog this side asks can open at the press** that asked it (`pointerAt`, `offsetToPoint`): the
+ *     board's pointer as it last pressed or moved, the box centred on it (just above it for a finger) and
+ *     held on the board.
  */
 import {
   createContext,
@@ -123,6 +126,17 @@ export function clampOffset(want: { x: number; y: number }, drawn: Box, board: B
     return max < min ? min : Math.min(max, Math.max(min, d));
   };
   return { x: axis(want.x, drawn.left, drawn.right, board.left, board.right), y: axis(want.y, drawn.top, drawn.bottom, board.top, board.bottom) };
+}
+
+/**
+ * The offset that opens `drawn` (a box at offset zero) at a press: centred on `point`, or — with `above` set,
+ * for a finger, which would cover a box centred under it — centred across it with its bottom `above` px over
+ * it. Held on `board` by `clampOffset`.
+ */
+export function offsetToPoint(point: { x: number; y: number }, drawn: Box, board: Box, above: number | null = null, edge = EDGE_PX): { x: number; y: number } {
+  const x = point.x - (drawn.left + drawn.right) / 2;
+  const y = above === null ? point.y - (drawn.top + drawn.bottom) / 2 : point.y - above - drawn.bottom;
+  return clampOffset({ x, y }, drawn, board, edge);
 }
 
 /**
@@ -512,7 +526,30 @@ export function QuestionHost({
 /**
  * Let the player move every dialog drawn inside `root` (the match's `.live`). Returns the uninstall.
  */
+/** Where a press was, in client px, and whether a finger (or a pen) made it: a hand covers what is under it. */
+export interface PressPoint {
+  readonly x: number;
+  readonly y: number;
+  readonly finger: boolean;
+}
+
+/** Each board's pointer, as it last pressed or moved over it. */
+const pointers = new WeakMap<Element, PressPoint>();
+
+/**
+ * Where the pointer last pressed or moved on the board `el` stands on, or null when it has not yet: what a
+ * dialog this side opens opens at. A press's own `pointerdown` comes before its click, so a dialog a click
+ * opens reads that press; one a key opens reads where the pointer rests.
+ */
+export function pointerAt(el: Element): PressPoint | null {
+  const board = boardOf(el);
+  return board === null ? null : (pointers.get(board) ?? null);
+}
+
 export function installDialogMover(root: HTMLElement): () => void {
+  const seen = (event: PointerEvent): void => {
+    pointers.set(root, { x: event.clientX, y: event.clientY, finger: event.pointerType === 'touch' || event.pointerType === 'pen' });
+  };
   let press: { frame: HTMLElement; id: number; from: { x: number; y: number }; by: { x: number; y: number }; rest: Box; moved: boolean } | null = null;
 
   const onDown = (event: PointerEvent): void => {
@@ -571,6 +608,8 @@ export function installDialogMover(root: HTMLElement): () => void {
     for (const frame of root.querySelectorAll<HTMLElement>(`[${MOVED_ATTR}]`)) keepOnBoard(frame);
   };
 
+  root.addEventListener('pointerdown', seen, { capture: true, passive: true });
+  root.addEventListener('pointermove', seen, { passive: true });
   root.addEventListener('pointerdown', onDown);
   root.addEventListener('dragstart', onDragStart);
   window.addEventListener('pointermove', onMove);
@@ -579,6 +618,9 @@ export function installDialogMover(root: HTMLElement): () => void {
   const resized = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(reclamp);
   resized?.observe(root);
   return () => {
+    root.removeEventListener('pointerdown', seen, { capture: true });
+    root.removeEventListener('pointermove', seen);
+    pointers.delete(root);
     root.removeEventListener('pointerdown', onDown);
     root.removeEventListener('dragstart', onDragStart);
     window.removeEventListener('pointermove', onMove);
