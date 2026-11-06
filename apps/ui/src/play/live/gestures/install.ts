@@ -483,6 +483,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
   let aim: { ids: number[]; at: Point; node: EventTarget | null } | null = null;
   /** The right-click in progress cancelled a live gesture: its `contextmenu` is the gesture's. */
   let cancelledByRightClick = false;
+  /** A finger pressed on nothing while a cast is parked: a cancel if it lifts as a tap, nothing if it pans. */
+  let strayTouch: { id: number; at: Point; node: EventTarget | null } | null = null;
   /** The press in progress is a touch the browser may pan sideways (`pansSideways`) — see `onPointerMove`. */
   let sidewaysPan = false;
   /**
@@ -1548,6 +1550,11 @@ export function installGestures(options: GestureOptions): GestureHandle {
      * table/board area, naming nothing, is claimed here.
      */
     if (parked !== null && event.button === 0 && match.selectables !== null && inside(eventTarget(event)) && targetAt(eventTarget(event), null) === null) {
+      // A finger's press may be the start of a pan (a zoomed board, a lane): it cancels only as a tap, at its lift.
+      if (byFinger(event)) {
+        strayTouch = { id: event.pointerId, at: { x: event.clientX, y: event.clientY }, node: eventTarget(event) };
+        return;
+      }
       claim(event);
       cancelLive('stray-click', eventTarget(event));
       return;
@@ -1869,6 +1876,12 @@ export function installGestures(options: GestureOptions): GestureHandle {
 
   function onPointerUp(event: PointerEvent): void {
     if (otherPointer(event)) return;
+    if (strayTouch !== null && strayTouch.id === event.pointerId) {
+      const stray = strayTouch;
+      strayTouch = null;
+      if (parked !== null && !pastSlop(stray.at, { x: event.clientX, y: event.clientY })) cancelLive('stray-click', stray.node);
+      return;
+    }
     // A drag let go over the target its arrow is snapped to: committed, as a press on it is.
     if (event.button === 0) commitArrowAt(overlayOf(canvas), liveTarget(event));
     if (placedDrag !== null) {
@@ -2008,6 +2021,11 @@ export function installGestures(options: GestureOptions): GestureHandle {
       placedDrag = null;
       if (p.moved) gripStackItem(p.id, 'you', p.at, 'drop', p.side);
       paint();
+      return;
+    }
+    // A stray finger the browser took to pan with: a pan, not a cancel.
+    if (strayTouch !== null && strayTouch.id === event.pointerId) {
+      strayTouch = null;
       return;
     }
     // The browser took the pointer away mid-aim: the same as letting go of

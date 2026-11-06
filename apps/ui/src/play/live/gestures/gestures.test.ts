@@ -3154,6 +3154,39 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     expect(await sent(s, m)).toEqual([['selectCard', hand[2]!], ['selectButtonCancel']]);
   });
 
+  /** A cast parked on Forge's target ask, the same as the right-click case above: the board's empty zone to press on. */
+  async function parkedOnTarget() {
+    const { s, m, canvas } = await gestureBoard();
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[2]!]), okBar()])) s.send(f);
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
+    const theirBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="them"]')!;
+    fireEvent.pointerDown(cardEl(canvas, hand[2]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
+    fireEvent.pointerUp(theirBattlefield, { clientX: 500, clientY: 50 });
+    await s.untilClientFrames(1);
+    s.send(selectables([theirsOf(m).battlefield[0]!.id], 1, 1));
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
+    return { s, m, hand, theirBattlefield };
+  }
+
+  it('a finger that pans the board while a cast is parked cancels nothing: the browser’s pointercancel is its pan', async () => {
+    const { s, m, hand, theirBattlefield } = await parkedOnTarget();
+    fireEvent.pointerDown(theirBattlefield, { button: 0, pointerType: 'touch', pointerId: 7, clientX: 380, clientY: 300 });
+    fireEvent.pointerCancel(theirBattlefield, { pointerType: 'touch', pointerId: 7, clientX: 380, clientY: 420 });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(await sent(s, m), 'only the cast, never a cancel').toEqual([['selectCard', hand[2]!]]);
+  });
+
+  it('a finger that taps on nothing while a cast is parked still cancels it, at its lift', async () => {
+    const { s, m, hand, theirBattlefield } = await parkedOnTarget();
+    fireEvent.pointerDown(theirBattlefield, { button: 0, pointerType: 'touch', pointerId: 8, clientX: 380, clientY: 300 });
+    expect(await sent(s, m), 'nothing at the press').toEqual([['selectCard', hand[2]!]]);
+    fireEvent.pointerUp(theirBattlefield, { button: 0, pointerType: 'touch', pointerId: 8, clientX: 381, clientY: 301 });
+    await s.untilClientFrames(2);
+    expect(await sent(s, m)).toEqual([['selectCard', hand[2]!], ['selectButtonCancel']]);
+  });
+
   it('the right-click that cancels a parked cast is the gesture’s: its contextmenu goes no further, the next one does', async () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
