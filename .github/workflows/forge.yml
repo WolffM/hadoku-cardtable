@@ -207,7 +207,7 @@ jobs:
         run: |
           set -uo pipefail
           emit() { printf '%s\n' "$@" >> "$GITHUB_OUTPUT"; printf '%s\n' "$@"; }
-          all() { echo "running everything: $1"; emit e2e=true e2e_specs= 'shards=[1, 2, 3, 4]' jvm=true jvm_files= jvm_full=true "nightly=$2"; exit 0; }
+          all() { echo "running everything: $1"; emit e2e=true e2e_specs= 'shards=[1, 2, 3, 4, 5]' jvm=true jvm_files= jvm_full=true "nightly=$2"; exit 0; }
           none() { echo "running nothing: $1"; emit e2e=false e2e_specs= 'shards=[1]' jvm=false jvm_files= jvm_full=false nightly=false; exit 0; }
           api() { curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/$1"; }
           case "$EVENT" in
@@ -254,7 +254,7 @@ jobs:
               echo "$key"
               if [ -n "$SPECS_OVERRIDE$JVM_OVERRIDE" ]; then
                 echo "dispatch override: specs='$SPECS_OVERRIDE' jvm='$JVM_OVERRIDE'"
-                emit e2e=true e2e_specs= "shards=$([ -n "$SPECS_OVERRIDE" ] && echo '[1]' || echo '[1, 2, 3, 4]')" \
+                emit e2e=true e2e_specs= "shards=$([ -n "$SPECS_OVERRIDE" ] && echo '[1]' || echo '[1, 2, 3, 4, 5]')" \
                   jvm=true "jvm_files=$JVM_OVERRIDE" "jvm_full=$([ -z "$JVM_OVERRIDE" ] && echo true || echo false)" nightly=true
                 exit 0
               fi
@@ -350,10 +350,15 @@ jobs:
     # The suite is serial by design (`e2e/playwright.config.ts`: one worker, one
     # stack at a time), so a full run is ~30 min on one claw however idle the
     # claw is (measured 2026-10-08 by the fleet tracker: load 6 of 12 cores).
-    # Four shards are four jobs, each on its own runner with its own ports and
+    # Five shards are five jobs, each on its own runner with its own ports and
     # JVMs, and Playwright's `--shard` splits the file list. Three stopped
     # fitting on 2026-10-22: run 39752707376's third shard hit the 55 min
-    # budget at its 94th test with nothing red, and its second took 53.5 min. `changes`
+    # budget at its 94th test with nothing red, and its second took 53.5 min.
+    # Four stopped fitting on 2026-11-06: at ~139 tests a shard, the ones on
+    # claw-9 (which takes two or three Forge jobs at once) ran 64–75 min across
+    # four full runs (42168734049, 42177647592, 42191831219, 42204349837), and
+    # run 42204349837's fourth was cut off at 75 min two tests short with
+    # nothing red; the same shards ran 35–61 min on claw-4, claw-8 and hokon. `changes`
     # picks one shard for a short selection, and a targeted dispatch (`specs`
     # given) is one shard: its list is already short.
     strategy:
@@ -381,8 +386,10 @@ jobs:
     # A one-shard run (a push's selection, a dispatch's `specs`) is far shorter, so a hang there
     # dies at 45 instead of holding a claw for 75. Measured over 2026-10-17..24, green jobs only,
     # by job: one shard p50 3–13, p95 20.5, max 36.0 min (a cold jar build plus a loaded claw);
-    # 45 clears that max. A full set stays at 75: its green shards reach p95 63, max 65, and its
-    # reds run as long as its greens (Playwright finishes the shard), so they are not hangs.
+    # 45 clears that max. A full set stays at 75: its green shards reached p95 63, max 65, and its
+    # reds run as long as its greens (Playwright finishes the shard), so they are not hangs. When
+    # the suite outgrows that again, add a shard rather than raise this: a fifth cut the
+    # claw-9 worst case of ~75 min to ~60.
     timeout-minutes: ${{ needs.changes.outputs.shards == '[1]' && 45 || 75 }}
     steps:
       - uses: actions/checkout@v6
