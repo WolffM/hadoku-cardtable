@@ -21,6 +21,7 @@ into Progenitus at full length and real speed, then the credits (`credits.mjs`).
 """
 
 import json
+import os
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -32,7 +33,9 @@ from PIL import ImageFont
 HERE = Path(__file__).resolve().parent
 FOOTAGE = HERE.parent / ".run" / "promo"
 OUT = FOOTAGE / "trailer"
-TANGO = Path("/home/hadoku/srv/hadoku-cardtable/apps/server/data/sounds/takes/music-br-hellfire-tango/take-1.ogg")
+# Prod's sounds live in its state dir (CARDTABLE_STATE_DIR, default ~/srv-data/cardtable), not the clone.
+SOUNDS = Path(os.environ.get("CARDTABLE_STATE_DIR", "/home/hadoku/srv-data/cardtable")) / "sounds"
+TANGO = SOUNDS / "takes/music-br-hellfire-tango/take-1.ogg"
 # The bed: the tango BED_COPIES times, crossfaded over BED_XFADE s. Cut 5 runs every clip at full length (the operator:
 # "i'll be cutting it later … i need to see the raw clip performing properly first"), past one 2:04 take.
 MUSIC = OUT_BED = Path(__file__).resolve().parent.parent / ".run" / "promo" / "trailer" / "bed.flac"
