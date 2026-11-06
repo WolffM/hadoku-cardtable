@@ -1833,7 +1833,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
   /**
    * The disc or chip of the press's ring under `at`, armed; every other one disarmed. Read off the
    * discs' own boxes, not the page's hit test: while the press is held its ring is the only thing it
-   * can pick, and a card of the board was measured winning the hit test at a disc drawn over it.
+   * can pick, whatever else is drawn there (the card view a hover left open, say).
    */
   function armManaDisc(at: Point): HTMLElement | null {
     const ring = scopeOf(canvas).querySelector('[data-press]');

@@ -87,24 +87,14 @@ export async function chooseAbility(page: Page, want: RegExp): Promise<void> {
   else await page.getByTestId('live-prompt').locator('[data-testid="prompt-choice"]').nth(i).click();
 }
 
-/** The centre of `disc` on screen, once it has bloomed out to its place (two reads a frame apart agree). */
+/**
+ * The centre of `disc` on screen, once it has bloomed out to its place: its own animations finished.
+ * (Each disc's bloom waits its turn at the hub, so an early read finds it there and still.)
+ */
 export async function centreOf(disc: Locator): Promise<Point> {
-  let last = '';
-  let at: Point = { x: 0, y: 0 };
-  await expect
-    .poll(
-      async () => {
-        const b = await boxOf(disc);
-        at = { x: (b.left + b.right) / 2, y: (b.top + b.bottom) / 2 };
-        const key = `${Math.round(at.x)},${Math.round(at.y)},${Math.round(b.right - b.left)}`;
-        const still = key === last;
-        last = key;
-        return still;
-      },
-      { timeout: 5_000, intervals: [50], message: 'the disc stands still at its place' },
-    )
-    .toBe(true);
-  return at;
+  await disc.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+  const b = await boxOf(disc);
+  return { x: (b.left + b.right) / 2, y: (b.top + b.bottom) / 2 };
 }
 
 /** The points a pointer passes through going from `from` to `to` in `steps` even moves. */
