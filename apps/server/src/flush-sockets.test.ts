@@ -1,8 +1,9 @@
-import { createServer } from 'node:http';
+import { Agent, createServer, request } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { Server } from 'socket.io';
 import { io as ioClient } from 'socket.io-client';
 import { describe, expect, it, vi } from 'vitest';
-import { sendThenFlush } from './flush-sockets.ts';
+import { closeConnections, sendThenFlush } from './flush-sockets.ts';
 
 /** A real socket.io server and websocket client; an emit queued behind a large one, then `io.close`. */
 async function closeBehindABigSend(flushFirst: boolean): Promise<string[]> {
@@ -59,5 +60,36 @@ describe('sendThenFlush', () => {
 		const started = Date.now();
 		await sendThenFlush([stuck], () => undefined, 50);
 		expect(Date.now() - started).toBeGreaterThanOrEqual(45);
+	});
+});
+
+// Prod 2026-11-06 16:00Z: the old server was still answering a second after `shutdown-begin`, and pm2
+// SIGKILLed it at its 1.6 s kill_timeout before `shutdown-done`. `server.close` waits for every open
+// connection; a response that never ends (a stream, a held request) holds it forever.
+describe('closeConnections', () => {
+	it('a connection whose response never ends does not hold the close: the server closes after the grace', async () => {
+		const server = createServer((_req, res) => res.write('streaming'));
+		await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+		const { port } = server.address() as AddressInfo;
+		const agent = new Agent({ keepAlive: true });
+		await new Promise<void>((r) => {
+			const req = request({ host: '127.0.0.1', port, agent }, (res) => {
+				res.once('data', () => r());
+				res.on('error', () => {});
+			});
+			req.on('error', () => {});
+			req.end();
+		});
+		const began = Date.now();
+		let ms: number | null = null;
+		server.close(() => (ms = Date.now() - began));
+		closeConnections(server, 100);
+		try {
+			await vi.waitFor(() => expect(ms, 'closed, not held open by the stream').not.toBeNull(), { timeout: 1000, interval: 20 });
+		} finally {
+			agent.destroy();
+		}
+		expect(ms).toBeGreaterThanOrEqual(100);
+		expect(ms).toBeLessThan(600);
 	});
 });

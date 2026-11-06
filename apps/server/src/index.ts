@@ -74,7 +74,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { podPickNumber } from '@hadoku/draft';
 import { CONFIG, INDEX_HTML, LEGACY_STATE } from './config.js';
 import { moveLegacyState } from './state-dir.js';
-import { sendThenFlush } from './flush-sockets.js';
+import { closeConnections, sendThenFlush } from './flush-sockets.js';
 import { callerIdOf, edgeProvenance, requireMinTier, tierOf, userIdOf, verifiedOf } from './edge-auth.js';
 import { checkBundle, diagnosticPage, isEmbedEntry, sendIndex } from './base-path.js';
 import { announceRelease } from './announce.js';
@@ -1069,13 +1069,17 @@ if (roomStreams !== null) {
 //      write it, then no new upgrades, existing sockets closed. The client
 //      already survives a dropped socket; what it could not survive was the
 //      match ceasing to exist.
-//   4. Exit within `SHUTDOWN_DEADLINE_MS` no matter what. pm2 waits
-//      `kill_timeout` (1.6 s by default) before SIGKILL, so a handler that can
-//      hang buys nothing: the deadline is what makes the ordering above
-//      reliable rather than hopeful.
+//   4. Exit within `SHUTDOWN_DEADLINE_MS` no matter what, and that is inside
+//      pm2's `kill_timeout` (1.6 s by default; cardtable's pm2 entry sets none)
+//      before SIGKILL. It used to be 5 s, so a close that waited on a busy
+//      keep-alive connection was SIGKILLed instead (prod 2026-11-06 16:00Z, and
+//      PPE 04:20Z): `closeConnections` lets every connection go after
+//      `REQUEST_GRACE_MS`, so the close finishes on its own.
 //
 // SIGINT gets the same treatment, for `pnpm dev` and for a ^C in a live check.
-const SHUTDOWN_DEADLINE_MS = 5_000;
+const SHUTDOWN_DEADLINE_MS = 1_300;
+/** How long a request already in flight has to be answered once the notice is out. */
+const REQUEST_GRACE_MS = 300;
 /** The longest the restart notice may hold the close back while a busy connection drains. */
 const RESTART_NOTICE_FLUSH_MS = 500;
 const SHUTDOWN_WORDS = 'The server is restarting for a deploy.';
@@ -1132,6 +1136,7 @@ function shutdown(signal: string): void {
 			clearTimeout(deadline);
 			finish('closed');
 		});
+		closeConnections(httpServer, REQUEST_GRACE_MS);
 	});
 }
 

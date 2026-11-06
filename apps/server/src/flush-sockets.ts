@@ -56,3 +56,21 @@ export function sendThenFlush(conns: Iterable<Flushable>, send: () => void, ms: 
 		});
 	});
 }
+
+/** The part of a node `http.Server` {@link closeConnections} needs. */
+export interface Closable {
+	closeIdleConnections(): void;
+	closeAllConnections(): void;
+}
+
+/**
+ * Let a closing server's connections go: the idle ones at once, and every one after `graceMs`, so
+ * a request already in flight is answered. `server.close` (which `io.close` calls) only stops new
+ * connections and waits for the open ones, and a keep-alive connection through cloudflared that a
+ * page keeps busy never goes idle: prod's 16:00Z shutdown on 2026-11-06 was still answering
+ * requests a second in, and pm2 SIGKILLed it at its 1.6 s `kill_timeout` before `shutdown-done`.
+ */
+export function closeConnections(server: Closable, graceMs: number): void {
+	server.closeIdleConnections();
+	setTimeout(() => server.closeAllConnections(), graceMs).unref();
+}
