@@ -14,7 +14,8 @@
       "pickTimer": {
         "on": false,
         "speed": 1
-      }
+      },
+      "draftBots": "model"
     },
     "locks": {
       "gameType": null,
@@ -90,7 +91,8 @@
       "pickTimer": {
         "on": false,
         "speed": 1
-      }
+      },
+      "draftBots": "model"
     },
     "locks": {
       "gameType": null,

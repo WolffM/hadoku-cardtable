@@ -37,7 +37,7 @@ const ROOM: RoomView = {
   leader: 'fk:alice',
   gameType: 'constructed-1v1',
   format: 'unavailable',
-  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 } },
+  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const },
   locks: { ...OPEN_ROOM_LOCKS },
   mode: null,
   modeOptions: null,

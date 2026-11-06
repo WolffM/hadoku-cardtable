@@ -3,14 +3,20 @@ import { describe, expect, it } from 'vitest';
 import { clockOn, DEFAULT_ROOM_SETTINGS, PatchRoomBodySchema, RoomSettingsSchema } from './room-requests.ts';
 
 describe('the room settings', () => {
-  it('defaults parse against the schema, with the clock on auto and the pick timer off', () => {
+  it('defaults parse against the schema, with the clock on auto, the pick timer off and every bot on the model', () => {
     expect(RoomSettingsSchema.parse(DEFAULT_ROOM_SETTINGS)).toEqual({
       handSmoothing: true,
       tournament: false,
       tournamentDecks: 'locked',
       clock: 'auto',
       pickTimer: { on: false, speed: 1 },
+      draftBots: 'model',
     });
+  });
+
+  it('a PATCH sets the draft bots to split, and refuses any other value', () => {
+    expect(PatchRoomBodySchema.safeParse({ settings: { draftBots: 'split' } }).success).toBe(true);
+    expect(PatchRoomBodySchema.safeParse({ settings: { draftBots: 'random' } }).success).toBe(false);
   });
 
   it('runs the clock on auto exactly in a pod (a tournament or a draft), and as the leader said otherwise', () => {

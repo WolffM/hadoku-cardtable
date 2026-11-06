@@ -163,7 +163,7 @@ import {
 	sendTo,
 	type EmitLog,
 } from './emit.js';
-import { askDraftbot, chooseByRatings, draftbotTally, type Draftbot, type DraftbotAnswer, type DraftbotOutcome } from './draftbot.js';
+import { askDraftbot, chooseByRatings, draftbotTally, EVERY_SEAT, ODD_SEATS, type Draftbot, type DraftbotAnswer, type DraftbotOutcome } from './draftbot.js';
 import { identityFromHeaders } from './identity.js';
 import type { Lobby } from './lobby.js';
 import { jsonLogger } from '../log.js';
@@ -316,9 +316,10 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 			return;
 		}
 		const ask = new AbortController();
+		const modelSeats = deps.lobby.get(draftId)?.settings.draftBots === 'split' ? ODD_SEATS : EVERY_SEAT;
 		let answer: DraftbotAnswer = { failed: deps.draftbot === undefined ? 'unset' : 'timeout' };
 		if (deps.draftbot !== undefined) {
-			void askDraftbot(deps.draftbot, stateOf(room), ask.signal).then((a) => {
+			void askDraftbot(deps.draftbot, stateOf(room), ask.signal, modelSeats).then((a) => {
 				if (!ask.signal.aborted) answer = a;
 			});
 		}
@@ -329,7 +330,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 			// Found again: the room may have been forgotten while the turn waited.
 			const current = deps.rooms?.find(draftId);
 			if (current === undefined) return;
-			const { chosen, outcomes } = chooseByRatings(stateOf(current), answer);
+			const { chosen, outcomes } = chooseByRatings(stateOf(current), answer, modelSeats);
 			tally.record(answer, outcomes);
 			const turn = botTurn(stateOf(current), (entry) => log(entry), chosen);
 			if (turn.picks > 0) {

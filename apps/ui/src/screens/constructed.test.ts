@@ -406,7 +406,7 @@ function stubServer(table: Table) {
     leader: 'p-alice',
     gameType: gameType(),
     format: table.format,
-    settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, ...table.settings },
+    settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const, ...table.settings },
     locks: locksOf(),
     ...(table.mode === undefined ? { mode: 'classic', modeOptions: {} } : table.mode === null ? { mode: null, modeOptions: null } : table.mode),
     // Caller-scoped, as `http/rooms.ts` serialises it: whether the leader is
@@ -1293,7 +1293,7 @@ describe('a room’s table', () => {
                   leader: 'p-alice',
                   gameType: 'constructed-1v1' as const,
                   format: '2010-07-16',
-                  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked' as const, clock: 'auto' as const, pickTimer: { on: false, speed: 1 } },
+                  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked' as const, clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const },
                   locks: { ...OPEN_ROOM_LOCKS },
                   mode: null,
                   modeOptions: null,

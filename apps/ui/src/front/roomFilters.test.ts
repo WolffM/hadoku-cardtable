@@ -49,7 +49,7 @@ const room = (over: Partial<RoomView> = {}): RoomView => ({
   leader: '',
   gameType: 'constructed-1v1',
   format: '2026-01-01',
-  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 } },
+  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const },
   locks: { ...OPEN_ROOM_LOCKS },
   mode: 'classic',
   modeOptions: {},
@@ -92,7 +92,7 @@ describe('matchesRoomFilters', () => {
   });
 
   it('the kind pair: tournament matches only tournaments, duel only non-tournaments', () => {
-    const tourney = room({ settings: { handSmoothing: true, tournament: true, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 } } });
+    const tourney = room({ settings: { handSmoothing: true, tournament: true, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const } });
     const duel = room();
     const tourneyFilter: RoomFilters = { ...DEFAULT_ROOM_FILTERS, kind: 'tournament' };
     const duelFilter: RoomFilters = { ...DEFAULT_ROOM_FILTERS, kind: 'duel' };

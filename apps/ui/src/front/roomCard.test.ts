@@ -42,7 +42,7 @@ const room = (over: Partial<RoomView> = {}): RoomView => ({
   leader: '',
   gameType: 'constructed-1v1',
   format: '2026-01-01',
-  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 } },
+  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const },
   locks: { ...OPEN_ROOM_LOCKS },
   mode: 'classic',
   modeOptions: {},
@@ -102,7 +102,7 @@ describe('roomCardView — a room made for an event', () => {
 describe('roomCardView — tournament and seats', () => {
   it('is a tournament for every draft, and for a constructed room with settings.tournament on', () => {
     expect(roomCardView(room({ gameType: 'draft', pod: pod({ phase: 'lobby' }) }), false).tournament).toBe(true);
-    expect(roomCardView(room({ settings: { handSmoothing: true, tournament: true, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 } }, pod: pod({ phase: 'lobby' }) }), false).tournament).toBe(true);
+    expect(roomCardView(room({ settings: { handSmoothing: true, tournament: true, tournamentDecks: 'locked', clock: 'auto' as const, pickTimer: { on: false, speed: 1 }, draftBots: 'model' as const }, pod: pod({ phase: 'lobby' }) }), false).tournament).toBe(true);
     expect(roomCardView(room(), false).tournament).toBe(false);
   });
 

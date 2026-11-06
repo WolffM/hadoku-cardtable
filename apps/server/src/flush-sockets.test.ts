@@ -89,7 +89,8 @@ describe('closeConnections', () => {
 		} finally {
 			agent.destroy();
 		}
-		expect(ms).toBeGreaterThanOrEqual(100);
+		// libuv's loop clock is whole milliseconds, so a 100 ms timer can fire up to 1 ms early by Date.now.
+		expect(ms).toBeGreaterThanOrEqual(99);
 		expect(ms).toBeLessThan(600);
 	});
 });

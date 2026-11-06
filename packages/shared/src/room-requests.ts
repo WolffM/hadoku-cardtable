@@ -67,6 +67,11 @@ export const DEFAULT_CLIENT_MODE: ClientMode = 'builtin';
  * `pickTimer` (off by default): a draft's per-pick timer, the MTR's times by
  * cards left in the pack divided by `speed` (2 is twice as fast).
  *
+ * `draftBots` (`'model'` by default): what the draft's bots pick with. `'model'`
+ * is CubeCobra's draft model for every bot; `'split'` gives it the odd seats and
+ * the cube's pick order the even ones, so one pod compares the two. The UI does
+ * not show it: it is set by PATCH, for that comparison.
+ *
  * How long a series runs is not a setting: it is the room's game type, mode
  * and `tournament` flag (`room/series.ts`'s `seriesFormatOf`).
  */
@@ -88,12 +93,17 @@ export const PickTimerSchema = z.strictObject({
 });
 export type PickTimer = z.infer<typeof PickTimerSchema>;
 
+export const DRAFT_BOTS = ['model', 'split'] as const;
+export const DraftBotsSchema = z.enum(DRAFT_BOTS);
+export type DraftBots = z.infer<typeof DraftBotsSchema>;
+
 export const RoomSettingsSchema = z.strictObject({
 	handSmoothing: z.boolean(),
 	tournament: z.boolean(),
 	tournamentDecks: TournamentDecksSchema,
 	clock: ClockSettingSchema,
 	pickTimer: PickTimerSchema,
+	draftBots: DraftBotsSchema,
 });
 export type RoomSettings = z.infer<typeof RoomSettingsSchema>;
 export const DEFAULT_ROOM_SETTINGS: Readonly<RoomSettings> = Object.freeze({
@@ -102,6 +112,7 @@ export const DEFAULT_ROOM_SETTINGS: Readonly<RoomSettings> = Object.freeze({
 	tournamentDecks: 'locked',
 	clock: 'auto',
 	pickTimer: Object.freeze({ on: false, speed: 1 }),
+	draftBots: 'model',
 });
 
 /** Whether a room's games run the chess clock: `'auto'` is on in a room that plays a pod (a tournament, or a draft). */
@@ -237,6 +248,7 @@ const SETTINGS_FIELD_SCHEMAS: { [K in keyof RoomSettings]: z.ZodType<RoomSetting
   pickTimer: z.custom<PickTimer>((v) => PickTimerSchema.safeParse(v).success, {
     error: `settings.pickTimer must be { on: boolean, speed: ${PICK_TIMER_SPEED_MIN}–${PICK_TIMER_SPEED_MAX} }`,
   }),
+  draftBots: z.enum(DRAFT_BOTS, { error: oneOf('settings.draftBots', DRAFT_BOTS) }),
 };
 
 /**

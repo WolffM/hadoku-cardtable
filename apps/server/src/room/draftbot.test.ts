@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { DraftCard } from '@hadoku/shared';
 import { createDraft, pick } from '@hadoku/draft';
 
-import { askDraftbot, chooseByRatings, draftbotTally, httpDraftbot, type Draftbot } from './draftbot.ts';
+import { askDraftbot, chooseByRatings, draftbotTally, httpDraftbot, ODD_SEATS, type Draftbot } from './draftbot.ts';
 
 function card(name: string, oracleId?: string): DraftCard {
 	return {
@@ -46,6 +46,16 @@ describe('askDraftbot', () => {
 			[1, 'p1-2'],
 		]);
 		expect(outcomes).toEqual(['served', 'served', 'unrated']);
+	});
+
+	it('a split room asks for the odd seats only, and the even seats are the heuristic\'s with no outcome', async () => {
+		const batchDraft = vi.fn<Draftbot['batchDraft']>(async (inputs) => inputs.map((i) => i.pack.map((oracle, k) => ({ oracle, rating: k }))));
+		const state = draft();
+		const answer = await askDraftbot({ batchDraft }, state, never, ODD_SEATS);
+		expect(batchDraft.mock.calls[0]![0]).toEqual([{ pack: ['o1-0', 'o1-1', 'o1-2'], pool: [] }]);
+		const { chosen, outcomes } = chooseByRatings(state, answer, ODD_SEATS);
+		expect([...chosen]).toEqual([[1, 'p1-2']]);
+		expect(outcomes).toEqual(['served']);
 	});
 
 	it('a rejection is an error and an abort a timeout, for every seat', async () => {

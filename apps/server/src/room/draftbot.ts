@@ -72,8 +72,13 @@ function oracles(cards: readonly DraftCard[]): string[] {
 	return cards.map((c) => c.oracleId).filter((o): o is string => o !== undefined);
 }
 
-function owingBots(state: DraftState): SeatId[] {
-	return waitingOn(state).filter((s) => isBotSeat(state, s));
+/** Which bot seats the draftbot picks for: every one, or the odd seats of a `'split'` room (`RoomSettings.draftBots`). */
+export type ModelSeats = (seat: SeatId) => boolean;
+export const EVERY_SEAT: ModelSeats = () => true;
+export const ODD_SEATS: ModelSeats = (seat) => seat % 2 === 1;
+
+function owingBots(state: DraftState, modelSeats: ModelSeats): SeatId[] {
+	return waitingOn(state).filter((s) => isBotSeat(state, s) && modelSeats(s));
 }
 
 /**
@@ -81,8 +86,8 @@ function owingBots(state: DraftState): SeatId[] {
  * answer `{ failed }`, a timeout when `signal` was aborted first. A seat whose
  * pack has no card with an oracle id is not sent and answers with no ratings.
  */
-export async function askDraftbot(draftbot: Draftbot, state: DraftState, signal: AbortSignal): Promise<DraftbotAnswer> {
-	const seats = owingBots(state);
+export async function askDraftbot(draftbot: Draftbot, state: DraftState, signal: AbortSignal, modelSeats: ModelSeats = EVERY_SEAT): Promise<DraftbotAnswer> {
+	const seats = owingBots(state, modelSeats);
 	const ratings = new Map<SeatId, DraftbotRatings[number]>(seats.map((s) => [s, []]));
 	const asked = seats
 		.map((seat) => ({ seat, input: { pack: oracles(packOf(state, seat)), pool: oracles(state.pools[seat] as DraftCard[]) } }))
@@ -103,12 +108,17 @@ export async function askDraftbot(draftbot: Draftbot, state: DraftState, signal:
 /**
  * The card each bot seat takes from the draftbot's answer, against the draft as
  * it is NOW — the answer may be older than the state. A seat gets a card only if
- * the top-rated card is still in its pack; every owing seat gets an outcome.
+ * the top-rated card is still in its pack; every owing seat `modelSeats` names
+ * gets an outcome, and the others are the heuristic's without one.
  */
-export function chooseByRatings(state: DraftState, answer: DraftbotAnswer): { chosen: Map<SeatId, string>; outcomes: DraftbotOutcome[] } {
+export function chooseByRatings(
+	state: DraftState,
+	answer: DraftbotAnswer,
+	modelSeats: ModelSeats = EVERY_SEAT,
+): { chosen: Map<SeatId, string>; outcomes: DraftbotOutcome[] } {
 	const chosen = new Map<SeatId, string>();
 	const outcomes: DraftbotOutcome[] = [];
-	for (const seat of owingBots(state)) {
+	for (const seat of owingBots(state, modelSeats)) {
 		if ('failed' in answer) {
 			outcomes.push(answer.failed);
 			continue;
