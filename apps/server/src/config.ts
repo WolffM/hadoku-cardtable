@@ -18,8 +18,20 @@ const PKG_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const resolveDir = (value: string): string =>
 	isAbsolute(value) ? value : resolve(PKG_ROOT, value);
 
-const LOG_DIR = resolveDir(process.env.CARDTABLE_LOG_DIR || 'logs');
-const DATA_DIR = resolve(LOG_DIR, '../data');
+/**
+ * Where the server keeps what it writes (`CARDTABLE_STATE_DIR`): rooms, drafts,
+ * recordings and the rest of `data/` directly in it, and `logs/` beside them.
+ * Outside the clone, so a deploy can build a new clone aside and swap it in
+ * while this one serves. Unset (dev, tests, e2e) = the old in-clone layout,
+ * `logs/` and `data/` in the package. `state-dir.ts` moves the in-clone copy
+ * here on the first boot that has it.
+ */
+const STATE_DIR = process.env.CARDTABLE_STATE_DIR ? resolveDir(process.env.CARDTABLE_STATE_DIR) : '';
+const LOG_DIR = resolveDir(process.env.CARDTABLE_LOG_DIR || (STATE_DIR ? join(STATE_DIR, 'logs') : 'logs'));
+const DATA_DIR = STATE_DIR || resolve(LOG_DIR, '../data');
+
+/** The in-clone paths a state dir replaces, for the boot move (`state-dir.ts`). */
+export const LEGACY_STATE = { dataDir: resolve(PKG_ROOT, 'data'), logDir: resolve(PKG_ROOT, 'logs') } as const;
 
 export const CONFIG = {
 	/** Port this server listens on. cloudflared points the tunnel hostname here. */
@@ -119,14 +131,17 @@ export const CONFIG = {
 	/** ArchiveBot's webhook server, on loopback beside this one. */
 	archivebotUrl: process.env.CARDTABLE_ARCHIVEBOT_URL || 'http://127.0.0.1:3004',
 
+	/** `CARDTABLE_STATE_DIR`, resolved; empty when unset (the in-clone layout). */
+	stateDir: STATE_DIR,
+
 	/** Structured access log destination (gitignored, created on boot). */
 	logDir: LOG_DIR,
 
 	/**
-	 * The server's persisted state, beside the log directory. `data/` is
-	 * gitignored, so a `git pull` deploy leaves it alone; e2e sets
-	 * CARDTABLE_LOG_DIR and therefore gets its own directory rather than
-	 * production's.
+	 * The server's persisted state: the state dir itself when one is set, else
+	 * `data/` beside the log directory. `data/` is gitignored, so a `git pull`
+	 * deploy leaves it alone; e2e sets CARDTABLE_LOG_DIR and therefore gets its
+	 * own directory rather than production's.
 	 */
 	dataDir: DATA_DIR,
 

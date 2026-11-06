@@ -72,7 +72,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Server as SocketIOServer } from 'socket.io';
 import { podPickNumber } from '@hadoku/draft';
-import { CONFIG, INDEX_HTML } from './config.js';
+import { CONFIG, INDEX_HTML, LEGACY_STATE } from './config.js';
+import { moveLegacyState } from './state-dir.js';
 import { callerIdOf, edgeProvenance, requireMinTier, tierOf, userIdOf, verifiedOf } from './edge-auth.js';
 import { checkBundle, diagnosticPage, isEmbedEntry, sendIndex } from './base-path.js';
 import { announceRelease } from './announce.js';
@@ -136,6 +137,8 @@ import { firstSeen, installTelemetry, monitoringSink, reportingAlerts, siteOf } 
 import { createKeyBook, createMatchStats, createStatsReporter } from './stats/index.js';
 import { recordMatch } from '@wolffm/prefs-client/games';
 
+// Before any store opens: a first boot with a state dir moves the in-clone one into it.
+moveLegacyState(CONFIG, LEGACY_STATE, jsonLogger('cardtable'));
 mkdirSync(CONFIG.logDir, { recursive: true });
 // Every step from here to `listen`, timed (`boot.ts`'s `bootClock`).
 const bootPhase = bootClock(jsonLogger('cardtable'));

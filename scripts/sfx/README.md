@@ -82,6 +82,9 @@ in `#/sounds`. A match plays the viewer's colour, their pair, one of the three p
 or any of the fifteen for four or more (`apps/ui/src/sound/match-music.ts`). The
 operator drops new tracks in `ingest/` at the repo root (gitignored).
 
+`apps/server/data/sounds` below is a dev server's sounds dir. A deployed server keeps its sounds in its
+state dir instead (`$CARDTABLE_STATE_DIR/sounds`, `apps/server/src/config.ts`): pass that path to `--to`.
+
 ```sh
 python3 scripts/sfx/add-track.py tavern.mp3 --name "Tavern loop" --credit "Tavern loop by …, CC-BY 4.0, https://…" --to apps/server/data/sounds
 ```

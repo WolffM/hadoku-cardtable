@@ -64,6 +64,11 @@ hangs off it, and it is still never worked in, but nothing pulls it, so its `for
 `node_modules` and anything gitignored in it are frozen at the move. The Scryfall cache
 moved with the deploy, and its shared copy is `~/.local/share/cardtable/scryfall`.
 
+What the server writes (rooms, drafts, recordings, parked games, sounds, `logs/`) moves out of the clone
+to a state dir once the wrapper sets `CARDTABLE_STATE_DIR` (`apps/server/src/state-dir.ts` moves it on that
+boot), so a deploy can build the next clone aside and swap it in. Unset, as in every worktree and e2e
+run, it stays in `apps/server/data`.
+
 ## The setting that works today (paste into every lane's commands)
 
 ```sh
