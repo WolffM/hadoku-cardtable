@@ -13,7 +13,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createElement } from 'react';
+import { createElement, useEffect, useRef, type ReactNode } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { DraftCard } from '@hadoku/shared';
 import { parseDck } from '@hadoku/carddata/dck';
@@ -23,6 +23,8 @@ import poolData from '../draft/pool.json';
 import { deckFromPool, dckTextOf, draftBuild } from '../draft/deckFromPool.ts';
 import { DeckEditor, type SaveOutcome } from './DeckEditor.tsx';
 import { DeckScreen } from '../screens/DeckScreen.tsx';
+import { mountInspector } from '../play/inspect/index.ts';
+import { TopLayer } from '../topLayer.tsx';
 import type { RoomsClient } from '../rooms/api.ts';
 import { parseRoute } from '../screens/route.ts';
 import type { DeckStoreClient, Mine } from './deckStore.ts';
@@ -703,6 +705,52 @@ describe('DeckEditor — sideboard', () => {
   it('shows the basics counters when the deck came from a drafted pool', () => {
     sideboard({ allowBasics: true, minMain: 40 });
     expect(screen.getByTestId('basics')).toBeTruthy();
+  });
+});
+
+/*
+ * ── the double-mount bug, fixed (wave 90 §E) ───────────────────────────────
+ *
+ * `PodScreen.tsx` mounts ONE `mountInspector` over its whole root, by its own
+ * header's design ("mounted ONCE here... so one mount covers... every card
+ * this pod ever draws"). The pod's sideboard step nests THIS component inside
+ * that root, and `DeckEditor` used to mount a SECOND, independent instance of
+ * the same real inspector on its own — two live listener sets, each drawing
+ * its own panel on the same hover: two overlapping enlarged cards (desktop
+ * shot 053). Both mounts below are the real `mountInspector`, not a stub —
+ * the regression is in whether the SECOND one still fires, not in what it
+ * draws.
+ */
+// This file is `.ts`, not `.tsx` (see the header: the rest of it renders through `createElement`
+// too), so this component builds its tree the same way rather than switching syntax just for it.
+function PodScreenLike({ children }: { children: ReactNode }) {
+  const host = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = host.current;
+    return el === null ? undefined : mountInspector(el);
+  }, []);
+  return createElement('div', { ref: host }, children, createElement(TopLayer));
+}
+
+describe('the inspector mounts once, even nested in a screen that already owns one', () => {
+  afterEach(() => {
+    // `mountInspector` keeps its listeners on `document` for the life of the mount; the next
+    // test's own render must not inherit a panel (or a mount) left open by this one.
+    cleanup();
+  });
+
+  it('nested in a screen that already mounts the inspector (the pod’s sideboard step): exactly one panel on hover, never two', () => {
+    render(
+      createElement(PodScreenLike, null, createElement(DeckEditor, { mode: 'sideboard', draftId: DRAFT_ID, pool: POOL, savedDeck: ALL_SIDEBOARDED })),
+    );
+    fireEvent.pointerOver(cardsIn('side-grid')[0]!, { pointerType: 'mouse' });
+    expect(document.querySelectorAll('[data-inspect]')).toHaveLength(1);
+  });
+
+  it('standalone (the deck editor at `#/decks/…`), with no such ancestor: its own mount is the only one, and still shows the card', () => {
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: ALL_SIDEBOARDED }));
+    fireEvent.pointerOver(cardsIn('side-grid')[0]!, { pointerType: 'mouse' });
+    expect(document.querySelectorAll('[data-inspect]')).toHaveLength(1);
   });
 });
 

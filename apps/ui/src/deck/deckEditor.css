@@ -11,6 +11,8 @@
 
 .deck-editor {
   --pile-gap: 8px;
+  /* A narrow viewport's own minimum, under the phone `@container` rule below; 0 elsewhere. */
+  --cw-floor: 0px;
   position: relative;
   box-sizing: border-box;
   height: 100%;
@@ -29,6 +31,9 @@
 
 .deck-editor__pool,
 .deck-editor__deck {
+  /* Whichever won — the fit algorithm's own `--cw-raw` (or its pre-measurement fallback,
+     set on these two elements directly, below), or the phone floor, whichever draws bigger. */
+  --cw: max(var(--cw-raw, 0px), var(--cw-floor));
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -63,11 +68,11 @@
 
 .deck-editor:not([data-fit]) .deck-editor__pool {
   flex: 0 0 38%;
-  --cw: clamp(76px, min(12.5vh, (100cqi - 40px) / 9 - 6px), 140px);
+  --cw-raw: clamp(76px, min(12.5vh, (100cqi - 40px) / 9 - 6px), 140px);
 }
 
 .deck-editor:not([data-fit]) .deck-editor__deck {
-  --cw: clamp(72px, min(13.6vh, (100cqi - 196px) / 8 - 8px), 150px);
+  --cw-raw: clamp(72px, min(13.6vh, (100cqi - 196px) / 8 - 8px), 150px);
 }
 
 /* ── the bars ── */
@@ -156,8 +161,25 @@
   }
 }
 
-/* A phone: the deck's bar wraps, and the curve and basics go under the piles. */
+/* A phone: the deck's bar wraps, the curve and basics go under the piles, and a card never draws
+   narrower than this — below it, a name and a cost are not readable (the operator: "displaying the
+   entire thing on the screen is certainly wrong"). `--cw`'s own fit algorithm (`cardFit.ts`, which
+   does not know about this floor) may still ask for less; the pool and the piles overflow the floor
+   draws past their own box, and the pan `pan.ts` installs is how the rest is reached. */
 @container (max-width: 600px) {
+  /* Not on `.deck-editor` itself: an element cannot query the very container it establishes, only an
+     ancestor's — these two ARE descendants of it, which is what makes the query match at all. */
+  .deck-editor__pool,
+  .deck-editor__deck {
+    --cw-floor: 78px;
+  }
+
+  .deck-editor__grid,
+  .deck-editor__piles {
+    /* Enough to show most of one row at the floor, so there is always something to see before a pan. */
+    min-height: 170px;
+  }
+
   .deck-editor__deck > .deck-editor__bar {
     flex-wrap: wrap;
     row-gap: 6px;
@@ -250,20 +272,35 @@
 
 /* ── the pool ── */
 
+/* The pool's VIEWPORT: `DeckEditor` sets its basis to the height its cards take at `--cw`, padding
+   apart; it never grows past that, and a pan or a zoom moves the `.deck-editor__surface` inside it,
+   never its own box. Not itself a flex container (its surface is) — `column-gap` stays declared
+   here too, at the surface's own value, only so `cardFit.ts`'s `cssPx()` reads it rather than falling
+   back (the fallback happens to match, but a changed gap must not go stale silently). */
 .deck-editor__grid {
   flex: 1 1 0;
   min-height: 0;
   overflow: hidden;
-  /* `DeckEditor` sets its basis to the height its cards take, padding apart. */
+  position: relative;
+  touch-action: none;
   box-sizing: content-box;
+  column-gap: 6px;
+}
+
+.deck-editor__surface {
+  transform-origin: 0 0;
+}
+
+.deck-editor__grid > .deck-editor__surface {
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
   gap: 6px;
   padding: 4px 2px;
+  width: 100%;
 }
 
-.deck-editor__grid > .deck-editor__card:hover {
+.deck-editor__surface > .deck-editor__card:hover {
   transform: translateY(-2px);
 }
 
@@ -339,13 +376,24 @@
   gap: 10px;
 }
 
+/* The deck's own VIEWPORT, the same way the pool's grid is one, above — its surface is a single
+   un-wrapped row (`.deck-editor__surface--piles`) exactly `--pile-gap` apart, as wide as its piles
+   actually are, which may be wider than this box once `--cw`'s floor is in effect: that excess pans,
+   sideways, rather than clip. */
 .deck-editor__piles {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
+  position: relative;
+  touch-action: none;
+  column-gap: var(--pile-gap);
+}
+
+.deck-editor__surface--piles {
   display: flex;
   gap: var(--pile-gap);
   padding-top: 2px;
+  width: max-content;
 }
 
 .deck-editor__landcard {
@@ -554,6 +602,55 @@
     transform: scale(0.92);
     opacity: 0.4;
   }
+}
+
+/* ── the zoom pill: one for the whole editor, in the deck's own bar; the board's pill, ported ── */
+
+.deck-editor__zoom {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.deck-editor__zoom > button {
+  font: inherit;
+  font-size: 12px;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.deck-editor__zoom-n {
+  min-width: 46px;
+  padding: 0 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.deck-editor__zoom > .deck-editor__zoom-step {
+  width: 26px;
+  border-left: 1px solid var(--line);
+}
+
+.deck-editor__zoom > button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* 100% reads as information, not a dead control: `disabled` only stops the reset there. */
+.deck-editor__zoom > button:disabled {
+  cursor: default;
+}
+
+.deck-editor__zoom > .deck-editor__zoom-step:disabled {
+  color: var(--ink-dim);
 }
 
 /* ── `#/deck/<podId>`: the editor takes the whole fitted screen ── */

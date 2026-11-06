@@ -7,8 +7,12 @@
  * The pool is a grid across the top, filterable by colour, type and mana
  * value and sortable. The deck is piles by mana value along the bottom, lands
  * last, with a bar of counts and colours over it and a strip at its right for
- * the curve and the basics. The whole editor fits its box; the pool and the
- * piles scroll inside it, the page never does.
+ * the curve and the basics. At 100% the whole editor fits its box; the pool
+ * and the piles never scroll, but each pans and zooms on top of that fit
+ * (`pan.ts`): one shared zoom shown in a pill in the deck's bar, each area its
+ * own pan. A phone's cards never draw under the stylesheet's `--cw-floor`, so
+ * a name and a cost stay readable; what no longer fits is panned to. The bars
+ * and the strip beside the piles never pan or zoom.
  *
  * A card moves by a click, or by dragging it onto the other area. The move is
  * always `moveToMain`/`moveToSideboard` (or `setBasicLand` for a basic), which
@@ -48,7 +52,7 @@
  * `CardRequest`.
  */
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 import type { CardRequest, DeckEntry } from '@hadoku/carddata/dck';
 import {
@@ -81,6 +85,7 @@ import { DraggableCard, DropArea, useCardSplit, type Area } from './dragMove.tsx
 import { CardPile, pileChrome } from '../components/CardPile.tsx';
 import { TopLayer } from '../topLayer.tsx';
 import { uiPx } from '../settings/ui-scale.ts';
+import { transformOf, usePanZoom, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from './pan.ts';
 import { cardHeightOf, cssPx, gridAt, largestCard, pilesAt, useBox } from '../components/cardFit.ts';
 import { MV_CAP, MV_SPAN, groupCards, mvLabel, isCreatureFace, isLandFace, sortCards, type SortKey } from './cardOrder.ts';
 import { cardIndex, draftedSeat, mainSummary, namedCardPool, withSuggestedBasics } from './build.ts';
@@ -175,6 +180,25 @@ function openDeck(savedDeck: string | null | undefined, mode: DeckEditorMode, dr
   const saved = savedBuild(savedDeck, allowBasics);
   if (mode === 'limited') return draftBuild(draftId, pool, saved);
   return saved ?? deckFromPool(draftId, pool);
+}
+
+/**
+ * Whether some OTHER screen already owns a `mountInspector` over this editor
+ * — `PodScreen.tsx`'s one mount over the whole pod, which the pod's sideboard
+ * step (`TableSideboard` → `SideboardStep` → this component) nests inside of.
+ * A second mount here drew a SECOND, independent enlarged-card panel (shot
+ * 053: two Decree of Justice previews stacked) — every `[data-board-zoom]`
+ * top layer in the document belongs to some mount; one that is not inside
+ * `el` is somebody else's, already covering every card `el` draws. The
+ * standalone deck editor (`#/decks/…`) has no such ancestor — only its OWN
+ * layer exists anywhere — so this is false there, and its own mount below is
+ * the only one.
+ */
+function hasOuterInspector(el: Element): boolean {
+  for (const layer of document.querySelectorAll<HTMLElement>('[data-board-zoom]')) {
+    if (!el.contains(layer)) return true;
+  }
+  return false;
 }
 
 export function DeckEditor({
@@ -273,7 +297,11 @@ export function DeckEditor({
   const host = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const el = host.current;
-    return el === null ? undefined : mountInspector(el);
+    if (el === null) return undefined;
+    // Skip when a screen above already mounted one (see `hasOuterInspector`'s
+    // own doc) — the pod's sideboard step is the one place that is true.
+    if (hasOuterInspector(el)) return undefined;
+    return mountInspector(el);
   }, []);
 
   /*
@@ -290,6 +318,23 @@ export function DeckEditor({
   const [measureGrid, gridBox] = useBox();
   const [measurePiles, pilesBox, pilesEl] = useBox<HTMLDivElement>();
   const strip = useRef<HTMLElement | null>(null);
+
+  // Stable ref callbacks: a new one each render would detach and rebind the pan's listeners mid-gesture.
+  const panZoom = usePanZoom();
+  const setPoolViewport = useCallback(
+    (el: HTMLDivElement | null): void => {
+      measureGrid(el);
+      panZoom.bindPool(el);
+    },
+    [measureGrid, panZoom.bindPool],
+  );
+  const setDeckViewport = useCallback(
+    (el: HTMLDivElement | null): void => {
+      measurePiles(el);
+      panZoom.bindDeck(el);
+    },
+    [measurePiles, panZoom.bindDeck],
+  );
   const fit = useMemo(() => {
     if (gridBox.width <= 0 || pilesBox.width <= 0) return null;
     const total = gridBox.height + pilesBox.height;
@@ -306,7 +351,9 @@ export function DeckEditor({
     const head = pileChrome(pilesEl);
     const gridH = (w: number): number => Math.ceil(Math.max(gridAt(sideTiles.length, w, gridBox.width, gridGap).height, cardHeightOf(w)));
     const deckH = (w: number): number => Math.max(pilesAt(counts, w, pilesBox.width, pileGap).height + head, stripH);
-    const cardW = largestCard((w) => gridH(w) + deckH(w) <= total, uiPx(MAX_CARD_W, pilesEl));
+    // A phone's floor: under it the cards are not readable, so the fit never goes below it and the rest pans.
+    const floor = cssPx(pilesEl, '--cw-floor', 0);
+    const cardW = Math.max(floor, largestCard((w) => gridH(w) + deckH(w) <= total, uiPx(MAX_CARD_W, pilesEl)));
     return { cardW, gridH: gridH(cardW), cols: pilesAt(counts, cardW, pilesBox.width, pileGap).cols };
   }, [gridBox, pilesBox, piles, landGroups, sideTiles.length]);
 
@@ -389,7 +436,7 @@ export function DeckEditor({
       data-save={saveState}
       ref={host}
       data-fit={fit === null ? undefined : ''}
-      style={fit === null ? undefined : ({ '--cw': `${fit.cardW}px` } as CSSProperties)}
+      style={fit === null ? undefined : ({ '--cw-raw': `${fit.cardW}px` } as CSSProperties)}
       {...split.handlers}
     >
       <DropArea area="pool" over={split.over} className="deck-editor__pool ct-panel" testid="pool-area">
@@ -455,10 +502,12 @@ export function DeckEditor({
             ))}
           </div>
         </div>
-        <div className="deck-editor__grid" data-testid="side-grid" ref={measureGrid} style={fit === null ? undefined : { flexBasis: `${fit.gridH}px` }}>
-          {shownPool.map((t) => (
-            <EditorCard key={`${t.key}#${t.copy}`} tile={t} from="pool" onMove={toMain} flash={flash(t, 'pool') ? landed!.n : 0} />
-          ))}
+        <div className="deck-editor__grid" data-testid="side-grid" ref={setPoolViewport} style={fit === null ? undefined : { flexBasis: `${fit.gridH}px` }}>
+          <div className="deck-editor__surface" style={{ transform: transformOf(panZoom.view.zoom, panZoom.view.pool) }}>
+            {shownPool.map((t) => (
+              <EditorCard key={`${t.key}#${t.copy}`} tile={t} from="pool" onMove={toMain} flash={flash(t, 'pool') ? landed!.n : 0} />
+            ))}
+          </div>
         </div>
       </DropArea>
 
@@ -494,37 +543,40 @@ export function DeckEditor({
                 : () => onReady?.(deck)
             }
           />
+          <ZoomPill zoom={panZoom.view.zoom} onReset={panZoom.reset} onStep={panZoom.step} />
         </div>
         <div className="deck-editor__body">
-          <div className="deck-editor__piles" data-testid="main-grid" ref={measurePiles}>
-            {piles.map((pile, mv) => (
+          <div className="deck-editor__piles" data-testid="main-grid" ref={setDeckViewport}>
+            <div className="deck-editor__surface deck-editor__surface--piles" style={{ transform: transformOf(panZoom.view.zoom, panZoom.view.deck) }}>
+              {piles.map((pile, mv) => (
+                <CardPile
+                  key={mv}
+                  testid="curve-bucket"
+                  mv={mv}
+                  head={mvLabel(mv)}
+                  items={pile}
+                  cols={fit?.cols[mv] ?? 1}
+                  render={(t) => <EditorCard key={`${t.key}#${t.copy}`} tile={t} from="deck" onMove={toSide} flash={flash(t, 'deck') ? landed!.n : 0} />}
+                />
+              ))}
               <CardPile
-                key={mv}
-                testid="curve-bucket"
-                mv={mv}
-                head={mvLabel(mv)}
-                items={pile}
-                cols={fit?.cols[mv] ?? 1}
-                render={(t) => <EditorCard key={`${t.key}#${t.copy}`} tile={t} from="deck" onMove={toSide} flash={flash(t, 'deck') ? landed!.n : 0} />}
+                testid="land-pile"
+                head={<i className="ms ms-land" aria-label="lands" />}
+                items={landGroups}
+                n={lands.length}
+                cols={fit?.cols[piles.length] ?? 1}
+                render={({ tile, n }) => (
+                  <div key={`${tile.key}#${tile.basic ? 'b' : 'm'}`} className="deck-editor__landcard">
+                    <EditorCard tile={tile} from="deck" onMove={toSide} flash={flash(tile, 'deck') ? landed!.n : 0} />
+                    {n > 1 && (
+                      <span className="deck-editor__badge" data-testid="land-count">
+                        ×{n}
+                      </span>
+                    )}
+                  </div>
+                )}
               />
-            ))}
-            <CardPile
-              testid="land-pile"
-              head={<i className="ms ms-land" aria-label="lands" />}
-              items={landGroups}
-              n={lands.length}
-              cols={fit?.cols[piles.length] ?? 1}
-              render={({ tile, n }) => (
-                <div key={`${tile.key}#${tile.basic ? 'b' : 'm'}`} className="deck-editor__landcard">
-                  <EditorCard tile={tile} from="deck" onMove={toSide} flash={flash(tile, 'deck') ? landed!.n : 0} />
-                  {n > 1 && (
-                    <span className="deck-editor__badge" data-testid="land-count">
-                      ×{n}
-                    </span>
-                  )}
-                </div>
-              )}
-            />
+            </div>
           </div>
           <aside className="deck-editor__strip" ref={strip}>
             <Curve curve={curve} />
@@ -557,6 +609,23 @@ export function DeckEditor({
       </DropArea>
 
       <TopLayer />
+    </div>
+  );
+}
+
+/** The zoom, as the board's own pill draws it: the percentage is the reset, beside a − and a +. */
+function ZoomPill({ zoom, onReset, onStep }: { zoom: number; onReset: () => void; onStep: (factor: number) => void }) {
+  return (
+    <div className="deck-editor__zoom">
+      <button type="button" className="deck-editor__zoom-n" data-testid="deck-zoom-pill" disabled={zoom <= ZOOM_MIN} onClick={onReset}>
+        {Math.round(zoom * 100)}%
+      </button>
+      <button type="button" className="deck-editor__zoom-step" data-testid="deck-zoom-out" aria-label="Zoom out" disabled={zoom <= ZOOM_MIN} onClick={() => onStep(1 / ZOOM_STEP)}>
+        −
+      </button>
+      <button type="button" className="deck-editor__zoom-step" data-testid="deck-zoom-in" aria-label="Zoom in" disabled={zoom >= ZOOM_MAX} onClick={() => onStep(ZOOM_STEP)}>
+        +
+      </button>
     </div>
   );
 }
