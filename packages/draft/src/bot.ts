@@ -16,6 +16,7 @@
 
 import type { DraftCard, ManaColor } from '@hadoku/shared';
 import { cubeRank, CUBE_RANKING_SIZE } from './ranking.ts';
+import type { SeatId } from '@wolffm/rooms-protocol';
 import { botRng, isBotSeat, packOf, pick, pickNumberOf, waitingOn, type DraftState, type PickResult } from './engine.ts';
 
 /** How much a card already in our colours is worth over one that is not. */
@@ -147,15 +148,27 @@ const defaultBotLog: BotLog = (entry) => console.error(JSON.stringify(entry));
  * silently — the production incident this caught (main 705e2468: every seat
  * frozen, no error, no log, for 120s). `log` is called once, loud, with exactly
  * what a report needs: every holding bot seat's pick, pack and pool size.
+ *
+ * `chosen` is a card id per bot seat picked by something else (the server's
+ * draftbot); a seat it does not name, or names a card its pack no longer
+ * holds, takes the heuristic's pick.
  */
-export function botTurn(state: DraftState, log: BotLog = defaultBotLog): { state: DraftState; picks: number; stalled: boolean } {
+export function botTurn(
+  state: DraftState,
+  log: BotLog = defaultBotLog,
+  chosen: ReadonlyMap<SeatId, string> = new Map(),
+): { state: DraftState; picks: number; stalled: boolean } {
   const owing = waitingOn(state).filter((s) => isBotSeat(state, s));
   let current = state;
   let picks = 0;
   for (const seatId of owing) {
-    const card = choosePick(packOf(current, seatId), current.pools[seatId] as DraftCard[], botRng(current, seatId));
-    if (card === null) continue;
-    const result: PickResult = pick(current, seatId, card.cardId);
+    const other = chosen.get(seatId);
+    let result: PickResult | null = other === undefined ? null : pick(current, seatId, other);
+    if (result === null || !result.ok) {
+      const card = choosePick(packOf(current, seatId), current.pools[seatId] as DraftCard[], botRng(current, seatId));
+      if (card === null) continue;
+      result = pick(current, seatId, card.cardId);
+    }
     if (!result.ok) continue;
     current = result.state;
     picks += 1;

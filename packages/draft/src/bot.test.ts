@@ -73,6 +73,17 @@ describe('botTurn — one pick per bot, so a pod is paced rather than drained', 
     expect(turn.state.queues.map((q) => q.map((p) => p.length))).toEqual([[2], [2], [2], [2]]);
     expect(runBots(state, vi.fn()).state.status).toBe('complete');
   });
+
+  it('a chosen card is taken for its seat; a seat not chosen, or chosen a card its pack lacks, takes the heuristic pick', () => {
+    const packs = [Array.from({ length: 3 }, (_, seat) => Array.from({ length: 3 }, (_, k) => card(`p${seat}-${k}`)))];
+    const state = createDraft({ draftId: 'c', seed: 'c', packs, seatCount: 3, packCount: 1, packSize: 3, humans: [] });
+    const heuristic = botTurn(state, vi.fn()).state.pools.map((p) => p[0]?.cardId);
+    const other = ['p0-0', 'p0-1'].find((id) => id !== heuristic[0])!;
+    // Seat 1 is "chosen" a card from seat 0's pack, which it does not hold.
+    const turn = botTurn(state, vi.fn(), new Map([[0, other], [1, 'p0-2']]));
+    expect(turn.picks).toBe(3);
+    expect(turn.state.pools.map((p) => p[0]?.cardId)).toEqual([other, heuristic[1], heuristic[2]]);
+  });
 });
 
 
