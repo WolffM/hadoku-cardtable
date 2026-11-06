@@ -278,8 +278,8 @@ function passedWindow(payload: unknown): boolean {
 export const BOARD_HOLD_MAX_MS = 5_000;
 
 /**
- * A decision — an ask, or Forge's prompt line — that waited at least this long behind what came before it is
- * reported (`input-held`): how long, and how much of that was the board's beats and the classes' gaps (the
+ * A decision — a frame the seat can act on ({@link canAct}) — that waited at least this long behind what came
+ * before it is reported (`input-held`): how long, and how much of that was the board's beats and the classes' gaps (the
  * operator, 2026-10-20, of a looped combo: "it seems i have to wait for the life gain sound to play before i
  * can do the combo again?"). The other input notifies ride with it and say nothing more.
  */
@@ -317,12 +317,6 @@ export interface BoardHoldCapped {
 
 /** A report's string field: at most what the telemetry schema keeps. */
 const REPORT_TEXT_MAX = 80;
-
-/** Whether a frame opens a decision: an ask, or Forge's prompt line. */
-function opensDecision(payload: unknown): boolean {
-  const frame = (payload as { frame?: { kind?: unknown; method?: unknown } } | null)?.frame;
-  return frame?.kind === 'ask' || frame?.method === 'showPromptMessage';
-}
 
 /**
  * Whether a frame lets the seat act: an ask, or a button bar with a button live. Forge's prompt line alone is not
@@ -777,7 +771,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
     }
     if (next.resolves.length > 0) resolving(next.resolves);
     const held = lastDeliveredAt - next.arrivedAt;
-    if (next.pace === 'input' && held >= INPUT_HELD_REPORT_MS && opensDecision(next.payload)) {
+    if (next.pace === 'input' && held >= INPUT_HELD_REPORT_MS && canAct(next.payload)) {
       const at = spent();
       const ahead = recent.slice(Math.max(0, recent.length - (delivered - next.deliveredAt)));
       const counts = new Map<PaceClass, number>();

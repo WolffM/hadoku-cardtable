@@ -661,6 +661,28 @@ describe('pacedMatchTransport: one act at a time', () => {
     ]);
   });
 
+  it('a prompt line under a dead bar is no decision: held behind a gap, it reports nothing; a live bar is one', async () => {
+    // wresolve-chain on a loaded claw (run 42248044760): "Waiting for Bob..." after the killing trigger, behind its gap.
+    const prompt = (message: string) => ({ frame: { kind: 'notify', method: 'showPromptMessage', message }, matchId: 'm-1' });
+    const bar = (live: boolean) => ({ frame: { kind: 'notify', method: 'updateButtons', label1: 'OK', label2: 'Cancel', enable1: live, enable2: false }, matchId: 'm-1' });
+    const inner = fakeInner();
+    const { received } = paced(inner, { boardStill: fakeBoard().still });
+    inner.deliver({ ...(HAND_OUT as object), matchId: 'm-1' });
+    inner.deliver({ ...(DEFAULT_DELTA as object), matchId: 'm-1' });
+    inner.deliver(prompt('Waiting for Bob...'));
+    inner.deliver(bar(false));
+    await vi.advanceTimersByTimeAsync(PACE_DELAYS_MS.default + 1);
+    expect(received).toHaveLength(4);
+    expect(inner.emits).toEqual([]);
+
+    inner.deliver({ ...(DEFAULT_DELTA as object), matchId: 'm-1' });
+    inner.deliver(prompt('Priority: Alice'));
+    inner.deliver(bar(true));
+    await vi.advanceTimersByTimeAsync(PACE_DELAYS_MS.default + 1);
+    expect(received).toHaveLength(7);
+    expect(inner.emits.map((e) => (e.payload as { data: { method: string } }).data.method)).toEqual(['updateButtons']);
+  });
+
   it('an ask that goes out at once reports nothing', () => {
     const inner = fakeInner();
     paced(inner);
