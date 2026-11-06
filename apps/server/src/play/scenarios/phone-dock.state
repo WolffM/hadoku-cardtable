@@ -1,0 +1,13 @@
+# A docked question on a phone, to swipe under (Mockup 2 build). Seat 0 (human) casts Bone Shards, whose
+# sacrifice is a pick from its own creatures, a sheet that docks. The AI has a creature to target.
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Bone Shards
+humanbattlefield=Swamp;Swamp;Grizzly Bears;Llanowar Elves
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+aihand=
+aibattlefield=Mountain;Mountain;Hill Giant
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain

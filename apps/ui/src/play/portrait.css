@@ -913,3 +913,32 @@
   font-variant-numeric: tabular-nums;
   color: var(--accent);
 }
+
+/*
+ * Zoomed in (a pinch, or ⋯'s +), the board is taller than the screen: a finger pans it up and down as
+ * well as along a lane (the operator: mobile players can always pan through the board). Each battlefield
+ * keeps its lanes' full height instead of clipping them, the board scrolls, and the top band and the hand
+ * stay where they are. At 1× the board fits, so none of this applies and a vertical drag stays a card's.
+ */
+:root[data-layout='portrait'] .live .board[data-zoomed] {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  touch-action: pan-x pan-y;
+}
+:root[data-layout='portrait'] .board[data-zoomed] .seat > .zone--battlefield {
+  flex: 1 0 auto;
+  /* `board.css`'s `contain: size` would keep the zone at its share however tall its lanes grow. */
+  contain: style;
+}
+:root[data-layout='portrait'] .board[data-zoomed] .zone__tiers > [data-testid^='lane-'],
+:root[data-layout='portrait'] .board[data-zoomed] .zone__tiers > [data-testid^='lane-'] > li.board-card {
+  touch-action: pan-x pan-y;
+}
+:root[data-layout='portrait'] .board[data-zoomed] .portrait-hud {
+  position: sticky;
+  top: 0;
+}
+:root[data-layout='portrait'] .board[data-zoomed] .seat[data-viewer] > .zone--hand {
+  position: sticky;
+  bottom: 0;
+}

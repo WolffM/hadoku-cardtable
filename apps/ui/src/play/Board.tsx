@@ -4338,6 +4338,8 @@ function zoomPortraitTo(board: HTMLElement, lanes: readonly HTMLUListElement[], 
   const fy = (board.scrollTop + cy) / boardScrollHeight;
   const laneFx = lanes.map((lane) => ({ lane, fx: (lane.scrollLeft + cx) / (lane.scrollWidth || 1) }));
   board.style.setProperty('--portrait-zoom', z.toFixed(3));
+  // Zoomed in, the board is taller than the screen and scrolls up and down (`portrait.css`).
+  board.toggleAttribute('data-zoomed', z > 1.001);
   board.scrollTop = fy * board.scrollHeight - cy;
   for (const { lane, fx } of laneFx) lane.scrollLeft = fx * lane.scrollWidth - cx;
   for (const lane of lanes) measurePortraitLane(lane);

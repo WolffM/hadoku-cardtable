@@ -17,9 +17,9 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled, passOverStack, pressPaymentAuto, resizeWindow } from './play/board.ts';
+import { clickHandCard, handCardNamed, makeTitled, passOverStack, pressPaymentAuto, resizeWindow } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { noSideways, PHONE } from './play/phone.ts';
+import { noSideways, PHONE, pinch, swipe } from './play/phone.ts';
 import { startScenarioVsAi } from './play/scenario.ts';
 
 test.use(PHONE);
@@ -202,6 +202,81 @@ test(titled('360×800 with every counter on, four-digit counts included: nothing
     }
     const phases = await box(page, '[data-testid="live-phases"]');
     expect.soft(phases.y + phases.height, 'the band stays at most 80px').toBeLessThanOrEqual(80);
+    await noSideways(page);
+  } finally {
+    await stack.stop();
+  }
+});
+
+/** The board's own vertical scroll. */
+const boardScroll = (page: Page): Promise<number> => page.locator('.board').evaluate((el) => el.scrollTop);
+
+/**
+ * A finger swipe up the empty right end of a lane: the board pans when it is taller than the screen.
+ * `from` is given in the viewport, clear of any card.
+ */
+async function swipeUp(page: Page, at: { x: number; y: number }): Promise<void> {
+  await swipe(page, at, { x: at.x, y: at.y - 160 }, 14);
+  await page.waitForTimeout(400);
+}
+
+test(titled('zoomed in by a pinch, a finger pans the board up and down, with a dock open too'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(4 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice } = await startScenarioVsAi(browser, stack, 'phone-dock');
+    const page = alice.page;
+    await expect(page.getByTestId('live-decision-ok')).toBeVisible({ timeout: 60_000 });
+    const geometry = () =>
+      page.locator('.board').evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight, zoomed: el.hasAttribute('data-zoomed') }));
+    expect((await geometry()).scroll, 'at 1× the board fits the screen').toBeLessThanOrEqual((await geometry()).client + 1);
+
+    await pinch(page, { at: { x: 195, y: 300 }, scale: 2 });
+    await expect.poll(async () => (await geometry()).zoomed, { message: 'the pinch zoomed the board' }).toBe(true);
+    const zoomed = await geometry();
+    console.log(`[pan] zoomed: ${JSON.stringify(zoomed)}`);
+    expect(zoomed.scroll, 'zoomed in, the board is taller than the screen').toBeGreaterThan(zoomed.client + 40);
+
+    // Lanes never overlap and the hand and the band stay put while it pans.
+    const lanesApart = async () =>
+      page.evaluate(() => {
+        const boxes = [...document.querySelectorAll('[data-testid^="lane-"]:not([data-testid="lane-my-hand"])')].map((l) => l.getBoundingClientRect()).filter((r) => r.height > 0).sort((a, b) => a.top - b.top);
+        return boxes.slice(1).every((r, i) => r.top >= boxes[i]!.bottom - 0.5);
+      });
+    expect.soft(await lanesApart(), 'zoomed lanes never overlap').toBe(true);
+    const handAt = (await page.getByTestId('lane-my-hand').boundingBox())!;
+
+    await page.locator('.board').evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    const before = await boardScroll(page);
+    await swipe(page, { x: 380, y: 300 }, { x: 380, y: 470 }, 14);
+    await page.waitForTimeout(400);
+    expect(await boardScroll(page), 'a swipe down pans the board up').toBeLessThan(before - 40);
+    const top = await boardScroll(page);
+    await swipeUp(page, { x: 380, y: 520 });
+    expect(await boardScroll(page), 'a swipe up pans it back down').toBeGreaterThan(top + 40);
+    const handAfter = (await page.getByTestId('lane-my-hand').boundingBox())!;
+    expect.soft(handAfter.y, 'the hand stays on the bottom edge while the board pans').toBeCloseTo(handAt.y, 0);
+    expect.soft((await box(page, '.portrait-hud')).y, 'the band stays on the top edge').toBeCloseTo(0, 0);
+
+    // With a dock open: Bone Shards asks which creature to sacrifice, a sheet that docks.
+    const shards = await handCardNamed(page, 'Bone Shards');
+    expect(shards, 'Bone Shards is in hand').toBeDefined();
+    expect(await clickHandCard(page, shards!), 'Bone Shards is cast').toBe(true);
+    await expect(page.getByTestId('decision-dock'), 'its question docks').toBeVisible({ timeout: 30_000 });
+    const dockTop = (await page.getByTestId('decision-dock').boundingBox())!.y;
+    await page.locator('.board').evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    const docked = await boardScroll(page);
+    const y = Math.min(dockTop - 30, 420);
+    await swipe(page, { x: 380, y: y - 170 }, { x: 380, y }, 14);
+    await page.waitForTimeout(400);
+    expect(await boardScroll(page), 'with a dock open, a swipe above it still pans the board').toBeLessThan(docked - 40);
+    await expect(page.getByTestId('decision-dock'), 'and the dock is still open').toBeVisible();
     await noSideways(page);
   } finally {
     await stack.stop();
