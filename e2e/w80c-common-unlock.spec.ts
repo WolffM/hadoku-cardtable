@@ -183,7 +183,7 @@ async function measure(page: Page, act: string, since: number, from: number): Pr
     `[w80c-common] ${act}: stack ${from}→${shrank.count} drawn at 0; alice's decision opened at ${rel(opened.at)} ms` +
       ` (ok ${opened.ok}, castable [${opened.castable.join(', ')}]); the effect's animations ${rel(start)}..${rel(end)} ms, the spell off the stack by ${rel(whole)};` +
       ` opened at ${Math.round(share * 100)}% of the effect, ${Math.round(((opened.at - start) / (whole - start)) * 100)}% of all of it;` +
-      ` ${lateMs} ms past ${LATEST_SHARE * 100}%, the page's long frames covering ${jankMs} ms of the wait from the unlock point`,
+      ` ${lateMs} ms past ${Math.round(LATEST_SHARE * 100)}%, the page's long frames covering ${jankMs} ms of the wait from the unlock point`,
   );
   console.log(`[w80c-common] ${act}: open ${rec.open.filter((o) => o.at >= shrank.at - 2_000 && o.at <= shrank.at + 3_000).map((o) => `${rel(o.at)} ${o.open ? (o.ok ? 'OK' : 'cast') : 'shut'}`).join(' | ')}; stack ${rec.stack.filter((x) => x.at >= shrank.at - 2_000).map((x) => `${rel(x.at)}:${x.count}`).join(' ')}`);
   console.log(`[w80c-common] ${act}: animations ${drawn.map((a) => `${a.name} ${rel(a.start)}..${rel(a.end)}`).join(' | ')}`);
@@ -263,7 +263,7 @@ test(titled('a counter and a removal resolving: when alice’s next decision ope
         continue;
       }
       expect(r.share, `${r.act}: alice's next decision opens on the effect's last tenth, not as it starts`).toBeGreaterThanOrEqual(0.8);
-      expect(r.lateMs, `${r.act}: and not after it is over, past ${LATEST_SHARE * 100}% only by the page's own long frames (${r.jankMs} ms)`).toBeLessThanOrEqual(Math.max(0, r.jankMs));
+      expect(r.lateMs, `${r.act}: and not after it is over, past ${Math.round(LATEST_SHARE * 100)}% only by the page's own long frames (${r.jankMs} ms)`).toBeLessThanOrEqual(Math.max(0, r.jankMs));
     }
   } finally {
     await stack.stop();
