@@ -2183,7 +2183,7 @@
   position: absolute;
   right: var(--portrait-pad);
   bottom: calc(100% + 6px);
-  z-index: 40;
+  z-index: var(--z-popover);
   min-width: 190px;
   flex-direction: column;
   gap: 2px;
