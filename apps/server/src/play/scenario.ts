@@ -294,7 +294,8 @@ export interface Scenario {
 	 */
 	ok(seat: number): void;
 	/**
-	 * The `sent` index of every prompt OK was pressed on, whichever helper pressed it. A driver
+	 * The `sent` index of every prompt OK was pressed on, whichever helper pressed it — or the
+	 * server's own auto-pass, which answered the seat's latest prompt here too. A driver
 	 * pressing on "the seat's latest prompt" checks this first: each helper's own record cannot see
 	 * another's, and an old prompt pressed by one reads as new to the next. When the next window's bar
 	 * arrives before its prompt (Forge's `InputBlock`), that bar's live OK skips the window
@@ -368,6 +369,7 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 	const lines: Scenario['lines'] = [];
 	const logs: Record<string, unknown>[] = [];
 	const seats: Scenario['seats'] = [];
+	const pressed = new Set<number>();
 	const jvm = jvmHostFactory(config, { warm: false, log: (e) => logs.push(e) });
 	let host: MatchHost | null = null;
 	const registry = createMatchRegistry({
@@ -381,7 +383,18 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 					if (kept !== null) events.line(kept);
 				},
 			})),
-		log: (e) => logs.push(e),
+		log: (e) => {
+			logs.push(e);
+			// The server passed this seat's stop itself and withheld that prompt, so the seat's latest
+			// prompt here is an older one: it is answered too, and no driver may press it again. A
+			// driver that did pressed OK while Forge already stood at the seat's NEXT window, and passed
+			// that one instead (blockers.jvm Q10, run 42218389099: the defender's stray OK passed its
+			// Declare Blockers priority before the server could, so no auto-pass was ever logged there).
+			if (e.evt === 'auto-passed' && typeof e.seat === 'number') {
+				const at = sent.findLastIndex((x) => x.seat === e.seat && x.envelope.frame.method === 'showPromptMessage');
+				if (at >= 0) pressed.add(at);
+			}
+		},
 		overGraceMs: 60_000,
 		...(options.actSilenceMs === undefined ? {} : { actSilenceMs: options.actSilenceMs }),
 		...(options.policy === undefined ? {} : { stopPolicy: options.policy }),
@@ -431,7 +444,6 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 
 	const answered = new Set<string>();
 	const handled = new Set<number>();
-	const pressed = new Set<number>();
 	const asks: ServerFrame[] = [];
 
 	const last = <T>(seat: number, method: string): T | null =>
