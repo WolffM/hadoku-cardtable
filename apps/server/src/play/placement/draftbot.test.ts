@@ -125,7 +125,7 @@ describe('the draft bot on the claws', () => {
 
 		b.answer = 'short';
 		a.answer = 'fail';
-		await expect(r.bots.batchDraft(INPUTS, new AbortController().signal)).rejects.toThrow('draftbot on claw-9: answered 0 packs for 1');
+		await expect(r.bots.batchDraft(INPUTS, new AbortController().signal)).rejects.toThrow('draftbot on claw-9: draftbot answered 0 packs for 1');
 
 		// The caller's own deadline ends the backup too.
 		b.answer = 'hang';

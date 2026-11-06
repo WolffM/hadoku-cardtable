@@ -15,25 +15,10 @@
  *   when both fail, and the room's bots pick by the pick order.
  */
 
-import { z } from 'zod';
-
+import { batchDraftAnswer, type Draftbot, type DraftbotInput, type DraftbotRatings } from '../../room/draftbot.js';
 import type { AgentClient } from '../remote/client.js';
 import { DRAFTBOT_PATH } from '../remote/wire.js';
 import type { Alerts } from './alerts.js';
-
-/** Oracle ids: the cards in the pack being picked from, and the ones already taken. */
-export interface DraftbotInput {
-	pack: string[];
-	pool: string[];
-}
-
-/** One list per input, in input order: each pack's known cards, best first. */
-export type DraftbotRatings = { oracle: string; rating: number }[][];
-
-export interface Draftbot {
-	/** Rejects on any failure, including an answer of the wrong shape. */
-	batchDraft(inputs: DraftbotInput[], signal: AbortSignal): Promise<DraftbotRatings>;
-}
 
 /** A primary and a backup. */
 export const DRAFTBOT_CLAWS = 2;
@@ -60,11 +45,6 @@ export interface DraftbotClaw {
 	/** Why it holds none, when the push failed. */
 	error: string | null;
 }
-
-const Answer = z.object({
-	success: z.literal(true),
-	results: z.array(z.array(z.object({ oracle: z.string(), rating: z.number() }))),
-});
 
 export class ClawDraftbots implements Draftbot {
 	private claws = new Map<string, DraftbotClaw>();
@@ -167,10 +147,7 @@ export class ClawDraftbots implements Draftbot {
 			if (signal.aborted) break;
 			const attempt = i === targets.length - 1 ? signal : AbortSignal.any([signal, AbortSignal.timeout(DRAFTBOT_PRIMARY_MS)]);
 			try {
-				const parsed = Answer.safeParse(await c.client.call('POST', DRAFTBOT_PATH, { inputs }, attempt));
-				if (!parsed.success) throw new Error(`answer malformed: ${parsed.error.issues[0]?.message ?? 'unknown'}`);
-				if (parsed.data.results.length !== inputs.length) throw new Error(`answered ${parsed.data.results.length} packs for ${inputs.length}`);
-				return parsed.data.results;
+				return batchDraftAnswer(await c.client.call('POST', DRAFTBOT_PATH, { inputs }, attempt), inputs.length);
 			} catch (err) {
 				last = new Error(`draftbot on ${c.name}: ${(err as Error).message}`, { cause: err });
 			}

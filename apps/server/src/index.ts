@@ -88,7 +88,7 @@ import { stampOrigin } from './http/origin.js';
 import { healthResponse, readCommit, serviceIdOf } from './health.js';
 import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { attachDraftSocket } from './room/socket.js';
-import { httpDraftbot } from './room/draftbot.js';
+import { httpDraftbot, type Draftbot } from './room/draftbot.js';
 import { attachRoomFeed } from './room/feed.js';
 import { clawPlacement, fleetCli, primeFleet, registryRestorer } from './play/placement/index.js';
 import { attachPlay, coldStartsFrom, createFeatured, featuredCandidates, jvmHostConfig, jvmHostFactory, roomDeckCosts, roomFormatNames, spellCopierLookup, tableGame, type PlayHandle } from './play/index.js';
@@ -721,12 +721,18 @@ const io = new SocketIOServer(httpServer, {
 	serveClient: false,
 });
 
+// The draft bot the claws run when matches are placed on them (`play/placement/draftbot.ts`); else a
+// plain service at CARDTABLE_DRAFTBOT_URL (a dev box). `clawHosts` is built further down, before any draft.
+const clawsDraftbot: Draftbot | undefined =
+	CONFIG.playHosts === 'claws'
+		? { batchDraft: (inputs, signal) => (clawHosts === null ? Promise.reject(new Error('no Forge hosts, so no claw runs the draft bot')) : clawHosts.draftbot.batchDraft(inputs, signal)) }
+		: undefined;
 const draftSocket = attachDraftSocket(io, {
 	rooms: draftRooms,
 	lobby,
 	minTier: CONFIG.minTier,
 	botPickMs: CONFIG.draftBotPickMs,
-	draftbot: CONFIG.draftbotUrl ? httpDraftbot(CONFIG.draftbotUrl, CONFIG.draftbotToken || undefined) : undefined,
+	draftbot: clawsDraftbot ?? (CONFIG.draftbotUrl ? httpDraftbot(CONFIG.draftbotUrl, CONFIG.draftbotToken || undefined) : undefined),
 });
 // Every room write, pushed to the screens that have the room (or the list) open,
 // so none of them reads it on a timer. Behind the gate attachDraftSocket installed.

@@ -35,6 +35,14 @@ const BatchDraftResponse = z.object({
 	results: z.array(z.array(z.object({ oracle: z.string(), rating: z.number() }))),
 });
 
+/** The service's `/batchdraft` answer for `inputs` packs, or why it is not one: a short answer is a failure too. */
+export function batchDraftAnswer(json: unknown, inputs: number): DraftbotRatings {
+	const parsed = BatchDraftResponse.safeParse(json);
+	if (!parsed.success) throw new Error(`draftbot answer malformed: ${parsed.error.issues[0]?.message ?? 'unknown'}`);
+	if (parsed.data.results.length !== inputs) throw new Error(`draftbot answered ${parsed.data.results.length} packs for ${inputs}`);
+	return parsed.data.results;
+}
+
 export function httpDraftbot(baseUrl: string, token?: string): Draftbot {
 	const url = `${baseUrl.replace(/\/+$/, '')}/batchdraft`;
 	return {
@@ -46,12 +54,7 @@ export function httpDraftbot(baseUrl: string, token?: string): Draftbot {
 				signal,
 			});
 			if (!res.ok) throw new Error(`draftbot answered ${res.status}`);
-			const parsed = BatchDraftResponse.safeParse(await res.json());
-			if (!parsed.success) throw new Error(`draftbot answer malformed: ${parsed.error.issues[0]?.message ?? 'unknown'}`);
-			if (parsed.data.results.length !== inputs.length) {
-				throw new Error(`draftbot answered ${parsed.data.results.length} packs for ${inputs.length}`);
-			}
-			return parsed.data.results;
+			return batchDraftAnswer(await res.json(), inputs.length);
 		},
 	};
 }

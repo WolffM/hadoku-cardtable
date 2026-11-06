@@ -68,7 +68,8 @@ import type { AgentClient } from '../remote/client.js';
 import { FENCE_MS, HEARTBEAT_MS, sliceNeedMb } from '../remote/wire.js';
 import type { Alerts } from './alerts.js';
 import { SECTION, contractViolations, type Violation } from './audit.js';
-import { ClawDraftbots, type Draftbot } from './draftbot.js';
+import type { Draftbot } from '../../room/draftbot.js';
+import { ClawDraftbots } from './draftbot.js';
 import { CONTRACT, type HostingContract } from './contract.js';
 import { STATUS_MAX_AGE_S, type FleetDemand, type FleetNode, type FleetSource, type FleetStatus } from './fleet.js';
 import {
