@@ -15,19 +15,13 @@ import { expect, test, type Page } from '@playwright/test';
 import { boardCard, clickPermanent, makeTitled, ownNamed, pressOffered, pressPaymentAuto, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
+import { abilityChoices, chooseAbility } from './mana-ring.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
 const AFFORDABLE = 12;
 const PUMP = /\+X\/\+0/;
-
-/** The open "which ability?" pop-up's options, by their words; [] when none is open. */
-async function abilityChoices(page: Page): Promise<string[]> {
-  const options = page.getByTestId('live-prompt').locator('[data-testid="prompt-choice"]');
-  if (!(await options.first().isVisible({ timeout: 300 }).catch(() => false))) return [];
-  return options.evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? e.textContent ?? ''));
-}
 
 /** The Bears' power as their P/T badge draws it (a buff draws a mark beside the number). */
 const powerOf = (page: Page, id: number): Promise<number | null> =>
@@ -53,8 +47,8 @@ test(titled('Kessig Wolf Run: the X slider reaches 20, marks the most mana alice
 
     expect(await clickPermanent(page, kessig), 'Kessig Wolf Run is offered with a live window').toBe(true);
     await expect.poll(() => abilityChoices(page), { timeout: 15_000, message: 'a click on Kessig Wolf Run asks which ability' }).toContainEqual(expect.stringMatching(PUMP));
-    const choices = await abilityChoices(page);
-    await page.getByTestId('live-prompt').locator('[data-testid="prompt-choice"]').nth(choices.findIndex((l) => PUMP.test(l))).click();
+    // Kessig Wolf Run has a mana ability: its pump is a chip on the mana ring at the click.
+    await chooseAbility(page, PUMP);
 
     const slider = page.getByTestId('prompt-slider');
     await expect(slider, 'the X ask reaches alice as the slider').toBeVisible({ timeout: 15_000 });

@@ -62,3 +62,27 @@ export async function expectCardViewBesideRing(page: Page, what: string): Promis
   }
   expect(covered, `${what}: the expanded card view covers no disc of the ring`).toEqual([]);
 }
+
+/**
+ * What a click on a permanent asks "which ability?" with, by Forge's words; [] when nothing is open. A
+ * source with a mana ability is asked on the mana ring (its other abilities are chips named by their
+ * title, its mana abilities discs); anything else on the generic picker.
+ */
+export async function abilityChoices(page: Page): Promise<string[]> {
+  const chips = ring(page).locator('[data-testid="mana-ring-chip"], [data-testid="mana-ring-option"]');
+  if (await chips.first().isVisible({ timeout: 300 }).catch(() => false)) {
+    return chips.evaluateAll((els) => els.map((e) => e.getAttribute('title') ?? e.getAttribute('data-mana') ?? ''));
+  }
+  const options = page.getByTestId('live-prompt').locator('[data-testid="prompt-choice"]');
+  if (!(await options.first().isVisible({ timeout: 300 }).catch(() => false))) return [];
+  return options.evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? e.textContent ?? ''));
+}
+
+/** Pick the ability whose words match `want` (the first offered when none does), on whichever of the two asks. */
+export async function chooseAbility(page: Page, want: RegExp): Promise<void> {
+  const labels = await abilityChoices(page);
+  const i = Math.max(0, labels.findIndex((l) => want.test(l)));
+  const chips = ring(page).locator('[data-testid="mana-ring-chip"], [data-testid="mana-ring-option"]');
+  if ((await chips.count()) > 0) await chips.nth(i).click();
+  else await page.getByTestId('live-prompt').locator('[data-testid="prompt-choice"]').nth(i).click();
+}

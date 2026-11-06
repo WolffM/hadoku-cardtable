@@ -19,6 +19,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { clickHandCard, clickOnce, makeTitled, pressOffered, pressPaymentAuto, says, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
+import { abilityChoices, chooseAbility } from './mana-ring.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -39,20 +40,6 @@ async function named(page: Page, zone: string, name: string): Promise<number | u
     .locator(`${zone} [data-board-card]`)
     .evaluateAll((els, want) => els.filter((e) => e.querySelector('.card__name')?.textContent?.trim() === want).map((e) => Number(e.getAttribute('data-board-card'))), name);
   return ids[0];
-}
-
-/** The open "which ability?" pop-up's options, by their plain words; [] when none is open. */
-async function abilityChoices(page: Page): Promise<string[]> {
-  const options = page.getByTestId('live-prompt').locator('[data-testid="prompt-choice"]');
-  if (!(await options.first().isVisible({ timeout: 300 }).catch(() => false))) return [];
-  return options.evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? e.textContent ?? ''));
-}
-
-async function chooseAbility(page: Page, want: RegExp): Promise<void> {
-  const options = page.getByTestId('live-prompt').locator('[data-testid="prompt-choice"]');
-  const labels = await abilityChoices(page);
-  const i = labels.findIndex((l) => want.test(l));
-  await options.nth(i >= 0 ? i : 0).click();
 }
 
 
