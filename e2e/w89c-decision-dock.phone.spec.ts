@@ -17,7 +17,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { makeTitled, offeredNamed } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { expectBarAnchored } from './play/phone.ts';
+import { expectBarAnchored, raiseHand } from './play/phone.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -32,8 +32,6 @@ async function forcePortrait(page: Page): Promise<void> {
 
 const dock = (page: Page): Locator => page.getByTestId('decision-dock');
 const expandBtn = (page: Page): Locator => page.getByTestId('decision-expand');
-const minimizeBtn = (page: Page): Locator => page.getByTestId('decision-minimize');
-const pillBtn = (page: Page): Locator => page.getByTestId('decision-pill');
 // Some searches route through the generic ask flow (`PromptShell`'s own `prompt-submit`) rather
 // than the selectables-driven `SelectionPrompt` (`selection-done`) — whichever one Forge's own ask
 // shape used, this is the one "Done"/submit the dock is showing.
@@ -174,6 +172,7 @@ async function castByTap(page: Page, name: string): Promise<void> {
   // actual intercept error, not assumed. That overlap is A's own landing to resolve (the hand moves
   // into its new row); it is not this lane's dock, which this same helper already proved clear of the
   // hand once minimized, and it has nothing to do with what this spec is actually proving below.
+  await raiseHand(page, id);
   await page.locator(`[data-board-card="${id}"] button`).first().tap({ timeout: 10_000, force: true });
   const view = page.getByTestId('card-view');
   await expect(view).toBeVisible({ timeout: 10_000 });
@@ -260,7 +259,7 @@ test(titled('ten Valakut triggers: the dock is as tall as its question and clear
   }
 });
 
-test(titled('declaring blockers: the dock is as tall as its question, covers no lane, has no expand control, and "–" shrinks it to a pill that restores'), async ({ browser }) => {
+test(titled('declaring blockers: the question and Done Blocking stand in the bottom bar, once, and nothing docks over a lane'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -269,13 +268,16 @@ test(titled('declaring blockers: the dock is as tall as its question, covers no 
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w54-b-two-blockers');
     await forcePortrait(alice.page);
 
-    await until('alice\'s declare-blockers decision docks', async () => {
+    // Mockup 2: the open decision's button replaces OK in the bar, its question one line beside it.
+    const bar = alice.page.getByTestId('action-bar');
+    await until('alice\'s declare-blockers decision is in the bar', async () => {
       await pumpOpponent(bob.page);
-      return (await dock(alice.page).count()) > 0 && (await dockMode(alice.page)) === 'dock';
+      return (await bar.getByTestId('live-decision-ok').count()) > 0 && /block/i.test((await bar.locator('.action-bar__prompt').textContent()) ?? '');
     });
-    await expect(dock(alice.page)).toHaveAttribute('data-mode', 'dock');
-    await expectBarAnchored(alice.page, 'declare blockers, docked');
-    await expectControlsOnTheFirstRow(alice.page, 'declare blockers');
+    await expect(alice.page.getByTestId('live-decision-ok'), 'Done Blocking is drawn once').toHaveCount(1);
+    await expect(bar.getByTestId('live-decision-ok')).toHaveText(/Done/);
+    await expect(dock(alice.page), 'nothing docks for it').toHaveCount(0);
+    await expectBarAnchored(alice.page, 'declare blockers');
     // An attack on a player points at the middle of that player's edge: bob's attackers at the bottom
     // edge's middle on alice's screen, at the top edge's middle on his own (the operator, 2026-11-04).
     for (const [page, edge] of [[alice.page, 'bottom'], [bob.page, 'top']] as const) {
@@ -294,17 +296,7 @@ test(titled('declaring blockers: the dock is as tall as its question, covers no 
         expect.soft(edge === 'bottom' ? t.bottom - t.y : t.y - t.top, `${edge}: at that edge`).toBeLessThanOrEqual(48);
       }
     }
-    await expect(expandBtn(alice.page), 'a small decision needs no expand').toHaveCount(0);
-    // As tall as "Select creatures to block." and Done Blocking, no taller, and clear of the lanes
-    // it is asking about.
-    expect(await dockSlack(alice.page), 'no empty room in the docked dock').toBeLessThanOrEqual(2);
-    const sheetGrip = await dock(alice.page)
-      .locator(':scope > .live__prompt > :is(.prompt, .confirm)')
-      .first()
-      .evaluate((sheet) => getComputedStyle(sheet, '::before').content);
-    expect.soft(sheetGrip, 'one grip, the dock handle’s: the sheet draws no second one').toBe('none');
     expect(await boardLanes(alice.page).count(), 'the four board lanes are drawn').toBe(4);
-    await expectBoardLanesClear(alice.page);
     // The attackers it asks about are whole inside their own lane: a turned card is drawn on the
     // middle of the footprint an upright card takes there (cards hang from the lane's top), never
     // pushed past the lane's edge.
@@ -324,17 +316,6 @@ test(titled('declaring blockers: the dock is as tall as its question, covers no 
       const uprightMiddle = a.rest + (a.faceWidth * 680) / 488 / 2;
       expect.soft(Math.abs((a.faceTop + a.faceBottom) / 2 - uprightMiddle), 'on the middle of an upright card’s footprint').toBeLessThanOrEqual(2);
     }
-    // It stands on the action bar, which stays on the bottom edge, uncovered.
-    const dockBox = (await dock(alice.page).boundingBox())!;
-    const barBox = (await alice.page.getByTestId('action-bar').boundingBox())!;
-    expect.soft(dockBox.y + dockBox.height, 'the dock stands on the action bar, never over it').toBeLessThanOrEqual(barBox.y + 0.5);
-
-    await minimizeBtn(alice.page).tap();
-    await expect(dock(alice.page)).toHaveAttribute('data-mode', 'min');
-    await expect(pillBtn(alice.page)).toBeVisible();
-    await expectBarAnchored(alice.page, 'declare blockers, a pill');
-    await pillBtn(alice.page).tap();
-    await expect(dock(alice.page)).toHaveAttribute('data-mode', 'dock');
   } finally {
     await stack.stop();
   }

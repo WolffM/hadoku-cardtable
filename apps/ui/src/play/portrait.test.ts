@@ -7,7 +7,19 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, act, cleanup } from '@testing-library/react';
-import { clampZoom, dispatchZoomEvent, PORTRAIT_MEDIA_QUERY, usePortraitLayout, ZOOM_EVENT, ZOOM_MAX, ZOOM_MIN, ZOOM_RESET_EVENT } from './portrait.ts';
+import {
+  clampZoom,
+  compactCount,
+  dispatchZoomEvent,
+  LANE_GROW_MAX,
+  PORTRAIT_MEDIA_QUERY,
+  portraitLaneFit,
+  usePortraitLayout,
+  ZOOM_EVENT,
+  ZOOM_MAX,
+  ZOOM_MIN,
+  ZOOM_RESET_EVENT,
+} from './portrait.ts';
 
 /** A `MediaQueryList` whose `matches` this test can flip and whose `change` listeners it can fire. */
 function fakeMediaQueryList(initialMatches: boolean): MediaQueryList & { fire(matches: boolean): void } {
@@ -142,5 +154,50 @@ describe('zoom contract', () => {
     } finally {
       window.removeEventListener(ZOOM_EVENT, onZoom);
     }
+  });
+});
+
+describe('compactCount: a chip zone button’s number', () => {
+  it('is exact below a thousand, whole thousands rounded down after', () => {
+    expect([0, 7, 46, 102, 999].map(compactCount)).toEqual(['0', '7', '46', '102', '999']);
+    expect([1000, 1999, 9999, 12_345].map(compactCount)).toEqual(['1k', '1k', '9k', '12k']);
+  });
+  it('never draws more than three glyphs for a four-digit count', () => {
+    for (let n = 1000; n < 10_000; n += 137) expect(compactCount(n).length).toBeLessThanOrEqual(3);
+  });
+});
+
+describe('portraitLaneFit: how big a permanents lane draws its cards', () => {
+  // 390px phone: lane 388 wide, the stylesheet's 8/6/22 tokens, 1×.
+  const at = (count: number, height = 248) => portraitLaneFit({ width: 388, height, pad: 8, gap: 6, peek: 22, rise: 18, zoom: 1, count });
+  const cw0 = (388 - 16 - 12 - 22) / 3;
+
+  it('grows a sparse lane’s cards, never past the ceiling', () => {
+    expect(at(1)).toEqual({ k: LANE_GROW_MAX, rows: 1 });
+    expect(at(2).k).toBeLessThanOrEqual(LANE_GROW_MAX);
+    expect(at(2).k).toBeGreaterThan(1);
+  });
+  it('fits three across the lane’s width', () => {
+    const { k, rows } = at(3);
+    expect(rows).toBe(1);
+    expect(3 * k * cw0 + 2 * 6 + 16).toBeLessThanOrEqual(388 + 0.01);
+  });
+  it('keeps four at the 3-across width, a peek of the fourth to scroll to', () => {
+    expect(at(4)).toEqual({ k: 1, rows: 1 });
+  });
+  it('wraps five or more to two rows when two rows still draw a card big enough', () => {
+    const fit = at(7);
+    expect(fit.rows).toBe(2);
+    expect(fit.k).toBeGreaterThanOrEqual(0.62);
+    expect(2 * fit.k * cw0 * (88 / 63) + 6 + 18).toBeLessThanOrEqual(248 + 0.01);
+  });
+  it('stays one row, and scrolls, in a lane too short for two', () => {
+    expect(at(7, 190)).toEqual({ k: 1, rows: 1 });
+  });
+  it('never shrinks a card below the 3-across width in one row', () => {
+    expect(at(1, 120).k).toBe(1);
+  });
+  it('is 1 for an empty lane', () => {
+    expect(at(0)).toEqual({ k: 1, rows: 1 });
   });
 });

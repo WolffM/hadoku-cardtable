@@ -248,22 +248,6 @@ describe('QuestionHost in portrait', () => {
     expect(document.querySelector('[data-testid="decision-dock-handle"]')).toBeNull();
   });
 
-  /*
-   * The manager: "the idle priority pass must not dock" — `LiveBoard.tsx`'s own `data-pass` (already
-   * read the same way by `../inspect/index.ts`'s placement rule) is the signal: the prototype's own
-   * `primaryAction` never makes a decision object for this case either, and the action bar's
-   * `action-primary` already presses the exact same OK. Checked against the real DOM (not assumed):
-   * an idle pass and a real decision (declare blockers) render the identical shape otherwise — message
-   * plus one button, no body — so `data-pass` is the only thing that tells them apart.
-   */
-  it('renders nothing at all for the empty-stack pass (`data-pass`) — the action bar already has it', () => {
-    vi.stubGlobal('ResizeObserver', Resizes);
-    const { container } = render(drawPortrait('live-decision-host', { 'data-pass': true }));
-    expect(container.querySelector('.live__prompt')).toBeNull();
-    expect(container.querySelector('.dock')).toBeNull();
-    expect(container.textContent).toBe('');
-  });
-
   it('a question that offers hand cards stands on the hand (`data-clear="hand"`); any other docks over it', () => {
     vi.stubGlobal('ResizeObserver', Resizes);
     const { unmount } = render(createElement(OffersHandContext.Provider, { value: true }, drawPortrait()));

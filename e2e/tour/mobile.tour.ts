@@ -13,7 +13,7 @@ import type { Friend } from '../play/browser.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from '../play/harness.ts';
 import { openCreateRoom, submitCreateRoom } from '../play/rooms.ts';
 import { fillWithAi, readyPod, sitPodAt } from '../podSeats.ts';
-import { longPressCard } from '../play/phone.ts';
+import { inMore, longPressCard } from '../play/phone.ts';
 import { attempt, expect, openPhone, shot, shotSizes } from './phone.ts';
 import { choosePool, poolValue } from '../play/pool.ts';
 
@@ -35,9 +35,9 @@ async function go(page: Page, url: string, settle = 1_500): Promise<void> {
  */
 async function openActionMenuIfPresent(page: Page): Promise<void> {
   const menu = page.getByTestId('action-menu');
-  if ((await menu.count()) === 0 || !(await menu.isVisible().catch(() => false))) return;
-  // A toggle: tapping a menu an earlier step left open would close it.
-  if ((await menu.getAttribute('aria-expanded')) !== 'true') await menu.tap();
+  if ((await menu.count()) === 0) return;
+  // A toggle: tapping a menu an earlier step left open would close it. It sits in the bar's ⋯ sheet.
+  if ((await menu.getAttribute('aria-expanded')) !== 'true') await (await inMore(page, 'action-menu')).tap();
 }
 
 /**
@@ -281,7 +281,7 @@ test('room: constructed room, a live match through the room, spectator, result, 
     // The board itself, not the menu the end-turn presses left open.
     for (const f of [alice, bob]) {
       const menu = f.page.getByTestId('action-menu');
-      if ((await menu.count()) > 0 && (await menu.getAttribute('aria-expanded')) === 'true') await menu.tap();
+      if ((await menu.count()) > 0 && (await menu.getAttribute('aria-expanded')) === 'true') await f.page.keyboard.press('Escape');
     }
     await alice.page.waitForTimeout(400);
     await shotSizes(alice.page, 'match-board', { area: 'match', route: '#/match/<id>', state: 'a mid-game board (seat view)' }, { small: true, landscape: true });
@@ -308,12 +308,11 @@ test('room: constructed room, a live match through the room, spectator, result, 
       await alice.page.getByTestId('live-log-toggle').click().catch(() => alice.page.keyboard.press('Escape'));
     });
     await attempt('chat sheet', async () => {
-      const chat = alice.page.getByTestId('action-chat');
-      if ((await chat.count()) === 0) return;
-      await chat.tap();
+      if ((await alice.page.getByTestId('action-chat').count()) === 0) return;
+      await (await inMore(alice.page, 'action-chat')).tap();
       await alice.page.waitForTimeout(700);
       await shot(alice.page, 'match-chat', { area: 'match', route: '#/match/<id>', state: 'the chat sheet open: the bar stays on the bottom edge' });
-      await chat.tap();
+      await (await inMore(alice.page, 'action-chat')).tap();
       await alice.page.waitForTimeout(300);
     });
     await attempt('settings in a match', async () => {
@@ -448,10 +447,10 @@ test('scenario: board, card inspector, target question, stack with arrows, sheet
     await shotSizes(bob.page, 'scn-board-opp', M('the same board from the waiting seat'), { landscape: true });
 
     await attempt('the action menu open', async () => {
-      await page.getByTestId('action-menu').tap();
+      await (await inMore(page, 'action-menu')).tap();
       await page.waitForTimeout(500);
       await shot(page, 'scn-bar-menu', M('the action menu open: the bar stays on the bottom edge'));
-      await page.getByTestId('action-menu').tap();
+      await page.keyboard.press('Escape');
       await page.waitForTimeout(300);
     }, page);
 

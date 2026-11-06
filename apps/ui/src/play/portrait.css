@@ -21,7 +21,8 @@
 }
 
 :root[data-layout='portrait'] {
-  --portrait-phase-h: 30px;
+  /* Mockup 2's phase line: a thin line, only the current phase labelled. */
+  --portrait-phase-h: 18px;
 
   /* The lane geometry (prototype `#board`'s `--pad`/`--gap`/`--peek`): the
      padding each lane scroller keeps on either end, the gap between cards,
@@ -51,7 +52,8 @@
    * the band below the hand, and every other bottom-anchored thing (the dock, its pill, the menu, the
    * chat sheet) stands on it.
    */
-  --portrait-hand-h: 116px;
+  /* The hand's resting row: a peek of its cards' tops (Mockup 2). Raised, it rises over the board's lower lanes. */
+  --portrait-hand-h: 46px;
   --portrait-bar-h: 52px;
   --portrait-bar-band: calc(var(--portrait-bar-h) + env(safe-area-inset-bottom, 0px));
 }
@@ -115,21 +117,22 @@
 }
 
 /*
- * The hand is the board's last row, directly above the action bar (§3, D owns its input), exactly
- * `--portrait-hand-h` tall, no more.
- * The operator, after the look artifact: "cards are too small in hand, use a similar scrolling
- * carousel" — so the hand is a lane now (`lane-my-hand`, `Zone` below) at the SAME `--card-w` every
- * board lane draws (lane-card size at 1×, 3 across plus a peek — not the prototype's fixed 78px),
- * and `--portrait-hand-h` (its root default above, 116px, is only what shows before the first
- * measure) GROWS to fit that card — `Board.tsx`'s `measurePortraitLane` writes it, once, as the
- * card's own height (`--card-w * 88/63`) plus a little padding. The room for B's fixed action bar
- * is the board's own bottom padding (`--portrait-bar-band`, `.board` above), directly below this row.
+ * The hand is the board's last row, directly above the action bar (§3, D owns its input), and at
+ * rest a peek: `--portrait-hand-h` (46px) of its cards' tops (Mockup 2). It is a lane (the operator,
+ * after the look artifact: "use a similar scrolling carousel"), and the lane is drawn standing on the
+ * row's bottom edge, so raising it (`Board`'s `data-hand-raised`, `usePortraitHandPeek`) grows it up
+ * over the board's lower lanes, at the 3-across card every board lane draws, without moving a lane.
+ * More than five cards draw in two rows while it is raised. The room for B's fixed action bar is the
+ * board's own bottom padding (`--portrait-bar-band`, `.board` above), directly below this row.
  */
 :root[data-layout='portrait'] .seat[data-viewer] > .zone--hand {
   flex: 0 0 var(--portrait-hand-h);
   /* Same `--right-gutter` reset as the battlefield just above — this zone shares that desktop rule too. */
   padding-right: 0;
   box-sizing: border-box;
+  position: relative;
+  z-index: 5;
+  overflow: visible;
 }
 
 /* The two tiers of a battlefield, stacked as two lanes rather than desktop's two grid rows. */
@@ -164,7 +167,9 @@
  */
 :root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid],
 :root[data-layout='portrait'] .zone--hand > .zone__cards[data-testid] {
-  --card-w: calc((var(--portrait-lane-w, 300px) - 2 * var(--portrait-pad) - 2 * var(--portrait-gap) - var(--portrait-peek)) / 3 * var(--portrait-zoom));
+  /* The 3-across width; a permanents lane scales it by `--portrait-lane-k` (`Board.tsx`'s `measurePortraitLane`, `portrait.ts`'s `portraitLaneFit`). */
+  --portrait-cw0: calc((var(--portrait-lane-w, 300px) - 2 * var(--portrait-pad) - 2 * var(--portrait-gap) - var(--portrait-peek)) / 3 * var(--portrait-zoom));
+  --card-w: calc(var(--portrait-cw0) * var(--portrait-lane-k, 1));
 
   display: flex;
   min-height: 0;
@@ -211,10 +216,34 @@
    * off at the lane's top, under the other half (the operator, 2026-11-04: "the tops of my creatures
    * are cut off by the enemy board").
    */
-  --portrait-rise: calc(var(--card-w) * 88 / 63 * 0.06 + 10px);
+  /* Sized by the unscaled card, so the lane's box never moves with the scale it is measured for. */
+  --portrait-rise: calc(var(--portrait-cw0) * 88 / 63 * 0.06 + 10px);
   flex: 1 1 0;
-  min-height: calc(var(--card-w) * 88 / 63 + 10px + var(--portrait-rise));
+  min-height: calc(var(--portrait-cw0) * 88 / 63 + 10px + var(--portrait-rise));
   padding-top: var(--portrait-rise);
+}
+
+/* An empty lane folds to nothing, and the lanes beside it take its room (Mockup 2). */
+:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid][data-count='0'] {
+  flex: 0 0 0;
+  height: 0;
+  min-height: 0;
+  padding-block: 0;
+  overflow: hidden;
+}
+
+/* A crowded permanents lane wraps to two rows before its cards shrink further (`portraitLaneFit`). */
+:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid][data-rows='2'] {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(2, auto);
+  grid-auto-columns: var(--card-w);
+  align-content: center;
+  justify-content: start;
+}
+:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid][data-rows='2']::before,
+:root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid][data-rows='2']::after {
+  grid-row: 1 / -1;
 }
 
 /*
@@ -223,7 +252,47 @@
  * `measurePortraitLane` grows to fit exactly the card this lane's own `--card-w` produces.
  */
 :root[data-layout='portrait'] .zone--hand > .zone__cards[data-testid] {
-  height: 100%;
+  --portrait-peek-cw: 78px;
+  --portrait-hand-rows: 1;
+  position: absolute;
+  inset: auto 0 0;
+  height: var(--portrait-hand-h);
+  align-items: flex-start;
+  padding-top: 6px;
+  box-sizing: border-box;
+  overflow-y: hidden;
+  background: linear-gradient(transparent, var(--bg) 30%);
+  transition: height calc(220ms / var(--tempo, 1)) ease, background-color calc(220ms / var(--tempo, 1));
+}
+:root[data-layout='portrait'] .board:not([data-hand-raised]) .zone--hand > .zone__cards[data-testid] {
+  --card-w: var(--portrait-peek-cw);
+  gap: 5px;
+}
+:root[data-layout='portrait'] .board[data-hand-raised] .zone--hand > .zone__cards[data-testid] {
+  height: calc(var(--portrait-hand-rows) * var(--card-w) * 88 / 63 + (var(--portrait-hand-rows) - 1) * var(--portrait-gap) + 20px);
+  padding-top: 10px;
+  background: var(--bg-raised);
+  border-top: 1px solid var(--line);
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -10px 28px var(--shadow);
+}
+:root[data-layout='portrait'] .board[data-hand-raised] .zone--hand > .zone__cards[data-testid][data-rows='2'] {
+  --portrait-hand-rows: 2;
+  --card-w: min(var(--portrait-cw0), (var(--portrait-lane-w, 300px) - 2 * var(--portrait-pad) - 3 * var(--portrait-gap) - var(--portrait-peek)) / 4);
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(2, auto);
+  grid-auto-columns: var(--card-w);
+  justify-content: start;
+}
+:root[data-layout='portrait'] .board[data-hand-raised] .zone--hand > .zone__cards[data-testid][data-rows='2']::before,
+:root[data-layout='portrait'] .board[data-hand-raised] .zone--hand > .zone__cards[data-testid][data-rows='2']::after {
+  grid-row: 1 / -1;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-layout='portrait'] .zone--hand > .zone__cards[data-testid] {
+    transition: opacity 200ms;
+  }
 }
 
 :root[data-layout='portrait'] .zone__tiers > .zone__cards[data-testid]::-webkit-scrollbar,
@@ -385,8 +454,9 @@
  * row's own height to get there.
  */
 :root[data-layout='portrait'] {
-  --portrait-hud-pad-top: 6px;
-  --portrait-hud-row-h: 44px;
+  --portrait-hud-pad-top: 7px;
+  /* The chip's two rows (18 + 22), their 3px gap, its 3px padding and 1px border either side. */
+  --portrait-hud-row-h: 51px;
   --portrait-hud-h: calc(var(--portrait-hud-pad-top) + var(--portrait-hud-row-h) + var(--portrait-phase-h));
 }
 
@@ -425,130 +495,314 @@
   height: var(--portrait-hud-row-h);
 }
 
+/*
+ * The seat chip, as two lines beside its avatar (the operator, 2026-11-05: "A two lines looks best").
+ * Three columns, avatar / life / the rest, mirrored on your own chip so the two avatars sit at the
+ * band's two ends; two rows, life and name over the three zone buttons.
+ *
+ * `PlayerFace`'s `.face` (`card.css`) is the first row, laid on the chip's own columns (`subgrid`), so
+ * its box — the tap and target surface every arrow and drop aims at — is the life-and-name line, and
+ * its centre is on it. The avatar is that row's first cell and hangs over the second row, 36px tall;
+ * the hand badge sits on its corner. `PlayerFace` is no longer inside a `.seat` here (Settled 9's note
+ * on `SeatChip`), so the priority ring is restyled from the chip's own `data-priority`.
+ */
 :root[data-layout='portrait'] .seat-chip {
+  --chip-av: 36px;
   position: relative;
   flex: 1 1 0;
   min-width: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: var(--chip-av) auto minmax(0, 1fr);
+  grid-template-rows: 18px 22px;
+  column-gap: 6px;
+  row-gap: 3px;
   align-items: center;
-  gap: 6px;
-  padding: 4px 6px;
+  padding: 3px 5px;
   border-radius: 12px;
   background: var(--bg-raised);
   border: 1px solid var(--line-soft);
 }
-
-/* Over the chip's lower edge, under its counts: floating mana appearing moves nothing else in the band. */
-:root[data-layout='portrait'] .seat-chip .seat__mana {
-  position: absolute;
-  z-index: 1;
-  bottom: -8px;
-  left: 50%;
-  translate: -50% 0;
-  height: auto;
-  flex-wrap: nowrap;
-  padding: 1px 2px;
-  border-radius: calc(var(--radius) / 2);
-  background: var(--bg-raised);
-  box-shadow: 0 1px 4px var(--shadow);
+:root[data-layout='portrait'] .seat-chip[data-testid='seat-chip-me'] {
+  grid-template-columns: minmax(0, 1fr) auto var(--chip-av);
 }
 
 :root[data-layout='portrait'] .seat-chip[data-active] {
   border-color: var(--success);
 }
 
-:root[data-layout='portrait'] .seat-chip[data-testid='seat-chip-opp'] {
-  flex-direction: row;
-}
-
-:root[data-layout='portrait'] .seat-chip[data-testid='seat-chip-me'] {
-  flex-direction: row-reverse;
-  text-align: right;
-}
-
-/*
- * `PlayerFace`'s `.face` (`card.css`) is styled for the desktop seat column, where `.seat__ident`
- * scopes a taller, vertically-stacked avatar+life. The chip is a horizontal row instead, and
- * `PlayerFace` is no longer inside a `.seat` at all here (Settled 9's note on `SeatChip`) — so the
- * priority ring (`card.css`'s `.seat[data-priority] .seat__ring`) is restyled from the chip's own
- * `data-priority` instead of relying on that ancestor.
- */
 :root[data-layout='portrait'] .seat-chip .face {
-  flex: none;
-  flex-direction: row;
+  --face-w: var(--chip-av);
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-template-rows: 18px;
+  align-items: center;
   width: auto;
-  gap: 6px;
-}
-:root[data-layout='portrait'] .seat-chip[data-testid='seat-chip-me'] .face {
-  flex-direction: row-reverse;
+  height: 18px;
+  gap: 0;
 }
 :root[data-layout='portrait'] .seat-chip .face__hit {
-  width: 32px;
-  height: 32px;
+  grid-column: 1 / 3;
+  grid-row: 1;
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-template-rows: 18px;
+  align-items: start;
+  width: auto;
+  height: 18px;
+}
+:root[data-layout='portrait'] .seat-chip[data-testid='seat-chip-me'] .face__hit {
+  grid-column: 2 / 4;
+}
+:root[data-layout='portrait'] .seat-chip .face__art,
+:root[data-layout='portrait'] .seat-chip .seat__ring {
+  grid-column: 1;
+  grid-row: 1;
+  position: static;
+  width: var(--chip-av);
+  height: var(--chip-av);
+  border-radius: 50%;
+}
+:root[data-layout='portrait'] .seat-chip .face__art {
+  overflow: hidden;
+  background: var(--bg-card);
+}
+:root[data-layout='portrait'] .seat-chip[data-testid='seat-chip-me'] :is(.face__art, .seat__ring) {
+  grid-column: 2;
 }
 :root[data-layout='portrait'] .seat-chip .face__vitals {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
 }
 :root[data-layout='portrait'] .seat-chip[data-testid='seat-chip-me'] .face__vitals {
-  align-items: flex-end;
+  grid-column: 1;
 }
 :root[data-layout='portrait'] .seat-chip .face__life {
+  position: static;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
   font-size: 18px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
   line-height: 1;
 }
 :root[data-layout='portrait'] .seat-chip .face__name {
-  font-size: 11px;
-  max-width: 9ch;
+  grid-column: 3;
+  grid-row: 1;
+  min-width: 0;
+  max-width: none;
+  font-size: 11.5px;
+  line-height: 18px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+:root[data-layout='portrait'] .seat-chip[data-testid='seat-chip-me'] .face__name {
+  grid-column: 1;
+  text-align: right;
 }
 :root[data-layout='portrait'] .seat-chip[data-priority] .seat__ring {
   box-shadow:
     0 0 0 2px var(--bg-raised),
     0 0 0 4px var(--accent);
 }
+/* Emblems orbit the avatar as on desktop. */
+:root[data-layout='portrait'] .seat-chip .face__emblems {
+  top: 0;
+  left: calc(var(--chip-av) / 2);
+}
+:root[data-layout='portrait'] .seat-chip[data-testid='seat-chip-me'] .face__emblems {
+  left: auto;
+  right: calc(var(--chip-av) / 2);
+  translate: 50% 0;
+}
 
-:root[data-layout='portrait'] .seat-chip__counts {
+/* The hand's count, a badge on the avatar's lower right corner. */
+:root[data-layout='portrait'] .seat-chip__hand {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  align-self: start;
+  justify-self: end;
+  z-index: 1;
+  margin: calc(var(--chip-av) - 11px) -5px 0 0;
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--ink-dim, var(--ink));
+  justify-content: center;
+  gap: 1px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  font-size: 9.5px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--ink);
 }
-
-:root[data-layout='portrait'] .seat-chip[data-testid='seat-chip-me'] .seat-chip__counts {
-  margin-left: 0;
-  margin-right: auto;
+:root[data-layout='portrait'] .seat-chip[data-testid='seat-chip-me'] .seat-chip__hand {
+  grid-column: 3;
 }
-
-:root[data-layout='portrait'] .seat-chip__count {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  min-height: 20px;
-  background: none;
-  border: 0;
-  padding: 0;
-  color: inherit;
-}
-
-:root[data-layout='portrait'] .seat-chip__count-art {
-  width: 12px;
-  height: 12px;
+:root[data-layout='portrait'] .seat-chip__hand-art {
+  width: 8px;
+  height: 8px;
   fill: currentColor;
   flex: none;
 }
 
-:root[data-layout='portrait'] .portrait-hud__stack {
+/*
+ * Graveyard, exile, library, in that order on both chips: real buttons, 33×22 with 3px between
+ * (Mockup 2's "≥ 32 px wide with spacing"). A count past three digits is drawn compact
+ * (`portrait.ts`'s `compactCount`), so three of them always fit a 360px phone's chip. The opponent's
+ * library is a count and nothing more.
+ */
+:root[data-layout='portrait'] .seat-chip__zones {
+  grid-column: 2 / 4;
+  grid-row: 2;
+  justify-self: start;
+  display: flex;
+  gap: 3px;
+  min-width: 0;
+}
+:root[data-layout='portrait'] .seat-chip[data-testid='seat-chip-me'] .seat-chip__zones {
+  grid-column: 1 / 3;
+  justify-self: end;
+}
+:root[data-layout='portrait'] .seat-chip__zone {
   flex: none;
-  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 33px;
+  height: 22px;
+  margin: 0;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--line-soft);
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  cursor: pointer;
+}
+:root[data-layout='portrait'] .seat-chip__zone:active {
+  background: color-mix(in srgb, var(--accent) 20%, var(--bg-card));
+}
+:root[data-layout='portrait'] .seat-chip__zone--flat {
+  cursor: default;
+  background: none;
+  border-color: transparent;
+}
+:root[data-layout='portrait'] .seat-chip__zone-art {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  margin-right: -1px;
+  fill: currentColor;
+  color: var(--ink-dim);
+}
+
+/*
+ * Poison, energy, experience and the monarch or the initiative, in one pill hanging off the chip's
+ * bottom edge beside the floating mana (Mockup 2: it covers the phase line's ends while it is there,
+ * which the operator accepted). The mana stays pressable to pay, as on the desktop seat.
+ */
+:root[data-layout='portrait'] .seat-chip__hang {
+  position: absolute;
+  z-index: 4;
+  bottom: -9px;
+  left: 50%;
+  translate: -50% 0;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  max-width: calc(100% - 8px);
+}
+:root[data-layout='portrait'] .seat-chip__marks {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--bg-raised);
+  box-shadow: 0 1px 4px var(--shadow);
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 14px;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+:root[data-layout='portrait'] .seat-chip__marks .face__poison {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--success);
+  font-size: inherit;
+  line-height: inherit;
+}
+:root[data-layout='portrait'] .seat-chip__marks .face__poison-art {
+  width: 11px;
+  height: 11px;
+}
+:root[data-layout='portrait'] .seat-chip__marks .seat__counter {
+  font-size: inherit;
+}
+:root[data-layout='portrait'] .seat-chip__designation {
+  display: inline-flex;
+  color: var(--warn);
+}
+:root[data-layout='portrait'] .seat-chip__designation-art {
+  width: 11px;
+  height: 11px;
+  fill: currentColor;
+}
+:root[data-layout='portrait'] .seat-chip .seat__mana {
+  height: auto;
+  flex-wrap: nowrap;
+  margin: 0;
+  padding: 1px 2px;
+  border-radius: 4px;
+  background: var(--bg-raised);
+  box-shadow: 0 1px 4px var(--shadow);
+}
+
+/*
+ * The stack chip stands over the gap between the two chips rather than taking a column of its own,
+ * so a stack never narrows the chips' zone buttons; while it is up each chip keeps its inner end clear.
+ */
+:root[data-layout='portrait'] .portrait-hud__row {
+  position: relative;
+}
+:root[data-layout='portrait'] .portrait-hud__row:has(.portrait-hud__stack) .seat-chip[data-testid='seat-chip-opp'] {
+  padding-right: 14px;
+}
+:root[data-layout='portrait'] .portrait-hud__row:has(.portrait-hud__stack) .seat-chip[data-testid='seat-chip-me'] {
+  padding-left: 14px;
+}
+:root[data-layout='portrait'] .portrait-hud__stack {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
   min-width: 30px;
   height: 30px;
   padding: 0 8px;

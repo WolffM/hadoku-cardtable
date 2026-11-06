@@ -20,7 +20,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { castCard, dragHandCard, enabledOk, handCardNamed, makeTitled, offeredCard, ownNamed, promptMethod, serverLog } from './play/board.ts';
 import { assignBlock, passToDeclareAttackers, undoBlock } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { PHONE, touchDrag } from './play/phone.ts';
+import { PHONE, raiseHand, touchDrag } from './play/phone.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
 test.use(PHONE);
@@ -67,6 +67,7 @@ test(titled('a finger scrolls a lane and the hand sideways and starts nothing; a
     expect.soft(await scrolled(lands), 'a sideways swipe scrolls the lands lane').toBeGreaterThan(landsAt);
     // Sideways over the hand: the carousel scrolls, no card lifts.
     const hand = page.getByTestId('lane-my-hand');
+    await raiseHand(page);
     const hb = (await hand.boundingBox())!;
     const handAt = await scrolled(hand);
     await touchDrag(page, { x: hb.x + hb.width - 30, y: hb.y + hb.height / 2 }, line({ x: hb.x + hb.width - 30, y: hb.y + hb.height / 2 }, { x: hb.x + 40, y: hb.y + hb.height / 2 }, 10));

@@ -86,9 +86,10 @@ test(titled('nothing moves on its own through the menu, a lane, a tap, a long pr
       for (const s of all) console.log(`[shift]   ${s.at}ms ${s.value.toFixed(4)}${s.handOnly ? ' (hand)' : ''} ${s.sources.join(' | ')}`);
     };
 
+    await page.getByTestId('action-more').tap();
     await page.getByTestId('action-menu').tap();
     await moment('the menu opened');
-    await page.getByTestId('action-menu').tap();
+    await page.keyboard.press('Escape');
     await moment('the menu closed');
 
     await page.getByTestId('lane-my-lands').evaluate((el) => {

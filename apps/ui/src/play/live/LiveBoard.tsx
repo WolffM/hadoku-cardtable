@@ -280,9 +280,9 @@ import { Board, POISON_TO_LOSE, poisonOf, type BoardInteraction, type BoardLayou
 import { CheckMark } from '../marks.tsx';
 import { lookupFromState, plainRulesText, promptLines, promptText, selectionText, withAbilityLabels } from '../prompts/lookup.ts';
 import { RulesText } from '../prompts/RulesText.tsx';
-import { ManaPip } from '../../components/ManaPip.tsx';
+import { colorWordToken, ManaPip } from '../../components/ManaPip.tsx';
 import { RevealNotice } from '../prompts/RevealNotice.tsx';
-import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, isPlayOrDrawPrompt, offersEndTurn, offersUndo, type BarRoute } from '../prompts/ConfirmPrompt.tsx';
+import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, isPlayOrDrawPrompt, offersEndTurn, offersUndo, type BarRoute, type ConfirmPromptButton } from '../prompts/ConfirmPrompt.tsx';
 import { AnswerRow, promptTileFor } from '../prompts/PromptShell.tsx';
 import { classifySelection, isPromptMethod, PromptFor, SelectionPrompt, type AskOf, type PromptMethod, type SelectionKind } from '../prompts/index.ts';
 import { installGestures } from './gestures/index.ts';
@@ -364,7 +364,7 @@ import { StopPhaseSchema, stopStep, type StopPhase } from './transport.ts';
 import { MistakeBubble } from './MistakeBubble.tsx';
 import { fetchOwnDeck, OwnDeckPeek, type OwnDeck } from './own-deck.tsx';
 import { HostDrawsSettingsProvider, SettingsGear, useHostDrawsSettings } from '../../settings/Settings.tsx';
-import { usePortraitLayout } from '../portrait.ts';
+import { usePortraitLayout, ZOOM_MAX, ZOOM_MIN, ZOOM_RESET_EVENT, ZOOM_STEP_EVENT, type ZoomStepDetail } from '../portrait.ts';
 import { usePublishLiveMatchSettings } from '../../settings/liveMatch.ts';
 import { eventTarget } from '../../dom.ts';
 import { castForbiddenTip, costTip, flashTip } from '../tip/words.ts';
@@ -605,6 +605,56 @@ function waitingSentence(name: string, fact: { method: string; hostCard: string 
   if (fact.method === 'priority') return fact.hostCard === null ? `Waiting for ${name} to respond…` : `Waiting for ${name} to respond to ${fact.hostCard}…`;
   const verb = WAITING_VERB[fact.method] ?? 'decide';
   return fact.hostCard === null ? `Waiting for ${name} to ${verb}…` : `Waiting for ${name} to ${verb} for ${fact.hostCard}…`;
+}
+
+/** One step of the ⋯ sheet's − and +, as a zoom factor. */
+const ZOOM_STEP = 0.2;
+
+/** An open decision, as portrait's bottom bar draws it (`BarAnswer`) and its sheet does on desktop. */
+interface BarAnswerProps {
+  message: string;
+  context: string | null;
+  button1: ConfirmPromptButton | undefined;
+  button2: ConfirmPromptButton | undefined;
+}
+
+/**
+ * The open decision in portrait's bottom bar (Mockup 2: "the decision's button replaces OK, with its
+ * prompt as one line"): Forge's question, and its ability text after it where it has one, clamped to
+ * the bar's height, then its buttons, the second before the first so the first stands where OK stood.
+ */
+function BarAnswer({ message, context, button1, button2 }: BarAnswerProps) {
+  return (
+    <div className="action-bar__slot">
+      <p className="action-bar__prompt">
+        {message}
+        {context !== null && context !== '' && <span className="action-bar__context"> {context}</span>}
+      </p>
+      {[button2, button1].map((b, i) => {
+        if (b === undefined) return null;
+        const button = (
+          <button
+            key={i}
+            type="button"
+            className={i === 1 ? 'action-bar__answer action-bar__answer--go' : 'action-bar__answer'}
+            data-testid={b.testId}
+            data-highlight={b.highlight || undefined}
+            aria-label={b.label}
+            disabled={!b.enabled}
+            onClick={b.onClick}
+          >
+            {colorWordToken(b.label) === null ? b.label : <ManaPip token={colorWordToken(b.label)!} />}
+          </button>
+        );
+        // A disabled button takes no pointer, so its words ride on a wrapper the board's tooltip finds.
+        return b.tip === undefined ? button : (
+          <span key={i} className="action-bar__tip" data-tip={b.tip}>
+            {button}
+          </span>
+        );
+      })}
+    </div>
+  );
 }
 
 /**
@@ -1605,9 +1655,17 @@ function PhaseRail({ view, stop, onStop }: { view: BoardView; stop: StopPhase | 
        * needs `aria-hidden` on top of that.
        */}
       <ol className="live__segments" aria-label="Phase">
-        {segments.map((seg) => (
-          <li key={seg.group} className="live__segment" data-group={seg.group} data-current={seg.current ? '' : undefined}>
-            <span className="live__segment-name">{seg.current ? seg.stepLabel : seg.label}</span>
+        {segments.map((seg, i) => (
+          <li
+            key={seg.group}
+            className="live__segment"
+            data-group={seg.group}
+            data-current={seg.current ? '' : undefined}
+            data-done={i < segments.findIndex((s) => s.current) ? '' : undefined}
+            aria-label={seg.current ? undefined : seg.label}
+          >
+            {/* Only the current phase is labelled (Mockup 2's phase line); the others are a line each. */}
+            {seg.current && <span className="live__segment-name">{seg.stepLabel}</span>}
             {seg.current && seg.tickCount > 1 && (
               <span className="live__segment-ticks" data-testid="live-phase-ticks">
                 {seg.steps.map((step, i) => (
@@ -3239,18 +3297,6 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
   /** Null while there is nobody left for "All" to declare, or outside declare-attackers — {@link attackAllTarget}. */
   const allTarget = attackAllTarget(match);
   /*
-   * Wave 89 §B, `action-primary` (Settled 7: "Pass / next step / Resolve").
-   * NOT a new sender: it mirrors `live-decision-host`'s own OK button — same
-   * label computation (`combatDone ?? passLabel(route) ?? bar.label1`), same
-   * `pressWithSound(match, 'ok')` — so a tap here and a tap on the (lane C)
-   * docked decision's own OK do exactly the same thing. It stays off the
-   * mulligan bottom pick deliberately: that decision already reads as a
-   * count-down sentence with its own pop-up, and "Pass" on a second button
-   * for it would be confusing where this one is not.
-   */
-  const primaryEnabled = decisionOk && !mulliganPick;
-  const primaryLabel = combatDone ?? passLabel(route) ?? bar?.label1 ?? 'Pass';
-  /*
    * A pass on an empty stack ends the step, and the step's end empties the pool: with mana floating
    * the pass asks first (`ManaFloatingAsk`). `Untap` presses Forge's own Undo, once per bar Forge
    * sends, until the pool is empty or Forge has nothing left to take back.
@@ -3538,8 +3584,13 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
     return () => window.removeEventListener('cardtable:zoom', onZoom);
   }, []);
   const resetZoom = (): void => {
-    window.dispatchEvent(new CustomEvent('cardtable:zoom-reset'));
+    window.dispatchEvent(new CustomEvent(ZOOM_RESET_EVENT));
   };
+  const stepZoom = (by: number): void => {
+    window.dispatchEvent(new CustomEvent<ZoomStepDetail>(ZOOM_STEP_EVENT, { detail: { by } }));
+  };
+  /** The bar's ⋯ sheet (Mockup 2): Chat, Menu and the zoom, folded out of the bar. */
+  const [moreOpen, setMoreOpen] = useState(false);
   /*
    * Manager follow-up, wave 89: `live.css` hides the fleet header
    * (`.app-header`) in portrait during a match, and that header is the
@@ -3575,17 +3626,19 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
    * than a second copy of it.
    */
   useEffect(() => {
-    if (!logOpen && !menuOpen) return undefined;
+    if (!logOpen && !menuOpen && !moreOpen) return undefined;
     const outside = (event: PointerEvent): void => {
       const target = eventTarget(event);
       if (!(target instanceof Element)) return;
       if (target.closest(`#${CSS.escape(logbookId)}, [data-testid="live-log-toggle"]`) === null) setLogOpen(false);
       if (target.closest(`[data-testid="action-menu"], .live__menu-items`) === null) setMenuOpen(false);
+      if (target.closest(`[data-testid="action-more"], .action-bar__sheet`) === null) setMoreOpen(false);
     };
     const escape = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return;
       setLogOpen(false);
       setMenuOpen(false);
+      setMoreOpen(false);
     };
     document.addEventListener('pointerdown', outside, true);
     document.addEventListener('keydown', escape);
@@ -3593,7 +3646,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
       document.removeEventListener('pointerdown', outside, true);
       document.removeEventListener('keydown', escape);
     };
-  }, [logOpen, menuOpen, logbookId]);
+  }, [logOpen, menuOpen, moreOpen, logbookId]);
   /*
    * The logbook is scrollable and keeps the newest line in view. `.live__log`
    * (`live.css`) is the scroll owner — a bounded flex child with
@@ -3975,6 +4028,59 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
     );
   }
 
+  /*
+   * The decision pop-up's message and buttons, and the yes/no's: drawn in its sheet on desktop, and in
+   * portrait in the bottom bar in OK's place (Mockup 2: "the open decision's button replaces OK"),
+   * once, never in both. A yes/no keeps its sheet where it shows a card or asks "Always" with it.
+   */
+  const decisionAnswer: BarAnswerProps | null =
+    decision && bar !== null
+      ? {
+          message: mulliganPick
+            ? mulliganPickText.current ?? ''
+            : decisionMessage(question, match.view?.stack[0] ?? null, route === 'pass' && match.view !== null ? nextStepName(match.view) : null),
+          context: mulliganPick ? null : context,
+          button1: decisionOk
+            ? {
+                label: combatDone ?? passLabel(route) ?? bar.label1,
+                enabled: (!mulliganPick || bar.enable1) && bar.refusal1 === undefined,
+                ...(bar.refusal1 === undefined ? {} : { tip: promptText(bar.refusal1) }),
+                testId: 'live-decision-ok',
+                // The empty-stack pass glows whenever End Turn does: nothing left to do but move on.
+                highlight: route === 'pass' && endTurnHighlighted,
+                onClick: passOrAsk,
+              }
+            : undefined,
+          button2: decisionCancel
+            ? { label: bar.label2, enabled: true, testId: 'live-decision-cancel', onClick: () => pressWithSound(match, 'cancel') }
+            : allTarget !== null
+            ? { label: 'All', enabled: true, testId: 'live-attack-all', onClick: () => attackAll(match, allTarget) }
+            : undefined,
+        }
+      : null;
+  const confirmAnswer: BarAnswerProps | null =
+    confirmPrompt && bar !== null
+      ? {
+          message: promptText(question),
+          context,
+          button1: { label: bar.label1, enabled: bar.enable1, testId: 'prompt-confirm-yes', onClick: () => answerTrigger('ok') },
+          button2: { label: bar.label2, enabled: bar.enable2, testId: 'prompt-confirm-no', onClick: () => answerTrigger('cancel') },
+        }
+      : null;
+  const decisionInBar = portrait && decisionAnswer !== null;
+  // A colour choice is the mana ring's (`ManaPrompt`), never the bar's.
+  const confirmInBar = portrait && confirmAnswer !== null && match.promptTrigger === null && confirmCard === undefined && match.promptManaColors === null;
+  const barAnswer = decisionInBar ? decisionAnswer : confirmInBar ? confirmAnswer : null;
+  /** The other seat's turn, said once: the waiting pop on desktop, the bar's status line in portrait. */
+  const waitingSaid =
+    waitingForOpponent && !viewerOpen && coinToss === null
+      ? theyLeft(match)
+        ? `Waiting for ${theirName ?? 'the other player'} to reconnect…`
+        : pregameWait || theirAsk === null
+          ? `Waiting for ${theirName ?? 'the other player'}…`
+          : waitingSentence(theirName ?? 'the other player', theirAsk)
+      : null;
+
   return (
     <OffersHandContext.Provider value={offersHand}>
     <div
@@ -4028,6 +4134,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
           onRoll={(roll) => soundThrow(match, roll)}
           boardLayout={boardLayout}
           fastMode={fastMode}
+          handAsked={!spectator && choosingMulligan(match)}
           onOpenDeck={spectator ? undefined : toggleOwnDeck}
           // A watcher sends none (`reportClient`'s own rule).
           onEffect={spectator ? undefined : (data) => reportClient(match.transport, match.matchId, 'effect', data)}
@@ -4269,53 +4376,92 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
        * the pinch gesture either way.
        */}
       {!watcher && (
+        /*
+         * Mockup 2's one bottom bar: the open decision's own buttons in OK's place, with its question as
+         * one line; the other seat's turn as one status line; and ⋯, which holds Chat, Menu and the zoom
+         * (pinch still zooms). Every control in it is a control drawn nowhere else in portrait.
+         */
         <div className="action-bar" data-testid="action-bar">
+          {barAnswer !== null ? (
+            <BarAnswer {...barAnswer} />
+          ) : waitingSaid !== null && portrait ? (
+            <p className="action-bar__status" data-testid="live-waiting-pop" role="status" aria-live="polite">
+              <span className="action-bar__dots" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </span>
+              <span className="action-bar__said">{waitingSaid}</span>
+            </p>
+          ) : (
+            <span className="action-bar__slot" />
+          )}
           <button
             type="button"
-            className="action-bar__chat"
-            data-testid="action-chat"
-            aria-expanded={chatOpen}
-            aria-label="Chat"
-            title="Chat"
-            onClick={() => setChatOpen((open) => !open)}
+            className="action-bar__more"
+            data-testid="action-more"
+            aria-expanded={moreOpen}
+            aria-label="More"
+            title="More"
+            onClick={() => setMoreOpen((open) => !open)}
           >
-            {/* The unread badge (Settled 7) has no signal to show yet: `@wolffm/watchparty-ui`'s
-                `RoomChromeProps` exposes no unread-count callback, only `onLayoutChange` (width,
-                collapsed). The slot is here so the element exists and the CSS is written; it reads
-                zero until a cross-repo ask gives this a real count. */}
-            <span className="action-bar__badge" data-testid="action-chat-badge" hidden />
-            Chat
+            ⋯
           </button>
-          <button
-            type="button"
-            className="action-bar__menu-toggle"
-            data-testid="action-menu"
-            aria-expanded={menuOpen}
-            aria-label="Menu"
-            title="Menu"
-            onClick={() => setMenuOpen((open) => !open)}
-          >
-            Menu
-          </button>
-          <button
-            type="button"
-            className="action-bar__zoom"
-            data-testid="zoom-pill"
-            disabled={zoom <= 1}
-            title="Zoom — tap to reset to 100%"
-            onClick={resetZoom}
-          >
-            {Math.round(zoom * 100)}%
-          </button>
-          <ActionButton
-            action="action-primary"
-            className="action-bar__primary"
-            data-testid="action-primary"
-            disabled={!primaryEnabled}
-            onPress={passOrAsk}
-          >
-            {primaryLabel}
-          </ActionButton>
+          <div className="action-bar__sheet" data-open={moreOpen ? '' : undefined} data-testid="action-more-sheet">
+            <button
+              type="button"
+              className="action-bar__chat"
+              data-testid="action-chat"
+              aria-expanded={chatOpen}
+              onClick={() => {
+                setMoreOpen(false);
+                setChatOpen((open) => !open);
+              }}
+            >
+              {/* The unread badge (Settled 7) has no signal to show yet: `@wolffm/watchparty-ui`'s
+                  `RoomChromeProps` exposes no unread-count callback, only `onLayoutChange` (width,
+                  collapsed). The slot is here so the element exists and the CSS is written; it reads
+                  zero until a cross-repo ask gives this a real count. */}
+              <span className="action-bar__badge" data-testid="action-chat-badge" hidden />
+              <svg className="action-bar__art" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              Chat
+            </button>
+            <button
+              type="button"
+              className="action-bar__menu-toggle"
+              data-testid="action-menu"
+              aria-expanded={menuOpen}
+              onClick={() => {
+                setMoreOpen(false);
+                setMenuOpen((open) => !open);
+              }}
+            >
+              <svg className="action-bar__art" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M3 6h18M3 12h18M3 18h18" />
+              </svg>
+              Menu
+            </button>
+            <div className="action-bar__zoom-row">
+              <button
+                type="button"
+                className="action-bar__zoom"
+                data-testid="zoom-pill"
+                disabled={zoom <= 1}
+                title="Zoom — tap to reset to 100%"
+                onClick={resetZoom}
+              >
+                {Math.round(zoom * 100)}%
+              </button>
+              <button type="button" className="action-bar__step" data-testid="zoom-out" aria-label="Zoom out" disabled={zoom <= ZOOM_MIN} onClick={() => stepZoom(-ZOOM_STEP)}>
+                −
+              </button>
+              <button type="button" className="action-bar__step" data-testid="zoom-in" aria-label="Zoom in" disabled={zoom >= ZOOM_MAX} onClick={() => stepZoom(ZOOM_STEP)}>
+                +
+              </button>
+            </div>
+          </div>
         </div>
       )}
       {ask !== null && ringFor(ask) !== null && <ManaAsk match={match} ask={ask} />}
@@ -4367,7 +4513,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
       {confirmPrompt && bar !== null && match.promptManaColors !== null && match.manaIntent === null && (
         <ManaPrompt key={match.prompt ?? ''} match={match} colors={match.promptManaColors} />
       )}
-      {confirmPrompt && bar !== null && match.promptManaColors === null && (
+      {confirmPrompt && bar !== null && match.promptManaColors === null && !confirmInBar && (
         <QuestionHost data-testid="live-confirm-host">
           <ConfirmPrompt
             testId="live-confirm"
@@ -4401,7 +4547,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
        * never both hold (the first requires `offersSecondButton`, the second
        * requires its negation), so this never contests Forge's own Cancel.
        */}
-      {decision && bar !== null && (
+      {decisionAnswer !== null && !decisionInBar && (
         <QuestionHost
           data-testid="live-decision-host"
           data-staged={interaction.stagedCardId !== undefined || undefined}
@@ -4410,39 +4556,17 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
         >
           <ConfirmPrompt
             testId="live-decision"
-            message={
-              mulliganPick
-                ? mulliganPickText.current ?? ''
-                : decisionMessage(question, match.view?.stack[0] ?? null, route === 'pass' && match.view !== null ? nextStepName(match.view) : null)
-            }
-            context={mulliganPick ? null : context}
+            message={decisionAnswer.message}
+            context={decisionAnswer.context}
             start={combatDone !== null}
-            button1={
-              decisionOk
-                ? {
-                    label: combatDone ?? passLabel(route) ?? bar.label1,
-                    enabled: (!mulliganPick || bar.enable1) && bar.refusal1 === undefined,
-                    ...(bar.refusal1 === undefined ? {} : { tip: promptText(bar.refusal1) }),
-                    testId: 'live-decision-ok',
-                    // The empty-stack pass glows whenever End Turn does: nothing left to do but move on.
-                    highlight: route === 'pass' && endTurnHighlighted,
-                    onClick: passOrAsk,
-                  }
-                : undefined
-            }
-            button2={
-              decisionCancel
-                ? { label: bar.label2, enabled: true, testId: 'live-decision-cancel', onClick: () => pressWithSound(match, 'cancel') }
-                : allTarget !== null
-                ? { label: 'All', enabled: true, testId: 'live-attack-all', onClick: () => attackAll(match, allTarget) }
-                : undefined
-            }
+            button1={decisionAnswer.button1}
+            button2={decisionAnswer.button2}
             check={sameTargetCheck}
           />
         </QuestionHost>
       )}
       {/* A trigger's target with identical ones waiting and no sheet of its own to sit in: the box alone, under Forge's own line. */}
-      {sameTargetCheck !== undefined && !(decision && bar !== null) && !selectionPopup && (
+      {sameTargetCheck !== undefined && !(decisionAnswer !== null && !decisionInBar) && !selectionPopup && (
         <QuestionHost data-testid="live-target-host">
           <ConfirmPrompt testId="live-target" message={promptText(question)} context={context} check={sameTargetCheck} />
         </QuestionHost>
@@ -4500,17 +4624,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
           <TossCoin toss={coinToss} waiting={match.seat !== coinToss.winner} />
         </QuestionHost>
       )}
-      {waitingForOpponent && !viewerOpen && coinToss === null && (
-        <WaitingPop
-          sentence={
-            theyLeft(match)
-              ? `Waiting for ${theirName ?? 'the other player'} to reconnect…`
-              : pregameWait || theirAsk === null
-                ? `Waiting for ${theirName ?? 'the other player'}…`
-                : waitingSentence(theirName ?? 'the other player', theirAsk)
-          }
-        />
-      )}
+      {waitingSaid !== null && !(portrait && !watcher) && <WaitingPop sentence={waitingSaid} />}
       {manaAsk && !spectator && !over && (
         <ManaFloatingAsk canUntap={offersUndo(bar)} onUntap={() => passWithMana('untap')} onPass={() => passWithMana('pass')} onStay={() => passWithMana('stay')} />
       )}

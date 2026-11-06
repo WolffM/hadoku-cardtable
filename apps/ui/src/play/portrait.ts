@@ -126,3 +126,72 @@ export function dispatchZoomEvent(zoom: number): void {
  * anchored on the board's own centre, then telling `ZOOM_EVENT` the new value back out as usual.
  */
 export const ZOOM_RESET_EVENT = 'cardtable:zoom-reset';
+
+/**
+ * The other zoom control besides pinch: the ⋯ sheet's − and + ask the board to step its zoom by
+ * `detail.by` (a factor added to the current one), on `window` — the board's `usePortraitZoom` is
+ * the one listener, and answers through the same centre-anchored `zoomTo` the reset uses.
+ */
+export const ZOOM_STEP_EVENT = 'cardtable:zoom-step';
+
+/** `CustomEvent<ZoomStepDetail>`'s `detail`, carried by every `cardtable:zoom-step` dispatch. */
+export interface ZoomStepDetail {
+  readonly by: number;
+}
+
+/**
+ * A count drawn in a chip's zone button: exact below 1000, then whole thousands, rounded down
+ * (`1k`, `12k`), so a four-digit count is two glyphs and three buttons fit a 360px phone's chip. The
+ * exact number stays in the button's accessible name.
+ */
+export function compactCount(n: number): string {
+  return n < 1000 ? String(n) : `${Math.floor(n / 1000)}k`;
+}
+
+/** What `portraitLaneFit` reads off one permanents lane, every length in CSS px. */
+export interface LaneGeometry {
+  /** The lane's own content box, as `clientWidth`/`clientHeight` read it. */
+  readonly width: number;
+  readonly height: number;
+  /** The lane's end padding, the gap between cards, and the next card's peek (`portrait.css`'s three tokens). */
+  readonly pad: number;
+  readonly gap: number;
+  readonly peek: number;
+  /** The room reserved above a resting card for a card that rises (`--portrait-rise`), and the board's zoom. */
+  readonly rise: number;
+  readonly zoom: number;
+  /** How many piles the lane draws. */
+  readonly count: number;
+}
+
+/** The ceiling a sparse lane's card grows to, as a multiple of the 3-across width. */
+export const LANE_GROW_MAX = 1.25;
+/** The smallest card two rows may draw, as a multiple of the 3-across width; under it the lane stays one row and scrolls. */
+export const LANE_TWO_ROW_MIN = 0.62;
+/** A lane wraps to two rows from this many piles. */
+export const LANE_TWO_ROW_FROM = 5;
+
+/**
+ * How big a permanents lane draws its cards, as `k`, a multiple of the lane's 3-across width (the
+ * `--card-w` formula in `portrait.css`, which this mirrors and only ever scales), and in how many
+ * rows. A lane of one to three piles grows its cards to fill the lane's width and height, up to
+ * `LANE_GROW_MAX`; a lane of four stays at 1 and scrolls; a lane of five or more wraps to two rows
+ * when two rows still draw cards at least `LANE_TWO_ROW_MIN` of the 3-across width.
+ */
+export function portraitLaneFit(g: LaneGeometry): { k: number; rows: 1 | 2 } {
+  const cw0 = ((g.width - 2 * g.pad - 2 * g.gap - g.peek) / 3) * g.zoom;
+  if (cw0 <= 0 || g.count === 0) return { k: 1, rows: 1 };
+  const tall = (h: number): number => (h * 63) / 88;
+  const free = g.height - g.rise;
+  if (g.count >= LANE_TWO_ROW_FROM) {
+    const two = tall((free - g.gap) / 2);
+    if (two >= cw0 * LANE_TWO_ROW_MIN) {
+      const across = (g.width - 2 * g.pad - 3 * g.gap - g.peek) / 3.4;
+      return { k: Math.min(two, across) / cw0, rows: 2 };
+    }
+  }
+  if (g.count > 3) return { k: 1, rows: 1 };
+  const byW = (g.width - 2 * g.pad - (g.count - 1) * g.gap) / g.count;
+  const k = Math.min(tall(free) / cw0, byW / cw0, LANE_GROW_MAX);
+  return { k: Math.max(1, k), rows: 1 };
+}

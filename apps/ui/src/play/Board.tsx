@@ -438,11 +438,12 @@ import { useCardMenu } from './card-menu/CardMenu.tsx';
 import { CheckMark } from './marks.tsx';
 import { Relations } from './Relations.tsx';
 import { cardWidthIn, onCardWidthsChanged } from './card-size.ts';
+import { uiPx } from '../settings/ui-scale.ts';
 import { useRailFit } from './tag-rail.ts';
 import { liftGhost, type Ghost } from './lift.ts';
 import { observeZoneBoxes, type ZoneBoxes } from './zone-box.ts';
 import { PLACEMENT_WAIT_MS, UNLOCK_BEAT_MS } from './motion.ts';
-import { clampZoom, dispatchZoomEvent, usePortraitLayout, ZOOM_RESET_EVENT } from './portrait.ts';
+import { clampZoom, compactCount, dispatchZoomEvent, portraitLaneFit, usePortraitLayout, ZOOM_RESET_EVENT, ZOOM_STEP_EVENT, type ZoomStepDetail } from './portrait.ts';
 import './board.css';
 import './card.css';
 import './portrait.css';
@@ -3390,6 +3391,8 @@ function Battlefield({
               className="zone__cards"
               data-tier={tier}
               data-testid={portrait ? laneTestId(ownerSide, tier) : undefined}
+              /* Portrait folds an empty lane and sizes a sparse or crowded one by it (`portrait.css`, `measurePortraitLane`). */
+              data-count={portrait ? rows[tier].length : undefined}
               style={{ '--cols': cols(rows, layout) } as CSSProperties}
               data-arrange-slot={arranging === undefined ? undefined : tier}
             >
@@ -3536,10 +3539,11 @@ function HiddenHand({ player, ownerSide, interaction }: { player: BoardPlayer; o
  * (`data-active`, `board.css`), never a ring. Both hooks are the section's, so an e2e spec
  * selects them without reaching into this component's own markup.
  */
-function PlayerFace({ player, interaction }: { player: BoardPlayer; interaction: BoardInteraction | undefined }) {
+function PlayerFace({ player, interaction, poison: drawPoison = true }: { player: BoardPlayer; interaction: BoardInteraction | undefined; poison?: boolean }) {
   const selectable = interaction !== undefined && interaction.selectablePlayers.has(player.id);
   const emblems = player.emblems ?? [];
-  const poison = poisonOf(player);
+  /** Poison beside the life; a portrait chip hangs it under the chip with the other marks instead. */
+  const poison = drawPoison ? poisonOf(player) : 0;
   const mark = (
     <>
       {/* The watchparty character, or our mark: a seat with no face is worse than a generic face. */}
@@ -3915,11 +3919,7 @@ function PlayerArea({
   const selectable = interaction !== undefined && interaction.selectablePlayers.has(player.id);
   const libraryMark = (
     <>
-      <svg className="seat__count-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-        <path d="M4.6 1.6h6.8l2.4 3.4H2.2Z" />
-        <path d="M4.6 6.2h6.8l2.4 3.4H2.2Z" />
-        <path d="M4.6 10.8h6.8l2.4 3.4H2.2Z" />
-      </svg>
+      <LibraryArt className="seat__count-art" />
       <span aria-hidden="true">{player.libraryCount}</span>
     </>
   );
@@ -4177,32 +4177,42 @@ function PlayerArea({
  * scroll fires every frame while a finger drags a lane, and toggling two classes costs far less
  * than a React re-render for the same frame.
  */
+/** `portrait.css`'s `--portrait-peek`, and the rise a permanents lane reserves (`--portrait-rise`: 6% of the card's height plus 10px). */
+const PORTRAIT_PEEK_PX = 22;
+const PORTRAIT_RISE = 0.06;
+const PORTRAIT_RISE_PX = 10;
+/** A raised hand of more cards than this draws them in two rows. */
+const PORTRAIT_HAND_ONE_ROW = 5;
+
 function measurePortraitLane(lane: HTMLUListElement): void {
   // `portrait.css`'s own `--card-w` reads this directly: the lane's own visible content width,
   // measured here rather than through a CSS size container (see that file's doc for the two
   // container-query attempts this replaced, and why both resolved to the wrong number).
   const laneW = `${lane.clientWidth}px`;
   if (lane.style.getPropertyValue('--portrait-lane-w') !== laneW) lane.style.setProperty('--portrait-lane-w', laneW);
+  const piles = lane.querySelectorAll(':scope > li.board-card').length;
   /*
-   * The hand is a lane too (the operator, after the look artifact: "cards are too small in hand,
-   * use a similar scrolling carousel") — same `--card-w` formula, but its OWN height
-   * (`--portrait-hand-h`) has to grow to fit that card, and the hand's row and the stack sheet's cap
-   * read that token, so it is written here, once, globally, rather than asking either of them to
-   * also know the hand card's own formula. The card's width is the one every layer reads
-   * (`cardWidthIn`, `card-size.ts`: a drawn card's used width, a probe's in an empty hand), never
-   * the lane's `--card-w` read back as a string — the build writes every px as
-   * `calc(N * var(--ui-px))` for the UI scale, so that read was an unevaluated `calc(…)`, parsed to
-   * NaN, and the hand never grew past its 116px default under 149px cards (measured in real
-   * portrait; `usePortraitLanes` re-measures when the width moves).
+   * A permanents lane scales that card by `--portrait-lane-k` and wraps by `data-rows`
+   * (`portraitLaneFit`): bigger while it holds three piles or fewer, two rows from five. The fit reads
+   * the lane's own box, which never depends on the scale (`portrait.css` sizes the lane by the
+   * unscaled card), so writing it cannot move what it measured. The hand wraps to two rows while
+   * raised with more than five cards.
    */
-  if (lane.dataset.testid === 'lane-my-hand') {
-    const cardW = cardWidthIn(lane);
-    if (cardW !== null) {
-      const handH = `${Math.round((cardW * 88) / 63 + 16)}px`;
-      if (document.documentElement.style.getPropertyValue('--portrait-hand-h') !== handH) {
-        document.documentElement.style.setProperty('--portrait-hand-h', handH);
-      }
-    }
+  if (lane.dataset.testid?.endsWith('-permanents') === true) {
+    const style = getComputedStyle(lane);
+    const zoom = Number.parseFloat(style.getPropertyValue('--portrait-zoom')) || 1;
+    const pad = Number.parseFloat(style.paddingLeft) || 0;
+    const gap = Number.parseFloat(style.columnGap) || 0;
+    const peek = uiPx(PORTRAIT_PEEK_PX, lane);
+    const cw0 = ((lane.clientWidth - 2 * pad - 2 * gap - peek) / 3) * zoom;
+    const rise = (cw0 * 88 * PORTRAIT_RISE) / 63 + uiPx(PORTRAIT_RISE_PX, lane);
+    const fit = portraitLaneFit({ width: lane.clientWidth, height: lane.clientHeight, pad, gap, peek, rise, zoom, count: piles });
+    const k = fit.k.toFixed(3);
+    if (lane.style.getPropertyValue('--portrait-lane-k') !== k) lane.style.setProperty('--portrait-lane-k', k);
+    if (lane.dataset.rows !== String(fit.rows)) lane.dataset.rows = String(fit.rows);
+  } else if (lane.dataset.testid === 'lane-my-hand') {
+    const rows = piles > PORTRAIT_HAND_ONE_ROW ? '2' : '1';
+    if (lane.dataset.rows !== rows) lane.dataset.rows = rows;
   }
   // Room to scroll either way, with a pixel of slack for a fractional `scrollLeft`.
   const room = lane.scrollWidth - lane.clientWidth;
@@ -4250,6 +4260,53 @@ function usePortraitLanes(root: { readonly current: HTMLElement | null }, enable
       unsubscribe();
     };
   }, [root, enabled]);
+}
+
+/**
+ * Portrait's hand: a 46px peek of its cards' tops that rises over the board's lower lanes on a touch
+ * (the operator, 2026-11-05, Mockup 2). The touch that raises it is the hand's alone — no card reads,
+ * plays or lifts from it — so a tap on the peek raises the hand and nothing else; the cards answer
+ * the touches after it. A press anywhere else on the board lowers it again and does whatever it does
+ * there. A question about the hand (`asked`: the opening Keep/Mulligan, a card in hand to pick) raises
+ * it as it opens. Returns whether it is raised; `Board` writes that as `data-hand-raised`.
+ */
+function usePortraitHandPeek(root: { readonly current: HTMLElement | null }, enabled: boolean, asked: boolean): boolean {
+  const [raised, setRaised] = useState(false);
+  const raisedNow = useRef(raised);
+  raisedNow.current = raised;
+  useEffect(() => {
+    if (enabled && asked) setRaised(true);
+  }, [enabled, asked]);
+  useEffect(() => {
+    const board = root.current;
+    if (board === null || !enabled) return undefined;
+    let swallowClick = false;
+    const inHand = (target: EventTarget | null): boolean => target instanceof Element && target.closest('[data-testid="lane-my-hand"]') !== null;
+    const onDown = (event: PointerEvent): void => {
+      swallowClick = false;
+      if (inHand(event.target)) {
+        if (raisedNow.current) return;
+        event.stopPropagation();
+        swallowClick = true;
+        setRaised(true);
+        return;
+      }
+      if (raisedNow.current) setRaised(false);
+    };
+    const onClick = (event: Event): void => {
+      if (!swallowClick) return;
+      swallowClick = false;
+      event.stopPropagation();
+      event.preventDefault();
+    };
+    board.addEventListener('pointerdown', onDown, true);
+    board.addEventListener('click', onClick, true);
+    return () => {
+      board.removeEventListener('pointerdown', onDown, true);
+      board.removeEventListener('click', onClick, true);
+    };
+  }, [root, enabled]);
+  return enabled && raised;
 }
 
 /**
@@ -4329,17 +4386,26 @@ function usePortraitZoom(root: { readonly current: HTMLElement | null }, enabled
       const rect = board.getBoundingClientRect();
       zoomPortraitTo(board, portraitLanesIn(board), 1, rect.width / 2, rect.height / 2);
     };
+    // The ⋯ sheet's − and +: the same centre-anchored zoom, by a step.
+    const onZoomStep = (event: Event): void => {
+      const by = (event as CustomEvent<ZoomStepDetail>).detail?.by;
+      if (typeof by !== 'number' || !Number.isFinite(by)) return;
+      const rect = board.getBoundingClientRect();
+      zoomPortraitTo(board, portraitLanesIn(board), currentPortraitZoom(board) + by, rect.width / 2, rect.height / 2);
+    };
     board.addEventListener('touchstart', onTouchStart, { passive: true });
     board.addEventListener('touchmove', onTouchMove, { passive: false });
     board.addEventListener('touchend', onTouchEnd);
     board.addEventListener('click', onClick);
     window.addEventListener(ZOOM_RESET_EVENT, onZoomReset);
+    window.addEventListener(ZOOM_STEP_EVENT, onZoomStep);
     return () => {
       board.removeEventListener('touchstart', onTouchStart);
       board.removeEventListener('touchmove', onTouchMove);
       board.removeEventListener('touchend', onTouchEnd);
       board.removeEventListener('click', onClick);
       window.removeEventListener(ZOOM_RESET_EVENT, onZoomReset);
+      window.removeEventListener(ZOOM_STEP_EVENT, onZoomStep);
     };
   }, [root, enabled]);
 }
@@ -4620,26 +4686,48 @@ function StackView({ count, carried }: { count: number; carried: number }) {
 }
 
 /**
- * Portrait's seat chip (test-id contract: `seat-chip-<me|opp>`), the top band's own avatar, life,
- * hand, library and graveyard — the same five facts `PlayerArea`'s `.seat__who`/`.seat__piles` show
- * on desktop, as one row instead of a column. Reuses `PlayerFace` rather than drawing a second
- * avatar/life (Settled 9): `PlayerArea` leaves `.seat__side` out of the tree entirely in portrait
- * (above), so this is the only place either player's face is rendered there. Its `.face` is the
- * tap/target surface the contract names — `PlayerFace` already carries `data-player-face` and the
- * select-player click Forge's own targeting uses.
+ * Portrait's seat chip (test-id contract: `seat-chip-<me|opp>`), in the top band, as two lines beside a
+ * 36px avatar (the operator, 2026-11-05: "A two lines looks best"): life and name, then the graveyard,
+ * exile and library buttons in that order on both chips. The hand's count is a badge on the avatar.
+ * Poison, the other player counters and the monarch or the initiative hang off the chip's bottom edge
+ * in one pill, beside the floating mana. Reuses `PlayerFace` rather than drawing a second avatar/life
+ * (Settled 9): `PlayerArea` leaves `.seat__side` out of the tree in portrait, so this is the only place
+ * either face is rendered there, and its `.face` stays the tap/target surface Forge's targeting uses.
+ *
+ * Graveyard and exile open the board's pile viewer. The library opens your own deck list; the
+ * opponent's is a count and nothing more.
  */
 function SeatChip({
   player,
   side,
   interaction,
   onOpenPile,
+  onOpenDeck,
 }: {
   player: BoardPlayer;
   side: 'me' | 'opp';
   interaction: BoardInteraction | undefined;
   onOpenPile: (playerId: number, zone: PileZone) => void;
+  onOpenDeck: ((from: Element) => void) | undefined;
 }) {
   const handCount = player.isViewer && player.hand !== null ? player.hand.length : player.handCount;
+  const poison = poisonOf(player);
+  const designations = designationsOf(player);
+  const counters = (player.counters ?? []).some((c) => c.count !== 0 && c.name !== POISON);
+  const marks = poison > 0 || counters || designations.length > 0;
+  const pool = (player.manaPool ?? []).length > 0;
+  const pile = (zone: 'graveyard' | 'exile', count: number, art: ReactNode) => (
+    <button type="button" className="seat-chip__zone" data-count={zone} aria-label={`${zone} ${count}`} onClick={() => onOpenPile(player.id, zone)}>
+      {art}
+      <span aria-hidden="true">{compactCount(count)}</span>
+    </button>
+  );
+  const library = (
+    <>
+      <LibraryArt className="seat-chip__zone-art" />
+      <span aria-hidden="true">{compactCount(player.libraryCount)}</span>
+    </>
+  );
   return (
     <div
       className="seat-chip"
@@ -4650,38 +4738,116 @@ function SeatChip({
          `PlayerFace` is no longer inside a `.seat` at all (Settled 9's note above). */
       data-priority={player.hasPriority || undefined}
     >
-      <PlayerFace player={player} interaction={interaction} />
-      <span className="seat-chip__counts">
-        <span className="seat-chip__count" data-count="hand" aria-label={`hand ${handCount}`}>
-          <svg className="seat-chip__count-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-            <path d="M3 4.5 8.2 2.6l3 8.4-5.2 1.9zM9.5 2.2h3.6v9h-1.5V3.7H9.5z" />
-          </svg>
-          <span aria-hidden="true">{handCount}</span>
-        </span>
-        <span className="seat-chip__count" data-count="library" aria-label={`library ${player.libraryCount}`}>
-          <svg className="seat-chip__count-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-            <path d="M4.6 1.6h6.8l2.4 3.4H2.2Z" />
-            <path d="M4.6 6.2h6.8l2.4 3.4H2.2Z" />
-            <path d="M4.6 10.8h6.8l2.4 3.4H2.2Z" />
-          </svg>
-          <span aria-hidden="true">{player.libraryCount}</span>
-        </span>
-        <button
-          type="button"
-          className="seat-chip__count seat-chip__count--open"
-          data-count="graveyard"
-          aria-label={`graveyard ${player.graveyard.length}`}
-          onClick={() => onOpenPile(player.id, 'graveyard')}
-        >
-          <svg className="seat-chip__count-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-            <path d="M4 14V7a4 4 0 0 1 8 0v7z" />
-          </svg>
-          <span aria-hidden="true">{player.graveyard.length}</span>
-        </button>
+      <PlayerFace player={player} interaction={interaction} poison={false} />
+      <span className="seat-chip__hand" data-count="hand" aria-label={`hand ${handCount}`}>
+        <HandArt className="seat-chip__hand-art" />
+        <span aria-hidden="true">{compactCount(handCount)}</span>
       </span>
-      {/* The floating mana, pressable to pay as on the desktop seat, while there is any: portrait draws no `.seat__side`. */}
-      {(player.manaPool ?? []).length > 0 && <ManaPool player={player} interaction={interaction} />}
+      <span className="seat-chip__zones">
+        {pile('graveyard', player.graveyard.length, <GraveyardArt className="seat-chip__zone-art" />)}
+        {pile('exile', player.exile.length, <ExileArt className="seat-chip__zone-art" />)}
+        {player.isViewer && onOpenDeck !== undefined ? (
+          <button
+            type="button"
+            className="seat-chip__zone"
+            data-count="library"
+            aria-label={`library ${player.libraryCount}`}
+            aria-haspopup="dialog"
+            onClick={(event) => onOpenDeck(event.currentTarget)}
+          >
+            {library}
+          </button>
+        ) : (
+          <span className="seat-chip__zone seat-chip__zone--flat" data-count="library" aria-label={`library ${player.libraryCount}`}>
+            {library}
+          </span>
+        )}
+      </span>
+      {(marks || pool) && (
+        <span className="seat-chip__hang">
+          {marks && (
+            <span className="seat-chip__marks">
+              {poison > 0 && <PoisonMark count={poison} />}
+              <PlayerCounters player={player} />
+              {designations.map((d) => (
+                <span key={d} className="seat-chip__designation" data-designation={d} data-tip={DESIGNATION_WORD[d]} role="img" aria-label={DESIGNATION_WORD[d]}>
+                  {d === 'monarch' ? <MonarchArt /> : <InitiativeArt />}
+                </span>
+              ))}
+            </span>
+          )}
+          {pool && <ManaPool player={player} interaction={interaction} />}
+        </span>
+      )}
     </div>
+  );
+}
+
+/** The two designations a chip draws, by the Command-zone card Forge keeps for each (`Player.java`'s `createMonarchEffect`, `createInitiativeEffect`). */
+type Designation = 'monarch' | 'initiative';
+const DESIGNATION_CARD: Readonly<Record<string, Designation>> = { 'The Monarch': 'monarch', 'The Initiative': 'initiative' };
+const DESIGNATION_WORD: Readonly<Record<Designation, string>> = { monarch: 'The monarch', initiative: 'The initiative' };
+
+/** Which of the two this player holds, monarch first. */
+export function designationsOf(player: BoardPlayer): Designation[] {
+  const held = new Set((player.command ?? []).flatMap((c) => DESIGNATION_CARD[c.card.name] ?? []));
+  return (['monarch', 'initiative'] as const).filter((d) => held.has(d));
+}
+
+/*
+ * The zone and seat glyphs, ours, drawn as geometry: no font to miss a glyph, no WotC symbol near any
+ * of them. Each is `aria-hidden`; the words are on the control that draws it.
+ */
+function HandArt({ className }: { className: string }) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path d="M3 4.5 8.2 2.6l3 8.4-5.2 1.9zM9.5 2.2h3.6v9h-1.5V3.7H9.5z" />
+    </svg>
+  );
+}
+
+/** Three stacked trapezoids (the operator, 2026-10-17). */
+function LibraryArt({ className }: { className: string }) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path d="M4.6 1.6h6.8l2.4 3.4H2.2Z" />
+      <path d="M4.6 6.2h6.8l2.4 3.4H2.2Z" />
+      <path d="M4.6 10.8h6.8l2.4 3.4H2.2Z" />
+    </svg>
+  );
+}
+
+function GraveyardArt({ className }: { className: string }) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path d="M4 14V7a4 4 0 0 1 8 0v7z" />
+    </svg>
+  );
+}
+
+/** A ring around a diamond. */
+function ExileArt({ className }: { className: string }) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path fillRule="evenodd" d="M8 1.5a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13Zm0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z" />
+      <path d="M8 5.6 10.4 8 8 10.4 5.6 8Z" />
+    </svg>
+  );
+}
+
+function MonarchArt() {
+  return (
+    <svg className="seat-chip__designation-art" viewBox="0 0 16 14" aria-hidden="true" focusable="false">
+      <path d="M1 3.5 4.6 7 8 1.5 11.4 7 15 3.5 13.6 12H2.4Z" />
+    </svg>
+  );
+}
+
+function InitiativeArt() {
+  return (
+    <svg className="seat-chip__designation-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path d="M8 1 14 3.5V8c0 3.4-2.6 6-6 7-3.4-1-6-3.6-6-7V3.5Z" />
+    </svg>
   );
 }
 
@@ -4701,6 +4867,7 @@ function PortraitHud({
   stackOpen,
   onToggleStack,
   onOpenPile,
+  onOpenDeck,
 }: {
   opponent: BoardPlayer;
   viewer: BoardPlayer;
@@ -4709,11 +4876,12 @@ function PortraitHud({
   stackOpen: boolean;
   onToggleStack: () => void;
   onOpenPile: (playerId: number, zone: PileZone) => void;
+  onOpenDeck: ((from: Element) => void) | undefined;
 }) {
   return (
     <header className="portrait-hud" data-testid="portrait-hud">
       <div className="portrait-hud__row">
-        <SeatChip player={opponent} side="opp" interaction={interaction} onOpenPile={onOpenPile} />
+        <SeatChip player={opponent} side="opp" interaction={interaction} onOpenPile={onOpenPile} onOpenDeck={undefined} />
         {stackCount > 0 && (
           <button
             type="button"
@@ -4727,7 +4895,7 @@ function PortraitHud({
             {stackCount}
           </button>
         )}
-        <SeatChip player={viewer} side="me" interaction={interaction} onOpenPile={onOpenPile} />
+        <SeatChip player={viewer} side="me" interaction={interaction} onOpenPile={onOpenPile} onOpenDeck={onOpenDeck} />
       </div>
     </header>
   );
@@ -4811,6 +4979,7 @@ export function Board({
   rolls = NO_ROLLS,
   onRoll,
   fastMode = false,
+  handAsked = false,
 }: {
   view: BoardView;
   /** The last reveal this seat was shown (`live/match.ts`'s `revealed`): its beat comes before what it causes (`live/numbers.ts`). */
@@ -4821,6 +4990,8 @@ export function Board({
   onRoll?: (roll: ShownRoll) => void;
   /** Fast Mode (`live/prefs.ts`): nothing that left the battlefield is drawn leaving, and a resolution does not blink first. */
   fastMode?: boolean;
+  /** The open question is about the hand (the opening Keep/Mulligan): portrait raises the hand for it (`usePortraitHandPeek`). */
+  handAsked?: boolean;
   interaction?: BoardInteraction;
   /** What each view's change was drawn as (`live/numbers.ts`'s beats) — the seat's `effect` client event. */
   onEffect?: (data: Record<string, string | number | boolean>) => void;
@@ -5153,6 +5324,12 @@ export function Board({
   useZoneBoxes(root);
   usePortraitLanes(root, portrait);
   usePortraitZoom(root, portrait);
+  const handCards = viewer?.hand ?? null;
+  const handRaised = usePortraitHandPeek(
+    root,
+    portrait,
+    handAsked || (interaction?.selectionOpen === true && handCards !== null && handCards.some((c) => interaction.selectable.has(c.id))),
+  );
 
   /*
    * Fold in any PENDING placement (`notePlayedTo`, above) for a card the
@@ -5217,7 +5394,7 @@ export function Board({
 
   return (
     <HoldsContext.Provider value={holds}>
-      <section className="board" aria-label="Game board" ref={root} data-focus={focus || undefined} data-portrait={portrait || undefined}>
+      <section className="board" aria-label="Game board" ref={root} data-focus={focus || undefined} data-portrait={portrait || undefined} data-hand-raised={(portrait && handRaised) || undefined}>
         {portrait && portraitOpponent !== undefined && viewer !== undefined && (
           <PortraitHud
             opponent={portraitOpponent}
@@ -5227,6 +5404,7 @@ export function Board({
             stackOpen={stackSheetOpen && stackShown.length > 0}
             onToggleStack={() => setStackSheetOpen((open) => !open)}
             onOpenPile={(playerId, zone) => openPileOf(playerId)(zone)}
+            onOpenDeck={onOpenDeck}
           />
         )}
         {portrait && stackSheetOpen && stackShown.length > 0 && <StackSheet items={stackShown} onClose={() => setStackSheetOpen(false)} />}

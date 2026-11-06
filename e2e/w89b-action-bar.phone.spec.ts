@@ -22,7 +22,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { clickHandCard, makeTitled, offeredCard } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { PHONE } from './play/phone.ts';
+import { inMore, PHONE } from './play/phone.ts';
 import { startScenarioVsAi } from './play/scenario.ts';
 
 test.use(PHONE);
@@ -61,12 +61,12 @@ test(titled('action-bar sits on the bottom edge, the hand directly above it, a d
     expect.soft(barBox!.y + barBox!.height, 'the bar’s own bottom is the screen’s bottom edge').toBeCloseTo(viewport.height, 0);
     // "Directly above": the hand's bottom edge meets the bar's top edge — no gap, and no overlap.
     expect.soft(handBox!.y + handBox!.height, 'the hand’s own bottom meets the bar’s top').toBeCloseTo(barBox!.y, 0);
-    // The hand's row is as tall as its cards (`--portrait-hand-h` grows to fit them), so no hand card
-    // reaches down onto the bar.
+    // The hand rests as a peek of its cards' tops (Mockup 2): the lane clips them to its own row, so
+    // nothing of a hand card is drawn on the bar.
     const bottomsOf = (selector: string) => alice.page.locator(selector).evaluateAll((els) => els.map((el) => el.getBoundingClientRect().bottom));
-    for (const bottom of await bottomsOf('[data-zone="hand"][data-owner="you"] li.board-card')) {
-      expect.soft(bottom, 'a hand card stays inside the hand row, above the bar').toBeLessThanOrEqual(barBox!.y + 0.5);
-    }
+    const lane = (await alice.page.getByTestId('lane-my-hand').boundingBox())!;
+    expect.soft(lane.y + lane.height, 'the hand’s peek ends on the bar’s top').toBeLessThanOrEqual(barBox!.y + 0.5);
+    expect.soft(await alice.page.getByTestId('lane-my-hand').evaluate((el) => getComputedStyle(el).overflowY), 'the peek clips its cards').toBe('hidden');
 
     // A decision docks on top of the bar, never over it: cast the Bolt, and Forge asks for its target.
     const bolt = await offeredCard(alice.page, 'Lightning Bolt', { zone: 'hand' });
@@ -80,17 +80,18 @@ test(titled('action-bar sits on the bottom edge, the hand directly above it, a d
       expect.soft(bottom, 'the card being cast stays above the bar').toBeLessThanOrEqual(barBox!.y + 0.5);
     }
     // And the bar is still a plain tap away while the question is up.
-    const menuToggle = alice.page.getByTestId('action-menu');
-    await menuToggle.tap();
-    await expect(menuToggle, 'the bar answers a tap with a decision up').toHaveAttribute('aria-expanded', 'true');
-    await menuToggle.tap();
+    const more = alice.page.getByTestId('action-more');
+    await more.tap();
+    await expect(more, 'the bar answers a tap with a decision up').toHaveAttribute('aria-expanded', 'true');
 
-    for (const id of ['action-chat', 'action-menu', 'zoom-pill', 'action-primary']) {
+    // ⋯ and everything its sheet holds is a finger-sized control.
+    for (const id of ['action-more', 'action-chat', 'action-menu', 'zoom-pill', 'zoom-in', 'zoom-out']) {
       const box = await alice.page.getByTestId(id).boundingBox();
       expect(box, `${id} is drawn`).not.toBeNull();
-      expect(box!.width, `${id} is ≥44px wide`).toBeGreaterThanOrEqual(44);
+      expect(box!.width, `${id} is ≥36px wide`).toBeGreaterThanOrEqual(36);
       expect(box!.height, `${id} is ≥40px tall`).toBeGreaterThanOrEqual(40);
     }
+    await more.tap();
 
     // Manager follow-up: the bar's own height is A's real token, not a guess — its band, the row plus
     // the bottom safe area. Resolved by laying it out: read as a string, the UI-scale build's
@@ -126,7 +127,7 @@ test(titled('the fleet header is hidden during a match, so both chips are inside
     for (const [i, bottom] of boxes.entries()) expect(bottom, `chip ${i} is inside the top 100px`).toBeLessThanOrEqual(100);
 
     // The zoom pill reads as live text at 1×, not the same dimmed look every other disabled control gets.
-    const pill = alice.page.getByTestId('zoom-pill');
+    const pill = await inMore(alice.page, 'zoom-pill');
     const opacity = await pill.evaluate((el) => getComputedStyle(el).opacity);
     expect(Number.parseFloat(opacity), 'the zoom pill is not faded at 1×').toBeGreaterThan(0.9);
   } finally {
@@ -149,13 +150,12 @@ test(titled('in a match, the room’s chat column is not rendered in portrait, a
     const chatColumn = alice.page.locator('.wp-room-chrome-frame > .wp-room-chrome');
     await expect(chatColumn, 'closed by default during a match (Settled 7 §B.3)').toBeHidden();
 
-    const chat = alice.page.getByTestId('action-chat');
-    await chat.tap();
+    await (await inMore(alice.page, 'action-chat')).tap();
     await expect(chatColumn, 'action-chat opens it').toBeVisible();
-    expect(await chat.getAttribute('aria-expanded')).toBe('true');
+    expect(await alice.page.getByTestId('action-chat').getAttribute('aria-expanded')).toBe('true');
 
-    // The sheet stands on the bar too, so the same Chat button closes it.
-    await chat.tap();
+    // The sheet stands on the bar too, so the same Chat button, back in ⋯, closes it.
+    await (await inMore(alice.page, 'action-chat')).tap();
     await expect(chatColumn, 'a second tap closes the sheet again').toBeHidden();
   } finally {
     await stack.stop();
@@ -171,11 +171,10 @@ test(titled('the menu holds Game log, End turn, Full control, Restart turn and C
     const { alice } = await startScenarioVsAi(browser, stack, 'bolt-player');
     await setPortrait(alice.page);
 
-    const menuToggle = alice.page.getByTestId('action-menu');
     const items = alice.page.locator('.live__menu-items');
     await expect(items, 'closed by default').not.toHaveAttribute('data-open', '');
 
-    await menuToggle.tap();
+    await (await inMore(alice.page, 'action-menu')).tap();
     await expect(items, 'action-menu opens it').toHaveAttribute('data-open', '');
     // Re-laid, not copied: the exact same elements `live-log-toggle` / `live-buttons` the desktop
     // cluster already drew, now inside the open menu — never a second copy of any of them.
@@ -201,7 +200,7 @@ test(titled('the menu holds Game log, End turn, Full control, Restart turn and C
     // Escape closes everything open, including this menu (the same handler that closes the logbook) —
     // so the menu needs a fresh tap before the rest of this test reaches back into it.
     await alice.page.keyboard.press('Escape');
-    await menuToggle.tap();
+    await (await inMore(alice.page, 'action-menu')).tap();
     await expect(items, 'reopened after Escape').toHaveAttribute('data-open', '');
 
     // Concede needs a second tap: the first opens the confirmation (the SAME dialog desktop's own

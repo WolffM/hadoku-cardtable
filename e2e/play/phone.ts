@@ -24,12 +24,22 @@ const PHONE_PROJECTS = new Set(['phone', 'phone-core']);
 export const isPhone = (): boolean => PHONE_PROJECTS.has(test.info().project.name);
 
 /**
+ * A control the bar's ⋯ sheet holds (Chat, Menu, the zoom): in portrait the sheet is opened first when it
+ * is closed, as a player would. A no-op on a wider table, where the bar is not drawn.
+ */
+export async function inMore(page: Page, testId: string): Promise<Locator> {
+  const more = page.getByTestId('action-more');
+  if ((await more.isVisible().catch(() => false)) && (await more.getAttribute('aria-expanded')) !== 'true') await more.tap();
+  return page.getByTestId(testId).filter({ visible: true });
+}
+
+/**
  * A match control the portrait action menu holds (Full Control, Concede, End Turn, the settings gear): on a
- * phone the menu is opened first when it is closed, as a player would. A no-op on a wider table.
+ * phone the menu is opened first when it is closed — ⋯, then Menu — as a player would. A no-op on a wider table.
  */
 export async function inMenu(page: Page, testId: string): Promise<Locator> {
   const menu = page.getByTestId('action-menu');
-  if (isPhone() && (await menu.count()) > 0 && (await menu.getAttribute('aria-expanded')) !== 'true') await menu.tap();
+  if ((await page.getByTestId('action-more').isVisible().catch(() => false)) && (await menu.getAttribute('aria-expanded')) !== 'true') await (await inMore(page, 'action-menu')).tap();
   return page.getByTestId(testId).filter({ visible: true });
 }
 
@@ -39,7 +49,7 @@ export async function pressInMenu(page: Page, testId: string): Promise<void> {
   if (isPhone()) await control.tap();
   else await control.click();
   const menu = page.getByTestId('action-menu');
-  if (isPhone() && (await menu.count()) > 0 && (await menu.getAttribute('aria-expanded')) === 'true') await menu.tap();
+  if (isPhone() && (await menu.count()) > 0 && (await menu.getAttribute('aria-expanded')) === 'true') await page.keyboard.press('Escape');
 }
 
 /**
@@ -56,6 +66,31 @@ export const PHONE = {
 } as const;
 
 /**
+ * Raise the phone's hand, as a player does before touching a card in it: the hand rests as a peek
+ * (Mockup 2), and the tap that raises it is the hand's alone. A no-op once it is up, or for a card that
+ * is not in the hand. Resolves once the raised hand has stopped growing.
+ */
+export async function raiseHand(page: Page, cardId?: number): Promise<void> {
+  const lane = page.getByTestId('lane-my-hand');
+  if ((await lane.count()) === 0) return;
+  if (cardId !== undefined && (await lane.locator(`[data-board-card="${cardId}"]`).count()) === 0) return;
+  if ((await page.locator('.board[data-hand-raised]').count()) > 0) return;
+  const box = await lane.boundingBox();
+  if (box === null) return;
+  await page.touchscreen.tap(box.x + 12, box.y + box.height / 2);
+  await expect(page.locator('.board[data-hand-raised]')).toHaveCount(1);
+  let last = -1;
+  await expect
+    .poll(async () => {
+      const h = (await lane.boundingBox())?.height ?? 0;
+      const still = Math.abs(h - last) < 0.5;
+      last = h;
+      return still;
+    })
+    .toBe(true);
+}
+
+/**
  * Tap a card's own clickable face with a REAL touch gesture — `Locator.tap()`, which (because the
  * phone context carries `hasTouch: true`) dispatches `touchstart`/`touchend`, not a mouse click.
  * Settled 5 makes a touch tap on ANY card open the one expanded card view rather than play or cast it;
@@ -63,6 +98,7 @@ export const PHONE = {
  * still a mouse event (`pointerType: 'mouse'`) — D's gesture install branches on the real thing.
  */
 export async function tapCard(page: Page, cardId: number): Promise<void> {
+  await raiseHand(page, cardId);
   await page.locator(`[data-board-card="${cardId}"] button`).first().tap();
 }
 

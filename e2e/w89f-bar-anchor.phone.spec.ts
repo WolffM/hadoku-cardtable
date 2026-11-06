@@ -15,7 +15,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { makeTitled, resizeWindow } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { expectBarAnchored, PHONE, pressInMenu } from './play/phone.ts';
+import { expectBarAnchored, inMore, PHONE, pressInMenu } from './play/phone.ts';
 import { startScenarioVsAi } from './play/scenario.ts';
 
 test.use(PHONE);
@@ -55,22 +55,24 @@ for (const size of [
       const page = alice.page;
       await expectBarAnchored(page, 'a quiet main phase');
 
-      await page.getByTestId('action-menu').tap();
+      await page.getByTestId('action-more').tap();
+      await expect(page.getByTestId('action-more')).toHaveAttribute('aria-expanded', 'true');
+      await expectBarAnchored(page, 'the ⋯ sheet open');
+      await (await inMore(page, 'action-menu')).tap();
       await expect(page.getByTestId('action-menu')).toHaveAttribute('aria-expanded', 'true');
       await expectBarAnchored(page, 'the menu open');
-      await page.getByTestId('action-menu').tap();
+      await page.keyboard.press('Escape');
 
-      const chat = page.getByTestId('action-chat');
-      await chat.tap();
-      await expect(chat).toHaveAttribute('aria-expanded', 'true');
+      await (await inMore(page, 'action-chat')).tap();
+      await expect(page.getByTestId('action-chat')).toHaveAttribute('aria-expanded', 'true');
       await expectBarAnchored(page, 'the chat sheet open');
       const input = page.locator('.wp-room-chrome textarea, .wp-room-chrome input[type="text"]').first();
       if ((await input.count()) > 0) {
         await input.tap();
         await expectBarAnchored(page, 'the chat input focused');
       }
-      await chat.tap();
-      await expect(chat).toHaveAttribute('aria-expanded', 'false');
+      await (await inMore(page, 'action-chat')).tap();
+      await expect(page.getByTestId('action-chat')).toHaveAttribute('aria-expanded', 'false');
 
       await resizeWindow(page, { width: size.width, height: size.height - 84 });
       await expectBarAnchored(page, 'a shorter window (the URL bar showing)');

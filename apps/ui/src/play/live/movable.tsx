@@ -489,12 +489,6 @@ export function QuestionHost({
       </div>
     );
   }
-  // The empty-stack pass / an unforced resolve (`data-pass` — `LiveBoard.tsx`'s own `route === 'pass'`,
-  // already read the same way by `../inspect/index.ts`'s placement rule): the prototype's own
-  // `primaryAction` never makes a decision object for it either, and B's `action-primary` already
-  // mirrors this exact OK with the same press. Nothing here would say anything the action bar does
-  // not already say, so nothing here docks.
-  if ((rest as Record<string, unknown>)['data-pass'] === true) return null;
   return (
     // The wrapper carries the Test-ID contract's own identity (`decision-dock`, `data-mode`); the host
     // inside keeps the testid its OWN caller gave it, unchanged — `pick-drawn` (`LiveBoard.tsx`) and

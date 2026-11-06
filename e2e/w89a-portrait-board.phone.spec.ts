@@ -35,7 +35,7 @@ import { SESSION_COOKIE } from './identities.ts';
 import { keepPrefsLocal, setPlayFastModeDefault } from './prefsLocal.ts';
 import { clickHandCard, makeTitled, offeredNamed, pressPaymentAuto, resizeWindow, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { expectBarAnchored, laneCues, noSideways, pinch, PHONE } from './play/phone.ts';
+import { expectBarAnchored, inMore, laneCues, noSideways, pinch, PHONE, raiseHand } from './play/phone.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { matchUrl, startScenarioVsAi } from './play/scenario.ts';
 
@@ -135,7 +135,9 @@ test(titled('promo-valakut in portrait: chips, four lanes, card width, no sidewa
       const box = await lane.boundingBox();
       if (box === null) continue;
       const whole = boxes.filter((b) => b.left >= box.x - 1 && b.right <= box.x + box.width + 1).length;
-      expect.soft(whole, `${id}: no more than 3 whole cards at 1x`).toBeLessThanOrEqual(3);
+      // A crowded permanents lane wraps to two rows (Mockup 2): still no more than 3 whole cards a row.
+      const rows = Number((await lane.getAttribute('data-rows')) ?? '1');
+      expect.soft(whole, `${id}: no more than 3 whole cards a row at 1x`).toBeLessThanOrEqual(3 * rows);
     }
 
     // The hand is a carousel too (the operator, after the look artifact: "cards are too small in
@@ -145,6 +147,8 @@ test(titled('promo-valakut in portrait: chips, four lanes, card width, no sidewa
     // `CardOnBoard`'s own `li.board-card`, the same as every other card on the board.
     const myHand = page.getByTestId('lane-my-hand');
     await expect(myHand).toBeVisible();
+    // It rests as a peek (Mockup 2); its cards are lane-card size once a tap raises it.
+    await raiseHand(page);
     const handCardBoxes = await myHand.locator(':scope > li.board-card').evaluateAll((els) =>
       els.map((el) => (el as HTMLElement).getBoundingClientRect()),
     );
@@ -229,7 +233,7 @@ test(titled('promo-valakut in portrait: chips, four lanes, card width, no sidewa
       expect.soft(widthAfter, 'pinch raised the card width').toBeGreaterThan(widthBefore);
 
       // The zoom pill (B's) returns it to 1x — pending B's own land, per the manager's note.
-      const pill = phonePage.getByTestId('zoom-pill');
+      const pill = await inMore(phonePage, 'zoom-pill');
       if ((await pill.count()) === 0) {
         console.log('[w89a] zoom-pill not present yet (pending B) — skipping the "pill returns zoom to 1x" assertion');
       } else {

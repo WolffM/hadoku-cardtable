@@ -534,14 +534,16 @@
  * moves, so the loop stays on the compositor (`composited-loops.test.ts`) and
  * the pop-up's box never grows.
  */
-.confirm__button[data-highlight] {
+.confirm__button[data-highlight],
+:root[data-layout='portrait'] .action-bar .action-bar__answer[data-highlight] {
   position: relative;
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 22%, var(--bg-card));
   color: var(--accent-ink);
 }
 
-.confirm__button[data-highlight]::after {
+.confirm__button[data-highlight]::after,
+.action-bar__answer[data-highlight]::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -567,7 +569,8 @@
     animation: none;
   }
 
-  .confirm__button[data-highlight]::after {
+  .confirm__button[data-highlight]::after,
+  .action-bar__answer[data-highlight]::after {
     animation: none;
     opacity: 0.7;
   }
@@ -1855,40 +1858,51 @@
 
 :root[data-layout='portrait'] .live__segments {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   box-sizing: border-box;
   width: 100%;
   height: 100%;
   margin: 0;
-  padding: 0 4px;
-  gap: 2px;
+  padding: 0 calc(var(--portrait-pad) + 2px);
+  gap: 3px;
   list-style: none;
 }
 
+/* Mockup 2's phase line: one thin line per phase, only the current one labelled. */
 :root[data-layout='portrait'] .live__segment {
   box-sizing: border-box;
   display: flex;
   flex: 1 1 0;
-  min-width: 44px;
+  min-width: 0;
+  height: 3px;
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 0 4px;
-  border-radius: 4px;
-  background: var(--bg-card);
-  color: var(--ink-dim);
-  font-size: 10px;
-  line-height: 1.1;
-  white-space: nowrap;
+  border-radius: 2px;
+  background: var(--line);
+}
+:root[data-layout='portrait'] .live__segment[data-done] {
+  background: color-mix(in srgb, var(--ink-dim) 55%, var(--line));
 }
 
-/* The current segment widens to show its own step name (Settled 2). */
 :root[data-layout='portrait'] .live__segment[data-current] {
-  flex: 1.6 1 0;
-  background: var(--bg-raised);
-  color: var(--accent-ink);
-  font-weight: 600;
+  flex: 2.2 1 0;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 7px;
   border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-raised));
+  color: var(--accent-ink);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
+}
+:root[data-layout='portrait'] .live__phases[data-whose='theirs'] .live__segment[data-current] {
+  border-color: var(--ink-dim);
+  background: var(--bg-card);
+  color: var(--ink-dim);
 }
 
 :root[data-layout='portrait'] .live__segment-name {
@@ -1898,15 +1912,15 @@
 
 /* Ticks for the current segment's sub-steps (Settled 2). */
 :root[data-layout='portrait'] .live__segment-ticks {
-  display: flex;
+  display: inline-flex;
   flex: none;
   gap: 2px;
 }
 
 :root[data-layout='portrait'] .live__segment-tick {
-  width: 4px;
-  height: 4px;
-  border-radius: 999px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
   background: color-mix(in srgb, currentColor 35%, transparent);
 }
 
@@ -1995,11 +2009,15 @@
   bottom: var(--portrait-bar-band);
 }
 
-/* ── The action bar itself: chat, menu, zoom, primary (Settled 7) ─────── */
+/*
+ * ── The one bottom bar (Mockup 2) ─────────────────────────────────────
+ * The open decision's buttons in OK's place with its question as one line, the other seat's turn as
+ * one status line, and ⋯: a sheet over the bar's right end holding Chat, Menu and the zoom.
+ */
 
 :root[data-layout='portrait'] .action-bar {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   box-sizing: border-box;
   gap: 6px;
   position: fixed;
@@ -2009,25 +2027,29 @@
   bottom: 0;
   height: var(--portrait-bar-band);
   /* The buttons keep the bar's own row; the safe area under them is background only. */
-  padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px));
-  background: color-mix(in srgb, var(--bg-raised) 92%, transparent);
-  border-top: 1px solid var(--line);
+  padding: 6px var(--portrait-pad) calc(6px + env(safe-area-inset-bottom, 0px));
+  background: var(--bg-raised);
+  border-top: 1px solid var(--line-soft);
 }
 
 :root[data-layout='portrait'] .action-bar button {
   box-sizing: border-box;
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   min-width: 44px;
-  min-height: 40px;
-  padding: 0 10px;
+  height: 40px;
+  padding: 0 14px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--bg-card);
   color: var(--ink);
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -2036,29 +2058,157 @@
   cursor: default;
 }
 
-/*
- * The zoom pill is read-only information at 1× (Settled 4: "a '%' button …
- * shows the zoom"), not an inert control — the manager, wave 89 follow-up:
- * *"the zoom pill '100%' renders faded, like a disabled control … it must
- * still be readable."* `disabled` still stops the press (there is nothing to
- * reset to at 1×) and drops the pointer, but the GENERIC dimmed-button look
- * above is for a control that cannot currently be used at all — this one is
- * always legible, pressable or not.
- */
-:root[data-layout='portrait'] button.action-bar__zoom:disabled {
-  opacity: 1;
+:root[data-layout='portrait'] .action-bar__slot {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+:root[data-layout='portrait'] .action-bar__prompt {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 11.5px;
+  line-height: 1.25;
   color: var(--ink-dim);
 }
 
-:root[data-layout='portrait'] .action-bar__chat {
-  position: relative;
+:root[data-layout='portrait'] .action-bar__context {
+  opacity: 0.8;
+}
+
+:root[data-layout='portrait'] .action-bar__tip {
+  display: contents;
+}
+
+:root[data-layout='portrait'] .action-bar .action-bar__answer--go {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+:root[data-layout='portrait'] .action-bar__status {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  margin: 0;
+  padding: 0 10px;
+  font-size: 13px;
+  color: var(--ink-dim);
+}
+
+:root[data-layout='portrait'] .action-bar__said {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:root[data-layout='portrait'] .action-bar__dots {
+  display: inline-flex;
   flex: none;
+  gap: 3px;
+}
+
+:root[data-layout='portrait'] .action-bar__dots > i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ink-dim);
+  animation: action-bar-blink 1.2s infinite;
+}
+
+:root[data-layout='portrait'] .action-bar__dots > i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+:root[data-layout='portrait'] .action-bar__dots > i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes action-bar-blink {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-layout='portrait'] .action-bar__dots > i {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+:root[data-layout='portrait'] .action-bar .action-bar__more {
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: 1px;
+}
+
+:root[data-layout='portrait'] .action-bar .action-bar__more[aria-expanded='true'] {
+  border-color: var(--accent);
+}
+
+:root[data-layout='portrait'] .action-bar__sheet {
+  display: none;
+  position: absolute;
+  right: var(--portrait-pad);
+  bottom: calc(100% + 6px);
+  z-index: 40;
+  min-width: 190px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 28px var(--shadow);
+}
+
+:root[data-layout='portrait'] .action-bar__sheet[data-open] {
+  display: flex;
+}
+
+:root[data-layout='portrait'] .action-bar__sheet > button {
+  position: relative;
+  justify-content: flex-start;
+  padding: 0 10px;
+  border: 0;
+  background: none;
+  font-weight: 400;
+  text-align: left;
+}
+
+:root[data-layout='portrait'] .action-bar__art {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  color: var(--ink-dim);
 }
 
 :root[data-layout='portrait'] .action-bar__badge {
   position: absolute;
-  top: -4px;
-  right: -4px;
+  top: 2px;
+  left: 20px;
   min-width: 16px;
   height: 16px;
   padding: 0 3px;
@@ -2070,21 +2220,40 @@
   text-align: center;
 }
 
-:root[data-layout='portrait'] .action-bar__menu-toggle[aria-expanded='true'],
-:root[data-layout='portrait'] .action-bar__chat[aria-expanded='true'] {
-  border-color: var(--accent);
+:root[data-layout='portrait'] .action-bar__sheet > [aria-expanded='true'] {
   color: var(--accent-ink);
 }
 
-:root[data-layout='portrait'] .action-bar__zoom {
-  flex: none;
-  min-width: 48px;
-  font-size: 11px;
+:root[data-layout='portrait'] .action-bar__zoom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px 0 0;
 }
 
-:root[data-layout='portrait'] .action-bar__primary {
-  flex: 1 1 0;
-  font-weight: 600;
+:root[data-layout='portrait'] .action-bar .action-bar__zoom {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  padding: 0 10px;
+  border: 0;
+  background: none;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The zoom reads as information at 1× (the manager, wave 89 follow-up: *"the zoom pill '100%' renders
+ * faded, like a disabled control … it must still be readable."*): `disabled` only stops the reset there.
+ */
+:root[data-layout='portrait'] .action-bar button.action-bar__zoom:disabled {
+  opacity: 1;
+  color: var(--ink);
+}
+
+:root[data-layout='portrait'] .action-bar .action-bar__step {
+  width: 36px;
+  min-width: 36px;
+  padding: 0;
 }
 
 /* ── The room's chat column, as a sheet (Settled 7 §B.3) ──────────────── */

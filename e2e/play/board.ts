@@ -15,7 +15,7 @@ import { expect, type Locator, type Page } from '@playwright/test';
 
 import { ZONE_BOXES } from '../../apps/ui/src/play/zone-box.ts';
 import { E2E_ERA, enterMatch, twoLegalDecks } from './enter.ts';
-import { isPhone, pressInMenu } from './phone.ts';
+import { isPhone, pressInMenu, raiseHand } from './phone.ts';
 import { createStreamedRoomByApi, submitCreateRoom } from './rooms.ts';
 import type { ForgeAvailability } from './harness.ts';
 import { answerPrompt } from './prompts.ts';
@@ -28,6 +28,7 @@ import { answerPrompt } from './prompts.ts';
  * card offers none of `verbs`), so a caller fails with its own message rather than hanging.
  */
 async function tapCardView(page: Page, cardId: number, verbs: readonly string[]): Promise<boolean> {
+  await raiseHand(page, cardId);
   const face = page.locator(`[data-board-card="${cardId}"] button`).first();
   // A docked decision stands over the hand (Settled 6): to answer it with a hand card a player shrinks it first.
   const docked = await face.evaluate((el) => {
@@ -123,13 +124,8 @@ export const BUTTON_ONE =
 export const BUTTON_TWO =
   '[data-testid="live-button-end-turn"]:enabled, [data-testid="live-decision-cancel"]:enabled, [data-testid="live-payment-cancel"]:enabled, [data-testid="selection-cancel"]:enabled';
 
-/**
- * On a phone the action bar's primary button is Forge's button one too (`LiveBoard.tsx`'s `action-primary`),
- * and the only one the empty-stack pass draws: portrait docks no pop-up for it. `.first()`: the bar
- * mirrors a docked OK, and either press is the same answer.
- */
-const PRIMARY = '[data-testid="action-primary"]:enabled';
-export const enabledOk = (page: Page): Locator => (isPhone() ? page.locator(`${BUTTON_ONE}, ${PRIMARY}`).first() : page.locator(BUTTON_ONE));
+/** Forge's button one, enabled: on a phone the decision's own OK stands in the bottom bar, under the same testid. */
+export const enabledOk = (page: Page): Locator => page.locator(BUTTON_ONE).first();
 
 /** How many cards are in a seat's graveyard, as the screen says: its chip's count in portrait, its zone's on a wider table. */
 export async function graveyardCount(page: Page, who: 'me' | 'opp'): Promise<string | null> {
@@ -155,7 +151,7 @@ export const enabledCancel = (page: Page): Locator => page.locator(BUTTON_TWO);
  * guessed from the phase or the stack.
  */
 export const nextPhaseLive = (page: Page): Locator =>
-  page.locator(isPhone() ? `[data-testid="live-decision-ok"]:enabled, ${PRIMARY}` : '[data-testid="live-decision-ok"]:enabled', { hasText: /^Next Phase$/ }).first();
+  page.locator('[data-testid="live-decision-ok"]:enabled', { hasText: /^Next Phase$/ }).first();
 
 /** `[data-zone="stack"]`'s own `data-count` (`Board.tsx`) — never counted from children. */
 export const stackCount = (page: Page): Promise<number> =>
@@ -440,7 +436,12 @@ export async function dragHandCard(page: Page, cardId: number, to: { x: number; 
   const box = await page.locator(`[data-board-card="${cardId}"]`).boundingBox();
   if (box === null) throw new Error(`no box for hand card ${cardId}`);
   const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-  if (isPhone()) return touchDragHandCard(page, cardId, from, [...via, to]);
+  if (isPhone()) {
+    await raiseHand(page, cardId);
+    const up = await page.locator(`[data-board-card="${cardId}"]`).boundingBox();
+    if (up === null) throw new Error(`no box for hand card ${cardId}`);
+    return touchDragHandCard(page, cardId, { x: up.x + up.width / 2, y: up.y + up.height / 2 }, [...via, to]);
+  }
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
   const armed = await page
@@ -984,7 +985,7 @@ export async function manaPool(page: Page): Promise<Record<'total' | 'W' | 'U' |
 }
 
 /** The seat holds a live window of Forge's: one of its two buttons is pressable. */
-export const holdsLiveWindow = async (page: Page): Promise<boolean> => (await page.locator(isPhone() ? `${BUTTON_ONE}, ${BUTTON_TWO}, ${PRIMARY}` : `${BUTTON_ONE}, ${BUTTON_TWO}`).count()) > 0;
+export const holdsLiveWindow = async (page: Page): Promise<boolean> => (await page.locator(`${BUTTON_ONE}, ${BUTTON_TWO}`).count()) > 0;
 
 /**
  * Click a permanent once, and only once the click can be taken: the card is offered AND the

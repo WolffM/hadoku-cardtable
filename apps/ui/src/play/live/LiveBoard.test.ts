@@ -1483,8 +1483,8 @@ function declarations(css: string, selector: string): string {
  * Wave 89 §B — the portrait action bar (Settled 7) and its menu. jsdom lays
  * nothing out (see the §C.1 comment just below), so this is the state
  * machine only: which attribute each press sets, which element it opens or
- * closes, and that `action-primary` sends exactly what the decision pop-up's
- * own OK does — never a second sender. Geometry is `e2e/w89b-*.phone.spec.ts`'s.
+ * closes, and that in portrait the decision's own buttons stand in the bar,
+ * once. Geometry is `e2e/w89b-*.phone.spec.ts`'s.
  */
 describe('wave 89 §B — the action bar', () => {
   afterEach(() => {
@@ -1584,25 +1584,48 @@ describe('wave 89 §B — the action bar', () => {
     expect(pill.textContent).toBe('100%');
   });
 
-  it('action-primary mirrors the decision pop-up’s own OK — same label, same sender, never a second one', async () => {
-    const { s, m, getByTestId, queryByTestId } = await liveBoard();
-    const primary = getByTestId('action-primary') as HTMLButtonElement;
-    // Nothing to decide yet: disabled, same as End Turn and the cluster are.
-    expect(primary.disabled).toBe(true);
-    expect(queryByTestId('live-decision')).toBeNull();
-
+  it('in portrait the open decision’s buttons are in the bar, once, and its OK sends what the sheet’s did', async () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true, addEventListener: () => undefined, removeEventListener: () => undefined }));
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+    const { s, m, getByTestId, getAllByTestId, queryByTestId } = await liveBoard();
     s.send(stackDelta(m));
     await untilMatch(m, () => expect(m.view!.stack).toHaveLength(0));
     for (const f of buttonFrames('Priority', 'OK', 'End Turn')) s.send(f);
-    const decisionOk = await waitFor(() => getByTestId('live-decision-ok'));
+    const ok = await waitFor(() => getByTestId('live-decision-ok'));
 
-    expect(primary.disabled).toBe(false);
-    expect(primary.textContent).toBe(decisionOk.textContent);
+    expect(getAllByTestId('live-decision-ok'), 'drawn once').toHaveLength(1);
+    expect(getByTestId('action-bar').contains(ok), 'in the bar').toBe(true);
+    expect(queryByTestId('live-decision'), 'no sheet beside it').toBeNull();
 
     const before = m.stats.replies;
-    fireEvent.click(primary);
+    fireEvent.click(ok);
     await untilMatch(m, () => expect(m.stats.replies).toBe(before + 1));
     expect(s.clientFrames().some((f) => f.ok && f.value.kind === 'act' && f.value.method === 'selectButtonOk')).toBe(true);
+  });
+
+  it('the ⋯ sheet holds Chat, Menu and the zoom; − and + ask the board for a step', async () => {
+    const { getByTestId } = await liveBoard();
+    const more = getByTestId('action-more');
+    const sheet = getByTestId('action-more-sheet');
+    for (const id of ['action-chat', 'action-menu', 'zoom-pill', 'zoom-in', 'zoom-out']) expect(sheet.contains(getByTestId(id)), id).toBe(true);
+    expect(sheet.hasAttribute('data-open')).toBe(false);
+    fireEvent.click(more);
+    expect(sheet.hasAttribute('data-open')).toBe(true);
+    expect(more.getAttribute('aria-expanded')).toBe('true');
+
+    const steps: number[] = [];
+    const onStep = (e: Event) => steps.push((e as CustomEvent<{ by: number }>).detail.by);
+    window.addEventListener('cardtable:zoom-step', onStep);
+    onTestFinished(() => window.removeEventListener('cardtable:zoom-step', onStep));
+    fireEvent.click(getByTestId('zoom-in'));
+    expect(steps).toEqual([0.2]);
+
+    // Menu closes the sheet as it opens the menu.
+    fireEvent.click(getByTestId('action-menu'));
+    expect(sheet.hasAttribute('data-open')).toBe(false);
+    expect(getByTestId('action-menu').getAttribute('aria-expanded')).toBe('true');
   });
 
   /*
@@ -2029,13 +2052,12 @@ describe('the phase reads down the side', () => {
     expect(current[0]!.querySelector('.live__segment-name')!.textContent).toBe('Main 1');
     // Main 1 has one step, so no tick row — ticks are only for a segment with more than one.
     expect(current[0]!.querySelector('[data-testid="live-phase-ticks"]')).toBeNull();
-    // The uncurrent segments show their own generic label (Settled 2's words), not a step name.
-    expect(segments.filter((el) => !el.hasAttribute('data-current')).map((el) => el.querySelector('.live__segment-name')!.textContent)).toEqual([
-      'Begin',
-      'Combat',
-      'Main 2',
-      'End',
-    ]);
+    // Only the current phase is labelled (Mockup 2's phase line): the others are a line each, named for a screen reader.
+    const others = segments.filter((el) => !el.hasAttribute('data-current'));
+    expect(others.map((el) => el.querySelector('.live__segment-name'))).toEqual([null, null, null, null]);
+    expect(others.map((el) => el.getAttribute('aria-label'))).toEqual(['Begin', 'Combat', 'Main 2', 'End']);
+    // The phases already past are marked done.
+    expect(segments.filter((el) => el.hasAttribute('data-done')).map((el) => el.dataset.group)).toEqual(['begin']);
   });
 
   it('shows ticks for the current segment’s sub-steps once the game is in combat', async () => {
