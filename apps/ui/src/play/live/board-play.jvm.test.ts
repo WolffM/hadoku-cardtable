@@ -279,14 +279,22 @@ describe.skipIf(!available.ok)(title, () => {
        * A `<button>` in the DOM is a render of a past state; `selectCard` and
        * `selectPlayer` re-check `boardInteraction` and send nothing when the
        * card or seat is no longer offered. `stats.replies` counts what was
-       * sent, so comparing it across the click is the only honest answer to
-       * "did that click do anything".
+       * sent, so comparing it across the click is half the answer to "did
+       * that click do anything". The other half is a press on an outline the
+       * board still holds through a click's turnaround (`./offer-hold.ts`):
+       * `selectCard` keeps it in `deferredSelect` and sends it at Forge's next
+       * word. That is a click the product took, not one it declined — counted
+       * as declined, the driver clicked the next Shock and never latched the
+       * one Forge then asked a target for. A kept press Forge never takes
+       * expires like any other latch (`EFFECT_GRACE_MS`).
        */
       const click = (el: HTMLButtonElement, what: string, s: SeatClient): boolean => {
         const before = s.live.stats.replies;
+        const keptBefore = s.live.deferredSelect;
         fireEvent.click(el);
-        const sent = s.live.stats.replies > before;
-        log.push(`seat ${s.seat} t${s.live.view!.turn} clicks ${what}${sent ? '' : ' — DECLINED, will retry'}`);
+        const kept = s.live.deferredSelect !== null && s.live.deferredSelect !== keptBefore;
+        const sent = s.live.stats.replies > before || kept;
+        log.push(`seat ${s.seat} t${s.live.view!.turn} clicks ${what}${kept ? ' — kept for Forge’s word' : sent ? '' : ' — DECLINED, will retry'}`);
         if (!sent) declined.push(`seat ${s.seat} t${s.live.view!.turn}: ${what}`);
         return sent;
       };
