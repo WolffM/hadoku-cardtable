@@ -5453,7 +5453,6 @@ public final class PlayBridge {
             final String owed = owedInPayment();
             final forge.game.mana.ManaCostBeingPaid paying = paymentCost();
             final forge.game.player.Player payer = paying == null ? null : paymentPayer();
-            if (paying != null) { System.err.println("[bridge] manaFacts: in a payment, owed " + paying + " (colours " + owed + ")"); }
             for (int i = 0; i < abilities.size(); i++) {
                 final SpellAbility sa = cache.get(abilities.get(i));
                 if (sa == null || !sa.isManaAbility() || sa.getManaPart() == null) { continue; }

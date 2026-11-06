@@ -8,9 +8,10 @@
  *   City of Brass — Forge's list of five colours: a ring of five; the R key adds {R} and 1 damage.
  *   Adarkar Wastes — {C} | W-or-U: one ring of C, W and U; a click on U answers Forge's ability
  *     question AND its two-button colour question that follows, with no box drawn: {U} and 1 damage.
- * `mana-ring-pay`, inside a payment of Azorius Guildmage's {W}{U} under full control:
- *   City of Brass — Forge's yes/no of the two owed colours as a ring; the U key pays {U}.
- *   Tundra — its two abilities as a ring; a click on W pays {W}; the Guildmage is paid for.
+ * `mana-ring-pay`, inside a payment of Azorius Guildmage's {W/U}{W/U} under full control:
+ *   City of Brass — Forge's yes/no of the two colours as a ring; the U key pays one.
+ *   Tundra — its two abilities as a ring, both paying the hybrid left; a click on W pays it.
+ *   Then Holy Day's {W} from the second Tundra: its U pays nothing owed and is greyed.
  * No generic decision box is drawn for any of it.
  *
  * Needs a Forge build; without one the test SKIPS and its title says why.
@@ -93,8 +94,8 @@ test(titled('inside a payment the mana ring answers Forge’s two-colour yes/no 
     const page = alice.page;
     const genericBox = page.locator('[data-testid="live-prompt"], [data-testid="live-confirm"]');
     const [brass] = await ownNamed(page, 'City of Brass');
-    const [tundra] = await ownNamed(page, 'Tundra');
-    if (brass === undefined || tundra === undefined) throw new Error('the scenario board is not drawn');
+    const [tundra, tundra2] = await ownNamed(page, 'Tundra');
+    if (brass === undefined || tundra === undefined || tundra2 === undefined) throw new Error('the scenario board is not drawn');
     // Full control: cardtable's default lets Forge pay a payment it can find by itself.
     await page.getByTestId('live-full-control').click();
     await expect(page.getByTestId('live-full-control'), 'full control is on').toHaveAttribute('aria-pressed', 'true');
@@ -120,15 +121,29 @@ test(titled('inside a payment the mana ring answers Forge’s two-colour yes/no 
     await page.mouse.click(onTundra.x, onTundra.y);
     await expectRingOn(page, onTundra, 'Tundra, paying');
     await expect(ring(page)).toHaveAttribute('data-ring', 'abilities');
-    // {U} is paid: Tundra's U pays nothing of the {W} still owed, and is greyed.
-    await expect(ringOption(page, 'U'), 'U pays nothing owed').toHaveAttribute('data-dim');
-    await expect(ringOption(page, 'W'), 'W pays the {W} owed').not.toHaveAttribute('data-dim');
+    // The {W/U} left is paid by either colour: nothing is greyed.
+    await expect(ring(page).locator('[data-dim]'), 'both colours pay the hybrid left').toHaveCount(0);
     await ringOption(page, 'W').click();
     await expect(ring(page), 'the ring closed').toHaveCount(0);
     await expect.poll(() => isTapped(page, tundra), { timeout: 10_000, message: 'Tundra paid' }).toBe(true);
     // Paid in full, the Guildmage leaves the hand for the stack (full control holds it there for a pass).
     await expect.poll(async () => (await handCardNamed(page, 'Azorius Guildmage')) === undefined, { timeout: 15_000, message: 'the Guildmage was paid for' }).toBe(true);
     await expect(page.getByTestId('live-payment'), 'no payment is left open').toHaveCount(0);
+
+    // Holy Day, {W}, from the second Tundra: its U pays nothing owed and is greyed; W pays.
+    const holyDay = await handCardNamed(page, 'Holy Day');
+    if (holyDay === undefined) throw new Error('no Holy Day in hand');
+    expect(await clickHandCard(page, holyDay), 'Holy Day is cast').toBe(true);
+    await expect(page.getByTestId('live-payment'), "Holy Day's payment opens").toBeVisible({ timeout: 20_000 });
+    const onTundra2 = await pressPoint(page, tundra2);
+    await page.mouse.click(onTundra2.x, onTundra2.y);
+    await expectRingOn(page, onTundra2, 'Tundra, paying {W}');
+    await expect(ringOption(page, 'U'), 'U pays nothing of the {W} owed').toHaveAttribute('data-dim');
+    await expect(ringOption(page, 'W'), 'W pays it').not.toHaveAttribute('data-dim');
+    await page.keyboard.press('u');
+    await expect(ring(page), 'the U key picks nothing greyed').toBeVisible();
+    await ringOption(page, 'W').click();
+    await expect.poll(async () => (await handCardNamed(page, 'Holy Day')) === undefined, { timeout: 15_000, message: 'Holy Day was paid for' }).toBe(true);
   } finally {
     await stack.stop();
   }

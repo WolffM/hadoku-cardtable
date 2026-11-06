@@ -21,8 +21,8 @@ import './mana-ring.css';
 /** A disc's size in px: the pointer's, and a finger's (at least 44 px, the brief's touch floor). */
 const DISC_PX = 42;
 const FINGER_DISC_PX = 52;
-/** How far over a finger's press the ring's lowest disc stands. */
-const OVER_FINGER_PX = 16;
+/** How far over a finger's press the ring's lowest disc stands: clear of the fingertip's pad. */
+const OVER_FINGER_PX = 28;
 /** How far beside a finger's press the ring stands when the board leaves no room above it. */
 const FINGER_CLEAR_PX = 32;
 
