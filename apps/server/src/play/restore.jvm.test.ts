@@ -124,12 +124,18 @@ function noAttacks(s: Scenario, goal: () => boolean): () => boolean {
 	};
 }
 
-/** Pass to turn `turn`'s first main and have its active seat play a land from hand, when it holds one. */
-async function playALand(s: Scenario, turn: number): Promise<void> {
+/**
+ * Pass to turn `turn`'s first main and have its active seat play a land from hand, when it holds one.
+ * Returns that seat. A caller takes the seat from here, never from `inOwnMain` afterwards: once the land
+ * is down the server may pass the seat out of its main phase itself, and a later `inOwnMain` then names
+ * the other seat (restore.jvm's "allowed" red on main, 2026-11-05).
+ */
+async function playALand(s: Scenario, turn: number): Promise<number> {
 	await passUntil(s, noAttacks(s, () => inOwnMain(s, 0, turn) || inOwnMain(s, 1, turn)), `turn ${turn}, its first main`, 120_000);
 	const seat = inOwnMain(s, 0, turn) ? 0 : 1;
+	expect(s.match.activeSeat()?.seat, `turn ${turn} is seat ${seat}'s`).toBe(seat);
 	const land = s.zone(seat, 'Hand').find((c) => c.land);
-	if (land === undefined) return;
+	if (land === undefined) return seat;
 	const was = s.zone(seat, 'Battlefield').filter((c) => c.land).length;
 	let clickedAt = 0;
 	// Read as priority.jvm.test.ts does: the land count, not the window after it, which the server
@@ -148,6 +154,7 @@ async function playALand(s: Scenario, turn: number): Promise<void> {
 		30_000,
 		s,
 	);
+	return seat;
 }
 
 describe.skipIf(!available.ok)(title, () => {
@@ -159,10 +166,11 @@ describe.skipIf(!available.ok)(title, () => {
 			const decks: [string, string] = [deck('Restore A', [...lands, '12 Grizzly Bears']), deck('Restore B', [...lands, '12 Hill Giant'])];
 			const s = await startScenario(available.config, { seed: 31, decks });
 			try {
-				for (const turn of [1, 2, 3]) await playALand(s, turn);
+				await playALand(s, 1);
+				await playALand(s, 2);
+				const active = await playALand(s, 3);
 				// One snapshot per turn, from the first.
 				expect(snapshots(s).map((l) => l.turn)).toEqual([1, 2, 3]);
-				const active = inOwnMain(s, 0, 3) ? 0 : 1;
 				const turn3 = snapshots(s).at(-1)!.state;
 				expect(zoneNames(turn3, 'p0battlefield').length + zoneNames(turn3, 'p1battlefield').length).toBeGreaterThan(0);
 				const idsBefore = battlefieldIds(s, 0);
@@ -346,8 +354,7 @@ describe.skipIf(!available.ok)(`${title}: restart turn`, () => {
 			const s = await startScenario(available.config, { seed: 31, decks: decks() });
 			try {
 				await playALand(s, 1);
-				await playALand(s, 2);
-				const active = inOwnMain(s, 0, 2) ? 0 : 1;
+				const active = await playALand(s, 2);
 				const from = snapshots(s).findLast((l) => l.turn === 2)!;
 				const landsNow = s.zone(active, 'Battlefield').filter((c) => c.land).length;
 				expect(landsNow, 'a land was played this turn').toBeGreaterThan(zoneNames(from.state, `p${active}battlefield`).length);
@@ -419,8 +426,7 @@ describe.skipIf(!available.ok)(`${title}: restart turn`, () => {
 			if (!available.ok) return;
 			const s = await startScenario(available.config, { seed: 31, decks: decks() });
 			try {
-				await playALand(s, 1);
-				const active = inOwnMain(s, 0, 1) ? 0 : 1;
+				const active = await playALand(s, 1);
 				const before = s.match;
 				const battlefield = s.zone(active, 'Battlefield').map((c) => c.id);
 				expect(before.restartAct(active, 'ask')).toEqual({ ok: true });
