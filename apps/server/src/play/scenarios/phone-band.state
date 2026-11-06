@@ -1,0 +1,18 @@
+# The phone's top band and bottom bar (Mockup 2, chip A). Seat 0 (human) is in an ordinary Main
+# Phase 1 with something in every pile it can open: a graveyard and an exile on both seats. The AI
+# has lands and no other permanent, so its permanents lane is empty and folds.
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Lightning Bolt;Llanowar Elves;Forest
+humanbattlefield=Forest;Forest;Mountain;Grizzly Bears
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=Shock;Brainstorm
+humanexile=Lightning Bolt
+aihand=Island;Island
+aibattlefield=Island;Island
+ailibrary=Island;Island;Island;Island;Island;Island;Island;Island
+aigraveyard=Counterspell
+aiexile=Thoughtseize
