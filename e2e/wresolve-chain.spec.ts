@@ -12,8 +12,17 @@
  *
  * Each trigger is the same thing drawn again, so each plays faster than the last (`apps/ui/src/play/live/tempo.ts`,
  * the operator, 2026-11-02: "the more time an animation plays in a single turn, i think the faster it should
- * happen"): the gap before the `n`th is `RESOLVE_CHAIN_GAP_MS` at the `n`th's tempo, and the chain's later gaps are
- * shorter than its first.
+ * happen"): the gap before the `n`th is `RESOLVE_CHAIN_GAP_MS` at the `n`th's tempo.
+ *
+ * What is judged on which clock (run 42177519336, red on a loaded claw). The whole quickening is 120 ms across the chain
+ * (240 → 120 ms), and a loaded claw's page runs at ~30 fps with 100–230 ms long frames, which put ±100 ms on every DRAWN
+ * gap — a mean of two drawn gaps against two others was a coin toss there, the pacer adding nothing. So:
+ *  - the quickening is the product's own word: each trigger's beats report the tempo they ran at, and it rises;
+ *  - each fireball sets off no earlier than its gap after the last one's frame (the pacer's anchor, `pace.ts`), and
+ *    no later than that — or than its resolution reaching the seat, when Forge was slower than the gap — by more
+ *    than the long frames the page reported in between and a small allowance: a pacer that waits too long fails on
+ *    any machine, and the machine's own jank does not;
+ *  - "never together" and "never drags" stay on the drawn gaps.
  */
 import { expect, test, type Page } from '@playwright/test';
 
@@ -42,6 +51,10 @@ const TOGETHER = 0.5;
 const MEDIAN = (GAP_MS - 40) / GAP_MS;
 /** "without dragging": the slowest a chain's next fireball may be. */
 const SLOWEST_MS = 900;
+/** A set-off may come this much before its gap: the fireball's frame and the pacer's anchor are one frame, give or take. */
+const EARLY_SLACK_MS = 20;
+/** Past its gap (or its frame's arrival), plus the long frames in between: a timer, a task hop, React's render and a frame. */
+const LATE_ALLOWANCE_MS = 80;
 
 /** The open sheet's card tiles, and the text each shows. */
 async function tiles(page: Page): Promise<{ id: number; text: string }[]> {
@@ -71,15 +84,36 @@ async function pressIfThere(page: Page, selector: string): Promise<void> {
 /** Every fireball (`projectile.ts`'s `.effect-hit`) set off on `page` from now on, by the page's own clock. */
 async function watchFireballs(page: Page): Promise<void> {
   await page.evaluate(() => {
-    const w = window as unknown as { __fireballs: number[] };
+    const w = window as unknown as { __fireballs: number[]; __fireballFrames: number[]; __longFrames: [number, number][] };
     w.__fireballs = [];
+    w.__fireballFrames = [];
+    w.__longFrames = [];
+    // The page's own long frames (> 50 ms), as Chromium reports them: what a loaded machine costs every timer and frame.
+    new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) w.__longFrames.push([e.startTime, e.startTime + e.duration]);
+    }).observe({ type: 'long-animation-frame', buffered: false });
     new MutationObserver((records) => {
-      for (const r of records) for (const n of r.addedNodes) if (n instanceof HTMLElement && n.classList.contains('effect-hit')) w.__fireballs.push(performance.now());
+      for (const r of records)
+        for (const n of r.addedNodes)
+          if (n instanceof HTMLElement && n.classList.contains('effect-hit')) {
+            const i = w.__fireballs.push(performance.now()) - 1;
+            // The frame that draws it: the pacer's own anchor for the next of a chain (`pace.ts`, `nextFrame`).
+            requestAnimationFrame(() => {
+              w.__fireballFrames[i] = performance.now();
+            });
+          }
     }).observe(document.body, { childList: true, subtree: true });
   });
 }
 
 const fireballs = (page: Page): Promise<number[]> => page.evaluate(() => (window as unknown as { __fireballs: number[] }).__fireballs);
+const fireballFrames = (page: Page): Promise<number[]> => page.evaluate(() => (window as unknown as { __fireballFrames: number[] }).__fireballFrames);
+const longFrames = (page: Page): Promise<[number, number][]> => page.evaluate(() => (window as unknown as { __longFrames: [number, number][] }).__longFrames);
+/** The page's clock at the epoch: a server log time `t` (same host) is `t - origin` on it. */
+const timeOrigin = (page: Page): Promise<number> => page.evaluate(() => performance.timeOrigin);
+/** How much of `[from, to]` the long frames covered. */
+const jankIn = (frames: [number, number][], from: number, to: number): number =>
+  frames.reduce((sum, [a, b]) => sum + Math.max(0, Math.min(b, to) - Math.max(a, from)), 0);
 const gapsOf = (times: number[]): number[] => times.slice(1).map((t, i) => Math.round(t - times[i]!));
 
 test(titled('promo-valakut, bob on Auto Yield: the triggers resolve one at a time, a short gap apart, on both screens'), async ({ browser }) => {
@@ -146,28 +180,57 @@ test(titled('promo-valakut, bob on Auto Yield: the triggers resolve one at a tim
     for (const p of [alice.page, bob.page]) await expect.poll(async () => (await fireballs(p)).length, { timeout: 30_000, message: 'every hit is drawn' }).toBeGreaterThanOrEqual(6);
     await page.waitForTimeout(2_000);
 
-    for (const [who, p] of [['alice', alice.page], ['bob', bob.page]] as const) {
+    const log = serverLog(stack).slice(fromAim);
+    for (const [who, seat, p] of [['alice', 0, alice.page], ['bob', 1, bob.page]] as const) {
       const times = await fireballs(p);
       const gaps = gapsOf(times);
       console.log(`[wresolve] ${who}: ${times.length} fireballs, gaps ${gaps.join(',')} ms`);
       expect.soft(times.length, `${who}: a fireball per trigger that resolved before bob died`).toBeGreaterThanOrEqual(6);
-      // The gap after fireball k is the one before trigger k + 1.
-      const shares = gaps.map((g, k) => g / gapBefore(k + 2));
-      console.log(`[wresolve] ${who}: each gap against its tempo's ${gaps.map((_, k) => Math.round(gapBefore(k + 2))).join(',')} ms`);
       expect.soft(gaps.filter((g, k) => g < TOGETHER * gapBefore(k + 2)), `${who}: no two triggers resolve together (each ≥ half its gap after the last)`).toEqual([]);
+      const shares = gaps.map((g, k) => g / gapBefore(k + 2));
       const median = [...shares].sort((a, b) => a - b)[Math.floor(shares.length / 2)] ?? 0;
       expect.soft(median, `${who}: the chain keeps its gaps (median ≥ ${MEDIAN.toFixed(2)} of each)`).toBeGreaterThanOrEqual(MEDIAN);
       expect.soft(gaps.filter((g) => g > SLOWEST_MS), `${who}: the chain does not drag (each ≤ ${SLOWEST_MS} ms after the last)`).toEqual([]);
-      // The last fireball is the one that kills. When Forge's word that the game is over comes ahead of its frame, the
-      // chain ends there and that frame keeps a resolution's own gap (measured 226–278 ms). So the first two of the chain's
-      // gaps are weighed against the two before the last.
-      const mean = (xs: number[]): number => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
-      const chainGaps = gaps.slice(0, -1);
-      expect.soft(mean(chainGaps.slice(-2)), `${who}: the chain quickens — its later gaps are shorter than its first`).toBeLessThan(mean(chainGaps.slice(0, 2)));
+
+      // The quickening, in the product's own word: each trigger's beats (`numbers.ts`'s `effect` report) ran faster.
+      const tempos = log.filter((r) => r.evt === 'client' && r.seat === seat && r.what === 'beats' && Number(r.hits) > 0).map((r) => Number(r.tempo));
+      console.log(`[wresolve] ${who}: the beats ran at tempo ${tempos.join(',')}`);
+      expect.soft(tempos.length, `${who}: each fireball's beats were reported`).toBeGreaterThanOrEqual(times.length);
+      expect.soft(
+        tempos.slice(1).filter((t, k) => !(t > tempos[k]! || t === 2.5)),
+        `${who}: the chain quickens — each trigger's tempo above the last's, up to the scale's 2.5`,
+      ).toEqual([]);
+
+      // Each set-off against the pacer's gap, from the last fireball's frame. The resolution's own frame reaches the seat
+      // when Forge sends it: the first state after Forge's word of that trigger's damage (server log, same host's clock).
+      const frames = await fireballFrames(p);
+      const longs = await longFrames(p);
+      const origin = await timeOrigin(p);
+      const wire = log.filter((r) => r.evt === 'wire-frame' && r.seat === seat);
+      const arrivals = wire.flatMap((r, i) =>
+        r.method === 'message' && /Valakut, the Molten Pinnacle deals 3/.test(String(r.message))
+          ? [Date.parse(String(wire.slice(i).find((n) => n.method === 'applyDelta')?.t ?? r.t)) - origin]
+          : [],
+      );
+      expect.soft(arrivals.length, `${who}: Forge's word of each trigger's damage is in the server log`).toBeGreaterThanOrEqual(times.length);
+      // The last fireball kills: Forge's word that the game is over can come ahead of its frame, so that gap is not the chain's.
+      const links = times.slice(1, -1).map((t, k) => {
+        const anchor = frames[k] ?? times[k]!;
+        const target = gapBefore(k + 2);
+        const ready = Math.max(anchor + target, arrivals[k + 1] ?? -Infinity);
+        const jank = jankIn(longs, anchor, t);
+        return { setOff: Math.round(t - anchor), target: Math.round(target), late: Math.round(t - ready), jank: Math.round(jank) };
+      });
+      console.log(
+        `[wresolve] ${who}: set off ${links.map((l) => `${l.setOff}/${l.target}`).join(',')} ms (each/its gap); late ${links.map((l) => l.late).join(',')} ms past due or arrival; long frames ${links.map((l) => l.jank).join(',')} ms`,
+      );
+      expect.soft(links.filter((l) => l.setOff < l.target - EARLY_SLACK_MS), `${who}: no fireball sets off before its gap`).toEqual([]);
+      expect.soft(
+        links.filter((l) => l.late > l.jank + LATE_ALLOWANCE_MS),
+        `${who}: no fireball waits past its gap (or its frame's arrival) beyond the page's own long frames + ${LATE_ALLOWANCE_MS} ms`,
+      ).toEqual([]);
     }
-    const held = serverLog(stack)
-      .slice(fromAim)
-      .filter((r) => r.evt === 'client' && r.seat === 0 && r.what === 'input-held');
+    const held = log.filter((r) => r.evt === 'client' && r.seat === 0 && r.what === 'input-held');
     expect.soft(held.map((r) => `${String(r.method)} ${String(r.ms)}ms`), "no decision of alice's was held during the chain").toEqual([]);
   } finally {
     await stack.stop();
