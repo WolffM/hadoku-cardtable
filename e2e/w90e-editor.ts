@@ -61,3 +61,20 @@ export async function emptyPointIn(page: Page, viewportTestId: string): Promise<
   if (p === null) throw new Error(`${viewportTestId} has no empty point to press`);
   return p;
 }
+
+/** A point on a card that is drawn inside its viewport and is what a finger there would press. */
+export async function cardPointIn(page: Page, viewportTestId: string): Promise<{ x: number; y: number }> {
+  const p = await page.getByTestId(viewportTestId).evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    for (const fy of [0.5, 0.25, 0.75]) {
+      for (let x = r.left + 8; x < r.right - 8; x += 6) {
+        const y = r.top + r.height * fy;
+        const hit = document.elementFromPoint(x, y);
+        if (hit !== null && el.contains(hit) && hit.closest('.deck-editor__card') !== null) return { x, y };
+      }
+    }
+    return null;
+  });
+  if (p === null) throw new Error(`${viewportTestId} draws no card to press`);
+  return p;
+}

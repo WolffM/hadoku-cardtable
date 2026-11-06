@@ -9,7 +9,7 @@
 import { expect, test } from '@playwright/test';
 
 import { deckPileTop } from './deckBuilder.ts';
-import { emptyPointIn, openSoloDeckEditor, surfaceTransform } from './w90e-editor.ts';
+import { cardPointIn, emptyPointIn, openSoloDeckEditor, surfaceTransform } from './w90e-editor.ts';
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
@@ -21,6 +21,12 @@ test('one inspector, a zoom pill, ctrl+wheel and step zoom, a mouse pans only fr
   await expect(page.getByTestId('side-count')).toHaveText('1');
   await pileTop.click();
   await expect(page.getByTestId('side-count')).toHaveText('2');
+
+  // At 100% the fit still holds: neither viewport clips its own cards (`dr-draft-picks.spec.ts`'s check).
+  for (const id of ['side-grid', 'main-grid']) {
+    const clip = await page.getByTestId(id).evaluate((e) => ({ w: e.scrollWidth - e.clientWidth, h: e.scrollHeight - e.clientHeight }));
+    expect(clip, `${id} clips nothing at 100%`).toEqual({ w: 0, h: 0 });
+  }
 
   await page.getByTestId('side-grid').getByTestId('card').first().hover();
   await expect(page.locator('[data-inspect]'), 'exactly one enlarged card').toHaveCount(1);
@@ -74,16 +80,17 @@ test('one inspector, a zoom pill, ctrl+wheel and step zoom, a mouse pans only fr
   expect([await page.getByTestId('main-count').textContent(), await page.getByTestId('side-count').textContent()], 'a pan moves no card').toEqual(counts);
 
   // A mouse drag that starts on a card is the card's, never a pan.
-  const card = (await pileTop.boundingBox())!;
-  await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
+  const card = await cardPointIn(page, 'main-grid');
+  await page.mouse.move(card.x, card.y);
   await page.mouse.down();
-  await page.mouse.move(card.x + card.width / 2 + 50, card.y + card.height / 2, { steps: 6 });
+  await page.mouse.move(card.x + 50, card.y, { steps: 6 });
   await page.mouse.up();
   expect(await surfaceTransform(page, 'main-grid'), 'a drag from a card never pans').toEqual(panned);
 
   // A click still moves a card, zoomed in.
   const mainBefore = await page.getByTestId('main-count').textContent();
-  await pileTop.click();
+  const onCard = await cardPointIn(page, 'main-grid');
+  await page.mouse.click(onCard.x, onCard.y);
   await expect(page.getByTestId('main-count')).not.toHaveText(mainBefore ?? '');
 
   // The pill's + and − step the zoom; the percentage resets it.

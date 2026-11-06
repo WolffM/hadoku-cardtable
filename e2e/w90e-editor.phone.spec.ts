@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test';
 
 import { deckPileTop } from './deckBuilder.ts';
 import { noSideways, pinch, PHONE, swipe } from './play/phone.ts';
-import { emptyPointIn, openSoloDeckEditor, surfaceTransform } from './w90e-editor.ts';
+import { cardPointIn, emptyPointIn, openSoloDeckEditor, surfaceTransform } from './w90e-editor.ts';
 
 test.use(PHONE);
 
@@ -24,11 +24,20 @@ test('cards stay readable, a finger pans from a card or empty space, a pinch zoo
   await expect(page.getByTestId('deck-zoom-pill')).toHaveText('100%');
   await noSideways(page);
 
+  // The pan is a viewport's only offset: the browser never scrolls one (bringing a tapped card into
+  // view did, and the pile tops above it were then out of reach of any pan).
+  for (const id of ['side-grid', 'main-grid']) {
+    const scrolled = await page.getByTestId(id).evaluate((e) => {
+      e.scrollTo(40, 40);
+      return [e.scrollLeft, e.scrollTop];
+    });
+    expect(scrolled, `${id} never scrolls`).toEqual([0, 0]);
+  }
+
   // A sideways swipe that starts ON a card pans the piles, and moves no card.
   const counts = async () => [await page.getByTestId('main-count').textContent(), await page.getByTestId('side-count').textContent()];
   const before = await counts();
-  const card = (await page.getByTestId('main-grid').getByTestId('card').first().boundingBox())!;
-  const from = { x: card.x + card.width / 2, y: card.y + Math.min(20, card.height / 2) };
+  const from = await cardPointIn(page, 'main-grid');
   await swipe(page, from, { x: from.x - 140, y: from.y });
   const fromCard = await surfaceTransform(page, 'main-grid');
   expect(fromCard.x, 'a swipe from a card panned the piles').toBeLessThan(-60);
@@ -49,7 +58,8 @@ test('cards stay readable, a finger pans from a card or empty space, a pinch zoo
 
   // A tap still moves a card, pinched in.
   const side = await page.getByTestId('side-count').textContent();
-  await page.getByTestId('side-grid').getByTestId('card').first().tap();
+  const onCard = await cardPointIn(page, 'side-grid');
+  await page.touchscreen.tap(onCard.x, onCard.y);
   await expect(page.getByTestId('side-count')).not.toHaveText(side ?? '');
 
   await page.getByTestId('deck-zoom-pill').tap();

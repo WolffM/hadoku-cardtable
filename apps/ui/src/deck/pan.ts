@@ -153,11 +153,13 @@ export interface PanZoomHandle {
 const SURFACES: readonly Surface[] = ['pool', 'deck'];
 
 /** A viewport's extent: its own client box, and its one child surface's unscaled layout box. */
+/** The viewport's content box (its padding is the cards' margin, and the fit measures without it) against its surface. */
 function extentOf(el: HTMLElement): Extent {
   const surface = el.firstElementChild as HTMLElement | null;
+  const s = getComputedStyle(el);
   return {
-    viewW: el.clientWidth,
-    viewH: el.clientHeight,
+    viewW: el.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight),
+    viewH: el.clientHeight - parseFloat(s.paddingTop) - parseFloat(s.paddingBottom),
     contentW: surface?.offsetWidth ?? el.clientWidth,
     contentH: surface?.offsetHeight ?? el.clientHeight,
   };

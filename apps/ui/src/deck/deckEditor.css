@@ -274,16 +274,20 @@
 
 /* The pool's VIEWPORT: `DeckEditor` sets its basis to the height its cards take at `--cw`, padding
    apart; it never grows past that, and a pan or a zoom moves the `.deck-editor__surface` inside it,
-   never its own box. Not itself a flex container (its surface is) — `column-gap` stays declared
+   never its own box. The padding stays on the viewport, outside the content box `useBox` measures, so
+   the fit's height and width are exactly what the cards get. Not itself a flex container (its surface is) — `column-gap` stays declared
    here too, at the surface's own value, only so `cardFit.ts`'s `cssPx()` reads it rather than falling
    back (the fallback happens to match, but a changed gap must not go stale silently). */
 .deck-editor__grid {
   flex: 1 1 0;
   min-height: 0;
-  overflow: hidden;
+  /* `clip`, not `hidden`: a hidden box still scrolls to bring a tapped card into view, and the pan
+     cannot undo that. The pan is the only offset. */
+  overflow: clip;
   position: relative;
   touch-action: none;
   box-sizing: content-box;
+  padding: 4px 2px;
   column-gap: 6px;
 }
 
@@ -296,7 +300,6 @@
   flex-wrap: wrap;
   align-content: flex-start;
   gap: 6px;
-  padding: 4px 2px;
   width: 100%;
 }
 
@@ -383,16 +386,18 @@
 .deck-editor__piles {
   flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
+  /* `clip`, not `hidden`: a hidden box still scrolls to bring a tapped card into view, and the pan
+     cannot undo that. The pan is the only offset. */
+  overflow: clip;
   position: relative;
   touch-action: none;
+  padding-top: 2px;
   column-gap: var(--pile-gap);
 }
 
 .deck-editor__surface--piles {
   display: flex;
   gap: var(--pile-gap);
-  padding-top: 2px;
   width: max-content;
 }
 
