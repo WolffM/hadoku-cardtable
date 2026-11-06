@@ -164,6 +164,9 @@ export interface CardLongPress {
  * already decides every one of these cases for the mouse gesture this touch tap is replacing, so the
  * verb here is read off that decision, never hand-listed again.
  */
+/** A card view's actions, read from the live match each time they are drawn. */
+export type CardViewActions = () => readonly CardViewAction[];
+
 export interface CardViewAction {
   readonly verb: 'cast' | 'play' | 'activate' | 'target' | 'attack';
   readonly label: string;
@@ -189,11 +192,12 @@ interface InspectTarget {
    */
   trigger?: Element;
   /**
-   * The action row (`card-view-action`), when this view was opened by `openCardView` with the card's
-   * current legal actions. Absent for every hover/long-press opened from inside this module — those
-   * never know a card's game actions, only its DOM.
+   * The action row (`card-view-action`), when this view was opened by `openCardView`: what the card
+   * may do NOW, read again on every `refreshCardView`, so a view opened a moment before Forge's offer
+   * arrives gains its Cast when the offer does. Absent for every hover/long-press opened from inside
+   * this module — those never know a card's game actions, only its DOM.
    */
-  actions?: readonly CardViewAction[];
+  actions?: CardViewActions;
 }
 
 /**
@@ -538,7 +542,9 @@ function hoverOff(): boolean {
  * a touch tap that must read instead of act looks the card up, builds its actions off `LiveMatch`,
  * and hands both here, outside the pointer gesture `show`/`dismiss` otherwise run on alone.
  */
-const activeApis = new WeakMap<ParentNode, (card: number | Element, actions: readonly CardViewAction[]) => boolean>();
+const activeApis = new WeakMap<ParentNode, { open: (card: number | Element, actions: CardViewActions) => boolean; refresh: () => void }>();
+
+const actionsKey = (actions: readonly CardViewAction[]): string => actions.map((a) => `${a.verb}:${a.label}`).join('|');
 
 /**
  * Open the card view on a card already drawn under `root`, from OUTSIDE this module's own pointer
@@ -549,8 +555,13 @@ const activeApis = new WeakMap<ParentNode, (card: number | Element, actions: rea
  * everywhere else. `card` is a board card's id, or an element drawn on the board (a stack item, which
  * has no board card of its own): that one is read as a hover over its face reads it.
  */
-export function openCardView(root: ParentNode, card: number | Element, actions: readonly CardViewAction[] = []): boolean {
-  return activeApis.get(root)?.(card, actions) ?? false;
+export function openCardView(root: ParentNode, card: number | Element, actions: CardViewActions = () => []): boolean {
+  return activeApis.get(root)?.open(card, actions) ?? false;
+}
+
+/** Redraw the open view's action row when what its card may do has changed. The caller's paint runs it. */
+export function refreshCardView(root: ParentNode): void {
+  activeApis.get(root)?.refresh();
 }
 
 /**
@@ -594,6 +605,8 @@ export function mountInspector(root: ParentNode): () => void {
    * a change, and it closed the panel in the same frame it opened.
    */
   let byTouch = false;
+  /** What the open view's action row shows (`actionsKey`), so a refresh redraws only on a change. */
+  let drawnActions = '';
 
   const layer = (): HTMLElement | null => topLayerIn(root);
 
@@ -623,6 +636,45 @@ export function mountInspector(root: ParentNode): () => void {
 
   /** Whether `node` is inside the quiet card. */
   const inQuiet = (node: EventTarget | null): boolean => quiet !== null && node instanceof Node && quiet.contains(node);
+
+  /** The open view's action row, as `target.actions` reads now; replaces any row already drawn. */
+  function drawActions(el: HTMLElement, target: InspectTarget): void {
+    el.querySelector(':scope > .inspect__actions')?.remove();
+    const actions = target.actions?.() ?? [];
+    drawnActions = actionsKey(actions);
+    if (actions.length > 0) {
+      const row = document.createElement('div');
+      row.className = 'inspect__actions';
+      for (const action of actions) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'inspect__action';
+        button.dataset.testid = 'card-view-action';
+        button.dataset.verb = action.verb;
+        button.textContent = action.label;
+        // A press here is the view's own, never the gesture layer's: without this, the SAME
+        // `pointerdown` bubbles to `../live/gestures/install.ts`'s canvas-level listener (it is
+        // bubble-phase, so the button's own handlers run first, but the event still reaches
+        // canvas right after) and, while a selection is open, that layer reads "a press on the
+        // table" and starts its own click-targeting drag from wherever the button happens to sit.
+        button.addEventListener('pointerdown', (event) => event.stopPropagation());
+        button.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          putAway();
+          action.run();
+        });
+        row.appendChild(button);
+      }
+      el.appendChild(row);
+    }
+  }
+
+  /** `refreshCardView`: the row again, only when the actions it would show are not the ones shown. */
+  function refreshActions(): void {
+    if (panel === null || current?.actions === undefined) return;
+    if (actionsKey(current.actions()) !== drawnActions) drawActions(panel, current);
+  }
 
   function show(target: InspectTarget): void {
     const host = layer();
@@ -669,33 +721,7 @@ export function mountInspector(root: ParentNode): () => void {
       dismiss();
     });
     el.appendChild(clone);
-    const actions = target.actions ?? [];
-    if (actions.length > 0) {
-      const row = document.createElement('div');
-      row.className = 'inspect__actions';
-      for (const action of actions) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'inspect__action';
-        button.dataset.testid = 'card-view-action';
-        button.dataset.verb = action.verb;
-        button.textContent = action.label;
-        // A press here is the view's own, never the gesture layer's: without this, the SAME
-        // `pointerdown` bubbles to `../live/gestures/install.ts`'s canvas-level listener (it is
-        // bubble-phase, so the button's own handlers run first, but the event still reaches
-        // canvas right after) and, while a selection is open, that layer reads "a press on the
-        // table" and starts its own click-targeting drag from wherever the button happens to sit.
-        button.addEventListener('pointerdown', (event) => event.stopPropagation());
-        button.addEventListener('click', (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          putAway();
-          action.run();
-        });
-        row.appendChild(button);
-      }
-      el.appendChild(row);
-    }
+    drawActions(el, target);
     // A card is a card's proportion at any width. Anything else — a chip, an avatar's column of
     // emblem chips — is as tall as its text: laid out at the preferred width and measured, placed by
     // that, and scaled down whole if it must shrink, so its text never re-wraps taller than measured.
@@ -894,7 +920,7 @@ export function mountInspector(root: ParentNode): () => void {
    * applies to a re-hover of the same card — because the caller may be handing back the SAME card with
    * a DIFFERENT action (Forge's offer moved on since the last tap).
    */
-  function openOn(card: number | Element, actions: readonly CardViewAction[]): boolean {
+  function openOn(card: number | Element, actions: CardViewActions): boolean {
     let target: InspectTarget | null;
     if (typeof card === 'number') {
       const owner = scope.querySelector(`[data-card-id="${card}"]`);
@@ -937,9 +963,10 @@ export function mountInspector(root: ParentNode): () => void {
     // Only clear the registry if nothing has re-mounted this root since:
     // a superseded instance's own (stale) dispose must stay a harmless no-op.
     if (activeMounts.get(root) === dispose) activeMounts.delete(root);
-    if (activeApis.get(root) === openOn) activeApis.delete(root);
+    if (activeApis.get(root) === api) activeApis.delete(root);
   };
+  const api = { open: openOn, refresh: refreshActions };
   activeMounts.set(root, dispose);
-  activeApis.set(root, openOn);
+  activeApis.set(root, api);
   return dispose;
 }

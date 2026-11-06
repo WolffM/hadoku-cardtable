@@ -299,7 +299,7 @@ import { centreOf } from '../../lift.ts';
 import { viewerOf } from '../../adapter.ts';
 import { battlefieldCard, cardBox, faceBox, overlayOf } from '../board-dom.ts';
 import { boxOf, cardIdUnder, targetUnder } from './targets.ts';
-import { CARD_LONG_PRESS, openCardView, type CardViewAction } from '../../inspect/index.ts';
+import { CARD_LONG_PRESS, openCardView, refreshCardView, type CardViewAction } from '../../inspect/index.ts';
 import {
   byFinger,
   clickLatch,
@@ -819,6 +819,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     if ((match.view?.combat ?? []).length === 0) rammed.clear();
     const lasting = overlay === null ? null : [...combatArrows(canvas, match, rammed), ...blockArrows(canvas, match, rammed), ...aimedArrows()];
     flag(CANVAS_ATTR, '');
+    refreshCardView(canvas.querySelector('.board') ?? canvas);
     flag('data-dragging', drag !== null && drag.moved ? '' : null);
     flag('data-marquee', marquee !== null && marquee.moved ? '' : null);
     flag('data-aiming', aim !== null ? '' : null);
@@ -1172,7 +1173,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
 
   /** Open the card view for `id` with whatever `viewActionsFor` says it may do — the touch read-tap's one exit. */
   function openTouchView(id: number): void {
-    openCardView(canvas.querySelector('.board') ?? canvas, id, viewActionsFor(id));
+    openCardView(canvas.querySelector('.board') ?? canvas, id, () => viewActionsFor(id));
   }
 
   function casterFacts(p: Parked, how: string, from: Point | null, to: Point | Element | null): HandoverFacts {

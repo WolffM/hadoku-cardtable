@@ -4422,6 +4422,25 @@ describe('wave 89 §D — a touch tap reads a hand card and acts on a permanent;
     expect(await sent(s, m)).toEqual([['selectCard', hand[0]!]]);
   });
 
+  it('a card view opened before Forge offers the card gains its Cast when the offer arrives', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const board = mountedBoard(canvas);
+    const hand = mineOf(m).hand!.map((c) => c.id);
+
+    tap(cardEl(canvas, hand[0]!).querySelector<HTMLButtonElement>('button')!);
+    const view = board.querySelector('[data-testid="card-view"]');
+    expect(view, 'the view opens on a read-tap with nothing offered').not.toBeNull();
+    expect(view!.querySelector('[data-testid="card-view-action"]'), 'nothing to do yet').toBeNull();
+
+    for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
+    await expect
+      .poll(() => board.querySelector<HTMLElement>('[data-testid="card-view-action"]')?.dataset.verb, { message: 'the same open view now offers the cast' })
+      .toBe('cast');
+    expect(board.querySelector('[data-testid="card-view"]'), 'it is the view the tap opened, not a new one').toBe(view);
+    expect(await s.framesFrom(m), 'nothing was sent').toHaveLength(0);
+  });
+
   /*
    * A permanent is the exception to the read-tap (the operator, 2026-11-02, on a tapped Swamp opening
    * full screen: "i would expect tapping it to be just seeing it tap not it becoming full screen"): on
