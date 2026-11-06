@@ -48,9 +48,14 @@ export async function pressInMenu(page: Page, testId: string): Promise<void> {
   const control = await inMenu(page, testId);
   if (isPhone()) await control.tap();
   else await control.click();
-  // Closed by its own toggle, back in ⋯ — never Escape, which would also cancel a confirmation the press just opened.
+  // Closed as a player closes it, by a press outside it: ⋯, which then opens its own sheet, closed by ⋯ again.
+  // Never Escape, which would also cancel a confirmation the press just opened (Concede's).
   const menu = page.getByTestId('action-menu');
-  if (isPhone() && (await menu.count()) > 0 && (await menu.getAttribute('aria-expanded')) === 'true') await (await inMore(page, 'action-menu')).tap();
+  const more = page.getByTestId('action-more');
+  if (!isPhone() || (await menu.count()) === 0 || (await menu.getAttribute('aria-expanded')) !== 'true') return;
+  await more.tap();
+  await expect(menu).toHaveAttribute('aria-expanded', 'false');
+  if ((await more.getAttribute('aria-expanded')) === 'true') await more.tap();
 }
 
 /**
