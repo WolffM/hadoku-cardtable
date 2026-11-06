@@ -269,7 +269,8 @@ export interface PlayHandle {
 	/**
 	 * Settles once every match an earlier server left running has been adopted (or refused). The
 	 * host finds them asynchronously — a JVM may run on another machine — so anything that judges
-	 * a match "gone" by the registry (`TablesHandle.releaseGoneMatches`) waits for this first.
+	 * a match "gone" by the registry (`TablesHandle.releaseGoneMatches`) waits for this first, as
+	 * play's own joins and routes do. Never rejects.
 	 */
 	adopted: Promise<void>;
 	/** Stop every match, and release the host's idle JVMs. */
@@ -644,6 +645,12 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 
 	const router = express.Router();
 	router.use(express.json({ limit: '256kb' }));
+	// The server listens before every match an earlier one left running is adopted (`index.ts`), so
+	// nothing here answers about a match until they are: one not adopted yet is not gone.
+	router.use((_req, _res, next) => {
+		if (adoptedYet) next();
+		else void adopted.then(() => next());
+	});
 
 	/** Starts still in flight, and who is waiting on each. */
 	const waitingOn = new Map<Match, Set<ParticipantId>>();
@@ -938,6 +945,10 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		async function snapshotFor(raw: unknown, isJoin: boolean): Promise<MatchSnapshot | MatchRefusal> {
 			const request = parseMatchRequest(raw);
 			if (!request.ok) return { error: `malformed: ${request.errors[0]?.path ?? '$'} ${request.errors[0]?.message ?? ''}` };
+			// A seat back after a restart can ask before its match is adopted: it waits, it is not told
+			// the match is gone (the screen says "Updating…" meanwhile, `apps/ui/src/play/live/match.ts`).
+			// Only then: an act sent right behind the join must find the seat already held.
+			if (!adoptedYet) await adopted;
 			const match = matches.get(request.value.matchId);
 			if (match === undefined) {
 				// Ended, and let go of: what is left of it says how it ended. Never heard of: it never
@@ -1497,7 +1508,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	// Inside `attachPlay` rather than in `index.ts`, because a resumed match must be in the
 	// registry AND have its room before a client can ask for it — which is the ordering
 	// `create` above keeps. The host finds them asynchronously (a JVM may run on another
-	// machine), so the caller awaits `adopted` before it judges any match gone or serves.
+	// machine), so a join and every `/play` route wait for `adopted`, and so does anything the
+	// caller judges gone by the registry; the server itself listens without waiting for it.
 	// The host offers each orphan once; anything not taken here it stops on its own deadline,
 	// so an `attach` that throws costs one match, not a leaked JVM.
 	const adopted = (host?.orphans?.() ?? Promise.resolve([])).then((records) => {
@@ -1524,6 +1536,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	}).catch((err: unknown) => {
 		log({ evt: 'orphans-failed', error: (err as Error).message });
 	});
+	let adoptedYet = false;
+	void adopted.then(() => (adoptedYet = true));
 
 	return {
 		matches,

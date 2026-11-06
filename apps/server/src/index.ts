@@ -165,8 +165,8 @@ app.disable('x-powered-by');
 const basePath = await checkBundle(INDEX_HTML, CONFIG.basePrefix);
 bootPhase('bundle');
 
-// The claws' fleet read, started now so it runs beside the rest of the boot: a restart listens
-// only once its matches are adopted, and adopting waits on this read (`primeFleet`).
+// The claws' fleet read, started now so it runs beside the rest of the boot: a seat back after a
+// restart waits for its match to be adopted, and adopting waits on this read (`primeFleet`).
 const placementLog = jsonLogger('cardtable-placement');
 const primedFleet = CONFIG.playHosts === 'claws' ? primeFleet(fleetCli({ log: reportingAlerts(placementLog) })) : undefined;
 
@@ -954,9 +954,13 @@ bootPhase('play');
 // them asynchronously, and a room must not be told its match is gone before then (a deploy
 // cleared a live match's table that way, so an avatar change after it reached no match) — a
 // room still pointing at one that did not come back can let go of it.
-await play.adopted;
-tables.releaseGoneMatches();
-bootPhase('adopted');
+// The server does not wait for it to listen: prod's v0.53.0 restart (2026-11-06 16:00Z) spent
+// 19.7 s here and the whole site was down for it. Play's joins and routes wait instead.
+const adoptingFrom = performance.now();
+void play.adopted.then(() => {
+	tables.releaseGoneMatches();
+	jsonLogger('cardtable')({ evt: 'play-adopted', ms: Math.round(performance.now() - adoptingFrom), at: Math.round(performance.now()) });
+});
 
 // ── Rooms are not immortal, and neither is a game ────────────────────────────
 // `create` had no opposite for its whole life: no leave, no close, no expiry,

@@ -340,6 +340,8 @@ export interface SocketIoMatchOptions {
 }
 
 const DEFAULT_ACK_TIMEOUT_MS = 10_000;
+/** Joins sent again after a reconnect whose join was not answered: a minute, at the default ack timeout. */
+const MAX_REJOIN_RETRIES = 5;
 
 /**
  * How long a hang-up waits so the frames emitted just before it arrive.
@@ -1051,6 +1053,13 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
   everConnected: boolean;
   /** Dropped by a planned server restart, inside its quiet window (`restart-notice.ts`). */
   serverUpdating: boolean;
+  /**
+   * Back on a socket after a drop, and its join not answered yet: a restarted server answers once it
+   * has adopted the match, which can be seconds after it listens. `updating` is what the drop was.
+   */
+  rejoin: { updating: boolean; retries: number } | null;
+  /** The socket just came back from a planned restart's drop, and its rejoin has not been made yet. */
+  backFromRestart: boolean;
   /** This browser tab's id (`tab-id.ts`), sent with every join so a reconnect is known for the same tab. */
   tabId: string;
   /** A join or resync is in flight; inbound frames are being buffered. */
@@ -1256,6 +1265,8 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     connected: false,
     everConnected: false,
     serverUpdating: false,
+    rejoin: null,
+    backFromRestart: false,
     tabId: options.tabId ?? pageTabId(),
     awaitingSnapshot: false,
     resyncsWithoutProgress: 0,
@@ -1326,14 +1337,22 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     preloadMatchArt(match.matchId, payload);
   });
 
-  watchRestart(match.transport, (updating) => {
+  watchRestart(match.transport, (updating, back) => {
     match.serverUpdating = updating;
+    // A planned restart's drop ended by the socket coming back: the rejoin still reads as updating.
+    // Either listener may run first on a connect, so this says it to whichever comes second.
+    if (back) {
+      if (match.rejoin !== null) match.rejoin.updating = true;
+      else match.backFromRestart = true;
+    }
     notify(match);
   });
 
   match.transport.on('connect', () => {
     // A reconnect re-joins, and so does a first connect whose first join timed out before it.
     const rejoin = match.everConnected || match.stats.snapshots === 0;
+    if (match.everConnected && !match.awaitingSnapshot) match.rejoin = { updating: match.serverUpdating || match.backFromRestart, retries: 0 };
+    match.backFromRestart = false;
     match.connected = true;
     match.everConnected = true;
     const drop = drops.get(match);
@@ -1344,6 +1363,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
 
   match.transport.on('disconnect', (reason) => {
     match.connected = false;
+    match.backFromRestart = false;
     drops.set(match, { reason: String(reason), at: Date.now(), back: null });
     if (match.stats.snapshots === 0) options.report?.('disconnected', { reason: String(reason), ...connectionFacts(match) });
     notify(match);
@@ -3164,7 +3184,15 @@ function fetchSnapshot(match: LiveMatch, kind: 'join' | 'resync'): void {
   const request: MatchRequest = kind === 'join' ? { matchId: match.matchId, tabId: match.tabId } : { matchId: match.matchId };
   match.transport.request(event, request, (err, response) => {
     match.awaitingSnapshot = false;
+    const rejoin = kind === 'join' ? match.rejoin : null;
+    if (kind === 'join') match.rejoin = null;
     if (err !== null) {
+      // A restarted server holds a join until the match is adopted, which can outlast one ack.
+      if (rejoin !== null && match.connected && rejoin.retries < MAX_REJOIN_RETRIES) {
+        match.rejoin = { ...rejoin, retries: rejoin.retries + 1 };
+        fetchSnapshot(match, 'join');
+        return;
+      }
       snapshotFailed(match, `${event} was not answered: ${err.message}`);
       return;
     }

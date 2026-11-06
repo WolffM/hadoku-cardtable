@@ -1057,6 +1057,10 @@ describe('one state, one line', () => {
     fire: (event: string, payload?: unknown) => void;
     /** Answer the join or resync the driver has in flight, as the server would. */
     answer: (response: unknown) => void;
+    /** Fail it, as socket.io does when its ack times out. */
+    fail: (err: Error) => void;
+    /** Joins and resyncs sent and not answered yet. */
+    inFlight: () => number;
   }
 
   function stubTransport(): Stub {
@@ -1083,6 +1087,12 @@ describe('one state, one line', () => {
         if (onAck === undefined) throw new Error('nothing was in flight to answer');
         onAck(null, response);
       },
+      fail: (err) => {
+        const onAck = acks.shift();
+        if (onAck === undefined) throw new Error('nothing was in flight to fail');
+        onAck(err, undefined);
+      },
+      inFlight: () => acks.length,
     };
   }
 
@@ -1197,6 +1207,29 @@ describe('one state, one line', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  // Prod v0.53.0, 2026-11-06: a restarted server listens before it has adopted the matches the last
+  // one left running, and holds a join until it has. Back on a socket is not back in the match.
+  it('updating until the rejoin is answered, and a rejoin whose ack timed out is sent again', () => {
+    const { stub, m, container } = stubBoard();
+    act(() => stub.fire('connect'));
+    act(() => stub.answer(seatOnly));
+    act(() => stub.fire(SERVER_RESTARTING_EVENT));
+    act(() => stub.fire('disconnect', 'transport close'));
+    act(() => stub.fire('connect'));
+    expect(m.connected).toBe(true);
+    only(container, m, 'updating', 'Updating…');
+    act(() => stub.fail(new Error('operation has timed out')));
+    expect(stub.inFlight(), 'the join was sent again').toBe(1);
+    only(container, m, 'updating', 'Updating…');
+    act(() => stub.answer(seatOnly));
+    expect(liveStatus(m)).toBe('seated-waiting-for-state');
+
+    // A drop nobody announced: the same wait reads as reconnecting.
+    act(() => stub.fire('disconnect', 'transport close'));
+    act(() => stub.fire('connect'));
+    only(container, m, 'reconnecting', 'Reconnecting…');
   });
 
   it('the seat number is the snapshot’s seat, not a guess — seat 1 is “Seat 2”', () => {

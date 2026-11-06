@@ -911,6 +911,8 @@ export function liveStatus(match: LiveMatch): LiveStatus {
   if (match.elsewhere) return 'elsewhere';
   if (refusalOf(match) !== null) return 'refused';
   if (!match.connected) return !match.everConnected ? 'connecting' : match.serverUpdating ? 'updating' : 'reconnecting';
+  // Connected again, and the server has not answered the join: still away from the match.
+  if (match.rejoin !== null) return match.rejoin.updating ? 'updating' : 'reconnecting';
   if (match.seat === null) return match.awaitingSnapshot ? 'connecting' : 'connected-not-seated';
   if (match.view === null) return 'seated-waiting-for-state';
   return 'live';

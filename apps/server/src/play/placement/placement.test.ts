@@ -175,7 +175,7 @@ interface Rig {
 	restorer: Restorer & { outcome: 'snapshot' | 'spec' | null; ended: Set<string> };
 }
 
-async function rig(nodes: FleetNode[], opts: { forceFile?: string; takenBack?: Record<string, string[]> } = {}): Promise<Rig> {
+async function rig(nodes: FleetNode[], opts: { forceFile?: string; takenBack?: Record<string, string[]>; runtime?: Record<string, Promise<unknown>> } = {}): Promise<Rig> {
 	const clock = { t: T0 };
 	const cfg = config();
 	// A JVM an earlier server left on a claw, with room and no match: its record, as that server wrote it.
@@ -226,7 +226,8 @@ async function rig(nodes: FleetNode[], opts: { forceFile?: string; takenBack?: R
 		connect: (node) => {
 			const claw = claws.get(node);
 			if (claw === undefined) return Promise.reject(new Error(`no agent on ${node}`));
-			return Promise.resolve({ client: claw.link, launcher: claw.launcher });
+			const runtime = opts.runtime?.[node];
+			return Promise.resolve({ client: claw.link, launcher: claw.launcher, ...(runtime === undefined ? {} : { runtime }) });
 		},
 		alerts: new Alerts({ sink, now: () => clock.t, log: (e) => logs.push(e) }),
 		backstopLauncher: backstop.launcher,
@@ -319,6 +320,7 @@ describe('eligibility', () => {
 		expect(failed({ ...ok, fleet: null })).toEqual(['fleet: fleet-manager has not reported this node']);
 		expect(failed({ ...ok, agent: { connected: false, silentMs: null, error: 'ECONNREFUSED' } })).toEqual(['agent: no agent link: ECONNREFUSED']);
 		expect(failed({ ...ok, agent: { connected: true, silentMs: 7000, error: null } })).toEqual(['agent: no heartbeat for 7 s']);
+		expect(failed({ ...ok, agent: { connected: true, silentMs: 0, error: 'claw-9 cannot be given this server\'s pin: disk full' } })).toEqual(["agent: claw-9 cannot be given this server's pin: disk full"]);
 		expect(failed({ ...ok, quarantine: 'failed: jvm exited' })).toEqual(['quarantine: failed: jvm exited']);
 		expect(failed({ ...ok, room: { free: 0, why: null } })).toEqual(['room: full']);
 		expect(failed({ ...ok, aiCutoffs: 1 })).toEqual(['ai: 1 AI decision cut short in the last 5 min']);
@@ -1131,6 +1133,23 @@ describe('failover', () => {
 		await Promise.resolve();
 		expect(r.posted).toHaveLength(1);
 		expect(r.posted[0]).toMatch(/^🔁 Fenced: claw-\d — fenced: no word from the coordinator .* stays in service\. Moved 1: m-1 → claw-\d \(restored at the start of turn 3/);
+	});
+
+	// Prod v0.53.0, 2026-11-06 16:00Z: a new pin's runtime was packed and pushed to every claw before its
+	// link opened, so the JVMs an earlier server left running were adopted 13–20 s late.
+	it('a claw is linked and its JVMs taken back before its runtime arrives; one that cannot be given it takes no new match', async () => {
+		let fail = (_: Error): void => {};
+		const pending = new Promise<unknown>((_, reject) => (fail = reject));
+		const r = await rig([fleetNode('claw-9'), fleetNode('claw-8')], { takenBack: { 'claw-9': ['h-old-9'] }, runtime: { 'claw-9': pending, 'claw-8': Promise.resolve() } });
+		expect(r.logs.filter((l) => l.evt === 'jvm-adopted').map((l) => l.id)).toEqual(['h-old-9']);
+		expect(hostOf(r, 'claw-9').eligible).toBe(true);
+
+		fail(new Error("claw-9 cannot be given this server's pin: disk full"));
+		await vi.waitFor(() => expect(r.posted).toEqual(["⚠️ Pin not servable: claw-9 cannot be given this server's pin: disk full"]));
+		expect(hostOf(r, 'claw-9').eligible).toBe(false);
+		expect(r.logs.filter((l) => l.evt === 'claw-runtime-failed')).toMatchObject([{ host: 'claw-9' }]);
+		start(r, 'm-1');
+		expect(jvmOf(r, 'm-1').claw).toBe('claw-8');
 	});
 
 	it('a coordinator restart longer than the 10 s fence window quarantines no claw: both claws fence the JVMs it took back, every match moves, and hokon stays down', async () => {

@@ -1715,6 +1715,38 @@ describe('shutdown', () => {
 		expect(after.handle.matches.get(matchId)?.status).toBe('running');
 	});
 
+	// Prod v0.53.0, 2026-11-06 16:00Z: the server listened only once adopted, 19.7 s after boot, and the
+	// whole site was down for it. It listens first now, so a seat can ask before its match is back.
+	it('a join and a /play read that come before the match is adopted wait for it: neither is told the match is gone', async () => {
+		const pool = jvmPool();
+		const before = await boot({ host: pool });
+		const { body } = await startMatch(before);
+		const matchId = body.matchId as string;
+		before.handle.shutdown('The server is restarting for a deploy.');
+		await before.close();
+		harness = null;
+
+		let release = (): void => {};
+		const held = new Promise<void>((r) => (release = r));
+		const offer = pool.factory.orphans!.bind(pool.factory);
+		const late = Object.assign(pool.factory, { orphans: async () => (await held, offer()) });
+		const after = await boot({ host: { factory: late, hosts: pool.hosts } });
+		const alice = await connect(after.port, edgeHeaders('alice'));
+		const join = alice.request('forge:join', { matchId }) as Promise<Record<string, unknown>>;
+		const read = fetch(`http://127.0.0.1:${after.port}/api/play/matches/${matchId}`, { headers: edgeHeaders('alice') });
+		let answered = false;
+		void join.then(() => (answered = true));
+		await new Promise((r) => setTimeout(r, 100));
+		expect(answered, 'nothing answers before the match is adopted').toBe(false);
+
+		release();
+		const ack = await join;
+		expect(ack.outcome).toBeUndefined();
+		expect(ack).toMatchObject({ matchId, seat: 0 });
+		expect((await read).status).toBe(200);
+		expect(after.logs.filter((l) => l.evt === 'match-gone')).toEqual([]);
+	});
+
 	it('hands a FINISHED match over like a running one, so both seats get its board and its ending back after a deploy', async () => {
 		const pool = jvmPool();
 		const before = await boot({ host: pool });

@@ -121,6 +121,11 @@ export type AgentLink = Pick<AgentClient, 'lost' | 'health' | 'onLost' | 'hold' 
 export interface ClawConnection {
 	client: AgentLink;
 	launcher: JvmLauncher;
+	/**
+	 * Settles once the agent holds this server's runtime (`connectRemoteHost`), which the link does
+	 * not wait for; a rejection is a pin it cannot be given. Absent: it already does.
+	 */
+	runtime?: Promise<unknown>;
 }
 
 export type RestoreOutcome = { from: 'snapshot'; turn: number } | { from: 'spec' };
@@ -875,8 +880,21 @@ export function placement(opts: PlacementOptions): Placement {
 			host.agentError = null;
 			conn.client.onLost((reason) => agentLost(host, conn, reason));
 			host.pool = makePool(host, conn.launcher, join(clawsDir, host.name), true);
-			alerts.resolve(`pin:${host.name}`, `Pin servable on ${host.name} again`);
 			log({ evt: 'claw-connected', host: host.name, maxJvms: host.maxJvms });
+			// The JVMs it already runs are adopted now; a new one waits for the runtime, and a
+			// claw that cannot be given it takes no match (`rules.ts`, the agent bar).
+			void (conn.runtime ?? Promise.resolve()).then(
+				() => {
+					if (host.link === conn) alerts.resolve(`pin:${host.name}`, `Pin servable on ${host.name} again`);
+				},
+				(err: unknown) => {
+					if (host.link !== conn) return;
+					host.agentError = (err as Error).message;
+					log({ evt: 'claw-runtime-failed', host: host.name, error: host.agentError });
+					alerts.fire(`pin:${host.name}`, `⚠️ Pin not servable: ${host.agentError}`);
+					notifyRoom();
+				},
+			);
 		} catch (err) {
 			host.agentError = (err as Error).message;
 			log({ evt: 'claw-connect-failed', host: host.name, error: host.agentError });

@@ -39,6 +39,10 @@ class RemoteTransport implements JvmTransport, FrameSink {
 	kill(): void {
 		if (!this.done) this.client.send({ op: 'kill', h: this.hostId });
 	}
+	/** Released, or exited: nothing more goes to the agent for it. */
+	get finished(): boolean {
+		return this.done;
+	}
 	release(): void {
 		if (this.done) return;
 		this.done = true;
@@ -62,26 +66,40 @@ class RemoteTransport implements JvmTransport, FrameSink {
 }
 
 export class RemoteJvmLauncher implements JvmLauncher {
+	private readonly runtime: Promise<RemoteRuntime>;
+
+	/**
+	 * `runtime` may still be on its way to the agent (`connectRemoteHost`): a launch waits for it,
+	 * and attaching to a JVM already running there never does.
+	 */
 	constructor(
 		private readonly client: AgentClient,
-		private readonly runtime: RemoteRuntime,
-	) {}
+		runtime: RemoteRuntime | Promise<RemoteRuntime>,
+	) {
+		this.runtime = Promise.resolve(runtime);
+	}
 
 	launch(hostId: string, opts: { xmxMb: number }): JvmTransport {
 		const t = this.transport(hostId);
-		if (this.client.lost !== null) {
-			queueMicrotask(() => t.exit(`agent unavailable: ${this.client.lost}`));
-			return t;
-		}
-		this.client.send({
-			op: 'launch',
-			hostId,
-			xmxMb: opts.xmxMb,
-			artifacts: this.runtime.artifacts,
-			main: this.runtime.main,
-			jvmFlags: [...BRIDGE_JVM_FLAGS],
-			forgePreferences: { ...FORGE_PREFERENCES },
-		});
+		this.runtime.then(
+			(runtime) => {
+				if (t.finished) return;
+				if (this.client.lost !== null) {
+					t.exit(`agent unavailable: ${this.client.lost}`);
+					return;
+				}
+				this.client.send({
+					op: 'launch',
+					hostId,
+					xmxMb: opts.xmxMb,
+					artifacts: runtime.artifacts,
+					main: runtime.main,
+					jvmFlags: [...BRIDGE_JVM_FLAGS],
+					forgePreferences: { ...FORGE_PREFERENCES },
+				});
+			},
+			(err: unknown) => t.exit(`the agent could not be given this server's runtime: ${(err as Error).message}`),
+		);
 		return t;
 	}
 

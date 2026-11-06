@@ -34,18 +34,19 @@ const realClock: RestartClock = {
 /**
  * Watch `socket` for a planned restart. `onChange(updating)` runs when the
  * socket drops after a notice (true) and again when it reconnects or the quiet
- * window ends (false).
+ * window ends (false); `back` says which, since a socket back is not yet a
+ * screen back (a match's rejoin, `play/live/match.ts`).
  */
-export function watchRestart(socket: Listens, onChange: (updating: boolean) => void, clock: RestartClock = realClock): void {
+export function watchRestart(socket: Listens, onChange: (updating: boolean, back: boolean) => void, clock: RestartClock = realClock): void {
 	let noticedAt: number | null = null;
 	let updating = false;
 	let quiet: unknown = null;
-	const set = (next: boolean) => {
+	const set = (next: boolean, back = false) => {
 		if (quiet !== null) clock.clearTimeout(quiet);
 		quiet = null;
 		if (next === updating) return;
 		updating = next;
-		onChange(next);
+		onChange(next, back);
 	};
 	socket.on(SERVER_RESTARTING_EVENT, () => {
 		noticedAt = clock.now();
@@ -59,6 +60,6 @@ export function watchRestart(socket: Listens, onChange: (updating: boolean) => v
 	});
 	socket.on('connect', () => {
 		noticedAt = null;
-		set(false);
+		set(false, true);
 	});
 }

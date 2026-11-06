@@ -79,6 +79,7 @@ export interface ClawState {
 	node: string;
 	/** fleet-manager's latest readable word on this node; null when it never said. */
 	fleet: FleetNode | null;
+	/** `error` with a link: the agent could not be given this server's runtime, so it launches nothing. */
 	agent: { connected: boolean; silentMs: number | null; error: string | null };
 	quarantine: string | null;
 	/** Matches it could still take; `why` when none. */
@@ -138,7 +139,9 @@ export function bars(claw: ClawState, now: number, freshMs: number): Bar[] {
 			'agent',
 			!claw.agent.connected
 				? `no agent link${claw.agent.error === null ? '' : `: ${claw.agent.error}`}`
-				: claw.agent.silentMs !== null && claw.agent.silentMs > freshMs
+				: claw.agent.error !== null
+					? claw.agent.error
+					: claw.agent.silentMs !== null && claw.agent.silentMs > freshMs
 					? `no heartbeat for ${Math.round(claw.agent.silentMs / 1000)} s`
 					: null,
 		),

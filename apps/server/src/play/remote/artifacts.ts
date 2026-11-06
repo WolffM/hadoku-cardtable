@@ -6,7 +6,7 @@
  * (`apps/agent/src/store.ts`), so its code never comes from a path CI can write.
  */
 
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createReadStream, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
@@ -31,26 +31,50 @@ function hashFile(file: string): Promise<string> {
 	});
 }
 
+/** `tar`, off the event loop: a new pin's `res` takes it ~12 s on hokon. */
+function tarInto(part: string, dir: string, excludes: string[]): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const tar = spawn('tar', ['-czf', part, ...excludes.map((e) => `--exclude=${basename(dir)}/${e}`), '-C', dirname(dir), basename(dir)], { stdio: ['ignore', 'ignore', 'pipe'] });
+		let stderr = '';
+		tar.stderr.on('data', (c: Buffer) => (stderr += c.toString()));
+		tar.on('error', (err) => reject(new Error(`tar ${dir}: ${err.message}`)));
+		tar.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`tar ${dir}: ${stderr.trim() || `exit ${String(code)}`}`))));
+	});
+}
+
+/** Packs in flight, by tarball: every claw connects at once, and they share one. */
+const packing = new Map<string, Promise<{ file: string; sha: string }>>();
+
 /**
  * `dir` as a gzipped tarball with one top directory, kept in `cache` under a
  * name for `identity` (a tarball's own bytes vary with mtimes, so the identity
  * is what decides it, not the bytes).
+ *
+ * Never synchronous: prod's v0.53.0 restart (2026-11-06 16:00Z) packed the new pin's `res` with a
+ * blocking `tar` for 12.5 s, and nothing else on the server ran until it was done.
  */
-export async function packDir(cache: string, kind: string, identity: string, dir: string, excludes: string[]): Promise<{ file: string; sha: string }> {
+export function packDir(cache: string, kind: string, identity: string, dir: string, excludes: string[]): Promise<{ file: string; sha: string }> {
 	const file = join(cache, `${kind}-${sha256Hex(identity).slice(0, 32)}.tgz`);
 	const shaFile = `${file}.sha256`;
-	if (existsSync(file) && existsSync(shaFile)) return { file, sha: readFileSync(shaFile, 'utf8').trim() };
-	mkdirSync(cache, { recursive: true });
+	if (existsSync(file) && existsSync(shaFile)) return Promise.resolve({ file, sha: readFileSync(shaFile, 'utf8').trim() });
+	const inFlight = packing.get(file);
+	if (inFlight !== undefined) return inFlight;
 	const part = `${file}.part`;
-	const tar = spawnSync('tar', ['-czf', part, ...excludes.map((e) => `--exclude=${basename(dir)}/${e}`), '-C', dirname(dir), basename(dir)], { stdio: 'pipe' });
-	if (tar.status !== 0) {
-		rmSync(part, { force: true });
-		throw new Error(`tar ${dir}: ${tar.error?.message ?? tar.stderr.toString().trim()}`);
-	}
-	renameSync(part, file);
-	const sha = await hashFile(file);
-	writeFileSync(shaFile, `${sha}\n`);
-	return { file, sha };
+	const packed = (async () => {
+		mkdirSync(cache, { recursive: true });
+		try {
+			await tarInto(part, dir, excludes);
+		} catch (err) {
+			rmSync(part, { force: true });
+			throw err;
+		}
+		renameSync(part, file);
+		const sha = await hashFile(file);
+		writeFileSync(shaFile, `${sha}\n`);
+		return { file, sha };
+	})().finally(() => packing.delete(file));
+	packing.set(file, packed);
+	return packed;
 }
 
 export interface PackedRuntime {
