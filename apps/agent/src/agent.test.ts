@@ -86,6 +86,8 @@ createServer((req, res) => {
 }).listen(Number(process.env.PORT), '127.0.0.1');
 `,
 	);
+	mkdirSync(join(src, 'draftbot', 'packages', 'recommenderService', 'model'), { recursive: true });
+	writeFileSync(join(src, 'draftbot', 'packages', 'recommenderService', 'model', 'indexToOracleMap.json'), JSON.stringify(Object.fromEntries(Array.from({ length: 400 }, (_, i) => [i, `o${i}`]))));
 	return tgz(src, 'draftbot');
 }
 
@@ -360,8 +362,8 @@ describe('host agent', () => {
 describe('the draft bot service on the agent', () => {
 	const draftbotOf = (client: AgentClient): DraftbotHealth | null => client.health?.draftbot ?? null;
 
-	async function withDraftbot(cg = fakeCgroups()): Promise<{ agent: Agent; client: AgentClient; launcher: RemoteJvmLauncher; sha: string; cg: typeof cg }> {
-		const { agent, port } = await startAgent(scratch(), cg);
+	async function withDraftbot(cg = fakeCgroups(), log: Log = () => {}): Promise<{ agent: Agent; client: AgentClient; launcher: RemoteJvmLauncher; sha: string; cg: typeof cg }> {
+		const { agent, port } = await startAgent(scratch(), cg, undefined, log);
 		const { client, launcher } = await coordinator(port, fakeRuntime());
 		// The clock stands still in these tests, and a second `GET /status` at the same instant is a replay.
 		clock.t += 1;
@@ -370,7 +372,8 @@ describe('the draft bot service on the agent', () => {
 	}
 
 	it('runs it in its own capped leaf when asked, and proxies a signed call to it with its secret', async () => {
-		const { client, sha, cg } = await withDraftbot();
+		const logged: { what: string; data?: Record<string, unknown> }[] = [];
+		const { client, sha, cg } = await withDraftbot(fakeCgroups(), (what, data) => void logged.push({ what, data }));
 		await expect(client.call('POST', DRAFTBOT_PATH, { inputs: [] })).rejects.toThrow(/503 the draft bot is not running here/);
 		client.send({ op: 'draftbot', sha });
 		await until('up', () => draftbotOf(client)?.state === 'up', 10_000);
@@ -378,6 +381,8 @@ describe('the draft bot service on the agent', () => {
 		expect(Number(readFileSync(join(cg.service, 'draftbot', 'cgroup.procs'), 'utf8'))).toBe(pid);
 		expect(Number(readFileSync(join(cg.service, 'draftbot', 'memory.max'), 'utf8'))).toBe(DRAFTBOT_MB * 1024 * 1024);
 		expect(readFileSync(join(cg.service, 'cgroup.subtree_control'), 'utf8')).toBe('+memory');
+		// Up only after one pod's call, from the model's own vocabulary, warmed it.
+		expect(logged.find((l) => l.what === 'draftbot-up')?.data).toMatchObject({ sha, warmMs: expect.any(Number) });
 		const answer = await client.call<{ success: boolean; results: { oracle: string; rating: number }[][] }>('POST', DRAFTBOT_PATH, { inputs: [{ pack: ['a', 'b'], pool: [] }, { pack: ['c'], pool: ['a'] }] });
 		expect(answer).toEqual({ success: true, results: [[{ oracle: 'a', rating: 1 }, { oracle: 'b', rating: 0.9 }], [{ oracle: 'c', rating: 1 }]] });
 	});

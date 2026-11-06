@@ -12,15 +12,32 @@
  * It shows: a `--host` JVM booting through the launcher, a match line relayed,
  * a coordinator disconnect → `attach` → replay, the agent's own restart with
  * the JVM adopted, and fencing killing the JVM.
+ *
+ * With `DRAFTBOT_CLAWS=<claw>:<port>[,…]` it runs the draft bot instead, and needs no jar: each
+ * agent runs ON THAT CLAW, over ssh, as a user unit in a delegated `hosting.slice` (so its cgroup
+ * handling is the real one), reached through an ssh tunnel; this script is the coordinator, with
+ * placement's own `ClawDraftbots` choosing and asking them. Two agents make a primary and a backup
+ * (`claw-9:17621,claw-9:17622` puts both on one claw). `DRAFTBOT_CACHE` is where the pinned draft bot
+ * is prepared and packed (default `~/.cache/cardtable`, the server's own).
+ *
+ * It shows: the artifact pushed and verified, the service up in its capped leaf, a 7-seat
+ * `/batchdraft` answered through the agent, the service killed and started again (the backup
+ * answering meanwhile), and an agent stopped: its service ends with it and the backup takes over.
  */
 
-import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdirSync, openSync, readFileSync } from 'node:fs';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { mkdirSync, openSync, readFileSync, statSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import { jvmHostConfig } from '../../apps/server/src/play/host.js';
 import type { JvmTransport } from '../../apps/server/src/play/jvm-transport.js';
+import { Alerts } from '../../apps/server/src/play/placement/alerts.js';
+import { ClawDraftbots, type DraftbotClaw } from '../../apps/server/src/play/placement/draftbot.js';
+import { DRAFTBOT_PIN, packDraftbot, pushDraftbot } from '../../apps/server/src/play/remote/artifacts.js';
+import { AgentClient } from '../../apps/server/src/play/remote/client.js';
 import { AGENT_KEY_ENV, connectRemoteHost, type RemoteHost } from '../../apps/server/src/play/remote/index.js';
+import { privateKeyFrom } from '../../apps/server/src/play/remote/wire.js';
 
 const dir = process.env.AGENT_DIR ?? '';
 if (dir === '') throw new Error('AGENT_DIR is not set');
@@ -70,6 +87,109 @@ const kinds = (lines: Line[]): string => {
 	for (const l of lines) n.set(l.t, (n.get(l.t) ?? 0) + 1);
 	return [...n].map(([k, v]) => `${k}×${v}`).join(' ');
 };
+
+/* ── The draft bot, on claws ── */
+
+async function draftbotRun(targets: { claw: string; port: number }[]): Promise<void> {
+	const key = privateKeyFrom(readFileSync(join(dir, 'keys', 'signing.key'), 'utf8'));
+	const cache = process.env.DRAFTBOT_CACHE ?? join(homedir(), '.cache', 'cardtable');
+	const ssh = (claw: string, cmd: string): string => execFileSync('ssh', ['-o', 'BatchMode=yes', claw, cmd], { encoding: 'utf8' }).trim();
+	const unit = (port: number): string => `cardtable-agent-e2e-${port}`;
+	const remote = 'lane-agent-e2e';
+	const tunnels: ChildProcess[] = [];
+
+	say(`pack the pinned draft bot ${DRAFTBOT_PIN.commit.slice(0, 12)} (prepared once per pin, under ${cache})`);
+	const packed = await packDraftbot(cache, undefined, (e) => say(JSON.stringify(e)));
+	say(`artifact ${packed.sha.slice(0, 12)}: ${Math.round(statSync(packed.file).size / 1e6)} MB`);
+	const oracles = Object.values(JSON.parse(readFileSync(join(cache, 'draftbot', DRAFTBOT_PIN.commit, 'packages', 'recommenderService', 'model', 'indexToOracleMap.json'), 'utf8')) as Record<string, string>);
+	const inputs = Array.from({ length: 7 }, (_, s) => ({ pack: oracles.slice(1000 + s * 15, 1015 + s * 15), pool: oracles.slice(9000 + s * 10, 9010 + s * 10) }));
+
+	const claws: (DraftbotClaw & { claw: string; port: number; client: AgentClient })[] = [];
+	try {
+		for (const { claw, port } of targets) {
+			ssh(claw, `mkdir -p ~/${remote}/${port}`);
+			execFileSync('scp', ['-q', join(dir, 'build', 'run'), `${claw}:${remote}/run`]);
+			ssh(
+				claw,
+				`systemd-run --user --quiet --unit=${unit(port)} --slice=hosting -p Delegate=yes --setenv=CARDTABLE_AGENT_PORT=${port} --setenv=CARDTABLE_AGENT_LISTEN=127.0.0.1 ` +
+					`--setenv=CARDTABLE_AGENT_MEMORY_MB=4096 --setenv=CARDTABLE_AGENT_HOME=$HOME/${remote}/${port} /usr/bin/node $HOME/${remote}/run`,
+			);
+			const local = port + 1000;
+			const tunnel = spawn('ssh', ['-o', 'BatchMode=yes', '-o', 'ExitOnForwardFailure=yes', '-N', '-L', `${local}:127.0.0.1:${port}`, claw], { stdio: 'ignore' });
+			tunnels.push(tunnel);
+			say(`${claw}: agent ${unit(port)} on ${claw} (${ssh(claw, '/usr/bin/node --version')}), cgroup ${ssh(claw, `systemctl --user show -p ControlGroup --value ${unit(port)}`)}; tunnel pid ${tunnel.pid}, 127.0.0.1:${local}`);
+			const client = new AgentClient({ url: `http://127.0.0.1:${local}`, key, log: (e) => say(JSON.stringify(e)) });
+			for (let i = 0; ; i++) {
+				try {
+					await client.connect();
+					break;
+				} catch (e) {
+					if (i > 40) throw e;
+					await sleep(250);
+				}
+			}
+			const started = Date.now();
+			const sha = await pushDraftbot(client, packed);
+			say(`${claw}:${port}: artifact pushed and installed in ${((Date.now() - started) / 1000).toFixed(1)} s`);
+			claws.push({ name: `${claw}:${port}`, claw, port, client, usable: true, sha, error: null });
+		}
+
+		const bots = new ClawDraftbots({ alerts: new Alerts({ sink: null, log: (e) => say(JSON.stringify(e)) }), log: (e) => say(JSON.stringify(e)) });
+		const step = setInterval(() => bots.step(claws.filter((c) => c.client.lost === null)), 1000);
+		const state = (c: (typeof claws)[number]) => c.client.health?.draftbot ?? null;
+		const ask = async (what: string): Promise<void> => {
+			const t = Date.now();
+			const out = await bots.batchDraft(inputs, AbortSignal.timeout(1200));
+			say(`${what}: 7 seats rated in ${Date.now() - t} ms; seat 1's top pick ${out[0]?.[0]?.oracle} (${out[0]?.[0]?.rating.toFixed(3)}) of ${out[0]?.length}`);
+		};
+		try {
+			await until('both up', () => claws.every((c) => state(c)?.state === 'up'), 120_000);
+			for (const c of claws) {
+				const cg = ssh(c.claw, `systemctl --user show -p ControlGroup --value ${unit(c.port)}`);
+				const leaf = `/sys/fs/cgroup${cg}/draftbot`;
+				say(`${c.name}: up, pid ${state(c)?.pid}, ${state(c)?.memoryMb} MB; ${leaf}: memory.max ${ssh(c.claw, `cat ${leaf}/memory.max`)}, procs ${ssh(c.claw, `cat ${leaf}/cgroup.procs | tr '\\n' ' '`)}`);
+			}
+			say(`chosen: ${bots.view().chosen.join(', ')}`);
+			for (let i = 1; i <= 3; i++) await ask(`call ${i}`);
+
+			const [primary, backup] = claws as [(typeof claws)[number], (typeof claws)[number] | undefined];
+			const pid = state(primary)!.pid!;
+			say(`${primary.name}: kill -9 the service, pid ${pid}`);
+			ssh(primary.claw, `kill -9 ${pid}`);
+			await until('primary seen down', () => state(primary)?.state !== 'up', 10_000);
+			if (backup !== undefined) await ask(`primary down (${state(primary)?.state}): the backup answers`);
+			await until('primary up again', () => state(primary)?.state === 'up', 60_000);
+			say(`${primary.name}: up again as pid ${state(primary)?.pid}, restarts ${state(primary)?.restarts}`);
+			await ask('primary back');
+
+			if (backup !== undefined) {
+				const pid2 = state(primary)!.pid!;
+				say(`${primary.name}: stop its agent unit; service pid ${pid2} must end with it`);
+				ssh(primary.claw, `systemctl --user stop ${unit(primary.port)}`);
+				say(`pid ${pid2} alive after the unit stopped: ${ssh(primary.claw, `kill -0 ${pid2} 2>/dev/null && echo yes || echo no`)}`);
+				await until('primary lost', () => primary.client.lost !== null, 20_000);
+				await until('re-picked', () => !bots.view().chosen.includes(primary.name), 5000);
+				say(`link lost: ${primary.client.lost}; chosen now ${bots.view().chosen.join(', ')}`);
+				await ask('after the primary claw is lost');
+			}
+		} finally {
+			clearInterval(step);
+		}
+	} finally {
+		for (const c of claws) c.client.close();
+		for (const t of tunnels) t.kill();
+		for (const { claw, port } of targets) {
+			execFileSync('ssh', ['-o', 'BatchMode=yes', claw, `systemctl --user stop ${unit(port)} 2>/dev/null; rm -rf ~/${remote}`], { stdio: 'ignore' });
+		}
+		say('agents stopped, tunnels closed, claws cleaned');
+	}
+}
+
+const draftbotClaws = (process.env.DRAFTBOT_CLAWS ?? '').split(',').filter((t) => t !== '');
+if (draftbotClaws.length > 0) {
+	await draftbotRun(draftbotClaws.map((t) => ({ claw: t.split(':')[0] as string, port: Number(t.split(':')[1] ?? 17621) })));
+	process.exit(0);
+}
 
 const available = jvmHostConfig();
 if (!available.ok) throw new Error(available.reason);

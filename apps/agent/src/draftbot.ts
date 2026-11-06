@@ -35,6 +35,8 @@ export const RESTART_MAX_MS = 30_000;
 export const STABLE_MS = 60_000;
 /** A proxied call the service has not answered in this long fails. */
 export const FORWARD_TIMEOUT_MS = 10_000;
+/** The model's vocabulary in the artifact: where a warm-up call takes its cards from. */
+const WARM_ORACLES = 'packages/recommenderService/model/indexToOracleMap.json';
 /** How much of the service's log an exit reason quotes. */
 const LOG_TAIL_BYTES = 600;
 
@@ -164,11 +166,36 @@ export class DraftbotService {
 					if (this.run !== run || run.child !== child) return;
 					if (!ok) return this.probe(run, child);
 					run.timer = null;
-					run.upSince = this.now();
-					this.set(run, 'up');
-					this.log('draftbot-up', { sha: run.sha, pid: child.pid, port: run.port });
+					return this.warm(run).then((warm) => {
+						if (this.run !== run || run.child !== child) return;
+						run.upSince = this.now();
+						this.set(run, 'up');
+						this.log('draftbot-up', { sha: run.sha, pid: child.pid, port: run.port, ...warm });
+					});
 				});
 		}, PROBE_MS);
+	}
+
+	/**
+	 * One pod's call before it counts as up: a fresh service took ~900 ms for its first 7 seats on
+	 * claw-9 against ~450 ms after, past the coordinator's share for the primary. The cards are the
+	 * first of the model's own vocabulary (`WARM_ORACLES`); without that file it goes up cold.
+	 */
+	private async warm(run: Running): Promise<{ warmMs?: number; warmError?: string }> {
+		let ids: string[];
+		try {
+			ids = Object.values(JSON.parse(readFileSync(join(run.dir, WARM_ORACLES), 'utf8')) as Record<string, string>).slice(0, 8 * 45);
+		} catch {
+			return { warmError: `no ${WARM_ORACLES}` };
+		}
+		const inputs = Array.from({ length: 8 }, (_, s) => ({ pack: ids.slice(s * 45, s * 45 + 15), pool: ids.slice(s * 45 + 15, s * 45 + 45) }));
+		const started = this.now();
+		try {
+			const res = await this.forwardTo(run, '/batchdraft', { inputs });
+			return res.status === 200 ? { warmMs: this.now() - started } : { warmError: `answered ${res.status}` };
+		} catch (e) {
+			return { warmError: (e as Error).message };
+		}
 	}
 
 	private died(run: Running, child: ChildProcess, how: string): void {
@@ -195,6 +222,10 @@ export class DraftbotService {
 	async forward(path: string, body: unknown): Promise<{ status: number; body: unknown }> {
 		const run = this.run;
 		if (run === null || this.health?.state !== 'up') return { status: 503, body: { error: `the draft bot is ${this.health?.state ?? 'not running'} here` } };
+		return this.forwardTo(run, path, body);
+	}
+
+	private async forwardTo(run: Running, path: string, body: unknown): Promise<{ status: number; body: unknown }> {
 		const res = await fetch(`http://127.0.0.1:${run.port}${path}`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json', 'x-internal-token': run.token },
