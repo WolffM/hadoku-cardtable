@@ -16,6 +16,7 @@
  */
 // Every sheet the app reaches, the lazy screens' too, in this file's import order (`../stylesheet.ts`).
 import 'virtual:cardtable-stylesheet';
+import { ensureCosmeticsStyles } from '@wolffm/prefs-client/cosmetics';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
@@ -70,6 +71,9 @@ import { preloadLikelyScreens } from './screens/Screen.tsx';
 import { startUsage } from './usage.ts';
 
 canonicalizeAddress();
+// The fleet's cosmetics sheet (faces' overlays, names' effects), before anything is drawn: added by the
+// first face instead, it restyled the whole document inside that screen's first render.
+ensureCosmeticsStyles();
 void finishRallyReturn();
 // Which screens are shown and which controls are pressed, counted by the server (`usage.ts`).
 startUsage();

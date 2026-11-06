@@ -30,9 +30,9 @@ describe('PlayerName', () => {
     }
   });
 
-  it('puts the stylesheet in the page once', () => {
+  it('adds no stylesheet of its own: the entry puts the renderer’s sheet in before anything is drawn (`main.tsx`)', () => {
     render(createElement(PlayerName, { name: 'Ari', face: { id: 'sage', look: { cosmetics: { effect: 'effect.aura' } } } }));
     render(createElement(PlayerName, { name: 'Bo', face: { id: 'mage', look: { cosmetics: { font: 'font.surf' } } } }));
-    expect(document.querySelectorAll('style#hadoku-cosmetics')).toHaveLength(1);
+    expect(document.querySelectorAll('style')).toHaveLength(0);
   });
 });

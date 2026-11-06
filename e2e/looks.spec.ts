@@ -52,6 +52,7 @@ test(titled('a picture, an overlay and a name effect show on the room seat, on t
     const seat = bob.page.locator('[data-testid^="room-seat-"]').filter({ has: bob.page.locator(`img[src="${PICTURE}"]`) });
     await expect(seat, 'bob sees alice’s picture on her seat').toHaveCount(1, { timeout: 30_000 });
     await expectDecorOver(bob.page, seat.locator(`img[src="${PICTURE}"]`), 'bob, alice’s seat');
+    await expect(bob.page.locator('style#hadoku-cosmetics'), 'the app put the renderer’s sheet in the page, once').toHaveCount(1);
     await expect(seat.locator('.pod-seats__label[data-dressed] .hc-name'), 'alice’s name wears its effect').toHaveCount(1);
     // Bob wears nothing: his own seat is his character and a plain name.
     const bobSeat = bob.page.locator('[data-testid^="room-seat-"][data-mine]');

@@ -22,6 +22,7 @@
 
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { ensureCosmeticsStyles } from '@wolffm/prefs-client/cosmetics';
 
 import '../../styles.css';
 import { LiveBoard } from './LiveBoard.tsx';
@@ -44,6 +45,8 @@ if (matchId === null || matchId === '') {
       : { url: server, path: '/socket.io/', transports: ['websocket'] };
   if (path !== null) options.path = path;
   const match = startMatch({ matchId, transport: socketIoMatchTransport(options) });
+  // As the app's entry does (`main.tsx`): the faces' sheet is there before anything is drawn.
+  ensureCosmeticsStyles();
   createRoot(root).render(
     <StrictMode>
       <LiveBoard match={match} />

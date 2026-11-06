@@ -21,31 +21,15 @@
 
 import { memo, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { cleanWorn, decorHtml, ensureCosmeticsStyles, nameHtml, onPictureColour, pictureColour, readPictureColour, type AvatarCosmetics } from '@wolffm/prefs-client/cosmetics';
+import { cleanWorn, decorHtml, nameHtml, onPictureColour, pictureColour, readPictureColour, type AvatarCosmetics } from '@wolffm/prefs-client/cosmetics';
 import type { Look } from '@hadoku/shared';
 
-import { documentScope } from '../dom.ts';
 import { watchpartyOrigin } from './avatar.ts';
 import './look.css';
 
 /** What a person wears, safe to draw, or undefined. */
 export function wornOf(look: Look | undefined): AvatarCosmetics | undefined {
   return cleanWorn(look?.cosmetics);
-}
-
-/**
- * The renderer's stylesheet, on our own document, once. Embedded, the page is
- * not ours: the mount adopts the same sheet into its shadow root and takes it
- * away again (`../embed/index.tsx`), where a `<style>` in the host's head could
- * neither reach our faces nor be removed on unmount.
- */
-let styled = false;
-function useCosmeticsStyles(): void {
-  useEffect(() => {
-    if (styled || typeof document === 'undefined' || documentScope() !== document) return;
-    styled = true;
-    ensureCosmeticsStyles();
-  }, []);
 }
 
 // ── Pausing what is off screen ───────────────────────────────────────────────
@@ -144,7 +128,6 @@ function decorHost(face: Element): Element | null {
  * box around it resizes.
  */
 export const FaceDecor = memo(function FaceDecor({ avatarId, look }: { avatarId: string | undefined; look: Look | undefined }) {
-  useCosmeticsStyles();
   const anchor = useRef<HTMLSpanElement>(null);
   const ref = useRef<HTMLSpanElement>(null);
   const [host, setHost] = useState<Element | null>(null);
@@ -200,7 +183,6 @@ export const FaceDecor = memo(function FaceDecor({ avatarId, look }: { avatarId:
  * wears none of the three is plain text, in the colour and weight around it.
  */
 export const PlayerName = memo(function PlayerName({ name, face, className, testId }: { name: string; face: { id: string | null | undefined; look?: Look | undefined }; className?: string; testId?: string }) {
-  useCosmeticsStyles();
   const ref = useRef<HTMLSpanElement>(null);
   const worn = wornOf(face.look);
   const dressed = worn !== undefined && (worn.effect !== undefined || worn.gradient !== undefined || worn.font !== undefined);

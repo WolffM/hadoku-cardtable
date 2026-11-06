@@ -13,6 +13,7 @@
  */
 import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { ensureCosmeticsStyles } from '@wolffm/prefs-client/cosmetics';
 import '@wolffm/themes/style.css';
 import '@wolffm/themes/icons.css';
 import '../styles.css';
@@ -56,6 +57,8 @@ function Page() {
   return loaded ? <DraftScreen state={initialState(view)} onChange={() => {}} side={side} /> : <DraftSkeleton side={side} />;
 }
 
+// As the app's entry does (`main.tsx`): the faces' sheet is there before anything is drawn.
+ensureCosmeticsStyles();
 const root = document.getElementById('root');
 if (root === null) throw new Error('no #root');
 createRoot(root).render(
