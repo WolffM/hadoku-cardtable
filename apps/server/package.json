@@ -19,7 +19,7 @@
     "@hadoku/forge-wire": "workspace:*",
     "@hadoku/room-store": "workspace:*",
     "@hadoku/shared": "workspace:*",
-    "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.1.22",
+    "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.1.23",
     "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.47",
     "@wolffm/rooms-server": "npm:@hadoku/rooms-server@0.45.47",
     "express": "^5.1.0",

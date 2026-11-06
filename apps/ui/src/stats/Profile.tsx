@@ -12,6 +12,7 @@ import { HeadToHead, MatchFeed, ProfileHeader, RatingHistory, useStatsLoad } fro
 
 import { navigate } from '../screens/route.ts';
 import { Colours } from './Colours.tsx';
+import { renderAvatar } from './face.tsx';
 import { COUNTER_LABELS, MATCH_META, renderName, SEAT_ATTRS } from './magic.tsx';
 import { FEED_PAGE, onePlayer, STATS_MODE, type StatsSource } from './source.ts';
 import { DecksTable, renderAttr } from './StatsDecks.tsx';
@@ -31,7 +32,7 @@ export function Profile({ source, player, parked }: ProfileProps) {
   return (
     <>
       {player !== undefined && <OwnNameIsYourProfile source={source} player={player} />}
-      <ProfileHeader {...scope} testId="stats-profile" />
+      <ProfileHeader {...scope} renderAvatar={renderAvatar} testId="stats-profile" />
       <div className="ct-stats__row">
         <div className="ct-stats__main">
           <RatingHistory {...scope} count={30} testId="stats-rating" />

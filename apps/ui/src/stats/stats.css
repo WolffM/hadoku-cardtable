@@ -553,3 +553,42 @@
     display: none;
   }
 }
+
+/* A player's face on the board and the profile (`face.tsx`): game-stats-ui's
+   avatar sizes, drawn with the table's own faces. */
+.ct-stats-face {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bg-card);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.ct-stats-face--lg {
+  width: 64px;
+  height: 64px;
+}
+
+/* The characters are pixel art: keep their pixels square. */
+.ct-stats-face img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+.ct-stats-face__initial {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ct-stats-face--lg .ct-stats-face__initial {
+  font-size: 26px;
+}
