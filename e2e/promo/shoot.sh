@@ -11,7 +11,7 @@ export CARDTABLE_FORGE_JAR="${CARDTABLE_FORGE_JAR:-$HOME/.local/share/cardtable/
 export CARDTABLE_FORGE_RES="${CARDTABLE_FORGE_RES:-/home/hadoku/srv/hadoku-cardtable/forge/forge-gui/res}"
 export CARDTABLE_PLAY_WORK_DIR="${CARDTABLE_PLAY_WORK_DIR:-$HOME/.cache/cardtable-play-work/promo}"
 # The deploy tree's sound library, read only: the clips carry the game's own sound.
-export CARDTABLE_SOUNDS_DIR="${CARDTABLE_SOUNDS_DIR:-/home/hadoku/srv/hadoku-cardtable/apps/server/data/sounds}"
+export CARDTABLE_SOUNDS_DIR="${CARDTABLE_SOUNDS_DIR:-${CARDTABLE_STATE_DIR:-/home/hadoku/srv-data/cardtable}/sounds}"
 # Draft bots at production's pace (`config.ts`'s default), so packs do not pile up on the filmed seat.
 export CARDTABLE_DRAFT_BOT_PICK_MS="${CARDTABLE_DRAFT_BOT_PICK_MS:-1200}"
 export CARDTABLE_E2E_PLAY_EDGE_PORT="${CARDTABLE_E2E_PLAY_EDGE_PORT:-19328}"
