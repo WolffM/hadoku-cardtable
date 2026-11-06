@@ -127,6 +127,12 @@ export const DraftCardSchema = z.object({
   /** Stable within one draft. Distinguishes two copies of the same card. */
   cardId: z.string().min(1),
   ...CardFaceFields,
+  /**
+   * Scryfall's oracle id: the same for every printing of a card, and how an outside card service
+   * (CubeCobra's draftbot) names one. The card's, not a face's, so a face carries none. Optional:
+   * a draft stored before it existed, and a card the catalog has no text for, carry none.
+   */
+  oracleId: z.string().uuid().optional(),
   /** Every face but the one this card shows, in printed order. Absent for a card with one face. */
   faces: z.array(CardFaceSchema).optional(),
   /**

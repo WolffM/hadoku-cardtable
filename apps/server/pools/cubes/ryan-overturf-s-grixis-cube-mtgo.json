@@ -5,6 +5,7 @@
   {
    "cardId": "c0",
    "scryfallId": "cb7a2770-9a20-4f52-aac4-24502f50e374",
+   "oracleId": "09be0f69-9c7f-491f-964d-bfbbc2d4251f",
    "name": "Abbot of Keral Keep",
    "manaCost": [
     "1",
@@ -25,6 +26,7 @@
   {
    "cardId": "c1",
    "scryfallId": "84319dfb-eaf7-4b98-8c4f-30f5e779591b",
+   "oracleId": "f9db72dc-9a5b-48a4-a86e-7464d9a2166a",
    "name": "Abrade",
    "manaCost": [
     "1",
@@ -43,6 +45,7 @@
   {
    "cardId": "c2",
    "scryfallId": "af09af65-0a3b-42df-b0fd-372e2158beac",
+   "oracleId": "a3da7d5b-2c2b-45fe-b9c5-413b8c8fc0a2",
    "name": "Academy Ruins",
    "manaCost": [],
    "manaValue": 0,
@@ -56,6 +59,7 @@
   {
    "cardId": "c3",
    "scryfallId": "cc6686e6-4535-49be-b0b3-e76464656cd2",
+   "oracleId": "4cd82c7a-86df-4d29-b578-c009208c0d4b",
    "name": "Agent of Treachery",
    "manaCost": [
     "5",
@@ -77,6 +81,7 @@
   {
    "cardId": "c4",
    "scryfallId": "62dba377-7446-4517-a504-ee04568fd6cf",
+   "oracleId": "14693689-d087-43b6-9c3f-63ab0648fc20",
    "name": "All Is Dust",
    "manaCost": [
     "7"
@@ -92,6 +97,7 @@
   {
    "cardId": "c5",
    "scryfallId": "ee3bc0e6-5e47-4a04-af15-faea70f3983a",
+   "oracleId": "c9160997-0305-47f5-9a2f-77588d167da0",
    "name": "Aminatou's Augury",
    "manaCost": [
     "6",
@@ -111,6 +117,7 @@
   {
    "cardId": "c6",
    "scryfallId": "bccedc4d-38c7-4bf3-9ca7-4febd6c49d3d",
+   "oracleId": "9728dec9-d482-4c7a-8cdc-44d010dc878d",
    "name": "Ancestral Vision",
    "manaCost": [],
    "manaValue": 0,
@@ -126,6 +133,7 @@
   {
    "cardId": "c7",
    "scryfallId": "bd3d4b4b-cf31-4f89-8140-9650edb03c7b",
+   "oracleId": "23467047-6dba-4498-b783-1ebc4f74b8c2",
    "name": "Ancient Tomb",
    "manaCost": [],
    "manaValue": 0,
@@ -139,6 +147,7 @@
   {
    "cardId": "c8",
    "scryfallId": "e2ecae08-bcc6-4074-822c-3dfe1d46ae39",
+   "oracleId": "3a7fe095-8278-4b1d-bec4-19b35bdcdd1b",
    "name": "Anger of the Gods",
    "manaCost": [
     "1",
@@ -158,6 +167,7 @@
   {
    "cardId": "c9",
    "scryfallId": "f5a39379-7313-463a-9a02-e5157b9557f4",
+   "oracleId": "850a8369-94ab-43b6-8cfe-286e3623b19d",
    "name": "Angrath's Rampage",
    "manaCost": [
     "B",
@@ -177,6 +187,7 @@
   {
    "cardId": "c10",
    "scryfallId": "7b83536a-efa4-41f3-9424-75b0efc0aea5",
+   "oracleId": "c0d8fef4-65f4-4769-982d-b397d2b7e977",
    "name": "Animate Dead",
    "manaCost": [
     "1",
@@ -195,6 +206,7 @@
   {
    "cardId": "c11",
    "scryfallId": "32c00c59-7cf7-4957-83f7-d571a259a40b",
+   "oracleId": "f1c26b25-371e-4fbf-a43d-7fd59a364d3a",
    "name": "Arc Trail",
    "manaCost": [
     "1",
@@ -213,6 +225,7 @@
   {
    "cardId": "c12",
    "scryfallId": "6b2441e0-06f6-4455-8fa8-a34c3e241a56",
+   "oracleId": "7dbf5f59-1246-4156-bb21-090cfddd9111",
    "name": "Arcane Artisan",
    "manaCost": [
     "2",
@@ -233,6 +246,7 @@
   {
    "cardId": "c13",
    "scryfallId": "d78cd000-3908-446d-b155-dd8af3d8f166",
+   "oracleId": "be2a4bc4-8af6-48c5-9421-32d26272e71a",
    "name": "Arguel's Blood Fast // Temple of Aclazotz",
    "manaCost": [
     "1",
@@ -265,6 +279,7 @@
   {
    "cardId": "c14",
    "scryfallId": "95a96eb1-f87c-4b1d-82c7-f239bcbc62b8",
+   "oracleId": "406fad02-e1a6-4c24-b46d-976c548e1c78",
    "name": "Aria of Flame",
    "manaCost": [
     "2",
@@ -283,6 +298,7 @@
   {
    "cardId": "c15",
    "scryfallId": "1f61b1a3-4b3b-4490-a9dc-17aac258cbda",
+   "oracleId": "ab9f03b4-eb67-4709-904d-abf4d491f0ee",
    "name": "Ash Zealot",
    "manaCost": [
     "R",
@@ -303,6 +319,7 @@
   {
    "cardId": "c16",
    "scryfallId": "d19fbfe6-69bb-452a-be3c-b9c625e23193",
+   "oracleId": "be5d6779-ecc9-44b9-8c4d-97a243059d55",
    "name": "Augur of Bolas",
    "manaCost": [
     "1",
@@ -323,6 +340,7 @@
   {
    "cardId": "c17",
    "scryfallId": "abb19b6b-4142-4b93-85ca-3f2d8b23b4e1",
+   "oracleId": "c9048d35-aff7-45ae-ae97-db89397b3e74",
    "name": "Avalanche Riders",
    "manaCost": [
     "3",
@@ -343,6 +361,7 @@
   {
    "cardId": "c18",
    "scryfallId": "73403d04-fe97-4830-8b80-16dd1a1a6cc1",
+   "oracleId": "13ff3222-91cb-4796-a34e-899ed817694c",
    "name": "Badlands",
    "manaCost": [],
    "manaValue": 0,
@@ -356,6 +375,7 @@
   {
    "cardId": "c19",
    "scryfallId": "62090c97-7e3e-4854-bc44-c4a900133ec5",
+   "oracleId": "37688720-03de-4eca-a82d-a0afe8d58adc",
    "name": "Baleful Strix",
    "manaCost": [
     "U",
@@ -377,6 +397,7 @@
   {
    "cardId": "c20",
    "scryfallId": "60e16d94-1166-4050-8554-686e153a7f80",
+   "oracleId": "baf80db7-2ca8-4bfc-b5b6-25ed51878dd7",
    "name": "Baral, Chief of Compliance",
    "manaCost": [
     "1",
@@ -397,6 +418,7 @@
   {
    "cardId": "c21",
    "scryfallId": "4744e0a0-c17b-4700-8897-528d2b57adda",
+   "oracleId": "6b8cf2a0-b045-4d91-9d91-c602d40c6237",
    "name": "Basalt Monolith",
    "manaCost": [
     "3"
@@ -412,6 +434,7 @@
   {
    "cardId": "c22",
    "scryfallId": "cd114ec3-d286-4c70-a122-3043bc53cc88",
+   "oracleId": "d12e5ce0-5705-4c35-9a93-b883db52c80c",
    "name": "Batterskull",
    "manaCost": [
     "5"
@@ -427,6 +450,7 @@
   {
    "cardId": "c23",
    "scryfallId": "81e2b96b-ecf2-4dd9-bc9d-3c46ee8c59e6",
+   "oracleId": "bceecc64-96f1-4e7b-8904-0aef90377764",
    "name": "Bedevil",
    "manaCost": [
     "B",
@@ -447,6 +471,7 @@
   {
    "cardId": "c24",
    "scryfallId": "0232f188-44f2-4aee-963c-6f6edc4a21ac",
+   "oracleId": "01a7e0ce-c98f-4cf2-aba3-360aa0a9b9a7",
    "name": "Bedlam Reveler",
    "manaCost": [
     "6",
@@ -468,6 +493,7 @@
   {
    "cardId": "c25",
    "scryfallId": "547872bd-d2b3-4c24-b3fb-481e0c90c3c0",
+   "oracleId": "fb868840-09fa-49b1-85cb-b08ad065e972",
    "name": "Bitterblossom",
    "manaCost": [
     "1",
@@ -486,6 +512,7 @@
   {
    "cardId": "c26",
    "scryfallId": "3d71be5f-0fd7-4a88-8041-f4d6bc4cc9ac",
+   "oracleId": "5ad94412-6f79-4c5d-bbd4-4ef5779a7b6d",
    "name": "Blackcleave Cliffs",
    "manaCost": [],
    "manaValue": 0,
@@ -499,6 +526,7 @@
   {
    "cardId": "c27",
    "scryfallId": "ea6bc7d5-e8f6-4103-920c-9f7ec5cd6c28",
+   "oracleId": "393a254f-be31-431a-9341-a51286f8cbce",
    "name": "Blast Zone",
    "manaCost": [],
    "manaValue": 0,
@@ -512,6 +540,7 @@
   {
    "cardId": "c28",
    "scryfallId": "7928bb14-7631-4830-a756-26d1ea832ba2",
+   "oracleId": "e80772e2-8623-4094-81a2-70828b2b151c",
    "name": "Blightsteel Colossus",
    "manaCost": [
     "12"
@@ -529,6 +558,7 @@
   {
    "cardId": "c29",
    "scryfallId": "ab830392-4d7e-4b45-93cf-35ed1e935228",
+   "oracleId": "51acd176-e84d-42c2-acb2-cceeb28a9fec",
    "name": "Blink of an Eye",
    "manaCost": [
     "1",
@@ -547,6 +577,7 @@
   {
    "cardId": "c30",
    "scryfallId": "a8f0e338-fe48-4108-b1a4-0bc9bf4ed708",
+   "oracleId": "40d45c02-6416-4e19-8fe3-0ddadf5ba627",
    "name": "Blinkmoth Nexus",
    "manaCost": [],
    "manaValue": 0,
@@ -560,6 +591,7 @@
   {
    "cardId": "c31",
    "scryfallId": "e93e65d6-c2c8-4ab6-9296-7b21ff2ff8bf",
+   "oracleId": "310f141c-7f37-4729-aed6-dd9c09db448d",
    "name": "Blood Artist",
    "manaCost": [
     "1",
@@ -580,6 +612,7 @@
   {
    "cardId": "c32",
    "scryfallId": "f281e16f-0fe1-4095-bd63-0a4479f75c11",
+   "oracleId": "43985bbc-a0f6-4812-984e-392bc8562633",
    "name": "Blood Crypt",
    "manaCost": [],
    "manaValue": 0,
@@ -593,6 +626,7 @@
   {
    "cardId": "c33",
    "scryfallId": "730c521f-ba12-48fb-b18f-6bb55423a551",
+   "oracleId": "e97f9c2b-b41e-4f36-9245-77c0ac125647",
    "name": "Bloodghast",
    "manaCost": [
     "B",
@@ -613,6 +647,7 @@
   {
    "cardId": "c34",
    "scryfallId": "34bc9bb0-5ec1-400f-89e7-b450980a3391",
+   "oracleId": "cad09970-14c8-4d80-82fe-6c855efb0191",
    "name": "Bloodsoaked Champion",
    "manaCost": [
     "B"
@@ -632,6 +667,7 @@
   {
    "cardId": "c35",
    "scryfallId": "7f430794-0d86-4f6a-97e0-4bbb6716d613",
+   "oracleId": "fc0707c7-d504-4ccf-a0d2-3eb6e26e7a57",
    "name": "Bloodstained Mire",
    "manaCost": [],
    "manaValue": 0,
@@ -645,6 +681,7 @@
   {
    "cardId": "c36",
    "scryfallId": "d2124603-d20e-40eb-97f0-a66323397ac2",
+   "oracleId": "2bd111bb-ce02-414c-b5b7-e0e037d8d96b",
    "name": "Bolas's Citadel",
    "manaCost": [
     "3",
@@ -665,6 +702,7 @@
   {
    "cardId": "c37",
    "scryfallId": "425bff89-ad15-4d22-bce9-a4a07dbafd87",
+   "oracleId": "a88f3881-4f43-4473-965f-f5c24ae5752f",
    "name": "Bomat Courier",
    "manaCost": [
     "1"
@@ -682,6 +720,7 @@
   {
    "cardId": "c38",
    "scryfallId": "f532bca1-a115-4fe7-847e-296677bdd3ee",
+   "oracleId": "d85aa59b-c6aa-4b2f-885c-59d6e5e6e8b9",
    "name": "Braids, Cabal Minion",
    "manaCost": [
     "2",
@@ -703,6 +742,7 @@
   {
    "cardId": "c39",
    "scryfallId": "3a2d7cf9-dddb-4de3-b4f2-c52e3ec8fb4b",
+   "oracleId": "464c0150-3dbc-403b-9ada-fef25ab1f29d",
    "name": "Brain Freeze",
    "manaCost": [
     "1",
@@ -721,6 +761,7 @@
   {
    "cardId": "c40",
    "scryfallId": "acdc31d5-6726-453e-94e0-69d2fe9447af",
+   "oracleId": "419b5b4f-cac7-44bf-b1e2-655b5a5d37b1",
    "name": "Brain Maggot",
    "manaCost": [
     "1",
@@ -741,6 +782,7 @@
   {
    "cardId": "c41",
    "scryfallId": "821f1c26-6253-4ecc-a243-a5662c637a4a",
+   "oracleId": "36cd2364-d113-47d1-b2c4-b088d9eb88dd",
    "name": "Brainstorm",
    "manaCost": [
     "U"
@@ -758,6 +800,7 @@
   {
    "cardId": "c42",
    "scryfallId": "c5f51145-aade-4955-b9e7-4a34074253d6",
+   "oracleId": "8203c621-a1a0-4865-8c9a-0d4064c86107",
    "name": "Buried Alive",
    "manaCost": [
     "2",
@@ -776,6 +819,7 @@
   {
    "cardId": "c43",
    "scryfallId": "edb86d0d-e6cf-4988-a03e-26d52d78d929",
+   "oracleId": "3a3cec13-4766-40d2-88e0-41bcdd5249e9",
    "name": "Burning of Xinye",
    "manaCost": [
     "4",
@@ -795,6 +839,7 @@
   {
    "cardId": "c44",
    "scryfallId": "f2e6428f-5c78-45f7-9bf9-eb4de63325d5",
+   "oracleId": "ac2086fe-98ee-4280-9c7c-c5c2d6548a8b",
    "name": "Burst Lightning",
    "manaCost": [
     "R"
@@ -812,6 +857,7 @@
   {
    "cardId": "c45",
    "scryfallId": "a5d85875-22da-4054-ae42-e85b472a6d5d",
+   "oracleId": "5b5bf1fa-6502-4790-b66b-f0f8504ebc7c",
    "name": "Cabal Ritual",
    "manaCost": [
     "1",
@@ -830,6 +876,7 @@
   {
    "cardId": "c46",
    "scryfallId": "5e8416b8-aae1-4599-9e22-650dd86aefcb",
+   "oracleId": "c7c7bffa-442d-4ba5-b778-ad394c192f27",
    "name": "Candelabra of Tawnos",
    "manaCost": [
     "1"
@@ -845,6 +892,7 @@
   {
    "cardId": "c47",
    "scryfallId": "8cb273d9-466d-416d-b27d-d1bc8a249076",
+   "oracleId": "2031b17c-0536-446f-a9aa-b46fe79b7ea7",
    "name": "Canyon Slough",
    "manaCost": [],
    "manaValue": 0,
@@ -858,6 +906,7 @@
   {
    "cardId": "c48",
    "scryfallId": "dea15b53-2940-40e7-8d48-8ec11341da83",
+   "oracleId": "32e9aa23-fc0a-4b82-82f9-1659c304428c",
    "name": "Careful Study",
    "manaCost": [
     "U"
@@ -875,6 +924,7 @@
   {
    "cardId": "c49",
    "scryfallId": "88042031-64af-4f84-85d5-95992b43aa6c",
+   "oracleId": "a1cc5e37-b09a-4b7f-afd5-77c1c35aa425",
    "name": "Carrion Feeder",
    "manaCost": [
     "B"
@@ -894,6 +944,7 @@
   {
    "cardId": "c50",
    "scryfallId": "30bd7f43-a0ed-4601-a6d8-f87e7bbd269d",
+   "oracleId": "f1603384-4361-49c9-98aa-7785fc3504c4",
    "name": "Cascade Bluffs",
    "manaCost": [],
    "manaValue": 0,
@@ -907,6 +958,7 @@
   {
    "cardId": "c51",
    "scryfallId": "116ce944-6871-4f51-a889-d9c4a5d7cff2",
+   "oracleId": "cdaab6b0-1a2d-4809-8e6b-56013acd8f78",
    "name": "Cast Down",
    "manaCost": [
     "1",
@@ -925,6 +977,7 @@
   {
    "cardId": "c52",
    "scryfallId": "c68a6226-6dd7-4e1a-9e8a-124eef2caa13",
+   "oracleId": "0f3c3e5f-6af3-4af2-8703-4ccc8ed8f675",
    "name": "Cathartic Reunion",
    "manaCost": [
     "1",
@@ -943,6 +996,7 @@
   {
    "cardId": "c53",
    "scryfallId": "c9c607d3-a8bf-4ba3-9c10-7509f195b41f",
+   "oracleId": "8785f42f-87b9-4a0a-89ce-ea423649ba9c",
    "name": "Chain Lightning",
    "manaCost": [
     "R"
@@ -960,6 +1014,7 @@
   {
    "cardId": "c54",
    "scryfallId": "a36a583a-d4be-4589-a43c-a2854de062c6",
+   "oracleId": "7975cb9d-d37e-44f8-9614-86d2ad453c35",
    "name": "Chainer's Edict",
    "manaCost": [
     "1",
@@ -978,6 +1033,7 @@
   {
    "cardId": "c55",
    "scryfallId": "f2edb3a6-8506-4885-b332-eca381940ce8",
+   "oracleId": "eae87919-6322-4bd2-ae9c-b1ce25d686da",
    "name": "Chains of Mephistopheles",
    "manaCost": [
     "1",
@@ -996,6 +1052,7 @@
   {
    "cardId": "c56",
    "scryfallId": "d765221d-9718-47eb-aa49-9c0719337139",
+   "oracleId": "3fd8ba0c-75ec-43ea-8706-f71e6cf1d236",
    "name": "Champion of Wits",
    "manaCost": [
     "2",
@@ -1016,6 +1073,7 @@
   {
    "cardId": "c57",
    "scryfallId": "2cabfcfe-012e-4cab-bba2-24052eac0946",
+   "oracleId": "626e8acc-20da-496c-9a79-bfbf7529c01d",
    "name": "Chandra, Acolyte of Flame",
    "manaCost": [
     "1",
@@ -1036,6 +1094,7 @@
   {
    "cardId": "c58",
    "scryfallId": "49d2a680-4f3b-4bfa-b77b-d2dfaced9f23",
+   "oracleId": "7b2a600b-d6c8-45ff-a7fc-06105d27111f",
    "name": "Chandra, Awakened Inferno",
    "manaCost": [
     "4",
@@ -1056,6 +1115,7 @@
   {
    "cardId": "c59",
    "scryfallId": "7e0cfe44-9b57-4b9a-b23f-18d3237bd7ee",
+   "oracleId": "6f6b8e14-c247-4dfd-8b39-38c7a5f2f354",
    "name": "Chandra, Fire of Kaladesh // Chandra, Roaring Flame",
    "manaCost": [
     "1",
@@ -1092,6 +1152,7 @@
   {
    "cardId": "c60",
    "scryfallId": "49fdd0d3-7140-4c12-a41c-37eedd986d9e",
+   "oracleId": "0c2a9131-f3d7-4f71-8bcc-3c169574b2e3",
    "name": "Chandra, Flamecaller",
    "manaCost": [
     "4",
@@ -1112,6 +1173,7 @@
   {
    "cardId": "c61",
    "scryfallId": "ff8086cd-b868-4f4e-823e-2635ad7ebc07",
+   "oracleId": "12cc800c-c7be-4811-8207-fd01a99cc892",
    "name": "Chandra, Torch of Defiance",
    "manaCost": [
     "2",
@@ -1132,6 +1194,7 @@
   {
    "cardId": "c62",
    "scryfallId": "ea9f9b9a-f5dc-47d5-8d01-baf79842ea65",
+   "oracleId": "1386d111-a2a7-4df1-91d7-947664126989",
    "name": "Charcoal Diamond",
    "manaCost": [
     "2"
@@ -1147,6 +1210,7 @@
   {
    "cardId": "c63",
    "scryfallId": "98291778-2ec2-47e2-ac99-5f8cfbb3cf24",
+   "oracleId": "05878e49-93ad-4144-9c50-a0bb86126c2e",
    "name": "Chart a Course",
    "manaCost": [
     "1",
@@ -1165,6 +1229,7 @@
   {
    "cardId": "c64",
    "scryfallId": "ea123356-3055-4e42-b816-ac3c4e9087d1",
+   "oracleId": "539f5396-d99a-417d-a84c-dff7930b5900",
    "name": "Chromatic Lantern",
    "manaCost": [
     "3"
@@ -1180,6 +1245,7 @@
   {
    "cardId": "c65",
    "scryfallId": "e59f7138-60e0-444e-aaa3-8769072da916",
+   "oracleId": "ec3d4466-547c-4e02-b1b5-a156ec4637e9",
    "name": "Chrome Mox",
    "manaCost": [
     "0"
@@ -1195,6 +1261,7 @@
   {
    "cardId": "c66",
    "scryfallId": "a7a8b6b8-b95f-4014-b17a-a6d44d965995",
+   "oracleId": "f161111d-9747-47b3-bb10-3c8bded32e21",
    "name": "City of Traitors",
    "manaCost": [],
    "manaValue": 0,
@@ -1208,6 +1275,7 @@
   {
    "cardId": "c67",
    "scryfallId": "02c532e8-21f1-4d6f-a931-1ea48a6aeea2",
+   "oracleId": "008cb342-79f5-4df6-a6b7-0e9e22ed693f",
    "name": "Coalition Relic",
    "manaCost": [
     "3"
@@ -1223,6 +1291,7 @@
   {
    "cardId": "c68",
    "scryfallId": "18e8c013-1a56-4894-a4f5-6ec564bcbe9b",
+   "oracleId": "eea4feef-2595-4ed2-92a0-11ccb3e7d40e",
    "name": "Coercive Portal",
    "manaCost": [
     "4"
@@ -1238,6 +1307,7 @@
   {
    "cardId": "c69",
    "scryfallId": "cdd5015e-fe31-42e3-923d-44b9cdece273",
+   "oracleId": "21d700e8-0255-418e-96a0-6fe05b3f836d",
    "name": "Coldsteel Heart",
    "manaCost": [
     "2"
@@ -1253,6 +1323,7 @@
   {
    "cardId": "c70",
    "scryfallId": "cb94a02f-4660-45b6-8a39-941b710cf8f3",
+   "oracleId": "22a78443-db21-4656-b38a-e3e3186fd94b",
    "name": "Collective Brutality",
    "manaCost": [
     "1",
@@ -1271,6 +1342,7 @@
   {
    "cardId": "c71",
    "scryfallId": "209d70a2-c8c1-4072-ab1f-57804b55a09a",
+   "oracleId": "fedb1947-9fa5-4655-8d02-b370fa63dd16",
    "name": "Commence the Endgame",
    "manaCost": [
     "4",
@@ -1290,6 +1362,7 @@
   {
    "cardId": "c72",
    "scryfallId": "06c9e2e8-2b4c-4087-9141-6aa25a506626",
+   "oracleId": "56fd8895-3be2-4591-86fa-87567d9cdc14",
    "name": "Commit // Memory",
    "manaCost": [
     "3",
@@ -1344,6 +1417,7 @@
   {
    "cardId": "c73",
    "scryfallId": "20b9c057-b80a-4e4e-a0d7-34b7ff3a69f4",
+   "oracleId": "f947808c-a1cc-41ea-9d06-e1279a0da527",
    "name": "Compulsive Research",
    "manaCost": [
     "2",
@@ -1362,6 +1436,7 @@
   {
    "cardId": "c74",
    "scryfallId": "b7f6b20c-9871-433c-8557-44493447e914",
+   "oracleId": "311a449d-dc74-46e6-9a47-6a597931f736",
    "name": "Consecrated Sphinx",
    "manaCost": [
     "4",
@@ -1383,6 +1458,7 @@
   {
    "cardId": "c75",
    "scryfallId": "76ae81ea-13e3-4ab8-b956-4c7b139a5e9c",
+   "oracleId": "59b02ca7-e7bd-4820-ac32-87ea1a8c64c0",
    "name": "Corpse Dance",
    "manaCost": [
     "2",
@@ -1401,6 +1477,7 @@
   {
    "cardId": "c76",
    "scryfallId": "0c9a7cb0-5bff-48ff-b620-2838816ac9b5",
+   "oracleId": "cc187110-1148-4090-bbb8-e205694a39f5",
    "name": "Counterspell",
    "manaCost": [
     "U",
@@ -1419,6 +1496,7 @@
   {
    "cardId": "c77",
    "scryfallId": "f99f864e-a10f-47f4-94c5-4571b5c11b3b",
+   "oracleId": "6df620b8-1e54-4f63-8556-12c75e5679af",
    "name": "Countersquall",
    "manaCost": [
     "U",
@@ -1438,6 +1516,7 @@
   {
    "cardId": "c78",
    "scryfallId": "1250441b-8255-4ae1-b064-a75eb24faaf3",
+   "oracleId": "250cb58b-2924-4dff-92fe-ac0ebbbeb218",
    "name": "Creeping Tar Pit",
    "manaCost": [],
    "manaValue": 0,
@@ -1451,6 +1530,7 @@
   {
    "cardId": "c79",
    "scryfallId": "eb28b35c-28a5-4042-b21d-6d43658a16eb",
+   "oracleId": "33c722cf-b4bf-431f-aefd-ee96241a7fbf",
    "name": "Crucible of Worlds",
    "manaCost": [
     "3"
@@ -1466,6 +1546,7 @@
   {
    "cardId": "c80",
    "scryfallId": "8eace656-3020-49c3-bbb9-8cc312404fba",
+   "oracleId": "01294ac9-1a06-4ee8-b3b1-db1f07c9d94e",
    "name": "Cruel Ultimatum",
    "manaCost": [
     "U",
@@ -1491,6 +1572,7 @@
   {
    "cardId": "c81",
    "scryfallId": "720652e9-834c-4ac0-8008-b2b16c3b7507",
+   "oracleId": "7190debf-708b-4f41-9714-0d0a5bd5a74e",
    "name": "Crumbling Necropolis",
    "manaCost": [],
    "manaValue": 0,
@@ -1504,6 +1586,7 @@
   {
    "cardId": "c82",
    "scryfallId": "629e37d1-c0f3-44f2-926e-41eb3687c1d9",
+   "oracleId": "16f75a65-d067-4f79-81b9-833c373cf4d2",
    "name": "Cryptbreaker",
    "manaCost": [
     "B"
@@ -1523,6 +1606,7 @@
   {
    "cardId": "c83",
    "scryfallId": "30f6fca9-003b-4f6b-9d6e-1e88adda4155",
+   "oracleId": "a3e51a35-09df-4189-b131-08a21e6a557d",
    "name": "Cryptic Command",
    "manaCost": [
     "1",
@@ -1543,6 +1627,7 @@
   {
    "cardId": "c84",
    "scryfallId": "1c28ab69-1a46-45af-a331-1f52f99a9da3",
+   "oracleId": "616d6013-24f4-4999-9bf3-5b0764e52fa6",
    "name": "Crystal Vein",
    "manaCost": [],
    "manaValue": 0,
@@ -1556,6 +1641,7 @@
   {
    "cardId": "c85",
    "scryfallId": "c6f61e2b-e93b-4dda-95cf-9d0ff198c0a6",
+   "oracleId": "98a5bf1a-1088-4339-9a9b-6ee5e4956cf1",
    "name": "Cut // Ribbons",
    "manaCost": [
     "1",
@@ -1611,6 +1697,7 @@
   {
    "cardId": "c86",
    "scryfallId": "3fcb7810-1054-4001-855c-6e17939b3d3f",
+   "oracleId": "9d4b1e44-3c66-4b1b-8a1d-308aa4f841f8",
    "name": "Dack Fayden",
    "manaCost": [
     "1",
@@ -1632,6 +1719,7 @@
   {
    "cardId": "c87",
    "scryfallId": "c5cd963b-08bd-40a3-be1c-01e20aa41424",
+   "oracleId": "724767ca-bd84-4137-9133-4ad2e96b8428",
    "name": "Dack's Duplicate",
    "manaCost": [
     "2",
@@ -1654,6 +1742,7 @@
   {
    "cardId": "c88",
    "scryfallId": "26c68473-70ca-40ba-b5c6-71ec30f88a2c",
+   "oracleId": "d57a8f0b-7989-4db5-8756-6f2690097252",
    "name": "Damnation",
    "manaCost": [
     "2",
@@ -1673,6 +1762,7 @@
   {
    "cardId": "c89",
    "scryfallId": "dcdba056-6d0c-4ed2-bc3f-f690e39d1ef7",
+   "oracleId": "add0f7e7-8990-4fd1-8ac7-8115f7802912",
    "name": "Daretti, Ingenious Iconoclast",
    "manaCost": [
     "1",
@@ -1694,6 +1784,7 @@
   {
    "cardId": "c90",
    "scryfallId": "3f4e6adf-d52f-4087-a919-789a543a9a3e",
+   "oracleId": "ea9f4de3-fc35-435a-8dff-a5657d14a9bd",
    "name": "Daretti, Scrap Savant",
    "manaCost": [
     "3",
@@ -1713,6 +1804,7 @@
   {
    "cardId": "c91",
    "scryfallId": "94f7a441-bf2d-46fb-a7b6-9bd6137f86d9",
+   "oracleId": "2068185c-1b50-47d0-aa3f-bf505d199428",
    "name": "Dark Confidant",
    "manaCost": [
     "1",
@@ -1733,6 +1825,7 @@
   {
    "cardId": "c92",
    "scryfallId": "e9df9c5e-7087-42b2-9001-c89d40a66c68",
+   "oracleId": "79acdb37-8d52-4bc8-a7be-a7e92b6166e5",
    "name": "Dark Petition",
    "manaCost": [
     "3",
@@ -1752,6 +1845,7 @@
   {
    "cardId": "c93",
    "scryfallId": "95f27eeb-6f14-4db3-adb9-9be5ed76b34b",
+   "oracleId": "53f7c868-b03e-4fc2-8dcf-a75bbfa3272b",
    "name": "Dark Ritual",
    "manaCost": [
     "B"
@@ -1769,6 +1863,7 @@
   {
    "cardId": "c94",
    "scryfallId": "e530388b-eb19-4211-abd8-8a4c3c38c3af",
+   "oracleId": "a2b48695-f7d7-42ce-a8a0-2a723428542a",
    "name": "Darkslick Shores",
    "manaCost": [],
    "manaValue": 0,
@@ -1782,6 +1877,7 @@
   {
    "cardId": "c95",
    "scryfallId": "371077bd-9b4b-4c75-9494-c6a3cb1b304d",
+   "oracleId": "8dc067bf-f78f-4ac4-b6e7-b305c42cf0bc",
    "name": "Darksteel Citadel",
    "manaCost": [],
    "manaValue": 0,
@@ -1795,6 +1891,7 @@
   {
    "cardId": "c96",
    "scryfallId": "5fb4c2b7-8714-496e-a981-844e8e5b81ea",
+   "oracleId": "a2529491-7389-4cfa-92d2-145eda779603",
    "name": "Darksteel Ingot",
    "manaCost": [
     "3"
@@ -1810,6 +1907,7 @@
   {
    "cardId": "c97",
    "scryfallId": "5b1a44f0-1db8-406a-b7d9-f883f947f7bd",
+   "oracleId": "1bd5e51f-f9a5-4eb7-bda2-957310602c20",
    "name": "Davriel, Rogue Shadowmage",
    "manaCost": [
     "2",
@@ -1829,6 +1927,7 @@
   {
    "cardId": "c98",
    "scryfallId": "d03bff25-0d5e-4dcf-8d75-6df846afea3b",
+   "oracleId": "70486bee-6ee7-41ea-b834-8caf4699302b",
    "name": "Daze",
    "manaCost": [
     "1",
@@ -1847,6 +1946,7 @@
   {
    "cardId": "c99",
    "scryfallId": "5c2592c9-7e64-40c1-a9cb-c0994094a1e0",
+   "oracleId": "22ba474e-f6e6-450d-a4cf-0739f0b51079",
    "name": "Defense Grid",
    "manaCost": [
     "2"
@@ -1862,6 +1962,7 @@
   {
    "cardId": "c100",
    "scryfallId": "5bcb4398-edd1-41a7-a496-b12bce22ceb6",
+   "oracleId": "49dddec0-d958-4810-8c6e-225fc8118c8f",
    "name": "Defile",
    "manaCost": [
     "B"
@@ -1879,6 +1980,7 @@
   {
    "cardId": "c101",
    "scryfallId": "28059d09-2c7d-4c61-af55-8942107a7c1f",
+   "oracleId": "edd531b9-f615-4399-8c8c-1c5e18c4acbf",
    "name": "Delver of Secrets // Insectile Aberration",
    "manaCost": [
     "U"
@@ -1914,6 +2016,7 @@
   {
    "cardId": "c102",
    "scryfallId": "711d4d54-5520-4de8-9b93-79902ed8e562",
+   "oracleId": "82004860-e589-4e38-8d61-8c0210e4ea39",
    "name": "Demonic Tutor",
    "manaCost": [
     "1",
@@ -1932,6 +2035,7 @@
   {
    "cardId": "c103",
    "scryfallId": "3825b85d-07df-43b9-a8d8-930863262d83",
+   "oracleId": "3620ab8f-b693-4225-bb96-5ca3cb3fa465",
    "name": "Desperate Ritual",
    "manaCost": [
     "1",
@@ -1950,6 +2054,7 @@
   {
    "cardId": "c104",
    "scryfallId": "15b09784-8e89-4013-975d-57e4d26cc926",
+   "oracleId": "5eb6626a-1e0a-438e-9e95-a1e86be6489d",
    "name": "Devastating Summons",
    "manaCost": [
     "R"
@@ -1967,6 +2072,7 @@
   {
    "cardId": "c105",
    "scryfallId": "01cd4184-93ce-4005-b6d1-140afa3dd429",
+   "oracleId": "f8b17b89-26ce-4208-874a-9e1d66514640",
    "name": "Dig Through Time",
    "manaCost": [
     "6",
@@ -1986,6 +2092,7 @@
   {
    "cardId": "c106",
    "scryfallId": "9a9a1df5-a4e8-49a4-aebe-ca93894ccfcf",
+   "oracleId": "7d881c57-0bd9-4c57-aa4a-b10808b86143",
    "name": "Dimir Signet",
    "manaCost": [
     "2"
@@ -2001,6 +2108,7 @@
   {
    "cardId": "c107",
    "scryfallId": "13e3c0c5-7451-4da9-acc0-d6e4e1f2655e",
+   "oracleId": "7a3e50a5-c163-4c41-b62d-d52c233c55b7",
    "name": "Dire Fleet Daredevil",
    "manaCost": [
     "1",
@@ -2021,6 +2129,7 @@
   {
    "cardId": "c108",
    "scryfallId": "25f05814-a5a5-460f-9d29-0ab03efecf4c",
+   "oracleId": "88b51e15-6630-4e14-a6b8-db0aa12e34ef",
    "name": "Disallow",
    "manaCost": [
     "1",
@@ -2040,6 +2149,7 @@
   {
    "cardId": "c109",
    "scryfallId": "ace631d1-897a-417e-8628-0170713f03d3",
+   "oracleId": "8f1c1bd6-8420-4de2-81f4-5faa419da301",
    "name": "Discovery // Dispersal",
    "manaCost": [
     "1",
@@ -2095,6 +2205,7 @@
   {
    "cardId": "c110",
    "scryfallId": "3d286cf6-3e16-4941-9326-1818b1e06d69",
+   "oracleId": "fd74f8eb-0253-42dd-8277-186d4934da38",
    "name": "Dismember",
    "manaCost": [
     "1",
@@ -2114,6 +2225,7 @@
   {
    "cardId": "c111",
    "scryfallId": "0a11ee0d-ff8d-4648-8b4e-29440c135c30",
+   "oracleId": "4a01db2e-cd43-4b1a-a480-169018f82501",
    "name": "Doom Whisperer",
    "manaCost": [
     "3",
@@ -2135,6 +2247,7 @@
   {
    "cardId": "c112",
    "scryfallId": "2eae504d-d4a9-440f-8ceb-df967cc50494",
+   "oracleId": "44581d4f-746b-43b8-a34d-16dc383ab70e",
    "name": "Dragonlord Silumgar",
    "manaCost": [
     "4",
@@ -2157,6 +2270,7 @@
   {
    "cardId": "c113",
    "scryfallId": "91570836-9e36-4774-8d5d-7cbcee0012ba",
+   "oracleId": "63398c02-6fb1-481d-9d9f-81063532fbc0",
    "name": "Dragonskull Summit",
    "manaCost": [],
    "manaValue": 0,
@@ -2170,6 +2284,7 @@
   {
    "cardId": "c114",
    "scryfallId": "5677cd48-de9f-4827-94d7-8a2301945742",
+   "oracleId": "77acdc13-e1b5-4a6c-9be1-b987e8256f10",
    "name": "Drawn from Dreams",
    "manaCost": [
     "2",
@@ -2189,6 +2304,7 @@
   {
    "cardId": "c115",
    "scryfallId": "343fc82d-7d10-4489-8f7e-9995322114e2",
+   "oracleId": "88154d64-221f-4742-bccb-b1b61a2e8bf0",
    "name": "Dread Wanderer",
    "manaCost": [
     "B"
@@ -2208,6 +2324,7 @@
   {
    "cardId": "c116",
    "scryfallId": "6390e641-0ecd-46ea-b6eb-f7e638d61cfd",
+   "oracleId": "d685799f-cc1a-40d6-9df6-d05b8b1f5b13",
    "name": "Dreadbore",
    "manaCost": [
     "B",
@@ -2227,6 +2344,7 @@
   {
    "cardId": "c117",
    "scryfallId": "fd97b3cf-924e-4f77-bb82-0bf19592389f",
+   "oracleId": "4c05b382-58ab-4a2d-a81c-408ea273b6b6",
    "name": "Dreadhorde Arcanist",
    "manaCost": [
     "1",
@@ -2247,6 +2365,7 @@
   {
    "cardId": "c118",
    "scryfallId": "1eda9aeb-bbce-4c17-8ac5-2bc07d47d090",
+   "oracleId": "130a8cf5-1354-4d17-91c8-c073642eb3db",
    "name": "Dreadship Reef",
    "manaCost": [],
    "manaValue": 0,
@@ -2260,6 +2379,7 @@
   {
    "cardId": "c119",
    "scryfallId": "2c6606d1-619f-4cc9-8d5b-771c4b4d9615",
+   "oracleId": "d901e17f-a5f4-49d9-8a6d-ab771949af24",
    "name": "Dream Halls",
    "manaCost": [
     "3",
@@ -2279,6 +2399,7 @@
   {
    "cardId": "c120",
    "scryfallId": "5c4fcde3-03c9-43e6-a34b-29f6ce44e7c4",
+   "oracleId": "bf7201e6-1b3f-40f1-9b79-44921b00b0de",
    "name": "Dreamstealer",
    "manaCost": [
     "2",
@@ -2299,6 +2420,7 @@
   {
    "cardId": "c121",
    "scryfallId": "73f8710c-9c5e-4d11-b45f-0728c54bd631",
+   "oracleId": "0dbd6e47-a8b4-4268-ba44-8924cd4963a6",
    "name": "Drill Bit",
    "manaCost": [
     "2",
@@ -2317,6 +2439,7 @@
   {
    "cardId": "c122",
    "scryfallId": "8ef728f1-5153-47d6-8f9c-dfd473ee0750",
+   "oracleId": "819fc966-434e-470f-91e9-a38df974ad17",
    "name": "Drowned Catacomb",
    "manaCost": [],
    "manaValue": 0,
@@ -2330,6 +2453,7 @@
   {
    "cardId": "c123",
    "scryfallId": "ea87504f-b373-448b-8444-46fdc3d93250",
+   "oracleId": "ea86abfa-6cab-4ef0-8463-34136fc25b59",
    "name": "Duplicant",
    "manaCost": [
     "6"
@@ -2347,6 +2471,7 @@
   {
    "cardId": "c124",
    "scryfallId": "bb41ff5c-9617-4033-a4fa-99323640b9c3",
+   "oracleId": "33d405ea-7a9a-4970-b70f-9c05d90dd6f0",
    "name": "Duress",
    "manaCost": [
     "B"
@@ -2364,6 +2489,7 @@
   {
    "cardId": "c125",
    "scryfallId": "0d60eabe-b281-4eba-9c26-287364ed2067",
+   "oracleId": "df660a8e-39c2-455d-8860-522e2998a95e",
    "name": "Earthshaker Khenra",
    "manaCost": [
     "1",
@@ -2384,6 +2510,7 @@
   {
    "cardId": "c126",
    "scryfallId": "ff590af2-2d6c-4f16-a9b8-1a6dab6e9ad5",
+   "oracleId": "23d3e5fe-3f82-44cf-91a1-6646a12a0255",
    "name": "Echo of Eons",
    "manaCost": [
     "4",
@@ -2403,6 +2530,7 @@
   {
    "cardId": "c127",
    "scryfallId": "183ef738-0559-49ca-85b4-e6836521f203",
+   "oracleId": "2fd7018e-1c36-4d7f-8f72-22f2f7f60c60",
    "name": "Eidolon of the Great Revel",
    "manaCost": [
     "R",
@@ -2423,6 +2551,7 @@
   {
    "cardId": "c128",
    "scryfallId": "dfaa8b16-7c12-44e2-8ddb-17608d491c41",
+   "oracleId": "d09402cb-cf64-493e-a82d-244b31700710",
    "name": "Eldrazi Obligator",
    "manaCost": [
     "2",
@@ -2441,6 +2570,7 @@
   {
    "cardId": "c129",
    "scryfallId": "c42049e2-fe4e-4fe9-9599-faf1af50b97d",
+   "oracleId": "7fab8d65-af51-47d3-8f10-2676bf6e8ba3",
    "name": "Eldrazi Temple",
    "manaCost": [],
    "manaValue": 0,
@@ -2454,6 +2584,7 @@
   {
    "cardId": "c130",
    "scryfallId": "5c63877b-cdab-4ce4-a1c0-c088eb62a57a",
+   "oracleId": "4a59d86e-405d-4c70-b2a5-c64f5cecfd9e",
    "name": "Electrodominance",
    "manaCost": [
     "X",
@@ -2473,6 +2604,7 @@
   {
    "cardId": "c131",
    "scryfallId": "b7dda3bf-08a9-42f7-bc64-4a41f6f210fa",
+   "oracleId": "07b222d7-24f2-4994-9004-ff6672ebe161",
    "name": "Electrolyze",
    "manaCost": [
     "1",
@@ -2493,6 +2625,7 @@
   {
    "cardId": "c132",
    "scryfallId": "42418f91-c7a9-461a-b00c-bba184e2a917",
+   "oracleId": "3a59c882-8bb8-49ba-862f-125020dd5bec",
    "name": "Empty the Warrens",
    "manaCost": [
     "3",
@@ -2511,6 +2644,7 @@
   {
    "cardId": "c133",
    "scryfallId": "67600383-bbb8-411c-b8e6-2296650bc747",
+   "oracleId": "900ca697-ad38-4b2b-bc74-2ff7eb6ea951",
    "name": "Emrakul, the Aeons Torn",
    "manaCost": [
     "15"
@@ -2528,6 +2662,7 @@
   {
    "cardId": "c134",
    "scryfallId": "8d74a469-c71d-4773-99d3-5456b31df424",
+   "oracleId": "4e7a8817-1a66-45c3-ade9-eac79b40b89f",
    "name": "Emrakul, the Promised End",
    "manaCost": [
     "13"
@@ -2545,6 +2680,7 @@
   {
    "cardId": "c135",
    "scryfallId": "20d3b541-40aa-469e-be97-20496a7632d4",
+   "oracleId": "bc0fc535-357a-4d83-8d64-34337222cc4b",
    "name": "Enclave Cryptologist",
    "manaCost": [
     "U"
@@ -2564,6 +2700,7 @@
   {
    "cardId": "c136",
    "scryfallId": "6bba7509-db77-414f-926f-1f28a4117831",
+   "oracleId": "db1ea6e0-4076-49dd-92f7-7e6d7eb65a27",
    "name": "Endbringer",
    "manaCost": [
     "5",
@@ -2582,6 +2719,7 @@
   {
    "cardId": "c137",
    "scryfallId": "d66f864b-b1bb-4596-93b8-3b4bfe6b1332",
+   "oracleId": "299fc083-0834-4064-8344-f895aff68867",
    "name": "Entomb",
    "manaCost": [
     "B"
@@ -2599,6 +2737,7 @@
   {
    "cardId": "c138",
    "scryfallId": "6d4fafc8-3466-42f7-9d8d-8c6250da7bd5",
+   "oracleId": "54e2d2ff-51d2-48a5-ab2e-7d9de8c78b7e",
    "name": "Epochrasite",
    "manaCost": [
     "2"
@@ -2616,6 +2755,7 @@
   {
    "cardId": "c139",
    "scryfallId": "d0787e1f-0b75-44ab-a8fd-90358906a787",
+   "oracleId": "1cfc7b12-a595-492d-81ee-bd100ba7de6a",
    "name": "Erebos, God of the Dead",
    "manaCost": [
     "3",
@@ -2636,6 +2776,7 @@
   {
    "cardId": "c140",
    "scryfallId": "b2dadc79-855c-447e-a421-a9e16e81d47a",
+   "oracleId": "0a79237e-0811-4a8a-bd4d-db3ca91bff22",
    "name": "Everflowing Chalice",
    "manaCost": [
     "0"
@@ -2651,6 +2792,7 @@
   {
    "cardId": "c141",
    "scryfallId": "feb10f32-8a2b-431d-bae8-ef8a6c14b6a4",
+   "oracleId": "fbe61f74-1b3c-4e12-8758-7029872c9ff1",
    "name": "Exhume",
    "manaCost": [
     "1",
@@ -2669,6 +2811,7 @@
   {
    "cardId": "c142",
    "scryfallId": "e0644c92-4d67-475e-8c8e-0e2c493682fb",
+   "oracleId": "af6f771f-5154-4fb3-8ed4-768d71eea568",
    "name": "Expansion // Explosion",
    "manaCost": [
     "U/R",
@@ -2728,6 +2871,7 @@
   {
    "cardId": "c143",
    "scryfallId": "4b8f32e2-5dc8-4f1b-8a69-d3ae06378ed8",
+   "oracleId": "3715e8b8-31df-499b-8a91-1bcd1199d6eb",
    "name": "Experimental Frenzy",
    "manaCost": [
     "3",
@@ -2746,6 +2890,7 @@
   {
    "cardId": "c144",
    "scryfallId": "55d51a2b-450c-4e6d-a660-67d58d1dd4ba",
+   "oracleId": "437b2dab-15e0-4b9a-a204-58622d37a3b3",
    "name": "Fact or Fiction",
    "manaCost": [
     "3",
@@ -2764,6 +2909,7 @@
   {
    "cardId": "c145",
    "scryfallId": "4e0865d7-3325-489f-bbe6-b7d2a43c23af",
+   "oracleId": "3d6fa57a-aa53-4b5c-b8af-a7612c823117",
    "name": "Faithless Looting",
    "manaCost": [
     "R"
@@ -2781,6 +2927,7 @@
   {
    "cardId": "c146",
    "scryfallId": "53399f12-0d62-40bf-a532-1d02b6c2f19e",
+   "oracleId": "cd2a87c4-d1c3-4a9e-b2df-e6fe251421c4",
    "name": "Falkenrath Aristocrat",
    "manaCost": [
     "2",
@@ -2803,6 +2950,7 @@
   {
    "cardId": "c147",
    "scryfallId": "474895d8-1f2c-45bb-b721-4cf7c290eb23",
+   "oracleId": "26aba6fa-830f-4a7f-8618-488d8e00215a",
    "name": "Falkenrath Gorger",
    "manaCost": [
     "R"
@@ -2822,6 +2970,7 @@
   {
    "cardId": "c148",
    "scryfallId": "b5e81649-9954-424c-89d1-f87d73b66047",
+   "oracleId": "16437a83-be52-44cd-a768-a767c9347eb2",
    "name": "Fatal Push",
    "manaCost": [
     "B"
@@ -2839,6 +2988,7 @@
   {
    "cardId": "c149",
    "scryfallId": "1e60622b-7c25-444d-8eeb-c443acdfc488",
+   "oracleId": "95560508-7ac9-4be9-8a3f-3c7d5b52807b",
    "name": "Fellwar Stone",
    "manaCost": [
     "2"
@@ -2854,6 +3004,7 @@
   {
    "cardId": "c150",
    "scryfallId": "ae703d94-6f1f-463b-ab25-1b3f462e7e78",
+   "oracleId": "32b03b48-06da-4a74-a7ac-e5ae39a4f428",
    "name": "Fetid Pools",
    "manaCost": [],
    "manaValue": 0,
@@ -2867,6 +3018,7 @@
   {
    "cardId": "c151",
    "scryfallId": "819a513c-3be6-4bdc-8ba6-1f7326a8f3ea",
+   "oracleId": "3c22e031-4804-4c31-bd3c-c3f29d456b34",
    "name": "Fiery Confluence",
    "manaCost": [
     "2",
@@ -2886,6 +3038,7 @@
   {
    "cardId": "c152",
    "scryfallId": "a3aab13c-9d9d-4507-ae5d-da979990ae1b",
+   "oracleId": "026f4a4b-eedd-44e1-9d37-ca4fb8d6db98",
    "name": "Fiery Islet",
    "manaCost": [],
    "manaValue": 0,
@@ -2899,6 +3052,7 @@
   {
    "cardId": "c153",
    "scryfallId": "6add511b-1931-4e4e-9a4c-083bc5ff2bc2",
+   "oracleId": "cd51cc2d-0d39-4aba-b0ea-70e8118149bc",
    "name": "Figure of Destiny",
    "manaCost": [
     "R/W"
@@ -2919,6 +3073,7 @@
   {
    "cardId": "c154",
    "scryfallId": "df50ecad-6af3-40c5-a4cf-8e3c24a78f77",
+   "oracleId": "b544f690-e4bf-4a5b-984d-9256518fd574",
    "name": "Filigree Familiar",
    "manaCost": [
     "3"
@@ -2936,6 +3091,7 @@
   {
    "cardId": "c155",
    "scryfallId": "85c60177-8b71-4e24-87e7-395d5e4f93ff",
+   "oracleId": "3113afec-d4ae-46b5-9952-89e2e2c9ae7b",
    "name": "Finale of Eternity",
    "manaCost": [
     "X",
@@ -2955,6 +3111,7 @@
   {
    "cardId": "c156",
    "scryfallId": "811b2dda-e1b7-4a46-83cc-5cdc17554836",
+   "oracleId": "d6fafb50-9531-4fbf-bb1e-ebb4dd39281c",
    "name": "Finale of Promise",
    "manaCost": [
     "X",
@@ -2974,6 +3131,7 @@
   {
    "cardId": "c157",
    "scryfallId": "6630c34a-1a97-4e31-9d2c-1150b0aa903e",
+   "oracleId": "755bd5d8-67f1-4f24-a4e8-d98edf2f2e03",
    "name": "Finale of Revelation",
    "manaCost": [
     "X",
@@ -2993,6 +3151,7 @@
   {
    "cardId": "c158",
    "scryfallId": "3f822331-315e-4297-bb69-f1069032c6c5",
+   "oracleId": "ae92942b-919c-4ea9-b693-85fcef765d5a",
    "name": "Fire // Ice",
    "manaCost": [
     "1",
@@ -3046,6 +3205,7 @@
   {
    "cardId": "c159",
    "scryfallId": "42459fef-8d23-4121-9823-31ab63245364",
+   "oracleId": "97b477d8-2e05-475e-8ed6-7d680cb21cd9",
    "name": "Fire Diamond",
    "manaCost": [
     "2"
@@ -3061,6 +3221,7 @@
   {
    "cardId": "c160",
    "scryfallId": "51e839d8-2c62-46df-a6ca-3964f43b7e54",
+   "oracleId": "9dd7f27a-e862-47d7-9158-034cf4d353b8",
    "name": "Fireblast",
    "manaCost": [
     "4",
@@ -3080,6 +3241,7 @@
   {
    "cardId": "c161",
    "scryfallId": "882b8f98-ee51-4c94-a3eb-c79eb2b50d78",
+   "oracleId": "7aa31280-12c3-479d-a6dd-f1c669043083",
    "name": "Firebolt",
    "manaCost": [
     "R"
@@ -3097,6 +3259,7 @@
   {
    "cardId": "c162",
    "scryfallId": "ec0ebb6b-d35a-47db-8071-7fef2a46c17b",
+   "oracleId": "d8afd7b0-7cd0-4caf-ac43-a0e24a93ca09",
    "name": "Firemind Vessel",
    "manaCost": [
     "4"
@@ -3112,6 +3275,7 @@
   {
    "cardId": "c163",
    "scryfallId": "15affc1b-2ebb-4934-87a2-10e89eafe894",
+   "oracleId": "8d98d674-6811-4d45-b22a-63792e272a2b",
    "name": "Flame Slash",
    "manaCost": [
     "R"
@@ -3129,6 +3293,7 @@
   {
    "cardId": "c164",
    "scryfallId": "46a00405-13ad-4531-9bfb-fea0ca57f196",
+   "oracleId": "86bf58f2-7f25-4e10-b797-25e0e8e67769",
    "name": "Flusterstorm",
    "manaCost": [
     "U"
@@ -3146,6 +3311,7 @@
   {
    "cardId": "c165",
    "scryfallId": "29df5ef7-d679-4543-bdb7-3984155c87e0",
+   "oracleId": "6e26a525-2584-490d-b106-621c1a30e1fd",
    "name": "Forbid",
    "manaCost": [
     "1",
@@ -3165,6 +3331,7 @@
   {
    "cardId": "c166",
    "scryfallId": "e9be371c-c688-44ad-ab71-bd4c9f242d58",
+   "oracleId": "ac2173f9-f223-440a-9231-fd98762bdc6f",
    "name": "Force of Negation",
    "manaCost": [
     "1",
@@ -3184,6 +3351,7 @@
   {
    "cardId": "c167",
    "scryfallId": "ebc01ab4-d89a-4d25-bf54-6aed33772f4b",
+   "oracleId": "956381ba-6d37-4a8a-846c-bad79222dbee",
    "name": "Force of Will",
    "manaCost": [
     "3",
@@ -3203,6 +3371,7 @@
   {
    "cardId": "c168",
    "scryfallId": "8e76d69a-3909-4dd9-b229-5aca88335080",
+   "oracleId": "896ea218-3019-47e4-b0a0-2487335872bb",
    "name": "Force Spike",
    "manaCost": [
     "U"
@@ -3220,6 +3389,7 @@
   {
    "cardId": "c169",
    "scryfallId": "06127297-fdaa-45bf-a82e-4fc61315e0e2",
+   "oracleId": "e0548f0d-4aec-4c39-8c34-52bfa2bf7c60",
    "name": "Forked Bolt",
    "manaCost": [
     "R"
@@ -3237,6 +3407,7 @@
   {
    "cardId": "c170",
    "scryfallId": "1904db14-6df7-424f-afa5-e3dfab31300a",
+   "oracleId": "16e015b2-f8a3-4b1a-80be-58a8f5fb5e8c",
    "name": "Frantic Search",
    "manaCost": [
     "2",
@@ -3255,6 +3426,7 @@
   {
    "cardId": "c171",
    "scryfallId": "bb9eec79-1926-46eb-b9e0-6ba12a441495",
+   "oracleId": "4c5a2443-a038-44d3-83a4-5e9a6db7b1a7",
    "name": "Frost Titan",
    "manaCost": [
     "4",
@@ -3276,6 +3448,7 @@
   {
    "cardId": "c172",
    "scryfallId": "be1df367-8e85-4fd8-aa6f-f02a478fecb3",
+   "oracleId": "bd4c46a3-b723-4b35-9061-9a1dee7cc9d8",
    "name": "Fulminator Mage",
    "manaCost": [
     "1",
@@ -3298,6 +3471,7 @@
   {
    "cardId": "c173",
    "scryfallId": "639cb483-ffe2-4abc-a050-5cdc8aebd5a2",
+   "oracleId": "93a0e938-b916-47ec-9803-369e885e253c",
    "name": "Future Sight",
    "manaCost": [
     "2",
@@ -3318,6 +3492,7 @@
   {
    "cardId": "c174",
    "scryfallId": "71db3698-a45c-4eaf-87e6-30502c0c10f4",
+   "oracleId": "6781f8ae-2a86-4e3d-bc43-48809c9d6c26",
    "name": "Gatekeeper of Malakir",
    "manaCost": [
     "B",
@@ -3338,6 +3513,7 @@
   {
    "cardId": "c175",
    "scryfallId": "bffaad78-97ff-431f-bfb0-e96c7558f974",
+   "oracleId": "740f9740-aaa7-4061-86f5-85be79742541",
    "name": "Geralf's Messenger",
    "manaCost": [
     "B",
@@ -3359,6 +3535,7 @@
   {
    "cardId": "c176",
    "scryfallId": "abceb4fd-e3c5-400d-af7a-6dd17108a4b4",
+   "oracleId": "0c6a6587-2b3f-40d1-a5f2-06128da0d52e",
    "name": "Gifted Aetherborn",
    "manaCost": [
     "B",
@@ -3379,6 +3556,7 @@
   {
    "cardId": "c177",
    "scryfallId": "a487e208-8493-4bca-8c44-284d89c66b15",
+   "oracleId": "9a02a9a7-39d9-4763-85d3-747a0540b60b",
    "name": "Gilded Lotus",
    "manaCost": [
     "5"
@@ -3394,6 +3572,7 @@
   {
    "cardId": "c178",
    "scryfallId": "995486ce-58bb-4753-a812-0ca73ef1a235",
+   "oracleId": "1d67f5ff-1fce-45e5-b6a1-416c569351e2",
    "name": "Gitaxian Probe",
    "manaCost": [
     "U/P"
@@ -3411,6 +3590,7 @@
   {
    "cardId": "c179",
    "scryfallId": "bd9af767-42da-46c7-a2b8-3957b2e3063f",
+   "oracleId": "5f3f68b5-8c6a-4181-bb8a-9c73967d198a",
    "name": "Glen Elendra Archmage",
    "manaCost": [
     "3",
@@ -3431,6 +3611,7 @@
   {
    "cardId": "c180",
    "scryfallId": "6fa5b030-23a6-4fca-b318-c580e3ea2bad",
+   "oracleId": "1983478a-cedb-4053-adab-ac5f1a163296",
    "name": "Glint-Nest Crane",
    "manaCost": [
     "1",
@@ -3451,6 +3632,7 @@
   {
    "cardId": "c181",
    "scryfallId": "3277ad99-5682-4baa-b106-de15721876a6",
+   "oracleId": "b75c3902-633e-4d24-acde-d7a9cc8f466e",
    "name": "Glorybringer",
    "manaCost": [
     "3",
@@ -3472,6 +3654,7 @@
   {
    "cardId": "c182",
    "scryfallId": "3c6cb231-41df-409c-923e-100319f27ee3",
+   "oracleId": "2f092562-9e17-43cd-aeb8-d0567f99363e",
    "name": "Go for the Throat",
    "manaCost": [
     "1",
@@ -3490,6 +3673,7 @@
   {
    "cardId": "c183",
    "scryfallId": "9afd9d51-10b0-402d-9da3-9ce5fabe745c",
+   "oracleId": "edad60c6-80de-4033-af1b-a703ac332983",
    "name": "Goblin Bombardment",
    "manaCost": [
     "1",
@@ -3508,6 +3692,7 @@
   {
    "cardId": "c184",
    "scryfallId": "4085a5bf-a71b-4c73-9b39-0dcc328fe11b",
+   "oracleId": "878b6808-48af-4047-ac35-bfc58bf92e7d",
    "name": "Goblin Bushwhacker",
    "manaCost": [
     "R"
@@ -3527,6 +3712,7 @@
   {
    "cardId": "c185",
    "scryfallId": "8bdb2883-3cfd-4fb0-9f99-6a57277f7fe4",
+   "oracleId": "0342b085-be20-475a-bc38-59b9cb6012e8",
    "name": "Goblin Chainwhirler",
    "manaCost": [
     "R",
@@ -3548,6 +3734,7 @@
   {
    "cardId": "c186",
    "scryfallId": "86ecaedc-08f1-4de7-aae8-056df57940e0",
+   "oracleId": "1962d9b3-f057-4d2c-9c5b-386d9a66148a",
    "name": "Goblin Cratermaker",
    "manaCost": [
     "1",
@@ -3568,6 +3755,7 @@
   {
    "cardId": "c187",
    "scryfallId": "ddf91a4e-97f7-4189-823d-b619bb3b3d55",
+   "oracleId": "bab0ab8d-74d2-49a3-b258-b93d19925d99",
    "name": "Goblin Dark-Dwellers",
    "manaCost": [
     "3",
@@ -3589,6 +3777,7 @@
   {
    "cardId": "c188",
    "scryfallId": "0ae987da-e4b5-4b82-843c-6aaa87262fc8",
+   "oracleId": "81f06f84-1580-43c0-89d5-08d34541a519",
    "name": "Goblin Electromancer",
    "manaCost": [
     "U",
@@ -3610,6 +3799,7 @@
   {
    "cardId": "c189",
    "scryfallId": "a55c4d47-5252-40af-961d-c08bc688028a",
+   "oracleId": "c1d6cce8-085f-42cb-8b0c-b6fbbf88b16a",
    "name": "Goblin Engineer",
    "manaCost": [
     "1",
@@ -3630,6 +3820,7 @@
   {
    "cardId": "c190",
    "scryfallId": "b2e2a777-0705-4a37-937d-c6e020ebc0f0",
+   "oracleId": "51d9564b-44fc-4de1-9119-09d7b4089378",
    "name": "Goblin Guide",
    "manaCost": [
     "R"
@@ -3649,6 +3840,7 @@
   {
    "cardId": "c191",
    "scryfallId": "ee9c697e-d2c0-413b-9142-ecf5d7cf5322",
+   "oracleId": "24661b81-6bee-4ad8-b3ab-53cb65005c51",
    "name": "Goblin Rabblemaster",
    "manaCost": [
     "2",
@@ -3669,6 +3861,7 @@
   {
    "cardId": "c192",
    "scryfallId": "0d95d1f3-7ec1-4279-ade7-3f339f2f33da",
+   "oracleId": "d99fa026-6347-450a-9011-1fd79070a55c",
    "name": "Goblin Ruinblaster",
    "manaCost": [
     "2",
@@ -3689,6 +3882,7 @@
   {
    "cardId": "c193",
    "scryfallId": "17cd920a-de09-454a-a9da-c84512e3aff1",
+   "oracleId": "9fc28e1f-f4ea-4bf8-9442-a36dba3b3b29",
    "name": "Goblin Welder",
    "manaCost": [
     "R"
@@ -3708,6 +3902,7 @@
   {
    "cardId": "c194",
    "scryfallId": "5e14060f-9167-4e28-a053-77689e066e30",
+   "oracleId": "41d11144-32fc-4e45-a8db-3edb9dc0ce80",
    "name": "God-Eternal Kefnet",
    "manaCost": [
     "2",
@@ -3729,6 +3924,7 @@
   {
    "cardId": "c195",
    "scryfallId": "7735ecda-9bb0-4ef9-86b2-16e5b6592e61",
+   "oracleId": "d5be0ff6-39d9-4f9f-a028-e62dc38463f2",
    "name": "Gonti, Lord of Luxury",
    "manaCost": [
     "2",
@@ -3750,6 +3946,7 @@
   {
    "cardId": "c196",
    "scryfallId": "6261205d-3506-4f0a-98ce-690f40df7a5a",
+   "oracleId": "3ea3c681-f0ad-45a2-bc25-2813efd8d560",
    "name": "Goryo's Vengeance",
    "manaCost": [
     "1",
@@ -3768,6 +3965,7 @@
   {
    "cardId": "c197",
    "scryfallId": "37752e04-574f-4af3-9e9c-70d67e0d0a98",
+   "oracleId": "7af1d7f9-058a-4ccb-96b7-fc391b615c09",
    "name": "Grand Architect",
    "manaCost": [
     "1",
@@ -3789,6 +3987,7 @@
   {
    "cardId": "c198",
    "scryfallId": "5fa6d385-6b8e-45ad-83dc-b477799c05a5",
+   "oracleId": "f3abd4d1-a975-4e85-8684-aa0fce029670",
    "name": "Grave Titan",
    "manaCost": [
     "4",
@@ -3810,6 +4009,7 @@
   {
    "cardId": "c199",
    "scryfallId": "48d73cb5-22ac-43df-9c4b-0c860bb80b3e",
+   "oracleId": "09ff28b1-b6c9-48e6-b12e-2f0e644f709f",
    "name": "Gravecrawler",
    "manaCost": [
     "B"
@@ -3829,6 +4029,7 @@
   {
    "cardId": "c200",
    "scryfallId": "81e7d329-ef6a-45f3-82b6-37a3606c00bc",
+   "oracleId": "5004b84a-33b7-4f6f-b2c2-7086b9087535",
    "name": "Graven Cairns",
    "manaCost": [],
    "manaValue": 0,
@@ -3842,6 +4043,7 @@
   {
    "cardId": "c201",
    "scryfallId": "b06078ce-f534-4e16-9a70-d51620a33eb2",
+   "oracleId": "38f3b157-0df4-409b-89cc-086e1531cd5b",
    "name": "Gray Merchant of Asphodel",
    "manaCost": [
     "3",
@@ -3863,6 +4065,7 @@
   {
    "cardId": "c202",
    "scryfallId": "2877281d-c85d-4f32-b40d-828b93c4ee8e",
+   "oracleId": "f4819061-b0b5-48ab-af7b-6525c3d2eab7",
    "name": "Great Furnace",
    "manaCost": [],
    "manaValue": 0,
@@ -3876,6 +4079,7 @@
   {
    "cardId": "c203",
    "scryfallId": "2b922fc5-602b-4f92-9588-00a77a9d803c",
+   "oracleId": "406b4b1d-756b-4062-897d-3693832086a0",
    "name": "Greater Gargadon",
    "manaCost": [
     "9",
@@ -3896,6 +4100,7 @@
   {
    "cardId": "c204",
    "scryfallId": "e7979d38-88a6-4062-b725-52c91f170083",
+   "oracleId": "37445e06-88a1-4e2e-a432-383736c9b977",
    "name": "Grim Lavamancer",
    "manaCost": [
     "R"
@@ -3915,6 +4120,7 @@
   {
    "cardId": "c205",
    "scryfallId": "9ddc9fe1-17c8-4e1d-aeb8-c4214e881280",
+   "oracleId": "229d6627-1292-4ae1-8849-b0f956fa6540",
    "name": "Grim Monolith",
    "manaCost": [
     "2"
@@ -3930,6 +4136,7 @@
   {
    "cardId": "c206",
    "scryfallId": "cf2a5c2e-7fe1-45eb-b01c-891ab961186f",
+   "oracleId": "f759d112-76db-4091-a22b-b9f19ab6fa5f",
    "name": "Griselbrand",
    "manaCost": [
     "4",
@@ -3953,6 +4160,7 @@
   {
    "cardId": "c207",
    "scryfallId": "db75ea55-294f-40d5-b155-448fe363466a",
+   "oracleId": "829d2e11-192f-4093-99f8-e13767b321a2",
    "name": "Guardian Idol",
    "manaCost": [
     "2"
@@ -3968,6 +4176,7 @@
   {
    "cardId": "c208",
    "scryfallId": "6a1c710b-bd67-4174-ab02-6ae98a7575ac",
+   "oracleId": "76ae3779-c821-4cd3-8d0f-8c42d1206ce4",
    "name": "Gutterbones",
    "manaCost": [
     "B"
@@ -3987,6 +4196,7 @@
   {
    "cardId": "c209",
    "scryfallId": "791c21fb-fc78-4106-9a42-abc73f41ab8b",
+   "oracleId": "dde55256-5259-44e7-a267-fca45a7f0d04",
    "name": "Hangarback Walker",
    "manaCost": [
     "X",
@@ -4005,6 +4215,7 @@
   {
    "cardId": "c210",
    "scryfallId": "90f648d2-27be-4414-9e0a-5a3e4d5067ce",
+   "oracleId": "9f5277e8-1cbe-478c-a8bc-ac028f13305e",
    "name": "Harbinger of the Tides",
    "manaCost": [
     "U",
@@ -4025,6 +4236,7 @@
   {
    "cardId": "c211",
    "scryfallId": "36ed9f9d-99a7-49f4-b0ad-d71355809d32",
+   "oracleId": "2c6934b6-67c4-457a-ae8f-59914fd8f256",
    "name": "Hazoret the Fervent",
    "manaCost": [
     "3",
@@ -4045,6 +4257,7 @@
   {
    "cardId": "c212",
    "scryfallId": "5e847c44-1849-4251-9075-88ed5c7792a6",
+   "oracleId": "e2ee410f-2467-4f1f-84a0-8a79faedc0b3",
    "name": "Heart of Kiran",
    "manaCost": [
     "2"
@@ -4062,6 +4275,7 @@
   {
    "cardId": "c213",
    "scryfallId": "64bff432-b85c-4764-82a7-6ae93c8bed45",
+   "oracleId": "32263baa-d3f0-463f-92b3-4e9938476add",
    "name": "Hedron Archive",
    "manaCost": [
     "4"
@@ -4077,6 +4291,7 @@
   {
    "cardId": "c214",
    "scryfallId": "0ec8d800-7f06-44e0-b22d-cdff0a9b153d",
+   "oracleId": "f02557b0-f422-48cb-875e-2c814c39967d",
    "name": "Hellrider",
    "manaCost": [
     "2",
@@ -4098,6 +4313,7 @@
   {
    "cardId": "c215",
    "scryfallId": "596822f6-dbd4-4cc8-aa50-9331ff42544e",
+   "oracleId": "03df6a57-37c9-46d3-83b3-4a6240100714",
    "name": "Hero's Downfall",
    "manaCost": [
     "1",
@@ -4117,6 +4333,7 @@
   {
    "cardId": "c216",
    "scryfallId": "2047963c-3761-4d21-834a-674762248b77",
+   "oracleId": "dc671205-f2fa-454f-9957-921a6069ad53",
    "name": "High Tide",
    "manaCost": [
     "U"
@@ -4134,6 +4351,7 @@
   {
    "cardId": "c217",
    "scryfallId": "e4138531-ef42-4c56-864e-d3525a4f2082",
+   "oracleId": "a6450b8e-eb18-431c-9eb7-7daf107978b2",
    "name": "Hordeling Outburst",
    "manaCost": [
     "1",
@@ -4153,6 +4371,7 @@
   {
    "cardId": "c218",
    "scryfallId": "e8dc67a0-05d9-463e-9794-30a7e951c240",
+   "oracleId": "c5c2d209-e3ef-4b0d-85f5-e7402dcf09eb",
    "name": "Hostage Taker",
    "manaCost": [
     "2",
@@ -4175,6 +4394,7 @@
   {
    "cardId": "c219",
    "scryfallId": "d420cc12-cfd7-4007-a0c2-b16c8f63a754",
+   "oracleId": "b9ea0d4c-cd71-4817-8213-96899e1a14bb",
    "name": "Hour of Devastation",
    "manaCost": [
     "3",
@@ -4194,6 +4414,7 @@
   {
    "cardId": "c220",
    "scryfallId": "4c9c9b16-5567-4473-95e6-622292f77336",
+   "oracleId": "b94c0336-2ca8-4bb1-bb1f-e9babd1826ad",
    "name": "Hydroblast",
    "manaCost": [
     "U"
@@ -4211,6 +4432,7 @@
   {
    "cardId": "c221",
    "scryfallId": "3faa8c5e-9e1b-4cee-b322-a033bf33dcbc",
+   "oracleId": "992d9a72-d34d-47d7-96fb-37f0efb515ef",
    "name": "Hymn to Tourach",
    "manaCost": [
     "B",
@@ -4229,6 +4451,7 @@
   {
    "cardId": "c222",
    "scryfallId": "9695f390-f791-4d64-90b2-731d6d37df1c",
+   "oracleId": "759af941-f6a3-4726-91f2-9b1e4e55ea71",
    "name": "Hypnotic Specter",
    "manaCost": [
     "1",
@@ -4250,6 +4473,7 @@
   {
    "cardId": "c223",
    "scryfallId": "2d1ea522-a0f6-45a8-8985-6fcca95d60cc",
+   "oracleId": "5b5ef43b-13fd-4461-8d2d-18be65e9a790",
    "name": "Ichor Wellspring",
    "manaCost": [
     "2"
@@ -4265,6 +4489,7 @@
   {
    "cardId": "c224",
    "scryfallId": "c0109b60-09aa-4a03-92e7-0c651d976d51",
+   "oracleId": "8d571129-9030-47e0-9624-a49fb63e5a1b",
    "name": "Ilharg, the Raze-Boar",
    "manaCost": [
     "3",
@@ -4286,6 +4511,7 @@
   {
    "cardId": "c225",
    "scryfallId": "6023bfe0-84bf-454c-b29d-5d128fe3e6b5",
+   "oracleId": "16cd0b90-f70c-4efa-b252-8de8784ef9a3",
    "name": "Imperial Seal",
    "manaCost": [
     "B"
@@ -4303,6 +4529,7 @@
   {
    "cardId": "c226",
    "scryfallId": "895c961f-61cf-49e8-9b80-97140a5de19a",
+   "oracleId": "f6bd2902-7f8b-419e-bbc7-bcab0c1b7e01",
    "name": "Impulse",
    "manaCost": [
     "1",
@@ -4321,6 +4548,7 @@
   {
    "cardId": "c227",
    "scryfallId": "e04c24cb-3c3b-4a35-9694-db512bf394fa",
+   "oracleId": "0ce47c8b-1e1f-463f-94f0-35ca00be89e6",
    "name": "Inferno Titan",
    "manaCost": [
     "4",
@@ -4342,6 +4570,7 @@
   {
    "cardId": "c228",
    "scryfallId": "cb380a5a-a3f9-42fb-ac5c-f54afa3c1079",
+   "oracleId": "dbdd0963-b395-4cb8-ad9a-ed85a3e9f2e5",
    "name": "Inkwell Leviathan",
    "manaCost": [
     "7",
@@ -4363,6 +4592,7 @@
   {
    "cardId": "c229",
    "scryfallId": "676ba107-d05e-4f8f-8fe4-21b4b05345e5",
+   "oracleId": "6791ec3c-c397-4087-8c8c-84d3797df415",
    "name": "Innocent Blood",
    "manaCost": [
     "B"
@@ -4380,6 +4610,7 @@
   {
    "cardId": "c230",
    "scryfallId": "56995b84-2307-4955-9c7c-dc4f04acdc07",
+   "oracleId": "395611fa-aec2-4c9e-92c3-70cf95cc00f4",
    "name": "Inquisition of Kozilek",
    "manaCost": [
     "B"
@@ -4397,6 +4628,7 @@
   {
    "cardId": "c231",
    "scryfallId": "b13e73a5-067d-4dbd-9c98-34a0db6140de",
+   "oracleId": "3c9faba7-f2d3-4978-be94-020dc8003dc0",
    "name": "Intuition",
    "manaCost": [
     "2",
@@ -4415,6 +4647,7 @@
   {
    "cardId": "c232",
    "scryfallId": "f161f7d2-eaa1-4931-93f9-befa8b5df821",
+   "oracleId": "01da67a5-e3dc-44f4-8a93-513bfa4d8fbc",
    "name": "Ionize",
    "manaCost": [
     "1",
@@ -4435,6 +4668,7 @@
   {
    "cardId": "c233",
    "scryfallId": "61289196-a56b-4d24-b340-9cf067c77f45",
+   "oracleId": "a07698f6-5ad5-49a3-9da2-f82d407f5cd7",
    "name": "Izzet Charm",
    "manaCost": [
     "U",
@@ -4454,6 +4688,7 @@
   {
    "cardId": "c234",
    "scryfallId": "b65b3d1b-7820-49bc-8bd6-e4dff3841477",
+   "oracleId": "2fda4fe7-8b0c-489c-a000-6d358e614e34",
    "name": "Izzet Signet",
    "manaCost": [
     "2"
@@ -4469,6 +4704,7 @@
   {
    "cardId": "c235",
    "scryfallId": "de8a1c0e-23fc-4d27-925f-cc560548ccba",
+   "oracleId": "cc2b6e58-2d6f-495e-95f3-9496105c4cba",
    "name": "Jace Beleren",
    "manaCost": [
     "1",
@@ -4489,6 +4725,7 @@
   {
    "cardId": "c236",
    "scryfallId": "5410254f-cf9d-46c2-acea-07298ae65924",
+   "oracleId": "2274c7ae-5a40-4fd4-a4ac-6f56b23034e4",
    "name": "Jace, Architect of Thought",
    "manaCost": [
     "2",
@@ -4509,6 +4746,7 @@
   {
    "cardId": "c237",
    "scryfallId": "e1fcd832-bbc6-4fb3-92f1-cd307fb0bca5",
+   "oracleId": "7f77a84e-5a4b-4834-aefa-3cecc175ae8e",
    "name": "Jace, the Mind Sculptor",
    "manaCost": [
     "2",
@@ -4529,6 +4767,7 @@
   {
    "cardId": "c238",
    "scryfallId": "02d6d693-f1f3-4317-bcc0-c21fa8490d38",
+   "oracleId": "594f6881-c059-46f8-aa4e-7151d502de73",
    "name": "Jace, Vryn's Prodigy // Jace, Telepath Unbound",
    "manaCost": [
     "1",
@@ -4564,6 +4803,7 @@
   {
    "cardId": "c239",
    "scryfallId": "0a742125-730d-4082-bfd8-5feb7733def4",
+   "oracleId": "c01516e0-eec3-4370-b935-7674982e8850",
    "name": "Judith, the Scourge Diva",
    "manaCost": [
     "1",
@@ -4586,6 +4826,7 @@
   {
    "cardId": "c240",
    "scryfallId": "17a278d0-f601-4d57-bc3d-2972f8602a69",
+   "oracleId": "e1cfd1cb-44a5-429f-a5c1-e6d29bad1c71",
    "name": "Kalitas, Traitor of Ghet",
    "manaCost": [
     "2",
@@ -4607,6 +4848,7 @@
   {
    "cardId": "c241",
    "scryfallId": "72495879-39ce-449d-ad2f-ef32ea46f3aa",
+   "oracleId": "786baa29-afd4-40f0-95c8-920a972b9175",
    "name": "Kari Zev, Skyship Raider",
    "manaCost": [
     "1",
@@ -4627,6 +4869,7 @@
   {
    "cardId": "c242",
    "scryfallId": "f9287151-95df-4f5a-b32a-4b0aea825452",
+   "oracleId": "0ca233f4-1b7f-4807-ab6e-2b1f5439b3db",
    "name": "Karn Liberated",
    "manaCost": [
     "7"
@@ -4643,6 +4886,7 @@
   {
    "cardId": "c243",
    "scryfallId": "07a3d9e8-8597-498b-869c-cff79e0df516",
+   "oracleId": "060209fa-4b7d-4e08-bf8b-8759bba5641b",
    "name": "Karn, Scion of Urza",
    "manaCost": [
     "4"
@@ -4659,6 +4903,7 @@
   {
    "cardId": "c244",
    "scryfallId": "ab70c262-37a9-4dcd-80bb-d4422368eade",
+   "oracleId": "2bd6f13a-ae02-426d-8f99-c20c5c08cf55",
    "name": "Keranos, God of Storms",
    "manaCost": [
     "3",
@@ -4681,6 +4926,7 @@
   {
    "cardId": "c245",
    "scryfallId": "3651483f-6077-4b4e-b2c7-9d57f22c65dc",
+   "oracleId": "f5092c14-eec4-472c-999c-ba96c36b2fbb",
    "name": "Kess, Dissident Mage",
    "manaCost": [
     "1",
@@ -4705,6 +4951,7 @@
   {
    "cardId": "c246",
    "scryfallId": "f62fd592-4910-417d-a500-e7029f3d119f",
+   "oracleId": "8aa1bbc9-b047-4d68-93f4-728e40dafc5e",
    "name": "Kitesail Freebooter",
    "manaCost": [
     "1",
@@ -4725,6 +4972,7 @@
   {
    "cardId": "c247",
    "scryfallId": "29425426-7bf2-4872-aa35-c12c22801edd",
+   "oracleId": "3b4eaa50-dff6-4825-97da-42b2f5554218",
    "name": "Knight of the Ebon Legion",
    "manaCost": [
     "B"
@@ -4744,6 +4992,7 @@
   {
    "cardId": "c248",
    "scryfallId": "7c884e1e-fecb-4330-b3de-5fc2a60f7173",
+   "oracleId": "45f1e957-09f0-4d46-8e32-238f26060a87",
    "name": "Kolaghan's Command",
    "manaCost": [
     "1",
@@ -4764,6 +5013,7 @@
   {
    "cardId": "c249",
    "scryfallId": "dccb325a-6fba-4a6f-af35-dc9e9de996a9",
+   "oracleId": "589186e0-3ebe-46a3-a9e7-798b1712fa93",
    "name": "Koth of the Hammer",
    "manaCost": [
     "2",
@@ -4784,6 +5034,7 @@
   {
    "cardId": "c250",
    "scryfallId": "72765559-0a78-4aa3-827e-cb4612720991",
+   "oracleId": "6caafe5a-884d-49e8-a62a-7bf609f0ce53",
    "name": "Kozilek's Return",
    "manaCost": [
     "2",
@@ -4800,6 +5051,7 @@
   {
    "cardId": "c251",
    "scryfallId": "6d47a1c7-d32b-425a-b15d-24eb35318f6f",
+   "oracleId": "7b8528b0-71eb-4c9e-bed9-aa2d2e84038f",
    "name": "Kozilek, Butcher of Truth",
    "manaCost": [
     "10"
@@ -4817,6 +5069,7 @@
   {
    "cardId": "c252",
    "scryfallId": "f0e9cd81-dfee-4c94-ac70-afcb27b6a86a",
+   "oracleId": "b0f99367-4313-4bb1-a9fd-7711bc4ce40e",
    "name": "Kuldotha Forgemaster",
    "manaCost": [
     "5"
@@ -4834,6 +5087,7 @@
   {
    "cardId": "c253",
    "scryfallId": "ca2a667b-2ca1-4756-9524-5bcd3bca0f41",
+   "oracleId": "ef1a83f2-6707-41a2-b5ed-861c8e45ae07",
    "name": "Languish",
    "manaCost": [
     "2",
@@ -4853,6 +5107,7 @@
   {
    "cardId": "c254",
    "scryfallId": "de21d433-5c2c-49c0-80d1-bf6e8471f9d4",
+   "oracleId": "066ba81e-b32d-4808-97ab-0b5f52d557e4",
    "name": "Lashwrithe",
    "manaCost": [
     "4"
@@ -4868,6 +5123,7 @@
   {
    "cardId": "c255",
    "scryfallId": "409fcd0c-8449-4623-8bf0-cd7ca0937a4a",
+   "oracleId": "340de307-982a-4b26-9dc0-99113dc766cd",
    "name": "Lavaclaw Reaches",
    "manaCost": [],
    "manaValue": 0,
@@ -4881,6 +5137,7 @@
   {
    "cardId": "c256",
    "scryfallId": "5e84cb9c-9876-47a4-aea4-78574321bc36",
+   "oracleId": "0ccb9af3-6902-4130-a59c-4c882dc3a2fd",
    "name": "Legion Warboss",
    "manaCost": [
     "2",
@@ -4901,6 +5158,7 @@
   {
    "cardId": "c257",
    "scryfallId": "9287b848-2aeb-4c70-ac4a-acafb871b7a4",
+   "oracleId": "8d286376-f386-43ab-a9bd-8478fb9e2497",
    "name": "Light Up the Stage",
    "manaCost": [
     "2",
@@ -4919,6 +5177,7 @@
   {
    "cardId": "c258",
    "scryfallId": "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
+   "oracleId": "4457ed35-7c10-48c8-9776-456485fdf070",
    "name": "Lightning Bolt",
    "manaCost": [
     "R"
@@ -4936,6 +5195,7 @@
   {
    "cardId": "c259",
    "scryfallId": "f0fbee02-b6cc-4cd1-a702-cf4f89c17921",
+   "oracleId": "ca204b66-8d0c-431a-8d34-282f7c2d17da",
    "name": "Lightning Greaves",
    "manaCost": [
     "2"
@@ -4951,6 +5211,7 @@
   {
    "cardId": "c260",
    "scryfallId": "241cc968-b93e-4fe3-a66d-7776d29aa023",
+   "oracleId": "6c5664b1-fbb5-477e-80fd-cf2285014a10",
    "name": "Lightning Mauler",
    "manaCost": [
     "1",
@@ -4971,6 +5232,7 @@
   {
    "cardId": "c261",
    "scryfallId": "e653437e-2e56-4443-aec5-5bb7d8860238",
+   "oracleId": "0ba134d8-ee7d-48ec-8dc6-57942b8e9261",
    "name": "Liliana of the Veil",
    "manaCost": [
     "1",
@@ -4991,6 +5253,7 @@
   {
    "cardId": "c262",
    "scryfallId": "84803db8-fdb0-462b-92f6-33d591593d2d",
+   "oracleId": "c2e68ac5-cfff-4b76-8062-25a82fdf9a5c",
    "name": "Liliana's Triumph",
    "manaCost": [
     "1",
@@ -5009,6 +5272,7 @@
   {
    "cardId": "c263",
    "scryfallId": "40d8f490-f04d-4d59-9ab0-a977527fd529",
+   "oracleId": "7fca595e-1902-40fd-a359-622caa612b6a",
    "name": "Liliana, Death's Majesty",
    "manaCost": [
     "3",
@@ -5029,6 +5293,7 @@
   {
    "cardId": "c264",
    "scryfallId": "d75ebba8-34ca-47a0-bf13-8318ad73b343",
+   "oracleId": "5e958212-6a5b-4288-8d31-f1572619d7dc",
    "name": "Liliana, Dreadhorde General",
    "manaCost": [
     "4",
@@ -5049,6 +5314,7 @@
   {
    "cardId": "c265",
    "scryfallId": "b101dd14-aff1-4811-bf1b-468930dd2999",
+   "oracleId": "b96a8ad2-3d86-459b-a34f-19c9dc07c3c4",
    "name": "Liliana, Heretical Healer // Liliana, Defiant Necromancer",
    "manaCost": [
     "1",
@@ -5085,6 +5351,7 @@
   {
    "cardId": "c266",
    "scryfallId": "fa6ac7d2-0127-49a8-b7d2-a38308d3c27b",
+   "oracleId": "64a9a6b4-26b5-4d23-be86-85c54e9c4727",
    "name": "Liliana, the Last Hope",
    "manaCost": [
     "1",
@@ -5105,6 +5372,7 @@
   {
    "cardId": "c267",
    "scryfallId": "758f95f8-bcb0-43ae-b474-56ebd855951e",
+   "oracleId": "ee6099b0-fb1f-42f1-b862-7708c6e36d05",
    "name": "Lion's Eye Diamond",
    "manaCost": [
     "0"
@@ -5120,6 +5388,7 @@
   {
    "cardId": "c268",
    "scryfallId": "683a5707-cddb-494d-9b41-51b4584ded69",
+   "oracleId": "a698c9f5-325a-49f6-8902-eef09f4260c5",
    "name": "Lodestone Golem",
    "manaCost": [
     "4"
@@ -5137,6 +5406,7 @@
   {
    "cardId": "c269",
    "scryfallId": "368ee06f-9021-4b65-9f53-9c326bf3a27f",
+   "oracleId": "c87e3b1d-2d24-4f1c-84e8-1c21a347cdc2",
    "name": "Looter il-Kor",
    "manaCost": [
     "1",
@@ -5157,6 +5427,7 @@
   {
    "cardId": "c270",
    "scryfallId": "73127ee0-9a0c-48fa-9c60-b4c600ace8f7",
+   "oracleId": "04cf02dc-f053-414e-87d8-1537f25bcbf4",
    "name": "Lotus Bloom",
    "manaCost": [],
    "manaValue": 0,
@@ -5170,6 +5441,7 @@
   {
    "cardId": "c271",
    "scryfallId": "6c877da3-68fa-41d0-8a24-8c79fcd8ecc1",
+   "oracleId": "32e5339e-9e4f-46f8-b305-f9d6d3ba8bb5",
    "name": "Lotus Petal",
    "manaCost": [
     "0"
@@ -5185,6 +5457,7 @@
   {
    "cardId": "c272",
    "scryfallId": "1dffd252-9eda-4da8-aa7e-7f478c5dbf97",
+   "oracleId": "2f292253-64d3-4cf2-881f-a3eea4fda388",
    "name": "Magma Jet",
    "manaCost": [
     "1",
@@ -5203,6 +5476,7 @@
   {
    "cardId": "c273",
    "scryfallId": "62b6dde7-77b7-4993-b983-4beb110b2d83",
+   "oracleId": "df13dafb-f82e-42ac-b6dc-efe82af5db58",
    "name": "Magus of the Wheel",
    "manaCost": [
     "2",
@@ -5223,6 +5497,7 @@
   {
    "cardId": "c274",
    "scryfallId": "3a66dce4-3582-44f0-bb5d-3d94044b32e9",
+   "oracleId": "f32c5530-6692-4d47-8789-c73da23fd5b7",
    "name": "Magus of the Will",
    "manaCost": [
     "2",
@@ -5243,6 +5518,7 @@
   {
    "cardId": "c275",
    "scryfallId": "79029161-a2c9-4cf6-94c0-31400daa0e8e",
+   "oracleId": "d9dfdbbb-75b3-43d3-8ed6-371cb98a0124",
    "name": "Makeshift Mannequin",
    "manaCost": [
     "3",
@@ -5261,6 +5537,7 @@
   {
    "cardId": "c276",
    "scryfallId": "2b484714-e1bc-4acb-a925-ac5e80dc8f04",
+   "oracleId": "67a3541c-8408-40c8-b44f-90035b860f57",
    "name": "Man-o'-War",
    "manaCost": [
     "2",
@@ -5281,6 +5558,7 @@
   {
    "cardId": "c277",
    "scryfallId": "a4bb303d-b230-430a-a2c3-f91a776de34e",
+   "oracleId": "97159138-c34b-416e-b079-5c952383a243",
    "name": "Mana Flare",
    "manaCost": [
     "2",
@@ -5299,6 +5577,7 @@
   {
    "cardId": "c278",
    "scryfallId": "247939d9-87e9-4f01-b223-fb4cfa7dbbe1",
+   "oracleId": "c61fe162-2202-4e56-9ba0-393547f9875f",
    "name": "Mana Leak",
    "manaCost": [
     "1",
@@ -5317,6 +5596,7 @@
   {
    "cardId": "c279",
    "scryfallId": "f079df56-60f9-46e5-8f2e-032e62b6a5f1",
+   "oracleId": "89c83a6d-f6c8-4984-a888-0db62dfb93b1",
    "name": "Manamorphose",
    "manaCost": [
     "1",
@@ -5336,6 +5616,7 @@
   {
    "cardId": "c280",
    "scryfallId": "985a5866-8c62-46af-a0c0-e69d01d87f4f",
+   "oracleId": "9c12bdbf-80cd-4edb-bebb-b4efcf532272",
    "name": "Manic Vandal",
    "manaCost": [
     "2",
@@ -5356,6 +5637,7 @@
   {
    "cardId": "c281",
    "scryfallId": "715e637a-dfd8-45a0-b1ea-53e4abd29307",
+   "oracleId": "370c37f7-2484-40e8-8fd9-c10cf6f5d5f2",
    "name": "Manifold Key",
    "manaCost": [
     "1"
@@ -5371,6 +5653,7 @@
   {
    "cardId": "c282",
    "scryfallId": "cdd32ec2-02a8-41fc-bf45-c9585bb2b3ee",
+   "oracleId": "93cf50cf-0ecc-4d3e-abea-778c1ebacec4",
    "name": "Massacre Wurm",
    "manaCost": [
     "3",
@@ -5393,6 +5676,7 @@
   {
    "cardId": "c283",
    "scryfallId": "35b9acb3-2a41-41b9-b443-86684e12af2f",
+   "oracleId": "181e6b3e-c33e-49e7-acb8-67473289a856",
    "name": "Master of Etherium",
    "manaCost": [
     "2",
@@ -5413,6 +5697,7 @@
   {
    "cardId": "c284",
    "scryfallId": "14cd5387-c6aa-4430-8edb-05da6b4e2ff5",
+   "oracleId": "07d40173-53e7-4328-a3b0-6214d93855b6",
    "name": "Master of Waves",
    "manaCost": [
     "3",
@@ -5433,6 +5718,7 @@
   {
    "cardId": "c285",
    "scryfallId": "3906b61a-3865-4dfd-ae06-a7d2a608851a",
+   "oracleId": "38538aff-b6f9-4c30-992e-7fd78da3c44a",
    "name": "Matter Reshaper",
    "manaCost": [
     "2",
@@ -5451,6 +5737,7 @@
   {
    "cardId": "c286",
    "scryfallId": "60b70b7f-6f24-4c00-947a-b109f302205b",
+   "oracleId": "eb9c9a34-88a8-4afe-a053-806f6b29834f",
    "name": "Memory Jar",
    "manaCost": [
     "5"
@@ -5466,6 +5753,7 @@
   {
    "cardId": "c287",
    "scryfallId": "30202613-d05f-4f47-af97-d0b75ccac293",
+   "oracleId": "bbfb3e4a-b389-4391-8141-13b68c0ef2e0",
    "name": "Memory Lapse",
    "manaCost": [
     "1",
@@ -5484,6 +5772,7 @@
   {
    "cardId": "c288",
    "scryfallId": "864930ce-7c56-4ad2-9b90-57b10e5a0842",
+   "oracleId": "fb46b300-8a39-40d2-8bc7-31b90c822e22",
    "name": "Mesmeric Fiend",
    "manaCost": [
     "1",
@@ -5504,6 +5793,7 @@
   {
    "cardId": "c289",
    "scryfallId": "2050d414-71c7-4c42-a1ff-4c04068ba7f2",
+   "oracleId": "9ed9accb-9f0c-40fa-aeea-2d1e1c9d1bd1",
    "name": "Metalworker",
    "manaCost": [
     "3"
@@ -5521,6 +5811,7 @@
   {
    "cardId": "c290",
    "scryfallId": "b748341f-557c-4b6a-a36c-c08c9cc05b90",
+   "oracleId": "d9f11aa1-9219-42a8-85a9-a8f204160706",
    "name": "Meteor Golem",
    "manaCost": [
     "7"
@@ -5538,6 +5829,7 @@
   {
    "cardId": "c291",
    "scryfallId": "5e122fe0-51c5-404d-a7b9-3d161a426c35",
+   "oracleId": "e8c7566d-7cc0-48af-a986-83223ec7e06c",
    "name": "Midnight Reaper",
    "manaCost": [
     "2",
@@ -5558,6 +5850,7 @@
   {
    "cardId": "c292",
    "scryfallId": "162e81d3-6cd4-4cb8-8ed8-cfbd8d34ca71",
+   "oracleId": "c97361b5-af16-4a7b-af85-a429dbaf4ad2",
    "name": "Mind Stone",
    "manaCost": [
     "2"
@@ -5573,6 +5866,7 @@
   {
    "cardId": "c293",
    "scryfallId": "caaf3a7a-ed30-48ca-845c-012e4a84de48",
+   "oracleId": "b3739b5a-5731-4c64-a244-815a363b0d5c",
    "name": "Mind's Desire",
    "manaCost": [
     "4",
@@ -5592,6 +5886,7 @@
   {
    "cardId": "c294",
    "scryfallId": "98fb1eaa-2871-491a-a4f5-3e358778ba40",
+   "oracleId": "a806f4ee-f48a-46c3-8772-5aaabebe4c7e",
    "name": "Mindslaver",
    "manaCost": [
     "6"
@@ -5607,6 +5902,7 @@
   {
    "cardId": "c295",
    "scryfallId": "4b4956a2-9a39-4152-9c98-70e4b2acfa26",
+   "oracleId": "9078db26-3a54-4a11-9aae-e45c38da7226",
    "name": "Miscalculation",
    "manaCost": [
     "1",
@@ -5625,6 +5921,7 @@
   {
    "cardId": "c296",
    "scryfallId": "245cdc59-d560-4c10-b721-f51cc312e370",
+   "oracleId": "5963e0ef-e0bc-4611-ad4f-813a4c0eacfb",
    "name": "Mishra's Factory",
    "manaCost": [],
    "manaValue": 0,
@@ -5638,6 +5935,7 @@
   {
    "cardId": "c297",
    "scryfallId": "02bed34d-67d9-4ae9-b351-dc9a89daeabf",
+   "oracleId": "c3a68018-9eff-47e6-a612-182886d28fe3",
    "name": "Mission Briefing",
    "manaCost": [
     "U",
@@ -5656,6 +5954,7 @@
   {
    "cardId": "c298",
    "scryfallId": "bef58faf-4d5e-4c66-9780-28abfc4c0c69",
+   "oracleId": "48ddba1e-2ad7-463f-9307-d2379a800e51",
    "name": "Mizzium Mortars",
    "manaCost": [
     "1",
@@ -5674,6 +5973,7 @@
   {
    "cardId": "c299",
    "scryfallId": "602a58b3-d59d-4776-ab25-ba543ebb2819",
+   "oracleId": "40362fe0-a1a9-4d76-8c35-eac474b91af5",
    "name": "Mizzix's Mastery",
    "manaCost": [
     "3",
@@ -5692,6 +5992,7 @@
   {
    "cardId": "c300",
    "scryfallId": "deed0a5a-6662-460c-bd78-e3d95e8bc83e",
+   "oracleId": "7b8f4879-578e-40e4-863a-41d0c32c6bdd",
    "name": "Mogg War Marshal",
    "manaCost": [
     "1",
@@ -5712,6 +6013,7 @@
   {
    "cardId": "c301",
    "scryfallId": "ecdd414b-3d9d-4347-acce-289209d09fc4",
+   "oracleId": "e9774695-b2f1-4014-8504-04b2339be568",
    "name": "Molten Rain",
    "manaCost": [
     "1",
@@ -5731,6 +6033,7 @@
   {
    "cardId": "c302",
    "scryfallId": "3679ed48-f65d-4d6b-b33d-d8e77d4fcb61",
+   "oracleId": "33587cb2-0fd3-4e4c-bc5e-e7299cc9dab5",
    "name": "Molten Slagheap",
    "manaCost": [],
    "manaValue": 0,
@@ -5744,6 +6047,7 @@
   {
    "cardId": "c303",
    "scryfallId": "c0e3ea55-162d-4466-ba4e-b938a0845fb5",
+   "oracleId": "1489551f-5714-471b-a0e6-f40bc3085afc",
    "name": "Moment of Craving",
    "manaCost": [
     "1",
@@ -5762,6 +6066,7 @@
   {
    "cardId": "c304",
    "scryfallId": "58db2f81-6ff5-402c-8aef-0b667e82cdc4",
+   "oracleId": "dafd2713-d1bc-474b-b390-d2ff20b5375e",
    "name": "Monastery Swiftspear",
    "manaCost": [
     "R"
@@ -5781,6 +6086,7 @@
   {
    "cardId": "c305",
    "scryfallId": "bf9fecfd-d122-422f-bd0a-5bf69b434dfe",
+   "oracleId": "f3c5978a-70fa-431f-933b-b954bd0db0ea",
    "name": "Mox Diamond",
    "manaCost": [
     "0"
@@ -5796,6 +6102,7 @@
   {
    "cardId": "c306",
    "scryfallId": "6b3a20ac-1860-4513-bb73-35d23b088b04",
+   "oracleId": "de2440de-e948-4811-903c-0bbe376ff64d",
    "name": "Mox Opal",
    "manaCost": [
     "0"
@@ -5811,6 +6118,7 @@
   {
    "cardId": "c307",
    "scryfallId": "0240f9eb-e1b2-4b41-94b0-b00ad2850825",
+   "oracleId": "1e825298-7c99-40cc-81c9-280cc7ed98d3",
    "name": "Mu Yanling, Sky Dancer",
    "manaCost": [
     "1",
@@ -5831,6 +6139,7 @@
   {
    "cardId": "c308",
    "scryfallId": "f18233ee-3d90-4a28-8d93-918983bc9d11",
+   "oracleId": "24d0f5e7-0d9e-4b76-900e-a7274e80312d",
    "name": "Mulldrifter",
    "manaCost": [
     "4",
@@ -5851,6 +6160,7 @@
   {
    "cardId": "c309",
    "scryfallId": "927ed667-c228-4b96-a9f6-7cbadade8134",
+   "oracleId": "6b3cc59a-7ea5-4eb5-9bf9-5a9c07f80e2b",
    "name": "Mutavault",
    "manaCost": [],
    "manaValue": 0,
@@ -5864,6 +6174,7 @@
   {
    "cardId": "c310",
    "scryfallId": "88d33b63-9a49-4c67-9932-270997f6625b",
+   "oracleId": "c53ba31a-ba27-4e17-9a92-311acb1cab29",
    "name": "Myr Battlesphere",
    "manaCost": [
     "7"
@@ -5881,6 +6192,7 @@
   {
    "cardId": "c311",
    "scryfallId": "8aef73ec-5c98-4ac5-82a7-8e838cd36562",
+   "oracleId": "2549bc57-9ffb-4053-9f10-f2a5f792b845",
    "name": "Myriad Landscape",
    "manaCost": [],
    "manaValue": 0,
@@ -5894,6 +6206,7 @@
   {
    "cardId": "c312",
    "scryfallId": "f557a8f6-1b1f-493b-a064-f14fbdb8e0f4",
+   "oracleId": "cd11c27b-9368-4622-bc5a-2e0b993cc42b",
    "name": "Mystic Confluence",
    "manaCost": [
     "3",
@@ -5913,6 +6226,7 @@
   {
    "cardId": "c313",
    "scryfallId": "924a24e7-91b8-4ceb-a136-7a765d98c994",
+   "oracleId": "994bc16d-fdc6-475c-96df-beeb4d5aa03e",
    "name": "Mystic Forge",
    "manaCost": [
     "4"
@@ -5928,6 +6242,7 @@
   {
    "cardId": "c314",
    "scryfallId": "5d98101f-e32a-4a4a-a649-faa920d111ee",
+   "oracleId": "fb81f95c-70f8-4eb7-8d15-15d0ae23ec03",
    "name": "Mystical Tutor",
    "manaCost": [
     "U"
@@ -5945,6 +6260,7 @@
   {
    "cardId": "c315",
    "scryfallId": "8c39f9b4-02b9-4d44-b8d6-4fd02ebbb0c5",
+   "oracleId": "ab26fbe2-e808-48b9-8d0d-3fbb6c3d554f",
    "name": "Narset, Parter of Veils",
    "manaCost": [
     "1",
@@ -5965,6 +6281,7 @@
   {
    "cardId": "c316",
    "scryfallId": "311a6257-dd77-4bb6-81cb-c8e7862350f3",
+   "oracleId": "699b192c-f3f2-4ac5-9ca9-e35bcf08ad8a",
    "name": "Necromancy",
    "manaCost": [
     "2",
@@ -5983,6 +6300,7 @@
   {
    "cardId": "c317",
    "scryfallId": "33b83158-78b4-425e-8379-be3ef038295c",
+   "oracleId": "3407fe41-fdd3-4119-8f70-4bc4590a379f",
    "name": "Negate",
    "manaCost": [
     "1",
@@ -6001,6 +6319,7 @@
   {
    "cardId": "c318",
    "scryfallId": "a4b32135-7061-4278-a01a-4fcbaadc9706",
+   "oracleId": "bf276236-18a6-4a48-b47d-5227832d26e6",
    "name": "Never // Return",
    "manaCost": [
     "1",
@@ -6055,6 +6374,7 @@
   {
    "cardId": "c319",
    "scryfallId": "98b68dea-a7be-4f99-8a50-4c8cf0e0f7a9",
+   "oracleId": "581eedc4-efe4-4ae4-baf2-88071e7e6f6d",
    "name": "Nicol Bolas, Dragon-God",
    "manaCost": [
     "U",
@@ -6079,6 +6399,7 @@
   {
    "cardId": "c320",
    "scryfallId": "48ee3939-bc12-4275-a446-9de36f0b4672",
+   "oracleId": "05e9b55e-6329-48ec-b7d7-24c6b9692244",
    "name": "Nicol Bolas, Planeswalker",
    "manaCost": [
     "4",
@@ -6103,6 +6424,7 @@
   {
    "cardId": "c321",
    "scryfallId": "7b215968-93a6-4278-ac61-4e3e8c3c3943",
+   "oracleId": "55e4b27e-5447-4fc2-8cae-a03e344600c6",
    "name": "Nicol Bolas, the Ravager // Nicol Bolas, the Arisen",
    "manaCost": [
     "1",
@@ -6144,6 +6466,7 @@
   {
    "cardId": "c322",
    "scryfallId": "e4638720-a55d-4c3b-b57d-2d028db5894d",
+   "oracleId": "7ffae8f8-3006-4969-a339-6d30678f87ea",
    "name": "Night's Whisper",
    "manaCost": [
     "1",
@@ -6162,6 +6485,7 @@
   {
    "cardId": "c323",
    "scryfallId": "762e1528-52d7-46fc-a035-e2af6b4676b8",
+   "oracleId": "4ce83f8c-b27e-4e5b-b19b-76b66aaa904b",
    "name": "Nightveil Specter",
    "manaCost": [
     "U/B",
@@ -6184,6 +6508,7 @@
   {
    "cardId": "c324",
    "scryfallId": "6f3d2dc5-7b9d-4af6-9f3b-4de90fbf63c9",
+   "oracleId": "33666a98-812f-4892-9f8d-33e0cbecc340",
    "name": "Niv-Mizzet, Parun",
    "manaCost": [
     "U",
@@ -6209,6 +6534,7 @@
   {
    "cardId": "c325",
    "scryfallId": "be530d89-6735-4bd3-9369-22432fe6affb",
+   "oracleId": "f8dab16e-1d50-443e-9431-8b6f1cf61c9c",
    "name": "Notion Thief",
    "manaCost": [
     "2",
@@ -6231,6 +6557,7 @@
   {
    "cardId": "c326",
    "scryfallId": "9f86e5fe-8723-4494-b4cc-b7ac3a047bd1",
+   "oracleId": "a77b5be2-f361-4135-ba25-670a74d268ac",
    "name": "Noxious Gearhulk",
    "manaCost": [
     "4",
@@ -6252,6 +6579,7 @@
   {
    "cardId": "c327",
    "scryfallId": "834b27a0-dfd7-4f96-8cde-cacac4b24acc",
+   "oracleId": "84dc18f0-8225-4b40-a165-b10321e41769",
    "name": "Nykthos, Shrine to Nyx",
    "manaCost": [],
    "manaValue": 0,
@@ -6265,6 +6593,7 @@
   {
    "cardId": "c328",
    "scryfallId": "9675b8ea-47f9-440e-9535-de879da53f76",
+   "oracleId": "4f87252e-3218-4759-accc-a4f186fa8857",
    "name": "Oona's Prowler",
    "manaCost": [
     "1",
@@ -6285,6 +6614,7 @@
   {
    "cardId": "c329",
    "scryfallId": "66d80dd1-b944-4cb2-8578-b4dbcabbbc1e",
+   "oracleId": "55eca80c-dcd8-4c2f-aa0f-fb0aec7b80f7",
    "name": "Ophiomancer",
    "manaCost": [
     "2",
@@ -6305,6 +6635,7 @@
   {
    "cardId": "c330",
    "scryfallId": "25f2e4d0-effd-4e83-b7aa-1a0d8f120951",
+   "oracleId": "713332c1-5bd8-400f-bfff-c1ca0697a043",
    "name": "Opt",
    "manaCost": [
     "U"
@@ -6322,6 +6653,7 @@
   {
    "cardId": "c331",
    "scryfallId": "afd2e0f0-8a8e-4021-bd24-aff1a3212345",
+   "oracleId": "acc842a4-26e8-435a-b717-c1043b581ff8",
    "name": "Overmaster",
    "manaCost": [
     "R"
@@ -6339,6 +6671,7 @@
   {
    "cardId": "c332",
    "scryfallId": "170693f5-13db-4191-99b1-e527ffb5b88e",
+   "oracleId": "5632c2df-71e6-41b7-b8f5-c683812cc0e2",
    "name": "Pack Rat",
    "manaCost": [
     "1",
@@ -6359,6 +6692,7 @@
   {
    "cardId": "c333",
    "scryfallId": "46a3afdb-aeb2-4699-91f9-5c42284b3a4a",
+   "oracleId": "58a2d15f-1b4b-4303-b524-8cc0d1b3e7d2",
    "name": "Painful Truths",
    "manaCost": [
     "2",
@@ -6377,6 +6711,7 @@
   {
    "cardId": "c334",
    "scryfallId": "18c016ad-bb82-4944-8c06-ab180b808041",
+   "oracleId": "7b0767b8-b504-456e-93bd-218502f73b3d",
    "name": "Palladium Myr",
    "manaCost": [
     "3"
@@ -6394,6 +6729,7 @@
   {
    "cardId": "c335",
    "scryfallId": "bcc9d1e0-c8f4-4bac-90d4-8167f7a1515a",
+   "oracleId": "a176924c-78fc-4151-b2b5-1547b1114a40",
    "name": "Peat Bog",
    "manaCost": [],
    "manaValue": 0,
@@ -6407,6 +6743,7 @@
   {
    "cardId": "c336",
    "scryfallId": "8d6a94a8-33cc-4f9b-bdd2-5fb6ddb1f4ad",
+   "oracleId": "72e8d67a-41e6-4074-bcbd-b54ead995237",
    "name": "Pentad Prism",
    "manaCost": [
     "2"
@@ -6422,6 +6759,7 @@
   {
    "cardId": "c337",
    "scryfallId": "e7472958-dd1b-48a7-a960-ec2ef3b69ded",
+   "oracleId": "bde94af8-faea-41ff-8eed-ba642eac9968",
    "name": "Phantasmal Image",
    "manaCost": [
     "1",
@@ -6442,6 +6780,7 @@
   {
    "cardId": "c338",
    "scryfallId": "c87d2e75-aa91-4657-b8c0-c399ff9331e0",
+   "oracleId": "ee579a32-a048-4335-b966-231ba731cdea",
    "name": "Phyrexian Arena",
    "manaCost": [
     "1",
@@ -6461,6 +6800,7 @@
   {
    "cardId": "c339",
    "scryfallId": "d2e27911-87cb-49a0-a34f-6afe4bddd592",
+   "oracleId": "340bbe8b-e987-4c3e-ab4e-9dee63e57d4f",
    "name": "Phyrexian Metamorph",
    "manaCost": [
     "3",
@@ -6481,6 +6821,7 @@
   {
    "cardId": "c340",
    "scryfallId": "acf5cbe2-84fa-46f4-a4f2-97b48ddf2d39",
+   "oracleId": "41820f91-27cf-41c0-bb5e-9adf6845a6a4",
    "name": "Phyrexian Obliterator",
    "manaCost": [
     "B",
@@ -6503,6 +6844,7 @@
   {
    "cardId": "c341",
    "scryfallId": "92ede7b6-ee03-4b4f-bc59-1759b02bd5d5",
+   "oracleId": "786b3657-b595-4b38-83f2-d40915e51e2b",
    "name": "Phyrexian Revoker",
    "manaCost": [
     "2"
@@ -6520,6 +6862,7 @@
   {
    "cardId": "c342",
    "scryfallId": "107b2271-ec4d-4c4c-b52b-ecf698066aef",
+   "oracleId": "86084ed9-b8bb-4289-9579-6056194787bc",
    "name": "Pia and Kiran Nalaar",
    "manaCost": [
     "2",
@@ -6541,6 +6884,7 @@
   {
    "cardId": "c343",
    "scryfallId": "6a2b2954-0734-4219-b6df-c6cc3dcd8d5a",
+   "oracleId": "715336f5-a708-488b-9f30-5702a9013af0",
    "name": "Pia Nalaar",
    "manaCost": [
     "2",
@@ -6561,6 +6905,7 @@
   {
    "cardId": "c344",
    "scryfallId": "3bef04f5-4498-40c7-bfc2-0e2e619fcca1",
+   "oracleId": "66155010-cc2c-449a-85d5-92c95aade514",
    "name": "Pilgrim's Eye",
    "manaCost": [
     "3"
@@ -6578,6 +6923,7 @@
   {
    "cardId": "c345",
    "scryfallId": "bdd06d55-a40f-4b0e-905b-3cd0ce12eb82",
+   "oracleId": "0b137853-7cb9-424b-8285-12938991eafb",
    "name": "Pillage",
    "manaCost": [
     "1",
@@ -6597,6 +6943,7 @@
   {
    "cardId": "c346",
    "scryfallId": "78eb9e1d-113e-45ff-8435-32ee42fa5631",
+   "oracleId": "a188fe7e-68de-4c7c-806c-bfe8fc7b44bf",
    "name": "Pithing Needle",
    "manaCost": [
     "1"
@@ -6612,6 +6959,7 @@
   {
    "cardId": "c347",
    "scryfallId": "8682fb87-df14-4277-aaa0-0d53d766c406",
+   "oracleId": "2e3ee458-fa3f-4452-ab95-5a7fb5a0483b",
    "name": "Plaguecrafter",
    "manaCost": [
     "2",
@@ -6632,6 +6980,7 @@
   {
    "cardId": "c348",
    "scryfallId": "cdfac4bf-ffba-43eb-a29c-45c64079e830",
+   "oracleId": "ef86989d-ce80-4e55-aece-7d11710eeffa",
    "name": "Polluted Delta",
    "manaCost": [],
    "manaValue": 0,
@@ -6645,6 +6994,7 @@
   {
    "cardId": "c349",
    "scryfallId": "ba6b6fc5-5077-4812-b8e9-906783dbaf67",
+   "oracleId": "02090581-61aa-4348-ad57-451be8ee91c2",
    "name": "Ponder",
    "manaCost": [
     "U"
@@ -6662,6 +7012,7 @@
   {
    "cardId": "c350",
    "scryfallId": "dc90d632-fc78-4ae6-83c6-314ee5744de5",
+   "oracleId": "668fc293-1b8f-4870-9784-4ac660925e30",
    "name": "Precursor Golem",
    "manaCost": [
     "5"
@@ -6679,6 +7030,7 @@
   {
    "cardId": "c351",
    "scryfallId": "e3868c3d-4fcd-444b-866f-0f8e50ce7b67",
+   "oracleId": "ac641490-ca14-48d7-8cc4-b69ce984befa",
    "name": "Preordain",
    "manaCost": [
     "U"
@@ -6696,6 +7048,7 @@
   {
    "cardId": "c352",
    "scryfallId": "e3378fe8-3355-48aa-90d4-9cb739200160",
+   "oracleId": "2ad8ff62-d090-4835-9274-3b755ba0f8e6",
    "name": "Priest of Forgotten Gods",
    "manaCost": [
     "1",
@@ -6716,6 +7069,7 @@
   {
    "cardId": "c353",
    "scryfallId": "7618fb0b-099c-47f6-b16f-49854bc5be6b",
+   "oracleId": "e3056f28-868b-401a-a528-7528d639bdeb",
    "name": "Prismatic Lens",
    "manaCost": [
     "2"
@@ -6731,6 +7085,7 @@
   {
    "cardId": "c354",
    "scryfallId": "e37da81e-be12-45a2-9128-376f1ad7b3e8",
+   "oracleId": "032b8a0d-491a-4a12-ab9f-689010054d5b",
    "name": "Prismatic Vista",
    "manaCost": [],
    "manaValue": 0,
@@ -6744,6 +7099,7 @@
   {
    "cardId": "c355",
    "scryfallId": "ab8e64d9-7eda-4e9c-8afc-bd43b8f0bbab",
+   "oracleId": "d5e4bf5e-1a66-4315-8c82-640c27977b88",
    "name": "Prophetic Bolt",
    "manaCost": [
     "3",
@@ -6764,6 +7120,7 @@
   {
    "cardId": "c356",
    "scryfallId": "280f2a85-1900-460b-a768-164fc2dea636",
+   "oracleId": "00187de2-bc48-4137-97d8-a9a0fafc76c1",
    "name": "Pteramander",
    "manaCost": [
     "U"
@@ -6783,6 +7140,7 @@
   {
    "cardId": "c357",
    "scryfallId": "1b9e6c5c-4bc4-4f41-8c2c-f5b8c97c53c5",
+   "oracleId": "7192ff07-9a84-49ad-a40c-ce255ce21544",
    "name": "Putrid Imp",
    "manaCost": [
     "B"
@@ -6802,6 +7160,7 @@
   {
    "cardId": "c358",
    "scryfallId": "1e577638-a7ed-4bcc-90fb-0cffe87d5a28",
+   "oracleId": "86ef6474-613f-41fb-931c-d4279b03ed99",
    "name": "Pyretic Ritual",
    "manaCost": [
     "1",
@@ -6820,6 +7179,7 @@
   {
    "cardId": "c359",
    "scryfallId": "b029eb9a-dd7a-40c2-96c4-0063d9cc002c",
+   "oracleId": "ecc435e2-deb1-420a-a79f-01dd08747314",
    "name": "Pyroblast",
    "manaCost": [
     "R"
@@ -6837,6 +7197,7 @@
   {
    "cardId": "c360",
    "scryfallId": "8c8f3b5e-71b4-42e0-9ddb-630e3dcf1be7",
+   "oracleId": "e4bcd4ea-e7cd-4471-8f3b-18bb51d3d70c",
    "name": "Pyroclasm",
    "manaCost": [
     "1",
@@ -6855,6 +7216,7 @@
   {
    "cardId": "c361",
    "scryfallId": "e6209bbf-5861-4755-abb6-0f04def9527e",
+   "oracleId": "cf188dd3-1927-481b-b8c0-93b1222dbf53",
    "name": "Quicken",
    "manaCost": [
     "U"
@@ -6872,6 +7234,7 @@
   {
    "cardId": "c362",
    "scryfallId": "1cf07d5a-6618-48e2-a9f0-669b75bb6e85",
+   "oracleId": "aa77980d-0434-40f0-990f-1c8c50610174",
    "name": "Rain of Filth",
    "manaCost": [
     "B"
@@ -6889,6 +7252,7 @@
   {
    "cardId": "c363",
    "scryfallId": "4b04d7e8-df17-4acb-a763-71d47215fd03",
+   "oracleId": "763a2d27-52a8-43d9-b649-0f6c0cf87a07",
    "name": "Rakdos Cackler",
    "manaCost": [
     "B/R"
@@ -6909,6 +7273,7 @@
   {
    "cardId": "c364",
    "scryfallId": "109dabac-8093-4877-8f3e-1ded4bb14336",
+   "oracleId": "3adb7681-977f-4a32-9ec8-51481b958268",
    "name": "Rakdos Signet",
    "manaCost": [
     "2"
@@ -6924,6 +7289,7 @@
   {
    "cardId": "c365",
    "scryfallId": "bbc95892-c8fc-4e8d-9452-709cf9992db0",
+   "oracleId": "52d1d575-3e7f-4df1-8c89-aee0cac03aca",
    "name": "Rakdos's Return",
    "manaCost": [
     "X",
@@ -6944,6 +7310,7 @@
   {
    "cardId": "c366",
    "scryfallId": "fcdbb062-0b0b-4b4c-b4db-dd149f744baa",
+   "oracleId": "75ed6946-e7b1-4bf8-a05c-62a2ba5a6c79",
    "name": "Ral Zarek",
    "manaCost": [
     "2",
@@ -6965,6 +7332,7 @@
   {
    "cardId": "c367",
    "scryfallId": "6be3dd3e-50d2-4729-9caa-b2cd984f4c97",
+   "oracleId": "5e715875-28e0-44b4-af25-f6bb8ddec823",
    "name": "Ral's Outburst",
    "manaCost": [
     "2",
@@ -6985,6 +7353,7 @@
   {
    "cardId": "c368",
    "scryfallId": "678ce3bf-152d-45ca-87ae-ad46c921328b",
+   "oracleId": "b7da26c9-78a6-41c5-a5ef-6555e8274d7a",
    "name": "Ral, Storm Conduit",
    "manaCost": [
     "2",
@@ -7006,6 +7375,7 @@
   {
    "cardId": "c369",
    "scryfallId": "af11d41a-0d29-45e9-9d27-a41282b9e292",
+   "oracleId": "d0d35864-1edc-4af1-9b89-3d7e94908011",
    "name": "Ramunap Ruins",
    "manaCost": [],
    "manaValue": 0,
@@ -7019,6 +7389,7 @@
   {
    "cardId": "c370",
    "scryfallId": "f4846664-4463-4521-bb3f-3a4d00fa418d",
+   "oracleId": "7b459306-149b-4f43-abc1-2dd70c748c0e",
    "name": "Ravenous Chupacabra",
    "manaCost": [
     "2",
@@ -7040,6 +7411,7 @@
   {
    "cardId": "c371",
    "scryfallId": "52d4b652-a830-4fd4-94bb-c17c227f2928",
+   "oracleId": "17c651c7-da4e-45e9-9a64-fad3e873123d",
    "name": "Reality Smasher",
    "manaCost": [
     "4",
@@ -7058,6 +7430,7 @@
   {
    "cardId": "c372",
    "scryfallId": "04fc99dc-bfbe-4567-b791-6b1db96471ec",
+   "oracleId": "a044474a-cd72-4e9d-bd8d-a08f2de9cdc0",
    "name": "Reanimate",
    "manaCost": [
     "B"
@@ -7075,6 +7448,7 @@
   {
    "cardId": "c373",
    "scryfallId": "0405b1b9-976a-4aaf-bec6-fa006decea74",
+   "oracleId": "4fb83127-00cf-4ce7-aedf-cb0b2740c66f",
    "name": "Reckless Bushwhacker",
    "manaCost": [
     "2",
@@ -7095,6 +7469,7 @@
   {
    "cardId": "c374",
    "scryfallId": "b50e1800-a45c-43bd-8886-8a06145d9346",
+   "oracleId": "a6708b11-1bcd-4208-a967-fe91f2e3313c",
    "name": "Recurring Nightmare",
    "manaCost": [
     "2",
@@ -7113,6 +7488,7 @@
   {
    "cardId": "c375",
    "scryfallId": "daccec32-84c6-4de4-9b00-c497a6ba5de8",
+   "oracleId": "f34be4b8-126d-4b5c-8ebb-23b5e5370012",
    "name": "Rekindling Phoenix",
    "manaCost": [
     "2",
@@ -7134,6 +7510,7 @@
   {
    "cardId": "c376",
    "scryfallId": "d4ba75be-2428-45aa-bf02-75c379a5dfa2",
+   "oracleId": "3b583358-d0d5-4f53-b06c-c6439156e684",
    "name": "Release the Gremlins",
    "manaCost": [
     "X",
@@ -7153,6 +7530,7 @@
   {
    "cardId": "c377",
    "scryfallId": "2a0d7998-2f3d-43b8-a0be-6ff7e5c83223",
+   "oracleId": "7404c078-228b-4296-bf1f-62f57bf832d9",
    "name": "Relentless Dead",
    "manaCost": [
     "B",
@@ -7173,6 +7551,7 @@
   {
    "cardId": "c378",
    "scryfallId": "436cd66c-0622-43cd-8748-af4d21a2db3f",
+   "oracleId": "6a9c3401-570c-41cb-a605-75dfa57d6ab7",
    "name": "Relic of Progenitus",
    "manaCost": [
     "1"
@@ -7188,6 +7567,7 @@
   {
    "cardId": "c379",
    "scryfallId": "dc595c63-af05-4c05-80e8-e1a90df26b0f",
+   "oracleId": "d71cd08e-3e84-41ff-b9db-9e343c0af6b4",
    "name": "Remand",
    "manaCost": [
     "1",
@@ -7206,6 +7586,7 @@
   {
    "cardId": "c380",
    "scryfallId": "9c8ccab7-cc10-4fe8-a302-25d7518f4823",
+   "oracleId": "b1f2b26c-91b2-4f3c-9f48-6429ec3fde48",
    "name": "Repeal",
    "manaCost": [
     "X",
@@ -7224,6 +7605,7 @@
   {
    "cardId": "c381",
    "scryfallId": "dc160761-60b4-4911-b75f-df445ea399aa",
+   "oracleId": "ae2e6ffd-fb93-4c47-88e7-e84460eefbe5",
    "name": "Riftwing Cloudskate",
    "manaCost": [
     "3",
@@ -7245,6 +7627,7 @@
   {
    "cardId": "c382",
    "scryfallId": "d2507bc2-da17-4e46-b4c5-ba0080ce2c6f",
+   "oracleId": "f3e8dc56-2810-474e-a6a7-9c3555f94ae9",
    "name": "Rishadan Port",
    "manaCost": [],
    "manaValue": 0,
@@ -7258,6 +7641,7 @@
   {
    "cardId": "c383",
    "scryfallId": "4eda89d9-9bd1-4a55-ac02-f9a0625d8e5b",
+   "oracleId": "7f61a2a6-2fe2-48ec-8e2e-74d147be0a0a",
    "name": "Risk Factor",
    "manaCost": [
     "2",
@@ -7276,6 +7660,7 @@
   {
    "cardId": "c384",
    "scryfallId": "c062caf7-f0eb-44db-9f74-e6711a13fada",
+   "oracleId": "8a2e53f9-8100-488f-8504-b59e9bd1cc29",
    "name": "Rite of Flame",
    "manaCost": [
     "R"
@@ -7293,6 +7678,7 @@
   {
    "cardId": "c385",
    "scryfallId": "c40396da-18e2-42ca-a78c-4838a38f68b8",
+   "oracleId": "bad5b8d4-9089-4ebd-8eaa-07552737c527",
    "name": "Rix Maadi Reveler",
    "manaCost": [
     "1",
@@ -7313,6 +7699,7 @@
   {
    "cardId": "c386",
    "scryfallId": "771305ca-f33d-4498-8e21-152ced7317ef",
+   "oracleId": "7b4aa101-3c8a-44b3-9d87-91a4fe4fbae4",
    "name": "Ruinous Path",
    "manaCost": [
     "1",
@@ -7332,6 +7719,7 @@
   {
    "cardId": "c387",
    "scryfallId": "d8c9c111-fbc7-44e1-94bd-1ca164370623",
+   "oracleId": "eb414a8f-566f-4635-80a1-77b2e18ac8dc",
    "name": "Runaway Steam-Kin",
    "manaCost": [
     "1",
@@ -7352,6 +7740,7 @@
   {
    "cardId": "c388",
    "scryfallId": "5a10b543-d5d4-42a8-9ee8-dada59a2ad7e",
+   "oracleId": "ab655810-f67e-4576-9174-35b16f5e3235",
    "name": "Saheeli, Sublime Artificer",
    "manaCost": [
     "1",
@@ -7373,6 +7762,7 @@
   {
    "cardId": "c389",
    "scryfallId": "82bc7c6b-2e3d-42d1-b2bb-b37b6f34d33b",
+   "oracleId": "c8e0a1a5-8188-4677-9d8a-a18eb593343a",
    "name": "Sandstone Needle",
    "manaCost": [],
    "manaValue": 0,
@@ -7386,6 +7776,7 @@
   {
    "cardId": "c390",
    "scryfallId": "006871fd-2641-42cb-a2ac-a33d05fc5a35",
+   "oracleId": "e4e6e796-39ce-4a63-8c61-c7c956d75d78",
    "name": "Saprazzan Skerry",
    "manaCost": [],
    "manaValue": 0,
@@ -7399,6 +7790,7 @@
   {
    "cardId": "c391",
    "scryfallId": "2bb96971-5bf1-4ae3-98f4-7cd7a614bf97",
+   "oracleId": "67dbc5dd-6d05-43e7-83f7-70e10eb54807",
    "name": "Sarkhan the Masterless",
    "manaCost": [
     "3",
@@ -7419,6 +7811,7 @@
   {
    "cardId": "c392",
    "scryfallId": "327cf118-cc92-4073-85d0-94d2a0a6989a",
+   "oracleId": "cb027150-848c-4a66-88ad-e20222304dd8",
    "name": "Scalding Tarn",
    "manaCost": [],
    "manaValue": 0,
@@ -7432,6 +7825,7 @@
   {
    "cardId": "c393",
    "scryfallId": "6cd91eeb-7abf-4538-91dc-47c736dfc237",
+   "oracleId": "5ece7d03-9ee7-4953-a06e-9d8e41874903",
    "name": "Scavenger Grounds",
    "manaCost": [],
    "manaValue": 0,
@@ -7445,6 +7839,7 @@
   {
    "cardId": "c394",
    "scryfallId": "01acc50b-856d-442d-9880-1a892b40643b",
+   "oracleId": "6dfb50d7-359b-4644-90e3-7ecdacee7c12",
    "name": "Scheming Symmetry",
    "manaCost": [
     "B"
@@ -7462,6 +7857,7 @@
   {
    "cardId": "c395",
    "scryfallId": "216a8e4e-ea7b-41c7-a982-b5751025ff25",
+   "oracleId": "d309e1e9-26e6-4a10-a3f4-352c7ba3f2ff",
    "name": "Scrapheap Scrounger",
    "manaCost": [
     "2"
@@ -7479,6 +7875,7 @@
   {
    "cardId": "c396",
    "scryfallId": "5f7346d8-1aef-4618-88e6-74bd8865e0f3",
+   "oracleId": "648bd03d-247e-4d6f-87a9-12a67688cbf5",
    "name": "Scroll Rack",
    "manaCost": [
     "2"
@@ -7494,6 +7891,7 @@
   {
    "cardId": "c397",
    "scryfallId": "1a7e242e-bb48-4134-a1c2-6033713d658f",
+   "oracleId": "f74c4d96-bc4a-4d32-9519-a753d192144e",
    "name": "Search for Azcanta // Azcanta, the Sunken Ruin",
    "manaCost": [
     "1",
@@ -7526,6 +7924,7 @@
   {
    "cardId": "c398",
    "scryfallId": "2e139ad1-1079-49e9-babd-6399c44ad333",
+   "oracleId": "02238355-9c84-4ae0-b850-269f460144a8",
    "name": "Seasoned Pyromancer",
    "manaCost": [
     "1",
@@ -7547,6 +7946,7 @@
   {
    "cardId": "c399",
    "scryfallId": "1fedc183-2d95-471c-ba78-2169e4df13f8",
+   "oracleId": "39451b4d-cd7a-40da-b457-cb51b609173f",
    "name": "Seat of the Synod",
    "manaCost": [],
    "manaValue": 0,
@@ -7560,6 +7960,7 @@
   {
    "cardId": "c400",
    "scryfallId": "e11775d9-2636-4726-93ae-a7f130ca0e64",
+   "oracleId": "64bf8929-f5f2-4d50-8667-13b1d007bcfc",
    "name": "Seething Song",
    "manaCost": [
     "2",
@@ -7578,6 +7979,7 @@
   {
    "cardId": "c401",
    "scryfallId": "83c01c91-ea01-46c7-b94c-97777b968459",
+   "oracleId": "13575cf9-65c1-4861-b21e-eb2155e07766",
    "name": "Sensei's Divining Top",
    "manaCost": [
     "1"
@@ -7593,6 +7995,7 @@
   {
    "cardId": "c402",
    "scryfallId": "25d9500e-a536-4f8e-bfdd-6cb08f709890",
+   "oracleId": "49b86b51-e1ef-4e27-84d2-66166481e0a5",
    "name": "Sentinel Tower",
    "manaCost": [
     "4"
@@ -7608,6 +8011,7 @@
   {
    "cardId": "c403",
    "scryfallId": "4bc61952-88ba-447a-835a-f1e9643fcd0d",
+   "oracleId": "56956afd-db53-4542-816b-490c8b0bbcf7",
    "name": "Serum Visions",
    "manaCost": [
     "U"
@@ -7625,6 +8029,7 @@
   {
    "cardId": "c404",
    "scryfallId": "d5c782cc-c951-4c6f-a93f-774ae6c1c214",
+   "oracleId": "9843d8a6-bcbf-40c2-8c41-316e97db9c62",
    "name": "Shallow Grave",
    "manaCost": [
     "1",
@@ -7643,6 +8048,7 @@
   {
    "cardId": "c405",
    "scryfallId": "4216656e-90e8-45fc-a0f6-0d0d79d0a021",
+   "oracleId": "f748b2fb-6c2a-400a-8e96-fa4e4a1dfe80",
    "name": "Shelldock Isle",
    "manaCost": [],
    "manaValue": 0,
@@ -7656,6 +8062,7 @@
   {
    "cardId": "c406",
    "scryfallId": "bbd672c9-46ae-4d2b-93d9-16271d2f71ff",
+   "oracleId": "9218b56d-aaec-482f-99e9-d95d227bfe25",
    "name": "Sheoldred, Whispering One",
    "manaCost": [
     "5",
@@ -7677,6 +8084,7 @@
   {
    "cardId": "c407",
    "scryfallId": "ae4c9315-41f9-4264-ae6b-c0d9ed6287ca",
+   "oracleId": "0fe16212-66c3-4e45-a641-7391e9b2e304",
    "name": "Shivan Reef",
    "manaCost": [],
    "manaValue": 0,
@@ -7690,6 +8098,7 @@
   {
    "cardId": "c408",
    "scryfallId": "fa7b7897-36e0-415a-8bb7-602886164852",
+   "oracleId": "b83a3ba0-249e-4c39-bbf0-cb005413f7d2",
    "name": "Show and Tell",
    "manaCost": [
     "2",
@@ -7708,6 +8117,7 @@
   {
    "cardId": "c409",
    "scryfallId": "d1a8afef-fa50-4aeb-94de-a4d90b1e5631",
+   "oracleId": "e2535383-79f5-4900-8dce-227b0b3650c4",
    "name": "Shrine of Burning Rage",
    "manaCost": [
     "2"
@@ -7723,6 +8133,7 @@
   {
    "cardId": "c410",
    "scryfallId": "5ffd5cb7-7002-4c9e-b04f-6ee6d168afc3",
+   "oracleId": "ddc7f59a-bbb1-4ba1-82c8-6813fd191940",
    "name": "Siege-Gang Commander",
    "manaCost": [
     "3",
@@ -7744,6 +8155,7 @@
   {
    "cardId": "c411",
    "scryfallId": "18c53663-6658-4bef-810d-6980d6d49dad",
+   "oracleId": "7052fbd6-94df-41a9-a382-641701086804",
    "name": "Silumgar's Command",
    "manaCost": [
     "3",
@@ -7764,6 +8176,7 @@
   {
    "cardId": "c412",
    "scryfallId": "19f1ac65-aed8-4ac6-ba90-e088db6c1389",
+   "oracleId": "44e0ffa3-8915-4c1f-8f1a-4aeea1365f07",
    "name": "Simian Spirit Guide",
    "manaCost": [
     "2",
@@ -7784,6 +8197,7 @@
   {
    "cardId": "c413",
    "scryfallId": "3665cfb7-51b6-4083-8eae-fbd3fa6c3554",
+   "oracleId": "b55d8cd6-037d-4d7c-90ec-51249d34b02e",
    "name": "Sire of Insanity",
    "manaCost": [
     "4",
@@ -7806,6 +8220,7 @@
   {
    "cardId": "c414",
    "scryfallId": "ab56119b-1e13-44d4-b73b-991488c039f1",
+   "oracleId": "65986c1b-8e51-4604-b685-d82fa7d1263a",
    "name": "Skullclamp",
    "manaCost": [
     "1"
@@ -7821,6 +8236,7 @@
   {
    "cardId": "c415",
    "scryfallId": "61d27478-5a03-47a8-a185-8a0c9b4e0474",
+   "oracleId": "2224b6e0-c5ff-45d0-84e3-83758c5fc99f",
    "name": "Sky Diamond",
    "manaCost": [
     "2"
@@ -7836,6 +8252,7 @@
   {
    "cardId": "c416",
    "scryfallId": "a8ead2b6-3bf7-4881-a154-06ab2558052b",
+   "oracleId": "c6d39445-dfc2-42c3-afd2-016fdf008f0e",
    "name": "Slavering Nulls",
    "manaCost": [
     "1",
@@ -7856,6 +8273,7 @@
   {
    "cardId": "c417",
    "scryfallId": "f82aec21-441b-4fcd-b666-61723bd79531",
+   "oracleId": "4e93b23c-a7f7-4bdd-bbca-0dc48bb5c223",
    "name": "Sling-Gang Lieutenant",
    "manaCost": [
     "3",
@@ -7876,6 +8294,7 @@
   {
    "cardId": "c418",
    "scryfallId": "ec94adb9-277a-4237-b8ca-ad2f52a1d832",
+   "oracleId": "fda61506-ed79-47fd-badd-639185297913",
    "name": "Smokestack",
    "manaCost": [
     "4"
@@ -7891,6 +8310,7 @@
   {
    "cardId": "c419",
    "scryfallId": "2c9814b3-d4fe-4823-b310-ab284dc9b9be",
+   "oracleId": "390f1b56-264e-4336-83be-dc1fe79bfdcf",
    "name": "Smoldering Marsh",
    "manaCost": [],
    "manaValue": 0,
@@ -7904,6 +8324,7 @@
   {
    "cardId": "c420",
    "scryfallId": "7832abb5-5107-4603-904e-491b221bd3e3",
+   "oracleId": "49136bdc-bc50-49a2-999a-1ef9c16ea130",
    "name": "Smuggler's Copter",
    "manaCost": [
     "2"
@@ -7921,6 +8342,7 @@
   {
    "cardId": "c421",
    "scryfallId": "7e41765e-43fe-461d-baeb-ee30d13d2d93",
+   "oracleId": "2bb2eda7-3b38-4c56-870f-c3218a1056f5",
    "name": "Snapcaster Mage",
    "manaCost": [
     "1",
@@ -7941,6 +8363,7 @@
   {
    "cardId": "c422",
    "scryfallId": "207d5f12-fbc6-4c75-9d84-fd2f0023fbd0",
+   "oracleId": "e7aee670-e6ac-4b3a-b3d1-7b7013db8f3d",
    "name": "Sneak Attack",
    "manaCost": [
     "3",
@@ -7959,6 +8382,7 @@
   {
    "cardId": "c423",
    "scryfallId": "00f9955f-a522-47bf-b064-92dd21a76b18",
+   "oracleId": "00c0543c-2a1f-4425-8283-4062d74a1637",
    "name": "Solemn Simulacrum",
    "manaCost": [
     "4"
@@ -7976,6 +8400,7 @@
   {
    "cardId": "c424",
    "scryfallId": "85506a24-8d60-475c-9f43-65994caca7d4",
+   "oracleId": "b2187f45-80ae-4ac4-9f83-5eb7a00978e2",
    "name": "Sorcerous Spyglass",
    "manaCost": [
     "2"
@@ -7991,6 +8416,7 @@
   {
    "cardId": "c425",
    "scryfallId": "6bf4dfc0-c58b-4535-b660-54ceaa6e0217",
+   "oracleId": "d64b0848-0193-4025-ba62-63ecd8fb9f50",
    "name": "Spell Pierce",
    "manaCost": [
     "U"
@@ -8008,6 +8434,7 @@
   {
    "cardId": "c426",
    "scryfallId": "74b4c336-5d4c-4bc5-b82a-35084a6ad808",
+   "oracleId": "47a785ed-8095-4685-8daa-02c4e2b0ffcd",
    "name": "Spellseeker",
    "manaCost": [
     "2",
@@ -8028,6 +8455,7 @@
   {
    "cardId": "c427",
    "scryfallId": "440e0daf-aafe-4696-a977-ac5b822134e2",
+   "oracleId": "e0aa6ce0-ca31-433b-ac6c-32b8675cdb71",
    "name": "Spellskite",
    "manaCost": [
     "2"
@@ -8045,6 +8473,7 @@
   {
    "cardId": "c428",
    "scryfallId": "8331724d-6fab-454a-b06c-b06e499fa552",
+   "oracleId": "55a519b4-61cb-448a-875b-4d6dbe00580f",
    "name": "Spire of Industry",
    "manaCost": [],
    "manaValue": 0,
@@ -8058,6 +8487,7 @@
   {
    "cardId": "c429",
    "scryfallId": "4e587ea7-0632-4789-ba75-3c410da2bb96",
+   "oracleId": "eb0d8093-5f93-4b25-9384-08f9731bfb28",
    "name": "Spirebluff Canal",
    "manaCost": [],
    "manaValue": 0,
@@ -8071,6 +8501,7 @@
   {
    "cardId": "c430",
    "scryfallId": "4eca883f-4e6e-4ccc-ad69-a706e24ee151",
+   "oracleId": "48d9f488-4ebb-4fdb-a568-6930fc2f5416",
    "name": "Staff of Nin",
    "manaCost": [
     "6"
@@ -8086,6 +8517,7 @@
   {
    "cardId": "c431",
    "scryfallId": "9c010712-7f42-4c55-9a63-aca2452aac05",
+   "oracleId": "b5e9599f-9561-4e3f-9904-9a4dab98cabb",
    "name": "Star Compass",
    "manaCost": [
     "2"
@@ -8101,6 +8533,7 @@
   {
    "cardId": "c432",
    "scryfallId": "054f2276-2dd5-43da-bb26-c57c560861fe",
+   "oracleId": "17039058-822d-409f-938c-b727a366ba63",
    "name": "Steam Vents",
    "manaCost": [],
    "manaValue": 0,
@@ -8114,6 +8547,7 @@
   {
    "cardId": "c433",
    "scryfallId": "559d3dfb-b5c0-4f1b-880d-4182028fe97c",
+   "oracleId": "6e64f1e0-ddd6-4ee7-8797-086e234b02e8",
    "name": "Steel Hellkite",
    "manaCost": [
     "6"
@@ -8131,6 +8565,7 @@
   {
    "cardId": "c434",
    "scryfallId": "1d94c000-52e0-4215-83af-6351dc43e636",
+   "oracleId": "2249001c-08d5-4c0a-86f8-d97519a39f37",
    "name": "Stoke the Flames",
    "manaCost": [
     "2",
@@ -8150,6 +8585,7 @@
   {
    "cardId": "c435",
    "scryfallId": "fc9a50af-ca3e-461a-9dcb-444f56284165",
+   "oracleId": "84e56125-3fbb-4229-8aa0-8f8acff27038",
    "name": "Stormblood Berserker",
    "manaCost": [
     "1",
@@ -8170,6 +8606,7 @@
   {
    "cardId": "c436",
    "scryfallId": "e3bf4f37-2a2e-4c49-88dc-a26dd7367afb",
+   "oracleId": "5b6a821c-51e4-44dc-8353-f4d10eab7fcb",
    "name": "Stratus Dancer",
    "manaCost": [
     "1",
@@ -8190,6 +8627,7 @@
   {
    "cardId": "c437",
    "scryfallId": "1b8de79d-5efe-4e21-8614-786689fcad58",
+   "oracleId": "d21a89eb-7c5b-459a-acc7-12b20b13bf79",
    "name": "Strip Mine",
    "manaCost": [],
    "manaValue": 0,
@@ -8203,6 +8641,7 @@
   {
    "cardId": "c438",
    "scryfallId": "9c16cf74-f9e0-4d80-9a29-b91dec0b6b38",
+   "oracleId": "c55909d3-1f67-4a4a-9d53-8513d6cf96d8",
    "name": "Stromkirk Noble",
    "manaCost": [
     "R"
@@ -8222,6 +8661,7 @@
   {
    "cardId": "c439",
    "scryfallId": "6bc412fc-e9d4-4283-bd4a-811384e79b5c",
+   "oracleId": "6a6c5e17-6465-4a1f-9d63-8a3ce2edc522",
    "name": "Sulfur Falls",
    "manaCost": [],
    "manaValue": 0,
@@ -8235,6 +8675,7 @@
   {
    "cardId": "c440",
    "scryfallId": "0463e989-ba32-4a46-a82f-e0d6daf3cd51",
+   "oracleId": "7652f328-e142-494b-a869-772ced10c26a",
    "name": "Sulfuric Vortex",
    "manaCost": [
     "1",
@@ -8254,6 +8695,7 @@
   {
    "cardId": "c441",
    "scryfallId": "2fdeab50-b45f-412b-85a3-c6cf009ce567",
+   "oracleId": "f5c38c01-4a40-469f-91a0-7479daf4e8e7",
    "name": "Sulfurous Springs",
    "manaCost": [],
    "manaValue": 0,
@@ -8267,6 +8709,7 @@
   {
    "cardId": "c442",
    "scryfallId": "5402534d-ccd5-4047-9f0b-d4321b2f0bef",
+   "oracleId": "d17d071d-dbee-4d65-8435-137f35cd89ca",
    "name": "Sundering Titan",
    "manaCost": [
     "8"
@@ -8284,6 +8727,7 @@
   {
    "cardId": "c443",
    "scryfallId": "0dd1726f-b899-491a-8b0e-8e3d25f17d3d",
+   "oracleId": "cd2c90ac-2b04-461c-92f3-939871b6b6a3",
    "name": "Sunken Hollow",
    "manaCost": [],
    "manaValue": 0,
@@ -8297,6 +8741,7 @@
   {
    "cardId": "c444",
    "scryfallId": "9d91a31c-b70a-45bd-a8dd-48d49b277f24",
+   "oracleId": "e6415ffb-8b7a-41c3-bedf-0d4112b7b795",
    "name": "Sunken Ruins",
    "manaCost": [],
    "manaValue": 0,
@@ -8310,6 +8755,7 @@
   {
    "cardId": "c445",
    "scryfallId": "b677e7cb-7b5d-4993-8f13-881493c498ce",
+   "oracleId": "75325029-e6f1-44af-88b2-53cc2b7233c0",
    "name": "Supreme Will",
    "manaCost": [
     "2",
@@ -8328,6 +8774,7 @@
   {
    "cardId": "c446",
    "scryfallId": "f11cd406-c6ae-4018-ae45-4e5577aa82ae",
+   "oracleId": "526cd570-046e-402a-986c-f6ece68eec47",
    "name": "Sweltering Suns",
    "manaCost": [
     "1",
@@ -8347,6 +8794,7 @@
   {
    "cardId": "c447",
    "scryfallId": "dfddc025-4396-4d88-8d72-6c06ea7125f1",
+   "oracleId": "2ccdc60a-49a9-44b9-a7af-0ebf18b26785",
    "name": "Sword of Fire and Ice",
    "manaCost": [
     "3"
@@ -8362,6 +8810,7 @@
   {
    "cardId": "c448",
    "scryfallId": "c081e5cf-81e2-4afb-a912-8267de29e88d",
+   "oracleId": "ccab4509-f189-4610-9597-547e7f6b0775",
    "name": "Sword of Sinew and Steel",
    "manaCost": [
     "3"
@@ -8377,6 +8826,7 @@
   {
    "cardId": "c449",
    "scryfallId": "3926f037-aaec-416e-a486-b59aae6faf44",
+   "oracleId": "cd4db500-0017-46c6-be94-1bf48f686b6a",
    "name": "Sygg, River Cutthroat",
    "manaCost": [
     "U/B",
@@ -8398,6 +8848,7 @@
   {
    "cardId": "c450",
    "scryfallId": "4d9dbadd-c1b6-44fe-92ac-6f69d7178342",
+   "oracleId": "14d2979d-5728-42d7-a027-0eb1f754655d",
    "name": "Talisman of Creativity",
    "manaCost": [
     "2"
@@ -8413,6 +8864,7 @@
   {
    "cardId": "c451",
    "scryfallId": "43ec73b2-4215-4e30-ad6d-1764879030f4",
+   "oracleId": "4c0a0448-b9d6-43a0-8549-64066dac63f0",
    "name": "Talisman of Dominance",
    "manaCost": [
     "2"
@@ -8428,6 +8880,7 @@
   {
    "cardId": "c452",
    "scryfallId": "e14011b3-56ce-4b93-833f-d8403809159c",
+   "oracleId": "1d9aeaaa-66f6-41cb-9bac-162d6fd8662c",
    "name": "Talisman of Indulgence",
    "manaCost": [
     "2"
@@ -8443,6 +8896,7 @@
   {
    "cardId": "c453",
    "scryfallId": "83c74e76-c6ce-4107-8816-0be8c20d7617",
+   "oracleId": "ea1eb902-a23c-44ff-9169-19baf71de238",
    "name": "Talrand, Sky Summoner",
    "manaCost": [
     "2",
@@ -8464,6 +8918,7 @@
   {
    "cardId": "c454",
    "scryfallId": "b9398926-13b9-47b8-b66b-1ab9d06bb704",
+   "oracleId": "f88be051-36ae-407e-bd5a-2b029c26414e",
    "name": "Tamiyo, the Moon Sage",
    "manaCost": [
     "3",
@@ -8484,6 +8939,7 @@
   {
    "cardId": "c455",
    "scryfallId": "74d29b3d-f588-431d-bf4e-f7215683ab39",
+   "oracleId": "c4ea0931-43e0-4214-9e0b-213eee3a7e69",
    "name": "Tangle Wire",
    "manaCost": [
     "3"
@@ -8499,6 +8955,7 @@
   {
    "cardId": "c456",
    "scryfallId": "fdcf5c0f-9d18-406d-a930-c179a781264f",
+   "oracleId": "4927150d-7ff6-4232-b20e-d2ea245ac710",
    "name": "Tectonic Edge",
    "manaCost": [],
    "manaValue": 0,
@@ -8512,6 +8969,7 @@
   {
    "cardId": "c457",
    "scryfallId": "19573a69-5022-4d63-9252-c8789602d051",
+   "oracleId": "2b6cbd55-5adc-4a34-ac45-8531705a7ee1",
    "name": "Teferi, Mage of Zhalfir",
    "manaCost": [
     "2",
@@ -8534,6 +8992,7 @@
   {
    "cardId": "c458",
    "scryfallId": "3acc883b-3aea-4d0b-ae0f-00d4a08c47c1",
+   "oracleId": "b94c233e-11d3-4556-a1da-bd193e58b663",
    "name": "Tempest Djinn",
    "manaCost": [
     "U",
@@ -8555,6 +9014,7 @@
   {
    "cardId": "c459",
    "scryfallId": "686559d7-8ac1-496b-a5a6-1467bf8fc7c5",
+   "oracleId": "33b9b3bd-33ca-46f3-b8bb-a978bc3d1085",
    "name": "Temple of Deceit",
    "manaCost": [],
    "manaValue": 0,
@@ -8568,6 +9028,7 @@
   {
    "cardId": "c460",
    "scryfallId": "00f8ec3c-d2cb-477c-a7e8-ff497df646d6",
+   "oracleId": "79f94050-d850-41ca-b1db-5ae0cf743f0a",
    "name": "Temple of Epiphany",
    "manaCost": [],
    "manaValue": 0,
@@ -8581,6 +9042,7 @@
   {
    "cardId": "c461",
    "scryfallId": "52f50818-aede-4667-883a-e0339d86d870",
+   "oracleId": "7c439c18-31dc-41fe-b03d-3fca06e6fc0b",
    "name": "Temple of Malice",
    "manaCost": [],
    "manaValue": 0,
@@ -8594,6 +9056,7 @@
   {
    "cardId": "c462",
    "scryfallId": "6f26faca-f338-4ce5-a218-6a61d40fc50a",
+   "oracleId": "78db3190-59bc-4033-95bc-32d8ed872b6a",
    "name": "Tendrils of Agony",
    "manaCost": [
     "2",
@@ -8613,6 +9076,7 @@
   {
    "cardId": "c463",
    "scryfallId": "d55fe100-bbc5-49f8-ab64-5bd0b34f325f",
+   "oracleId": "6257c2fd-005f-41e3-8a72-af76df1eb134",
    "name": "Terminate",
    "manaCost": [
     "B",
@@ -8632,6 +9096,7 @@
   {
    "cardId": "c464",
    "scryfallId": "3b214b6f-4734-4200-8467-92d7e3469b5d",
+   "oracleId": "4aeafdf3-7828-4114-8c74-3bd46357caec",
    "name": "Tezzeret the Seeker",
    "manaCost": [
     "3",
@@ -8652,6 +9117,7 @@
   {
    "cardId": "c465",
    "scryfallId": "0f3c8470-1cc8-4383-8782-c022867d46e8",
+   "oracleId": "8ab7358e-a0f5-4220-8769-25177237bcdf",
    "name": "Tezzeret, Agent of Bolas",
    "manaCost": [
     "2",
@@ -8673,6 +9139,7 @@
   {
    "cardId": "c466",
    "scryfallId": "d6876c7a-8bbe-484e-b733-70229fa336cd",
+   "oracleId": "69e5df2f-be1f-4608-a90f-3e2f51e2fea4",
    "name": "Thassa, God of the Sea",
    "manaCost": [
     "2",
@@ -8693,6 +9160,7 @@
   {
    "cardId": "c467",
    "scryfallId": "bbda670a-00a7-419c-b4b5-bfdb323f006d",
+   "oracleId": "ab5a9749-5c94-43e0-b9df-bd2c3601936f",
    "name": "The Antiquities War",
    "manaCost": [
     "3",
@@ -8711,6 +9179,7 @@
   {
    "cardId": "c468",
    "scryfallId": "a3b16625-7faf-4de6-abf7-d397988e32fb",
+   "oracleId": "eff0a1ad-ecc6-416f-a4ae-96b26cd8a905",
    "name": "The Elderspell",
    "manaCost": [
     "B",
@@ -8729,6 +9198,7 @@
   {
    "cardId": "c469",
    "scryfallId": "c8318f40-ecd5-429e-8fe2-febf31f64841",
+   "oracleId": "44ed4c0c-a012-4895-a547-b04150553bba",
    "name": "The Eldest Reborn",
    "manaCost": [
     "4",
@@ -8747,6 +9217,7 @@
   {
    "cardId": "c470",
    "scryfallId": "621cfd79-be4e-41e3-95ce-62b0eeff5baf",
+   "oracleId": "c75e55f2-fd6c-4816-9d96-21eeb8369aff",
    "name": "The Scarab God",
    "manaCost": [
     "3",
@@ -8769,6 +9240,7 @@
   {
    "cardId": "c471",
    "scryfallId": "ad42efd5-79c8-44f9-b3d6-d9058e0cb0f6",
+   "oracleId": "b391a4ce-52ce-4a8c-bbe5-6053951ee1d4",
    "name": "Theater of Horrors",
    "manaCost": [
     "1",
@@ -8789,6 +9261,7 @@
   {
    "cardId": "c472",
    "scryfallId": "307543ca-8e17-433f-9758-4c77da6c0870",
+   "oracleId": "68b51d58-7566-4a26-8c31-8da32799bea7",
    "name": "Thief of Sanity",
    "manaCost": [
     "1",
@@ -8811,6 +9284,7 @@
   {
    "cardId": "c473",
    "scryfallId": "359d1b13-6156-43b0-a9a7-6bfff36c1a91",
+   "oracleId": "f2c10591-4c0c-4286-af91-e8d8d10a4c9d",
    "name": "Thing in the Ice // Awoken Horror",
    "manaCost": [
     "1",
@@ -8847,6 +9321,7 @@
   {
    "cardId": "c474",
    "scryfallId": "fb15affd-e407-4358-a3c2-8770d8d74726",
+   "oracleId": "939e6f71-185e-41f2-9d54-72cce06f1dce",
    "name": "Thirst for Knowledge",
    "manaCost": [
     "2",
@@ -8865,6 +9340,7 @@
   {
    "cardId": "c475",
    "scryfallId": "7ce226ad-cb1d-47f5-90fc-27704e181884",
+   "oracleId": "4bae4e34-fcf4-4aee-8da2-5b3ee41a595a",
    "name": "Thought Erasure",
    "manaCost": [
     "U",
@@ -8884,6 +9360,7 @@
   {
    "cardId": "c476",
    "scryfallId": "19ce4784-139d-442c-86a9-3e45e91038b7",
+   "oracleId": "9965d9c5-2ebf-4a6c-930e-55c5890979be",
    "name": "Thought Vessel",
    "manaCost": [
     "2"
@@ -8899,6 +9376,7 @@
   {
    "cardId": "c477",
    "scryfallId": "bffc360e-db41-48f3-9365-680d55046e04",
+   "oracleId": "cef7396d-2168-4282-bf38-670ca9eebd91",
    "name": "Thought-Knot Seer",
    "manaCost": [
     "3",
@@ -8917,6 +9395,7 @@
   {
    "cardId": "c478",
    "scryfallId": "310a1c46-8331-4a09-9fcb-d942f8102364",
+   "oracleId": "edd8d1e8-be43-4c38-bb3a-83081fbaf0b5",
    "name": "Thoughtseize",
    "manaCost": [
     "B"
@@ -8934,6 +9413,7 @@
   {
    "cardId": "c479",
    "scryfallId": "270a0863-7d07-43f0-925d-a8ce0383a1cb",
+   "oracleId": "dd4cf149-2fae-40e5-b50b-639f6bcec65e",
    "name": "Thousand-Year Storm",
    "manaCost": [
     "4",
@@ -8954,6 +9434,7 @@
   {
    "cardId": "c480",
    "scryfallId": "508a8735-642c-4f22-bbd9-4a189d93e7b7",
+   "oracleId": "a699c663-8131-4045-9265-a83e86609374",
    "name": "Thran Dynamo",
    "manaCost": [
     "4"
@@ -8969,6 +9450,7 @@
   {
    "cardId": "c481",
    "scryfallId": "088dab4a-0090-4509-a851-25d916b30236",
+   "oracleId": "c207aaee-0b67-4520-ad02-2c289228be2a",
    "name": "Through the Breach",
    "manaCost": [
     "4",
@@ -8987,6 +9469,7 @@
   {
    "cardId": "c482",
    "scryfallId": "a75f6bb4-ab06-42ca-a0df-326d9a098a26",
+   "oracleId": "e958144e-01bc-46ff-8f56-ddf2eb098630",
    "name": "Thundermaw Hellkite",
    "manaCost": [
     "3",
@@ -9008,6 +9491,7 @@
   {
    "cardId": "c483",
    "scryfallId": "9a7c2716-35ab-411d-8456-267e09833358",
+   "oracleId": "331b44e4-cf08-44f4-8afd-a7374e5dc5ed",
    "name": "Tidespout Tyrant",
    "manaCost": [
     "5",
@@ -9030,6 +9514,7 @@
   {
    "cardId": "c484",
    "scryfallId": "f3d62dbd-63db-4ac9-950f-9852627f23f2",
+   "oracleId": "cac55e46-b730-4569-b92c-a4b5922fc20c",
    "name": "Time Spiral",
    "manaCost": [
     "4",
@@ -9049,6 +9534,7 @@
   {
    "cardId": "c485",
    "scryfallId": "87fe8637-9be1-4b57-832f-38cf92d23482",
+   "oracleId": "dbd6a94b-62ff-4a10-9d52-bdd90b26e425",
    "name": "Time Warp",
    "manaCost": [
     "3",
@@ -9068,6 +9554,7 @@
   {
    "cardId": "c486",
    "scryfallId": "fbee1e10-0b8c-44ea-b0e5-44cdd0bfcd76",
+   "oracleId": "c823e687-6311-4c99-974b-fd77d204141a",
    "name": "Timetwister",
    "manaCost": [
     "2",
@@ -9086,6 +9573,7 @@
   {
    "cardId": "c487",
    "scryfallId": "5a645c8d-7cfb-466b-9fd0-e1c26bf6f652",
+   "oracleId": "518cf9ce-14aa-4f51-81bf-f8c2692a4244",
    "name": "To the Slaughter",
    "manaCost": [
     "2",
@@ -9104,6 +9592,7 @@
   {
    "cardId": "c488",
    "scryfallId": "fd99bce1-ce39-464b-8e61-2631eb3ed6f6",
+   "oracleId": "dba4fd31-8931-42dd-bd86-45479c2abf74",
    "name": "Tolarian Academy",
    "manaCost": [],
    "manaValue": 0,
@@ -9117,6 +9606,7 @@
   {
    "cardId": "c489",
    "scryfallId": "d52868cb-087e-4f91-91bc-455f2e2e7cd7",
+   "oracleId": "a6395447-677d-4c39-8eda-2d57e527c94e",
    "name": "Torrential Gearhulk",
    "manaCost": [
     "4",
@@ -9138,6 +9628,7 @@
   {
    "cardId": "c490",
    "scryfallId": "6d796c01-0821-4a20-a256-d98b774faedc",
+   "oracleId": "afaef788-34d1-460b-b884-9d7ae6ddeb18",
    "name": "Toxic Deluge",
    "manaCost": [
     "2",
@@ -9156,6 +9647,7 @@
   {
    "cardId": "c491",
    "scryfallId": "f1c031c7-656b-4bd5-9b59-c03420cc2399",
+   "oracleId": "e69279f6-50a1-4db5-83be-30a2ea7fc6a9",
    "name": "Trash for Treasure",
    "manaCost": [
     "2",
@@ -9174,6 +9666,7 @@
   {
    "cardId": "c492",
    "scryfallId": "613694aa-b169-400d-8063-2b83d8303611",
+   "oracleId": "8ed57194-7508-4aef-9373-64f7e80612d8",
    "name": "Treachery",
    "manaCost": [
     "3",
@@ -9193,6 +9686,7 @@
   {
    "cardId": "c493",
    "scryfallId": "3ff91245-57d8-4020-b260-495c938a515b",
+   "oracleId": "5b6bdf5a-2742-4851-92cd-a857a3852836",
    "name": "Treasure Cruise",
    "manaCost": [
     "7",
@@ -9211,6 +9705,7 @@
   {
    "cardId": "c494",
    "scryfallId": "c0f9c733-0818-4a03-8f0c-a163d09e0fff",
+   "oracleId": "0b55eac6-a745-4bf4-8926-5ce83bc38d7d",
    "name": "Treasure Map // Treasure Cove",
    "manaCost": [
     "2"
@@ -9240,6 +9735,7 @@
   {
    "cardId": "c495",
    "scryfallId": "9a7800f7-95cd-4f5c-b054-4afad8924367",
+   "oracleId": "ffc95093-24a2-4616-a44a-24788e8df9c8",
    "name": "Trinket Mage",
    "manaCost": [
     "2",
@@ -9260,6 +9756,7 @@
   {
    "cardId": "c496",
    "scryfallId": "2da0b45b-0ca9-40c4-bc7f-791039bc1876",
+   "oracleId": "112322ad-8f66-4cd4-98a1-f425d61a69ce",
    "name": "True-Name Nemesis",
    "manaCost": [
     "1",
@@ -9281,6 +9778,7 @@
   {
    "cardId": "c497",
    "scryfallId": "8497ab30-02e9-47a7-8e15-c6ae98394fb5",
+   "oracleId": "715d0777-4d36-463b-9102-6bb6bb00b7e9",
    "name": "Turnabout",
    "manaCost": [
     "2",
@@ -9300,6 +9798,7 @@
   {
    "cardId": "c498",
    "scryfallId": "b7e2708c-2824-4925-b529-d625deb77924",
+   "oracleId": "afb278f1-0e21-4f6d-96bb-c34aa3ef96b0",
    "name": "Tyrant's Scorn",
    "manaCost": [
     "U",
@@ -9319,6 +9818,7 @@
   {
    "cardId": "c499",
    "scryfallId": "7b003521-3da3-41bf-9765-36630653f902",
+   "oracleId": "18bdc181-9592-4147-81fb-7f83ce137f70",
    "name": "Ugin, the Ineffable",
    "manaCost": [
     "6"
@@ -9335,6 +9835,7 @@
   {
    "cardId": "c500",
    "scryfallId": "58c1e824-c8a9-4312-8e4c-a29a26d189a4",
+   "oracleId": "eecb3047-a563-441a-9175-200421981ac3",
    "name": "Ugin, the Spirit Dragon",
    "manaCost": [
     "8"
@@ -9351,6 +9852,7 @@
   {
    "cardId": "c501",
    "scryfallId": "1192f7a9-102e-4b3a-b154-18c8eb332217",
+   "oracleId": "0bfa4512-e35a-4c93-b324-80ec659f5a97",
    "name": "Ulamog, the Ceaseless Hunger",
    "manaCost": [
     "10"
@@ -9368,6 +9870,7 @@
   {
    "cardId": "c502",
    "scryfallId": "5a5b1a77-3016-4495-aff3-faf9561c26f8",
+   "oracleId": "d740453b-d8f8-48d0-8c50-72a7cdb791b5",
    "name": "Ultimate Price",
    "manaCost": [
     "1",
@@ -9386,6 +9889,7 @@
   {
    "cardId": "c503",
    "scryfallId": "492814c7-dd17-43de-b2e8-cf9de5475604",
+   "oracleId": "1da10d5c-36a8-473f-a5d4-782ad61d8057",
    "name": "Umezawa's Jitte",
    "manaCost": [
     "2"
@@ -9401,6 +9905,7 @@
   {
    "cardId": "c504",
    "scryfallId": "9b411380-878e-4f96-b9db-85bb3dec55d1",
+   "oracleId": "857febd9-cdd7-4f8e-a852-d88084b0cfbc",
    "name": "Underground River",
    "manaCost": [],
    "manaValue": 0,
@@ -9414,6 +9919,7 @@
   {
    "cardId": "c505",
    "scryfallId": "26cee543-6eab-494e-a803-33a5d48d7d74",
+   "oracleId": "4b22be3a-8ce1-47d1-b82e-6c3ccfb0548b",
    "name": "Underground Sea",
    "manaCost": [],
    "manaValue": 0,
@@ -9427,6 +9933,7 @@
   {
    "cardId": "c506",
    "scryfallId": "a23735a3-8ec8-48ae-8bd0-3b6b782690c8",
+   "oracleId": "6bcfe240-c165-49f2-a90a-be05c05498a1",
    "name": "Undermine",
    "manaCost": [
     "U",
@@ -9447,6 +9954,7 @@
   {
    "cardId": "c507",
    "scryfallId": "7c353e83-4b63-4bc6-b029-273d2eca1f75",
+   "oracleId": "7cafc972-a6f5-4cac-a3d3-8a3ae36ffb1e",
    "name": "Upheaval",
    "manaCost": [
     "4",
@@ -9466,6 +9974,7 @@
   {
    "cardId": "c508",
    "scryfallId": "02e17705-739e-409f-a6fd-7bab22120b22",
+   "oracleId": "db6174d7-211d-4817-b8e4-8384594c83f9",
    "name": "Urborg, Tomb of Yawgmoth",
    "manaCost": [],
    "manaValue": 0,
@@ -9479,6 +9988,7 @@
   {
    "cardId": "c509",
    "scryfallId": "9e7fb3c0-5159-4d1f-8490-ce4c9a60f567",
+   "oracleId": "e87906d2-db1a-4e19-b910-adb4eb339945",
    "name": "Urza, Lord High Artificer",
    "manaCost": [
     "2",
@@ -9500,6 +10010,7 @@
   {
    "cardId": "c510",
    "scryfallId": "5600df28-c9bc-4f42-9170-ec97e7f6ff70",
+   "oracleId": "fcb2a95b-cef0-4b29-8b2b-538f380aff2b",
    "name": "Vampire Hexmage",
    "manaCost": [
     "B",
@@ -9520,6 +10031,7 @@
   {
    "cardId": "c511",
    "scryfallId": "f5a3c19b-c8b3-4b22-87d4-6d998e473da2",
+   "oracleId": "feb244f8-bcb1-44cf-9940-2719221a7309",
    "name": "Vampire Nighthawk",
    "manaCost": [
     "1",
@@ -9541,6 +10053,7 @@
   {
    "cardId": "c512",
    "scryfallId": "e7e778ce-3f1e-4626-8f55-bba03970d91a",
+   "oracleId": "ededbdae-d9dc-4206-9335-d7158f2d7700",
    "name": "Vampiric Tutor",
    "manaCost": [
     "B"
@@ -9558,6 +10071,7 @@
   {
    "cardId": "c513",
    "scryfallId": "69e50871-bde7-4109-8811-a1c1bf70d3ae",
+   "oracleId": "09496421-74e4-466a-9546-56f2a0c8eef4",
    "name": "Vault of Whispers",
    "manaCost": [],
    "manaValue": 0,
@@ -9571,6 +10085,7 @@
   {
    "cardId": "c514",
    "scryfallId": "cef06f56-a7a8-4c0f-8755-56b46d2aa82c",
+   "oracleId": "fddac567-c42c-453b-9c82-c3140b374a06",
    "name": "Vedalken Shackles",
    "manaCost": [
     "3"
@@ -9586,6 +10101,7 @@
   {
    "cardId": "c515",
    "scryfallId": "cd702cf1-10ca-4448-9fb1-b6de635e839c",
+   "oracleId": "244d4807-0802-41bc-9460-55ac38a28a72",
    "name": "Vendilion Clique",
    "manaCost": [
     "1",
@@ -9607,6 +10123,7 @@
   {
    "cardId": "c516",
    "scryfallId": "92a0243a-4661-4c7c-8dd2-9237bf9238de",
+   "oracleId": "0f41cefc-d6ff-4db7-ba35-502b7e081de1",
    "name": "Venser, Shaper Savant",
    "manaCost": [
     "2",
@@ -9628,6 +10145,7 @@
   {
    "cardId": "c517",
    "scryfallId": "a82fdb2f-b199-44ff-9615-90fc074cb8b0",
+   "oracleId": "5e78e6e0-60f0-4c3c-b8dd-bd673f5152b8",
    "name": "Viashino Pyromancer",
    "manaCost": [
     "1",
@@ -9648,6 +10166,7 @@
   {
    "cardId": "c518",
    "scryfallId": "ecdf2bd9-87b9-470a-ad2e-0ebf98560f87",
+   "oracleId": "7c209753-121b-4859-944b-4e33f885e777",
    "name": "Vilis, Broker of Blood",
    "manaCost": [
     "5",
@@ -9670,6 +10189,7 @@
   {
    "cardId": "c519",
    "scryfallId": "0324641d-af55-4c53-b4dc-c8262e967da5",
+   "oracleId": "c718911c-c955-4eb9-9e16-be4bd49a4e4e",
    "name": "Volcanic Island",
    "manaCost": [],
    "manaValue": 0,
@@ -9683,6 +10203,7 @@
   {
    "cardId": "c520",
    "scryfallId": "f465ae5f-61f0-42c4-978f-841ba1226f56",
+   "oracleId": "73b8cf90-3c71-4f8b-a29f-61894b7f27c9",
    "name": "Volrath's Stronghold",
    "manaCost": [],
    "manaValue": 0,
@@ -9696,6 +10217,7 @@
   {
    "cardId": "c521",
    "scryfallId": "bd7550dd-dfc5-43cd-a117-1244ee3086a8",
+   "oracleId": "38ddbe0b-07ef-4cdf-ad6c-cd8b8ba6d206",
    "name": "Vraska's Contempt",
    "manaCost": [
     "2",
@@ -9715,6 +10237,7 @@
   {
    "cardId": "c522",
    "scryfallId": "329a8738-3e17-403a-857a-0ba529ce8cd1",
+   "oracleId": "4b515bb0-f275-4400-8032-3173b799ab40",
    "name": "Walking Ballista",
    "manaCost": [
     "X",
@@ -9733,6 +10256,7 @@
   {
    "cardId": "c523",
    "scryfallId": "dd0ee251-6c79-499b-8366-c281c989b061",
+   "oracleId": "741c51f1-cfbe-4c29-ac8f-ca6bcd2652f9",
    "name": "Wandering Fumarole",
    "manaCost": [],
    "manaValue": 0,
@@ -9746,6 +10270,7 @@
   {
    "cardId": "c524",
    "scryfallId": "aaafb9bc-7cea-4624-a227-595544fa42b0",
+   "oracleId": "09a70ae8-3859-4a09-901d-dce063fa3b5f",
    "name": "Wasteland",
    "manaCost": [],
    "manaValue": 0,
@@ -9759,6 +10284,7 @@
   {
    "cardId": "c525",
    "scryfallId": "7d4595f2-9297-40dc-b2dd-7144bbb401f7",
+   "oracleId": "fc9ec820-4245-4a96-b009-5308a818ca58",
    "name": "Watery Grave",
    "manaCost": [],
    "manaValue": 0,
@@ -9772,6 +10298,7 @@
   {
    "cardId": "c526",
    "scryfallId": "9b0e3f48-0997-4313-93c9-86cbfc25cd63",
+   "oracleId": "31f15274-301b-47c5-ba19-0ced04520878",
    "name": "Wayfarer's Bauble",
    "manaCost": [
     "1"
@@ -9787,6 +10314,7 @@
   {
    "cardId": "c527",
    "scryfallId": "2597050f-6b1b-474e-aa16-33fd154628ca",
+   "oracleId": "a8abd966-de7b-46a3-8ac7-8747ab35653a",
    "name": "Wheel of Fortune",
    "manaCost": [
     "2",
@@ -9805,6 +10333,7 @@
   {
    "cardId": "c528",
    "scryfallId": "0db2339c-c792-42fd-805b-dc942e7fd91a",
+   "oracleId": "7060f2c8-fca0-4b7a-bddf-37682f434596",
    "name": "Whirler Rogue",
    "manaCost": [
     "2",
@@ -9826,6 +10355,7 @@
   {
    "cardId": "c529",
    "scryfallId": "c5924430-1904-47b9-bcf0-3379babd395c",
+   "oracleId": "0da68ca2-07fd-4359-95a9-fb2f815e6ed0",
    "name": "Wildfire",
    "manaCost": [
     "4",
@@ -9845,6 +10375,7 @@
   {
    "cardId": "c530",
    "scryfallId": "ab3cec7e-513e-400d-a1a8-2c71cdde02c6",
+   "oracleId": "1dcbd583-3388-4b34-a7cd-131648aa6abd",
    "name": "Winter Orb",
    "manaCost": [
     "2"
@@ -9860,6 +10391,7 @@
   {
    "cardId": "c531",
    "scryfallId": "bfcb7c6c-14ac-41f3-a461-451d9ee8e1df",
+   "oracleId": "b166b670-febc-4821-855e-f8d465644c03",
    "name": "Worn Powerstone",
    "manaCost": [
     "3"
@@ -9875,6 +10407,7 @@
   {
    "cardId": "c532",
    "scryfallId": "bd9e38ad-389e-4178-9c8a-5ca89c1a2f73",
+   "oracleId": "fb430640-81b6-4720-84d6-b8ec3af6a2c3",
    "name": "Wretched Confluence",
    "manaCost": [
     "3",
@@ -9894,6 +10427,7 @@
   {
    "cardId": "c533",
    "scryfallId": "4ab5195f-7cc3-4972-92f8-1b26fa3fb927",
+   "oracleId": "d1a60f44-7696-49ee-91fb-cab5b3102962",
    "name": "Wurmcoil Engine",
    "manaCost": [
     "6"
@@ -9911,6 +10445,7 @@
   {
    "cardId": "c534",
    "scryfallId": "337239c7-73c4-4e2d-9160-ed26927dea1d",
+   "oracleId": "322f0459-f394-44f0-977b-55fd0cbe0712",
    "name": "Yawgmoth's Will",
    "manaCost": [
     "2",
@@ -9929,6 +10464,7 @@
   {
    "cardId": "c535",
    "scryfallId": "8690cbcc-f8fd-41f7-9e28-e61c12b04014",
+   "oracleId": "a1e232c0-dc38-47be-a5a0-f68bc1d86a29",
    "name": "Yawgmoth, Thran Physician",
    "manaCost": [
     "2",
@@ -9950,6 +10486,7 @@
   {
    "cardId": "c536",
    "scryfallId": "9c1f44d0-7fb2-40f5-93a9-1a465372dd82",
+   "oracleId": "5fac139a-07d3-4e6c-98e3-d98b199f7a6f",
    "name": "Young Pyromancer",
    "manaCost": [
     "1",
@@ -9970,6 +10507,7 @@
   {
    "cardId": "c537",
    "scryfallId": "df3784d4-80cd-4f78-afb3-d61f3bab5b2c",
+   "oracleId": "1dae6f39-2cbd-485c-b190-017a26401fd4",
    "name": "Zealous Conscripts",
    "manaCost": [
     "4",
@@ -9990,6 +10528,7 @@
   {
    "cardId": "c538",
    "scryfallId": "fc2de819-1e93-4112-96e8-fb60be3c0707",
+   "oracleId": "76b003e0-15af-4f22-bdf2-1ade5430964a",
    "name": "Zulaport Cutthroat",
    "manaCost": [
     "1",
@@ -10010,6 +10549,7 @@
   {
    "cardId": "c539",
    "scryfallId": "bbac6d75-59ab-4d7d-87ae-46875abf8cc7",
+   "oracleId": "46808926-d95b-4313-89d1-6bdfe13fcb77",
    "name": "Zurgo Bellstriker",
    "manaCost": [
     "R"

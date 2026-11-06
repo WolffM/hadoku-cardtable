@@ -19,6 +19,8 @@
  * problem tells you one thing per run about a payload with fifteen cards in it.
  */
 
+import { CardFaceSchema, DraftCardSchema } from './draft.ts';
+
 export interface ValidationFailure {
   path: string;
   message: string;
@@ -33,39 +35,24 @@ export function formatPath(parts: ReadonlyArray<string | number>): string {
   return out;
 }
 
-/** Fields a card may carry. Anything else is a failure; see `IMAGE_HINT`. */
-const CARD_FIELDS = new Set([
-  'cardId',
-  // Scryfall's id. Permitted, and deliberately NOT an image field: it is an
-  // identifier the browser turns into a URL itself. See draft.ts.
-  'scryfallId',
-  'name',
-  'manaCost',
-  'manaValue',
-  'colors',
-  'typeLine',
-  'oracleText',
-  'power',
-  'toughness',
-  'loyalty',
-  'setCode',
-  'collectorNumber',
-  'rarity',
-  // The card's other faces (`CardFaceSchema`): each is checked as a card is, below.
-  'faces',
-  // A realistic booster's own foil (`PaperCard.isFoil()`, `draft.ts`'s `DraftCardSchema.foil`) —
-  // see this file's own header: Zod strips an unknown key silently, so the schema growing a field
-  // means nothing until this allowlist grows with it. Caught live (2026-10-22): a realistic pack's
-  // foil card rejected the WHOLE state message as "unexpected field", freezing the pod on no error.
-  'foil',
-]);
-
 /**
- * Fields one of a card's other faces may carry: a card's, less its own identity, its faces, and
- * `foil` — `CardFaceSchema` has no such field (a face is a face's printed name/text/rarity, not a
- * physical card; only the card ITSELF is foil or not), so a face carrying one stays a real finding.
+ * Fields a card may carry, and one of its other faces: exactly `DraftCardSchema`'s and
+ * `CardFaceSchema`'s own keys. Anything else is a failure; see `IMAGE_FIELD_HINT`.
+ *
+ * Read off the schemas rather than listed again here. Zod strips an unknown key silently, so this
+ * check is the only thing that refuses one, and a hand-kept copy of the schema's keys refused every
+ * field the schema grew until someone remembered this file: a realistic pack's `foil` card rejected
+ * the WHOLE state message as "unexpected field" and froze the pod on no error (2026-10-22). The
+ * schema has no image field, so deriving from it keeps the image control whole.
+ *
+ * Built on first use, not at load: `draft.ts` imports this module, so its schemas are not yet
+ * defined while this one evaluates.
  */
-const FACE_FIELDS = new Set([...CARD_FIELDS].filter((f) => f !== 'cardId' && f !== 'faces' && f !== 'foil'));
+let cardFields: { card: ReadonlySet<string>; face: ReadonlySet<string> } | null = null;
+function fieldSets(): { card: ReadonlySet<string>; face: ReadonlySet<string> } {
+  cardFields ??= { card: new Set(Object.keys(DraftCardSchema.shape)), face: new Set(Object.keys(CardFaceSchema.shape)) };
+  return cardFields;
+}
 
 /**
  * What an image reference looks like, however it is spelled.
@@ -99,9 +86,9 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
-function checkCard(card: unknown, path: Array<string | number>, out: ValidationFailure[], fields: ReadonlySet<string> = CARD_FIELDS): void {
+function checkCard(card: unknown, path: Array<string | number>, out: ValidationFailure[], fields: ReadonlySet<string> = fieldSets().card): void {
   if (!isRecord(card)) return;
-  if (fields === CARD_FIELDS && Array.isArray(card.faces)) card.faces.forEach((face, i) => checkCard(face, [...path, 'faces', i], out, FACE_FIELDS));
+  if (fields === fieldSets().card && Array.isArray(card.faces)) card.faces.forEach((face, i) => checkCard(face, [...path, 'faces', i], out, fieldSets().face));
   for (const key of Object.keys(card)) {
     if (fields.has(key)) continue;
     // Field NAME or URL-shaped value only — never free text. "image" is a

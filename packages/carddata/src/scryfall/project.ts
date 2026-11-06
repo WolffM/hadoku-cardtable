@@ -80,6 +80,8 @@ const CARD_FIELDS = [
  * image references, which this list simply never mentions.
  */
 const FACE_FIELDS = [
+  // A `reversible_card` has no top-level `oracle_id`; each face carries it.
+  'oracle_id',
   'name',
   'mana_cost',
   'cmc',

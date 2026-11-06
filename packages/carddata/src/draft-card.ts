@@ -77,6 +77,18 @@ export function manaTokens(cost: string | undefined): string[] {
   return [...cost.matchAll(/\{([^}]+)\}/g)].map((m) => m[1] as string);
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Scryfall's oracle id: one per card across every printing, the key an outside card service
+ * (CubeCobra's draftbot) names a card by. Top-level on every layout but `reversible_card`, which
+ * carries it on each face instead (both faces the same id), so the front face's stands in.
+ */
+function oracleIdOf(raw: Record<string, unknown>, front: Record<string, unknown> | undefined): string | undefined {
+  const id = raw.oracle_id ?? front?.oracle_id;
+  return typeof id === 'string' && UUID.test(id) ? id : undefined;
+}
+
 export function rarityOf(raw: unknown): string {
   const r = typeof raw === 'string' ? raw : 'common';
   return ['common', 'uncommon', 'rare', 'mythic'].includes(r) ? r : 'special';
@@ -103,6 +115,7 @@ export function toDraftCard(card: GameplayCard, cardId: string): Record<string, 
   );
 
   const colors = cardColors(raw);
+  const oracleId = oracleIdOf(raw, front);
 
   const out: Record<string, unknown> = {
     cardId,
@@ -110,6 +123,7 @@ export function toDraftCard(card: GameplayCard, cardId: string): Record<string, 
     // their `image_uris` blob — see this file's header, and
     // apps/ui/src/draft/cardImage.ts for the only place it becomes a URL.
     ...(typeof raw.id === 'string' ? { scryfallId: raw.id } : {}),
+    ...(oracleId === undefined ? {} : { oracleId }),
     name: String(raw.name ?? front?.name ?? 'Unknown'),
     manaCost,
     manaValue: typeof raw.cmc === 'number' ? raw.cmc : 0,
