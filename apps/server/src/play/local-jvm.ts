@@ -187,7 +187,7 @@ export function defaultJava(env: NodeJS.ProcessEnv = process.env): string {
  * `src/play/bridge/PlayBridge.java` from here under `tsx`, or from `dist/` in
  * the bundle, where `import.meta.url` is `dist/index.js`.
  */
-function defaultBridgeSource(): string {
+export function defaultBridgeSource(): string {
 	const here = dirname(fileURLToPath(import.meta.url));
 	const candidates = [join(here, 'bridge', 'PlayBridge.java'), resolve(here, '..', 'src', 'play', 'bridge', 'PlayBridge.java')];
 	return candidates.find((p) => existsSync(p)) ?? (candidates[0] as string);
@@ -197,6 +197,11 @@ function defaultBridgeSource(): string {
 function positiveInt(raw: string | undefined, fallback: number): number {
 	const n = raw === undefined || raw.trim() === '' ? Number.NaN : Number(raw);
 	return Number.isInteger(n) && n >= 1 ? n : fallback;
+}
+
+/** Where compiled bridges are kept, shared by every tree on the host (keyed by `bridgeVersion`). */
+export function defaultBridgeCache(env: NodeJS.ProcessEnv = process.env): string {
+	return resolve(env.CARDTABLE_PLAY_BRIDGE_CACHE ?? join(env.XDG_CACHE_HOME ?? join(homedir(), '.cache'), 'cardtable', 'bridge'));
 }
 
 /** Resolve the JVM host's configuration, or say exactly what is missing. */
@@ -220,7 +225,7 @@ export function jvmHostConfig(env: NodeJS.ProcessEnv = process.env): JvmAvailabi
 			workDir: playWorkDir(env),
 			jvmOpts: (env.CARDTABLE_PLAY_JVM_OPTS ?? '').split(/\s+/).filter((s) => s !== ''),
 			bridgeSource,
-			bridgeCache: resolve(env.CARDTABLE_PLAY_BRIDGE_CACHE ?? join(env.XDG_CACHE_HOME ?? join(homedir(), '.cache'), 'cardtable', 'bridge')),
+			bridgeCache: defaultBridgeCache(env),
 			stopGraceMs: 5000,
 			warmJvm: env.CARDTABLE_PLAY_WARM_JVM !== '0',
 			perJvm: positiveInt(env.CARDTABLE_PLAY_MATCHES_PER_JVM, MATCHES_PER_JVM),
@@ -274,7 +279,10 @@ export const BRIDGE_CACHE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
  * class `javac` cannot already resolve from the jar, so `-sourcepath` is never
  * consulted for it, and the compiled output is unchanged.
  */
-export function bridgeLaunch(config: JvmHostConfig, log: (entry: Record<string, unknown>) => void): { args: string[]; how: 'compiled' | 'source' } {
+/** What compiling and launching a bridge reads from a host's configuration. */
+export type BridgeConfig = Pick<JvmHostConfig, 'java' | 'jar' | 'bridgeSource' | 'bridgeCache'>;
+
+export function bridgeLaunch(config: BridgeConfig, log: (entry: Record<string, unknown>) => void): { args: string[]; how: 'compiled' | 'source' } {
 	const source = { args: ['-cp', config.jar, config.bridgeSource], how: 'source' as const };
 	const javac = join(dirname(config.java), 'javac');
 	if (!existsSync(javac)) return source;
@@ -361,7 +369,7 @@ export function bridgeLaunch(config: JvmHostConfig, log: (entry: Record<string, 
  * Exported so the key itself is unit-testable (`host.test.ts`, "an edited
  * SIBLING .java changes the key too") without a real compile.
  */
-export function bridgeVersion(config: JvmHostConfig): string {
+export function bridgeVersion(config: BridgeConfig): string {
 	const dir = dirname(config.bridgeSource);
 	const siblings = readdirSync(dir)
 		.filter((f) => f.endsWith('.java'))

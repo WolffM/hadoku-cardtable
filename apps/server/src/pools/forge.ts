@@ -83,7 +83,7 @@ export interface ForgePools {
 }
 
 /** `PoolService.java` beside `PlayBridge.java` under `tsx`, or from `dist/` in the bundle — same two candidates `host.ts`'s own `defaultBridgeSource` checks, for the same reason: `import.meta.url` is `dist/index.js` once bundled. */
-function defaultPoolServiceSource(): string {
+export function defaultPoolServiceSource(): string {
 	const here = dirname(fileURLToPath(import.meta.url));
 	const candidates = [join(here, '..', 'play', 'bridge', 'PoolService.java'), resolve(here, '..', 'src', 'play', 'bridge', 'PoolService.java')];
 	return candidates.find((p) => existsSync(p)) ?? (candidates[0] as string);
