@@ -1833,7 +1833,15 @@
 
 :root[data-layout='portrait'] .live__phases {
   position: absolute;
-  z-index: var(--z-overlay, 20);
+  /*
+   * Under the top band (`.portrait-hud`'s z-index 3): the marks and mana hanging off a chip's bottom
+   * edge cover the line's ends, as Mockup 2 drew them. A bare line, none of the desktop rail's box.
+   */
+  z-index: 2;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
   /* `--portrait-hud-h` already INCLUDES the phase row's own height (A's chips, then this bar's
      reserved 30px) — this bar's own row starts `--portrait-phase-h` short of the HUD's bottom, not at it. */
   top: calc(var(--portrait-hud-h) - var(--portrait-phase-h));

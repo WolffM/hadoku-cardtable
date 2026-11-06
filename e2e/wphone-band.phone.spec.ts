@@ -190,6 +190,15 @@ test(titled('360×800 with every counter on, four-digit counts included: nothing
       console.log(`[counters] ${state}: ${(await zoneLabels(page)).join(' ')}; overflow ${JSON.stringify(overflow)}`);
       expect.soft(overflow, `${state}: nothing leaves either chip`).toEqual([]);
     }
+    // The marks hang over the phase line's ends, drawn on top of it (Mockup 2).
+    for (const side of ['me', 'opp']) {
+      const onTop = await page.locator(`[data-testid="seat-chip-${side}"] .seat-chip__marks`).evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.bottom - 3);
+        return hit !== null && el.contains(hit);
+      });
+      expect.soft(onTop, `${side}: the marks pill is drawn over the phase line`).toBe(true);
+    }
     const phases = await box(page, '[data-testid="live-phases"]');
     expect.soft(phases.y + phases.height, 'the band stays at most 80px').toBeLessThanOrEqual(80);
     await noSideways(page);
