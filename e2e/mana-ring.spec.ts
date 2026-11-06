@@ -26,7 +26,7 @@ import { expect, test } from '@playwright/test';
 import { clickHandCard, handCardNamed, isTapped, lifeOf, makeTitled, manaPool as pool, ownNamed } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
-import { centreOf, expectCardViewBesideRing, expectRingOn, lifeNow, pathTo, pressPoint, ring, ringOption, ringOptions } from './mana-ring.ts';
+import { centreOf, expectCardViewBesideRing, expectRingOn, lifeNow, pathTo, pressPoint, ring, ringOption, ringOptions, whatIsAt } from './mana-ring.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -195,8 +195,9 @@ test(titled('a press on a mana source opens its ring under the press: a drag to 
     await expect(ring(page)).toHaveAttribute('data-press');
     await expect(ringOptions(page)).toHaveCount(5);
     await expect(ring(page).getByTestId('mana-ring-life'), 'its 1 damage on every colour').toHaveCount(5);
-    await drag(onBrass, await centreOf(ringOption(page, 'R')));
-    await expect(ringOption(page, 'R'), 'the disc under the pointer is lit').toHaveAttribute('data-armed');
+    const r = await centreOf(ringOption(page, 'R'));
+    await drag(onBrass, r);
+    await expect(ringOption(page, 'R'), `the disc under the pointer is lit (the page hits ${await whatIsAt(page, r)})`).toHaveAttribute('data-armed');
     await page.mouse.up();
     await expect.poll(async () => (await pool(page)).R, { timeout: 10_000, message: 'City of Brass added {R}' }).toBe(1);
     await expect.poll(() => lifeNow(page, life), { timeout: 10_000, message: 'City of Brass dealt 1' }).toBe(19);
