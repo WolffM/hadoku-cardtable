@@ -71,7 +71,7 @@ it, read off `GameState.initFromGame`/`applyToGame`):
 | day/night | `Game.getDayTime` | **carried** (slice 1) |
 | speed, radiation effect cards | `speed=`, a player's RAD counters | **carried** (slice 1: they already came back from those lines; the round trip proves it) |
 | the other managed effect cards (`effect:keyword`, `blessing`, `enduring-story`, `contraption-sprocket`) | `Player`'s effect-card fields | small to medium each |
-| emblems, effect cards in the command zone | command zone `Card`s with no printed card | medium |
+| emblems, effect cards in the command zone | command zone `Card`s with no printed card | **carried** (slices 5 and 6) when an Effect ability made it and its host is a written card holding that ability: emblems, boons, adventures, and effects with a duration, whose end is put back where it waited |
 | static effects not a card's own (`DetachedCardEffect`) | `Game.getStaticEffects` | medium: `GameCopier` copies them |
 | control | `Card`'s base controller and timestamped temporary controllers | **carried in layers** (slice 2), with conditions on the source card (slice 3); `control-condition` names only UntilTheEndOfYourNextTurn, UntilSourceUnattached, StaticCommandCheck |
 | delayed triggers | `TriggerHandler` delayed triggers | **carried** (slice 4) when the host is in a written zone with its SVar and what it remembers is cards, players or numbers |
@@ -175,3 +175,32 @@ Nothing is replaced: restart is new. `perCallerLimit`'s bucket becomes a shared
   upkeep trigger. `GameState.setDeferAdvance`/`advanceDeferred` leave the advance to the bridge,
   which runs it after `resyncSeats`. 4 of 4 runs after, the whole suite 11 of 11.
 
+### Slices 5 and 6 (fork 0f7769b2, then 9ebf0e09, one pin): emblems and effect cards, with their durations
+
+- `effect=<Base64 of key=value lines>`, one per effect card an Effect ability made with `Duration$
+  Permanent`: the ability (`host`, a card id; `at`, its place among every ability the host's states
+  hold) and what the card holds that the ability does not say again: who it remembers, its choices,
+  its name and image. The apply makes it again with `EffectEffect.buildEffect`, the builder
+  `EffectEffect.resolve` itself now uses, so the card is the one the ability makes, with its
+  triggers, statics and "forget when it moves" triggers. Emblems, boons and adventures come back.
+- Slice 6, durations: the command that ends an effect's duration was an anonymous lambda; it is now
+  `SpellAbilityEffect.ExileEffectCommand`, so the text can find where it waits and write that, never
+  the duration: `until=phase:<phase>:<at, until, until:P<n>, untilend:P<n> or register:P<n>>` or
+  `card:<id>:<leavesplay, untap, …>` (`Phase.placesOf`, `Card.commandPlacesOf`), put back with
+  `Phase.putAt`/`Card.addCommand`. Reading the duration again on apply would be wrong: "until the end
+  of your next turn" made on your own turn waits in `register`, and after your turn ends in
+  `untilend`, which a restore on your next turn would re-derive as `register` and keep a turn too long.
+- Still `effect`/`emblem`: one whose end waits elsewhere (a state-based-action check) or on a card the
+  text does not write, one that changed after it was made (SVars, counters, text changes), one its
+  host imprints, one remembering a spell or a last-known copy, and one whose host is not a written
+  card (a token that died, a copy). Effect cards other APIs make (`createEffect` callers besides
+  Effect) stay `effect`.
+- `|OnAdventure` (upstream's own line, written for every exiled adventure card, which let a card
+  exiled by other means be cast) is now written only for a card an adventure effect remembers that
+  no `effect=` line carries.
+- Proof: Elspeth, Knight-Errant's emblem and Swiftspear's Teachings's boon through a restart (the
+  emblem's indestructible checked on the restored board), and Lovestruck Beast on an adventure, cast
+  from exile after the restart. Both fail on d3601870 with `effect`/`emblem` lossy. Then Chronomantic
+  Escape (until its next turn) and Reckless Impulse cast off-turn (until the end of seat 0's next
+  turn, waiting in `untilend`) through a restart of that turn: both end on time, gone by turn 5.
+  The round trip caught `Phase.putAt` dropping the player from `until:P<n>` before it shipped.

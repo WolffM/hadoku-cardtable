@@ -18,7 +18,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { BridgeLine } from './host.js';
-import { available, deck, inOwnMain, passUntil, promptBar, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, deck, inOwnMain, landPayer, passUntil, promptBar, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok ? 'restore from a turn-start snapshot, against real Forge' : `restore from a turn-start snapshot, against real Forge — SKIPPED: ${available.reason}`;
 
@@ -67,6 +67,25 @@ function normalized(state: string): Record<string, string[]> {
 			const fields = (line.slice(at + 1)).split('|');
 			fields[0] = name(fields[0]!);
 			fields[4] = (fields[4] ?? '').replace(/c(\d+)/g, (_m, id: string) => `c${name(id)}`);
+			out[key] = [...(out[key] ?? []), fields.join('|')];
+			continue;
+		}
+		// An effect card is Base64 of `key=value` lines naming its host, and what it remembers or chose, by id.
+		if (key === 'effect') {
+			const fields = Buffer.from(line.slice(at + 1), 'base64')
+				.toString('utf8')
+				.split('\n')
+				.filter((f) => f !== '')
+				.map((f) => {
+					const eq = f.indexOf('=');
+					const k = f.slice(0, eq);
+					const v = f.slice(eq + 1);
+					if (k === 'host') return `host=${name(v)}`;
+					if (k === 'remembered') return `remembered=${v.replace(/\bc(\d+)/g, (_m, id: string) => `c${name(id)}`)}`;
+					if (k === 'imprinted' || k === 'chosencards') return `${k}=${v === '' ? '' : v.split(',').map(name).join(',')}`;
+					if (k === 'until') return `until=${v.replace(/\bcard:(\d+):/g, (_m, id: string) => `card:${name(id)}:`)}`;
+					return f;
+				});
 			out[key] = [...(out[key] ?? []), fields.join('|')];
 			continue;
 		}
@@ -616,6 +635,197 @@ describe.skipIf(!available.ok)(`${title}: restart turn`, () => {
 				// The restored upkeep fires it again: the three cards the snapshot holds in hand go, then the draw.
 				await passUntil(s, noAttacks(s, () => inOwnMain(s, 0, 4)), 'the restarted turn 4, its first main', 120_000);
 				await waitUntil(() => s.zone(0, 'Hand').length === 1 && s.zone(0, 'Graveyard').length === 3, 'the discard again, then the draw', 30_000, s);
+			} finally {
+				await s.stop();
+			}
+		},
+		300_000,
+	);
+
+	it(
+		'an emblem and a boon come through a restart, rebuilt from the abilities that made them: Elspeth\'s emblem, Swiftspear\'s Teachings',
+		async () => {
+			if (!available.ok) return;
+			// As the board applies on seat 1's turn 3, seat 0's Elspeth, Knight-Errant uses her -8 (her fourth
+			// ability; the first is casting her) and Swiftspear's Teachings resolves from seat 0's graveyard: an
+			// emblem and a one-time boon, both lasting the game. Turn 4's snapshot must carry both, and the
+			// restarted turn must have them back, made again by the same abilities.
+			const scenario = [
+				'turn=3',
+				'activeplayer=ai',
+				'activephase=MAIN1',
+				'humanlife=20',
+				'ailife=20',
+				'humanbattlefield=Forest;Elspeth, Knight-Errant|Counters:LOYALTY=9|Id:501',
+				"humangraveyard=Swiftspear's Teachings|Id:502",
+				'humanprecast=501:3;502',
+				'humanlibrary=' + Array.from({ length: 20 }, () => 'Forest').join(';'),
+				'aibattlefield=Mountain',
+				'ailibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
+			].join('\n');
+			const s = await startScenario(available.config, { seed: 3, decks: decks(), scenario, skipOpening: true });
+			try {
+				await passUntil(s, noAttacks(s, () => snapshots(s).some((l) => l.turn === 4) && inOwnMain(s, 0, 4)), 'turn 4, its first main', 120_000);
+				const from = snapshots(s).find((l) => l.turn === 4)!;
+				expect(from.lossy, 'both effect cards are written').toBeUndefined();
+				expect(normalized(from.state).effect).toEqual([
+					expect.stringMatching(/^host=Elspeth, Knight-Errant\|at=\d+\|owner=P0\|.*\|name=Emblem — Elspeth, Knight-Errant\|/),
+					expect.stringMatching(/^host=Swiftspear's Teachings\|at=\d+\|owner=P0\|.*\|name=Swiftspear's Teachings \(\d+\)'s Boon\|/),
+				]);
+				// Forge names a boon after its host's toString, which carries the host's id: "Swiftspear's Teachings (101)'s Boon".
+				const command = (): string[] => s.zone(0, 'Command').map((c) => c.name).sort();
+				expect(command()).toEqual(['Emblem — Elspeth, Knight-Errant', expect.stringMatching(/^Swiftspear's Teachings \(\d+\)'s Boon$/)]);
+
+				const lines = s.lines.length;
+				expect(s.match.restartAct(0, 'ask')).toEqual({ ok: true });
+				expect(s.match.restartAct(1, 'allow')).toEqual({ ok: true });
+				await waitUntil(() => s.lines.slice(lines).some((l) => l.t === 'snapshot'), "the restarted turn's own snapshot", 120_000, s);
+				const again = s.lines.slice(lines).find((l): l is Snapshot & { hostT: number } => l.t === 'snapshot')!;
+				expect(again.lossy).toBeUndefined();
+				expect(normalized(again.state)).toEqual(normalized(from.state));
+				await passUntil(s, noAttacks(s, () => inOwnMain(s, 0, 4)), 'the restarted turn 4, its first main', 120_000);
+				await waitUntil(() => command().length === 2, 'the emblem and the boon in seat 0\'s command zone again', 20_000, s);
+				expect(command()).toEqual(['Emblem — Elspeth, Knight-Errant', expect.stringMatching(/^Swiftspear's Teachings \(\d+\)'s Boon$/)]);
+				// The emblem works again, not only its text: seat 0's Forest on the battlefield is indestructible.
+				const keywords = (o: Record<string, unknown>): string[] => (o.Keywords as { v?: string[] } | undefined)?.v ?? [];
+				const indestructibleForest = (): boolean =>
+					[...s.state(0).values()].some((o) => o._type === 4 && (o.Name as { v?: string } | undefined)?.v === 'Forest' && keywords(o).includes('Indestructible'));
+				await waitUntil(indestructibleForest, "the emblem's indestructible on seat 0's Forest", 20_000, s);
+			} finally {
+				await s.stop();
+			}
+		},
+		300_000,
+	);
+
+	it(
+		'a card on an adventure comes through a restart still castable from exile: Lovestruck Beast after Heart\'s Desire',
+		async () => {
+			if (!available.ok) return;
+			// Seat 0 casts Heart's Desire on turn 3: the card goes on an adventure, exiled with an effect that lets
+			// its owner cast the creature from exile. Seat 1's turn 4 is restarted from its snapshot; on turn 5
+			// seat 0 casts Lovestruck Beast from exile, which only that effect, made again, allows.
+			const scenario = [
+				'turn=3',
+				'activeplayer=human',
+				'activephase=MAIN1',
+				'humanlife=20',
+				'ailife=20',
+				'humanbattlefield=Forest;Forest;Forest',
+				'humanhand=Lovestruck Beast',
+				'humanlibrary=' + Array.from({ length: 20 }, () => 'Forest').join(';'),
+				'aibattlefield=Mountain',
+				'ailibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
+			].join('\n');
+			// Which half a click on the card casts: Heart's Desire from hand, then the creature from exile.
+			let adventure = true;
+			const reply = (f: Record<string, unknown>): unknown =>
+				f.method === 'getAbilityToPlay'
+					? ((f.abilities as { label?: string }[]).find((a) => /Create a 1\/1 white Human creature token/.test(a.label ?? '') === adventure) ?? null)
+					: undefined;
+			const s = await startScenario(available.config, { seed: 3, decks: decks(), scenario, skipOpening: true, reply });
+			try {
+				await passUntil(s, () => inOwnMain(s, 0, 3), 'turn 3, its first main', 60_000);
+				const payLands = landPayer(s, 0);
+				s.select(0, s.zone(0, 'Hand').find((c) => c.name === 'Lovestruck Beast')!.id);
+				await passUntil(
+					s,
+					() => {
+						payLands();
+						return s.zone(0, 'Exile').some((c) => c.name === 'Lovestruck Beast');
+					},
+					'Heart\'s Desire paid for and resolved: Lovestruck Beast on an adventure, in exile',
+					60_000,
+				);
+				await passUntil(s, noAttacks(s, () => snapshots(s).some((l) => l.turn === 4) && inOwnMain(s, 1, 4)), 'turn 4, its first main', 120_000);
+				const from = snapshots(s).find((l) => l.turn === 4)!;
+				expect(from.lossy, 'the adventure effect is written').toBeUndefined();
+				expect(normalized(from.state).effect).toEqual([expect.stringMatching(/^host=Lovestruck Beast\|at=\d+\|owner=P0\|.*\|remembered=cLovestruck Beast\|/)]);
+				expect(normalized(from.state).p0exile?.join(';')).not.toMatch(/OnAdventure/);
+
+				const lines = s.lines.length;
+				expect(s.match.restartAct(1, 'ask')).toEqual({ ok: true });
+				expect(s.match.restartAct(0, 'allow')).toEqual({ ok: true });
+				await waitUntil(() => s.lines.slice(lines).some((l) => l.t === 'snapshot'), "the restarted turn's own snapshot", 120_000, s);
+				const again = s.lines.slice(lines).find((l): l is Snapshot & { hostT: number } => l.t === 'snapshot')!;
+				expect(again.lossy).toBeUndefined();
+				expect(normalized(again.state)).toEqual(normalized(from.state));
+
+				await passUntil(s, noAttacks(s, () => inOwnMain(s, 0, 5)), 'turn 5, its first main', 120_000);
+				const beast = s.zone(0, 'Exile').find((c) => c.name === 'Lovestruck Beast');
+				expect(beast, 'Lovestruck Beast is still in exile').toBeDefined();
+				adventure = false;
+				const payAgain = landPayer(s, 0);
+				s.select(0, beast!.id);
+				await passUntil(
+					s,
+					() => {
+						payAgain();
+						return s.zone(0, 'Battlefield').some((c) => c.name === 'Lovestruck Beast');
+					},
+					'Lovestruck Beast cast from exile and resolved',
+					60_000,
+				);
+			} finally {
+				await s.stop();
+			}
+		},
+		300_000,
+	);
+
+	it(
+		'effects with a duration come through a restart and end when they would have: until your next turn, and until the end of your next turn',
+		async () => {
+			if (!available.ok) return;
+			// On seat 1's turn 3: seat 1's Chronomantic Escape as the board applies (creatures can't attack it
+			// until its next turn), and seat 0's Reckless Impulse from the stack (seat 0 may play the two exiled
+			// cards until the end of its next turn; cast on seat 1's turn, so that is turn 4). Turn 4 is restarted: Reckless
+			// Impulse's effect must end with turn 4 as it would have, not last to seat 0's turn after, and
+			// Chronomantic Escape's as turn 5 begins.
+			const scenario = [
+				'turn=3',
+				'activeplayer=ai',
+				'activephase=MAIN1',
+				'humanlife=20',
+				'ailife=20',
+				'humanbattlefield=Forest',
+				'humangraveyard=Reckless Impulse|Id:502',
+				// Put on the stack, not precast: a precast resolves only the top ability, Dig, and never its Effect.
+				'humanputonstack=502',
+				'humanlibrary=Grizzly Bears;Hill Giant;' + Array.from({ length: 20 }, () => 'Forest').join(';'),
+				'aibattlefield=Mountain',
+				'aigraveyard=Chronomantic Escape|Id:602',
+				'aiprecast=602',
+				'ailibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
+			].join('\n');
+			const s = await startScenario(available.config, { seed: 3, decks: decks(), scenario, skipOpening: true });
+			try {
+				await passUntil(s, noAttacks(s, () => snapshots(s).some((l) => l.turn === 4) && inOwnMain(s, 0, 4)), 'turn 4, its first main', 120_000);
+				const from = snapshots(s).find((l) => l.turn === 4)!;
+				expect(from.lossy, 'both effects and their ends are written').toBeUndefined();
+				expect(normalized(from.state).effect).toEqual([
+					expect.stringMatching(/^host=Chronomantic Escape\|.*\|owner=P1\|.*\|until=phase:cleanup:until:P1\|/),
+					expect.stringMatching(/^host=Reckless Impulse\|.*\|owner=P0\|.*\|until=phase:endofturn:untilend:P0\|.*\|remembered=cHill Giant,cGrizzly Bears\|/),
+				]);
+
+				const lines = s.lines.length;
+				expect(s.match.restartAct(0, 'ask')).toEqual({ ok: true });
+				expect(s.match.restartAct(1, 'allow')).toEqual({ ok: true });
+				await waitUntil(() => s.lines.slice(lines).some((l) => l.t === 'snapshot'), "the restarted turn's own snapshot", 120_000, s);
+				const again = s.lines.slice(lines).find((l): l is Snapshot & { hostT: number } => l.t === 'snapshot')!;
+				expect(again.lossy).toBeUndefined();
+				expect(normalized(again.state)).toEqual(normalized(from.state));
+				await passUntil(s, noAttacks(s, () => inOwnMain(s, 0, 4)), 'the restarted turn 4, its first main', 120_000);
+				expect(s.zone(0, 'Command')).toHaveLength(1);
+				expect(s.zone(1, 'Command')).toHaveLength(1);
+
+				// Both end on time: turn 5's snapshot holds neither, and neither seat's command zone has one.
+				await passUntil(s, noAttacks(s, () => snapshots(s).some((l) => l.turn === 5) && inOwnMain(s, 1, 5)), 'turn 5, its first main', 120_000);
+				const next = snapshots(s).findLast((l) => l.turn === 5)!;
+				expect(next.lossy).toBeUndefined();
+				expect(normalized(next.state).effect).toBeUndefined();
+				expect(s.zone(0, 'Command')).toEqual([]);
+				expect(s.zone(1, 'Command')).toEqual([]);
 			} finally {
 				await s.stop();
 			}
