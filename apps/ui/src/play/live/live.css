@@ -527,10 +527,49 @@
   }
 }
 
+/*
+ * The decision pop-up's empty-stack pass ("Proceed to …?"), lit by the same
+ * signal as End Turn: nothing left to do but move on. An accent fill, and a
+ * glow that breathes. The glow is a still shadow on `::after` whose opacity
+ * moves, so the loop stays on the compositor (`composited-loops.test.ts`) and
+ * the pop-up's box never grows.
+ */
+.confirm__button[data-highlight] {
+  position: relative;
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, var(--bg-card));
+  color: var(--accent-ink);
+}
+
+.confirm__button[data-highlight]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 12px 3px color-mix(in srgb, var(--accent) 75%, transparent);
+  pointer-events: none;
+  animation: confirm-pass-glow 1.8s ease-in-out infinite;
+}
+
+@keyframes confirm-pass-glow {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .live__buttons button[data-highlight],
   .live__result .confirm__actions button[data-highlight] {
     animation: none;
+  }
+
+  .confirm__button[data-highlight]::after {
+    animation: none;
+    opacity: 0.7;
   }
 
   /* Nothing moves: a stronger fill and a steady glow instead. */

@@ -246,6 +246,8 @@ export interface ConfirmPromptButton {
   tip?: string;
   /** An answer that cannot be taken back (Concede): drawn in the warning colour (`.live__danger`). */
   danger?: boolean;
+  /** Nothing left to do but this answer: drawn glowing (`data-highlight`, `../live/live.css`). */
+  highlight?: boolean;
   onClick: () => void;
 }
 
@@ -400,6 +402,7 @@ export function ConfirmPrompt({ testId, role = 'dialog', title, message, context
               data-testid={b.testId}
               data-answer={b.answer}
               data-default={b.isDefault || undefined}
+              data-highlight={b.highlight || undefined}
               aria-label={b.label}
               autoFocus={b.isDefault === true}
               disabled={!b.enabled}

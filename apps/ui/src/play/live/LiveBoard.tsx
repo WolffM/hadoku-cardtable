@@ -4384,6 +4384,8 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
                     enabled: (!mulliganPick || bar.enable1) && bar.refusal1 === undefined,
                     ...(bar.refusal1 === undefined ? {} : { tip: promptText(bar.refusal1) }),
                     testId: 'live-decision-ok',
+                    // The empty-stack pass glows whenever End Turn does: nothing left to do but move on.
+                    highlight: route === 'pass' && endTurnHighlighted,
                     onClick: passOrAsk,
                   }
                 : undefined

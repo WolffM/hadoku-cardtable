@@ -3638,6 +3638,38 @@ describe('R5 — End Turn is highlighted when there is nothing left to decide', 
     await waitFor(() => expect(getByTestId('live-button-end-turn').hasAttribute('data-highlight')).toBe(false));
   });
 
+  it('the empty-stack pass’s OK glows with End Turn, and a playable card in hand puts it out', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    s.send(pastAttackers(m));
+    s.send(stackDelta(m));
+    await untilMatch(m, () => expect([m.view!.phase, m.view!.stack.length]).toEqual(['MAIN2', 0]));
+    s.send(clearSelectables());
+    s.send(bar2('End Turn'));
+    await waitFor(() => expect(getByTestId('live-decision-ok').textContent).toBe('Next Phase'));
+    expect(getByTestId('live-decision-ok').hasAttribute('data-highlight'), 'Forge has not said "nothing" yet').toBe(false);
+
+    s.send(weaklySelectable([]));
+    await waitFor(() => expect(getByTestId('live-decision-ok').hasAttribute('data-highlight')).toBe(true));
+
+    const inHand = m.view!.players.find((p) => p.isViewer)!.hand![0]!.id;
+    s.send(weaklySelectable([inHand]));
+    await untilMatch(m, () => expect(nothingToDecide(m)).toBe(false));
+    await waitFor(() => expect(getByTestId('live-decision-ok').hasAttribute('data-highlight')).toBe(false));
+  });
+
+  it('a resolve over a stack never glows: passing there is a choice, not the only thing left', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    s.send(pastAttackers(m));
+    await untilMatch(m, () => expect(m.view!.phase).toBe('MAIN2'));
+    expect(m.view!.stack.length, 'the fixture has spells on the stack').toBeGreaterThan(0);
+    s.send(clearSelectables());
+    s.send(bar2('End Turn'));
+    s.send(weaklySelectable([]));
+    await waitFor(() => expect(getByTestId('live-button-end-turn').hasAttribute('data-highlight')).toBe(true));
+    expect(getByTestId('live-decision-ok').textContent).toBe('Resolve');
+    expect(getByTestId('live-decision-ok').hasAttribute('data-highlight')).toBe(false);
+  });
+
   it('an actionable set naming only the viewer’s own battlefield LAND keeps End Turn highlighted (lane F’s land-tapping fix)', async () => {
     const { s, m, getByTestId } = await liveBoard();
     s.send(pastAttackers(m));
