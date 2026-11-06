@@ -75,6 +75,18 @@ function Glyphs({ option }: { option: RingOption }) {
   );
 }
 
+/** The box every disc and chip stands in, round the ring's centre, with room for their marks. */
+function extentOf(discs: readonly { dx: number; dy: number }[], chips: readonly { dx: number; dy: number }[], size: number): { left: string; top: string; width: string; height: string } {
+  const half = size * 0.9;
+  const xs = [...discs, ...chips].map((p) => p.dx);
+  const ys = [...discs, ...chips].map((p) => p.dy);
+  const left = Math.min(0, ...xs) - half;
+  const top = Math.min(0, ...ys) - half;
+  const right = Math.max(0, ...xs) + half;
+  const bottom = Math.max(0, ...ys) + half;
+  return { left: `${left}px`, top: `${top}px`, width: `${right - left}px`, height: `${bottom - top}px` };
+}
+
 export function ManaRing({ ring, kind, ask, titles, onPick, onCancel }: ManaRingProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const ringRef = useRef<HTMLDivElement>(null);
@@ -187,6 +199,8 @@ export function ManaRing({ ring, kind, ask, titles, onPick, onCancel }: ManaRing
         aria-label="Choose mana"
         style={{ ['--disc' as string]: `${size}px` }}
       >
+        {/* The ring's whole footprint, discs and chips: the card inspector stands beside it (`inspect/index.ts`'s OPEN_WINDOW). */}
+        <div className="mana-ring__extent" data-ring-extent="" style={extentOf(at, chips, size)} />
         <div className={ring.tally === undefined ? 'mana-ring__hub' : 'mana-ring__hub mana-ring__hub--tally'} data-testid="mana-ring-hub">
           {ring.tally !== undefined && (
             <>

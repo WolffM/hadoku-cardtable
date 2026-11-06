@@ -19,6 +19,11 @@
   --disc: 42px;
 }
 
+.mana-ring__extent {
+  position: absolute;
+  pointer-events: none;
+}
+
 .mana-ring__hub {
   position: absolute;
   left: 0;

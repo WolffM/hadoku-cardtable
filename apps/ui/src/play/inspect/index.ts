@@ -223,11 +223,12 @@ const EMBLEM_CHIPS = 'data-emblem-chips';
 /**
  * A window the panel stands beside, never on: a decision pop-up that asks something (the "waiting for
  * the other player" pop-up asks nothing, and the empty-stack pass, `data-pass`, is up at every priority
- * stop: standing beside it would move every hover on every turn), an open pile view, or a deck's list
- * in the picker (`../../screens/DeckPeek.tsx`).
+ * stop: standing beside it would move every hover on every turn), an open pile view, a deck's list
+ * in the picker (`../../screens/DeckPeek.tsx`), or the mana ring round a tapped land (its
+ * `data-ring-extent` box: the land under the pointer is hovered as the ring opens on it).
  */
 export const OPEN_WINDOW =
-  '.live__prompt:not(:has([data-testid="live-waiting-pop"])):not([data-pass]), [data-testid="pile-view"], [data-testid="deck-peek"]';
+  '.live__prompt:not(:has([data-testid="live-waiting-pop"])):not([data-pass]), [data-testid="pile-view"], [data-testid="deck-peek"], [data-ring-extent]';
 
 /** The box vocabulary `placeInspector` speaks. Client coordinates. */
 export interface Rect {
