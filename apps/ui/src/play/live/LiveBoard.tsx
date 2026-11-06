@@ -238,7 +238,7 @@
  * makes sense to show all three."* No — they were three lines for one
  * situation, and two of them were hopeful about a match that was already gone.
  *
- * `liveStatus` is the whole state machine (`LiveStatus`: seven states, the names
+ * `liveStatus` is the whole state machine (`LiveStatus`: one name per state, the names
  * agreed with lane E, which owns what the SERVER says about a gone match). One
  * of them holds, `statusText` gives it one line, and that line is the only one
  * drawn — with one exception, and it is a different kind of thing: while the
@@ -392,6 +392,7 @@ import { phaseSegmentsOf, PHASE_ORDER } from './phase-segments.ts';
  */
 export type LiveStatus =
   | 'connecting'
+  | 'updating'
   | 'reconnecting'
   | 'connected-not-seated'
   | 'seated-waiting-for-state'
@@ -843,13 +844,15 @@ export function isMatchGone(match: LiveMatch): boolean {
  * server mid-game is the usual one, and the server holds the seat through it.
  * It is not `connecting`: that word is for a page that has never reached the
  * server, and the operator read it over his own open mulligan (2026-10-13).
+ * When the server said it was restarting before the drop, the first
+ * `QUIET_RECONNECT_MS` of it are `updating` instead (`restart-notice.ts`).
  */
 export function liveStatus(match: LiveMatch): LiveStatus {
   if (isMatchGone(match)) return 'match-gone';
   // Before `connected`: the server let this socket go when the newer window took the seat.
   if (match.elsewhere) return 'elsewhere';
   if (refusalOf(match) !== null) return 'refused';
-  if (!match.connected) return match.everConnected ? 'reconnecting' : 'connecting';
+  if (!match.connected) return !match.everConnected ? 'connecting' : match.serverUpdating ? 'updating' : 'reconnecting';
   if (match.seat === null) return match.awaitingSnapshot ? 'connecting' : 'connected-not-seated';
   if (match.view === null) return 'seated-waiting-for-state';
   return 'live';
@@ -874,6 +877,8 @@ export function statusText(match: LiveMatch): string | null {
   switch (liveStatus(match)) {
     case 'connecting':
       return 'Connecting…';
+    case 'updating':
+      return 'Updating…';
     case 'reconnecting':
       return 'Reconnecting…';
     case 'connected-not-seated':

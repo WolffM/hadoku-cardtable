@@ -29,6 +29,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { LIBRARY, formatIdOf } from '@hadoku/deck/library';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ORIGIN_HEADER, ORIGIN_VALUE } from './http/origin.ts';
+import { io as ioClient, type Socket } from 'socket.io-client';
+import { SERVER_RESTARTING_EVENT } from '@hadoku/shared';
 import { testPort } from './testPort.ts';
 
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -332,6 +334,20 @@ describe('a server started from a path', () => {
 				expect(f.cardCount).toBeGreaterThan(0);
 			}
 		});
+	}, 60_000);
+
+	it('tells every socket it is restarting before a SIGTERM closes them', async () => {
+		const seen: string[] = [];
+		let client: Socket | undefined;
+		await boot(join(root, 'restart', 'apps', 'ui', 'dist'), {}, 30_000, undefined, async (base) => {
+			client = ioClient(base, { transports: ['websocket'], reconnection: false });
+			client.on(SERVER_RESTARTING_EVENT, () => seen.push('restarting'));
+			client.on('disconnect', (reason) => seen.push(`disconnect:${reason}`));
+			await new Promise<void>((up) => client!.once('connect', () => up()));
+		});
+		client?.close();
+		expect(seen[0]).toBe('restarting');
+		expect(seen[1]).toMatch(/^disconnect:/);
 	}, 60_000);
 
 	it('serves the embed entry as revalidated JS, its chunks immutable, and a missing file as a 404', async () => {

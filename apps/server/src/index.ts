@@ -81,7 +81,7 @@ import { bootClock, restoreRooms, sweepRooms } from './boot.js';
 import { DEFAULT_CUBE_ID, DEFAULT_PLAN, stateOf, type PoolSourceResolver } from './room/draftRooms.js';
 import { draftIdOfPool } from './room/lobby.js';
 import { checkCards, checkPlan } from './room/plan.js';
-import { FREE_PICK, type DraftPlan, type PoolVerdict, type TableGame } from '@hadoku/shared';
+import { FREE_PICK, SERVER_RESTARTING_EVENT, type DraftPlan, type PoolVerdict, type TableGame } from '@hadoku/shared';
 import { busyHandler } from './busy.js';
 import { stampOrigin } from './http/origin.js';
 import { healthResponse, readCommit, serviceIdOf } from './health.js';
@@ -1058,7 +1058,8 @@ if (roomStreams !== null) {
 //      go. Lane U: a game that FINISHED during the run was neither handed over
 //      nor stopped, and `{"t":"stop"}` takes ~9.3 s on a real match anyway, so
 //      an `-Xmx1g` Forge JVM survived every restart. `host.ts`, "Going down".
-//   3. Let the clients go: no new upgrades, existing sockets closed. The client
+//   3. Let the clients go: each socket is told the server is restarting
+//      (`SERVER_RESTARTING_EVENT`), then no new upgrades, existing sockets closed. The client
 //      already survives a dropped socket; what it could not survive was the
 //      match ceasing to exist.
 //   4. Exit within `SHUTDOWN_DEADLINE_MS` no matter what. pm2 waits
@@ -1110,6 +1111,8 @@ function shutdown(signal: string): void {
 	const deadline = setTimeout(() => finish('deadline'), SHUTDOWN_DEADLINE_MS);
 
 	browserBridge.close();
+	// Every socket hears it is a restart, not a lost connection, before the close below drops it.
+	io.emit(SERVER_RESTARTING_EVENT);
 	// `io.close` disconnects every socket AND closes the HTTP server it was given.
 	io.close(() => {
 		clearTimeout(deadline);

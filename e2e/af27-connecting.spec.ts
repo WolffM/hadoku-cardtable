@@ -16,8 +16,9 @@
  * words) and which opening decision is on the screen. Then both players keep.
  *
  * Once a board is drawn no screen may say "Connecting…"; the only line beside
- * an opening decision is the dropped connection's own, and the decision is
- * still answered once the socket is back.
+ * an opening decision is the dropped connection's own — "Updating…" first,
+ * because the server announces its restart (`restart-notice.ts`) — and the
+ * decision is still answered once the socket is back.
  *
  * `[af27]` lines are the evidence: each page's status timeline.
  */
@@ -136,10 +137,12 @@ test(titled('no "Connecting…" while the opening Keep/Mulligan (or any opening 
       const list = await timeline(f.page);
       console.log(`[af27] ${f.name}: ${line(list)}`);
       const connectingOnBoard = list.filter((s) => s.board && s.status === 'connecting');
-      const besideDecision = list.filter((s) => s.decision !== null && s.status !== null && s.status !== 'reconnecting');
+      const dropped = (s: Seen) => s.status === 'updating' || s.status === 'reconnecting';
+      const besideDecision = list.filter((s) => s.decision !== null && s.status !== null && !dropped(s));
       expect(connectingOnBoard.map((s) => `${s.at}ms:${s.text}`), `${f.name}: never "Connecting…" once the board is drawn`).toEqual([]);
       expect(besideDecision.map((s) => `${s.decision}:${s.text}`), `${f.name}: beside an opening decision, only the dropped connection's own line`).toEqual([]);
-      expect(list.some((s) => s.board && s.status === 'reconnecting'), `${f.name}: the restart dropped the socket, and the board said so`).toBe(true);
+      // The server said it was restarting before it closed the socket, so the board's first word is the quiet one.
+      expect(list.find((s) => s.board && dropped(s))?.status, `${f.name}: the restart dropped the socket, and the board said it was updating`).toBe('updating');
     }
   } finally {
     await stack.stop();

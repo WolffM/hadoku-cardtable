@@ -24,7 +24,8 @@ import { resolve } from 'node:path';
 import { createElement, Fragment, type ComponentType, type ReactNode } from 'react';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { parseServerFrame, type GameLogLine, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
-import { ClientEventSchema } from '@hadoku/shared';
+import { ClientEventSchema, SERVER_RESTARTING_EVENT } from '@hadoku/shared';
+import { QUIET_RECONNECT_MS } from '../../restart-notice.ts';
 import { parseDck } from '@hadoku/carddata/dck';
 import { deckFromDeckFile } from '@hadoku/deck';
 import { setRolePlayer } from '../../sound/index.ts';
@@ -1173,6 +1174,29 @@ describe('one state, one line', () => {
     only(container, m, 'reconnecting', 'Reconnecting…');
     expect(container.querySelector('.board'), 'the table stays drawn under it').not.toBeNull();
     expect(queryByTestId('live-status')!.dataset.perch).toBe('corner');
+  });
+
+  it('updating, not reconnecting: a drop the server announced as a restart, for the quiet window only', () => {
+    vi.useFakeTimers();
+    try {
+      const { stub, m, container } = stubBoard();
+      act(() => stub.fire('connect'));
+      act(() => stub.answer(seatOnly));
+      act(() => stub.fire(SERVER_RESTARTING_EVENT));
+      act(() => stub.fire('disconnect', 'transport close'));
+      only(container, m, 'updating', 'Updating…');
+      act(() => vi.advanceTimersByTime(QUIET_RECONNECT_MS - 1));
+      expect(liveStatus(m)).toBe('updating');
+      act(() => vi.advanceTimersByTime(1));
+      only(container, m, 'reconnecting', 'Reconnecting…');
+
+      // Back, and dropped again with no notice: an ordinary lost connection.
+      act(() => stub.fire('connect'));
+      act(() => stub.fire('disconnect', 'transport close'));
+      only(container, m, 'reconnecting', 'Reconnecting…');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('the seat number is the snapshot’s seat, not a guess — seat 1 is “Seat 2”', () => {

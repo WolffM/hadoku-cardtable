@@ -576,3 +576,4 @@ export {
   type RallyCardsView,
   type RallyPackView,
 } from './rally.ts';
+export { SERVER_RESTARTING_EVENT } from './restarting.ts';

@@ -257,6 +257,7 @@ import {
 } from '@hadoku/forge-wire';
 import { classifySeq, needsResync, type SeqVerdict } from '@wolffm/rooms-protocol';
 import { io } from 'socket.io-client';
+import { watchRestart } from '../../restart-notice.ts';
 
 import { defaultSocketPath, socketOptions } from '../../draft/socket.ts';
 import { normalizeAvatarId } from '../../room/avatar.ts';
@@ -1036,6 +1037,8 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
   lastVerdict: SeqVerdict | null;
   connected: boolean;
   everConnected: boolean;
+  /** Dropped by a planned server restart, inside its quiet window (`restart-notice.ts`). */
+  serverUpdating: boolean;
   /** This browser tab's id (`tab-id.ts`), sent with every join so a reconnect is known for the same tab. */
   tabId: string;
   /** A join or resync is in flight; inbound frames are being buffered. */
@@ -1238,6 +1241,7 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     lastVerdict: null,
     connected: false,
     everConnected: false,
+    serverUpdating: false,
     tabId: options.tabId ?? pageTabId(),
     awaitingSnapshot: false,
     resyncsWithoutProgress: 0,
@@ -1306,6 +1310,11 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
 
   match.transport.on(ART_EVENT, (payload) => {
     preloadMatchArt(match.matchId, payload);
+  });
+
+  watchRestart(match.transport, (updating) => {
+    match.serverUpdating = updating;
+    notify(match);
   });
 
   match.transport.on('connect', () => {
