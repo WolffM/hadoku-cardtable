@@ -44,7 +44,10 @@ gh api "repos/$R/actions/runs/$ID/jobs?per_page=100&filter=latest" \
 strip() { sed -E 's/\x1b\[[0-9;]*m//g; s/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z //'; }
 
 # One red job: vitest's ` FAIL  file > test` and Playwright's `  1) [project] › file:line › test` open a
-# failure block; its first three Error/Expected/Received lines are what tells the cause.
+# failure block; its first three Error/Expected/Received lines are what tells the cause. A job cut
+# off by its timeout (`cancelled`) never reaches Playwright's closing list, so its live
+# `  ✘   72 [project] › file:line` lines name what failed before the cut — run 42204349837's
+# fourth shard hid a real red (w89h) that way, under a job only reported as cancelled.
 red_job() {
   local jid=$1 log="$DIR/job-$1.log" counts tags
   # gh >= 2.100 refuses a body with escape sequences unless told, and every job log has them.
@@ -54,7 +57,11 @@ red_job() {
     /^ FAIL  / || /^ +[0-9]+\) (\[[a-z]+\] › )?[^ ]+\.(spec|test)\.tsx?/ { sub(/^ +(FAIL +)?/, ""); print "    ✘ " substr($0, 1, 200); inb = 1; n = 0; found = 1; next }
     inb && (/^⎯/ || /^ +[0-9]+ (failed|passed|flaky)/) { inb = 0 }
     inb && n < 3 && /(Error|Expected|Received|Timeout [0-9]+ms)/ && !/^ +at / && !/^ *>? *[0-9]+ ?\|/ { sub(/^ +/, ""); print "        " substr($0, 1, 200); n++ }
-    END { exit !found }
+    /^ +✘ +[0-9]+ \[[a-z-]+\] › / { sub(/^ +✘ +/, ""); live[++nl] = $0 }
+    END {
+      if (!found) for (i = 1; i <= nl; i++) { print "    ✘ " substr(live[i], 1, 200); found = 1 }
+      exit !found
+    }
   ' "$log" || grep -E '(Error|##\[error\])' "$log" | grep -v 'Process completed with exit code' \
     | head -3 | cut -c1-200 | sed 's/^/    /' || true
   counts=$(grep -E '^ +[0-9]+ (failed|passed|flaky|skipped|did not run)|^ +(Test Files|Tests) ' "$log" \
@@ -76,7 +83,7 @@ OUT="$DIR/summary.txt"
   ran=0
   while IFS=$'\t' read -r jid jname jconc runner; do
     echo "  $jname: $jconc (${runner%%-hadoku-cardtabl*})"
-    case $jconc in failure|timed_out) red_job "$jid" ;; esac
+    case $jconc in failure|timed_out|cancelled) red_job "$jid" ;; esac
     case $jname in changes|judge*) ;; *) [ "$jconc" = skipped ] || ran=1 ;; esac
   done < "$DIR/jobs.tsv"
   if [ $ran = 0 ]; then
