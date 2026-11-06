@@ -575,6 +575,8 @@ export function mountInspector(root: ParentNode): () => void {
   let faces: Element[] = [];
   let faceAt = 0;
   let watcher: MutationObserver | null = null;
+  /** The open window the panel was placed beside (`OPEN_WINDOW`), or null. */
+  let beside: Element | null = null;
 
   let pressTimer: ReturnType<typeof setTimeout> | null = null;
   let pressAnchor: { x: number; y: number } | null = null;
@@ -639,7 +641,9 @@ export function mountInspector(root: ParentNode): () => void {
     // enlarges above the hand whatever is on screen (the operator, 2026-10-07:
     // "this type of hover expand should not be affected by whats on the screen").
     const inHand = target.card.closest('[data-zone="hand"][data-owner="you"]') !== null;
-    const modal = target.tile.closest(OPEN_WINDOW) ?? (inHand ? null : scope.querySelector(OPEN_WINDOW));
+    const windowNow = (): Element | null => target.tile.closest(OPEN_WINDOW) ?? (inHand ? null : scope.querySelector(OPEN_WINDOW));
+    const modal = windowNow();
+    beside = modal;
     const hostR = rectOf(host.getBoundingClientRect());
 
     const el = document.createElement('div');
@@ -721,8 +725,20 @@ export function mountInspector(root: ParentNode): () => void {
 
     // A card can leave the DOM under an open preview (it died, the zone
     // emptied). Watch for that while open — and only while open.
+    // And a window that opens or closes under it (a mana ring on the land's own press): the panel stands
+    // beside what is open now.
     watcher = new MutationObserver(() => {
-      if (current !== null && (!current.card.isConnected || current.trigger?.isConnected === false)) dismiss();
+      if (current === null) return;
+      if (!current.card.isConnected || current.trigger?.isConnected === false) {
+        dismiss();
+        return;
+      }
+      if (windowNow() === beside) return;
+      const again = current;
+      const touched = byTouch;
+      dismiss();
+      show(again);
+      byTouch = touched;
     });
     watcher.observe(scope, { childList: true, subtree: true });
   }

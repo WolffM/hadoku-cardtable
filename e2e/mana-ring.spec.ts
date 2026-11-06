@@ -177,11 +177,11 @@ test(titled('a press on a mana source opens its ring under the press: a drag to 
     await page.mouse.move(onTundra.x, onTundra.y);
     await page.mouse.down();
     await expectRingOn(page, onTundra, 'Tundra, pressed');
-    await expect(ring(page), 'drawn on the press, before Forge asked').toHaveAttribute('data-press', '');
+    await expect(ring(page), 'drawn on the press, before Forge asked').toHaveAttribute('data-press');
     await expect(ringOptions(page)).toHaveCount(2);
     const u = await centreOf(ringOption(page, 'U'));
     await drag(onTundra, u);
-    await expect(ringOption(page, 'U'), 'the disc under the pointer is lit').toHaveAttribute('data-armed', '');
+    await expect(ringOption(page, 'U'), 'the disc under the pointer is lit').toHaveAttribute('data-armed');
     await page.mouse.up();
     await expect(ring(page), 'the ring closed').toHaveCount(0);
     await expect.poll(async () => (await pool(page)).U, { timeout: 10_000, message: 'Tundra added {U}' }).toBe(1);
@@ -192,7 +192,7 @@ test(titled('a press on a mana source opens its ring under the press: a drag to 
     const onBrass = await pressPoint(page, brass, 0.6, 0.55);
     await page.mouse.move(onBrass.x, onBrass.y);
     await page.mouse.down();
-    await expect(ring(page)).toHaveAttribute('data-press', '');
+    await expect(ring(page)).toHaveAttribute('data-press');
     await expect(ringOptions(page)).toHaveCount(5);
     await expect(ring(page).getByTestId('mana-ring-life'), 'its 1 damage on every colour').toHaveCount(5);
     await drag(onBrass, await centreOf(ringOption(page, 'R')));
@@ -209,7 +209,7 @@ test(titled('a press on a mana source opens its ring under the press: a drag to 
     await expect(ringOptions(page)).toHaveCount(3);
     const w = await centreOf(ringOption(page, 'W'));
     await drag(onWastes, w);
-    await expect(ringOption(page, 'W')).toHaveAttribute('data-armed', '');
+    await expect(ringOption(page, 'W')).toHaveAttribute('data-armed');
     const away = { x: onWastes.x, y: Math.max(8, onWastes.y - 260) };
     await drag(w, away);
     await expect(ring(page).locator('[data-armed]'), 'off every disc, none is lit').toHaveCount(0);

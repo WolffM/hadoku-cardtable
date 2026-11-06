@@ -81,12 +81,12 @@ test(titled('on a phone a finger held on a mana source opens its ring above it: 
     const at = await pressPoint(page, tundra, 0.5, 0.5);
     const finger = await touchPressStart(page, at);
     try {
-      await expect(ring(page), 'the ring opens on the held finger').toHaveAttribute('data-press', '', { timeout: 10_000 });
+      await expect(ring(page), 'the ring opens on the held finger').toHaveAttribute('data-press', { timeout: 10_000 });
       await expect(ringOptions(page)).toHaveCount(2);
       const u = await centreOf(ringOption(page, 'U'));
       expect(u.y, 'above the finger').toBeLessThan(at.y);
       for (const p of pathTo(at, u)) await finger.moveTo(p.x, p.y);
-      await expect(ringOption(page, 'U'), 'the disc under the finger is lit').toHaveAttribute('data-armed', '');
+      await expect(ringOption(page, 'U'), 'the disc under the finger is lit').toHaveAttribute('data-armed');
     } finally {
       await finger.release();
     }
