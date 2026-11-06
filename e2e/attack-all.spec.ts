@@ -22,8 +22,8 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled } from './play/board.ts';
-import { attackingCards, clickCard, decisionOk, passToDeclareAttackers } from './play/combat.ts';
+import { boardCard, makeTitled } from './play/board.ts';
+import { attackingCards, clickCombat, decisionOk, passToDeclareAttackers } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -88,9 +88,9 @@ test(titled('"All" declares every legal attacker, stays editable, and Done commi
       await expect(alice.page.locator(`[data-board-card="${id}"]`), `creature ${id} is attacking on alice’s screen`).toHaveAttribute('data-attacking', 'true');
     }
 
-    // 2. Every arrow "All" drew stays editable: a click on one of them un-declares it, same as a
-    // click would on an attacker a drag had declared (`gestures/commit.ts`'s own toggle).
-    await clickCard(alice.page, creatures[0]!);
+    // 2. Every arrow "All" drew stays editable: a click and a click on one of them un-declare it,
+    // same as on an attacker a drag had declared (`gestures/commit.ts`'s own toggle).
+    await clickCombat(boardCard(alice.page, creatures[0]!));
     await expect.poll(() => attackingCards(alice.page).count(), { timeout: 10_000, message: 'one was removed by hand' }).toBe(2);
 
     // 3. Done. The declaration is committed; the opponent's screen sees N−1, alice's own still does too.

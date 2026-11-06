@@ -1,17 +1,17 @@
 /**
- * The blocking driver: everything the block specs need to get the active
- * seat's priority out of the way and then block, re-block or unblock, kept
- * here so the gestures are not copied into the specs.
+ * The combat driver: everything the attack and block specs need to get the
+ * active seat's priority out of the way and then attack, block, re-block or
+ * unblock, kept here so the gestures are not copied into the specs.
  *
- * A block is a DRAG — press on the blocker, carry it onto the attacker, let
- * go — the only way the board assigns one: a plain click on an unassigned
- * creature blocks nothing. A click on a creature already blocking takes it out
- * of combat. Nothing here asserts anything; the specs read the board itself.
+ * An attacker or a blocker is AIMED: press on it, carry it onto the defender
+ * or the attacker, let go (`assignBlock`); or click it and click there
+ * (`clickCombat`). One click on it alone sends nothing. Nothing here asserts
+ * anything; the specs read the board itself.
  */
 
 import { expect, type Locator, type Page } from '@playwright/test';
 
-import { clickOnce, enabledOk, says } from './board.ts';
+import { boardCard, clickOnce, enabledOk, pressOffered, says } from './board.ts';
 import { isPhone, touchDrag } from './phone.ts';
 
 /**
@@ -112,18 +112,20 @@ export function ownBattlefieldCards(page: Page): Locator {
 }
 
 /**
- * Click a card's own clickable face — the same element `Board.tsx` renders
- * `onClick`/`onSelectCard` on for every offered card, never a raw `click()`
- * on the `<li>` itself (which carries no handler).
+ * Click this seat's own attacker or blocker `source` (its board card), then click `at`. The first click takes the
+ * creature up and sends nothing; the second is where a drag would have let go (`gestures/install.ts`'s
+ * `aim`): a defender it attacks, an attacker it blocks — or, by default, the creature itself, which is
+ * what one click on it means: declared against the current defender, called back, out of combat.
+ * Both presses go through `pressOffered`; `false`, nothing pressed, when `source` is not offered.
  *
- * Under the `phone` project this is a real touch tap, not a click: declaring blockers is a decision
- * (Settled 6 — "a tap chooses"), and `undoBlock` below (take a blocker out of combat) is exactly that
- * choice, made the same single-tap way `board.ts`'s `pressOffered` chooses a target.
+ * Under the `phone` project a tap is still the creature's own click (declaring is a decision, and
+ * Settled 6 says "a tap chooses"), so `source` alone is tapped; a finger aims by dragging.
  */
-export async function clickCard(page: Page, cardId: number): Promise<void> {
-  const button = page.locator(`[data-board-card="${cardId}"] button`).first();
-  if (isPhone()) await button.tap();
-  else await button.click();
+export async function clickCombat(source: Locator, at?: Locator): Promise<boolean> {
+  if (isPhone() && at !== undefined) throw new Error('clickCombat: a finger aims by dragging (assignBlock), not by a second tap');
+  if (!(await pressOffered(source))) return false;
+  if (isPhone()) return true;
+  return pressOffered(at ?? source);
 }
 
 /**
@@ -162,7 +164,7 @@ export async function assignBlock(page: Page, blockerId: number, attackerId: num
 
 /**
  * Take a blocking creature out of combat: drag it away and back onto its own
- * spot. A click on it does the same (`clickCard`).
+ * spot. A click and a second click on it do the same (`undoBlock`).
  */
 export async function dragBlockHome(page: Page, blockerId: number): Promise<void> {
   const home = await centreOf(page, blockerId);
@@ -177,9 +179,33 @@ export async function dragBlockHome(page: Page, blockerId: number): Promise<void
   await page.mouse.up();
 }
 
-/** A click on a creature already blocking: it leaves combat. */
+/** A click and a second click on a creature already blocking: it leaves combat. */
 export async function undoBlock(page: Page, blockerId: number): Promise<void> {
-  await clickCard(page, blockerId);
+  await clickCombat(boardCard(page, blockerId));
+}
+
+/**
+ * Whether the lasting attack arrow of every attacker in `ids` ends on the element `selector` names —
+ * Forge's own `CombatView` defender for each (`auto-targets.ts`'s `combat:<id>`), read in one layout
+ * pass. The tip is on the defender's edge (a card) or its centre (a face).
+ */
+export function attacksAt(page: Page, ids: readonly number[], selector: string): Promise<boolean> {
+  return page.evaluate(
+    ([cards, sel]) => {
+      const target = document.querySelector(sel);
+      if (target === null) return false;
+      const t = target.getBoundingClientRect();
+      return cards.every((id) => {
+        const arrow = document.querySelector(`[data-testid="stack-target-arrow"][data-key="combat:${id}"]`);
+        const nums = (arrow?.querySelector('path')?.getAttribute('d') ?? '').replace(/[MQ]/g, ' ').trim().split(/\s+/).map(Number);
+        if (arrow === null || nums.length < 6) return false;
+        const a = arrow.getBoundingClientRect();
+        const tip = { x: nums[4]! + a.left, y: nums[5]! + a.top };
+        return tip.x >= t.left - 1 && tip.x <= t.right + 1 && tip.y >= t.top - 1 && tip.y <= t.bottom + 1;
+      });
+    },
+    [ids, selector] as [readonly number[], string],
+  );
 }
 
 /** The key `install.ts`'s `blockArrows` gives the lasting blocker→attacker arrow — read here so neither side drifts from the other. */

@@ -47,8 +47,8 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { away, eight, landing, type Box, type Point } from './aim.ts';
 
-import { clickOnce, enabledOk, grindPriority, makeTitled, pressOffered, says } from './play/board.ts';
-import { phaseOf, railAt } from './play/combat.ts';
+import { clickOnce, enabledOk, grindPriority, makeTitled, says } from './play/board.ts';
+import { clickCombat, phaseOf, railAt } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -321,8 +321,8 @@ test(
       await expect(attacker, 'Serra Angel is offered to attack').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
       await expect(attacker, 'not yet declared').not.toHaveAttribute('data-attacking');
 
-      // A plain click: no drop target other than the defending player exists here.
-      expect(await pressOffered(attacker), 'Serra Angel pressed').toBe(true);
+      // A click and a click on it: no drop target other than the defending player exists here.
+      expect(await clickCombat(attacker), 'Serra Angel pressed').toBe(true);
       await expect(attacker, 'Forge declared it — its own `Attacking`').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
       await expect(attacker, 'and its own `Vigilance`').toHaveAttribute('data-vigilant', 'true');
 
@@ -441,21 +441,21 @@ test(titled('a selected attacker wears the crossed-swords mark, upright on its t
     };
 
     // Selected: Forge's own `Attacking`, and the mark, on the attacker's screen only.
-    expect(await pressOffered(attacker), 'Memnite pressed').toBe(true);
+    expect(await clickCombat(attacker), 'Memnite pressed').toBe(true);
     await expect(swords(alice.page), 'the click that selects it marks it on the attacker’s screen').toHaveCount(1, { timeout: 10_000 });
     await unmarkedOnDefender('the defender sees no attacker while the attack is still being chosen');
     await log('selected');
     expectUpright(await read(alice.page));
 
-    // Called back: a second click undeclares it, and the mark goes with it.
-    await attacker.locator('button').first().click();
+    // Called back: clicked again, it is undeclared, and the mark goes with it.
+    await clickCombat(attacker);
     await expect(swords(alice.page), 'calling it back takes the mark off').toHaveCount(0, { timeout: 10_000 });
     await unmarkedOnDefender('nor once it is called back');
     await log('called-back');
 
     // Selected again and locked in: the mark is on both screens, stays through combat and is gone by Main 2.
     await expect(attacker, 'it is offered again').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
-    expect(await pressOffered(attacker), 'Memnite pressed again').toBe(true);
+    expect(await clickCombat(attacker), 'Memnite pressed again').toBe(true);
     await expect(swords(alice.page), 'selected again, marked again').toHaveCount(1, { timeout: 10_000 });
     await unmarkedOnDefender('still the attacker’s own choice');
     // With no stop on either seat, lock-in to Main 2 took 100 ms on a busy claw (run 40033767105), shorter

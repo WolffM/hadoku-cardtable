@@ -26,6 +26,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { boxAround, clickOnce, enabledOk, makeTitled, says } from './play/board.ts';
+import { attacksAt } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -67,30 +68,6 @@ async function pressOn(page: Page, selector: string): Promise<void> {
   const at: Point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   await page.mouse.move(at.x, at.y, { steps: 8 });
   await page.mouse.click(at.x, at.y);
-}
-
-/**
- * Whether the lasting attack arrow of every attacker in `ids` ends on the element
- * `selector` names — Forge's own `CombatView` defender for each, read in one
- * layout pass. The tip is on the defender's edge (a card) or its centre (a face).
- */
-async function allAttack(page: Page, ids: readonly number[], selector: string): Promise<boolean> {
-  return page.evaluate(
-    ([cards, sel]) => {
-      const target = document.querySelector(sel);
-      if (target === null) return false;
-      const t = target.getBoundingClientRect();
-      return cards.every((id) => {
-        const arrow = document.querySelector(`[data-testid="stack-target-arrow"][data-key="combat:${id}"]`);
-        const nums = (arrow?.querySelector('path')?.getAttribute('d') ?? '').replace(/[MQ]/g, ' ').trim().split(/\s+/).map(Number);
-        if (arrow === null || nums.length < 6) return false;
-        const a = arrow.getBoundingClientRect();
-        const tip = { x: nums[4]! + a.left, y: nums[5]! + a.top };
-        return tip.x >= t.left - 1 && tip.x <= t.right + 1 && tip.y >= t.top - 1 && tip.y <= t.bottom + 1;
-      });
-    },
-    [ids, selector] as [readonly number[], string],
-  );
 }
 
 const pendingCount = (page: Page): Promise<number> => page.locator('[data-attack-pending]').count();
@@ -135,7 +112,7 @@ test(
       await pressOn(page, face);
       await expect.poll(() => attackingCount(page, creatures), { timeout: 10_000, message: 'all three declared' }).toBe(3);
       expect(await pendingCount(page), 'the hold is let go').toBe(0);
-      await expect.poll(() => allAttack(page, creatures, face), { timeout: 10_000, message: 'every one of them attacks the player' }).toBe(true);
+      await expect.poll(() => attacksAt(page, creatures, face), { timeout: 10_000, message: 'every one of them attacks the player' }).toBe(true);
 
       // 3. A box over only attackers pulls them back at once (wave 32 Q14), aiming nothing.
       await boxAround(page, creatures);
@@ -150,7 +127,7 @@ test(
       await expect.poll(() => pendingCount(page), { message: 'the three are held again' }).toBe(3);
       await pressOn(page, jaceSel);
       await expect.poll(() => attackingCount(page, creatures), { timeout: 10_000, message: 'all three declared' }).toBe(3);
-      await expect.poll(() => allAttack(page, creatures, jaceSel), { timeout: 10_000, message: 'every one of them attacks Jace' }).toBe(true);
+      await expect.poll(() => attacksAt(page, creatures, jaceSel), { timeout: 10_000, message: 'every one of them attacks Jace' }).toBe(true);
     } finally {
       await seated?.alice.context.close();
       await seated?.bob.context.close();
@@ -177,7 +154,7 @@ test(titled('with the player the only defender, a box of three attackers declare
     expect(await pendingCount(page), 'nothing is held').toBe(0);
     await expect(page.locator('[data-gesture-canvas][data-aiming]'), 'and nothing is aimed').toHaveCount(0);
     await expect.poll(() => attackingCount(page, creatures), { timeout: 10_000, message: 'all three declared from the box alone' }).toBe(3);
-    await expect.poll(() => allAttack(page, creatures, '[data-player-face]:not([data-viewer])'), { timeout: 10_000, message: 'every one attacks the player' }).toBe(true);
+    await expect.poll(() => attacksAt(page, creatures, '[data-player-face]:not([data-viewer])'), { timeout: 10_000, message: 'every one attacks the player' }).toBe(true);
   } finally {
     await seated?.alice.context.close();
     await seated?.bob.context.close();

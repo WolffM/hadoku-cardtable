@@ -20,7 +20,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { castUntilOnStack, clickOnce, makeTitled, offeredNamed, says, stackCount } from './play/board.ts';
-import { passToDeclareAttackers, phaseOf } from './play/combat.ts';
+import { clickCombat, passToDeclareAttackers, phaseOf } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -201,7 +201,7 @@ test(titled('declaring attackers lifts the creatures that can attack, not the re
     log('declare attackers open (bob)', onBob);
     expect(onBob.ready, 'the defender sees no attack emphasis').toEqual([]);
 
-    await alice.page.locator(`[data-board-card="${bears}"] button`).first().click();
+    await clickCombat(alice.page.locator(`[data-board-card="${bears}"]`));
     await expect(alice.page.locator(`[data-board-card="${bears}"]`), 'the Bears are declared').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
     await expect.poll(async () => (await emphasis(alice.page, ids)).ready, { timeout: 10_000, message: 'a declared attacker is no longer emphasised' }).not.toContain(bears);
     log('bears declared', await emphasis(alice.page, ids));

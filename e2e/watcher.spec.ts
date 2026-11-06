@@ -25,8 +25,8 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { messages, openFriend, type Friend } from './play/browser.ts';
-import { enterMatch, grindPriority, pressOffered, resizeWindow, serverLog } from './play/board.ts';
-import { passToDeclareAttackers } from './play/combat.ts';
+import { enterMatch, grindPriority, resizeWindow, serverLog } from './play/board.ts';
+import { clickCombat, passToDeclareAttackers } from './play/combat.ts';
 import { unseenNamed } from './play/isolation.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
@@ -393,7 +393,7 @@ test('a watcher is shown the active player’s reveal: Goblin Guide’s top card
     await expect(guide, 'Goblin Guide is on her battlefield').toHaveCount(1, { timeout: 60_000 });
     await passToDeclareAttackers(alice.page);
     await expect(guide, 'Goblin Guide is offered to attack').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
-    expect(await pressOffered(guide), 'Goblin Guide pressed').toBe(true);
+    expect(await clickCombat(guide), 'Goblin Guide pressed').toBe(true);
 
     const bobsTop = (page: typeof carol.page) => page.locator('.seat:not([data-viewer]) [data-library-top] .card__name');
     await grindPriority([alice.page, bob.page], async () => (await bobsTop(alice.page).count()) > 0, { timeoutMs: 45_000 });

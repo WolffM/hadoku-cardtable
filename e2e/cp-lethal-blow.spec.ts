@@ -27,7 +27,7 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 
 import { messages, type Friend } from './play/browser.ts';
 import { castUntilOnStack, enabledOk, makeTitled, offeredNamed, serverLog, stackCount } from './play/board.ts';
-import { passDeclareAttackers, passToDeclareAttackers } from './play/combat.ts';
+import { clickCombat, passDeclareAttackers, passToDeclareAttackers } from './play/combat.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { turnFastModeOff } from './play/prefs.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -244,8 +244,7 @@ async function lethalCharge(browser: Browser, jar: { jar: string; res: string },
       await expect(creatures, 'every creature is offered to attack').toHaveCount(pack, { timeout: 10_000 });
       for (const id of await creatures.evaluateAll((els) => els.map((el) => Number(el.getAttribute('data-board-card'))))) {
         const card = alice.page.locator(`[data-board-card="${id}"]`);
-        const box = (await card.boundingBox())!;
-        await alice.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+        await clickCombat(card);
         await expect(card, `Forge declared ${id} attacking`).toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
       }
       await alice.page.locator('[data-testid="live-decision-ok"]:enabled').click();

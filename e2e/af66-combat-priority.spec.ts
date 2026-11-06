@@ -15,8 +15,8 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { boardCard, castUntilOnStack, clickOnce, enabledOk, handCardNamed, lifeOf, makeTitled, ownNamed, pressOffered, says, serverLog } from './play/board.ts';
-import { passToDeclareAttackers, railAt, type RailAt } from './play/combat.ts';
+import { boardCard, castUntilOnStack, clickOnce, enabledOk, handCardNamed, lifeOf, makeTitled, ownNamed, says, serverLog } from './play/board.ts';
+import { clickCombat, passToDeclareAttackers, railAt, type RailAt } from './play/combat.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
 
@@ -59,7 +59,7 @@ async function bobsCombat({ alice, bob }: ScenarioMatch, attack: boolean, until:
     // The attack prompt's words can be drawn before the Giant is offered: OK then would declare no attacker,
     // so with `attack` it waits for the Giant to be offered, pressed and drawn attacking.
     if (!declared && ATTACK.test(line)) {
-      if (attack && (await pressOffered(giant))) {
+      if (attack && (await clickCombat(giant))) {
         await expect(bob.page.locator(`[data-board-card="${giantId}"]`), 'Forge declared the Giant attacking').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
       }
       const ready = attack ? (await giant.getAttribute('data-attacking')) === 'true' : (await enabledOk(bob.page).count()) > 0;
@@ -148,7 +148,7 @@ test(titled("the attacker with Quirion Ranger's ability gets priority after bloc
     const ranger = (await ownNamed(a, 'Quirion Ranger'))[0];
     expect(ranger, 'alice controls Quirion Ranger').toBeDefined();
     const logFrom = serverLog(stack).length;
-    await boardCard(a, ranger!).locator('button').first().click();
+    await clickCombat(boardCard(a, ranger!));
     await expect(boardCard(a, ranger!), 'the Ranger is declared').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
     // Alice presses on through her own Declare attackers window; her Declare blockers window is the claim.
     let blockers: RailAt | null = null;

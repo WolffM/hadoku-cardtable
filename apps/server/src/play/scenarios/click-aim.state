@@ -1,0 +1,20 @@
+# e2e/click-aim.spec.ts — the operator, 2026-10-17: "can we make attacker/blocker asigning be click to
+# 'enter drag state' and click to 'assign attacker/blocker'". Alice (seat 0) has two untapped,
+# non-sick creatures of two names at her own Main Phase 1, nothing pre-declared, so Forge's live
+# `InputAttack` opens for real. Bob (seat 1) controls Jace Beleren (a second defender beside bob
+# himself; `|Counters:LOYALTY=3` for the reason `w46-b-planeswalker.state` gives) and Wall of Stone
+# (0/8), which can block either attacker. Alice aims Memnite at Jace and the Bears at bob by two
+# clicks each; bob blocks the Bears with the Wall by two clicks. Memnite unblocked takes Jace to 2.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Memnite;Grizzly Bears
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Jace Beleren|Counters:LOYALTY=3;Wall of Stone
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

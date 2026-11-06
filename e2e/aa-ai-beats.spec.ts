@@ -29,7 +29,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { messages, type Friend } from './play/browser.ts';
 import { castUntilOnStack, enabledOk, handCardNamed, makeTitled, ownNamed, passOverStack, pressOffered, serverLog, stackCount } from './play/board.ts';
-import { passToDeclareAttackers } from './play/combat.ts';
+import { clickCombat, passToDeclareAttackers } from './play/combat.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { turnFastModeOff } from './play/prefs.ts';
@@ -239,8 +239,7 @@ test(titled('the same turn played by a person draws the same beats (the control)
       await passToDeclareAttackers(bob.page);
       for (const id of attackers) {
         const card = bob.page.locator(`[data-board-card="${id}"]`);
-        const box = (await card.boundingBox())!;
-        await bob.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+        await clickCombat(card);
         await expect(card, `Forge declared ${id} attacking`).toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
       }
       await enabledOk(bob.page).click();

@@ -5,7 +5,7 @@
 import { expect, type Page } from '@playwright/test';
 
 import { boardCard, castAndPassUntil, clickOnce, grindPriority, offeredCard, ownNamed, says } from './board.ts';
-import { passToDeclareAttackers } from './combat.ts';
+import { clickCombat, passToDeclareAttackers } from './combat.ts';
 import type { PlayStack } from './harness.ts';
 import type { ScenarioMatch } from './scenario.ts';
 
@@ -65,7 +65,7 @@ export async function playLifeChunks(seated: ScenarioMatch, stack: PlayStack, af
   for (const name of ['Vampire Nighthawk', 'Grizzly Bears', 'Hill Giant']) {
     const id = (await ownNamed(alice.page, name))[0];
     expect(id, `alice controls ${name}`).toBeDefined();
-    await boardCard(alice.page, id!).locator('button').first().click();
+    await clickCombat(boardCard(alice.page, id!));
     await expect(boardCard(alice.page, id!), `${name} is declared`).toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
   }
   await expect

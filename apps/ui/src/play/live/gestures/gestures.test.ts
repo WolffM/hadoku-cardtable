@@ -4726,3 +4726,180 @@ describe('portrait hand carousel — a sideways swipe scrolls, an upward drag pl
     expect(canvas.hasAttribute('data-dragging')).toBe(true);
   });
 });
+
+/*
+ * The operator, 2026-10-17: "can we make attacker/blocker asigning be click to 'enter drag state'
+ * and click to 'assign attacker/blocker'". A mouse's click on this seat's own attacker or blocker
+ * takes it up and sends nothing; the arrow follows the pointer; the next press is where a drag
+ * would have let go.
+ */
+describe('a click takes an attacker or a blocker up, and the next click is where it lets go', () => {
+  /** A press and release with no travel, then the click the browser follows them with — on the card's own face. */
+  function click(el: HTMLElement, init: { pointerType?: string } = {}): void {
+    const face = el.querySelector<HTMLElement>('button') ?? el;
+    fireEvent.pointerDown(face, { button: 0, clientX: 20, clientY: 20, ...init });
+    fireEvent.pointerUp(face, { button: 0, clientX: 20, clientY: 20, ...init });
+    fireEvent.click(face, { clientX: 20, clientY: 20 });
+  }
+
+  /** Declaring attackers in Forge's live window, the opponent's first card a planeswalker. */
+  async function attackingBoard() {
+    const ctx = await declaringAttackersBoard();
+    const { s, m } = ctx;
+    const attacker = mineOf(m).battlefield.find((c) => !c.tapped)!.id;
+    const pw = theirsOf(m).battlefield[0]!.id;
+    s.send(retypeDelta(pw, ['Planeswalker'], ['Jace']));
+    await untilMatch(m, () => expect(theirsOf(m).battlefield.find((c) => c.id === pw)!.card.typeLine).toContain('Planeswalker'));
+    for (const f of notify([prompt('Declare attackers'), attackBar(), actionable([attacker])])) s.send(f);
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(pw)).toBe(true));
+    return { ...ctx, attacker, pw, opponent: theirsOf(m).id };
+  }
+
+  /** Declaring blockers: two attackers, Forge's current one highlighted, this seat's creature the candidate. */
+  async function blockingBoard() {
+    const ctx = await gestureBoard();
+    const { s, m } = ctx;
+    const theirs = theirsOf(m).battlefield.map((c) => c.id);
+    const blocker = mineOf(m).battlefield[0]!.id;
+    s.send(phaseDelta('COMBAT_DECLARE_BLOCKERS', theirsOf(m).id));
+    s.send(attackingDelta([theirs[0]!, theirs[1]!]));
+    await untilMatch(m, () => expect(m.view!.phase).toBe('COMBAT_DECLARE_BLOCKERS'));
+    for (const f of notify([prompt('Select a blocker'), actionable([blocker]), highlight([theirs[0]!], true)])) s.send(f);
+    await untilMatch(m, () => expect(m.highlighted!.size).toBe(1));
+    return { ...ctx, blocker, attackers: [theirs[0]!, theirs[1]!] as const };
+  }
+
+  const arrowOf = (canvas: HTMLElement) => overlayOf(canvas).querySelector<SVGElement>('[data-testid="targeter"]');
+
+  it('the first click sends nothing, and the arrow leaves the attacker and follows the pointer', async () => {
+    const { s, m, canvas, attacker } = await attackingBoard();
+    click(cardEl(canvas, attacker));
+    expect(canvas.hasAttribute('data-aiming')).toBe(true);
+    fireEvent.pointerMove(document.body, { clientX: 300, clientY: 200 });
+    const arrow = arrowOf(canvas);
+    expect(arrow, 'the arrow is drawn').not.toBeNull();
+    expect(arrow!.getAttribute('data-mode')).toBe('drag');
+    expect(arrow!.getAttribute('data-source')).toBe(String(attacker));
+    expect(await s.framesFrom(m), 'nothing has left').toHaveLength(0);
+  });
+
+  it('the second click on the planeswalker attacks it: selectCard(pw), then the attacker once Forge marks it', async () => {
+    const { s, m, canvas, attacker, pw } = await attackingBoard();
+    holdBoardClock();
+    click(cardEl(canvas, attacker));
+    fireEvent.pointerMove(cardEl(canvas, pw), { clientX: 200, clientY: 140 });
+    expect(arrowOf(canvas)!.getAttribute('data-target'), 'the tip snaps to the planeswalker').toBe(`card:${pw}`);
+    click(cardEl(canvas, pw));
+    await s.untilClientFrames(1);
+    expect(await sent(s, m), 'the defender alone, and its own click swallowed').toEqual([['selectCard', pw]]);
+    s.send(highlight([pw], true));
+    await s.untilClientFrames(2);
+    expect(await sent(s, m)).toEqual([
+      ['selectCard', pw],
+      ['selectCard', attacker],
+    ]);
+    expect(canvas.hasAttribute('data-aiming')).toBe(false);
+  });
+
+  it('the second click on the opponent attacks them: selectPlayer, then the attacker once Forge marks them', async () => {
+    const { s, m, canvas, attacker, opponent } = await attackingBoard();
+    holdBoardClock();
+    click(cardEl(canvas, attacker));
+    click(faceEl(canvas, opponent));
+    await s.untilClientFrames(1);
+    expect(await sent(s, m)).toEqual([['selectPlayer', opponent]]);
+    s.send(highlightPlayers([opponent], true));
+    await s.untilClientFrames(2);
+    expect(await sent(s, m)).toEqual([
+      ['selectPlayer', opponent],
+      ['selectCard', attacker],
+    ]);
+  });
+
+  it('the second click on the attacker itself is what one click used to be: one selectCard', async () => {
+    const { s, m, canvas, attacker } = await attackingBoard();
+    click(cardEl(canvas, attacker));
+    click(cardEl(canvas, attacker));
+    await s.untilClientFrames(1);
+    expect(await sent(s, m)).toEqual([['selectCard', attacker]]);
+    expect(canvas.hasAttribute('data-aiming')).toBe(false);
+  });
+
+  it('a second click elsewhere lets go with nothing sent, and starts nothing of its own', async () => {
+    const { s, m, canvas, attacker } = await attackingBoard();
+    click(cardEl(canvas, attacker));
+    click(canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!);
+    expect(canvas.hasAttribute('data-aiming')).toBe(false);
+    expect(arrowOf(canvas)).toBeNull();
+    expect(await s.framesFrom(m)).toHaveLength(0);
+  });
+
+  it('Escape lets go with nothing sent', async () => {
+    const { s, m, canvas, attacker } = await attackingBoard();
+    click(cardEl(canvas, attacker));
+    fireEvent.pointerMove(document.body, { clientX: 300, clientY: 200 });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(canvas.hasAttribute('data-aiming')).toBe(false);
+    expect(arrowOf(canvas)).toBeNull();
+    expect(await s.framesFrom(m)).toHaveLength(0);
+  });
+
+  it('a right-click lets go with nothing sent, and opens no menu', async () => {
+    const { s, m, canvas, attacker, pw } = await attackingBoard();
+    click(cardEl(canvas, attacker));
+    fireEvent.pointerDown(cardEl(canvas, pw), { button: 2, clientX: 200, clientY: 140 });
+    const menu = vi.fn();
+    document.addEventListener('contextmenu', menu);
+    fireEvent.contextMenu(cardEl(canvas, pw));
+    document.removeEventListener('contextmenu', menu);
+    expect(menu, 'the right-click was the aim’s').not.toHaveBeenCalled();
+    expect(canvas.hasAttribute('data-aiming')).toBe(false);
+    expect(await s.framesFrom(m)).toHaveLength(0);
+  });
+
+  it('it drops itself when Forge leaves the attack input', async () => {
+    const { s, m, canvas, attacker } = await attackingBoard();
+    click(cardEl(canvas, attacker));
+    expect(canvas.hasAttribute('data-aiming')).toBe(true);
+    await deliver(s, m, [phaseDelta('COMBAT_DECLARE_BLOCKERS', mineOf(m).id)]);
+    expect(canvas.hasAttribute('data-aiming')).toBe(false);
+    expect(arrowOf(canvas)).toBeNull();
+    expect(await s.framesFrom(m)).toHaveLength(0);
+  });
+
+  it('a finger’s tap is still the card’s click: it declares at once', async () => {
+    const { s, m, canvas, attacker } = await attackingBoard();
+    click(cardEl(canvas, attacker), { pointerType: 'touch' });
+    expect(canvas.hasAttribute('data-aiming')).toBe(false);
+    await s.untilClientFrames(1);
+    expect(await sent(s, m)).toEqual([['selectCard', attacker]]);
+  });
+
+  it('a blocker: click it, click an attacker, and it blocks that one — the attacker first, then the blocker', async () => {
+    const { s, m, canvas, blocker, attackers } = await blockingBoard();
+    holdBoardClock();
+    click(cardEl(canvas, blocker));
+    expect(await s.framesFrom(m)).toHaveLength(0);
+    fireEvent.pointerMove(cardEl(canvas, attackers[1]), { clientX: 200, clientY: 140 });
+    expect(arrowOf(canvas)!.getAttribute('data-target')).toBe(`card:${attackers[1]}`);
+    expect(canvas.querySelector('[data-attack-pending]'), 'a blocker is not marked as an attack').toBeNull();
+    click(cardEl(canvas, attackers[1]));
+    await s.untilClientFrames(1);
+    expect(await sent(s, m)).toEqual([['selectCard', attackers[1]]]);
+    s.send(highlight([attackers[0]!], false));
+    s.send(highlight([attackers[1]!], true));
+    await s.untilClientFrames(2);
+    expect(await sent(s, m)).toEqual([
+      ['selectCard', attackers[1]],
+      ['selectCard', blocker],
+    ]);
+  });
+
+  it('a blocker clicked twice is one click: unassigned, it blocks nothing', async () => {
+    const { s, m, canvas, blocker } = await blockingBoard();
+    click(cardEl(canvas, blocker));
+    click(cardEl(canvas, blocker));
+    expect(canvas.hasAttribute('data-aiming')).toBe(false);
+    expect(await s.framesFrom(m)).toHaveLength(0);
+  });
+});

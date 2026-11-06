@@ -31,8 +31,8 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled, ownNamed } from './play/board.ts';
-import { clickCard, passToDeclareAttackers } from './play/combat.ts';
+import { boardCard, makeTitled, ownNamed } from './play/board.ts';
+import { clickCombat, passToDeclareAttackers } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioVsAi } from './play/scenario.ts';
 
@@ -221,11 +221,11 @@ test(titled('a flyer keeps its loop through its own turn: priority, the pointer 
     await passToDeclareAttackers(page);
     // A flyer declared attacking — Serra Angel, who stays untapped (vigilance) so the "turned"
     // rule never muddies the geometry — so the frames below sample the outline against the art while
-    // both are live. `clickCard` is the SAME click `attack-window.spec.ts`'s `attackWithBears` uses:
-    // the sole opponent is already Forge's current defender, so one click per attacker declares it.
+    // both are live. `clickCombat` is the SAME two clicks `attack-window.spec.ts`'s `attackWithBears` uses:
+    // the sole opponent is already Forge's current defender, so a click and a click on it declare it.
     const serraAngel = (await ownNamed(page, 'Serra Angel'))[0];
     expect(serraAngel, 'alice controls Serra Angel').toBeDefined();
-    await clickCard(page, serraAngel!);
+    await clickCombat(boardCard(page, serraAngel!));
     await expect(page.locator(`[data-board-card="${serraAngel}"]`), 'Serra Angel is declared attacking').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
     await page.waitForTimeout(6_000);
     const { outlineSamples } = await judge(page, 'attack window');

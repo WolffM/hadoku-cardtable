@@ -18,8 +18,8 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickOnce, enabledOk, makeTitled, says } from './play/board.ts';
-import { clickCard, decisionOk, decisionOkTip, ownBattlefieldCards, passToDeclareAttackers } from './play/combat.ts';
+import { boardCard, clickOnce, enabledOk, makeTitled, says } from './play/board.ts';
+import { clickCombat, decisionOk, decisionOkTip, ownBattlefieldCards, passToDeclareAttackers } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -74,11 +74,11 @@ test(titled('Juggernaut must attack: Done Attacking is off and says why until Ju
 
     await refused(alice, 'nothing declared');
 
-    await clickCard(alice, bears);
+    await clickCombat(boardCard(alice, bears));
     await expect(alice.locator(`[data-board-card="${bears}"]`), 'the Bears are declared').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
     await refused(alice, 'bears only');
 
-    await clickCard(alice, juggernaut);
+    await clickCombat(boardCard(alice, juggernaut));
     await expect(alice.locator(`[data-board-card="${juggernaut}"]`), 'Juggernaut is declared').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
     await expect(decisionOk(alice), 'Juggernaut attacking: Done Attacking is on').toBeEnabled({ timeout: 5_000 });
     const tip = await decisionOkTip(alice);

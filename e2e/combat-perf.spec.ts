@@ -30,7 +30,7 @@
 import { expect, test, type Browser, type CDPSession, type Page } from '@playwright/test';
 
 import { enabledOk, makeTitled, ownNamed, resizeWindow, says } from './play/board.ts';
-import { assignBlock, attackingCards, passToDeclareAttackers } from './play/combat.ts';
+import { assignBlock, attackingCards, clickCombat, passToDeclareAttackers } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { CATEGORIES, f1, f2, framesOf, pct, spansOf, tickEveryFrame, topSelf, worstFrames, type CpuProfile, type Kind, type Span, type TraceEvent } from './play/perf-trace.ts';
 import { turnFastModeOff } from './play/prefs.ts';
@@ -351,8 +351,7 @@ async function attack(browser: Browser, jar: Extract<ReturnType<typeof forgeAvai
     await measure(browserCdp, screens, `${variant}/declare`, async () => {
       for (const id of await creatures.evaluateAll((els) => els.map((el) => Number(el.getAttribute('data-board-card'))))) {
         const card = alice.page.locator(`[data-board-card="${id}"]`);
-        const box = (await card.boundingBox())!;
-        await alice.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+        await clickCombat(card);
         await expect(card, `Forge declared ${id} attacking`).toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
       }
       await alice.page.locator('[data-testid="live-decision-ok"]:enabled').click();

@@ -20,8 +20,8 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { enabledOk, makeTitled, resizeWindow, says } from './play/board.ts';
-import { clickCard, passToDeclareAttackers, phaseOf } from './play/combat.ts';
+import { boardCard, enabledOk, makeTitled, resizeWindow, says } from './play/board.ts';
+import { clickCombat, passToDeclareAttackers, phaseOf } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -75,7 +75,7 @@ test(titled('the opponent’s permanents are drawn clickable only while Forge ta
     await expect(page.locator(`[data-board-card="${jace}"]`), 'Jace is offered while InputAttack runs').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
     log('input-attack', { theirs: await theirs(page) });
 
-    await clickCard(page, memnite);
+    await clickCombat(boardCard(page, memnite));
     await expect(page.locator(`[data-board-card="${memnite}"]`), 'Memnite is declared attacking').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
     await enabledOk(page).first().click();
 
