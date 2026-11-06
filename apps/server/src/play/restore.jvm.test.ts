@@ -70,8 +70,9 @@ function normalized(state: string): Record<string, string[]> {
 			out[key] = [...(out[key] ?? []), fields.join('|')];
 			continue;
 		}
-		// An effect card is Base64 of `key=value` lines naming its host, and what it remembers or chose, by id.
-		if (key === 'effect') {
+		// An effect card, or a return, is Base64 of `key=value` lines naming its host, and what it remembers,
+		// chose, moved or waits on, by id.
+		if (key === 'effect' || key === 'return') {
 			const fields = Buffer.from(line.slice(at + 1), 'base64')
 				.toString('utf8')
 				.split('\n')
@@ -84,6 +85,7 @@ function normalized(state: string): Record<string, string[]> {
 					if (k === 'remembered') return `remembered=${v.replace(/\bc(\d+)/g, (_m, id: string) => `c${name(id)}`)}`;
 					if (k === 'imprinted' || k === 'chosencards') return `${k}=${v === '' ? '' : v.split(',').map(name).join(',')}`;
 					if (k === 'until') return `until=${v.replace(/\bcard:(\d+):/g, (_m, id: string) => `card:${name(id)}:`)}`;
+					if (k === 'moved') return `moved=${v.replace(/>([\d/]+)(?=,|$)/g, (_m, ids: string) => `>${ids.split('/').map(name).join('/')}`)}`;
 					return f;
 				});
 			out[key] = [...(out[key] ?? []), fields.join('|')];
@@ -451,6 +453,143 @@ describe.skipIf(!available.ok)(`${title}: restart turn`, () => {
 				expect(s.match.restartState()).toMatchObject({ turn: 4, restorable: false });
 				expect(s.match.restartAct(1, 'ask')).toEqual({ ok: false, error: 'not-restorable' });
 				expect(s.logs.find((l) => l.evt === 'snapshot-lossy')).toMatchObject({ turn: 4, kinds: ['control-condition'] });
+			} finally {
+				await s.stop();
+			}
+		},
+		300_000,
+	);
+
+	it(
+		'a turn with a command the snapshot cannot write is named by what made it and not restarted: a pump until your next turn',
+		async () => {
+			if (!available.ok) return;
+			// Seat 0's Grizzly Bears gets +1/+1 until seat 0's next turn as the board applies: the end is a command
+			// waiting in the cleanup step, which no text line writes yet. The snapshot names it by its ability.
+			const scenario = [
+				'turn=3',
+				'activeplayer=human',
+				'activephase=MAIN1',
+				'humanlife=20',
+				'ailife=20',
+				'humanbattlefield=Forest;Grizzly Bears|Id:501',
+				'humanprecast=501:CustomScript:DB$ Pump | Defined$ Self | NumAtt$ +1 | NumDef$ +1 | Duration$ UntilYourNextTurn',
+				'humanlibrary=' + Array.from({ length: 20 }, () => 'Forest').join(';'),
+				'aibattlefield=Mountain',
+				'ailibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
+			].join('\n');
+			const s = await startScenario(available.config, { seed: 3, decks: decks(), scenario, skipOpening: true });
+			try {
+				await passUntil(s, noAttacks(s, () => snapshots(s).some((l) => l.turn === 4) && inOwnMain(s, 1, 4)), 'turn 4, its first main', 120_000);
+				expect(snapshots(s).find((l) => l.turn === 4)?.lossy).toEqual(['command:Pump']);
+				expect(s.match.restartState()).toMatchObject({ turn: 4, restorable: false });
+				expect(s.match.restartAct(1, 'ask')).toEqual({ ok: false, error: 'not-restorable' });
+				expect(s.logs.find((l) => l.evt === 'snapshot-lossy')).toMatchObject({ turn: 4, kinds: ['command:Pump'] });
+			} finally {
+				await s.stop();
+			}
+		},
+		300_000,
+	);
+
+	it(
+		'a player\'s keyword from a static does not stop a restart: Leyline of Sanctity\'s hexproof comes back with the Leyline',
+		async () => {
+			if (!available.ok) return;
+			// Seat 0 has hexproof from Leyline of Sanctity: Forge keeps it on a keyword card in seat 0's command zone
+			// (its "can't be targeted" static lives there), which the text does not write; the Leyline's static gives
+			// it again on the restored board. Before the fork kept that card in its zone, the restore's empty command
+			// line took it out after the Leyline made it: the keyword stayed, its static did not, and seat 0 could be
+			// targeted.
+			const scenario = [
+				'turn=3',
+				'activeplayer=human',
+				'activephase=MAIN1',
+				'humanlife=20',
+				'ailife=20',
+				'humanbattlefield=Forest;Leyline of Sanctity',
+				'humanlibrary=' + Array.from({ length: 20 }, () => 'Forest').join(';'),
+				'aibattlefield=Mountain',
+				'ailibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
+			].join('\n');
+			const s = await startScenario(available.config, { seed: 3, decks: decks(), scenario, skipOpening: true });
+			try {
+				await passUntil(s, noAttacks(s, () => snapshots(s).some((l) => l.turn === 4) && inOwnMain(s, 1, 4)), 'turn 4, its first main', 120_000);
+				expect(s.zone(0, 'Command').map((c) => c.name), "seat 0's keyword card").toEqual(['Keyword Effects']);
+				const from = snapshots(s).find((l) => l.turn === 4)!;
+				expect(from.lossy).toBeUndefined();
+
+				const lines = s.lines.length;
+				expect(s.match.restartAct(1, 'ask')).toEqual({ ok: true });
+				expect(s.match.restartAct(0, 'allow')).toEqual({ ok: true });
+				await waitUntil(() => s.lines.slice(lines).some((l) => l.t === 'snapshot'), "the restarted turn's own snapshot", 120_000, s);
+				const again = s.lines.slice(lines).find((l): l is Snapshot & { hostT: number } => l.t === 'snapshot')!;
+				expect(again.lossy).toBeUndefined();
+				expect(normalized(again.state)).toEqual(normalized(from.state));
+				await passUntil(s, noAttacks(s, () => inOwnMain(s, 1, 4)), 'the restarted turn 4, its first main', 120_000);
+				await waitUntil(() => s.zone(0, 'Command').some((c) => c.name === 'Keyword Effects'), "seat 0's keyword card, and so its hexproof static, back in its command zone", 20_000, s);
+			} finally {
+				await s.stop();
+			}
+		},
+		300_000,
+	);
+
+	it(
+		'a card exiled until its exiler leaves comes through a restart and still comes back: Banisher Priest, then a Lightning Bolt',
+		async () => {
+			if (!available.ok) return;
+			// Seat 0's Banisher Priest exiles seat 1's Grizzly Bears until the Priest leaves the battlefield, as the
+			// board applies. The return is a command waiting on the Priest. Turn 4 is restarted; then seat 1 bolts
+			// the Priest, and the Bears must come back, which only the return, made again, does.
+			const scenario = [
+				'turn=3',
+				'activeplayer=human',
+				'activephase=MAIN1',
+				'humanlife=20',
+				'ailife=20',
+				'humanbattlefield=Forest;Banisher Priest|Id:501',
+				'humanprecast=501:TrigExile->601',
+				'humanlibrary=' + Array.from({ length: 20 }, () => 'Forest').join(';'),
+				'aibattlefield=Mountain;Grizzly Bears|Id:601',
+				'aihand=Lightning Bolt',
+				'ailibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
+			].join('\n');
+			const s = await startScenario(available.config, { seed: 3, decks: decks(), scenario, skipOpening: true });
+			try {
+				await passUntil(s, noAttacks(s, () => snapshots(s).some((l) => l.turn === 4) && inOwnMain(s, 1, 4)), 'turn 4, its first main', 120_000);
+				expect(s.zone(1, 'Exile').map((c) => c.name), 'the Priest exiled the Bears').toEqual(['Grizzly Bears']);
+				const from = snapshots(s).find((l) => l.turn === 4)!;
+				expect(from.lossy, 'the return is written').toBeUndefined();
+				expect(normalized(from.state).return).toEqual([expect.stringMatching(/^host=Banisher Priest\|at=\d+\|activator=P0\|moved=Battlefield>Exile>Grizzly Bears\|until=card:Banisher Priest:leavesplay$/)]);
+
+				const lines = s.lines.length;
+				expect(s.match.restartAct(1, 'ask')).toEqual({ ok: true });
+				expect(s.match.restartAct(0, 'allow')).toEqual({ ok: true });
+				await waitUntil(() => s.lines.slice(lines).some((l) => l.t === 'snapshot'), "the restarted turn's own snapshot", 120_000, s);
+				const again = s.lines.slice(lines).find((l): l is Snapshot & { hostT: number } => l.t === 'snapshot')!;
+				expect(again.lossy).toBeUndefined();
+				expect(normalized(again.state)).toEqual(normalized(from.state));
+
+				await passUntil(s, noAttacks(s, () => inOwnMain(s, 1, 4)), 'the restarted turn 4, its first main', 120_000);
+				const priest = s.zone(0, 'Battlefield').find((c) => c.name === 'Banisher Priest')!;
+				const payLands = landPayer(s, 1);
+				s.select(1, s.zone(1, 'Hand').find((c) => c.name === 'Lightning Bolt')!.id);
+				let aimed = false;
+				await passUntil(
+					s,
+					() => {
+						if (!aimed && /target/i.test(s.prompt(1))) {
+							aimed = true;
+							s.select(1, priest.id);
+						}
+						payLands();
+						return s.zone(1, 'Battlefield').some((c) => c.name === 'Grizzly Bears');
+					},
+					'the Priest bolted and the Bears back on seat 1\'s battlefield',
+					60_000,
+				);
+				expect(s.zone(1, 'Exile')).toEqual([]);
 			} finally {
 				await s.stop();
 			}

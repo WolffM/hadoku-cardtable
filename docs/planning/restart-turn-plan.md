@@ -76,6 +76,7 @@ it, read off `GameState.initFromGame`/`applyToGame`):
 | control | `Card`'s base controller and timestamped temporary controllers | **carried in layers** (slice 2), with conditions on the source card (slice 3); `control-condition` names only UntilTheEndOfYourNextTurn, UntilSourceUnattached, StaticCommandCheck |
 | delayed triggers | `TriggerHandler` delayed triggers | **carried** (slice 4) when the host is in a written zone with its SVar and what it remembers is cards, players or numbers |
 | a player's turn history (spells cast, life lost, creatures died) | `Player` counters | medium; the snapshot is taken at the turn's start, so only "last turn" history matters |
+| commands waiting to end something ("until it leaves", "until your next turn"), in a phase or on a card | `Phase` buckets, `Card` command lists | **named** (slice 7): every one no line writes is `command:<ApiType or class>`; **carried** (slice 8): an effect card's end, and a return (Banisher Priest) |
 
 Steps:
 1. **Measure** (shipped with part 1). `PlayBridge.TurnSnapshot.lossy` marks each snapshot with
@@ -204,3 +205,33 @@ Nothing is replaced: restart is new. `perCallerLimit`'s bucket becomes a shared
   Escape (until its next turn) and Reckless Impulse cast off-turn (until the end of seat 0's next
   turn, waiting in `untilend`) through a restart of that turn: both end on time, gone by turn 5.
   The round trip caught `Phase.putAt` dropping the player from `until:P<n>` before it shipped.
+
+### Slices 7 and 8 (fork 9bc0ae06, then 3eb6c118): every waiting command named, returns carried, and a player's keyword card kept
+
+- **A silent loss, found reading slice 6's command lists.** A command waiting to end something (Banisher
+  Priest's "until it leaves the battlefield", a pump "until your next turn") is an anonymous lambda in a
+  phase bucket or on a card. No text line writes them and nothing named them, so a restore dropped them
+  and the restored game was not the game: a Priest bolted after a failover left its exile for good.
+- Slice 7 names them: `GameState.unwritten` lists every command waiting in a phase, on a card or for a
+  state-based-action check that no line writes, as `command:<origin>`. A duration's end is registered
+  through `addUntilCommand`, which now wraps it in `SpellAbilityEffect.UntilCommand` (the command, the
+  ApiType that made it, how often it ran); others are named by the class that registered them. A card's
+  command lists are never pruned, so "until end of turn or until it leaves" leaves a copy behind once
+  the turn ends: a wrapped command that has run is spent and not named. The lose-control command is a
+  named `ControlGainEffect.LoseControlCommand`, already accounted for by `control-condition`.
+- Slice 8 carries the return: `SpellAbilityEffect.ReturnCommand` (was a lambda) as
+  `return=<Base64: host, ability, moved cards still waiting by zone, where it waits>`, rebuilt on the
+  restored host with its until-leaves list. A `ReturnAbility` return stays `command:ChangeZone`: its
+  trigger is made from the host as it was then, which the text does not hold.
+- **A second silent loss, found by this slice's Leyline case.** A player's keywords from statics
+  (Leyline of Sanctity's hexproof) live on a keyword card in the command zone, which holds their
+  statics (hexproof is a `CantTarget` there). A restore sets the battlefield, whose statics make that
+  card, and then sets the command zone from its text, which took the card out while
+  `Player.keywordEffect` still pointed at it: the keyword stayed, its static did not, and the player
+  could be targeted. `Player.getKeywordCard` now puts its card back in the zone. A keyword card holding
+  only statics' keywords (static id not 0) is no longer `effect:keyword`; one with a resolved
+  ability's keyword (`PumpEffect`, `ProtectAllEffect`) still is.
+- Proof: Banisher Priest's exile through a restart, then a Lightning Bolt on the Priest brings the
+  Bears back; Leyline of Sanctity's keyword card is back in the command zone after a restart; a pump
+  until your next turn is named `command:Pump` and refuses the restart; no other
+  case in the suite picked up a `command:` kind (the spent copies are not named).
