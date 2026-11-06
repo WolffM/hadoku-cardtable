@@ -74,7 +74,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { podPickNumber } from '@hadoku/draft';
 import { CONFIG, INDEX_HTML, LEGACY_STATE } from './config.js';
 import { moveLegacyState } from './state-dir.js';
-import { flushed } from './flush-sockets.js';
+import { sendThenFlush } from './flush-sockets.js';
 import { callerIdOf, edgeProvenance, requireMinTier, tierOf, userIdOf, verifiedOf } from './edge-auth.js';
 import { checkBundle, diagnosticPage, isEmbedEntry, sendIndex } from './base-path.js';
 import { announceRelease } from './announce.js';
@@ -1117,10 +1117,10 @@ function shutdown(signal: string): void {
 
 	browserBridge.close();
 	// Every socket hears it is a restart, not a lost connection, before the close below drops it.
-	io.emit(SERVER_RESTARTING_EVENT);
 	// `io.close` discards whatever a connection has not yet written, so the notice is let out first.
-	void flushed(
+	void sendThenFlush(
 		[...io.sockets.sockets.values()].map((socket) => socket.conn),
+		() => io.emit(SERVER_RESTARTING_EVENT),
 		RESTART_NOTICE_FLUSH_MS,
 	).then(() => {
 		// `io.close` disconnects every socket AND closes the HTTP server it was given.

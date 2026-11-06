@@ -2,30 +2,46 @@
  * Let what was just emitted reach the wire before the sockets are closed.
  *
  * `io.close()` closes every engine.io connection with `close(true)`, which
- * DISCARDS its write buffer. A packet sits in that buffer whenever the
+ * DISCARDS its write buffer. A packet stays in that buffer when the
  * connection's transport is not writable at the moment of the emit: a
  * websocket still waiting on its previous send's callback, or a polling client
- * between two GETs. On a loaded host that is most of them, so the restart
- * notice emitted just before the close was thrown away and the screen read
- * "Reconnecting…" after all.
+ * between two GETs. The restart notice emitted just before the close was then
+ * thrown away and the screen read "Reconnecting…" after all.
  *
- * A connection whose transport is writable flushed the emit synchronously
- * (engine.io `Socket.sendPacket` → `flush`). One that is not flushes when the
- * transport drains, which engine.io announces with the socket's `drain` event.
+ * engine.io hands a buffer to the transport synchronously when it can
+ * (`Socket.sendPacket` → `flush`, which emits `flush`), so a connection that
+ * did not flush during `send` still holds the packet, and gives it up on its
+ * next `drain`. Only those are waited for: a transport that is merely busy
+ * after flushing (a websocket awaiting its callback, a poll just answered)
+ * already has the packet, and its close comes after it.
  */
 
 /** The part of an engine.io `Socket` (a socket.io socket's `conn`) this needs. */
 export interface Flushable {
-	readonly transport: { readonly writable: boolean };
 	once(event: 'drain' | 'close', listener: () => void): unknown;
+	on(event: 'flush', listener: () => void): unknown;
+	off(event: 'flush', listener: () => void): unknown;
 }
 
-/** Resolves once every connection has handed its buffer to the transport, or after `ms`. */
-export function flushed(conns: Iterable<Flushable>, ms: number): Promise<void> {
-	const waits = [...conns]
-		.filter((conn) => !conn.transport.writable)
+/**
+ * Run `send`, then resolve once every connection that could not write it at
+ * once has written it (or closed), or after `ms`.
+ */
+export function sendThenFlush(conns: Iterable<Flushable>, send: () => void, ms: number): Promise<void> {
+	const watched = [...conns].map((conn) => {
+		const seen = { conn, flushed: false, mark: () => (seen.flushed = true) };
+		conn.on('flush', seen.mark);
+		return seen;
+	});
+	try {
+		send();
+	} finally {
+		for (const w of watched) w.conn.off('flush', w.mark);
+	}
+	const waits = watched
+		.filter((w) => !w.flushed)
 		.map(
-			(conn) =>
+			({ conn }) =>
 				new Promise<void>((done) => {
 					conn.once('drain', done);
 					conn.once('close', done);
