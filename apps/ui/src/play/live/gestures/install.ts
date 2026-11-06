@@ -1830,11 +1830,21 @@ export function installGestures(options: GestureOptions): GestureHandle {
     paint();
   }
 
-  /** The disc or chip of the press's ring under `at`, armed; every other one disarmed. */
+  /**
+   * The disc or chip of the press's ring under `at`, armed; every other one disarmed. Read off the
+   * discs' own boxes, not the page's hit test: while the press is held its ring is the only thing it
+   * can pick, and a card of the board was measured winning the hit test at a disc drawn over it.
+   */
   function armManaDisc(at: Point): HTMLElement | null {
-    const hit = hitAt(scopeOf(canvas), at.x, at.y);
-    const disc = hit?.closest<HTMLElement>('[data-press] [data-testid="mana-ring-option"]:not(:disabled), [data-press] [data-testid="mana-ring-chip"]') ?? null;
-    for (const el of document.querySelectorAll<HTMLElement>('[data-press] [data-armed]')) if (el !== disc) el.removeAttribute('data-armed');
+    const ring = scopeOf(canvas).querySelector('[data-press]');
+    if (ring === null) return null;
+    let disc: HTMLElement | null = null;
+    for (const el of ring.querySelectorAll<HTMLElement>('[data-testid="mana-ring-option"], [data-testid="mana-ring-chip"]')) {
+      const b = el.getBoundingClientRect();
+      const over = at.x >= b.left && at.x <= b.right && at.y >= b.top && at.y <= b.bottom && !(el instanceof HTMLButtonElement && el.disabled);
+      if (over && disc === null) disc = el;
+      else el.removeAttribute('data-armed');
+    }
     disc?.setAttribute('data-armed', '');
     return disc;
   }

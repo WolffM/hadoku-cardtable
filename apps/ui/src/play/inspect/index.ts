@@ -734,6 +734,12 @@ export function mountInspector(root: ParentNode): () => void {
         return;
       }
       if (windowNow() === beside) return;
+      // A press's own ring (`data-press`): the press is choosing from it, and a view under the
+      // pointer would take the hit that lights its disc.
+      if (scope.querySelector('[data-press]') !== null) {
+        dismiss();
+        return;
+      }
       const again = current;
       const touched = byTouch;
       dismiss();
