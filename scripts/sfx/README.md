@@ -80,7 +80,8 @@ catalogue's Music section; then place it on `music.lobby`, `music.match`, a colo
 or a pair's `music.match.<pair>` (the ten pairs spelled as `COLOUR_PAIRS`: WU UB BR RG GW WB UR BG RW GU)
 in `#/sounds`. A match plays the viewer's colour, their pair, one of the three pairs in a three-colour deck,
 or any of the fifteen for four or more (`apps/ui/src/sound/match-music.ts`). The
-operator drops new tracks in `ingest/` at the repo root (gitignored).
+operator drops new tracks in `~/.local/share/cardtable/ingest/` (outside every clone, so a deploy that swaps
+the clone leaves them where they are).
 
 `apps/server/data/sounds` below is a dev server's sounds dir. A deployed server keeps its sounds in its
 state dir instead (`$CARDTABLE_STATE_DIR/sounds`, `apps/server/src/config.ts`): pass that path to `--to`.
