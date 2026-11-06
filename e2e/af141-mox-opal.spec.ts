@@ -7,6 +7,8 @@
  * out and the Mox is clicked again, which Forge undoes (`InputPassPriority.onCardSelected` →
  * `tryUndo`) while its mana floats. A picked colour still floats.
  *
+ * The ring's own box is empty (its discs are placed around it), so a wait reads its hub.
+ *
  * Scenario `af141-mox-opal`: alice's Main 1 with Mox Opal and two Ornithopters (metalcraft).
  */
 import { expect, test } from '@playwright/test';
@@ -33,7 +35,7 @@ test(titled("Mox Opal: giving up its colour question untaps it on both screens a
 
     // Given up: Forge's undo leaves it as it was.
     expect(await clickPermanent(a, mox!), 'Mox Opal is offered').toBe(true);
-    await expect(question, 'Forge asks which colour').toBeVisible({ timeout: 15_000 });
+    await expect(question.getByTestId('mana-ring-hub'), 'Forge asks which colour').toBeVisible({ timeout: 15_000 });
     await a.keyboard.press('Escape');
     await expect.poll(() => isTapped(a, mox!), { timeout: 10_000, message: `giving it up leaves the Mox untapped — clicks ${clickRecords(stack, mox!)}` }).toBe(false);
     await expect.poll(() => isTapped(bob.page, mox!), { timeout: 10_000, message: 'on bob’s screen too' }).toBe(false);
@@ -42,7 +44,7 @@ test(titled("Mox Opal: giving up its colour question untaps it on both screens a
 
     // Picked: the colour floats and the Mox stays tapped.
     expect(await clickPermanent(a, mox!, 15_000), 'Mox Opal is offered again').toBe(true);
-    await expect(question, 'Forge asks which colour again').toBeVisible({ timeout: 15_000 });
+    await expect(question.getByTestId('mana-ring-hub'), 'Forge asks which colour again').toBeVisible({ timeout: 15_000 });
     await ringOption(a, 'U').click();
     await expect.poll(async () => (await manaPool(a)).U, { timeout: 10_000, message: 'its blue is in the pool' }).toBe(1);
     expect(await isTapped(a, mox!), 'the Mox is tapped').toBe(true);
