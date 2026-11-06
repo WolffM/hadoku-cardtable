@@ -58,6 +58,7 @@ test(titled('the mana ring opens on the press at priority: a click, a key, and a
     await expectRingOn(page, onBrass, 'City of Brass');
     await expect(ring(page)).toHaveAttribute('data-ring', 'colors');
     await expect(ringOptions(page)).toHaveCount(5);
+    await expect(ring(page).getByTestId('mana-ring-life'), 'its 1 damage on every colour').toHaveCount(5);
     await expect(genericBox, 'no generic decision box').toHaveCount(0);
     await page.keyboard.press('r');
     await expect(ring(page), 'the ring closed').toHaveCount(0);
@@ -108,6 +109,7 @@ test(titled('inside a payment the mana ring answers Forge’s two-colour yes/no 
     await expectCardViewBesideRing(page, 'City of Brass, paying');
     await expect(ring(page)).toHaveAttribute('data-ring', 'prompt');
     await expect(ringOptions(page), 'the two owed colours').toHaveCount(2);
+    await expect(ring(page).getByTestId('mana-ring-life'), 'its 1 damage on both').toHaveCount(2);
     await expect(genericBox, 'no generic decision box').toHaveCount(0);
     await page.keyboard.press('u');
     await expect(ring(page), 'the ring closed').toHaveCount(0);
@@ -118,6 +120,9 @@ test(titled('inside a payment the mana ring answers Forge’s two-colour yes/no 
     await page.mouse.click(onTundra.x, onTundra.y);
     await expectRingOn(page, onTundra, 'Tundra, paying');
     await expect(ring(page)).toHaveAttribute('data-ring', 'abilities');
+    // {U} is paid: Tundra's U pays nothing of the {W} still owed, and is greyed.
+    await expect(ringOption(page, 'U'), 'U pays nothing owed').toHaveAttribute('data-dim', '');
+    await expect(ringOption(page, 'W')).not.toHaveAttribute('data-dim', '');
     await ringOption(page, 'W').click();
     await expect(ring(page), 'the ring closed').toHaveCount(0);
     await expect.poll(() => isTapped(page, tundra), { timeout: 10_000, message: 'Tundra paid' }).toBe(true);
