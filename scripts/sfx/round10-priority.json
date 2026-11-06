@@ -1,0 +1,24 @@
+{
+ "note": "Round 10, part 2 (2026-10-17, AF144; the draft-pack prompts are round10.json): candidates for the priority cue (the operator: \"i need a new sound for when you get priority, it's not obvious enough\"). Round 8's pick was a 0.25 s metal crunch at the interface level; finish.py now levels ui.priority as a moment. Literal foley, mostly a firm double beat, so it reads as a call to act and not as one more board event; no bells (round 6's table: 4 of 100 placed).",
+ "suffix": "High-quality, stereo, 44.1kHz, sound effect, close-mic.",
+ "negative": "low quality, muffled, lo-fi, hiss, distortion, clipping, chime, chimes, gong, bell, glockenspiel, music, melody, song, speech, voice, vocals, harsh, shrill, reverb wash",
+ "seconds": 1.5,
+ "sounds": {
+  "ui.priority": {
+   "group": "Round 10",
+   "name": "Priority back to you",
+   "section": "Moments",
+   "seconds": 1.5,
+   "prompts": [
+    "Two quick firm knocks on a solid wooden door",
+    "A wooden gavel struck twice on a sound block, crisp and clear",
+    "A deck of playing cards tapped twice firmly on a wooden table",
+    "A sword drawn quickly from a metal scabbard, a bright clean scrape",
+    "A wooden staff struck twice on a stone floor, two solid taps",
+    "Two quick taps on a small tight hand drum",
+    "A coin flipped with the thumb and slapped onto a wooden table",
+    "A leather-bound book snapped shut firmly, one crisp thump"
+   ]
+  }
+ }
+}

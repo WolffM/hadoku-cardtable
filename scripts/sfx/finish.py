@@ -33,7 +33,8 @@ LOUDNESS = {'moment': -23.0, 'game': -26.0, 'ui': -31.0, 'hover': -37.0}
 TRANSIENT_HEADROOM_DB = 4.0
 # The hovers fire constantly and were "a bit harsh" (2026-10-12): a slow attack, a long fade, no top end.
 SOFT_FADE_IN_S, SOFT_LOWPASS_HZ = 0.02, 5000
-MOMENT_ROLES = ('g.turn-mine', 'g.win', 'g.lose', 'g.game-start', 'g.match-start')
+# `ui.priority` too: the operator, 2026-10-17 (AF144), of the priority cue at the interface level: "it's not obvious enough".
+MOMENT_ROLES = ('g.turn-mine', 'g.win', 'g.lose', 'g.game-start', 'g.match-start', 'ui.priority')
 PEAK_CEILING_DB = -1.0
 GATE_DB = -45.0          # relative to the take's own peak: quieter than this is silence
 FADE_IN_S, FADE_OUT_S = 0.004, 0.04
@@ -47,7 +48,7 @@ TAIL_PAD_S = 0.03
 # Then too long again for the quick ones (2026-10-11: "many sounds like hovering, tapping, destroying should be
 # shorter and simpler"), so the roles that answer a gesture or tick by often get their own short limit.
 MOMENT_CAP = {'m-turn': 2.5, 'm-win': 4.0, 'm-lose': 4.0}
-ROLE_CAP = {'ui.prompt': 1.0, 'g.turn-mine': 2.5, 'g.combat': 2.6, 'g.spell-hit': 1.0, 'g.walker-hit': 1.6,
+ROLE_CAP = {'ui.prompt': 1.0, 'ui.priority': 1.0, 'g.turn-mine': 2.5, 'g.combat': 2.6, 'g.spell-hit': 1.0, 'g.walker-hit': 1.6,
             'g.die-roll': 1.6, 'g.coin-flip': 2.4, 'g.creature.artifact': 1.0, 'g.creature.colourless': 1.0,
             'g.landing.3': 1.0, 'g.landing.10': 2.4, 'g.game-start': 2.5, 'g.match-start': 3.0,
             'ui.hover-card': 0.25, 'ui.select': 0.3, 'ui.pass': 0.4, 'ui.lift': 0.35,
