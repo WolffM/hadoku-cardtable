@@ -1149,6 +1149,26 @@ describe('a chain of resolutions nobody decides between', () => {
     });
   }
 
+  it('the gap is the one the screen shows: a departure slower to draw never shortens the next one’s (w59, 142.5 ms of 142.9)', async () => {
+    // Every other departure takes 12 ms longer to draw — the shape a seat's own resolution then the other's had on a loaded claw.
+    const drawnAt: number[] = [];
+    let k = 0;
+    const nextFrame = (run: () => void): void => {
+      const delay = k++ % 2 === 0 ? 12 : 0;
+      setTimeout(() => {
+        drawnAt.push(Date.now());
+        run();
+      }, delay);
+    };
+    const { inner, times, received } = watch(BOB, { boardStill: fakeBoard().still, nextFrame });
+    for (const t of triggers) inner.deliver(t);
+    await run(() => received.length === triggers.length);
+    await vi.advanceTimersByTimeAsync(5_000);
+    for (const f of chain) inner.deliver(f);
+    await run(() => times.length === N && drawnAt.length === N);
+    for (const g of gaps(drawnAt)) expect(g, `drawn ${gaps(drawnAt).join(',')}`).toBeGreaterThanOrEqual(RESOLVE_CHAIN_GAP_MS);
+  });
+
   it('each resolution going out names the items it takes off the stack, for the board’s tempo to count before it is drawn', async () => {
     const sent: (readonly number[])[] = [];
     const { inner, received } = watch(BOB, { boardStill: fakeBoard().still, resolving: (ids) => sent.push(ids) });

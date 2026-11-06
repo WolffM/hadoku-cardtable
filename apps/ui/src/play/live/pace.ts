@@ -615,6 +615,12 @@ export interface PaceOptions {
   tempo?: () => number;
   /** Told the stack items a frame going out resolves, before the board draws it. Defaults to `./tempo.ts`'s `noteResolutionsSent`. */
   resolving?: (itemIds: readonly number[]) => void;
+  /**
+   * Runs `run` once what went out in this task is drawn, before the screen shows it: the browser's next
+   * animation frame (React has committed by then). Where there is none (a test's node clock), nothing is
+   * drawn, and a chain's gap is timed from the delivery alone.
+   */
+  nextFrame?: (run: () => void) => void;
 }
 
 /** The match's client telemetry: the server writes it into the match's log (`@hadoku/shared`'s `telemetry.ts`). */
@@ -643,6 +649,8 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   const reducedMotion = options.reducedMotion ?? prefersReducedMotion;
   const tempo = options.tempo ?? nextResolveTempo;
   const resolving = options.resolving ?? noteResolutionsSent;
+  const nextFrame: ((run: () => void) => void) | null =
+    options.nextFrame ?? (typeof requestAnimationFrame === 'function' ? (run: () => void) => void requestAnimationFrame(() => run()) : null);
 
   let fast = options.initialFast ?? false;
   let endingTurn = false;
@@ -653,7 +661,11 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   let seatPlayer: () => number | null = () => null;
   let timer: unknown = null;
   let lastDeliveredAt = -Infinity;
-  /** When the last resolution went out: the next item of a chain goes {@link RESOLVE_CHAIN_GAP_MS} after it. */
+  /**
+   * When the last resolution was drawn: the next item of a chain goes {@link RESOLVE_CHAIN_GAP_MS} after it.
+   * Its delivery until the frame it is drawn in, then that frame: the gap is the one the screen shows, so
+   * a departure that took longer to draw never shortens the next one's (w59's chain, 142.5 ms of 142.9).
+   */
   let lastResolveAt = -Infinity;
   /** The last frame that carried the stack was a resolution that left items on it, and nobody has decided anything since. */
   let chainOpen = false;
@@ -749,7 +761,20 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
     const next = queue.shift();
     if (next === undefined) return;
     lastDeliveredAt = now();
-    if (next.pace === 'resolve') lastResolveAt = lastDeliveredAt;
+    if (next.pace === 'resolve') {
+      const sentAt = lastDeliveredAt;
+      lastResolveAt = sentAt;
+      nextFrame?.(() => {
+        // A later resolution has its own anchor; this one is only ever moved to its own drawing.
+        if (lastResolveAt !== sentAt) return;
+        lastResolveAt = Math.max(sentAt, now());
+        // The next of the chain, already timed from the delivery, is timed again from the drawing.
+        if (timer !== null && queue[0]?.chain === 'resolve') {
+          stopTimer();
+          pump();
+        }
+      });
+    }
     if (next.resolves.length > 0) resolving(next.resolves);
     const held = lastDeliveredAt - next.arrivedAt;
     if (next.pace === 'input' && held >= INPUT_HELD_REPORT_MS && opensDecision(next.payload)) {
