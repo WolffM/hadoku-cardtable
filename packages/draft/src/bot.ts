@@ -1,11 +1,11 @@
 /*
  * The seat-filling bot.
  *
- * Scope, settled at planning: a simple heuristic — colour commitment plus a
- * rough curve. No rankings data file, no port of Forge's `CardRanker`. The job
- * is that an 8-seat pod works when four friends turn up, and that packs wheel
- * plausibly enough for signal-reading to mean something. It is not to draft
- * well.
+ * Card quality comes from Forge's cube pick order (`ranking.ts`), the same
+ * CubeCobra list Forge's own `CardRanker` drafts cubes with; a card the order
+ * does not rank is judged by its rarity instead. On top of quality sit colour
+ * commitment and a rough curve: a bot takes the best card until its pool names
+ * two colours, then stays in them unless a much better card comes by.
  *
  * Deterministic: every choice comes from `botRng(state, seat)`, which is keyed
  * by (seed, seat, pack, pick). A bot's pick therefore depends only on where the
@@ -15,6 +15,7 @@
  */
 
 import type { DraftCard, ManaColor } from '@hadoku/shared';
+import { cubeRank, CUBE_RANKING_SIZE } from './ranking.ts';
 import { botRng, isBotSeat, packOf, pick, pickNumberOf, waitingOn, type DraftState, type PickResult } from './engine.ts';
 
 /** How much a card already in our colours is worth over one that is not. */
@@ -52,27 +53,41 @@ export function committedColours(pool: readonly DraftCard[]): ManaColor[] {
 }
 
 /**
- * Rough card quality with no external data.
- *
- * Rarity is the only quality signal a cube list carries — we have no rankings
- * file and deliberately did not port one — so it stands in for "is this card
- * good". It is a weak proxy: cubes are full of commons that outclass rares.
- * Good enough for a seat-filler, and the cost of being wrong is that a bot
- * takes the wrong card, which is also what human drafters do.
+ * Quality of the best-ranked card. Ranked cards fall linearly from here to 0 at
+ * the last rank, as Forge's own `100 − 100·rank/size` does. Six sits against
+ * the colour weights so that, once a pool is committed, an off-colour card wins
+ * only over on-colour cards from the bottom quarter of the order: the top card off
+ * colour (6 − 1.6) beats an on-colour card worth less than 1.4 (+3), that is
+ * ranked below about 3100 of 4000. Before commitment it is the whole score.
  */
+const QUALITY_SPAN = 6;
+
+/**
+ * Where an unranked card sits on that scale, by rarity: a common as a card
+ * ranked three quarters of the way down, a mythic as one ranked 40% down.
+ * Unranked is not the same as bad — the order leaves out cube staples — so the
+ * band is the lower middle, not the floor.
+ */
+const UNRANKED_FLOOR = 0.25;
+const UNRANKED_CEILING = 0.6;
+
+/** Rarity as a stand-in for quality, 0 (common) to 1 (mythic). */
+const RARITY_STANDING: Record<DraftCard['rarity'], number> = {
+  common: 0,
+  uncommon: 0.25,
+  special: 0.25,
+  rare: 0.75,
+  mythic: 1,
+};
+
+/** Card quality from 0 to `QUALITY_SPAN`. */
 function baseQuality(card: DraftCard): number {
-  switch (card.rarity) {
-    case 'mythic':
-      return 4;
-    case 'rare':
-      return 3.5;
-    case 'uncommon':
-      return 2.5;
-    case 'special':
-      return 2.5;
-    default:
-      return 2;
-  }
+  const rank = cubeRank(card.name);
+  const standing =
+    rank === null
+      ? UNRANKED_FLOOR + RARITY_STANDING[card.rarity] * (UNRANKED_CEILING - UNRANKED_FLOOR)
+      : 1 - rank / CUBE_RANKING_SIZE;
+  return QUALITY_SPAN * standing;
 }
 
 /** Score one card for a pool. Exported so the tests can pin the heuristic. */
