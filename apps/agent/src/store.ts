@@ -1,15 +1,15 @@
 /**
- * The artifacts a JVM runs on: the JDK, the Forge jar, a trimmed `res` and the
- * compiled bridge, each named by its sha256 and checked against it before it is
- * kept. The coordinator pushes them (`PUT /blob/<sha>`), so no path CI can
+ * The artifacts a JVM runs on (the JDK, the Forge jar, a trimmed `res` and the
+ * compiled bridge) and the draft bot service's installed tree, each named by its
+ * sha256 and checked against it before it is kept. The coordinator pushes them (`PUT /blob/<sha>`), so no path CI can
  * write ever becomes code the agent runs (forge-hosting-plan §6).
  *
  *   blobs/<sha>              what arrived, verified
- *   <kind>/<sha>/            a tarball kind, unpacked (jdk, res, bridge)
+ *   <kind>/<sha>/            a tarball kind, unpacked (jdk, res, bridge, draftbot)
  *   artifacts.json           { kind: [{ sha, at }] }, newest last
  *
  * A jar is used as its blob. Each kind keeps its two most recent installs
- * (and anything a live JVM still runs on); older ones are deleted.
+ * (and anything a live JVM or the draft bot still runs on); older ones are deleted.
  */
 
 import { spawn } from 'node:child_process';
@@ -18,7 +18,7 @@ import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSyn
 import { join } from 'node:path';
 import type { Readable } from 'node:stream';
 
-import { ARTIFACT_KINDS, SHA256, type ArtifactKind, type ArtifactSet } from '../../server/src/play/remote/wire.ts';
+import { ARTIFACT_KINDS, SHA256, type ArtifactKind } from '../../server/src/play/remote/wire.ts';
 
 export const KEEP_PER_KIND = 2;
 
@@ -34,6 +34,8 @@ export function hashFile(file: string): Promise<string> {
 }
 
 type Manifest = Record<ArtifactKind, { sha: string; at: number }[]>;
+/** What one running thing uses, by kind: a JVM's artifacts, or the draft bot's. */
+export type InUse = Partial<Record<ArtifactKind, string>>;
 
 export class Store {
 	private readonly blobs: string;
@@ -79,7 +81,7 @@ export class Store {
 	 * on disk is not trusted because it was trusted when it arrived. A tarball's
 	 * blob is deleted once unpacked.
 	 */
-	async install(kind: ArtifactKind, sha: string, inUse: ArtifactSet[] = []): Promise<string> {
+	async install(kind: ArtifactKind, sha: string, inUse: InUse[] = []): Promise<string> {
 		if (!ARTIFACT_KINDS.includes(kind)) throw new Error(`unknown artifact kind ${kind}`);
 		if (!SHA256.test(sha)) throw new Error('not a sha256');
 		const at = this.path(kind, sha);
@@ -117,11 +119,11 @@ export class Store {
 		return kind === 'jar' ? join(this.blobs, sha) : join(this.home, kind, sha);
 	}
 
-	/** Keep the newest `KEEP_PER_KIND` of `kind` and whatever a live JVM runs on. */
-	private prune(kind: ArtifactKind, inUse: ArtifactSet[]): void {
+	/** Keep the newest `KEEP_PER_KIND` of `kind` and whatever is still running on it. */
+	private prune(kind: ArtifactKind, inUse: InUse[]): void {
 		const manifest = this.manifest();
 		const entries = manifest[kind];
-		const keep = new Set([...entries.slice(-KEEP_PER_KIND).map((e) => e.sha), ...inUse.map((a) => a[kind])]);
+		const keep = new Set([...entries.slice(-KEEP_PER_KIND).map((e) => e.sha), ...inUse.flatMap((a) => a[kind] ?? [])]);
 		for (const e of entries) {
 			if (keep.has(e.sha)) continue;
 			rmSync(join(this.home, kind, e.sha), { recursive: true, force: true });

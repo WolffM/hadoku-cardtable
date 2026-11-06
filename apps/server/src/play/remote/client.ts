@@ -16,7 +16,7 @@ import { request, type IncomingMessage } from 'node:http';
 import type { Socket } from 'node:net';
 import type { KeyObject } from 'node:crypto';
 
-import { EMPTY_SHA, FENCE_MS, HEARTBEAT_MS, RELAY_PROTOCOL, sha256Hex, signFrame, signRequest, type FromAgent, type JvmHealth, type SliceHealth, type ToAgent } from './wire.js';
+import { EMPTY_SHA, FENCE_MS, HEARTBEAT_MS, RELAY_PROTOCOL, sha256Hex, signFrame, signRequest, type DraftbotHealth, type FromAgent, type JvmHealth, type SliceHealth, type ToAgent } from './wire.js';
 
 export interface AgentClientOptions {
 	/** `http://<claw>:7621` */
@@ -60,7 +60,7 @@ export class AgentClient {
 	private nextReq = 1;
 	/** Set once the link is lost for good, or closed: nothing more is sent. */
 	lost: string | null = null;
-	health: { at: number; jvms: JvmHealth[]; slice: SliceHealth } | null = null;
+	health: { at: number; jvms: JvmHealth[]; slice: SliceHealth; draftbot: DraftbotHealth | null } | null = null;
 	private lostListeners: ((reason: string) => void)[] = [];
 
 	constructor(opts: AgentClientOptions) {
@@ -75,13 +75,13 @@ export class AgentClient {
 
 	/* ── Requests ── */
 
-	/** One signed JSON request; a file body (`PUT /blob/<sha>`) is streamed. */
-	async call<T>(method: string, path: string, body?: unknown | { file: string; sha: string }): Promise<T> {
+	/** One signed JSON request; a file body (`PUT /blob/<sha>`) is streamed. `signal` abandons it. */
+	async call<T>(method: string, path: string, body?: unknown | { file: string; sha: string }, signal?: AbortSignal): Promise<T> {
 		const file = typeof body === 'object' && body !== null && 'file' in body ? (body as { file: string; sha: string }) : null;
 		const bytes = file || body === undefined ? null : Buffer.from(JSON.stringify(body));
 		const sha = file ? file.sha : bytes ? sha256Hex(bytes) : EMPTY_SHA;
 		const res = await new Promise<IncomingMessage>((resolve, reject) => {
-			const req = request({ host: this.url.hostname, port: this.url.port, method, path, headers: { ...signRequest(this.key, method, path, sha, this.now()) } }, resolve);
+			const req = request({ host: this.url.hostname, port: this.url.port, method, path, headers: { ...signRequest(this.key, method, path, sha, this.now()) }, signal }, resolve);
 			req.on('error', reject);
 			if (file) createReadStream(file.file).on('error', reject).pipe(req);
 			else req.end(bytes ?? undefined);
@@ -249,7 +249,7 @@ export class AgentClient {
 		switch (f.t) {
 			case 'hb':
 				this.lastHb = this.now();
-				this.health = { at: f.at, jvms: f.jvms, slice: f.slice };
+				this.health = { at: f.at, jvms: f.jvms, slice: f.slice, draftbot: f.draftbot ?? null };
 				return;
 			case 'hello':
 				this.lastHb = this.now();

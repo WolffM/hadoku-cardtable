@@ -4,7 +4,7 @@
 	"slices": { "unit": { "memoryMb": 4096, "cores": 4 }, "min": 3, "max": 4 },
 	"runtime": { "install": "launcher", "workersOutliveRestart": true, "holdOnCoordinatorLoss": true },
 	"network": { "ingress": "controller", "ports": [7621], "egress": [] },
-	"disk": { "stateGb": 2 },
+	"disk": { "stateGb": 4 },
 	"availability": { "noticeMin": 15, "stateful": false },
 	"placement": { "require": ["wired", "not-beside-unbounded"], "order": ["claw-8", "claw-9", "claw-10", "claw-5"], "auto": true },
 	"isolation": { "ciMayRead": false },

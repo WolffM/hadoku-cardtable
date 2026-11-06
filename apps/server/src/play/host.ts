@@ -583,8 +583,11 @@ interface Jvm {
 export interface JvmPoolOptions {
 	/** Keep one JVM with room booted ahead of the next match. Default: `config.warmJvm`. */
 	warm?: boolean;
-	/** JVMs this pool will run at once. Default `MAX_CONCURRENT_MATCHES`. */
-	maxJvms?: number;
+	/**
+	 * JVMs this pool will run at once, or a function read at each launch (a claw's count falls while
+	 * it also runs the draft bot). Default `MAX_CONCURRENT_MATCHES`.
+	 */
+	maxJvms?: number | (() => number);
 	/** Wait before launching a warm JVM again after one failed to boot. Default `WARM_RETRY_MS`. */
 	warmRetryMs?: number;
 	/** A JVM empty this long is retired, unless it is the warm one. Default `IDLE_JVM_MS`. */
@@ -634,7 +637,8 @@ export type JvmHostFactory = MatchHostFactory & {
  */
 export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = {}): JvmHostFactory {
 	const warmWanted = options.warm ?? config.warmJvm;
-	const maxJvms = options.maxJvms ?? MAX_CONCURRENT_MATCHES;
+	const maxJvmsOption = options.maxJvms ?? MAX_CONCURRENT_MATCHES;
+	const maxJvms = (): number => (typeof maxJvmsOption === 'number' ? maxJvmsOption : maxJvmsOption());
 	const perJvm = config.perJvm ?? MATCHES_PER_JVM;
 	const idleMs = options.idleMs ?? IDLE_JVM_MS;
 	const matchStopMs = options.matchStopMs ?? MATCH_STOP_MS;
@@ -1000,7 +1004,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	 */
 	function replenish(): void {
 		if (!warmWanted || closed || retry !== null || bootFailures >= WARM_MAX_FAILURES) return;
-		if (liveJvms().some((j) => hasRoom(j) || !j.warm) || jvms.size >= maxJvms) return;
+		if (liveJvms().some((j) => hasRoom(j) || !j.warm) || jvms.size >= maxJvms()) return;
 		try {
 			launch();
 		} catch (err) {
@@ -1087,7 +1091,7 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 	const factory = ((matchId: string, spec: MatchSpec, events: HostEvents): MatchHost => {
 		let jvm = placeFor(matchId);
 		if (jvm === null) {
-			if (jvms.size >= maxJvms) throw new Error(`every Forge JVM is full (${jvms.size} of ${maxJvms}, ${perJvm} matches each)`);
+			if (jvms.size >= maxJvms()) throw new Error(`every Forge JVM is full (${jvms.size} of ${maxJvms()}, ${perJvm} matches each)`);
 			jvm = launch();
 		}
 		if (jvm.idle !== null) clearTimeout(jvm.idle);

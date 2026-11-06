@@ -37,6 +37,8 @@
  * - **AI degraded.** Each `cutoff` a host's bridges report (`host.ts`, "AI cutoffs") fails its `ai`
  *   bar for `AI_CUTOFF_WINDOW_MS` and opens `ai:<host>` with one alert; the health tick resolves it
  *   once the window is clean. Nothing moves: the host only stops taking new matches.
+ * - **The draft bot service** (`draftbot.ts`) runs on the first two usable claws, chosen again at
+ *   every health tick; its memory counts in their slices, so they take fewer JVMs where it matters.
  * - **Restarts.** On the way down every agent is told to hold its JVMs for `restartGraceMs` past
  *   the fencing window; the next coordinator connects, re-attaches and replays them. An unclean
  *   death sends no hold, and the agents fence at the window.
@@ -66,6 +68,7 @@ import type { AgentClient } from '../remote/client.js';
 import { FENCE_MS, HEARTBEAT_MS, sliceNeedMb } from '../remote/wire.js';
 import type { Alerts } from './alerts.js';
 import { SECTION, contractViolations, type Violation } from './audit.js';
+import { ClawDraftbots, type Draftbot } from './draftbot.js';
 import { CONTRACT, type HostingContract } from './contract.js';
 import { STATUS_MAX_AGE_S, type FleetDemand, type FleetNode, type FleetSource, type FleetStatus } from './fleet.js';
 import {
@@ -116,7 +119,7 @@ export const BACKSTOP_JVMS = 1;
 const SNAPSHOT_LOSES = 'back to the start of the turn: until-end-of-turn effects, the stack and pending triggers are gone';
 
 /** The parts of an agent link placement reads. */
-export type AgentLink = Pick<AgentClient, 'lost' | 'health' | 'onLost' | 'hold' | 'close' | 'silentMs'>;
+export type AgentLink = Pick<AgentClient, 'lost' | 'health' | 'onLost' | 'hold' | 'close' | 'silentMs' | 'send' | 'call'>;
 
 export interface ClawConnection {
 	client: AgentLink;
@@ -126,6 +129,8 @@ export interface ClawConnection {
 	 * not wait for; a rejection is a pin it cannot be given. Absent: it already does.
 	 */
 	runtime?: Promise<unknown>;
+	/** Settles with the draft bot artifact's sha once the agent holds it. Absent: it holds none. */
+	draftbot?: Promise<string>;
 }
 
 export type RestoreOutcome = { from: 'snapshot'; turn: number } | { from: 'spec' };
@@ -193,6 +198,10 @@ interface Host {
 	 * the agent's link can drop after those reads: this is what still knows it was a release.
 	 */
 	releaseAt: number | null;
+	/** The draft bot artifact its agent holds, or why not. */
+	draftbot: { sha: string | null; error: string | null };
+	/** Its slice's memory, as fleet-manager first declared it. */
+	memoryMb: number;
 }
 
 /**
@@ -267,6 +276,8 @@ export interface HostsView {
 	/** Where fleet-manager is not keeping our hosting contract now, and since when. */
 	contract: (Violation & { since: string; paged: boolean })[];
 	hosts: HostView[];
+	/** The claws chosen to run the draft bot, and those passed over while it fails there. */
+	draftbot: { chosen: string[]; failing: string[] };
 	alerts: { key: string; at: string; text: string }[];
 }
 
@@ -282,6 +293,8 @@ export type Placement = MatchHostFactory &
 	hosts(): HostsView;
 	/** The first poll and its connects: what `orphans` waits for. */
 	ready: Promise<void>;
+	/** The draft bot service on the claws: what the draft rooms ask for bot picks. */
+	draftbot: Draftbot;
 };
 
 /** A start-to-first-frame canary: a human seat and an AI seat with random precons, stopped at once. */
@@ -355,6 +368,7 @@ export function placement(opts: PlacementOptions): Placement {
 	let exceptHost: Host | null = null;
 	const fencedBatches = new Map<Host, Moved[]>();
 	const timers: NodeJS.Timeout[] = [];
+	const draftbots = new ClawDraftbots({ alerts, now, log });
 
 	const notifyRoom = (): void => {
 		for (const l of roomWatchers) l();
@@ -376,6 +390,8 @@ export function placement(opts: PlacementOptions): Placement {
 			cutoffs: [],
 			unusableSince: null,
 			releaseAt: null,
+			draftbot: { sha: null, error: null },
+			memoryMb: 0,
 		};
 		hosts.set(name, host);
 		return host;
@@ -384,7 +400,7 @@ export function placement(opts: PlacementOptions): Placement {
 	function makePool(host: Host, launcher: JvmLauncher | undefined, workDir: string, warm: boolean): JvmHostFactory {
 		const pool = jvmHostFactory(
 			{ ...config, workDir },
-			{ ...(launcher === undefined ? {} : { launcher }), warm, maxJvms: host.maxJvms, onCutoff: (c) => aiCutoff(host, c), log: (e) => log({ ...e, host: host.name }) },
+			{ ...(launcher === undefined ? {} : { launcher }), warm, maxJvms: () => host.maxJvms, onCutoff: (c) => aiCutoff(host, c), log: (e) => log({ ...e, host: host.name }) },
 		);
 		pool.watchRoom?.(notifyRoom);
 		return pool;
@@ -861,11 +877,30 @@ export function placement(opts: PlacementOptions): Placement {
 
 	/* ── Hosts ── */
 
+	/** JVMs its slice holds, by the agent's fit rule, beside the draft bot when it runs it. */
+	function fitJvms(host: Host): number {
+		const draftbot = draftbots.runsOn(host.name);
+		return jvmsThatFit(host.memoryMb, xmxMb, (xs) => sliceNeedMb(xs, draftbot));
+	}
+
 	function ensureClaw(node: FleetNode): Host {
 		const existing = hosts.get(node.node);
 		if (existing !== undefined) return existing;
-		const memoryMb = node.hosting?.declared?.memoryMb ?? 0;
-		return newHost(node.node, 'claw', jvmsThatFit(memoryMb, xmxMb, sliceNeedMb));
+		const host = newHost(node.node, 'claw', 0);
+		host.memoryMb = node.hosting?.declared?.memoryMb ?? 0;
+		host.maxJvms = fitJvms(host);
+		return host;
+	}
+
+	/** The draft bot's claws, chosen again; each claw's JVM count follows. */
+	function stepDraftbots(): void {
+		draftbots.step(
+			claws()
+				.filter((h) => h.link !== null && h.link.client.lost === null)
+				.sort((a, b) => hostRank(a.name) - hostRank(b.name))
+				.map((h) => ({ name: h.name, client: (h.link as ClawConnection).client, usable: h.quarantine === null && !h.failing, sha: h.draftbot.sha, error: h.draftbot.error })),
+		);
+		for (const h of claws()) h.maxJvms = fitJvms(h);
 	}
 
 	async function connectClaw(host: Host): Promise<void> {
@@ -878,6 +913,15 @@ export function placement(opts: PlacementOptions): Placement {
 			}
 			host.link = conn;
 			host.agentError = null;
+			host.draftbot = { sha: null, error: null };
+			conn.draftbot?.then(
+				(sha) => {
+					if (host.link === conn) host.draftbot = { sha, error: null };
+				},
+				(err: unknown) => {
+					if (host.link === conn) host.draftbot = { sha: null, error: (err as Error).message };
+				},
+			);
 			conn.client.onLost((reason) => agentLost(host, conn, reason));
 			host.pool = makePool(host, conn.launcher, join(clawsDir, host.name), true);
 			log({ evt: 'claw-connected', host: host.name, maxJvms: host.maxJvms });
@@ -1047,6 +1091,7 @@ export function placement(opts: PlacementOptions): Placement {
 			for (const j of health.jvms) if (j.recycleWanted) host.pool.drain(j.hostId, 'its heap after GC is past the recycle share');
 		}
 		aiClean();
+		stepDraftbots();
 		notifyRoom();
 	};
 
@@ -1070,6 +1115,7 @@ export function placement(opts: PlacementOptions): Placement {
 		for (const h of hosts.values()) h.pool?.abandon(why);
 	};
 
+	factory.draftbot = draftbots;
 	factory.ready = factory.poll();
 
 	factory.orphans = async () => {
@@ -1130,6 +1176,7 @@ export function placement(opts: PlacementOptions): Placement {
 			slices: { asked: demand.slices, releaseOrder, converger },
 			backstop: { ...backstop, forcedUntil: force === null ? null : new Date(force.until).toISOString() },
 			contract: [...violations.values()].map((v) => ({ ...v.v, since: new Date(v.since).toISOString(), paged: v.paged })),
+			draftbot: draftbots.view(),
 			hosts: [...hosts.values()].map((h) => {
 				const b = barsOf(h);
 				const event = nextEvent(h.fleet);

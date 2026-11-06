@@ -9,6 +9,9 @@
  * window kills every JVM it runs, because a coordinator that has failed this
  * claw over must never meet a second copy of a match (forge-hosting-plan §5).
  *
+ * It also runs the draft bot service when the coordinator asks (`draftbot.ts`),
+ * and passes the coordinator's draft bot calls to it.
+ *
  * The wire, its signing and every message are in
  * `apps/server/src/play/remote/wire.ts`.
  */
@@ -21,12 +24,15 @@ import { join } from 'node:path';
 
 import {
 	ARTIFACT_KINDS,
+	DRAFTBOT_MB,
+	DRAFTBOT_PATH,
 	EMPTY_SHA,
 	AGENT_RESERVE_MB,
 	FENCE_MS,
 	HEARTBEAT_MS,
 	HOLD_MAX_MS,
 	HOST_ID,
+	JVM_ARTIFACT_KINDS,
 	JVM_OVERHEAD_MB,
 	RELAY_PROTOCOL,
 	ReplayGuard,
@@ -40,6 +46,7 @@ import {
 	type ToAgent,
 } from '../../server/src/play/remote/wire.ts';
 import { Cgroups } from './cgroups.ts';
+import { DraftbotService } from './draftbot.ts';
 import { Jvm, type Installed, type Log } from './jvm.ts';
 import { Store } from './store.ts';
 
@@ -73,6 +80,7 @@ interface Session {
 export class Agent {
 	readonly store: Store;
 	readonly cgroups: Cgroups;
+	readonly draftbot: DraftbotService;
 	readonly jvms = new Map<string, Jvm>();
 	private readonly watchers = new Map<string, FSWatcher>();
 	private readonly guard: ReplayGuard;
@@ -99,6 +107,7 @@ export class Agent {
 		this.guard = new ReplayGuard(this.now);
 		this.store = new Store(opts.home, this.now);
 		this.cgroups = new Cgroups(opts.cgroupRoot, opts.ownCgroupFile, this.log);
+		this.draftbot = new DraftbotService(opts.home, this.cgroups, this.log, this.now);
 		this.jvmDir = join(opts.home, 'jvms');
 		mkdirSync(this.jvmDir, { recursive: true });
 		this.started = this.now();
@@ -170,8 +179,9 @@ export class Agent {
 		});
 	}
 
-	/** Stop serving. JVMs are left running, as a restart leaves them. */
+	/** Stop serving. JVMs are left running, as a restart leaves them; the stateless draft bot is not. */
 	close(): void {
+		this.draftbot.stop();
 		for (const t of this.timers) clearInterval(t);
 		for (const w of this.watchers.values()) w.close();
 		for (const jvm of this.jvms.values()) jvm.detach();
@@ -218,7 +228,7 @@ export class Agent {
 
 	private heartbeat(): void {
 		if (this.session === null) return;
-		this.emit({ t: 'hb', at: this.now(), jvms: this.live().map((j) => j.health()), slice: this.cgroups.slice() });
+		this.emit({ t: 'hb', at: this.now(), jvms: this.live().map((j) => j.health()), slice: this.cgroups.slice(), draftbot: this.draftbot.status() });
 	}
 
 	private emit(f: FromAgent): void {
@@ -259,19 +269,21 @@ export class Agent {
 				artifacts: this.store.list(),
 				slice: this.cgroups.slice(),
 				jvms: this.live().map((j) => j.health()),
+				draftbot: this.draftbot.status(),
 				ended: [...this.jvms.values()].filter((j) => j.exited).map((j) => j.hostId),
 			});
 		}
 		if (req.method === 'POST' && req.url === '/install') {
 			const { kind, sha } = body as { kind: ArtifactKind; sha: string };
 			if (!ARTIFACT_KINDS.includes(kind)) return reply(res, 400, { error: `kind: ${ARTIFACT_KINDS.join('|')}` });
-			const at = await this.store.install(
-				kind,
-				String(sha),
-				this.live().map((j) => j.artifacts),
-			);
+			const draftbot = this.draftbot.running;
+			const at = await this.store.install(kind, String(sha), [...this.live().map((j) => j.artifacts), ...(draftbot === null ? [] : [{ draftbot }])]);
 			this.log('installed', { kind, sha, at });
 			return reply(res, 200, { kind, sha });
+		}
+		if (req.method === 'POST' && req.url === DRAFTBOT_PATH) {
+			const answer = await this.draftbot.forward('/batchdraft', body);
+			return reply(res, answer.status, answer.body);
 		}
 		return reply(res, 404, { error: `${req.method} ${req.url}` });
 	}
@@ -381,7 +393,24 @@ export class Agent {
 				this.log('hold', { ms, note: 'the coordinator is restarting: no fencing until the window plus this' });
 				return this.hold(this.now() + this.fenceMs + ms);
 			}
+			case 'draftbot':
+				return this.runDraftbot(m.sha);
 		}
+	}
+
+	/** The draft bot service, as the coordinator wants it: artifact `sha`, or none. */
+	private runDraftbot(sha: string | null): void {
+		if (sha === null) return this.draftbot.stop();
+		if (this.draftbot.running === sha) return;
+		const dir = this.store.installed('draftbot', sha);
+		if (dir === null) return this.draftbot.refuse(sha, `draftbot ${sha} is not installed`);
+		const max = this.cgroups.slice().memoryMaxMb ?? this.opts.memoryMaxMb ?? null;
+		const need = sliceNeedMb(
+			this.live().map((j) => j.xmxMb),
+			true,
+		);
+		if (max !== null && need > max) return this.draftbot.refuse(sha, `does not fit: ${need} MB needed (its ${DRAFTBOT_MB} MB beside the JVMs here) in a ${max} MB slice`);
+		this.draftbot.want(sha, dir);
 	}
 
 	/** Why a launch cannot happen, or null. */
@@ -392,8 +421,9 @@ export class Agent {
 		if (!Array.isArray(spec.jvmFlags) || spec.jvmFlags.some((f) => typeof f !== 'string' || !f.startsWith('-'))) return 'jvmFlags: flags only';
 		const max = this.cgroups.slice().memoryMaxMb ?? this.opts.memoryMaxMb ?? null;
 		if (max !== null) {
-			const need = sliceNeedMb([...this.live().map((j) => j.xmxMb), spec.xmxMb]);
-			if (need > max) return `does not fit: ${need} MB needed (each JVM -Xmx + ${JVM_OVERHEAD_MB} MB, agent ${AGENT_RESERVE_MB} MB) in a ${max} MB slice`;
+			const draftbot = this.draftbot.running !== null;
+			const need = sliceNeedMb([...this.live().map((j) => j.xmxMb), spec.xmxMb], draftbot);
+			if (need > max) return `does not fit: ${need} MB needed (each JVM -Xmx + ${JVM_OVERHEAD_MB} MB, agent ${AGENT_RESERVE_MB} MB${draftbot ? `, draft bot ${DRAFTBOT_MB} MB` : ''}) in a ${max} MB slice`;
 		}
 		return null;
 	}
@@ -405,7 +435,7 @@ export class Agent {
 			return sink({ t: 'exit', h: spec.hostId, reason: `refused: ${refusal}` });
 		}
 		const paths: Partial<Record<ArtifactKind, string>> = {};
-		for (const kind of ARTIFACT_KINDS) {
+		for (const kind of JVM_ARTIFACT_KINDS) {
 			const at = this.store.installed(kind, spec.artifacts[kind]);
 			if (at === null) return sink({ t: 'exit', h: spec.hostId, reason: `refused: ${kind} ${spec.artifacts[kind]} is not installed` });
 			paths[kind] = at;

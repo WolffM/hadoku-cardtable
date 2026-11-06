@@ -1,12 +1,14 @@
+import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { packDir } from './artifacts.js';
+import { DRAFTBOT_PIN, packDir, prepareDraftbot } from './artifacts.js';
 import type { AgentClient } from './client.js';
 import { RemoteJvmLauncher, type RemoteRuntime } from './launcher.js';
+import { sha256Hex } from './wire.js';
 
 const scratch: string[] = [];
 afterEach(() => {
@@ -95,5 +97,50 @@ describe('RemoteJvmLauncher', () => {
 		const exited = new Promise<string>((r) => launcher.launch('h-new', { xmxMb: 512 }).onExit(r));
 		await expect(exited).resolves.toBe("the agent could not be given this server's runtime: claw-9 cannot be given this server's pin: disk full");
 		expect(sent).toEqual([]);
+	});
+});
+
+/** A draft bot repo in miniature: both packages with nothing to install, one weight file and its checksum. */
+function draftbotRepo(): { repo: string; commit: string; cache: string } {
+	const root = mkdtempSync(join(tmpdir(), 'ct-draftbot-'));
+	scratch.push(root);
+	const repo = join(root, 'repo');
+	for (const pkg of ['utils', 'recommenderService']) {
+		mkdirSync(join(repo, 'packages', pkg), { recursive: true });
+		writeFileSync(join(repo, 'packages', pkg, 'package.json'), JSON.stringify({ name: pkg, version: '1.0.0' }));
+		writeFileSync(join(repo, 'packages', pkg, 'package-lock.json'), JSON.stringify({ name: pkg, version: '1.0.0', lockfileVersion: 3, requires: true, packages: { '': { name: pkg, version: '1.0.0' } } }));
+	}
+	writeFileSync(join(repo, 'packages', 'recommenderService', 'w.bin'), 'weights');
+	writeFileSync(join(repo, 'packages', 'recommenderService', 'WEIGHTS.sha256'), `${sha256Hex('weights')}  w.bin\n`);
+	const git = (...args: string[]): string => execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8' }).trim();
+	git('init', '--quiet');
+	git('add', '.');
+	git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'draftbot');
+	return { repo, commit: git('rev-parse', 'HEAD'), cache: join(root, 'cache') };
+}
+
+describe('the draft bot artifact', () => {
+	it('is pinned to a full commit', () => {
+		expect(DRAFTBOT_PIN.commit).toMatch(/^[0-9a-f]{40}$/);
+	});
+
+	it('prepares the pinned commit once, whole, with no .git, shared by everyone asking at once', async () => {
+		const { repo, commit, cache } = draftbotRepo();
+		const [a, b] = await Promise.all([prepareDraftbot(cache, { repo, commit }), prepareDraftbot(cache, { repo, commit })]);
+		expect(b).toBe(a);
+		expect(a).toBe(join(cache, commit));
+		expect(readdirSync(cache)).toEqual([commit]);
+		expect(existsSync(join(a, '.git'))).toBe(false);
+		expect(readFileSync(join(a, 'packages', 'recommenderService', 'w.bin'), 'utf8')).toBe('weights');
+		expect(await prepareDraftbot(cache, { repo, commit })).toBe(a);
+	});
+
+	it('keeps nothing when a step fails: weights that do not match their checksum', async () => {
+		const { repo, cache } = draftbotRepo();
+		writeFileSync(join(repo, 'packages', 'recommenderService', 'w.bin'), 'tampered');
+		execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-am', 'tampered']);
+		const commit = execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+		await expect(prepareDraftbot(cache, { repo, commit })).rejects.toThrow(new RegExp(`^draftbot ${commit.slice(0, 12)}: sha256sum`));
+		expect(readdirSync(cache)).toEqual([]);
 	});
 });

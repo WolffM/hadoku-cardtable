@@ -4,7 +4,7 @@
  *   wire.ts       the protocol and its signing, shared with the agent
  *   client.ts     the signed requests and relay to one agent, heartbeats, the link clock
  *   launcher.ts   `JvmLauncher` / `JvmTransport` over a client
- *   artifacts.ts  the JDK, jar, res and bridge packed by sha256 and pushed
+ *   artifacts.ts  the JDK, jar, res and bridge packed by sha256 and pushed, and the draft bot
  *
  * The signing key is the coordinator's Ed25519 private key, from the vault
  * (`.devvault.json`: `CARDTABLE_AGENT_SIGNING_KEY`) through the PM2 wrapper,
@@ -15,7 +15,7 @@ import { join } from 'node:path';
 
 import { jsonLogger } from '../../log.js';
 import type { JvmHostConfig } from '../host.js';
-import { packRuntime, pushRuntime } from './artifacts.js';
+import { packDraftbot, packRuntime, pushDraftbot, pushRuntime } from './artifacts.js';
 import { AgentClient } from './client.js';
 import { RemoteJvmLauncher, type RemoteRuntime } from './launcher.js';
 import { AGENT_PORT, privateKeyFrom } from './wire.js';
@@ -41,6 +41,8 @@ export interface RemoteHost {
 	launcher: RemoteJvmLauncher;
 	/** Settles once the agent holds this coordinator's runtime; rejects with {@link PinNotServable}. */
 	runtime: Promise<RemoteRuntime>;
+	/** The draft bot artifact's sha, once the agent holds it (after the runtime: matches come first). */
+	draftbot: Promise<string>;
 }
 
 /**
@@ -60,13 +62,19 @@ export async function connectRemoteHost(
 	if (keyText === '') throw new Error(`${AGENT_KEY_ENV} is not set`);
 	const log = opts.log ?? jsonLogger('remote');
 	const client = new AgentClient({ url: `http://${node}:${opts.port ?? AGENT_PORT}`, key: privateKeyFrom(keyText), fenceMs: opts.fenceMs, log });
-	const runtime = packRuntime(config, join(config.bridgeCache, '..', 'agent-artifacts'), log)
+	const cache = join(config.bridgeCache, '..');
+	const runtime = packRuntime(config, join(cache, 'agent-artifacts'), log)
 		.then((packed) => pushRuntime(client, packed, log))
 		.catch((err: unknown) => {
 			throw new PinNotServable(node, (err as Error).message);
 		});
 	// Reported here whoever else waits on it, so a failed push is never an unhandled rejection.
 	void runtime.catch((err: unknown) => log({ evt: 'agent-runtime-failed', agent: node, error: (err as Error).message }));
+	const draftbot = runtime
+		.catch(() => undefined)
+		.then(() => packDraftbot(cache, undefined, log))
+		.then((packed) => pushDraftbot(client, packed, log));
+	void draftbot.catch((err: unknown) => log({ evt: 'agent-draftbot-failed', agent: node, error: (err as Error).message }));
 	await client.connect();
-	return { client, launcher: new RemoteJvmLauncher(client, runtime), runtime };
+	return { client, launcher: new RemoteJvmLauncher(client, runtime), runtime, draftbot };
 }

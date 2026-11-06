@@ -5,7 +5,9 @@
  * with `Delegate=yes` and `KillMode=process`, so a restart kills only the
  * agent's own process (H15). cgroup v2 allows no process in a cgroup that has
  * children, so the agent moves itself into the leaf `agent/` and puts each JVM
- * in a leaf `run-<hostId>/` beside it; a JVM's leaf outlives the agent.
+ * in a leaf `run-<hostId>/` beside it; a JVM's leaf outlives the agent. The
+ * draft bot service gets the leaf `draftbot/`, under a memory cap of its own;
+ * like everything here it is inside the slice, and ends with it.
  *
  * `root` is the cgroup filesystem's mount (`/sys/fs/cgroup`), a directory in
  * tests. With `root` null (a dev box, `--no-cgroups`), nothing is delegated:
@@ -69,6 +71,47 @@ export class Cgroups {
 		} catch {
 			return [];
 		}
+	}
+
+	/**
+	 * Put `pid` in leaf `name` under a memory cap of its own. The memory controller is enabled for
+	 * the unit's children first (its `cgroup.subtree_control`, delegated to us; legal because no
+	 * process sits in the unit's own cgroup). Null when not delegated, or the cap cannot be set: the
+	 * process then runs uncapped beside the agent, and the caller says so.
+	 */
+	placeCapped(name: string, pid: number, maxMb: number): string | null {
+		if (this.service === null) return null;
+		const leaf = join(this.service, name);
+		try {
+			const control = join(this.service, 'cgroup.subtree_control');
+			if (!(read(control) ?? '').split(' ').includes('memory')) writeFileSync(control, '+memory');
+			mkdirSync(leaf, { recursive: true });
+			writeFileSync(join(leaf, 'memory.max'), String(maxMb * MB));
+			writeFileSync(join(leaf, 'cgroup.procs'), String(pid));
+			return leaf;
+		} catch (e) {
+			this.log('cap-failed', { leaf, error: (e as NodeJS.ErrnoException).code ?? (e as Error).message });
+			return null;
+		}
+	}
+
+	/** Every process in leaf `name`, children included, killed at once (`cgroup.kill`). */
+	killLeaf(name: string): void {
+		if (this.service === null) return;
+		const leaf = join(this.service, name);
+		if (!existsSync(leaf)) return;
+		try {
+			writeFileSync(join(leaf, 'cgroup.kill'), '1');
+		} catch (e) {
+			this.log('kill-leaf', { leaf, error: (e as NodeJS.ErrnoException).code });
+		}
+	}
+
+	/** Leaf `name`'s `memory.current` in MB; null without one. */
+	memoryMb(name: string): number | null {
+		if (this.service === null) return null;
+		const v = read(join(this.service, name, 'memory.current'));
+		return v === null ? null : Math.floor(Number(v) / MB);
 	}
 
 	/** Every JVM leaf that still holds a process: what a restarted agent adopts. */

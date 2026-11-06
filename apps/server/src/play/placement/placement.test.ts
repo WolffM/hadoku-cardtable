@@ -11,7 +11,7 @@ import { afterAll, describe, expect, it, vi } from 'vitest';
 
 import type { BridgeLine, HostEvents, JvmHostConfig, MatchSpec } from '../host.js';
 import type { JvmLauncher, JvmTransport } from '../jvm-transport.js';
-import type { JvmHealth } from '../remote/wire.js';
+import type { JvmHealth, ToAgent } from '../remote/wire.js';
 import { Alerts, type AlertSink } from './alerts.js';
 import { contractViolations } from './audit.js';
 import { CONTRACT, contractOf } from './contract.js';
@@ -108,8 +108,10 @@ interface FakeClaw {
 	node: string;
 	jvms: ScriptedJvm[];
 	launcher: JvmLauncher;
-	link: AgentLink & { holds: number[]; closed: boolean; silent: number; lose(reason: string): void; recycle(hostId: string): void };
+	link: AgentLink & { sent: ToAgent[]; holds: number[]; closed: boolean; silent: number; lose(reason: string): void; recycle(hostId: string): void; beat(): void };
 }
+
+const SLICE = { cgroup: null, delegated: false, memoryMaxMb: 4096, memoryCurrentMb: null, memoryEvents: {}, cpuStat: {}, cpus: 4 };
 
 function fakeClaw(node: string, running: string[] = []): FakeClaw {
 	const { launcher, jvms } = scripted(running);
@@ -117,6 +119,7 @@ function fakeClaw(node: string, running: string[] = []): FakeClaw {
 	const link: FakeClaw['link'] = {
 		lost: null,
 		health: null,
+		sent: [],
 		holds: [],
 		closed: false,
 		silent: 0,
@@ -126,6 +129,8 @@ function fakeClaw(node: string, running: string[] = []): FakeClaw {
 			link.closed = true;
 		},
 		silentMs: () => link.silent,
+		send: (m) => void link.sent.push(m),
+		call: () => Promise.reject(new Error('no agent behind a fake link')),
 		// As `AgentClient.lose`: the link is marked lost, every JVM exits, then the listeners hear it.
 		lose(reason) {
 			link.lost = reason;
@@ -134,7 +139,10 @@ function fakeClaw(node: string, running: string[] = []): FakeClaw {
 		},
 		recycle(hostId) {
 			const health: JvmHealth = { hostId, pid: 1, xmxMb: 1000, rssMb: null, heapUsedMb: 900, heapMaxMb: 1000, gcShare: 0, recycleWanted: true, attached: true };
-			link.health = { at: 0, jvms: [health], slice: { cgroup: null, delegated: false, memoryMaxMb: 4096, memoryCurrentMb: null, memoryEvents: {}, cpuStat: {}, cpus: 4 } };
+			link.health = { at: 0, jvms: [health], slice: SLICE, draftbot: null };
+		},
+		beat() {
+			link.health = { at: 0, jvms: [], slice: SLICE, draftbot: null };
 		},
 	};
 	return { node, jvms, launcher, link };
@@ -175,7 +183,10 @@ interface Rig {
 	restorer: Restorer & { outcome: 'snapshot' | 'spec' | null; ended: Set<string> };
 }
 
-async function rig(nodes: FleetNode[], opts: { forceFile?: string; takenBack?: Record<string, string[]>; runtime?: Record<string, Promise<unknown>> } = {}): Promise<Rig> {
+async function rig(
+	nodes: FleetNode[],
+	opts: { forceFile?: string; takenBack?: Record<string, string[]>; runtime?: Record<string, Promise<unknown>>; draftbot?: Record<string, Promise<string>> } = {},
+): Promise<Rig> {
 	const clock = { t: T0 };
 	const cfg = config();
 	// A JVM an earlier server left on a claw, with room and no match: its record, as that server wrote it.
@@ -227,7 +238,8 @@ async function rig(nodes: FleetNode[], opts: { forceFile?: string; takenBack?: R
 			const claw = claws.get(node);
 			if (claw === undefined) return Promise.reject(new Error(`no agent on ${node}`));
 			const runtime = opts.runtime?.[node];
-			return Promise.resolve({ client: claw.link, launcher: claw.launcher, ...(runtime === undefined ? {} : { runtime }) });
+			const draftbot = opts.draftbot?.[node];
+			return Promise.resolve({ client: claw.link, launcher: claw.launcher, ...(runtime === undefined ? {} : { runtime }), ...(draftbot === undefined ? {} : { draftbot }) });
 		},
 		alerts: new Alerts({ sink, now: () => clock.t, log: (e) => logs.push(e) }),
 		backstopLauncher: backstop.launcher,
@@ -1133,6 +1145,28 @@ describe('failover', () => {
 		await Promise.resolve();
 		expect(r.posted).toHaveLength(1);
 		expect(r.posted[0]).toMatch(/^🔁 Fenced: claw-\d — fenced: no word from the coordinator .* stays in service\. Moved 1: m-1 → claw-\d \(restored at the start of turn 3/);
+	});
+
+	it('runs the draft bot on the first two claws in placement order, counts it in their slices, and moves it off a lost claw', async () => {
+		const big = fleetNode('claw-8');
+		big.hosting!.declared!.memoryMb = 8192;
+		const sha = 'd'.repeat(64);
+		const held = Promise.resolve(sha);
+		const r = await rig([fleetNode('claw-10'), fleetNode('claw-9'), big], { draftbot: { 'claw-8': held, 'claw-9': held, 'claw-10': held } });
+		// 100 MB agent + 1400 MB a JVM (-Xmx1000 + 400): 5 in 8192 and 2 in 4096; with the draft bot's 1536 MB, 4 and 1.
+		expect(['claw-8', 'claw-9', 'claw-10'].map((c) => hostOf(r, c).maxJvms)).toEqual([5, 2, 2]);
+		for (const c of r.claws.values()) c.link.beat();
+		r.p.tick();
+		expect(r.p.hosts().draftbot.chosen).toEqual(['claw-8', 'claw-9']);
+		expect(['claw-8', 'claw-9', 'claw-10'].map((c) => hostOf(r, c).maxJvms)).toEqual([4, 1, 2]);
+		expect(r.claws.get('claw-9')!.link.sent.filter((m) => m.op === 'draftbot')).toEqual([{ op: 'draftbot', sha }]);
+		expect(r.claws.get('claw-10')!.link.sent.filter((m) => m.op === 'draftbot')).toEqual([]);
+
+		r.claws.get('claw-9')!.link.lose('agent heartbeat lost for 11 s (window 10 s)');
+		r.p.tick();
+		expect(r.p.hosts().draftbot.chosen).toEqual(['claw-8', 'claw-10']);
+		expect(hostOf(r, 'claw-10').maxJvms).toBe(1);
+		expect(r.claws.get('claw-10')!.link.sent.filter((m) => m.op === 'draftbot')).toEqual([{ op: 'draftbot', sha }]);
 	});
 
 	// Prod v0.53.0, 2026-11-06 16:00Z: a new pin's runtime was packed and pushed to every claw before its

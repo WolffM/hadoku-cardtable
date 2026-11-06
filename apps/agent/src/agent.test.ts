@@ -4,7 +4,7 @@
  * no JDK or Forge is needed. The real-jar run is `scripts/agent/local-e2e.mjs`.
  */
 
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { generateKeyPairSync } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
@@ -13,12 +13,14 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { pushRuntime, type PackedRuntime } from '../../server/src/play/remote/artifacts.ts';
+import { pushDraftbot, pushRuntime, type PackedRuntime } from '../../server/src/play/remote/artifacts.ts';
 import { AgentClient } from '../../server/src/play/remote/client.ts';
 import { RemoteJvmLauncher } from '../../server/src/play/remote/launcher.ts';
 import type { JvmTransport } from '../../server/src/play/jvm-transport.ts';
-import { EMPTY_SHA, RELAY_PROTOCOL, sha256Hex, signRequest } from '../../server/src/play/remote/wire.ts';
+import { DRAFTBOT_MB, DRAFTBOT_PATH, EMPTY_SHA, RELAY_PROTOCOL, sha256Hex, signRequest, type DraftbotHealth } from '../../server/src/play/remote/wire.ts';
 import { Agent } from './agent.ts';
+import { DraftbotService } from './draftbot.ts';
+import { Cgroups } from './cgroups.ts';
 import type { Log } from './jvm.ts';
 import { procStartTicks } from './jvm.ts';
 
@@ -57,12 +59,42 @@ function fakeRuntime(java = '#!/bin/sh\necho \'{"t":"warm"}\'\nexec cat\n'): Pac
 	};
 }
 
+/**
+ * The draft bot service as an artifact: its `scripts/run.sh` runs a stand-in on `$PORT` that answers
+ * `/healthcheck` to anyone and `/batchdraft` only with the agent's secret, rating each pack in order.
+ * It refuses to run with `NODE_ENV` set, as the real one must never see `production`.
+ */
+function fakeDraftbot(): { file: string; sha: string } {
+	const src = scratch();
+	mkdirSync(join(src, 'draftbot', 'scripts'), { recursive: true });
+	writeFileSync(join(src, 'draftbot', 'scripts', 'run.sh'), '#!/bin/sh\nexec node "$(dirname "$0")/../server.mjs"\n');
+	chmodSync(join(src, 'draftbot', 'scripts', 'run.sh'), 0o755);
+	writeFileSync(
+		join(src, 'draftbot', 'server.mjs'),
+		`import { createServer } from 'node:http';
+if (process.env.NODE_ENV !== undefined) process.exit(3);
+createServer((req, res) => {
+	if (req.url === '/healthcheck') return res.end('OK');
+	if (req.headers['x-internal-token'] !== process.env.RECOMMENDER_SHARED_SECRET) { res.statusCode = 401; return res.end('{"success":false,"message":"Unauthorized"}'); }
+	let body = '';
+	req.on('data', (c) => (body += c));
+	req.on('end', () => {
+		const { inputs } = JSON.parse(body);
+		res.setHeader('content-type', 'application/json');
+		res.end(JSON.stringify({ success: true, results: inputs.map((i) => i.pack.map((oracle, k) => ({ oracle, rating: 1 - k / 10 }))) }));
+	});
+}).listen(Number(process.env.PORT), '127.0.0.1');
+`,
+	);
+	return tgz(src, 'draftbot');
+}
+
 /** A cgroup tree as fleet-manager delegates it, in a plain directory. */
-function fakeCgroups(): { root: string; ownCgroupFile: string; service: string } {
+function fakeCgroups(sliceMb = 4096): { root: string; ownCgroupFile: string; service: string } {
 	const root = scratch();
 	const unit = '/hosting.slice/hosting-cardtable.slice/cardtable-agent.service';
 	mkdirSync(join(root, unit), { recursive: true });
-	writeFileSync(join(root, unit, '..', 'memory.max'), String(4096 * 1024 * 1024));
+	writeFileSync(join(root, unit, '..', 'memory.max'), String(sliceMb * 1024 * 1024));
 	writeFileSync(join(root, unit, '..', 'cpu.max'), '400000 100000');
 	writeFileSync(join(root, unit, '..', 'memory.events'), 'low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\n');
 	const ownCgroupFile = join(root, 'self-cgroup');
@@ -322,5 +354,82 @@ describe('host agent', () => {
 		t2.kill();
 		expect(await got.exit).toBe('killed by the coordinator');
 		await until('forgotten', () => !existsSync(join(home, 'jvms', 'h1')));
+	});
+});
+
+describe('the draft bot service on the agent', () => {
+	const draftbotOf = (client: AgentClient): DraftbotHealth | null => client.health?.draftbot ?? null;
+
+	async function withDraftbot(cg = fakeCgroups()): Promise<{ agent: Agent; client: AgentClient; launcher: RemoteJvmLauncher; sha: string; cg: typeof cg }> {
+		const { agent, port } = await startAgent(scratch(), cg);
+		const { client, launcher } = await coordinator(port, fakeRuntime());
+		// The clock stands still in these tests, and a second `GET /status` at the same instant is a replay.
+		clock.t += 1;
+		const sha = await pushDraftbot(client, fakeDraftbot());
+		return { agent, client, launcher, sha, cg };
+	}
+
+	it('runs it in its own capped leaf when asked, and proxies a signed call to it with its secret', async () => {
+		const { client, sha, cg } = await withDraftbot();
+		await expect(client.call('POST', DRAFTBOT_PATH, { inputs: [] })).rejects.toThrow(/503 the draft bot is not running here/);
+		client.send({ op: 'draftbot', sha });
+		await until('up', () => draftbotOf(client)?.state === 'up', 10_000);
+		const pid = draftbotOf(client)!.pid!;
+		expect(Number(readFileSync(join(cg.service, 'draftbot', 'cgroup.procs'), 'utf8'))).toBe(pid);
+		expect(Number(readFileSync(join(cg.service, 'draftbot', 'memory.max'), 'utf8'))).toBe(DRAFTBOT_MB * 1024 * 1024);
+		expect(readFileSync(join(cg.service, 'cgroup.subtree_control'), 'utf8')).toBe('+memory');
+		const answer = await client.call<{ success: boolean; results: { oracle: string; rating: number }[][] }>('POST', DRAFTBOT_PATH, { inputs: [{ pack: ['a', 'b'], pool: [] }, { pack: ['c'], pool: ['a'] }] });
+		expect(answer).toEqual({ success: true, results: [[{ oracle: 'a', rating: 1 }, { oracle: 'b', rating: 0.9 }], [{ oracle: 'c', rating: 1 }]] });
+	});
+
+	it('starts it again when it dies, and stops it when asked for none', async () => {
+		const { client, sha } = await withDraftbot();
+		client.send({ op: 'draftbot', sha });
+		await until('up', () => draftbotOf(client)?.state === 'up', 10_000);
+		const first = draftbotOf(client)!.pid!;
+		process.kill(first, 'SIGKILL');
+		await until('down', () => draftbotOf(client)?.state !== 'up');
+		await until('up again', () => draftbotOf(client)?.state === 'up' && draftbotOf(client)?.pid !== first, 10_000);
+		expect(draftbotOf(client)).toMatchObject({ sha, restarts: 1, error: null });
+		const second = draftbotOf(client)!.pid!;
+		client.send({ op: 'draftbot', sha: null });
+		await until('stopped', () => draftbotOf(client) === null && !pidAlive(second));
+	});
+
+	it('refuses one it does not hold, and one the slice has no room for beside its JVMs', async () => {
+		const unknown = 'f'.repeat(64);
+		const a = await withDraftbot();
+		a.client.send({ op: 'draftbot', sha: unknown });
+		await until('refused', () => draftbotOf(a.client)?.state === 'refused');
+		expect(draftbotOf(a.client)?.error).toBe(`draftbot ${unknown} is not installed`);
+
+		// 100 + (2000 + 400) + 1536 = 4036 MB fits 4096; 100 + (2100 + 400) + 1536 = 4136 MB does not.
+		const b = await withDraftbot();
+		const jvm = collect(b.launcher.launch('h1', { xmxMb: 2100 }));
+		await until('warm', () => jvm.lines.length === 1);
+		b.client.send({ op: 'draftbot', sha: b.sha });
+		await until('refused', () => draftbotOf(b.client)?.state === 'refused');
+		expect(draftbotOf(b.client)?.error).toBe('does not fit: 4136 MB needed (its 1536 MB beside the JVMs here) in a 4096 MB slice');
+	});
+
+	it('counts its memory against every launch while it runs', async () => {
+		const { client, launcher, sha } = await withDraftbot();
+		client.send({ op: 'draftbot', sha });
+		await until('up', () => draftbotOf(client)?.state === 'up', 10_000);
+		// 100 + 1536 + (2100 + 400) = 4136 MB > 4096
+		const t = collect(launcher.launch('h1', { xmxMb: 2100 }));
+		expect(await t.exit).toBe('refused: does not fit: 4136 MB needed (each JVM -Xmx + 400 MB, agent 100 MB, draft bot 1536 MB) in a 4096 MB slice');
+	});
+
+	it('kills what an earlier agent left running: it is stateless, and waits to be asked again', async () => {
+		const home = scratch();
+		const left = spawn('sleep', ['60'], { detached: true, stdio: 'ignore' });
+		cleanup.push(() => left.kill('SIGKILL'));
+		writeFileSync(join(home, 'draftbot.pid'), JSON.stringify({ pid: left.pid, startTicks: procStartTicks(left.pid!) }));
+		const logged: string[] = [];
+		new DraftbotService(home, new Cgroups(null), (what) => void logged.push(what));
+		await until('killed', () => !pidAlive(left.pid!));
+		expect(logged).toEqual(['draftbot-leftover']);
+		expect(existsSync(join(home, 'draftbot.pid'))).toBe(false);
 	});
 });

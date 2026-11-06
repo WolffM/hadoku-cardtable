@@ -2,7 +2,7 @@ import { generateKeyPairSync } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
-import { EMPTY_SHA, ReplayGuard, SKEW_MS, checkRequest, openFrame, privateKeyFrom, publicPemOf, sha256Hex, signFrame, signRequest } from './wire.js';
+import { DRAFTBOT_MB, EMPTY_SHA, ReplayGuard, SKEW_MS, checkRequest, openFrame, privateKeyFrom, publicPemOf, sha256Hex, signFrame, signRequest, sliceNeedMb } from './wire.js';
 
 const { privateKey, publicKey } = generateKeyPairSync('ed25519');
 const other = generateKeyPairSync('ed25519');
@@ -77,5 +77,20 @@ describe('keys', () => {
 		const fromDer = privateKeyFrom(der);
 		expect(publicPemOf(fromPem)).toBe(publicPemOf(fromDer));
 		expect(publicPemOf(fromPem)).toBe(publicKey.export({ type: 'spki', format: 'pem' }).toString());
+	});
+});
+
+describe('the draft bot on the wire', () => {
+	it('is told what to run in a signed frame like every other order', () => {
+		const line = signFrame(privateKey, 'n1', 1, { op: 'draftbot', sha: 'a'.repeat(64) });
+		expect(openFrame(publicKey, 'n1', 1, line)).toEqual({ m: { op: 'draftbot', sha: 'a'.repeat(64) } });
+		expect(openFrame(publicKey, 'n1', 1, line.replace('"a', '"b'))).toEqual({ error: 'bad frame signature' });
+	});
+
+	it('takes its cap out of the slice beside the JVMs and the agent', () => {
+		expect(sliceNeedMb([2048])).toBe(100 + 2048 + 400);
+		expect(sliceNeedMb([2048], true)).toBe(100 + 2048 + 400 + DRAFTBOT_MB);
+		// A 4 GB unit still holds one 2 GB-heap JVM beside it.
+		expect(sliceNeedMb([2048], true)).toBeLessThanOrEqual(4096);
 	});
 });

@@ -58,13 +58,21 @@ export const HOLD_MAX_MS = 5 * 60_000;
 export const JVM_OVERHEAD_MB = 400;
 /** What the agent itself is allowed in the slice, beside its JVMs. */
 export const AGENT_RESERVE_MB = 100;
+/**
+ * The draft bot service's memory cap (its leaf's `memory.max`), and what it reserves in the slice.
+ * Measured on claw-9 (2026-11-06): 1.15–1.31 GB RSS answering one pod's 7 seats a call, 1.88 GB
+ * after 56-seat calls. 1.5 GB still leaves a 4 GB unit room for one 2 GB-heap JVM; a call too big
+ * for it is OOM-killed, the agent restarts it, and the backup answers meanwhile.
+ */
+export const DRAFTBOT_MB = 1536;
 
 /**
  * The agent's fit rule, shared so the coordinator places by the same arithmetic the agent refuses
- * by: the memory the slice must hold for JVMs of these heaps, the agent included.
+ * by: the memory the slice must hold for JVMs of these heaps, the agent included, and the draft bot
+ * service when the claw runs it.
  */
-export function sliceNeedMb(xmxMbs: readonly number[]): number {
-	return xmxMbs.reduce((sum, x) => sum + x + JVM_OVERHEAD_MB, AGENT_RESERVE_MB);
+export function sliceNeedMb(xmxMbs: readonly number[], draftbot = false): number {
+	return xmxMbs.reduce((sum, x) => sum + x + JVM_OVERHEAD_MB, AGENT_RESERVE_MB + (draftbot ? DRAFTBOT_MB : 0));
 }
 /** A heap past this share of `-Xmx` after GC is reported as `recycleWanted`. */
 export const RECYCLE_HEAP_SHARE = 0.85;
@@ -207,8 +215,17 @@ export interface ArtifactSet {
 	res: string;
 	bridge: string;
 }
-export type ArtifactKind = keyof ArtifactSet;
-export const ARTIFACT_KINDS: readonly ArtifactKind[] = ['jdk', 'jar', 'res', 'bridge'];
+export type JvmArtifactKind = keyof ArtifactSet;
+export const JVM_ARTIFACT_KINDS: readonly JvmArtifactKind[] = ['jdk', 'jar', 'res', 'bridge'];
+/** Every kind the agent keeps: a JVM's four, and the draft bot service's installed tree. */
+export type ArtifactKind = JvmArtifactKind | 'draftbot';
+export const ARTIFACT_KINDS: readonly ArtifactKind[] = [...JVM_ARTIFACT_KINDS, 'draftbot'];
+
+/**
+ * The coordinator's draft bot calls, proxied by the agent to the service on its loopback: the body
+ * is `{inputs}` and the answer the service's own (`{success, results}`).
+ */
+export const DRAFTBOT_PATH = '/draftbot/batchdraft';
 
 export interface LaunchSpec {
 	hostId: string;
@@ -240,7 +257,28 @@ export type ToAgent =
 	 * the fencing window would have. The next coordinator's relay ends the hold; an unclean
 	 * coordinator death sends none, and fences at the window as before.
 	 */
-	| { op: 'hold'; ms: number };
+	| { op: 'hold'; ms: number }
+	/**
+	 * Run the draft bot service from installed artifact `sha`, or none (null). Idempotent: the
+	 * coordinator repeats it whenever the heartbeat shows the agent wanting something else.
+	 */
+	| { op: 'draftbot'; sha: string | null };
+
+/** The draft bot service the agent supervises, as the heartbeat reports it. */
+export interface DraftbotHealth {
+	/** The artifact it was asked to run. */
+	sha: string;
+	/** `refused`: it cannot run here (not installed, or no room in the slice); `error` says why. */
+	state: 'starting' | 'up' | 'down' | 'refused';
+	pid: number | null;
+	/** Its leaf's `memory.current`, or the process's RSS without cgroups. */
+	memoryMb: number | null;
+	/** Times it has been started again after it died. */
+	restarts: number;
+	error: string | null;
+	/** When it entered `state`, unix ms. */
+	since: number;
+}
 
 export interface JvmHealth {
 	hostId: string;
@@ -272,7 +310,7 @@ export interface SliceHealth {
 export type FromAgent =
 	/** The session's first frame. */
 	| { t: 'hello'; agentPid: number; version: string; running: string[]; fenceMs: number }
-	| { t: 'hb'; at: number; jvms: JvmHealth[]; slice: SliceHealth }
+	| { t: 'hb'; at: number; jvms: JvmHealth[]; slice: SliceHealth; draftbot?: DraftbotHealth | null }
 	/** One stdout line of JVM `h`; `off` is the byte offset just past it. */
 	| { t: 'line'; h: string; off: number; line: string }
 	| { t: 'exit'; h: string; reason: string }

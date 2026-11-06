@@ -69,7 +69,7 @@ Per unit; a claw's slice of k units gives k times the memory and cores.
 | memory | 4096 MB a unit, **guaranteed** (`memory.min` in force), never reclaimed for CI or another tenant | `slices.unit.memoryMb` |
 | cores | 4 a unit | `slices.unit.cores` |
 | port | 7621, reachable from the controller (hokon) | `network.ports`, `network.ingress: controller` |
-| disk | 2 GB of state | `disk.stateGb` |
+| disk | 4 GB of state (2 GB until 2026-11-06: the draft bot's tree, ~1.1 GB a version, two kept) | `disk.stateGb` |
 | agent | installed from our kept artifact and supervised; its JVMs outlive our restarts | `runtime` |
 | isolation | CI on the node cannot read it | `isolation.ciMayRead: false` |
 | state | `guaranteed` in `node-status` | |
