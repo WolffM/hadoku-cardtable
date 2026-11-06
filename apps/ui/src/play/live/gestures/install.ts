@@ -893,9 +893,13 @@ export function installGestures(options: GestureOptions): GestureHandle {
     options.onChange?.();
   }
 
-  /** Forge's attack intents, and the held attackers' own mark — on every paint, and again whenever React redraws a card. */
+  /**
+   * Forge's attack intents, and a held box's own mark — on every paint, and again whenever React redraws a card.
+   * One held creature is marked by its arrow alone, which leaves from it (the operator, 2026-11-06: "just the
+   * arrow is enough to denote what card is selected"); a box's arrow leaves from the group, so the group is marked.
+   */
   function applyMarks(): void {
-    marks.apply(match, aim?.ids.filter((id) => !ownBlocker(match, id)) ?? []);
+    marks.apply(match, aim !== null && aim.ids.length > 1 ? aim.ids.filter((id) => !ownBlocker(match, id)) : []);
   }
 
   /** The centre of the group's own cards, or `fallback` when none of them is drawn. */

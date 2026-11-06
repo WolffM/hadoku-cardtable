@@ -4780,6 +4780,7 @@ describe('a click takes an attacker or a blocker up, and the next click is where
     expect(arrow, 'the arrow is drawn').not.toBeNull();
     expect(arrow!.getAttribute('data-mode')).toBe('drag');
     expect(arrow!.getAttribute('data-source')).toBe(String(attacker));
+    expect(canvas.querySelector('[data-attack-pending]'), 'the arrow alone marks it: no dashed outline').toBeNull();
     expect(await s.framesFrom(m), 'nothing has left').toHaveLength(0);
   });
 
