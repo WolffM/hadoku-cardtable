@@ -156,6 +156,21 @@ describe('loadCardCatalog byPrinting', () => {
 		expect(lea?.scryfallId).not.toBe(m19?.scryfallId);
 	});
 
+	it("carries the card's oracle id onto every printing: it names the card, not the printing", async () => {
+		const oracleId = '4457ed35-7c10-48c8-9776-456485fdf070';
+		const path = await writeCatalog(dir, {
+			cards: { 'lightning bolt': { ...BOLT, oracleId } },
+			aliases: {},
+			printings: {
+				'LEA:161': { key: 'lightning bolt', scryfallId: LEA_BOLT_SCRYFALL_ID },
+				'M19:141': { key: 'lightning bolt', scryfallId: M19_BOLT_SCRYFALL_ID },
+			},
+		});
+		const catalog = loadCardCatalog(path);
+		expect(catalog.byName('Lightning Bolt')?.oracleId).toBe(oracleId);
+		expect(catalog.byPrinting('M19', '141')?.oracleId).toBe(oracleId);
+	});
+
 	it("answers a printing's OWN rarity, not the chosen printing's — Blazing Torch is ZEN's uncommon and ISD's common", async () => {
 		const path = await writeCatalog(dir, {
 			cards: { 'lightning bolt': { ...BOLT, rarity: 'uncommon' } },

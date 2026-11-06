@@ -50,6 +50,25 @@ describe('DraftCardSchema.foil', () => {
   });
 });
 
+describe('DraftCardSchema.oracleId', () => {
+  it('a card with no oracle id parses: a draft stored before it existed still reads', () => {
+    const result = DraftCardSchema.safeParse(CARD);
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.oracleId).toBeUndefined();
+  });
+
+  it('a uuid oracle id parses and round-trips', () => {
+    const oracleId = '61fbaaf2-4286-4e9a-b9cb-aa31262b596a';
+    const result = DraftCardSchema.safeParse({ ...(CARD as Record<string, unknown>), oracleId });
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.oracleId).toBe(oracleId);
+  });
+
+  it('an oracle id that is not a uuid is refused', () => {
+    expect(DraftCardSchema.safeParse({ ...(CARD as Record<string, unknown>), oracleId: 'o-bolt' }).success).toBe(false);
+  });
+});
+
 describe('DraftMineSchema', () => {
   it('parses a pool with no saved build yet', () => {
     expect(DraftCardSchema.safeParse(CARD).success).toBe(true);

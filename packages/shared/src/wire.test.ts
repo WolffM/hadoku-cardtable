@@ -16,7 +16,7 @@
 import { describe, expect, it } from 'vitest';
 import { classifySeq, needsResync } from '@wolffm/rooms-protocol';
 
-import type { DraftCard, DraftView } from './draft.ts';
+import { CardFaceSchema, DraftCardSchema, type DraftCard, type DraftView } from './draft.ts';
 import {
   ClientMessageSchema,
   DRAFT_CHANNEL,
@@ -181,8 +181,10 @@ describe('server → client', () => {
    * made EVERY state message holding it fail `safeParseServerMessage` —
    * `semantics.ts`'s `checkCard` runs over the RAW payload, by design,
    * because Zod strips an unknown key before a hand-rolled check ever sees
-   * it (this file's own header), so `draft.ts` growing a field means
-   * nothing until `semantics.ts`'s `CARD_FIELDS` allowlist grows with it.
+   * it (this file's own header), and its allowlist was then a hand-kept copy
+   * of the schema's keys, so `draft.ts` growing a field meant nothing until
+   * someone grew that copy too. It is read off the schemas now; the test after
+   * this one holds every field to that.
    * `apps/ui/src/draft/socket.ts`'s `ingest()` drops a schema-invalid
    * message silently (counted in `stats.invalid`, nothing on screen), which
    * is why this looked exactly like the production incident
@@ -211,6 +213,30 @@ describe('server → client', () => {
     expect(rejected.ok).toBe(false);
     if (rejected.ok) return;
     expect(rejected.errors.map((e) => e.path)).toContain('$.view.viewer.pack[0].faces[0].foil');
+  });
+
+  it('takes every field the card and face schemas declare, the oracle id among them, and still refuses one they do not', () => {
+    const everyField = (keys: string[]): Record<string, unknown> => Object.fromEntries(keys.map((k) => [k, k]));
+    const full = view();
+    const pack = (full.viewer as { pack: DraftCard[] }).pack;
+    pack[0] = { ...everyField(Object.keys(DraftCardSchema.shape)), faces: [everyField(Object.keys(CardFaceSchema.shape))] } as never;
+    const errors = safeParseServerMessage(updateMessage(full));
+    expect(errors.ok ? [] : errors.errors.filter((e) => /unexpected field|image reference/.test(e.message))).toEqual([]);
+
+    const withOracle = view();
+    const oraclePack = (withOracle.viewer as { pack: DraftCard[] }).pack;
+    oraclePack[0] = { ...oraclePack[0]!, oracleId: '61fbaaf2-4286-4e9a-b9cb-aa31262b596a' };
+    const ok = safeParseServerMessage(updateMessage(withOracle));
+    expect(ok.ok).toBe(true);
+    if (ok.ok) expect(((ok.value as { view: DraftView }).view.viewer as { pack: DraftCard[] }).pack[0]!.oracleId).toBe('61fbaaf2-4286-4e9a-b9cb-aa31262b596a');
+
+    const stray = view();
+    const strayPack = (stray.viewer as { pack: DraftCard[] }).pack;
+    strayPack[0] = { ...strayPack[0]!, oracle_id: '61fbaaf2-4286-4e9a-b9cb-aa31262b596a' } as never;
+    const refused = safeParseServerMessage(updateMessage(stray));
+    expect(refused.ok).toBe(false);
+    if (refused.ok) return;
+    expect(refused.errors.map((e) => `${e.path} ${e.message}`)).toContain('$.view.viewer.pack[0].oracle_id unexpected field "oracle_id" on a card');
   });
 
   it('carries a card’s other faces, and holds each face to a card’s own field rules', () => {
