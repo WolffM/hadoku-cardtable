@@ -141,7 +141,7 @@ test(titled('inside a payment the mana ring answers Forge’s two-colour yes/no 
     await expect(ringOption(page, 'U'), 'U pays nothing of the {W} owed').toHaveAttribute('data-dim');
     await expect(ringOption(page, 'W'), 'W pays it').not.toHaveAttribute('data-dim');
     await page.keyboard.press('u');
-    await expect(ring(page), 'the U key picks nothing greyed').toBeVisible();
+    await expect(ringOption(page, 'W'), 'the U key picks nothing greyed: the ring is still open').toBeVisible();
     await ringOption(page, 'W').click();
     await expect.poll(async () => (await handCardNamed(page, 'Holy Day')) === undefined, { timeout: 15_000, message: 'Holy Day was paid for' }).toBe(true);
   } finally {
