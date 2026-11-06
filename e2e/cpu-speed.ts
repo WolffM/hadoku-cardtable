@@ -61,15 +61,31 @@ export async function cpuFactor(page: Page): Promise<{ factor: number; workloadM
   return { factor: Math.max(1, workloadMs / REFERENCE_MS), workloadMs };
 }
 
-/** One task the page's renderer main thread ran: how long it took on the wall, and on the thread's CPU. */
+/** What a task's CPU went on: each traced event's own time (less the events inside it), by kind. `other` is the task's own. */
+export type TaskPart = 'script' | 'style' | 'layout' | 'paint' | 'gc' | 'decode' | 'other';
+
+/** One task the page's renderer main thread ran: how long it took on the wall, and on the thread's CPU, and what that CPU went on. */
 export interface MainThreadTask {
   wallMs: number;
   cpuMs: number;
+  parts: Record<TaskPart, number>;
+}
+
+/** The kind of a traced event's own time; null when it is the task itself or bookkeeping, counted as its parent's. */
+function partOf(name: string): TaskPart | null {
+  if (/GC|Sweep|Mark|Scaveng|Compact/i.test(name)) return 'gc';
+  if (/Decode|ImageDecode/i.test(name)) return 'decode';
+  if (name === 'UpdateLayoutTree' || name === 'ParseAuthorStyleSheet' || name === 'RecalculateStyles') return 'style';
+  if (name === 'Layout' || name === 'UpdateLayer' || name === 'PrePaint') return 'layout';
+  if (name === 'Paint' || name === 'PaintImage' || name === 'Layerize' || name === 'UpdateLayerTree' || name === 'Commit') return 'paint';
+  if (name === 'FunctionCall' || name === 'EvaluateScript' || name === 'RunMicrotasks' || name === 'TimerFire' || name === 'FireAnimationFrame' || name.startsWith('v8.') || name.startsWith('V8.')) return 'script';
+  return null;
 }
 
 interface TraceEvent {
   name: string;
   ph: string;
+  ts: number;
   pid: number;
   tid: number;
   dur?: number;
@@ -79,7 +95,8 @@ interface TraceEvent {
 
 /**
  * Records every task of `page`'s renderer main thread from now until the returned `stop` is called
- * (a Chromium trace, `toplevel` only), with its thread-CPU time beside its wall time. Tasks under 1 ms
+ * (a Chromium trace), with its thread-CPU time beside its wall time and what that time went on
+ * (`parts`: script, style, layout, paint, a garbage collection, an image decode). Tasks under 1 ms
  * are left out.
  */
 export async function mainThreadTasks(page: Page): Promise<() => Promise<MainThreadTask[]>> {
@@ -87,7 +104,7 @@ export async function mainThreadTasks(page: Page): Promise<() => Promise<MainThr
   const events: TraceEvent[] = [];
   cdp.on('Tracing.dataCollected', ({ value }) => events.push(...(value as unknown as TraceEvent[])));
   await cdp.send('Tracing.start', {
-    traceConfig: { includedCategories: ['toplevel', 'disabled-by-default-devtools.timeline', '__metadata'] },
+    traceConfig: { includedCategories: ['toplevel', 'devtools.timeline', 'disabled-by-default-devtools.timeline', 'disabled-by-default-v8.gc', '__metadata'] },
     transferMode: 'ReportEvents',
   });
   return async () => {
@@ -100,8 +117,29 @@ export async function mainThreadTasks(page: Page): Promise<() => Promise<MainThr
     if (pid === undefined) throw new Error(`the trace does not name the page's renderer: ${JSON.stringify(started?.args)}`);
     const main = events.find((e) => e.name === 'thread_name' && e.pid === pid && e.args?.name === 'CrRendererMain');
     if (main === undefined) throw new Error("the trace has no main thread for the page's renderer");
-    return events
-      .filter((e) => e.ph === 'X' && e.pid === pid && e.tid === main.tid && e.name === 'ThreadControllerImpl::RunTask' && (e.dur ?? 0) >= 1000)
-      .map((e) => ({ wallMs: (e.dur ?? 0) / 1000, cpuMs: (e.tdur ?? e.dur ?? 0) / 1000 }));
+    const own = events.filter((e) => e.ph === 'X' && e.pid === pid && e.tid === main.tid).sort((a, b) => a.ts - b.ts || (b.dur ?? 0) - (a.dur ?? 0));
+    const cpu = (e: TraceEvent): number => (e.tdur ?? e.dur ?? 0) / 1000;
+    const tasks: MainThreadTask[] = [];
+    own.forEach((task, at) => {
+      if (task.name !== 'ThreadControllerImpl::RunTask' || (task.dur ?? 0) < 1000) return;
+      const end = task.ts + (task.dur ?? 0);
+      const parts: Record<TaskPart, number> = { script: 0, style: 0, layout: 0, paint: 0, gc: 0, decode: 0, other: cpu(task) };
+      // The events inside the task, nested: each one's own time is its CPU less its children's, and goes to the
+      // nearest enclosing event with a kind (the task's `other` when none has).
+      const open: { end: number; part: TaskPart }[] = [{ end, part: 'other' }];
+      for (let i = at + 1; i < own.length && own[i]!.ts < end; i++) {
+        const e = own[i]!;
+        while (open.length > 1 && open[open.length - 1]!.end <= e.ts) open.pop();
+        const part = partOf(e.name) ?? open[open.length - 1]!.part;
+        const parent = open[open.length - 1]!.part;
+        if (part !== parent) {
+          parts[part] += cpu(e);
+          parts[parent] -= cpu(e);
+        }
+        open.push({ end: e.ts + (e.dur ?? 0), part });
+      }
+      tasks.push({ wallMs: (task.dur ?? 0) / 1000, cpuMs: cpu(task), parts });
+    });
+    return tasks;
   };
 }

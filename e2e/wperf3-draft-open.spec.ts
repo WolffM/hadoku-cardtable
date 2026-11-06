@@ -99,10 +99,12 @@ test('the draft opens with no long frame: the pod is drawn first, its piles sear
   await page.waitForTimeout(500);
   const tasks = await stop();
   const frames = await page.evaluate(() => window.longFrames);
-  const longest = tasks.reduce((a, t) => (t.cpuMs > a.cpuMs ? t : a), { cpuMs: 0, wallMs: 0 });
+  const longest = tasks.reduce<(typeof tasks)[number] | null>((a, t) => (a === null || t.cpuMs > a.cpuMs ? t : a), null);
+  if (longest === null) throw new Error('the trace has no task from the swap to the piles drawn');
+  const parts = Object.entries(longest.parts).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(', ');
   const tasksOver = tasks.filter((t) => t.wallMs > 50).map((t) => ({ cpu: Math.round(t.cpuMs), wall: Math.round(t.wallMs) }));
   console.log(
-    `[wperf3] draft open: cpu workload ${workloadMs.toFixed(1)} ms (×${factor.toFixed(2)} the reference), limit ${limit} ms; longest task ${longest.cpuMs.toFixed(1)} ms cpu (${longest.wallMs.toFixed(1)} ms wall); piles drawn ${drawn} ms after the swap; ` +
+    `[wperf3] draft open: cpu workload ${workloadMs.toFixed(1)} ms (×${factor.toFixed(2)} the reference), limit ${limit} ms; longest task ${longest.cpuMs.toFixed(1)} ms cpu (${longest.wallMs.toFixed(1)} ms wall: ${parts}); piles drawn ${drawn} ms after the swap; ` +
       `tasks over 50 ms wall: ${JSON.stringify(tasksOver)}; frames over 50 ms: ${JSON.stringify(frames)}`,
   );
   expect(longest.cpuMs, `the longest main-thread task from the swap to the piles drawn, in CPU ms (${JSON.stringify(tasksOver)})`).toBeLessThanOrEqual(limit);
