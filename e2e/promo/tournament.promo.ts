@@ -102,7 +102,7 @@ test('tournament: eight entrants, the field pairs', async ({ browser }) => {
  * (`apps/server/room/testing-rooms.ts`, admin-only) opened from the front page: the podium rises, then a
  * slow look down the Swiss bracket to the FINAL, the winner's path lit by a press, and the standings.
  */
-test('tournament: the podium', async ({ browser }) => {
+test('tournament: the podium', async () => {
   const forge = forgeAvailability();
   if (!forge.ok) throw new Error(forge.reason);
   const film = await startFilm('podium');
