@@ -4084,6 +4084,12 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
           ? `Waiting for ${theirName ?? 'the other player'}…`
           : waitingSentence(theirName ?? 'the other player', theirAsk)
       : null;
+  /*
+   * The bar says the other seat's move whenever it is theirs (Mockup 2's "Waiting for Bob"): the server's
+   * own fact when it has one, else the same genuine hold that rings their avatar (`opponentOpen`). The
+   * desktop pop keeps to the fact alone.
+   */
+  const barWaiting = waitingSaid ?? (!spectator && !over && !viewerOpen && opponentOpen ? `Waiting for ${theirName ?? 'the other player'}…` : null);
 
   return (
     <OffersHandContext.Provider value={offersHand}>
@@ -4388,14 +4394,14 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
         <div className="action-bar" data-testid="action-bar">
           {barAnswer !== null ? (
             <BarAnswer {...barAnswer} />
-          ) : waitingSaid !== null && portrait ? (
+          ) : barWaiting !== null && portrait ? (
             <p className="action-bar__status" data-testid="live-waiting-pop" role="status" aria-live="polite">
               <span className="action-bar__dots" aria-hidden="true">
                 <i />
                 <i />
                 <i />
               </span>
-              <span className="action-bar__said">{waitingSaid}</span>
+              <span className="action-bar__said">{barWaiting}</span>
             </p>
           ) : (
             <span className="action-bar__slot" />

@@ -6205,6 +6205,23 @@ describe('the priority ring is gated on a real decision, not drawn from Forge’
       await waitFor(() => expect(seatFlag(container, 'opp')).toBeNull());
     });
 
+    it('in portrait the bar says the wait for a plain priority hold, the one line Mockup 2 draws, and drops it with the hold', async () => {
+      vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true, addEventListener: () => undefined, removeEventListener: () => undefined }));
+      onTestFinished(() => {
+        vi.unstubAllGlobals();
+      });
+      const { s, m, container } = await liveBoard();
+      s.send(stackDelta(m));
+      await untilMatch(m, () => expect(m.view!.stack).toHaveLength(0));
+      const said = () => container.querySelector('[data-testid="action-bar"] [data-testid="live-waiting-pop"]');
+      expect(said(), 'nothing to wait on yet').toBeNull();
+      await sendTheirWaitingOn(s, m, { method: 'priority', hostCard: null });
+      await waitFor(() => expect(said()?.textContent).toMatch(/^Waiting for .+…$/));
+      expect(container.querySelectorAll('[data-testid="live-waiting-pop"]'), 'said once').toHaveLength(1);
+      await sendTheirWaitingOn(s, m, null);
+      await waitFor(() => expect(said()).toBeNull());
+    });
+
     it('appears the instant the server reports the opponent genuinely parked on something, and is gone the instant the server clears it — Forge’s paced fact moves neither (AE16)', async () => {
       const { s, m, container } = await liveBoard();
       const opponentId = m.view!.players.find((p) => !p.isViewer)!.id;
