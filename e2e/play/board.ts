@@ -379,6 +379,43 @@ async function liftHandCard(page: Page, cardId: number, timeout?: number): Promi
 }
 
 /**
+ * Where a cast of `cardId` stands now (`data-cast-lift`: lifted, parked, carried), read in one task.
+ * A parked cast lives on the hand card only while Forge still draws it in the hand: once Forge moves
+ * it (a self-answered target, then the payment), the hand card is gone and its stand-in,
+ * `[data-cast-ghost]` (`gestures/cast.ts`, which strips `data-board-card` off the clone), holds the
+ * park — `presence.ts` reads it the same way. Reading only the hand card made a slow machine's
+ * park, read after Forge's 150 ms turnaround, look like no cast at all (w49, full run 42175456600).
+ */
+export function castLiftOf(page: Page, cardId: number): Promise<string | null> {
+  return page.evaluate((id) => {
+    const el = document.querySelector(`[data-board-card="${id}"][data-cast-lift]`) ?? document.querySelector(`[data-cast-ghost="${id}"][data-cast-lift]`);
+    return el?.getAttribute('data-cast-lift') ?? null;
+  }, cardId);
+}
+
+/**
+ * Lift a hand card that needs a target and release it over the viewer's battlefield, by raw mouse
+ * events at the button's own point — never `locator.click()`, whose actionability check refuses here
+ * (the battlefield's empty `.zone__tiers` sits, per that check, over the hand card's button at some
+ * viewports). Retries the press (never the release) until the cast is parked: a second press after
+ * that would hit the relocated card again, which derails the exchange (wave 46 §B). The `selectCard`
+ * act reaches the server on the FIRST press every time (wave 49 §A,
+ * `docs/planning/wave49-evidence/A/README.md`).
+ */
+export async function liftAndParkOutsideHand(page: Page, cardId: number): Promise<void> {
+  for (let i = 0; i < 8 && (await castLiftOf(page, cardId)) !== 'parked'; i++) {
+    if (i > 0) await page.waitForTimeout(250);
+    const btnBox = await page.locator(`[data-board-card="${cardId}"] button`).first().boundingBox();
+    if (btnBox === null) continue;
+    await page.mouse.click(btnBox.x + btnBox.width / 2, btnBox.y + btnBox.height / 2);
+    if ((await castLiftOf(page, cardId)) !== 'lifted') continue;
+    const bf = await page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox();
+    if (bf !== null) await page.mouse.click(bf.x + bf.width / 2, bf.y + bf.height / 2);
+  }
+  expect(await castLiftOf(page, cardId), `card ${cardId} is parked — the cast actually went out`).toBe('parked');
+}
+
+/**
  * The ONE cast helper's click-based form: a press lifts `cardId` out of the
  * viewer's hand, then a SECOND press at `to` (or, by default, the viewer's
  * own battlefield — a point valid for both no-target and targeted cards at

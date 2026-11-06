@@ -14,7 +14,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickOnce, handCardNamed, makeTitled, offered, pressPaymentAuto, resizeWindow, says, stackCount } from './play/board.ts';
+import { clickOnce, handCardNamed, liftAndParkOutsideHand, makeTitled, offered, pressPaymentAuto, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -32,21 +32,6 @@ async function theirBattlefieldCard(page: Page, name: string): Promise<number | 
 /** Every arrow key `page` draws, for the evidence line. */
 const arrowKeys = (page: Page): Promise<string[]> =>
   page.locator('[data-testid="placed-arrow"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-key') ?? ''));
-
-/** Lift a targeted hand card and release it over the battlefield by raw mouse events (`w49-counterspell.spec.ts`'s own gesture). */
-async function liftAndRelease(page: Page, cardId: number): Promise<void> {
-  const castLift = (): Promise<string | null> => page.locator(`[data-board-card="${cardId}"]`).getAttribute('data-cast-lift').catch(() => null);
-  for (let i = 0; i < 8 && (await castLift()) !== 'parked'; i++) {
-    if (i > 0) await page.waitForTimeout(250);
-    const btnBox = await page.locator(`[data-board-card="${cardId}"] button`).first().boundingBox();
-    if (btnBox === null) continue;
-    await page.mouse.click(btnBox.x + btnBox.width / 2, btnBox.y + btnBox.height / 2);
-    if ((await castLift()) !== 'lifted') continue;
-    const bf = await page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox();
-    if (bf !== null) await page.mouse.click(bf.x + bf.width / 2, bf.y + bf.height / 2);
-  }
-  expect(await castLift(), `card ${cardId} is parked — the cast actually went out`).toBe('parked');
-}
 
 /** Tick the `getChoices` row whose text matches `label` and submit it; `false` when no such row is showing. */
 async function chooseRow(page: Page, label: RegExp): Promise<boolean> {
@@ -78,7 +63,7 @@ test.describe(titled('a modal spell draws its arrows'), () => {
 
       let ponder: number | undefined;
       await expect.poll(async () => (ponder = await handCardNamed(alice.page, 'Ponder')), { timeout: 30_000, message: 'Ponder is in alice’s hand' }).not.toBeUndefined();
-      await liftAndRelease(alice.page, ponder!);
+      await liftAndParkOutsideHand(alice.page, ponder!);
       await expect
         .poll(
           async () => {
@@ -98,7 +83,7 @@ test.describe(titled('a modal spell draws its arrows'), () => {
       const charm = await handCardNamed(bob.page, 'Izzet Charm');
       expect(charm, 'Izzet Charm is in bob’s hand').not.toBeUndefined();
       await expect.poll(() => offered(bob.page), { timeout: 15_000, message: 'bob is offered Izzet Charm' }).toContain(charm);
-      await liftAndRelease(bob.page, charm!);
+      await liftAndParkOutsideHand(bob.page, charm!);
       // The mode is bob's one question; Ponder is the counter's only legal target, so that ask answers itself.
       await expect
         .poll(
@@ -154,7 +139,7 @@ test.describe(titled('a modal spell draws its arrows'), () => {
       await expect.poll(async () => (command = await handCardNamed(alice.page, "Kolaghan's Command")), { timeout: 30_000, message: 'the Command is in alice’s hand' }).not.toBeUndefined();
       await expect.poll(() => offered(alice.page), { timeout: 45_000, message: 'alice is offered the Command' }).toContain(command);
 
-      await liftAndRelease(alice.page, command!);
+      await liftAndParkOutsideHand(alice.page, command!);
       // Its two legal modes are both taken; each asks for its own target: the Bears when they are offered, else bob.
       const answered: string[] = [];
       await expect

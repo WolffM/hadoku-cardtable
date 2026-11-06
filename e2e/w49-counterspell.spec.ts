@@ -35,7 +35,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { away, eight, landing, type Box, type Point } from './aim.ts';
 
-import { castCard, clickOnce, makeTitled, offered, pressPaymentAuto, resizeWindow, says, stackCount } from './play/board.ts';
+import { castCard, clickOnce, liftAndParkOutsideHand, makeTitled, offered, pressPaymentAuto, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -91,39 +91,6 @@ function shootStackArc([key, fromStackId, toStackId]: [string, string, string]):
   const tip = arrowBox !== null && nums.length >= 6 ? { x: nums[4]! + arrowBox.left, y: nums[5]! + arrowBox.top } : null;
   return { arrowBox, fromBox: from === null ? null : box(from), toBox: to === null ? null : box(to), tail, tip };
 }
-
-/**
- * Lift-and-release a hand card that needs a target, outside the hand, by raw
- * mouse events at the button's own point — never `locator.click()`, whose
- * actionability check refuses here (the battlefield's empty `.zone__tiers`
- * sits, per that check, over the hand card's own button at this viewport).
- * Retries the press (never the release) until `data-cast-lift` reads
- * `parked`: a second press after that would hit the (now relocated) card
- * again, which derails the whole exchange — confirmed empirically, wave 46 §B.
- *
- * **Diagnosed, wave 49 §A item 1**: this is exactly the WIP's own gesture,
- * unchanged. A `WebSocket.prototype.send` patch in the page during diagnosis
- * showed the `selectCard` act frame reaching the server on the FIRST press,
- * every time (`docs/planning/wave49-evidence/A/README.md`) — so the WIP's
- * "no act frame reaches the server" symptom was the test's own drive, not a
- * product bug. Nothing here is a workaround for that: it is the same
- * gesture, now proven to work.
- */
-async function liftAndParkOutsideHand(page: Page, cardId: number): Promise<void> {
-  const castLift = (): Promise<string | null> =>
-    page.locator(`[data-board-card="${cardId}"]`).getAttribute('data-cast-lift').catch(() => null);
-  for (let i = 0; i < 8 && (await castLift()) !== 'parked'; i++) {
-    if (i > 0) await page.waitForTimeout(250);
-    const btnBox = await page.locator(`[data-board-card="${cardId}"] button`).first().boundingBox();
-    if (btnBox === null) continue;
-    await page.mouse.click(btnBox.x + btnBox.width / 2, btnBox.y + btnBox.height / 2);
-    if ((await castLift()) !== 'lifted') continue;
-    const bf = await page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox();
-    if (bf !== null) await page.mouse.click(bf.x + bf.width / 2, bf.y + bf.height / 2);
-  }
-  expect(await castLift(), `card ${cardId} is parked — the cast actually went out`).toBe('parked');
-}
-
 
 /**
  * Answer the stack-target ask for `name` (`ChoicePrompts.tsx`'s

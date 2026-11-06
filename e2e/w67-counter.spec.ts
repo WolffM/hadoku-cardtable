@@ -23,7 +23,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickOnce, dragHandCard, handCardNamed, makeTitled, offered, pressPaymentAuto, resizeWindow, says, stackCount } from './play/board.ts';
+import { clickOnce, dragHandCard, handCardNamed, liftAndParkOutsideHand, makeTitled, offered, pressPaymentAuto, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -96,21 +96,6 @@ async function watchMarks(page: Page): Promise<void> {
 }
 
 const marksOf = (page: Page): Promise<Mark[]> => page.evaluate(() => (window as unknown as { __marks: () => Mark[] }).__marks());
-
-/** Lift a targeted hand card and park it over the battlefield by raw mouse events (`w49-counterspell.spec.ts`'s own gesture). */
-async function liftAndParkOutsideHand(page: Page, cardId: number): Promise<void> {
-  const castLift = (): Promise<string | null> => page.locator(`[data-board-card="${cardId}"]`).getAttribute('data-cast-lift').catch(() => null);
-  for (let i = 0; i < 8 && (await castLift()) !== 'parked'; i++) {
-    if (i > 0) await page.waitForTimeout(250);
-    const btnBox = await page.locator(`[data-board-card="${cardId}"] button`).first().boundingBox();
-    if (btnBox === null) continue;
-    await page.mouse.click(btnBox.x + btnBox.width / 2, btnBox.y + btnBox.height / 2);
-    if ((await castLift()) !== 'lifted') continue;
-    const bf = await page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox();
-    if (bf !== null) await page.mouse.click(bf.x + bf.width / 2, bf.y + bf.height / 2);
-  }
-  expect(await castLift(), `card ${cardId} is parked — the cast actually went out`).toBe('parked');
-}
 
 test(titled('a countered spell: on the other screen the back at the release turns into the face in place with no back lingering, then the counter resolves in three steps on both screens — blink, destroy, fade'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
