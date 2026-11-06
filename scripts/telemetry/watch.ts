@@ -14,10 +14,11 @@
  * caller answered by cardtable itself rather than the edge's sign-in page (a hole in the gate), a
  * `seal-refused` event (a request the edge let through that the server's own floor refused — a
  * direct tunnel hit or an edge rule wider than ours), a critical event (a 🚨 hosting alert: a
- * failover or a lost match), or a stale backup: the newest snapshot `cardtable:state-backup`
- * (hadoku_site's mgmt-api, nightly) left in `/mnt/roost/cardtable-backup` is over 36 h old for prod
- * or PPE, or missing. That job pages when it runs and finds itself stale; this catches it not
- * running at all, on a different clock. `CARDTABLE_BACKUP_DIR` points it elsewhere.
+ * failover or a lost match), or a stale backup: monitoring-api's job log holds no `succeeded` run
+ * of `cardtable:state-backup` (hadoku_site's mgmt-api, nightly) in the last 36 h, or could not be
+ * read. That job records `succeeded` only once the night's snapshot restores in full from the
+ * fleet data store, so the row is the proof. The job pages when it runs and finds itself stale;
+ * this catches it not running at all, on a different clock.
  *
  * `--own-ip` is our own egress, masked the way the log masks it; agents' probes
  * and e2e browsers come from it and are not visitors. Default: looked up once.
@@ -28,7 +29,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 
@@ -39,34 +40,31 @@ const BASE = 'https://hadoku.me/health/api';
 const PAGE = 1000;
 /** The Discord message's budget (Discord's own limit is 2000). */
 const DIGEST_MAX = 2000;
-const BACKUP_DIR = '/mnt/roost/cardtable-backup';
+const BACKUP_JOB = 'cardtable:state-backup';
 /** The backup is daily: over a day and a half means a night has been lost. */
 const BACKUP_STALE_HOURS = 36;
 
-export interface BackupAge {
-	env: string;
-	newest: string | null;
+export interface Backup {
+	/** When the newest succeeded run in the window finished, or null when there is none. */
+	at: string | null;
 	ageHours: number | null;
 	stale: boolean;
+	/** Why the job log could not be read; a failed read is stale, never a pass. */
+	error: string | null;
 }
 
-/** Each env's newest snapshot (`snapshots/<env>/<YYYYMMDDTHHMMSSZ>.json`) and its age in whole hours. */
-export function backupAges(dir: string, now: Date, envs = ['prod', 'ppe']): BackupAge[] {
-	return envs.map((env) => {
-		const at = join(dir, 'snapshots', env);
-		const stamps = existsSync(at)
-			? readdirSync(at)
-					.map((f) => /^(\d{8}T\d{6}Z)\.json$/.exec(f)?.[1])
-					.filter((x): x is string => x !== undefined)
-					.sort()
-			: [];
-		const newest = stamps.at(-1) ?? null;
-		if (newest === null) return { env, newest, ageHours: null, stale: true };
-		const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(newest)!;
-		const t = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
-		const ageHours = Math.floor((now.getTime() - t) / 3_600_000);
-		return { env, newest, ageHours, stale: ageHours > BACKUP_STALE_HOURS };
-	});
+/** The newest `succeeded` run of the backup job within the stale window, from monitoring-api's job log. */
+export async function latestBackup(get: Get, now: Date): Promise<Backup> {
+	const since = new Date(now.getTime() - BACKUP_STALE_HOURS * 3_600_000).toISOString();
+	try {
+		const page = await get(`/jobs?job_name=${encodeURIComponent(BACKUP_JOB)}&state=succeeded&since=${since}&limit=1`);
+		const row = ((page.jobs ?? []) as { timestamp?: string }[])[0];
+		if (row?.timestamp === undefined) return { at: null, ageHours: null, stale: true, error: null };
+		const ageHours = Math.floor((now.getTime() - Date.parse(row.timestamp)) / 3_600_000);
+		return { at: row.timestamp, ageHours, stale: ageHours > BACKUP_STALE_HOURS, error: null };
+	} catch (err) {
+		return { at: null, ageHours: null, stale: true, error: (err as Error).message };
+	}
 }
 
 export interface Row {
@@ -91,6 +89,35 @@ export interface Event {
 	context?: Record<string, unknown>;
 }
 export type Get = (path: string) => Promise<Record<string, unknown>>;
+
+export class HttpError extends Error {
+	readonly status: number;
+	constructor(message: string, status: number) {
+		super(message);
+		this.status = status;
+	}
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * `get`, retrying a 5xx after each wait. monitoring-api answers a burst of large listings with
+ * 500 "Failed to query logs" and serves the same call again seconds later; one of those used to
+ * end the day's report. Anything else, and the last 5xx, throws.
+ */
+export function retrying(get: Get, waitsMs = [5_000, 15_000, 45_000], wait = sleep): Get {
+	return async (path) => {
+		for (const ms of waitsMs) {
+			try {
+				return await get(path);
+			} catch (err) {
+				if (!(err instanceof HttpError && err.status >= 500)) throw err;
+				await wait(ms);
+			}
+		}
+		return get(path);
+	};
+}
 
 /**
  * Every row of a paged monitoring-api listing (newest first). The next page starts after the rows
@@ -314,7 +341,7 @@ const LEVEL_ORDER = ['critical', 'error', 'warn', 'info'];
 const SITE_ORDER = ['prod', 'ppe'];
 const rank = (order: string[], x: string): number => (order.includes(x) ? order.indexOf(x) : order.length);
 
-export function summarise(rows: Row[], events: Event[], ownIp: string, since: string, backups: BackupAge[] = []) {
+export function summarise(rows: Row[], events: Event[], ownIp: string, since: string, backup: Backup | null = null) {
 	const visitors = rows.filter((r) => r.user_id !== TOUR && r.ip_address !== ownIp);
 	// The edge answers an anonymous caller itself (backend 'auth': the sign-in page or a 401).
 	// Anything else reached cardtable's own server without an account.
@@ -331,9 +358,9 @@ export function summarise(rows: Row[], events: Event[], ownIp: string, since: st
 			gateBreaches: breaches.length,
 			sealRefused: events.filter((e) => e.event === 'seal-refused').length,
 			critical: incidents.filter((i) => i.level === 'critical' && i.what !== 'gate-breach').length,
-			staleBackups: backups.filter((b) => b.stale).length,
+			staleBackup: backup?.stale === true,
 		},
-		backups,
+		backup,
 		incidents,
 		sites: Object.fromEntries(
 			sites.map((s) => [
@@ -351,12 +378,18 @@ export type Summary = ReturnType<typeof summarise>;
 /** Why the run exits 2, or null when nothing needs a look now. */
 export function alertLine(s: Summary): string | null {
 	const a = s.alerts;
-	return a.gateBreaches + a.sealRefused + a.critical + a.staleBackups === 0
+	return a.gateBreaches + a.sealRefused + a.critical === 0 && !a.staleBackup
 		? null
 		: `ALERT: ${a.gateBreaches} gate breach(es), ${a.sealRefused} seal-refused, ${a.critical} critical event(s)` +
-				(a.staleBackups ? `, ${a.staleBackups} stale backup(s)` : '');
+				(a.staleBackup ? `, backup ${s.backup?.error ? `unreadable (${s.backup.error})` : 'stale'}` : '');
 }
 
+const backupText = (b: Backup): string =>
+	b.error !== null
+		? `job log unreadable: ${b.error}`
+		: b.at === null
+			? `no succeeded ${BACKUP_JOB} in ${BACKUP_STALE_HOURS}h (STALE)`
+			: `last succeeded ${stamp(b.at)} (${b.ageHours}h${b.stale ? ', STALE' : ''})`;
 const levelsLine = (s: Summary): string =>
 	`${s.levels.critical} critical, ${s.levels.error} error, ${s.levels.warn} warn${s.levels.info ? `, ${s.levels.info} resolved` : ''}`;
 const stamp = (at: string): string => at.slice(0, 19).replace('T', ' ');
@@ -375,12 +408,7 @@ export function render(s: Summary): string {
 	);
 	const alert = alertLine(s);
 	if (alert !== null) out.push(alert);
-	if (s.backups.length)
-		out.push(
-			`\n## Backups: ${s.backups
-				.map((b) => (b.newest === null ? `${b.env} NONE (STALE)` : `${b.env} ${b.newest} (${b.ageHours}h${b.stale ? ', STALE' : ''})`))
-				.join(', ')}`,
-		);
+	if (s.backup) out.push(`\n## Backup: ${backupText(s.backup)}`);
 	const sw = Math.max(4, ...s.incidents.map((i) => i.site.length));
 	section(
 		`Needs a look: ${levelsLine(s)} (each one, oldest first)`,
@@ -496,13 +524,7 @@ export function digest(s: Summary): string {
 				.filter((x) => x !== null)
 				.join(' · ');
 		}),
-		...(s.backups.length
-			? [
-					`**Backups:** ${s.backups
-						.map((b) => `${b.env} ${b.newest === null ? 'none' : `${b.ageHours}h`}${b.stale ? ' ⚠️ stale' : ''}`)
-						.join(' · ')}`,
-				]
-			: []),
+		...(s.backup ? [`**Backup:** ${backupText(s.backup)}${s.backup.stale ? ' ⚠️' : ''}`] : []),
 		`**Anonymous:** ${
 			sites.every(([, a]) => a.anonymous.requests === 0)
 				? 'none'
@@ -566,17 +588,18 @@ async function main(): Promise<void> {
 	});
 	const since = new Date(Date.now() - Number(args.hours) * 3_600_000).toISOString();
 	const key = serviceKey();
-	const get: Get = async (path) => {
+	const get = retrying(async (path) => {
 		const res = await fetch(`${BASE}${path}`, { headers: { 'User-Agent': UA, 'X-User-Key': key } });
-		if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`);
+		if (!res.ok) throw new HttpError(`${path}: HTTP ${res.status}`, res.status);
 		return (await res.json()) as Record<string, unknown>;
-	};
-	const [rows, events, mine] = await Promise.all([
+	});
+	const [rows, events, mine, backup] = await Promise.all([
 		pages<Row>(get, `/logs/query?path=/cardtable&since=${since}`, 'logs'),
 		pages<Event>(get, `/service-events?service=cardtable&since=${since}`, 'events'),
 		ownIp(args['own-ip']),
+		latestBackup(get, new Date()),
 	]);
-	const summary = summarise(rows, events, mine, since, backupAges(process.env.CARDTABLE_BACKUP_DIR ?? BACKUP_DIR, new Date()));
+	const summary = summarise(rows, events, mine, since, backup);
 	const report = args.json ? JSON.stringify(summary, null, 2) : render(summary);
 	console.log(report);
 

@@ -1,9 +1,6 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { afterAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import { alertLine, backupAges, digest, pages, render, summarise, type Event, type Get, type Row } from './watch.ts';
+import { alertLine, HttpError, latestBackup, retrying, digest, pages, render, summarise, type Event, type Get, type Row } from './watch.ts';
 
 /** A monitoring-api listing, newest first, that answers at most `cap` rows a page whatever was asked, and says `hasMore` past them. */
 function cappedApi(all: { id: string }[], cap = 500): { get: Get; asked: string[] } {
@@ -156,32 +153,71 @@ describe('digest', () => {
 	});
 });
 
-describe('backup age', () => {
-	const dir = mkdtempSync(join(tmpdir(), 'watch-backup-'));
-	afterAll(() => rmSync(dir, { recursive: true, force: true }));
-	mkdirSync(join(dir, 'snapshots', 'prod'), { recursive: true });
-	mkdirSync(join(dir, 'snapshots', 'ppe'), { recursive: true });
-	for (const f of ['20261104T120000Z.json', '20261106T120000Z.json', 'notes.txt']) writeFileSync(join(dir, 'snapshots', 'prod', f), '{}');
-	writeFileSync(join(dir, 'snapshots', 'ppe', '20261104T120000Z.json'), '{}');
-	const now = new Date('2026-11-06T18:00:00Z');
+describe('retrying', () => {
+	const flaky = (statuses: number[]) => {
+		let n = 0;
+		const get: Get = async (path) => {
+			const status = statuses[n++];
+			if (status === undefined) return { path };
+			throw new HttpError(`${path}: HTTP ${status}`, status);
+		};
+		return { get, calls: () => n };
+	};
+	const waited: number[] = [];
+	const wait = async (ms: number) => void waited.push(ms);
 
-	it("reads each env's newest snapshot and its age, and marks one over 36 h or missing as stale", () => {
-		expect(backupAges(dir, now, ['prod', 'ppe', 'gone'])).toEqual([
-			{ env: 'prod', newest: '20261106T120000Z', ageHours: 6, stale: false },
-			{ env: 'ppe', newest: '20261104T120000Z', ageHours: 54, stale: true },
-			{ env: 'gone', newest: null, ageHours: null, stale: true },
-		]);
-		expect(backupAges(join(dir, 'unmounted'), now, ['prod'])).toEqual([{ env: 'prod', newest: null, ageHours: null, stale: true }]);
+	it('asks again after each wait while the answer is a 5xx', async () => {
+		waited.length = 0;
+		const { get, calls } = flaky([500, 503]);
+		expect(await retrying(get, [1, 2, 3], wait)('/logs')).toEqual({ path: '/logs' });
+		expect(calls()).toBe(3);
+		expect(waited).toEqual([1, 2]);
 	});
 
-	it('exits 2 on a stale backup and says so in the report and the digest', () => {
-		const backups = backupAges(dir, now, ['prod', 'ppe']);
-		const s = summarise([], [], '198.51.100.*', at('00:00'), backups);
-		expect(alertLine(s)).toBe('ALERT: 0 gate breach(es), 0 seal-refused, 0 critical event(s), 1 stale backup(s)');
-		expect(render(s)).toContain('## Backups: prod 20261106T120000Z (6h), ppe 20261104T120000Z (54h, STALE)');
-		expect(digest(s)).toContain('**Backups:** prod 6h · ppe 54h ⚠️ stale');
-		const fresh = summarise([], [], '198.51.100.*', at('00:00'), backups.slice(0, 1));
-		expect(alertLine(fresh)).toBeNull();
-		expect(digest(fresh)).toContain('**Backups:** prod 6h');
+	it('throws the last 5xx once the waits run out, and a 4xx at once', async () => {
+		waited.length = 0;
+		await expect(retrying(flaky([500, 500, 500]).get, [1, 2], wait)('/logs')).rejects.toThrow('/logs: HTTP 500');
+		expect(waited).toEqual([1, 2]);
+		const forbidden = flaky([403]);
+		await expect(retrying(forbidden.get, [1, 2], wait)('/jobs')).rejects.toThrow('/jobs: HTTP 403');
+		expect(forbidden.calls()).toBe(1);
+	});
+});
+
+describe('backup', () => {
+	const now = new Date('2026-11-06T18:00:00Z');
+	/** monitoring-api's job log answering `rows` to every ask. */
+	const jobs = (rows: { timestamp: string }[]): { get: Get; asked: string[] } => {
+		const asked: string[] = [];
+		return { asked, get: async (path) => (asked.push(path), { jobs: rows, total: rows.length, hasMore: false }) };
+	};
+
+	it("asks for the job's newest succeeded run in the last 36 h, and a fresh row needs no look", async () => {
+		const { get, asked } = jobs([{ timestamp: '2026-11-06T12:02:35.538Z' }]);
+		const b = await latestBackup(get, now);
+		expect(asked).toEqual(['/jobs?job_name=cardtable%3Astate-backup&state=succeeded&since=2026-11-05T06:00:00.000Z&limit=1']);
+		expect(b).toEqual({ at: '2026-11-06T12:02:35.538Z', ageHours: 5, stale: false, error: null });
+		const s = summarise([], [], '198.51.100.*', at('00:00'), b);
+		expect(alertLine(s)).toBeNull();
+		expect(render(s)).toContain('## Backup: last succeeded 2026-11-06 12:02:35 (5h)');
+		expect(digest(s)).toContain('**Backup:** last succeeded 2026-11-06 12:02:35 (5h)');
+	});
+
+	it('exits 2 when no run succeeded in the window, and says so in the report and the digest', async () => {
+		const s = summarise([], [], '198.51.100.*', at('00:00'), await latestBackup(jobs([]).get, now));
+		expect(alertLine(s)).toBe('ALERT: 0 gate breach(es), 0 seal-refused, 0 critical event(s), backup stale');
+		expect(render(s)).toContain('## Backup: no succeeded cardtable:state-backup in 36h (STALE)');
+		expect(digest(s)).toContain('**Backup:** no succeeded cardtable:state-backup in 36h (STALE) ⚠️');
+	});
+
+	it('exits 2 with the error when the job log cannot be read, never passing silently', async () => {
+		const get: Get = async (path) => {
+			throw new Error(`${path.split('?')[0]}: HTTP 403`);
+		};
+		const b = await latestBackup(get, now);
+		expect(b).toEqual({ at: null, ageHours: null, stale: true, error: '/jobs: HTTP 403' });
+		const s = summarise([], [], '198.51.100.*', at('00:00'), b);
+		expect(alertLine(s)).toBe('ALERT: 0 gate breach(es), 0 seal-refused, 0 critical event(s), backup unreadable (/jobs: HTTP 403)');
+		expect(render(s)).toContain('## Backup: job log unreadable: /jobs: HTTP 403');
 	});
 });
