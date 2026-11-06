@@ -115,11 +115,15 @@ export function pathTo(from: Point, to: Point, steps = 8): Point[] {
 /** What the page hit-tests at `at`, as the element and its nearest ancestors with a test id or class, for a failure's message. */
 export async function whatIsAt(page: Page, at: Point): Promise<string> {
   return page.evaluate(({ x, y }) => {
-    const path: string[] = [];
-    for (let el = document.elementFromPoint(x, y); el !== null && path.length < 6; el = el.parentElement) {
+    const name = (el: Element): string => {
       const id = el.getAttribute('data-testid');
-      path.push(`${el.tagName.toLowerCase()}${id === null ? '' : `[${id}]`}${typeof el.className === 'string' && el.className !== '' ? `.${el.className.split(' ')[0]}` : ''}`);
-    }
-    return path.join(' < ');
+      return `${el.tagName.toLowerCase()}${id === null ? '' : `[${id}]`}${typeof el.className === 'string' && el.className !== '' ? `.${el.className.split(' ')[0]}` : ''}${el.getAttribute('data-mana') === null ? '' : `=${el.getAttribute('data-mana')}`}`;
+    };
+    const stack = document.elementsFromPoint(x, y).slice(0, 8).map(name).join(' | ');
+    const discs = [...document.querySelectorAll('[data-testid="mana-ring-option"]')].map((d) => {
+      const b = d.getBoundingClientRect();
+      return `${d.getAttribute('data-mana')}@${Math.round(b.left)},${Math.round(b.top)}`;
+    });
+    return `(${Math.round(x)},${Math.round(y)}) stack: ${stack}; discs now: ${discs.join(' ')}`;
   }, at);
 }
