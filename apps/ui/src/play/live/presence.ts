@@ -115,7 +115,8 @@ export const PARKED_RESTATE_MS = PRESENCE_STALE_MS / 2;
 export const CLEARED_GRACE_MS = 1500;
 /**
  * AE26: how long a spell of theirs that showed up on the stack BEFORE their
- * release point reached this screen is remembered, so the point wait that
+ * release point reached this screen (or, at the bottom, a permanent of theirs
+ * already in its column) is remembered, so the point wait that
  * arrives next hands the back to it at once instead of standing beside the
  * face until a timer ends it (the Mana Leak screenshot, 2026-10-09).
  */
@@ -752,8 +753,14 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (next === side) return;
     side = next;
     known = new Set(host.cardsOf?.(side) ?? []);
+    handBefore = handCardIds();
   }
-  /** AE26: a spell of theirs that arrived with no wait to hand it to — see `UNHANDED_MS`. */
+  /** Their hand as `handoff` last saw it: a card that arrives somewhere came from here if it was in it. */
+  let handBefore = handCardIds();
+  /**
+   * AE26: a card of theirs that arrived with no wait to hand it to — see `UNHANDED_MS`. A spell; or,
+   * at the bottom, a permanent from their hand, whose placement only reserves its column.
+   */
   let unhanded: { id: number; at: number } | null = null;
   /**
    * The card of theirs a placement is waiting for, watched on the DOM until the board draws it in
@@ -1053,13 +1060,15 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
         back!.setAttribute('data-waiting', '');
         play = { releasedAt: Date.now(), glideStartedAt: null, stackFrameAt: null };
         waiting = { timer: setTimeout(() => expire('timeout'), PLACEMENT_WAIT_MS), forBattlefield: false, card: null, owner: null, hand: theirHandBacks().length, inHand: handCardIds(), cleared: false, since: Date.now(), diag: newDiag() };
-        // AE26: their spell beat this message here (Forge's frame won the race against presence):
-        // it is already a placed card, drawn pending at nobody's point. Hand the point over NOW —
-        // the one object, in place — never a back beside a face until a timer ends it.
+        // AE26: their card beat this message here (Forge's frame won the race against presence):
+        // a spell already drawn pending at nobody's point, or a permanent already in its column.
+        // Hand the point over NOW — the one object, in place — never a back beside a face until
+        // a timer ends it.
         if (unhanded !== null && Date.now() - unhanded.at < UNHANDED_MS) {
           const { id } = unhanded;
           unhanded = null;
           if (onTheirStack(id)) handToSpell(id);
+          else if (side === 'you') landFromBack(id);
         }
       }
       // A wait already holds the back — the placement's gap, or this point: it stays put.
@@ -1237,6 +1246,8 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const cards = host.cardsOf?.(side) ?? [];
     const fresh = cards.filter((id) => !known.has(id));
     known = new Set(cards);
+    const before = handBefore;
+    handBefore = handCardIds();
     if (fresh.length > 0) {
       const ids = fresh.map((id) => `${id}${onTheirStack(id) ? 's' : 'b'}`).join(',');
       lastFresh = { at: Date.now(), ids };
@@ -1244,10 +1255,13 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     }
     if (waiting === null) {
       // AE26: a spell arriving with no wait to hand it to is remembered for the point wait that
-      // may be a message behind it (Forge's frame beat presence here). A permanent's arrival is
-      // `onPlacement`'s, never this.
-      const spell = fresh.find((id) => onTheirStack(id));
-      if (spell !== undefined) unhanded = { id: spell, at: Date.now() };
+      // may be a message behind it (Forge's frame beat presence here). So is a permanent from
+      // their hand at the bottom: its placement only reserves the column, and the point wait is
+      // what lands it (run 42204349837: a replayed Swamp in its column one message ahead of its
+      // release, whose back then stood beside it until the grace). A permanent's arrival at the
+      // top is `onPlacement`'s, never this.
+      const early = fresh.find((id) => onTheirStack(id)) ?? (side === 'you' ? fresh.find((id) => before.has(id) || handBefore.has(id)) : undefined);
+      if (early !== undefined) unhanded = { id: early, at: Date.now() };
     }
     if (waiting !== null && back !== null) {
       if (fresh.length === 0) {

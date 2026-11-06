@@ -699,6 +699,80 @@ describe('receiving: anchored', () => {
     handle.dispose();
   });
 
+  it('a bottom play whose card reaches its column BEFORE its release does is over the moment the release arrives — never a back beside the card until the grace ends it', () => {
+    // Run 42204349837: Forge's frame drew the replayed Swamp in its column one message ahead of the
+    // release, so no wait was there to see it arrive; the release then stood a back at its point
+    // for a card already in place, and only CLEARED_GRACE_MS took it down, 1550 ms later.
+    const { canvas } = board();
+    const handCard = document.createElement('li');
+    handCard.className = 'board-card';
+    handCard.setAttribute('data-board-card', '21');
+    handCard.getBoundingClientRect = () => rect({ left: 300, top: 650, width: 60, height: 84 });
+    const hand = document.createElement('ul');
+    hand.append(handCard);
+    canvas.querySelector('[data-zone="hand"][data-owner="you"]')!.append(hand);
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    let bottom: number[] = [];
+    let wake: (() => void) | null = null;
+    const handle = installPresence({
+      canvas,
+      host: {
+        ...host(t, null),
+        playerOfSeat: (seat) => seat,
+        viewerPlayerId: () => 1,
+        watch: (cb) => ((wake = cb), () => undefined),
+        cardsOf: (side) => (side === 'you' ? bottom : []),
+        stackCardsOf: () => [],
+        reducedMotion: () => true,
+      },
+    });
+    const message = { matchId: 'm-1', type: 'presence', seat: 1, anchor: null, from: null, arranging: null } as const;
+    t.receive({ ...message, pointer: { zone: 'hand', x: 0.33, y: 0.87 }, held: true });
+    expect(canvas.querySelector('.presence__back'), 'held: a back follows their pointer').not.toBeNull();
+
+    // Forge's frame first: the card is in its column at the bottom, its hand slot empty.
+    handCard.remove();
+    canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!.append(handCard);
+    bottom = [21];
+    wake!();
+
+    // Then the release, a message behind it.
+    t.receive({ ...message, pointer: { zone: 'battlefield', x: 0.3, y: 0.6 }, held: false, placing: { at: { zone: 'battlefield', x: 0.3, y: 0.6 } } });
+    expect(canvas.querySelector('.presence__back'), 'its card is already in its column: nothing waits for it').toBeNull();
+    handle.dispose();
+  });
+
+  it('a bottom permanent that arrived long before a release is not that release’s card', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    const old = document.createElement('li');
+    old.setAttribute('data-board-card', '21');
+    canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!.append(old);
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    let wake: (() => void) | null = null;
+    const handle = installPresence({
+      canvas,
+      host: {
+        ...host(t, null),
+        playerOfSeat: (seat) => seat,
+        viewerPlayerId: () => 1,
+        watch: (cb) => ((wake = cb), () => undefined),
+        cardsOf: (side) => (side === 'you' ? [21] : []),
+        stackCardsOf: () => [],
+        reducedMotion: () => true,
+      },
+    });
+    wake!();
+    vi.advanceTimersByTime(6000);
+    const message = { matchId: 'm-1', type: 'presence', seat: 1, anchor: null, from: null, arranging: null } as const;
+    t.receive({ ...message, pointer: { zone: 'hand', x: 0.33, y: 0.87 }, held: true });
+    t.receive({ ...message, pointer: { zone: 'battlefield', x: 0.3, y: 0.6 }, held: false, placing: { at: { zone: 'battlefield', x: 0.3, y: 0.6 } } });
+    expect(canvas.querySelector('.presence__back[data-waiting]'), 'a card already on the board is not the one just let go').not.toBeNull();
+    handle.dispose();
+  });
+
   it('a watcher draws the ACTING player’s pointer on that player’s own side, though the table is turned the other way (2026-11-01)', () => {
     // The watcher keeps player 1 at the bottom; it is player 0's turn, at the top.
     const { canvas } = board({ '[data-board-card="7"]': { left: 600, top: 160, width: 120, height: 168 } });
