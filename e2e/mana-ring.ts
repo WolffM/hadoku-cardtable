@@ -43,3 +43,22 @@ export async function expectRingOn(page: Page, press: Point, what: string): Prom
 export async function lifeNow(page: Page, life: Locator): Promise<number> {
   return Number((await life.textContent())?.replace(/\D/g, '') ?? 'NaN');
 }
+
+/**
+ * The land under the pointer is hovered as its ring opens, and the hover's expanded card view stands
+ * beside the ring, never on a disc (`inspect/index.ts`'s OPEN_WINDOW). Checked once the view is up.
+ */
+export async function expectCardViewBesideRing(page: Page, what: string): Promise<void> {
+  const view = page.getByTestId('card-view');
+  const shown = await view.first().waitFor({ state: 'visible', timeout: 3_000 }).then(() => true, () => false);
+  if (!shown) return;
+  // The view moves to its place a frame after it opens.
+  await page.waitForTimeout(300);
+  const v = await boxOf(view.first());
+  const covered: string[] = [];
+  for (const disc of await ringOptions(page).all()) {
+    const d = await boxOf(disc);
+    if (d.left < v.right && v.left < d.right && d.top < v.bottom && v.top < d.bottom) covered.push((await disc.getAttribute('data-mana')) ?? '?');
+  }
+  expect(covered, `${what}: the expanded card view covers no disc of the ring`).toEqual([]);
+}

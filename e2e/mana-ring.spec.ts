@@ -20,7 +20,7 @@ import { expect, test } from '@playwright/test';
 import { clickHandCard, handCardNamed, isTapped, lifeOf, makeTitled, manaPool as pool, ownNamed } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
-import { expectRingOn, lifeNow, pressPoint, ring, ringOption, ringOptions } from './mana-ring.ts';
+import { expectCardViewBesideRing, expectRingOn, lifeNow, pressPoint, ring, ringOption, ringOptions } from './mana-ring.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -45,6 +45,7 @@ test(titled('the mana ring opens on the press at priority: a click, a key, and a
     await page.mouse.click(onTundra.x, onTundra.y);
     await expectRingOn(page, onTundra, 'Tundra');
     await expect(ring(page)).toHaveAttribute('data-ring', 'abilities');
+    await expectCardViewBesideRing(page, 'Tundra');
     await expect(ringOptions(page)).toHaveCount(2);
     await expect(genericBox, 'no generic decision box').toHaveCount(0);
     await ringOption(page, 'W').click();
@@ -104,6 +105,7 @@ test(titled('inside a payment the mana ring answers Forge’s two-colour yes/no 
     const onBrass = await pressPoint(page, brass);
     await page.mouse.click(onBrass.x, onBrass.y);
     await expectRingOn(page, onBrass, 'City of Brass, paying');
+    await expectCardViewBesideRing(page, 'City of Brass, paying');
     await expect(ring(page)).toHaveAttribute('data-ring', 'prompt');
     await expect(ringOptions(page), 'the two owed colours').toHaveCount(2);
     await expect(genericBox, 'no generic decision box').toHaveCount(0);
