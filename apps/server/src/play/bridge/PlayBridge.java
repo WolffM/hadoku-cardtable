@@ -5511,10 +5511,14 @@ public final class PlayBridge {
          */
         private static boolean paysAny(final JsonObject mana, final forge.game.mana.ManaCostBeingPaid cost, final forge.game.player.Player payer) {
             if (mana.has("reflects")) { return true; }
+            // Any mana pays generic still owed; otherwise only a type the cost still needs, by the test
+            // InputPayMana itself uses for what is owed (needsColor; isAnyPartPayableWith read the pool's
+            // colour conversions and let Tundra's {U} through for an owed {W}).
+            if (cost.getGenericManaAmount() > 0) { return true; }
             final String letters = mana.has("choose") ? mana.get("choose").getAsString() : mana.has("makes") ? mana.get("makes").getAsString() : "";
             for (final char c : letters.toCharArray()) {
                 final byte type = c == 'C' ? forge.card.mana.ManaAtom.COLORLESS : MagicColor.fromName(c);
-                if (cost.isAnyPartPayableWith(type, payer.getManaPool())) { return true; }
+                if (cost.needsColor(type, payer.getManaPool())) { return true; }
             }
             return letters.isEmpty();
         }

@@ -24,6 +24,11 @@ const FINGER_DISC_PX = 52;
 /** How far over a finger's press the ring's lowest disc stands. */
 const OVER_FINGER_PX = 16;
 
+/** Whether this device's primary pointer is a finger. */
+function coarsePointer(): boolean {
+  return typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+}
+
 export type RingPick = RingAnswer | { readonly to: 'tally-done'; readonly counts: ReadonlyMap<Mana, number> };
 
 export interface ManaRingProps {
@@ -90,7 +95,7 @@ function extentOf(discs: readonly { dx: number; dy: number }[], chips: readonly 
 export function ManaRing({ ring, kind, ask, titles, onPick, onCancel }: ManaRingProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const ringRef = useRef<HTMLDivElement>(null);
-  const [finger, setFinger] = useState(false);
+  const [finger, setFinger] = useState(coarsePointer);
   const [counts, setCounts] = useState<ReadonlyMap<Mana, number>>(new Map());
   const picked = useRef(false);
   const typed = useRef('');
@@ -125,8 +130,11 @@ export function ManaRing({ ring, kind, ask, titles, onPick, onCancel }: ManaRing
     const el = ringRef.current;
     const press = host === null ? null : pointerAt(host);
     if (host === null || el === null) return undefined;
-    if (press !== null && press.finger !== finger) {
-      setFinger(press.finger);
+    // A finger: the press said so, or the device has no finer pointer (the press's own type can be lost
+    // to a gesture that takes the touch first).
+    const fingered = (press?.finger ?? false) || coarsePointer();
+    if (fingered !== finger) {
+      setFinger(fingered);
       return undefined;
     }
     const place = (): void => {
@@ -140,7 +148,7 @@ export function ManaRing({ ring, kind, ask, titles, onPick, onCancel }: ManaRing
         { left: drawn.left, top: drawn.top, right: drawn.left, bottom: drawn.top },
       );
       // The ring's centre on the press; a finger's press under its lowest disc.
-      const want = { x: point.x - drawn.left, y: point.finger ? point.y - OVER_FINGER_PX - box.bottom : point.y - drawn.top };
+      const want = { x: point.x - drawn.left, y: fingered ? point.y - OVER_FINGER_PX - box.bottom : point.y - drawn.top };
       const by = clampOffset(want, box, board);
       el.style.translate = `${Math.round(by.x)}px ${Math.round(by.y)}px`;
     };
