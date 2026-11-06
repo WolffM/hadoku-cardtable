@@ -6,18 +6,22 @@ import { describe, expect, it } from 'vitest';
 
 import {
   BOARD_HEIGHT,
-  DEFAULT_AFTER_MS,
-  DEFAULT_REGION,
+  CAMERA,
+  cameraConfigFromHash,
+  defaultRegion,
   inDefaultRegion,
   initialCamera,
-  PAN_SETTLE_MS,
   panStep,
   stepCamera,
-  TEMPORARY_AFTER_MS,
   temporaryRegion,
   type CameraState,
   type Point,
 } from './camera.ts';
+
+const TEMPORARY_AFTER_MS = CAMERA.temporaryAfterMs;
+const DEFAULT_AFTER_MS = CAMERA.defaultAfterMs;
+const PAN_SETTLE_MS = CAMERA.panSettleMs;
+const DEFAULT_REGION = defaultRegion();
 
 /** Steps every 16 ms from `state` for `ms`, the cursor at `cursor` throughout. */
 function run(state: CameraState, ms: number, cursor: Point | null, bottom: number | null = 0): CameraState {
@@ -176,5 +180,59 @@ describe('the camera', () => {
     const b = panStep(0, 0, 500, 400);
     expect(b.pos).toBeCloseTo(a.pos, 6);
     expect(b.vel).toBeCloseTo(a.vel, 9);
+  });
+});
+
+describe("the camera's hash overrides", () => {
+  it('no cam= in the hash is the defaults, untouched', () => {
+    expect(cameraConfigFromHash('')).toEqual(CAMERA);
+    expect(cameraConfigFromHash('#/')).toEqual(CAMERA);
+    expect(cameraConfigFromHash('#/replay/m-1')).toEqual(CAMERA);
+  });
+
+  it('reads every key, in any order, whether the hash is #cam= or #/?cam=', () => {
+    const want = { temporaryAfterMs: 400, defaultAfterMs: 800, edgeBand: 0.25, panSettleMs: 900, corner: 600 };
+    expect(cameraConfigFromHash('#cam=after:400,back:800,band:0.25,t95:900,corner:600')).toEqual(want);
+    expect(cameraConfigFromHash('#/?cam=corner:600,t95:900,band:0.25,back:800,after:400')).toEqual(want);
+    expect(cameraConfigFromHash('#cam=after%3A400%2Cband%3A0.25')).toEqual({ ...CAMERA, temporaryAfterMs: 400, edgeBand: 0.25 });
+  });
+
+  it('a subset overrides only what it names', () => {
+    expect(cameraConfigFromHash('#cam=t95:1200')).toEqual({ ...CAMERA, panSettleMs: 1200 });
+  });
+
+  it('clamps each value to its range', () => {
+    expect(cameraConfigFromHash('#cam=after:-5,back:99999,band:0.9,t95:1,corner:2000')).toEqual({
+      temporaryAfterMs: 0,
+      defaultAfterMs: 10_000,
+      edgeBand: 0.45,
+      panSettleMs: 50,
+      corner: BOARD_HEIGHT,
+    });
+    expect(cameraConfigFromHash('#cam=corner:10').corner).toBe(300);
+  });
+
+  it('ignores unknown keys, values that are not numbers, and stray commas', () => {
+    expect(cameraConfigFromHash('#cam=zoom:3,after:abc,band:,,t95, after:300')).toEqual({ ...CAMERA, temporaryAfterMs: 300 });
+  });
+
+  it('the overrides reach the camera: a shorter after opens the temporary region sooner, a wider band counts more as out', () => {
+    const quick = cameraConfigFromHash('#cam=after:100');
+    let s = initialCamera(0, 0, quick);
+    for (let t = 16; t <= 128; t += 16) s = stepCamera(s, t, OUT, 0, quick);
+    expect(s.region).toBe('temporary');
+    expect(inDefaultRegion({ x: 300, y: 700 }, cameraConfigFromHash('#cam=band:0.45'))).toBe(false);
+    expect(inDefaultRegion({ x: 300, y: 700 })).toBe(true);
+  });
+
+  it('a different corner moves the default region and sizes the temporary one', () => {
+    const wide = cameraConfigFromHash('#cam=corner:700');
+    expect(defaultRegion(wide)).toEqual({ x: 0, y: 100 });
+    expect(temporaryRegion({ x: 1200, y: 50 }, wide)).toEqual({ x: 580, y: 0 });
+  });
+
+  it("a longer t95 settles slower: the spring's stiffness follows it", () => {
+    const at = (settleMs: number): number => panStep(0, 0, 100, 500, settleMs).pos;
+    expect(at(1950)).toBeLessThan(at(975));
   });
 });

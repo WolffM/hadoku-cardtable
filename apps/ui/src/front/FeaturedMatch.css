@@ -74,7 +74,7 @@
 }
 
 /*
- * The board at `--board-fit` (the viewport's side over 540, written by `FeaturedMatch.tsx`) through
+ * The board at `--board-fit` (the viewport's side over the camera's `corner`, written by `FeaturedMatch.tsx`) through
  * its own units, as the UI-scale slider sizes it (`styles.css`, `settings/ui-scale.ts`): every length
  * the board's stylesheets author is a multiple of `--ui-px`/`--ui-rem`, so it lays out the same table
  * as at 1280×800, smaller, with a px still a px for the layers that draw over it.
