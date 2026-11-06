@@ -37,6 +37,9 @@ Read all of this before you start. Your brief adds to it; where they differ, the
 - Never read files under `/tmp/cardtable-play` except the named regular files `stream.jsonl`, `bridge.stderr.txt`,
   `jvm.json` (fifos are live pipes).
 - Never `pkill`/`kill` by pattern; kill only PIDs you printed yourself. Stop any dev server you start.
+- A proof or script against prod or PPE paces its page loads (at most one every 5 s) and stops itself on a deadline.
+  Prod now refuses a caller's page loads past 30 in a burst (`apps/server/src/http/page.ts`); an unpaced reload loop
+  ran 8 h on 2026-11-06 and took the morning's server log and the daily watch with it.
 - Never build jars (mvn) or install a Forge jar on hokon. Engine changes: commit on a fork branch (push to WolffM/forge's
   `fork` remote, never `origin`), based on the current pin, and report the sha; the manager builds and switches.
 - /tmp is a shared tmpfs with production and has been wiped/filled: keep scratch and TMPDIR under ~/.cache/lane-<x>

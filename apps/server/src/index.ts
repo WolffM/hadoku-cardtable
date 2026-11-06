@@ -64,7 +64,7 @@
  */
 
 import express from 'express';
-import type { NextFunction, Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { homedir } from 'node:os';
@@ -76,7 +76,7 @@ import { CONFIG, INDEX_HTML, LEGACY_STATE } from './config.js';
 import { moveLegacyState } from './state-dir.js';
 import { closeConnections, sendThenFlush } from './flush-sockets.js';
 import { callerIdOf, edgeProvenance, requireMinTier, tierOf, userIdOf, verifiedOf } from './edge-auth.js';
-import { checkBundle, diagnosticPage, isEmbedEntry, sendIndex } from './base-path.js';
+import { checkBundle, isEmbedEntry } from './base-path.js';
 import { announceRelease } from './announce.js';
 import { bootClock, restoreRooms, sweepRooms } from './boot.js';
 import { DEFAULT_CUBE_ID, DEFAULT_PLAN, stateOf, type PoolSourceResolver } from './room/draftRooms.js';
@@ -96,6 +96,7 @@ import { bridgeDigest, createRecorder, forgePin, serverVersion } from './play/re
 import { sweepRecordings } from './play/recording/retention.js';
 import { canRebuildBoolean, rebuildForReplays } from './play/recording/rebuild.js';
 import { queueColdStarts } from './play/start-queue.js';
+import { attachPage } from './http/page.js';
 import { attachReplays } from './http/replays.js';
 import { attachStream, attachStreamRoutes, streamLayout } from './stream/index.js';
 import { createRoomStreams, findContainerScript, scriptRunner, MAX_ROOM_SEATS } from './stream/alloc.js';
@@ -405,14 +406,12 @@ attachStreamRoutes(app, {
 });
 
 // ── SPA fallback ─────────────────────────────────────────────────────────────
-// Every client-routed path serves the same index.html. Scoped to GET/HEAD: a
-// POST to a path that does not exist is a bug in the caller, and answering it
-// with an HTML page hides that.
-app.get(/.*/, (_req: Request, res: Response, next: NextFunction) => {
-	if (!basePath.ok) {
-		return res.status(503).type('html').send(diagnosticPage(basePath, CONFIG.basePrefix));
-	}
-	sendIndex(res, INDEX_HTML, (err) => err && next(err));
+// Every client-routed path serves the same index.html, per caller within a limit (`http/page.ts`).
+attachPage(app, {
+	indexHtml: INDEX_HTML,
+	basePath,
+	basePrefix: CONFIG.basePrefix,
+	...(CONFIG.testNoRateLimits ? { rateLimit: null } : {}),
 });
 
 // ── Rooms ───────────────────────────────────────────────────────────────────
@@ -1200,7 +1199,7 @@ httpServer.listen(CONFIG.port, CONFIG.host, () => {
 		);
 	}
 	if (CONFIG.testNoRateLimits) {
-		console.warn('[cardtable] CARDTABLE_E2E_NO_RATE_LIMITS=1 — no per-caller limit on rooms, events, match starts or restarts. e2e stacks only, never production.');
+		console.warn('[cardtable] CARDTABLE_E2E_NO_RATE_LIMITS=1 — no per-caller limit on page loads, rooms, events, match starts or restarts. e2e stacks only, never production.');
 	}
 	if (CONFIG.testPeopleStandIn) {
 		console.warn('[cardtable] CARDTABLE_E2E_PEOPLE_STAND_IN=1 — people are looked up with no service key, from the e2e stand-in. e2e stacks only, never production.');
