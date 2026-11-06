@@ -14,13 +14,16 @@
  * (`cpu-speed.ts`), on the same clock. The draft screen's own first render
  * is one task of ~30 ms on hokon; main's (the search in it) was 550 ms and more.
  *
+ * Built for production whatever ran first in the worker (a dev server sets NODE_ENV for its whole
+ * process), and checked to be.
+ *
  * Not the wall: a CI runner shares its cores, and that one task read 168–348 ms on the wall across five
  * claw runs whatever the runner's measured speed (the frame and the speed sample do not see the same
  * load). Its CPU time is what the product spent.
  *
  * Needs no server: it only reads the screen. No Forge, never skipped. `[wperf3]` lines are the evidence.
  */
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -61,7 +64,23 @@ test.beforeAll(async () => {
     preview: (config: Record<string, unknown>) => Promise<Preview>;
   };
   const config = { configFile: resolve(UI, 'vite.config.ts'), root: UI, base: '/', logLevel: 'error' };
-  await vite.build({ ...config, build: { outDir: out, emptyOutDir: true, sourcemap: false, rollupOptions: { input: { fit: resolve(UI, 'src/fit/draft-load.html') } } } });
+  // Production, whatever ran before in this worker: Vite's dev server sets NODE_ENV to development in its
+  // process when it is unset, and a build after it keeps that and bundles React's development build, whose
+  // render is several times slower. CI runs every spec in one worker, and the fit specs before this one
+  // (`pod-fit`, `w79e-draft-visuals`, …) start dev servers: this task read 228 ms of CPU there, 188 of it
+  // script, against ~100 alone on the same claw.
+  const nodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'production';
+  try {
+    await vite.build({ ...config, mode: 'production', build: { outDir: out, emptyOutDir: true, sourcemap: false, rollupOptions: { input: { fit: resolve(UI, 'src/fit/draft-load.html') } } } });
+  } finally {
+    if (nodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = nodeEnv;
+  }
+  // React's development build carries its warnings; the production build carries none.
+  const assets = join(out, 'assets');
+  const dev = readdirSync(assets).filter((f) => f.endsWith('.js') && readFileSync(join(assets, f), 'utf8').includes('Each child in a list should have a unique'));
+  expect(dev, 'the fit page is the production build').toEqual([]);
   preview = await vite.preview({ ...config, build: { outDir: out }, preview: { host: '127.0.0.1', port: 0, strictPort: false } });
   base = preview.resolvedUrls?.local[0] ?? '';
   expect(base, 'the fit page is served').not.toBe('');
