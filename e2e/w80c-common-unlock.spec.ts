@@ -18,6 +18,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { BUTTON_ONE, castUntilOnStack, handCardNamed, makeTitled, passOverStack, serverLog, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { jankIn, longFrames, timeOrigin, watchLongFrames } from './play/jank.ts';
 import { setPlayFastModeDefault } from './prefsLocal.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -89,6 +90,7 @@ async function record(page: Page): Promise<void> {
     new MutationObserver(look).observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
     look();
   }, BUTTON_ONE);
+  await watchLongFrames(page);
 }
 
 const recorded = (page: Page): Promise<Recorded> => page.evaluate(() => (window as unknown as { __common: Recorded }).__common);
@@ -132,7 +134,23 @@ interface Measured {
   act: string;
   /** The decision opened this far into the resolution's effect, 0 at its start and 1 at its last animation's end. */
   share: number;
+  /** How far past {@link LATEST_SHARE} of the effect it opened, in ms (negative: before it). */
+  lateMs: number;
+  /** How much of the time from the unlock point ({@link UNLOCK_SHARE} of the effect) to the open the page's own long frames covered, in ms. */
+  jankMs: number;
 }
+
+/** Where the board unlocks a held decision: `apps/ui/src/play/motion.ts`'s `UNLOCK_AT`, the effect's last tenth. */
+const UNLOCK_SHARE = 0.9;
+/**
+ * The latest a decision after bob's act may open: a frame of a loaded runner past the unlock point. Past it only
+ * by the page's own long frames between the unlock point and the open — its timer, the pacer's frame and React's
+ * commit all wait on the same main thread — and not one ms more. On a quiet page that is this bound itself, so
+ * an unlock that slipped in the product still fails. Run 42204349837 (claw-9, beside two other Forge jobs): bob's
+ * Doom Blade opened at 111%, 56 ms past its effect's end, while a 95 ms long frame of the page's socket handler
+ * stood across the unlock point.
+ */
+const LATEST_SHARE = 1.1;
 
 /** Alice's next decision after the stack shrank from `from` (at or after `since`), against what that resolution drew. */
 async function measure(page: Page, act: string, since: number, from: number): Promise<Measured> {
@@ -156,15 +174,20 @@ async function measure(page: Page, act: string, since: number, from: number): Pr
   const end = Math.max(...effect.map((a) => a.end));
   const whole = Math.max(...drawn.map((a) => a.end));
   const share = effect.length === 0 ? NaN : (opened.at - start) / (end - start);
+  const origin = await timeOrigin(page);
+  const longs = (await longFrames(page)).map(([a, b]) => [a + origin, b + origin] as const);
+  const lateMs = Math.round(opened.at - (start + LATEST_SHARE * (end - start)));
+  const jankMs = Math.round(jankIn(longs, start + UNLOCK_SHARE * (end - start), opened.at));
   const rel = (t: number): number => Math.round(t - shrank.at);
   console.log(
     `[w80c-common] ${act}: stack ${from}→${shrank.count} drawn at 0; alice's decision opened at ${rel(opened.at)} ms` +
       ` (ok ${opened.ok}, castable [${opened.castable.join(', ')}]); the effect's animations ${rel(start)}..${rel(end)} ms, the spell off the stack by ${rel(whole)};` +
-      ` opened at ${Math.round(share * 100)}% of the effect, ${Math.round(((opened.at - start) / (whole - start)) * 100)}% of all of it`,
+      ` opened at ${Math.round(share * 100)}% of the effect, ${Math.round(((opened.at - start) / (whole - start)) * 100)}% of all of it;` +
+      ` ${lateMs} ms past ${LATEST_SHARE * 100}%, the page's long frames covering ${jankMs} ms of the wait from the unlock point`,
   );
   console.log(`[w80c-common] ${act}: open ${rec.open.filter((o) => o.at >= shrank.at - 2_000 && o.at <= shrank.at + 3_000).map((o) => `${rel(o.at)} ${o.open ? (o.ok ? 'OK' : 'cast') : 'shut'}`).join(' | ')}; stack ${rec.stack.filter((x) => x.at >= shrank.at - 2_000).map((x) => `${rel(x.at)}:${x.count}`).join(' ')}`);
   console.log(`[w80c-common] ${act}: animations ${drawn.map((a) => `${a.name} ${rel(a.start)}..${rel(a.end)}`).join(' | ')}`);
-  return { act, share };
+  return { act, share, lateMs, jankMs };
 }
 
 test(titled('a counter and a removal resolving: when alice’s next decision opens, against what the resolution draws'), async ({ browser }) => {
@@ -230,7 +253,8 @@ test(titled('a counter and a removal resolving: when alice’s next decision ope
       console.log(`[w80c-common] input-held ${String(r.method)} ${String(r.ms)}ms board ${String(r.boardMs)} gaps ${String(r.gapMs)} ahead ${String(r.classes)}`);
     }
     console.log(`[w80c-common] summary ${results.map((r) => `${r.act} ${Math.round(r.share * 100)}%`).join('; ')}`);
-    // Bob's acts: her decision after one opens on the effect's last tenth, a frame of a loaded runner either side.
+    // Bob's acts: her decision after one opens on the effect's last tenth, a frame of a loaded runner either side
+    // (`LATEST_SHARE`), and past that only by the page's own long frames.
     // Her own (AF216, the operator, 2026-10-29: "AF216 is important, we dont want to violate that"): at once, as
     // Forge asks, over its beats — her counter too, though it takes bob's Bolt off the stack with it.
     for (const r of results) {
@@ -239,7 +263,7 @@ test(titled('a counter and a removal resolving: when alice’s next decision ope
         continue;
       }
       expect(r.share, `${r.act}: alice's next decision opens on the effect's last tenth, not as it starts`).toBeGreaterThanOrEqual(0.8);
-      expect(r.share, `${r.act}: and not after it is over`).toBeLessThanOrEqual(1.1);
+      expect(r.lateMs, `${r.act}: and not after it is over, past ${LATEST_SHARE * 100}% only by the page's own long frames (${r.jankMs} ms)`).toBeLessThanOrEqual(Math.max(0, r.jankMs));
     }
   } finally {
     await stack.stop();

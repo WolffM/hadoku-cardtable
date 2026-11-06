@@ -28,6 +28,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { clickHandCard, makeTitled, offeredNamed, pressPaymentAuto, resizeWindow, says, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { jankIn, longFrames, timeOrigin, watchLongFrames } from './play/jank.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 import { setPlayFastModeDefault } from './prefsLocal.ts';
@@ -84,14 +85,9 @@ async function pressIfThere(page: Page, selector: string): Promise<void> {
 /** Every fireball (`projectile.ts`'s `.effect-hit`) set off on `page` from now on, by the page's own clock. */
 async function watchFireballs(page: Page): Promise<void> {
   await page.evaluate(() => {
-    const w = window as unknown as { __fireballs: number[]; __fireballFrames: number[]; __longFrames: [number, number][] };
+    const w = window as unknown as { __fireballs: number[]; __fireballFrames: number[] };
     w.__fireballs = [];
     w.__fireballFrames = [];
-    w.__longFrames = [];
-    // The page's own long frames (> 50 ms), as Chromium reports them: what a loaded machine costs every timer and frame.
-    new PerformanceObserver((list) => {
-      for (const e of list.getEntries()) w.__longFrames.push([e.startTime, e.startTime + e.duration]);
-    }).observe({ type: 'long-animation-frame', buffered: false });
     new MutationObserver((records) => {
       for (const r of records)
         for (const n of r.addedNodes)
@@ -108,12 +104,6 @@ async function watchFireballs(page: Page): Promise<void> {
 
 const fireballs = (page: Page): Promise<number[]> => page.evaluate(() => (window as unknown as { __fireballs: number[] }).__fireballs);
 const fireballFrames = (page: Page): Promise<number[]> => page.evaluate(() => (window as unknown as { __fireballFrames: number[] }).__fireballFrames);
-const longFrames = (page: Page): Promise<[number, number][]> => page.evaluate(() => (window as unknown as { __longFrames: [number, number][] }).__longFrames);
-/** The page's clock at the epoch: a server log time `t` (same host) is `t - origin` on it. */
-const timeOrigin = (page: Page): Promise<number> => page.evaluate(() => performance.timeOrigin);
-/** How much of `[from, to]` the long frames covered. */
-const jankIn = (frames: [number, number][], from: number, to: number): number =>
-  frames.reduce((sum, [a, b]) => sum + Math.max(0, Math.min(b, to) - Math.max(a, from)), 0);
 const gapsOf = (times: number[]): number[] => times.slice(1).map((t, i) => Math.round(t - times[i]!));
 
 test(titled('promo-valakut, bob on Auto Yield: the triggers resolve one at a time, a short gap apart, on both screens'), async ({ browser }) => {
@@ -159,7 +149,10 @@ test(titled('promo-valakut, bob on Auto Yield: the triggers resolve one at a tim
       )
       .toBe(true);
 
-    for (const p of [alice.page, bob.page]) await watchFireballs(p);
+    for (const p of [alice.page, bob.page]) {
+      await watchFireballs(p);
+      await watchLongFrames(p);
+    }
     const fromAim = serverLog(stack).length;
     const same = page.getByTestId('live-same-target');
     await expect(same, 'the target question offers "same target for all"').toHaveCount(1);
