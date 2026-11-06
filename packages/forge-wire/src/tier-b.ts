@@ -365,6 +365,8 @@ export const ShowPromptMessageSchema = z.strictObject({
    * answers it. Absent for every other prompt.
    */
   manaColors: z.tuple([PoolColorSchema, PoolColorSchema]).optional(),
+  /** Ours: {@link ManaMarksSchema}, with `manaColors`. */
+  manaMarks: z.lazy(() => ManaMarksSchema).optional(),
 });
 
 /**
@@ -619,9 +621,17 @@ export const ManaFactsSchema = z.strictObject({
   /** Damage the source deals its controller for the tap. */
   damage: z.number().int().positive().optional(),
   spendOnly: z.enum(['creature', 'other']).optional(),
+  /** Inside a payment: none of this ability's mana pays any part of what is owed (Forge's `isAnyPartPayableWith`). */
+  paysNothing: z.literal(true).optional(),
 });
 
 export type ManaFacts = z.infer<typeof ManaFactsSchema>;
+
+/**
+ * Ours: the costs and rules of the mana ability the seat just chose, on the colour question Forge asks
+ * next about it (`PlayBridge.java`'s `pickedManaMarks`): City of Brass's 1 damage on each colour.
+ */
+export const ManaMarksSchema = ManaFactsSchema.pick({ life: true, damage: true, cost: true, counter: true, sacrifice: true, tapType: true, spendOnly: true });
 
 /**
  * An ability as `getAbilityToPlay` carries it: the ref, plus the label Forge's
@@ -864,6 +874,8 @@ export const GetChoicesSchema = z.strictObject({
   staysVisible: z.boolean().optional(),
   /** Ours: the colour of each choice, in order, when the list is colours (`PlayBridge.java`'s `colorsOf`). */
   colors: z.array(PoolColorSchema).min(1).optional(),
+  /** Ours: {@link ManaMarksSchema}, with `colors`. */
+  manaMarks: z.lazy(() => ManaMarksSchema).optional(),
 });
 
 export const GetChoicesReplySchema = z.array(z.string());

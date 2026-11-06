@@ -66,6 +66,8 @@ export interface RingOption {
   readonly reflects?: boolean;
   readonly marks: RingMarks;
   readonly answer: RingAnswer;
+  /** Inside a payment, it pays nothing owed (`ManaFacts.paysNothing`): drawn greyed, not pickable. */
+  readonly dim?: boolean;
 }
 
 /** A non-mana ability of the source: an outer chip, named by its label on hover. */
@@ -95,7 +97,7 @@ function letters(s: string | undefined): Mana[] {
   return [...(s ?? '')].filter((c): c is Mana => (MANA as readonly string[]).includes(c));
 }
 
-function marksOf(f: ManaFacts): RingMarks {
+function marksOf(f: Pick<ManaFacts, keyof RingMarks>): RingMarks {
   const m: { -readonly [K in keyof RingMarks]: RingMarks[K] } = {};
   if (f.life !== undefined) m.life = f.life;
   if (f.damage !== undefined) m.damage = f.damage;
@@ -119,6 +121,10 @@ function multisets(colors: readonly Mana[], n: number): Mana[][] {
 
 /** The discs one mana ability draws. */
 function optionsOf(ability: OfferedAbility, f: ManaFacts): RingOption[] {
+  return optionsOfFacts(ability, f).map((o) => (f.paysNothing === true ? { ...o, dim: true } : o));
+}
+
+function optionsOfFacts(ability: OfferedAbility, f: ManaFacts): RingOption[] {
   const base = `a${ability.id}`;
   const marks = marksOf(f);
   const pick = (then: readonly Mana[] | null): RingAnswer => ({ to: 'ability', ability, then });
@@ -155,23 +161,24 @@ export function abilityRing(ask: AskOf<'getAbilityToPlay'>): Ring | null {
 export function colorRing(ask: AskOf<'getChoices'>): Ring | null {
   const colors = ask.colors;
   if (colors === undefined || colors.length !== ask.choices.length || ask.max !== 1) return null;
+  const marks = ask.manaMarks === undefined ? {} : marksOf(ask.manaMarks);
   const options = ask.choices.map((choice, i) => ({
     key: `c:${colors[i]!}`,
     syms: [colors[i]!],
     times: 1,
-    marks: {},
+    marks,
     answer: { to: 'choice', key: choice.key } as const,
   }));
   return { options, chips: [], cancellable: ask.min === 0 };
 }
 
 /** The ring for Forge's two-colour yes/no (the prompt's `manaColors`): OK is the first colour, Cancel the second. */
-export function promptRing(colors: readonly [Mana, Mana]): Ring {
+export function promptRing(colors: readonly [Mana, Mana], marks: RingMarks = {}): Ring {
   const options = colors.map((c, i) => ({
     key: `p:${c}`,
     syms: [c],
     times: 1,
-    marks: {},
+    marks,
     answer: { to: 'button', which: i === 0 ? 'ok' : 'cancel' } as const,
   }));
   return { options, chips: [], cancellable: false };
@@ -242,13 +249,14 @@ export function optionForKeys(options: readonly RingOption[], typed: string): { 
   const t = typed.toUpperCase();
   if (/^[1-9]$/.test(t)) {
     const i = Number(t) - 1;
-    return i < options.length ? { index: i } : null;
+    return i < options.length && options[i]!.dim !== true ? { index: i } : null;
   }
-  const exact = options.findIndex((o) => o.split === undefined && o.syms.join('') === t);
+  const live = (o: RingOption): boolean => o.dim !== true && o.split === undefined;
+  const exact = options.findIndex((o) => live(o) && o.syms.join('') === t);
   if (exact >= 0) return { index: exact };
-  const single = t.length === 1 ? options.findIndex((o) => o.split === undefined && o.syms.length === 1 && o.syms[0] === t) : -1;
+  const single = t.length === 1 ? options.findIndex((o) => live(o) && o.syms.length === 1 && o.syms[0] === t) : -1;
   if (single >= 0) return { index: single };
-  return options.some((o) => o.syms.join('').startsWith(t)) ? 'pending' : null;
+  return options.some((o) => o.dim !== true && o.syms.join('').startsWith(t)) ? 'pending' : null;
 }
 
 /** Where each disc sits around the ring's centre, in px, for a disc of `size` (a pair is wider). */

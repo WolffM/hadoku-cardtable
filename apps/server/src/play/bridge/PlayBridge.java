@@ -3160,7 +3160,13 @@ public final class PlayBridge {
             final JsonObject parts = decoration("parts", () -> promptParts(message));
             if (parts != null) { f.add("parts", parts); }
             final JsonArray manaColors = decoration("manaColors", this::manaColorsAsked);
-            if (manaColors != null) { f.add("manaColors", manaColors); }
+            final JsonObject marks = pickedManaMarks;
+            pickedManaMarks = null;
+            if (manaColors != null) {
+                f.add("manaColors", manaColors);
+                final JsonObject shown = marks != null ? marks : marksOfClicked();
+                if (shown != null) { f.add("manaMarks", shown); }
+            }
             final JsonArray pays = decoration("poolPays", this::poolPays);
             if (pays != null) {
                 f.add("poolPays", pays);
@@ -4588,7 +4594,12 @@ public final class PlayBridge {
             } else {
                 f.add("choices", choices(ask, "c", choices, display));
                 final JsonArray colors = producing(message) ? colorsOf(choices) : null;
-                if (colors != null) { f.add("colors", colors); }
+                if (colors != null) {
+                    f.add("colors", colors);
+                    final JsonObject marks = pickedManaMarks != null ? pickedManaMarks : marksOfClicked();
+                    pickedManaMarks = null;
+                    if (marks != null) { f.add("manaMarks", marks); }
+                }
                 final JsonObject modes = modesOf(choices);
                 if (modes != null) { f.add("modes", modes); }
                 final JsonObject eachType = eachTypeOf(choices);
@@ -5252,8 +5263,11 @@ public final class PlayBridge {
             manaFacts(abilities, offered);
             f.add("abilities", offered);
             f.add("triggerEvent", JsonNull.INSTANCE);
+            pickedManaMarks = null;
             final JsonElement r = await(ask, f);
-            return r == ABORTED ? null : (SpellAbilityView) lookup(ask, r);
+            if (r == ABORTED) { return null; }
+            pickedManaMarks = marksOfPick(offered, r);
+            return (SpellAbilityView) lookup(ask, r);
         }
 
         /**
@@ -5332,6 +5346,61 @@ public final class PlayBridge {
             }
         }
 
+        /**
+         * The costs and rules of the mana ability this seat just chose ({@link #manaOf}'s marks), for the
+         * colour question Forge asks next about the same ability: that question (a list of colours, or the
+         * two-colour yes/no) carries none of them, and City of Brass's 1 damage belongs on each colour
+         * (the operator, 2026-11-05: "city of brass should show the red (1) on all 5 colors"). Taken by
+         * the next producing colour question, dropped by any other prompt.
+         */
+        private volatile JsonObject pickedManaMarks;
+
+        /** The card this seat last clicked: the mana source a payment activates without asking which ability. */
+        private volatile int clickedCard = -1;
+
+        /**
+         * The marks for a colour question no pick came before ({@link #pickedManaMarks} is null): inside a
+         * payment Forge activates a source's one mana ability without asking (City of Brass paying), so the
+         * source is the card just clicked, and its one mana ability is the one asking.
+         */
+        private JsonObject marksOfClicked() {
+            final Game game = liveGame();
+            if (game == null || clickedCard < 0) { return null; }
+            try {
+                final forge.game.card.Card host = game.findById(clickedCard);
+                if (host == null) { return null; }
+                SpellAbility only = null;
+                for (final SpellAbility sa : host.getManaAbilities()) {
+                    if (only != null) { return null; }
+                    only = sa;
+                }
+                if (only == null || only.getManaPart() == null) { return null; }
+                final JsonObject mana = manaOf(only, "");
+                final JsonObject marks = new JsonObject();
+                for (final String k : MARKS) { if (mana.has(k)) { marks.add(k, mana.get(k)); } }
+                return marks.size() == 0 ? null : marks;
+            } catch (final RuntimeException ex) {
+                System.err.println("[bridge] marksOfClicked: could not read card " + clickedCard + " (" + ex + ")");
+                return null;
+            }
+        }
+
+        private static final String[] MARKS = { "life", "damage", "cost", "counter", "sacrifice", "tapType", "spendOnly" };
+
+        private static JsonObject marksOfPick(final JsonArray offered, final JsonElement reply) {
+            if (reply == null || !reply.isJsonObject() || !reply.getAsJsonObject().has("id")) { return null; }
+            final int id = reply.getAsJsonObject().get("id").getAsInt();
+            for (final JsonElement e : offered) {
+                final JsonObject o = e.getAsJsonObject();
+                if (o.get("id").getAsInt() != id || !o.has("mana")) { continue; }
+                final JsonObject mana = o.getAsJsonObject("mana");
+                final JsonObject marks = new JsonObject();
+                for (final String k : MARKS) { if (mana.has(k)) { marks.add(k, mana.get(k)); } }
+                return marks.size() == 0 ? null : marks;
+            }
+            return null;
+        }
+
         /** The map Forge built for this very offer ({@code PlayerControllerHuman.spellViewCache}) from views to its abilities, or null. */
         @SuppressWarnings("unchecked")
         private Map<SpellAbilityView, SpellAbility> offerCache(final Game game, final List<SpellAbilityView> abilities) throws ReflectiveOperationException {
@@ -5379,11 +5448,15 @@ public final class PlayBridge {
             }
             if (cache == null) { return; }
             final String owed = owedInPayment();
+            final forge.game.mana.ManaCostBeingPaid paying = paymentCost();
+            final forge.game.player.Player payer = paying == null ? null : paymentPayer();
             for (int i = 0; i < abilities.size(); i++) {
                 final SpellAbility sa = cache.get(abilities.get(i));
                 if (sa == null || !sa.isManaAbility() || sa.getManaPart() == null) { continue; }
                 try {
-                    offered.get(i).getAsJsonObject().add("mana", manaOf(sa, owed));
+                    final JsonObject mana = manaOf(sa, owed);
+                    if (paying != null && payer != null && !paysAny(mana, paying, payer)) { mana.addProperty("paysNothing", true); }
+                    offered.get(i).getAsJsonObject().add("mana", mana);
                 } catch (final RuntimeException ex) {
                     System.err.println("[bridge] manaFacts: could not read " + sa + " (" + ex + ")");
                 }
@@ -5410,6 +5483,40 @@ public final class PlayBridge {
                 System.err.println("[bridge] owedInPayment: could not read the payment (" + ex + ")");
                 return "";
             }
+        }
+
+        /** The open payment's cost, or null outside a payment. */
+        private forge.game.mana.ManaCostBeingPaid paymentCost() {
+            if (!(myInput() instanceof InputPayMana pay)) { return null; }
+            try {
+                return (forge.game.mana.ManaCostBeingPaid) field(pay, InputPayMana.class, "manaCost");
+            } catch (final ReflectiveOperationException | RuntimeException ex) {
+                return null;
+            }
+        }
+
+        private forge.game.player.Player paymentPayer() {
+            if (!(myInput() instanceof InputPayMana pay)) { return null; }
+            try {
+                return (forge.game.player.Player) field(pay, InputPayMana.class, "player");
+            } catch (final ReflectiveOperationException | RuntimeException ex) {
+                return null;
+            }
+        }
+
+        /**
+         * Whether any mana an ability makes pays some part of the open payment, by Forge's own test
+         * ({@code ManaCostBeingPaid.isAnyPartPayableWith}): Breeding Pool's {U} pays nothing of Birds of
+         * Paradise's {G}, and the ring greys it out. A reflecting source is never judged here.
+         */
+        private static boolean paysAny(final JsonObject mana, final forge.game.mana.ManaCostBeingPaid cost, final forge.game.player.Player payer) {
+            if (mana.has("reflects")) { return true; }
+            final String letters = mana.has("choose") ? mana.get("choose").getAsString() : mana.has("makes") ? mana.get("makes").getAsString() : "";
+            for (final char c : letters.toCharArray()) {
+                final byte type = c == 'C' ? forge.card.mana.ManaAtom.COLORLESS : MagicColor.fromName(c);
+                if (cost.isAnyPartPayableWith(type, payer.getManaPool())) { return true; }
+            }
+            return letters.isEmpty();
         }
 
         /** {@code owed}: {@link #owedInPayment}; an ability that can make some of it offers just those colours, as Forge will. */
@@ -5676,6 +5783,7 @@ public final class PlayBridge {
                 case "selectPlayer" -> c.selectPlayer(player(frame.get("player")), trigger(frame.get("triggerEvent")));
                 case "selectCard" -> {
                     final CardView picked = card(frame.get("card"));
+                    clickedCard = picked.getId();
                     // A click sent to answer a selection: for that selection only (MatchContext#selectionClicks).
                     if (frame.has("forSelection") && frame.get("forSelection").getAsBoolean()) {
                         final Object selection = shownSelection;

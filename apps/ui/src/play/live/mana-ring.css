@@ -74,6 +74,13 @@
   animation: mana-ring-bloom calc(220ms / var(--tempo, 1)) cubic-bezier(0.2, 0.9, 0.3, 1.25) both calc(var(--d) / var(--tempo, 1));
 }
 
+.mana-ring__disc--dim {
+  opacity: 0.38;
+  filter: grayscale(0.7);
+  cursor: default;
+  pointer-events: none;
+}
+
 .mana-ring__disc--pair {
   width: calc(var(--disc) * 1.7);
   border-radius: 999px;

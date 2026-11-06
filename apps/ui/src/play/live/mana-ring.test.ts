@@ -32,7 +32,7 @@ function offer(abilities: { id: number; label: string; mana?: ManaFacts }[]): As
   }) as AskOf<'getAbilityToPlay'>;
 }
 
-function colorList(colors: Mana[], min = 1): AskOf<'getChoices'> {
+function colorList(colors: Mana[], min = 1, manaMarks?: Record<string, unknown>): AskOf<'getChoices'> {
   return parseServerFrame({
     kind: 'ask',
     callId: 'c-2',
@@ -43,6 +43,7 @@ function colorList(colors: Mana[], min = 1): AskOf<'getChoices'> {
     choices: colors.map((c, i) => ({ key: `c${i}`, label: c, ref: null })),
     selected: [],
     colors,
+    ...(manaMarks === undefined ? {} : { manaMarks }),
   }) as AskOf<'getChoices'>;
 }
 
@@ -176,6 +177,28 @@ describe('the colour question that follows', () => {
     expect(tallyDone(tally, new Map([['W', 2], ['U', 2]]))).toBe(false);
     expect(tallyDone(tally, new Map([['W', 2], ['U', 3]]))).toBe(true);
     expect(tally.reply(new Map([['W', 2], ['U', 3]])).map((e) => e.amount)).toEqual([2, 3, 0, 0, 0]);
+  });
+});
+
+describe('what the bridge knows that Forge does not say', () => {
+  it("City of Brass's colour list carries its chosen ability's 1 damage on every disc", () => {
+    const ring = colorRing(colorList(['W', 'U', 'B', 'R', 'G'], 1, { damage: 1 }));
+    expect(ring?.options.map((o) => o.marks.damage)).toEqual([1, 1, 1, 1, 1]);
+  });
+
+  it("Forge's two-colour yes/no carries them too", () => {
+    expect(promptRing(['W', 'U'], { damage: 1 }).options.map((o) => o.marks.damage)).toEqual([1, 1]);
+  });
+
+  it('inside a payment, an ability that pays nothing owed is greyed and no key picks it', () => {
+    const ring = abilityRing(offer([
+      { id: 1, label: '{T}: Add {U}.', mana: { makes: 'U', amount: 1, paysNothing: true } },
+      { id: 2, label: '{T}: Add {G}.', mana: { makes: 'G', amount: 1 } },
+    ]))!;
+    expect(ring.options.map((o) => o.dim === true)).toEqual([true, false]);
+    expect(optionForKeys(ring.options, 'u')).toBeNull();
+    expect(optionForKeys(ring.options, '1')).toBeNull();
+    expect(optionForKeys(ring.options, 'g')).toEqual({ index: 1 });
   });
 });
 

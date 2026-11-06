@@ -611,6 +611,8 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    * Cancel's. From the same frame as {@link prompt}; the mana ring answers it.
    */
   promptManaColors: readonly [PoolColor, PoolColor] | null;
+  /** The costs and rules of the ability that yes/no is about (`PlayBridge.java`'s `pickedManaMarks`), drawn on its discs. */
+  promptManaMarks: Extract<ServerFrame, { method: 'showPromptMessage' }>['manaMarks'] | null;
   /**
    * The colours a pick on the mana ring showed for an ability that asks its colour next (`./mana-ring.ts`'s
    * `RingAnswer.then`): that question is answered with them, so one pick is the whole conversation. Dropped
@@ -1172,6 +1174,7 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     promptPoolPays: null,
     promptPoolChoice: false,
     promptManaColors: null,
+    promptManaMarks: null,
     manaIntent: null,
     triggerDecisions: [],
     deckColors: undefined,
@@ -3606,6 +3609,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     match.promptPoolPays = frame.poolPays ?? null;
     match.promptPoolChoice = frame.poolChoice !== undefined;
     match.promptManaColors = frame.manaColors ?? null;
+    match.promptManaMarks = frame.manaMarks ?? null;
     if (frame.manaColors === undefined) match.manaIntent = null;
     match.promptTargetMore = frame.targetAbility?.more ?? 0;
     match.promptSelection =
@@ -3811,6 +3815,7 @@ function dropOpenInput(match: LiveMatch): void {
   match.promptPoolPays = null;
   match.promptPoolChoice = false;
   match.promptManaColors = null;
+  match.promptManaMarks = null;
   match.manaIntent = null;
   match.buttons = null;
   match.barHold = null;

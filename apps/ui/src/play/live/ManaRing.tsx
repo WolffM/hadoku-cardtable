@@ -106,7 +106,7 @@ export function ManaRing({ ring, kind, ask, titles, onPick, onCancel }: ManaRing
   };
   const choose = (i: number): void => {
     const option = ring.options[i];
-    if (option === undefined) return;
+    if (option === undefined || option.dim === true) return;
     if (option.answer.to !== 'tally') {
       pick(option.answer);
       return;
@@ -215,7 +215,13 @@ export function ManaRing({ ring, kind, ask, titles, onPick, onCancel }: ManaRing
           <button
             key={option.key}
             type="button"
-            className={option.syms.length > 1 && option.split === undefined ? 'mana-ring__disc mana-ring__disc--pair' : 'mana-ring__disc'}
+            className={[
+              'mana-ring__disc',
+              option.syms.length > 1 && option.split === undefined ? 'mana-ring__disc--pair' : '',
+              option.dim === true ? 'mana-ring__disc--dim' : '',
+            ].filter(Boolean).join(' ')}
+            disabled={option.dim === true}
+            data-dim={option.dim === true ? '' : undefined}
             data-testid="mana-ring-option"
             data-mana={option.syms.join('')}
             title={titles?.get(option.key)}
@@ -272,8 +278,9 @@ export function ManaAsk({ match, ask }: { match: LiveMatch; ask: LiveAsk }) {
 
 /** Forge's two-colour yes/no as a ring: OK is the first colour, Cancel the second. */
 export function ManaPrompt({ match, colors }: { match: LiveMatch; colors: readonly [Mana, Mana] }) {
+  const marks = match.promptManaMarks;
   const onPick = (pick: RingPick): void => {
     if (pick.to === 'button') pressButton(match, pick.which);
   };
-  return <ManaRing ring={promptRing(colors)} kind="prompt" onPick={onPick} onCancel={() => undefined} />;
+  return <ManaRing ring={promptRing(colors, marks ?? {})} kind="prompt" onPick={onPick} onCancel={() => undefined} />;
 }
