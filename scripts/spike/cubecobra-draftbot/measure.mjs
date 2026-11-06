@@ -17,12 +17,13 @@
  * Setup, once:
  *   D=~/.cache/cardtable-spikes/cubecobra; mkdir -p $D && cd $D
  *   echo '{"private":true}' > package.json
- *   npm i --no-audit --no-fund @tensorflow/tfjs-node@4.22.0 @tensorflow/tfjs@4.22.0
+ *   npm i --no-audit --no-fund @tensorflow/tfjs-node@4.22.0 @tensorflow/tfjs@4.22.0 @tensorflow/tfjs-backend-wasm@4.22.0
  *
  * Run (from the repo root; one run per backend, so each process measures one):
- *   node scripts/spike/cubecobra-draftbot/measure.mjs [--backend tensorflow|cpu] [--cube "<cubes/*.dck name>"]
+ *   node scripts/spike/cubecobra-draftbot/measure.mjs [--backend tensorflow|wasm|cpu] [--cube "<cubes/*.dck name>"]
  *
  * --backend tensorflow  tfjs-node, native libtensorflow (what CubeCobra's server uses)
+ * --backend wasm        tfjs's WebAssembly backend (WASM_THREADS, default 1), no native dependency
  * --backend cpu         pure-JS tfjs, no native dependency
  */
 
@@ -188,10 +189,15 @@ async function main() {
 
   const m0 = mem();
   const tf =
-    args.backend === "cpu"
-      ? require("@tensorflow/tfjs")
-      : require("@tensorflow/tfjs-node");
-  if (args.backend === "cpu") await tf.setBackend("cpu");
+    args.backend === "tensorflow"
+      ? require("@tensorflow/tfjs-node")
+      : require("@tensorflow/tfjs");
+  if (args.backend === "wasm") {
+    require("@tensorflow/tfjs-backend-wasm").setThreadsCount(
+      Number(process.env.WASM_THREADS ?? 1),
+    );
+  }
+  if (args.backend !== "tensorflow") await tf.setBackend(args.backend);
   await tf.ready();
   const m1 = mem();
 
@@ -205,7 +211,7 @@ async function main() {
 
   const tLoad = performance.now();
   const loadHandler = (head) =>
-    args.backend === "cpu"
+    args.backend !== "tensorflow"
       ? tf.io.fromMemory(fromDisk(join(MODEL_DIR, head)))
       : `file://${join(MODEL_DIR, head, "model.json")}`;
   const encoder = await tf.loadGraphModel(loadHandler("encoder"));

@@ -8,19 +8,19 @@ The script's header has the setup; nothing it downloads enters the repo.
 
 ## Numbers
 
-|                                           | tfjs-node (native)                                  | pure-JS tfjs (`cpu`) |
-| ----------------------------------------- | --------------------------------------------------- | -------------------- |
-| install on disk                           | 658 MB (both packages; libtensorflow is most of it) | same install         |
-| weights on disk                           | 149 MB                                              | 149 MB               |
-| RSS added by loading tfjs                 | 117 MB                                              | 33 MB                |
-| RSS added by the two models               | 446 MB                                              | 311 MB               |
-| RSS peak while picking                    | 723 MB                                              | 566 MB               |
-| model load                                | 0.2 s                                               | 0.3 s                |
-| one pick round, 1 seat (p50 / p95)        | 5.3 / 8.4 ms                                        | 57 / 61 ms           |
-| one pick round, 7 seats (one pod's bots)  | 5.5 / 7.1 ms                                        | 330 / 341 ms         |
-| one pick round, 28 seats (4 pods at once) | 7.8 / 10.2 ms                                       | 1.3 s                |
-| one pick round, 56 seats (8 pods at once) | 18.5 / 23 ms                                        | 2.6 s                |
-| whole 8-seat draft, all bots (360 picks)  | 0.26 s                                              | 18–22 s              |
+|                                           | tfjs-node (native)      | tfjs WASM, 1 thread              | pure-JS tfjs (`cpu`) |
+| ----------------------------------------- | ----------------------- | -------------------------------- | -------------------- |
+| dependency on disk                        | ~650 MB (libtensorflow) | 14 MB (+ tfjs, ~140 MB unpacked) | tfjs only            |
+| weights on disk                           | 149 MB                  | 149 MB                           | 149 MB               |
+| RSS added by loading tfjs                 | 117 MB                  | 35 MB                            | 33 MB                |
+| RSS added by the two models               | 446 MB                  | 313 MB                           | 311 MB               |
+| RSS peak while picking                    | 723 MB                  | 698 MB                           | 566 MB               |
+| model load                                | 0.2 s                   | 0.3 s                            | 0.3 s                |
+| one pick round, 1 seat (p50)              | 5.3 ms                  | 3.4 ms                           | 57 ms                |
+| one pick round, 7 seats (one pod's bots)  | 5.5 ms                  | 15 ms                            | 330 ms               |
+| one pick round, 28 seats (4 pods at once) | 7.8 ms                  | 55 ms                            | 1.3 s                |
+| one pick round, 56 seats (8 pods at once) | 18.5 ms                 | 110 ms                           | 2.6 s                |
+| whole 8-seat draft, all bots (360 picks)  | 0.26 s                  | 0.72 s                           | 18–22 s              |
 
 The model's vocabulary is 37,238 oracle ids. All 540 cards of
 `MTGO Vintage Cube 2013` were in it.
@@ -32,6 +32,8 @@ The model's vocabulary is 37,238 oracle ids. All 540 cards of
   ~0.5–0.7 GB, not per drafter or per draft.
 - **Native tfjs-node is free on CPU**: a whole all-bot draft is a quarter of a
   second, and 8 pods picking at the same moment is ~20 ms.
+- **WASM is the pick for a service**: no native build, no Node shim, 15 ms a
+  pod's pick round, under a second for a whole all-bot draft.
 - **Pure-JS works but must run off the event loop** (a worker thread): a pod's
   pick round is ~330 ms of blocked CPU.
 - **tfjs-node 4.22 (the last release, January 2025) does not run on Node 23+**
