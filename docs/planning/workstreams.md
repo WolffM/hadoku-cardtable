@@ -177,6 +177,7 @@ it. PR-5 is new and exists to serve it.
 
 | # | Programme | State |
 | --- | --- | --- |
+| **PR-9** | **Platform** — make this repo a general tool for future games: the scaffolding, networking, rooms and accounts are kept, and a new game brings its own engine, data and UI. The operator, 2026-11-06: *"we are likely to want to make new games with new UI, but want to retain the power of the scaffolding, networking, user management, and other stuff"*; on rooms: *"watchparty and cardtable really should share essentially all the same code here"* | **PLANNED 2026-11-06, six decisions answered the same day.** Plan: artifact https://claude.ai/artifact/Jm5BXZj9xLPnpMGDwLSTKu, HTML copy at `~/.cache/cardtable-manager/platform-plan/`. Phase 1 is **w91**, `docs/planning/wave91-2026-11-06.md`: the layer fence, D26 (MIT by default) and one handshake gate |
 | **PR-8** | **Presentation** — sound, motion, board and UI art. The operator, 2026-09-27: *"one of the most important parts of this project is getting the graphics/audio to be upgraded. thats a huge part of the appeal, otherwise all we've done is create magic online with slight improvements"* | **NEW, and the operator's stated priority after w25**: *"i would prefer to not be debugging the game functionality for much longer."* See the presentation section below for what exists, what does not, and the three decisions that gate it |
 | **PR-7** | **The outer shell** — adopt hadoku_site's `templates/game` and delete our hand-written wrapper in favour of it | **SCHEDULED: the wave immediately after the game client.** Operator, 2026-09-20. Not before — the shell wraps the client, and the client is the unproven half |
 | **PR-6** | **The game client** — a real Forge UI in the browser, speaking through our bridge | **IN PROGRESS. W19 landed the QOL wave**: static canvas with player faces, only-Forge-offered clickability + drag + targeter, stops only where a legal action exists with payment said out loud, art ids for every card and stack item. The operator's bar — *"i would not even call this alpha playable yet"* — was the brief; their re-test is the remaining proof |
@@ -185,6 +186,28 @@ it. PR-5 is new and exists to serve it.
 | **PR-2** | **Draft** — pure draft engine, cube import, draft UI. Playable with friends. | **built end to end, unproven with two people.** Engine (W3), card art (W4) and a live socket (W5) all land; `DraftScreen` renders from fixtures, the in-process engine, or a server. **"Playable with friends" is not ticked** until two browsers draft one pod — see the queue |
 | **PR-3** | **Room module** — our P3–P6 contributions to `@wolffm/rooms-protocol` / `-server` (**renamed**: `@wolffm/rooms` never shipped) | **implemented Wave 5, locally.** Designs W1, delivered to watchparty W2/W3, built here W5. Upstream still ships **none** of P4–P6, so ours are our own packages consuming their primitives — `@wolffm/rooms-server@0.38.111` is `RoomRegistry` + seating + emit + rate limiting + `collectGC` and nothing else. The socket wiring is ours |
 | **PR-4** | **Play** — WS/JSON bridge at `IToClient`, headless Forge, the embedded client | **spiked and de-risked** (D). Forge runs headless; 38 of 60 protocol methods required; jUPnP is a config flag. Not greenfield — a 3,919-line headless net harness already exists in-tree |
+
+## Wave 91 (platform phase 1) — scaffolded 2026-11-06
+
+`docs/planning/wave91-2026-11-06.md`, branch `w91`, worktree `.claude/worktrees/w91-manager`. It has three lanes,
+and none of them changes anything a player sees:
+- **A** — the layer map (`scripts/layers/layers.json`), a boundary ratchet in `check`, and D26: MIT by default,
+  GPL only where Forge requires it.
+- **B** — delete the CheerpJ socket `play/browser/` and room-store's unused halves, then relicense room-store MIT.
+- **C** — one handshake gate in place of four copies.
+
+The operator's rulings it rests on (2026-11-06):
+- the next game's client could be anything, so there is no card kit;
+- the licence is "whatever is least restrictive";
+- Magic gets its own clean layer;
+- the streamed desktop stays as a platform runtime;
+- bomberman is the second game, playable in cardtable rooms (a later phase).
+
+| lane | state | evidence |
+| --- | --- | --- |
+| A | scaffolded | — |
+| B | scaffolded | — |
+| C | scaffolded | — |
 
 ## Waves 84, 85, 87, 88 and Z — eleven single sessions dispatched overnight (2026-10-31)
 
