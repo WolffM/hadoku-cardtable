@@ -9,14 +9,16 @@
  * it, and Forge's game thread waited on a question nobody was shown.
  *
  * `ee-thicket.state`: alice's turn-1 main phase, Fire-Lit Thicket and a Forest (the {R/G} payer; prod's was an Overgrown Tomb). Alice turns Full
- * control on, clicks the Thicket, picks the filter ability, presses Auto on the {R/G} payment; the
- * combination question is drawn on her screen, she picks {R}{G}, and two mana float.
+ * control on and clicks the Thicket. The mana ring (9cf2bd504) draws the filter's three results as discs
+ * beside {C}; she picks {R}{G}, presses Auto on the {R/G} payment, and that one pick answers the
+ * combination question Forge asks after it: two mana float, and no ring or box asks again.
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled, nextPhaseLive, pressPaymentAuto, serverLog } from './play/board.ts';
+import { makeTitled, manaPool, nextPhaseLive, pressPaymentAuto, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
+import { pressPoint, ring, ringOption, ringOptions } from './mana-ring.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -35,18 +37,7 @@ async function ownNamed(page: Page, name: string): Promise<number> {
   return ids[0];
 }
 
-/** The filter ability is the longer of the Thicket's two: "{T}: Add {C}." is the other. */
-async function pickFilterAbility(page: Page): Promise<boolean> {
-  const options = page.getByTestId('live-prompt').locator('[data-testid="prompt-choice"]');
-  if (!(await options.first().isVisible({ timeout: 1_500 }).catch(() => false))) return false;
-  const labels = await options.evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? e.textContent ?? ''));
-  const longest = labels.reduce((best, l, i) => (l.length > (labels[best] ?? '').length ? i : best), 0);
-  console.log(`[ee-thicket] abilities offered: ${labels.join(' | ')}`);
-  await options.nth(longest).click();
-  return true;
-}
-
-test(titled("Fire-Lit Thicket's filter ability, paid by Auto under Full control: the {R}{R}/{R}{G}/{G}{G} question is drawn, answered, and the mana floats"), async ({ browser }) => {
+test(titled("Fire-Lit Thicket's filter ability, paid by Auto under Full control: {R}{G} picked on the mana ring answers Forge's combination question, and the mana floats"), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -60,34 +51,32 @@ test(titled("Fire-Lit Thicket's filter ability, paid by Auto under Full control:
     await expect.poll(() => isOffered(alice.page, thicket), { timeout: 45_000, message: 'the Thicket is offered at priority' }).toBe(true);
     const from = serverLog(stack).length;
 
-    const combo = alice.page.locator('[data-prompt="assignGenericAmount"]');
-    for (let i = 0; i < 10 && !(await isTapped(alice.page, thicket)); i++) {
-      await card(alice.page, thicket).locator('button').first().click();
-      await pickFilterAbility(alice.page);
-      await expect.poll(() => isTapped(alice.page, thicket), { timeout: 2_000 }).toBe(true).catch(() => undefined);
-    }
-    for (let i = 0; i < 20 && !(await combo.isVisible()); i++) {
+    const onThicket = await pressPoint(alice.page, thicket);
+    await alice.page.mouse.click(onThicket.x, onThicket.y);
+    await expect(ring(alice.page), 'the Thicket\'s abilities open as a ring').toHaveAttribute('data-ring', 'abilities', { timeout: 15_000 });
+    const discs = await ringOptions(alice.page).evaluateAll((els) => els.map((e) => e.getAttribute('data-mana') ?? ''));
+    console.log(`[ee-thicket] discs: ${discs.join(' | ')}`);
+    expect([...discs].sort(), '{C} and the filter\'s three combinations').toEqual(['C', 'GG', 'RG', 'RR']);
+    await ringOption(alice.page, 'RG').click();
+    await expect(ring(alice.page), 'the ring closed on the pick').toHaveCount(0);
+
+    for (let i = 0; i < 20 && (await poolTotal(alice.page)) < 2; i++) {
       if (await pressPaymentAuto(alice.page)) console.log('[ee-thicket] pressed Auto on the {R/G} payment');
-      await combo.waitFor({ state: 'visible', timeout: 1_000 }).catch(() => undefined);
+      await expect.poll(() => poolTotal(alice.page), { timeout: 1_000 }).toBe(2).catch(() => undefined);
     }
 
+    console.log(`[ee-thicket] after the payment: ring ${(await ring(alice.page).count()) > 0 ? String(await ring(alice.page).getAttribute('data-ring')) : 'closed'}`);
     const log = serverLog(stack).slice(from);
     for (const r of log.filter((r) => r.evt === 'frame-invalid' || r.evt === 'ask-aborted-invalid' || (r.method === 'assignGenericAmount' && typeof r.evt === 'string'))) {
       console.log(`[ee-thicket] ${String(r.evt)} ${String(r.method ?? '')} ${String(r.callId ?? '')} ${JSON.stringify(r.errors ?? '')}`);
     }
-    await expect(combo, "the mana combination question is drawn on alice's screen — not a question stuck where she cannot see it").toBeVisible({ timeout: 15_000 });
-
-    const options = combo.locator('[data-testid="prompt-combo"]');
-    const labels = await options.evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? ''));
-    console.log(`[ee-thicket] combinations offered: ${labels.join(' | ')}`);
-    expect(labels, 'the three combinations the Thicket makes').toEqual(['red red', 'red green', 'green green']);
-    await options.nth(1).click();
-
-    await expect.poll(() => poolTotal(alice.page), { timeout: 10_000, message: '{R}{G} floats in her pool' }).toBe(2);
-    await expect(combo, 'the question is gone once answered').toHaveCount(0);
+    await expect.poll(async () => { const p = await manaPool(alice.page); return `${p.R}R ${p.G}G`; }, { timeout: 15_000, message: '{R}{G} floats in her pool' }).toBe('1R 1G');
+    expect(await isTapped(alice.page, thicket), 'the Thicket is tapped').toBe(true);
     const answered = serverLog(stack).slice(from).filter((r) => r.evt === 'ask-answered' && r.method === 'assignGenericAmount');
     console.log(`[ee-thicket] answered: ${answered.map((r) => `${String(r.callId)} ${String(r.ms)} ms`).join(', ')}`);
-    expect(answered.length, 'alice answered the combination herself').toBe(1);
+    expect(answered.length, 'the combination question reached her and was answered by her pick').toBe(1);
+    await expect(ring(alice.page), 'nothing asks for the combination again').toHaveCount(0);
+    await expect(alice.page.locator('[data-testid="live-prompt"], [data-testid="live-confirm"]'), 'no generic decision box').toHaveCount(0);
     await expect(nextPhaseLive(alice.page), 'her priority is live again: the game goes on').toHaveCount(1, { timeout: 15_000 });
   } finally {
     await stack.stop();
