@@ -109,6 +109,9 @@ async function answerAndSubmit(page: Page, where: string): Promise<boolean> {
 }
 
 
+/** Every surface `measurePrompt` reads a prompt off: the bar, the sheet, a mana ring's discs. */
+const PROMPT_SURFACES = '.confirm__button, [data-testid="live-prompt"], [data-testid="mana-ring-option"]';
+
 /**
  * Drive whatever prompt is open to completion (measuring each one as
  * `answerAndSubmit` goes), up to `rounds` prompts — a colour-choice tap opens
@@ -117,9 +120,13 @@ async function answerAndSubmit(page: Page, where: string): Promise<boolean> {
 async function drainPrompts(page: Page, where: string, rounds = 4): Promise<void> {
   for (let i = 0; i < rounds; i++) {
     // Each prompt is Forge's own ask, a round trip after the press that opens it: wait for it to
-    // be drawn before reading it, or a fast board reads the page before it arrives.
+    // be drawn before reading it, or a fast board reads the page before it arrives. Any VISIBLE
+    // surface: `.first()` alone waits on whichever match comes first in the DOM, and run
+    // 42226619510 waited 3 s on one that never showed while Forge's ring for the River stood open
+    // (its decision sound played 20 ms after the ask), so the River was never tapped.
     const showing = await page
-      .locator('.confirm__button, [data-testid="live-prompt"], [data-testid="mana-ring-option"]')
+      .locator(PROMPT_SURFACES)
+      .filter({ visible: true })
       .first()
       .waitFor({ timeout: 3_000 })
       .then(() => true, () => false);
@@ -144,6 +151,15 @@ test(titled('measuring: tapping Underground River directly prints every prompt s
 
     expect(await pressOffered(card(alice.page, river)), 'the River pressed').toBe(true);
     wordRows.length = 0;
+    // A direct tap is always Forge's ability ask first (the River has three), drawn as its ring (its discs: the
+    // ring's own box is empty, so never visible) or the sheet.
+    // Drained before it is up, the priority bar it replaces is read instead and goes from under the reader
+    // (run 42229225334: `textContent` waited 20 s on a bar button the ring had just taken down).
+    await alice.page
+      .locator('[data-testid="mana-ring-option"], [data-testid="live-prompt"]')
+      .filter({ visible: true })
+      .first()
+      .waitFor({ timeout: 15_000 });
     await drainPrompts(alice.page, 'direct-tap');
     expect(wordRows, 'every colour on a prompt row is drawn as a pip while the prompt shows').toEqual([]);
 
@@ -185,7 +201,7 @@ test(titled('measuring: tapping Underground River to PAY for Dark Ritual prints 
     expect(await clickHandCard(alice.page, ritual), 'Dark Ritual armed the cast gesture').toBe(true);
     const next = await Promise.race([
       alice.page.getByTestId('live-payment').waitFor({ timeout: 15_000 }).then(() => 'payment' as const),
-      alice.page.locator('.confirm__button, [data-testid="live-prompt"], [data-testid="mana-ring-option"]').first().waitFor({ timeout: 15_000 }).then(() => 'bar' as const),
+      alice.page.locator(PROMPT_SURFACES).filter({ visible: true }).first().waitFor({ timeout: 15_000 }).then(() => 'bar' as const),
     ]).catch(() => 'none' as const);
     console.log(`[river] where=pay-tap next=${next} says="${await says(alice.page)}"`);
 
