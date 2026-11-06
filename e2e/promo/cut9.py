@@ -109,6 +109,10 @@ def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     cut.OUT = OUT
     cut.MUSIC = OUT / "bed.flac"
+    # A copy of cut.py's TANGO: prod's data directory is moving out of the code tree, taking the take with it.
+    cut.TANGO = OUT / "hellfire-tango-take-1.ogg"
+    if not cut.TANGO.exists():
+        sys.exit(f"cut9: no bed source at {cut.TANGO}; copy Hellfire Tango's take-1.ogg there")
     check_captions([(s[1], None, None, s[3]) for s in SCENES])
     if "--stills" in sys.argv:
         return stills()
