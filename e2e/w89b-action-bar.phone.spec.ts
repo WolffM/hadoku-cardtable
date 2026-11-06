@@ -42,7 +42,7 @@ async function setPortrait(page: Page): Promise<void> {
  * bottom edge, the hand directly above it, and a decision docked above the bar, over the hand — so the
  * bar is never covered, decision or not, and every test here reaches it with a plain tap.
  */
-test(titled('action-bar sits on the bottom edge, the hand directly above it, a docked decision above the bar, and every control in it is ≥44×40px'), async ({ browser }) => {
+test(titled('action-bar sits on the bottom edge, the hand directly above it, a decision on or in the bar, and every control in it and its ⋯ sheet is finger-sized'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -71,10 +71,15 @@ test(titled('action-bar sits on the bottom edge, the hand directly above it, a d
     // A decision docks on top of the bar, never over it: cast the Bolt, and Forge asks for its target.
     const bolt = await offeredCard(alice.page, 'Lightning Bolt', { zone: 'hand' });
     expect(await clickHandCard(alice.page, bolt), 'the Bolt went out through its card view').toBe(true);
+    // Its question either docks (a pick with a sheet of its own), standing on the bar, or is the bar's own
+    // decision (Mockup 2: its Cancel where OK was).
+    const asked = alice.page.locator('[data-testid="decision-dock"], [data-testid="action-bar"] [data-testid="live-decision"]').first();
+    await expect(asked, 'the Bolt’s own question is up').toBeVisible({ timeout: 30_000 });
     const dock = alice.page.getByTestId('decision-dock');
-    await expect(dock, 'the Bolt’s own question docks').toBeVisible({ timeout: 30_000 });
-    const dockBox = (await dock.boundingBox())!;
-    expect.soft(dockBox.y + dockBox.height, 'the docked decision stands on the bar').toBeLessThanOrEqual(barBox!.y + 0.5);
+    if ((await dock.count()) > 0) {
+      const dockBox = (await dock.boundingBox())!;
+      expect.soft(dockBox.y + dockBox.height, 'the docked decision stands on the bar').toBeLessThanOrEqual(barBox!.y + 0.5);
+    }
     // The Bolt itself, parked where it left the hand while Forge asks, is no lower than the hand was.
     for (const bottom of await bottomsOf('[data-cast-lift]')) {
       expect.soft(bottom, 'the card being cast stays above the bar').toBeLessThanOrEqual(barBox!.y + 0.5);

@@ -253,7 +253,6 @@
  */
 :root[data-layout='portrait'] .zone--hand > .zone__cards[data-testid] {
   --portrait-peek-cw: 78px;
-  --portrait-hand-rows: 1;
   position: absolute;
   inset: auto 0 0;
   height: var(--portrait-hand-h);
@@ -269,7 +268,8 @@
   gap: 5px;
 }
 :root[data-layout='portrait'] .board[data-hand-raised] .zone--hand > .zone__cards[data-testid] {
-  height: calc(var(--portrait-hand-rows) * var(--card-w) * 88 / 63 + (var(--portrait-hand-rows) - 1) * var(--portrait-gap) + 20px);
+  /* `Board.tsx`'s `measurePortraitLane` writes it: the dock stands on the same height. */
+  height: var(--portrait-hand-up-h);
   padding-top: 10px;
   background: var(--bg-raised);
   border-top: 1px solid var(--line);
@@ -277,7 +277,6 @@
   box-shadow: 0 -10px 28px var(--shadow);
 }
 :root[data-layout='portrait'] .board[data-hand-raised] .zone--hand > .zone__cards[data-testid][data-rows='2'] {
-  --portrait-hand-rows: 2;
   --card-w: min(var(--portrait-cw0), (var(--portrait-lane-w, 300px) - 2 * var(--portrait-pad) - 3 * var(--portrait-gap) - var(--portrait-peek)) / 4);
   display: grid;
   grid-auto-flow: column;

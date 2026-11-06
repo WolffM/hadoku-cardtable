@@ -4183,6 +4183,8 @@ const PORTRAIT_RISE = 0.06;
 const PORTRAIT_RISE_PX = 10;
 /** A raised hand of more cards than this draws them in two rows. */
 const PORTRAIT_HAND_ONE_ROW = 5;
+/** A raised hand's padding above and below its cards (`portrait.css`'s raised `padding-top` and its foot). */
+const PORTRAIT_HAND_UP_PAD_PX = 20;
 
 function measurePortraitLane(lane: HTMLUListElement): void {
   // `portrait.css`'s own `--card-w` reads this directly: the lane's own visible content width,
@@ -4198,21 +4200,29 @@ function measurePortraitLane(lane: HTMLUListElement): void {
    * unscaled card), so writing it cannot move what it measured. The hand wraps to two rows while
    * raised with more than five cards.
    */
+  const style = getComputedStyle(lane);
+  const zoom = Number.parseFloat(style.getPropertyValue('--portrait-zoom')) || 1;
+  const pad = Number.parseFloat(style.paddingLeft) || 0;
+  const gap = Number.parseFloat(style.columnGap) || 0;
+  const peek = uiPx(PORTRAIT_PEEK_PX, lane);
+  const cw0 = ((lane.clientWidth - 2 * pad - 2 * gap - peek) / 3) * zoom;
   if (lane.dataset.testid?.endsWith('-permanents') === true) {
-    const style = getComputedStyle(lane);
-    const zoom = Number.parseFloat(style.getPropertyValue('--portrait-zoom')) || 1;
-    const pad = Number.parseFloat(style.paddingLeft) || 0;
-    const gap = Number.parseFloat(style.columnGap) || 0;
-    const peek = uiPx(PORTRAIT_PEEK_PX, lane);
-    const cw0 = ((lane.clientWidth - 2 * pad - 2 * gap - peek) / 3) * zoom;
     const rise = (cw0 * 88 * PORTRAIT_RISE) / 63 + uiPx(PORTRAIT_RISE_PX, lane);
     const fit = portraitLaneFit({ width: lane.clientWidth, height: lane.clientHeight, pad, gap, peek, rise, zoom, count: piles });
     const k = fit.k.toFixed(3);
     if (lane.style.getPropertyValue('--portrait-lane-k') !== k) lane.style.setProperty('--portrait-lane-k', k);
     if (lane.dataset.rows !== String(fit.rows)) lane.dataset.rows = String(fit.rows);
   } else if (lane.dataset.testid === 'lane-my-hand') {
-    const rows = piles > PORTRAIT_HAND_ONE_ROW ? '2' : '1';
-    if (lane.dataset.rows !== rows) lane.dataset.rows = rows;
+    const rows = piles > PORTRAIT_HAND_ONE_ROW ? 2 : 1;
+    if (lane.dataset.rows !== String(rows)) lane.dataset.rows = String(rows);
+    /*
+     * The raised hand's height, `portrait.css`'s and the dock's (a question about the hand stands on it):
+     * its card's height per row, the gap between rows, its padding. Measured off the lane, not read back
+     * from a CSS length (the UI scale's `calc(…)` parses to NaN).
+     */
+    const cw = rows === 2 ? Math.min(cw0, (lane.clientWidth - 2 * pad - 3 * gap - peek) / 4) : cw0;
+    const upH = `${Math.round((rows * cw * 88) / 63 + (rows - 1) * gap + uiPx(PORTRAIT_HAND_UP_PAD_PX, lane))}px`;
+    if (document.documentElement.style.getPropertyValue('--portrait-hand-up-h') !== upH) document.documentElement.style.setProperty('--portrait-hand-up-h', upH);
   }
   // Room to scroll either way, with a pixel of slack for a fractional `scrollLeft`.
   const room = lane.scrollWidth - lane.clientWidth;
@@ -4717,7 +4727,7 @@ function SeatChip({
   const marks = poison > 0 || counters || designations.length > 0;
   const pool = (player.manaPool ?? []).length > 0;
   const pile = (zone: 'graveyard' | 'exile', count: number, art: ReactNode) => (
-    <button type="button" className="seat-chip__zone" data-count={zone} aria-label={`${zone} ${count}`} onClick={() => onOpenPile(player.id, zone)}>
+    <button type="button" className="seat-chip__zone" data-count={zone} data-owner={side === 'me' ? 'you' : 'them'} aria-label={`${zone} ${count}`} onClick={() => onOpenPile(player.id, zone)}>
       {art}
       <span aria-hidden="true">{compactCount(count)}</span>
     </button>

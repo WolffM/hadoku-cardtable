@@ -22,7 +22,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { makeTitled, offeredCard } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { longPressCard, noSideways, PHONE, tapCard, touchDrag } from './play/phone.ts';
+import { longPressCard, noSideways, PHONE, raiseHand, tapCard, touchDrag } from './play/phone.ts';
 import { startScenarioVsAi } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -181,6 +181,8 @@ test(titled('drag up: dragging a hand card past the hand’s edge plays it'), as
     await page.waitForTimeout(800);
 
     const island = await offeredCard(page, 'Island', { zone: 'hand' });
+    // The hand rests as a peek: a player raises it, then drags from it.
+    await raiseHand(page, island);
     const box = await page.locator(`[data-board-card="${island}"]`).boundingBox();
     if (box === null) throw new Error('Island has no box to drag from');
     const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };

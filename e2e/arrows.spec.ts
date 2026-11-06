@@ -38,6 +38,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { makeTitled, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { raiseHand } from './play/phone.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -186,7 +187,8 @@ test(
       expect(memnite, 'Memnite is in alice’s hand, as the scenario scripts').toBeDefined();
       await expect(page.locator(`[data-board-card="${memnite}"]`), 'Forge offers it to cast').toHaveAttribute('data-selectable', /.*/, { timeout: 30_000 });
 
-      // The click lifts it (arms — no button held — rather than resolving).
+      // The click lifts it (arms — no button held — rather than resolving). A phone raises its hand first.
+      await raiseHand(page, memnite);
       await page.locator(`[data-board-card="${memnite}"] button`).first().click();
       await expect(page.locator(`[data-board-card="${memnite}"]`), 'click-armed, following the pointer').toHaveAttribute('data-cast-lift', 'lifted');
 

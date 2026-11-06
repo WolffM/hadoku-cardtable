@@ -1589,7 +1589,7 @@ describe('wave 89 §B — the action bar', () => {
     onTestFinished(() => {
       vi.unstubAllGlobals();
     });
-    const { s, m, getByTestId, getAllByTestId, queryByTestId } = await liveBoard();
+    const { s, m, getByTestId, getAllByTestId } = await liveBoard();
     s.send(stackDelta(m));
     await untilMatch(m, () => expect(m.view!.stack).toHaveLength(0));
     for (const f of buttonFrames('Priority', 'OK', 'End Turn')) s.send(f);
@@ -1597,7 +1597,8 @@ describe('wave 89 §B — the action bar', () => {
 
     expect(getAllByTestId('live-decision-ok'), 'drawn once').toHaveLength(1);
     expect(getByTestId('action-bar').contains(ok), 'in the bar').toBe(true);
-    expect(queryByTestId('live-decision'), 'no sheet beside it').toBeNull();
+    expect(getByTestId('action-bar').contains(getByTestId('live-decision')), 'the decision is the bar’s').toBe(true);
+    expect(document.querySelector('[data-testid="live-decision-host"]'), 'no sheet beside it').toBeNull();
 
     const before = m.stats.replies;
     fireEvent.click(ok);

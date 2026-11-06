@@ -48,8 +48,9 @@ export async function pressInMenu(page: Page, testId: string): Promise<void> {
   const control = await inMenu(page, testId);
   if (isPhone()) await control.tap();
   else await control.click();
+  // Closed by its own toggle, back in ⋯ — never Escape, which would also cancel a confirmation the press just opened.
   const menu = page.getByTestId('action-menu');
-  if (isPhone() && (await menu.count()) > 0 && (await menu.getAttribute('aria-expanded')) === 'true') await page.keyboard.press('Escape');
+  if (isPhone() && (await menu.count()) > 0 && (await menu.getAttribute('aria-expanded')) === 'true') await (await inMore(page, 'action-menu')).tap();
 }
 
 /**

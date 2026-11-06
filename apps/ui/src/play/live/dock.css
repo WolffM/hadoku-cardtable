@@ -75,7 +75,20 @@
  * `keepClearOf` keeps a desktop pop-up off the board cards it offers. The pill moves up with it.
  */
 :root[data-layout="portrait"] .dock[data-clear='hand']:is([data-mode='dock'], [data-mode='min']) {
-  bottom: calc(var(--portrait-bar-band) + var(--portrait-hand-h));
+  /* The hand rises for a question about it (`Board`'s `usePortraitHandPeek`): the dock stands on the raised hand. */
+  bottom: calc(var(--portrait-bar-band) + var(--portrait-hand-up-h, var(--portrait-hand-h)));
+}
+
+/* A dock that would cover a board card it offers stands under the top band instead (`QuestionHost`). */
+:root[data-layout="portrait"] .dock[data-edge='top'][data-mode='dock'] {
+  top: var(--portrait-hud-h);
+  bottom: auto;
+}
+:root[data-layout="portrait"] .dock[data-edge='top'][data-mode='dock'] > .live__prompt {
+  border-top: none;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0 0 14px 14px;
+  box-shadow: 0 10px 30px var(--shadow);
 }
 
 /*

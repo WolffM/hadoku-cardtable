@@ -112,7 +112,11 @@ export function PileView({
 }) {
   const panel = useRef<HTMLElement>(null);
   const [layout, setLayout] = useState<Layout | null>(null);
-  const pileSelector = `.seat [data-zone="${zone}"][data-owner="${ownerSide}"]`;
+  /*
+   * What opened it: the seat's own pile on a wider table, or, in portrait, where the seat draws no
+   * pile, its chip's zone button in the top band.
+   */
+  const pileSelector = `.seat [data-zone="${zone}"][data-owner="${ownerSide}"], .seat-chip [data-count="${zone}"][data-owner="${ownerSide}"]`;
 
   useLayoutEffect(() => {
     const measure = (): void => {
@@ -129,6 +133,18 @@ export function PileView({
       const chromeH =
         Number.parseFloat(css.paddingTop) + Number.parseFloat(css.paddingBottom) + Number.parseFloat(css.borderTopWidth) + Number.parseFloat(css.borderBottomWidth) + head + PILE_GAP;
       const preferred = battlefieldCardWidth(board, ownerSide) ?? battlefieldCardWidth(board, 'you') ?? PILE_MIN_CARD_W * 2;
+      /*
+       * A chip's button opens the view as a sheet across the board under the top band and its phase
+       * line (Mockup 2), not beside a button a few pixels wide.
+       */
+      const band = pile.closest('.portrait-hud');
+      if (band !== null) {
+        const under = Math.max(band.getBoundingClientRect().bottom, board.querySelector('[data-testid="live-phases"]')?.getBoundingClientRect().bottom ?? 0, document.querySelector('[data-testid="live-phases"]')?.getBoundingClientRect().bottom ?? 0);
+        const top = under + PILE_GAP;
+        const fit = fitPile(count, preferred, { width: bounds.width - 2 * PILE_GAP - chromeW, height: bounds.bottom - top - PILE_GAP - chromeH });
+        setLayout({ ...fit, left: PILE_GAP, top: top - bounds.top });
+        return;
+      }
       const beside = roomBeside(from, bounds);
       const side: PileSide = beside.right >= beside.left ? 'right' : 'left';
       const room = {

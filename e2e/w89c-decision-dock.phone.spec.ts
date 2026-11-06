@@ -331,27 +331,26 @@ test(titled("Scapeshift's library search opens the dock full, scrolls only verti
     await forcePortrait(alice.page);
 
     await castByTap(alice.page, 'Scapeshift');
-    // Forge asks "Do you want to sacrifice?" (a real yes/no, `prompt-confirm-yes`) in alice's OWN
-    // docked dialog before the sacrifice-selection sheet ever shows a tile. A yes/no is as tall as its
-    // question too, and stands on the bar.
-    // Measured from the same sighting that answers it: a yes seen by a later count only would be
-    // answered unmeasured, and Forge holds this one open for a quarter of a second.
-    let yesNoSlack: number | null = null;
+    // Forge asks "Do you want to sacrifice?" (a real yes/no, `prompt-confirm-yes`) before the
+    // sacrifice-selection sheet ever shows a tile. A yes/no with no card to show stands in the bar.
+    // Checked at the same sighting that answers it: Forge holds this one open for a quarter of a second.
+    let yesNoSeen = false;
     await until('the sacrifice sheet opens', async () => {
       const yes = alice.page.locator('[data-testid="prompt-confirm-yes"]:enabled');
       if ((await yes.count()) > 0) {
-        if (yesNoSlack === null) {
-          await expect(dock(alice.page), 'a yes/no opens docked').toHaveAttribute('data-mode', 'dock');
-          yesNoSlack = await dockSlack(alice.page);
-          await expectBarAnchored(alice.page, 'a yes/no, docked');
+        if (!yesNoSeen) {
+          // A yes/no with no card to show stands in the bar (Mockup 2), never in a dock.
+          await expect(alice.page.getByTestId('action-bar').getByTestId('live-confirm'), 'a yes/no stands in the bar').toBeVisible();
+          await expect(dock(alice.page), 'nothing docks for it').toHaveCount(0);
+          yesNoSeen = true;
+          await expectBarAnchored(alice.page, 'a yes/no, in the bar');
         }
         await tapIfEnabled(yes);
       }
       await pumpOpponent(bob.page);
       return (await tiles(alice.page)).length >= 10;
     });
-    expect(yesNoSlack, 'the yes/no docked').not.toBeNull();
-    expect(yesNoSlack!, 'no empty room in a docked yes/no').toBeLessThanOrEqual(2);
+    expect(yesNoSeen, 'the yes/no was seen in the bar').toBe(true);
     const lands = await tiles(alice.page);
     for (const t of lands) await tapTile(alice.page, t.id);
     await tapIfEnabled(doneFor(alice.page, lands.map((t) => t.id)));

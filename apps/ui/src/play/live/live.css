@@ -2088,6 +2088,10 @@
   color: var(--ink-dim);
 }
 
+:root[data-layout='portrait'] .action-bar__prompt > .confirm__message {
+  white-space: normal;
+}
+
 :root[data-layout='portrait'] .action-bar__context {
   opacity: 0.8;
 }

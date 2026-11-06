@@ -482,6 +482,27 @@ export function QuestionHost({
   }, [spot, clearKey, portrait]);
   const { mode, overflow, label, setMode } = useDock(ref, portrait);
   const offersHand = useContext(OffersHandContext);
+  /*
+   * Portrait's `keepClearOf`: the dock stands on the bottom edge unless that covers a board card it offers,
+   * and then on the top edge, under the band. Decided once per question, at the bottom edge, where every
+   * dock first draws.
+   */
+  const [edge, setEdge] = useState<'bottom' | 'top'>('bottom');
+  useLayoutEffect(() => {
+    setEdge('bottom');
+  }, [clearKey]);
+  useLayoutEffect(() => {
+    const frame = ref.current;
+    const dock = frame?.parentElement;
+    if (!portrait || clearKey === '' || edge !== 'bottom' || mode !== 'dock' || frame === null || dock === null || dock === undefined) return;
+    const board = boardOf(frame);
+    const at = dock.getBoundingClientRect();
+    const covered = clearKey.split(',').some((id) => {
+      const r = board?.querySelector(`[data-board-card="${id}"]`)?.getBoundingClientRect();
+      return r !== undefined && r.height > 0 && r.bottom > at.top && r.top < at.bottom;
+    });
+    if (covered) setEdge('top');
+  });
   if (!portrait) {
     return (
       <div ref={ref} className="live__prompt" {...rest}>
@@ -499,6 +520,7 @@ export function QuestionHost({
       data-testid="decision-dock"
       data-mode={mode}
       data-clear={offersHand ? 'hand' : undefined}
+      data-edge={edge === 'top' ? 'top' : undefined}
       // How many controls stand on the sheet's first row (`dock.css` keeps that row clear of them).
       style={{ '--dock-ctl-n': 1 + (mode === 'full' || (mode === 'dock' && overflow) ? 1 : 0) } as CSSProperties}
     >

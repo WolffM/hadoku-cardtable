@@ -612,6 +612,8 @@ const ZOOM_STEP = 0.2;
 
 /** An open decision, as portrait's bottom bar draws it (`BarAnswer`) and its sheet does on desktop. */
 interface BarAnswerProps {
+  /** The sheet's own testid (`live-decision`, `live-confirm`): the bar draws the same decision, so its readers find it there. */
+  testId: string;
   message: string;
   context: string | null;
   button1: ConfirmPromptButton | undefined;
@@ -623,11 +625,11 @@ interface BarAnswerProps {
  * prompt as one line"): Forge's question, and its ability text after it where it has one, clamped to
  * the bar's height, then its buttons, the second before the first so the first stands where OK stood.
  */
-function BarAnswer({ message, context, button1, button2 }: BarAnswerProps) {
+function BarAnswer({ testId, message, context, button1, button2 }: BarAnswerProps) {
   return (
-    <div className="action-bar__slot">
+    <div className="action-bar__slot" data-testid={testId}>
       <p className="action-bar__prompt">
-        {message}
+        <span className="confirm__message">{message}</span>
         {context !== null && context !== '' && <span className="action-bar__context"> {context}</span>}
       </p>
       {[button2, button1].map((b, i) => {
@@ -4036,6 +4038,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
   const decisionAnswer: BarAnswerProps | null =
     decision && bar !== null
       ? {
+          testId: 'live-decision',
           message: mulliganPick
             ? mulliganPickText.current ?? ''
             : decisionMessage(question, match.view?.stack[0] ?? null, route === 'pass' && match.view !== null ? nextStepName(match.view) : null),
@@ -4061,6 +4064,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
   const confirmAnswer: BarAnswerProps | null =
     confirmPrompt && bar !== null
       ? {
+          testId: 'live-confirm',
           message: promptText(question),
           context,
           button1: { label: bar.label1, enabled: bar.enable1, testId: 'prompt-confirm-yes', onClick: () => answerTrigger('ok') },
@@ -4555,7 +4559,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
           spot={interaction.stagedCardId !== undefined ? 'staged' : undefined}
         >
           <ConfirmPrompt
-            testId="live-decision"
+            testId={decisionAnswer.testId}
             message={decisionAnswer.message}
             context={decisionAnswer.context}
             start={combatDone !== null}

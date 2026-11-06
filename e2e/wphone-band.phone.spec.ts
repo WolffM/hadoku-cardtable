@@ -124,7 +124,7 @@ test(titled('the open decision’s button is in the bar, once; the hand peeks, r
     await expect(ok, 'the pass is offered').toBeVisible();
     await expect(ok, 'drawn once').toHaveCount(1);
     await expect(page.getByTestId('action-bar').getByTestId('live-decision-ok'), 'in the bar').toHaveCount(1);
-    await expect(page.getByTestId('live-decision'), 'no sheet for it').toHaveCount(0);
+    await expect(page.getByTestId('live-decision-host'), 'no sheet for it').toHaveCount(0);
     await expect(page.getByTestId('action-primary'), 'no second OK').toHaveCount(0);
 
     const lane = page.getByTestId('lane-my-hand');
