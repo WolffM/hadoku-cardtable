@@ -23,6 +23,8 @@ const DISC_PX = 42;
 const FINGER_DISC_PX = 52;
 /** How far over a finger's press the ring's lowest disc stands. */
 const OVER_FINGER_PX = 16;
+/** How far beside a finger's press the ring stands when the board leaves no room above it. */
+const FINGER_CLEAR_PX = 32;
 
 /** Whether this device's primary pointer is a finger. */
 function coarsePointer(): boolean {
@@ -147,9 +149,16 @@ export function ManaRing({ ring, kind, ask, titles, onPick, onCancel }: ManaRing
         (b, r) => ({ left: Math.min(b.left, r.left), top: Math.min(b.top, r.top), right: Math.max(b.right, r.right), bottom: Math.max(b.bottom, r.bottom) }),
         { left: drawn.left, top: drawn.top, right: drawn.left, bottom: drawn.top },
       );
-      // The ring's centre on the press; a finger's press under its lowest disc.
+      // The ring's centre on the press. A finger's press under its lowest disc; where the board leaves
+      // no room above it, beside the finger (right, else left), never back down onto it.
       const want = { x: point.x - drawn.left, y: fingered ? point.y - OVER_FINGER_PX - box.bottom : point.y - drawn.top };
-      const by = clampOffset(want, box, board);
+      let by = clampOffset(want, box, board);
+      if (fingered && box.bottom + by.y > point.y - OVER_FINGER_PX / 2) {
+        const midY = point.y - (box.top + box.bottom) / 2;
+        const right = clampOffset({ x: point.x + FINGER_CLEAR_PX - box.left, y: midY }, box, board);
+        const left = clampOffset({ x: point.x - FINGER_CLEAR_PX - box.right, y: midY }, box, board);
+        by = box.left + right.x >= point.x + FINGER_CLEAR_PX / 2 ? right : left;
+      }
       el.style.translate = `${Math.round(by.x)}px ${Math.round(by.y)}px`;
     };
     place();

@@ -1,7 +1,7 @@
 /**
  * The mana ring on a phone (`mana-ring.spec.ts` has the desktop's): a tap on City of Brass opens its
- * ring of five above the finger, never under it, every disc at least 44 px, whole on the board; a tap
- * on a disc adds that colour.
+ * ring of five above or beside the finger, never under it (no disc covers the finger's touch), every
+ * disc at least 44 px, whole on the screen; a tap on a disc adds that colour.
  *
  * Needs a Forge build; without one the test SKIPS and its title says why.
  */
@@ -18,6 +18,9 @@ test.use(PHONE);
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
+
+/** A fingertip's reach round the point it taps, in px: a disc inside it is under the finger. */
+const FINGER_PX = 22;
 
 test(titled('on a phone the mana ring opens above the finger that tapped the land, its discs finger-sized'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
@@ -41,12 +44,14 @@ test(titled('on a phone the mana ring opens above the finger that tapped the lan
         const b = await boxOf(disc);
         const name = (await disc.getAttribute('data-mana')) ?? '?';
         if (b.right - b.left < 44) wrong.push(`${name} is ${Math.round(b.right - b.left)} px, under 44`);
-        if (b.bottom > tap.y) wrong.push(`${name} reaches ${Math.round(b.bottom)}, under the finger at ${Math.round(tap.y)}`);
+        const nearX = Math.max(b.left, Math.min(tap.x, b.right));
+        const nearY = Math.max(b.top, Math.min(tap.y, b.bottom));
+        if (Math.hypot(tap.x - nearX, tap.y - nearY) < FINGER_PX) wrong.push(`${name} covers the finger at (${Math.round(tap.x)}, ${Math.round(tap.y)})`);
         if (b.left < 0 || b.top < 0 || b.right > viewport.width || b.bottom > viewport.height) wrong.push(`${name} is off screen`);
       }
       return wrong.join('; ');
     };
-    await expect.poll(misplaced, { timeout: 5_000, message: 'every disc finger-sized, above the finger, on screen' }).toBe('');
+    await expect.poll(misplaced, { timeout: 5_000, message: 'every disc finger-sized, clear of the finger, on screen' }).toBe('');
     await ringOption(page, 'G').tap();
     await expect(ring(page), 'the ring closed').toHaveCount(0);
     await expect.poll(async () => (await pool(page)).G, { timeout: 10_000, message: 'City of Brass added {G}' }).toBe(1);

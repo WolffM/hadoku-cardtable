@@ -3142,6 +3142,9 @@ public final class PlayBridge {
             if (phaseDelayOff && message != null && message.startsWith("Priority:")) { setPhaseDelayOff(false); }
             sendHeldSelectables();
             syncConvokeSelectables();
+            // The payment this prompt shows, or none: Forge's "which ability?" inside a payment is asked
+            // from the payment's own click, when the input queue may not report it (payInput).
+            openPayment = myInput() instanceof InputPayMana pay ? pay : null;
             final JsonObject f = notify("showPromptMessage");
             f.add("player", ref("player", playerView.getId()));
             f.addProperty("message", str(message));
@@ -5450,6 +5453,7 @@ public final class PlayBridge {
             final String owed = owedInPayment();
             final forge.game.mana.ManaCostBeingPaid paying = paymentCost();
             final forge.game.player.Player payer = paying == null ? null : paymentPayer();
+            if (paying != null) { System.err.println("[bridge] manaFacts: in a payment, owed " + paying + " (colours " + owed + ")"); }
             for (int i = 0; i < abilities.size(); i++) {
                 final SpellAbility sa = cache.get(abilities.get(i));
                 if (sa == null || !sa.isManaAbility() || sa.getManaPart() == null) { continue; }
@@ -5469,8 +5473,19 @@ public final class PlayBridge {
          * asking (probed: City of Brass, Adarkar Wastes paying {U}). Empty outside a payment, or when only
          * generic mana is left.
          */
+        /** The payment {@link #showPromptMessage} last showed, kept until a prompt that is not a payment. */
+        private volatile InputPayMana openPayment;
+
+        /** The open payment: the input queue's, or the one last shown while it is unpaid. */
+        private InputPayMana payInput() {
+            if (myInput() instanceof InputPayMana pay) { return pay; }
+            final InputPayMana shown = openPayment;
+            return shown != null && !shown.isPaid() ? shown : null;
+        }
+
         private String owedInPayment() {
-            if (!(myInput() instanceof InputPayMana pay)) { return ""; }
+            final InputPayMana pay = payInput();
+            if (pay == null) { return ""; }
             try {
                 final forge.game.mana.ManaCostBeingPaid cost = (forge.game.mana.ManaCostBeingPaid) field(pay, InputPayMana.class, "manaCost");
                 final forge.game.player.Player payer = (forge.game.player.Player) field(pay, InputPayMana.class, "player");
@@ -5487,7 +5502,8 @@ public final class PlayBridge {
 
         /** The open payment's cost, or null outside a payment. */
         private forge.game.mana.ManaCostBeingPaid paymentCost() {
-            if (!(myInput() instanceof InputPayMana pay)) { return null; }
+            final InputPayMana pay = payInput();
+            if (pay == null) { return null; }
             try {
                 return (forge.game.mana.ManaCostBeingPaid) field(pay, InputPayMana.class, "manaCost");
             } catch (final ReflectiveOperationException | RuntimeException ex) {
@@ -5496,7 +5512,8 @@ public final class PlayBridge {
         }
 
         private forge.game.player.Player paymentPayer() {
-            if (!(myInput() instanceof InputPayMana pay)) { return null; }
+            final InputPayMana pay = payInput();
+            if (pay == null) { return null; }
             try {
                 return (forge.game.player.Player) field(pay, InputPayMana.class, "player");
             } catch (final ReflectiveOperationException | RuntimeException ex) {
