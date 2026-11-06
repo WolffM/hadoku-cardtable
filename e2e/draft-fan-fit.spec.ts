@@ -12,40 +12,21 @@
  *
  * Needs no server: it only reads the screen. No Forge, never skipped. `[fan-fit]` lines are the evidence.
  */
-import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 
 import { expect, test, type Browser } from '@playwright/test';
 
-const ROOT = resolve(import.meta.dirname, '..');
-const UI = resolve(ROOT, 'apps/ui');
+import { serveFitPages, type FitPages } from './fit-pages.ts';
 
-interface ViteServer {
-  listen(): Promise<unknown>;
-  close(): Promise<void>;
-  resolvedUrls: { local: string[] } | null;
-}
-
-let vite: ViteServer | null = null;
+let fit: FitPages | null = null;
 let base = '';
 
 test.beforeAll(async () => {
-  const { createServer } = (await import(pathToFileURL(resolve(UI, 'node_modules/vite/dist/node/index.js')).href)) as {
-    createServer: (config: Record<string, unknown>) => Promise<ViteServer>;
-  };
-  vite = await createServer({
-    configFile: resolve(UI, 'vite.config.ts'),
-    root: UI,
-    logLevel: 'error',
-    server: { host: '127.0.0.1', port: 0, strictPort: false, hmr: false },
-  });
-  await vite.listen();
-  base = vite.resolvedUrls?.local[0] ?? '';
-  expect(base, 'the fit page is served').not.toBe('');
+  fit = await serveFitPages();
+  base = fit.base;
 });
 
 test.afterAll(async () => {
-  await vite?.close();
+  await fit?.close();
 });
 
 type Box = { x: number; y: number; w: number; h: number };

@@ -18,43 +18,22 @@
  *
  * Needs no server: it only reads the screen. No Forge, never skipped.
  */
-import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
-
 import { expect, test } from '@playwright/test';
 
-const ROOT = resolve(import.meta.dirname, '..');
-const UI = resolve(ROOT, 'apps/ui');
-
-interface ViteServer {
-  listen(): Promise<unknown>;
-  close(): Promise<void>;
-  resolvedUrls: { local: string[] } | null;
-}
+import { serveFitPages, type FitPages } from './fit-pages.ts';
 
 test.use({ viewport: { width: 1280, height: 800 } });
 
-let vite: ViteServer | null = null;
+let fit: FitPages | null = null;
 let base = '';
 
 test.beforeAll(async () => {
-  // The app's own Vite: the e2e package carries no bundler of its own.
-  const { createServer } = (await import(pathToFileURL(resolve(UI, 'node_modules/vite/dist/node/index.js')).href)) as {
-    createServer: (config: Record<string, unknown>) => Promise<ViteServer>;
-  };
-  vite = await createServer({
-    configFile: resolve(UI, 'vite.config.ts'),
-    root: UI,
-    logLevel: 'error',
-    server: { host: '127.0.0.1', port: 0, strictPort: false, hmr: false },
-  });
-  await vite.listen();
-  base = vite.resolvedUrls?.local[0] ?? '';
-  expect(base, 'the fit page is served').not.toBe('');
+  fit = await serveFitPages();
+  base = fit.base;
 });
 
 test.afterAll(async () => {
-  await vite?.close();
+  await fit?.close();
 });
 
 /** Every overlap on the page, by kind: what a pack touches that it must not. */

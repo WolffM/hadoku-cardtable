@@ -41,6 +41,7 @@ import { fileURLToPath } from 'node:url';
 
 import { createPrefsRowsStandIn } from '../apps/server/src/http/prefsRowsStandIn.ts';
 import { PREFS_MOUNT, startEdge } from './edge.ts';
+import { assertProductionBundle } from './fit-pages.ts';
 import { STREAM_BASE_PORT, STREAM_NAME_PREFIX, STREAM_PORT_MAX } from './streamNamespace.ts';
 import { EDGE_PORT, FRIENDS, SERVER_PORT } from './identities.ts';
 
@@ -72,6 +73,12 @@ if (!existsSync(SERVER_JS) || !existsSync(resolve(BUILT_WEB_DIR, 'index.html')))
     `no built app: need ${SERVER_JS} and ${BUILT_WEB_DIR}/index.html. ` +
       'Build first: `pnpm --filter @hadoku/ui build && pnpm --filter @hadoku/server build`.',
   );
+}
+// What every spec times and drives is what ships: React's production build.
+try {
+  assertProductionBundle(BUILT_WEB_DIR);
+} catch (e) {
+  die((e as Error).message);
 }
 
 /*
