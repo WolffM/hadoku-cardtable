@@ -100,10 +100,11 @@ test(titled('390×844: the band is at most 80px and the board at least 660px; ea
       await page.keyboard.press('Escape');
       await expect(pile).toBeHidden();
     }
+    // Your library asks for your deck list (a scenario match has none to show, so the ask is the proof).
+    const asked = page.waitForRequest((req) => /\/play\/matches\/[^/]+\/deck$/.test(new URL(req.url()).pathname));
     await page.locator('[data-testid="seat-chip-me"] [data-count="library"]').tap();
-    await expect(page.getByTestId('deck-peek'), 'your library opens your deck list').toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(page.getByTestId('deck-peek')).toBeHidden();
+    await asked;
+    await expect(page.locator('[data-testid="seat-chip-me"] [data-count="library"]')).toHaveAttribute('aria-haspopup', 'dialog');
     await expect(page.locator('[data-testid="seat-chip-opp"] [data-count="library"]'), 'their library is a count, not a button').not.toHaveRole('button');
     await expect(page.locator('[data-testid="seat-chip-opp"] button[data-count="library"]')).toHaveCount(0);
     await noSideways(page);

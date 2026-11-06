@@ -483,9 +483,9 @@ export function QuestionHost({
   const { mode, overflow, label, setMode } = useDock(ref, portrait);
   const offersHand = useContext(OffersHandContext);
   /*
-   * Portrait's `keepClearOf`: the dock stands on the bottom edge unless that covers a board card it offers,
-   * and then on the top edge, under the band. Decided once per question, at the bottom edge, where every
-   * dock first draws.
+   * Portrait's `keepClearOf`: the dock stands on the bottom edge unless the top edge, under the band, covers
+   * fewer of the board cards it offers. Decided once per question, at the bottom edge, where every dock
+   * first draws.
    */
   const [edge, setEdge] = useState<'bottom' | 'top'>('bottom');
   useLayoutEffect(() => {
@@ -497,11 +497,14 @@ export function QuestionHost({
     if (!portrait || clearKey === '' || edge !== 'bottom' || mode !== 'dock' || frame === null || dock === null || dock === undefined) return;
     const board = boardOf(frame);
     const at = dock.getBoundingClientRect();
-    const covered = clearKey.split(',').some((id) => {
+    // At the top it would stand under the band and its phase line, as tall as it is now.
+    const under = Math.max(board?.querySelector('.portrait-hud')?.getBoundingClientRect().bottom ?? 0, document.querySelector('[data-testid="live-phases"]')?.getBoundingClientRect().bottom ?? 0);
+    const choices = clearKey.split(',').flatMap((id) => {
       const r = board?.querySelector(`[data-board-card="${id}"]`)?.getBoundingClientRect();
-      return r !== undefined && r.height > 0 && r.bottom > at.top && r.top < at.bottom;
+      return r === undefined || r.height === 0 ? [] : [r];
     });
-    if (covered) setEdge('top');
+    const covers = (top: number, bottom: number): number => choices.filter((r) => r.bottom > top && r.top < bottom).length;
+    if (covers(under, under + at.height) < covers(at.top, at.bottom)) setEdge('top');
   });
   if (!portrait) {
     return (

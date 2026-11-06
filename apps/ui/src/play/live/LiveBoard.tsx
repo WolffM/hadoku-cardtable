@@ -4089,7 +4089,7 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
    * own fact when it has one, else the same genuine hold that rings their avatar (`opponentOpen`). The
    * desktop pop keeps to the fact alone.
    */
-  const barWaiting = waitingSaid ?? (!spectator && !over && !viewerOpen && opponentOpen ? `Waiting for ${theirName ?? 'the other player'}…` : null);
+  const barWaiting = waitingSaid ?? (!spectator && !over && !viewerOpen && coinToss === null && opponentOpen ? `Waiting for ${theirName ?? 'the other player'}…` : null);
 
   return (
     <OffersHandContext.Provider value={offersHand}>
