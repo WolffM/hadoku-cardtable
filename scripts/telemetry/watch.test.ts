@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, describe, expect, it } from 'vitest';
 
-import { alertLine, digest, pages, render, summarise, type Event, type Get, type Row } from './watch.ts';
+import { alertLine, backupAges, digest, pages, render, summarise, type Event, type Get, type Row } from './watch.ts';
 
 /** A monitoring-api listing, newest first, that answers at most `cap` rows a page whatever was asked, and says `hasMore` past them. */
 function cappedApi(all: { id: string }[], cap = 500): { get: Get; asked: string[] } {
@@ -150,5 +153,35 @@ describe('digest', () => {
 		expect(text).toMatch(/\*\*prod:\*\* 3 requests .*Forge headroom ≥ 50/);
 		expect(text).not.toMatch(/\*\*ppe:\*\*.*headroom/);
 		expect(text.length).toBeLessThanOrEqual(2000);
+	});
+});
+
+describe('backup age', () => {
+	const dir = mkdtempSync(join(tmpdir(), 'watch-backup-'));
+	afterAll(() => rmSync(dir, { recursive: true, force: true }));
+	mkdirSync(join(dir, 'snapshots', 'prod'), { recursive: true });
+	mkdirSync(join(dir, 'snapshots', 'ppe'), { recursive: true });
+	for (const f of ['20261104T120000Z.json', '20261106T120000Z.json', 'notes.txt']) writeFileSync(join(dir, 'snapshots', 'prod', f), '{}');
+	writeFileSync(join(dir, 'snapshots', 'ppe', '20261104T120000Z.json'), '{}');
+	const now = new Date('2026-11-06T18:00:00Z');
+
+	it("reads each env's newest snapshot and its age, and marks one over 36 h or missing as stale", () => {
+		expect(backupAges(dir, now, ['prod', 'ppe', 'gone'])).toEqual([
+			{ env: 'prod', newest: '20261106T120000Z', ageHours: 6, stale: false },
+			{ env: 'ppe', newest: '20261104T120000Z', ageHours: 54, stale: true },
+			{ env: 'gone', newest: null, ageHours: null, stale: true },
+		]);
+		expect(backupAges(join(dir, 'unmounted'), now, ['prod'])).toEqual([{ env: 'prod', newest: null, ageHours: null, stale: true }]);
+	});
+
+	it('exits 2 on a stale backup and says so in the report and the digest', () => {
+		const backups = backupAges(dir, now, ['prod', 'ppe']);
+		const s = summarise([], [], '198.51.100.*', at('00:00'), backups);
+		expect(alertLine(s)).toBe('ALERT: 0 gate breach(es), 0 seal-refused, 0 critical event(s), 1 stale backup(s)');
+		expect(render(s)).toContain('## Backups: prod 20261106T120000Z (6h), ppe 20261104T120000Z (54h, STALE)');
+		expect(digest(s)).toContain('**Backups:** prod 6h · ppe 54h ⚠️ stale');
+		const fresh = summarise([], [], '198.51.100.*', at('00:00'), backups.slice(0, 1));
+		expect(alertLine(fresh)).toBeNull();
+		expect(digest(fresh)).toContain('**Backups:** prod 6h');
 	});
 });

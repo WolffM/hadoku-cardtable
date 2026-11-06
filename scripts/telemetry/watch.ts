@@ -13,8 +13,11 @@
  * Exits 2, after printing `ALERT: …` saying why, when something needs a look NOW: an anonymous
  * caller answered by cardtable itself rather than the edge's sign-in page (a hole in the gate), a
  * `seal-refused` event (a request the edge let through that the server's own floor refused — a
- * direct tunnel hit or an edge rule wider than ours), or a critical event (a 🚨 hosting alert: a
- * failover or a lost match).
+ * direct tunnel hit or an edge rule wider than ours), a critical event (a 🚨 hosting alert: a
+ * failover or a lost match), or a stale backup: the newest snapshot `cardtable:state-backup`
+ * (hadoku_site's mgmt-api, nightly) left in `/mnt/roost/cardtable-backup` is over 36 h old for prod
+ * or PPE, or missing. That job pages when it runs and finds itself stale; this catches it not
+ * running at all, on a different clock. `CARDTABLE_BACKUP_DIR` points it elsewhere.
  *
  * `--own-ip` is our own egress, masked the way the log masks it; agents' probes
  * and e2e browsers come from it and are not visitors. Default: looked up once.
@@ -25,7 +28,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 
@@ -36,6 +39,35 @@ const BASE = 'https://hadoku.me/health/api';
 const PAGE = 1000;
 /** The Discord message's budget (Discord's own limit is 2000). */
 const DIGEST_MAX = 2000;
+const BACKUP_DIR = '/mnt/roost/cardtable-backup';
+/** The backup is daily: over a day and a half means a night has been lost. */
+const BACKUP_STALE_HOURS = 36;
+
+export interface BackupAge {
+	env: string;
+	newest: string | null;
+	ageHours: number | null;
+	stale: boolean;
+}
+
+/** Each env's newest snapshot (`snapshots/<env>/<YYYYMMDDTHHMMSSZ>.json`) and its age in whole hours. */
+export function backupAges(dir: string, now: Date, envs = ['prod', 'ppe']): BackupAge[] {
+	return envs.map((env) => {
+		const at = join(dir, 'snapshots', env);
+		const stamps = existsSync(at)
+			? readdirSync(at)
+					.map((f) => /^(\d{8}T\d{6}Z)\.json$/.exec(f)?.[1])
+					.filter((x): x is string => x !== undefined)
+					.sort()
+			: [];
+		const newest = stamps.at(-1) ?? null;
+		if (newest === null) return { env, newest, ageHours: null, stale: true };
+		const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(newest)!;
+		const t = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+		const ageHours = Math.floor((now.getTime() - t) / 3_600_000);
+		return { env, newest, ageHours, stale: ageHours > BACKUP_STALE_HOURS };
+	});
+}
 
 export interface Row {
 	id?: string;
@@ -282,7 +314,7 @@ const LEVEL_ORDER = ['critical', 'error', 'warn', 'info'];
 const SITE_ORDER = ['prod', 'ppe'];
 const rank = (order: string[], x: string): number => (order.includes(x) ? order.indexOf(x) : order.length);
 
-export function summarise(rows: Row[], events: Event[], ownIp: string, since: string) {
+export function summarise(rows: Row[], events: Event[], ownIp: string, since: string, backups: BackupAge[] = []) {
 	const visitors = rows.filter((r) => r.user_id !== TOUR && r.ip_address !== ownIp);
 	// The edge answers an anonymous caller itself (backend 'auth': the sign-in page or a 401).
 	// Anything else reached cardtable's own server without an account.
@@ -299,7 +331,9 @@ export function summarise(rows: Row[], events: Event[], ownIp: string, since: st
 			gateBreaches: breaches.length,
 			sealRefused: events.filter((e) => e.event === 'seal-refused').length,
 			critical: incidents.filter((i) => i.level === 'critical' && i.what !== 'gate-breach').length,
+			staleBackups: backups.filter((b) => b.stale).length,
 		},
+		backups,
 		incidents,
 		sites: Object.fromEntries(
 			sites.map((s) => [
@@ -317,9 +351,10 @@ export type Summary = ReturnType<typeof summarise>;
 /** Why the run exits 2, or null when nothing needs a look now. */
 export function alertLine(s: Summary): string | null {
 	const a = s.alerts;
-	return a.gateBreaches + a.sealRefused + a.critical === 0
+	return a.gateBreaches + a.sealRefused + a.critical + a.staleBackups === 0
 		? null
-		: `ALERT: ${a.gateBreaches} gate breach(es), ${a.sealRefused} seal-refused, ${a.critical} critical event(s)`;
+		: `ALERT: ${a.gateBreaches} gate breach(es), ${a.sealRefused} seal-refused, ${a.critical} critical event(s)` +
+				(a.staleBackups ? `, ${a.staleBackups} stale backup(s)` : '');
 }
 
 const levelsLine = (s: Summary): string =>
@@ -340,6 +375,12 @@ export function render(s: Summary): string {
 	);
 	const alert = alertLine(s);
 	if (alert !== null) out.push(alert);
+	if (s.backups.length)
+		out.push(
+			`\n## Backups: ${s.backups
+				.map((b) => (b.newest === null ? `${b.env} NONE (STALE)` : `${b.env} ${b.newest} (${b.ageHours}h${b.stale ? ', STALE' : ''})`))
+				.join(', ')}`,
+		);
 	const sw = Math.max(4, ...s.incidents.map((i) => i.site.length));
 	section(
 		`Needs a look: ${levelsLine(s)} (each one, oldest first)`,
@@ -455,6 +496,13 @@ export function digest(s: Summary): string {
 				.filter((x) => x !== null)
 				.join(' · ');
 		}),
+		...(s.backups.length
+			? [
+					`**Backups:** ${s.backups
+						.map((b) => `${b.env} ${b.newest === null ? 'none' : `${b.ageHours}h`}${b.stale ? ' ⚠️ stale' : ''}`)
+						.join(' · ')}`,
+				]
+			: []),
 		`**Anonymous:** ${
 			sites.every(([, a]) => a.anonymous.requests === 0)
 				? 'none'
@@ -528,7 +576,7 @@ async function main(): Promise<void> {
 		pages<Event>(get, `/service-events?service=cardtable&since=${since}`, 'events'),
 		ownIp(args['own-ip']),
 	]);
-	const summary = summarise(rows, events, mine, since);
+	const summary = summarise(rows, events, mine, since, backupAges(process.env.CARDTABLE_BACKUP_DIR ?? BACKUP_DIR, new Date()));
 	const report = args.json ? JSON.stringify(summary, null, 2) : render(summary);
 	console.log(report);
 
