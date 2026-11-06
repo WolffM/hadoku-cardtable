@@ -86,3 +86,14 @@ export async function chooseAbility(page: Page, want: RegExp): Promise<void> {
   if ((await chips.count()) > 0) await chips.nth(i).click();
   else await page.getByTestId('live-prompt').locator('[data-testid="prompt-choice"]').nth(i).click();
 }
+
+/** The centre of `disc` on screen. */
+export async function centreOf(disc: Locator): Promise<Point> {
+  const b = await boxOf(disc);
+  return { x: (b.left + b.right) / 2, y: (b.top + b.bottom) / 2 };
+}
+
+/** The points a pointer passes through going from `from` to `to` in `steps` even moves. */
+export function pathTo(from: Point, to: Point, steps = 8): Point[] {
+  return Array.from({ length: steps }, (_, i) => ({ x: from.x + ((to.x - from.x) * (i + 1)) / steps, y: from.y + ((to.y - from.y) * (i + 1)) / steps }));
+}
