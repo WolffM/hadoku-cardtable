@@ -121,8 +121,8 @@ test(titled('inside a payment the mana ring answers Forge’s two-colour yes/no 
     await expectRingOn(page, onTundra, 'Tundra, paying');
     await expect(ring(page)).toHaveAttribute('data-ring', 'abilities');
     // {U} is paid: Tundra's U pays nothing of the {W} still owed, and is greyed.
-    await expect(ringOption(page, 'U'), 'U pays nothing owed').toHaveAttribute('data-dim', '');
-    await expect(ringOption(page, 'W')).not.toHaveAttribute('data-dim', '');
+    await expect(ringOption(page, 'U'), 'U pays nothing owed').toHaveAttribute('data-dim');
+    await expect(ringOption(page, 'W'), 'W pays the {W} owed').not.toHaveAttribute('data-dim');
     await ringOption(page, 'W').click();
     await expect(ring(page), 'the ring closed').toHaveCount(0);
     await expect.poll(() => isTapped(page, tundra), { timeout: 10_000, message: 'Tundra paid' }).toBe(true);
