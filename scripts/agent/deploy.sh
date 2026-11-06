@@ -7,7 +7,7 @@
 #                                   base64 PKCS#8, the vault item CARDTABLE_AGENT_SIGNING_KEY's
 #                                   value). Printed nowhere.
 #   deploy.sh build <dir>           <dir>/run, and its sha256 on stdout
-#   deploy.sh install <node> <dir>  fleet hosting <node> --install <dir>/run --sha256 …
+#   deploy.sh install <node> <dir>  fleet hosting <node> --tenant cardtable --install <dir>/run …
 #                                   (the manager runs this, under a lease drain; the agent restarts
 #                                   and adopts its JVMs)
 #
@@ -58,7 +58,8 @@ build)
 	sha256sum "$out/run" | cut -d' ' -f1
 	;;
 install)
-	node "$FLEET" hosting "$1" --install "$2/run" --sha256 "$(sha256sum "$2/run" | cut -d' ' -f1)" --json
+	# A claw shared with another tenant refuses an install that does not name one.
+	node "$FLEET" hosting "$1" --tenant cardtable --install "$2/run" --sha256 "$(sha256sum "$2/run" | cut -d' ' -f1)" --json
 	;;
 *)
 	echo "deploy.sh: unknown command $cmd" >&2
