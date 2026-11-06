@@ -34,7 +34,10 @@ import { SERVER_RESTARTING_EVENT } from '@hadoku/shared';
 import { testPort } from './testPort.ts';
 
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const TSX = join(PKG_ROOT, 'node_modules', '.bin', 'tsx');
+// The server runs under node itself with tsx as a loader, as pm2 runs it under node: tsx's CLI relays
+// a SIGTERM and SIGKILLs a child that has not acknowledged it within 30 ms, which on a loaded claw
+// killed the server before its shutdown ran.
+const TSX_LOADER = pathToFileURL(join(PKG_ROOT, 'node_modules', 'tsx', 'dist', 'loader.mjs')).href;
 const ENTRY = join(PKG_ROOT, 'src', 'index.ts');
 const INDEX = '<!doctype html><html><head><script type="module" src="/cardtable/assets/app.js"></script></head><body>fixture</body></html>';
 
@@ -200,7 +203,7 @@ async function boot(
 	delete env.CARDTABLE_FORGE_RES;
 	Object.assign(env, forgeEnv);
 
-	const child: ChildProcess = spawn(TSX, [ENTRY], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+	const child: ChildProcess = spawn(process.execPath, ['--import', TSX_LOADER, ENTRY], { env, stdio: ['ignore', 'pipe', 'pipe'] });
 	let output = '';
 	child.stdout?.on('data', (d: Buffer) => (output += d.toString()));
 	child.stderr?.on('data', (d: Buffer) => (output += d.toString()));

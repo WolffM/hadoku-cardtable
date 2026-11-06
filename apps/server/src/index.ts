@@ -74,6 +74,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { podPickNumber } from '@hadoku/draft';
 import { CONFIG, INDEX_HTML, LEGACY_STATE } from './config.js';
 import { moveLegacyState } from './state-dir.js';
+import { flushed } from './flush-sockets.js';
 import { callerIdOf, edgeProvenance, requireMinTier, tierOf, userIdOf, verifiedOf } from './edge-auth.js';
 import { checkBundle, diagnosticPage, isEmbedEntry, sendIndex } from './base-path.js';
 import { announceRelease } from './announce.js';
@@ -1059,7 +1060,8 @@ if (roomStreams !== null) {
 //      nor stopped, and `{"t":"stop"}` takes ~9.3 s on a real match anyway, so
 //      an `-Xmx1g` Forge JVM survived every restart. `host.ts`, "Going down".
 //   3. Let the clients go: each socket is told the server is restarting
-//      (`SERVER_RESTARTING_EVENT`), then no new upgrades, existing sockets closed. The client
+//      (`SERVER_RESTARTING_EVENT`) and given up to `RESTART_NOTICE_FLUSH_MS` to
+//      write it, then no new upgrades, existing sockets closed. The client
 //      already survives a dropped socket; what it could not survive was the
 //      match ceasing to exist.
 //   4. Exit within `SHUTDOWN_DEADLINE_MS` no matter what. pm2 waits
@@ -1069,6 +1071,8 @@ if (roomStreams !== null) {
 //
 // SIGINT gets the same treatment, for `pnpm dev` and for a ^C in a live check.
 const SHUTDOWN_DEADLINE_MS = 5_000;
+/** The longest the restart notice may hold the close back while a busy connection drains. */
+const RESTART_NOTICE_FLUSH_MS = 500;
 const SHUTDOWN_WORDS = 'The server is restarting for a deploy.';
 let shuttingDown = false;
 
@@ -1113,10 +1117,16 @@ function shutdown(signal: string): void {
 	browserBridge.close();
 	// Every socket hears it is a restart, not a lost connection, before the close below drops it.
 	io.emit(SERVER_RESTARTING_EVENT);
-	// `io.close` disconnects every socket AND closes the HTTP server it was given.
-	io.close(() => {
-		clearTimeout(deadline);
-		finish('closed');
+	// `io.close` discards whatever a connection has not yet written, so the notice is let out first.
+	void flushed(
+		[...io.sockets.sockets.values()].map((socket) => socket.conn),
+		RESTART_NOTICE_FLUSH_MS,
+	).then(() => {
+		// `io.close` disconnects every socket AND closes the HTTP server it was given.
+		io.close(() => {
+			clearTimeout(deadline);
+			finish('closed');
+		});
 	});
 }
 
