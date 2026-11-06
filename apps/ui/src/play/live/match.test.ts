@@ -41,6 +41,8 @@ import {
   lifePerPress,
   lifePayer,
   payingMana,
+  undoableManaSource,
+  undoManaChoice,
   payWithLife,
   payFromPool,
   poolChoice,
@@ -3209,6 +3211,56 @@ describe('a tapped permanent is clicked to untap exactly when Forge offers it', 
     expect(selectCard(m, a)).toBe(true);
     await until('the click at the server', () => s.clientFrames().length === 1);
     expect(s.clientFrames()[0]).toMatchObject({ ok: true, value: { kind: 'act', method: 'selectCard', card: { kind: 'card', id: a } } });
+  });
+
+  /*
+   * The operator, 2026-10-17: "mox opal: should be able to 'cancel' choosing a color to untap it". Forge taps
+   * the source before it asks its colour and takes no cancel, so giving the question up answers it and
+   * clicks the source back: Forge's undo while the mana floats.
+   */
+  const colourAsk = (source: number, callId = 'cc-1', message = 'Select Mana to Produce') =>
+    parseServerFrame({
+      kind: 'ask',
+      callId,
+      source: { card: { kind: 'card', id: source }, text: 'Add one mana of any color.' },
+      method: 'getChoices',
+      message,
+      min: 1,
+      max: 1,
+      choices: ['W', 'U', 'B', 'R', 'G'].map((c, i) => ({ key: `c${i}`, label: c, ref: null })),
+      selected: [],
+      colors: ['W', 'U', 'B', 'R', 'G'],
+    });
+
+  it("a mana source's colour question at priority is given up by its first colour, then the source's undo click", async () => {
+    const { s, m } = await fullGame();
+    const [a] = me(m).battlefield.filter((c) => !c.tapped).map((c) => c.id) as [number];
+    await sendAndApply(s, m, [prompt('Priority'), bar('End Turn')]);
+    await sendAndApply(s, m, [tap(a, true), colourAsk(a)]);
+    const ask = m.asks[0]!;
+    expect(undoableManaSource(m, ask)).toBe(a);
+    undoManaChoice(m, ask as Extract<typeof ask, { method: 'getChoices' }>, a);
+    await until('the colour at the server', () => s.clientFrames().length === 1);
+    expect(s.clientFrames()[0]).toMatchObject({ ok: true, value: { kind: 'reply', callId: 'cc-1', method: 'getChoices', result: ['c0'] } });
+    // Forge offers the tapped source back once nothing asks: that click is its undo.
+    expect(m.asks, 'the answer closes the question').toHaveLength(0);
+    await sendAndApply(s, m, [actionable([a])]);
+    await until('the undo click', () => s.clientFrames().length === 2);
+    expect(s.clientFrames()[1]).toMatchObject({ ok: true, value: { kind: 'act', method: 'selectCard', card: { kind: 'card', id: a } } });
+  });
+
+  it('no undo under a payment, for another seat\'s card, or for a colour question that is not a mana ability\'s', async () => {
+    const { s, m } = await fullGame();
+    const [a] = me(m).battlefield.map((c) => c.id) as [number];
+    const theirs = m.view!.players.find((p) => !p.isViewer)!.battlefield[0]!.id;
+    await sendAndApply(s, m, [prompt('Priority'), bar('End Turn'), colourAsk(theirs, 'cc-2'), colourAsk(a, 'cc-3', 'Choose a color')]);
+    expect(undoableManaSource(m, m.asks.find((q) => q.callId === 'cc-2')!), 'their card').toBeNull();
+    expect(undoableManaSource(m, m.asks.find((q) => q.callId === 'cc-3')!), 'not the mana label').toBeNull();
+    await sendAndApply(s, m, [
+      parseServerFrame({ kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 0 }, label1: 'Auto', label2: 'Cancel', enable1: true, enable2: true, focus1: true }),
+      colourAsk(a, 'cc-4'),
+    ]);
+    expect(undoableManaSource(m, m.asks.find((q) => q.callId === 'cc-4')!), 'under a payment').toBeNull();
   });
 
   it('a tapped land Forge does not offer is not clickable, whatever the bar says', async () => {

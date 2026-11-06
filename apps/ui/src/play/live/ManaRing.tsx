@@ -14,7 +14,7 @@
 import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 
 import { ManaCost, ManaPip } from '../../components/ManaPip.tsx';
-import { answerAsk, pressButton, type LiveAsk, type LiveMatch } from './match.ts';
+import { answerAsk, pressButton, undoableManaSource, undoManaChoice, type LiveAsk, type LiveMatch } from './match.ts';
 import { closeManaPress, echoesManaPress, MANA_PRESS_EVENT, manaPressOf, pickManaPress } from './mana-press.ts';
 import { clampOffset, pointerAt } from './movable.tsx';
 import { chipLayout, costTokens, markGlyphs, optionForKeys, promptRing, ringFor, ringLayout, tallyDone, type Mana, type Ring, type RingAnswer, type RingOption } from './mana-ring.ts';
@@ -289,10 +289,14 @@ export function ManaAsk({ match, ask }: { match: LiveMatch; ask: LiveAsk }) {
       answerAsk(match, ask.callId, 'assignGenericAmount', shaped.ring.tally.reply(pick.counts));
     }
   };
+  // A colour Forge asks after tapping the source has no way out of its own; at priority, giving it up untaps the source.
+  const undoable = undoableManaSource(match, ask);
+  const ring = undoable === null ? shaped.ring : { ...shaped.ring, cancellable: true };
   const onCancel = (): void => {
     if (ask.method === 'getAbilityToPlay') answerAsk(match, ask.callId, 'getAbilityToPlay', null);
+    else if (undoable !== null && ask.method === 'getChoices') undoManaChoice(match, ask, undoable);
   };
-  return <ManaRing key={ask.callId} ring={shaped.ring} kind={shaped.kind} ask={ask} titles={titles} onPick={onPick} onCancel={onCancel} still={echoesManaPress(match)} />;
+  return <ManaRing key={ask.callId} ring={ring} kind={shaped.kind} ask={ask} titles={titles} onPick={onPick} onCancel={onCancel} still={echoesManaPress(match)} />;
 }
 
 /** Ability labels by option key, shown on hover. */

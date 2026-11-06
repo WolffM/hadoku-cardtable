@@ -2905,6 +2905,44 @@ function afterState(match: LiveMatch, ready: () => boolean, then: () => void): v
   const timer = setTimeout(() => finish(false), MARK_WAIT_MS);
 }
 
+/**
+ * Forge's own words for the colour a mana ability asks once its cost is paid (`lblSelectManaProduce`:
+ * `ManaEffect.java`'s `chooseColor` → `PlayerControllerHuman.chooseColorCommon`). A label matched
+ * whole, the way {@link AUTO_PAY_LABEL} is, never prose.
+ */
+const MANA_CHOICE_TITLE = 'Select Mana to Produce';
+
+/**
+ * The seat's own permanent whose mana ability asks `ask`'s colour, when giving the question up can
+ * untap it — or null.
+ *
+ * The operator, 2026-10-17: *"mox opal: should be able to 'cancel' choosing a color to untap it"*.
+ * Forge has tapped the source before it asks and takes no cancel; but while the mana floats a click
+ * on the source untaps it and takes the mana back (`InputPassPriority.onCardSelected` → `tryUndo`).
+ * So only at priority: under a payment (Forge's `Auto` bar) the mana pays the cost the moment it is
+ * made, and nothing floats to take back.
+ */
+export function undoableManaSource(match: LiveMatch, ask: LiveAsk): number | null {
+  if (ask.method !== 'getChoices' || ask.message !== MANA_CHOICE_TITLE || ask.colors === undefined) return null;
+  if (match.buttons?.label1 === AUTO_PAY_LABEL) return null;
+  const card = ask.source?.card.id;
+  if (card === undefined) return null;
+  const own = match.view?.players.some((p) => p.isViewer && p.battlefield.some((c) => c.id === card)) === true;
+  return own ? card : null;
+}
+
+/**
+ * Give up a mana ability's colour question ({@link undoableManaSource}): Forge's one pick goes out as
+ * the first colour, then the source is clicked once Forge offers it tapped with nothing asking, and
+ * Forge's undo untaps it and takes that mana back.
+ */
+export function undoManaChoice(match: LiveMatch, ask: Extract<LiveAsk, { method: 'getChoices' }>, source: number): void {
+  const first = ask.choices[0];
+  if (first === undefined || !answerAsk(match, ask.callId, 'getChoices', [first.key])) return;
+  const tapped = (): boolean => match.view?.players.some((p) => p.isViewer && p.battlefield.some((c) => c.id === source && c.tapped)) === true;
+  afterState(match, () => match.asks.length === 0 && tapped() && boardInteraction(match).selectable.has(source), () => selectCard(match, source));
+}
+
 /** Whether `attacker` is one this seat can drag a blocker onto while `InputBlock` runs, and `blocker` is its own. */
 export function isBlockAssignment(match: LiveMatch, blocker: number, attacker: number): boolean {
   const view = match.view;
