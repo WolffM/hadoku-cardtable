@@ -37,20 +37,41 @@ export { SELF_ANSWERING };
  * loop that was only waiting for the cast to land (order-drag, run
  * 38381150766: castCard's tick answered Ponder's order 162 ms after it opened).
  */
+/**
+ * The mana ring (`apps/ui/src/play/live/ManaRing.tsx`), which draws a mana source's ability and colour
+ * questions in place of the generic prompt: its first disc, pressed until it closes (a combination takes
+ * one press per pip). Null when no ring is showing, or its method is one to `leave`.
+ */
+async function answerManaRing(
+  page: Page,
+  shown: { method: string; callId: string } | null | undefined,
+  leave: readonly string[] | undefined,
+): Promise<{ method: string; callId: string } | null> {
+  if (shown === null || shown === undefined || leave?.includes(shown.method)) return null;
+  const ring = page.getByTestId('mana-ring');
+  for (let guard = 0; guard < 12 && (await ring.count()) > 0; guard++) {
+    await ring.getByTestId('mana-ring-option').first().click().catch(() => undefined);
+  }
+  return shown;
+}
+
 export async function answerPrompt(
   page: Page,
   opts: { leave?: readonly string[]; x?: number; stack?: number } = {},
 ): Promise<{ method: string; callId: string } | null> {
   // One step for the prompt's attributes and the stack: a self-answering prompt can vanish between two separate
   // reads, and a resolution's ask can open between a stack read and a prompt read.
-  const { stack, top } = await page.evaluate(() => {
+  const { stack, top, ring } = await page.evaluate(() => {
     const prompt = document.querySelector('[data-testid="live-prompt"]');
+    const mana = document.querySelector('[data-testid="mana-ring"]');
     return {
       stack: Number(document.querySelector('[data-zone="stack"]')?.getAttribute('data-count') ?? '0'),
       top: prompt === null ? undefined : { method: prompt.getAttribute('data-method') ?? '', callId: prompt.getAttribute('data-call-id') ?? '' },
+      ring: mana === null ? null : { method: mana.getAttribute('data-method') ?? 'showPromptMessage', callId: mana.getAttribute('data-call-id') ?? '' },
     };
   });
-  if (top === undefined || SELF_ANSWERING.has(top.method)) return null;
+  if (top === undefined) return answerManaRing(page, ring, opts.leave);
+  if (SELF_ANSWERING.has(top.method)) return null;
   if (opts.stack !== undefined && stack !== opts.stack) return null;
   if (opts.leave?.includes(top.method)) return null;
   const { method, callId } = top;

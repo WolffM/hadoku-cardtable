@@ -64,9 +64,16 @@ const tappedIds = async (page: Page): Promise<number[]> => (await ownBoard(page)
 
 /**
  * Whatever Forge asks after the click: which ability (the painland's two — the
- * coloured one, with the damage), then which colour.
+ * coloured one, with the damage), then which colour. A mana source is asked on the
+ * mana ring at the click: its coloured disc (the one marked with the damage) answers both.
  */
 async function answerAsks(page: Page): Promise<void> {
+  const ring = page.getByTestId('mana-ring');
+  if (await ring.isVisible({ timeout: 500 }).catch(() => false)) {
+    const hurt = ring.locator('[data-testid="mana-ring-option"]:has([data-testid="mana-ring-life"])');
+    await ((await hurt.count()) > 0 ? hurt.first() : ring.getByTestId('mana-ring-option').first()).click();
+    return;
+  }
   const prompt = page.getByTestId('live-prompt');
   const options = prompt.locator('[data-testid="prompt-choice"]');
   if (await options.first().isVisible({ timeout: 500 }).catch(() => false)) {

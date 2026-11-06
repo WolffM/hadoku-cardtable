@@ -1,0 +1,189 @@
+/*
+ * The mana ring (`ManaRing.tsx`): take A of the look page, approved on its workbench artifact.
+ * Theme tokens only; the colours of the mana are the Mana font's own pips.
+ */
+
+.mana-ring {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-popover);
+  pointer-events: none;
+}
+
+.mana-ring__ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  --disc: 42px;
+}
+
+.mana-ring__hub {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
+  min-width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--ink) 45%, transparent);
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  justify-content: center;
+  animation: mana-ring-fade calc(200ms / var(--tempo, 1)) both;
+}
+
+.mana-ring__hub--tally {
+  height: auto;
+  min-height: 26px;
+  padding: 3px 7px;
+  background: var(--bg-raised);
+  border-color: var(--line);
+  box-shadow: 0 2px 8px var(--shadow);
+  font-size: 15px;
+}
+
+.mana-ring__disc,
+.mana-ring__chip {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  width: var(--disc);
+  height: var(--disc);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  color: var(--ink);
+  font: inherit;
+  --d: calc(var(--i) * 26ms);
+}
+
+.mana-ring__disc {
+  background: var(--bg-raised);
+  box-shadow: 0 2px 8px var(--shadow), 0 0 0 1px var(--line);
+  animation: mana-ring-bloom calc(220ms / var(--tempo, 1)) cubic-bezier(0.2, 0.9, 0.3, 1.25) both calc(var(--d) / var(--tempo, 1));
+}
+
+.mana-ring__disc--pair {
+  width: calc(var(--disc) * 1.7);
+  border-radius: 999px;
+}
+
+.mana-ring__glyphs {
+  display: inline-flex;
+  gap: 3px;
+  font-size: calc(var(--disc) * 0.56);
+  line-height: 1;
+}
+
+.mana-ring__disc--pair .mana-ring__glyphs {
+  font-size: calc(var(--disc) * 0.44);
+}
+
+.mana-ring__wild {
+  font-size: calc(var(--disc) * 0.6);
+}
+
+.mana-ring__disc:hover,
+.mana-ring__disc:focus-visible,
+.mana-ring__chip:hover,
+.mana-ring__chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent), 0 4px 12px var(--shadow);
+  transform: translate(-50%, -50%) scale(1.14);
+  z-index: 2;
+}
+
+.mana-ring__chip {
+  width: calc(var(--disc) * 0.9);
+  height: calc(var(--disc) * 0.9);
+  background: color-mix(in srgb, var(--bg-raised) 80%, transparent);
+  border: 1.5px dashed var(--ink-dim);
+  font-size: calc(var(--disc) * 0.42);
+  animation: mana-ring-bloom calc(260ms / var(--tempo, 1)) cubic-bezier(0.2, 0.9, 0.3, 1.25) both calc((var(--d) + 60ms) / var(--tempo, 1));
+}
+
+.mana-ring__mark {
+  position: absolute;
+  display: flex;
+  gap: 1px;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: 10px;
+  font: 700 11.5px/20px system-ui, sans-serif;
+  box-shadow: 0 0 0 2px var(--bg);
+  pointer-events: none;
+}
+
+.mana-ring__hub .mana-ring__mark {
+  position: static;
+  box-shadow: none;
+}
+
+.mana-ring__mark .ms {
+  font-size: 14px;
+}
+
+.mana-ring__mark--life {
+  right: -6px;
+  top: -6px;
+  background: var(--danger);
+  color: var(--on-danger);
+}
+
+.mana-ring__mark--times {
+  left: -6px;
+  bottom: -6px;
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.mana-ring__mark--cost {
+  right: -6px;
+  bottom: -6px;
+  background: var(--bg-card);
+  color: var(--ink);
+}
+
+.mana-ring__mark--rule {
+  left: -6px;
+  top: -6px;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.mana-ring__ring--finger .mana-ring__mark {
+  min-width: 22px;
+  height: 22px;
+  line-height: 22px;
+  font-size: 12.5px;
+}
+
+@keyframes mana-ring-bloom {
+  from {
+    transform: translate(calc(-50% - var(--dx)), calc(-50% - var(--dy))) scale(0.2);
+    opacity: 0;
+  }
+}
+
+@keyframes mana-ring-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mana-ring__disc,
+  .mana-ring__chip,
+  .mana-ring__hub {
+    animation: mana-ring-fade calc(120ms / var(--tempo, 1)) ease both;
+  }
+}

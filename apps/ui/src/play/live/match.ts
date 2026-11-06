@@ -605,6 +605,17 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
   promptPoolPays: readonly PoolColor[] | null;
   /** The pool pays the open payment more than one way (`PlayBridge.java`'s `poolHasChoice`), from the same frame. */
   promptPoolChoice: boolean;
+  /**
+   * Forge's yes/no that is a choice of two colours (`PlayBridge.java`'s `manaColorsAsked`): OK's colour, then
+   * Cancel's. From the same frame as {@link prompt}; the mana ring answers it.
+   */
+  promptManaColors: readonly [PoolColor, PoolColor] | null;
+  /**
+   * The colours a pick on the mana ring showed for an ability that asks its colour next (`./mana-ring.ts`'s
+   * `RingAnswer.then`): that question is answered with them, so one pick is the whole conversation. Dropped
+   * by the next question or prompt that is not that colour question.
+   */
+  manaIntent: readonly PoolColor[] | null;
   /** The optional triggers Forge answers for this seat, from the server's `forge:trigger-decisions`. */
   triggerDecisions: readonly RememberedTrigger[];
   /**
@@ -1157,6 +1168,8 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     promptParts: null,
     promptPoolPays: null,
     promptPoolChoice: false,
+    promptManaColors: null,
+    manaIntent: null,
     triggerDecisions: [],
     deckColors: undefined,
     buttons: null,
@@ -3540,6 +3553,12 @@ function heldChange(h: NonNullable<Extract<ServerFrame, { method: 'setWeaklySele
   return h.flashBy === undefined ? { cost } : { cost, flashBy: h.flashBy };
 }
 
+/** Whether an ask is the colour inside a mana ability: a list of colours, or a split over colours. */
+function asksManaColor(frame: LiveAsk): boolean {
+  if (frame.method === 'getChoices') return frame.colors !== undefined;
+  return frame.method === 'assignGenericAmount' && frame.target.length > 0 && frame.target.every((e) => e.key.target === 'manaColor');
+}
+
 function applyFrame(match: LiveMatch, frame: ServerFrame): void {
   if (frame.kind === 'ask') {
     if (match.settled.has(frame.callId)) {
@@ -3553,6 +3572,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     if (i < 0) {
       match.asks.push(frame);
       if (CARDLESS_ASKS.has(frame.method)) match.lastSelectedCard = null;
+      if (!asksManaColor(frame)) match.manaIntent = null;
     } else match.asks[i] = frame;
     if (askedKey(match) !== asked) redraw(match);
     // The seat's next real decision takes the place of a reveal still showing.
@@ -3576,6 +3596,8 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     match.promptParts = frame.parts ?? null;
     match.promptPoolPays = frame.poolPays ?? null;
     match.promptPoolChoice = frame.poolChoice !== undefined;
+    match.promptManaColors = frame.manaColors ?? null;
+    if (frame.manaColors === undefined) match.manaIntent = null;
     match.promptTargetMore = frame.targetAbility?.more ?? 0;
     match.promptSelection =
       frame.selection === undefined
@@ -3779,6 +3801,8 @@ function dropOpenInput(match: LiveMatch): void {
   match.promptParts = null;
   match.promptPoolPays = null;
   match.promptPoolChoice = false;
+  match.promptManaColors = null;
+  match.manaIntent = null;
   match.buttons = null;
   match.barHold = null;
   match.windowHalf = [];

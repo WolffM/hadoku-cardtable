@@ -60,9 +60,10 @@ test(titled("Ghost Quarter's fail to find: bob's library reveal fits the window,
 
     // The click offers its two abilities; she picks the destroy one, then clicks bob's land as its target.
     expect(await pressOffered(card(alice.page, quarter)), 'Ghost Quarter pressed').toBe(true);
-    const ability = alice.page.locator('section[data-prompt="getAbilityToPlay"] [data-testid="prompt-choice"]');
+    // A land with a mana ability is asked on the mana ring at the click; its other abilities are chips named by their title.
+    const ability = alice.page.getByTestId('mana-ring').getByTestId('mana-ring-chip');
     await expect(ability.first(), 'Ghost Quarter offers its abilities').toBeVisible({ timeout: 15_000 });
-    const labels = await ability.evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? e.textContent ?? ''));
+    const labels = await ability.evaluateAll((els) => els.map((e) => e.getAttribute('title') ?? ''));
     console.log(`[w69-reveal] alice's ability choice: ${labels.join(' | ')}`);
     const destroy = labels.findIndex((l) => /destroy/i.test(l));
     expect(destroy, 'the destroy ability is offered').toBeGreaterThanOrEqual(0);

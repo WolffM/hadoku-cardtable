@@ -3159,6 +3159,8 @@ public final class PlayBridge {
             if (selection != null) { f.add("selection", selection); }
             final JsonObject parts = decoration("parts", () -> promptParts(message));
             if (parts != null) { f.add("parts", parts); }
+            final JsonArray manaColors = decoration("manaColors", this::manaColorsAsked);
+            if (manaColors != null) { f.add("manaColors", manaColors); }
             final JsonArray pays = decoration("poolPays", this::poolPays);
             if (pays != null) {
                 f.add("poolPays", pays);
@@ -3600,6 +3602,36 @@ public final class PlayBridge {
             for (final int u : used) { n += u; }
             if (n > most[0]) { most[0] = n; ends.clear(); }
             if (n == most[0]) { ends.add(java.util.Arrays.toString(used)); }
+        }
+
+        /**
+         * A choice of exactly two colours, which Forge asks as a yes/no rather than a list
+         * ({@code PlayerControllerHuman.chooseColorCommon} → {@code InputConfirm.confirm} with the two
+         * colour names as its buttons; probed: Reflecting Pool, Adarkar Wastes, Shivan Reef, Exotic
+         * Orchard): the colours of OK and Cancel, in that order, or null for any other prompt. Read
+         * off the buttons Forge made from {@code MagicColor.Color}'s own names.
+         */
+        private JsonArray manaColorsAsked() {
+            final Object input = myInput();
+            if (!(input instanceof forge.gamemodes.match.input.InputConfirm)) { return null; }
+            final Class<?> c = forge.gamemodes.match.input.InputConfirm.class;
+            try {
+                if (field(input, c, "sa") != null || !producing((String) field(input, c, "message"))) { return null; }
+                final JsonArray out = new JsonArray();
+                for (final String button : new String[] { "yesButtonText", "noButtonText" }) {
+                    final String text = (String) field(input, c, button);
+                    String letter = null;
+                    for (final MagicColor.Color color : MagicColor.Color.values()) {
+                        if (color.getTranslatedName().equals(text)) { letter = color == MagicColor.Color.COLORLESS ? "C" : MagicColor.toShortString(color.getColorMask()); }
+                    }
+                    if (letter == null) { return null; }
+                    out.add(letter);
+                }
+                return out;
+            } catch (final ReflectiveOperationException e) {
+                System.err.println("[bridge] manaColorsAsked: could not read the open confirm (" + e + "); it stays a yes/no");
+                return null;
+            }
         }
 
         private JsonObject confirmAbility() {
@@ -4401,6 +4433,26 @@ public final class PlayBridge {
         }
 
         /**
+         * Whether a question is the colour of mana being made ({@code ManaEffect}'s
+         * {@code lblSelectManaProduce}), and not a colour some other effect names (Painter's Servant,
+         * Iona): only that one is the mana ring's.
+         */
+        private static boolean producing(final String message) {
+            return forge.util.Localizer.getInstance().getMessage("lblSelectManaProduce").equals(message);
+        }
+
+        /** A list of colours ({@code PlayerControllerHuman.chooseColorCommon}) as their letters, choice by choice, or null for any other list. */
+        private static <T> JsonArray colorsOf(final List<T> choices) {
+            if (choices == null || choices.isEmpty()) { return null; }
+            final JsonArray a = new JsonArray();
+            for (final T c : choices) {
+                if (!(c instanceof MagicColor.Color color)) { return null; }
+                a.add(color == MagicColor.Color.COLORLESS ? "C" : MagicColor.toShortString(color.getColorMask()));
+            }
+            return a;
+        }
+
+        /**
          * The first of a modal spell's mode questions, as Forge counts them: how many
          * modes this seat picks in all and whose spell they are, or null for any other
          * list. {@link ModeCounts} recorded the count on the game thread just before
@@ -4535,6 +4587,8 @@ public final class PlayBridge {
                 f.add("names", names);
             } else {
                 f.add("choices", choices(ask, "c", choices, display));
+                final JsonArray colors = producing(message) ? colorsOf(choices) : null;
+                if (colors != null) { f.add("colors", colors); }
                 final JsonObject modes = modesOf(choices);
                 if (modes != null) { f.add("modes", modes); }
                 final JsonObject eachType = eachTypeOf(choices);
@@ -5195,6 +5249,7 @@ public final class PlayBridge {
             final JsonArray offered = labelledAbilities(abilities);
             faceAbilities(hostCard, offered);
             landFacts(hostCard, abilities, f, offered);
+            manaFacts(abilities, offered);
             f.add("abilities", offered);
             f.add("triggerEvent", JsonNull.INSTANCE);
             final JsonElement r = await(ask, f);
@@ -5256,20 +5311,13 @@ public final class PlayBridge {
          * just built for this very offer: a land played by a may-play effect is a fresh copy whose id
          * is on none of the card's own abilities. Left out entirely when any of it cannot be read.
          */
-        @SuppressWarnings("unchecked")
         private void landFacts(final CardView hostCard, final List<SpellAbilityView> abilities, final JsonObject f, final JsonArray offered) {
             final Game game = liveGame();
             if (game == null) { return; }
             try {
                 final forge.game.card.Card host = game.findById(hostCard.getId());
                 if (host == null || !host.isLand() || host.getZone() == null) { return; }
-                Map<SpellAbilityView, SpellAbility> cache = null;
-                for (final forge.game.player.Player p : game.getPlayers()) {
-                    if (!(p.getController() instanceof PlayerControllerHuman human)) { continue; }
-                    final Map<SpellAbilityView, SpellAbility> own =
-                        (Map<SpellAbilityView, SpellAbility>) field(human, PlayerControllerHuman.class, "spellViewCache");
-                    if (own != null && own.keySet().containsAll(abilities)) { cache = own; break; }
-                }
+                final Map<SpellAbilityView, SpellAbility> cache = offerCache(game, abilities);
                 if (cache == null) { return; }
                 for (int i = 0; i < abilities.size(); i++) {
                     final SpellAbility sa = cache.get(abilities.get(i));
@@ -5282,6 +5330,140 @@ public final class PlayBridge {
             } catch (final ReflectiveOperationException | RuntimeException ex) {
                 System.err.println("[bridge] landFacts: could not read the offer (" + ex + ")");
             }
+        }
+
+        /** The map Forge built for this very offer ({@code PlayerControllerHuman.spellViewCache}) from views to its abilities, or null. */
+        @SuppressWarnings("unchecked")
+        private Map<SpellAbilityView, SpellAbility> offerCache(final Game game, final List<SpellAbilityView> abilities) throws ReflectiveOperationException {
+            for (final forge.game.player.Player p : game.getPlayers()) {
+                if (!(p.getController() instanceof PlayerControllerHuman human)) { continue; }
+                final Map<SpellAbilityView, SpellAbility> own =
+                    (Map<SpellAbilityView, SpellAbility>) field(human, PlayerControllerHuman.class, "spellViewCache");
+                if (own != null && own.keySet().containsAll(abilities)) { return own; }
+            }
+            return null;
+        }
+
+        /**
+         * What each offered MANA ability makes and what it costs ({@code mana}), read off Forge's own
+         * ability, so the seat's ring draws every result of a mana source at the click (the operator,
+         * 2026-11-05: "ideally it's a custom visual and it appears directly on the mouse-cursor").
+         * Forge asks in two steps (this offer, then the colour inside the ability); the ring answers
+         * both from one pick, so it must know the colours before Forge asks for them.
+         *
+         * <ul>
+         * <li>{@code makes}: the fixed result, colour letters ({@code "WU"} for a bounce land);
+         *     {@code choose}: the colours one is chosen from ({@code "WUBRG"} for any colour);
+         *     {@code reflects}: the colours come from other lands, and Forge asks for them next.</li>
+         * <li>{@code amount}: how many of it now (an {@code Amount$ X} counts what it counts).</li>
+         * <li>{@code combination}: the amount is split among {@code choose} ({@code assignGenericAmount}):
+         *     a filter land's pair, Cascading Cataracts' five.</li>
+         * <li>{@code cost}: mana paid first, in Forge's notation; {@code life}; {@code counter}, the
+         *     counter type removed; {@code sacrifice} ({@code self}, or the type sacrificed);
+         *     {@code tapType}, the type of permanent tapped.</li>
+         * <li>{@code damage}: what the source deals its controller for the tap, from its own
+         *     sub-ability or its tap trigger ({@code Defined$ You}).</li>
+         * <li>{@code spendOnly}: the mana has a spending rule ({@code creature} or {@code other}).</li>
+         * </ul>
+         * Left off an ability it cannot read: the ring then draws that ability by its label.
+         */
+        private void manaFacts(final List<SpellAbilityView> abilities, final JsonArray offered) {
+            final Game game = liveGame();
+            if (game == null) { return; }
+            final Map<SpellAbilityView, SpellAbility> cache;
+            try {
+                cache = offerCache(game, abilities);
+            } catch (final ReflectiveOperationException | RuntimeException ex) {
+                System.err.println("[bridge] manaFacts: could not read the offer (" + ex + ")");
+                return;
+            }
+            if (cache == null) { return; }
+            final String owed = owedInPayment();
+            for (int i = 0; i < abilities.size(); i++) {
+                final SpellAbility sa = cache.get(abilities.get(i));
+                if (sa == null || !sa.isManaAbility() || sa.getManaPart() == null) { continue; }
+                try {
+                    offered.get(i).getAsJsonObject().add("mana", manaOf(sa, owed));
+                } catch (final RuntimeException ex) {
+                    System.err.println("[bridge] manaFacts: could not read " + sa + " (" + ex + ")");
+                }
+            }
+        }
+
+        /**
+         * The mana types the open payment still needs, as letters, the way {@code InputPayMana.activateManaAbility}
+         * computes its {@code colorNeeded}: Forge then fills a chosen ability's colour from these without
+         * asking (probed: City of Brass, Adarkar Wastes paying {U}). Empty outside a payment, or when only
+         * generic mana is left.
+         */
+        private String owedInPayment() {
+            if (!(myInput() instanceof InputPayMana pay)) { return ""; }
+            try {
+                final forge.game.mana.ManaCostBeingPaid cost = (forge.game.mana.ManaCostBeingPaid) field(pay, InputPayMana.class, "manaCost");
+                final forge.game.player.Player payer = (forge.game.player.Player) field(pay, InputPayMana.class, "player");
+                final StringBuilder out = new StringBuilder();
+                for (int i = 0; i < forge.card.mana.ManaAtom.MANATYPES.length; i++) {
+                    if (cost.needsColor(forge.card.mana.ManaAtom.MANATYPES[i], payer.getManaPool())) { out.append(poolLetter(i)); }
+                }
+                return out.toString();
+            } catch (final ReflectiveOperationException | RuntimeException ex) {
+                System.err.println("[bridge] owedInPayment: could not read the payment (" + ex + ")");
+                return "";
+            }
+        }
+
+        /** {@code owed}: {@link #owedInPayment}; an ability that can make some of it offers just those colours, as Forge will. */
+        private static JsonObject manaOf(final SpellAbility sa, final String owed) {
+            final forge.game.spellability.AbilityManaPart mp = sa.getManaPart();
+            final forge.game.card.Card host = sa.getHostCard();
+            final JsonObject m = new JsonObject();
+            if (sa.getApi() == ApiType.ManaReflected) {
+                m.addProperty("reflects", true);
+            } else if (mp.isComboMana() || mp.isAnyMana()) {
+                String choose = (mp.isComboMana() ? mp.getComboColors(sa) : "W U B R G").replace(" ", "");
+                final StringBuilder express = new StringBuilder();
+                for (final char c : choose.toCharArray()) { if (owed.indexOf(c) >= 0) { express.append(c); } }
+                if (express.length() > 0 && !(mp.isComboMana() && sa.hasParam("Amount"))) { choose = express.toString(); }
+                m.addProperty("choose", choose);
+            } else {
+                m.addProperty("makes", mp.mana(sa).replace(" ", ""));
+            }
+            final int amount = sa.hasParam("Amount") ? AbilityUtils.calculateAmount(host, sa.getParam("Amount"), sa) : 1;
+            m.addProperty("amount", amount);
+            if (mp.isComboMana() && (amount > 1 || "X".equals(sa.getParam("Amount"))) && !sa.hasParam("Each")) { m.addProperty("combination", true); }
+            for (final forge.game.cost.CostPart part : sa.getPayCosts().getCostParts()) {
+                if (part instanceof forge.game.cost.CostPartMana cm) {
+                    if (!cm.getMana().isNoCost()) { m.addProperty("cost", cm.getMana().toString()); }
+                } else if (part instanceof forge.game.cost.CostPayLife) {
+                    m.addProperty("life", part.getAbilityAmount(sa));
+                } else if (part instanceof forge.game.cost.CostRemoveCounter rc) {
+                    m.addProperty("counter", rc.counter.getName().toLowerCase(java.util.Locale.ROOT));
+                } else if (part instanceof forge.game.cost.CostSacrifice) {
+                    m.addProperty("sacrifice", part.payCostFromSource() ? "self" : part.getType());
+                } else if (part instanceof forge.game.cost.CostTapType) {
+                    m.addProperty("tapType", part.getType());
+                }
+            }
+            int damage = 0;
+            for (SpellAbility sub = sa.getSubAbility(); sub != null; sub = sub.getSubAbility()) {
+                damage += damageToYou(host, sub);
+            }
+            for (final forge.game.trigger.Trigger t : host.getTriggers()) {
+                final forge.game.trigger.TriggerType mode = t.getMode();
+                if (mode != forge.game.trigger.TriggerType.Taps && mode != forge.game.trigger.TriggerType.TapsForMana) { continue; }
+                final SpellAbility run = t.ensureAbility();
+                if (run != null) { damage += damageToYou(host, run); }
+            }
+            if (damage > 0) { m.addProperty("damage", damage); }
+            final String rule = mp.getManaRestrictions();
+            if (rule != null && !rule.isEmpty()) { m.addProperty("spendOnly", rule.contains("Creature") ? "creature" : "other"); }
+            return m;
+        }
+
+        /** Damage this ability deals its controller ({@code DealDamage} with {@code Defined$ You}), or 0. */
+        private static int damageToYou(final forge.game.card.Card host, final SpellAbility sa) {
+            if (sa.getApi() != ApiType.DealDamage || !"You".equals(sa.getParam("Defined")) || !sa.hasParam("NumDmg")) { return 0; }
+            return AbilityUtils.calculateAmount(host, sa.getParam("NumDmg"), sa);
         }
 
         @Override

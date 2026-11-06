@@ -35,7 +35,7 @@ async function recordPrompts(page: Page): Promise<void> {
       if (seen.at(-1) !== entry) seen.push(entry);
     };
     const look = () => {
-      for (const el of document.querySelectorAll('[data-testid="live-prompt"]')) note(el.getAttribute('data-method') ?? '?');
+      for (const el of document.querySelectorAll('[data-testid="live-prompt"], [data-testid="mana-ring"]')) note(el.getAttribute('data-method') ?? '?');
       for (const el of document.querySelectorAll('[data-testid="live-decision-host"]')) note(`decision:${(el.textContent ?? '').trim().slice(0, 80)}`);
     };
     new MutationObserver(look).observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
@@ -83,7 +83,7 @@ test(titled('full control: casting Time Walk and tapping Black Lotus draw no abi
               await enabledOk(page).first().click({ timeout: 1_500 }).catch(() => undefined);
             } else {
               const box = await lotus.first().boundingBox();
-              if (box !== null && (await page.locator('[data-testid="live-prompt"]').count()) === 0) await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+              if (box !== null && (await page.locator('[data-testid="live-prompt"], [data-testid="mana-ring"]').count()) === 0) await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
             }
           }
           return false;

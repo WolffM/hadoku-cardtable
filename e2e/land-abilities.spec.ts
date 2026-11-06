@@ -37,11 +37,15 @@ async function namedAll(page: Page, zone: string, name: string): Promise<number[
 }
 
 
-/** The open "which ability?" pop-up's options, by their plain words; [] when none is open. */
+/**
+ * The open "which ability?" question's non-mana abilities, by Forge's words; [] when none is open. A land
+ * with a mana ability is asked on the mana ring at the click, its other abilities chips named by their title.
+ */
+const abilityChips = (page: Page) => page.getByTestId('mana-ring').getByTestId('mana-ring-chip');
 async function abilityChoices(page: Page): Promise<string[]> {
-  const options = page.getByTestId('live-prompt').locator('[data-testid="prompt-choice"]');
-  if (!(await options.first().isVisible({ timeout: 300 }).catch(() => false))) return [];
-  return options.evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? e.textContent ?? ''));
+  const chips = abilityChips(page);
+  if (!(await chips.first().isVisible({ timeout: 300 }).catch(() => false))) return [];
+  return chips.evaluateAll((els) => els.map((e) => e.getAttribute('title') ?? ''));
 }
 
 /** Bob's own window with the Goblin on the stack: his says line names the stack and his OK is live. */
@@ -96,8 +100,7 @@ test(titled('an untapped Ghost Quarter holds its owner\'s window on the opponent
     await expect.poll(() => pressOffered(card(b, quarter)), { timeout: 15_000, message: 'Ghost Quarter is offered at bob’s window, and pressed' }).toBe(true);
     await expect.poll(() => abilityChoices(b), { timeout: 15_000, message: 'a click on Ghost Quarter asks which ability' }).toContainEqual(expect.stringMatching(DESTROY_TARGET_LAND));
     const choices = await abilityChoices(b);
-    const options = b.getByTestId('live-prompt').locator('[data-testid="prompt-choice"]');
-    await options.nth(choices.findIndex((l) => DESTROY_TARGET_LAND.test(l))).click();
+    await abilityChips(b).nth(choices.findIndex((l) => DESTROY_TARGET_LAND.test(l))).click();
     const target = mountains[0]!;
     await expect.poll(() => isOffered(b, target), { timeout: 15_000, message: 'alice\'s Mountain is offered as the target' }).toBe(true);
     expect(await pressOffered(card(b, target)), 'alice’s Mountain pressed as the target').toBe(true);

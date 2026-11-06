@@ -152,10 +152,13 @@ test(titled('after a land drop whose window repeats the last one, Next Phase is 
   }
 });
 
-/** Click `name` on the viewer's battlefield, wait for Forge's "which ability?" picker, and answer None. */
+/**
+ * Click `name` on the viewer's battlefield, wait for Forge's "which ability?" picker, and answer None. A
+ * land with a mana ability is asked on the mana ring at the click (`ManaRing.tsx`), where None is Escape.
+ */
 async function pickNone(page: Page, name: string): Promise<void> {
   const card = page.locator('.seat[data-viewer] [data-zone="battlefield"] [data-board-card]', { has: page.locator('.card__name', { hasText: name }) }).first();
-  const picker = page.locator('section[data-prompt="getAbilityToPlay"]');
+  const picker = page.locator('[data-testid="mana-ring"][data-method="getAbilityToPlay"]');
   await expect
     .poll(
       async () => {
@@ -170,8 +173,8 @@ async function pickNone(page: Page, name: string): Promise<void> {
       { timeout: 20_000, message: `a click on ${name} opens the ability picker` },
     )
     .toBe(true);
-  console.log(`[dead-bar] picker for ${name}: ${(await picker.getByTestId('prompt-choice').allTextContents()).join(' | ')}`);
-  await picker.getByTestId('prompt-cancel').click();
+  console.log(`[dead-bar] ring for ${name}: ${await picker.getByTestId('mana-ring-option').count()} mana disc(s), ${await picker.getByTestId('mana-ring-chip').count()} other ability chip(s)`);
+  await page.keyboard.press('Escape');
   await expect(picker, 'the picker closed').toHaveCount(0, { timeout: 5_000 });
 }
 

@@ -359,6 +359,12 @@ export const ShowPromptMessageSchema = z.strictObject({
    * the server never auto-pays over it — and the pool is highlighted.
    */
   poolChoice: z.array(PoolColorSchema).min(1).optional(),
+  /**
+   * Ours: a choice of exactly two colours, which Forge asks as a yes/no whose buttons are the
+   * colours (`PlayBridge.java`'s `manaColorsAsked`): OK's colour, then Cancel's. The seat's mana ring
+   * answers it. Absent for every other prompt.
+   */
+  manaColors: z.tuple([PoolColorSchema, PoolColorSchema]).optional(),
 });
 
 /**
@@ -585,6 +591,38 @@ export const TempShowZonesSchema = z.strictObject({
 
 export const TempShowZonesReplySchema = PlayerZoneUpdatesSchema;
 
+/** Mana letters as the bridge writes them: `WUBRG` and `C`, each colour once or repeated (`"CC"`). */
+const ManaLettersSchema = z.string().regex(/^[WUBRGC]*$/);
+
+/**
+ * Ours, never Forge's: what an offered MANA ability makes and costs (`PlayBridge.java`'s
+ * `manaFacts`), so the seat's mana ring draws every result at the click and answers Forge's colour
+ * question that follows from the same pick. Exactly one of `makes` (a fixed result), `choose` (the
+ * colours one is picked from, or split among when `combination`) and `reflects` (Forge asks for the
+ * colours next).
+ */
+export const ManaFactsSchema = z.strictObject({
+  makes: ManaLettersSchema.optional(),
+  choose: ManaLettersSchema.optional(),
+  reflects: z.literal(true).optional(),
+  amount: z.number().int().nonnegative(),
+  combination: z.literal(true).optional(),
+  /** Mana paid first, in Forge's notation (`{1}`, `{W/U}`). */
+  cost: z.string().min(1).optional(),
+  life: z.number().int().positive().optional(),
+  /** The counter type removed (`charge`, `mining`, `storage`). */
+  counter: z.string().min(1).optional(),
+  /** `self`, or the type of permanent sacrificed (`Creature`). */
+  sacrifice: z.string().min(1).optional(),
+  /** The type of permanent tapped (`Creature`). */
+  tapType: z.string().min(1).optional(),
+  /** Damage the source deals its controller for the tap. */
+  damage: z.number().int().positive().optional(),
+  spendOnly: z.enum(['creature', 'other']).optional(),
+});
+
+export type ManaFacts = z.infer<typeof ManaFactsSchema>;
+
 /**
  * An ability as `getAbilityToPlay` carries it: the ref, plus the label Forge's
  * own menu would show.
@@ -618,6 +656,7 @@ export const OfferedAbilitySchema = z.strictObject({
   face: z.string().optional(),
   /** Ours, never Forge's: this ability plays its card as a land (`PlayBridge.java`'s `landFacts`). */
   playsLand: z.literal(true).optional(),
+  mana: ManaFactsSchema.optional(),
 });
 
 export type OfferedAbility = z.infer<typeof OfferedAbilitySchema>;
@@ -823,6 +862,8 @@ export const GetChoicesSchema = z.strictObject({
     .optional(),
   affordable: z.number().int().nonnegative().optional(),
   staysVisible: z.boolean().optional(),
+  /** Ours: the colour of each choice, in order, when the list is colours (`PlayBridge.java`'s `colorsOf`). */
+  colors: z.array(PoolColorSchema).min(1).optional(),
 });
 
 export const GetChoicesReplySchema = z.array(z.string());

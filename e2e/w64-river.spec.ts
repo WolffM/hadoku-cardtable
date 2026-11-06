@@ -68,12 +68,16 @@ const wordRows: string[] = [];
 
 async function measurePrompt(page: Page, where: string): Promise<{ rows: Locator[]; method: string }> {
   const sheet = page.getByTestId('live-prompt');
+  const ring = page.getByTestId('mana-ring');
   const viaPrompt = (await sheet.count()) > 0;
+  const viaRing = !viaPrompt && (await ring.count()) > 0;
   const rows = viaPrompt
     ? await sheet.locator('[data-testid="prompt-option"], [data-testid="prompt-choice"]').all()
-    : await page.locator('.confirm__button').all();
+    : viaRing
+      ? await ring.getByTestId('mana-ring-option').all()
+      : await page.locator('.confirm__button').all();
   if (rows.length === 0) return { rows: [], method: '' };
-  const method = viaPrompt ? ((await sheet.first().getAttribute('data-method')) ?? '') : 'showConfirmDialog/bar';
+  const method = viaPrompt ? ((await sheet.first().getAttribute('data-method')) ?? '') : viaRing ? `mana-ring/${(await ring.getAttribute('data-ring')) ?? ''}` : 'showConfirmDialog/bar';
   const message = await page.locator('.prompt__title, .prompt__message, .confirm__message').allTextContents();
   for (const row of rows) {
     const text = ((await row.textContent()) ?? '').trim();
@@ -92,7 +96,8 @@ async function answerAndSubmit(page: Page, where: string): Promise<boolean> {
   let chosen = rows[0]!;
   for (const row of rows) {
     const text = `${(await row.textContent()) ?? ''} ${(await row.getAttribute('aria-label')) ?? ''}`;
-    if (COLOUR_WORD.test(text) || /damage|\{U\}|\{B\}/.test(text)) {
+    // A mana ring's disc says its colour by its pip alone (`data-mana`).
+    if (COLOUR_WORD.test(text) || /damage|\{U\}|\{B\}/.test(text) || /^[UB]$/.test((await row.getAttribute('data-mana')) ?? '')) {
       chosen = row;
       break;
     }
@@ -114,7 +119,7 @@ async function drainPrompts(page: Page, where: string, rounds = 4): Promise<void
     // Each prompt is Forge's own ask, a round trip after the press that opens it: wait for it to
     // be drawn before reading it, or a fast board reads the page before it arrives.
     const showing = await page
-      .locator('.confirm__button, [data-testid="live-prompt"]')
+      .locator('.confirm__button, [data-testid="live-prompt"], [data-testid="mana-ring-option"]')
       .first()
       .waitFor({ timeout: 3_000 })
       .then(() => true, () => false);
@@ -180,7 +185,7 @@ test(titled('measuring: tapping Underground River to PAY for Dark Ritual prints 
     expect(await clickHandCard(alice.page, ritual), 'Dark Ritual armed the cast gesture').toBe(true);
     const next = await Promise.race([
       alice.page.getByTestId('live-payment').waitFor({ timeout: 15_000 }).then(() => 'payment' as const),
-      alice.page.locator('.confirm__button, [data-testid="live-prompt"]').first().waitFor({ timeout: 15_000 }).then(() => 'bar' as const),
+      alice.page.locator('.confirm__button, [data-testid="live-prompt"], [data-testid="mana-ring-option"]').first().waitFor({ timeout: 15_000 }).then(() => 'bar' as const),
     ]).catch(() => 'none' as const);
     console.log(`[river] where=pay-tap next=${next} says="${await says(alice.page)}"`);
 

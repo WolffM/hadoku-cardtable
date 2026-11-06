@@ -32,7 +32,7 @@ async function recordPrompts(page: Page): Promise<void> {
       if (seen.at(-1) !== entry) seen.push(entry);
     };
     const look = () => {
-      for (const el of document.querySelectorAll('[data-testid="live-prompt"]')) note(el.getAttribute('data-method') ?? '?');
+      for (const el of document.querySelectorAll('[data-testid="live-prompt"], [data-testid="mana-ring"]')) note(el.getAttribute('data-method') ?? '?');
       for (const el of document.querySelectorAll('[data-testid="live-decision-host"]')) note(`decision:${(el.textContent ?? '').trim().slice(0, 80)}`);
     };
     new MutationObserver(look).observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
@@ -61,8 +61,8 @@ for (const mode of ['default', 'full control'] as const) {
       expect(lotus, 'Black Lotus is on alice’s battlefield').not.toBeUndefined();
       expect(await clickPermanent(page, lotus!), 'the Lotus took the click').toBe(true);
 
-      // The colour picker, or — the bug — the Lotus gone and its mana already floating.
-      const colourPrompt = page.locator('[data-testid="live-prompt"][data-method="getChoices"]');
+      // The colour picker (the mana ring at the click), or — the bug — the Lotus gone and its mana already floating.
+      const colourPrompt = page.locator('[data-testid="mana-ring"][data-method="getChoices"]');
       await expect
         .poll(
           async () => {
@@ -74,13 +74,11 @@ for (const mode of ['default', 'full control'] as const) {
         )
         .toBe('asked');
 
-      const colours = await colourPrompt.locator('label:has(input[data-testid="prompt-choice"]) [data-token]').evaluateAll((els) => els.map((e) => e.getAttribute('data-token')));
+      const colours = await colourPrompt.getByTestId('mana-ring-option').evaluateAll((els) => els.map((e) => e.getAttribute('data-mana')));
       console.log(`[lotus-colour] ${mode}: colours=${JSON.stringify(colours)} seen=${JSON.stringify(await seenOn(page))}`);
       expect([...colours].sort(), 'all five colours are offered').toEqual(['B', 'G', 'R', 'U', 'W']);
 
-      await colourPrompt.locator('label', { has: page.locator('[data-token="U"]') }).locator('input[data-testid="prompt-choice"]').click({ force: true });
-      const submit = colourPrompt.getByTestId('prompt-submit');
-      if ((await submit.count()) > 0) await submit.click();
+      await colourPrompt.locator('[data-testid="mana-ring-option"][data-mana="U"]').click();
 
       await expect.poll(async () => (await manaPool(page)).U, { timeout: 15_000, message: 'Blue floats three' }).toBe(3);
       expect(await ownNamed(page, 'Black Lotus'), 'the Lotus was sacrificed').toEqual([]);

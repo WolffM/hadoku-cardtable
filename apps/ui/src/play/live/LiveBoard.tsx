@@ -375,6 +375,8 @@ import type { ShownFlip, ShownRoll } from './shown.ts';
 import { WatcherStatus } from './WatcherStatus.tsx';
 import { TurnCue, useYourTurnCue } from './TurnCue.tsx';
 import { installDialogMover, OffersHandContext, offsetToPoint, pointerAt, QuestionHost, restingTop } from './movable.tsx';
+import { answerFromIntent, intentReply, ringFor } from './mana-ring.ts';
+import { ManaAsk, ManaPrompt } from './ManaRing.tsx';
 import { phaseSegmentsOf, PHASE_ORDER } from './phase-segments.ts';
 
 /* ── Where the match is: seven states, one line ───────────────────────── */
@@ -2947,10 +2949,12 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
    * is the only place that decides it — the server reads the same rule for the other seat's banner; here it is sent, and the prompt that
    * would have asked is never drawn, in full control too: one answer is no choice in any mode.
    */
-  const auto = pending === null || spectator ? null : selfAnswer(pending);
+  // So is the colour inside a mana ability the seat already picked on the mana ring (`./mana-ring.ts`).
+  const auto = pending === null || spectator ? null : (selfAnswer(pending) ?? intentReply(pending, match.manaIntent));
   const autoCallId = auto === null || pending === null ? null : pending.callId;
   useEffect(() => {
     if (autoCallId === null || auto === null || pending === null) return;
+    match.manaIntent = null;
     // `answerAsk` refuses a callId that is no longer open, so a re-render
     // between the reply and the frame that closes it cannot answer twice.
     answerAsk(match, autoCallId, auto.method, auto.reply);
@@ -3086,6 +3090,12 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
    * true for the same bar.
    */
   const confirmPrompt = !spectator && !askOpen && !playOrDraw && isConfirmPrompt(bar);
+  const carriedColour = confirmPrompt && match.promptManaColors !== null && match.manaIntent !== null ? answerFromIntent({ manaColors: match.promptManaColors }, match.manaIntent) : null;
+  useEffect(() => {
+    if (carriedColour === null || carriedColour.kind !== 'button') return;
+    match.manaIntent = null;
+    pressButton(match, carriedColour.which);
+  }, [match, carriedColour]);
   /*
    * A yes/no about a card the board does not draw whole draws it in the window: a scry 1's library
    * card, the card cascade or discover offers to cast from exile (the operator, 2026-10-22: "effects
@@ -4307,7 +4317,8 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
           </ActionButton>
         </div>
       )}
-      {ask !== null && (
+      {ask !== null && ringFor(ask) !== null && <ManaAsk match={match} ask={ask} />}
+      {ask !== null && ringFor(ask) === null && (
         <QuestionHost data-testid="live-prompt" data-call-id={ask.callId} data-method={ask.method}>
           <PromptBoundary
             key={ask.callId}
@@ -4352,7 +4363,10 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
        * precedent). `barRoute` routes this bar nowhere else, so the control
        * box's two game buttons stay greyed while it is up.
        */}
-      {confirmPrompt && bar !== null && (
+      {confirmPrompt && bar !== null && match.promptManaColors !== null && match.manaIntent === null && (
+        <ManaPrompt key={match.prompt ?? ''} match={match} colors={match.promptManaColors} />
+      )}
+      {confirmPrompt && bar !== null && match.promptManaColors === null && (
         <QuestionHost data-testid="live-confirm-host">
           <ConfirmPrompt
             testId="live-confirm"
