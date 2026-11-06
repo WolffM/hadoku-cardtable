@@ -39,9 +39,15 @@ describe("the AI's deck from a bot's drafted pool", () => {
 		const p = pool();
 		const spells = botSpells(p);
 		expect(spells).toHaveLength(BOT_DECK_SPELLS);
-		// The blue mythics outscore every common on rarity alone; colour is what keeps them out.
+		// The blue mythics outscore every common on quality alone; colour is what keeps them out.
 		expect(spells.every((c) => c.colors.every((x) => x === 'R' || x === 'G'))).toBe(true);
 		expect(spells.some((c) => /Land/.test(c.typeLine))).toBe(false);
+	});
+
+	it('plays its best-ranked spell first, whatever its rarity', () => {
+		const bolt: DraftCard = { ...card('R'), cardId: 'zzz', name: 'Lightning Bolt' };
+		const spells = botSpells([...pool(), bolt]);
+		expect(spells[0]?.name).toBe('Lightning Bolt');
 	});
 
 	it('fills to 40 with basics split by the colours the spells ask for', () => {

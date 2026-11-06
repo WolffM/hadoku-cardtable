@@ -1,17 +1,17 @@
 /*
  * `runBots`'s loud-stall log (wave 74 §E fix-forward, production incident
  * main 705e2468: every seat frozen, no error, no log, for 120s — `runBots`
- * broke silently on a full pass with no progress). This is the one new
- * behaviour `bot.ts` gained from that incident; `choosePick`/`scoreCard`'s
- * own heuristic is `engine.test.ts`'s coverage.
+ * broke silently on a full pass with no progress), and what a bot picks from
+ * a pack: card quality from Forge's cube pick order, held by colour once the
+ * pool commits.
  */
 
 import { describe, expect, it, vi } from 'vitest';
 import type { DraftCard } from '@hadoku/shared';
 import { createDraft } from './engine.ts';
-import { botTurn, runBots } from './bot.ts';
+import { botTurn, choosePick, runBots, scoreCard } from './bot.ts';
 
-function card(name: string): DraftCard {
+function card(name: string, over: Partial<DraftCard> = {}): DraftCard {
   return {
     cardId: name,
     name,
@@ -23,6 +23,7 @@ function card(name: string): DraftCard {
     setCode: 'TST',
     collectorNumber: '1',
     rarity: 'common',
+    ...over,
   };
 }
 
@@ -74,3 +75,41 @@ describe('botTurn — one pick per bot, so a pod is paced rather than drained', 
   });
 });
 
+
+describe('choosePick — quality from the cube pick order, then colour', () => {
+  const noJitter = { next: () => 0 };
+  const red = { colors: ['R' as const], manaCost: ['R'] };
+  const blue = { colors: ['U' as const], manaCost: ['U'] };
+  const white = { colors: ['W' as const], manaCost: ['W'] };
+  const whitePool = [card('w1', white), card('w2', white), card('w3', white)];
+
+  it('takes a well-ranked common over an unranked mythic before the pool commits', () => {
+    const pack = [card('Grizzly Bears', { ...red, rarity: 'mythic' }), card('Lightning Bolt', red)];
+    expect(choosePick(pack, [], noJitter)?.name).toBe('Lightning Bolt');
+  });
+
+  it('orders ranked cards by rank', () => {
+    const pack = [card('Counterspell', blue), card('Ancestral Recall', blue), card('Brainstorm', blue)];
+    expect(choosePick(pack, [], noJitter)?.name).toBe('Ancestral Recall');
+  });
+
+  it('judges unranked cards by rarity, inside the band below the well-ranked ones', () => {
+    const mythic = scoreCard(card('Unranked mythic', { ...blue, rarity: 'mythic' }), []);
+    const rare = scoreCard(card('Unranked rare', { ...blue, rarity: 'rare' }), []);
+    const common = scoreCard(card('Unranked common', blue), []);
+    expect(mythic).toBeGreaterThan(rare);
+    expect(rare).toBeGreaterThan(common);
+    expect(scoreCard(card('Counterspell', blue), [])).toBeGreaterThan(mythic);
+    expect(common).toBeGreaterThan(scoreCard(card('Sleight of Hand', blue), []));
+  });
+
+  it('once committed, stays on colour over an off-colour staple', () => {
+    const pack = [card('Lightning Bolt', red), card('Grizzly Bears', white)];
+    expect(choosePick(pack, whitePool, noJitter)?.name).toBe('Grizzly Bears');
+  });
+
+  it('once committed, still leaves its colours for a top card when the on-colour choice is the bottom of the order', () => {
+    const pack = [card('Lightning Bolt', red), card('Sleight of Hand', white)];
+    expect(choosePick(pack, whitePool, noJitter)?.name).toBe('Lightning Bolt');
+  });
+});
