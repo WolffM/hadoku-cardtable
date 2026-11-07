@@ -75,8 +75,9 @@ describe('lastServerRows', () => {
     const file = join(dir, 'server.jsonl');
     const rows = Array.from({ length: 30 }, (_, i) => JSON.stringify({ evt: 'ask', matchId: i % 2 === 0 ? 'm1' : 'm2', i }));
     writeFileSync(file, `${rows.join('\n')}\nnot json\n{"evt":"torn","matchId":"m1"`);
-    const got = lastServerRows(file, 'm1', 3).map((r) => (JSON.parse(r) as { i: number }).i);
+    const [header, ...rest] = lastServerRows(file, 'm1', 3);
     rmSync(dir, { recursive: true, force: true });
-    expect(got).toEqual([24, 26, 28]);
+    expect(JSON.parse(header!)).toMatchObject({ rows: 30, newestAnyMatch: { evt: 'ask', matchId: 'm2' } });
+    expect(rest.map((r) => (JSON.parse(r) as { i: number }).i)).toEqual([24, 26, 28]);
   });
 });

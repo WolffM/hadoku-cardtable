@@ -5,7 +5,7 @@
  * or a cap is hit.
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 
 import { socketPath } from '../../../../ui/src/draft/socket.ts';
 import { concede, startMatch, type LiveMatch, type MatchTrouble } from '../../../../ui/src/play/live/match.ts';
@@ -96,12 +96,28 @@ export function serverFlagsOf(rows: readonly Record<string, unknown>[], matchId:
   return rows.filter((row) => row.matchId === matchId && row.evt === 'ask-unclassified').map((row) => ({ evt: String(row.evt), detail: JSON.stringify(row) }));
 }
 
-/** The last `n` server log rows about `matchId`, as JSON lines. */
+/**
+ * The last `n` server log rows about `matchId`, as JSON lines, after one line saying how big the log
+ * is and what its newest row from ANY match was: a match gone quiet and a server gone quiet look the
+ * same from its own rows alone.
+ */
 export function lastServerRows(path: string, matchId: string, n = 25): string[] {
-  return makeLogTail(path)()
-    .filter((row) => row.matchId === matchId)
-    .slice(-n)
-    .map((row) => JSON.stringify(row));
+  const rows = makeLogTail(path)();
+  let bytes: number | null = null;
+  try {
+    bytes = statSync(path).size;
+  } catch {
+    // No log file: `bytes` says so.
+  }
+  const newest = rows.at(-1);
+  const header = { log: path, bytes, rows: rows.length, newestAnyMatch: newest === undefined ? null : { t: newest.t, evt: newest.evt, matchId: newest.matchId ?? null } };
+  return [
+    JSON.stringify(header),
+    ...rows
+      .filter((row) => row.matchId === matchId)
+      .slice(-n)
+      .map((row) => JSON.stringify(row)),
+  ];
 }
 
 /** How long a conceded match gets to end before the run moves on without it. */
@@ -114,11 +130,12 @@ const GIVE_UP_MS = 15_000;
  * server's `MAX_CONCURRENT_MATCHES` for the rest of the run, the next ones queued behind them and
  * timed out unstarted, and from the 50th every start was refused (every nightly to 2026-11-05).
  */
-async function giveUp(match: LiveMatch): Promise<boolean> {
+async function giveUp(match: LiveMatch): Promise<{ ended: boolean; sent: string }> {
+  const sent = JSON.stringify({ monkey: 'concede-sent', at: new Date().toISOString(), connected: match.connected, turn: match.view?.turn ?? null, asks: match.asks.map((a) => a.method) });
   concede(match);
   const deadline = Date.now() + GIVE_UP_MS;
   while (!match.over && match.ended === null && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100));
-  return match.over || match.ended !== null;
+  return { ended: match.over || match.ended !== null, sent };
 }
 
 export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
@@ -224,10 +241,11 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
   // a seat whose socket broke from one about to reconnect, and keeps its slot for it.
   const unfinished = !match.over && match.ended === null;
   const timedOut = crashed === null && unfinished;
-  const ended = unfinished ? await giveUp(match) : true;
+  const gaveUp = unfinished ? await giveUp(match) : null;
+  const ended = gaveUp?.ended ?? true;
   const notEnded = ended ? '' : `; its concede was not seen to end it within ${GIVE_UP_MS} ms`;
   // A concede that did not end the match leaves it holding a server slot: what the server last did with it is the evidence.
-  const evidence = ended ? [] : lastServerRows(opts.serverLogFile, matchId);
+  const evidence = ended ? [] : [gaveUp!.sent, ...lastServerRows(opts.serverLogFile, matchId)];
   if (timedOut) {
     extra.push(
       noFinishFlag(
