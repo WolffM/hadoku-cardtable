@@ -20,7 +20,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { clickHandCard, enabledOk, makeTitled, says, stackCount } from './play/board.ts';
+import { clickHandCard, enabledOk, makeTitled, says, serverLog, stackCount } from './play/board.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -203,6 +203,25 @@ test(titled('W18 — the real "you may pay {X}" decision is the payment after th
     await castAndReachTheSelection(alice.page, cardId, 2);
     await selectionTiles(alice.page).first().click({ force: true });
     await declineTheXPayment(alice.page);
+
+    // From the match log: each of Relentless Dead's payments got exactly one press from alice's seat, and its own
+    // one: {B} its OK (Auto), {X} its Cancel. A press is the payment's whose line Forge sent last before it.
+    const payments: { cost: string; presses: string[] }[] = [];
+    for (const r of serverLog(stack)) {
+      if (r.seat !== 0) continue;
+      if (r.evt === 'forge-frame' && r.method === 'showPromptMessage') {
+        const cost = /^Relentless Dead \(\d+\) - [\s\S]*Pay Mana Cost: (\S+)/.exec(String(r.message))?.[1];
+        if (cost !== undefined) payments.push({ cost, presses: [] });
+      } else if (r.evt === 'button' && payments.length > 0) payments.at(-1)!.presses.push(String(r.method));
+    }
+    console.log(`[w18] payments and their presses: ${JSON.stringify(payments)}`);
+    expect(
+      payments.map((p) => [p.cost === '{B}' ? '{B}' : '{X}', p.presses]).sort(),
+      'each payment pressed once, by its own button',
+    ).toEqual([
+      ['{B}', ['selectButtonOk']],
+      ['{X}', ['selectButtonCancel']],
+    ]);
 
     await expect(alice.page.getByTestId('prompt-cards')).toHaveCount(0);
     const graveyard = alice.page.locator('[data-zone="graveyard"][data-owner="you"] [data-board-card]');
