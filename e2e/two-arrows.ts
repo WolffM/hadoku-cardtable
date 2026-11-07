@@ -214,10 +214,12 @@ async function resolve(alice: Page, bob: Page, id: number): Promise<void> {
     .poll(
       async () => {
         await pressPaymentAuto(alice);
-        const choice = livePrompt(alice).locator('[data-testid="prompt-choice"]');
+        // The discard: a pick among bob's revealed cards, as a prompt or as the selection sheet.
+        const sheet = alice.locator('[data-testid="live-prompt"], [data-testid="live-selection-host"]').first();
+        const choice = sheet.locator('[data-testid="prompt-choice"], input[type="radio"], [data-testid="prompt-cards"] > li[data-card-id]');
         if ((await choice.count()) > 0) {
           await choice.first().click({ force: true }).catch(() => undefined);
-          await livePrompt(alice).getByTestId('prompt-submit').click({ timeout: 1_000 }).catch(() => undefined);
+          await sheet.locator('[data-testid="prompt-submit"]:enabled, [data-testid="selection-done"]:enabled').first().click({ timeout: 1_000 }).catch(() => undefined);
         } else if ((await livePrompt(alice).count()) > 0) {
           await answerPrompt(alice).catch(() => null);
         }
@@ -226,10 +228,11 @@ async function resolve(alice: Page, bob: Page, id: number): Promise<void> {
         // Anywhere but a graveyard: in hand, parked, carried or on the stack, the spell has not resolved.
         const live = await alice.evaluate(
           (id) =>
-            [...document.querySelectorAll(`[data-board-card="${id}"], [data-placed-spell="${id}"], [data-cast-ghost="${id}"]`)].filter((el) => el.closest('[data-zone="graveyard"]') === null).length,
+            [...document.querySelectorAll(`[data-board-card="${id}"], [data-cast-ghost="${id}"]`)].filter((el) => el.closest('[data-zone="graveyard"]') === null).length,
           id,
         );
-        return live === 0 && onStack === 0 && (await livePrompt(alice).count()) === 0;
+        const open = await alice.locator('[data-testid="live-prompt"], [data-testid="live-selection-host"], [data-placed-spell]:not([data-placed-leaving])').count();
+        return live === 0 && onStack === 0 && open === 0;
       },
       { timeout: 60_000, intervals: [250], message: 'the spell resolved' },
     )
