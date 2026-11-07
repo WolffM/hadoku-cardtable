@@ -2825,6 +2825,83 @@ describe('hold-decide-forward', () => {
 		]);
 	});
 
+	/*
+	 * A window's offer is part of the window. Forge sends a priority window's `setWeaklySelectable`
+	 * before its prompt; forwarded at once, an auto-passed window's offer reached the seat live, and
+	 * a click on it was held by Forge for the next input, which turned it away (monkey run
+	 * 42337878389: Takenuma clicked at an auto-passed upkeep, refused at the draw step).
+	 */
+	describe("a window's offer", () => {
+		const UPKEEP = 'Priority: Seat 2\nTurn: 1 (Seat 2)\nPhase: Upkeep step\nStack: Empty';
+		const MAIN = 'Priority: Seat 2\nTurn: 1 (Seat 2)\nPhase: Main phase, precombat\nStack: Empty';
+		const offer = { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 46 }] } as const;
+		const clear = { kind: 'notify', method: 'clearWeaklySelectable' } as const;
+		const priority = (h: Harness, message: string) =>
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: clear },
+				{ t: 'frame', seat: SEAT1_ID, frame: offer },
+				{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, message) },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1) },
+			);
+
+		it('never reaches the seat when the server answers the window', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			const before = envelopesFor(h, SEAT1_ID).length;
+			priority(h, UPKEEP);
+			expect(methodsSent(h, SEAT1_ID, before)).toEqual(['clearWeaklySelectable']);
+		});
+
+		it('goes out just ahead of a window the seat is shown', () => {
+			const h = openedHarness();
+			const before = envelopesFor(h, SEAT1_ID).length;
+			priority(h, MAIN);
+			expect(methodsSent(h, SEAT1_ID, before)).toEqual(['clearWeaklySelectable', 'setWeaklySelectable', 'showPromptMessage', 'updateButtons']);
+		});
+
+		it("goes out with a payment the seat is shown, between Forge's bar and prompt, with no wait", () => {
+			const h = openedHarness();
+			h.match.setStopPolicy(SEAT1_ID, STRICT_PAYMENT_POLICY);
+			const before = envelopesFor(h, SEAT1_ID).length;
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: clear },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Auto', enable1: true, enable2: true }) },
+				{ t: 'frame', seat: SEAT1_ID, frame: offer },
+				{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Pay Mana Cost: {U}', OWN_CARD) },
+			);
+			expect(methodsSent(h, SEAT1_ID, before)).toEqual(['clearWeaklySelectable', 'setWeaklySelectable', 'updateButtons', 'showPromptMessage']);
+		});
+
+		it('goes out at once when it refreshes a window already shown', () => {
+			const h = openedHarness();
+			priority(h, MAIN);
+			const before = envelopesFor(h, SEAT1_ID).length;
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: { ...offer, cards: [] } });
+			expect(methodsSent(h, SEAT1_ID, before)).toEqual(['setWeaklySelectable']);
+		});
+
+		it('goes out on the flush when no window follows it', () => {
+			vi.useFakeTimers();
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			const before = envelopesFor(h, SEAT1_ID).length;
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: clear }, { t: 'frame', seat: SEAT1_ID, frame: offer });
+			expect(methodsSent(h, SEAT1_ID, before)).toEqual(['clearWeaklySelectable']);
+			// The prompt-hold flush.
+			vi.advanceTimersByTime(2000);
+			expect(methodsSent(h, SEAT1_ID, before)).toEqual(['clearWeaklySelectable', 'setWeaklySelectable']);
+		});
+
+		it('is not re-sent on a reload when the server answered its window', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			priority(h, UPKEEP);
+			const before = envelopesFor(h, SEAT1_ID).length;
+			h.match.resendAfterSnapshot(SEAT1_ID);
+			expect(methodsSent(h, SEAT1_ID, before)).not.toContain('setWeaklySelectable');
+		});
+	});
+
 	it('a window the policy leaves to the seat (own main phase): both frames sent, in order', () => {
 		const h = openedHarness();
 		const before = envelopesFor(h, SEAT1_ID).length;
@@ -3029,12 +3106,11 @@ describe('hold-decide-forward', () => {
 			{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Auto', enable1: true }) },
 			{ t: 'frame', seat: SEAT1_ID, frame: { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 1 }] } },
 		);
-		// `setWeaklySelectable` is never held — it is sent at once, same as
-		// always — but it does NOT flush the parked buttons half.
-		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['setWeaklySelectable']);
+		// The offer is held with the parked half, and does not flush it.
+		expect(methodsSent(h, SEAT1_ID, before)).toEqual([]);
 		h.host.push({ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Pay Mana Cost: {U}', OWN_CARD) });
-		// Still nothing MORE: the pair completed and the single-source payment was auto-paid.
-		expect(methodsSent(h, SEAT1_ID, before)).toEqual(['setWeaklySelectable']);
+		// The pair completed and the single-source payment was auto-paid: the seat saw none of it.
+		expect(methodsSent(h, SEAT1_ID, before)).toEqual([]);
 	});
 
 	/**
