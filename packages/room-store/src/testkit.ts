@@ -10,7 +10,6 @@
 
 import { createSeatTable } from '@wolffm/rooms-protocol';
 import type { ClientMeta, CoreRoomState } from '@wolffm/rooms-server';
-import type { ServicePeer } from './service.ts';
 
 /** A room built directly, with no registry, for tests that only need the shape. */
 export function makeRoom<TApp, TClient = unknown>(
@@ -51,30 +50,4 @@ export function makeClient<TClient>(
     app,
     ...extra,
   };
-}
-
-/** A peer that records everything sent to it, instead of holding a socket. */
-export class RecordingPeer implements ServicePeer {
-  readonly id: string;
-  readonly sent: unknown[] = [];
-  readonly closed: string[] = [];
-
-  constructor(id: string) {
-    this.id = id;
-  }
-
-  send(envelope: unknown): void {
-    this.sent.push(envelope);
-  }
-
-  close(reason: string): void {
-    this.closed.push(reason);
-  }
-
-  /** Envelopes of one `type`, for counting. */
-  ofType(type: string): unknown[] {
-    return this.sent.filter(
-      (e) => typeof e === 'object' && e !== null && (e as { type?: unknown }).type === type,
-    );
-  }
 }

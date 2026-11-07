@@ -239,8 +239,6 @@ export default [
       // Files that still sleep on a wall clock, to be emptied rather than grown.
       'apps/server/src/index.test.ts',
       'apps/server/src/http/tables.test.ts',
-      'apps/server/src/play/browser/browser.test.ts',
-      'apps/server/src/play/browser/mounted.test.ts',
       'apps/server/src/play/host.test.ts',
       'apps/server/src/play/socket.test.ts',
       'apps/server/src/room/feed.test.ts',
@@ -252,7 +250,6 @@ export default [
       'apps/ui/src/play/live/placed.test.ts',
       'apps/ui/src/play/live/presence.test.ts',
       'packages/room-ask/src/registry.test.ts',
-      'packages/room-store/src/sigterm.test.ts',
     ],
     rules: {
       'no-restricted-syntax': [

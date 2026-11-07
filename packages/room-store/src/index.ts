@@ -1,30 +1,31 @@
 /*
- * @hadoku/room-store — room persistence (P6) and the service participant (P5).
+ * @hadoku/room-store — a room snapshot's codec, and where it is stored.
  *
- * Both specs live in this repo: `docs/requests/P6_PERSISTENCE.md` and
- * `docs/requests/P5_SERVICE_PARTICIPANT.md`. Neither exists upstream —
- * `@wolffm/rooms-server@0.38.111` ships `RoomRegistry`, seating, emit, rate
- * limiting and `collectGC`, and no store, no snapshot and no service role. This
- * package is the missing half, built on top of theirs rather than instead of it:
- * it consumes `CoreRoomState` and `RoomRegistry` as they ship, and writes
- * nothing into `@wolffm/*`.
+ * `docs/requests/P6_PERSISTENCE.md` is the spec this grew from. It does not
+ * exist upstream: `@wolffm/rooms-server@0.38.111` ships `RoomRegistry`,
+ * seating, emit, rate limiting and `collectGC`, and no snapshot format and no
+ * store. This package is the missing half, built on top of theirs rather than
+ * instead of it: it consumes `CoreRoomState` as it ships and writes nothing
+ * into `@wolffm/*`.
  *
- * ## Transport-free and socket-free, like `@hadoku/draft`
+ * `RoomPersistence` (the debounced load/save layer that applied §4's rules
+ * about restore races and flush-on-signal) and `ServiceLifecycle` (the P5
+ * service-participant attach/detach/heartbeat state machine) lived here too,
+ * through Wave 90. Nothing outside this package ever imported either —
+ * `git grep '@hadoku/room-store' apps packages` named only `FileRoomStore`,
+ * `STORE_VERSION` and `RoomSnapshot` — so Wave 91 §B deleted both along with
+ * their tests, `clock.ts` (which existed only to inject a clock into them)
+ * and `sigtermChild.ts`/`sigterm.test.ts` (which proved `RoomPersistence`'s
+ * flush-on-SIGTERM). `docs/requests/P5_SERVICE_PARTICIPANT.md` describes code
+ * that no longer exists in this package.
  *
- * Nothing here imports `socket.io`. `ServicePeer` is an interface with `send`
- * and `close`; the host brings the socket. The clock is injected, so `holdMs`
- * being ten minutes costs a test nothing. The filesystem appears in exactly one
- * file (`fileStore.ts`) and only when a host asks for that tier.
+ * ## What is left: transport-free, socket-free, in-memory by default
  *
- * ## In-memory by default
- *
- * `RoomPersistence` with no `store` gets a `MemoryRoomStore`: no filesystem, no
- * network, no behaviour change for a host that has not opted in. Same for the
- * service — `createServiceLifecycle(room, undefined)` is `null`, and a null
- * lifecycle means no heartbeat clock, no GC exemption and no notices.
+ * Nothing here imports `socket.io` or the filesystem outside of `fileStore.ts`,
+ * and only when a host asks for that tier. A room's `MemoryRoomStore` is the
+ * default: no filesystem, no network, no behaviour change for a host that has
+ * not opted in.
  */
-
-export { ManualClock, systemClock, type Clock, type TimerHandle } from './clock.ts';
 
 export {
   applySnapshot,
@@ -46,32 +47,3 @@ export {
 
 export { MemoryRoomStore, type RoomStore } from './store.ts';
 export { FileRoomStore, type FileRoomStoreOptions } from './fileStore.ts';
-
-export {
-  DEFAULT_PERSIST,
-  RoomPersistence,
-  SaveBeforeLoadError,
-  type PersistenceLog,
-  type PersistOptions,
-  type RoomLoadState,
-  type RoomPersistenceConfig,
-} from './persistence.ts';
-
-export {
-  createServiceLifecycle,
-  DEFAULT_SERVICE_CONFIG,
-  evaluateRoomWithService,
-  ServiceLifecycle,
-  ServiceRejection,
-  SKIP,
-  type DetachReason,
-  type ServiceConfig,
-  type ServiceError,
-  type ServiceErrorCode,
-  type ServiceLifecycleOptions,
-  type ServiceNotice,
-  type ServicePeer,
-  type ServiceResult,
-  type ServiceSession,
-  type ServiceStatus,
-} from './service.ts';

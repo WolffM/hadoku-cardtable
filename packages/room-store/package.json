@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
-  "description": "Room persistence (P6) and the service-participant lifecycle (P5). Transport-free: no sockets, no socket.io, no filesystem unless you ask for the file tier.",
+  "description": "A room snapshot's codec (P6) and where it is stored: memory and file tiers. Transport-free: no sockets, no socket.io, no filesystem unless you ask for the file tier.",
   "exports": {
     ".": "./src/index.ts"
   },
@@ -14,9 +14,5 @@
   "dependencies": {
     "@wolffm/rooms-protocol": "npm:@hadoku/rooms-protocol@0.45.54",
     "@wolffm/rooms-server": "npm:@hadoku/rooms-server@0.45.54"
-  },
-  "devDependencies": {
-    "@hadoku/draft": "workspace:*",
-    "@hadoku/shared": "workspace:*"
   }
 }

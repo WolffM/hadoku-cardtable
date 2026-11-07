@@ -1,15 +1,18 @@
 # `apps/server/src/play` — the match server
 
-Wave 9, lane A. Starts a real Forge match behind the existing socket server,
+Started Wave 9. Starts a real Forge match behind the existing socket server,
 maps our participants to Forge's players, and streams each seat **its own**
-projection of the game over the A↔B transport contract.
+projection of the game over the A↔B transport contract — the schemas live in
+`packages/shared/src/match-wire.ts` (Wave 64 §S), one instance imported by both
+this server and `apps/ui/src/play/live/transport.ts`, not two mirrors kept in
+sync by hand. There is no `play/transport.ts` on this side any more.
 
 ```
-browser ──forge:join / forge:c2s──►  socket.ts ──► match.ts ──► host.ts ──stdin──► bridge/PlayBridge.java (child JVM)
-        ◄──────forge:s2c──────────   (per seat)    (per seat:     (one JVM                  Forge server + one stock
-                                                    projector,     per match)                FGameClient per human seat
-                                                    cursor,                                  over loopback Netty
-                                                    history, asks) ◄──stdout JSON lines──
+browser ──forge:join / forge:c2s──►  socket.ts ──► match.ts ──► host.ts ──stdin──► bridge/PlayBridge.java (shared JVM)
+        ◄──────forge:s2c──────────   (per seat)    (per seat:     (many matches               Forge server + one stock
+                                                    projector,     share one JVM,               FGameClient per human seat,
+                                                    cursor,        up to `perJvm` —              one lobby per match
+                                                    history, asks)  see "Match lifecycle") ◄──stdout JSON lines──
 ```
 
 Since Wave 22 that stdin/stdout pair is **two named pipes in the match's run
@@ -23,16 +26,29 @@ match outlives its server" below.
 | `socket.ts` | `attachPlay(io, api, deps)`: the HTTP routes and socket handlers, the gate, identity, per-recipient emit |
 | `match.ts` | one match, socket-free: seat binding, per-seat projector/cursor/history, asks, lifecycle |
 | `visibility.ts` | the hidden-information projection (Forge's `canBeShownTo`, server side) |
-| `transport.ts` | the A↔B wrapper schemas (lane B mirrors them at `apps/ui/src/play/live/transport.ts`) |
+| `history.ts` | one channel's compacted state history — what a join/reconnect/resync snapshot sends, and the board those frames fold to |
 | `host.ts` | the `MatchHost` seam and the coordinator: matches placed into shared `--host` JVMs (`perJvm` each), the warm JVM, a JVM's death failing every match on it, the concurrency ceiling, and the re-attach seam a match survives a restart through (`orphans`/`attach`/`handOver`) |
 | `jvm-transport.ts` | `JvmTransport`/`JvmLauncher`, the seam between the coordinator and where a JVM runs (`remote/` is the claw side) |
 | `placement/` | `CARDTABLE_PLAY_HOSTS=claws`: one pool per hosting claw plus hokon as the backstop; eligibility, spread, failover (quarantine, canary), planned moves, the restart hold, Discord alerts, and `GET /api/play/hosts` (`coordinator.ts` header) |
 | `local-jvm.ts` | the local launcher: fifos, run directory, boot sweep, crash records, and the compiled bridge |
+| `start-queue.ts` | queues a match's start while JVMs are already booting, so a burst of cold starts does not all pay the full boot cost at once |
+| `parked.ts` | a game both seats walked away from: stopped, kept on disk past the rejoin grace so either player can resume it later |
+| `recording/` | the match recorder, its on-disk position/writer format, rebuild-from-recording, and retention |
+| `remote/` | the claw side of `jvm-transport.ts`: launching and talking to a bridge JVM that runs on a hosting claw, not this process |
+| `monkey/` | the random-play fuzzer: a deck pool, a random-answer policy, a CLI driver and its report, for finding crashes a scripted scenario would not |
+| `scenario.ts`, `scenarios/` | `Scenario`, a scripted two-seat match against a real Forge JVM used by the wave-32+ suites that need to see what Forge itself does, and the committed `.state` fixtures it replays from |
+| `table-game.ts` | a table's game as the table card draws it (`@hadoku/shared`'s `TableGameSchema`): each seat's deck and, while the game runs, where it stands |
+| `diagnostics.ts` | reads what a bridge JVM said about itself on stderr; shared by this pool and the claw agent's failover alert, so it carries no imports of its own |
 | `auto.ts` | pure decisions: an ask with one legal reply, a stop with nothing to do, a payment with one source. `match.ts` acts on them; a seat's `fullControl` turns the file off for that seat. Wave 32 added three policy values, all off under full control: `skipEmptyBlockStop` (no creatures, no Declare Blockers stop), `passOwnSpell` (priority is not held on the seat's own spell) and `orderSimultaneous` (Forge's own order for simultaneous abilities). `match.ts` presses OK once per prompt (`SeatState.passedOn`): Forge's block input says its buttons BEFORE its prompt, and a second press on the stale prompt ended it |
 | `names.ts` | a card-name ask narrowed to the match's format, built once per format: a frozen era's legal names, the cube for a drafted pool, the library's decks on Free pick — plus every name either deck plays; an unknown format keeps Forge's whole list |
 | `bridge/PlayBridge.java` | the Java side: one source file, no build step. `host.ts` compiles it once per version into `~/.cache/cardtable/bridge` and launches the classes (`bridgeLaunch`) |
+| `jvm/*.java` | small standalone checks run against a real Forge build (deck names, precon pick, a stranger probe), each its own `main`, no bridge involved |
 | `dev/seat.ts` | a command-line seat, for local testing (see "Two seats locally") |
 | `fixtures/` | a recorded real bridge transcript, its replay host, the leak oracle, and `w20-turn-flow.json` (real priority/payment windows off a live match; see its own header) |
+
+This table is not exhaustive — `art.ts`/`art-ids.ts`, `deck-colors.ts`, `each-type.ts`,
+`featured.ts`, `modes.ts`, `spell-copiers.ts`, `trigger-targets.ts` and `unparsed.ts` are smaller,
+single-purpose helpers `match.ts`/`socket.ts` call into; read their own headers.
 
 ## The `src/index.ts` edit
 
@@ -76,28 +92,38 @@ ran a two-seat match end to end (below), and `esbuild src/play/index.ts` with
 the `build` script's flags bundles (814.8 kB, exit 0). From `dist/`, the bridge
 source is found at `dist/../src/play/bridge/PlayBridge.java`.
 
-That diff is the Wave 9 wiring and is still the whole of the attachment. Since
+That diff was the Wave 9 wiring, kept here as the smallest version of the
+attachment to read first. **It is no longer the whole of it** — `index.ts`'s
+real call site (`attachPlay(io, api, { … })`, search for it) has grown a
+`hosts` reporter, `coldStarts`, rate limits, the recorder, the parked-games
+store and the claw-vs-local host choice (`play/placement/`) alongside it, none
+of which changes the shape of this diff, only what is passed into it. Since
 Wave 22 `index.ts` also has a **`SIGTERM`/`SIGINT` handler** that calls
 `PlayHandle.shutdown` before it closes the sockets — without it a deploy kills
 every live match, which is exactly what happened. See "A match outlives its
 server".
 
-## In-process or child process: one child JVM per match
+## In-process or child process: a child JVM, and how many matches share one
 
 Node cannot host a JVM, so the real choice was one JVM per match or one hosting
-many. **One per match**, because Forge's network server is a per-JVM singleton
-holding one lobby (`FServerManager.getInstance()`, `FServerManager.java:212`)
-and the bridge drives the match through it. Lane D measured the same wall
-(`docs/spikes/jvm-per-match.md`: a second match fails with `Hook previously
-registered` at `FServerManager.java:276`) and recommends the same shape: ready
-in ~3.4 s, ~650–730 MB RSS per JVM, and killing one leaves the others running.
+many. Forge's network server is a per-JVM singleton holding one lobby
+(`FServerManager.getInstance()`, `FServerManager.java:212`), so Wave 9 started
+**one JVM per match** — a second match in the same JVM fails with `Hook
+previously registered` at `FServerManager.java:276` (`docs/spikes/jvm-per-match.md`).
+That shape is no longer what runs: `host.ts` launches each JVM with its own
+`--host` id and the bridge accepts a `start` line **per match** on the same
+stdin, so **one JVM now serves many matches** (`perJvm`, default 25 — see
+"Match lifecycle" below). The per-match constants below are unchanged by that
+move, because they describe the match, not the JVM it happens to share:
 
-Aligned with lane D's asks: **`matchId` on every line** in both directions (the
-bridge stamps its own and refuses a command without it; `host.ts` checks and
-strips it), **exit = match over** (an exit while starting or running fails that
-match only), **close = `stop` → SIGTERM → SIGKILL**. **The warm spare is built
-(Wave 10)** — see "Match lifecycle" below. The `MatchHost` interface did not
-change for it, and would not for a shared host later.
+**`matchId` on every line** in both directions (the bridge stamps its own and
+refuses a command without it; `host.ts` checks and strips it), **exit = match
+over** (an exit while starting or running fails every match still on that
+JVM, not just one — see "Crash"), **close = `stop` → SIGTERM → SIGKILL** for
+the JVM once nothing on it is left. **The warm spare is built (Wave 10)** —
+see "Match lifecycle" below. The `MatchHost` interface did not change for the
+move to many matches per JVM, and is the seam placement (`play/placement/`)
+later hung a claw-hosted implementation off.
 
 ## HTTP
 
@@ -176,13 +202,15 @@ handshake, never a payload.
   that has not learned the two new fields keeps working for all of them; only
   `match-gone` needs them.
 
-  **`MatchErrorSchema` is `.strict()` in both mirrors, and that is why the
-  client's mirror had to be widened before it could parse a `match-gone` at
-  all** — a strict object refuses an unknown key rather than dropping it, which
-  also means a misspelling (`outcom`, `mesage`) is an error and not a field
-  quietly swallowed. Checked 2026-09-26, at `2ea81c0`: strict on both sides, and
-  the client's carries `outcome` and `message` as optional non-empty strings
-  (`apps/ui/src/play/live/transport.ts:202-208`).
+  **`MatchErrorSchema` is `.strict()`** — a strict object refuses an unknown
+  key rather than dropping it, which also means a misspelling (`outcom`,
+  `mesage`) is an error and not a field quietly swallowed. Checked 2026-09-26,
+  at `2ea81c0`, when the server and client each still kept their own copy of
+  the schema: strict on both. Since Wave 64 §S there is only the one schema,
+  in `packages/shared/src/match-wire.ts`, re-exported (not redefined) by both
+  the server and `apps/ui/src/play/live/transport.ts`, which carries `outcome`
+  and `message` as optional non-empty strings — so "both sides agree" is now
+  true by construction rather than by two files being kept in sync by hand.
 
   Worth knowing while reading `socket.ts`: the server **builds** the wide refusal
   through a type, not through its own schema —
@@ -202,8 +230,10 @@ handshake, never a payload.
   a preference the server holds and no frame carries, so without the second
   direction a refreshed page drew the toggle off while the server still had the
   seat in full control (wave 21 §C.1). It is not a field of `MatchSnapshot`
-  because that schema is mirrored in two packages and this event already
-  existed — `transport.ts`'s header has the argument.
+  because this event already existed as its own thing before the two apps'
+  schemas were unified, and folding it in would be a breaking change to a
+  schema shared by both sides for no behavioural gain — `packages/shared/src/match-wire.ts`'s
+  header has the argument.
 
 Three clarifications of the contract. The first two were agreed with the
 manager mid-wave; the third is this lane's decision:
@@ -837,10 +867,15 @@ counted (`Match.invalidFrames`) and logged. No refused `GameEvent` was needed
 
 ## Follow-ups owed
 
-- Add `zod` to `@hadoku/server` (and `@hadoku/ui`) and move the A↔B schemas
-  into one shared package; both mirrors are built from borrowed instances today.
+- ~~Add `zod` to `@hadoku/server` (and `@hadoku/ui`) and move the A↔B schemas
+  into one shared package~~ — **done, Wave 64 §S**: both apps import
+  `packages/shared/src/match-wire.ts` rather than keeping their own copies.
 - A per-event visibility rule, so the events arm can be forwarded.
-- Lane B: pass `devUser` on the handshake in the harness (two local browsers).
+- Pass `devUser` on the handshake in a two-local-browsers harness — not found
+  in `apps/ui/src/play/live/harness.tsx` as of this read; re-check before
+  relying on this line.
 - `sideboard` and `applyYieldUpdate` when multi-game matches exist.
-- UI: render `showErrorDialog` (the crash notice) in `LiveBoard`.
+- ~~UI: render `showErrorDialog` (the crash notice) in `LiveBoard`~~ — **done**:
+  `apps/ui/src/play/live/match.ts` handles the `matchEnded` notice and
+  `LiveBoard.test.ts` covers it.
 - A liveness check for a JVM that hangs without exiting (see "Not verified").
