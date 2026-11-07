@@ -34,10 +34,19 @@ interface Args {
   sample: number | null;
   out: string;
   stuckMs: number;
+  /** The wall a match may run to. Default: {@link TURN_MS} for each turn the turn cap allows. */
   matchTimeoutMs: number;
   turnCap: number;
   concurrency: number;
 }
+
+/**
+ * The wall-clock allowance per turn behind `--match-timeout-ms`'s default. The turn cap bounds how
+ * long a game may be; the wall only guards a match that stops advancing without tripping the stuck
+ * watch, so it must not bind first on a game still moving at a loaded host's pace. A flat 180 s did:
+ * Magpie vs Urza at 52 turns, 3.5 s a turn with nothing stalled, timed out (forge.yml run 42396799060).
+ */
+const TURN_MS = 6_000;
 
 function parseArgs(argv: readonly string[]): Args {
   const get = (name: string): string | undefined => {
@@ -45,6 +54,7 @@ function parseArgs(argv: readonly string[]): Args {
     return i >= 0 ? argv[i + 1] : undefined;
   };
   const sample = get('sample');
+  const turnCap = Number(get('turn-cap') ?? '60');
   return {
     seed: seedArg(get('seed')) ?? Date.now(),
     matchesPerDeck: Number(get('matches-per-deck') ?? '1'),
@@ -52,8 +62,8 @@ function parseArgs(argv: readonly string[]): Args {
     sample: sample === undefined ? null : Number(sample),
     out: get('out') ?? resolve(process.cwd(), 'monkey-report.json'),
     stuckMs: Number(get('stuck-ms') ?? '20000'),
-    matchTimeoutMs: Number(get('match-timeout-ms') ?? '180000'),
-    turnCap: Number(get('turn-cap') ?? '60'),
+    matchTimeoutMs: Number(get('match-timeout-ms') ?? String(turnCap * TURN_MS)),
+    turnCap,
     concurrency: Number(get('concurrency') ?? '2'),
   };
 }
