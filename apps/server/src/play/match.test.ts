@@ -4246,6 +4246,16 @@ describe('hold-decide-forward', () => {
 				]);
 			});
 
+			it('the bar the seat’s own act disabled is still that input’s: its envelope carries the input', () => {
+				const { h, from } = shownInput(7);
+				h.match.fromClient(SEAT1_ID, click, 7);
+				const bars = envelopesFor(h, SEAT1_ID).slice(from).filter((e) => e.frame.method === 'updateButtons');
+				expect(bars.map((e) => [(e.frame as { enable1: boolean }).enable1, e.input])).toEqual([
+					[true, 7],
+					[false, 7],
+				]);
+			});
+
 			it('a click and a press go to the bridge with their input; a concede names none', () => {
 				const { h } = shownInput(7);
 				const before = h.host.commands.length;

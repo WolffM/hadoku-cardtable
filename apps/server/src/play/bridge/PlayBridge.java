@@ -523,6 +523,14 @@ public final class PlayBridge {
         volatile FServerManager server;
 
         final Map<Integer, SeatGui> seatGuis = new ConcurrentHashMap<>();
+
+        /**
+         * Each seat's own {@link SeatController}, as it was made: read for the seat's open input
+         * ({@link SeatGui#frame}). Never through {@code Player.getController()}, which a scan swaps for
+         * an AI's for its length ({@code runWithController}, {@code heldBackByCost}): a frame emitted
+         * then read no input, went untagged, and the seat's next act named the window before it.
+         */
+        final Map<Integer, SeatController> seatControllers = new ConcurrentHashMap<>();
         /**
          * Each player's last call of a coin flip ({@link SeatController#chooseBinary}): heads or not, and how many
          * coins they had flipped this turn when they called it — the flip it is for is told before Forge counts it.
@@ -2815,7 +2823,8 @@ public final class PlayBridge {
             o.addProperty("seat", seat);
             o.add("frame", frame);
             // The input this frame was shown for: what an act made on it names (MatchContext#actInputs).
-            final int input = match.inputId(myInput());
+            final SeatController own = match.seatControllers.get(seat);
+            final int input = own == null ? 0 : match.inputId(own.openInput());
             if (input > 0) { o.addProperty("input", input); }
             emit(o);
         }
@@ -6293,6 +6302,7 @@ public final class PlayBridge {
             final SeatPlayer sp = (SeatPlayer) lobbyPlayer;
             match = sp.match;
             seat = sp.seat;
+            match.seatControllers.put(seat, this);
             getInputQueue().addObserver((o, arg) -> emitInputState());
         }
 
@@ -6432,6 +6442,12 @@ public final class PlayBridge {
          */
         private Object liveInput() {
             final Object in = getInputProxy().getInput();
+            return in instanceof InputLockUI ? null : in;
+        }
+
+        /** The input open on this seat now, or null: what its frames are tagged with ({@link SeatGui#frame}). */
+        Object openInput() {
+            final Object in = getInputQueue().getInput();
             return in instanceof InputLockUI ? null : in;
         }
 

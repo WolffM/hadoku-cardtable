@@ -1829,6 +1829,14 @@ export class Match {
 		if (s.staleBar !== null && s.asks.size === 0) this.armActWatch(s, 'refused');
 	}
 
+	/** `bar` with both buttons off: the same input's bar, so it carries that input ({@link Match.inputOfFrame}). */
+	private disabledBar(bar: ButtonsFrame): ButtonsFrame {
+		const off = { ...bar, enable1: false, enable2: false, focus1: false };
+		const input = this.inputOfFrame.get(bar);
+		if (input !== undefined) this.inputOfFrame.set(off, input);
+		return off;
+	}
+
 	private disarmActWatch(seat: number): void {
 		const s = this.seats[seat];
 		if (s === undefined || s.actWatch === null) return;
@@ -3169,7 +3177,7 @@ export class Match {
 			if (s.pickedSacrifice) {
 				// The bar of the pick the server just answered: dead on the seat's screen, never live.
 				s.pickedSacrifice = false;
-				if (s.wireButtonsLive) this.send(s, { ...frame, enable1: false, enable2: false, focus1: false });
+				if (s.wireButtonsLive) this.send(s, this.disabledBar(frame));
 				this.checkWaitingOn();
 				return;
 			}
@@ -3376,7 +3384,7 @@ export class Match {
 			s.passedAt = windowMark(prompt);
 			s.offerInput = 'answered';
 			const bar = buttons ?? (s.buttons?.method === 'updateButtons' ? s.buttons : null);
-			if (s.wireButtonsLive && bar !== null) this.send(s, { ...bar, enable1: false, enable2: false, focus1: false });
+			if (s.wireButtonsLive && bar !== null) this.send(s, this.disabledBar(bar));
 		} else {
 			this.releaseOffer(s);
 			if (buttons === null) this.send(s, prompt);
@@ -3620,7 +3628,7 @@ export class Match {
 		if (on && this.maybeAutoPass(s) && wasLive && s.buttons !== null && s.buttons.method === 'updateButtons') {
 			// The seat's own browser still shows the bar this just passed for it —
 			// the same disabled correction `decideWindow` sends an answered window.
-			this.send(s, { ...s.buttons, enable1: false, enable2: false, focus1: false });
+			this.send(s, this.disabledBar(s.buttons));
 		}
 		return { ok: true };
 	}
@@ -4083,7 +4091,7 @@ export class Match {
 		const buttons = s.buttons;
 		if (buttons === null || buttons.method !== 'updateButtons') return;
 		if (!buttons.enable1 && !buttons.enable2) return;
-		const disabled = { ...buttons, enable1: false, enable2: false, focus1: false };
+		const disabled = this.disabledBar(buttons);
 		s.staleBar = buttons;
 		s.buttons = disabled;
 		this.send(s, disabled);
