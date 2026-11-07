@@ -27,6 +27,7 @@ import {
   selectPlayer,
   type LiveMatch,
 } from '../../../../ui/src/play/live/match.ts';
+import type { BoardView } from '../../../../ui/src/play/adapter.ts';
 
 import type { Rng } from './rng.ts';
 
@@ -46,6 +47,34 @@ export interface BoardAction {
 }
 
 /**
+ * A clicked card as the report names it: its id, then its name, zone and tapped state off this
+ * seat's own view, then which of the offers `boardInteraction` unions named it — so a refused
+ * click says what was clicked and why the monkey thought it was on offer.
+ */
+export function cardLabel(match: LiveMatch, id: number): string {
+  const where = cardWhere(match.view, id);
+  const offers = [
+    match.selectables?.cards.has(id) === true ? 'selection' : null,
+    match.weaklySelectable?.has(id) === true ? 'weakly' : null,
+    match.weaklySelectableManaOnly?.has(id) === true ? 'mana-only' : null,
+    match.highlighted?.has(id) === true ? 'highlighted' : null,
+  ].filter((o) => o !== null);
+  return `card ${id}${where === null ? '' : ` ${where}`}${offers.length > 0 ? ` [${offers.join(',')}]` : ''}`;
+}
+
+function cardWhere(view: BoardView | null, id: number): string | null {
+  if (view === null) return null;
+  for (const p of view.players) {
+    const zones = { hand: p.hand ?? [], battlefield: p.battlefield, graveyard: p.graveyard, exile: p.exile } as const;
+    for (const [zone, cards] of Object.entries(zones)) {
+      const c = cards.find((x) => x.id === id);
+      if (c !== undefined) return `"${c.card.name}" (${p.isViewer ? 'own' : 'their'} ${zone}${c.tapped ? ', tapped' : ''})`;
+    }
+  }
+  return null;
+}
+
+/**
  * One random board action, or null when nothing is offered right now — not a
  * flag by itself: it is this seat's normal state while it holds no priority
  * and no ask is open (`!match.inputLive`), waiting on the other seat or on
@@ -60,7 +89,7 @@ export function takeRandomBoardAction(rng: Rng, match: LiveMatch): BoardAction |
   const candidates: Candidate[] = [];
 
   for (const cardId of offer.selectable) {
-    candidates.push(() => ({ kind: 'select-card', detail: `card ${cardId}`, ok: selectCard(match, cardId) }));
+    candidates.push(() => ({ kind: 'select-card', detail: cardLabel(match, cardId), ok: selectCard(match, cardId) }));
   }
   for (const playerId of offer.selectablePlayers) {
     candidates.push(() => ({ kind: 'select-player', detail: `player ${playerId}`, ok: selectPlayer(match, playerId) }));
