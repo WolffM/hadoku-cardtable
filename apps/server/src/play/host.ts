@@ -325,6 +325,11 @@ export type BridgeLine =
 	 */
 	| { t: 'dropped'; seat: number; method: string; card: number; why: string }
 	/**
+	 * A spell or ability went on the stack for a seat's player while its controller was not a human's:
+	 * the AI made a play for the seat (`PlayBridge.java`'s `Impersonation`). Never expected.
+	 */
+	| { t: 'impersonated'; seat: number; card: number; ability: string; controller: string; thread: string }
+	/**
 	 * The game as its turn's upkeep begins (`PlayBridge.TurnSnapshot`): Forge's `GameState` text, a
 	 * scenario that restores the match to the start of that turn (`match.ts`'s `restoredSpec`).
 	 * `ms` is how long the bridge took to write it. `lossy` names what the game held that the text
@@ -484,7 +489,7 @@ function brokenStreamFile(dir: string, matchId: string): string {
 	return join(dir, `${matchId}.broken.jsonl`);
 }
 
-const LINE_TYPES = new Set(['ready', 'frame', 'probe', 'gameover', 'log', 'fatal', 'rejected', 'stale', 'unsupported', 'pace', 'resent', 'applied', 'input', 'dropped', 'snapshot']);
+const LINE_TYPES = new Set(['ready', 'frame', 'probe', 'gameover', 'log', 'fatal', 'rejected', 'stale', 'unsupported', 'pace', 'resent', 'applied', 'input', 'dropped', 'snapshot', 'impersonated']);
 
 /**
  * The `bridge.stderr.txt` of the local JVM that hosts `matchId`, found by the `match-placed`

@@ -263,6 +263,14 @@ public final class PlayBridge {
     static final String FAULT = System.getProperty("cardtable.fault", "");
 
     /**
+     * A TEST-only delay, 0 unless {@code -Dcardtable.scanDelayMs=<ms>} is on the JVM's command line
+     * (a test's {@code JvmHostConfig.jvmOpts}): the cost scan holds the seat's swapped controller
+     * this much longer ({@link SeatController#heldBackByCost}), as a loaded host's slow scan does —
+     * the planted race {@code scan-swap.jvm.test.ts} proves {@link SeatController#scanLock} against.
+     */
+    static final long SCAN_DELAY_MS = Long.getLong("cardtable.scanDelayMs", 0L);
+
+    /**
      * A TEST-only override of Forge's AI cutoff ({@code Game.AI_TIMEOUT}, 5 s), in seconds: off
      * unless {@code -Dcardtable.aiTimeoutSec=<n>} is on the JVM's command line, which
      * {@code host.ts} never puts there. {@code 0} cuts every AI scan short, so a test can make
@@ -5910,6 +5918,8 @@ public final class PlayBridge {
          * is paid, finished, or being paid by Auto.
          */
         void cancelPayment() {
+            final SeatController own = match.seatControllers.get(seat);
+            if (own != null) { own.afterScan(); }
             final Object open = myInput();
             if (!(open instanceof InputPayMana pay)) {
                 System.err.println("[bridge] cancel-payment: seat " + seat + " has no open payment (" + open + "), nothing pressed");
@@ -6500,8 +6510,40 @@ public final class PlayBridge {
          */
         @Override
         public void pushActionableCards(final boolean paymentMode, final Iterable<CardView> emphasized) {
-            if (!paymentMode) { unaffordable = new Object[] { liveInput(), heldBackByCost() }; }
-            super.pushActionableCards(paymentMode, emphasized);
+            synchronized (scanLock) {
+                if (!paymentMode) { unaffordable = new Object[] { liveInput(), heldBackByCost() }; }
+                super.pushActionableCards(paymentMode, emphasized);
+            }
+        }
+
+        /**
+         * Held for the whole of an input's offer scan ({@link #pushActionableCards}), which swaps this
+         * seat's player's controller for an AI's twice: ours ({@link #heldBackByCost}) and the fork's
+         * own ({@code AvailableActions.scan}'s {@code withAiController}, from
+         * {@code PlayerControllerHuman.pushActionableCards} when its cache is cold). Forge runs the scan
+         * on the event thread, later ({@code InputProxy.update} → {@code FThreads.invokeInEdtLater}),
+         * while the game thread waits on the input. An act that finished the input during the scan let
+         * the game thread go on and ask {@code Player.getController()} for the seat's next decision —
+         * the AI: alice's Counterspell cast for her by the AI against bob's Bolt (yield.jvm, run
+         * 42403314200). Every act ({@link #afterScan}) waits for a scan in progress; so does every other
+         * way the bridge finishes an input (cancelPayment, forceDraw).
+         *
+         * <p>Why a lock and not no swap: the swap cannot be dropped from the bridge alone. Forge's
+         * canAfford asks {@code ComputerUtilMana.canPayManaCost}, which reaches the player's controller
+         * for a cost's X ("so cost-adjustment chooseX dispatches don't prompt", AvailableActions), and
+         * the fork's own scan swaps the same way. The class fix is in the fork: make
+         * {@code Player.runWithController} thread-confined (a ThreadLocal read first in
+         * {@code getController()}, not the global {@code controlledBy} entry), which also covers
+         * {@code InputPayMana.runAsAi} and {@code askAI}; this lock is then dead weight, deleted in that land.
+         */
+        private final Object scanLock = new Object();
+
+        /** Waits out a scan in progress ({@link #scanLock}): nothing finishes this seat's input while its controller is swapped. */
+        void afterScan() {
+            synchronized (scanLock) {
+                // Taking the lock, even for an instant, is the wait.
+                Thread.onSpinWait();
+            }
         }
 
         private java.util.Set<Integer> heldBackByCost() {
@@ -6527,6 +6569,9 @@ public final class PlayBridge {
                 if (spells.isEmpty()) { return out; }
                 final RuntimeException[] failed = { null };
                 me.runWithController(() -> {
+                    if (SCAN_DELAY_MS > 0) {
+                        try { Thread.sleep(SCAN_DELAY_MS); } catch (final InterruptedException e) { Thread.currentThread().interrupt(); }
+                    }
                     try {
                         for (final var e : spells.entrySet()) {
                             for (final SpellAbility sa : e.getValue()) {
@@ -6595,12 +6640,14 @@ public final class PlayBridge {
 
         @Override
         public void concede() {
+            afterScan();
             applied(liveInput(), act("concede"));
             super.concede();
         }
 
         @Override
         public void useMana(final byte mana) {
+            afterScan();
             final Object before = liveInput();
             final JsonObject a = act("useMana");
             a.addProperty("color", mana);
@@ -6610,6 +6657,7 @@ public final class PlayBridge {
 
         @Override
         public void selectButtonOk() {
+            afterScan();
             final Object before = liveInput();
             if (madeOnAnother("selectButtonOk", -1, before)) { return; }
             applied(before, act("selectButtonOk"));
@@ -6618,6 +6666,7 @@ public final class PlayBridge {
 
         @Override
         public void selectButtonCancel() {
+            afterScan();
             final Object before = liveInput();
             if (madeOnAnother("selectButtonCancel", -1, before)) { return; }
             applied(before, act("selectButtonCancel"));
@@ -6626,6 +6675,7 @@ public final class PlayBridge {
 
         @Override
         public void selectPlayer(final PlayerView playerView, final ITriggerEvent triggerEvent) {
+            afterScan();
             final Object before = liveInput();
             if (madeOnAnother("selectPlayer", playerView.getId(), before)) { return; }
             final JsonObject a = act("selectPlayer");
@@ -6637,6 +6687,7 @@ public final class PlayBridge {
 
         @Override
         public boolean selectCard(final CardView cardView, final List<CardView> otherCardViewsToSelect, final ITriggerEvent triggerEvent) {
+            afterScan();
             final Object before = liveInput();
             if (madeOnAnother("selectCard", cardView.getId(), before)) {
                 takeSelectionClick(cardView.getId());
@@ -6661,6 +6712,7 @@ public final class PlayBridge {
 
         @Override
         public void selectAbility(final SpellAbilityView sa) {
+            afterScan();
             final Object before = liveInput();
             final JsonObject a = act("selectAbility");
             a.add("ability", ref("spellAbility", sa.getId()));
@@ -6886,6 +6938,7 @@ public final class PlayBridge {
                 hm.getGame().subscribeToEvents(new CombatSync(hm.getGame()));
                 hm.getGame().subscribeToEvents(new TurnSnapshot(hm.getGame(), m));
                 hm.getGame().subscribeToEvents(m.effects.reset());
+                hm.getGame().subscribeToEvents(new Impersonation(m));
                 final GameLogForward log = GameLogForward.install(hm.getGame(), m);
                 ModeCounts.install(hm.getGame(), m.modesPending);
                 if (state == null) {
@@ -8373,12 +8426,47 @@ public final class PlayBridge {
      * then every human seat's input queue is let go, as Forge's own concede does, since a seat
      * parked on an input is woken by nothing else. The {@code gameover} line follows as for any end.
      */
+    /**
+     * A spell or ability put on the stack for a seat's player while that player's controller was not
+     * a human's: the AI made a play for the seat (the scan swap of {@link SeatController#scanLock}, or
+     * any other). Never expected; an {@code impersonated} line names it, so it is an event in the log
+     * and not a mystery on the board. A mind-slave's controller is a human's and is not one.
+     */
+    static final class Impersonation {
+        private final MatchContext match;
+
+        Impersonation(final MatchContext match) {
+            this.match = match;
+        }
+
+        @Subscribe
+        public void cast(final forge.game.event.GameEventSpellAbilityCast ev) {
+            // The event carries views; the ability just pushed is the stack's top (MagicStack.push fires it after).
+            final Game game = match.liveGame();
+            final SpellAbility sa = game == null || game.getStack().isEmpty() ? null : game.getStack().peekAbility();
+            final forge.game.player.Player p = sa == null ? null : sa.getActivatingPlayer();
+            if (p == null || p.getController() instanceof PlayerControllerHuman) { return; }
+            for (final var e : match.seatControllers.entrySet()) {
+                if (e.getValue().getPlayer() != p) { continue; }
+                final JsonObject o = line("impersonated");
+                o.addProperty("seat", e.getKey());
+                o.addProperty("card", sa.getHostCard() == null ? -1 : sa.getHostCard().getId());
+                o.addProperty("ability", String.valueOf(sa));
+                o.addProperty("controller", p.getController().getClass().getSimpleName());
+                o.addProperty("thread", Thread.currentThread().getName());
+                emit(match.matchId, o);
+                System.err.println("[bridge] the AI put " + sa + " on the stack for seat " + e.getKey() + " (controller " + p.getController().getClass().getSimpleName() + ")");
+                return;
+            }
+        }
+    }
+
     static void forceDraw(final MatchContext match) {
         final Game game = match.liveGame();
         if (game == null || game.isGameOver()) { return; }
         final List<PlayerControllerHuman> humans = new ArrayList<>();
         for (final forge.game.player.Player p : game.getRegisteredPlayers()) {
-            if (p.getController() instanceof PlayerControllerHuman h) { humans.add(h); }
+            if (match.humanOf(p) instanceof PlayerControllerHuman h) { humans.add(h); }
         }
         final ActGate gate = ActGate.of(game);
         final long ticket = gate.ticket();
@@ -8389,6 +8477,8 @@ public final class PlayBridge {
                 return input != null && !(input instanceof InputLockUI);
             }), 5_000);
             if (game.isGameOver()) { return; }
+            // Not while a seat's offer scan has its controller swapped (SeatController#scanLock).
+            for (final SeatController sc : match.seatControllers.values()) { sc.afterScan(); }
             // Forge's own draw (`GameDrawEffect`, `DrawOfferCoordinator`): every player still in the game
             // draws, then the game ends. Without the first half `onGameOver` makes each of them a winner.
             for (final forge.game.player.Player p : game.getPlayers()) { p.intentionalDraw(); }

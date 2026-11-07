@@ -93,11 +93,11 @@ export function isRefusal(payload: unknown): boolean {
 
 /**
  * This match's server log lines worth a flag: `ask-unclassified`, a question `answerability` has no
- * rule for. Not `ask-unanswerable`: that is the server answering a question no seat could, by its own
+ * rule for, and `ai-acted-for-seat`, the AI making a play for the monkey's seat. Not `ask-unanswerable`: that is the server answering a question no seat could, by its own
  * rule (7f343ec90) — an unpayable cost cancelled, an empty ability offer declined.
  */
 export function serverFlagsOf(rows: readonly Record<string, unknown>[], matchId: string): { evt: string; detail: string }[] {
-  return rows.filter((row) => row.matchId === matchId && row.evt === 'ask-unclassified').map((row) => ({ evt: String(row.evt), detail: JSON.stringify(row) }));
+  return rows.filter((row) => row.matchId === matchId && (row.evt === 'ask-unclassified' || row.evt === 'ai-acted-for-seat')).map((row) => ({ evt: String(row.evt), detail: JSON.stringify(row) }));
 }
 
 /** Rows that only echo a frame on its way to a seat: what the server decided is in every other row. */

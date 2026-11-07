@@ -1,0 +1,20 @@
+# scan-swap.jvm.test.ts — the offer scan's controller swap (PlayBridge.java's SeatController.scanLock).
+# Bob (seat 1, "ai" here, driven by the test) has two Lightning Bolts and two Mountains in his Main 1.
+# Alice holds Counterspell with two Islands, and Cancel ({1}{U}{U}), which she cannot pay: never
+# offered, so every priority window of hers prices it under a swapped AI controller (heldBackByCost).
+# With the scan held long (-Dcardtable.scanDelayMs), an AI asked for alice's priority over a Bolt
+# while her controller is swapped counters it; a seat's own player never would here, so a Counterspell
+# on the stack (and an `impersonated` line) is the race, and both Bolts hitting is its absence.
+turn=1
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Counterspell;Cancel
+humanbattlefield=Island;Island
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=Lightning Bolt;Lightning Bolt
+aibattlefield=Mountain;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

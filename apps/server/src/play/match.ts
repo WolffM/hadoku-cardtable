@@ -2986,6 +2986,10 @@ export class Match {
 				}
 				this.deps.log({ evt: 'bridge-dropped', matchId: this.id, seat: line.seat, method: line.method, card: line.card, why: line.why });
 				return;
+			case 'impersonated':
+				// The AI made a play for a seat: never expected, so named loudly.
+				this.deps.log({ evt: 'ai-acted-for-seat', matchId: this.id, seat: line.seat, card: line.card, ability: line.ability, controller: line.controller, thread: line.thread });
+				return;
 			case 'rejected':
 			case 'stale':
 			case 'pace':
