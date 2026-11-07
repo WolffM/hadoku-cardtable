@@ -37,6 +37,7 @@ describe('importsInOrder', () => {
 });
 
 describe('the app, walked from its entry', () => {
+  // It parses every module the entry reaches: 1–3 s alone, past vitest's 5 s on a loaded host.
   it('keeps every screen’s sheets ahead of the router’s and the chrome’s, the lazy screens’ included', async () => {
     const sheets = (await sheetsInSourceOrder(join(SRC, 'main.tsx'), resolveForTest)).map((s) => s.replace(`${SRC}/`, ''));
     const at = (sheet: string): number => {
@@ -51,5 +52,5 @@ describe('the app, walked from its entry', () => {
     expect(at('screens/screens.css')).toBeLessThan(at('chrome/chrome.css'));
     expect(at('chrome/chrome.css')).toBeLessThan(at('chrome/trim.css'));
     expect(sheets.slice(0, 2), 'the fleet’s tokens first').toEqual(['npm:@wolffm/themes/style.css', 'npm:@wolffm/themes/icons.css']);
-  });
+  }, 30_000);
 });
