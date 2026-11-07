@@ -62,6 +62,7 @@ async function join(browser: Browser, name: string, phone = false): Promise<Play
   const context = await browser.newContext(phone ? PHONE : {});
   await context.addCookies([{ name: SESSION_COOKIE, value: name, domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' }]);
   await keepPrefsLocal(context, EDGE_ORIGIN);
+  await context.addInitScript(watchRope);
   const page = await context.newPage();
   const player: Player = { name, context, page, captures: [] };
   page.on('websocket', (ws) => {
@@ -110,26 +111,26 @@ function picksLanded(p: Player): { at: number; cardId: string }[] {
 }
 
 /**
- * Watch the rope on this page: each time a drawn fuse first reaches empty, on the page's clock
- * (`Date.now()`, the same host clock the captures use). Read back with {@link ropeEmptied}.
+ * Watch the rope on this page from its first load: each time a drawn fuse first reaches empty, on the
+ * page's clock (`Date.now()`, the same host clock the captures use). An init script, not an evaluate
+ * after the deal: a slow deal on a loaded claw had the first pick over before a late watcher started.
+ * Read back with {@link ropeEmptied}.
  */
-async function watchRope(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as { __ropeEmptied: number[] };
-    w.__ropeEmptied = [];
-    let emptied = false;
-    const tick = (): void => {
-      const fuse = document.querySelector<HTMLElement>('[data-testid="pick-rope"] .pick-rope__fuse');
-      const state = fuse?.parentElement?.dataset.state;
-      if (fuse === null || state === 'waiting') emptied = false;
-      else if (!emptied && fuse.getBoundingClientRect().width < 0.5) {
-        emptied = true;
-        w.__ropeEmptied.push(Date.now());
-      }
-      requestAnimationFrame(tick);
-    };
+function watchRope(): void {
+  const w = window as unknown as { __ropeEmptied: number[] };
+  w.__ropeEmptied = [];
+  let emptied = false;
+  const tick = (): void => {
+    const fuse = document.querySelector<HTMLElement>('[data-testid="pick-rope"] .pick-rope__fuse');
+    const state = fuse?.parentElement?.dataset.state;
+    if (fuse === null || state === 'waiting') emptied = false;
+    else if (!emptied && fuse.getBoundingClientRect().width < 0.5) {
+      emptied = true;
+      w.__ropeEmptied.push(Date.now());
+    }
     requestAnimationFrame(tick);
-  });
+  };
+  requestAnimationFrame(tick);
 }
 
 const ropeEmptied = (page: Page): Promise<number[]> => page.evaluate(() => (window as unknown as { __ropeEmptied: number[] }).__ropeEmptied);
@@ -246,7 +247,6 @@ test('the rope runs out when the timeout pick lands, however many envelopes arri
   test.setTimeout(180_000);
   const { alice, bob, roomId } = await dealtPod(browser);
   try {
-    await watchRope(bob.page);
     await expect.poll(() => offers(bob)[0]?.timer?.totalMs, { timeout: UI_TIMEOUT }).toBe(expectedMs(15));
     // Alice picks part-way through each of bob's picks: each pick sends bob an envelope mid-pick.
     const aliceDrafts = (async () => {
