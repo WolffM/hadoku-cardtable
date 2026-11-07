@@ -98,6 +98,12 @@ export class HttpError extends Error {
 	}
 }
 
+export interface Listing<T> {
+	rows: T[];
+	/** Why the listing stopped short, or null when it was read to the end. */
+	error: string | null;
+}
+
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
@@ -124,12 +130,19 @@ export function retrying(get: Get, waitsMs = [5_000, 15_000, 45_000], wait = sle
  * that came, not after the limit asked: service-events caps a page at 500 and still says `hasMore`,
  * so stepping by the limit skipped rows 500–999 of every thousand. A row posted while paging pushes
  * the rest down one, so a row already read can come again; it is kept once, by id.
+ * A page that fails past `get`'s retries ends the listing with the rows read so far and says where:
+ * a day too busy to list is the day the report matters most.
  */
-export async function pages<T extends { id?: string }>(get: Get, path: string, key: string): Promise<T[]> {
+export async function pages<T extends { id?: string }>(get: Get, path: string, key: string): Promise<Listing<T>> {
 	const out: T[] = [];
 	const seen = new Set<string>();
 	for (let offset = 0; ; ) {
-		const page = await get(`${path}&limit=${PAGE}&offset=${offset}`);
+		let page: Record<string, unknown>;
+		try {
+			page = await get(`${path}&limit=${PAGE}&offset=${offset}`);
+		} catch (err) {
+			return { rows: out, error: `${(err as Error).message} after ${out.length} rows` };
+		}
 		const rows = (page[key] ?? []) as T[];
 		offset += rows.length;
 		for (const r of rows) {
@@ -139,7 +152,7 @@ export async function pages<T extends { id?: string }>(get: Get, path: string, k
 			}
 			out.push(r);
 		}
-		if (page.hasMore !== true || rows.length === 0) return out;
+		if (page.hasMore !== true || rows.length === 0) return { rows: out, error: null };
 	}
 }
 
@@ -341,7 +354,8 @@ const LEVEL_ORDER = ['critical', 'error', 'warn', 'info'];
 const SITE_ORDER = ['prod', 'ppe'];
 const rank = (order: string[], x: string): number => (order.includes(x) ? order.indexOf(x) : order.length);
 
-export function summarise(rows: Row[], events: Event[], ownIp: string, since: string, backup: Backup | null = null) {
+/** `unread` names each listing that stopped short; its counts are then a floor, and the run exits 2. */
+export function summarise(rows: Row[], events: Event[], ownIp: string, since: string, backup: Backup | null = null, unread: string[] = []) {
 	const visitors = rows.filter((r) => r.user_id !== TOUR && r.ip_address !== ownIp);
 	// The edge answers an anonymous caller itself (backend 'auth': the sign-in page or a 401).
 	// Anything else reached cardtable's own server without an account.
@@ -359,6 +373,7 @@ export function summarise(rows: Row[], events: Event[], ownIp: string, since: st
 			sealRefused: events.filter((e) => e.event === 'seal-refused').length,
 			critical: incidents.filter((i) => i.level === 'critical' && i.what !== 'gate-breach').length,
 			staleBackup: backup?.stale === true,
+			unread,
 		},
 		backup,
 		incidents,
@@ -378,10 +393,11 @@ export type Summary = ReturnType<typeof summarise>;
 /** Why the run exits 2, or null when nothing needs a look now. */
 export function alertLine(s: Summary): string | null {
 	const a = s.alerts;
-	return a.gateBreaches + a.sealRefused + a.critical === 0 && !a.staleBackup
+	return a.gateBreaches + a.sealRefused + a.critical === 0 && !a.staleBackup && a.unread.length === 0
 		? null
 		: `ALERT: ${a.gateBreaches} gate breach(es), ${a.sealRefused} seal-refused, ${a.critical} critical event(s)` +
-				(a.staleBackup ? `, backup ${s.backup?.error ? `unreadable (${s.backup.error})` : 'stale'}` : '');
+				(a.staleBackup ? `, backup ${s.backup?.error ? `unreadable (${s.backup.error})` : 'stale'}` : '') +
+				(a.unread.length ? `, incomplete (${a.unread.join('; ')})` : '');
 }
 
 const backupText = (b: Backup): string =>
@@ -408,6 +424,7 @@ export function render(s: Summary): string {
 	);
 	const alert = alertLine(s);
 	if (alert !== null) out.push(alert);
+	for (const u of s.alerts.unread) out.push(`\n## INCOMPLETE: ${u}`);
 	if (s.backup) out.push(`\n## Backup: ${backupText(s.backup)}`);
 	const sw = Math.max(4, ...s.incidents.map((i) => i.site.length));
 	section(
@@ -497,6 +514,7 @@ export function digest(s: Summary): string {
 		`**cardtable daily** · ${s.window.since.slice(0, 16).replace('T', ' ')} UTC → now · ${s.window.rows} edge rows, ${s.window.events} server events`,
 		`**Needs a look:** ${levelsLine(s)}`,
 		alert === null ? '✅ no gate breaches, no seal refusals, nothing critical' : `🚨 **${alert.replace('ALERT: ', '')}** — see the report`,
+		...s.alerts.unread.map((u) => `⚠️ **Incomplete:** ${u}`),
 		...ranked
 			.slice(0, SHOWN)
 			.map(([key, g]) => cut(`· ${g.n} × ${key} — ${g.n > 1 ? 'last: ' : ''}${stamp(g.last.at).slice(5, 16)} ${g.last.detail}`, 150)),
@@ -593,13 +611,17 @@ async function main(): Promise<void> {
 		if (!res.ok) throw new HttpError(`${path}: HTTP ${res.status}`, res.status);
 		return (await res.json()) as Record<string, unknown>;
 	});
-	const [rows, events, mine, backup] = await Promise.all([
+	const [logs, events, mine, backup] = await Promise.all([
 		pages<Row>(get, `/logs/query?path=/cardtable&since=${since}`, 'logs'),
 		pages<Event>(get, `/service-events?service=cardtable&since=${since}`, 'events'),
 		ownIp(args['own-ip']),
 		latestBackup(get, new Date()),
 	]);
-	const summary = summarise(rows, events, mine, since, backup);
+	const unread = [
+		...(logs.error === null ? [] : [`edge log: ${logs.error}`]),
+		...(events.error === null ? [] : [`server events: ${events.error}`]),
+	];
+	const summary = summarise(logs.rows, events.rows, mine, since, backup, unread);
 	const report = args.json ? JSON.stringify(summary, null, 2) : render(summary);
 	console.log(report);
 

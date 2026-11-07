@@ -23,7 +23,7 @@ describe('pages', () => {
 		const { get, asked } = cappedApi(all);
 		const got = await pages(get, '/service-events?service=cardtable', 'events');
 
-		expect(got).toEqual(all);
+		expect(got).toEqual({ rows: all, error: null });
 		expect(asked.map((p) => new URLSearchParams(p.split('?')[1]).get('offset'))).toEqual(['0', '500', '1000']);
 	});
 
@@ -37,7 +37,7 @@ describe('pages', () => {
 		};
 		const got = await pages(get, '/service-events?service=cardtable', 'events');
 
-		expect(got.map((r) => r.id)).toEqual(ids(700, 1).map((r) => r.id));
+		expect(got.rows.map((r) => r.id)).toEqual(ids(700, 1).map((r) => r.id));
 	});
 });
 
@@ -86,6 +86,32 @@ const ROWS: Row[] = [
 	// The edge's own sign-in answer to an anonymous caller: traffic, not a breach.
 	row(at('01:04'), '/cardtable/', { status: 401, backend: 'auth', user_id: null, user_type: 'public' }),
 ];
+
+describe('a listing that stops answering', () => {
+	/** The 11-06 report: the edge log's 5xx outlasted every retry at offset 5000, and the whole day's report was lost. */
+	const failsAt = (offset: number): Get => {
+		const { get } = cappedApi(ids(7000), 1000);
+		return async (path) => {
+			if (new URLSearchParams(path.split('?')[1]).get('offset') === String(offset)) throw new HttpError(`${path.split('&')[0]}: HTTP 500`, 500);
+			return get(path);
+		};
+	};
+
+	it('keeps the rows it read and names where it stopped, instead of throwing the report away', async () => {
+		const got = await pages(failsAt(5000), '/logs/query?path=/cardtable', 'events');
+		expect(got.rows).toEqual(ids(5000));
+		expect(got.error).toBe('/logs/query?path=/cardtable: HTTP 500 after 5000 rows');
+	});
+
+	it('exits 2 with an incomplete report, saying so in the report and the digest', () => {
+		const s = summarise([], [], '198.51.100.*', at('00:00'), null, ['edge log: /logs/query?path=/cardtable: HTTP 500 after 5000 rows']);
+		expect(alertLine(s)).toBe(
+			'ALERT: 0 gate breach(es), 0 seal-refused, 0 critical event(s), incomplete (edge log: /logs/query?path=/cardtable: HTTP 500 after 5000 rows)',
+		);
+		expect(render(s)).toContain('## INCOMPLETE: edge log: /logs/query?path=/cardtable: HTTP 500 after 5000 rows');
+		expect(digest(s)).toContain('⚠️ **Incomplete:** edge log: /logs/query?path=/cardtable: HTTP 500 after 5000 rows');
+	});
+});
 
 describe('summarise', () => {
 	const s = summarise(ROWS, EVENTS, '198.51.100.*', at('00:00'));
