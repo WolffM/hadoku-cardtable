@@ -243,15 +243,9 @@ importers:
       '@wolffm/prefs-client':
         specifier: npm:@hadoku/prefs-client@1.1.23
         version: '@hadoku/prefs-client@1.1.23(react@19.2.8)(zod@4.5.4)'
-      '@wolffm/task-ui-components':
-        specifier: npm:@hadoku/task-ui-components@4.23.24
-        version: '@hadoku/task-ui-components@4.23.24(@hadoku/themes@5.13.39(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
       '@wolffm/themes':
         specifier: npm:@hadoku/themes@5.13.39
         version: '@hadoku/themes@5.13.39(react@19.2.8)'
-      '@wolffm/watchparty-ui':
-        specifier: npm:@hadoku/watchparty-ui@0.45.54
-        version: '@hadoku/watchparty-ui@0.45.54(@hadoku/task-ui-components@4.23.24(@hadoku/themes@5.13.39(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
     devDependencies:
       '@testing-library/dom':
         specifier: 10.4.1
