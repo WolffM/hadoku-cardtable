@@ -23,6 +23,7 @@ import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { draftEnvelopes } from './isolation.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
 import { roomIdFromHash, serverLog } from './play/board.ts';
+import { PHONE } from './play/phone.ts';
 import { openCreateRoom, submitCreateRoom } from './play/rooms.ts';
 import { fillWithAi, readyPod, sitPodAt } from './podSeats.ts';
 
@@ -57,8 +58,8 @@ interface Player {
   captures: RawCapture[];
 }
 
-async function join(browser: Browser, name: string): Promise<Player> {
-  const context = await browser.newContext();
+async function join(browser: Browser, name: string, phone = false): Promise<Player> {
+  const context = await browser.newContext(phone ? PHONE : {});
   await context.addCookies([{ name: SESSION_COOKIE, value: name, domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' }]);
   await keepPrefsLocal(context, EDGE_ORIGIN);
   const page = await context.newPage();
@@ -159,9 +160,9 @@ function sentPicks(p: Player): number {
 }
 
 /** Alice leads, switches the rope on at {@link SPEED}, both sit and ready, the AI fills the pod and it deals. */
-async function dealtPod(browser: Browser): Promise<{ alice: Player; bob: Player; roomId: string }> {
+async function dealtPod(browser: Browser, bobOnAPhone = false): Promise<{ alice: Player; bob: Player; roomId: string }> {
   const alice = await join(browser, 'alice');
-  const bob = await join(browser, 'bob');
+  const bob = await join(browser, 'bob', bobOnAPhone);
   await alice.page.goto(`${EDGE_ORIGIN}${PREFIX}/`);
   await openCreateRoom(alice.page);
   await submitCreateRoom(alice.page, { name: `e2e rope ${Date.now()}`, gameType: 'draft' });
@@ -309,6 +310,33 @@ test('a drafter whose time runs out gets the card under the pointer', async ({ b
     expect(sentPicks(bob), 'bob never sent a pick').toBe(0);
     const timeouts = serverLog({ serverLogFile: resolve(RUN_DIR, 'server.jsonl') }).filter((l) => l.evt === 'pick-timeout' && l.draftId === roomId && l.seat === 1);
     expect(timeouts.map((l) => l.chose)).toEqual(['lean']);
+  } finally {
+    await alice.context.close();
+    await bob.context.close();
+  }
+});
+
+// On a phone the pack is a row of a flex column, not a grid cell: the rope must still span it.
+test('on a phone the burning rope spans the pack', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const { alice, bob } = await dealtPod(browser, true);
+  try {
+    const rope = bob.page.getByTestId('pick-rope');
+    await expect(rope).toHaveAttribute('data-state', /^(burning|urgent)$/, { timeout: expectedMs(15) + UI_TIMEOUT });
+    const widths = await bob.page.evaluate(() => {
+      const r = document.querySelector('[data-testid="pick-rope"]')!.getBoundingClientRect();
+      const p = document.querySelector('[data-testid="pack"]')!.getBoundingClientRect();
+      const f = document.querySelector('[data-testid="pick-rope"] .pick-rope__fuse')!.getBoundingClientRect();
+      return { rope: r.width, pack: p.width, fuse: f.width };
+    });
+    console.log(`[w83b] phone widths ${JSON.stringify(widths)}`);
+    expect(widths.rope, 'the rope as wide as the pack, less its margins').toBeGreaterThan(widths.pack * 0.9);
+    // Over the pack, as on a desktop, not a row above it: the pack starts its column, rope or none.
+    const tops = await bob.page.evaluate(() => ({
+      main: document.querySelector('.draft__main')!.getBoundingClientRect().top,
+      pack: document.querySelector('[data-testid="pack"]')!.getBoundingClientRect().top,
+    }));
+    expect(tops.pack).toBe(tops.main);
   } finally {
     await alice.context.close();
     await bob.context.close();
