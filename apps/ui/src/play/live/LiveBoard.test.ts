@@ -4048,6 +4048,22 @@ describe('R16 — Victory, Defeat or Draw, and how it ended (pure logic)', () =>
     expect(endingSentence(matchWithView(decked), decked), "without Forge's reason, the board's").toBe('You — had to draw from an empty library');
   });
 
+  /**
+   * The server ends a game whose chess clock ran out by conceding it for that seat (`Match.flag`), so
+   * Forge's reason is `Conceded`. A loser whose clock reads zero ran out of time (the operator,
+   * 2026-11-07, after rhomancer's game 2 read "conceded").
+   */
+  it('a loser whose chess clock reads zero is Out of Time, not conceded', () => {
+    const view = fakeView([fakePlayer({ id: 0, name: 'You', isViewer: true, hasLost: true }), fakePlayer({ id: 1, name: 'Them' })]);
+    const conceded = new Map([[0, { player: 0, reason: 'Conceded' }]]);
+    const clocks = (mine: number) => new Map([[0, { ms: mine, running: false, at: 0 }], [1, { ms: 700_000, running: false, at: 0 }]]);
+    const timed = { ...matchWithView(view, conceded), clockByPlayerId: clocks(0) } as LiveMatch;
+    expect(endingSentence(timed, view)).toBe('You — Out of Time');
+    const gaveUp = { ...matchWithView(view, conceded), clockByPlayerId: clocks(300_000) } as LiveMatch;
+    expect(endingSentence(gaveUp, view), 'time left on the clock: a real concede').toBe('You — conceded');
+    expect(endingSentence(matchWithView(view, conceded), view), 'no clock in the game').toBe('You — conceded');
+  });
+
   // The operator, 2026-10-29: a game in progress for more than 8 hours is forced into a draw.
   it('a game the server called a draw after eight hours says so, and is a Draw for both seats', () => {
     // Forge's draw marks both players drawn, which `hasLost` reads as lost.

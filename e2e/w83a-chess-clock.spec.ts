@@ -1,7 +1,8 @@
 /**
- * The chess clock (the operator, 2026-10-30, D2): each player's time for a match runs whenever the
- * game is waiting on that player, never on the server's own auto-passes, and *"at zero, that player
- * loses the match."*
+ * The chess clock (the operator, 2026-10-30, D2; per game since 2026-11-07: *"20min per game, not
+ * 20min per match"*): each player's time for a game runs whenever the game is waiting on that player,
+ * never on the server's own auto-passes, and at zero that player loses the game, which the result
+ * calls Out of Time.
  *
  * A short, test-only clock (`clockMs` on the start body; a room's own is 20 minutes). Alice holds
  * priority in her main phase with a castable Lightning Bolt (`bolt-player`) and does nothing. Her
@@ -81,9 +82,11 @@ test(titled('a seat that idles on priority runs out of time and loses; the other
       aliceLow = a.you.seconds;
     }
 
-    // At zero alice loses the match: Defeat on her screen, Victory on bob's.
+    // At zero alice loses the game: Defeat on her screen, Victory on bob's.
     await expect(alice.page.getByTestId('game-result')).toHaveAttribute('data-result', 'defeat', { timeout: 30_000 });
     await expect(bob.page.getByTestId('game-result')).toHaveAttribute('data-result', 'victory', { timeout: 30_000 });
+    // The server concedes for her, but neither screen calls it a concede: she ran out of time.
+    for (const f of [alice, bob]) await expect(f.page.getByTestId('game-result'), 'the result says why').toContainText('Out of Time');
     const flag = serverLog(stack).find((e) => e.evt === 'clock-flag' && e.matchId === matchId);
     expect(flag, 'the server says whose time ran out').toMatchObject({ seat: 0 });
     expect(seen.length, 'the clock was read while alice idled').toBeGreaterThanOrEqual(3);

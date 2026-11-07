@@ -2080,6 +2080,8 @@ export function endingSentence(match: LiveMatch, view: BoardView): string | null
   return losers
     .map((p) => {
       const loss = match.lost?.get(p.id);
+      // A clock that ran out ends the game as the server's concede for that seat (`Match.flag`).
+      if (match.clockByPlayerId?.get(p.id)?.ms === 0) return `${p.name} — Out of Time`;
       const words = LOSS_WORDS[loss?.reason ?? BOARD_REASON[reasonLost(p)]];
       return words === undefined ? p.name : `${p.name} — ${words(loss?.source)}`;
     })
