@@ -20,7 +20,7 @@ export interface HandFrame {
   scrollLeft: number;
   /** Every hand card's left edge in the lane's own content, by id, the watched card left out while it is lifted. */
   content: Record<string, number>;
-  /** Every hand card's top, by id. */
+  /** Every hand card's top, by id, the watched card left out while it is lifted. */
   tops: Record<string, number>;
 }
 
@@ -47,9 +47,9 @@ export async function startHandFrames(page: Page, cardId: number | null): Promis
       const tops: Record<string, number> = {};
       for (const li of lane?.querySelectorAll<HTMLElement>(':scope > li.board-card') ?? []) {
         const key = li.getAttribute('data-board-card') ?? '';
+        if (li.hasAttribute('data-cast-lift')) continue;
         const b = li.getBoundingClientRect();
         tops[key] = Math.round(b.top * 10) / 10;
-        if (li.hasAttribute('data-cast-lift')) continue;
         content[key] = Math.round((b.left - laneLeft + scrollLeft) * 10) / 10;
       }
       frames.push({
