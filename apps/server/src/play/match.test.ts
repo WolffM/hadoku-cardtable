@@ -3592,6 +3592,99 @@ describe('hold-decide-forward', () => {
 			]);
 		});
 
+		describe('a card click made on a window the server has since passed (#40)', () => {
+			// The window passed under the click: turn 5, Main 1, one item on the stack.
+			const sameGame = 'Priority: Seat 2\nTurn: 5 (Seat 1)\nPhase: Main phase, precombat\nStack: Empty';
+			const offer = (ids: number[]) => ({ kind: 'notify' as const, method: 'setWeaklySelectable' as const, cards: ids.map((id) => ({ kind: 'card' as const, id })) });
+			const click = (id: number) => ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id }, otherCardViewsToSelect: [], triggerEvent: null });
+			const cardActs = (h: Harness) => h.host.commands.flatMap((c) => (c.t === 'act' && c.frame.method === 'selectCard' ? [c.frame.card.id] : []));
+			const stale = (h: Harness) => h.logs.filter((l) => l.evt === 'click-stale').map((l) => l.why);
+			/** Seat 1's window passed by the server (auto-yield) while its click on card 40 was on the way. */
+			function heldOverAPass(): Harness {
+				vi.useFakeTimers();
+				const h = openedHarness();
+				closeDanglingBar(h, SEAT1_ID);
+				h.host.push({ t: 'frame', seat: SEAT1_ID, frame: turnFrame(5) });
+				h.match.setAutoYield(SEAT1_ID, true);
+				h.host.push({ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, theirTurnResponseWindow) }, { t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1) });
+				expect(h.logs.filter((l) => l.evt === 'auto-passed')).toHaveLength(1);
+				expect(h.match.fromClient(SEAT1_ID, click(40))).toEqual({ ok: true });
+				expect(cardActs(h), 'held, not handed to whatever input Forge shows next').toEqual([]);
+				expect(h.logs.find((l) => l.evt === 'click-held')).toMatchObject({ seat: SEAT1_ID, card: 40 });
+				h.match.setAutoYield(SEAT1_ID, false);
+				h.match.setFullControl(SEAT1_ID, true);
+				return h;
+			}
+			const show = (h: Harness, message: string, offered: number[]) =>
+				h.host.push(
+					{ t: 'frame', seat: SEAT1_ID, frame: offer(offered) },
+					{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, message) },
+					{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'OK', label2: 'End Turn', enable1: true, enable2: true }) },
+				);
+
+			it('the very next window: same turn and phase, the passed item gone, the card offered: the click goes to Forge', () => {
+				const h = heldOverAPass();
+				show(h, sameGame, [40, 41]);
+				expect(cardActs(h)).toEqual([40]);
+				expect(h.logs.find((l) => l.evt === 'click-released')).toMatchObject({ seat: SEAT1_ID, card: 40, kind: 'priority' });
+			});
+
+			it('the card is no longer offered: dropped (not-offered), and a click on the window shown goes straight through', () => {
+				const h = heldOverAPass();
+				show(h, sameGame, [41]);
+				expect(cardActs(h)).toEqual([]);
+				expect(stale(h)).toEqual(['not-offered']);
+				expect(h.match.fromClient(SEAT1_ID, click(41))).toEqual({ ok: true });
+				expect(cardActs(h)).toEqual([41]);
+			});
+
+			it('the turn moved on: dropped (game-moved)', () => {
+				const h = heldOverAPass();
+				show(h, 'Priority: Seat 2\nTurn: 6 (Seat 2)\nPhase: Main phase, precombat\nStack: Empty', [40]);
+				expect(cardActs(h)).toEqual([]);
+				expect(stale(h)).toEqual(['game-moved']);
+			});
+
+			it('the stack did not shrink by the passed item: dropped (game-moved)', () => {
+				const h = heldOverAPass();
+				show(h, 'Priority: Seat 2\nTurn: 5 (Seat 1)\nPhase: Main phase, precombat\nStack: 2 to Resolve.', [40]);
+				expect(cardActs(h)).toEqual([]);
+				expect(stale(h)).toEqual(['game-moved']);
+			});
+
+			it('the next window comes later than ANSWER_SILENCE_MS after the click: dropped (too-late)', () => {
+				const h = heldOverAPass();
+				vi.advanceTimersByTime(ANSWER_SILENCE_MS + 1);
+				show(h, sameGame, [40]);
+				expect(cardActs(h)).toEqual([]);
+				expect(stale(h)).toEqual(['too-late']);
+			});
+
+			it('another window is passed before the seat sees one: dropped (passed-again)', () => {
+				const h = heldOverAPass();
+				h.match.setFullControl(SEAT1_ID, false);
+				h.match.setAutoYield(SEAT1_ID, true);
+				h.host.push({ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, theirTurnResponseWindow.replace('1 card', 'Empty')) }, { t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1) });
+				expect(stale(h)).toEqual(['passed-again']);
+				expect(cardActs(h)).toEqual([]);
+			});
+
+			it('Forge asks the seat a question first: dropped (not-priority)', () => {
+				const h = heldOverAPass();
+				h.host.push({ t: 'frame', seat: SEAT1_ID, frame: { kind: 'ask', callId: 's1-40', method: 'showConfirmDialog', message: 'Pay the kicker?', title: 'Kicker', yesButtonText: 'Yes', noButtonText: 'No', defaultYes: true } });
+				show(h, sameGame, [40]);
+				expect(cardActs(h)).toEqual([]);
+				expect(stale(h)).toEqual(['not-priority']);
+			});
+
+			it('the next window is not a priority window: dropped (not-priority)', () => {
+				const h = heldOverAPass();
+				show(h, 'Select a card to discard', [40]);
+				expect(cardActs(h)).toEqual([]);
+				expect(stale(h)).toEqual(['not-priority']);
+			});
+		});
+
 		it('pressed while a window is already open: that window is passed at once, not on the next one', () => {
 			const h = openedHarness();
 			closeDanglingBar(h, SEAT1_ID);
