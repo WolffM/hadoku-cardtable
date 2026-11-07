@@ -5254,11 +5254,11 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     fireEvent.pointerMove(window, { ...POINTER, clientX: 21, clientY: 21 });
     fireEvent.pointerUp(window, { ...POINTER, clientX: 21, clientY: 21 });
     expect(container.querySelector('[data-arrange-ghost]'), 'under the slop there is no drag').toBeNull();
-    fireEvent.click(face());
+    fireEvent.click(face(), { detail: 1 });
     expect(onSelectCard).toHaveBeenCalledTimes(1);
     // A real drag, then the click the browser sends after it: not a selection.
     dragCard(container, 8, { slot: 'front' });
-    fireEvent.click(face());
+    fireEvent.click(face(), { detail: 1 });
     expect(onSelectCard, 'letting go of a drag is not a click on what it ended over').toHaveBeenCalledTimes(1);
   });
 

@@ -469,7 +469,7 @@ describe('dragging a card, and the targeter arrow', () => {
     fireEvent.pointerDown(face, { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(face, { clientX: 12, clientY: 11 });
     fireEvent.pointerUp(face, { clientX: 12, clientY: 11 });
-    fireEvent.click(face);
+    fireEvent.click(face, { detail: 1 });
     await s.untilClientFrames(1);
     expect(await sent(s, m)).toEqual([['selectCard', mine[0]!]]);
   });
@@ -1732,7 +1732,7 @@ describe('a block already assigned stays clickable, and draws its own arrow', ()
     const face = cardEl(canvas, blocker).querySelector<HTMLButtonElement>('button')!;
     fireEvent.pointerDown(face, { button: 0, pointerType: 'touch', clientX: 10, clientY: 10 });
     fireEvent.pointerUp(face, { pointerType: 'touch', clientX: 10, clientY: 10 });
-    fireEvent.click(face, { clientX: 10, clientY: 10 });
+    fireEvent.click(face, { detail: 1, clientX: 10, clientY: 10 });
     await s.untilClientFrames(1);
     expect(await sent(s, m)).toEqual([['selectCard', blocker]]);
   });
@@ -2037,7 +2037,7 @@ describe('a box with a choice of defender is aimed before anything is sent', () 
     const press = (el: HTMLElement, button = 0): void => {
       fireEvent.pointerDown(el, { button, clientX: 400, clientY: 40 });
       fireEvent.pointerUp(el, { button, clientX: 400, clientY: 40 });
-      if (button === 0) fireEvent.click(el);
+      if (button === 0) fireEvent.click(el, { detail: 1 });
     };
     const pending = (): number[] =>
       [...canvas.querySelectorAll('[data-attack-pending]')].map((el) => Number(el.getAttribute('data-board-card') ?? el.getAttribute('data-card-id')));
@@ -2975,7 +2975,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     const faceButton = faceEl(canvas, 1).querySelector<HTMLButtonElement>('button')!;
     fireEvent.pointerDown(faceButton, { button: 0, clientX: 500, clientY: 50 });
     fireEvent.pointerUp(faceButton, { clientX: 500, clientY: 50 });
-    fireEvent.click(faceButton);
+    fireEvent.click(faceButton, { detail: 1 });
     await s.untilClientFrames(2);
     expect(await sent(s, m)).toEqual([
       ['selectCard', hand[2]!],
@@ -2997,7 +2997,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     fireEvent.pointerUp(face, { clientX: 10, clientY: 10 }); // the click — arms, does not resolve
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'still lifted after the click').toBe('lifted');
     expect(await s.framesFrom(m)).toHaveLength(0);
-    expect(fireEvent.click(face), 'the native click is swallowed, not answered').toBe(false);
+    expect(fireEvent.click(face, { detail: 1 }), 'the native click is swallowed, not answered').toBe(false);
 
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 }); // no button held: still tracked
     expect(cardEl(canvas, hand[0]!).hasAttribute('data-cast-verdict'), 'no text on a lifted card').toBe(false);
@@ -3671,13 +3671,13 @@ describe('a played card waits where it was let go until Forge has it on the batt
     // The hand card is clicked, not dragged: lifted, following the pointer, resolved by the next press.
     fireEvent.pointerDown(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerUp(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
-    fireEvent.click(cardEl(canvas, card).querySelector('button') ?? cardEl(canvas, card));
+    fireEvent.click(cardEl(canvas, card).querySelector('button') ?? cardEl(canvas, card), { detail: 1 });
     expect(cardEl(canvas, card).getAttribute('data-cast-lift')).toBe('lifted');
     // The press that resolves it is on the pile's land, and a click follows it as a click follows any press.
     const pile = onMyBattlefield(canvas, land)!;
     fireEvent.pointerDown(pile, { button: 0, clientX: 400, clientY: 300 });
     fireEvent.pointerUp(pile, { button: 0, clientX: 400, clientY: 300 });
-    fireEvent.click(pile.querySelector('button') ?? pile);
+    fireEvent.click(pile.querySelector('button') ?? pile, { detail: 1 });
     await s.untilClientFrames(1);
     expect((await sent(s, m)), 'the hand card went out, the land under the release did not').toEqual([['selectCard', card]]);
   });
@@ -3927,12 +3927,12 @@ describe('a played card waits where it was let go until Forge has it on the batt
 
     fireEvent.pointerDown(theirItem, { button: 0, clientX: 600, clientY: 200 });
     fireEvent.pointerUp(window, { clientX: 600, clientY: 200 });
-    fireEvent.click(theirItem, { clientX: 600, clientY: 200 });
+    fireEvent.click(theirItem, { detail: 1, clientX: 600, clientY: 200 });
     expect(view(), 'a mouse click opens no card view: the hover already reads it').toBeNull();
 
     fireEvent.pointerDown(theirItem, { button: 0, pointerType: 'touch', clientX: 600, clientY: 200 });
     fireEvent.pointerUp(window, { pointerType: 'touch', clientX: 600, clientY: 200 });
-    fireEvent.click(theirItem, { clientX: 600, clientY: 200 });
+    fireEvent.click(theirItem, { detail: 1, clientX: 600, clientY: 200 });
     expect(view(), 'the tap opened the card view').not.toBeNull();
     expect((await sent(s, m)).length, 'nothing reaches Forge').toBe(before);
   });
@@ -4200,7 +4200,7 @@ describe('a hand card named by an open selection or ask is an ordinary click, ne
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'no lift while a selection is open').toBeNull();
     fireEvent.pointerUp(face, { clientX: 10, clientY: 10 });
     // Not suppressed this time — this press was never claimed as a lift.
-    expect(fireEvent.click(face), 'the native click reaches Board, unclaimed').toBe(true);
+    expect(fireEvent.click(face, { detail: 1 }), 'the native click reaches Board, unclaimed').toBe(true);
     await s.untilClientFrames(1);
     expect(await sent(s, m)).toEqual([['selectCard', hand[0]!]]);
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
@@ -4391,7 +4391,7 @@ describe('wave 89 §D — a touch tap reads a hand card and acts on a permanent;
   function tap(el: HTMLElement, x = 10, y = 10): void {
     fireEvent.pointerDown(el, { button: 0, pointerType: 'touch', clientX: x, clientY: y });
     fireEvent.pointerUp(el, { pointerType: 'touch', clientX: x, clientY: y });
-    fireEvent.click(el, { clientX: x, clientY: y });
+    fireEvent.click(el, { detail: 1, clientX: x, clientY: y });
   }
 
   function mountedBoard(canvas: HTMLElement): HTMLElement {
@@ -4493,7 +4493,7 @@ describe('wave 89 §D — a touch tap reads a hand card and acts on a permanent;
     fireEvent.pointerDown(face, { button: 0, pointerType: 'touch', clientX: 10, clientY: 10 });
     await new Promise((resolve) => setTimeout(resolve, LONG_PRESS_MS + 60));
     fireEvent.pointerUp(face, { pointerType: 'touch', clientX: 10, clientY: 10 });
-    const click = fireEvent.click(face);
+    const click = fireEvent.click(face, { detail: 1 });
 
     expect(click, 'the long press’s own click is swallowed — it must not also activate').toBe(false);
     expect(await s.framesFrom(m), 'read, not activated').toHaveLength(0);
@@ -4534,7 +4534,7 @@ describe('wave 89 §D — a touch tap reads a hand card and acts on a permanent;
 
     fireEvent.pointerDown(face, { button: 0, pointerType: 'touch', clientX: 10, clientY: 10 });
     fireEvent.pointerUp(face, { pointerType: 'touch', clientX: 10, clientY: 10 });
-    fireEvent.click(face);
+    fireEvent.click(face, { detail: 1 });
     await s.untilClientFrames(1);
 
     expect(await sent(s, m)).toEqual([['selectCard', theirs[0]!]]);
@@ -4552,7 +4552,7 @@ describe('wave 89 §D — a touch tap reads a hand card and acts on a permanent;
     fireEvent.pointerDown(face, { button: 0, pointerType: 'touch', clientX: 10, clientY: 10 });
     await new Promise((resolve) => setTimeout(resolve, LONG_PRESS_MS + 60));
     fireEvent.pointerUp(face, { pointerType: 'touch', clientX: 10, clientY: 10 });
-    const click = fireEvent.click(face);
+    const click = fireEvent.click(face, { detail: 1 });
 
     expect(click, 'the long-press’s own click is swallowed — it must not also choose').toBe(false);
     expect(await s.framesFrom(m), 'read, not chosen').toHaveLength(0);
@@ -4732,7 +4732,7 @@ describe('portrait hand carousel — a sideways swipe scrolls, an upward drag pl
     // Chromium's own fake move for the parked mouse, far up the table — never this touch's.
     fireEvent.pointerMove(myBattlefield, { pointerType: 'mouse', pointerId: 1, clientX: 100, clientY: 100 });
     fireEvent.pointerUp(face, { pointerType: 'touch', pointerId: 2, clientX: 100, clientY: 300 });
-    fireEvent.click(face);
+    fireEvent.click(face, { detail: 1 });
 
     expect(await s.framesFrom(m), 'a tap reads; it never casts').toHaveLength(0);
     expect(board.querySelector('[data-testid="card-view"]'), 'the tap opened the card view').not.toBeNull();
@@ -4758,7 +4758,7 @@ describe('a click takes an attacker or a blocker up, and the next click is where
     const face = el.querySelector<HTMLElement>('button') ?? el;
     fireEvent.pointerDown(face, { button: 0, clientX: 20, clientY: 20, ...init });
     fireEvent.pointerUp(face, { button: 0, clientX: 20, clientY: 20, ...init });
-    fireEvent.click(face, { clientX: 20, clientY: 20 });
+    fireEvent.click(face, { detail: 1, clientX: 20, clientY: 20 });
   }
 
   /** Declaring attackers in Forge's live window, the opponent's first card a planeswalker. */

@@ -102,13 +102,18 @@ export function pansSideways(node: EventTarget | null): boolean {
  * that never produced a click must not eat an unrelated later one), and hang
  * `swallow` as a CAPTURE-phase click listener, so it runs before React's own
  * delegated handler — and the card's `onClick` — ever sees the click.
+ *
+ * Only a pointer's click is a press's own (`detail` ≥ 1). A drag that ends over
+ * another element leaves no click, so the latch can stay armed until the next
+ * press; a keyboard press or a programmatic click (`detail` 0) in that gap is
+ * never the drag's, and goes through.
  */
 export interface ClickLatch {
   /** `by`: the branch that claimed the press, said again when its click is swallowed. */
   arm(by: string): void;
   reset(): void;
   /** The branch whose click this swallowed, or null when it let the click through. */
-  swallow(event: Pick<Event, 'preventDefault' | 'stopPropagation'>): string | null;
+  swallow(event: Pick<MouseEvent, 'preventDefault' | 'stopPropagation' | 'detail'>): string | null;
 }
 
 export function clickLatch(): ClickLatch {
@@ -122,7 +127,7 @@ export function clickLatch(): ClickLatch {
     },
     swallow: (event) => {
       const by = armed;
-      if (by === null) return null;
+      if (by === null || event.detail === 0) return null;
       armed = null;
       event.preventDefault();
       event.stopPropagation();
