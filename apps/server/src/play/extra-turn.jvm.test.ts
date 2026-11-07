@@ -18,7 +18,7 @@ import { describe, expect, it } from 'vitest';
 
 import { deltaKey, DELTA_TYPE } from '@hadoku/forge-wire';
 
-import { available, castNamed, deck, finishMulligan, inOwnMain, passUntil, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, castNamed, deck, everySeat, finishMulligan, inOwnMain, passUntil, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'extra turns: ExtraTurnCount and IsExtraTurn on both seats’ frames through a Time Walk, against real Forge'
@@ -92,6 +92,7 @@ describe.skipIf(!available.ok)(title, () => {
 				for (const seat of [0, 1]) console.log(`[st-jvm] before: seat ${seat} sees ${JSON.stringify(turnsOn(s, seat))}`);
 
 				await castNamed(s, 0, 'Time Walk');
+				await everySeat(s, (seat) => turnsOn(s, seat)[0].count === 1, 'both seats to be sent the extra turn to come');
 				for (const seat of [0, 1]) {
 					const [caster, other] = turnsOn(s, seat);
 					console.log(`[st-jvm] resolved: seat ${seat} sees ${JSON.stringify([caster, other])}`);
@@ -101,6 +102,7 @@ describe.skipIf(!available.ok)(title, () => {
 				}
 
 				await passUntil(s, () => inOwnMain(s, 0, 2), 'seat 0’s extra turn (turn 2) to reach its main phase');
+				await everySeat(s, (seat) => turnsOn(s, seat)[0].isExtra, 'both seats to be sent the extra turn begun');
 				for (const seat of [0, 1]) {
 					const [caster, other] = turnsOn(s, seat);
 					console.log(`[st-jvm] extra turn: seat ${seat} sees ${JSON.stringify([caster, other])}`);

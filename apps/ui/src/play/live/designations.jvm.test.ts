@@ -17,7 +17,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_STOP_POLICY } from '../../../../server/src/play/auto.ts';
-import { available, deck, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from '../../../../server/src/play/scenario.ts';
+import { available, deck, everySeat, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from '../../../../server/src/play/scenario.ts';
 import { toBoardView } from '../adapter.ts';
 import { currentFace, DELTA_TYPE, deltaKey, idsOf, strOf } from '@hadoku/forge-wire';
 
@@ -72,11 +72,16 @@ describe.skipIf(!available.ok)(title, () => {
         const names = commandZone(s, 0).map((c) => c.name);
         expect(names, 'Forge put the designations in seat 0’s Command zone').toEqual(expect.arrayContaining(['The Initiative', 'The Monarch']));
 
-        // Both seats draw them at seat 0, in its Command zone, with their art.
-        for (const seat of [0, 1]) {
+        // Both seats draw them at seat 0, in its Command zone, with their art. Each seat's state is its
+        // own stream: the stack resolving on seat 0's does not mean seat 1's has been sent the monarch yet.
+        const drawnAt = (seat: number): { name: string; art: string | null }[] => {
           const view = toBoardView(s.state(seat) as never, 1, { viewerPlayerId: s.match.seats[seat]?.playerId ?? -1 });
           const owner = view.players.find((p) => p.id === s.match.seats[0]?.playerId);
-          const drawn = (owner?.command ?? []).map((c) => ({ name: c.card.name, art: c.card.scryfallId ?? null }));
+          return (owner?.command ?? []).map((c) => ({ name: c.card.name, art: c.card.scryfallId ?? null }));
+        };
+        await everySeat(s, (seat) => ['The Initiative', 'The Monarch'].every((n) => drawnAt(seat).some((c) => c.name === n)), 'both seats to be sent both designations');
+        for (const seat of [0, 1]) {
+          const drawn = drawnAt(seat);
           console.log(`[designations] seat ${seat} draws: ${JSON.stringify(drawn)}`);
           expect(drawn.map((c) => c.name).sort(), `seat ${seat} draws them in seat 0’s Command zone`).toEqual(expect.arrayContaining(['The Initiative', 'The Monarch']));
           expect(drawn.filter((c) => c.art === null).map((c) => c.name), `seat ${seat}: each has its art`).toEqual([]);

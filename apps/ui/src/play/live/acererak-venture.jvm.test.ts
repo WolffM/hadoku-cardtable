@@ -16,7 +16,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_STOP_POLICY } from '../../../../server/src/play/auto.ts';
-import { available, deck, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from '../../../../server/src/play/scenario.ts';
+import { available, deck, everySeat, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from '../../../../server/src/play/scenario.ts';
 import { toBoardView } from '../adapter.ts';
 
 const title = available.ok ? 'a ventured dungeon is drawn in its player’s Command zone, against real Forge' : `acererak-venture, against real Forge — SKIPPED: ${available.reason}`;
@@ -61,8 +61,7 @@ describe.skipIf(!available.ok)(title, () => {
           const view = toBoardView(s.state(seat) as never, 1, { viewerPlayerId: s.match.seats[seat]?.playerId ?? -1 });
           return view.players.find((p) => p.id === s.match.seats[0]?.playerId)!;
         };
-        // Each seat's frames arrive on their own: seat 1's delta can trail seat 0's.
-        await waitUntil(() => (s.answerAsks(), [0, 1].every((seat) => (ownerAt(seat).command ?? []).length > 0)), 'both seats to be sent the dungeon', 10_000, s).catch(() => undefined);
+        await everySeat(s, (seat) => (ownerAt(seat).command ?? []).length > 0, 'both seats to be sent the dungeon');
         for (const seat of [0, 1]) {
           const owner = ownerAt(seat);
           const command = (owner.command ?? []).map((c) => ({ name: c.card.name, type: c.card.typeLine, art: c.card.scryfallId ?? null }));

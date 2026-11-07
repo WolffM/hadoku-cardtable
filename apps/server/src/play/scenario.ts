@@ -241,6 +241,15 @@ export async function waitUntil(p: () => boolean, label: string, ms: number, dum
 	}
 }
 
+/**
+ * Waits until `see` holds for every seat. Each seat's frames arrive on their own stream, so
+ * a wait on one seat's prompt or state says nothing about what another seat has been sent
+ * yet: a test that then reads every seat's view waits here first.
+ */
+export async function everySeat(s: Scenario, see: (seat: number) => boolean, label: string, ms = 10_000): Promise<void> {
+	await waitUntil(() => (s.answerAsks(), s.match.seats.every((_, seat) => see(seat))), label, ms, s);
+}
+
 export interface Stamped {
 	seat: number;
 	envelope: ServerEnvelope;

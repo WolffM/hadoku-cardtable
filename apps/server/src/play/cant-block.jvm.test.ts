@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, inOwnMain, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, deck, everySeat, finishMulligan, inOwnMain, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'cant-block: the frame names the creatures that can’t block, against real Forge'
@@ -63,6 +63,7 @@ describe.skipIf(!available.ok)(title, () => {
 				const giant = board.find((c) => c.name === 'Hill Giant')!;
 				const pacified = board.find((c) => c.name === 'Llanowar Elves')!;
 				const plain = board.find((c) => c.name === 'Grizzly Bears')!;
+				await everySeat(s, (seat) => latestCantBlock(s, seat)?.includes(ghast.id) === true && latestCantBlock(s, seat)?.includes(pacified.id) === true, 'both seats to be sent the cantBlock snapshot');
 				for (const seat of [0, 1]) {
 					const named = latestCantBlock(s, seat);
 					const names = board.filter((c) => named?.includes(c.id)).map((c) => `${c.name}#${c.id}`);
