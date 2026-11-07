@@ -100,6 +100,28 @@ describe('swissLayout', () => {
     expect(l.finals).toEqual([]);
   });
 
+  it('mid-rounds: a bot game still being played is in its round as a match under way, with no table, and never takes a table', () => {
+    const mid = pod({
+      round: 2,
+      results: EIGHT.filter((x) => x.round === 1),
+      pairings: [{ tableId: 't-9', players: ['a', 'b'] }],
+      botGames: [{ players: ['ai:5', 'ai:6'] }],
+    });
+    // An empty table (its players left) is never a bot game's.
+    const l = swissLayout(mid, [table('t-9', ['a', 'b'], { matchId: 'm-1', series: { length: 3, wins: [1, 0], games: [], phase: 'playing' } }), table('t-0', [])]);
+    const live = matches(l.cards, 1);
+    expect(live.map((c) => [c.match.players, c.match.wins, c.match.phase, c.match.table?.id ?? null])).toEqual([
+      [['a', 'b'], [1, 0], 'playing', 't-9'],
+      [['ai:5', 'ai:6'], [0, 0], 'playing', null],
+    ]);
+  });
+
+  it('a finished bot game never claims a table: no seat at any is an AI’s', () => {
+    const over = pod({ phase: 'done', round: 2, rounds: 1, results: [r(1, 'ai:1', 'ai:2', 2, 1)], standings: [standing('ai:1', 1), standing('ai:2', 2)] });
+    const l = swissLayout(over, [table('t-0', [])]);
+    expect(matches(l.cards, 0).map((c) => [c.match.players, c.match.wins, c.match.table])).toEqual([[['ai:1', 'ai:2'], [2, 1], null]]);
+  });
+
   it('a bye sits on its player’s row and counts as a win', () => {
     const odd = pod({ phase: 'done', round: 3, rounds: 2, results: [r(1, 'a', 'b'), r(1, 'c', null), r(2, 'c', 'a'), r(2, 'b', null)], standings: ['c', 'a', 'b'].map((id, i) => standing(id, i + 1)) });
     const l = swissLayout(odd, []);

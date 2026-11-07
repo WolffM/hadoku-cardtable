@@ -49,6 +49,8 @@ import {
 	ROOM_IDLE_MS,
 	ROOM_MATCHES_KEPT,
 	ROOM_STALE_MS,
+	type BotGameAsk,
+	type BotGames,
 	type Lobby,
 	type PodChecks,
 	type RoomView,
@@ -3451,12 +3453,14 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 		lobby: Lobby,
 		leader: { id: string; name: string; userId: string | null },
 		mode: 'classic' | 'gauntlet' | 'random' = 'classic',
+		testing = false,
 	): Promise<string> {
 		const made = lobby.create(leader, {
 			name: 'Tournament night',
 			gameType: 'constructed-1v1',
 			clientMode: 'builtin',
 			mode: mode === 'random' ? { mode: 'random', modeOptions: { pool: 'full' } } : { mode, modeOptions: {} },
+			...(testing ? { testing: true } : {}),
 		});
 		if (!made.ok) throw new Error('create failed');
 		// Every test below sits some subset of ALICE/BOB/CAROL; joining both
@@ -3915,6 +3919,99 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			expect(started.room.pod?.pairings[0]?.players).toEqual([ALICE.id, BOB.id]);
 			expect(started.room.pod?.results).toEqual([{ round: 1, playerA: 'ai:0', playerB: 'ai:2', gamesA: 2, gamesB: 0 }]);
 			expect(started.room.tables).toHaveLength(2); // the room's own hidden table[0], plus ALICE vs BOB's — none for the AI pairing.
+		});
+
+		describe('bot games: two AI entrants play their pairing out in Forge (the operator, 2026-11-07)', () => {
+			/** BotGames whose every game waits on the test: `asks` in the order asked, each settled by hand. */
+			function heldBotGames(): { botGames: BotGames; asks: { ask: BotGameAsk; settle: (r: { wins: [number, number]; gameMs: number[] } | null) => void }[] } {
+				const asks: { ask: BotGameAsk; settle: (r: { wins: [number, number]; gameMs: number[] } | null) => void }[] = [];
+				return { asks, botGames: { play: (ask) => new Promise((settle) => asks.push({ ask, settle })) } };
+			}
+			const flush = () => new Promise((done) => setTimeout(done, 0));
+
+			/** Seats 0 and 2 AI, Alice 1, Bob 3: round 1 pairs the two AI together and Alice with Bob. */
+			async function fourWithTwoAi(dir: string, log?: (e: Record<string, unknown>) => void, testing = false): Promise<{ lobby: Lobby; id: string }> {
+				const lobby = await openLobby({ dir, ...(log === undefined ? {} : { log }) });
+				const id = await tournamentRoom(lobby, ALICE, 'classic', testing);
+				expect(lobby.aiPod(id, ALICE.id, 0, true).ok).toBe(true);
+				expect(lobby.sitPod(id, ALICE.id, 1).ok).toBe(true);
+				expect(lobby.aiPod(id, ALICE.id, 2, true).ok).toBe(true);
+				expect(lobby.sitPod(id, BOB.id, 3).ok).toBe(true);
+				lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
+				return { lobby, id };
+			}
+
+			it('is played, not settled: no table, the round waits on it like a table, and its real score is the result', async () => {
+				const { lobby, id } = await fourWithTwoAi(await tempDir());
+				const { botGames, asks } = heldBotGames();
+				lobby.setBotGames(botGames);
+				const started = lobby.startDraft(id, ALICE.id);
+				expect(started.ok).toBe(true);
+				if (!started.ok) return;
+				expect(started.room.pod?.pairings.map((p) => p.players)).toEqual([[ALICE.id, BOB.id]]);
+				expect(started.room.pod?.botGames).toEqual([{ players: ['ai:0', 'ai:2'] }]);
+				expect(started.room.pod?.results).toEqual([]);
+				expect(started.room.tables).toHaveLength(2);
+				expect(asks.map((a) => [a.ask.round, a.ask.players, a.ask.bestOf, a.ask.decks.map((d) => d.kind)])).toEqual([[1, ['ai:0', 'ai:2'], 3, ['locked', 'locked']]]);
+				expect(asks[0]!.ask.names).toEqual(['ai:0', 'ai:2'].map((ai) => started.room.pod!.personas[ai]!.name));
+
+				// Alice beats Bob 2-0: the round is still the bot game's.
+				const tableId = started.room.pod!.pairings[0]!.tableId;
+				lobby.recordGameResult(id, tableId, { matchId: 'm-1', winner: 0 });
+				lobby.recordGameResult(id, tableId, { matchId: 'm-2', winner: 0 });
+				expect(lobby.get(id)?.pod).toMatchObject({ round: 1, botGames: [{ players: ['ai:0', 'ai:2'] }] });
+
+				// The higher seat wins 2-1 in Forge: that is the result, and round 2 pairs at once.
+				asks[0]!.settle({ wins: [1, 2], gameMs: [41_000, 38_000, 52_000] });
+				await flush();
+				const pod = lobby.get(id)!.pod!;
+				expect(pod.results).toContainEqual({ round: 1, playerA: 'ai:0', playerB: 'ai:2', gamesA: 1, gamesB: 2, gameMs: [41_000, 38_000, 52_000] });
+				expect(pod.round).toBe(2);
+			});
+
+			it('a bot game with no result settles the old way, the lower seat 2-0, and says so', async () => {
+				const logs: Record<string, unknown>[] = [];
+				const { lobby, id } = await fourWithTwoAi(await tempDir(), (e) => logs.push(e));
+				const { botGames, asks } = heldBotGames();
+				lobby.setBotGames(botGames);
+				expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
+				asks[0]!.settle(null);
+				await flush();
+				expect(lobby.get(id)?.pod?.results).toEqual([{ round: 1, playerA: 'ai:0', playerB: 'ai:2', gamesA: 2, gamesB: 0 }]);
+				expect(lobby.get(id)?.pod?.botGames).toEqual([]);
+				expect(logs.filter((e) => typeof e.event === 'string' && e.event.startsWith('bot-game')).map((e) => e.event)).toEqual(['bot-game-started', 'bot-game-fallback']);
+			});
+
+			it('a restart mid-game plays it again from its start, and a result for the lost one is let go', async () => {
+				const dir = await tempDir();
+				const { lobby, id } = await fourWithTwoAi(dir);
+				const first = heldBotGames();
+				lobby.setBotGames(first.botGames);
+				expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
+				expect(first.asks).toHaveLength(1);
+
+				const reopened = await openLobby({ dir });
+				expect(reopened.get(id)?.pod?.botGames).toEqual([{ players: ['ai:0', 'ai:2'] }]);
+				const second = heldBotGames();
+				reopened.setBotGames(second.botGames);
+				expect(second.asks.map((a) => [a.ask.round, a.ask.players])).toEqual([[1, ['ai:0', 'ai:2']]]);
+				second.asks[0]!.settle({ wins: [2, 0], gameMs: [30_000, 31_000] });
+				await flush();
+				expect(reopened.get(id)?.pod?.results).toEqual([{ round: 1, playerA: 'ai:0', playerB: 'ai:2', gamesA: 2, gamesB: 0, gameMs: [30_000, 31_000] }]);
+				// Asking again while it is played asks nothing twice.
+				reopened.setBotGames(second.botGames);
+				expect(second.asks).toHaveLength(1);
+			});
+
+			it('a seeded testing room never plays one: its rounds are a fixture', async () => {
+				const { lobby, id } = await fourWithTwoAi(await tempDir(), undefined, true);
+				const { botGames, asks } = heldBotGames();
+				lobby.setBotGames(botGames);
+				const started = lobby.startDraft(id, ALICE.id);
+				expect(started.ok).toBe(true);
+				expect(asks).toHaveLength(0);
+				if (started.ok) expect(started.room.pod?.results).toEqual([{ round: 1, playerA: 'ai:0', playerB: 'ai:2', gamesA: 2, gamesB: 0 }]);
+			});
 		});
 
 		it('adds no AI once locked, even to an open seat — only the lock-time field ever plays', async () => {
