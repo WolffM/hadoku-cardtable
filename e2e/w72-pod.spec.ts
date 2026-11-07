@@ -19,7 +19,7 @@
  * acceptance text only needs a round to RESOLVE, not a full game.
  */
 import { trimMainDeck } from './deckBuilder.ts';
-import { fillWithAi, readyPod, sitPodAt } from './podSeats.ts';
+import { arrangePod, fillWithAi, readyPod } from './podSeats.ts';
 import { expect, test } from '@playwright/test';
 
 import { PREFIX } from './identities.ts';
@@ -127,9 +127,13 @@ test(
 
       /* ── all three sit — the new 8-seat lobby, not the old auto-join ── */
       for (const p of players) await expect(p.page.getByTestId('pod-seats'), `${p.name}: the pod's 8 seats are up`).toBeVisible({ timeout: UI_TIMEOUT });
-      await sitPodAt(alice.page, 0);
-      await sitPodAt(bob.page, 1);
-      await sitPodAt(carol.page, 2);
+      // Entering seats each at the first open seat, in whatever order the three pages got there (closing run
+      // 42362641307: carol took seat 1 before bob): arranged, not sat in turn.
+      await arrangePod([
+        [alice.page, 0],
+        [bob.page, 1],
+        [carol.page, 2],
+      ]);
       for (const p of players) await expect(p.page.getByTestId('seat-stand'), `${p.name}: holds their own seat`).toBeVisible({ timeout: UI_TIMEOUT });
 
       /* ── ready, deal, draft, build ──────────────────────────────────── */
