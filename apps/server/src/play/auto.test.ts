@@ -2618,7 +2618,7 @@ describe('item 7 — a payment Forge left only Cancel for', () => {
 		// other Island pay it.
 		const signet = readPromptFacts(notesFor('Divination (102) - Alice draws two cards.\n\nPay Mana Cost: {2}{U}', deadAuto, [109, 110, 111]));
 		expect(signet.noWayToPay).toBe(false);
-		expect(payment(signet).verdict).toBe('unclassified');
+		expect(payment(signet).verdict).toBe('answerable');
 		// Fewer highlighted cards than the fewest mana that pays it: no clicking finishes it.
 		expect(payment(readPromptFacts(notesFor('Divination (102) - Alice draws two cards.\n\nPay Mana Cost: {2}{U}', deadAuto, [109, 111]))).verdict).toBe('unanswerable');
 	});
