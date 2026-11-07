@@ -387,9 +387,11 @@ export function DraftSkeleton({ side, seats = 8 }: { side?: ReactNode; seats?: n
           <PackSkeleton layout={layout} />
           <section className="pool" data-skeleton="pool">
             <header className="pool__head" data-skeleton="pool-head">
-              <span className="pool__title">
+              {/* The real title's own line: a heading with its count, whose 16px line sets the header's height. */}
+              <h2 className="pool__title">
                 <Ghost em={7} />
-              </span>
+                <span>{'\u00a0'}</span>
+              </h2>
               <span className="pool__colors">
                 {Array.from({ length: 5 }, (_, i) => (
                   <span key={i} className="pool__color">
