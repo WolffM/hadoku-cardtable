@@ -2142,7 +2142,7 @@ describe('Lobby.sit / stand / setSeatReady', () => {
 	 * inside it keeps the seat" are `room/socket.ts`'s own timer, proved
 	 * there (`socket.test.ts`); this is only what the lobby does once that
 	 * timer decides to call it, and what stops it from ever touching a live
-	 * match or a Gauntlet in progress (ruling 13: "nobody sits or stands").
+	 * match, a series between its games, or a Gauntlet in progress (ruling 13: "nobody sits or stands").
 	 */
 	describe('Lobby.releaseAbandonedSeats', () => {
 		async function seatedTable(): Promise<{ lobby: Lobby; id: string; tableId: string }> {
@@ -2186,6 +2186,29 @@ describe('Lobby.sit / stand / setSeatReady', () => {
 			expect(lobby.setTableMatch(id, tableId, 'm-live')).toBe(true);
 			expect(lobby.releaseAbandonedSeats(ALICE.id)).toEqual([]);
 			expect(lobby.seats(id, tableId).map((s) => s.memberId)).toContain(ALICE.id);
+		});
+
+		// rhomancer, 2026-11-07: closed the tab 15 s after winning game 1 of a pod's Bo3, and the
+		// release emptied the table mid-series — no seat, no deck, no way back to game 2.
+		it('never releases a seat while its series is under way, and keeps the deck it holds', async () => {
+			const { lobby, id, tableId } = await seatedTable();
+			expect(lobby.setPlayerState(id, ALICE.id, { held: 'a deck' })).toBe(true);
+			expect(lobby.setTableMatch(id, tableId, 'm-game-1')).toBe(true);
+			lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 1 });
+			expect(lobby.beginSideboarding(id, tableId)).toBe(true);
+			expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ length: 3, phase: 'sideboarding' });
+			expect(lobby.releaseAbandonedSeats(ALICE.id), 'sideboarding').toEqual([]);
+			expect(lobby.seats(id, tableId).map((s) => s.memberId)).toEqual([ALICE.id, BOB.id]);
+			expect(lobby.playerState(id, ALICE.id)).toEqual({ held: 'a deck' });
+			// A game whose match went away (`releaseTableMatch`) is still the series' game.
+			expect(lobby.setTableMatch(id, tableId, 'm-game-2')).toBe(true);
+			expect(lobby.releaseTableMatch(id, tableId)).toBe(true);
+			expect(lobby.releaseAbandonedSeats(ALICE.id), 'playing, its match gone').toEqual([]);
+			// Settled: the seat is free to give back again.
+			expect(lobby.setTableMatch(id, tableId, 'm-game-2b')).toBe(true);
+			lobby.recordGameResult(id, tableId, { matchId: 'm-game-2b', winner: 1 });
+			expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ phase: 'done' });
+			expect(lobby.releaseAbandonedSeats(ALICE.id)).toEqual([{ roomId: id, tableId }]);
 		});
 
 		it('never releases a seat a Gauntlet holds — ruling 13, "nobody sits or stands" while one is under way', async () => {

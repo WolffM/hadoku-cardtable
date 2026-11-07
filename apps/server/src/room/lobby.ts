@@ -2358,6 +2358,10 @@ function gauntletNamed(g: GauntletState, members: readonly MemberRecord[]): Gaun
 	return { ...g, players: [a!, b!] };
 }
 
+function seriesUnderWay(series: SeriesRecord): boolean {
+	return series.phase === 'playing' || series.phase === 'sideboarding' || series.phase === 'between';
+}
+
 function gauntletUnderWay(gauntlets: Record<string, GauntletState>): boolean {
 	return Object.values(gauntlets).some((g) => g.phase !== 'options' && g.phase !== 'done');
 }
@@ -2800,7 +2804,9 @@ class FileLobby implements Lobby {
 			for (const table of room.tables) {
 				if (!table.seats.includes(memberId)) continue;
 				if ((this.#seatTaken.get(`${room.id}\u0000${table.id}\u0000${memberId}`) ?? 0) > mark) continue;
-				if (table.matchId !== null) continue;
+				// A series under way keeps its seats between games too (sideboarding,
+				// between, or a game whose match went away): only a settled or unstarted one frees them.
+				if (table.matchId !== null || seriesUnderWay(table.series)) continue;
 				const gauntlet = room.gauntlets[table.id];
 				if (gauntlet !== undefined && gauntletHoldsTable(gauntlet)) continue;
 				if (!leaveSeat(table, memberId)) continue;
