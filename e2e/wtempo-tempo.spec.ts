@@ -10,9 +10,10 @@
  *   1. Scenario `tf-thopter-sword` against the Forge AI, paced (Fast Mode off, where the Sword rises; Fast Mode
  *      draws its landing alone): alice loops Thopter Foundry and Sword of the Meek eight times in one turn. The
  *      page records each of the Sword's rises out of the graveyard (`entries.ts`'s `rise` stand-in) from the
- *      frame it is drawn to the frame it is gone, and the lengths its animations were given. Each rise is no
- *      slower than the one before, and the seventh and eighth (at the cap) are at least `TEMPO_CAP × 0.8` times
- *      as fast as the first.
+ *      frame it is drawn to the frame it is gone, the lengths its animations were given, and the frames it was
+ *      drawn with none of them running. Each rise's animations are no longer than the one before, the eighth's
+ *      are given exactly `TEMPO_CAP` times less than the first's, and every rise is drawn for its animations and
+ *      nothing else: never cut short, and never held more than a frame or two with nothing playing.
  *   2. Scenario `w80c-blasphemous`: alice's Blasphemous Act draws a fireball at each of the eleven creatures, every
  *      one at 1× — one instance, however many fireballs — on both screens, and the match log has no faster view of it.
  *
@@ -34,10 +35,12 @@ const TEMPO_CAP = 2.5;
 /** The scenario's eight Islands: a loop each. */
 const LOOPS = 8;
 /**
- * What a rise may be drawn over the one before it and still be "no slower": a frame or two, or a sixth of it on a busy
- * runner (hokon at load 45 drew one 98 ms over the one before; the lengths their animations were given are checked exactly).
+ * The frames a rise may be drawn with none of its animations running: the hand-over from one to the next, and its
+ * removal. Counted in frames, not milliseconds: a busy runner draws a frame late, and a wall-clock length compared
+ * with the rise before reads that as the product (rises 6 and 7 at 2.25× and 2.5× drawn 639 and 742 ms, their
+ * animations 564 and 508 ms).
  */
-const slackOf = (ms: number): number => Math.max(50, ms * 0.15);
+const IDLE_FRAMES = 2;
 
 const life = (page: Page) => page.locator('.seat[data-viewer] [data-testid="life"]');
 
@@ -46,6 +49,8 @@ interface Rise {
   shownMs: number;
   /** What its animations were given on the wall: each one's length over its playback rate, summed. */
   plannedMs: number;
+  /** Frames it was drawn with none of its own animations running. */
+  idleFrames: number;
   tempo: string;
 }
 interface Ball {
@@ -62,17 +67,20 @@ async function record(page: Page): Promise<void> {
   await page.evaluate(() => {
     const rec = { rises: [] as Rise[], balls: [] as Ball[] };
     (window as unknown as { __tempo: Recorded }).__tempo = rec;
-    const open = new Map<Element, { at: number; planned: Map<Animation, number> }>();
+    const open = new Map<Element, { at: number; planned: Map<Animation, number>; idle: number }>();
     const look = (): void => {
       for (const [el, r] of open) {
-        for (const a of el.getAnimations()) {
+        const anims = el.getAnimations();
+        for (const a of anims) {
           const d = Number(a.effect?.getComputedTiming().duration ?? 0);
           if (Number.isFinite(d)) r.planned.set(a, d / (a.playbackRate || 1));
         }
+        if (el.isConnected && !anims.some((a) => a.playState === 'running')) r.idle += 1;
         if (!el.isConnected) {
           rec.rises.push({
             shownMs: Math.round(performance.now() - r.at),
             plannedMs: Math.round([...r.planned.values()].reduce((s, x) => s + x, 0)),
+            idleFrames: r.idle,
             tempo: (el as HTMLElement).style.getPropertyValue('--tempo'),
           });
           open.delete(el);
@@ -85,7 +93,7 @@ async function record(page: Page): Promise<void> {
       for (const m of muts)
         for (const n of m.addedNodes) {
           if (!(n instanceof HTMLElement)) continue;
-          if (n.matches('.board-entry[data-entry="rise"]')) open.set(n, { at: performance.now(), planned: new Map() });
+          if (n.matches('.board-entry[data-entry="rise"]')) open.set(n, { at: performance.now(), planned: new Map(), idle: 0 });
           if (n.matches('.effect-hit')) rec.balls.push({ tempo: n.style.getPropertyValue('--tempo'), look: n.dataset.projectile ?? '' });
         }
     }).observe(document.body, { childList: true, subtree: true });
@@ -144,7 +152,7 @@ test(titled('Thopter Foundry + Sword of the Meek, eight loops in one turn: each 
     await expect.poll(async () => (await recorded(page)).rises.length, { timeout: 10_000, message: 'every rise has played out' }).toBe(LOOPS);
 
     const { rises, balls } = await recorded(page);
-    for (const [i, r] of rises.entries()) console.log(`[tempo] rise ${i + 1}: tempo ${r.tempo || '1'}, shown ${r.shownMs} ms, its animations ${r.plannedMs} ms`);
+    for (const [i, r] of rises.entries()) console.log(`[tempo] rise ${i + 1}: tempo ${r.tempo || '1'}, shown ${r.shownMs} ms, its animations ${r.plannedMs} ms, ${r.idleFrames} frame(s) with none running`);
     console.log(`[tempo] heal motes: ${balls.filter((b) => b.look === 'heal').map((b) => b.tempo || '1').join(' ')}`);
     // The match log's word on each view's beats, the Sword's returns among them (`numbers.ts`'s `beats`, its `tempo`); a
     // busy second's events beyond the server's cap are dropped, so the log is evidence, not the measure.
@@ -154,12 +162,13 @@ test(titled('Thopter Foundry + Sword of the Meek, eight loops in one turn: each 
     expect(rises.map((r) => Number(r.tempo || '1')), 'the nth return plays at the nth tempo').toEqual([1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.5]);
     for (let i = 1; i < rises.length; i++) {
       expect(rises[i]!.plannedMs, `rise ${i + 1}'s animations are no longer than rise ${i}'s`).toBeLessThanOrEqual(rises[i - 1]!.plannedMs);
-      expect(rises[i]!.shownMs, `rise ${i + 1} is drawn no longer than rise ${i}`).toBeLessThanOrEqual(rises[i - 1]!.shownMs + slackOf(rises[i - 1]!.shownMs));
     }
-    // The two returns at the cap, between them: a busy claw draws one of them a frame or two late (measured 762 and 561 ms).
-    const capped = (rises[6]!.shownMs + rises[7]!.shownMs) / 2;
-    expect(rises[0]!.shownMs / capped, 'at the cap a return is drawn at least CAP×0.8 times as fast as the first').toBeGreaterThanOrEqual(TEMPO_CAP * 0.8);
     expect(rises[0]!.plannedMs / rises[7]!.plannedMs, 'its animations are given exactly the cap').toBeCloseTo(TEMPO_CAP, 1);
+    // What is drawn is those animations: each rise plays them out, and nothing holds it on the table besides.
+    for (const [i, r] of rises.entries()) {
+      expect(r.shownMs, `rise ${i + 1} is drawn for all of its animations`).toBeGreaterThanOrEqual(r.plannedMs);
+      expect(r.idleFrames, `rise ${i + 1} is held no more than ${IDLE_FRAMES} frame(s) with nothing playing`).toBeLessThanOrEqual(IDLE_FRAMES);
+    }
   } finally {
     await stack.stop();
   }
