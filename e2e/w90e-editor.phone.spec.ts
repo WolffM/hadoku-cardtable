@@ -7,15 +7,17 @@ import { expect, test } from '@playwright/test';
 
 import { deckPileTop } from './deckBuilder.ts';
 import { noSideways, pinch, PHONE, swipe } from './play/phone.ts';
-import { cardPointIn, emptyPointIn, openSoloDeckEditor, surfaceTransform } from './w90e-editor.ts';
+import { cardPointIn, emptyPointIn, openSoloDeckEditor, surfaceTransform, visibleCardIn } from './w90e-editor.ts';
 
 test.use(PHONE);
 
 test('cards stay readable, a finger pans from a card or empty space, a pinch zooms, a tap still moves a card', async ({ page }) => {
   test.setTimeout(3 * 60_000);
   await openSoloDeckEditor(page);
-  const pileTop = deckPileTop(page).first();
-  await pileTop.tap();
+  // A tall pile runs past its viewport at 100%; a finger taps a pile top it can see, where it sees it.
+  const seen = await visibleCardIn(deckPileTop(page), 'main-grid');
+  const pileTop = seen.card;
+  await page.touchscreen.tap(seen.x, seen.y);
   await expect(page.getByTestId('side-count')).toHaveText('1');
 
   const box = await pileTop.boundingBox();

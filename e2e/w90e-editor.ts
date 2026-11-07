@@ -3,7 +3,7 @@
  * `w90e-editor.phone.spec.ts`). The sideboard step, the draft's deck builder and `#/deck/<podId>` are
  * one `DeckEditor`; a solo draft against AI bots reaches it with no Forge match.
  */
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { createRoomByApi } from './play/rooms.ts';
@@ -77,4 +77,30 @@ export async function cardPointIn(page: Page, viewportTestId: string): Promise<{
   });
   if (p === null) throw new Error(`${viewportTestId} draws no card to press`);
   return p;
+}
+
+/**
+ * The first of `cards` its viewport draws some of, and the middle of that drawn part, which
+ * `elementFromPoint` answers with the card. A tall pile can run past its viewport at 100% (cards keep
+ * their floor and the pan reaches the rest), so a pile's top card may be partly or wholly below it.
+ */
+export async function visibleCardIn(cards: Locator, viewportTestId: string): Promise<{ card: Locator; x: number; y: number }> {
+  for (let i = 0; i < (await cards.count()); i++) {
+    const card = cards.nth(i);
+    const p = await card.evaluate((el, id) => {
+      const view = document.querySelector(`[data-testid="${id}"]`)?.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      if (view === undefined) return null;
+      const top = Math.max(r.top, view.top);
+      const bottom = Math.min(r.bottom, view.bottom);
+      const left = Math.max(r.left, view.left);
+      const right = Math.min(r.right, view.right);
+      if (bottom - top < 4 || right - left < 4) return null;
+      const point = { x: (left + right) / 2, y: (top + bottom) / 2 };
+      const hit = document.elementFromPoint(point.x, point.y);
+      return hit !== null && el.contains(hit) ? point : null;
+    }, viewportTestId);
+    if (p !== null) return { card, ...p };
+  }
+  throw new Error(`${viewportTestId} draws none of the cards`);
 }
