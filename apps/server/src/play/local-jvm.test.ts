@@ -1,10 +1,10 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, closeSync, constants, mkdirSync, mkdtempSync, openSync, readSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { defaultJava } from './local-jvm.ts';
+import { defaultJava, makeFifos, openJvmIo } from './local-jvm.ts';
 
 const made: string[] = [];
 afterEach(() => {
@@ -52,5 +52,49 @@ describe('defaultJava', () => {
 	it('is a bare java only when there is none to find', () => {
 		const root = tree();
 		expect(defaultJava({ HOME: join(root, 'home'), PATH: join(root, 'nowhere') })).toBe('java');
+	});
+});
+
+describe("openJvmIo's stdin", () => {
+	it('never blocks on a fifo nobody drains, and delivers every line in order once someone does', async () => {
+		const run = mkdtempSync(join(tmpdir(), 'jvm-io-'));
+		made.push(run);
+		makeFifos(run);
+		const logged: Record<string, unknown>[] = [];
+		const io = openJvmIo(run, (e) => logged.push(e));
+		// 400 KiB, past any fifo's buffer, with no reader: a JVM that died before reading its stdin.
+		const sent = Array.from({ length: 400 }, (_, i) => `${String(i).padStart(4, '0')} ${'x'.repeat(1019)}`);
+		for (const line of sent) io.write(line);
+		// Still here, and the event loop still turns.
+		await new Promise<void>((r) => setImmediate(r));
+		expect(logged.map((e) => e.evt)).toEqual(['bridge-stdin-full']);
+
+		// Now the JVM reads (its own, separate open of the fifo).
+		const reader = openSync(join(run, 'in.fifo'), constants.O_RDONLY | constants.O_NONBLOCK);
+		const want = sent.map((l) => `${l}\n`).join('');
+		const chunks: Buffer[] = [];
+		let got = 0;
+		const buf = Buffer.alloc(65536);
+		await vi.waitFor(
+			() => {
+				for (;;) {
+					let n = 0;
+					try {
+						n = readSync(reader, buf);
+					} catch (err) {
+						if ((err as NodeJS.ErrnoException).code !== 'EAGAIN') throw err;
+					}
+					if (n <= 0) break;
+					chunks.push(Buffer.from(buf.subarray(0, n)));
+					got += n;
+				}
+				expect(got).toBe(want.length);
+			},
+			{ timeout: 10_000, interval: 10 },
+		);
+		closeSync(reader);
+		io.close();
+		expect(Buffer.concat(chunks).toString()).toBe(want);
+		expect(logged.map((e) => e.evt)).toEqual(['bridge-stdin-full', 'bridge-stdin-drained']);
 	});
 });
