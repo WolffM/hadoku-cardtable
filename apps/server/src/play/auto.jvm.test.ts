@@ -224,13 +224,15 @@ describe.skipIf(!available.ok)(title, () => {
 							 * `showPromptMessage` is now parked and, for a window the server
 							 * auto-passes, never reaches `sent` at all (that is the fix) — so a
 							 * row built from what Forge SAID, same as every other window, still
-							 * opens one; `idle` still reads `notes[seat].actionable`, which
-							 * `setWeaklySelectable`/`clearWeaklySelectable` keep live regardless
-							 * (those are never held).
+							 * opens one. `idle` reads what Forge offered, off the same raw lines:
+							 * a window's offer is held with the window, so an auto-passed one's
+							 * never reaches `emit` either.
 							 */
 							if (l.t === 'frame') {
-								const f = l.frame as { method?: unknown; message?: unknown } | null;
-								if (f?.method === 'showPromptMessage' && typeof f.message === 'string' && /^Priority: /.test(f.message)) {
+								const f = l.frame as { method?: unknown; message?: unknown; cards?: { id: number }[] } | null;
+								if (f?.method === 'setWeaklySelectable') notes[l.seat]!.actionable = (f.cards ?? []).map((c) => c.id);
+								else if (f?.method === 'clearWeaklySelectable') notes[l.seat]!.actionable = null;
+								else if (f?.method === 'showPromptMessage' && typeof f.message === 'string' && /^Priority: /.test(f.message)) {
 									const message = f.message;
 									stops.push({
 										seat: l.seat,
@@ -263,9 +265,7 @@ describe.skipIf(!available.ok)(title, () => {
 				emit: (_m, seat, envelope) => {
 					sent.push({ seat, envelope });
 					const f = envelope.frame;
-					if (f.method === 'setWeaklySelectable') notes[seat]!.actionable = f.cards.map((c) => c.id);
-					else if (f.method === 'clearWeaklySelectable') notes[seat]!.actionable = null;
-					else if (f.method === 'showPromptMessage') {
+					if (f.method === 'showPromptMessage') {
 						// the row itself now opens off the raw bridge line (the
 						// `line` wrapper above), because a window the server auto-passes
 						// never reaches `emit` at all — that is the fix this suite is
