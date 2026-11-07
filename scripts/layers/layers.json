@@ -1,6 +1,7 @@
 {
   "platform": [
     "packages/room-ask/**",
+    "packages/ui-shell/**",
     "packages/room-store/**",
     "apps/server/src/stream/**",
     "apps/server/src/erase/**",
