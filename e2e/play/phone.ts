@@ -176,11 +176,12 @@ export async function pinch(page: Page, opts: PinchOptions): Promise<void> {
 /**
  * A single-finger touch drag: press at `from`, move through each of `points` with a real CDP
  * `Input.dispatchTouchEvent` `touchMove` (never `page.mouse.*`, which sends mouse events even inside
- * a touch context — D's gesture install branches on the real thing), release at the last point. The
+ * a touch context — D's gesture install branches on the real thing), release at the last point (held
+ * there `holdMs` first, where given). The
  * one primitive `board.ts`'s hand-card drag and `combat.ts`'s block drag both build on for the phone
  * project (and `swipe` below), rather than each dispatching its own CDP touch sequence.
  */
-export async function touchDrag(page: Page, from: { x: number; y: number }, points: readonly { x: number; y: number }[]): Promise<void> {
+export async function touchDrag(page: Page, from: { x: number; y: number }, points: readonly { x: number; y: number }[], opts: { holdMs?: number } = {}): Promise<void> {
   const client = await page.context().newCDPSession(page);
   const point = (p: { x: number; y: number }) => ({ x: p.x, y: p.y, radiusX: 11, radiusY: 11, force: 1, id: 1 });
   try {
@@ -189,7 +190,8 @@ export async function touchDrag(page: Page, from: { x: number; y: number }, poin
       await page.waitForTimeout(16);
       await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [point(p)] });
     }
-    await page.waitForTimeout(16);
+    // Held still at the last point before the finger lifts: `holdMs`, or one frame.
+    await page.waitForTimeout(opts.holdMs ?? 16);
     await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   } finally {
     await client.detach().catch(() => undefined);

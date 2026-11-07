@@ -30,7 +30,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 
-import { chromium, type Browser, type BrowserContext } from '@playwright/test';
+import { chromium, type Browser, type BrowserContext, type BrowserContextOptions } from '@playwright/test';
 
 import { FRIENDS, SESSION_COOKIE } from '../identities.ts';
 import type { Friend } from '../play/browser.ts';
@@ -216,9 +216,10 @@ const IMAGE = /\.(jpe?g|png|webp|avif|svg)(\?|$)/i;
 
 /**
  * A friend for a promo clip, on `browser`: the filmed hero's GPU browser, or the shared headless one. Same identity cookie and local prefs as `openFriend`, Fast Mode off, art let through.
+ * `options` overrides the context's own: a phone's shape and touch, a recording.
  */
-export async function openPromoFriend(browser: Browser, name: string): Promise<Friend> {
-  const context: BrowserContext = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT }, colorScheme: 'dark' });
+export async function openPromoFriend(browser: Browser, name: string, options: BrowserContextOptions = {}): Promise<Friend> {
+  const context: BrowserContext = await browser.newContext({ viewport: { width: WIDTH, height: HEIGHT }, colorScheme: 'dark', ...options });
   await context.addCookies([{ name: SESSION_COOKIE, value: name, domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' }]);
   await keepPrefsLocal(context, PLAY_EDGE_ORIGIN);
   await setPlayFastModeDefault(context, false);

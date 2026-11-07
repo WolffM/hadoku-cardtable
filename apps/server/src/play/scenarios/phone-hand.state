@@ -1,0 +1,16 @@
+# A phone hand that overflows its lane: nine cards in seat 0's hand on its own main phase, with lands
+# to cast from (`e2e/wphonehand-hand-row.phone.spec.ts`: one row, a sideways swipe scrolls it, a lifted
+# card reorders under the finger, a card dragged up is played).
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Lightning Bolt;Counterspell;Llanowar Elves;Swords to Plowshares;Dark Ritual;Giant Growth;Ancestral Recall;Mountain;Scapeshift
+humanbattlefield=Mountain;Mountain;Forest;Island
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Tarmogoyf;Swamp;Swamp
+ailibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+aigraveyard=
