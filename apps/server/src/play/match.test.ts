@@ -2880,6 +2880,37 @@ describe('hold-decide-forward', () => {
 			expect(methodsSent(h, SEAT1_ID, before)).toEqual(['setWeaklySelectable']);
 		});
 
+		/*
+		 * Monkey run 42354564385 (Warlock Class cast at Main 1): Forge asks the cast's
+		 * `getAbilityToPlay` a second time between two inputs, and its payment pushes its offer
+		 * before its bar (`InputPayMana.showMessage`). The ask's flush, with nothing held, marked the
+		 * payment's input shown, so the offer of a payment the server pays went to the seat at once,
+		 * and the seat's click on it was taken by the next priority and refused.
+		 */
+		it('never reaches the seat for a payment the server pays, though an ask came between the inputs', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			castOwn(h, SEAT1_ID);
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: clear },
+				{
+					t: 'frame',
+					seat: SEAT1_ID,
+					// Forge's own repeat of the ability just chosen (`castOwn`'s 9001): the server answers it.
+					frame: { kind: 'ask', callId: 'between-1', method: 'getAbilityToPlay', hostCard: { kind: 'card', id: OWN_CARD }, abilities: [{ kind: 'spellAbility', id: 9001 }], triggerEvent: null },
+				},
+			);
+			const afterAsk = envelopesFor(h, SEAT1_ID).length;
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: offer },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Auto', enable1: true, enable2: true }) },
+				{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Pay Mana Cost: {U}', OWN_CARD) },
+			);
+			expect(h.logs.some((l) => l.evt === 'ask-auto-answered' && l.callId === 'between-1')).toBe(true);
+			expect(h.logs.some((l) => l.evt === 'auto-paid')).toBe(true);
+			expect(methodsSent(h, SEAT1_ID, afterAsk)).not.toContain('setWeaklySelectable');
+		});
+
 		it('goes out on the flush when no window follows it', () => {
 			vi.useFakeTimers();
 			const h = openedHarness();
