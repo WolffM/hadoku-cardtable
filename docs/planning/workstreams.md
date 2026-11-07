@@ -3570,3 +3570,20 @@ Every one of these was re-run by the manager, not taken from a lane's report.
 - Forge module LOC re-measured correctly after a bad `xargs`/`tail` count:
   `forge-game` 127,083 · `forge-gui-mobile` 103,038 · all-but-mobile-platforms
   516,450.
+
+## Wave 92 (platform phase 2, UI track) — scaffolded 2026-11-07, concurrent with w91
+
+`docs/planning/wave92-2026-11-07.md`, branch `w92`, worktree `.claude/worktrees/w92-manager`. A new MIT
+`packages/ui-shell` (subpath exports, `configureShell({ appId })`) takes the game-neutral UI. Four lanes plus a
+sweep; no player-visible change:
+- **A** — chrome, trim, RoomShell, the embed mount.
+- **B** — theme seed, stylesheet, the settings frame, UI scale, usage.
+- **C** — the sound mixer, with its role list injected (Magic's matrix stays).
+- **D** — Modal, Reveal and reduced motion from the fleet or the shell; avatars from the server's roster, deleting
+  the read of watchparty's prefs cache row and the constants quoted from its minified bundle.
+- **Z** — after A–D: rewrite importers, delete the re-export stubs.
+
+Files are disjoint from w91's (server, room-store, `scripts/layers`, licence docs). No w92 lane lands before D26 is on
+main. Queued behind them: **w93**, phase 2's server half (`packages/service-kernel`), cut once w91-C's gate is on
+main; and a single watchparty session for room steps 1–2 (the character pool into rooms-protocol, presence into
+rooms-server).
