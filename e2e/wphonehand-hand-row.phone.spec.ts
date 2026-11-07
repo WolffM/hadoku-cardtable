@@ -79,27 +79,33 @@ test(titled('the phone hand is one row that a finger scrolls sideways, reorders 
     });
     await page.waitForTimeout(300);
 
-    // A reorder: the second card, lifted and carried two cards right. It follows the finger, nothing
-    // else in the hand moves under it, and it lands where it was let go.
+    // A reorder: the first card, lifted and carried one place right, clear of the edges. It follows the
+    // finger, nothing else in the hand moves under it, and it lands where it was let go.
     const before = await handIds(page);
-    const moving = before[1]!;
+    const moving = before[0]!;
     const width = (await hand(page).locator(':scope > li.board-card').first().boundingBox())!.width;
     await startHandFrames(page, moving);
-    await reorderByFinger(page, moving, width * 2.2);
+    await reorderByFinger(page, moving, width * 1.5);
     await page.waitForTimeout(600);
     const carried = await stopHandFrames(page);
+    const lifted = carried.filter((f) => f.lifted === 'lifted');
     const jump = worstJump(carried);
-    const held = worstShift(carried.filter((f) => f.lifted === 'lifted'));
+    const held = worstShift(lifted);
     console.log(`[hand] reorder: worst jump ${jump.px}px (frame ${jump.at}), worst re-layout ${held.px}px (card ${held.id}, frame ${held.at})\n${describeFrames(carried, moving)}`);
-    expect.soft(carried.some((f) => f.lifted === 'lifted'), 'the finger lifted the card').toBe(true);
+    expect.soft(lifted.length, 'the finger lifted the card').toBeGreaterThan(0);
     expect.soft(jump.px, `the lifted card never jumps more than ${MAX_JUMP_PX}px against the finger`).toBeLessThanOrEqual(MAX_JUMP_PX);
     expect.soft(held.px, 'nothing in the hand is re-laid out while the card is carried').toBeLessThanOrEqual(1);
-    expect.soft(Math.max(...carried.map((f) => f.scrollLeft)), 'and the hand does not scroll under a card carried mid-hand').toBeLessThanOrEqual(1);
-    expect.soft(Math.max(...carried.map(rowsOf)), 'and the hand stays one row').toBe(1);
+    expect.soft(Math.max(...lifted.map((f) => f.scrollLeft)), 'and the hand does not scroll under a card carried mid-hand').toBeLessThanOrEqual(1);
+    expect.soft(Math.max(...lifted.map(rowsOf)), 'and the hand stays one row').toBe(1);
     const after = await handIds(page);
-    expect.soft(after.indexOf(moving), `let go two cards on, it is there (${before.join(',')} → ${after.join(',')})`).toBe(3);
+    expect.soft(after.indexOf(moving), `let go one card on, it is there (${before.join(',')} → ${after.join(',')})`).toBe(1);
+    expect.soft((await shape(page)).rows, 'settled, the hand is one row').toBe(1);
 
     // Held at the hand's right edge, the lifted card scrolls the hand toward the cards past it.
+    await hand(page).evaluate((el) => {
+      el.scrollLeft = 0;
+    });
+    await page.waitForTimeout(300);
     const lane = (await hand(page).boundingBox())!;
     const first = (await handIds(page))[0]!;
     const firstBox = (await page.locator(`[data-board-card="${first}"]`).boundingBox())!;
