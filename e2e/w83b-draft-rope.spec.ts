@@ -210,7 +210,8 @@ test('the draft rope: an idle drafter is picked for on timeout, and every pick i
     // The rope shows for the last third of a pick, and not before.
     const rope = bob.page.getByTestId('pick-rope');
     await expect(rope).toHaveAttribute('data-state', 'waiting', { timeout: UI_TIMEOUT });
-    await expect(rope).toHaveAttribute('data-state', 'burning', { timeout: expectedMs(15) });
+    // Drawn from the last third on; its last 3 s are `urgent`, which at 4× is all but 0.3 s of the burn.
+    await expect(rope).toHaveAttribute('data-state', /^(burning|urgent)$/, { timeout: expectedMs(15) });
 
     await expect
       .poll(() => poolSize(bob), { message: 'the timeouts pick for bob', timeout: expectedMs(15) + expectedMs(14) + expectedMs(13) + 15_000, intervals: [250] })
