@@ -18,6 +18,11 @@
  *   Adarkar Wastes — dragged off every disc and let go on nothing: nothing is sent, nothing tapped;
  *     then a plain click still opens Forge's ring, and W is picked from it.
  * No generic decision box is drawn for any of it.
+ * `mana-ring`, the pointer over an open ring (the operator, 2026-11-07: "i notice it grows and shrinks in
+ * size when hovered/not hovered. lets just get rid of that effect entirely"): on Tundra's ring and City
+ * of Brass's, and on Adarkar Wastes's held press, the pointer goes from the land onto a disc, back onto
+ * the land, onto another disc and off it again, and no disc's size and no box of the land's card changes
+ * in any frame of it.
  *
  * Needs a Forge build; without one the test SKIPS and its title says why.
  */
@@ -26,7 +31,7 @@ import { expect, test } from '@playwright/test';
 import { clickHandCard, handCardNamed, isTapped, lifeOf, makeTitled, manaPool as pool, ownNamed } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
-import { centreOf, expectCardViewBesideRing, expectRingOn, lifeNow, pathTo, pressPoint, ring, ringOption, ringOptions, whatIsAt } from './mana-ring.ts';
+import { centreOf, expectCardViewBesideRing, expectRingOn, lifeNow, pathTo, pressPoint, ring, ringOption, ringOptions, traceRingBoxes, whatIsAt } from './mana-ring.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -233,6 +238,74 @@ test(titled('a press on a mana source opens its ring under the press: a drag to 
     await expect.poll(() => lifeNow(page, life), { timeout: 10_000, message: 'Adarkar Wastes dealt 1' }).toBe(18);
     await expect(ring(page)).toHaveCount(0);
     await expect(genericBox).toHaveCount(0);
+  } finally {
+    await stack.stop();
+  }
+});
+
+test(titled('the pointer over an open mana ring resizes nothing: no disc grows under it and the land under the ring holds still'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(4 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice } = await startScenarioMatch(browser, stack, 'mana-ring');
+    const page = alice.page;
+    const [tundra] = await ownNamed(page, 'Tundra');
+    const [brass] = await ownNamed(page, 'City of Brass');
+    const [wastes] = await ownNamed(page, 'Adarkar Wastes');
+    if (tundra === undefined || brass === undefined || wastes === undefined) throw new Error('the scenario board is not drawn');
+    const glide = async (from: { x: number; y: number }, to: { x: number; y: number }): Promise<void> => {
+      for (const p of pathTo(from, to)) await page.mouse.move(p.x, p.y);
+      await page.waitForTimeout(250);
+    };
+
+    for (const [name, id, first, second, key, fx, fy] of [
+      ['Tundra', tundra, 'W', 'U', 'w', 0.35, 0.4],
+      ['City of Brass', brass, 'R', 'G', 'r', 0.6, 0.55],
+    ] as const) {
+      const on = await pressPoint(page, id, fx, fy);
+      await page.mouse.move(on.x, on.y);
+      await page.mouse.click(on.x, on.y);
+      await expectRingOn(page, on, name);
+      await expect(ring(page), `${name}: Forge's own ring is open`).toHaveAttribute('data-method', /./);
+      const a = await centreOf(ringOption(page, first));
+      const b = await centreOf(ringOption(page, second));
+      await page.waitForTimeout(250);
+      const stop = await traceRingBoxes(page, id);
+      await glide(on, a);
+      expect(await ringOption(page, first).evaluate((e) => e.matches(':hover')), `${name}: the pointer is on ${first}`).toBe(true);
+      await glide(a, on);
+      await glide(on, b);
+      await glide(b, on);
+      const frames = await stop();
+      expect(frames.length, `${name}: frames were sampled`).toBeGreaterThan(0);
+      const trace = frames.map((f) => `${f.t}ms discs ${f.discs} | card ${f.card}`).join('\n');
+      expect.soft(frames.length, `${name}: every disc and the land's card held one size and place while the pointer crossed the ring:\n${trace}`).toBe(1);
+      await page.keyboard.press(key);
+      await expect(ring(page), `${name}: the ring closed`).toHaveCount(0);
+      await expect.poll(() => isTapped(page, id), { timeout: 10_000, message: `${name} tapped` }).toBe(true);
+    }
+
+    // Adarkar Wastes, held down: the press's own ring over the land the pointer pressed, then let go on nothing.
+    const onWastes = await pressPoint(page, wastes);
+    await page.mouse.move(onWastes.x, onWastes.y);
+    await page.waitForTimeout(250);
+    await page.mouse.down();
+    await expect(ring(page), 'Adarkar Wastes: the press opens its ring').toHaveAttribute('data-press');
+    const w = await centreOf(ringOption(page, 'W'));
+    const u = await centreOf(ringOption(page, 'U'));
+    const stop = await traceRingBoxes(page, wastes);
+    await glide(onWastes, w);
+    await glide(w, onWastes);
+    await glide(onWastes, u);
+    await glide(u, onWastes);
+    const frames = await stop();
+    const trace = frames.map((f) => `${f.t}ms discs ${f.discs} | card ${f.card}`).join('\n');
+    expect.soft(frames.length, `Adarkar Wastes, pressed: every disc and the land's card held one size and place while the pointer crossed the ring:\n${trace}`).toBe(1);
+    await glide(onWastes, { x: onWastes.x, y: Math.max(8, onWastes.y - 260) });
+    await page.mouse.up();
+    await expect(ring(page), 'Adarkar Wastes: let go on nothing, the ring closed').toHaveCount(0);
   } finally {
     await stack.stop();
   }

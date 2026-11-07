@@ -117,3 +117,42 @@ export async function whatIsAt(page: Page, at: Point): Promise<string> {
     return `(${Math.round(x)},${Math.round(y)}) stack: ${stack}; discs now: ${discs.join(' ')}`;
   }, at);
 }
+
+/** One frame of {@link traceRingBoxes}: each disc's size, and where the land's own card art stood. */
+export interface RingFrame {
+  t: number;
+  discs: string;
+  card: string;
+}
+
+/**
+ * Sample, every frame from now until the returned stop, the size of each disc and chip of the open
+ * ring and the box of `id`'s card art: what a hover that grows a disc, or a card that drops as the
+ * pointer leaves it for the ring, changes. The stop returns the distinct frames, in order.
+ */
+export async function traceRingBoxes(page: Page, id: number): Promise<() => Promise<RingFrame[]>> {
+  await page.evaluate((cardId) => {
+    const w = window as unknown as { __ringTrace?: { frames: { t: number; discs: string; card: string }[]; on: boolean } };
+    const trace = { frames: [] as { t: number; discs: string; card: string }[], on: true };
+    w.__ringTrace = trace;
+    const r = (b: DOMRect): string => `${b.left.toFixed(1)},${b.top.toFixed(1)} ${b.width.toFixed(1)}x${b.height.toFixed(1)}`;
+    const t0 = performance.now();
+    const tick = (): void => {
+      if (!trace.on) return;
+      const discs = [...document.querySelectorAll('.mana-ring__disc, .mana-ring__chip')].map((d) => `${d.getAttribute('data-mana') ?? 'chip'}=${d.getBoundingClientRect().width.toFixed(1)}x${d.getBoundingClientRect().height.toFixed(1)}`).join(' ');
+      const art = document.querySelector(`[data-board-card="${cardId}"] > .board-card__face .card`);
+      const card = art === null ? 'none' : r(art.getBoundingClientRect());
+      const last = trace.frames[trace.frames.length - 1];
+      if (last === undefined || last.discs !== discs || last.card !== card) trace.frames.push({ t: Math.round(performance.now() - t0), discs, card });
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, id);
+  return () =>
+    page.evaluate(() => {
+      const w = window as unknown as { __ringTrace?: { frames: { t: number; discs: string; card: string }[]; on: boolean } };
+      if (w.__ringTrace === undefined) return [];
+      w.__ringTrace.on = false;
+      return w.__ringTrace.frames;
+    });
+}
