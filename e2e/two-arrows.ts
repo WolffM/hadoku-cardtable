@@ -196,7 +196,7 @@ async function resolve(alice: Page, bob: Page, id: number): Promise<void> {
         if ((await stackCount(bob)) > 0) await enabledOk(bob).click({ timeout: 1_000 }).catch(() => undefined);
         const onStack = await stackCount(alice);
         if (onStack > 0) cast = true;
-        const gone = (await alice.locator(`[data-board-card="${id}"], [data-placed-spell="${id}"], [data-cast-ghost="${id}"]`).count()) === 0;
+        const gone = (await alice.locator(`[data-zone="hand"][data-owner="you"] [data-board-card="${id}"], [data-testid="lane-my-hand"] [data-board-card="${id}"], [data-placed-spell="${id}"], [data-cast-ghost="${id}"]`).count()) === 0;
         return cast && gone && onStack === 0 && (await livePrompt(alice).count()) === 0;
       },
       { timeout: 60_000, intervals: [250], message: 'the spell resolved' },
