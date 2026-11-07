@@ -11,7 +11,7 @@
  */
 import { expect, type Browser, type Page } from '@playwright/test';
 
-import { clickHandCard, dragHandCard, enabledOk, livePrompt, offeredNamed, pressPaymentAuto, stackCount } from './play/board.ts';
+import { clickHandCard, dragHandCard, enabledOk, livePrompt, offeredNamed, pressPaymentAuto } from './play/board.ts';
 import { startPlayStack } from './play/harness.ts';
 import { isPhone, raiseHand, touchDrag } from './play/phone.ts';
 import { answerPrompt } from './play/prompts.ts';
@@ -146,7 +146,7 @@ async function castAtBob(page: Page, id: number, how: 'click' | 'drag'): Promise
     await bobOffered(page);
     const face = await centreOf(page, '[data-player-face]:not([data-viewer])');
     if (phone) {
-      await page.touchscreen.tap(face.x, face.y);
+      await page.locator('[data-player-face]:not([data-viewer]) button').first().tap();
     } else {
       // A player moves to the face before pressing it: the targeter follows the pointer there.
       await page.mouse.move(face.x, face.y, { steps: 8 });
@@ -163,11 +163,25 @@ async function castAtBob(page: Page, id: number, how: 'click' | 'drag'): Promise
     await touchDrag(page, parked, line(parked, await centreOf(page, '[data-player-face]:not([data-viewer])'), 14));
     return;
   }
-  expect(await dragHandCard(page, id, await centreOf(page, '[data-player-face]:not([data-viewer])')), 'the drag armed the cast').toBe(true);
+  // A mouse lets go over the face: the cast parks there, Forge asks for the target, and the press it is
+  // already over answers it.
+  const face = await centreOf(page, '[data-player-face]:not([data-viewer])');
+  expect(await dragHandCard(page, id, face), 'the drag armed the cast').toBe(true);
+  await bobOffered(page);
+  await page.mouse.move(face.x + 2, face.y + 2, { steps: 2 });
+  await page.mouse.click(face.x, face.y);
 }
+
+/** What is on the stack: Forge's own count where the board carries it, else the placed items drawn. */
+const stackCount = async (page: Page): Promise<number> => {
+  const zone = page.locator('[data-zone="stack"]');
+  if ((await zone.count()) > 0) return Number((await zone.first().getAttribute('data-count')) ?? '0');
+  return page.locator('[data-placed-spell]:not([data-placed-leaving])').count();
+};
 
 /** Answer everything until the spell has resolved: pay, let bob pass, and pick the first card offered to discard. */
 async function resolve(alice: Page, bob: Page, id: number): Promise<void> {
+  let cast = false;
   await expect
     .poll(
       async () => {
@@ -180,8 +194,10 @@ async function resolve(alice: Page, bob: Page, id: number): Promise<void> {
           await answerPrompt(alice).catch(() => null);
         }
         if ((await stackCount(bob)) > 0) await enabledOk(bob).click({ timeout: 1_000 }).catch(() => undefined);
-        const gone = (await alice.locator(`[data-zone="hand"][data-owner="you"] [data-board-card="${id}"], [data-placed-spell="${id}"]`).count()) === 0;
-        return gone && (await stackCount(alice)) === 0 && (await livePrompt(alice).count()) === 0;
+        const onStack = await stackCount(alice);
+        if (onStack > 0) cast = true;
+        const gone = (await alice.locator(`[data-board-card="${id}"], [data-placed-spell="${id}"], [data-cast-ghost="${id}"]`).count()) === 0;
+        return cast && gone && onStack === 0 && (await livePrompt(alice).count()) === 0;
       },
       { timeout: 60_000, intervals: [250], message: 'the spell resolved' },
     )
