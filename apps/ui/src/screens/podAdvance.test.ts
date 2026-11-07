@@ -252,6 +252,37 @@ describe('entering a pod before its table has arrived', () => {
   });
 });
 
+/* ── the operator, 2026-11-07: "chat in a tournament room doesn't reach the bottom of the page … it shouldn't matter what room we're in" ── */
+
+describe('a pod is a fitted screen, as every room screen is', () => {
+  /** The pod drawn inside the app's chrome, which a fitted screen pins to the window (`chrome/chrome.css`). */
+  function mountInChrome(tableId?: string) {
+    navigate({ kind: 'room', roomId: ROOM, tableId });
+    const chrome = document.body.appendChild(document.createElement('main'));
+    chrome.className = 'cardtable-chrome';
+    const draft = stubTransport();
+    const room = stubPodSource();
+    const view = render(createElement(PodScreen, { draftId: ROOM, tableId, makeTransport: draft.make, podSource: room.source }), { container: chrome });
+    return { chrome, draft, room, view };
+  }
+
+  it.each([
+    ['drafting', pod({ phase: 'drafting' })],
+    ['waiting on the pod after Play', pod({ phase: 'building', drafters: ['u-alice', 'u-bob'], built: ['u-alice'] })],
+    ['in its rounds', pod({ phase: 'rounds', round: 1 })],
+    ['done', pod({ phase: 'done', round: 2 })],
+  ])('pins the chrome to the window while %s, so the chat runs to its bottom edge', (_, p) => {
+    const { chrome, draft, room, view } = mountInChrome();
+    if (p.phase !== 'drafting') draft.send(complete());
+    room.read(ctxOf(p));
+    expect(chrome.getAttribute('data-shell')).toBe('fit');
+    expect(screen.getByTestId('pod').classList.contains('shell--fit')).toBe(true);
+    view.unmount();
+    expect(chrome.hasAttribute('data-shell'), 'and lets go of it when it goes').toBe(false);
+    chrome.remove();
+  });
+});
+
 /* ── spectators (the operator, 2026-10-21: "i like showing that there are spectators in the draft process") ── */
 
 describe('the pod names its spectators', () => {
