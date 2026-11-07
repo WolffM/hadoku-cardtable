@@ -133,7 +133,8 @@ describe('the draft bot artifact', () => {
 		expect(existsSync(join(a, '.git'))).toBe(false);
 		expect(readFileSync(join(a, 'packages', 'recommenderService', 'w.bin'), 'utf8')).toBe('weights');
 		expect(await prepareDraftbot(cache, { repo, commit })).toBe(a);
-	});
+		// Real git clones and archives: about 2 s alone, past vitest's 5 s on a loaded host.
+	}, 30_000);
 
 	it('keeps nothing when a step fails: weights that do not match their checksum', async () => {
 		const { repo, cache } = draftbotRepo();

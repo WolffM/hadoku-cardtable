@@ -73,7 +73,8 @@ describe('page loads, per caller', () => {
 				clock.now += 3_000;
 			}
 		}
-	});
+		// 600 real HTTP loads: 3–4 s alone, past vitest's 5 s on a loaded host.
+	}, 30_000);
 
 	it('the loop that hammered prod gets most of its loads refused', async () => {
 		const clock = { now: Date.UTC(2026, 10, 6, 0, 0) };
@@ -85,7 +86,8 @@ describe('page loads, per caller', () => {
 			clock.now += 500;
 		}
 		expect(served).toBeLessThan(loads / 3);
-	});
+		// 1200 real HTTP loads: 3–4 s alone, past vitest's 5 s on a loaded host.
+	}, 30_000);
 
 	it('has no limit where the e2e stacks turn limits off', async () => {
 		const base = await openPage({ rateLimit: null });
