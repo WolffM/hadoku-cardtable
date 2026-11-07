@@ -1023,6 +1023,15 @@ export function newMatchId(): string {
  */
 const PENDING_REVEAL_FOLD_MS = 250;
 
+/**
+ * How long a held reveal Forge said a choice follows (`choiceFollows`, a `Reveal…YouChoose` discard) waits
+ * for that choice. Forge has already said it is coming, so this is no guess at Forge's speed: on a loaded
+ * host the choice came 295 ms after its reveal and missed {@link PENDING_REVEAL_FOLD_MS}, and the seat was
+ * shown the reveal and a bare choice apart (closing run 42354601891). It only bounds a reveal whose choice
+ * never comes, which is logged.
+ */
+const PENDING_REVEAL_CHOICE_MS = 10_000;
+
 type PromptFrame = Extract<ServerFrame, { method: 'showPromptMessage' }>;
 type ButtonsFrame = Extract<ServerFrame, { method: 'updateButtons' }>;
 
@@ -2964,12 +2973,14 @@ export class Match {
 					this.showReveal(s, orphaned.frame);
 					this.releaseReveal(s);
 				}
+				const choiceFollows = frame.method === 'getChoices' && frame.choiceFollows === true;
 				const timer = setTimeout(() => {
 					if (s.pendingReveal?.frame !== reveal) return;
 					s.pendingReveal = null;
+					if (choiceFollows) this.deps.log({ evt: 'reveal-choice-missing', matchId: this.id, seat: s.seat, callId: reveal.callId, ms: PENDING_REVEAL_CHOICE_MS });
 					this.showReveal(s, reveal);
 					this.releaseReveal(s);
-				}, PENDING_REVEAL_FOLD_MS);
+				}, choiceFollows ? PENDING_REVEAL_CHOICE_MS : PENDING_REVEAL_FOLD_MS);
 				timer.unref();
 				s.pendingReveal = { frame: reveal, timer };
 				this.autoReply(s, frame.callId, frame.method, 'a reveal — its one legal answer, held a moment for a possible R4 fold', []);

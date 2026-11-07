@@ -4631,6 +4631,7 @@ public final class PlayBridge {
             if (min == -1 && max == -1) {
                 final Boolean staysVisible = revealStaysAtLibraryTop(choices);
                 if (staysVisible != null) { f.addProperty("staysVisible", staysVisible); }
+                if (revealChoiceFollows(choices)) { f.addProperty("choiceFollows", true); }
             }
             final boolean named = choices != null && !choices.isEmpty() && choices.get(0) instanceof CardFaceView;
             if (named) {
@@ -5159,6 +5160,42 @@ public final class PlayBridge {
                 }
             }
             return null;
+        }
+
+        /**
+         * Whether this reveal is the front half of a discard this seat chooses: Forge's {@code DiscardEffect}
+         * in a {@code Reveal…YouChoose}/{@code Look…YouChoose} mode (Thoughtseize, Duress) reveals the hand
+         * and then, with the same resolving ability, asks its activator to choose from the valid cards
+         * (DiscardEffect.java, the {@code YouChoose} branch). True only when that ask will come: this seat
+         * activated it, the revealed cards are in a hand that can be discarded from, and some card in it is
+         * valid for {@code DiscardValid}. The server holds the reveal for that choice instead of timing it.
+         */
+        private boolean revealChoiceFollows(final List<?> choices) {
+            final Game game = liveGame();
+            if (game == null || choices == null || choices.isEmpty() || game.getStack().isEmpty() || !game.getStack().isResolving()) { return false; }
+            final forge.game.player.Player me = liveSelf(game);
+            if (me == null) { return false; }
+            forge.game.player.Player owner = null;
+            for (final Object o : choices) {
+                if (!(o instanceof CardView cv)) { return false; }
+                final forge.game.card.Card c = game.findById(cv.getId());
+                if (c == null || c.getZone() == null || !c.getZone().is(ZoneType.Hand)) { return false; }
+                if (owner == null) { owner = c.getZone().getPlayer(); }
+                else if (owner != c.getZone().getPlayer()) { return false; }
+            }
+            if (owner == null) { return false; }
+            for (SpellAbility sa = game.getStack().peek().getSpellAbility(); sa != null; sa = sa.getSubAbility()) {
+                if (sa.getApi() != ApiType.Discard) { continue; }
+                final String mode = sa.getParamOrDefault("Mode", "");
+                if (!(mode.startsWith("Reveal") || mode.startsWith("Look")) || !mode.endsWith("YouChoose")) { continue; }
+                if (sa.getActivatingPlayer() != me || !owner.canDiscardBy(sa, true)) { return false; }
+                final forge.game.card.Card source = sa.getHostCard();
+                final int numCards = sa.hasParam("NumCards") ? AbilityUtils.calculateAmount(source, sa.getParam("NumCards"), sa) : 1;
+                final forge.game.card.CardCollection valid = forge.game.card.CardLists.getValidCards(
+                        owner.getCardsIn(ZoneType.Hand), sa.getParamOrDefault("DiscardValid", "Card"), source.getController(), source, sa);
+                return numCards > 0 && !valid.isEmpty();
+            }
+            return false;
         }
 
         @Override

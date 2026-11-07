@@ -550,10 +550,28 @@ function expiredStandIns(rows: readonly LogRow[]): string[] {
   return timedOut.length === 0 ? [] : [`${timedOut.length} stand-in(s) taken down by the safety clock, not by their card: ${timedOut.map((r) => JSON.stringify(r)).join(' ; ')}`];
 }
 
+/**
+ * Every reveal Forge sent, and how long the server held it before the seat saw it (`reveal-shown`), printed
+ * as `[reveal]`; a reveal held for a discard choice that never came (`reveal-choice-missing`, the 10 s safety
+ * cap in `match.ts`) is a seat frozen that long, and breaks the run.
+ */
+function heldReveals(rows: LogRow[]): string[] {
+  const sent = new Map<string, number>();
+  for (const r of rows) {
+    if (r.evt === 'forge-frame' && r.kind === 'ask' && r.method === 'getChoices' && typeof r.callId === 'string') sent.set(`${String(r.matchId)}:${r.callId}`, Date.parse(String(r.t)));
+    if (r.evt === 'reveal-shown') {
+      const at = sent.get(`${String(r.matchId)}:${String(r.callId)}`);
+      if (at !== undefined) console.log(`[reveal] ${String(r.matchId)} seat ${String(r.seat)} ${String(r.callId)}: shown ${Date.parse(String(r.t)) - at} ms after Forge sent it`);
+    }
+  }
+  const missing = rows.filter((r) => r.evt === 'reveal-choice-missing');
+  return missing.length === 0 ? [] : [`${missing.length} reveal(s) held for a discard choice that never came: ${missing.map((r) => JSON.stringify(r)).join(' ; ')}`];
+}
+
 /** What every spec's stack checks at `stop()`, whatever the spec was about. */
 function assertStackInvariants(serverLogFile: string): void {
   const rows = logRows(serverLogFile);
-  const broken = [...deadBars(rows), ...unreadAsks(rows), ...doubledHandovers(rows), ...expiredStandIns(rows)];
+  const broken = [...deadBars(rows), ...unreadAsks(rows), ...doubledHandovers(rows), ...expiredStandIns(rows), ...heldReveals(rows)];
   if (broken.length > 0) throw new Error(broken.join('\n'));
 }
 

@@ -878,6 +878,11 @@ export const GetChoicesSchema = z.strictObject({
     .optional(),
   affordable: z.number().int().nonnegative().optional(),
   staysVisible: z.boolean().optional(),
+  /**
+   * Ours, on a plain reveal only: the resolving ability will ask this seat to choose from these cards next
+   * (a `Reveal…YouChoose` discard: Thoughtseize, Duress — `PlayBridge.java`'s `revealChoiceFollows`).
+   */
+  choiceFollows: z.literal(true).optional(),
   /** Ours: the colour of each choice, in order, when the list is colours (`PlayBridge.java`'s `colorsOf`). */
   colors: z.array(PoolColorSchema).min(1).optional(),
   /** Ours: {@link ManaMarksSchema}, with `colors`. */

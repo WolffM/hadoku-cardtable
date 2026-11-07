@@ -2486,6 +2486,44 @@ describe('wave 35 §S, R4: a reveal the fold does not claim is never swallowed',
 			expect(shown?.envelope.forceNotice, `${callId}: a card still visible needs no override — adapter.ts already draws it there`).toBeUndefined();
 		}
 	});
+
+	/** Thoughtseize's discard choice, from the revealed hand: one card. */
+	function discardChoice(callId: string, ids: number[]) {
+		return { ...revealFrame(callId, ids), message: 'Choose 1 card(s) to discard', min: 1, max: 1 };
+	}
+	const askSent = (h: ReturnType<typeof harness>, callId: string) =>
+		h.sent.filter((s) => s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === callId);
+
+	it('a reveal Forge says a choice follows (choiceFollows) waits for that choice, however late it comes, and folds into it', () => {
+		vi.useFakeTimers();
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({ t: 'frame', seat: 0, frame: { ...revealFrame('x-reveal-9', [940, 941, 942]), choiceFollows: true } });
+		expect(h.host.commands).toEqual([{ t: 'reply', seat: 0, callId: 'x-reveal-9', result: [] }]);
+		// A loaded host: Forge's choice comes 295 ms after its reveal, past the 250 ms a reveal without the fact waits.
+		vi.advanceTimersByTime(295);
+		expect(askSent(h, 'x-reveal-9'), 'the reveal is still held for its choice').toEqual([]);
+		h.host.push({ t: 'frame', seat: 0, frame: discardChoice('x-choose-9', [940, 941]) });
+
+		expect(askSent(h, 'x-reveal-9'), 'never shown apart from its choice').toEqual([]);
+		expect(
+			askSent(h, 'x-choose-9').map((s) => s.envelope.frame.method),
+			'the choice reaches the seat once, folded with its reveal, never as a bare getChoices',
+		).toEqual(['chooseSingleEntityForEffect']);
+		expect(h.logs.some((l) => l.evt === 'reveal-choice-missing')).toBe(false);
+	});
+
+	it('a reveal Forge says a choice follows, whose choice never comes, is shown at last and logged', () => {
+		vi.useFakeTimers();
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({ t: 'frame', seat: 0, frame: { ...revealFrame('x-reveal-10', [950]), choiceFollows: true } });
+		vi.advanceTimersByTime(1000);
+		expect(askSent(h, 'x-reveal-10')).toEqual([]);
+		vi.advanceTimersByTime(10_000);
+		expect(askSent(h, 'x-reveal-10')[0]?.envelope.displayOnly).toBe(true);
+		expect(h.logs.filter((l) => l.evt === 'reveal-choice-missing')).toEqual([expect.objectContaining({ callId: 'x-reveal-10', seat: 0 })]);
+	});
 });
 
 describe('an ask in which nothing may be chosen is a reveal, whatever its shape', () => {

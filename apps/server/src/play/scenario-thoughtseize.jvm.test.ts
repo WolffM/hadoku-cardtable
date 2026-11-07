@@ -40,7 +40,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ServerFrame } from '@hadoku/forge-wire';
 
-import { available, deck, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, deck, finishMulligan, forgeFrames, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'R4: casting Thoughtseize, against real Forge'
@@ -162,6 +162,12 @@ describe.skipIf(!available.ok)(title, () => {
 				const seat0Asks = s.sent.slice(mark).filter((x) => x.seat === 0 && x.envelope.frame.kind === 'ask');
 				expect(seat0Asks.map((x) => (x.envelope.frame as { method: string }).method)).not.toContain('getChoices');
 				expect(seat0Asks.filter((x) => (x.envelope.frame as { method: string }).method === 'chooseSingleEntityForEffect')).toHaveLength(1);
+
+				// Forge's own word that the choice follows its reveal (`PlayBridge.java`'s `revealChoiceFollows`):
+				// the server holds the reveal for it rather than for a guess at Forge's speed.
+				const reveal = forgeFrames(s, 0).find((f) => f.method === 'getChoices' && (f as { min?: number }).min === -1) as { choiceFollows?: boolean } | undefined;
+				expect(reveal?.choiceFollows, 'the caster’s hand reveal says a choice follows').toBe(true);
+				expect(s.logs.filter((l) => l.evt === 'reveal-choice-missing')).toEqual([]);
 
 				// The choosable set is nonland only — Mountain is excluded.
 				const optionIds = mergedAsk.optionList.filter((r) => r.kind === 'card').map((r) => r.id);
