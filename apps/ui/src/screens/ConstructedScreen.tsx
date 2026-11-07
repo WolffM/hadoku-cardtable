@@ -201,7 +201,7 @@ import { RoomSpectators } from './RoomSpectators.tsx';
 import './pod/PodSeats.css';
 import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
 import { StatusPill, TICK } from '../components/StatusPill.tsx';
-import { entrantLookup, myCurrentTable, relayedPodSource, useFollowMyTable } from './pod/client.ts';
+import { entrantLookup, heldFor, myCurrentTable, relayedPodSource, useFollowMyTable, type HeldAt } from './pod/client.ts';
 import { TablePage, type TableReady } from './pod/TablePage.tsx';
 import { PodLobby } from './pod/PodLobby.tsx';
 import { RoomHub } from './pod/RoomHub.tsx';
@@ -2255,16 +2255,18 @@ function RoomTableScreen({
    * (`matchId === null`, no games), which is when the picker is shown; once
    * a game exists, the deck already held is the one being played.
    */
-  const [tTable, setTTable] = useState<Awaited<ReturnType<TablesClient['table']>> | null>(null);
+  const [tHeld, setTHeld] = useState<HeldAt<Awaited<ReturnType<TablesClient['table']>>> | null>(null);
   const tTableId = myTournamentTable?.id;
+  // Only ever this table's own read: the last round's is still held for a moment when the next replaces it.
+  const tTable = heldFor(tHeld, tTableId);
   useEffect(() => {
     if (tTableId === undefined) {
-      setTTable(null);
+      setTHeld(null);
       return;
     }
     let live = true;
     client.table(roomId, tTableId).then((outcome) => {
-      if (live) setTTable(outcome);
+      if (live) setTHeld({ tableId: tTableId, value: outcome });
     });
     return () => {
       live = false;
@@ -2284,7 +2286,7 @@ function RoomTableScreen({
     if (ref === null) return;
     setTDeckId(chosen);
     client.loadDeck(roomId, ref, tTableId).then((outcome) => {
-      setTTable(outcome);
+      setTHeld({ tableId: tTableId, value: outcome });
     });
   };
 

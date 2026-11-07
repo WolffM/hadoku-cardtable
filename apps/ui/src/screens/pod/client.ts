@@ -286,6 +286,22 @@ export async function startMyTable(roomId: string, table: RoomTable): Promise<St
   return started.ok ? { ok: true, matchId: started.matchId } : { ok: false, message: started.error };
 }
 
+/** A read made at one table, kept with that table's id (`heldFor`). */
+export interface HeldAt<T> {
+  tableId: string;
+  value: T;
+}
+
+/**
+ * `held`, when it was read at `tableId`; else `null`. A tournament's next round replaces my table
+ * while the last one's read is still held, and that read (the deck the last round played) must
+ * never answer for the new table: a round can now start while I sit in the room, when its last bot
+ * game reports, and the held read let the new table start before its deck was picked.
+ */
+export function heldFor<T>(held: HeldAt<T> | null, tableId: string | undefined): T | null {
+  return held !== null && held.tableId === tableId ? held.value : null;
+}
+
 /**
  * My table in the CURRENT round: among the pod's live pairings, never by
  * membership alone, since an earlier round's table is still mine, and finished.
