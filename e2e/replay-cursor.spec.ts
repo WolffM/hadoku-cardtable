@@ -88,9 +88,11 @@ async function playLand(me: Page, other: Page, player: string, land: string, bet
   return { name: player, land: id, row };
 }
 
-/** What the front card's rAF watcher keeps: each lift's first frame, and each change of the table it draws. */
+/** What the front card's rAF watcher keeps: each lift's first twenty frames, and each change of the table it draws. */
 interface Lift {
   t: number;
+  /** Which frame of the hold, from 1: the first twenty of each are kept. */
+  frame: number;
   name: string;
   tip: { x: number; y: number };
   hand: { id: number; x: number; y: number; w: number; h: number }[];
@@ -127,8 +129,16 @@ test(titled('the front page’s replay starts each player’s cursor on the card
 
     // The recording is written when the game ends.
     await expect.poll(async () => (await alice.context.request.get(`${stack.origin}${PREFIX}/api/replays/${matchId}`)).status(), { timeout: 30_000, message: 'the recording is there' }).toBe(200);
-    const recorded = (await (await alice.context.request.get(`${stack.origin}${PREFIX}/api/replays/${matchId}`)).json()) as { relays?: { event: string }[] };
+    const recorded = (await (await alice.context.request.get(`${stack.origin}${PREFIX}/api/replays/${matchId}`)).json()) as {
+      relays?: { event: string }[];
+      presence?: { at: number; seat: number; presence: { held: boolean; pointer: unknown; anchor: unknown } }[];
+    };
     log('relayed table messages recorded', (recorded.relays ?? []).map((r) => r.event));
+    for (const seat of [0, 1]) {
+      const sent = (recorded.presence ?? []).filter((p) => p.seat === seat);
+      const lift = sent.findIndex((p) => p.presence.held);
+      log(`seat ${seat}'s recorded pointers around its lift`, sent.slice(Math.max(0, lift - 2), lift + 3));
+    }
 
     const carol = await openFriend(browser, 'carol');
     const front = carol.page;
@@ -137,22 +147,22 @@ test(titled('the front page’s replay starts each player’s cursor on the card
       const w = window as unknown as { __lifts: Lift[]; __moments: Moment[] };
       w.__lifts = [];
       w.__moments = [];
-      let held = false;
+      let heldFrames = 0;
       let last = '';
       const step = (): void => {
         const card = document.querySelector('[data-testid="featured-match"]');
         if (card !== null) {
           const back = card.querySelector('.presence__back');
           const cursor = card.querySelector('.presence');
-          if (back !== null && !held && cursor !== null) {
+          heldFrames = back === null ? 0 : heldFrames + 1;
+          if (back !== null && heldFrames <= 20 && cursor !== null) {
             const tip = cursor.getBoundingClientRect();
             const hand = [...card.querySelectorAll('[data-zone="hand"][data-owner="you"] [data-board-card]')].map((e) => {
               const r = e.getBoundingClientRect();
               return { id: Number(e.getAttribute('data-board-card')), x: r.left, y: r.top, w: r.width, h: r.height };
             });
-            w.__lifts.push({ t: performance.now(), name: cursor.querySelector('.presence__name')?.textContent ?? '', tip: { x: tip.left, y: tip.top }, hand });
+            w.__lifts.push({ t: performance.now(), frame: heldFrames, name: cursor.querySelector('.presence__name')?.textContent ?? '', tip: { x: tip.left, y: tip.top }, hand });
           }
-          held = back !== null;
           const rows: Record<string, number[] | null> = {};
           for (const id of lands) {
             const row = card.querySelector(`[data-zone="battlefield"] [data-board-card="${id}"]`)?.closest('[data-tier], [data-board-row]');
@@ -192,10 +202,12 @@ test(titled('the front page’s replay starts each player’s cursor on the card
     });
 
     for (const play of plays) {
-      // The lift of this card: the first one whose hand still holds it, under this player's name.
-      const lift = lifts.find((l) => l.name === play.name && l.hand.some((c) => c.id === play.land));
+      // The lift of this card: its first frame, under this player's name. The pointer rested on the card
+      // before it was pressed, so the recording holds that rest and the cursor is already there.
+      const lift = lifts.find((l) => l.name === play.name && l.frame === 1 && l.hand.some((c) => c.id === play.land));
       const card = lift?.hand.find((c) => c.id === play.land);
       log(`${play.name}'s lift`, { tip: lift?.tip, card });
+      log(`${play.name}'s cursor over the lift's first frames`, lifts.filter((l) => l.name === play.name).slice(0, 20).map((l) => [l.frame, Math.round(l.t), Math.round(l.tip.x), Math.round(l.tip.y)]));
       expect(lift, `${play.name}'s lift is drawn on the card`).toBeDefined();
       const slack = card!.w * 0.15;
       expect.soft(lift!.tip.x, `${play.name}: the cursor starts on the card they lifted (x)`).toBeGreaterThanOrEqual(card!.x - slack);
