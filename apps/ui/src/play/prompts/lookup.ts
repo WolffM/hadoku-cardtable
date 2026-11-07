@@ -36,20 +36,10 @@ export interface PromptCardFacts {
    * invented name ever becomes an art key.
    */
   name: string | null;
-  /**
-   * Forge's `SetCode` for the face on show — the other half of the art-id key.
-   *
-   * `adapter.ts` resolves a board card's art with `Name` + `SetCode`
-   * (`scryfallIdFor(artIds, name, card.setCode)`), and a prompt tile used to
-   * resolve with the name alone, so a prompt could draw a different printing
-   * from the board for the same card (or nothing, where only the exact
-   * printing has a row). Carrying the set code here is what makes
-   * `PromptShell`'s `promptCardTile` use **the same** key the board uses —
-   * wave 24 §D.3. Empty when the wire did not carry one.
-   */
+  /** Forge's `SetCode` for the face on show. Empty when the wire did not carry one. */
   setCode: string;
-  /** The face's `ImageKey`, the third half: a token's art is found by its tokenscript (`adapter.ts`'s `artIdOf`). */
-  imageKey?: string;
+  /** The face's art id, as the server stamped it (`ScryfallId`): the board's own, so a prompt draws what the board draws. */
+  scryfallId?: string;
 }
 
 export interface PromptPlayerFacts {
@@ -83,11 +73,11 @@ export function lookupFromState(state: WireState): PromptLookup {
       const view = state.get(deltaKey(DELTA_TYPE.card, id));
       if (view === undefined) return undefined;
       const face = currentFace(state, id);
-      const imageKey = strOf(face, 'ImageKey');
+      const scryfallId = strOf(face, 'ScryfallId');
       return {
         name: strOf(face, 'Name') ?? strOf(view, 'Name'),
         setCode: strOf(face, 'SetCode') ?? '',
-        ...(imageKey === null ? {} : { imageKey }),
+        ...(scryfallId === null ? {} : { scryfallId }),
       };
     },
     player(id) {

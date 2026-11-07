@@ -25,7 +25,6 @@ import { join } from 'node:path';
 import { gzip as gzipCb } from 'node:zlib';
 import { promisify } from 'node:util';
 
-import type { ArtCard } from '@hadoku/shared';
 
 import type { JsonLog } from '../../log.js';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from './retention.js';
@@ -117,8 +116,8 @@ export interface PublicHeader {
 	players: [string, string];
 	ai: [boolean, boolean];
 	decks: unknown[];
-	/** Every card both decks (or the scenario) name, as `forge:art` tells a live board (`art.ts`): what a replay warms. */
-	art: ArtCard[];
+	/** The art ids of every card both decks (or the scenario) name, as `forge:art` tells a live board (`art.ts`): what a replay warms. */
+	art: string[];
 	startedAt: string;
 }
 

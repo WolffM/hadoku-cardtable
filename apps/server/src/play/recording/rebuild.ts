@@ -63,6 +63,7 @@ import { seatDeckColors, type DeckCosts } from '../deck-colors.js';
 import { winnerSeatFromLosers } from '../match.js';
 import { jvmHostConfig, type BridgeCommand, type BridgeLine, type MatchHost, type MatchHostFactory, type MatchSpec } from '../host.js';
 import { createProjector, EVERY_PLAYER, type StateFrame } from '../visibility.js';
+import { createArtIds, type ArtCatalog, type ArtIds } from '../art-ids.js';
 import { bridgeDigest, forgePin } from './recorder.js';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from './retention.js';
 import { boardDigest, isStateLine } from './position.js';
@@ -153,6 +154,8 @@ export interface RebuildDeps {
 	log: (entry: Record<string, unknown>) => void;
 	/** Folds a seat's deck into its colours for the public header's `decks` — same dep, same shape, as `recorder.ts`'s own `RecorderDeps.deckCosts`. */
 	deckCosts: DeckCosts;
+	/** What each face's art id is decided from (`../art-ids.ts`), as the live match does. */
+	catalog?: ArtCatalog | null;
 	/** Default 30 s: how long an act may go un-applied, or a reply's ask unavailable, before the rebuild gives up (§D point 2). */
 	positionBudgetMs?: number;
 	/** Override for a test; defaults to `currentForge()`. */
@@ -197,9 +200,15 @@ function playerIdOf(lines: readonly BridgeLine[], seat: number): number | null {
  * the `gameover` line's `finishGame` frame, once, if the match reached one. Not the channel's game
  * log, reveals, dice or coins (`match.ts`'s `onGameLog` and `tellWatchers`): a rebuilt replay goes without them.
  */
-function watcherFramesFrom(matchId: string, timeline: readonly { line: BridgeLine; at: number }[], sourceSeat: number, allSeats: readonly { seat: number; playerId: number | null }[]): { env: ServerEnvelope; at: number }[] {
+function watcherFramesFrom(
+	matchId: string,
+	timeline: readonly { line: BridgeLine; at: number }[],
+	sourceSeat: number,
+	allSeats: readonly { seat: number; playerId: number | null }[],
+	art: ArtIds,
+): { env: ServerEnvelope; at: number }[] {
 	const out: { env: ServerEnvelope; at: number }[] = [];
-	const projector = createProjector(EVERY_PLAYER);
+	const projector = createProjector(EVERY_PLAYER, art);
 	const early: { state: StateFrame; at: number }[] = [];
 	let opened = false;
 	let seq = 0;
@@ -407,7 +416,8 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 	const gameoverLine = raw.find((l): l is Extract<BridgeLine, { t: 'gameover' }> => l.t === 'gameover');
 	const winnerSeat = gameoverLine === undefined ? null : winnerSeatFromLosers(allSeats, gameoverLine.losers);
 
-	const watcherFrames = watcherFramesFrom(matchId, timeline, 0, allSeats);
+	const art = createArtIds(deps.catalog ?? null, header.spec.seats.map((seat) => seat.deck));
+	const watcherFrames = watcherFramesFrom(matchId, timeline, 0, allSeats, art);
 	const envs: PublicEnvLine[] = watcherFrames.map(({ env, at }) => ({ t: 'env', at, env }));
 
 	const publicHeader: PublicHeader = {
@@ -418,7 +428,7 @@ async function doRebuild(matchId: string, deps: RebuildDeps): Promise<RebuildOut
 		players: [header.spec.seats[0].name, header.spec.seats[1].name],
 		ai: [header.spec.seats[0].ai, header.spec.seats[1].ai],
 		decks: [0, 1].map((seat) => seatDeckColors(header.spec, seat, deps.deckCosts)),
-		art: artOf(header.spec),
+		art: artOf(header.spec, art),
 		startedAt: header.startedAt,
 	};
 	// Its roster, so a replay knows which Forge player each seat is and names them (`GET /replays/:id/people`).

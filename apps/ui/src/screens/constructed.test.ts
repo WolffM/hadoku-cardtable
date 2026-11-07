@@ -95,7 +95,7 @@ import {
   groupSetsByBlock,
 } from './ConstructedScreen.tsx';
 import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
-import ART_IDS from '../draft/art-ids.json';
+import { serveNamedArt, serverArtId } from '../play/art.testing.ts';
 import DECK_ART_TRAITS from '../draft/deck-art-traits.json';
 import { artScore, assignDeckArt, rankDeckArt, traitsOfDraftCard } from './deckArt.ts';
 import { cardImageUrl } from '../draft/cardImage.ts';
@@ -126,6 +126,7 @@ import {
 import { apiBase, type Fetch } from '../http.ts';
 
 beforeEach(() => {
+  serveNamedArt();
   sitPod.mockResolvedValue({ ok: true, message: null });
   aiPod.mockResolvedValue({ ok: true, message: null });
   closePod.mockResolvedValue({ ok: true, message: null });
@@ -3960,7 +3961,7 @@ describe('the deck chooser', () => {
     // this app that builds an image URL. Asserting the exact URL it composes is
     // what proves no second path was invented — and the host is whichever
     // `@hadoku/carddata/art` allows, never one written down here.
-    const geist = (ART_IDS as { ids: Record<string, string> }).ids['Geist of Saint Traft'];
+    const geist = serverArtId('Geist of Saint Traft');
     expect(geist).toBeDefined();
     const src = uw.querySelector('img')?.getAttribute('src');
     expect(src).toBe(cardImageUrl(geist));
@@ -4167,8 +4168,8 @@ describe('deck art is warmed ahead of the picker', () => {
     globalThis.Image = RealImage;
   });
 
-  const GEIST = (ART_IDS as { ids: Record<string, string> }).ids['Geist of Saint Traft'];
-  const WILD_DEFIANCE = (ART_IDS as { ids: Record<string, string> }).ids['Wild Defiance'];
+  const GEIST = serverArtId('Geist of Saint Traft');
+  const WILD_DEFIANCE = serverArtId('Wild Defiance');
 
   it('warms every option’s art at once, one `Image()` per distinct URL', async () => {
     await mountRoom({ players: [], matchId: null, decks: [UW_DELVER, MONO_GREEN] });
@@ -4222,9 +4223,8 @@ describe('deck art is warmed ahead of the picker', () => {
     // Both decks' most iconic card is Elesh Norn.
     await mountRoom({ players: [], matchId: null, decks: [NAYA_POD, SOLAR_FLARE] });
     await deckPicker();
-    const ids = (ART_IDS as { ids: Record<string, string> }).ids;
     const srcs = [NAYA_POD, SOLAR_FLARE].map((d) => deckRow(d.id).querySelector('img')?.getAttribute('src'));
-    expect(srcs).toContain(cardImageUrl(ids['Elesh Norn, Grand Cenobite']!));
+    expect(srcs).toContain(cardImageUrl(serverArtId('Elesh Norn, Grand Cenobite')!));
     expect(new Set(srcs).size).toBe(2);
   });
 });
@@ -4263,7 +4263,7 @@ describe('which card’s art stands for a deck', () => {
             count: line.count,
             manaValue: manaValueOf(cost),
             traits: (DECK_ART_TRAITS as { traits: Record<string, string> }).traits[line.name] ?? 'c',
-            scryfallId: (ART_IDS as { ids: Record<string, string> }).ids[line.name],
+            scryfallId: serverArtId(line.name),
           },
         ];
       }),

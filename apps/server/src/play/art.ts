@@ -1,15 +1,14 @@
 /*
- * The cards a match can show, for `@hadoku/shared`'s `forge:art` — every card
- * of BOTH seats' decks (main and sideboard), plus a test scenario's named cards,
- * deduplicated by name and set. Read off the match's own spec: the `.dck` text
- * each seat was started with, and the scenario's `[state]` text. A seat on a
- * random Forge precon (`deck: null`) names nothing here — the bridge picks it
- * inside the JVM — and its cards rely on the client's decode-before-flip guard
- * alone (`apps/ui/src/draft/cardImage.ts`'s `artReady`).
+ * The cards a match can show — every card of BOTH seats' decks (main and sideboard), plus a test
+ * scenario's named cards, deduplicated by name and set — and their art ids, for `@hadoku/shared`'s
+ * `forge:art`. Read off the match's own spec: the `.dck` text each seat was started with, and the
+ * scenario's `[state]` text. A seat on a random Forge precon (`deck: null`) names nothing here — the
+ * bridge picks it inside the JVM — and its cards rely on the client's decode-before-flip guard alone
+ * (`apps/ui/src/draft/cardImage.ts`'s `artReady`).
  */
 import { parseDck } from '@hadoku/carddata/dck';
-import type { ArtCard } from '@hadoku/shared';
 
+import type { ArtIds } from './art-ids.js';
 import type { MatchSpec } from './host.js';
 
 /**
@@ -36,8 +35,14 @@ export function scenarioCardNames(scenario: string): string[] {
 	return [...names];
 }
 
-export function artOf(spec: Pick<MatchSpec, 'seats' | 'scenario'>): ArtCard[] {
-	const cards = new Map<string, ArtCard>();
+/** A card a match's spec names, and the set it names it by (null: none). */
+interface SpecCard {
+	name: string;
+	set: string | null;
+}
+
+export function matchCards(spec: Pick<MatchSpec, 'seats' | 'scenario'>): SpecCard[] {
+	const cards = new Map<string, SpecCard>();
 	const add = (name: string, set: string | null): void => {
 		const key = `${name}|${set ?? ''}`;
 		if (name !== '' && !cards.has(key)) cards.set(key, { name, set });
@@ -50,4 +55,9 @@ export function artOf(spec: Pick<MatchSpec, 'seats' | 'scenario'>): ArtCard[] {
 	}
 	for (const name of scenarioCardNames(spec.scenario ?? '')) add(name, null);
 	return [...cards.values()];
+}
+
+/** Every art id the match's cards draw — each card's, and its back's — for `forge:art`. */
+export function artOf(spec: Pick<MatchSpec, 'seats' | 'scenario'>, ids: ArtIds): string[] {
+	return [...new Set(matchCards(spec).flatMap((card) => ids.images(card.name, card.set)))];
 }

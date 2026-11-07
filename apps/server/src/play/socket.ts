@@ -126,6 +126,7 @@ import { identityFromHeaders, participantHandle } from '../room/identity.js';
 import type { KeyBook } from '../stats/keys.js';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 import { artOf } from './art.js';
+import type { ArtCatalog } from './art-ids.js';
 import { seatDeckColors, type DeckCosts } from './deck-colors.js';
 import { namedStopPolicy, STOP_POLICY_NAMES, withEndStepStop, type StopPolicy } from './auto.js';
 import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from './host.js';
@@ -220,6 +221,8 @@ export interface PlayDeps {
 	onAbandoned?(match: Match): void;
 	/** See {@link MatchDeps.liveChanged}: the room the match was started from reads differently. */
 	liveChanged?(match: Match): void;
+	/** See {@link MatchDeps.catalog}. */
+	catalog?: ArtCatalog | null;
 	/** See {@link MatchDeps.formatNames}. */
 	formatNames?(format: string): ReadonlySet<string> | null;
 	/** See {@link MatchDeps.spellCopiers}. */
@@ -610,6 +613,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		...(deps.onAbandoned === undefined ? {} : { abandoned: deps.onAbandoned }),
 		freed: (match) => forget(match.id),
 		...(deps.liveChanged === undefined ? {} : { liveChanged: deps.liveChanged }),
+		...(deps.catalog === undefined ? {} : { catalog: deps.catalog }),
 		...(deps.formatNames === undefined ? {} : { formatNames: deps.formatNames }),
 		...(deps.spellCopiers === undefined ? {} : { spellCopiers: deps.spellCopiers }),
 		...(deps.seatAvatar === undefined ? {} : { seatAvatar: deps.seatAvatar }),
@@ -1041,7 +1045,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 						// its trigger answers) is sent, only what the whole table is told.
 						if (joined.get(result.matchId) === WATCHER_SEAT) {
 							socket.emit(MATCH_EVENTS.seats, { matchId: result.matchId, seats: match.seatIdentities() });
-							socket.emit(ART_EVENT, { matchId: result.matchId, cards: artOf(match.spec) });
+							socket.emit(ART_EVENT, { matchId: result.matchId, ids: artOf(match.spec, match.art) });
 							socket.emit(DECK_COLORS_EVENT, { matchId: result.matchId, colors: null });
 							tellRole(socket, result.matchId, 'watcher');
 							return;
@@ -1088,7 +1092,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 						 */
 						socket.emit(MATCH_EVENTS.seats, { matchId: result.matchId, seats: match.seatIdentities() } satisfies MatchSeats);
 						// Every card either seat could show, so this browser decodes the art before any of it is drawn (`@hadoku/shared`'s `art.ts`).
-						socket.emit(ART_EVENT, { matchId: result.matchId, cards: artOf(match.spec) });
+						socket.emit(ART_EVENT, { matchId: result.matchId, ids: artOf(match.spec, match.art) });
 						// This seat's deck colours, before its role, for the match's music (`@hadoku/shared`'s `deck-colors.ts`).
 						socket.emit(DECK_COLORS_EVENT, { matchId: result.matchId, colors: seatDeckColors(match.spec, result.seat, deckCosts) });
 						// And whether THIS socket holds the seat, every time: a newer window may have taken it since.

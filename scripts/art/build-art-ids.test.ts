@@ -105,11 +105,11 @@ describe('mostUsedPrinting', () => {
   });
 });
 
-// @reads apps/server/src/play/scenarios/ apps/ui/src/draft/art-ids.json apps/ui/src/draft/pool.json
+// @reads apps/server/src/play/scenarios/ apps/server/src/play/art-ids.json apps/ui/src/draft/pool.json
 describe('the committed table covers every card a test scenario places', () => {
   it('a scenario card has an art row (the e2e Grizzly Bears was drawn without art)', () => {
     const read = (rel: string): unknown => JSON.parse(readFileSync(new URL(rel, import.meta.url), 'utf8'));
-    const { ids } = read('../../apps/ui/src/draft/art-ids.json') as { ids: Record<string, string> };
+    const { ids } = read('../../apps/server/src/play/art-ids.json') as { ids: Record<string, string> };
     const { cards } = read('../../apps/ui/src/draft/pool.json') as { cards: { name: string }[] };
     const known = new Set([...Object.keys(ids).map((key) => key.split('|')[0]), ...cards.map((c) => c.name)]);
     const names = scenarioNames();

@@ -9,6 +9,7 @@
  * as every other pick sounded on the board.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { useNamedArt } from '../libraryPeek.ts';
 
 import type { GauntletView } from '@hadoku/shared';
 
@@ -53,7 +54,9 @@ export function GauntletScreen({ view, onBan, onPick, onChoose, faces = NO_FACES
 function GauntletPhase({ view, onBan, onPick, onChoose }: Omit<GauntletScreenProps, 'faces'>) {
   // The tiles depend only on which ten decks were drawn, not on where each stands.
   const drawn = view.decks.map((d) => d.id).join();
-  const options = useMemo(() => gauntletDeckOptions(view.decks), [drawn]);
+  // A tile's art is the server's answer for its cards' names: drawn again when it arrives.
+  const namedArt = useNamedArt();
+  const options = useMemo(() => gauntletDeckOptions(view.decks), [drawn, namedArt]);
 
   // The view this screen last drew, so the step out of ban/pick is seen as a step, here and on the other seat's screen alike.
   const [shown, setShown] = useState(view);

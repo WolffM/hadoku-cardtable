@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { cardStateKey, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
 
-import { artIdOf, KNOWN_ART_IDS } from '../adapter.ts';
+import { withServerArt } from '../art.testing.ts';
 import type { WireObject } from '../wire.ts';
 import { promptTileFor } from './PromptShell.tsx';
 import { isZoneDividerLabel, lookupFromState, plainRulesText, promptLines, promptText, selectionText, translateTargetWords, type PromptParts } from './lookup.ts';
@@ -32,16 +32,20 @@ describe('lookupFromState', () => {
   });
 
   // 2026-10-22: *"'wicked' role doesn't have art when shown within a decision window, but it was
-  // displaying art while on the board."* The Wicked Role's only art row is its tokenscript's
-  // (`t:role_wicked`): the window's tile is resolved by the board's own `artIdOf`, `ImageKey` first.
-  it('a token in a decision window draws the art the board draws, by its ImageKey', () => {
+  // displaying art while on the board."* The window's tile draws the face's own art id, the one the
+  // server stamped and the board draws: the Wicked Role's is found by its tokenscript.
+  it('a token in a decision window draws the art the board draws, the id on its face', () => {
     const [key, obj] = face(31, 'Wicked Role', 'WOE');
-    const lookup = lookupFromState(new Map([card(31), [key, { ...obj, ImageKey: { t: 'str', v: 't:role_wicked|WOE|5' } } as WireObject]]));
-    expect(lookup.card(31)).toMatchObject({ name: 'Wicked Role', setCode: 'WOE', imageKey: 't:role_wicked|WOE|5' });
+    const state = withServerArt(new Map([card(31), [key, { ...obj, ImageKey: { t: 'str', v: 't:role_wicked|WOE|5' } } as WireObject]]));
+    const lookup = lookupFromState(state);
     const tile = promptTileFor(lookup, 31);
-    expect(tile.scryfallId, 'the window draws the Wicked Role').toBe(KNOWN_ART_IDS.get('t:role_wicked'));
-    expect(tile.scryfallId).toBe(artIdOf(KNOWN_ART_IDS, 'Wicked Role', 'WOE', 't:role_wicked|WOE|5'));
-    expect(KNOWN_ART_IDS.get('t:role_wicked')).toBeDefined();
+    expect(tile.scryfallId, 'the window draws the Wicked Role').toBe('a9b7040e-cd24-42cc-b043-9af8c557da6a');
+    expect(tile.scryfallId).toBe(lookup.card(31)?.scryfallId);
+  });
+
+  it('a face the server sent no art id draws no art', () => {
+    const tile = promptTileFor(lookupFromState(new Map([card(12), face(12, 'Forest', 'TRK')])), 12);
+    expect(tile.scryfallId).toBeUndefined();
   });
 });
 

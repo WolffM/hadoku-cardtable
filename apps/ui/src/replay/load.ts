@@ -49,7 +49,7 @@ export async function readyPlayer(data: ReplayData, options: ReplayOptions = {})
   await decoded([...new Set(urls.filter((url): url is string => url !== null))]);
   preloadMatchArt(data.header.matchId, {
     matchId: data.header.matchId,
-    cards: [...data.header.art],
+    ids: [...data.header.art],
   });
   return player;
 }

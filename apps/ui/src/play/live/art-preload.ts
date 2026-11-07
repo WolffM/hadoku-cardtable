@@ -29,19 +29,16 @@
  * this lane's to add (`apps/server/src/pools/cubes.ts` is C's; the route
  * table is A's `index.ts`).
  */
-import { artIdsWithBacks } from '@hadoku/carddata/art';
 import { ArtPreloadSchema, type DraftCard, type DraftView } from '@hadoku/shared';
 
 import { cardImageUrl, warmArt } from '../../draft/cardImage.ts';
-import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
 import { relatedCards } from '../../draft/related.ts';
 
-/** The distinct art URLs a `forge:art` message names for this match — empty for anything else. */
+/** The distinct art URLs a `forge:art` message names for this match — its ids, backs included — empty for anything else. */
 export function preloadUrls(matchId: string, payload: unknown): string[] {
   const parsed = ArtPreloadSchema.safeParse(payload);
   if (!parsed.success || parsed.data.matchId !== matchId) return [];
-  const ids = parsed.data.cards.map((c) => scryfallIdFor(KNOWN_ART_IDS, c.name, c.set ?? '')).filter((id): id is string => id !== undefined);
-  const urls = artIdsWithBacks(KNOWN_ART_IDS, ids).map((id) => cardImageUrl(id));
+  const urls = parsed.data.ids.map((id) => cardImageUrl(id));
   return [...new Set(urls.filter((url): url is string => url !== null))];
 }
 

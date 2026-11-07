@@ -17,7 +17,6 @@ import { createElement } from 'react';
 import { askFor } from './fixtures.ts';
 import { dragRow, expectWireReply, forgeCardLabel, mountPrompt, POOL, POOL_ID_BASE, poolLookup } from './testing.ts';
 import { cardImageUrl } from '../../draft/cardImage.ts';
-import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
 import { GHOST_ATTR } from '../lift.ts';
 import { GLIDE_MS } from '../motion.ts';
 import { DRAG_SLOP_PX } from '../live/gestures/types.ts';
@@ -140,14 +139,12 @@ describe('an order that places everything: one zone, ready', () => {
     expectWireReply('order', answers[0]);
   });
 
-  it("resolves each card's art from the card's own facts, never from the label, each tile stamped with its forge id", () => {
+  it("draws each card's art from the card's own facts, never from the label, each tile stamped with its forge id", () => {
     const { dest } = zones(cardsAsk({ remainingObjectsMin: 0, remainingObjectsMax: 0 }));
     for (const [i, li] of rowsOf(dest()).entries()) {
-      const label = forgeCardLabel(POOL[i]!.name, POOL_ID_BASE + i);
       expect(li.dataset.cardId).toBe(String(POOL_ID_BASE + i));
       expect(li.querySelector<HTMLImageElement>('img.card__art')!.getAttribute('src')).toBe(cardImageUrl(POOL[i]!.scryfallId));
       expect(li.querySelector('.card__name')!.textContent, 'Forge’s wording, never its id').toBe(POOL[i]!.name);
-      expect(scryfallIdFor(KNOWN_ART_IDS, label, POOL[i]!.setCode)).toBeUndefined();
     }
   });
 });

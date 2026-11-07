@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { ArtPreloadSchema } from '@hadoku/shared';
 
-import { artOf, scenarioCardNames } from './art.js';
+import { artOf, matchCards, scenarioCardNames } from './art.js';
+import type { ArtIds } from './art-ids.js';
 
 const alice = '[metadata]\nName=Alice\n[main]\n4 Lightning Bolt|M10\n20 Mountain\n2 Volcanic Hammer\n';
 const bob = `[metadata]\nName=Bob\n[Main]\n4 Grizzly Bears\n18 Forest|M10\n[Sideboard]\n2 Naturalize|ONS\n`;
 
-describe('the art a match tells each client to preload', () => {
-	it('carries every card of BOTH decks, main and sideboard, once each, by name and set', () => {
-		const cards = artOf({ seats: [{ name: 'a', ai: false, deck: alice }, { name: 'b', ai: false, deck: bob }] });
+describe('the cards a match can show', () => {
+	it('every card of BOTH decks, main and sideboard, once each, by name and set', () => {
+		const cards = matchCards({ seats: [{ name: 'a', ai: false, deck: alice }, { name: 'b', ai: false, deck: bob }] });
 		expect(cards).toEqual(
 			expect.arrayContaining([
 				{ name: 'Lightning Bolt', set: 'M10' },
@@ -20,18 +21,28 @@ describe('the art a match tells each client to preload', () => {
 			]),
 		);
 		expect(cards).toHaveLength(6);
-		expect(ArtPreloadSchema.parse({ matchId: 'm1', cards }).cards).toHaveLength(6);
 	});
 
 	it('dedupes a card both decks hold', () => {
-		const cards = artOf({ seats: [{ name: 'a', ai: false, deck: alice }, { name: 'b', ai: false, deck: alice }] });
+		const cards = matchCards({ seats: [{ name: 'a', ai: false, deck: alice }, { name: 'b', ai: false, deck: alice }] });
 		expect(cards.filter((c) => c.name === 'Lightning Bolt')).toHaveLength(1);
 	});
 
 	it('names nothing for a random precon, and every card a scenario places', () => {
 		const scenario = 'turn=1\nhumanhand=Volcanic Hammer;Mountain\nhumanbattlefield=Mountain|Tapped:True\naibattlefield=Grizzly Bears\nailibrary=\n';
-		const cards = artOf({ seats: [{ name: 'a', ai: false, deck: null }, { name: 'b', ai: false, deck: null }], scenario });
+		const cards = matchCards({ seats: [{ name: 'a', ai: false, deck: null }, { name: 'b', ai: false, deck: null }], scenario });
 		expect(cards.map((c) => c.name).sort()).toEqual(['Grizzly Bears', 'Mountain', 'Volcanic Hammer']);
+	});
+});
+
+describe('the art a match tells each client to preload', () => {
+	it("is every card's images as the match's resolver has them, each once", () => {
+		const id = (n: number): string => `00000000-0000-0000-0000-00000000000${n}`;
+		const images: Record<string, string[]> = { 'Lightning Bolt': [id(1)], Mountain: [id(2)], 'Volcanic Hammer': [id(1)], 'Grizzly Bears': [id(3), `${id(3)}#back`] };
+		const ids: ArtIds = { face: () => undefined, card: () => undefined, images: (name) => images[name] ?? [], backs: () => [] };
+		const art = artOf({ seats: [{ name: 'a', ai: false, deck: alice }, { name: 'b', ai: false, deck: bob }] }, ids);
+		expect(art).toEqual([id(1), id(2), id(3), `${id(3)}#back`]);
+		expect(ArtPreloadSchema.parse({ matchId: 'm1', ids: art }).ids).toEqual(art);
 	});
 });
 

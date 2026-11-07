@@ -6,14 +6,14 @@
  * question that broke in a real match (wave 19 §D, #9 *"some art missing"*):
  * **given the cards a match can actually contain, does an art URL come out?**
  * So nothing here is fabricated. It loads the files that ship —
- * `apps/ui/src/draft/art-ids.json`, `pool.json` and `art-manifest.json` — builds
- * the index the way `apps/ui/src/play/adapter.ts` builds it, and puts the answer
- * through `resolveArtUrl` itself. A stub anywhere in that chain would make the
+ * `apps/server/src/play/art-ids.json`, `apps/ui/src/draft/pool.json` and
+ * `art-manifest.json` — builds the index the way the server's art resolver
+ * (`apps/server/src/play/art-ids.ts`) builds it, and puts the answer through
+ * `resolveArtUrl` itself. A stub anywhere in that chain would make the
  * test pass while the board stayed blank, which is exactly what happened.
  *
- * Read with `node:fs` rather than imported, because this package is Node-side
- * and must not take a type dependency on the UI's JSON. The browser imports
- * them as modules; the bytes are the same either way.
+ * Read with `node:fs` rather than imported, because this package must not take
+ * a type dependency on the apps' JSON. The bytes are the same either way.
  */
 
 import { readFileSync } from 'node:fs';
@@ -30,14 +30,12 @@ import { FORGE_TO_SCRYFALL_SET } from '../set-codes.ts';
 import {
   artIdIndex,
   artIdIndexFromTable,
-  artIdsWithBacks,
   BACK_FACE,
   artIdKey,
   backFaceNames,
   mergeArtIdIndexes,
   scryfallIdFor,
   tokenArtId,
-  cardKeyArtId,
   ART_ID_TABLE_VERSION,
   type ArtIdIndex,
   type ArtIdSource,
@@ -50,11 +48,12 @@ function readJson<T>(name: string): T {
   return JSON.parse(readFileSync(fileURLToPath(new URL(name, DRAFT_DIR)), 'utf8')) as T;
 }
 
-const TABLE = readJson<ArtIdTableFile>('art-ids.json');
+const TABLE_FILE = fileURLToPath(new URL('../../../../apps/server/src/play/art-ids.json', import.meta.url));
+const TABLE = JSON.parse(readFileSync(TABLE_FILE, 'utf8')) as ArtIdTableFile;
 const POOL = readJson<{ cards: ArtIdSource[] }>('pool.json');
 const MANIFEST = readJson<ArtManifestFile>('art-manifest.json');
 
-/** Exactly how `adapter.ts` composes `KNOWN_ART_IDS`: the pool first. */
+/** Exactly how the server's `art-ids.ts` composes its table: the pool first. */
 const KNOWN: ArtIdIndex = mergeArtIdIndexes(artIdIndex(POOL.cards), artIdIndexFromTable(TABLE));
 const CUBE_ONLY: ArtIdIndex = artIdIndex(POOL.cards);
 
@@ -152,12 +151,6 @@ describe('every card a match can contain has art', () => {
     expect(scryfallIdFor(KNOWN, 'Urza, Planeswalker', ''), 'the melded Urza is a card of its own').toMatch(UUID);
   });
 
-  it('preloads a back face beside its front', () => {
-    const delver = scryfallIdFor(KNOWN, 'Delver of Secrets', '')!;
-    const bolt = scryfallIdFor(KNOWN, 'Lightning Bolt', '')!;
-    expect(artIdsWithBacks(KNOWN, [delver, bolt])).toEqual([delver, `${delver}${BACK_FACE}`, bolt]);
-  });
-
   it('still draws nothing for a card nothing knows', () => {
     expect(scryfallIdFor(KNOWN, 'Not A Card Anyone Printed', 'XYZ')).toBeUndefined();
     expect(artUrlFor('Not A Card Anyone Printed', 'XYZ')).toBeNull();
@@ -165,7 +158,7 @@ describe('every card a match can contain has art', () => {
 
   /*
    * R14 (wave 35). The operator: a Goblin Rogue token drew no art, because the
-   * table had NO token entries at all. `adapter.ts` asks for a token exactly
+   * table had NO token entries at all. The resolver asks for a token exactly
    * as it asks for anything else — `scryfallIdFor(artIds, name, setCode)` —
    * and Forge's wire `Name` for a token is `"<the printed name> Token"` for
    * the overwhelming majority of tokens (`build-art-ids.ts`'s `forgeTokenWireNames`
@@ -199,7 +192,7 @@ describe('the committed table', () => {
   });
 
   it('carries ids and nothing else — no URL, no host, no image metadata (D15)', () => {
-    const raw = readFileSync(fileURLToPath(new URL('art-ids.json', DRAFT_DIR)), 'utf8');
+    const raw = readFileSync(TABLE_FILE, 'utf8');
     // The note names the module that owns URLs, so look at the data, not the prose.
     const data = JSON.stringify(TABLE.ids);
     expect(data).not.toMatch(/https?:/);
@@ -232,7 +225,7 @@ describe('the committed table', () => {
 
   /*
    * The invariant is about the INDEX, not the file. Cube cards get their
-   * bare-name row from `pool.json`, which is already in the bundle, so the
+   * bare-name row from `pool.json`, which the resolver composes first, so the
    * table deliberately does not repeat 534 of them — see the script's header.
    * What must hold is that no name the table names can come out blank when
    * Forge hands us a printing nobody wrote down.
@@ -366,18 +359,5 @@ describe('backFaceNames: a two-image card’s other faces, by the table alone', 
     expect(backFaceNames(KNOWN, scryfallIdFor(KNOWN, 'Bonecrusher Giant', 'ELD')), 'an adventure is one image').toEqual([]);
     expect(backFaceNames(KNOWN, `${etali}${BACK_FACE}`)).toEqual([]);
     expect(backFaceNames(KNOWN, undefined)).toEqual([]);
-  });
-});
-
-// The operator, 2026-10-22: "i can see Teferi's Effect in my command zone. can we make this have teferi's art?" Forge makes
-// an effect a card of its own name ("…'s Effect") drawn with its source's image key (`SpellAbilityEffect.createEffect`).
-describe('an effect is drawn with the art of the card its image key names', () => {
-  it('reads the card and edition off a c: key, and nothing off any other', () => {
-    const teferi = scryfallIdFor(KNOWN, 'Teferi, Hero of Dominaria', 'DOM');
-    expect(teferi).toEqual(expect.any(String));
-    expect(cardKeyArtId(KNOWN, 'c:Teferi, Hero of Dominaria|DOM|1')).toBe(teferi);
-    expect(scryfallIdFor(KNOWN, "Teferi, Hero of Dominaria's Effect", 'DOM'), 'its own name finds nothing').toBeUndefined();
-    expect(cardKeyArtId(KNOWN, 't:w_1_1_spirit_flying|DOM|1')).toBeUndefined();
-    expect(cardKeyArtId(KNOWN, undefined)).toBeUndefined();
   });
 });

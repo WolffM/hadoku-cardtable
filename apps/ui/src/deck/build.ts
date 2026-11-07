@@ -33,8 +33,8 @@ export function draftedSeat(draftId: string, deck: Deck): SeatChoice {
 /**
  * Names as a `sideboard`-mode `DeckEditor` pool — wave 72 §Q.4's "first commit
  * measures what card data the browser has": the wire sends names, and the
- * browser holds a cost per name and this app's committed art ids, nothing else
- * — no type line, no oracle text. Each card is drawn the way the room's own
+ * browser holds a cost per name and the art the server names for it, nothing
+ * else — no type line, no oracle text. Each card is drawn the way the room's own
  * deck peek draws it (`libraryFace`). One `DraftCard` per distinct name, from
  * anywhere (a drafted sideboard's parsed text, not only a `TableDeck`'s own
  * lines); `DeckEditor`'s own tile-building multiplies it by each entry's count.

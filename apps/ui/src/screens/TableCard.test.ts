@@ -1,10 +1,14 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { serveNamedArt } from '../play/art.testing.ts';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { TableGame } from '@hadoku/shared';
 
 import { TableCard, tablePhase, type TableCardProps } from './TableCard.tsx';
+
+// A card known by its name is answered as the server answers it (`GET /api/cards/art`).
+beforeEach(serveNamedArt);
 
 afterEach(cleanup);
 

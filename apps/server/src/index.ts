@@ -112,6 +112,8 @@ import { seedTestingRooms } from './room/testing-rooms.js';
 import { attachDiscord } from './http/discord.js';
 import { attachEvents } from './http/events.js';
 import { attachTournaments } from './http/tournaments.js';
+import { attachCardArt } from './http/card-art.js';
+import { createArtIds } from './play/art-ids.js';
 import { attachSounds } from './http/sounds.js';
 import { createMusicReviewStore } from './http/musicReviewStore.js';
 import { attachClientEvents } from './http/client-events.js';
@@ -688,6 +690,7 @@ attachRooms(api, {
 	},
 });
 attachTournaments(api, { tournaments, people });
+attachCardArt(api, { art: createArtIds(catalog) });
 attachEvents(api, { events, lobby, people, checkPlan: checkDraftPlan, rally: { serviceKey: CONFIG.serviceKey }, log: roomsLog, closed: roomClosed, ...(CONFIG.testNoRateLimits ? { createRateLimit: null } : {}) });
 // The Discord's last few #general messages, through ArchiveBot (prod only: it holds the secret).
 attachDiscord(api, { secret: CONFIG.archivebotSecret, archivebotUrl: CONFIG.archivebotUrl, log: jsonLogger('cardtable-discord') });
@@ -850,6 +853,7 @@ const recorder = createRecorder({
 	},
 	roomOf: (matchId) => lobby.roomOfMatch(matchId)?.id ?? null,
 	deckCosts,
+	catalog,
 	// `play` is assigned below; the recorder only asks once a match is running.
 	seatsOf: (matchId) => play?.matches.get(matchId)?.seatIdentities(),
 	usersOf: (matchId) => {
@@ -884,7 +888,7 @@ attachReplays(api, {
 	people,
 	log: recordingsLog,
 	canRebuild: canRebuildBoolean,
-	...(rebuildHost === null ? {} : { rebuild: (matchId: string) => rebuildForReplays(matchId, { recordingsDir: RECORDINGS_DIR, host: rebuildHost, log: recordingsLog, deckCosts }) }),
+	...(rebuildHost === null ? {} : { rebuild: (matchId: string) => rebuildForReplays(matchId, { recordingsDir: RECORDINGS_DIR, host: rebuildHost, log: recordingsLog, deckCosts, catalog }) }),
 });
 
 // ── Parked games ─────────────────────────────────────────────────────────────
@@ -946,6 +950,8 @@ play = attachPlay(io, api, {
 	// which cube a given pod drafted — the DEFAULT shortlisted cube serves that
 	// same role the one bundled pool always did.
 	formatNames: roomFormatNames(tables.library, defaultCubeCards),
+	// Every card a seat is sent carries its art id, decided from the catalog (`play/art-ids.ts`).
+	catalog,
 	// A seat's own spell is held while it can play a card that copies it (`play/spell-copiers.ts`).
 	...(forge.ok ? { spellCopiers: spellCopierLookup(forge.config.res, jsonLogger('cardtable-play')) } : {}),
 	// A seat's face is its holder's avatar in the room that started the match.

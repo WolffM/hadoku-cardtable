@@ -43,7 +43,7 @@ interface Printing {
 /** Every art id the UI resolves art for: `art-ids.json`'s rows and the cube pool's cards. */
 function artIds(): Set<string> {
   const ids = new Set<string>();
-  const table = JSON.parse(readFileSync(join(DRAFT_DIR, 'art-ids.json'), 'utf8')) as { ids: Record<string, string> };
+  const table = JSON.parse(readFileSync(join(REPO_ROOT, 'apps', 'server', 'src', 'play', 'art-ids.json'), 'utf8')) as { ids: Record<string, string> };
   for (const id of Object.values(table.ids)) ids.add(id);
   const pool = JSON.parse(readFileSync(join(DRAFT_DIR, 'pool.json'), 'utf8')) as { cards: { scryfallId: string }[] };
   for (const card of pool.cards) ids.add(card.scryfallId);

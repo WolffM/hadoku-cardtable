@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DraftCard, DraftView } from '@hadoku/shared';
 
 import { artReady, cardImageUrl } from '../../draft/cardImage.ts';
-import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
 import { PRELOAD_AT_ONCE } from '../../draft/cardImage.ts';
 import { cubeArtUrls, preloadCubeArt, preloadMatchArt, preloadUrls, resetCubeArtForTests, viewerCards } from './art-preload.ts';
 
@@ -72,37 +71,25 @@ describe('artReady: a face is turned over only once its art is decoded', () => {
 });
 
 describe('preloadMatchArt: both decks’ art, a few at a time, at low priority', () => {
-  const cards = [
-    { name: 'Volcanic Hammer', set: null },
-    { name: 'Grizzly Bears', set: null },
-    { name: 'Lightning Bolt', set: null },
-    { name: 'Counterspell', set: null },
-    { name: 'Ponder', set: null },
-    { name: 'Not A Real Card Name', set: null },
-  ];
+  const id = (n: number): string => `00000000-0000-4000-8000-00000000000${n}`;
+  const ids = [id(1), id(2), id(3), `${id(3)}#back`, id(4), id(5)];
 
-  it('resolves each name through the same art index the board draws with, skips what has no art, and ignores another match', () => {
-    const urls = preloadUrls('m-1', { matchId: 'm-1', cards });
-    expect(urls).toContain(cardImageUrl(scryfallIdFor(KNOWN_ART_IDS, 'Volcanic Hammer', '')));
-    expect(urls).toHaveLength(5);
-    expect(preloadUrls('m-2', { matchId: 'm-1', cards })).toEqual([]);
-    expect(preloadUrls('m-1', { matchId: 'm-1', cards: [{ name: 'x', set: null, url: 'https://evil' }] }), 'strict: a URL never rides the wire').toEqual([]);
-  });
-
-  it("warms a double-faced card's back face beside its front, so a transform draws with its art", () => {
-    const urls = preloadUrls('m-1', { matchId: 'm-1', cards: [{ name: 'Delver of Secrets', set: 'ISD' }] });
-    const back = cardImageUrl(scryfallIdFor(KNOWN_ART_IDS, 'Insectile Aberration', 'ISD'));
-    expect(back).toMatch(/\/normal\/back\//);
-    expect(urls).toEqual([cardImageUrl(scryfallIdFor(KNOWN_ART_IDS, 'Delver of Secrets', 'ISD')), back]);
+  it('warms each id the server named — a back face as its back image — and ignores another match', () => {
+    const urls = preloadUrls('m-1', { matchId: 'm-1', ids });
+    expect(urls).toEqual(ids.map((i) => cardImageUrl(i)));
+    expect(urls[3]).toMatch(/\/normal\/back\//);
+    expect(preloadUrls('m-2', { matchId: 'm-1', ids })).toEqual([]);
+    expect(preloadUrls('m-1', { matchId: 'm-1', ids: ['https://evil'] }), 'strict: a URL never rides the wire').toEqual([]);
+    expect(preloadUrls('m-1', { matchId: 'm-1', ids, cards: [] }), 'strict: nothing else rides it either').toEqual([]);
   });
 
   it(`runs ${PRELOAD_AT_ONCE} loads at once, low priority, and starts the next as each ends`, async () => {
-    expect(preloadMatchArt('m-1', { matchId: 'm-1', cards })).toBe(5);
+    expect(preloadMatchArt('m-1', { matchId: 'm-1', ids })).toBe(6);
     expect(loads).toHaveLength(PRELOAD_AT_ONCE);
     expect(loads.every((l) => l.fetchPriority === 'low')).toBe(true);
     loads[0]!.settle(true);
     await settled();
-    expect(loads).toHaveLength(4);
+    expect(loads).toHaveLength(PRELOAD_AT_ONCE + 1);
   });
 });
 

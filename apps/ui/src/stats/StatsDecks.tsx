@@ -23,6 +23,7 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { primeNamedArt } from '../screens/libraryPeek.ts';
 import { Icon } from '@wolffm/themes';
 import { formatAgo, formatAttr, formatRecord, formatWinRate, StatsCard, WinBar, type RenderAttr, type StatsCache } from '@wolffm/game-stats-ui';
 import { winRate, type BreakdownRow, type GameStatsClient, type StatAttrs } from '@wolffm/prefs-client/games';
@@ -131,12 +132,16 @@ export function deckLookup(tables: Pick<TablesClient, 'decks'> = tablesClient(),
       const podId = deckId.slice(DRAFTED.length);
       const d = (await drafted).find((deck) => deck.id === podId);
       if (d === undefined || d.deck === null) return null;
-      const option = room.draftedDeckOption(deckId, d.name, room.openDraftedDeck(d.deck, d.id, d.pool), d.pool);
+      const deck = room.openDraftedDeck(d.deck, d.id, d.pool);
+      await primeNamedArt([...deck.main, ...deck.sideboard, ...deck.basics].map((e) => e.card.name));
+      const option = room.draftedDeckOption(deckId, d.name, deck, d.pool);
       return option.list === undefined ? null : { label: option.label, colors: option.colors, list: option.list };
     }
     library ??= tables.decks();
     const d = (await library).find((deck) => deck.id === deckId);
-    return d === undefined ? null : room.libraryDeckPeek(d);
+    if (d === undefined) return null;
+    await primeNamedArt([...d.main, ...d.sideboard].map((l) => l.name));
+    return room.libraryDeckPeek(d);
   };
 }
 

@@ -17,7 +17,6 @@
 import { Children, createContext, useContext, useState, type MouseEvent, type ReactNode } from 'react';
 
 import { CardTile } from '../../components/CardTile.tsx';
-import { artIdOf, KNOWN_ART_IDS } from '../adapter.ts';
 import { PlayerMark } from '../marks.tsx';
 import type { DraftCard } from '@hadoku/shared';
 import type { AskSource } from '@hadoku/forge-wire';
@@ -227,26 +226,14 @@ export function PromptShell({
  * A card a prompt was asked about, as the board's own `CardTile` draws it.
  *
  * An ask never carries a card — it carries a `{ kind: 'card', id }` ref and the
- * name and printing come from `lookup.ts` — so the tile is built here from
- * those two facts, and the art is resolved exactly as the board resolves it:
- * through the w19 art-id table (`adapter.ts`'s `KNOWN_ART_IDS`,
- * `@hadoku/carddata/art`) by the board's own `artIdOf` — a token by its `ImageKey`, then the
- * name and set — then by
- * `CardTile` → `cardImageUrl`. No prompt names an image host, and none ever
- * builds a URL.
- *
- * **The `setCode` argument is wave 24 §D.3.** It used to be `''` here, so a
- * prompt tile could only ever hit the table's bare-name row while the board hit
- * `Name|SET` first — the same card, two printings, and nothing at all for a
- * card whose only row is the exact printing. `PromptCardFacts.setCode` now
- * carries Forge's own `SetCode` for the face on show, so a prompt and the board
- * ask the table the same question and get the same answer.
+ * name, printing and art id come from `lookup.ts`, off the face the server sent
+ * this seat — so the tile is built here from those facts. The art id is the
+ * face's own `ScryfallId`, the one the board draws: a card this seat was sent no
+ * id for draws the text tile, which is the same fallback the board makes.
  *
  * What the board has and this has not — cost, type line, oracle text, stats —
- * the lookup does not carry (it is a prompt's seam, not a board's). The tile
- * shows the name and, when the table knows the card, its art; a card the table
- * does not know draws the text tile, which is the same fallback the board
- * makes. Nothing here invents a fact the wire did not send.
+ * the lookup does not carry (it is a prompt's seam, not a board's). Nothing here
+ * invents a fact the wire did not send.
  *
  * `cardId` is `w<forge id>` on purpose: that is the draft's namespace
  * `CardTile` stamps its own `data-card-id` in, which the DOM contract
@@ -254,15 +241,12 @@ export function PromptShell({
  * bare forge id beside it.
  *
  * **`name` is the card's IDENTITY; `label` is what the tile SAYS (wave 25 §F).**
- * They were one argument until now, and that is the whole of the reported bug:
- * for a reveal Forge pre-renders each option with `CardView.toString()` —
+ * For a reveal Forge pre-renders each option with `CardView.toString()` —
  * `zoneText + name + " (" + id + ")"` (`CardView.java:1214-1232`) — so the
- * caller's label is `Mox Opal (130)`, and an art key built from THAT matches no
- * row in the table. The art is looked up on `name`/`setCode`, which come from
- * the card's own facts and nothing else; `label`, when a caller has one, only
+ * caller's label is `Mox Opal (130)`; `label`, when a caller has one, only
  * replaces the words on the tile.
  */
-export function promptCardTile(forgeId: number, name: string, setCode = '', label?: string, imageKey?: string): DraftCard {
+export function promptCardTile(forgeId: number, name: string, setCode = '', label?: string, scryfallId?: string): DraftCard {
   const card: DraftCard = {
     cardId: `w${forgeId}`,
     // What the tile says. Forge's own wording wins where a caller has it — it
@@ -280,7 +264,6 @@ export function promptCardTile(forgeId: number, name: string, setCode = '', labe
     // wire did not carry (`adapter.ts` maps unknown the same way).
     rarity: 'special',
   };
-  const scryfallId = artIdOf(KNOWN_ART_IDS, name, setCode, imageKey);
   if (scryfallId !== undefined) card.scryfallId = scryfallId;
   return card;
 }
@@ -304,9 +287,9 @@ export function promptCardTile(forgeId: number, name: string, setCode = '', labe
  * text tile with no art at all — the operator's report, and the `(130)` in the
  * name was its fingerprint.
  *
- * So: **identity comes from the lookup, the label is display only.** The art key
- * is the card's own `Name`/`SetCode`, exactly as `adapter.ts` builds it for the
- * board, and it is the same whether a caller passed a label or not.
+ * So: **identity comes from the lookup, the label is display only.** The art is
+ * the face's own `ScryfallId`, exactly as `adapter.ts` reads it for the board,
+ * and it is the same whether a caller passed a label or not.
  *
  * The lookup does hold those facts for a revealed card: Forge calls
  * `tempShowCards` → `addMayLookTemp` before revealing
@@ -315,16 +298,14 @@ export function promptCardTile(forgeId: number, name: string, setCode = '', labe
  * `../live/prompts.jvm.test.ts` (§F.2), which prints what the lookup held for
  * every id a reveal labelled.
  *
- * When the lookup knows nothing, the label is the only name there is. The tile
- * still says it verbatim, but the identity is the label with Forge's decoration
- * removed (`nameFromForgeLabel`), so the art resolves on the bare name instead of
- * on `Island (129)`.
+ * When the lookup knows nothing, the label is the only name there is: the tile
+ * says it with Forge's decoration removed (`nameFromForgeLabel`), and draws no art.
  */
 export function promptTileFor(lookup: PromptLookup, forgeId: number, label?: string): DraftCard {
   const facts = lookup.card(forgeId);
   const identity = facts?.name ?? (label === undefined ? `card #${forgeId}` : nameFromForgeLabel(label, forgeId));
   // Forge's wording, without the " (id)" its `CardView.toString()` ends in: an id is never a card's name.
-  const card = promptCardTile(forgeId, identity, facts?.setCode ?? '', label === undefined ? undefined : nameFromForgeLabel(label, forgeId), facts?.imageKey);
+  const card = promptCardTile(forgeId, identity, facts?.setCode ?? '', label === undefined ? undefined : nameFromForgeLabel(label, forgeId), facts?.scryfallId);
   // Its other faces, the board's own (`lookup.faces`: the one on show first), for the inspector's wheel.
   const faces = lookup.faces?.(forgeId).slice(1) ?? [];
   if (faces.length > 0) card.faces = [...faces];

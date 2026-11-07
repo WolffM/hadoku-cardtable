@@ -61,7 +61,7 @@ async function main(argv: readonly string[]): Promise<number> {
     }
   }
 
-  const table = JSON.parse(readFileSync(join(DRAFT_DIR, 'art-ids.json'), 'utf8')) as { ids: Record<string, string> };
+  const table = JSON.parse(readFileSync(join(REPO_ROOT, 'apps', 'server', 'src', 'play', 'art-ids.json'), 'utf8')) as { ids: Record<string, string> };
   const idOf = new Map<string, string>();
   for (const name of Object.keys(LIBRARY_CARD_COSTS)) {
     const id = table.ids[name];

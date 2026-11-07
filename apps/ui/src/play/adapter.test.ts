@@ -33,18 +33,16 @@ import {
   abilityTextOf,
   boardPT,
   cardFaces,
-  CUBE_ART_IDS,
   drawsFaceUp,
   HIDDEN_CARD_NAME,
   keywordTags,
-  KNOWN_ART_IDS,
   POOL_PRINTED_PT,
   printedPTIndex,
-  scryfallIdFor,
   toBoardView,
   type BoardCard,
   type BoardView,
 } from './adapter.ts';
+import { serverArtId, withServerArt } from './art.testing.ts';
 import { loadPackets, PLAY_FIXTURES } from './fixtures.ts';
 import { foldPackets, type WireState } from './fold.ts';
 import { type Tagged, type WireObject } from './wire.ts';
@@ -98,7 +96,7 @@ function allCards(view: ReturnType<typeof toBoardView>): BoardCard[] {
 }
 
 function adapt(state: WireState) {
-  return toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId });
+  return toBoardView(withServerArt(state), 27, { viewerPlayerId: fixture.viewerPlayerId });
 }
 
 describe('§D #9 — a card the cube pool never held still has art', () => {
@@ -114,7 +112,6 @@ describe('§D #9 — a card the cube pool never held still has art', () => {
 
     for (const land of lands) {
       expect(land.card.setCode).toBe('MRD');
-      expect(scryfallIdFor(CUBE_ART_IDS, 'Mountain', 'MRD'), 'the bug: the pool has no basics').toBeUndefined();
       expect(land.card.scryfallId, 'Mountain|MRD').toMatch(/^[0-9a-f-]{36}$/);
 
       const url = artUrlOf(land);
@@ -134,7 +131,6 @@ describe('§D #9 — a card the cube pool never held still has art', () => {
     const card = allCards(adapt(state)).find((c) => c.card.name === 'Delver of Secrets');
     expect(card, 'the renamed card is on the board').toBeDefined();
 
-    expect(scryfallIdFor(CUBE_ART_IDS, 'Delver of Secrets', 'ISD')).toBeUndefined();
     const url = artUrlOf(card!);
     expect(url, 'Delver of Secrets has art').not.toBeNull();
     expect(ALLOWED_ART_HOSTS).toContain(new URL(url!).origin);
@@ -146,7 +142,7 @@ describe('§D #9 — a card the cube pool never held still has art', () => {
     // still that card's art — the one thing that must not happen is a blank.
     renameFace(state, 'Mountain', 'Vapor Snag', 'NO-SUCH-SET');
     const card = allCards(adapt(state)).find((c) => c.card.name === 'Vapor Snag')!;
-    expect(card.card.scryfallId).toBe(scryfallIdFor(KNOWN_ART_IDS, 'Vapor Snag', ''));
+    expect(card.card.scryfallId).toBe(serverArtId('Vapor Snag', ''));
     expect(artUrlOf(card)).not.toBeNull();
   });
 
@@ -167,7 +163,7 @@ describe('§D #9 — a card the cube pool never held still has art', () => {
     const byId = new Map(allCards(adapt(state)).map((c) => [c.id, c]));
     expect(byId.get(deathtouch)?.card.scryfallId, 'the deathtouch Wurm, t2xm 29').toBe('b68e816f-f9ac-435b-ad0b-ceedbe72447a');
     expect(byId.get(lifelink)?.card.scryfallId, 'the lifelink Wurm, t2xm 30').toBe('a6ee0db9-ac89-4ab6-ac2e-8a7527d9ecbd');
-    expect(scryfallIdFor(KNOWN_ART_IDS, 'Phyrexian Wurm Token', '2XM'), 'what the name alone gave: the toxic Wurm').toBe('594c55d3-d435-4dec-bc92-011442a43684');
+    expect(serverArtId('Phyrexian Wurm Token', '2XM'), 'what the name alone gave: the toxic Wurm').toBe('594c55d3-d435-4dec-bc92-011442a43684');
   });
 
   it('still leaves a card nothing knows without an id, and the tile stays text', () => {
@@ -183,7 +179,7 @@ describe('§D #9 — a card the cube pool never held still has art', () => {
     const state = baseState();
     renameCard(state, cardIdNamed(state, 'Mountain'), "Teferi, Hero of Dominaria's Effect", 'DOM', 'c:Teferi, Hero of Dominaria|DOM|1');
     const card = allCards(adapt(state)).find((c) => c.card.name === "Teferi, Hero of Dominaria's Effect")!;
-    expect(card.card.scryfallId).toBe(scryfallIdFor(KNOWN_ART_IDS, 'Teferi, Hero of Dominaria', 'DOM'));
+    expect(card.card.scryfallId).toBe(serverArtId('Teferi, Hero of Dominaria', 'DOM'));
     expect(card.card.scryfallId).toEqual(expect.any(String));
   });
 
@@ -228,7 +224,7 @@ describe('§D #10 — the stack carries its source card', () => {
 
     const renamed = adapt(state).stack[0]!;
     expect(renamed.sourceCard).not.toBeNull();
-    expect(renamed.sourceCard!.scryfallId).toBe(scryfallIdFor(KNOWN_ART_IDS, 'Delver of Secrets', 'ISD'));
+    expect(renamed.sourceCard!.scryfallId).toBe(serverArtId('Delver of Secrets', 'ISD'));
 
     const url = resolveArtUrl(renamed.sourceCard!.scryfallId, MANIFEST);
     expect(url, 'the stack item has art').not.toBeNull();
@@ -1756,7 +1752,7 @@ describe('a card’s other faces', () => {
     setCard(state, 21, 'AlternateState', { t: 'int', v: 3 });
     const card = cardsById(adapt(state)).get(21)!;
     expect(card.card.faces?.map((f) => f.name)).toEqual(['Reflection of Kiki-Jiki']);
-    expect(card.card.faces?.[0]?.scryfallId, 'the back face’s own art').toBe(scryfallIdFor(KNOWN_ART_IDS, 'Reflection of Kiki-Jiki', 'NEO'));
+    expect(card.card.faces?.[0]?.scryfallId, 'the back face’s own art').toBe(serverArtId('Reflection of Kiki-Jiki', 'NEO'));
     expect(card.card.faces?.[0]?.scryfallId).not.toBe(card.card.scryfallId);
     expect(cardFaces(state, 21).map((f) => f.name), 'the face on show first').toEqual(['Fable of the Mirror-Breaker', 'Reflection of Kiki-Jiki']);
   });
@@ -1810,7 +1806,7 @@ describe('a card’s other faces', () => {
       [['1', 'U'], 'Tap target permanent.\nDraw a card.'],
     ]);
     expect(faces.every((f) => f.scryfallId === whole.card.scryfallId), 'the card’s own image').toBe(true);
-    expect(cardFaces(state, 21).map((f) => [f.name, f.faceCrop]), 'the whole card first, uncropped — a fuse spell’s face').toEqual([
+    expect(cardFaces(withServerArt(state), 21).map((f) => [f.name, f.faceCrop]), 'the whole card first, uncropped — a fuse spell’s face').toEqual([
       ['Fire // Ice', undefined],
       ['Fire', 'split-left'],
       ['Ice', 'split-right'],
@@ -1841,8 +1837,8 @@ describe('a card’s other faces', () => {
     renameCard(other, 21, 'Bonecrusher Giant', 'ELD');
     addFace(other, 7, 'Stomp', ['Instant'], 'CLB');
     setCard(other, 21, 'AlternateState', { t: 'int', v: 7 });
-    expect(scryfallIdFor(KNOWN_ART_IDS, 'Stomp', 'CLB')).not.toBe(scryfallIdFor(KNOWN_ART_IDS, 'Bonecrusher Giant', 'ELD'));
-    expect(cardsById(adapt(other)).get(21)!.card.faces![0]!.scryfallId).toBe(scryfallIdFor(KNOWN_ART_IDS, 'Bonecrusher Giant', 'ELD'));
+    expect(serverArtId('Stomp', 'CLB')).not.toBe(serverArtId('Bonecrusher Giant', 'ELD'));
+    expect(cardsById(adapt(other)).get(21)!.card.faces![0]!.scryfallId).toBe(serverArtId('Bonecrusher Giant', 'ELD'));
 
     const dfc = baseState();
     renameCard(dfc, 21, 'Fable of the Mirror-Breaker', 'NEO');
@@ -1911,7 +1907,7 @@ describe('a Room’s doors', () => {
     const card = cardsById(adapt(state)).get(21)!;
     expect(card.hidden).toBe(false);
     expect(card.card.name).toBe(ROOM);
-    expect(card.card.scryfallId, 'the whole Room’s art').toBe(scryfallIdFor(KNOWN_ART_IDS, ROOM, 'DSK'));
+    expect(card.card.scryfallId, 'the whole Room’s art').toBe(serverArtId(ROOM, 'DSK'));
     expect(card.card.oracleText, 'its left door’s face stands in for the whole one').toBe('Walk-In Closet text');
   });
 

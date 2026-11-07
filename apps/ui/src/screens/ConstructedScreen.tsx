@@ -228,7 +228,7 @@ import {
 } from './tables.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import { DeckPeek, usePeekHover, useTouchPeek, type PeekLine, type PeekList } from './DeckPeek.tsx';
-import { libraryPeekList, namedPeekLine } from './libraryPeek.ts';
+import { libraryPeekList, namedPeekLine, useNamedArt } from './libraryPeek.ts';
 import { DeckTile } from './DeckTile.tsx';
 import { DeckFilterBar } from './DeckFilterBar.tsx';
 import { NO_DECK_FILTER, deckPasses, type DeckFilter } from './deckFilter.ts';
@@ -1677,6 +1677,8 @@ function RoomTableScreen({
       live = false;
     };
   }, [picking, freePick, myDecksStore]);
+  // A card known by its name draws its art once the server has said what it is: the options again then.
+  const namedArt = useNamedArt();
   const myDeckOptions = useMemo(
     () =>
       myDecks?.flatMap((d) => {
@@ -1684,14 +1686,14 @@ function RoomTableScreen({
         const deck = openDraftedDeck(d.deck, d.id, d.pool);
         return mainDeckSize(deck) < LIMITED_MIN_MAIN_DECK_SIZE ? [] : [{ option: draftedDeckOption(`${MY_DECK}${d.id}`, d.name, deck, d.pool), dck: dckTextOf(deck) }];
       }) ?? null,
-    [myDecks],
+    [myDecks, namedArt],
   );
 
   const deckOptions = useMemo<DeckOption[] | null>(() => {
     if (offered === null) return null;
     const mine = freePick ? (myDeckOptions ?? []).map((m) => m.option) : [];
     return [...libraryOptions(offered, deckRecords), ...mine];
-  }, [offered, deckRecords, freePick, myDeckOptions]);
+  }, [offered, deckRecords, freePick, myDeckOptions, namedArt]);
 
   /**
    * On Free pick the whole library is on offer, and each player browses it by

@@ -42,14 +42,12 @@ export function expectWireReply(method: PromptMethod, result: unknown): void {
 }
 
 /**
- * Three real pool cards — the art-id table knows every one of them — and a
- * lookup that names them at `POOL_ID_BASE + i`.
+ * Three real pool cards and a lookup that names them at `POOL_ID_BASE + i`,
+ * each with its art id, as the server stamps it on the face.
  *
- * The committed match fixtures' cards have no rows in the art-id table, so a
- * test that wants to assert a tile resolved ART has to mount the prompt over
- * cards that do. Shared by `choices.test.ts` and `order.test.ts`, which both
- * need it for wave 25 §F: an ask whose labels are Forge's
- * `CardView.toString()` must still resolve the same art the board resolves.
+ * Shared by `choices.test.ts` and `order.test.ts`, which both need it for wave
+ * 25 §F: an ask whose labels are Forge's `CardView.toString()` must still draw
+ * the art the board draws.
  */
 export const POOL_ID_BASE = 901;
 
@@ -57,8 +55,7 @@ export const POOL: readonly { name: string; setCode: string; scryfallId: string 
   const seen = new Set<string>();
   const unique: { name: string; setCode: string; scryfallId: string }[] = [];
   for (const c of (poolData as { cards: { name: string; setCode: string; scryfallId?: string }[] }).cards) {
-    // First occurrence per name: that is the row the art-id index keeps, so
-    // the tile's art is this printing's art, not a duplicate's.
+    // First occurrence per name: one tile per card.
     if (c.scryfallId === undefined || c.scryfallId === '' || seen.has(c.name)) continue;
     seen.add(c.name);
     unique.push({ name: c.name, setCode: c.setCode, scryfallId: c.scryfallId });
@@ -67,14 +64,14 @@ export const POOL: readonly { name: string; setCode: string; scryfallId: string 
   return unique;
 })();
 
-/** A lookup that knows the three pool cards, so their tiles resolve real art. */
+/** A lookup that knows the three pool cards and their art ids. */
 export const poolLookup: PromptLookup = {
   ...EMPTY_LOOKUP,
   card: (id) => {
     const hit = POOL[id - POOL_ID_BASE];
     return hit === undefined
       ? undefined
-      : { name: hit.name, setCode: hit.setCode };
+      : { name: hit.name, setCode: hit.setCode, scryfallId: hit.scryfallId };
   },
 };
 

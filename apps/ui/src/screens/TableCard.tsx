@@ -26,7 +26,7 @@ import { Avatar, type Face } from '../components/Avatar.tsx';
 import { PlayerName } from '../room/look.tsx';
 import { DeckColors } from '../components/DeckView.tsx';
 import { DeckArt } from './ConstructedScreen.tsx';
-import { deckCardArtId } from './libraryPeek.ts';
+import { deckCardArtId, useNamedArt } from './libraryPeek.ts';
 import { useTableResolve, type TableResolveHandlers } from './tableResolve.tsx';
 import './TableCard.css';
 
@@ -158,6 +158,7 @@ export function TableCard({ players, nameOf, avatarOf, myMemberId, series, match
 
 /** A seat's deck art: a card of the deck by name, looked up; a plain band when there is none. */
 function SeatArt({ deck }: { deck: TableSeatDeck | null }) {
+  useNamedArt();
   return (
     <span className="table-card__art">
       <DeckArt artId={deck?.art == null ? undefined : deckCardArtId(deck.art)} />

@@ -1,6 +1,8 @@
 /*
- * Build `apps/ui/src/draft/art-ids.json` — the committed `Name|SET → Scryfall id`
- * table the play board looks a card's art up in.
+ * Build `apps/server/src/play/art-ids.json` — the committed `Name|SET → Scryfall id`
+ * table the server's art resolver (`apps/server/src/play/art-ids.ts`) reads beside the card
+ * catalog: the token rows, the basics under every Forge set code, and the rows a test scenario or
+ * a committed deck needs on a host with no full catalog (a CI runner has the e2e fixture's).
  *
  * ## Regenerate with
  *
@@ -29,12 +31,10 @@
  *
  * Forge's wire carries no Scryfall id. A card crosses as `Name` + `SetCode`
  * (Forge's own set vocabulary — `ImageKey` spells it `c:Mountain|MRD|1`), and
- * `apps/ui/src/play/adapter.ts` has to turn that into an id before
- * `@hadoku/carddata/art` can resolve a URL. Until now the only name → id table
- * in the browser was the cube's own `pool.json`, so **every card a match can
- * contain that is not in the drafted cube had no id and therefore no art** —
- * basic lands above all, which is exactly the blank set the operator hit
- * (wave 19 §D, #9).
+ * the server turns that into an id before it sends the face. The card catalog
+ * answers most cards by name and set; this table answers what the catalog
+ * cannot — a token by its tokenscript, a basic under a Forge set code — and
+ * stands in for it where a host has none.
  *
  * ## Why committed data rather than a lookup
  *
@@ -45,7 +45,7 @@
  *
  * ## What is in the table, and what is deliberately not
  *
- * The output goes into the browser bundle, so scope is a size decision:
+ * The server loads the whole output at boot, so scope is a size decision:
  *
  *   - **every basic land, under every Forge set code that names it.** A basic
  *     is the one card where the printing really matters — a match is half
@@ -98,7 +98,7 @@ import { scenarioCardNames } from '../../apps/server/src/play/art.ts';
 
 const REPO_ROOT = resolvePath(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 const DEFAULT_CACHE = join(REPO_ROOT, 'packages', 'carddata', 'data');
-const DEFAULT_OUT = join(REPO_ROOT, 'apps', 'ui', 'src', 'draft', 'art-ids.json');
+const DEFAULT_OUT = join(REPO_ROOT, 'apps', 'server', 'src', 'play', 'art-ids.json');
 const DECKS_DIR = join(REPO_ROOT, 'decks');
 const POOL_FILE = join(REPO_ROOT, 'apps', 'ui', 'src', 'draft', 'pool.json');
 const SCENARIOS_DIR = join(REPO_ROOT, 'apps', 'server', 'src', 'play', 'scenarios');

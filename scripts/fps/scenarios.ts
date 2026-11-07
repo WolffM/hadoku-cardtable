@@ -72,7 +72,7 @@ export interface BoardOptions {
   art: boolean;
 }
 
-/** A card in `apps/ui/src/draft/art-ids.json` (bare-name row) for each creature template. */
+/** A card in `apps/server/src/play/art-ids.json` (bare-name row) for each creature template. */
 const ART_NAME: Partial<Record<number, string>> = {
   21: 'Grizzly Bears',
   99: 'Hill Giant',

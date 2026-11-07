@@ -6,28 +6,26 @@
  * 3/3 colourless Phyrexian Wurm tokens, one with deathtouch and one with lifelink. Forge names both
  * "Phyrexian Wurm Token" — the same name as the green toxic/trample Wurm of Phyrexia: All Will Be
  * One Commander — so the name alone cannot pick the art. Each must arrive with its own tokenscript
- * in its `ImageKey` (`t:c_3_3_a_phyrexian_wurm_deathtouch…`), which is what `@hadoku/carddata/art`'s
- * token rows are keyed by.
+ * in its `ImageKey` (`t:c_3_3_a_phyrexian_wurm_deathtouch…`), which is what the server's art
+ * resolver (`art-ids.ts`) finds a token's row by.
  *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=$HOME/.cache/cardtable-play-work/token-art \
  *   pnpm exec vitest run apps/server/src/play/token-art.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
  */
 
-import { readFileSync } from 'node:fs';
-
-import { artIdIndexFromTable, tokenArtId, type ArtIdTableFile } from '@hadoku/carddata/art';
 import { describe, expect, it } from 'vitest';
 
 import { deltaKey, DELTA_TYPE } from '@hadoku/forge-wire';
 
+import { createArtIds } from './art-ids.js';
 import { available, castNamed, deck, finishMulligan, inOwnMain, startScenario, waitUntil } from './scenario.js';
 
 const title = available.ok
 	? 'token-art: a token arrives with its own tokenscript in its image key, against real Forge'
 	: `token-art: a token arrives with its own tokenscript in its image key, against real Forge — SKIPPED: ${available.reason}`;
 
-/** The board's own table (`apps/ui/src/draft/art-ids.json`), read the way the adapter reads it. */
-const ART_IDS = artIdIndexFromTable(JSON.parse(readFileSync(new URL('../../../ui/src/draft/art-ids.json', import.meta.url), 'utf8')) as ArtIdTableFile);
+/** The server's own resolver, as a match stamps a face with it. */
+const ART_IDS = createArtIds(null);
 /** Scryfall's Wurmcoil Wurms — named plain "Wurm" there — by edition and keyword, and Phyrexia: All Will Be One Commander's toxic one. */
 const WURMCOIL = {
 	'2XM': { deathtouch: 'b68e816f-f9ac-435b-ad0b-ceedbe72447a', lifelink: 'a6ee0db9-ac89-4ab6-ac2e-8a7527d9ecbd' },
@@ -80,7 +78,8 @@ describe.skipIf(!available.ok)(title, () => {
 						const current = view?.CurrentState as { v?: number } | undefined;
 						const face = state.get(deltaKey(DELTA_TYPE.cardState, id * 16 + (current?.v ?? 0)));
 						const imageKey = str(face?.ImageKey) ?? '';
-						return { imageKey, setCode: str(face?.SetCode) ?? '', art: tokenArtId(ART_IDS, imageKey) };
+						const setCode = str(face?.SetCode) ?? '';
+						return { imageKey, setCode, art: ART_IDS.face({ name: str(face?.Name) ?? '', set: setCode, imageKey })?.scryfallId };
 					});
 					console.log(`[token-art.jvm] seat ${seat}: ${JSON.stringify(faces)}`);
 					const [deathtouch, lifelink] = [...faces].sort((x, y) => x.imageKey.localeCompare(y.imageKey));

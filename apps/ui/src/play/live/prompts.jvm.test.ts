@@ -111,7 +111,6 @@ import type { ChoiceOption } from '@hadoku/forge-wire';
 import { EVERY_PRIORITY_POLICY } from '../../../../server/src/play/auto.ts';
 import { leaked, rawStatesOf, secretsFor, shownByAsks } from '../../../../server/src/play/fixtures/transcript.ts';
 import { cardImageUrl } from '../../draft/cardImage.ts';
-import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
 import { lookupFromState, type PromptCardFacts } from '../prompts/lookup.ts';
 import { nameFromForgeLabel } from '../prompts/PromptShell.tsx';
 import { createDriver, drive, type Plan } from './game-driver.ts';
@@ -210,9 +209,9 @@ function preRenderedOptions(ask: LiveAsk): readonly ChoiceOption[] | null {
 /** Forge's own `(id)` suffix, the shape `CardView.toString()` ends in. */
 const FORGE_ID_SUFFIX = /\(\d+\)$/;
 
-/** The art id a revealed card's facts name — the name inside its label when the lookup had none. */
+/** The art id a revealed card's facts carry: the one the server stamped on its face. */
 function revealArtId(r: LabelProbe): string | undefined {
-  return scryfallIdFor(KNOWN_ART_IDS, r.facts?.name ?? nameFromForgeLabel(r.label, r.id), r.facts?.setCode ?? '');
+  return r.facts?.scryfallId;
 }
 
 interface LabelProbeRun {
@@ -540,9 +539,6 @@ describe.skipIf(!available.ok)(title, () => {
         'a reveal label carried the forge id',
       ).toBeGreaterThan(0);
       for (const r of reveals) {
-        // The label is not a usable art key — that is the whole bug — and the
-        // name the lookup holds is the one the board would key on.
-        expect(scryfallIdFor(KNOWN_ART_IDS, r.label, r.facts?.setCode ?? ''), r.label).toBeUndefined();
         // The screen draws the card by its name, never Forge's label.
         const shown = nameFromForgeLabel(r.label, r.id);
         expect(shown, r.label).not.toMatch(FORGE_ID_SUFFIX);
@@ -550,7 +546,7 @@ describe.skipIf(!available.ok)(title, () => {
         expect([...probe.tileNames], `the tile said ${shown}`).toContain(shown);
         // And the screen draws the revealed card's art — from the card's facts,
         // never the label. The scenario puts Genju of the Spires on top, which
-        // the art table knows.
+        // the server's art table knows.
         const byFacts = revealArtId(r);
         expect(byFacts, `${r.label} has an art id`).toBeDefined();
         const drawn = [...(probe.revealArt.get(`${r.seat}:${r.id}`) ?? [])];

@@ -39,6 +39,7 @@ import type { PresenceMessage, RelayedEvent, SeatIdentity, ServerEnvelope } from
 
 import type { JsonLog } from '../../log.js';
 import { artOf } from '../art.js';
+import { createArtIds, type ArtCatalog } from '../art-ids.js';
 import type { DeckCosts } from '../deck-colors.js';
 import { seatDeckColors } from '../deck-colors.js';
 import type { BridgeCommand, MatchHost, MatchHostFactory, MatchSpec } from '../host.js';
@@ -103,6 +104,8 @@ export interface RecorderDeps {
 	roomOf(matchId: string): string | null;
 	/** Folds a seat's deck into its colours for the public header's `decks` (`deck-colors.ts`). */
 	deckCosts: DeckCosts;
+	/** What the public header's art ids are decided from (`../art-ids.ts`). */
+	catalog?: ArtCatalog | null;
 	/** The match's roster, as `forge:seats` sends it (`Match.seatIdentities`); undefined once the match is gone. */
 	seatsOf?(matchId: string): readonly SeatIdentity[] | undefined;
 	/** Each seat holder's registry userId, by seat (null for the AI and the unheld); undefined once the match is gone. */
@@ -259,7 +262,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 						players: [seeded.seats[0].name, seeded.seats[1].name],
 						ai: [seeded.seats[0].ai, seeded.seats[1].ai],
 						decks: [0, 1].map((seat) => seatDeckColors(seeded, seat, deps.deckCosts)),
-						art: artOf(seeded),
+						art: artOf(seeded, createArtIds(deps.catalog ?? null, seeded.seats.map((seat) => seat.deck))),
 						startedAt,
 					},
 					log,

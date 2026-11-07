@@ -5,7 +5,8 @@
  * lobby's button beside the trophy that leads there.
  */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { serveNamedArt } from '../play/art.testing.ts';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { DraftCard } from '@hadoku/shared';
@@ -19,6 +20,9 @@ import { draftedDeckOf } from './ConstructedScreen.tsx';
 import { dckTextOf } from '../draft/deckFromPool.ts';
 import type { DeckRecords } from '../stats/deckOrder.ts';
 import poolJson from '../draft/pool.json';
+
+// A card known by its name is answered as the server answers it (`GET /api/cards/art`).
+beforeEach(serveNamedArt);
 
 afterEach(cleanup);
 

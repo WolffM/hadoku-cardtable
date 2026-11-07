@@ -22,14 +22,10 @@ import { EXIT_MOTIONS, LEAVING_GAP_ATTR } from './live/departures.ts';
 import { HIT_MS, UNLOCK_BEAT_MS } from './motion.ts';
 import { forgetCardWidths } from './card-size.ts';
 import { cardImageUrl } from '../draft/cardImage.ts';
-import poolData from '../draft/pool.json';
+import { artFrom, withServerArt } from './art.testing.ts';
 import {
-  artIdIndex,
-  CUBE_ART_IDS,
   keywordGlyph,
-  scryfallIdFor,
   toBoardView,
-  type ArtIdIndex,
   type BoardCard,
   type BoardCardChoice,
   type BoardCardState,
@@ -753,10 +749,10 @@ function namesOnTheWire(): string[] {
 const TEST_IDS: ReadonlyMap<string, string> = new Map(
   namesOnTheWire().map((name, i) => [name, `00000000-0000-4000-8000-${(i + 1).toString(16).padStart(12, '0')}`]),
 );
-const TEST_ART_IDS: ArtIdIndex = artIdIndex([...TEST_IDS].map(([name, scryfallId]) => ({ name, setCode: '', scryfallId })));
+const TEST_ART = artFrom(TEST_IDS);
 
 function viewWithArt(state: WireState = foldPackets(loadPackets(fixture)).state): BoardView {
-  return toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, artIds: TEST_ART_IDS });
+  return toBoardView(withServerArt(state, TEST_ART), 27, { viewerPlayerId: fixture.viewerPlayerId });
 }
 
 describe('art (D15: a lookup, not a URL)', () => {
@@ -780,54 +776,12 @@ describe('art (D15: a lookup, not a URL)', () => {
     }
   });
 
-  it('builds no image when the index knows none of the cards', () => {
-    const view = toBoardView(foldPackets(loadPackets(fixture)).state, 27, {
-      viewerPlayerId: 0,
-      artIds: artIdIndex([]),
-    });
+  it('builds no image for a face the server sent no art id', () => {
+    const view = toBoardView(foldPackets(loadPackets(fixture)).state, 27, { viewerPlayerId: 0 });
     const { container } = renderBoard(view);
     expect(container.querySelectorAll('[data-testid="card"]').length).toBeGreaterThan(0);
     expect(container.querySelectorAll('img')).toHaveLength(0);
     expect(container.innerHTML).not.toMatch(/url\(/);
-  });
-
-  it('looks ids up in the cube pool by default, exact printing first', () => {
-    const pool = (poolData as { cards: { name: string; setCode: string; scryfallId?: string }[] }).cards;
-    const giver = pool.find((c) => c.name === 'Giver of Runes')!;
-    expect(scryfallIdFor(CUBE_ART_IDS, 'Giver of Runes', giver.setCode)).toBe(giver.scryfallId);
-    expect(scryfallIdFor(CUBE_ART_IDS, 'Giver of Runes', 'NOPE')).toBe(giver.scryfallId);
-    expect(scryfallIdFor(CUBE_ART_IDS, 'Not A Card In The Cube', '')).toBeUndefined();
-
-    // Rename the viewer's first Island to a cube card and adapt with NO index:
-    // the default must find it.
-    const state = new Map(foldPackets(loadPackets(fixture)).state);
-    const islandFace = [...state.entries()].find(
-      ([k, o]) => o._type === DELTA_TYPE.cardState && k === cardStateKey(o._id >> 4, 0) && (o.Name as { v?: unknown } | undefined)?.v === 'Island',
-    )!;
-    state.set(islandFace[0], { ...islandFace[1], Name: { t: 'str', v: 'Giver of Runes' } } as WireObject);
-    const view = toBoardView(state, 27, { viewerPlayerId: 0 });
-    const { container } = renderBoard(view);
-    // By name, not "the only image on the board": the default index also
-    // knows the basic lands now, which is the art lane's whole point, so a
-    // census of every `<img>` would be an assertion about that lane's data.
-    const artOf = (name: string): string | null | undefined =>
-      [...container.querySelectorAll<HTMLElement>('[data-testid="card"]')]
-        .find((c) => c.querySelector('.card__name')?.textContent === name)
-        ?.querySelector('img')
-        ?.getAttribute('src');
-    expect(artOf('Giver of Runes'), 'the renamed cube card resolves through the default index').toBe(
-      cardImageUrl(giver.scryfallId),
-    );
-    // And a card the cube pool never held: `Mountain|MRD`, which is exactly
-    // the set of cards the operator saw blank.
-    expect(scryfallIdFor(CUBE_ART_IDS, 'Mountain', 'MRD'), 'the cube pool alone does not know a basic').toBeUndefined();
-    expect(artOf('Mountain'), 'a basic land still gets art from the default index').toBe(
-      cardImageUrl('b082f22f-6c01-4e8c-80ad-6fdae5c3f22f'),
-    );
-    // Whatever the id, the host is the resolver's: nothing here builds a URL.
-    for (const name of ['Giver of Runes', 'Mountain']) {
-      expect(ALLOWED_ART_HOSTS).toContain(new URL(artOf(name)!).origin);
-    }
   });
 });
 
@@ -845,7 +799,7 @@ function opponentHandNames(): string[] {
 
 /** The fixture as the SERVER sends it to seat 0: every packet through the seat projector. */
 function projectedForViewer(): BoardView {
-  const projector = createProjector(fixture.viewerPlayerId);
+  const projector = createProjector(fixture.viewerPlayerId, TEST_ART);
   const projected = loadPackets(fixture).map((p) => {
     const strip = (m: Record<string, WireObject>) =>
       Object.fromEntries(Object.entries(m).filter(([k]) => !isAnnotationKey(k)));
@@ -859,7 +813,7 @@ function projectedForViewer(): BoardView {
     return out.payload.packet;
   });
   const { state, seq } = foldPackets(expectWirePackets(projected, 'projected fixture'));
-  return toBoardView(state, seq, { viewerPlayerId: fixture.viewerPlayerId, artIds: TEST_ART_IDS });
+  return toBoardView(state, seq, { viewerPlayerId: fixture.viewerPlayerId });
 }
 
 describe('hidden information', () => {
@@ -4498,11 +4452,10 @@ describe('wave 31 §A: the seat, the left column and the stack', () => {
 
   it('P3: the adapter takes the seat’s name from identity.name, and falls back to Forge’s when it is blank or absent', () => {
     const state = foldPackets(loadPackets(fixture)).state;
-    const base = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, artIds: TEST_ART_IDS });
+    const base = toBoardView(withServerArt(state, TEST_ART), 27, { viewerPlayerId: fixture.viewerPlayerId });
     const ids = base.players.map((p) => p.id);
-    const named = toBoardView(state, 27, {
+    const named = toBoardView(withServerArt(state, TEST_ART), 27, {
       viewerPlayerId: fixture.viewerPlayerId,
-      artIds: TEST_ART_IDS,
       nameByPlayerId: new Map([
         [ids[0]!, 'Hadoku'],
         [ids[1]!, '   '],
@@ -5591,7 +5544,7 @@ describe('wave 33 §B', () => {
       TargetCards: { t: 'list', v: [{ t: 'int', v: 67 }] },
       TargetPlayers: { t: 'list', v: [{ t: 'int', v: 1 }] },
     } as WireObject);
-    const adapted = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, artIds: TEST_ART_IDS });
+    const adapted = toBoardView(withServerArt(state, TEST_ART), 27, { viewerPlayerId: fixture.viewerPlayerId });
     const targeted = adapted.stack.find((s) => s.id === 48)!;
     expect(targeted.targetCardIds).toEqual([67]);
     expect(targeted.targetPlayerIds).toEqual([1]);
@@ -5616,7 +5569,7 @@ describe('wave 33 §B', () => {
         ],
       },
     } as WireObject);
-    const adapted = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, artIds: TEST_ART_IDS });
+    const adapted = toBoardView(withServerArt(state, TEST_ART), 27, { viewerPlayerId: fixture.viewerPlayerId });
     const { seat } = renderBoard(adapted);
     const theirBar = seat(1).querySelector<HTMLElement>('[data-player-bar]')!;
     const counters = [...theirBar.querySelectorAll('.seat__counter')].map((c) => c.textContent).sort();
@@ -5690,7 +5643,7 @@ describe('wave 34 §B', () => {
       const key = deltaKey(DELTA_TYPE.player, 1);
       const them = state.get(key)!;
       state.set(key, { ...them, Counters: { t: 'multiset', v: [[name, 9]] } } as WireObject);
-      const adapted = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, artIds: TEST_ART_IDS });
+      const adapted = toBoardView(withServerArt(state, TEST_ART), 27, { viewerPlayerId: fixture.viewerPlayerId });
       const { seat } = renderBoard(adapted);
       const el = seat(1).querySelector<HTMLElement>('.seat__counter')!;
       expect(el.textContent!.length, `${name}'s glyph "${el.textContent}" is shorter than the word itself`).toBeLessThan(`9 ${name.toLowerCase()}`.length);
@@ -5703,7 +5656,7 @@ describe('wave 34 §B', () => {
       const key = deltaKey(DELTA_TYPE.player, 1);
       const them = state.get(key)!;
       state.set(key, { ...them, Counters: { t: 'multiset', v: [[name, 9]] } } as WireObject);
-      const adapted = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, artIds: TEST_ART_IDS });
+      const adapted = toBoardView(withServerArt(state, TEST_ART), 27, { viewerPlayerId: fixture.viewerPlayerId });
       const { seat } = renderBoard(adapted);
       return seat(1).querySelector<HTMLElement>('.seat__counter')!.textContent!.replace(/9/g, '');
     };
@@ -5726,7 +5679,7 @@ describe('wave 34 §B', () => {
         ],
       },
     } as WireObject);
-    const adapted = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, artIds: TEST_ART_IDS });
+    const adapted = toBoardView(withServerArt(state, TEST_ART), 27, { viewerPlayerId: fixture.viewerPlayerId });
     const { seat } = renderBoard(adapted);
     const theirBar = seat(1).querySelector<HTMLElement>('[data-player-bar]')!;
     expect(theirBar.querySelector('[data-testid="library-count"]')).not.toBeNull();

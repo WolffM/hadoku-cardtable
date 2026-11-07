@@ -225,7 +225,7 @@ export { CLIENT_EVENT, CLIENT_EVENT_MAX_PER_SECOND, ClientEventSchema, PAGE_EVEN
 export { PLACEMENT_EVENT, PlacementEchoSchema, PlacementSchema, PlacementTargetSchema, type Placement, type PlacementEcho } from './placement.ts';
 export { PLACED_EVENT, PlacedEchoSchema, PlacedSchema, type PlacedEcho, type PlacedMessage } from './placed.ts';
 export { OFFERED_EVENT, OFFERED_MAX_PER_SECOND, OfferedEchoSchema, OfferedSchema, type OfferedEcho, type OfferedMessage } from './offered.ts';
-export { ART_EVENT, ArtCardSchema, ArtPreloadSchema, type ArtCard, type ArtPreload } from './art.ts';
+export { ART_EVENT, ArtIdSchema, ArtPreloadSchema, type ArtPreload } from './art.ts';
 export { DECK_COLORS_EVENT, DeckColorsSchema, type DeckColors } from './deck-colors.ts';
 export { pickRandom, secureRandom } from './random.ts';
 export {

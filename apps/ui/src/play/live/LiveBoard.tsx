@@ -272,6 +272,7 @@ import { DeckEditor, type ReadyState } from '../../deck/DeckEditor.tsx';
 import { deckStoreClient } from '../../deck/deckStore.ts';
 import { dckTextOf } from '../../draft/deckFromPool.ts';
 import { libraryDeckText, namedCardPool } from '../../deck/build.ts';
+import { useNamedArt } from '../../screens/libraryPeek.ts';
 import { ActionButton } from '../../components/ActionButton.tsx';
 import { Avatar, NO_FACE, type Face } from '../../components/Avatar.tsx';
 import { PlayerName } from '../../room/look.tsx';
@@ -2350,7 +2351,7 @@ async function my75Text(choice: SeatChoice, tables: TablesClient): Promise<strin
  * **Faces:** a drafted 75 draws from the drafter's own pool
  * (`GET /api/drafts/:podId/mine`, the cards with their type lines and costs);
  * a library 75, or a pool that read fails, degrades to `namedCardPool` — a
- * cost and art per name from the browser's own tables, the same path
+ * cost per name from the browser's own table and art as the server names it, the same path
  * `ConstructedScreen.tsx`'s deck peek draws a library card through.
  *
  * **The floor:** a drafted deck's is 40, and basics are free (the server's
@@ -2428,9 +2429,10 @@ export function SideboardStep({
   const draftId = choice.rules.kind === 'draft' ? choice.rules.draftId : null;
 
   const parsed = useMemo(() => (typeof text === 'string' ? deckFromDeckFile(parseDck(text)) : null), [text]);
+  const namedArt = useNamedArt();
   const pool = useMemo(
     () => draftPool ?? (parsed === null ? [] : namedCardPool([...parsed.main, ...parsed.sideboard].map((e) => e.card.name))),
-    [draftPool, parsed],
+    [draftPool, parsed, namedArt],
   );
   const [readyState, setReadyState] = useState<ReadyState>('idle');
   const [refusal, setRefusal] = useState<string | null>(null);

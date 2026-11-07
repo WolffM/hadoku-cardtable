@@ -12,7 +12,7 @@ import { useDismiss } from '../../popover.ts';
 import { deckColorsByName } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 
-import { libraryPeekList } from '../../screens/libraryPeek.ts';
+import { libraryPeekList, useNamedArt } from '../../screens/libraryPeek.ts';
 import { DeckPeek } from '../../screens/DeckPeek.tsx';
 import { apiBase, getJson, type Fetch } from '../../http.ts';
 import type { DeckLine } from '../../screens/tables.ts';
@@ -37,7 +37,8 @@ export async function fetchOwnDeck(matchId: string, fetchImpl: Fetch = (i, init)
 }
 
 export function OwnDeckPeek({ deck, from, onClose }: { deck: OwnDeck; from: Element; onClose: () => void }) {
-  const list = useMemo(() => libraryPeekList(deck.main, deck.sideboard), [deck]);
+  const namedArt = useNamedArt();
+  const list = useMemo(() => libraryPeekList(deck.main, deck.sideboard), [deck, namedArt]);
   const colors = useMemo(() => deckColorsByName(deck.main.map((l) => l.name), LIBRARY_CARD_COSTS), [deck]);
   const anchor = useMemo(() => from.getBoundingClientRect(), [from]);
   const bounds = useMemo(() => document.documentElement.getBoundingClientRect(), []);

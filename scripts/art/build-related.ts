@@ -47,7 +47,7 @@ const ROOT = resolve(import.meta.dirname, '../..');
 const arg = (name: string): string | undefined => process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
 const CACHE = resolve(arg('cache') ?? resolve(ROOT, 'packages/carddata/data'), 'cards.jsonl');
 const FORGE_RES = resolve(arg('forge-res') ?? resolve(ROOT, 'forge/forge-gui/res'));
-const ART_IDS = resolve(ROOT, 'apps/ui/src/draft/art-ids.json');
+const ART_IDS = resolve(ROOT, 'apps/server/src/play/art-ids.json');
 const OUT = resolve(arg('out') ?? resolve(ROOT, 'apps/ui/src/draft/related.json'));
 
 /** Scryfall rows that are not a card anyone plays: a token's own row, an emblem's, an art card's. */

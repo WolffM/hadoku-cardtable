@@ -47,23 +47,13 @@
  *
  * ## What the wire does not carry
  *
- * - **No Scryfall id.** A card's print is Forge's `ImageKey`
- *   (`c:Mountain|MRD|1` — name, set, art index), not a Scryfall id. The
- *   adapter looks the id up by `Name` + `SetCode` in an `ArtIdIndex`
- *   (`@hadoku/carddata/art`) and puts it on the `DraftCard`; `CardTile` then
- *   resolves the art through the same module exactly as the draft screen does.
- *   Nothing here builds an image URL: the adapter moves an id, the resolver
- *   owns the host.
- *
- *   The default index used to be the cube's `pool.json` alone, which is why
- *   every card a match can contain that was NOT in the drafted cube — a basic
- *   land above all, and every card of a constructed list — had no id and drew
- *   the text tile. That is wave 19 §D #9, *"some art missing"*. The default
- *   is now `KNOWN_ART_IDS`: the pool first (so a cube card still resolves to
- *   the printing its cube was built from), then the committed
- *   `../draft/art-ids.json`, which carries every basic land under every Forge
- *   set code, every card of the committed `decks/` lists, and a bare-name
- *   fallback row per name. `scripts/art/build-art-ids.ts` generates it.
+ * - **No Scryfall id from Forge.** A card's print is Forge's `ImageKey`
+ *   (`c:Mountain|MRD|1` — name, set, art index), not a Scryfall id. The server
+ *   decides which id each face is (`apps/server/src/play/art-ids.ts`) and lays
+ *   it on every face this seat may see whole as `ScryfallId`; the adapter puts
+ *   it on the `DraftCard`, and `CardTile` resolves the art exactly as the draft
+ *   screen does. The browser looks nothing up by name: a face the server sent
+ *   no id draws the text tile.
  * - **No collector number.** Left empty.
  * - **Which player is "me".** That is `openView(myPlayers)`, not a delta, so
  *   the caller passes `viewerPlayerId`. The fixture records it beside the
@@ -157,22 +147,10 @@
  * zeroes are not a pool. A player with nothing floating has an empty list.
  */
 
-import {
-  artIdIndex,
-  artIdIndexFromTable,
-  mergeArtIdIndexes,
-  scryfallIdFor,
-  tokenArtId,
-  cardKeyArtId,
-  type ArtIdIndex,
-  type ArtIdSource,
-  type ArtIdTableFile,
-} from '@hadoku/carddata/art';
 import { DECK_COLORS, POOL_COLORS } from '@hadoku/deck';
 import type { DraftCard, Look, ManaColor, Rarity } from '@hadoku/shared';
 import type { FacePart, TileCard } from '../components/faceCrop.ts';
 
-import artIdsData from '../draft/art-ids.json' with { type: 'json' };
 import poolData from '../draft/pool.json' with { type: 'json' };
 import {
   boolOf,
@@ -658,15 +636,16 @@ function drawnInCommand(state: WireState, id: number): boolean {
 const EMBLEM_NAME = /^Emblem\s*[—–-]\s*/;
 
 /** The emblems in a player's `Command` zone — a commander or a non-emblem effect card there is not one. */
-function readEmblems(state: WireState, player: WireObject | undefined, artIds: ArtIdIndex, printedPT: PrintedPTIndex): BoardEmblem[] {
+function readEmblems(state: WireState, player: WireObject | undefined, printedPT: PrintedPTIndex): BoardEmblem[] {
   const out: BoardEmblem[] = [];
   for (const id of idsOf(player, 'Command')) {
     if (!boolOf(state.get(deltaKey(DELTA_TYPE.card, id)), 'IsEmblem')) continue;
-    const c = toBoardCard(state, id, artIds, printedPT);
+    const c = toBoardCard(state, id, printedPT);
     if (c === null || c.hidden === true) continue;
     const source = c.card.name.replace(EMBLEM_NAME, '');
-    const scryfallId = scryfallIdFor(artIds, source, c.card.setCode);
-    out.push({ id, source, text: c.abilityText ?? c.card.name, card: c.card, ...(scryfallId === undefined ? {} : { scryfallId }) });
+    // The server draws an emblem with its source's art: the medallion's, never the emblem's own face.
+    const { scryfallId, ...card } = c.card;
+    out.push({ id, source, text: c.abilityText ?? c.card.name, card, ...(scryfallId === undefined ? {} : { scryfallId }) });
   }
   return out;
 }
@@ -882,8 +861,6 @@ export interface CombatBand {
 
 export interface AdaptOptions {
   viewerPlayerId: number;
-  /** Where a card's Scryfall id is looked up. Defaults to `KNOWN_ART_IDS`. */
-  artIds?: ArtIdIndex;
   /** Where a card's PRINTED power/toughness is looked up. Defaults to `POOL_PRINTED_PT`. */
   printedPT?: PrintedPTIndex;
   /**
@@ -1014,41 +991,11 @@ export function printedPTIndex(
  * Every printed P/T the browser knows: the drafted cube's own pool.
  *
  * This is the whole of the coverage and the limit is deliberate — the wire
- * carries no printed base at all (see the header), `../draft/art-ids.json`
- * carries ids and nothing else, and inventing a base for a card nobody wrote
- * down would paint an ordinary creature blue.
+ * carries no printed base at all (see the header), and inventing a base for a
+ * card nobody wrote down would paint an ordinary creature blue.
  */
 export const POOL_PRINTED_PT: PrintedPTIndex = printedPTIndex(
   (poolData as { cards: { name: string; power?: string; toughness?: string }[] }).cards,
-);
-
-// ── which Scryfall id a card is ──────────────────────────────────────────
-
-/*
- * The index itself lives in `@hadoku/carddata/art`, beside the resolver that
- * consumes its answer. It is re-exported here because this module is where the
- * play board's callers already look for it, and because `./Board.test.ts`
- * imports it from here.
- */
-export { artIdIndex, scryfallIdFor, type ArtIdIndex, type ArtIdSource };
-
-/** The cube's cards, keyed by the SCRYFALL set code `build-pool` wrote. */
-export const CUBE_ART_IDS: ArtIdIndex = artIdIndex((poolData as { cards: ArtIdSource[] }).cards);
-
-/**
- * Every id the browser knows: the drafted pool first, then the committed table.
- *
- * Order matters and is the whole design. `mergeArtIdIndexes` keeps the FIRST
- * value for a key, so a cube card still resolves to the printing its cube was
- * built from and nothing that worked before this wave resolves differently.
- * `art-ids.json` only ever ADDS keys the pool never had — basic lands under
- * Forge's set codes, the committed constructed lists, and the bare-name
- * fallback that means a card is never blank just because Forge named a
- * printing nobody wrote down.
- */
-export const KNOWN_ART_IDS: ArtIdIndex = mergeArtIdIndexes(
-  CUBE_ART_IDS,
-  artIdIndexFromTable(artIdsData as ArtIdTableFile),
 );
 
 // ── reading tagged values ───────────────────────────────────────────────────
@@ -1614,7 +1561,7 @@ function readAbilityText(face: WireObject | undefined): string | null {
 }
 
 /** One face state as a card: what `CardTile` draws for it. `hidden` withholds its art. */
-function faceCard(id: number, face: WireObject | undefined, name: string, artIds: ArtIdIndex, hidden: boolean): DraftCard {
+function faceCard(id: number, face: WireObject | undefined, name: string, hidden: boolean): DraftCard {
   const cost = prop(face, 'ManaCost');
   const { tokens, manaValue } =
     cost !== undefined && cost.t === 'manacost' && typeof cost.v === 'string'
@@ -1635,8 +1582,8 @@ function faceCard(id: number, face: WireObject | undefined, name: string, artIds
     collectorNumber: '',
     rarity: RARITY[enumOf(face, 'Rarity') ?? ''] ?? 'special',
   };
-  const scryfallId = hidden ? undefined : artIdOf(artIds, name, card.setCode, strOf(face, 'ImageKey'));
-  if (scryfallId !== undefined) card.scryfallId = scryfallId;
+  const scryfallId = hidden ? null : strOf(face, 'ScryfallId');
+  if (scryfallId !== null) card.scryfallId = scryfallId;
   if (core.includes('Creature')) {
     card.power = String(readInt(face, 'Power'));
     card.toughness = String(readInt(face, 'Toughness'));
@@ -1678,7 +1625,7 @@ function facePartOf(state: WireState, id: number, view: WireObject, v: number): 
  * the card's own image (a split half, an adventure) is drawn with that image, cropped to its part of
  * it; any other face without art of its own is drawn with the card's.
  */
-function otherFaces(state: WireState, id: number, view: WireObject, shown: DraftCard, artIds: ArtIdIndex): TileCard[] {
+function otherFaces(state: WireState, id: number, view: WireObject, shown: DraftCard): TileCard[] {
   if (boolOf(view, 'Facedown')) return [];
   const out: TileCard[] = [];
   const seen = new Set([shown.name]);
@@ -1689,7 +1636,7 @@ function otherFaces(state: WireState, id: number, view: WireObject, shown: Draft
     const name = strOf(face, 'Name');
     if (name === null || name.trim() === '' || seen.has(name)) continue;
     seen.add(name);
-    const card = faceCard(id, face, name, artIds, false);
+    const card = faceCard(id, face, name, false);
     const part = facePartOf(state, id, view, v);
     if (part !== undefined && shown.scryfallId !== undefined) {
       // Printed on the card's own image: that image, cropped to this face's part of it.
@@ -1706,25 +1653,13 @@ function otherFaces(state: WireState, id: number, view: WireObject, shown: Draft
  * Every face of card `id` this seat may see, the one on show first — for a choice between them
  * (`prompts/lookup.ts`'s `faces`). Empty for a card this seat was sent nothing for.
  */
-/**
- * A face's art id, the one way every card on the table is resolved — the board, and a decision
- * window's tile (`prompts/PromptShell.tsx`), which once looked up by name alone and so drew a
- * token whose only row is its tokenscript (the Wicked Role) with art on the board and none in the
- * window. A token by its tokenscript first (`ImageKey`): its name may be shared by printings of
- * other tokens, or have no row at all. Then the exact printing, then any printing of the name. Last,
- * the card its image key names: an effect ("Teferi's Effect") draws its source's art.
- */
-export function artIdOf(artIds: ArtIdIndex, name: string, setCode: string, imageKey?: string | null): string | undefined {
-  return tokenArtId(artIds, imageKey) ?? scryfallIdFor(artIds, name, setCode) ?? cardKeyArtId(artIds, imageKey);
-}
-
-export function cardFaces(state: WireState, id: number, artIds: ArtIdIndex = KNOWN_ART_IDS): TileCard[] {
+export function cardFaces(state: WireState, id: number): TileCard[] {
   const view = state.get(deltaKey(DELTA_TYPE.card, id));
   if (view === undefined) return [];
   const { doors, face, name } = drawnFace(state, id, view, enumOf(view, 'Zone') === 'Battlefield');
   if (name === null) return [];
-  const shown = faceCard(id, face, name, artIds, false);
-  return [shown, ...withDoors(otherFaces(state, id, view, shown, artIds), doors)];
+  const shown = faceCard(id, face, name, false);
+  return [shown, ...withDoors(otherFaces(state, id, view, shown), doors)];
 }
 
 /**
@@ -1746,7 +1681,6 @@ function drawnFace(
 function toBoardCard(
   state: WireState,
   id: number,
-  artIds: ArtIdIndex,
   printedPT: PrintedPTIndex,
   onBattlefield = false,
   printedCard?: PrintedCard,
@@ -1761,9 +1695,9 @@ function toBoardCard(
   const core = coreTypes(type);
   const counters = countersOf(view);
   const loyaltyCounter = counters.find((c) => c.name === 'Loyalty');
-  const card: TileCard = faceCard(id, face, name, artIds, hidden);
+  const card: TileCard = faceCard(id, face, name, hidden);
   if (core.includes('Planeswalker') && loyaltyCounter !== undefined) card.loyalty = String(loyaltyCounter.count);
-  const faces = hidden ? [] : withDoors(otherFaces(state, id, view, card, artIds), doors);
+  const faces = hidden ? [] : withDoors(otherFaces(state, id, view, card), doors);
   if (faces.length > 0) card.faces = faces;
 
   const keywords = readKeywords(face);
@@ -1907,14 +1841,13 @@ function known(card: BoardCard | null): BoardCard | null {
 function knownTop(
   state: WireState,
   libraryIds: readonly number[],
-  artIds: ArtIdIndex,
   printedPT: PrintedPTIndex,
   promptCards: ReadonlySet<number>,
   viewer: number,
 ): BoardCard[] {
   const out: BoardCard[] = [];
   for (const id of libraryIds) {
-    const card = promptCards.has(id) ? null : known(toBoardCard(state, id, artIds, printedPT));
+    const card = promptCards.has(id) ? null : known(toBoardCard(state, id, printedPT));
     if (card === null) break;
     const look = idsOf(state.get(deltaKey(DELTA_TYPE.card, id)), 'PlayerMayLook');
     out.push(look.length > 0 && look.every((p) => p === viewer) ? { ...card, onlyViewer: true } : card);
@@ -1972,7 +1905,6 @@ export function toBoardView(
   seq: number,
   {
     viewerPlayerId,
-    artIds = KNOWN_ART_IDS,
     printedPT = POOL_PRINTED_PT,
     avatarByPlayerId,
     lookByPlayerId,
@@ -2010,7 +1942,7 @@ export function toBoardView(
   const cardsIn = (ids: number[], onBattlefield = false): BoardCard[] => {
     const out: BoardCard[] = [];
     for (const id of ids) {
-      const c = toBoardCard(state, id, artIds, printedPT, onBattlefield, onBattlefield ? printedTypes?.get(id) : undefined, playerName);
+      const c = toBoardCard(state, id, printedPT, onBattlefield, onBattlefield ? printedTypes?.get(id) : undefined, playerName);
       const waiting = onBattlefield ? waitingOn.get(id) : undefined;
       const createdBy = onBattlefield ? tokenSources?.get(id) : undefined;
       const blockless = onBattlefield && cantBlock?.has(id) === true;
@@ -2038,17 +1970,17 @@ export function toBoardView(
     const isViewer = pid === viewerPlayerId;
     const handIds = idsOf(p, 'Hand');
     const libraryIds = idsOf(p, 'Library');
-    const top = knownTop(state, libraryIds, artIds, printedPT, promptCards, viewerPlayerId);
+    const top = knownTop(state, libraryIds, printedPT, promptCards, viewerPlayerId);
     // A watcher holds no hand: both are drawn as someone else's, face up wherever its wire sends the
     // card — every hand card, since 2026-10-28 (`visibility.ts`'s `EVERY_PLAYER`) — and a back where not.
     const ownHand = isViewer && !watcher;
-    const shown = ownHand ? [] : handIds.map((id) => (watcher || shownTo(state, id, viewerPlayerId) ? known(toBoardCard(state, id, artIds, printedPT, false, undefined, playerName)) : null));
+    const shown = ownHand ? [] : handIds.map((id) => (watcher || shownTo(state, id, viewerPlayerId) ? known(toBoardCard(state, id, printedPT, false, undefined, playerName)) : null));
     // The viewer holds a seat whether or not the roster has named its player yet.
     const unheld = unclaimed !== undefined && !isViewer && !unclaimed.seated.has(pid);
     const avatarId = avatarByPlayerId?.get(pid) ?? (unheld ? unclaimed.avatarId : undefined);
     const look = lookByPlayerId?.get(pid);
     const clock = clockByPlayerId?.get(pid);
-    const emblems = readEmblems(state, p, artIds, printedPT);
+    const emblems = readEmblems(state, p, printedPT);
     const command = cardsIn(idsOf(p, 'Command').filter((id) => drawnInCommand(state, id)));
     const hand = ownHand ? cardsIn(handIds).map((c) => seenByOthers(state, c, viewerPlayerId)) : null;
     const holdsStorm = hand?.some((c) => hasKeyword(c.keywords, 'storm')) === true;
@@ -2108,7 +2040,7 @@ export function toBoardView(
     const sourceCardId = prop(item, 'SourceCard') !== undefined ? readInt(item, 'SourceCard') : null;
     const isAbility = boolOf(item, 'Ability');
     if (!isAbility && sourceCardId !== null && inAZone.has(sourceCardId)) return [];
-    const source = sourceCardId !== null ? toBoardCard(state, sourceCardId, artIds, printedPT) : null;
+    const source = sourceCardId !== null ? toBoardCard(state, sourceCardId, printedPT) : null;
     const activator = prop(item, 'ActivatingPlayer') !== undefined ? readInt(item, 'ActivatingPlayer') : null;
     const chain = subInstanceChain(state, item);
     const targetCardIds = [...new Set(chain.flatMap((o) => idsOf(o, 'TargetCards')))];
@@ -2138,7 +2070,7 @@ export function toBoardView(
   });
 
   const waiting: StackEntry[] = (pendingTriggers ?? []).map((t) => {
-    const source = toBoardCard(state, t.hostCard, artIds, printedPT);
+    const source = toBoardCard(state, t.hostCard, printedPT);
     const sourceName = source?.card.name ?? null;
     return {
       id: -t.id,

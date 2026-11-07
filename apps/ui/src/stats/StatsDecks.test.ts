@@ -5,7 +5,8 @@
  * name search narrows without asking, and the list a deck row opens on hover.
  */
 
-import { afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
+import { serveNamedArt } from '../play/art.testing.ts';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createElement } from 'react';
 import { createStatsCache } from '@wolffm/game-stats-ui';
@@ -17,6 +18,9 @@ import type { TableDeck } from '../screens/tables.ts';
 import type { StatsSource } from './source.ts';
 import { StatsPage } from './StatsPage.tsx';
 import { deckLookup, filterDeckRows, matchFormats, NO_STATS_FILTER, type DeckLookup } from './StatsDecks.tsx';
+
+// A card known by its name is answered as the server answers it (`GET /api/cards/art`).
+beforeEach(serveNamedArt);
 
 afterEach(() => {
   cleanup();

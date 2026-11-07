@@ -12,7 +12,8 @@
  * (`draft/pool.json`), not invented ones.
  */
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { serveNamedArt } from '../play/art.testing.ts';
 import { createElement, useEffect, useRef, type ReactNode } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { DraftCard } from '@hadoku/shared';
@@ -32,6 +33,9 @@ import type { Fetch } from '../http.ts';
 import { tablesClient, type Verdict } from '../screens/tables.ts';
 import { draftedSeat, cardIndex, mainSummary, libraryDeckPool, libraryDeckText, suggestBasics } from './build.ts';
 import { splitBasics } from '../draft/deckFromPool.ts';
+
+// A card known by its name is answered as the server answers it (`GET /api/cards/art`).
+beforeEach(serveNamedArt);
 
 afterEach(() => {
   cleanup();

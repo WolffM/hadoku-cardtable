@@ -41,6 +41,7 @@ import {
 	type WireObj,
 } from './visibility.js';
 import { leaked } from './fixtures/transcript.js';
+import type { ArtIds } from './art-ids.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = resolve(HERE, '../../../ui/src/play/fixtures/tierc-game1-seq1-27.json');
@@ -1476,5 +1477,96 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		expect(watcher.visibilityOf(30)).toBe('full');
 		expect(lookHeld(out, 30), 'alice watched it go back: the watchers see her eye on it').toEqual({ t: 'list', v: [{ t: 'int', v: 0 }] });
 		expect(lookHeld(out, 10), 'nobody but its holder knows the other').toBeUndefined();
+	});
+});
+
+/** A resolver that gives every named face an id of its own, so a test can tell which face an id came from. */
+function namedArt(): { art: ArtIds; idOf: (name: string) => string } {
+	const ids = new Map<string, string>();
+	const idOf = (name: string): string => {
+		if (!ids.has(name)) ids.set(name, `00000000-0000-0000-0000-${String(ids.size + 1).padStart(12, '0')}`);
+		return ids.get(name)!;
+	};
+	return { art: { face: ({ name }) => ({ scryfallId: idOf(name) }), card: () => undefined, images: () => [], backs: () => [] }, idOf };
+}
+
+const faceName = (face: WireObj | undefined): string | null => {
+	const v = face?.Name as { t?: string; v?: unknown } | undefined;
+	return v?.t === 'str' && typeof v.v === 'string' && v.v !== '' ? v.v : null;
+};
+
+describe("a face's art id", () => {
+	it.each(PLAYERS)('rides every face seat %i may see whole, and no face of a card it may not', (viewer) => {
+		const { art, idOf } = namedArt();
+		const projector = createProjector(viewer, art);
+		const emitted = fixtureFrames().map((frame) => projector.project(frame));
+		const projected = fold(emitted);
+		let stamped = 0;
+		for (const obj of projected.values()) {
+			if (obj._type !== DELTA_TYPE.cardState) continue;
+			const name = faceName(obj);
+			if (projector.visibilityOf(cardIdOfState(obj._id)) === 'full' && name !== null) {
+				expect(obj.ScryfallId, `face ${obj._id}`).toEqual({ t: 'str', v: idOf(name) });
+				stamped += 1;
+			} else {
+				expect(obj.ScryfallId, `face ${obj._id}`).toBeUndefined();
+			}
+		}
+		expect(stamped).toBeGreaterThan(0);
+		// And never in a payload: a hidden card's id would say which card it is.
+		const opponent = PLAYERS.find((p) => p !== viewer) as number;
+		const raw = fold(fixtureFrames());
+		const transcript = emitted.map((f) => JSON.stringify(f)).join('\n');
+		for (const id of handOf(raw, opponent)) {
+			if (projector.visibilityOf(id) === 'full') continue;
+			for (const obj of raw.values()) {
+				const name = obj._type === DELTA_TYPE.cardState && cardIdOfState(obj._id) === id ? faceName(obj) : null;
+				if (name !== null && ![...projected.values()].some((o) => faceName(o) === name)) expect(transcript).not.toContain(idOf(name));
+			}
+		}
+		for (const frame of emitted) expect(safeParseServerFrame(frame), 'a browser accepts the stamped frame').toMatchObject({ ok: true });
+	});
+
+	it('is taken back when the card turns face down, and is not on the face-down face the table sees', () => {
+		const raw = fold(fixtureFrames());
+		const cardId = (raw.get(deltaKey(DELTA_TYPE.player, 1))?.Battlefield as { v: { v: number }[] }).v[0]!.v;
+		const cardKey = deltaKey(DELTA_TYPE.card, cardId);
+		const current = (raw.get(cardKey)?.CurrentState as { v: number } | undefined)?.v ?? 0;
+		const faceKey = deltaKey(DELTA_TYPE.cardState, cardId * 16 + current);
+		const { art } = namedArt();
+		const opp = createProjector(0, art);
+		const up = opp.project({ kind: 'notify', method: 'setGameView', payload: { gameView: Object.fromEntries(raw), sequenceNumber: 1 } });
+		const upFace = (up as Extract<StateFrame, { method: 'setGameView' }>).payload.gameView[faceKey];
+		expect(upFace?.ScryfallId, 'face up: the table sees which card it is').toBeDefined();
+
+		const down: StateFrame = {
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: { packet: { seq: 2, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: { [cardKey]: { _type: DELTA_TYPE.card, _id: cardId, Facedown: { t: 'bool', v: true } } }, events: [] } },
+		};
+		const out = (opp.project(down) as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet;
+		expect(opp.visibilityOf(cardId)).toBe('faceOnly');
+		const sent = out.newObjects[faceKey];
+		expect(sent, 'the face is sent again, as a replace').toBeDefined();
+		expect(sent!.ScryfallId, 'and the replace carries no art id, so the fold drops the one it held').toBeUndefined();
+	});
+
+	it("follows a face's name: a delta that renames it carries the new id, one that does not carries none", () => {
+		const raw = fold(fixtureFrames());
+		const cardId = (raw.get(deltaKey(DELTA_TYPE.player, 1))?.Battlefield as { v: { v: number }[] }).v[0]!.v;
+		const current = (raw.get(deltaKey(DELTA_TYPE.card, cardId))?.CurrentState as { v: number } | undefined)?.v ?? 0;
+		const faceKey = deltaKey(DELTA_TYPE.cardState, cardId * 16 + current);
+		const { art, idOf } = namedArt();
+		const seat = createProjector(1, art);
+		seat.project({ kind: 'notify', method: 'setGameView', payload: { gameView: Object.fromEntries(raw), sequenceNumber: 1 } });
+		const delta = (seq: number, props: Record<string, unknown>): StateFrame => ({
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: { packet: { seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: { [faceKey]: { _type: DELTA_TYPE.cardState, _id: cardId * 16 + current, ...props } }, events: [] } },
+		});
+		const renamed = (seat.project(delta(2, { Name: { t: 'str', v: 'Clone' } })) as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet;
+		expect(renamed.objectDeltas[faceKey]?.ScryfallId).toEqual({ t: 'str', v: idOf('Clone') });
+		const tapped = (seat.project(delta(3, { Power: { t: 'int', v: 9 } })) as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet;
+		expect(tapped.objectDeltas[faceKey]).not.toHaveProperty('ScryfallId');
 	});
 });

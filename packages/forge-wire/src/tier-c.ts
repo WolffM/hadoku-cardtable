@@ -565,6 +565,19 @@ const PROPERTY_SHAPE = Object.fromEntries(
   ]),
 ) as PropertyShape;
 
+/**
+ * What the server lays on a face beside Forge's own properties: which Scryfall id the card's art is
+ * (`apps/server/src/play/art-ids.ts`), on a face the viewer may see whole and nowhere else. Not
+ * Forge's, so not one of the 214 and never a checksum ordinal.
+ */
+const SERVER_FACE_PROPERTIES = {
+  ScryfallId: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(#back)?$/i),
+} as const;
+
+const SERVER_FACE_SHAPE = Object.fromEntries(
+  Object.entries(SERVER_FACE_PROPERTIES).map(([property, value]) => [property, z.strictObject({ t: z.literal('str'), v: value }).nullable().optional()]),
+) as { [K in keyof typeof SERVER_FACE_PROPERTIES]: z.ZodOptional<z.ZodNullable<z.ZodObject<{ t: z.ZodLiteral<'str'>; v: z.ZodString }>>> };
+
 /* ── Objects and tables ──────────────────────────────────────────────── */
 
 /**
@@ -578,6 +591,7 @@ export const TrackedObjectSchema = z
     _type: z.int().min(0).max(DELTA_OBJECT_TYPES.length - 1),
     _id: JavaInt,
     ...PROPERTY_SHAPE,
+    ...SERVER_FACE_SHAPE,
   })
   .superRefine((object, ctx) => {
     // DeltaSyncManager only puts an object in either map when it has at least

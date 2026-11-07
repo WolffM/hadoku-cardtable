@@ -22,6 +22,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { useNamedArt } from './libraryPeek.ts';
 
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
 import { useArtLoaded } from '../draft/useArtLoaded.ts';
@@ -84,6 +85,8 @@ export function DecksScreen({ decks: givenDecks, deckRecords = fetchDeckRecords 
     };
   }, [client, deckRecords]);
 
+  // A basic's art is the server's answer for its name: drawn again when it arrives.
+  const namedArt = useNamedArt();
   const options = useMemo(() => {
     if (decks === null || records === null) return null;
     const drafted = decks.map((d) => {
@@ -92,7 +95,7 @@ export function DecksScreen({ decks: givenDecks, deckRecords = fetchDeckRecords 
     });
     const artIds = assignDeckArt(drafted.map((o) => o.art ?? []));
     return drafted.map((o, i) => ({ ...o, artId: artIds[i] }));
-  }, [decks, records]);
+  }, [decks, records, namedArt]);
 
   const drawable = useArtDrawable(useMemo(() => options?.map((o) => o.artId) ?? null, [options]));
   const ready = drawable && options !== null;

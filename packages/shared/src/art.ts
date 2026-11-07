@@ -7,10 +7,9 @@
  *
  * BOTH decks, to both seats: the operator's call, the same day — "if people
  * really wanted to cheat in this way i'd be fine with it. i care much more about
- * pre-loading art so that things load smoothly." Names and set codes only, the
- * same two keys the client's own art index resolves a card by
- * (`@hadoku/carddata/art`'s `scryfallIdFor`); never a URL, which stays the
- * client's to build (`apps/ui/src/draft/cardImage.ts`).
+ * pre-loading art so that things load smoothly." Art ids, as the server decides
+ * them for every card it sends (`apps/server/src/play/art-ids.ts`); never a URL,
+ * which stays the client's to build (`apps/ui/src/draft/cardImage.ts`).
  *
  * Its own event, not a field on the join ack: the snapshot schema is mirrored
  * byte for byte in `apps/ui/src/play/live/transport.ts` and carries the seat's
@@ -23,20 +22,14 @@ import { z } from 'zod';
 
 export const ART_EVENT = 'forge:art';
 
-export const ArtCardSchema = z
-  .object({
-    name: z.string().min(1).max(200),
-    /** The set code the deck names it by, or null when it names none. */
-    set: z.string().min(1).max(16).nullable(),
-  })
-  .strict();
-export type ArtCard = z.output<typeof ArtCardSchema>;
+/** A card's art: its Scryfall id, or its back image's (`<id>#back`) — never a URL. */
+export const ArtIdSchema = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(#back)?$/i);
 
 /** Server → one socket, after its join or resync ack. */
 export const ArtPreloadSchema = z
   .object({
     matchId: z.string().min(1),
-    cards: z.array(ArtCardSchema).max(2000),
+    ids: z.array(ArtIdSchema).max(4000),
   })
   .strict();
 export type ArtPreload = z.output<typeof ArtPreloadSchema>;

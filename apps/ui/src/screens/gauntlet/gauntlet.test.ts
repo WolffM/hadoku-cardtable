@@ -10,6 +10,7 @@ import { resolve } from 'node:path';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { serveNamedArt } from '../../play/art.testing.ts';
 
 import { GAUNTLET_REVEAL_MS, type GauntletDeck, type GauntletView } from '@hadoku/shared';
 
@@ -18,6 +19,9 @@ import { PEEK_DELAY_MS } from '../DeckPeek.tsx';
 import { GauntletScreen } from './GauntletScreen.tsx';
 import * as reveal from './reveal.ts';
 import { DEAL_FROM_MS, DEAL_STAGGER_MS, TITLE_MS, revealStage } from './reveal.ts';
+
+// A card known by its name is answered as the server answers it (`GET /api/cards/art`).
+beforeEach(serveNamedArt);
 
 const IDS = [
   'power-modern-2022-1-maxx-kominowski-ur-aggro',

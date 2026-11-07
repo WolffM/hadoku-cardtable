@@ -177,6 +177,7 @@
 import {
 	boolOf,
 	cardIdOfState,
+	cardStateKey,
 	coreTypes,
 	currentFace,
 	DELTA_TYPE,
@@ -185,6 +186,7 @@ import {
 	enumOf,
 	idsOf,
 	intOf,
+	strOf,
 	tagOf,
 	type CantBlock,
 	type ConditionMet,
@@ -199,6 +201,8 @@ import {
 	type TokenSources,
 	type WaitingEffects,
 } from '@hadoku/forge-wire';
+
+import type { ArtIds, CardArt } from './art-ids.js';
 
 /** A property bag as the Tier C wire carries it. Values are tagged JSON. */
 export interface WireObj {
@@ -459,6 +463,33 @@ function wipeFace(csvId: number): WireObj {
 	return { _type: DELTA_TYPE.cardState, _id: csvId, Name: null };
 }
 
+/** The wire property each {@link CardArt} field rides in, on a face the viewer may see whole. */
+const ART_PROPS: Readonly<Record<keyof CardArt, string>> = { scryfallId: 'ScryfallId' };
+
+/** The face properties a face's art is decided by: a delta that names none of them leaves its art as sent. */
+const ART_INPUTS = ['Name', 'SetCode', 'ImageKey'];
+
+/**
+ * `face` with its art beside it, decided off the folded face in `state` (`art-ids.ts`): a whole face
+ * carries what there is, a delta that changed what the art is decided by carries each field again,
+ * null where there is none now (fold rule 3 deletes it). Only ever on a face of a `full` card: a
+ * face-down card's face, and a hidden card's, says nothing about which card it is.
+ */
+export function withArt(state: ReadonlyMap<string, WireObj>, face: WireObj, art: ArtIds, whole: boolean): WireObj {
+	if (!whole && !ART_INPUTS.some((prop) => prop in face)) return face;
+	const folded = state.get(deltaKey(DELTA_TYPE.cardState, face._id));
+	const name = strOf(folded, 'Name');
+	const front = strOf(state.get(cardStateKey(cardIdOfState(face._id), 0)), 'Name');
+	const found = name === null ? undefined : art.face({ name, set: strOf(folded, 'SetCode') ?? '', imageKey: strOf(folded, 'ImageKey'), front });
+	const out: WireObj = { ...face };
+	for (const [field, prop] of Object.entries(ART_PROPS) as [keyof CardArt, string][]) {
+		const value = found?.[field];
+		if (value !== undefined) out[prop] = { t: 'str', v: value };
+		else if (!whole) out[prop] = null;
+	}
+	return out;
+}
+
 /**
  * Whether the cards `before` and `now` share, leaving out `looked`, stand in a different order in
  * `now` — a shuffle. Cards drawn, milled or put on top are not shared and say nothing; nor do the
@@ -579,7 +610,7 @@ export interface SeatProjector {
 	playerCounts(): ReadonlyMap<number, { life: number | null; hand: number }>;
 }
 
-export function createProjector(viewer: number | null | typeof EVERY_PLAYER = null): SeatProjector {
+export function createProjector(viewer: number | null | typeof EVERY_PLAYER = null, art?: ArtIds): SeatProjector {
 	const everyone = viewer === EVERY_PLAYER;
 	const raw = new Map<string, WireObj>();
 	/** What the client was last given for each card. */
@@ -903,8 +934,13 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 		}
 	}
 
-	/** Project one object by its key; null when the viewer gets nothing for it. */
-	function projectObject(key: string, obj: WireObj, vis: Map<number, Visibility>): WireObj | null {
+	/** A face as a viewer who sees its card as `v` is sent it: with its art when the card is `full`. */
+	function faceFor(face: WireObj, v: Visibility, whole: boolean): WireObj {
+		return art === undefined || v !== 'full' ? face : withArt(raw, face, art, whole);
+	}
+
+	/** Project one object by its key; null when the viewer gets nothing for it. `whole` is a replace, not a delta. */
+	function projectObject(key: string, obj: WireObj, vis: Map<number, Visibility>, whole: boolean): WireObj | null {
 		const type = deltaKeyType(Number(key));
 		if (type === DELTA_TYPE.card) {
 			const v = vis.get(obj._id) ?? 'hidden';
@@ -913,15 +949,15 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 		}
 		if (type === DELTA_TYPE.cardState) {
 			const v = vis.get(cardIdOfState(obj._id)) ?? 'hidden';
-			return faceAllowed(raw, obj._id, v) ? obj : null;
+			return faceAllowed(raw, obj._id, v) ? faceFor(obj, v, whole) : null;
 		}
 		return obj;
 	}
 
-	function projectTable(table: ObjTable, vis: Map<number, Visibility>): ObjTable {
+	function projectTable(table: ObjTable, vis: Map<number, Visibility>, whole: boolean): ObjTable {
 		const out: ObjTable = {};
 		for (const [key, obj] of Object.entries(table)) {
-			const projected = projectObject(key, obj, vis);
+			const projected = projectObject(key, obj, vis, whole);
 			if (projected !== null) out[key] = projected;
 		}
 		return out;
@@ -932,8 +968,8 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 		foldInto(raw, packet);
 		lastSeq = packet.seq;
 		const vis = visibilities(replaced);
-		const newObjects = projectTable(packet.newObjects, vis);
-		const objectDeltas = projectTable(packet.objectDeltas, vis);
+		const newObjects = projectTable(packet.newObjects, vis, true);
+		const objectDeltas = projectTable(packet.objectDeltas, vis, false);
 		const faces = cardsAndFaces();
 
 		for (const [cardId, now] of vis) {
@@ -950,7 +986,7 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 				const face = raw.get(faceKey);
 				if (face === undefined) continue;
 				delete objectDeltas[faceKey];
-				if (faceAllowed(raw, face._id, now)) newObjects[faceKey] = face;
+				if (faceAllowed(raw, face._id, now)) newObjects[faceKey] = faceFor(face, now, true);
 				else if (faceAllowed(raw, face._id, before)) newObjects[faceKey] = wipeFace(face._id);
 				else delete newObjects[faceKey];
 			}
@@ -1083,7 +1119,7 @@ export function createProjector(viewer: number | null | typeof EVERY_PLAYER = nu
 						kind: 'notify',
 						method: 'setGameView',
 						payload: {
-							gameView: projectTable(frame.payload.gameView, vis),
+							gameView: projectTable(frame.payload.gameView, vis, true),
 							sequenceNumber: frame.payload.sequenceNumber,
 							// Passed through UNREDACTED: both
 							// ids name stack items, and the Stack zone is in `PUBLIC_ZONES`, so a

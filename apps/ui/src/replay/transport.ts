@@ -25,7 +25,7 @@
 
 import { safeParseServerFrame } from '@hadoku/forge-wire';
 import { z } from 'zod';
-import { ArtCardSchema, isRelayedEvent, PersonFaceSchema, PresenceSchema, RELAYED_ECHO_SCHEMAS, type ArtCard, type PersonFace, type PresenceMessage, type RelayedEvent } from '@hadoku/shared';
+import { ArtIdSchema, isRelayedEvent, PersonFaceSchema, PresenceSchema, RELAYED_ECHO_SCHEMAS, type PersonFace, type PresenceMessage, type RelayedEvent } from '@hadoku/shared';
 
 import { apiUrl, bodyOf, getJson, isRecord, sendJson, serverMessage, type Fetch } from '../http.ts';
 import { parseServerEnvelope, type ServerEnvelope } from '../play/live/transport.ts';
@@ -44,8 +44,8 @@ export interface ReplayHeader {
   players: readonly [string, string];
   ai: readonly [boolean, boolean];
   decks: readonly unknown[];
-  /** Every card the match's decks name: what a replay warms. Empty for a header that names none. */
-  art: readonly ArtCard[];
+  /** The art ids of every card the match's decks name: what a replay warms. Empty for a header that names none. */
+  art: readonly string[];
   startedAt: string;
 }
 
@@ -162,8 +162,9 @@ function parseHeader(v: unknown): ReplayHeader | null {
   if (!isPair(ai, isBoolean)) return null;
   if (!Array.isArray(decks)) return null;
   if (!isString(startedAt)) return null;
-  const cards = Array.isArray(art) ? art.flatMap((c) => (ArtCardSchema.safeParse(c).success ? [c as ArtCard] : [])) : [];
-  return { matchId, roomId: isString(roomId) ? roomId : null, players, ai, decks, art: cards, startedAt };
+  // A recording made before the server sent ids names cards instead: nothing to warm.
+  const ids = Array.isArray(art) ? art.flatMap((id) => (typeof id === 'string' && ArtIdSchema.safeParse(id).success ? [id] : [])) : [];
+  return { matchId, roomId: isString(roomId) ? roomId : null, players, ai, decks, art: ids, startedAt };
 }
 
 const isSeatNumber = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0;

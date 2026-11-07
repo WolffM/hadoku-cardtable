@@ -89,6 +89,7 @@ import { transformOf, usePanZoom, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from './pan.ts
 import { cardHeightOf, cssPx, gridAt, largestCard, pilesAt, useBox } from '../components/cardFit.ts';
 import { MV_CAP, MV_SPAN, groupCards, mvLabel, isCreatureFace, isLandFace, sortCards, type SortKey } from './cardOrder.ts';
 import { cardIndex, draftedSeat, mainSummary, namedCardPool, withSuggestedBasics } from './build.ts';
+import { useNamedArt } from '../screens/libraryPeek.ts';
 import type { TablesClient, Verdict } from '../screens/tables.ts';
 import './deckEditor.css';
 
@@ -125,13 +126,16 @@ export interface DeckEditorProps {
 /** The largest a card is drawn here, at 100%. */
 const MAX_CARD_W = 150;
 
-/** A basic land's face: the library art, a land's type line, and no colour of its own. */
-const BASIC_FACES: ReadonlyMap<string, DraftCard> = new Map(
-  namedCardPool(BASIC_LAND_NAMES).map((f) => [f.name, { ...f, typeLine: `Basic Land — ${f.name}`, colors: [], manaValue: 0 }]),
-);
+const BASIC_NAMES = new Set(BASIC_LAND_NAMES);
 
-/** A card with no copy of its name in `pool` — a stale save — drawn by its name, as a library card is. Never picked from. */
-const fallbackFace = (card: CardRequest): DraftCard => BASIC_FACES.get(card.name) ?? namedCardPool([card.name])[0]!;
+/**
+ * A card with no copy of its name in `pool` — a basic, or a stale save — drawn by its name, as a
+ * library card is (`namedCardPool`). Never picked from. A basic is a land, with no colour of its own.
+ */
+function fallbackFace(card: CardRequest): DraftCard {
+  const face = namedCardPool([card.name])[0]!;
+  return BASIC_NAMES.has(card.name) ? { ...face, typeLine: `Basic Land — ${face.name}`, colors: [], manaValue: 0 } : face;
+}
 
 function facesByKey(pool: readonly DraftCard[]): Map<string, DraftCard[]> {
   const index = new Map<string, DraftCard[]>();
@@ -221,6 +225,8 @@ export function DeckEditor({
   const [landed, setLanded] = useState<{ key: string; to: Area; n: number } | null>(null);
 
   const faces = useMemo(() => facesByKey(pool), [pool]);
+  // A face drawn by its name draws again once the server has said what its art is.
+  const namedArt = useNamedArt();
   // A deck line naming a printing the pool does not (a library 75's faces are
   // by name alone) still draws that card's face, by its name.
   const facesByName = useMemo(() => {
@@ -248,7 +254,7 @@ export function DeckEditor({
     const main = build(deck.main, false);
     const basics = build(deck.basics, true);
     return { mainTiles: [...main, ...basics], sideTiles: build(deck.sideboard, false) };
-  }, [deck, faces, facesByName]);
+  }, [deck, faces, facesByName, namedArt]);
 
   /* ── moves ── */
   const toMain = (tile: Tile): void => {

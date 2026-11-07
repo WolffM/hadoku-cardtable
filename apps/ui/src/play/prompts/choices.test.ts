@@ -29,7 +29,7 @@ import { expectWireReply, forgeCardLabel, mountPrompt, POOL, POOL_ID_BASE, poolL
 import type { FacePart, TileCard } from '../../components/faceCrop.ts';
 import { cardImageUrl } from '../../draft/cardImage.ts';
 import { relatedCards } from '../../draft/related.ts';
-import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
+import { serverArtId } from '../art.testing.ts';
 
 afterEach(cleanup);
 
@@ -386,8 +386,8 @@ describe('getAbilityToPlay: a card’s faces', () => {
     cardId: 'w82', name, manaCost: [], manaValue: 0, colors: [], typeLine: '', oracleText: '', setCode: 'ZNR', collectorNumber: '', rarity: 'mythic' as const,
     ...(scryfallId === undefined ? {} : { scryfallId }),
   });
-  const smashing = scryfallIdFor(KNOWN_ART_IDS, 'Shatterskull Smashing', 'ZNR');
-  const pass = scryfallIdFor(KNOWN_ART_IDS, 'Shatterskull, the Hammer Pass', 'ZNR');
+  const smashing = serverArtId('Shatterskull Smashing', 'ZNR');
+  const pass = serverArtId('Shatterskull, the Hammer Pass', 'ZNR');
   const lookup: PromptLookup = {
     ...EMPTY_LOOKUP,
     card: (id) => (id === 82 ? { name: 'Shatterskull Smashing', setCode: 'ZNR' } : undefined),
@@ -444,7 +444,7 @@ describe('getAbilityToPlay: a card’s faces', () => {
 
 describe('getAbilityToPlay: a split card’s halves', () => {
   // The operator, 2026-10-19: "i see the entire split card in both choices so i can't really tell which one is wish".
-  const art = scryfallIdFor(KNOWN_ART_IDS, 'Wear // Tear', 'DGM');
+  const art = serverArtId('Wear // Tear', 'DGM');
   const card = (name: string, faceCrop?: FacePart): TileCard => ({
     cardId: 'w83', name, manaCost: [], manaValue: 0, colors: [], typeLine: 'Instant', oracleText: `${name}'s own text`, setCode: 'DGM', collectorNumber: '', rarity: 'uncommon',
     ...(art === undefined ? {} : { scryfallId: art }),
@@ -588,7 +588,7 @@ describe('a library search', () => {
     expect(drawn).toHaveLength(carried.size);
   });
 
-  it('resolves art through the same Name|SET key the board uses', () => {
+  it('draws the art id the face carries, the one the board draws', () => {
     const { getByTestId } = mountPrompt('chooseSingleEntityForEffect', searchAsk(), poolLookup);
     const tiles = [...getByTestId('prompt-cards').querySelectorAll<HTMLElement>(':scope > li')];
     const order = [POOL[1]!, POOL[2]!];
@@ -596,7 +596,6 @@ describe('a library search', () => {
       const img = li.querySelector<HTMLImageElement>('img.card__art');
       expect(img, order[i]!.name).not.toBeNull();
       expect(img!.getAttribute('src')).toBe(cardImageUrl(order[i]!.scryfallId));
-      expect(scryfallIdFor(KNOWN_ART_IDS, order[i]!.name, order[i]!.setCode)).toBe(order[i]!.scryfallId);
     }
   });
 });
@@ -708,7 +707,7 @@ describe("a reveal Forge pre-rendered with CardView.toString()", () => {
     selected: [] as string[],
   });
 
-  it("resolves art from the card's own facts, never from the label", () => {
+  it("draws art from the card's own facts, never from the label", () => {
     const { getByTestId } = mountPrompt('getChoices', revealAsk(), poolLookup);
     const tiles = [...getByTestId('prompt-cards').querySelectorAll<HTMLElement>(':scope > li')];
     expect(tiles).toHaveLength(POOL.length);
@@ -717,9 +716,6 @@ describe("a reveal Forge pre-rendered with CardView.toString()", () => {
       expect(img, `${POOL[i]!.name} drew its art through the label ${labelFor(i)}`).not.toBeNull();
       // The board's own URL for this printing — one chain, one host decision.
       expect(img!.getAttribute('src')).toBe(cardImageUrl(POOL[i]!.scryfallId));
-      // And the label really is a key the table does not have: this test is
-      // only meaningful because resolving on it cannot work.
-      expect(scryfallIdFor(KNOWN_ART_IDS, labelFor(i), POOL[i]!.setCode)).toBeUndefined();
     }
   });
 
@@ -743,9 +739,8 @@ describe("a reveal Forge pre-rendered with CardView.toString()", () => {
     expect(names).toEqual(POOL.map((c) => c.name));
   });
 
-  // The operator's report, 2026-10-03: Forge AI revealed a card from its own
-  // library, the lookup held nothing for it, and the tile drew no art.
-  it('a card the lookup knows nothing about shows the name in its label and draws its art', () => {
+  // A card the lookup knows nothing about was sent no art id: the tile says the name in its label, and draws no art.
+  it('a card the lookup knows nothing about shows the name in its label, and no art', () => {
     const ask = {
       ...revealAsk(),
       choices: [{ key: 'c0', label: 'Island (129)', ref: { kind: 'card' as const, id: 129 } }],
@@ -753,9 +748,7 @@ describe("a reveal Forge pre-rendered with CardView.toString()", () => {
     const { getByTestId } = mountPrompt('getChoices', ask, EMPTY_LOOKUP);
     const grid = getByTestId('prompt-cards');
     expect(grid.querySelector('.card__name')!.textContent).toBe('Island');
-    const island = KNOWN_ART_IDS.get('Island');
-    expect(island, 'the table has a bare-name Island row').toBeDefined();
-    expect(grid.querySelector('img.card__art')!.getAttribute('src')).toBe(cardImageUrl(island!));
+    expect(grid.querySelector('img.card__art')).toBeNull();
   });
 
   it('nameFromForgeLabel reads the name out of every shape CardView.toString() renders', () => {
@@ -769,7 +762,7 @@ describe("a reveal Forge pre-rendered with CardView.toString()", () => {
   // The same report, as it really arrives (prompts.jvm, seat 1, 2026-10-03):
   // the card object is in the state, but its face reached this seat with no
   // name, so the lookup has facts and no name.
-  it('a card whose facts arrived without a name draws the art of the name inside its label', () => {
+  it('a card whose facts arrived without a name says the name inside its label', () => {
     const nameless: PromptLookup = {
       ...EMPTY_LOOKUP,
       card: (id) =>
@@ -784,7 +777,6 @@ describe("a reveal Forge pre-rendered with CardView.toString()", () => {
     const { getByTestId } = mountPrompt('getChoices', ask, nameless);
     const grid = getByTestId('prompt-cards');
     expect(grid.querySelector('.card__name')!.textContent).toBe('Island');
-    expect(grid.querySelector('img.card__art')!.getAttribute('src')).toBe(cardImageUrl(KNOWN_ART_IDS.get('Island')!));
   });
 
   it('a label whose parenthesis is not this card\'s id is not guessed at: no art', () => {
@@ -794,55 +786,6 @@ describe("a reveal Forge pre-rendered with CardView.toString()", () => {
     };
     const { getByTestId } = mountPrompt('getChoices', ask, EMPTY_LOOKUP);
     expect(getByTestId('prompt-cards').querySelector('img.card__art')).toBeNull();
-  });
-});
-
-/*
- * Wave 24 §D.3 — a prompt tile resolves art with the SAME key the board uses.
- *
- * `adapter.ts` resolves a board card as `scryfallIdFor(index, name, setCode)`;
- * a prompt tile used to pass `''` for the set code and so could only ever hit
- * the table's bare-name row. Measured over the committed table, **1396 of its
- * `Name|SET` keys name a different printing from their own bare-name row** — so
- * for those cards the prompt drew one printing and the board another, for the
- * same physical card. `PromptCardFacts.setCode` closes that.
- *
- * The case is derived from the table rather than hardcoded, so the guard cannot
- * rot into a tautology when the table is regenerated.
- */
-describe('a prompt tile and the board resolve the same printing', () => {
-  /** A card whose exact printing and whose bare name name DIFFERENT ids. */
-  const divergent = (() => {
-    for (const [key, keyed] of KNOWN_ART_IDS) {
-      if (!key.includes('|')) continue;
-      const name = key.slice(0, key.lastIndexOf('|'));
-      const setCode = key.slice(key.lastIndexOf('|') + 1);
-      if (setCode === '') continue;
-      const bare = KNOWN_ART_IDS.get(name);
-      if (bare !== undefined && bare !== keyed) return { name, setCode, keyed, bare };
-    }
-    return null;
-  })();
-
-  it('uses Name|SET, not the bare name, for a card whose printings differ', () => {
-    expect(divergent, 'the art-id table has a printing that differs from its bare-name row').not.toBeNull();
-    const { name, setCode, keyed, bare } = divergent!;
-    const id = 5150;
-    const lookup: PromptLookup = {
-      ...EMPTY_LOOKUP,
-      card: (cardId) =>
-        cardId === id
-          ? { name, setCode }
-          : undefined,
-    };
-    const ask = { ...askFor('chooseSingleEntityForEffect'), optionList: [{ kind: 'card' as const, id }] };
-    const { container } = mountPrompt('chooseSingleEntityForEffect', ask, lookup);
-    const img = container.querySelector<HTMLImageElement>('img.card__art');
-    expect(img).not.toBeNull();
-    expect(img!.getAttribute('src')).toBe(cardImageUrl(keyed));
-    expect(img!.getAttribute('src')).not.toBe(cardImageUrl(bare));
-    // And it is the id the board would have put on its own tile.
-    expect(scryfallIdFor(KNOWN_ART_IDS, name, setCode)).toBe(keyed);
   });
 });
 

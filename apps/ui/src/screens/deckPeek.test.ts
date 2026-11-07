@@ -3,8 +3,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
-import { artIdIndexFromTable, backFaceNames, scryfallIdFor, type ArtIdTableFile } from '@hadoku/carddata/art';
-import artIdsData from '../draft/art-ids.json' with { type: 'json' };
 import { cardImageUrl } from '../draft/cardImage.ts';
 import { DeckPeek, namedFace, peekOrder, type PeekLine } from './DeckPeek.tsx';
 
@@ -35,7 +33,7 @@ describe('a peeked list, in reading order', () => {
 
 // The operator, 2026-10-16: "when hovering cards in the decklist let's show the expanded card".
 describe('hovering a line of a peeked list', () => {
-  const ISLAND = scryfallIdFor(artIdIndexFromTable(artIdsData as ArtIdTableFile), 'Island', '');
+  const ISLAND = '00000000-0000-4000-8000-000000000001';
 
   function peek() {
     const box = new DOMRect(0, 0, 100, 100);
@@ -59,7 +57,6 @@ describe('hovering a line of a peeked list', () => {
   }
 
   it('enlarges the card in the one inspector, with the art the board would show', () => {
-    expect(ISLAND).toBeDefined();
     const { lineOf, panel } = peek();
     expect(panel()).toBeNull();
     fireEvent.pointerOver(lineOf('Island'), { pointerType: 'mouse' });
@@ -78,12 +75,11 @@ describe('hovering a line of a peeked list', () => {
   });
 
   // The operator, 2026-10-19, on Etali: "why can i not scroll to see it?" A library line is a name, and
-  // the art table alone names its back face.
+  // the server names its back face beside its art (`GET /api/cards/art`).
   it('turns a two-faced line to its back face on the wheel, the back’s own art', () => {
-    const table = artIdIndexFromTable(artIdsData as ArtIdTableFile);
-    const id = scryfallIdFor(table, 'Etali, Primal Conqueror', '');
+    const id = '00000000-0000-4000-8000-000000000002';
     const box = new DOMRect(0, 0, 100, 100);
-    const etali: PeekLine = { name: 'Etali, Primal Conqueror', count: 1, cost: ['5', 'R', 'R'], manaValue: 7, face: namedFace('Etali, Primal Conqueror', ['5', 'R', 'R'], 7, id, backFaceNames(table, id)) };
+    const etali: PeekLine = { name: 'Etali, Primal Conqueror', count: 1, cost: ['5', 'R', 'R'], manaValue: 7, face: namedFace('Etali, Primal Conqueror', ['5', 'R', 'R'], 7, id, ['Etali, Primal Sickness']) };
     render(createElement(DeckPeek, { id: 'deck-peek', label: 'Red', colors: ['R'], list: { main: [etali], sideboard: [] }, anchor: box, bounds: new DOMRect(0, 0, 1280, 800) }));
     const li = screen.getByTestId('deck-peek').querySelector('.peek__line')!;
     fireEvent.pointerOver(li, { pointerType: 'mouse' });

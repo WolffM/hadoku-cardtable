@@ -163,7 +163,8 @@ import { answerPending, arrangeAsk, digAnswer, digAsk, exileOrder, pendingOrders
 import { eachTypeAsk, firstEachType, nextEachType } from './each-type.js';
 import { firstMode, modesAsk, nextMode } from './modes.js';
 import { chosenTargetConfirm, pickedBy, sameTargetAct, targetAbilityOf, type SameTarget } from './trigger-targets.js';
-import { artOf } from './art.js';
+import { matchCards } from './art.js';
+import { createArtIds, type ArtCatalog, type ArtIds } from './art-ids.js';
 import { ChessClock } from './clock.js';
 import { fallbackFor, type Fallback } from './unparsed.js';
 import type { BridgeCommand, BridgeLine, HostEvents, MatchHost, MatchHostFactory, MatchRecord, MatchSpec, TurnSnapshot } from './host.js';
@@ -715,6 +716,8 @@ export const AI_SEAT_OWNER = 'ai';
 
 export interface MatchDeps {
 	host: MatchHostFactory;
+	/** The card catalog every face's art id is decided from (`art-ids.ts`). Absent: the committed art table alone. */
+	catalog?: ArtCatalog | null;
 	/**
 	 * The card names legal in a format id (`names.ts`'s `formatNameSets`), or null
 	 * when the format has no list. Absent: every card-name ask offers Forge's whole list.
@@ -1210,16 +1213,12 @@ export class Match {
 		/** Log lines, oldest first, each waiting for the watchers' board to show the cards it names ({@link Match.releaseWatcherLog}). */
 		heldLog: { text: string; log: GameLogLine }[];
 		heldLogTimer: NodeJS.Timeout | null;
-	} = {
-		projector: createProjector(EVERY_PLAYER),
-		seq: 0,
-		history: createStateHistory(),
-		heldLog: [],
-		heldLogTimer: null,
 	};
 
 	private readonly deps: MatchDeps;
 	readonly spec: MatchSpec;
+	/** Which Scryfall id each card of this match is: stamped on every face a seat may see, and preloaded (`art.ts`). */
+	readonly art: ArtIds;
 	private host: MatchHost | null = null;
 	private readonly now: () => number;
 	private readonly runningWaiters: ((outcome: ClientOutcome) => void)[] = [];
@@ -1326,6 +1325,8 @@ export class Match {
 		this.startedAt = restore?.startedAt ?? this.now();
 		this.epoch = restore?.epoch ?? `${id}:${this.startedAt}`;
 		this.latestSnapshot = restore?.snapshot ?? null;
+		this.art = createArtIds(deps.catalog ?? null, spec.seats.map((s) => s.deck));
+		this.watcher = { projector: createProjector(EVERY_PLAYER, this.art), seq: 0, history: createStateHistory(), heldLog: [], heldLogTimer: null };
 		this.seats = spec.seats.map((s, seat) => ({
 			seat,
 			ai: s.ai,
@@ -1333,7 +1334,7 @@ export class Match {
 			playerId: null,
 			displayName: (s as SeatSpecWithIdentity).displayName,
 			...((s as SeatSpecWithIdentity).avatarId === undefined ? {} : { avatarId: (s as SeatSpecWithIdentity).avatarId }),
-			projector: createProjector(),
+			projector: createProjector(null, this.art),
 			seq: 0,
 			history: createStateHistory(),
 			tally: createPlayTally(),
@@ -4388,7 +4389,7 @@ export class Match {
 		if (frame.method !== 'getChoices' || frame.names === undefined) return frame;
 		const format = this.spec.format ?? null;
 		const legal = format === null ? null : (this.deps.formatNames?.(format) ?? null);
-		this.deckNames ??= faceNames(artOf(this.spec).map((card) => card.name));
+		this.deckNames ??= faceNames(matchCards(this.spec).map((card) => card.name));
 		const names = namesForFormat(frame.names, legal, this.deckNames);
 		this.deps.log({ evt: 'name-ask', matchId: this.id, seat: s.seat, callId: frame.callId, format, offered: frame.names.length, shown: names.length });
 		return names === frame.names ? frame : { ...frame, names: [...names] };

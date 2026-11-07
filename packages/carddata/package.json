@@ -9,6 +9,7 @@
     ".": "./src/index.ts",
     "./art": "./src/art/index.ts",
     "./dck": "./src/dck.ts",
+    "./set-codes": "./src/set-codes.ts",
     "./formats": "./src/formats/index.ts"
   },
   "scripts": {

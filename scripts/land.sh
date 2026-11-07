@@ -128,8 +128,8 @@ ART_CACHE="${CARDTABLE_SCRYFALL_DIR:-$HOME/.local/share/cardtable/scryfall}"
 if [ -f "$ART_CACHE/cards.jsonl" ]; then
   PATH="$NODE_BIN:$PATH" node --max-old-space-size=6144 scripts/art/build-art-ids.ts --no-tokens --cache="$ART_CACHE" > "$TMP.art.log" 2>&1 \
     || { tail -20 "$TMP.art.log"; echo "land: art rows FAILED — nothing pushed (log $TMP.art.log)" >&2; exit 5; }
-  if ! git diff --quiet -- apps/ui/src/draft/art-ids.json; then
-    git commit -qm "art: rows for the cards this land's scenarios and decks place" -- apps/ui/src/draft/art-ids.json
+  if ! git diff --quiet -- apps/server/src/play/art-ids.json; then
+    git commit -qm "art: rows for the cards this land's scenarios and decks place" -- apps/server/src/play/art-ids.json
     echo "land: art rows — $(grep -oE 'added [0-9]+ new' "$TMP.art.log")"
   fi
 else

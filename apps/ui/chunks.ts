@@ -4,9 +4,9 @@
  * content-hashed like every asset (served immutable), so a chunk's name changes only when what is
  * in it does. Shared by the page build (`vite.config.ts`) and the embed's (`vite.embed.config.ts`).
  *
- * - **The data tables** (`src/draft/*.json`): the art-id table alone is most of a megabyte. Each is
- *   imported only by the screens that draw cards, which are chunks of their own (`src/lazy.ts`),
- *   and each lands in its own chunk beside them rather than inside one of them.
+ * - **The data tables** (`src/draft/*.json`). Each is imported only by the screens that draw cards,
+ *   which are chunks of their own (`src/lazy.ts`), and each lands in its own chunk beside them
+ *   rather than inside one of them.
  * - **Libraries** that move only when `package.json` does. Each group takes in what its package
  *   imports. JavaScript only: a stylesheet stays where its importer put it, since the order of the
  *   app's one stylesheet is the cascade.
@@ -14,7 +14,7 @@
 
 import { STYLESHEET_GROUP } from './stylesheet.ts';
 
-const DATA = /[\\/]src[\\/]draft[\\/](art-ids|pool|related|deck-art-traits)\.json$/;
+const DATA = /[\\/]src[\\/]draft[\\/](pool|related|deck-art-traits)\.json$/;
 
 const VENDOR: Record<string, RegExp> = {
   react: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/].*\.[cm]?js$/,

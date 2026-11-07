@@ -11,10 +11,9 @@
  * into an id first. That is this module, and it is deliberately the only place
  * that knows the shape of that key.
  *
- * Splitting it out of `apps/ui/src/play/adapter.ts` (where it started) is what
- * lets it be tested against the real resolver without dragging the whole UI
- * package in, and is why the play board and the draft screen now agree on one
- * implementation instead of two.
+ * The server's art resolver (`apps/server/src/play/art-ids.ts`) composes its
+ * index here, beside the card catalog: a browser holds no index and looks
+ * nothing up by name.
  *
  * ## The fallback, which is the whole point
  *
@@ -34,8 +33,8 @@
  *
  * ## No Node APIs
  *
- * This goes into the browser bundle. The committed table is imported as JSON by
- * the caller and handed in; nothing here reads a file.
+ * The committed table is imported as JSON by the caller and handed in; nothing
+ * here reads a file.
  */
 
 /**
@@ -185,35 +184,4 @@ export function tokenArtId(index: ArtIdIndex, imageKey: string | null | undefine
   const m = /^t:([a-z0-9_]+)(?:\|([A-Za-z0-9]+))?/.exec(imageKey ?? '');
   if (m === null) return undefined;
   return m[2] === undefined ? index.get(`t:${m[1]}`) : scryfallIdFor(index, `t:${m[1]}`, m[2]);
-}
-
-/**
- * The card a `c:<name>|<set>|…` image key names. An effect Forge makes in the Command zone ("Teferi's
- * Effect") is a card of its own name drawn with its source's image key (`createEffect`), so this is
- * the art its own name never finds (the operator, 2026-10-22: "can we make this have teferi's art?").
- */
-export function cardKeyArtId(index: ArtIdIndex, imageKey: string | null | undefined): string | undefined {
-  const m = /^c:([^|]+)\|([A-Za-z0-9]+)/.exec(imageKey ?? '');
-  return m === null ? undefined : scryfallIdFor(index, m[1]!, m[2]!);
-}
-
-const backsByIndex = new WeakMap<ArtIdIndex, ReadonlySet<string>>();
-
-/**
- * These art ids, each followed by its card's back face when the index knows
- * one — what a match preloads, so a card that transforms is drawn with its
- * art on the first frame of the other face.
- */
-export function artIdsWithBacks(index: ArtIdIndex, ids: Iterable<string>): string[] {
-  let backs = backsByIndex.get(index);
-  if (backs === undefined) {
-    backs = new Set([...index.values()].filter((id) => id.endsWith(BACK_FACE)));
-    backsByIndex.set(index, backs);
-  }
-  const out: string[] = [];
-  for (const id of ids) {
-    out.push(id);
-    if (backs.has(`${id}${BACK_FACE}`)) out.push(`${id}${BACK_FACE}`);
-  }
-  return out;
 }
