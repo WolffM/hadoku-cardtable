@@ -210,6 +210,11 @@ export const PodViewSchema = z.strictObject({
   standings: z.array(PodStandingsRowSchema),
   /** The CURRENT round's pairings. Empty outside `rounds`, or once the round is done and the next has not yet been made. */
   pairings: z.array(PodPairingSchema),
+  /**
+   * The CURRENT round's bot games still being played: two AI entrants paired together, playing it out in
+   * Forge with no table (`apps/server/src/play/botgames.ts`). Each leaves this list for `results` when it ends.
+   */
+  botGames: z.array(z.strictObject({ players: z.tuple([z.string().min(1), z.string().min(1)]) })).optional(),
   /** The CURRENT round's bye, or `null` (an even round, or outside `rounds`). */
   bye: z.string().min(1).nullable(),
   /** Entrants out of the rounds — disqualified by the leader, or gone from the room — whose standings rows stay, marked. */

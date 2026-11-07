@@ -182,7 +182,8 @@ import { botDeckText } from '../room/botDeck.js';
 import { httpCaller } from './request.js';
 import { prepareJson, sendPrepared, type PreparedJson } from './prepared.js';
 import { isAdmin } from '../edge-auth.js';
-import { draftIdOfPool, draftPoolId, isAiEntrant, type Lobby, type PodChecks } from '../room/lobby.js';
+import { draftIdOfPool, draftPoolId, isAiEntrant, type BotDeckSource, type BotGames, type Lobby, type PodChecks } from '../room/lobby.js';
+import type { BotGameInput, BotGameOutcome } from '../play/botgames.js';
 import { roundNamesOf } from '../room/plan.js';
 import { drawRandomDeck, drawRandomDecks } from '../room/random-decks.js';
 import { statsModeOf } from '../room/series.js';
@@ -302,6 +303,8 @@ export interface TablesRooms {
 	podDraft?(roomId: string): PodDeal | null;
 	/** Wires `PodChecks` into the room registry — see its own doc (`room/lobby.ts`). Optional like `onAvatarChange`. */
 	setPodChecks?(checks: PodChecks): void;
+	/** Wires `BotGames` into the room registry — see its own doc (`room/lobby.ts`). Optional like `setPodChecks`. */
+	setBotGames?(botGames: BotGames): void;
 	/** A Gauntlet room's stored Gauntlet (`room/lobby.ts`), one per table. Both optional: a registry without them serves no Gauntlet routes. */
 	gauntlet?(roomId: string, tableId?: string): GauntletState | null;
 	setGauntlet?(roomId: string, gauntlet: GauntletState | null, tableId?: string): boolean;
@@ -338,7 +341,17 @@ export interface TablesMatches {
 				outcome(): GameOutcome | null;
 		  }
 		| undefined;
+	/** See `play/match.ts`'s `MatchRegistry.botGame`. Optional: a registry without it plays no bot game. */
+	botGame?(input: BotGameInput, timeoutMs: number): Promise<BotGameOutcome>;
 }
+
+/**
+ * A bot game's whole wall clock, waiting for room in the ceiling included (`BotGames`): past it the room
+ * settles the pairing without its result. A best of 3 is at most three of `BOT_GAME_S`.
+ */
+export const BOT_GAME_TIMEOUT_MS = 12 * 60_000;
+/** A bot game refused for want of room in the ceiling asks again after this. */
+export const BOT_GAME_RETRY_MS = 30_000;
 
 export interface TablesDeps {
 	/** The server's draft rooms, for the `draft` rule. Null when no cube pool loaded. */
@@ -877,6 +890,33 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		return { text: verdict.text, verdict };
 	}
 
+	/** `PodChecks.currentTournamentDeck`'s own doc: this entrant's deck right now, for a lock's snapshot or a bot game's deal. */
+	function currentTournamentDeck(roomId: string, entrant: string): TableDeck | null {
+		if (rooms === null) return null;
+		const room = rooms.get(roomId);
+		if (room === undefined) return null;
+		const pool = randomPoolOf(room);
+		// All Random: one fresh deal per entrant (human or AI), never a held one —
+		// the lock is the FIRST time this entrant ever gets a deck.
+		if (pool !== null) {
+			const drawn = drawRandomDeck(random, pool, library);
+			return drawn === null ? null : tableDeckOfLibrary(drawn.deckId, { kind: 'standard', format: drawn.era }, entrant);
+		}
+		// Classic. An AI entrant is dealt the same way `startFromRoom`'s vs-bot
+		// fallback deals one; a human's is whatever they already loaded (the
+		// lock's own `hasLegalSeatDeck` gate already required it to be legal).
+		if (isAiEntrant(entrant)) {
+			const id = pickLibraryBotDeckId(room.format, entrant);
+			return id === null ? null : tableDeckOfLibrary(id, rulesOf(room.format), entrant);
+		}
+		return readPlayerState(rooms.playerState(roomId, entrant))?.deck ?? null;
+	}
+
+	/** A bot game's side's `.dck` text, from where the room says it comes (`BotDeckSource`); null when there is none. */
+	function botGameDeck(roomId: string, entrant: string, source: BotDeckSource): string | null {
+		return (source.kind === 'locked' ? readDeck(source.deck) : currentTournamentDeck(roomId, entrant))?.text ?? null;
+	}
+
 	// Wave 72 §P: this file is the one place that holds both `room/lobby.ts`'s
 	// `Lobby` (as `rooms`) and `draftRooms`/the gate, so it is where the two
 	// late-bound wires `PodChecks`'s own doc describes are made — `index.ts`
@@ -915,26 +955,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			const deck = readPlayerState(rooms?.playerState(roomId, memberId))?.deck;
 			return deck !== null && deck !== undefined && deck.verdict.legal;
 		},
-		currentTournamentDeck(roomId, entrant) {
-			if (rooms === null) return null;
-			const room = rooms.get(roomId);
-			if (room === undefined) return null;
-			const pool = randomPoolOf(room);
-			// All Random: one fresh deal per entrant (human or AI), never a held one —
-			// the lock is the FIRST time this entrant ever gets a deck.
-			if (pool !== null) {
-				const drawn = drawRandomDeck(random, pool, library);
-				return drawn === null ? null : tableDeckOfLibrary(drawn.deckId, { kind: 'standard', format: drawn.era }, entrant);
-			}
-			// Classic. An AI entrant is dealt the same way `startFromRoom`'s vs-bot
-			// fallback deals one; a human's is whatever they already loaded (the
-			// lock's own `hasLegalSeatDeck` gate already required it to be legal).
-			if (isAiEntrant(entrant)) {
-				const id = pickLibraryBotDeckId(room.format, entrant);
-				return id === null ? null : tableDeckOfLibrary(id, rulesOf(room.format), entrant);
-			}
-			return readPlayerState(rooms.playerState(roomId, entrant))?.deck ?? null;
-		},
+		currentTournamentDeck,
 		seatTournamentDeck(roomId, tableId, entrant, deck) {
 			if (rooms === null) return;
 			const room = rooms.get(roomId);
@@ -962,6 +983,34 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			// clears the hold so Classic's `PUT …/deck` is required again and All
 			// Random's own ready-time deal (`dealRandom`) sees no held deck to keep.
 			rooms.setPlayerState(roomId, entrant, locked === null ? { v: 1, deck: null, seriesDeck: null } : { v: 1, deck: locked, seriesDeck: null });
+		},
+	});
+	// Two AI entrants paired together play it out on play's registry, which exists only after this runs
+	// (`deps.matches`), so each game asks for it when it plays. A full server is waited on, a turn at a
+	// time, until the game's clock runs out; anything else without a result is the room's to settle.
+	if (deps.matches !== undefined) rooms?.setBotGames?.({
+		async play(ask) {
+			const decks = ask.players.map((entrant, i) => botGameDeck(ask.roomId, entrant, ask.decks[i]!));
+			if (decks[0] === null || decks[1] === null) {
+				log({ evt: 'bot-game-no-deck', room: ask.roomId, round: ask.round, players: ask.players, missing: ask.players.filter((_, i) => decks[i] === null) });
+				return null;
+			}
+			const deadline = Date.now() + BOT_GAME_TIMEOUT_MS;
+			for (;;) {
+				const registry = deps.matches?.() ?? null;
+				const outcome: BotGameOutcome =
+					registry === null
+						? { ok: false, why: 'capacity', error: 'play is not attached yet' }
+						: registry.botGame === undefined
+							? { ok: false, why: 'failed', error: 'this registry plays no bot game' }
+							: await registry.botGame({ names: ask.names, decks: [decks[0], decks[1]], bestOf: ask.bestOf }, deadline - Date.now());
+				if (outcome.ok) return { wins: outcome.wins, gameMs: outcome.gameMs };
+				if (outcome.why !== 'capacity' || Date.now() + BOT_GAME_RETRY_MS >= deadline) {
+					log({ evt: 'bot-game-no-result', room: ask.roomId, round: ask.round, players: ask.players, why: outcome.why, error: outcome.error });
+					return null;
+				}
+				await new Promise((wait) => setTimeout(wait, BOT_GAME_RETRY_MS).unref());
+			}
 		},
 	});
 	deps.draftRooms?.setPodLookup((podId) => rooms?.podDraft?.(podId) ?? null);

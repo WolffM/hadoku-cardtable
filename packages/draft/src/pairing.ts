@@ -40,7 +40,8 @@ export interface PodPlayer {
  * A real match's `gamesA`/`gamesB` are the games each side won; equal counts
  * are a draw (1 match point each). `gameMs` is how long each of its games
  * lasted, when the server timed them; a bye, an AI-vs-AI pairing settled
- * without a game, or a result recorded before games were timed has none.
+ * without a game (no bot game wired, or one with no result), or a result
+ * recorded before games were timed has none.
  */
 export interface MatchResult {
   round: number;

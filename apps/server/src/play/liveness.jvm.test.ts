@@ -49,13 +49,13 @@ function deck(name: string): string {
 	return `[metadata]\nName=${name}\n[main]\n30 Mountain\n30 Memnite\n`;
 }
 
-const VS_AI: MatchSpec = {
+const VS_AI = {
 	seed: 20261026,
 	seats: [
 		{ name: 'Seat 1', ai: false, deck: deck('Seat one') },
 		{ name: 'Seat 2', ai: true, deck: deck('Seat two') },
 	],
-};
+} satisfies MatchSpec;
 
 interface Run {
 	match: Match;

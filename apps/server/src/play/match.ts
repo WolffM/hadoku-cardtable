@@ -167,7 +167,8 @@ import { matchCards } from './art.js';
 import { createArtIds, type ArtCatalog, type ArtIds } from './art-ids.js';
 import { ChessClock } from './clock.js';
 import { fallbackFor, type Fallback } from './unparsed.js';
-import type { BridgeCommand, BridgeLine, HostEvents, MatchHost, MatchHostFactory, MatchRecord, MatchSpec, TurnSnapshot } from './host.js';
+import { MAX_CONCURRENT_MATCHES, type BridgeCommand, type BridgeLine, type HostEvents, type MatchHost, type MatchHostFactory, type MatchRecord, type MatchSpec, type TurnSnapshot } from './host.js';
+import { runBotGame, type BotGameInput, type BotGameOutcome } from './botgames.js';
 import type { StartEvents } from './start-queue.js';
 import { faceNames, namesForFormat } from './names.js';
 import type { SpellCopy } from './spell-copiers.js';
@@ -4821,6 +4822,14 @@ export interface MatchRegistry {
 	 */
 	restore(id: string): Restored | null;
 	/**
+	 * Play a bot game (`botgames.ts`) on this registry's host. It holds a place in the ceiling while
+	 * it plays, counted with the matches starting or running: past `maxMatches` it is refused at once
+	 * (`capacity`), never queued.
+	 */
+	botGame(input: BotGameInput, timeoutMs: number): Promise<BotGameOutcome>;
+	/** Bot games playing now: what they hold of the ceiling. */
+	botGamesPlaying(): number;
+	/**
 	 * SIGTERM: leave every match that holds a JVM (`active`: starting, running,
 	 * or finished and inside its grace) running for the next process. Returns
 	 * the matches that were handed over and the ones that could NOT be, which
@@ -4878,6 +4887,8 @@ export class EndedMatch {
 export type Restored = { match: Match; from: 'snapshot'; turn: number } | { match: Match; from: 'spec' };
 
 export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged' | 'phaseStopChanged' | 'restartChanged' | 'restartTurn' | 'onGameOver' | 'liveChanged' | 'abandoned' | 'ended'> & {
+	/** The ceiling a bot game counts against (`MatchRegistry.botGame`). Default `MAX_CONCURRENT_MATCHES`. */
+	maxMatches?: number;
 	emit(match: Match, seat: number, envelope: ServerEnvelope): void;
 	/** See {@link MatchDeps.seatsChanged}. */
 	seatsChanged?(match: Match, seats: SeatIdentity[]): void;
@@ -4914,6 +4925,7 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 		deps.freed?.(m);
 	};
 	const active = (): Match[] => [...matches.values()].filter((m) => m.status === 'starting' || m.status === 'running' || m.status === 'over');
+	let botGames = 0;
 	/** A match's deps: it reaches the seats only while it is the registry's match for its id, so a restored match's old self falls silent. */
 	const depsOf = (id: string, self: () => Match): MatchDeps => {
 		const current = (): Match | null => {
@@ -4970,9 +4982,20 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 		stopAll() {
 			for (const m of matches.values()) m.stop();
 		},
+		botGame(input, timeoutMs) {
+			const max = deps.maxMatches ?? MAX_CONCURRENT_MATCHES;
+			const playing = active().filter((m) => m.status === 'starting' || m.status === 'running').length + botGames;
+			if (playing >= max) return Promise.resolve({ ok: false, why: 'capacity', error: `the server is already running ${max} matches` });
+			botGames += 1;
+			return runBotGame(deps.host, `b-${randomBytes(6).toString('hex')}`, input, { timeoutMs, log: deps.log }).finally(() => {
+				botGames -= 1;
+			});
+		},
+		botGamesPlaying: () => botGames,
 		adopt(record) {
 			const attach = deps.attach;
-			if (attach === undefined) return null;
+			// A bot game is never a match (`play/botgames.ts`): left for the host to stop, and played again by its room.
+			if (attach === undefined || record.spec.headless !== undefined) return null;
 			const match: Match = new Match(record.matchId, record.spec, depsOf(record.matchId, () => match), {
 				epoch: record.epoch,
 				owners: record.owners,

@@ -541,6 +541,16 @@ function aiEntrantSeat(id: string): number {
 }
 
 /**
+ * Two AI entrants' pairing with no game played: the lower pod seat wins 2-0. Deterministic, so a restart
+ * and a test see the same answer. What every such pairing was until bot games (2026-11-07), and still is
+ * with none wired or when one has no result (`Lobby`'s `#botGameEnded`).
+ */
+function settledBotGame(round: number, a: string, b: string): MatchResult {
+	const [winner, loser] = aiEntrantSeat(a) < aiEntrantSeat(b) ? [a, b] : [b, a];
+	return { round, playerA: winner, playerB: loser, gamesA: 2, gamesB: 0 };
+}
+
+/**
  * A Constructed room playing a Swiss pod of its own mode
  * (`docs/planning/tournament-mode-plan.md`): `settings.tournament` on. A
  * `draft` room is never this, even though it uses the same pod machinery —
@@ -934,6 +944,37 @@ export interface SeriesEnd {
 }
 
 /**
+ * Where a bot game's side gets its deck: the entrant's locked snapshot (`room.lockedDecks`, opaque here
+ * as everywhere in this file), or a fresh deal from the room's format (a tournament's `per-round`).
+ */
+export type BotDeckSource = { kind: 'locked'; deck: unknown } | { kind: 'deal' };
+
+/** One bot game to play: two AI entrants of `roomId`'s pod, paired together in `round`. */
+export interface BotGameAsk {
+	roomId: string;
+	round: number;
+	players: [string, string];
+	/** Each side's character's name: what Forge calls its player. */
+	names: [string, string];
+	decks: [BotDeckSource, BotDeckSource];
+	bestOf: 1 | 3;
+}
+
+/**
+ * Plays a pod's bot games: two AI entrants paired together play their match out in Forge, headless
+ * (`play/botgames.ts`; the operator, 2026-11-07: "can we have the bots play real games against each
+ * other?" — "real games, headless"). Answers each side's games won, or `null` when there is no result
+ * (Forge failed, the server was full past the wait, or the game ran past its clock), and the room
+ * settles that pairing the old way instead.
+ *
+ * Wired late from `http/routes.ts`, like `PodChecks` (`setBotGames`). Unwired, a bot game is never
+ * asked for: two AI entrants paired together settle at once (`#pairRound`).
+ */
+export interface BotGames {
+	play(ask: BotGameAsk): Promise<{ wins: [number, number]; gameMs: number[] } | null>;
+}
+
+/**
  * A draft room's rounds, once `playPod` has dealt round 1. Null before
  * that (still `lobby`, `drafting` or `building` — see `podPhaseOf`).
  */
@@ -952,6 +993,11 @@ interface PodRecord {
 	bye: string | null;
 	/** Entrants the leader disqualified (`dqPlayer`), in order. Absent on a record written before it. */
 	dropped?: string[];
+	/**
+	 * The CURRENT round's bot games not yet ended (`BotGames`): two AI entrants paired together, with no
+	 * table. Each leaves for `results` when it ends. Absent on a record written before it.
+	 */
+	botGames?: { players: [string, string] }[];
 }
 
 function isStoredMatchResult(v: unknown): v is MatchResult {
@@ -986,6 +1032,7 @@ function isStoredPodRecord(v: unknown): v is PodRecord {
 	if (!Array.isArray(p.results) || !p.results.every(isStoredMatchResult)) return false;
 	if (!Array.isArray(p.pairings) || !p.pairings.every(isStoredPodPairing)) return false;
 	if (p.dropped !== undefined && !(Array.isArray(p.dropped) && p.dropped.every((d) => typeof d === 'string'))) return false;
+	if (p.botGames !== undefined && !(Array.isArray(p.botGames) && p.botGames.every((g) => isStoredPodPairing({ tableId: '', ...(g as object) })))) return false;
 	return p.bye === null || typeof p.bye === 'string';
 }
 
@@ -1136,6 +1183,7 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 		results: pod.results,
 		standings: ranked,
 		pairings: pod.pairings,
+		botGames: pod.botGames ?? [],
 		bye: pod.bye,
 		dropped: pod.dropped ?? [],
 		drafters: humans,
@@ -1554,6 +1602,8 @@ export interface Lobby {
 
 	/** Wires `PodChecks` — see its own doc. Called once, from `http/routes.ts`'s `attachTables`. */
 	setPodChecks(checks: PodChecks): void;
+	/** Wires `BotGames` — see its own doc — and plays every bot game a restored room still owes. Called once, from `http/routes.ts`'s `attachTables`. */
+	setBotGames(botGames: BotGames): void;
 	/**
 	 * How the pod's draft is dealt (`draftRooms.ts`'s pod lookup, wired the same
 	 * way as `setPodChecks`), read off `podTable`: the seats not closed, each
@@ -2430,6 +2480,10 @@ class FileLobby implements Lobby {
 
 	/** Wave 72 §P. Unwired until `setPodChecks` runs — see `PodChecks`'s own doc. */
 	#podChecks: PodChecks = NO_POD_CHECKS;
+	/** Unwired until `setBotGames` runs: two AI entrants paired together then settle at once. */
+	#botGames: BotGames | null = null;
+	/** Bot games being played now, by room, round and players: one game per pairing, however often it is asked. */
+	readonly #botGamesPlaying = new Set<string>();
 
 	#onTournament: (t: Tournament) => void;
 
@@ -3033,12 +3087,17 @@ class FileLobby implements Lobby {
 			...pod.results,
 			{ round: pod.round, playerA: a, playerB: b, gamesA: table.series.wins[seatOf(a, 0)] ?? 0, gamesB: table.series.wins[seatOf(b, 1)] ?? 0, ...(gameMs.length === 0 ? {} : { gameMs }) },
 		];
-		const stillPlaying = pod.pairings.some((p) => {
-			if (p.tableId === table.id) return false;
+		if (!this.#roundStillPlaying(room, pod, table.id)) this.#advancePodRound(room, pod);
+	}
+
+	/** Whether any of the current round's matches is not over yet: a table (but `except`, just finished) or a bot game. */
+	#roundStillPlaying(room: RoomRecord, pod: PodRecord, except: string | null): boolean {
+		if ((pod.botGames ?? []).length > 0) return true;
+		return pod.pairings.some((p) => {
+			if (p.tableId === except) return false;
 			const t = room.tables.find((x) => x.id === p.tableId);
 			return t === undefined || t.series.phase !== 'done';
 		});
-		if (!stillPlaying) this.#advancePodRound(room, pod);
 	}
 
 	/**
@@ -3047,47 +3106,117 @@ class FileLobby implements Lobby {
 	 * last round — mark the pod `done`: `round` moves one PAST `rounds`,
 	 * which is what `podPhaseOf` reads as `done`.
 	 *
-	 * A tournament pod's round can pair two AI entrants against each other
-	 * (`#pairRound`'s own split): that pairing settles at once, with no
-	 * table. When EVERY pairing of the round does (a round of nothing but AI
-	 * vs AI — rare, but a few AI entrants can outnumber the humans left after
-	 * byes), there is nothing live to wait on, so this advances past it
-	 * immediately rather than stranding the pod on a round with zero tables.
+	 * A round can pair two AI entrants against each other (`#pairRound`'s own
+	 * split): that pairing is a bot game, played with no table, and the round
+	 * waits on it like on any table (`#botGameEnded`). When EVERY pairing of
+	 * the round settled at once (no tables, no bot games), there is nothing
+	 * live to wait on, so this advances past it immediately rather than
+	 * stranding the pod on a round with nothing in it.
 	 */
 	#advancePodRound(room: RoomRecord, pod: PodRecord): void {
 		if (pod.round >= pod.rounds) {
-			room.pod = { ...pod, round: pod.rounds + 1, pairings: [], bye: null };
+			room.pod = { ...pod, round: pod.rounds + 1, pairings: [], botGames: [], bye: null };
 			this.#log({ event: 'pod-done', roomId: room.id });
 			this.#archive(room);
 			return;
 		}
 		const nextRound = pod.round + 1;
-		const { pairings, settled, bye } = this.#pairRound(room, podPlayers(room, pod.humans), pod.results, nextRound);
+		const { pairings, settled, bots, bye } = this.#pairRound(room, podPlayers(room, pod.humans), pod.results, nextRound);
 		const byeResult: MatchResult[] = bye === null ? [] : [{ round: nextRound, playerA: bye, playerB: null, gamesA: 2, gamesB: 0 }];
 		const results = [...pod.results, ...byeResult, ...settled];
-		room.pod = { ...pod, round: nextRound, results, pairings, bye };
-		this.#log({ event: 'pod-round-started', roomId: room.id, round: nextRound, tables: pairings.length, bye, settled: settled.length });
-		if (pairings.length === 0) this.#advancePodRound(room, room.pod);
+		room.pod = { ...pod, round: nextRound, results, pairings, botGames: bots.map((players) => ({ players })), bye };
+		this.#log({ event: 'pod-round-started', roomId: room.id, round: nextRound, tables: pairings.length, bye, settled: settled.length, botGames: bots.length });
+		if (pairings.length === 0 && bots.length === 0) this.#advancePodRound(room, room.pod);
+		else this.#playBotGames(room);
 	}
 
 	/**
-	 * One round's pairings, split in two: a LIVE pairing gets a table
-	 * (`#newPodTable`); an AI-vs-AI pairing — possible only in a TOURNAMENT
-	 * pod, which is the only one that ever seats more than one AI entrant —
-	 * is settled at once with no game at all (the operator, 2026-10-22:
-	 * *"settle that match without a game… rather than spin up an AI-vs-AI
-	 * Forge match"*). Deterministic, not random, so a restart and a test both
-	 * see the same answer: the lower pod seat wins 2-0.
+	 * Play every bot game of the room's current round not already being played (`BotGames`). Called
+	 * when a round pairs, and again for every room restored with one still owed (`setBotGames`): a
+	 * restart plays the game again from its start, never waits on the one it lost.
+	 */
+	#playBotGames(room: RoomRecord): void {
+		const pod = room.pod;
+		const botGames = this.#botGames;
+		if (pod === null || botGames === null) return;
+		const bestOf = seriesFormatOf(seriesRoomOf(room)).length === 1 ? 1 : 3;
+		for (const { players } of pod.botGames ?? []) {
+			const key = `${room.id}:${pod.round}:${players.join(':')}`;
+			if (this.#botGamesPlaying.has(key)) continue;
+			this.#botGamesPlaying.add(key);
+			const ask: BotGameAsk = {
+				roomId: room.id,
+				round: pod.round,
+				players,
+				names: [entrantPersona(room, players[0]).name, entrantPersona(room, players[1]).name],
+				decks: [this.#botDeckSource(room, players[0]), this.#botDeckSource(room, players[1])],
+				bestOf,
+			};
+			this.#log({ event: 'bot-game-started', roomId: room.id, round: pod.round, players, bestOf });
+			const ended = (result: { wins: [number, number]; gameMs: number[] } | null, error: string | null): void => {
+				this.#botGamesPlaying.delete(key);
+				this.#botGameEnded(room.id, ask, result, error);
+			};
+			botGames.play(ask).then(
+				(result) => ended(result, null),
+				(err: unknown) => ended(null, (err as Error).message),
+			);
+		}
+	}
+
+	/** Where `entrant`'s deck for a bot game comes from (`BotDeckSource`). */
+	#botDeckSource(room: RoomRecord, entrant: string): BotDeckSource {
+		const locked = tournamentDecksOf(room) === 'locked' ? (room.lockedDecks[entrant] ?? null) : null;
+		return locked === null ? { kind: 'deal' } : { kind: 'locked', deck: locked };
+	}
+
+	/**
+	 * A bot game ended: its result goes into the pod's results, as a table's does (`#finishPodTable`),
+	 * and the round moves on once nothing of it is left. No result settles the pairing the way it was
+	 * settled before bot games existed (`settledBotGame`), so a round never waits for good. A game that
+	 * ends after its room, round or pairing has gone is let go.
+	 */
+	#botGameEnded(roomId: string, ask: BotGameAsk, result: { wins: [number, number]; gameMs: number[] } | null, error: string | null): void {
+		const room = this.#rooms.get(roomId);
+		const pod = room?.pod ?? null;
+		const [a, b] = ask.players;
+		const owed = pod?.botGames?.find((g) => g.players[0] === a && g.players[1] === b);
+		if (room === undefined || pod === null || pod.round !== ask.round || owed === undefined) {
+			this.#log({ event: 'bot-game-dropped', roomId, round: ask.round, players: ask.players });
+			return;
+		}
+		const recorded: MatchResult =
+			result === null
+				? settledBotGame(ask.round, a, b)
+				: { round: ask.round, playerA: a, playerB: b, gamesA: result.wins[0], gamesB: result.wins[1], ...(result.gameMs.length === 0 ? {} : { gameMs: result.gameMs }) };
+		if (result === null) this.#log({ event: 'bot-game-fallback', roomId, round: ask.round, players: ask.players, error, settled: [recorded.playerA, recorded.playerB] });
+		else this.#log({ event: 'bot-game-finished', roomId, round: ask.round, players: ask.players, wins: result.wins, gameMs: result.gameMs });
+		room.pod = { ...pod, results: [...pod.results, recorded], botGames: (pod.botGames ?? []).filter((g) => g !== owed) };
+		if (!this.#roundStillPlaying(room, room.pod, null)) this.#advancePodRound(room, room.pod);
+		this.#persist(room);
+	}
+
+	/**
+	 * One round's pairings, split three ways: a LIVE pairing gets a table
+	 * (`#newPodTable`); two AI entrants paired together are a bot game
+	 * (`bots`), played in Forge with no table (`#playBotGames`) — the operator,
+	 * 2026-11-07, superseding 2026-10-22's *"settle that match without a
+	 * game… rather than spin up an AI-vs-AI Forge match"*, so the bracket shows
+	 * a real score for every pairing. With no `BotGames` wired (a server
+	 * without Forge, most tests) or in a seeded testing room such a pairing is
+	 * still settled at once (`settledBotGame`), and so is a disqualified
+	 * entrant's.
 	 */
 	#pairRound(
 		room: RoomRecord,
 		players: PodPlayer[],
 		results: MatchResult[],
 		round: number,
-	): { pairings: { tableId: string; players: [string, string] }[]; settled: MatchResult[]; bye: string | null } {
+	): { pairings: { tableId: string; players: [string, string] }[]; settled: MatchResult[]; bots: [string, string][]; bye: string | null } {
 		const paired = pairRound({ players, results, round });
 		const pairings: { tableId: string; players: [string, string] }[] = [];
 		const settled: MatchResult[] = [];
+		const bots: [string, string][] = [];
 		const dropped = new Set(room.pod?.dropped ?? []);
 		for (const [a, b] of paired.tables) {
 			// A disqualified entrant's pairing is its opponent's bye (`dqPlayer`); two of them, nothing.
@@ -3095,13 +3224,14 @@ class FileLobby implements Lobby {
 				const other = dropped.has(a) ? b : a;
 				if (!dropped.has(other)) settled.push({ round, playerA: other, playerB: null, gamesA: 2, gamesB: 0 });
 			} else if (isAiEntrant(a) && isAiEntrant(b)) {
-				const [winner, loser] = aiEntrantSeat(a) < aiEntrantSeat(b) ? [a, b] : [b, a];
-				settled.push({ round, playerA: winner, playerB: loser, gamesA: 2, gamesB: 0 });
+				// A seeded testing room's rounds are a fixture, never played (`#archive` keeps them out of the stats too).
+				if (this.#botGames === null || room.testing === true) settled.push(settledBotGame(round, a, b));
+				else bots.push([a, b]);
 			} else {
 				pairings.push({ tableId: this.#newPodTable(room, a, b), players: [a, b] });
 			}
 		}
-		return { pairings, settled, bye: paired.bye !== null && dropped.has(paired.bye) ? null : paired.bye };
+		return { pairings, settled, bots, bye: paired.bye !== null && dropped.has(paired.bye) ? null : paired.bye };
 	}
 
 	/**
@@ -3886,6 +4016,12 @@ class FileLobby implements Lobby {
 		this.#podChecks = checks;
 	}
 
+	/** Wire the bot games (`BotGames`), and play every one a room restored mid-round still owes. */
+	setBotGames(botGames: BotGames): void {
+		this.#botGames = botGames;
+		for (const room of this.#rooms.values()) if ((room.pod?.botGames ?? []).length > 0) this.#playBotGames(room);
+	}
+
 	/**
 	 * Once the draft registry has restored itself at boot: every room mid-draft
 	 * whose draft did not come back goes back to its lobby, rather than
@@ -3935,7 +4071,7 @@ class FileLobby implements Lobby {
 		// The AI's slot (if either is one) always LAST, matching the seat
 		// convention `http/gauntlet.ts`'s vs-AI ready already uses (the human is
 		// Gauntlet seat 0, the synthesized AI player seat 1) — never both: an
-		// AI-vs-AI pairing settles without a table (`#pairRound`'s own doc).
+		// AI-vs-AI pairing plays a bot game without a table (`#pairRound`'s own doc).
 		const entrants: [string, string] = isAiEntrant(a) ? [b, a] : [a, b];
 		return isAiEntrant(entrants[1]) ? { entrants, ai: entrantPersona(room, entrants[1]) } : { entrants };
 	}
@@ -4126,11 +4262,12 @@ class FileLobby implements Lobby {
 			return;
 		}
 		const rounds = roundsFor(entrants.length);
-		const { pairings, settled, bye } = this.#pairRound(room, podPlayers(room, entrants), [], 1);
+		const { pairings, settled, bots, bye } = this.#pairRound(room, podPlayers(room, entrants), [], 1);
 		const byeResult: MatchResult[] = bye === null ? [] : [{ round: 1, playerA: bye, playerB: null, gamesA: 2, gamesB: 0 }];
-		room.pod = { humans: entrants, round: 1, rounds, results: [...byeResult, ...settled], pairings, bye };
-		this.#log({ event: 'pod-rounds-started', roomId: room.id, rounds, tables: pairings.length, bye, settled: settled.length });
-		if (pairings.length === 0) this.#advancePodRound(room, room.pod);
+		room.pod = { humans: entrants, round: 1, rounds, results: [...byeResult, ...settled], pairings, botGames: bots.map((players) => ({ players })), bye };
+		this.#log({ event: 'pod-rounds-started', roomId: room.id, rounds, tables: pairings.length, bye, settled: settled.length, botGames: bots.length });
+		if (pairings.length === 0 && bots.length === 0) this.#advancePodRound(room, room.pod);
+		else this.#playBotGames(room);
 	}
 }
 

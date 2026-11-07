@@ -160,12 +160,25 @@ export interface SeatSpec {
 	deck: string | null;
 }
 
+/**
+ * A bot game: Forge's AI against Forge's AI, best of `bestOf`, each game drawn past `gameS` seconds
+ * (`PlayBridge.java`'s `playHeadless`). It runs on the same JVMs as every match and is never a `Match`:
+ * `play/botgames.ts` reads its lines.
+ */
+export interface HeadlessRules {
+	bestOf: 1 | 3;
+	gameS: number;
+}
+
 export interface MatchSpec {
 	/**
-	 * Seat 0 is always a human: the bridge refuses a match with no human seat, because Forge
-	 * watches an AI-against-AI game through a desktop window a headless JVM cannot open.
+	 * Seat 0 is a human in every match a player sees: the bridge refuses a match with no human seat,
+	 * because Forge watches an AI-against-AI game through a desktop window a headless JVM cannot open.
+	 * Only a bot game ({@link headless}) seats two AIs, and it never opens that window.
 	 */
-	seats: [SeatSpec & { ai: false }, SeatSpec];
+	seats: [SeatSpec & { ai: false }, SeatSpec] | [SeatSpec & { ai: true }, SeatSpec & { ai: true }];
+	/** A bot game ({@link HeadlessRules}); absent for every match a player plays or watches. */
+	headless?: HeadlessRules;
 	/** Seeds Forge's shuffles and the precon pick, for a repeatable test run. Omitted in play. */
 	seed?: number;
 	/**
@@ -269,8 +282,9 @@ export type BridgeLine =
 	 * `losers`: the player ids Forge has lost (`Player.hasLost`), the same ids the views carry.
 	 * Absent from a line an older bridge wrote, which a resumed match may replay.
 	 * `lost`: why each of them lost, as Forge decided it (`PlayerOutcome.lossState`); absent likewise.
+	 * A bot game's (`MatchSpec.headless`) carries `seat`, the winner's (`null` for a draw), and the game's `ms` instead.
 	 */
-	| { t: 'gameover'; winner: string | null; losers?: number[]; lost?: Loss[] }
+	| { t: 'gameover'; winner: string | null; losers?: number[]; lost?: Loss[]; seat?: number | null; ms?: number }
 	/**
 	 * One entry of Forge's own game log (`PlayBridge.GameLogForward`), worded once
 	 * per player: `text` is null when the line names a card that player may not
@@ -1066,6 +1080,8 @@ export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = 
 					return false;
 				}
 				if (h.ended || h.stopping || h.jvm.exited || h.jvm.released || h.events === null) return false;
+				// A bot game is not kept: nobody can watch it, and the room plays it again (`play/botgames.ts`).
+				if (h.entry.spec.headless !== undefined) return false;
 				h.handed = true;
 				return true;
 			},

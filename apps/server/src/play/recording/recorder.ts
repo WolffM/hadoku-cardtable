@@ -42,7 +42,7 @@ import { artOf } from '../art.js';
 import { createArtIds, type ArtCatalog } from '../art-ids.js';
 import type { DeckCosts } from '../deck-colors.js';
 import { seatDeckColors } from '../deck-colors.js';
-import type { BridgeCommand, MatchHost, MatchHostFactory, MatchSpec } from '../host.js';
+import type { BridgeCommand, MatchHost, MatchHostFactory, MatchSpec, SeatSpec } from '../host.js';
 import type { OutcomeFacts } from '../match.js';
 import { gameOutcome, WATCHER_SEAT } from '../match.js';
 import { createSeatPosition, type SeatPosition } from './position.js';
@@ -186,7 +186,9 @@ function guarded(log: JsonLog, matchId: string, what: string, run: () => void): 
  * names its people from the log's `users` as they are when watched. The AI keeps Forge's name for it.
  */
 export function anonymousSpec(spec: MatchSpec): MatchSpec {
-	return { ...spec, seats: [{ ...spec.seats[0], name: 'Player 1' }, spec.seats[1].ai ? spec.seats[1] : { ...spec.seats[1], name: 'Player 2' }] };
+	const named = <S extends SeatSpec>(s: S, n: number): S => (s.ai ? s : { ...s, name: `Player ${n}` });
+	// Each seat keeps its own `ai`, so the pair is still the shape it came in.
+	return { ...spec, seats: [named(spec.seats[0], 1), named(spec.seats[1], 2)] as MatchSpec['seats'] };
 }
 
 /** The action log's `users`, by seat, from the end line's roster; nothing when no roster was read. */
@@ -254,6 +256,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 	return {
 		host(inner) {
 			const wrapped = ((matchId, spec, events) => {
+				// A bot game is nobody's match: nothing to replay and nobody to name.
+				if (spec.headless !== undefined) return inner(matchId, spec, events);
 				const seeded: MatchSpec = spec.seed === undefined ? { ...spec, seed: randomSeed() } : spec;
 				const roomId = deps.roomOf(matchId);
 				const startedAt = new Date(now()).toISOString();

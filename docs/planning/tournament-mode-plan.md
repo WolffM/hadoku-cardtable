@@ -95,8 +95,13 @@ player sit down with at this table?*
   once the seats lock.
 - **Seats:** with Tournament on, the room seats through `podSeats` (up to 8), exactly as a draft pod
   does, AI seats included (ruling 5). Its 1v1 table seats are hidden while the pod is in lobby. AI
-  entrants are always ready. An AI's table plays the Forge AI as a vs-AI table does. Two AI paired
-  together settle without a game.
+  entrants are always ready. An AI's table plays the Forge AI as a vs-AI table does. ~~Two AI paired
+  together settle without a game.~~ **Superseded 2026-11-07** by the operator ("can we have the bots
+  play real games against each other?", then, asked how: "real games, headless"): two AI paired
+  together play a real best-of in Forge with no table and no board (a *bot game*,
+  `apps/server/src/play/botgames.ts`), the round waits on it like a table, and its real score goes in
+  the bracket. Settling without a game (the lower seat 2-0) is now only the fallback, for a bot game
+  with no result: Forge failed, the server stayed full, or it ran past its clock.
 - **Lock:** round 1 starts BY ITSELF (ruling 7) the instant ≥ 2 entrants (at least 1 human) are seated
   and every seated human is ready — no button, nothing the leader presses. Ready means the mode's own
   condition: Classic needs a legal deck chosen; Gauntlet and All Random need nothing extra.

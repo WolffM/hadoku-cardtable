@@ -99,6 +99,7 @@ import forge.localinstance.properties.ForgePreferences.FPref;
 import forge.localinstance.skin.FSkinProp;
 import forge.model.FModel;
 import forge.player.AutoYieldStore;
+import forge.player.GamePlayerUtil;
 import forge.player.PlayerControllerHuman;
 import forge.player.PlayerZoneUpdate;
 import forge.player.PlayerZoneUpdates;
@@ -499,6 +500,18 @@ public final class PlayBridge {
         final List<SeatConfig> seats = new ArrayList<>();
 
         /**
+         * Optional. A bot game: AI against AI, played straight through Forge's own {@code Match} with no
+         * server, no seat and no frame ({@link PlayBridge#playHeadless}), as Forge's {@code sim} mode does.
+         * {@code bestOf} games at most, first to a majority; each game past {@code gameS} seconds of wall
+         * clock is drawn, as Forge's sim clock draws one. {@code 0} for an ordinary match.
+         */
+        final int headlessBestOf;
+        final int headlessGameS;
+
+        /** The game a bot game is playing now, for its {@code stop}; null between games and in any other match. */
+        volatile Game headlessGame;
+
+        /**
          * The server's own lobby, set once in {@link PlayBridge#play} — the one live
          * {@code Game} every {@link SeatGui} reads off directly for
          * {@link SeatGui#liveMulliganFlag()}. See that method's doc for why a seat's
@@ -597,6 +610,9 @@ public final class PlayBridge {
             skipOpening = root.has("skipOpening") && root.get("skipOpening").getAsBoolean();
             restore = root.has("restore") && root.get("restore").getAsBoolean();
             chooser = root.has("chooser") && !root.get("chooser").isJsonNull() ? root.get("chooser").getAsInt() : null;
+            final JsonObject headless = root.has("headless") && root.get("headless").isJsonObject() ? root.getAsJsonObject("headless") : null;
+            headlessBestOf = headless == null ? 0 : headless.get("bestOf").getAsInt();
+            headlessGameS = headless == null ? 0 : headless.get("gameS").getAsInt();
             for (final JsonElement e : root.getAsJsonArray("seats")) {
                 final JsonObject s = e.getAsJsonObject();
                 seats.add(new SeatConfig(
@@ -610,11 +626,20 @@ public final class PlayBridge {
          * Why this config cannot be played, or null. Asked before Forge is touched. A match
          * with no human seat cannot: Forge's {@code HostedMatch.startGame} watches such a game
          * through {@code GuiBase.getInterface().getNewGuiGame()}, which here is the desktop
-         * GUI, and its Swing frame throws {@code HeadlessException} on the match's thread.
+         * GUI, and its Swing frame throws {@code HeadlessException} on the match's thread. A bot game
+         * ({@link #headlessBestOf}) never reaches {@code HostedMatch}, so it is the one that may, and must.
          */
         String refusal() {
             if (seats.size() != 2) { return "a match has exactly two seats, got " + seats.size(); }
-            if (seats.stream().allMatch(SeatConfig::ai)) { return "a match needs a human seat: Forge cannot host AI against AI headless"; }
+            final boolean allAi = seats.stream().allMatch(SeatConfig::ai);
+            if (headlessBestOf > 0) {
+                if (!allAi) { return "a bot game is AI against AI"; }
+                // Forge tells its players apart by name (LobbyPlayer.equals): one name would be one player.
+                if (seats.get(0).name().equals(seats.get(1).name())) { return "a bot game's two seats need two names"; }
+                if (headlessGameS <= 0) { return "a bot game needs a clock for each game"; }
+                return null;
+            }
+            if (allAi) { return "a match needs a human seat: Forge cannot host AI against AI headless"; }
             return null;
         }
 
@@ -7887,7 +7912,11 @@ public final class PlayBridge {
         final long startAt = System.currentTimeMillis();
         final Thread t = new Thread(() -> {
             try {
-                startMatch(match, PlayBridge::bootServer, startAt);
+                if (match.headlessBestOf > 0) {
+                    playHeadless(match, startAt);
+                } else {
+                    startMatch(match, PlayBridge::bootServer, startAt);
+                }
             } finally {
                 MATCHES.remove(match.matchId);
                 GAME_THREADS.values().removeIf(owner -> owner == match);
@@ -7896,6 +7925,92 @@ public final class PlayBridge {
         }, "bridge-match-" + match.matchId);
         t.setDaemon(true);
         t.start();
+    }
+
+    /**
+     * A bot game ({@link MatchContext#headlessBestOf}): two Forge AIs play a best-of-N on Forge's own
+     * {@code Match}, the way {@code SimulateMatch.simulate} does ({@code forge-gui-desktop/.../view/
+     * SimulateMatch.java}: {@code new Match(rules, players, …)}, then {@code createGame},
+     * {@code setNoGUIUser} and {@code startGame} per game until {@code isMatchOver}). Nothing of
+     * {@code SimulateMatch} itself is called: it prints its log to stdout, which is this bridge's
+     * protocol.
+     *
+     * <p>Says {@code ready}, then one {@code gameover} per game (its {@code seat}, {@code null} for a
+     * draw, and its {@code ms}), and {@link #startHosted} says {@code stopped} once it returns. A game
+     * still going after {@code gameS} seconds is drawn, as Forge's sim clock draws one
+     * ({@code GameRules.getSimTimeout}); a {@code stop} draws the game in play and plays no more.
+     */
+    static void playHeadless(final MatchContext match, final long startAt) {
+        try {
+            final List<RegisteredPlayer> players = new ArrayList<>();
+            final JsonArray seatInfo = new JsonArray();
+            for (int i = 0; i < match.seats.size(); i++) {
+                final SeatConfig seat = match.seats.get(i);
+                final Deck deck = seat.deck() == null ? randomPrecon(new Random()) : parseDeck(seat.deck());
+                final RegisteredPlayer rp = new RegisteredPlayer(deck);
+                rp.setPlayer(GamePlayerUtil.createAiPlayer(seat.name(), i));
+                players.add(rp);
+                final JsonObject s = new JsonObject();
+                s.addProperty("seat", i);
+                s.addProperty("ai", true);
+                s.addProperty("deck", deck.getName());
+                final JsonArray removed = new JsonArray();
+                for (final String name : unsupportedIn(deck)) { removed.add(name); }
+                s.add("removed", removed);
+                seatInfo.add(s);
+            }
+            final GameRules rules = new GameRules(GameType.Constructed);
+            rules.setAppliedVariants(EnumSet.of(GameType.Constructed));
+            rules.setGamesPerMatch(match.headlessBestOf);
+            final forge.game.Match forgeMatch = new forge.game.Match(rules, players, "Bot game");
+
+            final JsonObject ready = line("ready");
+            ready.addProperty("forgePort", 0);
+            final long now = System.currentTimeMillis();
+            ready.addProperty("bootMs", now - java.lang.management.ManagementFactory.getRuntimeMXBean().getStartTime());
+            ready.addProperty("startMs", now - startAt);
+            ready.add("seats", seatInfo);
+            match.emit(ready);
+
+            final ExecutorService games = Executors.newSingleThreadExecutor(r -> new Thread(r, "bot-game-" + match.matchId));
+            try {
+                for (int n = 0; n < match.headlessBestOf && !forgeMatch.isMatchOver() && match.stop.getCount() > 0; n++) {
+                    final Game game = forgeMatch.createGame();
+                    game.setNoGUIUser();
+                    match.headlessGame = game;
+                    final long began = System.currentTimeMillis();
+                    final java.util.concurrent.Future<?> played = games.submit(() -> forgeMatch.startGame(game));
+                    try {
+                        played.get(match.headlessGameS, TimeUnit.SECONDS);
+                    } catch (final java.util.concurrent.TimeoutException e) {
+                        // Forge's own sim clock: a game too long is a draw (SimulateMatch.simulateSingleMatch).
+                        game.setGameOver(GameEndReason.Draw);
+                        try { played.get(30, TimeUnit.SECONDS); } catch (final java.util.concurrent.TimeoutException stuck) { played.cancel(true); }
+                    } catch (final java.util.concurrent.ExecutionException e) {
+                        match.fail("a bot game's game failed", e.getCause());
+                        return;
+                    } finally {
+                        match.headlessGame = null;
+                    }
+                    if (match.stop.getCount() == 0) { return; }
+                    final JsonObject over = line("gameover");
+                    final var outcome = game.getOutcome();
+                    final LobbyPlayer winner = outcome == null || outcome.isDraw() ? null : outcome.getWinningLobbyPlayer();
+                    Integer seat = null;
+                    for (int i = 0; i < players.size(); i++) {
+                        if (winner != null && players.get(i).getPlayer().equals(winner)) { seat = i; }
+                    }
+                    over.addProperty("winner", winner == null ? null : winner.getName());
+                    over.addProperty("seat", seat);
+                    over.addProperty("ms", System.currentTimeMillis() - began);
+                    match.emit(over);
+                }
+            } finally {
+                games.shutdownNow();
+            }
+        } catch (final Exception | StackOverflowError e) {
+            match.fail("a bot game failed", e);
+        }
     }
 
     /** {@link #bootServer} for a one-match JVM, which cannot go on without it. */
@@ -8384,7 +8499,11 @@ public final class PlayBridge {
             case "resend-pending" -> seat(match, cmd).resendPending();
             case "probe" -> probe(match, cmd);
             case "draw" -> forceDraw(match);
-            case "stop" -> match.stop.countDown();
+            case "stop" -> {
+                match.stop.countDown();
+                final Game playing = match.headlessGame;
+                if (playing != null && !playing.isGameOver()) { playing.setGameOver(GameEndReason.Draw); }
+            }
             default -> throw new IllegalArgumentException("unknown command " + cmd.get("t"));
         }
     }

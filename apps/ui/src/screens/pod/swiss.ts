@@ -10,8 +10,8 @@
  * column: its winners up a row, its losers down one. The final column has everyone by place, on the row
  * of the record they finished with.
  *
- * Pure: the pod's results, its pairings and its tables in, positions out. A round not yet paired is a
- * column with a head and nothing under it.
+ * Pure: the pod's results, its pairings, its bot games and its tables in, positions out. A round not yet
+ * paired is a column with a head and nothing under it.
  */
 
 import type { PodMatchResult, RoomTable, SeriesPhase } from '@hadoku/shared';
@@ -155,9 +155,10 @@ export function records(pod: Pick<PodView, 'results'>): Map<string, Record3> {
 
 function sameSeats(table: RoomTable, players: readonly [string, string]): boolean {
   const seated = table.players.map((p) => p.memberId);
-  // A table against an AI (either shape, `isPodAi`) seats one player; the AI holds no seat at it.
+  // A table against an AI (either shape, `isPodAi`) seats one player; the AI holds no seat at it. Two AIs
+  // play a bot game, which has no table at all.
   const want = players.filter((id) => !isPodAi(id));
-  return seated.length === want.length && want.every((id) => seated.includes(id));
+  return want.length > 0 && seated.length === want.length && want.every((id) => seated.includes(id));
 }
 
 const sameMatch = (r: PodMatchResult, players: readonly [string, string]): boolean =>
@@ -176,6 +177,10 @@ function roundEntries(pod: PodView, tables: readonly RoomTable[], round: number,
     if (table !== null) claimed.add(table.id);
     if (recorded.some((r) => sameMatch(r, p.players))) continue;
     matches.push({ players: p.players, wins: table?.series.wins ?? [0, 0], table, phase: table?.series.phase ?? 'seating', live: true });
+  }
+  // Two AIs playing their bot game out: under way, at no table.
+  for (const g of live ? (pod.botGames ?? []) : []) {
+    if (!recorded.some((r) => sameMatch(r, g.players))) matches.push({ players: g.players, wins: [0, 0], table: null, phase: 'playing', live: true });
   }
   for (const r of recorded) {
     const players: [string, string] = [r.playerA, r.playerB!];

@@ -977,3 +977,38 @@ The bridge's `SeatController.chooseEntitiesForEffect` holds the ability whenever
 (replacing AF411's `chooseCardsForZoneChange` hook, which went through it anyway), and the ask's `rules`
 gain `slots` (`SearchRuleSchema`). A `Dig` with rules is not folded into the dig's order sheet
 (`arrange.ts`'s `digAsk`): only the search prompt checks them.
+
+## Forge plays AI against AI headless, and how — 2026-11-07 (lane botgames)
+
+Read at the pin `f216faf58e4` and run on hokon against that pin's jar.
+
+- **`sim` mode is in our jar.** `forge-gui-desktop/src/main/java/forge/view/Main.java:101-103`
+  dispatches `sim` to `SimulateMatch.simulate(args)`, and `isCommandLineMode` (`:128`) sets
+  `java.awt.headless` for it. The jar carries `forge/view/SimulateMatch.class` and
+  `TimeLimitedCodeBlock.class` (`unzip -l`). **[verified]**
+- **Its args** (`SimulateMatch.java`, `simulate` and `argumentHelp`): `-d <deck>…` (a name in the
+  deck store, or a `*.xyz` file name **relative to `ForgeConstants.DECK_CONSTRUCTED_DIR`**, i.e.
+  `~/.forge/decks/constructed/`: an absolute path is prefixed with that directory and fails with
+  `No deck found in …`, `deckFromCommandLineParameter`), `-n` games, `-m` best of N (overrides `-n`;
+  plays `while (!mc.isMatchOver())`), `-f` game type, `-s` seed (sets the process-wide
+  `MyRandom`), `-a` AI profile per deck, `-c` seconds per game before it is called a draw
+  (`GameRules.simTimeout`, default **120**), `-q` results only, `-t`/`-p`/`-D` a tournament.
+  **[verified, read and run]**
+- **What it does per game** (`simulateSingleMatch`): `mc.createGame()`, `game.setNoGUIUser()` (every
+  `Card` then gets a `DummyCardView`, `Card.java:418`), `mc.startGame(game)` on a
+  `TimeLimitedCodeBlock` executor, and on the clock running out `game.setGameOver(GameEndReason.Draw)`.
+  No `HostedMatch`, so no spectator `IGuiGame`: that window (`HostedMatch.java:261-265`, when
+  `humanCount == 0`) is why our bridge refused an all-AI match. **[verified]**
+- **What it prints, all on stdout:** a header (`Ai(1)-Goblins vs Ai(2)-Bears - one game of
+  Constructed`, which says "one game" even under `-m 3`), each game's log (`-q`: only its
+  `MATCH_RESULTS` lines, `Game Outcome: …` and `Match Result: …`), then `Game Result: Game N ended
+  in <ms> ms. <name> has won!` or `… ended in a Draw!`. Run: Goblins (17 Mountain, 23 Raging Goblin)
+  vs Bears (17 Forest, 23 Grizzly Bears), `-m 3 -q`: Bears 2-0 in 2256 ms and 1003 ms, 8.5 s wall
+  for the whole JVM. **[verified, run]**
+- **Why the bridge does not call it.** stdout is the bridge's line protocol, and `-s` sets the
+  random for the whole process, which a JVM hosting 25 matches cannot share. `PlayBridge.playHeadless`
+  does the same steps on `forge.game.Match` itself (`Match.createGame`, `Match.startGame`, which binds
+  `MyRandom` to the game's own random at this pin, `Match.isMatchOver`), says one `gameover` line
+  per game with the winning seat, and runs inside the shared `--host` JVM like any match. Through the
+  real pool (`botgames.jvm.test.ts`): Bears 2-0, games of 5379 ms and 2610 ms, 19.6 s including the
+  JVM's boot. **[verified, run]**
