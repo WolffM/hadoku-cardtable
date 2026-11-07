@@ -3,7 +3,7 @@
   "version": "0.1.2",
   "private": true,
   "type": "module",
-  "license": "GPL-3.0-or-later",
+  "license": "MIT",
   "description": "A room snapshot's codec (P6) and where it is stored: memory and file tiers. Transport-free: no sockets, no socket.io, no filesystem unless you ask for the file tier.",
   "exports": {
     ".": "./src/index.ts"
