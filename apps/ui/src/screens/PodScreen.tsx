@@ -76,6 +76,7 @@ import { mountInspector } from '../play/inspect/index.ts';
 import { navigate, routeHash } from './route.ts';
 import { TopLayer } from '../topLayer.tsx';
 import { SettingsGear } from '../settings/Settings.tsx';
+import { useChromeShell } from '../chrome/shell.ts';
 import { livePodSource, useFollowMyTable, usePodContext, type PodSource } from './pod/client.ts';
 import { PodBuilding } from './pod/PodBuilding.tsx';
 import { PodSpectators } from './pod/PodSpectators.tsx';
@@ -122,6 +123,20 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
     const el = host.current;
     return el === null ? undefined : mountInspector(el);
   }, []);
+  /**
+   * A fitted screen, as every other screen in a room is (`ConstructedScreen`, `DeckScreen`): the
+   * chrome is pinned to the window, so the room's chat runs to its bottom edge and the pod scrolls
+   * inside its own box. Without it the chrome sized to the pod's content, and a short hub drew the
+   * chat column ending halfway down the page.
+   */
+  const shellRef = useChromeShell('fit');
+  const root = useCallback(
+    (el: HTMLDivElement | null) => {
+      host.current = el;
+      return shellRef(el);
+    },
+    [shellRef],
+  );
 
   useEffect(() => {
     // The last payload rendered. A rejection or a reconnect notifies too, and
@@ -248,7 +263,7 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
   );
 
   return (
-    <div className="shell" data-testid="pod" ref={host}>
+    <div className="shell shell--fit" data-testid="pod" ref={root}>
       {!drafting && <header className="pod__bar">{bar}</header>}
 
       {draft !== null && draft.lastError !== null && (
