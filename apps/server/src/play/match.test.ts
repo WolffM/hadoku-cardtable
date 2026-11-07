@@ -2826,6 +2826,75 @@ describe('hold-decide-forward', () => {
 	});
 
 	/*
+	 * An act made on a window Forge has moved past is dropped, never handed on: Forge's ActGate holds
+	 * an act that comes between two inputs for the next one, where it answers a window the seat never
+	 * saw. The browser sends the cursor it had folded with every act (`seen`).
+	 */
+	describe('an act made on a window Forge has moved past', () => {
+		const UPKEEP = 'Priority: Seat 2\nTurn: 1 (Seat 2)\nPhase: Upkeep step\nStack: Empty';
+		const MAIN = 'Priority: Seat 2\nTurn: 1 (Seat 2)\nPhase: Main phase, precombat\nStack: Empty';
+		const actsSent = (h: Harness) => h.host.commands.filter((c) => c.t === 'act').length;
+		const input = (open: boolean) => ({ t: 'input' as const, seat: SEAT1_ID, open, ...(open ? { input: 'InputPassPriority' } : {}) });
+		const priority = (h: Harness, message: string) =>
+			h.host.push(input(true), { t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, message) }, { t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1) });
+		const seenNow = (h: Harness) => envelopesFor(h, SEAT1_ID).at(-1)!.cursor;
+		const click = ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: 46 }, otherCardViewsToSelect: [], triggerEvent: null });
+		const cancel = ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonCancel' });
+		const stale = (h: Harness, from: number) => h.logs.slice(from).filter((l) => l.evt === 'act-stale').map((l) => l.why);
+
+		it('goes to Forge when the seat had seen its input', () => {
+			const h = openedHarness();
+			priority(h, MAIN);
+			const before = actsSent(h);
+			expect(h.match.fromClient(SEAT1_ID, click, seenNow(h))).toEqual({ ok: true });
+			expect(actsSent(h)).toBe(before + 1);
+		});
+
+		it('is dropped when it was made before its input was shown', () => {
+			const h = openedHarness();
+			priority(h, MAIN);
+			const earlier = seenNow(h);
+			h.host.push(input(false));
+			priority(h, MAIN.replace('Turn: 1', 'Turn: 3'));
+			const before = actsSent(h);
+			const logs = h.logs.length;
+			expect(h.match.fromClient(SEAT1_ID, click, earlier)).toEqual({ ok: false, error: 'stale-act: made before its input was shown' });
+			expect(actsSent(h)).toBe(before);
+			expect(stale(h, logs)).toEqual(['made before its input was shown']);
+		});
+
+		it('is dropped when the server answered its input for the seat', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			priority(h, UPKEEP);
+			const before = actsSent(h);
+			expect(h.match.fromClient(SEAT1_ID, click, seenNow(h))).toEqual({ ok: false, error: 'stale-act: its input has shown the seat no window' });
+			// The server's own pass went; the seat's click did not.
+			expect(actsSent(h)).toBe(before);
+		});
+
+		it('is dropped with no input open, except Cancel, which is the yield bar’s', () => {
+			const h = openedHarness();
+			priority(h, MAIN);
+			h.host.push(input(false));
+			const before = actsSent(h);
+			expect(h.match.fromClient(SEAT1_ID, click, seenNow(h))).toEqual({ ok: false, error: 'stale-act: no input open' });
+			expect(h.match.fromClient(SEAT1_ID, cancel, seenNow(h))).toEqual({ ok: true });
+			expect(actsSent(h)).toBe(before + 1);
+		});
+
+		it('is never judged without what the seat had seen, nor a concede', () => {
+			const h = openedHarness();
+			priority(h, MAIN);
+			h.host.push(input(false));
+			const before = actsSent(h);
+			expect(h.match.fromClient(SEAT1_ID, click)).toEqual({ ok: true });
+			expect(h.match.fromClient(SEAT1_ID, ClientFrameSchema.parse({ kind: 'act', method: 'concede' }), seenNow(h))).toEqual({ ok: true });
+			expect(actsSent(h)).toBe(before + 2);
+		});
+	});
+
+	/*
 	 * A window's offer is part of the window. Forge sends a priority window's `setWeaklySelectable`
 	 * before its prompt; forwarded at once, an auto-passed window's offer reached the seat live, and
 	 * a click on it was held by Forge for the next input, which turned it away (monkey run
