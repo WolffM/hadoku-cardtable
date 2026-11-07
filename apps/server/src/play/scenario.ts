@@ -777,16 +777,20 @@ export async function passUntil(s: Scenario, done: () => boolean, label: string,
 				.map((x, i) => (x.seat === seat && x.envelope.frame.method === 'showPromptMessage' ? i : -1))
 				.filter((i) => i >= 0)
 				.pop();
-			if (at === undefined || s.pressed.has(at) || discarding.has(at)) continue;
+			if (at === undefined || s.pressed.has(at)) continue;
 			const msg = (s.sent[at]?.envelope.frame as unknown as { message: string }).message;
-			// The cleanup discard: a hand of eight is one over the maximum.
+			// The cleanup discard: a hand of eight is one over the maximum. A pick of the last card it
+			// asks for ends it, so OK is pressed only while it is still this seat's prompt with a live
+			// bar. A blind OK on a timer outlived it: Forge had moved on, and the press passed whatever
+			// window the seat stood at by then (blockers.jvm Q10: the defender's Declare Blockers).
 			if (/^Cleanup Phase\nSelect \d+ card\(s\) to discard/.test(msg)) {
+				if (discarding.has(at)) {
+					if (s.buttons(seat)?.enable1 === true) s.ok(seat);
+					continue;
+				}
 				discarding.add(at);
 				const card = s.zone(seat, 'Hand')[0];
-				if (card !== undefined) {
-					s.select(seat, card.id);
-					setTimeout(() => s.ok(seat), 300);
-				}
+				if (card !== undefined) s.select(seat, card.id);
 				continue;
 			}
 			if (!isStop(msg, seat, s) || s.buttons(seat)?.enable1 !== true) continue;

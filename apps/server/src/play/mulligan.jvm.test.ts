@@ -394,12 +394,22 @@ describe.skipIf(!available.ok)(title, () => {
 						if (mulligan) mulligans++;
 						match.fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: mulligan ? 'selectButtonCancel' : 'selectButtonOk' }));
 					} else if (seat === 0 && /return 2 card/i.test(msg)) {
+						const asked = cursor;
 						bottomed = zone(0, 'Hand').slice(0, 2);
 						for (const id of bottomed) {
 							match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id }, otherCardViewsToSelect: [], triggerEvent: null }));
 							await new Promise((r) => setTimeout(r, 300));
 						}
-						match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
+						// OK only while the bottom pick is still seat 0's prompt with a live bar. Forge asks it
+						// again after each pick ("Return 1 …", "Return 0 …") and waits for OK at the end; one
+						// that had moved on would have its next window passed by an OK sent anyway.
+						const still = (): boolean => {
+							const at = sent.findLastIndex((x) => x.seat === 0 && x.envelope.frame.method === 'showPromptMessage');
+							return at >= asked && /^Return \d+ card\(s\) to the bottom of your library/.test((sent[at]!.envelope.frame as unknown as { message: string }).message);
+						};
+						const live = (): boolean => (sent.findLast((x) => x.seat === 0 && x.envelope.frame.method === 'updateButtons')?.envelope.frame as unknown as { enable1?: boolean } | undefined)?.enable1 === true;
+						await waitUntil(() => !still() || live(), 'the bottom pick to end, or to ask for OK', 10_000);
+						if (still() && live()) match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
 					} else if (!/^Waiting for|bottom of your library/i.test(msg) && buttons[seat]!.enable1) {
 						match.fromClient(seat, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
 					}
