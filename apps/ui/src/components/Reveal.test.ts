@@ -13,7 +13,15 @@ describe('Reveal tells its owner when the box is shown', () => {
     const heard: { shown: boolean; phase: string | null }[] = [];
     const box = (): HTMLElement => document.querySelector('[data-reveal="x"]') as HTMLElement;
     const view = (shown: boolean) =>
-      createElement(Reveal, { name: 'x', shown, skeleton: 'wait', onShown: (s: boolean) => heard.push({ shown: s, phase: box().getAttribute('data-phase') }) }, 'body');
+      createElement(Reveal, {
+        name: 'x',
+        shown,
+        skeleton: 'wait',
+        children: 'body',
+        onShown: (s: boolean) => {
+          heard.push({ shown: s, phase: box().getAttribute('data-phase') });
+        },
+      });
     const { rerender } = render(view(false));
     rerender(view(true));
     act(() => vi.advanceTimersByTime(REVEAL_MS - 1));
