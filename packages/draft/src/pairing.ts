@@ -5,9 +5,9 @@
  * no socket. `pairRound` decides who plays whom for one round of the
  * tournament's single Swiss — every entrant of every pod in one field, at
  * most three rounds, no cut (the operator, 2026-10-31); `standings` ranks
- * that field between rounds and at the end. The AI-bye option the operator left open (`draft-pods-plan.md`
- * ruling 3) is not built here — an unpaired human always gets a bye, never
- * an AI seat.
+ * that field between rounds and at the end. Its players are whoever the room
+ * seated, bots included (a draft pod's every bot seat, the operator,
+ * 2026-11-07); nothing here adds an AI to fill a bye.
  *
  * The tiebreaker order in `standings` — match points, then opponents'
  * match-win percentage (33% floor), then game-win percentage, then

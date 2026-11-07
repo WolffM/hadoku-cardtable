@@ -919,7 +919,17 @@ export function botPoolAcross(room: DraftRoom, participantId: ParticipantId): Dr
 	const seat = seatOf(room.seats, participantId) ?? finishedSeatOf(state, room.seats, participantId);
 	if (seat === null) return null;
 	const chosen = botSeatAcross(seat, state.seatCount, (s) => isBotSeat(state, s));
-	return chosen === null ? null : [...state.pools[chosen]!];
+	return chosen === null ? null : botPoolAt(room, chosen);
+}
+
+/**
+ * The pool the bot at draft seat `seat` drafted: what it plays as a draft pod's Swiss entrant, built the
+ * same way the AI's deck is built against a solo drafter (`botDeck.ts`'s `botDeckText`). Null when no
+ * bot drafted there.
+ */
+export function botPoolAt(room: DraftRoom, seat: number): DraftCard[] | null {
+	const state = stateOf(room);
+	return seat >= 0 && seat < state.seatCount && isBotSeat(state, seat) ? [...state.pools[seat]!] : null;
 }
 
 /**

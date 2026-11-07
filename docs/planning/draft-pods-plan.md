@@ -32,6 +32,12 @@ not.
 > 2. play the person across the table, then pairing by score
 > 3. let's keep the option for AI open, but for now let's just give them a by
 >    in the round.
+
+**Ruling 3 superseded 2026-11-07** by the operator: *"full swiss with bots, whatever would normally
+happen with humans. don't 'fill extra slots' orchestrate the tournament with however many bots were
+put into seats."* (That followed, the same day: *"at the moment it only shows bots that are matched
+with a player … can we have the bots play real games against each other?"*, answered "real games,
+headless".) Every bot seat of a draft pod is a Swiss entrant like a human; see "Rounds" below.
 > 4. well, we're still not doing multiplayer. and spectators don't need
 >    'seats' however, we probably should reuse the 'seat' UI for getting people
 >    into the draft pod. so yeah, in this case we go up to 8 seats
@@ -124,19 +130,38 @@ A draft room runs in phases: **lobby → drafting → building → rounds → do
 - **Into the game:** the pod screen readies and starts each player's table by
   itself, and carries them to it (2026-10-18 ruling). Between games of a bo3
   the result screen opens the sideboard step.
-- **One human, seven bots:** one bo3 table against Forge's AI, whose deck is
+- ~~**One human, seven bots:** one bo3 table against Forge's AI, whose deck is
   built from the pool of the bot that drafted across the table
-  (`apps/server/src/room/botDeck.ts`). Rematch stays on the result screen.
-- **Rounds:** `ceil(log2(humans))` rounds, each a bo3.
-  - **Round 1: across the table.** Humans are ordered by pod seat, and human
-    *i* plays human *i + ⌈H/2⌉*. With an odd *H*, the one that formula leaves
-    unpaired (position ⌈H/2⌉, the middle seat) gets the bye
+  (`apps/server/src/room/botDeck.ts`). Rematch stays on the result screen.~~
+  **Superseded 2026-11-07** (ruling 3's note above): one human and seven bots
+  are an eight-entrant Swiss, three rounds, exactly as eight humans would be.
+- **Entrants (since 2026-11-07):** every seat that drafted — each human, and
+  each bot seat (an AI seat, not a closed one) as its own entrant
+  (`ai:<seat>`, `room/lobby.ts`'s `draftEntrants`). A pod of one human and N
+  bots is an (N+1)-entrant Swiss. A room that drafts as several pods still
+  pairs its humans alone: no one seated those pods' bots.
+- **A bot's deck:** the deck built from its own drafted pool by
+  `apps/server/src/room/botDeck.ts`'s `botDeckText` — the same deck the AI
+  played against a solo drafter before this ruling, when that bot was the one
+  across the table. It plays that deck against a human at a table, and in a
+  bot game.
+- **Two bots paired together** play a real bo3 in Forge, AI against AI,
+  headless, with no table (`apps/server/src/play/botgames.ts`); the round
+  waits on it like a table, and the bracket shows it under way, then its score.
+  A bot game with no result settles the old way, the lower seat 2-0.
+- **Rounds:** ~~`ceil(log2(humans))`~~ `ceil(log2(entrants))` rounds (at most
+  three), each a bo3.
+  - **Round 1: across the table.** Entrants are ordered by pod seat, and entrant
+    *i* plays entrant *i + ⌈N/2⌉*. With an odd *N*, the one that formula leaves
+    unpaired (position ⌈N/2⌉, the middle seat) gets the bye
     (`packages/draft/src/pairing.ts`).
   - **Later rounds: by score.** Match points (win 3, draw 1), and no repeat
     pairing while another is possible.
-  - **A bye** goes to the lowest-ranked player who has not had one. It counts
-    as a match win (2–0). An AI opponent for the bye is still not built
-    (ruling 3); the AI only plays a pod of one.
+  - **A bye** goes to the lowest-ranked player who has not had one, bot or
+    human. It counts as a match win (2–0). ~~An AI opponent for the bye is still
+    not built (ruling 3); the AI only plays a pod of one.~~ Superseded
+    2026-11-07: no AI is added to fill a bye, and the bots in the seats play
+    every round.
 - **Standings** are shown in the room between rounds and at the end.
 
 ### Watching

@@ -177,12 +177,12 @@ import type { DeckEntry } from '@hadoku/carddata/dck';
 import { clockOn, FREE_PICK, MATCH_CLOCK_MS, RandomOptionsSchema, secureRandom, type ClockSetting, type PoolSource, type RandomPool, type RoomModeState, type RoomTable, type Look } from '@hadoku/shared';
 
 import type { DraftRooms, PodDeal } from '../room/draftRooms.js';
-import { botPoolAcross, builtDeckOf, stateOf, viewForParticipant } from '../room/draftRooms.js';
+import { botPoolAcross, botPoolAt, builtDeckOf, stateOf, viewForParticipant } from '../room/draftRooms.js';
 import { botDeckText } from '../room/botDeck.js';
 import { httpCaller } from './request.js';
 import { prepareJson, sendPrepared, type PreparedJson } from './prepared.js';
 import { isAdmin } from '../edge-auth.js';
-import { draftIdOfPool, draftPoolId, isAiEntrant, type BotDeckSource, type BotGames, type Lobby, type PodChecks } from '../room/lobby.js';
+import { aiEntrantSeat, draftIdOfPool, draftPoolId, isAiEntrant, type BotDeckSource, type BotGames, type Lobby, type PodChecks } from '../room/lobby.js';
 import type { BotGameInput, BotGameOutcome } from '../play/botgames.js';
 import { roundNamesOf } from '../room/plan.js';
 import { drawRandomDeck, drawRandomDecks } from '../room/random-decks.js';
@@ -912,8 +912,19 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		return readPlayerState(rooms.playerState(roomId, entrant))?.deck ?? null;
 	}
 
+	/**
+	 * The deck a draft pod's bot plays, at a table or in a bot game: its own drafted pool, built as the
+	 * AI's deck against a solo drafter always was (`botDeck.ts`). Null when no bot drafted that seat.
+	 */
+	function draftedBotDeck(draftId: string, seat: number): string | null {
+		const draft = deps.draftRooms?.find(draftId);
+		const pool = draft === undefined ? null : botPoolAt(draft, seat);
+		return pool === null || pool.length === 0 ? null : botDeckText(pool, 'Bot draft');
+	}
+
 	/** A bot game's side's `.dck` text, from where the room says it comes (`BotDeckSource`); null when there is none. */
 	function botGameDeck(roomId: string, entrant: string, source: BotDeckSource): string | null {
+		if (source.kind === 'drafted') return draftedBotDeck(source.draftId, source.seat);
 		return (source.kind === 'locked' ? readDeck(source.deck) : currentTournamentDeck(roomId, entrant))?.text ?? null;
 	}
 
@@ -2071,13 +2082,15 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			if (botKept) {
 				botDeck = held;
 			} else if (draftId !== null) {
+				// A pod round's bot plays its own drafted pool; any other drafted table, the bot that drafted across from its human.
+				const paired = deps.rooms?.tournamentPairingOf?.(room.id, table.id)?.entrants[1];
 				const draftRoom = deps.draftRooms?.find(draftId);
-				const botPool = draftRoom === undefined ? null : botPoolAcross(draftRoom, owner);
-				if (botPool === null || botPool.length === 0) {
+				const across = draftRoom === undefined ? null : botPoolAcross(draftRoom, owner);
+				botDeck = paired !== undefined && isAiEntrant(paired) ? draftedBotDeck(draftId, aiEntrantSeat(paired)) : across === null || across.length === 0 ? null : botDeckText(across, 'Bot draft');
+				if (botDeck === null) {
 					res.status(409).json({ error: 'no bot drafted in this pod, so the AI has nothing to play' });
 					return;
 				}
-				botDeck = botDeckText(botPool, 'Bot draft');
 			} else {
 				const picked = pickLibraryBotDeckText(pool, owner);
 				if (picked === null) {
