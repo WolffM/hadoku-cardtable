@@ -1,6 +1,6 @@
 # Request to `hadoku-watchparty`: publish the character pool and a pool-only pick
 
-**Filed 2026-10-11 by cardtable lane YY.** **Status: request, not yet sent.**
+**Filed 2026-10-11 by cardtable lane YY.** **Status: ANSWERED 2026-11-07** — `@hadoku/rooms-protocol@0.45.55` (watchparty 4030a40d) exports `AVATAR_POOL`, `isAvatarId` and a pure `pickAvatar(worn, preferred?, pool?)`. Cardtable has not adopted it yet: `apps/server/src/room/lobby.ts` still carries its copy, which goes when the room core lands (plan phase 4).
 
 ## What the operator saw
 

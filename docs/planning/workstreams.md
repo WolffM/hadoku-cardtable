@@ -3587,3 +3587,47 @@ Files are disjoint from w91's (server, room-store, `scripts/layers`, licence doc
 main. Queued behind them: **w93**, phase 2's server half (`packages/service-kernel`), cut once w91-C's gate is on
 main; and a single watchparty session for room steps 1–2 (the character pool into rooms-protocol, presence into
 rooms-server).
+
+## Platform waves 91–92, verified by the tracker 2026-11-07
+
+**w91 (phase 1): CLOSED, all three lanes on PPE.** It took 1 h 16 min with 3 Sonnet lanes in parallel. Its notes are in
+`wave91-2026-11-06.md` (56235449).
+- **A** — the layer fence (`464ada37d`) and D26 (`0c0163a8e`). The tracker re-ran the ratchet on main: 7/7. A planted
+  `@hadoku/deck` import in `stream/alloc.ts` fails it, naming only that edge; reverted, it passes 7/7.
+- **B** — `play/browser/` deleted and room-store trimmed (`478b9216e`), then room-store relicensed MIT (`b4f826d9b`,
+  after D26). B reddened main's CI install for ~25 min (lockfile); the fix was `da4466017`, and land.sh now refuses a
+  stale lockfile (`b8ebdc366`).
+- **C** — one handshake gate (`521ea50aa`). `gate.test.ts` passes on main; removing any surface's gate call fails it
+  3/16.
+
+**w92 (phase 2, UI track): PARTIAL.** Step 0, B, A and C are landed and on PPE: `845caf8c5`, `1ffceafc1`, `9aed15158`
+(CI 42423486861 green). Its notes are in `wave92-2026-11-07.md` (32f2b8284).
+- The tracker checked on main: `packages/ui-shell` is MIT, 39 files, imports nothing from `@hadoku/*`, and its tests
+  pass (106/106 with the fence). No w92 commit changes a `data-testid` or class outside unit-test fixtures.
+- **D and Z carried over** to a single session (brief: `~/.cache/cardtable-manager/w92-carry-D-Z.md`; branches
+  `origin/carry/w92-D` and `origin/carry/w92-Z`). It lost about 2 h to a claw outage: jdk21 workload proofs lapsed on
+  2026-11-07. Fixed in fleet-manager 6d43f90…211eb9b and cardtable `dd2da62b3`.
+- **D's known behaviour change:** a pick made in another hadoku.me tab redraws only after a reload. Its gap, now in
+  the carry brief, is a spec that presses the real AvatarPicker.
+
+**Watchparty room steps 1–2: DONE** (single session).
+- `@hadoku/rooms-protocol` 0.45.55 has the pool and `pickAvatar` (4030a40d).
+- `@hadoku/rooms-server` 0.45.56 has `PresenceTracker` (69d5ce6b), which watchparty's app does not adopt yet.
+- Mutation-tested: 27 pool tests, 19 presence tests.
+
+**Open items from these waves** (no owner yet):
+- Stale references to w91-B's deletions: `room/draftRooms.ts:454` and `room/lobby.ts:22` (`RoomPersistence`),
+  `shared/src/match-wire.ts:31`, and `scripts/ci/jvm-seconds.json`'s `browser.jvm.test.ts`.
+- `scripts/layers/*.ts` is never typechecked (like all of `scripts/`).
+- eslint does not lint `packages/*/src/**/*.tsx`.
+- Fleet asks:
+  - a head-safe theme seed export from `@wolffm/themes`;
+  - the sprite URL builder (`WATCHPARTY_AVATAR_ACCESSOR.md` §3);
+  - a fleet Modal with our DOM contract, or claim `components/OverPage.tsx` and `dom.ts`.
+- E2E gaps: usage counting, trim, `#/sounds/queue`, the settings sound testids.
+- Watches:
+  - the ratchet's first 48 h on main;
+  - saved settings across B's and A's deploys (`scripts/telemetry/watch.ts`);
+  - `cp-lethal-blow.spec:322`, red once in a cancelled hokon shard and unattributed.
+- Tell watchparty that room-store is MIT (plan step 3: storage).
+- **Next real wave: w93, the service kernel** (phase 2's server half). Its blocker, w91-C's gate, is on main.
