@@ -4181,8 +4181,6 @@ function PlayerArea({
 const PORTRAIT_PEEK_PX = 22;
 const PORTRAIT_RISE = 0.06;
 const PORTRAIT_RISE_PX = 10;
-/** A raised hand of more cards than this draws them in two rows. */
-const PORTRAIT_HAND_ONE_ROW = 5;
 /** A raised hand's padding above and below its cards (`portrait.css`'s raised `padding-top` and its foot). */
 const PORTRAIT_HAND_UP_PAD_PX = 20;
 
@@ -4197,8 +4195,9 @@ function measurePortraitLane(lane: HTMLUListElement): void {
    * A permanents lane scales that card by `--portrait-lane-k` and wraps by `data-rows`
    * (`portraitLaneFit`): bigger while it holds three piles or fewer, two rows from five. The fit reads
    * the lane's own box, which never depends on the scale (`portrait.css` sizes the lane by the
-   * unscaled card), so writing it cannot move what it measured. The hand wraps to two rows while
-   * raised with more than five cards.
+   * unscaled card), so writing it cannot move what it measured. The hand never wraps: it is one row
+   * that scrolls (the operator, 2026-11-06, of a hand drawn in two rows: "it seems like it wants to
+   * allow scrolling left/right but the hand is being displayed in two rows which is unexpected").
    */
   const style = getComputedStyle(lane);
   const zoom = Number.parseFloat(style.getPropertyValue('--portrait-zoom')) || 1;
@@ -4213,15 +4212,12 @@ function measurePortraitLane(lane: HTMLUListElement): void {
     if (lane.style.getPropertyValue('--portrait-lane-k') !== k) lane.style.setProperty('--portrait-lane-k', k);
     if (lane.dataset.rows !== String(fit.rows)) lane.dataset.rows = String(fit.rows);
   } else if (lane.dataset.testid === 'lane-my-hand') {
-    const rows = piles > PORTRAIT_HAND_ONE_ROW ? 2 : 1;
-    if (lane.dataset.rows !== String(rows)) lane.dataset.rows = String(rows);
     /*
      * The raised hand's height, `portrait.css`'s and the dock's (a question about the hand stands on it):
-     * its card's height per row, the gap between rows, its padding. Measured off the lane, not read back
-     * from a CSS length (the UI scale's `calc(…)` parses to NaN).
+     * one card's height and its padding. Measured off the lane, not read back from a CSS length (the UI
+     * scale's `calc(…)` parses to NaN).
      */
-    const cw = rows === 2 ? Math.min(cw0, (lane.clientWidth - 2 * pad - 3 * gap - peek) / 4) : cw0;
-    const upH = `${Math.round((rows * cw * 88) / 63 + (rows - 1) * gap + uiPx(PORTRAIT_HAND_UP_PAD_PX, lane))}px`;
+    const upH = `${Math.round((cw0 * 88) / 63 + uiPx(PORTRAIT_HAND_UP_PAD_PX, lane))}px`;
     if (document.documentElement.style.getPropertyValue('--portrait-hand-up-h') !== upH) document.documentElement.style.setProperty('--portrait-hand-up-h', upH);
   }
   // Room to scroll either way, with a pixel of slack for a fractional `scrollLeft`.

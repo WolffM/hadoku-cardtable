@@ -14,11 +14,15 @@ import * as presenceModule from '../presence.ts';
 import {
   clearHandIndicator,
   commitHandReorder,
+  edgeScrollSpeed,
+  HAND_EDGE_PX,
+  HAND_EDGE_SPEED,
   HAND_FLIP_ATTR,
   handCardPress,
   handOrderIds,
   holdLiftedSlot,
   releaseLiftedSlot,
+  scrollHandToward,
   updateHandIndicator,
 } from './hand.ts';
 
@@ -199,5 +203,42 @@ describe('commitHandReorder — never Forge, always Board.tsx and presence.ts', 
     const bare = document.createElement('div');
     expect(() => commitHandReorder(bare, 100, 0, { x: 0, y: 0 })).not.toThrow();
     expect(commit).not.toHaveBeenCalled();
+  });
+});
+
+describe('scrollHandToward — a card held at the hand’s edge scrolls it', () => {
+  /** The hand as a 300px lane over 600px of cards, scrolled to `at`. */
+  function lane(at: number): { canvas: HTMLElement; list: HTMLElement } {
+    const { canvas } = board(4);
+    const list = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"] ul.zone__cards')!;
+    stubBox(list, { left: 0, top: 500, width: 300, height: 100 });
+    Object.defineProperty(list, 'scrollWidth', { value: 600 });
+    Object.defineProperty(list, 'clientWidth', { value: 300 });
+    list.scrollLeft = at;
+    return { canvas, list };
+  }
+
+  it('is still away from the edges, and fastest at them, toward the edge it is near', () => {
+    expect(edgeScrollSpeed(150, 0, 300)).toBe(0);
+    expect(edgeScrollSpeed(300 - HAND_EDGE_PX / 2, 0, 300)).toBeCloseTo(HAND_EDGE_SPEED / 2);
+    expect(edgeScrollSpeed(310, 0, 300)).toBe(HAND_EDGE_SPEED);
+    expect(edgeScrollSpeed(0, 0, 300)).toBe(-HAND_EDGE_SPEED);
+  });
+
+  it('scrolls right at the right edge, and stops where there is no more to scroll', () => {
+    const { canvas, list } = lane(0);
+    expect(scrollHandToward(canvas, { x: 299, y: 550 }, 16)).toBe(true);
+    expect(list.scrollLeft).toBeGreaterThan(0);
+    list.scrollLeft = 300;
+    expect(scrollHandToward(canvas, { x: 299, y: 550 }, 16), 'scrolled all the way').toBe(false);
+  });
+
+  it('scrolls left at the left edge, and never mid-hand or off the hand', () => {
+    const { canvas, list } = lane(100);
+    expect(scrollHandToward(canvas, { x: 150, y: 550 }, 16), 'mid-hand').toBe(false);
+    expect(scrollHandToward(canvas, { x: 2, y: 300 }, 16), 'above the hand').toBe(false);
+    expect(list.scrollLeft).toBe(100);
+    expect(scrollHandToward(canvas, { x: 2, y: 550 }, 16)).toBe(true);
+    expect(list.scrollLeft).toBeLessThan(100);
   });
 });

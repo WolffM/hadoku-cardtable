@@ -50,6 +50,13 @@
  * A release outside the hand is untouched: `install.ts`'s existing cast flow
  * takes it exactly as it always has.
  *
+ * ## At the edge
+ *
+ * A hand wider than its lane (a phone's, one row that scrolls) scrolls on its own under a card held
+ * near either edge (`scrollHandToward`, run from `install.ts`'s per-frame indicator), so a card can
+ * be carried to any place in the hand without letting go. The card stays under the finger; the hand
+ * moves beneath it.
+ *
  * ## The slot it leaves
  *
  * A lifted card is `position: fixed`, out of the hand's grid, so without
@@ -217,6 +224,38 @@ export function updateHandIndicator(canvas: ParentNode, cardId: number, point: P
   const x = target.kind === 'before' ? at.left : at.right;
   indicator.style.left = `${x - boardBox.left}px`;
   indicator.style.top = `${at.top - boardBox.top}px`;
+}
+
+/** How near the hand's visible edge a carried card scrolls it, and how fast at the very edge, in px per ms. */
+export const HAND_EDGE_PX = 48;
+export const HAND_EDGE_SPEED = 0.6;
+
+/**
+ * How fast a hand spanning `left`…`right` scrolls under a card carried at `x`, in px per ms: none
+ * away from its edges, rising to `HAND_EDGE_SPEED` at (and past) either edge, negative toward the left.
+ */
+export function edgeScrollSpeed(x: number, left: number, right: number): number {
+  const edge = Math.min(HAND_EDGE_PX, (right - left) / 4);
+  if (x < left + edge) return -HAND_EDGE_SPEED * Math.min(1, (left + edge - x) / edge);
+  if (x > right - edge) return HAND_EDGE_SPEED * Math.min(1, (x - (right - edge)) / edge);
+  return 0;
+}
+
+/**
+ * Scroll the viewer's own hand for `ms` toward a card carried at `point` near one of its edges (the
+ * cards past that edge come to the finger, rather than the finger having to let go to swipe). True
+ * while it moved: false away from the edges, off the hand, or with no more to scroll that way.
+ */
+export function scrollHandToward(canvas: ParentNode, point: Point, ms: number): boolean {
+  const list = ownHandList(canvas);
+  if (list === null) return false;
+  const box = list.getBoundingClientRect();
+  if (point.y < box.top || point.y > box.bottom) return false;
+  const speed = edgeScrollSpeed(point.x, box.left, box.right);
+  const room = speed > 0 ? list.scrollWidth - list.clientWidth - list.scrollLeft : list.scrollLeft;
+  if (speed === 0 || room < 1) return false;
+  list.scrollLeft += Math.sign(speed) * Math.min(room, Math.max(1, Math.abs(speed) * ms));
+  return true;
 }
 
 /**

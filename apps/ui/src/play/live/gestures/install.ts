@@ -286,6 +286,7 @@ import {
   handOrderIds,
   holdLiftedSlot,
   releaseLiftedSlot,
+  scrollHandToward,
   updateHandIndicator,
 } from './hand.ts';
 import { installMarks, markScanWanted } from './intent.ts';
@@ -570,21 +571,32 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * avoid. `null` clears the indicator at once and drops any pending frame;
    * a point schedules the next frame if one is not already pending, the
    * latest point winning.
+   *
+   * The same frame scrolls the hand while the card is held near one of its
+   * edges (`scrollHandToward`), and keeps scheduling itself for as long as
+   * that scroll still moves, so a finger held still at the edge keeps the
+   * cards past it coming.
    */
   let handIndicatorFrame = 0;
   let handIndicatorArgs: { cardId: number; point: Point } | null = null;
+  let handScrolledAt: number | null = null;
   function scheduleHandIndicator(args: { cardId: number; point: Point } | null): void {
     handIndicatorArgs = args;
     if (args === null) {
       if (handIndicatorFrame !== 0) cancelAnimationFrame(handIndicatorFrame);
       handIndicatorFrame = 0;
+      handScrolledAt = null;
       clearHandIndicator();
       return;
     }
     if (handIndicatorFrame !== 0) return;
-    handIndicatorFrame = requestAnimationFrame(() => {
+    handIndicatorFrame = requestAnimationFrame((now) => {
       handIndicatorFrame = 0;
-      if (handIndicatorArgs !== null) updateHandIndicator(canvas, handIndicatorArgs.cardId, handIndicatorArgs.point);
+      if (handIndicatorArgs === null) return;
+      const scrolled = scrollHandToward(canvas, handIndicatorArgs.point, handScrolledAt === null ? 16 : now - handScrolledAt);
+      handScrolledAt = scrolled ? now : null;
+      updateHandIndicator(canvas, handIndicatorArgs.cardId, handIndicatorArgs.point);
+      if (scrolled) scheduleHandIndicator(handIndicatorArgs);
     });
   }
   /** The lands a box touched that are still to be clicked, in order — see "A box taps lands". */

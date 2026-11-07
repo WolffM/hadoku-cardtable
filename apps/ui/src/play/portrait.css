@@ -122,7 +122,7 @@
  * after the look artifact: "use a similar scrolling carousel"), and the lane is drawn standing on the
  * row's bottom edge, so raising it (`Board`'s `data-hand-raised`, `usePortraitHandPeek`) grows it up
  * over the board's lower lanes, at the 3-across card every board lane draws, without moving a lane.
- * More than five cards draw in two rows while it is raised. The room for B's fixed action bar is the
+ * It is always one row, and scrolls sideways past three cards. The room for B's fixed action bar is the
  * board's own bottom padding (`--portrait-bar-band`, `.board` above), directly below this row.
  */
 :root[data-layout='portrait'] .seat[data-viewer] > .zone--hand {
@@ -275,18 +275,6 @@
   border-top: 1px solid var(--line);
   border-radius: 14px 14px 0 0;
   box-shadow: 0 -10px 28px var(--shadow);
-}
-:root[data-layout='portrait'] .board[data-hand-raised] .zone--hand > .zone__cards[data-testid][data-rows='2'] {
-  --card-w: min(var(--portrait-cw0), (var(--portrait-lane-w, 300px) - 2 * var(--portrait-pad) - 3 * var(--portrait-gap) - var(--portrait-peek)) / 4);
-  display: grid;
-  grid-auto-flow: column;
-  grid-template-rows: repeat(2, auto);
-  grid-auto-columns: var(--card-w);
-  justify-content: start;
-}
-:root[data-layout='portrait'] .board[data-hand-raised] .zone--hand > .zone__cards[data-testid][data-rows='2']::before,
-:root[data-layout='portrait'] .board[data-hand-raised] .zone--hand > .zone__cards[data-testid][data-rows='2']::after {
-  grid-row: 1 / -1;
 }
 @media (prefers-reduced-motion: reduce) {
   :root[data-layout='portrait'] .zone--hand > .zone__cards[data-testid] {
