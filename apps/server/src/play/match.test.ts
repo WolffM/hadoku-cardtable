@@ -4098,6 +4098,73 @@ describe('hold-decide-forward', () => {
 		});
 	});
 
+	describe('a payment Forge re-shows by its prompt alone keeps its bar', () => {
+		const BALLISTA = 12;
+		const LAND = 3;
+		const pay = (cost: string) => promptFrame(1, `Walking Ballista - Creature 0 / 0 (X=20)\n\nPay Mana Cost: ${cost}`, BALLISTA);
+		const bars = (h: Harness, from: number) =>
+			envelopesFor(h, SEAT1_ID)
+				.slice(from)
+				.map((e) => e.frame)
+				.filter((f): f is Extract<typeof f, { method: 'updateButtons' }> => f.method === 'updateButtons')
+				.map((f) => `${f.label1}:${f.enable1}/${f.label2}:${f.enable2}`);
+		const tap = ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: LAND }, otherCardViewsToSelect: [], triggerEvent: null });
+		const cancel = ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonCancel' });
+		const mana = {
+			kind: 'ask' as const,
+			callId: 's1-40',
+			method: 'getAbilityToPlay' as const,
+			hostCard: { kind: 'card' as const, id: LAND },
+			abilities: [{ kind: 'spellAbility' as const, id: 90, label: '{T}: Add {G}.' }],
+			triggerEvent: null,
+		};
+
+		/** Seat 1 pays a cost Auto cannot (its bar: Auto off, Cancel on), taps a land, and Forge asks which mana ability. */
+		function tapped(): { h: Harness; from: number } {
+			vi.useFakeTimers();
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.match.setFullControl(SEAT1_ID, true);
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Auto', label2: 'Cancel', enable1: false, enable2: true }) },
+				{ t: 'frame', seat: SEAT1_ID, frame: pay('{3}{4}') },
+			);
+			const from = envelopesFor(h, SEAT1_ID).length;
+			h.match.fromClient(SEAT1_ID, tap);
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: mana });
+			h.match.fromClient(SEAT1_ID, ClientFrameSchema.parse({ kind: 'reply', callId: 's1-40', method: 'getAbilityToPlay', result: mana.abilities[0] }));
+			return { h, from };
+		}
+
+		it('the next prompt of the same payment, with no bar: Cancel is live again at once, and a press of it reaches Forge', () => {
+			const { h, from } = tapped();
+			expect(bars(h, from)).toEqual(['Auto:false/Cancel:false']);
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: pay('{3}{3}') });
+			expect(bars(h, from)).toEqual(['Auto:false/Cancel:false', 'Auto:false/Cancel:true']);
+			expect(h.logs.filter((l) => l.evt === 'bar-kept')).toEqual([{ evt: 'bar-kept', matchId: h.match.id, seat: SEAT1_ID, label1: 'Auto', label2: 'Cancel' }]);
+			expect(h.match.fromClient(SEAT1_ID, cancel)).toEqual({ ok: true });
+			expect(h.host.commands).toContainEqual({ t: 'act', seat: SEAT1_ID, frame: expect.objectContaining({ method: 'selectButtonCancel' }) });
+			expect(h.logs.filter((l) => l.evt === 'press-refused')).toEqual([]);
+		});
+
+		it('Forge sends the payment a bar of its own: that bar, never the old one', () => {
+			const { h, from } = tapped();
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'Auto', label2: 'Cancel', enable1: true, enable2: true }) },
+				{ t: 'frame', seat: SEAT1_ID, frame: pay('{3}{3}') },
+			);
+			expect(bars(h, from)).toEqual(['Auto:false/Cancel:false', 'Auto:true/Cancel:true']);
+			expect(h.logs.filter((l) => l.evt === 'bar-kept')).toEqual([]);
+		});
+
+		it('the payment is done and Forge shows another input: the old bar stays off', () => {
+			const { h, from } = tapped();
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, 'Priority: Seat 2\nTurn: 3 (Seat 2)\nPhase: Main phase, precombat\nStack: 1 to Resolve') });
+			expect(bars(h, from)).toEqual(['Auto:false/Cancel:false']);
+			expect(h.logs.filter((l) => l.evt === 'bar-kept')).toEqual([]);
+		});
+	});
+
 	describe('a press under the bar the seat’s own act disabled: refused until Forge shows the next window', () => {
 		const PRIORITY = 'Priority: Seat 1\nTurn: 3 (Seat 1)\nPhase: Main phase, precombat\nStack: Empty';
 		const click = ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: 960 }, otherCardViewsToSelect: [], triggerEvent: null });

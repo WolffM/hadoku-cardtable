@@ -149,6 +149,9 @@ export function jvmStderrLines(serverLogFile: string, workDir: string, matchId: 
     .map((line) => `stderr: ${line.slice(0, 400)}`);
 }
 
+/** How many of the seat's last socket frames a flag carries. */
+const WIRE_KEPT = 30;
+
 /** How long a conceded match gets to end before the run moves on without it: the server's own concede watch, and a margin. */
 const GIVE_UP_MS = 2 * CONCEDE_ANSWER_MS + 5_000;
 
@@ -214,6 +217,12 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
   const matchId = started201.matchId;
 
   let refusals = 0;
+  // The last frames each way on this seat's socket: what Forge last showed the seat, and what it last sent.
+  const wire: string[] = [];
+  const onWire = (dir: 's2c' | 'c2s', payload: unknown): void => {
+    wire.push(`${new Date().toISOString()} ${dir} ${JSON.stringify(payload).slice(0, 400)}`);
+    if (wire.length > WIRE_KEPT) wire.shift();
+  };
   let crashed: { what: MatchTrouble; detail: Record<string, unknown> } | null = null;
   const transport = socketTransport({
     url: opts.origin,
@@ -221,8 +230,10 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
     cookie: opts.cookie,
     tap: {
       onServerFrame: (payload) => {
+        onWire('s2c', payload);
         if (isRefusal(payload)) refusals += 1;
       },
+      onClientFrame: (payload) => onWire('c2s', payload),
     },
   });
   const match: LiveMatch = startMatch({
@@ -244,7 +255,7 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
     return Date.now() > deadline;
   };
 
-  const { flags, decisions } = await driveSeat(
+  const { flags, decisions, repeated } = await driveSeat(
     match,
     opts.rng,
     {
@@ -255,7 +266,7 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
       stuckMs: opts.stuckMs,
       refusals: () => refusals,
       drainServerFlags,
-      serverRows: () => lastServerRows(opts.serverLogFile, matchId),
+      serverRows: () => [...lastServerRows(opts.serverLogFile, matchId), ...wire.map((w) => `wire: ${w}`)],
     },
     isOver,
   );
@@ -286,10 +297,12 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
   // A concede that did not end the match leaves it holding a server slot: what the server last did with it is the evidence.
   const evidence = ended ? [] : [...gaveUp!.evidence, ...lastServerRows(opts.serverLogFile, matchId), ...jvmStderrLines(opts.serverLogFile, opts.workDir, matchId)];
   if (timedOut) {
+    // What the seat kept doing on its last turn, and what the server last did with this match: a match
+    // that ran out its cap is either a seat repeating one act or a game that stopped answering.
     extra.push(
       noFinishFlag(
         `the match did not finish within its cap (turn ${match.view?.turn ?? '?'}, ${opts.turnCap} turns / ${opts.matchTimeoutMs} ms)${notEnded}`,
-        evidence,
+        [...repeated.map((r) => `repeated: ${r}`), ...(ended ? lastServerRows(opts.serverLogFile, matchId) : evidence), ...wire.map((w) => `wire: ${w}`)],
       ),
     );
   }

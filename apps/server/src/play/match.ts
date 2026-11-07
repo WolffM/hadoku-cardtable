@@ -877,6 +877,22 @@ function showsAWindow(frame: unknown): boolean {
 	return f?.kind === 'notify' && (f.method === 'showPromptMessage' || f.method === 'updateButtons' || f.method === 'setSelectables');
 }
 
+/**
+ * The bar Forge still has up when it re-shows a payment by its prompt alone, or null. A payment
+ * updates its message after every mana paid into it and sends a bar only when Auto can pay the rest
+ * (`InputPayMana.updateMessage`): a prompt for the same card's payment with no bar before it is the
+ * same input, whose bar {@link Match.disableStaleButtons} took off the seat's screen for the act. Left
+ * off, the payment's Cancel stayed dead with nothing left to tap (monkey run 42372898159, Walking
+ * Ballista X=20).
+ */
+function barForgeKept(s: SeatState, frame: unknown): ButtonsFrame | null {
+	if (s.staleBar === null || s.payment === null) return null;
+	const f = frame as ServerFrame;
+	if (f.kind !== 'notify' || f.method !== 'showPromptMessage' || promptShape(f) !== 'payment') return null;
+	if ((f.card?.id ?? null) !== s.payment.card) return null;
+	return s.staleBar;
+}
+
 type ActFrame = Extract<ClientFrame, { kind: 'act' }>;
 
 const INPUT_ACTS: ReadonlySet<string> = new Set(['selectButtonOk', 'selectButtonCancel', 'selectCard', 'selectPlayer', 'selectAbility', 'useMana']);
@@ -2794,7 +2810,13 @@ export class Match {
 				}
 				if (showsAWindow(line.frame)) {
 					const shown = this.seats[line.seat];
+					const kept = shown === undefined ? null : barForgeKept(shown, line.frame);
 					if (shown !== undefined) shown.staleBar = null;
+					if (kept !== null) {
+						// Forge's bar for this input is still the one the seat's act took off its screen: it goes back with the prompt.
+						this.deps.log({ evt: 'bar-kept', matchId: this.id, seat: line.seat, label1: kept.label1, label2: kept.label2 });
+						this.onFrame(line.seat, kept);
+					}
 				}
 				this.onFrame(line.seat, line.frame);
 				return;

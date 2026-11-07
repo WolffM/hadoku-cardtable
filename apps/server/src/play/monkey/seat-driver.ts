@@ -31,6 +31,8 @@ export interface SeatDriverOptions {
 export interface SeatDriverResult {
   flags: Flag[];
   decisions: number;
+  /** What this seat did most since its turn last changed, commonest first: a match that never ends says which act it kept repeating. */
+  repeated: string[];
 }
 
 const now = (): string => new Date().toISOString();
@@ -40,6 +42,38 @@ function signatureOf(match: LiveMatch): string {
   const ask = currentAsk(match);
   if (ask !== null) return `ask:${ask.callId}`;
   return `bar:${match.prompt ?? ''}:${match.buttons?.label1 ?? ''}:${match.buttons?.enable1 ?? ''}:${match.selectables?.cards.size ?? -1}`;
+}
+
+/**
+ * What this seat's client holds that decides whether it can act: the input, the bar and its hold, and
+ * what is offered. A `stuck` flag carries it, so a seat with nothing to press says why.
+ */
+export function stateOf(match: LiveMatch): string {
+  const ids = (set: ReadonlySet<number> | null | undefined): number[] | null => (set === null || set === undefined ? null : [...set]);
+  return JSON.stringify({
+    client: 'state',
+    turn: match.view?.turn ?? null,
+    phase: match.view?.phase ?? null,
+    inputLive: match.inputLive,
+    connected: match.connected,
+    prompt: match.prompt,
+    promptCard: match.promptCard,
+    buttons: match.buttons,
+    barHold: match.barHold,
+    asks: match.asks.map((a) => a.method),
+    selectables: match.selectables === null ? null : { cards: ids(match.selectables.cards), min: match.selectables.min, max: match.selectables.max },
+    weaklySelectable: ids(match.weaklySelectable),
+    highlighted: ids(match.highlighted),
+    spent: ids(match.spent.cards),
+    offerHold: match.offerHold !== null,
+    poolPays: match.promptPoolPays,
+    manaIntent: match.manaIntent,
+  });
+}
+
+/** One logged act with its seat, turn and phase taken off, so the same act counts as one across a turn. */
+function actOf(line: string): string {
+  return line.replace(/^seat \d+ t\S+ \S+: /, '');
 }
 
 /** A shape fingerprint for loop detection: the ask's method and what it offered, NOT its callId. */
@@ -100,9 +134,18 @@ export async function driveSeat(
 ): Promise<SeatDriverResult> {
   const flags: Flag[] = [];
   const log: string[] = [];
+  const tally = new Map<string, number>();
+  let tallyTurn: number | null = null;
   const push = (s: string): void => {
     log.push(s);
     if (log.length > 40) log.shift();
+    const turn = match.view?.turn ?? null;
+    if (turn !== tallyTurn) {
+      tally.clear();
+      tallyTurn = turn;
+    }
+    const act = actOf(s);
+    tally.set(act, (tally.get(act) ?? 0) + 1);
   };
   const flag = (kind: FlagKind, detail: string, ask?: { method: string; prompt?: string }, rows: readonly string[] = []): void => {
     flags.push({
@@ -154,6 +197,7 @@ export async function driveSeat(
         'stuck',
         `no progress for over ${opts.stuckMs} ms while ${ask !== null ? `an ask (${ask.method}) was open` : 'holding priority'}`,
         ask === null ? undefined : { method: ask.method, prompt: match.prompt ?? undefined },
+        [stateOf(match), ...(opts.serverRows?.() ?? [])],
       );
     }
 
@@ -191,5 +235,9 @@ export async function driveSeat(
     await new Promise((r) => setTimeout(r, tickMs));
   }
 
-  return { flags, decisions };
+  const repeated = [...tally.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12)
+    .map(([act, n]) => `${n}× ${act}`);
+  return { flags, decisions, repeated };
 }
