@@ -649,6 +649,18 @@ export interface SeatState {
 	pendingButtons: ButtonsFrame | null;
 	pendingTimer: NodeJS.Timeout | null;
 	/**
+	 * The cards a window offers (`setWeaklySelectable`), held with that window: they go out just
+	 * ahead of it when the seat is shown it, and never when the server answers it. See
+	 * {@link Match.holdOffer}.
+	 */
+	heldOffer: ServerFrame | null;
+	/**
+	 * Where the input Forge is showing this seat stands: `fresh` from its start (Forge clears the
+	 * last input's offer as it stops) until a window of it goes out, `shown` once one has, and
+	 * `answered` once the server answered its window for the seat.
+	 */
+	offerInput: 'fresh' | 'shown' | 'answered';
+	/**
 	 * What this seat is sent from a state delta that newly lets it look at a library card until the
 	 * decision that shows that card: Forge grants the look (`tempShowCard`, as in
 	 * `PlayerControllerHuman.willPutCardOnTop`) a packet before it asks, and the browser draws a
@@ -1376,6 +1388,8 @@ export class Match {
 			pendingPrompt: null,
 			pendingButtons: null,
 			pendingTimer: null,
+			heldOffer: null,
+			offerInput: 'fresh',
 			lookHold: null,
 			wireButtonsLive: false,
 			answeredWindow: null,
@@ -2138,7 +2152,8 @@ export class Match {
 		if (s.highlighted.size > 0) {
 			this.send(s, { kind: 'notify', method: 'setHighlighted', entities: [...s.highlighted.values()], on: true } as unknown as ServerFrame);
 		}
-		if (s.weakly !== null) this.send(s, s.weakly);
+		// Only an offer the seat was shown: a held one goes out with its window, an answered one never.
+		if (s.weakly !== null && s.heldOffer === null && s.offerInput === 'shown') this.send(s, s.weakly);
 		this.resendEndNotices(s);
 	}
 
@@ -3057,8 +3072,12 @@ export class Match {
 			this.foldHighlighted(s, frame);
 		} else if (frame.method === 'setWeaklySelectable') {
 			s.weakly = frame;
+			if (this.holdOffer(s, frame)) return;
 		} else if (frame.method === 'clearWeaklySelectable') {
 			s.weakly = null;
+			// The input that offered stopped: what it offered is not the next one's.
+			s.heldOffer = null;
+			s.offerInput = 'fresh';
 		} else if (frame.method === 'finishGame') {
 			this.finishSeat(s, frame);
 			return;
@@ -3116,8 +3135,10 @@ export class Match {
 			const held = s.pendingButtons;
 			s.pendingButtons = null;
 			this.clearPendingTimer(s);
-			if (held === null) this.send(s, frame);
-			else this.forwardUnpaired(s, frame, held, 'buttons-first');
+			if (held === null) {
+				this.releaseOffer(s);
+				this.send(s, frame);
+			} else this.forwardUnpaired(s, frame, held, 'buttons-first');
 			return;
 		}
 		if (s.pendingPrompt !== null) {
@@ -3137,6 +3158,7 @@ export class Match {
 		}
 		s.pendingButtons = null;
 		this.clearPendingTimer(s);
+		this.releaseOffer(s);
 		this.send(s, frame);
 	}
 
@@ -3196,14 +3218,17 @@ export class Match {
 		s.answeredWindow = answered ? identity : null;
 		const kind = readPromptFacts(this.notesOf(s)).window;
 		if (answered) {
+			// The seat is never offered cards for a window it is not shown: a click on them would be
+			// held by Forge and taken by whatever input comes next, which then turns it away.
+			s.heldOffer = null;
+			s.offerInput = 'answered';
 			const bar = buttons ?? (s.buttons?.method === 'updateButtons' ? s.buttons : null);
 			if (s.wireButtonsLive && bar !== null) this.send(s, { ...bar, enable1: false, enable2: false, focus1: false });
-		} else if (buttons === null) {
-			this.send(s, prompt);
-		} else if (order === 'buttons-first') {
-			this.sendWindow(s, buttons, prompt);
 		} else {
-			this.sendWindow(s, prompt, buttons);
+			this.releaseOffer(s);
+			if (buttons === null) this.send(s, prompt);
+			else if (order === 'buttons-first') this.sendWindow(s, buttons, prompt);
+			else this.sendWindow(s, prompt, buttons);
 		}
 		// A kept window names the rule that kept it (`maybeAutoPass` ran on it: every decider did),
 		// and for `has-play` the cards, by the names this seat sees, so the log answers "why here?".
@@ -3252,11 +3277,47 @@ export class Match {
 		s.pendingPrompt = null;
 		s.pendingButtons = null;
 		this.clearPendingTimer(s);
-		if (prompt === null && buttons === null) return;
+		if (prompt === null && buttons === null) {
+			this.releaseOffer(s);
+			return;
+		}
 		this.forwardUnpaired(s, prompt, buttons);
 	}
 
+	/**
+	 * Hold an offer (`setWeaklySelectable`) with the window it belongs to, or say it goes out now.
+	 *
+	 * Forge sends a window's offer around its two halves, in each input's own order: a priority
+	 * window's before its prompt (`InputPassPriority.showNormalPrompt`), a payment's between its
+	 * bar and its prompt (`InputPayMana.updateMessage`). Forwarded at once, the offer of a window
+	 * the server then answers for the seat reached it live: the seat's click on it was held by
+	 * Forge (`ActGate`) for the next input, which turned it away (monkey run 42337878389, Takenuma
+	 * clicked at an auto-passed upkeep and refused at the draw step). So an offer that arrives
+	 * before its input has shown a window, or while a window half is held, is held with that
+	 * window ({@link decideWindow}). One that arrives after the input's window went out is a
+	 * refresh of what the seat already sees (`InputAttack`'s re-push after every toggle), and goes
+	 * out at once. Nothing held is lost: the window's own flush sends it.
+	 */
+	private holdOffer(s: SeatState, frame: ServerFrame): boolean {
+		const windowHeld = s.pendingPrompt !== null || s.pendingButtons !== null;
+		if (!windowHeld && s.offerInput === 'shown') return false;
+		s.heldOffer = frame;
+		if (!windowHeld) this.armPendingTimer(s);
+		return true;
+	}
+
+	/** The held offer, sent ahead of the window it belongs to: that window is going to the seat. */
+	private releaseOffer(s: SeatState): void {
+		s.offerInput = 'shown';
+		const offer = s.heldOffer;
+		if (offer === null) return;
+		s.heldOffer = null;
+		this.send(s, offer);
+		this.tellWatchers(s, offer);
+	}
+
 	private forwardUnpaired(s: SeatState, prompt: PromptFrame | null, buttons: ButtonsFrame | null, order: 'prompt-first' | 'buttons-first' = 'prompt-first'): void {
+		this.releaseOffer(s);
 		if (prompt !== null && buttons !== null) {
 			if (order === 'buttons-first') this.sendWindow(s, buttons, prompt);
 			else this.sendWindow(s, prompt, buttons);
