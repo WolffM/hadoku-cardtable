@@ -266,4 +266,34 @@ describe.skipIf(!available.ok)(title, () => {
 		},
 		60_000,
 	);
+
+	// A seat that concedes with a question open ends the game. The monkey's timed-out matches went on
+	// after their concede (forge.yml runs 42333563074, 42334938828): the server forwarded the act, the
+	// AI took every turn after it and cast Persecute at itself, and no `gameover` came — so a match
+	// nobody would ever answer again held its slot in the server's ceiling for good.
+	it(
+		'conceding while its own question is open (the Thoughtseize pick, unanswered) ends the game, seat 0 the loser',
+		async () => {
+			if (!available.ok) return;
+			const { s, mark } = await castThoughtseize(3003);
+			try {
+				await waitUntil(
+					() => s.sent.slice(mark).some((x) => x.seat === 0 && x.envelope.frame.kind === 'ask' && x.envelope.frame.method === 'chooseSingleEntityForEffect'),
+					'the pick to reach seat 0',
+					20_000,
+					s,
+				);
+				s.match.fromClient(0, { kind: 'act', method: 'concede' } as never);
+				await waitUntil(() => s.lines.some((l) => l.t === 'gameover'), 'Forge ends the game', 30_000, s).catch(() => undefined);
+				const gameover = s.lines.find((l) => l.t === 'gameover') as { losers?: number[]; lost?: unknown[] } | undefined;
+				const died = [...s.stderr().matchAll(/InvocationTargetException in concede[^\n]*/g)].map((m) => m[0]);
+				console.log(`[concede-open-ask] game ${gameover === undefined ? 'NOT over' : `over, losers ${JSON.stringify(gameover.losers)}`}; ${died.length} concede(s) died${died.length > 0 ? ` (${died[0]})` : ''}`);
+				expect(died, 'the concede did not die').toEqual([]);
+				expect(gameover?.losers, 'the game is over and seat 0 lost it').toEqual([0]);
+			} finally {
+				await s.stop();
+			}
+		},
+		90_000,
+	);
 });
