@@ -531,6 +531,22 @@ public final class PlayBridge {
          * then read no input, went untagged, and the seat's next act named the window before it.
          */
         final Map<Integer, SeatController> seatControllers = new ConcurrentHashMap<>();
+
+        /**
+         * The human controller deciding for {@code p}: its own, or, while a scan has swapped an AI's in
+         * for the scan's length ({@code runWithController}), the seat controller made for it. A read from
+         * a seat's thread runs alongside the game thread's scan; through {@code Player.getController()}
+         * alone it read "no human" then (no input, no offer facts, no yield). A mind-slave's controller
+         * is human and is returned as it is. Null for a player no seat holds.
+         */
+        PlayerControllerHuman humanOf(final forge.game.player.Player p) {
+            if (p == null) { return null; }
+            if (p.getController() instanceof PlayerControllerHuman h) { return h; }
+            for (final SeatController sc : seatControllers.values()) {
+                if (sc.getPlayer() == p) { return sc; }
+            }
+            return null;
+        }
         /**
          * Each player's last call of a coin flip ({@link SeatController#chooseBinary}): heads or not, and how many
          * coins they had flipped this turn when they called it — the flip it is for is told before Forge counts it.
@@ -3284,7 +3300,7 @@ public final class PlayBridge {
         private JsonObject targetAbility() {
             final Game game = liveGame();
             final forge.game.player.Player mine = liveSelf(game);
-            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return null; }
+            if (mine == null || !(match.humanOf(mine) instanceof PlayerControllerHuman human)) { return null; }
             try {
                 final SpellAbility sa = targetedAbility(human);
                 if (sa == null || sa.getHostCard() == null) { return null; }
@@ -3337,7 +3353,7 @@ public final class PlayBridge {
         private JsonObject openSelection() {
             final Game game = liveGame();
             final forge.game.player.Player mine = liveSelf(game);
-            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return null; }
+            if (mine == null || !(match.humanOf(mine) instanceof PlayerControllerHuman human)) { return null; }
             final Object input = human.getInputQueue().getInput();
             final JsonObject o = new JsonObject();
             try {
@@ -3776,7 +3792,7 @@ public final class PlayBridge {
         /** This seat's open input, which the game thread is parked on; null when it has none or is not human. */
         private Object myInput() {
             final forge.game.player.Player mine = liveSelf(liveGame());
-            return mine != null && mine.getController() instanceof PlayerControllerHuman human ? human.getInputQueue().getInput() : null;
+            return mine != null && match.humanOf(mine) instanceof PlayerControllerHuman human ? human.getInputQueue().getInput() : null;
         }
 
         /** This seat's own live {@code Player}, or null when the game or the seat is not readable. */
@@ -4066,7 +4082,7 @@ public final class PlayBridge {
          */
         private void unaffordable(final JsonObject f) {
             final forge.game.player.Player mine = liveSelf(liveGame());
-            if (mine == null || !(mine.getController() instanceof SeatController controller)) { return; }
+            if (mine == null || !(match.humanOf(mine) instanceof SeatController controller)) { return; }
             final Object[] read = controller.unaffordable();
             if (read[0] == null || read[0] != myInput()) { return; }
             final JsonArray out = new JsonArray();
@@ -4336,7 +4352,7 @@ public final class PlayBridge {
             if (mine == null || cards == null) { return; }
             // The plays of the scan that pushed this set, made on the game thread. Absent (an AI
             // seat, no full scan) omits both fields, which keeps the stop.
-            final forge.ai.AvailableActions.Scan scan = mine.getController() instanceof forge.player.PlayerControllerHuman human
+            final forge.ai.AvailableActions.Scan scan = match.humanOf(mine) instanceof forge.player.PlayerControllerHuman human
                     ? human.getActionableScan() : null;
             if (scan == null) { return; }
             final java.util.Set<Integer> plays = new java.util.HashSet<>();
@@ -4656,7 +4672,7 @@ public final class PlayBridge {
         /** The ability whose number Forge is announcing for this seat right now ({@code PlayerControllerHuman.getAnnouncing}), or null. */
         private SpellAbility announcing() {
             final forge.game.player.Player mine = liveSelf(liveGame());
-            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return null; }
+            if (mine == null || !(match.humanOf(mine) instanceof PlayerControllerHuman human)) { return null; }
             try {
                 return (SpellAbility) PlayerControllerHuman.class.getMethod("getAnnouncing").invoke(human);
             } catch (final ReflectiveOperationException e) {
@@ -5947,7 +5963,7 @@ public final class PlayBridge {
          */
         private boolean cancelYield() {
             final forge.game.player.Player mine = liveSelf(liveGame());
-            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return false; }
+            if (mine == null || !(match.humanOf(mine) instanceof PlayerControllerHuman human)) { return false; }
             final Input open = human.getInputQueue().getInput();
             if (open != null && !(open instanceof InputLockUI)) { return false; }
             final forge.gamemodes.match.YieldController yields = human.getYieldController();
@@ -6073,7 +6089,7 @@ public final class PlayBridge {
             if (c == null || phaseDelayOff == off) { return; }
             phaseDelayOff = off;
             final forge.game.player.Player mine = liveSelf(liveGame());
-            if (mine != null && mine.getController() instanceof PlayerControllerHuman human) {
+            if (mine != null && match.humanOf(mine) instanceof PlayerControllerHuman human) {
                 human.getYieldController().setPref(FPref.YIELD_SKIP_PHASE_DELAY, String.valueOf(off));
             } else {
                 System.err.println("[bridge] setPhaseDelayOff: no live PlayerControllerHuman for seat " + seat + "; pacing exemption NOT applied");
@@ -6103,7 +6119,7 @@ public final class PlayBridge {
                 throw new IllegalArgumentException("only a triggerDecision is taken from a seat: " + update);
             }
             final forge.game.player.Player mine = liveSelf(liveGame());
-            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) {
+            if (mine == null || !(match.humanOf(mine) instanceof PlayerControllerHuman human)) {
                 throw new IllegalStateException("seat " + seat + " has no live PlayerControllerHuman");
             }
             human.getYieldController().apply(new YieldUpdate.TriggerDecision(
