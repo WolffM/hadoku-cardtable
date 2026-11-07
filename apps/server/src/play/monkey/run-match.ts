@@ -158,12 +158,21 @@ const GIVE_UP_MS = 15_000;
  * server's `MAX_CONCURRENT_MATCHES` for the rest of the run, the next ones queued behind them and
  * timed out unstarted, and from the 50th every start was refused (every nightly to 2026-11-05).
  */
-async function giveUp(match: LiveMatch): Promise<{ ended: boolean; sent: string }> {
+async function giveUp(match: LiveMatch): Promise<{ ended: boolean; evidence: string[] }> {
   const sent = JSON.stringify({ monkey: 'concede-sent', at: new Date().toISOString(), connected: match.connected, turn: match.view?.turn ?? null, asks: match.asks.map((a) => a.method) });
   concede(match);
   const deadline = Date.now() + GIVE_UP_MS;
   while (!match.over && match.ended === null && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100));
-  return { ended: match.over || match.ended !== null, sent };
+  const v = match.view;
+  const seen = JSON.stringify({
+    monkey: 'view-after-concede',
+    turn: v?.turn ?? null,
+    phase: v?.phase ?? null,
+    activePlayerId: v?.activePlayerId ?? null,
+    gameOver: v?.gameOver ?? null,
+    players: (v?.players ?? []).map((p) => ({ id: p.id, life: p.life, hasLost: p.hasLost, library: p.libraryCount, hand: p.handCount, priority: p.hasPriority })),
+  });
+  return { ended: match.over || match.ended !== null, evidence: [sent, seen] };
 }
 
 export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
@@ -273,7 +282,7 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
   const ended = gaveUp?.ended ?? true;
   const notEnded = ended ? '' : `; its concede was not seen to end it within ${GIVE_UP_MS} ms`;
   // A concede that did not end the match leaves it holding a server slot: what the server last did with it is the evidence.
-  const evidence = ended ? [] : [gaveUp!.sent, ...lastServerRows(opts.serverLogFile, matchId), ...jvmStderrLines(opts.serverLogFile, opts.workDir, matchId)];
+  const evidence = ended ? [] : [...gaveUp!.evidence, ...lastServerRows(opts.serverLogFile, matchId), ...jvmStderrLines(opts.serverLogFile, opts.workDir, matchId)];
   if (timedOut) {
     extra.push(
       noFinishFlag(
