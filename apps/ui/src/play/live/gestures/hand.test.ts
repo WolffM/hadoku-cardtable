@@ -78,7 +78,7 @@ describe('holdLiftedSlot — the slot a picked-up card leaves stays open', () =>
     expect(hold, 'still held while it floats home into it').toHaveBeenLastCalledWith({ cardId: 101, height: 84 });
     cards[1]!.setAttribute('data-cast-lift', 'parked');
     await Promise.resolve();
-    expect(hold, 'let go once it is cast').toHaveBeenLastCalledWith(null);
+    expect(hold, 'let go once it is cast, drawn gone before the next frame').toHaveBeenLastCalledWith(null, true);
   });
 
   it('a second lift moves the slot, and only its own lift lets it go', async () => {
@@ -94,7 +94,7 @@ describe('holdLiftedSlot — the slot a picked-up card leaves stays open', () =>
     expect(hold).toHaveBeenLastCalledWith({ cardId: 102, height: 84 });
     cards[2]!.removeAttribute('data-cast-lift');
     await Promise.resolve();
-    expect(hold).toHaveBeenLastCalledWith(null);
+    expect(hold).toHaveBeenLastCalledWith(null, true);
   });
 });
 
@@ -196,6 +196,21 @@ describe('commitHandReorder — never Forge, always Board.tsx and presence.ts', 
       expect(li.style.transition, 'the house-curve transition now runs').toContain('cubic-bezier');
       expect(li.style.transform, 'cleared — the transition carries it the rest of the way').toBe('');
     }
+  });
+
+  it('keeps the slot held through the new order, and lets it go in the frame the card takes its place', async () => {
+    vi.spyOn(BoardModule, 'commitHandMove').mockImplementation(() => {});
+    vi.spyOn(presenceModule, 'queueHandMove').mockImplementation(() => {});
+    const hold = vi.spyOn(BoardModule, 'holdHandSlot');
+    const { canvas, cards } = board(3);
+    cards[0]!.setAttribute('data-cast-lift', 'lifted');
+    holdLiftedSlot(cards[0]!, 100);
+    commitHandReorder(canvas, 100, 0, { x: 200, y: 540 });
+    expect(hold, 'still held while the new order renders').toHaveBeenLastCalledWith({ cardId: 100, height: 84 });
+    expect(cards[0]!.getAttribute('data-cast-lift'), 'the card is still pinned where it was let go').toBe('lifted');
+    await new Promise((r) => requestAnimationFrame(r));
+    expect(hold).toHaveBeenCalledWith(null, true);
+    expect(cards[0]!.hasAttribute('data-cast-lift'), 'and the card is back in the row').toBe(false);
   });
 
   it('a hand with nobody left to flip against (no board at all) just clears the indicator and returns', () => {

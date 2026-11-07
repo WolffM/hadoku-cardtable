@@ -137,11 +137,14 @@ function nearestHandSlot(canvas: ParentNode, cardId: number, point: Point): { ta
 
 let liftWatch: MutationObserver | null = null;
 
-/** Let go of the slot `holdLiftedSlot` held open — idempotent. */
-export function releaseLiftedSlot(): void {
+/**
+ * Let go of the slot `holdLiftedSlot` held open — idempotent. `now`: drawn gone before this returns,
+ * for a caller putting the card back into the row in the same frame (never from a React effect).
+ */
+export function releaseLiftedSlot(now = false): void {
   liftWatch?.disconnect();
   liftWatch = null;
-  holdHandSlot(null);
+  holdHandSlot(null, now);
 }
 
 /**
@@ -155,7 +158,8 @@ export function holdLiftedSlot(li: HTMLElement, cardId: number): void {
   holdHandSlot({ cardId, height: li.getBoundingClientRect().height });
   liftWatch = new MutationObserver(() => {
     const mode = li.getAttribute(CAST_LIFT_ATTR);
-    if (mode !== 'lifted' && mode !== 'returning') releaseLiftedSlot();
+    // The card is back in the row (or gone from it) from this task on: so is its slot, before the next frame.
+    if (mode !== 'lifted' && mode !== 'returning') releaseLiftedSlot(true);
   });
   liftWatch.observe(li, { attributes: true, attributeFilter: [CAST_LIFT_ATTR] });
 }
@@ -307,15 +311,16 @@ export function commitHandReorder(canvas: ParentNode, cardId: number, fromIndex:
   const withoutDragged = order.filter((id) => id !== cardId);
   const { target, index: toIndex } = nearestHandSlot(canvas, cardId, point);
   clearHandIndicator();
-  // In the same render as the new order: the slot it held is where it was, not where it goes.
-  releaseLiftedSlot();
+  // The slot stays held through the new order's render, in front of the card where it now goes, so
+  // the row is already its final shape while the card is still pinned at the release point.
   commitHandMove(withoutDragged, cardId, target);
   if (toIndex !== fromIndex) queueHandMove(fromIndex, toIndex);
   requestAnimationFrame(() => {
     // The dragged card is still pinned at the release point (`position: fixed`,
-    // `./cast.ts`'s own attribute) — let it go FIRST, so its box now reflects
-    // where `Board.tsx`'s re-render actually put it, the same box `flipHand`
-    // measures every other hand card's "after" from.
+    // `./cast.ts`'s own attribute). Its slot goes and it takes its place in one
+    // frame, so its box now reflects where `Board.tsx`'s re-render actually put
+    // it, the same box `flipHand` measures every other hand card's "after" from.
+    releaseLiftedSlot(true);
     clearCastLift(canvas, cardId);
     flipHand(canvas, before);
   });
