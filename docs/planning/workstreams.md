@@ -3631,3 +3631,17 @@ rooms-server).
   - `cp-lethal-blow.spec:322`, red once in a cancelled hokon shard and unattributed.
 - Tell watchparty that room-store is MIT (plan step 3: storage).
 - **Next real wave: w93, the service kernel** (phase 2's server half). Its blocker, w91-C's gate, is on main.
+
+## Wave 93 (platform phase 2, server track) — scaffolded 2026-11-07
+
+`docs/planning/wave93-2026-11-07.md`, branch `w93`, worktree `.claude/worktrees/w93-manager`. A new MIT
+`packages/service-kernel` takes the server parts any game keeps, as thin adapters at the old paths, so `index.ts` is
+not restructured. Three lanes plus a sweep; nothing visible changes:
+- **K1** — edge auth, the gate, the base path.
+- **K2** — health, busy, boot clock, announce, shutdown flush, logger, state dir.
+- **K3** — telemetry, capacity, request helpers with `perCallerLimit`, the relays, the erase registry. It cuts the
+  `request.ts → lobby` edge.
+- **Z** — repoint importers, and leave one binding file, `kernel.ts`.
+
+It runs beside the single session w92-D-Z (`apps/ui/**`, `e2e/**`). Next after it is **w94**: `createGameServer`, with
+boot phases and an event bus.
