@@ -24,6 +24,8 @@ export interface SeatDriverOptions {
   refusals: () => number;
   /** Server log lines this match's `ask-unanswerable`/`ask-unclassified` landed as, since the last read. */
   drainServerFlags: () => { evt: string; detail: string }[];
+  /** This match's latest server log rows, appended to a flag whose cause is on the server's side of the wire. */
+  serverRows?: () => string[];
 }
 
 export interface SeatDriverResult {
@@ -102,7 +104,7 @@ export async function driveSeat(
     log.push(s);
     if (log.length > 40) log.shift();
   };
-  const flag = (kind: FlagKind, detail: string, ask?: { method: string; prompt?: string }): void => {
+  const flag = (kind: FlagKind, detail: string, ask?: { method: string; prompt?: string }, rows: readonly string[] = []): void => {
     flags.push({
       kind,
       matchId: opts.matchId,
@@ -113,7 +115,7 @@ export async function driveSeat(
       phase: match.view?.phase ?? null,
       ask,
       detail,
-      context: [...log],
+      context: [...log, ...rows],
       at: now(),
     });
   };
@@ -127,11 +129,16 @@ export async function driveSeat(
 
   while (!isOver()) {
     for (const line of opts.drainServerFlags()) {
-      flag('server-unclassified', `server log ${line.evt}: ${line.detail}`);
+      flag('server-unclassified', `server log ${line.evt}: ${line.detail}`, undefined, opts.serverRows?.() ?? []);
     }
     const refusedNow = opts.refusals();
     if (refusedNow > seenRefusals) {
-      flag('click-refused', `the server (or this client) refused ${refusedNow - seenRefusals} answer(s) since the last tick`);
+      flag(
+        'click-refused',
+        `the server (or this client) refused ${refusedNow - seenRefusals} answer(s) since the last tick; window "${match.prompt ?? ''}"`,
+        undefined,
+        opts.serverRows?.() ?? [],
+      );
       seenRefusals = refusedNow;
     }
 
