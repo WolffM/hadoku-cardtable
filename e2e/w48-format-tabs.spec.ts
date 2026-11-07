@@ -22,7 +22,7 @@ import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { createRoom } from './play/board.ts';
 import { choosePool, expectPoolOn, poolEras, poolValue } from './play/pool.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
-import { isArtRequest } from './art.ts';
+import { isArtRequest, isProductImage } from './art.ts';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -112,7 +112,7 @@ test('the leader switches Standard → Modern → Legacy and picking a Legacy er
   // Card art is the only thing a deck row tries to reach off-host, and this
   // spec is not a network allow-list regression: assert the excuse, not the
   // absence.
-  for (const url of alice.blocked) expect(isArtRequest(url), url).toBe(true);
+  for (const url of alice.blocked) expect(isProductImage(url), url).toBe(true);
 });
 
 test('a reload on a Legacy room opens the Legacy tab with its era chosen when the room answers before the catalogue', async ({
@@ -177,5 +177,5 @@ test('the Standard tab reaches back to Type 2’s 1995 summer and its decks load
   await decks.first().click();
   await expect(decks.first()).toHaveAttribute('aria-checked', 'true');
   await expect(alice.page.getByTestId('ready-toggle')).toBeEnabled();
-  for (const url of alice.blocked) expect(isArtRequest(url), url).toBe(true);
+  for (const url of alice.blocked) expect(isProductImage(url), url).toBe(true);
 });

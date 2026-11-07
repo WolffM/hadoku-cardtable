@@ -145,7 +145,7 @@ import { checkPlayIsolation, foldStream, unseenNamed, type PlaySeatLog } from '.
 import { FIXTURE_FILE, load, mutations, unseenCases } from './play/fixture.ts';
 import { TURN_TEXT, turnNumber } from './play/turn.ts';
 import { choosePool } from './play/pool.ts';
-import { isArtRequest } from './art.ts';
+import { isProductImage } from './art.ts';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -577,8 +577,8 @@ async function ownHand(
  * else. Everything else that tries to leave `127.0.0.1` is a failure
  * (`play/browser.ts` aborts them all either way; this is what decides whether
  * that is news). Card art is the art route (`./art.ts`), blocked like an off-host
- * request because it redirects to one: D15 and D18 — the art is a lookup, the bytes
- * are not ours, and they never come from our origin.
+ * request because it redirects to one, and the app's own images come from our CDN:
+ * D15 and D18 — the art is a lookup, and the bytes never come from our origin.
  *
  * **This list does not grow to accommodate a page that talks to production.**
  * A bare `hadoku.me` here would have masked exactly that, and it nearly did:
@@ -591,7 +591,7 @@ async function ownHand(
  * product and called the test green.
  */
 function isExpectedOffOrigin(url: string): boolean {
-  return isArtRequest(url);
+  return isProductImage(url);
 }
 
 /* ── driving the product's room screens ──────────────────────────────── */

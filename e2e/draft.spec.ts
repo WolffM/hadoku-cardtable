@@ -74,7 +74,7 @@ import { specVideoSlug } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { openCreateRoom, submitCreateRoom } from './play/rooms.ts';
 import { turnNumber } from './play/turn.ts';
-import { isArtRequest } from './art.ts';
+import { isArtRequest, isProductImage } from './art.ts';
 
 /** A picture host the solo pod's test serves (`looks.ts`). */
 const LOOK_PICTURES = 'https://cdn.e2e-looks.test';
@@ -805,7 +805,7 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
   const report = checkIsolation(logs);
 
   // ── the image boundary, while we are here: only art hosts were asked for.
-  const offHosts = [...alice.blocked, ...bob.blocked].filter((u) => !isArtRequest(u));
+  const offHosts = [...alice.blocked, ...bob.blocked].filter((u) => !isProductImage(u));
 
   // ── evidence, written before anything below can fail.
   const serverLog = readServerLog({ serverLogFile: resolve(RUN_DIR, 'server.jsonl') });

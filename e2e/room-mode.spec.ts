@@ -53,7 +53,7 @@ import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { createRoom } from './play/board.ts';
 import { openCreateRoom } from './play/rooms.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
-import { isArtRequest } from './art.ts';
+import { isArtRequest, isProductImage } from './art.ts';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -201,7 +201,7 @@ test.describe('the room decides which client', () => {
     // waits for the 29 rows — whose art it then sees. Measured at both commits:
     // given 1.5 s, the old layout attempts the same 19 art URLs. The race was
     // hiding them; this names them.
-    const notArt = (urls: readonly string[]) => urls.filter((u) => !isArtRequest(u));
+    const notArt = (urls: readonly string[]) => urls.filter((u) => !isProductImage(u));
     expect(notArt(alice.blocked), 'alice made an off-host request that is not card art').toEqual([]);
     expect(notArt(bob.blocked), 'bob made an off-host request that is not card art').toEqual([]);
     // And the builtin room never asked for a stream at all — a room that is
