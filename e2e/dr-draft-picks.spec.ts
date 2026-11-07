@@ -94,7 +94,7 @@ async function pickUntil(p: Friend, n: number): Promise<void> {
   }
 }
 
-test(titled('the picks sort by colour or mana value, a pick dragged to the sideboard stays there in the builder, and nothing scrolls with a full pool'), async ({ browser }) => {
+test(titled('the picks pile by mana value, a pick dragged to the sideboard stays there in the builder, and nothing scrolls with a full pool'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(6 * 60_000);
