@@ -5834,6 +5834,28 @@ public final class PlayBridge {
             pay.selectButtonCancel();
         }
 
+        /**
+         * Cancel on the bar Forge shows while this seat yields ("Yielding until end of turn"): the
+         * yield ends now, as Forge's own {@code InputLockUI.selectButtonCancel} ends it
+         * ({@code YieldController.clearActiveYieldAndDispatch}). That bar stands with no input of
+         * the seat's waiting, and Forge's ActGate holds a press until one does, up to five seconds
+         * apiece: re-armed at every phase, the presses queued, and every later act of the seat,
+         * a concede among them, waited behind them (monkey run 42340666519). Returns whether it
+         * ended a yield; anything else, or a yield that did not end, goes to Forge as it came.
+         */
+        private boolean cancelYield() {
+            final forge.game.player.Player mine = liveSelf(liveGame());
+            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return false; }
+            final Input open = human.getInputQueue().getInput();
+            if (open != null && !(open instanceof InputLockUI)) { return false; }
+            final forge.gamemodes.match.YieldController yields = human.getYieldController();
+            if (!yields.isYieldActive()) { return false; }
+            yields.clearActiveYieldAndDispatch();
+            if (yields.isYieldActive()) { return false; }
+            System.err.println("[bridge] seat " + seat + ": Cancel ended its yield");
+            return true;
+        }
+
         // ------------------------------------------------ acts, browser → Forge
 
         void act(final JsonObject frame) {
@@ -5850,6 +5872,7 @@ public final class PlayBridge {
                     // into the live YieldController (see its own comment) instead of racing the
                     // click over the network, so this ordering is real rather than assumed.
                     if (lastEnable2 && END_TURN_LABEL.equals(lastLabel2)) { setPhaseDelayOff(true); }
+                    if (cancelYield()) { return; }
                     c.selectButtonCancel();
                 }
                 case "concede" -> c.concede();
