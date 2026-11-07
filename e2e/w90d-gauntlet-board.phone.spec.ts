@@ -20,6 +20,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 
 import type { GauntletView } from '../packages/shared/src/gauntlet.ts';
 import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
+import { coinOverPool, watchCoinOverPool } from './gauntletCoin.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
 import { noSideways, PHONE } from './play/phone.ts';
 
@@ -64,6 +65,7 @@ test('the Gauntlet board at 390×844: no sideways scroll, both columns on screen
   await context.addCookies([{ name: SESSION_COOKIE, value: 'alice', domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' }]);
   await keepPrefsLocal(context, EDGE_ORIGIN);
   const page = await context.newPage();
+  await watchCoinOverPool(page);
   try {
     await page.goto(`${PREFIX}/`);
     const created = await send<{ id: string }>(context.request, 'POST', '/rooms', {
@@ -74,23 +76,21 @@ test('the Gauntlet board at 390×844: no sideways scroll, both columns on screen
     });
     expect(created.status, JSON.stringify(created.body)).toBe(201);
     const roomId = created.body.id;
+    // The room is open before the ready starts the reveal's clock, so this screen sees the coin.
+    await page.goto(`${PREFIX}/#/room/${roomId}`);
+    await expect(page.getByTestId('constructed')).toBeVisible({ timeout: 15_000 });
     expect((await send(context.request, 'POST', `/tables/rooms/${roomId}/sit`)).status).toBe(200);
     const ready = await send<GauntletView>(context.request, 'POST', `/tables/rooms/${roomId}/gauntlet/ready`, { ready: true, ai: true });
     expect(ready.status, JSON.stringify(ready.body)).toBe(200);
     expect(ready.body.era?.id).toBe(ERA);
     console.log(`[w90d-gauntlet-board-phone] drew era=${ready.body.era?.title} first=${String(ready.body.first)} decks=${ready.body.decks.map((d) => d.id).join(',')}`);
 
-    await page.goto(`${PREFIX}/#/room/${roomId}`);
     await expect(page.getByTestId('gauntlet-title')).toHaveText(ready.body.era!.title, { timeout: 15_000 });
 
     await noSideways(page);
 
-    await expect(page.getByTestId('coin-toss')).toBeVisible({ timeout: 10_000 });
-    const coinBox = await page.evaluate(() => {
-      const pool = document.querySelector('[data-testid="gauntlet-pool"]')!.getBoundingClientRect();
-      const coin = document.querySelector('.gauntlet__coin')!.getBoundingClientRect();
-      return { pool: { x: pool.x, y: pool.y, width: pool.width, height: pool.height }, coin: { x: coin.x, y: coin.y, width: coin.width, height: coin.height } };
-    });
+    await expect.poll(() => coinOverPool(page), { timeout: 15_000, message: 'the coin was drawn' }).not.toBeNull();
+    const coinBox = (await coinOverPool(page))!;
     console.log(`[w90d-gauntlet-board-phone] coin over pool: ${JSON.stringify(coinBox)}`);
     expect(coinBox.coin, 'the coin overlay is the pool’s own box').toEqual(coinBox.pool);
     await noSideways(page);
