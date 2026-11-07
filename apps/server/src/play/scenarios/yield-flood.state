@@ -1,0 +1,17 @@
+# The Forge AI's turn, with a Main Phase 1 cast, an attack and its blow to play through. Seat 0 has
+# a tapped Grizzly Bears and an empty hand, so it has nothing to do, and under full control every
+# window of the AI's turn still reaches it: it presses End Turn at the first, then Cancel on every
+# live "Yielding until end of turn" bar (monkey run 42340666519, m-11b01c334960).
+turn=2
+activeplayer=ai
+activephase=UPKEEP
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Grizzly Bears|Tapped
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Ravenous Chupacabra
+aibattlefield=Hill Giant;Gray Ogre;Swamp;Swamp;Swamp;Swamp
+ailibrary=Swamp;Swamp;Swamp;Swamp
+aigraveyard=
