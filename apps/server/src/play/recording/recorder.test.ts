@@ -3,7 +3,7 @@ import type { PresenceMessage, SeatIdentity } from '@hadoku/shared';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import type { DeckCosts } from '../deck-colors.js';
 import type { BridgeLine, HostEvents, MatchHost, MatchHostFactory, MatchSpec } from '../host.js';
@@ -291,6 +291,111 @@ describe('createRecorder', () => {
 			[60, 0, 1, 0.3, true],
 			[160, 0, 1, 0.4, true],
 		]);
+	});
+
+	it('onPresence keeps where a pointer came to rest: a position dropped inside the 100 ms is written when the 100 ms is up', async () => {
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'], now: 1_000 });
+		onTestFinished(() => {
+			vi.useRealTimers();
+		});
+		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
+		const inner = fakeFactory();
+		const tick = (ms: number): void => {
+			vi.advanceTimersByTime(ms);
+		};
+		const recorder = createRecorder({ dir, identity: { pin: null, bridge: 'b', server: 's' }, roomOf: () => null, deckCosts: NO_COSTS, now: () => Date.now() });
+		const hosted = recorder.host(inner);
+		hosted('m-1', spec(1), { line: () => undefined, exit: () => undefined, log: () => undefined });
+		const events = inner.calls[0]!.events;
+		const at = (seat: number, x: number, held = false): PresenceMessage => ({
+			matchId: 'm-1',
+			type: 'presence',
+			pointer: { zone: 'hand', x, y: 0.5 },
+			anchor: null,
+			held,
+			from: null,
+			arranging: null,
+			placing: null,
+			handMove: null,
+		});
+
+		recorder.onPresence('m-1', 0, 1, at(0, 0.1)); // kept: the first
+		tick(40);
+		recorder.onPresence('m-1', 0, 1, at(0, 0.2)); // inside the 100 ms: held back
+		tick(20);
+		recorder.onPresence('m-1', 0, 1, at(0, 0.25)); // still inside: replaces it
+		tick(400); // the pointer rests on 0.25; its 100 ms ran out 340 ms ago
+		recorder.onPresence('m-1', 0, 1, at(0, 0.25, true)); // a card lifted where it rests
+		tick(30);
+		recorder.onPresence('m-1', 0, 1, at(0, 0.3, true)); // inside: held back
+		recorder.onPresence('m-1', 1, 2, at(1, 0.9)); // the other seat: kept, and seat 0's held-back line first
+		tick(200);
+		vi.useRealTimers();
+
+		(events.exit as (r: string) => void)('stopped');
+		await vi.waitFor(() => expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true));
+		const kept = linesOf(join(dir, 'm-1.public.jsonl.gz')).filter((l) => l.t === 'presence');
+		expect(kept.map((l) => [l.at, l.seat, (l.presence as PresenceMessage).pointer?.x, (l.presence as PresenceMessage).held])).toEqual([
+			[0, 0, 0.1, false],
+			[100, 0, 0.25, false],
+			[460, 0, 0.25, true],
+			[490, 0, 0.3, true],
+			[490, 1, 0.9, false],
+		]);
+	});
+
+	/** Drives `steps` presence messages through a recorder on fake timers; returns the presence lines it wrote. */
+	async function recordPresence(steps: { gap: number; seat: number; x: number; held?: boolean }[]): Promise<{ at: number; seat: number; x: number | undefined }[]> {
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'], now: 1_000 });
+		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
+		const inner = fakeFactory();
+		const recorder = createRecorder({ dir, identity: { pin: null, bridge: 'b', server: 's' }, roomOf: () => null, deckCosts: NO_COSTS, now: () => Date.now() });
+		recorder.host(inner)('m-1', spec(1), { line: () => undefined, exit: () => undefined, log: () => undefined });
+		const events = inner.calls[0]!.events;
+		for (const s of steps) {
+			vi.advanceTimersByTime(s.gap);
+			recorder.onPresence('m-1', s.seat, s.seat + 1, {
+				matchId: 'm-1',
+				type: 'presence',
+				pointer: { zone: 'hand', x: s.x, y: 0.5 },
+				anchor: null,
+				held: s.held ?? false,
+				from: null,
+				arranging: null,
+				placing: null,
+				handMove: null,
+			});
+		}
+		vi.advanceTimersByTime(500);
+		vi.useRealTimers();
+		(events.exit as (r: string) => void)('stopped');
+		await vi.waitFor(() => expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true));
+		return linesOf(join(dir, 'm-1.public.jsonl.gz'))
+			.filter((l) => l.t === 'presence')
+			.map((l) => ({ at: l.at as number, seat: l.seat as number, x: (l.presence as PresenceMessage).pointer?.x }));
+	}
+
+	it('onPresence writes no more than one position per 100 ms for a pointer that never stops, as before it held any back', async () => {
+		// Two seconds of one seat's pointer at 100 a second (ten times what a seat sends), hands unchanged.
+		const lines = await recordPresence(Array.from({ length: 200 }, (_, i) => ({ gap: 10, seat: 0, x: i / 200 })));
+		expect(lines.length).toBeLessThanOrEqual(2_000 / 100 + 1);
+		for (let i = 1; i < lines.length; i += 1) expect(lines[i]!.at - lines[i - 1]!.at, `line ${i}`).toBeGreaterThanOrEqual(100);
+		expect(lines.at(-1)!.x, 'and the last place it was is the last line').toBe(199 / 200);
+	});
+
+	it('onPresence writes its lines in time order across both seats, whatever order their messages come in', async () => {
+		let seed = 7;
+		const random = (): number => {
+			seed = (seed * 48_271) % 2_147_483_647;
+			return seed / 2_147_483_647;
+		};
+		const steps = Array.from({ length: 400 }, () => ({ gap: Math.floor(random() * 80), seat: random() < 0.5 ? 0 : 1, x: random(), held: random() < 0.1 }));
+		const lines = await recordPresence(steps);
+		for (let i = 1; i < lines.length; i += 1) expect(lines[i]!.at, `line ${i}`).toBeGreaterThanOrEqual(lines[i - 1]!.at);
+		for (const seat of [0, 1]) {
+			const sent = steps.filter((s) => s.seat === seat);
+			expect(lines.filter((l) => l.seat === seat).at(-1)!.x, `seat ${seat}'s last position is kept`).toBe(sent.at(-1)!.x);
+		}
 	});
 
 	it('onRelay keeps every relayed table message, each one, timed from the match start', async () => {

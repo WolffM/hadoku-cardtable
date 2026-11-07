@@ -122,7 +122,8 @@ export interface Recorder {
 	/**
 	 * Wire to `PlayDeps.onPresence`: the ACTIVE seat's pointer, for the replay's cursor. At most one line per
 	 * {@link PRESENCE_RECORD_MS}, except that a message changing what the hands are doing (a card lifted,
-	 * let go, parked, an arrow started or ended, the pointer leaving) is always kept.
+	 * let go, parked, an arrow started or ended, the pointer leaving) is always kept. A position that comes
+	 * inside the window is held back and written when it is up, so where the pointer came to rest is kept.
 	 */
 	onPresence(matchId: string, seat: number, playerId: number, presence: PresenceMessage): void;
 	/** Wire to `PlayDeps.onRelay`: every placement, row order and stack card's place a seat relayed, each kept. */
@@ -146,6 +147,8 @@ interface Session {
 	startedAtMs: number;
 	/** The last presence line kept: when, and what the hands were doing. */
 	lastPresence: { at: number; seat: number; hands: string } | null;
+	/** The newest presence held back inside {@link PRESENCE_RECORD_MS}, written when that is up unless a later line from its seat supersedes it. */
+	heldBack: { seat: number; playerId: number; presence: PresenceMessage; timer: ReturnType<typeof setTimeout> } | null;
 	/** The roster as last read, for the `end` line, and when (match time) it was read. */
 	seats: RecordedSeat[] | null;
 	seatsAt: number;
@@ -194,6 +197,20 @@ function usersOfSeats(seats: readonly RecordedSeat[] | undefined): { users?: (st
 export function createRecorder(deps: RecorderDeps): Recorder {
 	const log = deps.log ?? (() => undefined);
 	const now = deps.now ?? Date.now;
+	/** One presence line, now. */
+	function writePresence(matchId: string, session: Session, seat: number, playerId: number, presence: PresenceMessage): void {
+		const at = now() - session.startedAtMs;
+		session.lastPresence = { at, seat, hands: handsState(presence) };
+		guarded(log, matchId, 'presence', () => session.writer.publicPresence({ at, seat, playerId, presence }));
+	}
+	/** The held-back presence, if any, written at the time it is let out, so the lines stay in order. */
+	function writeHeldBack(matchId: string, session: Session): void {
+		const held = session.heldBack;
+		if (held === null) return;
+		clearTimeout(held.timer);
+		session.heldBack = null;
+		writePresence(matchId, session, held.seat, held.playerId, held.presence);
+	}
 	/**
 	 * Re-read the roster and the room into `session`. A match already gone leaves the last roster
 	 * read; a room is asked for until it answers, since it links its match only after the host has
@@ -247,7 +264,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 					},
 					log,
 				});
-				const session: Session = { writer, startedAtMs: now(), lastPresence: null, seats: null, seatsAt: 0, roomKnown: roomId !== null, positions: [createSeatPosition(0), createSeatPosition(1)] };
+				const session: Session = { writer, startedAtMs: now(), lastPresence: null, heldBack: null, seats: null, seatsAt: 0, roomKnown: roomId !== null, positions: [createSeatPosition(0), createSeatPosition(1)] };
 				// Every ask's callId per seat, in the order Forge sent them: a reply's `ask` number.
 				const asks = new Map<number, string[]>();
 				sessions.set(matchId, session);
@@ -276,6 +293,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 					// A match that ends without a game over (stopped, crashed) is finished here, winnerless.
 					exit: (reason) => {
 						if (sessions.get(matchId) === session) {
+							writeHeldBack(matchId, session);
 							sessions.delete(matchId);
 							const endedAt = new Date(now()).toISOString();
 							const boards = finalBoards(session);
@@ -328,9 +346,21 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 			const at = now() - session.startedAtMs;
 			const hands = handsState(presence);
 			const last = session.lastPresence;
-			if (last !== null && last.seat === seat && last.hands === hands && at - last.at < PRESENCE_RECORD_MS) return;
-			session.lastPresence = { at, seat, hands };
-			guarded(log, matchId, 'presence', () => session.writer.publicPresence({ at, seat, playerId, presence }));
+			const held = session.heldBack;
+			if (last !== null && last.seat === seat && last.hands === hands && at - last.at < PRESENCE_RECORD_MS) {
+				// Held back, never dropped: a pointer that stops inside the window would otherwise be
+				// recorded where it was 100 ms before it came to rest, and a replay draws it there.
+				const timer = held?.timer ?? setTimeout(() => writeHeldBack(matchId, session), last.at + PRESENCE_RECORD_MS - at);
+				session.heldBack = { seat, playerId, presence, timer };
+				return;
+			}
+			if (held !== null) {
+				if (held.seat === seat) {
+					clearTimeout(held.timer);
+					session.heldBack = null;
+				} else writeHeldBack(matchId, session);
+			}
+			writePresence(matchId, session, seat, playerId, presence);
 		},
 
 		onRelay(matchId, event, echo) {
@@ -346,6 +376,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 			const session = sessions.get(match.id);
 			if (session === undefined) return;
 			const outcome = gameOutcome(match);
+			writeHeldBack(match.id, session);
 			sessions.delete(match.id);
 			const endedAt = new Date(now()).toISOString();
 			const boards = finalBoards(session);
