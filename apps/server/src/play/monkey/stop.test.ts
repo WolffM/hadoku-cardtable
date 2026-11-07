@@ -70,14 +70,14 @@ describe('the monkey at a full server', () => {
 });
 
 describe('lastServerRows', () => {
-  it("keeps this match's last rows from the stack's log, skipping other matches and torn lines", () => {
+  it("keeps this match's last rows from the stack's log, skipping other matches, frame echoes and torn lines", () => {
     const dir = mkdtempSync(join(tmpdir(), 'monkey-log-'));
     const file = join(dir, 'server.jsonl');
-    const rows = Array.from({ length: 30 }, (_, i) => JSON.stringify({ evt: 'ask', matchId: i % 2 === 0 ? 'm1' : 'm2', i }));
+    const rows = Array.from({ length: 30 }, (_, i) => JSON.stringify({ evt: i === 26 ? 'wire-frame' : 'ask', matchId: i % 2 === 0 ? 'm1' : 'm2', i }));
     writeFileSync(file, `${rows.join('\n')}\nnot json\n{"evt":"torn","matchId":"m1"`);
     const [header, ...rest] = lastServerRows(file, 'm1', 3);
     rmSync(dir, { recursive: true, force: true });
     expect(JSON.parse(header!)).toMatchObject({ rows: 30, newestAnyMatch: { evt: 'ask', matchId: 'm2' } });
-    expect(rest.map((r) => (JSON.parse(r) as { i: number }).i)).toEqual([24, 26, 28]);
+    expect(rest.map((r) => (JSON.parse(r) as { i: number }).i)).toEqual([22, 24, 28]);
   });
 });

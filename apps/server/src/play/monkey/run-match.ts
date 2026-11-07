@@ -96,12 +96,15 @@ export function serverFlagsOf(rows: readonly Record<string, unknown>[], matchId:
   return rows.filter((row) => row.matchId === matchId && row.evt === 'ask-unclassified').map((row) => ({ evt: String(row.evt), detail: JSON.stringify(row) }));
 }
 
+/** Rows that only echo a frame on its way to a seat: what the server decided is in every other row. */
+const FRAME_ECHOES = new Set(['wire-frame', 'forge-frame']);
+
 /**
- * The last `n` server log rows about `matchId`, as JSON lines, after one line saying how big the log
+ * The last `n` server log rows about `matchId` (frame echoes left out), as JSON lines, after one line saying how big the log
  * is and what its newest row from ANY match was: a match gone quiet and a server gone quiet look the
  * same from its own rows alone.
  */
-export function lastServerRows(path: string, matchId: string, n = 25): string[] {
+export function lastServerRows(path: string, matchId: string, n = 40): string[] {
   const rows = makeLogTail(path)();
   let bytes: number | null = null;
   try {
@@ -114,7 +117,7 @@ export function lastServerRows(path: string, matchId: string, n = 25): string[] 
   return [
     JSON.stringify(header),
     ...rows
-      .filter((row) => row.matchId === matchId)
+      .filter((row) => row.matchId === matchId && !FRAME_ECHOES.has(String(row.evt)))
       .slice(-n)
       .map((row) => JSON.stringify(row)),
   ];
