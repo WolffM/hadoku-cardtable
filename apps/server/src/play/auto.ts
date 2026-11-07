@@ -1487,7 +1487,7 @@ export function decidePay(facts: PromptFacts, policy: StopPolicy): string | null
  *
  * | question | answerable when | not answerable → Forge's own answer |
  * | --- | --- | --- |
- * | payment (`InputPayMana`) | Auto is live (`ensureAutoPayManaSources` found a payment, `InputPayMana.java:402-407`), or life can pay (Phyrexian), or the floating pool chooses | optional (Cancel live, `!mandatory`, `:389-395`): Cancel — the unpaid branch ("you may pay", "unless pays", an attack tax: that attacker does not attack, `PhaseHandler.java:578-583`) |
+ * | payment (`InputPayMana`) | Auto is live (`ensureAutoPayManaSources` found a payment, `InputPayMana.java:402-407`), or life can pay (Phyrexian), or the floating pool chooses, or the highlighted cards could pay it by hand (not {@link PromptFacts.noWayToPay}: a Signet fed by a land, a man-land's own mana toward its own animation, which Forge's AI payer never chains) | optional (Cancel live, `!mandatory`, `:389-395`): Cancel — the unpaid branch ("you may pay", "unless pays", an attack tax: that attacker does not attack, `PhaseHandler.java:578-583`) |
  * | `getChoices`, `chooseEntitiesForEffect` | as many options as its minimum | fewer: every option, which is Forge's own clamp of the minimum (`InputSelectEntitiesFromList.java:46`) |
  * | `chooseSingleEntityForEffect` | one option, or optional | none and optional: no pick (null), Forge's own answer to an empty list (`PlayerControllerHuman.chooseSingleEntityForEffect`) |
  * | `getAbilityToPlay` | one ability | none: no pick (null), Forge's "play nothing" |
@@ -1498,8 +1498,8 @@ export function decidePay(facts: PromptFacts, policy: StopPolicy): string | null
  * | `openZones`, `tempShowZones` | always: a display the browser answers itself | — |
  * | any other method | not classified: forwarded as today, logged `ask-unclassified` | |
  *
- * A payment with Auto dead and Cancel dead is not classified either: Forge left no
- * press, and that is Forge's to answer, not ours to drop.
+ * A payment nothing highlighted can pay, with Cancel dead, is not classified either: Forge
+ * left no press, and that is Forge's to answer, not ours to drop.
  *
  * Nothing here computes a payment: {@link PromptFacts.noWayToPay} is a dead Auto
  * AND fewer highlighted cards than the fewest mana that pays it, which no clicking can
@@ -1541,8 +1541,8 @@ export function answerability(q: Question): Answerability {
 	if (q.kind === 'payment') {
 		const f = q.facts;
 		if (f.window !== 'payment' || f.cost === null) return UNCLASSIFIED;
-		if (f.confirmLive || f.alternativePayment || f.poolChoice) return ANSWERABLE;
-		return f.noWayToPay && f.cancelLive ? { verdict: 'unanswerable', optional: true, answer: { t: 'cancel-payment' }, why: `nothing can pay ${f.cost}` } : UNCLASSIFIED;
+		if (f.confirmLive || f.alternativePayment || f.poolChoice || !f.noWayToPay) return ANSWERABLE;
+		return f.cancelLive ? { verdict: 'unanswerable', optional: true, answer: { t: 'cancel-payment' }, why: `nothing can pay ${f.cost}` } : UNCLASSIFIED;
 	}
 	const frame = q.frame;
 	switch (frame.method) {
