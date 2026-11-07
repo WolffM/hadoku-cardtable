@@ -415,6 +415,30 @@ describe('on a push to main (--defer-full)', () => {
     expect(sel.deferred).toBe(true);
   });
 
+  it('runs every spec importing a changed module, through its helpers at any depth, whatever the budget', () => {
+    const repo = fixtureRepo({
+      'e2e/play/board.ts': "import { zone } from '../../apps/ui/src/play/zone.ts';\nexport const coinToss = (page) => page.getByTestId(zone);\n",
+      'apps/ui/src/play/zone.ts': "import { side } from '@hadoku/wire';\nexport const zone = side;\n",
+      'packages/wire/package.json': '{ "name": "@hadoku/wire", "exports": { ".": "./src/index.ts" } }\n',
+      'packages/wire/src/index.ts': "export const side = 'zone-box';\n",
+      ...Object.fromEntries(Array.from({ length: PUSH_BUDGET + 2 }, (_, i) => [`e2e/zoned-${i}.spec.ts`, FORGE_SPEC("import { coinToss } from './play/board.ts';")])),
+    });
+    const sel = select(repo, [modified('packages/wire/src/index.ts')], { deferFull: true });
+    expect(sel.specs).toEqual(expect.arrayContaining(['pile.spec.ts', ...Array.from({ length: PUSH_BUDGET + 2 }, (_, i) => `zoned-${i}.spec.ts`)]));
+    expect(sel.specs).not.toContain('bars.spec.ts');
+    expect(sel.reasons).toContain('e2e: pile.spec.ts — imports packages/wire/src/index.ts (via play/board.ts)');
+  });
+
+  it('runs every spec, even on a push, when most specs import what changed', () => {
+    const repo = fixtureRepo({
+      'e2e/play/harness.ts': "import { rows } from '../../apps/server/src/http/standIn.ts';\nexport function startPlayStack() { return rows; }\n",
+      'apps/server/src/http/standIn.ts': 'export const rows = 1;\n',
+    });
+    const sel = select(repo, [modified('apps/server/src/http/standIn.ts')], { deferFull: true });
+    expect(sel).toMatchObject({ specs: null, deferred: false });
+    expect(sel.reasons).toContain(`every spec runs on this push: ${universe(repo).specs.length} of ${universe(repo).specs.length} specs import what changed`);
+  });
+
   it('runs a jvm suite that uses a changed module directly, not one that uses it from afar', () => {
     const sel = select(fixtureRepo(), [modified('apps/server/src/play/host.ts')], { deferFull: true });
     expect(sel.jvmFiles).toEqual(['apps/server/src/play/bolt.jvm.test.ts']);
@@ -469,9 +493,9 @@ describe('diff helpers', () => {
 });
 
 describe('outputs for forge.yml', () => {
-  it('one shard for a short list, three for everything', () => {
+  it('one shard for a short list, five for everything', () => {
     expect(outputs({ e2e: true, specs: ['a.spec.ts'], jvm: false, jvmFiles: [], deferred: false, reasons: [] })).toMatchObject({ shards: '[1]', e2e_specs: 'a.spec.ts', jvm: 'false', jvm_full: 'false' });
-    expect(outputs({ e2e: true, specs: null, jvm: true, jvmFiles: null, deferred: false, reasons: [] })).toMatchObject({ shards: '[1, 2, 3, 4]', e2e_specs: '', jvm_files: '', jvm_full: 'true' });
+    expect(outputs({ e2e: true, specs: null, jvm: true, jvmFiles: null, deferred: false, reasons: [] })).toMatchObject({ shards: '[1, 2, 3, 4, 5]', e2e_specs: '', jvm_files: '', jvm_full: 'true' });
   });
 });
 

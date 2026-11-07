@@ -15,7 +15,8 @@
  * Every pick has a tier:
  *   0  what changed itself: a spec, a jvm suite, the specs and suites a
  *      changed scenario starts                                   always runs
- *   1  the guard family of a hot-path module (`GUARDS`)          always runs
+ *   1  the guard family of a hot-path module (`GUARDS`), and the
+ *      specs importing a changed module (`specImports`)         always runs
  *   2  a spec the change is relevant to, scored                  a dispatch runs them all; a push
  *                                                                runs the best until `PUSH_BUDGET`
  * and the smoke set runs whenever app code changed.
@@ -45,6 +46,10 @@
  *   an e2e spec, a jvm suite                            itself
  *   an e2e helper                                       the specs that use what it touched
  *   a scenario (`*.state`)                              the specs + jvm suites that name it
+ *   a module under apps/ or packages/ that a spec
+ *   imports, through its helpers, at any depth          that spec, on a push too; past
+ *                                                       `FULL_SHARE` of the specs, every spec
+ *                                                       even on a push (then the rules below)
  *   a hot-path module, or a server play module one
  *   import below one                                    its guard family (the bridge's Java: and, like the
  *                                                       engine pin, everything on a dispatch)
@@ -397,6 +402,34 @@ export function resolveImport(repo: Repo, from: string, spec: string): string | 
   const base = normalize(join(dirname(from), spec));
   const stem = base.replace(/\.(js|ts|tsx|jsx)$/, '');
   return [base, `${stem}.ts`, `${stem}.tsx`, `${base}/index.ts`, `${base}/index.tsx`].find((c) => repo.read(c) !== null) ?? null;
+}
+
+/**
+ * Each module under apps/ or packages/ a Forge spec imports, at any depth,
+ * through e2e helpers and the modules themselves: module → spec → the first
+ * file the spec imported on the way (the helper that leads there, or the
+ * module itself).
+ */
+export function specImports(repo: Repo, specs: string[]): Map<string, Map<string, string>> {
+  const out = new Map<string, Map<string, string>>();
+  for (const s of specs) {
+    const from = `e2e/${s}`;
+    const via = new Map<string, string>([[from, from]]);
+    const queue = [from];
+    for (let f = queue.shift(); f !== undefined; f = queue.shift()) {
+      for (const dep of importsOf(repo, f)) {
+        if (via.has(dep)) continue;
+        via.set(dep, f === from ? dep : via.get(f)!);
+        queue.push(dep);
+      }
+    }
+    for (const [m, first] of via) {
+      if (!/^(apps|packages)\//.test(m)) continue;
+      if (!out.has(m)) out.set(m, new Map());
+      out.get(m)!.set(s, first);
+    }
+  }
+  return out;
 }
 
 /* ── what a UI file renders ───────────────────────────────────────────── */
@@ -949,6 +982,10 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
   const jvm = new Map<string, Pick>();
   let allSpecs: string | null = null;
   let allJvm: string | null = null;
+  /** Every spec, because the changes reach most specs by import: a push runs it too. */
+  let allSpecsImported: string | null = null;
+  let imports: Map<string, Map<string, string>> | null = null;
+  const imported = new Set<string>();
   const everything = (why: string): void => {
     allSpecs ??= why;
     allJvm ??= why;
@@ -1069,6 +1106,13 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
       everything(`${f}: changes what every match runs on`);
       continue;
     }
+    if (/^(apps|packages)\//.test(f) && c.status !== 'removed') {
+      imports ??= specImports(repo, all.specs);
+      for (const [s, via] of imports.get(f) ?? []) {
+        imported.add(s);
+        addSpec(s, 1, `imports ${f}${via === f ? '' : ` (via ${via.replace(/^e2e\//, '')})`}`);
+      }
+    }
     if (/^e2e\/[^/]+\.spec\.ts$/.test(f)) {
       const s = f.slice('e2e/'.length);
       if (c.status === 'removed') reasons.push(`${f}: removed`);
@@ -1168,6 +1212,10 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
     everything(`${f}: unclassified`);
   }
 
+  if (imported.size > 0 && imported.size >= fullShare * all.specs.length) {
+    allSpecsImported = `${imported.size} of ${all.specs.length} specs import what changed`;
+    allSpecs ??= allSpecsImported;
+  }
   const best = (m: Map<string, Pick>): [string, Pick][] => [...m].filter(([, p]) => p.tier === 2).sort((a, b) => b[1].score - a[1].score || a[0].localeCompare(b[0]));
   for (const [s, p] of best(specs).filter(([, p]) => p.score < MIN_SCORE)) {
     reasons.push(`${s}: not run — too little evidence (${reason(p)})`);
@@ -1179,7 +1227,9 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
   // A push to main never runs the full set: tiers 0 and 1, then the best of tier 2 up to
   // `PUSH_BUDGET`; the next batched full run (`forge.yml`'s schedule) covers the rest.
   let deferred = false;
-  if (deferFull && allSpecs !== null) {
+  if (deferFull && allSpecs !== null && allSpecsImported !== null) {
+    reasons.push(`every spec runs on this push: ${allSpecsImported}`);
+  } else if (deferFull && allSpecs !== null) {
     reasons.push(`every spec needed (${allSpecs}) — deferred to the next batched full run`);
     allSpecs = null;
     for (const s of SMOKE) addSpec(s, 0, 'smoke (the full set is deferred)');
@@ -1229,11 +1279,11 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
 
 /* ── the CLI `forge.yml` runs ─────────────────────────────────────────── */
 
-/** Specs beyond which a run is split across four CI runners. */
+/** Specs beyond which a run is split across five CI runners (`forge.yml`'s full set). */
 const ONE_SHARD_MAX = 12;
 
 export function outputs(sel: Selection): Record<string, string> {
-  const shards = sel.specs === null || sel.specs.length > ONE_SHARD_MAX ? '[1, 2, 3, 4]' : '[1]';
+  const shards = sel.specs === null || sel.specs.length > ONE_SHARD_MAX ? '[1, 2, 3, 4, 5]' : '[1]';
   return {
     e2e: String(sel.e2e),
     e2e_specs: sel.specs === null ? '' : sel.specs.join(' '),
