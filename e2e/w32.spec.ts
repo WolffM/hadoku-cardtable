@@ -12,11 +12,10 @@
  *     auto-select an avatar we should probably port that into the generic
  *     functionality as well."* Alice and bob are fresh browsers with no saved avatar
  *     anywhere; the room gives each a character on joining, not the same one, and
- *     both boards draw both faces with it (`[w32 avatar]` lines). Then the fleet's
- *     avatar settings popout fires `AVATAR_EVENT` on `window` with the new pick
- *     (`pickSprite` plays both halves of that: dressing the account in prefs-api's
- *     stand-in, and the event); BOTH boards must redraw that seat's face within a
- *     few seconds, with no reload.
+ *     both boards draw both faces with it (`[w32 avatar]` lines). Then alice picks a
+ *     character in the fleet's own settings popout (its AvatarPicker, pressed as a
+ *     player presses it: `pickSprite`); BOTH boards must redraw that seat's face
+ *     within a few seconds, with no reload.
  *  3. **…and still does after a deploy mid-match.** The operator, 2026-10-17:
  *     *"i noticed a reconnecting, and then i noticed our avatars reverted. And now,
  *     when we try to change avatars it doesn't work in the game."* Alice changes her
@@ -44,12 +43,12 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { FRIENDS } from './identities.ts';
-import { dress } from './looks.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
 import { enterMatch, grindPriority, makeTitled, nextPhaseLive, resizeWindow, says, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
+import { closeSettings, settingsPopover } from './play/w32.ts';
 import { recordSurface, type Surface } from './play/surface.ts';
 import { frameIntervals, installFrameClock } from './frame-clock.ts';
 import { turnNumber } from './play/turn.ts';
@@ -220,20 +219,41 @@ const SPRITE = `<svg xmlns="http://www.w3.org/2000/svg" width="84" height="84" v
 const ownFace = (f: Friend): Locator => f.page.locator('[data-player-face][data-viewer]');
 const theirFace = (f: Friend): Locator => f.page.locator('[data-player-face]:not([data-viewer])');
 
+/** Watchparty's character list, which the fleet's AvatarPicker reads: the sprites these specs pick. */
+const CHARACTERS = {
+  sets: [{ id: 'e2e', characters: ['e2e-sprite-one', 'e2e-sprite-two'].map((id) => ({ id, name: id, color: '#70a0d0', portrait: `/media/sprites/square_${id}.png` })) }],
+};
+
 /**
- * A pick made in the fleet's avatar settings popout, wave 92 D: the account answers the
- * client's own GET (`createAvatarClient`, `room/avatar.ts`'s `accountAvatarId`), and a live
- * pick fires `AVATAR_EVENT` on `window`. So this does both of what the popout does —
- * `dress()` sets alice's account in prefs-api's stand-in (so a later start-read, a reload
- * or a deploy's reconnect, sees it too — `aliceWears(..., 'after the deploy')` below), and
- * the event reaches the open page without any read at all.
+ * The fleet around `f`'s page, stood in for in their browser: watchparty's sprites and character
+ * list (another app's server), and `/session/whoami`, which the real edge answers and the e2e edge
+ * does not. Without it the settings popout takes the viewer for a guest and draws no Avatar row.
  */
-async function pickSprite(alice: Friend, origin: string, sprite: string): Promise<void> {
-  await dress(alice.context.request, origin, FRIENDS.alice.key, { source: 'sprite', sprite, name: null });
-  await alice.page.evaluate(
-    (id) => window.dispatchEvent(new CustomEvent('hadoku:avatar', { detail: { avatar: { source: 'sprite', sprite: id }, choice: 'sprite', sprite: id } })),
-    sprite,
-  );
+async function standInFleet(f: Friend): Promise<void> {
+  const me = FRIENDS[f.name];
+  if (me === undefined) throw new Error(`${f.name} is not one of the e2e friends`);
+  await f.context.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: me.userId, userType: 'member', name: me.name } }));
+  await f.context.route('**/watchparty/media/sprites/**', (route) => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: SPRITE }));
+  await f.context.route('**/watchparty/api/characters', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(CHARACTERS) }));
+}
+
+/**
+ * Alice picks `sprite` as a player does: the header's gear, Profile, the Avatar row's Change, then
+ * the character in the fleet's AvatarPicker. The popout saves it to her account (prefs-api's
+ * stand-in) and fires its own avatar event on the page; nothing here dispatches one.
+ */
+async function pickSprite(alice: Friend, sprite: string): Promise<void> {
+  const { page } = alice;
+  await page.getByRole('button', { name: /^User settings/ }).click();
+  await settingsPopover(page).getByRole('tab', { name: 'Profile', exact: true }).click();
+  await settingsPopover(page).getByRole('button', { name: 'Change', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Avatar' });
+  const character = dialog.getByRole('radiogroup', { name: 'Character' }).getByRole('radio', { name: sprite, exact: true });
+  await character.click();
+  await expect(character, `the picker took ${sprite}`).toHaveAttribute('aria-checked', 'true');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await closeSettings(page);
 }
 
 /** Alice's face, on her own board and on bob's. */
@@ -258,9 +278,7 @@ test(titled('a player with no saved avatar is given one on joining a room, two s
   try {
     const alice = await openFriend(browser, 'alice');
     const bob = await openFriend(browser, 'bob');
-    for (const f of [alice, bob]) {
-      await f.context.route('**/watchparty/media/sprites/**', (route) => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: SPRITE }));
-    }
+    for (const f of [alice, bob]) await standInFleet(f);
     const { roomUrl } = await enterMatch(alice, bob, stack.origin);
     const roomId = /#\/room\/(r-[0-9a-f]{12})$/.exec(roomUrl)?.[1];
     if (roomId === undefined) throw new Error(`no room id in ${roomUrl}`);
@@ -300,7 +318,7 @@ test(titled('a player with no saved avatar is given one on joining a room, two s
     const before = navigations.length;
 
     for (const sprite of ['e2e-sprite-one', 'e2e-sprite-two']) {
-      await pickSprite(alice, stack.origin, sprite);
+      await pickSprite(alice, sprite);
       await aliceWears(alice, bob, sprite, 'redrawn');
     }
     expect(navigations.length, 'the pages were not reloaded to show it').toBe(before);
@@ -317,11 +335,9 @@ test(titled("after a deploy mid-match, a seat keeps the avatar its player picked
   try {
     const alice = await openFriend(browser, 'alice');
     const bob = await openFriend(browser, 'bob');
-    for (const f of [alice, bob]) {
-      await f.context.route('**/watchparty/media/sprites/**', (route) => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: SPRITE }));
-    }
+    for (const f of [alice, bob]) await standInFleet(f);
     const { matchId } = await enterMatch(alice, bob, stack.origin);
-    await pickSprite(alice, stack.origin, 'e2e-sprite-one');
+    await pickSprite(alice, 'e2e-sprite-one');
     await aliceWears(alice, bob, 'e2e-sprite-one', 'before the deploy');
 
     await stack.restart();
@@ -331,7 +347,7 @@ test(titled("after a deploy mid-match, a seat keeps the avatar its player picked
     console.log(`[w32 restart] deployed mid-match; ${matchId} carried on`);
     await aliceWears(alice, bob, 'e2e-sprite-one', 'after the deploy');
 
-    await pickSprite(alice, stack.origin, 'e2e-sprite-two');
+    await pickSprite(alice, 'e2e-sprite-two');
     await aliceWears(alice, bob, 'e2e-sprite-two', 'changed after the deploy');
 
     // And the game that carried on through the deploy is reported when it ends,

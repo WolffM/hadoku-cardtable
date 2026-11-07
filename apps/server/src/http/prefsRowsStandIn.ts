@@ -21,7 +21,13 @@
  *   GET /api/v1/_avatar → AvatarSettings, keyed by `headers.key` the same way `_stand-in/avatar`'s
  *   PUT is keyed by `userKey` — both resolve through `userOfKey`. No session (`key` null or unknown):
  *   403. Nothing picked: the same `{ source: 'sprite', name: null }` fallback as resolve, `sprite: null`.
+ * And the fleet settings popout's own write (`@wolffm/task-ui-components`' AvatarPicker, a character pressed):
+ *   PUT /api/v1/_avatar { source?, sprite? } → AvatarSettings, the same person `_stand-in/avatar` dresses.
+ * Nothing is linked or uploaded, and nothing is worn: the popout draws the character tab and no more.
  */
+
+import type { AvatarSettings } from '@wolffm/prefs-client/avatar';
+import { emptyLoadout } from '@wolffm/prefs-client/cosmetics';
 
 export interface PrefsRowsStandIn {
 	/** Answer one request; null when the path is not a `_service/:app/rows` route. */
@@ -31,10 +37,10 @@ export interface PrefsRowsStandIn {
 }
 
 const AVATAR_RESOLVE = '/api/v1/_avatar/resolve';
-const AVATAR_GET = '/api/v1/_avatar';
+const AVATAR_OWN = '/api/v1/_avatar';
 const AVATAR_SET = '/api/v1/_stand-in/avatar';
 
-/** What `AVATAR_SET` stores, as far as `AVATAR_GET` reads it back: `ResolvedAvatar`'s own three fields. */
+/** What `AVATAR_SET` stores, as far as `AVATAR_OWN` reads it back: `ResolvedAvatar`'s own three fields. */
 interface StoredAvatar {
 	source?: unknown;
 	url?: unknown;
@@ -64,19 +70,25 @@ export function createPrefsRowsStandIn(opts: {
 				const ids = Array.isArray(b0.userIds) ? b0.userIds.filter((id): id is string => typeof id === 'string') : [];
 				return { status: 200, json: { avatars: Object.fromEntries(ids.map((id) => [id, people.get(id) ?? { source: 'sprite', name: null }])) } };
 			}
-			if (path === AVATAR_GET && method === 'GET') {
+			if (path === AVATAR_OWN && (method === 'GET' || method === 'PUT')) {
 				const userId = headers.key !== null ? opts.userOfKey(headers.key) : null;
 				if (userId === null) return { status: 403, json: { error: 'Forbidden', message: 'No session' } };
-				const stored = (people.get(userId) ?? { source: 'sprite', name: null }) as StoredAvatar;
+				const prev = (people.get(userId) ?? { source: 'sprite', name: null }) as StoredAvatar;
+				const stored = method === 'PUT' ? { ...prev, ...b0 } : prev;
+				if (method === 'PUT') people.set(userId, stored);
 				const sprite = typeof stored.sprite === 'string' ? stored.sprite : null;
-				return {
-					status: 200,
-					json: {
-						avatar: { source: stored.source ?? 'sprite', ...(typeof stored.url === 'string' ? { url: stored.url } : {}), ...(sprite !== null ? { sprite } : {}) },
-						choice: sprite !== null ? (stored.source ?? 'sprite') : null,
-						sprite,
-					},
+				const source = (stored.source ?? 'sprite') as AvatarSettings['avatar']['source'];
+				const settings: AvatarSettings = {
+					avatar: { source, ...(typeof stored.url === 'string' ? { url: stored.url } : {}), ...(sprite !== null ? { sprite } : {}) },
+					choice: sprite !== null ? source : null,
+					sprite,
+					linked: {},
+					upload: null,
+					providers: { discord: false, steam: false },
+					limits: { maxBytes: 0, minDimension: 0, maxDimension: 0, acceptedTypes: [], perDay: 0, outputSize: 0 },
+					cosmetics: { owned: [], loadout: emptyLoadout() },
 				};
+				return { status: 200, json: settings };
 			}
 			if (path === AVATAR_SET && method === 'PUT') {
 				const userId = typeof b0.userKey === 'string' ? opts.userOfKey(b0.userKey) : null;

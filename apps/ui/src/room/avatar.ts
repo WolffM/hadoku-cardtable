@@ -85,7 +85,7 @@ export function normalizeAvatarId(v: unknown): string | null {
  * `AVATAR_POOL`).
  *
  * A fresh client every call, not a cached singleton: `watchAvatar` (`avatarWatch.ts`)
- * calls this every poll, and `createAvatarClient` is a cheap object with no
+ * calls this once per room, and `createAvatarClient` is a cheap object with no
  * connection to hold open, so there is nothing a cache would save.
  *
  * `baseUrl` is this page's origin for the reason `watchpartyOrigin` gives: the
