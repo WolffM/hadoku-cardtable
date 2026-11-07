@@ -79,6 +79,7 @@ const baseProps = {
   onReady: noop,
   onRetry: noop,
   pickTimer: { on: false, speed: 1 },
+  draftBots: 'model' as const,
   get pools() {
     return pools;
   },
@@ -190,6 +191,22 @@ describe('the draft lobby', () => {
     expect((screen.getByTestId('pick-timer') as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByTestId('pick-timer-speed-2') as HTMLInputElement).checked).toBe(true);
     expect((screen.getByTestId('pick-timer-speed-2') as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it("the leader picks what the bots draft with; the room's setting is what is drawn", () => {
+    const { rerender } = render(createElement(DraftLobby, { ...baseProps, pod: podFixture(), members: [member('u-alice', 'Alice')] }));
+    expect((screen.getByTestId('draft-bots-model') as HTMLInputElement).checked).toBe(true);
+    screen.getByTestId('draft-bots-pick-order').click();
+    expect(rooms.setSettings).toHaveBeenLastCalledWith('r-cube', { draftBots: 'pick-order' });
+
+    rerender(createElement(DraftLobby, { ...baseProps, pod: podFixture(), members: [member('u-alice', 'Alice')], draftBots: 'split' }));
+    expect((screen.getByTestId('draft-bots-split') as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('a member who is not the leader reads the bots, disabled', () => {
+    render(createElement(DraftLobby, { ...baseProps, myId: 'u-bob', pod: podFixture(), members: [member('u-alice', 'Alice'), member('u-bob', 'Bob')], draftBots: 'pick-order' }));
+    expect((screen.getByTestId('draft-bots-pick-order') as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByTestId('draft-bots-model') as HTMLInputElement).disabled).toBe(true);
   });
 
   // The operator, 2026-10-21: "i like showing that there are spectators in the draft process"; 2026-11-02: every room

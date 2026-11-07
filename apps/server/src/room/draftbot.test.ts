@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { DraftCard } from '@hadoku/shared';
 import { createDraft } from '@hadoku/draft';
 
-import { askDraftbot, chooseByRatings, draftbotTally, httpDraftbot, ODD_SEATS, type Draftbot } from './draftbot.ts';
+import { askDraftbot, chooseByRatings, draftbotTally, httpDraftbot, modelSeatsOf, type Draftbot } from './draftbot.ts';
 
 function card(name: string, oracleId?: string): DraftCard {
 	return {
@@ -51,11 +51,20 @@ describe('askDraftbot', () => {
 	it('a split room asks for the odd seats only, and the even seats are the heuristic\'s with no outcome', async () => {
 		const batchDraft = vi.fn<Draftbot['batchDraft']>(async (inputs) => inputs.map((i) => i.pack.map((oracle, k) => ({ oracle, rating: k }))));
 		const state = draft();
-		const answer = await askDraftbot({ batchDraft }, state, never, ODD_SEATS);
+		const answer = await askDraftbot({ batchDraft }, state, never, modelSeatsOf('split'));
 		expect(batchDraft.mock.calls[0]![0]).toEqual([{ pack: ['o1-0', 'o1-1', 'o1-2'], pool: [] }]);
-		const { chosen, outcomes } = chooseByRatings(state, answer, ODD_SEATS);
+		const { chosen, outcomes } = chooseByRatings(state, answer, modelSeatsOf('split'));
 		expect([...chosen]).toEqual([[1, 'p1-2']]);
 		expect(outcomes).toEqual(['served']);
+	});
+
+	it('a pick-order room never calls the draftbot, and every bot is the heuristic\'s with no outcome', async () => {
+		const batchDraft = vi.fn<Draftbot['batchDraft']>(async () => []);
+		const state = draft();
+		const answer = await askDraftbot({ batchDraft }, state, never, modelSeatsOf('pick-order'));
+		expect(batchDraft).not.toHaveBeenCalled();
+		const { chosen, held, outcomes } = chooseByRatings(state, answer, modelSeatsOf('pick-order'));
+		expect([chosen.size, held.size, outcomes]).toEqual([0, 0, []]);
 	});
 
 	it('a rejection is an error and an abort a timeout, for every seat', async () => {

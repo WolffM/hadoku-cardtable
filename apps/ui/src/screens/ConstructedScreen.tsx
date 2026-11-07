@@ -2462,6 +2462,7 @@ function RoomTableScreen({
             error={draftError}
             onReady={setDraftReady}
             pickTimer={view?.settings.pickTimer ?? DEFAULT_ROOM_SETTINGS.pickTimer}
+            draftBots={view?.settings.draftBots ?? DEFAULT_ROOM_SETTINGS.draftBots}
             onRetry={() => {
               askedDeal.current = false;
               setDraftError(null);

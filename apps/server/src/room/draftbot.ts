@@ -15,7 +15,7 @@
 
 import { z } from 'zod';
 import type { SeatId } from '@wolffm/rooms-protocol';
-import type { DraftCard } from '@hadoku/shared';
+import type { DraftBots, DraftCard } from '@hadoku/shared';
 import { isBotSeat, packOf, waitingOn, type DraftState } from '@hadoku/draft';
 
 /** Oracle ids: the cards in the pack being picked from, and the ones already taken. */
@@ -74,10 +74,13 @@ function oracles(cards: readonly DraftCard[]): string[] {
 	return cards.map((c) => c.oracleId).filter((o): o is string => o !== undefined);
 }
 
-/** Which bot seats the draftbot picks for: every one, or the odd seats of a `'split'` room (`RoomSettings.draftBots`). */
+/** Which bot seats the draftbot picks for (`RoomSettings.draftBots`): every one, none, or the odd seats of a `'split'` room. */
 export type ModelSeats = (seat: SeatId) => boolean;
 export const EVERY_SEAT: ModelSeats = () => true;
+export const NO_SEAT: ModelSeats = () => false;
 export const ODD_SEATS: ModelSeats = (seat) => seat % 2 === 1;
+const MODEL_SEATS: Readonly<Record<DraftBots, ModelSeats>> = { model: EVERY_SEAT, 'pick-order': NO_SEAT, split: ODD_SEATS };
+export const modelSeatsOf = (draftBots: DraftBots = 'model'): ModelSeats => MODEL_SEATS[draftBots];
 
 function owingBots(state: DraftState, modelSeats: ModelSeats): SeatId[] {
 	return waitingOn(state).filter((s) => isBotSeat(state, s) && modelSeats(s));

@@ -14,8 +14,9 @@ describe('the room settings', () => {
     });
   });
 
-  it('a PATCH sets the draft bots to split, and refuses any other value', () => {
+  it('a PATCH sets the draft bots to split or pick order, and refuses any other value', () => {
     expect(PatchRoomBodySchema.safeParse({ settings: { draftBots: 'split' } }).success).toBe(true);
+    expect(PatchRoomBodySchema.safeParse({ settings: { draftBots: 'pick-order' } }).success).toBe(true);
     expect(PatchRoomBodySchema.safeParse({ settings: { draftBots: 'random' } }).success).toBe(false);
   });
 

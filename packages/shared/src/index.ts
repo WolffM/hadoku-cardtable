@@ -522,6 +522,7 @@ export {
   type ClientMode,
   type ClockSetting,
   type CreateRoomBody,
+  type DraftBots,
   type PatchRoomBody,
   type PickTimer,
   type RoomSettings,

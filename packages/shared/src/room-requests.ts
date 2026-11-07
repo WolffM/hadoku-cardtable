@@ -68,9 +68,10 @@ export const DEFAULT_CLIENT_MODE: ClientMode = 'builtin';
  * cards left in the pack divided by `speed` (2 is twice as fast).
  *
  * `draftBots` (`'model'` by default): what the draft's bots pick with. `'model'`
- * is CubeCobra's draft model for every bot; `'split'` gives it the odd seats and
- * the cube's pick order the even ones, so one pod compares the two. The UI does
- * not show it: it is set by PATCH, for that comparison.
+ * is CubeCobra's draft model for every bot; `'pick-order'` is the cube's pick
+ * order for every bot; `'split'` gives the model the odd seats and the pick
+ * order the even ones, so one pod compares the two. The draft lobby's leader
+ * sets it.
  *
  * How long a series runs is not a setting: it is the room's game type, mode
  * and `tournament` flag (`room/series.ts`'s `seriesFormatOf`).
@@ -93,7 +94,7 @@ export const PickTimerSchema = z.strictObject({
 });
 export type PickTimer = z.infer<typeof PickTimerSchema>;
 
-export const DRAFT_BOTS = ['model', 'split'] as const;
+export const DRAFT_BOTS = ['model', 'pick-order', 'split'] as const;
 export const DraftBotsSchema = z.enum(DRAFT_BOTS);
 export type DraftBots = z.infer<typeof DraftBotsSchema>;
 
