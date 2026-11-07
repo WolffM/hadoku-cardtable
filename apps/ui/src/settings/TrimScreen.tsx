@@ -11,7 +11,7 @@ import { useEffect } from 'react';
 
 import { navigate } from '../screens/route.ts';
 import { saveSiteTrim, useSiteTrim } from './siteTrim.ts';
-import { TRIM_FAMILIES, TRIM_FAMILY_IDS, type Trim } from './trim.ts';
+import { TRIM_FAMILIES, TRIM_FAMILY_IDS, type Trim } from '@hadoku/ui-shell/trim';
 import './trim-screen.css';
 
 export function TrimScreen() {

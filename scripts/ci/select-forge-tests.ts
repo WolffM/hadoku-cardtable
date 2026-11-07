@@ -186,7 +186,9 @@ export const GUARDS: Guard[] = [
     // whatever classes it names (33e3f9dc's pod `.seat` collapsed every match). `css-ownership.test.ts`
     // derives this list from the import graph and fails until it matches.
     name: 'the shared stylesheets',
-    paths: /^apps\/ui\/src\/(styles|chrome\/(chrome|trim)|screens\/(screens|DecksScreen|SoundBuilder|pod\/PodSeats)|components\/(spectate|card-back)|rooms\/CloseRoom|play\/live\/live)\.css$/,
+    // `chrome.css`/`trim.css` moved into `packages/ui-shell/src/chrome/` (wave 92 §A); the alternative
+    // for them is a separate root, not another name under `apps/ui/src/chrome/`.
+    paths: /^(apps\/ui\/src\/(styles|screens\/(screens|DecksScreen|SoundBuilder|pod\/PodSeats)|components\/(spectate|card-back)|rooms\/CloseRoom|play\/live\/live)|packages\/ui-shell\/src\/chrome\/(chrome|trim))\.css$/,
     specs: ['table-fit.spec.ts'],
     jvm: [],
   },

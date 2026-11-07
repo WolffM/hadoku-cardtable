@@ -22,7 +22,7 @@ vi.mock('../play/live/prefs.ts', async (importOriginal) => ({
 import { SettingsGear } from './Settings.tsx';
 import { resetSiteTrimForTests, useTrim } from './siteTrim.ts';
 import { TrimScreen } from './TrimScreen.tsx';
-import { DEFAULT_TRIM } from './trim.ts';
+import { DEFAULT_TRIM } from '@hadoku/ui-shell/trim';
 
 let answer: { status: number; body: unknown } | 'never';
 let putOk = true;

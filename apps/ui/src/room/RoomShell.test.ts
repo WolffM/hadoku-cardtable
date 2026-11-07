@@ -53,12 +53,11 @@ vi.mock('@wolffm/watchparty-ui/room-chrome.css', () => ({}));
 vi.mock('@wolffm/watchparty-ui/room-chrome', () => ({
   /*
    * Stands in for the real component, reproducing its shipped fallback rather
-   * than testing watchparty's code. `Do()` in `dist/room-chrome.js` (0.39.5) is
-   * `if (e) return e; const t = ze().theme; return t && tn.includes(t) ? t :
-   * "dark";` — so a truthy prop is honoured VERBATIM and unvalidated, and only
-   * a FALSY one reaches the store-then-`dark` path. `theme || 'dark'` is that
-   * branch exactly; `theme ?? 'dark'` would not be, because it would let `''`
-   * through as a theme the real chrome would reject.
+   * than testing watchparty's code: a truthy `theme` prop is honoured
+   * VERBATIM and unvalidated, and only a FALSY one reaches the
+   * store-then-`dark` path. `theme || 'dark'` is that branch exactly;
+   * `theme ?? 'dark'` would not be, because it would let `''` through as a
+   * theme the real chrome would reject.
    */
   RoomChrome: ({ theme, userType, children }: { theme?: string; userType?: string; children: ReactNode }) =>
     createElement('div', { 'data-testid': 'room-chrome', 'data-theme': theme || 'dark', 'data-user-type': userType }, children),

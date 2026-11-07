@@ -45,6 +45,8 @@ import { RoomChrome } from '@wolffm/watchparty-ui/room-chrome';
 import '@wolffm/watchparty-ui/room-chrome.css';
 import { useHadokuTheme, type Theme } from '@wolffm/themes';
 import { ROOM_ID_RE } from '@hadoku/shared';
+import { appId } from '@hadoku/ui-shell/app-id';
+import { useRoomFrame } from '@hadoku/ui-shell/chrome/shell';
 
 // The watchparty seam's two data answers — which origin serves their sprites,
 // and which character this viewer picked — live in one module with the bundle
@@ -55,19 +57,16 @@ import { watchpartyOrigin } from './avatar.ts';
 import { useAvatarAssert } from './avatarAssert.ts';
 import { useWhoami } from './whoami.ts';
 import { roomsClient } from '../rooms/api.ts';
-import { useRoomFrame } from '../chrome/shell.ts';
 
 /**
  * The page's resolved theme, handed to the chrome as-is.
  *
  * ## Why the two disagreed, diagnosed rather than assumed (w20 §E)
  *
- * `RoomChrome` takes an optional `theme` prop (shipped in
- * `@wolffm/watchparty-ui@0.39.4`; verified in the installed 0.39.5 at
- * `node_modules/.../dist/room-chrome.d.ts:37`). Left unset — which is what this
- * file did until w20 — it resolves its OWN default from ITS OWN internal store,
- * entirely independent of `HadokuThemeRoot` (`Do()` in `dist/room-chrome.js`,
- * quoted in full below). Measured live (a stub-`whoami` build served
+ * `RoomChrome` takes an optional `theme` prop. Left unset — which is what this
+ * file did until w20 — it resolves its OWN default from ITS OWN internal
+ * store, entirely independent of `HadokuThemeRoot` (quoted in full below).
+ * Measured live (a stub-`whoami` build served
  * locally, `#/match/…`, no saved theme in either storage): the page resolved
  * `data-theme="light"` on `.cardtable-chrome` while `.wp-room-chrome` sat at
  * `data-theme="dark"` — two independent defaults, not a shared one that drifted.
@@ -86,8 +85,8 @@ import { useRoomFrame } from '../chrome/shell.ts';
  * watchparty-ui takes themes as a regular **dependency** (`^5.8.5`), not a peer,
  * so a host outside that range resolves a second nested copy and two distinct
  * unions exist. There, passing an unrecognised name through is strictly better
- * than dropping it, and the shipped code is why — `Do()` in
- * `dist/room-chrome.js` (0.39.5, read out of the installed bundle) is:
+ * than dropping it, and the shipped code is why — read out of the installed
+ * bundle, its fallback is:
  *
  *     function Do(e) { if (e) return e; const t = ze().theme;
  *                      return t && tn.includes(t) ? t : "dark"; }
@@ -100,7 +99,7 @@ import { useRoomFrame } from '../chrome/shell.ts';
  * an actively wrong `dark`. `undefined` is the only value that cannot be
  * ignored.
  *
- * Corrected against 0.39.5 rather than taken on trust: the §G brief said
+ * Corrected against the installed bundle rather than taken on trust: the §G brief said
  * `room-chrome.css` "styles only its own light/dark internals". It does not —
  * it ships all 18 `[data-theme=…]` blocks under `@scope (.wp-room-chrome)`,
  * with `:scope,:scope[data-theme=light]` as the fallback rule, the same 18 the
@@ -135,7 +134,7 @@ export function watchpartyTheme(theme: string): Theme {
  * in one room, and they would each see the other's chat.
  */
 export function roomKeyFor(id: string): string | null {
-  return ROOM_ID_RE.test(id) ? `cardtable-${id}` : null;
+  return ROOM_ID_RE.test(id) ? `${appId()}-${id}` : null;
 }
 
 /** One client per mount; the assert effect must not re-fire on every render. */

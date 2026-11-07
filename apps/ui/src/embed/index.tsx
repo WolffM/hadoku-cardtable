@@ -28,17 +28,19 @@
  * not change between builds) by `apps/server/src/index.ts`.
  */
 
+import { configureShell } from '@hadoku/ui-shell/app-id';
 // Every sheet the table reaches, the lazy screens' too, in source order (`../../stylesheet.ts`).
 import 'virtual:cardtable-stylesheet';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { cosmeticsCss } from '@wolffm/prefs-client/cosmetics';
 
+import { APP_ID } from '../../app-name.ts';
 import { setDocumentScope } from '../dom.ts';
 import { navigate, parseRoute, routeInMemory } from '../screens/route.ts';
 import { preloadLikelyScreens } from '../screens/Screen.tsx';
 import { EmbedApp } from './EmbedApp.tsx';
-import { adoptStyles, fetchStyles } from './styles.ts';
+import { adoptStyles, fetchStyles } from '@hadoku/ui-shell/embed';
 import type { GameBundleContext, GameBundleModule, MountedGameBundle } from './contract.ts';
 
 // The same tiers, in the same order, as `main.tsx` — minus the header's two
@@ -48,8 +50,10 @@ import '@wolffm/themes/style.css';
 import '@wolffm/themes/icons.css';
 import '@wolffm/task-ui-components/controls.css';
 import '../styles.css';
-import '../chrome/chrome.css';
-import '../chrome/trim.css';
+import '@hadoku/ui-shell/chrome';
+
+// Every storage key, event name and chat prefix the shell writes is built from this.
+configureShell({ appId: APP_ID });
 
 /** Beside the entry, under the app's base — the API base resolves from the same `BASE_URL`. */
 const STYLESHEET = `${import.meta.env.BASE_URL}embed/cardtable-embed.css`;

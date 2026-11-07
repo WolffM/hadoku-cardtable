@@ -13,9 +13,9 @@
  * locally at `#/match/…` with no saved theme in either storage resolved
  * `data-theme="light"` on `.cardtable-chrome` while `.wp-room-chrome` sat at
  * `data-theme="dark"`. The `dark` side is `@wolffm/watchparty-ui`'s OWN
- * default — `Do()` in its shipped `dist/room-chrome.js` returns the caller's
- * `theme` prop if given, else its own store's cached theme if one loaded,
- * else hard-codes `'dark'`. `RoomChrome` is mocked below to reproduce exactly
+ * default: the chrome resolves the caller's `theme` prop if given, else its
+ * own store's cached theme if one loaded, else hard-codes `'dark'`.
+ * `RoomChrome` is mocked below to reproduce exactly
  * that fallback (`theme ?? 'dark'`) rather than the real component, so this
  * test exercises OUR wiring — does `RoomShell` pass the page's theme through —
  * without needing watchparty's socket or store.

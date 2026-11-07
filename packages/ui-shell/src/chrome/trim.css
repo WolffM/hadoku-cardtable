@@ -1,5 +1,5 @@
 /*
- * Trim (`../settings/trim.ts`): decoration the operator composes in Settings → Trim.
+ * Trim (`../trim/trim.ts`): decoration the operator composes in Settings → Trim.
  *
  * Every family is a list of background layers, handed to the panel as four custom properties
  * (image, position, size, repeat) so that one rule can stack whichever families are chosen. Layers,

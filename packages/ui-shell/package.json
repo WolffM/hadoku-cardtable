@@ -8,6 +8,7 @@
   "exports": {
     "./app-id": "./src/app-id/index.ts",
     "./chrome": "./src/chrome/index.ts",
+    "./chrome/shell": "./src/chrome/shell.ts",
     "./embed": "./src/embed/index.ts",
     "./trim": "./src/trim/index.ts",
     "./theme": "./src/theme/index.ts",

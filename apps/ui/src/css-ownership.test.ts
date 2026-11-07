@@ -20,9 +20,17 @@
  *      `['seat', …]`)
  *   C  a class is styled and rendered nowhere
  *
- * `styles.css`, `chrome/chrome.css` and `chrome/trim.css` are the global sheets, one owner between them.
+ * `styles.css` and, moved into `@hadoku/ui-shell/chrome` (wave 92 §A), `chrome/chrome.css` and
+ * `chrome/trim.css` are the global sheets, one owner between them.
+ *
+ * `packages/ui-shell/src` is walked too, tagged with `PKG_PREFIX` so a file there has an id distinct
+ * from any same-named app file: the shell's own sheets and modules (chrome, embed, trim today; more
+ * as lanes B and D move theirs) still need rules A/B/C, read against the APP's modules that draw
+ * them — a moved sheet's block is still drawn by `apps/ui/src/App.tsx`-reached files, just no longer
+ * styled from a file under `SRC`. `idOf`/`absOf` are the only two places that know there are two
+ * roots; everything below them works on ids, as it always did.
  */
-// @reads apps/ui/src/ scripts/ci/select-forge-tests.ts
+// @reads apps/ui/src/ packages/ui-shell/src/ scripts/ci/select-forge-tests.ts
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,14 +39,21 @@ import { describe, expect, it } from 'vitest';
 import { GUARDS } from '../../../scripts/ci/select-forge-tests.ts';
 
 const SRC = dirname(fileURLToPath(import.meta.url));
+const PKG_SRC = resolve(SRC, '../../../packages/ui-shell/src');
+const PKG_PREFIX = '@ui-shell/';
 
-const GLOBAL_SHEETS = ['styles.css', 'chrome/chrome.css', 'chrome/trim.css'];
+/** Where `id` (an `SRC`-relative path, or `PKG_PREFIX`-prefixed for the package) lives on disk. */
+const absOf = (id: string): string => (id.startsWith(PKG_PREFIX) ? join(PKG_SRC, id.slice(PKG_PREFIX.length)) : join(SRC, id));
+/** The id for an absolute path under either root. */
+const idOf = (abs: string): string => (abs.startsWith(`${PKG_SRC}/`) ? `${PKG_PREFIX}${relative(PKG_SRC, abs)}` : relative(SRC, abs));
+
+const GLOBAL_SHEETS = ['styles.css', `${PKG_PREFIX}chrome/chrome.css`, `${PKG_PREFIX}chrome/trim.css`];
 
 /** Blocks more than one tree draws or styles by design, with why. */
 const SHARED: Record<string, string> = {
   button: 'the app’s one plain button, drawn wherever a screen has a press',
   'ct-round-button': 'the chrome’s round icon button: the settings gear, and the stats and decks buttons beside it',
-  'ct-panel': 'the trim hook: every panel that takes the decoration chosen in Settings → Trim (`chrome/trim.css`)',
+  'ct-panel': 'the trim hook: every panel that takes the decoration chosen in Settings → Trim (`@ui-shell/chrome/trim.css`)',
   'cardtable-chrome': 'the chrome root: the app and the embed mount the same one, and the embed adds its modifier',
   'sound-builder': 'the sound tools (builder, sandbox, music review, queue) are one sheet’s screens',
 };
@@ -55,14 +70,14 @@ function walk(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
     const p = join(dir, e.name);
     if (e.isDirectory()) return e.name === 'symbols' ? [] : walk(p);
-    return [relative(SRC, p)];
+    return [idOf(p)];
   });
 }
 
-const files = walk(SRC);
+const files = [...walk(SRC), ...walk(PKG_SRC)];
 const sheets = files.filter((f) => f.endsWith('.css'));
 const modules = files.filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$|\.d\.ts$|^test-setup\.ts$/.test(f));
-const source = new Map([...sheets, ...modules].map((f) => [f, readFileSync(join(SRC, f), 'utf8')]));
+const source = new Map([...sheets, ...modules].map((f) => [f, readFileSync(absOf(f), 'utf8')]));
 const read = (f: string): string => source.get(f) ?? '';
 
 /** Blank out text, keeping every newline so line numbers hold. */
@@ -71,13 +86,30 @@ const lineAt = (src: string, index: number): number => src.slice(0, index).split
 
 const IMPORT = /^\s*(?:import|export)\s+(type\s+)?(?:[^'";]*?\s+from\s+)?['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/gm;
 
-/** A module's value imports, resolved to source paths: a type import draws nothing. */
+// Read from the package's own `exports` map rather than assumed, so a subpath that is a file, not a
+// directory's `index.ts` (`./chrome/shell`), needs no matching change here.
+const PKG_EXPORTS: Record<string, string> = JSON.parse(readFileSync(join(PKG_SRC, '../package.json'), 'utf8')).exports;
+
+/**
+ * A module's value imports, resolved to source ids: a type import draws nothing. A relative
+ * specifier resolves across either root, same as always. A bare `@hadoku/ui-shell/<name>` resolves
+ * to that subpath's own entry module, as the package's `exports` map says — the one edge this suite
+ * follows across the package boundary, since nothing here walks into `node_modules` otherwise. Any
+ * other bare specifier (`react`, `@wolffm/*`) draws nothing this suite tracks, as before.
+ */
 function importsOf(file: string): string[] {
   const out: string[] = [];
   for (const m of read(file).matchAll(IMPORT)) {
     const spec = m[2] ?? m[3];
-    if (m[1] || spec === undefined || !spec.startsWith('.')) continue;
-    out.push(relative(SRC, resolve(SRC, dirname(file), spec)));
+    if (m[1] || spec === undefined) continue;
+    if (spec.startsWith('.')) {
+      out.push(idOf(resolve(dirname(absOf(file)), spec)));
+      continue;
+    }
+    if (spec.startsWith('@hadoku/ui-shell/')) {
+      const rel = PKG_EXPORTS[`.${spec.slice('@hadoku/ui-shell'.length)}`];
+      if (rel !== undefined) out.push(idOf(resolve(PKG_SRC, '..', rel)));
+    }
   }
   return out;
 }
@@ -334,8 +366,11 @@ describe('css ownership', () => {
   it('a change to a sheet more than one tree reads runs the shared-stylesheet guard', () => {
     const guard = GUARDS.find((g) => g.name === 'the shared stylesheets');
     expect(guard, 'select-forge-tests.ts guards the shared stylesheets').toBeDefined();
-    const shared = sheets.filter((s) => GLOBAL_SHEETS.includes(s) || s === 'screens/screens.css' || ownersOf(s).size > 1).map((s) => `apps/ui/src/${s}`);
+    // The guard matches real repo paths, which differ by root: `apps/ui/src/…` for a sheet this
+    // suite walked under `SRC`, `packages/ui-shell/src/…` for one walked under `PKG_SRC`.
+    const repoPath = (s: string): string => (s.startsWith(PKG_PREFIX) ? `packages/ui-shell/src/${s.slice(PKG_PREFIX.length)}` : `apps/ui/src/${s}`);
+    const shared = sheets.filter((s) => GLOBAL_SHEETS.includes(s) || s === 'screens/screens.css' || ownersOf(s).size > 1).map(repoPath);
     expect(shared.filter((s) => !guard!.paths.test(s))).toEqual([]);
-    expect(sheets.map((s) => `apps/ui/src/${s}`).filter((s) => guard!.paths.test(s) && !shared.includes(s))).toEqual([]);
+    expect(sheets.map(repoPath).filter((s) => guard!.paths.test(s) && !shared.includes(s))).toEqual([]);
   });
 });
