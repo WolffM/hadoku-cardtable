@@ -27,6 +27,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { makeTitled, offeredNamed, resizeWindow, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
+import { ART_ROUTE } from './art.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -132,14 +133,14 @@ test(titled('a huge graveyard opens as a pile view: the inspector gives way to i
 
     // Think Twice's art URL, read off the tile bob's screen already draws in her graveyard.
     const twiceArt = await bob.page.locator(`.seat [data-zone="graveyard"][data-owner="them"] li[data-card-id="${id}"] img.card__art`).evaluate((img) => (img as HTMLImageElement).src);
-    expect(twiceArt, "bob's screen names Think Twice's art").toMatch(/^https:/);
+    expect(twiceArt, "bob's screen names Think Twice's art").toMatch(ART_ROUTE);
 
     // The harness blocks every request off 127.0.0.1. Bob's page answers each art URL with a stand-in at
     // once — except Think Twice's, held until `release`. Then a reload, so his page starts cold.
     let release: () => void = () => undefined;
     const held = new Promise<void>((r) => (release = r));
     const requests: { t: number; twice: boolean }[] = [];
-    await bob.page.route(/^https:\/\/(cards\.scryfall\.io|cdn\.hadoku\.me)\//, async (route) => {
+    await bob.page.route(ART_ROUTE, async (route) => {
       const isTwice = route.request().url() === twiceArt;
       requests.push({ t: Date.now(), twice: isTwice });
       if (isTwice) await held;

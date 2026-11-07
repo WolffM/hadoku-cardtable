@@ -88,7 +88,7 @@ test('draft: the pod, fan and grid, a card turned over', async () => {
       page.evaluate(() => {
         for (const el of Array.from(document.querySelectorAll('[data-testid="pack"] [data-testid="card"][data-faces]'))) {
           const faces = document.querySelector(`[data-faces-of="${el.getAttribute('data-faces')}"]`);
-          if (faces?.querySelector('img[src*="/back/"]') != null) return el.getAttribute('data-card-id');
+          if (faces?.querySelector('img[src$="/back"]') != null) return el.getAttribute('data-card-id');
         }
         return null;
       });

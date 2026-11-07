@@ -25,6 +25,7 @@ import type { Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { dragRowOnto } from './play/order.ts';
 import { startScenarioMatch } from './play/scenario.ts';
+import { ART_ROUTE } from './art.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -76,7 +77,7 @@ async function prepare(page: Page): Promise<void> {
   await page.route('**/watchparty/media/sprites/**', (route) =>
     fetched(route, `https://hadoku.me/watchparty/media/sprites/${new URL(route.request().url()).pathname.split('/').pop()!}`),
   );
-  await page.route(/^https:\/\/(cards\.scryfall\.io|cdn\.hadoku\.me)\//, (route) => fetched(route, route.request().url()));
+  await page.route(ART_ROUTE, (route) => fetched(route, route.request().url()));
   await page.routeWebSocket(/\/socket\.io\//, (ws) => {
     const server = ws.connectToServer();
     ws.onMessage((m) => server.send(m));

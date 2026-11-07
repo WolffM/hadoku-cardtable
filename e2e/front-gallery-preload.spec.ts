@@ -18,10 +18,10 @@ import { expect, test, type Browser, type BrowserContext, type Page } from '@pla
 
 import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
+import { ART_ROUTE } from './art.ts';
 
 /** How long each picture takes to arrive: long enough that a picture drawn before it is decoded is seen. */
 const ART_DELAY_MS = 700;
-const ART = /^https:\/\/(cards\.scryfall\.io|cdn\.hadoku\.me)\//;
 const SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="488" height="680"><rect width="488" height="680" fill="#468"/></svg>';
 
 interface Run {
@@ -36,7 +36,7 @@ async function open(browser: Browser, saveData: boolean): Promise<Run> {
   await context.addCookies([{ name: SESSION_COOKIE, value: 'carol', domain: '127.0.0.1', path: '/' }]);
   await keepPrefsLocal(context, EDGE_ORIGIN);
   const asked: Run['asked'] = [];
-  await context.route(ART, async (route) => {
+  await context.route(ART_ROUTE, async (route) => {
     asked.push({ url: route.request().url(), at: Date.now() });
     await new Promise((done) => setTimeout(done, ART_DELAY_MS));
     await route.fulfill({ contentType: 'image/svg+xml', body: SVG });

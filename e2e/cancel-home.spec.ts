@@ -31,6 +31,7 @@ import { cancelCast, dragHandCard, handCardNamed, makeTitled, pressOffered, pres
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
+import { ART_ROUTE } from './art.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -204,7 +205,7 @@ test(titled('a cast she confirms turns over on the opponent’s screen with its 
     // each art URL a card-sized stand-in instead (drawn here as SVG text — never image bytes), as
     // slowly as a real CDN can be on a first fetch; then reloads, so his page starts cold.
     const artRequests: { t: number; url: string }[] = [];
-    await bob.page.route(/^https:\/\/(cards\.scryfall\.io|cdn\.hadoku\.me)\//, async (route) => {
+    await bob.page.route(ART_ROUTE, async (route) => {
       artRequests.push({ t: Date.now(), url: route.request().url() });
       await new Promise((r) => setTimeout(r, ART_LATENCY_MS));
       await route.fulfill({ contentType: 'image/svg+xml', body: ART_STAND_IN });
