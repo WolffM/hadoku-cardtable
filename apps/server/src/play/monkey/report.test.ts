@@ -26,11 +26,12 @@ describe('stopReason', () => {
     expect(stopReason(result({ outcome: 'crashed', refused: { status: 400, error: 'seat 1: not legal' } }))).toBeNull();
   });
 
-  it("prints a no-finish flag's server rows under it, and no other flag's context", () => {
-    const flag = (kind: 'no-finish' | 'stuck', context: string[]) => ({ kind, matchId: 'm1', seed: 1, deck: { seat0: 'A', seat1: 'B' }, seat: 0, turn: 61, phase: 'CLEANUP', detail: 'd', context, at: '' });
-    const report = buildReport(1, ['a'], [result({ flags: [flag('no-finish', ['{"evt":"ask"}']), flag('stuck', ['frame'])] })], '', null);
+  it("prints the server rows under no-finish, click-refused and server-unclassified flags, and no other flag's context", () => {
+    const flag = (kind: 'no-finish' | 'click-refused' | 'stuck', context: string[]) => ({ kind, matchId: 'm1', seed: 1, deck: { seat0: 'A', seat1: 'B' }, seat: 0, turn: 61, phase: 'CLEANUP', detail: 'd', context, at: '' });
+    const report = buildReport(1, ['a'], [result({ flags: [flag('no-finish', ['{"evt":"ask"}']), flag('click-refused', ['{"evt":"c2s-refused"}']), flag('stuck', ['frame'])] })], '', null);
     const text = summaryText(report);
     expect(text).toContain('      {"evt":"ask"}');
+    expect(text).toContain('      {"evt":"c2s-refused"}');
     expect(text).not.toContain('      frame');
   });
 
