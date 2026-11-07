@@ -265,6 +265,17 @@
     height: var(--pack-row);
   }
 
+  /* Over the pack's top edge, as on a desktop: not a row of the column, where `align-self: start`
+     shrank it to no width, and its coming and going with each pick moved the pack. */
+  .draft__main {
+    position: relative;
+  }
+
+  .draft__main > .pick-rope {
+    position: absolute;
+    inset: 0 0 auto;
+  }
+
   .draft__main > .pool {
     flex: none;
     height: var(--picks-row);
