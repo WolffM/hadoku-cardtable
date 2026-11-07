@@ -14,7 +14,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import poolData from '../draft/pool.json';
 import type { DraftCard } from '../draft/types.ts';
 import { DeckEditor } from '../deck/DeckEditor.tsx';
-import { PoolView } from './PoolView.tsx';
+import { GroupHead, PoolView } from './PoolView.tsx';
 
 afterEach(cleanup);
 
@@ -26,40 +26,33 @@ const FLAME = named('Flame of Anor');
 const PAIR_CLASSES = ['wu', 'wb', 'ub', 'ur', 'br', 'bg', 'rw', 'rg', 'gw', 'gu'].map((p) => `.ms-${p}`).join(',');
 
 describe('a multicolour pick is drawn gold, never as a colour pair', () => {
-  it('Flame of Anor (red/blue) sits under one gold symbol in the colour piles', () => {
+  it('the multicolour pile heading (Flame of Anor is red/blue) is one gold symbol', () => {
     expect(FLAME.colors).toEqual(['R', 'U']);
-    render(createElement(PoolView, { cards: [FLAME, named('Lutri, the Spellchaser')], recentlyAdded: null, groupBy: 'color' }));
-    const pile = screen.getByTestId('pool-bucket-M');
-    const head = pile.querySelector('.pile__head')!;
-    expect(head.querySelector(PAIR_CLASSES)).toBeNull();
-    expect(head.querySelectorAll('.ms-multicolor')).toHaveLength(1);
+    const { container } = render(createElement(GroupHead, { id: 'M' }));
+    expect(container.querySelector(PAIR_CLASSES)).toBeNull();
+    expect(container.querySelectorAll('.ms-multicolor')).toHaveLength(1);
   });
 
-  it("the picks' and the builder's colour sort buttons draw gold, not a pair", () => {
-    render(createElement(PoolView, { cards: [FLAME], recentlyAdded: null, groupBy: 'color', onGroupBy: () => undefined }));
-    const pickSort = screen.getByTestId('pool-sort-color');
-    expect(pickSort.querySelector(PAIR_CLASSES)).toBeNull();
-    expect(pickSort.querySelector('.ms-multicolor')).not.toBeNull();
-    cleanup();
+  it("the builder's colour sort button draws gold, not a pair", () => {
     render(createElement(DeckEditor, { mode: 'limited', draftId: 'd-cs', pool: [FLAME] }));
     const buildSort = screen.getByTestId('sort-color');
     expect(buildSort.querySelector(PAIR_CLASSES)).toBeNull();
     expect(buildSort.querySelector('.ms-multicolor')).not.toBeNull();
   });
 
-  it("a mono pile keeps its colour's symbol, the colourless pile the colourless one", () => {
-    const mono = POOL.find((c) => c.colors.length === 1 && c.colors[0] === 'R' && !/\bLand\b/.test(c.typeLine))!;
-    const colourless = POOL.find((c) => c.colors.length === 0 && !/\bLand\b/.test(c.typeLine))!;
-    render(createElement(PoolView, { cards: [mono, colourless], recentlyAdded: null, groupBy: 'color' }));
-    expect(within(screen.getByTestId('pool-bucket-R')).getAllByRole('img')[0]!.className).toContain('ms-r');
-    expect(within(screen.getByTestId('pool-bucket-C')).getAllByRole('img')[0]!.className).toContain('ms-c');
+  it("a mono pile heading keeps its colour's symbol, the colourless one the colourless symbol", () => {
+    const red = render(createElement(GroupHead, { id: 'R' }));
+    expect(within(red.container).getAllByRole('img')[0]!.className).toContain('ms-r');
+    red.unmount();
+    const colourless = render(createElement(GroupHead, { id: 'C' }));
+    expect(within(colourless.container).getAllByRole('img')[0]!.className).toContain('ms-c');
   });
 });
 
 describe("a card's colour stripe reads the colours in WUBRG order", () => {
   it('Flame of Anor, whose colours arrive as R then U, gets the blue/red stripe', () => {
-    render(createElement(PoolView, { cards: [FLAME], recentlyAdded: null, groupBy: 'color' }));
-    expect(screen.getByTestId('pool-bucket-M').querySelector('.card__stripe')!.getAttribute('data-identity')).toBe('ur');
+    render(createElement(PoolView, { cards: [FLAME], recentlyAdded: null }));
+    expect(screen.getByTestId('pool').querySelector('.card__stripe')!.getAttribute('data-identity')).toBe('ur');
   });
 
   // Every colour a card has gets its band: a stripe of three, four or five colours is not colourless.
@@ -69,10 +62,10 @@ describe("a card's colour stripe reads the colours in WUBRG order", () => {
       { ...base, cardId: 'c3', name: 'Three', colors: ['G', 'W', 'U'] },
       { ...base, cardId: 'c5', name: 'Five', colors: ['W', 'U', 'B', 'R', 'G'] },
     ];
-    render(createElement(PoolView, { cards, recentlyAdded: null, groupBy: 'color' }));
-    const stripes = [...screen.getByTestId('pool-bucket-M').querySelectorAll<HTMLElement>('.card__stripe')];
+    render(createElement(PoolView, { cards, recentlyAdded: null }));
+    const stripes = [...screen.getByTestId('pool').querySelectorAll<HTMLElement>('.card__stripe')];
     const bands = (el: HTMLElement) => [...el.style.getPropertyValue('--stripe').matchAll(/--c-(\w+)/g)].map((m) => m[1]);
-    expect(stripes.map(bands)).toEqual([
+    expect(stripes.map(bands).sort((a, b) => b.length - a.length)).toEqual([
       ['white', 'blue', 'black', 'red', 'green'],
       ['white', 'blue', 'green'],
     ]);
@@ -87,7 +80,7 @@ describe("a card's tokens are on its inspector wheel wherever it is drawn", () =
     [...document.querySelectorAll(`[data-faces-of="${tile.getAttribute('data-faces')}"] .card__name`)].map((el) => el.textContent);
 
   it('in the picks and in the builder', () => {
-    render(createElement(PoolView, { cards: [OCELOT], recentlyAdded: null, groupBy: 'color' }));
+    render(createElement(PoolView, { cards: [OCELOT], recentlyAdded: null }));
     expect(facesOf(screen.getByTestId('pool').querySelector('[data-testid="card"]')!)).toEqual(['Cat']);
     cleanup();
     render(createElement(DeckEditor, { mode: 'limited', draftId: 'd-rf', pool: [OCELOT] }));

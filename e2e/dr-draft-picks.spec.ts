@@ -13,7 +13,8 @@
  * builder opens with picks = main deck and the dragged ones in the sideboard".
  *
  * One drafter against seven AI seats, on the real built server, in grid mode:
- * the picks toggle between colour and mana-value piles; a pick dragged onto
+ * the picks are grouped by mana value alone (the operator, 2026-11-07: "just
+ * CMC would be fine"), the lands last; a pick dragged onto
  * the sideboard comes back out by a drag dropped anywhere off it, and one
  * left there is in the builder's sideboard when the draft ends, every other
  * pick in its main deck; and with a full pool (44 picks, then the builder's
@@ -121,18 +122,15 @@ test(titled('the picks sort by colour or mana value, a pick dragged to the sideb
     await grid.click();
     await expect(grid).toHaveAttribute('aria-pressed', 'true');
 
-    /* ── 2: colour piles or mana-value piles ── */
+    /* ── 2: mana-value piles, the lands last, and no colour grouping ── */
     await pickUntil(alice, 8);
-    const buckets = () => page.locator('[data-testid^="pool-bucket-"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid')!.slice('pool-bucket-'.length)));
-    const byColour = await buckets();
-    expect(byColour.every((g) => /^[WUBRGMCL]$/.test(g)), `colour piles: ${byColour.join(' ')}`).toBe(true);
-    await page.getByTestId('pool-sort-mv').click();
-    await expect(page.getByTestId('pool')).toHaveAttribute('data-group-by', 'mv');
-    const byMv = await buckets();
-    console.log(`[dr] piles by colour ${byColour.join(' ')}; by mana value ${byMv.join(' ')}`);
-    expect(byMv.every((g) => /^[0-6L]$/.test(g)), `mana-value piles: ${byMv.join(' ')}`).toBe(true);
-    await page.getByTestId('pool-sort-color').click();
-    await expect(page.getByTestId('pool')).toHaveAttribute('data-group-by', 'color');
+    const buckets = await page.locator('[data-testid^="pool-bucket-"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid')!.slice('pool-bucket-'.length)));
+    console.log(`[dr] piles by mana value ${buckets.join(' ')}`);
+    expect(buckets.every((g) => /^[0-6L]$/.test(g)), `mana-value piles: ${buckets.join(' ')}`).toBe(true);
+    const numbered = buckets.filter((g) => g !== 'L').map(Number);
+    expect(numbered, 'in mana-value order').toEqual([...numbered].sort((x, y) => x - y));
+    if (buckets.includes('L')) expect(buckets.at(-1), 'the lands last').toBe('L');
+    await expect(page.getByTestId('pool-sort-color')).toHaveCount(0);
 
     /* ── 3: a pick dragged onto the sideboard ── */
     // The bottom card of a pile shows whole; any card's name strip is its top.

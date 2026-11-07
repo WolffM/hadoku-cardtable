@@ -6,12 +6,11 @@
  * scroll bar".
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createElement, useState } from 'react';
+import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 import poolData from '../draft/pool.json';
 import type { DraftCard } from '../draft/types.ts';
-import type { GroupBy } from '../deck/cardOrder.ts';
 import { DeckEditor } from '../deck/DeckEditor.tsx';
 import type { DeckStoreClient } from '../deck/deckStore.ts';
 import { useDraftBuild } from '../deck/useDraftBuild.ts';
@@ -51,25 +50,30 @@ function drag(tile: HTMLElement, onto: HTMLElement): void {
 const names = (el: HTMLElement): string[] => within(el).queryAllByTestId('card').map((c) => c.querySelector('.card__name')!.textContent!);
 
 function Picks({ store }: { store: DeckStoreClient | null }) {
-  const [groupBy, setGroupBy] = useState<GroupBy>('color');
   const build = useDraftBuild('pod', PICKS, store === null ? null : { podId: 'r-pod', client: store });
-  return createElement(PoolView, { cards: PICKS, recentlyAdded: null, groupBy, onGroupBy: setGroupBy, sideboard: build.sideboard, onMove: build.move });
+  return createElement(PoolView, { cards: PICKS, recentlyAdded: null, sideboard: build.sideboard, onMove: build.move });
 }
 
-describe('the picks: grouped by colour or by mana value', () => {
-  it('toggles between colour piles and mana-value piles', () => {
+// The operator, 2026-11-07: "cards are split by color and by CMC, i think just CMC would be fine."
+describe('the picks: grouped by mana value alone', () => {
+  it('draws one pile per mana value in order, the lands last, and offers no colour grouping', () => {
     render(createElement(Picks, { store: null }));
-    const buckets = (): string[] => [...document.querySelectorAll('[data-testid^="pool-bucket-"]')].map((b) => b.getAttribute('data-testid')!.slice('pool-bucket-'.length));
-    expect(buckets().every((g) => /^[WUBRGMCL]$/.test(g))).toBe(true);
-    fireEvent.click(screen.getByTestId('pool-sort-mv'));
-    expect(screen.getByTestId('pool').dataset['groupBy']).toBe('mv');
-    expect(buckets().every((g) => /^[0-6L]$/.test(g))).toBe(true);
-    // Every pile holds only its own mana value, lands apart.
-    for (const g of buckets().filter((b) => b !== 'L' && b !== '6')) {
-      for (const name of names(screen.getByTestId(`pool-bucket-${g}`))) expect(PICKS.find((c) => c.name === name)!.manaValue).toBe(Number(g));
+    const buckets = [...document.querySelectorAll('[data-testid^="pool-bucket-"]')].map((b) => b.getAttribute('data-testid')!.slice('pool-bucket-'.length));
+    expect(buckets.length).toBeGreaterThan(1);
+    expect(buckets.every((g) => /^[0-6L]$/.test(g))).toBe(true);
+    const numbered = buckets.filter((g) => g !== 'L').map(Number);
+    expect(numbered).toEqual([...numbered].sort((x, y) => x - y));
+    if (buckets.includes('L')) expect(buckets.at(-1)).toBe('L');
+    // Every pile holds only its own mana value; the last holds that and higher.
+    for (const g of buckets.filter((b) => b !== 'L')) {
+      for (const name of names(screen.getByTestId(`pool-bucket-${g}`))) {
+        const mv = PICKS.find((c) => c.name === name)!.manaValue;
+        if (g === '6') expect(mv).toBeGreaterThanOrEqual(6);
+        else expect(mv).toBe(Number(g));
+      }
     }
-    fireEvent.click(screen.getByTestId('pool-sort-color'));
-    expect(buckets().every((g) => /^[WUBRGMCL]$/.test(g))).toBe(true);
+    expect(screen.queryByTestId('pool-sort-mv')).toBeNull();
+    expect(screen.queryByTestId('pool-sort-color')).toBeNull();
   });
 });
 

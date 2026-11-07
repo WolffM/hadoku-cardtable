@@ -219,15 +219,12 @@ describe('the draft screen, on committed fixtures', () => {
     expect(screen.getByTestId('pack').textContent).toContain('Waiting for the next pack.');
   });
 
-  it('the pool groups by colour, not mana value — a 4-mana white card and a 1-mana black one land in different buckets', () => {
+  it('the pool groups by mana value, not colour — a 4-mana white card and a 1-mana black one land in their mana values’ piles', () => {
     mount();
-    // This fixture's pool already holds Wrath of God (W, mv4) and Thoughtseize
-    // (B, mv1): the bucket testid below is the colour letter, not a mana
-    // value number — the thing that would read `pool-bucket-4` / `-1` if the
-    // old grouping were still live.
+    // This fixture's pool already holds Wrath of God (W, mv4) and Thoughtseize (B, mv1).
     chooseFixture('seat0-pack1-pick3.json');
-    expect(within(screen.getByTestId('pool-bucket-W')).queryByText('Wrath of God')).toBeTruthy();
-    expect(within(screen.getByTestId('pool-bucket-B')).queryByText('Thoughtseize')).toBeTruthy();
+    expect(within(screen.getByTestId('pool-bucket-4')).queryByText('Wrath of God')).toBeTruthy();
+    expect(within(screen.getByTestId('pool-bucket-1')).queryByText('Thoughtseize')).toBeTruthy();
     expect(screen.getByTestId('pool').querySelectorAll('[data-testid^="pool-bucket-"]').length).toBe(2);
   });
 
