@@ -66,6 +66,7 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import {
 	closeSync,
+	constants as fsConstants,
 	existsSync,
 	lstatSync,
 	mkdirSync,
@@ -405,7 +406,7 @@ const PID_POLL_MS = 1000;
  * Two named pipes in the run dir. `mkfifo(3)` has no binding in `node:fs`, so
  * this shells out — once per run directory, at staging time.
  */
-function makeFifos(run: string): void {
+export function makeFifos(run: string): void {
 	const made = spawnSync('mkfifo', [join(run, IN_FIFO), join(run, OUT_FIFO)], { stdio: 'pipe' });
 	if (made.error !== undefined) throw made.error;
 	if (made.status !== 0) {
@@ -419,11 +420,15 @@ function makeFifos(run: string): void {
  * the bridge would exit on one, and we could not tell a handed-over JVM from a
  * dead one.
  */
-interface JvmIo {
-	writeFd: number;
+export interface JvmIo {
+	/** Queue one line for the JVM's stdin; never blocks. See {@link openJvmIo}. */
+	write(line: string): void;
 	lines: NodeJS.ReadableStream;
 	close(): void;
 }
+
+/** How soon a write the fifo had no room for is tried again. */
+const STDIN_RETRY_MS = 20;
 
 /**
  * The read end is a `net.Socket` over the fd, **not** `fs.createReadStream`.
@@ -435,17 +440,63 @@ interface JvmIo {
  * `host.test.ts` outright. `net.Socket` puts the fd in libuv's event loop
  * (`uv_pipe_open`, epoll) and occupies no thread at all.
  */
-function openJvmIo(run: string): JvmIo {
-	const writeFd = openSync(join(run, IN_FIFO), 'r+');
+export function openJvmIo(run: string, log: (entry: Record<string, unknown>) => void): JvmIo {
+	// The write end is non-blocking, and a line the fifo has no room for waits in `pending`.
+	// A blocking `writeSync` into a fifo nobody drains — a JVM that died before its stdin thread
+	// ran — parks the whole event loop: its own `exit` is never handled, every other match and
+	// socket stops, and the matches placed on it hold their ceiling slots for good. Our fd is
+	// `O_RDWR`, so a dead reader is no EPIPE; the fifo just fills. The child's stdin is its own
+	// open (`spawn` below), so the JVM still reads a blocking fd.
+	const writeFd = openSync(join(run, IN_FIFO), fsConstants.O_RDWR | fsConstants.O_NONBLOCK);
 	const readFd = openSync(join(run, OUT_FIFO), 'r+');
 	const lines = new Socket({ fd: readFd, readable: true, writable: false });
 	lines.on('error', () => {
 		// The fd went with the JVM, or was closed under us. The exit path says why.
 	});
+	const pending: Buffer[] = [];
+	let retry: NodeJS.Timeout | null = null;
+	let closed = false;
+	let waitingSince: number | null = null;
+	const flush = (): void => {
+		retry = null;
+		while (!closed && pending.length > 0) {
+			const head = pending[0]!;
+			let wrote: number;
+			try {
+				wrote = writeSync(writeFd, head);
+			} catch (err) {
+				if ((err as NodeJS.ErrnoException).code === 'EAGAIN') {
+					if (waitingSince === null) {
+						waitingSince = Date.now();
+						log({ evt: 'bridge-stdin-full', run, queued: pending.reduce((n, b) => n + b.length, 0) });
+					}
+					retry = setTimeout(flush, STDIN_RETRY_MS);
+					return;
+				}
+				// The fd is gone with the JVM. The exit path reports that.
+				log({ evt: 'bridge-stdin-error', run, error: (err as Error).message });
+				pending.length = 0;
+				return;
+			}
+			if (wrote < head.length) pending[0] = head.subarray(wrote);
+			else pending.shift();
+		}
+		if (waitingSince !== null) {
+			log({ evt: 'bridge-stdin-drained', run, waitedMs: Date.now() - waitingSince });
+			waitingSince = null;
+		}
+	};
 	return {
-		writeFd,
+		write(line: string): void {
+			if (closed) return;
+			pending.push(Buffer.from(`${line}\n`));
+			if (retry === null && pending.length === 1) flush();
+		},
 		lines,
 		close(): void {
+			closed = true;
+			pending.length = 0;
+			if (retry !== null) clearTimeout(retry);
 			lines.destroy();
 			try {
 				closeSync(writeFd);
@@ -906,7 +957,7 @@ class LocalJvm implements JvmTransport {
 		source: { mode: 'spawn'; xmxMb: number } | { mode: 'attach'; pid: number },
 		private readonly log: (entry: Record<string, unknown>) => void,
 	) {
-		this.io = openJvmIo(run);
+		this.io = openJvmIo(run, log);
 		if (source.mode === 'attach') {
 			this.pid = source.pid;
 			live.add(this);
@@ -961,14 +1012,7 @@ class LocalJvm implements JvmTransport {
 	send(line: string): void {
 		if (this.gone) return;
 		if (isHostStop(line, this.hostId)) this.askedToStop = true;
-		try {
-			writeSync(this.io.writeFd, `${line}\n`);
-		} catch (err) {
-			// The JVM is gone, or its fifo is full and nobody is draining it. The exit path
-			// reports the first; the second cannot happen while the bridge is reading, which is
-			// all its stdin thread does.
-			this.log({ evt: 'bridge-stdin-error', id: this.hostId, error: (err as Error).message });
-		}
+		this.io.write(line);
 	}
 
 	onLine(listener: (line: string) => void): void {
