@@ -756,6 +756,8 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    * marked, arriving before Forge shows the next input, is that selection's and is dropped.
    */
   selectionMarks: { open: Set<number>; closed: ReadonlySet<number> | null };
+  /** The input of the window last drawn (its frames' envelope `input`), sent with every act made on it; null before one. */
+  inputId: number | null;
   /**
    * Forge has shown an input since this client last acted. See the module
    * header: without it, no card or player click is sent.
@@ -1199,9 +1201,14 @@ export function subscribe(match: LiveMatch, listener: () => void): () => void {
 function send(match: LiveMatch, frame: ClientEnvelope['frame'], placement?: Placement): void {
   // A reply or an abort settles its ask: one answer per callId leaves this client.
   if (frame.kind !== 'act') match.settled.add(frame.callId);
-  const envelope: ClientEnvelope = { matchId: match.matchId, frame, ...(placement === undefined ? {} : { placement }) };
+  // An act names the input of the window it was made on: one Forge has moved past is dropped, never applied to the next (#40).
+  const input = frame.kind === 'act' && INPUT_ACTS.has(frame.method) && match.inputId !== null ? { input: match.inputId } : {};
+  const envelope: ClientEnvelope = { matchId: match.matchId, frame, ...(placement === undefined ? {} : { placement }), ...input };
   match.transport.emit(MATCH_EVENTS.clientToServer, envelope);
 }
+
+/** The acts an input of Forge's takes: the ones that name the input they were made on. */
+const INPUT_ACTS: ReadonlySet<string> = new Set(['selectCard', 'selectPlayer', 'selectButtonOk', 'selectButtonCancel']);
 
 /** A board with nothing in it yet, on `options`' transport. */
 function newMatch(options: LiveMatchOptions): LiveMatch {
@@ -1243,6 +1250,7 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     heldChanges: null,
     highlighted: null,
     selectionMarks: { open: new Set(), closed: null },
+    inputId: null,
     highlightedPlayers: null,
     says: [],
     rolls: [],
@@ -1466,6 +1474,8 @@ interface HeldFrame {
   frame: ServerFrame;
   displayOnly: boolean;
   forceNotice: boolean;
+  /** The input Forge showed this frame for (the envelope's `input`), when the server named one. */
+  input: number | undefined;
 }
 
 /** The cards the seat's open decision shows: Forge's prompt card and every card an open ask names (`AdaptOptions.promptCards`). */
@@ -3658,14 +3668,18 @@ function ingestNow(match: LiveMatch, raw: unknown): void {
   match.cursor = cursor;
   match.stats.applied += 1;
   match.resyncsWithoutProgress = 0;
-  const held: HeldFrame = { frame: parsed.value, displayOnly: envelope.value.displayOnly === true, forceNotice: envelope.value.forceNotice === true };
+  const held: HeldFrame = { frame: parsed.value, displayOnly: envelope.value.displayOnly === true, forceNotice: envelope.value.forceNotice === true, input: envelope.value.input };
   if (envelope.value.pairsWithNext === true) match.windowHalf.push(held);
   else {
     const chain = [...match.windowHalf, held];
     match.windowHalf = [];
     for (const h of chain) {
       if (h.displayOnly) showReveal(match, h.frame, h.forceNotice);
-      else applyFrame(match, h.frame);
+      else {
+        // The window now drawn is this input's: what an act made on it names.
+        if (h.input !== undefined) match.inputId = h.input;
+        applyFrame(match, h.frame);
+      }
     }
   }
   if (match.offerHold !== null) dropMarked(match.offerHold, { cards: match.highlighted, players: match.highlightedPlayers });

@@ -252,7 +252,12 @@ type AbortReason = (typeof AbortReasonSchema)['_zod']['output'];
 export type BridgeCommand =
 	| { t: 'reply'; seat: number; callId: string; result: unknown }
 	| { t: 'abort'; seat: number; callId: string; reason: AbortReason }
-	| { t: 'act'; seat: number; frame: ClientAction | SendYieldUpdate }
+	/**
+	 * `input`: the id of the input the seat made this act on (the `input` its window's frame lines
+	 * carried); the bridge drops an act whose input is no longer the one open when Forge applies it
+	 * (`PlayBridge.java`'s `MatchContext.actInputs`). Absent: applied as Forge applies it.
+	 */
+	| { t: 'act'; seat: number; frame: ClientAction | SendYieldUpdate; input?: number }
 	/** Re-send every ask the seat is parked on, original callIds (`match.ts`'s `armActWatch`). */
 	| { t: 'resend-pending'; seat: number }
 	/** Forge's Cancel on the seat's open mana payment only, never on an input opened after it (`PlayBridge.java`'s `cancelPayment`). */
@@ -276,7 +281,8 @@ export type BridgeLine =
 	 * (`PlayBridge.java`'s `unsupportedIn`). Absent from a line an older bridge wrote.
 	 */
 	| { t: 'ready'; forgePort: number; bootMs: number; startMs?: number; seats: { seat: number; ai: boolean; deck: string; removed?: string[] }[] }
-	| { t: 'frame'; seat: number; frame: unknown }
+	/** `input`: the id of the input open on the seat when the frame was shown (`PlayBridge.java`'s `MatchContext.inputId`); absent when none is. */
+	| { t: 'frame'; seat: number; frame: unknown; input?: number }
 	| { t: 'probe'; probeId: string; seat: number; answer?: boolean; ms?: number; error?: string }
 	/**
 	 * `losers`: the player ids Forge has lost (`Player.hasLost`), the same ids the views carry.
@@ -326,9 +332,10 @@ export type BridgeLine =
 	 */
 	| { t: 'input'; seat: number; open: boolean; input?: string }
 	/**
-	 * A click the bridge kept from Forge (`PlayBridge.java`'s `MatchContext.selectionClicks`): it was
-	 * sent to answer a selection that closed before Forge reached it, and would have landed in
-	 * whatever input came next. Never applied, so never an `applied` line.
+	 * An act the bridge kept from Forge: a click sent to answer a selection that closed before Forge
+	 * reached it (`MatchContext.selectionClicks`), or an act made on an input that was no longer the
+	 * open one when Forge applied it (`MatchContext.actInputs`, `card` -1 for a button). Either would
+	 * have landed in whatever input came next. Never applied, so never an `applied` line.
 	 */
 	| { t: 'dropped'; seat: number; method: string; card: number; why: string }
 	/**

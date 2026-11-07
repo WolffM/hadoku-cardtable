@@ -720,6 +720,8 @@ export interface SeatState {
 	 * next window, such a click is held ({@link SeatState.heldClick}).
 	 */
 	windowGone: boolean;
+	/** The input of the last window frame sent to this seat (its envelope's `input`), or null before one. */
+	shownInput: number | null;
 	/** Where the game stood at the window a decider last answered for this seat unseen. */
 	passedAt: WindowMark | null;
 	/**
@@ -909,6 +911,15 @@ function opensAnInput(frame: unknown): boolean {
 	const f = frame as { kind?: unknown; method?: unknown } | null;
 	return f?.kind === 'ask' || (f?.kind === 'notify' && f.method === 'setSelectables');
 }
+
+/** The `why` of a bridge `dropped` line for an act made on an input Forge had moved past (`PlayBridge.java`'s `madeOnAnother`). */
+const STALE_ACT = 'made on an input Forge has moved past';
+
+/** The frames that show a seat its window: the ones whose input an act made on them names. */
+const WINDOW_FRAMES: ReadonlySet<string> = new Set(['showPromptMessage', 'updateButtons', 'setSelectables', 'setWeaklySelectable']);
+
+/** The acts the bridge checks were made on the input still open (`PlayBridge.java`'s `madeOnAnother`). */
+const CHECKED_ACTS: ReadonlySet<string> = new Set(['selectCard', 'selectPlayer', 'selectButtonOk', 'selectButtonCancel']);
 
 /** Forge turning the seat's last act away: its input stands, and nothing more is shown for it. */
 function isRefusal(frame: unknown): boolean {
@@ -1252,6 +1263,13 @@ export class Match {
 	/** Frames Forge sent that forge-wire refused. Dropped, counted, logged. */
 	invalidFrames = 0;
 	/**
+	 * The id of the input each window frame was shown for (the bridge's `frame` line `input`), keyed on
+	 * the line's raw frame and on the frame parsed from it: the envelope carries it to the seat
+	 * ({@link Match.emit}), and the seat's act names it back for the bridge to check (#40).
+	 */
+	private readonly inputOfRaw = new WeakMap<object, number>();
+	private readonly inputOfFrame = new WeakMap<object, number>();
+	/**
 	 * The watcher channel: ONE projection as every player at once (`EVERY_PLAYER`: every hand face
 	 * up, a library card only where some player was shown it) with its own cursor and history, fed
 	 * from the FIRST human seat's Tier C stream — Forge sends every seat the whole state, so one
@@ -1451,6 +1469,7 @@ export class Match {
 			pendingTimer: null,
 			heldOffer: null,
 			windowGone: false,
+			shownInput: null,
 			passedAt: null,
 			heldClick: null,
 			offerInput: 'fresh',
@@ -1777,10 +1796,11 @@ export class Match {
 	/**
 	 * The `click` record: a `selectCard` this seat sent, and what came of it — `answered` when Forge
 	 * showed the seat a window or an ask for it (`ms` after the click, `by` the frame's method),
-	 * `refused` when Forge turned it away (`flashIncorrectAction`), `silence` when the act watch ran out first, `next-act` when the seat acted again before either.
+	 * `refused` when Forge turned it away (`flashIncorrectAction`), `stale` when the bridge kept it from
+	 * Forge because it was made on an input Forge had moved past, `silence` when the act watch ran out first, `next-act` when the seat acted again before either.
 	 * So "I clicked X and nothing happened" reads straight off the match log.
 	 */
-	private endClick(s: SeatState, outcome: 'answered' | 'refused' | 'silence' | 'next-act', frame?: unknown): void {
+	private endClick(s: SeatState, outcome: 'answered' | 'refused' | 'stale' | 'silence' | 'next-act', frame?: unknown): void {
 		const click = s.click;
 		if (click === null) return;
 		s.click = null;
@@ -1804,8 +1824,8 @@ export class Match {
 	 * dead for {@link ACT_SILENCE_MS} after every refused click, each press under them refused too
 	 * (monkey run 42393623986, Tezzeret Control: two such waits and 28 refusals in one match).
 	 */
-	private onRefused(s: SeatState): void {
-		this.endClick(s, 'refused');
+	private onRefused(s: SeatState, outcome: 'refused' | 'stale' = 'refused'): void {
+		this.endClick(s, outcome);
 		if (s.staleBar !== null && s.asks.size === 0) this.armActWatch(s, 'refused');
 	}
 
@@ -2247,7 +2267,8 @@ export class Match {
 
 	/* ── Browser → Forge ────────────────────────────────────────────── */
 
-	fromClient(seat: number, frame: ClientFrame): ClientOutcome {
+	/** `input`: the input the seat made an act on (its window's envelope `input`), which the bridge checks is still the open one. */
+	fromClient(seat: number, frame: ClientFrame, input?: number): ClientOutcome {
 		const s = this.seats[seat];
 		if (s === undefined || s.ai) return { ok: false, error: 'no-such-seat' };
 		// Refused in words of its own, and before the general status check: the
@@ -2289,7 +2310,7 @@ export class Match {
 				}
 				this.noteTargetPick(s, frame);
 				this.disableStaleButtons(s);
-				this.command({ t: 'act', seat, frame: forgeAct(frame) });
+				this.command({ t: 'act', seat, frame: forgeAct(frame), ...(input === undefined || !CHECKED_ACTS.has(frame.method) ? {} : { input }) });
 				if (frame.method === 'concede') this.watchConcede(seat);
 				return { ok: true };
 			case 'reply': {
@@ -2646,10 +2667,13 @@ export class Match {
 		s.seq += 1;
 		if (TRACE_FRAMES) this.deps.log({ evt: 'wire-frame', matchId: this.id, seat: s.seat, seq: s.seq, ...frameGist(frame) });
 		const cursor: WireCursor = { epoch: this.epoch, seq: s.seq };
+		const input = this.inputOfFrame.get(frame);
+		if (input !== undefined) s.shownInput = input;
 		this.deps.emit(s.seat, {
 			matchId: this.id,
 			cursor,
 			frame,
+			...(input === undefined ? {} : { input }),
 			...(mark === null ? {} : { [mark]: true }),
 			...(chained ? { pairsWithNext: true } : {}),
 			...(extra ?? {}),
@@ -2859,6 +2883,7 @@ export class Match {
 				this.deps.log({ evt: 'forge-ready', matchId: this.id, bootMs: line.bootMs });
 				return;
 			case 'frame':
+				if (line.input !== undefined && typeof line.frame === 'object' && line.frame !== null) this.inputOfRaw.set(line.frame, line.input);
 				if (TRACE_FRAMES) this.deps.log({ evt: 'forge-frame', matchId: this.id, seat: line.seat, ...frameGist(line.frame) });
 				if (answersAnInput(line.frame)) {
 					const answered = this.seats[line.seat];
@@ -2938,10 +2963,17 @@ export class Match {
 				this.tellRestart();
 				this.remember();
 				return;
+			case 'dropped':
+				// An act made on an input Forge had moved past: never applied, and the seat's bar is its again.
+				if (line.why === STALE_ACT) {
+					const stale = this.seats[line.seat];
+					if (stale !== undefined) this.onRefused(stale, 'stale');
+				}
+				this.deps.log({ evt: 'bridge-dropped', matchId: this.id, seat: line.seat, method: line.method, card: line.card, why: line.why });
+				return;
 			case 'rejected':
 			case 'stale':
 			case 'pace':
-			case 'dropped':
 			case 'unsupported': {
 				const { t, ...detail } = line;
 				this.deps.log({ evt: `bridge-${t}`, matchId: this.id, ...detail });
@@ -2998,6 +3030,8 @@ export class Match {
 			return;
 		}
 		const frame = parsed.value;
+		const shownFor = typeof raw === 'object' && raw !== null ? (this.inputOfRaw.get(raw) ?? this.inputOfFrame.get(raw)) : undefined;
+		if (shownFor !== undefined && WINDOW_FRAMES.has(frame.method)) this.inputOfFrame.set(frame, shownFor);
 		if (s.endNotices.length > 0 && (answersAnInput(frame) || frame.method === 'setWeaklySelectable')) {
 			// The seat has been told the game is over, so nothing it could answer is shown any more: a concede
 			// before the opening coin toss still has Forge's thread go on to ask the toss (#19), and a reload
@@ -3399,7 +3433,8 @@ export class Match {
 		}
 		s.heldClick = null;
 		this.deps.log({ evt: 'click-released', matchId: this.id, seat: s.seat, card, kind });
-		this.fromClient(s.seat, held.frame);
+		// Decided here to mean the same on this window: it is made on this window's input.
+		this.fromClient(s.seat, held.frame, s.shownInput ?? undefined);
 	}
 
 	private dropHeldClick(s: SeatState, kind: string, why: string): void {
