@@ -373,9 +373,10 @@ export function drawArrow(overlay: HTMLElement, spec: ArrowSpec): void {
     clearArrow(overlay);
     return;
   }
-  // A target that already has its arrow gets no second one: the press that chose it stays under the
-  // pointer, and a drift of the hand (a fingertip always travels) repaints before Forge has answered.
-  if (spec.snap !== null && (spec.chosen?.has(spec.snap) === true || committedTo(spec.snap))) {
+  // A target that already has its arrow gets no second one. And a press that chose one stays under the
+  // pointer: a drift of the hand repaints before Forge has answered, over a face no longer offered, so
+  // until that answer the aim the press committed is the only arrow from its source.
+  if ((spec.snap !== null && spec.chosen?.has(spec.snap) === true) || awaiting(spec.source)) {
     clearArrow(overlay);
     return;
   }
@@ -477,9 +478,10 @@ function retire(svg: SVGSVGElement): void {
   svg.remove();
 }
 
-/** A committed arrow stands at `target`. */
-function committedTo(target: Element): boolean {
-  for (const [svg, c] of committed) if (svg.isConnected && same(c.target, target)) return true;
+/** A committed arrow from `source` still waits for Forge's answer. */
+function awaiting(source: number | null): boolean {
+  const from = source === null ? null : String(source);
+  for (const svg of committed.keys()) if (svg.isConnected && svg.getAttribute('data-source') === from) return true;
   return false;
 }
 

@@ -164,15 +164,16 @@ describe('one arrow per target', () => {
   const aimAt = (at: Element, chosen?: ReadonlySet<Element>) =>
     drawArrow(overlay, { from: { x: 300, y: 300 }, to: { x: 5, y: 5 }, source: 1, target: { kind: 'player', id: 2 }, snap: at, tail: null, mode: 'click', ...(chosen === undefined ? {} : { chosen }) });
 
-  it('the aim draws nothing at a target it has just committed to, while that arrow stands', () => {
+  it('until Forge answers a committed aim, its source aims at nothing, the target or anywhere the hand drifts', () => {
     aim();
     commitArrowAt(overlay, inner);
     aimAt(target);
     expect(arrows()).toBe(1);
-    expect(overlay.querySelector('[data-testid="targeter"]')).toBeNull();
+    drawArrow(overlay, { from: { x: 300, y: 300 }, to: { x: 9, y: 9 }, source: 1, target: null, snap: null, tail: null, mode: 'click' });
+    expect(overlay.querySelector('[data-testid="targeter"]'), 'nor a free ghost over a face no longer offered').toBeNull();
     retireCommitted(overlay, [target]);
     aimAt(target);
-    expect(overlay.querySelector('[data-testid="targeter"]')).not.toBeNull();
+    expect(overlay.querySelector('[data-testid="targeter"]'), 'once answered, it aims again').not.toBeNull();
   });
 
   it('knows the target by its board id when React draws it anew between the press and the answer', () => {
@@ -182,18 +183,16 @@ describe('one arrow per target', () => {
     const redrawn = document.createElement('div');
     redrawn.setAttribute('data-player-id', '2');
     target.replaceWith(redrawn);
-    aimAt(redrawn);
-    expect(overlay.querySelector('[data-testid="targeter"]'), 'no ghost at the redrawn face').toBeNull();
     retireCommitted(overlay, [redrawn]);
-    expect(arrows(), "and Forge's arrow to it retires the committed one").toBe(0);
+    expect(arrows(), "Forge's arrow to the redrawn face retires the committed one").toBe(0);
   });
 
-  it('still aims at another target while the committed one stands', () => {
+  it("another source's aim still draws while one waits", () => {
     aim();
     commitArrowAt(overlay, inner);
     const other = document.createElement('div');
     document.body.append(other);
-    aimAt(other);
+    drawArrow(overlay, { from: { x: 300, y: 300 }, to: { x: 5, y: 5 }, source: 9, target: { kind: 'card', id: 3 }, snap: other, tail: null, mode: 'click' });
     expect(arrows()).toBe(2);
   });
 
