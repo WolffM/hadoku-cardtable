@@ -6521,8 +6521,22 @@ public final class PlayBridge {
          */
         @Override
         public void pushActionableCards(final boolean paymentMode, final Iterable<CardView> emphasized) {
-            if (!paymentMode) { unaffordable = new Object[] { liveInput(), heldBackByCost() }; }
+            // Run on Forge's event thread while the game thread waits on the input, and it swaps this seat's
+            // player's controller for an AI's (ours, heldBackByCost; the fork's own AvailableActions.scan). An
+            // input that finished meanwhile let the game thread ask that player for its next decision under the
+            // swap — the suspect in yield.jvm's run 42403314200 (#40's follow-up). Said when it happens.
+            final Object shown = liveInput();
+            if (!paymentMode) { unaffordable = new Object[] { shown, heldBackByCost() }; }
             super.pushActionableCards(paymentMode, emphasized);
+            final Object after = liveInput();
+            if (shown != null && after != shown) {
+                System.err.println("[bridge] seat " + seat + ": its input " + shown.getClass().getSimpleName() + " finished while its offer scan held a swapped controller (now "
+                        + (after == null ? "none" : after.getClass().getSimpleName()) + ")");
+                final JsonObject o = line("scan-overtaken");
+                o.addProperty("seat", seat);
+                o.addProperty("input", shown.getClass().getSimpleName());
+                emit(match.matchId, o);
+            }
         }
 
         private java.util.Set<Integer> heldBackByCost() {
@@ -6907,6 +6921,7 @@ public final class PlayBridge {
                 hm.getGame().subscribeToEvents(new CombatSync(hm.getGame()));
                 hm.getGame().subscribeToEvents(new TurnSnapshot(hm.getGame(), m));
                 hm.getGame().subscribeToEvents(m.effects.reset());
+                hm.getGame().subscribeToEvents(new Impersonation(m));
                 final GameLogForward log = GameLogForward.install(hm.getGame(), m);
                 ModeCounts.install(hm.getGame(), m.modesPending);
                 if (state == null) {
@@ -8484,12 +8499,47 @@ public final class PlayBridge {
      * then every human seat's input queue is let go, as Forge's own concede does, since a seat
      * parked on an input is woken by nothing else. The {@code gameover} line follows as for any end.
      */
+    /**
+     * A spell or ability put on the stack for a seat's player while that player's controller was not
+     * a human's: the AI made a play for the seat (the offer scan's controller swap,
+     * {@link SeatController#pushActionableCards}, or any other). Never expected; an {@code impersonated} line names it, so it is an event in the log
+     * and not a mystery on the board. A mind-slave's controller is a human's and is not one.
+     */
+    static final class Impersonation {
+        private final MatchContext match;
+
+        Impersonation(final MatchContext match) {
+            this.match = match;
+        }
+
+        @Subscribe
+        public void cast(final forge.game.event.GameEventSpellAbilityCast ev) {
+            // The event carries views; the ability just pushed is the stack's top (MagicStack.push fires it after).
+            final Game game = match.liveGame();
+            final SpellAbility sa = game == null || game.getStack().isEmpty() ? null : game.getStack().peekAbility();
+            final forge.game.player.Player p = sa == null ? null : sa.getActivatingPlayer();
+            if (p == null || p.getController() instanceof PlayerControllerHuman) { return; }
+            for (final var e : match.seatControllers.entrySet()) {
+                if (e.getValue().getPlayer() != p) { continue; }
+                final JsonObject o = line("impersonated");
+                o.addProperty("seat", e.getKey());
+                o.addProperty("card", sa.getHostCard() == null ? -1 : sa.getHostCard().getId());
+                o.addProperty("ability", String.valueOf(sa));
+                o.addProperty("controller", p.getController().getClass().getSimpleName());
+                o.addProperty("thread", Thread.currentThread().getName());
+                emit(match.matchId, o);
+                System.err.println("[bridge] the AI put " + sa + " on the stack for seat " + e.getKey() + " (controller " + p.getController().getClass().getSimpleName() + ")");
+                return;
+            }
+        }
+    }
+
     static void forceDraw(final MatchContext match) {
         final Game game = match.liveGame();
         if (game == null || game.isGameOver()) { return; }
         final List<PlayerControllerHuman> humans = new ArrayList<>();
         for (final forge.game.player.Player p : game.getRegisteredPlayers()) {
-            if (p.getController() instanceof PlayerControllerHuman h) { humans.add(h); }
+            if (match.humanOf(p) instanceof PlayerControllerHuman h) { humans.add(h); }
         }
         final ActGate gate = ActGate.of(game);
         final long ticket = gate.ticket();

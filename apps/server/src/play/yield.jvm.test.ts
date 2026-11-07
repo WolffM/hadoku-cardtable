@@ -92,7 +92,7 @@ async function boltAlice(s: Scenario): Promise<void> {
 function boltEvidence(s: Scenario, logFrom: number, lineFrom: number): string {
 	const forge = s.lines
 		.slice(lineFrom)
-		.filter((l) => l.t === 'log' || l.t === 'applied' || l.t === 'dropped')
+		.filter((l) => l.t === 'log' || l.t === 'applied' || l.t === 'dropped' || l.t === 'impersonated' || l.t === 'scan-overtaken')
 		.map((l) => {
 			if (l.t === 'log') {
 				const players = (l as { players?: { player: number; text: string | null }[] }).players ?? [];
