@@ -111,29 +111,32 @@ function picksLanded(p: Player): { at: number; cardId: string }[] {
 }
 
 /**
- * Watch the rope on this page from its first load: each time a drawn fuse first reaches empty, on the
- * page's clock (`Date.now()`, the same host clock the captures use). An init script, not an evaluate
+ * Watch the rope on this page from its first load: for each pick's fuse, the moment its burn is scheduled to
+ * reach empty, on the page's clock (`Date.now()`, the same host clock the captures use). The burn is one Web
+ * Animation ending exactly at empty (`PackView.tsx`'s `PickRope`), so its own end time is when the rope runs
+ * out, re-read every frame as envelopes re-anchor it. Not a painted frame's width: a starved page (15% CPU)
+ * often never paints the empty frame before the next pick resets the fuse. An init script, not an evaluate
  * after the deal: a slow deal on a loaded claw had the first pick over before a late watcher started.
  * Read back with {@link ropeEmptied}.
  */
 function watchRope(): void {
-  const w = window as unknown as { __ropeEmptied: number[] };
-  w.__ropeEmptied = [];
-  let emptied = false;
+  const w = window as unknown as { __ropeEnds: Map<Element, number> };
+  w.__ropeEnds = new Map();
   const tick = (): void => {
-    const fuse = document.querySelector<HTMLElement>('[data-testid="pick-rope"] .pick-rope__fuse');
-    const state = fuse?.parentElement?.dataset.state;
-    if (fuse === null || state === 'waiting') emptied = false;
-    else if (!emptied && fuse.getBoundingClientRect().width < 0.5) {
-      emptied = true;
-      w.__ropeEmptied.push(Date.now());
+    const fuse = document.querySelector('[data-testid="pick-rope"] .pick-rope__fuse');
+    const burn = fuse?.getAnimations().find((a) => a.playState !== 'idle');
+    const startTime = burn?.startTime;
+    const endTime = burn?.effect?.getComputedTiming().endTime;
+    if (fuse != null && typeof startTime === 'number' && typeof endTime === 'number') {
+      w.__ropeEnds.set(fuse, Math.round(performance.timeOrigin + startTime + endTime / (burn!.playbackRate || 1)));
     }
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
 }
 
-const ropeEmptied = (page: Page): Promise<number[]> => page.evaluate(() => (window as unknown as { __ropeEmptied: number[] }).__ropeEmptied);
+/** Each pick's fuse, the moment its burn ran or runs out, in the order the fuses were drawn. */
+const ropeEmptied = (page: Page): Promise<number[]> => page.evaluate(() => [...(window as unknown as { __ropeEnds: Map<Element, number> }).__ropeEnds.values()]);
 
 /** A point on the page where `cardId`'s pick button is what the pointer would be over, or null if none of it shows. */
 async function pointOver(page: Page, cardId: string): Promise<{ x: number; y: number } | null> {
@@ -158,6 +161,21 @@ function sentPicks(p: Player): number {
   return draftEnvelopes({ name: p.name, seat: -1, envelopes: envelopesOf(p.captures.filter((c) => c.dir === 'out')) }).filter(
     (e) => (e.msg as { type?: string }).type === 'pick',
   ).length;
+}
+
+/**
+ * The pod's room closed by its owner, then both browsers. A draft on the rope does not stop when its pages
+ * do: every seat times out on the server's clock until the draft is over, beside the next test (check job
+ * 128376344510: this file's first draft was still picking for its absent seats two tests later).
+ */
+async function endPod(alice: Player, bob: Player, roomId: string): Promise<void> {
+  const closed = await alice.context.request.post(`${EDGE_ORIGIN}${PREFIX}/api/rooms/${roomId}/close`, { data: {} });
+  const gone = (await alice.context.request.get(`${EDGE_ORIGIN}${PREFIX}/api/rooms/${roomId}`)).status();
+  await alice.context.close();
+  await bob.context.close();
+  expect(closed.status(), `room ${roomId} closed by its owner`).toBe(200);
+  // Gone, so its rope's next timer finds no room and stops (`socket.ts`'s `ropeOut`).
+  expect(gone, `room ${roomId} is gone`).toBe(404);
 }
 
 /** Alice leads, switches the rope on at {@link SPEED}, both sit and ready, the AI fills the pod and it deals. */
@@ -235,8 +253,7 @@ test('the draft rope: an idle drafter is picked for on timeout, and every pick i
     );
     expect(timeouts.map((l) => l.totalMs)).toEqual([expectedMs(15), expectedMs(14), expectedMs(13)]);
   } finally {
-    await alice.context.close();
-    await bob.context.close();
+    await endPod(alice, bob, roomId);
   }
 });
 
@@ -280,8 +297,7 @@ test('the rope runs out when the timeout pick lands, however many envelopes arri
       expect((t.lateMs as number) - (t.loopLateMs as number), `the rope's timer asked for ${(t.lateMs as number) - (t.loopLateMs as number)} ms past the deadline`).toBeLessThan(250);
     }
   } finally {
-    await alice.context.close();
-    await bob.context.close();
+    await endPod(alice, bob, roomId);
   }
 });
 
@@ -315,15 +331,14 @@ test('a drafter whose time runs out gets the card under the pointer', async ({ b
     const timeouts = serverLog({ serverLogFile: resolve(RUN_DIR, 'server.jsonl') }).filter((l) => l.evt === 'pick-timeout' && l.draftId === roomId && l.seat === 1);
     expect(timeouts.map((l) => l.chose)).toEqual(['lean']);
   } finally {
-    await alice.context.close();
-    await bob.context.close();
+    await endPod(alice, bob, roomId);
   }
 });
 
 // On a phone the pack is a row of a flex column, not a grid cell: the rope must still span it.
 test('on a phone the burning rope spans the pack', async ({ browser }) => {
   test.setTimeout(120_000);
-  const { alice, bob } = await dealtPod(browser, true);
+  const { alice, bob, roomId } = await dealtPod(browser, true);
   try {
     const rope = bob.page.getByTestId('pick-rope');
     await expect(rope).toHaveAttribute('data-state', /^(burning|urgent)$/, { timeout: expectedMs(15) + UI_TIMEOUT });
@@ -342,7 +357,6 @@ test('on a phone the burning rope spans the pack', async ({ browser }) => {
     }));
     expect(tops.pack).toBe(tops.main);
   } finally {
-    await alice.context.close();
-    await bob.context.close();
+    await endPod(alice, bob, roomId);
   }
 });
