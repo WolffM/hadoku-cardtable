@@ -71,6 +71,16 @@ before planning cross-game work.
   GPL-3.0-or-later; new platform code (no card kit, no Forge content) is MIT by default (D26,
   2026-11-06, amending D16). Don't strip Forge's per-file copyright headers, and don't relicense a
   package by editing its `package.json` alone — `docs/LICENSING.md` has the mechanics.
+- **Layer fence.** `scripts/layers/layers.json` maps every tracked source file to `platform` (MIT,
+  imports platform only), `magic` (GPL, imports platform/magic/tangled), `tangled` (GPL, today's
+  generic-mechanism-plus-Magic debt, an explicit list that may only shrink) or `site` (GPL for
+  now, the composition roots, may import anything). `scripts/layers/ratchet.test.ts` runs in
+  `pnpm run check` and fails when a new import crosses a forbidden direction, when a package's
+  licence no longer matches what its files are, or when a `platform` file carries a GPL header.
+  When it fails: move the Magic part next to its Magic peers, classify the importing file as Magic
+  in `layers.json` if that is what it is, or put the generic part in a platform file — the failure
+  message names the file and line, and `node scripts/layers/baseline.ts` is the one command that
+  accepts a count once it has genuinely fallen.
 - **No `.env`.** Secrets come from the vault broker through the PM2 wrapper. The
   app holds two: its stats service key and ArchiveBot's webhook secret
   (`ARCHIVEBOT_CARDTABLE_WEBHOOK_SECRET`, prod only, for release notes). Never add one
