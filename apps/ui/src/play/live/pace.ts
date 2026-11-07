@@ -199,7 +199,8 @@
 import { DELTA_TYPE } from '@hadoku/forge-wire';
 import { CLIENT_EVENT, type ClientEvent } from '@hadoku/shared';
 
-import { BOLT_STAGGER_MS, boardHold, prefersReducedMotion, unlockAfter, whenBoardUnlocked, type BoardHold } from '../motion.ts';
+import { BOLT_STAGGER_MS, boardHold, unlockAfter, whenBoardUnlocked, type BoardHold } from '../motion.ts';
+import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { FLIP_MS } from './CoinToss.tsx';
 import { rollMs } from './dice.ts';
 import type { MatchTransport } from './match.ts';

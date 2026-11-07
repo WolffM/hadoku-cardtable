@@ -72,7 +72,7 @@ import {
   type RoomsClient,
 } from './api.ts';
 import { Avatar, faceOf } from '../components/Avatar.tsx';
-import { Reveal } from '../components/Reveal.tsx';
+import { Reveal } from '@hadoku/ui-shell/components';
 import { FrontGateContext, usePartShown } from '../front/gate.ts';
 import { MAX_ROOM_GHOSTS } from '../front/shape.ts';
 import { NEW_ROOM_FIELDS, RoomFields, roomRequest, type RoomFieldValues } from './RoomFields.tsx';
@@ -85,7 +85,7 @@ import { mountTips } from '../play/tip/index.ts';
 import { TopLayer } from '../topLayer.tsx';
 import { OverPage } from '../components/OverPage.tsx';
 import './rooms.css';
-import { uiLength } from '../settings/ui-scale.ts';
+import { uiLength } from '@hadoku/ui-shell/settings';
 import { useWhoami } from '../room/whoami.ts';
 import { defaultRoomName } from './roomName.ts';
 

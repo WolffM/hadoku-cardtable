@@ -32,8 +32,6 @@ export function writeDurations(el: HTMLElement, durations: readonly (readonly [s
   for (const [name, ms] of durations) el.style.setProperty(name, `${ms}ms`);
 }
 
-export { prefersReducedMotion } from '@hadoku/ui-shell/motion';
-
 /**
  * Runs `done` once `el`'s glide has come to rest: its running `left`/`top` transitions finished,
  * timed by the transitions themselves. A clock started when the style was set runs ahead of a

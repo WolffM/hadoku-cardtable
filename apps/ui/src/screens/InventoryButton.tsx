@@ -11,7 +11,7 @@
 import { Icon } from '@wolffm/themes';
 
 import { routeHash } from './route.ts';
-import { uiLength } from '../settings/ui-scale.ts';
+import { uiLength } from '@hadoku/ui-shell/settings';
 
 export function InventoryButton() {
   return (

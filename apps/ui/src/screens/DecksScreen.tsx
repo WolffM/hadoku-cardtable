@@ -36,7 +36,7 @@ import { navigate } from './route.ts';
 import type { DeckRecords } from '../stats/deckOrder.ts';
 import { fetchDeckRecords } from '../stats/source.ts';
 import { HomeHead } from './HomeHead.tsx';
-import { useChromeShell } from '../chrome/shell.ts';
+import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
 import './DecksScreen.css';
 
 export interface DecksScreenProps {

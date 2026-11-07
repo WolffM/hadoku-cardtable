@@ -17,7 +17,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import { noteBoardDrawing, prefersReducedMotion } from '../motion.ts';
+import { noteBoardDrawing } from '../motion.ts';
+import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { CoinToss, FLIP_MS, SideFace } from './CoinToss.tsx';
 import type { ShownFlip } from './shown.ts';
 

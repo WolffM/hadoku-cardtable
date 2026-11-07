@@ -19,7 +19,7 @@ import { parseServerFrame } from '@hadoku/forge-wire';
 
 import type { Fetch } from '../http.ts';
 import { playRole, resetRolePlayerForTests, setRolePlayer } from '../sound/index.ts';
-import { isMuted, resetMutedForTests, setMuted } from '../sound/mute.ts';
+import { isMuted, resetMutedForTests, setMuted } from '@hadoku/ui-shell/sound';
 import type { MatchTransport } from '../play/live/match.ts';
 import type { ReplayData } from '../replay/transport.ts';
 import { FeaturedMatch } from './FeaturedMatch.tsx';

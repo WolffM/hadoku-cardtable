@@ -146,9 +146,9 @@ import {
   noteMillBeat,
   noteLifeImpact,
   noteResolutionEffects,
-  prefersReducedMotion,
   REVEAL_BEAT_MS,
 } from '../motion.ts';
+import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { battlefieldCard, faceBox, overlayOf, zoneOf } from './board-dom.ts';
 import { DEPARTURE_ATTR, departureCause, departuresOf, exitMotionFor, exitMs, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
 import { ALIGN_MS, bendOf, BLAST_MS, blast, boxIn, contactMs, fanOf, ram, RAM_STAGGER_MS, ramMs, strikeOffset, windUpOf, type Point, type RamEnd, type RamKind } from './ram.ts';

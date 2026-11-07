@@ -10,21 +10,10 @@
 import { useSyncExternalStore } from 'react';
 import { Icon } from '@wolffm/themes';
 
-import {
-  LEVEL_DEFAULTS,
-  getLevel,
-  getMusicTrack,
-  isMuted,
-  playRole,
-  setLevel,
-  setMusicPick,
-  setMuted,
-  subscribeMusicTrack,
-  subscribeSound,
-  type LevelName,
-} from '../sound/index.ts';
+import { getMusicTrack, playRole, subscribeMusicTrack } from '../sound/index.ts';
+import { LEVEL_DEFAULTS, getLevel, isMuted, setLevel, setMusicPick, setMuted, subscribeSound, type LevelName } from '@hadoku/ui-shell/sound';
 import { trackName } from '../sound/match-music.ts';
-import { uiLength } from './ui-scale.ts';
+import { uiLength } from '@hadoku/ui-shell/settings';
 
 function MusicTrackPicker({ disabled }: { disabled: boolean }) {
   const now = useSyncExternalStore(subscribeMusicTrack, getMusicTrack, () => null);

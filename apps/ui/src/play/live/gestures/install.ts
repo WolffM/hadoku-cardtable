@@ -252,7 +252,8 @@ import { carryCastOffStack, endPlacement, notePlayedTo, placementAt, previewPlay
 // handoff signal — see `syncParkedGhost`'s own note.
 import { gripStackItem, holdSpell, isPlaced, onSpellDrawn, placeSpell, releaseSpell, stackBoxOf } from '../placed.ts';
 import { spotOf } from '../presence.ts';
-import { afterGlide, HOUSE_DURATIONS, prefersReducedMotion, writeDurations } from '../../motion.ts';
+import { afterGlide, HOUSE_DURATIONS, writeDurations } from '../../motion.ts';
+import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { drawnCentreOf, reportHandover, type HandoverFacts } from '../handover-report.ts';
 import type { GameEntityRef } from '@hadoku/forge-wire';
 import { combatArrows, type AutoTargetArrow } from './auto-targets.ts';

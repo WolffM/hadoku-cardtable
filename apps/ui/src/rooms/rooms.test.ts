@@ -24,8 +24,8 @@ import { clearJoined, isJoined } from './joined.ts';
 import { parseRoute } from '../screens/route.ts';
 import { ROOM_WORDS } from './roomName.ts';
 import { resetRolePlayerForTests, setRolePlayer } from '../sound/index.ts';
-import { resetMutedForTests, setMuted } from '../sound/mute.ts';
-import type { SoundEvent } from '../sound/mix.ts';
+import { resetMutedForTests, setMuted } from '@hadoku/ui-shell/sound';
+import type { SoundEvent } from '@hadoku/ui-shell/sound';
 import {
   clientModeLabel,
   GAME_TYPES,

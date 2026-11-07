@@ -35,7 +35,7 @@
  * aiming. Committing it (`commitArrowAt`) closes the gaps and settles it into the ribbon.
  */
 import { centreOf } from '../../lift.ts';
-import { prefersReducedMotion } from '../../motion.ts';
+import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import type { AutoTargetArrow } from './auto-targets.ts';
 import type { DropTarget, Point } from './types.ts';
 import './arrow.css';

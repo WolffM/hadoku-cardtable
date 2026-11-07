@@ -62,7 +62,7 @@ import { forwardRef, useContext, useEffect, useLayoutEffect, useMemo, useRef, us
 import { seatStatus, SEAT_HELD_NOTE } from '../draft/seatStatus.ts';
 import type { DraftView } from '../draft/types.ts';
 import { isWaiting } from '../draft/types.ts';
-import { prefersReducedMotion } from '../play/motion.ts';
+import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { Avatar, MemberFaces } from './Avatar.tsx';
 import { PlayerName } from '../room/look.tsx';
 import { DraftCounters } from './DraftCounters.tsx';

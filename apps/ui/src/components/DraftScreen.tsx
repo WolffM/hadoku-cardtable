@@ -62,9 +62,9 @@ import { PoolView, POOL_ENTER_MS, type PoolEnterRect } from './PoolView.tsx';
 import { useDraftBuild, type DraftBuildStore } from '../deck/useDraftBuild.ts';
 import { Ghost, SeatBar, SeatBarSkeleton } from './SeatBar.tsx';
 import { SpectatorNotice } from './SpectatorNotice.tsx';
-import { prefersReducedMotion } from '../play/motion.ts';
+import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
-import { uiPx } from '../settings/ui-scale.ts';
+import { uiPx } from '@hadoku/ui-shell/settings';
 import './draft.css';
 
 const rectOf = (r: DOMRect): PoolEnterRect => ({ left: r.left, top: r.top, width: r.width, height: r.height });

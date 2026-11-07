@@ -30,7 +30,7 @@ vi.mock('../draft/cardImage.ts', async (real) => ({
 }));
 
 const { WildcardCard } = await import('./WildcardCard.tsx');
-const { REVEAL_MS } = await import('../components/Reveal.tsx');
+const { REVEAL_MS } = await import('@hadoku/ui-shell/components');
 
 describe('the wildcard warms its other pages’ art', () => {
   beforeEach(() => {

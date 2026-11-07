@@ -16,7 +16,7 @@
 
 import { Suspense, useContext, useEffect, useState } from 'react';
 
-import { Reveal } from '../components/Reveal.tsx';
+import { Reveal } from '@hadoku/ui-shell/components';
 import { lazyComponent } from '../lazy.ts';
 import type { FeaturedPick } from '../rooms/api.ts';
 import { FrontGateContext, usePartShown } from './gate.ts';

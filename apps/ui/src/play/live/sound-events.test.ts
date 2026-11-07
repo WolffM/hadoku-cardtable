@@ -9,7 +9,7 @@ import { loadPackets, PLAY_FIXTURES } from '../fixtures.ts';
 import { foldPackets } from '../fold.ts';
 import { type WireObject } from '../wire.ts';
 import { damagePower } from '../motion.ts';
-import type { DelayedSoundEvent } from '../../sound/index.ts';
+import type { DelayedSoundEvent } from '@hadoku/ui-shell/sound';
 import poolData from '../../draft/pool.json' with { type: 'json' };
 import { attackDeclared, castRole, colourCell, colourRow, deriveSoundEvents, LAND_THUD_DELAY_MS, thrownSoundEvents, UNTAP_REPEAT_GAP_MS, UNTAP_REPEAT_MAX, wasShuffled } from './sound-events.ts';
 import { shownFlip, shownRoll } from './shown.ts';

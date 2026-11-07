@@ -20,10 +20,10 @@ import { Icon } from '@wolffm/themes';
 import { useStatsLoad } from '@wolffm/game-stats-ui';
 import '@wolffm/game-stats-ui/style.css';
 
-import { useChromeShell } from '../chrome/shell.ts';
+import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
 import { HomeHead } from '../screens/HomeHead.tsx';
 import { navigate, routeHash, type Route } from '../screens/route.ts';
-import { uiLength } from '../settings/ui-scale.ts';
+import { uiLength } from '@hadoku/ui-shell/settings';
 import { Leaderboard } from './Leaderboard.tsx';
 import { Profile } from './Profile.tsx';
 import { everyone, prefetchLeaderboard, prefetchProfile, sharedSource, type StatsSource } from './source.ts';

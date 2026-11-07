@@ -12,7 +12,8 @@ import { useEffect, useState } from 'react';
 import { GAUNTLET_DECKS, GAUNTLET_REVEAL_MS } from '@hadoku/shared';
 
 import { FLIP_MS } from '../../play/live/CoinToss.tsx';
-import { GLIDE_MS, prefersReducedMotion } from '../../play/motion.ts';
+import { GLIDE_MS } from '../../play/motion.ts';
+import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 
 /** The title's landing, before the coin. */
 export const TITLE_MS = Math.round(GAUNTLET_REVEAL_MS * 0.15);

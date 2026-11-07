@@ -35,7 +35,7 @@ export interface RoleRegistry {
 
 let ambientRegistry: RoleRegistry = { roles: new Map(), fallback: {}, reversed: {} };
 
-/** The registry a bare `createMixPlanner()` builds against, for a call site that leans on its default. The old `{mix,mixer}.ts` stub sets this once, with the real roles, on import; new code prefers `createSound`. */
+/** The registry a bare `createMixPlanner()` builds against, for a call site that leans on its default. The game sets this once, with its real roles, before such a call; new code prefers `createSound`. */
 export function configureSoundRoles(registry: RoleRegistry): void {
   ambientRegistry = registry;
 }

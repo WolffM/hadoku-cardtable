@@ -13,7 +13,7 @@ import { Icon } from '@wolffm/themes';
 import { whenIdle } from '../idle.ts';
 import { lazyComponent } from '../lazy.ts';
 import { routeHash } from '../screens/route.ts';
-import { uiLength } from '../settings/ui-scale.ts';
+import { uiLength } from '@hadoku/ui-shell/settings';
 import type { StatsSource } from './source.ts';
 
 export const StatsPage = lazyComponent(() => import('./StatsPage.tsx').then((m) => m.StatsPage));

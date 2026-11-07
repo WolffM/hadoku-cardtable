@@ -19,7 +19,7 @@
 import { useContext, useEffect, useRef, useState, type FormEvent } from 'react';
 import type { EventView } from '@hadoku/shared';
 
-import { Reveal } from '../components/Reveal.tsx';
+import { Reveal } from '@hadoku/ui-shell/components';
 import { roomsClient } from '../rooms/api.ts';
 import { navigate } from '../screens/route.ts';
 import { playRole } from '../sound/index.ts';

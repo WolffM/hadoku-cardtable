@@ -11,7 +11,7 @@ import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { PlayPrefsSchema } from '../play/live/prefs.ts';
-import { scaleCssValue, UI_SCALE } from './ui-scale.ts';
+import { scaleCssValue, UI_SCALE } from '@hadoku/ui-shell/settings';
 
 describe('the scale as a saved preference', () => {
   it('is a saved preference within its range', () => {

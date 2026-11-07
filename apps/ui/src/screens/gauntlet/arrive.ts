@@ -28,7 +28,7 @@
 import type { GauntletView } from '@hadoku/shared';
 
 import { HOUSE_CURVE } from '../../play/lift.ts';
-import { prefersReducedMotion } from '../../play/motion.ts';
+import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 
 /**
  * The board to leave, when `next` is the step change out of ban/pick: the board as it was last

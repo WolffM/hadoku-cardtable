@@ -29,7 +29,7 @@ import { QUIET_RECONNECT_MS } from '../../restart-notice.ts';
 import { parseDck } from '@hadoku/carddata/dck';
 import { deckFromDeckFile } from '@hadoku/deck';
 import { setRolePlayer } from '../../sound/index.ts';
-import type { SoundEvent } from '../../sound/mix.ts';
+import type { SoundEvent } from '@hadoku/ui-shell/sound';
 
 import type { BoardInteraction, BoardLayout } from '../Board.tsx';
 import { PHASE_LABEL, viewerOf, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';

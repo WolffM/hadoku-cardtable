@@ -6,8 +6,8 @@ import { APP_NAME } from './app-name.ts';
 import { BUILD_DEFINES } from './build-defines.ts';
 import { CHUNK_GROUPS, CHUNK_SIZE_WARNING_KB } from './chunks.ts';
 import { stylesheetInSourceOrder } from './stylesheet.ts';
-import { uiScaleCss } from './src/settings/ui-scale.ts';
-import { themeInitScript } from './theme-init.ts';
+import { uiScaleCss } from '@hadoku/ui-shell/settings';
+import { themeInitScript } from '@hadoku/ui-shell/theme';
 
 /**
  * The app is served under `hadoku.me/cardtable/` (PPE: `/cardtable-ppe/`) behind

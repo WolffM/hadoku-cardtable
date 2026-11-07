@@ -22,7 +22,7 @@ import { Icon } from '@wolffm/themes';
 import type { RetireReason, SoundMark, SoundTake } from '@hadoku/shared';
 
 import { candidatesFor, freshFor, queueOrder } from '../sound/queue.ts';
-import { uiLength } from '../settings/ui-scale.ts';
+import { uiLength } from '@hadoku/ui-shell/settings';
 
 /** A prompt without the generator's stock tail ("High-quality, stereo, 44.1kHz, sound effect."); the full one is the tooltip. */
 export function promptGist(prompt: string): string {

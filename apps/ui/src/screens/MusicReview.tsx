@@ -38,10 +38,9 @@ import {
 import { ManaCost } from '../components/ManaPip.tsx';
 import { trackName } from '../sound/match-music.ts';
 import { musicReviewClient, soundsClient, type MusicReviewClient, type SoundsClient } from '../sound/builderClient.ts';
-import { createMixer, type Mixer } from '../sound/mixer.ts';
-import { getLevel, subscribeSound } from '../sound/mute.ts';
+import { createMixer, getLevel, subscribeSound, type Mixer } from '@hadoku/ui-shell/sound';
 import './SoundBuilder.css';
-import { uiLength } from '../settings/ui-scale.ts';
+import { uiLength } from '@hadoku/ui-shell/settings';
 
 export interface MusicReviewProps {
   /** Tests pass stubs. Production builds the real fetch-backed clients and mixer. */

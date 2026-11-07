@@ -19,7 +19,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { Avatar, type Face } from '../../components/Avatar.tsx';
 import { PlayerName } from '../../room/look.tsx';
 import { StatusPill } from '../../components/StatusPill.tsx';
-import { prefersReducedMotion } from '../../play/motion.ts';
+import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { playRole } from '../../sound/index.ts';
 import './FaceOff.css';
 

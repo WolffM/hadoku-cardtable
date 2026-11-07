@@ -21,11 +21,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { REVERSED_ROLES, SOUND_MATRIX, SOUND_ROLES, type CellId, type SoundBus } from '@hadoku/shared';
 
+import '../sound/registry.ts';
 import { soundsClient, type SoundsClient } from '../sound/builderClient.ts';
 import { useSoundAssignments } from '../sound/useSoundAssignments.ts';
-import { GainSlider } from '../sound/GainSlider.tsx';
-import { DEFAULT_MIX, type MixSettings, type PlanResult } from '../sound/mix.ts';
-import { createMixer, type Mixer } from '../sound/mixer.ts';
+import { GainSlider, DEFAULT_MIX, createMixer, type Mixer, type MixSettings, type PlanResult } from '@hadoku/ui-shell/sound';
 import { beatEvent, SCENARIOS, type Beat, type Identities, type Scenario } from '../sound/scenarios.ts';
 import './SoundBuilder.css';
 

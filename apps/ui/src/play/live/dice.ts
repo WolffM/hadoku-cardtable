@@ -34,7 +34,8 @@
  */
 
 import { viewerOf, type BoardView } from '../adapter.ts';
-import { BEAT_ANIMATION_ID, noteBoardDrawing, prefersReducedMotion } from '../motion.ts';
+import { BEAT_ANIMATION_ID, noteBoardDrawing } from '../motion.ts';
+import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { battlefieldCard, faceBox, overlayOf } from './board-dom.ts';
 import type { ShownRoll } from './shown.ts';
 

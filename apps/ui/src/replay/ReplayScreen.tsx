@@ -22,7 +22,7 @@
 import { useEffect, useState } from 'react';
 
 import { closeMatch, type LiveMatch } from '../play/live/match.ts';
-import { useChromeShell } from '../chrome/shell.ts';
+import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
 import { readyPlayer } from './load.ts';
 import { ReplayBoard } from './ReplayBoard.tsx';
 import type { ReplayClock } from './player.ts';

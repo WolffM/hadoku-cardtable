@@ -439,7 +439,7 @@ import { useCardMenu } from './card-menu/CardMenu.tsx';
 import { CheckMark } from './marks.tsx';
 import { Relations } from './Relations.tsx';
 import { cardWidthIn, onCardWidthsChanged } from './card-size.ts';
-import { uiPx } from '../settings/ui-scale.ts';
+import { uiPx } from '@hadoku/ui-shell/settings';
 import { useRailFit } from './tag-rail.ts';
 import { liftGhost, type Ghost } from './lift.ts';
 import { observeZoneBoxes, type ZoneBoxes } from './zone-box.ts';

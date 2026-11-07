@@ -4,7 +4,7 @@ import { Icon } from '@wolffm/themes';
 
 import { routeHash } from './route.ts';
 import './DecksScreen.css';
-import { uiLength } from '../settings/ui-scale.ts';
+import { uiLength } from '@hadoku/ui-shell/settings';
 
 export function DecksButton() {
   return (

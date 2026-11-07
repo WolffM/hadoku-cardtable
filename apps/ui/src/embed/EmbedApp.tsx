@@ -53,8 +53,8 @@ import { Screen } from '../screens/Screen.tsx';
 import { navigate, useRoute, type Route } from '../screens/route.ts';
 import { useUiScale } from '../settings/Settings.tsx';
 import { useTrim } from '../settings/siteTrim.ts';
-import { useSoundPrefs } from '../sound/mute.ts';
-import { scaleRootOf } from '../settings/ui-scale.ts';
+import { useSoundPrefs } from '@hadoku/ui-shell/sound';
+import { scaleRootOf } from '@hadoku/ui-shell/settings';
 import type { GameBundleContext } from './contract.ts';
 import './embed.css';
 

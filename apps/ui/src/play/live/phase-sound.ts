@@ -14,7 +14,7 @@
  * windows already open when the phase began are remembered by identity and never count as its hold.
  */
 
-import type { DelayedSoundEvent } from '../../sound/index.ts';
+import type { DelayedSoundEvent } from '@hadoku/ui-shell/sound';
 
 /** Longer than any step Forge passes straight through (160 ms measured), shorter than a stop anyone waits on. */
 export const PHASE_SETTLE_MS = 700;

@@ -9,7 +9,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type 
 import { Icon } from '@wolffm/themes';
 
 import { useDismiss } from '../popover.ts';
-import { uiLength } from '../settings/ui-scale.ts';
+import { uiLength } from '@hadoku/ui-shell/settings';
 import { OverPage } from './OverPage.tsx';
 import './Popover.css';
 

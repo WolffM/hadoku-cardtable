@@ -58,7 +58,7 @@ import { DECK_COLORS } from '@hadoku/deck';
 import type { DraftCard } from '../draft/types.ts';
 import { groupCards, mvLabel, type GroupId } from '../deck/cardOrder.ts';
 import { DraggableCard, DropArea, useCardSplit, type Area } from '../deck/dragMove.tsx';
-import { uiPx } from '../settings/ui-scale.ts';
+import { uiPx } from '@hadoku/ui-shell/settings';
 import { CardPile, pileChrome } from './CardPile.tsx';
 import { CardTile } from './CardTile.tsx';
 import { cssPx, fitPiles, useBox } from './cardFit.ts';

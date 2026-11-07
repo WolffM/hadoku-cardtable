@@ -46,7 +46,7 @@ const MAX_ROOM_GHOSTS = 12;
 
 type Box = { x: number; y: number; w: number; h: number };
 
-/** carol's saved UI scale (`apps/ui/src/settings/ui-scale.ts`): not 100%, so a page drawn before it is known draws at the wrong size. */
+/** carol's saved UI scale (`@hadoku/ui-shell/settings`): not 100%, so a page drawn before it is known draws at the wrong size. */
 const CAROL_UI_SCALE = 1.1;
 /** How far a box may move or resize between two frames, in px, and how far its transform may scale. */
 const FRAME_PX = 0.5;

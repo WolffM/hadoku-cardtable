@@ -34,7 +34,7 @@ import { ChipFilterBar, toggled } from '../screens/DeckFilterBar.tsx';
 import { DeckPeek, usePeekHover } from '../screens/DeckPeek.tsx';
 import { FREE_PICK } from '@hadoku/shared';
 import { FORMAT_TABS, tablesClient, type FormatFamily, type TablesClient } from '../screens/tables.ts';
-import { uiLength } from '../settings/ui-scale.ts';
+import { uiLength } from '@hadoku/ui-shell/settings';
 import { matchAttr, Pips } from './magic.tsx';
 import { everyone, loaded, onePlayer } from './source.ts';
 

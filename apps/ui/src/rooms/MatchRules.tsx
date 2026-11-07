@@ -30,7 +30,7 @@ import { Icon } from '@wolffm/themes';
 import { ActionButton } from '../components/ActionButton.tsx';
 import { Popover, usePopover } from '../components/Popover.tsx';
 import { RadioCards, type RadioCard } from '../components/RadioCards.tsx';
-import { uiLength } from '../settings/ui-scale.ts';
+import { uiLength } from '@hadoku/ui-shell/settings';
 import './CloseRoom.css';
 
 /** A rule that is on or off. */

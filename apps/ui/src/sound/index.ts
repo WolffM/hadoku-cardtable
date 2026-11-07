@@ -12,9 +12,9 @@
  * the mixer for a recorder, so a test asserts raised events without audio.
  */
 
-import { FALLBACK_ROLES, REVERSED_ROLES, SOUND_ROLES } from '@hadoku/shared';
 import { createSound } from '@hadoku/ui-shell/sound';
 
+import { SOUND_REGISTRY } from './registry.ts';
 import { soundsClient } from './builderClient.ts';
 
 /** `ui.*` roles already logged one by one as they sound: left out of the interface tally so they are not double-counted. */
@@ -27,7 +27,7 @@ function client(): ReturnType<typeof soundsClient> {
 }
 
 const sound = createSound({
-  registry: { roles: SOUND_ROLES, fallback: FALLBACK_ROLES, reversed: REVERSED_ROLES },
+  registry: SOUND_REGISTRY,
   individuallyLogged: INDIVIDUALLY_LOGGED,
   client: {
     takeUrl: (file, version) => client().takeUrl(file, version),
@@ -62,7 +62,3 @@ export function hoverControl(event: { target: EventTarget | null; relatedTarget:
   if (event.relatedTarget instanceof Node && button.contains(event.relatedTarget)) return;
   playRole('ui.hover-card');
 }
-
-// The mute/level/music-pick store's own exports (`LEVEL_DEFAULTS`, `getLevel`, `isMuted`, ..., `type LevelName`)
-// and `DelayedSoundEvent`/`MusicTrack`/`RolePlayer`: every importer already names these, unchanged.
-export * from '@hadoku/ui-shell/sound';

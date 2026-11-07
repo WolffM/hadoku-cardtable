@@ -67,10 +67,9 @@ import {
 import { ManaCost } from '../components/ManaPip.tsx';
 import { pickRandom, soundsClient, type SoundsClient } from '../sound/builderClient.ts';
 import { useSoundAssignments } from '../sound/useSoundAssignments.ts';
-import { GainSlider } from '../sound/GainSlider.tsx';
-import { createMixer, type Mixer } from '../sound/mixer.ts';
+import { GainSlider, createMixer, type Mixer } from '@hadoku/ui-shell/sound';
 import { SoundQueue } from './SoundQueue.tsx';
-import { useChromeShell } from '../chrome/shell.ts';
+import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
 import './SoundBuilder.css';
 
 export interface SoundBuilderProps {

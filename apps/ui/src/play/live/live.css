@@ -2272,7 +2272,7 @@
 
 /*
  * `.wp-room-chrome-frame > aside.wp-room-chrome` is `@wolffm/watchparty-ui`'s
- * own structure (verified against the installed `room-chrome.js`, 0.45.13 —
+ * own structure (read from the installed package's markup —
  * not a published API, so a future bump could rename it; `RoomShell.test.ts`
  * has no equivalent check because the package is mocked there). Scoped to
  * `.room-shell[data-collapsible]` — RoomShell.tsx's own wrapper, set only when

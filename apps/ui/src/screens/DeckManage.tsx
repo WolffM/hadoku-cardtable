@@ -12,7 +12,7 @@ import { DECK_NAME_MAX } from '@hadoku/shared';
 
 import type { MyDeck, MyDecksClient } from '../deck/myDecks.ts';
 import './DecksScreen.css';
-import { uiLength } from '../settings/ui-scale.ts';
+import { uiLength } from '@hadoku/ui-shell/settings';
 
 export function DeckManage({ deck, client, onRenamed, onDeleted }: { deck: MyDeck; client: MyDecksClient; onRenamed: (deck: MyDeck) => void; onDeleted: () => void }) {
   const [naming, setNaming] = useState<string | null>(null);

@@ -63,7 +63,7 @@ import { followMatchOnce, followTableOnce, openNewMatch } from '../play/live/mat
 import { roomsClient, type RoomsClient } from '../rooms/api.ts';
 import { PodBuilding } from './pod/PodBuilding.tsx';
 import { tablesClient, type TablesClient } from './tables.ts';
-import { useChromeShell } from '../chrome/shell.ts';
+import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
 
 export interface DeckScreenProps {
   draftId: string;

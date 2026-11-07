@@ -27,7 +27,7 @@ vi.mock('../play/live/prefs.ts', async (importOriginal) => ({
 }));
 
 import { SettingsGear } from './Settings.tsx';
-import { UI_SCALE } from './ui-scale.ts';
+import { UI_SCALE } from '@hadoku/ui-shell/settings';
 
 afterEach(() => {
   cleanup();

@@ -48,7 +48,7 @@ import { CallIdSchema, ShowConfirmDialogReplySchema } from '@hadoku/forge-wire';
 
 import type { BoardLayout } from '../Board.tsx';
 import type { PackLayout } from '../../components/PackView.tsx';
-import { UI_SCALE } from '../../settings/ui-scale.ts';
+import { UI_SCALE } from '@hadoku/ui-shell/settings';
 
 const borrowed = {
   /** A non-empty string: `CallIdSchema` is `z.string().min(1)`. */

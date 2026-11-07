@@ -14,19 +14,9 @@
  * spelled. `room/RoomShell.tsx` asserts the id to our own room API; the server
  * carries it to the table view (`apps/server/src/http/routes.ts`).
  *
- * ## Where the viewer's own id comes from (wave 92, D)
- *
- * This used to read watchparty's write-through `localStorage` cache row as a
- * fallback when the account could not be reached — a derivation quoted out of
- * their shipped, minified bundle, with no typed accessor on either side
- * (`docs/requests/WATCHPARTY_AVATAR_ACCESSOR.md` is the standing ask). That
- * fallback is gone: `accountAvatarId` reads the one place avatars are resolved
- * by userId everywhere else in this app (`@wolffm/prefs-client/avatar`, the
- * same `resolveAvatars` our own server uses, `apps/server/src/people.ts`), and
- * answers null rather than guess from a cache row that may be stale, shared
- * anonymously, or simply absent on a browser that has never opened watchparty's
- * chrome. A viewer whose account has nothing picked wears whatever the room
- * handed them on joining (`room/lobby.ts`'s `AVATAR_POOL`), exactly as before.
+ * The viewer's own id comes from their account (`accountAvatarId`, below), and
+ * nowhere else: a viewer whose account has nothing picked wears whatever the room
+ * handed them on joining (`room/lobby.ts`'s `AVATAR_POOL`).
  */
 
 import { createAvatarClient } from '@wolffm/prefs-client/avatar';

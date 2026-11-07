@@ -48,7 +48,7 @@ vi.mock('@wolffm/watchparty-ui/room-chrome', () => ({
 
 // vi.mock calls above are hoisted above these imports by vitest's transform,
 // so the mocked modules are in place before AppChrome/RoomShell load them.
-import { AppChrome } from './AppChrome.tsx';
+import { AppChrome } from '@hadoku/ui-shell/chrome';
 import { RoomShell } from '../room/RoomShell.tsx';
 
 beforeEach(() => {

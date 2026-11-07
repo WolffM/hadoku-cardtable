@@ -300,9 +300,11 @@ import { deriveSoundEvents, thrownSoundEvents } from './sound-events.ts';
 import { phaseSoundGate } from './phase-sound.ts';
 import { NO_PRIORITY_CUE, nextPriorityCue, type PriorityCue } from './priority-cue.ts';
 import { matchStartSounded, openNewMatch } from './matchStart.ts';
-import { hoverControl, isMuted, playRole, playSoundEvents, takeUiTally, type DelayedSoundEvent } from '../../sound/index.ts';
+import { hoverControl, playRole, playSoundEvents, takeUiTally } from '../../sound/index.ts';
+import { isMuted, type DelayedSoundEvent } from '@hadoku/ui-shell/sound';
 import { useMatchMusic } from '../../sound/match-music.ts';
-import { boardDrawing, boardSoundsAt, cardImpactAt, exitBeatAt, lifeImpactAt, millBeatAt, prefersReducedMotion, whenBoardStill } from '../motion.ts';
+import { boardDrawing, boardSoundsAt, cardImpactAt, exitBeatAt, lifeImpactAt, millBeatAt, whenBoardStill } from '../motion.ts';
+import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import {
   asksForHandCards,
   abortAsk,

@@ -37,7 +37,7 @@ import { AppHeader } from '@wolffm/task-ui-components';
 import { Screen, type ScreenProps } from './screens/Screen.tsx';
 import { useRoute } from './screens/route.ts';
 import { setScreenMusic } from './sound/index.ts';
-import { AppChrome } from './chrome/AppChrome.tsx';
+import { AppChrome } from '@hadoku/ui-shell/chrome';
 import { HeaderLinks } from './chrome/HeaderLinks.tsx';
 import { RoomShell } from './room/RoomShell.tsx';
 import { useWhoami } from './room/whoami.ts';
@@ -46,7 +46,7 @@ import type { RoomView } from './rooms/api.ts';
 import { useJoined } from './rooms/joined.ts';
 import { CARDTABLE_SETTINGS_TABS, HostDrawsSettingsProvider, useUiScale } from './settings/Settings.tsx';
 import { useTrim } from './settings/siteTrim.ts';
-import { useSoundPrefs } from './sound/mute.ts';
+import { useSoundPrefs } from '@hadoku/ui-shell/sound';
 
 export type AppProps = ScreenProps;
 

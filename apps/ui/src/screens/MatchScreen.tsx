@@ -66,7 +66,7 @@ import {
 import { claimReload } from '../stale-build.ts';
 import { isEmbedded } from '../dom.ts';
 import { apiUrl, sendJson } from '../http.ts';
-import { useChromeShell } from '../chrome/shell.ts';
+import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
 import { useFollowReplacedGame } from './matchFollow.ts';
 
 /** A board's trouble, to the server over HTTP: the socket is what is in trouble. */

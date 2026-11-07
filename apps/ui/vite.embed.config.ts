@@ -5,7 +5,7 @@ import { APP_BASE } from './app-base.ts';
 import { BUILD_DEFINES } from './build-defines.ts';
 import { CHUNK_GROUPS, CHUNK_SIZE_WARNING_KB } from './chunks.ts';
 import { stylesheetInSourceOrder } from './stylesheet.ts';
-import { uiScaleCss } from './src/settings/ui-scale.ts';
+import { uiScaleCss } from '@hadoku/ui-shell/settings';
 
 /**
  * The second build: the game bundle a watchparty room imports (D21).

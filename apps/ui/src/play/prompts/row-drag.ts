@@ -52,7 +52,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 
 import { centreOf, flip, liftGhost, pinFixed, type At, type Ghost } from '../lift.ts';
-import { GLIDE_MS, prefersReducedMotion } from '../motion.ts';
+import { GLIDE_MS } from '../motion.ts';
+import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { clickLatch, pastSlop } from '../live/gestures/types.ts';
 import { eventTarget, hitAt, scopeOf } from '../../dom.ts';
 

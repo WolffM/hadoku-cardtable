@@ -49,7 +49,7 @@ import type { ManaColor } from '@hadoku/shared';
 import type { BoardCard, BoardView, DeathCause } from '../adapter.ts';
 import './departures.css';
 import { seedOf } from './projectile.ts';
-import { prefersReducedMotion } from '../motion.ts';
+import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { overlayOf } from './board-dom.ts';
 import { claimParticles, particleShare, shared } from './effect-budget.ts';
 import { markTempo } from './tempo.ts';

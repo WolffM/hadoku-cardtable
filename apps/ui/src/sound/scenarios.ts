@@ -11,7 +11,7 @@
 
 import { rowHasParadigm, type ParadigmId } from '@hadoku/shared';
 
-import type { Seat, SoundEvent } from './mix.ts';
+import type { Seat, SoundEvent } from '@hadoku/ui-shell/sound';
 
 export interface Beat {
   at: number;

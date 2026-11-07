@@ -32,8 +32,7 @@ import { COLOUR_IDS, landingRole, type ColourId, type DraftCard, type ParadigmId
 
 import { attackLockedIn, boardPT, viewerOf, type BoardCard, type BoardCardChoice, type BoardPlayer, type BoardView } from '../adapter.ts';
 import { damagePower } from '../motion.ts';
-import type { DelayedSoundEvent } from '../../sound/index.ts';
-import type { Seat } from '../../sound/mix.ts';
+import type { DelayedSoundEvent, Seat } from '@hadoku/ui-shell/sound';
 import type { ShownFlip, ShownRoll } from './shown.ts';
 
 /** Between one untap and the next in the untap step: past the mixer's 80 ms collapse window. */

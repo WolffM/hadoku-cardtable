@@ -12,8 +12,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 
 import { SoundSandbox } from './SoundSandbox.tsx';
 import type { SoundsClient } from '../sound/builderClient.ts';
-import { createMixPlanner, DEFAULT_MIX, type SoundEvent } from '../sound/mix.ts';
-import type { Mixer } from '../sound/mixer.ts';
+import { createMixPlanner, DEFAULT_MIX, type Mixer, type SoundEvent } from '@hadoku/ui-shell/sound';
 import { SCENARIOS } from '../sound/scenarios.ts';
 
 afterEach(() => {

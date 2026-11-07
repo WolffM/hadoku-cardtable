@@ -7,13 +7,10 @@
  * open changed the chat and nothing else. The match is told an avatar at its
  * start and again only when the room hears a change (`attachTables`'s relay).
  *
- * Read once at the start (`accountAvatarId`, `avatar.ts`), then watched by
- * EVENT rather than polled (manager's word, wave 92 D: a 2 s poll of the
- * account would have cost prefs-api one GET per open room tab every 2 s —
- * 30/min). `@wolffm/task-ui-components`'s `AVATAR_EVENT` fires on `window`
- * after every avatar change made in the fleet's own settings popout
- * (AvatarPicker), carrying the new `AvatarSettings` (`@wolffm/prefs-client/avatar`)
- * as `detail` — so a pick reaches here the moment it is made, with no poll at all.
+ * Read once at the start (`accountAvatarId`, `avatar.ts`), then watched by event,
+ * never polled: `@wolffm/task-ui-components`'s `AVATAR_EVENT` fires on `window`
+ * after every change made in the fleet's settings popout (AvatarPicker), with
+ * the new `AvatarSettings` as `detail`. It does not cross tabs.
  *
  * A server that has the viewer back after a reconnect is told the same id again:
  * a deploy restarts it, and a saved room keeps no faces (R12), so it came back

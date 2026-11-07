@@ -25,7 +25,7 @@ import { usePrefs } from '@wolffm/prefs-client/react';
 import type { BoardLayout } from '../play/Board.tsx';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS, type PlayPrefs } from '../play/live/prefs.ts';
 import { useLiveMatchSettings } from './liveMatchSettings.ts';
-import { uiLength } from './ui-scale.ts';
+import { uiLength } from '@hadoku/ui-shell/settings';
 
 const BOARD_LAYOUT_OPTIONS: readonly { value: BoardLayout; label: string }[] = [
   { value: 'single', label: 'Single board' },

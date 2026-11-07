@@ -18,9 +18,18 @@ import { cleanup, fireEvent, render, renderHook, screen } from '@testing-library
 
 import { CardTile } from '../components/CardTile.tsx';
 import type { DraftCard } from '../draft/types.ts';
-import type { SoundEvent } from './mix.ts';
 import { SoundSettings } from '../settings/SoundSettings.tsx';
-import { connectSoundPrefs, getLevel, getMusicPick, isMuted, legacyKeys, resetMutedForTests, setMusicPick, setMuted } from './mute.ts';
+import {
+  connectSoundPrefs,
+  getLevel,
+  getMusicPick,
+  isMuted,
+  legacyKeys,
+  resetMutedForTests,
+  setMusicPick,
+  setMuted,
+  type SoundEvent,
+} from '@hadoku/ui-shell/sound';
 import { matchMusicRoles, useMatchMusic } from './match-music.ts';
 import {
   holdMatchQuiet,

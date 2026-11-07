@@ -52,7 +52,7 @@
 
 import type { BoardView } from '../adapter.ts';
 import { artReady, cardImageUrl } from '../../draft/cardImage.ts';
-import { prefersReducedMotion } from '../motion.ts';
+import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import { faceBox, overlayOf } from './board-dom.ts';
 import { copyOfCard, LANDING_ATTR } from './departures.ts';
 import './mill.css';

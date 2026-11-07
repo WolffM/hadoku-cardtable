@@ -39,7 +39,7 @@ import { DiscordRecentSchema, type DiscordMessage } from '@hadoku/shared';
 import { apiUrl, bodyOf, getJson } from '../http.ts';
 import { DISCORD_INVITE_URL } from '../chrome/HeaderLinks.tsx';
 import { coverCropStyle, ILLUSTRATION_BOX } from '../components/faceCrop.ts';
-import { Reveal } from '../components/Reveal.tsx';
+import { Reveal } from '@hadoku/ui-shell/components';
 import { cardImageUrl, warmArt } from '../draft/cardImage.ts';
 import { useArtLoaded } from '../draft/useArtLoaded.ts';
 import { onRoomList, poolsClient, roomsClient } from '../rooms/api.ts';

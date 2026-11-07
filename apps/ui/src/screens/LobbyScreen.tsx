@@ -57,7 +57,7 @@ import { StatsButton } from '../stats/StatsButton.tsx';
 import type { StatsSource } from '../stats/source.ts';
 import { DecksButton } from './DecksButton.tsx';
 import { InventoryButton } from './InventoryButton.tsx';
-import { useChromeShell } from '../chrome/shell.ts';
+import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
 
 export interface LobbyScreenProps {
   /** Tests pass a rooms client over a stubbed fetch. Production passes nothing. */

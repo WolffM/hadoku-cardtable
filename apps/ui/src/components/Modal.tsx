@@ -9,7 +9,7 @@
 import { useEffect, useId, type ReactNode } from 'react';
 import { Icon } from '@wolffm/themes';
 
-import { uiLength } from '../settings/ui-scale.ts';
+import { uiLength } from '@hadoku/ui-shell/settings';
 import { OverPage } from './OverPage.tsx';
 import './Modal.css';
 

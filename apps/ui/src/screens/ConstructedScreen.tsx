@@ -239,7 +239,7 @@ import { CloseRoom } from '../rooms/CloseRoom.tsx';
 import { roomFeed, type RoomFeed } from '../rooms/feed.ts';
 import { clearJoined, markJoined } from '../rooms/joined.ts';
 import { latestReads } from '../rooms/latest.ts';
-import { useChromeShell } from '../chrome/shell.ts';
+import { useChromeShell } from '@hadoku/ui-shell/chrome/shell';
 import { startingText, useQueuePlace } from './queue-place.ts';
 
 export interface ConstructedScreenProps {

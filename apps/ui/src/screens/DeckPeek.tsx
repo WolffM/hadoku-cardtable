@@ -36,7 +36,7 @@ import { DECK_COLORS, type DeckColor } from '@hadoku/deck';
 import type { DeckStyle } from '@hadoku/deck/library';
 
 import { sortCards } from '../deck/cardOrder.ts';
-import { uiPx } from '../settings/ui-scale.ts';
+import { uiPx } from '@hadoku/ui-shell/settings';
 import { DeckStyleTag } from './DeckStyleTag.tsx';
 import { TopLayer } from '../topLayer.tsx';
 import { OverPage } from '../components/OverPage.tsx';

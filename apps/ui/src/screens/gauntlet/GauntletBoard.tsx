@@ -19,7 +19,7 @@ import type { GauntletDeck, GauntletSeatIndex, GauntletView } from '@hadoku/shar
 
 import { TossCoin } from '../../play/live/CoinToss.tsx';
 import { centreOf, flip, type At } from '../../play/lift.ts';
-import { prefersReducedMotion } from '../../play/motion.ts';
+import { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 import type { DeckOption } from '../ConstructedScreen.tsx';
 import { DeckTile } from '../DeckTile.tsx';
 import { useTilePeek } from './peek.tsx';

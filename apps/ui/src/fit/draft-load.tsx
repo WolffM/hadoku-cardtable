@@ -20,7 +20,7 @@ import '../styles.css';
 import { DraftScreen, DraftSkeleton } from '../components/DraftScreen.tsx';
 import { loadFixtures } from '../draft/fixtures.ts';
 import { initialState } from '../draft/table.ts';
-import { applyUiScale } from '../settings/ui-scale.ts';
+import { applyUiScale } from '@hadoku/ui-shell/settings';
 
 declare global {
   interface Window {
