@@ -1483,7 +1483,7 @@ export function pressButton(match: LiveMatch, which: 'ok' | 'cancel'): boolean {
   if (match.asks.length > 0) return false;
   // A pass: the offer stays drawn until Forge names the next one (`./offer-hold.ts`); a press kept
   // under the old hold belonged to the window this answers.
-  match.deferredSelect = null;
+  dropDeferredSelect(match, 'bar-pressed');
   const drawn = drawnOffer(match);
   if (!drawn.selectionOpen) holdOffer(match, drawn);
   send(match, { kind: 'act', method: which === 'ok' ? 'selectButtonOk' : 'selectButtonCancel' });
@@ -1996,7 +1996,7 @@ function holdOffer(match: LiveMatch, offer: LiveClickables, pressed: { card?: nu
   match.offerHold = hold;
   lapseHold(hold, () => match.offerHold, () => {
     match.offerHold = null;
-    match.deferredSelect = null;
+    dropDeferredSelect(match, 'hold-ended');
     notify(match);
   });
 }
@@ -3580,7 +3580,36 @@ function sendDeferredSelect(match: LiveMatch): void {
     selectCard(match, kept.cardId, kept.placement);
     return;
   }
-  if (real.selectionOpen || !drawnOffer(match).selectable.has(kept.cardId)) match.deferredSelect = null;
+  if (real.selectionOpen) dropDeferredSelect(match, 'selection-opened');
+  else if (!drawnOffer(match).selectable.has(kept.cardId)) dropDeferredSelect(match, 'offer-withdrawn');
+}
+
+/**
+ * A press kept under a held offer (`deferredSelect`) that Forge's next input never took: dropped,
+ * and logged, because nothing was sent and the match log could not otherwise say the card was
+ * pressed. `selection` names the selection that opened instead (`on-board`, `off-board`, or `none`).
+ */
+function dropDeferredSelect(match: LiveMatch, why: 'bar-pressed' | 'hold-ended' | 'selection-opened' | 'offer-withdrawn'): void {
+  const kept = match.deferredSelect;
+  if (kept === null) return;
+  match.deferredSelect = null;
+  if (match.watcher) return;
+  const chosen = match.selectables === null ? [] : [...match.selectables.cards];
+  const onView = match.view === null ? new Set<number>() : cardIdsInView(match.view);
+  const selection = chosen.length === 0 ? 'none' : chosen.some((id) => !onView.has(id)) ? 'off-board' : 'on-board';
+  match.transport.emit(CLIENT_EVENT, {
+    matchId: match.matchId,
+    kind: 'info',
+    data: {
+      what: 'click-dropped',
+      card: kept.cardId,
+      why,
+      selection,
+      inSelection: match.selectables?.cards.has(kept.cardId) ?? false,
+      ask: match.asks[0]?.method ?? '-',
+      prompt: (match.prompt ?? '').split('\n')[0]!.slice(0, 80),
+    },
+  } satisfies ClientEvent);
 }
 
 /**

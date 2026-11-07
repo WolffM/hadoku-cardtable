@@ -18,7 +18,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickPermanent, enabledOk, isOffered, makeTitled, ownNamed, resizeWindow, stackCount } from './play/board.ts';
+import { clickPermanent, clickTarget, enabledOk, isOffered, makeTitled, ownNamed, resizeWindow, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
 
@@ -199,8 +199,7 @@ test(titled('either seat drags any stack item; both at once neither flicker nor 
     await expect(alice.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
     for (let round = 1; round <= 2; round++) {
       expect(await clickPermanent(alice, nomads), `round ${round}: Nomads is pressed`).toBe(true);
-      await expect.poll(() => isOffered(alice, illusionist), { timeout: 20_000 }).toBe(true);
-      expect(await clickPermanent(alice, illusionist, 5_000), `round ${round}: the Illusionist is pressed`).toBe(true);
+      expect(await clickTarget(alice, illusionist), `round ${round}: the Illusionist is offered as its target, and pressed`).toBe(true);
       await expect.poll(() => stackCount(alice), { timeout: 20_000, message: `round ${round} on the stack` }).toBeGreaterThanOrEqual(2 * round);
     }
     await expect.poll(() => isOffered(alice, nomads), { timeout: 20_000, message: 'alice holds priority again' }).toBe(true);

@@ -1040,6 +1040,25 @@ export async function clickPermanent(page: Page, id: number, timeout = 45_000): 
   return live && pressOffered(boardCard(page, id));
 }
 
+/** Forge's own selection is open on this seat's board (`LiveBoard`'s `data-selection-open`), not a held offer's outline. */
+export const selectionOpen = async (page: Page): Promise<boolean> => (await page.locator('.live[data-selection-open]').count()) > 0;
+
+/**
+ * Press `id` as the answer to Forge's open selection (a target, a choice), once that selection is up
+ * and offers it. Straight after an activation, the board still draws the priority window's offer
+ * through Forge's silence (`offer-hold.ts`), and a card on it reads offered; pressed then, the press
+ * is a play kept for Forge's next priority window, and the target selection that opens instead drops
+ * it (`click-dropped`). A player sees the target prompt before choosing; so does this.
+ */
+export async function clickTarget(page: Page, id: number, timeout = 20_000): Promise<boolean> {
+  const ready = async (): Promise<boolean> => (await selectionOpen(page)) && (await isOffered(page, id));
+  const live = await expect.poll(ready, { timeout }).toBe(true).then(
+    () => true,
+    () => false,
+  );
+  return live && pressOffered(boardCard(page, id));
+}
+
 /** The server's `click` records for `card` (`match.ts`'s `endClick`): what came of each click on it, for a failure message. */
 export function clickRecords(stack: { serverLogFile: string }, card: number): string {
   const rows = serverLog(stack).filter((r) => r.evt === 'click' && r.card === card);

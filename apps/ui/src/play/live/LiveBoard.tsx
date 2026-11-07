@@ -4105,6 +4105,8 @@ export function LiveBoard({ match, roomId = null, onPlayHere }: LiveBoardProps) 
       ref={rootRef}
       data-spectator={spectator ? '' : undefined}
       data-role={watcher ? 'watcher' : undefined}
+      /* Forge's own selection is open (a target, a choice): what a held offer draws never sets it. */
+      data-selection-open={!spectator && match.selectables !== null ? '' : undefined}
       onPointerOver={hoverControl}
       // The board's own arranging drag is HTML5 and is lane A's; a watcher's
       // window refuses it here, at the root, rather than teaching the board.

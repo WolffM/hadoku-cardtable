@@ -1235,6 +1235,9 @@ describe('the mistake bubble’s classifier, wired to a live refusal', () => {
  * drawn through that silence. `boardInteraction`, what a click may SEND, never holds.
  */
 describe('the offer through a click’s turnaround', () => {
+  /** The `click-dropped` client events the server received. */
+  const droppedAtServer = (s: { received: { event: string; payload: unknown }[] }): unknown[] =>
+    s.received.filter((r) => r.event === 'forge:client' && (r.payload as { data?: { what?: string } }).data?.what === 'click-dropped').map((r) => r.payload);
   /** `getAbilityToPlay` with one ability: the browser answers it itself (`selfAnswer`). */
   const oneAbility = (callId: string, host: number) =>
     parseServerFrame({ kind: 'ask', callId, method: 'getAbilityToPlay', hostCard: { kind: 'card', id: host }, abilities: [{ kind: 'spellAbility', id: 9001 }], triggerEvent: null });
@@ -1271,6 +1274,10 @@ describe('the offer through a click’s turnaround', () => {
     expect(drawnOffer(m).selectionOpen).toBe(true);
     // The press waiting on the held land is a play, never an answer to the target question: dropped.
     expect(await selects(), 'the kept press never answers a selection').toBe(1);
+    // Dropped, and logged: the card, why, and the selection that opened instead.
+    await until('the drop at the server', () => droppedAtServer(s).length === 1);
+    expect(droppedAtServer(s)[0]).toMatchObject({ kind: 'info', data: { what: 'click-dropped', card: land, why: 'selection-opened', selection: 'on-board', inSelection: false } });
+    expect(ClientEventSchema.safeParse(droppedAtServer(s)[0]).success, 'the match log keeps it').toBe(true);
     await sendAndApply(s, m, [clear(), prompt('Priority'), bar(true), actionable([land])]);
     expect(await selects(), 'nor goes out later, once dropped').toBe(1);
   });
@@ -1309,6 +1316,8 @@ describe('the offer through a click’s turnaround', () => {
     await sendAndApply(s, m, [actionable([])]);
     await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([second])]);
     expect(await selected(), 'Forge named a set without it: the press was dropped there').toEqual([first]);
+    await until('the drop at the server', () => droppedAtServer(s).length === 1);
+    expect(droppedAtServer(s)[0]).toMatchObject({ data: { what: 'click-dropped', card: second, why: 'offer-withdrawn', selection: 'none' } });
   });
 
   it('choose the target → Forge stops the selection and the ability resolves: still drawn, until priority names its set', async () => {

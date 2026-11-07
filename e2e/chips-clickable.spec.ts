@@ -20,7 +20,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickPermanent, enabledOk, isOffered, makeTitled, ownNamed, resizeWindow, stackCount } from './play/board.ts';
+import { clickPermanent, clickTarget, enabledOk, isOffered, makeTitled, ownNamed, resizeWindow, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
 import { setPlayFastModeDefault } from './prefsLocal.ts';
@@ -160,8 +160,7 @@ test(titled('Breakfast, six rounds deep against a seat with a window of its own:
     for (let round = 1; round <= ROUNDS; round++) {
       const before = await stackCount(page);
       expect(await clickPermanent(page, nomads), `round ${round}: Nomads en-Kor is pressed`).toBe(true);
-      await expect.poll(() => isOffered(page, illusionist), { timeout: 20_000, message: `round ${round}: the Illusionist is offered as its target` }).toBe(true);
-      expect(await clickPermanent(page, illusionist, 5_000), `round ${round}: the Illusionist is pressed`).toBe(true);
+      expect(await clickTarget(page, illusionist), `round ${round}: the Illusionist is offered as its target, and pressed`).toBe(true);
       // The activation, then the Illusionist's mill trigger, each a chip.
       await expect.poll(() => stackCount(page), { timeout: 20_000, message: `round ${round}: the activation and its trigger are on the stack` }).toBeGreaterThanOrEqual(before + 2);
       await expect.poll(() => isOffered(page, nomads), { timeout: 20_000, message: `round ${round}: priority is back with Nomads offered` }).toBe(true);

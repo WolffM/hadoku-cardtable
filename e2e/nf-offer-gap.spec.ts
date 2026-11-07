@@ -24,7 +24,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { frameIntervals, installFrameClock, wireStamps } from './frame-clock.ts';
-import { BUTTON_ONE, BUTTON_TWO, clickPermanent, enabledOk, holdsLiveWindow, isOffered, makeTitled, offered, ownNamed, serverLog } from './play/board.ts';
+import { BUTTON_ONE, BUTTON_TWO, clickPermanent, clickTarget, enabledOk, holdsLiveWindow, isOffered, makeTitled, offered, ownNamed, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
 import { setPlayFastModeDefault } from './prefsLocal.ts';
@@ -144,7 +144,7 @@ test(titled('Nomads en-Kor: from activating to choosing its target to priority a
     for (const round of [1, 2]) {
       const shown = priorityShown(stack);
       expect(await clickPermanent(page, nomads), `round ${round}: Nomads is activated`).toBe(true);
-      expect(await clickPermanent(page, bears, 20_000), `round ${round}: the Bears are offered as its target`).toBe(true);
+      expect(await clickTarget(page, bears), `round ${round}: the Bears are offered as its target`).toBe(true);
       await expect.poll(() => priorityShown(stack), { timeout: 30_000, message: `round ${round}: priority comes back to alice` }).toBeGreaterThan(shown);
       await expect
         .poll(async () => (await isOffered(page, nomads)) && !(await isOffered(page, bears)) && (await holdsLiveWindow(page)), {
@@ -185,7 +185,7 @@ test(titled('Nomads en-Kor held by the opponent: while bob holds priority over t
     await startSampler(page);
     const t0 = Date.now();
     expect(await clickPermanent(page, nomads), 'Nomads is activated').toBe(true);
-    expect(await clickPermanent(page, bears, 20_000), 'the Bears are offered as its target').toBe(true);
+    expect(await clickTarget(page, bears), 'the Bears are offered as its target').toBe(true);
     await expect(enabledOk(bob).first(), 'bob holds priority over the ability').toBeVisible({ timeout: 30_000 });
     const bobLive = Date.now();
     // Nothing of alice's is on offer while bob decides: promptly, and for as long as he holds it.
