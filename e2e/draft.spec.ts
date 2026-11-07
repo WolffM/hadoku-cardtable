@@ -143,6 +143,8 @@ interface RoomWire {
   members: { id: string; name: string; ready: boolean }[];
   /** Who the room's AI plays as. */
   ai: { name: string; avatarId: string };
+  /** The pod past its lobby: the round's pairings, each bot entrant's character, and the results. */
+  pod: { pairings: { players: [string, string] }[]; personas: Record<string, { name: string; avatarId: string }> } | null;
 }
 
 /* ── one person at the table ─────────────────────────────────────────── */
@@ -1057,6 +1059,12 @@ test(
       await expectLobbyNotPod(alice);
       await enterFromList(bob, podId, podName, { origin });
       await expectLobbyNotPod(bob);
+      // Every bot is a Swiss entrant (the operator, 2026-11-07): bob sits across the table from alice,
+      // so round 1 pairs the two of them, and the six bots' own pairings are played out headless.
+      await arrangePod([
+        [alice.page, 0],
+        [bob.page, 4],
+      ]);
 
       await readyPod(alice.page);
       await readyPod(bob.page);
@@ -1104,11 +1112,11 @@ test(
 );
 
 test(
-  titled('one drafter and seven bots, the whole way: draft, build, Play, lose game 1, sideboard, lose game 2, and the pod’s standings say so'),
+  titled('one drafter and two bots, the whole way: draft, build, Play, lose game 1, sideboard, lose game 2, the bots play round 2 out, and the pod’s standings say so'),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
     if (!forge.ok) return;
-    test.setTimeout(11 * 60_000);
+    test.setTimeout(16 * 60_000);
 
     const stack = await startPlayStack(forge);
     let alice: Player | undefined;
@@ -1120,13 +1128,14 @@ test(
       const roomName = `e2e solo ${Date.now()}`;
       const roomId = await createDraftRoom(alice, roomName, stack.origin);
       await expectLobbyNotPod(alice);
-      // She owns the room and closes two seats: the draft deals six (the operator, 2026-10-19).
-      for (const seat of [6, 7]) await alice.page.locator(`[data-testid="pod-seat-close"][data-seat="${seat}"]`).click();
-      await expect(alice.page.locator('[data-testid^="pod-seat-"][data-closed]')).toHaveCount(2);
+      // She owns the room and closes five seats: the draft deals three (the operator, 2026-10-19), and its
+      // two bots are entrants beside her, a three-entrant Swiss with a bye (the operator, 2026-11-07).
+      for (const seat of [3, 4, 5, 6, 7]) await alice.page.locator(`[data-testid="pod-seat-close"][data-seat="${seat}"]`).click();
+      await expect(alice.page.locator('[data-testid^="pod-seat-"][data-closed]')).toHaveCount(5);
       await readyPod(alice.page);
       await fillWithAi(alice.page, UI_TIMEOUT);
       await expect(alice.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
-      await expect(alice.page.locator('[data-testid="seat-bar"] [data-testid^="seat-"][data-occupant]'), 'a draft of six').toHaveCount(6);
+      await expect(alice.page.locator('[data-testid="seat-bar"] [data-testid^="seat-"][data-occupant]'), 'a draft of three').toHaveCount(3);
       // The AI plays as one of the room's characters, by name and face (the operator, 2026-10-19).
       const ai = (await roomState(alice, roomId, stack.origin)).ai;
       expect(ai.name, 'a character, not "AI"').toMatch(/^[A-Z][a-z]+$/);
@@ -1171,12 +1180,16 @@ test(
       await expect(alice.page.getByTestId('main-count'), 'the build survives a restart').toHaveText('40', { timeout: UI_TIMEOUT });
       await alice.page.getByTestId('play-deck').click();
 
-      // Play → the pod → its one table, against the AI, started by itself.
+      // Play → the pod → round 1: her table against the bot across from her (seat 2), started by itself;
+      // seat 1's bot has the bye.
       const matchUrl = /#\/match\/(m-[0-9a-f]{12})$/;
       await alice.page.waitForURL(matchUrl, { timeout: 120_000 });
       const game1 = alice.page.url();
+      const round1 = (await roomState(alice, roomId, stack.origin)).pod!;
+      expect(round1.pairings.map((p) => p.players[1]), 'she plays seat 2’s bot').toEqual(['ai:2']);
+      const opponent = round1.personas['ai:2']!;
       await expect(alice.page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 30_000 });
-      await expect(alice.page.locator(`[data-avatar="${ai.avatarId}"]`), 'the AI wears its character').toHaveCount(1);
+      await expect(alice.page.locator(`[data-avatar="${opponent.avatarId}"]`), 'the AI wears its character').toHaveCount(1);
       await expect(alice.page.getByTestId('room-create'), 'no create-room form on the way').toHaveCount(0);
       await pressIntoTurnOne([alice.page]);
 
@@ -1204,23 +1217,28 @@ test(
       await expect(alice.page.locator('[aria-label="Game board"]'), 'game 2 is drawn').toBeVisible({ timeout: 30_000 });
       await pressIntoTurnOne([alice.page]);
 
-      /* ── game 2 lost: the series is over, 0-2, and the pod says so ───── */
+      /* ── game 2 lost: her series is over, 0-2 ─────────────────────────── */
       await alice.page.getByTestId('live-concede').click();
       await alice.page.getByTestId('live-concede-yes').click();
       await expect(alice.page.getByTestId('game-result')).toBeVisible({ timeout: UI_TIMEOUT });
       await expect(alice.page.getByTestId('sideboard-step'), 'no sideboarding after the last game').toHaveCount(0);
       await alice.page.getByTestId('game-result-room').click();
-      await expect(alice.page.getByTestId('pod-final'), 'the pod is done').toBeVisible({ timeout: UI_TIMEOUT });
+
+      /* ── round 2: she has the bye, and the two bots play each other out in Forge ── */
+      // The bracket shows their bot game while it is played, a match like any other; the pod is done
+      // only once it reports, its real score in the bracket.
+      await expect(alice.page.getByTestId('pod-final'), 'the pod is done once the bots’ game reports').toBeVisible({ timeout: 6 * 60_000 });
       await expect(alice.page.getByTestId('pod-final').getByRole('heading'), 'the heading is Standings').toHaveText('Standings');
-      await expect(alice.page.getByTestId(/^pod-standings-row-\d+$/), 'the AI she played is ranked beside her').toHaveCount(2);
-      await expect(alice.page.getByTestId('pod-standings-row-1'), 'the AI won the series').toContainText(ai.name);
-      const row = alice.page.getByTestId('pod-standings-row-2');
-      await expect(row, 'her standing counts the series she lost').toHaveAttribute('data-mine', '');
-      const standing = await row.textContent();
-      expect(standing, 'one series lost').toContain('0–1');
+      await expect(alice.page.getByTestId(/^pod-standings-row-\d+$/), 'both bots are ranked beside her').toHaveCount(3);
+      const row = alice.page.locator('[data-testid^="pod-standings-row-"][data-mine]');
+      await expect(row, 'her own standing is marked').toHaveCount(1);
+      // Round 1 lost, round 2 her bye: one series won, one lost.
+      expect(await row.textContent(), 'a bye and a lost series').toContain('1–1');
+      const botGame = alice.page.locator('[data-testid="pod-tables-row"][data-phase="done"]').filter({ hasNotText: FRIENDS.alice.name });
+      await expect(botGame, 'the bots’ own match is in the bracket, decided').toHaveCount(1);
       // The plain standings keep the tiebreaks one press away (486b18212).
       await alice.page.getByTestId('pod-standings-tiebreaks').click();
-      await expect(row.locator('td[data-key="gameWinPct"]'), 'game win % from two lost games').toHaveText('0%');
+      await expect(row.locator('td[data-key="gameWinPct"]'), 'her game win % is a number').toHaveText(/^\d+%$/);
 
       /* ── she owns the room and closes it: back to the lobby, the room gone, its standings kept ── */
       await alice.page.getByTestId('room-close').click();
@@ -1231,8 +1249,8 @@ test(
       await alice.page.getByTestId('stats-tab-tournaments').click();
       const kept = alice.page.getByTestId('tournament').filter({ hasText: roomName });
       await expect(kept, 'the closed room is a past tournament').toHaveCount(1, { timeout: UI_TIMEOUT });
-      await expect(kept.getByTestId('pod-standings-row-1')).toContainText(ai.name);
-      const herRow = kept.getByTestId('pod-standings-row-2');
+      await expect(kept.getByTestId(/^pod-standings-row-\d+$/), 'all three entrants kept').toHaveCount(3);
+      const herRow = kept.getByTestId(/^pod-standings-row-\d+$/).filter({ hasText: FRIENDS.alice.name });
       await expect(herRow.locator('img'), 'her row draws the picture she wears now').toHaveAttribute('src', LOOK_PICTURE);
       await expect(herRow.locator('[data-dressed] .hc-name'), 'and her name wears its effect').toHaveCount(1);
       await alice.page.getByTestId('back-to-lobby').click();

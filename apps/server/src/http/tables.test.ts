@@ -3167,6 +3167,29 @@ describe('a pod table plays each drafter’s own pool', () => {
 		expect(botPoolAcross(room, ALICE)).toEqual(state.pools[across]);
 	});
 
+	/**
+	 * A pod round against a bot (the operator, 2026-11-07: every bot seat is a Swiss entrant): the AI
+	 * plays the deck built from the pool of the bot the round paired her with, not the one across the table.
+	 */
+	it("starts a pod round's table against the bot it paired, with the deck of that bot's own pool", async () => {
+		const h = await boot();
+		const pools = pod(h);
+		const state = stateOf(h.rooms.find(POD)!);
+		const mine = state.table.seats.findIndex((s) => s.occupant?.kind === 'human' && s.occupant.participantId === ALICE);
+		const across = (mine + 4) % 8;
+		const paired = [0, 1, 2, 3, 4, 5, 6, 7].find((seat) => seat !== across && isBotSeat(state, seat))!;
+		// Two different bots' pools, from what is left of the packs once alice and bob hold theirs.
+		state.pools[across] = state.queues.flat(2).slice(90, 105);
+		state.pools[paired] = state.queues.flat(2).slice(105, 120);
+		const room = openRoom(h);
+		h.lobby.tournamentPairingOf = (roomId, tableId) => (roomId === room.id && tableId === room.tables[0]!.id ? { entrants: [ALICE, `ai:${paired}`] } : null);
+		expect((await putDeck(h, 'alice', built(pools.alice))).status).toBe(200);
+
+		const res = await start(h, { room: ROOM, bot: true }, '/api/play/matches', 'application/json', edgeHeaders('alice'));
+		expect(res.status, JSON.stringify(res.body)).toBe(201);
+		expect(h.specs[0]?.seats.map((s) => s.deck)).toEqual([built(pools.alice), botDeckText(state.pools[paired]!, 'Bot draft')]);
+	});
+
 	/** The Decks page reads a drafted deck's W–L by `draft:<podId>` (`http/decks.ts`). */
 	it('reports a drafted deck under its pod, so its record follows it', async () => {
 		const h = await boot();

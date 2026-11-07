@@ -19,7 +19,7 @@
  * acceptance text only needs a round to RESOLVE, not a full game.
  */
 import { trimMainDeck } from './deckBuilder.ts';
-import { arrangePod, fillWithAi, readyPod } from './podSeats.ts';
+import { arrangePod, readyPod } from './podSeats.ts';
 import { expect, test } from '@playwright/test';
 
 import { PREFIX } from './identities.ts';
@@ -137,8 +137,11 @@ test(
       for (const p of players) await expect(p.page.getByTestId('seat-stand'), `${p.name}: holds their own seat`).toBeVisible({ timeout: UI_TIMEOUT });
 
       /* ── ready, deal, draft, build ──────────────────────────────────── */
+      // A pod of three humans and no bot: every bot seated is a Swiss entrant (the operator, 2026-11-07),
+      // so the owner closes the other five seats, and the three of them pair with a bye each round.
+      for (const seat of [3, 4, 5, 6, 7]) await alice.page.locator(`[data-testid="pod-seat-close"][data-seat="${seat}"]`).click();
+      await expect(alice.page.locator('[data-testid^="pod-seat-"][data-closed]')).toHaveCount(5);
       for (const p of players) await readyPod(p.page);
-      await fillWithAi(alice.page, UI_TIMEOUT);
       for (const p of players) await expect(p.page.getByTestId('pod'), `${p.name}: the pod is dealt`).toBeVisible({ timeout: UI_TIMEOUT });
       await Promise.all(players.map((p) => draftUntilDone(p)));
       for (const p of players) {

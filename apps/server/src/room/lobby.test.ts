@@ -107,6 +107,17 @@ function approvePlan(lobby: Lobby, roomId: string): void {
 	lobby.setPodPlan(roomId, room.leader, plan, { ok: true, cards: 1 });
 }
 
+/**
+ * The owner closes every open pod seat: a pod of just the members sitting, with no bot in it — the
+ * operator, 2026-11-07: bots play the Swiss as entrants, so a pod "of three humans" seats none.
+ */
+function closeOpenSeats(lobby: Lobby, roomId: string, by: string): void {
+	const seats = lobby.get(roomId)?.pod?.seats ?? [];
+	seats.forEach((occupant, seat) => {
+		if (occupant === null) expect(lobby.closePod(roomId, by, seat, true).ok).toBe(true);
+	});
+}
+
 /** The AI button on every open pod seat: the draft deals only once none is open. */
 function fillWithAi(lobby: Lobby, roomId: string, by: string): void {
 	const seats = lobby.get(roomId)?.pod?.seats ?? [];
@@ -2647,8 +2658,9 @@ describe('Lobby.startDraft — no open seat, and only the seated are waited on',
 });
 
 describe("a draft room's pod — phase, wave 72 §P", () => {
-	it('moves lobby → drafting → building → a bo3 against the AI → done for a single drafter', async () => {
-		const lobby = await openLobby({ dir: await tempDir() });
+	it('moves lobby → drafting → building → a full Swiss against its seven bots → done for a single drafter', async () => {
+		const kept: Tournament[] = [];
+		const lobby = await openLobby({ dir: await tempDir(), onTournament: (t) => void kept.push(t) });
 		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
 		const id = made.room.id;
@@ -2690,28 +2702,45 @@ describe("a draft room's pod — phase, wave 72 §P", () => {
 		const started = lobby.playPod(id, ALICE.id);
 		expect(started.ok).toBe(true);
 		if (!started.ok) return;
-		// One drafter, seven bots: one table, against the AI, dealt by her own Play.
-		expect(started.room.pod?.built).toEqual([ALICE.id]);
-		expect(started.room.pod?.drafters).toEqual([ALICE.id]);
+		// One drafter, seven bots: an eight-entrant Swiss, exactly as eight humans would play it (the
+		// operator, 2026-11-07: "full swiss with bots, whatever would normally happen with humans").
+		const bots = [1, 2, 3, 4, 5, 6, 7].map((seat) => `ai:${seat}`);
+		expect(started.room.pod?.built).toEqual([ALICE.id, ...bots]);
+		expect(started.room.pod?.drafters).toEqual([ALICE.id, ...bots]);
 		expect(started.room.pod?.phase).toBe('rounds');
-		expect(started.room.pod?.rounds).toBe(1);
+		expect(started.room.pod).toMatchObject({ round: 1, rounds: 3, bye: null });
+		// Round 1 across the table: she plays the bot opposite her; the other three pairings are bot games,
+		// settled at once with no `BotGames` wired.
 		const pairing = started.room.pod!.pairings[0]!;
-		expect(started.room.pod?.pairings).toHaveLength(1);
-		expect(pairing.players).toEqual([ALICE.id, POD_AI]);
+		expect(started.room.pod?.pairings.map((p) => p.players)).toEqual([[ALICE.id, 'ai:4']]);
+		expect(started.room.pod?.results).toEqual([
+			{ round: 1, playerA: 'ai:1', playerB: 'ai:5', gamesA: 2, gamesB: 0 },
+			{ round: 1, playerA: 'ai:2', playerB: 'ai:6', gamesA: 2, gamesB: 0 },
+			{ round: 1, playerA: 'ai:3', playerB: 'ai:7', gamesA: 2, gamesB: 0 },
+		]);
+		expect(Object.keys(started.room.pod!.personas).sort()).toEqual(bots);
 		expect(lobby.playerState(id, ALICE.id)).toEqual({ seatedFor: ALICE.id });
-		expect(lobby.seats(id, pairing.tableId).map((s) => s.memberId)).toContain(ALICE.id);
+		expect(lobby.seats(id, pairing.tableId).map((s) => s.memberId)).toEqual([ALICE.id]);
 
-		lobby.recordGameResult(id, pairing.tableId, { matchId: 'm-ai-g1', winner: 1 });
-		expect(lobby.get(id)?.pod?.phase).toBe('rounds');
-		lobby.recordGameResult(id, pairing.tableId, { matchId: 'm-ai-g2', winner: 1 });
+		// She loses every round 0-2 to whichever bot the pairing gives her; each round starts by itself.
+		const opponents: string[] = [];
+		for (let round = 1; round <= 3; round++) {
+			const view = lobby.get(id)!.pod!;
+			expect(view.round).toBe(round);
+			const mine = view.pairings.find((p) => p.players.includes(ALICE.id))!;
+			opponents.push(mine.players.find((p) => p !== ALICE.id)!);
+			lobby.recordGameResult(id, mine.tableId, { matchId: `m-${round}-g1`, winner: 1 });
+			lobby.recordGameResult(id, mine.tableId, { matchId: `m-${round}-g2`, winner: 1 });
+		}
+		expect(new Set(opponents).size, 'never the same bot twice').toBe(3);
 		const done = lobby.get(id)!;
 		expect(done.pod?.phase).toBe('done');
-		// The AI won 2-0: it ranks first, and her standing says so under it.
-		expect(done.pod?.results).toEqual([{ round: 1, playerA: ALICE.id, playerB: POD_AI, gamesA: 0, gamesB: 2 }]);
-		expect(done.pod?.standings).toEqual([
-			expect.objectContaining({ id: POD_AI, matchPoints: 3, gameWinPct: 1, rank: 1 }),
-			expect.objectContaining({ id: ALICE.id, matchPoints: 0, gameWinPct: 0, rank: 2 }),
-		]);
+		expect(done.pod?.results).toHaveLength(12);
+		expect(done.pod?.standings).toHaveLength(8);
+		expect(done.pod?.standings.at(-1)).toMatchObject({ id: ALICE.id, matchPoints: 0, rank: 8 });
+		// The pod is kept with every bot's character, and her by userId.
+		expect(kept).toHaveLength(1);
+		expect(Object.keys(kept[0]!.names).sort()).toEqual(['ai', ...bots]);
 	});
 });
 
@@ -2773,7 +2802,7 @@ describe('Lobby.playPod', () => {
 	 * reaches `building` through `startedDraft`'s own helper always has at
 	 * least one seated human from here on.
 	 */
-	it('a member who never sat is auto-seated by startDraft, so playPod deals her a table against the AI', async () => {
+	it('a member who never sat is auto-seated by startDraft, so playPod deals her a table against the bot across from her', async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const id = await startedDraft(lobby, [ALICE]);
 		expect(lobby.podDraft(id)?.humans.map((h) => h.participantId)).toEqual([ALICE.id]);
@@ -2781,10 +2810,10 @@ describe('Lobby.playPod', () => {
 		expect(lobby.get(id)?.pod?.phase).toBe('building');
 		const started = lobby.playPod(id, ALICE.id);
 		expect(started.ok).toBe(true);
-		if (started.ok) expect(started.room.pod?.pairings[0]?.players).toEqual([ALICE.id, POD_AI]);
+		if (started.ok) expect(started.room.pod?.pairings.map((p) => p.players)).toEqual([[ALICE.id, 'ai:4']]);
 	});
 
-	it('two players in a pod of eight, six of them AI, play each other — the AI drafts but never takes a table', async () => {
+	it('two players in a pod of eight, six of them AI: an eight-entrant Swiss, each human across the table from a bot', async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
@@ -2801,8 +2830,16 @@ describe('Lobby.playPod', () => {
 		const started = playAll(lobby, id, [ALICE, BOB]);
 		expect(started.ok).toBe(true);
 		if (!started.ok) return;
-		expect(started.room.pod).toMatchObject({ phase: 'rounds', round: 1, rounds: 1, bye: null, results: [] });
-		expect(started.room.pod?.pairings.map((p) => p.players)).toEqual([[ALICE.id, BOB.id]]);
+		expect(started.room.pod).toMatchObject({ phase: 'rounds', round: 1, rounds: 3, bye: null });
+		// Seats 2 and 3 face seats 6 and 7; seats 0 and 1, both bots, face 4 and 5 in bot games.
+		expect(started.room.pod?.pairings.map((p) => p.players)).toEqual([
+			[ALICE.id, 'ai:6'],
+			[BOB.id, 'ai:7'],
+		]);
+		expect(started.room.pod?.results).toEqual([
+			{ round: 1, playerA: 'ai:0', playerB: 'ai:4', gamesA: 2, gamesB: 0 },
+			{ round: 1, playerA: 'ai:1', playerB: 'ai:5', gamesA: 2, gamesB: 0 },
+		]);
 	});
 });
 
@@ -2818,7 +2855,8 @@ describe('a 3-human pod with a bye, through two rounds — wave 72 §P', () => {
 		expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
 		expect(lobby.sitPod(id, CAROL.id, 2).ok).toBe(true);
 		for (const m of [ALICE, BOB, CAROL]) expect(lobby.setReady(id, m.id, true)).toBe(true);
-		fillWithAi(lobby, id, ALICE.id);
+		// No bot seated: three entrants, so a bye every round.
+		closeOpenSeats(lobby, id, ALICE.id);
 		approvePlan(lobby, id);
 		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
@@ -2843,6 +2881,79 @@ describe('a 3-human pod with a bye, through two rounds — wave 72 §P', () => {
 		expect(lobby.playerState(id, ALICE.id)).toEqual({ seatedFor: ALICE.id });
 		expect(lobby.seats(id, pairing.tableId).map((s) => s.memberId)).toContain(ALICE.id);
 		expect(lobby.playerState(id, CAROL.id)).toEqual({ seatedFor: CAROL.id });
+	});
+
+	it('three humans and two bots are a five-entrant Swiss: the bots pair as humans would, and the middle seat still has the bye', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		for (const m of [BOB, CAROL]) expect(lobby.join(id, m).ok).toBe(true);
+		for (const [seat, m] of [ALICE, BOB, CAROL].entries()) expect(lobby.sitPod(id, m.id, seat).ok).toBe(true);
+		for (const m of [ALICE, BOB, CAROL]) expect(lobby.setReady(id, m.id, true)).toBe(true);
+		for (const seat of [3, 4]) expect(lobby.aiPod(id, ALICE.id, seat, true).ok).toBe(true);
+		closeOpenSeats(lobby, id, ALICE.id);
+		approvePlan(lobby, id);
+		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
+		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
+		const started = playAll(lobby, id, [ALICE, BOB, CAROL]);
+		expect(started.ok).toBe(true);
+		if (!started.ok) return;
+		expect(started.room.pod).toMatchObject({ round: 1, rounds: 3, bye: CAROL.id });
+		expect(started.room.pod?.pairings.map((p) => p.players)).toEqual([
+			[ALICE.id, 'ai:3'],
+			[BOB.id, 'ai:4'],
+		]);
+		// Each bot's character is its own seat's, the one the lobby showed.
+		const seats = lobby.get(id)!.pod!;
+		expect(Object.keys(seats.personas).sort()).toEqual(['ai:3', 'ai:4']);
+	});
+
+	it('names a bot entrant by its own seat’s character, even with a closed seat before it', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		standAll(lobby, id);
+		expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+		expect(lobby.setReady(id, ALICE.id, true)).toBe(true);
+		expect(lobby.closePod(id, ALICE.id, 1, true).ok).toBe(true);
+		expect(lobby.aiPod(id, ALICE.id, 2, true).ok).toBe(true);
+		closeOpenSeats(lobby, id, ALICE.id);
+		const seat2 = lobby.get(id)!.pod!.seats[2]!;
+		approvePlan(lobby, id);
+		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
+		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id]) }));
+		const started = lobby.playPod(id, ALICE.id);
+		expect(started.ok).toBe(true);
+		if (!started.ok) return;
+		// The table's second place is pod seat 2: entrant `ai:1`, wearing seat 2's character.
+		expect(started.room.pod?.pairings.map((p) => p.players)).toEqual([[ALICE.id, 'ai:1']]);
+		expect(started.room.pod?.personas['ai:1']).toEqual({ name: seat2.name, avatarId: seat2.avatarId });
+	});
+
+	it('two of its bots paired together play a bot game, each with the pool its own seat drafted', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		standAll(lobby, id);
+		expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+		expect(lobby.setReady(id, ALICE.id, true)).toBe(true);
+		for (const seat of [1, 2, 3]) expect(lobby.aiPod(id, ALICE.id, seat, true).ok).toBe(true);
+		closeOpenSeats(lobby, id, ALICE.id);
+		approvePlan(lobby, id);
+		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
+		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id]) }));
+		const asks: BotGameAsk[] = [];
+		lobby.setBotGames({ play: (ask) => (asks.push(ask), new Promise(() => {})) });
+		const started = lobby.playPod(id, ALICE.id);
+		expect(started.ok).toBe(true);
+		if (!started.ok) return;
+		// Four entrants: she plays the bot across from her, and the other two play each other.
+		expect(started.room.pod).toMatchObject({ rounds: 2, bye: null, botGames: [{ players: ['ai:1', 'ai:3'] }] });
+		expect(started.room.pod?.pairings.map((p) => p.players)).toEqual([[ALICE.id, 'ai:2']]);
+		expect(asks.map((a) => a.decks)).toEqual([[{ kind: 'drafted', draftId: id, seat: 1 }, { kind: 'drafted', draftId: id, seat: 3 }]]);
 	});
 
 	it("plays round 1, advances BY ITSELF to round 2 paired by score with a NEW bye, then finishes done with standings ranked", async () => {
@@ -2938,11 +3049,13 @@ describe('a 3-member draft room that never sits still reaches rounds — wave 72
 		expect(started.ok).toBe(true);
 		if (!started.ok) return;
 		expect(started.room.pod?.phase).toBe('rounds');
-		expect(started.room.pod?.pairings).toHaveLength(1);
-		expect(started.room.pod?.bye).not.toBeNull();
-		expect(new Set([...started.room.pod!.pairings[0]!.players, started.room.pod!.bye])).toEqual(
-			new Set([ALICE.id, BOB.id, CAROL.id]),
-		);
+		// Seats 0–2 are theirs and 3–7 the bots': each of them across the table from a bot, no bye.
+		expect(started.room.pod?.bye).toBeNull();
+		expect(started.room.pod?.pairings.map((p) => p.players)).toEqual([
+			[ALICE.id, 'ai:4'],
+			[BOB.id, 'ai:5'],
+			[CAROL.id, 'ai:6'],
+		]);
 
 		// The pod lookup reads `Lobby.podDraft`, exactly as `http/routes.ts`'s
 		// `attachTables` wires it — wired here by hand,
@@ -2979,7 +3092,8 @@ describe('Lobby.close, and the tournaments a pod leaves behind', () => {
 		expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
 		expect(lobby.sitPod(id, BOB.id, 4).ok).toBe(true);
 		for (const m of [ALICE, BOB]) expect(lobby.setReady(id, m.id, true)).toBe(true);
-		fillWithAi(lobby, id, ALICE.id);
+		// Two people and no bot: one round, the two of them.
+		closeOpenSeats(lobby, id, ALICE.id);
 		approvePlan(lobby, id);
 		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id]) }));
@@ -3040,7 +3154,7 @@ describe('Lobby.close, and the tournaments a pod leaves behind', () => {
 			for (const m of [BOB, CAROL]) expect(l.join(made.room.id, m).ok).toBe(true);
 			for (const [i, m] of [ALICE, BOB, CAROL].entries()) expect(l.sitPod(made.room.id, m.id, i).ok).toBe(true);
 			for (const m of [ALICE, BOB, CAROL]) expect(l.setReady(made.room.id, m.id, true)).toBe(true);
-			fillWithAi(l, made.room.id, ALICE.id);
+			closeOpenSeats(l, made.room.id, ALICE.id);
 			approvePlan(l, made.room.id);
 			expect(l.startDraft(made.room.id, ALICE.id).ok).toBe(true);
 			l.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
