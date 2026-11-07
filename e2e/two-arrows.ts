@@ -167,7 +167,7 @@ async function castAtBob(page: Page, id: number, how: 'click' | 'drag'): Promise
     if (!(await asksForBob(page))) return;
     const face = await centreOf(page, '[data-player-face]:not([data-viewer])');
     if (phone) {
-      await fingerTap(page, face);
+      await fingerTap(page, await centreOf(page, '[data-player-face]:not([data-viewer]) .face__hit'));
     } else {
       // A player moves to the face before pressing it: the targeter follows the pointer there. A hand is
       // never still: the pointer drifts a few pixels after the click, before Forge has answered it.
