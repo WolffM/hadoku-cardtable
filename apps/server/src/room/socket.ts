@@ -407,7 +407,8 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 			earliest = Math.min(earliest, deadline.endsAt);
 		}
 		if (earliest !== Infinity) {
-			const timer = setTimeout(() => ropeOut(draftId), Math.max(0, earliest - now));
+			const firesAt = Math.max(now, earliest);
+			const timer = setTimeout(() => ropeOut(draftId, firesAt), firesAt - now);
 			timer.unref();
 			ropeTimers.set(draftId, timer);
 		}
@@ -420,8 +421,12 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 		for (let rounds = 0; rounds < stateOf(room).seatCount * 2 && syncRope(room); rounds++) advanceBots(room);
 	};
 
-	/** A deadline ran out: every seat past its own gets the draft bot's pick. */
-	const ropeOut = (draftId: string): void => {
+	/**
+	 * A deadline ran out: every seat past its own gets the draft bot's pick. `firesAt` is the moment the
+	 * timer asked for. Its log line splits the two ways a pick can be late: `lateMs` past the seat's deadline,
+	 * and `loopLateMs` past the moment asked for, which is the event loop's (a busy host), not the rope's.
+	 */
+	const ropeOut = (draftId: string, firesAt: number): void => {
 		ropeTimers.delete(draftId);
 		const room = deps.rooms?.find(draftId);
 		if (room === undefined) return;
@@ -436,7 +441,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 			if (taken === null || !taken.ok) continue;
 			room.app.state = taken.state;
 			timedOut += 1;
-			log({ evt: 'pick-timeout', draftId, seat, totalMs: deadline.totalMs, chose, lateMs: now - deadline.endsAt, seq: taken.state.seq });
+			log({ evt: 'pick-timeout', draftId, seat, totalMs: deadline.totalMs, chose, lateMs: now - deadline.endsAt, loopLateMs: now - firesAt, seq: taken.state.seq });
 		}
 		settle(room);
 		if (timedOut > 0) emitPickStep(io, room, policy);

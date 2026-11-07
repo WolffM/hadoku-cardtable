@@ -943,6 +943,13 @@ describe('the draft rope', () => {
 		expect(opening.viewer.pack.map((c) => c.cardId)).toContain(taken);
 		expect(lines().filter((l) => l.evt === 'pick-timeout' && l.seat === seat).map((l) => l.totalMs)).toEqual([pickTimeMs(15, 4)]);
 		expect(lines().some((l) => l.evt === 'pick' && l.seat === seat)).toBe(false);
+		// How late it was, split: past the seat's deadline (`lateMs`), and past the moment the timer asked for
+		// (`loopLateMs`, the event loop's). The timer asked for no later than the deadline it was armed for,
+		// or the next change to the draft, whichever came last.
+		const late = lines().find((l) => l.evt === 'pick-timeout' && l.seat === seat)!;
+		expect(typeof late.loopLateMs).toBe('number');
+		expect(late.loopLateMs as number).toBeGreaterThanOrEqual(0);
+		expect(late.loopLateMs as number).toBeLessThanOrEqual(late.lateMs as number);
 		await waitUntil(() => {
 			const v = lastView(alice);
 			return v?.viewer.kind === 'seat' && v.viewer.pool.some((c) => c.cardId === taken);

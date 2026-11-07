@@ -265,7 +265,7 @@ test('the rope runs out when the timeout pick lands, however many envelopes arri
     const emptied = await ropeEmptied(bob.page);
     const timeouts = serverLog({ serverLogFile: resolve(RUN_DIR, 'server.jsonl') }).filter((l) => l.evt === 'pick-timeout' && l.draftId === roomId && l.seat === 1);
     const midPick = views(bob).length;
-    console.log(`[w83b] rope emptied ${JSON.stringify(emptied)} picks landed ${JSON.stringify(landed)} gaps ${JSON.stringify(landed.map((l, i) => l.at - (emptied[i] ?? NaN)))} server lateMs ${JSON.stringify(timeouts.map((t) => t.lateMs))} bob views ${midPick}`);
+    console.log(`[w83b] rope emptied ${JSON.stringify(emptied)} picks landed ${JSON.stringify(landed)} gaps ${JSON.stringify(landed.map((l, i) => l.at - (emptied[i] ?? NaN)))} server lateMs ${JSON.stringify(timeouts.map((t) => t.lateMs))} of it the event loop's ${JSON.stringify(timeouts.map((t) => t.loopLateMs))} bob views ${midPick}`);
     expect(emptied.length, 'the rope ran out once per pick').toBeGreaterThanOrEqual(2);
     for (const [i, l] of landed.entries()) {
       // Empty no earlier than a moment before the pick lands, and the pick lands no later than a moment after.
@@ -273,8 +273,12 @@ test('the rope runs out when the timeout pick lands, however many envelopes arri
       expect(gap, `pick ${i + 1}: the pick landed ${gap} ms after the rope ran out`).toBeLessThan(750);
       expect(gap, `pick ${i + 1}: the rope ran out ${-gap} ms after the pick landed`).toBeGreaterThan(-750);
     }
-    // The server's own timer fires on time: no waiting on a model, no held turn.
-    for (const t of timeouts.slice(0, 2)) expect(t.lateMs as number).toBeLessThan(250);
+    // The server's own timer asks for the deadline itself: no waiting on a model, no held turn. How late the
+    // event loop then ran it (`loopLateMs`) is the host's: a claw's busy loop held it 450 ms with nothing of
+    // the draft's running (check job 128376344510: another room's 100 ms bot timer fired 448 ms late beside it).
+    for (const t of timeouts.slice(0, 2)) {
+      expect((t.lateMs as number) - (t.loopLateMs as number), `the rope's timer asked for ${(t.lateMs as number) - (t.loopLateMs as number)} ms past the deadline`).toBeLessThan(250);
+    }
   } finally {
     await alice.context.close();
     await bob.context.close();
