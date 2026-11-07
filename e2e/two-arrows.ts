@@ -19,6 +19,8 @@ import { startScenarioMatch } from './play/scenario.ts';
 
 /** One arrow as one frame drew it. */
 interface DrawnArrow {
+  /** Which element holds it, by first appearance in this frame: two arrows in two layers would say 0 and 1. */
+  layer: number;
   /** `data-testid`: `targeter`, `targeter-committed`, `stack-target-arrow` or `placed-arrow`. */
   id: string;
   key: string;
@@ -69,6 +71,7 @@ async function record(page: Page): Promise<void> {
       if (!live) return;
       const face = document.querySelector('[data-player-face]:not([data-viewer])')?.getBoundingClientRect();
       const arrows: DrawnArrow[] = [];
+      const layers: Element[] = [];
       for (const svg of document.querySelectorAll<SVGSVGElement>('svg.arrow')) {
         const spine = svg.querySelector<SVGPathElement>('path.arrow__spine');
         if (spine === null || (spine.getAttribute('d') ?? '') === '') continue;
@@ -76,7 +79,10 @@ async function record(page: Page): Promise<void> {
         const tip = client(spine, length);
         const pad = 16;
         const atBob = face !== undefined && tip[0] >= face.left - pad && tip[0] <= face.right + pad && tip[1] >= face.top - pad && tip[1] <= face.bottom + pad;
+        const parent = svg.parentElement!;
+        if (!layers.includes(parent)) layers.push(parent);
         arrows.push({
+          layer: layers.indexOf(parent),
           id: svg.getAttribute('data-testid') ?? '',
           key: svg.getAttribute('data-key') ?? '',
           ghost: svg.hasAttribute('data-ghost'),
@@ -120,7 +126,7 @@ export function arrowsAtBob(frames: readonly ArrowFrame[]): { most: number; doub
 }
 
 const describe = (f: ArrowFrame, t0: number): string =>
-  `+${f.t - t0}ms ${f.arrows.map((a) => `${a.id}${a.key === '' ? '' : `[${a.key}]`}${a.ghost ? '~' : ''} ${a.from.join(',')}→${a.tip.join(',')}${a.atBob ? '@bob' : ''} o${a.opacity}`).join(' | ') || '(none)'}`;
+  `+${f.t - t0}ms ${f.arrows.map((a) => `${a.id}${a.key === '' ? '' : `[${a.key}]`}${a.layer === 0 ? '' : `^${a.layer}`}${a.ghost ? '~' : ''} ${a.from.join(',')}→${a.tip.join(',')}${a.atBob ? '@bob' : ''} o${a.opacity}`).join(' | ') || '(none)'}`;
 
 const bobFace = (page: Page) => page.locator('[data-player-face]:not([data-viewer])').first();
 
