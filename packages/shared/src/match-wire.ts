@@ -179,7 +179,7 @@ export type MatchRequest = z.infer<typeof MatchRequestSchema>;
 
 /** `forge:c2s`. `frame` is checked second, by forge-wire's `safeParseClientFrame`. */
 export const ClientEnvelopeSchema = z
-  .object({ matchId: z.string().min(1), frame: z.unknown(), placement: PlacementSchema.optional() })
+  .object({ matchId: z.string().min(1), frame: z.unknown(), placement: PlacementSchema.optional(), input: z.number().int().positive().optional() })
   .strict();
 
 export interface ClientEnvelope {
@@ -187,6 +187,12 @@ export interface ClientEnvelope {
   frame: ClientFrame;
   /** Where the card a `selectCard` act plays goes (`placement.ts`); only with a `selectCard` act. */
   placement?: Placement;
+  /**
+   * With an act: the input it was made on, the `input` of the window's envelope. The bridge drops an
+   * act whose input Forge has moved past by the time it applies it, so it never lands on a window
+   * the seat did not see (#40).
+   */
+  input?: number;
 }
 
 /**
@@ -402,6 +408,8 @@ export const ServerEnvelopeSchema = z
     displayOnly: z.literal(true).optional(),
     pairsWithNext: z.literal(true).optional(),
     forceNotice: z.literal(true).optional(),
+    /** The input Forge showed this window frame for: what an act made on it names back (`ClientEnvelope.input`). */
+    input: z.number().int().positive().optional(),
   })
   .strict();
 
@@ -439,6 +447,8 @@ export interface ServerEnvelope {
    * another input's prompt. Absent on every other frame.
    */
   pairsWithNext?: true;
+  /** The input Forge showed this window frame for; an act made on the window names it (`ClientEnvelope.input`). */
+  input?: number;
 }
 
 /**
@@ -642,6 +652,7 @@ export function parseClientEnvelope(raw: unknown): MatchWireParse<ClientEnvelope
       matchId: envelope.value.matchId,
       frame: frame.value,
       ...(envelope.value.placement === undefined ? {} : { placement: envelope.value.placement as Placement }),
+      ...(envelope.value.input === undefined ? {} : { input: envelope.value.input }),
     },
   };
 }

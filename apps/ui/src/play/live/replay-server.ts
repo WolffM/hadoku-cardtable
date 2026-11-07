@@ -129,8 +129,8 @@ export interface ReplayServer {
   framesFrom(match: LiveMatch): Promise<ReturnType<typeof safeParseClientFrame>[]>;
   joins: number;
   resyncs: number;
-  /** Send one frame to every joined client, stamped with the next cursor. */
-  send(frame: ServerFrame): WireCursor;
+  /** Send one frame to every joined client, stamped with the next cursor (and `input`, the envelope's, when given). */
+  send(frame: ServerFrame, input?: number): WireCursor;
   /** As `send`, but the frame is "lost": the cursor advances, nothing is delivered. */
   lose(frame: ServerFrame): WireCursor;
   /** Deliver an arbitrary payload on `forge:s2c` — a replay, junk, anything. */
@@ -263,7 +263,7 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
       await server.caughtUp(match);
       return server.clientFrames();
     },
-    send: (frame) => stamp(frame, true),
+    send: (frame, inputId) => stamp(frame, true, inputId),
     lose: (frame) => stamp(frame, false),
     sendRaw: (payload) => {
       for (const socket of joined) socket.emit(MATCH_EVENTS.serverToClient, payload);
@@ -311,10 +311,10 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
       }),
   };
 
-  function stamp(frame: ServerFrame, deliver: boolean): WireCursor {
+  function stamp(frame: ServerFrame, deliver: boolean, inputId?: number): WireCursor {
     seq += 1;
     const cursor = { epoch: server.epoch, seq };
-    const envelope: ServerEnvelope = { matchId, cursor, frame };
+    const envelope: ServerEnvelope = { matchId, cursor, frame, ...(inputId === undefined ? {} : { input: inputId }) };
     sentLog.set(`${server.epoch}:${seq}`, envelope);
     if (isTierC(frame.method)) history.push(frame);
     if (frame.kind === 'ask') openAsks.set(frame.callId, frame);

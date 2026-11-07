@@ -4190,6 +4190,56 @@ describe('hold-decide-forward', () => {
 			expect(h.host.commands).toContainEqual({ t: 'resend-pending', seat: SEAT1_ID });
 		});
 
+		describe('an act names the input it was made on (#40)', () => {
+			function shownInput(input: number): { h: Harness; from: number } {
+				vi.useFakeTimers();
+				const h = openedHarness();
+				closeDanglingBar(h, SEAT1_ID);
+				h.match.setFullControl(SEAT1_ID, true);
+				const from = envelopesFor(h, SEAT1_ID).length;
+				h.host.push(
+					{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, PRIORITY), input },
+					{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'OK', label2: 'End Turn', enable1: true, enable2: true }), input },
+				);
+				return { h, from };
+			}
+			const click = ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: 960 }, otherCardViewsToSelect: [], triggerEvent: null });
+
+			it('the window’s envelopes carry the input Forge showed it for', () => {
+				const { h, from } = shownInput(7);
+				const sent = envelopesFor(h, SEAT1_ID).slice(from);
+				expect(sent.map((e) => [e.frame.method, e.input])).toEqual([
+					['showPromptMessage', 7],
+					['updateButtons', 7],
+				]);
+			});
+
+			it('a click and a press go to the bridge with their input; a concede names none', () => {
+				const { h } = shownInput(7);
+				const before = h.host.commands.length;
+				h.match.fromClient(SEAT1_ID, click, 7);
+				h.host.push({ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'OK', label2: 'End Turn', enable1: true, enable2: true }), input: 7 });
+				h.match.fromClient(SEAT1_ID, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }), 7);
+				h.match.fromClient(SEAT1_ID, ClientFrameSchema.parse({ kind: 'act', method: 'concede' }), 7);
+				const acts = h.host.commands.slice(before).filter((c) => c.t === 'act');
+				expect(acts.map((c) => (c.t === 'act' ? [c.frame.method, c.input] : null))).toEqual([
+					['selectCard', 7],
+					['selectButtonOk', 7],
+					['concede', undefined],
+				]);
+			});
+
+			it('an act the bridge dropped as made on a past input: the click says stale, and the bar is back ANSWER_SILENCE_MS later', () => {
+				const { h, from } = shownInput(7);
+				h.match.fromClient(SEAT1_ID, click, 7);
+				h.host.push({ t: 'dropped', seat: SEAT1_ID, method: 'selectCard', card: 960, why: 'made on an input Forge has moved past' });
+				expect(h.logs.find((l) => l.evt === 'click')).toMatchObject({ seat: SEAT1_ID, card: 960, outcome: 'stale' });
+				vi.advanceTimersByTime(ANSWER_SILENCE_MS);
+				expect(bars(h, from).slice(-2)).toEqual(['OK:false/End Turn:false', 'OK:true/End Turn:true']);
+				expect(h.logs.find((l) => l.evt === 'window-resent')).toMatchObject({ seat: SEAT1_ID, after: 'refused' });
+			});
+		});
+
 		/** Seat 1 clicks a card under its live priority window, and Forge turns the click away. */
 		function refusedClick(): { h: Harness; from: number } {
 			vi.useFakeTimers();

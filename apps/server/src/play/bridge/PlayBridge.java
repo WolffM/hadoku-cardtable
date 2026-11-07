@@ -543,6 +543,34 @@ public final class PlayBridge {
         }
 
         /**
+         * Every input Forge opens, numbered as it is first seen: the id each seat's {@code frame} lines
+         * carry ({@link SeatGui#frame}) and its acts name back ({@link #actInputs}). Weak, so a closed
+         * input is never held; 0 is "no input open".
+         */
+        private final Map<Object, Integer> inputIds = java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
+        private final java.util.concurrent.atomic.AtomicInteger nextInputId = new java.util.concurrent.atomic.AtomicInteger();
+
+        int inputId(final Object input) {
+            if (input == null || input instanceof InputLockUI) { return 0; }
+            return inputIds.computeIfAbsent(input, k -> nextInputId.incrementAndGet());
+        }
+
+        /**
+         * Each seat's acts that name the input they were made on, oldest first: the method, the card or
+         * player (-1 for a button) and the input's id, recorded as the act leaves the seat's client
+         * ({@link SeatGui#act}) and taken where Forge applies it ({@link SeatController#madeOnAnother}).
+         * Forge's {@link ActGate} holds an act made between two inputs and hands it to whatever input
+         * opens next; an act made on an input that is gone by then answered a window the seat never saw
+         * (a click Forge refused there, a Cancel that became the next window's End Turn, #40). Checked
+         * at the moment Forge applies it, so no ordering between the bridge's lines matters.
+         */
+        final Map<Integer, java.util.Deque<Object[]>> actInputs = new ConcurrentHashMap<>();
+
+        java.util.Deque<Object[]> actInputs(final int seat) {
+            return actInputs.computeIfAbsent(seat, s -> new java.util.concurrent.ConcurrentLinkedDeque<>());
+        }
+
+        /**
          * Wave 33 §S item 4 — the concede race, ORDERED shut rather than merely
          * narrowed. {@code false} until the {@code gameover} line is emitted,
          * exactly once ({@link #gameOverEmitted}'s {@code compareAndSet} is the
@@ -2761,6 +2789,9 @@ public final class PlayBridge {
             final JsonObject o = line("frame");
             o.addProperty("seat", seat);
             o.add("frame", frame);
+            // The input this frame was shown for: what an act made on it names (MatchContext#actInputs).
+            final int input = match.inputId(myInput());
+            if (input > 0) { o.addProperty("input", input); }
             emit(o);
         }
 
@@ -5895,14 +5926,22 @@ public final class PlayBridge {
 
         // ------------------------------------------------ acts, browser → Forge
 
-        void act(final JsonObject frame) {
+        /** An act made on input {@code input} (0: the act names none, and is judged as Forge judges it): see {@link MatchContext#actInputs}. */
+        private void madeOn(final int input, final String method, final int id) {
+            if (input > 0) { match.actInputs(seat).add(new Object[] { method, id, input }); }
+        }
+
+        void act(final JsonObject frame, final int input) {
             final IGameController c = getGameController();
             if (c == null) {
                 throw new IllegalStateException("seat " + seat + " has no game controller yet");
             }
             final String method = frame.get("method").getAsString();
             switch (method) {
-                case "selectButtonOk" -> c.selectButtonOk();
+                case "selectButtonOk" -> {
+                    madeOn(input, method, -1);
+                    c.selectButtonOk();
+                }
                 case "selectButtonCancel" -> {
                     // End Turn is Forge's own button 2 at a priority window. The exemption is
                     // set BEFORE the click is sent, and setPhaseDelayOff now writes it directly
@@ -5910,13 +5949,18 @@ public final class PlayBridge {
                     // click over the network, so this ordering is real rather than assumed.
                     if (lastEnable2 && END_TURN_LABEL.equals(lastLabel2)) { setPhaseDelayOff(true); }
                     if (cancelYield()) { return; }
+                    madeOn(input, method, -1);
                     c.selectButtonCancel();
                 }
                 case "concede" -> c.concede();
                 case "requestResync" -> c.requestResync();
                 case "useMana" -> c.useMana(frame.get("color").getAsByte());
                 case "nextGameDecision" -> c.nextGameDecision(NextGameDecision.valueOf(frame.get("decision").getAsString()));
-                case "selectPlayer" -> c.selectPlayer(player(frame.get("player")), trigger(frame.get("triggerEvent")));
+                case "selectPlayer" -> {
+                    final PlayerView who = player(frame.get("player"));
+                    madeOn(input, method, who.getId());
+                    c.selectPlayer(who, trigger(frame.get("triggerEvent")));
+                }
                 case "selectCard" -> {
                     final CardView picked = card(frame.get("card"));
                     clickedCard = picked.getId();
@@ -5931,6 +5975,7 @@ public final class PlayBridge {
                     }
                     final List<CardView> others = new ArrayList<>();
                     for (final JsonElement e : frame.getAsJsonArray("otherCardViewsToSelect")) { others.add(card(e)); }
+                    madeOn(input, method, picked.getId());
                     c.selectCard(picked, others, trigger(frame.get("triggerEvent")));
                 }
                 case "selectAbility" -> {
@@ -6365,6 +6410,25 @@ public final class PlayBridge {
             return in instanceof InputLockUI ? null : in;
         }
 
+        /**
+         * Whether this act was made on an input other than the one Forge is applying it to: taken off
+         * its record ({@link MatchContext#actInputs}) and, if so, dropped with a {@code dropped} line,
+         * never applied. An act with no record named no input and is applied as Forge applies it.
+         */
+        private boolean madeOnAnother(final String method, final int id, final Object before) {
+            final var pending = match.actInputs(seat);
+            for (final var it = pending.iterator(); it.hasNext();) {
+                final Object[] entry = it.next();
+                if (method.equals(entry[0]) && (int) entry[1] == id) {
+                    it.remove();
+                    if ((int) entry[2] == match.inputId(before)) { return false; }
+                    dropped(match, seat, method, id, "made on an input Forge has moved past");
+                    return true;
+                }
+            }
+            return false;
+        }
+
         /** The selection this seat's click on {@code cardId} was sent to answer, taken off its record; null for any other click. */
         private Object takeSelectionClick(final int cardId) {
             final var pending = match.selectionClicks(seat);
@@ -6507,19 +6571,24 @@ public final class PlayBridge {
 
         @Override
         public void selectButtonOk() {
-            applied(liveInput(), act("selectButtonOk"));
+            final Object before = liveInput();
+            if (madeOnAnother("selectButtonOk", -1, before)) { return; }
+            applied(before, act("selectButtonOk"));
             super.selectButtonOk();
         }
 
         @Override
         public void selectButtonCancel() {
-            applied(liveInput(), act("selectButtonCancel"));
+            final Object before = liveInput();
+            if (madeOnAnother("selectButtonCancel", -1, before)) { return; }
+            applied(before, act("selectButtonCancel"));
             super.selectButtonCancel();
         }
 
         @Override
         public void selectPlayer(final PlayerView playerView, final ITriggerEvent triggerEvent) {
             final Object before = liveInput();
+            if (madeOnAnother("selectPlayer", playerView.getId(), before)) { return; }
             final JsonObject a = act("selectPlayer");
             a.add("player", ref("player", playerView.getId()));
             a.add("triggerEvent", triggerEventJson(triggerEvent));
@@ -6530,6 +6599,10 @@ public final class PlayBridge {
         @Override
         public boolean selectCard(final CardView cardView, final List<CardView> otherCardViewsToSelect, final ITriggerEvent triggerEvent) {
             final Object before = liveInput();
+            if (madeOnAnother("selectCard", cardView.getId(), before)) {
+                takeSelectionClick(cardView.getId());
+                return false;
+            }
             final Object selection = takeSelectionClick(cardView.getId());
             if (selection != null && selection != before) {
                 dropped(match, seat, "selectCard", cardView.getId(), "its selection had closed before Forge reached it");
@@ -8379,7 +8452,7 @@ public final class PlayBridge {
         switch (cmd.get("t").getAsString()) {
             case "reply" -> seat(match, cmd).resolve(cmd.get("callId").getAsString(), cmd.get("result"));
             case "abort" -> seat(match, cmd).resolve(cmd.get("callId").getAsString(), ABORTED);
-            case "act" -> seat(match, cmd).act(cmd.getAsJsonObject("frame"));
+            case "act" -> seat(match, cmd).act(cmd.getAsJsonObject("frame"), cmd.has("input") ? cmd.get("input").getAsInt() : 0);
             case "cancel-payment" -> seat(match, cmd).cancelPayment();
             case "resend-pending" -> seat(match, cmd).resendPending();
             case "probe" -> probe(match, cmd);

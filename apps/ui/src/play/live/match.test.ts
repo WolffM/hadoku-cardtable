@@ -1234,6 +1234,33 @@ describe('the mistake bubble’s classifier, wired to a live refusal', () => {
  * input stopping, the asks the browser answers itself — and `drawnOffer` keeps the last offer
  * drawn through that silence. `boardInteraction`, what a click may SEND, never holds.
  */
+describe('an act names the input of the window it was made on (#40)', () => {
+  const sentEnvelopes = (s: ReplayServer) => s.received.filter((r) => r.event === 'forge:c2s').map((r) => r.payload as { frame: { method?: string }; input?: number });
+
+  it('a click carries the input of the window drawn', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const target = m.stats.applied + 3;
+    s.send(prompt('Priority'), 41);
+    s.send(bar(true), 41);
+    s.send(actionable([mine[0]!]), 41);
+    await until('the window', () => m.stats.applied >= target);
+    expect(m.inputId).toBe(41);
+    expect(selectCard(m, mine[0]!)).toBe(true);
+    await until('the click at the server', () => sentEnvelopes(s).length === 1);
+    expect(sentEnvelopes(s)[0]).toMatchObject({ frame: { method: 'selectCard' }, input: 41 });
+  });
+
+  it('a window the server named no input for leaves the last one standing', async () => {
+    const { s, m } = await fullGame();
+    const target = m.stats.applied + 2;
+    s.send(prompt('Priority'), 41);
+    s.send(bar(true));
+    await until('the window', () => m.stats.applied >= target);
+    expect(m.inputId).toBe(41);
+  });
+});
+
 describe('a mark a target selection sends after it closed', () => {
   /*
    * Monkey run 42393623986, m-db4cd5c0ce22 (Tezzeret Control): Tezzeret's -1 targeted Inkmoth Nexus;

@@ -1121,7 +1121,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				log({ evt: refusedInput(seat), participantId, matchId: match.id, seat, input: 'c2s', kind: parsed.value.frame.kind });
 				return;
 			}
-			const outcome = match.fromClient(seat, parsed.value.frame);
+			const outcome = match.fromClient(seat, parsed.value.frame, parsed.value.input);
 			if (!outcome.ok) {
 				log({ evt: 'c2s-refused', participantId, matchId: match.id, seat, error: outcome.error, kind: parsed.value.frame.kind });
 				return;
