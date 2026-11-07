@@ -95,7 +95,7 @@ const USAGE = `upload-art — copy every printing's card image to cdn.hadoku.me
   --dry-run            fetch nothing, upload nothing, print the plan
   --limit N            stop after N uploads (default: all)
   --catalog <path>     card catalog (default: ${join(DATA_DIR, 'catalog', 'cards.json')})
-  --art-ids <path>     token rows to include (default: apps/ui/src/draft/art-ids.json, if present)
+  --art-ids <path>     token rows to include (default: apps/server/src/play/art-ids.json)
   --log <path>         mirror log to read and append (default: ${join(DATA_DIR, 'art', 'mirror.jsonl')})
   --upload-url <url>   where to POST the bytes (default: ${UPLOAD_URL})
   --delay-ms N         ms between Scryfall requests (default ${DEFAULT_DELAY_MS}, floor ${MIN_DELAY_MS})
@@ -121,7 +121,7 @@ function parseArgs(args: readonly string[]): Options {
   const path = (flag: string, fallback: string): string => resolve(flagValue(args, flag) ?? fallback);
   return {
     catalogPath: path('--catalog', process.env.CARDTABLE_CATALOG ?? join(DATA_DIR, 'catalog', 'cards.json')),
-    artIdsPath: path('--art-ids', join(repoRoot(), 'apps', 'ui', 'src', 'draft', 'art-ids.json')),
+    artIdsPath: path('--art-ids', join(repoRoot(), 'apps', 'server', 'src', 'play', 'art-ids.json')),
     logPath: path('--log', process.env.CARDTABLE_ART_MIRROR ?? join(DATA_DIR, 'art', 'mirror.jsonl')),
     uploadUrl: flagValue(args, '--upload-url') ?? UPLOAD_URL,
     delayMs: Math.max(MIN_DELAY_MS, positiveInt(flagValue(args, '--delay-ms'), DEFAULT_DELAY_MS, '--delay-ms')),
@@ -151,15 +151,9 @@ export function imageIds(catalog: CatalogFile, tokenIds: readonly string[]): str
   return [...ids].filter((id) => UUID_ID.test(id));
 }
 
-/** The token ids `art-ids.json` names (`t:` rows); none when the file is gone. */
+/** The token ids `art-ids.json` names (`t:` rows). A missing table is an error, not "no tokens". */
 async function tokenIds(path: string): Promise<string[]> {
-  let raw: string;
-  try {
-    raw = await readFile(path, 'utf8');
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [];
-    throw err;
-  }
+  const raw = await readFile(path, 'utf8');
   const table = (JSON.parse(raw) as { ids?: Record<string, string> }).ids ?? {};
   return Object.entries(table)
     .filter(([key]) => key.startsWith('t:'))
