@@ -111,7 +111,7 @@ table under them is the only part that should change.
 | I | Rewards (unlockable art, loot) | Future — an inventory table beside game stats | |
 | J | Draft stats | Future — `mode: 'draft'` already has a rating pool | |
 | K | Cardtable as a platform: any game on cardtable's scaffolding (below) | **Planned** 2026-11-06. Phase 1 (the layer fence, D26, one handshake gate) is scaffolded as wave 91 on branch `w91` | the plan: https://claude.ai/artifact/Jm5BXZj9xLPnpMGDwLSTKu |
-| L | Bomberman open to members | **Filed** 2026-11-06. Bomberman learns the `member` tier first, because its ladder has none and an unknown floor ranks as public. Then the wrapper floor, the edge route and members' stats reads | hadoku-bomberman#5, then hadoku_site#522 |
+| L | Bomberman open to members | **Live** 2026-11-06. Bomberman learned the `member` tier first (its ladder had none, and an unknown floor ranked as public), and now refuses to boot on a floor it does not know. Then the edge route, the wrapper floor and members' stats reads. Proven on prod by a signed-up stranger: app, API, game socket and stats; anonymous still 401 | hadoku-bomberman 7ff9276 (#5), then hadoku_site 748445ea4 (#522); `e2e/members/bomberman.spec.ts` there |
 
 Operator-owned (hadoku_site session): the cardtable and bomberman service keys
 in their PM2 wrappers (`CARDTABLE_SERVICE_KEY`, `BOMBERMAN_SERVICE_KEY`),
