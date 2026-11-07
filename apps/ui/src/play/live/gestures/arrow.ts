@@ -375,7 +375,7 @@ export function drawArrow(overlay: HTMLElement, spec: ArrowSpec): void {
   }
   // A target that already has its arrow gets no second one: the press that chose it stays under the
   // pointer, and a drift of the hand (a fingertip always travels) repaints before Forge has answered.
-  if (spec.snap !== null && (spec.chosen?.has(spec.snap) === true || committedTo(overlay, spec.snap))) {
+  if (spec.snap !== null && (spec.chosen?.has(spec.snap) === true || committedTo(spec.snap))) {
     clearArrow(overlay);
     return;
   }
@@ -477,17 +477,37 @@ function retire(svg: SVGSVGElement): void {
   svg.remove();
 }
 
-/** A committed arrow in `overlay` stands at `target`. */
-function committedTo(overlay: HTMLElement, target: Element): boolean {
-  for (const [svg, c] of committed) if (c.target === target && overlay.contains(svg)) return true;
+/** A committed arrow stands at `target`. */
+function committedTo(target: Element): boolean {
+  for (const [svg, c] of committed) if (svg.isConnected && same(c.target, target)) return true;
   return false;
 }
 
 /** The arrows Forge's answer drew have arrived: a committed arrow to any of their targets has done its job. */
 export function retireCommitted(overlay: HTMLElement, targets: Iterable<Element>): void {
   if (committed.size === 0) return;
-  const to = new Set(targets);
-  for (const [svg, c] of committed) if (overlay.contains(svg) && to.has(c.target)) retire(svg);
+  const to = [...targets];
+  for (const [svg, c] of committed) if (overlay.contains(svg) && to.some((t) => same(c.target, t))) retire(svg);
+}
+
+/**
+ * Two elements stand for the same target: the same node, or the same player, card or stack item by its
+ * board id. React may draw a target anew between a press and Forge's answer (a face that stops being a
+ * choice), and the node a committed arrow settled on is then gone from the board while its target is not.
+ */
+function same(a: Element, b: Element): boolean {
+  if (a === b) return true;
+  const ra = refOf(a);
+  return ra !== null && ra === refOf(b);
+}
+
+function refOf(el: Element): string | null {
+  const player = el.getAttribute('data-player-id');
+  if (player !== null) return `player:${player}`;
+  const card = el.getAttribute('data-board-card');
+  if (card !== null) return `card:${card}`;
+  const item = el.getAttribute('data-stack-id') ?? el.getAttribute('data-placed-spell');
+  return item === null ? null : `stack:${item}`;
 }
 
 /** The gesture was let go or the board is going: every committed arrow goes with it. */

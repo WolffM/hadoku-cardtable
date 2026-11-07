@@ -175,6 +175,19 @@ describe('one arrow per target', () => {
     expect(overlay.querySelector('[data-testid="targeter"]')).not.toBeNull();
   });
 
+  it('knows the target by its board id when React draws it anew between the press and the answer', () => {
+    target.setAttribute('data-player-id', '2');
+    aim();
+    commitArrowAt(overlay, inner);
+    const redrawn = document.createElement('div');
+    redrawn.setAttribute('data-player-id', '2');
+    target.replaceWith(redrawn);
+    aimAt(redrawn);
+    expect(overlay.querySelector('[data-testid="targeter"]'), 'no ghost at the redrawn face').toBeNull();
+    retireCommitted(overlay, [redrawn]);
+    expect(arrows(), "and Forge's arrow to it retires the committed one").toBe(0);
+  });
+
   it('still aims at another target while the committed one stands', () => {
     aim();
     commitArrowAt(overlay, inner);
