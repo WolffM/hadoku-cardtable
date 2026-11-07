@@ -110,6 +110,8 @@ table under them is the only part that should change.
 | H | Bomberman history import + watchparty cutover | **History imported** 2026-10-10 (hadoku_site `2ca708a5`, `f385c71f`): 36 matches / 152 seats / 5 ratings in `hadoku_prefs`; "littlemiss" rounds 20–34 attributed to Erin on the operator's word (`--owner-for-name`), 5 pre-identity "Hadoku" seats stay guests. Cutover = point watchparty's bomberman `GAMES` entry at bomberman's bundle, then delete watchparty's `GameModule.tsx`, `game/`, `gameStatic.ts`, game-dist pipeline, `d1Sync.ts` and hadoku_site `watchparty-stats-api` | bomberman brief §5, §7 |
 | I | Rewards (unlockable art, loot) | Future — an inventory table beside game stats | |
 | J | Draft stats | Future — `mode: 'draft'` already has a rating pool | |
+| K | Cardtable as a platform: any game on cardtable's scaffolding (below) | **Planned** 2026-11-06. Phase 1 (the layer fence, D26, one handshake gate) is scaffolded as wave 91 on branch `w91` | the plan: https://claude.ai/artifact/Jm5BXZj9xLPnpMGDwLSTKu |
+| L | Bomberman open to members | **Filed** 2026-11-06. Bomberman learns the `member` tier first, because its ladder has none and an unknown floor ranks as public. Then the wrapper floor, the edge route and members' stats reads | hadoku-bomberman#5, then hadoku_site#522 |
 
 Operator-owned (hadoku_site session): the cardtable and bomberman service keys
 in their PM2 wrappers (`CARDTABLE_SERVICE_KEY`, `BOMBERMAN_SERVICE_KEY`),
@@ -127,3 +129,35 @@ roughly `mount(el, { roomKey, serverOrigin, identity, theme, onLeave })` →
 `unmount()` — and a game list that is data, not a hardcoded `GAMES` array.
 The chat is already decoupled (`RoomChrome` is a package); what a bundle and
 the room share is the room key, identity, and the theme/avatar.
+
+## Cardtable as a platform (2026-11-06, verbatim)
+
+> it's time to start thinking about how to refactor this repo to be more
+> useful as a general tool rather than specifically UI for mtg-forge. in the
+> future we are likely to want to make new games with new UI, but want to
+> retain the power of the scaffolding, networking, user management, and other
+> stuff. mainly, a new game will have different data sources and the actual
+> game package might be different. cardtable is just a website that kind of
+> ties it all together.
+
+On learning that cardtable's lobby re-implements what watchparty's room
+packages already do:
+
+> watchparty and cardtable really should share essentially all the same code
+> here. some custom css and ui elements is fine, but all the logic should be
+> exactly the same.
+
+### The rulings on the plan (verbatim)
+
+| Question | The operator | What it settles |
+| -------- | ------------ | --------------- |
+| What is the next game? | "you should assume the game client could be literally anything. might be a rust client package like bomberman." | No card kit: card-shaped code is Magic's. |
+| Licence | "whatever is least restrictive." | MIT by default. GPL-3.0-or-later only on Forge and the Magic layer (D26, wave 91). |
+| Magic's code | "it would be nice to seperate all the mtg logic to it's own layer so the seperation is clean." | A layer map and a ratchet in `check` from wave 91. The move to `games/magic/` is phase 6. |
+| A second game | "could be cool to allow creating bomberman rooms instead of constructed/draft rooms." | Bomberman is the second user of every seam. |
+| The streamed desktop | "isn't it just another parallel execution lane? i dont see how that messes with out boundaries." | It stays, as one of the match host's runtimes. |
+| Seats | "a spectator can never take the place of an active player." | A seat in a live game belongs to its player until the game ends. |
+| Ready | "per unique userid makes the most sense to me." | Ready is kept per userId, not per socket. |
+| Leader | "in theory we could determine a 'promote to leader' button from the leaders perspective. but it's not important." | Leadership moves only when the leader leaves (R16). The button can come later. |
+| Chat | "joining a room should be the same as joining the chat. they should be one in the same." | Chat moves into the shared room core, and each app serves its own rooms' chat. |
+| Bomberman's tier | "totally fine to open bomberman to member tier" | Row L. |
