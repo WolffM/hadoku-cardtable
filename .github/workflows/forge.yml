@@ -210,6 +210,7 @@ jobs:
           JVM_OVERRIDE: ${{ inputs.jvm }}
           ONLY: ${{ inputs.only }}
           VIDEO: ${{ inputs.video }}
+          RUNS_ON: ${{ inputs.runs_on }}
         run: |
           set -uo pipefail
           emit() { printf '%s\n' "$@" >> "$GITHUB_OUTPUT"; printf '%s\n' "$@"; }
@@ -247,7 +248,9 @@ jobs:
               # went green is the answer, so this one runs nothing and names it. The inputs are not
               # in the runs API, so each run that runs prints its key and this reads the `changes`
               # log of this sha's earlier green dispatches. A red one never stops a re-run.
-              key="forge-proof-key: $(printf '%s|' "$ONLY" "$SPECS_OVERRIDE" "$JVM_OVERRIDE" "$FULL" "$BASE" "$VIDEO" | sha256sum | cut -c1-16)"
+              # A run aimed at one node (`runs_on`, a fleet canary) proves that node, not the sha, so the node
+              # is part of the key. Only when set: an ordinary dispatch keeps the key it always had.
+              key="forge-proof-key: $({ printf '%s|' "$ONLY" "$SPECS_OVERRIDE" "$JVM_OVERRIDE" "$FULL" "$BASE" "$VIDEO"; [ -z "$RUNS_ON" ] || printf '%s|' "$RUNS_ON"; } | sha256sum | cut -c1-16)"
               for id in $(api "actions/workflows/forge.yml/runs?event=workflow_dispatch&head_sha=$HEAD_SHA&status=success&per_page=20" \
                   | jq -r --argjson me "$RUN_ID" '.workflow_runs[] | select(.id != $me) | .id'); do
                 job=$(api "actions/runs/$id/jobs" | jq -r '.jobs[] | select(.name == "changes") | .id')
