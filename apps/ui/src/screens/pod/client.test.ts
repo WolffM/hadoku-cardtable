@@ -7,7 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { parseRoomView, type RoomView } from '../../rooms/api.ts';
-import { fetchPodContext, nextGameStarts, playPod, relayedPodSource, sitPod, standPod, startTableMatch } from './client.ts';
+import { fetchPodContext, heldFor, nextGameStarts, playPod, relayedPodSource, sitPod, standPod, startTableMatch } from './client.ts';
 import { POD_SEATS, type PodView } from './wire.ts';
 
 afterEach(() => {
@@ -216,5 +216,18 @@ describe('nextGameStarts', () => {
   it('waits for sideboarding, and never restarts a finished series', () => {
     expect(nextGameStarts('sideboarding')).toBe(false);
     expect(nextGameStarts('done')).toBe(false);
+  });
+});
+
+describe('heldFor', () => {
+  // A round's table is read once it is mine; the next round's table replaces it while the read of the
+  // last one is still held. That read must never answer for the new table: it held the deck the last
+  // round played, and the table started before this round's deck was picked (forge.yml run 42425042362).
+  it('answers a read only for the table it was made at', () => {
+    const held = { tableId: 't-round1', value: { deckLegal: true } };
+    expect(heldFor(held, 't-round1')).toEqual({ deckLegal: true });
+    expect(heldFor(held, 't-round2')).toBeNull();
+    expect(heldFor(held, undefined)).toBeNull();
+    expect(heldFor(null, 't-round1')).toBeNull();
   });
 });

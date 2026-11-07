@@ -33,6 +33,9 @@
 import { spectate } from './podSeats.ts';
 import { expect, test } from '@playwright/test';
 
+import type { PodView } from '../packages/shared/src/pod.ts';
+
+import { PREFIX } from './identities.ts';
 import { makeTitled } from './play/board.ts';
 import { type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -42,6 +45,11 @@ import { concedeToResult, enableTournament, openRoomWithLeader, pickDeck, ready,
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 const UI_TIMEOUT = 30_000;
+/**
+ * The longest a bot game may hold its round (`http/routes.ts`'s `BOT_GAME_TIMEOUT_MS`): two Forge AIs
+ * play it out for real, and past this the room settles it without them.
+ */
+const BOT_GAME_MS = 12 * 60_000;
 const matchUrl = /#\/match\/(m-[0-9a-f]{12})$/;
 const tablePage = /#\/room\/[^/]+\/table\/t-[0-9a-f]+$/;
 
@@ -191,7 +199,7 @@ test(
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
     if (!forge.ok) return;
-    test.setTimeout(8 * 60_000);
+    test.setTimeout(8 * 60_000 + BOT_GAME_MS);
 
     const stack = await startPlayStack(forge);
     let alice: Player | undefined;
@@ -200,7 +208,7 @@ test(
       const opened = await openRoomWithLeader(browser, stack.origin, `e2e tournament per-round ai ${Date.now()}`);
       alice = opened.alice;
       bob = opened.bob;
-      const { roomUrl } = opened;
+      const { roomUrl, roomId } = opened;
 
       await enableTournament(alice, bob, 'per-round');
       // Bob spectates (entering seated him): one human, three AI — entrants enough for two rounds
@@ -253,6 +261,19 @@ test(
       };
 
       await playRound(1);
+      /*
+       * Round 1's other pairing is the two AIs', a bot game played out in Forge (the operator,
+       * 2026-11-07), and round 2 pairs only once it reports. Waited on by its state: while round 1
+       * stands, a bot game must be what it waits on, or the round is stuck and this fails at once.
+       */
+      const deadline = Date.now() + BOT_GAME_MS;
+      for (;;) {
+        const pod = ((await (await alice.context.request.get(`${stack.origin}${PREFIX}/api/rooms/${roomId}`)).json()) as { pod: PodView }).pod;
+        if (pod.round >= 2) break;
+        expect(pod.botGames ?? [], 'round 1 still stands only while its bot game is played').not.toEqual([]);
+        expect(Date.now(), 'the bot game reports within its clock').toBeLessThan(deadline);
+        await alice.page.waitForTimeout(2_000);
+      }
       await playRound(2);
 
       await expect(alice.page.getByTestId('pod-standings'), 'standings after round 2').toBeVisible({ timeout: UI_TIMEOUT });
