@@ -33,6 +33,7 @@ import { resolve } from 'node:path';
 import { chromium, type Browser, type BrowserContext, type BrowserContextOptions } from '@playwright/test';
 
 import { FRIENDS, SESSION_COOKIE } from '../identities.ts';
+import { dress } from '../looks.ts';
 import type { Friend } from '../play/browser.ts';
 import { PLAY_EDGE_ORIGIN, RUN_DIR } from '../play/harness.ts';
 import { registerFriendContext } from '../play/open-friends.ts';
@@ -224,21 +225,19 @@ export async function openPromoFriend(browser: Browser, name: string, options: B
   await keepPrefsLocal(context, PLAY_EDGE_ORIGIN);
   await setPlayFastModeDefault(context, false);
   // No match music in the clips: the trailer lays one bed under all of them (`mute.ts`'s level key).
-  // And the friend's avatar, where watchparty's picker leaves it (`room/avatar.ts`'s `selectedAvatarId`).
-  const userId = FRIENDS[name]?.userId ?? null;
-  await context.addInitScript(
-    ({ userId, sprite }) => {
-      try {
-        localStorage.setItem('cardtable.sound.music', '0');
-        if (userId !== null && sprite !== null) {
-          localStorage.setItem(`prefs-cache:${userId}:watchparty`, JSON.stringify({ blob: { sprite }, userVersion: 1, deviceVersion: 1, cachedAt: Date.now() }));
-        }
-      } catch (err) {
-        console.warn(`[promo] could not set the local prefs: ${String(err)}`);
-      }
-    },
-    { userId, sprite: AVATARS[name] ?? null },
-  );
+  await context.addInitScript(() => {
+    try {
+      localStorage.setItem('cardtable.sound.music', '0');
+    } catch (err) {
+      console.warn(`[promo] could not set the local prefs: ${String(err)}`);
+    }
+  });
+  // And the friend's avatar, dressed in prefs-api's stand-in the way their own account
+  // answers `room/avatar.ts`'s `accountAvatarId` GET (wave 92 D).
+  const identity = FRIENDS[name];
+  const userId = identity?.userId ?? null;
+  const sprite = AVATARS[name];
+  if (sprite !== undefined && identity !== undefined) await dress(context.request, PLAY_EDGE_ORIGIN, identity.key, { source: 'sprite', sprite, name });
   // Every long animation frame (50 ms or more), with the scripts behind it: where a clip's dropped frames
   // come from when it is the game, not the capture (`<clip>.loaf.json`, written by the film's `stop`).
   await context.addInitScript(() => {

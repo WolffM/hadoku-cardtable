@@ -22,7 +22,8 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { EDGE_ORIGIN, PREFIX } from './identities.ts';
+import { EDGE_ORIGIN, FRIENDS, PREFIX } from './identities.ts';
+import { dress } from './looks.ts';
 import { twoLegalDecks } from './play/enter.ts';
 import { makeTitled } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
@@ -141,7 +142,7 @@ async function residue(page: Page): Promise<{ shadowChildren: number; shadowShee
   });
 }
 
-/** The character alice picked in watchparty, as its picker leaves it in the prefs cache (`room/avatar.ts`). */
+/** The character alice picked, as her account answers `room/avatar.ts`'s `accountAvatarId` GET (wave 92 D). */
 const ALICE_SPRITE = 'e2e-sprite-embed';
 
 test('the embed binds one watchparty room to one table and leaves the host page as it found it', async ({ browser }) => {
@@ -153,11 +154,9 @@ test('the embed binds one watchparty room to one table and leaves the host page 
   for (const [context, who] of [[alice, 'alice'], [bob, 'bob']] as const) {
     await context.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: `e2e-${who}-id`, userType: 'member', name: `e2e-${who}` } }));
   }
-  // Under alice's OWN user id, the one whoami answers — not the anon row.
-  await alice.addInitScript(
-    (row: string) => localStorage.setItem('prefs-cache:e2e-alice-id:watchparty', row),
-    JSON.stringify({ blob: { sprite: ALICE_SPRITE }, userVersion: 1, deviceVersion: 1, cachedAt: Date.now() }),
-  );
+  // Dressed by her own key (`e2e/identities.ts`), the way her own account answers the
+  // embed's GET for it — not the `whoami` mock above, which only the room hop reads.
+  await dress(alice.request, EDGE_ORIGIN, FRIENDS.alice.key, { source: 'sprite', sprite: ALICE_SPRITE, name: 'e2e-alice' });
   try {
     const a = await alice.newPage();
     await a.goto(embedHostUrl(EDGE_ORIGIN, roomKey, '&theme=ocean-dark'));

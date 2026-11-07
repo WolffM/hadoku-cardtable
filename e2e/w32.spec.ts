@@ -12,11 +12,11 @@
  *     auto-select an avatar we should probably port that into the generic
  *     functionality as well."* Alice and bob are fresh browsers with no saved avatar
  *     anywhere; the room gives each a character on joining, not the same one, and
- *     both boards draw both faces with it (`[w32 avatar]` lines). Then the watchparty
- *     picker saves into the prefs SDK's write-through cache
- *     (`prefs-cache:<user>:watchparty`); the page writes that row the way the SDK
- *     does, and BOTH boards must redraw that seat's face within a few seconds, with
- *     no reload.
+ *     both boards draw both faces with it (`[w32 avatar]` lines). Then the fleet's
+ *     avatar settings popout fires `AVATAR_EVENT` on `window` with the new pick
+ *     (`pickSprite` plays both halves of that: dressing the account in prefs-api's
+ *     stand-in, and the event); BOTH boards must redraw that seat's face within a
+ *     few seconds, with no reload.
  *  3. **…and still does after a deploy mid-match.** The operator, 2026-10-17:
  *     *"i noticed a reconnecting, and then i noticed our avatars reverted. And now,
  *     when we try to change avatars it doesn't work in the game."* Alice changes her
@@ -43,6 +43,8 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
+import { FRIENDS } from './identities.ts';
+import { dress } from './looks.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
 import { enterMatch, grindPriority, makeTitled, nextPhaseLive, resizeWindow, says, serverLog } from './play/board.ts';
@@ -219,19 +221,20 @@ const ownFace = (f: Friend): Locator => f.page.locator('[data-player-face][data-
 const theirFace = (f: Friend): Locator => f.page.locator('[data-player-face]:not([data-viewer])');
 
 /**
- * The watchparty picker's save, as the prefs SDK writes it. The chrome keys the SDK's
- * cache by the userId it was handed. In this harness the page's chrome runs as `anon`
- * (measured: the only prefs-cache row on the page is `prefs-cache:anon:watchparty`),
- * so the pick is saved under both keys.
+ * A pick made in the fleet's avatar settings popout, wave 92 D: the account answers the
+ * client's own GET (`createAvatarClient`, `room/avatar.ts`'s `accountAvatarId`), and a live
+ * pick fires `AVATAR_EVENT` on `window`. So this does both of what the popout does —
+ * `dress()` sets alice's account in prefs-api's stand-in (so a later start-read, a reload
+ * or a deploy's reconnect, sees it too — `aliceWears(..., 'after the deploy')` below), and
+ * the event reaches the open page without any read at all.
  */
-const saveSprite = (page: Page, sprite: string) =>
-  page.evaluate(
-    (id) => {
-      const row = JSON.stringify({ blob: { sprite: id }, userVersion: 1, deviceVersion: 1, cachedAt: Date.now() });
-      for (const k of ['prefs-cache:anon:watchparty', 'prefs-cache:e2e-alice-id:watchparty']) localStorage.setItem(k, row);
-    },
+async function pickSprite(alice: Friend, origin: string, sprite: string): Promise<void> {
+  await dress(alice.context.request, origin, FRIENDS.alice.key, { source: 'sprite', sprite, name: null });
+  await alice.page.evaluate(
+    (id) => window.dispatchEvent(new CustomEvent('hadoku:avatar', { detail: { avatar: { source: 'sprite', sprite: id }, choice: 'sprite', sprite: id } })),
     sprite,
   );
+}
 
 /** Alice's face, on her own board and on bob's. */
 const aliceFaceOn = (alice: Friend, f: Friend): Locator => (f === alice ? ownFace(f) : theirFace(f));
@@ -297,7 +300,7 @@ test(titled('a player with no saved avatar is given one on joining a room, two s
     const before = navigations.length;
 
     for (const sprite of ['e2e-sprite-one', 'e2e-sprite-two']) {
-      await saveSprite(alice.page, sprite);
+      await pickSprite(alice, stack.origin, sprite);
       await aliceWears(alice, bob, sprite, 'redrawn');
     }
     expect(navigations.length, 'the pages were not reloaded to show it').toBe(before);
@@ -318,7 +321,7 @@ test(titled("after a deploy mid-match, a seat keeps the avatar its player picked
       await f.context.route('**/watchparty/media/sprites/**', (route) => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: SPRITE }));
     }
     const { matchId } = await enterMatch(alice, bob, stack.origin);
-    await saveSprite(alice.page, 'e2e-sprite-one');
+    await pickSprite(alice, stack.origin, 'e2e-sprite-one');
     await aliceWears(alice, bob, 'e2e-sprite-one', 'before the deploy');
 
     await stack.restart();
@@ -328,7 +331,7 @@ test(titled("after a deploy mid-match, a seat keeps the avatar its player picked
     console.log(`[w32 restart] deployed mid-match; ${matchId} carried on`);
     await aliceWears(alice, bob, 'e2e-sprite-one', 'after the deploy');
 
-    await saveSprite(alice.page, 'e2e-sprite-two');
+    await pickSprite(alice, stack.origin, 'e2e-sprite-two');
     await aliceWears(alice, bob, 'e2e-sprite-two', 'changed after the deploy');
 
     // And the game that carried on through the deploy is reported when it ends,

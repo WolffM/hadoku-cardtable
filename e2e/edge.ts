@@ -104,7 +104,13 @@ export function startEdge(opts: EdgeOptions): Promise<Server> {
           res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'Bad Request' }));
           return;
         }
-        const key = typeof req.headers['x-user-key'] === 'string' ? req.headers['x-user-key'] : null;
+        // A server-to-server caller (`resolveAvatars`'s service key, `dress()`'s `_stand-in` PUT) sets
+        // `X-User-Key` itself; a BROWSER never does (`credentials: 'include'` sends only its cookie), so
+        // its own GET /api/v1/_avatar (`room/avatar.ts`'s `accountAvatarId`, wave 92 D) is resolved the
+        // same way `edgeHeaders` resolves `/cardtable/*`'s caller — from the session cookie, never trusted
+        // off an inbound header a page could set, since this mount (unlike `/cardtable/*`) never strips one.
+        const inboundKey = typeof req.headers['x-user-key'] === 'string' ? req.headers['x-user-key'] : null;
+        const key = inboundKey ?? FRIENDS[sessionOf(req.headers) ?? '']?.key ?? null;
         const out = prefs.handle(req.method ?? 'GET', prefsPath, { key }, body) ?? { status: 404, json: { error: 'Not Found' } };
         res.writeHead(out.status, { 'content-type': 'application/json' }).end(JSON.stringify(out.json));
       });

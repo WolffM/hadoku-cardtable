@@ -15,6 +15,12 @@
  * every id answered, an unknown one `{ source: 'sprite', name: null }`. What a person looks like is
  * set by a spec through a route the real one does not have, by their key, as their own popout would:
  *   PUT  /api/v1/_stand-in/avatar { userKey, avatar } → { ok: true }
+ *
+ * And the caller's OWN avatar, as `@wolffm/prefs-client/avatar`'s `createAvatarClient().get()`
+ * reads it directly from the BROWSER (`apps/ui/src/room/avatar.ts`'s `accountAvatarId`, wave 92 D):
+ *   GET /api/v1/_avatar → AvatarSettings, keyed by `headers.key` the same way `_stand-in/avatar`'s
+ *   PUT is keyed by `userKey` — both resolve through `userOfKey`. No session (`key` null or unknown):
+ *   403. Nothing picked: the same `{ source: 'sprite', name: null }` fallback as resolve, `sprite: null`.
  */
 
 export interface PrefsRowsStandIn {
@@ -25,7 +31,15 @@ export interface PrefsRowsStandIn {
 }
 
 const AVATAR_RESOLVE = '/api/v1/_avatar/resolve';
+const AVATAR_GET = '/api/v1/_avatar';
 const AVATAR_SET = '/api/v1/_stand-in/avatar';
+
+/** What `AVATAR_SET` stores, as far as `AVATAR_GET` reads it back: `ResolvedAvatar`'s own three fields. */
+interface StoredAvatar {
+	source?: unknown;
+	url?: unknown;
+	sprite?: unknown;
+}
 
 export function createPrefsRowsStandIn(opts: {
 	app: string;
@@ -49,6 +63,20 @@ export function createPrefsRowsStandIn(opts: {
 				if (headers.key !== opts.serviceKey) return { status: 403, json: { error: 'forbidden', required: 'service' } };
 				const ids = Array.isArray(b0.userIds) ? b0.userIds.filter((id): id is string => typeof id === 'string') : [];
 				return { status: 200, json: { avatars: Object.fromEntries(ids.map((id) => [id, people.get(id) ?? { source: 'sprite', name: null }])) } };
+			}
+			if (path === AVATAR_GET && method === 'GET') {
+				const userId = headers.key !== null ? opts.userOfKey(headers.key) : null;
+				if (userId === null) return { status: 403, json: { error: 'Forbidden', message: 'No session' } };
+				const stored = (people.get(userId) ?? { source: 'sprite', name: null }) as StoredAvatar;
+				const sprite = typeof stored.sprite === 'string' ? stored.sprite : null;
+				return {
+					status: 200,
+					json: {
+						avatar: { source: stored.source ?? 'sprite', ...(typeof stored.url === 'string' ? { url: stored.url } : {}), ...(sprite !== null ? { sprite } : {}) },
+						choice: sprite !== null ? (stored.source ?? 'sprite') : null,
+						sprite,
+					},
+				};
 			}
 			if (path === AVATAR_SET && method === 'PUT') {
 				const userId = typeof b0.userKey === 'string' ? opts.userOfKey(b0.userKey) : null;
