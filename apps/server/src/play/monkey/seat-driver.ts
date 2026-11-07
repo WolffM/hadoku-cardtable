@@ -212,7 +212,8 @@ export async function driveSeat(
       const phase = match.view?.phase ?? '';
       if (answer.declined) {
         const { looping, count } = declineStreak(declined, ask.method, fp, turn, phase);
-        if (looping) flag('loop', `declined ${ask.method} came back unchanged ${count} times in a row at the same turn/phase`, { method: ask.method });
+        // With the server's rows and the wire, as a stuck flag carries: the client's acts alone cannot say why Forge asks again.
+        if (looping) flag('loop', `declined ${ask.method} came back unchanged ${count} times in a row at the same turn/phase`, { method: ask.method }, [stateOf(match), ...(opts.serverRows?.() ?? [])]);
       } else {
         clearDeclineStreak(declined, fp);
       }
