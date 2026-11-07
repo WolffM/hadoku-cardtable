@@ -84,6 +84,7 @@ import type { CubeSummary, DraftBots, DraftPlan, DraftPreset, PickTimer, PoolSou
 
 import { poolsClient, roomsClient, type PoolsClient, type RoomsClient, type RoomMember } from '../rooms/api.ts';
 import { latestReads } from '../rooms/latest.ts';
+import { ActionButton } from '../components/ActionButton.tsx';
 import { DraftBotsRule } from '../draft/DraftBotsRule.tsx';
 import { PickTimerRule } from '../draft/PickTimerRule.tsx';
 import { PoolPicker, refusalOf, type PoolTab, type Refusal, type SourceStyle } from '../draft/PoolPicker.tsx';
@@ -145,6 +146,7 @@ export function DraftLobby({
   onReady,
   onRetry,
   pickTimer,
+  clock,
   draftBots,
   pools = defaultPools,
   rooms = defaultRooms,
@@ -164,6 +166,12 @@ export function DraftLobby({
   onRetry: () => void;
   /** The room's draft rope (`settings.pickTimer`). */
   pickTimer: PickTimer;
+  /**
+   * The chess clock for the pod's games (`settings.clock`, read through `clockOn`), switched apart
+   * from the pick timer: a draft or a tournament runs either, both or neither (the operator,
+   * 2026-11-07: "make sure i am able to selectively had pick timer and play timer seperately").
+   */
+  clock: boolean;
   /** What the room's bots pick with (`settings.draftBots`). */
   draftBots: DraftBots;
   /** Tests inject a stub. Production leaves it undefined. */
@@ -441,6 +449,18 @@ export function DraftLobby({
         disabled={dealing}
         onChange={(next) => void rooms.setSettings(roomId, { pickTimer: next })}
       />
+      <div className="lobby__rules-list">
+        <ActionButton
+          action={clock ? 'clock-off' : 'clock-on'}
+          className="lobby__free-pick ct-toggle"
+          aria-pressed={clock}
+          data-testid="chess-clock"
+          disabled={!amLeader || dealing}
+          onPress={() => void rooms.setSettings(roomId, { clock: clock ? 'off' : 'on' })}
+        >
+          Chess clock
+        </ActionButton>
+      </div>
       <DraftBotsRule bots={draftBots} leader={amLeader} disabled={dealing} onChange={(next) => void rooms.setSettings(roomId, { draftBots: next })} />
       {pod !== null && (
         <>

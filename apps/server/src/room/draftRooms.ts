@@ -205,11 +205,16 @@ export interface DraftApp {
 	rope: Map<SeatId, PickDeadline>;
 }
 
-/** One seat's deadline: on which pick (`key`), when it runs out, and how long it was given. */
+/**
+ * One seat's deadline: on which pick (`key`), when it runs out, and how long it
+ * was given; `lean` is the card the seat last pointed at in this pick (the
+ * client's `lean`), which the timeout takes if it is still in the pack.
+ */
 export interface PickDeadline {
 	key: string;
 	endsAt: number;
 	totalMs: number;
+	lean?: string;
 }
 
 interface DeckMeta {

@@ -17,7 +17,7 @@
  * per duplicate does not throw either, it just takes the server down.
  */
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DRAFT_CHANNEL,
   safeParseClientMessage,
@@ -35,6 +35,8 @@ import {
   cubeName,
   ingest,
   isComplete,
+  LEAN_DEBOUNCE_MS,
+  leanOn,
   mySeat,
   socketPath,
   startDraft,
@@ -554,5 +556,50 @@ describe('the driver’s surface', () => {
     ingest(d, updateMessage(at(2)));
     ingest(d, updateMessage(at(2)));
     expect(seen).toEqual([1, 2, 3]);
+  });
+});
+
+/* ── The lean ────────────────────────────────────────────────────────── */
+
+describe('the lean', () => {
+  it('waits for the pointer to settle, sends only the last card, and never the same one twice', () => {
+    vi.useFakeTimers();
+    try {
+      const stub = makeStub();
+      const draft = connect(stub);
+      leanOn(draft, 'c1');
+      leanOn(draft, 'c2');
+      leanOn(draft, 'c3');
+      expect(countOf(stub, 'lean')).toBe(0);
+      vi.advanceTimersByTime(LEAN_DEBOUNCE_MS);
+      expect(outbound(stub).filter((m) => m.type === 'lean')).toEqual([{ type: 'lean', draftId: 'draft:test', cardId: 'c3' }]);
+      leanOn(draft, 'c4');
+      leanOn(draft, 'c3');
+      vi.advanceTimersByTime(LEAN_DEBOUNCE_MS);
+      expect(countOf(stub, 'lean')).toBe(1);
+      leanOn(draft, null);
+      vi.advanceTimersByTime(LEAN_DEBOUNCE_MS);
+      expect(outbound(stub).filter((m) => m.type === 'lean').at(-1)).toEqual({ type: 'lean', draftId: 'draft:test', cardId: null });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('says the lean again after a reconnect, behind the re-join', () => {
+    vi.useFakeTimers();
+    try {
+      const stub = makeStub();
+      const draft = connect(stub);
+      stub.fire('connect');
+      leanOn(draft, 'c5');
+      vi.advanceTimersByTime(LEAN_DEBOUNCE_MS);
+      stub.fire('disconnect');
+      stub.fire('connect');
+      const types = outbound(stub).map((m) => m.type);
+      expect(types.slice(-2)).toEqual(['join', 'lean']);
+      expect(countOf(stub, 'lean')).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

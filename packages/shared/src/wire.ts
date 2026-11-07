@@ -168,6 +168,20 @@ export const WatchDraftSchema = z.strictObject({
   drafter: SeatIdSchema,
 });
 
+/**
+ * "This is the card I would take now": the card a drafter is hovering, has
+ * focused, or has open, sent as it changes (debounced) while their pick is
+ * timed. When the pick's time runs out the server takes it, if it is still in
+ * that seat's pack; null, or a card not there, leaves the draft bot's choice.
+ * It is only ever a hint about the sender's own pack — the deadline and the
+ * pick stay the server's.
+ */
+export const LeanDraftSchema = z.strictObject({
+  type: z.literal('lean'),
+  draftId: DraftIdSchema,
+  cardId: z.string().min(1).nullable(),
+});
+
 /** Everything a browser may say. Strict — see the module header. */
 export const ClientMessageSchema = z.discriminatedUnion('type', [
   JoinDraftSchema,
@@ -175,6 +189,7 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
   PickActionSchema,
   ResyncRequestSchema,
   WatchDraftSchema,
+  LeanDraftSchema,
 ]);
 
 export type JoinDraft = z.infer<typeof JoinDraftSchema>;
@@ -182,6 +197,7 @@ export type LeaveDraft = z.infer<typeof LeaveDraftSchema>;
 export type PickAction = z.infer<typeof PickActionSchema>;
 export type ResyncRequest = z.infer<typeof ResyncRequestSchema>;
 export type WatchDraft = z.infer<typeof WatchDraftSchema>;
+export type LeanDraft = z.infer<typeof LeanDraftSchema>;
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 
 /* ── Errors ──────────────────────────────────────────────────────────── */
@@ -367,6 +383,10 @@ export function leaveDraft(draftId: string): LeaveDraft {
 
 export function pickCard(draftId: string, cardId: string): PickAction {
   return { type: 'pick', draftId, cardId };
+}
+
+export function leanDraft(draftId: string, cardId: string | null): LeanDraft {
+  return { type: 'lean', draftId, cardId };
 }
 
 export function resyncRequest(draftId: string, have: WireCursor | null): ResyncRequest {

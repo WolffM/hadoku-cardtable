@@ -60,6 +60,7 @@ import {
   pickCard,
   resyncRequest,
   watchDraft,
+  leanDraft,
   safeParseServerMessage,
   type CubeMeta,
   type DraftStateMessage,
@@ -151,6 +152,8 @@ export interface SocketDraft {
    * `connection.ts`. Zero until a reconnect happens.
    */
   appliedAtLastJoin: number;
+  /** The lean waiting out {@link LEAN_DEBOUNCE_MS}, and the last one sent (`leanOn`). */
+  lean: { pending: string | null; sent: string | null; timer: ReturnType<typeof setTimeout> | null };
 }
 
 export interface SocketDraftOptions {
@@ -294,6 +297,7 @@ export function startDraft(options: SocketDraftOptions): SocketDraft {
     onChange: options.onChange ?? null,
     everConnected: false,
     appliedAtLastJoin: 0,
+    lean: { pending: null, sent: null, timer: null },
     watching: null,
   };
 
@@ -316,6 +320,8 @@ export function startDraft(options: SocketDraftOptions): SocketDraft {
       draft.appliedAtLastJoin = draft.stats.applied;
       send(draft, joinDraft(draft.draftId));
       if (draft.watching !== null) send(draft, watchDraft(draft.draftId, draft.watching));
+      // A restarted server kept no lean: say it again.
+      if (draft.lean.sent !== null) send(draft, leanDraft(draft.draftId, draft.lean.sent));
     }
     notify(draft);
   });
@@ -340,6 +346,26 @@ export function startDraft(options: SocketDraftOptions): SocketDraft {
  */
 export function applyPick(draft: SocketDraft, cardId: string): SocketDraft {
   send(draft, pickCard(draft.draftId, cardId));
+  return draft;
+}
+
+/** How long the pointer settles on a card before the server is told: a sweep across the fan is one lean. */
+export const LEAN_DEBOUNCE_MS = 150;
+
+/**
+ * The card this drafter would take now (`LeanDraftSchema`): the server takes
+ * it if their pick's time runs out. Debounced, and only a change is sent.
+ */
+export function leanOn(draft: SocketDraft, cardId: string | null): SocketDraft {
+  const lean = draft.lean;
+  lean.pending = cardId;
+  if (lean.timer !== null) clearTimeout(lean.timer);
+  lean.timer = setTimeout(() => {
+    lean.timer = null;
+    if (lean.pending === lean.sent) return;
+    lean.sent = lean.pending;
+    send(draft, leanDraft(draft.draftId, lean.sent));
+  }, LEAN_DEBOUNCE_MS);
   return draft;
 }
 
@@ -398,6 +424,8 @@ export function connectionFacts(draft: SocketDraft): ConnectionFacts {
 
 /** Leave the draft and hang up. The seat reservation TTL decides the rest. */
 export function closeDraft(draft: SocketDraft): void {
+  if (draft.lean.timer !== null) clearTimeout(draft.lean.timer);
+  draft.lean.timer = null;
   send(draft, leaveDraft(draft.draftId));
   draft.transport.disconnect();
   draft.connected = false;

@@ -304,3 +304,38 @@ describe('the grid', () => {
     expect(faces).toEqual(['Reflection of Kiki-Jiki', 'Goblin Shaman', 'Treasure', 'Copy']);
   });
 });
+
+// The operator, 2026-11-07: "the card picked should be the one currently hovered." The pack says
+// which card that is as it changes; the server takes it when the pick's time runs out.
+describe('the lean: the card the drafter would take now', () => {
+  const leans = (onLean: ReturnType<typeof vi.fn>): (string | null)[] => onLean.mock.calls.map((c) => c[0] as string | null);
+
+  it('in the fan, is the open card, then the card under the pointer, then the open card again', () => {
+    const onLean = vi.fn();
+    render(createElement(PackView, { cards: PACK, layout: 'fan', onPick: vi.fn(), onLean, disabled: false, emptyNote: '' }));
+    expect(leans(onLean).at(-1)).toBe('c0');
+    fireEvent.pointerEnter(tile(2).parentElement!);
+    expect(leans(onLean).at(-1)).toBe('c2');
+    fireEvent.pointerLeave(tile(2).parentElement!);
+    expect(leans(onLean).at(-1)).toBe('c0');
+    step(1);
+    expect(leans(onLean).at(-1)).toBe('c1');
+  });
+
+  it('in the grid, is nothing until a card is hovered or reached by the keyboard', () => {
+    const onLean = vi.fn();
+    render(createElement(PackView, { cards: PACK, layout: 'grid', onPick: vi.fn(), onLean, disabled: false, emptyNote: '' }));
+    expect(leans(onLean)).toEqual([null]);
+    fireEvent.pointerEnter(tile(7).parentElement!);
+    expect(leans(onLean).at(-1)).toBe('c7');
+  });
+
+  it('says each change once, not on every render', () => {
+    const onLean = vi.fn();
+    const { rerender } = render(createElement(PackView, { cards: PACK, layout: 'fan', onPick: vi.fn(), onLean, disabled: false, emptyNote: '' }));
+    const said = leans(onLean);
+    expect(said.at(-1)).toBe('c0');
+    rerender(createElement(PackView, { cards: PACK, layout: 'fan', onPick: vi.fn(), onLean, disabled: true, emptyNote: '' }));
+    expect(leans(onLean)).toEqual(said);
+  });
+});

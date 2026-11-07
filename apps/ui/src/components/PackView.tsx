@@ -44,11 +44,13 @@
  * screen around the pack (`PodScreen`, `RallyEmbed`) mounts the inspector.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 
 import type { DraftCard } from '../draft/types.ts';
 import { playRole } from '../sound/index.ts';
 import { relatedCards } from '../draft/related.ts';
+import { burnElapsedAt, burnMs, fuseFadeKeyframes, fuseKeyframes, ROPE_URGENT_MS, ropeClock, ropeState, type RopeState } from '../draft/rope.ts';
+import { prefersReducedMotion } from '../play/motion.ts';
 import { useArtLoaded } from '../draft/useArtLoaded.ts';
 import { uiPx } from '../settings/ui-scale.ts';
 import { CARD_RATIO, cssPx, fitGrid, useBox } from './cardFit.ts';
@@ -96,6 +98,13 @@ export interface PackViewProps {
   layout: PackLayout;
   /** Absent for a spectator watching a drafter: the cards browse, and nothing picks. */
   onPick?: (cardId: string) => void;
+  /**
+   * The card the drafter would take now, as it changes: the one under the
+   * pointer, else the open card or the grid's cursor (hover, a tap, the
+   * keyboard, a phone's carousel); null for none. The server takes it when the
+   * pick's time runs out.
+   */
+  onLean?: (cardId: string | null) => void;
   disabled: boolean;
   /** Shown instead of the cards when there is nothing to pick from. */
   emptyNote: string;
@@ -238,7 +247,7 @@ function typing(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
 }
 
-export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: PackViewProps) {
+export function PackView({ cards, layout, onPick, onLean, disabled: held, emptyNote }: PackViewProps) {
   const [measure, box, root] = useBox<HTMLDivElement>();
   // A new pack is drawn blank, and picks nothing, until all of its art can be drawn at once.
   const artLoaded = useArtLoaded(useMemo(() => cards.map((c) => c.scryfallId), [cards]));
@@ -405,6 +414,8 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
     keyed.current = false;
     root?.querySelector('.pack__slot[data-focused]')?.scrollIntoView?.({ block: 'nearest', inline: phone && fanned ? 'center' : 'nearest' });
   }, [cursor, shown, phone, fanned]);
+  const leaning = cards[hovered ?? highlighted ?? -1]?.cardId ?? null;
+  useEffect(() => onLean?.(leaning), [leaning, onLean]);
   const highlightedRef = useRef(highlighted);
   highlightedRef.current = highlighted;
   useEffect(() => {
@@ -535,35 +546,42 @@ export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: P
   );
 }
 
-/** The share of a pick the rope burns through: its last third (the operator, 2026-10-30). */
-const ROPE_SHARE = 1 / 3;
-
 /**
  * The draft rope (wave 83 D3): a fuse along the top of the pack that burns down
- * through the last third of the pick. The time is the server's, sent as how
- * much was left when the envelope left it (`viewer.timer`); the page only
- * counts down from when it arrived, and the burn is a CSS animation whose delay
- * places it on that clock. `waiting` before the last third (drawn as nothing),
- * `burning` through it, `out` at zero — the server picks for the seat then.
+ * through the last third of the pick, drawn from the server's deadline
+ * (`draft/rope.ts`). Each envelope re-anchors the deadline on the page's clock
+ * and the burn is one Web Animation seeked to it, so the fuse is empty exactly
+ * when the server picks. `waiting` before the burn (drawn as nothing),
+ * `burning` through it, `urgent` for its last seconds, `out` at zero.
  */
 export function PickRope({ timer, pickKey }: { timer: { totalMs: number; msLeft: number }; pickKey: string }) {
-  const burnMs = timer.totalMs * ROPE_SHARE;
-  const [state, setState] = useState<'waiting' | 'burning' | 'out'>(timer.msLeft <= 0 ? 'out' : timer.msLeft <= burnMs ? 'burning' : 'waiting');
+  // Anchored once per envelope: a re-render with the same timer is not news.
+  const clock = useMemo(() => ropeClock(timer, performance.now()), [timer]);
+  const [state, setState] = useState<RopeState>(() => ropeState(clock, performance.now()));
   useEffect(() => {
-    const toBurn = timer.msLeft - burnMs;
-    setState(timer.msLeft <= 0 ? 'out' : toBurn <= 0 ? 'burning' : 'waiting');
-    const burn = toBurn > 0 ? setTimeout(() => setState('burning'), toBurn) : undefined;
-    const out = timer.msLeft > 0 ? setTimeout(() => setState('out'), timer.msLeft) : undefined;
-    return () => {
-      clearTimeout(burn);
-      clearTimeout(out);
+    let next: ReturnType<typeof setTimeout> | undefined;
+    const tick = (): void => {
+      const now = performance.now();
+      setState(ropeState(clock, now));
+      const left = clock.endsAt - now;
+      const ahead = [left - burnMs(clock), left - ROPE_URGENT_MS, left].filter((ms) => ms > 0);
+      if (ahead.length > 0) next = setTimeout(tick, Math.min(...ahead));
     };
-  }, [pickKey, timer.msLeft, burnMs]);
-  // A negative delay starts the burn part-way through, where the server's clock already is.
-  const style = { animationDuration: `${burnMs}ms`, animationDelay: `${timer.msLeft - burnMs}ms` } as CSSProperties;
+    tick();
+    return () => clearTimeout(next);
+  }, [clock]);
+  const fuse = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = fuse.current;
+    if (el === null || typeof el.animate !== 'function') return;
+    const frames = prefersReducedMotion() ? fuseFadeKeyframes() : fuseKeyframes();
+    const burn = el.animate(frames, { duration: burnMs(clock), fill: 'both', easing: 'linear' });
+    burn.currentTime = burnElapsedAt(clock, performance.now());
+    return () => burn.cancel();
+  }, [clock, pickKey]);
   return (
     <div className="pick-rope" data-testid="pick-rope" data-state={state} aria-hidden="true">
-      <div key={pickKey} className="pick-rope__fuse" style={style} />
+      <div key={pickKey} ref={fuse} className="pick-rope__fuse" />
     </div>
   );
 }

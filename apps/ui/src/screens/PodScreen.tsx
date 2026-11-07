@@ -57,11 +57,12 @@
  * every card this pod ever draws.
  */
 
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { planDisplayName } from '@hadoku/shared';
 
 import {
   applyPick as socketPick,
+  leanOn,
   closeDraft,
   isComplete,
   startDraft,
@@ -110,6 +111,10 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
    * `socketPick(draft, …)` reads the same as the in-process engine's call.
    */
   const [, changed] = useReducer((n: number) => n + 1, 0);
+  /** Stable, so the pack tells the server only when the card it would take changes. */
+  const lean = useCallback((cardId: string | null) => {
+    if (draft !== null) leanOn(draft, cardId);
+  }, [draft]);
 
   /** The inspector, mounted over this whole screen's root — see the header. */
   const host = useRef<HTMLDivElement | null>(null);
@@ -302,6 +307,7 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
             onPick={(cardId) => {
               if (draft !== null) socketPick(draft, cardId);
             }}
+            onLean={lean}
             nextPayload={null}
             buildStore={buildStore}
             arrivedWhole={draft?.arrivedWhole ?? false}

@@ -44,7 +44,8 @@ export function pickTimeMs(cardsLeft: number, speed: number): number | null {
 }
 
 /**
- * The seat's pick when its time runs out: the card the draft bot would take
+ * The seat's pick when its time runs out and it was pointing at no card of
+ * its pack (the server's `lean`, `room/socket.ts`): the card the draft bot would take
  * in its place, from the same per-(seat, pack, pick) generator a bot seat
  * uses, so it never depends on when the timer fired.
  */

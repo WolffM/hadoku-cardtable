@@ -79,6 +79,7 @@ const baseProps = {
   onReady: noop,
   onRetry: noop,
   pickTimer: { on: false, speed: 1 },
+  clock: true,
   draftBots: 'model' as const,
   get pools() {
     return pools;
@@ -191,6 +192,28 @@ describe('the draft lobby', () => {
     expect((screen.getByTestId('pick-timer') as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByTestId('pick-timer-speed-2') as HTMLInputElement).checked).toBe(true);
     expect((screen.getByTestId('pick-timer-speed-2') as HTMLInputElement).disabled).toBe(true);
+  });
+
+  // The operator, 2026-11-07: "make sure i am able to selectively had pick timer and play timer seperately."
+  it('the leader switches the chess clock apart from the pick timer, either way round', () => {
+    for (const clock of [true, false]) {
+      for (const on of [true, false]) {
+        cleanup();
+        vi.mocked(rooms.setSettings).mockClear();
+        render(createElement(DraftLobby, { ...baseProps, pod: podFixture(), members: [member('u-alice', 'Alice')], clock, pickTimer: { on, speed: 1 } }));
+        expect(screen.getByTestId('chess-clock').getAttribute('aria-pressed')).toBe(String(clock));
+        expect(screen.getByTestId('pick-timer').getAttribute('aria-pressed')).toBe(String(on));
+        screen.getByTestId('chess-clock').click();
+        expect(rooms.setSettings).toHaveBeenCalledTimes(1);
+        expect(rooms.setSettings).toHaveBeenLastCalledWith('r-cube', { clock: clock ? 'off' : 'on' });
+      }
+    }
+  });
+
+  it('a member who is not the leader reads the chess clock, disabled', () => {
+    render(createElement(DraftLobby, { ...baseProps, myId: 'u-bob', pod: podFixture(), members: [member('u-alice', 'Alice'), member('u-bob', 'Bob')], clock: false }));
+    expect((screen.getByTestId('chess-clock') as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByTestId('chess-clock').getAttribute('aria-pressed')).toBe('false');
   });
 
   it("the leader picks what the bots draft with; the room's setting is what is drawn", () => {

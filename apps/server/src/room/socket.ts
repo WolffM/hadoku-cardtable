@@ -97,7 +97,9 @@
  * (`viewForClient`). It is set when the pick reaches the seat — not when the
  * seat looks at it — and it keeps running for a seat nobody is connected to,
  * which is what keeps one dropped drafter from holding the pod. When it runs
- * out the seat gets the draft bot's pick (`timeoutPick`). The last card of a
+ * out the seat gets the card it was last pointing at (the client's `lean`, kept
+ * on the deadline while it names a card in that seat's pack), else the draft
+ * bot's pick (`timeoutPick`). The last card of a
  * pack has no timer and nothing to choose, so the seat takes it at once. Bots
  * keep their own pace (`botPickMs`); the rope never applies to them.
  *
@@ -184,6 +186,13 @@ export const PICK_RATE_LIMIT: RateLimitConfig = {
 	capacity: 15,
 	refillAmount: 1,
 	refillIntervalMs: 250,
+};
+
+/** A drafter's leans: the client sends one at most every `LEAN_DEBOUNCE_MS` (150 ms); a burst past this is dropped. */
+export const LEAN_RATE_LIMIT: RateLimitConfig = {
+	capacity: 30,
+	refillAmount: 1,
+	refillIntervalMs: 100,
 };
 
 /**
@@ -281,6 +290,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 	const log = deps.log ?? defaultLog;
 	const policy = draftEmitPolicy(log);
 	const limiter = new MultiRateLimiter<ParticipantId>(deps.rateLimit ?? PICK_RATE_LIMIT);
+	const leanLimiter = new MultiRateLimiter<ParticipantId>(LEAN_RATE_LIMIT);
 	const botPickMs = deps.botPickMs ?? 0;
 	const botTimers = new Map<string, ReturnType<typeof setTimeout>>();
 	/** The draftbot request of each room's pending bot turn, aborted when the turn fires or the socket closes. */
@@ -419,11 +429,14 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 		let timedOut = 0;
 		for (const [seat, deadline] of room.app.rope) {
 			if (deadline.endsAt > now) continue;
-			const taken = timeoutPick(stateOf(room), seat);
+			// The card the seat was pointing at, if it is still in its pack; else the draft bot's.
+			const leaned = deadline.lean === undefined ? null : enginePick(stateOf(room), seat, deadline.lean);
+			const chose = leaned?.ok === true ? 'lean' : 'bot';
+			const taken = leaned?.ok === true ? leaned : timeoutPick(stateOf(room), seat);
 			if (taken === null || !taken.ok) continue;
 			room.app.state = taken.state;
 			timedOut += 1;
-			log({ evt: 'pick-timeout', draftId, seat, totalMs: deadline.totalMs, seq: taken.state.seq });
+			log({ evt: 'pick-timeout', draftId, seat, totalMs: deadline.totalMs, chose, lateMs: now - deadline.endsAt, seq: taken.state.seq });
 		}
 		settle(room);
 		if (timedOut > 0) emitPickStep(io, room, policy);
@@ -617,6 +630,19 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 					return;
 				}
 
+				case 'lean': {
+					// A hint about the sender's own timed pick, sent as the pointer moves: never an error
+					// back, and never more than the last one kept. See `LeanDraftSchema`.
+					const room = rooms.findFor(msg.draftId, participantId);
+					const seat = room === undefined ? null : seatOf(room.seats, participantId);
+					if (room === undefined || seat === null || !leanLimiter.allow(participantId)) return;
+					const deadline = room.app.rope.get(seat);
+					if (deadline === undefined) return;
+					if (msg.cardId === null || !packOf(stateOf(room), seat).some((c) => c.cardId === msg.cardId)) delete deadline.lean;
+					else deadline.lean = msg.cardId;
+					return;
+				}
+
 				case 'watch': {
 					const room = rooms.findFor(msg.draftId, participantId);
 					const client = room?.clients.get(socket.id);
@@ -690,6 +716,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 	return {
 		close(): void {
 			limiter.deregister();
+			leanLimiter.deregister();
 			for (const timer of [...botTimers.values(), ...ropeTimers.values()]) clearTimeout(timer);
 			for (const ask of botAsks.values()) ask.abort();
 			botTimers.clear();

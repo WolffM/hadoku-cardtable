@@ -32,7 +32,7 @@ import { loadTablesLibrary } from '../http/library.ts';
 import { createDraftRooms, DEFAULT_PLAN, singlePoolResolver, stateOf } from './draftRooms.ts';
 import { loadPool } from './pool.ts';
 import { roundNamesOf } from './plan.ts';
-import { AVATAR_ID_MAX, CLIENT_MODES, DEFAULT_CLIENT_MODE, POD_SEATS, ROOM_CONTROLS, type ClientMode, type RoomLocks, type GauntletPlayer, type PoolVerdict, type Tournament } from '@hadoku/shared';
+import { AVATAR_ID_MAX, clockOn, CLIENT_MODES, DEFAULT_CLIENT_MODE, POD_SEATS, ROOM_CONTROLS, type ClientMode, type RoomLocks, type GauntletPlayer, type PoolVerdict, type Tournament } from '@hadoku/shared';
 import {
 	AVATAR_POOL,
 	UNNAMED,
@@ -598,6 +598,33 @@ describe('Lobby.setSettings', () => {
 		// A setting is not a deck question: nobody is stood down by it.
 		expect(lobby.get(id)?.members.map((m) => m.ready)).toEqual([true, true]);
 		expect(lobby.playerState(id, BOB.id)).toEqual({ v: 1, ready: true });
+	});
+
+	// The operator, 2026-11-07: "lets make sure the pick timer is optional, even for tournmants. make sure i am able to
+	// selectively had pick timer and play timer seperately." Every room kind, every combination, the leader's word.
+	it('switches the pick timer and the chess clock apart, in a draft, a draft tournament and a constructed tournament', async () => {
+		const kinds = [
+			{ gameType: 'draft', tournament: false },
+			{ gameType: 'constructed-1v1', tournament: false },
+			{ gameType: 'constructed-1v1', tournament: true },
+		] as const;
+		for (const kind of kinds) {
+			for (const clock of ['on', 'off'] as const) {
+				for (const on of [true, false]) {
+					const lobby = await openLobby({ dir: await tempDir() });
+					const made = lobby.create(ALICE, { name: 'Cube night', gameType: kind.gameType, clientMode: 'builtin' });
+					if (!made.ok) throw new Error(made.reason);
+					if (kind.tournament) expect(lobby.setSettings(made.room.id, ALICE.id, { tournament: true }).ok).toBe(true);
+					const set = lobby.setSettings(made.room.id, ALICE.id, { clock, pickTimer: { on, speed: 2 } });
+					expect(set.ok, `${kind.gameType} tournament=${kind.tournament} clock=${clock} pick=${on}`).toBe(true);
+					const settings = lobby.get(made.room.id)!.settings;
+					expect(settings.pickTimer).toEqual({ on, speed: 2 });
+					expect(settings.tournament).toBe(kind.tournament);
+					// What the server reads when a game starts (`http/routes.ts`'s clock), whatever the room is.
+					expect(clockOn(settings, kind.gameType)).toBe(clock === 'on');
+				}
+			}
+		}
 	});
 
 	it('refuses a change while a draft is running', async () => {

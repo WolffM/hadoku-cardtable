@@ -50,6 +50,7 @@ import {
 	DRAFT_CHANNEL,
 	joinDraft,
 	leaveDraft,
+	leanDraft,
 	pickCard,
 	resyncRequest,
 	watchDraft,
@@ -59,7 +60,7 @@ import {
 	type RoomSettings,
 	type ServerMessage,
 } from '@hadoku/shared';
-import { pickTimeMs } from '@hadoku/draft';
+import { pickTimeMs, timeoutPick } from '@hadoku/draft';
 
 import type { Draftbot, DraftbotInput } from './draftbot.js';
 import type { DraftRoom, DraftRooms } from './draftRooms.js';
@@ -946,6 +947,66 @@ describe('the draft rope', () => {
 			const v = lastView(alice);
 			return v?.viewer.kind === 'seat' && v.viewer.pool.some((c) => c.cardId === taken);
 		}, 'alice to be told');
+	});
+
+	/** Alice's opening pick, and a card in it the draft bot would NOT take. */
+	async function aliceLeaning(): Promise<{ alice: Peer; seat: number; pack: string[]; lean: string; bots: string }> {
+		await harness?.close();
+		harness = await boot({ settings: rope });
+		const alice = await connect(live().port, edgeHeaders('alice'));
+		await joinAndSettle(alice);
+		const opening = lastView(alice);
+		if (opening?.viewer.kind !== 'seat') throw new Error('alice should be seated');
+		const seat = opening.viewer.seatId;
+		const botsChoice = timeoutPick(roomsMod.stateOf(room()), seat);
+		if (botsChoice === null || !botsChoice.ok) throw new Error('the bot should have a pick');
+		const bots = botsChoice.state.pools[seat]!.at(-1)!.cardId;
+		const pack = opening.viewer.pack.map((c) => c.cardId);
+		return { alice, seat, pack, lean: pack.find((id) => id !== bots)!, bots };
+	}
+
+	/** Run alice's deadline out now: the next change to the draft re-arms the room's timer for it. */
+	async function runOut(seat: number): Promise<void> {
+		const deadline = room().app.rope.get(seat);
+		if (deadline === undefined) throw new Error("alice's pick has no deadline");
+		deadline.endsAt = Date.now() - 1;
+		await joinAndSettle(await connect(live().port, edgeHeaders('bob')));
+		await waitUntil(() => roomsMod.stateOf(room()).pools[seat]?.length === 1, "the timeout's pick");
+	}
+
+	it('gives a seat whose time ran out the card it was pointing at, not the bot’s', async () => {
+		const { alice, seat, lean } = await aliceLeaning();
+		alice.send(leanDraft(startedRoomId, lean));
+		await waitUntil(() => room().app.rope.get(seat)?.lean === lean, 'the lean to land');
+		await runOut(seat);
+		expect(roomsMod.stateOf(room()).pools[seat]![0]!.cardId).toBe(lean);
+		expect(lines().filter((l) => l.evt === 'pick-timeout' && l.seat === seat).map((l) => l.chose)).toEqual(['lean']);
+		expect(lines().some((l) => l.evt === 'pick' && l.seat === seat)).toBe(false);
+	});
+
+	it('takes the latest lean, and a lean taken back leaves the bot’s pick', async () => {
+		const { alice, seat, pack, lean, bots } = await aliceLeaning();
+		const other = pack.find((id) => id !== lean && id !== bots)!;
+		alice.send(leanDraft(startedRoomId, lean));
+		alice.send(leanDraft(startedRoomId, other));
+		await waitUntil(() => room().app.rope.get(seat)?.lean === other, 'the second lean to land');
+		alice.send(leanDraft(startedRoomId, null));
+		await waitUntil(() => room().app.rope.get(seat)?.lean === undefined, 'the lean to be taken back');
+		await runOut(seat);
+		expect(roomsMod.stateOf(room()).pools[seat]![0]!.cardId).toBe(bots);
+		expect(lines().filter((l) => l.evt === 'pick-timeout' && l.seat === seat).map((l) => l.chose)).toEqual(['bot']);
+	});
+
+	it('ignores a lean on a card that is not in the seat’s own pack', async () => {
+		const { alice, seat, lean, bots } = await aliceLeaning();
+		alice.send(leanDraft(startedRoomId, lean));
+		await waitUntil(() => room().app.rope.get(seat)?.lean === lean, 'the lean to land');
+		// Another seat's card, or one made up: the server keeps no claim it cannot check.
+		alice.send(leanDraft(startedRoomId, 'not-a-card'));
+		await waitUntil(() => room().app.rope.get(seat)?.lean === undefined, 'the bad lean to clear the good one');
+		await runOut(seat);
+		expect(roomsMod.stateOf(room()).pools[seat]![0]!.cardId).toBe(bots);
+		expect(errors(alice)).toEqual([]);
 	});
 
 	it('is absent with the room’s pick timer off', async () => {

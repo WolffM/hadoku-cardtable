@@ -84,6 +84,8 @@ export interface DraftScreenProps {
    * socket later. Absent for a fixture source, where nothing can be sent.
    */
   onPick?: (cardId: string) => void;
+  /** The card this seat would take if its timed pick ran out (`PackView`'s `onLean`); absent where nothing listens. */
+  onLean?: (cardId: string | null) => void;
   onAdvance?: () => void;
   /**
    * What the connection is doing, for the banner above the table.
@@ -186,6 +188,7 @@ export function DraftScreen({
   onChange,
   nextPayload = null,
   onPick,
+  onLean,
   onAdvance,
   connection = null,
   onDownloadDeck,
@@ -310,6 +313,8 @@ export function DraftScreen({
                 cards={waiting ? [] : visiblePack(state)}
                 layout={layout}
                 onPick={watching ? undefined : handlePick}
+                // Only a timed pick of the seat's own has anything to lean toward.
+                onLean={watching || rope === undefined ? undefined : onLean}
                 disabled={!watching && (blocked !== null || stalled)}
                 emptyNote={emptyNote}
               />
