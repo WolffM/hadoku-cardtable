@@ -181,7 +181,6 @@ const stackCount = async (page: Page): Promise<number> => {
 
 /** Answer everything until the spell has resolved: pay, let bob pass, and pick the first card offered to discard. */
 async function resolve(alice: Page, bob: Page, id: number): Promise<void> {
-  let cast = false;
   await expect
     .poll(
       async () => {
@@ -195,9 +194,13 @@ async function resolve(alice: Page, bob: Page, id: number): Promise<void> {
         }
         if ((await stackCount(bob)) > 0) await enabledOk(bob).click({ timeout: 1_000 }).catch(() => undefined);
         const onStack = await stackCount(alice);
-        if (onStack > 0) cast = true;
-        const gone = (await alice.locator(`[data-zone="hand"][data-owner="you"] [data-board-card="${id}"], [data-testid="lane-my-hand"] [data-board-card="${id}"], [data-placed-spell="${id}"], [data-cast-ghost="${id}"]`).count()) === 0;
-        return cast && gone && onStack === 0 && (await livePrompt(alice).count()) === 0;
+        // Anywhere but a graveyard: in hand, parked, carried or on the stack, the spell has not resolved.
+        const live = await alice.evaluate(
+          (id) =>
+            [...document.querySelectorAll(`[data-board-card="${id}"], [data-placed-spell="${id}"], [data-cast-ghost="${id}"]`)].filter((el) => el.closest('[data-zone="graveyard"]') === null).length,
+          id,
+        );
+        return live === 0 && onStack === 0 && (await livePrompt(alice).count()) === 0;
       },
       { timeout: 60_000, intervals: [250], message: 'the spell resolved' },
     )
@@ -224,14 +227,19 @@ export async function twoArrowsScenario(browser: Browser, forge: { jar: string; 
       let id: number | undefined;
       await expect.poll(async () => (id = await offeredNamed(alice.page, name, 'hand')), { timeout: 45_000, message: `alice is offered ${name}` }).not.toBeUndefined();
       await record(alice.page);
-      await castAtBob(alice.page, id!, how);
-      await resolve(alice.page, bob.page, id!);
-      const frames = await stopRecording(alice.page);
-      const { most, doubled } = arrowsAtBob(frames);
-      const t0 = frames[0]?.t ?? 0;
-      console.log(`[two-arrows] ${name} by ${how}: ${frames.length} distinct frames, at most ${most} arrow(s) at bob at once`);
-      for (const f of frames) console.log(`[two-arrows]   ${describe(f, t0)}`);
-      if (doubled.length > 0) console.log(`[two-arrows]   DOUBLED from ${describe(doubled[0]!, t0)}`);
+      let most = 0;
+      try {
+        await castAtBob(alice.page, id!, how);
+        await resolve(alice.page, bob.page, id!);
+      } finally {
+        const frames = await stopRecording(alice.page);
+        const found = arrowsAtBob(frames);
+        most = found.most;
+        const t0 = frames[0]?.t ?? 0;
+        console.log(`[two-arrows] ${name} by ${how}: ${frames.length} distinct frames, at most ${most} arrow(s) at bob at once`);
+        for (const f of frames) console.log(`[two-arrows]   ${describe(f, t0)}`);
+        if (found.doubled.length > 0) console.log(`[two-arrows]   DOUBLED from ${describe(found.doubled[0]!, t0)}`);
+      }
       results.push({ cast: `${name} by ${how}`, most });
     }
     expect(results.filter((r) => r.most > 1), 'no frame draws more than one arrow at the target player').toEqual([]);
