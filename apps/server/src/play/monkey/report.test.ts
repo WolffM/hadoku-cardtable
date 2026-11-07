@@ -26,6 +26,14 @@ describe('stopReason', () => {
     expect(stopReason(result({ outcome: 'crashed', refused: { status: 400, error: 'seat 1: not legal' } }))).toBeNull();
   });
 
+  it("prints a no-finish flag's server rows under it, and no other flag's context", () => {
+    const flag = (kind: 'no-finish' | 'stuck', context: string[]) => ({ kind, matchId: 'm1', seed: 1, deck: { seat0: 'A', seat1: 'B' }, seat: 0, turn: 61, phase: 'CLEANUP', detail: 'd', context, at: '' });
+    const report = buildReport(1, ['a'], [result({ flags: [flag('no-finish', ['{"evt":"ask"}']), flag('stuck', ['frame'])] })], '', null);
+    const text = summaryText(report);
+    expect(text).toContain('      {"evt":"ask"}');
+    expect(text).not.toContain('      frame');
+  });
+
   it('says it stopped, first, in the summary', () => {
     const report = buildReport(1, ['a'], [result({})], '2026-11-06T00:00:00Z', 'the server refused to start a match');
     expect(report.stopped).toBe('the server refused to start a match');

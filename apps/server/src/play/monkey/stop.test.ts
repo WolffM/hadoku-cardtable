@@ -3,15 +3,18 @@
  * `POST /api/play/matches` exactly as `socket.ts` does at `MAX_CONCURRENT_MATCHES`;
  * everything on the monkey's side (`runMatch`, `runPool`, `stopReason`) is the real code.
  */
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { runPool } from './pool.ts';
 import { stopReason, type MatchResult } from './report.ts';
 import { makeRng } from './rng.ts';
-import { runMatch } from './run-match.ts';
+import { lastServerRows, runMatch } from './run-match.ts';
 
 let server: Server | null = null;
 afterEach(() => {
@@ -63,5 +66,17 @@ describe('the monkey at a full server', () => {
     expect(stopped).toBeNull();
     expect(stand.starts()).toBe(6);
     expect(results.every((r) => r.outcome === 'crashed' && r.flags[0]?.kind === 'no-finish')).toBe(true);
+  });
+});
+
+describe('lastServerRows', () => {
+  it("keeps this match's last rows from the stack's log, skipping other matches and torn lines", () => {
+    const dir = mkdtempSync(join(tmpdir(), 'monkey-log-'));
+    const file = join(dir, 'server.jsonl');
+    const rows = Array.from({ length: 30 }, (_, i) => JSON.stringify({ evt: 'ask', matchId: i % 2 === 0 ? 'm1' : 'm2', i }));
+    writeFileSync(file, `${rows.join('\n')}\nnot json\n{"evt":"torn","matchId":"m1"`);
+    const got = lastServerRows(file, 'm1', 3).map((r) => (JSON.parse(r) as { i: number }).i);
+    rmSync(dir, { recursive: true, force: true });
+    expect(got).toEqual([24, 26, 28]);
   });
 });

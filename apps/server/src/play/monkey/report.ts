@@ -105,6 +105,7 @@ export function summaryText(report: MonkeyReport): string {
   }
   for (const f of report.flagged) {
     lines.push(`  [${f.kind}] match ${f.matchId} seat ${f.seat ?? '-'} turn ${f.turn ?? '-'} ${f.phase ?? '-'}: ${f.detail}`);
+    if (f.kind === 'no-finish') for (const row of f.context) lines.push(`      ${row}`);
   }
   const outcomes = new Map<string, number>();
   for (const m of report.matches) outcomes.set(m.outcome, (outcomes.get(m.outcome) ?? 0) + 1);

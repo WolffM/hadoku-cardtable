@@ -96,6 +96,14 @@ export function serverFlagsOf(rows: readonly Record<string, unknown>[], matchId:
   return rows.filter((row) => row.matchId === matchId && row.evt === 'ask-unclassified').map((row) => ({ evt: String(row.evt), detail: JSON.stringify(row) }));
 }
 
+/** The last `n` server log rows about `matchId`, as JSON lines. */
+export function lastServerRows(path: string, matchId: string, n = 25): string[] {
+  return makeLogTail(path)()
+    .filter((row) => row.matchId === matchId)
+    .slice(-n)
+    .map((row) => JSON.stringify(row));
+}
+
 /** How long a conceded match gets to end before the run moves on without it. */
 const GIVE_UP_MS = 15_000;
 
@@ -196,7 +204,7 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
     isOver,
   );
 
-  const noFinishFlag = (detail: string): Flag => ({
+  const noFinishFlag = (detail: string, context: string[] = []): Flag => ({
     kind: 'no-finish',
     matchId,
     seed: opts.seed,
@@ -205,7 +213,7 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
     turn: match.view?.turn ?? null,
     phase: match.view?.phase ?? null,
     detail,
-    context: [],
+    context,
     at: new Date().toISOString(),
   });
   const troubleDetail = (t: { what: MatchTrouble; detail: Record<string, unknown> }): string =>
@@ -218,12 +226,17 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
   const timedOut = crashed === null && unfinished;
   const ended = unfinished ? await giveUp(match) : true;
   const notEnded = ended ? '' : `; its concede was not seen to end it within ${GIVE_UP_MS} ms`;
+  // A concede that did not end the match leaves it holding a server slot: what the server last did with it is the evidence.
+  const evidence = ended ? [] : lastServerRows(opts.serverLogFile, matchId);
   if (timedOut) {
     extra.push(
-      noFinishFlag(`the match did not finish within its cap (turn ${match.view?.turn ?? '?'}, ${opts.turnCap} turns / ${opts.matchTimeoutMs} ms)${notEnded}`),
+      noFinishFlag(
+        `the match did not finish within its cap (turn ${match.view?.turn ?? '?'}, ${opts.turnCap} turns / ${opts.matchTimeoutMs} ms)${notEnded}`,
+        evidence,
+      ),
     );
   }
-  if (crashed !== null) extra.push(noFinishFlag(`${troubleDetail(crashed)}${notEnded}`));
+  if (crashed !== null) extra.push(noFinishFlag(`${troubleDetail(crashed)}${notEnded}`, evidence));
 
   const turns = match.view?.turn ?? null;
   let outcome: MatchResult['outcome'] = 'unknown';
