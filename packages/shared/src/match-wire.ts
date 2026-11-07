@@ -179,7 +179,7 @@ export type MatchRequest = z.infer<typeof MatchRequestSchema>;
 
 /** `forge:c2s`. `frame` is checked second, by forge-wire's `safeParseClientFrame`. */
 export const ClientEnvelopeSchema = z
-  .object({ matchId: z.string().min(1), frame: z.unknown(), placement: PlacementSchema.optional() })
+  .object({ matchId: z.string().min(1), frame: z.unknown(), placement: PlacementSchema.optional(), seen: WireCursorSchema.optional() })
   .strict();
 
 export interface ClientEnvelope {
@@ -187,6 +187,11 @@ export interface ClientEnvelope {
   frame: ClientFrame;
   /** Where the card a `selectCard` act plays goes (`placement.ts`); only with a `selectCard` act. */
   placement?: Placement;
+  /**
+   * With an act: the last cursor this client had folded when it acted, so the server can tell an act
+   * made on a window Forge has moved past (`apps/server/src/play/match.ts`'s `staleAct`).
+   */
+  seen?: WireCursor;
 }
 
 /**
@@ -642,6 +647,7 @@ export function parseClientEnvelope(raw: unknown): MatchWireParse<ClientEnvelope
       matchId: envelope.value.matchId,
       frame: frame.value,
       ...(envelope.value.placement === undefined ? {} : { placement: envelope.value.placement as Placement }),
+      ...(envelope.value.seen === undefined ? {} : { seen: envelope.value.seen }),
     },
   };
 }

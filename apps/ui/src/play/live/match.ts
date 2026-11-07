@@ -1166,7 +1166,9 @@ export function subscribe(match: LiveMatch, listener: () => void): () => void {
 function send(match: LiveMatch, frame: ClientEnvelope['frame'], placement?: Placement): void {
   // A reply or an abort settles its ask: one answer per callId leaves this client.
   if (frame.kind !== 'act') match.settled.add(frame.callId);
-  const envelope: ClientEnvelope = { matchId: match.matchId, frame, ...(placement === undefined ? {} : { placement }) };
+  // An act says what this client had seen when it was made: the server drops one made on a window Forge has moved past.
+  const seen = frame.kind === 'act' && match.cursor !== null ? { seen: match.cursor } : {};
+  const envelope: ClientEnvelope = { matchId: match.matchId, frame, ...(placement === undefined ? {} : { placement }), ...seen };
   match.transport.emit(MATCH_EVENTS.clientToServer, envelope);
 }
 

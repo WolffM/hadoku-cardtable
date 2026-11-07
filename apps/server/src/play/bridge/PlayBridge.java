@@ -5873,6 +5873,17 @@ public final class PlayBridge {
                     // click over the network, so this ordering is real rather than assumed.
                     if (lastEnable2 && END_TURN_LABEL.equals(lastLabel2)) { setPhaseDelayOff(true); }
                     if (cancelYield()) { return; }
+                    // No input to answer: Forge's ActGate would hold it for the next one, where it is
+                    // that window's Cancel (an End Turn) the seat never pressed.
+                    // Read off the seat's own controller only: one swapped out for a scan says nothing.
+                    final forge.game.player.Player mine = liveSelf(liveGame());
+                    if (mine != null && mine.getController() instanceof PlayerControllerHuman human) {
+                        final Input open = human.getInputQueue().getInput();
+                        if (open == null || open instanceof InputLockUI) {
+                            dropped(match, seat, "selectButtonCancel", -1, "no input open");
+                            return;
+                        }
+                    }
                     c.selectButtonCancel();
                 }
                 case "concede" -> c.concede();

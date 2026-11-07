@@ -661,6 +661,17 @@ export interface SeatState {
 	 */
 	offerInput: 'fresh' | 'shown' | 'answered';
 	/**
+	 * Whether this seat has an input of Forge's open (the bridge's `input` lines), null until the
+	 * bridge has said. With {@link inputWindowSeq}, what {@link Match.staleAct} reads.
+	 */
+	inputOpen: boolean | null;
+	/**
+	 * The wire seq of the first window frame this seat was sent for its current input, or null
+	 * while that input has shown it none (it opened and its window is still held, or was answered
+	 * by the server). An act made before it was made on an earlier window.
+	 */
+	inputWindowSeq: number | null;
+	/**
 	 * What this seat is sent from a state delta that newly lets it look at a library card until the
 	 * decision that shows that card: Forge grants the look (`tempShowCard`, as in
 	 * `PlayerControllerHuman.willPutCardOnTop`) a packet before it asks, and the browser draws a
@@ -1031,6 +1042,9 @@ type ButtonsFrame = Extract<ServerFrame, { method: 'updateButtons' }>;
  */
 const PROMPT_HOLD_FLUSH_MS = 2000;
 
+/** The frames that show a seat a window of its input: what {@link SeatState.inputWindowSeq} waits for. */
+const WINDOW_FRAMES: ReadonlySet<string> = new Set(['showPromptMessage', 'updateButtons', 'setSelectables', 'setWeaklySelectable', 'setHighlighted']);
+
 /**
  * How long a seat's {@link SeatState.lookHold} waits for the decision behind it before its frames go
  * out anyway. Forge asks within a few milliseconds of the look (6 ms on run 41604622647's scry); a
@@ -1390,6 +1404,8 @@ export class Match {
 			pendingTimer: null,
 			heldOffer: null,
 			offerInput: 'fresh',
+			inputOpen: null,
+			inputWindowSeq: null,
 			lookHold: null,
 			wireButtonsLive: false,
 			answeredWindow: null,
@@ -2170,7 +2186,28 @@ export class Match {
 
 	/* ── Browser → Forge ────────────────────────────────────────────── */
 
-	fromClient(seat: number, frame: ClientFrame): ClientOutcome {
+	/**
+	 * Why an act a seat made is for a window Forge has moved past, or null when it is not.
+	 *
+	 * Forge's ActGate holds an act that comes between two inputs and hands it to the next one, so an
+	 * act made on a window that is gone lands on whatever Forge asks next: a click on an offer the
+	 * server passed for the seat refused at the next step, a Cancel made into an End Turn. `seen` is
+	 * the last wire cursor the seat had folded when it acted (the browser sends it with every act):
+	 * an act made before the seat was shown its current input's window, or made while the seat has
+	 * no input open, is dropped here instead. Cancel with no input open is the yield bar's, which
+	 * the bridge answers itself (`PlayBridge.cancelYield`). A concede, a resync and the next game's
+	 * decision answer no window. An act with no `seen` (a test's driver) is never judged.
+	 */
+	private staleAct(s: SeatState, frame: Extract<ClientFrame, { kind: 'act' }>, seen: WireCursor): string | null {
+		if (frame.method === 'concede' || frame.method === 'requestResync' || frame.method === 'nextGameDecision') return null;
+		if (seen.epoch !== this.epoch) return 'made in an earlier epoch';
+		if (s.inputOpen === false) return frame.method === 'selectButtonCancel' ? null : 'no input open';
+		if (s.inputOpen !== true) return null;
+		if (s.inputWindowSeq === null) return 'its input has shown the seat no window';
+		return seen.seq < s.inputWindowSeq ? 'made before its input was shown' : null;
+	}
+
+	fromClient(seat: number, frame: ClientFrame, seen?: WireCursor): ClientOutcome {
 		const s = this.seats[seat];
 		if (s === undefined || s.ai) return { ok: false, error: 'no-such-seat' };
 		// Refused in words of its own, and before the general status check: the
@@ -2183,7 +2220,12 @@ export class Match {
 		}
 		if (this.status !== 'running') return { ok: false, error: `match is ${this.status}` };
 		switch (frame.kind) {
-			case 'act':
+			case 'act': {
+				const stale = seen === undefined ? null : this.staleAct(s, frame, seen);
+				if (stale !== null) {
+					this.deps.log({ evt: 'act-stale', matchId: this.id, seat, method: frame.method, why: stale, seen: seen?.seq, windowSeq: s.inputWindowSeq });
+					return { ok: false, error: `stale-act: ${stale}` };
+				}
 				// A press under a bar this seat's own last act disabled is refused until Forge shows the seat its next
 				// window. Forge ignores bar state (`InputBase.selectButtonOK` checks only `isFinished()`), and ActGate
 				// hands an act that arrives between inputs to the next one: an OK sent a round trip after a card click
@@ -2209,6 +2251,7 @@ export class Match {
 				this.command({ t: 'act', seat, frame: forgeAct(frame) });
 				if (frame.method === 'concede') this.watchConcede(seat);
 				return { ok: true };
+			}
 			case 'reply': {
 				const ask = s.asks.get(frame.callId);
 				if (ask === undefined) return { ok: false, error: 'stale-reply' };
@@ -2561,6 +2604,7 @@ export class Match {
 
 	private emit(s: SeatState, { frame, mark, extra }: WireSend, chained = false): void {
 		s.seq += 1;
+		if (s.inputOpen === true && s.inputWindowSeq === null && WINDOW_FRAMES.has(frame.method)) s.inputWindowSeq = s.seq;
 		if (TRACE_FRAMES) this.deps.log({ evt: 'wire-frame', matchId: this.id, seat: s.seat, seq: s.seq, ...frameGist(frame) });
 		const cursor: WireCursor = { epoch: this.epoch, seq: s.seq };
 		this.deps.emit(s.seat, {
@@ -2840,6 +2884,14 @@ export class Match {
 				this.tellRestart();
 				this.remember();
 				return;
+			case 'input': {
+				const s = this.seats[line.seat];
+				if (s === undefined) return;
+				// A new input shows the seat its own window next: until then, nothing the seat does is for it.
+				if (line.open && s.inputOpen !== true) s.inputWindowSeq = null;
+				s.inputOpen = line.open;
+				return;
+			}
 			case 'rejected':
 			case 'stale':
 			case 'pace':
