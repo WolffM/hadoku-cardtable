@@ -344,6 +344,39 @@ describe('createRecorder', () => {
 		]);
 	});
 
+	it('onPresence stamps a held-back line at a time its seat was active: a board change lets it out at the time it came in', async () => {
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'], now: 1_000 });
+		onTestFinished(() => {
+			vi.useRealTimers();
+		});
+		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
+		const inner = fakeFactory();
+		const recorder = createRecorder({ dir, identity: { pin: null, bridge: 'b', server: 's' }, roomOf: () => null, deckCosts: NO_COSTS, now: () => Date.now() });
+		recorder.host(inner)('m-1', spec(1), { line: () => undefined, exit: () => undefined, log: () => undefined });
+		const events = inner.calls[0]!.events;
+		const at = (x: number): PresenceMessage => ({ matchId: 'm-1', type: 'presence', pointer: { zone: 'hand', x, y: 0.5 }, anchor: null, held: false, from: null, arranging: null, placing: null, handMove: null });
+
+		recorder.onPresence('m-1', 0, 1, at(0.1)); // kept: seat 0 is active
+		vi.advanceTimersByTime(40);
+		recorder.onPresence('m-1', 0, 1, at(0.2)); // inside the 100 ms: held back
+		vi.advanceTimersByTime(30);
+		recorder.onEnvelope('m-1', -1, { matchId: 'm-1', cursor: { epoch: 'e', seq: 1 }, frame: { kind: 'notify' } } as never); // the turn passes
+		vi.advanceTimersByTime(10);
+		recorder.onPresence('m-1', 1, 2, at(0.9)); // seat 1 is active now
+		vi.advanceTimersByTime(200);
+		vi.useRealTimers();
+
+		(events.exit as (r: string) => void)('stopped');
+		await vi.waitFor(() => expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true));
+		const lines = linesOf(join(dir, 'm-1.public.jsonl.gz'));
+		expect(lines.filter((l) => l.t === 'env').map((l) => l.at)).toEqual([70]);
+		expect(lines.filter((l) => l.t === 'presence').map((l) => [l.at, l.seat, (l.presence as PresenceMessage).pointer?.x])).toEqual([
+			[0, 0, 0.1],
+			[40, 0, 0.2],
+			[80, 1, 0.9],
+		]);
+	});
+
 	/** Drives `steps` presence messages through a recorder on fake timers; returns the presence lines it wrote. */
 	async function recordPresence(steps: { gap: number; seat: number; x: number; held?: boolean }[]): Promise<{ at: number; seat: number; x: number | undefined }[]> {
 		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'], now: 1_000 });
