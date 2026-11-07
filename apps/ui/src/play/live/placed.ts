@@ -105,7 +105,7 @@ import { AbilityChip } from './AbilityChip.tsx';
 import { resolvedTempo } from './tempo.ts';
 import { HiddenCard } from '../HiddenCard.tsx';
 import { viewerOf, type BoardView, type StackEntry } from '../adapter.ts';
-import { aimBetween, breathe, newArrow, positionArrow, removeArrow, retireCommitted } from './gestures/arrow.ts';
+import { aimBetween, breathe, landArrow, newArrow, positionArrow, removeArrow, retireCommitted } from './gestures/arrow.ts';
 import { shards } from './departures.ts';
 import { centreOf } from '../lift.ts';
 import { battlefieldCard, cardBox, faceBox, overlayOf, zoneOf } from './board-dom.ts';
@@ -1552,7 +1552,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   function drawArrows(items: readonly StackEntry[], overlayBox: () => DOMRect): void {
     const root = overlay();
     if (root === null) return;
-    const aims: { key: string; item: number; to: Element; at: Rect; aimed: { from: Point; tip: Point } }[] = [];
+    const aims: { key: string; item: number; source: number | null; to: Element; at: Rect; aimed: { from: Point; tip: Point } }[] = [];
     for (const item of items) {
       const d = drawn.get(item.id);
       if (d === undefined || d.leaving) continue;
@@ -1575,14 +1575,14 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       const own = settledBoxes.get(item.id) ?? rectOf(d.el);
       for (const { key, to, box } of targets) {
         const at = clampToLane(box ?? rectOf(to), to);
-        aims.push({ key, item: item.id, to, at, aimed: aimBetween(own, at) });
+        aims.push({ key, item: item.id, source: item.sourceCardId, to, at, aimed: aimBetween(own, at) });
       }
     }
     const box = aims.length === 0 ? null : overlayBox();
     // The top of the stack resolves next: its arrows breathe.
     const next = items[0]?.id;
     const seen = new Set<string>();
-    for (const { key, item, at, aimed } of aims) {
+    for (const { key, item, source, to, at, aimed } of aims) {
       seen.add(key);
       let svg = root.querySelector<SVGSVGElement>(`.placed__arrow[data-key="${key}"]`);
       if (svg === null) {
@@ -1594,6 +1594,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       breathe(svg, item === next);
       // It bows to the side whose head points nearer its target's middle (`bendToward`).
       positionArrow(svg, aimed.from, aimed.tip, box!, at);
+      landArrow(root, svg, to, source);
     }
     for (const el of [...root.querySelectorAll('.placed__arrow')]) {
       if (!seen.has(el.getAttribute('data-key') ?? '')) removeArrow(el);

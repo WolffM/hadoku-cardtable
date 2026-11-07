@@ -31,6 +31,8 @@ export interface AutoTargetArrow {
    * theme colour; or `aim`, what an ability is already aimed at while its cost is still being picked.
    */
   role: 'attack' | 'block' | 'aim';
+  /** The card an `aim` arrow's ability belongs to: once its stack item draws its own arrow to the same target, this one goes. */
+  source?: number | null;
   /** A point the arrow ends at instead of `to`'s own box, in client coordinates (a phone's attack on a player). */
   toward?: Point;
 }

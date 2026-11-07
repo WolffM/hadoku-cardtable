@@ -155,6 +155,44 @@ describe('committing the aim', () => {
 });
 
 /*
+ * The operator, 2026-11-06: "i saw two targeter arrows being displayed briefly when i played inquisition
+ * of kozilek." The press that chose the player stays over them, and the next paint (a fingertip's travel,
+ * a drifting mouse) aimed a fresh ghost at the target the committed arrow already stood on.
+ */
+describe('one arrow per target', () => {
+  const arrows = () => overlay.querySelectorAll('svg.arrow').length;
+  const aimAt = (at: Element, chosen?: ReadonlySet<Element>) =>
+    drawArrow(overlay, { from: { x: 300, y: 300 }, to: { x: 5, y: 5 }, source: 1, target: { kind: 'player', id: 2 }, snap: at, tail: null, mode: 'click', ...(chosen === undefined ? {} : { chosen }) });
+
+  it('the aim draws nothing at a target it has just committed to, while that arrow stands', () => {
+    aim();
+    commitArrowAt(overlay, inner);
+    aimAt(target);
+    expect(arrows()).toBe(1);
+    expect(overlay.querySelector('[data-testid="targeter"]')).toBeNull();
+    retireCommitted(overlay, [target]);
+    aimAt(target);
+    expect(overlay.querySelector('[data-testid="targeter"]')).not.toBeNull();
+  });
+
+  it('still aims at another target while the committed one stands', () => {
+    aim();
+    commitArrowAt(overlay, inner);
+    const other = document.createElement('div');
+    document.body.append(other);
+    aimAt(other);
+    expect(arrows()).toBe(2);
+  });
+
+  it('draws nothing at a target already chosen, and takes away a ghost that slides onto one', () => {
+    aimAt(target);
+    expect(arrows()).toBe(1);
+    aimAt(target, new Set([target]));
+    expect(arrows()).toBe(0);
+  });
+});
+
+/*
  * The operator, 2026-10-30: "the corner targeter boxes are ugly. i think i only want to keep those for
  * when a target hasn't been committed yet. they are way too noisy."
  */

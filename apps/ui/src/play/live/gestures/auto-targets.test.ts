@@ -14,7 +14,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { combatArrows } from './auto-targets.ts';
-import { clearAutoTargetArrows, drawAutoTargetArrows } from './arrow.ts';
+import { clearAutoTargetArrows, drawAutoTargetArrows, landArrow, newArrow } from './arrow.ts';
 import type { LiveMatch } from '../match.ts';
 import type { BoardView, CombatBand } from '../../adapter.ts';
 
@@ -86,6 +86,34 @@ describe('drawAutoTargetArrows', () => {
     expect(box.querySelectorAll('[data-testid="stack-target-arrow"]')).toHaveLength(1);
     drawAutoTargetArrows(box, []);
     expect(box.querySelectorAll('[data-testid="stack-target-arrow"]')).toHaveLength(0);
+  });
+
+  it("a cast's aim gives way to its stack item's own arrow at the same target, at once and for good", () => {
+    const box = overlay();
+    const bob = el({});
+    const aimed = { key: 'aim:player:1', from: { x: 0, y: 0 }, to: bob, kind: 'player', role: 'aim', source: 7 } as const;
+    drawAutoTargetArrows(box, [aimed]);
+    expect(box.querySelectorAll('[data-testid="stack-target-arrow"]')).toHaveLength(1);
+    const placed = newArrow({ className: 'placed__arrow', testid: 'placed-arrow' });
+    box.append(placed);
+    landArrow(box, placed, bob, 7);
+    expect(box.querySelectorAll('svg.arrow'), 'the stack item lands its arrow: the aim goes in the same frame').toHaveLength(1);
+    drawAutoTargetArrows(box, [aimed]);
+    expect(box.querySelectorAll('svg.arrow'), 'and a stale selection does not draw it again').toHaveLength(1);
+  });
+
+  it("another card's aim at the same target, or this card's at another, stays", () => {
+    const box = overlay();
+    const bob = el({});
+    const elsewhere = el({});
+    const placed = newArrow({ className: 'placed__arrow', testid: 'placed-arrow' });
+    box.append(placed);
+    landArrow(box, placed, bob, 7);
+    drawAutoTargetArrows(box, [
+      { key: 'aim:player:1', from: { x: 0, y: 0 }, to: bob, kind: 'player', role: 'aim', source: 8 },
+      { key: 'aim:card:2', from: { x: 0, y: 0 }, to: elsewhere, kind: 'card', role: 'aim', source: 7 },
+    ]);
+    expect(box.querySelectorAll('[data-testid="stack-target-arrow"]')).toHaveLength(2);
   });
 
   it('clearAutoTargetArrows takes every one away, and a null overlay is a no-op', () => {

@@ -58,6 +58,11 @@ export interface ArrowSpec {
    */
   tail: Element | null;
   mode: 'drag' | 'click';
+  /**
+   * Targets already chosen, each with its own arrow standing (`install.ts`'s `aim` arrows). The aim
+   * draws nothing over one of these, as it draws nothing over a target it has just committed to.
+   */
+  chosen?: ReadonlySet<Element>;
 }
 
 /**
@@ -368,6 +373,12 @@ export function drawArrow(overlay: HTMLElement, spec: ArrowSpec): void {
     clearArrow(overlay);
     return;
   }
+  // A target that already has its arrow gets no second one: the press that chose it stays under the
+  // pointer, and a drift of the hand (a fingertip always travels) repaints before Forge has answered.
+  if (spec.snap !== null && (spec.chosen?.has(spec.snap) === true || committedTo(overlay, spec.snap))) {
+    clearArrow(overlay);
+    return;
+  }
   const aimed = spec.snap === null ? { from: spec.from, tip: spec.to } : aimOn(spec.snap, spec.from, spec.target?.kind === 'player' ? 'player' : 'card');
   let svg = overlay.querySelector<SVGSVGElement>('[data-testid="targeter"]');
   if (svg === null) {
@@ -464,6 +475,12 @@ function retire(svg: SVGSVGElement): void {
   if (c !== undefined) clearTimeout(c.expiry);
   committed.delete(svg);
   svg.remove();
+}
+
+/** A committed arrow in `overlay` stands at `target`. */
+function committedTo(overlay: HTMLElement, target: Element): boolean {
+  for (const [svg, c] of committed) if (c.target === target && overlay.contains(svg)) return true;
+  return false;
 }
 
 /** The arrows Forge's answer drew have arrived: a committed arrow to any of their targets has done its job. */
@@ -625,7 +642,7 @@ const AUTO_TESTID = 'stack-target-arrow';
  */
 export function drawAutoTargetArrows(overlay: HTMLElement, specs: readonly AutoTargetArrow[]): void {
   // Every end read before any arrow is written: one layout for the lot, and none with nothing to draw.
-  const aims = specs.map((spec) =>
+  const aims = specs.filter((spec) => !landedAt(overlay, spec)).map((spec) =>
     spec.toward === undefined
       ? { spec, aimed: aimOn(spec.to, spec.from, spec.kind === 'player' ? 'player' : 'card'), to: spec.to.getBoundingClientRect() }
       : { spec, aimed: { from: spec.from, tip: spec.toward }, to: new DOMRect(spec.toward.x, spec.toward.y, 0, 0) },
@@ -641,12 +658,40 @@ export function drawAutoTargetArrows(overlay: HTMLElement, specs: readonly AutoT
       svg.setAttribute('data-role', spec.role);
       overlay.append(svg);
     }
+    standing.set(svg, { to: spec.to, source: spec.source ?? null });
     positionArrow(svg, aimed.from, aimed.tip, box!, to);
   }
   for (const el of [...overlay.querySelectorAll(`[data-testid="${AUTO_TESTID}"]`)]) {
     if (!seen.has(el.getAttribute('data-key') ?? '')) el.remove();
   }
   retireCommitted(overlay, specs.map((s) => s.to));
+}
+
+/** What each arrow that stands for a decided target points at, and the card it comes from. */
+const standing = new WeakMap<SVGSVGElement, { to: Element; source: number | null }>();
+
+/**
+ * `svg` is a stack item's own arrow (`live/placed.ts`): it stands at `to` for the card `source`. From
+ * then on the arrow the gesture layer drew there for that card's cast (its `aim`) has been replaced:
+ * it goes now, in the same frame, and is not drawn again (`landedAt`).
+ */
+export function landArrow(overlay: HTMLElement, svg: SVGSVGElement, to: Element, source: number | null): void {
+  standing.set(svg, { to, source });
+  if (source === null) return;
+  for (const el of overlay.querySelectorAll<SVGSVGElement>(`[data-testid="${AUTO_TESTID}"][data-role="aim"]`)) {
+    const s = standing.get(el);
+    if (s !== undefined && s.to === to && s.source === source) el.remove();
+  }
+}
+
+/** An `aim` spec whose card's stack item already stands at the same target. */
+function landedAt(overlay: HTMLElement, spec: AutoTargetArrow): boolean {
+  if (spec.role !== 'aim' || spec.source === undefined || spec.source === null) return false;
+  for (const el of overlay.querySelectorAll<SVGSVGElement>('.placed__arrow')) {
+    const s = standing.get(el);
+    if (s !== undefined && s.to === spec.to && s.source === spec.source) return true;
+  }
+  return false;
 }
 
 /** Take every passive arrow away — on dispose, so a board left behind carries none. */

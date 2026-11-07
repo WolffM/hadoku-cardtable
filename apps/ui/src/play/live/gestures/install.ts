@@ -773,7 +773,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     for (const ref of refs) {
       const to = ref.kind === 'card' ? cardBox(canvas, ref.id) : faceBox(canvas, ref.id);
       if (to === null) continue;
-      out.push({ key: `aim:${ref.kind}:${ref.id}`, from: origin.at, to, kind: ref.kind, role: 'aim' });
+      out.push({ key: `aim:${ref.kind}:${ref.id}`, from: origin.at, to, kind: ref.kind, role: 'aim', source: origin.source });
     }
     return out;
   }
@@ -830,6 +830,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // a write lays the whole board out again, and in combat this runs on every frame Forge sends.
     if ((match.view?.combat ?? []).length === 0) rammed.clear();
     const lasting = overlay === null ? null : [...combatArrows(canvas, match, rammed), ...blockArrows(canvas, match, rammed), ...aimedArrows()];
+    // What the open selection has already chosen keeps its own arrow; the aim never draws a second.
+    const chosen = new Set((lasting ?? []).filter((a) => a.role === 'aim').map((a) => a.to));
     flag(CANVAS_ATTR, '');
     refreshCardView(canvas.querySelector('.board') ?? canvas);
     flag('data-dragging', drag !== null && drag.moved ? '' : null);
@@ -852,7 +854,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     } else if (drag !== null && drag.moved) {
       const snap = drag.target === null ? null : boxOf(canvas, drag.target);
       const tail = drag.source === null ? (clickOrigin()?.box ?? null) : cardBox(canvas, drag.source);
-      drawArrow(overlay, { from: drag.from, to: drag.at, source: drag.source, target: drag.target, snap, tail, mode: 'drag' });
+      drawArrow(overlay, { from: drag.from, to: drag.at, source: drag.source, target: drag.target, snap, tail, mode: 'drag', chosen });
       clearMarquee(overlay);
       next = `drag:${drag.source ?? ''}:${drag.target === null ? '' : `${drag.target.kind}:${drag.target.id}`}`;
     } else if (marquee !== null && marquee.moved) {
@@ -865,7 +867,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       const snap = target === null ? null : boxOf(canvas, target);
       const source = aim.ids.length === 1 ? aim.ids[0]! : null;
       const tail = source === null ? null : cardBox(canvas, source);
-      drawArrow(overlay, { from: groupCentre(aim.ids, aim.at), to: aim.at, source, target, snap, tail, mode: 'drag' });
+      drawArrow(overlay, { from: groupCentre(aim.ids, aim.at), to: aim.at, source, target, snap, tail, mode: 'drag', chosen });
       clearMarquee(overlay);
       next = `aim:${aim.ids.join(',')}:${target === null ? '' : `${target.kind}:${target.id}`}`;
     } else {
@@ -884,7 +886,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
         const target = targetAt(hover.node, null);
         const snap = target === null ? null : boxOf(canvas, target);
         const source = origin.source;
-        drawArrow(overlay, { from: origin.at, to: hover.at, source, target, snap, tail: origin.box, mode: 'click' });
+        drawArrow(overlay, { from: origin.at, to: hover.at, source, target, snap, tail: origin.box, mode: 'click', chosen });
         clearMarquee(overlay);
         next = `click:${source ?? ''}:${target === null ? '' : `${target.kind}:${target.id}`}`;
       }
