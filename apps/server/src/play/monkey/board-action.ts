@@ -16,7 +16,7 @@
 import {
   boardInteraction,
   liveBar,
-  lifePayable,
+  lifePayer,
   payFromPool,
   payWithLife,
   payingMana,
@@ -105,7 +105,9 @@ export function takeRandomBoardAction(rng: Rng, match: LiveMatch): BoardAction |
       candidates.push(() => ({ kind: 'pay-from-pool', detail: color, ok: payFromPool(match, color) }));
     }
   }
-  if (payingMana(match) && lifePayable(match)) {
+  // The board's own life button, enabled only while a press is open (`LiveBoard`'s `live-payment-life`): spent
+  // after a press until Forge answers it, so a second press there is one no player can make.
+  if (payingMana(match) && bar !== null && lifePayer(match) !== null) {
     candidates.push(() => ({ kind: 'pay-with-life', detail: 'life', ok: payWithLife(match) }));
   }
 
