@@ -37,12 +37,8 @@
  * ## The gate
  *
  * The HTTP half is mounted below `requireMinTier`. The websocket half
- * re-applies the floor itself — `sanitizeHeaders` then `tierOf`, refusing
- * with 404 — because an `upgrade` event runs no express middleware. That is
- * the same two steps in the same order as `play/browser/index.ts`,
- * deliberately: a second pattern for the same check is how one of them drifts.
- * **Both forms run the same `passesFloor`**, one function, for the same
- * reason.
+ * re-applies the floor itself — `../gate.ts`'s `gateUpgrade` — because an
+ * `upgrade` event runs no express middleware.
  *
  * **404, never 403.** A different answer for "exists but you may not" tells
  * an outsider which paths are real, and this app answers that way everywhere
@@ -60,8 +56,7 @@ import { connect, type Socket } from 'node:net';
 import { request as httpRequest } from 'node:http';
 import express from 'express';
 
-import { rankOf, sanitizeHeaders, tierOf } from '../edge-auth.js';
-import { reportSealRefused } from '../telemetry.js';
+import { gateUpgrade } from '../gate.js';
 import { ROOM_ID_RE } from '@hadoku/shared';
 import { isStaticIndexLike, type RoomStreams } from './alloc.js';
 
@@ -148,25 +143,12 @@ export function streamLayout(
 	}
 }
 
-/** True only for a version-13 websocket upgrade, as `play/browser` requires. */
+/** True only for a version-13 websocket upgrade — the RFC 6455 handshake every websocket upgrade on this server requires. */
 function isWebSocketUpgrade(req: IncomingMessage): boolean {
 	return (
 		String(req.headers.upgrade ?? '').toLowerCase() === 'websocket' &&
 		String(req.headers['sec-websocket-version'] ?? '') === '13'
 	);
-}
-
-/**
- * The tier floor, applied by hand.
- *
- * ONE function, called by both stream forms, because two copies of a check is
- * how one of them drifts. Mutating it is how this file's guard is
- * mutation-tested: revert the comparison and every 404 test must go red.
- */
-function passesFloor(req: IncomingMessage, minTier: string): { ok: boolean; tier: string } {
-	sanitizeHeaders(req.headers as Record<string, unknown>);
-	const tier = tierOf({ headers: req.headers } as unknown as Request);
-	return { ok: rankOf(tier) >= rankOf(minTier), tier };
 }
 
 function refuse(socket: Duplex, code: number, why: string): void {
@@ -283,7 +265,7 @@ export function attachStreamRoutes(app: Router, deps: StreamDeps): boolean {
 /**
  * The websocket half: noVNC talks RFB over a websocket to websockify.
  * express never sees an `upgrade`, so the tier floor is re-applied here by
- * hand, exactly as `attachBrowserBridge` does.
+ * hand, with `../gate.ts`'s `gateUpgrade`.
  */
 export function attachStream(server: Server, deps: StreamDeps): StreamHandle | null {
 	const rooms = deps.rooms ?? null;
@@ -293,16 +275,14 @@ export function attachStream(server: Server, deps: StreamDeps): StreamHandle | n
 	const onUpgrade = (req: IncomingMessage, socket: Duplex, head: Buffer): void => {
 		const n = streamIndexOf(req.url, deps.streamCount);
 		const roomPath = n === null && rooms !== null ? roomStreamPathOf(req.url) : null;
-		if (n === null && roomPath === null) return; // not ours — socket.io and play/browser get their turn
+		if (n === null && roomPath === null) return; // not ours — socket.io gets its turn
 		if (!isWebSocketUpgrade(req)) {
 			refuse(socket, 400, 'expected a version-13 websocket upgrade');
 			return;
 		}
 
-		const floor = passesFloor(req, deps.minTier);
+		const floor = gateUpgrade(req, { minTier: deps.minTier, surface: 'stream' });
 		if (!floor.ok) {
-			log({ evt: 'stream-refused', reason: 'below the tier floor', tier: floor.tier });
-			reportSealRefused('stream', req.headers, req.url ?? null);
 			refuse(socket, 404, 'not found');
 			return;
 		}

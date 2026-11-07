@@ -16,6 +16,7 @@
 import type { IncomingHttpHeaders } from 'node:http';
 import type { NextFunction, Request, Response } from 'express';
 import { CONFIG } from './config.js';
+import { floor } from './gate.js';
 import { reportSealRefused } from './telemetry.js';
 
 /**
@@ -208,7 +209,7 @@ export function edgeProvenance(req: Request, _res: Response, next: NextFunction)
  * unauthenticated gets the same answer as a scanner.
  */
 export function requireMinTier(req: Request, res: Response, next: NextFunction): void {
-	if (rankOf(tierOf(req)) >= rankOf(CONFIG.minTier)) return next();
+	if (floor(req.headers as Record<string, unknown>, CONFIG.minTier).ok) return next();
 	reportSealRefused('http', req.headers, req.path);
 	res.status(404).type('text/plain').send('not found');
 }

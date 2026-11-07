@@ -5,14 +5,11 @@
  *
  * ## The gate is the draft's gate, re-applied
  *
- * Same `io`, same default path, same two steps as `room/socket.ts`:
- * `io.engine.use(edgeProvenance)` sanitizes the handshake's headers, and an
- * `io.use` refuses anything below the tier floor. They are installed again here
- * rather than relied on from the draft's attach, because "the play socket is
- * gated only if something else was attached first" is an ordering dependency,
- * and an ordering dependency on a gate is how a gate goes missing. Both steps
- * are idempotent — `sanitizeHeaders` over already-sanitized headers changes
- * nothing — so running them twice costs one header read.
+ * Same `io`, same default path, same gate as `room/socket.ts`: `../gate.ts`'s
+ * `gateSocketIo`. Installed again here rather than relied on from the draft's
+ * attach, because "the play socket is gated only if something else was
+ * attached first" is an ordering dependency, and an ordering dependency on a
+ * gate is how a gate goes missing.
  *
  * The HTTP routes hang off the `api` router `index.ts` already mounts behind
  * `requireMinTier`, so they are gated by the same line every other API route is.
@@ -63,7 +60,6 @@
  */
 
 import express, { type Request, type Response, type Router } from 'express';
-import type { IncomingHttpHeaders } from 'node:http';
 import type { Server as SocketIOServer, Socket } from 'socket.io';
 import {
 	RoomRegistry,
@@ -121,7 +117,7 @@ import { createSeatTable, type ParticipantId } from '@wolffm/rooms-protocol';
 import { parseDck } from '@hadoku/carddata/dck';
 
 import { CONFIG } from '../config.js';
-import { edgeProvenance, rankOf, tierOf } from '../edge-auth.js';
+import { gateSocketIo } from '../gate.js';
 import { identityFromHeaders, participantHandle } from '../room/identity.js';
 import type { KeyBook } from '../stats/keys.js';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
@@ -136,7 +132,7 @@ import type { SpellCopy } from './spell-copiers.js';
 import { malformedFacts } from '../http/client-events.js';
 import { costlyActLimit, httpCaller, perCallerLimit, readBody } from '../http/request.js';
 import { jsonLogger } from '../log.js';
-import { callerContext, report, reportSealRefused } from '../telemetry.js';
+import { callerContext, report } from '../telemetry.js';
 
 export type PlayLog = (entry: Record<string, unknown>) => void;
 
@@ -341,10 +337,6 @@ type PlayRoom = CoreRoomState<PlayApp, PlayClient>;
 function seatsSeenBy(match: Pick<Match | EndedMatch, 'status' | 'seats'>, caller: ParticipantId): { seat: number; kind: 'ai' | 'human'; deck: string | null }[] {
 	const playing = match.status === 'starting' || match.status === 'running';
 	return match.seats.map((s) => ({ seat: s.seat, kind: s.ai ? 'ai' : 'human', deck: !playing || s.owner === caller ? s.deck : null }));
-}
-
-function handshakeTier(headers: IncomingHttpHeaders): string {
-	return tierOf({ headers } as unknown as Request);
 }
 
 const DEV_USER = /^[a-z0-9-]{1,32}$/;
@@ -859,16 +851,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 
 	/* ── Socket ─────────────────────────────────────────────────────── */
 
-	io.engine.use(edgeProvenance);
-	io.use((socket, next) => {
-		const tier = handshakeTier(socket.request.headers);
-		if (rankOf(tier) < rankOf(deps.minTier)) {
-			reportSealRefused('play-socket', socket.request.headers, null);
-			next(new Error('not found'));
-			return;
-		}
-		next();
-	});
+	gateSocketIo(io, { minTier: deps.minTier, surface: 'play-socket' });
 
 	function identityOf(socket: Socket): ParticipantId {
 		const headers = socket.request.headers;

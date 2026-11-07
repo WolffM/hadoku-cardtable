@@ -8,17 +8,10 @@
  * on every HTTP request independently of the edge. **Express middleware does not
  * run for a socket.io handshake** — engine.io takes the upgrade off the raw HTTP
  * server, so `app.use(requireMinTier)` never sees it. A socket path is a path,
- * so the same two steps are re-applied here in the same order:
+ * so the same gate (`../gate.ts`'s `gateSocketIo`) is installed here, before
+ * any room exists and before any identity is minted.
  *
- *   1. `io.engine.use(edgeProvenance)` — `sanitizeHeaders` on the handshake
- *      request, which overwrites the tier and DELETES the identity headers on
- *      anything the edge did not vouch for.
- *   2. `io.use(...)` — refuse a handshake below `minTier`, before any room
- *      exists and before any identity is minted.
- *
- * There is no second auth scheme, no token, no room key a client presents. A
- * connection that the edge did not vouch for is refused at (2) because (1) has
- * already degraded it to `public`.
+ * There is no second auth scheme, no token, no room key a client presents.
  *
  * The path stays socket.io's default `/socket.io/`. The browser asks for
  * `/cardtable/socket.io/` and the edge strips the prefix before we see it —
@@ -144,7 +137,8 @@ import {
 	type WireErrorCode,
 } from '@hadoku/shared';
 
-import { edgeProvenance, rankOf, tierOf } from '../edge-auth.js';
+import { tierOf } from '../edge-auth.js';
+import { gateSocketIo } from '../gate.js';
 import {
 	cursorFor,
 	joinDraftRoom,
@@ -169,7 +163,6 @@ import { askDraftbot, chooseByRatings, draftbotTally, modelSeatsOf, type Draftbo
 import { identityFromHeaders } from './identity.js';
 import type { Lobby } from './lobby.js';
 import { jsonLogger } from '../log.js';
-import { reportSealRefused } from '../telemetry.js';
 
 /**
  * Picks per participant, not per socket.
@@ -447,23 +440,8 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 		if (timedOut > 0) emitPickStep(io, room, policy);
 	};
 
-	// (1) Provenance. Runs on the handshake request itself, which is the only
-	// place the edge's headers exist for a socket.
-	io.engine.use(edgeProvenance);
-
-	// (2) The floor. 'not found' rather than 'forbidden', for the same reason
-	// `requireMinTier` answers 404: a private app does not confirm its own
-	// existence to a caller who was never meant to reach it.
-	io.use((socket, next) => {
-		const tier = handshakeTier(socket.request.headers);
-		if (rankOf(tier) < rankOf(deps.minTier)) {
-			log({ evt: 'handshake-refused', tier });
-			reportSealRefused('draft-socket', socket.request.headers, null);
-			next(new Error('not found'));
-			return;
-		}
-		next();
-	});
+	// The one handshake gate. See the module header.
+	gateSocketIo(io, { minTier: deps.minTier, surface: 'draft-socket' });
 
 	/**
 	 * Why this `join` may not be dealt a pod, or null to admit it.
