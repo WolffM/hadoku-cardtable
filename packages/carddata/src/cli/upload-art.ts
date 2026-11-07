@@ -1,136 +1,71 @@
 /*
- * Move a pool's card art onto `cdn.hadoku.me`, one card at a time.
+ * Copy every card image we can show onto `cdn.hadoku.me`.
  *
  *   pnpm --filter @hadoku/carddata upload-art -- --dry-run
  *   pnpm --filter @hadoku/carddata upload-art -- --limit 25
- *   pnpm --filter @hadoku/carddata upload-art -- --manifest /tmp/scratch.json
+ *   HADOKU_CDN_KEY=… pnpm --filter @hadoku/carddata upload-art
  *
- * Reads `apps/ui/src/draft/pool.json`, fetches each card's art from Scryfall,
- * uploads the bytes to the CDN, and records the returned key in the art
- * manifest that `@hadoku/carddata/art` resolves against. The pool is read-only
- * here; the manifest is the only file this writes.
+ * The source is the server's card catalog (`~/.local/share/cardtable/catalog/cards.json`):
+ * every printing's front, the back of every printing whose card has one, and the token
+ * images `art-ids.json` names. Each image is fetched from Scryfall's image CDN, uploaded,
+ * and its key appended to the mirror log (`../art/mirror.ts` has the format and why it is
+ * a log). An id already in the log is skipped without a fetch, so a rerun resumes, and a
+ * new set in tomorrow's catalog is a rerun that copies only its cards.
  *
- * ## We host card art now, and that is deliberate
+ * ## We host card art, deliberately
  *
- * This repo used to say "never host card images". The operator reversed that
- * explicitly — `docs/LICENSING.md` and `docs/DECISIONS.md` carry the new rule
- * and the reasoning trail. Do not re-derive the old posture from a stale
- * comment somewhere; this one is current. What did NOT change: our own origin
- * never serves an image, and WotC art is treated as a placeholder, which is the
- * whole reason the manifest is an indirection instead of a list of URLs.
+ * D15 (`docs/DECISIONS.md`, `docs/LICENSING.md` §3.1) allows hosting art on the CDN;
+ * image bytes still never enter the repo or the bundle. Scryfall's image rules (whole,
+ * unaltered faces) apply to how the art is shown, and the copy is byte-for-byte.
  *
- * ## Three properties this file exists to guarantee
+ * ## Paced
  *
- * **Paced.** Every Scryfall request in the process queues through one gate with
- * a real delay (`paced`, below). 534 cards at ~10/s is about a minute; 534
- * parallel requests is how a project gets blocked, and being blocked is how the
- * whole feature fails at the worst moment. The delay is a flag with a FLOOR, so
- * no one can set it to zero by accident, and the gate serialises regardless of
- * how the caller loops — a future refactor to `Promise.all` would still trickle.
- *
- * **Idempotent.** A card whose manifest row already names a CDN object is
- * skipped without a fetch, so a second run uploads zero. The CDN is
- * content-addressed by SHA-256, so even a forced re-upload converges on the
- * same object — `UploadResult.deduplicated` reports that, and per the client's
- * own docs it is a complete success, not a warning.
- *
- * **Resumable.** The manifest is rewritten after every successful upload, not
- * once at the end, so an interrupted run loses at most the card in flight.
- * Ctrl-C finishes the current card, flushes, prints the summary and exits.
+ * Every Scryfall request queues through one gate (`paced`) with a floor of 100 ms, the
+ * polite end of the 50–100 ms Scryfall asks for. Uploads to our own CDN overlap with the
+ * next fetch (`--uploads N` in flight), which is what makes ~110k images a few hours
+ * rather than half a day. A 429 from Scryfall stops the run; a rate-limited CDN pauses
+ * for its Retry-After and carries on.
  *
  * ## Credentials
  *
- * The upload route is friend+ and answers 401 to an anonymous POST. This CLI
- * does not invent an auth path: it forwards a credential the operator puts in
- * the environment (see `CREDENTIAL_ENV`) and refuses to run otherwise. It never
- * prints the value, and never writes one anywhere.
+ * The upload route is friend+. The credential comes from the environment or
+ * `~/.config/hadoku/standing.env` (`CREDENTIAL_ENV`) and is never printed.
  */
 
-import { readFile, writeFile, rename, unlink } from 'node:fs/promises';
+import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, resolve, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCdnClient, CdnError, MAX_BYTES, ACCEPTED_IMAGE_TYPES } from '@wolffm/cdn-client';
-import type { UploadResult } from '@wolffm/cdn-client';
-import {
-  CDN_BASE,
-  isCdnKey,
-  resolveArtUrl,
-  type ArtEntry,
-  type ArtImageSize,
-  type ArtManifest,
-  type ArtManifestFile,
-} from '../art/index.ts';
+import { CDN_BASE, isCdnKey, resolveArtUrl } from '../art/index.ts';
+import { mirrorLine, parseMirrorLog } from '../art/mirror.ts';
 import { userAgent } from '../scryfall/client.ts';
 
-/** The friend+ upload route. Same-site with the app; `cdn.hadoku.me` serves reads. */
 const UPLOAD_URL = 'https://hadoku.me/cdn/api/upload';
-
-/**
- * Minimum spacing between Scryfall requests, in ms.
- *
- * Scryfall asks for 50-100 ms between requests and documents 10/second for
- * everything outside `/cards/search` and friends
- * (https://scryfall.com/docs/api/rate-limits, quoted in
- * `../scryfall/client.ts`). 100 ms is the polite end of their own range, and it
- * is a FLOOR rather than a default: `--delay-ms 0` clamps up to it. A constant
- * someone can zero out is not a rate limit.
- */
 const MIN_DELAY_MS = 100;
-
-/** Default spacing. A shade over the floor, because their limit is a limit. */
-const DEFAULT_DELAY_MS = 120;
-
-/**
- * Accept for image bytes.
- *
- * Scryfall answers **400**, not 403, when `User-Agent` or `Accept` is missing —
- * which reads like a malformed request rather than a policy refusal and has
- * cost time before. `docs/LICENSING.md` §3 has the verified story. Both headers
- * go on every request this file makes.
- */
+const DEFAULT_DELAY_MS = 110;
+const DEFAULT_UPLOADS = 4;
+/** Scryfall answers 400, not 403, without both headers (`docs/LICENSING.md` §3). */
 const IMAGE_ACCEPT = 'image/jpeg,image/*;q=0.8';
 
-/**
- * Environment variables a credential may arrive in, and the header each becomes.
- *
- * The CDN worker reads an edge-stamped tier derived from the `.hadoku.me`
- * session cookie, so `Cookie` is the form that actually works today; the bearer
- * slot is here for the day a token path exists and costs nothing until then.
- * Deliberately a short, closed list: guessing at header shapes produces a
- * confusing 401 rather than an upload.
- */
 const CREDENTIAL_ENV = [
+  { name: 'HADOKU_CDN_KEY', header: 'X-User-Key', render: (v: string): string => v },
   { name: 'HADOKU_CDN_COOKIE', header: 'Cookie', render: (v: string): string => v },
-  {
-    name: 'HADOKU_CDN_TOKEN',
-    header: 'Authorization',
-    render: (v: string): string => `Bearer ${v}`,
-  },
 ] as const;
-
-/** Where a credential may also be parked, outside the repo. Read, never written. */
 const CREDENTIAL_FILE = join(homedir(), '.config', 'hadoku', 'standing.env');
+
+const DATA_DIR = join(homedir(), '.local', 'share', 'cardtable');
+const UUID_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(#back)?$/;
 
 function repoRoot(): string {
   return resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..', '..');
 }
 
-const sleep = (ms: number): Promise<void> =>
-  ms <= 0 ? Promise.resolve() : new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number): Promise<void> => (ms <= 0 ? Promise.resolve() : new Promise((r) => setTimeout(r, ms)));
 
-/**
- * The rate limit, and the only place it lives.
- *
- * One promise chain for the whole process: a call cannot start until the
- * previous one has returned AND `delayMs` has elapsed since the previous one
- * STARTED. Written as a gate rather than as a `sleep` in the loop on purpose —
- * a sleep in the loop is a convention, and this is a mechanism. Concurrency
- * cannot smuggle a burst past it.
- */
+/** The Scryfall rate limit, and the only place it lives: one chain, `delayMs` between starts. */
 let gate: Promise<unknown> = Promise.resolve();
 let lastRequestAt = 0;
-
 function paced<T>(delayMs: number, run: () => Promise<T>): Promise<T> {
   const next = gate.then(async () => {
     const since = Date.now() - lastRequestAt;
@@ -138,156 +73,104 @@ function paced<T>(delayMs: number, run: () => Promise<T>): Promise<T> {
     lastRequestAt = Date.now();
     return run();
   });
-  // Keep the chain alive when a link rejects, or one failure wedges every
-  // later request behind an unhandled rejection.
   gate = next.catch(() => undefined);
   return next;
 }
 
 interface Options {
-  readonly poolPath: string;
-  readonly manifestPath: string;
-  readonly uploadUrl: string;
-  readonly delayMs: number;
-  readonly limit: number;
-  readonly size: ArtImageSize;
-  readonly dryRun: boolean;
+  catalogPath: string;
+  artIdsPath: string;
+  logPath: string;
+  uploadUrl: string;
+  delayMs: number;
+  uploads: number;
+  limit: number;
+  dryRun: boolean;
 }
 
-const USAGE = `upload-art — put a pool's card art on cdn.hadoku.me
+const USAGE = `upload-art — copy every printing's card image to cdn.hadoku.me
 
   pnpm --filter @hadoku/carddata upload-art -- [flags]
 
   --dry-run            fetch nothing, upload nothing, print the plan
-  --limit N            stop after N upload attempts (default: all)
-  --manifest <path>    art manifest to read and write
-                       (default: apps/ui/src/draft/art-manifest.json)
-  --pool <path>        pool to read (default: apps/ui/src/draft/pool.json)
+  --limit N            stop after N uploads (default: all)
+  --catalog <path>     card catalog (default: ${join(DATA_DIR, 'catalog', 'cards.json')})
+  --art-ids <path>     token rows to include (default: apps/ui/src/draft/art-ids.json, if present)
+  --log <path>         mirror log to read and append (default: ${join(DATA_DIR, 'art', 'mirror.jsonl')})
   --upload-url <url>   where to POST the bytes (default: ${UPLOAD_URL})
   --delay-ms N         ms between Scryfall requests (default ${DEFAULT_DELAY_MS}, floor ${MIN_DELAY_MS})
-  --size <s>           small | normal | large (default: normal)
+  --uploads N          uploads in flight while the next image downloads (default ${DEFAULT_UPLOADS})
   --help
+`;
 
-Credential: set ${CREDENTIAL_ENV.map((c) => c.name).join(' or ')} in the
-environment. The upload route is friend+ and answers 401 without one.`;
-
-/** Accept both `--flag value` and `--flag=value`; the repo's CLIs use each. */
 function flagValue(args: readonly string[], name: string): string | undefined {
-  const withEquals = args.find((a) => a.startsWith(`${name}=`));
-  if (withEquals !== undefined) return withEquals.slice(name.length + 1);
-  const at = args.indexOf(name);
-  if (at >= 0 && at + 1 < args.length) return args[at + 1];
-  return undefined;
+  const i = args.indexOf(name);
+  if (i >= 0) return args[i + 1];
+  const eq = args.find((a) => a.startsWith(`${name}=`));
+  return eq?.slice(name.length + 1);
 }
 
 function positiveInt(raw: string | undefined, fallback: number, label: string): number {
   if (raw === undefined) return fallback;
   const n = Number.parseInt(raw, 10);
-  if (!Number.isFinite(n) || n < 0) {
-    throw new Error(`${label} must be a non-negative integer; got ${JSON.stringify(raw)}`);
-  }
+  if (!Number.isFinite(n) || n < 0) throw new Error(`${label} must be a non-negative integer; got ${JSON.stringify(raw)}`);
   return n;
 }
 
 function parseArgs(args: readonly string[]): Options {
-  const sizeRaw = flagValue(args, '--size') ?? 'normal';
-  if (sizeRaw !== 'small' && sizeRaw !== 'normal' && sizeRaw !== 'large') {
-    throw new Error(`--size must be small, normal or large; got ${JSON.stringify(sizeRaw)}`);
-  }
-
-  const manifestRaw = flagValue(args, '--manifest');
-  const poolRaw = flagValue(args, '--pool');
-  const requestedDelay = positiveInt(flagValue(args, '--delay-ms'), DEFAULT_DELAY_MS, '--delay-ms');
-
+  const path = (flag: string, fallback: string): string => resolve(flagValue(args, flag) ?? fallback);
   return {
-    poolPath: poolRaw
-      ? resolve(poolRaw)
-      : resolve(repoRoot(), 'apps', 'ui', 'src', 'draft', 'pool.json'),
-    manifestPath: manifestRaw
-      ? resolve(manifestRaw)
-      : resolve(repoRoot(), 'apps', 'ui', 'src', 'draft', 'art-manifest.json'),
-    // Overridable for the same reason `CdnClientOptions.uploadPath` is: a
-    // stand-in endpoint is how this loop gets exercised without the production
-    // CDN. Every key that comes back is still validated before it is written,
-    // so a wrong endpoint cannot quietly poison a committed manifest.
+    catalogPath: path('--catalog', process.env.CARDTABLE_CATALOG ?? join(DATA_DIR, 'catalog', 'cards.json')),
+    artIdsPath: path('--art-ids', join(repoRoot(), 'apps', 'ui', 'src', 'draft', 'art-ids.json')),
+    logPath: path('--log', process.env.CARDTABLE_ART_MIRROR ?? join(DATA_DIR, 'art', 'mirror.jsonl')),
     uploadUrl: flagValue(args, '--upload-url') ?? UPLOAD_URL,
-    // The clamp IS the floor. `--delay-ms 0` becomes MIN_DELAY_MS, loudly (the
-    // effective value is printed in the header of every run).
-    delayMs: Math.max(MIN_DELAY_MS, requestedDelay),
+    delayMs: Math.max(MIN_DELAY_MS, positiveInt(flagValue(args, '--delay-ms'), DEFAULT_DELAY_MS, '--delay-ms')),
+    uploads: Math.max(1, positiveInt(flagValue(args, '--uploads'), DEFAULT_UPLOADS, '--uploads')),
     limit: positiveInt(flagValue(args, '--limit'), Number.POSITIVE_INFINITY, '--limit'),
-    size: sizeRaw,
     dryRun: args.includes('--dry-run'),
   };
 }
 
-interface PoolCard {
-  readonly cardId: string;
-  readonly name: string;
-  readonly scryfallId?: string;
-}
-
-/** Distinct scryfall ids in pool order. A cube is singleton, but dedupe anyway. */
-async function readPool(path: string): Promise<PoolCard[]> {
-  const raw = await readFile(path, 'utf8');
-  const parsed = JSON.parse(raw) as { cards?: unknown };
-  if (!Array.isArray(parsed.cards)) {
-    throw new Error(`${path} has no "cards" array — is that a pool built by build-pool?`);
-  }
-  const seen = new Set<string>();
-  const out: PoolCard[] = [];
-  for (const card of parsed.cards as PoolCard[]) {
-    const id = card.scryfallId;
-    if (typeof id !== 'string' || id.length === 0 || seen.has(id)) continue;
-    seen.add(id);
-    out.push(card);
-  }
-  return out;
+interface CatalogFile {
+  cards: Record<string, { faces?: { scryfallId?: string }[] }>;
+  printings: Record<string, { key: string; scryfallId: string }>;
 }
 
 /**
- * Read the manifest, tolerating its absence.
- *
- * A missing file is the ordinary first-run case, not an error. Everything other
- * than `entries` is carried through untouched, so the committed `note` survives
- * a run — losing a human explanation to a machine rewrite is exactly the quiet
- * loss this design is trying to avoid.
+ * Every image id to copy, in a stable order: each printing's front, then its back when
+ * its card has a back face (`<id>#back`, the resolver's own spelling), then the tokens.
  */
-async function readManifest(path: string): Promise<{ file: ArtManifestFile; existed: boolean }> {
+export function imageIds(catalog: CatalogFile, tokenIds: readonly string[]): string[] {
+  const ids = new Set<string>();
+  for (const printing of Object.values(catalog.printings)) {
+    ids.add(printing.scryfallId);
+    const faces = catalog.cards[printing.key]?.faces ?? [];
+    if (faces.some((f) => f.scryfallId?.endsWith('#back') === true)) ids.add(`${printing.scryfallId}#back`);
+  }
+  for (const id of tokenIds) ids.add(id);
+  return [...ids].filter((id) => UUID_ID.test(id));
+}
+
+/** The token ids `art-ids.json` names (`t:` rows); none when the file is gone. */
+async function tokenIds(path: string): Promise<string[]> {
   let raw: string;
   try {
     raw = await readFile(path, 'utf8');
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      return { file: { version: 1, entries: {} }, existed: false };
-    }
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [];
     throw err;
   }
-  const parsed = JSON.parse(raw) as Partial<ArtManifestFile>;
-  const entries = (parsed.entries ?? {}) as ArtManifest;
-  return { file: { ...parsed, version: 1, entries }, existed: true };
+  const table = (JSON.parse(raw) as { ids?: Record<string, string> }).ids ?? {};
+  return Object.entries(table)
+    .filter(([key]) => key.startsWith('t:'))
+    .map(([, id]) => id);
 }
 
-/**
- * Write the manifest atomically, keys sorted.
- *
- * Temp-then-rename in the SAME directory: `rename` is atomic within a
- * filesystem, and a crash mid-write would otherwise leave a truncated manifest
- * — which for a resumable job is worse than losing the run, because the next
- * run would read the wreckage as data. Sorted keys keep the diff reviewable;
- * this file is committed and read by humans.
- */
-async function writeManifest(path: string, file: ArtManifestFile): Promise<void> {
-  const sorted: Record<string, ArtEntry> = {};
-  for (const key of Object.keys(file.entries).sort()) {
-    sorted[key] = file.entries[key] as ArtEntry;
-  }
-  const body = `${JSON.stringify({ ...file, entries: sorted }, null, 2)}\n`;
-  const tmp = join(dirname(path), `.${process.pid}.art-manifest.tmp`);
+async function readLog(path: string): Promise<Map<string, string>> {
   try {
-    await writeFile(tmp, body, 'utf8');
-    await rename(tmp, path);
+    return parseMirrorLog(await readFile(path, 'utf8')).keys;
   } catch (err) {
-    await unlink(tmp).catch(() => undefined);
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return new Map();
     throw err;
   }
 }
@@ -298,157 +181,45 @@ interface Credential {
   readonly value: string;
 }
 
-/**
- * Find a credential, without ever revealing one.
- *
- * Environment first, then `~/.config/hadoku/standing.env` if it happens to
- * exist — the two places the operator said one might live. Nothing else is
- * searched and nothing is guessed: if neither has it, the honest outcome is to
- * say the upload did not run.
- */
+/** Environment first, then the standing env file. Never prints a value. */
 async function findCredential(): Promise<Credential | null> {
   for (const slot of CREDENTIAL_ENV) {
-    const raw = process.env[slot.name];
-    if (raw !== undefined && raw.trim().length > 0) {
-      return { source: `env ${slot.name}`, header: slot.header, value: slot.render(raw.trim()) };
-    }
+    const raw = process.env[slot.name]?.trim();
+    if (raw) return { source: `env ${slot.name}`, header: slot.header, value: slot.render(raw) };
   }
-
   let fileRaw: string;
   try {
     fileRaw = await readFile(CREDENTIAL_FILE, 'utf8');
-  } catch {
-    return null;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw err;
   }
   for (const slot of CREDENTIAL_ENV) {
-    // `NAME=value`, with an optional `export ` and optional quotes.
-    const match = new RegExp(`^(?:export\\s+)?${slot.name}=(.*)$`, 'm').exec(fileRaw);
-    const value = match?.[1]?.trim().replace(/^["']|["']$/g, '');
-    if (value !== undefined && value.length > 0) {
-      return {
-        source: `${CREDENTIAL_FILE} (${slot.name})`,
-        header: slot.header,
-        value: slot.render(value),
-      };
-    }
+    const value = new RegExp(`^(?:export\\s+)?${slot.name}=(.*)$`, 'm').exec(fileRaw)?.[1]?.trim().replace(/^["']|["']$/g, '');
+    if (value) return { source: `${CREDENTIAL_FILE} (${slot.name})`, header: slot.header, value: slot.render(value) };
   }
   return null;
 }
 
-/**
- * Raised when Scryfall rate limits us. Stop, do not retry harder.
- *
- * Longhand fields rather than parameter properties: Node runs these `.ts` files
- * by stripping types, and a parameter property is not erasable syntax — it
- * throws `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX` at load. A bundler-backed test run
- * does not catch that; running the CLI does. Same reasoning as
- * `RateLimitedError` in `../scryfall/client.ts`.
- */
+/** Scryfall rate limited us: stop, the log resumes. Longhand fields: Node strips types, and a parameter property is not erasable. */
 class ScryfallRateLimited extends Error {
-  readonly retryAfterSeconds: number | null;
-
-  constructor(retryAfterSeconds: number | null) {
-    super(
-      `Scryfall returned HTTP 429${
-        retryAfterSeconds === null ? '' : `; Retry-After ${retryAfterSeconds}s`
-      }. Stopping — rerun later and the manifest resumes where it stopped.`,
-    );
+  constructor(retryAfter: string | null) {
+    super(`Scryfall returned HTTP 429${retryAfter === null ? '' : `; Retry-After ${retryAfter}`}. Stopping — rerun later and the log resumes.`);
     this.name = 'ScryfallRateLimited';
-    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
-interface Fetched {
-  readonly bytes: Uint8Array;
-  readonly contentType: string;
-}
-
-/** Fetch one card's art, through the gate, with both required headers. */
-async function fetchArt(url: string, delayMs: number): Promise<Fetched> {
+async function fetchImage(url: string, delayMs: number): Promise<Blob> {
   return paced(delayMs, async () => {
-    const response = await fetch(url, {
-      headers: { 'User-Agent': userAgent(), Accept: IMAGE_ACCEPT },
-    });
-    if (response.status === 429) {
-      const header = response.headers.get('retry-after');
-      const seconds = header === null ? null : Number.parseInt(header, 10);
-      throw new ScryfallRateLimited(Number.isFinite(seconds as number) ? seconds : null);
-    }
-    if (!response.ok) {
-      throw new Error(`GET ${url} returned HTTP ${response.status} ${response.statusText}`);
-    }
-    const contentType = (response.headers.get('content-type') ?? '').split(';')[0]?.trim() ?? '';
-    return { bytes: new Uint8Array(await response.arrayBuffer()), contentType };
+    const response = await fetch(url, { headers: { 'User-Agent': userAgent(), Accept: IMAGE_ACCEPT } });
+    if (response.status === 429) throw new ScryfallRateLimited(response.headers.get('retry-after'));
+    if (!response.ok) throw new Error(`GET ${url}: HTTP ${response.status}`);
+    const type = (response.headers.get('content-type') ?? '').split(';')[0]?.trim() ?? '';
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength === 0 || bytes.byteLength > MAX_BYTES.image) throw new Error(`${url}: ${bytes.byteLength} bytes`);
+    if (!(ACCEPTED_IMAGE_TYPES as readonly string[]).includes(type)) throw new Error(`${url}: content-type ${type || '(none)'}`);
+    return new Blob([bytes], { type });
   });
-}
-
-/**
- * Client-side refusals, before any bytes are sent.
- *
- * `MAX_BYTES.image` and `ACCEPTED_IMAGE_TYPES` are mirrored from the server for
- * exactly this. Scryfall's `normal` jpegs are ~100 KB so neither will bite
- * here, but a pre-check costs nothing and turns a future surprise (a 10 MB
- * `png` from some other source) into a named skip instead of a 413.
- */
-function refuseUpload(fetched: Fetched): string | null {
-  if (fetched.bytes.byteLength === 0) return 'empty response body';
-  if (fetched.bytes.byteLength > MAX_BYTES.image) {
-    return `${fetched.bytes.byteLength} bytes exceeds MAX_BYTES.image (${MAX_BYTES.image})`;
-  }
-  if (!(ACCEPTED_IMAGE_TYPES as readonly string[]).includes(fetched.contentType)) {
-    return `content-type ${fetched.contentType || '(none)'} is not one of ${ACCEPTED_IMAGE_TYPES.join(', ')}`;
-  }
-  return null;
-}
-
-/** What a card's existing manifest row means for this run. */
-type Disposition =
-  | { readonly kind: 'upload' }
-  | { readonly kind: 'skip'; readonly why: 'on-cdn' | 'pinned-to-scryfall' };
-
-function disposition(entry: ArtEntry | undefined): Disposition {
-  if (entry == null) return { kind: 'upload' };
-  // `isCdnKey` is the resolver's own test, so "already resolves to the CDN"
-  // means the same thing here as it does on the render path. A cdn row with a
-  // junk key resolves to Scryfall, so it is not done and gets re-uploaded.
-  if (entry.source === 'cdn' && isCdnKey(entry.key)) return { kind: 'skip', why: 'on-cdn' };
-  // An explicit `scryfall` row is a decision someone made — do not overwrite
-  // it. An absent row means "not done yet"; this means "leave it upstream".
-  if (entry.source === 'scryfall') return { kind: 'skip', why: 'pinned-to-scryfall' };
-  return { kind: 'upload' };
-}
-
-interface Counts {
-  uploaded: number;
-  deduplicated: number;
-  skippedOnCdn: number;
-  skippedPinned: number;
-  failed: number;
-  fetchedBytes: number;
-  uploadedBytes: number;
-}
-
-function summarise(counts: Counts, total: number, dryRun: boolean, plannedBytes: number): string {
-  const lines = [
-    '',
-    `── upload-art ${dryRun ? '(dry run — nothing fetched, nothing uploaded)' : 'summary'} ──`,
-    `cards in pool (distinct ids): ${total}`,
-    dryRun
-      ? `would upload:                 ${plannedBytes}`
-      : `uploaded:                     ${counts.uploaded}${
-          counts.deduplicated > 0 ? ` (${counts.deduplicated} already stored, deduplicated)` : ''
-        }`,
-    `skipped (already on CDN):     ${counts.skippedOnCdn}`,
-    `skipped (pinned to Scryfall): ${counts.skippedPinned}`,
-    `failed:                       ${counts.failed}`,
-  ];
-  if (!dryRun) {
-    lines.push(
-      `bytes fetched from Scryfall:  ${counts.fetchedBytes}`,
-      `bytes stored on the CDN:      ${counts.uploadedBytes}`,
-    );
-  }
-  return lines.join('\n');
 }
 
 async function main(): Promise<void> {
@@ -457,198 +228,120 @@ async function main(): Promise<void> {
     console.log(USAGE);
     return;
   }
-
   const options = parseArgs(args);
 
-  const cards = await readPool(options.poolPath);
-  const { file: manifestFile, existed } = await readManifest(options.manifestPath);
-  const entries: Record<string, ArtEntry> = { ...manifestFile.entries };
+  const catalog = JSON.parse(await readFile(options.catalogPath, 'utf8')) as CatalogFile;
+  const tokens = await tokenIds(options.artIdsPath);
+  const all = imageIds(catalog, tokens);
+  const done = await readLog(options.logPath);
+  const todo = all.filter((id) => !done.has(id)).slice(0, options.limit);
+  console.log(`catalog:   ${options.catalogPath} (${Object.keys(catalog.printings).length} printings)`);
+  console.log(`tokens:    ${tokens.length} from ${options.artIdsPath}`);
+  console.log(`log:       ${options.logPath} (${done.size} already copied)`);
+  console.log(`to copy:   ${todo.length} of ${all.length} images; ${options.delayMs} ms between fetches, ${options.uploads} uploads in flight`);
+  if (options.dryRun || todo.length === 0) return;
 
-  console.log(`pool:      ${options.poolPath} (${cards.length} distinct ids)`);
-  console.log(
-    `manifest:  ${options.manifestPath}${existed ? '' : ' (does not exist yet; will be created)'}` +
-      ` — ${Object.keys(entries).length} existing rows`,
-  );
-  console.log(`pacing:    ${options.delayMs} ms between Scryfall requests (floor ${MIN_DELAY_MS})`);
-
-  const counts: Counts = {
-    uploaded: 0,
-    deduplicated: 0,
-    skippedOnCdn: 0,
-    skippedPinned: 0,
-    failed: 0,
-    fetchedBytes: 0,
-    uploadedBytes: 0,
-  };
-
-  // Decide the whole plan BEFORE touching the network. Two things fall out of
-  // that: the skip counts are real even on a run that uploads nothing, and a
-  // run with nothing left to do succeeds without a credential — which is the
-  // ordinary second run, and demanding a token to do nothing would be absurd.
-  const todo: PoolCard[] = [];
-  for (const card of cards) {
-    const what = disposition(entries[card.scryfallId as string]);
-    if (what.kind === 'upload') {
-      if (todo.length < options.limit) todo.push(card);
-      continue;
-    }
-    if (what.why === 'on-cdn') counts.skippedOnCdn++;
-    else counts.skippedPinned++;
-  }
-  console.log(`to do:     ${todo.length} card(s) need art uploaded`);
-
-  const credential = options.dryRun || todo.length === 0 ? null : await findCredential();
-  if (!options.dryRun && todo.length > 0 && credential === null) {
-    console.error(
-      [
-        '',
-        'No friend-tier credential found, so nothing was uploaded.',
-        `Looked in: ${CREDENTIAL_ENV.map((c) => `$${c.name}`).join(', ')}, and ${CREDENTIAL_FILE}.`,
-        `${UPLOAD_URL} is friend+ and answers 401 to an anonymous POST.`,
-        'Set one of those variables and rerun; the manifest resumes where it stopped.',
-        'Meanwhile `--dry-run` exercises everything except the fetch and the upload.',
-      ].join('\n'),
-    );
+  const credential = await findCredential();
+  if (credential === null) {
+    console.error(`No credential: set ${CREDENTIAL_ENV.map((c) => `$${c.name}`).join(' or ')} (or put one in ${CREDENTIAL_FILE}). Nothing uploaded.`);
     process.exit(1);
-    return;
   }
-  if (credential !== null) {
-    // The SOURCE, never the value. A token in a log is a token in a backup.
-    console.log(`credential: ${credential.source} -> ${credential.header} header`);
-  }
+  console.log(`credential: ${credential.source} -> ${credential.header}`);
 
-  // The client is written for a browser on hadoku.me, where the session cookie
-  // rides along on `credentials: 'same-origin'`. From Node there is no cookie
-  // jar, so the credential is attached here — the one seam the client exposes
-  // for exactly this. `Headers` rather than an object spread because the
-  // client's init shape is its business, not ours.
   const authedFetch: typeof fetch = (input, init) => {
     const headers = new Headers(init?.headers);
-    if (credential !== null) headers.set(credential.header, credential.value);
-    headers.set('User-Agent', userAgent());
+    headers.set(credential.header, credential.value);
+    headers.set('User-Agent', 'Mozilla/5.0 hadoku-agent');
     return fetch(input, { ...init, headers });
   };
+  const client = createCdnClient({ cdnBase: CDN_BASE, uploadPath: options.uploadUrl, fetch: authedFetch });
+  await mkdir(dirname(options.logPath), { recursive: true });
 
-  if (options.uploadUrl !== UPLOAD_URL) {
-    console.log(`upload:    ${options.uploadUrl}  (NOT the production CDN)`);
-  }
-
-  const client = createCdnClient({
-    cdnBase: CDN_BASE,
-    uploadPath: options.uploadUrl,
-    fetch: authedFetch,
-  });
-
-  const failures: string[] = [];
-  let planned = 0;
-
-  // Ctrl-C finishes the card in flight and flushes, rather than dying between
-  // the upload and the manifest write — the one window where work is lost.
   let stopping = false;
+  let fatal: Error | null = null;
   const onSignal = (): void => {
     if (stopping) process.exit(130);
     stopping = true;
-    console.log('\ninterrupted — finishing the card in flight, then flushing the manifest.');
+    console.log('\ninterrupted — finishing the uploads in flight.');
   };
   process.on('SIGINT', onSignal);
   process.on('SIGTERM', onSignal);
 
-  try {
-    for (const card of todo) {
-      if (stopping) break;
-      const id = card.scryfallId as string;
+  const counts = { copied: 0, deduplicated: 0, failed: 0, bytes: 0 };
+  const failures: string[] = [];
+  const started = Date.now();
 
-      // Lane A's composition, not our own: one place derives a Scryfall path,
-      // and an empty manifest is exactly "resolve this id upstream".
-      const source = resolveArtUrl(id, {}, { size: options.size });
-      if (source === null) {
-        counts.failed++;
-        failures.push(`${card.name} (${id}): no source URL — id is not a uuid`);
-        continue;
-      }
-
-      if (options.dryRun) {
-        planned++;
-        console.log(`would upload  ${card.name} <- ${source}`);
-        continue;
-      }
-
-      let result: UploadResult;
+  /** Upload with the CDN's own back-off; refusals of the credential stop the run. */
+  const upload = async (id: string, blob: Blob): Promise<void> => {
+    for (;;) {
       try {
-        const fetched = await fetchArt(source, options.delayMs);
-        counts.fetchedBytes += fetched.bytes.byteLength;
-
-        const refusal = refuseUpload(fetched);
-        if (refusal !== null) {
-          counts.failed++;
-          failures.push(`${card.name} (${id}): ${refusal}`);
+        const result = await client.upload(blob);
+        if (!isCdnKey(result.key)) throw new Error(`upload returned ${JSON.stringify(result.key)}, not a CDN key`);
+        await appendFile(options.logPath, mirrorLine({ id, key: result.key }));
+        counts.copied++;
+        counts.bytes += result.bytes;
+        if (result.deduplicated) counts.deduplicated++;
+        if (counts.copied % 500 === 0) {
+          const rate = counts.copied / ((Date.now() - started) / 1000);
+          console.log(`copied ${counts.copied}/${todo.length} (${(counts.bytes / 1e9).toFixed(2)} GB, ${rate.toFixed(1)}/s, ~${Math.round((todo.length - counts.copied) / rate / 60)} min left)`);
+        }
+        return;
+      } catch (err) {
+        if (err instanceof CdnError && err.reason === 'rate-limited') {
+          await sleep(((err as CdnError & { retryAfterSeconds?: number | null }).retryAfterSeconds ?? 30) * 1000);
           continue;
         }
-
-        result = await client.upload(new Blob([fetched.bytes], { type: fetched.contentType }));
-      } catch (err) {
-        if (err instanceof ScryfallRateLimited) throw err;
+        if (err instanceof CdnError && (err.reason === 'unauthenticated' || err.reason === 'forbidden')) {
+          fatal = new Error(`upload refused (${err.reason}) — stopping.`);
+          stopping = true;
+        }
         counts.failed++;
-        const detail =
-          err instanceof CdnError ? `${err.reason}${err.status ? ` (${err.status})` : ''}` : '';
-        failures.push(
-          `${card.name} (${id}): ${detail ? `${detail} — ` : ''}${(err as Error).message}`,
-        );
-        // A 401/403 will not fix itself card by card; a whole run of them is a
-        // pool's worth of pointless requests to Scryfall and to the CDN.
-        if (
-          err instanceof CdnError &&
-          (err.reason === 'unauthenticated' || err.reason === 'forbidden')
-        ) {
-          const left = todo.length - counts.failed;
-          console.error(
-            `\nupload refused (${err.reason}) — stopping rather than repeating it on ${left} more card(s).`,
-          );
+        failures.push(`${id}: ${err instanceof CdnError ? `${err.reason} — ` : ''}${(err as Error).message}`);
+        return;
+      }
+    }
+  };
+
+  const inFlight = new Set<Promise<void>>();
+  try {
+    for (const id of todo) {
+      if (stopping) break;
+      const url = resolveArtUrl(id, {});
+      if (url === null) {
+        counts.failed++;
+        failures.push(`${id}: no Scryfall URL`);
+        continue;
+      }
+      let blob: Blob;
+      try {
+        blob = await fetchImage(url, options.delayMs);
+      } catch (err) {
+        if (err instanceof ScryfallRateLimited) {
+          fatal = err;
           break;
         }
-        continue;
-      }
-
-      // The manifest is committed data, and a row is only worth writing if the
-      // render path can resolve it. `isCdnKey` is that render path's own test,
-      // so anything it rejects would have silently fallen back to Scryfall
-      // forever while the counts claimed success.
-      if (!isCdnKey(result.key)) {
         counts.failed++;
-        failures.push(`${card.name} (${id}): upload returned ${JSON.stringify(result.key)}, which is not a CDN key`);
+        failures.push(`${id}: ${(err as Error).message}`);
         continue;
       }
-
-      entries[id] = { source: 'cdn', key: result.key };
-      counts.uploaded++;
-      counts.uploadedBytes += result.bytes;
-      if (result.deduplicated) counts.deduplicated++;
-
-      // After EVERY success, not at the end: that is what makes the run
-      // resumable. 534 small writes cost nothing next to 534 network round
-      // trips, and the alternative loses the whole run to one Ctrl-C.
-      await writeManifest(options.manifestPath, { ...manifestFile, entries });
-
-      console.log(
-        `uploaded ${counts.uploaded.toString().padStart(4)}  ${result.key}  ${card.name}` +
-          (result.deduplicated ? '  (already stored)' : ''),
-      );
+      const job = upload(id, blob).finally(() => inFlight.delete(job));
+      inFlight.add(job);
+      if (inFlight.size >= options.uploads) await Promise.race(inFlight);
     }
   } finally {
+    await Promise.all(inFlight);
     process.off('SIGINT', onSignal);
     process.off('SIGTERM', onSignal);
-    if (!options.dryRun && counts.uploaded > 0) {
-      await writeManifest(options.manifestPath, { ...manifestFile, entries });
-    }
   }
 
-  console.log(summarise(counts, cards.length, options.dryRun, planned));
-  if (failures.length > 0) {
-    console.log(`\nfailures (${failures.length}):`);
-    for (const line of failures.slice(0, 20)) console.log(`  ${line}`);
-    if (failures.length > 20) console.log(`  … and ${failures.length - 20} more`);
+  console.log(`\ncopied ${counts.copied} (${counts.deduplicated} already stored), failed ${counts.failed}, ${(counts.bytes / 1e9).toFixed(2)} GB in ${Math.round((Date.now() - started) / 60000)} min`);
+  for (const line of failures.slice(0, 20)) console.log(`  ${line}`);
+  if (failures.length > 20) console.log(`  … and ${failures.length - 20} more`);
+  if (fatal !== null) {
+    console.error((fatal as Error).message);
+    process.exit(1);
   }
   if (counts.failed > 0) process.exit(1);
 }
 
-await main();
+if (import.meta.main) await main();

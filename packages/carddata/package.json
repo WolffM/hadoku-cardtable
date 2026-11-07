@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./art": "./src/art/index.ts",
+    "./art/mirror": "./src/art/mirror.ts",
     "./dck": "./src/dck.ts",
     "./set-codes": "./src/set-codes.ts",
     "./formats": "./src/formats/index.ts"
