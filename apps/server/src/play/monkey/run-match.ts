@@ -117,6 +117,9 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
   const started = new Date().toISOString();
   const started201 = await startAiMatch(opts);
   if ('error' in started201) {
+    // A 503 is the server saying it cannot host a match (its ceiling, a drain, no Forge, no JVM):
+    // nothing about this deck, so no flag — the run stops on it (`stopReason`).
+    const serverFull = started201.status === 503;
     return {
       matchId: 'unstarted',
       deck: opts.decks,
@@ -124,22 +127,25 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
       started,
       ended: new Date().toISOString(),
       turns: null,
-      outcome: 'crashed',
+      outcome: serverFull ? 'refused' : 'crashed',
+      refused: { status: started201.status, error: started201.error },
       decisions: 0,
-      flags: [
-        {
-          kind: 'no-finish',
-          matchId: 'unstarted',
-          seed: opts.seed,
-          deck: opts.decks,
-          seat: null,
-          turn: null,
-          phase: null,
-          detail: `POST /api/play/matches refused: ${started201.error} (HTTP ${started201.status})`,
-          context: [],
-          at: new Date().toISOString(),
-        },
-      ],
+      flags: serverFull
+        ? []
+        : [
+            {
+              kind: 'no-finish',
+              matchId: 'unstarted',
+              seed: opts.seed,
+              deck: opts.decks,
+              seat: null,
+              turn: null,
+              phase: null,
+              detail: `POST /api/play/matches refused: ${started201.error} (HTTP ${started201.status})`,
+              context: [],
+              at: new Date().toISOString(),
+            },
+          ],
     };
   }
   const matchId = started201.matchId;
@@ -206,17 +212,18 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
     `connection trouble: ${t.what} ${JSON.stringify(t.detail)}`;
 
   const extra: Flag[] = [];
-  const timedOut = crashed === null && !match.over && match.ended === null;
+  // Every match this run leaves unfinished is conceded, a crashed one too: the server cannot tell
+  // a seat whose socket broke from one about to reconnect, and keeps its slot for it.
+  const unfinished = !match.over && match.ended === null;
+  const timedOut = crashed === null && unfinished;
+  const ended = unfinished ? await giveUp(match) : true;
+  const notEnded = ended ? '' : `; its concede was not seen to end it within ${GIVE_UP_MS} ms`;
   if (timedOut) {
-    const ended = await giveUp(match);
     extra.push(
-      noFinishFlag(
-        `the match did not finish within its cap (turn ${match.view?.turn ?? '?'}, ${opts.turnCap} turns / ${opts.matchTimeoutMs} ms)` +
-          (ended ? '' : `; its concede was not seen to end it within ${GIVE_UP_MS} ms`),
-      ),
+      noFinishFlag(`the match did not finish within its cap (turn ${match.view?.turn ?? '?'}, ${opts.turnCap} turns / ${opts.matchTimeoutMs} ms)${notEnded}`),
     );
   }
-  if (crashed !== null) extra.push(noFinishFlag(troubleDetail(crashed)));
+  if (crashed !== null) extra.push(noFinishFlag(`${troubleDetail(crashed)}${notEnded}`));
 
   const turns = match.view?.turn ?? null;
   let outcome: MatchResult['outcome'] = 'unknown';

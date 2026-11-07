@@ -35,7 +35,9 @@ export interface MatchResult {
   started: string;
   ended: string | null;
   turns: number | null;
-  outcome: 'won' | 'lost' | 'drawn' | 'conceded' | 'timed-out' | 'crashed' | 'unknown';
+  outcome: 'won' | 'lost' | 'drawn' | 'conceded' | 'timed-out' | 'crashed' | 'refused' | 'unknown';
+  /** The server's answer when it would not start this match. */
+  refused?: { status: number; error: string };
   decisions: number;
   flags: Flag[];
 }
@@ -47,6 +49,8 @@ export interface MonkeyReport {
   decksCovered: string[];
   matches: MatchResult[];
   flagged: Flag[];
+  /** Why the run stopped before covering every deck (`stopReason`), or null. */
+  stopped: string | null;
   summary: {
     matches: number;
     flagged: number;
@@ -65,7 +69,17 @@ export function emptyByKind(): Record<FlagKind, number> {
   };
 }
 
-export function buildReport(seed: number, decksCovered: string[], matches: MatchResult[], startedAt: string): MonkeyReport {
+/**
+ * Whether this match's result ends the run. A 503 is the server refusing to host any match, so every
+ * later start would be refused the same way: on 2026-11-03..05 the nightly started ~1400 more after its
+ * first, each one a flag about nothing but the server being full.
+ */
+export function stopReason(result: MatchResult): string | null {
+  if (result.refused?.status !== 503) return null;
+  return `the server refused to start a match (HTTP 503: ${result.refused.error}); no further matches were started`;
+}
+
+export function buildReport(seed: number, decksCovered: string[], matches: MatchResult[], startedAt: string, stopped: string | null): MonkeyReport {
   const flagged = matches.flatMap((m) => m.flags);
   const byKind = emptyByKind();
   for (const f of flagged) byKind[f.kind] += 1;
@@ -76,6 +90,7 @@ export function buildReport(seed: number, decksCovered: string[], matches: Match
     decksCovered,
     matches,
     flagged,
+    stopped,
     summary: { matches: matches.length, flagged: flagged.length, byKind },
   };
 }
@@ -84,6 +99,7 @@ export function buildReport(seed: number, decksCovered: string[], matches: Match
 export function summaryText(report: MonkeyReport): string {
   const lines: string[] = [];
   lines.push(`monkey: seed ${report.seed}, ${report.summary.matches} match(es), ${report.summary.flagged} flag(s)`);
+  if (report.stopped !== null) lines.push(`STOPPED EARLY: ${report.stopped}`);
   for (const [kind, count] of Object.entries(report.summary.byKind)) {
     if (count > 0) lines.push(`  ${kind}: ${count}`);
   }

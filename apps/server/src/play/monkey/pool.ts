@@ -1,0 +1,33 @@
+/*
+ * The monkey's run queue: at most `concurrency` tasks at once, taken in order, and no new one
+ * taken once a finished task says the run must stop — the matches already playing finish, and
+ * the rest are never started.
+ */
+
+export interface PoolOutcome<T> {
+  /** Every task that ran, in task order. */
+  results: T[];
+  /** Why the run stopped early, or null when every task ran. */
+  stopped: string | null;
+}
+
+export async function runPool<T>(
+  tasks: readonly (() => Promise<T>)[],
+  concurrency: number,
+  stopFor: (result: T) => string | null,
+): Promise<PoolOutcome<T>> {
+  const results: { index: number; result: T }[] = [];
+  let next = 0;
+  let stopped: string | null = null;
+  async function worker(): Promise<void> {
+    while (stopped === null && next < tasks.length) {
+      const index = next;
+      next += 1;
+      const result = await tasks[index]!();
+      results.push({ index, result });
+      stopped ??= stopFor(result);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(Math.max(1, concurrency), tasks.length) }, worker));
+  return { results: results.sort((a, b) => a.index - b.index).map((r) => r.result), stopped };
+}

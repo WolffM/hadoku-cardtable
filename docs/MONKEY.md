@@ -51,7 +51,7 @@ here is testing one card's specific behaviour.
 | `click-refused` | the server (Forge's `flashIncorrectAction`) or this client's own guard refused an answer — not the server's `cause: 'unpayable'` flash, which is it cancelling a cost nothing can pay (e2d49c260), a handled case (`isRefusal`) | the wire tap on `forge:s2c`, and `selectCard`/`selectPlayer`/`pressButton`/`answerAsk`'s own return value |
 | `loop` | a DECLINED optional ask came back with the same method and the same offered shape three times running, AT THE SAME turn and phase, with no act of this seat's own in between (a click on the same card again opens a new question, not the old one coming back; a `tempShowZones` that recurs every cleanup step by design is excluded outright) | `declineStreak` in `seat-driver.ts` |
 | `server-unclassified` | the server logged `ask-unclassified` for this match — a question `answerability` has no rule for. Not `ask-unanswerable`: that is the server answering, by its own rule (7f343ec90), a question no seat could (`serverFlagsOf`) | the running stack's own JSON log file, tailed per match |
-| `no-finish` | the match never started (`POST /api/play/matches` refused), the connection broke (`report`'s `connect-error`/`disconnected`/…), or it did not finish within `--turn-cap` (default 60) or `--match-timeout-ms` (default 180000) | `run-match.ts` |
+| `no-finish` | the match never started (`POST /api/play/matches` refused it for a reason other than a 503), the connection broke (`report`'s `connect-error`/`disconnected`/…), or it did not finish within `--turn-cap` (default 60) or `--match-timeout-ms` (default 180000) | `run-match.ts` |
 
 ### Reading a report
 
@@ -61,6 +61,18 @@ names, `outcome`, how many decisions this seat made, and that match's own
 `flags`), and a top-level `flagged` list with every flag from every match. The
 human summary (printed to stdout, and the last thing a run prints) is the
 same data as one line per flag plus an outcome tally.
+
+A **503** from `POST /api/play/matches` (the server at its match ceiling,
+draining, or without Forge or a JVM) is not a flag: it stops the run. No
+further match is started, the ones already playing finish, `stopped` in the
+report says why, and the CLI exits **2** (as for no Forge), not 1. Every
+later start would be refused the same way — the nightlies of 2026-11-03..05
+started ~1400 more after their first and flagged each one. Exit codes: 0
+clean, 1 flagged, 2 could not run its matches.
+
+Every match the run leaves unfinished (past its cap, or its connection
+broke) is conceded and waited on, so it gives its slot back: a walked-away
+match is kept for its holder, and the run is one holder, always online.
 
 ### Reproducing a seed
 

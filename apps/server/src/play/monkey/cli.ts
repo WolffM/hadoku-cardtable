@@ -10,32 +10,21 @@
  *   apps/server/node_modules/.bin/tsx apps/server/src/play/monkey/cli.ts \
  *     --seed 1 --matches-per-deck 1 --out /tmp/monkey-report.json
  *
- * Ports: this stack is its own, never the shared e2e default
- * (`CARDTABLE_E2E_PLAY_EDGE_PORT` / `_SERVER_PORT`, read by
- * `e2e/play/harness.ts`) — set here, before that module is even imported, so
- * a monkey run never collides with a concurrent e2e run on the same host.
+ * Ports: this stack's own, picked free by `e2e/ports.ts` unless the
+ * `CARDTABLE_E2E_PLAY_*_PORT` variables hand it some, so a monkey run never
+ * collides with another stack on the same host.
  */
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { PREFIX, SESSION_COOKIE } from '../../../../../e2e/identities.ts';
+import { forgeAvailability, startPlayStack } from '../../../../../e2e/play/harness.ts';
+
 import { fetchDeckLibrary } from './deck-pool.ts';
+import { runPool } from './pool.ts';
 import { makeRng, seedArg, seedFrom } from './rng.ts';
 import { runMatch } from './run-match.ts';
-import { buildReport, summaryText, type MatchResult } from './report.ts';
-
-/*
- * `e2e/play/harness.ts` reads its ports from `process.env` at MODULE LOAD —
- * static `import` hoisting would run that before any line of this file, so
- * the port env vars are set here and the harness (and `e2e/identities.ts`,
- * which carries no such constant but is kept beside it) are loaded by a
- * dynamic `import()` afterwards. This is what keeps a monkey run off the
- * shared e2e default ports (`CARDTABLE_E2E_PLAY_EDGE_PORT` / `_SERVER_PORT`),
- * so it never collides with a concurrent e2e run on the same host.
- */
-process.env.CARDTABLE_E2E_PLAY_EDGE_PORT ??= process.env.CARDTABLE_MONKEY_EDGE_PORT ?? '19228';
-process.env.CARDTABLE_E2E_PLAY_SERVER_PORT ??= process.env.CARDTABLE_MONKEY_SERVER_PORT ?? '19328';
-const { FRIENDS, PREFIX, SESSION_COOKIE } = await import('../../../../../e2e/identities.ts');
-const { forgeAvailability, startPlayStack } = await import('../../../../../e2e/play/harness.ts');
+import { buildReport, stopReason, summaryText, type MatchResult } from './report.ts';
 
 interface Args {
   seed: number | string;
@@ -69,21 +58,6 @@ function parseArgs(argv: readonly string[]): Args {
   };
 }
 
-/** Run at most `concurrency` of `tasks` at once, in order of completion start — not a generic queue, just enough for this CLI. */
-async function runPool<T>(tasks: (() => Promise<T>)[], concurrency: number): Promise<T[]> {
-  const results = new Array<T>(tasks.length);
-  let next = 0;
-  async function worker(): Promise<void> {
-    while (next < tasks.length) {
-      const i = next;
-      next += 1;
-      results[i] = await tasks[i]!();
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, worker));
-  return results;
-}
-
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const seed = seedFrom(args.seed);
@@ -99,9 +73,7 @@ async function main(): Promise<void> {
   const stack = await startPlayStack({ jar: available.jar, res: available.res });
   console.log(`[monkey] play stack up at ${stack.origin} (work dir ${stack.workDir})`);
 
-  const alice = FRIENDS.alice;
   const cookie = `${SESSION_COOKIE}=alice`;
-  void alice;
 
   try {
     const library = await fetchDeckLibrary(stack.origin, PREFIX, cookie);
@@ -147,13 +119,19 @@ async function main(): Promise<void> {
       }
     }
 
-    const matches = await runPool(tasks, Math.max(1, args.concurrency));
-    const report = buildReport(seed, decksToCover.map((d) => d.id), matches, startedAt);
+    const { results: matches, stopped } = await runPool(tasks, args.concurrency, stopReason);
+    const report = buildReport(seed, decksToCover.map((d) => d.id), matches, startedAt, stopped);
     writeFileSync(args.out, JSON.stringify(report, null, 2));
     console.log('');
     console.log(summaryText(report));
     console.log(`[monkey] report written to ${args.out}`);
-    process.exitCode = report.summary.flagged > 0 ? 1 : 0;
+    if (stopped !== null) {
+      // Exit 2, as for no Forge: the run could not cover its decks, which says nothing about the UI.
+      console.error(`${process.env.GITHUB_ACTIONS ? '::error::' : ''}[monkey] stopped after ${matches.length} of ${tasks.length} match(es): ${stopped}`);
+      process.exitCode = 2;
+    } else {
+      process.exitCode = report.summary.flagged > 0 ? 1 : 0;
+    }
   } finally {
     await stack.stop();
   }
