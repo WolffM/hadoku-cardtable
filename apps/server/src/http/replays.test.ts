@@ -64,15 +64,15 @@ function writeGz(path: string, lines: unknown[]): void {
 	writeFileSync(path, gzipSync(Buffer.from(lines.map((l) => JSON.stringify(l)).join('\n') + '\n', 'utf8')));
 }
 
-function writePublic(dir: string, matchId: string, opts: { roomId?: string | null; winner?: 0 | 1 | null; startedAt?: string; envs?: unknown[]; v?: number; seats?: unknown[] } = {}): void {
+function writePublic(dir: string, matchId: string, opts: { roomId?: string | null; winner?: 0 | 1 | null; startedAt?: string; envs?: unknown[]; v?: number; seats?: unknown[]; ai?: [boolean, boolean] } = {}): void {
 	writeGz(join(dir, `${matchId}.public.jsonl.gz`), [
-		{ t: 'header', v: opts.v ?? 2, matchId, roomId: opts.roomId ?? null, players: ['A', 'B'], ai: [false, false], decks: [null, null], startedAt: opts.startedAt ?? '2026-01-01T00:00:00.000Z' },
+		{ t: 'header', v: opts.v ?? 2, matchId, roomId: opts.roomId ?? null, players: ['A', 'B'], ai: opts.ai ?? [false, false], decks: [null, null], startedAt: opts.startedAt ?? '2026-01-01T00:00:00.000Z' },
 		...(opts.envs ?? [{ t: 'env', at: 0, env: { matchId, cursor: { epoch: 'e', seq: 1 }, frame: { kind: 'notify', method: 'openView', payload: { myPlayers: [0] } } } }]),
 		{ t: 'end', endedAt: '2026-01-01T00:10:00.000Z', winner: opts.winner ?? null, ...(opts.seats === undefined ? {} : { seats: opts.seats }) },
 	]);
 }
 
-function writeActionsOnly(dir: string, matchId: string, opts: { roomId?: string | null; startedAt?: string } = {}): void {
+function writeActionsOnly(dir: string, matchId: string, opts: { roomId?: string | null; startedAt?: string; seats?: unknown } = {}): void {
 	writeGz(join(dir, `${matchId}.actions.jsonl.gz`), [
 		{
 			t: 'header',
@@ -83,7 +83,7 @@ function writeActionsOnly(dir: string, matchId: string, opts: { roomId?: string 
 			bridge: 'def',
 			server: '0.0.0',
 			startedAt: opts.startedAt ?? '2026-01-01T00:00:00.000Z',
-			spec: { seed: 1, seats: [{ name: 'A', ai: false }, { name: 'B', ai: false }] },
+			spec: { seed: 1, seats: opts.seats === undefined ? [{ name: 'A', ai: false }, { name: 'B', ai: false }] : opts.seats },
 		},
 		{ t: 'cmd', seat: 0, board: 'b', prompt: 'p', cmd: { t: 'act', seat: 0, frame: { method: 'selectButtonOk' } } },
 		{ t: 'end', endedAt: '2026-01-01T00:05:00.000Z', reason: 'clean' },
@@ -152,6 +152,21 @@ describe('GET /api/replays', () => {
 		expect((all.json.replays as { matchId: string }[]).map((r) => r.matchId)).toEqual(['m-new', 'm-mid', 'm-old']);
 		const limited = await call(base, '/api/replays?limit=1');
 		expect((limited.json.replays as { matchId: string }[]).map((r) => r.matchId)).toEqual(['m-new']);
+	});
+
+	// The operator, 2026-11-07: "never show player vs bot, nor bot vs bot games in the front page".
+	it('humans=only lists games between two people: never one with an AI seat, nor one whose seats it cannot tell', async () => {
+		const dir = await recordingsDir();
+		writePublic(dir, 'm-people');
+		writePublic(dir, 'm-vsai', { ai: [false, true] });
+		writePublic(dir, 'm-bots', { ai: [true, true] });
+		writeActionsOnly(dir, 'm-rebuild-people', { startedAt: '2026-01-01T00:00:01.000Z' });
+		writeActionsOnly(dir, 'm-rebuild-vsai', { seats: [{ name: 'A', ai: false }, { name: 'AI', ai: true }] });
+		writeActionsOnly(dir, 'm-rebuild-unknown', { seats: null });
+		const base = await openApp(dir, { canRebuild: () => true });
+		const ids = async (path: string): Promise<string[]> => ((await call(base, path)).json.replays as { matchId: string }[]).map((r) => r.matchId).sort();
+		expect(await ids('/api/replays?humans=only')).toEqual(['m-people', 'm-rebuild-people']);
+		expect(await ids('/api/replays')).toHaveLength(6);
 	});
 
 	it('hides a testing room from a friend and shows it to an admin', async () => {

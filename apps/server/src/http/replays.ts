@@ -2,6 +2,8 @@
  * `/api/replays` — contract 2 of `docs/planning/wave77-2026-10-27.md` §C.
  *
  *   GET /api/replays?limit=20   → 200 { replays: ReplaySummary[] }   newest first, each with its `pace`
+ *       &humans=only            → only games between two people (the front page's: no AI seat, and
+ *                                 never a recording whose seats it cannot tell)
  *   GET /api/replays/:matchId   → 200 { header, envs, presence, relays, end } | 404
  *
  * Reads `CARDTABLE_RECORDINGS_DIR` directly — never the live recorder's
@@ -217,9 +219,10 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 	replays.get('/', async (req: Request, res: Response) => {
 		const limitParam = Number(req.query.limit ?? DEFAULT_LIST_LIMIT);
 		const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(Math.floor(limitParam), MAX_LIST_LIMIT) : DEFAULT_LIST_LIMIT;
+		const humansOnly = req.query.humans === 'only';
 
 		const rows = rowsOf(deps.dir);
-		const summaries: { header: PublicHeaderLine; endedAt: string | null; winner: 0 | 1 | null; source: 'stream' | 'rebuild' | 'none'; pace: ReplayPace | null }[] = [];
+		const summaries: { header: PublicHeaderLine; seatsKnown: boolean; endedAt: string | null; winner: 0 | 1 | null; source: 'stream' | 'rebuild' | 'none'; pace: ReplayPace | null }[] = [];
 		for (const row of rows) {
 			try {
 				if (row.hasPublic) {
@@ -228,7 +231,7 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 					// An older stream draws no hand: it is no replay, but its action log may still rebuild one.
 					if (header !== null && header.v === PUBLIC_VERSION) {
 						const end = read === null ? null : parseJson<PublicEndLine>(read.last);
-						summaries.push({ header, endedAt: end?.t === 'end' ? end.endedAt : null, winner: end?.t === 'end' ? end.winner : null, source: 'stream', pace: read === null ? null : read.pace });
+						summaries.push({ header, seatsKnown: true, endedAt: end?.t === 'end' ? end.endedAt : null, winner: end?.t === 'end' ? end.winner : null, source: 'stream', pace: read === null ? null : read.pace });
 						continue;
 					}
 				}
@@ -253,14 +256,15 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 				};
 				const end = read === null ? null : parseJson<{ t: 'end'; endedAt: string; reason: string }>(read.last);
 				const canRebuild = deps.canRebuild?.(actionsHeader) ?? false;
-				summaries.push({ header, endedAt: end?.t === 'end' ? end.endedAt : null, winner: null, source: canRebuild ? 'rebuild' : 'none', pace: null });
+				summaries.push({ header, seatsKnown: seats !== null, endedAt: end?.t === 'end' ? end.endedAt : null, winner: null, source: canRebuild ? 'rebuild' : 'none', pace: null });
 			} catch (err) {
 				log({ evt: 'replay-list-read-failed', matchId: row.matchId, error: (err as Error).message });
 			}
 		}
 
 		// A recording that cannot be played is not offered (wave 81): the worst case is no replay.
-		const visible = summaries.filter((s) => s.source !== 'none' && !hiddenFrom(req, s.header));
+		const people = (s: (typeof summaries)[number]): boolean => s.seatsKnown && !s.header.ai[0] && !s.header.ai[1];
+		const visible = summaries.filter((s) => s.source !== 'none' && !hiddenFrom(req, s.header) && (!humansOnly || people(s)));
 		visible.sort((a, b) => (a.header.startedAt < b.header.startedAt ? 1 : a.header.startedAt > b.header.startedAt ? -1 : 0));
 		res.set('Cache-Control', LIST_CACHE);
 		res.json({

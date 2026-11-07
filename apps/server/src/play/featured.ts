@@ -1,15 +1,17 @@
 /**
  * The front page's featured match: the live game where the most is happening
- * (`docs/planning/front-page-and-replay-plan.md`, R3). Every match is featurable
- * (the operator, 2026-10-26: "feature everything by default"); a testing room's
- * never is, since it is not offered to everyone.
+ * (`docs/planning/front-page-and-replay-plan.md`, R3). Every game between two
+ * people is featurable (the operator, 2026-10-26: "feature everything by
+ * default"); a game with an AI seat never is (2026-11-07: "never show player vs
+ * bot, nor bot vs bot games in the front page"), and nor is a testing room's,
+ * since it is not offered to everyone.
  *
  * - **Eligible:** dealt and running (`Match.live()` is not null) and the table
  *   changed within {@link FEATURED_IDLE_MS}. A game waiting on a player who has
  *   walked away drops out on its own.
  * - **Score:** the seconds of the last two minutes in which the table changed
- *   (`Match.activity`) carry it; a game past turn 2, close life totals and two
- *   people rather than a person and an AI each add a little.
+ *   (`Match.activity`) carry it; a game past turn 2 and close life totals each
+ *   add a little.
  * - **Kept:** the current pick stays until it ends or goes idle, however good a
  *   newcomer looks. A front page that cuts away mid-combat is worse than one
  *   showing a slightly duller game.
@@ -32,8 +34,6 @@ export const FEATURED_REFRESH_MS = 15_000;
 export interface FeaturedCandidate {
 	matchId: string;
 	roomId: string;
-	/** Human seats. */
-	humans: number;
 	live: TableGameLive;
 	activity: { lastAt: number | null; recent: number };
 }
@@ -48,7 +48,7 @@ export function featuredScore(c: FeaturedCandidate, now: number): number | null 
 	if (c.activity.lastAt === null || now - c.activity.lastAt > FEATURED_IDLE_MS) return null;
 	const [a, b] = c.live.life;
 	const close = a === null || b === null ? 0 : Math.max(0, 10 - Math.abs(a - b));
-	return c.activity.recent + (c.live.turn >= 3 ? 10 : 0) + close + (c.humans >= 2 ? 15 : 0);
+	return c.activity.recent + (c.live.turn >= 3 ? 10 : 0) + close;
 }
 
 export function pickFeatured(candidates: readonly FeaturedCandidate[], now: number, current: FeaturedPick | null): FeaturedPick | null {
@@ -66,14 +66,14 @@ export function pickFeatured(candidates: readonly FeaturedCandidate[], now: numb
 	return best === null ? null : { matchId: best.matchId, roomId: best.roomId };
 }
 
-/** The candidates among the server's matches: live ones in a room that is not a testing room. */
+/** The candidates among the server's matches: live games between two people, in a room that is not a testing room. */
 export function featuredCandidates(matches: readonly Match[], roomOf: (matchId: string) => { id: string; testing?: boolean } | undefined, now: number): FeaturedCandidate[] {
 	const out: FeaturedCandidate[] = [];
 	for (const match of matches) {
 		const live = match.live();
 		const room = roomOf(match.id);
-		if (live === null || room === undefined || room.testing === true) continue;
-		out.push({ matchId: match.id, roomId: room.id, humans: match.seats.filter((s) => !s.ai).length, live, activity: match.activity(now) });
+		if (live === null || room === undefined || room.testing === true || match.seats.some((s) => s.ai)) continue;
+		out.push({ matchId: match.id, roomId: room.id, live, activity: match.activity(now) });
 	}
 	return out;
 }

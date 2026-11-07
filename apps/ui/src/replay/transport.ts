@@ -277,10 +277,10 @@ function parseListing(v: unknown): ReplayListing | null {
 const defaultFetch: Fetch = (i, init) => fetch(i, init);
 
 /** `GET /api/replays?limit=N`, newest first — whatever the server sent, in its own order. */
-export async function fetchReplays(limit: number, fetchImpl: Fetch = defaultFetch): Promise<ReplayListing[]> {
+export async function fetchReplays(limit: number, fetchImpl: Fetch = defaultFetch, opts: { humansOnly?: boolean } = {}): Promise<ReplayListing[]> {
   let res: Response;
   try {
-    res = await getJson(apiUrl(`replays?limit=${encodeURIComponent(String(limit))}`), fetchImpl);
+    res = await getJson(apiUrl(`replays?limit=${encodeURIComponent(String(limit))}${opts.humansOnly === true ? '&humans=only' : ''}`), fetchImpl);
   } catch {
     throw new Error('Could not reach the server.');
   }
@@ -335,7 +335,8 @@ function weightedPick(pool: readonly ReplayListing[], random: () => number): Rep
  * game's worth of work.
  */
 export async function fetchRandomReplay(fetchImpl: Fetch = defaultFetch, random: () => number = Math.random): Promise<ReplayListing | null> {
-  const listed = await fetchReplays(RANDOM_POOL, fetchImpl);
+  // The front page's replay: never a game with an AI seat (the operator, 2026-11-07).
+  const listed = await fetchReplays(RANDOM_POOL, fetchImpl, { humansOnly: true });
   const streams = listed.filter((r) => r.source === 'stream');
   const games = streams.filter(isGame);
   return weightedPick(games.length > 0 ? games : streams.length > 0 ? streams : listed, random);

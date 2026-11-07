@@ -139,6 +139,8 @@ describe('fetchReplays / fetchRandomReplay', () => {
     expect((await fetchRandomReplay(fetchImpl, () => 0.5))?.matchId).toBe('m-2');
     expect((await fetchRandomReplay(fetchImpl, () => 0.999))?.matchId).toBe('m-3');
     expect(calls[0]!.url).toContain('limit=100');
+    // The front page's replay: games between two people only (the operator, 2026-11-07).
+    expect(calls[0]!.url).toContain('humans=only');
 
     const { fetchImpl: empty } = stub(() => json(200, { replays: [] }));
     expect(await fetchRandomReplay(empty)).toBeNull();

@@ -9,7 +9,6 @@ function candidate(matchId: string, over: Partial<FeaturedCandidate> = {}): Feat
 	return {
 		matchId,
 		roomId: `room-${matchId}`,
-		humans: 2,
 		live: { turn: 5, active: 0, life: [20, 20], hand: [5, 5] },
 		activity: { lastAt: NOW - 1_000, recent: 30 },
 		...over,
@@ -23,10 +22,9 @@ describe('featuredScore', () => {
 		expect(featuredScore(candidate('a', { activity: { lastAt: NOW - FEATURED_IDLE_MS, recent: 1 } }), NOW)).not.toBeNull();
 	});
 
-	it('is carried by activity; two people, a later turn and a close race each add', () => {
+	it('is carried by activity; a later turn and a close race each add', () => {
 		const base = featuredScore(candidate('a'), NOW)!;
 		expect(featuredScore(candidate('a', { activity: { lastAt: NOW, recent: 31 } }), NOW)).toBe(base + 1);
-		expect(featuredScore(candidate('a', { humans: 1 }), NOW)).toBeLessThan(base);
 		expect(featuredScore(candidate('a', { live: { turn: 1, active: 0, life: [20, 20], hand: [7, 7] } }), NOW)).toBeLessThan(base);
 		expect(featuredScore(candidate('a', { live: { turn: 5, active: 0, life: [20, 4], hand: [5, 5] } }), NOW)).toBeLessThan(base);
 	});
@@ -67,7 +65,8 @@ describe('featuredCandidates', () => {
 			activity: () => ({ lastAt: NOW, recent: 4 }),
 		}) as unknown as Match;
 
-	it('takes live matches in an ordinary room, never a testing room, an undealt match or one with no room', () => {
+	// The operator, 2026-11-07: "never show player vs bot, nor bot vs bot games in the front page".
+	it('takes live games between two people in an ordinary room, never one with an AI seat, a testing room, an undealt match or one with no room', () => {
 		const rooms: Record<string, { id: string; testing?: boolean }> = {
 			live: { id: 'r1' },
 			vsai: { id: 'r2' },
@@ -75,10 +74,7 @@ describe('featuredCandidates', () => {
 			undealt: { id: 'r4' },
 		};
 		const found = featuredCandidates([match('live', true), match('vsai', true, true), match('test', true), match('undealt', false), match('orphan', true)], (id) => rooms[id], NOW);
-		expect(found.map((c) => [c.matchId, c.roomId, c.humans])).toEqual([
-			['live', 'r1', 2],
-			['vsai', 'r2', 1],
-		]);
+		expect(found.map((c) => [c.matchId, c.roomId])).toEqual([['live', 'r1']]);
 	});
 });
 
