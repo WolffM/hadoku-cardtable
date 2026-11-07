@@ -311,7 +311,7 @@ export async function clickOnce(page: Page, text: string, which: 'ok' | 'cancel'
  * is pressed in that same task, and only if the page still shows exactly that: nothing can open between the
  * read and the press. Self-contained, because it runs in the page (`page.evaluate`).
  */
-function readAsking({ buttonOne, press }: { buttonOne: string; press: string | null }): { now: string; pressed: boolean } {
+function readAsking({ buttonOne, press }: { buttonOne: string; press: string | null }): { now: string; pressed: boolean; button: boolean } {
   const ok = Array.from(document.querySelectorAll<HTMLButtonElement>(buttonOne)).find((b) => b.checkVisibility()) ?? null;
   const rail = document.querySelector('[data-testid="live-phases"]');
   const now = JSON.stringify([
@@ -324,8 +324,11 @@ function readAsking({ buttonOne, press }: { buttonOne: string; press: string | n
   ]);
   const pressed = ok !== null && press === now;
   if (pressed) ok.click();
-  return { now, pressed };
+  return { now, pressed, button: ok !== null };
 }
+
+/** What became of one `pressOkWhileAsking`: pressed, or why not. */
+export type OkPress = 'pressed' | 'pressed-before' | 'changed' | 'no-button';
 
 /** What `page` is being asked right now (`readAsking`), to judge a condition against before acting on it. */
 export const askingNow = async (page: Page): Promise<string> => (await page.evaluate(readAsking, { buttonOne: BUTTON_ONE, press: null })).now;
@@ -336,12 +339,13 @@ export const askingNow = async (page: Page): Promise<string> => (await page.eval
  * reads its condition and then presses whatever bar is up passes a stop that opened during the read — the
  * very stop it was waiting for (w81-replay, run 42360824342: bob's Main 2 opened mid-read and was passed).
  */
-export async function pressOkWhileAsking(page: Page, seen: string): Promise<boolean> {
+export async function pressOkWhileAsking(page: Page, seen: string): Promise<OkPress> {
   const key = `ok:${(JSON.parse(seen) as string[])[0]}`;
-  if (lastClicked.get(page) === key) return false;
-  const { pressed } = await page.evaluate(readAsking, { buttonOne: BUTTON_ONE, press: seen });
-  if (pressed) lastClicked.set(page, key);
-  return pressed;
+  if (lastClicked.get(page) === key) return 'pressed-before';
+  const { pressed, button } = await page.evaluate(readAsking, { buttonOne: BUTTON_ONE, press: seen });
+  if (!pressed) return button ? 'changed' : 'no-button';
+  lastClicked.set(page, key);
+  return 'pressed';
 }
 
 /**
@@ -972,25 +976,33 @@ export async function grindPriority(
   opts: { timeoutMs?: number; intervalMs?: number; press?: (page: Page) => Promise<void> } = {},
 ): Promise<void> {
   const custom = opts.press;
-  const press = async (page: Page, seen: string): Promise<void> => {
-    if (custom === undefined) await pressOkWhileAsking(page, seen);
-    else if ((await askingNow(page)) === seen) await custom(page);
+  // Per page: what it was last asked, and what became of each press, for the timeout to say.
+  const seat = pages.map(() => ({ asked: '', outcomes: new Map<string, number>() }));
+  const tally = (i: number, outcome: string): void => void seat[i]!.outcomes.set(outcome, (seat[i]!.outcomes.get(outcome) ?? 0) + 1);
+  const press = async (page: Page, seen: string): Promise<string> => {
+    if (custom === undefined) return pressOkWhileAsking(page, seen);
+    if ((await askingNow(page)) !== seen) return 'changed';
+    await custom(page);
+    return 'custom';
   };
   const deadline = Date.now() + (opts.timeoutMs ?? 30_000);
   while (Date.now() < deadline) {
-    for (const page of pages) {
+    for (const [i, page] of pages.entries()) {
       const seen = await askingNow(page);
       if (await until()) return;
       if ((await askingNow(page)) === seen) await answerPrompt(page);
+      else tally(i, 'prompt-changed');
     }
-    for (const page of pages) {
+    for (const [i, page] of pages.entries()) {
       const seen = await askingNow(page);
+      seat[i]!.asked = seen;
       if (await until()) return;
-      await press(page, seen);
+      tally(i, await press(page, seen));
     }
     await pages[0]!.waitForTimeout(opts.intervalMs ?? 40);
   }
-  throw new Error('grindPriority timed out waiting for its own condition');
+  const said = seat.map((s, i) => `page ${i} asked ${s.asked}; ${[...s.outcomes].map(([k, n]) => `${k} ${n}`).join(', ')}`);
+  throw new Error(`grindPriority timed out waiting for its own condition — ${said.join(' | ')}`);
 }
 
 /* ── rooms ────────────────────────────────────────────────────────────── */
