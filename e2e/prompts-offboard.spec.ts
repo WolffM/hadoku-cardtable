@@ -18,7 +18,7 @@
  * `apps/ui/dist` — rebuild before running.
  */
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { clickHandCard, enabledOk, makeTitled, says, stackCount } from './play/board.ts';
 import { answerPrompt } from './play/prompts.ts';
@@ -38,13 +38,35 @@ const selectionTiles = (page: Page) => page.getByTestId('prompt-cards').getByTes
  * budget hands control back to the poll; only that timeout is tolerated, any other error still fails.
  */
 async function pressOkIfEnabled(page: Page): Promise<void> {
-  const ok = enabledOk(page).first();
-  if ((await ok.count()) === 0) return;
+  await pressIfEnabled(enabledOk(page).first());
+}
+
+/** Click `button` if it is drawn and enabled; true when the click went through (see `pressOkIfEnabled` for the budget). */
+async function pressIfEnabled(button: Locator): Promise<boolean> {
+  if ((await button.count()) === 0) return false;
   try {
-    await ok.click({ timeout: 1_500 });
+    await button.click({ timeout: 1_500 });
+    return true;
   } catch (e) {
     if (!(e instanceof Error && e.name === 'TimeoutError')) throw e;
+    return false;
   }
+}
+
+/**
+ * The open payment as one read in the page: Forge's line (`live-says`, which spells `{B}` as `B`) and
+ * whether its OK and Cancel are live. Null when no payment is open.
+ */
+async function paymentNow(page: Page): Promise<{ text: string; ok: boolean; cancel: boolean } | null> {
+  return page.evaluate(() => {
+    const win = document.querySelector('[data-testid="live-payment"]');
+    if (win === null) return null;
+    const live = (id: string): boolean => {
+      const b = win.querySelector(`[data-testid="${id}"]`);
+      return b instanceof HTMLButtonElement && !b.disabled;
+    };
+    return { text: document.querySelector('[data-testid="live-says"]')?.textContent ?? '', ok: live('live-payment-ok'), cancel: live('live-payment-cancel') };
+  });
 }
 
 /**
@@ -80,22 +102,28 @@ async function castAndReachTheSelection(page: Page, cardId: number, atLeast: num
  * `TrigReturn`'s `{B}` is paid — and decline the `{X}` payment with Forge's own Cancel: a trigger
  * with a cost is declined by not paying it (`PlayerControllerHuman.confirmTrigger`). Returns once
  * the stack is empty and nothing is being asked, read off the board.
+ *
+ * Each payment is answered once, and only by its own button. Forge sends the next payment's bar a
+ * moment before its line, so for that moment the {B} line stands over the {X} payment's live bar:
+ * an OK pressed then pays {X} and returns the Zombie (closing run 42354601891). Once {B} is paid,
+ * no payment OK is pressed again; a priority with the stack still full is passed by its own OK.
  */
 async function declineTheXPayment(page: Page): Promise<void> {
   let declined = false;
+  let paidB = false;
   await expect
     .poll(
       async () => {
         await answerPrompt(page);
-        const text = await says(page);
-        if (/Pay Mana Cost/i.test(text)) {
-          const cancel = page.getByTestId('live-payment-cancel');
-          // `live-says` spells `{B}` as `B` (`plainRulesText`).
-          if (!declined && !/Pay Mana Cost:\s*B\b/.test(text) && (await cancel.isEnabled().catch(() => false))) {
-            await cancel.click({ timeout: 1_500 });
-            declined = true;
-          } else await pressOkIfEnabled(page);
-        } else if (/^Priority:/.test(text) && !/Stack: Empty/.test(text)) await pressOkIfEnabled(page);
+        const payment = await paymentNow(page);
+        if (payment !== null) {
+          const isB = /Pay Mana Cost:\s*B\b/.test(payment.text);
+          if (isB && !paidB && payment.ok) paidB = await pressIfEnabled(page.getByTestId('live-payment-ok'));
+          else if (!isB && /Pay Mana Cost/i.test(payment.text) && !declined && payment.cancel) declined = await pressIfEnabled(page.getByTestId('live-payment-cancel'));
+        } else {
+          const text = await says(page);
+          if (/^Priority:/.test(text) && !/Stack: Empty/.test(text)) await pressIfEnabled(page.locator('[data-testid="live-decision-ok"]:enabled').first());
+        }
         if ((await page.getByTestId('live-prompt').count()) > 0 || (await stackCount(page)) !== 0) return false;
         return declined;
       },
