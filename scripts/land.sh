@@ -102,6 +102,15 @@ for c in "${PICKS[@]}"; do
   echo "land: ledger ${ids% }"
 done
 
+# The lockfile must agree with every package.json before anything else runs. The link below
+# borrows a deploy tree's node_modules whenever the two lockfiles match, so a land that edits a
+# package.json and not the lockfile passed every local step and failed CI's frozen install
+# (ERR_PNPM_OUTDATED_LOCKFILE). `--lockfile-only` reads the manifests and the lockfile and
+# needs no node_modules, so it runs here, before the link.
+PATH="$NODE_BIN:$PATH" pnpm install --frozen-lockfile --lockfile-only > "$TMP.lockfile.log" 2>&1 \
+  || { tail -20 "$TMP.lockfile.log"
+       echo "land: pnpm-lock.yaml is out of date with a package.json — nothing pushed (log $TMP.lockfile.log)" >&2; exit 5; }
+
 # Dependencies first: the art step below runs code that imports them. Linking borrows a
 # deploy tree's node_modules, which match that tree's lockfile, not this one. When the
 # two lockfiles differ (an auto-update landed since the last deploy, or the
