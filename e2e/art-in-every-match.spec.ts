@@ -22,6 +22,7 @@ import { makeTitled } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
 import { forgeAvailability, PLAY_CATALOG, startPlayStack } from './play/harness.ts';
 import { keepBothHands, matchUrl } from './play/scenario.ts';
+import { ART_ROUTE } from './art.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -38,7 +39,6 @@ function squireId(): string {
 }
 
 /** Every art request answered at once with a stand-in: the claim is which id the board asks for, not the CDN. */
-const ART_HOSTS = /^https:\/\/(cards\.scryfall\.io|cdn\.hadoku\.me)\//;
 const ART_STAND_IN = '<svg xmlns="http://www.w3.org/2000/svg" width="488" height="680"><rect width="488" height="680" fill="#2a4a7a"/></svg>';
 
 const SCENARIO = [
@@ -64,7 +64,7 @@ test(titled('a set-draft card no browser table holds is drawn with its own art o
   const alice = await openFriend(browser, 'alice');
   const bob = await openFriend(browser, 'bob');
   try {
-    for (const page of [alice.page, bob.page]) await page.route(ART_HOSTS, (route) => route.fulfill({ contentType: 'image/svg+xml', body: ART_STAND_IN }));
+    for (const page of [alice.page, bob.page]) await page.route(ART_ROUTE, (route) => route.fulfill({ contentType: 'image/svg+xml', body: ART_STAND_IN }));
     const res = await alice.context.request.post(`${stack.origin}${PREFIX}/api/play/matches`, {
       data: { opponent: 'human', decks: [null, null], names: ['Alice', 'Bob'], scenario: SCENARIO },
     });

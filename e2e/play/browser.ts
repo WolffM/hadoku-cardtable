@@ -20,6 +20,7 @@ import { keepPrefsLocal, passWithManaUnasked, setPlayFastModeDefault } from '../
 import { PLAY_EDGE_ORIGIN, RUN_DIR } from './harness.ts';
 import { registerFriendContext } from './open-friends.ts';
 import { playMessagesOf, type PlayMessage } from './frames.ts';
+import { isArtRequest } from '../art.ts';
 
 /** The context's own default (no `use.viewport` override in `playwright.config.ts`). */
 const VIDEO_SIZE = { width: 1280, height: 720 };
@@ -122,7 +123,7 @@ export async function openFriend(browser: Browser, name: string): Promise<Friend
 
   await context.route('**/*', (route) => {
     const url = new URL(route.request().url());
-    if (url.hostname === '127.0.0.1') return route.continue();
+    if (url.hostname === '127.0.0.1' && !isArtRequest(url)) return route.continue();
     friend.blocked.push(url.href);
     return route.abort('blockedbyclient');
   });

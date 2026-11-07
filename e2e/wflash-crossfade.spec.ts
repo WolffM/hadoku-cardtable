@@ -26,11 +26,11 @@ import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { createRoom } from './play/board.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
 import { choosePool, poolEras, poolValue } from './play/pool.ts';
+import { isArtRequest } from './art.ts';
 
 /** The longest a switch to a warmed list may hold the old grid. */
 const HOLD_MS = 400;
 
-const ART_HOSTS = new Set(['cdn.hadoku.me', 'cards.scryfall.io']);
 
 /** A stand-in card face, drawn rather than shipped: no image bytes enter the repo. */
 function face(url: string): string {
@@ -62,8 +62,7 @@ test('a year switch crossfades the old decks straight into the new, with no dark
   let n = 0;
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
-    if (url.hostname === '127.0.0.1') return route.continue();
-    if (!ART_HOSTS.has(url.hostname)) return route.abort('blockedbyclient');
+    if (!isArtRequest(url)) return url.hostname === '127.0.0.1' ? route.continue() : route.abort('blockedbyclient');
     await new Promise((r) => setTimeout(r, 300 + ((n++ * 337) % 1500)));
     return route.fulfill({ status: 200, contentType: 'image/svg+xml', body: face(url.href) }).catch(() => undefined);
   });

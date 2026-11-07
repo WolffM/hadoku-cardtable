@@ -18,14 +18,14 @@ import { dragHandCard, handCardNamed, makeTitled, pressPaymentAuto, resizeWindow
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
+import { ART_ROUTE } from './art.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
 const ART_STAND_IN = '<svg xmlns="http://www.w3.org/2000/svg" width="488" height="680"><rect width="488" height="680" fill="#2a4a7a"/></svg>';
-const ART_HOSTS = /^https:\/\/(cards\.scryfall\.io|cdn\.hadoku\.me)\//;
 async function serveArt(page: Page): Promise<void> {
-  await page.route(ART_HOSTS, async (route) => {
+  await page.route(ART_ROUTE, async (route) => {
     await new Promise((r) => setTimeout(r, 120));
     await route.fulfill({ contentType: 'image/svg+xml', body: ART_STAND_IN });
   });

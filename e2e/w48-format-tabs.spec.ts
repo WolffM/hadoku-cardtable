@@ -22,11 +22,11 @@ import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { createRoom } from './play/board.ts';
 import { choosePool, expectPoolOn, poolEras, poolValue } from './play/pool.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
+import { isArtRequest } from './art.ts';
 
 test.describe.configure({ mode: 'serial' });
 
 /** Hosts card art may come from (CLAUDE.md, D15; unrestricted since D18) — the deck list's own art, excused the same way every other spec does. */
-const ART_HOSTS = new Set(['cdn.hadoku.me', 'cards.scryfall.io']);
 
 interface Friend {
   context: BrowserContext;
@@ -45,7 +45,7 @@ async function open(browser: Browser, name: string): Promise<Friend> {
   const friend: Friend = { context, page, blocked: [] };
   await context.route('**/*', (route) => {
     const url = new URL(route.request().url());
-    if (url.hostname === '127.0.0.1') return route.continue();
+    if (url.hostname === '127.0.0.1' && !isArtRequest(url)) return route.continue();
     friend.blocked.push(url.href);
     return route.abort('blockedbyclient');
   });
@@ -112,7 +112,7 @@ test('the leader switches Standard → Modern → Legacy and picking a Legacy er
   // Card art is the only thing a deck row tries to reach off-host, and this
   // spec is not a network allow-list regression: assert the excuse, not the
   // absence.
-  for (const url of alice.blocked) expect(ART_HOSTS.has(new URL(url).hostname), url).toBe(true);
+  for (const url of alice.blocked) expect(isArtRequest(url), url).toBe(true);
 });
 
 test('a reload on a Legacy room opens the Legacy tab with its era chosen when the room answers before the catalogue', async ({
@@ -177,5 +177,5 @@ test('the Standard tab reaches back to Type 2’s 1995 summer and its decks load
   await decks.first().click();
   await expect(decks.first()).toHaveAttribute('aria-checked', 'true');
   await expect(alice.page.getByTestId('ready-toggle')).toBeEnabled();
-  for (const url of alice.blocked) expect(ART_HOSTS.has(new URL(url).hostname), url).toBe(true);
+  for (const url of alice.blocked) expect(isArtRequest(url), url).toBe(true);
 });

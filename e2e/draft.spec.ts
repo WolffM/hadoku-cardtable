@@ -74,6 +74,7 @@ import { specVideoSlug } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { openCreateRoom, submitCreateRoom } from './play/rooms.ts';
 import { turnNumber } from './play/turn.ts';
+import { isArtRequest } from './art.ts';
 
 /** A picture host the solo pod's test serves (`looks.ts`). */
 const LOOK_PICTURES = 'https://cdn.e2e-looks.test';
@@ -103,7 +104,6 @@ const REFRESH_AFTER = 20;
 /** Per-participant pacing: the limiter refills one pick per 250 ms (`PICK_RATE_LIMIT`). */
 const PICK_INTERVAL_MS = 400;
 /** Hosts a card image may come from (CLAUDE.md, D15). Blocked in the test. */
-const ART_HOSTS = new Set(['cdn.hadoku.me', 'cards.scryfall.io']);
 /** A room poll or a socket handshake sits between a click and the next screen. */
 const UI_TIMEOUT = 30_000;
 /** The context's own default (no `use.viewport` override in `playwright.config.ts`). Same as `play/browser.ts`'s. */
@@ -194,7 +194,7 @@ async function join(browser: Browser, name: string): Promise<Player> {
   // and where it tries to go is itself asserted below.
   await context.route('**/*', (route) => {
     const url = new URL(route.request().url());
-    if (url.hostname === '127.0.0.1') return route.continue();
+    if (url.hostname === '127.0.0.1' && !isArtRequest(url)) return route.continue();
     player.blocked.push(url.href);
     return route.abort('blockedbyclient');
   });
@@ -805,7 +805,7 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
   const report = checkIsolation(logs);
 
   // ── the image boundary, while we are here: only art hosts were asked for.
-  const offHosts = [...alice.blocked, ...bob.blocked].filter((u) => !ART_HOSTS.has(new URL(u).hostname));
+  const offHosts = [...alice.blocked, ...bob.blocked].filter((u) => !isArtRequest(u));
 
   // ── evidence, written before anything below can fail.
   const serverLog = readServerLog({ serverLogFile: resolve(RUN_DIR, 'server.jsonl') });

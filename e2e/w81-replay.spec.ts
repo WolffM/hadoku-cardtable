@@ -29,6 +29,7 @@ import { openFriend, type Friend } from './play/browser.ts';
 import { assignBlock, passDeclareAttackers, railAt } from './play/combat.ts';
 import { forgeAvailability, PLAY_EDGE_ORIGIN, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
+import { ART_ROUTE } from './art.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -144,10 +145,9 @@ const trouble = (page: Page): Promise<{ connecting: string[]; errors: string[] }
   );
 
 /** The art hosts, answered with a stand-in: an e2e browser reaches nothing off `127.0.0.1` (`play/browser.ts`). */
-const ART_HOSTS = /^https:\/\/(cards\.scryfall\.io|cdn\.hadoku\.me)\//;
 const ART_STAND_IN = '<svg xmlns="http://www.w3.org/2000/svg" width="488" height="680"><rect width="488" height="680" fill="#2a4a7a"/></svg>';
 async function serveArt(page: Page): Promise<void> {
-  await page.route(ART_HOSTS, (route) => route.fulfill({ contentType: 'image/svg+xml', body: ART_STAND_IN }));
+  await page.route(ART_ROUTE, (route) => route.fulfill({ contentType: 'image/svg+xml', body: ART_STAND_IN }));
 }
 
 /** Moves the replay's scrubber to `ms`, as a drag ending there would. */

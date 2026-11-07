@@ -22,9 +22,9 @@ import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { createRoom } from './play/board.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
 import { choosePool, poolEras, poolValue } from './play/pool.ts';
+import { isArtRequest } from './art.ts';
 
 /** Hosts card art may come from (CLAUDE.md, D15; unrestricted since D18). */
-const ART_HOSTS = new Set(['cdn.hadoku.me', 'cards.scryfall.io']);
 
 /** A stand-in card face, drawn rather than shipped: no image bytes enter the repo. */
 function face(url: string): string {
@@ -39,8 +39,7 @@ async function open(browser: Browser, name: string): Promise<{ context: BrowserC
   let n = 0;
   await context.route('**/*', async (route) => {
     const url = new URL(route.request().url());
-    if (url.hostname === '127.0.0.1') return route.continue();
-    if (!ART_HOSTS.has(url.hostname)) return route.abort('blockedbyclient');
+    if (!isArtRequest(url)) return url.hostname === '127.0.0.1' ? route.continue() : route.abort('blockedbyclient');
     // Slow, and unevenly so: some faces land after the grid has stopped waiting for them (`ART_WAIT_MS`).
     await new Promise((r) => setTimeout(r, 150 + ((n++ * 337) % 2600)));
     return route.fulfill({ status: 200, contentType: 'image/svg+xml', body: face(url.href) }).catch(() => undefined);

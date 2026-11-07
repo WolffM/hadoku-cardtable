@@ -20,7 +20,8 @@ const titled = makeTitled(forge);
 
 /** A card-sized image, as text (never image bytes). */
 const ART_STAND_IN = '<svg xmlns="http://www.w3.org/2000/svg" width="488" height="680"><rect width="488" height="680" fill="#2a4a7a"/></svg>';
-const ART_HOSTS = /^https:\/\/(cards\.scryfall\.io|cdn\.hadoku\.me)\//;
+/** Every card image a page asks for: the art route (`apps/server/src/http/card-art.ts`), answered here with the stand-in. */
+const ART_ROUTE = /\/api\/art\//;
 const BACK_FACES = ['Insectile Aberration', 'Awoken Horror'];
 
 type Face = { name: string; where: string; src: string | null; drawn: boolean };
@@ -63,8 +64,9 @@ const framesOf = (page: Page): Promise<Frame[]> => page.evaluate(() => (window a
 
 /** Answer every art request with the stand-in at once, remembering when each URL was asked for. */
 async function serveArt(page: Page, asked: Map<string, number>): Promise<void> {
-  await page.route(ART_HOSTS, async (route) => {
-    const url = route.request().url();
+  await page.route(ART_ROUTE, async (route) => {
+    // Keyed as the page writes it in a `src`: the path, not the origin it resolved against.
+    const url = new URL(route.request().url()).pathname;
     if (!asked.has(url)) asked.set(url, Date.now());
     await route.fulfill({ contentType: 'image/svg+xml', body: ART_STAND_IN });
   });
@@ -105,8 +107,8 @@ test(titled("a transformed card's back face is drawn with its own art on both sc
 
     const delverFront = await artOf(alice.page, 'Delver of Secrets');
     console.log(`[w69-backface] alice's Delver of Secrets draws ${delverFront}`);
-    expect(delverFront, "alice's Delver of Secrets has art").toMatch(/\/front\//);
-    const delverBack = delverFront!.replace('/front/', '/back/');
+    expect(delverFront, "alice's Delver of Secrets has art").toMatch(/\/api\/art\/[0-9a-f-]{36}$/);
+    const delverBack = `${delverFront!}/back`;
 
     const endTurn = bob.page.locator('[data-testid="live-button-end-turn"]:enabled');
     await expect(endTurn, 'bob holds his own main phase').toHaveCount(1, { timeout: 60_000 });

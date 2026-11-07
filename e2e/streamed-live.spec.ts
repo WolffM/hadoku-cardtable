@@ -37,6 +37,7 @@ import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
 import { STREAM_NAME_PREFIX } from './streamNamespace.ts';
 import { createStreamedRoomByApi, submitCreateRoom } from './play/rooms.ts';
+import { isArtRequest } from './art.ts';
 
 const run = promisify(execFile);
 
@@ -130,7 +131,7 @@ async function open(browser: Browser, name: string): Promise<Friend> {
   // room-mode.spec.ts: `/stream/**` is allowed through, which is the point.
   await context.route('**/*', (route) => {
     const url = new URL(route.request().url());
-    if (url.hostname !== '127.0.0.1') {
+    if (url.hostname !== '127.0.0.1' || isArtRequest(url)) {
       friend.blocked.push(url.href);
       return route.abort('blockedbyclient');
     }

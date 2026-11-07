@@ -145,6 +145,7 @@ import { checkPlayIsolation, foldStream, unseenNamed, type PlaySeatLog } from '.
 import { FIXTURE_FILE, load, mutations, unseenCases } from './play/fixture.ts';
 import { TURN_TEXT, turnNumber } from './play/turn.ts';
 import { choosePool } from './play/pool.ts';
+import { isArtRequest } from './art.ts';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -572,11 +573,12 @@ async function ownHand(
 /* ── what may legitimately leave 127.0.0.1 ───────────────────────────── */
 
 /**
- * The off-origin requests this page is ALLOWED to make: card art, and nothing
+ * The blocked requests this page is ALLOWED to make: card art, and nothing
  * else. Everything else that tries to leave `127.0.0.1` is a failure
  * (`play/browser.ts` aborts them all either way; this is what decides whether
- * that is news). `cdn.hadoku.me` and `cards.scryfall.io` are D15 and D18 — the
- * art is a lookup, the bytes are not ours, and they never come from our origin.
+ * that is news). Card art is the art route (`./art.ts`), blocked like an off-host
+ * request because it redirects to one: D15 and D18 — the art is a lookup, the bytes
+ * are not ours, and they never come from our origin.
  *
  * **This list does not grow to accommodate a page that talks to production.**
  * A bare `hadoku.me` here would have masked exactly that, and it nearly did:
@@ -589,8 +591,7 @@ async function ownHand(
  * product and called the test green.
  */
 function isExpectedOffOrigin(url: string): boolean {
-  const { hostname } = new URL(url);
-  return hostname === 'cdn.hadoku.me' || hostname === 'cards.scryfall.io';
+  return isArtRequest(url);
 }
 
 /* ── driving the product's room screens ──────────────────────────────── */
