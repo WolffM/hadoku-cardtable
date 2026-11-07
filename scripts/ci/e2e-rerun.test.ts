@@ -3,13 +3,13 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { MAX_RERUN, type PwReport, describeTarget, isolationSpecs, judge, locationArg, plan } from './e2e-rerun.ts';
+import { MAX_RERUN, type PwReport, describeTarget, fileArg, isolationSpecs, judge, locationArg, plan, serialSpecs } from './e2e-rerun.ts';
 import { Repo } from './select-forge-tests.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 type Status = 'expected' | 'unexpected' | 'skipped';
-const spec = (file: string, line: number, status: Status, opts: { title?: string; tags?: string[]; project?: string; error?: string } = {}) => ({
+const spec = (file: string, line: number, status: Status, opts: { title?: string; tags?: string[]; project?: string; error?: string; skipAnnotation?: boolean } = {}) => ({
   title: opts.title ?? `test at ${line}`,
   file,
   line,
@@ -18,6 +18,8 @@ const spec = (file: string, line: number, status: Status, opts: { title?: string
     {
       projectName: opts.project ?? 'chromium',
       status,
+      // `test.skip()` annotates the test; a serial file's tests after a failure carry none (they did not run).
+      annotations: status === 'skipped' && (opts.skipAnnotation ?? true) ? [{ type: 'skip' }] : [],
       results: [{ status: status === 'expected' ? 'passed' : status === 'skipped' ? 'skipped' : 'failed', ...(status === 'unexpected' ? { error: { message: opts.error ?? 'Error: expected 1\n  at x' } } : {}) }],
     },
   ],
@@ -77,13 +79,106 @@ describe('the re-run plan', () => {
   });
 
   it('a missing report, a run-level error, a skip or an empty run is red with no re-run', () => {
-    expect(plan(null, [])).toEqual({ rerun: [], red: [{ target: null, why: expect.stringContaining('no Playwright report') }] });
+    expect(plan(null, [])).toEqual({ rerun: [], files: [], red: [{ target: null, why: expect.stringContaining('no Playwright report') }] });
     expect(plan({ ...report(spec('a.spec.ts', 1, 'expected')), errors: [{ message: 'Error: Timed out waiting 60000ms from config.webServer.' }] }, []).red[0].why).toContain('the run itself failed');
     const skip = plan(report(spec('a.spec.ts', 1, 'expected'), spec('a.spec.ts', 2, 'skipped'), spec('a.spec.ts', 3, 'unexpected')), []);
     expect(skip).toMatchObject({ rerun: [], red: [{ why: 'skipped — a skip is not a pass' }] });
     expect(plan(report(), [])).toMatchObject({ rerun: [], red: [{ why: expect.stringContaining('names no failed test') }] });
     // One test, failed: still re-run (a one-spec dispatch).
     expect(plan(report(spec('a.spec.ts', 3, 'unexpected')), []).rerun).toHaveLength(1);
+  });
+});
+
+describe('a serial file (`describe.configure({ mode: \'serial\' })`)', () => {
+  // Closing run 42354601891, shard 2: prompts-offboard.spec.ts is serial; W18 at 162 failed, so W16 at 192 did not
+  // run. The skip was called red on its own and nothing was re-run.
+  const first = report(
+    spec('prompts-offboard.spec.ts', 111, 'expected'),
+    spec('prompts-offboard.spec.ts', 162, 'unexpected'),
+    spec('prompts-offboard.spec.ts', 192, 'skipped', { skipAnnotation: false }),
+    spec('a.spec.ts', 5, 'unexpected'),
+  );
+  const p = plan(first, [], ['prompts-offboard.spec.ts']);
+
+  it('knows the serial specs from their source', () => {
+    expect(serialSpecs(new Repo(ROOT))).toContain('prompts-offboard.spec.ts');
+    expect(serialSpecs(new Repo(ROOT))).not.toContain('w59-stack.spec.ts');
+  });
+
+  it('a test that did not run after a red in its serial file is not red on its own: the whole file is re-run', () => {
+    expect(p.red).toEqual([]);
+    expect(p.rerun.map((t) => `${t.file}:${t.line}`)).toEqual(['a.spec.ts:5']);
+    expect(p.files).toEqual([
+      {
+        file: 'prompts-offboard.spec.ts',
+        project: 'chromium',
+        failed: [expect.objectContaining({ line: 162 })],
+        dependents: [expect.objectContaining({ line: 192 })],
+      },
+    ]);
+  });
+
+  it('a test.skip() in a serial file is still a skip, and a skip is still red', () => {
+    const skipped = plan(
+      report(spec('prompts-offboard.spec.ts', 162, 'unexpected'), spec('prompts-offboard.spec.ts', 192, 'skipped', { skipAnnotation: true })),
+      [],
+      ['prompts-offboard.spec.ts'],
+    );
+    expect(skipped.red.map((r) => [r.target?.line, r.why])).toEqual([[192, 'skipped — a skip is not a pass']]);
+    // A test before the red that did not run is no dependent of it.
+    const before = plan(
+      report(spec('prompts-offboard.spec.ts', 111, 'skipped', { skipAnnotation: false }), spec('prompts-offboard.spec.ts', 162, 'unexpected')),
+      [],
+      ['prompts-offboard.spec.ts'],
+    );
+    expect(before.red.map((r) => r.target?.line)).toEqual([111]);
+    // Not a serial file: a test that did not run is red, as before.
+    expect(plan(first, []).red.map((r) => r.target?.line)).toEqual([192]);
+  });
+
+  it('the file passing whole on its re-run makes the failed test flaky; any of it failing or not running again is red', () => {
+    const green = judge(p, [
+      report(spec('prompts-offboard.spec.ts', 111, 'expected'), spec('prompts-offboard.spec.ts', 162, 'expected'), spec('prompts-offboard.spec.ts', 192, 'expected'), spec('a.spec.ts', 5, 'expected')),
+    ]);
+    expect(green.flaky.map((t) => `${t.file}:${t.line}`)).toEqual(['a.spec.ts:5', 'prompts-offboard.spec.ts:162']);
+    expect(green.red).toEqual([]);
+
+    const dependentRed = judge(p, [
+      report(spec('prompts-offboard.spec.ts', 162, 'expected'), spec('prompts-offboard.spec.ts', 192, 'unexpected', { error: 'Error: W16' }), spec('a.spec.ts', 5, 'expected')),
+    ]);
+    expect(dependentRed.flaky.map((t) => t.line)).toEqual([5, 162]);
+    expect(dependentRed.red).toEqual([{ target: expect.objectContaining({ line: 192 }), why: 'did not run after a red in its serial file, and failed on the re-run (unexpected): Error: W16' }]);
+
+    const again = judge(p, [
+      report(spec('prompts-offboard.spec.ts', 162, 'unexpected', { error: 'Error: still' }), spec('prompts-offboard.spec.ts', 192, 'skipped', { skipAnnotation: false }), spec('a.spec.ts', 5, 'expected')),
+    ]);
+    expect(again.flaky.map((t) => t.line)).toEqual([5]);
+    expect(again.red.map((r) => [r.target?.line, r.why])).toEqual([
+      [162, 'failed again on the re-run (unexpected): Error: still'],
+      [192, 'did not run after a red in its serial file, and did not pass on the re-run (skipped)'],
+    ]);
+
+    expect(judge(p, []).red.map((r) => r.target?.line)).toEqual([5, 162, 192]);
+  });
+
+  it('counts only failed tests toward the re-run cap, not the tests that did not run after them', () => {
+    const many = plan(
+      report(
+        spec('prompts-offboard.spec.ts', 162, 'unexpected'),
+        ...Array.from({ length: MAX_RERUN + 2 }, (_, i) => spec('prompts-offboard.spec.ts', 200 + i, 'skipped', { skipAnnotation: false })),
+      ),
+      [],
+      ['prompts-offboard.spec.ts'],
+    );
+    expect(many.red).toEqual([]);
+    expect(many.files[0]!.dependents).toHaveLength(MAX_RERUN + 2);
+  });
+
+  it('names the whole file to Playwright, exactly', () => {
+    const arg = fileArg('play.spec.ts');
+    const re = new RegExp(/^\/(.*)\/$/.exec(arg)![1]!, 'i');
+    expect(re.test('/w/e2e/play.spec.ts')).toBe(true);
+    expect(re.test('/w/e2e/w81-replay.spec.ts')).toBe(false);
   });
 });
 

@@ -12,11 +12,16 @@
  *                          `--flaky-out`, and the shard is not red for it
  *   fails again            red
  *
+ * A serial file (`describe.configure({ mode: 'serial' })`) is re-run whole: its
+ * tests after a red do not run, and Playwright reports them skipped with no
+ * `skip` annotation. Those are not red on their own; the failed test is flaky
+ * only when the whole file passes on its re-run.
+ *
  * Never re-run, so red at once:
  *   - a report that is missing, unreadable, or has run-level errors (a server
  *     that never started, a config error);
- *   - a report with a skipped test (a skip is not a pass), or none failed (an
- *     empty run);
+ *   - a report with a skipped test (a skip is not a pass), other than one that
+ *     did not run after a red in its serial file, or none failed (an empty run);
  *   - more than `MAX_RERUN` failed tests (many reds is a regression, not luck);
  *   - a test in an isolation spec — one whose imports reach an e2e
  *     `isolation.ts` (the hidden-information verdict), or tagged `@isolation`
@@ -54,6 +59,8 @@ interface PwResult {
 interface PwTest {
   projectName: string;
   status: string;
+  /** `test.skip()` adds `{ type: 'skip' }`; a serial file's test that did not run has none. */
+  annotations?: { type: string }[];
   results: PwResult[];
 }
 interface PwSpec {
@@ -84,8 +91,18 @@ export interface Target {
   error: string;
 }
 
+/** A serial file with a red, re-run whole in one project. */
+export interface FileRerun {
+  file: string;
+  project: string;
+  failed: Target[];
+  /** Its tests after a red that did not run. */
+  dependents: Target[];
+}
+
 export interface Plan {
   rerun: Target[];
+  files: FileRerun[];
   /** Red without a re-run, each with why. */
   red: { target: Target | null; why: string }[];
 }
@@ -146,21 +163,39 @@ export function isolationSpecs(repo: Repo): string[] {
   return out;
 }
 
-/** What to re-run from a shard's first report. `isolation` holds spec paths relative to `e2e/`. */
-export function plan(report: PwReport | null, isolation: string[]): Plan {
-  const out: Plan = { rerun: [], red: [] };
-  if (report === null || !report.stats) return { rerun: [], red: [{ target: null, why: 'no Playwright report: the run died before it wrote one' }] };
-  if (report.errors?.length) return { rerun: [], red: [{ target: null, why: `the run itself failed: ${firstLine(report.errors[0].message)}` }] };
+/** The specs, relative to `e2e/`, whose tests run in order and stop at the first red. */
+export function serialSpecs(repo: Repo): string[] {
+  return repo
+    .list('e2e')
+    .filter((p) => /\.spec\.ts$/.test(p) && /describe\.configure\(\s*\{[^}]*mode:\s*['"]serial['"]|describe\.serial\(/.test(repo.read(p) ?? ''))
+    .map((p) => p.slice('e2e/'.length));
+}
+
+/**
+ * What to re-run from a shard's first report. `isolation` and `serial` hold spec paths relative to `e2e/`.
+ */
+export function plan(report: PwReport | null, isolation: string[], serial: string[] = []): Plan {
+  const out: Plan = { rerun: [], files: [], red: [] };
+  if (report === null || !report.stats) return { rerun: [], files: [], red: [{ target: null, why: 'no Playwright report: the run died before it wrote one' }] };
+  if (report.errors?.length) return { rerun: [], files: [], red: [{ target: null, why: `the run itself failed: ${firstLine(report.errors[0].message)}` }] };
   const all = [...tests(report)];
-  const skipped = all.filter(({ test }) => test.status === 'skipped');
-  if (skipped.length) {
-    return { rerun: [], red: skipped.map(({ spec, test, path }) => ({ target: targetOf(spec, test, path), why: 'skipped — a skip is not a pass' })) };
-  }
   const failed = all.filter(({ test }) => test.status === 'unexpected');
-  if (failed.length === 0) return { rerun: [], red: [{ target: null, why: `the report is not clean but names no failed test: ${JSON.stringify(report.stats)}` }] };
+  // A serial file's test after a red, with no `test.skip()` of its own, did not run: it is the red's, not a skip.
+  const dependsOnRed = ({ spec, test }: { spec: PwSpec; test: PwTest }): boolean =>
+    serial.includes(spec.file) &&
+    !(test.annotations ?? []).some((a) => a.type === 'skip') &&
+    failed.some((f) => f.spec.file === spec.file && f.test.projectName === test.projectName && f.spec.line < spec.line);
+  const skipped = all.filter((x) => x.test.status === 'skipped');
+  const notRun = skipped.filter(dependsOnRed);
+  const skips = skipped.filter((x) => !dependsOnRed(x));
+  if (skips.length) {
+    return { rerun: [], files: [], red: skips.map(({ spec, test, path }) => ({ target: targetOf(spec, test, path), why: 'skipped — a skip is not a pass' })) };
+  }
+  if (failed.length === 0) return { rerun: [], files: [], red: [{ target: null, why: `the report is not clean but names no failed test: ${JSON.stringify(report.stats)}` }] };
   if (failed.length > MAX_RERUN) {
     return {
       rerun: [],
+      files: [],
       red: failed.map(({ spec, test, path }) => ({ target: targetOf(spec, test, path), why: `one of ${failed.length} failed tests — past ${MAX_RERUN}, none is re-run` })),
     };
   }
@@ -169,7 +204,17 @@ export function plan(report: PwReport | null, isolation: string[]): Plan {
     const tag = NO_RETRY_TAGS.find((x) => spec.tags?.includes(x.slice(1)) || spec.tags?.includes(x) || spec.title.includes(x));
     if (isolation.includes(spec.file)) out.red.push({ target: t, why: 'an isolation spec — never re-run' });
     else if (tag) out.red.push({ target: t, why: `tagged ${tag} — never re-run` });
-    else out.rerun.push(t);
+    else if (serial.includes(spec.file)) {
+      let f = out.files.find((x) => x.file === spec.file && x.project === t.project);
+      if (f === undefined) out.files.push((f = { file: spec.file, project: t.project, failed: [], dependents: [] }));
+      f.failed.push(t);
+    } else out.rerun.push(t);
+  }
+  for (const { spec, test, path } of notRun) {
+    const f = out.files.find((x) => x.file === spec.file && x.project === test.projectName);
+    // Its red is never re-run (isolation, a tag): what did not run after it is red with it.
+    if (f === undefined) out.red.push({ target: targetOf(spec, test, path), why: 'did not run after a red that is not re-run' });
+    else f.dependents.push(targetOf(spec, test, path));
   }
   return out;
 }
@@ -178,17 +223,35 @@ export function plan(report: PwReport | null, isolation: string[]): Plan {
 export function judge(p: Plan, reruns: PwReport[]): Verdict {
   const v: Verdict = { flaky: [], red: [...p.red] };
   const found = reruns.flatMap((r) => [...tests(r)]);
-  for (const t of p.rerun) {
-    const again = found.find(({ spec, test }) => spec.file === t.file && spec.line === t.line && test.projectName === t.project);
-    if (again === undefined) v.red.push({ target: t, why: 'failed, and did not run on the re-run' });
-    else if (again.test.status === 'expected') v.flaky.push(t);
-    else v.red.push({ target: t, why: `failed again on the re-run (${again.test.status}): ${firstLine(again.test.results.find((r) => r.error)?.error?.message)}` });
+  const againOf = (t: Target) => found.find(({ spec, test }) => spec.file === t.file && spec.line === t.line && test.projectName === t.project);
+  const errorOf = (test: PwTest): string => firstLine(test.results.find((r) => r.error)?.error?.message);
+  /** Each failed test: flaky when it passed on the re-run, red otherwise. */
+  const flakyUnlessRed = (ts: Target[]): void => {
+    for (const t of ts) {
+      const again = againOf(t);
+      if (again === undefined) v.red.push({ target: t, why: 'failed, and did not run on the re-run' });
+      else if (again.test.status === 'expected') v.flaky.push(t);
+      else v.red.push({ target: t, why: `failed again on the re-run (${again.test.status}): ${errorOf(again.test)}` });
+    }
+  };
+  flakyUnlessRed(p.rerun);
+  for (const f of p.files) {
+    flakyUnlessRed(f.failed);
+    for (const t of f.dependents) {
+      const again = againOf(t);
+      if (again === undefined) v.red.push({ target: t, why: 'did not run after a red in its serial file, and did not run on the re-run' });
+      else if (again.test.status === 'unexpected') v.red.push({ target: t, why: `did not run after a red in its serial file, and failed on the re-run (unexpected): ${errorOf(again.test)}` });
+      else if (again.test.status !== 'expected') v.red.push({ target: t, why: `did not run after a red in its serial file, and did not pass on the re-run (${again.test.status})` });
+    }
   }
   return v;
 }
 
 /** Playwright's location filter is a case-insensitive regex over the absolute path: anchor the file name, or `play.spec.ts` also matches `replay.spec.ts`. */
 export const locationArg = (t: Target): string => `/\\/${t.file.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}$/:${t.line}`;
+
+/** The whole of one spec file, anchored as `locationArg` is. */
+export const fileArg = (file: string): string => `/\\/${file.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}$/`;
 
 const readReport = (f: string): PwReport | null => {
   try {
@@ -206,21 +269,28 @@ function main(argv: string[]): number {
   const root = join(import.meta.dirname, '..', '..');
   const isolation = isolationSpecs(new Repo(root));
   console.log(`isolation specs, never re-run (${isolation.length}): ${isolation.join(' ')}`);
-  const p = plan(readReport(positionals[0]), isolation);
+  const serial = serialSpecs(new Repo(root));
+  const p = plan(readReport(positionals[0]), isolation, serial);
 
   const reruns: PwReport[] = [];
-  if (p.rerun.length) {
+  if (p.rerun.length || p.files.length) {
     const run = join(root, 'e2e', '.run');
     mkdirSync(join(run, 'first-run'), { recursive: true });
     for (const f of existsSync(run) ? readdirSync(run) : []) if (/\.(log|jsonl|json)$/.test(f)) copyFileSync(join(run, f), join(run, 'first-run', f));
-    for (const project of [...new Set(p.rerun.map((t) => t.project))]) {
+    for (const project of [...new Set([...p.rerun, ...p.files].map((t) => t.project))]) {
       const mine = p.rerun.filter((t) => t.project === project);
+      const files = p.files.filter((f) => f.project === project);
       const out = `${positionals[0].replace(/\.json$/, '')}-rerun-${project}.json`;
-      console.log(`re-running ${mine.length} failed test(s) once, ${project}:\n${mine.map((t) => `  ${describeTarget(t)}`).join('\n')}`);
+      console.log(
+        `re-running ${mine.length} failed test(s) and ${files.length} serial file(s) whole, once, ${project}:\n${[
+          ...mine.map((t) => `  ${describeTarget(t)}`),
+          ...files.map((f) => `  ${f.file} (serial: ${f.failed.length} red, ${f.dependents.length} that did not run)`),
+        ].join('\n')}`,
+      );
       try {
         execFileSync(
           'pnpm',
-          ['--filter', '@hadoku/e2e', 'run', 'test:browser', `--project=${project}`, `--output=.run/test-results-rerun-${project}`, ...mine.map(locationArg)],
+          ['--filter', '@hadoku/e2e', 'run', 'test:browser', `--project=${project}`, `--output=.run/test-results-rerun-${project}`, ...mine.map(locationArg), ...files.map((f) => fileArg(f.file))],
           { cwd: root, stdio: 'inherit', env: { ...process.env, PW_TEST_REPORTER: 'json', PLAYWRIGHT_JSON_OUTPUT_FILE: out } },
         );
       } catch (e) {
