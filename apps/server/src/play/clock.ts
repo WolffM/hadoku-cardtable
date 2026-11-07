@@ -1,5 +1,5 @@
 /**
- * The chess clock: each seat's time left for a whole series (`MATCH_CLOCK_MS`,
+ * The chess clock: each seat's time left in one game (`GAME_CLOCK_MS`,
  * `@hadoku/shared`), spent only while the game is waiting on that seat.
  *
  * Pure arithmetic over the times it is handed — no timers and no wall clock of
@@ -11,7 +11,7 @@
  * What it does not see is what it does not charge: a window the server
  * auto-passes never reaches the seat as a live bar, so it never starts the
  * seat's clock, and sideboarding happens between two matches, while no clock
- * exists. The next game's clock starts from what the last one left.
+ * exists. Every game of a series starts from the whole clock.
  */
 
 export type Pair<T> = [T, T];

@@ -1463,12 +1463,10 @@ export interface Lobby {
 	 * The table's `matchId` clears and only its own seated members are
 	 * un-readied (R16, scoped). `false` only when there is no such room or table.
 	 *
-	 * `clockMs` is each seat's chess-clock time left as the game ended, kept for the series' next game
-	 * (`seriesClockMs`); `timedOut` says the loser's clock ran out, which loses the series.
+	 * A game lost on the chess clock is an ordinary lost game: the clock is a game's, not a series'
+	 * (the operator, 2026-11-07), so the series goes on.
 	 */
-	recordGameResult(roomId: string, tableId: string, result: { matchId: string; winner: 0 | 1 | null; clockMs?: [number, number]; timedOut?: boolean }): RecordGameResultResult;
-	/** Each seat's chess-clock time left after the table's series' last game; null before its first, or for no such table. */
-	seriesClockMs(roomId: string, tableId: string): [number, number] | null;
+	recordGameResult(roomId: string, tableId: string, result: { matchId: string; winner: 0 | 1 | null }): RecordGameResultResult;
 	/**
 	 * Abandon (the table card, `docs/planning/table-card-plan.md`): a seated player of a constructed
 	 * table ends its series with NO result — nothing reaches `onSeriesEnd`, so no stats — and the table
@@ -2051,7 +2049,6 @@ function isStoredSeries(v: unknown): v is StoredSeries {
 	if (s.settled !== undefined && typeof s.settled !== 'boolean') return false;
 	if (s.mode !== undefined && typeof s.mode !== 'string') return false;
 	if (s.gameStartedAt !== undefined && s.gameStartedAt !== null && typeof s.gameStartedAt !== 'number') return false;
-	if (s.clockMs !== undefined && !(Array.isArray(s.clockMs) && s.clockMs.length === 2 && s.clockMs.every((ms) => Number.isInteger(ms) && (ms as number) >= 0))) return false;
 	return SeriesPhaseSchema.safeParse(s.phase).success;
 }
 
@@ -2073,7 +2070,7 @@ function isStoredTable(v: unknown): v is Omit<StoredTable, 'series'> & { series:
  * now. A retired field (`rematchOf`) is dropped.
  */
 function storedTable(t: Omit<StoredTable, 'series'> & { series: StoredSeries }, room: SeriesRoom): StoredTable {
-	const { length, wins, games, phase, played, mode, settled, gameStartedAt, clockMs } = t.series;
+	const { length, wins, games, phase, played, mode, settled, gameStartedAt } = t.series;
 	return {
 		id: t.id,
 		seats: [...t.seats],
@@ -2088,7 +2085,6 @@ function storedTable(t: Omit<StoredTable, 'series'> & { series: StoredSeries }, 
 			mode: mode ?? statsModeOf(room),
 			settled: settled ?? phase === 'done',
 			gameStartedAt: gameStartedAt ?? null,
-			...(clockMs === undefined ? {} : { clockMs: [...clockMs] }),
 		},
 	};
 }
@@ -2951,12 +2947,7 @@ class FileLobby implements Lobby {
 		return true;
 	}
 
-	seriesClockMs(roomId: string, tableId: string): [number, number] | null {
-		const clockMs = this.#rooms.get(roomId)?.tables.find((t) => t.id === tableId)?.series.clockMs;
-		return clockMs === undefined ? null : [...clockMs];
-	}
-
-	recordGameResult(roomId: string, tableId: string, result: { matchId: string; winner: 0 | 1 | null; clockMs?: [number, number]; timedOut?: boolean }): RecordGameResultResult {
+	recordGameResult(roomId: string, tableId: string, result: { matchId: string; winner: 0 | 1 | null }): RecordGameResultResult {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		const table = room.tables.find((t) => t.id === tableId);
@@ -2966,17 +2957,14 @@ class FileLobby implements Lobby {
 		const startedAt = table.series.gameStartedAt ?? null;
 		const ms = startedAt === null ? {} : { ms: Math.max(0, this.#now() - startedAt) };
 		const open = !table.series.settled;
-		if (open) table.series = recordGame(table.series, seriesFormatOf(seriesRoomOf(room)), { matchId: result.matchId, winner: result.winner, ...ms }, result.clockMs);
+		if (open) table.series = recordGame(table.series, seriesFormatOf(seriesRoomOf(room)), { matchId: result.matchId, winner: result.winner, ...ms });
 		table.series = { ...table.series, gameStartedAt: null };
 		table.ready = [false, false];
-		// A seat whose chess clock ran out loses the match, not only the game (the operator, 2026-10-30).
-		const timedOut = open && result.timedOut === true && result.winner !== null ? (table.seats[result.winner === 0 ? 1 : 0] ?? null) : null;
-		if (timedOut !== null) this.#forfeit(room, table, timedOut);
 		// Wave 72 §P: a pod round advances ITSELF the instant every one of its
 		// tables is `done` — see `#finishPodTable`.
-		else if (table.series.phase === 'done' && room.pod !== null) this.#finishPodTable(room, table);
+		if (table.series.phase === 'done' && room.pod !== null) this.#finishPodTable(room, table);
 		this.#persist(room);
-		this.#log({ event: 'table-game-recorded', roomId, tableId, matchId: result.matchId, winner: result.winner, phase: table.series.phase, ...(timedOut === null ? {} : { timedOut }) });
+		this.#log({ event: 'table-game-recorded', roomId, tableId, matchId: result.matchId, winner: result.winner, phase: table.series.phase });
 		return { ok: true, room: this.#view(room), phase: table.series.phase };
 	}
 

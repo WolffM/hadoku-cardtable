@@ -174,7 +174,7 @@ import { deckFromDeckFile, isBasicLand, poolOf } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 import { parseDck } from '@hadoku/carddata/dck';
 import type { DeckEntry } from '@hadoku/carddata/dck';
-import { clockOn, FREE_PICK, MATCH_CLOCK_MS, RandomOptionsSchema, secureRandom, type ClockSetting, type PoolSource, type RandomPool, type RoomModeState, type RoomTable, type Look } from '@hadoku/shared';
+import { clockOn, FREE_PICK, GAME_CLOCK_MS, RandomOptionsSchema, secureRandom, type ClockSetting, type PoolSource, type RandomPool, type RoomModeState, type RoomTable, type Look } from '@hadoku/shared';
 
 import type { DraftRooms, PodDeal } from '../room/draftRooms.js';
 import { botPoolAcross, botPoolAt, builtDeckOf, stateOf, viewForParticipant } from '../room/draftRooms.js';
@@ -280,9 +280,7 @@ export interface TablesRooms {
 	setSeatReady: Lobby['setSeatReady'];
 	setTableMatch: Lobby['setTableMatch'];
 	releaseTableMatch: Lobby['releaseTableMatch'];
-	recordGameResult(roomId: string, tableId: string, result: { matchId: string; winner: 0 | 1 | null; clockMs?: [number, number]; timedOut?: boolean }): { ok: boolean };
-	/** Each seat's chess-clock time left after the table's series' last game, or null before its first (`SeriesRecord.clockMs`). */
-	seriesClockMs(roomId: string, tableId: string): [number, number] | null;
+	recordGameResult(roomId: string, tableId: string, result: { matchId: string; winner: 0 | 1 | null }): { ok: boolean };
 	beginSideboarding: Lobby['beginSideboarding'];
 	/** Leader only. Appends an empty table and answers its `RoomTable`. */
 	addTable(roomId: string, callerId: string): { ok: true; table: RoomTable } | { ok: false; reason: 'no-room' | 'not-leader' };
@@ -1078,7 +1076,8 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 */
 	function recordGame(room: RoomViewLike, table: RoomTable, matchId: string, winner: 0 | 1 | null, clock: { clockMs?: [number, number]; timedOut?: boolean } = {}): void {
 		if (rooms === null) return;
-		rooms.recordGameResult(room.id, table.id, { matchId, winner, ...clock });
+		// The clock's last reading is the log's alone: every game starts from the whole clock (`clockOf`).
+		rooms.recordGameResult(room.id, table.id, { matchId, winner });
 		log({ evt: 'table-game-over', room: room.id, table: table.id, matchId, winner, ...clock });
 		const after = rooms.get(room.id);
 		gauntlets?.afterGame(room.id, { seriesOver: after?.tables.find((t) => t.id === table.id)?.series.phase === 'done', winner }, table.id);
@@ -1087,12 +1086,13 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	}
 
 	/**
-	 * The play body's chess clock for a table's next game (`MatchSpec.clockMs`): what the series' last
-	 * game left, else each seat's whole {@link MATCH_CLOCK_MS}. Nothing when the room runs no clock.
+	 * The play body's chess clock for a table's next game (`MatchSpec.clockMs`): each seat's whole
+	 * {@link GAME_CLOCK_MS}, every game of a series alike (the operator, 2026-11-07: *"20min per game,
+	 * not 20min per match"*). Nothing when the room runs no clock.
 	 */
-	function clockOf(room: RoomViewLike, tableId: string): { clockMs?: [number, number] } {
+	function clockOf(room: RoomViewLike): { clockMs?: [number, number] } {
 		if (rooms === null || !clockOn({ clock: room.settings.clock ?? 'auto', tournament: room.settings.tournament === true }, room.gameType)) return {};
-		return { clockMs: rooms.seriesClockMs(room.id, tableId) ?? [MATCH_CLOCK_MS, MATCH_CLOCK_MS] };
+		return { clockMs: [GAME_CLOCK_MS, GAME_CLOCK_MS] };
 	}
 
 	/** The table's series is over: every seat goes back to its registered deck (see `recordGame`). */
@@ -2212,7 +2212,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				names: [loaded[0]!.member.name, tableAi(rooms, room, table.id)?.name],
 				format: pool,
 				handSmoothing: room.settings.handSmoothing,
-				...clockOf(room, table.id),
+				...clockOf(room),
 				...(chooser === undefined ? {} : { chooser }),
 				...(scenario === undefined ? {} : { scenario }),
 			};
@@ -2229,7 +2229,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			// own drafted pool for a draft room, never `room.format` unmodified.
 			format: pool,
 			handSmoothing: room.settings.handSmoothing,
-			...clockOf(room, table.id),
+			...clockOf(room),
 			...(chooser === undefined ? {} : { chooser }),
 			...(scenario === undefined ? {} : { scenario }),
 		};

@@ -267,7 +267,7 @@ export type DrawReason = EndedBy;
  * in its table's series.
  */
 export type GameOutcome =
-	/** `timedOut`: the loser's chess clock ran out, which loses the whole series, not only this game. */
+	/** `timedOut`: the loser's chess clock ran out. It loses this game, as any loss does; the log and the result screen say why. */
 	| { kind: 'won'; winner: 0 | 1; conceded: boolean; timedOut?: true }
 	| { kind: 'drawn' }
 	/** Forge named a winner that no seat can be told from. */
@@ -1642,7 +1642,7 @@ export class Match {
 	/**
 	 * A seat's chess clock reached zero: it loses (the operator, 2026-10-30: *"at zero, that player
 	 * loses the match"*). The server concedes the game for it, exactly as its own Concede would, and
-	 * {@link gameOutcome} marks the win `timedOut` so the room ends the whole series, not one game.
+	 * {@link gameOutcome} marks the win `timedOut`, which the room logs; the game is lost like any other.
 	 */
 	private flag(seat: number): void {
 		if (this.status !== 'running' || this.timedOut !== null) return;

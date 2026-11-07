@@ -504,7 +504,7 @@ export {
   DRAFT_POOL_PREFIX,
   EmptyBodySchema,
   JoinRoomBodySchema,
-  MATCH_CLOCK_MS,
+  GAME_CLOCK_MS,
   PICK_TIMER_SPEED_MAX,
   PICK_TIMER_SPEED_MIN,
   PatchRoomBodySchema,

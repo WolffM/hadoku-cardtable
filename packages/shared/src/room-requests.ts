@@ -59,9 +59,9 @@ export const DEFAULT_CLIENT_MODE: ClientMode = 'builtin';
  * every round. `'per-round'`: each round deals or re-picks fresh, as a normal
  * table already does.
  *
- * `clock` (`'auto'` by default): the chess clock, {@link MATCH_CLOCK_MS} per
- * player for a whole series. `'auto'` is on exactly when the room plays a
- * pod — a tournament, or a draft; `'on'`/`'off'` are the leader's word either
+ * `clock` (`'auto'` by default): the chess clock, {@link GAME_CLOCK_MS} per
+ * player for each game, every game of a series starting from the whole of it.
+ * `'auto'` is on exactly when the room plays a pod — a tournament, or a draft; `'on'`/`'off'` are the leader's word either
  * way ({@link clockOn}).
  *
  * `pickTimer` (off by default): a draft's per-pick timer, the MTR's times by
@@ -83,8 +83,8 @@ export type TournamentDecks = z.infer<typeof TournamentDecksSchema>;
 export const CLOCK_SETTINGS = ['auto', 'on', 'off'] as const;
 export const ClockSettingSchema = z.enum(CLOCK_SETTINGS);
 export type ClockSetting = z.infer<typeof ClockSettingSchema>;
-/** Each player's time for a whole series (operator, 2026-10-30: "20 minutes per player per match"). */
-export const MATCH_CLOCK_MS = 20 * 60_000;
+/** Each player's time for one game (the operator, 2026-11-07: "20min per game, not 20min per match"). */
+export const GAME_CLOCK_MS = 20 * 60_000;
 
 export const PICK_TIMER_SPEED_MIN = 0.25;
 export const PICK_TIMER_SPEED_MAX = 4;

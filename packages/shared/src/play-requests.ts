@@ -7,7 +7,7 @@
 import { z } from 'zod';
 
 import { MAX_DCK_BYTES } from './draft.ts';
-import { MATCH_CLOCK_MS } from './room-requests.ts';
+import { GAME_CLOCK_MS } from './room-requests.ts';
 
 /** A puzzle `[state]` section is bounded like a deck. */
 export const SCENARIO_MAX = 64 * 1024;
@@ -16,8 +16,8 @@ export const FORMAT_ID_MAX = 200;
 const DECK_ERROR = 'each deck is .dck text (at most 64 KiB) or null';
 const SCENARIO_ERROR = 'scenario is the text of a puzzle [state] section (at most 64 KiB)';
 const FORMAT_ERROR = 'format is a format id';
-const CLOCK_ERROR = `clockMs is each seat's time left, two whole numbers of ms 0..${MATCH_CLOCK_MS}`;
-const clockLeft = z.int({ error: CLOCK_ERROR }).min(0, { error: CLOCK_ERROR }).max(MATCH_CLOCK_MS, { error: CLOCK_ERROR });
+const CLOCK_ERROR = `clockMs is each seat's time left, two whole numbers of ms 0..${GAME_CLOCK_MS}`;
+const clockLeft = z.int({ error: CLOCK_ERROR }).min(0, { error: CLOCK_ERROR }).max(GAME_CLOCK_MS, { error: CLOCK_ERROR });
 
 const AVATARS_ERROR = 'avatars is a two-element array of sprite ids or null';
 /** A watchparty sprite id (`mage`, `herald`): the seat's portrait for a match no room started. */

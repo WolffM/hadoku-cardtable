@@ -29,7 +29,7 @@ import { moveToMain } from '@hadoku/deck';
 import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
 import type { MatchReport } from '@wolffm/prefs-client/games';
 import type { ClientFrame } from '@hadoku/forge-wire';
-import { MATCH_CLOCK_MS, type ClockSetting } from '@hadoku/shared';
+import { GAME_CLOCK_MS, type ClockSetting } from '@hadoku/shared';
 import type { MatchRecord, MatchHostFactory, MatchSpec } from '../play/host.js';
 import type { MatchRegistry } from '../play/match.js';
 import {
@@ -331,8 +331,6 @@ function emptyTable(id: string, length: 1 | 3): RoomTable {
 
 function fakeLobby(): FakeLobby {
 	const held = new Map<string, FakeRoom>();
-	/** Each table's series clock pool, as `Lobby.seriesClockMs` keeps it. */
-	const clocks = new Map<string, [number, number]>();
 	const member = (roomId: string, memberId: string): FakeRoom | undefined => {
 		const room = held.get(roomId);
 		return room !== undefined && room.members.some((m) => m.id === memberId) ? room : undefined;
@@ -452,10 +450,8 @@ function fakeLobby(): FakeLobby {
 			seatsAt(roomId, tableId)!.seats.ready = [false, false];
 			const { length, wins, games, phase } = recordGame({ ...table.series, played: [null, null], mode: 'classic', settled: false }, seriesFormatOf(room), result);
 			table.series = { length, wins, games, phase };
-			if (result.clockMs !== undefined) clocks.set(`${roomId}/${tableId}`, result.clockMs);
 			return { ok: true };
 		},
-		seriesClockMs: (roomId, tableId) => clocks.get(`${roomId}/${tableId}`) ?? null,
 		beginSideboarding(roomId, tableId) {
 			const room = held.get(roomId);
 			const table = room?.tables.find((t) => t.id === tableId);
@@ -2844,10 +2840,10 @@ describe('a room table', () => {
 				await setReady(on, 'alice');
 				await setReady(on, 'bob');
 				expect((await startRoom(on, 'alice')).status).toBe(201);
-				expect(on.specs.at(-1)?.clockMs).toEqual([MATCH_CLOCK_MS, MATCH_CLOCK_MS]);
+				expect(on.specs.at(-1)?.clockMs).toEqual([GAME_CLOCK_MS, GAME_CLOCK_MS]);
 			});
 
-			it("carries what a game's clock left into the series' next game: one pool, and the break costs nobody", async () => {
+			it('starts every game of a series with the whole 20 minutes a seat, whatever the last game left', async () => {
 				const h = await boot();
 				openRoom(h).settings.clock = 'on';
 				await bothLoaded(h);
@@ -2865,8 +2861,9 @@ describe('a room table', () => {
 				await setReady(h, 'alice');
 				await setReady(h, 'bob');
 				expect((await startAnother(h, 'alice')).status).toBe(201);
-				expect(h.specs.at(-1)?.clockMs).toEqual([700_000, 900_000]);
+				expect(h.specs.at(-1)?.clockMs).toEqual([GAME_CLOCK_MS, GAME_CLOCK_MS]);
 			});
+
 		});
 
 		describe('a finished series puts each seat back on its registered deck', () => {
