@@ -219,13 +219,6 @@ importers:
       '@wolffm/rooms-server':
         specifier: npm:@hadoku/rooms-server@0.45.54
         version: '@hadoku/rooms-server@0.45.54(socket.io@4.8.3)'
-    devDependencies:
-      '@hadoku/draft':
-        specifier: workspace:*
-        version: link:../draft
-      '@hadoku/shared':
-        specifier: workspace:*
-        version: link:../shared
 
   packages/shared:
     dependencies:
