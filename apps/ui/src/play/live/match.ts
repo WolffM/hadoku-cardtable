@@ -744,6 +744,18 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    */
   highlightedPlayers: ReadonlySet<number> | null;
   /**
+   * The cards an open selection marked, and, once it closes, the marks it may still send late.
+   *
+   * `InputSelectTargets` marks the targets it starts with on Forge's EDT, later
+   * (`InputSelectTargets.java:72`, `invokeInEdtNowOrLater`), while its own `done()` unmarks them on
+   * the game thread at once; when the selection finishes first, the late mark arrives after its
+   * `clearSelectables` and nothing ever unmarks it. Marked outside a selection, the card read as
+   * clickable for turns, and every click on it was Forge's to refuse (monkey run 42393623986:
+   * Inkmoth Nexus, 25 refusals from turn 17 to 18). So a mark for a card the closed selection
+   * marked, arriving before Forge shows the next input, is that selection's and is dropped.
+   */
+  selectionMarks: { open: Set<number>; closed: ReadonlySet<number> | null };
+  /**
    * Forge has shown an input since this client last acted. See the module
    * header: without it, no card or player click is sent.
    */
@@ -1209,6 +1221,7 @@ function newMatch(options: LiveMatchOptions): LiveMatch {
     unaffordable: null,
     heldChanges: null,
     highlighted: null,
+    selectionMarks: { open: new Set(), closed: null },
     highlightedPlayers: null,
     says: [],
     rolls: [],
@@ -3283,6 +3296,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   match.heldChanges = null;
   match.highlighted = null;
   match.highlightedPlayers = null;
+  match.selectionMarks = { open: new Set(), closed: null };
   // The log, like the asks: the server re-sends its kept says after the
   // snapshot, so a line that survives from before is not trusted.
   match.says = [];
@@ -3720,6 +3734,8 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     return;
   }
   if (INPUT_FRAMES.has(frame.method)) unspend(match);
+  // Forge shows the next input: a closed selection's late marks are over.
+  if (SHOWS_INPUT.has(frame.method)) match.selectionMarks.closed = null;
   if (frame.kind === 'notify' && frame.method === 'showPromptMessage') {
     match.prompt = typeof frame.message === 'string' ? frame.message : null;
     // Overwritten by EVERY prompt, including with null. That is what makes it
@@ -3787,6 +3803,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     // mark that outlived its input is an affordance nothing would take.
     match.highlighted = null;
     match.highlightedPlayers = null;
+    match.selectionMarks = { open: new Set(), closed: match.selectionMarks.open };
     match.inputLive = false;
     match.lastSelectedCard = null;
     // So did its question: only Forge's two selection inputs send this, from `onStop`
@@ -3803,8 +3820,12 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     // a clickable one. An empty result stays a set: Forge has spoken.
     const next = new Set(match.highlighted ?? []);
     const players = new Set(match.highlightedPlayers ?? []);
+    const marks = match.selectionMarks;
     for (const entity of frame.entities) {
-      const into = entity.kind === 'card' ? next : players;
+      const card = entity.kind === 'card';
+      if (card && frame.on && match.selectables === null && marks.closed?.has(entity.id) === true) continue;
+      if (card && frame.on && match.selectables !== null) marks.open.add(entity.id);
+      const into = card ? next : players;
       if (frame.on) into.add(entity.id);
       else into.delete(entity.id);
     }
@@ -3913,6 +3934,9 @@ function setMistake(match: LiveMatch, key: MistakeKey | null): void {
 }
 
 /** The frames Forge sends when an input shows, refreshes or stops: "Forge spoke". */
+/** The frames that show this seat Forge's next input, after which nothing a closed selection sends is late. */
+const SHOWS_INPUT: ReadonlySet<string> = new Set(['showPromptMessage', 'updateButtons', 'setSelectables', 'setWeaklySelectable']);
+
 const INPUT_FRAMES: ReadonlySet<string> = new Set([
   'showPromptMessage',
   'updateButtons',
@@ -3957,6 +3981,7 @@ function dropOpenInput(match: LiveMatch): void {
   match.heldChanges = null;
   match.highlighted = null;
   match.highlightedPlayers = null;
+  match.selectionMarks = { open: new Set(), closed: null };
   match.inputLive = false;
   match.attackIntent = null;
   match.lastSelectedCard = null;

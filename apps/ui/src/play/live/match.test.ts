@@ -1234,6 +1234,32 @@ describe('the mistake bubble’s classifier, wired to a live refusal', () => {
  * input stopping, the asks the browser answers itself — and `drawnOffer` keeps the last offer
  * drawn through that silence. `boardInteraction`, what a click may SEND, never holds.
  */
+describe('a mark a target selection sends after it closed', () => {
+  /*
+   * Monkey run 42393623986, m-db4cd5c0ce22 (Tezzeret Control): Tezzeret's -1 targeted Inkmoth Nexus;
+   * `InputSelectTargets` marked it, unmarked it in `done()`, cleared its selection, and only then did
+   * its constructor's EDT mark arrive. The card read clickable for two turns; Forge refused all 25 clicks.
+   */
+  it('the late mark is dropped: the card is not offered, and not drawn marked', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const [nexus, other] = [mine[0]!, mine[1]!];
+    await sendAndApply(s, m, [prompt('Select target artifact'), selectables([nexus, other], 1, 1), mark([nexus]), mark([nexus], false), clear(), mark([nexus])]);
+    await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([other])]);
+    expect(m.highlighted?.has(nexus) ?? false, 'not drawn marked').toBe(false);
+    expect(boardInteraction(m).selectable).toEqual(new Set([other]));
+  });
+
+  it('a mark after Forge shows its next input is that input’s own: kept', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const [nexus, other] = [mine[0]!, mine[1]!];
+    await sendAndApply(s, m, [prompt('Select target artifact'), selectables([nexus, other], 1, 1), mark([nexus]), mark([nexus], false), clear()]);
+    await sendAndApply(s, m, [prompt('Declare attackers'), bar(true), mark([nexus])]);
+    expect(m.highlighted?.has(nexus)).toBe(true);
+  });
+});
+
 describe('the offer through a click’s turnaround', () => {
   /** The `click-dropped` client events the server received. */
   const droppedAtServer = (s: { received: { event: string; payload: unknown }[] }): unknown[] =>

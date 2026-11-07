@@ -871,6 +871,12 @@ function answersAnInput(frame: unknown): boolean {
 	return f?.kind === 'ask' || f?.method === 'showPromptMessage' || f?.method === 'updateButtons' || f?.method === 'setSelectables';
 }
 
+/** Forge turning the seat's last act away: its input stands, and nothing more is shown for it. */
+function isRefusal(frame: unknown): boolean {
+	const f = frame as { kind?: unknown; method?: unknown } | null;
+	return f?.kind === 'notify' && f.method === 'flashIncorrectAction';
+}
+
 /** Forge showing a seat its input — what ends {@link SeatState.staleBar}. An ask does not: answering it can still leave Forge silent. */
 function showsAWindow(frame: unknown): boolean {
 	const f = frame as { kind?: unknown; method?: unknown } | null;
@@ -1702,14 +1708,14 @@ export class Match {
 	 * with nothing pending is re-sent nothing, and a callId already seen is
 	 * dropped in {@link Match.onFrame}.
 	 */
-	private armActWatch(s: SeatState, after: 'act' | 'answer'): void {
+	private armActWatch(s: SeatState, after: 'act' | 'answer' | 'refused'): void {
 		if (s.actWatch !== null) clearTimeout(s.actWatch);
 		s.actWatch = setTimeout(
 			() => {
 				s.actWatch = null;
 				if (this.status !== 'running') return;
 				if (s.staleBar !== null && s.asks.size === 0) this.resendWindow(s, after);
-				if (after === 'answer') return;
+				if (after !== 'act') return;
 				this.endClick(s, 'silence');
 				this.deps.log({ evt: 'act-unanswered', matchId: this.id, seat: s.seat, openAsks: s.asks.size });
 				this.command({ t: 'resend-pending', seat: s.seat });
@@ -1725,7 +1731,7 @@ export class Match {
 	 * seat's screen, as they were. Idempotent — the bar is taken once, and Forge's own next
 	 * frame replaces whatever this sent.
 	 */
-	private resendWindow(s: SeatState, after: 'act' | 'answer'): void {
+	private resendWindow(s: SeatState, after: 'act' | 'answer' | 'refused'): void {
 		const bar = s.staleBar;
 		if (bar === null) return;
 		s.staleBar = null;
@@ -1739,10 +1745,10 @@ export class Match {
 	/**
 	 * The `click` record: a `selectCard` this seat sent, and what came of it — `answered` when Forge
 	 * showed the seat a window or an ask for it (`ms` after the click, `by` the frame's method),
-	 * `silence` when the act watch ran out first, `next-act` when the seat acted again before either.
+	 * `refused` when Forge turned it away (`flashIncorrectAction`), `silence` when the act watch ran out first, `next-act` when the seat acted again before either.
 	 * So "I clicked X and nothing happened" reads straight off the match log.
 	 */
-	private endClick(s: SeatState, outcome: 'answered' | 'silence' | 'next-act', frame?: unknown): void {
+	private endClick(s: SeatState, outcome: 'answered' | 'refused' | 'silence' | 'next-act', frame?: unknown): void {
 		const click = s.click;
 		if (click === null) return;
 		s.click = null;
@@ -1756,6 +1762,19 @@ export class Match {
 			ms: this.now() - click.at,
 			...(typeof by === 'string' ? { by } : {}),
 		});
+	}
+
+	/**
+	 * Forge turned the seat's act away (`flashIncorrectAction`, `InputBase.selectCard` refusing a
+	 * click): its input is the one it already showed, and it shows nothing more for it. The bar the
+	 * act took off the seat's screen ({@link SeatState.staleBar}) goes back {@link ANSWER_SILENCE_MS}
+	 * later unless Forge shows a window first; left to the act watch, the seat's OK and End Turn sat
+	 * dead for {@link ACT_SILENCE_MS} after every refused click, each press under them refused too
+	 * (monkey run 42393623986, Tezzeret Control: two such waits and 28 refusals in one match).
+	 */
+	private onRefused(s: SeatState): void {
+		this.endClick(s, 'refused');
+		if (s.staleBar !== null && s.asks.size === 0) this.armActWatch(s, 'refused');
 	}
 
 	private disarmActWatch(seat: number): void {
@@ -2817,6 +2836,10 @@ export class Match {
 						this.deps.log({ evt: 'bar-kept', matchId: this.id, seat: line.seat, label1: kept.label1, label2: kept.label2 });
 						this.onFrame(line.seat, kept);
 					}
+				}
+				if (isRefusal(line.frame)) {
+					const refused = this.seats[line.seat];
+					if (refused !== undefined) this.onRefused(refused);
 				}
 				this.onFrame(line.seat, line.frame);
 				return;

@@ -4096,6 +4096,47 @@ describe('hold-decide-forward', () => {
 			expect(h.logs.find((l) => l.evt === 'window-resent')).toMatchObject({ seat: SEAT1_ID, after: 'act' });
 			expect(h.host.commands).toContainEqual({ t: 'resend-pending', seat: SEAT1_ID });
 		});
+
+		/** Seat 1 clicks a card under its live priority window, and Forge turns the click away. */
+		function refusedClick(): { h: Harness; from: number } {
+			vi.useFakeTimers();
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.match.setFullControl(SEAT1_ID, true);
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: promptFrame(1, PRIORITY) },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'OK', label2: 'End Turn', enable1: true, enable2: true }) },
+			);
+			const from = envelopesFor(h, SEAT1_ID).length;
+			h.match.fromClient(SEAT1_ID, ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: 960 }, otherCardViewsToSelect: [], triggerEvent: null }));
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: { kind: 'notify', method: 'flashIncorrectAction' } });
+			return { h, from };
+		}
+		const ok = ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' });
+
+		it('a click Forge turns away: the live window is back ANSWER_SILENCE_MS later, and OK presses again', () => {
+			const { h, from } = refusedClick();
+			expect(h.logs.find((l) => l.evt === 'click')).toMatchObject({ seat: SEAT1_ID, card: 960, outcome: 'refused' });
+			vi.advanceTimersByTime(ANSWER_SILENCE_MS - 1);
+			expect(bars(h, from)).toEqual(['OK:false/End Turn:false']);
+			vi.advanceTimersByTime(1);
+			expect(bars(h, from)).toEqual(['OK:false/End Turn:false', 'OK:true/End Turn:true']);
+			expect(h.logs.filter((l) => l.evt === 'window-resent')).toEqual([
+				{ evt: 'window-resent', matchId: h.match.id, seat: SEAT1_ID, after: 'refused', label1: 'OK', label2: 'End Turn' },
+			]);
+			const sent = h.host.commands.length;
+			expect(h.match.fromClient(SEAT1_ID, ok)).toEqual({ ok: true });
+			expect(h.logs.filter((l) => l.evt === 'press-refused')).toEqual([]);
+			expect(h.host.commands.slice(sent), 'the press reaches Forge').toEqual([{ t: 'act', seat: SEAT1_ID, frame: ok }]);
+		});
+
+		it('a click Forge turns away, then a window of Forge’s own: nothing is re-sent', () => {
+			const { h, from } = refusedClick();
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'OK', label2: 'Undo (1)', enable1: true, enable2: true }) });
+			vi.advanceTimersByTime(ACT_SILENCE_MS * 2);
+			expect(bars(h, from)).toEqual(['OK:false/End Turn:false', 'OK:true/Undo (1):true']);
+			expect(h.logs.filter((l) => l.evt === 'window-resent')).toEqual([]);
+		});
 	});
 
 	describe('a payment Forge re-shows by its prompt alone keeps its bar', () => {
