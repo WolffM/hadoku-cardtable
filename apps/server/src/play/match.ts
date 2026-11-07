@@ -827,6 +827,14 @@ export const ACT_SILENCE_MS = 10_000;
 export const ANSWER_SILENCE_MS = 1_500;
 
 /**
+ * How long Forge gets to end the game after a seat concedes before the concede is sent again, and
+ * again before the server ends the game itself. Forge ends a conceded game within the act's own
+ * turn at the gate (`ActGate`, at most 5 s); the monkey's matches met concedes Forge received, logged
+ * no error for, and never ended, each holding its place under the ceiling for good.
+ */
+export const CONCEDE_ANSWER_MS = 10_000;
+
+/**
  * The asks an abort may close: for these the bridge answers Forge with the
  * ask's own default, never a null (`PlayBridge.java`'s `showConfirmDialog`
  * :1407, `showOptionDialog` :1421, `confirm` :1448). Every other ask returns
@@ -1211,6 +1219,8 @@ export class Match {
 	queuePlace: number | null = null;
 	private readonly probes = new Map<string, (r: ProbeResult) => void>();
 	private overTimer: NodeJS.Timeout | null = null;
+	/** Waiting on Forge to end a conceded game: {@link watchConcede}. */
+	private concedeWatch: NodeJS.Timeout | null = null;
 	/**
 	 * True while `resume` is feeding an earlier server's lines back in. Nothing
 	 * may go OUT during that: every command in the stream was already sent by the
@@ -1555,6 +1565,36 @@ export class Match {
 		this.deps.log({ evt: 'clock-flag', matchId: this.id, seat, left: this.clockLeft() });
 		this.tellRoster();
 		this.command({ t: 'act', seat, frame: { kind: 'act', method: 'concede' } });
+		this.watchConcede(seat);
+	}
+
+	/**
+	 * A concede always ends the game. If Forge has not ended it {@link CONCEDE_ANSWER_MS} after the
+	 * concede, it is sent once more (Forge's concede is idempotent: an out player conceding again only
+	 * re-runs the game-over check); if the game is still running after that, the server ends it as
+	 * Forge would have, the conceding seat the loser, and Forge's game is stopped with the match.
+	 */
+	private watchConcede(seat: number, resent = false): void {
+		if (this.concedeWatch !== null) return;
+		const since = this.now();
+		this.concedeWatch = setTimeout(() => {
+			this.concedeWatch = null;
+			if (this.status !== 'running') return;
+			if (!resent) {
+				this.deps.log({ evt: 'concede-unanswered', matchId: this.id, seat, waitedMs: this.now() - since });
+				this.command({ t: 'act', seat, frame: { kind: 'act', method: 'concede' } });
+				this.watchConcede(seat, true);
+				return;
+			}
+			const loser = this.seats[seat]?.playerId ?? null;
+			this.deps.log({ evt: 'concede-forced', matchId: this.id, seat, playerId: loser });
+			this.onLine({
+				t: 'gameover',
+				winner: this.spec.seats[seat === 0 ? 1 : 0]?.name ?? null,
+				...(loser === null ? {} : { losers: [loser], lost: [{ player: loser, reason: 'Conceded' }] }),
+			});
+		}, CONCEDE_ANSWER_MS);
+		this.concedeWatch.unref();
 	}
 
 	/**
@@ -2149,6 +2189,7 @@ export class Match {
 				this.noteTargetPick(s, frame);
 				this.disableStaleButtons(s);
 				this.command({ t: 'act', seat, frame: forgeAct(frame) });
+				if (frame.method === 'concede') this.watchConcede(seat);
 				return { ok: true };
 			case 'reply': {
 				const ask = s.asks.get(frame.callId);

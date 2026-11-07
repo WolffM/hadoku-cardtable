@@ -9,6 +9,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { socketPath } from '../../../../ui/src/draft/socket.ts';
+import { CONCEDE_ANSWER_MS } from '../match.ts';
 import { concede, startMatch, type LiveMatch, type MatchTrouble } from '../../../../ui/src/play/live/match.ts';
 
 import type { Flag, MatchResult } from './report.ts';
@@ -148,8 +149,8 @@ export function jvmStderrLines(serverLogFile: string, workDir: string, matchId: 
     .map((line) => `stderr: ${line.slice(0, 400)}`);
 }
 
-/** How long a conceded match gets to end before the run moves on without it. */
-const GIVE_UP_MS = 15_000;
+/** How long a conceded match gets to end before the run moves on without it: the server's own concede watch, and a margin. */
+const GIVE_UP_MS = 2 * CONCEDE_ANSWER_MS + 5_000;
 
 /**
  * Concede a match the run is giving up on, as a player quitting does, and wait for it to end. Walking
