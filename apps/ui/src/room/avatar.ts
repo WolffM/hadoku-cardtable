@@ -14,38 +14,22 @@
  * spelled. `room/RoomShell.tsx` asserts the id to our own room API; the server
  * carries it to the table view (`apps/server/src/http/routes.ts`).
  *
- * ## There is no typed accessor, and that is an upstream gap, not a guess
+ * ## Where the viewer's own id comes from (wave 92, D)
  *
- * `@wolffm/watchparty-ui@0.39.8` ships two `.d.ts` files and NEITHER mentions
- * an avatar: `RoomChromeProps` takes `roomKey`, `serverOrigin`, `userType`,
- * `userId`, `sessionId`, `theme`, `onLeave`, `debug` and `children`, and that is
- * the whole public surface. The value exists only inside the bundle. So both
- * answers below are derived from the shipped `dist/room-chrome.js`, quoted where
- * they are derived, and `docs/requests/WATCHPARTY_AVATAR_ACCESSOR.md` is the ask
- * that would replace them with an import. Until that lands, every constant here
- * is a fact about a bundle rather than a contract, which is exactly why they are
- * in ONE file with the evidence beside them.
- *
- * ## What the value is
- *
- * Watchparty calls it `sprite` and the fleet calls it `avatarId`. They are the
- * same string: `resolveIdentityReassert` is called as
- * `bn({ name: n.name, avatarId: n.sprite }, a ? { name: a.name, avatarId: a.sprite } : void 0, J)`
- * and the result is emitted as `{ ...{ sprite: i.avatarId } }` on
- * `IDENTITY_UPDATE`. We carry the fleet's spelling everywhere except the two
- * constants below, because that is the name room-store and rooms-protocol
- * already use.
- *
- * Their schema is `sprite: z.string().min(1).max(32)`, with a comment naming the
- * eight characters their picker offers — `sage`, `herald`, `cleric`, `knight`,
- * `mage`, `brawler`, `wanderer`, `rogue` — and adding that clients "fall back to
- * a colored square when missing". Nothing here validates against those eight on
- * purpose: a ninth character they add must reach our seats, not be dropped by a
- * list we forgot to update. The bound IS enforced, because our own room API
- * refuses a longer value.
+ * This used to read watchparty's write-through `localStorage` cache row as a
+ * fallback when the account could not be reached — a derivation quoted out of
+ * their shipped, minified bundle, with no typed accessor on either side
+ * (`docs/requests/WATCHPARTY_AVATAR_ACCESSOR.md` is the standing ask). That
+ * fallback is gone: `accountAvatarId` reads the one place avatars are resolved
+ * by userId everywhere else in this app (`@wolffm/prefs-client/avatar`, the
+ * same `resolveAvatars` our own server uses, `apps/server/src/people.ts`), and
+ * answers null rather than guess from a cache row that may be stale, shared
+ * anonymously, or simply absent on a browser that has never opened watchparty's
+ * chrome. A viewer whose account has nothing picked wears whatever the room
+ * handed them on joining (`room/lobby.ts`'s `AVATAR_POOL`), exactly as before.
  */
 
-import { createAvatarClient, type AvatarClient } from '@wolffm/prefs-client/avatar';
+import { createAvatarClient } from '@wolffm/prefs-client/avatar';
 import { AVATAR_ID_MAX } from '@hadoku/shared';
 
 /**
@@ -64,15 +48,13 @@ export function watchpartyOrigin(): string {
 /**
  * The image that draws one avatar, or null when there is nothing to draw.
  *
- * `Ee()` in `dist/room-chrome.js` (0.39.8) is the whole derivation:
- *
- *     function Ee(e) {
- *       return `${de().serverOrigin.replace(/\/$/, "")}/media/sprites/square_${e}.png`;
- *     }
- *
- * `serverOrigin` there is the prop `RoomShell` already passes the chrome, so
- * this resolves against the same origin the chrome's own faces do — same-origin
- * by construction, no host written down, and a local e2e stays local.
+ * `square_<id>.png` under the chrome's own `serverOrigin` is watchparty's own
+ * media convention, not ours: every id in `room/lobby.ts`'s `AVATAR_POOL` has
+ * one (checked 2026-11-01), and `@wolffm/prefs-client/avatar`'s `ResolvedAvatar`
+ * carries no URL for a `sprite` source by design — "the app that owns the art
+ * … owns its URL and revision" (its own `.d.ts`). So this stays the one place
+ * that builds the path, same-origin by construction (no host written down,
+ * so a local e2e stays local).
  *
  * Null for an absent, blank or over-long id rather than a URL ending
  * `square_.png`, which is a 404 drawn as a broken image where the caller wanted
@@ -94,124 +76,28 @@ export function normalizeAvatarId(v: unknown): string | null {
   return id === '' || id.length > AVATAR_ID_MAX ? null : id;
 }
 
-/** Just enough of `localStorage` to read one key, so a test needs no jsdom. */
-export interface AvatarStore {
-  getItem(key: string): string | null;
-}
-
-function browserStore(): AvatarStore | null {
-  try {
-    return globalThis.localStorage ?? null;
-  } catch {
-    // A blocked-storage browser is not an error here: it is a viewer with no
-    // readable avatar, which is the same answer as a viewer with no avatar.
-    return null;
-  }
-}
-
 /**
- * The cache row watchparty's own boot read uses, for `userId`.
+ * This viewer's chosen avatar from their account (`@wolffm/prefs-client/avatar`,
+ * which resolves it server-side the same way `apps/server/src/people.ts` does
+ * for everybody else's). Null when the read fails (offline, signed out, a host
+ * without the prefs route) or the viewer has never picked one: either way, the
+ * room keeps the character it handed them on joining (`room/lobby.ts`'s
+ * `AVATAR_POOL`).
  *
- * `Vt()` in `dist/room-chrome.js` (0.39.8):
- *
- *     function Vt(e) {
- *       const t = Z();
- *       return `prefs-cache:${!t || t === "public" ? "anon" : t}:${e}`;
- *     }
- *
- * `Z()` returns the `userId` the host handed the chrome — which for this app is
- * `whoami()`'s `userId`, the same value `RoomShell` passes as the `userId` prop.
- * `public` and empty both key the shared anonymous row.
- */
-export function watchpartyPrefsCacheKey(userId: string | null | undefined): string {
-  const uid = userId === null || userId === undefined || userId === '' || userId === 'public' ? 'anon' : userId;
-  return `prefs-cache:${uid}:watchparty`;
-}
-
-/**
- * Which character this viewer picked, or null.
- *
- * Read out of the prefs SDK's write-through cache, because that is where the
- * value lives and there is no accessor that will hand it over. The chain, all of
- * it quoted from the shipped 0.39.8 bundle:
- *
- *   - the picker calls `setIdentity`, which does `H("sprite", o)`;
- *   - `H` is `se.save({ sprite: o })` where `se = fn({ appId: "watchparty",
- *     schema: Or })` and `fn` is `createPrefsClient` from `@wolffm/prefs-client`
- *     — so the value is a field of watchparty's own prefs blob, and `Or` declares
- *     it `sprite: z.string().optional()`;
- *   - the SDK write-throughs that blob to `localStorage` under
- *     `watchpartyPrefsCacheKey(userId)` as `{ blob, userVersion, deviceVersion,
- *     cachedAt }`;
- *   - watchparty's OWN synchronous boot read is `nt("watchparty")`, which is
- *     `JSON.parse($(Vt(e)))?.blob ?? {}` — byte for byte what this does.
- *
- * **Why the `hadoku_session_id` guard.** `Yt()` in the same bundle refuses the
- * read when a session cookie exists but the userId is still `public`: the
- * anonymous row is SHARED by every user of the browser, so reading it mid-
- * sign-in hands one person the last person's choices. Mirrored here rather than
- * skipped, because we do not read it to theme a panel — we POST it to a room,
- * where wearing a housemate's face is a visible wrong answer.
- *
- * This is a read, never a write. We do not save into watchparty's prefs row, and
- * a viewer who has never opened the chrome on this browser has an empty cache
- * and no avatar — which is the honest answer and the strongest argument in the
- * request doc.
- */
-export function selectedAvatarId(userId: string | null | undefined, store: AvatarStore | null = browserStore()): string | null {
-  if (store === null) return null;
-  try {
-    const signedInButUnnamed =
-      store.getItem('hadoku_session_id') !== null &&
-      (userId === null || userId === undefined || userId === '' || userId === 'public');
-    if (signedInButUnnamed) return null;
-    const raw = store.getItem(watchpartyPrefsCacheKey(userId));
-    if (raw === null) return null;
-    const row = JSON.parse(raw) as unknown;
-    if (typeof row !== 'object' || row === null) return null;
-    const blob = (row as { blob?: unknown }).blob;
-    if (typeof blob !== 'object' || blob === null) return null;
-    return normalizeAvatarId((blob as { sprite?: unknown }).sprite);
-  } catch {
-    // Malformed JSON in somebody else's cache row is not our failure to report:
-    // it means we do not know this viewer's avatar, which is `null`.
-    return null;
-  }
-}
-
-/*
- * ## The account's copy, not just this browser's
- *
- * `selectedAvatarId` above reads the prefs SDK's write-through CACHE, which only
- * exists on a browser that has already opened watchparty's chrome. A fresh
- * browser has no cache row and so asserted nothing (wave 31 P3b). The account's
- * answer comes from the fleet's avatar endpoint (`@wolffm/prefs-client/avatar`),
- * which reads the same watchparty row server-side; its `sprite` is the character
- * the viewer picked whatever avatar source they chose, and the character is all a
- * seat draws.
+ * A fresh client every call, not a cached singleton: `watchAvatar` (`avatarWatch.ts`)
+ * calls this every poll, and `createAvatarClient` is a cheap object with no
+ * connection to hold open, so there is nothing a cache would save.
  *
  * `baseUrl` is this page's origin for the reason `watchpartyOrigin` gives: the
  * SDK's default is a hardcoded `https://hadoku.me/prefs`, which a local e2e
  * would reach off-host.
  */
-
-let accountClient: AvatarClient | null = null;
-
-/**
- * This viewer's chosen avatar from their ACCOUNT, falling back to this browser's
- * cache when the account cannot be read (offline, signed out, a host without the
- * prefs route). Null when neither knows: the viewer has picked nothing, and
- * wears the character the room handed them on joining (`room/lobby.ts`'s
- * `AVATAR_POOL`).
- */
-export async function accountAvatarId(userId: string | null | undefined): Promise<string | null> {
+export async function accountAvatarId(): Promise<string | null> {
   try {
-    accountClient ??= createAvatarClient({ baseUrl: `${globalThis.location.origin}/prefs` });
-    const id = normalizeAvatarId((await accountClient.get()).sprite);
-    if (id !== null) return id;
+    const client = createAvatarClient({ baseUrl: `${globalThis.location.origin}/prefs` });
+    return normalizeAvatarId((await client.get()).sprite);
   } catch {
-    // Unreadable account is not an error to show anybody: the cache read below
-    // is the same answer a browser that has used the chrome would give.
+    // Unreadable account is not an error to show anybody.
+    return null;
   }
-  return selectedAvatarId(userId);
 }

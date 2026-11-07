@@ -32,13 +32,7 @@ export function writeDurations(el: HTMLElement, durations: readonly (readonly [s
   for (const [name, ms] of durations) el.style.setProperty(name, `${ms}ms`);
 }
 
-/**
- * The viewer asked for less motion: every animated surface draws its end state instead. Fast Mode
- * is pacing, not motion, and never turns an animation off (the operator, 2026-10-08).
- */
-export function prefersReducedMotion(): boolean {
-  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
+export { prefersReducedMotion } from '@hadoku/ui-shell/motion';
 
 /**
  * Runs `done` once `el`'s glide has come to rest: its running `left`/`top` transitions finished,

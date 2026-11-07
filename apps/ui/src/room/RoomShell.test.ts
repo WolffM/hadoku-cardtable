@@ -94,7 +94,6 @@ vi.mock('../rooms/feed.ts', async (importOriginal) => ({
 import { THEMES } from '@wolffm/themes';
 
 import { RoomShell, roomKeyFor, watchpartyTheme } from './RoomShell.tsx';
-import { watchpartyPrefsCacheKey } from './avatar.ts';
 import { roomIdFor, tableChatId } from '../App.tsx';
 import { parseRoute } from '../screens/route.ts';
 
@@ -234,30 +233,33 @@ describe('a host theme outside the chrome union still reaches the chrome', () =>
  * watchparty selected avatars. why not?"*
  *
  * Because the last hop was never wired. This is the client end of it: the shell
- * reads the character the viewer picked in watchparty's chrome and asserts it to
- * OUR room, which carries it to the table view. `avatar.ts` holds the derivation
- * of both halves (the prefs cache key and the sprite URL) and the reason there is
- * no typed accessor to ask instead.
+ * reads the character the viewer picked, from their account
+ * (`avatar.ts`'s `accountAvatarId`, `@wolffm/prefs-client/avatar`), and asserts
+ * it to OUR room, which carries it to the table view.
  *
- * The whoami mock above answers `userId: 'u-test'`, which is the same string the
- * shell hands the chrome as its `userId` prop — and therefore the same string
- * watchparty keys its prefs cache on. That agreement is the load-bearing part,
- * so the key here is built by `watchpartyPrefsCacheKey` rather than typed out.
+ * `createAvatarClient`'s GET goes through the same mocked `fetch` as the
+ * room's own calls (wave 92, D: no more localStorage cache to seed instead),
+ * so `avatarResponds` below answers that one URL and leaves every other
+ * response to the test's own room-specific mock.
  */
 describe('the avatar the viewer picked in watchparty', () => {
-  const ROW = JSON.stringify({ blob: { name: 'Test Friend', sprite: 'wanderer' }, userVersion: 1, deviceVersion: 0 });
-
-  afterEach(() => {
-    globalThis.localStorage.clear();
-  });
+  /** `createAvatarClient().get()`'s URL contains `/_avatar`; every other call is the room's own. */
+  function avatarResponds(sprite: string | null, roomFetch: (input: string) => Response): (input: RequestInfo | URL) => Promise<Response> {
+    return (input) => {
+      const url = String(input);
+      if (url.includes('/_avatar')) return Promise.resolve(new Response(JSON.stringify({ sprite }), { status: 200, headers: { 'content-type': 'application/json' } }));
+      return Promise.resolve(roomFetch(url));
+    };
+  }
 
   it('is asserted to the room once, on the room’s own identity route', async () => {
-    globalThis.localStorage.setItem(watchpartyPrefsCacheKey('u-test'), ROW);
     const posts: { url: string; body: unknown }[] = [];
-    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
-      posts.push({ url: String(input), body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined });
-      return Promise.resolve(new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } }));
-    });
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) =>
+      avatarResponds('wanderer', (url) => {
+        posts.push({ url, body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined });
+        return new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } });
+      })(input),
+    );
 
     render(createElement(RoomShell, { roomId: 'r-cube', children: createElement('div', null, 'content') }));
     await waitFor(() => expect(posts).toHaveLength(1));
@@ -269,14 +271,15 @@ describe('the avatar the viewer picked in watchparty', () => {
   // A deploy restarts the server mid-match and a saved room keeps no faces (R12): the room comes back
   // wearing a handed-out character on this seat until the screen says its pick again.
   it('asserts again when the room feed is heard after a reconnect, and not on an ordinary change', async () => {
-    globalThis.localStorage.setItem(watchpartyPrefsCacheKey('u-test'), ROW);
     const posts: string[] = [];
     // Accepted, so no refusal's back-off can be what sends the second.
     const room = { id: 'r-cube', name: 'Cube night', gameType: 'draft', locked: false, members: [] };
-    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
-      posts.push(String(input));
-      return Promise.resolve(new Response(JSON.stringify(room), { status: 200, headers: { 'content-type': 'application/json' } }));
-    });
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      avatarResponds('wanderer', (url) => {
+        posts.push(url);
+        return new Response(JSON.stringify(room), { status: 200, headers: { 'content-type': 'application/json' } });
+      }),
+    );
     const identity = (): string[] => posts.filter((u) => u.includes('/rooms/r-cube/identity'));
 
     const view = render(createElement(RoomShell, { roomId: 'r-cube', children: createElement('div', null, 'content') }));
@@ -291,18 +294,17 @@ describe('the avatar the viewer picked in watchparty', () => {
   });
 
   it('asserts again when the first try is refused, because a joiner’s first screen beats their own join', async () => {
-    globalThis.localStorage.setItem(watchpartyPrefsCacheKey('u-test'), ROW);
     const posts: string[] = [];
     // The room as the server answers an accepted assert: a parseable view, or the client counts it refused.
     const room = { id: 'r-cube', name: 'Cube night', gameType: 'draft', locked: false, members: [] };
-    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
-      posts.push(String(input));
-      // Refused the first time (not a member yet), accepted the second.
-      const accepted = posts.filter((u) => u.includes('/identity')).length > 1;
-      return Promise.resolve(
-        new Response(JSON.stringify(accepted ? room : {}), { status: accepted ? 200 : 404, headers: { 'content-type': 'application/json' } }),
-      );
-    });
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      avatarResponds('wanderer', (url) => {
+        posts.push(url);
+        // Refused the first time (not a member yet), accepted the second.
+        const accepted = posts.filter((u) => u.includes('/identity')).length > 1;
+        return new Response(JSON.stringify(accepted ? room : {}), { status: accepted ? 200 : 404, headers: { 'content-type': 'application/json' } });
+      }),
+    );
 
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const identity = (): string[] => posts.filter((u) => u.includes('/identity'));
@@ -317,15 +319,17 @@ describe('the avatar the viewer picked in watchparty', () => {
   });
 
   it('sends nothing at all when the viewer has no avatar to send', async () => {
-    // No prefs row: a viewer who has never opened the chrome on this browser.
-    // The server's "clear it" case is for somebody who HAD one and dropped it,
-    // which only the chrome can tell us about — so an empty read is silence, not
-    // a `null` that would wipe the avatar they picked on their other machine.
+    // Nothing picked on the account: the server's "clear it" case is for
+    // somebody who HAD one and dropped it, which only the chrome can tell us
+    // about — so a null read is silence, not a value that would wipe the
+    // avatar they picked on their other machine.
     const posts: string[] = [];
-    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
-      posts.push(String(input));
-      return Promise.resolve(new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } }));
-    });
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      avatarResponds(null, (url) => {
+        posts.push(url);
+        return new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } });
+      }),
+    );
 
     render(createElement(RoomShell, { roomId: 'r-cube', children: createElement('div', null, 'content') }));
     // The chrome appearing is what says whoami has resolved, so the effect has
@@ -336,33 +340,17 @@ describe('the avatar the viewer picked in watchparty', () => {
 
   // Q6: a game's table chat is not a room. Asserted to it, every avatar pick made mid-match was refused.
   it('in a game, is asserted to the room while the chrome joins the table’s chat', async () => {
-    globalThis.localStorage.setItem(watchpartyPrefsCacheKey('u-test'), ROW);
     const posts: string[] = [];
-    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
-      posts.push(String(input));
-      return Promise.resolve(new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } }));
-    });
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      avatarResponds('wanderer', (url) => {
+        posts.push(url);
+        return new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } });
+      }),
+    );
 
     render(createElement(RoomShell, { roomId: 'r-cube-night', chatId: 'r-cube-night-t-11111111', children: createElement('div', null, 'content') }));
     await waitFor(() => expect(posts.filter((u) => u.includes('/identity'))).toHaveLength(1));
     expect(posts.find((u) => u.includes('/identity'))).toContain('/rooms/r-cube-night/identity');
-  });
-
-  it('refuses the shared anonymous prefs row while a session is still resolving', async () => {
-    // `Yt()` in watchparty's own bundle skips the read in exactly this state,
-    // because the anon row belongs to whoever used the browser last. Ours POSTs
-    // the value to a room, so wearing a housemate's face would be public.
-    globalThis.localStorage.setItem('hadoku_session_id', 's-1');
-    globalThis.localStorage.setItem(watchpartyPrefsCacheKey(null), ROW);
-    const posts: string[] = [];
-    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
-      posts.push(String(input));
-      return Promise.resolve(new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } }));
-    });
-
-    render(createElement(RoomShell, { roomId: 'r-cube', children: createElement('div', null, 'content') }));
-    await waitFor(() => screen.getByTestId('room-chrome'));
-    expect(posts.filter((u) => u.includes('/identity'))).toEqual([]);
   });
 });
 

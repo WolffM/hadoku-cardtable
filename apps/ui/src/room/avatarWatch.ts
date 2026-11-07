@@ -7,15 +7,13 @@
  * open changed the chat and nothing else. The match is told an avatar at its
  * start and again only when the room hears a change (`attachTables`'s relay).
  *
- * ## Where a change is visible from
- *
- * Watchparty's picker saves through the prefs SDK, which write-throughs to
- * `localStorage` (`avatar.ts`'s `selectedAvatarId`). That is the same tab, so the
- * `storage` event, which only fires in OTHER tabs, cannot be the signal; the
- * cache row is polled instead. It is one synchronous `localStorage` read, cheap
- * enough for a couple of seconds' cadence. The account copy is read once at the
- * start, for a fresh browser whose cache is empty (w31 P3b); after that the cache
- * is the newer of the two, because the picker writes it on every save.
+ * Read once at the start (`accountAvatarId`, `avatar.ts`), then watched by
+ * EVENT rather than polled (manager's word, wave 92 D: a 2 s poll of the
+ * account would have cost prefs-api one GET per open room tab every 2 s —
+ * 30/min). `@wolffm/task-ui-components`'s `AVATAR_EVENT` fires on `window`
+ * after every avatar change made in the fleet's own settings popout
+ * (AvatarPicker), carrying the new `AvatarSettings` (`@wolffm/prefs-client/avatar`)
+ * as `detail` — so a pick reaches here the moment it is made, with no poll at all.
  *
  * A server that has the viewer back after a reconnect is told the same id again:
  * a deploy restarts it, and a saved room keeps no faces (R12), so it came back
@@ -23,15 +21,21 @@
  *
  * A viewer with no readable avatar asserts nothing: the room handed them a
  * character on joining (`room/lobby.ts`'s `AVATAR_POOL`), and that stands.
- * A viewer who CLEARS theirs is not noticed either, for the same reason the
- * assert never sent `null` before: the cache holds no avatar either way.
  */
 
+import { AVATAR_EVENT } from '@wolffm/task-ui-components';
+
+import { normalizeAvatarId } from './avatar.ts';
+
+/** Just enough of `window` to listen for `AVATAR_EVENT`, so a test can hand in a plain `EventTarget`. */
+export interface AvatarEventSource {
+  addEventListener(type: typeof AVATAR_EVENT, listener: (event: Event) => void): void;
+  removeEventListener(type: typeof AVATAR_EVENT, listener: (event: Event) => void): void;
+}
+
 export interface AvatarWatchDeps {
-  /** The account's copy, read once at the start. */
-  readAccount: () => Promise<string | null>;
-  /** This browser's cache, read every tick. */
-  readCache: () => string | null;
+  /** This viewer's avatar, read once at the start. */
+  readAvatar: () => Promise<string | null>;
   /** Called with each new id, once per change, and again with the same one when the server has the viewer back. */
   assert: (avatarId: string) => void;
   /**
@@ -39,18 +43,18 @@ export interface AvatarWatchDeps {
    * keeps no faces (R12), so a restarted server has forgotten the pick it was told. Returns the stop.
    */
   rejoined: (listener: () => void) => () => void;
-  intervalMs?: number;
-  setInterval?: (fn: () => void, ms: number) => unknown;
-  clearInterval?: (handle: unknown) => void;
+  /** Where `AVATAR_EVENT` is heard. Defaults to `window`; a test hands in its own. */
+  events?: AvatarEventSource;
 }
 
-/** How often the cache row is looked at. A pick should reach the board within a couple of seconds. */
-export const AVATAR_POLL_MS = 2000;
+/** The `sprite` (character) field of an `AVATAR_EVENT`'s `detail`, or null for anything else. */
+function spriteOf(detail: unknown): string | null {
+  if (typeof detail !== 'object' || detail === null) return null;
+  return normalizeAvatarId((detail as { sprite?: unknown }).sprite);
+}
 
 /** Starts watching; returns the stop function. */
 export function watchAvatar(deps: AvatarWatchDeps): () => void {
-  const every = deps.setInterval ?? ((fn, ms) => globalThis.setInterval(fn, ms));
-  const stopEvery = deps.clearInterval ?? ((h) => globalThis.clearInterval(h as ReturnType<typeof setInterval>));
   let live = true;
   let last: string | null = null;
 
@@ -60,27 +64,27 @@ export function watchAvatar(deps: AvatarWatchDeps): () => void {
     deps.assert(id);
   };
 
+  const onAvatarEvent = (event: Event): void => {
+    see(spriteOf((event as CustomEvent<unknown>).detail));
+  };
+
+  const target = deps.events ?? (typeof window === 'undefined' ? undefined : window);
+  target?.addEventListener(AVATAR_EVENT, onAvatarEvent);
+
   const stopRejoined = deps.rejoined(() => {
     if (live && last !== null) deps.assert(last);
   });
 
-  const handle = every(() => {
-    see(deps.readCache());
-  }, deps.intervalMs ?? AVATAR_POLL_MS);
-
-  void deps.readAccount().then(
-    (id) => {
-      // The cache wins once it has spoken: it is the write-through of the latest save.
-      if (last === null) see(id);
-    },
-    () => undefined,
-  );
-  // The cache may already hold one; do not wait a whole interval for it.
-  see(deps.readCache());
+  // The start read is slower than an event: an AVATAR_EVENT heard while it is still in
+  // flight has already spoken, and the read's own (by then stale) answer must not
+  // overwrite it. Only counts while nothing newer has been seen.
+  void deps.readAvatar().then((id) => {
+    if (last === null) see(id);
+  }, () => undefined);
 
   return () => {
     live = false;
-    stopEvery(handle);
+    target?.removeEventListener(AVATAR_EVENT, onAvatarEvent);
     stopRejoined();
   };
 }

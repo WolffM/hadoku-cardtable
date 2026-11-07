@@ -9,7 +9,7 @@
 
 import { useEffect } from 'react';
 
-import { accountAvatarId, selectedAvatarId } from './avatar.ts';
+import { accountAvatarId } from './avatar.ts';
 import { watchAvatar } from './avatarWatch.ts';
 import type { RoomIdentityClient } from '../rooms/api.ts';
 import { roomPings, type PingSource } from '../rooms/feed.ts';
@@ -19,9 +19,9 @@ import { roomPings, type PingSource } from '../rooms/feed.ts';
  * again whenever the server has this viewer back.
  *
  * This is the hop the operator's *"why not?"* was about. The id is watchparty's,
- * read from their prefs cache (`avatar.ts` says why there is no accessor to ask);
- * the row it lands on is decided by the server from the edge's headers, so this
- * can only ever set the caller's own.
+ * read from the viewer's own account (`avatar.ts`'s `accountAvatarId`); the row
+ * it lands on is decided by the server from the edge's headers, so this can
+ * only ever set the caller's own.
  *
  * **A refusal is ignored, deliberately.** `roomId` here is whatever the route
  * carries, which for `#/match/<id>` is a MATCH id. The server resolves that to
@@ -51,11 +51,10 @@ export function useAvatarAssert(roomId: string | null, userId: string | null, cl
         if (!outcome.ok) retry();
       }, retry);
     };
-    // Watched, not read once: a pick made in watchparty's chrome while the match
-    // is open must reach the board (Q6). A newer id supersedes an older id's retries.
+    // Watched by event, not read once: a pick made in the fleet's avatar settings while
+    // the match is open must reach the board (Q6). A newer id supersedes an older id's retries.
     const stop = watchAvatar({
-      readAccount: () => accountAvatarId(userId),
-      readCache: () => selectedAvatarId(userId),
+      readAvatar: () => accountAvatarId(),
       // The page's room feed, whose watch the server acknowledges at the start and after every
       // reconnect: the moment a restarted server, which kept no faces (R12), has this viewer back.
       rejoined: (again) => pings.subscribe({ room: roomId }, (why) => why === 'heard' && again()),

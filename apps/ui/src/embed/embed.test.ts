@@ -11,10 +11,10 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { createElement } from 'react';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 
+import { AVATAR_EVENT } from '@wolffm/task-ui-components';
+
 import { toShadowSelector, withHostTheme } from '../../vite.embed.config.ts';
 import { eventTarget, hitAt, scopeOf } from '../dom.ts';
-import { watchpartyPrefsCacheKey } from '../room/avatar.ts';
-import { AVATAR_POLL_MS } from '../room/avatarWatch.ts';
 import type { RoomBindClient, RoomIdentityClient, RoomOutcome, RoomView } from '../rooms/api.ts';
 import { appLocation, navigate, routeInMemory } from '../screens/route.ts';
 import type { GameBundleContext } from './contract.ts';
@@ -143,23 +143,32 @@ describe('EmbedApp', () => {
    * member of a watchparty room wore the pool's pick ("it assigned default ones").
    */
   it('tells the bound room which watchparty character the viewer wears, under the edge’s identity', async () => {
-    globalThis.localStorage.setItem(watchpartyPrefsCacheKey('u-test'), JSON.stringify({ blob: { sprite: 'wanderer' }, userVersion: 1, deviceVersion: 0 }));
+    // `createAvatarClient().get()` goes through this same mocked `fetch` (wave 92, D: no more
+    // localStorage cache row to seed instead); every other URL keeps the suite's own 404 default.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) =>
+        String(input).includes('/_avatar')
+          ? Promise.resolve(new Response(JSON.stringify({ sprite: 'wanderer' }), { status: 200, headers: { 'content-type': 'application/json' } }))
+          : Promise.resolve(new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } })),
+      ),
+    );
     const rooms = binder();
     render(createElement(EmbedApp, { ctx: ctx(), rooms }));
     await waitFor(() => expect(rooms.worn).toEqual([[ROOM.id, 'wanderer']]));
   });
 
-  it('says nothing about an avatar while the viewer has none saved, and the pick made later in watchparty’s chrome', async () => {
-    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  it('says nothing about an avatar while the viewer has none saved, and the pick made later in the fleet’s avatar settings', async () => {
+    // The account read at mount hits the suite's own 404 default (no `/_avatar` stub here),
+    // so nothing is sent for the viewer's unset account avatar.
     const rooms = binder();
     render(createElement(EmbedApp, { ctx: ctx(), rooms }));
     await waitFor(() => expect(screen.getByTestId('constructed')).toBeTruthy());
-    // The watcher is polling once it is installed; a tick with no row sends nothing.
-    globalThis.localStorage.setItem(watchpartyPrefsCacheKey('u-test'), JSON.stringify({ blob: { sprite: 'rogue' }, userVersion: 1, deviceVersion: 0 }));
-    await vi.waitFor(async () => {
-      await vi.advanceTimersByTimeAsync(AVATAR_POLL_MS);
-      expect(rooms.worn).toEqual([[ROOM.id, 'rogue']]);
-    });
+    expect(rooms.worn).toEqual([]);
+    // `AVATAR_EVENT` (wave 92, D), as `@wolffm/task-ui-components`' settings popout
+    // (AvatarPicker) fires it on `window` with the new `AvatarSettings` as `detail`.
+    window.dispatchEvent(new CustomEvent(AVATAR_EVENT, { detail: { avatar: { source: 'sprite', sprite: 'rogue' }, choice: 'sprite', sprite: 'rogue' } }));
+    await waitFor(() => expect(rooms.worn).toEqual([[ROOM.id, 'rogue']]));
   });
 
   it('says why when the table cannot be opened', async () => {
