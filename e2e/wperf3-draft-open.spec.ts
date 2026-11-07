@@ -11,7 +11,8 @@
  * tasks timed on its CPU clock (`mainThreadTasks`), with Chromium's long-animation-frame entries (every
  * frame over 50 ms, its length and the script that ran in it) as evidence. A task over 100 ms of CPU on
  * the reference host is red; on a slower machine the limit scales with its measured CPU speed
- * (`cpu-speed.ts`), on the same clock. The draft screen's own first render
+ * (`cpu-speed.ts`), on the same clock, sampled right before the swap and again right after the piles are
+ * drawn: the speed of the moment the work ran in, not of the run. The draft screen's own first render
  * is one task of ~30 ms on hokon; main's (the search in it) was 550 ms and more.
  *
  * Built for production whatever ran first in the worker (a dev server sets NODE_ENV for its whole
@@ -25,7 +26,7 @@
  */
 import { expect, test } from '@playwright/test';
 
-import { cpuFactor, mainThreadTasks } from './cpu-speed.ts';
+import { cpuSpeedAround, describeCpu, mainThreadTasks } from './cpu-speed.ts';
 import { buildFitPage, type FitPages } from './fit-pages.ts';
 
 /** The longest main-thread task allowed from the swap to the piles drawn, in CPU ms on the reference host. */
@@ -62,8 +63,7 @@ test('the draft opens with no long frame: the pod is drawn first, its piles sear
   await expect(page.locator('[data-testid="pod-waiting"]')).toBeVisible();
   // Let the skeleton settle as it would on a slow socket.
   await page.waitForTimeout(500);
-  const { factor, workloadMs } = await cpuFactor(page);
-  const limit = Math.round(LONGEST_MS * factor);
+  const speed = await cpuSpeedAround(page);
   await page.evaluate(() => {
     window.longFrames = [];
     new PerformanceObserver((list) => {
@@ -81,13 +81,15 @@ test('the draft opens with no long frame: the pod is drawn first, its piles sear
   // The frame the last pile lands in is reported once it ends.
   await page.waitForTimeout(500);
   const tasks = await stop();
+  const cpu = await speed.after();
+  const limit = Math.round(LONGEST_MS * cpu.factor);
   const frames = await page.evaluate(() => window.longFrames);
   const longest = tasks.reduce<(typeof tasks)[number] | null>((a, t) => (a === null || t.cpuMs > a.cpuMs ? t : a), null);
   if (longest === null) throw new Error('the trace has no task from the swap to the piles drawn');
   const parts = Object.entries(longest.parts).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(', ');
   const tasksOver = tasks.filter((t) => t.wallMs > 50).map((t) => ({ cpu: Math.round(t.cpuMs), wall: Math.round(t.wallMs) }));
   console.log(
-    `[wperf3] draft open: cpu workload ${workloadMs.toFixed(1)} ms (×${factor.toFixed(2)} the reference), limit ${limit} ms; longest task ${longest.cpuMs.toFixed(1)} ms cpu (${longest.wallMs.toFixed(1)} ms wall: ${parts}); piles drawn ${drawn} ms after the swap; ` +
+    `[wperf3] draft open: ${describeCpu(cpu)}, limit ${limit} ms; longest task ${longest.cpuMs.toFixed(1)} ms cpu (${longest.wallMs.toFixed(1)} ms wall: ${parts}); piles drawn ${drawn} ms after the swap; ` +
       `tasks over 50 ms wall: ${JSON.stringify(tasksOver)}; frames over 50 ms: ${JSON.stringify(frames)}`,
   );
   expect(longest.cpuMs, `the longest main-thread task from the swap to the piles drawn, in CPU ms (${JSON.stringify(tasksOver)})`).toBeLessThanOrEqual(limit);

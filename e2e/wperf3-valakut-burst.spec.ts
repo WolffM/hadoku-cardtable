@@ -22,7 +22,7 @@ import { resolve } from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { cpuFactor } from './cpu-speed.ts';
+import { cpuSpeedAround, describeCpu } from './cpu-speed.ts';
 import { clickHandCard, makeTitled, offeredNamed, pressPaymentAuto, says, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { turnFastModeOff } from './play/prefs.ts';
@@ -247,7 +247,7 @@ test(titled('Valakut’s ten triggers resolve at normal pace: the caster’s scr
       )
       .toBe(true);
     await alice.page.waitForTimeout(1_000);
-    const { factor, workloadMs } = await cpuFactor(alice.page);
+    const speed = await cpuSpeedAround(alice.page);
 
     // The burst: from the one pick until bob reads 10.
     const cdp = await alice.page.context().newCDPSession(alice.page);
@@ -279,12 +279,13 @@ test(titled('Valakut’s ten triggers resolve at normal pace: the caster’s scr
       return window.wperf3;
     });
     const { profile } = (await cdp.send('Profiler.stop')) as { profile: { nodes: ProfileNode[]; samples: number[]; timeDeltas: number[] } };
+    const cpu = await speed.after();
 
     const longest = Math.max(0, ...rec.frames.map((f) => f.ms));
     const over = (ms: number) => rec.frames.filter((f) => f.ms > ms).length;
     const scriptBy = new Map<string, number>();
     for (const f of rec.frames) for (const s of f.scripts) scriptBy.set(s.invoker, (scriptBy.get(s.invoker) ?? 0) + s.ms);
-    console.log(`[wperf3] cpu workload ${workloadMs.toFixed(1)} ms (×${factor.toFixed(2)} the reference)`);
+    console.log(`[wperf3] ${describeCpu(cpu)}`);
     console.log(`[wperf3] valakut burst: ${took} ms from the pick to bob at ${START - 3 * TRIGGERS} (+1.5 s); load ${(await import('node:os')).loadavg().map((l) => l.toFixed(1)).join(' ')}`);
     console.log(`[wperf3] animation lists ${rec.lists}, ${rec.listMs.toFixed(1)} ms; message kinds ${JSON.stringify(rec.kinds)}`);
     console.log(`[wperf3] messages ${rec.messages}, handler time ${rec.handlerMs.toFixed(1)} ms, ${(rec.handlerMs / Math.max(1, rec.messages)).toFixed(2)} ms a message, worst ${rec.worstHandlerMs.toFixed(1)} ms`);

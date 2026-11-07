@@ -18,6 +18,10 @@
  * Each long frame is then split by mechanism: React (`react:ours`: our components' renders and effects as
  * React runs them, with what they call; `react:internals`: React's own reconcile and commit), our modules' own JS, libraries, style, layout, paint, GC. Profiling and tracing cost time
  * themselves, so a bench run without them (`CARDTABLE_PERF_ATTRIBUTE=0`) gives the clean frame numbers.
+ *
+ * Every run, clean or not, traces each task's thread-CPU time (`toplevel`, cheap) and samples the CPU speed right
+ * before and right after the moment (`cpu-speed.ts`): the longest task, scaled to hokon by that moment's speed, is
+ * what a budget judges.
  */
 import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -25,7 +29,7 @@ import { resolve } from 'node:path';
 
 import type { Browser, CDPSession, Page } from '@playwright/test';
 
-import { cpuFactor } from '../cpu-speed.ts';
+import { cpuSpeedAround, describeCpu, tasksOn, type CpuSpeed } from '../cpu-speed.ts';
 
 /** A long frame as the page saw it. */
 interface Frame {
@@ -345,7 +349,9 @@ type SourceMap = {
 class Mapper {
   private readonly maps = new Map<string, SourceMap | null>();
   private readonly Consumer: new (map: unknown) => SourceMap;
-  constructor(private readonly page: Page) {
+  private readonly page: Page;
+  constructor(page: Page) {
+    this.page = page;
     const ui = resolve(import.meta.dirname, '../../apps/ui');
     const viteEntry = createRequire(resolve(ui, 'package.json')).resolve('vite');
     this.Consumer = (createRequire(createRequire(viteEntry).resolve('postcss'))('source-map-js') as { SourceMapConsumer: new (map: unknown) => SourceMap }).SourceMapConsumer;
@@ -395,15 +401,21 @@ export interface SeatReport {
   seat: string;
   moment: string;
   ms: number;
-  cpu: { workloadMs: number; factor: number };
+  /** The CPU speed sampled right before the moment and right after it (`cpu-speed.ts`). */
+  cpu: CpuSpeed;
   frames: {
     long: number;
     over100: number;
     worst: number;
-    worstNorm: number;
     totalMs: number;
     blockingMs: number;
   };
+  /**
+   * The page's longest main-thread task in the moment, on the thread's CPU clock and on the wall, and its CPU scaled to
+   * hokon by the moment's own CPU speed: the number a budget judges, both sides on one clock (`cpu-speed.ts`). Null
+   * when the trace did not name the page's thread.
+   */
+  longestTask: { cpuMs: number; wallMs: number; norm: number } | null;
   raf: { ticks: number; skippedMs: number; worstGapMs: number };
   messages: {
     count: number;
@@ -463,31 +475,34 @@ export function measure(browser: Browser, moment: string, seats: { name: string;
   let cdps: CDPSession[] = [];
   let tracer: CDPSession | null = null;
   let started = 0;
-  let cpu: { workloadMs: number; factor: number }[] = [];
+  let speeds: { after: () => Promise<CpuSpeed> }[] = [];
   const trace: TraceEvent[] = [];
   return {
     async start() {
-      cpu = [];
-      for (const s of seats) cpu.push(await cpuFactor(s.page));
+      trace.length = 0;
+      speeds = [];
+      for (const s of seats) speeds.push(await cpuSpeedAround(s.page));
       if (attribute) {
         cdps = await Promise.all(seats.map((s) => s.page.context().newCDPSession(s.page)));
         for (const c of cdps) {
           await c.send('Profiler.enable');
           await c.send('Profiler.setSamplingInterval', { interval: 250 });
         }
-        tracer = await browser.newBrowserCDPSession();
-        tracer.on('Tracing.dataCollected', (e: { value: TraceEvent[] }) => {
-          for (const ev of e.value) trace.push(ev);
-        });
-        await tracer.send('Tracing.start', {
-          traceConfig: {
-            recordMode: 'recordAsMuchAsPossible',
-            includedCategories: ['devtools.timeline', 'disabled-by-default-devtools.timeline', 'disabled-by-default-devtools.timeline.stack', 'blink.console', 'v8', 'blink_gc', 'cc'],
-          },
-          transferMode: 'ReportEvents',
-        });
-        for (const c of cdps) await c.send('Profiler.start');
       }
+      // Always traced: every task's thread-CPU time (`toplevel`) is what a budget judges. A clean run records only that
+      // and the seats' start marks; an attributed one, what each long frame went on too.
+      tracer = await browser.newBrowserCDPSession();
+      tracer.on('Tracing.dataCollected', ({ value }) => trace.push(...(value as unknown as TraceEvent[])));
+      await tracer.send('Tracing.start', {
+        traceConfig: {
+          recordMode: 'recordAsMuchAsPossible',
+          includedCategories: attribute
+            ? ['toplevel', 'devtools.timeline', 'disabled-by-default-devtools.timeline', 'disabled-by-default-devtools.timeline.stack', 'blink.console', 'v8', 'blink_gc', 'cc']
+            : ['toplevel', 'blink.console', 'devtools.timeline', '__metadata'],
+        },
+        transferMode: 'ReportEvents',
+      });
+      if (attribute) for (const c of cdps) await c.send('Profiler.start');
       for (const s of seats) {
         await s.page.evaluate((label) => {
           const r = window.perfBench;
@@ -519,16 +534,18 @@ export function measure(browser: Browser, moment: string, seats: { name: string;
         );
       }
       const profiles: (Profile | null)[] = seats.map(() => null);
-      if (attribute) {
-        for (const [i, c] of cdps.entries()) profiles[i] = ((await c.send('Profiler.stop')) as { profile: Profile }).profile;
-        const done = new Promise<void>((ok) => tracer!.once('Tracing.tracingComplete', () => ok()));
-        await tracer!.send('Tracing.end');
-        await done;
-        await tracer!.detach();
-        for (const c of cdps) await c.detach().catch(() => undefined);
-      }
+      if (attribute) for (const [i, c] of cdps.entries()) profiles[i] = ((await c.send('Profiler.stop')) as { profile: Profile }).profile;
+      const done = new Promise<void>((ok) => tracer!.once('Tracing.tracingComplete', () => ok()));
+      await tracer!.send('Tracing.end');
+      await done;
+      await tracer!.detach();
+      for (const c of cdps) await c.detach().catch(() => undefined);
+      cdps = [];
+      // After the trace: each sample is a task of its own, and must not be the moment's longest.
+      const cpu: CpuSpeed[] = [];
+      for (const s of speeds) cpu.push(await s.after());
       const reports: SeatReport[] = [];
-      for (const [i, s] of seats.entries()) reports.push(await report(s.page, s.name, moment, ms, cpu[i]!, recs[i]!, profiles[i] ?? null, attribute ? trace : null));
+      for (const [i, s] of seats.entries()) reports.push(await report(s.page, s.name, moment, ms, cpu[i]!, recs[i]!, profiles[i] ?? null, trace, attribute));
       const dir = resolve(import.meta.dirname, '../.run/perf');
       mkdirSync(dir, { recursive: true });
       writeFileSync(resolve(dir, `${moment}.json`), JSON.stringify(reports, null, 1));
@@ -553,10 +570,11 @@ async function report(
   seat: string,
   moment: string,
   ms: number,
-  cpu: { workloadMs: number; factor: number },
+  cpu: CpuSpeed,
   rec: PageRecord,
   profile: Profile | null,
-  trace: TraceEvent[] | null,
+  trace: TraceEvent[],
+  attribute: boolean,
 ): Promise<SeatReport> {
   const frames = rec.frames;
   const worst = Math.max(0, ...frames.map((f) => f.ms));
@@ -704,9 +722,17 @@ async function report(
     });
   }
 
-  if (trace !== null) {
-    // This page's renderer and main thread: the ones its start mark was recorded on.
-    const markEv = trace.find((e) => e.name === 'TimeStamp' && (e.args?.data as { message?: string } | undefined)?.message === `perf-sync ${seat}`);
+  // This page's renderer and main thread: the ones its start mark was recorded on.
+  const markOf = (label: string): TraceEvent | undefined => trace.find((e) => e.name === 'TimeStamp' && (e.args?.data as { message?: string } | undefined)?.message === `perf-sync ${label}`);
+  const markEv = markOf(seat);
+  const endEv = markOf(`${seat} end`);
+  let longestTask: SeatReport['longestTask'] = null;
+  if (markEv !== undefined) {
+    const tasks = tasksOn(trace, markEv.pid, markEv.tid).filter((t) => t.startUs >= markEv.ts && (endEv === undefined || t.startUs < endEv.ts));
+    const longest = tasks.reduce<(typeof tasks)[number] | null>((a, t) => (a === null || t.cpuMs > a.cpuMs ? t : a), null);
+    if (longest !== null) longestTask = { cpuMs: Math.round(longest.cpuMs), wallMs: Math.round(longest.wallMs), norm: Math.round(longest.cpuMs / cpu.factor) };
+  }
+  if (attribute) {
     if (markEv !== undefined) {
       const me = { pid: markEv.pid };
       const offset = markEv.ts - rec.sync * 1000;
@@ -792,10 +818,10 @@ async function report(
       long: frames.length,
       over100: frames.filter((f) => f.ms > 100).length,
       worst: Math.round(worst),
-      worstNorm: Math.round(worst / cpu.factor),
       totalMs: Math.round(frames.reduce((a, f) => a + f.ms, 0)),
       blockingMs: Math.round(frames.reduce((a, f) => a + f.blocking, 0)),
     },
+    longestTask,
     raf: {
       ticks: rec.raf.length,
       skippedMs: Math.round(skipped),
@@ -855,7 +881,7 @@ async function report(
 export function logReports(reports: SeatReport[]): void {
   for (const r of reports) {
     console.log(
-      `[perf] ${r.moment} ${r.seat}: ${r.ms} ms; cpu ×${r.cpu.factor.toFixed(2)}; long frames ${r.frames.long} (>100: ${r.frames.over100}), worst ${r.frames.worst} ms (${r.frames.worstNorm} hokon-equivalent), ` +
+      `[perf] ${r.moment} ${r.seat}: ${r.ms} ms; ${describeCpu(r.cpu)}; longest task ${r.longestTask === null ? '?' : `${r.longestTask.cpuMs} ms cpu (${r.longestTask.wallMs} wall, ${r.longestTask.norm} hokon-equivalent)`}; long frames ${r.frames.long} (>100: ${r.frames.over100}), worst ${r.frames.worst} ms, ` +
         `rAF skipped ${r.raf.skippedMs} ms (worst gap ${r.raf.worstGapMs}); ${r.messages.count} messages (${r.messages.perMessageBusyMs ?? '?'} ms busy each, max ${r.messages.maxPerFrame} a frame); ` +
         `${r.react.commits} commits, ${r.react.renderedAvg} components each (max ${r.react.renderedMax}, ${r.react.sameProps}/${r.react.rendered} with equal props); mechanisms ${JSON.stringify(r.mechanisms)}`,
     );

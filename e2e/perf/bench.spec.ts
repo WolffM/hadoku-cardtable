@@ -3,14 +3,16 @@
  * seats), measured on both screens (`measure.ts`). One test per scenario; a scenario can hold two moments.
  *
  * What a run prints, per moment and screen (`[perf]` and `[perf-json]` lines; the JSON also lands in
- * `e2e/.run/perf/<moment>.json`): the worst long frame (and the same scaled to hokon's CPU, `cpu-speed.ts`),
+ * `e2e/.run/perf/<moment>.json`): the longest main-thread task on the thread's CPU clock (and the same scaled to
+ * hokon by the CPU speed sampled right before and right after the moment, `cpu-speed.ts`), the worst long frame,
  * the time the screen skipped, the messages and their cost, React's commits, and — on an attributed run,
  * the default — each long frame's time split by mechanism, the hottest sources inside them, and which
  * scripts forced style or layout. Each moment is also a `(clean)` test, measured without the profiler
  * and the trace (both cost time themselves), for the frame numbers: `-g "perf bench \(clean\)"`.
  *
- * It judges nothing unless `CARDTABLE_PERF_BUDGET_MS` is set: then every screen's worst frame, scaled to
- * hokon, must be within it. A fix proves itself by setting the budget its moment must meet.
+ * It judges nothing unless `CARDTABLE_PERF_BUDGET_MS` is set: then every screen's longest main-thread task, in CPU
+ * ms scaled to hokon, must be within it — both sides on one clock, so a runner's contention moves neither. A fix
+ * proves itself by setting the budget its moment must meet.
  *
  * Not in the full Forge run (`forge.yml` runs `e2e/*.spec.ts`): it is dispatched on purpose, e.g.
  * `-f specs='perf/bench.spec.ts -g worldfire'`, on a claw.
@@ -140,7 +142,10 @@ const cast = (t: Table, name: string, x?: number) => async () => castCard(t.alic
 
 function judge(reports: SeatReport[]): void {
   if (BUDGET === null) return;
-  for (const r of reports) expect(r.frames.worstNorm, `${r.moment} on ${r.seat}'s screen: worst frame, scaled to hokon's CPU`).toBeLessThanOrEqual(BUDGET);
+  for (const r of reports) {
+    expect(r.longestTask, `${r.moment} on ${r.seat}'s screen: the trace names its main thread`).not.toBeNull();
+    expect(r.longestTask!.norm, `${r.moment} on ${r.seat}'s screen: the longest main-thread task, CPU ms scaled to hokon`).toBeLessThanOrEqual(BUDGET);
+  }
 }
 
 for (const [mode, attribute] of [

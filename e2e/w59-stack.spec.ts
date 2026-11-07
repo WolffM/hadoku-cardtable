@@ -308,6 +308,13 @@ test(
  *
  * The stack drains top first, so the departures are bob's, alice's, bob's, alice's: on alice's screen
  * bob's are paced and hers are not, and on bob's the other way round.
+ *
+ * Which clock: each departure is stamped when its mutation is observed, and the gap is a LOWER bound, so a busy
+ * runner can only lengthen it. The pacer times the next of a chain from the frame after the departure before it
+ * was drawn (`pace.ts`, `nextFrame`), which is after that departure's mutation, so the drawn gap is never shorter
+ * than the pacer's. Until the pacer timed it from the delivery instead, a render that lagged its delivery on a
+ * loaded claw shortened the drawn gap by the lag (run 42077799193, claw-4: bob's last 133 ms against 143); since,
+ * every drawn gap has been at least the pacer's own (e.g. 181–196 ms against 171 for the last, run 42331722536 ×5).
  */
 test(
   titled('the chain reaction: a four-item stack drains one departure at a time, the other player’s spaced by the pacer’s chain gap'),

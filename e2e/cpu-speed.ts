@@ -11,6 +11,12 @@
  * did not get 200 ms slower. Read on the wall, the workload sampled a quiet moment and the frame a
  * busy one (or the other way round), and the two moved apart: claw-9 drew a 343 ms frame at a factor
  * of 2.5 while claw-4 drew 348 ms at 6.5. `mainThreadTasks` times a spec's own tasks on the same clock.
+ *
+ * And next to the work it scales, not once per run: a runner's load moves within a spec, so the workload is
+ * sampled right before the measured work and again right after it (`cpuSpeedAround`), and the factor is the
+ * two samples' mean. This module is the one place a perf spec gets its CPU speed and its tasks' CPU time; a
+ * timing claim judged by the page's own clock (an effect's gap, a decision's opening) excuses the page's long
+ * frames instead (`play/jank.ts`).
  * (CDP's CPU throttle is no stand-in for that load: the time it takes is counted as the thread's.)
  */
 import type { CDPSession, Page } from '@playwright/test';
@@ -55,17 +61,48 @@ export async function cpuWorkloadMs(page: Page): Promise<number> {
   return times.sort((a, b) => a - b)[2]!;
 }
 
-/** This machine's slowness against the reference host: the workload's median over the reference's, at least 1. */
-export async function cpuFactor(page: Page): Promise<{ factor: number; workloadMs: number }> {
-  const workloadMs = await cpuWorkloadMs(page);
-  return { factor: Math.max(1, workloadMs / REFERENCE_MS), workloadMs };
+/** This machine's slowness against the reference host, for one piece of work: the workload's samples either side of it. */
+export interface CpuSpeed {
+  /** The samples' mean over the reference's, at least 1. */
+  factor: number;
+  /** The samples' mean, thread-CPU ms. */
+  workloadMs: number;
+  /** Each sample (one median of five runs), in the order taken: before the work, then after it. */
+  samplesMs: number[];
 }
+
+/**
+ * The factor from the samples taken either side of the work it scales: their mean, against the reference. A runner's
+ * load changes over a spec (a shard's neighbour starts a JVM, a match ends), so one sample taken once per run, or long
+ * before the work, describes some other moment; two that bracket it bound the moment the work ran in.
+ */
+export function cpuSpeedOf(samplesMs: readonly number[]): CpuSpeed {
+  if (samplesMs.length === 0) throw new Error('a CPU speed needs at least one sample');
+  const workloadMs = samplesMs.reduce((a, b) => a + b, 0) / samplesMs.length;
+  return { factor: Math.max(1, workloadMs / REFERENCE_MS), workloadMs, samplesMs: [...samplesMs] };
+}
+
+/**
+ * Samples the workload now, right before the work it is to scale; `after()` samples it again right after, and returns
+ * the speed both describe (`cpuSpeedOf`). Neither sample may fall inside the measured window: each is a task of
+ * ~20–100 ms of its own.
+ */
+export async function cpuSpeedAround(page: Page): Promise<{ after: () => Promise<CpuSpeed> }> {
+  const before = await cpuWorkloadMs(page);
+  return { after: async () => cpuSpeedOf([before, await cpuWorkloadMs(page)]) };
+}
+
+/** The speed in a log line: `cpu workload 20.1 ms (19.4 before, 20.8 after; ×1.06 the reference)`. */
+export const describeCpu = (cpu: CpuSpeed): string =>
+  `cpu workload ${cpu.workloadMs.toFixed(1)} ms (${cpu.samplesMs.map((m) => m.toFixed(1)).join(' before, ')} after; ×${cpu.factor.toFixed(2)} the reference)`;
 
 /** What a task's CPU went on: each traced event's own time (less the events inside it), by kind. `other` is the task's own. */
 export type TaskPart = 'script' | 'style' | 'layout' | 'paint' | 'gc' | 'decode' | 'other';
 
 /** One task the page's renderer main thread ran: how long it took on the wall, and on the thread's CPU, and what that CPU went on. */
 export interface MainThreadTask {
+  /** When it started, on the trace's clock (µs). */
+  startUs: number;
   wallMs: number;
   cpuMs: number;
   parts: Record<TaskPart, number>;
@@ -82,7 +119,8 @@ function partOf(name: string): TaskPart | null {
   return null;
 }
 
-interface TraceEvent {
+/** A trace event, as much of it as these readers use. */
+export interface TraceEvent {
   name: string;
   ph: string;
   ts: number;
@@ -90,7 +128,7 @@ interface TraceEvent {
   tid: number;
   dur?: number;
   tdur?: number;
-  args?: { name?: string; data?: { frames?: { processId?: number; url?: string; parent?: string }[] } };
+  args?: { name?: string; data?: { frames?: { processId?: number; url?: string; parent?: string }[]; message?: string } };
 }
 
 /**
@@ -117,29 +155,37 @@ export async function mainThreadTasks(page: Page): Promise<() => Promise<MainThr
     if (pid === undefined) throw new Error(`the trace does not name the page's renderer: ${JSON.stringify(started?.args)}`);
     const main = events.find((e) => e.name === 'thread_name' && e.pid === pid && e.args?.name === 'CrRendererMain');
     if (main === undefined) throw new Error("the trace has no main thread for the page's renderer");
-    const own = events.filter((e) => e.ph === 'X' && e.pid === pid && e.tid === main.tid).sort((a, b) => a.ts - b.ts || (b.dur ?? 0) - (a.dur ?? 0));
-    const cpu = (e: TraceEvent): number => (e.tdur ?? e.dur ?? 0) / 1000;
-    const tasks: MainThreadTask[] = [];
-    own.forEach((task, at) => {
-      if (task.name !== 'ThreadControllerImpl::RunTask' || (task.dur ?? 0) < 1000) return;
-      const end = task.ts + (task.dur ?? 0);
-      const parts: Record<TaskPart, number> = { script: 0, style: 0, layout: 0, paint: 0, gc: 0, decode: 0, other: cpu(task) };
-      // The events inside the task, nested: each one's own time is its CPU less its children's, and goes to the
-      // nearest enclosing event with a kind (the task's `other` when none has).
-      const open: { end: number; part: TaskPart }[] = [{ end, part: 'other' }];
-      for (let i = at + 1; i < own.length && own[i]!.ts < end; i++) {
-        const e = own[i]!;
-        while (open.length > 1 && open[open.length - 1]!.end <= e.ts) open.pop();
-        const part = partOf(e.name) ?? open[open.length - 1]!.part;
-        const parent = open[open.length - 1]!.part;
-        if (part !== parent) {
-          parts[part] += cpu(e);
-          parts[parent] -= cpu(e);
-        }
-        open.push({ end: e.ts + (e.dur ?? 0), part });
-      }
-      tasks.push({ wallMs: (task.dur ?? 0) / 1000, cpuMs: cpu(task), parts });
-    });
-    return tasks;
+    return tasksOn(events, pid, main.tid);
   };
+}
+
+/**
+ * Every task of one thread in a trace recorded with the `toplevel` category (`mainThreadTasks`'s, or any other), with its
+ * thread-CPU time beside its wall time and what that time went on. Tasks under 1 ms are left out.
+ */
+export function tasksOn(events: readonly Pick<TraceEvent, 'name' | 'ph' | 'ts' | 'pid' | 'tid' | 'dur' | 'tdur'>[], pid: number, tid: number): MainThreadTask[] {
+  const own = events.filter((e) => e.ph === 'X' && e.pid === pid && e.tid === tid).sort((a, b) => a.ts - b.ts || (b.dur ?? 0) - (a.dur ?? 0));
+  const cpu = (e: Pick<TraceEvent, 'dur' | 'tdur'>): number => (e.tdur ?? e.dur ?? 0) / 1000;
+  const tasks: MainThreadTask[] = [];
+  own.forEach((task, at) => {
+    if (task.name !== 'ThreadControllerImpl::RunTask' || (task.dur ?? 0) < 1000) return;
+    const end = task.ts + (task.dur ?? 0);
+    const parts: Record<TaskPart, number> = { script: 0, style: 0, layout: 0, paint: 0, gc: 0, decode: 0, other: cpu(task) };
+    // The events inside the task, nested: each one's own time is its CPU less its children's, and goes to the
+    // nearest enclosing event with a kind (the task's `other` when none has).
+    const open: { end: number; part: TaskPart }[] = [{ end, part: 'other' }];
+    for (let i = at + 1; i < own.length && own[i]!.ts < end; i++) {
+      const e = own[i]!;
+      while (open.length > 1 && open[open.length - 1]!.end <= e.ts) open.pop();
+      const part = partOf(e.name) ?? open[open.length - 1]!.part;
+      const parent = open[open.length - 1]!.part;
+      if (part !== parent) {
+        parts[part] += cpu(e);
+        parts[parent] -= cpu(e);
+      }
+      open.push({ end: e.ts + (e.dur ?? 0), part });
+    }
+    tasks.push({ startUs: task.ts, wallMs: (task.dur ?? 0) / 1000, cpuMs: cpu(task), parts });
+  });
+  return tasks;
 }
