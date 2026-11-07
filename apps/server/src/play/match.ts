@@ -3279,7 +3279,8 @@ export class Match {
 		s.pendingButtons = null;
 		this.clearPendingTimer(s);
 		if (prompt === null && buttons === null) {
-			this.releaseOffer(s);
+			// Only an offer that waited: an ask between two inputs shows the next one nothing.
+			if (s.heldOffer !== null) this.releaseOffer(s);
 			return;
 		}
 		this.forwardUnpaired(s, prompt, buttons);
