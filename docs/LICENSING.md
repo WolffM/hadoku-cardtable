@@ -88,11 +88,41 @@ D20 records that as the package's death condition, along with the two others.
 The sibling `packages/room-store` is GPL-3.0-or-later precisely because it is
 ours and is not going upstream.
 
+### The licence split, going forward (D26, 2026-11-06)
+
+The paragraph above describes the repo as it stood through wave 90: GPL-3.0 everywhere, with
+`room-ask` as the one justified MIT carve-out. **D26 reverses which one is the default.** The
+operator's own words, asked how to make this repo a general tool for future games: *"we're not
+making any money with cardtable so i dont really give a shit what license it has. whatever is
+least restrictive."*
+
+- **MIT is the default for new platform code.** A package holding only generic, game-agnostic
+  code is MIT from the commit that creates it — no case-by-case justification, no clean-room
+  firewall, no waiting for an upstream destination to exist. D16's regime (one MIT file, argued for
+  on its own) was the exception; D26 makes it the common case.
+- **GPL-3.0-or-later stays wherever Forge requires it**: the `forge/` submodule itself, every file
+  the layer map classifies `magic`, `tangled` or `site`, and — because a package's licence is
+  declared once for the whole package — any package that still holds one such file. Today that is
+  `apps/server`, `apps/ui`, `apps/agent`, `packages/shared`, `forge-wire`, `carddata`, `deck` and
+  `draft`. A package becomes MIT only once *every* file inside it is `platform`.
+- **The record of which file is in which layer is `scripts/layers/layers.json`** (wave 91 §A):
+  four layers (`platform`, `magic`, `tangled`, `site`), kept honest by
+  `scripts/layers/ratchet.test.ts`, which runs in `pnpm run check` and fails the moment a
+  package's declared `license` field stops matching what the map says its files are. Read
+  `AGENTS.md`'s "Layer fence" paragraph for what that test checks and what to do when it fails.
+- **Relicensing is a physical move, not a relabel.** Reclassifying a file `platform` in the map
+  does not change its licence by itself — a package's `package.json` only flips to MIT once the
+  file actually lives inside an all-platform package, same as `room-ask` did under D16 before D26
+  existed to generalise the pattern. `packages/room-store` is the worked example in flight: the map
+  calls its three remaining files `platform`, its `package.json` still says GPL-3.0-or-later, and
+  the gap is named rather than silently allowed — `baseline.json`'s `pendingLicence` list carries
+  `room-store` until the relicense commit lands (wave 91 §B), and that list may only shrink.
+
 ### Checklist
 
 - [x] `LICENSE` = GPL-3.0 at repo root
-- [x] Exactly one MIT carve-out (`packages/room-ask`, D16), with its own
-      `LICENSE` and SPDX header, and no Forge reference in it
+- [x] D26: MIT is the default for new platform code; GPL stays wherever Forge requires it
+      (`scripts/layers/layers.json` is the record; `scripts/layers/ratchet.test.ts` enforces it)
 - [x] `NOTICE.md` credits Forge and links upstream
 - [ ] Don't strip or rewrite Forge's per-file copyright headers
 - [ ] Keep our Forge changes on a branch that can be published as-is

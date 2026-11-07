@@ -11,8 +11,20 @@ Magic: The Gathering.
 
 Forge's source is included as a git submodule at `forge/`, pointing at the
 public fork <https://github.com/WolffM/forge>. Its per-file copyright headers
-are preserved unmodified. This repository as a whole is distributed under GPL-3.0;
-see `LICENSE`.
+are preserved unmodified.
+
+### Licence: a split, not one blanket licence
+
+`LICENSE` at the repo root is the GPL-3.0 text, and it covers most of this tree: `forge/` itself
+and everything that touches it — the game engine, the Magic-specific server and UI code, the
+packages that carry Magic card data and the composition roots that wire it all together. That used
+to be the whole repo, with one documented exception (`packages/room-ask`).
+
+**As of 2026-11-06 (D26, `docs/DECISIONS.md`)**, MIT is the default for any new code that holds no
+Magic-specific content: a package is MIT only once every file inside it is generic enough to carry
+no GPL obligation, and `scripts/layers/layers.json` is the record of which file that is true for.
+A package's own `package.json` states its actual licence — check that file, not this one, for
+what licence a specific package carries today. `docs/LICENSING.md` has the full reasoning.
 
 ## Wizards of the Coast
 

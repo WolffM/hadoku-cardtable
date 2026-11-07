@@ -470,6 +470,10 @@ by Wizards of the Coast."*
 
 ## D16 — `@hadoku/room-ask` is MIT inside a GPL repo · settled · 2026-09-16 · operator
 
+> **Amended 2026-11-06 by D26:** `room-ask` was the one MIT carve-out, justified case by case; D26
+> makes MIT the *default* for new platform code instead. Read D26 before citing this one as the
+> live regime.
+
 **Amends D2.** D2's "rules out" line reads *"an MIT room layer living in this
 repo (see D11)"*. `packages/room-ask` is exactly that, and it stays. D2's
 mechanism — Forge vendored, whole repo GPL-3.0-or-later — is unchanged;
@@ -875,3 +879,36 @@ the two things D23 removed. The launch itself: the trailer goes to unlisted
 YouTube and Discord; the launch is announced in friends' Discords, in large
 MTG/cube communities and on the hadoku.me homepage. `LICENSING.md` §2 "Going
 public" has what that changes and what each channel needs.
+
+## D26 — MIT by default; GPL only where Forge requires it · settled · 2026-11-06 · operator
+
+The operator, asked how to make this repo a general tool for future games, on licensing: *"i dont
+understand much about how licenses work, we're not making any money with cardtable so i dont
+really give a shit what license it has. whatever is least restrictive."*
+
+- **New platform packages are MIT from creation.** A package born after this decision, holding
+  only generic (non-Magic) code, is MIT on its first commit — no transitional period, no later
+  relicense.
+- **Existing code is relicensed when it moves into a package whose files are all platform.** A
+  file does not change licence by being reclassified in the layer map alone; it changes when it
+  physically moves into a package where every file is `platform` (`scripts/layers/layers.json`),
+  the same gate `scripts/layers/ratchet.test.ts` checks for every `apps/*` and `packages/*`
+  `package.json`. `packages/room-ask` did this once already, under D16, before this decision
+  existed to generalise it.
+- **GPL stays on `forge/`, on Magic-layer files, and on any package that still holds one.** Today
+  those are `apps/server`, `apps/ui`, `apps/agent`, `packages/shared`, `forge-wire`, `carddata`,
+  `deck` and `draft` — every one of them carries at least one file the layer map classifies
+  `magic`, `tangled` or `site`, so the package stays GPL-3.0-or-later as a whole.
+- **This amends D16.** D16's `room-ask` was the one MIT carve-out in an otherwise all-GPL repo,
+  justified file by file. D26 makes MIT the *default* for new platform code instead — the carve-out
+  logic becomes the common case, not the exception. A one-line pointer is added under D16 itself.
+
+**The record of which file is in which layer** is `scripts/layers/layers.json` (wave 91 §A), kept
+honest by `scripts/layers/ratchet.test.ts`: a package's declared licence must match what its files
+are, or it fails `pnpm run check`. `docs/LICENSING.md` carries the short version of this split;
+read it for the mechanics, not this entry.
+
+**Rules out:** treating MIT as a carve-out that needs its own justification each time (D16's
+regime); and inferring a file's current licence from the layer map alone — the map records layer,
+`package.json`'s `license` field is what a consumer actually reads, and the two are kept in sync by
+the ratchet, not by assumption.

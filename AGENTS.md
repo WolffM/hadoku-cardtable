@@ -67,8 +67,10 @@ before planning cross-game work.
   drafting". Friend-only features (the music review, admin writes) check their
   own tier rather than lean on the floor; making rooms, events and matches is
   rate limited per caller (`perCallerLimit`). `docs/LICENSING.md` §2 has D24.
-- **GPL-3.0-or-later** applies to this whole repo (we vendored Forge). Don't
-  strip Forge's per-file copyright headers.
+- **The licence is split, not one blanket GPL.** `forge/` and everything that touches Magic stay
+  GPL-3.0-or-later; new platform code (no card kit, no Forge content) is MIT by default (D26,
+  2026-11-06, amending D16). Don't strip Forge's per-file copyright headers, and don't relicense a
+  package by editing its `package.json` alone — `docs/LICENSING.md` has the mechanics.
 - **No `.env`.** Secrets come from the vault broker through the PM2 wrapper. The
   app holds two: its stats service key and ArchiveBot's webhook secret
   (`ARCHIVEBOT_CARDTABLE_WEBHOOK_SECRET`, prod only, for release notes). Never add one
