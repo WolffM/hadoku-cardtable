@@ -6,6 +6,8 @@
  * the service could not answer for — no service, a failure, a timeout, no
  * rated card, or a card that has since left the pack — takes the heuristic's
  * pick (`@hadoku/draft`'s `botTurn`), which is what every bot did before this.
+ * A seat that was not asked at all, because its pack reached it while the
+ * service was answering, is held for one turn instead: the next turn asks.
  *
  * `Draftbot` is the seam: `httpDraftbot` is one plain service for local runs
  * (`CARDTABLE_DRAFTBOT_URL`); production passes its own to `attachDraftSocket`.
@@ -59,9 +61,9 @@ export function httpDraftbot(baseUrl: string, token?: string): Draftbot {
 	};
 }
 
-/** Where one bot pick came from: the draftbot, or the heuristic and why. */
-export type DraftbotOutcome = 'served' | 'unset' | 'timeout' | 'error' | 'unrated' | 'stale';
-export const DRAFTBOT_OUTCOMES: readonly DraftbotOutcome[] = ['served', 'unset', 'timeout', 'error', 'unrated', 'stale'];
+/** Where one bot pick came from: the draftbot, the heuristic and why, or held for the next turn's ask. */
+export type DraftbotOutcome = 'served' | 'held' | 'unset' | 'timeout' | 'error' | 'unrated' | 'stale';
+export const DRAFTBOT_OUTCOMES: readonly DraftbotOutcome[] = ['served', 'held', 'unset', 'timeout', 'error', 'unrated', 'stale'];
 
 /** The answer for one bot turn: ratings per bot seat asked, or why there are none. */
 export type DraftbotAnswer =
@@ -108,15 +110,18 @@ export async function askDraftbot(draftbot: Draftbot, state: DraftState, signal:
 /**
  * The card each bot seat takes from the draftbot's answer, against the draft as
  * it is NOW — the answer may be older than the state. A seat gets a card only if
- * the top-rated card is still in its pack; every owing seat `modelSeats` names
- * gets an outcome, and the others are the heuristic's without one.
+ * the top-rated card is still in its pack. A seat the answer does not cover —
+ * its pack arrived after the ask — is `held`, for the next turn's ask. Every
+ * owing seat `modelSeats` names gets an outcome; the others are the
+ * heuristic's without one.
  */
 export function chooseByRatings(
 	state: DraftState,
 	answer: DraftbotAnswer,
 	modelSeats: ModelSeats = EVERY_SEAT,
-): { chosen: Map<SeatId, string>; outcomes: DraftbotOutcome[] } {
+): { chosen: Map<SeatId, string>; held: Set<SeatId>; outcomes: DraftbotOutcome[] } {
 	const chosen = new Map<SeatId, string>();
+	const held = new Set<SeatId>();
 	const outcomes: DraftbotOutcome[] = [];
 	for (const seat of owingBots(state, modelSeats)) {
 		if ('failed' in answer) {
@@ -125,7 +130,8 @@ export function chooseByRatings(
 		}
 		const rated = answer.ratings.get(seat);
 		if (rated === undefined) {
-			outcomes.push('stale');
+			held.add(seat);
+			outcomes.push('held');
 			continue;
 		}
 		const top = rated.reduce<DraftbotRatings[number][number] | null>((best, r) => (best === null || r.rating > best.rating ? r : best), null);
@@ -141,7 +147,7 @@ export function chooseByRatings(
 		chosen.set(seat, card.cardId);
 		outcomes.push('served');
 	}
-	return { chosen, outcomes };
+	return { chosen, held, outcomes };
 }
 
 /**

@@ -151,14 +151,16 @@ const defaultBotLog: BotLog = (entry) => console.error(JSON.stringify(entry));
  *
  * `chosen` is a card id per bot seat picked by something else (the server's
  * draftbot); a seat it does not name, or names a card its pack no longer
- * holds, takes the heuristic's pick.
+ * holds, takes the heuristic's pick. A seat in `held` sits this turn out: the
+ * draftbot was not asked about it yet, and the next turn asks.
  */
 export function botTurn(
   state: DraftState,
   log: BotLog = defaultBotLog,
   chosen: ReadonlyMap<SeatId, string> = new Map(),
+  held: ReadonlySet<SeatId> = new Set(),
 ): { state: DraftState; picks: number; stalled: boolean } {
-  const owing = waitingOn(state).filter((s) => isBotSeat(state, s));
+  const owing = waitingOn(state).filter((s) => isBotSeat(state, s) && !held.has(s));
   let current = state;
   let picks = 0;
   for (const seatId of owing) {

@@ -84,6 +84,18 @@ describe('botTurn — one pick per bot, so a pod is paced rather than drained', 
     expect(turn.picks).toBe(3);
     expect(turn.state.pools.map((p) => p[0]?.cardId)).toEqual([other, heuristic[1], heuristic[2]]);
   });
+
+  it('a held seat sits the turn out, and a turn where every owing seat is held is not a stall', () => {
+    const packs = [Array.from({ length: 3 }, (_, seat) => Array.from({ length: 3 }, (_, k) => card(`p${seat}-${k}`)))];
+    const state = createDraft({ draftId: 'h', seed: 'h', packs, seatCount: 3, packCount: 1, packSize: 3, humans: [] });
+    const log = vi.fn();
+    const turn = botTurn(state, log, new Map(), new Set([1]));
+    expect(turn.picks).toBe(2);
+    expect(turn.state.pools.map((p) => p.length)).toEqual([1, 0, 1]);
+    const all = botTurn(state, log, new Map(), new Set([0, 1, 2]));
+    expect(all).toMatchObject({ picks: 0, stalled: false });
+    expect(log).not.toHaveBeenCalled();
+  });
 });
 
 

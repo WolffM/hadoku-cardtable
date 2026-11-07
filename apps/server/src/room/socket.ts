@@ -330,9 +330,9 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 			// Found again: the room may have been forgotten while the turn waited.
 			const current = deps.rooms?.find(draftId);
 			if (current === undefined) return;
-			const { chosen, outcomes } = chooseByRatings(stateOf(current), answer, modelSeats);
+			const { chosen, held, outcomes } = chooseByRatings(stateOf(current), answer, modelSeats);
 			tally.record(answer, outcomes);
-			const turn = botTurn(stateOf(current), (entry) => log(entry), chosen);
+			const turn = botTurn(stateOf(current), (entry) => log(entry), chosen, held);
 			if (turn.picks > 0) {
 				current.app.state = turn.state;
 				log({ evt: 'bot-picks', draftId, picks: turn.picks, seq: turn.state.seq });

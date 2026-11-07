@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { describe, expect, it, vi } from 'vitest';
 import type { DraftCard } from '@hadoku/shared';
-import { createDraft, pick } from '@hadoku/draft';
+import { createDraft } from '@hadoku/draft';
 
 import { askDraftbot, chooseByRatings, draftbotTally, httpDraftbot, ODD_SEATS, type Draftbot } from './draftbot.ts';
 
@@ -69,14 +69,18 @@ describe('askDraftbot', () => {
 		expect(chooseByRatings(state, await late).outcomes).toEqual(['timeout', 'timeout', 'timeout']);
 	});
 
-	it('an answer older than the draft: a top card gone from the pack, or a seat not asked, is stale', async () => {
+	it('a seat the answer does not cover is held for the next ask; a top card gone from the pack is stale', async () => {
 		const state = draft();
 		const answer = { ratings: new Map([[0, [{ oracle: 'o0-0', rating: 1 }]]]) };
-		const moved = pick(state, 0, 'p0-0');
-		if (!moved.ok) throw new Error('pick refused');
-		// Seat 0 took its top card and holds seat 2's pack now; seat 1 was never asked.
-		expect(chooseByRatings(state, answer).outcomes).toEqual(['served', 'stale', 'stale']);
-		expect(chooseByRatings(moved.state, answer).chosen.size).toBe(0);
+		// Seats 1 and 2 were never asked: their packs reached them after the ask.
+		const now = chooseByRatings(state, answer);
+		expect(now.outcomes).toEqual(['served', 'held', 'held']);
+		expect([...now.held]).toEqual([1, 2]);
+		// Seat 0's top-rated card is one its pack does not hold.
+		const gone = chooseByRatings(state, { ratings: new Map([[0, [{ oracle: 'o1-0', rating: 1 }]], [1, []], [2, []]]) });
+		expect(gone.chosen.size).toBe(0);
+		expect(gone.outcomes).toEqual(['stale', 'unrated', 'unrated']);
+		expect(gone.held.size).toBe(0);
 	});
 });
 
@@ -87,7 +91,7 @@ describe('draftbotTally', () => {
 		for (let turn = 0; turn < 3; turn++) tally.record({ failed: 'timeout' }, ['timeout', 'timeout']);
 		tally.record({ ratings: new Map() }, ['served', 'unrated']);
 		tally.record({ failed: 'unset' }, ['unset']);
-		expect(tally.drain()).toEqual({ served: 1, unset: 1, timeout: 6, error: 0, unrated: 1, stale: 0 });
+		expect(tally.drain()).toEqual({ served: 1, held: 0, unset: 1, timeout: 6, error: 0, unrated: 1, stale: 0 });
 		expect(tally.drain().timeout).toBe(0);
 		expect(log.mock.calls.map(([l]) => l.evt)).toEqual(['draftbot-failing', 'draftbot-recovered']);
 		expect(log.mock.calls[1]![0].failedTurns).toBe(3);

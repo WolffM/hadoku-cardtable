@@ -848,6 +848,30 @@ describe('bots on the clock with a draftbot', () => {
 		expect(lines().filter((l) => l.evt === 'draftbot-failing')).toHaveLength(1);
 	});
 
+	it('a bot handed a pack while the draftbot answers is held a turn and then gets the draftbot\'s pick, never the heuristic\'s', async () => {
+		await harness?.close();
+		harness = await boot({ botPickMs: 150, draftbot: { batchDraft: async (inputs) => reverseRatings(inputs) } });
+		const alice = await connect(live().port, edgeHeaders('alice'));
+		await joinAndSettle(alice);
+		const opening = lastView(alice);
+		if (opening?.viewer.kind !== 'seat') throw new Error('alice should be seated');
+		await waitUntil(() => lines().some((l) => l.evt === 'bot-picks'), 'the first bot turn');
+		// The bot alice passes to holds nothing now; her pick reaches it inside the next turn's wait.
+		alice.send(pickCard(startedRoomId, opening.viewer.pack[0]!.cardId));
+		const passed = opening.viewer.pack.slice(1).map((c) => c.cardId);
+		const receiver = (): number | undefined =>
+			botSeats().find((seat) => roomsMod.stateOf(room()).pools[seat]!.some((c) => passed.includes(c.cardId)));
+		await waitUntil(() => receiver() !== undefined, "a bot's pick from alice's pack", 10_000);
+		const taken = roomsMod.stateOf(room()).pools[receiver()!]!.find((c) => passed.includes(c.cardId));
+		// Rated in reverse, so the draftbot's pick is the pack's last card.
+		expect(taken?.cardId).toBe(passed.at(-1));
+		const picks = live().draftbotPicks();
+		expect(picks.held).toBeGreaterThanOrEqual(1);
+		expect(picks.stale).toBe(0);
+		const botPicks = lines().filter((l) => l.evt === 'bot-picks').reduce((n, l) => n + Number(l.picks), 0);
+		expect(picks.served).toBe(botPicks);
+	});
+
 	it('a room forgotten while the draftbot answers is left alone', async () => {
 		await harness?.close();
 		let answered = false;
