@@ -18,7 +18,7 @@ export interface HandFrame {
   card: { x: number; y: number; w: number } | null;
   lifted: string | null;
   scrollLeft: number;
-  /** Every hand card's left edge in the lane's own content, by id, the watched card left out while it is lifted. */
+  /** Every hand card's left edge in the lane's own content, by id, the watched card left out while it is lifted; `gap` the slot it holds. */
   content: Record<string, number>;
   /** Every hand card's top, by id, the watched card left out while it is lifted. */
   tops: Record<string, number>;
@@ -45,6 +45,8 @@ export async function startHandFrames(page: Page, cardId: number | null): Promis
       const scrollLeft = lane?.scrollLeft ?? 0;
       const content: Record<string, number> = {};
       const tops: Record<string, number> = {};
+      const gap = lane?.querySelector<HTMLElement>(':scope > li[data-hand-gap]') ?? null;
+      if (gap !== null) content.gap = Math.round((gap.getBoundingClientRect().left - laneLeft + scrollLeft) * 10) / 10;
       for (const li of lane?.querySelectorAll<HTMLElement>(':scope > li.board-card') ?? []) {
         const key = li.getAttribute('data-board-card') ?? '';
         if (li.hasAttribute('data-cast-lift')) continue;
@@ -109,11 +111,24 @@ export function worstJump(frames: readonly HandFrame[]): { px: number; at: numbe
   return worst;
 }
 
-/** The most any card that stayed in the hand moved within the lane's content between two frames: a re-layout, never a scroll. */
+/** The hand's order in one frame: its cards' ids, and the slot a lifted card holds, by where they sit. */
+const orderOf = (f: HandFrame): string =>
+  Object.entries(f.content)
+    .sort((x, y) => x[1] - y[1])
+    .map(([id]) => id)
+    .join(',');
+
+/**
+ * The most any card that stayed in the hand moved within the lane's content between two frames: a
+ * re-layout, never a scroll. The frame a reorder commits its new order is left out: this recorder's
+ * frame callback runs before the reorder's own, so it reads the new order before the slide that
+ * carries each card there from where it was is applied, which is never what is painted.
+ */
 export function worstShift(frames: readonly HandFrame[]): { px: number; at: number; id: string } {
   let worst = { px: 0, at: -1, id: '' };
   for (let i = 1; i < frames.length; i += 1) {
     const [a, b] = [frames[i - 1]!, frames[i]!];
+    if (orderOf(a) !== orderOf(b)) continue;
     for (const [id, x] of Object.entries(b.content)) {
       const was = a.content[id];
       if (was === undefined) continue;
