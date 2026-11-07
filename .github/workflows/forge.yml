@@ -136,8 +136,13 @@ on:
 # A manual dispatch is somebody's proof run (a verify branch, the fleet's
 # canary): it never queues behind a push's full run, nor the push behind it —
 # each dispatch is its own group.
+# A scheduled run is its own group too. GitHub delivers the crons hours late, and
+# in the push group a late one waits behind a running push run until the next
+# push replaces it: the 11-06 nightly arrived at 17:03Z and was cancelled at
+# 17:10 with no job run (42258029026), so no nightly monkey ran after 11-05.
+# The `changes` job already keeps two scheduled runs off one sha.
 concurrency:
-  group: ${{ github.event_name == 'workflow_dispatch' && format('forge-dispatch-{0}', github.run_id) || format('forge-{0}', github.ref) }}
+  group: ${{ github.event_name == 'workflow_dispatch' && format('forge-dispatch-{0}', github.run_id) || github.event_name == 'schedule' && format('forge-schedule-{0}', github.run_id) || format('forge-{0}', github.ref) }}
   cancel-in-progress: false
 
 permissions:
@@ -963,9 +968,6 @@ jobs:
           test -d "$CARDTABLE_FORGE_RES/cardsfolder" || { echo "::error::CARDTABLE_FORGE_RES has no cardsfolder: $CARDTABLE_FORGE_RES"; exit 1; }
 
       - name: Monkey — play every (or a sample of) library deck's matches
-        env:
-          CARDTABLE_MONKEY_EDGE_PORT: '19228'
-          CARDTABLE_MONKEY_SERVER_PORT: '19328'
         run: |
           echo "host at start: $(uptime)"; free -m | sed -n 2p
           args=()
