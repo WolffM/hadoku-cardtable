@@ -6446,7 +6446,10 @@ public final class PlayBridge {
                 final Object[] entry = it.next();
                 if (method.equals(entry[0]) && (int) entry[1] == id) {
                     it.remove();
-                    if ((int) entry[2] == match.inputId(before)) { return false; }
+                    final int open = match.inputId(before);
+                    if ((int) entry[2] == open) { return false; }
+                    System.err.println("[bridge] seat " + seat + " " + method + " " + id + " made on input " + entry[2] + ", open input " + open
+                            + (before == null ? " (none)" : " (" + before.getClass().getSimpleName() + ")") + ": dropped");
                     dropped(match, seat, method, id, "made on an input Forge has moved past");
                     return true;
                 }

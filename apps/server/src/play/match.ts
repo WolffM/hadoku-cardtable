@@ -2884,7 +2884,7 @@ export class Match {
 				return;
 			case 'frame':
 				if (line.input !== undefined && typeof line.frame === 'object' && line.frame !== null) this.inputOfRaw.set(line.frame, line.input);
-				if (TRACE_FRAMES) this.deps.log({ evt: 'forge-frame', matchId: this.id, seat: line.seat, ...frameGist(line.frame) });
+				if (TRACE_FRAMES) this.deps.log({ evt: 'forge-frame', matchId: this.id, seat: line.seat, ...frameGist(line.frame), ...(line.input === undefined ? {} : { input: line.input }) });
 				if (answersAnInput(line.frame)) {
 					const answered = this.seats[line.seat];
 					if (answered !== undefined) this.endClick(answered, 'answered', line.frame);

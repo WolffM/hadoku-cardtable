@@ -1251,12 +1251,27 @@ describe('an act names the input of the window it was made on (#40)', () => {
     expect(sentEnvelopes(s)[0]).toMatchObject({ frame: { method: 'selectCard' }, input: 41 });
   });
 
-  it('a window the server named no input for leaves the last one standing', async () => {
+  it('a window frame the server named no input for leaves none: the next act names none', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const target = m.stats.applied + 4;
+    s.send(prompt('Priority'), 41);
+    s.send(prompt('Priority'));
+    s.send(bar(true));
+    s.send(actionable([mine[0]!]));
+    await until('the window', () => m.stats.applied >= target);
+    expect(m.inputId).toBeNull();
+    expect(selectCard(m, mine[0]!)).toBe(true);
+    await until('the click at the server', () => sentEnvelopes(s).length === 1);
+    expect(sentEnvelopes(s)[0]).not.toHaveProperty('input');
+  });
+
+  it('a state frame between windows leaves the window’s input standing', async () => {
     const { s, m } = await fullGame();
     const target = m.stats.applied + 2;
     s.send(prompt('Priority'), 41);
-    s.send(bar(true));
-    await until('the window', () => m.stats.applied >= target);
+    s.send(clearActionable());
+    await until('the frames', () => m.stats.applied >= target);
     expect(m.inputId).toBe(41);
   });
 });

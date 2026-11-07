@@ -1207,6 +1207,9 @@ function send(match: LiveMatch, frame: ClientEnvelope['frame'], placement?: Plac
   match.transport.emit(MATCH_EVENTS.clientToServer, envelope);
 }
 
+/** The frames that show this seat a window: the ones whose input an act made on the window names. */
+const WINDOW_FRAMES: ReadonlySet<string> = new Set(['showPromptMessage', 'updateButtons', 'setSelectables', 'setWeaklySelectable']);
+
 /** The acts an input of Forge's takes: the ones that name the input they were made on. */
 const INPUT_ACTS: ReadonlySet<string> = new Set(['selectCard', 'selectPlayer', 'selectButtonOk', 'selectButtonCancel']);
 
@@ -3676,8 +3679,10 @@ function ingestNow(match: LiveMatch, raw: unknown): void {
     for (const h of chain) {
       if (h.displayOnly) showReveal(match, h.frame, h.forceNotice);
       else {
-        // The window now drawn is this input's: what an act made on it names.
-        if (h.input !== undefined) match.inputId = h.input;
+        // The window now drawn is this input's: what an act made on it names. A window frame the
+        // server named no input for leaves none: an act on it names none and is judged as Forge
+        // judges it, never as made on the window before.
+        if (WINDOW_FRAMES.has(h.frame.method)) match.inputId = h.input ?? null;
         applyFrame(match, h.frame);
       }
     }
