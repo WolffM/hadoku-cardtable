@@ -9,9 +9,11 @@
  * skeleton is dropped; going false again (a Retry) brings the skeleton back.
  *
  * `data-reveal` names the box and `data-phase` says where it is, for `e2e/front-skeleton.spec.ts`.
+ * `onShown` hears when the crossfade has finished (and when the skeleton comes back): work that must
+ * wait until the box is shown waits on this, never on a timer of its own the same length as the fade.
  */
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import './reveal.css';
 
@@ -32,10 +34,17 @@ export interface RevealProps {
   className?: string;
   /** Classes for each of the two layers (how each lays out what it holds), so both lay out alike. */
   layerClassName?: string;
+  /** Told, after the box is drawn that way, whether it is shown: true once the crossfade is done. */
+  onShown?: (shown: boolean) => void;
 }
 
-export function Reveal({ shown, skeleton, children, name, className, layerClassName }: RevealProps) {
+export function Reveal({ shown, skeleton, children, name, className, layerClassName, onShown }: RevealProps) {
   const [phase, setPhase] = useState<Phase>(shown ? 'shown' : 'waiting');
+  const told = useRef(onShown);
+  told.current = onShown;
+  useEffect(() => {
+    told.current?.(phase === 'shown');
+  }, [phase]);
   useEffect(() => {
     if (!shown) {
       setPhase('waiting');

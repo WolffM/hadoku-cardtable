@@ -27,8 +27,8 @@ const SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="488" height="680"><r
 interface Run {
   page: Page;
   context: BrowserContext;
-  /** Wall clock of every art request, as the test's route saw it. */
-  asked: Array<{ url: string; at: number }>;
+  /** Every art request, as the test's route saw it (when each was asked is the page's own timing). */
+  asked: string[];
 }
 
 async function open(browser: Browser, saveData: boolean): Promise<Run> {
@@ -37,7 +37,7 @@ async function open(browser: Browser, saveData: boolean): Promise<Run> {
   await keepPrefsLocal(context, EDGE_ORIGIN);
   const asked: Run['asked'] = [];
   await context.route(ART_ROUTE, async (route) => {
-    asked.push({ url: route.request().url(), at: Date.now() });
+    asked.push(route.request().url());
     await new Promise((done) => setTimeout(done, ART_DELAY_MS));
     await route.fulfill({ contentType: 'image/svg+xml', body: SVG });
   });
@@ -45,17 +45,18 @@ async function open(browser: Browser, saveData: boolean): Promise<Run> {
     // The wildcard opens on its last kind (the bare Discord invite here), so the cube page is one turn away.
     Math.random = () => 0.999;
     if (saveData) Object.defineProperty(navigator, 'connection', { value: { saveData: true, effectiveType: '4g' }, configurable: true });
+    // The moment the last box turns shown, on the page's own clock (`performance.now()`, the clock its
+    // resource timings use): a mutation record is delivered at the end of the task that made it.
     const w = window as unknown as { __shownAt: number | null };
     w.__shownAt = null;
-    const watch = (): void => {
-      const reveals = document.querySelectorAll('[data-reveal]');
-      if (reveals.length > 0 && document.querySelectorAll('[data-reveal]:not([data-phase="shown"])').length === 0) {
-        w.__shownAt = Date.now();
-        return;
-      }
-      requestAnimationFrame(watch);
-    };
-    requestAnimationFrame(watch);
+    const allShown = (): boolean =>
+      document.querySelectorAll('[data-reveal]').length > 0 && document.querySelectorAll('[data-reveal]:not([data-phase="shown"])').length === 0;
+    const watch = new MutationObserver(() => {
+      if (w.__shownAt !== null || !allShown()) return;
+      w.__shownAt = performance.now();
+      watch.disconnect();
+    });
+    watch.observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-phase'] });
   }, saveData);
   const page = await context.newPage();
   await page.goto(`${EDGE_ORIGIN}${PREFIX}/`);
@@ -105,8 +106,17 @@ test('the wildcard warms its other pages’ art after the page shows, and the cu
   // Before anyone turns a page: the cube's art is asked for, and only once the page has shown itself.
   await expect.poll(() => asked.length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
   await page.waitForTimeout(ART_DELAY_MS + 500);
-  const early = asked.filter((a) => a.at < shownAt);
-  console.log(`[gallery-preload] ${asked.length} pictures asked for before any turn; ${early.length} of them before the page showed (${JSON.stringify(early.map((a) => `${a.at - shownAt}ms`))})`);
+  // When each picture was asked for, by the page's own resource timing — the clock `shownAt` is on.
+  const started = await page.evaluate(() =>
+    performance
+      .getEntriesByType('resource')
+      .filter((e) => /\/api\/art\//.test(e.name))
+      .map((e) => e.startTime),
+  );
+  // An entry lands when its picture has arrived, so one asked in the last moment may not be timed yet.
+  expect(started.length, 'the page timed the art it asked for').toBeGreaterThanOrEqual(1);
+  const early = started.filter((at) => at < shownAt);
+  console.log(`[gallery-preload] ${started.length} pictures asked for before any turn; ${early.length} of them before the page showed (${JSON.stringify(early.map((at) => `${Math.round(at - shownAt)}ms`))})`);
   expect(early, 'no off-screen art may compete with the first paint').toEqual([]);
 
   const turned = await turnToCube(page);

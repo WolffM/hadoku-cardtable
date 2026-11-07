@@ -39,7 +39,7 @@ import { DiscordRecentSchema, type DiscordMessage } from '@hadoku/shared';
 import { apiUrl, bodyOf, getJson } from '../http.ts';
 import { DISCORD_INVITE_URL } from '../chrome/HeaderLinks.tsx';
 import { coverCropStyle, ILLUSTRATION_BOX } from '../components/faceCrop.ts';
-import { Reveal, REVEAL_MS } from '../components/Reveal.tsx';
+import { Reveal } from '../components/Reveal.tsx';
 import { cardImageUrl, warmArt } from '../draft/cardImage.ts';
 import { useArtLoaded } from '../draft/useArtLoaded.ts';
 import { onRoomList, poolsClient, roomsClient } from '../rooms/api.ts';
@@ -257,16 +257,15 @@ export function WildcardCard() {
   const openingArt = useArtLoaded(pages.length > 0 ? (pages[0]!.arts ?? []) : null);
   const shown = usePartShown('wildcard', pages.length > 0 && openingArt);
   const otherPictures = pages.slice(1).flatMap(picturesOf).slice(0, PRELOAD_MAX).join(' ');
+  // After the crossfade, as the Reveal itself says: the page has settled before anything it does not show is fetched.
+  const [faded, setFaded] = useState(false);
   useEffect(() => {
-    if (!shown || otherPictures === '' || savingData()) return undefined;
-    // After the crossfade: the page has settled before anything it does not show is fetched.
-    const settled = setTimeout(() => warmArt(otherPictures.split(' ')), REVEAL_MS);
-    return () => clearTimeout(settled);
-  }, [shown, otherPictures]);
+    if (faded && otherPictures !== '' && !savingData()) warmArt(otherPictures.split(' '));
+  }, [faded, otherPictures]);
 
   return (
     <section className="front-card front-card--wildcard" data-testid="front-wildcard">
-      <Reveal name="wildcard" shown={shown} skeleton={<WildcardSkeleton />} className="front-card__body" layerClassName="front-card__layer">
+      <Reveal name="wildcard" shown={shown} onShown={setFaded} skeleton={<WildcardSkeleton />} className="front-card__body" layerClassName="front-card__layer">
         <Gallery testId="front-wildcard" pages={pages.map((item) => ({ key: item.key, title: item.kind, body: <WildcardBody item={item} error={errors[item.key] ?? null} />, action: <WildcardAction item={item} onError={(m) => setError(item.key, m)} /> }))} />
       </Reveal>
     </section>
