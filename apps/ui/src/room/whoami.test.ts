@@ -7,10 +7,10 @@ describe('tierOfWhoami', () => {
     expect(tierOfWhoami({ userType: 'member', verified: true })).toBe('friend');
   });
 
-  it('leaves a plain member a member, and every other tier as the fleet said', () => {
+  it('leaves a plain member a member, and with the flag promotes nobody but a member', () => {
     expect(tierOfWhoami({ userType: 'member' })).toBe('member');
-    for (const userType of ['public', 'friend', 'service', 'wife', 'admin'] as const) {
-      expect(tierOfWhoami({ userType, verified: true })).toBe(userType);
+    for (const userType of ['public', 'member', 'friend', 'service', 'wife', 'admin'] as const) {
+      expect(tierOfWhoami({ userType, verified: true }), userType).toBe(userType === 'member' ? 'friend' : userType);
     }
   });
 });

@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
 import { CONFIG } from './config.ts';
-import { assertFloor, edgeProvenance, rankOf, requireMinTier, sanitizeHeaders, tierOf, verifiedOf } from './edge-auth.ts';
+import { TIER_ORDER, assertFloor, edgeProvenance, rankOf, requireMinTier, sanitizeHeaders, tierOf, verifiedOf } from './edge-auth.ts';
 
 describe('the tier floor', () => {
 	it('admits a member above public and below friend', () => {
@@ -95,11 +95,11 @@ describe('a verified member is a friend here', () => {
 		expect(tierOf(sanitized({ 'x-edge-auth': SECRET, 'x-hadoku-tier': 'member' }))).toBe('member');
 	});
 
-	it('promotes nobody past friend, and leaves every other tier as the edge said', () => {
-		for (const tier of ['friend', 'service', 'wife', 'admin']) {
-			expect(tierOf(sanitized({ 'x-edge-auth': SECRET, 'x-hadoku-tier': tier, 'x-hadoku-verified': '1' }))).toBe(tier);
+	it('promotes nobody but a member, and nobody past friend: every other tier stays as the edge said', () => {
+		for (const tier of TIER_ORDER) {
+			const want = tier === 'member' ? 'friend' : tier;
+			expect(tierOf(sanitized({ 'x-edge-auth': SECRET, 'x-hadoku-tier': tier, 'x-hadoku-verified': '1' })), tier).toBe(want);
 		}
-		expect(tierOf(sanitized({ 'x-edge-auth': SECRET, 'x-hadoku-tier': 'public', 'x-hadoku-verified': '1' }))).toBe('public');
 	});
 
 	it('reads nothing from the old header name: the edge no longer strips X-Hadoku-Vouched, so a member who sends it stays a member', () => {
