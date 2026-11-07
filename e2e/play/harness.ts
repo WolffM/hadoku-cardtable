@@ -107,6 +107,7 @@ import { basename, join, resolve, sep } from 'node:path';
 
 import { PREFS_MOUNT, startEdge } from '../edge.ts';
 import { FRIENDS } from '../identities.ts';
+import { PLAY_EDGE_PORT, PLAY_SERVER_PORT } from '../ports.ts';
 import { createPrefsRowsStandIn } from '../../apps/server/src/http/prefsRowsStandIn.ts';
 import { PLAY_SEED } from '../playSeed.ts';
 import { closeStaleFriends } from './open-friends.ts';
@@ -182,8 +183,7 @@ const STACK_DIR_PREFIX = 'stack-';
  */
 const STALE_WORK_DIRS_KEPT = Number(process.env.CARDTABLE_E2E_WORK_DIRS_KEPT ?? '6');
 
-export const PLAY_EDGE_PORT = Number(process.env.CARDTABLE_E2E_PLAY_EDGE_PORT ?? '19128');
-export const PLAY_SERVER_PORT = Number(process.env.CARDTABLE_E2E_PLAY_SERVER_PORT ?? '19028');
+export { PLAY_EDGE_PORT, PLAY_SERVER_PORT };
 export const PLAY_EDGE_ORIGIN = `http://127.0.0.1:${PLAY_EDGE_PORT}`;
 
 /*

@@ -8,6 +8,8 @@
  * but a server that was started with this harness's one-run secret.
  */
 
+import { EDGE_PORT } from './ports.ts';
+
 export const SESSION_COOKIE = 'cardtable_e2e_session';
 
 export interface Friend {
@@ -60,9 +62,8 @@ export const FRIENDS: Readonly<Record<string, Friend>> = {
   lumen: { key: 'e2e-friend-key-lumen-3f96', userId: 'e2e-lumen-id', name: 'Lumen' },
 };
 
-/** Ports. Overridable so a runner with something on these can move them. */
-export const EDGE_PORT = Number(process.env.CARDTABLE_E2E_EDGE_PORT ?? '19108');
-export const SERVER_PORT = Number(process.env.CARDTABLE_E2E_SERVER_PORT ?? '19008');
+/** This process's own draft-stack ports: `ports.ts`. */
+export { EDGE_PORT, SERVER_PORT } from './ports.ts';
 
 /** The public prefix the browser sees, as on hadoku.me. */
 export const PREFIX = '/cardtable';

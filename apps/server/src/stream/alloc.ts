@@ -51,7 +51,7 @@ import { CONFIG } from '../config.js';
  * The first host port a room's seat may take.
  *
  * Deliberately clear of everything else on this host: 6080–6081 are the static
- * bench, 19008/19028/19108/19128 are the e2e harness. `container.sh` refuses
+ * bench, and the e2e harness picks its ports from 20000 up (`e2e/ports.ts`). `container.sh` refuses
  * anything below 6100 a second time, in case this constant is ever loosened.
  */
 export const ROOM_STREAM_BASE_PORT = CONFIG.roomStreamBasePort;

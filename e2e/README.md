@@ -38,18 +38,19 @@ The driver picks every 400 ms. The server allows a burst of 15 picks, then one
 every 250 ms per participant (`PICK_RATE_LIMIT`), so the driver never comes
 near that limit.
 
-Ports are 19108 (edge) and 19008 (server). Override them with
-`CARDTABLE_E2E_EDGE_PORT` and `CARDTABLE_E2E_SERVER_PORT` if two runs share a
-host.
+Ports are each run's own: `ports.ts` picks four free ones below the kernel's
+ephemeral range for any of `CARDTABLE_E2E_EDGE_PORT`, `_SERVER_PORT`,
+`_PLAY_EDGE_PORT` and `_PLAY_SERVER_PORT` the run was not handed, so two runs
+on one host never share a port. The harness prints the two it binds.
 
 ## What runs
 
 ```
 browser ctx "alice" ─┐
-                     ├─► edge.ts :19108  /cardtable/* → strip prefix, stamp identity
+                     ├─► edge.ts :EDGE    /cardtable/* → strip prefix, stamp identity
 browser ctx "bob"   ─┘        │
                               ▼
-                     apps/server/dist/index.js :19008  (EDGE_AUTH_SECRET = random per run)
+                     apps/server/dist/index.js :SERVER  (EDGE_AUTH_SECRET = random per run)
                      serving a COPY of apps/ui/dist
 ```
 
@@ -263,10 +264,6 @@ states them:
 - **CI does need a browser-install step** (`install-browsers`, the config's
   projects' browsers, no `--with-deps`, per D14). It is idempotent and a no-op once
   `~/.cache/ms-playwright` is warm.
-- **The ports are fixed by default** (19108 edge, 19008 server). Two runs
-  sharing a host must be given distinct `CARDTABLE_E2E_EDGE_PORT` /
-  `CARDTABLE_E2E_SERVER_PORT` values — which is a live hazard on this machine,
-  where the play e2e and parallel agent waves bind neighbouring ports.
 - Root `vitest` does not collect `isolation.test.ts`: it uses `node:test`, and
   the vitest config includes only `apps/*/src` and `packages/*/src`. The root
   `typecheck` does pick up `@hadoku/e2e`'s own `tsc --noEmit`.

@@ -51,7 +51,8 @@ from outside git is absent unless the scaffold puts it there:
    (19008/19028/19108/19128). A local run during a CI run failed on bind.
    Since wave forge-claws (2026-10-07) CI's `forge-e2e` runs on the claws and
    picks four free ports per run instead of a fixed range, so this no longer
-   collides with a local run, which still defaults to 19008/19028/19108/19128.
+   collides with a local run. Since 2026-11-07 a local run picks its own too
+   (`e2e/ports.ts`), so there are no fixed defaults left to collide on.
 
 ## Where production runs (since 2026-10-22 ~02:46Z)
 
