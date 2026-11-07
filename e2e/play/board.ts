@@ -306,6 +306,45 @@ export async function clickOnce(page: Page, text: string, which: 'ok' | 'cancel'
 }
 
 /**
+ * What a seat is being asked, read in one task in the page: the board's line, button one's label, the open
+ * ask's and the mana ring's call ids, and the rail's step. With `press` (an earlier read's `now`), button one
+ * is pressed in that same task, and only if the page still shows exactly that: nothing can open between the
+ * read and the press. Self-contained, because it runs in the page (`page.evaluate`).
+ */
+function readAsking({ buttonOne, press }: { buttonOne: string; press: string | null }): { now: string; pressed: boolean } {
+  const ok = Array.from(document.querySelectorAll<HTMLButtonElement>(buttonOne)).find((b) => b.checkVisibility()) ?? null;
+  const rail = document.querySelector('[data-testid="live-phases"]');
+  const now = JSON.stringify([
+    document.querySelector('[data-testid="live-says"]')?.textContent ?? '',
+    ok?.textContent ?? null,
+    document.querySelector('[data-testid="live-prompt"]')?.getAttribute('data-call-id') ?? null,
+    document.querySelector('[data-testid="mana-ring"]')?.getAttribute('data-call-id') ?? null,
+    rail?.getAttribute('data-phase') ?? null,
+    rail?.getAttribute('data-turn') ?? null,
+  ]);
+  const pressed = ok !== null && press === now;
+  if (pressed) ok.click();
+  return { now, pressed };
+}
+
+/** What `page` is being asked right now (`readAsking`), to judge a condition against before acting on it. */
+export const askingNow = async (page: Page): Promise<string> => (await page.evaluate(readAsking, { buttonOne: BUTTON_ONE, press: null })).now;
+
+/**
+ * Press button one once (`clickOnce`'s rule: never twice for one board line), only if the page is still
+ * asking exactly `seen` (`askingNow`, read before the caller judged whether to press at all). A pump that
+ * reads its condition and then presses whatever bar is up passes a stop that opened during the read — the
+ * very stop it was waiting for (w81-replay, run 42360824342: bob's Main 2 opened mid-read and was passed).
+ */
+export async function pressOkWhileAsking(page: Page, seen: string): Promise<boolean> {
+  const key = `ok:${(JSON.parse(seen) as string[])[0]}`;
+  if (lastClicked.get(page) === key) return false;
+  const { pressed } = await page.evaluate(readAsking, { buttonOne: BUTTON_ONE, press: seen });
+  if (pressed) lastClicked.set(page, key);
+  return pressed;
+}
+
+/**
  * Press the payment window's OWN Auto — `live-payment-ok` — and nothing else, for a cast loop that
  * ticks until the spell is on the stack. Never `clickOnce(page, says, 'ok')` there: that resolves
  * `BUTTON_ONE` at click time, and on a loaded CI runner the window closes between the loop's count check
@@ -906,8 +945,9 @@ export async function castAndPassUntil(
   const deadline = Date.now() + (opts.timeoutMs ?? 90_000);
   while (Date.now() < deadline) {
     for (const page of pages) {
+      const seen = await askingNow(page);
       if (await until()) return;
-      await passOverStack(page);
+      if ((await askingNow(page)) === seen) await passOverStack(page);
     }
     await pages[0]!.waitForTimeout(60);
   }
@@ -915,30 +955,38 @@ export async function castAndPassUntil(
 
 /**
  * Press whichever page's OK is enabled until `until()` is true — the "let the main loop run forward" pump
- * w46-attack/w32/w56-numbers each wrote by hand (T6). `press` defaults to `enabledOk`'s own OK.
+ * w46-attack/w32/w56-numbers each wrote by hand (T6). `press` replaces the default press of button one.
  *
  * `until()` is asked again before every answer and every press, not once a round: one page's press can
  * be the one that meets it, and the next page's press then lands past the point the caller stops at
  * (turn-edge, run 39752707376: alice's OK began Bob's turn, Bob's press 123 ms later ended it, and the
  * spec measured turn 2 on a table already in turn 3).
+ *
+ * And a page is acted on only if it still asks what it asked before `until()` was read (`askingNow`): a
+ * stop that opens during the read has not been judged, and is left for the next read (w81-replay, run
+ * 42360824342). The default press checks and presses in one task in the page (`pressOkWhileAsking`).
  */
 export async function grindPriority(
   pages: readonly Page[],
   until: () => Promise<boolean>,
   opts: { timeoutMs?: number; intervalMs?: number; press?: (page: Page) => Promise<void> } = {},
 ): Promise<void> {
-  const press = opts.press ?? (async (page: Page) => {
-    if ((await enabledOk(page).count()) > 0) await clickOnce(page, await says(page), 'ok');
-  });
+  const custom = opts.press;
+  const press = async (page: Page, seen: string): Promise<void> => {
+    if (custom === undefined) await pressOkWhileAsking(page, seen);
+    else if ((await askingNow(page)) === seen) await custom(page);
+  };
   const deadline = Date.now() + (opts.timeoutMs ?? 30_000);
   while (Date.now() < deadline) {
     for (const page of pages) {
+      const seen = await askingNow(page);
       if (await until()) return;
-      await answerPrompt(page);
+      if ((await askingNow(page)) === seen) await answerPrompt(page);
     }
     for (const page of pages) {
+      const seen = await askingNow(page);
       if (await until()) return;
-      await press(page);
+      await press(page, seen);
     }
     await pages[0]!.waitForTimeout(opts.intervalMs ?? 40);
   }
