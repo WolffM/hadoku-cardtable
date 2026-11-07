@@ -2814,9 +2814,9 @@ public final class PlayBridge {
             o.addProperty("seat", seat);
             o.add("frame", frame);
             // The input this frame was shown for: what an act made on it names (MatchContext#actInputs).
+            // 0: no input was open when it was shown, and an act made on it finds one open only if Forge moved on.
             final SeatController own = match.seatControllers.get(seat);
-            final int input = own == null ? 0 : match.inputId(own.openInput());
-            if (input > 0) { o.addProperty("input", input); }
+            if (own != null) { o.addProperty("input", match.inputId(own.openInput())); }
             emit(o);
         }
 
@@ -5951,9 +5951,13 @@ public final class PlayBridge {
 
         // ------------------------------------------------ acts, browser → Forge
 
-        /** An act made on input {@code input} (0: the act names none, and is judged as Forge judges it): see {@link MatchContext#actInputs}. */
+        /**
+         * An act made on input {@code input}: see {@link MatchContext#actInputs}. 0 is "no input was
+         * open", so such an act that finds one open by the time Forge applies it was made before it.
+         * -1: the act names no input, and is judged as Forge judges it.
+         */
         private void madeOn(final int input, final String method, final int id) {
-            if (input > 0) { match.actInputs(seat).add(new Object[] { method, id, input }); }
+            if (input >= 0) { match.actInputs(seat).add(new Object[] { method, id, input }); }
         }
 
         void act(final JsonObject frame, final int input) {
@@ -8487,7 +8491,7 @@ public final class PlayBridge {
         switch (cmd.get("t").getAsString()) {
             case "reply" -> seat(match, cmd).resolve(cmd.get("callId").getAsString(), cmd.get("result"));
             case "abort" -> seat(match, cmd).resolve(cmd.get("callId").getAsString(), ABORTED);
-            case "act" -> seat(match, cmd).act(cmd.getAsJsonObject("frame"), cmd.has("input") ? cmd.get("input").getAsInt() : 0);
+            case "act" -> seat(match, cmd).act(cmd.getAsJsonObject("frame"), cmd.has("input") ? cmd.get("input").getAsInt() : -1);
             case "cancel-payment" -> seat(match, cmd).cancelPayment();
             case "resend-pending" -> seat(match, cmd).resendPending();
             case "probe" -> probe(match, cmd);

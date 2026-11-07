@@ -268,7 +268,7 @@ export type BridgeLine =
 	 * (`PlayBridge.java`'s `unsupportedIn`). Absent from a line an older bridge wrote.
 	 */
 	| { t: 'ready'; forgePort: number; bootMs: number; startMs?: number; seats: { seat: number; ai: boolean; deck: string; removed?: string[] }[] }
-	/** `input`: the id of the input open on the seat when the frame was shown (`PlayBridge.java`'s `MatchContext.inputId`); absent when none is. */
+	/** `input`: the id of the input open on the seat when the frame was shown (`PlayBridge.java`'s `MatchContext.inputId`), 0 when none was. */
 	| { t: 'frame'; seat: number; frame: unknown; input?: number }
 	| { t: 'probe'; probeId: string; seat: number; answer?: boolean; ms?: number; error?: string }
 	/**

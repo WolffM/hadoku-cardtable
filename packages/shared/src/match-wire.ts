@@ -179,7 +179,7 @@ export type MatchRequest = z.infer<typeof MatchRequestSchema>;
 
 /** `forge:c2s`. `frame` is checked second, by forge-wire's `safeParseClientFrame`. */
 export const ClientEnvelopeSchema = z
-  .object({ matchId: z.string().min(1), frame: z.unknown(), placement: PlacementSchema.optional(), input: z.number().int().positive().optional() })
+  .object({ matchId: z.string().min(1), frame: z.unknown(), placement: PlacementSchema.optional(), input: z.number().int().nonnegative().optional() })
   .strict();
 
 export interface ClientEnvelope {
@@ -409,7 +409,7 @@ export const ServerEnvelopeSchema = z
     pairsWithNext: z.literal(true).optional(),
     forceNotice: z.literal(true).optional(),
     /** The input Forge showed this window frame for: what an act made on it names back (`ClientEnvelope.input`). */
-    input: z.number().int().positive().optional(),
+    input: z.number().int().nonnegative().optional(),
   })
   .strict();
 

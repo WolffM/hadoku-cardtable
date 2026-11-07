@@ -26,7 +26,7 @@ const STALE = 'made on an input Forge has moved past';
 
 describe.skipIf(!available.ok)(title, () => {
 	it(
-		'a click naming a past input is dropped and never applied; the same click naming the open input is applied',
+		'a click naming a past input, or none open, is dropped and never applied; the same click naming the open input is applied',
 		async () => {
 			if (!available.ok) return;
 			const s = await startScenario(available.config, { seed: 40, decks: DECKS, scenario: scenarioText('nf-nomads'), skipOpening: true, aiOpponent: true });
@@ -48,9 +48,14 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(applied(), 'never applied').toEqual([]);
 				expect(s.prompt(0), 'Forge still waits on the same window').toMatch(/^Priority: /);
 
+				// Made while no input was open (input 0: a yield, a wait): an input open now is not the one it saw.
+				expect(s.match.fromClient(0, click, 0)).toEqual({ ok: true });
+				await waitUntil(() => dropped().length === 2, 'the click made with no input open dropped', 15_000, s);
+				expect(applied(), 'never applied').toEqual([]);
+
 				expect(s.match.fromClient(0, click, shown!)).toEqual({ ok: true });
 				await waitUntil(() => applied().length === 1, 'the click on the open input applied', 15_000, s);
-				expect(dropped(), 'and not dropped').toHaveLength(1);
+				expect(dropped(), 'and not dropped').toHaveLength(2);
 			} finally {
 				await s.stop();
 			}

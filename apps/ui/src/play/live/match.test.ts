@@ -1266,6 +1266,20 @@ describe('an act names the input of the window it was made on (#40)', () => {
     expect(sentEnvelopes(s)[0]).not.toHaveProperty('input');
   });
 
+  it('a window shown with no input open names input 0, and an act made on it says so', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const target = m.stats.applied + 3;
+    s.send(prompt('Priority'), 0);
+    s.send(bar(true), 0);
+    s.send(actionable([mine[0]!]), 0);
+    await until('the window', () => m.stats.applied >= target);
+    expect(m.inputId).toBe(0);
+    expect(selectCard(m, mine[0]!)).toBe(true);
+    await until('the click at the server', () => sentEnvelopes(s).length === 1);
+    expect(sentEnvelopes(s)[0]).toMatchObject({ input: 0 });
+  });
+
   it('a state frame between windows leaves the window’s input standing', async () => {
     const { s, m } = await fullGame();
     const target = m.stats.applied + 2;
