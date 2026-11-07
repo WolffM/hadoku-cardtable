@@ -8,7 +8,8 @@
 # It polls every WATCH_EVERY seconds (75; the API's 5000/h is shared by every lane), then prints
 # the run's conclusion and head sha, each job's conclusion and runner, and for each red job
 # only the failing specs/suites with their first Error/Expected/Received lines and the `[tag]`
-# evidence lines of those specs (plus `--tag`'s), capped at 60 lines. The full summary and
+# evidence lines of those specs (plus `--tag`'s), and each forge-e2e test that was flaky (failed,
+# then passed its one re-run), capped at 60 lines. The full summary and
 # each red job's log stay on disk (the last line says where), so a second look is a grep,
 # not another download. `gh run view --log` refuses mid-run; the jobs/<id>/logs endpoint
 # does not.
@@ -53,6 +54,10 @@ red_job() {
   # gh >= 2.100 refuses a body with escape sequences unless told, and every job log has them.
   gh api --allow-escape-sequences "repos/$R/actions/jobs/$jid/logs" 2>"$log.err" | strip > "$log" \
     || echo "    no log for job $jid: $(head -c 200 "$log.err")"
+  # A shard that re-ran its failed tests names its own reds; its first run's list also holds the flaky ones.
+  if grep -q '^e2e re-run verdict:' "$log"; then
+    grep -E '^red: ' "$log" | cut -c1-200 | sed 's/^red: /    ✘ /'
+  else
   awk '
     /^ FAIL  / || /^ +[0-9]+\) (\[[a-z]+\] › )?[^ ]+\.(spec|test)\.tsx?/ { sub(/^ +(FAIL +)?/, ""); print "    ✘ " substr($0, 1, 200); inb = 1; n = 0; found = 1; next }
     inb && (/^⎯/ || /^ +[0-9]+ (failed|passed|flaky)/) { inb = 0 }
@@ -64,6 +69,7 @@ red_job() {
     }
   ' "$log" || grep -E '(Error|##\[error\])' "$log" | grep -v 'Process completed with exit code' \
     | head -3 | cut -c1-200 | sed 's/^/    /' || true
+  fi
   counts=$(grep -E '^ +[0-9]+ (failed|passed|flaky|skipped|did not run)|^ +(Test Files|Tests) ' "$log" \
     | sed -E 's/^ +//; s/ +/ /g' | paste -sd';' | sed 's/;/; /g' || true)
   [ -z "$counts" ] || echo "    counts: $counts"
@@ -77,6 +83,15 @@ red_job() {
   fi
 }
 
+# A forge-e2e test that failed and then passed its one re-run (`scripts/ci/e2e-rerun.ts`) leaves
+# the job green and a "Flaky e2e test" annotation: listed apart from the reds, never counted as one.
+# A cancelled or timed-out shard is never read here — it never got to a re-run, and it is red.
+flaky_job() {
+  gh api "repos/$R/check-runs/$1/annotations?per_page=100" \
+    --jq '.[] | select(.title == "Flaky e2e test") | .message' 2>/dev/null \
+    | cut -c1-200 | sed 's/^/    ⚠ flaky: /' || true
+}
+
 OUT="$DIR/summary.txt"
 {
   echo "run $ID $NAME: ${CONC:-none} on $BRANCH@${SHA:0:12} https://github.com/$R/actions/runs/$ID"
@@ -84,6 +99,7 @@ OUT="$DIR/summary.txt"
   while IFS=$'\t' read -r jid jname jconc runner; do
     echo "  $jname: $jconc (${runner%%-hadoku-cardtabl*})"
     case $jconc in failure|timed_out|cancelled) red_job "$jid" ;; esac
+    case $jname:$jconc in forge-e2e*:success|forge-e2e*:failure) flaky_job "$jid" ;; esac
     case $jname in changes|judge*) ;; *) [ "$jconc" = skipped ] || ran=1 ;; esac
   done < "$DIR/jobs.tsv"
   if [ $ran = 0 ]; then

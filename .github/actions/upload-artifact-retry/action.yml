@@ -1,0 +1,47 @@
+name: Upload an artifact, once more on a failure
+description: >-
+  actions/upload-artifact, retried once after a pause when the first attempt
+  fails. A claw's resolver blips (`getaddrinfo EAI_AGAIN`) and the upload dies
+  with it; a forge-jvm shard's lost report then reds the whole-run judge, and a
+  red's lost evidence leaves nothing to read.
+
+inputs:
+  name:
+    required: true
+  path:
+    required: true
+  retention-days:
+    required: false
+    default: '14'
+  if-no-files-found:
+    required: false
+    default: warn
+  include-hidden-files:
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - id: first
+      continue-on-error: true
+      uses: actions/upload-artifact@v6
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ inputs.path }}
+        retention-days: ${{ inputs.retention-days }}
+        if-no-files-found: ${{ inputs.if-no-files-found }}
+        include-hidden-files: ${{ inputs.include-hidden-files }}
+    - if: steps.first.outcome == 'failure'
+      shell: bash
+      run: echo "::warning::upload of ${{ inputs.name }} failed — trying once more in 30 s"; sleep 30
+    # `overwrite`: the failed attempt may have created the artifact before it died.
+    - if: steps.first.outcome == 'failure'
+      uses: actions/upload-artifact@v6
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ inputs.path }}
+        retention-days: ${{ inputs.retention-days }}
+        if-no-files-found: ${{ inputs.if-no-files-found }}
+        include-hidden-files: ${{ inputs.include-hidden-files }}
+        overwrite: true

@@ -13,7 +13,8 @@ name: Forge
 # What runs is picked from the changed paths (`scripts/ci/select-forge-tests.ts`,
 # see the `changes` job). A push to main runs a short run: what changed itself
 # (a spec, a suite, a scenario), the smoke set, the guard family of any hot-path
-# module it touches, and the most relevant of the specs it maps to. The FULL set runs on the schedule instead — every two
+# module it touches, every spec that imports a module it touches (through e2e
+# helpers, at any depth), and the most relevant of the specs it maps to. The FULL set runs on the schedule instead — every two
 # hours unless this sha already ran green (or is running), and nightly with the
 # `[nightly]` tests. The trade: a regression outside what a push ran turns red
 # up to two hours late, against a range of that window's lands rather than one.
@@ -154,8 +155,8 @@ jobs:
   # its `base` input).
   # Either way `scripts/ci/select-forge-tests.ts` maps the changed paths to
   # specs and jvm suites and prints one reason per decision; its header has the
-  # rules. A push runs it with `--defer-full`: never the full set, and only the
-  # most relevant of the mapped specs (the rest are named in the log as
+  # rules. A push runs it with `--defer-full`: never the full set (unless most
+  # specs import what changed), and only the most relevant of the mapped specs (the rest are named in the log as
   # deferred to the schedule). A dispatch runs everything its changes map to.
   #   schedule, nightly cron    everything, `[nightly]` tests too
   #   schedule, two-hourly      everything, unless the newest scheduled run that
@@ -334,6 +335,12 @@ jobs:
   # later step sees them without repeating the lookup — no step hardcodes
   # either path any more.
   #
+  # A FAILED TEST RUNS ONCE MORE, in a pass of its own (`scripts/ci/e2e-rerun.ts`):
+  # with `retries: 0`, one timing flake in ~600 tests turned every full run red
+  # (#38). Passing there makes it flaky — an annotation, and on main a
+  # `forge-flaky` telemetry event — not red. Failing again, a skip, more than a
+  # few reds, an isolation spec, or a shard cut off by its timeout stay red.
+  #
   # Runs beside `ci.yml`'s `check` (its own workflow since 2026-10-07; this
   # workflow's `concurrency` group queues a newer push rather than cancelling).
   forge-e2e:
@@ -468,6 +475,7 @@ jobs:
       # the harness reads them the same way it reads the local 19xxx default —
       # no job-wide `env:` holds a fixed range any more.
       - name: E2E — two friends play a real Forge match, and the table fits
+        id: e2e
         env:
           PW_TEST_REPORTER: json
           PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/forge-e2e-report.json
@@ -501,7 +509,7 @@ jobs:
           # column 0 after YAML's own dedent, so this whole script is kept
           # flush rather than nested under `if`/`else`.)
           echo "forge-e2e: spec override: $SPECS_OVERRIDE"
-          eval "pnpm --filter @hadoku/e2e test $SPECS_OVERRIDE"
+          eval "pnpm --filter @hadoku/e2e test $SPECS_OVERRIDE" || echo "forge-e2e: the run exited $? — judged from its report below"
           else
           # Specs held OUT of the derived list, one per line as `<file>  # <why>`.
           # Empty means every Forge-gated spec runs; an entry is a known red
@@ -518,9 +526,35 @@ jobs:
           [ -n "$specs" ] || { echo "::error::no Forge-gated spec found — the grep matched nothing"; exit 1; }
           echo "forge-gated specs ($([ -n "$SELECTED" ] && echo selected || echo derived)), shard ${{ matrix.shard }}/${{ strategy.job-total }}:"
           echo "$specs"
-          pnpm --filter @hadoku/e2e test --shard=${{ matrix.shard }}/${{ strategy.job-total }} $specs
+          pnpm --filter @hadoku/e2e test --shard=${{ matrix.shard }}/${{ strategy.job-total }} $specs || echo "forge-e2e: the run exited $? — judged from its report below"
           fi
-          jq -e '.stats.skipped == 0 and .stats.unexpected == 0 and .stats.expected > 0' "$PLAYWRIGHT_JSON_OUTPUT_FILE" > /dev/null || { echo "::error::e2e report: $(jq -c .stats "$PLAYWRIGHT_JSON_OUTPUT_FILE" 2>&1) — a skipped test is not a pass"; exit 1; }
+          jq -e '.stats.skipped == 0 and .stats.unexpected == 0 and .stats.expected > 0' "$PLAYWRIGHT_JSON_OUTPUT_FILE" > /dev/null && exit 0
+          echo "e2e report: $(jq -c .stats "$PLAYWRIGHT_JSON_OUTPUT_FILE" 2>&1)"
+          # Not clean: each failed test runs once more, and passing there makes it flaky, not red.
+          # A skip, a dead run, many reds or an isolation spec stay red with no re-run, and a shard
+          # cut off by its timeout never reaches this line. `scripts/ci/e2e-rerun.ts` has the rules.
+          node scripts/ci/e2e-rerun.ts "$PLAYWRIGHT_JSON_OUTPUT_FILE" --flaky-out "$RUNNER_TEMP/forge-e2e-flaky.txt"
+
+      # A flaky test on main is a work item, not a pass to forget: one `forge-flaky` warn event
+      # each in cardtable's telemetry, which the daily watch lists under what needs a look. The
+      # annotation the re-run printed is the run's own record; a proof branch's flakes stop there.
+      - name: E2E — report this shard's flaky tests
+        if: (success() || failure()) && github.ref == 'refs/heads/main'
+        env:
+          KEY: ${{ secrets.KEY_SERVICE_CARDTABLE }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHARD: ${{ matrix.shard }}
+        run: |
+          f="$RUNNER_TEMP/forge-e2e-flaky.txt"
+          [ -s "$f" ] || exit 0
+          while IFS=$'\t' read -r test error; do
+            jq -n --arg t "$test" --arg e "$error" --arg run "$RUN_URL" --arg sha "$GITHUB_SHA" --arg shard "$SHARD" --arg ev "$GITHUB_EVENT_NAME" \
+              '{source: "service", level: "warn", type: "log", message: "event=forge-flaky \($t)",
+                context: {service: "cardtable", test: $t, error: $e, run: $run, sha: $sha, shard: $shard, trigger: $ev}}' \
+              | curl -fsS -A "Mozilla/5.0 hadoku-cardtable-ci" -H "X-User-Key: $KEY" -H 'Content-Type: application/json' \
+                  -X POST https://hadoku.me/health/api/telemetry -d @- > /dev/null \
+              && echo "reported flaky: $test" || echo "::warning::could not report the flaky test $test"
+          done < "$f"
 
       # The evidence a red needs, kept past the job. Playwright's per-test
       # error context and the harness's per-stack server logs live under
@@ -531,8 +565,9 @@ jobs:
       - name: E2E evidence (on failure)
         # cancelled() too: a run cut off by timeout-minutes is the one whose
         # evidence matters most, and failure() alone uploaded nothing for it.
-        if: failure() || cancelled()
-        uses: actions/upload-artifact@v6
+        # A flaky test's first failure too: a flake is fixed from what it left.
+        if: failure() || cancelled() || steps.e2e.outputs.flaky != ''
+        uses: ./.github/actions/upload-artifact-retry
         with:
           name: forge-e2e-evidence-${{ github.run_attempt }}-${{ matrix.shard }}
           retention-days: 14
@@ -540,8 +575,12 @@ jobs:
           # `e2e/.run/` is a dot-directory and the action skips those by
           # default — the first upload (run 37155619558) carried only the report.
           include-hidden-files: true
+          # The re-run's own results and reports beside the first run's, and the first run's
+          # harness logs as they stood before it (`scripts/ci/e2e-rerun.ts`).
           path: |
             e2e/.run/test-results/**
+            e2e/.run/test-results-rerun-*/**
+            e2e/.run/first-run/**
             e2e/.run/*.jsonl
             e2e/.run/*.json
             e2e/.run/*.log
@@ -549,13 +588,14 @@ jobs:
             e2e/.run/play-work/*/*/bridge.stderr.txt
             e2e/.run/play-work/*/*/jvm.json
             e2e/.run/play-work/*/*/config.json
-            ${{ runner.temp }}/forge-e2e-report.json
+            ${{ runner.temp }}/forge-e2e-report*.json
+            ${{ runner.temp }}/forge-e2e-flaky.txt
 
       # The operator's evidence: both screens of every recorded spec, kept on
       # SUCCESS too — a green run is the one whose video gets watched.
       - name: E2E videos (when asked)
         if: always() && inputs.video == true
-        uses: actions/upload-artifact@v6
+        uses: ./.github/actions/upload-artifact-retry
         with:
           name: forge-e2e-videos-${{ github.run_attempt }}-${{ matrix.shard }}
           retention-days: 14
@@ -667,7 +707,7 @@ jobs:
       # a failing test's screenshots (`e2e/playwright.config.ts`) and the harness logs.
       - name: E2E evidence (on failure)
         if: failure() || cancelled()
-        uses: actions/upload-artifact@v6
+        uses: ./.github/actions/upload-artifact-retry
         with:
           name: e2e-nightly-evidence-${{ github.run_attempt }}
           retention-days: 14
@@ -788,7 +828,7 @@ jobs:
 
       - name: Keep this shard's report for the whole-run judge
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: ./.github/actions/upload-artifact-retry
         with:
           name: forge-jvm-report-${{ matrix.shard }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/forge-jvm-report.json
@@ -806,7 +846,7 @@ jobs:
       # judge just before this is what makes the job red.
       - name: Keep the jvm dumps and bridge logs
         if: failure() || cancelled()
-        uses: actions/upload-artifact@v6
+        uses: ./.github/actions/upload-artifact-retry
         with:
           name: forge-jvm-evidence-${{ matrix.shard }}-${{ github.run_attempt }}
           path: |
@@ -944,7 +984,7 @@ jobs:
             --out "${{ runner.temp }}/monkey-report.json" \
             "${args[@]}"
 
-      - uses: actions/upload-artifact@v4
+      - uses: ./.github/actions/upload-artifact-retry
         if: always()
         with:
           name: monkey-report-${{ github.run_attempt }}
