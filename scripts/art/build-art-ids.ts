@@ -809,7 +809,7 @@ async function run(cacheDir: string, outFile: string, forgeResDir: string | null
 
     // ── every other face ─────────────────────────────────────────────────────
     //
-    // The pool first, as `KNOWN_ART_IDS` merges it: a cube card's back face
+    // The pool first, as the server's `art-ids.ts` merges it: a cube card's back face
     // draws the printing its front does. Then every row this table holds.
     const cardById = new Map<string, GameplayCard>();
     for (const card of cards) {
