@@ -26,7 +26,7 @@ import {
 
 import { STRICT_PAYMENT_POLICY } from './auto.js';
 import type { BridgeCommand, BridgeLine, HostEvents, MatchRecord, MatchHost, MatchHostFactory, MatchSpec, TurnSnapshot } from './host.js';
-import { ACTIVITY_WINDOW_MS, ACT_SILENCE_MS, ANSWER_SILENCE_MS, MATCH_ENDED_TITLE, RESTART_ASK_MS, WATCHER_SEAT, createMatchRegistry, frameGist, restoredSpec, type Match, type MatchSpecWithIdentity, type Restored } from './match.js';
+import { ACTIVITY_WINDOW_MS, ACT_SILENCE_MS, ANSWER_SILENCE_MS, CONCEDE_ANSWER_MS, MATCH_ENDED_TITLE, RESTART_ASK_MS, WATCHER_SEAT, createMatchRegistry, frameGist, restoredSpec, type Match, type MatchSpecWithIdentity, type Restored } from './match.js';
 import type { SeatIdentity } from '@hadoku/shared';
 import {
 	FLYING_FILE,
@@ -2016,6 +2016,53 @@ describe('a match that outlives its server', () => {
 		for (const seat of [0, 1]) {
 			h.match.resendAfterSnapshot(seat);
 			expect(h.sent.at(-1)).toMatchObject({ seat, envelope: { frame: { kind: 'notify', method: 'finishGame', losers: [1], lost: [{ player: 1, reason: 'Conceded' }] } } });
+		}
+	});
+
+	// The monkey's timed-out matches (forge.yml runs 42333563074..42336336183): Forge received the
+	// concede and logged no error, and no `gameover` ever came, so the match held its place in the
+	// server's ceiling until the run ended. A concede always ends the game.
+	it('a concede Forge never answers is sent once more, and then the server ends the game itself, the conceder the loser', () => {
+		vi.useFakeTimers();
+		try {
+			const h = harness();
+			h.match.claim(ALICE);
+			h.match.claim(BOB);
+			h.host.push(...OPENING);
+			expect(h.match.fromClient(1, { kind: 'act', method: 'concede' })).toEqual({ ok: true });
+			const concedes = (): number => h.host.commands.filter((c) => c.t === 'act' && c.frame.method === 'concede').length;
+			expect(concedes()).toBe(1);
+			vi.advanceTimersByTime(CONCEDE_ANSWER_MS);
+			expect(concedes(), 'sent again').toBe(2);
+			expect(h.match.status).toBe('running');
+			const mark = h.sent.length;
+			vi.advanceTimersByTime(CONCEDE_ANSWER_MS);
+			expect(h.match.status).toBe('over');
+			expect(h.match.outcome()).toMatchObject({ kind: 'won', winner: 0, conceded: true });
+			expect(h.sent.slice(mark).map((x) => ({ seat: x.seat, frame: x.envelope.frame }))).toContainEqual({
+				seat: 0,
+				frame: { kind: 'notify', method: 'finishGame', losers: [1], lost: [{ player: 1, reason: 'Conceded' }] },
+			});
+			expect(h.logs.map((l) => l.evt)).toEqual(expect.arrayContaining(['concede-unanswered', 'concede-forced']));
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("a concede Forge answers needs nothing more: no second concede, and the game is Forge's", () => {
+		vi.useFakeTimers();
+		try {
+			const h = harness();
+			h.match.claim(ALICE);
+			h.match.claim(BOB);
+			h.host.push(...OPENING);
+			h.match.fromClient(1, { kind: 'act', method: 'concede' });
+			h.host.push({ t: 'gameover', winner: 'Seat 1', losers: [1], lost: [{ player: 1, reason: 'Conceded' }] });
+			vi.advanceTimersByTime(3 * CONCEDE_ANSWER_MS);
+			expect(h.host.commands.filter((c) => c.t === 'act' && c.frame.method === 'concede')).toHaveLength(1);
+			expect(h.logs.map((l) => l.evt)).not.toContain('concede-unanswered');
+		} finally {
+			vi.useRealTimers();
 		}
 	});
 
