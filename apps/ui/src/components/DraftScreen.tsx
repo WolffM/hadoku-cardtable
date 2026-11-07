@@ -59,7 +59,6 @@ import { CARD_RATIO, cssPx, fitGrid, smallestFitHeight, useBox, useFitScale } fr
 import { useNewPackSound } from '../draft/packSound.ts';
 import { FAN_MIN_WIDTH, fanGeometry, fanLayer, fanX, MAX_CARD_H, packRowHeight, PackView, phoneFanGeometry, PickRope, POOL_MIN_H, usePhoneLayout, type PackLayout } from './PackView.tsx';
 import { PoolView, POOL_ENTER_MS, type PoolEnterRect } from './PoolView.tsx';
-import type { GroupBy } from '../deck/cardOrder.ts';
 import { useDraftBuild, type DraftBuildStore } from '../deck/useDraftBuild.ts';
 import { Ghost, SeatBar, SeatBarSkeleton } from './SeatBar.tsx';
 import { SpectatorNotice } from './SpectatorNotice.tsx';
@@ -202,7 +201,6 @@ export function DraftScreen({
   const fitAside = useFitScale();
 
   const [message, setMessage] = useState<string | null>(null);
-  const [groupBy, setGroupBy] = useState<GroupBy>('color');
   const { view } = state;
   useNewPackSound(view);
   const spectating = view.viewer.kind === 'spectator';
@@ -322,8 +320,6 @@ export function DraftScreen({
                 <PoolView
                   cards={pool}
                   recentlyAdded={recentlyAdded}
-                  groupBy={groupBy}
-                  onGroupBy={setGroupBy}
                   {...(watching ? {} : { sideboard: build.sideboard, onMove: build.move })}
                   owner={view.viewer.kind === 'watcher' ? (view.seats[view.viewer.seatId]?.displayName ?? null) : null}
                 />
@@ -400,10 +396,6 @@ export function DraftSkeleton({ side, seats = 8 }: { side?: ReactNode; seats?: n
                     <span className="draft-ghost draft-ghost--pip" />
                   </span>
                 ))}
-              </span>
-              <span className="segmented pool__sort draft-ghost">
-                <span className="draft-ghost__seg">{'\u00a0'}</span>
-                <span className="draft-ghost__seg">{'\u00a0'}</span>
               </span>
             </header>
           </section>

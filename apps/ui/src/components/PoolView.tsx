@@ -1,10 +1,12 @@
 /**
  * The picked pool — everything this seat has taken, and only this seat.
  *
- * Grouped by colour or by mana value, the drafter's choice (the operator,
- * 2026-10-21: *"choose between CMC vs color sorting during drafting"*) —
- * `deck/cardOrder.ts`'s groups, the ones the deck builder's piles use, so a
- * card sits under the same heading in both. Colour counts sit above.
+ * Grouped by mana value alone, one pile per mana value and the lands last (the
+ * operator, 2026-11-07: *"cards are split by color and by CMC, i think just CMC
+ * would be fine. seems a bit weird to double split"* — this replaced the
+ * colour-or-mana-value choice of 2026-10-21). `deck/cardOrder.ts`'s mana-value
+ * groups, the ones the deck builder's piles use, so a card sits under the same
+ * heading in both. Colour counts sit above.
  *
  * ## The deck in progress and its sideboard
  *
@@ -54,7 +56,7 @@ import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { DECK_COLORS } from '@hadoku/deck';
 
 import type { DraftCard } from '../draft/types.ts';
-import { MV_SPAN, groupCards, mvLabel, type GroupBy, type GroupId } from '../deck/cardOrder.ts';
+import { groupCards, mvLabel, type GroupId } from '../deck/cardOrder.ts';
 import { DraggableCard, DropArea, useCardSplit, type Area } from '../deck/dragMove.tsx';
 import { uiPx } from '../settings/ui-scale.ts';
 import { CardPile, pileChrome } from './CardPile.tsx';
@@ -101,17 +103,13 @@ export interface PoolViewProps {
    * `DraftScreen.tsx`).
    */
   recentlyAdded: { cardId: string; from: PoolEnterRect } | null;
-  /** How the picks are grouped. */
-  groupBy?: GroupBy;
-  /** Absent: no choice offered (a watcher's view keeps the drafter's default). */
-  onGroupBy?: (by: GroupBy) => void;
   /** The picks in the sideboard, when the viewer's own picks are split; absent draws every pick as one pool. */
   sideboard?: readonly DraftCard[];
   /** Move a pick to the deck or the sideboard, by its `cardId`. Absent: nothing drags. */
   onMove?: (cardId: string, to: Area) => void;
 }
 
-export function PoolView({ cards, recentlyAdded, owner = null, groupBy = 'color', onGroupBy, sideboard, onMove }: PoolViewProps) {
+export function PoolView({ cards, recentlyAdded, owner = null, sideboard, onMove }: PoolViewProps) {
   const counts = DECK_COLORS.map(
     (c) => [c, cards.filter((card) => card.colors.includes(c)).length] as const,
   );
@@ -123,7 +121,7 @@ export function PoolView({ cards, recentlyAdded, owner = null, groupBy = 'color'
   const side = new Set((sideboard ?? []).map((c) => c.cardId));
   const groups = groupCards(
     cards.filter((c) => !side.has(c.cardId)),
-    groupBy,
+    'mv',
     (c) => c,
   );
   const piles = sideboard === undefined ? groups : [...groups, ['side', [...sideboard]] as [GroupId, DraftCard[]]];
@@ -163,7 +161,7 @@ export function PoolView({ cards, recentlyAdded, owner = null, groupBy = 'color'
   );
 
   return (
-    <section className="pool" data-testid="pool" data-group-by={groupBy} aria-label="Your picked pool" {...(onMove === undefined ? {} : split.handlers)}>
+    <section className="pool" data-testid="pool" aria-label="Your picked pool" {...(onMove === undefined ? {} : split.handlers)}>
       <header className="pool__head">
         <h2 className="pool__title">
           {owner === null ? 'Your pool' : `${owner}'s pool`} <span data-testid="pool-count">{cards.length}</span>
@@ -180,29 +178,6 @@ export function PoolView({ cards, recentlyAdded, owner = null, groupBy = 'color'
             </span>
           ))}
         </div>
-        {onGroupBy && (
-          <div className="segmented pool__sort" role="group" aria-label="group picks">
-            {(
-              [
-                ['mv', <span key="mv">{MV_SPAN}</span>, 'by mana value'],
-                ['color', <ColorSymbol key="c" symbol="M" />, 'by colour'],
-              ] as const
-            ).map(([by, glyph, label]) => (
-              <button
-                key={by}
-                type="button"
-                className={groupBy === by ? 'segmented__on' : ''}
-                data-testid={`pool-sort-${by}`}
-                aria-pressed={groupBy === by}
-                aria-label={label}
-                title={label}
-                onClick={() => onGroupBy(by)}
-              >
-                {glyph}
-              </button>
-            ))}
-          </div>
-        )}
       </header>
 
       {cards.length === 0 ? (

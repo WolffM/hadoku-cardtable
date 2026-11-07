@@ -689,13 +689,6 @@
   border-radius: 50%;
 }
 
-.draft-ghost__seg {
-  padding: 4px 12px;
-  font-size: 12px;
-  width: 2.2em;
-  box-sizing: content-box;
-}
-
 /* The pack, dealt face down into the slots its cards will take; a card back's own size. It breathes
    as one pack: each back stays opaque over the one beneath it. */
 .pack[data-skeleton] {
