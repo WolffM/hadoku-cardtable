@@ -7,10 +7,11 @@
  * cards. The server now decides each face's Scryfall id (`apps/server/src/play/art-ids.ts`) and
  * lays it on the face, from the deck's own printing and the card catalog.
  *
- * Both seats play a drafted-style deck of Shards of Alara cards, each line naming its printing as a
- * drafted deck's does (`Name|SET|art|[collector]`). Akrasan Squire is in no table the browser ever
- * held (`pool.json`, the old `art-ids.json`); the e2e stack's catalog (`e2e/fixtures/sets-catalog.json`)
- * knows ALA. Alice's opening hand must draw it with its own art: the `<img>` names its Scryfall id.
+ * Alice's battlefield holds Shards of Alara's Akrasan Squire, named by its set as Forge names a drafted
+ * card's (`|Set:ALA`). It is in no table the browser ever held (`pool.json`, the old `art-ids.json`),
+ * and no scenario file names it, so no committed art row does either; the e2e stack's catalog
+ * (`e2e/fixtures/sets-catalog.json`) knows ALA. Both boards must draw it with its own art: the
+ * `<img>` names ALA #1's Scryfall id. (A test cannot name both seats' decks: the play gate refuses it.)
  *
  * `[art-every]` lines are the evidence. Needs a Forge build; without one the test SKIPS and its title says why.
  */
@@ -20,7 +21,7 @@ import { expect, test } from '@playwright/test';
 import { makeTitled } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
 import { forgeAvailability, PLAY_CATALOG, startPlayStack } from './play/harness.ts';
-import { matchUrl } from './play/scenario.ts';
+import { keepBothHands, matchUrl } from './play/scenario.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -40,7 +41,19 @@ function squireId(): string {
 const ART_HOSTS = /^https:\/\/(cards\.scryfall\.io|cdn\.hadoku\.me)\//;
 const ART_STAND_IN = '<svg xmlns="http://www.w3.org/2000/svg" width="488" height="680"><rect width="488" height="680" fill="#2a4a7a"/></svg>';
 
-const DECK = `[metadata]\nName=Alara draft\n[Main]\n32 ${SQUIRE}|ALA|1|[1]\n8 Plains|ALA|1|[230]\n`;
+const SCENARIO = [
+  'turn=1',
+  'activeplayer=human',
+  'activephase=MAIN1',
+  'humanlife=20',
+  'ailife=20',
+  'humanhand=',
+  `humanbattlefield=${SQUIRE}|Set:ALA;Plains|Set:ALA`,
+  'humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains',
+  'aihand=',
+  'aibattlefield=',
+  'ailibrary=Plains;Plains;Plains;Plains;Plains;Plains',
+].join('\n');
 
 test(titled('a set-draft card no browser table holds is drawn with its own art on the match board'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
@@ -51,9 +64,9 @@ test(titled('a set-draft card no browser table holds is drawn with its own art o
   const alice = await openFriend(browser, 'alice');
   const bob = await openFriend(browser, 'bob');
   try {
-    await alice.page.route(ART_HOSTS, (route) => route.fulfill({ contentType: 'image/svg+xml', body: ART_STAND_IN }));
+    for (const page of [alice.page, bob.page]) await page.route(ART_HOSTS, (route) => route.fulfill({ contentType: 'image/svg+xml', body: ART_STAND_IN }));
     const res = await alice.context.request.post(`${stack.origin}${PREFIX}/api/play/matches`, {
-      data: { opponent: 'human', decks: [DECK, DECK], names: ['Alice', 'Bob'] },
+      data: { opponent: 'human', decks: [null, null], names: ['Alice', 'Bob'], scenario: SCENARIO },
     });
     expect(res.status(), await res.text()).toBe(201);
     const { matchId } = (await res.json()) as { matchId: string };
@@ -62,12 +75,15 @@ test(titled('a set-draft card no browser table holds is drawn with its own art o
     await bob.page.goto(matchUrl(stack.origin, matchId));
     await expect(bob.page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 30_000 });
 
-    const squires = alice.page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]').filter({ has: alice.page.locator('.card__name', { hasText: SQUIRE }) });
-    await expect(squires.first(), 'alice is dealt an Akrasan Squire').toBeVisible({ timeout: 60_000 });
-    const srcs = await squires.evaluateAll((els) => els.map((el) => el.querySelector<HTMLImageElement>('img.card__art')?.getAttribute('src') ?? null));
-    console.log(`[art-every] ${srcs.length} ${SQUIRE} in alice's hand, drawn with ${JSON.stringify(srcs)}; the catalog's ALA:1 is ${id}`);
-    expect(srcs.length).toBeGreaterThan(0);
-    for (const src of srcs) expect(src, 'every one is drawn with ALA #1’s own art').toContain(id);
+    await keepBothHands(alice, bob, alice);
+
+    for (const [who, page] of [['alice', alice.page], ['bob', bob.page]] as const) {
+      const squire = page.locator('[data-zone="battlefield"] [data-board-card]').filter({ has: page.locator('.card__name', { hasText: SQUIRE }) });
+      await expect(squire, `${who}'s board draws the Squire`).toHaveCount(1, { timeout: 60_000 });
+      const src = await squire.locator('img.card__art').getAttribute('src', { timeout: 15_000 });
+      console.log(`[art-every] ${who}: ${SQUIRE} drawn with ${String(src)}; the catalog's ALA:1 is ${id}`);
+      expect(src, `${who} draws ALA #1's own art`).toContain(id);
+    }
   } finally {
     await stack.stop();
   }
