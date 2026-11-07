@@ -1,0 +1,17 @@
+# Player-targeting spells, cast one after another at the other seat by click and by drag
+# (`e2e/two-arrows.ts`): two Inquisitions of Kozilek, Thoughtseize, Duress and a Lightning
+# Bolt, with a land for each. Bob holds five nonland cards of mana value 3 or less, so each
+# discard has a real choice and none runs out.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Inquisition of Kozilek;Inquisition of Kozilek;Thoughtseize;Duress;Lightning Bolt
+humanbattlefield=Swamp;Swamp;Swamp;Swamp;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Elvish Mystic;Goblin Guide;Grizzly Bears;Llanowar Elves;Savannah Lions;Mountain
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
