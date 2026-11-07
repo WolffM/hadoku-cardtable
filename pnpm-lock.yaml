@@ -246,6 +246,9 @@ importers:
       '@wolffm/themes':
         specifier: npm:@hadoku/themes@5.13.39
         version: '@hadoku/themes@5.13.39(react@19.2.8)'
+      zod:
+        specifier: 4.5.4
+        version: 4.5.4
     devDependencies:
       '@testing-library/dom':
         specifier: 10.4.1

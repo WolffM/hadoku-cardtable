@@ -20,7 +20,7 @@ import { CardTile } from '../components/CardTile.tsx';
 import type { DraftCard } from '../draft/types.ts';
 import type { SoundEvent } from './mix.ts';
 import { SoundSettings } from '../settings/SoundSettings.tsx';
-import { LEGACY_KEYS, connectSoundPrefs, getLevel, getMusicPick, isMuted, resetMutedForTests, setMusicPick, setMuted } from './mute.ts';
+import { connectSoundPrefs, getLevel, getMusicPick, isMuted, legacyKeys, resetMutedForTests, setMusicPick, setMuted } from './mute.ts';
 import { matchMusicRoles, useMatchMusic } from './match-music.ts';
 import {
   holdMatchQuiet,
@@ -315,14 +315,28 @@ describe('mute', () => {
     setMuted(false);
     expect(prefs.saves).toEqual([]);
   });
+
+  it('pins every literal this moved behind appId() still writes under appId: cardtable (w92-C)', async () => {
+    // The legacy localStorage keys: unchanged for an existing cardtable browser.
+    expect(legacyKeys()).toEqual({
+      muted: 'cardtable.sound.muted',
+      volume: 'cardtable.sound.volume',
+      music: 'cardtable.sound.music',
+      musicPicks: 'cardtable.sound.music-picks',
+    });
+    // The prefs-service row: unchanged too, now built from appId() rather than a literal.
+    await connectSoundPrefs().ready;
+    setMusicPick('music.match.UB', 'music-b/take-1.ogg');
+    expect(prefs.saves).toEqual([{ appId: 'cardtable-sound', patch: { musicPicks: { 'music.match.UB': 'music-b/take-1.ogg' } }, scope: 'user' }]);
+  });
 });
 
 describe('the old localStorage keys', () => {
   it('are the first value, are moved into the service once, and are removed', async () => {
-    globalThis.localStorage.setItem(LEGACY_KEYS.muted, 'true');
-    globalThis.localStorage.setItem(LEGACY_KEYS.volume, '0.4');
-    globalThis.localStorage.setItem(LEGACY_KEYS.music, '0.15');
-    globalThis.localStorage.setItem(LEGACY_KEYS.musicPicks, JSON.stringify({ 'music.match.UB': 'music-b/take-1.ogg' }));
+    globalThis.localStorage.setItem(legacyKeys().muted, 'true');
+    globalThis.localStorage.setItem(legacyKeys().volume, '0.4');
+    globalThis.localStorage.setItem(legacyKeys().music, '0.15');
+    globalThis.localStorage.setItem(legacyKeys().musicPicks, JSON.stringify({ 'music.match.UB': 'music-b/take-1.ogg' }));
     const { ready } = connectSoundPrefs();
     expect([isMuted(), getLevel('volume'), getLevel('music'), getMusicPick('music.match.UB')]).toEqual([true, 0.4, 0.15, 'music-b/take-1.ogg']);
 
@@ -332,20 +346,20 @@ describe('the old localStorage keys', () => {
       { appId: 'cardtable-sound', patch: { music: 0.15 }, scope: 'device' },
       { appId: 'cardtable-sound', patch: { musicPicks: { 'music.match.UB': 'music-b/take-1.ogg' } }, scope: 'user' },
     ]);
-    expect(Object.values(LEGACY_KEYS).map((k) => globalThis.localStorage.getItem(k))).toEqual([null, null, null, null]);
+    expect(Object.values(legacyKeys()).map((k) => globalThis.localStorage.getItem(k))).toEqual([null, null, null, null]);
   });
 
   it('never overwrite what the service already holds', async () => {
     prefs.rows.set('games', { muted: false });
-    globalThis.localStorage.setItem(LEGACY_KEYS.muted, 'true');
+    globalThis.localStorage.setItem(legacyKeys().muted, 'true');
     await connectSoundPrefs().ready;
     expect(isMuted()).toBe(false);
     expect(prefs.saves).toEqual([]);
   });
 
   it('are ignored when they hold junk, and cost nothing when the store is blocked', async () => {
-    globalThis.localStorage.setItem(LEGACY_KEYS.muted, 'yes-please');
-    globalThis.localStorage.setItem(LEGACY_KEYS.musicPicks, '["not", "a map"]');
+    globalThis.localStorage.setItem(legacyKeys().muted, 'yes-please');
+    globalThis.localStorage.setItem(legacyKeys().musicPicks, '["not", "a map"]');
     await connectSoundPrefs().ready;
     expect([isMuted(), getMusicPick('music.match.W')]).toEqual([false, null]);
     expect(prefs.saves).toEqual([]);

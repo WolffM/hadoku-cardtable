@@ -1,40 +1,20 @@
 /*
- * The take mixer: `mix.ts`'s plan, played through WebAudio.
- *
- * Every voice is one buffer source through one gain node. A voice whose role
- * ducks goes straight to the master; every other voice goes through the duck
- * node, which a ducking voice pulls down for its own length and lets back up.
- * Levels are baked into each voice when it starts, so a slider moved mid-sound
- * changes the next sound, which is all a cue of a second or two needs. The
- * player's own two levels are the exception: the master and the music node
- * under it take them at once, because music plays for minutes.
- *
- * The only `AudioContext` in the app: the builder, the sandbox and the game
- * (`./index.ts`) all play through one of these.
- *
- * ## Unlocked by the first gesture
- *
- * Browsers start a context `suspended` and only let it resume inside a real
- * gesture. Most of the game's sounds come from server frames and hovers, which
- * are not gestures, so the context installs a one-shot capture-phase listener
- * for `pointerdown`, `keydown` and `touchend` the moment it exists and resumes
- * there. Capture phase, so a handler that stops propagation cannot keep the
- * page silent. Sounds asked for before that first gesture are dropped: a cue
- * only means something at the moment it was asked for.
- *
- * Fails soft throughout: a take that will not fetch or decode is remembered as
- * bad and skipped, and nothing here throws into the click that asked for a
- * sound.
+ * The take mixer: `mix.ts`'s plan, played through WebAudio. One `AudioContext`
+ * a game needs. Every voice is one buffer source through one gain node; a
+ * ducking voice goes straight to the master and pulls the duck node (every
+ * other voice's path) down for its own length. Levels are baked in at
+ * start, except the player's own two, which the master and music node
+ * take live. Browsers start a context `suspended`, resumable only inside a
+ * real gesture, so it installs a one-shot listener and resumes there; a
+ * sound asked for before that first gesture is dropped. Fails soft
+ * throughout: a take that will not fetch or decode is skipped, never thrown.
  */
 
 import { createMixPlanner, DEFAULT_MIX, type MixPlanner, type MixSettings, type PlanResult, type SoundEvent } from './mix.ts';
 
 /** Above this many live voices, a new one is dropped rather than stacked. */
 const VOICE_CAP = 12;
-/**
- * Above this many live voices of one cell, a new one of it is dropped: the seat's own acts draw at once and
- * overlap (`play/live/pace.ts`), and a combo looped five times must not stack five life gains into a wall.
- */
+/** Above this many live voices of one cell, a new one is dropped: a combo looped several times must not stack into a wall. */
 export const CELL_VOICE_CAP = 2;
 /** A sound that could not start within this long of being asked for is dropped, not played late. */
 const STALE_MS = 1500;
@@ -53,31 +33,20 @@ export interface Mixer {
   play(event: SoundEvent, nowMs?: number): PlanResult;
   /** Audition one take at a level, bypassing roles. */
   playFile(file: string, gain?: number): void;
-  /**
-   * Decode every cue take the planner holds, so a scenario's first beats are not late: from `pack`'s bytes
-   * (`GET /api/sounds/pack`) where it has them, fetched one by one where it does not. Music is left to
-   * {@link loop}: a loop plays one take, and decoding every track up front held over a gigabyte.
-   */
+  /** Decode every cue take the planner holds, from `pack`'s bytes where it has them, fetched one by one otherwise. Music is left to {@link loop}. */
   preload(pack?: ReadonlyMap<string, ArrayBuffer>): void;
   /**
-   * Loop a music role on the music bus, crossfading from whatever loops now;
-   * `null` fades the music out. A list loops the first of its roles that has
-   * a take. Unlike a cue, music waits for the first gesture rather than being
-   * dropped: it is meant to be playing whenever the page can play.
-   *
-   * A role with several takes loops the one `pick` names for it (the player's
-   * choice, `./mute.ts`'s `getMusicPick`) while its cell still holds it, and
-   * one at random otherwise. A new pick for the role looping now crossfades to it.
+   * Loop a music role on the music bus, crossfading from whatever loops now; `null` fades it out. A
+   * list loops the first role that has a take; music waits for the first gesture rather than being
+   * dropped. A role with several takes loops `pick`'s choice while its cell still holds it, else one
+   * at random; a new pick crossfades to it.
    */
   loop(role: MusicChoice, pick?: (role: string) => string | null): void;
   /** The role looping now and the take it plays, or `null`: what sound settings names as the track. */
   nowPlaying(): { role: string; file: string } | null;
   /** A cell's takes, as assigned. */
   takes(cell: string): readonly string[];
-  /**
-   * Loop one take on the music bus, outside any role, crossfading from whatever loops now; `null`
-   * fades it out. The music review's audition (`#/sounds/music`): the same bus and fade a match uses.
-   */
+  /** Loop one take on the music bus, outside any role, crossfading from whatever loops now; `null` fades it out. */
   loopFile(file: string | null): void;
   /** The player's levels (`./mute.ts`), 0..1, applied at once — music too, mid-loop. */
   setLevels(levels: { volume: number; music: number }): void;

@@ -1,44 +1,51 @@
 /*
  * What a sound event turns into, decided without an audio device.
  *
- * A `SoundEvent` names a role (`@hadoku/shared`'s `SOUND_ROLES`), optionally a
- * colour × paradigm cell to layer on top, and whose seat it came from. `plan`
- * answers which takes play, on which bus and how loud — or why a layer stayed
- * silent. `mixer.ts` does the playing; the sandbox prints the answer. Keeping
- * the decisions here is what lets `mix.test.ts` pin them down in Node.
+ * A `SoundEvent` names a role from the game's injected role registry
+ * (never imported by id), optionally a layer cell to mix on top (the
+ * game's to define), and whose seat it came from. `plan` says which takes
+ * play, how loud and on which bus, or why one stayed silent; an id the
+ * registry lacks plans nothing.
  *
- * The rules (`docs/planning/audio.md`):
- *
- * - **Layering.** The role's take always plays; the colour cell's take mixes on
- *   top. Either may be empty and the other still plays.
- * - **Opponent.** Their `ui` roles never play. Their game and colour layers play
- *   at `opponent` times the level.
- * - **Collapse.** The same cell from the same seat within `collapseMs` plays
- *   once: six creatures dying together is one `g.dies`.
- * - **Variation.** A cell with several takes plays one at random, never the
- *   one it played last.
- * - **Reversed.** A `REVERSED_ROLES` event (Untap) plays its other role's
- *   cell backwards, and collapses only with itself.
- * - **Fallback.** A role with an empty cell plays its `FALLBACK_ROLES` role's
- *   cell, down the chain to the first that has a take (an impact tier
- *   nobody has filled plays the tier below), and collapses as itself.
+ * Rules: role and layer each play if either has a take; the opponent's
+ * `ui` roles never play, their others quieter; the same cell from the same
+ * seat collapses within `collapseMs`; a multi-take cell varies, never
+ * repeating; a `reversed` role plays its target's cell backwards; an empty
+ * cell falls back down its `fallback` chain.
  */
-
-import { cueTakes, FALLBACK_ROLES, REVERSED_ROLES, SOUND_ROLES, type SoundBus } from '@hadoku/shared';
-
-import { pickRandom } from './builderClient.ts';
 
 export type Seat = 'me' | 'opp';
 
+/** The mixer bus a sound plays on. The layer cell always plays on `colour`. */
+export type SoundBus = 'ui' | 'game' | 'colour' | 'music';
+
+/** What the planner needs about one role: everything else is the game's business. */
+export interface MixerRole {
+  readonly bus: Exclude<SoundBus, 'colour'>;
+  /** Briefly lowers every other sound while it plays. */
+  readonly duck?: boolean;
+}
+
+/** A game's sound-role data, injected rather than imported: a role's bus/duck, its fallback (empty cell) and reversed (no cell of its own) chains. */
+export interface RoleRegistry {
+  readonly roles: ReadonlyMap<string, MixerRole>;
+  readonly fallback: Readonly<Record<string, string>>;
+  readonly reversed: Readonly<Record<string, string>>;
+}
+
+let ambientRegistry: RoleRegistry = { roles: new Map(), fallback: {}, reversed: {} };
+
+/** The registry a bare `createMixPlanner()` builds against, for a call site that leans on its default. The old `{mix,mixer}.ts` stub sets this once, with the real roles, on import; new code prefers `createSound`. */
+export function configureSoundRoles(registry: RoleRegistry): void {
+  ambientRegistry = registry;
+}
+
 export interface SoundEvent {
   role: string;
-  /** A `<ColourId>|<ParadigmId>` cell layered on top of the role. */
+  /** A layer cell, laid over the role's own: the game decides what it means. */
   colourCell?: string | null;
   seat?: Seat;
-  /**
-   * How heavy it is, 0 to 1: a hit's `damagePower` (`play/motion.ts`). Louder and lower the heavier
-   * (the operator, 2026-10-16: damage must "scale the speed, sound, and size"); absent, as recorded.
-   */
+  /** How heavy it is, 0 to 1. Louder and lower the heavier; absent, as recorded. */
   intensity?: number;
 }
 
@@ -51,15 +58,14 @@ function intensityVoice(intensity: number | undefined): { gain: number; rate: nu
 
 export interface MixSettings {
   bus: Record<SoundBus, number>;
-  /** Multiplier on the opponent's game and colour layers. */
+  /** Multiplier on the opponent's game and layer cells. */
   opponent: number;
   collapseMs: number;
 }
 
 /**
- * Interface sounds sit low: they fire constantly, and one as loud as the game
- * is one a player mutes within a minute (the original cue rule, *"on, at a low
- * volume"*).
+ * Interface sounds sit low: they fire constantly, and one as loud as the
+ * game is one a player mutes within a minute.
  */
 export const DEFAULT_MIX: MixSettings = {
   bus: { ui: 0.5, game: 1, colour: 0.9, music: 0.35 },
@@ -73,7 +79,7 @@ export interface PlannedVoice {
   bus: SoundBus;
   gain: number;
   duck: boolean;
-  /** Played backwards: the event was a `REVERSED_ROLES` one. */
+  /** Played backwards: the event named a role in the registry's `reversed` map. */
   reverse?: true;
   /** Its playback rate when not 1: a heavier event's voice is lower (`intensityVoice`). */
   rate?: number;
@@ -95,12 +101,24 @@ export interface MixPlanner {
   has(cell: string): boolean;
   /** A cell's takes, as assigned. */
   takes(cell: string): readonly string[];
-  /** `cueTakes` (`@hadoku/shared`) of the assigned cells: what the mixer decodes ahead of time. */
+  /** Every take of every cell off the music bus, once each, sorted: what the mixer decodes ahead of time. */
   cueTakes(): string[];
 }
 
+/** Pick one file at random, never the same one twice in a row — unless there is only one to pick. */
+function pickRandom(files: readonly string[], last: string | null, rng: () => number): string | null {
+  if (files.length === 0) return null;
+  const options = files.length > 1 && last !== null ? files.filter((f) => f !== last) : files;
+  const i = Math.floor(rng() * options.length);
+  return options[Math.min(i, options.length - 1)] ?? null;
+}
 
-export function createMixPlanner(rng: () => number = Math.random): MixPlanner {
+function cueTakesOf(registry: RoleRegistry, cells: Readonly<Record<string, readonly string[]>>): string[] {
+  const isMusic = (cell: string): boolean => registry.roles.get(cell.slice(0, cell.indexOf('|')))?.bus === 'music';
+  return [...new Set(Object.entries(cells).flatMap(([cell, files]) => (isMusic(cell) ? [] : files)))].sort();
+}
+
+function buildPlanner(registry: RoleRegistry, rng: () => number): MixPlanner {
   let cells: Readonly<Record<string, readonly string[]>> = {};
   let gains: Readonly<Record<string, number>> = {};
   const lastPick = new Map<string, string>();
@@ -116,14 +134,14 @@ export function createMixPlanner(rng: () => number = Math.random): MixPlanner {
     gainOf,
     has: (cell) => (cells[cell]?.length ?? 0) > 0,
     takes: (cell) => cells[cell] ?? [],
-    cueTakes: () => cueTakes(cells),
+    cueTakes: () => cueTakesOf(registry, cells),
     plan(event, nowMs, settings) {
       const seat = event.seat ?? 'me';
-      const reversedFrom = REVERSED_ROLES[event.role];
+      const reversedFrom = registry.reversed[event.role];
       let played = reversedFrom ?? event.role;
-      while ((cells[`${played}|play`]?.length ?? 0) === 0 && FALLBACK_ROLES[played] !== undefined) played = FALLBACK_ROLES[played]!;
+      while ((cells[`${played}|play`]?.length ?? 0) === 0 && registry.fallback[played] !== undefined) played = registry.fallback[played]!;
       const roleCell = `${played}|play`;
-      const role = SOUND_ROLES.get(reversedFrom ?? event.role);
+      const role = registry.roles.get(reversedFrom ?? event.role);
       if (role === undefined) return { voices: [], skipped: [{ cell: roleCell, reason: 'unknown-role' }] };
       if (seat === 'opp' && role.bus === 'ui') {
         return { voices: [], skipped: [{ cell: roleCell, reason: 'opponent-ui' }] };
@@ -166,4 +184,9 @@ export function createMixPlanner(rng: () => number = Math.random): MixPlanner {
       return result;
     },
   };
+}
+
+/** A planner against the game's real roles (`configureSoundRoles`), or against none until something configures one. New code prefers `createSound`. */
+export function createMixPlanner(rng: () => number = Math.random): MixPlanner {
+  return buildPlanner(ambientRegistry, rng);
 }

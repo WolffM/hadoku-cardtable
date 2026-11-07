@@ -4,13 +4,27 @@
  * it is built lazily, the first real gesture unlocks it, a sound asked for
  * while it is locked is dropped rather than played late, and an unlocked one
  * starts a buffer at its planned gain. Nothing about the node graph is
- * asserted beyond that.
+ * asserted beyond that. A synthetic registry — no real role needed.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createMixPlanner } from './mix.ts';
+import { configureSoundRoles, createMixPlanner, type RoleRegistry } from './mix.ts';
 import { CELL_VOICE_CAP, createMixer } from './mixer.ts';
+
+const REGISTRY: RoleRegistry = {
+  roles: new Map([
+    ['cue.select', { bus: 'ui' as const }],
+    ['cue.tap', { bus: 'game' as const }],
+    ['cue.lifegain', { bus: 'game' as const }],
+    ['music.g', { bus: 'music' as const }],
+    ['music.r', { bus: 'music' as const }],
+    ['music.base', { bus: 'music' as const }],
+    ['music.pick', { bus: 'music' as const }],
+  ]),
+  fallback: {},
+  reversed: { 'cue.untap': 'cue.tap' },
+};
 
 interface FakeSource {
   buffer: unknown;
@@ -100,6 +114,7 @@ const flush = async (): Promise<void> => {
 
 beforeEach(() => {
   contexts = [];
+  configureSoundRoles(REGISTRY);
   vi.stubGlobal('AudioContext', FakeContext);
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) })));
 });
@@ -107,11 +122,12 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
+  configureSoundRoles({ roles: new Map(), fallback: {}, reversed: {} });
 });
 
 function mixer() {
   const planner = createMixPlanner(() => 0);
-  planner.setAssignments({ 'ui.select|play': ['a/take-1.ogg'] }, { 'ui.select|play': 0.5 });
+  planner.setAssignments({ 'cue.select|play': ['a/take-1.ogg'] }, { 'cue.select|play': 0.5 });
   return createMixer((f) => `/takes/${f}`, planner);
 }
 
@@ -124,7 +140,7 @@ describe('the mixer', () => {
   it('the player’s levels set the master and the music node, before the context exists and live after', () => {
     const m = mixer();
     m.setLevels({ volume: 0.5, music: 0.2 });
-    m.play({ role: 'ui.select' });
+    m.play({ role: 'cue.select' });
     const ctx = contexts[0]!;
     // Built in order: the master, the duck node, the music node under it.
     const [master, duck, music] = ctx.gains;
@@ -135,7 +151,7 @@ describe('the mixer', () => {
 
   it('a gesture unlocks it, and an unlocked sound starts at its planned gain', async () => {
     const m = mixer();
-    m.play({ role: 'ui.select' });
+    m.play({ role: 'cue.select' });
     const ctx = contexts[0]!;
     document.dispatchEvent(new Event('pointerdown'));
     ctx.grant();
@@ -147,15 +163,15 @@ describe('the mixer', () => {
     expect(ctx.gains.at(-1)!.gain.value).toBeCloseTo(0.25);
   });
 
-  it('plays Untap as the Tap take backwards, and Tap still forwards', async () => {
+  it('plays the registry’s reversed role as the take backwards, and the target role still forwards', async () => {
     const planner = createMixPlanner(() => 0);
-    planner.setAssignments({ 'g.tap|play': ['a/take-1.ogg'] }, {});
+    planner.setAssignments({ 'cue.tap|play': ['a/take-1.ogg'] }, {});
     const m = createMixer((f) => `/takes/${f}`, planner);
-    m.play({ role: 'g.untap' });
+    m.play({ role: 'cue.untap' });
     const ctx = contexts[0]!;
     ctx.grant();
     await flush();
-    m.play({ role: 'g.tap' }, performance.now() + 1000);
+    m.play({ role: 'cue.tap' }, performance.now() + 1000);
     await flush();
     const [untap, tap] = ctx.sources.map((s) => Array.from((s.buffer as FakeBuffer).getChannelData(0)));
     expect(untap).toEqual([3, 2, 1]);
@@ -164,43 +180,43 @@ describe('the mixer', () => {
 
   it('loops the first music role of a list that has a take, and keeps it while that stays the first', async () => {
     const planner = createMixPlanner(() => 0);
-    planner.setAssignments({ 'music.match.G|play': ['music-g/take-1.ogg'] }, {});
+    planner.setAssignments({ 'music.g|play': ['music-g/take-1.ogg'] }, {});
     const m = createMixer((f) => `/takes/${f}`, planner);
-    m.loop(['music.match.R', 'music.match', 'music.match.G']);
+    m.loop(['music.r', 'music.base', 'music.g']);
     const ctx = contexts[0]!;
     ctx.grant();
     await flush();
     expect(vi.mocked(fetch).mock.calls.map((c) => c[0])).toEqual(['/takes/music-g/take-1.ogg']);
     expect(ctx.sources.filter((s) => s.started)).toHaveLength(1);
-    m.loop(['music.match', 'music.match.G']);
+    m.loop(['music.base', 'music.g']);
     await flush();
     expect(ctx.sources).toHaveLength(1);
   });
 
   it('loops the player’s pick among a role’s takes, crossfades to a new pick, and ignores a pick the cell no longer holds', async () => {
     const planner = createMixPlanner(() => 0);
-    planner.setAssignments({ 'music.match.UB|play': ['music-a/take-1.ogg', 'music-b/take-1.ogg'] }, { 'music.match.UB|play': 0.5 });
+    planner.setAssignments({ 'music.pick|play': ['music-a/take-1.ogg', 'music-b/take-1.ogg'] }, { 'music.pick|play': 0.5 });
     const m = createMixer((f) => `/takes/${f}`, planner);
     let pick: string | null = 'music-b/take-1.ogg';
-    m.loop(['music.match.UB'], () => pick);
+    m.loop(['music.pick'], () => pick);
     const ctx = contexts[0]!;
     ctx.grant();
     await flush();
-    expect(m.nowPlaying()).toEqual({ role: 'music.match.UB', file: 'music-b/take-1.ogg' });
+    expect(m.nowPlaying()).toEqual({ role: 'music.pick', file: 'music-b/take-1.ogg' });
     expect(ctx.sources).toHaveLength(1);
-    m.loop(['music.match.UB'], () => pick);
+    m.loop(['music.pick'], () => pick);
     await flush();
     expect(ctx.sources).toHaveLength(1);
 
     pick = 'music-a/take-1.ogg';
-    m.loop(['music.match.UB'], () => pick);
+    m.loop(['music.pick'], () => pick);
     await flush();
     expect(ctx.sources[0]!.stopped).toBe(true);
     expect(ctx.sources).toHaveLength(2);
-    expect(m.nowPlaying()).toEqual({ role: 'music.match.UB', file: 'music-a/take-1.ogg' });
+    expect(m.nowPlaying()).toEqual({ role: 'music.pick', file: 'music-a/take-1.ogg' });
 
     pick = 'music-gone/take-1.ogg';
-    m.loop(['music.match.UB'], () => pick);
+    m.loop(['music.pick'], () => pick);
     await flush();
     expect(ctx.sources).toHaveLength(2);
     expect(vi.mocked(fetch).mock.calls.map((c) => c[0])).toEqual(['/takes/music-b/take-1.ogg', '/takes/music-a/take-1.ogg']);
@@ -236,11 +252,11 @@ describe('the mixer', () => {
     const planner = createMixPlanner(() => 0);
     planner.setAssignments(
       {
-        'ui.select|play': ['a/take-1.ogg'],
-        'g.tap|play': ['a/take-1.ogg', 'b/take-1.ogg'],
-        'W|creature': ['w/take-1.ogg'],
-        'music.match|play': ['music-a/take-1.ogg'],
-        'music.lobby|play': ['music-b/take-1.ogg'],
+        'cue.select|play': ['a/take-1.ogg'],
+        'cue.tap|play': ['a/take-1.ogg', 'b/take-1.ogg'],
+        'layer-x': ['w/take-1.ogg'],
+        'music.base|play': ['music-a/take-1.ogg'],
+        'music.g|play': ['music-b/take-1.ogg'],
       },
       {},
     );
@@ -251,14 +267,14 @@ describe('the mixer', () => {
 
   it('decodes a cue from the pack without fetching it, and fetches one the pack does not hold', async () => {
     const planner = createMixPlanner(() => 0);
-    planner.setAssignments({ 'ui.select|play': ['a/take-1.ogg'], 'g.tap|play': ['b/take-1.ogg'], 'music.match|play': ['music-a/take-1.ogg'] }, {});
+    planner.setAssignments({ 'cue.select|play': ['a/take-1.ogg'], 'cue.tap|play': ['b/take-1.ogg'], 'music.base|play': ['music-a/take-1.ogg'] }, {});
     const m = createMixer((f) => `/takes/${f}`, planner);
     m.preload(new Map([['a/take-1.ogg', new ArrayBuffer(8)]]));
     await flush();
     expect(vi.mocked(fetch).mock.calls.map((c) => c[0])).toEqual(['/takes/b/take-1.ogg']);
     const ctx = contexts[0]!;
     ctx.grant();
-    m.play({ role: 'ui.select' });
+    m.play({ role: 'cue.select' });
     await flush();
     expect(ctx.sources.filter((s) => s.started)).toHaveLength(1);
     expect(vi.mocked(fetch).mock.calls).toHaveLength(1);
@@ -274,9 +290,9 @@ describe('the mixer', () => {
     await flush();
     m.loopFile('music-a/take-1.ogg');
     await flush();
-    m.play({ role: 'ui.select' });
+    m.play({ role: 'cue.select' });
     await flush();
-    m.play({ role: 'ui.select' }, performance.now() + 1000);
+    m.play({ role: 'cue.select' }, performance.now() + 1000);
     await flush();
     expect(ctx.sources.filter((s) => s.started)).toHaveLength(5);
     expect(vi.mocked(fetch).mock.calls.map((c) => c[0])).toEqual([
@@ -289,31 +305,31 @@ describe('the mixer', () => {
 
   it('a music list with nothing assigned builds nothing', () => {
     const m = mixer();
-    m.loop(['music.match.R', 'music.match']);
+    m.loop(['music.r', 'music.base']);
     expect(contexts).toHaveLength(0);
   });
 
   it('one cell plays at most CELL_VOICE_CAP voices at once: overlapping loops do not stack into a wall', async () => {
     const planner = createMixPlanner(() => 0);
-    planner.setAssignments({ 'g.lifegain|play': ['a/take-1.ogg'], 'g.tap|play': ['b/take-1.ogg'] }, {});
+    planner.setAssignments({ 'cue.lifegain|play': ['a/take-1.ogg'], 'cue.tap|play': ['b/take-1.ogg'] }, {});
     const m = createMixer((f) => `/takes/${f}`, planner);
-    m.play({ role: 'g.lifegain' });
+    m.play({ role: 'cue.lifegain' });
     const ctx = contexts[0]!;
     ctx.grant();
     await flush();
     // Past the collapse window each time: every ask is a voice of its own until the cap.
     for (let i = 1; i <= CELL_VOICE_CAP + 2; i++) {
-      m.play({ role: 'g.lifegain' }, performance.now() + i * 1000);
+      m.play({ role: 'cue.lifegain' }, performance.now() + i * 1000);
       await flush();
     }
     expect(ctx.sources).toHaveLength(CELL_VOICE_CAP);
     // Another cell is not held back by it.
-    m.play({ role: 'g.tap' }, performance.now() + 10_000);
+    m.play({ role: 'cue.tap' }, performance.now() + 10_000);
     await flush();
     expect(ctx.sources).toHaveLength(CELL_VOICE_CAP + 1);
     // One ending lets the next one of its cell play.
     ctx.sources[0]!.onended?.();
-    m.play({ role: 'g.lifegain' }, performance.now() + 20_000);
+    m.play({ role: 'cue.lifegain' }, performance.now() + 20_000);
     await flush();
     expect(ctx.sources).toHaveLength(CELL_VOICE_CAP + 2);
   });
@@ -321,7 +337,7 @@ describe('the mixer', () => {
   it('a sound asked for while locked is dropped, not played when the gesture finally comes', async () => {
     vi.useFakeTimers({ toFake: ['performance'] });
     const m = mixer();
-    m.play({ role: 'ui.select' });
+    m.play({ role: 'cue.select' });
     const ctx = contexts[0]!;
     await flush();
     expect(ctx.sources).toHaveLength(0);

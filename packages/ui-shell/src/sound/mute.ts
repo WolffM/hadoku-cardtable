@@ -1,45 +1,21 @@
 /*
- * The player's say over sound: mute, overall volume, how loud the music
- * sits under the rest, and which track a music role plays when it has more
- * than one (`getMusicPick`; one at random until they choose). Drawn in cardtable's own settings
- * (`../settings/SoundSettings.tsx`); read by `./index.ts`, which applies them
- * to the mixer.
+ * The player's say over sound: mute, overall volume, the music bus under
+ * everything else, and which track a music role plays when it has more
+ * than one (one at random until they choose). Drawn in the game's own
+ * settings; applied to the mixer by `./index.ts`.
  *
- * ## Why mute is the control, and `prefers-reduced-motion` is not
+ * No "reduce sound" media query exists — `prefers-reduced-motion` is about
+ * motion, and reading it as a sound preference would silence players who
+ * never asked for that. Default: on, at a low volume.
  *
- * §F.4 of the wave file is worded as a trap and it is worth spelling out. There
- * is no standard "reduce sound" media query — `prefers-reduced-motion` is about
- * MOTION, and reading it as a sound preference would silence the app for every
- * player who turned animations down, which is not what they asked for and not
- * something they could then undo. (`prefers-reduced-transparency`,
- * `prefers-contrast` and `forced-colors` are the other real ones; none of them
- * is about audio either.) So the player's stated preferences are these three,
- * and nothing else is consulted.
- *
- * Default: **on, at a low volume.** A first-time visitor hears the app.
- *
- * ## Where they are kept: the fleet's preference service (2026-10-30)
- *
- * The operator: settings move into hadoku_site's prefs, so the same values reach cardtable whether
- * it is its own page or a watchparty room's game. Two rows:
- *
- *   - **`games`** — `muted` and `volume`, the master controls every hadoku game shares. The row is
- *     the fleet's, not ours: `GAMES_ROW` from `@wolffm/prefs-client/platform` names it, so bomberman
- *     reads the same one.
- *   - **`cardtable-sound`** — `music`, the music bus under the master, and `musicPicks`.
- *
- * The three levels are saved per DEVICE, as they were when they lived in `localStorage`: the right
- * volume is the speakers' and the room's, not the account's. The track picks are per PLAYER: a
- * taste follows its player to another browser.
- *
- * The values are held here, in memory, and every read is synchronous: the mixer asks on every
- * sound. `useSoundPrefs` connects them to the service once per page — `../App.tsx` and
- * `../embed/EmbedApp.tsx` both call it — adopting what it holds and saving every change back.
- * Until it answers, the in-memory value stands; the service's own `localStorage` cache answers
- * within a frame on every load after the first.
- *
- * The `cardtable.sound.*` keys these used to live in are read once, as the first value and as a
- * migration: a value the service does not hold yet is saved to it, and the keys are removed.
+ * Kept in the fleet's preference service: `games` (`muted`, `volume`, the
+ * master every hadoku game shares — `GAMES_ROW`, not this game's row) and
+ * `<appId>-sound` (`music`, `musicPicks` — this game's own, so two games
+ * never collide). The three levels are per DEVICE, as `localStorage` held
+ * them; music picks are per PLAYER. Values live here in memory, read
+ * synchronously on every sound; `useSoundPrefs` connects them to the
+ * service once per page. The old `<appId>.sound.*` keys are read once, as
+ * a migration, and removed.
  */
 
 import { useEffect } from 'react';
@@ -47,14 +23,12 @@ import { z } from 'zod';
 import { createPrefsClient, type PrefsClient } from '@wolffm/prefs-client';
 import { GAMES_DEFAULTS, GAMES_ROW, type GamesPrefs } from '@wolffm/prefs-client/platform';
 
+import { appId } from '../app-id/index.ts';
+
 /** `volume` scales everything; `music` scales the music bus under it. Both 0..1. */
 export type LevelName = 'volume' | 'music';
 
-/**
- * A level nobody has set. The music starts at half (the operator, 2026-10-19:
- * "let's change default music volume to be 50%") so it sits under the game's
- * own sounds; everything else starts full.
- */
+/** A level nobody has set: the music starts at half, under the game's own sounds; everything else full. */
 export const LEVEL_DEFAULTS: Readonly<Record<LevelName, number>> = { volume: GAMES_DEFAULTS.volume, music: 0.5 };
 
 const LevelSchema = z.number().min(0).max(1);
@@ -68,13 +42,16 @@ export const SoundPrefsSchema = z
   .strict();
 export type SoundPrefs = z.infer<typeof SoundPrefsSchema>;
 
-/** The `localStorage` keys the values lived in before the service held them. Read once, to move them. */
-export const LEGACY_KEYS = {
-  muted: 'cardtable.sound.muted',
-  volume: 'cardtable.sound.volume',
-  music: 'cardtable.sound.music',
-  musicPicks: 'cardtable.sound.music-picks',
-} as const;
+/** The `localStorage` keys the values lived in before the service held them, built from `appId()`. Called lazily — never at module load — so importing this before `configureShell` runs does not throw. */
+export function legacyKeys(): Readonly<{ muted: string; volume: string; music: string; musicPicks: string }> {
+  const prefix = appId();
+  return {
+    muted: `${prefix}.sound.muted`,
+    volume: `${prefix}.sound.volume`,
+    music: `${prefix}.sound.music`,
+    musicPicks: `${prefix}.sound.music-picks`,
+  };
+}
 
 let muted = GAMES_DEFAULTS.muted;
 let musicPicks: Record<string, string> = {};
@@ -142,9 +119,10 @@ function clamp(n: number): number {
 /**
  * Subscribe to any change: mute, a level or a music pick. Returns the unsubscribe.
  *
- * Shaped for `useSyncExternalStore`, which is what `SoundSettings` uses: two controls on one page
- * must agree, and a React component must not read a mutable module global during render without
- * a subscription. Another tab's change arrives through the service's own broadcast and lands here.
+ * Shaped for `useSyncExternalStore`: two controls on one page must agree,
+ * and a React component must not read a mutable module global during
+ * render without a subscription. Another tab's change arrives through the
+ * service's own broadcast and lands here.
  */
 export function subscribeSound(fn: Listener): () => void {
   listeners.add(fn);
@@ -163,7 +141,7 @@ function adopt(games: GamesPrefs, sound: SoundPrefs): void {
   if (JSON.stringify([muted, levels, musicPicks]) !== before) notify();
 }
 
-/** Whatever the old `cardtable.sound.*` keys still hold, parsed; anything unreadable is absent. */
+/** Whatever the old `<appId>.sound.*` keys still hold, parsed; anything unreadable is absent. */
 export function readLegacy(store: Storage | undefined = globalThis.localStorage): GamesPrefs & SoundPrefs {
   const out: GamesPrefs & SoundPrefs = {};
   if (store === undefined) return out;
@@ -175,14 +153,15 @@ export function readLegacy(store: Storage | undefined = globalThis.localStorage)
       return null;
     }
   };
-  const m = raw(LEGACY_KEYS.muted);
+  const keys = legacyKeys();
+  const m = raw(keys.muted);
   if (m === 'true' || m === 'false') out.muted = m === 'true';
   for (const name of ['volume', 'music'] as const) {
-    const v = raw(LEGACY_KEYS[name]);
+    const v = raw(keys[name]);
     const n = v === null ? NaN : Number(v);
     if (Number.isFinite(n)) out[name] = clamp(n);
   }
-  const p = raw(LEGACY_KEYS.musicPicks);
+  const p = raw(keys.musicPicks);
   if (p !== null) {
     try {
       const parsed = SoundPrefsSchema.shape.musicPicks.safeParse(JSON.parse(p));
@@ -195,7 +174,7 @@ export function readLegacy(store: Storage | undefined = globalThis.localStorage)
 }
 
 function removeLegacy(store: Storage | undefined = globalThis.localStorage): void {
-  for (const key of Object.values(LEGACY_KEYS)) {
+  for (const key of Object.values(legacyKeys())) {
     try {
       store?.removeItem(key);
     } catch {
@@ -211,14 +190,14 @@ function soundClients(): Connection {
   clients ??= {
     // No `defaults`: an unset field is how `connectSoundPrefs` knows the legacy key still has to move.
     games: createPrefsClient({ appId: GAMES_ROW.appId, schema: GAMES_ROW.schema }) as PrefsClient<GamesPrefs>,
-    sound: createPrefsClient({ appId: 'cardtable-sound', schema: SoundPrefsSchema }) as PrefsClient<SoundPrefs>,
+    sound: createPrefsClient({ appId: `${appId()}-sound`, schema: SoundPrefsSchema }) as PrefsClient<SoundPrefs>,
   };
   return clients;
 }
 
 /**
  * Connect the sound settings to the preference service for as long as the calling component is
- * mounted: adopt what it holds, follow its changes (another tab, another host on this page), and
+ * mounted: adopt what it holds, follow its changes (another tab, another host on the page), and
  * save every change made here. The first time a page connects, a value only the old keys hold is
  * saved to the service and the keys are removed. `ready` settles once the service's first answer
  * is adopted.
