@@ -1,9 +1,15 @@
 // Loaded before every unit file (root `vitest.config.ts` `setupFiles`). Two
-// knobs, both about a CI runner running `check` beside three e2e shards and a jvm job.
+// knobs, both about a CI runner running `check` beside three e2e shards and a jvm job,
+// and the shell's app id, which `main.tsx` and `embed/index.tsx` set before anything renders.
 import { setImmediate } from 'node:timers';
 
+import { configureShell } from '@hadoku/ui-shell/app-id';
 import { configure } from '@testing-library/dom';
 import { afterEach } from 'vitest';
+
+import { APP_ID } from '../app-name.ts';
+
+configureShell({ appId: APP_ID });
 
 // testing-library's `waitFor` default of 1 s is a hang detector locally and a
 // load detector there — the same frame-timing case that reddened the deploy gate

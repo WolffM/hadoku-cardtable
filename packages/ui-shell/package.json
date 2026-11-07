@@ -1,0 +1,41 @@
+{
+  "name": "@hadoku/ui-shell",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "The parts of a game's UI any game keeps: chrome, trim, room shell, embed mount, theme and settings frame, UI scale, usage counting, the sound mixer, motion and generic components. One appId parameterizes its storage keys, events and chat prefix. MIT; imports only react, react-dom and @wolffm/*.",
+  "exports": {
+    "./app-id": "./src/app-id/index.ts",
+    "./chrome": "./src/chrome/index.ts",
+    "./embed": "./src/embed/index.ts",
+    "./trim": "./src/trim/index.ts",
+    "./theme": "./src/theme/index.ts",
+    "./settings": "./src/settings/index.ts",
+    "./usage": "./src/usage/index.ts",
+    "./sound": "./src/sound/index.ts",
+    "./motion": "./src/motion/index.ts",
+    "./components": "./src/components/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "dependencies": {
+    "@wolffm/prefs-client": "npm:@hadoku/prefs-client@1.1.23",
+    "@wolffm/task-ui-components": "npm:@hadoku/task-ui-components@4.23.24",
+    "@wolffm/themes": "npm:@hadoku/themes@5.13.39",
+    "@wolffm/watchparty-ui": "npm:@hadoku/watchparty-ui@0.45.54"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/react": "16.3.3",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  }
+}
