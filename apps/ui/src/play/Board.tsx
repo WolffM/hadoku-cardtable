@@ -390,6 +390,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from 'react';
+import { flushSync } from 'react-dom';
 
 import { CardTile } from '../components/CardTile.tsx';
 import type { TileCard } from '../components/faceCrop.ts';
@@ -976,7 +977,13 @@ let HELD_HAND_SLOT: { readonly cardId: number; readonly height: number } | null 
 export function holdHandSlot(slot: { cardId: number; height: number } | null): void {
   if (HELD_HAND_SLOT?.cardId === slot?.cardId && HELD_HAND_SLOT?.height === slot?.height) return;
   HELD_HAND_SLOT = slot;
-  for (const wake of MOUNTED_BOARDS) wake();
+  const wakeAll = (): void => {
+    for (const wake of MOUNTED_BOARDS) wake();
+  };
+  // Held from a pointer handler, in the same task that takes the card out of the row: the gap is
+  // drawn before the next frame, or the cards after it close up for one frame and spring back.
+  if (slot === null) wakeAll();
+  else flushSync(wakeAll);
 }
 
 /**
