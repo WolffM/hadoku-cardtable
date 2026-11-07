@@ -255,6 +255,7 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
       stuckMs: opts.stuckMs,
       refusals: () => refusals,
       drainServerFlags,
+      serverRows: () => lastServerRows(opts.serverLogFile, matchId),
     },
     isOver,
   );
