@@ -202,6 +202,7 @@ export type MatchSpecWithIdentity = Omit<MatchSpec, 'seats'> & {
 };
 
 import { createPlayTally, type PlayTally } from '../stats/facts.js';
+import { report } from '../telemetry.js';
 import { createStateHistory, type StateHistory } from './history.js';
 import {
 	createProjector,
@@ -1588,6 +1589,8 @@ export class Match {
 			}
 			const loser = this.seats[seat]?.playerId ?? null;
 			this.deps.log({ evt: 'concede-forced', matchId: this.id, seat, playerId: loser });
+			// A warning in telemetry, every time: how often Forge ignores a concede is the open question.
+			report('concede-forced', { matchId: this.id, seat, waitedMs: this.now() - since }, 'warn');
 			this.onLine({
 				t: 'gameover',
 				winner: this.spec.seats[seat === 0 ? 1 : 0]?.name ?? null,

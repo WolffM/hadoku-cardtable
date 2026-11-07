@@ -41,6 +41,7 @@ import {
 	type ReplayHost,
 } from './fixtures/transcript.js';
 import { foldFrames, type StateFrame, type WireObj } from './visibility.js';
+import { installTelemetry } from '../telemetry.js';
 
 const ALICE = 'fk:aaaaaaaaaaaaaaaa';
 const BOB = 'fk:bbbbbbbbbbbbbbbb';
@@ -2022,8 +2023,10 @@ describe('a match that outlives its server', () => {
 	// The monkey's timed-out matches (forge.yml runs 42333563074..42336336183): Forge received the
 	// concede and logged no error, and no `gameover` ever came, so the match held its place in the
 	// server's ceiling until the run ended. A concede always ends the game.
-	it('a concede Forge never answers is sent once more, and then the server ends the game itself, the conceder the loser', () => {
+	it('a concede Forge never answers is sent once more, and then the server ends the game itself, the conceder the loser, with a warning in telemetry', () => {
 		vi.useFakeTimers();
+		const reported: unknown[][] = [];
+		installTelemetry((event, context, level) => reported.push([event, context, level]));
 		try {
 			const h = harness();
 			h.match.claim(ALICE);
@@ -2044,8 +2047,10 @@ describe('a match that outlives its server', () => {
 				frame: { kind: 'notify', method: 'finishGame', losers: [1], lost: [{ player: 1, reason: 'Conceded' }] },
 			});
 			expect(h.logs.map((l) => l.evt)).toEqual(expect.arrayContaining(['concede-unanswered', 'concede-forced']));
+			expect(reported).toEqual([['concede-forced', expect.objectContaining({ seat: 1 }), 'warn']]);
 		} finally {
 			vi.useRealTimers();
+			installTelemetry(() => {});
 		}
 	});
 
