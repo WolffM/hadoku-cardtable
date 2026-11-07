@@ -17,7 +17,6 @@ import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { createElement } from 'react';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 
-import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
 import { cardImageUrl } from '../../draft/cardImage.ts';
 import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
 import { Board, type BoardInteraction } from '../Board.tsx';
@@ -424,7 +423,6 @@ describe('hidden information', () => {
     hover(theirCard().querySelector('.card')!);
     const src = panel()!.querySelector('img')!.getAttribute('src');
     expect(src).toBe(cardImageUrl(SCRYFALL_ID));
-    expect(ALLOWED_ART_HOSTS).toContain(new URL(src!).origin);
   });
 
   it('is not itself a card the DOM can address', () => {

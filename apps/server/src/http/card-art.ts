@@ -1,4 +1,10 @@
 /*
+ * GET /api/art/<scryfallId>[/back][?size=small|large] → 302 to the image: where every card image a
+ * browser draws comes from. Our own copy on `cdn.hadoku.me` when the art mirror holds one
+ * (`pools/art-keys.ts`; it copies the `normal` size), Scryfall's image otherwise — so the server
+ * alone decides a card's image, and repointing one is a data edit here, never a browser rebuild.
+ * The redirect is cached by the browser a day: a repoint reaches a returning player within one.
+ *
  * GET /api/cards/art?n=<name>&n=<name>… → `{ art: { [name]: { scryfallId, backs? } } }`
  *
  * The art of a card a browser knows only by its name — a library deck's line, a basic land, a list
@@ -8,13 +14,37 @@
  * route; a lookup in memory, so it needs no per-caller limit beyond the cap on names.
  */
 import type { Request, Response, Router } from 'express';
+import { BACK_FACE, cdnUrlFor, resolveArtUrl, type ArtImageSize } from '@hadoku/carddata/art';
 
+import type { ArtKeys } from '../pools/art-keys.js';
 import type { ArtIds } from '../play/art-ids.js';
 
 /** The most names one request answers: a 75 has fewer distinct ones. */
 const MAX_NAMES = 200;
 
-export function attachCardArt(api: Router, deps: { art: ArtIds }): void {
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const SIZES: readonly ArtImageSize[] = ['small', 'normal', 'large'];
+
+/** Where `/api/art/<id>` sends a browser: our copy of the image, else Scryfall's; null for an id that is no card's. */
+export function artLocation(scryfallId: string, size: ArtImageSize, keys: ArtKeys): string | null {
+	const key = size === 'normal' ? keys.keyFor(scryfallId) : undefined;
+	return key === undefined ? resolveArtUrl(scryfallId, {}, { size }) : cdnUrlFor(key);
+}
+
+export function attachCardArt(api: Router, deps: { art: ArtIds; keys: ArtKeys }): void {
+	const image = (back: boolean) => (req: Request, res: Response) => {
+		const id = String(req.params.id ?? '');
+		const size = (typeof req.query.size === 'string' ? req.query.size : 'normal') as ArtImageSize;
+		const location = UUID.test(id) && SIZES.includes(size) ? artLocation(back ? `${id}${BACK_FACE}` : id, size, deps.keys) : null;
+		if (location === null) {
+			res.status(404).end();
+			return;
+		}
+		res.set('Cache-Control', 'private, max-age=86400').redirect(302, location);
+	};
+	api.get('/art/:id', image(false));
+	api.get('/art/:id/back', image(true));
+
 	api.get('/cards/art', (req: Request, res: Response) => {
 		const names = [req.query.n].flat().filter((n): n is string => typeof n === 'string' && n.trim() !== '');
 		if (names.length > MAX_NAMES) {

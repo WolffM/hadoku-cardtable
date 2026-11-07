@@ -187,6 +187,9 @@ export const CONFIG = {
 	/** The card catalog the pools resolve against (`CARDTABLE_CATALOG`). */
 	catalogPath: process.env.CARDTABLE_CATALOG ?? resolve(homedir(), '.local/share/cardtable/catalog/cards.json'),
 
+	/** The art mirror's log (`upload-art`, `CARDTABLE_ART_MIRROR`): which CDN object holds each card image. Missing, every image is Scryfall's. */
+	artMirrorPath: process.env.CARDTABLE_ART_MIRROR ?? resolve(homedir(), '.local/share/cardtable/art/mirror.jsonl'),
+
 	/**
 	 * `CARDTABLE_NEW_ROOM_FORMAT=newest` pins every new room to the newest
 	 * Standard era instead of a random one: the e2e harnesses set it, because

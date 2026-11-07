@@ -1,34 +1,17 @@
 /*
  * The only place in this project where a card image URL enters the UI.
  *
- * ## Where the bytes come from now
+ * ## One route for every image
  *
- * They come from `cdn.hadoku.me`, and that is a deliberate reversal. The repo
- * used to say "never host card images, be a link and not a host"; the operator
- * decided otherwise, explicitly, and `docs/LICENSING.md` and `docs/DECISIONS.md`
- * carry the new rule and the reasoning trail behind it. Do not re-derive the old
- * posture from a stale comment — this one is current.
+ * Every card image a browser draws is `/api/art/<scryfallId>` (`<id>/back` for a back face), and
+ * the server answers with a redirect to the bytes: our own copy on `cdn.hadoku.me` when the art
+ * mirror holds one, Scryfall's image otherwise (`apps/server/src/http/card-art.ts`). The server is
+ * the one place that knows which ids are mirrored and which are repointed, so this module holds no
+ * host, no manifest and no table: a card's art is still a lookup, not a URL, and the lookup is the
+ * server's. Repointing a card stays a one-line data edit there, with no browser rebuild.
  *
- * What did NOT change is that the app's own origin never serves an image. We
- * serve `apps/ui/dist` and an API, and there is no image route in it. Art comes
- * from the CDN or from Scryfall; a relative or same-origin `src` is still a bug,
- * and `cardImage.test.ts` fails on one.
- *
- * ## The manifest is the point, not the CDN
- *
- * WotC art is a placeholder here. The operator expects to source art elsewhere,
- * and the whole design exists so that when it happens, repointing a card is a
- * **data edit** — one entry in `art-manifest.json` — and no component moves.
- *
- * So this module holds no host, no path shape and no id validation. All of that
- * lives in `@hadoku/carddata/art`, behind `resolveArtUrl`, which takes an id and
- * a manifest and returns a URL or `null`. This file's entire job is to bind that
- * resolver to *this* app's committed manifest and hand back something an `<img>`
- * can use.
- *
- * The manifest ships this wave with `entries: {}`, so every card falls through
- * to Scryfall — which is exactly what the deployed UI renders today. Filling it
- * in is a data change, not a code change. That is the property being bought.
+ * The bytes never come from our origin — the route only redirects — and the browser caches the
+ * redirect for a day, so a card it has drawn costs one request to the art host after that.
  *
  * ## Why `normal`, and why not `art_crop`
  *
@@ -54,27 +37,32 @@
  * marks.
  */
 
-import { resolveArtUrl, type ArtManifestFile } from '@hadoku/carddata/art';
-import manifest from './art-manifest.json';
+import { BACK_FACE } from '@hadoku/carddata/art';
+import { apiUrl } from '../http.ts';
 import { whenIdle } from '../idle.ts';
 
 /** The image sizes the resolver knows how to build. */
 export type CardImageSize = 'small' | 'normal' | 'large';
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 /**
- * Build the image URL for a card, or `null` when there is nothing to build from.
+ * The image URL for a card, or `null` when there is nothing to build from.
  *
  * `null` — not a placeholder, not a guess, not a URL that 404s — is the contract
  * the caller depends on: `CardTile` renders the text tile, which is a complete,
- * readable card on its own. An unresolvable id takes that path, and so does a
- * CDN key that was never uploaded (via the `<img onError>` fallback, because
- * that failure only shows up as a 404 at fetch time).
+ * readable card on its own. An id that is no card's takes that path, and so does
+ * an image that fails to load (via the `<img onError>` fallback).
  */
 export function cardImageUrl(
   scryfallId: string | undefined,
   size: CardImageSize = 'normal',
 ): string | null {
-  return resolveArtUrl(scryfallId, (manifest as ArtManifestFile).entries, { size });
+  if (scryfallId === undefined) return null;
+  const back = scryfallId.endsWith(BACK_FACE);
+  const id = back ? scryfallId.slice(0, -BACK_FACE.length) : scryfallId;
+  if (!UUID.test(id)) return null;
+  return apiUrl(`art/${id}${back ? '/back' : ''}${size === 'normal' ? '' : `?size=${size}`}`);
 }
 
 /**

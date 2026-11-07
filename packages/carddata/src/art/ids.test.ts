@@ -51,7 +51,7 @@ function readJson<T>(name: string): T {
 const TABLE_FILE = fileURLToPath(new URL('../../../../apps/server/src/play/art-ids.json', import.meta.url));
 const TABLE = JSON.parse(readFileSync(TABLE_FILE, 'utf8')) as ArtIdTableFile;
 const POOL = readJson<{ cards: ArtIdSource[] }>('pool.json');
-const MANIFEST = readJson<ArtManifestFile>('art-manifest.json');
+const MANIFEST = JSON.parse(readFileSync(fileURLToPath(new URL('../../../../apps/server/src/play/art-manifest.json', import.meta.url)), 'utf8')) as ArtManifestFile;
 
 /** Exactly how the server's `art-ids.ts` composes its table: the pool first. */
 const KNOWN: ArtIdIndex = mergeArtIdIndexes(artIdIndex(POOL.cards), artIdIndexFromTable(TABLE));

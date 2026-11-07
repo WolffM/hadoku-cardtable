@@ -615,8 +615,8 @@ function PoolSets({ format }: { format: TableFormat | null }) {
  * A deck's art: a slice of the card the art rule chose, or nothing.
  *
  * **A lookup, not a URL.** The id goes to `cardImageUrl`, the one function in
- * this app that builds an image URL, which resolves it through
- * `art-manifest.json` — so repointing a card is still a one-line data edit and
+ * this app that builds an image URL: the server's art route, which resolves it
+ * — so repointing a card is still a one-line data edit and
  * this component names no host (D15). No bytes ship in the bundle: this is an
  * `<img src>` at a remote origin, and D18 repealed the restriction on which one.
  *

@@ -66,7 +66,7 @@ describe('a card’s related cards', () => {
     expect(relatedCards(named('Magda, Brazen')).map((r) => r.kind)).toContain('token');
     expect(relatedCards(named('The Mightstone')).map((r) => r.name)).toContain('Urza, Planeswalker');
     expect(relatedCards(named('Jace, Vryn'))[0]!.id).toMatch(/#back$/);
-    expect(cardImageUrl(relatedCards(named('Jace, Vryn'))[0]!.id)).toMatch(/\/back\//);
+    expect(cardImageUrl(relatedCards(named('Jace, Vryn'))[0]!.id)).toMatch(/\/back$/);
     expect(relatedCards({ name: 'Not a Card' })).toEqual([]);
   });
 

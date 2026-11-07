@@ -36,11 +36,15 @@ before planning cross-game work.
   Still enforced, for reasons that are not about copyright: **no image bytes in
   the bundle** (a 5.85 MB inlined PNG is a performance bug) and **no copied
   Scryfall `image_uris` blob** (that is what keeps art swappable).
-- **A card's art is a lookup, not a URL.** `apps/ui/src/draft/art-manifest.json`
-  maps `scryfallId → {source, key}`; `packages/carddata/src/art/index.ts`
-  resolves it. The art is a **placeholder** the operator expects to re-source, so
-  repointing a card must stay a one-line data edit. A component that hardcodes an
-  image host has broken this even if every URL it emits is legal.
+- **A card's art is a lookup, not a URL.** The server decides every card's
+  Scryfall id (`apps/server/src/play/art-ids.ts`) and every image a browser draws
+  is `/api/art/<id>`, which redirects to our copy on `cdn.hadoku.me` (the art
+  mirror, `upload-art` → `~/.local/share/cardtable/art/mirror.jsonl`) or else to
+  Scryfall (`apps/server/src/http/card-art.ts`). `apps/server/src/play/art-manifest.json`
+  maps `scryfallId → {source, key}` over the mirror. The art is a **placeholder**
+  the operator expects to re-source, so repointing a card must stay a one-line
+  data edit. A component that hardcodes an image host has broken this even if
+  every URL it emits is legal.
 - ~~**No WotC trademarks in the UI**~~ — **amended 2026-09-27 (D20)** by the
   operator, who chose established third-party symbol fonts over drawing our
   own. **Mana symbols, the tap symbol

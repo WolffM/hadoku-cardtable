@@ -30,6 +30,9 @@ export interface CapacityDeps {
 	memory?: () => { rss: number; heapUsed: number };
 }
 
+/** A card image request (`http/card-art.ts`): a redirect to the art host, one per card a page draws. */
+export const isArtRedirect = (path: string): boolean => path.startsWith('/api/art/');
+
 export interface CapacitySampler {
 	/** Express middleware: counts each finished request and its duration. */
 	requests: (req: Request, res: Response, next: NextFunction) => void;
@@ -55,6 +58,8 @@ export function capacitySampler(deps: CapacityDeps): CapacitySampler {
 	let samples = 0;
 	let durations: number[] = [];
 	let errors = 0;
+	/** `/api/art` redirects: counted, never timed. */
+	let artRedirects = 0;
 
 	const sample = (): void => {
 		samples += 1;
@@ -87,6 +92,7 @@ export function capacitySampler(deps: CapacityDeps): CapacitySampler {
 			p95Ms: pct(0.95),
 			maxMs: sorted.at(-1) ?? null,
 			errors5xx: errors,
+			artRedirects,
 			loopP99Ms: Math.round(loop.percentile(99) / 1e6),
 			loopMaxMs: Math.round(loop.max / 1e6),
 			...deps.counts?.(),
@@ -95,13 +101,21 @@ export function capacitySampler(deps: CapacityDeps): CapacitySampler {
 		samples = 0;
 		durations = [];
 		errors = 0;
+		artRedirects = 0;
 		loop.reset();
 	};
 
 	let timers: NodeJS.Timeout[] = [];
 
 	return {
-		requests: (_req, res, next) => {
+		requests: (req, res, next) => {
+			// A board asks for ~120 images at once: sub-millisecond redirects that would
+			// swamp the request rate and pull p95 down to nothing. Counted on their own.
+			if (isArtRedirect(req.path)) {
+				artRedirects += 1;
+				next();
+				return;
+			}
 			const t = process.hrtime.bigint();
 			res.on('finish', () => {
 				durations.push(Number(process.hrtime.bigint() - t) / 1e6);

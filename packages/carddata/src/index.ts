@@ -33,7 +33,7 @@
  *   emits none, and `build-pool.ts` refuses at runtime to write a pool
  *   containing an image field or a URL that looks like one.
  * - **Art is an indirection keyed by `scryfallId`**, held in
- *   `apps/ui/src/draft/art-manifest.json` and resolved by `src/art/`. It is
+ *   `apps/server/src/play/art-manifest.json` and resolved by `src/art/`. It is
  *   deliberately NOT in `pool.json`, because `build-pool` regenerates the pool
  *   wholesale and would discard it.
  * - **Image bytes never enter this repo.** They go from Scryfall to the CDN

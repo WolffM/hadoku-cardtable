@@ -94,7 +94,6 @@ import {
   openDraftedDeck,
   groupSetsByBlock,
 } from './ConstructedScreen.tsx';
-import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
 import { serveNamedArt, serverArtId } from '../play/art.testing.ts';
 import DECK_ART_TRAITS from '../draft/deck-art-traits.json';
 import { artScore, assignDeckArt, rankDeckArt, traitsOfDraftCard } from './deckArt.ts';
@@ -1641,7 +1640,7 @@ describe('the deck picker', () => {
       const island = [...list.querySelectorAll('.peek__line')].find((li) => li.querySelector('.peek__name')?.textContent === 'Island')!;
       fireEvent.pointerOver(island, { pointerType: 'mouse' });
       const panel = document.querySelector('[data-board-zoom] [data-inspect]');
-      expect(panel?.querySelector('img')?.getAttribute('src')).toMatch(/^https:\/\//);
+      expect(panel?.querySelector('img')?.getAttribute('src')).toMatch(/^\/api\/art\//);
       fireEvent.pointerOut(island, { pointerType: 'mouse', relatedTarget: list });
       expect(document.querySelector('[data-inspect]')).toBeNull();
     });
@@ -3965,7 +3964,6 @@ describe('the deck chooser', () => {
     expect(geist).toBeDefined();
     const src = uw.querySelector('img')?.getAttribute('src');
     expect(src).toBe(cardImageUrl(geist));
-    expect(ALLOWED_ART_HOSTS.some((host) => (src ?? '').startsWith(host))).toBe(true);
     // Decorative: the row's accessible name is the DECK's, not the card's.
     expect(uw.querySelector('img')?.getAttribute('alt')).toBe('');
     expect(uw.textContent).not.toContain('Geist of Saint Traft');

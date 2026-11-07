@@ -113,12 +113,15 @@ import { attachDiscord } from './http/discord.js';
 import { attachEvents } from './http/events.js';
 import { attachTournaments } from './http/tournaments.js';
 import { attachCardArt } from './http/card-art.js';
+import { loadArtKeys } from './pools/art-keys.js';
+import artManifest from './play/art-manifest.json' with { type: 'json' };
+import type { ArtManifestFile } from '@hadoku/carddata/art';
 import { createArtIds } from './play/art-ids.js';
 import { attachSounds } from './http/sounds.js';
 import { createMusicReviewStore } from './http/musicReviewStore.js';
 import { attachClientEvents } from './http/client-events.js';
 import { attachUsage } from './http/usage.js';
-import { capacitySampler } from './capacity.js';
+import { capacitySampler, isArtRedirect } from './capacity.js';
 import { attachTrim } from './http/trim.js';
 import { attachCubeRoutes, createCubeStore } from './pools/cubes.js';
 import { attachSetRoutes, createSetsStore, warmSetsStore } from './pools/sets.js';
@@ -213,6 +216,11 @@ const capacity = capacitySampler({
 app.use(edgeProvenance);
 app.use(capacity.requests);
 app.use((req, res, next) => {
+	// Card images are counted by `capacity` (`artRedirects`), not logged one line each.
+	if (isArtRedirect(req.path)) {
+		next();
+		return;
+	}
 	const start = process.hrtime.bigint();
 	res.on('finish', () => {
 		const ms = Number(process.hrtime.bigint() - start) / 1e6;
@@ -499,6 +507,7 @@ const matchStats = createMatchStats({
 const SHORTLIST_DIR = resolve(PKG_ROOT, 'pools/cubes');
 const catalog = loadCardCatalog(CONFIG.catalogPath);
 bootPhase('catalog');
+const artKeys = loadArtKeys({ mirrorPath: CONFIG.artMirrorPath, manifest: (artManifest as ArtManifestFile).entries });
 const cubeStore = createCubeStore({ shortlistDir: SHORTLIST_DIR, importDir: CONFIG.cubesDir, catalog });
 if (cubeStore.list().length === 0) console.warn(`[cardtable] draft pool: no shortlist cubes loaded from ${SHORTLIST_DIR} — draft rooms are disabled`);
 bootPhase('cubes');
@@ -690,7 +699,7 @@ attachRooms(api, {
 	},
 });
 attachTournaments(api, { tournaments, people });
-attachCardArt(api, { art: createArtIds(catalog) });
+attachCardArt(api, { art: createArtIds(catalog), keys: artKeys });
 attachEvents(api, { events, lobby, people, checkPlan: checkDraftPlan, rally: { serviceKey: CONFIG.serviceKey }, log: roomsLog, closed: roomClosed, ...(CONFIG.testNoRateLimits ? { createRateLimit: null } : {}) });
 // The Discord's last few #general messages, through ArchiveBot (prod only: it holds the secret).
 attachDiscord(api, { secret: CONFIG.archivebotSecret, archivebotUrl: CONFIG.archivebotUrl, log: jsonLogger('cardtable-discord') });
@@ -799,6 +808,7 @@ attachRally(api, {
 	presets: presetStore,
 	boosters: forgePools,
 	catalog,
+	art: artKeys,
 	...(CONFIG.testNoRateLimits ? { packRateLimit: null } : {}),
 });
 

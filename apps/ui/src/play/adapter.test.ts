@@ -27,7 +27,6 @@ import { ALLOWED_ART_HOSTS, resolveArtUrl } from '@hadoku/carddata/art';
 import { cardStateKey, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
 
 import { FACE_REGIONS } from '../components/faceCrop.ts';
-import artManifest from '../draft/art-manifest.json';
 import poolData from '../draft/pool.json';
 import {
   abilityTextOf,
@@ -48,7 +47,8 @@ import { foldPackets, type WireState } from './fold.ts';
 import { type Tagged, type WireObject } from './wire.ts';
 
 const fixture = PLAY_FIXTURES[0]!;
-const MANIFEST = artManifest.entries;
+/** The resolver with no repoints: whether a card has art at all, not where it is drawn from. */
+const MANIFEST = {};
 
 function baseState(): Map<string, WireObject> {
   return new Map(foldPackets(loadPackets(fixture)).state);

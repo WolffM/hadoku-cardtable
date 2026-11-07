@@ -77,7 +77,7 @@ describe('preloadMatchArt: both decks’ art, a few at a time, at low priority',
   it('warms each id the server named — a back face as its back image — and ignores another match', () => {
     const urls = preloadUrls('m-1', { matchId: 'm-1', ids });
     expect(urls).toEqual(ids.map((i) => cardImageUrl(i)));
-    expect(urls[3]).toMatch(/\/normal\/back\//);
+    expect(urls[3]).toMatch(/\/back$/);
     expect(preloadUrls('m-2', { matchId: 'm-1', ids })).toEqual([]);
     expect(preloadUrls('m-1', { matchId: 'm-1', ids: ['https://evil'] }), 'strict: a URL never rides the wire').toEqual([]);
     expect(preloadUrls('m-1', { matchId: 'm-1', ids, cards: [] }), 'strict: nothing else rides it either').toEqual([]);

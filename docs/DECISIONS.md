@@ -413,7 +413,8 @@ full:
 - **The art is a PLACEHOLDER, and that is the load-bearing part.** The operator
   expects to source the art elsewhere later and asked that pointing a card at a
   new image stay easy. So a card's art is an indirection, never a URL in a component:
-  `apps/ui/src/draft/art-manifest.json` maps `scryfallId → { source, key }` and
+  `apps/ui/src/draft/art-manifest.json` (since 2026-11-07 `apps/server/src/play/art-manifest.json`,
+  over the art mirror, served by `/api/art/<id>`) maps `scryfallId → { source, key }` and
   `packages/carddata/src/art/index.ts` resolves it, with an absent or unusable row
   falling back to Scryfall and then to the text tile. Repointing one card is a
   **one-line data edit reviewable in a diff**. The manifest is kept out of

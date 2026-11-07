@@ -13,7 +13,6 @@ import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, within } from '@testing-library/react';
 
-import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
 import { cardStateKey, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
 import type { DraftCard } from '@hadoku/shared';
 
@@ -771,7 +770,6 @@ describe('art (D15: a lookup, not a URL)', () => {
         expect(img, `${cardName} has art`).not.toBeNull();
         // The exact URL the draft's CardTile builds for that id — no host of our own.
         expect(img!.getAttribute('src')).toBe(cardImageUrl(TEST_IDS.get(cardName)));
-        expect(ALLOWED_ART_HOSTS).toContain(new URL(img!.getAttribute('src')!).origin);
       }
     }
   });
@@ -3699,7 +3697,6 @@ describe('the stack’s art (#10)', () => {
       const img = item.querySelector('img');
       expect(img, `${name} on the stack has art`).not.toBeNull();
       expect(img!.getAttribute('src')).toBe(cardImageUrl(TEST_IDS.get(name)));
-      expect(ALLOWED_ART_HOSTS).toContain(new URL(img!.getAttribute('src')!).origin);
     }
     expect(spells, 'at least one spell on the stack').toBeGreaterThan(0);
     expect(container.innerHTML).not.toMatch(/url\(/);

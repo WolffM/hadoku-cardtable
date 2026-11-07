@@ -182,10 +182,10 @@ the operator's.
      `scripts/d13-gate.sh` — run by CI — fails the build if an image file
      reaches the built bundle.
    - **The art is a placeholder.** The operator expects to re-source it. A
-     card's art is a lookup, not a URL: `apps/ui/src/draft/art-manifest.json`
-     maps `scryfallId → { source, key }` and
-     `packages/carddata/src/art/index.ts` resolves it, falling back to
-     Scryfall's CDN for any card without a row (today, every card). Repointing
+     card's art is a lookup, not a URL: every image is `/api/art/<id>`, which the
+     server redirects to our `cdn.hadoku.me` copy (the art mirror, every printing
+     since 2026-11-07) or to Scryfall's CDN for a card without one, under
+     `apps/server/src/play/art-manifest.json`'s hand-made rows. Repointing
      one card is a one-line data edit. Keep it that way — a component that
      hardcodes an image host has broken this rule even if every URL it emits is
      legal.

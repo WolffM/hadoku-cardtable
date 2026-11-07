@@ -39,7 +39,7 @@
  * hand-curated. Putting them in the pool would mean the next regeneration
  * silently discarded them, which is precisely the kind of quiet loss this repo
  * keeps finding after the fact. So the manifest is its own committed file,
- * `apps/ui/src/draft/art-manifest.json`, and `build-pool` never writes it.
+ * `apps/server/src/play/art-manifest.json`, and `build-pool` never writes it.
  *
  * ## `size` is a Scryfall-only concept
  *

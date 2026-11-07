@@ -28,6 +28,7 @@ import { z } from 'zod';
 import { createCubeStore } from '../pools/cubes.ts';
 import type { BoosterCard, SetSummary as ForgeSetSummary } from '../pools/forge.ts';
 import { createPresetStore } from '../pools/presets.ts';
+import type { ArtKeys } from '../pools/art-keys.ts';
 import type { CardCatalog } from '../pools/catalog.ts';
 import { createSetsStore } from '../pools/sets.ts';
 import { attachRally, SYMBOLS_PATH, type RallyDeps } from './rally.ts';
@@ -38,6 +39,8 @@ const SYMBOLS_DIR = resolve(import.meta.dirname, '../../../ui/src/symbols');
 const PAUPER = 'the-pauper-cube-2026-02';
 const VINTAGE = 'mtgo-vintage-cube-2025-04';
 
+/** No mirror: every cover is Scryfall's. */
+const NO_MIRROR: ArtKeys = { keyFor: () => undefined, settled: async () => undefined };
 const EMPTY_CATALOG: CardCatalog = { byName: () => null, byNameInSet: () => null, byPrinting: () => null, isAlchemy: () => false, swap: () => false };
 
 const ALA: ForgeSetSummary = { code: 'ALA', name: 'Shards of Alara', date: '2008-10-03', type: 'Expansion' };
@@ -58,7 +61,7 @@ afterEach(async () => {
 	for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true });
 });
 
-async function setup(opts: { jar?: boolean; packRateLimit?: RallyDeps['packRateLimit']; symbolsDir?: string } = {}) {
+async function setup(opts: { jar?: boolean; packRateLimit?: RallyDeps['packRateLimit']; symbolsDir?: string; art?: ArtKeys } = {}) {
 	const dir = await mkdtemp(join(tmpdir(), 'rally-test-'));
 	dirs.push(dir);
 	const boosters = vi.fn(async (code: string, count: number, seed: string) => Array.from({ length: count }, () => booster(code, seed)));
@@ -75,6 +78,7 @@ async function setup(opts: { jar?: boolean; packRateLimit?: RallyDeps['packRateL
 	const api = express.Router();
 	attachRally(api, {
 		symbols: rallySymbols(opts.symbolsDir ?? SYMBOLS_DIR),
+		art: opts.art ?? NO_MIRROR,
 		cubes,
 		sets,
 		presets,
@@ -179,6 +183,13 @@ describe('GET /api/rally/options/:kind', () => {
 		expect(pauper).toMatchObject({ id: PAUPER, label: expect.stringMatching(/Pauper/), detail: 'Cube' });
 		expect(pauper.lines).toEqual([{ text: `3x ${pauper.label} packs`, view: `cube/${PAUPER}/cards` }]);
 		expect(pauper.image).toMatch(/^https:\/\/cards\.scryfall\.io\//);
+	});
+
+	it('a cover the art mirror holds is our own copy', async () => {
+		const key = `${'c'.repeat(64)}.jpg`;
+		const { get } = await setup({ art: { keyFor: () => key, settled: async () => undefined } });
+		const { suggestions } = data(OptionsBody, (await get('/api/rally/options/cube?q=pau')).json);
+		expect(suggestions[0]!.image).toBe(`https://cdn.hadoku.me/${key}`);
 	});
 
 	it('ranks a name that starts with the query above one that only contains it', async () => {

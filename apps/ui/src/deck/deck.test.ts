@@ -437,7 +437,7 @@ describe('DeckEditor — limited', () => {
     expect(fireEvent.wheel(tile, { deltaY: 100 }), 'the wheel is taken').toBe(false);
     expect(shown()).toBe('Etali, Primal Sickness');
     expect(document.querySelector('[data-inspect] .card__rules')?.textContent).toContain('poison counters');
-    expect(document.querySelector('[data-inspect] img')?.getAttribute('src'), 'its back image').toMatch(/\/back\/9\/5\/95c14c4d-6c16-4826-8d93-d89ad04aee09\.jpg$/);
+    expect(document.querySelector('[data-inspect] img')?.getAttribute('src'), 'its back image').toMatch(/\/api\/art\/95c14c4d-6c16-4826-8d93-d89ad04aee09\/back$/);
     fireEvent.wheel(tile, { deltaY: -100 });
     expect(shown()).toBe('Etali, Primal Conqueror // Etali, Primal Sickness');
   });

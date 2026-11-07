@@ -34,7 +34,7 @@
  * dot"*, and wave 28 §C ended that: the room screen now draws Keyrune and Mana
  * glyphs (D20 — third-party fonts, never a WotC file) and one card image per deck
  * row. The `url()` rule is untouched and is what keeps the image legal AND
- * repointable: the `src` is built by `cardImageUrl` from `art-manifest.json`, so a
+ * repointable: the `src` is built by `cardImageUrl` as the server's art route, so a
  * card's art stays a lookup rather than a URL, and no host is named in here.
  */
 
@@ -855,7 +855,7 @@
  * it draws Keyrune/Mana glyphs (D20) and one card image per row. The image is an
  * `<img src>` built by `cardImageUrl`, NOT a `url()` here — the sheet's no-`url()`
  * rule stands, and it has to, because a card's art is a lookup that must stay
- * repointable from `art-manifest.json` alone.
+ * repointable by the server alone.
  */
 .deckpick {
   position: relative;

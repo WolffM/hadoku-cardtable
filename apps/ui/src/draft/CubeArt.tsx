@@ -1,8 +1,7 @@
 /*
  * A cube's own art, the way `CardTile` draws a card's: an id, resolved to a
- * URL by `cardImageUrl` (the committed `art-manifest.json` plus Scryfall's
- * sharded path — never a stored URL, AGENTS.md: "a card's art is a lookup,
- * not a URL"). Shared by the room's cube gallery and `#/inventory` (AF305
+ * URL by `cardImageUrl` (the server's art route — never a stored URL,
+ * AGENTS.md: "a card's art is a lookup, not a URL"). Shared by the room's cube gallery and `#/inventory` (AF305
  * §B), so a cube tile looks the same wherever it is drawn.
  *
  * The whole printed card is a tall, narrow image; a gallery tile's art strip

@@ -52,14 +52,14 @@ import {
 	type RallySource,
 	type RallySuggestion,
 } from '@hadoku/shared';
-import { resolveArtUrl, type ArtManifestFile } from '@hadoku/carddata/art';
 import { deal, planPool } from '@hadoku/draft';
 
-import manifest from '../../../ui/src/draft/art-manifest.json' with { type: 'json' };
+import type { ArtKeys } from '../pools/art-keys.js';
 import type { CubeStore } from '../pools/cubes.js';
 import type { PresetStore } from '../pools/presets.js';
 import type { SetsStore } from '../pools/sets.js';
 import { DEFAULT_PARAMS } from '../room/draftRooms.js';
+import { artLocation } from './card-art.js';
 import { perCallerLimit } from './request.js';
 import { resolveBoosterCard, type RealisticBoosterSource, type RealisticCatalog } from './rooms.js';
 import { jsonLogger } from '../log.js';
@@ -76,6 +76,8 @@ export interface RallyDeps {
 	packRateLimit?: RateLimitConfig | null;
 	/** Keyrune, for the set symbols Rally draws beside each line (`rally-symbols.ts`). */
 	symbols: RallySymbols;
+	/** Which card images are on our CDN: a cover is stored as the URL a browser would be sent. */
+	art: ArtKeys;
 	log?: (entry: Record<string, unknown>) => void;
 }
 
@@ -112,16 +114,16 @@ class RallyRefusal extends Error {
 	}
 }
 
-/** A card's art as Rally may store it: through the art manifest, and only from a host the CSP draws. */
-function coverUrl(scryfallId: string | null | undefined): string | null {
-	const url = resolveArtUrl(scryfallId ?? undefined, (manifest as ArtManifestFile).entries, { size: 'normal' });
+/** A card's art as Rally may store it: where `/api/art` would send a browser, and only from a host the CSP draws. */
+function coverUrl(scryfallId: string | null | undefined, keys: ArtKeys): string | null {
+	const url = scryfallId == null ? null : artLocation(scryfallId, 'normal', keys);
 	return url !== null && RALLY_IMAGE_HOSTS.some((host) => url.startsWith(host)) ? url : null;
 }
 
 /** A set's cover: its rarest card with art, so a set reads as its headline mythic rather than a common. */
-function setCover(cards: readonly DraftCard[] | null): string | null {
+function setCover(cards: readonly DraftCard[] | null, keys: ArtKeys): string | null {
 	const ranked = (cards ?? []).filter((c) => c.scryfallId !== undefined).sort((a, b) => RARITY_ORDER[a.rarity] - RARITY_ORDER[b.rarity]);
-	return coverUrl(ranked[0]?.scryfallId);
+	return coverUrl(ranked[0]?.scryfallId, keys);
 }
 
 /**
@@ -185,8 +187,8 @@ export function attachRally(api: Router, deps: RallyDeps): void {
 		src.kind === 'cube' ? (deps.cubes.list().find((c) => c.id === src.cubeId)?.name ?? src.cubeId) : (deps.sets.nameOf(src.code) ?? src.code);
 
 	async function sourceCover(src: PoolSource): Promise<string | null> {
-		if (src.kind === 'cube') return coverUrl(deps.cubes.list().find((c) => c.id === src.cubeId)?.artId);
-		return setCover(await deps.sets.cardsFor(src.code));
+		if (src.kind === 'cube') return coverUrl(deps.cubes.list().find((c) => c.id === src.cubeId)?.artId, deps.art);
+		return setCover(await deps.sets.cardsFor(src.code), deps.art);
 	}
 
 	/** A plan as one search result: its kind, and a line per source opening that source's cards. */
@@ -212,12 +214,12 @@ export function attachRally(api: Router, deps: RallyDeps): void {
 				return best(
 					deps.cubes.list().filter((c) => isPlayable(c.verdict) && RALLY_OPTION_ID.test(c.id)),
 					(c) => matchRank(q, c.name),
-				).map((c) => optionOf(c.id, c.name, thrice({ kind: 'cube', cubeId: c.id }), coverUrl(c.artId)));
+				).map((c) => optionOf(c.id, c.name, thrice({ kind: 'cube', cubeId: c.id }), coverUrl(c.artId, deps.art)));
 			case 'set': {
 				const sets = (await deps.sets.list()).filter((s) => isPlayable(s.verdict) && RALLY_OPTION_ID.test(s.code));
 				return Promise.all(
 					best(sets, (s) => matchRank(q, s.name, s.code)).map(async (s) =>
-						optionOf(s.code, s.name, thrice({ kind: 'set', code: s.code, style: 'realistic' }), setCover(await deps.sets.cardsFor(s.code))),
+						optionOf(s.code, s.name, thrice({ kind: 'set', code: s.code, style: 'realistic' }), setCover(await deps.sets.cardsFor(s.code), deps.art)),
 					),
 				);
 			}

@@ -125,9 +125,9 @@ describe('capacitySampler', () => {
 		sampler.sample();
 		rooms = 4;
 		sampler.sample();
-		for (const status of [200, 200, 503]) {
+		for (const [path, status] of [['/api/rooms', 200], ['/api/rooms', 200], ['/api/rooms', 503], ['/api/art/x', 302], ['/api/art/y/back', 302]] as const) {
 			const res = Object.assign(new EventEmitter(), { statusCode: status });
-			sampler.requests({} as Request, res as unknown as Response, () => {});
+			sampler.requests({ path } as Request, res as unknown as Response, () => {});
 			res.emit('finish');
 		}
 		t = 300_000;
@@ -143,6 +143,7 @@ describe('capacitySampler', () => {
 			requests: 3,
 			perMin: 1,
 			errors5xx: 1,
+			artRedirects: 2,
 		});
 	});
 });

@@ -50,7 +50,7 @@
  * A deck list as text is a choice: 40-plus cards you sort, count and move, not
  * a gallery. Making it a grid of tiles is a design change, not a bug fix. If it
  * ever becomes one, the art comes from `CardTile` → `draft/cardImage.ts` →
- * `@hadoku/carddata/art` → `art-manifest.json` like everywhere else; no image
+ * the server's `/api/art` route like everywhere else; no image
  * host is named anywhere in this file, and none may be.
  *
  * ## The download
