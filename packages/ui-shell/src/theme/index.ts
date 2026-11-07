@@ -13,8 +13,9 @@ import { THEME_FAMILIES } from '@wolffm/themes';
  * the variant the system preference picks, and a name that is no theme is
  * ignored rather than painted.
  *
- * Built at CONFIG TIME (like ./app-name.ts) from the package's own theme list,
- * so a family added there is known here without a copy to keep in step.
+ * Built at CONFIG TIME (like the app's own app-name.ts) from the package's own theme list, so a
+ * family added there is known here without a copy to keep in step. `@wolffm/themes`' own
+ * `seedTheme` is not public and is not a dependency-free `<head>` script, so this stays its own.
  */
 export function themeInitScript(): string {
   const families = THEME_FAMILIES.map((f) => [f.lightTheme, f.darkTheme]);

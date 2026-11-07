@@ -1,3 +1,5 @@
+import { appId } from '../app-id/index.ts';
+
 /*
  * The UI scale (the operator, 2026-10-21: "add a slider to allow scaling the size of the UI").
  *
@@ -74,9 +76,10 @@ function inAtRule(node: CssNode | undefined, names: ReadonlySet<string>): boolea
 
 const KEYFRAMES = new Set(['keyframes']);
 
-/** Only the app's own sheets: the fleet's chrome and the symbol packs' vendor CSS keep their sizes. */
+/** Only the app's own sheets: a workspace package's `src` counts the same as `apps/<app>/src` —
+ *  never the fleet's chrome or the symbol packs' vendor CSS, which keep their authored sizes. */
 function ownSheet(file: string | undefined): boolean {
-  return file !== undefined && /[\\/]apps[\\/]ui[\\/]src[\\/]/.test(file) && !/[\\/]node_modules[\\/]/.test(file);
+  return file !== undefined && /[\\/](?:apps[\\/][^\\/]+|packages[\\/][^\\/]+)[\\/]src[\\/]/.test(file) && !/[\\/]node_modules[\\/]/.test(file);
 }
 
 /** The PostCSS plugin both builds run (`vite.config.ts`, `vite.embed.config.ts`). Idempotent. */
@@ -116,7 +119,10 @@ export function uiPx(px: number, node?: Node | null): number {
   return Number.isFinite(scale) && scale > 0 ? px * scale : px;
 }
 
-const REMEMBERED_KEY = 'cardtable:ui-scale';
+/** Per game (`<appId>:ui-scale`); for cardtable, the literal key stays `cardtable:ui-scale`. */
+function rememberedKey(): string {
+  return `${appId()}:ui-scale`;
+}
 
 /*
  * The scale last applied in this browser, so the first frame is drawn at it. The saved scale is only
@@ -127,7 +133,7 @@ const REMEMBERED_KEY = 'cardtable:ui-scale';
  */
 export function rememberedUiScale(): number | null {
   try {
-    const raw = globalThis.localStorage?.getItem(REMEMBERED_KEY) ?? null;
+    const raw = globalThis.localStorage?.getItem(rememberedKey()) ?? null;
     const value = raw === null ? Number.NaN : Number(raw);
     return Number.isFinite(value) ? clampUiScale(value) : null;
   } catch {
@@ -137,7 +143,7 @@ export function rememberedUiScale(): number | null {
 
 export function rememberUiScale(scale: number): void {
   try {
-    globalThis.localStorage?.setItem(REMEMBERED_KEY, String(clampUiScale(scale)));
+    globalThis.localStorage?.setItem(rememberedKey(), String(clampUiScale(scale)));
   } catch {
     // Not remembered: the next page is drawn at 100% until prefs answer, as it was before.
   }

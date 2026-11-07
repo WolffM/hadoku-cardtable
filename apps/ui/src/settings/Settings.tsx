@@ -28,13 +28,13 @@ import { Icon } from '@wolffm/themes';
 import type { AppSettingsTab } from '@wolffm/task-ui-components';
 
 import { usePrefs } from '@wolffm/prefs-client/react';
+import { applyUiScale, clampUiScale, rememberedUiScale, rememberUiScale, UI_SCALE, uiLength } from '@hadoku/ui-shell/settings';
 
 import { forgetCardWidths } from '../play/card-size.ts';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
 import { GameSettings, MatchSettings } from './GameSettings.tsx';
 import { SoundSettings } from './SoundSettings.tsx';
 import { Popover, usePopover } from '../components/Popover.tsx';
-import { applyUiScale, clampUiScale, rememberedUiScale, rememberUiScale, UI_SCALE, uiLength } from './ui-scale.ts';
 import './settings.css';
 
 /** The settings as tabs, in the order a player looks for them: how the game plays first, one slider last. */
@@ -132,7 +132,7 @@ function DisplaySettings() {
 }
 
 /**
- * The saved UI scale, written where the stylesheet's tokens resolve (`./ui-scale.ts`). Called
+ * The saved UI scale, written where the stylesheet's tokens resolve (shell's `ui-scale.ts`). Called
  * once per app — the standalone page's and the embed's — with the element that is. Until prefs
  * answer, the scale this browser applied last: a layout effect, so the first frame is drawn at it.
  */

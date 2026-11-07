@@ -14,6 +14,7 @@
  *
  * The import ORDER below is load-bearing; a wrapper swap keeps tier 1 first.
  */
+import { configureShell } from '@hadoku/ui-shell/app-id';
 // Every sheet the app reaches, the lazy screens' too, in this file's import order (`../stylesheet.ts`).
 import 'virtual:cardtable-stylesheet';
 import { ensureCosmeticsStyles } from '@wolffm/prefs-client/cosmetics';
@@ -63,6 +64,7 @@ import '@wolffm/task-ui-components/tooltip.css';
 import '@wolffm/task-ui-components/scrollbar.css';
 import '@wolffm/task-ui-components/controls.css';
 import './styles.css';
+import { APP_ID } from '../app-name.ts';
 import { App } from './App.tsx';
 import { whenIdle } from './idle.ts';
 import { finishRallyReturn } from './rooms/event-forms.ts';
@@ -70,6 +72,7 @@ import { canonicalizeAddress } from './screens/route.ts';
 import { preloadLikelyScreens } from './screens/Screen.tsx';
 import { startUsage } from './usage.ts';
 
+configureShell({ appId: APP_ID });
 canonicalizeAddress();
 // The fleet's cosmetics sheet (faces' overlays, names' effects), before anything is drawn: added by the
 // first face instead, it restyled the whole document inside that screen's first render.

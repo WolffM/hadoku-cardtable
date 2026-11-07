@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 /*
- * The pre-paint theme script (../theme-init.ts), run as the browser runs it:
- * whatever it puts on <html> is what the first paint resolves against.
+ * The pre-paint theme script (./index.ts), run as the browser runs it: whatever it puts on <html>
+ * is what the first paint resolves against. No appId: 'hadoku-theme' is a fleet-wide key, shared by
+ * every app under hadoku.me, not scoped per game.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { themeInitScript } from '../theme-init.ts';
+import { themeInitScript } from './index.ts';
 
 function paint(stored: { session?: string; local?: string }, prefersDark: boolean): string | null {
   sessionStorage.clear();

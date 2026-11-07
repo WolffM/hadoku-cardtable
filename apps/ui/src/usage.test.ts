@@ -1,27 +1,14 @@
 // @vitest-environment jsdom
+/*
+ * The generic counting behaviour (targetName, batching, flush timing) is pinned where it now lives:
+ * packages/ui-shell/src/usage/index.test.ts. What is left here is cardtable's own wiring: the
+ * screen a route hash names, and that `startUsage()` posts to this app's own URL with this app's
+ * own batch limit, in a batch the server schema accepts.
+ */
 import { UsageBatchSchema, type UsageBatch } from '@hadoku/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { screenOf, startUsage, targetName } from './usage.ts';
-
-describe('targetName', () => {
-  it.each([
-    ['room-card', 'room-card'],
-    ['seat-3', 'seat'],
-    ['room-card-r-1a2b3c4d', 'room-card'],
-    ['table-m-9f8e7d6c5b-concede', 'table-concede'],
-    ['deck-0f8fad5b-d9cb-469f-a165-70867728950e-open', 'deck-open'],
-    ['Lobby.NewRoom', 'lobby.newroom'],
-    ['pick-12', 'pick'],
-  ])('%s → %s', (testid, name) => {
-    expect(targetName(testid)).toBe(name);
-  });
-
-  it('refuses what is left when it is not a name', () => {
-    expect(targetName('42')).toBeNull();
-    expect(targetName('a b')).toBeNull();
-  });
-});
+import { screenOf, startUsage } from './usage.ts';
 
 describe('screenOf', () => {
   it('names a screen by its route, and a room table apart from its room', () => {
@@ -41,9 +28,9 @@ describe('startUsage', () => {
     window.location.hash = '';
   });
 
-  it('counts views and named presses, and flushes a batch the server schema accepts when the page hides', () => {
-    const sent: UsageBatch[] = [];
-    stop = startUsage({ send: (_url, batch) => sent.push(batch) });
+  it('posts to this app’s own /api/usage, counting views and named presses by its own route, in a batch the server schema accepts', () => {
+    const sent: { url: string; batch: UsageBatch }[] = [];
+    stop = startUsage({ send: (url, batch) => sent.push({ url, batch: batch as UsageBatch }) });
     document.body.innerHTML = '<button data-testid="seat-2"><span id="inner">Sit</span></button><p id="plain">text</p>';
     document.getElementById('inner')!.click();
     document.getElementById('plain')!.click();
@@ -52,11 +39,12 @@ describe('startUsage', () => {
     window.dispatchEvent(new Event('pagehide'));
 
     expect(sent).toHaveLength(1);
-    expect(sent[0].entries).toEqual([
+    expect(sent[0]!.url.endsWith('/api/usage')).toBe(true);
+    expect(sent[0]!.batch.entries).toEqual([
       { kind: 'view', screen: 'lobby' },
       { kind: 'click', screen: 'lobby', target: 'seat' },
       { kind: 'view', screen: 'room' },
     ]);
-    expect(UsageBatchSchema.safeParse(sent[0]).success).toBe(true);
+    expect(UsageBatchSchema.safeParse(sent[0]!.batch).success).toBe(true);
   });
 });
