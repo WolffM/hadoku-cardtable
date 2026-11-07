@@ -709,6 +709,21 @@ export interface SeatState {
 	 * input's own bar, and {@link Match.resendWindow} puts it back.
 	 */
 	staleBar: ButtonsFrame | null;
+	/**
+	 * The window this seat was last shown is gone: a decider answered the one Forge showed after
+	 * it (`answered`), so the seat never saw it. A card click made on the old window would reach
+	 * whatever input Forge shows next and be turned away there (#40: Leaden Myr clicked as the
+	 * server auto-passed the priority over its own Phyrexian Revoker). Until the seat is shown its
+	 * next window, such a click is held ({@link SeatState.heldClick}).
+	 */
+	windowGone: boolean;
+	/** Where the game stood at the window a decider last answered for this seat unseen. */
+	passedAt: WindowMark | null;
+	/**
+	 * A card click held while {@link SeatState.windowGone}, with when it came and the window passed
+	 * under it: {@link Match.releaseHeldClick} sends it or drops it at the seat's very next window.
+	 */
+	heldClick: { frame: Extract<ClientFrame, { kind: 'act'; method: 'selectCard' }>; at: number; passed: WindowMark | null } | null;
 }
 
 /** Who `MatchDeps.seatAvatar` is asked about for Forge's AI seat, which nobody holds. */
@@ -869,6 +884,27 @@ const ABORT_SAFE: ReadonlySet<string> = new Set(['showConfirmDialog', 'showOptio
 function answersAnInput(frame: unknown): boolean {
 	const f = frame as { kind?: unknown; method?: unknown } | null;
 	return f?.kind === 'ask' || f?.method === 'showPromptMessage' || f?.method === 'updateButtons' || f?.method === 'setSelectables';
+}
+
+/** Where the game stood at a window, read off Forge's own priority line ("Turn: 16 (…)", "Phase: …", "Stack: Empty" / "Stack: 1 to Resolve."). */
+interface WindowMark {
+	turn: number | null;
+	phase: string | null;
+	stack: number | null;
+}
+
+function windowMark(prompt: { message?: unknown } | null): WindowMark {
+	const message = typeof prompt?.message === 'string' ? prompt.message : '';
+	const turn = /^Turn: (\d+)/m.exec(message)?.[1];
+	const phase = /^Phase: (.+)$/m.exec(message)?.[1] ?? null;
+	const stack = /^Stack: Empty$/m.test(message) ? 0 : /^Stack: (\d+)/m.exec(message)?.[1];
+	return { turn: turn === undefined ? null : Number(turn), phase, stack: stack === undefined ? null : Number(stack) };
+}
+
+/** Forge putting a question or a selection to the seat: an input of its own, never a priority window. */
+function opensAnInput(frame: unknown): boolean {
+	const f = frame as { kind?: unknown; method?: unknown } | null;
+	return f?.kind === 'ask' || (f?.kind === 'notify' && f.method === 'setSelectables');
 }
 
 /** Forge turning the seat's last act away: its input stands, and nothing more is shown for it. */
@@ -1421,6 +1457,9 @@ export class Match {
 			pendingButtons: null,
 			pendingTimer: null,
 			heldOffer: null,
+			windowGone: false,
+			passedAt: null,
+			heldClick: null,
 			offerInput: 'fresh',
 			lookHold: null,
 			wireButtonsLive: false,
@@ -2237,6 +2276,12 @@ export class Match {
 					this.deps.log({ evt: 'press-refused', matchId: this.id, seat, method: frame.method, label: frame.method === 'selectButtonOk' ? s.staleBar.label1 : s.staleBar.label2 });
 					return { ok: false, error: `press-refused: ${frame.method} under a bar Forge has not re-armed since this seat's last act` };
 				}
+				// A card click made on a window that is gone waits for the seat's next one (`windowGone`).
+				if (frame.method === 'selectCard' && s.windowGone && s.selection === null) {
+					s.heldClick = { frame, at: this.now(), passed: s.passedAt };
+					this.deps.log({ evt: 'click-held', matchId: this.id, seat, card: frame.card.id });
+					return { ok: true };
+				}
 				// A click inside an open selection (a sacrifice, a target) picks a card; it opens no offer of its own.
 				if (frame.method === 'selectCard') s.clicked = s.selection === null ? frame.card.id : null;
 				if (frame.method === 'selectCard' && s.payment !== null) s.paidInto ??= s.payment.card;
@@ -2837,6 +2882,11 @@ export class Match {
 						this.onFrame(line.seat, kept);
 					}
 				}
+				// An ask or a selection is an input the seat is shown: a click held from before it is not for it.
+				if (opensAnInput(line.frame)) {
+					const shown = this.seats[line.seat];
+					if (shown !== undefined) this.releaseHeldClick(shown, 'ask', null);
+				}
 				if (isRefusal(line.frame)) {
 					const refused = this.seats[line.seat];
 					if (refused !== undefined) this.onRefused(refused);
@@ -3195,6 +3245,7 @@ export class Match {
 			if (held === null) {
 				this.releaseOffer(s);
 				this.send(s, frame);
+				this.releaseHeldClick(s, 'other', frame);
 			} else this.forwardUnpaired(s, frame, held, 'buttons-first');
 			return;
 		}
@@ -3278,6 +3329,10 @@ export class Match {
 			// The seat is never offered cards for a window it is not shown: a click on them would be
 			// held by Forge and taken by whatever input comes next, which then turns it away.
 			s.heldOffer = null;
+			// Held across two passes, a click would land on a game it was never made in.
+			if (s.heldClick !== null) this.dropHeldClick(s, kind, 'passed-again');
+			s.windowGone = true;
+			s.passedAt = windowMark(prompt);
 			s.offerInput = 'answered';
 			const bar = buttons ?? (s.buttons?.method === 'updateButtons' ? s.buttons : null);
 			if (s.wireButtonsLive && bar !== null) this.send(s, { ...bar, enable1: false, enable2: false, focus1: false });
@@ -3295,13 +3350,56 @@ export class Match {
 				? {}
 				: { rule: s.lastStop.rule, ...(plays === undefined ? {} : { plays: plays.map((id) => ({ id, name: cardName(s.history.board, id) })) }) };
 		this.deps.log({ evt: answered ? 'prompt-withheld' : 'prompt-forwarded', matchId: this.id, seat: s.seat, kind, why, ...kept });
-		if (!answered) this.logOffered(s, kind);
+		if (!answered) {
+			this.logOffered(s, kind);
+			this.releaseHeldClick(s, kind, prompt);
+		}
 		this.recordWindow(s, answered ? 'withheld' : 'forwarded', kind, why, prompt, buttons);
 		// The one place a HELD buttons-first or prompt-first pair is finally
 		// sent (or disabled) — `wireButtonsLive` only reaches its real, final
 		// value once this runs, so this is where the other seat's own fact
 		// has to be re-checked too.
 		this.checkWaitingOn();
+	}
+
+	/**
+	 * The seat is shown its very next window after a click held since its last one went
+	 * ({@link SeatState.heldClick}). The click goes to Forge only where it means what the seat meant:
+	 * a priority window, within {@link ANSWER_SILENCE_MS} of the click, in the same turn and phase,
+	 * with the stack shorter by just the item the server passed for it, and the card still offered.
+	 * Anything else and it is dropped (`click-stale`, with why): never cast across a game the seat
+	 * did not see, nor handed to an input that would turn it away.
+	 */
+	private releaseHeldClick(s: SeatState, kind: string, prompt: PromptFrame | null): void {
+		s.windowGone = false;
+		const held = s.heldClick;
+		if (held === null) return;
+		const card = held.frame.card.id;
+		const now = windowMark(prompt);
+		const why =
+			kind !== 'priority'
+				? 'not-priority'
+				: this.now() - held.at > ANSWER_SILENCE_MS
+					? 'too-late'
+					: held.passed === null || held.passed.turn === null || held.passed.stack === null || now.turn !== held.passed.turn || now.phase !== held.passed.phase || now.stack !== held.passed.stack - 1
+						? 'game-moved'
+						: s.actionable?.includes(card) !== true
+							? 'not-offered'
+							: null;
+		if (why !== null) {
+			this.dropHeldClick(s, kind, why);
+			return;
+		}
+		s.heldClick = null;
+		this.deps.log({ evt: 'click-released', matchId: this.id, seat: s.seat, card, kind });
+		this.fromClient(s.seat, held.frame);
+	}
+
+	private dropHeldClick(s: SeatState, kind: string, why: string): void {
+		const held = s.heldClick;
+		if (held === null) return;
+		s.heldClick = null;
+		this.deps.log({ evt: 'click-stale', matchId: this.id, seat: s.seat, card: held.frame.card.id, kind, why });
 	}
 
 	/**
@@ -3384,6 +3482,7 @@ export class Match {
 		const kind = readPromptFacts(this.notesOf(s)).window;
 		this.deps.log({ evt: 'prompt-forwarded', matchId: this.id, seat: s.seat, kind, why: 'unpaired' });
 		this.logOffered(s, kind);
+		this.releaseHeldClick(s, kind, prompt);
 		this.recordWindow(s, 'forwarded', kind, 'unpaired', prompt, buttons);
 		this.checkWaitingOn();
 	}
