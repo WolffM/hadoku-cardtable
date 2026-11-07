@@ -6,6 +6,7 @@
  */
 
 import { readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { socketPath } from '../../../../ui/src/draft/socket.ts';
 import { concede, startMatch, type LiveMatch, type MatchTrouble } from '../../../../ui/src/play/live/match.ts';
@@ -28,6 +29,8 @@ export interface RunMatchOptions {
   turnCap: number;
   /** The running stack's own server log, for `ask-unanswerable`/`ask-unclassified`. */
   serverLogFile: string;
+  /** The running stack's work dir: each JVM's run dir, and its `bridge.stderr.txt`, is under it. */
+  workDir: string;
 }
 
 /** New JSON lines appended to `path` since the last call, tolerating a torn final line. */
@@ -121,6 +124,28 @@ export function lastServerRows(path: string, matchId: string, n = 40): string[] 
       .slice(-n)
       .map((row) => JSON.stringify(row)),
   ];
+}
+
+/**
+ * The last `n` lines of the `bridge.stderr.txt` of the JVM that played `matchId` (its `match-placed`
+ * row names the host) that mention the match, a concede or an exception: what Forge did with an act
+ * the server's own log only shows being sent.
+ */
+export function jvmStderrLines(serverLogFile: string, workDir: string, matchId: string, n = 30): string[] {
+  const placed = makeLogTail(serverLogFile)().find((row) => row.evt === 'match-placed' && row.matchId === matchId);
+  if (placed === undefined) return [`no match-placed row for ${matchId}`];
+  const file = join(workDir, String(placed.hostId), 'bridge.stderr.txt');
+  let text: string;
+  try {
+    text = readFileSync(file, 'utf8');
+  } catch (err) {
+    return [`${file}: ${(err as Error).message}`];
+  }
+  return text
+    .split('\n')
+    .filter((line) => line.includes(matchId) || /concede|exception|error/i.test(line))
+    .slice(-n)
+    .map((line) => `stderr: ${line.slice(0, 400)}`);
 }
 
 /** How long a conceded match gets to end before the run moves on without it. */
@@ -248,7 +273,7 @@ export async function runMatch(opts: RunMatchOptions): Promise<MatchResult> {
   const ended = gaveUp?.ended ?? true;
   const notEnded = ended ? '' : `; its concede was not seen to end it within ${GIVE_UP_MS} ms`;
   // A concede that did not end the match leaves it holding a server slot: what the server last did with it is the evidence.
-  const evidence = ended ? [] : [gaveUp!.sent, ...lastServerRows(opts.serverLogFile, matchId)];
+  const evidence = ended ? [] : [gaveUp!.sent, ...lastServerRows(opts.serverLogFile, matchId), ...jvmStderrLines(opts.serverLogFile, opts.workDir, matchId)];
   if (timedOut) {
     extra.push(
       noFinishFlag(

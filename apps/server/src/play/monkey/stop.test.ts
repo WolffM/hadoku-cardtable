@@ -3,7 +3,7 @@
  * `POST /api/play/matches` exactly as `socket.ts` does at `MAX_CONCURRENT_MATCHES`;
  * everything on the monkey's side (`runMatch`, `runPool`, `stopReason`) is the real code.
  */
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { runPool } from './pool.ts';
 import { stopReason, type MatchResult } from './report.ts';
 import { makeRng } from './rng.ts';
-import { lastServerRows, runMatch } from './run-match.ts';
+import { jvmStderrLines, lastServerRows, runMatch } from './run-match.ts';
 
 let server: Server | null = null;
 afterEach(() => {
@@ -47,6 +47,7 @@ function tasks(origin: string, n: number): (() => Promise<MatchResult>)[] {
       matchTimeoutMs: 1000,
       turnCap: 1,
       serverLogFile: '/nonexistent',
+      workDir: '/nonexistent',
     }),
   );
 }
@@ -79,5 +80,20 @@ describe('lastServerRows', () => {
     rmSync(dir, { recursive: true, force: true });
     expect(JSON.parse(header!)).toMatchObject({ rows: 30, newestAnyMatch: { evt: 'ask', matchId: 'm2' } });
     expect(rest.map((r) => (JSON.parse(r) as { i: number }).i)).toEqual([22, 24, 28]);
+  });
+});
+
+describe('jvmStderrLines', () => {
+  it("reads the stderr of the JVM the match was placed on, keeping its own lines and any concede or exception", () => {
+    const dir = mkdtempSync(join(tmpdir(), 'monkey-stderr-'));
+    const log = join(dir, 'server.jsonl');
+    writeFileSync(log, `${JSON.stringify({ evt: 'match-placed', matchId: 'm1', hostId: 'h-1' })}\n`);
+    mkdirSync(join(dir, 'h-1'));
+    writeFileSync(join(dir, 'h-1', 'bridge.stderr.txt'), ['[bridge] match m1: started', '[bridge] match m2: started', 'java.util.ConcurrentModificationException', 'noise'].join('\n'));
+    const got = jvmStderrLines(log, dir, 'm1');
+    const missing = jvmStderrLines(log, dir, 'm9');
+    rmSync(dir, { recursive: true, force: true });
+    expect(got).toEqual(['stderr: [bridge] match m1: started', 'stderr: java.util.ConcurrentModificationException']);
+    expect(missing).toEqual(['no match-placed row for m9']);
   });
 });

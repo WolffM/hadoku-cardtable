@@ -112,6 +112,7 @@ async function main(): Promise<void> {
             matchTimeoutMs: args.matchTimeoutMs,
             turnCap: args.turnCap,
             serverLogFile: stack.serverLogFile,
+            workDir: stack.workDir,
           });
           console.log(`[monkey] run ${thisRun} (${deck.name}): ${result.outcome}, ${result.decisions} decision(s), ${result.flags.length} flag(s)`);
           return result;
