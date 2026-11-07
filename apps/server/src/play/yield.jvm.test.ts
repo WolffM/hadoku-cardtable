@@ -83,6 +83,19 @@ async function boltAlice(s: Scenario): Promise<void> {
 	);
 }
 
+/** What became of a Bolt, for a failure to say: both lives, both graveyards, and the server's clicks, acts and decisions since `logFrom`. */
+function boltEvidence(s: Scenario, logFrom: number): string {
+	const rows = s.logs
+		.slice(logFrom)
+		.filter((l) => /^(click|click-held|click-released|click-stale|forge-command|auto-passed|prompt-forwarded|prompt-withheld|press-refused|window-resent|bridge-dropped|ask-answered)$/.test(String(l.evt)))
+		.map((l) => {
+			const { t: _t, svc: _svc, matchId: _m, ...rest } = l as Record<string, unknown>;
+			return JSON.stringify(rest).slice(0, 220);
+		});
+	const graves = [ALICE, BOB].map((seat) => s.zone(seat, 'Graveyard').map((c) => c.name).join(',') || '-');
+	return `lives alice ${lifeOf(s, ALICE)} bob ${lifeOf(s, BOB)}; graveyards alice [${graves[0]}] bob [${graves[1]}]; rows:\n${rows.join('\n')}`;
+}
+
 /**
  * Every window bar alice's OWN wire carried from send-index `sentFrom`. Not the bar of Forge's
  * "Waiting for bob…" prompt: `AbstractGuiGame.awaitNextInput` draws that, OK and Cancel both off,
@@ -157,9 +170,10 @@ describe.skipIf(!available.ok)(title, () => {
 				await passUntil(s, () => inOwnMain(s, BOB, 3), "bob's turn 3 main", 90_000);
 
 				const sentMark2 = s.sent.length;
+				const logMark2 = s.logs.length;
 				const aliceLifeBefore2 = lifeOf(s, ALICE);
 				await boltAlice(s);
-				expect(lifeOf(s, ALICE), "bob's second Bolt resolved for 3").toBe(aliceLifeBefore2 - 3);
+				expect(lifeOf(s, ALICE), `bob's second Bolt resolved for 3 — ${boltEvidence(s, logMark2)}`).toBe(aliceLifeBefore2 - 3);
 				expect(aliceBars(s, sentMark2).length, 'without auto-yield, alice’s own wire gets a real bar this time').toBeGreaterThan(0);
 			} finally {
 				await s.stop();
