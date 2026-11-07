@@ -88,6 +88,23 @@ function Glyphs({ option }: { option: RingOption }) {
   );
 }
 
+/** The card the last ring opened on: Forge's own ring that follows a press's opens still, off the card, and holds it on. */
+let lastHeld: Element | null = null;
+
+/**
+ * Keep the hover lift of the card the ring opened on (`card.css`'s `data-ring-held`) while the ring is open:
+ * its hover lift otherwise dropped as the pointer left the card for a disc over it, and rose again as it
+ * came back. Returns the release.
+ */
+function holdCard(still: boolean): () => void {
+  const hovered = document.querySelector('[data-board-card][data-selectable] > .board-card__face:hover')?.closest('[data-board-card]') ?? null;
+  const card = hovered ?? (still ? lastHeld : null);
+  if (card === null || !card.isConnected) return () => undefined;
+  lastHeld = card;
+  card.setAttribute('data-ring-held', '');
+  return () => card.removeAttribute('data-ring-held');
+}
+
 /** The box every disc and chip stands in, round the ring's centre, with room for their marks. */
 function extentOf(discs: readonly { dx: number; dy: number }[], chips: readonly { dx: number; dy: number }[], size: number): { left: string; top: string; width: string; height: string } {
   const half = size * 0.9;
@@ -131,6 +148,10 @@ export function ManaRing({ ring, kind, ask, titles, onPick, onCancel, press = fa
     setCounts(next);
     if (ring.tally !== undefined && tallyDone(ring.tally, next)) pick({ to: 'tally-done', counts: next });
   };
+
+  // Whether it opened still is the opening's: the echo's window lapsing later lets go of nothing.
+  const [openedStill] = useState(still);
+  useLayoutEffect(() => holdCard(openedStill), [openedStill]);
 
   // Open at the press: centred on the pointer, or just above a finger; held whole on the board.
   useLayoutEffect(() => {

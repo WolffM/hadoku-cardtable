@@ -101,6 +101,7 @@
   font-size: calc(var(--disc) * 0.6);
 }
 
+/* The pick is lit, never resized: a disc that grew under the pointer shrank again as it left. */
 .mana-ring__disc:hover,
 .mana-ring__disc:focus-visible,
 .mana-ring__disc[data-armed],
@@ -109,7 +110,6 @@
 .mana-ring__chip[data-armed] {
   outline: none;
   box-shadow: 0 0 0 3px var(--accent), 0 4px 12px var(--shadow);
-  transform: translate(-50%, -50%) scale(1.14);
   z-index: 2;
 }
 

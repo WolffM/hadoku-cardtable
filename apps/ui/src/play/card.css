@@ -1083,7 +1083,9 @@
   box-shadow: 0 0 0 2px var(--accent);
 }
 
-.board-card[data-selectable] > .board-card__face:hover .card {
+/* A card a mana ring opened on (`data-ring-held`, `ManaRing.tsx`) keeps its lift while the pointer is on the ring over it. */
+.board-card[data-selectable] > .board-card__face:hover .card,
+.board-card[data-ring-held] > .board-card__face .card {
   translate: 0 -3px;
 }
 
@@ -1097,7 +1099,8 @@
  * that made Chromium restyle the whole board on every node added anywhere under it
  * (`has-invalidation.test.ts`).
  */
-.board-card[data-selectable]:not([data-flying]) > .board-card__face:hover ~ :not(.board-card__pile) {
+.board-card[data-selectable]:not([data-flying]) > .board-card__face:hover ~ :not(.board-card__pile),
+.board-card[data-ring-held]:not([data-flying]) > .board-card__face ~ :not(.board-card__pile) {
   translate: 0 -3px;
 }
 
@@ -1230,7 +1233,8 @@
   translate: 0 var(--fly-rest);
 }
 
-.board-card[data-combat-ready][data-selectable]:not([data-flying]) > .board-card__face:hover ~ :not(.board-card__pile) {
+.board-card[data-combat-ready][data-selectable]:not([data-flying]) > .board-card__face:hover ~ :not(.board-card__pile),
+.board-card[data-combat-ready][data-ring-held]:not([data-flying]) > .board-card__face ~ :not(.board-card__pile) {
   translate: 0 -7px;
 }
 
