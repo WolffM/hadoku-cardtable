@@ -26,7 +26,7 @@ import {
 
 import { STRICT_PAYMENT_POLICY } from './auto.js';
 import type { BridgeCommand, BridgeLine, HostEvents, MatchRecord, MatchHost, MatchHostFactory, MatchSpec, TurnSnapshot } from './host.js';
-import { ACTIVITY_WINDOW_MS, ACT_SILENCE_MS, ANSWER_SILENCE_MS, CONCEDE_ANSWER_MS, MATCH_ENDED_TITLE, RESTART_ASK_MS, WATCHER_SEAT, createMatchRegistry, frameGist, restoredSpec, type Match, type MatchSpecWithIdentity, type Restored } from './match.js';
+import { ACTIVITY_WINDOW_MS, ACT_SILENCE_MS, ANSWER_SILENCE_MS, CONCEDE_ANSWER_MS, MATCH_ENDED_TITLE, PENDING_REVEAL_CHOICE_MS, RESTART_ASK_MS, WATCHER_SEAT, createMatchRegistry, frameGist, restoredSpec, type Match, type MatchSpecWithIdentity, type Restored } from './match.js';
 import type { SeatIdentity } from '@hadoku/shared';
 import {
 	FLYING_FILE,
@@ -2313,7 +2313,7 @@ describe('wave 35 §S, R4: a reveal the fold does not claim is never swallowed',
 		vi.useRealTimers();
 	});
 
-	it('nothing claims it: Forge is answered at once, but the seat still sees it, unchanged, once the fold window passes', () => {
+	it('nothing claims it: Forge is answered at once, and the seat sees it at once too — no fold window at all (#39)', () => {
 		vi.useFakeTimers();
 		const h = harness();
 		h.host.push(...OPENING);
@@ -2321,14 +2321,11 @@ describe('wave 35 §S, R4: a reveal the fold does not claim is never swallowed',
 		h.host.push({ t: 'frame', seat: 0, frame });
 
 		// Forge's game thread is parked inside the reveal and will not build
-		// whatever comes next until it is answered — so this is immediate,
-		// not deferred to the fold window below.
+		// whatever comes next until it is answered — so this is immediate.
 		expect(h.host.commands).toEqual([{ t: 'reply', seat: 0, callId: 'x-reveal-1', result: [] }]);
-		// But the seat has not been shown anything yet — the window is still open.
-		expect(h.sent.some((s) => s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === 'x-reveal-1')).toBe(false);
 
-		vi.advanceTimersByTime(1000);
-
+		// Unflagged (no `choiceFollows`): nothing is coming, so nothing is held
+		// — the seat already sees it, with NO timer advanced at all.
 		const shown = h.sent.find((s) => s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === 'x-reveal-1');
 		expect(shown?.envelope.frame).toEqual(frame);
 		// Shown, never asked: the envelope says nothing waits on it.
@@ -2400,11 +2397,13 @@ describe('wave 35 §S, R4: a reveal the fold does not claim is never swallowed',
 		expect(other?.envelope.displayOnly).toBeUndefined();
 	});
 
-	it('what Forge did after the reveal reaches the seat after it: every frame but an ask waits behind a held reveal, in order', () => {
+	it('what Forge did after the reveal reaches the seat after it: every frame but an ask waits behind a held (choiceFollows) reveal, in order', () => {
 		vi.useFakeTimers();
 		const h = harness();
 		h.host.push(...OPENING);
-		h.host.push({ t: 'frame', seat: 0, frame: revealFrame('x-reveal-6', [940]) });
+		// Only a flagged reveal is held at all (#39) — an unflagged one is shown
+		// at once, so there is nothing for the life notify below to wait behind.
+		h.host.push({ t: 'frame', seat: 0, frame: { ...revealFrame('x-reveal-6', [940]), choiceFollows: true } });
 		const life = {
 			kind: 'notify' as const,
 			method: 'applyDelta' as const,
@@ -2423,7 +2422,7 @@ describe('wave 35 §S, R4: a reveal the fold does not claim is never swallowed',
 		h.host.push({ t: 'frame', seat: 0, frame: life });
 		expect(envelopesFor(h, 0).length, 'held while the reveal is').toBe(before);
 
-		vi.advanceTimersByTime(1000);
+		vi.advanceTimersByTime(PENDING_REVEAL_CHOICE_MS);
 		const after = envelopesFor(h, 0).slice(before).map((e) => (e.frame.kind === 'ask' ? `reveal ${(e.frame as { callId: string }).callId}` : e.frame.method));
 		expect(after, 'the reveal first, then what its resolution did').toEqual(['reveal x-reveal-6', 'applyDelta']);
 	});
@@ -2500,7 +2499,8 @@ describe('wave 35 §S, R4: a reveal the fold does not claim is never swallowed',
 		h.host.push(...OPENING);
 		h.host.push({ t: 'frame', seat: 0, frame: { ...revealFrame('x-reveal-9', [940, 941, 942]), choiceFollows: true } });
 		expect(h.host.commands).toEqual([{ t: 'reply', seat: 0, callId: 'x-reveal-9', result: [] }]);
-		// A loaded host: Forge's choice comes 295 ms after its reveal, past the 250 ms a reveal without the fact waits.
+		// A loaded host: Forge's choice comes 295 ms after its reveal — exactly the gap that
+		// missed the old, now-deleted 250 ms fold window (closing run 42354601891).
 		vi.advanceTimersByTime(295);
 		expect(askSent(h, 'x-reveal-9'), 'the reveal is still held for its choice').toEqual([]);
 		h.host.push({ t: 'frame', seat: 0, frame: discardChoice('x-choose-9', [940, 941]) });
@@ -2523,6 +2523,38 @@ describe('wave 35 §S, R4: a reveal the fold does not claim is never swallowed',
 		vi.advanceTimersByTime(10_000);
 		expect(askSent(h, 'x-reveal-10')[0]?.envelope.displayOnly).toBe(true);
 		expect(h.logs.filter((l) => l.evt === 'reveal-choice-missing')).toEqual([expect.objectContaining({ callId: 'x-reveal-10', seat: 0 })]);
+	});
+
+	/**
+	 * #39, step 2: a real card (Gift of the Gargantuan, `DigMultipleEffect` —
+	 * "look at the top 4, you may take one of each named type") reaches this
+	 * exact STRUCTURAL shape (a reveal immediately followed by a `getChoices`
+	 * max 1 over a subset, same seat) without `PlayBridge.java`'s
+	 * `revealChoiceFollows` ever flagging it — that flag only covers
+	 * `DiscardEffect`'s `Reveal…YouChoose` family today. Since only a FLAGGED
+	 * reveal is ever held (no more generic 250 ms fold window to still catch
+	 * this one by luck), this shape no longer merges into one prompt: the
+	 * reveal is shown on its own and the choice that follows is its own,
+	 * separate ask. Correct (nothing is lost, the seat answers both), just no
+	 * longer folded — documented here rather than silently regressed. Extending
+	 * `revealChoiceFollows` to this shape is the follow-up this test exists for.
+	 */
+	it('step 2 shape (DigMultiple/Gift-of-the-Gargantuan): an unflagged optional-single-after-reveal no longer folds', () => {
+		vi.useFakeTimers();
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({ t: 'frame', seat: 0, frame: revealFrame('x-reveal-11', [960, 961, 962, 963]) });
+		// The very next ask, same seat, same shape the fold used to recognise structurally:
+		// a getChoices with max 1 over a subset of the reveal's own choices.
+		h.host.push({ t: 'frame', seat: 0, frame: { ...discardChoice('x-choose-11', [960]), message: 'Choose a creature card', min: 0 } });
+
+		const revealShown = askSent(h, 'x-reveal-11');
+		expect(revealShown[0]?.envelope.displayOnly, 'the reveal is shown on its own, not swallowed into a merge').toBe(true);
+		const choiceShown = askSent(h, 'x-choose-11');
+		expect(
+			choiceShown.map((s) => s.envelope.frame.method),
+			'the choice reaches the seat as its own ordinary getChoices ask, never folded',
+		).toEqual(['getChoices']);
 	});
 });
 
