@@ -27,6 +27,9 @@ before planning cross-game work.
   Since 2026-10-03 that includes wave evidence screenshots under `docs/`: the
   old `!docs/**/*.png` exception is gone, and the 60 that were tracked were
   deleted on 2026-10-11. Never `git add -f` one.
+  **One exception, `brand/discord/`** (operator, 2026-11-07): the Discord
+  server icon, our own drawing, as its SVG source and the 512 px PNG Discord
+  takes. `.gitignore` re-includes that one folder's PNGs; it opens nothing else.
 - ~~**Our own origin never serves an image.**~~ **Repealed 2026-09-19 (D18)**
   by the operator, as stricter than needed for a private, non-commercial,
   friend-tier app. Image URLs are no longer restricted by host, and `scripts/d13-gate.sh`
