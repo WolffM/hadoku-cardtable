@@ -8,7 +8,7 @@
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { socketPath } from '../../../../ui/src/draft/socket.ts';
+import { socketPath } from '../../../../ui/src/room/socket-options.ts';
 import { CONCEDE_ANSWER_MS } from '../match.ts';
 import { concede, startMatch, type LiveMatch, type MatchTrouble } from '../../../../ui/src/play/live/match.ts';
 
