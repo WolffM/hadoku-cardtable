@@ -276,25 +276,30 @@ export function cutSurvivors(structure: PodStructure, results: readonly MatchRes
  * field's seat order IS its bracket.
  */
 function cutRound(players: PodPlayer[], results: readonly MatchResult[], seed: string, structure: PodStructure): PairRoundResult {
-  // Every prior elimination round's losers are out; `round` here only gates
-  // "are we past the Swiss", and a cut round always is.
-  const survivors = cutSurvivors(structure, results, structure.swiss + 1);
-  const pool = survivors.length > 0 ? players.filter((p) => survivors.includes(p.id)) : players;
-  const ranked =
+  // Who is still in: prior elimination rounds' losers are out, and — the
+  // first cut round's own question — the field is the standings' top `cut`.
+  // The standings order over EVERYONE answers both at once: seed the full
+  // field, then take the cut. Once eliminations have happened the ranking
+  // still carries the field (the eliminated keep their results), and the
+  // survivors are exactly the top `cut` of it in elimination order.
+  const rankedAll =
     structure.swiss > 0
-      ? rankedStandings(pool.map((p) => ({ id: p.id })), results, seed).map((row) => {
-          const player = pool.find((p) => p.id === row.id);
+      ? rankedStandings(players.map((p) => ({ id: p.id })), results, seed).map((row) => {
+          const player = players.find((p) => p.id === row.id);
           return { ...player!, podSeat: row.rank };
         })
-      : [...pool].sort((a, b) => a.podSeat - b.podSeat);
-  const half = Math.ceil(ranked.length / 2);
+      : [...players].sort((a, b) => a.podSeat - b.podSeat);
+  const inTheCut = new Set(rankedAll.slice(0, structure.cut).map((p) => p.id));
+  const survivors = cutSurvivors(structure, results, structure.swiss + 1);
+  const pool = rankedAll.filter((p) => inTheCut.has(p.id) && (survivors.length === 0 || survivors.includes(p.id)));
+  const half = Math.ceil(pool.length / 2);
   const tables: [string, string][] = [];
-  for (let i = 0; i < ranked.length - half; i++) {
-    tables.push([(ranked[i] as PodPlayer).id, (ranked[i + half] as PodPlayer).id]);
+  for (let i = 0; i < pool.length - half; i++) {
+    tables.push([(pool[i] as PodPlayer).id, (pool[i + half] as PodPlayer).id]);
   }
   // An odd field cannot happen in a power-of-two cut, but a bye keeps the
   // function total rather than throwing on a hand-fed structure.
-  const bye = ranked.length % 2 === 1 ? (ranked[ranked.length - 1] as PodPlayer).id : null;
+  const bye = pool.length % 2 === 1 ? (pool[pool.length - 1] as PodPlayer).id : null;
   return { tables, bye };
 }
 
