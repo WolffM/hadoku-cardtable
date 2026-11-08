@@ -61,7 +61,9 @@ describe('the pod standings', () => {
     expect(screen.getAllByRole('columnheader')).toHaveLength(4);
     fireEvent.click(more);
     expect(more.getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['#', 'Player', 'Record', 'Points', 'Opponents’ match wins', 'Game wins', 'Opponents’ game wins', 'Median game']);
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['#', 'Player', 'Record', 'Points', 'Opp. matches', 'Games', 'Opp. games', 'Median']);
+    // Each short head carries its full name, on hover and to a screen reader.
+    expect(screen.getAllByRole('columnheader').slice(4).map((h) => h.getAttribute('title'))).toEqual(['Opponents’ match wins', 'Game wins', 'Opponents’ game wins', 'Median game length']);
     expect(screen.getByTestId('pod-standings-row-1').textContent).toContain('60%100%50%12:34');
     const decided = (rank: number) => [...screen.getByTestId(`pod-standings-row-${rank}`).querySelectorAll('td[data-decided]')].map((td) => td.getAttribute('data-key'));
     expect(decided(1)).toEqual(['opponentMatchWinPct']);

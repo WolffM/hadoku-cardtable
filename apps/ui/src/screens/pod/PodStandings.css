@@ -36,6 +36,13 @@
   text-transform: uppercase;
 }
 
+/* A short tie-breaker head: the full name is its title, so the dotted underline says hover reads more. */
+.pod-standings__abbr {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
 .pod-standings__rank,
 .pod-standings__num {
   font-variant-numeric: tabular-nums;

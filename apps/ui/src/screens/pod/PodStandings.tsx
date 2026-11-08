@@ -55,12 +55,16 @@ function minutes(ms: number | null): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-/** The tie-breaker columns, in ranking order after Points, spelled out (2026-10-19: *"i hate the 3 letter acroynms"*). */
-const TIEBREAK_COLUMNS: readonly { key: Exclude<PodTiebreak, 'matchPoints'>; head: string; show: (r: PodStandingsRowLike) => string }[] = [
-  { key: 'opponentMatchWinPct', head: 'Opponents’ match wins', show: (r) => pct(r.opponentMatchWinPct) },
-  { key: 'gameWinPct', head: 'Game wins', show: (r) => pct(r.gameWinPct) },
-  { key: 'opponentGameWinPct', head: 'Opponents’ game wins', show: (r) => pct(r.opponentGameWinPct) },
-  { key: 'medianGameMs', head: 'Median game', show: (r) => minutes(r.medianGameMs) },
+/**
+ * The tie-breaker columns, in ranking order after Points: a short head, and the full name on hover and to a
+ * screen reader. Short words, never the three-letter acronyms (2026-10-19: *"i hate the 3 letter acroynms"*);
+ * the full names made the opened table far wider than its numbers (2026-11-08: *"way too long"*).
+ */
+const TIEBREAK_COLUMNS: readonly { key: Exclude<PodTiebreak, 'matchPoints'>; head: string; full: string; show: (r: PodStandingsRowLike) => string }[] = [
+  { key: 'opponentMatchWinPct', head: 'Opp. matches', full: 'Opponents’ match wins', show: (r) => pct(r.opponentMatchWinPct) },
+  { key: 'gameWinPct', head: 'Games', full: 'Game wins', show: (r) => pct(r.gameWinPct) },
+  { key: 'opponentGameWinPct', head: 'Opp. games', full: 'Opponents’ game wins', show: (r) => pct(r.opponentGameWinPct) },
+  { key: 'medianGameMs', head: 'Median', full: 'Median game length', show: (r) => minutes(r.medianGameMs) },
 ];
 
 export function PodStandings({ rows, results, nameOf, avatarOf, myMemberId, dropped = [] }: PodStandingsProps) {
@@ -84,8 +88,10 @@ export function PodStandings({ rows, results, nameOf, avatarOf, myMemberId, drop
             <th scope="col">Record</th>
             <th scope="col">Points</th>
             {columns.map((c) => (
-              <th key={c.key} scope="col">
-                {c.head}
+              <th key={c.key} scope="col" title={c.full}>
+                <abbr className="pod-standings__abbr" title={c.full}>
+                  {c.head}
+                </abbr>
               </th>
             ))}
           </tr>
