@@ -75,6 +75,7 @@ import forge.gamemodes.match.input.InputPayMana;
 import forge.gamemodes.match.LobbySlotType;
 import forge.gamemodes.match.NextGameDecision;
 import forge.gamemodes.match.YieldUpdate;
+import forge.gamemodes.match.Selection;
 import forge.gamemodes.net.ChatMessage;
 import forge.gamemodes.net.DeltaPacket;
 import forge.gamemodes.net.NetworkGuiGame;
@@ -102,7 +103,6 @@ import forge.player.AutoYieldStore;
 import forge.player.GamePlayerUtil;
 import forge.player.PlayerControllerHuman;
 import forge.player.PlayerZoneUpdate;
-import forge.player.PlayerZoneUpdates;
 import forge.sound.MusicPlaylist;
 import forge.toolbox.MouseTriggerEvent;
 import forge.trackable.TrackableCollection;
@@ -981,19 +981,6 @@ public final class PlayBridge {
         final JsonArray a = new JsonArray();
         if (zs != null) {
             for (final ZoneType z : zs) { a.add(z.name()); }
-        }
-        return a;
-    }
-
-    static JsonArray zoneUpdates(final Iterable<PlayerZoneUpdate> updates) {
-        final JsonArray a = new JsonArray();
-        if (updates != null) {
-            for (final PlayerZoneUpdate u : updates) {
-                final JsonObject o = new JsonObject();
-                o.add("player", ref("player", u.getPlayer().getId()));
-                o.add("zones", zones(u.getZones()));
-                a.add(o);
-            }
         }
         return a;
     }
@@ -3217,9 +3204,7 @@ public final class PlayBridge {
             guarded("gameover", match::maybeEmitGameOverFirst);
             frame(notify("finishGame"));
         }
-        @Override public void clearSelectables() {
-            // A selection cleared before its input opened was never the seat's to see.
-            heldSelectables = null;
+        private void clearSelectables() {
             convokeOffered = null;
             shownSelection = null;
             frame(notify("clearSelectables"));
@@ -3234,7 +3219,6 @@ public final class PlayBridge {
             // A priority window the SEAT is shown is a real input: no yield is running, so
             // an End Turn's pacing exemption is over (it is only ever armed by the click).
             if (phaseDelayOff && message != null && message.startsWith("Priority:")) { setPhaseDelayOff(false); }
-            sendHeldSelectables();
             syncConvokeSelectables();
             // The payment this prompt shows, or none: Forge's "which ability?" inside a payment is asked
             // from the payment's own click, when the input queue may not report it (payInput).
@@ -3826,7 +3810,6 @@ public final class PlayBridge {
             if (owner == null) { return; }
             lastLabel2 = label2 == null ? "" : label2;
             lastEnable2 = enable2;
-            sendHeldSelectables();
             syncConvokeSelectables();
             final JsonObject f = notify("updateButtons");
             f.add("owner", ref("player", owner.getId()));
@@ -3875,38 +3858,14 @@ public final class PlayBridge {
         }
 
         /**
-         * Forge's selection, held until its input is open ({@link #sendHeldSelectables}).
-         *
-         * Forge calls {@code setSelectables} from the selection input's constructor
-         * ({@code InputSelectTargets.java:68}, {@code InputSelectEntitiesFromList.java:57}), before
-         * {@code showAndWait} opens it, and this seat's channel thread runs the call whenever it gets
-         * to it: usually once the game thread has opened the input, on a busy host before. The
-         * players the selection accepts are read from the open input ({@link #legalPlayers}), and a
-         * read before found no selection open and sent the cards with no players: the browser
-         * offered every face to a spell that can target none (Doom Blade). Such a selection waits
-         * for its input's first prompt or bar, which Forge sends with the input open, and goes out
-         * just ahead of it, the order Forge sends them in.
+         * The cards a selection input offers, with the players its open input accepts ({@link #legalPlayers}).
+         * Forge sends a prompt's selection once its input is open ({@code InputBase.showSelection}), so the
+         * players are read off the right input.
          */
-        private JsonObject heldSelectables;
-
-        @Override public void setSelectables(final Iterable<CardView> cards, final int min, final int max) {
+        private void setSelectables(final Iterable<CardView> cards, final int min, final int max) {
             // Forge's own selection replaces the one this bridge published.
             convokeOffered = null;
-            heldSelectables = selectablesFrame(cards, min, max);
-            if (selectionOpen()) { sendHeldSelectables(); }
-        }
-
-        /** Whether this seat's open input is one of the two that publish a selection, so {@link #legalPlayers} reads it. */
-        private boolean selectionOpen() {
-            final Object input = myInput();
-            return input instanceof forge.gamemodes.match.input.InputSelectTargets || input instanceof forge.gamemodes.match.input.InputSelectEntitiesFromList;
-        }
-
-        /** Send the selection {@link #setSelectables} held, with the players its open input accepts. */
-        private void sendHeldSelectables() {
-            final JsonObject f = heldSelectables;
-            if (f == null) { return; }
-            heldSelectables = null;
+            final JsonObject f = selectablesFrame(cards, min, max);
             final JsonArray players = legalPlayers();
             if (players != null) { f.add("players", players); }
             frame(f);
@@ -4054,8 +4013,7 @@ public final class PlayBridge {
          * {@link #refs} is what encodes it, and it emits {@code card} and
          * {@code player} refs as they arrive.
          */
-        @Override public void setHighlighted(final Iterable<GameEntityView> entities, final boolean on) {
-            super.setHighlighted(entities == null ? List.of() : entities, on);
+        private void setHighlighted(final Iterable<GameEntityView> entities, final boolean on) {
             final JsonObject f = notify("setHighlighted");
             f.add("entities", refs(entities));
             f.addProperty("on", on);
@@ -4075,8 +4033,7 @@ public final class PlayBridge {
          * Forge sends the iterable WEIGHTED (a card twice when the auto-tap
          * preview also names it); {@link #refs} keeps it as sent.
          */
-        @Override public void setWeaklySelectable(final Iterable<CardView> cards) {
-            super.setWeaklySelectable(cards == null ? List.of() : cards);
+        private void setWeaklySelectable(final Iterable<CardView> cards) {
             final JsonObject f = notify("setWeaklySelectable");
             f.add("cards", refs(cards));
             offerFacts(f, cards);
@@ -4458,30 +4415,55 @@ public final class PlayBridge {
             return false;
         }
 
-        @Override public void clearWeaklySelectable() {
-            super.clearWeaklySelectable();
+        private void clearWeaklySelectable() {
             frame(notify("clearWeaklySelectable"));
+        }
+
+        /** The selection this seat was last sent ({@link #setSelection}). */
+        private Selection sentSelection = Selection.NONE;
+
+        /**
+         * Forge's one call for what a prompt marks ({@code Selection}): the cards it offers with their
+         * bounds, what is chosen so far, and what is worth clicking. Sent to the browser as the frames it
+         * has always read: {@code setSelectables} / {@code clearSelectables} for the offer,
+         * {@code setHighlighted} on and off for what changed in the chosen set, and
+         * {@code setWeaklySelectable} / {@code clearWeaklySelectable} for the actionable cards, which go
+         * out with every selection that has them, as Forge pushed them with every priority prompt.
+         * {@code super} keeps this seat's own tracker answering {@code isSelectable} and
+         * {@code isHighlighted} as the stock client's would.
+         */
+        @Override public void setSelection(final Selection next) {
+            final Selection selection = next == null ? Selection.NONE : next;
+            super.setSelection(selection);
+            final Selection prev = sentSelection;
+            sentSelection = selection;
+            final List<GameEntityView> off = new ArrayList<>();
+            for (final TrackableObject o : prev.chosen()) {
+                if (o instanceof GameEntityView e && !selection.chosen().contains(o)) { off.add(e); }
+            }
+            final List<GameEntityView> on = new ArrayList<>();
+            for (final TrackableObject o : selection.chosen()) {
+                if (o instanceof GameEntityView e && !prev.chosen().contains(o) && !on.contains(e)) { on.add(e); }
+            }
+            if (!off.isEmpty()) { setHighlighted(off, false); }
+            if (!selection.cards().isEmpty()) {
+                if (!selection.cards().equals(prev.cards()) || selection.min() != prev.min() || selection.max() != prev.max()) {
+                    setSelectables(selection.cards(), selection.min(), selection.max());
+                }
+            } else if (!prev.cards().isEmpty()) {
+                clearSelectables();
+            }
+            if (!selection.actionable().isEmpty()) {
+                setWeaklySelectable(selection.actionable());
+            } else if (!prev.actionable().isEmpty()) {
+                clearWeaklySelectable();
+            }
+            if (!on.isEmpty()) { setHighlighted(on, true); }
         }
 
         /** Forge turned the seat's act away (a click whose every ability it would refuse): the browser marks it. */
         @Override public void flashIncorrectAction() {
             frame(notify("flashIncorrectAction"));
-        }
-
-        @Override public void hideZones(final PlayerView controller, final Iterable<PlayerZoneUpdate> zonesToUpdate) {
-            if (controller == null) { return; }
-            final JsonObject f = notify("hideZones");
-            f.add("controller", ref("player", controller.getId()));
-            f.add("zonesToUpdate", zoneUpdates(zonesToUpdate));
-            frame(f);
-        }
-
-        @Override public void restoreOldZones(final PlayerView playerView, final PlayerZoneUpdates playerZoneUpdates) {
-            if (playerView == null) { return; }
-            final JsonObject f = notify("restoreOldZones");
-            f.add("player", ref("player", playerView.getId()));
-            f.add("playerZoneUpdates", zoneUpdates(playerZoneUpdates));
-            frame(f);
         }
 
         // ------------------------------------------------------- the 15 asks
@@ -4955,16 +4937,19 @@ public final class PlayBridge {
             rules.add(o);
         }
 
-        /** The stack of the server thread parked in {@code RemoteClientGuiGame.order}, or empty. */
+        /** The stack of the server thread parked in {@code ProtocolGuiGame.order}, or empty. */
         private static StackTraceElement[] askingStack() {
             return askingStack("order");
         }
 
-        /** The stack of the server thread parked in {@code RemoteClientGuiGame}'s {@code method}, or empty. */
+        /**
+         * The stack of the server thread parked in the host GUI's {@code method}, or empty: Forge's
+         * {@code ProtocolGuiGame} asks (its subclass {@code RemoteClientGuiGame} only hosts the network).
+         */
         private static StackTraceElement[] askingStack(final String method) {
             for (final StackTraceElement[] stack : Thread.getAllStackTraces().values()) {
                 for (final StackTraceElement frame : stack) {
-                    if (RemoteClientGuiGame.class.getName().equals(frame.getClassName()) && method.equals(frame.getMethodName())) { return stack; }
+                    if (forge.gamemodes.net.ProtocolGuiGame.class.getName().equals(frame.getClassName()) && method.equals(frame.getMethodName())) { return stack; }
                 }
             }
             return new StackTraceElement[0];
@@ -5874,46 +5859,6 @@ public final class PlayBridge {
             return out;
         }
 
-        PlayerZoneUpdates zoneUpdatesFrom(final PendingAsk ask, final JsonElement reply) {
-            final PlayerZoneUpdates out = new PlayerZoneUpdates();
-            for (final JsonElement e : reply.getAsJsonArray()) {
-                final JsonObject o = e.getAsJsonObject();
-                final PlayerView pv = (PlayerView) lookup(ask, o.get("player"));
-                if (pv == null) { continue; }
-                final JsonArray zs = o.getAsJsonArray("zones");
-                if (zs.isEmpty()) { out.add(new PlayerZoneUpdate(pv, null)); }
-                for (final JsonElement z : zs) { out.add(new PlayerZoneUpdate(pv, ZoneType.valueOf(z.getAsString()))); }
-            }
-            return out;
-        }
-
-        @Override
-        public Iterable<PlayerZoneUpdate> tempShowZones(final PlayerView controller, final Iterable<PlayerZoneUpdate> zonesToUpdate) {
-            final JsonObject f = new JsonObject();
-            final PendingAsk ask = open("tempShowZones", f);
-            final List<PlayerView> players = new ArrayList<>();
-            if (zonesToUpdate != null) { for (final PlayerZoneUpdate u : zonesToUpdate) { players.add(u.getPlayer()); } }
-            offer(ask, players);
-            f.add("controller", ref("player", controller.getId()));
-            f.add("zonesToUpdate", zoneUpdates(zonesToUpdate));
-            final JsonElement r = await(ask, f);
-            return r == ABORTED ? null : zoneUpdatesFrom(ask, r);
-        }
-
-        @Override
-        public PlayerZoneUpdates openZones(final PlayerView controller, final Collection<ZoneType> zones,
-                                           final Map<PlayerView, Object> players, final boolean backupLastZones) {
-            final JsonObject f = new JsonObject();
-            final PendingAsk ask = open("openZones", f);
-            offer(ask, players.keySet());
-            f.add("controller", ref("player", controller.getId()));
-            f.add("zones", zones(zones));
-            f.add("players", refs(players.keySet()));
-            f.addProperty("backupLastZones", backupLastZones);
-            final JsonElement r = await(ask, f);
-            return r == ABORTED ? null : zoneUpdatesFrom(ask, r);
-        }
-
         // ------------------------------------ the rest: nothing a browser draws
 
         @Override protected void updateCurrentPlayer(final PlayerView player) { }
@@ -5930,7 +5875,6 @@ public final class PlayBridge {
         @Override public void updateStack() { }
         @Override public void updateZones(final Iterable<PlayerZoneUpdate> zonesToUpdate) { }
         @Override public void updateCards(final Iterable<CardView> cards) { }
-        @Override public GameState getGamestate() { return null; }
         @Override public void updateManaPool(final Iterable<PlayerView> manaPoolUpdate) { }
         @Override public void updateLives(final Iterable<PlayerView> livesUpdate) { }
         @Override public void updateShards(final Iterable<PlayerView> shardsUpdate) { }
@@ -6533,14 +6477,14 @@ public final class PlayBridge {
          * seat (asked from the channel thread, it once did — see {@code offerFacts}).
          */
         @Override
-        public void pushActionableCards(final boolean paymentMode, final Iterable<CardView> emphasized) {
+        public List<CardView> getActionableCards(final boolean paymentMode, final Iterable<CardView> emphasized) {
             // Run on Forge's event thread while the game thread waits on the input, and it swaps this seat's
             // player's controller for an AI's (ours, heldBackByCost; the fork's own AvailableActions.scan). An
             // input that finished meanwhile let the game thread ask that player for its next decision under the
             // swap — the suspect in yield.jvm's run 42403314200 (#40's follow-up). Said when it happens.
             final Object shown = liveInput();
             if (!paymentMode) { unaffordable = new Object[] { shown, heldBackByCost() }; }
-            super.pushActionableCards(paymentMode, emphasized);
+            final List<CardView> actionable = super.getActionableCards(paymentMode, emphasized);
             final Object after = liveInput();
             if (shown != null && after != shown) {
                 System.err.println("[bridge] seat " + seat + ": its input " + shown.getClass().getSimpleName() + " finished while its offer scan held a swapped controller (now "
@@ -6550,6 +6494,7 @@ public final class PlayBridge {
                 o.addProperty("input", shown.getClass().getSimpleName());
                 emit(match.matchId, o);
             }
+            return actionable;
         }
 
         private java.util.Set<Integer> heldBackByCost() {
@@ -7904,7 +7849,7 @@ public final class PlayBridge {
                         // whatever's cached rather than fail the match over a highlight.
                         System.err.println("[bridge] refreshActionable: cachedActionableCards reflection failed: " + e);
                     }
-                    human.pushActionableCards(false);
+                    human.getGui().setSelection(Selection.NONE.withActionable(human.getActionableCards(false, null)));
                 }
             }
         }
@@ -8178,6 +8123,13 @@ public final class PlayBridge {
             // deliberately left off: it only raises a card's WEIGHT inside the same set
             // (:1580-1589), and our board reads the set, not the weights.
             prefs.setPref(FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS, true);
+            // Undo is the stack's mana-ability undo (the fork's PlayerControllerHuman.tryUndoLastAction).
+            // Forge's UndoManager would store a whole-game memento at every priority, for every match this
+            // JVM hosts; it is never what a seat's Undo performs, so it records nothing.
+            prefs.setPref(FPref.UI_UNDO_MODE, ForgeConstants.UNDO_MODE_OFF);
+            // Forge's Flat Monte Carlo AI (its default since 2026-10) rolls each decision out within the AI
+            // timeout; cardtable's AI stays the heuristic one until its CPU cost per hosted match is measured.
+            prefs.setPref(FPref.MATCH_AI_FLAT_MONTE_CARLO, false);
             return null;
         });
         if (StaticData.instance() == null) {

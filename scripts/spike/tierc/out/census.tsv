@@ -42,13 +42,11 @@ OK	PLAIN	Defense	java.lang.String	str	293	293	0	0	0
 OK	PLAIN	Library	java.util.ArrayList	list	272	272	0	0	0	
 OK	PLAIN	Sickness	null	null	248	248	0	0	0	
 OK	PLAIN	Mana	java.util.HashMap	map	226	226	0	0	0	
-OK	PLAIN	NeedsTapAnimation	java.lang.Boolean	bool	213	213	0	0	0	
 OK	PLAIN	PlayerTurn	java.lang.Integer	int	209	209	0	0	0	
 OK	PLAIN	Turn	java.lang.Integer	int	209	209	0	0	0	
 OK	PLAIN	NumDrawnThisTurn	java.lang.Integer	int	206	206	0	0	0	
 OK	PLAIN	CombatView	null	null	198	198	0	0	0	
 OK	PLAIN	NumDrawnThisTurn	null	null	188	188	0	0	0	
-OK	PLAIN	NeedsUntapAnimation	java.lang.Boolean	bool	179	179	0	0	0	
 OK	PLAIN	NumLandThisTurn	null	null	152	152	0	0	0	
 OK	PLAIN	CombatView	forge.gamemodes.net.DeltaPacket$CombatData	combat	150	150	0	0	0	
 OK	PLAIN	NumLandThisTurn	java.lang.Integer	int	144	144	0	0	0	

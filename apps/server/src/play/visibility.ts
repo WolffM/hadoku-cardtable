@@ -302,8 +302,6 @@ const FACE_ONLY_KEEP = new Set([
 	'Blocking',
 	'EntityAttachedTo',
 	'AttachedCards',
-	'NeedsTapAnimation',
-	'NeedsUntapAnimation',
 	'Token',
 ]);
 

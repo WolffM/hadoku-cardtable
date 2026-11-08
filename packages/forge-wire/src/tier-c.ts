@@ -13,8 +13,11 @@
  * - `scripts/spike/tierc/out/sample-newobjects.json` — the opening full sync.
  * - `scripts/spike/tierc/out/sample-delta.json` — a small mid-game delta.
  * - `scripts/spike/tierc/out/census.tsv` — every (property, runtime class,
- *   JSON tag) triple the run saw: 133 of them.
- * - `scripts/spike/tierc/out/coverage.tsv` — all 214 `TrackableProperty`
+ *   JSON tag) triple the run saw: 133 of them, 131 since the pin moved to
+ *   upstream Forge of 2026-11-08, which no longer sends `NeedsTapAnimation` or
+ *   `NeedsUntapAnimation` (Forge #12500 derives animations in its GUI); those
+ *   two rows, and the two flags in the UI's capture, were dropped then.
+ * - `scripts/spike/tierc/out/coverage.tsv` — all 211 `TrackableProperty`
  *   constants in declaration order, with each one's declared `TrackableType`.
  *
  * `tier-c.test.ts` loads all four and checks this file against them in both
@@ -302,7 +305,7 @@ export const UNOBSERVED_DECLARED_TYPES = [
 ] as const;
 
 /**
- * The 214 `TrackableProperty` constants, in declaration order — so a
+ * The 211 `TrackableProperty` constants, in declaration order — so a
  * property's index here is its ordinal, which is what `checksumProperties`
  * carries — each with its declared type. Transcribed from `coverage.tsv`;
  * `tier-c.test.ts` fails if the two ever differ.
@@ -334,7 +337,6 @@ export const STATE_PROPERTIES = {
   SplitCard: 'BooleanType',
   MergedCards: 'StringType',
   MergedCardsCollection: 'CardViewCollectionType',
-  RevealedCardsCollection: 'CardViewCollectionType',
   PaperCardBackup: 'IPaperCardType',
   Attacking: 'BooleanType',
   Blocking: 'BooleanType',
@@ -382,10 +384,6 @@ export const STATE_PROPERTIES = {
   CloneOrigin: 'CardViewType',
   ExiledWith: 'CardViewType',
   PreparedSpell: 'CardViewType',
-  WasDestroyed: 'BooleanType',
-  NeedsTransformAnimation: 'BooleanType',
-  NeedsUntapAnimation: 'BooleanType',
-  NeedsTapAnimation: 'BooleanType',
   MarkedColors: 'ColorSetType',
   ImprintedCards: 'CardViewCollectionType',
   ExiledCards: 'CardViewCollectionType',
@@ -402,26 +400,26 @@ export const STATE_PROPERTIES = {
   ExertedThisTurn: 'BooleanType',
   Detained: 'BooleanType',
   Name: 'StringType',
+  OracleName: 'StringType',
+  ImageKey: 'StringType',
   Colors: 'ColorSetType',
   OriginalColors: 'ColorSetType',
-  ImageKey: 'StringType',
   Type: 'CardTypeViewType',
   ManaCost: 'ManaCostType',
   OriginalManaCost: 'ManaCostType',
   SetCode: 'StringType',
   Rarity: 'EnumType',
-  FunctionalVariant: 'StringType',
   OracleText: 'StringType',
   RulesText: 'StringType',
-  OracleName: 'StringType',
+  HasPrintedPT: 'BooleanType',
   Power: 'IntegerType',
   Toughness: 'IntegerType',
   Loyalty: 'StringType',
   Defense: 'StringType',
+  FunctionalVariant: 'StringType',
   AttractionLights: 'IntegerSetType',
   ChangedColorWords: 'StringMapType',
   HasChangedColors: 'BooleanType',
-  HasPrintedPT: 'BooleanType',
   ChangedTypes: 'StringMapType',
   OrigProduceMana: 'ColorSetType',
   OrigProduceAnyMana: 'BooleanType',
@@ -443,13 +441,13 @@ export const STATE_PROPERTIES = {
   SleeveArtKey: 'StringType',
   SleeveArtOffset: 'IntegerType',
   Opponents: 'PlayerViewCollectionType',
+  SharedTeam: 'PlayerViewCollectionType',
   Life: 'IntegerType',
   MaxHandSize: 'IntegerType',
   HasUnlimitedHandSize: 'BooleanType',
   MaxLandPlay: 'IntegerType',
   HasUnlimitedLandPlay: 'BooleanType',
   NumLandThisTurn: 'IntegerType',
-  NumManaShards: 'IntegerType',
   DraftNotes: 'StringMapType',
   NumDrawnThisTurn: 'IntegerType',
   AdditionalVote: 'IntegerType',
@@ -474,52 +472,54 @@ export const STATE_PROPERTIES = {
   AttractionDeck: 'CardViewCollectionType',
   ContraptionDeck: 'CardViewCollectionType',
   Junkyard: 'CardViewCollectionType',
+  StickerSheets: 'CardViewCollectionType',
+  Stickers: 'StringType',
   Mana: 'ManaMapType',
   IsExtraTurn: 'BooleanType',
   ExtraTurnCount: 'IntegerType',
   HasPriority: 'BooleanType',
-  AvatarLifeDifference: 'IntegerType',
   HasLost: 'BooleanType',
   HasAvailableActions: 'BooleanType',
+  NumManaShards: 'IntegerType',
   HostCard: 'CardViewType',
   Description: 'StringType',
   CanPlay: 'BooleanType',
   PromptIfOnlyPossibleAbility: 'BooleanType',
   SA_IsSpell: 'BooleanType',
-  HasBackSide: 'BooleanType',
   Key: 'StringType',
   SourceTrigger: 'IntegerType',
   SourceCard: 'CardViewType',
   ActivatingPlayer: 'PlayerViewType',
   TargetCards: 'CardViewCollectionType',
   TargetPlayers: 'PlayerViewCollectionType',
+  TargetStackItems: 'StackItemViewListType',
   SubInstance: 'StackItemViewType',
   Ability: 'BooleanType',
   OptionalTrigger: 'BooleanType',
   OptionalCosts: 'StringType',
+  CombatView: 'CombatViewType',
   AttackersWithDefenders: 'GenericMapType',
   AttackersWithBlockers: 'GenericMapType',
+  AttackersWithPlannedBlockers: 'GenericMapType',
   BandsWithDefenders: 'GenericMapType',
   BandsWithBlockers: 'GenericMapType',
-  AttackersWithPlannedBlockers: 'GenericMapType',
   BandsWithPlannedBlockers: 'GenericMapType',
-  CombatView: 'CombatViewType',
   Players: 'PlayerViewCollectionType',
   GameType: 'EnumType',
   Title: 'StringType',
   Turn: 'IntegerType',
+  PlayerTurn: 'PlayerViewType',
+  Phase: 'EnumType',
   WinningPlayerName: 'StringType',
   WinningTeam: 'IntegerType',
-  MatchOver: 'BooleanType',
   Mulligan: 'BooleanType',
+  GameOver: 'BooleanType',
+  MatchOver: 'BooleanType',
   NumGamesInMatch: 'IntegerType',
   NumPlayedGamesInMatch: 'IntegerType',
   Stack: 'StackItemViewListType',
   StormCount: 'IntegerType',
-  GameOver: 'BooleanType',
   PoisonCountersToLose: 'IntegerType',
-  PlayerTurn: 'PlayerViewType',
-  Phase: 'EnumType',
   Object: 'ObjectType',
   Dependencies: 'StringType',
 } as const satisfies Record<string, DeclaredType>;
@@ -550,7 +550,7 @@ function valueSchemaFor(property: StateProperty): z.ZodType {
 /**
  * Every property is optional (a delta names only what changed) and nullable:
  * `null` is a real value on this wire, the "it is no longer true" signal —
- * 23 of the 133 captured (property, class) pairs were `null` at least once.
+ * 23 of the 131 captured (property, class) pairs were `null` at least once.
  */
 type PropertyShape = {
   [K in StateProperty]: z.ZodOptional<
@@ -568,7 +568,7 @@ const PROPERTY_SHAPE = Object.fromEntries(
 /**
  * What the server lays on a face beside Forge's own properties: which Scryfall id the card's art is
  * (`apps/server/src/play/art-ids.ts`), on a face the viewer may see whole and nowhere else. Not
- * Forge's, so not one of the 214 and never a checksum ordinal.
+ * Forge's, so not one of the 211 and never a checksum ordinal.
  */
 const SERVER_FACE_PROPERTIES = {
   ScryfallId: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(#back)?$/i),
@@ -583,7 +583,7 @@ const SERVER_FACE_SHAPE = Object.fromEntries(
 /**
  * One tracked object's properties. `_type` and `_id` repeat what the delta key
  * already packs, so a client never has to bit-twiddle; the table schema checks
- * they agree with the key. Strict: a property name outside the 214 fails with
+ * they agree with the key. Strict: a property name outside the 211 fails with
  * that name in the path.
  */
 export const TrackedObjectSchema = z
@@ -687,7 +687,7 @@ export type DeltaPacket = z.infer<typeof DeltaPacketSchema>;
  * ability targeting an ability).
  *
  * Not a `TrackableProperty`: `STATE_PROPERTIES` above stays pinned at
- * Forge's real 214 (`tier-c.test.ts` cross-checks it against
+ * Forge's real 211 (`tier-c.test.ts` cross-checks it against
  * `coverage.tsv`), and `forge/` is stock upstream, not ours to add a 215th
  * constant to (`AGENTS.md`: "Don't modify `forge/` until the fork exists").
  * `StackItemView.java`'s own `TargetCards`/`TargetPlayers` are typed
