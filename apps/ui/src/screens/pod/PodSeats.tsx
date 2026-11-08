@@ -54,10 +54,17 @@ export interface PodSeatsProps {
   /** The viewer's own member id, or `null` before identity resolves. */
   myMemberId: string | null;
   leaderId: string;
-  /** Looks up a seated member's readiness — the room's own `ready` flag, unaffected by seating. */
+  /** Looks up a seated member's readiness — the room's own `Ready` flag, unaffected by seating. */
   readyOf: (memberId: string) => boolean;
   /** Looks up a seated member's own watchparty avatar id (`undefined` for none) — the same id `Avatar` draws everywhere else. */
   faceOf: (memberId: string) => Face;
+  /**
+   * A historical replay seat's deck, by the `deckId` the server carries on it:
+   * the real event's public list, named on the seat because the event itself
+   * published it. `undefined` for every other seat — a live tournament's deck
+   * stays its chooser's secret, and this component never guesses one.
+   */
+  deckNameOf: (deckId: string) => string | undefined;
   onSit: (seat: number) => void;
   /** The AI button on an open seat (`on`), or the AI's own seat given back. */
   onAi: (seat: number, on: boolean) => void;
@@ -65,7 +72,7 @@ export interface PodSeatsProps {
   onClose: (seat: number, closed: boolean) => void;
 }
 
-export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, onSit, onAi, onClose }: PodSeatsProps) {
+export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, deckNameOf, onSit, onAi, onClose }: PodSeatsProps) {
   const iLead = myMemberId !== null && myMemberId === leaderId;
   const mySeat = myMemberId === null ? null : seats.findIndex((s) => s?.memberId === myMemberId);
   const iAmSeated = mySeat !== null && mySeat >= 0;
@@ -163,6 +170,9 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, onSit, 
               )}
             </span>
             <PlayerName name={occupant.name} face={faceOf(occupant.memberId)} className="pod-seats__label" />
+            {occupant.deckId !== undefined && deckNameOf(occupant.deckId) !== undefined && (
+              <span className="pod-seats__deck" data-testid={`pod-seat-${seat}-deck`}>{deckNameOf(occupant.deckId)}</span>
+            )}
             <StatusPill testId={`pod-seat-${seat}-ready`} state={ready ? 'yes' : 'no'} mark={ready ? 'tick' : 'ring'} label={ready ? 'ready' : 'not ready'} />
           </li>
         );

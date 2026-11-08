@@ -2581,6 +2581,7 @@ function RoomTableScreen({
                 members={members}
                 leaderId={view?.leader ?? ''}
                 myMemberId={view?.you.id ?? null}
+                deckNameOf={(deckId) => (loaded?.decks ?? []).find((d) => d.id === deckId)?.name}
                 iAmReady={iAmReady}
                 readyDisabled={!canReady}
                 onReady={setDraftReady}

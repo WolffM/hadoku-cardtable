@@ -85,7 +85,7 @@ const membersSchema = z
  * - `format`: the pool;
  * - `rules`: the match rules (hand smoothing, the clock, the pick timer).
  */
-export const ROOM_LOCK_REASONS = ['draft-started', 'mode-locked'] as const;
+export const ROOM_LOCK_REASONS = ['draft-started', 'mode-locked', 'historical'] as const;
 export const RoomLockSchema = z.enum(ROOM_LOCK_REASONS).nullable();
 export const ROOM_CONTROLS = ['gameType', 'mode', 'event', 'format', 'rules'] as const;
 export type RoomControl = (typeof ROOM_CONTROLS)[number];
