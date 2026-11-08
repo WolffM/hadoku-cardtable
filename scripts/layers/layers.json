@@ -82,6 +82,7 @@
     "packages/draft/**",
     "apps/server/src/**/*.java",
     "apps/server/src/cover.ts",
+    "apps/server/src/plugins/**",
     "apps/server/src/pools/**",
     "apps/server/src/stats/**",
     "apps/server/src/room/**",

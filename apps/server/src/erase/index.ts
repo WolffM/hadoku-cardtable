@@ -1,25 +1,17 @@
 /**
- * Adapter: cardtable's binding of `@hadoku/service-kernel/erase`'s account-erase registry
- * (w93-K3) — `POST /api/_account/erase`.
+ * Cardtable's binding of `@hadoku/service-kernel/erase` — `POST /api/_account/erase`.
  *
  * The edge calls it on the tunnel origin with `X-Edge-Auth` (its seal), `X-Hadoku-Tier: member`
- * and `X-User-Id`. Only the seal admits it: the bare-local escape hatch (`allowUnverifiedEdge`)
- * believes any header and so does NOT open this route, and no tier does either — `edgeSealed` is
- * checked, not `tierOf`, injected here from `edge-auth.js` since the kernel knows no app's binding
- * of it. `deriveParticipantId` (`room/identity.ts`) is likewise injected: the `fk:` id a person is
- * also known by is platform but app-bound, not the kernel's to import.
+ * and `X-User-Id`. Only the seal admits it (`createGameServer` passes `edgeAuth.edgeSealed`), never
+ * a tier: the bare-local escape hatch believes any header and so does NOT open this route. The
+ * kernel mounts it above the floor and `firstSeen`: the edge sends `member`, which a wrapper that
+ * lost `CARDTABLE_MIN_TIER` would 404, and `firstSeen` would record the person again on the very
+ * call that erases them.
  *
- * Mounted above the tier floor and `firstSeen` (`index.ts`): the edge sends `member`, and a
- * wrapper that lost `CARDTABLE_MIN_TIER` floors at friend, which would 404 every delete; and
- * `firstSeen` below it would record the person again on the very call that erases them.
- *
- * Every export and signature below is unchanged from before this moved into the kernel:
- * `index.ts` imports this path exactly as it did, passing only `{ log }` — this file supplies
- * `edgeSealed` and `deriveParticipantId` itself, so no call site needs to change.
+ * What stays here is the `fk:` id a person is also known by (`room/identity.ts`), which the
+ * kernel is handed as `deriveParticipantId`, and the steps' shared types.
  */
-
 import {
-	createAccountErase as kernelCreateAccountErase,
 	ERASE_PATH,
 	personOf as kernelPersonOf,
 	type AccountErase,
@@ -28,19 +20,13 @@ import {
 	type EraseStep,
 } from '@hadoku/service-kernel/erase';
 
-import { edgeSealed } from '../edge-auth.js';
-import type { JsonLog } from '@hadoku/service-kernel/log';
 import { deriveParticipantId } from '../room/identity.js';
 
 export { ERASE_PATH };
 export type { AccountErase, EraseCounts, ErasedPerson, EraseStep };
 
-const fkOf = (userId: string): string => deriveParticipantId({ accountId: userId, socketId: '' });
+export const fkOf = (userId: string): string => deriveParticipantId({ accountId: userId, socketId: '' });
 
 export function personOf(userId: string): ErasedPerson {
 	return kernelPersonOf(userId, fkOf);
-}
-
-export function createAccountErase(opts: { log: JsonLog }): AccountErase {
-	return kernelCreateAccountErase({ log: opts.log, edgeSealed, deriveParticipantId: fkOf });
 }

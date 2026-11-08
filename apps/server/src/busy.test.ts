@@ -7,7 +7,8 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
-import { busyHandler, busyReport, isLocalProbe, type BusyReport, type BusySources } from './busy.ts';
+import { busyHandler } from '@hadoku/service-kernel/lifecycle';
+import { busyReport, isLocalProbe, type BusyReport, type BusySources } from './busy.ts';
 
 const src = (over: Partial<BusySources> = {}): BusySources => ({ matches: () => [], drafts: () => [], ...over });
 const match = (status: string) => ({ id: 'm1', status, seats: [{}, {}] });
@@ -57,7 +58,7 @@ describe('busyHandler over real HTTP', () => {
 	afterEach(() => void server?.close());
 	const get = async (s: BusySources, headers: Record<string, string> = {}) => {
 		const app = express();
-		app.get('/health/busy', busyHandler(s));
+		app.get('/health/busy', busyHandler(() => busyReport(s)));
 		server = createServer(app);
 		await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
 		return fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/health/busy`, { headers });

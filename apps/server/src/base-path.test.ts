@@ -14,7 +14,10 @@ import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { checkBasePath, checkBundle, diagnosticPage, isEmbedEntry, probeIndex } from './base-path.js';
+import { checkBasePath, checkBundle, isEmbedEntry as kernelIsEmbedEntry, probeIndex } from '@hadoku/service-kernel/http';
+import { diagnosticPage, EMBED_ENTRIES } from './base-path.js';
+
+const isEmbedEntry = (filePath: string): boolean => kernelIsEmbedEntry(filePath, EMBED_ENTRIES);
 
 const PREFIX = '/cardtable';
 const INDEX = `<!doctype html><html><head><script type="module" src="${PREFIX}/assets/app.js"></script></head><body></body></html>`;

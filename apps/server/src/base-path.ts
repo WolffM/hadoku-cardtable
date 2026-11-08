@@ -17,29 +17,17 @@
  * So: compare them here, once, at boot, and say precisely what to change.
  */
 
-import {
-	type BasePathVerdict,
-	checkBasePath,
-	checkBundle,
-	diagnosticPage as kernelDiagnosticPage,
-	isEmbedEntry as kernelIsEmbedEntry,
-	probeIndex,
-	sendIndex,
-} from '@hadoku/service-kernel/http';
+import { type BasePathVerdict, diagnosticPage as kernelDiagnosticPage, sendIndex } from '@hadoku/service-kernel/http';
 
 export type { BasePathVerdict };
-export { checkBasePath, checkBundle, probeIndex, sendIndex };
+export { sendIndex };
 
 /**
  * The embed bundle's two fixed-name files (D21): `apps/ui/vite.embed.config.ts`
  * emits them, watchparty imports the `.js`. Every other file in the bundle is
  * content-hashed; these are the only ones whose bytes change under one name.
  */
-const EMBED_ENTRIES = ['cardtable-embed.js', 'cardtable-embed.css'] as const;
-
-export function isEmbedEntry(filePath: string): boolean {
-	return kernelIsEmbedEntry(filePath, EMBED_ENTRIES);
-}
+export const EMBED_ENTRIES = ['cardtable-embed.js', 'cardtable-embed.css'] as const;
 
 /** The page served in place of a bundle that would render blank, under cardtable's own name. */
 export function diagnosticPage(verdict: BasePathVerdict, basePrefix: string): string {

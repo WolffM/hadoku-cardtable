@@ -21,8 +21,7 @@
  *   never disconnect on their own, and counting them would make every deploy sit
  *   until its deadline — at which point the deadline kills the real match anyway.
  */
-import { busyHandler as kernelBusyHandler, type BusyReport, type BusyRun } from '@hadoku/service-kernel/lifecycle';
-import type { RequestHandler } from 'express';
+import type { BusyReport, BusyRun } from '@hadoku/service-kernel/lifecycle';
 
 export { isLocalProbe, type BusyReport, type BusyRun } from '@hadoku/service-kernel/lifecycle';
 
@@ -56,8 +55,4 @@ export function busyReport(src: BusySources): BusyReport {
 		runs.push({ id: d.id, kind: 'draft', label: at });
 	}
 	return { busy: runs.length > 0, count: runs.length, runs };
-}
-
-export function busyHandler(src: BusySources): RequestHandler {
-	return kernelBusyHandler(() => busyReport(src));
 }

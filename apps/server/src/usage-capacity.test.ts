@@ -5,7 +5,11 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { capacitySampler } from './capacity.js';
+import { capacitySampler as kernelCapacitySampler, type CapacityDeps } from '@hadoku/service-kernel/capacity';
+import { ART_REDIRECTS } from './capacity.js';
+
+/** The sampler as cardtable's server builds it: card art counted as `artRedirects`. */
+const capacitySampler = (deps: CapacityDeps) => kernelCapacitySampler({ ...deps, uncountedPath: ART_REDIRECTS.path, uncountedField: ART_REDIRECTS.field });
 import { attachUsage, MAX_BATCHES_PER_MINUTE } from './http/usage.js';
 import type { TelemetryContext } from './telemetry.js';
 

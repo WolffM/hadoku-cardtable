@@ -4,7 +4,9 @@ import { join } from 'node:path';
 import type { ParticipantId } from '@wolffm/rooms-protocol';
 import { describe, expect, it } from 'vitest';
 import { openLobby } from '../room/lobby.ts';
-import { createAccountErase, personOf } from './index.ts';
+import { createAccountErase } from '@hadoku/service-kernel/erase';
+import { edgeSealed } from '../edge-auth.ts';
+import { fkOf, personOf } from './index.ts';
 import { roomsEraseSteps, type LiveMatch } from './rooms.ts';
 
 const ALICE_USER = 'c41f9e2a-7b3d-4a8e-9c56-2f0d1b8e6a03';
@@ -36,7 +38,7 @@ describe("account erase in the person's rooms and games", () => {
 		const elsewhere: LiveMatch = { seatOf: (id) => (id === BOB.id ? 0 : null) };
 		const forfeits: [LiveMatch, ParticipantId][] = [];
 		const closed: string[] = [];
-		const erase = createAccountErase({ log: () => {} });
+		const erase = createAccountErase({ log: () => {}, edgeSealed, deriveParticipantId: fkOf });
 		for (const step of roomsEraseSteps({
 			lobby,
 			// A forfeited game ends, as Forge ends a conceded one.

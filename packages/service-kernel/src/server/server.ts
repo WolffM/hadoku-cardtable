@@ -21,10 +21,10 @@
  * ## Boot phases
  *
  * `config → bundle → stores → routes → sockets → listen → warm`, each plugin's `setup` in
- * array order within its phase. The kernel checks the bundle at the start of `bundle`, builds
- * first-seen at the end of `config` (so a state-dir move in `config` happens before it reads
- * its file), and starts listening between `sockets` and `listen`: `listen` and `warm` run once
- * the server answers, `warm` last. The boot clock stamps each phase as it ends, unless the
+ * array order within its phase. The kernel checks the bundle at the start of `bundle` and
+ * installs telemetry at its end, builds first-seen at the end of `config` (so a state-dir move in `config`
+ * happens before it reads its file), and starts listening between `sockets` and `listen`:
+ * `listen` and `warm` run once the server answers, `warm` last. The boot clock stamps each phase as it ends, unless the
  * config turns that off to keep a game's own names (`stampPhases: false`, `ctx.bootPhase`).
  *
  * ## Going down
@@ -70,8 +70,8 @@ export interface GameServerConfig {
 	repoRoot: string;
 	/** The socket event that tells every client the server is restarting. */
 	restartEvent: string;
-	/** Installed before any route. Absent: events go nowhere. */
-	telemetry?: Report;
+	/** Built and installed after the `bundle` phase, before any plugin's route. Absent: events go nowhere. */
+	telemetry?: () => Report;
 	/** The accounts this server has admitted, kept across restarts (`caller-first-seen`). */
 	firstSeen: { file: string; log: JsonLog };
 	/** The app's own derived id for an erased account (`personOf`). */
@@ -161,8 +161,6 @@ export async function createGameServer<E extends EventMap, S>({ id, config, stat
 	const httpServer = createServer(app);
 	// The default path: the edge strips the base prefix before the socket's request reaches us.
 	const io = new SocketIOServer(httpServer, { serveClient: false });
-
-	if (config.telemetry !== undefined) installTelemetry(config.telemetry);
 
 	const gauges: Record<string, () => number> = { sockets: () => io.engine.clientsCount };
 	const countReaders: Array<() => Record<string, unknown>> = [];
@@ -266,6 +264,7 @@ export async function createGameServer<E extends EventMap, S>({ id, config, stat
 	accountErase.register({ what: 'callersSeen', erase: (p) => callersSeen.forget(p.userId) });
 	verdict = await checkBundle(config.bundle.indexHtml, config.basePrefix);
 	await runPhase('bundle');
+	if (config.telemetry !== undefined) installTelemetry(config.telemetry());
 	await runPhase('stores');
 	await runPhase('routes');
 	await runPhase('sockets');

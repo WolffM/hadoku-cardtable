@@ -6,8 +6,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { perCallerLimit } from './http/request.js';
 import { Alerts } from './play/placement/alerts.js';
+import { firstSeen } from '@hadoku/service-kernel/telemetry';
 import {
-	firstSeen,
 	installTelemetry,
 	monitoringSink,
 	reportingAlerts,

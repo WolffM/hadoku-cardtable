@@ -14,7 +14,6 @@ import type { Request } from 'express';
 import type { JsonLog } from '@hadoku/service-kernel/log';
 import {
 	callerContext,
-	firstSeen as kernelFirstSeen,
 	installTelemetry,
 	monitoringSink as kernelMonitoringSink,
 	report,
@@ -22,7 +21,6 @@ import {
 	reportSealRefused as kernelReportSealRefused,
 	siteOf as kernelSiteOf,
 	userAgentOf,
-	type FirstSeen,
 	type Level,
 	type Report,
 	type TelemetryContext,
@@ -30,7 +28,7 @@ import {
 } from '@hadoku/service-kernel/telemetry';
 
 export { callerContext, installTelemetry, report, reportingAlerts, userAgentOf };
-export type { FirstSeen, Level, Report, TelemetryContext, TelemetryValue };
+export type { Level, Report, TelemetryContext, TelemetryValue };
 
 /**
  * Which deployment a base path is: `/cardtable` is prod, `/cardtable-<site>` that site
@@ -75,22 +73,4 @@ export function reportSealRefused(
 	path: string | null,
 ): void {
 	kernelReportSealRefused(surface, headers, path);
-}
-
-export interface FirstSeenOptions {
-	/** The JSON list of every user id this server has admitted, kept across restarts. */
-	file: string;
-	userIdOf: (req: Request) => string | null;
-	tierOf: (req: Request) => string;
-	log: JsonLog;
-}
-
-/**
- * Middleware, mounted below the tier floor: the first request this server ever
- * admits from a user id reports `caller-first-seen` with its tier and user
- * agent — the "who is getting in" signal, once per account, not per visit.
- * Callers the edge named nobody (a null userId) are not accounts and are skipped.
- */
-export function firstSeen(opts: FirstSeenOptions): FirstSeen {
-	return kernelFirstSeen(opts);
 }

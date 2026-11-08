@@ -5,10 +5,11 @@ import { join } from 'node:path';
 import express, { type Request, type Response } from 'express';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CONFIG } from '../config.ts';
-import { callerIdOf, edgeProvenance, tierOf } from '../edge-auth.ts';
+import { callerIdOf, edgeProvenance, edgeSealed, tierOf } from '../edge-auth.ts';
 import { identityFromHeaders } from '../room/identity.ts';
-import { firstSeen } from '../telemetry.ts';
-import { createAccountErase, ERASE_PATH, personOf, type AccountErase } from './index.ts';
+import { firstSeen } from '@hadoku/service-kernel/telemetry';
+import { createAccountErase } from '@hadoku/service-kernel/erase';
+import { ERASE_PATH, fkOf, personOf, type AccountErase } from './index.ts';
 
 const SECRET = 'edge-secret-for-the-erase-test';
 const USER = 'c41f9e2a-7b3d-4a8e-9c56-2f0d1b8e6a03';
@@ -27,7 +28,7 @@ interface Served {
 /** The route as index.ts mounts it: provenance, then the hook, then the floor's `firstSeen` below it. */
 async function serve(): Promise<Served> {
 	const seenFile = join(mkdtempSync(join(tmpdir(), 'erase-')), 'callers-seen.json');
-	const erase = createAccountErase({ log: () => {} });
+	const erase = createAccountErase({ log: () => {}, edgeSealed, deriveParticipantId: fkOf });
 	const app = express();
 	app.use(edgeProvenance);
 	app.post(ERASE_PATH, (req: Request, res: Response) => void erase.handle(req, res));
